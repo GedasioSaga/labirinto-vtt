@@ -16,6 +16,11 @@ import { drawTokens } from './drawTokens'
 import { drawWallDraft, drawRegionDraft } from './drawDraft'
 import { findTokenAt, snapToGrid } from './tokenInteraction'
 import { isValidWallDraft, buildWallFromDraft, buildLightAt, buildRegionFromPoints } from '../lib/drawingFactory'
+import { createPropsRenderer } from './drawProps'
+import { subscribeToPropsRedraw } from '../stores/propsSubscription'
+import { findPropAt } from './propInteraction'
+import { pickImageFile, importPropImage } from '../lib/imageImport'
+import { mapDirFor } from '../lib/mapFileIO'
 
 export function PixiCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -46,6 +51,7 @@ export function PixiCanvas() {
       const gridGraphics = new Graphics()
       const regionsGraphics = new Graphics()
       const wallsGraphics = new Graphics()
+      const propsContainer = new Container()
       const lightsGraphics = new Graphics()
       const tokensContainer = new Container()
       const draftGraphics = new Graphics()
@@ -54,6 +60,7 @@ export function PixiCanvas() {
         gridGraphics,
         regionsGraphics,
         wallsGraphics,
+        propsContainer,
         lightsGraphics,
         tokensContainer,
         draftGraphics,
@@ -90,6 +97,13 @@ export function PixiCanvas() {
         drawTokens(tokensContainer, map.tokens, map.grid, selectedTokenId)
       }
 
+      const propsRenderer = createPropsRenderer()
+
+      const redrawProps = () => {
+        const { map } = useMapStore.getState()
+        propsRenderer.draw(propsContainer, map.props)
+      }
+
       let backgroundLoadToken = 0
 
       const redrawBackground = async () => {
@@ -115,17 +129,20 @@ export function PixiCanvas() {
       redrawGrid()
       redrawShapes()
       redrawTokens()
+      redrawProps()
       void redrawBackground()
       const unsubscribeGrid = subscribeToGridRedraw(redrawGrid)
       const unsubscribeShapes = subscribeToShapesRedraw(redrawShapes)
       const unsubscribeTokens = subscribeToTokensRedraw(redrawTokens)
+      const unsubscribeProps = subscribeToPropsRedraw(redrawProps)
       const unsubscribeBackground = subscribeToBackgroundRedraw(() => {
         void redrawBackground()
       })
 
-      let mode: 'idle' | 'panning' | 'dragging-token' | 'drawing-wall' = 'idle'
+      let mode: 'idle' | 'panning' | 'dragging-token' | 'dragging-prop' | 'drawing-wall' = 'idle'
       let lastPoint = { x: 0, y: 0 }
       let draggingTokenId: string | null = null
+      let draggingPropId: string | null = null
       let wallDraftStart: Point | null = null
       let regionDraftPoints: Point[] = []
 
@@ -163,6 +180,26 @@ export function PixiCanvas() {
           return
         }
 
+        if (activeTool === 'prop') {
+          const point = applySnap(worldPoint, map.grid)
+          void (async () => {
+            const sourcePath = await pickImageFile()
+            if (!sourcePath) return
+            const propId = crypto.randomUUID()
+            const mapDir = await mapDirFor(map.id)
+            const imported = await importPropImage(sourcePath, mapDir, propId)
+            useMapStore.getState().addProp({
+              id: propId,
+              src: imported.destPath,
+              x: point.x,
+              y: point.y,
+              width: imported.width,
+              height: imported.height,
+            })
+          })()
+          return
+        }
+
         if (activeTool === 'region') {
           const point = applySnap(worldPoint, map.grid)
           regionDraftPoints = [...regionDraftPoints, point]
@@ -176,8 +213,14 @@ export function PixiCanvas() {
           draggingTokenId = hit.id
           setSelectedTokenId(hit.id)
         } else {
-          mode = 'panning'
-          setSelectedTokenId(null)
+          const propHit = findPropAt(map.props, worldPoint)
+          if (propHit) {
+            mode = 'dragging-prop'
+            draggingPropId = propHit.id
+          } else {
+            mode = 'panning'
+            setSelectedTokenId(null)
+          }
         }
         lastPoint = { x: event.global.x, y: event.global.y }
       })
@@ -195,11 +238,13 @@ export function PixiCanvas() {
         }
         mode = 'idle'
         draggingTokenId = null
+        draggingPropId = null
       })
 
       app.stage.on('pointerupoutside', () => {
         mode = 'idle'
         draggingTokenId = null
+        draggingPropId = null
         if (wallDraftStart) {
           wallDraftStart = null
           draftGraphics.clear()
@@ -222,6 +267,14 @@ export function PixiCanvas() {
           const { map, moveToken } = useMapStore.getState()
           const snapped = applySnap(worldPoint, map.grid)
           moveToken(draggingTokenId, snapped.x, snapped.y)
+          return
+        }
+
+        if (mode === 'dragging-prop' && draggingPropId) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { map, moveProp } = useMapStore.getState()
+          const snapped = applySnap(worldPoint, map.grid)
+          moveProp(draggingPropId, snapped.x, snapped.y)
           return
         }
 
@@ -283,6 +336,7 @@ export function PixiCanvas() {
         unsubscribeGrid()
         unsubscribeShapes()
         unsubscribeTokens()
+        unsubscribeProps()
         unsubscribeBackground()
         unsubscribeActiveTool()
         el.removeEventListener('wheel', onWheel)

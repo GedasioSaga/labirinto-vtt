@@ -11,12 +11,14 @@ const TOOL_LABELS: Record<DrawingTool, string> = {
   wall: 'Parede',
   light: 'Luz',
   region: 'Região',
+  prop: 'Peça',
 }
 
 const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   wall: 'Clique e arraste para desenhar uma parede.',
   light: 'Clique para colocar uma luz.',
   region: 'Clique para adicionar vértice. Duplo clique fecha (mín. 3 pontos). Esc cancela.',
+  prop: 'Clique no mapa e escolha uma imagem — vira um objeto que pode ser arrastado depois (ferramenta Selecionar).',
 }
 
 function App() {
