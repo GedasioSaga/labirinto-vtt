@@ -26,6 +26,7 @@ const SELECTION_LABELS: Record<string, string> = {
   light: 'luz',
   region: 'região',
   prop: 'peça',
+  drawing: 'desenho',
 }
 
 const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
@@ -33,6 +34,9 @@ const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   light: 'Clique para colocar uma luz.',
   region: 'Clique para adicionar vértice. Duplo clique fecha (mín. 3 pontos). Esc cancela.',
   prop: 'Clique no mapa e escolha uma imagem — vira um objeto que pode ser arrastado depois (ferramenta Selecionar).',
+  brush: 'Clique e arraste para desenhar um traço livre.',
+  line: 'Clique e arraste para desenhar uma linha reta.',
+  circle: 'Clique no centro e arraste para definir o raio.',
 }
 
 function App() {
@@ -51,6 +55,12 @@ function App() {
   const setGridShapeAction = useMapStore((state) => state.setGridShape)
   const selection = useMapStore((state) => state.selection)
   const removeSelected = useMapStore((state) => state.removeSelected)
+  const drawColor = useMapStore((state) => state.drawColor)
+  const setDrawColor = useMapStore((state) => state.setDrawColor)
+  const drawWidth = useMapStore((state) => state.drawWidth)
+  const setDrawWidth = useMapStore((state) => state.setDrawWidth)
+  const drawFilled = useMapStore((state) => state.drawFilled)
+  const setDrawFilled = useMapStore((state) => state.setDrawFilled)
 
   const handleAddToken = () => {
     addToken({ id: crypto.randomUUID(), characterId: null, name: 'Token', x: 0, y: 0, size: 1 })
@@ -136,6 +146,30 @@ function App() {
         </div>
         {TOOL_HINTS[activeTool] && (
           <span style={{ fontSize: 12, opacity: 0.85 }}>{TOOL_HINTS[activeTool]}</span>
+        )}
+        {(activeTool === 'brush' || activeTool === 'line' || activeTool === 'circle') && (
+          <>
+            <label>
+              Cor:{' '}
+              <input type="color" value={drawColor} onChange={(event) => setDrawColor(event.target.value)} />
+            </label>
+            <label>
+              Espessura: {drawWidth}px
+              <input
+                type="range"
+                min={1}
+                max={20}
+                value={drawWidth}
+                onChange={(event) => setDrawWidth(Number(event.target.value))}
+              />
+            </label>
+            {activeTool === 'circle' && (
+              <label>
+                <input type="checkbox" checked={drawFilled} onChange={(event) => setDrawFilled(event.target.checked)} />
+                {' '}Preenchido
+              </label>
+            )}
+          </>
         )}
         <label>
           <input type="checkbox" checked={showGrid} onChange={(event) => setShowGrid(event.target.checked)} />
