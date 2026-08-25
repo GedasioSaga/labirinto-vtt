@@ -1,1 +1,1 @@
-export type DrawingTool = 'select' | 'wall' | 'light' | 'region'
+export type DrawingTool = 'select' | 'wall' | 'light' | 'region' | 'prop'

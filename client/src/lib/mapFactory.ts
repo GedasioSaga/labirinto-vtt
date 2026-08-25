@@ -1,4 +1,4 @@
-import type { MapData, Wall, Light, Region, Token } from '../types/map'
+import type { MapData, Wall, Light, Region, Token, Prop } from '../types/map'
 
 export function createEmptyMap(id: string, name: string, width: number, height: number, grid: number): MapData {
   return {
@@ -14,6 +14,7 @@ export function createEmptyMap(id: string, name: string, width: number, height: 
     lights: [],
     regions: [],
     tokens: [],
+    props: [],
     fog: { mode: 'none', revealed: [] },
     ownerId: null,
     scenarioLink: null,
@@ -56,6 +57,21 @@ export function setTokenPosition(map: MapData, tokenId: string, x: number, y: nu
   return {
     ...map,
     tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : t)),
+  }
+}
+
+export function addProp(map: MapData, prop: Prop): MapData {
+  return { ...map, props: [...map.props, prop] }
+}
+
+export function removeProp(map: MapData, propId: string): MapData {
+  return { ...map, props: map.props.filter((p) => p.id !== propId) }
+}
+
+export function setPropPosition(map: MapData, propId: string, x: number, y: number): MapData {
+  return {
+    ...map,
+    props: map.props.map((p) => (p.id === propId ? { ...p, x, y } : p)),
   }
 }
 

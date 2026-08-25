@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import type { MapData, Wall, Light, Region, Token } from '../types/map'
+import type { MapData, Wall, Light, Region, Token, Prop } from '../types/map'
 import type { Camera } from '../pixi/world'
 import type { DrawingTool } from '../types/tools'
 import * as mapFactory from '../lib/mapFactory'
@@ -26,6 +26,9 @@ interface MapStoreState {
   removeToken: (id: string) => void
   setTokenPosition: (id: string, x: number, y: number) => void
   moveToken: (id: string, targetX: number, targetY: number) => void
+  addProp: (prop: Prop) => void
+  removeProp: (id: string) => void
+  moveProp: (id: string, x: number, y: number) => void
   setShowGrid: (show: boolean) => void
   setGridShape: (shape: MapData['gridShape']) => void
   setBackground: (background: MapData['background']) => void
@@ -60,6 +63,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     const resolved = resolveTokenMove({ x: token.x, y: token.y }, { x: targetX, y: targetY }, state.map.walls)
     set({ map: mapFactory.setTokenPosition(state.map, id, resolved.x, resolved.y) })
   },
+  addProp: (prop) => set((state) => ({ map: mapFactory.addProp(state.map, prop) })),
+  removeProp: (id) => set((state) => ({ map: mapFactory.removeProp(state.map, id) })),
+  moveProp: (id, x, y) => set((state) => ({ map: mapFactory.setPropPosition(state.map, id, x, y) })),
   setShowGrid: (show) => set((state) => ({ map: mapFactory.setShowGrid(state.map, show) })),
   setGridShape: (shape) => set((state) => ({ map: mapFactory.setGridShape(state.map, shape) })),
   setBackground: (background) => set((state) => ({ map: mapFactory.setBackground(state.map, background) })),

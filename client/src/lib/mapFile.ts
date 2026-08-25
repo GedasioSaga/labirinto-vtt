@@ -29,6 +29,7 @@ export function deserializeMap(json: string): MapData {
     lights: parsed.lights ?? [],
     regions: parsed.regions ?? [],
     tokens: parsed.tokens ?? [],
+    props: parsed.props ?? [],
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
     ownerId: parsed.ownerId ?? null,
     scenarioLink: parsed.scenarioLink ?? null,

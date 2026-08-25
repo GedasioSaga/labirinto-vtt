@@ -49,6 +49,15 @@ export interface Token {
   size: number
 }
 
+export interface Prop {
+  id: string
+  src: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface FogState {
   mode: 'per-token' | 'none'
   revealed: string[]
@@ -74,6 +83,7 @@ export interface MapData {
   lights: Light[]
   regions: Region[]
   tokens: Token[]
+  props: Prop[]
   fog: FogState
   ownerId: string | null
   scenarioLink: string | null
