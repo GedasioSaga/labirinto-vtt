@@ -37,10 +37,14 @@ export function roundAxial(coord: AxialCoord): AxialCoord {
   return { q: rx, r: rz }
 }
 
-export function pixelToAxial(point: Point, size: number): AxialCoord {
+export function pixelToAxialRaw(point: Point, size: number): AxialCoord {
   const q = ((Math.sqrt(3) / 3) * point.x - (1 / 3) * point.y) / size
   const r = ((2 / 3) * point.y) / size
-  return roundAxial({ q, r })
+  return { q, r }
+}
+
+export function pixelToAxial(point: Point, size: number): AxialCoord {
+  return roundAxial(pixelToAxialRaw(point, size))
 }
 
 export function hexCorners(center: Point, size: number): Point[] {
@@ -71,10 +75,7 @@ export function computeVisibleHexCenters(size: number, viewport: Viewport): Poin
     { x: viewport.left, y: viewport.bottom },
     { x: viewport.right, y: viewport.bottom },
   ]
-  const axials = corners.map((c) => ({
-    q: ((Math.sqrt(3) / 3) * c.x - (1 / 3) * c.y) / size,
-    r: ((2 / 3) * c.y) / size,
-  }))
+  const axials = corners.map((c) => pixelToAxialRaw(c, size))
 
   const qMin = Math.floor(Math.min(...axials.map((a) => a.q))) - 1
   const qMax = Math.ceil(Math.max(...axials.map((a) => a.q))) + 1
