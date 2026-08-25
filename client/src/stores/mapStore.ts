@@ -11,9 +11,11 @@ interface MapStoreState {
   camera: Camera
   selectedTokenId: string | null
   activeTool: DrawingTool
+  snapEnabled: boolean
   setCamera: (camera: Camera) => void
   setSelectedTokenId: (id: string | null) => void
   setActiveTool: (tool: DrawingTool) => void
+  setSnapEnabled: (enabled: boolean) => void
   addWall: (wall: Wall) => void
   removeWall: (id: string) => void
   addLight: (light: Light) => void
@@ -36,9 +38,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   camera: { x: 0, y: 0, scale: 1 },
   selectedTokenId: null,
   activeTool: 'select',
+  snapEnabled: false,
   setCamera: (camera) => set({ camera }),
   setSelectedTokenId: (id) => set({ selectedTokenId: id }),
   setActiveTool: (tool) => set({ activeTool: tool }),
+  setSnapEnabled: (enabled) => set({ snapEnabled: enabled }),
   addWall: (wall) => set((state) => ({ map: mapFactory.addWall(state.map, wall) })),
   removeWall: (id) => set((state) => ({ map: mapFactory.removeWall(state.map, id) })),
   addLight: (light) => set((state) => ({ map: mapFactory.addLight(state.map, light) })),

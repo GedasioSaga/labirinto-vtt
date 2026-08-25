@@ -134,6 +134,9 @@ export function PixiCanvas() {
         y: (globalY - camera.y) / camera.scale,
       })
 
+      const applySnap = (point: Point, gridSize: number): Point =>
+        useMapStore.getState().snapEnabled ? snapToGrid(point.x, point.y, gridSize) : point
+
       const clearDrafts = () => {
         wallDraftStart = null
         regionDraftPoints = []
@@ -150,18 +153,18 @@ export function PixiCanvas() {
 
         if (activeTool === 'wall') {
           mode = 'drawing-wall'
-          wallDraftStart = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
+          wallDraftStart = applySnap(worldPoint, map.grid)
           return
         }
 
         if (activeTool === 'light') {
-          const point = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
+          const point = applySnap(worldPoint, map.grid)
           useMapStore.getState().addLight(buildLightAt(crypto.randomUUID(), point, map.grid))
           return
         }
 
         if (activeTool === 'region') {
-          const point = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
+          const point = applySnap(worldPoint, map.grid)
           regionDraftPoints = [...regionDraftPoints, point]
           drawRegionDraft(draftGraphics, regionDraftPoints, null)
           return
@@ -183,7 +186,7 @@ export function PixiCanvas() {
         if (mode === 'drawing-wall' && wallDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, addWall } = useMapStore.getState()
-          const end = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
+          const end = applySnap(worldPoint, map.grid)
           if (isValidWallDraft(wallDraftStart, end)) {
             addWall(buildWallFromDraft(crypto.randomUUID(), wallDraftStart, end))
           }
@@ -217,7 +220,7 @@ export function PixiCanvas() {
         if (mode === 'dragging-token' && draggingTokenId) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, moveToken } = useMapStore.getState()
-          const snapped = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
+          const snapped = applySnap(worldPoint, map.grid)
           moveToken(draggingTokenId, snapped.x, snapped.y)
           return
         }
@@ -225,7 +228,7 @@ export function PixiCanvas() {
         if (mode === 'drawing-wall' && wallDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map } = useMapStore.getState()
-          const end = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
+          const end = applySnap(worldPoint, map.grid)
           drawWallDraft(draftGraphics, wallDraftStart, end)
           return
         }
@@ -233,7 +236,7 @@ export function PixiCanvas() {
         if (useMapStore.getState().activeTool === 'region' && regionDraftPoints.length > 0) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map } = useMapStore.getState()
-          const cursor = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
+          const cursor = applySnap(worldPoint, map.grid)
           drawRegionDraft(draftGraphics, regionDraftPoints, cursor)
         }
       })

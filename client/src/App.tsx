@@ -28,6 +28,8 @@ function App() {
   const setBackground = useMapStore((state) => state.setBackground)
   const activeTool = useMapStore((state) => state.activeTool)
   const setActiveTool = useMapStore((state) => state.setActiveTool)
+  const snapEnabled = useMapStore((state) => state.snapEnabled)
+  const setSnapEnabled = useMapStore((state) => state.setSnapEnabled)
 
   const handleAddToken = () => {
     addToken({ id: crypto.randomUUID(), characterId: null, name: 'Token', x: 0, y: 0, size: 1 })
@@ -107,6 +109,10 @@ function App() {
         <label>
           <input type="checkbox" checked={showGrid} onChange={(event) => setShowGrid(event.target.checked)} />
           {' '}Mostrar grid
+        </label>
+        <label>
+          <input type="checkbox" checked={snapEnabled} onChange={(event) => setSnapEnabled(event.target.checked)} />
+          {' '}Travar na grade
         </label>
         <button type="button" onClick={handleAddToken}>Adicionar token</button>
         <button type="button" onClick={handleSave}>Salvar</button>
