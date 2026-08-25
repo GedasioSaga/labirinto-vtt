@@ -1,8 +1,9 @@
 import { open } from '@tauri-apps/plugin-dialog'
-import { readFile, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs'
+import { readFile, writeFile } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import { dirname, join } from '@tauri-apps/api/path'
 import { computeResampleDimensions } from './imageResample'
+import { ensureDir } from './mapFileIO'
 
 export const MAX_BACKGROUND_SIDE = 4096
 
@@ -25,9 +26,7 @@ export async function importBackgroundImage(sourcePath: string, mapDir: string):
 
   const { width, height, needsResample } = computeResampleDimensions(bitmap.width, bitmap.height, MAX_BACKGROUND_SIDE)
 
-  if (!(await exists(mapDir))) {
-    await mkdir(mapDir, { recursive: true })
-  }
+  await ensureDir(mapDir)
 
   const originalExt = sourcePath.split('.').pop() ?? 'png'
   const originalDest = await join(mapDir, `background_original.${originalExt}`)

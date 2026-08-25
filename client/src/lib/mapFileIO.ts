@@ -5,6 +5,12 @@ import { invoke } from '@tauri-apps/api/core'
 import type { MapData } from '../types/map'
 import { serializeMap, deserializeMap } from './mapFile'
 
+export async function ensureDir(path: string): Promise<void> {
+  if (!(await exists(path))) {
+    await mkdir(path, { recursive: true })
+  }
+}
+
 export async function defaultMapsDir(): Promise<string> {
   const base = await appDataDir()
   return join(base, 'maps')
@@ -16,9 +22,7 @@ export async function mapDirFor(mapId: string): Promise<string> {
 
 export async function saveMapToAppData(map: MapData): Promise<string> {
   const mapDir = await mapDirFor(map.id)
-  if (!(await exists(mapDir))) {
-    await mkdir(mapDir, { recursive: true })
-  }
+  await ensureDir(mapDir)
   const filePath = await join(mapDir, 'map.json')
   await writeTextFile(filePath, serializeMap(map))
   return filePath

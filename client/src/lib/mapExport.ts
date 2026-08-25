@@ -1,9 +1,10 @@
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
-import { copyFile, mkdir, exists, readDir, writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
+import { copyFile, exists, readDir, writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
 import type { MapData } from '../types/map'
 import { serializeMap, deserializeMap } from './mapFile'
+import { ensureDir } from './mapFileIO'
 
 export async function pickExportFolder(): Promise<string | null> {
   const selected = await open({ directory: true, multiple: false, title: 'Escolher pasta de destino' })
@@ -19,9 +20,7 @@ export async function exportMapFolder(map: MapData, sourceMapDir: string, destDi
   await invoke('grant_fs_access', { path: destDir })
   await invoke('grant_fs_access', { path: sourceMapDir })
 
-  if (!(await exists(destDir))) {
-    await mkdir(destDir, { recursive: true })
-  }
+  await ensureDir(destDir)
 
   await writeTextFile(await join(destDir, 'map.json'), serializeMap(map))
 
@@ -43,9 +42,7 @@ export async function importMapFolder(sourceDir: string, appDataMapsDir: string)
 
   const destDir = await join(appDataMapsDir, map.id)
   await invoke('grant_fs_access', { path: destDir })
-  if (!(await exists(destDir))) {
-    await mkdir(destDir, { recursive: true })
-  }
+  await ensureDir(destDir)
 
   const entries = await readDir(sourceDir)
   for (const entry of entries) {
