@@ -695,7 +695,9 @@ body {
      propriedade também protege do bloco de `prefers-reduced-motion` no fim do
      arquivo: ele zera a duração de `*`, e como `transition-property` nasce em
      `all`, criaria transições de `left` e `visibility` que não deveriam existir. */
-  transition: transform var(--lb-motion-base) var(--lb-motion-ease);
+  transition:
+    transform var(--lb-motion-base) var(--lb-motion-ease),
+    opacity var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
 /* O ponteiro parado sobre um ícone desenha ~27px para baixo e cobriria a
@@ -711,6 +713,21 @@ body {
 
 .lb-toolbar:has(:focus-visible) ~ .lb-hint {
   transform: translateY(34px);
+}
+
+/* Apontar para OUTRA ferramenta empilhava duas caixas sem hierarquia: o tooltip
+   do ícone sob o cursor e a dica da ferramenta ativa, que descreve uma terceira
+   coisa. As setas apontam ícones diferentes, mas empilhadas elas se leem como um
+   bloco só, e a de baixo parece explicar o ícone em hover.
+   Enquanto o ponteiro está sobre um ícone que não é o ativo, quem manda é o
+   tooltip dele — a dica persistente sai de cena. Sobre o ícone ativo as duas
+   falam da mesma ferramenta, então ambas ficam. */
+.lb-toolbar:has(.lb-iconbtn:hover:not([aria-pressed='true'])) ~ .lb-hint {
+  opacity: 0;
+}
+
+.lb-toolbar:has(.lb-iconbtn:focus-visible:not([aria-pressed='true'])) ~ .lb-hint {
+  opacity: 0;
 }
 
 .lb-hint::before {
