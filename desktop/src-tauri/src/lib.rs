@@ -2,7 +2,9 @@ use tauri_plugin_fs::FsExt;
 
 #[tauri::command]
 fn grant_fs_access(app: tauri::AppHandle, path: String) -> Result<(), String> {
-    app.fs_scope().allow_directory(&path, true);
+    app.fs_scope()
+        .allow_directory(&path, true)
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
