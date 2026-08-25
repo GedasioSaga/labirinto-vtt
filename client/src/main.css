@@ -48,13 +48,17 @@ body {
 
 /* ---------------------------------------------------------------- primitivas */
 
+/* Painel flutuante sobre o canvas. A elevação precisa ser lida contra o cinza
+   do canvas, não contra o fundo da aplicação — daí a sombra `float` (com
+   contorno de 1px) e a borda `line-panel`, ambas mais fortes que as usadas em
+   superfície opaca. */
 .lb-panel {
   background: var(--lb-color-stone);
-  border: 1px solid var(--lb-color-line);
+  border: 1px solid var(--lb-color-line-panel);
   border-radius: var(--lb-radius-lg);
-  box-shadow: var(--lb-shadow-lg), var(--lb-shadow-bevel);
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
 }
 
 /* Legenda de seção: caixa alta, condensada, muito tracked — leitura de legenda
@@ -619,11 +623,13 @@ body {
   max-width: 460px;
   padding: 6px var(--lb-space-3);
   border-radius: var(--lb-radius-full);
+  /* Flutua sobre o canvas junto com a barra de ferramentas, então usa a mesma
+     elevação — senão a dica descola visualmente do componente que explica. */
   background: var(--lb-color-stone);
-  border: 1px solid var(--lb-color-line);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: var(--lb-shadow-md);
+  border: 1px solid var(--lb-color-line-panel);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: var(--lb-shadow-float);
   font-size: var(--lb-font-size-sm);
   color: var(--lb-color-parchment-dim);
   text-align: center;

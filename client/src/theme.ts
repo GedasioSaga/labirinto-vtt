@@ -24,8 +24,14 @@ export const theme = {
   color: {
     /** Fundo da aplicação, atrás do canvas. */
     ink: '#121214',
-    /** Base dos painéis flutuantes (usada com blur por cima do canvas). */
-    stone: 'rgba(26, 26, 30, 0.86)',
+    /**
+     * Base dos painéis flutuantes (usada com blur por cima do canvas).
+     * Precisa ficar bem mais escura que o fundo do canvas — `PixiCanvas` inicia
+     * com `backgroundColor: 0x2b2b2b`, e composta sobre ele esta cor resulta em
+     * ~#141418. Com a opacidade anterior (0.86 sobre #1a1a1e) o resultado era
+     * ~#1c1c20: perto demais do canvas, e o painel se dissolvia na grade.
+     */
+    stone: 'rgba(19, 19, 23, 0.94)',
     /** Painel opaco — cartão da tela inicial, onde não há canvas atrás. */
     stoneSolid: '#1a1a1e',
     /** Campo de entrada e botão secundário em repouso. */
@@ -37,6 +43,8 @@ export const theme = {
 
     line: 'rgba(255, 255, 255, 0.08)',
     lineStrong: 'rgba(255, 255, 255, 0.16)',
+    /** Borda dos painéis flutuantes — precisa vencer o canvas atrás, não só o ink. */
+    linePanel: 'rgba(255, 255, 255, 0.13)',
 
     /** Texto principal — branco levemente quente, não puro. */
     parchment: '#eceae4',
@@ -110,10 +118,24 @@ export const theme = {
     sm: '0 1px 2px rgba(0, 0, 0, 0.4)',
     md: '0 6px 16px rgba(0, 0, 0, 0.34), 0 1px 2px rgba(0, 0, 0, 0.4)',
     lg: '0 18px 44px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.34)',
+    /**
+     * Elevação dos painéis que flutuam sobre o canvas.
+     *
+     * A primeira camada é um contorno preto de 1px sem desfoque: é ele que
+     * separa o painel do que estiver atrás, seja fundo claro ou escuro, e é
+     * o que faltava para a barra de ferramentas parecer um componente em vez
+     * de ícones soltos. Depois vêm três camadas de desfoque crescente — a
+     * curta assenta a peça, a média dá a altura, a longa dá a profundidade.
+     * `shadow.lg` sozinho não resolvia: com 18px de deslocamento e 44px de
+     * desfoque, numa barra de 46px de altura a sombra caía quase toda fora e
+     * difusa demais para desenhar contorno.
+     */
+    float:
+      '0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55)',
     /** Anel de foco — mesmo em todo controle focável. */
     focus: '0 0 0 3px rgba(224, 164, 74, 0.34)',
     /** Brilho interno de 1px que dá relevo ao painel de vidro. */
-    bevel: 'inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+    bevel: 'inset 0 1px 0 rgba(255, 255, 255, 0.07)',
   },
 
   motion: {
