@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type { MapData, Wall, Light, Region, Token } from '../types/map'
 import type { Camera } from '../pixi/world'
+import type { DrawingTool } from '../types/tools'
 import * as mapFactory from '../lib/mapFactory'
 import { resolveTokenMove } from '../lib/collision'
 
@@ -9,8 +10,10 @@ interface MapStoreState {
   map: MapData
   camera: Camera
   selectedTokenId: string | null
+  activeTool: DrawingTool
   setCamera: (camera: Camera) => void
   setSelectedTokenId: (id: string | null) => void
+  setActiveTool: (tool: DrawingTool) => void
   addWall: (wall: Wall) => void
   removeWall: (id: string) => void
   addLight: (light: Light) => void
@@ -32,8 +35,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   map: initialMap,
   camera: { x: 0, y: 0, scale: 1 },
   selectedTokenId: null,
+  activeTool: 'select',
   setCamera: (camera) => set({ camera }),
   setSelectedTokenId: (id) => set({ selectedTokenId: id }),
+  setActiveTool: (tool) => set({ activeTool: tool }),
   addWall: (wall) => set((state) => ({ map: mapFactory.addWall(state.map, wall) })),
   removeWall: (id) => set((state) => ({ map: mapFactory.removeWall(state.map, id) })),
   addLight: (light) => set((state) => ({ map: mapFactory.addLight(state.map, light) })),
