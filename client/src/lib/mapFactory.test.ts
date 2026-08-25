@@ -103,7 +103,7 @@ describe('addToken/removeToken/setTokenPosition', () => {
 })
 
 describe('addProp/removeProp/setPropPosition', () => {
-  const prop: Prop = { id: 'p1', src: '/tmp/tree.png', x: 0, y: 0, width: 64, height: 64 }
+  const prop: Prop = { id: 'p1', src: '/tmp/tree.png', x: 0, y: 0, width: 64, height: 64, linkedMapPath: null }
 
   it('adiciona e remove prop', () => {
     const map = addProp(createEmptyMap('m', 'x', 10, 10, 64), prop)

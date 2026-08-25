@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { findPropAt } from './propInteraction'
 import type { Prop } from '../types/map'
 
-const propA: Prop = { id: 'a', src: '/a.png', x: 0, y: 0, width: 64, height: 64 }
-const propB: Prop = { id: 'b', src: '/b.png', x: 200, y: 200, width: 64, height: 64 }
+const propA: Prop = { id: 'a', src: '/a.png', x: 0, y: 0, width: 64, height: 64, linkedMapPath: null }
+const propB: Prop = { id: 'b', src: '/b.png', x: 200, y: 200, width: 64, height: 64, linkedMapPath: null }
 
 describe('findPropAt', () => {
   it('retorna o prop cujo retângulo contém o ponto', () => {

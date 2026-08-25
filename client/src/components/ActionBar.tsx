@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { ExportIcon, FolderIcon, HomeIcon, ImageIcon, ImportIcon, SaveIcon } from './icons'
+import { BackIcon, ExportIcon, FolderIcon, HomeIcon, ImageIcon, ImportIcon, SaveIcon } from './icons'
 
 export interface ActionBarProps {
   onSave: () => void
@@ -8,6 +8,7 @@ export interface ActionBarProps {
   onExportFolder: () => void
   onImportFolder: () => void
   onGoHome: () => void
+  onGoBack?: () => void
 }
 
 /**
@@ -19,6 +20,7 @@ export interface ActionBarProps {
  */
 export function ActionBar(props: ActionBarProps) {
   const actions: Array<{ label: string; icon: ReactElement; onClick: () => void }> = [
+    ...(props.onGoBack ? [{ label: 'Voltar', icon: <BackIcon />, onClick: props.onGoBack }] : []),
     { label: 'Salvar', icon: <SaveIcon />, onClick: props.onSave },
     { label: 'Abrir...', icon: <FolderIcon />, onClick: props.onOpen },
     { label: 'Importar imagem de fundo', icon: <ImageIcon />, onClick: props.onImportBackground },

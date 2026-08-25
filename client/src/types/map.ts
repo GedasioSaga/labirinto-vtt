@@ -56,6 +56,7 @@ export interface Prop {
   y: number
   width: number
   height: number
+  linkedMapPath: string | null
 }
 
 export interface DrawingPoint {

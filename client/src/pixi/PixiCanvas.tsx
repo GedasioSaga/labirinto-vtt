@@ -243,6 +243,7 @@ export function PixiCanvas() {
               y: point.y,
               width: imported.width,
               height: imported.height,
+              linkedMapPath: null,
             })
           })()
           return

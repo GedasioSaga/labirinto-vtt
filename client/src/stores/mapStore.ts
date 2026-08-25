@@ -43,6 +43,7 @@ interface MapStoreState {
   setBackground: (background: MapData['background']) => void
   setWallDoor: (id: string, door: DoorState | null) => void
   setScenarioLink: (value: string | null) => void
+  setPropLinkedPath: (id: string, path: string | null) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
   loadMap: (map: MapData) => void
 }
@@ -105,6 +106,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   setBackground: (background) => set((state) => ({ map: mapFactory.setBackground(state.map, background) })),
   setWallDoor: (id, door) => set((state) => ({ map: mapFactory.setWallDoor(state.map, id, door) })),
   setScenarioLink: (value) => set((state) => ({ map: mapFactory.setScenarioLink(state.map, value) })),
+  setPropLinkedPath: (id, path) => set((state) => ({
+    map: { ...state.map, props: state.map.props.map((p) => (p.id === id ? { ...p, linkedMapPath: path } : p)) },
+  })),
   updateCurvePoint: (drawingId, index, x, y) => set((state) => ({
     map: {
       ...state.map,

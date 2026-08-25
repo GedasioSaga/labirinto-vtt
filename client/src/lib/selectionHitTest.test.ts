@@ -128,7 +128,7 @@ describe('findSelectableAt (cadeia de prioridade)', () => {
   it('prop tem prioridade sobre luz/parede/região (marcável e arrastável)', () => {
     let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
     map = addRegion(map, region)
-    map = addProp(map, { id: 'p1', src: '/a.png', x: 50, y: 50, width: 20, height: 20 })
+    map = addProp(map, { id: 'p1', src: '/a.png', x: 50, y: 50, width: 20, height: 20, linkedMapPath: null })
     const hit = findSelectableAt(map, { x: 50, y: 50 })
     expect(hit).toEqual({ kind: 'prop', id: 'p1', draggable: true })
   })
@@ -151,7 +151,7 @@ describe('findSelectableAt (cadeia de prioridade)', () => {
 
   it('token tem prioridade sobre prop quando ambos estão no mesmo ponto', () => {
     let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
-    map = addProp(map, { id: 'p1', src: '/a.png', x: 50, y: 50, width: 20, height: 20 })
+    map = addProp(map, { id: 'p1', src: '/a.png', x: 50, y: 50, width: 20, height: 20, linkedMapPath: null })
     map = addToken(map, { id: 't1', characterId: null, name: 'Herói', x: 50, y: 50, size: 1 })
     const hit = findSelectableAt(map, { x: 50, y: 50 })
     expect(hit).toEqual({ kind: 'token', id: 't1', draggable: true })
@@ -160,7 +160,7 @@ describe('findSelectableAt (cadeia de prioridade)', () => {
   it('prop tem prioridade sobre luz quando ambas estão no mesmo ponto', () => {
     let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
     map = addLight(map, { id: 'l1', x: 50, y: 50, radius: 300, color: '#fff', intensity: 1 })
-    map = addProp(map, { id: 'p1', src: '/a.png', x: 50, y: 50, width: 20, height: 20 })
+    map = addProp(map, { id: 'p1', src: '/a.png', x: 50, y: 50, width: 20, height: 20, linkedMapPath: null })
     const hit = findSelectableAt(map, { x: 50, y: 50 })
     expect(hit).toEqual({ kind: 'prop', id: 'p1', draggable: true })
   })

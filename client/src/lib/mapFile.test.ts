@@ -38,4 +38,13 @@ describe('serializeMap/deserializeMap', () => {
     expect(restored.ownerId).toBeNull()
     expect(restored.scenarioLink).toBeNull()
   })
+
+  it('preenche linkedMapPath: null em prop de map.json salvo antes desse campo existir', () => {
+    const json = JSON.stringify({
+      id: 'map_old',
+      props: [{ id: 'p1', src: '/a.png', x: 0, y: 0, width: 64, height: 64 }],
+    })
+    const restored = deserializeMap(json)
+    expect(restored.props).toEqual([{ id: 'p1', src: '/a.png', x: 0, y: 0, width: 64, height: 64, linkedMapPath: null }])
+  })
 })

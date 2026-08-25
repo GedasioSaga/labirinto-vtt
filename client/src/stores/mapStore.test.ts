@@ -1,9 +1,10 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { useMapStore } from './mapStore'
-import type { Token, Wall } from '../types/map'
+import type { Prop, Token, Wall } from '../types/map'
 
 const token: Token = { id: 't1', characterId: null, name: 'Herói', x: 0, y: 0, size: 1 }
 const blockingWall: Wall = { id: 'w1', x1: 5, y1: -10, x2: 5, y2: 10, blocksLight: true, blocksMove: true, door: null }
+const prop: Prop = { id: 'p1', src: '/a.png', x: 0, y: 0, width: 64, height: 64, linkedMapPath: null }
 
 describe('mapStore moveToken', () => {
   beforeEach(() => {
@@ -101,6 +102,35 @@ describe('mapStore setWallDoor/setScenarioLink', () => {
     useMapStore.getState().setScenarioLink('https://exemplo.com/cenario')
 
     expect(useMapStore.getState().map.scenarioLink).toBe('https://exemplo.com/cenario')
+  })
+})
+
+describe('mapStore setPropLinkedPath', () => {
+  beforeEach(() => {
+    useMapStore.setState({
+      map: { ...useMapStore.getState().map, props: [] },
+      selection: null,
+    })
+  })
+
+  it('reflete no map, sem tocar outros props', () => {
+    useMapStore.getState().addProp(prop)
+    useMapStore.getState().addProp({ ...prop, id: 'p2' })
+
+    useMapStore.getState().setPropLinkedPath('p1', 'C:/mapas/map_2/map.json')
+
+    const p1 = useMapStore.getState().map.props.find((p) => p.id === 'p1')
+    const p2 = useMapStore.getState().map.props.find((p) => p.id === 'p2')
+    expect(p1?.linkedMapPath).toBe('C:/mapas/map_2/map.json')
+    expect(p2?.linkedMapPath).toBeNull()
+  })
+
+  it('aceita null pra desvincular', () => {
+    useMapStore.getState().addProp({ ...prop, linkedMapPath: 'C:/mapas/map_2/map.json' })
+
+    useMapStore.getState().setPropLinkedPath('p1', null)
+
+    expect(useMapStore.getState().map.props.find((p) => p.id === 'p1')?.linkedMapPath).toBeNull()
   })
 })
 

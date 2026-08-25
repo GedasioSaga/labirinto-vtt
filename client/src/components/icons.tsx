@@ -216,6 +216,14 @@ export function ImportIcon(props: IconProps) {
   )
 }
 
+export function BackIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M11 5L4 12l7 7M4 12h16" />
+    </Icon>
+  )
+}
+
 export function HomeIcon(props: IconProps) {
   return (
     <Icon {...props}>

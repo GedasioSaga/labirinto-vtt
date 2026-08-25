@@ -1,5 +1,5 @@
 import type { DrawingTool } from '../types/tools'
-import type { Wall } from '../types/map'
+import type { Prop, Wall } from '../types/map'
 import { DRAWING_TOOLS } from './labels'
 import { LabyrinthMark } from './icons'
 import { DrawingStyleControls, type DrawingStyleControlsProps } from './DrawingStyleControls'
@@ -7,6 +7,7 @@ import { GridControls, type GridControlsProps } from './GridControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
 import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
 import { ScenarioLinkControls, type ScenarioLinkControlsProps } from './ScenarioLinkControls'
+import { PortalControls, type PortalControlsProps } from './PortalControls'
 
 interface PropertiesPanelProps {
   mapName: string
@@ -20,6 +21,8 @@ interface PropertiesPanelProps {
   scenarioLink: ScenarioLinkControlsProps
   selectedWall: Wall | null
   wallDoor: Omit<WallDoorControlsProps, 'door'>
+  selectedProp: Prop | null
+  portal: Omit<PortalControlsProps, 'linkedMapPath'>
 }
 
 /**
@@ -38,6 +41,8 @@ export function PropertiesPanel({
   scenarioLink,
   selectedWall,
   wallDoor,
+  selectedProp,
+  portal,
 }: PropertiesPanelProps) {
   const showDrawingStyle = DRAWING_TOOLS.includes(activeTool)
 
@@ -60,6 +65,7 @@ export function PropertiesPanel({
         <GridControls {...grid} />
         <ScenarioLinkControls {...scenarioLink} />
         {selectedWall && <WallDoorControls door={selectedWall.door} {...wallDoor} />}
+        {selectedProp && <PortalControls linkedMapPath={selectedProp.linkedMapPath} {...portal} />}
         <SelectionControls {...selection} />
       </div>
     </div>

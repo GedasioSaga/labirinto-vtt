@@ -25,7 +25,7 @@ describe('subscribeToPropsRedraw', () => {
     const onChange = vi.fn()
     const unsubscribe = subscribeToPropsRedraw(onChange)
 
-    useMapStore.getState().addProp({ id: 'p1', src: '/a.png', x: 0, y: 0, width: 64, height: 64 })
+    useMapStore.getState().addProp({ id: 'p1', src: '/a.png', x: 0, y: 0, width: 64, height: 64, linkedMapPath: null })
 
     expect(onChange).toHaveBeenCalledTimes(1)
     unsubscribe()

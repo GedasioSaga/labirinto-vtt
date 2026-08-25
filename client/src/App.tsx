@@ -10,6 +10,7 @@ import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { ActionBar } from './components/ActionBar'
 import type { MapData } from './types/map'
+import * as mapFactory from './lib/mapFactory'
 
 /**
  * Orquestra o estado do editor: liga a store Zustand e o I/O de arquivo aos
@@ -40,8 +41,10 @@ function App() {
   const setDrawFilled = useMapStore((state) => state.setDrawFilled)
   const setWallDoor = useMapStore((state) => state.setWallDoor)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
+  const [previousMapPath, setPreviousMapPath] = useState<string | null>(null)
 
   const selectedWall = selection?.kind === 'wall' ? map.walls.find((w) => w.id === selection.id) ?? null : null
+  const selectedProp = selection?.kind === 'prop' ? map.props.find((p) => p.id === selection.id) ?? null : null
 
   const handleToggleDoor = () => {
     if (!selectedWall) return
@@ -51,6 +54,30 @@ function App() {
   const handleToggleOpen = () => {
     if (!selectedWall || !selectedWall.door) return
     setWallDoor(selectedWall.id, { ...selectedWall.door, open: !selectedWall.door.open })
+  }
+
+  const handleCreateLinkedMap = async (propId: string) => {
+    const newMap = mapFactory.createEmptyMap(`map_${crypto.randomUUID()}`, 'Andar sem título', map.width, map.height, map.grid)
+    const path = await saveMapToAppData(newMap)
+    useMapStore.getState().setPropLinkedPath(propId, path)
+  }
+
+  const handleLinkExistingMap = async (propId: string) => {
+    const path = await pickMapJsonToOpen()
+    if (!path) return
+    useMapStore.getState().setPropLinkedPath(propId, path)
+  }
+
+  const handleEnterLinkedMap = async (path: string) => {
+    const currentPath = await saveMapToAppData(map)
+    setPreviousMapPath(currentPath)
+    loadMap(await loadMapFromDisk(path))
+  }
+
+  const handleGoBack = async () => {
+    if (!previousMapPath) return
+    loadMap(await loadMapFromDisk(previousMapPath))
+    setPreviousMapPath(null)
   }
 
   const handleAddToken = () => {
@@ -150,6 +177,13 @@ function App() {
             onToggleDoor: handleToggleDoor,
             onToggleOpen: handleToggleOpen,
           }}
+          selectedProp={selectedProp}
+          portal={{
+            onCreateLinkedMap: () => selectedProp && handleCreateLinkedMap(selectedProp.id),
+            onLinkExistingMap: () => selectedProp && handleLinkExistingMap(selectedProp.id),
+            onEnterLinkedMap: handleEnterLinkedMap,
+            onUnlink: () => selectedProp && useMapStore.getState().setPropLinkedPath(selectedProp.id, null),
+          }}
         />
         <ActionBar
           onSave={handleSave}
@@ -158,6 +192,7 @@ function App() {
           onExportFolder={handleExportFolder}
           onImportFolder={handleImportFolder}
           onGoHome={() => setScreen('start')}
+          onGoBack={previousMapPath !== null ? handleGoBack : undefined}
         />
       </div>
     </div>
