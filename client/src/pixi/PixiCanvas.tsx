@@ -77,7 +77,6 @@ export function PixiCanvas() {
         camera = panBy(camera, dx, dy)
         world.position.set(camera.x, camera.y)
         useMapStore.getState().setCamera(camera)
-        redrawGrid()
       })
 
       const onWheel = (event: WheelEvent) => {
@@ -88,7 +87,6 @@ export function PixiCanvas() {
         world.position.set(camera.x, camera.y)
         world.scale.set(camera.scale)
         useMapStore.getState().setCamera(camera)
-        redrawGrid()
       }
       el.addEventListener('wheel', onWheel, { passive: false })
 
