@@ -1,9 +1,5 @@
 import type { Wall } from '../types/map'
-
-export interface Point {
-  x: number
-  y: number
-}
+import type { Point } from '../pixi/world'
 
 function orientation(a: Point, b: Point, c: Point): number {
   return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
