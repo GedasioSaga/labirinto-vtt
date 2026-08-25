@@ -54,7 +54,11 @@ export function PixiCanvas() {
       }
 
       redrawGrid()
-      const unsubscribe = useMapStore.subscribe(redrawGrid)
+      const unsubscribe = useMapStore.subscribe(
+        (state) => [state.camera, state.map.showGrid, state.map.grid] as const,
+        redrawGrid,
+        { equalityFn: (a, b) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2] },
+      )
 
       let dragging = false
       let lastPoint = { x: 0, y: 0 }

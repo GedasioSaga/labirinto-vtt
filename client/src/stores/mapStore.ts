@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { subscribeWithSelector } from 'zustand/middleware'
 import type { MapData, Wall, Light, Region, Token } from '../types/map'
 import type { Camera } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
@@ -23,7 +24,7 @@ interface MapStoreState {
 
 const initialMap = mapFactory.createEmptyMap('map_local', 'Mapa sem título', 30, 20, 64)
 
-export const useMapStore = create<MapStoreState>((set) => ({
+export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set) => ({
   map: initialMap,
   camera: { x: 0, y: 0, scale: 1 },
   setCamera: (camera) => set({ camera }),
@@ -39,4 +40,4 @@ export const useMapStore = create<MapStoreState>((set) => ({
   setShowGrid: (show) => set((state) => ({ map: mapFactory.setShowGrid(state.map, show) })),
   setBackground: (background) => set((state) => ({ map: mapFactory.setBackground(state.map, background) })),
   loadMap: (map) => set({ map }),
-}))
+})))
