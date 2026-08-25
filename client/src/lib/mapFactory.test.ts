@@ -10,9 +10,12 @@ import {
   addToken,
   removeToken,
   setTokenPosition,
+  addProp,
+  removeProp,
+  setPropPosition,
   setShowGrid,
 } from './mapFactory'
-import type { Wall, Light, Region, Token } from '../types/map'
+import type { Wall, Light, Region, Token, Prop } from '../types/map'
 
 const wall: Wall = { id: 'w1', x1: 0, y1: 0, x2: 64, y2: 0, blocksLight: true, blocksMove: true, door: null }
 const light: Light = { id: 'l1', x: 32, y: 32, radius: 8, color: '#ffaa33', intensity: 0.8 }
@@ -34,6 +37,7 @@ describe('createEmptyMap', () => {
       lights: [],
       regions: [],
       tokens: [],
+      props: [],
       fog: { mode: 'none', revealed: [] },
       ownerId: null,
       scenarioLink: null,
@@ -88,6 +92,26 @@ describe('addToken/removeToken/setTokenPosition', () => {
     const t2 = next.tokens.find((t) => t.id === 't2')
     expect(t1).toEqual({ ...token, x: 100, y: 200 })
     expect(t2).toEqual({ ...token, id: 't2', x: 5, y: 5 })
+  })
+})
+
+describe('addProp/removeProp/setPropPosition', () => {
+  const prop: Prop = { id: 'p1', src: '/tmp/tree.png', x: 0, y: 0, width: 64, height: 64 }
+
+  it('adiciona e remove prop', () => {
+    const map = addProp(createEmptyMap('m', 'x', 10, 10, 64), prop)
+    expect(map.props).toEqual([prop])
+    expect(removeProp(map, 'p1').props).toEqual([])
+  })
+
+  it('setPropPosition move só o prop alvo', () => {
+    const map = addProp(createEmptyMap('m', 'x', 10, 10, 64), prop)
+    const withSecond = addProp(map, { ...prop, id: 'p2', x: 5, y: 5 })
+    const next = setPropPosition(withSecond, 'p1', 100, 200)
+    const p1 = next.props.find((p) => p.id === 'p1')
+    const p2 = next.props.find((p) => p.id === 'p2')
+    expect(p1).toEqual({ ...prop, x: 100, y: 200 })
+    expect(p2).toEqual({ ...prop, id: 'p2', x: 5, y: 5 })
   })
 })
 

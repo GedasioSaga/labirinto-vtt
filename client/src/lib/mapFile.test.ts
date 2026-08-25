@@ -31,6 +31,7 @@ describe('serializeMap/deserializeMap', () => {
     expect(restored.showGrid).toBe(true)
     expect(restored.walls).toEqual([])
     expect(restored.tokens).toEqual([])
+    expect(restored.props).toEqual([])
     expect(restored.fog).toEqual({ mode: 'none', revealed: [] })
     expect(restored.ownerId).toBeNull()
     expect(restored.scenarioLink).toBeNull()
