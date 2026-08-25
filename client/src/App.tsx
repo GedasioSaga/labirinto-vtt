@@ -4,6 +4,20 @@ import { saveMapToAppData, pickMapJsonToOpen, loadMapFromDisk, mapDirFor, defaul
 import { pickBackgroundImage, importBackgroundImage } from './lib/imageImport'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
+import type { DrawingTool } from './types/tools'
+
+const TOOL_LABELS: Record<DrawingTool, string> = {
+  select: 'Selecionar',
+  wall: 'Parede',
+  light: 'Luz',
+  region: 'Região',
+}
+
+const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
+  wall: 'Clique e arraste para desenhar uma parede.',
+  light: 'Clique para colocar uma luz.',
+  region: 'Clique para adicionar vértice. Duplo clique fecha (mín. 3 pontos). Esc cancela.',
+}
 
 function App() {
   const showGrid = useMapStore((state) => state.map.showGrid)
@@ -12,6 +26,8 @@ function App() {
   const map = useMapStore((state) => state.map)
   const loadMap = useMapStore((state) => state.loadMap)
   const setBackground = useMapStore((state) => state.setBackground)
+  const activeTool = useMapStore((state) => state.activeTool)
+  const setActiveTool = useMapStore((state) => state.setActiveTool)
 
   const handleAddToken = () => {
     addToken({ id: crypto.randomUUID(), characterId: null, name: 'Token', x: 0, y: 0, size: 1 })
@@ -67,8 +83,27 @@ function App() {
           display: 'flex',
           flexDirection: 'column',
           gap: 8,
+          maxWidth: 220,
         }}
       >
+        <div style={{ display: 'flex', gap: 4 }}>
+          {(Object.keys(TOOL_LABELS) as DrawingTool[]).map((tool) => (
+            <button
+              key={tool}
+              type="button"
+              onClick={() => setActiveTool(tool)}
+              style={{
+                fontWeight: activeTool === tool ? 'bold' : 'normal',
+                outline: activeTool === tool ? '2px solid #ffdd55' : 'none',
+              }}
+            >
+              {TOOL_LABELS[tool]}
+            </button>
+          ))}
+        </div>
+        {TOOL_HINTS[activeTool] && (
+          <span style={{ fontSize: 12, opacity: 0.85 }}>{TOOL_HINTS[activeTool]}</span>
+        )}
         <label>
           <input type="checkbox" checked={showGrid} onChange={(event) => setShowGrid(event.target.checked)} />
           {' '}Mostrar grid
