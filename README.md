@@ -29,15 +29,16 @@ npm run typecheck
 npm run test --workspace=client
 ```
 
-Abre a app em ~2–3s. Grid e canvas já estão prontos pra desenhar.
+Abre a app em ~2–3s. Cai numa tela inicial: "Criar mapa" (nome, largura/altura em quadros, tamanho do quadro, formato de grade) ou "Abrir mapa existente...". Depois de criar/abrir, cai no editor com grid e canvas prontos pra desenhar.
 
 ## Ferramentas e como usar
 
 Todas na barra superior-esquerda. A dica aparece ao selecionar.
 
 ### Selecionar (padrão)
-- **Click em token:** seleciona + pode arrastar
+- **Click em token/parede/luz/região/peça:** seleciona + pode arrastar (token e peça)
 - **Click no vazio:** deseleciona
+- **Delete/Backspace:** apaga o que estiver selecionado (também dá pra clicar no botão "Apagar ... selecionada(o)" da barra)
 - **Não desenha nada**, só interage
 
 ### Parede
@@ -56,10 +57,14 @@ Todas na barra superior-esquerda. A dica aparece ao selecionar.
 - **Esc:** cancela e limpa todos os pontos
 - Use pra marcar área de ativação, sala inteira, zona de perigo
 
+### Peça
+- **Click no mapa:** abre seletor de arquivo, escolhe uma imagem — vira um objeto arrastável (ferramenta Selecionar)
+
 ## Comportamentos não óbvios
 
-- **Travar na grade:** checkbox na barra. Tudo que desenha (parede, luz, ponto de região, token) snapa ao grid. Útil pra alinhar — desativa pra pixel-perfect.
+- **Travar na grade:** checkbox na barra, desligado por padrão. Quando ligado, tudo que desenha (parede, luz, ponto de região, token) snapa ao grid. Desligado = pixel-perfect.
 - **Mostrar grid:** checkbox. Desenha linhas (ajuda visual).
+- **Formato do grid:** Quadrado ou Hexágono, escolhido na tela inicial (ou trocável depois pelo select da barra) — afeta snap e desenho da grade.
 - **Pan (mover mapa):** click-arrasta no vazio com ferramenta Selecionar
 - **Zoom:** roda do mouse no ponto que quer focar
 - **Importar fundo:** carrega imagem (PNG/JPG) como base do mapa — cenário do VTT vai embaixo
@@ -68,11 +73,9 @@ Todas na barra superior-esquerda. A dica aparece ao selecionar.
 
 ## Limitações conhecidas
 
-- **Não dá pra apagar:** parede, luz, região, token já desenhado — fica permanente até essa UI ser construída. Workaround: editar o `map.json` à mão se urgente.
-- **Background não mexe:** importa imagem, mas não dá pra remover/trocar sem salvar mapa novo.
-- **Sem tela de menu:** abre direto em mapa branco — não há "novo/abrir" na startup, só na barra.
-- **Grid é quadrado:** hex-grid está em branch separado (`feature/hex-grid`), não em master.
-- **Peças e props:** features planejadas, não implementadas ainda.
+- **Background não tem "remover":** dá pra trocar (importar outra imagem substitui), mas não tem botão pra voltar a cor sólida sem editar o `map.json` à mão.
+- **Sem lista de mapas salvos:** a tela inicial não mostra uma galeria dos mapas já criados — "Abrir mapa existente..." abre o seletor de arquivo nativo direto.
+- **Estilos de desenho livre (freehand/tile) e mapas com elevação (estilo tático) não existem ainda:** hoje só tem desenho vetorial (parede/luz/região) sobre grid quadrado ou hexagonal — planejado em fases futuras.
 
 ## Estrutura do projeto
 
