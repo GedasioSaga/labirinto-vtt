@@ -140,6 +140,10 @@ export function PixiCanvas() {
         draftGraphics.clear()
       }
 
+      const unsubscribeActiveTool = useMapStore.subscribe((state) => state.activeTool, () => {
+        clearDrafts()
+      })
+
       app.stage.on('pointerdown', (event) => {
         const worldPoint = toWorldPoint(event.global.x, event.global.y)
         const { map, activeTool, setSelectedTokenId } = useMapStore.getState()
@@ -236,7 +240,19 @@ export function PixiCanvas() {
 
       const onDblClick = () => {
         const { activeTool, addRegion } = useMapStore.getState()
-        if (activeTool !== 'region' || regionDraftPoints.length < 3) return
+        if (activeTool !== 'region') return
+
+        const last = regionDraftPoints[regionDraftPoints.length - 1]
+        const secondToLast = regionDraftPoints[regionDraftPoints.length - 2]
+        if (last && secondToLast && last.x === secondToLast.x && last.y === secondToLast.y) {
+          regionDraftPoints = regionDraftPoints.slice(0, -1)
+        }
+
+        if (regionDraftPoints.length < 3) {
+          clearDrafts()
+          return
+        }
+
         addRegion(buildRegionFromPoints(crypto.randomUUID(), regionDraftPoints))
         regionDraftPoints = []
         draftGraphics.clear()
@@ -265,6 +281,7 @@ export function PixiCanvas() {
         unsubscribeShapes()
         unsubscribeTokens()
         unsubscribeBackground()
+        unsubscribeActiveTool()
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
         window.removeEventListener('keydown', onKeyDown)
