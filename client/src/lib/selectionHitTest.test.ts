@@ -85,6 +85,39 @@ describe('findSelectableAt (cadeia de prioridade)', () => {
     expect(hit).toEqual({ kind: 'wall', id: 'w2', draggable: false })
   })
 
+  it('token tem prioridade sobre prop quando ambos estão no mesmo ponto', () => {
+    let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
+    map = addProp(map, { id: 'p1', src: '/a.png', x: 50, y: 50, width: 20, height: 20 })
+    map = addToken(map, { id: 't1', characterId: null, name: 'Herói', x: 50, y: 50, size: 1 })
+    const hit = findSelectableAt(map, { x: 50, y: 50 })
+    expect(hit).toEqual({ kind: 'token', id: 't1', draggable: true })
+  })
+
+  it('prop tem prioridade sobre luz quando ambas estão no mesmo ponto', () => {
+    let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
+    map = addLight(map, { id: 'l1', x: 50, y: 50, radius: 300, color: '#fff', intensity: 1 })
+    map = addProp(map, { id: 'p1', src: '/a.png', x: 50, y: 50, width: 20, height: 20 })
+    const hit = findSelectableAt(map, { x: 50, y: 50 })
+    expect(hit).toEqual({ kind: 'prop', id: 'p1', draggable: true })
+  })
+
+  it('luz tem prioridade sobre parede quando ambas estão no mesmo ponto', () => {
+    let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
+    map = addWall(map, { id: 'w2', x1: 0, y1: 50, x2: 100, y2: 50, blocksLight: true, blocksMove: true, door: null })
+    map = addLight(map, { id: 'l1', x: 50, y: 50, radius: 300, color: '#fff', intensity: 1 })
+    const hit = findSelectableAt(map, { x: 50, y: 50 })
+    expect(hit).toEqual({ kind: 'light', id: 'l1', draggable: false })
+  })
+
+  it('token tem prioridade sobre luz e região quando todos estão no mesmo ponto', () => {
+    let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
+    map = addRegion(map, region)
+    map = addLight(map, { id: 'l1', x: 50, y: 50, radius: 300, color: '#fff', intensity: 1 })
+    map = addToken(map, { id: 't1', characterId: null, name: 'Herói', x: 50, y: 50, size: 1 })
+    const hit = findSelectableAt(map, { x: 50, y: 50 })
+    expect(hit).toEqual({ kind: 'token', id: 't1', draggable: true })
+  })
+
   it('região é encontrada quando não há nada mais específico no ponto, e não é arrastável', () => {
     let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
     map = addRegion(map, region)
