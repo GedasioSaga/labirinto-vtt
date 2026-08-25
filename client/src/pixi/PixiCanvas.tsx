@@ -1,10 +1,14 @@
 import { useEffect, useRef } from 'react'
 import { Application, Container, Graphics } from 'pixi.js'
+import { shallow } from 'zustand/shallow'
 import { useMapStore } from '../stores/mapStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { panBy, zoomAt, type Camera } from './world'
 import { computeVisibleGridLines } from './grid'
 import { drawGrid } from './drawGrid'
+import { drawWalls } from './drawWalls'
+import { drawLights } from './drawLights'
+import { drawRegions } from './drawRegions'
 
 export function PixiCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -32,7 +36,10 @@ export function PixiCanvas() {
       app.stage.hitArea = app.screen
 
       const gridGraphics = new Graphics()
-      world.addChild(gridGraphics)
+      const regionsGraphics = new Graphics()
+      const wallsGraphics = new Graphics()
+      const lightsGraphics = new Graphics()
+      world.addChild(gridGraphics, regionsGraphics, wallsGraphics, lightsGraphics)
 
       let camera: Camera = useMapStore.getState().camera
       world.position.set(camera.x, camera.y)
@@ -54,8 +61,21 @@ export function PixiCanvas() {
         drawGrid(gridGraphics, lines, viewport)
       }
 
+      const redrawShapes = () => {
+        const { map } = useMapStore.getState()
+        drawRegions(regionsGraphics, map.regions)
+        drawWalls(wallsGraphics, map.walls)
+        drawLights(lightsGraphics, map.lights)
+      }
+
       redrawGrid()
-      const unsubscribe = subscribeToGridRedraw(redrawGrid)
+      redrawShapes()
+      const unsubscribeGrid = subscribeToGridRedraw(redrawGrid)
+      const unsubscribeShapes = useMapStore.subscribe(
+        (state) => [state.map.walls, state.map.lights, state.map.regions] as const,
+        redrawShapes,
+        { equalityFn: shallow },
+      )
 
       let dragging = false
       let lastPoint = { x: 0, y: 0 }
@@ -92,7 +112,8 @@ export function PixiCanvas() {
       el.addEventListener('wheel', onWheel, { passive: false })
 
       return () => {
-        unsubscribe()
+        unsubscribeGrid()
+        unsubscribeShapes()
         el.removeEventListener('wheel', onWheel)
       }
     }
