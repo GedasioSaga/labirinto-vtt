@@ -1,9 +1,9 @@
-import { Container, Sprite, Assets, Texture } from 'pixi.js'
+import { Container, Sprite, Graphics, Assets, Texture } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { Prop } from '../types/map'
 
 export interface PropsRenderer {
-  draw: (container: Container, props: Prop[]) => void
+  draw: (container: Container, props: Prop[], selectedPropId?: string | null) => void
 }
 
 /**
@@ -16,8 +16,15 @@ export interface PropsRenderer {
  */
 export function createPropsRenderer(): PropsRenderer {
   const spriteCache = new Map<string, Sprite>()
+  const highlightGraphics = new Graphics()
+  let highlightAttached = false
 
-  function draw(container: Container, props: Prop[]): void {
+  function draw(container: Container, props: Prop[], selectedPropId: string | null = null): void {
+    if (!highlightAttached) {
+      container.addChild(highlightGraphics)
+      highlightAttached = true
+    }
+
     const currentIds = new Set(props.map((p) => p.id))
 
     for (const [id, sprite] of spriteCache) {
@@ -28,13 +35,15 @@ export function createPropsRenderer(): PropsRenderer {
       }
     }
 
+    highlightGraphics.clear()
+
     for (const prop of props) {
       let sprite = spriteCache.get(prop.id)
       if (!sprite) {
         sprite = new Sprite(Texture.EMPTY)
         sprite.anchor.set(0.5)
         spriteCache.set(prop.id, sprite)
-        container.addChild(sprite)
+        container.addChildAt(sprite, 0)
 
         const url = convertFileSrc(prop.src)
         Assets.load(url)
@@ -51,6 +60,12 @@ export function createPropsRenderer(): PropsRenderer {
       sprite.y = prop.y
       sprite.width = prop.width
       sprite.height = prop.height
+
+      if (prop.id === selectedPropId) {
+        highlightGraphics
+          .rect(prop.x - prop.width / 2, prop.y - prop.height / 2, prop.width, prop.height)
+          .stroke({ width: 3, color: 0xffdd55 })
+      }
     }
   }
 
