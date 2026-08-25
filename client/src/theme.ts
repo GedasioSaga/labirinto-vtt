@@ -45,6 +45,12 @@ export const theme = {
     lineStrong: 'rgba(255, 255, 255, 0.16)',
     /** Borda dos painéis flutuantes — precisa vencer o canvas atrás, não só o ink. */
     linePanel: 'rgba(255, 255, 255, 0.13)',
+    /**
+     * Divisor entre grupos de controles. Mais forte que `lineStrong` de
+     * propósito: uma borda contorna uma forma inteira e é lida pelo conjunto,
+     * mas um traço de 1px isolado entre ícones precisa se sustentar sozinho.
+     */
+    lineDivider: 'rgba(255, 255, 255, 0.26)',
 
     /** Texto principal — branco levemente quente, não puro. */
     parchment: '#eceae4',

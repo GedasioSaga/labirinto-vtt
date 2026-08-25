@@ -57,12 +57,18 @@ export function CursorIcon(props: IconProps) {
   )
 }
 
-/** Alvenaria em fiadas alternadas — parede, não controle deslizante. */
+/**
+ * Alvenaria em fiadas alternadas — parede, não controle deslizante.
+ *
+ * Duas fiadas em vez de três, e uma junta por fiada em vez de duas. O desenho
+ * anterior somava traço demais para o mesmo `strokeWidth` dos vizinhos e lia
+ * como o ícone mais pesado da barra.
+ */
 export function WallIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <rect x="3" y="5" width="18" height="14" rx="1.5" />
-      <path d="M3 9.67h18M3 14.33h18M10 5v4.67M15 9.67v4.66M8 14.33V19M17 14.33V19" />
+      <rect x="4" y="6.5" width="16" height="11" rx="1.5" />
+      <path d="M4 12h16M12.5 6.5v5.5M8.5 12v5.5" />
     </Icon>
   )
 }
@@ -91,9 +97,11 @@ export function RegionIcon(props: IconProps) {
 export function PropIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <circle cx="12" cy="6" r="2.8" />
-      <path d="M7.5 17c0-3.6 2-6.2 4.5-6.2s4.5 2.6 4.5 6.2z" />
-      <ellipse cx="12" cy="18.6" rx="7" ry="1.9" />
+      <circle cx="12" cy="6.5" r="2.6" />
+      <path d="M8 17c0-3.4 1.8-5.8 4-5.8s4 2.4 4 5.8z" />
+      {/* Base menor que a original: a elipse larga sozinha respondia por quase
+          metade do traço do ícone. */}
+      <ellipse cx="12" cy="18.4" rx="5.6" ry="1.6" />
     </Icon>
   )
 }

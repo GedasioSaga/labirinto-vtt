@@ -658,11 +658,16 @@ body {
   padding: var(--lb-space-1);
 }
 
+/* Divisor entre grupos de ferramentas. O sinal primário de agrupamento é o
+   espaço — a margem dobra o respiro do `gap` da barra, então os grupos se
+   separam mesmo para quem não repara no traço —, e o traço confirma. Na versão
+   anterior os dois eram fracos demais: 4px de margem contra 4px de gap não
+   criava intervalo nenhum, e 0.16 de alpha sumia. */
 .lb-toolbar__sep {
   width: 1px;
-  height: 20px;
-  margin: 0 var(--lb-space-1);
-  background: var(--lb-color-line-strong);
+  height: 22px;
+  margin: 0 var(--lb-space-2);
+  background: var(--lb-color-line-divider);
 }
 
 /* Balão da ferramenta ativa. `left` e `--lb-hint-arrow` vêm medidos do Toolbar:
