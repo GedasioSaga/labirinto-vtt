@@ -1,4 +1,5 @@
 import type { Token } from '../types/map'
+import type { Point } from './world'
 
 export function snapToGrid(x: number, y: number, gridSize: number): { x: number; y: number } {
   if (gridSize <= 0) return { x, y }
@@ -8,7 +9,7 @@ export function snapToGrid(x: number, y: number, gridSize: number): { x: number;
   }
 }
 
-export function findTokenAt(tokens: Token[], point: { x: number; y: number }, gridSize: number): Token | null {
+export function findTokenAt(tokens: Token[], point: Point, gridSize: number): Token | null {
   const baseRadius = gridSize / 2
   for (let i = tokens.length - 1; i >= 0; i -= 1) {
     const token = tokens[i]

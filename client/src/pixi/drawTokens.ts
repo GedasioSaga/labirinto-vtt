@@ -2,7 +2,7 @@ import { Container, Graphics, Text } from 'pixi.js'
 import type { Token } from '../types/map'
 
 export function drawTokens(container: Container, tokens: Token[], gridSize: number, selectedId: string | null): void {
-  container.removeChildren()
+  container.removeChildren().forEach((child) => child.destroy())
   for (const token of tokens) {
     const radius = (gridSize * token.size) / 2 - 2
 
