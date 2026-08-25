@@ -59,6 +59,16 @@ describe('subscribeToShapesRedraw', () => {
     unsubscribe()
   })
 
+  it('dispara quando addDrawing muda os desenhos', () => {
+    const onChange = vi.fn()
+    const unsubscribe = subscribeToShapesRedraw(onChange)
+
+    useMapStore.getState().addDrawing({ id: 'd1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0, color: '#fff', width: 4 })
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    unsubscribe()
+  })
+
   it('dispara quando a seleção muda (destaque visual de parede/luz/região selecionada)', () => {
     const onChange = vi.fn()
     const unsubscribe = subscribeToShapesRedraw(onChange)
