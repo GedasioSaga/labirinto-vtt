@@ -1,8 +1,925 @@
-html, body, #root {
+/*
+ * Labirinto — folha de estilo base.
+ *
+ * Todos os valores vêm de custom properties `--lb-*` geradas por `theme.ts` e
+ * injetadas por `main.tsx` antes do primeiro render. Nenhum hex literal aqui:
+ * se precisar de uma cor nova, ela nasce em `theme.ts`.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #1a1a1a;
+  background: var(--lb-color-ink);
+}
+
+body {
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-md);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+
+/* ---------------------------------------------------------------- primitivas */
+
+.lb-panel {
+  background: var(--lb-color-stone);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+  box-shadow: var(--lb-shadow-lg), var(--lb-shadow-bevel);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+/* Legenda de seção: caixa alta, condensada, muito tracked — leitura de legenda
+   de mapa, e separa hierarquia sem precisar de linha divisória. */
+.lb-eyebrow {
+  margin: 0;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  letter-spacing: var(--lb-font-tracking-wider);
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-num {
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-divider {
+  height: 1px;
+  background: var(--lb-color-line);
+  border: 0;
+  margin: 0;
+}
+
+.lb-scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--lb-color-line-strong) transparent;
+}
+
+.lb-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.lb-scroll::-webkit-scrollbar-thumb {
+  background: var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-full);
+}
+
+.lb-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* --------------------------------------------------------------------- botões */
+
+.lb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lb-space-2);
+  min-height: 34px;
+  padding: 0 var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-medium);
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-btn:hover:not(:disabled) {
+  background: var(--lb-color-stone-hover);
+  border-color: var(--lb-color-line-strong);
+}
+
+.lb-btn:active:not(:disabled) {
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-btn:disabled {
+  color: var(--lb-color-parchment-faint);
+  background: transparent;
+  cursor: not-allowed;
+}
+
+.lb-btn--primary {
+  background: var(--lb-color-brass);
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font-weight: var(--lb-font-weight-semibold);
+  min-height: 42px;
+}
+
+.lb-btn--primary:hover:not(:disabled) {
+  background: var(--lb-color-brass-bright);
+  border-color: var(--lb-color-brass-bright);
+}
+
+.lb-btn--primary:active:not(:disabled) {
+  background: var(--lb-color-brass);
+}
+
+.lb-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-btn--ghost:hover:not(:disabled) {
+  background: var(--lb-color-stone-raised);
+  border-color: var(--lb-color-line);
+  color: var(--lb-color-parchment);
+}
+
+.lb-btn--danger:not(:disabled) {
+  background: var(--lb-color-ember-soft);
+  border-color: transparent;
+  color: var(--lb-color-ember);
+}
+
+.lb-btn--danger:hover:not(:disabled) {
+  background: var(--lb-color-ember);
+  border-color: var(--lb-color-ember);
+  color: var(--lb-color-brass-contrast);
+}
+
+.lb-btn--block {
+  width: 100%;
+}
+
+/* Botão só-ícone. O nome acessível vem do aria-label, e a mesma string aparece
+   como tooltip — nada de texto dentro do botão. */
+.lb-iconbtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-md);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-iconbtn:hover:not(:disabled) {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-iconbtn[aria-pressed='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+  border-color: rgba(224, 164, 74, 0.28);
+}
+
+.lb-iconbtn svg {
+  display: block;
+}
+
+/* ------------------------------------------------------------------- tooltip */
+
+.lb-tip {
+  position: relative;
+}
+
+.lb-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 10;
+  padding: 5px var(--lb-space-2);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-sunken);
+  border: 1px solid var(--lb-color-line-strong);
+  box-shadow: var(--lb-shadow-md);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, -3px);
+  /* pointer-events:none é obrigatório: sem isso o tooltip de um botão cobre o
+     vizinho e o clique seguinte erra o alvo. */
+  pointer-events: none;
+  transition:
+    opacity var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+  transition-delay: 0ms;
+}
+
+.lb-tip--up::after {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform: translate(-50%, 3px);
+}
+
+.lb-tip:hover::after,
+.lb-tip:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition-delay: 320ms;
+}
+
+/* ------------------------------------------------------------------- campos */
+
+.lb-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-label {
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  transition:
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    background var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-input:hover {
+  border-color: var(--lb-color-line-strong);
+}
+
+.lb-input:focus-visible {
+  border-color: var(--lb-color-brass);
+}
+
+.lb-input::placeholder {
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-input[type='number'] {
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--lb-font-tracking-wide);
+}
+
+.lb-inputgroup {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.lb-inputgroup__suffix {
+  position: absolute;
+  right: var(--lb-space-3);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+  pointer-events: none;
+}
+
+.lb-inputgroup .lb-input {
+  padding-right: var(--lb-space-8);
+}
+
+/* --------------------------------------------------------- switch (checkbox) */
+
+.lb-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+  min-height: 30px;
+  cursor: pointer;
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment);
+  user-select: none;
+}
+
+.lb-switch__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+.lb-switch__track {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-sunken);
+  border: 1px solid var(--lb-color-line-strong);
+  transition:
+    background var(--lb-motion-base) var(--lb-motion-ease),
+    border-color var(--lb-motion-base) var(--lb-motion-ease);
+}
+
+.lb-switch__track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-parchment-faint);
+  transition:
+    transform var(--lb-motion-base) var(--lb-motion-ease),
+    background var(--lb-motion-base) var(--lb-motion-ease);
+}
+
+.lb-switch:hover .lb-switch__track {
+  border-color: var(--lb-color-brass);
+}
+
+.lb-switch__input:checked + .lb-switch__track {
+  background: var(--lb-color-brass);
+  border-color: var(--lb-color-brass);
+}
+
+.lb-switch__input:checked + .lb-switch__track::after {
+  transform: translateX(14px);
+  background: var(--lb-color-brass-contrast);
+}
+
+.lb-switch__input:focus-visible + .lb-switch__track {
+  box-shadow: var(--lb-shadow-focus);
+}
+
+/* -------------------------------------------------- segmented (grid shape) */
+
+.lb-seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-seg__option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: var(--lb-space-2) var(--lb-space-1);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-seg__option:hover {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-seg__option[aria-checked='true'] {
+  background: var(--lb-color-brass-soft);
+  border-color: rgba(224, 164, 74, 0.28);
+  color: var(--lb-color-brass);
+}
+
+.lb-seg__option svg {
+  display: block;
+  opacity: 0.8;
+}
+
+.lb-seg__option[aria-checked='true'] svg {
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------ cor / espessura */
+
+.lb-swatch {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+  /* O input nativo de cor não aceita border-radius; recortamos por cima dele. */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.lb-swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.lb-swatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 0;
+}
+
+.lb-swatch:hover {
+  border-color: var(--lb-color-brass);
+}
+
+.lb-range {
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  background: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.lb-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-hover);
+}
+
+.lb-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: none;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-brass);
+  box-shadow: var(--lb-shadow-sm);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-range:hover::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+.lb-range::-moz-range-track {
+  height: 4px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-hover);
+}
+
+.lb-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-brass);
+}
+
+/* Amostra do traço: mostra cor e espessura reais antes de desenhar no mapa. */
+.lb-stroke-preview {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--lb-space-3);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-sunken);
+  border: 1px solid var(--lb-color-line);
+}
+
+.lb-stroke-preview__line {
+  width: 100%;
+  border-radius: var(--lb-radius-full);
+}
+
+/* ------------------------------------------------------------ shell do editor */
+
+.lb-editor {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.lb-editor__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* Coluna esquerda: inspetor (rola) + barra de ações (fixa embaixo).
+   Largura travada em 264px para nunca invadir o centro do canvas. */
+.lb-editor__rail {
+  position: absolute;
+  top: var(--lb-space-4);
+  bottom: var(--lb-space-4);
+  left: var(--lb-space-4);
+  width: 264px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+  pointer-events: none;
+}
+
+.lb-editor__rail > * {
+  pointer-events: auto;
+}
+
+/* A barra de ferramentas centraliza na viewport, mas o padding simétrico do
+   tamanho do rail impede que ela chegue perto dele mesmo na largura mínima —
+   como o padding é igual dos dois lados, o centro visual não se desloca. */
+.lb-editor__top {
+  position: absolute;
+  top: var(--lb-space-4);
+  left: 0;
+  right: 0;
+  padding: 0 calc(264px + var(--lb-space-4) * 2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--lb-space-2);
+  pointer-events: none;
+}
+
+.lb-editor__top > * {
+  pointer-events: auto;
+}
+
+/* --------------------------------------------------------- barra de ferramentas */
+
+.lb-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1);
+}
+
+.lb-toolbar__sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 var(--lb-space-1);
+  background: var(--lb-color-line-strong);
+}
+
+.lb-hint {
+  margin: 0;
+  max-width: 460px;
+  padding: 6px var(--lb-space-3);
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone);
+  border: 1px solid var(--lb-color-line);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--lb-shadow-md);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------ inspetor */
+
+/* Encolhe até o conteúdo; só vira rolagem quando não couber na altura da janela. */
+.lb-inspector {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 0 1 auto;
+}
+
+.lb-inspector__head {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-4);
+  border-bottom: 1px solid var(--lb-color-line);
+}
+
+.lb-inspector__mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+}
+
+.lb-inspector__id {
+  min-width: 0;
+}
+
+.lb-inspector__wordmark {
+  margin: 0;
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-lg);
+  font-weight: var(--lb-font-weight-regular);
+  letter-spacing: var(--lb-font-tracking-tight);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment);
+}
+
+.lb-inspector__mapname {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-inspector__body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lb-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-4);
+}
+
+.lb-section + .lb-section {
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-section__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+}
+
+/* --------------------------------------------------------- barra de ações */
+
+.lb-actionbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1);
+  flex: none;
+}
+
+/* ------------------------------------------------------------- tela inicial */
+
+.lb-start {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--lb-space-6);
+  overflow: auto;
+  background: var(--lb-color-ink);
+}
+
+/* Textura ambiente: a própria grade do mapa, quase invisível, e um halo de
+   lampião no alto. Nada mais — o preview ao lado é o elemento de destaque. */
+.lb-start::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--lb-color-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lb-color-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.35;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 0%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.lb-start::after {
+  content: '';
+  position: absolute;
+  top: -220px;
+  left: 50%;
+  width: 720px;
+  height: 520px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, var(--lb-color-brass-soft) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.lb-start__stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-6);
+  width: 100%;
+  max-width: 760px;
+}
+
+.lb-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-4);
+}
+
+.lb-brand__mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-brass-soft);
+  border: 1px solid rgba(224, 164, 74, 0.24);
+  color: var(--lb-color-brass);
+}
+
+.lb-brand__name {
+  margin: 0;
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-xxl);
+  font-weight: var(--lb-font-weight-regular);
+  letter-spacing: var(--lb-font-tracking-tight);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment);
+}
+
+.lb-brand__tagline {
+  margin: 2px 0 0;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-start__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 288px;
+  gap: var(--lb-space-6);
+  align-items: stretch;
+}
+
+.lb-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-4);
+  padding: var(--lb-space-6);
+  background: var(--lb-color-stone-solid);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-xl);
+  box-shadow: var(--lb-shadow-lg), var(--lb-shadow-bevel);
+}
+
+.lb-card__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--lb-space-4);
+}
+
+.lb-start__aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-4);
+  padding: var(--lb-space-5);
+  background: var(--lb-color-stone-solid);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-xl);
+  box-shadow: var(--lb-shadow-lg), var(--lb-shadow-bevel);
+}
+
+.lb-preview {
+  flex: 1;
+  display: flex;
+  min-height: 150px;
+  padding: var(--lb-space-4);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-sunken);
+  border: 1px solid var(--lb-color-line);
+}
+
+/* O SVG ocupa a caixa inteira e `preserveAspectRatio` centraliza o mapa dentro
+   dela — assim a prévia cresce até o limite do painel em vez de ficar perdida
+   no meio de um vazio. */
+.lb-preview svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  /* O contorno do mapa é traçado sobre a borda do viewBox; sem overflow visível
+     metade dele seria recortada pela raiz do SVG. */
+  overflow: visible;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-preview__frame {
+  fill: none;
+  stroke: var(--lb-color-brass);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.65;
+}
+
+.lb-stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+  margin: 0;
+  padding: var(--lb-space-2) 0;
+}
+
+.lb-stat + .lb-stat {
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-stat__key {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-stat__value {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-md);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-parchment);
+}
+
+.lb-start__foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lb-space-3);
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment-faint);
+}
+
+@media (max-width: 820px) {
+  .lb-start__columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lb-start__aside {
+    order: -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
 }

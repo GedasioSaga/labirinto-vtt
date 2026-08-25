@@ -6,39 +6,16 @@ import { saveMapToAppData, pickMapJsonToOpen, loadMapFromDisk, mapDirFor, defaul
 import { pickBackgroundImage, importBackgroundImage } from './lib/imageImport'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
-import type { DrawingTool } from './types/tools'
+import { Toolbar } from './components/Toolbar'
+import { PropertiesPanel } from './components/PropertiesPanel'
+import { ActionBar } from './components/ActionBar'
 import type { MapData } from './types/map'
 
-const TOOL_LABELS: Record<DrawingTool, string> = {
-  select: 'Selecionar',
-  wall: 'Parede',
-  light: 'Luz',
-  region: 'Região',
-  prop: 'Peça',
-  brush: 'Pincel',
-  line: 'Linha',
-  circle: 'Círculo',
-}
-
-const SELECTION_LABELS: Record<string, string> = {
-  token: 'token',
-  wall: 'parede',
-  light: 'luz',
-  region: 'região',
-  prop: 'peça',
-  drawing: 'desenho',
-}
-
-const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
-  wall: 'Clique e arraste para desenhar uma parede.',
-  light: 'Clique para colocar uma luz.',
-  region: 'Clique para adicionar vértice. Duplo clique fecha (mín. 3 pontos). Esc cancela.',
-  prop: 'Clique no mapa e escolha uma imagem — vira um objeto que pode ser arrastado depois (ferramenta Selecionar).',
-  brush: 'Clique e arraste para desenhar um traço livre.',
-  line: 'Clique e arraste para desenhar uma linha reta.',
-  circle: 'Clique no centro e arraste para definir o raio.',
-}
-
+/**
+ * Orquestra o estado do editor: liga a store Zustand e o I/O de arquivo aos
+ * componentes de interface. Nenhum layout mora aqui além do posicionamento dos
+ * painéis sobre o canvas.
+ */
 function App() {
   const [screen, setScreen] = useState<'start' | 'editor'>('start')
   const showGrid = useMapStore((state) => state.map.showGrid)
@@ -112,90 +89,53 @@ function App() {
   }
 
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
-      <PixiCanvas />
-      <div
-        style={{
-          position: 'absolute',
-          top: 8,
-          left: 8,
-          color: '#eee',
-          background: '#00000080',
-          padding: 8,
-          borderRadius: 4,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-          maxWidth: 220,
-        }}
-      >
-        <div style={{ display: 'flex', gap: 4 }}>
-          {(Object.keys(TOOL_LABELS) as DrawingTool[]).map((tool) => (
-            <button
-              key={tool}
-              type="button"
-              onClick={() => setActiveTool(tool)}
-              style={{
-                fontWeight: activeTool === tool ? 'bold' : 'normal',
-                outline: activeTool === tool ? '2px solid #ffdd55' : 'none',
-              }}
-            >
-              {TOOL_LABELS[tool]}
-            </button>
-          ))}
-        </div>
-        {TOOL_HINTS[activeTool] && (
-          <span style={{ fontSize: 12, opacity: 0.85 }}>{TOOL_HINTS[activeTool]}</span>
-        )}
-        {(activeTool === 'brush' || activeTool === 'line' || activeTool === 'circle') && (
-          <>
-            <label>
-              Cor:{' '}
-              <input type="color" value={drawColor} onChange={(event) => setDrawColor(event.target.value)} />
-            </label>
-            <label>
-              Espessura: {drawWidth}px
-              <input
-                type="range"
-                min={1}
-                max={20}
-                value={drawWidth}
-                onChange={(event) => setDrawWidth(Number(event.target.value))}
-              />
-            </label>
-            {activeTool === 'circle' && (
-              <label>
-                <input type="checkbox" checked={drawFilled} onChange={(event) => setDrawFilled(event.target.checked)} />
-                {' '}Preenchido
-              </label>
-            )}
-          </>
-        )}
-        <label>
-          <input type="checkbox" checked={showGrid} onChange={(event) => setShowGrid(event.target.checked)} />
-          {' '}Mostrar grid
-        </label>
-        <label>
-          Formato do grid:{' '}
-          <select value={gridShape} onChange={(event) => setGridShapeAction(event.target.value as 'square' | 'hex')}>
-            <option value="square">Quadrado</option>
-            <option value="hex">Hexágono</option>
-          </select>
-        </label>
-        <label>
-          <input type="checkbox" checked={snapEnabled} onChange={(event) => setSnapEnabled(event.target.checked)} />
-          {' '}Travar na grade
-        </label>
-        <button type="button" onClick={handleAddToken}>Adicionar token</button>
-        <button type="button" onClick={removeSelected} disabled={!selection}>
-          {selection ? `Apagar ${SELECTION_LABELS[selection.kind]} selecionada(o)` : 'Nada selecionado'}
-        </button>
-        <button type="button" onClick={handleSave}>Salvar</button>
-        <button type="button" onClick={handleOpen}>Abrir...</button>
-        <button type="button" onClick={handleImportBackground}>Importar imagem de fundo</button>
-        <button type="button" onClick={handleExportFolder}>Exportar mapa (pasta)</button>
-        <button type="button" onClick={handleImportFolder}>Importar mapa (pasta)</button>
-        <button type="button" onClick={() => setScreen('start')}>Início</button>
+    <div className="lb-editor">
+      <div className="lb-editor__canvas">
+        <PixiCanvas />
+      </div>
+
+      <div className="lb-editor__top">
+        <Toolbar activeTool={activeTool} onSelectTool={setActiveTool} />
+      </div>
+
+      <div className="lb-editor__rail">
+        <PropertiesPanel
+          mapName={map.name}
+          mapWidth={map.width}
+          mapHeight={map.height}
+          mapGrid={map.grid}
+          activeTool={activeTool}
+          drawingStyle={{
+            color: drawColor,
+            onColorChange: setDrawColor,
+            width: drawWidth,
+            onWidthChange: setDrawWidth,
+            filled: drawFilled,
+            onFilledChange: setDrawFilled,
+            showFilled: activeTool === 'circle',
+          }}
+          grid={{
+            showGrid,
+            onShowGridChange: setShowGrid,
+            gridShape,
+            onGridShapeChange: setGridShapeAction,
+            snapEnabled,
+            onSnapEnabledChange: setSnapEnabled,
+          }}
+          selection={{
+            selection,
+            onAddToken: handleAddToken,
+            onRemoveSelected: removeSelected,
+          }}
+        />
+        <ActionBar
+          onSave={handleSave}
+          onOpen={handleOpen}
+          onImportBackground={handleImportBackground}
+          onExportFolder={handleExportFolder}
+          onImportFolder={handleImportFolder}
+          onGoHome={() => setScreen('start')}
+        />
       </div>
     </div>
   )
