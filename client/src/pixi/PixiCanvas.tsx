@@ -16,14 +16,26 @@ import { drawWalls } from './drawWalls'
 import { drawLights } from './drawLights'
 import { drawRegions } from './drawRegions'
 import { drawTokens } from './drawTokens'
-import { drawWallDraft, drawRegionDraft } from './drawDraft'
+import { drawWallDraft, drawRegionDraft, drawFreehandDraft, drawLineDraft, drawCircleDraft } from './drawDraft'
 import { snapToGrid } from './tokenInteraction'
-import { isValidWallDraft, buildWallFromDraft, buildLightAt, buildRegionFromPoints } from '../lib/drawingFactory'
+import {
+  isValidWallDraft,
+  buildWallFromDraft,
+  buildLightAt,
+  buildRegionFromPoints,
+  isValidFreehandDraft,
+  buildFreehandDrawing,
+  isValidLineDraft,
+  buildLineDrawing,
+  isValidCircleDraft,
+  buildCircleDrawing,
+} from '../lib/drawingFactory'
 import { createPropsRenderer } from './drawProps'
 import { subscribeToPropsRedraw } from '../stores/propsSubscription'
 import { pickImageFile, importPropImage } from '../lib/imageImport'
 import { mapDirFor } from '../lib/mapFileIO'
 import { findSelectableAt } from '../lib/selectionHitTest'
+import { drawDrawings } from './drawDrawings'
 
 export function PixiCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -54,6 +66,7 @@ export function PixiCanvas() {
       const gridGraphics = new Graphics()
       const regionsGraphics = new Graphics()
       const wallsGraphics = new Graphics()
+      const drawingsGraphics = new Graphics()
       const propsContainer = new Container()
       const lightsGraphics = new Graphics()
       const tokensContainer = new Container()
@@ -63,6 +76,7 @@ export function PixiCanvas() {
         gridGraphics,
         regionsGraphics,
         wallsGraphics,
+        drawingsGraphics,
         propsContainer,
         lightsGraphics,
         tokensContainer,
@@ -97,6 +111,7 @@ export function PixiCanvas() {
         drawRegions(regionsGraphics, map.regions, selection?.kind === 'region' ? selection.id : null)
         drawWalls(wallsGraphics, map.walls, selection?.kind === 'wall' ? selection.id : null)
         drawLights(lightsGraphics, map.lights, selection?.kind === 'light' ? selection.id : null)
+        drawDrawings(drawingsGraphics, map.drawings, selection?.kind === 'drawing' ? selection.id : null)
       }
 
       const redrawTokens = () => {
@@ -146,12 +161,15 @@ export function PixiCanvas() {
         void redrawBackground()
       })
 
-      let mode: 'idle' | 'panning' | 'dragging-token' | 'dragging-prop' | 'drawing-wall' = 'idle'
+      let mode: 'idle' | 'panning' | 'dragging-token' | 'dragging-prop' | 'drawing-wall' | 'drawing-freehand' | 'drawing-line' | 'drawing-circle' = 'idle'
       let lastPoint = { x: 0, y: 0 }
       let draggingTokenId: string | null = null
       let draggingPropId: string | null = null
       let wallDraftStart: Point | null = null
       let regionDraftPoints: Point[] = []
+      let freehandDraftPoints: Point[] = []
+      let lineDraftStart: Point | null = null
+      let circleDraftCenter: Point | null = null
 
       const toWorldPoint = (globalX: number, globalY: number) => ({
         x: (globalX - camera.x) / camera.scale,
@@ -167,6 +185,9 @@ export function PixiCanvas() {
       const clearDrafts = () => {
         wallDraftStart = null
         regionDraftPoints = []
+        freehandDraftPoints = []
+        lineDraftStart = null
+        circleDraftCenter = null
         draftGraphics.clear()
       }
 
@@ -210,6 +231,24 @@ export function PixiCanvas() {
           return
         }
 
+        if (activeTool === 'brush') {
+          mode = 'drawing-freehand'
+          freehandDraftPoints = [worldPoint]
+          return
+        }
+
+        if (activeTool === 'line') {
+          mode = 'drawing-line'
+          lineDraftStart = applySnap(worldPoint, map.grid)
+          return
+        }
+
+        if (activeTool === 'circle') {
+          mode = 'drawing-circle'
+          circleDraftCenter = applySnap(worldPoint, map.grid)
+          return
+        }
+
         if (activeTool === 'region') {
           const point = applySnap(worldPoint, map.grid)
           regionDraftPoints = [...regionDraftPoints, point]
@@ -247,6 +286,37 @@ export function PixiCanvas() {
           wallDraftStart = null
           draftGraphics.clear()
         }
+
+        if (mode === 'drawing-freehand') {
+          const { addDrawing, drawColor, drawWidth } = useMapStore.getState()
+          if (isValidFreehandDraft(freehandDraftPoints)) {
+            addDrawing(buildFreehandDrawing(crypto.randomUUID(), freehandDraftPoints, drawColor, drawWidth))
+          }
+          freehandDraftPoints = []
+          draftGraphics.clear()
+        }
+
+        if (mode === 'drawing-line' && lineDraftStart) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { map, addDrawing, drawColor, drawWidth } = useMapStore.getState()
+          const end = applySnap(worldPoint, map.grid)
+          if (isValidLineDraft(lineDraftStart, end)) {
+            addDrawing(buildLineDrawing(crypto.randomUUID(), lineDraftStart, end, drawColor, drawWidth))
+          }
+          lineDraftStart = null
+          draftGraphics.clear()
+        }
+
+        if (mode === 'drawing-circle' && circleDraftCenter) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { addDrawing, drawColor, drawWidth, drawFilled } = useMapStore.getState()
+          const radius = Math.hypot(worldPoint.x - circleDraftCenter.x, worldPoint.y - circleDraftCenter.y)
+          if (isValidCircleDraft(radius)) {
+            addDrawing(buildCircleDrawing(crypto.randomUUID(), circleDraftCenter, radius, drawColor, drawWidth, drawFilled))
+          }
+          circleDraftCenter = null
+          draftGraphics.clear()
+        }
         mode = 'idle'
         draggingTokenId = null
         draggingPropId = null
@@ -260,6 +330,9 @@ export function PixiCanvas() {
           wallDraftStart = null
           draftGraphics.clear()
         }
+        freehandDraftPoints = []
+        lineDraftStart = null
+        circleDraftCenter = null
       })
 
       app.stage.on('pointermove', (event) => {
@@ -294,6 +367,30 @@ export function PixiCanvas() {
           const { map } = useMapStore.getState()
           const end = applySnap(worldPoint, map.grid)
           drawWallDraft(draftGraphics, wallDraftStart, end)
+          return
+        }
+
+        if (mode === 'drawing-freehand') {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          freehandDraftPoints = [...freehandDraftPoints, worldPoint]
+          const { drawColor, drawWidth } = useMapStore.getState()
+          drawFreehandDraft(draftGraphics, freehandDraftPoints, drawColor, drawWidth)
+          return
+        }
+
+        if (mode === 'drawing-line' && lineDraftStart) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { map, drawColor, drawWidth } = useMapStore.getState()
+          const end = applySnap(worldPoint, map.grid)
+          drawLineDraft(draftGraphics, lineDraftStart, end, drawColor, drawWidth)
+          return
+        }
+
+        if (mode === 'drawing-circle' && circleDraftCenter) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { drawColor, drawWidth, drawFilled } = useMapStore.getState()
+          const radius = Math.hypot(worldPoint.x - circleDraftCenter.x, worldPoint.y - circleDraftCenter.y)
+          drawCircleDraft(draftGraphics, circleDraftCenter, radius, drawColor, drawWidth, drawFilled)
           return
         }
 
