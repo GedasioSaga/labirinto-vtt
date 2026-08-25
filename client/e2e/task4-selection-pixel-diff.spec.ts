@@ -27,6 +27,7 @@ test.beforeEach(async ({ page }) => {
     }
   })
   await page.goto('/')
+  await page.getByRole('button', { name: 'Criar mapa' }).click()
   await page.waitForSelector('canvas')
   await resetMap(page)
 })
@@ -43,14 +44,14 @@ test('parede: pixel da região muda ao selecionar (destaque amarelo desenha de v
 
   await selectTool(page, 'Selecionar')
   const clip = { x: box.x + 380, y: box.y + 380, width: 240, height: 40 }
-  const before = await page.locator('canvas').screenshot({ clip })
+  const before = await page.screenshot({ clip })
 
   await page.mouse.click(box.x + 500, box.y + 400)
   await expect
     .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection?.kind))
     .toBe('wall')
 
-  const after = await page.locator('canvas').screenshot({ clip })
+  const after = await page.screenshot({ clip })
   expect(before.equals(after)).toBe(false)
 })
 
@@ -63,14 +64,14 @@ test('luz: pixel da região muda ao selecionar (anel de destaque desenha de verd
 
   await selectTool(page, 'Selecionar')
   const clip = { x: box.x + 470, y: box.y + 470, width: 60, height: 60 }
-  const before = await page.locator('canvas').screenshot({ clip })
+  const before = await page.screenshot({ clip })
 
   await page.mouse.click(box.x + 500, box.y + 500)
   await expect
     .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection?.kind))
     .toBe('light')
 
-  const after = await page.locator('canvas').screenshot({ clip })
+  const after = await page.screenshot({ clip })
   expect(before.equals(after)).toBe(false)
 })
 
@@ -86,14 +87,14 @@ test('região: pixel da área muda ao selecionar (preenchimento de destaque dese
 
   await selectTool(page, 'Selecionar')
   const clip = { x: box.x + 400, y: box.y + 400, width: 100, height: 90 }
-  const before = await page.locator('canvas').screenshot({ clip })
+  const before = await page.screenshot({ clip })
 
   await page.mouse.click(box.x + 450, box.y + 435)
   await expect
     .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection?.kind))
     .toBe('region')
 
-  const after = await page.locator('canvas').screenshot({ clip })
+  const after = await page.screenshot({ clip })
   expect(before.equals(after)).toBe(false)
 })
 
@@ -107,13 +108,13 @@ test('peça: pixel da região muda ao selecionar (contorno de destaque desenha d
   })
   await selectTool(page, 'Selecionar')
   const clip = { x: box.x + 390, y: box.y + 390, width: 84, height: 84 }
-  const before = await page.locator('canvas').screenshot({ clip })
+  const before = await page.screenshot({ clip })
 
   await page.mouse.click(box.x + 400, box.y + 400)
   await expect
     .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection?.kind))
     .toBe('prop')
 
-  const after = await page.locator('canvas').screenshot({ clip })
+  const after = await page.screenshot({ clip })
   expect(before.equals(after)).toBe(false)
 })

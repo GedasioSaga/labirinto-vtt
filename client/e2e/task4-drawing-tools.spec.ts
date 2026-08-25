@@ -40,6 +40,7 @@ async function selectTool(page: Page, label: 'Selecionar' | 'Parede' | 'Luz' | '
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
+  await page.getByRole('button', { name: 'Criar mapa' }).click()
   await page.waitForSelector('canvas')
   await resetMap(page)
 })

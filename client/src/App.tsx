@@ -1,10 +1,13 @@
+import { useState } from 'react'
 import { PixiCanvas } from './pixi/PixiCanvas'
+import { StartScreen } from './StartScreen'
 import { useMapStore } from './stores/mapStore'
 import { saveMapToAppData, pickMapJsonToOpen, loadMapFromDisk, mapDirFor, defaultMapsDir } from './lib/mapFileIO'
 import { pickBackgroundImage, importBackgroundImage } from './lib/imageImport'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
 import type { DrawingTool } from './types/tools'
+import type { MapData } from './types/map'
 
 const TOOL_LABELS: Record<DrawingTool, string> = {
   select: 'Selecionar',
@@ -30,6 +33,7 @@ const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
 }
 
 function App() {
+  const [screen, setScreen] = useState<'start' | 'editor'>('start')
   const showGrid = useMapStore((state) => state.map.showGrid)
   const setShowGrid = useMapStore((state) => state.setShowGrid)
   const addToken = useMapStore((state) => state.addToken)
@@ -58,6 +62,12 @@ function App() {
     const path = await pickMapJsonToOpen()
     if (!path) return
     loadMap(await loadMapFromDisk(path))
+    setScreen('editor')
+  }
+
+  const handleCreate = (newMap: MapData) => {
+    loadMap(newMap)
+    setScreen('editor')
   }
 
   const handleImportBackground = async () => {
@@ -82,6 +92,10 @@ function App() {
     const mapsDir = await defaultMapsDir()
     const importedMapId = await importMapFolder(sourceDir, mapsDir)
     loadMap(await loadMapFromDisk(await join(await mapDirFor(importedMapId), 'map.json')))
+  }
+
+  if (screen === 'start') {
+    return <StartScreen onCreate={handleCreate} onOpen={handleOpen} />
   }
 
   return (
@@ -144,6 +158,7 @@ function App() {
         <button type="button" onClick={handleImportBackground}>Importar imagem de fundo</button>
         <button type="button" onClick={handleExportFolder}>Exportar mapa (pasta)</button>
         <button type="button" onClick={handleImportFolder}>Importar mapa (pasta)</button>
+        <button type="button" onClick={() => setScreen('start')}>Início</button>
       </div>
     </div>
   )

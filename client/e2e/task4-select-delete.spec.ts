@@ -62,6 +62,7 @@ test.beforeEach(async ({ page }) => {
     }
   })
   await page.goto('/')
+  await page.getByRole('button', { name: 'Criar mapa' }).click()
   await page.waitForSelector('canvas')
   await resetMap(page)
 })
