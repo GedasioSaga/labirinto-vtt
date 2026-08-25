@@ -34,7 +34,7 @@ describe('subscribeToTokensRedraw', () => {
     unsubscribe()
   })
 
-  it('dispara em setSelectedTokenId', () => {
+  it('dispara em setSelection', () => {
     const onChange = vi.fn()
     const unsubscribe = subscribeToTokensRedraw(onChange)
 
