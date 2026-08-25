@@ -104,7 +104,7 @@ test('peça: pixel da região muda ao selecionar (contorno de destaque desenha d
 
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
-    mod.useMapStore.getState().addProp({ id: 'propPixel', src: 'fake.png', x: 400, y: 400, width: 64, height: 64 })
+    mod.useMapStore.getState().addProp({ id: 'propPixel', src: 'fake.png', x: 400, y: 400, width: 64, height: 64, linkedMapPath: null })
   })
   await selectTool(page, 'Selecionar')
   const clip = { x: box.x + 390, y: box.y + 390, width: 84, height: 84 }

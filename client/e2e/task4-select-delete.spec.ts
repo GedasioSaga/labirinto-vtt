@@ -157,7 +157,7 @@ test('5. selecionar peça (prop): contorno de destaque, Delete apaga', async ({ 
   // task4-drawing-tools.spec.ts.
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
-    mod.useMapStore.getState().addProp({ id: 'propSel', src: 'fake.png', x: 400, y: 400, width: 64, height: 64 })
+    mod.useMapStore.getState().addProp({ id: 'propSel', src: 'fake.png', x: 400, y: 400, width: 64, height: 64, linkedMapPath: null })
   })
   await selectTool(page, 'Selecionar')
   await page.mouse.click(box.x + 400, box.y + 400)
