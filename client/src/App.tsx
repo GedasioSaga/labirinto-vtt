@@ -1,7 +1,11 @@
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { useMapStore } from './stores/mapStore'
-import { saveMapToAppData, pickMapJsonToOpen, loadMapFromDisk, mapDirFor } from './lib/mapFileIO'
+import { saveMapToAppData, pickMapJsonToOpen, loadMapFromDisk, mapDirFor, defaultMapsDir } from './lib/mapFileIO'
 import { pickBackgroundImage, importBackgroundImage } from './lib/imageImport'
+import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
+import { deserializeMap } from './lib/mapFile'
+import { join } from '@tauri-apps/api/path'
+import { readTextFile } from '@tauri-apps/plugin-fs'
 
 function App() {
   const showGrid = useMapStore((state) => state.map.showGrid)
@@ -34,6 +38,24 @@ function App() {
     setBackground({ type: 'image', src: destPath })
   }
 
+  const handleExportFolder = async () => {
+    const destDir = await pickExportFolder()
+    if (!destDir) return
+    const sourceMapDir = await mapDirFor(map.id)
+    await exportMapFolder(map, sourceMapDir, destDir)
+    console.log('Mapa exportado em', destDir)
+  }
+
+  const handleImportFolder = async () => {
+    const sourceDir = await pickImportFolder()
+    if (!sourceDir) return
+    const mapsDir = await defaultMapsDir()
+    const importedMapId = await importMapFolder(sourceDir, mapsDir)
+    const importedMapJsonPath = await join(await mapDirFor(importedMapId), 'map.json')
+    const content = await readTextFile(importedMapJsonPath)
+    loadMap(deserializeMap(content))
+  }
+
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
       <PixiCanvas />
@@ -59,6 +81,8 @@ function App() {
         <button type="button" onClick={handleSave}>Salvar</button>
         <button type="button" onClick={handleOpen}>Abrir...</button>
         <button type="button" onClick={handleImportBackground}>Importar imagem de fundo</button>
+        <button type="button" onClick={handleExportFolder}>Exportar mapa (pasta)</button>
+        <button type="button" onClick={handleImportFolder}>Importar mapa (pasta)</button>
       </div>
     </div>
   )
