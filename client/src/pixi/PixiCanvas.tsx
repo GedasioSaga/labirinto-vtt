@@ -11,6 +11,7 @@ export function PixiCanvas() {
     if (!el) return
 
     let destroyed = false
+    let initialized = false
     const app = new Application()
 
     const setup = async () => {
@@ -19,6 +20,7 @@ export function PixiCanvas() {
         app.destroy(true, { children: true })
         return
       }
+      initialized = true
       el.appendChild(app.canvas)
 
       const world = new Container()
@@ -69,7 +71,9 @@ export function PixiCanvas() {
 
     return () => {
       destroyed = true
-      app.destroy(true, { children: true })
+      if (initialized) {
+        app.destroy(true, { children: true })
+      }
     }
   }, [])
 
