@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { isValidWallDraft, buildWallFromDraft, buildLightAt, buildRegionFromPoints } from './drawingFactory'
+import {
+  isValidWallDraft,
+  buildWallFromDraft,
+  buildLightAt,
+  buildRegionFromPoints,
+  isValidFreehandDraft,
+  buildFreehandDrawing,
+  isValidLineDraft,
+  buildLineDrawing,
+  isValidCircleDraft,
+  buildCircleDrawing,
+} from './drawingFactory'
 
 describe('isValidWallDraft', () => {
   it('mesmo ponto de início e fim é inválido (clique sem arrastar)', () => {
@@ -57,5 +68,58 @@ describe('buildRegionFromPoints', () => {
     const points = [{ x: 0, y: 0 }, { x: 64, y: 0 }, { x: 64, y: 64 }]
     const region = buildRegionFromPoints('r2', points, 'trap')
     expect(region.tag).toBe('trap')
+  })
+})
+
+describe('isValidFreehandDraft', () => {
+  it('menos de 2 pontos é inválido', () => {
+    expect(isValidFreehandDraft([{ x: 0, y: 0 }])).toBe(false)
+  })
+  it('2+ pontos é válido', () => {
+    expect(isValidFreehandDraft([{ x: 0, y: 0 }, { x: 1, y: 1 }])).toBe(true)
+  })
+})
+
+describe('buildFreehandDrawing', () => {
+  it('cria desenho freehand com os pontos, cor e espessura dados', () => {
+    const points = [{ x: 0, y: 0 }, { x: 10, y: 10 }]
+    expect(buildFreehandDrawing('d1', points, '#ff0000', 6)).toEqual({
+      id: 'd1', kind: 'freehand', points, color: '#ff0000', width: 6,
+    })
+  })
+})
+
+describe('isValidLineDraft', () => {
+  it('mesmo ponto de início e fim é inválido', () => {
+    expect(isValidLineDraft({ x: 5, y: 5 }, { x: 5, y: 5 })).toBe(false)
+  })
+  it('pontos diferentes é válido', () => {
+    expect(isValidLineDraft({ x: 0, y: 0 }, { x: 10, y: 0 })).toBe(true)
+  })
+})
+
+describe('buildLineDrawing', () => {
+  it('cria desenho line com extremos, cor e espessura dados', () => {
+    expect(buildLineDrawing('d2', { x: 0, y: 0 }, { x: 10, y: 20 }, '#00ff00', 3)).toEqual({
+      id: 'd2', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 20, color: '#00ff00', width: 3,
+    })
+  })
+})
+
+describe('isValidCircleDraft', () => {
+  it('raio zero ou negativo é inválido', () => {
+    expect(isValidCircleDraft(0)).toBe(false)
+    expect(isValidCircleDraft(-5)).toBe(false)
+  })
+  it('raio positivo é válido', () => {
+    expect(isValidCircleDraft(10)).toBe(true)
+  })
+})
+
+describe('buildCircleDrawing', () => {
+  it('cria desenho circle com centro, raio, cor, espessura e filled dados', () => {
+    expect(buildCircleDrawing('d3', { x: 50, y: 50 }, 30, '#0000ff', 2, true)).toEqual({
+      id: 'd3', kind: 'circle', cx: 50, cy: 50, radius: 30, color: '#0000ff', width: 2, filled: true,
+    })
   })
 })

@@ -41,3 +41,41 @@ describe('mapStore moveToken', () => {
     expect(useMapStore.getState().map).toBe(before)
   })
 })
+
+describe('mapStore addDrawing/removeSelected(drawing)/configuração de desenho', () => {
+  beforeEach(() => {
+    useMapStore.setState({
+      map: { ...useMapStore.getState().map, drawings: [] },
+      selection: null,
+      drawColor: '#ffffff',
+      drawWidth: 4,
+      drawFilled: false,
+    })
+  })
+
+  it('addDrawing adiciona ao mapa', () => {
+    useMapStore.getState().addDrawing({ id: 'd1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0, color: '#fff', width: 4 })
+    expect(useMapStore.getState().map.drawings).toHaveLength(1)
+  })
+
+  it('removeSelected apaga o desenho selecionado', () => {
+    useMapStore.getState().addDrawing({ id: 'd1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0, color: '#fff', width: 4 })
+    useMapStore.getState().setSelection({ kind: 'drawing', id: 'd1' })
+
+    useMapStore.getState().removeSelected()
+
+    expect(useMapStore.getState().map.drawings).toEqual([])
+    expect(useMapStore.getState().selection).toBeNull()
+  })
+
+  it('setDrawColor/setDrawWidth/setDrawFilled atualizam a configuração', () => {
+    useMapStore.getState().setDrawColor('#ff0000')
+    useMapStore.getState().setDrawWidth(10)
+    useMapStore.getState().setDrawFilled(true)
+
+    const state = useMapStore.getState()
+    expect(state.drawColor).toBe('#ff0000')
+    expect(state.drawWidth).toBe(10)
+    expect(state.drawFilled).toBe(true)
+  })
+})

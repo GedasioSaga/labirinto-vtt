@@ -1,4 +1,4 @@
-import type { Wall, Light, Region, RegionPoint } from '../types/map'
+import type { Wall, Light, Region, RegionPoint, Drawing } from '../types/map'
 import type { Point } from '../pixi/world'
 
 export function isValidWallDraft(start: Point, end: Point): boolean {
@@ -35,4 +35,28 @@ export function buildLightAt(id: string, point: Point, gridSize: number): Light 
 
 export function buildRegionFromPoints(id: string, points: RegionPoint[], tag = 'region'): Region {
   return { id, points, tag, data: {} }
+}
+
+export function isValidFreehandDraft(points: Point[]): boolean {
+  return points.length >= 2
+}
+
+export function buildFreehandDrawing(id: string, points: Point[], color: string, width: number): Drawing {
+  return { id, kind: 'freehand', points, color, width }
+}
+
+export function isValidLineDraft(start: Point, end: Point): boolean {
+  return start.x !== end.x || start.y !== end.y
+}
+
+export function buildLineDrawing(id: string, start: Point, end: Point, color: string, width: number): Drawing {
+  return { id, kind: 'line', x1: start.x, y1: start.y, x2: end.x, y2: end.y, color, width }
+}
+
+export function isValidCircleDraft(radius: number): boolean {
+  return radius > 0
+}
+
+export function buildCircleDrawing(id: string, center: Point, radius: number, color: string, width: number, filled: boolean): Drawing {
+  return { id, kind: 'circle', cx: center.x, cy: center.y, radius, color, width, filled }
 }

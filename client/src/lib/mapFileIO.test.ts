@@ -56,6 +56,7 @@ function makeMap(overrides: Partial<MapData> = {}): MapData {
     regions: [],
     tokens: [],
     props: [],
+    drawings: [],
     fog: { mode: 'none', revealed: [] },
     ownerId: null,
     scenarioLink: null,

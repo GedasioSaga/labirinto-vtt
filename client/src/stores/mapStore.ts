@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import type { MapData, Wall, Light, Region, Token, Prop } from '../types/map'
+import type { MapData, Wall, Light, Region, Token, Prop, Drawing } from '../types/map'
 import type { Camera } from '../pixi/world'
 import type { DrawingTool, Selection, SelectionKind } from '../types/tools'
 import * as mapFactory from '../lib/mapFactory'
@@ -12,6 +12,14 @@ interface MapStoreState {
   selection: Selection | null
   activeTool: DrawingTool
   snapEnabled: boolean
+  drawColor: string
+  drawWidth: number
+  drawFilled: boolean
+  setDrawColor: (color: string) => void
+  setDrawWidth: (width: number) => void
+  setDrawFilled: (filled: boolean) => void
+  addDrawing: (drawing: Drawing) => void
+  removeDrawing: (id: string) => void
   setCamera: (camera: Camera) => void
   setSelection: (selection: Selection | null) => void
   removeSelected: () => void
@@ -44,6 +52,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   selection: null,
   activeTool: 'select',
   snapEnabled: false,
+  drawColor: '#ffffff',
+  drawWidth: 4,
+  drawFilled: false,
   setCamera: (camera) => set({ camera }),
   setSelection: (selection) => set({ selection }),
   removeSelected: () => {
@@ -55,12 +66,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       light: get().removeLight,
       region: get().removeRegion,
       prop: get().removeProp,
+      drawing: get().removeDrawing,
     }
     removers[selection.kind](selection.id)
     set({ selection: null })
   },
   setActiveTool: (tool) => set({ activeTool: tool }),
   setSnapEnabled: (enabled) => set({ snapEnabled: enabled }),
+  setDrawColor: (color) => set({ drawColor: color }),
+  setDrawWidth: (width) => set({ drawWidth: width }),
+  setDrawFilled: (filled) => set({ drawFilled: filled }),
   addWall: (wall) => set((state) => ({ map: mapFactory.addWall(state.map, wall) })),
   removeWall: (id) => set((state) => ({ map: mapFactory.removeWall(state.map, id) })),
   addLight: (light) => set((state) => ({ map: mapFactory.addLight(state.map, light) })),
@@ -80,6 +95,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   addProp: (prop) => set((state) => ({ map: mapFactory.addProp(state.map, prop) })),
   removeProp: (id) => set((state) => ({ map: mapFactory.removeProp(state.map, id) })),
   moveProp: (id, x, y) => set((state) => ({ map: mapFactory.setPropPosition(state.map, id, x, y) })),
+  addDrawing: (drawing) => set((state) => ({ map: mapFactory.addDrawing(state.map, drawing) })),
+  removeDrawing: (id) => set((state) => ({ map: mapFactory.removeDrawing(state.map, id) })),
   setShowGrid: (show) => set((state) => ({ map: mapFactory.setShowGrid(state.map, show) })),
   setGridShape: (shape) => set((state) => ({ map: mapFactory.setGridShape(state.map, shape) })),
   setBackground: (background) => set((state) => ({ map: mapFactory.setBackground(state.map, background) })),

@@ -15,6 +15,9 @@ const TOOL_LABELS: Record<DrawingTool, string> = {
   light: 'Luz',
   region: 'Região',
   prop: 'Peça',
+  brush: 'Pincel',
+  line: 'Linha',
+  circle: 'Círculo',
 }
 
 const SELECTION_LABELS: Record<string, string> = {

@@ -58,6 +58,16 @@ export interface Prop {
   height: number
 }
 
+export interface DrawingPoint {
+  x: number
+  y: number
+}
+
+export type Drawing =
+  | { id: string; kind: 'freehand'; points: DrawingPoint[]; color: string; width: number }
+  | { id: string; kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number }
+  | { id: string; kind: 'circle'; cx: number; cy: number; radius: number; color: string; width: number; filled: boolean }
+
 export interface FogState {
   mode: 'per-token' | 'none'
   revealed: string[]
@@ -84,6 +94,7 @@ export interface MapData {
   regions: Region[]
   tokens: Token[]
   props: Prop[]
+  drawings: Drawing[]
   fog: FogState
   ownerId: string | null
   scenarioLink: string | null

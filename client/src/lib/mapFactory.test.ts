@@ -15,6 +15,8 @@ import {
   setPropPosition,
   setShowGrid,
   setGridShape,
+  addDrawing,
+  removeDrawing,
 } from './mapFactory'
 import type { Wall, Light, Region, Token, Prop } from '../types/map'
 
@@ -40,6 +42,7 @@ describe('createEmptyMap', () => {
       regions: [],
       tokens: [],
       props: [],
+      drawings: [],
       fog: { mode: 'none', revealed: [] },
       ownerId: null,
       scenarioLink: null,
@@ -128,5 +131,20 @@ describe('setGridShape', () => {
   it('troca o formato do grid', () => {
     const map = createEmptyMap('m', 'x', 10, 10, 64)
     expect(setGridShape(map, 'hex').gridShape).toBe('hex')
+  })
+})
+
+describe('addDrawing/removeDrawing', () => {
+  const freehand = { id: 'd1', kind: 'freehand' as const, points: [{ x: 0, y: 0 }, { x: 10, y: 10 }], color: '#ffffff', width: 4 }
+
+  it('adiciona um desenho ao mapa', () => {
+    const map = addDrawing(createEmptyMap('m', 'x', 10, 10, 64), freehand)
+    expect(map.drawings).toEqual([freehand])
+  })
+
+  it('remove um desenho pelo id', () => {
+    let map = addDrawing(createEmptyMap('m', 'x', 10, 10, 64), freehand)
+    map = removeDrawing(map, 'd1')
+    expect(map.drawings).toEqual([])
   })
 })
