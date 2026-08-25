@@ -1,10 +1,6 @@
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { useMapStore } from './stores/mapStore'
-import { saveMapToAppData, pickMapJsonToOpen } from './lib/mapFileIO'
-import { deserializeMap } from './lib/mapFile'
-import { readTextFile } from '@tauri-apps/plugin-fs'
-import { invoke } from '@tauri-apps/api/core'
-import { dirname } from '@tauri-apps/api/path'
+import { saveMapToAppData, pickMapJsonToOpen, loadMapFromDisk } from './lib/mapFileIO'
 
 function App() {
   const showGrid = useMapStore((state) => state.map.showGrid)
@@ -25,10 +21,7 @@ function App() {
   const handleOpen = async () => {
     const path = await pickMapJsonToOpen()
     if (!path) return
-    const dir = await dirname(path)
-    await invoke('grant_fs_access', { path: dir })
-    const content = await readTextFile(path)
-    loadMap(deserializeMap(content))
+    loadMap(await loadMapFromDisk(path))
   }
 
   return (

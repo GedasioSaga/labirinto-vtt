@@ -1,8 +1,9 @@
-import { writeTextFile, mkdir, exists } from '@tauri-apps/plugin-fs'
+import { writeTextFile, mkdir, exists, readTextFile } from '@tauri-apps/plugin-fs'
 import { save, open } from '@tauri-apps/plugin-dialog'
-import { appDataDir, join } from '@tauri-apps/api/path'
+import { appDataDir, join, dirname } from '@tauri-apps/api/path'
+import { invoke } from '@tauri-apps/api/core'
 import type { MapData } from '../types/map'
-import { serializeMap } from './mapFile'
+import { serializeMap, deserializeMap } from './mapFile'
 
 export async function defaultMapsDir(): Promise<string> {
   const base = await appDataDir()
@@ -21,6 +22,13 @@ export async function saveMapToAppData(map: MapData): Promise<string> {
   const filePath = await join(mapDir, 'map.json')
   await writeTextFile(filePath, serializeMap(map))
   return filePath
+}
+
+export async function loadMapFromDisk(path: string): Promise<MapData> {
+  const dir = await dirname(path)
+  await invoke('grant_fs_access', { path: dir })
+  const content = await readTextFile(path)
+  return deserializeMap(content)
 }
 
 export async function pickMapJsonToOpen(): Promise<string | null> {
