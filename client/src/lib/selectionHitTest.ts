@@ -9,7 +9,7 @@ export interface Point {
 }
 
 const WALL_HIT_TOLERANCE = 8
-const LIGHT_HIT_RADIUS = 14
+export const LIGHT_HIT_RADIUS = 14
 
 function distanceToSegment(point: Point, a: Point, b: Point): number {
   const dx = b.x - a.x

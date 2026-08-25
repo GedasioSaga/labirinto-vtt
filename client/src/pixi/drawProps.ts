@@ -1,6 +1,7 @@
 import { Container, Sprite, Graphics, Assets, Texture } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { Prop } from '../types/map'
+import { SELECTION_COLOR } from './constants'
 
 export interface PropsRenderer {
   draw: (container: Container, props: Prop[], selectedPropId?: string | null) => void
@@ -64,7 +65,7 @@ export function createPropsRenderer(): PropsRenderer {
       if (prop.id === selectedPropId) {
         highlightGraphics
           .rect(prop.x - prop.width / 2, prop.y - prop.height / 2, prop.width, prop.height)
-          .stroke({ width: 3, color: 0xffdd55 })
+          .stroke({ width: 3, color: SELECTION_COLOR })
       }
     }
   }
