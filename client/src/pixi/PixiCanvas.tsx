@@ -9,6 +9,9 @@ import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
 import { panBy, zoomAt, type Camera, type Point } from './world'
 import { computeVisibleGridLines } from './grid'
 import { drawGrid } from './drawGrid'
+import { computeVisibleHexCenters } from './hexGrid'
+import { drawHexGrid } from './drawHexGrid'
+import { snapToHexGrid } from './hexGrid'
 import { drawWalls } from './drawWalls'
 import { drawLights } from './drawLights'
 import { drawRegions } from './drawRegions'
@@ -75,7 +78,11 @@ export function PixiCanvas() {
           right: (app.screen.width - camera.x) / camera.scale,
           bottom: (app.screen.height - camera.y) / camera.scale,
         }
-        drawGrid(gridGraphics, computeVisibleGridLines(map.grid, viewport), viewport)
+        if (map.gridShape === 'hex') {
+          drawHexGrid(gridGraphics, computeVisibleHexCenters(map.grid, viewport), map.grid)
+        } else {
+          drawGrid(gridGraphics, computeVisibleGridLines(map.grid, viewport), viewport)
+        }
       }
 
       const redrawShapes = () => {
@@ -134,8 +141,11 @@ export function PixiCanvas() {
         y: (globalY - camera.y) / camera.scale,
       })
 
-      const applySnap = (point: Point, gridSize: number): Point =>
-        useMapStore.getState().snapEnabled ? snapToGrid(point.x, point.y, gridSize) : point
+      const applySnap = (point: Point, gridSize: number): Point => {
+        if (!useMapStore.getState().snapEnabled) return point
+        const { map } = useMapStore.getState()
+        return map.gridShape === 'hex' ? snapToHexGrid(point.x, point.y, gridSize) : snapToGrid(point.x, point.y, gridSize)
+      }
 
       const clearDrafts = () => {
         wallDraftStart = null

@@ -9,7 +9,7 @@ import { useMapStore } from './mapStore'
  */
 export function subscribeToGridRedraw(onChange: () => void): () => void {
   return useMapStore.subscribe(
-    (state) => [state.camera, state.map.showGrid, state.map.grid] as const,
+    (state) => [state.camera, state.map.showGrid, state.map.grid, state.map.gridShape] as const,
     onChange,
     { equalityFn: shallow },
   )

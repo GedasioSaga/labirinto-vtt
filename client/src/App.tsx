@@ -30,6 +30,8 @@ function App() {
   const setActiveTool = useMapStore((state) => state.setActiveTool)
   const snapEnabled = useMapStore((state) => state.snapEnabled)
   const setSnapEnabled = useMapStore((state) => state.setSnapEnabled)
+  const gridShape = useMapStore((state) => state.map.gridShape)
+  const setGridShapeAction = useMapStore((state) => state.setGridShape)
 
   const handleAddToken = () => {
     addToken({ id: crypto.randomUUID(), characterId: null, name: 'Token', x: 0, y: 0, size: 1 })
@@ -109,6 +111,13 @@ function App() {
         <label>
           <input type="checkbox" checked={showGrid} onChange={(event) => setShowGrid(event.target.checked)} />
           {' '}Mostrar grid
+        </label>
+        <label>
+          Formato do grid:{' '}
+          <select value={gridShape} onChange={(event) => setGridShapeAction(event.target.value as 'square' | 'hex')}>
+            <option value="square">Quadrado</option>
+            <option value="hex">Hexágono</option>
+          </select>
         </label>
         <label>
           <input type="checkbox" checked={snapEnabled} onChange={(event) => setSnapEnabled(event.target.checked)} />
