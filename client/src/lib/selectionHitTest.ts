@@ -1,4 +1,4 @@
-import type { Wall, Light, Region, RegionPoint, MapData } from '../types/map'
+import type { Wall, Light, Region, RegionPoint, Drawing, MapData } from '../types/map'
 import type { Selection } from '../types/tools'
 import { findTokenAt } from '../pixi/tokenInteraction'
 import { findPropAt } from '../pixi/propInteraction'
@@ -67,6 +67,34 @@ export function findRegionAt(regions: Region[], point: Point): Region | null {
   return null
 }
 
+const DRAWING_HIT_TOLERANCE = 8
+
+function distanceToPolyline(point: Point, points: Point[]): number {
+  let min = Infinity
+  for (let i = 0; i < points.length - 1; i += 1) {
+    min = Math.min(min, distanceToSegment(point, points[i], points[i + 1]))
+  }
+  return min
+}
+
+export function findDrawingAt(drawings: Drawing[], point: Point, tolerance = DRAWING_HIT_TOLERANCE): Drawing | null {
+  for (let i = drawings.length - 1; i >= 0; i -= 1) {
+    const drawing = drawings[i]
+    const reach = tolerance + drawing.width / 2
+
+    if (drawing.kind === 'freehand') {
+      if (drawing.points.length >= 2 && distanceToPolyline(point, drawing.points) <= reach) return drawing
+    } else if (drawing.kind === 'line') {
+      if (distanceToSegment(point, { x: drawing.x1, y: drawing.y1 }, { x: drawing.x2, y: drawing.y2 }) <= reach) return drawing
+    } else {
+      const distanceToCenter = Math.hypot(point.x - drawing.cx, point.y - drawing.cy)
+      const hit = drawing.filled ? distanceToCenter <= drawing.radius : Math.abs(distanceToCenter - drawing.radius) <= reach
+      if (hit) return drawing
+    }
+  }
+  return null
+}
+
 export interface SelectableHit extends Selection {
   draggable: boolean
 }
@@ -86,6 +114,9 @@ export function findSelectableAt(map: MapData, point: Point): SelectableHit | nu
 
   const light = findLightAt(map.lights, point)
   if (light) return { kind: 'light', id: light.id, draggable: false }
+
+  const drawing = findDrawingAt(map.drawings, point)
+  if (drawing) return { kind: 'drawing', id: drawing.id, draggable: false }
 
   const wall = findWallAt(map.walls, point)
   if (wall) return { kind: 'wall', id: wall.id, draggable: false }

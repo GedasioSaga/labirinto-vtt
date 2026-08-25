@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { findWallAt, findLightAt, isPointInPolygon, findRegionAt, findSelectableAt } from './selectionHitTest'
-import type { Wall, Light, Region, MapData } from '../types/map'
+import { findWallAt, findLightAt, isPointInPolygon, findRegionAt, findDrawingAt, findSelectableAt } from './selectionHitTest'
+import type { Wall, Light, Region, Drawing, MapData } from '../types/map'
 import { createEmptyMap, addWall, addLight, addRegion, addToken, addProp } from './mapFactory'
 
 const wall: Wall = { id: 'w1', x1: 0, y1: 0, x2: 100, y2: 0, blocksLight: true, blocksMove: true, door: null }
@@ -49,6 +49,53 @@ describe('findRegionAt', () => {
   it('região degenerada (menos de 3 pontos) nunca é encontrada', () => {
     const degenerate: Region = { id: 'r2', points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], tag: '', data: {} }
     expect(findRegionAt([degenerate], { x: 0, y: 0 })).toBeNull()
+  })
+})
+
+const freehandDrawing: Drawing = { id: 'd1', kind: 'freehand', points: [{ x: 0, y: 0 }, { x: 100, y: 0 }], color: '#fff', width: 4 }
+const lineDrawing: Drawing = { id: 'd2', kind: 'line', x1: 0, y1: 50, x2: 100, y2: 50, color: '#fff', width: 4 }
+const circleOutline: Drawing = { id: 'd3', kind: 'circle', cx: 200, cy: 200, radius: 50, color: '#fff', width: 4, filled: false }
+const circleFilled: Drawing = { id: 'd4', kind: 'circle', cx: 300, cy: 300, radius: 50, color: '#fff', width: 4, filled: true }
+
+describe('findDrawingAt', () => {
+  it('encontra freehand perto de um segmento do traço', () => {
+    expect(findDrawingAt([freehandDrawing], { x: 50, y: 3 })?.id).toBe('d1')
+  })
+
+  it('não encontra freehand longe de qualquer segmento', () => {
+    expect(findDrawingAt([freehandDrawing], { x: 50, y: 100 })).toBeNull()
+  })
+
+  it('encontra line perto do segmento', () => {
+    expect(findDrawingAt([lineDrawing], { x: 50, y: 52 })?.id).toBe('d2')
+  })
+
+  it('circle sem fill: só encontra perto do anel, não no centro', () => {
+    expect(findDrawingAt([circleOutline], { x: 250, y: 200 })?.id).toBe('d3')
+    expect(findDrawingAt([circleOutline], { x: 200, y: 200 })).toBeNull()
+  })
+
+  it('circle com fill: encontra em qualquer ponto dentro do raio', () => {
+    expect(findDrawingAt([circleFilled], { x: 300, y: 300 })?.id).toBe('d4')
+    expect(findDrawingAt([circleFilled], { x: 320, y: 300 })?.id).toBe('d4')
+  })
+})
+
+describe('findSelectableAt — drawing na cadeia de prioridade', () => {
+  it('drawing tem prioridade sobre parede/região, mas não é arrastável', () => {
+    let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
+    map = addRegion(map, region)
+    map = { ...map, drawings: [lineDrawing] }
+    const hit = findSelectableAt(map, { x: 50, y: 52 })
+    expect(hit).toEqual({ kind: 'drawing', id: 'd2', draggable: false })
+  })
+
+  it('luz tem prioridade sobre drawing quando ambos no mesmo ponto', () => {
+    let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
+    map = addLight(map, { id: 'l1', x: 50, y: 52, radius: 300, color: '#fff', intensity: 1 })
+    map = { ...map, drawings: [lineDrawing] }
+    const hit = findSelectableAt(map, { x: 50, y: 52 })
+    expect(hit).toEqual({ kind: 'light', id: 'l1', draggable: false })
   })
 })
 
