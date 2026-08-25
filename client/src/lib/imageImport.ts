@@ -6,8 +6,9 @@ import { computeResampleDimensions } from './imageResample'
 import { ensureDir } from './mapFileIO'
 
 export const MAX_BACKGROUND_SIDE = 4096
+export const MAX_PROP_SIDE = 1024
 
-export async function pickBackgroundImage(): Promise<string | null> {
+export async function pickImageFile(): Promise<string | null> {
   const selected = await open({
     multiple: false,
     filters: [{ name: 'Imagem', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }],
@@ -15,7 +16,17 @@ export async function pickBackgroundImage(): Promise<string | null> {
   return typeof selected === 'string' ? selected : null
 }
 
-export async function importBackgroundImage(sourcePath: string, mapDir: string): Promise<string> {
+export async function pickBackgroundImage(): Promise<string | null> {
+  return pickImageFile()
+}
+
+interface ImportedImage {
+  destPath: string
+  width: number
+  height: number
+}
+
+async function importImageAsset(sourcePath: string, mapDir: string, baseName: string, maxSide: number): Promise<ImportedImage> {
   const sourceDir = await dirname(sourcePath)
   await invoke('grant_fs_access', { path: sourceDir })
   await invoke('grant_fs_access', { path: mapDir })
@@ -24,16 +35,16 @@ export async function importBackgroundImage(sourcePath: string, mapDir: string):
   const blob = new Blob([bytes])
   const bitmap = await createImageBitmap(blob)
 
-  const { width, height, needsResample } = computeResampleDimensions(bitmap.width, bitmap.height, MAX_BACKGROUND_SIDE)
+  const { width, height, needsResample } = computeResampleDimensions(bitmap.width, bitmap.height, maxSide)
 
   await ensureDir(mapDir)
 
   const originalExt = sourcePath.split('.').pop() ?? 'png'
-  const originalDest = await join(mapDir, `background_original.${originalExt}`)
+  const originalDest = await join(mapDir, `${baseName}_original.${originalExt}`)
   await writeFile(originalDest, bytes)
 
   if (!needsResample) {
-    return originalDest
+    return { destPath: originalDest, width: bitmap.width, height: bitmap.height }
   }
 
   const canvas = document.createElement('canvas')
@@ -51,7 +62,16 @@ export async function importBackgroundImage(sourcePath: string, mapDir: string):
     )
   })
   const resampledBytes = new Uint8Array(await resampledBlob.arrayBuffer())
-  const resampledDest = await join(mapDir, 'background.webp')
+  const resampledDest = await join(mapDir, `${baseName}.webp`)
   await writeFile(resampledDest, resampledBytes)
-  return resampledDest
+  return { destPath: resampledDest, width, height }
+}
+
+export async function importBackgroundImage(sourcePath: string, mapDir: string): Promise<string> {
+  const result = await importImageAsset(sourcePath, mapDir, 'background', MAX_BACKGROUND_SIDE)
+  return result.destPath
+}
+
+export async function importPropImage(sourcePath: string, mapDir: string, propId: string): Promise<ImportedImage> {
+  return importImageAsset(sourcePath, mapDir, `prop_${propId}`, MAX_PROP_SIDE)
 }

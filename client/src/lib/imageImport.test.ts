@@ -32,7 +32,7 @@ vi.mock('./imageResample', () => ({
   computeResampleDimensions: computeResampleDimensionsMock,
 }))
 
-const { pickBackgroundImage, importBackgroundImage, MAX_BACKGROUND_SIDE } = await import('./imageImport')
+const { pickBackgroundImage, importBackgroundImage, importPropImage, MAX_BACKGROUND_SIDE, MAX_PROP_SIDE } = await import('./imageImport')
 
 // jsdom não implementa createImageBitmap nem canvas 2D de verdade — mocka os dois.
 const createImageBitmapMock = vi.fn(async () => ({ width: 200, height: 100, close: vi.fn() }) as unknown as ImageBitmap)
@@ -189,5 +189,50 @@ describe('importBackgroundImage', () => {
     await importBackgroundImage('C:\\imgs\\foto.png', 'C:\\maps\\map_1')
 
     expect(computeResampleDimensionsMock).toHaveBeenCalledWith(200, 100, MAX_BACKGROUND_SIDE)
+  })
+})
+
+describe('importPropImage', () => {
+  it('gera prop_<id>_original.<ext> quando a imagem não precisa reamostrar', async () => {
+    computeResampleDimensionsMock.mockReturnValue({ width: 200, height: 100, needsResample: false })
+
+    const result = await importPropImage('C:\\imgs\\arvore.png', 'C:\\maps\\map_1', 'prop123')
+
+    expect(result.destPath).toBe('C:\\maps\\map_1\\prop_prop123_original.png')
+    expect(result.width).toBe(200)
+    expect(result.height).toBe(100)
+    expect(writeFileMock).toHaveBeenCalledTimes(1)
+    expect(writeFileMock).toHaveBeenCalledWith(
+      'C:\\maps\\map_1\\prop_prop123_original.png',
+      expect.any(Uint8Array),
+    )
+  })
+
+  it('gera prop_<id>.webp reamostrado quando a imagem excede MAX_PROP_SIDE', async () => {
+    computeResampleDimensionsMock.mockReturnValue({ width: 512, height: 256, needsResample: true })
+
+    const result = await importPropImage('C:\\imgs\\arvore.png', 'C:\\maps\\map_1', 'prop123')
+
+    expect(result.destPath).toBe('C:\\maps\\map_1\\prop_prop123.webp')
+    expect(result.width).toBe(512)
+    expect(result.height).toBe(256)
+    expect(writeFileMock).toHaveBeenCalledTimes(2)
+    expect(writeFileMock).toHaveBeenNthCalledWith(
+      1,
+      'C:\\maps\\map_1\\prop_prop123_original.png',
+      expect.any(Uint8Array),
+    )
+    expect(writeFileMock).toHaveBeenNthCalledWith(
+      2,
+      'C:\\maps\\map_1\\prop_prop123.webp',
+      expect.any(Uint8Array),
+    )
+  })
+
+  it('usa MAX_PROP_SIDE (não MAX_BACKGROUND_SIDE) ao calcular as dimensões de reamostragem', async () => {
+    await importPropImage('C:\\imgs\\arvore.png', 'C:\\maps\\map_1', 'prop123')
+
+    expect(computeResampleDimensionsMock).toHaveBeenCalledWith(200, 100, MAX_PROP_SIDE)
+    expect(MAX_PROP_SIDE).not.toBe(MAX_BACKGROUND_SIDE)
   })
 })
