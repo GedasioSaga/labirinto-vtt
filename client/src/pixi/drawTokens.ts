@@ -2,7 +2,7 @@ import { Container, Graphics, Text } from 'pixi.js'
 import type { Token } from '../types/map'
 import { SELECTION_COLOR } from './constants'
 
-export function drawTokens(container: Container, tokens: Token[], gridSize: number, selectedId: string | null): void {
+export function drawTokens(container: Container, tokens: Token[], gridSize: number, selectedTokenId: string | null): void {
   container.removeChildren().forEach((child) => child.destroy())
   for (const token of tokens) {
     const radius = (gridSize * token.size) / 2 - 2
@@ -10,7 +10,7 @@ export function drawTokens(container: Container, tokens: Token[], gridSize: numb
     const circle = new Graphics()
       .circle(0, 0, radius)
       .fill({ color: 0x5a8fd6 })
-      .stroke({ width: selectedId === token.id ? 4 : 2, color: selectedId === token.id ? SELECTION_COLOR : 0x1a1a1a })
+      .stroke({ width: selectedTokenId === token.id ? 4 : 2, color: selectedTokenId === token.id ? SELECTION_COLOR : 0x1a1a1a })
     circle.position.set(token.x, token.y)
 
     const label = new Text({ text: token.name, style: { fontSize: 12, fill: 0xffffff } })

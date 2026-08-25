@@ -14,6 +14,14 @@ const TOOL_LABELS: Record<DrawingTool, string> = {
   prop: 'Peça',
 }
 
+const SELECTION_LABELS: Record<string, string> = {
+  token: 'token',
+  wall: 'parede',
+  light: 'luz',
+  region: 'região',
+  prop: 'peça',
+}
+
 const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   wall: 'Clique e arraste para desenhar uma parede.',
   light: 'Clique para colocar uma luz.',
@@ -34,6 +42,8 @@ function App() {
   const setSnapEnabled = useMapStore((state) => state.setSnapEnabled)
   const gridShape = useMapStore((state) => state.map.gridShape)
   const setGridShapeAction = useMapStore((state) => state.setGridShape)
+  const selection = useMapStore((state) => state.selection)
+  const removeSelected = useMapStore((state) => state.removeSelected)
 
   const handleAddToken = () => {
     addToken({ id: crypto.randomUUID(), characterId: null, name: 'Token', x: 0, y: 0, size: 1 })
@@ -126,6 +136,9 @@ function App() {
           {' '}Travar na grade
         </label>
         <button type="button" onClick={handleAddToken}>Adicionar token</button>
+        <button type="button" onClick={removeSelected} disabled={!selection}>
+          {selection ? `Apagar ${SELECTION_LABELS[selection.kind]} selecionada(o)` : 'Nada selecionado'}
+        </button>
         <button type="button" onClick={handleSave}>Salvar</button>
         <button type="button" onClick={handleOpen}>Abrir...</button>
         <button type="button" onClick={handleImportBackground}>Importar imagem de fundo</button>

@@ -9,7 +9,7 @@ describe('mapStore moveToken', () => {
   beforeEach(() => {
     useMapStore.setState({
       map: { ...useMapStore.getState().map, tokens: [], walls: [], lights: [], regions: [] },
-      selectedTokenId: null,
+      selection: null,
     })
   })
 

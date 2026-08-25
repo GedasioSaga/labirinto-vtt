@@ -17,13 +17,13 @@ import { drawLights } from './drawLights'
 import { drawRegions } from './drawRegions'
 import { drawTokens } from './drawTokens'
 import { drawWallDraft, drawRegionDraft } from './drawDraft'
-import { findTokenAt, snapToGrid } from './tokenInteraction'
+import { snapToGrid } from './tokenInteraction'
 import { isValidWallDraft, buildWallFromDraft, buildLightAt, buildRegionFromPoints } from '../lib/drawingFactory'
 import { createPropsRenderer } from './drawProps'
 import { subscribeToPropsRedraw } from '../stores/propsSubscription'
-import { findPropAt } from './propInteraction'
 import { pickImageFile, importPropImage } from '../lib/imageImport'
 import { mapDirFor } from '../lib/mapFileIO'
+import { findSelectableAt } from '../lib/selectionHitTest'
 
 export function PixiCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -93,22 +93,22 @@ export function PixiCanvas() {
       }
 
       const redrawShapes = () => {
-        const { map } = useMapStore.getState()
-        drawRegions(regionsGraphics, map.regions)
-        drawWalls(wallsGraphics, map.walls)
-        drawLights(lightsGraphics, map.lights)
+        const { map, selection } = useMapStore.getState()
+        drawRegions(regionsGraphics, map.regions, selection?.kind === 'region' ? selection.id : null)
+        drawWalls(wallsGraphics, map.walls, selection?.kind === 'wall' ? selection.id : null)
+        drawLights(lightsGraphics, map.lights, selection?.kind === 'light' ? selection.id : null)
       }
 
       const redrawTokens = () => {
-        const { map, selectedTokenId } = useMapStore.getState()
-        drawTokens(tokensContainer, map.tokens, map.grid, selectedTokenId)
+        const { map, selection } = useMapStore.getState()
+        drawTokens(tokensContainer, map.tokens, map.grid, selection?.kind === 'token' ? selection.id : null)
       }
 
       const propsRenderer = createPropsRenderer()
 
       const redrawProps = () => {
-        const { map } = useMapStore.getState()
-        propsRenderer.draw(propsContainer, map.props)
+        const { map, selection } = useMapStore.getState()
+        propsRenderer.draw(propsContainer, map.props, selection?.kind === 'prop' ? selection.id : null)
       }
 
       let backgroundLoadToken = 0
@@ -176,7 +176,7 @@ export function PixiCanvas() {
 
       app.stage.on('pointerdown', (event) => {
         const worldPoint = toWorldPoint(event.global.x, event.global.y)
-        const { map, activeTool, setSelectedTokenId } = useMapStore.getState()
+        const { map, activeTool, setSelection, addLight } = useMapStore.getState()
 
         if (activeTool === 'wall') {
           mode = 'drawing-wall'
@@ -186,7 +186,7 @@ export function PixiCanvas() {
 
         if (activeTool === 'light') {
           const point = applySnap(worldPoint, map.grid)
-          useMapStore.getState().addLight(buildLightAt(crypto.randomUUID(), point, map.grid))
+          addLight(buildLightAt(crypto.randomUUID(), point, map.grid))
           return
         }
 
@@ -217,20 +217,21 @@ export function PixiCanvas() {
           return
         }
 
-        const hit = findTokenAt(map.tokens, worldPoint, map.grid)
+        const hit = findSelectableAt(map, worldPoint)
         if (hit) {
-          mode = 'dragging-token'
-          draggingTokenId = hit.id
-          setSelectedTokenId(hit.id)
-        } else {
-          const propHit = findPropAt(map.props, worldPoint)
-          if (propHit) {
+          setSelection({ kind: hit.kind, id: hit.id })
+          if (hit.kind === 'token') {
+            mode = 'dragging-token'
+            draggingTokenId = hit.id
+          } else if (hit.kind === 'prop') {
             mode = 'dragging-prop'
-            draggingPropId = propHit.id
+            draggingPropId = hit.id
           } else {
-            mode = 'panning'
-            setSelectedTokenId(null)
+            mode = 'idle'
           }
+        } else {
+          mode = 'panning'
+          setSelection(null)
         }
         lastPoint = { x: event.global.x, y: event.global.y }
       })
@@ -326,8 +327,15 @@ export function PixiCanvas() {
       el.addEventListener('dblclick', onDblClick)
 
       const onKeyDown = (event: KeyboardEvent) => {
-        if (event.key !== 'Escape') return
-        clearDrafts()
+        if (event.key === 'Escape') {
+          clearDrafts()
+          return
+        }
+        if (event.key === 'Delete' || event.key === 'Backspace') {
+          const target = event.target as HTMLElement | null
+          if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return
+          useMapStore.getState().removeSelected()
+        }
       }
       window.addEventListener('keydown', onKeyDown)
 
