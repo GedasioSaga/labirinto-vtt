@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react'
-import { Application, Container } from 'pixi.js'
+import { Application, Container, Graphics } from 'pixi.js'
 import { useMapStore } from '../stores/mapStore'
 import { panBy, zoomAt, type Camera } from './world'
+import { computeVisibleGridLines } from './grid'
+import { drawGrid } from './drawGrid'
 
 export function PixiCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -28,9 +30,31 @@ export function PixiCanvas() {
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
+      const gridGraphics = new Graphics()
+      world.addChild(gridGraphics)
+
       let camera: Camera = useMapStore.getState().camera
       world.position.set(camera.x, camera.y)
       world.scale.set(camera.scale)
+
+      const redrawGrid = () => {
+        const { map } = useMapStore.getState()
+        if (!map.showGrid) {
+          gridGraphics.clear()
+          return
+        }
+        const viewport = {
+          left: -camera.x / camera.scale,
+          top: -camera.y / camera.scale,
+          right: (app.screen.width - camera.x) / camera.scale,
+          bottom: (app.screen.height - camera.y) / camera.scale,
+        }
+        const lines = computeVisibleGridLines(map.grid, viewport)
+        drawGrid(gridGraphics, lines, viewport)
+      }
+
+      redrawGrid()
+      const unsubscribe = useMapStore.subscribe(redrawGrid)
 
       let dragging = false
       let lastPoint = { x: 0, y: 0 }
@@ -53,6 +77,7 @@ export function PixiCanvas() {
         camera = panBy(camera, dx, dy)
         world.position.set(camera.x, camera.y)
         useMapStore.getState().setCamera(camera)
+        redrawGrid()
       })
 
       const onWheel = (event: WheelEvent) => {
@@ -63,10 +88,12 @@ export function PixiCanvas() {
         world.position.set(camera.x, camera.y)
         world.scale.set(camera.scale)
         useMapStore.getState().setCamera(camera)
+        redrawGrid()
       }
       el.addEventListener('wheel', onWheel, { passive: false })
 
       return () => {
+        unsubscribe()
         el.removeEventListener('wheel', onWheel)
       }
     }
