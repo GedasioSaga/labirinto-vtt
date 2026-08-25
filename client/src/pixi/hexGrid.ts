@@ -1,18 +1,9 @@
+import type { Point } from './world'
+import type { Viewport } from './grid'
+
 export interface AxialCoord {
   q: number
   r: number
-}
-
-export interface Point {
-  x: number
-  y: number
-}
-
-export interface Viewport {
-  left: number
-  top: number
-  right: number
-  bottom: number
 }
 
 export function axialToPixel(coord: AxialCoord, size: number): Point {
