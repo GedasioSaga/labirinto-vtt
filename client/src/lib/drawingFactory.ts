@@ -1,9 +1,5 @@
 import type { Wall, Light, Region, RegionPoint } from '../types/map'
-
-export interface Point {
-  x: number
-  y: number
-}
+import type { Point } from '../pixi/world'
 
 export function isValidWallDraft(start: Point, end: Point): boolean {
   return start.x !== end.x || start.y !== end.y
