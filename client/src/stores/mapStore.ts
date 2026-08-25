@@ -52,5 +52,5 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   },
   setShowGrid: (show) => set((state) => ({ map: mapFactory.setShowGrid(state.map, show) })),
   setBackground: (background) => set((state) => ({ map: mapFactory.setBackground(state.map, background) })),
-  loadMap: (map) => set({ map }),
+  loadMap: (map) => set({ map, selectedTokenId: null }),
 })))
