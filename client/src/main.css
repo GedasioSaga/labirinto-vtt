@@ -256,16 +256,56 @@ body {
   transition-delay: 0ms;
 }
 
+/* Seta do tooltip: quadrado girado 45° com duas bordas, então o contorno do
+   balão continua desenhado ao redor da ponta. */
+.lb-tip::before {
+  content: '';
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  z-index: 11;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  background: var(--lb-color-stone-sunken);
+  border-left: 1px solid var(--lb-color-line-strong);
+  border-top: 1px solid var(--lb-color-line-strong);
+  opacity: 0;
+  transform: translateY(-3px) rotate(45deg);
+  pointer-events: none;
+  transition:
+    opacity var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+  transition-delay: 0ms;
+}
+
 .lb-tip--up::after {
   top: auto;
   bottom: calc(100% + 8px);
   transform: translate(-50%, 3px);
 }
 
+.lb-tip--up::before {
+  top: auto;
+  bottom: calc(100% + 4px);
+  border-left: none;
+  border-top: none;
+  border-right: 1px solid var(--lb-color-line-strong);
+  border-bottom: 1px solid var(--lb-color-line-strong);
+  transform: translateY(3px) rotate(45deg);
+}
+
 .lb-tip:hover::after,
 .lb-tip:focus-visible::after {
   opacity: 1;
   transform: translate(-50%, 0);
+  transition-delay: 320ms;
+}
+
+.lb-tip:hover::before,
+.lb-tip:focus-visible::before {
+  opacity: 1;
+  transform: translateY(0) rotate(45deg);
   transition-delay: 320ms;
 }
 
@@ -564,13 +604,14 @@ body {
 }
 
 /* Coluna esquerda: inspetor (rola) + barra de ações (fixa embaixo).
-   Largura travada em 264px para nunca invadir o centro do canvas. */
+   Largura travada para nunca invadir o centro do canvas. O mesmo token é lido
+   pelo Toolbar em TypeScript, para o balão de dica saber onde parar. */
 .lb-editor__rail {
   position: absolute;
-  top: var(--lb-space-4);
-  bottom: var(--lb-space-4);
-  left: var(--lb-space-4);
-  width: 264px;
+  top: var(--lb-layout-edge-gap);
+  bottom: var(--lb-layout-edge-gap);
+  left: var(--lb-layout-edge-gap);
+  width: var(--lb-layout-rail-width);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -587,24 +628,30 @@ body {
    como o padding é igual dos dois lados, o centro visual não se desloca. */
 .lb-editor__top {
   position: absolute;
-  top: var(--lb-space-4);
+  top: var(--lb-layout-edge-gap);
   left: 0;
   right: 0;
-  padding: 0 calc(264px + var(--lb-space-4) * 2);
+  padding: 0 calc(var(--lb-layout-rail-width) + var(--lb-layout-edge-gap) * 2);
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--lb-space-2);
+  justify-content: center;
   pointer-events: none;
 }
 
-.lb-editor__top > * {
+/* Âncora do balão de dica: ele é posicionado em relação a esta caixa, que
+   envolve exatamente a barra de ferramentas. */
+.lb-toolbar-dock {
+  position: relative;
   pointer-events: auto;
 }
 
 /* --------------------------------------------------------- barra de ferramentas */
 
+/* `backdrop-filter` faz da barra um stacking context, então os tooltips dos
+   botões ficam presos dentro dela. Sem este z-index o balão da ferramenta
+   ativa — irmão posterior no DOM — pinta por cima deles no hover. */
 .lb-toolbar {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: var(--lb-space-1);
@@ -618,11 +665,20 @@ body {
   background: var(--lb-color-line-strong);
 }
 
+/* Balão da ferramenta ativa. `left` e `--lb-hint-arrow` vêm medidos do Toolbar:
+   o balão nasce sob o ícone que o disparou e recua se não couber, e nesse caso
+   a seta desliza dentro dele para continuar apontando o ícone.
+   `width: max-content` mantém a largura intrínseca estável, que é o que o
+   componente mede antes de decidir a posição. */
 .lb-hint {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 10px);
   margin: 0;
-  max-width: 460px;
-  padding: 6px var(--lb-space-3);
-  border-radius: var(--lb-radius-full);
+  width: max-content;
+  max-width: 420px;
+  padding: 7px var(--lb-space-3);
+  border-radius: var(--lb-radius-md);
   /* Flutua sobre o canvas junto com a barra de ferramentas, então usa a mesma
      elevação — senão a dica descola visualmente do componente que explica. */
   background: var(--lb-color-stone);
@@ -632,7 +688,28 @@ body {
   box-shadow: var(--lb-shadow-float);
   font-size: var(--lb-font-size-sm);
   color: var(--lb-color-parchment-dim);
-  text-align: center;
+  text-align: left;
+  pointer-events: none;
+  /* Reposicionar o balão é um salto, nunca uma animação — ele tem que estar sob
+     o ícone certo no mesmo quadro em que a ferramenta muda. Explicitar `none`
+     também o protege do bloco de `prefers-reduced-motion` abaixo, que zera a
+     duração de `*` e, como `transition-property` nasce em `all`, acabaria
+     criando transições de `left` e `visibility` que não deveriam existir. */
+  transition: none;
+}
+
+.lb-hint::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: var(--lb-hint-arrow, 50%);
+  width: 9px;
+  height: 9px;
+  margin-left: -5px;
+  background: var(--lb-color-stone);
+  border-left: 1px solid var(--lb-color-line-panel);
+  border-top: 1px solid var(--lb-color-line-panel);
+  transform: rotate(45deg);
 }
 
 /* ------------------------------------------------------------------ inspetor */

@@ -106,6 +106,18 @@ export const theme = {
     12: '48px',
   },
 
+  /**
+   * Medidas do shell do editor. Ficam aqui porque o CSS e o TypeScript precisam
+   * das duas: o CSS posiciona os painéis, e `placeHint` precisa saber onde o
+   * painel lateral termina para não deixar o balão de dica passar por cima dele.
+   */
+  layout: {
+    /** Largura da coluna esquerda (inspetor + barra de ações). */
+    railWidth: '264px',
+    /** Respiro entre painel flutuante e borda da janela. */
+    edgeGap: '16px',
+  },
+
   radius: {
     sm: '6px',
     md: '9px',
