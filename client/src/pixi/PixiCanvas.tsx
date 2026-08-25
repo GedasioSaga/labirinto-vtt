@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
-import { Application, Container, Graphics } from 'pixi.js'
+import { Application, Container, Graphics, Sprite, Texture, Assets } from 'pixi.js'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { useMapStore } from '../stores/mapStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
+import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
 import { panBy, zoomAt, type Camera } from './world'
 import { computeVisibleGridLines } from './grid'
 import { drawGrid } from './drawGrid'
@@ -38,12 +40,13 @@ export function PixiCanvas() {
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
+      const backgroundSprite = new Sprite(Texture.EMPTY)
       const gridGraphics = new Graphics()
       const regionsGraphics = new Graphics()
       const wallsGraphics = new Graphics()
       const lightsGraphics = new Graphics()
       const tokensContainer = new Container()
-      world.addChild(gridGraphics, regionsGraphics, wallsGraphics, lightsGraphics, tokensContainer)
+      world.addChild(backgroundSprite, gridGraphics, regionsGraphics, wallsGraphics, lightsGraphics, tokensContainer)
 
       let camera: Camera = useMapStore.getState().camera
       world.position.set(camera.x, camera.y)
@@ -76,12 +79,38 @@ export function PixiCanvas() {
         drawTokens(tokensContainer, map.tokens, map.grid, selectedTokenId)
       }
 
+      let backgroundLoadToken = 0
+
+      const redrawBackground = async () => {
+        const { map } = useMapStore.getState()
+        const loadToken = (backgroundLoadToken += 1)
+
+        if (map.background.type !== 'image' || !map.background.src) {
+          backgroundSprite.texture = Texture.EMPTY
+          return
+        }
+
+        try {
+          const url = convertFileSrc(map.background.src)
+          const texture = await Assets.load(url)
+          if (loadToken !== backgroundLoadToken) return
+          backgroundSprite.texture = texture
+        } catch {
+          if (loadToken !== backgroundLoadToken) return
+          backgroundSprite.texture = Texture.EMPTY
+        }
+      }
+
       redrawGrid()
       redrawShapes()
       redrawTokens()
+      void redrawBackground()
       const unsubscribeGrid = subscribeToGridRedraw(redrawGrid)
       const unsubscribeShapes = subscribeToShapesRedraw(redrawShapes)
       const unsubscribeTokens = subscribeToTokensRedraw(redrawTokens)
+      const unsubscribeBackground = subscribeToBackgroundRedraw(() => {
+        void redrawBackground()
+      })
 
       let mode: 'idle' | 'panning' | 'dragging-token' = 'idle'
       let lastPoint = { x: 0, y: 0 }
@@ -148,6 +177,7 @@ export function PixiCanvas() {
         unsubscribeGrid()
         unsubscribeShapes()
         unsubscribeTokens()
+        unsubscribeBackground()
         el.removeEventListener('wheel', onWheel)
       }
     }
