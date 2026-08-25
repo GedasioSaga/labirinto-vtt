@@ -1,0 +1,67 @@
+import type { MapData, Wall, Light, Region, Token } from '../types/map'
+
+export function createEmptyMap(id: string, name: string, width: number, height: number, grid: number): MapData {
+  return {
+    id,
+    name,
+    width,
+    height,
+    grid,
+    showGrid: true,
+    background: { type: 'color', src: '#2b2b2b' },
+    walls: [],
+    lights: [],
+    regions: [],
+    tokens: [],
+    fog: { mode: 'none', revealed: [] },
+    ownerId: null,
+    scenarioLink: null,
+  }
+}
+
+export function addWall(map: MapData, wall: Wall): MapData {
+  return { ...map, walls: [...map.walls, wall] }
+}
+
+export function removeWall(map: MapData, wallId: string): MapData {
+  return { ...map, walls: map.walls.filter((w) => w.id !== wallId) }
+}
+
+export function addLight(map: MapData, light: Light): MapData {
+  return { ...map, lights: [...map.lights, light] }
+}
+
+export function removeLight(map: MapData, lightId: string): MapData {
+  return { ...map, lights: map.lights.filter((l) => l.id !== lightId) }
+}
+
+export function addRegion(map: MapData, region: Region): MapData {
+  return { ...map, regions: [...map.regions, region] }
+}
+
+export function removeRegion(map: MapData, regionId: string): MapData {
+  return { ...map, regions: map.regions.filter((r) => r.id !== regionId) }
+}
+
+export function addToken(map: MapData, token: Token): MapData {
+  return { ...map, tokens: [...map.tokens, token] }
+}
+
+export function removeToken(map: MapData, tokenId: string): MapData {
+  return { ...map, tokens: map.tokens.filter((t) => t.id !== tokenId) }
+}
+
+export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
+  return {
+    ...map,
+    tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : t)),
+  }
+}
+
+export function setShowGrid(map: MapData, showGrid: boolean): MapData {
+  return { ...map, showGrid }
+}
+
+export function setBackground(map: MapData, background: MapData['background']): MapData {
+  return { ...map, background }
+}
