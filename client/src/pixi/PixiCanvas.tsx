@@ -3,12 +3,15 @@ import { Application, Container, Graphics } from 'pixi.js'
 import { useMapStore } from '../stores/mapStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
+import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
 import { panBy, zoomAt, type Camera } from './world'
 import { computeVisibleGridLines } from './grid'
 import { drawGrid } from './drawGrid'
 import { drawWalls } from './drawWalls'
 import { drawLights } from './drawLights'
 import { drawRegions } from './drawRegions'
+import { drawTokens } from './drawTokens'
+import { findTokenAt, snapToGrid } from './tokenInteraction'
 
 export function PixiCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -39,7 +42,8 @@ export function PixiCanvas() {
       const regionsGraphics = new Graphics()
       const wallsGraphics = new Graphics()
       const lightsGraphics = new Graphics()
-      world.addChild(gridGraphics, regionsGraphics, wallsGraphics, lightsGraphics)
+      const tokensContainer = new Container()
+      world.addChild(gridGraphics, regionsGraphics, wallsGraphics, lightsGraphics, tokensContainer)
 
       let camera: Camera = useMapStore.getState().camera
       world.position.set(camera.x, camera.y)
@@ -57,8 +61,7 @@ export function PixiCanvas() {
           right: (app.screen.width - camera.x) / camera.scale,
           bottom: (app.screen.height - camera.y) / camera.scale,
         }
-        const lines = computeVisibleGridLines(map.grid, viewport)
-        drawGrid(gridGraphics, lines, viewport)
+        drawGrid(gridGraphics, computeVisibleGridLines(map.grid, viewport), viewport)
       }
 
       const redrawShapes = () => {
@@ -68,32 +71,66 @@ export function PixiCanvas() {
         drawLights(lightsGraphics, map.lights)
       }
 
+      const redrawTokens = () => {
+        const { map, selectedTokenId } = useMapStore.getState()
+        drawTokens(tokensContainer, map.tokens, map.grid, selectedTokenId)
+      }
+
       redrawGrid()
       redrawShapes()
+      redrawTokens()
       const unsubscribeGrid = subscribeToGridRedraw(redrawGrid)
       const unsubscribeShapes = subscribeToShapesRedraw(redrawShapes)
+      const unsubscribeTokens = subscribeToTokensRedraw(redrawTokens)
 
-      let dragging = false
+      let mode: 'idle' | 'panning' | 'dragging-token' = 'idle'
       let lastPoint = { x: 0, y: 0 }
+      let draggingTokenId: string | null = null
+
+      const toWorldPoint = (globalX: number, globalY: number) => ({
+        x: (globalX - camera.x) / camera.scale,
+        y: (globalY - camera.y) / camera.scale,
+      })
 
       app.stage.on('pointerdown', (event) => {
-        dragging = true
+        const worldPoint = toWorldPoint(event.global.x, event.global.y)
+        const { map, setSelectedTokenId } = useMapStore.getState()
+        const hit = findTokenAt(map.tokens, worldPoint, map.grid)
+
+        if (hit) {
+          mode = 'dragging-token'
+          draggingTokenId = hit.id
+          setSelectedTokenId(hit.id)
+        } else {
+          mode = 'panning'
+          setSelectedTokenId(null)
+        }
         lastPoint = { x: event.global.x, y: event.global.y }
       })
+
       app.stage.on('pointerup', () => {
-        dragging = false
+        mode = 'idle'
+        draggingTokenId = null
       })
       app.stage.on('pointerupoutside', () => {
-        dragging = false
+        mode = 'idle'
+        draggingTokenId = null
       })
+
       app.stage.on('pointermove', (event) => {
-        if (!dragging) return
-        const dx = event.global.x - lastPoint.x
-        const dy = event.global.y - lastPoint.y
-        lastPoint = { x: event.global.x, y: event.global.y }
-        camera = panBy(camera, dx, dy)
-        world.position.set(camera.x, camera.y)
-        useMapStore.getState().setCamera(camera)
+        if (mode === 'panning') {
+          const dx = event.global.x - lastPoint.x
+          const dy = event.global.y - lastPoint.y
+          lastPoint = { x: event.global.x, y: event.global.y }
+          camera = panBy(camera, dx, dy)
+          world.position.set(camera.x, camera.y)
+          useMapStore.getState().setCamera(camera)
+        } else if (mode === 'dragging-token' && draggingTokenId) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { map, moveToken } = useMapStore.getState()
+          const snapped = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
+          moveToken(draggingTokenId, snapped.x, snapped.y)
+        }
       })
 
       const onWheel = (event: WheelEvent) => {
@@ -110,6 +147,7 @@ export function PixiCanvas() {
       return () => {
         unsubscribeGrid()
         unsubscribeShapes()
+        unsubscribeTokens()
         el.removeEventListener('wheel', onWheel)
       }
     }
