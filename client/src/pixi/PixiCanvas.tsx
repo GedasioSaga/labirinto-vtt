@@ -36,6 +36,8 @@ import { pickImageFile, importPropImage } from '../lib/imageImport'
 import { mapDirFor } from '../lib/mapFileIO'
 import { findSelectableAt } from '../lib/selectionHitTest'
 import { drawDrawings } from './drawDrawings'
+import { computeAlignment } from '../lib/alignmentGuides'
+import { drawGuides } from './drawGuides'
 
 export function PixiCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -71,6 +73,7 @@ export function PixiCanvas() {
       const lightsGraphics = new Graphics()
       const tokensContainer = new Container()
       const draftGraphics = new Graphics()
+      const guidesGraphics = new Graphics()
       world.addChild(
         backgroundSprite,
         gridGraphics,
@@ -81,11 +84,19 @@ export function PixiCanvas() {
         lightsGraphics,
         tokensContainer,
         draftGraphics,
+        guidesGraphics,
       )
 
       let camera: Camera = useMapStore.getState().camera
       world.position.set(camera.x, camera.y)
       world.scale.set(camera.scale)
+
+      const computeViewport = () => ({
+        left: -camera.x / camera.scale,
+        top: -camera.y / camera.scale,
+        right: (app.screen.width - camera.x) / camera.scale,
+        bottom: (app.screen.height - camera.y) / camera.scale,
+      })
 
       const redrawGrid = () => {
         const { map } = useMapStore.getState()
@@ -320,12 +331,14 @@ export function PixiCanvas() {
         mode = 'idle'
         draggingTokenId = null
         draggingPropId = null
+        guidesGraphics.clear()
       })
 
       app.stage.on('pointerupoutside', () => {
         mode = 'idle'
         draggingTokenId = null
         draggingPropId = null
+        guidesGraphics.clear()
         if (wallDraftStart) {
           wallDraftStart = null
           draftGraphics.clear()
@@ -353,7 +366,12 @@ export function PixiCanvas() {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, moveToken } = useMapStore.getState()
           const snapped = applySnap(worldPoint, map.grid)
-          moveToken(draggingTokenId, snapped.x, snapped.y)
+          const candidates = map.tokens
+            .filter((token) => token.id !== draggingTokenId)
+            .map((token) => ({ x: token.x, y: token.y }))
+          const result = computeAlignment(snapped, candidates)
+          drawGuides(guidesGraphics, result.guides, computeViewport())
+          moveToken(draggingTokenId, result.point.x, result.point.y)
           return
         }
 
@@ -361,7 +379,18 @@ export function PixiCanvas() {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, moveProp } = useMapStore.getState()
           const snapped = applySnap(worldPoint, map.grid)
-          moveProp(draggingPropId, snapped.x, snapped.y)
+          const candidates = map.props
+            .filter((prop) => prop.id !== draggingPropId)
+            .flatMap((prop) => [
+              { x: prop.x, y: prop.y },
+              { x: prop.x - prop.width / 2, y: prop.y },
+              { x: prop.x + prop.width / 2, y: prop.y },
+              { x: prop.x, y: prop.y - prop.height / 2 },
+              { x: prop.x, y: prop.y + prop.height / 2 },
+            ])
+          const result = computeAlignment(snapped, candidates)
+          drawGuides(guidesGraphics, result.guides, computeViewport())
+          moveProp(draggingPropId, result.point.x, result.point.y)
           return
         }
 
