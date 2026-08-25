@@ -30,4 +30,14 @@ describe('subscribeToPropsRedraw', () => {
     expect(onChange).toHaveBeenCalledTimes(1)
     unsubscribe()
   })
+
+  it('dispara quando a seleção muda (contorno de destaque da peça selecionada)', () => {
+    const onChange = vi.fn()
+    const unsubscribe = subscribeToPropsRedraw(onChange)
+
+    useMapStore.getState().setSelection({ kind: 'prop', id: 'p1' })
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    unsubscribe()
+  })
 })

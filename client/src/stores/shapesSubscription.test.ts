@@ -58,4 +58,14 @@ describe('subscribeToShapesRedraw', () => {
     expect(onChange).toHaveBeenCalledTimes(1)
     unsubscribe()
   })
+
+  it('dispara quando a seleção muda (destaque visual de parede/luz/região selecionada)', () => {
+    const onChange = vi.fn()
+    const unsubscribe = subscribeToShapesRedraw(onChange)
+
+    useMapStore.getState().setSelection({ kind: 'wall', id: 'w1' })
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    unsubscribe()
+  })
 })
