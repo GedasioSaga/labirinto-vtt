@@ -3,9 +3,7 @@ import { useMapStore } from './stores/mapStore'
 import { saveMapToAppData, pickMapJsonToOpen, loadMapFromDisk, mapDirFor, defaultMapsDir } from './lib/mapFileIO'
 import { pickBackgroundImage, importBackgroundImage } from './lib/imageImport'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
-import { deserializeMap } from './lib/mapFile'
 import { join } from '@tauri-apps/api/path'
-import { readTextFile } from '@tauri-apps/plugin-fs'
 
 function App() {
   const showGrid = useMapStore((state) => state.map.showGrid)
@@ -51,9 +49,7 @@ function App() {
     if (!sourceDir) return
     const mapsDir = await defaultMapsDir()
     const importedMapId = await importMapFolder(sourceDir, mapsDir)
-    const importedMapJsonPath = await join(await mapDirFor(importedMapId), 'map.json')
-    const content = await readTextFile(importedMapJsonPath)
-    loadMap(deserializeMap(content))
+    loadMap(await loadMapFromDisk(await join(await mapDirFor(importedMapId), 'map.json')))
   }
 
   return (
