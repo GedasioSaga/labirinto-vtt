@@ -1,9 +1,12 @@
 import type { DrawingTool } from '../types/tools'
+import type { Wall } from '../types/map'
 import { DRAWING_TOOLS } from './labels'
 import { LabyrinthMark } from './icons'
 import { DrawingStyleControls, type DrawingStyleControlsProps } from './DrawingStyleControls'
 import { GridControls, type GridControlsProps } from './GridControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
+import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
+import { ScenarioLinkControls, type ScenarioLinkControlsProps } from './ScenarioLinkControls'
 
 interface PropertiesPanelProps {
   mapName: string
@@ -14,6 +17,9 @@ interface PropertiesPanelProps {
   drawingStyle: DrawingStyleControlsProps
   grid: GridControlsProps
   selection: SelectionControlsProps
+  scenarioLink: ScenarioLinkControlsProps
+  selectedWall: Wall | null
+  wallDoor: Omit<WallDoorControlsProps, 'door'>
 }
 
 /**
@@ -29,6 +35,9 @@ export function PropertiesPanel({
   drawingStyle,
   grid,
   selection,
+  scenarioLink,
+  selectedWall,
+  wallDoor,
 }: PropertiesPanelProps) {
   const showDrawingStyle = DRAWING_TOOLS.includes(activeTool)
 
@@ -49,6 +58,8 @@ export function PropertiesPanel({
       <div className="lb-inspector__body lb-scroll">
         {showDrawingStyle && <DrawingStyleControls {...drawingStyle} />}
         <GridControls {...grid} />
+        <ScenarioLinkControls {...scenarioLink} />
+        {selectedWall && <WallDoorControls door={selectedWall.door} {...wallDoor} />}
         <SelectionControls {...selection} />
       </div>
     </div>

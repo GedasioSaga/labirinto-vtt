@@ -79,3 +79,27 @@ describe('mapStore addDrawing/removeSelected(drawing)/configuração de desenho'
     expect(state.drawFilled).toBe(true)
   })
 })
+
+describe('mapStore setWallDoor/setScenarioLink', () => {
+  beforeEach(() => {
+    useMapStore.setState({
+      map: { ...useMapStore.getState().map, walls: [], scenarioLink: null },
+      selection: null,
+    })
+  })
+
+  it('setWallDoor reflete no map', () => {
+    useMapStore.getState().addWall(blockingWall)
+
+    useMapStore.getState().setWallDoor('w1', { open: false, locked: false })
+
+    const wall = useMapStore.getState().map.walls.find((w) => w.id === 'w1')
+    expect(wall?.door).toEqual({ open: false, locked: false })
+  })
+
+  it('setScenarioLink reflete no map', () => {
+    useMapStore.getState().setScenarioLink('https://exemplo.com/cenario')
+
+    expect(useMapStore.getState().map.scenarioLink).toBe('https://exemplo.com/cenario')
+  })
+})

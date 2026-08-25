@@ -17,6 +17,8 @@ import {
   setGridShape,
   addDrawing,
   removeDrawing,
+  setWallDoor,
+  setScenarioLink,
 } from './mapFactory'
 import type { Wall, Light, Region, Token, Prop } from '../types/map'
 
@@ -131,6 +133,35 @@ describe('setGridShape', () => {
   it('troca o formato do grid', () => {
     const map = createEmptyMap('m', 'x', 10, 10, 64)
     expect(setGridShape(map, 'hex').gridShape).toBe('hex')
+  })
+})
+
+describe('setWallDoor', () => {
+  it('seta porta na parede com o id informado, sem tocar outras', () => {
+    const map = addWall(addWall(createEmptyMap('m', 'x', 10, 10, 64), wall), { ...wall, id: 'w2' })
+    const next = setWallDoor(map, 'w1', { open: false, locked: false })
+    const w1 = next.walls.find((w) => w.id === 'w1')
+    const w2 = next.walls.find((w) => w.id === 'w2')
+    expect(w1?.door).toEqual({ open: false, locked: false })
+    expect(w2?.door).toBeNull()
+  })
+
+  it('remove a porta (volta pra null) sem tocar outras paredes', () => {
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), { ...wall, door: { open: true, locked: false } })
+    const next = setWallDoor(map, 'w1', null)
+    expect(next.walls[0].door).toBeNull()
+  })
+})
+
+describe('setScenarioLink', () => {
+  it('seta o link de cenário', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+    expect(setScenarioLink(map, 'https://exemplo.com/cenario').scenarioLink).toBe('https://exemplo.com/cenario')
+  })
+
+  it('aceita null', () => {
+    const map = setScenarioLink(createEmptyMap('m', 'x', 10, 10, 64), 'https://exemplo.com/cenario')
+    expect(setScenarioLink(map, null).scenarioLink).toBeNull()
   })
 })
 

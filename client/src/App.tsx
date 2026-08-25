@@ -38,6 +38,20 @@ function App() {
   const setDrawWidth = useMapStore((state) => state.setDrawWidth)
   const drawFilled = useMapStore((state) => state.drawFilled)
   const setDrawFilled = useMapStore((state) => state.setDrawFilled)
+  const setWallDoor = useMapStore((state) => state.setWallDoor)
+  const setScenarioLink = useMapStore((state) => state.setScenarioLink)
+
+  const selectedWall = selection?.kind === 'wall' ? map.walls.find((w) => w.id === selection.id) ?? null : null
+
+  const handleToggleDoor = () => {
+    if (!selectedWall) return
+    setWallDoor(selectedWall.id, selectedWall.door === null ? { open: false, locked: false } : null)
+  }
+
+  const handleToggleOpen = () => {
+    if (!selectedWall || !selectedWall.door) return
+    setWallDoor(selectedWall.id, { ...selectedWall.door, open: !selectedWall.door.open })
+  }
 
   const handleAddToken = () => {
     addToken({ id: crypto.randomUUID(), characterId: null, name: 'Token', x: 0, y: 0, size: 1 })
@@ -126,6 +140,15 @@ function App() {
             selection,
             onAddToken: handleAddToken,
             onRemoveSelected: removeSelected,
+          }}
+          scenarioLink={{
+            scenarioLink: map.scenarioLink,
+            onScenarioLinkChange: setScenarioLink,
+          }}
+          selectedWall={selectedWall}
+          wallDoor={{
+            onToggleDoor: handleToggleDoor,
+            onToggleOpen: handleToggleOpen,
           }}
         />
         <ActionBar

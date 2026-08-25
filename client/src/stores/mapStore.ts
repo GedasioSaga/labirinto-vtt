@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import type { MapData, Wall, Light, Region, Token, Prop, Drawing } from '../types/map'
+import type { MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState } from '../types/map'
 import type { Camera } from '../pixi/world'
 import type { DrawingTool, Selection, SelectionKind } from '../types/tools'
 import * as mapFactory from '../lib/mapFactory'
@@ -41,6 +41,8 @@ interface MapStoreState {
   setShowGrid: (show: boolean) => void
   setGridShape: (shape: MapData['gridShape']) => void
   setBackground: (background: MapData['background']) => void
+  setWallDoor: (id: string, door: DoorState | null) => void
+  setScenarioLink: (value: string | null) => void
   loadMap: (map: MapData) => void
 }
 
@@ -100,5 +102,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   setShowGrid: (show) => set((state) => ({ map: mapFactory.setShowGrid(state.map, show) })),
   setGridShape: (shape) => set((state) => ({ map: mapFactory.setGridShape(state.map, shape) })),
   setBackground: (background) => set((state) => ({ map: mapFactory.setBackground(state.map, background) })),
+  setWallDoor: (id, door) => set((state) => ({ map: mapFactory.setWallDoor(state.map, id, door) })),
+  setScenarioLink: (value) => set((state) => ({ map: mapFactory.setScenarioLink(state.map, value) })),
   loadMap: (map) => set({ map, selection: null }),
 })))

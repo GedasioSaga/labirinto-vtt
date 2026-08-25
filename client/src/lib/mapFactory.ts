@@ -1,4 +1,4 @@
-import type { MapData, Wall, Light, Region, Token, Prop, Drawing } from '../types/map'
+import type { MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState } from '../types/map'
 
 export function createEmptyMap(id: string, name: string, width: number, height: number, grid: number): MapData {
   return {
@@ -86,6 +86,17 @@ export function setBackground(map: MapData, background: MapData['background']): 
 
 export function setGridShape(map: MapData, gridShape: MapData['gridShape']): MapData {
   return { ...map, gridShape }
+}
+
+export function setWallDoor(map: MapData, wallId: string, door: DoorState | null): MapData {
+  return {
+    ...map,
+    walls: map.walls.map((w) => (w.id === wallId ? { ...w, door } : w)),
+  }
+}
+
+export function setScenarioLink(map: MapData, scenarioLink: string | null): MapData {
+  return { ...map, scenarioLink }
 }
 
 export function addDrawing(map: MapData, drawing: Drawing): MapData {

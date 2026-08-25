@@ -37,6 +37,16 @@ describe('moveCrossesWall', () => {
   it('false quando o movimento não cruza a parede', () => {
     expect(moveCrossesWall({ x: 0, y: 0 }, { x: 4, y: 0 }, blockingWall)).toBe(false)
   })
+
+  it('false quando a parede é uma porta aberta, mesmo bloqueando e cruzando de verdade', () => {
+    const openDoorWall: Wall = { ...blockingWall, door: { open: true, locked: false } }
+    expect(moveCrossesWall({ x: 0, y: 0 }, { x: 10, y: 0 }, openDoorWall)).toBe(false)
+  })
+
+  it('true quando a parede é uma porta fechada e o movimento cruza', () => {
+    const closedDoorWall: Wall = { ...blockingWall, door: { open: false, locked: false } }
+    expect(moveCrossesWall({ x: 0, y: 0 }, { x: 10, y: 0 }, closedDoorWall)).toBe(true)
+  })
 })
 
 describe('resolveTokenMove', () => {

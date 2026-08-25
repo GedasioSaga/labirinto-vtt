@@ -30,6 +30,7 @@ export function segmentsIntersect(a: Point, b: Point, c: Point, d: Point): boole
 
 export function moveCrossesWall(from: Point, to: Point, wall: Wall): boolean {
   if (!wall.blocksMove) return false
+  if (wall.door?.open) return false
   return segmentsIntersect(from, to, { x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 })
 }
 
