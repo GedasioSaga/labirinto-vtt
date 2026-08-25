@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { Application, Container, Graphics } from 'pixi.js'
-import { shallow } from 'zustand/shallow'
 import { useMapStore } from '../stores/mapStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
+import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { panBy, zoomAt, type Camera } from './world'
 import { computeVisibleGridLines } from './grid'
 import { drawGrid } from './drawGrid'
@@ -71,11 +71,7 @@ export function PixiCanvas() {
       redrawGrid()
       redrawShapes()
       const unsubscribeGrid = subscribeToGridRedraw(redrawGrid)
-      const unsubscribeShapes = useMapStore.subscribe(
-        (state) => [state.map.walls, state.map.lights, state.map.regions] as const,
-        redrawShapes,
-        { equalityFn: shallow },
-      )
+      const unsubscribeShapes = subscribeToShapesRedraw(redrawShapes)
 
       let dragging = false
       let lastPoint = { x: 0, y: 0 }
