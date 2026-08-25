@@ -3,12 +3,13 @@
 // `npm run tauri:dev` (app Tauri real). Ver docs/verification/2026-08-25-task4-verificacao-manual.md
 // para o que este teste cobre e o que continua não coberto (o binário/webview Tauri em si).
 import { test, expect, type Page } from '@playwright/test'
+import type { Wall, Light, Region, Token } from '../src/types/map'
 
 type MapState = {
-  walls: { id: string; x1: number; y1: number; x2: number; y2: number }[]
-  lights: { id: string; x: number; y: number }[]
-  regions: { id: string; points: { x: number; y: number }[] }[]
-  tokens: { id: string; x: number; y: number }[]
+  walls: Wall[]
+  lights: Light[]
+  regions: Region[]
+  tokens: Token[]
 }
 
 async function getMapState(page: Page): Promise<MapState> {
