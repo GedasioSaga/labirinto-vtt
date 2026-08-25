@@ -11,6 +11,7 @@ import {
   removeToken,
   setTokenPosition,
   setShowGrid,
+  setGridShape,
 } from './mapFactory'
 import type { Wall, Light, Region, Token } from '../types/map'
 
@@ -28,6 +29,7 @@ describe('createEmptyMap', () => {
       width: 30,
       height: 20,
       grid: 64,
+      gridShape: 'square',
       showGrid: true,
       background: { type: 'color', src: '#2b2b2b' },
       walls: [],
@@ -95,5 +97,12 @@ describe('setShowGrid', () => {
   it('alterna a flag', () => {
     const map = createEmptyMap('m', 'x', 10, 10, 64)
     expect(setShowGrid(map, false).showGrid).toBe(false)
+  })
+})
+
+describe('setGridShape', () => {
+  it('troca o formato do grid', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+    expect(setGridShape(map, 'hex').gridShape).toBe('hex')
   })
 })

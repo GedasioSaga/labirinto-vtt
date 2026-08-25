@@ -7,6 +7,7 @@ export function createEmptyMap(id: string, name: string, width: number, height: 
     width,
     height,
     grid,
+    gridShape: 'square',
     showGrid: true,
     background: { type: 'color', src: '#2b2b2b' },
     walls: [],
@@ -64,4 +65,8 @@ export function setShowGrid(map: MapData, showGrid: boolean): MapData {
 
 export function setBackground(map: MapData, background: MapData['background']): MapData {
   return { ...map, background }
+}
+
+export function setGridShape(map: MapData, gridShape: MapData['gridShape']): MapData {
+  return { ...map, gridShape }
 }

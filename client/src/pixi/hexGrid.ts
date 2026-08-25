@@ -1,6 +1,8 @@
 import type { Point } from './world'
 import type { Viewport } from './grid'
 
+export type { Point }
+
 export interface AxialCoord {
   q: number
   r: number

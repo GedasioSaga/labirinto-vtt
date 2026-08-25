@@ -22,6 +22,7 @@ export function deserializeMap(json: string): MapData {
     width: parsed.width ?? 30,
     height: parsed.height ?? 20,
     grid: parsed.grid ?? 64,
+    gridShape: parsed.gridShape ?? 'square',
     showGrid: parsed.showGrid ?? true,
     background: parsed.background ?? { type: 'color', src: '#2b2b2b' },
     walls: parsed.walls ?? [],

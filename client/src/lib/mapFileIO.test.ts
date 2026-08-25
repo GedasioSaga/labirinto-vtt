@@ -41,6 +41,7 @@ function makeMap(overrides: Partial<MapData> = {}): MapData {
     width: 30,
     height: 20,
     grid: 64,
+    gridShape: 'square',
     showGrid: true,
     background: { type: 'color', src: '#2b2b2b' },
     walls: [],
