@@ -262,4 +262,20 @@ describe('importMapFolder', () => {
 
     await expect(importMapFolder('C:\\origem', 'C:\\appdata\\maps')).rejects.toThrow('map.json inválido')
   })
+
+  it('lança erro e não toca no disco quando o id do map.json tenta escapar da pasta de mapas via ..', async () => {
+    const map = makeMap({ id: '..\\..\\..\\Windows\\System32' })
+    readTextFileMock.mockResolvedValue(JSON.stringify(map))
+
+    await expect(importMapFolder('C:\\origem', 'C:\\appdata\\maps')).rejects.toThrow(
+      'fora da pasta de mapas esperada',
+    )
+
+    expect(mkdirMock).not.toHaveBeenCalled()
+    expect(copyFileMock).not.toHaveBeenCalled()
+    expect(invokeMock).not.toHaveBeenCalledWith(
+      'grant_fs_access',
+      expect.objectContaining({ path: expect.stringContaining('System32') }),
+    )
+  })
 })

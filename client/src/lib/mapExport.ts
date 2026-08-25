@@ -4,7 +4,7 @@ import { copyFile, exists, readDir, writeTextFile, readTextFile } from '@tauri-a
 import { join } from '@tauri-apps/api/path'
 import type { MapData } from '../types/map'
 import { serializeMap, deserializeMap } from './mapFile'
-import { ensureDir } from './mapFileIO'
+import { ensureDir, assertPathWithinRoot } from './mapFileIO'
 
 export async function pickExportFolder(): Promise<string | null> {
   const selected = await open({ directory: true, multiple: false, title: 'Escolher pasta de destino' })
@@ -41,6 +41,7 @@ export async function importMapFolder(sourceDir: string, appDataMapsDir: string)
   const map = deserializeMap(content)
 
   const destDir = await join(appDataMapsDir, map.id)
+  assertPathWithinRoot(destDir, appDataMapsDir)
   await invoke('grant_fs_access', { path: destDir })
   await ensureDir(destDir)
 

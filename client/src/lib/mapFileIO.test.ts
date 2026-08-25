@@ -31,8 +31,15 @@ vi.mock('@tauri-apps/api/path', () => ({
   dirname: vi.fn(async (path: string) => path.slice(0, path.lastIndexOf('\\'))),
 }))
 
-const { defaultMapsDir, mapDirFor, saveMapToAppData, pickMapJsonToOpen, pickExportDestination, loadMapFromDisk } =
-  await import('./mapFileIO')
+const {
+  defaultMapsDir,
+  mapDirFor,
+  saveMapToAppData,
+  pickMapJsonToOpen,
+  pickExportDestination,
+  loadMapFromDisk,
+  assertPathWithinRoot,
+} = await import('./mapFileIO')
 
 function makeMap(overrides: Partial<MapData> = {}): MapData {
   return {
@@ -78,6 +85,35 @@ describe('mapDirFor', () => {
     const dirA = await mapDirFor('map_a')
     const dirB = await mapDirFor('map_b')
     expect(dirA).not.toBe(dirB)
+  })
+
+  it('lança erro quando o id do mapa tenta escapar da pasta de mapas via ..', async () => {
+    await expect(
+      mapDirFor('..\\..\\..\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup'),
+    ).rejects.toThrow('fora da pasta de mapas esperada')
+  })
+})
+
+describe('assertPathWithinRoot', () => {
+  it('não lança quando o caminho está dentro da raiz', () => {
+    expect(() =>
+      assertPathWithinRoot('C:\\Users\\test\\AppData\\Roaming\\labirinto\\maps\\map_1', 'C:\\Users\\test\\AppData\\Roaming\\labirinto\\maps'),
+    ).not.toThrow()
+  })
+
+  it('não lança quando o caminho é exatamente igual à raiz', () => {
+    expect(() =>
+      assertPathWithinRoot('C:\\Users\\test\\AppData\\Roaming\\labirinto\\maps', 'C:\\Users\\test\\AppData\\Roaming\\labirinto\\maps'),
+    ).not.toThrow()
+  })
+
+  it('lança quando o caminho usa .. para escapar da raiz', () => {
+    expect(() =>
+      assertPathWithinRoot(
+        'C:\\Users\\test\\AppData\\Roaming\\labirinto\\maps\\..\\..\\..\\Windows\\System32',
+        'C:\\Users\\test\\AppData\\Roaming\\labirinto\\maps',
+      ),
+    ).toThrow('fora da pasta de mapas esperada')
   })
 })
 
