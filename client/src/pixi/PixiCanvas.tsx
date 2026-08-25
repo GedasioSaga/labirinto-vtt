@@ -330,6 +330,9 @@ export function PixiCanvas() {
           wallDraftStart = null
           draftGraphics.clear()
         }
+        if (freehandDraftPoints.length > 0 || lineDraftStart || circleDraftCenter) {
+          draftGraphics.clear()
+        }
         freehandDraftPoints = []
         lineDraftStart = null
         circleDraftCenter = null
