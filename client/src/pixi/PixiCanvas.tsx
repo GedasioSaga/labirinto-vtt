@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Application, Container, Graphics } from 'pixi.js'
 import { useMapStore } from '../stores/mapStore'
+import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { panBy, zoomAt, type Camera } from './world'
 import { computeVisibleGridLines } from './grid'
 import { drawGrid } from './drawGrid'
@@ -54,11 +55,7 @@ export function PixiCanvas() {
       }
 
       redrawGrid()
-      const unsubscribe = useMapStore.subscribe(
-        (state) => [state.camera, state.map.showGrid, state.map.grid] as const,
-        redrawGrid,
-        { equalityFn: (a, b) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2] },
-      )
+      const unsubscribe = subscribeToGridRedraw(redrawGrid)
 
       let dragging = false
       let lastPoint = { x: 0, y: 0 }
