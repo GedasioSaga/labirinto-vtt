@@ -2,18 +2,19 @@ import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type { MapData, Wall, Light, Region, Token, Prop } from '../types/map'
 import type { Camera } from '../pixi/world'
-import type { DrawingTool } from '../types/tools'
+import type { DrawingTool, Selection, SelectionKind } from '../types/tools'
 import * as mapFactory from '../lib/mapFactory'
 import { resolveTokenMove } from '../lib/collision'
 
 interface MapStoreState {
   map: MapData
   camera: Camera
-  selectedTokenId: string | null
+  selection: Selection | null
   activeTool: DrawingTool
   snapEnabled: boolean
   setCamera: (camera: Camera) => void
-  setSelectedTokenId: (id: string | null) => void
+  setSelection: (selection: Selection | null) => void
+  removeSelected: () => void
   setActiveTool: (tool: DrawingTool) => void
   setSnapEnabled: (enabled: boolean) => void
   addWall: (wall: Wall) => void
@@ -40,11 +41,24 @@ const initialMap = mapFactory.createEmptyMap('map_local', 'Mapa sem título', 30
 export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, get) => ({
   map: initialMap,
   camera: { x: 0, y: 0, scale: 1 },
-  selectedTokenId: null,
+  selection: null,
   activeTool: 'select',
   snapEnabled: false,
   setCamera: (camera) => set({ camera }),
-  setSelectedTokenId: (id) => set({ selectedTokenId: id }),
+  setSelection: (selection) => set({ selection }),
+  removeSelected: () => {
+    const { selection } = get()
+    if (!selection) return
+    const removers: Record<SelectionKind, (id: string) => void> = {
+      token: get().removeToken,
+      wall: get().removeWall,
+      light: get().removeLight,
+      region: get().removeRegion,
+      prop: get().removeProp,
+    }
+    removers[selection.kind](selection.id)
+    set({ selection: null })
+  },
   setActiveTool: (tool) => set({ activeTool: tool }),
   setSnapEnabled: (enabled) => set({ snapEnabled: enabled }),
   addWall: (wall) => set((state) => ({ map: mapFactory.addWall(state.map, wall) })),
@@ -69,5 +83,5 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   setShowGrid: (show) => set((state) => ({ map: mapFactory.setShowGrid(state.map, show) })),
   setGridShape: (shape) => set((state) => ({ map: mapFactory.setGridShape(state.map, shape) })),
   setBackground: (background) => set((state) => ({ map: mapFactory.setBackground(state.map, background) })),
-  loadMap: (map) => set({ map, selectedTokenId: null }),
+  loadMap: (map) => set({ map, selection: null }),
 })))

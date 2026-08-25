@@ -6,7 +6,7 @@ describe('subscribeToTokensRedraw', () => {
   beforeEach(() => {
     useMapStore.setState({
       map: { ...useMapStore.getState().map, tokens: [], walls: [], lights: [], regions: [] },
-      selectedTokenId: null,
+      selection: null,
     })
   })
 
@@ -38,7 +38,7 @@ describe('subscribeToTokensRedraw', () => {
     const onChange = vi.fn()
     const unsubscribe = subscribeToTokensRedraw(onChange)
 
-    useMapStore.getState().setSelectedTokenId('t1')
+    useMapStore.getState().setSelection({ kind: 'token', id: 't1' })
 
     expect(onChange).toHaveBeenCalledTimes(1)
     unsubscribe()
