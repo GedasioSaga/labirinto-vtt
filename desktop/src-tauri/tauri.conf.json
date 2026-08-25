@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Labirinto",
+  "version": "0.1.0",
+  "identifier": "com.labirinto.app",
+  "build": {
+    "beforeDevCommand": "npm run dev --workspace=client",
+    "beforeBuildCommand": "npm run build --workspace=client",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../../client/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Labirinto",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all",
+    "icon": ["icons/icon.ico"]
+  }
+}
