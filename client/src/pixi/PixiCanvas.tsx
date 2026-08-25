@@ -6,14 +6,16 @@ import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
 import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
-import { panBy, zoomAt, type Camera } from './world'
+import { panBy, zoomAt, type Camera, type Point } from './world'
 import { computeVisibleGridLines } from './grid'
 import { drawGrid } from './drawGrid'
 import { drawWalls } from './drawWalls'
 import { drawLights } from './drawLights'
 import { drawRegions } from './drawRegions'
 import { drawTokens } from './drawTokens'
+import { drawWallDraft, drawRegionDraft } from './drawDraft'
 import { findTokenAt, snapToGrid } from './tokenInteraction'
+import { isValidWallDraft, buildWallFromDraft, buildLightAt, buildRegionFromPoints } from '../lib/drawingFactory'
 
 export function PixiCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -46,7 +48,16 @@ export function PixiCanvas() {
       const wallsGraphics = new Graphics()
       const lightsGraphics = new Graphics()
       const tokensContainer = new Container()
-      world.addChild(backgroundSprite, gridGraphics, regionsGraphics, wallsGraphics, lightsGraphics, tokensContainer)
+      const draftGraphics = new Graphics()
+      world.addChild(
+        backgroundSprite,
+        gridGraphics,
+        regionsGraphics,
+        wallsGraphics,
+        lightsGraphics,
+        tokensContainer,
+        draftGraphics,
+      )
 
       let camera: Camera = useMapStore.getState().camera
       world.position.set(camera.x, camera.y)
@@ -112,20 +123,47 @@ export function PixiCanvas() {
         void redrawBackground()
       })
 
-      let mode: 'idle' | 'panning' | 'dragging-token' = 'idle'
+      let mode: 'idle' | 'panning' | 'dragging-token' | 'drawing-wall' = 'idle'
       let lastPoint = { x: 0, y: 0 }
       let draggingTokenId: string | null = null
+      let wallDraftStart: Point | null = null
+      let regionDraftPoints: Point[] = []
 
       const toWorldPoint = (globalX: number, globalY: number) => ({
         x: (globalX - camera.x) / camera.scale,
         y: (globalY - camera.y) / camera.scale,
       })
 
+      const clearDrafts = () => {
+        wallDraftStart = null
+        regionDraftPoints = []
+        draftGraphics.clear()
+      }
+
       app.stage.on('pointerdown', (event) => {
         const worldPoint = toWorldPoint(event.global.x, event.global.y)
-        const { map, setSelectedTokenId } = useMapStore.getState()
-        const hit = findTokenAt(map.tokens, worldPoint, map.grid)
+        const { map, activeTool, setSelectedTokenId } = useMapStore.getState()
 
+        if (activeTool === 'wall') {
+          mode = 'drawing-wall'
+          wallDraftStart = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
+          return
+        }
+
+        if (activeTool === 'light') {
+          const point = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
+          useMapStore.getState().addLight(buildLightAt(crypto.randomUUID(), point, map.grid))
+          return
+        }
+
+        if (activeTool === 'region') {
+          const point = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
+          regionDraftPoints = [...regionDraftPoints, point]
+          drawRegionDraft(draftGraphics, regionDraftPoints, null)
+          return
+        }
+
+        const hit = findTokenAt(map.tokens, worldPoint, map.grid)
         if (hit) {
           mode = 'dragging-token'
           draggingTokenId = hit.id
@@ -137,13 +175,28 @@ export function PixiCanvas() {
         lastPoint = { x: event.global.x, y: event.global.y }
       })
 
-      app.stage.on('pointerup', () => {
+      app.stage.on('pointerup', (event) => {
+        if (mode === 'drawing-wall' && wallDraftStart) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { map, addWall } = useMapStore.getState()
+          const end = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
+          if (isValidWallDraft(wallDraftStart, end)) {
+            addWall(buildWallFromDraft(crypto.randomUUID(), wallDraftStart, end))
+          }
+          wallDraftStart = null
+          draftGraphics.clear()
+        }
         mode = 'idle'
         draggingTokenId = null
       })
+
       app.stage.on('pointerupoutside', () => {
         mode = 'idle'
         draggingTokenId = null
+        if (wallDraftStart) {
+          wallDraftStart = null
+          draftGraphics.clear()
+        }
       })
 
       app.stage.on('pointermove', (event) => {
@@ -154,13 +207,47 @@ export function PixiCanvas() {
           camera = panBy(camera, dx, dy)
           world.position.set(camera.x, camera.y)
           useMapStore.getState().setCamera(camera)
-        } else if (mode === 'dragging-token' && draggingTokenId) {
+          return
+        }
+
+        if (mode === 'dragging-token' && draggingTokenId) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, moveToken } = useMapStore.getState()
           const snapped = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
           moveToken(draggingTokenId, snapped.x, snapped.y)
+          return
+        }
+
+        if (mode === 'drawing-wall' && wallDraftStart) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { map } = useMapStore.getState()
+          const end = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
+          drawWallDraft(draftGraphics, wallDraftStart, end)
+          return
+        }
+
+        if (useMapStore.getState().activeTool === 'region' && regionDraftPoints.length > 0) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { map } = useMapStore.getState()
+          const cursor = snapToGrid(worldPoint.x, worldPoint.y, map.grid)
+          drawRegionDraft(draftGraphics, regionDraftPoints, cursor)
         }
       })
+
+      const onDblClick = () => {
+        const { activeTool, addRegion } = useMapStore.getState()
+        if (activeTool !== 'region' || regionDraftPoints.length < 3) return
+        addRegion(buildRegionFromPoints(crypto.randomUUID(), regionDraftPoints))
+        regionDraftPoints = []
+        draftGraphics.clear()
+      }
+      el.addEventListener('dblclick', onDblClick)
+
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== 'Escape') return
+        clearDrafts()
+      }
+      window.addEventListener('keydown', onKeyDown)
 
       const onWheel = (event: WheelEvent) => {
         event.preventDefault()
@@ -179,6 +266,8 @@ export function PixiCanvas() {
         unsubscribeTokens()
         unsubscribeBackground()
         el.removeEventListener('wheel', onWheel)
+        el.removeEventListener('dblclick', onDblClick)
+        window.removeEventListener('keydown', onKeyDown)
       }
     }
 
