@@ -690,12 +690,27 @@ body {
   color: var(--lb-color-parchment-dim);
   text-align: left;
   pointer-events: none;
-  /* Reposicionar o balão é um salto, nunca uma animação — ele tem que estar sob
-     o ícone certo no mesmo quadro em que a ferramenta muda. Explicitar `none`
-     também o protege do bloco de `prefers-reduced-motion` abaixo, que zera a
-     duração de `*` e, como `transition-property` nasce em `all`, acabaria
-     criando transições de `left` e `visibility` que não deveriam existir. */
-  transition: none;
+  /* Só `transform` anima. `left` tem que ser um salto — o balão precisa estar
+     sob o ícone certo no mesmo quadro em que a ferramenta muda —, e nomear a
+     propriedade também protege do bloco de `prefers-reduced-motion` no fim do
+     arquivo: ele zera a duração de `*`, e como `transition-property` nasce em
+     `all`, criaria transições de `left` e `visibility` que não deveriam existir. */
+  transition: transform var(--lb-motion-base) var(--lb-motion-ease);
+}
+
+/* O ponteiro parado sobre um ícone desenha ~27px para baixo e cobriria a
+   primeira linha do texto. Em vez de afastar o balão para sempre — o que o
+   descolaria da barra no estado em que o usuário mais o vê, com o mouse já no
+   canvas —, ele sai do caminho só enquanto o ponteiro está na barra. Desce o
+   bastante para limpar também a faixa do tooltip de hover.
+   `:has(:focus-visible)` cobre a navegação por teclado sem reagir ao foco que
+   sobra depois de um clique de mouse. */
+.lb-toolbar:hover ~ .lb-hint {
+  transform: translateY(34px);
+}
+
+.lb-toolbar:has(:focus-visible) ~ .lb-hint {
+  transform: translateY(34px);
 }
 
 .lb-hint::before {
