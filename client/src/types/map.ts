@@ -59,12 +59,15 @@ export interface MapBackground {
   src: string
 }
 
+export type GridShape = 'square' | 'hex'
+
 export interface MapData {
   id: string
   name: string
   width: number
   height: number
   grid: number
+  gridShape: GridShape
   showGrid: boolean
   background: MapBackground
   walls: Wall[]

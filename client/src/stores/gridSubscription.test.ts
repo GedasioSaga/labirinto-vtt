@@ -57,6 +57,16 @@ describe('subscribeToGridRedraw', () => {
     unsubscribe()
   })
 
+  it('dispara quando gridShape muda', () => {
+    const onChange = vi.fn()
+    const unsubscribe = subscribeToGridRedraw(onChange)
+
+    useMapStore.getState().setGridShape('hex')
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    unsubscribe()
+  })
+
   it('dispara quando o grid muda', () => {
     const onChange = vi.fn()
     const unsubscribe = subscribeToGridRedraw(onChange)

@@ -28,6 +28,7 @@ describe('serializeMap/deserializeMap', () => {
     expect(restored.width).toBe(30)
     expect(restored.height).toBe(20)
     expect(restored.grid).toBe(64)
+    expect(restored.gridShape).toBe('square')
     expect(restored.showGrid).toBe(true)
     expect(restored.walls).toEqual([])
     expect(restored.tokens).toEqual([])

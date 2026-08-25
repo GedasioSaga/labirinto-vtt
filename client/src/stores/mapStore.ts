@@ -27,6 +27,7 @@ interface MapStoreState {
   setTokenPosition: (id: string, x: number, y: number) => void
   moveToken: (id: string, targetX: number, targetY: number) => void
   setShowGrid: (show: boolean) => void
+  setGridShape: (shape: MapData['gridShape']) => void
   setBackground: (background: MapData['background']) => void
   loadMap: (map: MapData) => void
 }
@@ -60,6 +61,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     set({ map: mapFactory.setTokenPosition(state.map, id, resolved.x, resolved.y) })
   },
   setShowGrid: (show) => set((state) => ({ map: mapFactory.setShowGrid(state.map, show) })),
+  setGridShape: (shape) => set((state) => ({ map: mapFactory.setGridShape(state.map, shape) })),
   setBackground: (background) => set((state) => ({ map: mapFactory.setBackground(state.map, background) })),
   loadMap: (map) => set({ map, selectedTokenId: null }),
 })))
