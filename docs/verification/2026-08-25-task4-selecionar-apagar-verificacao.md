@@ -1,5 +1,24 @@
 # Task 4 (selecionar-apagar) — Verificação do Step 5
 
+> **Correção pós-revisão final (2026-08-25, commit `fc53355`):** a conclusão original deste
+> documento (seção "Conclusão") está **errada** no ponto central. A suíte Playwright da seção 1
+> só lê `useMapStore.getState().selection` e o texto do botão — nunca o pixel/geometria real do
+> canvas Pixi. O documento original presumia que "`selection` setado corretamente" implicava
+> "destaque amarelo desenhado", mas essas são duas coisas diferentes: setar `selection` é estado;
+> desenhar o destaque depende da subscription (`subscribeToShapesRedraw`/`subscribeToPropsRedraw`)
+> disparar um redraw. A revisão final encontrou que ESSAS DUAS subscriptions não incluíam
+> `state.selection` no seletor — clicar pra selecionar parede/luz/região/peça não disparava
+> nenhum redraw, e o destaque só aparecia "por acidente" depois de outra mutação. Prova negativa
+> da própria revisão: `setSelection({kind:'wall', id:'w1'})` direto na store, screenshot da
+> região da parede antes/depois — bytes do PNG idênticos, sem nenhuma mudança de pixel. Os 7
+> testes Playwright passavam mesmo com esse bug presente, porque nunca olhavam pixel.
+>
+> Fix aplicado em `client/src/stores/shapesSubscription.ts` e `propsSubscription.ts` (adicionado
+> `state.selection` ao seletor, com teste novo em cada um). Os 7 testes Playwright desta seção
+> **continuam válidos** como evidência de que `selection`/botão/Delete funcionam via estado — só
+> não são evidência de que o PIXEL do destaque aparece. Isso permanece gap residual real (ver
+> seção 2), não fechado por nenhuma automação existente neste repo.
+
 > Adicionado nesta rodada de correção (fix separado do commit `fc1691c`) para fechar o gap
 > apontado pela revisão: o Step 5 do plano `2026-08-25-selecionar-apagar.md` (linhas 785-796)
 > pedia verificação manual via `npm run tauri:dev` e não havia evidência de execução no repo.
@@ -80,10 +99,15 @@ React/Pixi (idêntico ao servido pelo Tauri via `devUrl`) com interação real d
 Playwright, incluindo captura de erro de console/página — evidência forte de que os 6 passos do
 Step 5 funcionam sem erro, mas não é literalmente "clicado dentro do `tauri:dev`" por um humano.
 
-## Conclusão
+## Conclusão (corrigida)
 
-Os 6 passos do Step 5 e a condição "sem erro no console" têm evidência automatizada,
-reproduzível e versionada (seção 1), rodando contra o mesmo código-fonte que o Tauri serve. O
-app Tauri real compila e sobe (seção 2). O clique-a-clique humano dentro do webview nativo
-continua como gap residual declarado — não maquiado como fechado — igual ao critério já aceito
-para a Task 4 anterior neste mesmo repositório.
+Os 6 passos do Step 5, no nível de ESTADO (selection setado certo, botão com texto/disabled
+certo, Delete chama a remoção certa, sem erro de console), têm evidência automatizada,
+reproduzível e versionada (seção 1). Isso é real e continua valendo.
+
+O que a seção 1 **não** comprova, e a revisão final pegou: que o destaque VISUAL (linha amarela,
+anel, contorno) de fato aparece na tela no momento da seleção — esse é justamente o bug que foi
+encontrado e corrigido (`fc53355`) depois deste documento ter sido escrito. Ninguém, humano ou
+automação, viu o pixel amarelo aparecer antes do fix; o gap de "clique-a-clique humano dentro do
+webview nativo" (seção 2) continua aberto, e é exatamente o tipo de checagem que teria pego esse
+bug de cara.
