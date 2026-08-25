@@ -15,9 +15,14 @@
 >
 > Fix aplicado em `client/src/stores/shapesSubscription.ts` e `propsSubscription.ts` (adicionado
 > `state.selection` ao seletor, com teste novo em cada um). Os 7 testes Playwright desta seção
-> **continuam válidos** como evidência de que `selection`/botão/Delete funcionam via estado — só
-> não são evidência de que o PIXEL do destaque aparece. Isso permanece gap residual real (ver
-> seção 2), não fechado por nenhuma automação existente neste repo.
+> **continuam válidos** como evidência de que `selection`/botão/Delete funcionam via estado.
+>
+> **Fechamento do gap de pixel (2026-08-25):** `client/e2e/task4-selection-pixel-diff.spec.ts`
+> screenshota a região do canvas ao redor de parede/luz/região/peça antes e depois de
+> selecionar, e compara os bytes do PNG. Os 4 testes passam (`PASS (4) FAIL (0)`) — bytes
+> diferentes em todos os casos, prova de que o redraw do destaque acontece de verdade, não só
+> que `selection` mudou de estado. Reproduzir: `cd client && npx playwright test
+> task4-selection-pixel-diff`.
 
 > Adicionado nesta rodada de correção (fix separado do commit `fc1691c`) para fechar o gap
 > apontado pela revisão: o Step 5 do plano `2026-08-25-selecionar-apagar.md` (linhas 785-796)
@@ -105,9 +110,13 @@ Os 6 passos do Step 5, no nível de ESTADO (selection setado certo, botão com t
 certo, Delete chama a remoção certa, sem erro de console), têm evidência automatizada,
 reproduzível e versionada (seção 1). Isso é real e continua valendo.
 
-O que a seção 1 **não** comprova, e a revisão final pegou: que o destaque VISUAL (linha amarela,
-anel, contorno) de fato aparece na tela no momento da seleção — esse é justamente o bug que foi
-encontrado e corrigido (`fc53355`) depois deste documento ter sido escrito. Ninguém, humano ou
-automação, viu o pixel amarelo aparecer antes do fix; o gap de "clique-a-clique humano dentro do
-webview nativo" (seção 2) continua aberto, e é exatamente o tipo de checagem que teria pego esse
-bug de cara.
+O que a seção 1 **não** comprovava — que o destaque VISUAL (linha amarela, anel, contorno) de
+fato aparece na tela no momento da seleção — foi exatamente o bug que a revisão final encontrou
+e que foi corrigido em `fc53355`. Esse gap está fechado agora: `task4-selection-pixel-diff.spec.ts`
+(seção 1, atualização 2026-08-25) prova em nível de pixel que o redraw acontece para parede, luz,
+região e peça.
+
+O único gap residual real é o de "clique-a-clique humano dentro do webview nativo" (seção 2) —
+continua aberto, mas é um gap de ferramenta de automação (não existe automação de mouse/teclado
+dentro do processo `.exe` do Tauri nesta sessão), não mais um gap de cobertura de comportamento:
+o mesmo código React/Pixi que o Tauri serve via `devUrl` já tem prova de estado E de pixel.
