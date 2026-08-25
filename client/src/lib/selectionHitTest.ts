@@ -1,4 +1,4 @@
-import type { Wall, Light, Region, RegionPoint, Drawing, MapData } from '../types/map'
+import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, MapData } from '../types/map'
 import type { Selection } from '../types/tools'
 import { findTokenAt } from '../pixi/tokenInteraction'
 import { findPropAt } from '../pixi/propInteraction'
@@ -82,7 +82,7 @@ export function findDrawingAt(drawings: Drawing[], point: Point, tolerance = DRA
     const drawing = drawings[i]
     const reach = tolerance + drawing.width / 2
 
-    if (drawing.kind === 'freehand') {
+    if (drawing.kind === 'freehand' || drawing.kind === 'curve') {
       if (drawing.points.length >= 2 && distanceToPolyline(point, drawing.points) <= reach) return drawing
     } else if (drawing.kind === 'line') {
       if (distanceToSegment(point, { x: drawing.x1, y: drawing.y1 }, { x: drawing.x2, y: drawing.y2 }) <= reach) return drawing
@@ -90,6 +90,15 @@ export function findDrawingAt(drawings: Drawing[], point: Point, tolerance = DRA
       const distanceToCenter = Math.hypot(point.x - drawing.cx, point.y - drawing.cy)
       const hit = drawing.filled ? distanceToCenter <= drawing.radius : Math.abs(distanceToCenter - drawing.radius) <= reach
       if (hit) return drawing
+    }
+  }
+  return null
+}
+
+export function findCurveControlPointAt(points: DrawingPoint[], point: Point, handleRadius = 8): number | null {
+  for (let i = 0; i < points.length; i += 1) {
+    if (Math.hypot(point.x - points[i].x, point.y - points[i].y) <= handleRadius) {
+      return i
     }
   }
   return null

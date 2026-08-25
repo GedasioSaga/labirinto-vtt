@@ -6,6 +6,7 @@ import { placeHint, type HintPlacement } from './hintPlacement'
 import {
   BrushIcon,
   CircleIcon,
+  CurveIcon,
   CursorIcon,
   LightIcon,
   LineIcon,
@@ -28,6 +29,7 @@ const TOOL_ICONS: Record<DrawingTool, ComponentType<{ size?: number }>> = {
   brush: BrushIcon,
   line: LineIcon,
   circle: CircleIcon,
+  curve: CurveIcon,
 }
 
 const EDGE_GAP = parseFloat(theme.layout.edgeGap)

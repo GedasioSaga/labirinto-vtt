@@ -1,5 +1,6 @@
 import { Color, type Graphics } from 'pixi.js'
 import type { Drawing } from '../types/map'
+import { catmullRomToBezierSegments } from '../lib/curveMath'
 import { SELECTION_COLOR } from './constants'
 
 export function drawDrawings(graphics: Graphics, drawings: Drawing[], selectedDrawingId: string | null = null): void {
@@ -17,6 +18,19 @@ export function drawDrawings(graphics: Graphics, drawings: Drawing[], selectedDr
       graphics.stroke({ width, color, cap: 'round', join: 'round' })
     } else if (drawing.kind === 'line') {
       graphics.moveTo(drawing.x1, drawing.y1).lineTo(drawing.x2, drawing.y2).stroke({ width, color, cap: 'round' })
+    } else if (drawing.kind === 'curve') {
+      if (drawing.points.length < 2) continue
+      const first = drawing.points[0]
+      graphics.moveTo(first.x, first.y)
+      for (const segment of catmullRomToBezierSegments(drawing.points)) {
+        graphics.bezierCurveTo(segment.c1.x, segment.c1.y, segment.c2.x, segment.c2.y, segment.end.x, segment.end.y)
+      }
+      graphics.stroke({ width, color, cap: 'round', join: 'round' })
+      if (isSelected) {
+        for (const point of drawing.points) {
+          graphics.circle(point.x, point.y, 5).fill({ color: SELECTION_COLOR })
+        }
+      }
     } else {
       graphics.circle(drawing.cx, drawing.cy, drawing.radius)
       if (drawing.filled) graphics.fill({ color, alpha: isSelected ? 0.35 : 0.5 })

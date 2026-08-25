@@ -103,3 +103,31 @@ describe('mapStore setWallDoor/setScenarioLink', () => {
     expect(useMapStore.getState().map.scenarioLink).toBe('https://exemplo.com/cenario')
   })
 })
+
+describe('mapStore updateCurvePoint', () => {
+  beforeEach(() => {
+    useMapStore.setState({
+      map: { ...useMapStore.getState().map, drawings: [] },
+      selection: null,
+    })
+  })
+
+  it('atualiza só o ponto do índice certo, no drawing certo, sem tocar outros', () => {
+    useMapStore.getState().addDrawing({ id: 'd1', kind: 'curve', points: [{ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 20, y: 0 }], color: '#fff', width: 4 })
+    useMapStore.getState().addDrawing({ id: 'd2', kind: 'curve', points: [{ x: 5, y: 5 }, { x: 15, y: 15 }], color: '#fff', width: 4 })
+
+    useMapStore.getState().updateCurvePoint('d1', 1, 99, 88)
+
+    const drawings = useMapStore.getState().map.drawings
+    const d1 = drawings.find((d) => d.id === 'd1')
+    const d2 = drawings.find((d) => d.id === 'd2')
+    expect(d1?.kind).toBe('curve')
+    if (d1?.kind === 'curve') {
+      expect(d1.points).toEqual([{ x: 0, y: 0 }, { x: 99, y: 88 }, { x: 20, y: 0 }])
+    }
+    expect(d2?.kind).toBe('curve')
+    if (d2?.kind === 'curve') {
+      expect(d2.points).toEqual([{ x: 5, y: 5 }, { x: 15, y: 15 }])
+    }
+  })
+})

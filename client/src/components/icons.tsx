@@ -151,6 +151,14 @@ export function CircleIcon(props: IconProps) {
   )
 }
 
+export function CurveIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 18c0-6 4-6 7-6s7 0 7-6" />
+    </Icon>
+  )
+}
+
 export function TokenIcon(props: IconProps) {
   return (
     <Icon {...props}>

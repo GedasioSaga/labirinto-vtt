@@ -1,5 +1,6 @@
 import type { Wall, Light, Region, RegionPoint, Drawing } from '../types/map'
 import type { Point } from '../pixi/world'
+import { simplifyToControlPoints } from './curveMath'
 
 export function isValidWallDraft(start: Point, end: Point): boolean {
   return start.x !== end.x || start.y !== end.y
@@ -59,4 +60,12 @@ export function isValidCircleDraft(radius: number): boolean {
 
 export function buildCircleDrawing(id: string, center: Point, radius: number, color: string, width: number, filled: boolean): Drawing {
   return { id, kind: 'circle', cx: center.x, cy: center.y, radius, color, width, filled }
+}
+
+export function isValidCurveDraft(points: Point[]): boolean {
+  return points.length >= 2
+}
+
+export function buildCurveDrawing(id: string, rawPoints: Point[], color: string, width: number): Drawing {
+  return { id, kind: 'curve', points: simplifyToControlPoints(rawPoints), color, width }
 }

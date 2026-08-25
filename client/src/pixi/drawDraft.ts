@@ -35,6 +35,15 @@ export function drawFreehandDraft(graphics: Graphics, points: Point[], color: st
   graphics.stroke({ width, color: new Color(color).toNumber(), alpha: 0.8, cap: 'round', join: 'round' })
 }
 
+export function drawCurveDraft(graphics: Graphics, points: Point[], color: string, width: number): void {
+  graphics.clear()
+  if (points.length < 2) return
+  const [first, ...rest] = points
+  graphics.moveTo(first.x, first.y)
+  for (const point of rest) graphics.lineTo(point.x, point.y)
+  graphics.stroke({ width, color: new Color(color).toNumber(), alpha: 0.8, cap: 'round', join: 'round' })
+}
+
 export function drawLineDraft(graphics: Graphics, start: Point, end: Point, color: string, width: number): void {
   graphics.clear()
   graphics.moveTo(start.x, start.y).lineTo(end.x, end.y).stroke({ width, color: new Color(color).toNumber(), alpha: 0.8, cap: 'round' })

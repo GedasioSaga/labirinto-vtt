@@ -17,6 +17,7 @@ export const TOOL_LABELS: Record<DrawingTool, string> = {
   brush: 'Pincel',
   line: 'Linha',
   circle: 'Círculo',
+  curve: 'Curva',
 }
 
 export const SELECTION_LABELS: Record<string, string> = {
@@ -36,14 +37,15 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   brush: 'Clique e arraste para desenhar um traço livre.',
   line: 'Clique e arraste para desenhar uma linha reta.',
   circle: 'Clique no centro e arraste para definir o raio.',
+  curve: 'Clique e arraste para desenhar uma curva suave.',
 }
 
 /** Ferramentas agrupadas por intenção — a barra desenha um separador entre grupos. */
 export const TOOL_GROUPS: DrawingTool[][] = [
   ['select'],
   ['wall', 'light', 'region', 'prop'],
-  ['brush', 'line', 'circle'],
+  ['brush', 'line', 'circle', 'curve'],
 ]
 
 /** Ferramentas que expõem os controles de cor/espessura/preenchimento. */
-export const DRAWING_TOOLS: DrawingTool[] = ['brush', 'line', 'circle']
+export const DRAWING_TOOLS: DrawingTool[] = ['brush', 'line', 'circle', 'curve']

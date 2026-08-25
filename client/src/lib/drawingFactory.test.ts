@@ -10,6 +10,8 @@ import {
   buildLineDrawing,
   isValidCircleDraft,
   buildCircleDrawing,
+  isValidCurveDraft,
+  buildCurveDrawing,
 } from './drawingFactory'
 
 describe('isValidWallDraft', () => {
@@ -120,6 +122,24 @@ describe('buildCircleDrawing', () => {
   it('cria desenho circle com centro, raio, cor, espessura e filled dados', () => {
     expect(buildCircleDrawing('d3', { x: 50, y: 50 }, 30, '#0000ff', 2, true)).toEqual({
       id: 'd3', kind: 'circle', cx: 50, cy: 50, radius: 30, color: '#0000ff', width: 2, filled: true,
+    })
+  })
+})
+
+describe('isValidCurveDraft', () => {
+  it('menos de 2 pontos é inválido', () => {
+    expect(isValidCurveDraft([{ x: 0, y: 0 }])).toBe(false)
+  })
+  it('2+ pontos é válido', () => {
+    expect(isValidCurveDraft([{ x: 0, y: 0 }, { x: 1, y: 1 }])).toBe(true)
+  })
+})
+
+describe('buildCurveDrawing', () => {
+  it('cria desenho curve com os pontos simplificados, cor e espessura dados', () => {
+    const rawPoints = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 30, y: 0 }]
+    expect(buildCurveDrawing('d4', rawPoints, '#123456', 5)).toEqual({
+      id: 'd4', kind: 'curve', points: [{ x: 0, y: 0 }, { x: 30, y: 0 }], color: '#123456', width: 5,
     })
   })
 })

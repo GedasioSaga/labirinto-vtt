@@ -16,7 +16,7 @@ import { drawWalls } from './drawWalls'
 import { drawLights } from './drawLights'
 import { drawRegions } from './drawRegions'
 import { drawTokens } from './drawTokens'
-import { drawWallDraft, drawRegionDraft, drawFreehandDraft, drawLineDraft, drawCircleDraft } from './drawDraft'
+import { drawWallDraft, drawRegionDraft, drawFreehandDraft, drawLineDraft, drawCircleDraft, drawCurveDraft } from './drawDraft'
 import { snapToGrid } from './tokenInteraction'
 import {
   isValidWallDraft,
@@ -29,12 +29,14 @@ import {
   buildLineDrawing,
   isValidCircleDraft,
   buildCircleDrawing,
+  isValidCurveDraft,
+  buildCurveDrawing,
 } from '../lib/drawingFactory'
 import { createPropsRenderer } from './drawProps'
 import { subscribeToPropsRedraw } from '../stores/propsSubscription'
 import { pickImageFile, importPropImage } from '../lib/imageImport'
 import { mapDirFor } from '../lib/mapFileIO'
-import { findSelectableAt } from '../lib/selectionHitTest'
+import { findSelectableAt, findCurveControlPointAt } from '../lib/selectionHitTest'
 import { drawDrawings } from './drawDrawings'
 import { computeAlignment } from '../lib/alignmentGuides'
 import { drawGuides } from './drawGuides'
@@ -172,7 +174,7 @@ export function PixiCanvas() {
         void redrawBackground()
       })
 
-      let mode: 'idle' | 'panning' | 'dragging-token' | 'dragging-prop' | 'drawing-wall' | 'drawing-freehand' | 'drawing-line' | 'drawing-circle' = 'idle'
+      let mode: 'idle' | 'panning' | 'dragging-token' | 'dragging-prop' | 'drawing-wall' | 'drawing-freehand' | 'drawing-line' | 'drawing-circle' | 'drawing-curve' | 'dragging-curve-point' = 'idle'
       let lastPoint = { x: 0, y: 0 }
       let draggingTokenId: string | null = null
       let draggingPropId: string | null = null
@@ -181,6 +183,9 @@ export function PixiCanvas() {
       let freehandDraftPoints: Point[] = []
       let lineDraftStart: Point | null = null
       let circleDraftCenter: Point | null = null
+      let curveDraftPoints: Point[] = []
+      let draggingCurveId: string | null = null
+      let draggingCurvePointIndex = 0
 
       const toWorldPoint = (globalX: number, globalY: number) => ({
         x: (globalX - camera.x) / camera.scale,
@@ -199,6 +204,7 @@ export function PixiCanvas() {
         freehandDraftPoints = []
         lineDraftStart = null
         circleDraftCenter = null
+        curveDraftPoints = []
         draftGraphics.clear()
       }
 
@@ -208,7 +214,7 @@ export function PixiCanvas() {
 
       app.stage.on('pointerdown', (event) => {
         const worldPoint = toWorldPoint(event.global.x, event.global.y)
-        const { map, activeTool, setSelection, addLight } = useMapStore.getState()
+        const { map, activeTool, selection, setSelection, addLight } = useMapStore.getState()
 
         if (activeTool === 'wall') {
           mode = 'drawing-wall'
@@ -260,11 +266,30 @@ export function PixiCanvas() {
           return
         }
 
+        if (activeTool === 'curve') {
+          mode = 'drawing-curve'
+          curveDraftPoints = [worldPoint]
+          return
+        }
+
         if (activeTool === 'region') {
           const point = applySnap(worldPoint, map.grid)
           regionDraftPoints = [...regionDraftPoints, point]
           drawRegionDraft(draftGraphics, regionDraftPoints, null)
           return
+        }
+
+        if (activeTool === 'select' && selection?.kind === 'drawing') {
+          const drawing = map.drawings.find((d) => d.id === selection.id)
+          if (drawing && drawing.kind === 'curve') {
+            const index = findCurveControlPointAt(drawing.points, worldPoint)
+            if (index !== null) {
+              mode = 'dragging-curve-point'
+              draggingCurveId = selection.id
+              draggingCurvePointIndex = index
+              return
+            }
+          }
         }
 
         const hit = findSelectableAt(map, worldPoint)
@@ -328,9 +353,19 @@ export function PixiCanvas() {
           circleDraftCenter = null
           draftGraphics.clear()
         }
+
+        if (mode === 'drawing-curve') {
+          const { addDrawing, drawColor, drawWidth } = useMapStore.getState()
+          if (isValidCurveDraft(curveDraftPoints)) {
+            addDrawing(buildCurveDrawing(crypto.randomUUID(), curveDraftPoints, drawColor, drawWidth))
+          }
+          curveDraftPoints = []
+          draftGraphics.clear()
+        }
         mode = 'idle'
         draggingTokenId = null
         draggingPropId = null
+        draggingCurveId = null
         guidesGraphics.clear()
       })
 
@@ -338,17 +373,19 @@ export function PixiCanvas() {
         mode = 'idle'
         draggingTokenId = null
         draggingPropId = null
+        draggingCurveId = null
         guidesGraphics.clear()
         if (wallDraftStart) {
           wallDraftStart = null
           draftGraphics.clear()
         }
-        if (freehandDraftPoints.length > 0 || lineDraftStart || circleDraftCenter) {
+        if (freehandDraftPoints.length > 0 || lineDraftStart || circleDraftCenter || curveDraftPoints.length > 0) {
           draftGraphics.clear()
         }
         freehandDraftPoints = []
         lineDraftStart = null
         circleDraftCenter = null
+        curveDraftPoints = []
       })
 
       app.stage.on('pointermove', (event) => {
@@ -394,6 +431,14 @@ export function PixiCanvas() {
           return
         }
 
+        if (mode === 'dragging-curve-point' && draggingCurveId !== null) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { map } = useMapStore.getState()
+          const p = applySnap(worldPoint, map.grid)
+          useMapStore.getState().updateCurvePoint(draggingCurveId, draggingCurvePointIndex, p.x, p.y)
+          return
+        }
+
         if (mode === 'drawing-wall' && wallDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map } = useMapStore.getState()
@@ -423,6 +468,14 @@ export function PixiCanvas() {
           const { drawColor, drawWidth, drawFilled } = useMapStore.getState()
           const radius = Math.hypot(worldPoint.x - circleDraftCenter.x, worldPoint.y - circleDraftCenter.y)
           drawCircleDraft(draftGraphics, circleDraftCenter, radius, drawColor, drawWidth, drawFilled)
+          return
+        }
+
+        if (mode === 'drawing-curve') {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          curveDraftPoints = [...curveDraftPoints, worldPoint]
+          const { drawColor, drawWidth } = useMapStore.getState()
+          drawCurveDraft(draftGraphics, curveDraftPoints, drawColor, drawWidth)
           return
         }
 
