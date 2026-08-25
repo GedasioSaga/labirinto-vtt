@@ -65,12 +65,17 @@ export function PixiCanvas() {
         useMapStore.getState().setCamera(camera)
       }
       el.addEventListener('wheel', onWheel, { passive: false })
+
+      return () => {
+        el.removeEventListener('wheel', onWheel)
+      }
     }
 
-    void setup()
+    const cleanupPromise = setup()
 
     return () => {
       destroyed = true
+      void cleanupPromise.then((cleanup) => cleanup?.())
       if (initialized) {
         app.destroy(true, { children: true })
       }

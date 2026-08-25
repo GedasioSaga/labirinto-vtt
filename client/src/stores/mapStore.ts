@@ -1,10 +1,5 @@
 import { create } from 'zustand'
-
-export interface Camera {
-  x: number
-  y: number
-  scale: number
-}
+import type { Camera } from '../pixi/world'
 
 interface MapStoreState {
   camera: Camera
