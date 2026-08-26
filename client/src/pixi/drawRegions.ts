@@ -25,7 +25,7 @@ interface HatchSegment {
  * segmentos já nascem recortados ao polígono, nunca vazam pra fora do contorno,
  * mesmo em regiões não-retangulares (formato em L, muitos vértices).
  */
-function computeHatchSegments(points: RegionPoint[]): HatchSegment[] {
+export function computeHatchSegments(points: RegionPoint[]): HatchSegment[] {
   const cos = Math.cos(-HATCH_ANGLE)
   const sin = Math.sin(-HATCH_ANGLE)
   const rotated = points.map((p) => ({ u: p.x * cos - p.y * sin, v: p.x * sin + p.y * cos }))
@@ -55,7 +55,7 @@ function computeHatchSegments(points: RegionPoint[]): HatchSegment[] {
 }
 
 /** Interseções da reta v=constante com as arestas do polígono, em ordem crescente de u. */
-function scanlineIntersections(points: { u: number; v: number }[], v: number): number[] {
+export function scanlineIntersections(points: { u: number; v: number }[], v: number): number[] {
   const us: number[] = []
   const n = points.length
   for (let i = 0; i < n; i++) {
