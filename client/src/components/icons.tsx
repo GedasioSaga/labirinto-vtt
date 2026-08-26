@@ -159,15 +159,6 @@ export function CurveIcon(props: IconProps) {
   )
 }
 
-/** Glifo "T" de contorno — path exato definido na Task 3. A ferramenta em si chega na Task 3. */
-export function TextIcon(props: IconProps) {
-  return (
-    <Icon {...props}>
-      <path d="M5 6h14M12 6v13" />
-    </Icon>
-  )
-}
-
 export function TokenIcon(props: IconProps) {
   return (
     <Icon {...props}>

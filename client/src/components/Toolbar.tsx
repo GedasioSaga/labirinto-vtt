@@ -12,7 +12,6 @@ import {
   LineIcon,
   PropIcon,
   RegionIcon,
-  TextIcon,
   WallIcon,
 } from './icons'
 
@@ -21,10 +20,10 @@ interface ToolbarProps {
   onSelectTool: (tool: DrawingTool) => void
 }
 
-// text: entrada obrigatória (Record<DrawingTool, ...> é exaustivo desde a
-// Task 1), mas o botão nunca renderiza — 'text' não está em TOOL_GROUPS até
-// a Task 3 ligar handler de clique e renderização (Task 2).
-const TOOL_ICONS: Record<DrawingTool, ComponentType<{ size?: number }>> = {
+// Partial, não Record<DrawingTool, ...>: assim a Task 1 pode estender
+// DrawingTool (ex.: 'text') sem forçar entrada aqui — o ícone é escopo da
+// Task 3, que o adiciona junto do resto do wiring da ferramenta.
+const TOOL_ICONS: Partial<Record<DrawingTool, ComponentType<{ size?: number }>>> = {
   select: CursorIcon,
   wall: WallIcon,
   light: LightIcon,
@@ -34,7 +33,6 @@ const TOOL_ICONS: Record<DrawingTool, ComponentType<{ size?: number }>> = {
   line: LineIcon,
   circle: CircleIcon,
   curve: CurveIcon,
-  text: TextIcon,
 }
 
 const EDGE_GAP = parseFloat(theme.layout.edgeGap)
@@ -105,7 +103,11 @@ export function Toolbar({ activeTool, onSelectTool }: ToolbarProps) {
           <Fragment key={group[0]}>
             {index > 0 && <span className="lb-toolbar__sep" aria-hidden="true" />}
             {group.map((tool) => {
+              // TOOL_GROUPS só lista ferramentas com entrada em TOOL_ICONS —
+              // se faltar, é bug de wiring ao adicionar a ferramenta, não
+              // caso de runtime a tratar silenciosamente.
               const ToolIcon = TOOL_ICONS[tool]
+              if (!ToolIcon) return null
               return (
                 <button
                   key={tool}

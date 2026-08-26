@@ -8,7 +8,10 @@ import type { DrawingTool } from '../types/tools'
  * e `toHaveText('Apagar parede selecionada(o)')`). Estilo, ícone e estrutura ao
  * redor podem mudar à vontade; estas strings, não.
  */
-export const TOOL_LABELS: Record<DrawingTool, string> = {
+// Partial, não Record<DrawingTool, string>: assim a Task 1 pode estender
+// DrawingTool (ex.: 'text') sem forçar entrada aqui — o rótulo é escopo da
+// Task 3, que o adiciona junto do resto do wiring da ferramenta.
+export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   select: 'Selecionar',
   wall: 'Parede',
   light: 'Luz',
@@ -18,11 +21,6 @@ export const TOOL_LABELS: Record<DrawingTool, string> = {
   line: 'Linha',
   circle: 'Círculo',
   curve: 'Curva',
-  // Entrada obrigatória — Record<DrawingTool, string> é exaustivo e a Task 1
-  // estendeu DrawingTool com 'text'. Wiring completo (TOOL_HINTS.text,
-  // 'text' em TOOL_GROUPS) é escopo da Task 3; até lá a ferramenta não
-  // aparece na barra.
-  text: 'Texto',
 }
 
 export const SELECTION_LABELS: Record<string, string> = {
@@ -49,9 +47,9 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
 
 /**
  * Ferramentas agrupadas por intenção — a barra desenha um separador entre
- * grupos. 'text' fica de fora de propósito: a Task 1 estendeu DrawingTool,
- * mas selecionável na barra só na Task 3 (junto do handler de clique e da
- * renderização da Task 2, drawTextLabels.ts).
+ * grupos. 'text' fica de fora de propósito: DrawingTool foi estendido na
+ * Task 1, mas a ferramenta só fica selecionável na barra na Task 3 (junto do
+ * handler de clique e da renderização da Task 2, drawTextLabels.ts).
  */
 export const TOOL_GROUPS: DrawingTool[][] = [
   ['select'],
