@@ -119,7 +119,7 @@ export function createRegionsRenderer(): RegionsRenderer {
       g.closePath()
       const isSelected = region.id === selectedRegionId
       const color = isSelected ? SELECTION_COLOR : new Color(region.fillColor).toNumber()
-      g.fill({ color, alpha: 0.85 })
+      g.fill({ color, alpha: isSelected ? 0.85 : 1 })
       g.stroke({ width: isSelected ? 4 : 2, color })
 
       if (!isSelected && region.fillPattern === 'hatch') {
