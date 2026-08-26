@@ -18,6 +18,10 @@ export const TOOL_LABELS: Record<DrawingTool, string> = {
   line: 'Linha',
   circle: 'Círculo',
   curve: 'Curva',
+  // Entrada obrigatória — Record<DrawingTool, string> é exaustivo e a Task 1
+  // estendeu DrawingTool com 'text'. Wiring completo (TOOL_HINTS.text,
+  // 'text' em TOOL_GROUPS) é escopo da Task 3; até lá a ferramenta não
+  // aparece na barra.
   text: 'Texto',
 }
 
@@ -30,6 +34,8 @@ export const SELECTION_LABELS: Record<string, string> = {
   drawing: 'desenho',
 }
 
+// 'text' fica de fora de propósito — Partial<Record<...>> não exige a
+// entrada, e o hint da ferramenta é escopo da Task 3.
 export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   wall: 'Clique e arraste para desenhar uma parede.',
   light: 'Clique para colocar uma luz.',
@@ -41,7 +47,12 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   curve: 'Clique e arraste para desenhar uma curva suave.',
 }
 
-/** Ferramentas agrupadas por intenção — a barra desenha um separador entre grupos. */
+/**
+ * Ferramentas agrupadas por intenção — a barra desenha um separador entre
+ * grupos. 'text' fica de fora de propósito: a Task 1 estendeu DrawingTool,
+ * mas selecionável na barra só na Task 3 (junto do handler de clique e da
+ * renderização da Task 2, drawTextLabels.ts).
+ */
 export const TOOL_GROUPS: DrawingTool[][] = [
   ['select'],
   ['wall', 'light', 'region', 'prop'],

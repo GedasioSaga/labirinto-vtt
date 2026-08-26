@@ -6,8 +6,10 @@ import { SELECTION_COLOR } from './constants'
 export function drawDrawings(graphics: Graphics, drawings: Drawing[], selectedDrawingId: string | null = null): void {
   graphics.clear()
   for (const drawing of drawings) {
-    // Desenho de texto entra na Task 3; por ora a Task 1 só precisa manter o
-    // union exaustivo sem quebrar a renderização dos tipos já suportados.
+    // Desenho de texto entra na Task 2, via drawTextLabels.ts (objeto Text do
+    // Pixi por rótulo) — não neste Graphics compartilhado. Por ora a Task 1 só
+    // precisa manter o union exaustivo sem quebrar a renderização dos tipos já
+    // suportados.
     if (drawing.kind === 'text') continue
 
     const isSelected = drawing.id === selectedDrawingId

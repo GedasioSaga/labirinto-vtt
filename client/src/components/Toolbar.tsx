@@ -21,6 +21,9 @@ interface ToolbarProps {
   onSelectTool: (tool: DrawingTool) => void
 }
 
+// text: entrada obrigatória (Record<DrawingTool, ...> é exaustivo desde a
+// Task 1), mas o botão nunca renderiza — 'text' não está em TOOL_GROUPS até
+// a Task 3 ligar handler de clique e renderização (Task 2).
 const TOOL_ICONS: Record<DrawingTool, ComponentType<{ size?: number }>> = {
   select: CursorIcon,
   wall: WallIcon,
