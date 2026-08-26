@@ -27,7 +27,7 @@ export function deserializeMap(json: string): MapData {
     background: parsed.background ?? { type: 'color', src: '#2b2b2b' },
     walls: parsed.walls ?? [],
     lights: parsed.lights ?? [],
-    regions: (parsed.regions ?? []).map((r) => ({ ...r, fillColor: r.fillColor ?? '#3a7ad0' })),
+    regions: (parsed.regions ?? []).map((r) => ({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })),
     tokens: parsed.tokens ?? [],
     props: (parsed.props ?? []).map((p) => ({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
     drawings: parsed.drawings ?? [],

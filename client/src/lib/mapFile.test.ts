@@ -54,6 +54,15 @@ describe('serializeMap/deserializeMap', () => {
       regions: [{ id: 'r1', points: [], tag: 'x', data: {} }],
     })
     const restored = deserializeMap(json)
-    expect(restored.regions).toEqual([{ id: 'r1', points: [], tag: 'x', data: {}, fillColor: '#3a7ad0' }])
+    expect(restored.regions).toEqual([{ id: 'r1', points: [], tag: 'x', data: {}, fillColor: '#3a7ad0', fillPattern: 'solid' }])
+  })
+
+  it('preenche fillPattern: "solid" em região de map.json salvo antes desse campo existir', () => {
+    const json = JSON.stringify({
+      id: 'map_old',
+      regions: [{ id: 'r1', points: [], tag: 'x', fillColor: '#00ff00', data: {} }],
+    })
+    const restored = deserializeMap(json)
+    expect(restored.regions).toEqual([{ id: 'r1', points: [], tag: 'x', fillColor: '#00ff00', fillPattern: 'solid', data: {} }])
   })
 })

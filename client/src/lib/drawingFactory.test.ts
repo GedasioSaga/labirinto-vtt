@@ -62,10 +62,10 @@ describe('buildLightAt', () => {
 })
 
 describe('buildRegionFromPoints', () => {
-  it('cria região com tag e cor default', () => {
+  it('cria região com tag, cor e padrão de preenchimento default', () => {
     const points = [{ x: 0, y: 0 }, { x: 64, y: 0 }, { x: 64, y: 64 }]
     const region = buildRegionFromPoints('r1', points)
-    expect(region).toEqual({ id: 'r1', points, tag: 'region', fillColor: '#3a7ad0', data: {} })
+    expect(region).toEqual({ id: 'r1', points, tag: 'region', fillColor: '#3a7ad0', fillPattern: 'solid', data: {} })
   })
 
   it('aceita tag customizada', () => {
@@ -78,6 +78,18 @@ describe('buildRegionFromPoints', () => {
     const points = [{ x: 0, y: 0 }, { x: 64, y: 0 }, { x: 64, y: 64 }]
     const region = buildRegionFromPoints('r3', points, 'trap', '#00ff00')
     expect(region.fillColor).toBe('#00ff00')
+  })
+
+  it('aceita padrão de preenchimento customizado', () => {
+    const points = [{ x: 0, y: 0 }, { x: 64, y: 0 }, { x: 64, y: 64 }]
+    const region = buildRegionFromPoints('r4', points, 'trap', '#00ff00', 'hatch')
+    expect(region.fillPattern).toBe('hatch')
+  })
+
+  it('sem passar fillPattern, default é solid', () => {
+    const points = [{ x: 0, y: 0 }, { x: 64, y: 0 }, { x: 64, y: 64 }]
+    const region = buildRegionFromPoints('r5', points, 'trap', '#00ff00')
+    expect(region.fillPattern).toBe('solid')
   })
 })
 

@@ -6,7 +6,7 @@ import type { Wall, Light, Region, Token } from '../types/map'
 
 const wall: Wall = { id: 'w1', x1: 0, y1: 0, x2: 64, y2: 0, blocksLight: true, blocksMove: true, door: null }
 const light: Light = { id: 'l1', x: 0, y: 0, radius: 64, color: '#ffffff', intensity: 1 }
-const region: Region = { id: 'r1', points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], tag: 'terreno', fillColor: '#3a7ad0', data: {} }
+const region: Region = { id: 'r1', points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], tag: 'terreno', fillColor: '#3a7ad0', fillPattern: 'solid', data: {} }
 const token: Token = { id: 't1', characterId: null, name: 'Herói', x: 0, y: 0, size: 1 }
 
 describe('subscribeToShapesRedraw', () => {

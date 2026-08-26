@@ -172,7 +172,7 @@ describe('mapStore setDrawFontSize', () => {
 })
 
 describe('mapStore regionFillColor', () => {
-  const region: Region = { id: 'r1', points: [], tag: '', fillColor: '#3a7ad0', data: {} }
+  const region: Region = { id: 'r1', points: [], tag: '', fillColor: '#3a7ad0', fillPattern: 'solid', data: {} }
 
   beforeEach(() => {
     useMapStore.setState({
@@ -196,6 +196,34 @@ describe('mapStore regionFillColor', () => {
     const r2 = useMapStore.getState().map.regions.find((r) => r.id === 'r2')
     expect(r1?.fillColor).toBe('#00ff00')
     expect(r2?.fillColor).toBe('#3a7ad0')
+  })
+})
+
+describe('mapStore regionFillPattern', () => {
+  const region: Region = { id: 'r1', points: [], tag: '', fillColor: '#3a7ad0', fillPattern: 'solid', data: {} }
+
+  beforeEach(() => {
+    useMapStore.setState({
+      map: { ...useMapStore.getState().map, regions: [] },
+      regionFillPattern: 'solid',
+    })
+  })
+
+  it('setRegionFillPattern atualiza o padrão usado ao desenhar a próxima região', () => {
+    useMapStore.getState().setRegionFillPattern('hatch')
+    expect(useMapStore.getState().regionFillPattern).toBe('hatch')
+  })
+
+  it('setRegionPattern muda o padrão só da região alvo, sem tocar outras', () => {
+    useMapStore.getState().addRegion(region)
+    useMapStore.getState().addRegion({ ...region, id: 'r2' })
+
+    useMapStore.getState().setRegionPattern('r1', 'hatch')
+
+    const r1 = useMapStore.getState().map.regions.find((r) => r.id === 'r1')
+    const r2 = useMapStore.getState().map.regions.find((r) => r.id === 'r2')
+    expect(r1?.fillPattern).toBe('hatch')
+    expect(r2?.fillPattern).toBe('solid')
   })
 })
 

@@ -38,6 +38,7 @@ export interface Region {
   points: RegionPoint[]
   tag: string
   fillColor: string
+  fillPattern: 'solid' | 'hatch'
   data: Record<string, unknown>
 }
 

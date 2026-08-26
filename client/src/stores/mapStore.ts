@@ -36,6 +36,9 @@ interface MapStoreState {
   regionFillColor: string
   setRegionFillColor: (color: string) => void
   setRegionColor: (id: string, color: string) => void
+  regionFillPattern: Region['fillPattern']
+  setRegionFillPattern: (pattern: Region['fillPattern']) => void
+  setRegionPattern: (id: string, pattern: Region['fillPattern']) => void
   addToken: (token: Token) => void
   removeToken: (id: string) => void
   setTokenPosition: (id: string, x: number, y: number) => void
@@ -67,6 +70,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   drawFilled: false,
   drawFontSize: 16,
   regionFillColor: '#3a7ad0',
+  regionFillPattern: 'solid',
   setCamera: (camera) => set({ camera }),
   setSelection: (selection) => set({ selection }),
   removeSelected: () => {
@@ -98,6 +102,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   setRegionFillColor: (color) => set({ regionFillColor: color }),
   setRegionColor: (id, color) => set((state) => ({
     map: { ...state.map, regions: state.map.regions.map((r) => (r.id === id ? { ...r, fillColor: color } : r)) },
+  })),
+  setRegionFillPattern: (pattern) => set({ regionFillPattern: pattern }),
+  setRegionPattern: (id, pattern) => set((state) => ({
+    map: { ...state.map, regions: state.map.regions.map((r) => (r.id === id ? { ...r, fillPattern: pattern } : r)) },
   })),
   addToken: (token) => set((state) => ({ map: mapFactory.addToken(state.map, token) })),
   removeToken: (id) => set((state) => ({ map: mapFactory.removeToken(state.map, id) })),
