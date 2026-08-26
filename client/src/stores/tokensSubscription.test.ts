@@ -16,7 +16,7 @@ describe('subscribeToTokensRedraw', () => {
 
     useMapStore.getState().addWall({ id: 'w1', x1: 0, y1: 0, x2: 1, y2: 1, blocksLight: true, blocksMove: true, door: null })
     useMapStore.getState().addLight({ id: 'l1', x: 0, y: 0, radius: 1, color: '#fff', intensity: 1 })
-    useMapStore.getState().addRegion({ id: 'r1', points: [], tag: '', data: {} })
+    useMapStore.getState().addRegion({ id: 'r1', points: [], tag: '', fillColor: '#3a7ad0', data: {} })
     useMapStore.getState().setCamera({ x: 1, y: 1, scale: 1 })
     useMapStore.getState().setShowGrid(false)
 

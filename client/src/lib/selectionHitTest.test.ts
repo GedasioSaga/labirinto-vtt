@@ -5,7 +5,7 @@ import { createEmptyMap, addWall, addLight, addRegion, addToken, addProp } from 
 
 const wall: Wall = { id: 'w1', x1: 0, y1: 0, x2: 100, y2: 0, blocksLight: true, blocksMove: true, door: null }
 const light: Light = { id: 'l1', x: 200, y: 200, radius: 300, color: '#ffaa33', intensity: 0.8 }
-const region: Region = { id: 'r1', points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }], tag: '', data: {} }
+const region: Region = { id: 'r1', points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }], tag: '', fillColor: '#3a7ad0', data: {} }
 
 describe('findWallAt', () => {
   it('ponto perto do segmento (dentro da tolerância) encontra a parede', () => {
@@ -47,7 +47,7 @@ describe('findRegionAt', () => {
   })
 
   it('região degenerada (menos de 3 pontos) nunca é encontrada', () => {
-    const degenerate: Region = { id: 'r2', points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], tag: '', data: {} }
+    const degenerate: Region = { id: 'r2', points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], tag: '', fillColor: '#3a7ad0', data: {} }
     expect(findRegionAt([degenerate], { x: 0, y: 0 })).toBeNull()
   })
 })

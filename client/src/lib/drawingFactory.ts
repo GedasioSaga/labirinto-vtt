@@ -34,8 +34,10 @@ export function buildLightAt(id: string, point: Point, gridSize: number): Light 
   }
 }
 
-export function buildRegionFromPoints(id: string, points: RegionPoint[], tag = 'region'): Region {
-  return { id, points, tag, data: {} }
+const DEFAULT_REGION_FILL_COLOR = '#3a7ad0'
+
+export function buildRegionFromPoints(id: string, points: RegionPoint[], tag = 'region', fillColor = DEFAULT_REGION_FILL_COLOR): Region {
+  return { id, points, tag, fillColor, data: {} }
 }
 
 export function isValidFreehandDraft(points: Point[]): boolean {

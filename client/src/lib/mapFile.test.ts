@@ -47,4 +47,13 @@ describe('serializeMap/deserializeMap', () => {
     const restored = deserializeMap(json)
     expect(restored.props).toEqual([{ id: 'p1', src: '/a.png', x: 0, y: 0, width: 64, height: 64, linkedMapPath: null }])
   })
+
+  it('preenche fillColor: "#3a7ad0" em região de map.json salvo antes desse campo existir', () => {
+    const json = JSON.stringify({
+      id: 'map_old',
+      regions: [{ id: 'r1', points: [], tag: 'x', data: {} }],
+    })
+    const restored = deserializeMap(json)
+    expect(restored.regions).toEqual([{ id: 'r1', points: [], tag: 'x', data: {}, fillColor: '#3a7ad0' }])
+  })
 })

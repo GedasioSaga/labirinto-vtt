@@ -62,16 +62,22 @@ describe('buildLightAt', () => {
 })
 
 describe('buildRegionFromPoints', () => {
-  it('cria região com tag default', () => {
+  it('cria região com tag e cor default', () => {
     const points = [{ x: 0, y: 0 }, { x: 64, y: 0 }, { x: 64, y: 64 }]
     const region = buildRegionFromPoints('r1', points)
-    expect(region).toEqual({ id: 'r1', points, tag: 'region', data: {} })
+    expect(region).toEqual({ id: 'r1', points, tag: 'region', fillColor: '#3a7ad0', data: {} })
   })
 
   it('aceita tag customizada', () => {
     const points = [{ x: 0, y: 0 }, { x: 64, y: 0 }, { x: 64, y: 64 }]
     const region = buildRegionFromPoints('r2', points, 'trap')
     expect(region.tag).toBe('trap')
+  })
+
+  it('aceita cor customizada', () => {
+    const points = [{ x: 0, y: 0 }, { x: 64, y: 0 }, { x: 64, y: 64 }]
+    const region = buildRegionFromPoints('r3', points, 'trap', '#00ff00')
+    expect(region.fillColor).toBe('#00ff00')
   })
 })
 

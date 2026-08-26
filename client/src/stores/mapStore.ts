@@ -33,6 +33,9 @@ interface MapStoreState {
   removeLight: (id: string) => void
   addRegion: (region: Region) => void
   removeRegion: (id: string) => void
+  regionFillColor: string
+  setRegionFillColor: (color: string) => void
+  setRegionColor: (id: string, color: string) => void
   addToken: (token: Token) => void
   removeToken: (id: string) => void
   setTokenPosition: (id: string, x: number, y: number) => void
@@ -63,6 +66,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   drawWidth: 4,
   drawFilled: false,
   drawFontSize: 16,
+  regionFillColor: '#3a7ad0',
   setCamera: (camera) => set({ camera }),
   setSelection: (selection) => set({ selection }),
   removeSelected: () => {
@@ -91,6 +95,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   removeLight: (id) => set((state) => ({ map: mapFactory.removeLight(state.map, id) })),
   addRegion: (region) => set((state) => ({ map: mapFactory.addRegion(state.map, region) })),
   removeRegion: (id) => set((state) => ({ map: mapFactory.removeRegion(state.map, id) })),
+  setRegionFillColor: (color) => set({ regionFillColor: color }),
+  setRegionColor: (id, color) => set((state) => ({
+    map: { ...state.map, regions: state.map.regions.map((r) => (r.id === id ? { ...r, fillColor: color } : r)) },
+  })),
   addToken: (token) => set((state) => ({ map: mapFactory.addToken(state.map, token) })),
   removeToken: (id) => set((state) => ({ map: mapFactory.removeToken(state.map, id) })),
   setTokenPosition: (id, x, y) => set((state) => ({ map: mapFactory.setTokenPosition(state.map, id, x, y) })),

@@ -518,7 +518,7 @@ export function PixiCanvas() {
           return
         }
 
-        addRegion(buildRegionFromPoints(crypto.randomUUID(), regionDraftPoints))
+        addRegion(buildRegionFromPoints(crypto.randomUUID(), regionDraftPoints, 'region', useMapStore.getState().regionFillColor))
         regionDraftPoints = []
         draftGraphics.clear()
       }

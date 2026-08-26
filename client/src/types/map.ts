@@ -37,6 +37,7 @@ export interface Region {
   id: string
   points: RegionPoint[]
   tag: string
+  fillColor: string
   data: Record<string, unknown>
 }
 

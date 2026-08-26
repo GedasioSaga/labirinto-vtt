@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { useMapStore } from './mapStore'
-import type { Prop, Token, Wall } from '../types/map'
+import type { Prop, Region, Token, Wall } from '../types/map'
 
 const token: Token = { id: 't1', characterId: null, name: 'Herói', x: 0, y: 0, size: 1 }
 const blockingWall: Wall = { id: 'w1', x1: 5, y1: -10, x2: 5, y2: 10, blocksLight: true, blocksMove: true, door: null }
@@ -168,6 +168,34 @@ describe('mapStore setDrawFontSize', () => {
   it('atualiza drawFontSize', () => {
     useMapStore.getState().setDrawFontSize(32)
     expect(useMapStore.getState().drawFontSize).toBe(32)
+  })
+})
+
+describe('mapStore regionFillColor', () => {
+  const region: Region = { id: 'r1', points: [], tag: '', fillColor: '#3a7ad0', data: {} }
+
+  beforeEach(() => {
+    useMapStore.setState({
+      map: { ...useMapStore.getState().map, regions: [] },
+      regionFillColor: '#3a7ad0',
+    })
+  })
+
+  it('setRegionFillColor atualiza a cor usada ao desenhar a próxima região', () => {
+    useMapStore.getState().setRegionFillColor('#00ff00')
+    expect(useMapStore.getState().regionFillColor).toBe('#00ff00')
+  })
+
+  it('setRegionColor muda a cor só da região alvo, sem tocar outras', () => {
+    useMapStore.getState().addRegion(region)
+    useMapStore.getState().addRegion({ ...region, id: 'r2' })
+
+    useMapStore.getState().setRegionColor('r1', '#00ff00')
+
+    const r1 = useMapStore.getState().map.regions.find((r) => r.id === 'r1')
+    const r2 = useMapStore.getState().map.regions.find((r) => r.id === 'r2')
+    expect(r1?.fillColor).toBe('#00ff00')
+    expect(r2?.fillColor).toBe('#3a7ad0')
   })
 })
 
