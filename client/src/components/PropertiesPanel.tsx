@@ -49,7 +49,14 @@ export function PropertiesPanel({
   selectedTextLabel,
   textLabel,
 }: PropertiesPanelProps) {
-  const showDrawingStyle = DRAWING_TOOLS.includes(activeTool) || activeTool === 'text'
+  // Com a ferramenta Texto ativa, um rótulo recém-colocado já fica selecionado
+  // (Task 4). Nesse instante o controle relevante é o do rótulo selecionado
+  // (TextLabelControls, mais abaixo) — mostrar também "Estilo de desenho" aqui
+  // duplicaria Cor/Tamanho da fonte com efeitos diferentes (um define o padrão
+  // do PRÓXIMO rótulo, o outro edita o selecionado) e confunde. Só mostra o
+  // estilo de desenho para texto quando ainda não há rótulo selecionado.
+  const showDrawingStyle =
+    DRAWING_TOOLS.includes(activeTool) || (activeTool === 'text' && !selectedTextLabel)
 
   return (
     <div className="lb-panel lb-inspector">
@@ -67,10 +74,6 @@ export function PropertiesPanel({
 
       <div className="lb-inspector__body lb-scroll">
         {showDrawingStyle && <DrawingStyleControls {...drawingStyle} />}
-        <GridControls {...grid} />
-        <ScenarioLinkControls {...scenarioLink} />
-        {selectedWall && <WallDoorControls door={selectedWall.door} {...wallDoor} />}
-        {selectedProp && <PortalControls linkedMapPath={selectedProp.linkedMapPath} {...portal} />}
         {selectedTextLabel && (
           <TextLabelControls
             text={selectedTextLabel.text}
@@ -79,6 +82,10 @@ export function PropertiesPanel({
             {...textLabel}
           />
         )}
+        <GridControls {...grid} />
+        <ScenarioLinkControls {...scenarioLink} />
+        {selectedWall && <WallDoorControls door={selectedWall.door} {...wallDoor} />}
+        {selectedProp && <PortalControls linkedMapPath={selectedProp.linkedMapPath} {...portal} />}
         <SelectionControls {...selection} />
       </div>
     </div>
