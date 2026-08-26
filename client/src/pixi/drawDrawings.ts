@@ -6,6 +6,10 @@ import { SELECTION_COLOR } from './constants'
 export function drawDrawings(graphics: Graphics, drawings: Drawing[], selectedDrawingId: string | null = null): void {
   graphics.clear()
   for (const drawing of drawings) {
+    // Desenho de texto entra na Task 3; por ora a Task 1 só precisa manter o
+    // union exaustivo sem quebrar a renderização dos tipos já suportados.
+    if (drawing.kind === 'text') continue
+
     const isSelected = drawing.id === selectedDrawingId
     const color = isSelected ? SELECTION_COLOR : new Color(drawing.color).toNumber()
     const width = isSelected ? drawing.width + 2 : drawing.width

@@ -12,6 +12,7 @@ import {
   LineIcon,
   PropIcon,
   RegionIcon,
+  TextIcon,
   WallIcon,
 } from './icons'
 
@@ -30,6 +31,7 @@ const TOOL_ICONS: Record<DrawingTool, ComponentType<{ size?: number }>> = {
   line: LineIcon,
   circle: CircleIcon,
   curve: CurveIcon,
+  text: TextIcon,
 }
 
 const EDGE_GAP = parseFloat(theme.layout.edgeGap)

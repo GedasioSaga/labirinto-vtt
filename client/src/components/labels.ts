@@ -18,6 +18,7 @@ export const TOOL_LABELS: Record<DrawingTool, string> = {
   line: 'Linha',
   circle: 'Círculo',
   curve: 'Curva',
+  text: 'Texto',
 }
 
 export const SELECTION_LABELS: Record<string, string> = {
