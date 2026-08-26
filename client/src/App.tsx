@@ -41,6 +41,9 @@ function App() {
   const setDrawFilled = useMapStore((state) => state.setDrawFilled)
   const drawFontSize = useMapStore((state) => state.drawFontSize)
   const setDrawFontSize = useMapStore((state) => state.setDrawFontSize)
+  const regionFillColor = useMapStore((state) => state.regionFillColor)
+  const setRegionFillColor = useMapStore((state) => state.setRegionFillColor)
+  const setRegionColor = useMapStore((state) => state.setRegionColor)
   const setWallDoor = useMapStore((state) => state.setWallDoor)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
@@ -50,6 +53,15 @@ function App() {
   const selectedProp = selection?.kind === 'prop' ? map.props.find((p) => p.id === selection.id) ?? null : null
   const selectedDrawing = selection?.kind === 'drawing' ? map.drawings.find((d) => d.id === selection.id) ?? null : null
   const selectedTextLabel = selectedDrawing && selectedDrawing.kind === 'text' ? selectedDrawing : null
+  const selectedRegion = selection?.kind === 'region' ? map.regions.find((r) => r.id === selection.id) ?? null : null
+
+  const handleRegionColorChange = (color: string) => {
+    if (selectedRegion) {
+      setRegionColor(selectedRegion.id, color)
+      return
+    }
+    setRegionFillColor(color)
+  }
 
   const handleToggleDoor = () => {
     if (!selectedWall) return
@@ -213,6 +225,11 @@ function App() {
             onTextChange: handleTextChange,
             onColorChange: handleTextColorChange,
             onFontSizeChange: handleTextFontSizeChange,
+          }}
+          selectedRegion={selectedRegion}
+          regionStyle={{
+            color: selectedRegion ? selectedRegion.fillColor : regionFillColor,
+            onColorChange: handleRegionColorChange,
           }}
         />
         <ActionBar

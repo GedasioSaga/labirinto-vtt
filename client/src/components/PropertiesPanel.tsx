@@ -1,5 +1,5 @@
 import type { DrawingTool } from '../types/tools'
-import type { Drawing, Prop, Wall } from '../types/map'
+import type { Drawing, Prop, Region, Wall } from '../types/map'
 import { DRAWING_TOOLS } from './labels'
 import { LabyrinthMark } from './icons'
 import { DrawingStyleControls, type DrawingStyleControlsProps } from './DrawingStyleControls'
@@ -9,6 +9,7 @@ import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls
 import { ScenarioLinkControls, type ScenarioLinkControlsProps } from './ScenarioLinkControls'
 import { PortalControls, type PortalControlsProps } from './PortalControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
+import { RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
 
 interface PropertiesPanelProps {
   mapName: string
@@ -26,6 +27,8 @@ interface PropertiesPanelProps {
   portal: Omit<PortalControlsProps, 'linkedMapPath'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
   textLabel: Omit<TextLabelControlsProps, 'text' | 'color' | 'fontSize'>
+  selectedRegion: Region | null
+  regionStyle: RegionStyleControlsProps
 }
 
 /**
@@ -48,6 +51,8 @@ export function PropertiesPanel({
   portal,
   selectedTextLabel,
   textLabel,
+  selectedRegion,
+  regionStyle,
 }: PropertiesPanelProps) {
   // Com a ferramenta Texto ativa, um rótulo recém-colocado já fica selecionado
   // (Task 4). Nesse instante o controle relevante é o do rótulo selecionado
@@ -57,6 +62,7 @@ export function PropertiesPanel({
   // estilo de desenho para texto quando ainda não há rótulo selecionado.
   const showDrawingStyle =
     DRAWING_TOOLS.includes(activeTool) || (activeTool === 'text' && !selectedTextLabel)
+  const showRegionStyle = activeTool === 'region' || selectedRegion !== null
 
   return (
     <div className="lb-panel lb-inspector">
@@ -74,6 +80,7 @@ export function PropertiesPanel({
 
       <div className="lb-inspector__body lb-scroll">
         {showDrawingStyle && <DrawingStyleControls {...drawingStyle} />}
+        {showRegionStyle && <RegionStyleControls {...regionStyle} />}
         {selectedTextLabel && (
           <TextLabelControls
             text={selectedTextLabel.text}
