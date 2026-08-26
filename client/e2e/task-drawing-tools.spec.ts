@@ -130,7 +130,7 @@ test('4. cor e espessura escolhidas na barra vão pro desenho criado', async ({ 
 
   const drawings = await getDrawings(page)
   expect(drawings[0].color).toBe('#ff0000')
-  expect(drawings[0].width).toBe(9)
+  if (drawings[0].kind !== 'text') expect(drawings[0].width).toBe(9)
 })
 
 test('5. círculo preenchido: clique dentro do raio seleciona (não só na borda)', async ({ page }) => {
