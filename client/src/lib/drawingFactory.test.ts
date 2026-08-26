@@ -12,6 +12,8 @@ import {
   buildCircleDrawing,
   isValidCurveDraft,
   buildCurveDrawing,
+  isValidTextDraft,
+  buildTextDrawing,
 } from './drawingFactory'
 
 describe('isValidWallDraft', () => {
@@ -140,6 +142,20 @@ describe('buildCurveDrawing', () => {
     const rawPoints = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 30, y: 0 }]
     expect(buildCurveDrawing('d4', rawPoints, '#123456', 5)).toEqual({
       id: 'd4', kind: 'curve', points: [{ x: 0, y: 0 }, { x: 30, y: 0 }], color: '#123456', width: 5,
+    })
+  })
+})
+
+describe('isValidTextDraft', () => {
+  it('sempre é válido (colocação por clique, sem arrasto)', () => {
+    expect(isValidTextDraft()).toBe(true)
+  })
+})
+
+describe('buildTextDrawing', () => {
+  it('cria rótulo de texto com texto default "Rótulo" e os campos dados', () => {
+    expect(buildTextDrawing('d5', { x: 10, y: 20 }, '#123456', 24)).toEqual({
+      id: 'd5', kind: 'text', x: 10, y: 20, text: 'Rótulo', color: '#123456', fontSize: 24,
     })
   })
 })

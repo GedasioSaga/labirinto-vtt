@@ -15,9 +15,11 @@ interface MapStoreState {
   drawColor: string
   drawWidth: number
   drawFilled: boolean
+  drawFontSize: number
   setDrawColor: (color: string) => void
   setDrawWidth: (width: number) => void
   setDrawFilled: (filled: boolean) => void
+  setDrawFontSize: (size: number) => void
   addDrawing: (drawing: Drawing) => void
   removeDrawing: (id: string) => void
   setCamera: (camera: Camera) => void
@@ -45,6 +47,7 @@ interface MapStoreState {
   setScenarioLink: (value: string | null) => void
   setPropLinkedPath: (id: string, path: string | null) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
+  updateTextLabel: (id: string, patch: Partial<{ text: string; color: string; fontSize: number }>) => void
   loadMap: (map: MapData) => void
 }
 
@@ -59,6 +62,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   drawColor: '#ffffff',
   drawWidth: 4,
   drawFilled: false,
+  drawFontSize: 16,
   setCamera: (camera) => set({ camera }),
   setSelection: (selection) => set({ selection }),
   removeSelected: () => {
@@ -80,6 +84,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
   setDrawColor: (color) => set({ drawColor: color }),
   setDrawWidth: (width) => set({ drawWidth: width }),
   setDrawFilled: (filled) => set({ drawFilled: filled }),
+  setDrawFontSize: (size) => set({ drawFontSize: size }),
   addWall: (wall) => set((state) => ({ map: mapFactory.addWall(state.map, wall) })),
   removeWall: (id) => set((state) => ({ map: mapFactory.removeWall(state.map, id) })),
   addLight: (light) => set((state) => ({ map: mapFactory.addLight(state.map, light) })),
@@ -114,6 +119,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       ...state.map,
       drawings: state.map.drawings.map((d) =>
         d.id === drawingId && d.kind === 'curve' ? { ...d, points: d.points.map((p, i) => i === index ? { x, y } : p) } : d,
+      ),
+    },
+  })),
+  updateTextLabel: (id, patch) => set((state) => ({
+    map: {
+      ...state.map,
+      drawings: state.map.drawings.map((d) =>
+        d.id === id && d.kind === 'text' ? { ...d, ...patch } : d,
       ),
     },
   })),

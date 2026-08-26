@@ -134,6 +134,43 @@ describe('mapStore setPropLinkedPath', () => {
   })
 })
 
+describe('mapStore updateTextLabel', () => {
+  beforeEach(() => {
+    useMapStore.setState({
+      map: { ...useMapStore.getState().map, drawings: [] },
+      selection: null,
+    })
+  })
+
+  it('atualiza só o campo passado no patch, só no drawing certo', () => {
+    useMapStore.getState().addDrawing({ id: 'd1', kind: 'text', x: 0, y: 0, text: 'Rótulo', color: '#fff', fontSize: 16 })
+    useMapStore.getState().addDrawing({ id: 'd2', kind: 'text', x: 5, y: 5, text: 'Outro', color: '#000', fontSize: 20 })
+
+    useMapStore.getState().updateTextLabel('d1', { text: 'Sala Secreta' })
+
+    const drawings = useMapStore.getState().map.drawings
+    const d1 = drawings.find((d) => d.id === 'd1')
+    const d2 = drawings.find((d) => d.id === 'd2')
+    expect(d1?.kind).toBe('text')
+    if (d1?.kind === 'text') {
+      expect(d1.text).toBe('Sala Secreta')
+      expect(d1.color).toBe('#fff')
+      expect(d1.fontSize).toBe(16)
+    }
+    expect(d2?.kind).toBe('text')
+    if (d2?.kind === 'text') {
+      expect(d2.text).toBe('Outro')
+    }
+  })
+})
+
+describe('mapStore setDrawFontSize', () => {
+  it('atualiza drawFontSize', () => {
+    useMapStore.getState().setDrawFontSize(32)
+    expect(useMapStore.getState().drawFontSize).toBe(32)
+  })
+})
+
 describe('mapStore updateCurvePoint', () => {
   beforeEach(() => {
     useMapStore.setState({

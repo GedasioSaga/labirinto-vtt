@@ -69,6 +69,7 @@ export type Drawing =
   | { id: string; kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number }
   | { id: string; kind: 'circle'; cx: number; cy: number; radius: number; color: string; width: number; filled: boolean }
   | { id: string; kind: 'curve'; points: DrawingPoint[]; color: string; width: number }
+  | { id: string; kind: 'text'; x: number; y: number; text: string; color: string; fontSize: number }
 
 export interface FogState {
   mode: 'per-token' | 'none'

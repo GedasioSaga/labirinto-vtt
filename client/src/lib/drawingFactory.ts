@@ -69,3 +69,11 @@ export function isValidCurveDraft(points: Point[]): boolean {
 export function buildCurveDrawing(id: string, rawPoints: Point[], color: string, width: number): Drawing {
   return { id, kind: 'curve', points: simplifyToControlPoints(rawPoints), color, width }
 }
+
+export function isValidTextDraft(): boolean {
+  return true
+}
+
+export function buildTextDrawing(id: string, point: Point, color: string, fontSize: number): Drawing {
+  return { id, kind: 'text', x: point.x, y: point.y, text: 'Rótulo', color, fontSize }
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findWallAt, findLightAt, isPointInPolygon, findRegionAt, findDrawingAt, findSelectableAt, findCurveControlPointAt } from './selectionHitTest'
+import { findWallAt, findLightAt, isPointInPolygon, findRegionAt, findDrawingAt, findSelectableAt, findCurveControlPointAt, estimateTextWidth } from './selectionHitTest'
 import type { Wall, Light, Region, Drawing, MapData } from '../types/map'
 import { createEmptyMap, addWall, addLight, addRegion, addToken, addProp } from './mapFactory'
 
@@ -83,6 +83,26 @@ describe('findDrawingAt', () => {
   it('encontra curve perto de um segmento do traço, igual freehand', () => {
     const curveDrawing: Drawing = { id: 'd5', kind: 'curve', points: [{ x: 0, y: 0 }, { x: 100, y: 0 }], color: '#fff', width: 4 }
     expect(findDrawingAt([curveDrawing], { x: 50, y: 3 })?.id).toBe('d5')
+  })
+
+  it('encontra text quando o ponto está dentro da caixa estimada', () => {
+    const textDrawing: Drawing = { id: 'd6', kind: 'text', x: 100, y: 100, text: 'Sala', color: '#fff', fontSize: 16 }
+    expect(findDrawingAt([textDrawing], { x: 110, y: 105 })?.id).toBe('d6')
+  })
+
+  it('não encontra text quando o ponto está longe da caixa estimada', () => {
+    const textDrawing: Drawing = { id: 'd6', kind: 'text', x: 100, y: 100, text: 'Sala', color: '#fff', fontSize: 16 }
+    expect(findDrawingAt([textDrawing], { x: 1000, y: 1000 })).toBeNull()
+  })
+})
+
+describe('estimateTextWidth', () => {
+  it('calcula largura proporcional ao número de caracteres e ao tamanho da fonte', () => {
+    expect(estimateTextWidth('abcd', 20)).toBe(4 * 20 * 0.55)
+  })
+
+  it('texto vazio tem largura zero', () => {
+    expect(estimateTextWidth('', 20)).toBe(0)
   })
 })
 

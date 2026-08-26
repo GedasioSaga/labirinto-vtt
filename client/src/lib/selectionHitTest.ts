@@ -77,9 +77,25 @@ function distanceToPolyline(point: Point, points: Point[]): number {
   return min
 }
 
+/** Aproximação de largura de texto pra hit-test — não é medida real de glyph
+ * (isso só existe depois do Pixi renderizar), é heurística: `0.55 * fontSize`
+ * por caractere, suficiente pra clicar em cima do rótulo com folga. */
+export function estimateTextWidth(text: string, fontSize: number): number {
+  return text.length * fontSize * 0.55
+}
+
 export function findDrawingAt(drawings: Drawing[], point: Point, tolerance = DRAWING_HIT_TOLERANCE): Drawing | null {
   for (let i = drawings.length - 1; i >= 0; i -= 1) {
     const drawing = drawings[i]
+
+    if (drawing.kind === 'text') {
+      const width = estimateTextWidth(drawing.text, drawing.fontSize)
+      const withinX = point.x >= drawing.x - 4 && point.x <= drawing.x + width + 4
+      const withinY = point.y >= drawing.y - 4 && point.y <= drawing.y + drawing.fontSize + 4
+      if (withinX && withinY) return drawing
+      continue
+    }
+
     const reach = tolerance + drawing.width / 2
 
     if (drawing.kind === 'freehand' || drawing.kind === 'curve') {
