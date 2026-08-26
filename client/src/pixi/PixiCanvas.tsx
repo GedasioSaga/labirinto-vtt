@@ -33,6 +33,7 @@ import {
   buildCurveDrawing,
 } from '../lib/drawingFactory'
 import { createPropsRenderer } from './drawProps'
+import { createTextLabelsRenderer } from './drawTextLabels'
 import { subscribeToPropsRedraw } from '../stores/propsSubscription'
 import { pickImageFile, importPropImage } from '../lib/imageImport'
 import { mapDirFor } from '../lib/mapFileIO'
@@ -71,6 +72,7 @@ export function PixiCanvas() {
       const regionsGraphics = new Graphics()
       const wallsGraphics = new Graphics()
       const drawingsGraphics = new Graphics()
+      const textLabelsContainer = new Container()
       const propsContainer = new Container()
       const lightsGraphics = new Graphics()
       const tokensContainer = new Container()
@@ -82,6 +84,7 @@ export function PixiCanvas() {
         regionsGraphics,
         wallsGraphics,
         drawingsGraphics,
+        textLabelsContainer,
         propsContainer,
         lightsGraphics,
         tokensContainer,
@@ -125,6 +128,7 @@ export function PixiCanvas() {
         drawWalls(wallsGraphics, map.walls, selection?.kind === 'wall' ? selection.id : null)
         drawLights(lightsGraphics, map.lights, selection?.kind === 'light' ? selection.id : null)
         drawDrawings(drawingsGraphics, map.drawings, selection?.kind === 'drawing' ? selection.id : null)
+        textLabelsRenderer.draw(textLabelsContainer, map.drawings, selection?.kind === 'drawing' ? selection.id : null)
       }
 
       const redrawTokens = () => {
@@ -133,6 +137,7 @@ export function PixiCanvas() {
       }
 
       const propsRenderer = createPropsRenderer()
+      const textLabelsRenderer = createTextLabelsRenderer()
 
       const redrawProps = () => {
         const { map, selection } = useMapStore.getState()
