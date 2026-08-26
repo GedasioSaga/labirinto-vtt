@@ -83,16 +83,23 @@ export function drawRegions(graphics: Graphics, regions: Region[], selectedRegio
     const color = isSelected ? SELECTION_COLOR : new Color(region.fillColor).toNumber()
     graphics.fill({ color, alpha: isSelected ? 0.25 : 0.15 })
     graphics.stroke({ width: isSelected ? 4 : 2, color })
+  }
 
-    if (!isSelected && region.fillPattern === 'hatch') {
-      const segments = computeHatchSegments(region.points)
-      for (const segment of segments) {
-        graphics.moveTo(segment.x1, segment.y1)
-        graphics.lineTo(segment.x2, segment.y2)
-      }
-      if (segments.length > 0) {
-        graphics.stroke({ width: HATCH_WIDTH, color: HATCH_COLOR, alpha: HATCH_ALPHA })
-      }
+  // Segunda passada: hachura desenhada depois de TODOS os fills/strokes de região.
+  // Um stroke() de hachura misturado na mesma sequência de comandos do fill() da
+  // PRÓXIMA região corrompe o path acumulado do Graphics (a região seguinte no
+  // loop nasce sem preenchimento visível) — isolar em passada própria evita isso.
+  for (const region of regions) {
+    if (isDegenerateRegion(region.points)) continue
+    const isSelected = region.id === selectedRegionId
+    if (isSelected || region.fillPattern !== 'hatch') continue
+    const segments = computeHatchSegments(region.points)
+    for (const segment of segments) {
+      graphics.moveTo(segment.x1, segment.y1)
+      graphics.lineTo(segment.x2, segment.y2)
+    }
+    if (segments.length > 0) {
+      graphics.stroke({ width: HATCH_WIDTH, color: HATCH_COLOR, alpha: HATCH_ALPHA })
     }
   }
 }
