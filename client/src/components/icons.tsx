@@ -159,6 +159,15 @@ export function CurveIcon(props: IconProps) {
   )
 }
 
+/** "T" maiúsculo em traço — ferramenta de rótulo de texto. Sem miolo fechando. */
+export function TextIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 6h14M12 6v13" />
+    </Icon>
+  )
+}
+
 export function TokenIcon(props: IconProps) {
   return (
     <Icon {...props}>

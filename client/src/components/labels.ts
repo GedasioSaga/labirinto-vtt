@@ -8,9 +8,8 @@ import type { DrawingTool } from '../types/tools'
  * e `toHaveText('Apagar parede selecionada(o)')`). Estilo, ícone e estrutura ao
  * redor podem mudar à vontade; estas strings, não.
  */
-// Partial, não Record<DrawingTool, string>: assim a Task 1 pode estender
-// DrawingTool (ex.: 'text') sem forçar entrada aqui — o rótulo é escopo da
-// Task 3, que o adiciona junto do resto do wiring da ferramenta.
+// Partial, não Record<DrawingTool, string>: assim uma futura extensão de
+// DrawingTool não força entrada aqui antes do rótulo existir.
 export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   select: 'Selecionar',
   wall: 'Parede',
@@ -21,6 +20,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   line: 'Linha',
   circle: 'Círculo',
   curve: 'Curva',
+  text: 'Texto',
 }
 
 export const SELECTION_LABELS: Record<string, string> = {
@@ -32,8 +32,6 @@ export const SELECTION_LABELS: Record<string, string> = {
   drawing: 'desenho',
 }
 
-// 'text' fica de fora de propósito — Partial<Record<...>> não exige a
-// entrada, e o hint da ferramenta é escopo da Task 3.
 export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   wall: 'Clique e arraste para desenhar uma parede.',
   light: 'Clique para colocar uma luz.',
@@ -43,18 +41,17 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   line: 'Clique e arraste para desenhar uma linha reta.',
   circle: 'Clique no centro e arraste para definir o raio.',
   curve: 'Clique e arraste para desenhar uma curva suave.',
+  text: 'Clique pra colocar um rótulo — edite o texto no painel.',
 }
 
 /**
  * Ferramentas agrupadas por intenção — a barra desenha um separador entre
- * grupos. 'text' fica de fora de propósito: DrawingTool foi estendido na
- * Task 1, mas a ferramenta só fica selecionável na barra na Task 3 (junto do
- * handler de clique e da renderização da Task 2, drawTextLabels.ts).
+ * grupos.
  */
 export const TOOL_GROUPS: DrawingTool[][] = [
   ['select'],
   ['wall', 'light', 'region', 'prop'],
-  ['brush', 'line', 'circle', 'curve'],
+  ['brush', 'line', 'circle', 'curve', 'text'],
 ]
 
 /** Ferramentas que expõem os controles de cor/espessura/preenchimento. */

@@ -31,6 +31,7 @@ import {
   buildCircleDrawing,
   isValidCurveDraft,
   buildCurveDrawing,
+  buildTextDrawing,
 } from '../lib/drawingFactory'
 import { createPropsRenderer } from './drawProps'
 import { createTextLabelsRenderer } from './drawTextLabels'
@@ -282,6 +283,15 @@ export function PixiCanvas() {
           const point = applySnap(worldPoint, map.grid)
           regionDraftPoints = [...regionDraftPoints, point]
           drawRegionDraft(draftGraphics, regionDraftPoints, null)
+          return
+        }
+
+        if (activeTool === 'text') {
+          const point = applySnap(worldPoint, map.grid)
+          const id = crypto.randomUUID()
+          const { addDrawing, drawColor, drawFontSize, setSelection: select } = useMapStore.getState()
+          addDrawing(buildTextDrawing(id, point, drawColor, drawFontSize))
+          select({ kind: 'drawing', id })
           return
         }
 

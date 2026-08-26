@@ -12,6 +12,7 @@ import {
   LineIcon,
   PropIcon,
   RegionIcon,
+  TextIcon,
   WallIcon,
 } from './icons'
 
@@ -20,9 +21,8 @@ interface ToolbarProps {
   onSelectTool: (tool: DrawingTool) => void
 }
 
-// Partial, não Record<DrawingTool, ...>: assim a Task 1 pode estender
-// DrawingTool (ex.: 'text') sem forçar entrada aqui — o ícone é escopo da
-// Task 3, que o adiciona junto do resto do wiring da ferramenta.
+// Partial, não Record<DrawingTool, ...>: assim uma futura extensão de
+// DrawingTool não força entrada aqui antes do ícone existir.
 const TOOL_ICONS: Partial<Record<DrawingTool, ComponentType<{ size?: number }>>> = {
   select: CursorIcon,
   wall: WallIcon,
@@ -33,6 +33,7 @@ const TOOL_ICONS: Partial<Record<DrawingTool, ComponentType<{ size?: number }>>>
   line: LineIcon,
   circle: CircleIcon,
   curve: CurveIcon,
+  text: TextIcon,
 }
 
 const EDGE_GAP = parseFloat(theme.layout.edgeGap)

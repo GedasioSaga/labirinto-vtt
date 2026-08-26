@@ -1,5 +1,5 @@
 import type { DrawingTool } from '../types/tools'
-import type { Prop, Wall } from '../types/map'
+import type { Drawing, Prop, Wall } from '../types/map'
 import { DRAWING_TOOLS } from './labels'
 import { LabyrinthMark } from './icons'
 import { DrawingStyleControls, type DrawingStyleControlsProps } from './DrawingStyleControls'
@@ -8,6 +8,7 @@ import { SelectionControls, type SelectionControlsProps } from './SelectionContr
 import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
 import { ScenarioLinkControls, type ScenarioLinkControlsProps } from './ScenarioLinkControls'
 import { PortalControls, type PortalControlsProps } from './PortalControls'
+import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
 
 interface PropertiesPanelProps {
   mapName: string
@@ -23,6 +24,8 @@ interface PropertiesPanelProps {
   wallDoor: Omit<WallDoorControlsProps, 'door'>
   selectedProp: Prop | null
   portal: Omit<PortalControlsProps, 'linkedMapPath'>
+  selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
+  textLabel: Omit<TextLabelControlsProps, 'text' | 'color' | 'fontSize'>
 }
 
 /**
@@ -43,6 +46,8 @@ export function PropertiesPanel({
   wallDoor,
   selectedProp,
   portal,
+  selectedTextLabel,
+  textLabel,
 }: PropertiesPanelProps) {
   const showDrawingStyle = DRAWING_TOOLS.includes(activeTool)
 
@@ -66,6 +71,14 @@ export function PropertiesPanel({
         <ScenarioLinkControls {...scenarioLink} />
         {selectedWall && <WallDoorControls door={selectedWall.door} {...wallDoor} />}
         {selectedProp && <PortalControls linkedMapPath={selectedProp.linkedMapPath} {...portal} />}
+        {selectedTextLabel && (
+          <TextLabelControls
+            text={selectedTextLabel.text}
+            color={selectedTextLabel.color}
+            fontSize={selectedTextLabel.fontSize}
+            {...textLabel}
+          />
+        )}
         <SelectionControls {...selection} />
       </div>
     </div>

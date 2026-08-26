@@ -41,10 +41,13 @@ function App() {
   const setDrawFilled = useMapStore((state) => state.setDrawFilled)
   const setWallDoor = useMapStore((state) => state.setWallDoor)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
+  const updateTextLabel = useMapStore((state) => state.updateTextLabel)
   const [previousMapPath, setPreviousMapPath] = useState<string | null>(null)
 
   const selectedWall = selection?.kind === 'wall' ? map.walls.find((w) => w.id === selection.id) ?? null : null
   const selectedProp = selection?.kind === 'prop' ? map.props.find((p) => p.id === selection.id) ?? null : null
+  const selectedDrawing = selection?.kind === 'drawing' ? map.drawings.find((d) => d.id === selection.id) ?? null : null
+  const selectedTextLabel = selectedDrawing && selectedDrawing.kind === 'text' ? selectedDrawing : null
 
   const handleToggleDoor = () => {
     if (!selectedWall) return
@@ -54,6 +57,21 @@ function App() {
   const handleToggleOpen = () => {
     if (!selectedWall || !selectedWall.door) return
     setWallDoor(selectedWall.id, { ...selectedWall.door, open: !selectedWall.door.open })
+  }
+
+  const handleTextChange = (text: string) => {
+    if (!selectedTextLabel) return
+    updateTextLabel(selectedTextLabel.id, { text })
+  }
+
+  const handleTextColorChange = (color: string) => {
+    if (!selectedTextLabel) return
+    updateTextLabel(selectedTextLabel.id, { color })
+  }
+
+  const handleTextFontSizeChange = (fontSize: number) => {
+    if (!selectedTextLabel) return
+    updateTextLabel(selectedTextLabel.id, { fontSize })
   }
 
   const handleCreateLinkedMap = async (propId: string) => {
@@ -183,6 +201,12 @@ function App() {
             onLinkExistingMap: () => selectedProp && handleLinkExistingMap(selectedProp.id),
             onEnterLinkedMap: handleEnterLinkedMap,
             onUnlink: () => selectedProp && useMapStore.getState().setPropLinkedPath(selectedProp.id, null),
+          }}
+          selectedTextLabel={selectedTextLabel}
+          textLabel={{
+            onTextChange: handleTextChange,
+            onColorChange: handleTextColorChange,
+            onFontSizeChange: handleTextFontSizeChange,
           }}
         />
         <ActionBar
