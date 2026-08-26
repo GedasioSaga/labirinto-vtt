@@ -105,6 +105,7 @@ export function createRegionsRenderer(): RegionsRenderer {
       let g = cache.get(region.id)
       if (!g) {
         g = new Graphics()
+        g.label = region.id
         cache.set(region.id, g)
         container.addChild(g)
       }

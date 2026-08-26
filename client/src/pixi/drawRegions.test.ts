@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { Container } from 'pixi.js'
+import { Container, Graphics } from 'pixi.js'
 import { computeHatchSegments, createRegionsRenderer, scanlineIntersections } from './drawRegions'
 import type { Region, RegionPoint } from '../types/map'
+
+/** Conta instruções `action: 'fill'` realmente empilhadas no GraphicsContext da instância. */
+function countFillInstructions(g: Graphics): number {
+  return g.context.instructions.filter((instruction) => instruction.action === 'fill').length
+}
+
+/** Conta instruções `action: 'stroke'` realmente empilhadas no GraphicsContext da instância. */
+function countStrokeInstructions(g: Graphics): number {
+  return g.context.instructions.filter((instruction) => instruction.action === 'stroke').length
+}
 
 /** Ray-casting par-ímpar clássico, independente da implementação testada. */
 function isPointInPolygon(point: { x: number; y: number }, polygon: RegionPoint[]): boolean {
@@ -139,8 +149,24 @@ describe('createRegionsRenderer', () => {
     renderer.draw(container, regions, null)
 
     expect(container.children.length).toBe(regions.length)
-    const drawnIds = new Set(container.children.map((_, i) => regions[i].id))
+
+    // Correlaciona child→região pelo label (setado em drawRegions.ts) em vez de
+    // assumir a ordem do array — prova que TODA região da lista de fato ganhou
+    // um Graphics próprio, não só que a contagem bate.
+    const drawnIds = new Set(container.children.map((child) => child.label))
     expect(drawnIds.size).toBe(regions.length)
+    for (const region of regions) {
+      expect(drawnIds.has(region.id)).toBe(true)
+    }
+
+    // O bug original: Graphics existia (contagem batia) mas nascia sem fill
+    // visível porque o path acumulado corrompia fill/stroke/hachura na mesma
+    // instância. Contagem de children não pega isso — inspecionar o conteúdo
+    // real do GraphicsContext sim: cada região precisa ter exatamente 1
+    // instrução `fill` de fato empilhada.
+    for (const child of container.children) {
+      expect(countFillInstructions(child as Graphics)).toBe(1)
+    }
   })
 
   it('cada região tem seu próprio Graphics: nenhuma instância é compartilhada entre regiões', () => {
@@ -180,5 +206,16 @@ describe('createRegionsRenderer', () => {
     renderer.draw(container, regions, null)
 
     expect(container.children.length).toBe(regions.length)
+
+    // A causa raiz do bug era hachura + fill acumulando no mesmo path de uma
+    // instância compartilhada. Com 1 Graphics por região isso não pode voltar a
+    // acontecer — a prova real é inspecionar o GraphicsContext de cada instância:
+    // exatamente 1 `fill` (o preenchimento base da região) e exatamente 2
+    // `stroke` (contorno da região + traço da hachura), nunca mais que isso.
+    for (const child of container.children) {
+      const g = child as Graphics
+      expect(countFillInstructions(g)).toBe(1)
+      expect(countStrokeInstructions(g)).toBe(2)
+    }
   })
 })
