@@ -39,6 +39,8 @@ function App() {
   const setDrawWidth = useMapStore((state) => state.setDrawWidth)
   const drawFilled = useMapStore((state) => state.drawFilled)
   const setDrawFilled = useMapStore((state) => state.setDrawFilled)
+  const drawFontSize = useMapStore((state) => state.drawFontSize)
+  const setDrawFontSize = useMapStore((state) => state.setDrawFontSize)
   const setWallDoor = useMapStore((state) => state.setWallDoor)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
@@ -172,6 +174,10 @@ function App() {
             filled: drawFilled,
             onFilledChange: setDrawFilled,
             showFilled: activeTool === 'circle',
+            showWidth: activeTool !== 'text',
+            fontSize: drawFontSize,
+            onFontSizeChange: setDrawFontSize,
+            showFontSize: activeTool === 'text',
           }}
           grid={{
             showGrid,

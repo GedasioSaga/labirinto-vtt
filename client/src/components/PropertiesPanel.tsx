@@ -49,7 +49,7 @@ export function PropertiesPanel({
   selectedTextLabel,
   textLabel,
 }: PropertiesPanelProps) {
-  const showDrawingStyle = DRAWING_TOOLS.includes(activeTool)
+  const showDrawingStyle = DRAWING_TOOLS.includes(activeTool) || activeTool === 'text'
 
   return (
     <div className="lb-panel lb-inspector">
