@@ -9,7 +9,7 @@ import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { ActionBar } from './components/ActionBar'
-import type { MapData } from './types/map'
+import type { MapData, Region } from './types/map'
 import * as mapFactory from './lib/mapFactory'
 
 /**
@@ -44,6 +44,9 @@ function App() {
   const regionFillColor = useMapStore((state) => state.regionFillColor)
   const setRegionFillColor = useMapStore((state) => state.setRegionFillColor)
   const setRegionColor = useMapStore((state) => state.setRegionColor)
+  const regionFillPattern = useMapStore((state) => state.regionFillPattern)
+  const setRegionFillPattern = useMapStore((state) => state.setRegionFillPattern)
+  const setRegionPattern = useMapStore((state) => state.setRegionPattern)
   const setWallDoor = useMapStore((state) => state.setWallDoor)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
@@ -61,6 +64,14 @@ function App() {
       return
     }
     setRegionFillColor(color)
+  }
+
+  const handleRegionPatternChange = (pattern: Region['fillPattern']) => {
+    if (selectedRegion) {
+      setRegionPattern(selectedRegion.id, pattern)
+      return
+    }
+    setRegionFillPattern(pattern)
   }
 
   const handleToggleDoor = () => {
@@ -230,6 +241,8 @@ function App() {
           regionStyle={{
             color: selectedRegion ? selectedRegion.fillColor : regionFillColor,
             onColorChange: handleRegionColorChange,
+            pattern: selectedRegion ? selectedRegion.fillPattern : regionFillPattern,
+            onPatternChange: handleRegionPatternChange,
           }}
         />
         <ActionBar

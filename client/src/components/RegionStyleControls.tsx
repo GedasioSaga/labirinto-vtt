@@ -1,14 +1,20 @@
+import type { Region } from '../types/map'
+import { Toggle } from './Toggle'
+
 export interface RegionStyleControlsProps {
   color: string
   onColorChange: (color: string) => void
+  pattern: Region['fillPattern']
+  onPatternChange: (pattern: Region['fillPattern']) => void
 }
 
 /**
- * Cor de preenchimento da região: antes de desenhar (liga em `regionFillColor`)
- * ou editando a região já selecionada (liga em `setRegionColor`) — o chamador
- * decide qual fonte usar, este componente só mostra o swatch.
+ * Cor e padrão de preenchimento da região: antes de desenhar (liga em
+ * `regionFillColor`/`regionFillPattern`) ou editando a região já selecionada
+ * (liga em `setRegionColor`/`setRegionPattern`) — o chamador decide qual fonte
+ * usar, este componente só mostra os controles.
  */
-export function RegionStyleControls({ color, onColorChange }: RegionStyleControlsProps) {
+export function RegionStyleControls({ color, onColorChange, pattern, onPatternChange }: RegionStyleControlsProps) {
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Região</h2>
@@ -24,6 +30,11 @@ export function RegionStyleControls({ color, onColorChange }: RegionStyleControl
           onChange={(event) => onColorChange(event.target.value)}
         />
       </div>
+      <Toggle
+        label="Hachurado"
+        checked={pattern === 'hatch'}
+        onChange={(checked) => onPatternChange(checked ? 'hatch' : 'solid')}
+      />
     </section>
   )
 }
