@@ -1,4 +1,4 @@
-import { Color, type Graphics } from 'pixi.js'
+import { Color, Container, Graphics } from 'pixi.js'
 import type { Region, RegionPoint } from '../types/map'
 import { isDegenerateRegion } from './shapes'
 import { SELECTION_COLOR } from './constants'
@@ -69,37 +69,70 @@ export function scanlineIntersections(points: { u: number; v: number }[], v: num
   return us.sort((x, y) => x - y)
 }
 
-export function drawRegions(graphics: Graphics, regions: Region[], selectedRegionId: string | null = null): void {
-  graphics.clear()
-  for (const region of regions) {
-    if (isDegenerateRegion(region.points)) continue
-    const [first, ...rest] = region.points
-    graphics.moveTo(first.x, first.y)
-    for (const point of rest) {
-      graphics.lineTo(point.x, point.y)
+export interface RegionsRenderer {
+  draw: (container: Container, regions: Region[], selectedRegionId?: string | null) => void
+}
+
+/**
+ * Cria um renderer de regiões com cache de Graphics por id, fechado por closure —
+ * mesma lifecycle de createPropsRenderer/createTextLabelsRenderer: instanciar uma
+ * vez dentro do setup() de cada mount do PixiCanvas, nunca em escopo de módulo.
+ *
+ * Um Graphics próprio por região (em vez de um único Graphics compartilhado
+ * desenhando fill/stroke de todas em sequência) elimina o bug em que, com muitas
+ * regiões (~15+), algumas nasciam sem preenchimento visível — batching interno do
+ * Pixi 8 Graphics quando o path acumulado numa mesma instância cresce demais.
+ * Como cada Graphics isolado nunca acumula mais que 1 fill (mesmo com hachura),
+ * fill + stroke + hachura da mesma região podem ficar na mesma instância sem
+ * risco de corromper o path de outra região.
+ */
+export function createRegionsRenderer(): RegionsRenderer {
+  const cache = new Map<string, Graphics>()
+
+  function draw(container: Container, regions: Region[], selectedRegionId: string | null = null): void {
+    const visibleRegions = regions.filter((region) => !isDegenerateRegion(region.points))
+    const currentIds = new Set(visibleRegions.map((r) => r.id))
+
+    for (const [id, g] of cache) {
+      if (!currentIds.has(id)) {
+        container.removeChild(g)
+        g.destroy()
+        cache.delete(id)
+      }
     }
-    graphics.closePath()
-    const isSelected = region.id === selectedRegionId
-    const color = isSelected ? SELECTION_COLOR : new Color(region.fillColor).toNumber()
-    graphics.fill({ color, alpha: isSelected ? 0.25 : 0.15 })
-    graphics.stroke({ width: isSelected ? 4 : 2, color })
+
+    for (const region of visibleRegions) {
+      let g = cache.get(region.id)
+      if (!g) {
+        g = new Graphics()
+        cache.set(region.id, g)
+        container.addChild(g)
+      }
+      g.clear()
+
+      const [first, ...rest] = region.points
+      g.moveTo(first.x, first.y)
+      for (const point of rest) {
+        g.lineTo(point.x, point.y)
+      }
+      g.closePath()
+      const isSelected = region.id === selectedRegionId
+      const color = isSelected ? SELECTION_COLOR : new Color(region.fillColor).toNumber()
+      g.fill({ color, alpha: isSelected ? 0.25 : 0.15 })
+      g.stroke({ width: isSelected ? 4 : 2, color })
+
+      if (!isSelected && region.fillPattern === 'hatch') {
+        const segments = computeHatchSegments(region.points)
+        for (const segment of segments) {
+          g.moveTo(segment.x1, segment.y1)
+          g.lineTo(segment.x2, segment.y2)
+        }
+        if (segments.length > 0) {
+          g.stroke({ width: HATCH_WIDTH, color: HATCH_COLOR, alpha: HATCH_ALPHA })
+        }
+      }
+    }
   }
 
-  // Segunda passada: hachura desenhada depois de TODOS os fills/strokes de região.
-  // Um stroke() de hachura misturado na mesma sequência de comandos do fill() da
-  // PRÓXIMA região corrompe o path acumulado do Graphics (a região seguinte no
-  // loop nasce sem preenchimento visível) — isolar em passada própria evita isso.
-  for (const region of regions) {
-    if (isDegenerateRegion(region.points)) continue
-    const isSelected = region.id === selectedRegionId
-    if (isSelected || region.fillPattern !== 'hatch') continue
-    const segments = computeHatchSegments(region.points)
-    for (const segment of segments) {
-      graphics.moveTo(segment.x1, segment.y1)
-      graphics.lineTo(segment.x2, segment.y2)
-    }
-    if (segments.length > 0) {
-      graphics.stroke({ width: HATCH_WIDTH, color: HATCH_COLOR, alpha: HATCH_ALPHA })
-    }
-  }
+  return { draw }
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { computeHatchSegments, scanlineIntersections } from './drawRegions'
-import type { RegionPoint } from '../types/map'
+import { Container } from 'pixi.js'
+import { computeHatchSegments, createRegionsRenderer, scanlineIntersections } from './drawRegions'
+import type { Region, RegionPoint } from '../types/map'
 
 /** Ray-casting par-ímpar clássico, independente da implementação testada. */
 function isPointInPolygon(point: { x: number; y: number }, polygon: RegionPoint[]): boolean {
@@ -100,5 +101,84 @@ describe('computeHatchSegments', () => {
       { x: 0, y: 3 },
     ]
     expect(computeHatchSegments(tiny)).toEqual([])
+  })
+})
+
+/** Grade de retângulos contíguos (sem gap), reproduzindo o layout real que disparava o bug. */
+function buildContiguousGridRegions(cols: number, rows: number, size = 50): Region[] {
+  const regions: Region[] = []
+  let n = 0
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const x = col * size
+      const y = row * size
+      regions.push({
+        id: `region-${n++}`,
+        points: [
+          { x, y },
+          { x: x + size, y },
+          { x: x + size, y: y + size },
+          { x, y: y + size },
+        ],
+        tag: '',
+        fillColor: '#1e7a1e',
+        fillPattern: 'solid',
+        data: {},
+      })
+    }
+  }
+  return regions
+}
+
+describe('createRegionsRenderer', () => {
+  it('regressão: 20 regiões contíguas resultam em 20 Graphics filhos, nenhuma pulada', () => {
+    const regions = buildContiguousGridRegions(5, 4) // 20 regiões, mesmo padrão do bug real (14 OK / 17 quebra)
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+
+    renderer.draw(container, regions, null)
+
+    expect(container.children.length).toBe(regions.length)
+    const drawnIds = new Set(container.children.map((_, i) => regions[i].id))
+    expect(drawnIds.size).toBe(regions.length)
+  })
+
+  it('cada região tem seu próprio Graphics: nenhuma instância é compartilhada entre regiões', () => {
+    const regions = buildContiguousGridRegions(5, 4)
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+
+    renderer.draw(container, regions, null)
+
+    const uniqueChildren = new Set(container.children)
+    expect(uniqueChildren.size).toBe(container.children.length)
+  })
+
+  it('reutiliza o Graphics existente em redraws e remove o de regiões que saíram do array', () => {
+    const regions = buildContiguousGridRegions(5, 4)
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+
+    renderer.draw(container, regions, null)
+    const firstChild = container.children[0]
+
+    const withoutFirst = regions.slice(1)
+    renderer.draw(container, withoutFirst, null)
+
+    expect(container.children.length).toBe(withoutFirst.length)
+    expect(container.children.includes(firstChild)).toBe(false)
+
+    renderer.draw(container, withoutFirst, null)
+    expect(container.children.length).toBe(withoutFirst.length)
+  })
+
+  it('mantém apenas 1 fill acumulado por Graphics mesmo com hachura (isolamento entre regiões)', () => {
+    const regions = buildContiguousGridRegions(4, 5).map((r) => ({ ...r, fillPattern: 'hatch' as const }))
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+
+    renderer.draw(container, regions, null)
+
+    expect(container.children.length).toBe(regions.length)
   })
 })

@@ -14,7 +14,7 @@ import { drawHexGrid } from './drawHexGrid'
 import { snapToHexGrid } from './hexGrid'
 import { drawWalls } from './drawWalls'
 import { drawLights } from './drawLights'
-import { drawRegions } from './drawRegions'
+import { createRegionsRenderer } from './drawRegions'
 import { drawTokens } from './drawTokens'
 import { drawWallDraft, drawRegionDraft, drawFreehandDraft, drawLineDraft, drawCircleDraft, drawCurveDraft } from './drawDraft'
 import { snapToGrid } from './tokenInteraction'
@@ -70,7 +70,7 @@ export function PixiCanvas() {
 
       const backgroundSprite = new Sprite(Texture.EMPTY)
       const gridGraphics = new Graphics()
-      const regionsGraphics = new Graphics()
+      const regionsContainer = new Container()
       const wallsGraphics = new Graphics()
       const drawingsGraphics = new Graphics()
       const textLabelsContainer = new Container()
@@ -82,7 +82,7 @@ export function PixiCanvas() {
       world.addChild(
         backgroundSprite,
         gridGraphics,
-        regionsGraphics,
+        regionsContainer,
         wallsGraphics,
         drawingsGraphics,
         textLabelsContainer,
@@ -125,7 +125,7 @@ export function PixiCanvas() {
 
       const redrawShapes = () => {
         const { map, selection } = useMapStore.getState()
-        drawRegions(regionsGraphics, map.regions, selection?.kind === 'region' ? selection.id : null)
+        regionsRenderer.draw(regionsContainer, map.regions, selection?.kind === 'region' ? selection.id : null)
         drawWalls(wallsGraphics, map.walls, selection?.kind === 'wall' ? selection.id : null)
         drawLights(lightsGraphics, map.lights, selection?.kind === 'light' ? selection.id : null)
         drawDrawings(drawingsGraphics, map.drawings, selection?.kind === 'drawing' ? selection.id : null)
@@ -139,6 +139,7 @@ export function PixiCanvas() {
 
       const propsRenderer = createPropsRenderer()
       const textLabelsRenderer = createTextLabelsRenderer()
+      const regionsRenderer = createRegionsRenderer()
 
       const redrawProps = () => {
         const { map, selection } = useMapStore.getState()
