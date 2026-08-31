@@ -3,6 +3,7 @@
 // task-text-label.spec.ts: passa pela tela inicial, prova estado (map.regions)
 // via mapStore, interagindo com o swatch de cor real do painel lateral.
 import { test, expect, type Page } from '@playwright/test'
+import { enterEditor } from './helpers/enterEditor'
 import type { Region } from '../src/types/map'
 
 async function getRegions(page: Page): Promise<Region[]> {
@@ -30,9 +31,7 @@ function regionColorInput(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Criar mapa' }).click()
-  await page.waitForSelector('canvas')
+  await enterEditor(page)
   await resetMap(page)
 })
 

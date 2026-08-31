@@ -6,6 +6,7 @@
 // byte a byte. Sem o fix, os bytes seriam idênticos (é exatamente o que a revisão final provou
 // como prova negativa antes do fix existir).
 import { test, expect, type Page } from '@playwright/test'
+import { enterEditor } from './helpers/enterEditor'
 
 async function resetMap(page: Page) {
   await page.evaluate(async () => {
@@ -26,9 +27,7 @@ test.beforeEach(async ({ page }) => {
       convertFileSrc: (filePath: string) => filePath,
     }
   })
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Criar mapa' }).click()
-  await page.waitForSelector('canvas')
+  await enterEditor(page)
   await resetMap(page)
 })
 

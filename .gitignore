@@ -8,3 +8,8 @@ Thumbs.db
 **/gen/
 client/test-results/
 client/playwright-report/
+
+# Grafo gerado pelo graphify (2.5 MB, reconstruível com `graphify extract`)
+graphify-out/
+# Trilha de sessão do Claude Code, local por máquina
+.claude-trail.md

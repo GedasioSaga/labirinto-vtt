@@ -3,6 +3,7 @@
 // `npm run tauri:dev` (app Tauri real). Ver docs/verification/2026-08-25-task4-verificacao-manual.md
 // para o que este teste cobre e o que continua não coberto (o binário/webview Tauri em si).
 import { test, expect, type Page } from '@playwright/test'
+import { enterEditor } from './helpers/enterEditor'
 import type { Wall, Light, Region, Token } from '../src/types/map'
 
 type MapState = {
@@ -31,6 +32,9 @@ async function resetMap(page: Page) {
     const mod = await import('/src/stores/mapStore.ts')
     mod.useMapStore.getState().loadMap(mapFactory.createEmptyMap('map_e2e', 'E2E', 30, 20, 64))
     mod.useMapStore.getState().setActiveTool('select')
+    // loadMap não mexe em snapEnabled — reseta aqui pra evitar que um teste que
+    // ligue "Travar na grade" vaze esse estado pro próximo teste do arquivo.
+    mod.useMapStore.getState().setSnapEnabled(false)
   })
 }
 
@@ -39,9 +43,7 @@ async function selectTool(page: Page, label: 'Selecionar' | 'Parede' | 'Luz' | '
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Criar mapa' }).click()
-  await page.waitForSelector('canvas')
+  await enterEditor(page)
   await resetMap(page)
 })
 
@@ -73,6 +75,71 @@ test('2. ferramenta Luz: um clique cria luz sem precisar arrastar', async ({ pag
 
   const state = await getMapState(page)
   expect(state.lights.length).toBe(1)
+})
+
+test('2b. ferramenta Luz: arrasto longo cria luz com raio arrastado (maior que o padrão)', async ({ page }) => {
+  const box = await page.locator('canvas').boundingBox()
+  if (!box) throw new Error('canvas sem bounding box')
+  await selectTool(page, 'Luz')
+
+  // grid=64 (ver resetMap) * LIGHT_RADIUS_IN_CELLS=8 = raio padrão de 512 (buildLightAt).
+  const defaultRadius = 512
+  const dragDistance = 700
+  const center = { x: box.x + 400, y: box.y + 400 }
+  await page.mouse.move(center.x, center.y)
+  await page.mouse.down()
+  await page.mouse.move(center.x + dragDistance, center.y, { steps: 10 })
+  await page.mouse.up()
+
+  const state = await getMapState(page)
+  expect(state.lights.length).toBe(1)
+  const light = state.lights[0]
+  expect(light.radius).toBeGreaterThan(defaultRadius)
+  expect(light.radius).toBeGreaterThan(dragDistance * 0.9)
+  expect(light.radius).toBeLessThan(dragDistance * 1.1)
+})
+
+test('2c. ferramenta Luz: arrasto curto cria luz com raio menor que o padrão', async ({ page }) => {
+  const box = await page.locator('canvas').boundingBox()
+  if (!box) throw new Error('canvas sem bounding box')
+  await selectTool(page, 'Luz')
+
+  const defaultRadius = 512
+  const dragDistance = 100
+  const center = { x: box.x + 400, y: box.y + 400 }
+  await page.mouse.move(center.x, center.y)
+  await page.mouse.down()
+  await page.mouse.move(center.x + dragDistance, center.y, { steps: 10 })
+  await page.mouse.up()
+
+  const state = await getMapState(page)
+  expect(state.lights.length).toBe(1)
+  const light = state.lights[0]
+  expect(light.radius).toBeLessThan(defaultRadius)
+  expect(light.radius).toBeGreaterThan(dragDistance * 0.8)
+  expect(light.radius).toBeLessThan(dragDistance * 1.2)
+})
+
+test('2d. ferramenta Luz: clique simples com "Travar na grade" ativo ainda usa raio padrão', async ({ page }) => {
+  // Regressão: com snapEnabled=true, lightDraftCenter (pointerdown) é snapado mas
+  // o worldPoint do pointerup não era — um clique simples fora de uma interseção
+  // de grade inflava dragDistance pelo próprio offset de snap e criava luz com
+  // raio minúsculo em vez do raio padrão. Ver PixiCanvas.tsx (lightDraftRawStart).
+  const box = await page.locator('canvas').boundingBox()
+  if (!box) throw new Error('canvas sem bounding box')
+  await page.evaluate(async () => {
+    const mod = await import('/src/stores/mapStore.ts')
+    mod.useMapStore.getState().setSnapEnabled(true)
+  })
+  await selectTool(page, 'Luz')
+
+  const defaultRadius = 512
+  // 300 não é múltiplo de 64 (grid do resetMap) — garante offset de snap real.
+  await page.mouse.click(box.x + 300, box.y + 300)
+
+  const state = await getMapState(page)
+  expect(state.lights.length).toBe(1)
+  expect(state.lights[0].radius).toBe(defaultRadius)
 })
 
 test('3a. ferramenta Região: 3+ cliques + duplo clique fecha o polígono', async ({ page }) => {

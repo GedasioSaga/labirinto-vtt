@@ -111,6 +111,57 @@ export function findDrawingAt(drawings: Drawing[], point: Point, tolerance = DRA
   return null
 }
 
+const VERTEX_MAGNET_TOLERANCE = 12
+
+/**
+ * Varre todos os pontos "grudáveis" já existentes no mapa — as 2 pontas de
+ * cada Wall, todo RegionPoint de cada Region, e os pontos de todo Drawing do
+ * tipo 'line' (as 2 pontas) ou 'curve' (todos os pontos) — e retorna o mais
+ * próximo de `point` que esteja dentro de `tolerance` pixels, ou `null` se
+ * nenhum estiver perto o bastante.
+ *
+ * Usado pelo "ímã" de vértice ao desenhar Parede/Linha (PixiCanvas): grudar
+ * no vértice exato evita ponta solta boiando perto de uma estrutura já
+ * desenhada sem tocar nela de verdade. 'freehand' fica de fora de propósito —
+ * um traço à mão livre não tem vértice estrutural pra conectar.
+ */
+export function findNearestExistingVertex(map: MapData, point: Point, tolerance = VERTEX_MAGNET_TOLERANCE): Point | null {
+  let nearest: Point | null = null
+  let nearestDistance = Infinity
+
+  const consider = (candidate: Point) => {
+    const distance = Math.hypot(point.x - candidate.x, point.y - candidate.y)
+    if (distance <= tolerance && distance < nearestDistance) {
+      nearestDistance = distance
+      nearest = candidate
+    }
+  }
+
+  for (const wall of map.walls) {
+    consider({ x: wall.x1, y: wall.y1 })
+    consider({ x: wall.x2, y: wall.y2 })
+  }
+
+  for (const region of map.regions) {
+    for (const vertex of region.points) {
+      consider(vertex)
+    }
+  }
+
+  for (const drawing of map.drawings) {
+    if (drawing.kind === 'line') {
+      consider({ x: drawing.x1, y: drawing.y1 })
+      consider({ x: drawing.x2, y: drawing.y2 })
+    } else if (drawing.kind === 'curve') {
+      for (const vertex of drawing.points) {
+        consider(vertex)
+      }
+    }
+  }
+
+  return nearest
+}
+
 export function findCurveControlPointAt(points: DrawingPoint[], point: Point, handleRadius = 8): number | null {
   for (let i = 0; i < points.length; i += 1) {
     if (Math.hypot(point.x - points[i].x, point.y - points[i].y) <= handleRadius) {
@@ -141,7 +192,11 @@ export function findSelectableAt(map: MapData, point: Point): SelectableHit | nu
   if (light) return { kind: 'light', id: light.id, draggable: false }
 
   const drawing = findDrawingAt(map.drawings, point)
-  if (drawing) return { kind: 'drawing', id: drawing.id, draggable: false }
+  // Só 'line' tem arrasto de corpo hoje (espelha o vértice/corpo de Parede);
+  // os demais kinds (freehand/circle/curve/text) continuam não-arrastáveis
+  // por enquanto — 'curve' arrasta vértice por um caminho separado, direto
+  // no PixiCanvas, que não passa por este `draggable`.
+  if (drawing) return { kind: 'drawing', id: drawing.id, draggable: drawing.kind === 'line' }
 
   const wall = findWallAt(map.walls, point)
   if (wall) return { kind: 'wall', id: wall.id, draggable: false }

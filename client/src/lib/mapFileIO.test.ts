@@ -1,10 +1,21 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { MapData } from '../types/map'
 
+interface FakeDirEntry {
+  name: string
+  isDirectory: boolean
+  isFile: boolean
+  isSymlink: boolean
+}
+
 const writeTextFileMock = vi.fn(async () => undefined)
 const mkdirMock = vi.fn(async () => undefined)
-const existsMock = vi.fn(async () => false)
-const readTextFileMock = vi.fn(async () => '')
+// Tipado com `path: string` (em vez de sem parâmetro) porque os testes de
+// `listSavedMaps` precisam de `mockImplementation` que decide pelo caminho
+// recebido — ex.: a pasta de mapas existe, mas um `map.json` específico não.
+const existsMock = vi.fn(async (_path: string) => false)
+const readTextFileMock = vi.fn(async (_path: string) => '')
+const readDirMock = vi.fn(async () => [] as FakeDirEntry[])
 const saveMock = vi.fn(async () => null as string | null)
 const openMock = vi.fn(async () => null as string | string[] | null)
 const invokeMock = vi.fn(async () => undefined)
@@ -14,6 +25,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   mkdir: mkdirMock,
   exists: existsMock,
   readTextFile: readTextFileMock,
+  readDir: readDirMock,
 }))
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
@@ -39,6 +51,8 @@ const {
   pickExportDestination,
   loadMapFromDisk,
   assertPathWithinRoot,
+  listSavedMaps,
+  saveMapToPath,
 } = await import('./mapFileIO')
 
 function makeMap(overrides: Partial<MapData> = {}): MapData {
@@ -64,11 +78,18 @@ function makeMap(overrides: Partial<MapData> = {}): MapData {
   }
 }
 
+const MAPS_DIR = 'C:\\Users\\test\\AppData\\Roaming\\labirinto\\maps'
+
+function dirEntry(name: string, isDirectory = true): FakeDirEntry {
+  return { name, isDirectory, isFile: !isDirectory, isSymlink: false }
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   existsMock.mockResolvedValue(false)
   openMock.mockResolvedValue(null)
   saveMock.mockResolvedValue(null)
+  readDirMock.mockResolvedValue([])
 })
 
 describe('defaultMapsDir', () => {
@@ -222,5 +243,64 @@ describe('loadMapFromDisk', () => {
     readTextFileMock.mockResolvedValue('{ inválido')
 
     await expect(loadMapFromDisk('C:\\maps\\map_x\\map.json')).rejects.toThrow('map.json inválido')
+  })
+})
+
+describe('listSavedMaps', () => {
+  it('devolve lista vazia quando a pasta de mapas ainda não existe', async () => {
+    existsMock.mockResolvedValue(false)
+
+    const maps = await listSavedMaps()
+
+    expect(maps).toEqual([])
+    expect(readDirMock).not.toHaveBeenCalled()
+  })
+
+  it('lista os mapas cujos map.json existem, ignorando entrada que não é diretório', async () => {
+    existsMock.mockImplementation(async (path: string) => path === MAPS_DIR || path === `${MAPS_DIR}\\map_1\\map.json`)
+    readDirMock.mockResolvedValue([dirEntry('map_1'), dirEntry('leia-me.txt', false)])
+    readTextFileMock.mockResolvedValue(JSON.stringify(makeMap({ id: 'map_1', name: 'Cripta', width: 20, height: 15, grid: 40 })))
+
+    const maps = await listSavedMaps()
+
+    expect(maps).toEqual([{ path: `${MAPS_DIR}\\map_1\\map.json`, id: 'map_1', name: 'Cripta', width: 20, height: 15, grid: 40 }])
+    expect(readTextFileMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('pula diretório cujo map.json não existe', async () => {
+    existsMock.mockImplementation(async (path: string) => path === MAPS_DIR)
+    readDirMock.mockResolvedValue([dirEntry('map_vazio')])
+
+    const maps = await listSavedMaps()
+
+    expect(maps).toEqual([])
+    expect(readTextFileMock).not.toHaveBeenCalled()
+  })
+
+  it('map.json corrompido não derruba a lista inteira — a entrada só é omitida', async () => {
+    existsMock.mockImplementation(
+      async (path: string) =>
+        path === MAPS_DIR || path === `${MAPS_DIR}\\map_bom\\map.json` || path === `${MAPS_DIR}\\map_ruim\\map.json`,
+    )
+    readDirMock.mockResolvedValue([dirEntry('map_bom'), dirEntry('map_ruim')])
+    readTextFileMock.mockImplementation(async (path: string) => {
+      if (path === `${MAPS_DIR}\\map_ruim\\map.json`) return '{ isso não é json'
+      return JSON.stringify(makeMap({ id: 'map_bom', name: 'Torre' }))
+    })
+
+    const maps = await listSavedMaps()
+
+    expect(maps).toEqual([{ path: `${MAPS_DIR}\\map_bom\\map.json`, id: 'map_bom', name: 'Torre', width: 30, height: 20, grid: 64 }])
+  })
+})
+
+describe('saveMapToPath', () => {
+  it('escreve o map.json serializado direto no caminho recebido, sem passar por mapDirFor', async () => {
+    const map = makeMap({ id: 'map_externo' })
+
+    await saveMapToPath(map, 'C:\\Dev\\labirinto\\maps\\L1.json')
+
+    expect(writeTextFileMock).toHaveBeenCalledWith('C:\\Dev\\labirinto\\maps\\L1.json', JSON.stringify(map, null, 2))
+    expect(mkdirMock).not.toHaveBeenCalled()
   })
 })

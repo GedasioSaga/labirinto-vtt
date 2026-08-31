@@ -1,4 +1,5 @@
 import { Toggle } from './Toggle'
+import { TEXT_FONT_FAMILIES } from './labels'
 
 export interface DrawingStyleControlsProps {
   color: string
@@ -13,6 +14,8 @@ export interface DrawingStyleControlsProps {
   showWidth: boolean
   fontSize: number
   onFontSizeChange: (size: number) => void
+  fontFamily: string
+  onFontFamilyChange: (fontFamily: string) => void
   /** Só a ferramenta Texto ajusta o tamanho da fonte antes de colocar o rótulo. */
   showFontSize: boolean
 }
@@ -29,6 +32,8 @@ export function DrawingStyleControls({
   showWidth,
   fontSize,
   onFontSizeChange,
+  fontFamily,
+  onFontFamilyChange,
   showFontSize,
 }: DrawingStyleControlsProps) {
   return (
@@ -92,6 +97,26 @@ export function DrawingStyleControls({
             value={fontSize}
             onChange={(event) => onFontSizeChange(Number(event.target.value))}
           />
+        </div>
+      )}
+
+      {showFontSize && (
+        <div className="lb-field">
+          <label className="lb-label" htmlFor="lb-draw-fontfamily">
+            Fonte
+          </label>
+          <select
+            id="lb-draw-fontfamily"
+            className="lb-input"
+            value={fontFamily}
+            onChange={(event) => onFontFamilyChange(event.target.value)}
+          >
+            {TEXT_FONT_FAMILIES.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 

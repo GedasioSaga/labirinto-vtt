@@ -10,6 +10,8 @@ import { ScenarioLinkControls, type ScenarioLinkControlsProps } from './Scenario
 import { PortalControls, type PortalControlsProps } from './PortalControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
 import { RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
+import { PolygonSidesControls, type PolygonSidesControlsProps } from './PolygonSidesControls'
+import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 
 interface PropertiesPanelProps {
   mapName: string
@@ -26,9 +28,10 @@ interface PropertiesPanelProps {
   selectedProp: Prop | null
   portal: Omit<PortalControlsProps, 'linkedMapPath'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
-  textLabel: Omit<TextLabelControlsProps, 'text' | 'color' | 'fontSize'>
+  textLabel: Omit<TextLabelControlsProps, 'text' | 'color' | 'fontSize' | 'fontFamily'>
   selectedRegion: Region | null
   regionStyle: RegionStyleControlsProps
+  polygonSides: PolygonSidesControlsProps
 }
 
 /**
@@ -53,6 +56,7 @@ export function PropertiesPanel({
   textLabel,
   selectedRegion,
   regionStyle,
+  polygonSides,
 }: PropertiesPanelProps) {
   // Com a ferramenta Texto ativa, um rótulo recém-colocado já fica selecionado
   // (Task 4). Nesse instante o controle relevante é o do rótulo selecionado
@@ -62,7 +66,12 @@ export function PropertiesPanel({
   // estilo de desenho para texto quando ainda não há rótulo selecionado.
   const showDrawingStyle =
     DRAWING_TOOLS.includes(activeTool) || (activeTool === 'text' && !selectedTextLabel)
-  const showRegionStyle = activeTool === 'region' || selectedRegion !== null
+  const showRegionStyle =
+    activeTool === 'region' ||
+    activeTool === 'room' ||
+    activeTool === 'roomCircle' ||
+    activeTool === 'roomPolygon' ||
+    selectedRegion !== null
 
   return (
     <div className="lb-panel lb-inspector">
@@ -81,11 +90,13 @@ export function PropertiesPanel({
       <div className="lb-inspector__body lb-scroll">
         {showDrawingStyle && <DrawingStyleControls {...drawingStyle} />}
         {showRegionStyle && <RegionStyleControls {...regionStyle} />}
+        {activeTool === 'roomPolygon' && <PolygonSidesControls {...polygonSides} />}
         {selectedTextLabel && (
           <TextLabelControls
             text={selectedTextLabel.text}
             color={selectedTextLabel.color}
             fontSize={selectedTextLabel.fontSize}
+            fontFamily={selectedTextLabel.fontFamily ?? DEFAULT_TEXT_FONT_FAMILY}
             {...textLabel}
           />
         )}

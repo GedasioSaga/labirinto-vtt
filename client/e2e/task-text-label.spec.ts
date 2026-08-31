@@ -2,6 +2,7 @@
 // Mesmo padrão de task-drawing-tools.spec.ts: passa pela tela inicial, prova estado
 // (drawings/selection) via mapStore.
 import { test, expect, type Page } from '@playwright/test'
+import { enterEditor } from './helpers/enterEditor'
 import type { Drawing } from '../src/types/map'
 
 async function getDrawings(page: Page): Promise<Drawing[]> {
@@ -31,14 +32,8 @@ async function selectTool(page: Page, label: 'Selecionar' | 'Texto') {
   await page.getByRole('button', { name: label, exact: true }).click()
 }
 
-function textLabelSection(page: Page) {
-  return page.locator('.lb-section', { hasText: 'Rótulo de texto' })
-}
-
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Criar mapa' }).click()
-  await page.waitForSelector('canvas')
+  await enterEditor(page)
   await resetMap(page)
 })
 
@@ -64,7 +59,7 @@ test('2. texto: digitar no campo do painel atualiza o texto do rótulo', async (
   await selectTool(page, 'Texto')
   await page.mouse.click(box.x + 400, box.y + 400)
 
-  const textInput = textLabelSection(page).locator('.lb-input')
+  const textInput = page.locator('#lb-text-content')
   await textInput.fill('Sala do Tesouro')
 
   const drawings = await getDrawings(page)
@@ -85,6 +80,41 @@ test('3. texto: slider de tamanho de fonte atualiza o fontSize do rótulo', asyn
   const drawings = await getDrawings(page)
   expect(drawings).toHaveLength(1)
   if (drawings[0].kind === 'text') expect(drawings[0].fontSize).toBe(32)
+})
+
+test('5. texto: seletor de fonte com o rótulo selecionado atualiza o fontFamily do rótulo', async ({ page }) => {
+  const box = await page.locator('canvas').boundingBox()
+  if (!box) throw new Error('canvas sem bounding box')
+
+  await selectTool(page, 'Texto')
+  await page.mouse.click(box.x + 400, box.y + 400)
+
+  const fontFamilySelect = page.locator('#lb-text-fontfamily')
+  await fontFamilySelect.selectOption('Georgia')
+
+  const drawings = await getDrawings(page)
+  expect(drawings).toHaveLength(1)
+  if (drawings[0].kind === 'text') expect(drawings[0].fontFamily).toBe('Georgia')
+})
+
+test('6. texto: mudar a fonte padrão (nenhum rótulo selecionado) e depois clicar no canvas cria o rótulo já com essa fontFamily', async ({ page }) => {
+  const box = await page.locator('canvas').boundingBox()
+  if (!box) throw new Error('canvas sem bounding box')
+
+  // Ferramenta Texto ativa mas SEM rótulo selecionado ainda: painel mostrado é
+  // "Estilo de desenho" (#lb-draw-fontfamily), que define o padrão do PRÓXIMO
+  // rótulo — caminho distinto de #lb-text-fontfamily (teste "5.", que edita um
+  // rótulo já selecionado). Ver comentário de showDrawingStyle em PropertiesPanel.tsx.
+  await selectTool(page, 'Texto')
+
+  const drawFontFamilySelect = page.locator('#lb-draw-fontfamily')
+  await drawFontFamilySelect.selectOption('Georgia')
+
+  await page.mouse.click(box.x + 400, box.y + 400)
+
+  const drawings = await getDrawings(page)
+  expect(drawings).toHaveLength(1)
+  if (drawings[0].kind === 'text') expect(drawings[0].fontFamily).toBe('Georgia')
 })
 
 test('4. texto: Delete com o rótulo selecionado apaga de map.drawings', async ({ page }) => {

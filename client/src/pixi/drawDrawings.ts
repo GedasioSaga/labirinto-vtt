@@ -36,6 +36,14 @@ export function drawDrawings(graphics: Graphics, drawings: Drawing[], selectedDr
         for (const point of drawing.points) {
           graphics.circle(point.x, point.y, 5).fill({ color: SELECTION_COLOR })
         }
+        // Ponto médio de cada trecho consecutivo (i, i+1) — vazado (só stroke),
+        // mesma distinção visual vértice-preenchido/midpoint-vazado usada pelos
+        // handles de Região. Curva não fecha como polígono: length-1 midpoints.
+        for (let i = 0; i < drawing.points.length - 1; i += 1) {
+          const a = drawing.points[i]
+          const b = drawing.points[i + 1]
+          graphics.circle((a.x + b.x) / 2, (a.y + b.y) / 2, 4).stroke({ width: 2, color: SELECTION_COLOR })
+        }
       }
     } else {
       graphics.circle(drawing.cx, drawing.cy, drawing.radius)

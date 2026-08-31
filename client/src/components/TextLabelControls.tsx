@@ -1,3 +1,5 @@
+import { TEXT_FONT_FAMILIES } from './labels'
+
 export interface TextLabelControlsProps {
   text: string
   onTextChange: (text: string) => void
@@ -5,9 +7,11 @@ export interface TextLabelControlsProps {
   onColorChange: (color: string) => void
   fontSize: number
   onFontSizeChange: (size: number) => void
+  fontFamily: string
+  onFontFamilyChange: (fontFamily: string) => void
 }
 
-/** Conteúdo, cor e tamanho da fonte do rótulo de texto selecionado. */
+/** Conteúdo, cor, tamanho e família da fonte do rótulo de texto selecionado. */
 export function TextLabelControls({
   text,
   onTextChange,
@@ -15,6 +19,8 @@ export function TextLabelControls({
   onColorChange,
   fontSize,
   onFontSizeChange,
+  fontFamily,
+  onFontFamilyChange,
 }: TextLabelControlsProps) {
   return (
     <section className="lb-section">
@@ -22,6 +28,7 @@ export function TextLabelControls({
 
       <div className="lb-field">
         <input
+          id="lb-text-content"
           className="lb-input"
           value={text}
           onChange={(event) => onTextChange(event.target.value)}
@@ -57,6 +64,24 @@ export function TextLabelControls({
           value={fontSize}
           onChange={(event) => onFontSizeChange(Number(event.target.value))}
         />
+      </div>
+
+      <div className="lb-field">
+        <label className="lb-label" htmlFor="lb-text-fontfamily">
+          Fonte
+        </label>
+        <select
+          id="lb-text-fontfamily"
+          className="lb-input"
+          value={fontFamily}
+          onChange={(event) => onFontFamilyChange(event.target.value)}
+        >
+          {TEXT_FONT_FAMILIES.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
       </div>
     </section>
   )

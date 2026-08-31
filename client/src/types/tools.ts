@@ -1,4 +1,4 @@
-export type DrawingTool = 'select' | 'wall' | 'light' | 'region' | 'prop' | 'brush' | 'line' | 'circle' | 'curve' | 'text'
+export type DrawingTool = 'select' | 'wall' | 'door' | 'light' | 'region' | 'room' | 'roomCircle' | 'roomPolygon' | 'prop' | 'brush' | 'line' | 'circle' | 'curve' | 'text' | 'eraser'
 
 export type SelectionKind = 'token' | 'wall' | 'light' | 'region' | 'prop' | 'drawing'
 

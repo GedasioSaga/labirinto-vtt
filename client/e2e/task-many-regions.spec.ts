@@ -11,6 +11,7 @@
 // do mesmo clip antes/depois, região por região — o bug real não era
 // determinístico em qual região quebrava).
 import { test, expect, type Page } from '@playwright/test'
+import { enterEditor } from './helpers/enterEditor'
 import type { Region } from '../src/types/map'
 
 const REGION_COLOR = '#1e7a1e'
@@ -72,9 +73,7 @@ async function createContiguousGrid(page: Page): Promise<void> {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Criar mapa' }).click()
-  await page.waitForSelector('canvas')
+  await enterEditor(page)
   await resetMap(page)
 })
 

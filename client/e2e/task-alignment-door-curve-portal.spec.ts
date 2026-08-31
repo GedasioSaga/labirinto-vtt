@@ -11,12 +11,14 @@
 // dessa criação chamando `setPropLinkedPath` direto na store (o que o handler faz por
 // baixo, depois do I/O) e verificamos que a UI reage de verdade ao novo estado.
 import { test, expect, type Page } from '@playwright/test'
-import type { Wall, Prop, Drawing } from '../src/types/map'
+import { enterEditor } from './helpers/enterEditor'
+import type { Wall, Prop, Drawing, Region } from '../src/types/map'
 
 type MapSnapshot = {
   walls: Wall[]
   props: Prop[]
   drawings: Drawing[]
+  regions: Region[]
   scenarioLink: string | null
 }
 
@@ -24,7 +26,7 @@ async function getMapSnapshot(page: Page): Promise<MapSnapshot> {
   return page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
     const { map } = mod.useMapStore.getState()
-    return { walls: map.walls, props: map.props, drawings: map.drawings, scenarioLink: map.scenarioLink }
+    return { walls: map.walls, props: map.props, drawings: map.drawings, regions: map.regions, scenarioLink: map.scenarioLink }
   })
 }
 
@@ -58,9 +60,7 @@ test.beforeEach(async ({ page }) => {
       convertFileSrc: (filePath: string) => filePath,
     }
   })
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Criar mapa' }).click()
-  await page.waitForSelector('canvas')
+  await enterEditor(page)
   await resetMap(page)
 })
 
@@ -186,4 +186,178 @@ test('5. andar: peça vira portal para outro mapa (linkedMapPath deixa de ser nu
   expect(prop?.linkedMapPath).not.toBeNull()
 
   await expect(page.getByRole('button', { name: 'Entrar no andar' })).toBeVisible()
+})
+
+test('6. alinhamento: vertice de Regiao arrastado perto da borda de outra regiao trava exatamente no candidato (mesmo x)', async ({ page }) => {
+  const box = await page.locator('canvas').boundingBox()
+  if (!box) throw new Error('canvas sem bounding box')
+
+  await page.evaluate(async () => {
+    const mod = await import('/src/stores/mapStore.ts')
+    // regionTarget: um vertice fixo em x=600 serve de candidato de alinhamento.
+    mod.useMapStore.getState().addRegion({
+      id: 'regionTarget',
+      points: [{ x: 600, y: 300 }, { x: 680, y: 250 }, { x: 680, y: 380 }],
+      tag: 'region',
+      fillColor: '#3a7ad0',
+      fillPattern: 'solid',
+      data: {},
+    })
+    // regionDrag: o vertice 0 (300,650) e o que vamos arrastar.
+    mod.useMapStore.getState().addRegion({
+      id: 'regionDrag',
+      points: [{ x: 300, y: 650 }, { x: 380, y: 650 }, { x: 340, y: 720 }],
+      tag: 'region',
+      fillColor: '#3a7ad0',
+      fillPattern: 'solid',
+      data: {},
+    })
+  })
+  await selectTool(page, 'Selecionar')
+
+  // Primeiro clique seleciona a regiao (dentro do triangulo, longe de qualquer
+  // vertice) — só depois disso o pointerdown em cima de um vertice entra no
+  // modo de arrastar ponto (mesmo padrão do teste 4, com curva).
+  await page.mouse.click(box.x + 340, box.y + 673)
+  expect(await getSelection(page)).toEqual({ kind: 'region', id: 'regionDrag' })
+
+  await page.mouse.move(box.x + 300, box.y + 650)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 450, box.y + 650, { steps: 5 })
+  await page.mouse.move(box.x + 550, box.y + 650, { steps: 5 })
+  // 604 fica a 4px do candidato x=600 (vertice de regionTarget) — dentro do threshold de 6.
+  await page.mouse.move(box.x + 604, box.y + 650, { steps: 5 })
+  await page.mouse.up()
+
+  const { regions } = await getMapSnapshot(page)
+  const dragged = regions.find((r) => r.id === 'regionDrag')
+  expect(dragged).toBeTruthy()
+  expect(dragged!.points[0]).toEqual({ x: 600, y: 650 })
+  expect(dragged!.points.slice(1)).toEqual([{ x: 380, y: 650 }, { x: 340, y: 720 }])
+})
+
+test('7. alinhamento: vertice de Parede solta arrastado perto de outra parede trava exatamente no candidato (mesmo x)', async ({ page }) => {
+  const box = await page.locator('canvas').boundingBox()
+  if (!box) throw new Error('canvas sem bounding box')
+
+  await page.evaluate(async () => {
+    const mod = await import('/src/stores/mapStore.ts')
+    // wallTarget: parede solta com um extremo fixo em x=600 serve de candidato de alinhamento.
+    mod.useMapStore.getState().addWall({ id: 'wallTarget', x1: 600, y1: 300, x2: 750, y2: 300, blocksLight: true, blocksMove: true, door: null })
+    // wallDrag: o extremo 0 (300,650) e o que vamos arrastar.
+    mod.useMapStore.getState().addWall({ id: 'wallDrag', x1: 300, y1: 650, x2: 380, y2: 650, blocksLight: true, blocksMove: true, door: null })
+  })
+  await selectTool(page, 'Selecionar')
+
+  // Primeiro clique seleciona a parede (no corpo, longe de qualquer extremo) — só
+  // depois disso o pointerdown em cima de um extremo entra no modo de arrastar
+  // vértice (mesmo padrão do teste 6, com região). updateWallPoint é absolute
+  // (escreve o ponto calculado direto, sem acumular delta), então só a posição
+  // final do cursor importa — mesmo padrão dos testes 1 e 6.
+  await page.mouse.click(box.x + 340, box.y + 650)
+  expect(await getSelection(page)).toEqual({ kind: 'wall', id: 'wallDrag' })
+
+  await page.mouse.move(box.x + 300, box.y + 650)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 450, box.y + 650, { steps: 5 })
+  await page.mouse.move(box.x + 550, box.y + 650, { steps: 5 })
+  // 604 fica a 4px do candidato x=600 (extremo de wallTarget) — dentro do threshold de 6.
+  await page.mouse.move(box.x + 604, box.y + 650, { steps: 5 })
+  await page.mouse.up()
+
+  const { walls } = await getMapSnapshot(page)
+  const dragged = walls.find((w) => w.id === 'wallDrag')
+  expect(dragged).toBeTruthy()
+  expect(dragged!.x1).toBe(600)
+  expect(dragged!.y1).toBe(650)
+  expect(dragged!.x2).toBe(380)
+  expect(dragged!.y2).toBe(650)
+})
+
+test('8. alinhamento: corpo de Parede solta arrastado perto do extremo de outra parede trava exatamente no candidato (mesmo x)', async ({ page }) => {
+  const box = await page.locator('canvas').boundingBox()
+  if (!box) throw new Error('canvas sem bounding box')
+
+  await page.evaluate(async () => {
+    const mod = await import('/src/stores/mapStore.ts')
+    mod.useMapStore.getState().addWall({ id: 'wallTarget', x1: 600, y1: 300, x2: 750, y2: 300, blocksLight: true, blocksMove: true, door: null })
+    mod.useMapStore.getState().addWall({ id: 'wallDrag', x1: 300, y1: 650, x2: 380, y2: 650, blocksLight: true, blocksMove: true, door: null })
+  })
+  await selectTool(page, 'Selecionar')
+
+  // Arrasto de CORPO (clique longe de qualquer extremo) entra em dragging-wall-body
+  // no próprio pointerdown — não precisa de clique de seleção antes, ao contrário
+  // do arrasto de vértice acima. Diferença crucial pro cálculo do teste:
+  // dragging-wall-body é delta-based (moveWall soma dx/dy no ponto corrente pra
+  // preservar a forma da parede, âncora em x1/y1), não absolute como o vértice.
+  // Por isso cada `.mouse.move` abaixo usa steps:1 (um único evento, sem
+  // interpolação): com steps>1 um sub-passo intermediário poderia cair, sem
+  // querer, dentro do threshold de alinhamento (6px) e "prender" a parede num
+  // candidato antes da hora — como o resultado de cada frame vira a nova base
+  // pro próximo delta, isso mudaria o valor final. As três posições abaixo (390 de
+  // avanço acumulado do cursor, x1 tentativo 300→450→550→604) foram calculadas pra
+  // só a última cair dentro do threshold (as duas primeiras ficam a 150px e 50px
+  // de distância do candidato, bem acima de 6).
+  await page.mouse.move(box.x + 340, box.y + 650)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 490, box.y + 650, { steps: 1 })
+  await page.mouse.move(box.x + 590, box.y + 650, { steps: 1 })
+  await page.mouse.move(box.x + 644, box.y + 650, { steps: 1 })
+  await page.mouse.up()
+
+  const { walls } = await getMapSnapshot(page)
+  const dragged = walls.find((w) => w.id === 'wallDrag')
+  expect(dragged).toBeTruthy()
+  // x1 trava em 600 (candidato); x2 preserva a largura original (80px) porque
+  // moveWall translada os dois extremos pelo mesmo delta.
+  expect(dragged!.x1).toBe(600)
+  expect(dragged!.y1).toBe(650)
+  expect(dragged!.x2).toBe(680)
+  expect(dragged!.y2).toBe(650)
+})
+
+test('9. alinhamento: corpo de Região arrastado perto do vértice de outra região trava exatamente no candidato (mesmo x)', async ({ page }) => {
+  const box = await page.locator('canvas').boundingBox()
+  if (!box) throw new Error('canvas sem bounding box')
+
+  await page.evaluate(async () => {
+    const mod = await import('/src/stores/mapStore.ts')
+    mod.useMapStore.getState().addRegion({
+      id: 'regionTarget',
+      points: [{ x: 600, y: 300 }, { x: 680, y: 250 }, { x: 680, y: 380 }],
+      tag: 'region',
+      fillColor: '#3a7ad0',
+      fillPattern: 'solid',
+      data: {},
+    })
+    mod.useMapStore.getState().addRegion({
+      id: 'regionDrag',
+      points: [{ x: 300, y: 650 }, { x: 380, y: 650 }, { x: 340, y: 720 }],
+      tag: 'region',
+      fillColor: '#3a7ad0',
+      fillPattern: 'solid',
+      data: {},
+    })
+  })
+  await selectTool(page, 'Selecionar')
+
+  // Clique dentro do triângulo (longe de qualquer vértice) entra em
+  // dragging-region-body direto no pointerdown, mesmo esquema do corpo de parede
+  // acima — moveRegion também é delta-based, ancorado em region.points[0]. Mesmo
+  // motivo pro steps:1 e pras mesmas três posições (avanço acumulado do cursor:
+  // 150, depois 100, depois 54 — ponto tentativo de points[0] vai de 300 a 450,
+  // depois 550, depois 604, só a última dentro do threshold de 6 do candidato x=600).
+  await page.mouse.move(box.x + 340, box.y + 673)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 490, box.y + 673, { steps: 1 })
+  await page.mouse.move(box.x + 590, box.y + 673, { steps: 1 })
+  await page.mouse.move(box.x + 644, box.y + 673, { steps: 1 })
+  await page.mouse.up()
+
+  const { regions } = await getMapSnapshot(page)
+  const dragged = regions.find((r) => r.id === 'regionDrag')
+  expect(dragged).toBeTruthy()
+  // Os 3 pontos transladam juntos pelo mesmo delta (forma do triângulo preservada);
+  // só points[0] (a âncora) trava exatamente no candidato x=600.
+  expect(dragged!.points).toEqual([{ x: 600, y: 650 }, { x: 680, y: 650 }, { x: 640, y: 720 }])
 })

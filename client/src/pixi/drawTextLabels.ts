@@ -1,6 +1,7 @@
 import { Container, Text, Graphics, Color } from 'pixi.js'
 import type { Drawing } from '../types/map'
 import { SELECTION_COLOR } from './constants'
+import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 
 export interface TextLabelsRenderer {
   draw: (container: Container, drawings: Drawing[], selectedId?: string | null) => void
@@ -44,7 +45,13 @@ export function createTextLabelsRenderer(): TextLabelsRenderer {
       textObj.text = label.text
       textObj.x = label.x
       textObj.y = label.y
-      textObj.style = { fontSize: label.fontSize, fill: new Color(label.color).toNumber() }
+      textObj.style = {
+        fontSize: label.fontSize,
+        fill: new Color(label.color).toNumber(),
+        // Passthrough sem migração (map.json antigo não tem o campo): cai no
+        // mesmo default que o PIXI.TextStyle já usava antes deste campo existir.
+        fontFamily: label.fontFamily ?? DEFAULT_TEXT_FONT_FAMILY,
+      }
 
       if (label.id === selectedId) {
         highlightGraphics

@@ -3,6 +3,7 @@
 // task-region-color.spec.ts: passa pela tela inicial, prova estado (map.regions)
 // via mapStore, interagindo com o toggle real do painel lateral.
 import { test, expect, type Page } from '@playwright/test'
+import { enterEditor } from './helpers/enterEditor'
 import type { Region } from '../src/types/map'
 
 async function getRegions(page: Page): Promise<Region[]> {
@@ -30,9 +31,7 @@ function regionHatchToggle(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Criar mapa' }).click()
-  await page.waitForSelector('canvas')
+  await enterEditor(page)
   await resetMap(page)
 })
 

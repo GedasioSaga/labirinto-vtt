@@ -1,4 +1,4 @@
-import { writeTextFile, mkdir, exists, readTextFile } from '@tauri-apps/plugin-fs'
+import { writeTextFile, mkdir, exists, readTextFile, readDir } from '@tauri-apps/plugin-fs'
 import { save, open } from '@tauri-apps/plugin-dialog'
 import { appDataDir, join, dirname } from '@tauri-apps/api/path'
 import { invoke } from '@tauri-apps/api/core'
@@ -79,4 +79,57 @@ export async function pickMapJsonToOpen(): Promise<string | null> {
 export async function pickExportDestination(defaultName: string): Promise<string | null> {
   const selected = await save({ defaultPath: `${defaultName}.json` })
   return selected ?? null
+}
+
+export interface SavedMapEntry {
+  path: string
+  id: string
+  name: string
+  width: number
+  height: number
+  grid: number
+}
+
+/**
+ * Lista os mapas salvos em `%APPDATA%/maps`, para a tela "Carregar Mapa".
+ *
+ * Um `map.json` corrompido não pode derrubar a tela inteira — por isso cada
+ * `deserializeMap` roda num `try/catch` individual, e a entrada ruim é só
+ * omitida da lista, nunca propagada.
+ */
+export async function listSavedMaps(): Promise<SavedMapEntry[]> {
+  const mapsDir = await defaultMapsDir()
+  if (!(await exists(mapsDir))) return []
+
+  const entries = await readDir(mapsDir)
+  const maps: SavedMapEntry[] = []
+
+  for (const entry of entries) {
+    if (!entry.isDirectory) continue
+
+    const mapJsonPath = await join(mapsDir, entry.name, 'map.json')
+    assertPathWithinRoot(mapJsonPath, mapsDir)
+    if (!(await exists(mapJsonPath))) continue
+
+    try {
+      const content = await readTextFile(mapJsonPath)
+      const map = deserializeMap(content)
+      maps.push({ path: mapJsonPath, id: map.id, name: map.name, width: map.width, height: map.height, grid: map.grid })
+    } catch {
+      // map.json inválido (JSON malformado ou sem "id") — pula a entrada.
+      continue
+    }
+  }
+
+  return maps
+}
+
+/**
+ * Salva de volta no caminho já escolhido pelo usuário (lista ou diálogo) — ao
+ * contrário de `saveMapToAppData`, não passa por `mapDirFor`: o caminho não
+ * vem de `map.id` (conteúdo não confiável), então a proteção de
+ * `assertPathWithinRoot` não se aplica aqui.
+ */
+export async function saveMapToPath(map: MapData, path: string): Promise<void> {
+  await writeTextFile(path, serializeMap(map))
 }

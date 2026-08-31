@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { findWallAt, findLightAt, isPointInPolygon, findRegionAt, findDrawingAt, findSelectableAt, findCurveControlPointAt, estimateTextWidth } from './selectionHitTest'
+import { findWallAt, findLightAt, isPointInPolygon, findRegionAt, findDrawingAt, findSelectableAt, findCurveControlPointAt, estimateTextWidth, findNearestExistingVertex } from './selectionHitTest'
 import type { Wall, Light, Region, Drawing, MapData } from '../types/map'
-import { createEmptyMap, addWall, addLight, addRegion, addToken, addProp } from './mapFactory'
+import { createEmptyMap, addWall, addLight, addRegion, addToken, addProp, addDrawing } from './mapFactory'
 
 const wall: Wall = { id: 'w1', x1: 0, y1: 0, x2: 100, y2: 0, blocksLight: true, blocksMove: true, door: null }
 const light: Light = { id: 'l1', x: 200, y: 200, radius: 300, color: '#ffaa33', intensity: 0.8 }
@@ -119,12 +119,12 @@ describe('findCurveControlPointAt', () => {
 })
 
 describe('findSelectableAt — drawing na cadeia de prioridade', () => {
-  it('drawing tem prioridade sobre parede/região, mas não é arrastável', () => {
+  it('drawing tem prioridade sobre parede/região, e Linha é arrastável', () => {
     let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
     map = addRegion(map, region)
     map = { ...map, drawings: [lineDrawing] }
     const hit = findSelectableAt(map, { x: 50, y: 52 })
-    expect(hit).toEqual({ kind: 'drawing', id: 'd2', draggable: false })
+    expect(hit).toEqual({ kind: 'drawing', id: 'd2', draggable: true })
   })
 
   it('luz tem prioridade sobre drawing quando ambos no mesmo ponto', () => {
@@ -212,5 +212,43 @@ describe('findSelectableAt (cadeia de prioridade)', () => {
   it('retorna null quando nada está no ponto', () => {
     const map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
     expect(findSelectableAt(map, { x: 9999, y: 9999 })).toBeNull()
+  })
+})
+
+describe('findNearestExistingVertex', () => {
+  it('acha o vertice mais proximo dentre varios candidatos espalhados (ponta de wall, vertice de region, ponta de line, ponto de curve), dentro da tolerancia', () => {
+    let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
+    map = addWall(map, { id: 'w1', x1: 500, y1: 500, x2: 600, y2: 500, blocksLight: true, blocksMove: true, door: null })
+    map = addRegion(map, { id: 'r1', points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }], tag: '', fillColor: '#3a7ad0', fillPattern: 'solid', data: {} })
+    map = addDrawing(map, { id: 'd1', kind: 'line', x1: 300, y1: 300, x2: 400, y2: 300, color: '#fff', width: 4 })
+    map = addDrawing(map, { id: 'd2', kind: 'curve', points: [{ x: 200, y: 200 }, { x: 250, y: 250 }], color: '#fff', width: 4 })
+
+    // Ponto perto de { x: 100, y: 100 } (vertice da region) — o mais proximo
+    // dentre TODOS os candidatos acima, os outros estao bem mais longe.
+    expect(findNearestExistingVertex(map, { x: 105, y: 103 })).toEqual({ x: 100, y: 100 })
+  })
+
+  it('retorna null quando todos os candidatos estao mais longe que a tolerancia', () => {
+    let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
+    map = addWall(map, { id: 'w1', x1: 0, y1: 0, x2: 100, y2: 0, blocksLight: true, blocksMove: true, door: null })
+    map = addRegion(map, { id: 'r1', points: [{ x: 500, y: 500 }, { x: 600, y: 500 }, { x: 600, y: 600 }] , tag: '', fillColor: '#3a7ad0', fillPattern: 'solid', data: {} })
+
+    expect(findNearestExistingVertex(map, { x: 250, y: 250 })).toBeNull()
+  })
+
+  it('respeita a tolerancia custom passada como terceiro argumento', () => {
+    let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
+    map = addWall(map, { id: 'w1', x1: 0, y1: 0, x2: 100, y2: 0, blocksLight: true, blocksMove: true, door: null })
+
+    // A 20px de (0,0): fora da tolerancia default (12), dentro de uma maior (25).
+    expect(findNearestExistingVertex(map, { x: 20, y: 0 })).toBeNull()
+    expect(findNearestExistingVertex(map, { x: 20, y: 0 }, 25)).toEqual({ x: 0, y: 0 })
+  })
+
+  it('ignora pontos de drawing freehand (sem vertice estrutural pra conectar)', () => {
+    let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
+    map = addDrawing(map, { id: 'd1', kind: 'freehand', points: [{ x: 10, y: 10 }, { x: 20, y: 20 }], color: '#fff', width: 4 })
+
+    expect(findNearestExistingVertex(map, { x: 10, y: 10 })).toBeNull()
   })
 })

@@ -1,0 +1,222 @@
+<title>Vínculo Região-Parede</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f5f5f5;
+    --paper-2: #ececec;
+    --ink: #2d3142;
+    --muted: #4f5d75;
+    --soft: #7a8399;
+    --rule: rgba(45,49,66,0.12);
+    --accent: #eb6c36;
+    --accent-tint: rgba(235,108,54,0.08);
+    --link: #2e5aa8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #24262f;
+      --paper-2: #393e53;
+      --ink: #f5f5f5;
+      --muted: #b7c0d8;
+      --soft: #8e98ac;
+      --rule: rgba(245,245,245,0.12);
+      --accent: #f4885a;
+      --accent-tint: rgba(244,136,90,0.12);
+      --link: #6a95d8;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #24262f;
+    --paper-2: #393e53;
+    --ink: #f5f5f5;
+    --muted: #b7c0d8;
+    --soft: #8e98ac;
+    --rule: rgba(245,245,245,0.12);
+    --accent: #f4885a;
+    --accent-tint: rgba(244,136,90,0.12);
+    --link: #6a95d8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Geist', sans-serif;
+    margin: 0;
+    padding: 40px 24px 56px;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; }
+  .eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--soft);
+    margin: 0 0 8px;
+  }
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    font-size: 1.75rem;
+    margin: 0 0 8px;
+    text-wrap: balance;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0 0 32px;
+    max-width: 60ch;
+  }
+  .diagram { overflow-x: auto; }
+  svg { display: block; width: 100%; height: auto; }
+  .footer {
+    margin-top: 24px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--soft);
+  }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Labirinto · editor de mapas</p>
+  <h1>Do gesto na barra até a parede na tela</h1>
+  <p class="subtitle">Nove ferramentas diferentes convergem pro mesmo modelo genérico de N pontos — é por isso que Sala Circular e Polígono Regular ganharam edição de vértice de graça, sem escrever nada novo pra isso.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 900 800" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+        </marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+        </marker>
+      </defs>
+
+      <rect width="900" height="800" fill="#f5f5f5"/>
+
+      <!-- ===== ARROWS (drawn before boxes) ===== -->
+
+      <!-- 1. Toolbar -> PixiCanvas (straight V) -->
+      <path d="M 450,96 V 160" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- 2. PixiCanvas -> Sala/Circulo/Poligono (elbow down-left) -->
+      <path d="M 450,224 H 168 Q 160,224 160,232 V 320" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- 3. PixiCanvas -> Parede/Linha (straight V) -->
+      <path d="M 450,224 V 320" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- 4. PixiCanvas -> Curva (elbow down-right) -->
+      <path d="M 450,224 H 712 Q 720,224 720,232 V 320" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- 5. Sala -> Vinculo N-gon (straight V, accent) -->
+      <path d="M 160,384 V 460" fill="none" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <rect x="126" y="410" width="136" height="14" rx="2" fill="#f5f5f5"/>
+      <text x="194" y="421" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.04em">N PONTOS VINCULADOS</text>
+
+      <!-- 6. Parede/Linha -> Handles (straight V) -->
+      <path d="M 450,384 V 460" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- 7. Curva -> Handles (elbow down-left into right side) -->
+      <path d="M 720,384 V 484 Q 720,492 712,492 H 570" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- 8. Vinculo N-gon -> Handles (straight H) -->
+      <path d="M 280,492 H 330" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- 9. Handles -> mapStore (straight V) -->
+      <path d="M 450,524 V 552" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- 10. mapStore -> Undo/Redo (straight V) -->
+      <path d="M 450,608 V 632" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- ===== NODES ===== -->
+
+      <!-- Toolbar -->
+      <rect x="350" y="40" width="200" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="350" y="40" width="200" height="56" rx="6" fill="rgba(45,49,66,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <rect x="358" y="46" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="372" y="55" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">UI</text>
+      <text x="450" y="72" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Barra de Ferramentas</text>
+      <text x="450" y="88" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">clique do usuário</text>
+
+      <!-- PixiCanvas (focal) -->
+      <rect x="350" y="160" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="350" y="160" width="200" height="64" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="358" y="168" width="36" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+      <text x="376" y="177" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">HUB</text>
+      <text x="450" y="196" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">PixiCanvas.tsx</text>
+      <text x="450" y="212" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">pointerdown · move · up</text>
+
+      <!-- Sala / Circulo / Poligono -->
+      <rect x="40" y="320" width="240" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="40" y="320" width="240" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="48" y="328" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="68" y="337" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">TOOL</text>
+      <text x="160" y="356" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Sala · Círculo · Polígono</text>
+      <text x="160" y="372" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">arrasta centro → raio</text>
+
+      <!-- Parede / Linha -->
+      <rect x="350" y="320" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="350" y="320" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="358" y="328" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="378" y="337" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">TOOL</text>
+      <text x="450" y="356" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Parede · Linha</text>
+      <text x="450" y="372" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">arrasta ponta a ponta</text>
+
+      <!-- Curva -->
+      <rect x="620" y="320" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="620" y="320" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="628" y="328" width="40" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="648" y="337" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">TOOL</text>
+      <text x="720" y="356" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Curva</text>
+      <text x="720" y="372" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">clique múltiplo</text>
+
+      <!-- Vinculo N-gon (focal) -->
+      <rect x="40" y="460" width="240" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="40" y="460" width="240" height="64" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="48" y="468" width="56" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+      <text x="76" y="477" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">MODELO</text>
+      <text x="160" y="496" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Região + Parede (N pontos)</text>
+      <text x="160" y="512" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">regionId · regionEdgeIndex</text>
+
+      <!-- Handles de edicao -->
+      <rect x="330" y="460" width="240" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="330" y="460" width="240" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="338" y="468" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="352" y="477" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">UI</text>
+      <text x="450" y="496" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Handles de Edição</text>
+      <text x="450" y="512" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">vértice · meio-aresta · corpo</text>
+
+      <!-- mapStore -->
+      <rect x="350" y="552" width="200" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="350" y="552" width="200" height="56" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="358" y="560" width="46" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="381" y="569" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">STATE</text>
+      <text x="450" y="586" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">mapStore (Zustand)</text>
+      <text x="450" y="601" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">withHistory()</text>
+
+      <!-- Undo/Redo -->
+      <rect x="350" y="632" width="200" height="48" rx="6" fill="#f5f5f5"/>
+      <rect x="350" y="632" width="200" height="48" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="358" y="640" width="46" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="381" y="649" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">STATE</text>
+      <text x="450" y="668" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Undo / Redo</text>
+
+      <!-- ===== LEGEND ===== -->
+      <line x1="30" y1="712" x2="870" y2="712" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="30" y="730" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+
+      <rect x="150" y="722" width="10" height="10" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="166" y="730" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">peça central reaproveitada</text>
+
+      <rect x="380" y="722" width="10" height="10" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="396" y="730" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">ferramenta / interação</text>
+
+      <rect x="580" y="722" width="10" height="10" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="596" y="730" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">estado persistido</text>
+    </svg>
+  </div>
+
+  <p class="footer">Labirinto · client/src/pixi/PixiCanvas.tsx · gerado após o workflow de 9 melhorias · grafo: 685 nodes / 1448 edges</p>
+</div>

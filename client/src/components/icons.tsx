@@ -81,6 +81,20 @@ export function WallIcon(props: IconProps) {
   )
 }
 
+/**
+ * Batente de porta: dois traços paralelos (as ombreiras) com um pequeno arco
+ * entre eles sugerindo o raio de abertura da folha — distingue de `WallIcon`
+ * (fiadas de tijolo) e de `RoomIcon` (contorno fechado com vão na aresta).
+ */
+export function DoorIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M7 4v16M17 4v16" />
+      <path d="M7 20a9 9 0 009-9" />
+    </Icon>
+  )
+}
+
 export function LightIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -99,6 +113,48 @@ export function RegionIcon(props: IconProps) {
   return (
     <Icon {...props}>
       <path d="M5 6.5l8-2.5 6 5-2 9-9 1-3-12.5z" />
+    </Icon>
+  )
+}
+
+/**
+ * Contorno de sala com vão de porta numa das paredes — distingue de `WallIcon`
+ * (fiadas de tijolo) e de `RegionIcon` (polígono irregular): aqui é retângulo
+ * fechado, com um gap na aresta de baixo indicando a porta.
+ */
+export function RoomIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4.5 19.5V4.5h15v15h-5.5" />
+      <path d="M4.5 19.5h5.5" />
+    </Icon>
+  )
+}
+
+/**
+ * Sala circular: mesmo círculo simples de `CircleIcon`, mas sem a linha
+ * diagonal de raio (aquela é a leitura "arraste pra definir o raio" da
+ * ferramenta de desenho) — no lugar, uma corda curta perto da base sugere um
+ * vão de porta sem precisar abrir o contorno do círculo com arco SVG.
+ */
+export function RoomCircleIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M8.7 17.5h6.6" />
+    </Icon>
+  )
+}
+
+/**
+ * Polígono regular (hexágono) — distingue de `RegionIcon` (polígono
+ * IRREGULAR, vértices desenhados à mão livre): aqui os 6 vértices são
+ * equidistantes do centro, lidos como forma "regular" mesmo em traço fino.
+ */
+export function RegularPolygonIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 4.5L18.5 8.25L18.5 15.75L12 19.5L5.5 15.75L5.5 8.25Z" />
     </Icon>
   )
 }
@@ -168,6 +224,17 @@ export function TextIcon(props: IconProps) {
   )
 }
 
+/** Borracha: contorno de bloco de borracha e a linha da mesa por baixo. */
+export function EraserIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M7 21l-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" />
+      <path d="M22 21H7" />
+      <path d="M5 11l9 9" />
+    </Icon>
+  )
+}
+
 export function TokenIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -221,6 +288,83 @@ export function ImportIcon(props: IconProps) {
     <Icon {...props}>
       <path d="M12 4v11M8.5 11.5L12 15l3.5-3.5" />
       <path d="M4 14v4.5A1.5 1.5 0 005.5 20h13a1.5 1.5 0 001.5-1.5V14" />
+    </Icon>
+  )
+}
+
+/**
+ * Engrenagem: círculo central `r 3.4` + coroa poligonal de dentes (um único
+ * path fechado, alternando raio curto/longo em 16 pontos). **Não** é "círculo
+ * + raios retos" — isso já é o `LightIcon` (:98, círculo com traços soltos
+ * saindo dele) e os dois ficariam indistinguíveis; aqui os "dentes" são um
+ * contorno fechado, não linhas radiais soltas.
+ */
+export function SettingsIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M21 12L18.28 14.6L18.36 18.36L14.6 18.28L12 21L9.4 18.28L5.64 18.36L5.72 14.6L3 12L5.72 9.4L5.64 5.64L9.4 5.72L12 3L14.6 5.72L18.36 5.64L18.28 9.4Z" />
+      <circle cx="12" cy="12" r="3.4" />
+    </Icon>
+  )
+}
+
+/**
+ * "Criar Mapas" no menu raiz: retângulo de mapa + um `+` fora, no canto
+ * superior direito. Distingue de `ImageIcon` (:266, mesmo retângulo mas com
+ * moldura de foto por dentro) pela ausência de conteúdo interno e pela cruz
+ * do lado de fora.
+ */
+export function NewMapIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3.5" y="5" width="13" height="14" rx="1.5" />
+      <path d="M19 4v6M16 7h6" />
+    </Icon>
+  )
+}
+
+/**
+ * Planta em grade: retângulo externo (paredes do dungeon) com uma divisão
+ * interna em L e um vão de porta no meio dela. Distingue de `RoomIcon` (:125,
+ * sala única com vão na aresta EXTERNA) pela subdivisão interna do espaço.
+ */
+export function DungeonMapIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="4.5" y="4.5" width="15" height="15" rx="1" />
+      <path d="M12 4.5V10M12 13V19.5M12 13H19.5" />
+    </Icon>
+  )
+}
+
+/**
+ * Topo de cubo em perspectiva isométrica: losango achatado com duas arestas
+ * verticais descendo dos vértices laterais e um V fechando a base — sugere
+ * volume. Distingue de `RegularPolygonIcon` (:154, hexágono plano, sem
+ * arestas internas de profundidade).
+ */
+export function IsometricMapIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 5L19 9L12 13L5 9Z" />
+      <path d="M5 9V15L12 19L19 15V9" />
+    </Icon>
+  )
+}
+
+/**
+ * Globo: círculo `r 8` com dois meridianos elípticos (raios diferentes,
+ * mesmo centro) e uma linha de equador. Distingue de `CircleIcon` (:201,
+ * círculo com um raio diagonal só) e de `TokenIcon` (:238, círculo com
+ * cabeça+ombros) pela malha de meridianos.
+ */
+export function WorldMapIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="8" />
+      <ellipse cx="12" cy="12" rx="5" ry="8" />
+      <ellipse cx="12" cy="12" rx="2.5" ry="8" />
+      <path d="M4 12H20" />
     </Icon>
   )
 }

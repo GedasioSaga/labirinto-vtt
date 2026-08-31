@@ -8,10 +8,15 @@ import {
   CircleIcon,
   CurveIcon,
   CursorIcon,
+  DoorIcon,
+  EraserIcon,
   LightIcon,
   LineIcon,
   PropIcon,
   RegionIcon,
+  RegularPolygonIcon,
+  RoomCircleIcon,
+  RoomIcon,
   TextIcon,
   WallIcon,
 } from './icons'
@@ -26,14 +31,19 @@ interface ToolbarProps {
 const TOOL_ICONS: Partial<Record<DrawingTool, ComponentType<{ size?: number }>>> = {
   select: CursorIcon,
   wall: WallIcon,
+  door: DoorIcon,
   light: LightIcon,
   region: RegionIcon,
+  room: RoomIcon,
+  roomCircle: RoomCircleIcon,
+  roomPolygon: RegularPolygonIcon,
   prop: PropIcon,
   brush: BrushIcon,
   line: LineIcon,
   circle: CircleIcon,
   curve: CurveIcon,
   text: TextIcon,
+  eraser: EraserIcon,
 }
 
 const EDGE_GAP = parseFloat(theme.layout.edgeGap)

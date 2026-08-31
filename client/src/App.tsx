@@ -1,8 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PixiCanvas } from './pixi/PixiCanvas'
-import { StartScreen } from './StartScreen'
+import { MainMenu } from './screens/MainMenu'
+import { MapTypePicker } from './screens/MapTypePicker'
+import { NewDungeonMap } from './screens/NewDungeonMap'
+import { LoadMapScreen } from './screens/LoadMapScreen'
+import { OptionsScreen } from './screens/OptionsScreen'
 import { useMapStore } from './stores/mapStore'
-import { saveMapToAppData, pickMapJsonToOpen, loadMapFromDisk, mapDirFor, defaultMapsDir } from './lib/mapFileIO'
+import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, loadMapFromDisk, mapDirFor, defaultMapsDir } from './lib/mapFileIO'
 import { pickBackgroundImage, importBackgroundImage } from './lib/imageImport'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
@@ -10,6 +14,8 @@ import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { ActionBar } from './components/ActionBar'
 import type { MapData, Region } from './types/map'
+import type { Screen } from './types/screen'
+import { parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
 
 /**
@@ -18,7 +24,7 @@ import * as mapFactory from './lib/mapFactory'
  * painéis sobre o canvas.
  */
 function App() {
-  const [screen, setScreen] = useState<'start' | 'editor'>('start')
+  const [screen, setScreen] = useState<Screen>('menu')
   const showGrid = useMapStore((state) => state.map.showGrid)
   const setShowGrid = useMapStore((state) => state.setShowGrid)
   const addToken = useMapStore((state) => state.addToken)
@@ -41,6 +47,10 @@ function App() {
   const setDrawFilled = useMapStore((state) => state.setDrawFilled)
   const drawFontSize = useMapStore((state) => state.drawFontSize)
   const setDrawFontSize = useMapStore((state) => state.setDrawFontSize)
+  const drawFontFamily = useMapStore((state) => state.drawFontFamily)
+  const setDrawFontFamily = useMapStore((state) => state.setDrawFontFamily)
+  const polygonSides = useMapStore((state) => state.polygonSides)
+  const setPolygonSides = useMapStore((state) => state.setPolygonSides)
   const regionFillColor = useMapStore((state) => state.regionFillColor)
   const setRegionFillColor = useMapStore((state) => state.setRegionFillColor)
   const setRegionColor = useMapStore((state) => state.setRegionColor)
@@ -50,7 +60,47 @@ function App() {
   const setWallDoor = useMapStore((state) => state.setWallDoor)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
+  const setTextFontFamily = useMapStore((state) => state.setTextFontFamily)
   const [previousMapPath, setPreviousMapPath] = useState<string | null>(null)
+  /**
+   * Caminho de origem do mapa em edição — diferente de `previousMapPath`
+   * (pilha de "voltar" entre mapas ligados por portal). `null` enquanto o
+   * mapa é novo (ainda não salvo); a partir daí toda escrita vai de volta
+   * para esse caminho, em vez de gerar cópia nova em `%APPDATA%`.
+   */
+  const [currentMapPath, setCurrentMapPath] = useState<string | null>(null)
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      // Fora do editor a tela nem mostra o mapa — desfazer ali desfaria uma
+      // edição em silêncio, sem nenhum feedback visual do que mudou.
+      if (screen !== 'editor') return
+
+      const target = event.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return
+
+      const ctrlOrCmd = event.ctrlKey || event.metaKey
+      if (!ctrlOrCmd) return
+      const key = event.key.toLowerCase()
+
+      if (key === 'z' && event.shiftKey) {
+        event.preventDefault()
+        useMapStore.getState().redo()
+        return
+      }
+      if (key === 'z') {
+        event.preventDefault()
+        useMapStore.getState().undo()
+        return
+      }
+      if (key === 'y') {
+        event.preventDefault()
+        useMapStore.getState().redo()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [screen])
 
   const selectedWall = selection?.kind === 'wall' ? map.walls.find((w) => w.id === selection.id) ?? null : null
   const selectedProp = selection?.kind === 'prop' ? map.props.find((p) => p.id === selection.id) ?? null : null
@@ -99,6 +149,11 @@ function App() {
     updateTextLabel(selectedTextLabel.id, { fontSize })
   }
 
+  const handleTextFontFamilyChange = (fontFamily: string) => {
+    if (!selectedTextLabel) return
+    setTextFontFamily(selectedTextLabel.id, fontFamily)
+  }
+
   const handleCreateLinkedMap = async (propId: string) => {
     const newMap = mapFactory.createEmptyMap(`map_${crypto.randomUUID()}`, 'Andar sem título', map.width, map.height, map.grid)
     const path = await saveMapToAppData(newMap)
@@ -111,15 +166,35 @@ function App() {
     useMapStore.getState().setPropLinkedPath(propId, path)
   }
 
+  /**
+   * Salva o mapa em edição de volta na origem (`currentMapPath`) quando ela
+   * existe; um mapa novo (`currentMapPath === null`) ainda não tem origem,
+   * então cai em `saveMapToAppData` e passa a ter uma a partir daqui.
+   * Compartilhado por `handleSave`, `handleGoHome` e `handleEnterLinkedMap` —
+   * os três precisam do mesmo "salvar no lugar certo", só o que acontece
+   * depois muda (log, trocar de tela, ou seguir pro mapa ligado).
+   */
+  const persistMap = async (): Promise<string> => {
+    if (currentMapPath) {
+      await saveMapToPath(map, currentMapPath)
+      return currentMapPath
+    }
+    const path = await saveMapToAppData(map)
+    setCurrentMapPath(path)
+    return path
+  }
+
   const handleEnterLinkedMap = async (path: string) => {
-    const currentPath = await saveMapToAppData(map)
+    const currentPath = await persistMap()
     setPreviousMapPath(currentPath)
     loadMap(await loadMapFromDisk(path))
+    setCurrentMapPath(path)
   }
 
   const handleGoBack = async () => {
     if (!previousMapPath) return
     loadMap(await loadMapFromDisk(previousMapPath))
+    setCurrentMapPath(previousMapPath)
     setPreviousMapPath(null)
   }
 
@@ -128,19 +203,33 @@ function App() {
   }
 
   const handleSave = async () => {
-    const path = await saveMapToAppData(map)
+    const path = await persistMap()
     console.log('Mapa salvo em', path)
+  }
+
+  /** Roda o mesmo salvamento de `handleSave` e só depois troca para o menu — sem diálogo. */
+  const handleGoHome = async () => {
+    await persistMap()
+    setScreen('menu')
   }
 
   const handleOpen = async () => {
     const path = await pickMapJsonToOpen()
     if (!path) return
     loadMap(await loadMapFromDisk(path))
+    setCurrentMapPath(path)
+    setScreen('editor')
+  }
+
+  const handleOpenSavedPath = async (path: string) => {
+    loadMap(await loadMapFromDisk(path))
+    setCurrentMapPath(path)
     setScreen('editor')
   }
 
   const handleCreate = (newMap: MapData) => {
     loadMap(newMap)
+    setCurrentMapPath(null)
     setScreen('editor')
   }
 
@@ -165,11 +254,38 @@ function App() {
     if (!sourceDir) return
     const mapsDir = await defaultMapsDir()
     const importedMapId = await importMapFolder(sourceDir, mapsDir)
-    loadMap(await loadMapFromDisk(await join(await mapDirFor(importedMapId), 'map.json')))
+    const importedPath = await join(await mapDirFor(importedMapId), 'map.json')
+    loadMap(await loadMapFromDisk(importedPath))
+    // O mapa importado já ganha pasta própria em mapsDir/importedMapId — mesma
+    // lógica de "sincronizar currentMapPath com a origem" de handleOpen, senão
+    // o próximo Salvar/Início gravaria por engano no caminho do mapa anterior.
+    setCurrentMapPath(importedPath)
   }
 
-  if (screen === 'start') {
-    return <StartScreen onCreate={handleCreate} onOpen={handleOpen} />
+  if (screen === 'menu') {
+    return (
+      <MainMenu
+        onCreate={() => setScreen('map-type')}
+        onLoad={() => setScreen('load-map')}
+        onOptions={() => setScreen('options')}
+      />
+    )
+  }
+
+  if (screen === 'map-type') {
+    return <MapTypePicker onPickDungeon={() => setScreen('new-dungeon')} onBack={() => setScreen(parentScreen(screen))} />
+  }
+
+  if (screen === 'new-dungeon') {
+    return <NewDungeonMap onCreate={handleCreate} onBack={() => setScreen(parentScreen(screen))} />
+  }
+
+  if (screen === 'load-map') {
+    return <LoadMapScreen onOpenPath={handleOpenSavedPath} onBack={() => setScreen(parentScreen(screen))} />
+  }
+
+  if (screen === 'options') {
+    return <OptionsScreen onBack={() => setScreen(parentScreen(screen))} />
   }
 
   return (
@@ -200,6 +316,8 @@ function App() {
             showWidth: activeTool !== 'text',
             fontSize: drawFontSize,
             onFontSizeChange: setDrawFontSize,
+            fontFamily: drawFontFamily,
+            onFontFamilyChange: setDrawFontFamily,
             showFontSize: activeTool === 'text',
           }}
           grid={{
@@ -236,6 +354,7 @@ function App() {
             onTextChange: handleTextChange,
             onColorChange: handleTextColorChange,
             onFontSizeChange: handleTextFontSizeChange,
+            onFontFamilyChange: handleTextFontFamilyChange,
           }}
           selectedRegion={selectedRegion}
           regionStyle={{
@@ -243,6 +362,16 @@ function App() {
             onColorChange: handleRegionColorChange,
             pattern: selectedRegion ? selectedRegion.fillPattern : regionFillPattern,
             onPatternChange: handleRegionPatternChange,
+            onLinkWalls: selectedRegion
+              ? () => useMapStore.getState().linkRegionWalls(selectedRegion.id)
+              : undefined,
+            onSmoothRegion: selectedRegion
+              ? () => useMapStore.getState().smoothRegion(selectedRegion.id)
+              : undefined,
+          }}
+          polygonSides={{
+            sides: polygonSides,
+            onSidesChange: setPolygonSides,
           }}
         />
         <ActionBar
@@ -251,7 +380,7 @@ function App() {
           onImportBackground={handleImportBackground}
           onExportFolder={handleExportFolder}
           onImportFolder={handleImportFolder}
-          onGoHome={() => setScreen('start')}
+          onGoHome={handleGoHome}
           onGoBack={previousMapPath !== null ? handleGoBack : undefined}
         />
       </div>

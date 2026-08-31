@@ -2,6 +2,7 @@
 // Mesmo padrão de task4-select-delete.spec.ts / task4-selection-pixel-diff.spec.ts: passa pela
 // tela inicial, prova estado (drawings/selection) E pixel (redraw do destaque acontece de verdade).
 import { test, expect, type Page } from '@playwright/test'
+import { enterEditor } from './helpers/enterEditor'
 import type { Drawing } from '../src/types/map'
 
 async function getDrawings(page: Page): Promise<Drawing[]> {
@@ -36,9 +37,7 @@ function deleteButton(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Criar mapa' }).click()
-  await page.waitForSelector('canvas')
+  await enterEditor(page)
   await resetMap(page)
 })
 

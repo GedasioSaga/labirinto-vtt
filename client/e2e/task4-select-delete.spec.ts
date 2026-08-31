@@ -4,6 +4,7 @@
 // automatizado por esta ferramenta). Ver docs/verification/2026-08-25-task4-verificacao-manual.md
 // para o precedente deste padrão e o que ele cobre/não cobre.
 import { test, expect, type Page } from '@playwright/test'
+import { enterEditor } from './helpers/enterEditor'
 import type { Wall, Light, Region, Token, Prop } from '../src/types/map'
 
 type MapState = {
@@ -61,9 +62,7 @@ test.beforeEach(async ({ page }) => {
       convertFileSrc: (filePath: string) => filePath,
     }
   })
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Criar mapa' }).click()
-  await page.waitForSelector('canvas')
+  await enterEditor(page)
   await resetMap(page)
 })
 
