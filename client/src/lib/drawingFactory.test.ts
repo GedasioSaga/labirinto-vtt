@@ -9,6 +9,7 @@ import {
   buildRoomFromDraft,
   isValidRegularPolygonDraft,
   buildRegularPolygonRoomFromDraft,
+  DEFAULT_ROOM_NAME,
   isValidFreehandDraft,
   buildFreehandDrawing,
   isValidLineDraft,
@@ -17,6 +18,8 @@ import {
   buildCircleDrawing,
   isValidCurveDraft,
   buildCurveDrawing,
+  convertLineToCurve,
+  convertCurveToLine,
   isValidTextDraft,
   buildTextDrawing,
 } from './drawingFactory'
@@ -172,6 +175,19 @@ describe('buildRoomFromDraft', () => {
     expect(region.fillColor).toBe('#00ff00')
     expect(region.fillPattern).toBe('hatch')
   })
+
+  // D1 (ROADMAP.md): esta é a asserção que fecha a dívida — sem ela, a região
+  // criada aqui fica indistinguível de uma Região comum e RoomControls nunca
+  // aparece na prática (a mesma regressão que motivou a tarefa).
+  it('seta region.room com shape "rect" e nome padrão "Sala"', () => {
+    const { region } = buildRoomFromDraft('r1', wallIds, { x: 0, y: 0 }, { x: 100, y: 100 })
+    expect(region.room).toEqual({ shape: 'rect', name: DEFAULT_ROOM_NAME })
+  })
+
+  it('aceita nome customizado', () => {
+    const { region } = buildRoomFromDraft('r1', wallIds, { x: 0, y: 0 }, { x: 100, y: 100 }, '#3a7ad0', 'solid', 'Salão do Trono')
+    expect(region.room).toEqual({ shape: 'rect', name: 'Salão do Trono' })
+  })
 })
 
 describe('isValidRegularPolygonDraft', () => {
@@ -256,6 +272,22 @@ describe('buildRegularPolygonRoomFromDraft', () => {
     expect(region.fillColor).toBe('#00ff00')
     expect(region.fillPattern).toBe('hatch')
   })
+
+  // D1 (ROADMAP.md): mesma dívida de buildRoomFromDraft, mas aqui shape é
+  // 'polygon' — é essa distinção que faz o PixiCanvas manter o arrasto de
+  // vértice/ponto médio livre (em vez de resize por canto) pra Sala
+  // Circular/Polígono Regular.
+  it('seta region.room com shape "polygon" e nome padrão "Sala"', () => {
+    const { region } = buildRegularPolygonRoomFromDraft('r5', ['w0', 'w1', 'w2'], { x: 0, y: 0 }, { x: 10, y: 0 }, 3)
+    expect(region.room).toEqual({ shape: 'polygon', name: DEFAULT_ROOM_NAME })
+  })
+
+  it('aceita nome customizado', () => {
+    const { region } = buildRegularPolygonRoomFromDraft(
+      'r6', ['w0', 'w1', 'w2'], { x: 0, y: 0 }, { x: 10, y: 0 }, 3, '#3a7ad0', 'solid', 'Torre Circular',
+    )
+    expect(region.room).toEqual({ shape: 'polygon', name: 'Torre Circular' })
+  })
 })
 
 describe('isValidFreehandDraft', () => {
@@ -274,6 +306,20 @@ describe('buildFreehandDrawing', () => {
       id: 'd1', kind: 'freehand', points, color: '#ff0000', width: 6,
     })
   })
+
+  // Caso 2 obrigatório (regra 5): 5º argumento (cap) AUSENTE, sem valor
+  // nenhum passado — precisa continuar sem a chave `cap` no objeto, não com
+  // `cap: undefined` escondido por trás de toEqual.
+  it('sem 5º argumento, o objeto não ganha chave cap nenhuma', () => {
+    const drawing = buildFreehandDrawing('d1b', [{ x: 0, y: 0 }, { x: 1, y: 1 }], '#ff0000', 6)
+    expect('cap' in drawing).toBe(false)
+  })
+
+  it('bug B2: aceita cap explícito (ponta reta)', () => {
+    const points = [{ x: 0, y: 0 }, { x: 10, y: 10 }]
+    const drawing = buildFreehandDrawing('d1c', points, '#ff0000', 6, 'butt')
+    expect(drawing).toMatchObject({ cap: 'butt' })
+  })
 })
 
 describe('isValidLineDraft', () => {
@@ -291,6 +337,19 @@ describe('buildLineDrawing', () => {
       id: 'd2', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 20, color: '#00ff00', width: 3,
     })
   })
+
+  // Caso 2 obrigatório (regra 5): campo opcional ausente — bate com o veredito
+  // do dossiê (bug2 linha-curva, item A): `undefined` tem que continuar
+  // desenhando arredondado, então nem precisa existir a chave.
+  it('sem cap, o objeto não ganha chave cap nenhuma (undefined === round na renderização)', () => {
+    const drawing = buildLineDrawing('d2b', { x: 0, y: 0 }, { x: 10, y: 20 }, '#00ff00', 3)
+    expect('cap' in drawing).toBe(false)
+  })
+
+  it('bug B2: aceita cap explícito (ponta reta pedida pelo usuário)', () => {
+    const drawing = buildLineDrawing('d2c', { x: 0, y: 0 }, { x: 10, y: 20 }, '#00ff00', 3, 'butt')
+    expect(drawing).toMatchObject({ cap: 'butt' })
+  })
 })
 
 describe('isValidCircleDraft', () => {
@@ -306,7 +365,7 @@ describe('isValidCircleDraft', () => {
 describe('buildCircleDrawing', () => {
   it('cria desenho circle com centro, raio, cor, espessura e filled dados', () => {
     expect(buildCircleDrawing('d3', { x: 50, y: 50 }, 30, '#0000ff', 2, true)).toEqual({
-      id: 'd3', kind: 'circle', cx: 50, cy: 50, radius: 30, color: '#0000ff', width: 2, filled: true,
+      id: 'd3', kind: 'circle', cx: 50, cy: 50, radius: 30, color: '#0000ff', width: 2, filled: true, fillAlpha: 0.5,
     })
   })
 })
@@ -326,6 +385,96 @@ describe('buildCurveDrawing', () => {
     expect(buildCurveDrawing('d4', rawPoints, '#123456', 5)).toEqual({
       id: 'd4', kind: 'curve', points: [{ x: 0, y: 0 }, { x: 30, y: 0 }], color: '#123456', width: 5,
     })
+  })
+
+  it('sem cap, o objeto não ganha chave cap nenhuma', () => {
+    const drawing = buildCurveDrawing('d4b', [{ x: 0, y: 0 }, { x: 1, y: 1 }], '#123456', 5)
+    expect('cap' in drawing).toBe(false)
+  })
+
+  it('bug B2: aceita cap explícito', () => {
+    const drawing = buildCurveDrawing('d4c', [{ x: 0, y: 0 }, { x: 1, y: 1 }], '#123456', 5, 'square')
+    expect(drawing).toMatchObject({ cap: 'square' })
+  })
+})
+
+describe('convertLineToCurve (bug B2, leitura B: "dobrar" a linha)', () => {
+  it('converte line em curve preservando id/color/width, extremos viram os 2 pontos de controle', () => {
+    const line = buildLineDrawing('d5', { x: 0, y: 0 }, { x: 100, y: 50 }, '#ff00ff', 4)
+    const curve = convertLineToCurve(line)
+    expect(curve).toEqual({
+      id: 'd5',
+      kind: 'curve',
+      points: [{ x: 0, y: 0 }, { x: 100, y: 50 }],
+      color: '#ff00ff',
+      width: 4,
+    })
+  })
+
+  it('preserva cap quando a line tinha cap explícito', () => {
+    const line = buildLineDrawing('d6', { x: 0, y: 0 }, { x: 10, y: 0 }, '#000000', 2, 'butt')
+    const curve = convertLineToCurve(line)
+    expect(curve).toMatchObject({ kind: 'curve', cap: 'butt' })
+  })
+
+  // Caso 2 obrigatório (regra 5): campo opcional (cap) AUSENTE na line de
+  // entrada — sem `?`, sem valor — não pode virar `cap: undefined` nem
+  // quebrar; a curva resultante simplesmente não ganha a chave.
+  it('line sem cap (campo opcional ausente) produz curve sem chave cap', () => {
+    const line = buildLineDrawing('d7', { x: 0, y: 0 }, { x: 10, y: 0 }, '#000000', 2)
+    const curve = convertLineToCurve(line)
+    expect('cap' in curve).toBe(false)
+  })
+
+  it('drawing que não é line volta INALTERADO (mesma referência)', () => {
+    const circle = buildCircleDrawing('d8', { x: 0, y: 0 }, 10, '#ff0000', 2, false)
+    expect(convertLineToCurve(circle)).toBe(circle)
+  })
+})
+
+describe('convertCurveToLine (sentido inverso, item 2 do CONTRATO)', () => {
+  it('converte curve de 2 pontos em line preservando id/color/width, pontos viram os extremos', () => {
+    const line = buildLineDrawing('d9', { x: 0, y: 0 }, { x: 100, y: 50 }, '#ff00ff', 4)
+    const curve = convertLineToCurve(line)
+    const backToLine = convertCurveToLine(curve)
+    expect(backToLine).toEqual({
+      id: 'd9', kind: 'line', x1: 0, y1: 0, x2: 100, y2: 50, color: '#ff00ff', width: 4,
+    })
+  })
+
+  it('preserva cap quando a curve tinha cap explícito', () => {
+    const curve = buildCurveDrawing('d10', [{ x: 0, y: 0 }, { x: 10, y: 0 }], '#000000', 2, 'square')
+    const line = convertCurveToLine(curve)
+    expect(line).toMatchObject({ kind: 'line', cap: 'square' })
+  })
+
+  // Caso 2 obrigatório (regra 5): campo opcional (cap) AUSENTE na curve de
+  // entrada — a line resultante não pode ganhar `cap: undefined` como chave.
+  it('curve sem cap (campo opcional ausente) produz line sem chave cap', () => {
+    const curve = buildCurveDrawing('d11', [{ x: 0, y: 0 }, { x: 10, y: 0 }], '#000000', 2)
+    const line = convertCurveToLine(curve)
+    expect('cap' in line).toBe(false)
+  })
+
+  // Regra dura do CONTRATO: NUNCA descartar ponto de controle em silêncio.
+  // Uma curve com 3+ pontos (usuário já inseriu midpoint pelo menos uma vez)
+  // não pode virar line perdendo os pontos do meio — a função recusa e
+  // devolve a MESMA referência, igual ao no-op de convertLineToCurve.
+  it('curve com 3+ pontos de controle é INALTERADA (mesma referência) — não descarta ponto em silêncio', () => {
+    // Pontos espaçados >= minDistance (24, curveMath.ts) para sobreviverem a
+    // simplifyToControlPoints dentro de buildCurveDrawing — sem isso os
+    // intermediários seriam descartados na CONSTRUÇÃO da curve, não no teste.
+    const curve = buildCurveDrawing('d12', [{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 60, y: 0 }, { x: 90, y: 0 }], '#000000', 2)
+    // Narrowing por `kind` (não `as`/`!`): buildCurveDrawing devolve o tipo
+    // largo `Drawing`, e só o membro 'curve' da união tem `points`.
+    if (curve.kind !== 'curve') throw new Error('buildCurveDrawing deveria retornar kind "curve"')
+    expect(curve.points.length).toBeGreaterThan(2)
+    expect(convertCurveToLine(curve)).toBe(curve)
+  })
+
+  it('drawing que não é curve volta INALTERADO (mesma referência)', () => {
+    const circle = buildCircleDrawing('d13', { x: 0, y: 0 }, 10, '#ff0000', 2, false)
+    expect(convertCurveToLine(circle)).toBe(circle)
   })
 })
 

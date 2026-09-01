@@ -19,7 +19,7 @@ describe('subscribeToBackgroundRedraw', () => {
     const unsubscribe = subscribeToBackgroundRedraw(onChange)
 
     useMapStore.getState().addWall(wall)
-    useMapStore.getState().addToken({ id: 't1', characterId: null, name: 'Herói', x: 0, y: 0, size: 1 })
+    useMapStore.getState().addToken({ id: 't1', characterId: null, name: 'Herói', x: 0, y: 0, size: 1, image: null })
     useMapStore.getState().setCamera({ x: 10, y: 0, scale: 1 })
 
     expect(onChange).not.toHaveBeenCalled()

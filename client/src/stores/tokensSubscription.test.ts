@@ -6,7 +6,7 @@ describe('subscribeToTokensRedraw', () => {
   beforeEach(() => {
     useMapStore.setState({
       map: { ...useMapStore.getState().map, tokens: [], walls: [], lights: [], regions: [] },
-      selection: null,
+      selection: [],
     })
   })
 
@@ -28,7 +28,7 @@ describe('subscribeToTokensRedraw', () => {
     const onChange = vi.fn()
     const unsubscribe = subscribeToTokensRedraw(onChange)
 
-    useMapStore.getState().addToken({ id: 't1', characterId: null, name: 'Token', x: 0, y: 0, size: 1 })
+    useMapStore.getState().addToken({ id: 't1', characterId: null, name: 'Token', x: 0, y: 0, size: 1, image: null })
 
     expect(onChange).toHaveBeenCalledTimes(1)
     unsubscribe()
@@ -38,7 +38,7 @@ describe('subscribeToTokensRedraw', () => {
     const onChange = vi.fn()
     const unsubscribe = subscribeToTokensRedraw(onChange)
 
-    useMapStore.getState().setSelection({ kind: 'token', id: 't1' })
+    useMapStore.getState().setSelection([{ kind: 'token', id: 't1' }])
 
     expect(onChange).toHaveBeenCalledTimes(1)
     unsubscribe()

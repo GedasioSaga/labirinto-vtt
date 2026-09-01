@@ -75,3 +75,9 @@ export async function importBackgroundImage(sourcePath: string, mapDir: string):
 export async function importPropImage(sourcePath: string, mapDir: string, propId: string): Promise<ImportedImage> {
   return importImageAsset(sourcePath, mapDir, `prop_${propId}`, MAX_PROP_SIDE)
 }
+
+/** Mesmo pipeline e mesmo teto de reamostragem de importPropImage (MAX_PROP_SIDE,
+ *  1024px) — token com imagem não precisa de resolução maior que uma peça. */
+export async function importTokenImage(sourcePath: string, mapDir: string, tokenId: string): Promise<ImportedImage> {
+  return importImageAsset(sourcePath, mapDir, `token_${tokenId}`, MAX_PROP_SIDE)
+}

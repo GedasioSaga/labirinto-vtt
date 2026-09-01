@@ -19,27 +19,52 @@ import {
   addToken,
   removeToken,
   setTokenPosition,
+  setTokenImage,
   addProp,
   removeProp,
   setPropPosition,
+  setPropLayer,
   setShowGrid,
   setGridShape,
+  setGridSettings,
+  setGridOffset,
+  setGridCellSize,
+  toggleLayerVisibility,
+  toggleLayerLock,
   addDrawing,
   removeDrawing,
   setWallDoor,
+  setWallKindForWall,
+  setWallThicknessForWall,
+  setWallLineStyleForWall,
   addDoorOnWall,
+  setWallDoorKind,
+  setDoorLocked,
+  addStair,
+  removeStair,
+  moveStair,
+  updateStairPoint,
+  setStairDirection,
+  setRoomName,
+  resizeRoomDimensions,
+  resizeRoomCornerLive,
+  setMapScale,
+  setMeasurementMode,
   setScenarioLink,
   insertCurvePoint,
   removeCurvePoint,
   moveCurve,
+  moveDrawing,
+  resizeDrawingCornerLive,
+  resizePropCornerLive,
 } from './mapFactory'
-import type { Wall, Light, Region, Token, Prop, Drawing } from '../types/map'
+import type { MapData, Wall, Light, Region, Token, Prop, Drawing, Stair } from '../types/map'
 import { buildRoomFromDraft } from './drawingFactory'
 
 const wall: Wall = { id: 'w1', x1: 0, y1: 0, x2: 64, y2: 0, blocksLight: true, blocksMove: true, door: null }
 const light: Light = { id: 'l1', x: 32, y: 32, radius: 8, color: '#ffaa33', intensity: 0.8 }
 const region: Region = { id: 'r1', points: [{ x: 0, y: 0 }, { x: 64, y: 0 }, { x: 64, y: 64 }], tag: 'trap', fillColor: '#3a7ad0', fillPattern: 'solid', data: {} }
-const token: Token = { id: 't1', characterId: null, name: 'Herói', x: 0, y: 0, size: 1 }
+const token: Token = { id: 't1', characterId: null, name: 'Herói', x: 0, y: 0, size: 1, image: null }
 
 describe('createEmptyMap', () => {
   it('cria mapa com defaults corretos', () => {
@@ -52,14 +77,20 @@ describe('createEmptyMap', () => {
       grid: 64,
       gridShape: 'square',
       showGrid: true,
+      gridSettings: { color: '#4a4a4a', opacity: 1, lineWidth: 1, lineStyle: 'solid' },
       background: { type: 'color', src: '#2b2b2b' },
       walls: [],
       lights: [],
       regions: [],
       tokens: [],
       props: [],
+      stairs: [],
       drawings: [],
       fog: { mode: 'none', revealed: [] },
+      hiddenLayers: [],
+      lockedLayers: [],
+      scale: { unitsPerCell: 5, unit: 'ft', precision: 0 },
+      measurementMode: 'chessboard',
       ownerId: null,
       scenarioLink: null,
     })
@@ -148,20 +179,67 @@ describe('setGridShape', () => {
     const map = createEmptyMap('m', 'x', 10, 10, 64)
     expect(setGridShape(map, 'hex').gridShape).toBe('hex')
   })
+
+  // Risco §3/§5 do plano: mapa quadrado em 'manhattan' que vira hex não pode
+  // ficar com um measurementMode que não existe em hex (measurementModesForShape
+  // não inclui 'manhattan' pra 'hex').
+  it('quadrado→hex: reseta measurementMode pro default de hex ("hex")', () => {
+    const map = setMeasurementMode(createEmptyMap('m', 'x', 10, 10, 64), 'manhattan')
+    expect(setGridShape(map, 'hex').measurementMode).toBe('hex')
+  })
+
+  it('hex→quadrado: reseta measurementMode pro default de quadrado ("chessboard")', () => {
+    const map = setMeasurementMode(setGridShape(createEmptyMap('m', 'x', 10, 10, 64), 'hex'), 'hex')
+    expect(setGridShape(map, 'square').measurementMode).toBe('chessboard')
+  })
+
+  // F3 (grid-triangular, contrato C6): 'triangle' é o 3º GridShape.
+  it('quadrado→triangle: reseta measurementMode pro default de triangle ("euclidean")', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+    expect(setGridShape(map, 'triangle').gridShape).toBe('triangle')
+    expect(setGridShape(map, 'triangle').measurementMode).toBe('euclidean')
+  })
+})
+
+describe('setGridOffset/setGridCellSize (F3, "alinhar grade à imagem" — contrato C5)', () => {
+  it('setGridOffset substitui o deslocamento inteiro', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+    expect(map.gridOffset).toBeUndefined()
+
+    const next = setGridOffset(map, { x: 12, y: -7 })
+
+    expect(next.gridOffset).toEqual({ x: 12, y: -7 })
+  })
+
+  it('setGridOffset não muda mais nada no map', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+    const next = setGridOffset(map, { x: 5, y: 5 })
+    expect(next.grid).toBe(map.grid)
+    expect(next.gridShape).toBe(map.gridShape)
+  })
+
+  it('setGridCellSize troca MapData.grid, sem tocar em mais nada', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+
+    const next = setGridCellSize(map, 48)
+
+    expect(next.grid).toBe(48)
+    expect(next.gridShape).toBe(map.gridShape)
+  })
 })
 
 describe('setWallDoor', () => {
   it('seta porta na parede com o id informado, sem tocar outras', () => {
     const map = addWall(addWall(createEmptyMap('m', 'x', 10, 10, 64), wall), { ...wall, id: 'w2' })
-    const next = setWallDoor(map, 'w1', { open: false, locked: false })
+    const next = setWallDoor(map, 'w1', { open: false, locked: false, kind: 'normal' })
     const w1 = next.walls.find((w) => w.id === 'w1')
     const w2 = next.walls.find((w) => w.id === 'w2')
-    expect(w1?.door).toEqual({ open: false, locked: false })
+    expect(w1?.door).toEqual({ open: false, locked: false, kind: 'normal' })
     expect(w2?.door).toBeNull()
   })
 
   it('remove a porta (volta pra null) sem tocar outras paredes', () => {
-    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), { ...wall, door: { open: true, locked: false } })
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), { ...wall, door: { open: true, locked: false, kind: 'normal' } })
     const next = setWallDoor(map, 'w1', null)
     expect(next.walls[0].door).toBeNull()
   })
@@ -172,14 +250,16 @@ describe('addDoorOnWall', () => {
     const horizontal: Wall = { id: 'wH', x1: 0, y1: 40, x2: 64, y2: 40, blocksLight: true, blocksMove: true, door: null }
     const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), horizontal)
 
-    const next = addDoorOnWall(map, 'wH', { x: 32, y: 40 }, 16)
+    const next = addDoorOnWall(map, 'wH', { x: 32, y: 40 }, 16, 'normal')
 
     expect(next.walls).toHaveLength(3)
     expect(next.walls.find((w) => w.id === 'wH')).toBeUndefined()
 
     const doorPiece = next.walls.find((w) => w.door !== null)
     expect(doorPiece).toBeDefined()
-    expect(doorPiece!.door).toEqual({ open: false, locked: false })
+    // `addDoorOnWall` (mapFactory.ts:355) agora inclui `kind: 'normal'` no
+    // DoorState — campo obrigatório desde a Fase 0 (ver types/map.ts).
+    expect(doorPiece!.door).toEqual({ open: false, locked: false, kind: 'normal' })
     // Alinhado: os dois pontos da porta continuam no mesmo y da parede original.
     expect(doorPiece!.y1).toBe(40)
     expect(doorPiece!.y2).toBe(40)
@@ -198,7 +278,7 @@ describe('addDoorOnWall', () => {
     const originalRatio = (diagonal.x2 - diagonal.x1) / (diagonal.y2 - diagonal.y1)
 
     // Ponto de clique já sobre a própria linha (t=0.4): (10+100*0.4, 20+50*0.4).
-    const next = addDoorOnWall(map, 'wD', { x: 50, y: 40 }, 20)
+    const next = addDoorOnWall(map, 'wD', { x: 50, y: 40 }, 20, 'normal')
 
     expect(next.walls.length).toBeGreaterThanOrEqual(1)
     expect(next.walls.length).toBeLessThanOrEqual(3)
@@ -219,7 +299,7 @@ describe('addDoorOnWall', () => {
 
     // Clique a 5px do início, doorLength 32 (metade=16): a janela (5-16 a 5+16)
     // clampa o início em 0 — não sobra pedaço "antes".
-    const next = addDoorOnWall(map, 'wH', { x: 5, y: 0 }, 32)
+    const next = addDoorOnWall(map, 'wH', { x: 5, y: 0 }, 32, 'normal')
 
     expect(next.walls).toHaveLength(2)
     const doorPiece = next.walls.find((w) => w.door !== null)
@@ -249,7 +329,7 @@ describe('addDoorOnWall', () => {
     }
     const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), linked)
 
-    const next = addDoorOnWall(map, 'wLinked', { x: 32, y: 0 }, 16)
+    const next = addDoorOnWall(map, 'wLinked', { x: 32, y: 0 }, 16, 'normal')
 
     expect(next.walls).toHaveLength(3)
     for (const piece of next.walls) {
@@ -260,7 +340,7 @@ describe('addDoorOnWall', () => {
 
   it('parede inexistente: devolve o map original pela mesma referência', () => {
     const map = createEmptyMap('m', 'x', 10, 10, 64)
-    expect(addDoorOnWall(map, 'inexistente', { x: 0, y: 0 }, 16)).toBe(map)
+    expect(addDoorOnWall(map, 'inexistente', { x: 0, y: 0 }, 16, 'normal')).toBe(map)
   })
 })
 
@@ -599,5 +679,453 @@ describe('moveCurve', () => {
   it('não faz nada (map idêntico) quando o drawing não existe', () => {
     const map = createEmptyMap('m', 'x', 10, 10, 64)
     expect(moveCurve(map, 'inexistente', 1, 1)).toBe(map)
+  })
+})
+
+describe('moveDrawing (F4, bug3 — rect/ellipse/polygon caíam no default e não se moviam)', () => {
+  it('move um rect pelo delta', () => {
+    const rect: Drawing = { id: 'd1', kind: 'rect', x: 10, y: 10, w: 20, h: 20, color: '#fff', width: 2, filled: true, fillAlpha: 0.5 }
+    const map = addDrawing(createEmptyMap('m', 'x', 10, 10, 64), rect)
+
+    const next = moveDrawing(map, 'd1', 5, -5)
+
+    expect(next.drawings[0]).toEqual({ ...rect, x: 15, y: 5 })
+  })
+
+  it('move um ellipse pelo delta', () => {
+    const ellipse: Drawing = { id: 'd1', kind: 'ellipse', cx: 10, cy: 10, rx: 5, ry: 5, color: '#fff', width: 2, filled: true, fillAlpha: 0.5 }
+    const map = addDrawing(createEmptyMap('m', 'x', 10, 10, 64), ellipse)
+
+    const next = moveDrawing(map, 'd1', 5, -5)
+
+    expect(next.drawings[0]).toEqual({ ...ellipse, cx: 15, cy: 5 })
+  })
+
+  it('move um polygon pelo delta (todos os pontos)', () => {
+    const polygon: Drawing = { id: 'd1', kind: 'polygon', points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 10 }], color: '#fff', width: 2, filled: true, fillAlpha: 0.5 }
+    const map = addDrawing(createEmptyMap('m', 'x', 10, 10, 64), polygon)
+
+    const next = moveDrawing(map, 'd1', 5, -5)
+
+    expect(next.drawings[0]).toEqual({ ...polygon, points: [{ x: 5, y: -5 }, { x: 15, y: -5 }, { x: 10, y: 5 }] })
+  })
+
+  it('não faz nada (map idêntico) quando o drawing não existe', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+    expect(moveDrawing(map, 'inexistente', 1, 1)).toBe(map)
+  })
+})
+
+describe('resizeDrawingCornerLive (F4, contrato B3)', () => {
+  it('redimensiona um rect a partir do canto 2 (baixo-direita), âncora no canto oposto', () => {
+    const rect: Drawing = { id: 'd1', kind: 'rect', x: 0, y: 0, w: 100, h: 100, color: '#fff', width: 2, filled: true, fillAlpha: 0.5 }
+    const map = addDrawing(createEmptyMap('m', 'x', 10, 10, 64), rect)
+
+    const next = resizeDrawingCornerLive(map, 'd1', 2, 150, 120, { shift: false, alt: false })
+
+    expect(next.drawings[0]).toEqual({ ...rect, x: 0, y: 0, w: 150, h: 120 })
+  })
+
+  it('redimensiona um ellipse a partir do canto 0 (topo-esquerda)', () => {
+    const ellipse: Drawing = { id: 'd1', kind: 'ellipse', cx: 50, cy: 50, rx: 50, ry: 50, color: '#fff', width: 2, filled: true, fillAlpha: 0.5 }
+    const map = addDrawing(createEmptyMap('m', 'x', 10, 10, 64), ellipse)
+
+    // box original: (0,0)-(100,100). Canto 0 vai pra (20,30) — âncora no
+    // canto oposto (2, {100,100}). Novo box: (20,30)-(100,100).
+    const next = resizeDrawingCornerLive(map, 'd1', 0, 20, 30, { shift: false, alt: false })
+
+    expect(next.drawings[0]).toEqual({ ...ellipse, cx: 60, cy: 65, rx: 40, ry: 35 })
+  })
+
+  it('redimensiona um polygon escalando todos os pontos em torno do canto oposto', () => {
+    const polygon: Drawing = { id: 'd1', kind: 'polygon', points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }], color: '#fff', width: 2, filled: true, fillAlpha: 0.5 }
+    const map = addDrawing(createEmptyMap('m', 'x', 10, 10, 64), polygon)
+
+    const next = resizeDrawingCornerLive(map, 'd1', 2, 200, 100, { shift: false, alt: false })
+
+    expect(next.drawings[0]).toEqual({
+      ...polygon,
+      points: [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 100 }, { x: 0, y: 100 }],
+    })
+  })
+
+  it('não faz nada (map idêntico) para um kind sem resize por canto (ex.: line)', () => {
+    const line: Drawing = { id: 'd1', kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0, color: '#fff', width: 2 }
+    const map = addDrawing(createEmptyMap('m', 'x', 10, 10, 64), line)
+
+    expect(resizeDrawingCornerLive(map, 'd1', 0, 5, 5, { shift: false, alt: false })).toBe(map)
+  })
+
+  it('não faz nada (map idêntico) quando o drawing não existe', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+    expect(resizeDrawingCornerLive(map, 'inexistente', 0, 5, 5, { shift: false, alt: false })).toBe(map)
+  })
+})
+
+describe('resizePropCornerLive (F4, contrato B3)', () => {
+  const prop: Prop = { id: 'p1', src: '/a.png', x: 0, y: 0, width: 64, height: 64, linkedMapPath: null }
+
+  it('redimensiona um prop a partir do canto 2 (baixo-direita), devolvendo x/y/width/height recentrados', () => {
+    const map = { ...createEmptyMap('m', 'x', 10, 10, 64), props: [prop] }
+
+    // box original: (-32,-32)-(32,32). Canto 2 vai pra (50,50) — âncora no
+    // canto oposto (0, {-32,-32}). Novo box: (-32,-32)-(50,50), recentrado.
+    const next = resizePropCornerLive(map, 'p1', 2, 50, 50, { shift: false, alt: false })
+
+    expect(next.props[0]).toEqual({ ...prop, x: 9, y: 9, width: 82, height: 82 })
+  })
+
+  it('não faz nada (map idêntico) quando o prop não existe', () => {
+    const map = { ...createEmptyMap('m', 'x', 10, 10, 64), props: [prop] }
+    expect(resizePropCornerLive(map, 'inexistente', 0, 5, 5, { shift: false, alt: false })).toBe(map)
+  })
+})
+
+describe('setTokenImage', () => {
+  it('seta o caminho da imagem só no token alvo, sem tocar outro', () => {
+    const map = addToken(addToken(createEmptyMap('m', 'x', 10, 10, 64), token), { ...token, id: 't2' })
+
+    const next = setTokenImage(map, 't1', '/tmp/goblin.png')
+
+    const t1 = next.tokens.find((t) => t.id === 't1')
+    const t2 = next.tokens.find((t) => t.id === 't2')
+    expect(t1?.image).toBe('/tmp/goblin.png')
+    expect(t2?.image).toBeNull()
+  })
+
+  it('aceita null pra voltar ao círculo genérico (campo já era null, nada de novo)', () => {
+    const map = addToken(createEmptyMap('m', 'x', 10, 10, 64), { ...token, image: '/tmp/goblin.png' })
+
+    const next = setTokenImage(map, 't1', null)
+
+    expect(next.tokens[0].image).toBeNull()
+  })
+})
+
+describe('setPropLayer', () => {
+  const prop: Prop = { id: 'p1', src: '/tmp/tree.png', x: 0, y: 0, width: 64, height: 64, linkedMapPath: null }
+
+  it('seta a camada só do prop alvo, sem tocar outro', () => {
+    const map = addProp(addProp(createEmptyMap('m', 'x', 10, 10, 64), prop), { ...prop, id: 'p2' })
+
+    const next = setPropLayer(map, 'p1', 'decoracao')
+
+    const p1 = next.props.find((p) => p.id === 'p1')
+    const p2 = next.props.find((p) => p.id === 'p2')
+    expect(p1?.layer).toBe('decoracao')
+    expect(p2?.layer).toBeUndefined()
+  })
+
+  it('aceita undefined pra voltar ao default (objetos, por derivação em lib/layers.ts) — campo opcional ausente', () => {
+    const map = addProp(createEmptyMap('m', 'x', 10, 10, 64), { ...prop, layer: 'decoracao' })
+
+    const next = setPropLayer(map, 'p1', undefined)
+
+    expect(next.props[0].layer).toBeUndefined()
+  })
+})
+
+describe('setWallKindForWall', () => {
+  it('seta o wallKind só da parede alvo, sem tocar outra', () => {
+    const map = addWall(addWall(createEmptyMap('m', 'x', 10, 10, 64), wall), { ...wall, id: 'w2' })
+
+    const next = setWallKindForWall(map, 'w1', 'interior')
+
+    const w1 = next.walls.find((w) => w.id === 'w1')
+    const w2 = next.walls.find((w) => w.id === 'w2')
+    expect(w1?.wallKind).toBe('interior')
+    expect(w2?.wallKind).toBeUndefined()
+  })
+
+  it('aceita undefined pra voltar ao default exterior — campo opcional ausente', () => {
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), { ...wall, wallKind: 'interior' })
+
+    const next = setWallKindForWall(map, 'w1', undefined)
+
+    expect(next.walls[0].wallKind).toBeUndefined()
+  })
+})
+
+// Fase 6 — pedido do usuário ("ta muito gordo, quero fino/medio/grosso" +
+// "ponta reta ou redonda"). Espelho exato dos testes de setWallKindForWall
+// acima: mesma função, mesmo formato de teste, dois eixos novos.
+describe('setWallThicknessForWall', () => {
+  it('seta o thickness só da parede alvo, sem tocar outra', () => {
+    const map = addWall(addWall(createEmptyMap('m', 'x', 10, 10, 64), wall), { ...wall, id: 'w2' })
+
+    const next = setWallThicknessForWall(map, 'w1', 'thick')
+
+    const w1 = next.walls.find((w) => w.id === 'w1')
+    const w2 = next.walls.find((w) => w.id === 'w2')
+    expect(w1?.thickness).toBe('thick')
+    expect(w2?.thickness).toBeUndefined()
+  })
+
+  it('aceita undefined pra voltar ao default medium — campo opcional ausente', () => {
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), { ...wall, thickness: 'thin' })
+
+    const next = setWallThicknessForWall(map, 'w1', undefined)
+
+    expect(next.walls[0].thickness).toBeUndefined()
+  })
+})
+
+describe('setWallLineStyleForWall', () => {
+  it('seta o lineStyle só da parede alvo, sem tocar outra', () => {
+    const map = addWall(addWall(createEmptyMap('m', 'x', 10, 10, 64), wall), { ...wall, id: 'w2' })
+
+    const next = setWallLineStyleForWall(map, 'w1', 'straight')
+
+    const w1 = next.walls.find((w) => w.id === 'w1')
+    const w2 = next.walls.find((w) => w.id === 'w2')
+    expect(w1?.lineStyle).toBe('straight')
+    expect(w2?.lineStyle).toBeUndefined()
+  })
+
+  it('aceita undefined pra voltar ao default round — campo opcional ausente', () => {
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), { ...wall, lineStyle: 'straight' })
+
+    const next = setWallLineStyleForWall(map, 'w1', undefined)
+
+    expect(next.walls[0].lineStyle).toBeUndefined()
+  })
+})
+
+describe('setGridSettings', () => {
+  it('faz merge parcial, preservando os campos não passados no patch', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+
+    const next = setGridSettings(map, { color: '#ff0000' })
+
+    expect(next.gridSettings).toEqual({ color: '#ff0000', opacity: 1, lineWidth: 1, lineStyle: 'solid' })
+  })
+
+  it('não muda nenhum outro campo do map', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+
+    const next = setGridSettings(map, { lineStyle: 'dashed' })
+
+    expect(next.showGrid).toBe(map.showGrid)
+    expect(next.grid).toBe(map.grid)
+    expect(next.gridSettings.lineStyle).toBe('dashed')
+  })
+})
+
+describe('toggleLayerVisibility', () => {
+  it('esconde a camada (adiciona ao array) quando ainda não estava oculta', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+
+    const next = toggleLayerVisibility(map, 'paredes')
+
+    expect(next.hiddenLayers).toEqual(['paredes'])
+  })
+
+  it('mostra a camada de novo (remove do array) quando já estava oculta, sem tocar outra camada oculta', () => {
+    const map: MapData = { ...createEmptyMap('m', 'x', 10, 10, 64), hiddenLayers: ['paredes', 'tokens'] }
+
+    const next = toggleLayerVisibility(map, 'paredes')
+
+    expect(next.hiddenLayers).toEqual(['tokens'])
+  })
+})
+
+describe('toggleLayerLock (Onda 4, Frente D)', () => {
+  it('trava a camada (adiciona ao array) quando ainda não estava travada', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+
+    const next = toggleLayerLock(map, 'paredes')
+
+    expect(next.lockedLayers).toEqual(['paredes'])
+    // Travar não mexe em hiddenLayers — os dois eixos são independentes.
+    expect(next.hiddenLayers).toEqual([])
+  })
+
+  it('destrava a camada (remove do array) quando já estava travada, sem tocar outra camada travada', () => {
+    const map: MapData = { ...createEmptyMap('m', 'x', 10, 10, 64), lockedLayers: ['paredes', 'tokens'] }
+
+    const next = toggleLayerLock(map, 'paredes')
+
+    expect(next.lockedLayers).toEqual(['tokens'])
+  })
+})
+
+describe('addDoorOnWall — kind (F2)', () => {
+  it('a porta nasce com o kind pedido, não mais hardcoded em "normal"', () => {
+    const horizontal: Wall = { id: 'wH', x1: 0, y1: 40, x2: 64, y2: 40, blocksLight: true, blocksMove: true, door: null }
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), horizontal)
+
+    const next = addDoorOnWall(map, 'wH', { x: 32, y: 40 }, 64, 'double')
+
+    const doorPiece = next.walls.find((w) => w.door !== null)
+    expect(doorPiece?.door).toEqual({ open: false, locked: false, kind: 'double' })
+  })
+})
+
+describe('setWallDoorKind', () => {
+  const doorWall: Wall = { id: 'wDoor', x1: 0, y1: 0, x2: 32, y2: 0, blocksLight: true, blocksMove: true, door: { open: false, locked: false, kind: 'normal' } }
+
+  it('troca o kind e redimensiona o vão pro doorLength informado, centrado no meio do vão atual', () => {
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), doorWall)
+
+    const next = setWallDoorKind(map, 'wDoor', 'double', 64)
+    const w = next.walls[0]
+
+    expect(w.door?.kind).toBe('double')
+    // Meio do vão original era x=16 (0..32) — o vão novo (64px) fica
+    // centrado nele: de -16 a 48.
+    expect(w.x1).toBe(-16)
+    expect(w.x2).toBe(48)
+    expect(w.y1).toBe(0)
+    expect(w.y2).toBe(0)
+  })
+
+  it('parede sem porta (door === null): devolve o map original pela mesma referência', () => {
+    const solidWall: Wall = { id: 'wSolid', x1: 0, y1: 0, x2: 32, y2: 0, blocksLight: true, blocksMove: true, door: null }
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), solidWall)
+
+    expect(setWallDoorKind(map, 'wSolid', 'double', 64)).toBe(map)
+  })
+
+  it('parede inexistente: devolve o map original pela mesma referência', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+
+    expect(setWallDoorKind(map, 'inexistente', 'double', 64)).toBe(map)
+  })
+})
+
+describe('setDoorLocked', () => {
+  const doorWall: Wall = { id: 'wDoor', x1: 0, y1: 0, x2: 32, y2: 0, blocksLight: true, blocksMove: true, door: { open: false, locked: false, kind: 'normal' } }
+
+  it('tranca a porta sem tocar em open/kind', () => {
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), doorWall)
+
+    const next = setDoorLocked(map, 'wDoor', true)
+
+    expect(next.walls[0].door).toEqual({ open: false, locked: true, kind: 'normal' })
+  })
+
+  it('destranca de volta', () => {
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), { ...doorWall, door: { open: false, locked: true, kind: 'normal' } })
+
+    expect(setDoorLocked(map, 'wDoor', false).walls[0].door?.locked).toBe(false)
+  })
+
+  it('parede sem porta: devolve o map original pela mesma referência', () => {
+    const solidWall: Wall = { id: 'wSolid', x1: 0, y1: 0, x2: 32, y2: 0, blocksLight: true, blocksMove: true, door: null }
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), solidWall)
+
+    expect(setDoorLocked(map, 'wSolid', true)).toBe(map)
+  })
+})
+
+describe('Stair (F2): addStair/removeStair/moveStair/updateStairPoint/setStairDirection', () => {
+  const stair: Stair = { id: 's1', shape: 'straight', direction: 'up', segments: [{ x1: 0, y1: 0, x2: 0, y2: 64 }], stepWidth: 32 }
+
+  it('addStair adiciona ao array', () => {
+    const map = addStair(createEmptyMap('m', 'x', 10, 10, 64), stair)
+    expect(map.stairs).toEqual([stair])
+  })
+
+  it('removeStair remove pelo id, sem tocar outras', () => {
+    const map = addStair(addStair(createEmptyMap('m', 'x', 10, 10, 64), stair), { ...stair, id: 's2' })
+    const next = removeStair(map, 's1')
+    expect(next.stairs.map((s) => s.id)).toEqual(['s2'])
+  })
+
+  it('moveStair desloca todos os segmentos por (dx, dy)', () => {
+    const map = addStair(createEmptyMap('m', 'x', 10, 10, 64), stair)
+    const next = moveStair(map, 's1', 10, 20)
+    expect(next.stairs[0].segments).toEqual([{ x1: 10, y1: 20, x2: 10, y2: 84 }])
+  })
+
+  it('updateStairPoint move só o endpoint pedido do segmento indicado', () => {
+    const map = addStair(createEmptyMap('m', 'x', 10, 10, 64), stair)
+    const next = updateStairPoint(map, 's1', 0, 1, 5, 6)
+    expect(next.stairs[0].segments[0]).toEqual({ x1: 0, y1: 0, x2: 5, y2: 6 })
+  })
+
+  it('setStairDirection troca a direção', () => {
+    const map = addStair(createEmptyMap('m', 'x', 10, 10, 64), stair)
+    expect(setStairDirection(map, 's1', 'down').stairs[0].direction).toBe('down')
+  })
+})
+
+describe('Sala (F2): setRoomName/resizeRoomDimensions/resizeRoomCornerLive', () => {
+  function buildRoomMap(): MapData {
+    const { region: rawRegion, walls } = buildRoomFromDraft('r1', ['w0', 'w1', 'w2', 'w3'], { x: 0, y: 0 }, { x: 100, y: 100 })
+    const roomRegion: Region = { ...rawRegion, room: { shape: 'rect', name: 'Sala' } }
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+    return { ...map, regions: [roomRegion], walls }
+  }
+
+  it('setRoomName renomeia a sala', () => {
+    const map = buildRoomMap()
+    expect(setRoomName(map, 'r1', 'Salão').regions[0].room?.name).toBe('Salão')
+  })
+
+  it('setRoomName numa região sem room: devolve o map original pela mesma referência', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+    const withPlainRegion: MapData = { ...map, regions: [region] }
+    expect(setRoomName(withPlainRegion, 'r1', 'Salão')).toBe(withPlainRegion)
+  })
+
+  it('resizeRoomDimensions recalcula os 4 vértices E sincroniza as 4 paredes vinculadas', () => {
+    const map = buildRoomMap()
+
+    const next = resizeRoomDimensions(map, 'r1', 200, 50)
+
+    expect(next.regions[0].points).toEqual([
+      { x: 0, y: 0 },
+      { x: 200, y: 0 },
+      { x: 200, y: 50 },
+      { x: 0, y: 50 },
+    ])
+    // As 4 paredes vinculadas (regionEdgeIndex 0..3) têm que refletir o
+    // contorno novo — RISCO documentado no contrato do B3: sem sincronizar,
+    // a sala "redimensiona" visualmente mas as paredes ficam pra trás.
+    for (const w of next.walls) {
+      expect(w.regionId).toBe('r1')
+    }
+    const w0 = next.walls.find((w) => w.regionEdgeIndex === 0)
+    expect(w0).toMatchObject({ x1: 0, y1: 0, x2: 200, y2: 0 })
+    const w2 = next.walls.find((w) => w.regionEdgeIndex === 2)
+    expect(w2).toMatchObject({ x1: 200, y1: 50, x2: 0, y2: 50 })
+  })
+
+  it('resizeRoomCornerLive: arrastar 1 canto reconstrói o retângulo E sincroniza as paredes', () => {
+    const map = buildRoomMap()
+
+    // canto 2 (baixo-direita, {100,100}) vai pra {150, 120} — âncora fica no
+    // canto oposto, canto 0 ({0,0}).
+    const next = resizeRoomCornerLive(map, 'r1', 2, 150, 120)
+
+    expect(next.regions[0].points).toEqual([
+      { x: 0, y: 0 },
+      { x: 150, y: 0 },
+      { x: 150, y: 120 },
+      { x: 0, y: 120 },
+    ])
+    const w1 = next.walls.find((w) => w.regionEdgeIndex === 1)
+    expect(w1).toMatchObject({ x1: 150, y1: 0, x2: 150, y2: 120 })
+  })
+
+  it('resizeRoomDimensions numa Sala Circular/Polígono (room.shape !== "rect"): devolve o map original pela mesma referência', () => {
+    const map = buildRoomMap()
+    const polygonMap: MapData = { ...map, regions: [{ ...map.regions[0], room: { shape: 'polygon', name: 'Sala Circular' } }] }
+
+    expect(resizeRoomDimensions(polygonMap, 'r1', 200, 50)).toBe(polygonMap)
+  })
+})
+
+describe('MapScale/MeasurementMode (F2)', () => {
+  it('setMapScale substitui a escala inteira', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+    const next = setMapScale(map, { unitsPerCell: 1.5, unit: 'm', precision: 1 })
+    expect(next.scale).toEqual({ unitsPerCell: 1.5, unit: 'm', precision: 1 })
+  })
+
+  it('setMeasurementMode troca o modo', () => {
+    const map = createEmptyMap('m', 'x', 10, 10, 64)
+    expect(setMeasurementMode(map, 'euclidean').measurementMode).toBe('euclidean')
   })
 })

@@ -202,7 +202,7 @@ test('4b. ferramenta Selecionar: arrasto de token muda sua posição', async ({ 
 
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
-    mod.useMapStore.getState().addToken({ id: 'tok1', characterId: null, name: 'Token', x: 400, y: 500, size: 1 })
+    mod.useMapStore.getState().addToken({ id: 'tok1', characterId: null, name: 'Token', x: 400, y: 500, size: 1, image: null })
   })
   await selectTool(page, 'Selecionar')
 
@@ -226,7 +226,7 @@ test('5. colisão: token não atravessa parede recém-criada', async ({ page }) 
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
     mod.useMapStore.getState().addWall({ id: 'wall1', x1: 550, y1: 200, x2: 550, y2: 400, blocksLight: true, blocksMove: true, door: null })
-    mod.useMapStore.getState().addToken({ id: 'tok2', characterId: null, name: 'Token', x: 400, y: 300, size: 1 })
+    mod.useMapStore.getState().addToken({ id: 'tok2', characterId: null, name: 'Token', x: 400, y: 300, size: 1, image: null })
   })
   await selectTool(page, 'Selecionar')
 
@@ -245,7 +245,7 @@ test('5. colisão: token não atravessa parede recém-criada', async ({ page }) 
   // controle: mesma distância de arrasto, sem parede no caminho, deve mover livremente
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
-    mod.useMapStore.getState().addToken({ id: 'tok3', characterId: null, name: 'Token', x: 400, y: 700, size: 1 })
+    mod.useMapStore.getState().addToken({ id: 'tok3', characterId: null, name: 'Token', x: 400, y: 700, size: 1, image: null })
   })
   await page.mouse.move(box.x + 400, box.y + 700)
   await page.mouse.down()

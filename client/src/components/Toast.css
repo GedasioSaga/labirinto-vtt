@@ -1,0 +1,78 @@
+/*
+ * Pilha de avisos (Toast) — canto superior direito, sobre tudo.
+ *
+ * A "chrome" de painel flutuante (fundo/borda/sombra/blur) vem da classe
+ * global `.lb-panel` (main.css) — mesma base de ZoomHud/Toolbar/ActionBar.
+ * Aqui só o que é específico deste componente. Só `var(--lb-*)` de
+ * theme.ts — zero hex literal.
+ *
+ * z-index 30: maior que qualquer outro definido no app hoje (o próximo mais
+ * alto é 20, em `.lb-toolvariant-menu` de main.css) — o aviso precisa vencer
+ * dropdown de variante de ferramenta e qualquer painel flutuante.
+ *
+ * Posicionamento: `position: absolute`, ancorada no canto superior direito
+ * de `.lb-editor` (`position: relative`, ver main.css). Depende de montar
+ * como filho direto de `.lb-editor` — ver CONTRATO no relatório do agente.
+ */
+
+.lb-toaststack {
+  position: absolute;
+  top: var(--lb-layout-edge-gap);
+  right: var(--lb-layout-edge-gap);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  max-width: 320px;
+  pointer-events: none;
+}
+
+.lb-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3);
+  pointer-events: auto;
+}
+
+.lb-toast__text {
+  flex: 1;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment);
+}
+
+.lb-toast--error {
+  border-color: var(--lb-color-ember);
+}
+
+.lb-toast--error .lb-toast__text {
+  color: var(--lb-color-parchment);
+}
+
+.lb-toast__dismiss {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-lg);
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--lb-motion-fast) var(--lb-motion-ease), background var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-toast__dismiss:hover {
+  color: var(--lb-color-parchment);
+  background: var(--lb-color-stone-hover);
+}
+
+.lb-toast__dismiss:focus-visible {
+  box-shadow: var(--lb-shadow-focus);
+}

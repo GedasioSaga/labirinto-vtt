@@ -12,10 +12,12 @@ async function getDrawings(page: Page): Promise<Drawing[]> {
   })
 }
 
+// Onda 4, item 24 — `selection` do store virou SelectionSet (array). `[0] ??
+// null` adapta pro formato de item único que os specs já esperavam.
 async function getSelection(page: Page) {
   return page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
-    return mod.useMapStore.getState().selection
+    return mod.useMapStore.getState().selection[0] ?? null
   })
 }
 
@@ -167,7 +169,7 @@ test('6. pixel: selecionar um desenho muda o pixel da região (destaque desenha 
 
   await page.mouse.click(box.x + 500, box.y + 400)
   await expect
-    .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection?.kind))
+    .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection[0]?.kind))
     .toBe('drawing')
 
   const after = await page.screenshot({ clip })

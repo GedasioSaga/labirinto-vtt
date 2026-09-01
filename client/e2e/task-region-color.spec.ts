@@ -70,7 +70,7 @@ test('2. região: selecionar região existente e mudar a cor reflete em map.regi
   await selectTool(page, 'Selecionar')
   await page.mouse.click(box.x + 450, box.y + 440)
   await expect
-    .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection?.kind))
+    .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection[0]?.kind))
     .toBe('region')
 
   await expect(regionColorInput(page)).toBeVisible()

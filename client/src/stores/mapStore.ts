@@ -1,43 +1,303 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import type { MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState } from '../types/map'
-import type { Camera } from '../pixi/world'
-import type { DrawingTool, Selection, SelectionKind } from '../types/tools'
+import type {
+  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
+  Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, FreehandTexture,
+} from '../types/map'
+import type { Camera, Point } from '../pixi/world'
+import type { DrawingTool, Selection } from '../types/tools'
+import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
+import type { RoomCorner } from '../lib/roomOps'
+import type { Corner, ResizeModifiers } from '../lib/objectTransform'
+import type { StairSizePreset } from '../lib/stairs'
 import * as mapFactory from '../lib/mapFactory'
+// Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
+// `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
+// pixi/PixiCanvas.tsx).
+import { cloneEntity, type CloneableEntity, type Offset } from '../lib/entityClone'
 import { resolveTokenMove } from '../lib/collision'
-import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
+import { DEFAULT_TEXT_FONT_FAMILY, convertLineToCurve, convertCurveToLine } from '../lib/drawingFactory'
+import { moveAreaSelection } from '../lib/areaSelection'
+import { eraseFromDrawing } from '../lib/eraseGeometry'
+import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer } from '../lib/layers'
+// Onda 4, item 24 (Frente C) — modelo canônico de seleção. `selection` do
+// store deixa de ser `Selection | null` (um item) + `areaSelection` (campo
+// paralelo) e vira UM `SelectionSet` só — ver CONTRATO no topo de
+// selectionModel.ts.
+import {
+  EMPTY_SELECTION, selectionOfItem, selectionToAreaSelection, isSelectionEmpty,
+  type SelectionSet, type SelectionItem,
+} from '../lib/selectionModel'
+
+/**
+ * Deriva a LayerId da entidade atualmente selecionada, usando as mesmas
+ * funções `*Layer` de lib/layers.ts que render e hit-test já usam — nunca
+ * reimplementar a derivação aqui. `null` quando não há seleção do tipo
+ * coberto ou a entidade referenciada não existe mais no mapa. Usada só por
+ * `toggleLayerVisibility`, pra saber se precisa limpar a seleção ao ocultar
+ * a camada em que ela está.
+ */
+function layerForSelection(map: MapData, selection: Selection): LayerId | null {
+  switch (selection.kind) {
+    case 'wall': {
+      const wall = map.walls.find((w) => w.id === selection.id)
+      return wall ? wallLayer(wall) : null
+    }
+    case 'region': {
+      const region = map.regions.find((r) => r.id === selection.id)
+      return region ? regionLayer(region) : null
+    }
+    case 'light': {
+      const light = map.lights.find((l) => l.id === selection.id)
+      return light ? lightLayer(light) : null
+    }
+    case 'token': {
+      const token = map.tokens.find((t) => t.id === selection.id)
+      return token ? tokenLayer(token) : null
+    }
+    case 'prop': {
+      const prop = map.props.find((p) => p.id === selection.id)
+      return prop ? propLayer(prop) : null
+    }
+    case 'stair': {
+      const stair = map.stairs.find((s) => s.id === selection.id)
+      return stair ? stairLayer(stair) : null
+    }
+    case 'drawing': {
+      const drawing = map.drawings.find((d) => d.id === selection.id)
+      return drawing ? drawingLayer(drawing) : null
+    }
+    default:
+      return null
+  }
+}
+
+/**
+ * Onda 3, item 13 — localiza a entidade hoje selecionada e devolve o CLONE
+ * pronto (id novo, deslocado por `offset`), tipado de forma que `kind` e
+ * `entity` sempre casam entre si. `Selection.id` que não existe mais no mapa
+ * (janela de corrida) devolve `null`, sem clonar nada.
+ *
+ * Switch explícito sobre `selection.kind` (em vez de um `Record` genérico
+ * indexado por `selection.kind`) de propósito: um `Record<SelectionKind,
+ * () => Entity>` faz o TypeScript perder a correlação entre o `kind` e o tipo
+ * do `entity` devolvido — a única saída sem `as`/`!` seria estreitar caso a
+ * caso, que é exatamente o que este switch já faz.
+ */
+function cloneSelectedEntity(map: MapData, selection: Selection, offset: Offset): CloneableEntity | null {
+  switch (selection.kind) {
+    case 'wall': {
+      const entity = map.walls.find((w) => w.id === selection.id)
+      return entity ? cloneEntity({ kind: 'wall', entity }, offset) : null
+    }
+    case 'light': {
+      const entity = map.lights.find((l) => l.id === selection.id)
+      return entity ? cloneEntity({ kind: 'light', entity }, offset) : null
+    }
+    case 'region': {
+      const entity = map.regions.find((r) => r.id === selection.id)
+      return entity ? cloneEntity({ kind: 'region', entity }, offset) : null
+    }
+    case 'token': {
+      const entity = map.tokens.find((t) => t.id === selection.id)
+      return entity ? cloneEntity({ kind: 'token', entity }, offset) : null
+    }
+    case 'prop': {
+      const entity = map.props.find((p) => p.id === selection.id)
+      return entity ? cloneEntity({ kind: 'prop', entity }, offset) : null
+    }
+    case 'stair': {
+      const entity = map.stairs.find((s) => s.id === selection.id)
+      return entity ? cloneEntity({ kind: 'stair', entity }, offset) : null
+    }
+    case 'drawing': {
+      const entity = map.drawings.find((d) => d.id === selection.id)
+      return entity ? cloneEntity({ kind: 'drawing', entity }, offset) : null
+    }
+  }
+}
+
+/**
+ * Insere uma entidade já clonada (`cloneSelectedEntity`/`cloneEntity`) no
+ * array certo do `map` — despacho puro por `cloned.kind`, reusando os
+ * `mapFactory.addXxx` que já existem (mesmos usados por `addWall`/`addToken`/
+ * etc. abaixo), então a entidade clonada passa pela MESMA função de inserção
+ * que uma entidade nova desenhada na mão passaria.
+ */
+function addClonedEntity(map: MapData, cloned: CloneableEntity): MapData {
+  switch (cloned.kind) {
+    case 'wall': return mapFactory.addWall(map, cloned.entity)
+    case 'light': return mapFactory.addLight(map, cloned.entity)
+    case 'region': return mapFactory.addRegion(map, cloned.entity)
+    case 'token': return mapFactory.addToken(map, cloned.entity)
+    case 'prop': return mapFactory.addProp(map, cloned.entity)
+    case 'stair': return mapFactory.addStair(map, cloned.entity)
+    case 'drawing': return mapFactory.addDrawing(map, cloned.entity)
+  }
+}
 
 interface MapStoreState {
   map: MapData
   past: MapData[]
   future: MapData[]
   camera: Camera
-  selection: Selection | null
+  /**
+   * Onda 4, item 24 (migração do modelo de seleção) — conjunto CANÔNICO,
+   * substitui os dois campos que existiam até aqui: `selection: Selection |
+   * null` (um item, clique simples) e `areaSelection: AreaSelection | null`
+   * (grupo, marquee — paralelo e independente do primeiro). `SelectionSet`
+   * (lib/selectionModel.ts) representa os dois casos com a MESMA forma:
+   * `[]` = nada selecionado (nunca `null`), 1 item = clique simples, N itens
+   * = Shift+clique somando um a um OU marquee mesclado nela (ver
+   * `pixi/PixiCanvas.tsx`, único consumidor do gesto). Consumidor que só
+   * entende "um item" (drawEditHandles.ts, resolveHoverHit, drawRegions.ts —
+   * todos fora da minha lista de arquivos) recebe `selectionSingle(selection)`
+   * na borda, nunca o array cru.
+   */
+  selection: SelectionSet
   activeTool: DrawingTool
-  snapEnabled: boolean
+  /**
+   * Substituído por `snapTargets` (Fase 1) — 3 toggles independentes por
+   * tipo de entidade (token/wall/prop), no lugar de 1 booleano só. Ver
+   * `setSnapEnabled` abaixo pro atalho de compatibilidade.
+   */
+  snapTargets: SnapTargets
   drawColor: string
   drawWidth: number
   drawFilled: boolean
+  /** Opacidade de preenchimento (0–1) usada ao criar a PRÓXIMA forma
+   *  preenchível (circle/rect/ellipse/polygon) — preferência de sessão,
+   *  mesma classe de `drawFilled`. Não confundir com `setDrawingFillAlpha`,
+   *  que edita uma forma já existente e selecionada. */
+  drawFillAlpha: number
   drawFontSize: number
   drawFontFamily: string
   polygonSides: number
+  /** Classificação (interior/exterior) da PRÓXIMA parede a desenhar —
+   *  preferência de ferramenta, mesma classe de `polygonSides`. `undefined`
+   *  === exterior (default, aparência idêntica à de antes desta fase). */
+  wallKind: Wall['wallKind']
+  /** Espessura (fina/média/grossa) da PRÓXIMA parede a desenhar — Fase 6,
+   *  preferência de ferramenta, mesma classe de `wallKind`. EIXO SEPARADO:
+   *  ver `Wall.thickness` (types/map.ts). `undefined` === 'medium'. */
+  wallThickness: Wall['thickness']
+  /** Ponta/canto (reto/arredondado) da PRÓXIMA parede a desenhar — Fase 6,
+   *  preferência de ferramenta, mesma classe de `wallKind`. `undefined`
+   *  === 'round'. Ver `Wall.lineStyle` (types/map.ts). */
+  wallLineStyle: Wall['lineStyle']
+  setWallThickness: (thickness: NonNullable<Wall['thickness']>) => void
+  setWallLineStyle: (lineStyle: NonNullable<Wall['lineStyle']>) => void
+  /** Troca `thickness`/`lineStyle` de uma Parede JÁ EXISTENTE e selecionada —
+   *  espelho exato de `setWallKindForWall`. Com histórico. */
+  setWallThicknessForWall: (id: string, thickness: Wall['thickness']) => void
+  setWallLineStyleForWall: (id: string, lineStyle: Wall['lineStyle']) => void
+  /** Tipo estrutural (`normal | double | gate`) da PRÓXIMA porta a nascer
+   *  pela ferramenta "Porta" (`addDoorOnWall`) — preferência de ferramenta,
+   *  mesma classe de `wallKind`/`polygonSides`. Não confundir com
+   *  `setWallDoorKind`, que edita uma porta JÁ CRIADA e selecionada. */
+  doorKind: DoorKind
+  /** Ponta do traço (N2/B2, "ponta da linha") da PRÓXIMA forma com traço
+   *  (brush/line/curve) — preferência de ferramenta, mesma classe de
+   *  `wallKind`/`doorKind`. Não confundir com `setDrawingCap`, que edita uma
+   *  linha/pincel/curva JÁ CRIADA e selecionada. */
+  drawCap: DrawingCap
+  setDrawCap: (cap: DrawingCap) => void
+  /** Textura do PRÓXIMO traço livre (N1, "pincel: caneta/lápis/marcador",
+   *  Fase 4) — preferência de ferramenta, mesma classe de `drawCap`. */
+  drawTexture: FreehandTexture
+  setDrawTexture: (texture: FreehandTexture) => void
+  /** Edita a textura de um freehand JÁ CRIADO e selecionado. Guarda por
+   *  `d.kind` (não `'texture' in d`), mesmo motivo de `setDrawingCap`: campo
+   *  opcional pode não existir como chave ainda num Drawing recém-criado sem
+   *  a preferência `drawTexture`. */
+  setDrawingTexture: (id: string, texture: FreehandTexture) => void
+  /** Preset nomeado (P/M/G) da PRÓXIMA escada (N1, Fase 4) — preferência de
+   *  sessão, mesma classe de `polygonSides`. Guarda o PRESET, não o
+   *  `stepWidth` absoluto: assim o valor em px se ajusta ao `map.grid` do
+   *  mapa aberto no momento da criação, em vez de travar num número que só
+   *  faria sentido no grid em que foi escolhido. */
+  stairSizePreset: StairSizePreset
+  setStairSizePreset: (preset: StairSizePreset) => void
+  /** Troca `stepWidth` de uma escada JÁ CRIADA e selecionada. Com histórico —
+   *  mesmo padrão de `setStairDirection`. */
+  setStairStepWidthForStair: (id: string, stepWidth: number) => void
+  /** Preferência de sessão da ferramenta Borracha (N1, "apagar parte ou
+   *  objeto todo", Fase 4) — SEM histórico, mesma classe de `wallKind`.
+   *  'objeto' (default) preserva o comportamento de hoje: `eraseAt`
+   *  (PixiCanvas.tsx) remove a entidade inteira. */
+  eraseMode: 'objeto' | 'parte'
+  setEraseMode: (mode: 'objeto' | 'parte') => void
+  /** Recorta um Drawing freehand/curve/line pela parte dentro do círculo
+   *  (center, radius) — COM histórico, 0 a N `Drawing` novos (ver
+   *  `eraseFromDrawing`, lib/eraseGeometry.ts). Sem efeito (nenhuma entrada
+   *  de histórico) quando o círculo não toca o traço — `eraseFromDrawing`
+   *  devolve a MESMA referência nesse caso. Kinds sem recorte possível
+   *  (formas fechadas/texto) são decididos por `eraseDecisionForX` direto em
+   *  PixiCanvas.tsx, reusando os removers já existentes (removeWall etc.) —
+   *  não há ação de store equivalente pra eles, decisão binária não precisa
+   *  de uma. */
+  erasePartOfDrawing: (drawingId: string, center: Point, radius: number) => void
   setDrawColor: (color: string) => void
   setDrawWidth: (width: number) => void
   setDrawFilled: (filled: boolean) => void
+  setDrawFillAlpha: (fillAlpha: number) => void
   setDrawFontSize: (size: number) => void
   setDrawFontFamily: (fontFamily: string) => void
   setPolygonSides: (sides: number) => void
+  setWallKind: (kind: NonNullable<Wall['wallKind']>) => void
+  setDoorKind: (kind: DoorKind) => void
   addDrawing: (drawing: Drawing) => void
   removeDrawing: (id: string) => void
   setCamera: (camera: Camera) => void
-  setSelection: (selection: Selection | null) => void
+  /** Substitui o conjunto inteiro — clique simples (`selectionOfItem`),
+   *  Shift+clique (`toggleSelectionItem`) ou limpar (`EMPTY_SELECTION`),
+   *  sempre decididos no CHAMADOR (pixi/PixiCanvas.tsx); o store só grava. */
+  setSelection: (selection: SelectionSet) => void
+  /** Onda 4, item 24 — apaga TODOS os itens do conjunto (não só um), numa
+   *  única entrada de histórico. Sem efeito se a seleção estiver vazia. */
   removeSelected: () => void
+  /**
+   * Onda 3, item 13 (Ctrl+D) — clona TODOS os itens da seleção (Onda 4, item
+   * 24: "operações passam a valer para o conjunto inteiro"), cada um
+   * deslocado por `map.grid` em X e Y (um quadrado abaixo e à direita —
+   * permite apertar Ctrl+D várias vezes seguidas e ver a fileira de cópias
+   * se afastando, sem empilhar exatamente em cima do original), insere no
+   * mapa e SELECIONA o conjunto de cópias. Com histórico (1 entrada —
+   * inserção e deslocamento de todo o conjunto juntos). Sem efeito se não há
+   * seleção; item cujo id não existe mais no mapa é pulado, sem quebrar os
+   * outros.
+   */
+  duplicateSelected: () => void
+  /**
+   * Par de `duplicateSelected`, para o Alt+arrastar (`pixi/PixiCanvas.tsx`):
+   * insere uma entidade JÁ CLONADA (offset {0,0} — nasce exatamente sobre o
+   * original) e seleciona-a, SEM HISTÓRICO — o gesto de arrasto que já está
+   * em andamento fecha com `commitDragHistory(snapshotDeAntesDoClone)` no
+   * pointerup, então "clonar" + "arrastar até a posição final" viram UMA
+   * entrada de undo só, não duas.
+   */
+  insertClonedEntityLive: (cloned: CloneableEntity) => void
   setActiveTool: (tool: DrawingTool) => void
+  setSnapTarget: (kind: SnapTargetKind, on: boolean) => void
+  /**
+   * Compat: aplica o mesmo booleano aos 3 `snapTargets` de uma vez. Mantida
+   * só porque `client/e2e/task-ctrl-reto.spec.ts`, `task-vertex-magnet.spec.ts`
+   * e `task4-drawing-tools.spec.ts` chamam esta action direto pela store —
+   * nenhuma UI nova a usa (GridControls fala só `snapTargets`/`setSnapTarget`).
+   */
   setSnapEnabled: (enabled: boolean) => void
   addWall: (wall: Wall) => void
   removeWall: (id: string) => void
   addLight: (light: Light) => void
   removeLight: (id: string) => void
+  updateLight: (id: string, patch: Partial<Light>) => void
+  /**
+   * Variante "live" de updateLight, restrita ao raio: aplica no `map` SEM
+   * empurrar pra `past` — pensada pro pointermove do arrasto da alça de raio
+   * (drawEditHandles.ts). Par de commitDragHistory no pointerup, mesmo
+   * padrão de updateCurvePointLive/moveCurveLive abaixo.
+   */
+  updateLightRadiusLive: (id: string, radius: number) => void
   addRegion: (region: Region) => void
   removeRegion: (id: string) => void
   addRoom: (region: Region, walls: Wall[]) => void
@@ -55,18 +315,125 @@ interface MapStoreState {
   regionFillPattern: Region['fillPattern']
   setRegionFillPattern: (pattern: Region['fillPattern']) => void
   setRegionPattern: (id: string, pattern: Region['fillPattern']) => void
+  /** Espessura do contorno (px de mundo) da PRÓXIMA região/sala — Fase 6,
+   *  preferência de ferramenta, mesma classe de `regionFillPattern`. Ver
+   *  `Region.strokeWidth` (types/map.ts, `undefined` === 2). Preferência
+   *  sempre nasce com valor concreto (2), não `undefined`, mesma convenção
+   *  de `regionFillPattern` acima. */
+  regionStrokeWidth: number
+  setRegionStrokeWidth: (strokeWidth: number) => void
+  /** Troca `strokeWidth` de uma Região JÁ EXISTENTE e selecionada. Com
+   *  histórico — mesmo padrão de `setRegionPattern`. */
+  setRegionStrokeWidthForRegion: (id: string, strokeWidth: number) => void
+  /** Junção do vértice do contorno da PRÓXIMA região/sala — Fase 6,
+   *  mesma classe de `regionStrokeWidth`. Ver `Region.strokeJoin`
+   *  (types/map.ts, `undefined` === 'miter'). */
+  regionStrokeJoin: 'round' | 'miter'
+  setRegionStrokeJoin: (strokeJoin: 'round' | 'miter') => void
+  setRegionStrokeJoinForRegion: (id: string, strokeJoin: 'round' | 'miter') => void
+  /** "Tirar o fundo" (N2) da PRÓXIMA região/sala — preferência de ferramenta,
+   *  mesma classe de `regionFillPattern`. Não confundir com `setRegionFilled`,
+   *  que edita uma região JÁ CRIADA e selecionada. `Region.filled` (types/map.ts)
+   *  é `undefined === true`; esta preferência já nasce `true` pelo mesmo motivo. */
+  regionFillEnabled: boolean
+  setRegionFillEnabled: (enabled: boolean) => void
+  setRegionFilled: (id: string, filled: boolean) => void
   addToken: (token: Token) => void
   removeToken: (id: string) => void
   setTokenPosition: (id: string, x: number, y: number) => void
   moveToken: (id: string, targetX: number, targetY: number) => void
+  setTokenImage: (id: string, image: string | null) => void
+  /**
+   * Patch de rotação/travar/ocultar de um Token JÁ EXISTENTE (F3, contrato do
+   * agente C4 — `ItemTransformControls`). Mesmo padrão inline de `updateLight`
+   * acima: sem função em mapFactory.ts porque o patch é reuso direto de
+   * `Partial<Pick<...>>`, sem lógica além do merge. Com histórico — rotação/
+   * travar/ocultar mudam CONTEÚDO do mapa, não preferência de sessão.
+   */
+  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden'>>) => void
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
+  /** Mesmo contrato de `updateToken`, para Prop. */
+  updateProp: (id: string, patch: Partial<Pick<Prop, 'rotation' | 'locked' | 'hidden'>>) => void
   setShowGrid: (show: boolean) => void
   setGridShape: (shape: MapData['gridShape']) => void
+  setGridSettings: (patch: Partial<GridSettings>) => void
+  /**
+   * Substitui `MapData.gridOffset` inteiro (F3, contrato do agente C5 —
+   * "alinhar grade à imagem de fundo", `lib/gridAlign.ts` +
+   * `GridAlignControls.tsx`). Commitado a cada mudança do campo numérico de
+   * deslocamento — sem variante "live", porque não é gesto de arrasto
+   * contínuo (input numérico, não pointermove).
+   */
+  setGridOffset: (offset: Point) => void
+  /** Substitui `MapData.grid` (tamanho de célula) — par de `setGridOffset`
+   *  no botão "Aplicar" de `GridAlignControls` (as duas juntas, 2 entradas de
+   *  undo). Ver `mapFactory.setGridCellSize`. */
+  setGridCellSize: (cellSize: number) => void
   setBackground: (background: MapData['background']) => void
+  /** Esconde/mostra uma camada inteira (LayerId, 9 valores — types/map.ts).
+   *  Se o item hoje selecionado pertence à camada que está sendo OCULTADA
+   *  (não ao mostrá-la de novo), a seleção é limpa junto — evita continuar
+   *  "editando" algo que sumiu da tela. */
+  toggleLayerVisibility: (id: LayerId) => void
+  /** Onda 4, Frente D (camadas) — trava/destrava uma LayerId inteira. Mesmo
+   *  cuidado de `toggleLayerVisibility`: se o item hoje selecionado pertence
+   *  à camada que está sendo TRAVADA (não ao destravar), a seleção é limpa
+   *  junto — evita continuar "editando" algo que a UI não deixa mais mover. */
+  toggleLayerLock: (id: LayerId) => void
+  setPropLayer: (id: string, layer: Prop['layer']) => void
   setWallDoor: (id: string, door: DoorState | null) => void
-  addDoorOnWall: (wallId: string, point: { x: number; y: number }, doorLength: number) => void
+  setWallKindForWall: (id: string, kind: Wall['wallKind']) => void
+  /** `kind` decide tanto `door.kind` da porta nova quanto o comprimento do
+   *  vão (`DOOR_LENGTH_BY_KIND[kind]`, calculado aqui no store antes de
+   *  chamar mapFactory) — o chamador (PixiCanvas) passa a preferência atual
+   *  `doorKind`, não mais um `doorLength` literal. */
+  addDoorOnWall: (wallId: string, point: { x: number; y: number }, kind: DoorKind) => void
+  /** Troca o tipo estrutural de uma porta JÁ CRIADA e redimensiona o vão pra
+   *  `DOOR_LENGTH_BY_KIND[kind]`, centrado no meio do vão atual (ver
+   *  mapFactory.setWallDoorKind). Com histórico. */
+  setWallDoorKind: (wallId: string, kind: DoorKind) => void
+  /** Alterna `DoorState.locked` de uma porta já criada. Com histórico. */
+  setDoorLocked: (wallId: string, locked: boolean) => void
+  addStair: (stair: Stair) => void
+  removeStair: (id: string) => void
+  moveStair: (id: string, dx: number, dy: number) => void
+  updateStairPoint: (stairId: string, segmentIndex: number, endpoint: 0 | 1, x: number, y: number) => void
+  setStairDirection: (id: string, direction: StairDirection) => void
+  setRoomName: (id: string, name: string) => void
+  resizeRoomDimensions: (id: string, wPx: number, hPx: number) => void
+  /** Variante "live" do resize por canto — SEM histórico, aplica direto no
+   *  `map` a cada pointermove do arrasto. Par de `commitDragHistory(before)`
+   *  no pointerup, mesmo padrão de `updateLightRadiusLive`. */
+  resizeRoomCornerLive: (id: string, corner: RoomCorner, x: number, y: number) => void
+  /**
+   * Variantes "live" de resize por canto (B3, bug3 "mover e redimensionar"),
+   * para os kinds que não tinham resize algum antes desta fase: Drawing
+   * rect/ellipse/polygon e Prop — SEM histórico, par de `commitDragHistory`
+   * no pointerup, mesmo padrão de `resizeRoomCornerLive` acima. Geometria em
+   * `lib/objectTransform.ts` (agente B3); esta ação só aplica no `map`.
+   */
+  /** `modifiers` (Onda 3, item 17): Shift preserva a proporção original,
+   *  Alt redimensiona a partir do centro — ver `lib/objectTransform.ts`. */
+  resizeDrawingCornerLive: (drawingId: string, corner: Corner, x: number, y: number, modifiers: ResizeModifiers) => void
+  resizePropCornerLive: (propId: string, corner: Corner, x: number, y: number, modifiers: ResizeModifiers) => void
+  /**
+   * Onda 3, item 18 — variante "live" do raio de um Drawing 'circle' (alça
+   * de raio nova, `pixi/drawEditHandles.ts`), mesmo padrão SEM histórico de
+   * `updateLightRadiusLive`. Par de `commitDragHistory` no pointerup.
+   */
+  resizeCircleDrawingRadiusLive: (drawingId: string, x: number, y: number) => void
+  /**
+   * Patch "live" (sem histórico) de Token, restrito a `size` — par do resize
+   * por canto de Token (B3): Token é sempre círculo centrado em (x,y), então
+   * redimensionar por canto só muda o multiplicador `size`, nunca posição.
+   * Mesmo padrão inline de `updateLightRadiusLive`/`updateToken` acima: sem
+   * função em mapFactory.ts porque é merge direto, sem lógica adicional.
+   */
+  updateTokenLive: (id: string, patch: Partial<Pick<Token, 'size'>>) => void
+  setMapScale: (scale: MapScale) => void
+  setMeasurementMode: (mode: MeasurementMode) => void
   setScenarioLink: (value: string | null) => void
   setPropLinkedPath: (id: string, path: string | null) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
@@ -95,8 +462,87 @@ interface MapStoreState {
   commitDragHistory: (before: MapData) => void
   updateLinePoint: (drawingId: string, endpoint: 0 | 1, x: number, y: number) => void
   moveDrawing: (drawingId: string, dx: number, dy: number) => void
+  /**
+   * Variantes "live" de mover corpo (onda 1, item 3 do PLANO-REFINAMENTO.md)
+   * — mesma assinatura de moveToken/moveProp/moveWall/moveRegion/moveStair/
+   * moveDrawing, SEM histórico, para o pointermove do arrasto em
+   * pixi/PixiCanvas.tsx. Par de commitDragHistory no pointerup/
+   * pointerupoutside, mesmo padrão de updateCurvePointLive/moveCurveLive.
+   */
+  moveTokenLive: (id: string, targetX: number, targetY: number) => void
+  movePropLive: (id: string, x: number, y: number) => void
+  moveWallLive: (wallId: string, dx: number, dy: number) => void
+  moveRegionLive: (regionId: string, dx: number, dy: number) => void
+  moveStairLive: (id: string, dx: number, dy: number) => void
+  moveDrawingLive: (drawingId: string, dx: number, dy: number) => void
+  /**
+   * Variantes "live" dos 3 sliders de propriedade (onda 1, item 4) — par de
+   * commitDragHistory no fim do gesto (pointerup do arrasto no canvas, ou
+   * debounce de inatividade no slider de App.tsx — ver comentário no
+   * respectivo call site em App.tsx sobre por que não é pointerup real ali).
+   */
+  updateLightIntensityLive: (id: string, intensity: number) => void
+  setDrawingFillAlphaLive: (id: string, fillAlpha: number) => void
+  setRegionStrokeWidthForRegionLive: (id: string, strokeWidth: number) => void
+  /**
+   * Variante "live" de mover o CONJUNTO inteiro: aplica `lib/areaSelection.ts`
+   * → `moveAreaSelection` (via `selectionToAreaSelection(selection)`) no
+   * `map` SEM empurrar pra `past` — pointermove do arrasto do grupo (`mode
+   * === 'dragging-area-selection'`, disparado só quando `selection.length >
+   * 1`, ver PixiCanvas.tsx). Par de `commitDragHistory(before)` no
+   * pointerup, mesmo padrão de `moveCurveLive`/`resizeRoomCornerLive`. Sem
+   * efeito (`{}`) se a seleção estiver vazia.
+   */
+  moveSelectionLive: (dx: number, dy: number) => void
+  /**
+   * Variante COM histórico de mover o conjunto inteiro por delta fixo — usada
+   * pelo nudge por seta (Onda 1, item 7): cada tecla é UMA entrada de undo,
+   * não um gesto contínuo, então não passa por `moveSelectionLive`. Reusa a
+   * MESMA `moveAreaSelection` (7 kinds, já resolve o caso Região+Parede
+   * vinculada sem somar o delta 2×) — sem efeito se a seleção estiver vazia,
+   * ou se nada de fato mudar (todo item travado, por exemplo).
+   */
+  moveSelectionBy: (dx: number, dy: number) => void
   updateTextLabel: (id: string, patch: Partial<{ text: string; color: string; fontSize: number }>) => void
   setTextFontFamily: (id: string, fontFamily: string) => void
+  /**
+   * Edita fillAlpha/filled de uma forma JÁ CRIADA e selecionada (circle/rect/
+   * ellipse/polygon). Sem efeito quando o id não existe ou é de um kind sem
+   * esse campo (freehand/line/curve/text) — narrowing via `'fillAlpha' in d`
+   * / `'filled' in d`, que o TypeScript resolve sobre a união `Drawing`.
+   */
+  setDrawingFillAlpha: (id: string, fillAlpha: number) => void
+  setDrawingFilled: (id: string, filled: boolean) => void
+  /**
+   * Edita `cap` de um Drawing line/freehand/curve JÁ CRIADO e selecionado
+   * (N2/B2, "ponta da linha"). Guarda por `d.kind` (não `'cap' in d`, ao
+   * contrário de `setDrawingFilled`/`setDrawingFillAlpha` acima) porque `cap`
+   * é campo OPCIONAL — pode não existir como chave ainda num Drawing recém-
+   * criado sem a preferência `drawCap` — então `'cap' in d` daria falso
+   * negativo bem antes de dar falso positivo. Sem efeito em rect/ellipse/
+   * polygon/circle/text (kinds sem `cap` no schema).
+   */
+  setDrawingCap: (id: string, cap: DrawingCap) => void
+  /**
+   * Leitura B do pedido do usuário (B2, "dobrar a linha"): converte um
+   * Drawing `kind:'line'` selecionado em `kind:'curve'`, preservando
+   * id/cor/espessura/cap (`lib/drawingFactory.ts` → `convertLineToCurve`).
+   * A partir daí, todo o mecanismo de edição de Curva já existente (midpoint
+   * vazado, inserir/arrastar ponto de controle) passa a servir a entidade
+   * convertida, sem código extra. No-op (mesma referência) se o id não
+   * existir ou não for `line` — a função pura já garante isso, aqui só
+   * decide se entra no histórico.
+   */
+  convertDrawingToCurve: (id: string) => void
+  /**
+   * Sentido inverso (F4, contrato do Agente B — "trecho pra colar item 2"):
+   * converte um Drawing `kind:'curve'` de EXATAMENTE 2 pontos de controle de
+   * volta para `kind:'line'`, preservando id/cor/espessura/cap
+   * (`lib/drawingFactory.ts` → `convertCurveToLine`). No-op (mesma
+   * referência) se a curve tiver 3+ pontos (perderia os pontos
+   * intermediários — `convertCurveToLine` recusa) ou o id não for curve.
+   */
+  convertDrawingToLine: (id: string) => void
   loadMap: (map: MapData) => void
   undo: () => void
   redo: () => void
@@ -106,28 +552,56 @@ const initialMap = mapFactory.createEmptyMap('map_local', 'Mapa sem título', 30
 
 /**
  * Comprimento padrão (px de mundo) do vão que a ferramenta "Porta" abre ao
- * clicar em cima de uma parede — metade do tamanho de célula default do grid
- * (64px, ver createEmptyMap acima). Suficiente pra ler como vão de porta na
- * escala usual do grid, sem exigir um arrasto do usuário pra definir tamanho
- * (a ferramenta é de clique único, ver PixiCanvas.tsx).
+ * clicar em cima de uma parede, por `DoorKind` — antes desta fase era um
+ * único literal (`DOOR_LENGTH = 32`, hoje só o caso `normal`). `double`/`gate`
+ * pedem vão mais largo pra ler como porta dupla/portão na escala usual do
+ * grid (64px, ver createEmptyMap acima). Usado tanto por `addDoorOnWall`
+ * (porta nova) quanto por `setWallDoorKind` (porta existente trocando de
+ * tipo) — ambos calculam o comprimento aqui e passam o número pronto pra
+ * mapFactory, que não conhece esta tabela (mesma separação de
+ * responsabilidade de `wallKind`/`buildWallFromDraft`).
  */
-export const DOOR_LENGTH = 32
+export const DOOR_LENGTH_BY_KIND: Record<DoorKind, number> = { normal: 32, double: 64, gate: 96 }
+
+/**
+ * Onda 3, item 20 (Frente D) — cap do histórico de undo/redo. `past` guarda a
+ * REFERÊNCIA do `map` anterior a cada ação (nunca `structuredClone`), sem
+ * limite algum antes desta mudança: numa sessão longa (app desktop Tauri,
+ * fica aberto por horas) isso é vazamento de memória de verdade, não
+ * estética. Justificativa completa do número 50 (medição sobre
+ * `lib/__fixtures__/legacy-map.json`, um mapa real, e projeção pra "mapa
+ * grande") em `stores/historyCap.test.ts:1-38` — não repetida aqui pra não
+ * ter duas fontes de verdade sobre a mesma conta.
+ */
+const HISTORY_CAP = 50
+
+/**
+ * Empurra `entry` no topo de `past`, descartando a entrada MAIS ANTIGA
+ * quando o cap estoura — nunca a mais recente. Compartilhada pelos dois
+ * pontos de push (`withHistory` e `commitDragHistory`) pra não divergir —
+ * `stores/historyCap.test.ts` cobre os dois.
+ */
+function pushPast(past: MapData[], entry: MapData): MapData[] {
+  const next = [...past, entry]
+  return next.length > HISTORY_CAP ? next.slice(next.length - HISTORY_CAP) : next
+}
 
 export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, get) => {
   /**
    * Toda action que muda conteúdo do mapa (não estado de UI/ferramenta como
-   * activeTool/camera/selection/snapEnabled) passa por aqui: empurra o `map`
+   * activeTool/camera/selection/snapTargets) passa por aqui: empurra o `map`
    * atual pro topo de `past` antes de aplicar `updater`, e zera `future` —
    * qualquer redo pendente é descartado assim que uma ação nova acontece.
    * Os mapas nunca são mutados in-place (sempre spread novo), então guardar a
    * referência antiga em `past` já basta como snapshot, sem precisar de
-   * `structuredClone`.
+   * `structuredClone`. `pushPast` (acima) poda a entrada mais antiga quando
+   * `past` estoura `HISTORY_CAP`.
    */
   const withHistory = (updater: (map: MapData) => MapData) => {
     const prevMap = get().map
     set((state) => ({
       map: updater(prevMap),
-      past: [...state.past, prevMap],
+      past: pushPast(state.past, prevMap),
       future: [],
     }))
   }
@@ -137,45 +611,126 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     past: [],
     future: [],
     camera: { x: 0, y: 0, scale: 1 },
-    selection: null,
+    selection: EMPTY_SELECTION,
     activeTool: 'select',
-    snapEnabled: false,
+    snapTargets: { token: false, wall: false, prop: false },
     drawColor: '#ffffff',
     drawWidth: 4,
     drawFilled: false,
+    drawFillAlpha: 0.5,
     drawFontSize: 16,
     drawFontFamily: DEFAULT_TEXT_FONT_FAMILY,
     polygonSides: 6,
+    wallKind: undefined,
+    wallThickness: undefined,
+    wallLineStyle: undefined,
+    doorKind: 'normal',
+    drawCap: 'round',
+    drawTexture: 'pen',
+    stairSizePreset: 'medium',
+    eraseMode: 'objeto',
     regionFillColor: '#3a7ad0',
     regionFillPattern: 'solid',
+    regionFillEnabled: true,
+    regionStrokeWidth: 2,
+    regionStrokeJoin: 'miter',
     setCamera: (camera) => set({ camera }),
     setSelection: (selection) => set({ selection }),
     removeSelected: () => {
       const { selection } = get()
-      if (!selection) return
-      const removers: Record<SelectionKind, (id: string) => void> = {
-        token: get().removeToken,
-        wall: get().removeWall,
-        light: get().removeLight,
-        region: get().removeRegion,
-        prop: get().removeProp,
-        drawing: get().removeDrawing,
-      }
-      removers[selection.kind](selection.id)
-      set({ selection: null })
+      if (isSelectionEmpty(selection)) return
+      // Um `withHistory` só para o conjunto inteiro (1 entrada de undo pro
+      // Delete todo, não N) — despacho por `item.kind` reusa mapFactory
+      // direto (mesmas funções que os removers de 1 item já chamam por
+      // baixo), sem passar pelas actions com histórico próprio.
+      withHistory((map) => {
+        let next = map
+        for (const item of selection) {
+          switch (item.kind) {
+            case 'token': next = mapFactory.removeToken(next, item.id); break
+            case 'wall': next = mapFactory.removeWall(next, item.id); break
+            case 'light': next = mapFactory.removeLight(next, item.id); break
+            case 'region': next = mapFactory.removeRegion(next, item.id); break
+            case 'stair': next = mapFactory.removeStair(next, item.id); break
+            case 'prop': next = mapFactory.removeProp(next, item.id); break
+            case 'drawing': next = mapFactory.removeDrawing(next, item.id); break
+          }
+        }
+        return next
+      })
+      set({ selection: EMPTY_SELECTION })
     },
+    duplicateSelected: () => {
+      const { map, selection } = get()
+      if (isSelectionEmpty(selection)) return
+      const offset = { dx: map.grid, dy: map.grid }
+      const clonedItems: SelectionItem[] = []
+      withHistory((m) => {
+        let next = m
+        for (const item of selection) {
+          const cloned = cloneSelectedEntity(next, item, offset)
+          if (!cloned) continue
+          next = addClonedEntity(next, cloned)
+          clonedItems.push({ kind: cloned.kind, id: cloned.entity.id })
+        }
+        return next
+      })
+      // Nenhum item existia mais no mapa (janela de corrida): mantém a
+      // seleção antiga em vez de trocar por um conjunto vazio.
+      if (clonedItems.length > 0) set({ selection: clonedItems })
+    },
+    insertClonedEntityLive: (cloned) => set((state) => ({
+      map: addClonedEntity(state.map, cloned),
+      selection: selectionOfItem({ kind: cloned.kind, id: cloned.entity.id }),
+    })),
     setActiveTool: (tool) => set({ activeTool: tool }),
-    setSnapEnabled: (enabled) => set({ snapEnabled: enabled }),
+    setSnapTarget: (kind, on) => set((state) => ({ snapTargets: { ...state.snapTargets, [kind]: on } })),
+    setSnapEnabled: (enabled) => set({ snapTargets: { token: enabled, wall: enabled, prop: enabled } }),
     setDrawColor: (color) => set({ drawColor: color }),
     setDrawWidth: (width) => set({ drawWidth: width }),
     setDrawFilled: (filled) => set({ drawFilled: filled }),
+    setDrawFillAlpha: (fillAlpha) => set({ drawFillAlpha: fillAlpha }),
     setDrawFontSize: (size) => set({ drawFontSize: size }),
     setDrawFontFamily: (fontFamily) => set({ drawFontFamily: fontFamily }),
     setPolygonSides: (sides) => set({ polygonSides: sides }),
+    setWallKind: (kind) => set({ wallKind: kind }),
+    setWallThickness: (thickness) => set({ wallThickness: thickness }),
+    setWallLineStyle: (lineStyle) => set({ wallLineStyle: lineStyle }),
+    setDoorKind: (kind) => set({ doorKind: kind }),
+    setDrawCap: (cap) => set({ drawCap: cap }),
+    setDrawTexture: (texture) => set({ drawTexture: texture }),
+    setDrawingTexture: (id, texture) => withHistory((map) => ({
+      ...map,
+      drawings: map.drawings.map((d) => (d.id === id && d.kind === 'freehand' ? { ...d, texture } : d)),
+    })),
+    setStairSizePreset: (preset) => set({ stairSizePreset: preset }),
+    setStairStepWidthForStair: (id, stepWidth) => withHistory((map) => mapFactory.setStairStepWidth(map, id, stepWidth)),
+    setEraseMode: (mode) => set({ eraseMode: mode }),
+    erasePartOfDrawing: (drawingId, center, radius) => {
+      const { map } = get()
+      const drawing = map.drawings.find((d) => d.id === drawingId)
+      if (!drawing) return
+      const replacements = eraseFromDrawing(drawing, center, radius)
+      // Círculo não tocou o traço — eraseFromDrawing devolve a MESMA
+      // referência nesse caso (ver eraseGeometry.ts) — não gera entrada de
+      // histórico à toa.
+      if (replacements.length === 1 && replacements[0] === drawing) return
+      withHistory((m) => mapFactory.replaceDrawingWithMany(m, drawingId, replacements))
+    },
     addWall: (wall) => withHistory((map) => mapFactory.addWall(map, wall)),
     removeWall: (id) => withHistory((map) => mapFactory.removeWall(map, id)),
     addLight: (light) => withHistory((map) => mapFactory.addLight(map, light)),
     removeLight: (id) => withHistory((map) => mapFactory.removeLight(map, id)),
+    updateLight: (id, patch) => withHistory((map) => ({
+      ...map,
+      lights: map.lights.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+    })),
+    updateLightRadiusLive: (id, radius) => set((state) => ({
+      map: {
+        ...state.map,
+        lights: state.map.lights.map((l) => (l.id === id ? { ...l, radius } : l)),
+      },
+    })),
     addRegion: (region) => withHistory((map) => mapFactory.addRegion(map, region)),
     removeRegion: (id) => withHistory((map) => mapFactory.removeRegion(map, id)),
     addRoom: (region, walls) => withHistory((map) => mapFactory.addRoom(map, region, walls)),
@@ -217,6 +772,21 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       ...map,
       regions: map.regions.map((r) => (r.id === id ? { ...r, fillPattern: pattern } : r)),
     })),
+    setRegionStrokeWidth: (strokeWidth) => set({ regionStrokeWidth: strokeWidth }),
+    setRegionStrokeWidthForRegion: (id, strokeWidth) => withHistory((map) => ({
+      ...map,
+      regions: map.regions.map((r) => (r.id === id ? { ...r, strokeWidth } : r)),
+    })),
+    setRegionStrokeJoin: (strokeJoin) => set({ regionStrokeJoin: strokeJoin }),
+    setRegionStrokeJoinForRegion: (id, strokeJoin) => withHistory((map) => ({
+      ...map,
+      regions: map.regions.map((r) => (r.id === id ? { ...r, strokeJoin } : r)),
+    })),
+    setRegionFillEnabled: (enabled) => set({ regionFillEnabled: enabled }),
+    setRegionFilled: (id, filled) => withHistory((map) => ({
+      ...map,
+      regions: map.regions.map((r) => (r.id === id ? { ...r, filled } : r)),
+    })),
     addToken: (token) => withHistory((map) => mapFactory.addToken(map, token)),
     removeToken: (id) => withHistory((map) => mapFactory.removeToken(map, id)),
     setTokenPosition: (id, x, y) => withHistory((map) => mapFactory.setTokenPosition(map, id, x, y)),
@@ -227,16 +797,86 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const resolved = resolveTokenMove({ x: token.x, y: token.y }, { x: targetX, y: targetY }, map.walls)
       withHistory((m) => mapFactory.setTokenPosition(m, id, resolved.x, resolved.y))
     },
+    setTokenImage: (id, image) => withHistory((map) => mapFactory.setTokenImage(map, id, image)),
+    updateToken: (id, patch) => withHistory((map) => ({
+      ...map,
+      tokens: map.tokens.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    })),
     addProp: (prop) => withHistory((map) => mapFactory.addProp(map, prop)),
     removeProp: (id) => withHistory((map) => mapFactory.removeProp(map, id)),
     moveProp: (id, x, y) => withHistory((map) => mapFactory.setPropPosition(map, id, x, y)),
+    updateProp: (id, patch) => withHistory((map) => ({
+      ...map,
+      props: map.props.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    })),
     addDrawing: (drawing) => withHistory((map) => mapFactory.addDrawing(map, drawing)),
     removeDrawing: (id) => withHistory((map) => mapFactory.removeDrawing(map, id)),
     setShowGrid: (show) => withHistory((map) => mapFactory.setShowGrid(map, show)),
     setGridShape: (shape) => withHistory((map) => mapFactory.setGridShape(map, shape)),
+    setGridSettings: (patch) => withHistory((map) => mapFactory.setGridSettings(map, patch)),
+    setGridOffset: (offset) => withHistory((map) => mapFactory.setGridOffset(map, offset)),
+    setGridCellSize: (cellSize) => withHistory((map) => mapFactory.setGridCellSize(map, cellSize)),
     setBackground: (background) => withHistory((map) => mapFactory.setBackground(map, background)),
+    toggleLayerVisibility: (id) => {
+      const { map, selection } = get()
+      const isHiding = !map.hiddenLayers.includes(id)
+      withHistory((m) => mapFactory.toggleLayerVisibility(m, id))
+      // Onda 4, item 24 — `selection` agora é um CONJUNTO: só tira do
+      // conjunto os itens da camada que está sendo ocultada, preserva o
+      // resto (antes, com um item só, "tirar esse" e "limpar tudo" eram a
+      // mesma operação; com N itens não são mais).
+      if (isHiding) {
+        const remaining = selection.filter((item) => layerForSelection(map, item) !== id)
+        if (remaining.length !== selection.length) set({ selection: remaining })
+      }
+    },
+    toggleLayerLock: (id) => {
+      const { map, selection } = get()
+      const isLocking = !map.lockedLayers.includes(id)
+      withHistory((m) => mapFactory.toggleLayerLock(m, id))
+      if (isLocking) {
+        const remaining = selection.filter((item) => layerForSelection(map, item) !== id)
+        if (remaining.length !== selection.length) set({ selection: remaining })
+      }
+    },
+    setPropLayer: (id, layer) => withHistory((map) => mapFactory.setPropLayer(map, id, layer)),
     setWallDoor: (id, door) => withHistory((map) => mapFactory.setWallDoor(map, id, door)),
-    addDoorOnWall: (wallId, point, doorLength) => withHistory((map) => mapFactory.addDoorOnWall(map, wallId, point, doorLength)),
+    setWallKindForWall: (id, kind) => withHistory((map) => mapFactory.setWallKindForWall(map, id, kind)),
+    setWallThicknessForWall: (id, thickness) => withHistory((map) => mapFactory.setWallThicknessForWall(map, id, thickness)),
+    setWallLineStyleForWall: (id, lineStyle) => withHistory((map) => mapFactory.setWallLineStyleForWall(map, id, lineStyle)),
+    addDoorOnWall: (wallId, point, kind) => withHistory((map) =>
+      mapFactory.addDoorOnWall(map, wallId, point, DOOR_LENGTH_BY_KIND[kind], kind),
+    ),
+    setWallDoorKind: (wallId, kind) => withHistory((map) =>
+      mapFactory.setWallDoorKind(map, wallId, kind, DOOR_LENGTH_BY_KIND[kind]),
+    ),
+    setDoorLocked: (wallId, locked) => withHistory((map) => mapFactory.setDoorLocked(map, wallId, locked)),
+    addStair: (stair) => withHistory((map) => mapFactory.addStair(map, stair)),
+    removeStair: (id) => withHistory((map) => mapFactory.removeStair(map, id)),
+    moveStair: (id, dx, dy) => withHistory((map) => mapFactory.moveStair(map, id, dx, dy)),
+    updateStairPoint: (stairId, segmentIndex, endpoint, x, y) => withHistory((map) =>
+      mapFactory.updateStairPoint(map, stairId, segmentIndex, endpoint, x, y),
+    ),
+    setStairDirection: (id, direction) => withHistory((map) => mapFactory.setStairDirection(map, id, direction)),
+    setRoomName: (id, name) => withHistory((map) => mapFactory.setRoomName(map, id, name)),
+    resizeRoomDimensions: (id, wPx, hPx) => withHistory((map) => mapFactory.resizeRoomDimensions(map, id, wPx, hPx)),
+    resizeRoomCornerLive: (id, corner, x, y) => set((state) => ({
+      map: mapFactory.resizeRoomCornerLive(state.map, id, corner, x, y),
+    })),
+    resizeDrawingCornerLive: (drawingId, corner, x, y, modifiers) => set((state) => ({
+      map: mapFactory.resizeDrawingCornerLive(state.map, drawingId, corner, x, y, modifiers),
+    })),
+    resizePropCornerLive: (propId, corner, x, y, modifiers) => set((state) => ({
+      map: mapFactory.resizePropCornerLive(state.map, propId, corner, x, y, modifiers),
+    })),
+    resizeCircleDrawingRadiusLive: (drawingId, x, y) => set((state) => ({
+      map: mapFactory.resizeCircleDrawingRadiusLive(state.map, drawingId, x, y),
+    })),
+    updateTokenLive: (id, patch) => set((state) => ({
+      map: { ...state.map, tokens: state.map.tokens.map((t) => (t.id === id ? { ...t, ...patch } : t)) },
+    })),
+    setMapScale: (scale) => withHistory((map) => mapFactory.setMapScale(map, scale)),
+    setMeasurementMode: (mode) => withHistory((map) => mapFactory.setMeasurementMode(map, mode)),
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({
       ...map,
@@ -265,7 +905,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       },
     })),
     moveCurveLive: (drawingId, dx, dy) => set((state) => ({ map: mapFactory.moveCurve(state.map, drawingId, dx, dy) })),
-    commitDragHistory: (before) => set((state) => (state.map === before ? {} : { past: [...state.past, before], future: [] })),
+    commitDragHistory: (before) => set((state) => (state.map === before ? {} : { past: pushPast(state.past, before), future: [] })),
     updateLinePoint: (drawingId, endpoint, x, y) => {
       const before = get().map
       const after = mapFactory.updateLinePoint(before, drawingId, endpoint, x, y)
@@ -273,6 +913,42 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       withHistory(() => after)
     },
     moveDrawing: (drawingId, dx, dy) => withHistory((map) => mapFactory.moveDrawing(map, drawingId, dx, dy)),
+    moveTokenLive: (id, targetX, targetY) => {
+      const { map } = get()
+      const token = map.tokens.find((t) => t.id === id)
+      if (!token) return
+      // Mesma resolução de colisão de moveToken (linha ~599) — sem isto o
+      // token atravessaria parede durante o arrasto e só "corrigiria" ao
+      // soltar, regressão visual em relação ao comportamento com histórico.
+      const resolved = resolveTokenMove({ x: token.x, y: token.y }, { x: targetX, y: targetY }, map.walls)
+      set((state) => ({ map: mapFactory.setTokenPosition(state.map, id, resolved.x, resolved.y) }))
+    },
+    movePropLive: (id, x, y) => set((state) => ({ map: mapFactory.setPropPosition(state.map, id, x, y) })),
+    moveWallLive: (wallId, dx, dy) => set((state) => ({ map: mapFactory.moveWall(state.map, wallId, dx, dy) })),
+    moveRegionLive: (regionId, dx, dy) => set((state) => ({ map: mapFactory.moveRegion(state.map, regionId, dx, dy) })),
+    moveStairLive: (id, dx, dy) => set((state) => ({ map: mapFactory.moveStair(state.map, id, dx, dy) })),
+    moveDrawingLive: (drawingId, dx, dy) => set((state) => ({ map: mapFactory.moveDrawing(state.map, drawingId, dx, dy) })),
+    updateLightIntensityLive: (id, intensity) => set((state) => ({
+      map: { ...state.map, lights: state.map.lights.map((l) => (l.id === id ? { ...l, intensity } : l)) },
+    })),
+    setDrawingFillAlphaLive: (id, fillAlpha) => set((state) => ({
+      map: { ...state.map, drawings: state.map.drawings.map((d) => (d.id === id && 'fillAlpha' in d ? { ...d, fillAlpha } : d)) },
+    })),
+    setRegionStrokeWidthForRegionLive: (id, strokeWidth) => set((state) => ({
+      map: { ...state.map, regions: state.map.regions.map((r) => (r.id === id ? { ...r, strokeWidth } : r)) },
+    })),
+    moveSelectionLive: (dx, dy) => set((state) =>
+      isSelectionEmpty(state.selection)
+        ? {}
+        : { map: moveAreaSelection(state.map, selectionToAreaSelection(state.selection), dx, dy) },
+    ),
+    moveSelectionBy: (dx, dy) => {
+      const { map, selection } = get()
+      if (isSelectionEmpty(selection)) return
+      const after = moveAreaSelection(map, selectionToAreaSelection(selection), dx, dy)
+      if (after === map) return
+      withHistory(() => after)
+    },
     updateTextLabel: (id, patch) => withHistory((map) => ({
       ...map,
       drawings: map.drawings.map((d) =>
@@ -285,7 +961,29 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
         d.id === id && d.kind === 'text' ? { ...d, fontFamily } : d,
       ),
     })),
-    loadMap: (map) => set({ map, selection: null, past: [], future: [] }),
+    setDrawingFillAlpha: (id, fillAlpha) => withHistory((map) => ({
+      ...map,
+      drawings: map.drawings.map((d) => (d.id === id && 'fillAlpha' in d ? { ...d, fillAlpha } : d)),
+    })),
+    setDrawingFilled: (id, filled) => withHistory((map) => ({
+      ...map,
+      drawings: map.drawings.map((d) => (d.id === id && 'filled' in d ? { ...d, filled } : d)),
+    })),
+    setDrawingCap: (id, cap) => withHistory((map) => ({
+      ...map,
+      drawings: map.drawings.map((d) =>
+        d.id === id && (d.kind === 'line' || d.kind === 'freehand' || d.kind === 'curve') ? { ...d, cap } : d,
+      ),
+    })),
+    convertDrawingToCurve: (id) => withHistory((map) => ({
+      ...map,
+      drawings: map.drawings.map((d) => (d.id === id ? convertLineToCurve(d) : d)),
+    })),
+    convertDrawingToLine: (id) => withHistory((map) => ({
+      ...map,
+      drawings: map.drawings.map((d) => (d.id === id ? convertCurveToLine(d) : d)),
+    })),
+    loadMap: (map) => set({ map, selection: EMPTY_SELECTION, past: [], future: [] }),
     undo: () => {
       const { past, map } = get()
       if (past.length === 0) return

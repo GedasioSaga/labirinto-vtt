@@ -13,8 +13,8 @@ describe('snapToGrid', () => {
   })
 })
 
-const tokenA: Token = { id: 'a', characterId: null, name: 'A', x: 0, y: 0, size: 1 }
-const tokenB: Token = { id: 'b', characterId: null, name: 'B', x: 100, y: 100, size: 1 }
+const tokenA: Token = { id: 'a', characterId: null, name: 'A', x: 0, y: 0, size: 1, image: null }
+const tokenB: Token = { id: 'b', characterId: null, name: 'B', x: 100, y: 100, size: 1, image: null }
 
 describe('findTokenAt', () => {
   it('retorna o token dentro do raio de clique', () => {

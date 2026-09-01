@@ -1,0 +1,72 @@
+/*
+ * HUD de zoom — indicador discreto no canto do canvas.
+ *
+ * A "chrome" de painel flutuante (fundo/borda/sombra/blur) vem da classe
+ * global `.lb-panel` (main.css) — mesma base usada por Toolbar e ActionBar.
+ * Aqui só o que é específico deste componente: posicionamento, layout
+ * interno e o estado de limite. Só `var(--lb-*)` de theme.ts — zero hex.
+ *
+ * Posicionamento: `position: absolute` ancorada no canto inferior direito de
+ * `.lb-editor` (`position: relative`, ver main.css). Depende de montar como
+ * filho direto de `.lb-editor` — ver CONTRATO no relatório do agente.
+ */
+
+.lb-zoomhud {
+  position: absolute;
+  right: var(--lb-layout-edge-gap);
+  bottom: var(--lb-layout-edge-gap);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: none;
+  font-family: inherit;
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+  transition:
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-zoomhud:hover {
+  color: var(--lb-color-parchment);
+  border-color: var(--lb-color-line-strong);
+}
+
+.lb-zoomhud:active {
+  background: var(--lb-color-stone-sunken);
+}
+
+/* Duas classes de especificidade: garante o anel de foco por cima da sombra
+   de `.lb-panel`, sem depender da ordem de import dos dois arquivos CSS. */
+.lb-zoomhud:focus-visible {
+  box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel), var(--lb-shadow-focus);
+}
+
+.lb-zoomhud__value {
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+}
+
+/* Estado de limite (zoom em 10% ou 400%, ver MIN_SCALE/MAX_SCALE em
+   pixi/world.ts): cor de destaque (mesmo `ember` usado em alerta no resto do
+   app) MAIS o rótulo textual "MÍN"/"MÁX" abaixo — cor sozinha não passa em
+   daltonismo, o texto carrega o significado. */
+.lb-zoomhud--limit {
+  color: var(--lb-color-ember);
+}
+
+.lb-zoomhud--limit .lb-zoomhud__value {
+  color: var(--lb-color-ember);
+}
+
+.lb-zoomhud__limit-mark {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  letter-spacing: var(--lb-font-tracking-wider);
+  color: var(--lb-color-ember);
+  background: var(--lb-color-ember-soft);
+  border-radius: var(--lb-radius-sm);
+  padding: 1px var(--lb-space-1);
+}

@@ -30,10 +30,12 @@ async function getMapSnapshot(page: Page): Promise<MapSnapshot> {
   })
 }
 
+// Onda 4, item 24 — `selection` do store virou SelectionSet (array). `[0] ??
+// null` adapta pro formato de item único que os specs já esperavam.
 async function getSelection(page: Page) {
   return page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
-    return mod.useMapStore.getState().selection
+    return mod.useMapStore.getState().selection[0] ?? null
   })
 }
 
@@ -118,7 +120,11 @@ test('2. porta: virar parede em porta e alternar aberta/fechada reflete no store
 
 test('3. link de cenário: digitar no campo atualiza map.scenarioLink', async ({ page }) => {
   const link = 'https://exemplo.com/cenario-1'
-  await page.getByRole('textbox').fill(link)
+  // Escopado pela seção "Link de cenário" (não getByRole('textbox') cru):
+  // a Fase 1 (grid/snap) acrescentou um input type="color" em GridControls
+  // ("Cor da grade"), sempre visível — Chromium também computa role
+  // "textbox" pra ele, então o locator sem escopo virou ambíguo.
+  await page.locator('section').filter({ hasText: 'Link de cenário' }).getByRole('textbox').fill(link)
 
   const { scenarioLink } = await getMapSnapshot(page)
   expect(scenarioLink).toBe(link)

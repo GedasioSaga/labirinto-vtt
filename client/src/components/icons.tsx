@@ -245,6 +245,84 @@ export function TokenIcon(props: IconProps) {
   )
 }
 
+/**
+ * Perfil de escada vista de lado — degraus ascendentes em zigue-zague único.
+ * Distingue de `WallIcon` (fiadas horizontais de tijolo) e de `DungeonMapIcon`
+ * (retângulo com divisão em L): aqui não há nenhum contorno fechado, só a
+ * diagonal de degraus subindo da esquerda pra direita.
+ */
+export function StairIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 20v-4h4v-4h4v-4h4v-4h4" />
+    </Icon>
+  )
+}
+
+/**
+ * Retângulo puro com a diagonal de arrasto (canto a canto) — mesmo idioma
+ * visual de `CircleIcon` (centro até a borda) e `LineIcon` (ponta a ponta).
+ * Sem conteúdo interno: é o que distingue de `ImageIcon` (moldura de foto por
+ * dentro), `NewMapIcon` (retângulo + cruz do lado de fora) e `DungeonMapIcon`
+ * (retângulo + T interno) — aqui o retângulo fica vazio, só com a diagonal.
+ */
+export function RectIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="5" y="7" width="14" height="10" />
+      <path d="M5 7l14 10" />
+    </Icon>
+  )
+}
+
+/**
+ * Elipse achatada + diagonal de arrasto do centro até a borda, mesma lógica
+ * de `CircleIcon`. Distingue dele pela proporção rx/ry desigual — não é um
+ * círculo — e de `RoomCircleIcon` (círculo com corda de porta perto da base).
+ */
+export function EllipseIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <ellipse cx="12" cy="12" rx="9" ry="6" />
+      <path d="M12 12l6 3" />
+    </Icon>
+  )
+}
+
+/**
+ * Polígono irregular COM um ponto em cada vértice — o oposto da escolha feita
+ * em `RegionIcon`, que remove os pontos de propósito (ver comentário lá). Aqui
+ * eles voltam porque esta ferramenta cria a forma clicando vértice a vértice
+ * (mesmo gesto de Região, mas gera um `Drawing`, não uma `Region`), e o ponto
+ * é o que comunica "clique aqui" no ícone. Vértices espaçados de forma
+ * desigual distinguem de `RegularPolygonIcon` (hexágono de vértices
+ * equidistantes, sem pontos marcados).
+ */
+export function PolygonIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 7L18 5L20 17L6 19Z" />
+      <circle cx="5" cy="7" r="2.8" />
+      <circle cx="18" cy="5" r="2.8" />
+      <circle cx="20" cy="17" r="2.8" />
+      <circle cx="6" cy="19" r="2.8" />
+    </Icon>
+  )
+}
+
+/**
+ * Régua: mesma diagonal ponta-a-ponta de `LineIcon`, mas com marcações
+ * perpendiculares ao longo do traço no lugar dos nós circulares nas pontas —
+ * é essa troca (tique de régua vs. nó de vértice) que distingue os dois.
+ */
+export function MeasureIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 19L19 5M7.3 14.3L9.7 16.7M10.8 10.8L13.2 13.2M14.3 7.3L16.7 9.7" />
+    </Icon>
+  )
+}
+
 export function SaveIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -382,6 +460,39 @@ export function HomeIcon(props: IconProps) {
     <Icon {...props}>
       <path d="M4 10.5L12 4l8 6.5V19a1 1 0 01-1 1H5a1 1 0 01-1-1v-8.5z" />
       <path d="M9.5 20v-6h5v6" />
+    </Icon>
+  )
+}
+
+/**
+ * Onda 3, item 20 (histórico visível — ActionBar) — seta curva "em U" que
+ * sai da ponta à esquerda, sobe, contorna pela direita e desce: leitura de
+ * "desfazer o último passo". Distingue de `BackIcon` (:450, seta RETA
+ * horizontal — navegação entre telas, não histórico de edição) pela curva;
+ * distingue de `RedoIcon` logo abaixo por ser o espelho horizontal exato
+ * (ponta pra esquerda em vez de pra direita).
+ */
+export function UndoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9 15L4 10l5-5" />
+      <path d="M4 10h9.5a5 5 0 010 10H10" />
+    </Icon>
+  )
+}
+
+/**
+ * Espelho horizontal exato de `UndoIcon` (mesma curva, ponta pra direita) —
+ * "refazer". Não reaproveita `UndoIcon` com `transform: scaleX(-1)` de
+ * propósito: todo ícone deste arquivo é path SVG puro sem transform CSS,
+ * mesmo padrão do par Exportar/Importar acima (:355 e :364), também
+ * espelhados à mão em vez de compartilhar geometria via transform.
+ */
+export function RedoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M15 15L20 10l-5-5" />
+      <path d="M20 10h-9.5a5 5 0 000 10h3.5" />
     </Icon>
   )
 }

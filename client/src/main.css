@@ -385,6 +385,14 @@ body {
 /* --------------------------------------------------------- switch (checkbox) */
 
 .lb-switch {
+  /* Containing block do .lb-switch__input (position: absolute) logo abaixo —
+     sem isso o input cai no containing block do documento inteiro, então seu
+     getBoundingClientRect fica fixo relativo à PÁGINA em vez de acompanhar o
+     scroll do painel (.lb-inspector__body.lb-scroll). Latente desde sempre;
+     só ficou visível na Fase 1, quando Grade+Camadas empurraram o primeiro
+     Toggle abaixo da dobra sem scroll — antes disso todo Toggle cabia no
+     recorte inicial visível e o bug nunca precisava de scroll pra aparecer. */
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -658,24 +666,49 @@ body {
 }
 
 /* Âncora do balão de dica: ele é posicionado em relação a esta caixa, que
-   envolve exatamente a barra de ferramentas. */
+   envolve exatamente a barra de ferramentas.
+   `max-width: 100%` + `min-width: 0` é o que permite a caixa ENCOLHER dentro
+   do `.lb-editor__top` (flex, justify-content: center) até a largura central
+   disponível (viewport − 2×(rail+edge-gap), ~688px em 1280×800) — sem isso um
+   item de flex nasce com `min-width: auto` (o conteúdo nunca encolhe abaixo
+   da própria largura intrínseca) e a barra simplesmente vaza por cima do
+   canvas em vez de quebrar linha (ROADMAP.md, dívida D2). */
 .lb-toolbar-dock {
   position: relative;
   pointer-events: auto;
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* --------------------------------------------------------- barra de ferramentas */
 
 /* `backdrop-filter` faz da barra um stacking context, então os tooltips dos
    botões ficam presos dentro dela. Sem este z-index o balão da ferramenta
-   ativa — irmão posterior no DOM — pinta por cima deles no hover. */
+   ativa — irmão posterior no DOM — pinta por cima deles no hover.
+   `flex-wrap: wrap` é a metade que falta do fix de D2: com `.lb-toolbar-dock`
+   já limitado à largura central disponível (acima), a barra agora tem onde
+   quebrar — a UNIDADE de quebra é o grupo (`.lb-toolbar__group`, abaixo), não
+   o botão avulso, para nunca deixar um separador órfão numa borda de linha. */
 .lb-toolbar {
   position: relative;
   z-index: 2;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--lb-space-1);
   padding: var(--lb-space-1);
+  max-width: 100%;
+}
+
+/* Cada grupo de TOOL_GROUPS (components/labels.ts) vira uma dessas — largura
+   mínima intacta (`flex-wrap: nowrap` interno, nunca quebra NO MEIO de um
+   grupo) e é o próprio grupo que migra pra linha seguinte quando a barra
+   (acima) não tem mais espaço na linha atual. */
+.lb-toolbar__group {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--lb-space-1);
 }
 
 /* Divisor entre grupos de ferramentas. O sinal primário de agrupamento é o
@@ -769,6 +802,97 @@ body {
   transform: rotate(45deg);
 }
 
+/* ------------------------------------------- variantes de ferramenta (F4 N1) */
+
+.lb-toolvariant-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.lb-toolvariant-arrow {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 1px solid var(--lb-color-line-panel);
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone);
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+  z-index: 3;
+}
+
+.lb-toolvariant-arrow:hover,
+.lb-toolvariant-arrow[aria-expanded='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+}
+
+.lb-toolvariant-arrow svg {
+  display: block;
+}
+
+.lb-toolvariant-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  min-width: 170px;
+  padding: var(--lb-space-2);
+}
+
+.lb-toolvariant-menu__group + .lb-toolvariant-menu__group {
+  padding-top: var(--lb-space-2);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-toolvariant-menu__options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lb-toolvariant-menu__option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  padding: 6px var(--lb-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-toolvariant-menu__option:hover {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-toolvariant-menu__option[aria-checked='true'] {
+  background: var(--lb-color-brass-soft);
+  border-color: rgba(224, 164, 74, 0.28);
+  color: var(--lb-color-brass);
+}
+
+.lb-toolvariant-menu__option-desc {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+
 /* ------------------------------------------------------------------ inspetor */
 
 /* Encolhe até o conteúdo; só vira rolagem quando não couber na altura da janela. */
@@ -843,6 +967,14 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--lb-space-3);
+}
+
+/* F4 N3 — resumo da ferramenta "Selecionar área" (AreaSelectionControls). */
+.lb-area-selection__summary {
+  margin: 0 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  line-height: var(--lb-font-leading-normal);
 }
 
 /* --------------------------------------------------------- barra de ações */

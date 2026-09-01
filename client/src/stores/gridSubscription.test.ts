@@ -5,7 +5,7 @@ import * as mapFactory from '../lib/mapFactory'
 import type { Wall, Token } from '../types/map'
 
 const wall: Wall = { id: 'w1', x1: 0, y1: 0, x2: 64, y2: 0, blocksLight: true, blocksMove: true, door: null }
-const token: Token = { id: 't1', characterId: null, name: 'Herói', x: 0, y: 0, size: 1 }
+const token: Token = { id: 't1', characterId: null, name: 'Herói', x: 0, y: 0, size: 1, image: null }
 
 describe('subscribeToGridRedraw', () => {
   beforeEach(() => {

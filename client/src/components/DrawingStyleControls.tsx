@@ -8,7 +8,14 @@ export interface DrawingStyleControlsProps {
   onWidthChange: (width: number) => void
   filled: boolean
   onFilledChange: (filled: boolean) => void
-  /** Só o círculo tem preenchimento; pincel e linha não. */
+  /** Opacidade do preenchimento (0–1) — só relevante com `filled: true`;
+   *  aplicado a `Drawing.fillAlpha` na criação da forma (círculo/retângulo/
+   *  elipse/polígono). Ver drawDrawings.ts para a mesma opacidade multiplicada
+   *  (não substituída) no destaque de seleção. */
+  fillAlpha: number
+  onFillAlphaChange: (fillAlpha: number) => void
+  /** Círculo/retângulo/elipse/polígono têm preenchimento; pincel, linha e
+   *  curva não. */
   showFilled: boolean
   /** Espessura não se aplica ao rótulo de texto. */
   showWidth: boolean
@@ -28,6 +35,8 @@ export function DrawingStyleControls({
   onWidthChange,
   filled,
   onFilledChange,
+  fillAlpha,
+  onFillAlphaChange,
   showFilled,
   showWidth,
   fontSize,
@@ -121,6 +130,27 @@ export function DrawingStyleControls({
       )}
 
       {showFilled && <Toggle label="Preenchido" checked={filled} onChange={onFilledChange} />}
+
+      {showFilled && filled && (
+        <div className="lb-field">
+          <div className="lb-section__row">
+            <label className="lb-label" htmlFor="lb-draw-fillalpha">
+              Opacidade do preenchimento
+            </label>
+            <span className="lb-num">{Math.round(fillAlpha * 100)}%</span>
+          </div>
+          <input
+            id="lb-draw-fillalpha"
+            className="lb-range"
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={fillAlpha}
+            onChange={(event) => onFillAlphaChange(Number(event.target.value))}
+          />
+        </div>
+      )}
     </section>
   )
 }

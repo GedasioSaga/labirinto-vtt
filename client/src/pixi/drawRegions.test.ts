@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { Container, Graphics } from 'pixi.js'
-import { computeHatchSegments, createRegionsRenderer, scanlineIntersections } from './drawRegions'
-import type { Region, RegionPoint } from '../types/map'
+import { Container, Graphics, type StrokeInstruction } from 'pixi.js'
+import {
+  computeHatchSegments,
+  createRegionsRenderer,
+  readRegionStrokeJoin,
+  readRegionStrokeWidth,
+  resolveHighlightedRegionId,
+  scanlineIntersections,
+} from './drawRegions'
+import type { Region, RegionPoint, Wall } from '../types/map'
+import type { Selection } from '../types/tools'
 
 /** Conta instruções `action: 'fill'` realmente empilhadas no GraphicsContext da instância. */
 function countFillInstructions(g: Graphics): number {
@@ -11,6 +19,24 @@ function countFillInstructions(g: Graphics): number {
 /** Conta instruções `action: 'stroke'` realmente empilhadas no GraphicsContext da instância. */
 function countStrokeInstructions(g: Graphics): number {
   return g.context.instructions.filter((instruction) => instruction.action === 'stroke').length
+}
+
+/**
+ * A n-ésima instrução `stroke` de fato empilhada, com `data.style` já
+ * convertido pelo próprio Pixi (`GraphicsContext.d.ts`, `StrokeInstruction` —
+ * tipo público, não `@internal` na prática: exportado por
+ * `scene/index.d.ts:62`). `instruction.action === 'stroke'` é um type guard
+ * de union discriminada — estreita `GraphicsInstructions` pra
+ * `StrokeInstruction` sem cast nenhum. `at` seleciona qual stroke (default: o
+ * primeiro — o contorno da região; testes de hachura pedem `at: 1`).
+ */
+function strokeStyleAt(g: Graphics, at = 0): StrokeInstruction['data']['style'] {
+  const strokes = g.context.instructions.filter(
+    (instruction): instruction is StrokeInstruction => instruction.action === 'stroke',
+  )
+  const stroke = strokes[at]
+  if (!stroke) throw new Error(`esperava pelo menos ${at + 1} instrução(ões) de stroke, achei ${strokes.length}`)
+  return stroke.data.style
 }
 
 /** Ray-casting par-ímpar clássico, independente da implementação testada. */
@@ -217,5 +243,241 @@ describe('createRegionsRenderer', () => {
       expect(countFillInstructions(g)).toBe(1)
       expect(countStrokeInstructions(g)).toBe(2)
     }
+  })
+})
+
+describe('readRegionStrokeWidth', () => {
+  it('undefined cai no default de hoje (2 — mesmo valor hardcoded antes do campo existir)', () => {
+    expect(readRegionStrokeWidth({})).toBe(2)
+    expect(readRegionStrokeWidth({ strokeWidth: undefined })).toBe(2)
+  })
+
+  it('número finito positivo é aceito como está — cobre a faixa fino(1)/médio(4)/grosso(12) do preset da UI', () => {
+    expect(readRegionStrokeWidth({ strokeWidth: 1 })).toBe(1)
+    expect(readRegionStrokeWidth({ strokeWidth: 4 })).toBe(4)
+    expect(readRegionStrokeWidth({ strokeWidth: 12 })).toBe(12)
+  })
+
+  it('valor corrompido (0, negativo, NaN, tipo errado) cai no default — nunca propaga lixo pro stroke()', () => {
+    expect(readRegionStrokeWidth({ strokeWidth: 0 })).toBe(2)
+    expect(readRegionStrokeWidth({ strokeWidth: -5 })).toBe(2)
+    expect(readRegionStrokeWidth({ strokeWidth: Number.NaN })).toBe(2)
+    expect(readRegionStrokeWidth({ strokeWidth: '12' })).toBe(2)
+  })
+})
+
+describe('readRegionStrokeJoin', () => {
+  it("undefined cai no default de hoje ('miter' — o que o Pixi já aplicava sem `join` explícito no stroke())", () => {
+    expect(readRegionStrokeJoin({})).toBe('miter')
+    expect(readRegionStrokeJoin({ strokeJoin: undefined })).toBe('miter')
+  })
+
+  it("'round' é aceito como override explícito", () => {
+    expect(readRegionStrokeJoin({ strokeJoin: 'round' })).toBe('round')
+  })
+
+  it('valor desconhecido ou corrompido cai no default', () => {
+    expect(readRegionStrokeJoin({ strokeJoin: 'bevel' })).toBe('miter')
+    expect(readRegionStrokeJoin({ strokeJoin: 123 })).toBe('miter')
+  })
+})
+
+/**
+ * Quadrado simples com campos extras opcionais (`filled`/`strokeWidth`/
+ * `strokeJoin`) que ainda não existem em `Region` (types/map.ts, arquivo do
+ * integrador — ver CONTRATO). Retornado por uma função (não um literal
+ * anotado `: Region`), então a checagem de propriedade excedente do
+ * TypeScript não se aplica — mesmo raciocínio de `readRegionStrokeWidth`
+ * acima (parâmetro estrutural com prop opcional), sem nenhum `as`.
+ */
+function buildSquareRegion(
+  id: string,
+  extra: { filled?: boolean; strokeWidth?: number; strokeJoin?: Region['strokeJoin']; fillPattern?: Region['fillPattern'] } = {},
+) {
+  return {
+    id,
+    points: [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+      { x: 0, y: 100 },
+    ] satisfies RegionPoint[],
+    tag: '',
+    fillColor: '#204060',
+    fillPattern: extra.fillPattern ?? 'solid',
+    data: {},
+    filled: extra.filled,
+    strokeWidth: extra.strokeWidth,
+    strokeJoin: extra.strokeJoin,
+  }
+}
+
+/**
+ * `container.children[0]` já sabendo que É um `Graphics` de verdade — mesmo
+ * cast que o resto deste arquivo já usa (`child as Graphics`, no teste de
+ * hachura acima): `Container.children` é tipado `ContainerChild[]` (tipo
+ * genérico da própria lib, `node_modules/pixi.js/lib/scene/container/
+ * Container.d.ts:639`), mas o único código que popula este `container` nos
+ * testes abaixo é `createRegionsRenderer`, que só adiciona instâncias de
+ * `Graphics` (`pixi/drawRegions.ts`) — nunca outro tipo de `ContainerChild`.
+ * Centralizado aqui (1 cast comentado) em vez de repetido em cada teste.
+ */
+function firstGraphics(container: Container): Graphics {
+  return container.children[0] as Graphics
+}
+
+describe('createRegionsRenderer — Region.filled (pedido N2, "só contorno sem fundo")', () => {
+  it('filled ausente (undefined): preenche igual hoje — 1 fill + 1 stroke', () => {
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+    renderer.draw(container, [buildSquareRegion('r1')], null)
+
+    const g = firstGraphics(container)
+    expect(countFillInstructions(g)).toBe(1)
+    expect(countStrokeInstructions(g)).toBe(1)
+  })
+
+  it('filled: false — não preenche mais: 0 fill, contorno (stroke) continua desenhando', () => {
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+    renderer.draw(container, [buildSquareRegion('r1', { filled: false })], null)
+
+    const g = firstGraphics(container)
+    expect(countFillInstructions(g)).toBe(0)
+    expect(countStrokeInstructions(g)).toBe(1)
+  })
+
+  it('filled: false + fillPattern hatch: hachura também não desenha (é tratamento de fundo) — só 1 stroke, o do contorno', () => {
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+    renderer.draw(container, [buildSquareRegion('r1', { filled: false, fillPattern: 'hatch' })], null)
+
+    const g = firstGraphics(container)
+    expect(countFillInstructions(g)).toBe(0)
+    expect(countStrokeInstructions(g)).toBe(1)
+  })
+})
+
+describe('createRegionsRenderer — Region.strokeWidth/strokeJoin (pedido G2, "rua/construção artesanal")', () => {
+  it('strokeWidth ausente: contorno sai com 2px (comportamento de hoje) e junção miter (default do Pixi)', () => {
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+    renderer.draw(container, [buildSquareRegion('r1')], null)
+
+    const style = strokeStyleAt(firstGraphics(container))
+    expect(style.width).toBe(2)
+    expect(style.join).toBe('miter')
+  })
+
+  it('strokeWidth: 12 (preset "grosso") é aplicado ao contorno de verdade', () => {
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+    renderer.draw(container, [buildSquareRegion('r1', { strokeWidth: 12 })], null)
+
+    expect(strokeStyleAt(firstGraphics(container)).width).toBe(12)
+  })
+
+  it('região SELECIONADA soma o realce (+2) sobre o strokeWidth configurado, não substitui por um valor fixo', () => {
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+    renderer.draw(container, [buildSquareRegion('r1', { strokeWidth: 12 })], 'r1')
+
+    expect(strokeStyleAt(firstGraphics(container)).width).toBe(14)
+  })
+
+  it("strokeJoin: 'round' é aplicado ao contorno de verdade", () => {
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+    renderer.draw(container, [buildSquareRegion('r1', { strokeJoin: 'round' })], null)
+
+    expect(strokeStyleAt(firstGraphics(container)).join).toBe('round')
+  })
+})
+
+/** Parede mínima válida (`types/map.ts`), com `regionId` opcional pro teste do bug 22. */
+function buildWall(id: string, regionId?: string): Wall {
+  return { id, x1: 0, y1: 0, x2: 100, y2: 0, blocksLight: true, blocksMove: true, door: null, regionId }
+}
+
+describe('resolveHighlightedRegionId (bug 22 — parede-dona-de-Sala confirma a seleção da região)', () => {
+  it('sem seleção: null', () => {
+    expect(resolveHighlightedRegionId([], null)).toBeNull()
+    expect(resolveHighlightedRegionId([], undefined)).toBeNull()
+  })
+
+  it("seleção kind 'region': devolve o próprio id, sem olhar pra walls", () => {
+    const selection: Selection = { kind: 'region', id: 'r1' }
+    expect(resolveHighlightedRegionId([], selection)).toBe('r1')
+  })
+
+  it("seleção kind 'wall' cuja parede é DONA de uma região (Wall.regionId setado): devolve o regionId — o caso do bug", () => {
+    const walls = [buildWall('w1', 'r1'), buildWall('w2', 'r1'), buildWall('w3')]
+    const selection: Selection = { kind: 'wall', id: 'w1' }
+    expect(resolveHighlightedRegionId(walls, selection)).toBe('r1')
+  })
+
+  it("seleção kind 'wall' de uma parede SOLTA (sem regionId): null — não inventa destaque", () => {
+    const walls = [buildWall('w3')]
+    const selection: Selection = { kind: 'wall', id: 'w3' }
+    expect(resolveHighlightedRegionId(walls, selection)).toBeNull()
+  })
+
+  it("seleção kind 'wall' de um id que não existe mais em `walls` (janela de corrida): null, não lança", () => {
+    const selection: Selection = { kind: 'wall', id: 'inexistente' }
+    expect(resolveHighlightedRegionId([buildWall('w1', 'r1')], selection)).toBeNull()
+  })
+
+  it("outros kinds ('token', 'light', 'stair', 'prop', 'drawing'): null", () => {
+    for (const kind of ['token', 'light', 'stair', 'prop', 'drawing'] as const) {
+      expect(resolveHighlightedRegionId([], { kind, id: 'x' })).toBeNull()
+    }
+  })
+})
+
+describe('createRegionsRenderer — bug 22, os dois casos visuais lado a lado', () => {
+  it('região selecionada DIRETAMENTE (kind "region"): pinta com SELECTION_COLOR', () => {
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+    const region = buildSquareRegion('sala-1')
+    const walls = [buildWall('w1', 'sala-1')]
+
+    const highlighted = resolveHighlightedRegionId(walls, { kind: 'region', id: 'sala-1' })
+    renderer.draw(container, [region], highlighted)
+
+    const g = firstGraphics(container)
+    // isSelected: fill alpha 0.85 (vs 1 de não-selecionada) e stroke com o
+    // realce de +2 sobre o default (2) — mesma assinatura usada nos testes
+    // de strokeWidth/strokeJoin acima.
+    expect(strokeStyleAt(g).color).toBe(0xffdd55) // SELECTION_COLOR
+    expect(strokeStyleAt(g).width).toBe(4)
+  })
+
+  it('BUG 22 corrigido: parede-dona-de-Sala selecionada (kind "wall") também pinta a região com SELECTION_COLOR', () => {
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+    const region = buildSquareRegion('sala-1')
+    const walls = [buildWall('w1', 'sala-1'), buildWall('w2', 'sala-1'), buildWall('w3', 'sala-1'), buildWall('w4', 'sala-1')]
+
+    // Usuário clicou numa das 4 paredes que a Sala gerou — não na região.
+    const highlighted = resolveHighlightedRegionId(walls, { kind: 'wall', id: 'w3' })
+    renderer.draw(container, [region], highlighted)
+
+    const g = firstGraphics(container)
+    expect(strokeStyleAt(g).color).toBe(0xffdd55) // SELECTION_COLOR — antes do fix, ficava 0x204060 (fillColor normal)
+    expect(strokeStyleAt(g).width).toBe(4)
+  })
+
+  it('parede selecionada que NÃO é dona de nenhuma região: a região continua com a cor normal (sem falso positivo)', () => {
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+    const region = buildSquareRegion('sala-1')
+    const walls = [buildWall('solta')] // sem regionId
+
+    const highlighted = resolveHighlightedRegionId(walls, { kind: 'wall', id: 'solta' })
+    renderer.draw(container, [region], highlighted)
+
+    const g = firstGraphics(container)
+    expect(strokeStyleAt(g).color).toBe(0x204060) // fillColor de buildSquareRegion, não SELECTION_COLOR
+    expect(strokeStyleAt(g).width).toBe(2) // default, sem o realce de +2 de seleção
   })
 })

@@ -29,10 +29,12 @@ async function getMapState(page: Page): Promise<MapState> {
   })
 }
 
+// Onda 4, item 24 — `selection` do store virou SelectionSet (array). `[0] ??
+// null` adapta pro formato de item único que os specs já esperavam.
 async function getSelection(page: Page) {
   return page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
-    return mod.useMapStore.getState().selection
+    return mod.useMapStore.getState().selection[0] ?? null
   })
 }
 
@@ -135,7 +137,7 @@ test('4. selecionar token: halo de destaque, Delete apaga (comportamento preexis
 
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
-    mod.useMapStore.getState().addToken({ id: 'tokSel', characterId: null, name: 'Token', x: 400, y: 400, size: 1 })
+    mod.useMapStore.getState().addToken({ id: 'tokSel', characterId: null, name: 'Token', x: 400, y: 400, size: 1, image: null })
   })
   await selectTool(page, 'Selecionar')
   await page.mouse.click(box.x + 400, box.y + 400)
@@ -174,7 +176,7 @@ test('6. clique em área vazia desseleciona: botão volta a "Nada selecionado" e
 
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
-    mod.useMapStore.getState().addToken({ id: 'tokEmpty', characterId: null, name: 'Token', x: 400, y: 400, size: 1 })
+    mod.useMapStore.getState().addToken({ id: 'tokEmpty', characterId: null, name: 'Token', x: 400, y: 400, size: 1, image: null })
   })
   await selectTool(page, 'Selecionar')
   await page.mouse.click(box.x + 400, box.y + 400)
@@ -214,7 +216,7 @@ test('7. sem erro de console durante o fluxo completo de seleção+apagar', asyn
 
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
-    mod.useMapStore.getState().addToken({ id: 'tokConsole', characterId: null, name: 'Token', x: 900, y: 400, size: 1 })
+    mod.useMapStore.getState().addToken({ id: 'tokConsole', characterId: null, name: 'Token', x: 900, y: 400, size: 1, image: null })
   })
 
   await selectTool(page, 'Selecionar')

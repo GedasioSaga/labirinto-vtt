@@ -1,0 +1,175 @@
+import type { DrawingTool } from '../types/tools'
+
+/**
+ * Mapa de teclado — itens 5 e 7 do `docs/PLANO-REFINAMENTO.md` (Onda 1,
+ * frente C). PURO: só decide "esta tecla significa o quê", não mexe em DOM,
+ * store nem `PixiCanvas.tsx`. Quem liga isto a `window.addEventListener`
+ * é o integrador da onda — ver o bloco "CONTRATO" no relatório do agente
+ * para o trecho pronto para colar.
+ *
+ * Por que existe: hoje só há Ctrl+Z/Ctrl+Y (App.tsx:161-178). Trocar de
+ * ferramenta é sempre olho→barra→clique→olho — dezenas de vezes por sessão
+ * (diagnóstico do plano, item 5).
+ */
+
+/**
+ * Forma mínima de um evento de teclado que `resolveShortcut` precisa —
+ * assinatura pedida pelo integrador para que a função não dependa de
+ * `KeyboardEvent`/DOM e continue testável sem jsdom. `targetTagName` é
+ * `event.target.tagName` (sempre maiúsculo no DOM real, ex. `'INPUT'`) ou
+ * `''` quando não há elemento focado.
+ */
+export interface ShortcutEvent {
+  key: string
+  ctrlKey: boolean
+  metaKey: boolean
+  shiftKey: boolean
+  altKey: boolean
+  targetTagName: string
+}
+
+export type Action =
+  | { kind: 'selectTool'; tool: DrawingTool }
+  /** dx/dy já vêm na unidade certa: célula de grade quando `fine` é falso
+   *  (1 célula sem modificador, 10 com Shift), pixel cru quando `fine` é
+   *  verdadeiro (Alt) — quem multiplica por `map.grid` é o integrador, que
+   *  é quem tem o mapa em mãos; esta função não recebe grid nenhum. */
+  | { kind: 'nudge'; dx: number; dy: number; fine: boolean }
+  | { kind: 'duplicate' }
+  | { kind: 'save' }
+  | { kind: 'open' }
+  | { kind: 'zoomReset' }
+  | { kind: 'selectAll' }
+  | { kind: 'fitAll' }
+  | { kind: 'cancel' }
+  | { kind: 'deleteSelected' }
+  | { kind: 'undo' }
+  | { kind: 'redo' }
+
+/**
+ * Tabela ferramenta → letra, para o integrador mostrar no `data-tip` de cada
+ * botão (item 6 do plano — atalho invisível é atalho inexistente). Segue
+ * V/W/R/O/L/P/E/T de Figma/Excalidraw onde a convenção existe (select,
+ * rect, ellipse, line, brush/pen, eraser, text); o resto do léxico é
+ * específico deste VTT (sem equivalente em nenhuma das duas ferramentas),
+ * então a letra é mnemônica onde deu (circle→C, stair→S, measure→M) e livre
+ * onde não sobrou letra óbvia (light→H porque L já é line; region→G;
+ * polygon→A, pensando na "Área poligonal" do rótulo em pt-BR).
+ *
+ * `Record<DrawingTool, string>` é exaustivo por construção: se `DrawingTool`
+ * ganhar uma ferramenta nova e este objeto não for atualizado, `tsc` recusa
+ * compilar (falta a chave) — a tabela não pode ficar desatualizada em
+ * silêncio.
+ */
+export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
+  select: 'V',
+  wall: 'W',
+  door: 'D',
+  light: 'H',
+  region: 'G',
+  room: 'N',
+  roomCircle: 'J',
+  roomPolygon: 'Q',
+  stair: 'S',
+  token: 'K',
+  prop: 'B',
+  brush: 'P',
+  line: 'L',
+  circle: 'C',
+  ellipse: 'O',
+  rect: 'R',
+  polygon: 'A',
+  curve: 'U',
+  text: 'T',
+  measure: 'M',
+  eraser: 'E',
+}
+
+const TOOL_BY_LETTER = new Map<string, DrawingTool>()
+for (const tool of Object.keys(TOOL_SHORTCUTS) as DrawingTool[]) {
+  // `Object.keys` devolve `string[]` na lib padrão do TS — limitação
+  // conhecida da própria assinatura, não imprecisão nossa: `TOOL_SHORTCUTS`
+  // é `Record<DrawingTool, string>` EXAUSTIVO (comentário acima), então toda
+  // chave que sai daqui é garantidamente uma `DrawingTool` de verdade.
+  TOOL_BY_LETTER.set(TOOL_SHORTCUTS[tool].toLowerCase(), tool)
+}
+
+type ArrowKey = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
+
+const ARROW_DELTA: Record<ArrowKey, { dx: number; dy: number }> = {
+  // Y cresce pra baixo no canvas — mesma convenção documentada em
+  // `pixi/world.ts` (`angleDegrees`) para não reinventar o sentido aqui.
+  ArrowUp: { dx: 0, dy: -1 },
+  ArrowDown: { dx: 0, dy: 1 },
+  ArrowLeft: { dx: -1, dy: 0 },
+  ArrowRight: { dx: 1, dy: 0 },
+}
+
+function isArrowKey(key: string): key is ArrowKey {
+  return key === 'ArrowUp' || key === 'ArrowDown' || key === 'ArrowLeft' || key === 'ArrowRight'
+}
+
+function isEditableTarget(tagName: string): boolean {
+  return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT'
+}
+
+/**
+ * Decide a ação para uma tecla — sem tocar em DOM, store ou `PixiCanvas`.
+ * `null` significa "não é atalho nosso, deixe o navegador/campo tratar".
+ *
+ * REGRA CRÍTICA (risco #4 do plano): com o foco em INPUT/TEXTAREA/SELECT,
+ * toda tecla que teria efeito ao digitar devolve `null` — letra de
+ * ferramenta, `F`, setas (moveriam o cursor de texto) e todo combo Ctrl
+ * (Ctrl+A/Z/Y já têm significado nativo de edição de texto no campo). Só
+ * `Escape` escapa dessa trava, porque cancelar um rascunho de desenho não
+ * atrapalha ninguém digitando — mesmo comportamento que `PixiCanvas.tsx`
+ * já tem hoje para `Escape` (não checa `target`) enquanto `Delete` checa
+ * (`:2051-2053`); este módulo generaliza a mesma linha de raciocínio pros
+ * atalhos novos.
+ */
+export function resolveShortcut(evt: ShortcutEvent): Action | null {
+  if (evt.key === 'Escape') return { kind: 'cancel' }
+  if (isEditableTarget(evt.targetTagName)) return null
+
+  const ctrlOrCmd = evt.ctrlKey || evt.metaKey
+  const key = evt.key
+  const lower = key.length === 1 ? key.toLowerCase() : key
+
+  if (ctrlOrCmd) {
+    if (lower === 'z' && evt.shiftKey) return { kind: 'redo' }
+    if (lower === 'z') return { kind: 'undo' }
+    if (lower === 'y') return { kind: 'redo' }
+    if (lower === 'd') return { kind: 'duplicate' }
+    if (lower === 's') return { kind: 'save' }
+    if (lower === 'o') return { kind: 'open' }
+    if (lower === 'a') return { kind: 'selectAll' }
+    if (key === '0') return { kind: 'zoomReset' }
+    return null
+  }
+
+  if (key === 'Delete' || key === 'Backspace') return { kind: 'deleteSelected' }
+
+  if (isArrowKey(key)) {
+    const base = ARROW_DELTA[key]
+    if (evt.altKey) {
+      // Alt sempre vence sobre Shift — mesma convenção de `applySnap` em
+      // `pixi/PixiCanvas.tsx:527` ("altKey INVERTE... só neste gesto").
+      return { kind: 'nudge', dx: base.dx, dy: base.dy, fine: true }
+    }
+    const magnitude = evt.shiftKey ? 10 : 1
+    return { kind: 'nudge', dx: base.dx * magnitude, dy: base.dy * magnitude, fine: false }
+  }
+
+  // A partir daqui só sobra tecla "crua" de letra única (ferramenta ou
+  // `F`=enquadrar). Shift e Alt já têm significado próprio nas setas acima;
+  // exigir ausência dos dois aqui evita, por exemplo, Shift+V competir no
+  // futuro com um atalho de Shift+letra que venha a existir.
+  if (evt.shiftKey || evt.altKey) return null
+
+  if (lower === 'f') return { kind: 'fitAll' }
+
+  const tool = TOOL_BY_LETTER.get(lower)
+  if (tool) return { kind: 'selectTool', tool }
+
+  return null
+}

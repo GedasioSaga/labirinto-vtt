@@ -63,7 +63,7 @@ test('1. clicar em cima de uma parede diagonal com a ferramenta Porta cria um pe
 
   const doorPiece = walls.find((w) => w.door !== null)
   expect(doorPiece).toBeTruthy()
-  expect(doorPiece!.door).toEqual({ open: false, locked: false })
+  expect(doorPiece!.door).toEqual({ open: false, locked: false, kind: 'normal' })
 
   // Colinear com a parede original: mesma razão dx/dy — não só "perto" da
   // linha, EXATAMENTE sobre ela (dentro de erro de ponto flutuante).

@@ -1,6 +1,16 @@
-import type { MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState } from '../types/map'
+import type {
+  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
+  Stair, StairDirection, DoorKind, MapScale, MeasurementMode,
+} from '../types/map'
+import type { Point } from '../pixi/world'
 import { syncWallsToRegionPoint, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
 import { simplifyPolygon, chaikinSmooth } from './regionSmoothing'
+import { resizeRoomCorner, resizeRoomDimensions as resizeRoomDimensionsPoints, type RoomCorner } from './roomOps'
+import { defaultMeasurementModeForShape } from './measurement'
+import {
+  resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
+  type Corner, type ResizeModifiers,
+} from './objectTransform'
 
 export function createEmptyMap(id: string, name: string, width: number, height: number, grid: number): MapData {
   return {
@@ -11,14 +21,22 @@ export function createEmptyMap(id: string, name: string, width: number, height: 
     grid,
     gridShape: 'square',
     showGrid: true,
+    // Mesmos defaults literais que deserializeMap.ts aplica a um mapa antigo
+    // sem gridSettings — mapa novo e mapa migrado têm que se comportar igual.
+    gridSettings: { color: '#4a4a4a', opacity: 1, lineWidth: 1, lineStyle: 'solid' },
     background: { type: 'color', src: '#2b2b2b' },
     walls: [],
     lights: [],
     regions: [],
     tokens: [],
     props: [],
+    stairs: [],
     drawings: [],
     fog: { mode: 'none', revealed: [] },
+    hiddenLayers: [],
+    lockedLayers: [],
+    scale: { unitsPerCell: 5, unit: 'ft', precision: 0 },
+    measurementMode: 'chessboard',
     ownerId: null,
     scenarioLink: null,
   }
@@ -247,6 +265,13 @@ export function setTokenPosition(map: MapData, tokenId: string, x: number, y: nu
   }
 }
 
+export function setTokenImage(map: MapData, tokenId: string, image: string | null): MapData {
+  return {
+    ...map,
+    tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, image } : t)),
+  }
+}
+
 export function addProp(map: MapData, prop: Prop): MapData {
   return { ...map, props: [...map.props, prop] }
 }
@@ -262,6 +287,13 @@ export function setPropPosition(map: MapData, propId: string, x: number, y: numb
   }
 }
 
+export function setPropLayer(map: MapData, propId: string, layer: Prop['layer']): MapData {
+  return {
+    ...map,
+    props: map.props.map((p) => (p.id === propId ? { ...p, layer } : p)),
+  }
+}
+
 export function setShowGrid(map: MapData, showGrid: boolean): MapData {
   return { ...map, showGrid }
 }
@@ -270,14 +302,161 @@ export function setBackground(map: MapData, background: MapData['background']): 
   return { ...map, background }
 }
 
+/**
+ * Muda o formato da grade E reseta `measurementMode` pro default daquele
+ * formato (`defaultMeasurementModeForShape`, lib/measurement.ts) — sem isso,
+ * um mapa quadrado em `'manhattan'` que vira hex fica com um modo que não
+ * existe lá (`measurementModesForShape('hex')` não inclui `'manhattan'`).
+ */
 export function setGridShape(map: MapData, gridShape: MapData['gridShape']): MapData {
-  return { ...map, gridShape }
+  return { ...map, gridShape, measurementMode: defaultMeasurementModeForShape(gridShape) }
+}
+
+export function setGridSettings(map: MapData, patch: Partial<GridSettings>): MapData {
+  return { ...map, gridSettings: { ...map.gridSettings, ...patch } }
+}
+
+/**
+ * Muda `MapData.gridOffset` inteiro (F3, "alinhar grade à imagem" — contrato
+ * do agente C5, `lib/gridAlign.ts`). Substitui o objeto inteiro em vez de
+ * fazer patch parcial — mesma convenção de `setMapScale`/`setBackground`
+ * abaixo, porque `{x,y}` é sempre editado como par (não há campo "só x").
+ */
+export function setGridOffset(map: MapData, offset: Point): MapData {
+  return { ...map, gridOffset: offset }
+}
+
+/**
+ * Muda `MapData.grid` (tamanho de célula em px de mundo) — hoje só definido
+ * na criação do mapa (`createEmptyMap`), sem setter próprio até este
+ * contrato (C5) precisar de um pro botão "Aplicar" de `GridAlignControls`.
+ * Nome `setGridCellSize`, não `setGrid`, pra não colidir por leitura com
+ * `setGridShape`/`setGridSettings`/`setGridOffset` (todos editam campo
+ * DIFERENTE de `MapData`, não o mesmo `grid`).
+ */
+export function setGridCellSize(map: MapData, cellSize: number): MapData {
+  return { ...map, grid: cellSize }
+}
+
+/**
+ * Esconde/mostra uma LayerId inteira em `map.hiddenLayers` — toggle simples
+ * de presença no array. A limpeza de seleção quando o item selecionado fica
+ * invisível é responsabilidade do STORE (mapStore.ts), não desta função
+ * pura: aqui não há acesso a `selection`.
+ */
+export function toggleLayerVisibility(map: MapData, layerId: LayerId): MapData {
+  const hidden = map.hiddenLayers.includes(layerId)
+  return {
+    ...map,
+    hiddenLayers: hidden ? map.hiddenLayers.filter((l) => l !== layerId) : [...map.hiddenLayers, layerId],
+  }
+}
+
+/**
+ * Trava/destrava uma LayerId inteira em `map.lockedLayers` — mesmo toggle
+ * simples de presença no array de `toggleLayerVisibility` acima (Onda 4,
+ * Frente D — CONTRATO pede espelho exato). Item na camada travada continua
+ * visível (independente de hiddenLayers), só não pode ser selecionado/movido
+ * — ver `lib/layers.ts` (isLayerLocked/canInteractInLayer). Limpeza de
+ * seleção quando o item selecionado fica travado é responsabilidade do
+ * STORE, não desta função pura — mesma separação de toggleLayerVisibility.
+ */
+export function toggleLayerLock(map: MapData, layerId: LayerId): MapData {
+  const locked = map.lockedLayers.includes(layerId)
+  return {
+    ...map,
+    lockedLayers: locked ? map.lockedLayers.filter((l) => l !== layerId) : [...map.lockedLayers, layerId],
+  }
 }
 
 export function setWallDoor(map: MapData, wallId: string, door: DoorState | null): MapData {
   return {
     ...map,
     walls: map.walls.map((w) => (w.id === wallId ? { ...w, door } : w)),
+  }
+}
+
+export function setWallKindForWall(map: MapData, wallId: string, wallKind: Wall['wallKind']): MapData {
+  return {
+    ...map,
+    walls: map.walls.map((w) => (w.id === wallId ? { ...w, wallKind } : w)),
+  }
+}
+
+/** Espelho exato de `setWallKindForWall`, para `Wall.thickness` (Fase 6,
+ *  pedido "poligono finos ou medios ou gordos" aplicado a Parede). */
+export function setWallThicknessForWall(map: MapData, wallId: string, thickness: Wall['thickness']): MapData {
+  return {
+    ...map,
+    walls: map.walls.map((w) => (w.id === wallId ? { ...w, thickness } : w)),
+  }
+}
+
+/** Espelho exato de `setWallKindForWall`, para `Wall.lineStyle` (Fase 6,
+ *  pedido "ponta reta ou redonda"). */
+export function setWallLineStyleForWall(map: MapData, wallId: string, lineStyle: Wall['lineStyle']): MapData {
+  return {
+    ...map,
+    walls: map.walls.map((w) => (w.id === wallId ? { ...w, lineStyle } : w)),
+  }
+}
+
+/**
+ * Troca o `DoorKind` de uma porta JÁ EXISTENTE (parede com `door !== null`) e
+ * REDIMENSIONA o vão pra `doorLength` (= `DOOR_LENGTH_BY_KIND[kind]`,
+ * calculado pelo chamador em mapStore.ts), centrado no meio do vão ATUAL —
+ * troca de tipo não desloca a porta, só estica/encolhe pros dois lados do
+ * mesmo centro. Direção herdada do vetor unitário da própria `Wall`, nunca
+ * recalculada como horizontal/vertical (mesma convenção de `addDoorOnWall`).
+ *
+ * Parede inexistente, sem porta (`door === null`), ou de comprimento zero
+ * (não deveria existir uma porta assim, mas defensivo): devolve `map` pela
+ * mesma referência.
+ */
+export function setWallDoorKind(map: MapData, wallId: string, kind: DoorKind, doorLength: number): MapData {
+  const wall = map.walls.find((w) => w.id === wallId)
+  if (!wall || !wall.door) return map
+  const door = wall.door // narrowed não-nulo aqui; capturado antes do .map porque o
+  // callback abaixo itera sobre `w` (outra referência), que o TS não re-narrowa.
+
+  const dx = wall.x2 - wall.x1
+  const dy = wall.y2 - wall.y1
+  const length = Math.hypot(dx, dy)
+  if (length === 0) return map
+
+  const midX = (wall.x1 + wall.x2) / 2
+  const midY = (wall.y1 + wall.y2) / 2
+  const ux = dx / length
+  const uy = dy / length
+  const half = doorLength / 2
+
+  const updatedWall: Wall = {
+    ...wall,
+    x1: midX - ux * half,
+    y1: midY - uy * half,
+    x2: midX + ux * half,
+    y2: midY + uy * half,
+    door: { ...door, kind },
+  }
+
+  return {
+    ...map,
+    walls: map.walls.map((w) => (w.id === wallId ? updatedWall : w)),
+  }
+}
+
+/**
+ * Alterna `DoorState.locked` de uma porta já existente. Campo no schema desde
+ * sempre (types/map.ts), sem UI até esta fase (F2). Parede inexistente ou sem
+ * porta: devolve `map` pela mesma referência.
+ */
+export function setDoorLocked(map: MapData, wallId: string, locked: boolean): MapData {
+  const wall = map.walls.find((w) => w.id === wallId)
+  if (!wall || !wall.door) return map
+
+  return {
+    ...map,
+    walls: map.walls.map((w) => (w.id === wallId && w.door ? { ...w, door: { ...w.door, locked } } : w)),
   }
 }
 
@@ -307,10 +486,17 @@ export function setWallDoor(map: MapData, wallId: string, door: DoorState | null
  * parede vinculada vira paredes soltas normais a partir daqui. Intencional,
  * não é bug.
  *
+ * `kind` (F2) é o tipo estrutural da porta a nascer (`normal | double | gate`
+ * — preferência de ferramenta `doorKind`, lida pelo store no momento do
+ * clique). `doorLength` já vem pronto do chamador como
+ * `DOOR_LENGTH_BY_KIND[kind]` (mapStore.ts) — esta função não conhece a
+ * tabela, só usa o número que recebeu, mesma separação de responsabilidade
+ * de `addWall`/`buildWallFromDraft` com `wallKind`.
+ *
  * Parede inexistente ou de comprimento zero: devolve `map` pela mesma
  * referência (sem mudança).
  */
-export function addDoorOnWall(map: MapData, wallId: string, point: { x: number; y: number }, doorLength: number): MapData {
+export function addDoorOnWall(map: MapData, wallId: string, point: { x: number; y: number }, doorLength: number, kind: DoorKind): MapData {
   const wall = map.walls.find((w) => w.id === wallId)
   if (!wall) return map
 
@@ -345,7 +531,7 @@ export function addDoorOnWall(map: MapData, wallId: string, point: { x: number; 
 
   const pieces: Wall[] = []
   if (doorStart > 0) pieces.push(pieceAt(0, doorStart, null))
-  pieces.push(pieceAt(doorStart, doorEnd, { open: false, locked: false }))
+  pieces.push(pieceAt(doorStart, doorEnd, { open: false, locked: false, kind }))
   if (doorEnd < length) pieces.push(pieceAt(doorEnd, length, null))
 
   return {
@@ -364,6 +550,17 @@ export function addDrawing(map: MapData, drawing: Drawing): MapData {
 
 export function removeDrawing(map: MapData, drawingId: string): MapData {
   return { ...map, drawings: map.drawings.filter((d) => d.id !== drawingId) }
+}
+
+/**
+ * Substitui 1 Drawing por N (0, 1 ou vários) — resultado de `eraseFromDrawing`
+ * (lib/eraseGeometry.ts, agente D, F4 N1 "borracha: apagar parte"). Sem
+ * precedente 1-pra-N em mapFactory.ts até este contrato (tudo aqui era
+ * 1-pra-1 ou N-fixo); nasce ao lado de addDrawing/removeDrawing porque é a
+ * mesma mutação de fundo (`map.drawings`), só com aridade diferente.
+ */
+export function replaceDrawingWithMany(map: MapData, drawingId: string, replacements: Drawing[]): MapData {
+  return { ...map, drawings: [...map.drawings.filter((d) => d.id !== drawingId), ...replacements] }
 }
 
 export function updateLinePoint(map: MapData, drawingId: string, endpoint: 0 | 1, x: number, y: number): MapData {
@@ -458,9 +655,200 @@ export function moveDrawing(map: MapData, drawingId: string, dx: number, dy: num
           return { ...d, cx: d.cx + dx, cy: d.cy + dy }
         case 'text':
           return { ...d, x: d.x + dx, y: d.y + dy }
+        // rect/ellipse/polygon (Fase 1) caíam no `default` abaixo e não se
+        // moviam — bug real B3 (dossiê F4, contrato do agente B3): hit-test
+        // desses 3 kinds só passou a existir nesta fase, então até aqui
+        // ninguém tinha reparado que moveDrawing também os ignorava.
+        case 'rect':
+          return { ...d, x: d.x + dx, y: d.y + dy }
+        case 'ellipse':
+          return { ...d, cx: d.cx + dx, cy: d.cy + dy }
+        case 'polygon':
+          return { ...d, points: d.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) }
         default:
           return d
       }
     }),
   }
+}
+
+/**
+ * Variante "live" de resize por canto de Drawing rect/ellipse/polygon — SEM
+ * histórico, pensada pro pointermove do arrasto (par de `commitDragHistory`
+ * no pointerup, mesmo padrão de `resizeRoomCornerLive`). Delega a geometria
+ * pura para `objectTransform.ts` (agente B3) — esta função só localiza o
+ * Drawing no map e substitui pelo resultado. Drawing inexistente, ou de um
+ * kind sem resize por canto (freehand/line/circle/curve/text): devolve `map`
+ * pela mesma referência.
+ *
+ * `modifiers` (Onda 3, item 17, Frente B): Shift preserva a proporção
+ * original, Alt redimensiona a partir do centro — repassado direto pra
+ * `resizeXxxDrawing`, que já tem o default `{shift:false,alt:false}` pra
+ * quem não passa nada.
+ */
+export function resizeDrawingCornerLive(map: MapData, drawingId: string, corner: Corner, x: number, y: number, modifiers: ResizeModifiers): MapData {
+  const drawing = map.drawings.find((d) => d.id === drawingId)
+  if (!drawing) return map
+
+  let updated: Drawing
+  if (drawing.kind === 'rect') updated = resizeRectDrawing(drawing, corner, x, y, modifiers)
+  else if (drawing.kind === 'ellipse') updated = resizeEllipseDrawing(drawing, corner, x, y, modifiers)
+  else if (drawing.kind === 'polygon') updated = resizePolygonDrawing(drawing, corner, x, y, modifiers)
+  else return map
+
+  return { ...map, drawings: map.drawings.map((d) => (d.id === drawingId ? updated : d)) }
+}
+
+/** Mesmo padrão de `resizeDrawingCornerLive`, para Prop — `resizePropBox`
+ *  (objectTransform.ts) devolve o novo x/y/width/height já no formato que
+ *  `Prop` usa (centro + dimensões). Prop inexistente: `map` sem mudança.
+ *  `modifiers` (Onda 3, item 17): mesma regra de `resizeDrawingCornerLive`. */
+export function resizePropCornerLive(map: MapData, propId: string, corner: Corner, x: number, y: number, modifiers: ResizeModifiers): MapData {
+  const prop = map.props.find((p) => p.id === propId)
+  if (!prop) return map
+  const box = resizePropBox(prop, corner, x, y, modifiers)
+  return { ...map, props: map.props.map((p) => (p.id === propId ? { ...p, ...box } : p)) }
+}
+
+/**
+ * Onda 3, item 18 (Frente B) — variante "live" do raio de um Drawing
+ * 'circle', par de `resizeDrawingCornerLive` acima: mesmo padrão SEM
+ * histórico (pointerup fecha com `commitDragHistory`). Drawing inexistente
+ * ou de outro kind: `map` sem mudança.
+ */
+export function resizeCircleDrawingRadiusLive(map: MapData, drawingId: string, x: number, y: number): MapData {
+  const drawing = map.drawings.find((d) => d.id === drawingId)
+  if (!drawing || drawing.kind !== 'circle') return map
+  return { ...map, drawings: map.drawings.map((d) => (d.id === drawingId ? { ...drawing, radius: resizeCircleDrawingRadius(drawing, x, y) } : d)) }
+}
+
+// ─────────────────────────────────────────────────────────────
+// STAIR (F2) — espelhos puros de addWall/removeWall/moveWall/updateWallPoint,
+// com `segmentIndex` a mais porque `Stair.segments` é array (shape
+// 'straight' desta fase usa sempre segmentIndex 0; 'l'/'double' futuros usam
+// índices >0 sem precisar mudar a assinatura). Contrato do agente B2.
+// ─────────────────────────────────────────────────────────────
+export function addStair(map: MapData, stair: Stair): MapData {
+  return { ...map, stairs: [...map.stairs, stair] }
+}
+
+export function removeStair(map: MapData, stairId: string): MapData {
+  return { ...map, stairs: map.stairs.filter((s) => s.id !== stairId) }
+}
+
+export function moveStair(map: MapData, stairId: string, dx: number, dy: number): MapData {
+  return {
+    ...map,
+    stairs: map.stairs.map((s) =>
+      s.id === stairId
+        ? { ...s, segments: s.segments.map((seg) => ({ x1: seg.x1 + dx, y1: seg.y1 + dy, x2: seg.x2 + dx, y2: seg.y2 + dy })) }
+        : s,
+    ),
+  }
+}
+
+export function updateStairPoint(map: MapData, stairId: string, segmentIndex: number, endpoint: 0 | 1, x: number, y: number): MapData {
+  return {
+    ...map,
+    stairs: map.stairs.map((s) => {
+      if (s.id !== stairId) return s
+      return {
+        ...s,
+        segments: s.segments.map((seg, i) =>
+          i === segmentIndex ? (endpoint === 0 ? { ...seg, x1: x, y1: y } : { ...seg, x2: x, y2: y }) : seg,
+        ),
+      }
+    }),
+  }
+}
+
+export function setStairDirection(map: MapData, stairId: string, direction: StairDirection): MapData {
+  return { ...map, stairs: map.stairs.map((s) => (s.id === stairId ? { ...s, direction } : s)) }
+}
+
+/** Troca `stepWidth` (largura do lance) de uma escada JÁ CRIADA — mesmo
+ *  espelho de `setStairDirection` (F4, N1 "escada pequena/média/grande").
+ *  Escada inexistente: `map` sem mudança (o `.map` abaixo é no-op). */
+export function setStairStepWidth(map: MapData, stairId: string, stepWidth: number): MapData {
+  return { ...map, stairs: map.stairs.map((s) => (s.id === stairId ? { ...s, stepWidth } : s)) }
+}
+
+// ─────────────────────────────────────────────────────────────
+// SALA: identidade + resize (F2) — contrato do agente B3. `resizeRoomDimensions`
+// e `resizeRoomCornerLive` sincronizam as paredes vinculadas via `regionId`
+// (ferramenta Sala cria as 4 paredes do contorno já vinculadas, ver
+// buildRoomFromDraft/drawingFactory.ts), reusando `syncWallsToRegionPoint`
+// (lib/roomLink.ts) — mesma função que `updateRegionPoint` já usa. Sem essa
+// sincronização a Sala "redimensiona" visualmente mas as paredes ficam para
+// trás, desalinhadas do contorno novo.
+// ─────────────────────────────────────────────────────────────
+
+/** Aplica `syncWallsToRegionPoint` a TODOS os vértices de `points` em sequência
+ *  — usado depois de recalcular os 4 cantos de uma Sala inteira de uma vez
+ *  (resize), diferente de `updateRegionPoint`, que move só 1 vértice. */
+function syncAllRoomPoints(walls: Wall[], regionId: string, points: Region['points']): Wall[] {
+  const n = points.length
+  return points.reduce((acc, p, i) => syncWallsToRegionPoint(acc, regionId, i, p.x, p.y, n), walls)
+}
+
+/** Renomeia a Sala (`region.room.name`). Sem efeito se a região não existir
+ *  ou não for uma Sala (`room` ausente) — devolve `map` pela mesma referência. */
+export function setRoomName(map: MapData, id: string, name: string): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room) return map
+
+  return {
+    ...map,
+    regions: map.regions.map((r) => (r.id === id && r.room ? { ...r, room: { ...r.room, name } } : r)),
+  }
+}
+
+/**
+ * Redimensiona uma Sala RETANGULAR (`room.shape === 'rect'`) por
+ * largura/altura numérica — âncora em `points[0]`, ver `roomOps.resizeRoomDimensions`.
+ * COM histórico (chamado a partir do campo numérico do painel, não de um
+ * arrasto contínuo). Sala Circular/Polígono ou região sem `room`: `map` sem
+ * mudança.
+ */
+export function resizeRoomDimensions(map: MapData, id: string, wPx: number, hPx: number): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || region.room?.shape !== 'rect') return map
+
+  const points = resizeRoomDimensionsPoints(region.points, wPx, hPx)
+  return {
+    ...map,
+    regions: map.regions.map((r) => (r.id === id ? { ...r, points } : r)),
+    walls: syncAllRoomPoints(map.walls, id, points),
+  }
+}
+
+/**
+ * Variante "live" de `resizeRoomDimensions`/mover-canto, restrita ao arrasto
+ * de UM canto: aplica no `map` direto, SEM histórico — pensada pro pointermove
+ * do arrasto da alça de canto (drawRoomHandles.ts). Par de `commitDragHistory`
+ * no pointerup, mesmo padrão de `updateLightRadiusLive`/`updateCurvePointLive`
+ * (mapStore.ts). Sala Circular/Polígono ou região sem `room`: `map` sem mudança.
+ */
+export function resizeRoomCornerLive(map: MapData, id: string, corner: RoomCorner, x: number, y: number): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || region.room?.shape !== 'rect') return map
+
+  const points = resizeRoomCorner(region.points, corner, x, y)
+  return {
+    ...map,
+    regions: map.regions.map((r) => (r.id === id ? { ...r, points } : r)),
+    walls: syncAllRoomPoints(map.walls, id, points),
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// MEDIÇÃO + ESCALA (F2) — contrato do agente B4. `scale`/`measurementMode`
+// são campos simples de MapData, mesma classe de setShowGrid/setGridSettings.
+// ─────────────────────────────────────────────────────────────
+export function setMapScale(map: MapData, scale: MapScale): MapData {
+  return { ...map, scale }
+}
+
+export function setMeasurementMode(map: MapData, measurementMode: MeasurementMode): MapData {
+  return { ...map, measurementMode }
 }

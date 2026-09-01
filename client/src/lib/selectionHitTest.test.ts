@@ -54,8 +54,8 @@ describe('findRegionAt', () => {
 
 const freehandDrawing: Drawing = { id: 'd1', kind: 'freehand', points: [{ x: 0, y: 0 }, { x: 100, y: 0 }], color: '#fff', width: 4 }
 const lineDrawing: Drawing = { id: 'd2', kind: 'line', x1: 0, y1: 50, x2: 100, y2: 50, color: '#fff', width: 4 }
-const circleOutline: Drawing = { id: 'd3', kind: 'circle', cx: 200, cy: 200, radius: 50, color: '#fff', width: 4, filled: false }
-const circleFilled: Drawing = { id: 'd4', kind: 'circle', cx: 300, cy: 300, radius: 50, color: '#fff', width: 4, filled: true }
+const circleOutline: Drawing = { id: 'd3', kind: 'circle', cx: 200, cy: 200, radius: 50, color: '#fff', width: 4, filled: false, fillAlpha: 0 }
+const circleFilled: Drawing = { id: 'd4', kind: 'circle', cx: 300, cy: 300, radius: 50, color: '#fff', width: 4, filled: true, fillAlpha: 0.5 }
 
 describe('findDrawingAt', () => {
   it('encontra freehand perto de um segmento do traço', () => {
@@ -94,6 +94,57 @@ describe('findDrawingAt', () => {
     const textDrawing: Drawing = { id: 'd6', kind: 'text', x: 100, y: 100, text: 'Sala', color: '#fff', fontSize: 16 }
     expect(findDrawingAt([textDrawing], { x: 1000, y: 1000 })).toBeNull()
   })
+
+  // Bug 3 do dossiê F4 ("depois que eu seleciono o retângulo eu não posso
+  // mudar nem a posição nem o tamanho") — antes desta fase, rect/ellipse/
+  // polygon não tinham hit-test NENHUM (comentário explícito "Fase 1").
+  const rectFilled: Drawing = { id: 'r1', kind: 'rect', x: 100, y: 100, w: 50, h: 30, color: '#fff', width: 2, filled: true, fillAlpha: 0.5 }
+  const rectOutline: Drawing = { id: 'r2', kind: 'rect', x: 100, y: 100, w: 50, h: 30, color: '#fff', width: 2, filled: false, fillAlpha: 0.5 }
+
+  it('rect preenchido: encontra em qualquer ponto dentro da área', () => {
+    expect(findDrawingAt([rectFilled], { x: 125, y: 115 })?.id).toBe('r1')
+  })
+
+  it('rect vazado: encontra perto da borda, não no meio', () => {
+    expect(findDrawingAt([rectOutline], { x: 101, y: 110 })?.id).toBe('r2')
+    expect(findDrawingAt([rectOutline], { x: 125, y: 115 })).toBeNull()
+  })
+
+  it('rect: não encontra longe de qualquer aresta', () => {
+    expect(findDrawingAt([rectOutline], { x: 1000, y: 1000 })).toBeNull()
+  })
+
+  const ellipseFilled: Drawing = { id: 'e1', kind: 'ellipse', cx: 200, cy: 200, rx: 40, ry: 20, color: '#fff', width: 2, filled: true, fillAlpha: 0.5 }
+  const ellipseOutline: Drawing = { id: 'e2', kind: 'ellipse', cx: 200, cy: 200, rx: 40, ry: 20, color: '#fff', width: 2, filled: false, fillAlpha: 0.5 }
+
+  it('ellipse preenchida: encontra no centro e dentro do raio', () => {
+    expect(findDrawingAt([ellipseFilled], { x: 200, y: 200 })?.id).toBe('e1')
+  })
+
+  it('ellipse vazada: encontra perto do contorno, não no centro', () => {
+    expect(findDrawingAt([ellipseOutline], { x: 240, y: 200 })?.id).toBe('e2')
+    expect(findDrawingAt([ellipseOutline], { x: 200, y: 200 })).toBeNull()
+  })
+
+  const polygonFilled: Drawing = {
+    id: 'p1', kind: 'polygon', points: [{ x: 300, y: 300 }, { x: 400, y: 300 }, { x: 400, y: 400 }, { x: 300, y: 400 }],
+    color: '#fff', width: 2, filled: true, fillAlpha: 0.5,
+  }
+  const polygonOutline: Drawing = { ...polygonFilled, id: 'p2', filled: false }
+
+  it('polygon preenchido: encontra em qualquer ponto dentro da área', () => {
+    expect(findDrawingAt([polygonFilled], { x: 350, y: 350 })?.id).toBe('p1')
+  })
+
+  it('polygon vazado: encontra perto de uma aresta, não no meio', () => {
+    expect(findDrawingAt([polygonOutline], { x: 301, y: 350 })?.id).toBe('p2')
+    expect(findDrawingAt([polygonOutline], { x: 350, y: 350 })).toBeNull()
+  })
+
+  it('polygon com menos de 3 pontos: nunca encontrado (mesma guarda de findRegionAt)', () => {
+    const degenerate: Drawing = { id: 'p3', kind: 'polygon', points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], color: '#fff', width: 2, filled: true, fillAlpha: 0.5 }
+    expect(findDrawingAt([degenerate], { x: 0, y: 0 })).toBeNull()
+  })
 })
 
 describe('estimateTextWidth', () => {
@@ -127,6 +178,16 @@ describe('findSelectableAt — drawing na cadeia de prioridade', () => {
     expect(hit).toEqual({ kind: 'drawing', id: 'd2', draggable: true })
   })
 
+  // Agente B3 (dossiê F4, bug3, prioridade 4: "mover circle/text/freehand").
+  // Antes desta fase só 'line' vinha com draggable:true — qualquer outro kind
+  // agora também é (mapFactory.moveDrawing cobre os 7 kinds, ver CONTRATO).
+  it('circle também é arrastável (não só line)', () => {
+    let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
+    map = { ...map, drawings: [circleFilled] }
+    const hit = findSelectableAt(map, { x: 300, y: 300 })
+    expect(hit).toEqual({ kind: 'drawing', id: 'd4', draggable: true })
+  })
+
   it('luz tem prioridade sobre drawing quando ambos no mesmo ponto', () => {
     let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
     map = addLight(map, { id: 'l1', x: 50, y: 52, radius: 300, color: '#fff', intensity: 1 })
@@ -140,7 +201,7 @@ describe('findSelectableAt (cadeia de prioridade)', () => {
   it('token tem prioridade sobre tudo (marcável e arrastável)', () => {
     let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
     map = addWall(map, wall)
-    map = addToken(map, { id: 't1', characterId: null, name: 'Herói', x: 50, y: 3, size: 1 })
+    map = addToken(map, { id: 't1', characterId: null, name: 'Herói', x: 50, y: 3, size: 1, image: null })
     const hit = findSelectableAt(map, { x: 50, y: 3 })
     expect(hit).toEqual({ kind: 'token', id: 't1', draggable: true })
   })
@@ -172,7 +233,7 @@ describe('findSelectableAt (cadeia de prioridade)', () => {
   it('token tem prioridade sobre prop quando ambos estão no mesmo ponto', () => {
     let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
     map = addProp(map, { id: 'p1', src: '/a.png', x: 50, y: 50, width: 20, height: 20, linkedMapPath: null })
-    map = addToken(map, { id: 't1', characterId: null, name: 'Herói', x: 50, y: 50, size: 1 })
+    map = addToken(map, { id: 't1', characterId: null, name: 'Herói', x: 50, y: 50, size: 1, image: null })
     const hit = findSelectableAt(map, { x: 50, y: 50 })
     expect(hit).toEqual({ kind: 'token', id: 't1', draggable: true })
   })
@@ -197,7 +258,7 @@ describe('findSelectableAt (cadeia de prioridade)', () => {
     let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
     map = addRegion(map, region)
     map = addLight(map, { id: 'l1', x: 50, y: 50, radius: 300, color: '#fff', intensity: 1 })
-    map = addToken(map, { id: 't1', characterId: null, name: 'Herói', x: 50, y: 50, size: 1 })
+    map = addToken(map, { id: 't1', characterId: null, name: 'Herói', x: 50, y: 50, size: 1, image: null })
     const hit = findSelectableAt(map, { x: 50, y: 50 })
     expect(hit).toEqual({ kind: 'token', id: 't1', draggable: true })
   })
@@ -250,5 +311,36 @@ describe('findNearestExistingVertex', () => {
     map = addDrawing(map, { id: 'd1', kind: 'freehand', points: [{ x: 10, y: 10 }, { x: 20, y: 20 }], color: '#fff', width: 4 })
 
     expect(findNearestExistingVertex(map, { x: 10, y: 10 })).toBeNull()
+  })
+
+  // Bug G4 (dossiê F4): "não consigo fechar as paredes externas quando eu
+  // puxo para ficar mais perto" — duas paredes de canto que ficam com uma
+  // folga visível mesmo quando arrastadas bem próximas uma da outra.
+  describe('excludeWallId — arrastar ponta de wall existente sem grudar na própria outra ponta', () => {
+    it('sem excludeWallId, a propria outra ponta da wall arrastada pode vencer como candidata mais proxima', () => {
+      let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
+      // w1 é a wall sendo arrastada: ponta livre em (0,0), outra ponta em (5,5) — bem perto do ponto de arrasto.
+      map = addWall(map, { id: 'w1', x1: 0, y1: 0, x2: 5, y2: 5, blocksLight: true, blocksMove: true, door: null })
+      // w2 é a wall vizinha que o usuário está tentando alcançar, no canto (0,0).
+      map = addWall(map, { id: 'w2', x1: 0, y1: 0, x2: 100, y2: 0, blocksLight: true, blocksMove: true, door: null })
+
+      // Ponto de arrasto perto de (0,0) — mas (5,5), a outra ponta da própria w1, também está dentro da tolerância e é candidata.
+      expect(findNearestExistingVertex(map, { x: 3, y: 3 })).toEqual({ x: 5, y: 5 })
+    })
+
+    it('com excludeWallId da wall em arrasto, a own-ponta some da varredura e o vertice da wall vizinha vence', () => {
+      let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
+      map = addWall(map, { id: 'w1', x1: 0, y1: 0, x2: 5, y2: 5, blocksLight: true, blocksMove: true, door: null })
+      map = addWall(map, { id: 'w2', x1: 0, y1: 0, x2: 100, y2: 0, blocksLight: true, blocksMove: true, door: null })
+
+      expect(findNearestExistingVertex(map, { x: 3, y: 3 }, 12, 'w1')).toEqual({ x: 0, y: 0 })
+    })
+
+    it('exclusao nao afeta candidatos de outras walls quando o id nao bate com nenhuma', () => {
+      let map: MapData = createEmptyMap('m', 'x', 10, 10, 64)
+      map = addWall(map, { id: 'w1', x1: 0, y1: 0, x2: 100, y2: 0, blocksLight: true, blocksMove: true, door: null })
+
+      expect(findNearestExistingVertex(map, { x: 2, y: 1 }, 12, 'wall-que-nao-existe')).toEqual({ x: 0, y: 0 })
+    })
   })
 })

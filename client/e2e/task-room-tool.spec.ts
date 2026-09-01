@@ -1,8 +1,18 @@
 // E2E da ferramenta Sala (Fase 4 do plano `refactored-mixing-kite.md`): criação
-// canto-a-canto (região + 4 paredes vinculadas num só gesto), edição de vértice
-// e ponto médio de aresta (com sincronização Região→Parede), mover corpo inteiro,
+// canto-a-canto (região + 4 paredes vinculadas num só gesto), resize por canto
+// (shape 'rect', com sincronização Região→Parede), edição de vértice/ponto médio
+// livre (shape 'polygon', Sala Circular/Polígono Regular), mover corpo inteiro,
 // delegação de "arrastar parede vinculada" para mover a sala toda, parede solta
 // continuando independente, e cascata de undo/apagar.
+//
+// D1 (ROADMAP.md): antes da fábrica (lib/drawingFactory.ts) setar `region.room`,
+// toda Sala nascia indistinguível de uma Região comum e o resize por canto
+// (lib/roomOps.ts + pixi/PixiCanvas.tsx) nunca era alcançado por um gesto real
+// da barra — só por teste unitário que montava a região à mão. Os testes 2 e 3
+// abaixo descrevem o comportamento observável DEPOIS da correção: shape
+// 'rect' (ferramenta "Sala") só redimensiona pelos 4 cantos; shape 'polygon'
+// (Sala Circular/Polígono Regular) mantém o arrasto de vértice/ponto médio
+// livre de sempre — ver PixiCanvas.tsx, bloco `region.room?.shape === 'rect'`.
 //
 // Mesmo harness de `task-eraser-tool.spec.ts`: import dinâmico da store dentro de
 // `page.evaluate`, câmera fica em {0,0,scale:1} (sem pan/zoom antes de medir), então
@@ -24,10 +34,12 @@ async function getMapState(page: Page): Promise<MapState> {
   })
 }
 
+// Onda 4, item 24 — `selection` do store virou SelectionSet (array). `[0] ??
+// null` adapta pro formato de item único que os specs já esperavam.
 async function getSelection(page: Page) {
   return page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
-    return mod.useMapStore.getState().selection
+    return mod.useMapStore.getState().selection[0] ?? null
   })
 }
 
@@ -40,7 +52,7 @@ async function resetMap(page: Page) {
   })
 }
 
-async function selectTool(page: Page, label: 'Selecionar' | 'Sala' | 'Parede' | 'Região') {
+async function selectTool(page: Page, label: 'Selecionar' | 'Sala' | 'Parede' | 'Região' | 'Polígono Regular') {
   await page.getByRole('button', { name: label, exact: true }).click()
 }
 
@@ -78,6 +90,9 @@ test('1. criação: arrasto canto-a-canto gera 1 região + 4 paredes vinculadas'
     { x: 600, y: 500 },
     { x: 300, y: 500 },
   ])
+  // D1 (ROADMAP.md): a própria correção — sem `region.room`, esta é uma
+  // Região comum e RoomControls (nome + resize por canto) nunca aparece.
+  expect(region.room).toEqual({ shape: 'rect', name: 'Sala' })
 
   const roomWalls = walls.filter((w) => w.regionId === region.id)
   expect(roomWalls).toHaveLength(4)
@@ -90,7 +105,15 @@ test('1. criação: arrasto canto-a-canto gera 1 região + 4 paredes vinculadas'
   expect(wallByEdge(walls, region.id, 3)).toMatchObject({ x1: 300, y1: 500, x2: 300, y2: 300 })
 })
 
-test('2. arrastar vértice: só aquele ponto muda, as 2 paredes adjacentes acompanham, as outras 2 ficam idênticas', async ({ page }) => {
+// Sala 'rect' (Region.room.shape === 'rect') resize SÓ pelos 4 cantos —
+// PixiCanvas.tsx nunca deixa cair no arrasto de vértice/midpoint genérico
+// pra esse shape (senão o retângulo viraria um quadrilátero torto e
+// dessincronizaria com resizeRoomDimensions/RoomControls). Esta é a semântica
+// NOVA depois de D1: antes de `region.room` ser setado, o ponto (600,300)
+// caía no arrasto de vértice livre (genérico); agora ele é um CANTO da Sala
+// e cai em `resizeRoomCornerLive`, que reconstrói o retângulo inteiro a
+// partir do canto oposto (âncora fixa) — não move só aquele ponto.
+test('2. arrastar canto (resize por canto): reconstrói o retângulo a partir do canto oposto, as 4 paredes acompanham', async ({ page }) => {
   const box = await page.locator('canvas').boundingBox()
   if (!box) throw new Error('canvas sem bounding box')
 
@@ -98,59 +121,96 @@ test('2. arrastar vértice: só aquele ponto muda, as 2 paredes adjacentes acomp
   await drag(page, { x: box.x + 300, y: box.y + 300 }, { x: box.x + 600, y: box.y + 500 })
   const before = await getMapState(page)
   const region = before.regions[0]
-  const edge2Before = wallByEdge(before.walls, region.id, 2)
-  const edge3Before = wallByEdge(before.walls, region.id, 3)
+  expect(region.room).toMatchObject({ shape: 'rect' })
 
   await selectTool(page, 'Selecionar')
   // clique no meio da sala seleciona a região.
   await page.mouse.click(box.x + 450, box.y + 400)
   expect(await getSelection(page)).toEqual({ kind: 'region', id: region.id })
 
-  // vértice 1 = (600,300), canto superior direito.
+  // canto 1 = (600,300), superior direito. Canto oposto (âncora) = canto 3,
+  // (300,500), inferior esquerdo — fica FIXO. Arrastar o canto 1 pra
+  // (700,250) reconstrói o retângulo com esses dois cantos na diagonal:
+  // topo-esquerda (300,250), topo-direita (700,250), baixo-direita (700,500),
+  // baixo-esquerda (300,500) — mesma convenção de `rectFromCorners`
+  // (lib/roomOps.ts) e de `buildRoomFromDraft` (lib/drawingFactory.ts).
   await drag(page, { x: box.x + 600, y: box.y + 300 }, { x: box.x + 700, y: box.y + 250 })
 
   const after = await getMapState(page)
   const afterRegion = after.regions.find((r) => r.id === region.id)
   expect(afterRegion).toBeTruthy()
-  expect(afterRegion!.points[1]).toEqual({ x: 700, y: 250 })
-  expect(afterRegion!.points[0]).toEqual({ x: 300, y: 300 })
-  expect(afterRegion!.points[2]).toEqual({ x: 600, y: 500 })
-  expect(afterRegion!.points[3]).toEqual({ x: 300, y: 500 })
+  expect(afterRegion!.points).toEqual([
+    { x: 300, y: 250 },
+    { x: 700, y: 250 },
+    { x: 700, y: 500 },
+    { x: 300, y: 500 },
+  ])
+  // A identidade da Sala (shape + nome) sobrevive ao resize.
+  expect(afterRegion!.room).toEqual({ shape: 'rect', name: 'Sala' })
 
-  const edge0After = wallByEdge(after.walls, region.id, 0)
-  const edge1After = wallByEdge(after.walls, region.id, 1)
-  expect(edge0After).toMatchObject({ x1: 300, y1: 300, x2: 700, y2: 250 })
-  expect(edge1After).toMatchObject({ x1: 700, y1: 250, x2: 600, y2: 500 })
-
-  expect(wallByEdge(after.walls, region.id, 2)).toEqual(edge2Before)
-  expect(wallByEdge(after.walls, region.id, 3)).toEqual(edge3Before)
+  // TODAS as 4 paredes resincronizam com o contorno novo — não só as 2
+  // adjacentes ao canto arrastado (diferença chave do resize por canto vs.
+  // o arrasto de vértice livre de antes, que só mexia nas 2 adjacentes).
+  expect(wallByEdge(after.walls, region.id, 0)).toMatchObject({ x1: 300, y1: 250, x2: 700, y2: 250 })
+  expect(wallByEdge(after.walls, region.id, 1)).toMatchObject({ x1: 700, y1: 250, x2: 700, y2: 500 })
+  expect(wallByEdge(after.walls, region.id, 2)).toMatchObject({ x1: 700, y1: 500, x2: 300, y2: 500 })
+  expect(wallByEdge(after.walls, region.id, 3)).toMatchObject({ x1: 300, y1: 500, x2: 300, y2: 250 })
 })
 
-test('3. inserir + remover (ida e volta): topologia volta ao estado original', async ({ page }) => {
+// Sala Circular / Polígono Regular (Region.room.shape === 'polygon') NÃO
+// ganham resize por canto — mantêm o arrasto de vértice livre e a inserção
+// de ponto médio de sempre (mesmo código genérico que uma Região comum já
+// usava antes de D1). Este teste prova que `region.room` passar a ser
+// setado por `buildRegularPolygonRoomFromDraft` NÃO quebra essa semântica —
+// é a cobertura que os antigos testes 2/3 (vértice livre em Sala retangular)
+// perderam ao virar resize-por-canto acima.
+test('3. (Polígono Regular) inserir + remover ponto médio: vértice livre continua intacto pra shape "polygon"', async ({ page }) => {
   const box = await page.locator('canvas').boundingBox()
   if (!box) throw new Error('canvas sem bounding box')
 
-  await selectTool(page, 'Sala')
-  await drag(page, { x: box.x + 300, y: box.y + 300 }, { x: box.x + 600, y: box.y + 500 })
+  // sides=4 com radiusPoint no eixo +x (ângulo inicial 0°) dá um "losango"
+  // com os 4 vértices em múltiplos de 90° — coordenadas inteiras, sem
+  // precisar de toBeCloseTo pra seno/cosseno de ângulo qualquer.
+  await page.evaluate(async () => {
+    const mod = await import('/src/stores/mapStore.ts')
+    mod.useMapStore.getState().setPolygonSides(4)
+  })
+
+  await selectTool(page, 'Polígono Regular')
+  const center = { x: box.x + 500, y: box.y + 400 }
+  // raio 100: vértices em (600,400), (500,500), (400,400), (500,300).
+  await drag(page, center, { x: box.x + 600, y: box.y + 400 })
+
   const before = await getMapState(page)
+  expect(before.regions).toHaveLength(1)
   const region = before.regions[0]
+  expect(region.room).toEqual({ shape: 'polygon', name: 'Sala' })
+  expect(region.points).toEqual([
+    { x: 600, y: 400 },
+    { x: 500, y: 500 },
+    { x: 400, y: 400 },
+    { x: 500, y: 300 },
+  ])
 
   await selectTool(page, 'Selecionar')
-  await page.mouse.click(box.x + 450, box.y + 400)
+  // clique no centro (longe de qualquer vértice/midpoint) seleciona a região.
+  await page.mouse.click(center.x, center.y)
   expect(await getSelection(page)).toEqual({ kind: 'region', id: region.id })
 
-  // Ponto médio da aresta 0 (topo): (450,300). Arrastar pra cima insere e já arrasta.
-  await drag(page, { x: box.x + 450, y: box.y + 300 }, { x: box.x + 450, y: box.y + 250 })
+  // Ponto médio da aresta 0 (600,400)->(500,500) = (550,450). Arrastar pra
+  // baixo insere e já arrasta — mesmo gesto "insere e já arrasta" de
+  // qualquer Região/Sala Circular, código genérico não tocado por D1.
+  await drag(page, { x: box.x + 550, y: box.y + 450 }, { x: box.x + 550, y: box.y + 500 })
 
   const midInserted = await getMapState(page)
   const regionAfterInsert = midInserted.regions.find((r) => r.id === region.id)
   expect(regionAfterInsert).toBeTruthy()
   expect(regionAfterInsert!.points).toHaveLength(5)
   expect(midInserted.walls.filter((w) => w.regionId === region.id)).toHaveLength(5)
-  expect(regionAfterInsert!.points[1]).toEqual({ x: 450, y: 250 })
+  expect(regionAfterInsert!.points[1]).toEqual({ x: 550, y: 500 })
 
   // Duplo-clique no ponto novo (mesma posição em que ficou depois do arrasto) remove.
-  await page.mouse.dblclick(box.x + 450, box.y + 250)
+  await page.mouse.dblclick(box.x + 550, box.y + 500)
 
   const after = await getMapState(page)
   const regionAfter = after.regions.find((r) => r.id === region.id)

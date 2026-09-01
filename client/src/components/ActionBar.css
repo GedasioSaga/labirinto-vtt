@@ -1,0 +1,45 @@
+/*
+ * ActionBar — chrome de painel flutuante (fundo/borda/sombra/blur) vem da
+ * classe global `.lb-panel` (main.css), layout base (`display:flex`,
+ * `justify-content:space-between`, `gap`, `padding`) de `.lb-actionbar`
+ * também (main.css:982) — mesma convenção documentada em ZoomHud.css e
+ * Toast.css. Aqui só o que é específico desta barra: o divisor entre o
+ * grupo de histórico e o de arquivo, o estado desabilitado dos dois botões
+ * novos de desfazer/refazer, e a quebra de linha que os dois exigem.
+ * Só `var(--lb-*)` de theme.ts — zero hex.
+ */
+
+/*
+ * Onda 3, item 20: 2 botões de histórico + até 7 de arquivo (com "Voltar")
+ * são 9 alvos de 36px numa coluna de `--lb-layout-rail-width` (264px) — não
+ * cabem numa linha só (9×36px = 324px contra ~256px úteis depois do
+ * padding). Mesmo diagnóstico do ROADMAP.md dívida D2 ("barra estourando"),
+ * mesma correção que ele já sanciona para o caso irmão (Toolbar): quebrar
+ * linha em vez de espremer o alvo de toque abaixo de 36px ou cortar botão.
+ * Sem histórico plugado (props.onUndo/onRedo ausentes) são só 6-7 botões,
+ * que já cabiam antes — `flex-wrap: wrap` não muda nada nesse caso porque
+ * não há o que quebrar.
+ */
+.lb-actionbar {
+  flex-wrap: wrap;
+}
+
+/* Traço vertical fino separando o grupo de histórico (desfazer/refazer) do
+   grupo de operações de arquivo — só existe quando o primeiro grupo está
+   presente (ver ActionBar.tsx, historyActions.length > 0). */
+.lb-actionbar__divider {
+  flex: none;
+  align-self: center;
+  width: 1px;
+  height: 20px;
+  background: var(--lb-color-line);
+}
+
+/* `.lb-iconbtn` (main.css:194) não define estado `:disabled` — nenhum botão
+   da barra precisava dele até desfazer/refazer existirem. Escopado a esta
+   barra (não ao seletor global) para não mudar a aparência de botões
+   desabilitados em outros painéis que não pediram isso. */
+.lb-actionbar .lb-iconbtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

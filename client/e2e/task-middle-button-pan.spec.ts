@@ -149,7 +149,8 @@ test('3. botão do meio sobre uma wall existente faz pan em vez de selecionar/mo
   const { walls: wallsAfter, selection } = await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
     const state = mod.useMapStore.getState()
-    return { walls: state.map.walls, selection: state.selection }
+    // Onda 4, item 24 — `selection` do store virou SelectionSet (array).
+    return { walls: state.map.walls, selection: state.selection[0] ?? null }
   })
   expect(wallsAfter[0]).toEqual(wallBefore)
   expect(selection).toBeNull()

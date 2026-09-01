@@ -1,3 +1,5 @@
+import type { MapData, Drawing } from '../types/map'
+
 export interface Camera {
   x: number
   y: number
@@ -67,4 +69,159 @@ export function angleDegrees(start: Point, end: Point): number {
   const rad = Math.atan2(end.y - start.y, end.x - start.x)
   const deg = (rad * 180) / Math.PI
   return deg < 0 ? deg + 360 : deg
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENQUADRAMENTO — item #9 do PLANO-REFINAMENTO.md. A câmera nasce sempre em
+// {x:0, y:0, scale:1} (stores/mapStore.ts:446); estas duas funções puras dão
+// ao integrador o que falta para enquadrar tudo (tecla F), resetar 100%
+// (Ctrl+0) e fazer fit automático ao abrir um mapa salvo.
+// ─────────────────────────────────────────────────────────────
+
+export interface Bounds {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+export interface Viewport {
+  width: number
+  height: number
+}
+
+function extend(bounds: Bounds | null, x: number, y: number): Bounds {
+  if (bounds === null) return { minX: x, minY: y, maxX: x, maxY: y }
+  return {
+    minX: Math.min(bounds.minX, x),
+    minY: Math.min(bounds.minY, y),
+    maxX: Math.max(bounds.maxX, x),
+    maxY: Math.max(bounds.maxY, y),
+  }
+}
+
+// Envelope de um Drawing por `kind` — mesma ideia de `lib/objectTransform.ts`
+// (`drawingBoundingBox`), mas cobrindo os 8 kinds (aqui é só leitura pra
+// enquadrar câmera, não redimensionar por alça, então não há razão pra
+// devolver `null` em nenhum kind). Não importa de `objectTransform.ts` de
+// propósito: mantém `world.ts` sem depender de outro arquivo em progresso
+// nesta onda, e a lista de `kind` é pequena o bastante pra duplicar sem risco.
+function extendDrawing(bounds: Bounds | null, drawing: Drawing): Bounds | null {
+  switch (drawing.kind) {
+    case 'freehand':
+    case 'curve':
+    case 'polygon': {
+      // Lista de pontos vazia (drawing degenerado) devolve `bounds` intacto,
+      // `null` incluso — nunca fabrica um ponto (0,0) que não existe no mapa.
+      let next = bounds
+      for (const p of drawing.points) next = extend(next, p.x, p.y)
+      return next
+    }
+    case 'line': {
+      const withStart = extend(bounds, drawing.x1, drawing.y1)
+      return extend(withStart, drawing.x2, drawing.y2)
+    }
+    case 'circle': {
+      const withMin = extend(bounds, drawing.cx - drawing.radius, drawing.cy - drawing.radius)
+      return extend(withMin, drawing.cx + drawing.radius, drawing.cy + drawing.radius)
+    }
+    case 'rect': {
+      const withOrigin = extend(bounds, drawing.x, drawing.y)
+      return extend(withOrigin, drawing.x + drawing.w, drawing.y + drawing.h)
+    }
+    case 'ellipse': {
+      const withMin = extend(bounds, drawing.cx - drawing.rx, drawing.cy - drawing.ry)
+      return extend(withMin, drawing.cx + drawing.rx, drawing.cy + drawing.ry)
+    }
+    case 'text':
+      return extend(bounds, drawing.x, drawing.y)
+  }
+}
+
+/**
+ * Caixa que contém TODO o conteúdo do mapa (paredes, regiões, tokens, peças,
+ * escadas, luzes, desenhos) em coordenadas de mundo. `null` para mapa vazio —
+ * não existe caixa de conteúdo nenhum, e forçar um valor (ex.: {0,0,0,0})
+ * esconderia o caso "nada pra enquadrar" de quem chama.
+ *
+ * Ignora `locked`/`hidden`: "enquadrar tudo" é enquadrar tudo, incluindo o
+ * que está oculto no editor — mesmo raciocínio de `hidden` em Wall/Light/
+ * Region/Token/Prop/Stair (ver types/map.ts): oculto é organização de cena
+ * pro mestre, não uma segunda visibilidade real.
+ *
+ * Token/Prop reusam a MESMA conta de meio-lado que
+ * `lib/objectTransform.ts` (`tokenBoundingBox`/`propBoundingBox`) usa pro
+ * resize, sem importar de lá (mesmo motivo de `extendDrawing`, acima).
+ */
+export function contentBounds(map: MapData): Bounds | null {
+  let bounds: Bounds | null = null
+
+  for (const wall of map.walls) {
+    bounds = extend(bounds, wall.x1, wall.y1)
+    bounds = extend(bounds, wall.x2, wall.y2)
+  }
+  for (const region of map.regions) {
+    for (const p of region.points) bounds = extend(bounds, p.x, p.y)
+  }
+  for (const token of map.tokens) {
+    const half = (map.grid / 2) * token.size
+    bounds = extend(bounds, token.x - half, token.y - half)
+    bounds = extend(bounds, token.x + half, token.y + half)
+  }
+  for (const prop of map.props) {
+    bounds = extend(bounds, prop.x - prop.width / 2, prop.y - prop.height / 2)
+    bounds = extend(bounds, prop.x + prop.width / 2, prop.y + prop.height / 2)
+  }
+  for (const stair of map.stairs) {
+    for (const seg of stair.segments) {
+      bounds = extend(bounds, seg.x1, seg.y1)
+      bounds = extend(bounds, seg.x2, seg.y2)
+    }
+  }
+  for (const light of map.lights) {
+    bounds = extend(bounds, light.x - light.radius, light.y - light.radius)
+    bounds = extend(bounds, light.x + light.radius, light.y + light.radius)
+  }
+  for (const drawing of map.drawings) {
+    bounds = extendDrawing(bounds, drawing)
+  }
+
+  return bounds
+}
+
+// Evita a divisão 0/0 (NaN) quando `bounds` é degenerado num eixo — parede
+// perfeitamente horizontal tem altura 0, conteúdo de um único ponto (ou uma
+// luz de raio 0) tem largura E altura 0. Não é preciso proteger contra
+// viewport zero: X/0 é `Infinity` em JS, não `NaN`, e `clampScale` (chamada
+// logo abaixo) já trava isso em MAX_SCALE — só o 0/0 literal produz NaN.
+const MIN_CONTENT_DIMENSION = 1e-6
+
+/**
+ * Zoom e centro de câmera que enquadram `bounds` dentro de `viewport` (em px
+ * de tela), com `margin` px de respiro de cada lado. Escala sempre passada
+ * por `clampScale` — os mesmos MIN_SCALE/MAX_SCALE que `zoomAt` já respeita,
+ * então esta função nunca devolve um zoom fora do que a roda do mouse também
+ * conseguiria produzir.
+ *
+ * Não recebe `bounds: Bounds | null`: mapa vazio é decisão de quem chama
+ * (ver `contentBounds`), não desta função — cair aqui com `bounds` sempre
+ * definido mantém a assinatura de `viewport → câmera` sem um terceiro estado
+ * ("null" = quê, câmera default? mantém a atual?) que não é geometria pura.
+ */
+export function fitCamera(bounds: Bounds, viewport: Viewport, margin: number): Camera {
+  const contentWidth = Math.max(bounds.maxX - bounds.minX, MIN_CONTENT_DIMENSION)
+  const contentHeight = Math.max(bounds.maxY - bounds.minY, MIN_CONTENT_DIMENSION)
+  const availableWidth = Math.max(viewport.width - margin * 2, 0)
+  const availableHeight = Math.max(viewport.height - margin * 2, 0)
+
+  const scale = clampScale(Math.min(availableWidth / contentWidth, availableHeight / contentHeight))
+
+  const centerX = (bounds.minX + bounds.maxX) / 2
+  const centerY = (bounds.minY + bounds.maxY) / 2
+
+  return {
+    scale,
+    x: viewport.width / 2 - centerX * scale,
+    y: viewport.height / 2 - centerY * scale,
+  }
 }

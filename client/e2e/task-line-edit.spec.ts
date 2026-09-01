@@ -19,10 +19,12 @@ async function getMapSnapshot(page: Page): Promise<MapSnapshot> {
   })
 }
 
+// Onda 4, item 24 — `selection` do store virou SelectionSet (array). `[0] ??
+// null` adapta pro formato de item único que os specs já esperavam.
 async function getSelection(page: Page) {
   return page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
-    return mod.useMapStore.getState().selection
+    return mod.useMapStore.getState().selection[0] ?? null
   })
 }
 

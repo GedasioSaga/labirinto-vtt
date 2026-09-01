@@ -1,5 +1,6 @@
 import { Color, Container, Graphics } from 'pixi.js'
-import type { Region, RegionPoint } from '../types/map'
+import type { Region, RegionPoint, Wall } from '../types/map'
+import type { Selection } from '../types/tools'
 import { isDegenerateRegion } from './shapes'
 import { SELECTION_COLOR } from './constants'
 
@@ -8,6 +9,98 @@ const HATCH_ANGLE = Math.PI / 4 // 45°
 const HATCH_COLOR = 0x000000
 const HATCH_ALPHA = 0.35
 const HATCH_WIDTH = 2
+
+/**
+ * Espessura/junção do contorno da região — pedido do usuário (feedback F4,
+ * agente G2): "eu quero que voce adicione as propriedades das paredes/sala
+ * ... se eu quero poligono finos ou medios ou gordos, e as linhas dos
+ * poligonos se eu quero eles arredondados ou retos, vou usar os poligonos
+ * para criar ruas ou construcoes mais artesanais".
+ *
+ * `2` é o valor que este arquivo já hardcodava pra região não-selecionada
+ * antes de `Region.strokeWidth` existir (ver `g.stroke({ width: isSelected
+ * ? 4 : 2, color })` na versão anterior) — preserva mapa salvo sem o campo
+ * abrindo com aparência idêntica. `'miter'` é o default do próprio Pixi
+ * quando `join` não é passado no `stroke()` (StrokeAttributes.join,
+ * `node_modules/pixi.js/lib/scene/graphics/shared/FillTypes.d.ts:282`,
+ * `@default 'miter'`) — mesmo comportamento de hoje, sem migração.
+ */
+const REGION_STROKE_WIDTH_DEFAULT = 2
+const REGION_STROKE_JOIN_DEFAULT: 'round' | 'miter' = 'miter'
+/** Realce de seleção somado à espessura base — mesma convenção de
+ *  `drawDrawings.ts` (`width = isSelected ? drawing.width + 2 : drawing.width`),
+ *  escolhida em vez do valor fixo `4` que o código anterior usava porque
+ *  agora a base é configurável (1–20): +2 escala com contorno fino OU grosso,
+ *  em vez de "achatar" tudo pra um valor fixo quando selecionado. Com o
+ *  default de hoje (2), dá exatamente 4 — idêntico ao comportamento anterior. */
+const REGION_SELECTED_STROKE_BONUS = 2
+
+/**
+ * Lê `Region.strokeWidth` SEM depender do campo já existir em `types/map.ts`
+ * (arquivo do integrador, fora do meu escopo nesta fase — ver CONTRATO no
+ * relatório do agente). Mesmo truque de `readFreehandTexture`
+ * (`lib/brushTexture.ts`, Fase 4 N1): o parâmetro pede só uma propriedade
+ * opcional `?: unknown` — qualquer `Region` real (com ou sem o campo)
+ * satisfaz esse tipo estruturalmente, então nenhum `as`/cast é necessário
+ * aqui. O valor é validado em runtime: só um número finito positivo é aceito,
+ * qualquer outra coisa (`undefined` de mapa legado incluído, ou um valor
+ * corrompido) cai no default de hoje. Assim que o integrador adicionar o
+ * campo real, esta função continua funcionando sem mudar nenhum chamador.
+ *
+ * `id?: unknown` no parâmetro não é usado pelo corpo da função — está ali só
+ * pra dar ao tipo estrutural uma propriedade REAL em comum com `Region`
+ * (`id: string`). Sem isso o TypeScript recusa a chamada com TS2559 ("has no
+ * properties in common"): um tipo cujas propriedades são TODAS opcionais
+ * conta como "weak type", e passar um `Region` que não compartilha NENHUMA
+ * propriedade com ele é tratado como provável erro do chamador. `kind:
+ * 'freehand'` cumpre esse papel em `readFreehandTexture`
+ * (`lib/brushTexture.ts`) porque lá é obrigatório e a união `Drawing` já
+ * particiona por `kind`; `Region` não tem `kind`, então `id` é o campo real
+ * mais simples disponível.
+ */
+export function readRegionStrokeWidth(region: { id?: unknown; strokeWidth?: unknown }): number {
+  const raw = region.strokeWidth
+  return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? raw : REGION_STROKE_WIDTH_DEFAULT
+}
+
+/** Mesmo truque de `readRegionStrokeWidth` (`id?: unknown` só pra escapar do
+ *  TS2559 "weak type", ver comentário acima), para `Region.strokeJoin`. Só
+ *  `'round'` é tratado como override explícito — qualquer outra coisa
+ *  (`undefined`, `'miter'` literal, valor corrompido) cai no default `'miter'`,
+ *  que é o comportamento de hoje. */
+export function readRegionStrokeJoin(region: { id?: unknown; strokeJoin?: unknown }): 'round' | 'miter' {
+  return region.strokeJoin === 'round' ? 'round' : REGION_STROKE_JOIN_DEFAULT
+}
+
+/**
+ * ONDA 3 (PLANO-REFINAMENTO.md), item 22 — bug conhecido desde o dossiê da
+ * Fase 4 (bug3): quando o SELECIONADO é a parede-dona-de-uma-Sala (uma
+ * `Wall` com `regionId` apontando pra esta região — ver `types/map.ts`), a
+ * região não pintava com `SELECTION_COLOR`. A causa era literal:
+ * `createRegionsRenderer().draw()`, abaixo, só recebia o id da região quando
+ * `selection.kind === 'region'` — nunca quando `selection.kind === 'wall'` e
+ * a parede em questão era dona de uma região. O usuário via as alças de
+ * edição nos cantos (desenhadas por `drawEditHandles.ts`, fora deste
+ * arquivo) mas a sala continuava com a cor normal — seleção que não
+ * confirma visualmente o que foi selecionado.
+ *
+ * Esta função decide qual `Region.id` deve renderizar como selecionado,
+ * cobrindo os dois casos (seleção direta da região, OU seleção de uma
+ * parede cujo `regionId` aponta pra ela) — `draw()` continua recebendo só um
+ * `string | null`, exatamente como antes; muda apenas QUEM calcula esse
+ * valor. É por isso que o CONTRATO desta entrega não precisa tocar a
+ * assinatura de `draw()`, só trocar a expressão inline que o integrador já
+ * passa pra ela (ver relatório).
+ */
+export function resolveHighlightedRegionId(walls: Wall[], selection: Selection | null | undefined): string | null {
+  if (!selection) return null
+  if (selection.kind === 'region') return selection.id
+  if (selection.kind === 'wall') {
+    const wall = walls.find((w) => w.id === selection.id)
+    return wall?.regionId ?? null
+  }
+  return null
+}
 
 interface HatchSegment {
   x1: number
@@ -119,10 +212,24 @@ export function createRegionsRenderer(): RegionsRenderer {
       g.closePath()
       const isSelected = region.id === selectedRegionId
       const color = isSelected ? SELECTION_COLOR : new Color(region.fillColor).toNumber()
-      g.fill({ color, alpha: isSelected ? 0.85 : 1 })
-      g.stroke({ width: isSelected ? 4 : 2, color })
+      // Pedido N2 do usuário ("tirar o fundo" de Região/Sala) — `Region.filled`
+      // já existe no schema e a store já tem `setRegionFilled`/`FillControls`
+      // ligados (App.tsx), mas nada lia o campo aqui: `g.fill(...)` disparava
+      // incondicional. `undefined` conta como `true` (preenche, aparência
+      // idêntica à de hoje), mesmo padrão de wallKind/locked/hidden.
+      const isFilled = region.filled !== false
+      if (isFilled) {
+        g.fill({ color, alpha: isSelected ? 0.85 : 1 })
+      }
+      const baseStrokeWidth = readRegionStrokeWidth(region)
+      const strokeWidth = isSelected ? baseStrokeWidth + REGION_SELECTED_STROKE_BONUS : baseStrokeWidth
+      g.stroke({ width: strokeWidth, color, join: readRegionStrokeJoin(region) })
 
-      if (!isSelected && region.fillPattern === 'hatch') {
+      // Hachura é tratamento de FUNDO (alternativa a preenchimento sólido) —
+      // sem fundo, não faz sentido desenhar diagonais soltas por cima do
+      // contorno. Serve exatamente o caso "rua"/"construção artesanal" do
+      // usuário: contorno só, sem nenhum traço extra por dentro.
+      if (!isSelected && isFilled && region.fillPattern === 'hatch') {
         const segments = computeHatchSegments(region.points)
         for (const segment of segments) {
           g.moveTo(segment.x1, segment.y1)

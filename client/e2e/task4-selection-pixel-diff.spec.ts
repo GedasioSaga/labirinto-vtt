@@ -47,7 +47,7 @@ test('parede: pixel da região muda ao selecionar (destaque amarelo desenha de v
 
   await page.mouse.click(box.x + 500, box.y + 400)
   await expect
-    .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection?.kind))
+    .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection[0]?.kind))
     .toBe('wall')
 
   const after = await page.screenshot({ clip })
@@ -67,7 +67,7 @@ test('luz: pixel da região muda ao selecionar (anel de destaque desenha de verd
 
   await page.mouse.click(box.x + 500, box.y + 500)
   await expect
-    .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection?.kind))
+    .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection[0]?.kind))
     .toBe('light')
 
   const after = await page.screenshot({ clip })
@@ -90,7 +90,7 @@ test('região: pixel da área muda ao selecionar (preenchimento de destaque dese
 
   await page.mouse.click(box.x + 450, box.y + 435)
   await expect
-    .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection?.kind))
+    .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection[0]?.kind))
     .toBe('region')
 
   const after = await page.screenshot({ clip })
@@ -111,7 +111,7 @@ test('peça: pixel da região muda ao selecionar (contorno de destaque desenha d
 
   await page.mouse.click(box.x + 400, box.y + 400)
   await expect
-    .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection?.kind))
+    .poll(async () => page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection[0]?.kind))
     .toBe('prop')
 
   const after = await page.screenshot({ clip })

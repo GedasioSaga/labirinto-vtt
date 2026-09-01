@@ -8,14 +8,63 @@ interface FakeDirEntry {
   isSymlink: boolean
 }
 
-const writeTextFileMock = vi.fn(async () => undefined)
-const mkdirMock = vi.fn(async () => undefined)
+interface FakeFileInfo {
+  isFile: boolean
+  isDirectory: boolean
+  isSymlink: boolean
+  size: number
+  mtime: Date | null
+  atime: Date | null
+  birthtime: Date | null
+  readonly: boolean
+  fileAttributes: number | null
+  dev: number | null
+  ino: number | null
+  mode: number | null
+  nlink: number | null
+  uid: number | null
+  gid: number | null
+  rdev: number | null
+  blksize: number | null
+  blocks: number | null
+}
+
+function fakeFileInfo(mtime: Date | null): FakeFileInfo {
+  return {
+    isFile: true,
+    isDirectory: false,
+    isSymlink: false,
+    size: 0,
+    mtime,
+    atime: null,
+    birthtime: null,
+    readonly: false,
+    fileAttributes: null,
+    dev: null,
+    ino: null,
+    mode: null,
+    nlink: null,
+    uid: null,
+    gid: null,
+    rdev: null,
+    blksize: null,
+    blocks: null,
+  }
+}
+
 // Tipado com `path: string` (em vez de sem parâmetro) porque os testes de
-// `listSavedMaps` precisam de `mockImplementation` que decide pelo caminho
-// recebido — ex.: a pasta de mapas existe, mas um `map.json` específico não.
+// `listSavedMaps`/`duplicateMap` precisam de `mockImplementation` que decide
+// pelo caminho recebido — ex.: a pasta de mapas existe, mas um `map.json`
+// específico não; ou o `readDir` da pasta-raiz de mapas devolve algo
+// diferente do `readDir` da pasta de UM mapa (`copyDirRecursive`).
+const writeTextFileMock = vi.fn(async (_path: string, _data: string) => undefined)
+const mkdirMock = vi.fn(async () => undefined)
 const existsMock = vi.fn(async (_path: string) => false)
 const readTextFileMock = vi.fn(async (_path: string) => '')
-const readDirMock = vi.fn(async () => [] as FakeDirEntry[])
+const readDirMock = vi.fn(async (_path: string) => [] as FakeDirEntry[])
+const statMock = vi.fn(async (_path: string) => fakeFileInfo(new Date('2026-01-01T00:00:00.000Z')))
+const removeMock = vi.fn(async (_path: string) => undefined)
+const copyFileMock = vi.fn(async (_from: string, _to: string) => undefined)
 const saveMock = vi.fn(async () => null as string | null)
 const openMock = vi.fn(async () => null as string | string[] | null)
 const invokeMock = vi.fn(async () => undefined)
@@ -26,6 +75,9 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   exists: existsMock,
   readTextFile: readTextFileMock,
   readDir: readDirMock,
+  stat: statMock,
+  remove: removeMock,
+  copyFile: copyFileMock,
 }))
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
@@ -53,6 +105,11 @@ const {
   assertPathWithinRoot,
   listSavedMaps,
   saveMapToPath,
+  sanitizeMapName,
+  uniqueMapName,
+  renameMap,
+  duplicateMap,
+  deleteMap,
 } = await import('./mapFileIO')
 
 function makeMap(overrides: Partial<MapData> = {}): MapData {
@@ -64,14 +121,20 @@ function makeMap(overrides: Partial<MapData> = {}): MapData {
     grid: 64,
     gridShape: 'square',
     showGrid: true,
+    gridSettings: { color: '#4a4a4a', opacity: 1, lineWidth: 1, lineStyle: 'solid' },
     background: { type: 'color', src: '#2b2b2b' },
     walls: [],
     lights: [],
     regions: [],
     tokens: [],
     props: [],
+    stairs: [],
     drawings: [],
     fog: { mode: 'none', revealed: [] },
+    hiddenLayers: [],
+    lockedLayers: [],
+    scale: { unitsPerCell: 5, unit: 'ft', precision: 0 },
+    measurementMode: 'chessboard',
     ownerId: null,
     scenarioLink: null,
     ...overrides,
@@ -90,6 +153,7 @@ beforeEach(() => {
   openMock.mockResolvedValue(null)
   saveMock.mockResolvedValue(null)
   readDirMock.mockResolvedValue([])
+  statMock.mockResolvedValue(fakeFileInfo(new Date('2026-01-01T00:00:00.000Z')))
 })
 
 describe('defaultMapsDir', () => {
@@ -260,11 +324,57 @@ describe('listSavedMaps', () => {
     existsMock.mockImplementation(async (path: string) => path === MAPS_DIR || path === `${MAPS_DIR}\\map_1\\map.json`)
     readDirMock.mockResolvedValue([dirEntry('map_1'), dirEntry('leia-me.txt', false)])
     readTextFileMock.mockResolvedValue(JSON.stringify(makeMap({ id: 'map_1', name: 'Cripta', width: 20, height: 15, grid: 40 })))
+    statMock.mockResolvedValue(fakeFileInfo(new Date('2026-01-01T00:00:00.000Z')))
 
     const maps = await listSavedMaps()
 
-    expect(maps).toEqual([{ path: `${MAPS_DIR}\\map_1\\map.json`, id: 'map_1', name: 'Cripta', width: 20, height: 15, grid: 40 }])
+    expect(maps).toEqual([
+      { path: `${MAPS_DIR}\\map_1\\map.json`, id: 'map_1', name: 'Cripta', width: 20, height: 15, grid: 40, mtimeMs: Date.parse('2026-01-01T00:00:00.000Z') },
+    ])
     expect(readTextFileMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('ordena por recência (mtime mais recente primeiro), não pela ordem crua do readDir', async () => {
+    existsMock.mockImplementation(
+      async (path: string) =>
+        path === MAPS_DIR || path === `${MAPS_DIR}\\map_antigo\\map.json` || path === `${MAPS_DIR}\\map_novo\\map.json`,
+    )
+    // readDir devolve o mapa ANTIGO primeiro — se listSavedMaps não ordenasse,
+    // o mapa antigo apareceria primeiro na lista.
+    readDirMock.mockResolvedValue([dirEntry('map_antigo'), dirEntry('map_novo')])
+    readTextFileMock.mockImplementation(async (path: string) => {
+      if (path === `${MAPS_DIR}\\map_antigo\\map.json`) return JSON.stringify(makeMap({ id: 'map_antigo', name: 'Antigo' }))
+      return JSON.stringify(makeMap({ id: 'map_novo', name: 'Novo' }))
+    })
+    statMock.mockImplementation(async (path: string) => {
+      if (path === `${MAPS_DIR}\\map_antigo\\map.json`) return fakeFileInfo(new Date('2020-01-01T00:00:00.000Z'))
+      return fakeFileInfo(new Date('2026-01-01T00:00:00.000Z'))
+    })
+
+    const maps = await listSavedMaps()
+
+    expect(maps.map((m) => m.id)).toEqual(['map_novo', 'map_antigo'])
+  })
+
+  it('mapa sem mtime relatado pelo SO (mtime: null) cai pro fim da lista ordenada, sem quebrar', async () => {
+    existsMock.mockImplementation(
+      async (path: string) =>
+        path === MAPS_DIR || path === `${MAPS_DIR}\\map_sem_mtime\\map.json` || path === `${MAPS_DIR}\\map_com_mtime\\map.json`,
+    )
+    readDirMock.mockResolvedValue([dirEntry('map_sem_mtime'), dirEntry('map_com_mtime')])
+    readTextFileMock.mockImplementation(async (path: string) => {
+      if (path === `${MAPS_DIR}\\map_sem_mtime\\map.json`) return JSON.stringify(makeMap({ id: 'map_sem_mtime', name: 'Sem mtime' }))
+      return JSON.stringify(makeMap({ id: 'map_com_mtime', name: 'Com mtime' }))
+    })
+    statMock.mockImplementation(async (path: string) => {
+      if (path === `${MAPS_DIR}\\map_sem_mtime\\map.json`) return fakeFileInfo(null)
+      return fakeFileInfo(new Date('2020-01-01T00:00:00.000Z'))
+    })
+
+    const maps = await listSavedMaps()
+
+    expect(maps.map((m) => m.id)).toEqual(['map_com_mtime', 'map_sem_mtime'])
+    expect(maps.find((m) => m.id === 'map_sem_mtime')?.mtimeMs).toBe(0)
   })
 
   it('pula diretório cujo map.json não existe', async () => {
@@ -290,7 +400,9 @@ describe('listSavedMaps', () => {
 
     const maps = await listSavedMaps()
 
-    expect(maps).toEqual([{ path: `${MAPS_DIR}\\map_bom\\map.json`, id: 'map_bom', name: 'Torre', width: 30, height: 20, grid: 64 }])
+    expect(maps).toEqual([
+      { path: `${MAPS_DIR}\\map_bom\\map.json`, id: 'map_bom', name: 'Torre', width: 30, height: 20, grid: 64, mtimeMs: Date.parse('2026-01-01T00:00:00.000Z') },
+    ])
   })
 })
 
@@ -302,5 +414,213 @@ describe('saveMapToPath', () => {
 
     expect(writeTextFileMock).toHaveBeenCalledWith('C:\\Dev\\labirinto\\maps\\L1.json', JSON.stringify(map, null, 2))
     expect(mkdirMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('sanitizeMapName', () => {
+  it('mantém um nome válido inalterado', () => {
+    expect(sanitizeMapName('Cripta Esquecida')).toBe('Cripta Esquecida')
+  })
+
+  it('remove todos os caracteres proibidos em nome de arquivo no Windows', () => {
+    expect(sanitizeMapName('a<b>c:d"e/f\\g|h?i*j')).toBe('abcdefghij')
+  })
+
+  it('remove caractere de controle', () => {
+    // String.fromCharCode em vez de um literal de escape — ver o comentário
+    // de stripControlChars em mapFileIO.ts sobre por que esta função não usa
+    // classe de regex com faixa de escape unicode.
+    const withControlChar = `Mapa${String.fromCharCode(1)}Ruim`
+    expect(sanitizeMapName(withControlChar)).toBe('MapaRuim')
+  })
+
+  it('remove ponto e espaço à direita', () => {
+    expect(sanitizeMapName('Cripta...   ')).toBe('Cripta')
+  })
+
+  it('nome vazio ou só espaço vira "Mapa sem título"', () => {
+    expect(sanitizeMapName('   ')).toBe('Mapa sem título')
+    expect(sanitizeMapName('')).toBe('Mapa sem título')
+  })
+
+  it('nome que fica vazio depois de remover só caractere proibido também vira "Mapa sem título"', () => {
+    expect(sanitizeMapName('///')).toBe('Mapa sem título')
+  })
+})
+
+describe('uniqueMapName', () => {
+  it('devolve baseName sem alteração quando não colide com nada', () => {
+    expect(uniqueMapName('Cripta', ['Torre', 'Masmorra'])).toBe('Cripta')
+  })
+
+  it('anexa " (2)" quando baseName já existe', () => {
+    expect(uniqueMapName('Cripta', ['Cripta'])).toBe('Cripta (2)')
+  })
+
+  it('incrementa até achar um número livre', () => {
+    expect(uniqueMapName('Cripta', ['Cripta', 'Cripta (2)', 'Cripta (3)'])).toBe('Cripta (4)')
+  })
+})
+
+describe('renameMap', () => {
+  const MAP_JSON_PATH = `${MAPS_DIR}\\map_1\\map.json`
+
+  beforeEach(() => {
+    existsMock.mockImplementation(async (path: string) => path === MAPS_DIR || path === MAP_JSON_PATH)
+    readTextFileMock.mockImplementation(async (path: string) => {
+      if (path === MAP_JSON_PATH) return JSON.stringify(makeMap({ id: 'map_1', name: 'Cripta' }))
+      return ''
+    })
+    readDirMock.mockResolvedValue([dirEntry('map_1')])
+  })
+
+  it('reescreve só o campo name no mesmo caminho e devolve o nome final', async () => {
+    const finalName = await renameMap('map_1', 'Torre Negra')
+
+    expect(finalName).toBe('Torre Negra')
+    expect(writeTextFileMock).toHaveBeenCalledTimes(1)
+    const [writtenPath, writtenBody] = writeTextFileMock.mock.calls[0] as [string, string]
+    expect(writtenPath).toBe(MAP_JSON_PATH)
+    const written = JSON.parse(writtenBody) as MapData
+    expect(written.id).toBe('map_1')
+    expect(written.name).toBe('Torre Negra')
+    expect(written.width).toBe(30) // resto do mapa preservado
+  })
+
+  it('sanitiza caractere inválido em nome de arquivo no Windows', async () => {
+    const finalName = await renameMap('map_1', 'Cripta: a "boa"?')
+
+    expect(finalName).toBe('Cripta a boa')
+  })
+
+  it('desambigua contra o nome de OUTRO mapa existente', async () => {
+    existsMock.mockImplementation(
+      async (path: string) => path === MAPS_DIR || path === MAP_JSON_PATH || path === `${MAPS_DIR}\\map_2\\map.json`,
+    )
+    readDirMock.mockResolvedValue([dirEntry('map_1'), dirEntry('map_2')])
+    readTextFileMock.mockImplementation(async (path: string) => {
+      if (path === MAP_JSON_PATH) return JSON.stringify(makeMap({ id: 'map_1', name: 'Cripta' }))
+      if (path === `${MAPS_DIR}\\map_2\\map.json`) return JSON.stringify(makeMap({ id: 'map_2', name: 'Torre' }))
+      return ''
+    })
+
+    const finalName = await renameMap('map_1', 'Torre')
+
+    expect(finalName).toBe('Torre (2)')
+  })
+
+  it('renomear para o PRÓPRIO nome atual não gera sufixo (não compara contra si mesmo)', async () => {
+    const finalName = await renameMap('map_1', 'Cripta')
+    expect(finalName).toBe('Cripta')
+  })
+
+  it('lança quando o mapa não existe', async () => {
+    existsMock.mockResolvedValue(false)
+    await expect(renameMap('map_fantasma', 'Novo nome')).rejects.toThrow('não encontrado')
+    expect(writeTextFileMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('duplicateMap', () => {
+  const SOURCE_ID = 'map_src'
+  const SOURCE_DIR = `${MAPS_DIR}\\${SOURCE_ID}`
+  const SOURCE_MAP_JSON = `${SOURCE_DIR}\\map.json`
+
+  beforeEach(() => {
+    existsMock.mockImplementation(async (path: string) => path === MAPS_DIR || path === SOURCE_MAP_JSON)
+    readTextFileMock.mockImplementation(async (path: string) => {
+      if (path === SOURCE_MAP_JSON) {
+        return JSON.stringify(
+          makeMap({
+            id: SOURCE_ID,
+            name: 'Cripta',
+            tokens: [{ id: 't1', characterId: null, name: 'Goblin', x: 1, y: 2, size: 1, image: 'C:\\imgs\\goblin.png' }],
+          }),
+        )
+      }
+      return ''
+    })
+    readDirMock.mockImplementation(async (path: string) => {
+      if (path === SOURCE_DIR) return [dirEntry('map.json', false)]
+      if (path === MAPS_DIR) return [dirEntry(SOURCE_ID)]
+      return []
+    })
+  })
+
+  it('copia a pasta inteira (readDir + copyFile) para um id novo', async () => {
+    const result = await duplicateMap(SOURCE_ID)
+
+    expect(result.id).not.toBe(SOURCE_ID)
+    expect(result.id.startsWith('map_')).toBe(true)
+    const destDir = `${MAPS_DIR}\\${result.id}`
+    expect(copyFileMock).toHaveBeenCalledWith(`${SOURCE_DIR}\\map.json`, `${destDir}\\map.json`)
+    expect(result.path).toBe(`${destDir}\\map.json`)
+  })
+
+  it('nome final é "<original> (cópia)" e o map.json da cópia é reescrito com id e name novos', async () => {
+    const result = await duplicateMap(SOURCE_ID)
+
+    expect(result.name).toBe('Cripta (cópia)')
+    // writeTextFile é chamado depois de copyDirRecursive — a cópia crua (com
+    // o id antigo) é sobrescrita com o id/nome corretos.
+    const lastCall = writeTextFileMock.mock.calls.at(-1) as [string, string]
+    expect(lastCall[0]).toBe(result.path)
+    const written = JSON.parse(lastCall[1]) as MapData
+    expect(written.id).toBe(result.id)
+    expect(written.name).toBe('Cripta (cópia)')
+  })
+
+  it('não quebra a referência de imagem: caminho absoluto do token continua o mesmo na cópia', async () => {
+    await duplicateMap(SOURCE_ID)
+
+    const lastCall = writeTextFileMock.mock.calls.at(-1) as [string, string]
+    const written = JSON.parse(lastCall[1]) as MapData
+    expect(written.tokens[0]?.image).toBe('C:\\imgs\\goblin.png')
+  })
+
+  it('desambigua contra um nome "<original> (cópia)" que já existe entre os mapas salvos', async () => {
+    const OTHER_ID = 'map_other'
+    existsMock.mockImplementation(
+      async (path: string) => path === MAPS_DIR || path === SOURCE_MAP_JSON || path === `${MAPS_DIR}\\${OTHER_ID}\\map.json`,
+    )
+    readDirMock.mockImplementation(async (path: string) => {
+      if (path === SOURCE_DIR) return [dirEntry('map.json', false)]
+      if (path === MAPS_DIR) return [dirEntry(SOURCE_ID), dirEntry(OTHER_ID)]
+      return []
+    })
+    readTextFileMock.mockImplementation(async (path: string) => {
+      if (path === SOURCE_MAP_JSON) return JSON.stringify(makeMap({ id: SOURCE_ID, name: 'Cripta' }))
+      if (path === `${MAPS_DIR}\\${OTHER_ID}\\map.json`) return JSON.stringify(makeMap({ id: OTHER_ID, name: 'Cripta (cópia)' }))
+      return ''
+    })
+
+    const result = await duplicateMap(SOURCE_ID)
+
+    expect(result.name).toBe('Cripta (cópia) (2)')
+  })
+
+  it('lança quando o mapa de origem não existe', async () => {
+    existsMock.mockResolvedValue(false)
+    await expect(duplicateMap('map_fantasma')).rejects.toThrow('não encontrado')
+    expect(copyFileMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('deleteMap', () => {
+  const MAP_DIR = `${MAPS_DIR}\\map_1`
+
+  it('remove a pasta do mapa, recursivo', async () => {
+    existsMock.mockImplementation(async (path: string) => path === MAP_DIR)
+
+    await deleteMap('map_1')
+
+    expect(removeMock).toHaveBeenCalledWith(MAP_DIR, { recursive: true })
+  })
+
+  it('lança quando o mapa não existe, e não chama remove', async () => {
+    existsMock.mockResolvedValue(false)
+
+    await expect(deleteMap('map_fantasma')).rejects.toThrow('não encontrado')
+    expect(removeMock).not.toHaveBeenCalled()
   })
 })

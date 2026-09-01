@@ -79,12 +79,12 @@ describe('syncWallsToRegionPoint', () => {
 
   it('c. door/blocksLight/blocksMove sobrevivem intactos numa parede resincronizada', () => {
     const walls = squareWalls()
-    walls[1] = { ...walls[1], door: { open: false, locked: false }, blocksLight: false }
+    walls[1] = { ...walls[1], door: { open: false, locked: false, kind: 'normal' }, blocksLight: false }
 
     const result = syncWallsToRegionPoint(walls, REGION, 1, 200, 50, 4)
 
     const newW1 = result.find((w) => w.id === 'w1')!
-    expect(newW1.door).toEqual({ open: false, locked: false })
+    expect(newW1.door).toEqual({ open: false, locked: false, kind: 'normal' })
     expect(newW1.blocksLight).toBe(false)
     expect(newW1.blocksMove).toBe(true)
   })

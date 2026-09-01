@@ -14,7 +14,7 @@ describe('subscribeToPropsRedraw', () => {
     const unsubscribe = subscribeToPropsRedraw(onChange)
 
     useMapStore.getState().addWall({ id: 'w1', x1: 0, y1: 0, x2: 1, y2: 1, blocksLight: true, blocksMove: true, door: null })
-    useMapStore.getState().addToken({ id: 't1', characterId: null, name: 'Token', x: 0, y: 0, size: 1 })
+    useMapStore.getState().addToken({ id: 't1', characterId: null, name: 'Token', x: 0, y: 0, size: 1, image: null })
     useMapStore.getState().setCamera({ x: 1, y: 1, scale: 1 })
 
     expect(onChange).not.toHaveBeenCalled()
@@ -35,7 +35,7 @@ describe('subscribeToPropsRedraw', () => {
     const onChange = vi.fn()
     const unsubscribe = subscribeToPropsRedraw(onChange)
 
-    useMapStore.getState().setSelection({ kind: 'prop', id: 'p1' })
+    useMapStore.getState().setSelection([{ kind: 'prop', id: 'p1' }])
 
     expect(onChange).toHaveBeenCalledTimes(1)
     unsubscribe()
