@@ -11,14 +11,16 @@ export interface RailTabsProps {
 
 const TABS: { id: RailTab; label: string }[] = [
   { id: 'map', label: 'Mapa' },
-  { id: 'room', label: 'Sala' },
+  // "Jogo", não "Sala": Sala já é a ferramenta de desenho e o painel de nome
+  // dela, e os dois nomes iguais confundiam o usuário.
+  { id: 'room', label: 'Jogo' },
 ]
 
 const tabId = (tab: RailTab) => `lb-rail-tab-${tab}`
 const panelId = (tab: RailTab) => `lb-rail-panel-${tab}`
 
 /**
- * Abas "Mapa | Sala" do rail. Os dois painéis ficam montados (o inativo com
+ * Abas "Mapa | Jogo" do rail. Os dois painéis ficam montados (o inativo com
  * `hidden`) para o inspetor não perder estado interno ao trocar de aba.
  */
 export function RailTabs({ active, onChange, mapPanel, roomPanel }: RailTabsProps) {

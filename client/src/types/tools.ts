@@ -21,6 +21,7 @@ export type DrawingTool =
   | 'measure'
   | 'eraser'
   | 'floor'
+  | 'concealZone'
 
 export type SelectionKind = 'token' | 'wall' | 'light' | 'region' | 'stair' | 'prop' | 'drawing' | 'floor'
 

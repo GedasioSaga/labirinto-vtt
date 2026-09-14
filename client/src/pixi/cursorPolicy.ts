@@ -72,6 +72,10 @@ export type GestureMode =
   // o corpo de uma peça selecionada.
   | 'drawing-floor'
   | 'dragging-floor-body'
+  // A4 — arrastar só o nome da Sala.
+  | 'dragging-room-label'
+  // A5 — arrasto de criação da Zona oculta.
+  | 'drawing-conceal-zone'
 
 /**
  * O que está sob o ponteiro em `mode === 'idle'`, achado por um hit-test
@@ -177,6 +181,7 @@ const CREATION_TOOLS = new Set<DrawingTool>([
   'text',
   'measure',
   'floor',
+  'concealZone',
 ])
 
 function resizeCursorForCorner(corner: ResizeCorner | null): string {
@@ -276,6 +281,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'drawing-polygon-room':
     case 'drawing-stair':
     case 'drawing-floor':
+    case 'drawing-conceal-zone':
     case 'area-marquee-drag':
       return CURSOR_CROSSHAIR
 
@@ -291,6 +297,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'dragging-line-body':
     case 'dragging-floor-body':
     case 'dragging-area-selection':
+    case 'dragging-room-label':
       return CURSOR_MOVE
 
     case 'dragging-wall-point':

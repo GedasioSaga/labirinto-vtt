@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Application, Container, Graphics, Sprite, Texture, Assets } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { MapData } from '../types/map'
@@ -33,7 +33,7 @@ import { drawDoors } from './drawDoors'
 import { drawStairs } from './drawStairs'
 import { drawLights } from './drawLights'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
-import { createRoomNamesRenderer } from './drawRoomNames'
+import { createRoomNamesRenderer, findRoomLabelAt, roomLabelFontSize, roomLabelPosition } from './drawRoomNames'
 import { createFloorRenderer, drawFloorDraft } from './drawFloor'
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
 import { drawMapFrame } from './drawMapFrame'
@@ -51,6 +51,12 @@ const EMPTY_FLOOR: FloorPiece[] = []
 // Onda 3, item 21 (Frente E) — moldura do mapa (contorno + sombra fora dela).
 import { drawMapBounds } from './drawMapBounds'
 import { createTokensRenderer } from './tokensRenderer'
+import { createSignalsRenderer } from './drawSignals'
+import { useSignalStore } from '../stores/signalStore'
+import { createLaserRenderer } from './drawLaser'
+import { isLaserArmed, useLaserStore } from '../stores/laserStore'
+import { createLaserGesture } from './laserGesture'
+import { LASER_KEY_TAP_MS, isLaserKey } from '../lib/laser'
 import { createMeasurementIndicatorRenderer } from './drawMeasurementIndicator'
 import {
   drawWallDraft,
@@ -94,6 +100,10 @@ import {
   buildRegularPolygonRoomFromDraft,
 } from '../lib/drawingFactory'
 import { createPropsRenderer } from './drawProps'
+import { createConcealZonesRenderer } from './drawConcealZones'
+import { findConcealZoneAt } from '../lib/concealZones'
+import { buildConcealZoneFromDraft } from '../lib/mapFactory'
+import { SECRET_ITEM_ALPHA } from './constants'
 import { createTextLabelsRenderer } from './drawTextLabels'
 import { createAngleIndicatorRenderer } from './drawAngleIndicator'
 import { subscribeToPropsRedraw } from '../stores/propsSubscription'
@@ -209,10 +219,59 @@ interface PixiCanvasProps {
    * não dispara nada (mesmo padrão que a ponte de `gridAlignPreview` já usa).
    */
   resetZoomRequest?: number
+  /**
+   * A3 — chamada quando Sala, Sala Circular ou Polígono Regular termina de ser
+   * desenhada (a região já está no mapa e selecionada). O App usa para trocar
+   * o rail para a aba Mapa e focar o campo Nome.
+   */
+  onRoomCreated?: (regionId: string) => void
+  /**
+   * B2 — posição de mundo do ponteiro sobre o canvas, a cada movimento, só
+   * enquanto o laser está ligado (L segurado ou botão Laser). O App repassa
+   * ao hostBridge, que faz o throttle.
+   */
+  onLaserMove?: (x: number, y: number) => void
 }
 
-export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChange, onCameraChange, resetZoomRequest }: PixiCanvasProps) {
+/** Campo de nome aberto por duplo clique sobre a Sala ou o rótulo dela. */
+interface RoomNameEditorState {
+  regionId: string
+  value: string
+}
+
+const MIN_ROOM_NAME_EDITOR_FONT = 12
+
+export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChange, onCameraChange, resetZoomRequest, onRoomCreated, onLaserMove }: PixiCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const onLaserMoveRef = useRef(onLaserMove)
+  useEffect(() => {
+    onLaserMoveRef.current = onLaserMove
+  }, [onLaserMove])
+  // Mesma ponte de ref das outras props: o setup roda uma vez só e precisa
+  // enxergar sempre a callback mais recente do App.
+  const onRoomCreatedRef = useRef(onRoomCreated)
+  useEffect(() => {
+    onRoomCreatedRef.current = onRoomCreated
+  }, [onRoomCreated])
+
+  const [roomNameEditor, setRoomNameEditor] = useState<RoomNameEditorState | null>(null)
+  // Enter e Esc desmontam o campo, e o navegador pode disparar blur depois;
+  // sem esta trava o blur gravaria o nome que o Esc acabou de cancelar.
+  const roomNameEditorOpenRef = useRef(false)
+  const editorCamera = useMapStore((state) => (roomNameEditor ? state.camera : null))
+  const editorRegion = useMapStore((state) =>
+    roomNameEditor ? state.map.regions.find((r) => r.id === roomNameEditor.regionId) ?? null : null,
+  )
+  const editorGrid = useMapStore((state) => state.map.grid)
+
+  const closeRoomNameEditor = (commit: boolean) => {
+    if (!roomNameEditorOpenRef.current || !roomNameEditor) return
+    roomNameEditorOpenRef.current = false
+    if (commit && editorRegion?.room && editorRegion.room.name !== roomNameEditor.value) {
+      useMapStore.getState().setRoomName(roomNameEditor.regionId, roomNameEditor.value)
+    }
+    setRoomNameEditor(null)
+  }
   // Ponte entre a prop `gridAlignPreview` (muda a cada render) e o redraw que
   // vive DENTRO do `setup()` assíncrono do efeito abaixo (`[]` de
   // dependência, roda uma vez só) — mesmo problema que motiva
@@ -250,7 +309,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       el.appendChild(app.canvas)
 
       const world = new Container()
-      app.stage.addChild(world)
+      // B1 — sinais dos jogadores em espaço de tela, acima de todo o mundo.
+      const signalsLayer = new Container()
+      signalsLayer.eventMode = 'none'
+      app.stage.addChild(world, signalsLayer)
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
@@ -273,11 +335,19 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const wallsGraphics = new Graphics()
       const doorsGraphics = new Graphics()
       const stairsGraphics = new Graphics()
+      // A5 — escadas e desenhos "Oculto para jogadores": mesmo desenho num
+      // Graphics esmaecido, em vez de passar alpha por cada traço do renderer.
+      const secretStairsGraphics = new Graphics()
+      secretStairsGraphics.alpha = SECRET_ITEM_ALPHA
       const drawingsGraphics = new Graphics()
+      const secretDrawingsGraphics = new Graphics()
+      secretDrawingsGraphics.alpha = SECRET_ITEM_ALPHA
       const textLabelsContainer = new Container()
       const propsContainer = new Container()
       const lightsGraphics = new Graphics()
       const tokensContainer = new Container()
+      // A5 — zonas ocultas por cima do conteúdo: o mestre precisa ver o que cobre.
+      const concealZonesContainer = new Container()
       const handlesGraphics = new Graphics()
       // Destaque da peça de chão selecionada. Graphics próprio, acima do
       // conteúdo: o chão em si fica atrás de Regiões/paredes e esconderia o contorno.
@@ -308,11 +378,14 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
+        secretStairsGraphics,
         drawingsGraphics,
+        secretDrawingsGraphics,
         textLabelsContainer,
         propsContainer,
         lightsGraphics,
         tokensContainer,
+        concealZonesContainer,
         floorSelectionGraphics,
         handlesGraphics,
         hoverGraphics,
@@ -366,6 +439,76 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // pra este componente, sem precisar de uma segunda assinatura de
       // `map.id`.
       fitToContent()
+
+      // B1 — ondas animadas precisam de quadro a quadro; a store só diz quais sinais estão vivos.
+      const signalsRenderer = createSignalsRenderer()
+      let signalsDrawn = 0
+      const tickSignals = () => {
+        const { signals } = useSignalStore.getState()
+        if (signals.length === 0 && signalsDrawn === 0) return
+        const drawn = signalsRenderer.draw(signalsLayer, signals, camera, { width: app.screen.width, height: app.screen.height }, Date.now())
+        if (drawn !== signalsDrawn) el.dataset.signalsCount = String(drawn)
+        signalsDrawn = drawn
+      }
+      app.ticker.add(tickSignals)
+
+      // B2 — laser do mestre: o próprio rastro em espaço de tela, acima dos sinais.
+      const laserLayer = new Container()
+      laserLayer.eventMode = 'none'
+      app.stage.addChild(laserLayer)
+      const laserRenderer = createLaserRenderer()
+      let laserDrawn = 0
+      el.dataset.laserDrawn = '0'
+      const tickLaser = () => {
+        const state = useLaserStore.getState()
+        if (state.trail.length === 0 && laserDrawn === 0) return
+        // A ponta fica acesa só durante o traço (botão pressionado), não com o laser só armado.
+        const drawn = laserRenderer.draw(laserLayer, { points: state.trail, on: state.drawing }, camera, Date.now())
+        if (drawn !== laserDrawn) el.dataset.laserDrawn = String(drawn)
+        laserDrawn = drawn
+        // Rastro todo apagado e sem traço: esvazia para o ticker voltar a pular o quadro.
+        if (drawn === 0 && !state.drawing) useLaserStore.setState({ trail: [] })
+      }
+      app.ticker.add(tickLaser)
+      /** Último ponto do ponteiro sobre o canvas (px de mundo); `null` com o ponteiro fora dele. */
+      let laserPointer: Point | null = null
+      /** L apertado há menos de `LASER_KEY_TAP_MS`, ainda sem decidir entre atalho da Linha e laser. */
+      let laserKeyTimer: ReturnType<typeof setTimeout> | null = null
+      let laserKeyTap: Parameters<typeof resolveShortcut>[0] | null = null
+      const laserGesture = createLaserGesture((point) => {
+        useLaserStore.getState().addPoint(point.x, point.y)
+        onLaserMoveRef.current?.(point.x, point.y)
+      })
+      /** Arma o laser pela tecla: nada é desenhado nem enviado até o botão esquerdo. */
+      const activateLaserKey = () => {
+        if (laserKeyTimer !== null) clearTimeout(laserKeyTimer)
+        laserKeyTimer = null
+        laserKeyTap = null
+        useLaserStore.getState().setHeld(true)
+      }
+      /** Soltou L. Com `allowTap`, um toque curto sem mexer o mouse ainda seleciona a ferramenta Linha. */
+      const releaseLaserKey = (allowTap: boolean) => {
+        if (laserKeyTimer !== null) {
+          clearTimeout(laserKeyTimer)
+          laserKeyTimer = null
+          const tap = laserKeyTap
+          laserKeyTap = null
+          const action = allowTap && tap !== null ? resolveShortcut(tap) : null
+          if (action !== null) runShortcut(action)
+          return
+        }
+        useLaserStore.getState().setHeld(false)
+      }
+      const onCanvasPointerLeave = () => {
+        laserPointer = null
+      }
+      el.addEventListener('pointerleave', onCanvasPointerLeave)
+      // Alt+Tab com L ou o botão apertado: keyup/pointerup nunca chegam e o laser ficaria preso ligado.
+      const onWindowBlur = () => {
+        laserGesture.cancel()
+        releaseLaserKey(false)
+      }
+      window.addEventListener('blur', onWindowBlur)
 
       const computeViewport = () => ({
         left: -camera.x / camera.scale,
@@ -434,6 +577,21 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         drawGridAlignOverlay(gridAlignOverlayGraphics, computeAlignedGridLines(draft.cellSize, draft.offset, viewport), viewport)
       }
 
+      /**
+       * Paredes e portas recebem a escala da câmera para manter o traço com
+       * pelo menos 1 px de tela (`screenSafeWidth`, drawWalls.ts). Função
+       * própria porque também roda sozinha quando só o zoom muda, sem pagar o
+       * redesenho do chão/regiões de `redrawShapes`.
+       */
+      const redrawWallsAndDoors = () => {
+        const { map, selection } = useMapStore.getState()
+        const single = selectionSingle(selection)
+        const walls = visibleWalls(map.walls, map.hiddenLayers)
+        const selectedWallId = single?.kind === 'wall' ? single.id : null
+        drawWalls(wallsGraphics, walls, selectedWallId, camera.scale)
+        drawDoors(doorsGraphics, walls, selectedWallId, camera.scale)
+      }
+
       const redrawShapes = () => {
         const { map, selection, activeTool } = useMapStore.getState()
         // Onda 4, item 24 — `selection` é um SelectionSet agora; o destaque
@@ -469,11 +627,17 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         redrawMapFrame(map.frame)
         regionsRenderer.draw(regionsContainer, visibleRegions(map.regions, map.hiddenLayers), resolveHighlightedRegionId(map.walls, single))
         roomNamesRenderer.draw(roomNamesContainer, visibleRegions(map.regions, map.hiddenLayers), map.grid)
-        drawWalls(wallsGraphics, visibleWalls(map.walls, map.hiddenLayers), single?.kind === 'wall' ? single.id : null)
-        drawDoors(doorsGraphics, visibleWalls(map.walls, map.hiddenLayers), single?.kind === 'wall' ? single.id : null)
-        drawStairs(stairsGraphics, visibleStairs(map.stairs, map.hiddenLayers), single?.kind === 'stair' ? single.id : null)
+        redrawWallsAndDoors()
+        const stairs = visibleStairs(map.stairs, map.hiddenLayers)
+        const selectedStairId = single?.kind === 'stair' ? single.id : null
+        drawStairs(stairsGraphics, stairs.filter((s) => !s.secret), selectedStairId)
+        drawStairs(secretStairsGraphics, stairs.filter((s) => s.secret), selectedStairId)
         drawLights(lightsGraphics, visibleLights(map.lights, map.hiddenLayers), single?.kind === 'light' ? single.id : null)
-        drawDrawings(drawingsGraphics, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
+        const drawings = visibleDrawings(map.drawings, map.hiddenLayers)
+        const selectedDrawingId = single?.kind === 'drawing' ? single.id : null
+        drawDrawings(drawingsGraphics, drawings.filter((d) => !d.secret), selectedDrawingId)
+        drawDrawings(secretDrawingsGraphics, drawings.filter((d) => d.secret), selectedDrawingId)
+        concealZonesRenderer.draw(concealZonesContainer, map.concealZones, map.grid, useMapStore.getState().selectedConcealZoneId)
         textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
         drawEditHandles(handlesGraphics, map, single, activeTool)
         // N3 (agora genérico, não só marquee): contorno do GRUPO — só com 2+
@@ -496,6 +660,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const measurementIndicatorRenderer = createMeasurementIndicatorRenderer()
       const regionsRenderer = createRegionsRenderer()
       const roomNamesRenderer = createRoomNamesRenderer()
+      const concealZonesRenderer = createConcealZonesRenderer()
       const floorRenderer = createFloorRenderer()
       // Render fiel: re-rasteriza só quando alguma entrada muda de referência (a store é imutável).
       let lastRaster: {
@@ -663,6 +828,12 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         (state) => state.map.gridOffset,
         () => redrawGrid(),
       )
+      // Só a escala importa para o piso de 1 px das paredes: pan não muda a
+      // largura na tela, então não redesenha a cada movimento de arrasto.
+      const unsubscribeCameraScaleForWalls = useMapStore.subscribe(
+        (state) => state.camera.scale,
+        () => redrawWallsAndDoors(),
+      )
       // tokensSubscription.ts/propsSubscription.ts (fora do escopo deste
       // integrador) só assinam [map.tokens/map.props, selection] — nenhum dos
       // dois vê `map.hiddenLayers` mudar, então ocultar a camada 'tokens' ou
@@ -717,7 +888,11 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         | 'dragging-area-selection'
         // Chão por peças: arrasto de criação e mover corpo da peça selecionada.
         | 'drawing-floor'
-        | 'dragging-floor-body' = 'idle'
+        | 'dragging-floor-body'
+        // A4 — arrastar só o nome da Sala.
+        | 'dragging-room-label'
+        // A5 — arrasto de criação da Zona oculta.
+        | 'drawing-conceal-zone' = 'idle'
       let lastPoint = { x: 0, y: 0 }
       let draggingTokenId: string | null = null
       let draggingPropId: string | null = null
@@ -749,6 +924,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // inserido não deve gerar uma SEGUNDA entrada de histórico.
       let curveDragSnapshot: MapData | null = null
       let roomDraftStart: Point | null = null
+      // A5 — canto inicial (com snap) e ponto bruto do clique da Zona oculta.
+      let concealDraftStart: Point | null = null
+      let concealDraftRawStart: Point | null = null
       let polygonDraftCenter: Point | null = null
       let polygonDraftSides = ROOM_CIRCLE_SIDES
       let stairDraftStart: Point | null = null
@@ -811,6 +989,20 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       let areaMarqueeStart: Point | null = null
       let areaSelectionDragBefore: MapData | null = null
       let areaSelectionDragLastPoint: Point | null = null
+      // A4 — arrasto do rótulo da Sala. Offset absoluto a partir do ponto e
+      // do offset do pointerdown (não delta acumulado), então o arredondamento
+      // não soma erro ao longo do gesto. Snapshot fecha um Ctrl+Z só.
+      let roomLabelDragId: string | null = null
+      let roomLabelDragSnapshot: MapData | null = null
+      let roomLabelDragStartPoint: Point | null = null
+      let roomLabelDragStartOffset: Point | null = null
+      const finishRoomLabelDrag = () => {
+        if (roomLabelDragSnapshot) useMapStore.getState().commitDragHistory(roomLabelDragSnapshot)
+        roomLabelDragId = null
+        roomLabelDragSnapshot = null
+        roomLabelDragStartPoint = null
+        roomLabelDragStartOffset = null
+      }
 
       // Onda 1, item 3 (Frente F, "rede de segurança do undo") — snapshot de
       // ANTES do gesto pra fechar mover-corpo de Token/Prop/Wall/Region/
@@ -1008,6 +1200,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         lightDraftRawStart = null
         curveDraftPoints = []
         roomDraftStart = null
+        concealDraftStart = null
+        concealDraftRawStart = null
         polygonDraftCenter = null
         stairDraftStart = null
         measureDraftStart = null
@@ -1070,6 +1264,11 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // `mode` e os 21 `DrawingTool` — antes só conhecia 2 estados
       // ('crosshair' pra Borracha, 'default' pro resto).
       const updateCursor = () => {
+        // B2 — laser armado (L ou botão Laser) fora de pan: mira, qualquer que seja a ferramenta.
+        if (isLaserArmed(useLaserStore.getState()) && mode === 'idle' && !spaceHeld) {
+          el.style.cursor = 'crosshair'
+          return
+        }
         el.style.cursor = resolveCursor({
           mode,
           activeTool: useMapStore.getState().activeTool,
@@ -1079,6 +1278,12 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         })
       }
       updateCursor()
+      const unsubscribeLaserCursor = useLaserStore.subscribe((state, previous) => {
+        if (isLaserArmed(state) === isLaserArmed(previous)) return
+        hoverGraphics.clear()
+        hoverTarget = null
+        updateCursor()
+      })
 
       /**
        * Hit-test LEVE de hover em `mode === 'idle'` — só o suficiente pra
@@ -1123,6 +1328,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         // ficaria "grudado" na tela até o próximo pointermove ocioso.
         hoverGraphics.clear()
         hoverTarget = null
+
+        // B2 — laser armado + botão esquerdo: o traço é do laser e a ferramenta ativa não roda.
+        if (!spaceHeld && laserGesture.pointerDown(event.button, toWorldPoint(event.global.x, event.global.y))) return
 
         // Botao do meio (scroll wheel) sempre faz pan, independente da ferramenta
         // ativa ou do que estiver sob o cursor. Precisa vir antes de qualquer
@@ -1187,6 +1395,13 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (activeTool === 'room') {
           mode = 'drawing-room'
           roomDraftStart = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          return
+        }
+
+        if (activeTool === 'concealZone') {
+          mode = 'drawing-conceal-zone'
+          concealDraftStart = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          concealDraftRawStart = worldPoint
           return
         }
 
@@ -1515,6 +1730,29 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           }
         }
 
+        // A4 — clicar no nome da Sala arrasta só o rótulo. Vem antes do
+        // hit-test de corpo: o nome fica dentro da sala, e sem isto o clique
+        // nele arrastaria a sala inteira. Com grupo (2+) o arrasto do grupo
+        // continua valendo, e Shift continua sendo "somar à seleção".
+        if (activeTool === 'select' && !event.shiftKey && selection.length <= 1) {
+          const labelRegion = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), worldPoint, map.grid)
+          if (labelRegion?.room) {
+            setSelection(selectionOfItem({ kind: 'region', id: labelRegion.id }))
+            if (canInteract(labelRegion)) {
+              mode = 'dragging-room-label'
+              roomLabelDragId = labelRegion.id
+              roomLabelDragSnapshot = map
+              roomLabelDragStartPoint = worldPoint
+              roomLabelDragStartOffset = labelRegion.room.labelOffset ?? { x: 0, y: 0 }
+            } else {
+              mode = 'idle'
+            }
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
+            return
+          }
+        }
+
         // N3 "ferramenta de seleção de área": clicar DENTRO do bounding box
         // de um grupo já fechado por um marquee anterior arrasta o grupo
         // inteiro — tem prioridade sobre o hit-test de item único logo
@@ -1671,6 +1909,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       })
 
       app.stage.on('pointerup', (event) => {
+        // B2 — fim do traço do laser; o App manda `laser {off}` na transição.
+        if (laserGesture.pointerUp()) return
         if (mode === 'drawing-wall' && wallDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, addWall } = useMapStore.getState()
@@ -1813,8 +2053,30 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             ]
             const result = buildRoomFromDraft(crypto.randomUUID(), wallIds, roomDraftStart, end, regionFillColor, regionFillPattern)
             addRoom(result.region, result.walls)
+            // A3 — a Sala nova já nasce selecionada para o Nome aparecer.
+            useMapStore.getState().setSelection(selectionOfItem({ kind: 'region', id: result.region.id }))
+            onRoomCreatedRef.current?.(result.region.id)
           }
           roomDraftStart = null
+          draftGraphics.clear()
+        }
+
+        if (mode === 'drawing-conceal-zone' && concealDraftStart) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const store = useMapStore.getState()
+          const end = applySnap(worldPoint, store.map.grid, 'wall', event.altKey)
+          if (isValidRoomDraft(concealDraftStart, end)) {
+            // Retângulo sem paredes: a zona esconde conteúdo, não bloqueia a visão.
+            const zone = buildConcealZoneFromDraft(crypto.randomUUID(), concealDraftStart, end)
+            store.addConcealZone(zone)
+            store.setSelectedConcealZone(zone.id)
+          } else {
+            // Clique sem arrasto abre no painel a zona sob o cursor (ou fecha, no vazio).
+            const hit = findConcealZoneAt(store.map.concealZones, concealDraftRawStart ?? worldPoint)
+            store.setSelectedConcealZone(hit?.id ?? null)
+          }
+          concealDraftStart = null
+          concealDraftRawStart = null
           draftGraphics.clear()
         }
 
@@ -1834,6 +2096,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
               regionFillPattern,
             )
             addRoom(result.region, result.walls)
+            useMapStore.getState().setSelection(selectionOfItem({ kind: 'region', id: result.region.id }))
+            onRoomCreatedRef.current?.(result.region.id)
           }
           polygonDraftCenter = null
           draftGraphics.clear()
@@ -1983,6 +2247,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         draggingLineBodyId = null
         draggingLightId = null
         bodyDragLastPoint = null
+        finishRoomLabelDrag()
         guidesGraphics.clear()
         angleIndicatorRenderer.hide()
         // Onda 2, item 16 (Frente C) — mesmo choke point de
@@ -1994,6 +2259,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       })
 
       app.stage.on('pointerupoutside', () => {
+        if (laserGesture.pointerUp()) return
         // Mesmo fechamento de gesto do pointerup acima — o mouse pode sair do
         // canvas no meio de um arrasto de Curva, e o gesto ainda precisa virar
         // uma entrada de undo só (senão as mudanças aplicadas via *Live ficam
@@ -2069,6 +2335,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         draggingLineBodyId = null
         draggingLightId = null
         bodyDragLastPoint = null
+        finishRoomLabelDrag()
         guidesGraphics.clear()
         updateCursor()
         // N3: o mouse saiu do canvas no meio de um marquee ainda ABERTO —
@@ -2093,6 +2360,11 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         }
         if (roomDraftStart) {
           roomDraftStart = null
+          draftGraphics.clear()
+        }
+        if (concealDraftStart) {
+          concealDraftStart = null
+          concealDraftRawStart = null
           draftGraphics.clear()
         }
         if (polygonDraftCenter) {
@@ -2136,6 +2408,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       })
 
       app.stage.on('pointermove', (event) => {
+        // B2 — antes de qualquer gesto: guarda o ponteiro (L só arma sobre o canvas).
+        laserPointer = toWorldPoint(event.global.x, event.global.y)
+        // Mexer o mouse com L apertado já arma o laser, sem esperar o tempo do toque.
+        if (laserKeyTimer !== null) activateLaserKey()
+        // Traço do laser em curso (botão esquerdo pressionado): consome o move.
+        if (laserGesture.pointerMove(laserPointer)) return
+        // Armado e ocioso: sem hover nem prévia da ferramenta, só a mira.
+        if (mode === 'idle' && isLaserArmed(useLaserStore.getState())) return
+
         if (mode === 'panning') {
           const dx = event.global.x - lastPoint.x
           const dy = event.global.y - lastPoint.y
@@ -2292,6 +2573,16 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             }
             bodyDragLastPoint = p
           }
+          return
+        }
+
+        if (mode === 'dragging-room-label' && roomLabelDragId !== null && roomLabelDragStartPoint && roomLabelDragStartOffset) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          // Sem snap: o rótulo é texto solto, e o grid o prenderia em cima das paredes.
+          useMapStore.getState().setRoomLabelOffsetLive(roomLabelDragId, {
+            x: Math.round(roomLabelDragStartOffset.x + worldPoint.x - roomLabelDragStartPoint.x),
+            y: Math.round(roomLabelDragStartOffset.y + worldPoint.y - roomLabelDragStartPoint.y),
+          })
           return
         }
 
@@ -2573,6 +2864,13 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           return
         }
 
+        if (mode === 'drawing-conceal-zone' && concealDraftStart) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { map } = useMapStore.getState()
+          drawRoomDraft(draftGraphics, concealDraftStart, applySnap(worldPoint, map.grid, 'wall', event.altKey), '#000000')
+          return
+        }
+
         if (mode === 'drawing-stair' && stairDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, stairSizePreset } = useMapStore.getState()
@@ -2767,6 +3065,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
               const index = findCurveControlPointAt(region.points, worldPoint)
               if (index !== null) {
                 useMapStore.getState().removeRegionPoint(editRegionId, index)
+                return
               }
             }
           } else if (single?.kind === 'drawing') {
@@ -2777,8 +3076,27 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
               const index = findCurveControlPointAt(drawing.points, worldPoint)
               if (index !== null) {
                 useMapStore.getState().removeCurvePoint(single.id, index)
+                return
               }
             }
+          }
+
+          // A3 — duplo clique no nome ou dentro da Sala (inclusive numa parede
+          // dela) abre o campo de nome sobre o canvas. Vem depois da remoção de
+          // ponto acima: duplo clique em vértice continua removendo o vértice.
+          const rect = el.getBoundingClientRect()
+          const worldPoint = toWorldPoint(event.clientX - rect.left, event.clientY - rect.top)
+          let roomRegion = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), worldPoint, map.grid)
+          if (!roomRegion) {
+            const hit = findSelectableAt(hitTestMap(map), worldPoint)
+            const regionId =
+              hit?.kind === 'region' ? hit.id : hit?.kind === 'wall' ? map.walls.find((w) => w.id === hit.id)?.regionId : undefined
+            roomRegion = map.regions.find((r) => r.id === regionId && r.room !== undefined) ?? null
+          }
+          if (roomRegion?.room) {
+            useMapStore.getState().setSelection(selectionOfItem({ kind: 'region', id: roomRegion.id }))
+            roomNameEditorOpenRef.current = true
+            setRoomNameEditor({ regionId: roomRegion.id, value: roomRegion.room.name })
           }
           return
         }
@@ -2847,6 +3165,25 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       }
 
       const onKeyDown = (event: KeyboardEvent) => {
+        // B2 — L com o ponteiro sobre o canvas: segurar liga o laser; o toque
+        // curto vira o atalho da Linha só no keyup (releaseLaserKey). Fora do
+        // canvas, L segue direto para `resolveShortcut` como antes.
+        const laserKey = {
+          key: event.key,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+          targetTagName: event.target instanceof HTMLElement ? event.target.tagName : '',
+        }
+        if (isLaserKey(laserKey) && (laserPointer !== null || laserKeyTimer !== null || useLaserStore.getState().held)) {
+          event.preventDefault()
+          if (event.repeat || laserKeyTimer !== null || useLaserStore.getState().held) return
+          laserKeyTap = laserKey
+          laserKeyTimer = setTimeout(activateLaserKey, LASER_KEY_TAP_MS)
+          return
+        }
+
         // Item #8 (pan universal) — Espaço arma o pan; tratado à parte de
         // `resolveShortcut` porque não é uma "ação" de conteúdo do mapa, é um
         // MODIFICADOR contínuo (segurar/soltar), na mesma classe de Ctrl/Alt/
@@ -2888,7 +3225,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           targetTagName: (event.target as HTMLElement | null)?.tagName ?? '',
         })
         if (action === null) return
+        runShortcut(action)
+      }
 
+      const runShortcut = (action: NonNullable<ReturnType<typeof resolveShortcut>>) => {
         switch (action.kind) {
           case 'cancel':
             clearDrafts()
@@ -2943,6 +3283,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       window.addEventListener('keydown', onKeyDown)
 
       const onKeyUp = (event: KeyboardEvent) => {
+        if (event.key === 'l' || event.key === 'L') {
+          releaseLaserKey(true)
+          return
+        }
         if (event.key !== ' ') return
         spaceHeld = false
         if (mode === 'idle') updateCursor()
@@ -2965,9 +3309,17 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       el.addEventListener('wheel', onWheel, { passive: false })
 
       return () => {
+        app.ticker.remove(tickSignals)
+        app.ticker.remove(tickLaser)
+        unsubscribeLaserCursor()
+        laserGesture.cancel()
+        releaseLaserKey(false)
+        el.removeEventListener('pointerleave', onCanvasPointerLeave)
+        window.removeEventListener('blur', onWindowBlur)
         containerResizeObserver.disconnect()
         unsubscribeGrid()
         unsubscribeGridOffset()
+        unsubscribeCameraScaleForWalls()
         unsubscribeShapes()
         unsubscribeTokens()
         unsubscribeProps()
@@ -2994,5 +3346,43 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
     }
   }, [])
 
-  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+  const editorPosition = editorRegion && editorCamera ? roomLabelPosition(editorRegion) : null
+
+  return (
+    // O canvas do Pixi é anexado por fora do React no div do ref; o campo de
+    // nome fica num irmão para o React nunca reconciliar filhos do Pixi.
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {roomNameEditor && editorPosition && editorCamera && (
+        <input
+          className="lb-input"
+          aria-label="Nome da sala no mapa"
+          autoFocus
+          value={roomNameEditor.value}
+          onFocus={(event) => event.currentTarget.select()}
+          onChange={(event) => setRoomNameEditor({ ...roomNameEditor, value: event.target.value })}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              closeRoomNameEditor(true)
+            } else if (event.key === 'Escape') {
+              event.preventDefault()
+              closeRoomNameEditor(false)
+            }
+          }}
+          onBlur={() => closeRoomNameEditor(true)}
+          style={{
+            position: 'absolute',
+            left: editorPosition.x * editorCamera.scale + editorCamera.x,
+            top: editorPosition.y * editorCamera.scale + editorCamera.y,
+            transform: 'translate(-50%, -50%)',
+            width: '14em',
+            textAlign: 'center',
+            fontSize: Math.max(MIN_ROOM_NAME_EDITOR_FONT, roomLabelFontSize(editorGrid) * editorCamera.scale),
+            zIndex: 2,
+          }}
+        />
+      )}
+    </div>
+  )
 }

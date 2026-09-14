@@ -33,6 +33,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   measure: 'Medir',
   eraser: 'Borracha',
   floor: 'Chão',
+  concealZone: 'Zona oculta',
 }
 
 export const SELECTION_LABELS: Record<string, string> = {
@@ -74,6 +75,7 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   measure: 'Clique e arraste para medir a distância entre dois pontos.',
   eraser: 'Clique ou arraste sobre um item do mapa para apagá-lo.',
   floor: 'Arraste para criar uma peça de chão (forma e Somar/Subtrair na setinha). Corredor: clique ponto a ponto, duplo clique ou Enter termina, Esc cancela.',
+  concealZone: 'Arraste para marcar uma área que os jogadores não veem. Clique numa zona para editar o nome ou revelá-la.',
 }
 
 /**
@@ -85,7 +87,8 @@ export const TOOL_GROUPS: DrawingTool[][] = [
   // stair entra na Fase 2 (escada reta, B2) — já tinha ícone e rótulo desde
   // a Fase 0, só faltava aparecer aqui.
   // floor (chão por peças) fica junto das Salas: mesma camada 'salas'.
-  ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'floor', 'stair', 'prop'],
+  // concealZone (A5) no fim do grupo: não desloca os botões que já existiam.
+  ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'floor', 'stair', 'prop', 'concealZone'],
   // ellipse/rect/polygon entram na Fase 1 (formas + transparência, A3); measure
   // entra na Fase 2 (medição efêmera, B4) — mesmo caso de stair acima: ícone e
   // rótulo já existiam, só faltava a linha aqui.

@@ -1015,6 +1015,32 @@ describe('mapStore setTokenImage', () => {
   })
 })
 
+describe('mapStore renameToken', () => {
+  beforeEach(() => {
+    useMapStore.setState({
+      map: { ...useMapStore.getState().map, tokens: [] },
+      past: [],
+      future: [],
+      selection: [],
+    })
+  })
+
+  it('renomeia só o token alvo, com 1 entrada de histórico, e desfaz', () => {
+    useMapStore.getState().addToken(token)
+    useMapStore.getState().addToken({ ...token, id: 't2' })
+    const pastLengthBefore = useMapStore.getState().past.length
+
+    useMapStore.getState().renameToken('t1', 'Ana')
+
+    expect(useMapStore.getState().map.tokens.find((t) => t.id === 't1')?.name).toBe('Ana')
+    expect(useMapStore.getState().map.tokens.find((t) => t.id === 't2')?.name).toBe('Herói')
+    expect(useMapStore.getState().past.length).toBe(pastLengthBefore + 1)
+
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map.tokens.find((t) => t.id === 't1')?.name).toBe('Herói')
+  })
+})
+
 describe('mapStore setDrawingFillAlpha/setDrawingFilled', () => {
   beforeEach(() => {
     useMapStore.setState({

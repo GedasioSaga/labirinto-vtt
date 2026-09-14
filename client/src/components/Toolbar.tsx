@@ -9,6 +9,7 @@ import { ToolVariantMenu, type ToolVariantBindings } from './ToolVariantMenu'
 import {
   BrushIcon,
   CircleIcon,
+  ConcealZoneIcon,
   CurveIcon,
   CursorIcon,
   DoorIcon,
@@ -71,6 +72,7 @@ const TOOL_ICONS: Partial<Record<DrawingTool, ComponentType<{ size?: number }>>>
   text: TextIcon,
   measure: MeasureIcon,
   eraser: EraserIcon,
+  concealZone: ConcealZoneIcon,
 }
 
 /**

@@ -1,8 +1,10 @@
 import type { InvokeArgs } from '@tauri-apps/api/core'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useToastStore } from '../stores/toastStore'
-import type { MapData } from '../types/map'
-import { createHostSession, type HostResult, type HostSession, type PlayerInfo } from './hostSession'
+import type { MapData, RegionPoint } from '../types/map'
+import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
+import { createHostSession, type HostResult, type HostSession, type HostSignal, type PlayerInfo } from './hostSession'
+import type { LaserMessage } from './protocol'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -42,6 +44,8 @@ export interface HostBridgeDeps {
   visionRadius?: number
   onPlayersChange?: (players: PlayerInfo[]) => void
   onTunnelChange?: (state: TunnelState) => void
+  /** Sinal aceito de um jogador (já validado e dentro do limite por segundo). */
+  onSignal?: (signal: HostSignal) => void
   now?: () => number
 }
 
@@ -58,6 +62,16 @@ export interface HostBridge {
   startTunnel(): Promise<void>
   stopTunnel(): Promise<void>
   tunnel(): TunnelState
+  /** Ponteiro do laser em px de mundo; sai em lotes de no máximo 1 envio a cada `LASER_SEND_INTERVAL_MS`. */
+  laserMove(x: number, y: number): void
+  /** Soltou o laser: `laser {off}` para todos, só se algo foi enviado desde o último off. */
+  laserOff(): void
+  /** Raio de visão só deste jogador (`null` = global). Vem de um slider: o snapshot sai pelo throttle do mapa. */
+  setVisionRadius(playerId: string, radius: number | null): void
+  /** "Revelar planta": snapshot imediato com a planta inteira explorada (fora de zona oculta ativa). */
+  revealPlan(playerId: string): void
+  /** "Esconder de novo": snapshot imediato com exploração e portas lembradas zeradas. */
+  hidePlan(playerId: string): void
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -140,6 +154,35 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let tunnelAttemptSeq = 0
   /** Tentativa de `startTunnel` em curso; `null` depois de encerrar, fechar a sala ou terminar. */
   let activeTunnelAttempt: number | null = null
+  /** Pontos do laser à espera da janela de envio. */
+  let laserBuffer: RegionPoint[] = []
+  let laserTimer: ReturnType<typeof setTimeout> | null = null
+  /** Houve envio desde o último `off`: sem isso cada tecla solta viraria um `off` à toa. */
+  let laserSent = false
+
+  const sendLaser = (message: LaserMessage) => {
+    if (session === null) return
+    void dispatch(session.laser(message))
+  }
+
+  /** Throttle com borda de entrada: o primeiro ponto sai na hora, os seguintes esperam a janela e vão juntos. */
+  const armLaserTimer = () => {
+    laserTimer = setTimeout(() => {
+      laserTimer = null
+      if (laserBuffer.length === 0) return
+      const points = laserBuffer
+      laserBuffer = []
+      sendLaser({ type: 'laser', points })
+      armLaserTimer()
+    }, LASER_SEND_INTERVAL_MS)
+  }
+
+  const resetLaser = () => {
+    if (laserTimer !== null) clearTimeout(laserTimer)
+    laserTimer = null
+    laserBuffer = []
+    laserSent = false
+  }
 
   const setTunnel = (next: TunnelState) => {
     tunnelState = next
@@ -232,6 +275,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     void dispatch(session.broadcast(deps.getMap()))
   }
 
+  const scheduleBroadcast = () => {
+    if (session === null || pendingBroadcast !== null) return
+    pendingBroadcast = setTimeout(() => {
+      pendingBroadcast = null
+      broadcastNow()
+    }, BROADCAST_THROTTLE_MS)
+  }
+
   const cancelPendingBroadcast = () => {
     if (pendingBroadcast === null) return
     clearTimeout(pendingBroadcast)
@@ -251,6 +302,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return
     }
     void dispatch(result)
+    if (result.signal !== undefined) deps.onSignal?.(result.signal)
     if (result.applyMove !== undefined) {
       const { tokenId, x, y } = result.applyMove
       deps.applyMove(tokenId, x, y)
@@ -316,6 +368,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         }
       }
       cancelPendingBroadcast()
+      resetLaser()
       removeListeners()
       session = null
       currentRoom = null
@@ -330,11 +383,27 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     },
 
     notifyMapChanged() {
-      if (session === null || pendingBroadcast !== null) return
-      pendingBroadcast = setTimeout(() => {
-        pendingBroadcast = null
-        broadcastNow()
-      }, BROADCAST_THROTTLE_MS)
+      scheduleBroadcast()
+    },
+
+    setVisionRadius(playerId, radius) {
+      if (session === null) return
+      session.setVisionRadius(playerId, radius)
+      // Arrastar o slider dispara dezenas de onChange: um snapshot por janela basta.
+      scheduleBroadcast()
+      notifyPlayersIfChanged()
+    },
+
+    revealPlan(playerId) {
+      if (session === null) return
+      session.revealPlan(playerId, deps.getMap())
+      broadcastNow()
+    },
+
+    hidePlan(playerId) {
+      if (session === null) return
+      session.hidePlan(playerId)
+      broadcastNow()
     },
 
     assignToken(playerId, tokenId) {
@@ -398,6 +467,29 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
     tunnel() {
       return tunnelState
+    },
+
+    laserMove(x, y) {
+      if (session === null || !Number.isFinite(x) || !Number.isFinite(y)) return
+      // Inteiro basta para o rastro e encurta o payload que sai 20 vezes por segundo.
+      const point = { x: Math.round(x), y: Math.round(y) }
+      if (laserTimer === null) {
+        laserSent = true
+        sendLaser({ type: 'laser', points: [point] })
+        armLaserTimer()
+        return
+      }
+      // Acima do teto sai o ponto mais antigo: o jogador descartaria o lote inteiro.
+      if (laserBuffer.length >= LASER_MAX_POINTS_PER_MESSAGE) laserBuffer.shift()
+      laserBuffer.push(point)
+      laserSent = true
+    },
+
+    laserOff() {
+      if (session === null || !laserSent) return
+      // O que ainda esperava a janela fica para trás: são menos de 50 ms de rastro que sumiria em 1 s.
+      resetLaser()
+      sendLaser({ type: 'laser', off: true })
     },
   }
 }

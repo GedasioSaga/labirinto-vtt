@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { SelectionKind } from '../types/tools'
 import { SELECTION_LABELS } from './labels'
 import { TokenIcon } from './icons'
@@ -25,7 +26,10 @@ export interface SelectionSummary {
 
 export interface SelectionControlsProps {
   selection: SelectionSummary | null
-  onAddToken: () => void
+  /** Nome sugerido no campo ao adicionar token ("Token 1", "Token 2"…). */
+  defaultTokenName: string
+  /** Chamado com o nome confirmado (nunca vazio: vazio vira `defaultTokenName`). */
+  onAddToken: (name: string) => void
   onRemoveSelected: () => void
 }
 
@@ -35,8 +39,12 @@ export interface SelectionControlsProps {
  * O texto do botão de apagar para 1 item selecionado é verificado byte a
  * byte pelos testes e2e (`toHaveText('Apagar parede selecionada(o)')`),
  * então esse caso não pode ganhar ícone nem qualquer outro nó de texto.
+ *
+ * "Adicionar token" pede o nome antes de criar: sem isso todo token nascia
+ * "Token" e a lista de atribuir jogador ficava com itens idênticos.
  */
-export function SelectionControls({ selection, onAddToken, onRemoveSelected }: SelectionControlsProps) {
+export function SelectionControls({ selection, defaultTokenName, onAddToken, onRemoveSelected }: SelectionControlsProps) {
+  const [tokenNameDraft, setTokenNameDraft] = useState<string | null>(null)
   const label =
     selection === null
       ? 'Nada selecionado'
@@ -44,13 +52,51 @@ export function SelectionControls({ selection, onAddToken, onRemoveSelected }: S
         ? `Apagar ${SELECTION_LABELS[selection.kind]} selecionada(o)`
         : `Apagar ${selection.count} itens selecionados`
 
+  const confirmToken = () => {
+    if (tokenNameDraft === null) return
+    const name = tokenNameDraft.trim()
+    onAddToken(name === '' ? defaultTokenName : name)
+    setTokenNameDraft(null)
+  }
+
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Seleção</h2>
-      <button type="button" className="lb-btn lb-btn--block" onClick={onAddToken}>
-        <TokenIcon size={16} />
-        Adicionar token
-      </button>
+      {tokenNameDraft === null ? (
+        <button type="button" className="lb-btn lb-btn--block" onClick={() => setTokenNameDraft(defaultTokenName)}>
+          <TokenIcon size={16} />
+          Adicionar token
+        </button>
+      ) : (
+        <form
+          className="lb-field"
+          onSubmit={(event) => {
+            event.preventDefault()
+            confirmToken()
+          }}
+        >
+          <label className="lb-label" htmlFor="lb-new-token-name">
+            Nome do novo token
+          </label>
+          <input
+            id="lb-new-token-name"
+            className="lb-input"
+            value={tokenNameDraft}
+            autoFocus
+            onFocus={(event) => event.target.select()}
+            onChange={(event) => setTokenNameDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setTokenNameDraft(null)
+            }}
+          />
+          <button type="submit" className="lb-btn lb-btn--primary lb-btn--block">
+            Adicionar
+          </button>
+          <button type="button" className="lb-btn lb-btn--ghost lb-btn--block" onClick={() => setTokenNameDraft(null)}>
+            Cancelar
+          </button>
+        </form>
+      )}
       <button
         type="button"
         className={`lb-btn lb-btn--block${selection ? ' lb-btn--danger' : ''}`}

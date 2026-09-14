@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Container, Text } from 'pixi.js'
-import { createRoomNamesRenderer, roomLabelAnchor, roomLabelFontSize } from './drawRoomNames'
+import {
+  createRoomNamesRenderer,
+  findRoomLabelAt,
+  roomLabelAnchor,
+  roomLabelBounds,
+  roomLabelFontSize,
+  roomLabelPosition,
+} from './drawRoomNames'
 import type { Region, RegionPoint } from '../types/map'
 
 function buildRoom(id: string, name: string | null, points: RegionPoint[]): Region {
@@ -167,5 +174,47 @@ describe('createRoomNamesRenderer', () => {
     expect(textChildren(container)[0].style.fontSize).toBe(15)
     renderer.draw(container, [buildRoom('sala', 'Cripta', SQUARE)], 90)
     expect(textChildren(container)[0].style.fontSize).toBeCloseTo(27)
+  })
+
+  it('labelOffset desloca o texto a partir do centróide (mesmo renderer do jogador)', () => {
+    const container = new Container()
+    const renderer = createRoomNamesRenderer()
+
+    renderer.draw(container, [withOffset(buildRoom('sala', 'Cripta', SQUARE), { x: 30, y: -20 })], 70)
+
+    expect(textChildren(container)[0].position.x).toBeCloseTo(80)
+    expect(textChildren(container)[0].position.y).toBeCloseTo(30)
+  })
+})
+
+function withOffset(region: Region, labelOffset: { x: number; y: number }): Region {
+  if (!region.room) throw new Error('região sem room')
+  return { ...region, room: { ...region.room, labelOffset } }
+}
+
+describe('roomLabelPosition', () => {
+  it('sem offset é o centróide; com offset soma', () => {
+    expect(roomLabelPosition(buildRoom('sala', 'Cripta', SQUARE))).toEqual({ x: 50, y: 50 })
+    expect(roomLabelPosition(withOffset(buildRoom('sala', 'Cripta', SQUARE), { x: -10, y: 5 }))).toEqual({ x: 40, y: 55 })
+  })
+})
+
+describe('findRoomLabelAt', () => {
+  it('acha a sala pelo retângulo do nome e segue o offset', () => {
+    const moved = withOffset(buildRoom('sala', 'Cripta', SQUARE), { x: 200, y: 0 })
+
+    expect(findRoomLabelAt([moved], { x: 250, y: 50 }, 70)?.id).toBe('sala')
+    // O centro da sala não é mais o nome depois do arrasto.
+    expect(findRoomLabelAt([moved], { x: 50, y: 50 }, 70)).toBeNull()
+  })
+
+  it('sala sem nome ou região comum não tem rótulo clicável', () => {
+    expect(roomLabelBounds(buildRoom('sem-nome', '  ', SQUARE), 70)).toBeNull()
+    expect(findRoomLabelAt([buildRoom('comum', null, SQUARE)], { x: 50, y: 50 }, 70)).toBeNull()
+  })
+
+  it('com rótulos sobrepostos vence a região desenhada por último', () => {
+    const regions = [buildRoom('baixo', 'Cripta', SQUARE), buildRoom('cima', 'Cripta', SQUARE)]
+    expect(findRoomLabelAt(regions, { x: 50, y: 50 }, 70)?.id).toBe('cima')
   })
 })

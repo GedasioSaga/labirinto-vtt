@@ -51,9 +51,11 @@ const ALL_MODES: GestureMode[] = [
   'dragging-area-selection',
   'drawing-floor',
   'dragging-floor-body',
+  'dragging-room-label',
+  'drawing-conceal-zone',
 ]
 
-/** Cópia local dos 22 literais de `DrawingTool` (`types/tools.ts:1-23`). */
+/** Cópia local dos 23 literais de `DrawingTool` (`types/tools.ts:1-24`). */
 const ALL_TOOLS: DrawingTool[] = [
   'select',
   'wall',
@@ -77,6 +79,7 @@ const ALL_TOOLS: DrawingTool[] = [
   'measure',
   'eraser',
   'floor',
+  'concealZone',
 ]
 
 const ALL_HOVER_KINDS: HoverKind[] = ['none', 'selectable', 'resize-corner', 'vertex', 'radius', 'area-selection']
@@ -105,16 +108,16 @@ const baseInput = (overrides: Partial<ResolveCursorInput> = {}): ResolveCursorIn
 })
 
 describe('resolveCursor — exaustividade', () => {
-  it('cobre TODOS os 36 modos de PixiCanvas.tsx sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_MODES).toHaveLength(36)
+  it('cobre TODOS os 38 modos de PixiCanvas.tsx sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_MODES).toHaveLength(38)
     for (const mode of ALL_MODES) {
       const cursor = resolveCursor(baseInput({ mode, corner: 0 }))
       expect(VALID_CSS_CURSORS.has(cursor), `mode "${mode}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
     }
   })
 
-  it('cobre TODAS as 22 ferramentas (idle) sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_TOOLS).toHaveLength(22)
+  it('cobre TODAS as 23 ferramentas (idle) sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_TOOLS).toHaveLength(23)
     for (const activeTool of ALL_TOOLS) {
       const cursor = resolveCursor(baseInput({ activeTool }))
       expect(VALID_CSS_CURSORS.has(cursor), `tool "${activeTool}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
@@ -134,14 +137,14 @@ describe('resolveCursor — ferramentas de criação (idle): crosshair', () => {
   const creationTools: DrawingTool[] = [
     'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon',
     'stair', 'prop', 'brush', 'line', 'circle', 'ellipse', 'rect', 'polygon',
-    'curve', 'text', 'measure', 'floor',
+    'curve', 'text', 'measure', 'floor', 'concealZone',
   ]
 
   it.each(creationTools)('%s ocioso é crosshair — mira de precisão pra colocar algo novo', (activeTool) => {
     expect(resolveCursor(baseInput({ activeTool }))).toBe('crosshair')
   })
 
-  it('as 19 ferramentas de criação são exatamente DrawingTool menos select/token/eraser', () => {
+  it('as 20 ferramentas de criação são exatamente DrawingTool menos select/token/eraser', () => {
     const naoCriacao = new Set(['select', 'token', 'eraser'])
     const criacaoDoModulo = ALL_TOOLS.filter((tool) => !naoCriacao.has(tool))
     expect(criacaoDoModulo.sort()).toEqual([...creationTools].sort())
@@ -230,6 +233,7 @@ describe('resolveCursor — arrastando corpo inteiro: "move"', () => {
   const bodyDragModes: GestureMode[] = [
     'dragging-token', 'dragging-prop', 'dragging-wall-body', 'dragging-region-body',
     'dragging-stair-body', 'dragging-curve-body', 'dragging-line-body', 'dragging-area-selection',
+    'dragging-room-label',
   ]
 
   it.each(bodyDragModes)('mode "%s" é "move"', (mode) => {

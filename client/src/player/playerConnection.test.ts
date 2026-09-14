@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createExploration, encodeExploration, isPointExplored, markRings } from '../lib/exploration'
 import { createEmptyMap, addToken } from '../lib/mapFactory'
 import type { MapData } from '../types/map'
+import { NAME_MAX_LENGTH } from '../net/protocol'
+import { SIGNAL_TTL_MS } from '../lib/signals'
+import { LASER_MAX_POINTS_PER_MESSAGE, LASER_TRAIL_MS } from '../lib/laser'
 import { createPlayerConnection, PING_INTERVAL_MS, RESUME_STORAGE_KEY } from './playerConnection'
 import type { SocketLike, StorageLike } from './playerConnection'
 
@@ -125,6 +128,18 @@ describe('createPlayerConnection', () => {
     socket.receive({ type: 'delta', rev: 6, map: mapWithToken(20, 30), vision: [[{ x: 0, y: 0 }]] })
     expect(connection.getState().rev).toBe(6)
     expect(connection.getState().map?.tokens[0]).toMatchObject({ x: 20, y: 30 })
+  })
+
+  it('A5: concealed do snapshot vai para o estado; malformado descarta a mensagem; ausente vira []', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    const concealed = [[{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }]]
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(1, 1), vision: [], concealed })
+    expect(connection.getState().concealed).toEqual(concealed)
+    socket.receive({ type: 'snapshot', rev: 2, map: mapWithToken(2, 2), vision: [], concealed: [[{ x: 'a', y: 0 }]] })
+    expect(connection.getState().rev).toBe(1)
+    socket.receive({ type: 'snapshot', rev: 3, map: mapWithToken(3, 3), vision: [] })
+    expect(connection.getState().concealed).toEqual([])
   })
 
   it('snapshot malformado é ignorado', () => {
@@ -266,5 +281,108 @@ describe('createPlayerConnection', () => {
     socket.drop()
     vi.advanceTimersByTime(PING_INTERVAL_MS * 2)
     expect(socket.sent.filter((m) => field(m, 'type') === 'ping')).toHaveLength(2)
+  })
+
+  it('sendSignal só envia jogando e com socket aberto, com o ponto arredondado', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    expect(connection.sendSignal(10, 10)).toBe(false)
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    expect(connection.sendSignal(120.4, 80.6)).toBe(true)
+    expect(socket.sent.at(-1)).toEqual({ type: 'signal', x: 120, y: 81 })
+    expect(connection.sendSignal(Number.NaN, 1)).toBe(false)
+    socket.drop()
+    expect(connection.sendSignal(1, 1)).toBe(false)
+  })
+
+  it('signal recebido entra no estado com nome e cor e some em 3 s; malformado ou fora do jogo é descartado', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'signal', x: 5, y: 5, from: 'Bia', color: '#64b5f6' })
+    expect(connection.getState().signals).toBeUndefined()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'signal', x: 5, y: 6, from: 'Bia', color: '#64b5f6' })
+    expect(connection.getState().signals).toEqual([expect.objectContaining({ x: 5, y: 6, name: 'Bia', color: '#64b5f6' })])
+    const malformed = [
+      { type: 'signal', x: '5', y: 6, from: 'Bia', color: '#64b5f6' },
+      { type: 'signal', x: 5, y: 6, from: 7, color: '#64b5f6' },
+      { type: 'signal', x: 5, y: 6, from: 'x'.repeat(NAME_MAX_LENGTH + 1), color: '#64b5f6' },
+      { type: 'signal', x: 5, y: 6, from: 'Bia', color: 'red; background:url(x)' },
+    ]
+    for (const message of malformed) socket.receive(message)
+    expect(connection.getState().signals).toHaveLength(1)
+    vi.advanceTimersByTime(SIGNAL_TTL_MS - 1)
+    expect(connection.getState().signals).toHaveLength(1)
+    vi.advanceTimersByTime(1)
+    expect(connection.getState().signals).toEqual([])
+  })
+
+  it('lobby.waiting e reconnect limpam sinais e timers', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'signal', x: 5, y: 6, from: 'Bia', color: '#64b5f6' })
+    socket.receive({ type: 'lobby.waiting' })
+    expect(connection.getState().signals).toBeUndefined()
+    expect(vi.getTimerCount()).toBe(1) // só o ping
+
+    socket.receive({ type: 'snapshot', rev: 2, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'signal', x: 5, y: 6, from: 'Bia', color: '#64b5f6' })
+    connection.reconnect()
+    expect(connection.getState().signals).toBeUndefined()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('laser acende o rastro; off deixa sumir em LASER_TRAIL_MS; malformado ou fora do jogo é descartado', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'laser', points: [{ x: 1, y: 2 }] })
+    expect(connection.getState().laser).toBeUndefined()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'laser', points: [{ x: 1, y: 2 }, { x: 3, y: 4 }] })
+    expect(connection.getState().laser).toEqual({ on: true, points: [expect.objectContaining({ x: 1, y: 2 }), expect.objectContaining({ x: 3, y: 4 })] })
+
+    const malformed = [
+      { type: 'laser', points: [] },
+      { type: 'laser', points: [{ x: '5', y: 6 }] },
+      { type: 'laser', points: 'x' },
+      { type: 'laser', off: 'sim' },
+      { type: 'laser', points: Array.from({ length: LASER_MAX_POINTS_PER_MESSAGE + 1 }, () => ({ x: 1, y: 1 })) },
+    ]
+    for (const message of malformed) socket.receive(message)
+    expect(connection.getState().laser?.points).toHaveLength(2)
+
+    socket.receive({ type: 'laser', off: true })
+    expect(connection.getState().laser).toEqual({ on: false, points: [expect.objectContaining({ x: 1, y: 2 }), expect.objectContaining({ x: 3, y: 4 })] })
+    vi.advanceTimersByTime(LASER_TRAIL_MS - 1)
+    expect(connection.getState().laser).toBeDefined()
+    vi.advanceTimersByTime(1)
+    expect(connection.getState().laser).toBeUndefined()
+    // Off sem rastro na tela não cria estado.
+    socket.receive({ type: 'laser', off: true })
+    expect(connection.getState().laser).toBeUndefined()
+  })
+
+  it('laser ligado e parado guarda só a ponta; lobby.waiting e reconnect limpam rastro e timer', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'laser', points: [{ x: 1, y: 2 }, { x: 3, y: 4 }] })
+    vi.advanceTimersByTime(LASER_TRAIL_MS)
+    expect(connection.getState().laser).toEqual({ on: true, points: [expect.objectContaining({ x: 3, y: 4 })] })
+
+    socket.receive({ type: 'lobby.waiting' })
+    expect(connection.getState().laser).toBeUndefined()
+    expect(vi.getTimerCount()).toBe(1) // só o ping
+
+    socket.receive({ type: 'snapshot', rev: 2, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'laser', points: [{ x: 1, y: 2 }] })
+    connection.reconnect()
+    expect(connection.getState().laser).toBeUndefined()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

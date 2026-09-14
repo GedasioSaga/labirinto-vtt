@@ -53,3 +53,6 @@ export const HANDLE_VISUAL_RADIUS = 3.5
  *  (`HANDLE_VISUAL_RADIUS`), pra manter a hierarquia visual "vértice pesa
  *  mais que meio de aresta" que já existia (5 vs 4), só em escala menor. */
 export const HANDLE_MIDPOINT_RADIUS = 2.5
+
+/** A5 — item "Oculto para jogadores" desenhado esmaecido no editor. */
+export const SECRET_ITEM_ALPHA = 0.5

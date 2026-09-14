@@ -32,6 +32,14 @@ export function zoomAt(camera: Camera, pointer: Point, wheelDeltaY: number): Cam
   }
 }
 
+/** Ponto de mundo no centro de uma tela de `width` × `height` px com esta câmera. */
+export function viewportCenterWorld(camera: Camera, width: number, height: number): Point {
+  return {
+    x: (width / 2 - camera.x) / camera.scale,
+    y: (height / 2 - camera.y) / camera.scale,
+  }
+}
+
 export function panBy(camera: Camera, dx: number, dy: number): Camera {
   return { ...camera, x: camera.x + dx, y: camera.y + dy }
 }

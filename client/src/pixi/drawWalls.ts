@@ -235,25 +235,33 @@ function drawRun(graphics: Graphics, run: WallWithStyle[], style: WallVisualStyl
  * distingue visualmente uma parede-com-porta (ombreira + folha/barras, por
  * `door.kind`/`locked`).
  *
- * `cameraScale` (F6, "espessura constante em pixel de TELA"): OPCIONAL,
- * default 1 (sem efeito — comportamento idêntico a antes desta fase quando
- * omitido, nenhum call site existente precisa mudar). Quando o integrador
- * passar `camera.scale` (ver CONTRATO no relatório), a largura final vira
- * `width / cameraScale` — como `wallsGraphics` é filho de `world`
- * (`PixiCanvas.tsx`, `world.scale.set(camera.scale)`), dividir aqui cancela
- * essa multiplicação e a parede fica com a MESMA espessura em px de tela em
- * qualquer zoom, em vez de crescer/encolher junto com o mundo. IMPORTANTE
- * (ver relatório): isso só fica correto ao vivo durante um gesto de zoom se
- * o integrador também redesenhar (`redrawShapes`) no handler de wheel — hoje
- * `onWheel` só atualiza `world.scale`, sem chamar `redrawShapes` — então
- * ligar o parâmetro sem esse segundo passo deixaria a espessura "presa" na
- * escala do último redraw disparado por edição, não da escala atual.
+ * `cameraScale`: `camera.scale` atual (default 1). `wallsGraphics` é filho de
+ * `world` (`PixiCanvas.tsx`, `world.scale.set(camera.scale)`), então a
+ * largura de mundo é multiplicada pelo zoom na tela; `screenSafeWidth` impõe
+ * o piso de 1 px de tela. O PixiCanvas redesenha as paredes quando a escala
+ * muda, senão o piso ficaria preso na escala do último redraw.
  */
 export function drawWalls(graphics: Graphics, walls: WallWithStyle[], selectedWallId: string | null = null, cameraScale = 1): void {
   graphics.clear()
   const runs = groupWallsForPath(walls, selectedWallId)
   for (const { walls: run, style } of runs) {
-    const scaledStyle: WallVisualStyle = cameraScale === 1 ? style : { ...style, width: style.width / cameraScale }
-    drawRun(graphics, run, scaledStyle)
+    drawRun(graphics, run, { ...style, width: screenSafeWidth(style.width, cameraScale) })
   }
+}
+
+/**
+ * Largura mínima de um traço em px de TELA. O app Pixi do editor roda sem
+ * antialias: abaixo de 1 px na tela a linha cai entre os centros de pixel e
+ * some (parede exterior de 1,5 px de mundo a 50% de zoom vira 0,75 px).
+ */
+export const MIN_SCREEN_STROKE_PX = 1
+
+/**
+ * Largura de mundo que garante pelo menos `MIN_SCREEN_STROKE_PX` na tela.
+ * Acima do piso a espessura acompanha o zoom como qualquer geometria do mapa
+ * (a hierarquia fina/média/grossa continua valendo); só abaixo dele o traço
+ * é engordado o mínimo para continuar visível.
+ */
+export function screenSafeWidth(worldWidth: number, cameraScale: number): number {
+  return Math.max(worldWidth, MIN_SCREEN_STROKE_PX / cameraScale)
 }

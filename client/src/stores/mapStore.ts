@@ -164,6 +164,9 @@ interface MapStoreState {
    * na borda, nunca o array cru.
    */
   selection: SelectionSet
+  /** A5 — zona oculta aberta no painel. Fora de `selection` de propósito: a
+   *  zona não participa de mover/duplicar/apagar em grupo. `null` = nenhuma. */
+  selectedConcealZoneId: string | null
   activeTool: DrawingTool
   /**
    * Substituído por `snapTargets` (Fase 1) — 3 toggles independentes por
@@ -377,6 +380,8 @@ interface MapStoreState {
   setTokenPosition: (id: string, x: number, y: number) => void
   moveToken: (id: string, targetX: number, targetY: number) => void
   setTokenImage: (id: string, image: string | null) => void
+  /** Campo Nome do painel do token — com histórico, mesmo padrão de `setRoomName`. */
+  renameToken: (id: string, name: string) => void
   /**
    * Patch de rotação/travar/ocultar de um Token JÁ EXISTENTE (F3, contrato do
    * agente C4 — `ItemTransformControls`). Mesmo padrão inline de `updateLight`
@@ -436,6 +441,18 @@ interface MapStoreState {
   updateStairPoint: (stairId: string, segmentIndex: number, endpoint: 0 | 1, x: number, y: number) => void
   setStairDirection: (id: string, direction: StairDirection) => void
   setRoomName: (id: string, name: string) => void
+  /** Arrasto do rótulo da Sala — SEM histórico, par de `commitDragHistory(before)`
+   *  no pointerup, mesmo padrão de `resizeRoomCornerLive`. */
+  setRoomLabelOffsetLive: (id: string, offset: { x: number; y: number }) => void
+  /** A5 — "Jogadores veem o nome" (invertido: `true` esconde). Com histórico. */
+  setRoomNameHiddenFromPlayers: (id: string, hidden: boolean) => void
+  /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
+  setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
+  /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
+  setSelectedConcealZone: (id: string | null) => void
+  addConcealZone: (zone: MapData['concealZones'][number]) => void
+  updateConcealZone: (id: string, patch: Partial<Pick<MapData['concealZones'][number], 'name' | 'revealed'>>) => void
+  removeConcealZone: (id: string) => void
   resizeRoomDimensions: (id: string, wPx: number, hPx: number) => void
   /** Variante "live" do resize por canto — SEM histórico, aplica direto no
    *  `map` a cada pointermove do arrasto. Par de `commitDragHistory(before)`
@@ -646,6 +663,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     future: [],
     camera: { x: 0, y: 0, scale: 1 },
     selection: EMPTY_SELECTION,
+    selectedConcealZoneId: null,
     activeTool: 'select',
     snapTargets: { token: false, wall: false, prop: false },
     drawColor: '#ffffff',
@@ -672,7 +690,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     regionStrokeWidth: 2,
     regionStrokeJoin: 'miter',
     setCamera: (camera) => set({ camera }),
-    setSelection: (selection) => set({ selection }),
+    // Selecionar algo no mapa fecha a zona oculta do painel; limpar a seleção não.
+    setSelection: (selection) => set(isSelectionEmpty(selection) ? { selection } : { selection, selectedConcealZoneId: null }),
     removeSelected: () => {
       const { selection } = get()
       if (isSelectionEmpty(selection)) return
@@ -859,6 +878,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       withHistory((m) => mapFactory.setTokenPosition(m, id, resolved.x, resolved.y))
     },
     setTokenImage: (id, image) => withHistory((map) => mapFactory.setTokenImage(map, id, image)),
+    renameToken: (id, name) => withHistory((map) => mapFactory.renameToken(map, id, name)),
     updateToken: (id, patch) => withHistory((map) => ({
       ...map,
       tokens: map.tokens.map((t) => (t.id === id ? { ...t, ...patch } : t)),
@@ -920,6 +940,28 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     ),
     setStairDirection: (id, direction) => withHistory((map) => mapFactory.setStairDirection(map, id, direction)),
     setRoomName: (id, name) => withHistory((map) => mapFactory.setRoomName(map, id, name)),
+    setRoomLabelOffsetLive: (id, offset) => set((state) => ({ map: mapFactory.setRoomLabelOffset(state.map, id, offset) })),
+    // As fábricas abaixo devolvem o mesmo `map` quando nada muda: sem entrada de histórico vazia.
+    setRoomNameHiddenFromPlayers: (id, hidden) => {
+      if (mapFactory.setRoomNameHiddenFromPlayers(get().map, id, hidden) === get().map) return
+      withHistory((map) => mapFactory.setRoomNameHiddenFromPlayers(map, id, hidden))
+    },
+    setItemSecret: (kind, id, secret) => {
+      if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return
+      withHistory((map) => mapFactory.setItemSecret(map, kind, id, secret))
+    },
+    setSelectedConcealZone: (id) =>
+      set(id === null ? { selectedConcealZoneId: null } : { selectedConcealZoneId: id, selection: EMPTY_SELECTION }),
+    addConcealZone: (zone) => withHistory((map) => mapFactory.addConcealZone(map, zone)),
+    updateConcealZone: (id, patch) => {
+      if (mapFactory.updateConcealZone(get().map, id, patch) === get().map) return
+      withHistory((map) => mapFactory.updateConcealZone(map, id, patch))
+    },
+    removeConcealZone: (id) => {
+      if (mapFactory.removeConcealZone(get().map, id) === get().map) return
+      withHistory((map) => mapFactory.removeConcealZone(map, id))
+      if (get().selectedConcealZoneId === id) set({ selectedConcealZoneId: null })
+    },
     resizeRoomDimensions: (id, wPx, hPx) => withHistory((map) => mapFactory.resizeRoomDimensions(map, id, wPx, hPx)),
     resizeRoomCornerLive: (id, corner, x, y) => set((state) => ({
       map: mapFactory.resizeRoomCornerLive(state.map, id, corner, x, y),
@@ -1044,7 +1086,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       ...map,
       drawings: map.drawings.map((d) => (d.id === id ? convertCurveToLine(d) : d)),
     })),
-    loadMap: (map) => set({ map, selection: EMPTY_SELECTION, past: [], future: [] }),
+    loadMap: (map) => set({ map, selection: EMPTY_SELECTION, selectedConcealZoneId: null, past: [], future: [] }),
     undo: () => {
       const { past, map } = get()
       if (past.length === 0) return

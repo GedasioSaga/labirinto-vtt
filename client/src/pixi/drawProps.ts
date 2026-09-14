@@ -1,7 +1,7 @@
 import { Container, Sprite, Graphics, Assets, Texture } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { Prop } from '../types/map'
-import { SELECTION_COLOR } from './constants'
+import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { useToastStore } from '../stores/toastStore'
 
@@ -101,6 +101,7 @@ export function createPropsRenderer(): PropsRenderer {
       // mestre) — não existe segunda tela/modo jogador neste app, ver
       // comentário de Prop.hidden em types/map.ts.
       sprite.visible = !isHidden(prop)
+      sprite.alpha = prop.secret ? SECRET_ITEM_ALPHA : 1
 
       if (prop.id === selectedPropId && sprite.visible) {
         highlightGraphics

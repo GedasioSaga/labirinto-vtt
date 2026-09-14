@@ -1,6 +1,7 @@
 import type { MapData, RegionPoint } from '../types/map'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
+import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -13,7 +14,10 @@ import type { TokenMoveRejection } from '../lib/moveValidation'
  * Delta incremental de verdade fica para uma versão futura do protocolo.
  *
  * `explored` (bitset do que o jogador já viu) e `ownTokens` (ids dos tokens
- * dele) entraram depois como campos aditivos: a versão continua 1.
+ * dele) entraram depois como campos aditivos: a versão continua 1. Idem
+ * `concealed` (polígonos das zonas ocultas ativas, pintados de preto) e a
+ * mensagem `signal` nos dois sentidos (sinal de mapa do jogador) e a `laser`
+ * do mestre para o jogador.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -45,18 +49,30 @@ export interface PingMessage {
   type: 'ping'
 }
 
-export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage
+/** Sinal (ping de mapa) do jogador. Não confundir com `ping`, que é o heartbeat. */
+export interface SignalMessage {
+  type: 'signal'
+  x: number
+  y: number
+}
+
+export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage
 
 // Mestre -> jogador
+/** Laser do mestre: lote de pontos (px de mundo) desde o último envio, ou `off` ao soltar. */
+export type LaserMessage = { type: 'laser'; points: RegionPoint[] } | { type: 'laser'; off: true }
+
 export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
 export type HostMessage =
   | { type: 'welcome'; playerId: string; resumeToken: string }
   | { type: 'lobby.waiting' }
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[] }
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
+  | { type: 'signal'; x: number; y: number; from: string; color: string }
+  | LaserMessage
   | { type: 'kicked' }
   | { type: 'error'; reason: HostErrorReason }
 
@@ -93,6 +109,24 @@ function parseTokenMove(obj: Record<string, unknown>): TokenMoveMessage | null {
 }
 
 /**
+ * Valida a mensagem `laser` que o jogador recebe (objeto já desserializado).
+ * Aceita `off: true` ou 1 a `LASER_MAX_POINTS_PER_MESSAGE` pontos finitos; devolve
+ * cópia só com `x`/`y`, e `null` para qualquer outra forma.
+ */
+export function parseLaserMessage(value: unknown): LaserMessage | null {
+  if (!isRecord(value) || value.type !== 'laser') return null
+  if (value.off === true) return { type: 'laser', off: true }
+  const { points } = value
+  if (!Array.isArray(points) || points.length === 0 || points.length > LASER_MAX_POINTS_PER_MESSAGE) return null
+  const parsed: RegionPoint[] = []
+  for (const point of points) {
+    if (!isRecord(point) || !isFiniteNumber(point.x) || !isFiniteNumber(point.y)) return null
+    parsed.push({ x: point.x, y: point.y })
+  }
+  return { type: 'laser', points: parsed }
+}
+
+/**
  * Valida mensagem vinda do jogador. Aceita o objeto já desserializado ou a
  * string JSON crua do transporte. Devolve um objeto novo só com os campos
  * conhecidos; qualquer campo faltando ou malformado resulta em `null`.
@@ -114,6 +148,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTokenMove(value)
     case 'ping':
       return { type: 'ping' }
+    case 'signal':
+      return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
     default:
       return null
   }

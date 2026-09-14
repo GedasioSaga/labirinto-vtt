@@ -45,9 +45,10 @@ describe('resolveShortcut — letras de ferramenta', () => {
     ['measure', 'M'],
     ['eraser', 'E'],
     ['floor', 'I'],
+    ['concealZone', 'X'],
   ]
 
-  it('TOOL_SHORTCUTS cobre exatamente as 22 ferramentas esperadas, sem duplicar letra', () => {
+  it('TOOL_SHORTCUTS cobre exatamente as 23 ferramentas esperadas, sem duplicar letra', () => {
     expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length)
     const letters = Object.values(TOOL_SHORTCUTS)
     expect(new Set(letters).size).toBe(letters.length)
@@ -65,7 +66,7 @@ describe('resolveShortcut — letras de ferramenta', () => {
   }
 
   it('letra desconhecida (sem tool nem ação) devolve null', () => {
-    expect(resolveShortcut(evt({ key: 'x' }))).toBeNull()
+    // 'x' virou a Zona oculta (A5); Y e Z continuam livres.
     expect(resolveShortcut(evt({ key: 'y' }))).toBeNull()
     expect(resolveShortcut(evt({ key: 'z' }))).toBeNull()
   })

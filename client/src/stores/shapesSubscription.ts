@@ -36,6 +36,9 @@ export function subscribeToShapesRedraw(onChange: () => void): () => void {
       state.map.frame,
       state.map.hiddenLayers,
       state.selection,
+      // A5 — overlay das zonas ocultas e o destaque da zona aberta no painel.
+      state.map.concealZones,
+      state.selectedConcealZoneId,
     ] as const,
     onChange,
     { equalityFn: shallow },

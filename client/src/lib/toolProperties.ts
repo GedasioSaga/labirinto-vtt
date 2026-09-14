@@ -49,6 +49,11 @@ export type PropertyGroupId =
   | 'floorPiece'
   /** Chão por peças: estilo do chão do mapa + "Chão a partir da imagem" (FloorStyleControls). */
   | 'floorStyle'
+  /** A5 — "Oculto para jogadores" de Região/Escada/Desenho selecionado
+   *  (Token e Objeto têm o toggle dentro de `itemTransform`). */
+  | 'playerVisibility'
+  /** A5 — Nome, "Revelar para jogadores" e excluir da zona oculta aberta. */
+  | 'concealZone'
 
 /** Todos os IDs, na mesma ordem do type acima — usado pelo teste pra
  *  conferir exaustão sem precisar listar os valores de novo lá. */
@@ -57,7 +62,7 @@ export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'wallStyle', 'wallDoor', 'doorKind', 'portal', 'itemTransform', 'tokenImage',
   'lightControls', 'stairControls', 'stairSize', 'room',
   'grid', 'mapScale', 'gridAlign', 'layers', 'scenarioLink', 'selection',
-  'floorPiece', 'floorStyle',
+  'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone',
 ]
 
 /**
@@ -96,6 +101,8 @@ export interface ToolPropertiesSelection {
   drawingKind?: Exclude<Drawing['kind'], 'text'> | null
   /** Espelha `selectedFloorPiece !== null` (peça de chão selecionada). */
   floorPiece?: boolean
+  /** A5 — zona oculta aberta no painel (`selectedConcealZoneId` existente no mapa). */
+  concealZone?: boolean
 }
 
 /**
@@ -164,6 +171,7 @@ export function relevantPropertyGroups(
     stair = false,
     drawingKind = null,
     floorPiece = false,
+    concealZone = false,
   } = selection
 
   const groups = new Set<PropertyGroupId>()
@@ -254,6 +262,10 @@ export function relevantPropertyGroups(
   if (region && regionIsRoom) groups.add('room')
 
   if (floorPiece) groups.add('floorPiece')
+
+  // A5 — texto conta como desenho: também pode ser "Oculto para jogadores".
+  if (region || stair || textLabel || drawingKind !== null) groups.add('playerVisibility')
+  if (concealZone) groups.add('concealZone')
 
   const hasAnySelection =
     wall || prop || token || textLabel || region || light || stair || drawingKind !== null || floorPiece

@@ -9,8 +9,22 @@ import {
   fitCamera,
   MIN_SCALE,
   MAX_SCALE,
+  viewportCenterWorld,
 } from './world'
 import type { MapData, Wall, Drawing } from '../types/map'
+
+describe('viewportCenterWorld', () => {
+  it('câmera padrão: centro da tela em px é o próprio ponto de mundo', () => {
+    expect(viewportCenterWorld({ x: 0, y: 0, scale: 1 }, 800, 600)).toEqual({ x: 400, y: 300 })
+  })
+
+  it('com pan e zoom desfaz a transformação do world (tela = mundo × escala + deslocamento)', () => {
+    const center = viewportCenterWorld({ x: 100, y: 50, scale: 2 }, 800, 600)
+    expect(center).toEqual({ x: 150, y: 125 })
+    expect(center.x * 2 + 100).toBe(400)
+    expect(center.y * 2 + 50).toBe(300)
+  })
+})
 
 describe('clampScale', () => {
   it('mantém valor dentro do intervalo', () => {

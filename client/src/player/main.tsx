@@ -9,6 +9,7 @@ import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
+import type { SignalMark } from '../lib/signals'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -21,6 +22,7 @@ document.head.prepend(themeStyle)
 
 /** Referência estável: um `[]` novo a cada render redesenharia o canvas sem motivo. */
 const NO_TOKENS: string[] = []
+const NO_SIGNALS: SignalMark[] = []
 const OWN_TOKEN_CSS = `#${OWN_TOKEN_COLOR.toString(16).padStart(6, '0')}`
 
 const REASON_TEXT: Record<string, string> = {
@@ -103,6 +105,7 @@ function Session({ connection, onLeave }: { connection: PlayerConnection; onLeav
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(localStorageOrNull()))
   const [focus, setFocus] = useState<{ tokenId: string | null; seq: number }>({ tokenId: null, seq: 0 })
+  const [signalArmed, setSignalArmed] = useState(false)
   const ownTokens = state.ownTokens ?? NO_TOKENS
   const map = state.map
   const characters = useMemo(() => {
@@ -126,11 +129,20 @@ function Session({ connection, onLeave }: { connection: PlayerConnection; onLeav
           map={state.map}
           vision={state.vision}
           explored={state.explored}
+          concealed={state.concealed}
           ownTokens={ownTokens}
           settings={settings}
           focusTokenId={focus.tokenId}
           focusSeq={focus.seq}
           onMove={(id, x, y) => connection.requestMove(id, x, y)}
+          signals={state.signals ?? NO_SIGNALS}
+          laser={state.laser}
+          signalArmed={signalArmed}
+          onSignal={(x, y) => {
+            connection.sendSignal(x, y)
+            // Modo de um toque: sinalizou, desliga.
+            setSignalArmed(false)
+          }}
         />
         <PlayerPanel
           characters={characters}
@@ -138,6 +150,8 @@ function Session({ connection, onLeave }: { connection: PlayerConnection; onLeav
           settings={settings}
           onSettingsChange={changeSettings}
           onFocusToken={(tokenId) => setFocus((current) => ({ tokenId, seq: current.seq + 1 }))}
+          signalArmed={signalArmed}
+          onToggleSignal={() => setSignalArmed((armed) => !armed)}
         />
       </PlayerErrorBoundary>
     )

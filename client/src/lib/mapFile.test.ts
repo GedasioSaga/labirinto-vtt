@@ -14,6 +14,13 @@ describe('serializeMap/deserializeMap', () => {
     expect(restored).toEqual(map)
   })
 
+  it('A5: mapa sem concealZones abre com [] e zona salva volta igual', () => {
+    expect(deserializeMap('{"id": "sem-zona"}').concealZones).toEqual([])
+    const zone = { id: 'z1', name: 'Cripta', revealed: false, points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }] }
+    const map = { ...createEmptyMap('map_z', 'Z', 5, 5, 64), concealZones: [zone] }
+    expect(deserializeMap(serializeMap(map)).concealZones).toEqual([zone])
+  })
+
   it('rejeita JSON malformado com mensagem clara', () => {
     expect(() => deserializeMap('{ isso não é json')).toThrow()
   })

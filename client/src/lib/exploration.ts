@@ -1,4 +1,5 @@
 import type { MapData, RegionPoint } from '../types/map'
+import { pointInRing } from './floorContour'
 
 /**
  * Memória do que um jogador já viu: um bitset de células sobre o mapa. O
@@ -98,6 +99,88 @@ function intersectSpans(a: readonly number[], b: readonly number[]): number[] {
   return out
 }
 
+/** Um lado do recorte de Liang–Barsky; devolve `null` quando o segmento sai inteiro. */
+function clipSide(p: number, q: number, range: [number, number]): [number, number] | null {
+  if (p === 0) return q < 0 ? null : range
+  const r = q / p
+  if (p < 0) {
+    if (r > range[1]) return null
+    return r > range[0] ? [r, range[1]] : range
+  }
+  if (r < range[0]) return null
+  return r < range[1] ? [range[0], r] : range
+}
+
+/** Segmento `a→b` cruza ou encosta no retângulo FECHADO. */
+function segmentTouchesRect(a: RegionPoint, b: RegionPoint, minX: number, minY: number, maxX: number, maxY: number): boolean {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  let range: [number, number] | null = [0, 1]
+  range = clipSide(-dx, a.x - minX, range)
+  if (range) range = clipSide(dx, maxX - a.x, range)
+  if (range) range = clipSide(-dy, a.y - minY, range)
+  if (range) range = clipSide(dy, maxY - a.y, range)
+  return range !== null
+}
+
+/**
+ * Polígono toca o retângulo: alguma aresta cruza/encosta nele, ou o retângulo
+ * está inteiro dentro (o centro basta, já que nenhuma aresta o cruza).
+ */
+export function ringTouchesRect(ring: RegionPoint[], minX: number, minY: number, maxX: number, maxY: number): boolean {
+  if (ring.length < 3) return false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+    if (segmentTouchesRect(ring[j], ring[i], minX, minY, maxX, maxY)) return true
+  }
+  return pointInRing({ x: (minX + maxX) / 2, y: (minY + maxY) / 2 }, ring)
+}
+
+interface ZoneBox {
+  ring: RegionPoint[]
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+function zoneBoxes(zones: readonly RegionPoint[][]): ZoneBox[] {
+  return zones.flatMap((ring) => {
+    if (ring.length < 3) return []
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const p of ring) {
+      if (p.x < minX) minX = p.x
+      if (p.x > maxX) maxX = p.x
+      if (p.y < minY) minY = p.y
+      if (p.y > maxY) maxY = p.y
+    }
+    return Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY) ? [{ ring, minX, minY, maxX, maxY }] : []
+  })
+}
+
+/**
+ * Marca as células de `colStart` a `colEnd` (exclusivo) da linha, pulando as
+ * que tocam alguma zona oculta. Sem zona na faixa da linha, marca o trecho
+ * inteiro de uma vez (caminho de sempre).
+ */
+function setRunOutsideZones(exp: Exploration, row: number, colStart: number, colEnd: number, zones: readonly ZoneBox[]): void {
+  const y0 = row * exp.cell
+  const y1 = y0 + exp.cell
+  const rowZones = zones.filter((z) => z.maxY >= y0 && z.minY <= y1)
+  if (rowZones.length === 0) {
+    setRun(exp, row, colStart, colEnd)
+    return
+  }
+  for (let col = colStart; col < colEnd; col += 1) {
+    const x0 = col * exp.cell
+    const x1 = x0 + exp.cell
+    const blocked = rowZones.some((z) => z.maxX >= x0 && z.minX <= x1 && ringTouchesRect(z.ring, x0, y0, x1, y1))
+    if (!blocked) setRun(exp, row, col, col + 1)
+  }
+}
+
 /**
  * Marca só as células INTEIRAS dentro de algum anel: a borda de cima, o meio e
  * a borda de baixo da célula (logo, os 4 cantos, o centro e os pontos médios
@@ -106,13 +189,17 @@ function intersectSpans(a: readonly number[], b: readonly number[]): number[] {
  * o outro lado explorado, com célula mínima desalinhada ou célula dobrada.
  * Varredura por linha: cruza cada aresta com as 3 linhas da célula, em vez de
  * testar cada célula contra o anel inteiro (anel de visão tem ~mil vértices).
+ *
+ * `concealed`: zonas ocultas ativas. Célula que toca qualquer uma delas nunca
+ * é marcada, mesmo inteira dentro da visão.
  */
-export function markRings(exp: Exploration, rings: readonly (readonly RegionPoint[])[]): void {
+export function markRings(exp: Exploration, rings: readonly (readonly RegionPoint[])[], concealed: readonly RegionPoint[][] = []): void {
   const { cell, cols, rows } = exp
   const top: number[] = []
   const mid: number[] = []
   const bottom: number[] = []
   const inset = cell * ROW_EDGE_INSET
+  const zones = zoneBoxes(concealed)
   for (const ring of rings) {
     if (ring.length < 3) continue
     let minY = Infinity
@@ -134,10 +221,20 @@ export function markRings(exp: Exploration, rings: readonly (readonly RegionPoin
         // Célula [col * cell, (col + 1) * cell] contida em [spans[k], spans[k+1]].
         const colStart = Math.max(0, Math.ceil(spans[k] / cell))
         const colEnd = Math.min(cols, Math.floor(spans[k + 1] / cell))
-        if (colEnd > colStart) setRun(exp, row, colStart, colEnd)
+        if (colEnd > colStart) setRunOutsideZones(exp, row, colStart, colEnd, zones)
       }
     }
   }
+}
+
+/**
+ * "Revelar planta" do mestre: marca o mapa inteiro, menos as células que tocam
+ * zona oculta ativa (mesma regra de `markRings`, senão a planta escondida
+ * vazaria pela memória).
+ */
+export function markAll(exp: Exploration, concealed: readonly RegionPoint[][] = []): void {
+  const zones = zoneBoxes(concealed)
+  for (let row = 0; row < exp.rows; row += 1) setRunOutsideZones(exp, row, 0, exp.cols, zones)
 }
 
 export function isPointExplored(exp: Exploration, point: RegionPoint): boolean {

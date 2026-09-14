@@ -1,7 +1,7 @@
 import { Container, Sprite, Graphics, Text, Assets, Texture } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { Token } from '../types/map'
-import { SELECTION_COLOR } from './constants'
+import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { drawTokenCircle } from './drawTokens'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { useToastStore } from '../stores/toastStore'
@@ -130,6 +130,7 @@ export function createTokensRenderer(): TokensRenderer {
       }
 
       const selected = token.id === selectedTokenId
+      entry.wrapper.alpha = token.secret ? SECRET_ITEM_ALPHA : 1
       entry.ring.clear()
 
       // Checagem por veracidade (truthy), não `!== null`: `Token.image` é

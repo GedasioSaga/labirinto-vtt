@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Graphics } from 'pixi.js'
-import { drawWalls, type WallWithStyle } from './drawWalls'
+import { drawWalls, MIN_SCREEN_STROKE_PX, screenSafeWidth, type WallWithStyle } from './drawWalls'
 import type { Wall } from '../types/map'
 
 /** Instruções `action: 'stroke'` de fato empilhadas no GraphicsContext — mesmo padrão de drawRegions.test.ts/drawDoors.test.ts. */
@@ -115,9 +115,11 @@ describe('drawWalls — espessura extremamente fina + preset thin/medium/thick (
   // combinação sem depender de inferência de tupla do it.each — wallKind/
   // thickness precisam continuar como os literais de union (não `string`
   // largo) pra `baseWall({ wallKind, thickness })` tipar sem `as`.
+  // Zoom 400% (MAX_SCALE): o piso de 1 px de tela vale 0.25 de mundo e não
+  // interfere — aqui se mede a largura de MUNDO de cada preset.
   function widthFor(wallKind: Wall['wallKind'], thickness: WallWithStyle['thickness']): number {
     const g = new Graphics()
-    drawWalls(g, [baseWall({ wallKind, thickness })], null)
+    drawWalls(g, [baseWall({ wallKind, thickness })], null, 4)
     const [stroke] = strokeInstructions(g)
     return stroke.action === 'stroke' ? stroke.data.style.width : NaN
   }
@@ -159,18 +161,39 @@ describe('drawWalls — realce de seleção com piso mínimo', () => {
   })
 })
 
-describe('drawWalls — cameraScale opcional (F6: espessura constante em pixel de tela)', () => {
-  it('sem cameraScale (default 1): comportamento idêntico a não passar o parâmetro', () => {
+describe('drawWalls — piso de 1 px de tela (paredes sumiam com zoom < 100%, app sem antialias)', () => {
+  function widthAt(cameraScale: number, overrides: Partial<WallWithStyle> = {}): number {
+    const g = new Graphics()
+    drawWalls(g, [baseWall({ wallKind: 'exterior', ...overrides })], null, cameraScale)
+    const [stroke] = strokeInstructions(g)
+    return stroke.action === 'stroke' ? stroke.data.style.width : NaN
+  }
+
+  it('screenSafeWidth: acima do piso devolve a largura de mundo; abaixo, 1 / escala', () => {
+    expect(screenSafeWidth(1.5, 1)).toBe(1.5)
+    expect(screenSafeWidth(1.5, 2)).toBe(1.5)
+    expect(screenSafeWidth(1.5, 0.5)).toBe(2)
+    expect(screenSafeWidth(0.5, 1)).toBe(1)
+  })
+
+  it('zoom 50%: parede exterior (1.5 de mundo = 0.75 px de tela) engorda para 2 de mundo = 1 px de tela', () => {
+    const width = widthAt(0.5)
+    expect(width).toBe(2)
+    expect(width * 0.5).toBeGreaterThanOrEqual(MIN_SCREEN_STROKE_PX)
+  })
+
+  it('zoom mínimo (10%): largura na tela nunca fica abaixo de 1 px', () => {
+    expect(widthAt(0.1) * 0.1).toBeCloseTo(MIN_SCREEN_STROKE_PX)
+  })
+
+  it('zoom 200%: largura de mundo intacta (1.5), cresce com o zoom como o resto do mapa', () => {
+    expect(widthAt(2)).toBe(1.5)
+  })
+
+  it('sem cameraScale (default 1): exterior medium continua 1.5', () => {
     const g = new Graphics()
     drawWalls(g, [baseWall({ wallKind: 'exterior' })], null)
     const [stroke] = strokeInstructions(g)
     expect(stroke.action === 'stroke' && stroke.data.style.width).toBe(1.5)
-  })
-
-  it('cameraScale=2: width final = width_base / cameraScale (1.5 / 2 = 0.75)', () => {
-    const g = new Graphics()
-    drawWalls(g, [baseWall({ wallKind: 'exterior' })], null, 2)
-    const [stroke] = strokeInstructions(g)
-    expect(stroke.action === 'stroke' && stroke.data.style.width).toBeCloseTo(0.75)
   })
 })

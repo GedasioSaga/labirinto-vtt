@@ -1,6 +1,6 @@
 import { Container, Text, Graphics, Color } from 'pixi.js'
 import type { Drawing } from '../types/map'
-import { SELECTION_COLOR } from './constants'
+import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 
 export interface TextLabelsRenderer {
@@ -42,6 +42,7 @@ export function createTextLabelsRenderer(): TextLabelsRenderer {
         container.addChild(textObj)
       }
       textObj.visible = true
+      textObj.alpha = label.secret ? SECRET_ITEM_ALPHA : 1
       textObj.text = label.text
       textObj.x = label.x
       textObj.y = label.y

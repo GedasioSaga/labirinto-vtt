@@ -8,11 +8,14 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } from './net/hostBridge'
+import { useSignalStore } from './stores/signalStore'
+import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
+import { playSignalSound } from './lib/signalSound'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
-import type { Camera } from './pixi/world'
+import { viewportCenterWorld, type Camera } from './pixi/world'
 import { MainMenu } from './screens/MainMenu'
 import { MapTypePicker } from './screens/MapTypePicker'
 import { NewDungeonMap } from './screens/NewDungeonMap'
@@ -34,7 +37,7 @@ import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
-import { EMPTY_SELECTION, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
+import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
 import { traceFloorPieces } from './lib/traceImage'
 import { loadImagePixels } from './lib/imagePixels'
 import { traceMapDetails } from './lib/traceDetails'
@@ -193,6 +196,8 @@ function App() {
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
+  /** A3 — Sala recém-desenhada cujo Nome deve ganhar foco uma vez. */
+  const [roomNameFocusId, setRoomNameFocusId] = useState<string | null>(null)
   const hostBridgeRef = useRef<HostBridge | null>(null)
   const hostBridge = (): HostBridge => {
     if (!hostBridgeRef.current) {
@@ -204,11 +209,25 @@ function App() {
         applyMove: (tokenId, x, y) => useMapStore.getState().setTokenPosition(tokenId, x, y),
         onPlayersChange: setRoomPlayers,
         onTunnelChange: setTunnel,
+        // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
+        onSignal: (signal) => {
+          useSignalStore.getState().push(signal)
+          playSignalSound()
+        },
       })
     }
     return hostBridgeRef.current
   }
   useEffect(() => useMapStore.subscribe((state) => state.map, () => hostBridgeRef.current?.notifyMapChanged()), [])
+  const laserToggled = useLaserStore((state) => state.toggled)
+  // B2 — o `off` sai no fim do traço: soltar o botão, sair da janela ou desarmar (L e botão Laser).
+  useEffect(
+    () =>
+      useLaserStore.subscribe((state, previous) => {
+        if (laserStrokeEnded(previous, state)) hostBridgeRef.current?.laserOff()
+      }),
+    [],
+  )
   useEffect(
     () => () => {
       void hostBridgeRef.current?.stop()
@@ -226,8 +245,10 @@ function App() {
     await hostBridgeRef.current?.stop()
     setRoom(null)
     setRoomPlayers([])
+    useSignalStore.getState().clear()
+    useLaserStore.getState().setToggled(false)
   }
-  /** Fora do Tauri o rail segue só com o inspetor; no app ganha as abas Mapa | Sala. */
+  /** Fora do Tauri o rail segue só com o inspetor; no app ganha as abas Mapa | Jogo. */
   const withRoomTabs = (mapPanel: ReactNode): ReactNode =>
     isTauri() ? (
       <RailTabs
@@ -247,6 +268,11 @@ function App() {
             onAssign={(playerId, tokenId) => hostBridgeRef.current?.assignToken(playerId, tokenId)}
             onUnassign={(playerId, tokenId) => hostBridgeRef.current?.unassignToken(playerId, tokenId)}
             onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
+            onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
+            onRevealPlan={(playerId) => hostBridgeRef.current?.revealPlan(playerId)}
+            onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}
+            laserOn={laserToggled}
+            onToggleLaser={() => useLaserStore.getState().setToggled(!useLaserStore.getState().toggled)}
           />
         }
       />
@@ -289,6 +315,8 @@ function App() {
    * MUDANÇA (mesmo padrão que `gridAlignPreview` já usa como ponte).
    */
   const [resetZoomRequest, setResetZoomRequest] = useState(0)
+  /** Container do canvas: o tamanho dele é a "tela" usada para achar o centro visível ao adicionar token. */
+  const canvasHostRef = useRef<HTMLDivElement | null>(null)
 
   /**
    * Onda 1, item 4 do plano — sliders de propriedade (intensidade de luz,
@@ -424,6 +452,17 @@ function App() {
   const selectedStair = singleSelection?.kind === 'stair' ? map.stairs.find((s) => s.id === singleSelection.id) ?? null : null
   const selectedFloorIndex = singleSelection?.kind === 'floor' ? map.floor.findIndex((p) => p.id === singleSelection.id) : -1
   const selectedFloorPiece = selectedFloorIndex >= 0 ? map.floor[selectedFloorIndex] : null
+  // A5 — zona aberta no painel. Some sozinha se o Ctrl+Z tirar a zona do mapa.
+  const selectedConcealZoneId = useMapStore((state) => state.selectedConcealZoneId)
+  const selectedConcealZone = map.concealZones.find((z) => z.id === selectedConcealZoneId) ?? null
+  // A5 — "Oculto para jogadores" do item selecionado que não é Token/Objeto.
+  const secretTarget: { kind: 'region' | 'stair' | 'drawing'; id: string; secret: boolean } | null = selectedRegion
+    ? { kind: 'region', id: selectedRegion.id, secret: !!selectedRegion.secret }
+    : selectedStair
+      ? { kind: 'stair', id: selectedStair.id, secret: !!selectedStair.secret }
+      : selectedDrawing
+        ? { kind: 'drawing', id: selectedDrawing.id, secret: !!selectedDrawing.secret }
+        : null
 
   // Fase 4 (integrador I8) — N2 "painel contextual": quais seções do painel
   // esquerdo são relevantes agora, dado a ferramenta ativa e o que está
@@ -442,6 +481,7 @@ function App() {
     stair: selectedStair !== null,
     drawingKind: selectedDrawing && selectedDrawing.kind !== 'text' ? selectedDrawing.kind : null,
     floorPiece: selectedFloorPiece !== null,
+    concealZone: selectedConcealZone !== null,
   })
 
   /**
@@ -727,8 +767,17 @@ function App() {
     }
   }
 
-  const handleAddToken = () => {
-    addToken({ id: crypto.randomUUID(), characterId: null, name: 'Token', x: 0, y: 0, size: 1, image: null })
+  /**
+   * Token nasce no centro da área visível do canvas (câmera da store, que o
+   * PixiCanvas mantém em dia a cada pan/zoom) e já selecionado, para o painel
+   * mostrar o Nome dele. Sem o container montado cai em (0,0), como antes.
+   */
+  const handleAddToken = (name: string) => {
+    const host = canvasHostRef.current
+    const { x, y } = host ? viewportCenterWorld(useMapStore.getState().camera, host.clientWidth, host.clientHeight) : { x: 0, y: 0 }
+    const id = crypto.randomUUID()
+    addToken({ id, characterId: null, name, x, y, size: 1, image: null })
+    useMapStore.getState().setSelection(selectionOfItem({ kind: 'token', id }))
   }
 
   const handleSave = async () => {
@@ -879,12 +928,18 @@ function App() {
 
   return (
     <div className="lb-editor">
-      <div className="lb-editor__canvas">
+      <div className="lb-editor__canvas" ref={canvasHostRef}>
         <PixiCanvas
           gridAlignPreview={gridAlignPreview}
           onBackgroundImageSizeChange={setBackgroundImageSize}
           onCameraChange={(camera: Camera) => setCameraScale(camera.scale)}
           resetZoomRequest={resetZoomRequest}
+          onLaserMove={(x, y) => hostBridgeRef.current?.laserMove(x, y)}
+          onRoomCreated={(regionId) => {
+            // O Nome vive na aba Mapa; se o mestre estava na aba Jogo, não veria o campo.
+            setRailTab('map')
+            setRoomNameFocusId(regionId)
+          }}
         />
       </div>
 
@@ -1026,6 +1081,7 @@ function App() {
               // `kind` do primeiro item (só importa quando count === 1) +
               // quantos itens no total. `null` = seleção vazia (botão desabilita).
               selection: selection.length > 0 ? { kind: selection[0].kind, count: selection.length } : null,
+              defaultTokenName: mapFactory.nextTokenName(map.tokens),
               onAddToken: handleAddToken,
               onRemoveSelected: removeSelected,
             }}
@@ -1062,8 +1118,12 @@ function App() {
               onRotationChange: (rotation) => selectedProp && updateProp(selectedProp.id, { rotation }),
               onLockedChange: (locked) => selectedProp && updateProp(selectedProp.id, { locked }),
               onHiddenChange: (hidden) => selectedProp && updateProp(selectedProp.id, { hidden }),
+              onSecretChange: (secret) => selectedProp && useMapStore.getState().setItemSecret('prop', selectedProp.id, secret),
             }}
             selectedToken={selectedToken}
+            tokenName={{
+              onNameChange: (name) => selectedToken && useMapStore.getState().renameToken(selectedToken.id, name),
+            }}
             tokenImage={{
               onChangeImage: () => selectedToken && handleChangeTokenImage(selectedToken.id),
               onClearImage: () => selectedToken && setTokenImage(selectedToken.id, null),
@@ -1072,6 +1132,7 @@ function App() {
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
               onHiddenChange: (hidden) => selectedToken && updateToken(selectedToken.id, { hidden }),
+              onSecretChange: (secret) => selectedToken && useMapStore.getState().setItemSecret('token', selectedToken.id, secret),
             }}
             selectedTextLabel={selectedTextLabel}
             textLabel={{
@@ -1099,11 +1160,31 @@ function App() {
             }}
             room={{
               onNameChange: (name) => selectedRegion && setRoomName(selectedRegion.id, name),
+              autoFocusName: selectedRegion !== null && selectedRegion.id === roomNameFocusId,
+              onAutoFocusDone: () => setRoomNameFocusId(null),
+              onHistoryKey: (action) => (action === 'undo' ? useMapStore.getState().undo() : useMapStore.getState().redo()),
+              onNameHiddenFromPlayersChange: (hidden) =>
+                selectedRegion && useMapStore.getState().setRoomNameHiddenFromPlayers(selectedRegion.id, hidden),
               onWidthChange: (width) =>
                 selectedRegion && resizeRoomDimensions(selectedRegion.id, width, roomDimensions(selectedRegion.points).height),
               onHeightChange: (height) =>
                 selectedRegion && resizeRoomDimensions(selectedRegion.id, roomDimensions(selectedRegion.points).width, height),
             }}
+            playerSecret={
+              secretTarget && {
+                secret: secretTarget.secret,
+                onSecretChange: (secret) => useMapStore.getState().setItemSecret(secretTarget.kind, secretTarget.id, secret),
+              }
+            }
+            concealZone={
+              selectedConcealZone && {
+                name: selectedConcealZone.name,
+                onNameChange: (name) => useMapStore.getState().updateConcealZone(selectedConcealZone.id, { name }),
+                revealed: selectedConcealZone.revealed,
+                onRevealedChange: (revealed) => useMapStore.getState().updateConcealZone(selectedConcealZone.id, { revealed }),
+                onDelete: () => useMapStore.getState().removeConcealZone(selectedConcealZone.id),
+              }
+            }
             selectedLight={selectedLight}
             lightControls={{
               onColorChange: (color) => selectedLight && updateLight(selectedLight.id, { color }),

@@ -72,9 +72,12 @@ interface PlayerPanelProps {
   settings: PlayerViewSettings
   onSettingsChange: (settings: PlayerViewSettings) => void
   onFocusToken: (tokenId: string) => void
+  /** Modo "Sinalizar" ligado: o próximo toque no mapa vira sinal. */
+  signalArmed: boolean
+  onToggleSignal: () => void
 }
 
-export function PlayerPanel({ characters, characterColor, settings, onSettingsChange, onFocusToken }: PlayerPanelProps) {
+export function PlayerPanel({ characters, characterColor, settings, onSettingsChange, onFocusToken, signalArmed, onToggleSignal }: PlayerPanelProps) {
   const [open, setOpen] = useState(false)
   const panelId = useId()
   const brightnessId = useId()
@@ -97,6 +100,12 @@ export function PlayerPanel({ characters, characterColor, settings, onSettingsCh
   function changeBrightness(event: ChangeEvent<HTMLInputElement>) {
     const value = Number(event.target.value)
     if (Number.isFinite(value)) onSettingsChange({ ...settings, exploredBrightness: clampBrightness(value) })
+  }
+
+  function toggleSignal() {
+    // Ao ligar, a gaveta fecha para o toque cair no mapa (no celular ela cobre a tela).
+    if (!signalArmed) setOpen(false)
+    onToggleSignal()
   }
 
   const first = characters[0]
@@ -139,6 +148,10 @@ export function PlayerPanel({ characters, characterColor, settings, onSettingsCh
           <button type="button" className="pp-button" disabled={first === undefined} onClick={() => first && focusToken(first.id)}>
             Centralizar no meu personagem
           </button>
+          <button type="button" className="pp-button" aria-pressed={signalArmed} onClick={toggleSignal}>
+            {signalArmed ? 'Toque no mapa…' : 'Sinalizar'}
+          </button>
+          <p className="pp-empty">No PC: Alt+clique ou segure o clique parado.</p>
         </section>
 
         <section className="pp-section" aria-labelledby={`${panelId}-vision`}>

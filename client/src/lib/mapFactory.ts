@@ -1,6 +1,7 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
+  ConcealZone,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { syncWallsToRegionPoint, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
@@ -37,6 +38,7 @@ export function createEmptyMap(id: string, name: string, width: number, height: 
     floorStyle: { ...DEFAULT_FLOOR_STYLE },
     lines: [],
     markers: [],
+    concealZones: [],
     frame: null,
     fog: { mode: 'none', revealed: [] },
     hiddenLayers: [],
@@ -333,6 +335,33 @@ export function setTokenPosition(map: MapData, tokenId: string, x: number, y: nu
     ...map,
     tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : t)),
   }
+}
+
+/** Renomeia só o token alvo. Id inexistente devolve o mapa pela mesma referência. */
+export function renameToken(map: MapData, tokenId: string, name: string): MapData {
+  if (!map.tokens.some((t) => t.id === tokenId)) return map
+  return {
+    ...map,
+    tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, name } : t)),
+  }
+}
+
+const DEFAULT_TOKEN_NAME_PATTERN = /^Token (\d+)$/
+
+/**
+ * Nome sugerido ao adicionar token: "Token N" com o menor N ≥ 1 ainda livre.
+ * Antes todo token nascia "Token" e a lista de atribuir jogador mostrava
+ * vários itens idênticos, sem como saber qual era qual.
+ */
+export function nextTokenName(tokens: readonly Pick<Token, 'name'>[]): string {
+  const used = new Set<number>()
+  for (const token of tokens) {
+    const match = DEFAULT_TOKEN_NAME_PATTERN.exec(token.name)
+    if (match) used.add(Number(match[1]))
+  }
+  let n = 1
+  while (used.has(n)) n += 1
+  return `Token ${n}`
 }
 
 export function setTokenImage(map: MapData, tokenId: string, image: string | null): MapData {
@@ -871,6 +900,108 @@ export function setRoomName(map: MapData, id: string, name: string): MapData {
     ...map,
     regions: map.regions.map((r) => (r.id === id && r.room ? { ...r, room: { ...r.room, name } } : r)),
   }
+}
+
+/** Posição do rótulo da Sala relativa à âncora (`RoomMeta.labelOffset`).
+ * Região comum ou id inexistente devolve o mesmo `map`, para
+ * `commitDragHistory` não gravar entrada vazia. */
+export function setRoomLabelOffset(map: MapData, id: string, offset: { x: number; y: number }): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room) return map
+  // Sem offset é o mesmo que (0,0): um clique parado no nome não vira Ctrl+Z vazio.
+  const current = region.room.labelOffset ?? { x: 0, y: 0 }
+  if (current.x === offset.x && current.y === offset.y) return map
+
+  return {
+    ...map,
+    regions: map.regions.map((r) => (r.id === id && r.room ? { ...r, room: { ...r.room, labelOffset: { x: offset.x, y: offset.y } } } : r)),
+  }
+}
+
+/** A5 — "Jogadores veem o nome". Região comum, id inexistente ou valor igual
+ * devolve o mesmo `map` (sem entrada de histórico vazia). */
+export function setRoomNameHiddenFromPlayers(map: MapData, id: string, hidden: boolean): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room || !!region.room.nameHiddenFromPlayers === hidden) return map
+  return {
+    ...map,
+    regions: map.regions.map((r) => (r.id === id && r.room ? { ...r, room: { ...r.room, nameHiddenFromPlayers: hidden } } : r)),
+  }
+}
+
+/** Entidades que aceitam "Oculto para jogadores" (`PlayerSecret` em types/map.ts). */
+export type SecretKind = 'token' | 'region' | 'prop' | 'stair' | 'drawing'
+
+function withSecret<T extends { id: string; secret?: boolean }>(items: T[], id: string, secret: boolean): T[] | null {
+  const item = items.find((i) => i.id === id)
+  if (!item || !!item.secret === secret) return null
+  return items.map((i) => (i.id === id ? { ...i, secret } : i))
+}
+
+/** A5 — liga/desliga "Oculto para jogadores". Id inexistente ou valor igual devolve o mesmo `map`. */
+export function setItemSecret(map: MapData, kind: SecretKind, id: string, secret: boolean): MapData {
+  switch (kind) {
+    case 'token': {
+      const tokens = withSecret(map.tokens, id, secret)
+      return tokens ? { ...map, tokens } : map
+    }
+    case 'region': {
+      const regions = withSecret(map.regions, id, secret)
+      return regions ? { ...map, regions } : map
+    }
+    case 'prop': {
+      const props = withSecret(map.props, id, secret)
+      return props ? { ...map, props } : map
+    }
+    case 'stair': {
+      const stairs = withSecret(map.stairs, id, secret)
+      return stairs ? { ...map, stairs } : map
+    }
+    case 'drawing': {
+      const drawings = withSecret(map.drawings, id, secret)
+      return drawings ? { ...map, drawings } : map
+    }
+  }
+}
+
+/** Nome padrão da zona nova. */
+export const DEFAULT_CONCEAL_ZONE_NAME = 'Zona oculta'
+
+/** Zona retangular a partir de dois cantos quaisquer do arrasto (ordem horária a partir do canto de cima à esquerda). */
+export function buildConcealZoneFromDraft(id: string, start: Point, end: Point, name: string = DEFAULT_CONCEAL_ZONE_NAME): ConcealZone {
+  const minX = Math.min(start.x, end.x)
+  const maxX = Math.max(start.x, end.x)
+  const minY = Math.min(start.y, end.y)
+  const maxY = Math.max(start.y, end.y)
+  return {
+    id,
+    name,
+    revealed: false,
+    points: [
+      { x: minX, y: minY },
+      { x: maxX, y: minY },
+      { x: maxX, y: maxY },
+      { x: minX, y: maxY },
+    ],
+  }
+}
+
+export function addConcealZone(map: MapData, zone: ConcealZone): MapData {
+  return { ...map, concealZones: [...map.concealZones, zone] }
+}
+
+/** Nome e "Revelar para jogadores". Id inexistente ou nada mudando devolve o mesmo `map`. */
+export function updateConcealZone(map: MapData, id: string, patch: Partial<Pick<ConcealZone, 'name' | 'revealed'>>): MapData {
+  const zone = map.concealZones.find((z) => z.id === id)
+  if (!zone) return map
+  const next = { ...zone, ...patch }
+  if (next.name === zone.name && next.revealed === zone.revealed) return map
+  return { ...map, concealZones: map.concealZones.map((z) => (z.id === id ? next : z)) }
+}
+
+export function removeConcealZone(map: MapData, id: string): MapData {
+  if (!map.concealZones.some((z) => z.id === id)) return map
+  return { ...map, concealZones: map.concealZones.filter((z) => z.id !== id) }
 }
 
 /**

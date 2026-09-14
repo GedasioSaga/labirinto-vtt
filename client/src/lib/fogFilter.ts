@@ -1,6 +1,7 @@
-import type { DoorState, Drawing, MapData, RegionPoint, Wall } from '../types/map'
+import type { DoorState, Drawing, FloorPiece, MapData, RegionPoint, Wall } from '../types/map'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing } from './floorContour'
+import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { computeVisibility, visionSegments } from './visibility'
 
@@ -22,6 +23,35 @@ export interface PlayerMapView {
   vision: RegionPoint[][]
   /** Portas dentro da visão atual: saíram com o estado real e o chamador deve lembrá-lo. */
   visibleDoorIds: string[]
+  /**
+   * Polígonos das zonas ocultas ativas (`revealed === false`). O jogador pinta
+   * preto por cima e o chamador não marca explorado em célula que toque neles.
+   * Só a geometria sai: nome e id da zona ficam no mestre.
+   */
+  concealed: RegionPoint[][]
+  /**
+   * Zonas ocultas ativas + salas secretas: o chamador não marca explorado em
+   * célula que toque nelas. NÃO sai pela rede (o anel da sala secreta é o
+   * formato dela).
+   */
+  blocked: RegionPoint[][]
+}
+
+/** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
+function activeConcealRings(map: MapData): RegionPoint[][] {
+  return (map.concealZones ?? [])
+    .filter((z) => !z.revealed && z.points.length >= 3)
+    .map((z) => z.points.map((p) => ({ x: p.x, y: p.y })))
+}
+
+/** Sala "Oculta para jogadores": região secret que é Sala. */
+function secretRoomsOf(map: MapData): MapData['regions'] {
+  return map.regions.filter((r) => r.secret && r.room !== undefined)
+}
+
+/** Áreas que nunca viram exploradas para o jogador: zonas ocultas ativas e salas secretas. */
+export function playerBlockedRings(map: MapData): RegionPoint[][] {
+  return [...activeConcealRings(map), ...secretRoomsOf(map).map((r) => r.points)]
 }
 
 interface Box {
@@ -44,6 +74,32 @@ function boxOf(points: readonly RegionPoint[]): Box | null {
     if (p.y > maxY) maxY = p.y
   }
   return { minX, minY, maxX, maxY }
+}
+
+interface BoxedRing extends Box {
+  ring: RegionPoint[]
+}
+
+/**
+ * Invariante de performance: anel de visão tem ~mil vértices e é testado para
+ * cada entidade. Ponto fora da caixa envolvente (com folga para o
+ * arredondamento da intersecção do pointInRing) nunca está dentro do anel,
+ * então a caixa descarta a maioria sem mudar o resultado.
+ */
+function boxRings(rings: readonly RegionPoint[][]): BoxedRing[] {
+  return rings.flatMap((ring) => {
+    const box = ring.length >= 3 ? boxOf(ring) : null
+    if (box === null) return []
+    return [{ ring, minX: box.minX - BBOX_SLACK, minY: box.minY - BBOX_SLACK, maxX: box.maxX + BBOX_SLACK, maxY: box.maxY + BBOX_SLACK }]
+  })
+}
+
+function inAnyRing(boxed: readonly BoxedRing[], point: RegionPoint): boolean {
+  return boxed.some((b) => point.x >= b.minX && point.x <= b.maxX && point.y >= b.minY && point.y <= b.maxY && pointInRing(point, b.ring))
+}
+
+function wallMidpoint(wall: Wall): RegionPoint {
+  return { x: (wall.x1 + wall.x2) / 2, y: (wall.y1 + wall.y2) / 2 }
 }
 
 /** Fração da distância vértice-centróide que a amostra de área anda para dentro. */
@@ -147,6 +203,61 @@ function doorSamples(wall: Wall, distance: number): RegionPoint[] {
   ]
 }
 
+/** Pontas e meio da parede. */
+function wallSamples(wall: Wall): RegionPoint[] {
+  return [{ x: wall.x1, y: wall.y1 }, wallMidpoint(wall), { x: wall.x2, y: wall.y2 }]
+}
+
+/** Pontas e meio de cada lance da escada. */
+function stairSamples(stair: MapData['stairs'][number]): RegionPoint[] {
+  return stair.segments.flatMap((s) => [{ x: s.x1, y: s.y1 }, { x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2 }, { x: s.x2, y: s.y2 }])
+}
+
+/** Desenho de traço (sem área): basta uma ponta escondida para não sair. */
+function isStrokeDrawing(drawing: Drawing): boolean {
+  return drawing.kind === 'line' || drawing.kind === 'freehand' || drawing.kind === 'curve'
+}
+
+/** Fração do caminho centro→borda da caixa onde ficam as amostras da peça de chão. */
+const FLOOR_SAMPLE_PULL = 0.5
+
+/**
+ * Amostras internas da peça de chão: o centro e 8 pontos a meio caminho da
+ * borda da caixa envolvente, só os que caem dentro da própria peça (distância
+ * assinada ≤ 0). Sem nenhum, só o centro.
+ */
+function floorPieceSamples(piece: FloorPiece): RegionPoint[] {
+  const c = shapeCenter(piece.shape)
+  const b = pieceBounds(piece)
+  const candidates: RegionPoint[] = [c]
+  for (const x of [b.minX, c.x, b.maxX]) {
+    for (const y of [b.minY, c.y, b.maxY]) {
+      if (x === c.x && y === c.y) continue
+      candidates.push({ x: c.x + (x - c.x) * FLOOR_SAMPLE_PULL, y: c.y + (y - c.y) * FLOOR_SAMPLE_PULL })
+    }
+  }
+  const inside = candidates.filter((p) => pieceDistance(piece, p.x, p.y) <= 0)
+  return inside.length > 0 ? inside : [c]
+}
+
+/** Mais da metade das amostras satisfaz `test`. */
+function mostly(samples: readonly RegionPoint[], test: (p: RegionPoint) => boolean): boolean {
+  return samples.length > 0 && samples.filter(test).length * 2 > samples.length
+}
+
+/** Chão sem as peças escondidas, cacheado pelo array imutável `map.floor`: o contorno do chão (visão) é cacheado pela referência. */
+const playerFloorCache = new WeakMap<FloorPiece[], { key: string; floor: FloorPiece[] }>()
+
+function floorWithout(floor: FloorPiece[], hiddenIds: ReadonlySet<string>): FloorPiece[] {
+  if (hiddenIds.size === 0) return floor
+  const key = [...hiddenIds].join('|')
+  const cached = playerFloorCache.get(floor)
+  if (cached !== undefined && cached.key === key) return cached.floor
+  const out = floor.filter((f) => !hiddenIds.has(f.id))
+  playerFloorCache.set(floor, { key, floor: out })
+  return out
+}
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
@@ -173,29 +284,61 @@ export function filterMapForPlayer(
   const owned = new Set(ownership[playerId] ?? []) // jogador sem entrada de posse não tem token nem visão
   const layerTokens = visibleTokens(map.tokens, hiddenLayers)
   const ownTokens = layerTokens.filter((t) => owned.has(t.id) && !t.hidden)
-  const segments = ownTokens.length > 0 ? visionSegments(map) : []
-  const vision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, segments, visionRadius))
 
-  // Invariante de performance: cada anel de visão tem ~mil vértices e é testado
-  // para cada entidade. Ponto fora da caixa envolvente (com folga para o
-  // arredondamento da intersecção do pointInRing) nunca está dentro do anel,
-  // então a caixa descarta a maioria sem mudar o resultado.
-  const rings = vision.flatMap((ring) => {
-    const box = ring.length >= 3 ? boxOf(ring) : null
-    if (box === null) return []
-    return [{ ring, minX: box.minX - BBOX_SLACK, minY: box.minY - BBOX_SLACK, maxX: box.maxX + BBOX_SLACK, maxY: box.maxY + BBOX_SLACK }]
-  })
+  // Zona oculta ativa: ponto dentro dela não conta como visível nem explorado.
+  // A visão continua passando (a zona esconde conteúdo, não é parede).
+  const concealed = activeConcealRings(map)
+  const zones = boxRings(concealed)
+  const inConcealZone = (point: RegionPoint): boolean => zones.length > 0 && inAnyRing(zones, point)
+  const outsideZones = (points: readonly RegionPoint[]): readonly RegionPoint[] =>
+    zones.length === 0 ? points : points.filter((p) => !inConcealZone(p))
 
-  const isVisible = (point: RegionPoint): boolean =>
-    rings.some((b) => point.x >= b.minX && point.x <= b.maxX && point.y >= b.minY && point.y <= b.maxY && pointInRing(point, b.ring))
+  // Sala "Oculta para jogadores" leva junto as paredes dela e o que está dentro dela.
+  const secretRooms = secretRoomsOf(map)
+  const secretRoomIds = new Set(secretRooms.map((r) => r.id))
+  const secretRoomRings = boxRings(secretRooms.map((r) => r.points))
+  const inSecretRoom = (point: RegionPoint): boolean => secretRoomRings.length > 0 && inAnyRing(secretRoomRings, point)
+  const blocked = [...concealed, ...secretRooms.map((r) => r.points)]
+
+  // Peça de chão com a maioria das amostras em área escondida não sai. Limitação
+  // aceita: peça grande que cruza a borda sai inteira, e tirar peça 'subtract'
+  // fecha o buraco dela (só dentro da área escondida).
+  const hiddenAreas = boxRings(blocked)
+  const hiddenFloorIds = new Set(
+    hiddenAreas.length === 0 ? [] : map.floor.filter((f) => mostly(floorPieceSamples(f), (p) => inAnyRing(hiddenAreas, p))).map((f) => f.id),
+  )
+
+  /**
+   * Duas visões. A da autoridade (todas as paredes, chão inteiro) decide o que
+   * sai do mapa. A enviada (`vision`) é montada sem o que o jogador não pode
+   * saber: paredes da sala secreta, paredes/portas inteiras dentro de zona
+   * ativa e peças de chão escondidas; senão a sombra delas desenharia a sala na
+   * névoa. Parede que só cruza a borda da zona continua na enviada: tirá-la
+   * deixaria o jogador ver através dela fora da zona. Colisão não usa isto.
+   */
+  const authoritySegments = ownTokens.length > 0 ? visionSegments(map) : []
+  const authorityVision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, authoritySegments, visionRadius))
+  const rings = boxRings(authorityVision)
+  const playerWalls = map.walls.filter(
+    (w) => !(w.regionId !== undefined && secretRoomIds.has(w.regionId)) && !(zones.length > 0 && wallSamples(w).every(inConcealZone)),
+  )
+  let vision = authorityVision
+  if (ownTokens.length > 0 && (playerWalls.length !== map.walls.length || hiddenFloorIds.size > 0)) {
+    const playerSegments = visionSegments({ ...map, walls: playerWalls, floor: floorWithout(map.floor, hiddenFloorIds) })
+    vision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, playerSegments, visionRadius))
+  }
+
+  const isVisible = (point: RegionPoint): boolean => !inConcealZone(point) && inAnyRing(rings, point)
 
   /**
    * Forma com extensão: a caixa da forma precisa cruzar a caixa de algum anel
-   * e algum ponto amostrado precisa estar dentro dele. Forma que só atravessa
-   * a visão sem nenhum ponto amostrado dentro fica de fora (aceito).
+   * e algum ponto amostrado (fora de zona oculta) precisa estar dentro dele.
+   * Forma que só atravessa a visão sem nenhum ponto amostrado dentro fica de
+   * fora (aceito).
    */
   const isShapeVisible = (points: readonly RegionPoint[]): boolean => {
-    const box = boxOf(points)
+    const open = outsideZones(points)
+    const box = boxOf(open)
     if (box === null) return false
     return rings.some(
       (b) =>
@@ -203,26 +346,30 @@ export function filterMapForPlayer(
         box.minX <= b.maxX &&
         box.maxY >= b.minY &&
         box.minY <= b.maxY &&
-        points.some((p) => p.x >= b.minX && p.x <= b.maxX && p.y >= b.minY && p.y <= b.maxY && pointInRing(p, b.ring)),
+        open.some((p) => p.x >= b.minX && p.x <= b.maxX && p.y >= b.minY && p.y <= b.maxY && pointInRing(p, b.ring)),
     )
   }
 
+  const isPointExploredOpen = (point: RegionPoint): boolean =>
+    explored !== undefined && !inConcealZone(point) && isPointExplored(explored, point)
+
   // Planta estática: visível agora ou já explorada. Nunca usar para entidade dinâmica.
-  const isPointKnown = (point: RegionPoint): boolean =>
-    isVisible(point) || (explored !== undefined && isPointExplored(explored, point))
+  const isPointKnown = (point: RegionPoint): boolean => isVisible(point) || isPointExploredOpen(point)
   const isShapeKnown = (points: readonly RegionPoint[]): boolean =>
-    isShapeVisible(points) || (explored !== undefined && isShapeExplored(explored, points))
+    isShapeVisible(points) || (explored !== undefined && isShapeExplored(explored, outsideZones(points)))
 
   const visibleDoorIds: string[] = []
   /** Porta dentro da visão sai com o estado real; explorada fora dela, com o lembrado; senão não sai. */
   const doorWallForPlayer = (w: Wall, door: DoorState): Wall[] => {
+    // Porta com o meio escondido não sai nem pelas amostras dos lados.
+    if (inConcealZone(wallMidpoint(w))) return []
     if (doorSamples(w, DOOR_VISION_PROBE).some(isVisible)) {
       visibleDoorIds.push(w.id)
       return [w]
     }
     if (explored === undefined) return []
     const probe = explored.cell * DOOR_EXPLORED_PROBE_CELLS
-    if (!doorSamples(w, probe).some((p) => isPointExplored(explored, p))) return []
+    if (!doorSamples(w, probe).some(isPointExploredOpen)) return []
     return [{ ...w, door: seenDoors?.get(w.id) ?? unseenDoor(door) }]
   }
 
@@ -233,28 +380,48 @@ export function filterMapForPlayer(
     ownerId: null,
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
+    // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
     tokens: layerTokens
-      .filter((t) => !t.hidden && (owned.has(t.id) || isVisible({ x: t.x, y: t.y })))
+      .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && isVisible({ x: t.x, y: t.y }))))
       .map((t) => (t.image === null ? t : { ...t, image: null })),
-    markers: map.markers.filter((m) => isPointKnown({ x: m.cx, y: m.cy })),
-    lines: map.lines.filter((l) => isShapeKnown(l.points)),
+    markers: map.markers.filter((m) => !inSecretRoom({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
+    lines: map.lines.filter((l) => !l.points.some(inSecretRoom) && !l.points.some(inConcealZone) && isShapeKnown(l.points)),
     lights: visibleLights(map.lights, hiddenLayers).filter((l) => !l.hidden && isVisible({ x: l.x, y: l.y })),
     stairs: visibleStairs(map.stairs, hiddenLayers).filter((s) => {
       const first = s.segments[0]
-      return !s.hidden && first !== undefined && isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
+      if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inSecretRoom)) return false
+      return isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
     }),
     props: visibleProps(map.props, hiddenLayers)
-      .filter((p) => !p.hidden && isVisible({ x: p.x, y: p.y }))
+      .filter((p) => !p.hidden && !p.secret && isVisible({ x: p.x, y: p.y }))
       .map((p) => ({ ...p, src: '', linkedMapPath: null })),
-    drawings: visibleDrawings(map.drawings, hiddenLayers).filter((d) => isShapeKnown(drawingSamplePoints(d))),
-    regions: visibleRegions(map.regions, hiddenLayers).filter((r) => !r.hidden && isShapeKnown(interiorSamples(r.points, r.points))),
+    drawings: visibleDrawings(map.drawings, hiddenLayers).filter((d) => {
+      if (d.secret) return false
+      const samples = drawingSamplePoints(d)
+      if (samples.some(inSecretRoom)) return false
+      // Traço com uma ponta na zona desenharia o que ela esconde.
+      if (isStrokeDrawing(d) && samples.some(inConcealZone)) return false
+      return isShapeKnown(samples)
+    }),
+    regions: visibleRegions(map.regions, hiddenLayers)
+      .filter((r) => !r.hidden && !r.secret && isShapeKnown(interiorSamples(r.points, r.points)))
+      .map((r) => {
+        if (r.room === undefined) return r
+        // Sala com a maioria do interior dentro de zona ativa: o nome é do que a zona esconde.
+        const nameHidden = r.room.nameHiddenFromPlayers || (zones.length > 0 && mostly(interiorSamples(r.points, r.points), inConcealZone))
+        return nameHidden ? { ...r, room: { ...r.room, name: '' } } : r
+      }),
     walls: visibleWalls(map.walls, hiddenLayers).flatMap((w) => {
       if (w.hidden) return []
-      return w.door === null ? [w] : doorWallForPlayer(w, w.door)
+      if (w.regionId !== undefined && secretRoomIds.has(w.regionId)) return []
+      if (w.door !== null) return doorWallForPlayer(w, w.door)
+      return wallSamples(w).some(inConcealZone) ? [] : [w]
     }),
-    floor: map.floor.filter((f) => !f.hidden),
+    floor: map.floor.filter((f) => !f.hidden && !hiddenFloorIds.has(f.id)),
+    // Metadado do mestre: nome e estado das zonas não saem; só `concealed` (geometria).
+    concealZones: [],
   }
-  return { map: filtered, vision, visibleDoorIds }
+  return { map: filtered, vision, visibleDoorIds, concealed, blocked }
 }
 
 /** O host vê o mapa inteiro, inclusive itens ocultos. */

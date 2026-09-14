@@ -4,7 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData } from '../types/map'
+import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
 import { BROADCAST_THROTTLE_MS, createHostBridge, type HostBridgeDeps } from './hostBridge'
+import { createLaserGesture } from '../pixi/laserGesture'
+import { laserStrokeEnded, useLaserStore } from '../stores/laserStore'
 
 // Garante em tempo de tipo que as funções reais do Tauri cabem nas deps.
 const realDeps: Pick<HostBridgeDeps, 'invoke' | 'listen'> = { invoke: realInvoke, listen: realListen }
@@ -440,5 +443,214 @@ describe('hostBridge', () => {
     const t = setup({ invoke: vi.fn(async () => Promise.reject(new Error('porta ocupada'))) })
     await expect(t.bridge.start()).rejects.toThrow('porta ocupada')
     expect(useToastStore.getState().toasts).toEqual([expect.objectContaining({ kind: 'error', text: expect.stringContaining('porta ocupada') })])
+  })
+
+  it('sinal aceito chega a onSignal e o eco sai por net_send; o limite por segundo segura o repetido', async () => {
+    const onSignal = vi.fn()
+    const t = setup({ onSignal })
+    await t.bridge.start()
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+    const playerId = joinedPlayerId(t.sent())
+    t.bridge.assignToken(playerId, 'heroi')
+    const before = t.sent().length
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'signal', x: 210, y: 190 } })
+    expect(onSignal).toHaveBeenCalledWith({ playerId, name: 'Ana', color: expect.stringMatching(/^#[0-9a-f]{6}$/i), x: 210, y: 190 })
+    expect(t.sent().slice(before)).toEqual([{ clientId: 'c1', msg: expect.objectContaining({ type: 'signal', x: 210, y: 190, from: 'Ana' }) }])
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'signal', x: 210, y: 190 } })
+    expect(onSignal).toHaveBeenCalledTimes(1)
+  })
+
+  describe('B3: controles do mestre por jogador', () => {
+    const snapshotsFrom = (sent: unknown[]) => sent.filter((args) => JSON.stringify(args).includes('"type":"snapshot"'))
+
+    async function controlsSetup() {
+      vi.useFakeTimers()
+      const t = setup()
+      await t.bridge.start()
+      t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+      const playerId = joinedPlayerId(t.sent())
+      t.bridge.assignToken(playerId, 'heroi')
+      return { ...t, playerId }
+    }
+
+    it('Revelar planta e Esconder de novo mandam snapshot na hora', async () => {
+      const t = await controlsSetup()
+      const before = t.sent().length
+      t.bridge.revealPlan(t.playerId)
+      expect(snapshotsFrom(t.sent().slice(before))).toHaveLength(1)
+      t.bridge.hidePlan(t.playerId)
+      expect(snapshotsFrom(t.sent().slice(before))).toHaveLength(2)
+    })
+
+    it('slider de raio: vários ajustes viram 1 snapshot pelo throttle e a lista de jogadores traz o raio', async () => {
+      const t = await controlsSetup()
+      const before = t.sent().length
+      for (const radius of [300, 350, 400]) t.bridge.setVisionRadius(t.playerId, radius)
+      expect(snapshotsFrom(t.sent().slice(before))).toHaveLength(0)
+      expect(t.onPlayersChange).toHaveBeenLastCalledWith([expect.objectContaining({ visionRadius: 400 })])
+      vi.advanceTimersByTime(BROADCAST_THROTTLE_MS)
+      expect(snapshotsFrom(t.sent().slice(before))).toHaveLength(1)
+    })
+
+    it('sem sala os controles não fazem nada', async () => {
+      const t = setup()
+      t.bridge.revealPlan('p1')
+      t.bridge.hidePlan('p1')
+      t.bridge.setVisionRadius('p1', 300)
+      expect(t.sent()).toEqual([])
+    })
+  })
+
+  describe('laser', () => {
+    const laserSends = (sent: unknown[]) => sent.filter((args) => JSON.stringify(args).includes('"type":"laser"'))
+
+    async function laserSetup() {
+      vi.useFakeTimers()
+      const t = setup()
+      await t.bridge.start()
+      t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+      t.bridge.assignToken(joinedPlayerId(t.sent()), 'heroi')
+      // Bia entra e fica aguardando: sem mapa na tela, não recebe laser.
+      t.emit('net:message', { clientId: 'c2', msg: { type: 'join', code: ROOM.code, name: 'Bia' } })
+      return { ...t, lasers: () => laserSends(t.sent()) }
+    }
+
+    it('throttle: o primeiro ponto sai na hora e os seguintes em lote a cada 50 ms, só para quem joga', async () => {
+      const t = await laserSetup()
+      t.bridge.laserMove(10.4, 20.6)
+      expect(t.lasers()).toEqual([{ clientId: 'c1', msg: { type: 'laser', points: [{ x: 10, y: 21 }] } }])
+
+      t.bridge.laserMove(11, 21)
+      t.bridge.laserMove(12, 22)
+      vi.advanceTimersByTime(LASER_SEND_INTERVAL_MS - 1)
+      expect(t.lasers()).toHaveLength(1)
+      vi.advanceTimersByTime(1)
+      expect(t.lasers()).toHaveLength(2)
+      expect(t.lasers()[1]).toEqual({ clientId: 'c1', msg: { type: 'laser', points: [{ x: 11, y: 21 }, { x: 12, y: 22 }] } })
+
+      // Janela sem ponto novo não envia nada; o próximo ponto depois dela volta a sair na hora.
+      vi.advanceTimersByTime(LASER_SEND_INTERVAL_MS * 3)
+      expect(t.lasers()).toHaveLength(2)
+      t.bridge.laserMove(13, 23)
+      expect(t.lasers()).toHaveLength(3)
+
+      // Mouse rápido: o lote respeita o teto e guarda os pontos mais novos.
+      for (let i = 0; i < LASER_MAX_POINTS_PER_MESSAGE + 5; i += 1) t.bridge.laserMove(i, 0)
+      vi.advanceTimersByTime(LASER_SEND_INTERVAL_MS)
+      const newest = Array.from({ length: LASER_MAX_POINTS_PER_MESSAGE }, (_, i) => ({ x: i + 5, y: 0 }))
+      expect(t.lasers()[3]).toEqual({ clientId: 'c1', msg: { type: 'laser', points: newest } })
+
+      t.bridge.laserMove(Number.NaN, 1)
+      vi.advanceTimersByTime(LASER_SEND_INTERVAL_MS * 2)
+      expect(t.lasers()).toHaveLength(4)
+    })
+
+    it('laserOff manda off uma vez, descarta o lote pendente e não deixa timer enviando depois', async () => {
+      const t = await laserSetup()
+      t.bridge.laserOff()
+      expect(t.lasers()).toEqual([])
+
+      t.bridge.laserMove(10, 10)
+      t.bridge.laserMove(20, 20)
+      t.bridge.laserOff()
+      expect(t.lasers()).toEqual([
+        { clientId: 'c1', msg: { type: 'laser', points: [{ x: 10, y: 10 }] } },
+        { clientId: 'c1', msg: { type: 'laser', off: true } },
+      ])
+      vi.advanceTimersByTime(LASER_SEND_INTERVAL_MS * 4)
+      t.bridge.laserOff()
+      expect(t.lasers()).toHaveLength(2)
+
+      // Laser ligado de novo depois do off volta a sair na hora.
+      t.bridge.laserMove(30, 30)
+      expect(t.lasers()).toHaveLength(3)
+    })
+
+    it('fechar a sala cancela o lote pendente; sem sala laserMove e laserOff não fazem nada', async () => {
+      const t = await laserSetup()
+      t.bridge.laserMove(10, 10)
+      t.bridge.laserMove(20, 20)
+      await t.bridge.stop()
+      vi.advanceTimersByTime(LASER_SEND_INTERVAL_MS * 4)
+      t.bridge.laserMove(30, 30)
+      t.bridge.laserOff()
+      expect(t.lasers()).toHaveLength(1)
+    })
+
+    describe('gesto do canvas (mesma fiação do PixiCanvas e do App)', () => {
+      async function gestureSetup() {
+        useLaserStore.setState({ held: false, toggled: false, drawing: false, trail: [] })
+        const t = await laserSetup()
+        const gesture = createLaserGesture((p) => t.bridge.laserMove(p.x, p.y))
+        const unsubscribe = useLaserStore.subscribe((state, previous) => {
+          if (laserStrokeEnded(previous, state)) t.bridge.laserOff()
+        })
+        return { ...t, gesture, unsubscribe }
+      }
+
+      it('armado e movendo sem botão não envia nada; botão direito/meio também não', async () => {
+        const t = await gestureSetup()
+        useLaserStore.getState().setHeld(true)
+        for (let i = 0; i < 5; i += 1) expect(t.gesture.pointerMove({ x: 10 * i, y: 5 })).toBe(false)
+        vi.advanceTimersByTime(LASER_SEND_INTERVAL_MS * 3)
+        expect(t.gesture.pointerDown(2, { x: 1, y: 1 })).toBe(false)
+        expect(t.gesture.pointerDown(1, { x: 1, y: 1 })).toBe(false)
+        expect(t.gesture.pointerMove({ x: 2, y: 2 })).toBe(false)
+        expect(t.gesture.pointerUp()).toBe(false)
+        vi.advanceTimersByTime(LASER_SEND_INTERVAL_MS * 3)
+        expect(t.lasers()).toEqual([])
+        expect(useLaserStore.getState().trail).toEqual([])
+        t.unsubscribe()
+      })
+
+      it('botão esquerdo pressionado e movendo envia pontos; soltar envia off uma única vez', async () => {
+        const t = await gestureSetup()
+        useLaserStore.getState().setToggled(true)
+        expect(t.gesture.pointerDown(0, { x: 10, y: 10 })).toBe(true)
+        expect(t.gesture.pointerMove({ x: 20, y: 20 })).toBe(true)
+        expect(t.gesture.pointerMove({ x: 30, y: 30 })).toBe(true)
+        vi.advanceTimersByTime(LASER_SEND_INTERVAL_MS)
+        expect(t.lasers()).toEqual([
+          { clientId: 'c1', msg: { type: 'laser', points: [{ x: 10, y: 10 }] } },
+          { clientId: 'c1', msg: { type: 'laser', points: [{ x: 20, y: 20 }, { x: 30, y: 30 }] } },
+        ])
+
+        expect(t.gesture.pointerUp()).toBe(true)
+        expect(t.gesture.pointerUp()).toBe(false)
+        useLaserStore.getState().setToggled(false)
+        vi.advanceTimersByTime(LASER_SEND_INTERVAL_MS * 4)
+        const offs = t.lasers().filter((args) => JSON.stringify(args).includes('"off":true'))
+        expect(offs).toHaveLength(1)
+        expect(t.lasers()).toHaveLength(3)
+        t.unsubscribe()
+      })
+
+      it('desarmar no meio do traço envia off uma vez e o resto do gesto continua do laser, sem enviar', async () => {
+        const t = await gestureSetup()
+        useLaserStore.getState().setHeld(true)
+        t.gesture.pointerDown(0, { x: 10, y: 10 })
+        useLaserStore.getState().setHeld(false)
+        expect(t.lasers()).toHaveLength(2)
+        // O move e o up ainda são do laser (a ferramenta não recebe um up solto), mas nada sai.
+        expect(t.gesture.pointerMove({ x: 50, y: 50 })).toBe(true)
+        expect(t.gesture.pointerUp()).toBe(true)
+        vi.advanceTimersByTime(LASER_SEND_INTERVAL_MS * 4)
+        expect(t.lasers()).toEqual([
+          { clientId: 'c1', msg: { type: 'laser', points: [{ x: 10, y: 10 }] } },
+          { clientId: 'c1', msg: { type: 'laser', off: true } },
+        ])
+
+        // Perder o foco da janela no meio do traço também fecha com um off.
+        useLaserStore.getState().setHeld(true)
+        t.gesture.pointerDown(0, { x: 60, y: 60 })
+        t.gesture.cancel()
+        t.gesture.cancel()
+        expect(t.gesture.pointerMove({ x: 70, y: 70 })).toBe(false)
+        vi.advanceTimersByTime(LASER_SEND_INTERVAL_MS * 4)
+        expect(t.lasers().filter((args) => JSON.stringify(args).includes('"off":true'))).toHaveLength(2)
+        expect(t.lasers()).toHaveLength(4)
+        t.unsubscribe()
+      })
+    })
   })
 })

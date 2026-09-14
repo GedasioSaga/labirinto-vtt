@@ -24,6 +24,10 @@ import { drawStairs } from '../pixi/drawStairs'
 import { createRoomNamesRenderer } from '../pixi/drawRoomNames'
 import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
 import { isDegenerateRegion } from '../pixi/shapes'
+import { createSignalsRenderer } from '../pixi/drawSignals'
+import { SIGNAL_LONG_PRESS_MS, SIGNAL_LONG_PRESS_TOLERANCE_PX, type SignalMark } from '../lib/signals'
+import { createLaserRenderer } from '../pixi/drawLaser'
+import type { LaserTrail } from '../lib/laser'
 import type { PlayerViewSettings } from './PlayerPanel'
 
 interface PlayerViewProps {
@@ -31,12 +35,21 @@ interface PlayerViewProps {
   vision: RegionPoint[][]
   /** Memória do que o jogador já viu; ausente = nada explorado além da visão atual. */
   explored?: Exploration
+  /** Zonas ocultas ativas do mestre: pintadas de preto por cima da planta. */
+  concealed?: RegionPoint[][]
   ownTokens: string[]
   settings: PlayerViewSettings
   /** Token a centralizar. `focusSeq` muda a cada pedido, para repetir o mesmo token. */
   focusTokenId: string | null
   focusSeq: number
   onMove: (tokenId: string, x: number, y: number) => void
+  /** Sinais recebidos do mestre (inclui o eco dos próprios). */
+  signals?: readonly SignalMark[]
+  /** Botão "Sinalizar" ligado: o próximo toque no mapa vira sinal em vez de arrasto. */
+  signalArmed?: boolean
+  onSignal?: (x: number, y: number) => void
+  /** Rastro do laser do mestre; o ticker esmaece cada ponto pela idade. */
+  laser?: LaserTrail
 }
 
 const RASTER_SAMPLES = 4
@@ -236,12 +249,22 @@ interface Scene {
   lastExplored: Exploration | undefined
   lastVision: RegionPoint[][] | null
   exploredCells: number
+  /** Zonas ocultas: preto opaco acima da névoa e abaixo dos tokens. */
+  concealed: Graphics
+  lastConcealed: RegionPoint[][] | null
+  concealedCount: number
   tokens: Container
   tokenViews: Map<string, TokenView>
   camera: Camera
   fitted: boolean
   drag: Drag | null
+  /** Espaço de tela, acima do `world`: ondas e seta de borda com tamanho fixo. */
+  signalsLayer: Container
+  signalsRenderer: ReturnType<typeof createSignalsRenderer>
 }
+
+/** Referência estável para o padrão da prop: sem sinais, nada muda entre renders. */
+const NO_SIGNALS: readonly SignalMark[] = []
 
 function applyCamera(scene: Scene): void {
   scene.world.position.set(scene.camera.x, scene.camera.y)
@@ -313,20 +336,60 @@ function redrawFog(scene: Scene, map: MapData, vision: RegionPoint[][], explored
   scene.knownMask.visible = hasKnown
 }
 
+/**
+ * Preto opaco sobre cada zona oculta ativa. A visão continua passando por ela
+ * (a zona esconde conteúdo, não bloqueia), então o recorte do mestre já veio
+ * sem nada lá dentro; o preto só tira a planta de fundo (chão, parede de
+ * sala meio escondida) do olho do jogador.
+ */
+function redrawConcealed(scene: Scene, concealed: RegionPoint[][]): void {
+  if (concealed === scene.lastConcealed) return
+  scene.lastConcealed = concealed
+  const polygons = concealed.filter((poly) => poly.length >= 3)
+  scene.concealed.clear()
+  for (const poly of polygons) scene.concealed.poly(poly, true)
+  if (polygons.length > 0) scene.concealed.fill({ color: 0x000000, alpha: 1 })
+  scene.concealedCount = polygons.length
+}
+
 function centerCameraOn(scene: Scene, x: number, y: number): void {
   const { scale } = scene.camera
   scene.camera = { scale, x: scene.app.screen.width / 2 - x * scale, y: scene.app.screen.height / 2 - y * scale }
   applyCamera(scene)
 }
 
-export function PlayerView({ map, vision, explored, ownTokens, settings, focusTokenId, focusSeq, onMove }: PlayerViewProps) {
+/** Referência estável: sem zonas, o redesenho não repinta a camada a cada snapshot. */
+const NO_CONCEALED: RegionPoint[][] = []
+
+export function PlayerView({
+  map,
+  vision,
+  explored,
+  concealed = NO_CONCEALED,
+  ownTokens,
+  settings,
+  focusTokenId,
+  focusSeq,
+  onMove,
+  signals = NO_SIGNALS,
+  signalArmed = false,
+  onSignal,
+  laser,
+}: PlayerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
-  const latestRef = useRef({ map, vision, explored, ownTokens, settings, onMove })
-  latestRef.current = { map, vision, explored, ownTokens, settings, onMove }
+  const latestRef = useRef({ map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, laser })
+  latestRef.current = { map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, laser }
 
   function redraw(scene: Scene): void {
-    const { map: currentMap, vision: currentVision, explored: currentExplored, ownTokens: own, settings: currentSettings } = latestRef.current
+    const {
+      map: currentMap,
+      vision: currentVision,
+      explored: currentExplored,
+      concealed: currentConcealed,
+      ownTokens: own,
+      settings: currentSettings,
+    } = latestRef.current
     const hidden = currentMap.hiddenLayers
     const worldWidth = currentMap.width * currentMap.grid
     const worldHeight = currentMap.height * currentMap.grid
@@ -369,6 +432,7 @@ export function PlayerView({ map, vision, explored, ownTokens, settings, focusTo
     scene.textLabels.visible = currentSettings.showNames
 
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
+    redrawConcealed(scene, currentConcealed)
 
     // Reaproveita a view por id e NUNCA destrói `Text` durante a sessão: Text
     // destruído antes de ser renderizado (3 redraws por movimento: otimista,
@@ -411,6 +475,7 @@ export function PlayerView({ map, vision, explored, ownTokens, settings, focusTo
       el.dataset.regionsCount = String(regions.filter((r) => !isDegenerateRegion(r.points)).length)
       el.dataset.labelsCount = String(drawings.filter((d) => d.kind === 'text').length)
       el.dataset.exploredCells = String(scene.exploredCells)
+      el.dataset.concealedCount = String(scene.concealedCount)
       el.dataset.ownTokens = own.join(',')
     }
 
@@ -423,6 +488,8 @@ export function PlayerView({ map, vision, explored, ownTokens, settings, focusTo
   }
 
   function startTokenDrag(scene: Scene, tokenId: string, event: FederatedPointerEvent): void {
+    // Alt+clique ou modo Sinalizar sobre um token: deixa o evento subir para o palco sinalizar.
+    if (event.altKey || latestRef.current.signalArmed) return
     event.stopPropagation()
     const view = scene.tokenViews.get(tokenId)?.wrapper
     if (!view) return
@@ -466,6 +533,7 @@ export function PlayerView({ map, vision, explored, ownTokens, settings, focusTo
       const knownMask = new Graphics()
       const fogDim = new Graphics()
       const visionMask = new Graphics()
+      const concealed = new Graphics()
       const tokens = new Container()
       // Mesma ordem do editor, de baixo para cima; tudo da planta fica sob a
       // névoa, e só os tokens (que já chegam filtrados pela visão) ficam acima.
@@ -486,9 +554,15 @@ export function PlayerView({ map, vision, explored, ownTokens, settings, focusTo
         knownMask,
         fogDim,
         visionMask,
+        concealed,
         tokens,
       )
-      app.stage.addChild(world)
+      const signalsLayer = new Container()
+      signalsLayer.eventMode = 'none'
+      // Laser do mestre acima dos sinais: é a mão de quem conduz a mesa.
+      const laserLayer = new Container()
+      laserLayer.eventMode = 'none'
+      app.stage.addChild(world, signalsLayer, laserLayer)
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
@@ -523,19 +597,78 @@ export function PlayerView({ map, vision, explored, ownTokens, settings, focusTo
         lastExplored: undefined,
         lastVision: null,
         exploredCells: 0,
+        concealed,
+        lastConcealed: null,
+        concealedCount: 0,
         tokens,
         tokenViews: new Map(),
         camera: { x: 0, y: 0, scale: 1 },
         fitted: false,
         drag: null,
+        signalsLayer,
+        signalsRenderer: createSignalsRenderer(),
       }
       sceneRef.current = scene
 
+      let signalsDrawn = 0
+      const tickSignals = () => {
+        const current = latestRef.current.signals
+        // Sem sinal agora nem no quadro anterior: nada a limpar, poupa o quadro.
+        if (current.length === 0 && signalsDrawn === 0) return
+        const viewport = { width: app.screen.width, height: app.screen.height }
+        const drawn = scene.signalsRenderer.draw(signalsLayer, current, scene.camera, viewport, Date.now())
+        // Para o e2e: quantos sinais o renderer desenhou de fato (o estado sozinho não prova o desenho).
+        if (drawn !== signalsDrawn) el.dataset.signalsDrawn = String(drawn)
+        signalsDrawn = drawn
+      }
+      app.ticker.add(tickSignals)
+
+      const laserRenderer = createLaserRenderer()
+      let laserDrawn = 0
+      el.dataset.laserDrawn = '0'
+      const tickLaser = () => {
+        const current = latestRef.current.laser
+        if (current === undefined && laserDrawn === 0) return
+        const drawn = laserRenderer.draw(laserLayer, current, scene.camera, Date.now())
+        // Para o e2e: quantos pontos do rastro estão na tela agora (0 = sumiu).
+        if (drawn !== laserDrawn) el.dataset.laserDrawn = String(drawn)
+        laserDrawn = drawn
+      }
+      app.ticker.add(tickLaser)
+
+      const sendSignalAt = (screenX: number, screenY: number) => {
+        const point = scene.world.toLocal({ x: screenX, y: screenY })
+        latestRef.current.onSignal?.(point.x, point.y)
+      }
+      /** "Segurar parado": dispara depois de `SIGNAL_LONG_PRESS_MS` se o ponteiro não andou. */
+      let longPress: { timer: ReturnType<typeof setTimeout>; x: number; y: number } | null = null
+      const cancelLongPress = () => {
+        if (longPress === null) return
+        clearTimeout(longPress.timer)
+        longPress = null
+      }
+
       app.stage.on('pointerdown', (event: FederatedPointerEvent) => {
         if (scene.drag) return
-        scene.drag = { kind: 'pan', lastX: event.global.x, lastY: event.global.y }
+        const { x, y } = event.global
+        if (event.altKey || latestRef.current.signalArmed) {
+          sendSignalAt(x, y)
+          return
+        }
+        scene.drag = { kind: 'pan', lastX: x, lastY: y }
+        cancelLongPress()
+        const timer = setTimeout(() => {
+          longPress = null
+          // Virou sinal: o gesto não continua como arrasto de câmera.
+          if (scene.drag?.kind === 'pan') scene.drag = null
+          sendSignalAt(x, y)
+        }, SIGNAL_LONG_PRESS_MS)
+        longPress = { timer, x, y }
       })
       app.stage.on('globalpointermove', (event: FederatedPointerEvent) => {
+        if (longPress !== null && Math.hypot(event.global.x - longPress.x, event.global.y - longPress.y) > SIGNAL_LONG_PRESS_TOLERANCE_PX) {
+          cancelLongPress()
+        }
         const drag = scene.drag
         if (!drag) return
         if (drag.kind === 'pan') {
@@ -551,6 +684,7 @@ export function PlayerView({ map, vision, explored, ownTokens, settings, focusTo
         scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
       })
       const endDrag = () => {
+        cancelLongPress()
         const drag = scene.drag
         scene.drag = null
         if (drag?.kind !== 'token') return
@@ -573,7 +707,12 @@ export function PlayerView({ map, vision, explored, ownTokens, settings, focusTo
         applyCamera(scene)
       }
       app.canvas.addEventListener('wheel', onWheel, { passive: false })
-      removeWheel = () => app.canvas.removeEventListener('wheel', onWheel)
+      removeWheel = () => {
+        app.canvas.removeEventListener('wheel', onWheel)
+        cancelLongPress()
+        app.ticker.remove(tickSignals)
+        app.ticker.remove(tickLaser)
+      }
       // ResizePlugin só escuta 'resize' da janela: acompanha o container também.
       resizeObserver = new ResizeObserver(() => {
         if (!destroyed) app.resize()
@@ -599,7 +738,22 @@ export function PlayerView({ map, vision, explored, ownTokens, settings, focusTo
   useEffect(() => {
     const scene = sceneRef.current
     if (scene) redraw(scene)
-  }, [map, vision, explored, ownTokens, settings])
+  }, [map, vision, explored, concealed, ownTokens, settings])
+
+  useEffect(() => {
+    // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.
+    const el = containerRef.current
+    if (el) el.dataset.signalsCount = String(signals.length)
+  }, [signals])
+
+  useEffect(() => {
+    // Estado do laser para o e2e, fora do ticker: sob carga os quadros do Pixi
+    // espaçam e `data-laser-drawn` sozinho não prova a ordem ligado → off → sumiu.
+    const el = containerRef.current
+    if (!el) return
+    el.dataset.laserOn = String(laser?.on ?? false)
+    el.dataset.laserPoints = String(laser?.points.length ?? 0)
+  }, [laser])
 
   useEffect(() => {
     const scene = sceneRef.current
@@ -609,5 +763,5 @@ export function PlayerView({ map, vision, explored, ownTokens, settings, focusTo
     // Só um pedido novo (focusSeq) move a câmera; snapshot com o token andando não.
   }, [focusSeq])
 
-  return <div ref={containerRef} style={{ position: 'fixed', inset: 0, touchAction: 'none' }} />
+  return <div ref={containerRef} style={{ position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed ? 'crosshair' : undefined }} />
 }

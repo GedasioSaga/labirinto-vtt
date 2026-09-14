@@ -132,9 +132,39 @@ export interface RoomMeta {
   shape: 'rect' | 'polygon'
   /** Rótulo editável. Distinto de `tag`, que é genérico e hoje não tem UI. */
   name: string
+  /** Deslocamento do rótulo, em px de mundo, relativo a `roomLabelAnchor`
+   *  (`pixi/drawRoomNames.ts`). `undefined` = centro da sala, sem migração.
+   *  Vai junto para o jogador: `PlayerView` desenha com o mesmo renderer. */
+  labelOffset?: { x: number; y: number }
+  /** A5 — o jogador recebe a Sala com `name = ''` (`lib/fogFilter.ts`).
+   *  `undefined` === false (jogadores veem o nome), sem migração. */
+  nameHiddenFromPlayers?: boolean
 }
 
-export interface Region {
+/**
+ * A5 — "Oculto para jogadores": o item nunca sai no recorte do jogador
+ * (`lib/fogFilter.ts`), mas continua no editor (desenhado esmaecido) e
+ * continua valendo para movimento e colisão no mestre. Distinto de `hidden`,
+ * que é "Oculto no editor". `undefined` === false, sem migração.
+ */
+export interface PlayerSecret {
+  secret?: boolean
+}
+
+/**
+ * A5 — área desenhada pelo mestre que o jogador não vê: tudo que tem ponto
+ * amostrado dentro dela fica fora do recorte e o jogador pinta preto por cima.
+ * Não bloqueia a visão (a zona esconde conteúdo, não é parede).
+ */
+export interface ConcealZone {
+  id: string
+  points: RegionPoint[]
+  name: string
+  /** `true` = revelada: deixa de esconder, mas continua no mapa do mestre. */
+  revealed: boolean
+}
+
+export interface Region extends PlayerSecret {
   id: string
   points: RegionPoint[]
   tag: string
@@ -182,7 +212,7 @@ export interface Region {
   hidden?: boolean
 }
 
-export interface Token {
+export interface Token extends PlayerSecret {
   id: string
   characterId: string | null
   name: string
@@ -206,7 +236,7 @@ export interface Token {
   hidden?: boolean
 }
 
-export interface Prop {
+export interface Prop extends PlayerSecret {
   id: string
   src: string
   x: number
@@ -255,7 +285,8 @@ export type DrawingCap = 'round' | 'butt' | 'square'
  */
 export type FreehandTexture = 'pen' | 'pencil' | 'marker'
 
-export type Drawing =
+// `& PlayerSecret` distribui sobre a união: cada variante ganha `secret?`.
+export type Drawing = PlayerSecret & (
   | { id: string; kind: 'freehand'; points: DrawingPoint[]; color: string; width: number; cap?: DrawingCap; texture?: FreehandTexture }
   | { id: string; kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number; cap?: DrawingCap }
   | { id: string; kind: 'circle'; cx: number; cy: number; radius: number; color: string; width: number; filled: boolean; fillAlpha: number }
@@ -265,6 +296,7 @@ export type Drawing =
   | { id: string; kind: 'rect'; x: number; y: number; w: number; h: number; color: string; width: number; filled: boolean; fillAlpha: number }
   | { id: string; kind: 'ellipse'; cx: number; cy: number; rx: number; ry: number; color: string; width: number; filled: boolean; fillAlpha: number }
   | { id: string; kind: 'polygon'; points: DrawingPoint[]; color: string; width: number; filled: boolean; fillAlpha: number }
+)
 
 export type StairDirection = 'up' | 'down'
 /** 'l' e 'double' existem no schema e no render desde já; a UI desta
@@ -278,7 +310,7 @@ export interface StairSegment {
   y2: number
 }
 
-export interface Stair {
+export interface Stair extends PlayerSecret {
   id: string
   shape: StairShape
   direction: StairDirection
@@ -489,6 +521,8 @@ export interface MapData {
   floorStyle: FloorStyle
   lines: MapLine[]
   markers: MapMarker[]
+  /** A5 — zonas ocultas do mestre. Vazio em mapa antigo — migração em `lib/mapFile.ts`. */
+  concealZones: ConcealZone[]
   frame: MapFrame | null
   fog: FogState
   hiddenLayers: LayerId[] // vazio = tudo visível

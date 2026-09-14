@@ -13,6 +13,7 @@ import { RegionStyleControls, type RegionStyleControlsProps } from './RegionStyl
 import { PolygonSidesControls, type PolygonSidesControlsProps } from './PolygonSidesControls'
 import { LayersPanel, type LayersPanelProps } from './LayersPanel'
 import { TokenImageControls, type TokenImageControlsProps } from './TokenImageControls'
+import { TokenNameControls, type TokenNameControlsProps } from './TokenNameControls'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
@@ -27,6 +28,8 @@ import { FillControls, type FillControlsProps } from './FillControls'
 import { AreaSelectionControls } from './AreaSelectionControls'
 import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceControls'
 import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleControls'
+import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
+import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZoneControls'
 import { roomDimensions } from '../lib/roomOps'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import type { PropertyGroupId } from '../lib/toolProperties'
@@ -71,16 +74,17 @@ interface PropertiesPanelProps {
   selectedProp: Prop | null
   portal: Omit<PortalControlsProps, 'linkedMapPath'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Objeto selecionado. */
-  propTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden'>
+  propTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedToken: Token | null
+  tokenName: Omit<TokenNameControlsProps, 'name'>
   tokenImage: Omit<TokenImageControlsProps, 'image'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
-  tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden'>
+  tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
   textLabel: Omit<TextLabelControlsProps, 'text' | 'color' | 'fontSize' | 'fontFamily'>
   selectedRegion: Region | null
   regionStyle: RegionStyleControlsProps
-  room: Omit<RoomControlsProps, 'name' | 'shape' | 'width' | 'height'>
+  room: Omit<RoomControlsProps, 'name' | 'shape' | 'width' | 'height' | 'nameHiddenFromPlayers'>
   selectedLight: Light | null
   lightControls: Omit<LightControlsProps, 'color' | 'intensity'>
   selectedStair: Stair | null
@@ -91,6 +95,10 @@ interface PropertiesPanelProps {
   floorPieceControls: Omit<FloorPieceControlsProps, 'piece'>
   /** Chão por peças — estilo do chão do mapa e "Chão a partir da imagem de fundo". */
   floorStyle: FloorStyleControlsProps
+  /** A5 — "Oculto para jogadores" da Região/Escada/Desenho selecionado; `null` = nenhum. */
+  playerSecret: PlayerSecretControlsProps | null
+  /** A5 — zona oculta aberta no painel; `null` = nenhuma. */
+  concealZone: ConcealZoneControlsProps | null
 }
 
 /**
@@ -122,6 +130,7 @@ export function PropertiesPanel({
   portal,
   propTransform,
   selectedToken,
+  tokenName,
   tokenImage,
   tokenTransform,
   selectedTextLabel,
@@ -137,6 +146,8 @@ export function PropertiesPanel({
   selectedFloorPiece,
   floorPieceControls,
   floorStyle,
+  playerSecret,
+  concealZone,
 }: PropertiesPanelProps) {
   return (
     <div className="lb-panel lb-inspector">
@@ -153,6 +164,30 @@ export function PropertiesPanel({
       </header>
 
       <div className="lb-inspector__body lb-scroll">
+        {/* Sala no topo: o nome é o que o usuário quer mexer logo depois de
+            desenhar, e no fim do painel ele precisava rolar para achar. */}
+        {selectedRegion?.room && (
+          <ToolPropertiesSection group="room" groups={groups}>
+            <RoomControls
+              name={selectedRegion.room.name}
+              shape={selectedRegion.room.shape}
+              width={roomDimensions(selectedRegion.points).width}
+              height={roomDimensions(selectedRegion.points).height}
+              nameHiddenFromPlayers={!!selectedRegion.room.nameHiddenFromPlayers}
+              {...room}
+            />
+          </ToolPropertiesSection>
+        )}
+        {concealZone && (
+          <ToolPropertiesSection group="concealZone" groups={groups}>
+            <ConcealZoneControls {...concealZone} />
+          </ToolPropertiesSection>
+        )}
+        {playerSecret && (
+          <ToolPropertiesSection group="playerVisibility" groups={groups}>
+            <PlayerSecretControls {...playerSecret} />
+          </ToolPropertiesSection>
+        )}
         <ToolPropertiesSection group="drawingStyle" groups={groups}>
           <DrawingStyleControls {...drawingStyle} />
         </ToolPropertiesSection>
@@ -228,12 +263,14 @@ export function PropertiesPanel({
               rotation={selectedProp.rotation ?? 0}
               locked={!!selectedProp.locked}
               hidden={!!selectedProp.hidden}
+              secret={!!selectedProp.secret}
               {...propTransform}
             />
           </ToolPropertiesSection>
         )}
         {selectedToken && (
           <ToolPropertiesSection group="tokenImage" groups={groups}>
+            <TokenNameControls name={selectedToken.name} {...tokenName} />
             <TokenImageControls image={selectedToken.image} {...tokenImage} />
           </ToolPropertiesSection>
         )}
@@ -244,6 +281,7 @@ export function PropertiesPanel({
               rotation={selectedToken.rotation ?? 0}
               locked={!!selectedToken.locked}
               hidden={!!selectedToken.hidden}
+              secret={!!selectedToken.secret}
               {...tokenTransform}
             />
           </ToolPropertiesSection>
@@ -256,17 +294,6 @@ export function PropertiesPanel({
         {selectedStair && (
           <ToolPropertiesSection group="stairControls" groups={groups}>
             <StairControls direction={selectedStair.direction} {...stairControls} />
-          </ToolPropertiesSection>
-        )}
-        {selectedRegion?.room && (
-          <ToolPropertiesSection group="room" groups={groups}>
-            <RoomControls
-              name={selectedRegion.room.name}
-              shape={selectedRegion.room.shape}
-              width={roomDimensions(selectedRegion.points).width}
-              height={roomDimensions(selectedRegion.points).height}
-              {...room}
-            />
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="selection" groups={groups}>

@@ -2,7 +2,7 @@ import { Color, Container, Graphics } from 'pixi.js'
 import type { Region, RegionPoint, Wall } from '../types/map'
 import type { Selection } from '../types/tools'
 import { isDegenerateRegion } from './shapes'
-import { SELECTION_COLOR } from './constants'
+import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 
 const HATCH_SPACING = 10
 const HATCH_ANGLE = Math.PI / 4 // 45°
@@ -211,6 +211,7 @@ export function createRegionsRenderer(): RegionsRenderer {
       }
       g.closePath()
       const isSelected = region.id === selectedRegionId
+      g.alpha = region.secret ? SECRET_ITEM_ALPHA : 1
       const color = isSelected ? SELECTION_COLOR : new Color(region.fillColor).toNumber()
       // Pedido N2 do usuário ("tirar o fundo" de Região/Sala) — `Region.filled`
       // já existe no schema e a store já tem `setRegionFilled`/`FillControls`

@@ -2,10 +2,10 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { TunnelState } from '../net/hostBridge'
 import type { PlayerInfo } from '../net/hostSession'
-import { FIREWALL_HINT, RoomPanel, TUNNEL_WARNING, assignableTokens, downloadLabel, playerStatusLabel, qrDataUrl } from './RoomPanel'
+import { FIREWALL_HINT, LASER_HINT, PLAN_HINT, RoomPanel, TUNNEL_WARNING, assignOptionLabel, assignableTokens, downloadLabel, playerStatusLabel, qrDataUrl, tokenDotColor } from './RoomPanel'
 
 const noop = vi.fn()
-const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop }
+const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onRevealPlan: noop, onHidePlan: noop }
 const TOKENS = [
   { id: 't1', name: 'Herói' },
   { id: 't2', name: 'Ladino' },
@@ -14,7 +14,7 @@ const ROOM = { code: 'AB12CD', urls: ['http://10.0.0.2:7777'], qrSvg: '<svg/>' }
 const IDLE: TunnelState = { kind: 'idle' }
 
 function player(overrides: Partial<PlayerInfo> = {}): PlayerInfo {
-  return { clientId: 'c1', playerId: 'p1', name: 'Ana', status: 'waiting', connected: true, tokenIds: [], ...overrides }
+  return { clientId: 'c1', playerId: 'p1', name: 'Ana', status: 'waiting', connected: true, tokenIds: [], visionRadius: 700, ...overrides }
 }
 
 function renderWithTunnel(tunnel: TunnelState): string {
@@ -22,6 +22,26 @@ function renderWithTunnel(tunnel: TunnelState): string {
 }
 
 describe('RoomPanel', () => {
+  it('botão Laser aparece com a sala aberta e reflete o estado em aria-pressed', () => {
+    const off = renderToStaticMarkup(<RoomPanel room={ROOM} players={[]} tokens={TOKENS} tunnel={IDLE} {...handlers} onToggleLaser={noop} />)
+    expect(off).toMatch(/<button[^>]*aria-pressed="false"[^>]*>Laser<\/button>/)
+    expect(off).toContain(LASER_HINT)
+    const on = renderToStaticMarkup(<RoomPanel room={ROOM} players={[]} tokens={TOKENS} tunnel={IDLE} {...handlers} laserOn onToggleLaser={noop} />)
+    expect(on).toMatch(/<button[^>]*aria-pressed="true"[^>]*>Laser<\/button>/)
+    const closed = renderToStaticMarkup(<RoomPanel room={null} players={[]} tokens={TOKENS} tunnel={IDLE} {...handlers} onToggleLaser={noop} />)
+    expect(closed).not.toContain('>Laser<')
+  })
+
+  it('B3: card do jogador tem slider de raio com o valor efetivo, Revelar planta e Esconder de novo', () => {
+    const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={[player({ visionRadius: 350 })]} tokens={TOKENS} tunnel={IDLE} {...handlers} />)
+    expect(html).toMatch(/<label class="lb-label" for="lb-room-vision-p1">Raio de visão<\/label>/)
+    expect(html).toContain('350 px')
+    expect(html).toMatch(/<input id="lb-room-vision-p1" class="lb-range" type="range" min="50" max="2000" step="50" value="350"\/>/)
+    expect(html).toContain('>Revelar planta</button>')
+    expect(html).toContain('>Esconder de novo</button>')
+    expect(html).toContain(PLAN_HINT)
+  })
+
   it('qrDataUrl codifica o SVG', () => {
     expect(qrDataUrl('<svg a="1"/>')).toBe('data:image/svg+xml;charset=utf-8,%3Csvg%20a%3D%221%22%2F%3E')
   })
@@ -30,6 +50,24 @@ describe('RoomPanel', () => {
     expect(playerStatusLabel(player())).toBe('aguardando · conectado')
     expect(playerStatusLabel(player({ status: 'playing', connected: false }))).toBe('jogando · desconectado')
     expect(assignableTokens(TOKENS, player({ tokenIds: ['t1'] }))).toEqual([{ id: 't2', name: 'Ladino' }])
+  })
+
+  it('lista de atribuir mostra o nome de cada token com bolinha de cor própria, sem os já atribuídos', () => {
+    const tokens = [...TOKENS, { id: 't3', name: 'Token 1' }]
+    const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={[player({ tokenIds: ['t2'] })]} tokens={tokens} tunnel={IDLE} {...handlers} />)
+    const options = [...html.matchAll(/<option value="(t\d)" style="color:([^"]+)">([^<]*)<\/option>/g)].map((m) => ({ id: m[1], color: m[2], label: m[3] }))
+    expect(options).toEqual([
+      { id: 't1', color: tokenDotColor('t1'), label: '● Herói' },
+      { id: 't3', color: tokenDotColor('t3'), label: '● Token 1' },
+    ])
+    expect(assignOptionLabel({ id: 'x', name: 'Ladino' })).toBe('● Ladino')
+  })
+
+  it('tokenDotColor é estável por id e cai na paleta; ids diferentes podem ter cores diferentes', () => {
+    expect(tokenDotColor('t1')).toBe(tokenDotColor('t1'))
+    expect(tokenDotColor('t1')).toMatch(/^#[0-9a-f]{6}$/)
+    const colors = new Set(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map(tokenDotColor))
+    expect(colors.size).toBeGreaterThan(1)
   })
 
   it('sem sala mostra só Abrir sala e a dica', () => {

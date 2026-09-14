@@ -8,8 +8,10 @@ import {
   forEachExploredRun,
   isPointExplored,
   isShapeExplored,
+  markAll,
   markRings,
   MAX_EXPLORED_CELLS,
+  ringTouchesRect,
 } from './exploration'
 
 function square(x0: number, y0: number, x1: number, y1: number): RegionPoint[] {
@@ -20,6 +22,57 @@ function square(x0: number, y0: number, x1: number, y1: number): RegionPoint[] {
     { x: x0, y: y1 },
   ]
 }
+
+describe('markRings com zona oculta (A5)', () => {
+  it('SEGURANÇA: célula que toca zona ativa nunca é marcada, mesmo inteira na visão', () => {
+    const exp = createExploration({ width: 400, height: 400, grid: 40 }) // célula 10
+    const zone = square(100, 100, 200, 200)
+    markRings(exp, [square(0, 0, 400, 400)], [zone])
+    // Dentro, na borda de dentro e encostando por fora (célula 90..100 toca x=100): nada marcado.
+    expect(isPointExplored(exp, { x: 150, y: 150 })).toBe(false)
+    expect(isPointExplored(exp, { x: 105, y: 105 })).toBe(false)
+    expect(isPointExplored(exp, { x: 95, y: 150 })).toBe(false)
+    // Longe da zona continua marcado.
+    expect(isPointExplored(exp, { x: 50, y: 50 })).toBe(true)
+    expect(isPointExplored(exp, { x: 85, y: 150 })).toBe(true)
+    expect(isPointExplored(exp, { x: 350, y: 350 })).toBe(true)
+    // 40×40 células; a zona com a borda de 1 célula para cada lado ocupa 12×12.
+    expect(countExploredCells(exp)).toBe(40 * 40 - 12 * 12)
+  })
+
+  it('sem zona, marca igual a antes', () => {
+    const a = createExploration({ width: 400, height: 400, grid: 40 })
+    const b = createExploration({ width: 400, height: 400, grid: 40 })
+    markRings(a, [square(0, 0, 400, 400)])
+    markRings(b, [square(0, 0, 400, 400)], [])
+    expect(Array.from(b.bits)).toEqual(Array.from(a.bits))
+  })
+
+  it('ringTouchesRect: cruza, contém, está contido e fica de fora', () => {
+    expect(ringTouchesRect(square(0, 0, 100, 100), 90, 90, 110, 110)).toBe(true) // aresta cruza
+    expect(ringTouchesRect(square(0, 0, 100, 100), 40, 40, 50, 50)).toBe(true) // retângulo dentro
+    expect(ringTouchesRect(square(40, 40, 50, 50), 0, 0, 100, 100)).toBe(true) // polígono dentro
+    expect(ringTouchesRect(square(0, 0, 100, 100), 101, 0, 120, 20)).toBe(false) // separado
+  })
+})
+
+describe('markAll (B3, Revelar planta)', () => {
+  it('marca todas as células, até as da borda do mapa', () => {
+    const exp = createExploration({ width: 400, height: 400, grid: 40 })
+    markAll(exp)
+    expect(countExploredCells(exp)).toBe(40 * 40)
+  })
+
+  it('SEGURANÇA: pula célula que toca zona ativa, igual ao markRings', () => {
+    const viaAll = createExploration({ width: 400, height: 400, grid: 40 })
+    const viaRings = createExploration({ width: 400, height: 400, grid: 40 })
+    const zone = square(100, 100, 200, 200)
+    markAll(viaAll, [zone])
+    markRings(viaRings, [square(0, 0, 400, 400)], [zone])
+    expect(isPointExplored(viaAll, { x: 150, y: 150 })).toBe(false)
+    expect(Array.from(viaAll.bits)).toEqual(Array.from(viaRings.bits))
+  })
+})
 
 describe('createExploration', () => {
   it('célula = grid/4, com mínimo de 8 px', () => {

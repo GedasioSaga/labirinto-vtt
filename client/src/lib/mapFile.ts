@@ -57,6 +57,7 @@ export function deserializeMap(json: string): MapData {
     floorStyle: parsed.floorStyle ?? { ...DEFAULT_FLOOR_STYLE },
     lines: parsed.lines ?? [],
     markers: parsed.markers ?? [],
+    concealZones: parsed.concealZones ?? [],
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
     hiddenLayers: parsed.hiddenLayers ?? [],

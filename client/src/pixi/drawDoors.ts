@@ -1,6 +1,7 @@
 import type { Graphics } from 'pixi.js'
 import type { Wall } from '../types/map'
 import { SELECTION_COLOR, STROKE_WEIGHT } from './constants'
+import { screenSafeWidth } from './drawWalls'
 
 /**
  * Cor de porta destrancada — MESMO valor RGB que `drawWalls.ts` hardcodava
@@ -105,7 +106,7 @@ function drawGateBars(
  * (uma parede com porta continua visualmente distinta de uma sem) é o mesmo,
  * só o arquivo que desenha mudou.
  */
-export function drawDoors(graphics: Graphics, walls: Wall[], selectedWallId: string | null = null): void {
+export function drawDoors(graphics: Graphics, walls: Wall[], selectedWallId: string | null = null, cameraScale = 1): void {
   graphics.clear()
   for (const wall of walls) {
     const door = wall.door
@@ -142,6 +143,7 @@ export function drawDoors(graphics: Graphics, walls: Wall[], selectedWallId: str
       drawLeaf(graphics, wall.x1, wall.y1, ux, uy, px, py, length, door.open)
     }
 
-    graphics.stroke({ width: strokeWidth, color })
+    // Mesmo piso de 1 px de tela das paredes: sem antialias a folha fina some com zoom baixo.
+    graphics.stroke({ width: screenSafeWidth(strokeWidth, cameraScale), color })
   }
 }

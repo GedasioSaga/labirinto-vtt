@@ -1,5 +1,9 @@
 import type { Page } from '@playwright/test'
 
+/** Mensagem que o Playwright devolve quando o Chromium descarta a promise do evaluate. */
+const PROMISE_COLLECTED = 'Resulting promise was garbage collected'
+const WARMUP_ATTEMPTS = 3
+
 /**
  * Navega da raiz até o editor pelo caminho novo do menu inicial: menu →
  * "Criar Mapas" → "Dungeon Map" → formulário → "Criar mapa" → espera o
@@ -15,4 +19,31 @@ export async function enterEditor(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Dungeon Map' }).click()
   await page.getByRole('button', { name: 'Criar mapa' }).click()
   await page.waitForSelector('canvas')
+  await warmUpStoreImports(page)
+}
+
+/**
+ * Faz o primeiro `import()` dos módulos que os specs usam no page.evaluate.
+ *
+ * Com 4 workers, o PRIMEIRO evaluate com `import()` logo depois do canvas
+ * montar às vezes volta "Resulting promise was garbage collected" em ~50 ms,
+ * sem navegação nem erro de página no trace (suíte de 14/09/2026: 3 falhas,
+ * todas no resetMap do beforeEach, specs diferentes; isoladas passam). É o
+ * Chromium soltando a promise, não o app: nenhuma asserção chega a rodar.
+ * Aqui só importa, sem mexer em estado, então repetir é seguro. Qualquer
+ * outro erro, ou a mesma falha nas 3 tentativas, sobe normalmente.
+ */
+async function warmUpStoreImports(page: Page): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await page.evaluate(async () => {
+        await import('/src/lib/mapFactory.ts')
+        await import('/src/stores/mapStore.ts')
+      })
+      return
+    } catch (error) {
+      const collected = error instanceof Error && error.message.includes(PROMISE_COLLECTED)
+      if (!collected || attempt >= WARMUP_ATTEMPTS) throw error
+    }
+  }
 }

@@ -1,4 +1,4 @@
-import type { PlayerInfo } from '../net/hostSession'
+import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type PlayerInfo } from '../net/hostSession'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 
 export interface RoomPanelToken {
@@ -18,8 +18,16 @@ export interface RoomPanelProps {
   onAssign(playerId: string, tokenId: string): void
   onUnassign(playerId: string, tokenId: string): void
   onKick(clientId: string): void
+  onVisionRadiusChange(playerId: string, radius: number): void
+  onRevealPlan(playerId: string): void
+  onHidePlan(playerId: string): void
+  /** Botão "Laser" ligado: arma o laser (independe de segurar L); o traço sai clicando no mapa. */
+  laserOn?: boolean
+  onToggleLaser?(): void
 }
 
+export const PLAN_HINT = 'Revelar planta mostra paredes, salas e portas, sem os tokens. Zonas ocultas continuam escondidas.'
+export const LASER_HINT ='Ligado (ou segurando L), clique e arraste com o botão esquerdo sobre o mapa. Todos os jogadores veem o laser.'
 export const FIREWALL_HINT = 'Se o celular não abrir o link, libere o app no Firewall do Windows (rede Privada)'
 export const TUNNEL_WARNING = 'Quem tiver o link e o código entra na sala. Encerre ao terminar o jogo.'
 
@@ -40,6 +48,24 @@ export function playerStatusLabel(player: PlayerInfo): string {
 /** Tokens que ainda não pertencem a este jogador (candidatos a atribuir). */
 export function assignableTokens(tokens: RoomPanelToken[], player: PlayerInfo): RoomPanelToken[] {
   return tokens.filter((token) => !player.tokenIds.includes(token.id))
+}
+
+/** Paleta das bolinhas da lista de atribuir: tons distintos e legíveis no tema escuro. */
+const TOKEN_DOT_COLORS = ['#e57373', '#64b5f6', '#81c784', '#ffd54f', '#ba68c8', '#4dd0e1', '#ff8a65', '#a1887f']
+
+/**
+ * Cor estável por token (hash do id), para diferenciar de relance dois tokens
+ * de nome parecido. Depende só do id: renomear não troca a cor.
+ */
+export function tokenDotColor(tokenId: string): string {
+  let hash = 0
+  for (let i = 0; i < tokenId.length; i += 1) hash = (hash * 31 + tokenId.charCodeAt(i)) >>> 0
+  return TOKEN_DOT_COLORS[hash % TOKEN_DOT_COLORS.length]
+}
+
+/** Texto da opção: `<option>` nativo não aceita elemento filho, então a bolinha é um caractere. */
+export function assignOptionLabel(token: RoomPanelToken): string {
+  return `● ${token.name}`
 }
 
 function tokenName(tokens: RoomPanelToken[], tokenId: string): string {
@@ -100,7 +126,24 @@ function TunnelSection({ tunnel, onStartTunnel, onStopTunnel }: Pick<RoomPanelPr
   )
 }
 
-export function RoomPanel({ room, players, tokens, tunnel, onStart, onStop, onStartTunnel, onStopTunnel, onAssign, onUnassign, onKick }: RoomPanelProps) {
+export function RoomPanel({
+  room,
+  players,
+  tokens,
+  tunnel,
+  onStart,
+  onStop,
+  onStartTunnel,
+  onStopTunnel,
+  onAssign,
+  onUnassign,
+  onKick,
+  onVisionRadiusChange,
+  onRevealPlan,
+  onHidePlan,
+  laserOn = false,
+  onToggleLaser,
+}: RoomPanelProps) {
   return (
     <section className="lb-panel lb-section lb-room lb-scroll">
       <h2 className="lb-eyebrow">Sala</h2>
@@ -123,6 +166,15 @@ export function RoomPanel({ room, players, tokens, tunnel, onStart, onStop, onSt
             <strong className="lb-room__code">{room.code}</strong>
           </div>
 
+          {onToggleLaser !== undefined && (
+            <div className="lb-field">
+              <button type="button" className={laserOn ? 'lb-btn lb-btn--primary lb-btn--block' : 'lb-btn lb-btn--block'} aria-pressed={laserOn} onClick={onToggleLaser}>
+                Laser
+              </button>
+              <p className="lb-label">{LASER_HINT}</p>
+            </div>
+          )}
+
           <TunnelSection tunnel={tunnel} onStartTunnel={onStartTunnel} onStopTunnel={onStopTunnel} />
 
           <div className="lb-field">
@@ -140,6 +192,7 @@ export function RoomPanel({ room, players, tokens, tunnel, onStart, onStop, onSt
           {players.length === 0 && <p className="lb-label">Nenhum jogador ainda.</p>}
           {players.map((player) => {
             const selectId = `lb-room-assign-${player.playerId}`
+            const radiusId = `lb-room-vision-${player.playerId}`
             const clientId = player.clientId
             return (
               <div key={player.playerId} className="lb-field">
@@ -164,11 +217,34 @@ export function RoomPanel({ room, players, tokens, tunnel, onStart, onStop, onSt
                 >
                   <option value="">Escolher…</option>
                   {assignableTokens(tokens, player).map((token) => (
-                    <option key={token.id} value={token.id}>
-                      {token.name}
+                    <option key={token.id} value={token.id} style={{ color: tokenDotColor(token.id) }}>
+                      {assignOptionLabel(token)}
                     </option>
                   ))}
                 </select>
+                <div className="lb-section__row">
+                  <label className="lb-label" htmlFor={radiusId}>
+                    Raio de visão
+                  </label>
+                  <span className="lb-num">{player.visionRadius} px</span>
+                </div>
+                <input
+                  id={radiusId}
+                  className="lb-range"
+                  type="range"
+                  min={VISION_RADIUS_MIN}
+                  max={VISION_RADIUS_MAX}
+                  step={VISION_RADIUS_STEP}
+                  value={player.visionRadius}
+                  onChange={(event) => onVisionRadiusChange(player.playerId, Number(event.target.value))}
+                />
+                <button type="button" className="lb-btn lb-btn--ghost" onClick={() => onRevealPlan(player.playerId)}>
+                  Revelar planta
+                </button>
+                <button type="button" className="lb-btn lb-btn--ghost" onClick={() => onHidePlan(player.playerId)}>
+                  Esconder de novo
+                </button>
+                <p className="lb-label">{PLAN_HINT}</p>
                 {clientId !== null && (
                   <button type="button" className="lb-btn lb-btn--danger" onClick={() => onKick(clientId)}>
                     Expulsar

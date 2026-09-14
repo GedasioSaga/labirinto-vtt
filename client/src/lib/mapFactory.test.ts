@@ -20,6 +20,8 @@ import {
   removeToken,
   setTokenPosition,
   setTokenImage,
+  renameToken,
+  nextTokenName,
   addProp,
   removeProp,
   setPropPosition,
@@ -90,6 +92,7 @@ describe('createEmptyMap', () => {
       floorStyle: { fillColor: '#006b00', strokeColor: null, strokeWidth: 1 },
       lines: [],
       markers: [],
+      concealZones: [],
       frame: null,
       fog: { mode: 'none', revealed: [] },
       hiddenLayers: [],
@@ -804,6 +807,35 @@ describe('setTokenImage', () => {
     const next = setTokenImage(map, 't1', null)
 
     expect(next.tokens[0].image).toBeNull()
+  })
+})
+
+describe('renameToken / nextTokenName', () => {
+  it('renameToken troca só o nome do token alvo', () => {
+    const map = addToken(addToken(createEmptyMap('m', 'x', 10, 10, 64), token), { ...token, id: 't2' })
+
+    const next = renameToken(map, 't1', 'Ana')
+
+    expect(next.tokens.find((t) => t.id === 't1')).toEqual({ ...token, name: 'Ana' })
+    expect(next.tokens.find((t) => t.id === 't2')?.name).toBe('Herói')
+  })
+
+  it('renameToken com id inexistente devolve o mapa pela mesma referência', () => {
+    const map = addToken(createEmptyMap('m', 'x', 10, 10, 64), token)
+    expect(renameToken(map, 'nao-existe', 'Ana')).toBe(map)
+  })
+
+  it('nextTokenName: sem tokens sugere "Token 1"; depois, o menor número livre', () => {
+    expect(nextTokenName([])).toBe('Token 1')
+    expect(nextTokenName([{ name: 'Token 1' }, { name: 'Token 2' }])).toBe('Token 3')
+    expect(nextTokenName([{ name: 'Token 2' }])).toBe('Token 1')
+  })
+
+  it('nextTokenName ignora nomes fora do padrão e nunca repete um nome já usado', () => {
+    const tokens = [{ name: 'Token' }, { name: 'Herói' }, { name: 'Token 1' }, { name: 'Token 1b' }]
+    const suggestion = nextTokenName(tokens)
+    expect(suggestion).toBe('Token 2')
+    expect(tokens.map((t) => t.name)).not.toContain(suggestion)
   })
 })
 

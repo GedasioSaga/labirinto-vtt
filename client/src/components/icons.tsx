@@ -122,6 +122,17 @@ export function RegionIcon(props: IconProps) {
  * (fiadas de tijolo) e de `RegionIcon` (polígono irregular): aqui é retângulo
  * fechado, com um gap na aresta de baixo indicando a porta.
  */
+/** Zona oculta: retângulo tracejado com um olho riscado no meio. */
+export function ConcealZoneIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 4h3M10.5 4h3M17 4h3v3M20 10.5v3M20 17v3h-3M13.5 20h-3M7 20H4v-3M4 13.5v-3M4 7V4" />
+      <path d="M7.5 12s1.8-3 4.5-3 4.5 3 4.5 3-1.8 3-4.5 3-4.5-3-4.5-3z" />
+      <path d="M8 16l8-8" />
+    </Icon>
+  )
+}
+
 export function RoomIcon(props: IconProps) {
   return (
     <Icon {...props}>

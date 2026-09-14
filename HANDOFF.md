@@ -188,6 +188,28 @@ com tinta e inspeção lado a lado sem diferença visível. Gate normal verde: `
 exit 0, `npm run test` 0 falhas, `cd client && npx playwright test` 0 falhas.
 
 ## Evidência
+- Laser só com botão esquerdo (pedido do usuário após testar): L/botão Laser só ARMAM (cursor
+  crosshair, nada é enviado); rastro só com botão esquerdo pressionado, sem acionar a ferramenta;
+  soltar/blur/desarmar envia um único off. Arquivos: `pixi/laserGesture.ts` (novo),
+  `stores/laserStore.ts` (drawing), `pixi/PixiCanvas.tsx`, `App.tsx`, `RoomPanel.tsx`. Testes:
+  `laserStore.test.ts` (3), `hostBridge.test.ts` (+3), `e2e/task-master-laser.spec.ts` (3,
+  reescrito); mordida provada (emitir armado sem botão -> 2 falhas vitest e 3/3 e2e). tsc 0/0;
+  vitest 103 arquivos / 1783; playwright 133 passed.
+- Fase A + B (workflow `wf_8528625b-063`, retomado após queda de rede, 11 agentes só Opus):
+  portão A aprovado na 2ª rodada (tsc 0; vitest 98 arquivos / 1719; playwright 127 passed);
+  portão B aprovado na 1ª (vitest 102 / 1766; playwright 131 passed; mutações m1/m2/m3 em cópia
+  isolada pegas pelos testes de segurança). Revisor de segurança: 3 MÉDIOS (sombra da visão revela
+  sala secreta/zona; "Revelar planta" e marcadores/linhas/escadas vazam sala secreta; chão sem
+  filtro) e 3 BAIXOS (nome da sala na borda da zona, parede/traço só pelo ponto médio, nome repetido
+  no sinal) — CORRIGIDOS por 1 agente `operario` (opus): visão enviada sem paredes de sala
+  secreta/zona ativa (a visão com todas as paredes ainda decide o que sai), `playerBlockedRings`
+  (zonas ativas + salas secretas) em `markRings`/`markAll`, marcadores/linhas/escadas e chão
+  filtrados, nome zerado em sala majoritariamente na zona, parede/traço testados nas duas pontas,
+  sufixo " (2)" para nome repetido; 10 testes novos que falhavam antes; vitest 1776, playwright
+  131/131. Sobra corrigida no main thread: sinal dentro de sala secreta não é repassado
+  (`hostSession.ts` handleSignal usa `playerBlockedRings`; teste "sala secreta não é repassado"
+  falhou com a regra antiga e passa com a nova); tsc client/e2e 0; vitest 102 arquivos / 1777. Suíte Playwright tem intermitência sob
+  carga ("Resulting promise was garbage collected", ERR_NETWORK_CHANGED) sem relação com o código.
 - Tela do jogador parte 1 (workflow `wf_f34be423-e3d`, 8 agentes, só Opus, portão aprovado na 3ª
   rodada): tsc client e e2e exit 0; vitest 96 arquivos / 1668 passed; playwright 118 passed (inclui
   `task-player-map.spec.ts`). Screenshots `scratchpad/jogador-parte1/antes-sala-a.png`,
@@ -219,7 +241,20 @@ exit 0, `npm run test` 0 falhas, `cd client && npx playwright test` 0 falhas.
   25/25, `net_server` 11/11. Teste real de liga/desliga no exe mostrou que durante "Conectando" a UI
   não tinha como cancelar (botão desabilitado, sem "Encerrar"): adicionado botão "Cancelar" em
   `RoomPanel.tsx` (+3 testes). E2E real do cancelamento pendente para depois da parte 1 do jogador.
-- Fila de pedidos do usuário: (1) tela do jogador parte 1 — EM ANDAMENTO (workflow sequencial só
+- Commit `b882a8f` (túnel + aba + tela do jogador parte 1) feito a pedido do usuário; app aberto para
+  ele testar. Depois do teste: Fase A (paredes em qualquer zoom, nome do token, aba "Jogo", nome da
+  Sala fácil + arrastar, visibilidade para jogadores e zona oculta) e Fase B (ping, laser, controles
+  por jogador) EM ANDAMENTO no workflow sequencial `wf_8528625b-063` (só Opus). Plano em
+  `~/.claude/plans/valiant-enchanting-patterson.md`.
+- PRÓXIMO depois do workflow Fase A/B — remodelar o painel de propriedades (decisões do usuário
+  14/09/2026): Camadas vira lista compacta (nome + contagem + olho + cadeado, seção recolhível);
+  botões "Chão / Linhas e portas / Recriar minimapa a partir da imagem de fundo" saem do painel e
+  viram menu "Converter imagem em mapa" no botão de imagem de fundo da barra de baixo (só com imagem);
+  Modo de medição, escala, grade e link de cenário vão para janela "Configurações do mapa"
+  (engrenagem no topo do painel), medição como lista suspensa sem texto cortado; painel mostra
+  primeiro o item selecionado/ferramenta ativa, resto em seções recolhíveis que lembram o estado,
+  revisão de espaços, textos cortados e controles que não funcionam. Precisa de plan mode antes.
+- Fila de pedidos do usuário (histórico): (1) tela do jogador parte 1 — FEITO (workflow sequencial só
   Opus, run `wf_f34be423-e3d`); (2) parte 2: laser só do mestre + controles do mestre por jogador
   (revelar só a planta) + PING do jogador (botão "Sinalizar" + toque; mestre vê sempre com nome,
   ondas ~3 s, som e seta na borda; outros jogadores só se o lugar já foi explorado por eles); (3) tokens: renomear, imagem que persiste, biblioteca de imagens, jogador vê

@@ -1,6 +1,9 @@
 import type { MapData, RegionPoint } from '../types/map'
 import { decodeExploration, type Exploration } from '../lib/exploration'
-import type { JoinMessage, PlayerMessage } from '../net/protocol'
+import { NAME_MAX_LENGTH, type JoinMessage, type PlayerMessage } from '../net/protocol'
+import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
+import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
+import { parseLaserMessage } from '../net/protocol'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -18,6 +21,12 @@ export interface PlayerState {
   explored?: Exploration
   /** Ids dos tokens do próprio jogador presentes no mapa recebido. */
   ownTokens?: string[]
+  /** Polígonos das zonas ocultas ativas: o jogador pinta preto por cima. */
+  concealed?: RegionPoint[][]
+  /** Sinais recebidos ainda vivos (somem sozinhos depois de `SIGNAL_TTL_MS`). */
+  signals?: SignalMark[]
+  /** Rastro do laser do mestre; some sozinho `LASER_TRAIL_MS` depois da última mensagem com o laser desligado. */
+  laser?: LaserTrail
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -54,6 +63,8 @@ export interface PlayerConnection {
   subscribe(listener: () => void): () => void
   /** Move otimista: aplica local e envia. `false` se o token não existe ou o socket não está aberto. */
   requestMove(tokenId: string, x: number, y: number): boolean
+  /** Sinal no ponto (px de mundo). `false` se não está jogando ou o socket não está aberto. */
+  sendSignal(x: number, y: number): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -154,6 +165,51 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   let socket: SocketLike | null = null
   let pingTimer: ReturnType<typeof setInterval> | null = null
   let nextReqId = 1
+  const signalTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  let nextSignalId = 1
+
+  function clearSignalTimers(): void {
+    for (const timer of signalTimers.values()) clearTimeout(timer)
+    signalTimers.clear()
+  }
+
+  function addSignal(x: number, y: number, from: string, color: string): void {
+    const id = `s${nextSignalId++}`
+    const current = state.signals ?? []
+    // Acima do teto sai o mais antigo; o timer dele vira no-op ao não achar o id.
+    const kept = current.length >= MAX_ACTIVE_SIGNALS ? current.slice(current.length - MAX_ACTIVE_SIGNALS + 1) : current
+    setState({ signals: [...kept, { id, x, y, name: from, color, createdAt: Date.now() }] })
+    signalTimers.set(
+      id,
+      setTimeout(() => {
+        signalTimers.delete(id)
+        setState({ signals: (state.signals ?? []).filter((s) => s.id !== id) })
+      }, SIGNAL_TTL_MS),
+    )
+  }
+
+  let laserTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearLaserTimer(): void {
+    if (laserTimer !== null) clearTimeout(laserTimer)
+    laserTimer = null
+  }
+
+  /**
+   * Atualiza o rastro e agenda a limpeza. Ligado, a limpeza guarda só a ponta
+   * (o mestre pode estar parado apontando); desligado, some tudo.
+   */
+  function updateLaser(next: LaserTrail): void {
+    setState({ laser: next })
+    clearLaserTimer()
+    laserTimer = setTimeout(() => {
+      laserTimer = null
+      const current = state.laser
+      if (current === undefined) return
+      const last = current.points.at(-1)
+      setState({ laser: current.on && last !== undefined ? { points: [last], on: true } : undefined })
+    }, LASER_TRAIL_MS)
+  }
 
   function setState(patch: Partial<PlayerState>): void {
     state = { ...state, ...patch }
@@ -180,7 +236,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return null
   }
 
-  function applySnapshot(rev: number, map: MapData, vision: RegionPoint[][], explored: Exploration | undefined, ownTokens: string[]): void {
+  function applySnapshot(
+    rev: number,
+    map: MapData,
+    vision: RegionPoint[][],
+    explored: Exploration | undefined,
+    ownTokens: string[],
+    concealed: RegionPoint[][],
+  ): void {
     if (rev <= state.rev) return
     let next = map
     // Reaplica, em ordem, só os movimentos ainda não confirmados pelo mestre.
@@ -194,7 +257,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       move.prevY = token.y
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, error: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined })
   }
 
   function handleRejected(reqId: string): void {
@@ -240,8 +303,35 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting' })
         return
       case 'lobby.waiting':
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined })
+        clearSignalTimers()
+        clearLaserTimer()
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined })
         return
+      case 'laser': {
+        // Laser sem mapa na tela não tem onde aparecer.
+        if (state.status !== 'playing') return
+        const laser = parseLaserMessage(data)
+        if (laser === null) return
+        const now = Date.now()
+        const points = state.laser?.points ?? []
+        if ('off' in laser) {
+          // Não apaga na hora: o rastro que já estava na tela termina de sumir.
+          if (state.laser !== undefined) updateLaser({ points: pruneLaserTrail(points, now), on: false })
+          return
+        }
+        updateLaser({ points: appendLaserPoints(points, laser.points, now, LASER_SEND_INTERVAL_MS), on: true })
+        return
+      }
+      case 'signal': {
+        // Sinal sem mapa na tela não tem onde aparecer.
+        if (state.status !== 'playing') return
+        const { x, y, from, color } = data
+        if (!isFiniteNumber(x) || !isFiniteNumber(y)) return
+        if (typeof from !== 'string' || from.length > NAME_MAX_LENGTH) return
+        if (typeof color !== 'string' || !SIGNAL_COLOR_PATTERN.test(color)) return
+        addSignal(x, y, from, color)
+        return
+      }
       case 'snapshot':
       case 'delta': {
         if (!isFiniteNumber(data.rev) || !isMapShape(data.map) || !isVision(data.vision)) return
@@ -254,7 +344,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           explored = decoded
         }
         if (data.ownTokens !== undefined && !isStringList(data.ownTokens)) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [])
+        if (data.concealed !== undefined && !isVision(data.concealed)) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [])
         return
       }
       case 'token.move.accepted':
@@ -317,6 +408,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   function detach(): void {
     stopPing()
+    clearSignalTimers()
+    clearLaserTimer()
     const current = socket
     socket = null
     current?.close()
@@ -340,9 +433,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       setState({ map: withTokenAt(map, tokenId, x, y) })
       return true
     },
+    sendSignal(x, y) {
+      if (state.status !== 'playing' || !Number.isFinite(x) || !Number.isFinite(y)) return false
+      return send({ type: 'signal', x: Math.round(x), y: Math.round(y) })
+    },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined })
       open()
     },
     close: detach,
