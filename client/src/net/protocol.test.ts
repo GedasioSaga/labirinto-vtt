@@ -1,0 +1,77 @@
+import { describe, expect, it } from 'vitest'
+import { PROTOCOL_VERSION, parsePlayerMessage } from './protocol'
+
+describe('parsePlayerMessage', () => {
+  it('expõe a versão 1 do protocolo', () => {
+    expect(PROTOCOL_VERSION).toBe(1)
+  })
+
+  it('aceita join válido, com nome aparado e resume opcional', () => {
+    expect(parsePlayerMessage({ type: 'join', code: 'AB12CD', name: '  Ana  ' })).toEqual({
+      type: 'join',
+      code: 'AB12CD',
+      name: 'Ana',
+    })
+    expect(parsePlayerMessage({ type: 'join', code: 'ZZZZZZ', name: 'Bia', resume: 'tok' })).toEqual({
+      type: 'join',
+      code: 'ZZZZZZ',
+      name: 'Bia',
+      resume: 'tok',
+    })
+  })
+
+  it('aceita token.move e ping válidos, inclusive como string JSON', () => {
+    expect(parsePlayerMessage({ type: 'token.move', reqId: 'r1', tokenId: 't1', x: 10, y: -2.5 })).toEqual({
+      type: 'token.move',
+      reqId: 'r1',
+      tokenId: 't1',
+      x: 10,
+      y: -2.5,
+    })
+    expect(parsePlayerMessage('{"type":"ping"}')).toEqual({ type: 'ping' })
+  })
+
+  it('descarta campos desconhecidos', () => {
+    expect(parsePlayerMessage({ type: 'ping', extra: 1 })).toEqual({ type: 'ping' })
+  })
+
+  it.each([
+    ['null', null],
+    ['número', 42],
+    ['array', [{ type: 'ping' }]],
+    ['objeto sem type', { code: 'AB12CD', name: 'Ana' }],
+    ['type desconhecido', { type: 'welcome' }],
+    ['JSON inválido', '{type: ping'],
+    ['join sem code', { type: 'join', name: 'Ana' }],
+    ['join code minúsculo', { type: 'join', code: 'ab12cd', name: 'Ana' }],
+    ['join code curto', { type: 'join', code: 'AB12C', name: 'Ana' }],
+    ['join code longo', { type: 'join', code: 'AB12CDE', name: 'Ana' }],
+    ['join code número', { type: 'join', code: 123456, name: 'Ana' }],
+    ['join name vazio', { type: 'join', code: 'AB12CD', name: '   ' }],
+    ['join name longo', { type: 'join', code: 'AB12CD', name: 'x'.repeat(33) }],
+    ['join name não string', { type: 'join', code: 'AB12CD', name: 7 }],
+    ['join resume não string', { type: 'join', code: 'AB12CD', name: 'Ana', resume: 1 }],
+    ['move x NaN', { type: 'token.move', reqId: 'r', tokenId: 't', x: Number.NaN, y: 0 }],
+    ['move y Infinity', { type: 'token.move', reqId: 'r', tokenId: 't', x: 0, y: Number.POSITIVE_INFINITY }],
+    ['move x string', { type: 'token.move', reqId: 'r', tokenId: 't', x: '1', y: 0 }],
+    ['move sem tokenId', { type: 'token.move', reqId: 'r', x: 0, y: 0 }],
+    ['move reqId longo', { type: 'token.move', reqId: 'r'.repeat(65), tokenId: 't', x: 0, y: 0 }],
+    ['move reqId vazio', { type: 'token.move', reqId: '', tokenId: 't', x: 0, y: 0 }],
+  ])('rejeita %s', (_label, raw) => {
+    expect(parsePlayerMessage(raw)).toBeNull()
+  })
+
+  it('mede o nome em unidades UTF-16: 16 emojis cabem, 17 não', () => {
+    expect(parsePlayerMessage({ type: 'join', code: 'AB12CD', name: '😀'.repeat(16) })).not.toBeNull()
+    expect(parsePlayerMessage({ type: 'join', code: 'AB12CD', name: '😀'.repeat(17) })).toBeNull()
+  })
+
+  it('token.move com coordenada finita gigante passa no parser (quem recusa é a validação do mapa)', () => {
+    expect(parsePlayerMessage({ type: 'token.move', reqId: 'r', tokenId: 't', x: 1.7e308, y: -1e20 })).not.toBeNull()
+  })
+
+  it('aceita name com exatamente 32 chars e reqId com 64', () => {
+    expect(parsePlayerMessage({ type: 'join', code: 'AB12CD', name: 'x'.repeat(32) })).not.toBeNull()
+    expect(parsePlayerMessage({ type: 'token.move', reqId: 'r'.repeat(64), tokenId: 't', x: 0, y: 0 })).not.toBeNull()
+  })
+})

@@ -3,6 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, FreehandTexture,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import type { DrawingTool, Selection } from '../types/tools'
@@ -10,6 +11,7 @@ import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
 import type { RoomCorner } from '../lib/roomOps'
 import type { Corner, ResizeModifiers } from '../lib/objectTransform'
 import type { StairSizePreset } from '../lib/stairs'
+import { FLOOR_LAYER, clampFloorPolygonSides, type FloorShapeKind } from '../lib/floorTool'
 import * as mapFactory from '../lib/mapFactory'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
@@ -67,6 +69,8 @@ function layerForSelection(map: MapData, selection: Selection): LayerId | null {
       const drawing = map.drawings.find((d) => d.id === selection.id)
       return drawing ? drawingLayer(drawing) : null
     }
+    case 'floor':
+      return map.floor.some((p) => p.id === selection.id) ? FLOOR_LAYER : null
     default:
       return null
   }
@@ -114,6 +118,10 @@ function cloneSelectedEntity(map: MapData, selection: Selection, offset: Offset)
       const entity = map.drawings.find((d) => d.id === selection.id)
       return entity ? cloneEntity({ kind: 'drawing', entity }, offset) : null
     }
+    case 'floor': {
+      const entity = map.floor.find((p) => p.id === selection.id)
+      return entity ? cloneEntity({ kind: 'floor', entity }, offset) : null
+    }
   }
 }
 
@@ -133,6 +141,7 @@ function addClonedEntity(map: MapData, cloned: CloneableEntity): MapData {
     case 'prop': return mapFactory.addProp(map, cloned.entity)
     case 'stair': return mapFactory.addStair(map, cloned.entity)
     case 'drawing': return mapFactory.addDrawing(map, cloned.entity)
+    case 'floor': return mapFactory.addFloorPiece(map, cloned.entity)
   }
 }
 
@@ -227,6 +236,15 @@ interface MapStoreState {
    *  (PixiCanvas.tsx) remove a entidade inteira. */
   eraseMode: 'objeto' | 'parte'
   setEraseMode: (mode: 'objeto' | 'parte') => void
+  /** Chão por peças — forma, operação e lados da PRÓXIMA peça que a
+   *  ferramenta Chão cria. Preferência de sessão sem histórico, mesma classe
+   *  de `polygonSides`/`eraseMode`. */
+  floorShapeKind: FloorShapeKind
+  setFloorShapeKind: (kind: FloorShapeKind) => void
+  floorOp: FloorPiece['op']
+  setFloorOp: (op: FloorPiece['op']) => void
+  floorPolygonSides: number
+  setFloorPolygonSides: (sides: number) => void
   /** Recorta um Drawing freehand/curve/line pela parte dentro do círculo
    *  (center, radius) — COM histórico, 0 a N `Drawing` novos (ver
    *  `eraseFromDrawing`, lib/eraseGeometry.ts). Sem efeito (nenhuma entrada
@@ -298,6 +316,22 @@ interface MapStoreState {
    * padrão de updateCurvePointLive/moveCurveLive abaixo.
    */
   updateLightRadiusLive: (id: string, radius: number) => void
+  addFloorPiece: (piece: FloorPiece) => void
+  /** Várias peças numa entrada de histórico só ("Chão a partir da imagem de fundo"). */
+  addFloorPieces: (pieces: FloorPiece[]) => void
+  updateFloorPiece: (id: string, patch: Partial<Omit<FloorPiece, 'id'>>) => void
+  /** Sem histórico — arrasto chama isto a cada pointermove e `commitDragHistory` no fim. */
+  updateFloorPieceLive: (id: string, patch: Partial<Omit<FloorPiece, 'id'>>) => void
+  removeFloorPiece: (id: string) => void
+  reorderFloorPiece: (id: string, delta: number) => void
+  moveFloorPiece: (id: string, dx: number, dy: number) => void
+  moveFloorPieceLive: (id: string, dx: number, dy: number) => void
+  setFloorStyle: (patch: Partial<FloorStyle>) => void
+  /** Traços e marcadores numa entrada de histórico só. */
+  addMapDetails: (lines: MapLine[], markers: MapMarker[]) => void
+  setMapFrame: (frame: MapFrame | null) => void
+  /** Peças, linhas, marcadores e estilo da recriação de minimapa numa entrada de histórico só. */
+  applyMinimapTrace: (pieces: FloorPiece[], lines: MapLine[], markers: MapMarker[], style: Partial<FloorStyle>) => void
   addRegion: (region: Region) => void
   removeRegion: (id: string) => void
   addRoom: (region: Region, walls: Wall[]) => void
@@ -629,6 +663,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     drawTexture: 'pen',
     stairSizePreset: 'medium',
     eraseMode: 'objeto',
+    floorShapeKind: 'rect',
+    floorOp: 'add',
+    floorPolygonSides: 6,
     regionFillColor: '#3a7ad0',
     regionFillPattern: 'solid',
     regionFillEnabled: true,
@@ -654,6 +691,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
             case 'stair': next = mapFactory.removeStair(next, item.id); break
             case 'prop': next = mapFactory.removeProp(next, item.id); break
             case 'drawing': next = mapFactory.removeDrawing(next, item.id); break
+            case 'floor': next = mapFactory.removeFloorPiece(next, item.id); break
           }
         }
         return next
@@ -706,6 +744,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setStairSizePreset: (preset) => set({ stairSizePreset: preset }),
     setStairStepWidthForStair: (id, stepWidth) => withHistory((map) => mapFactory.setStairStepWidth(map, id, stepWidth)),
     setEraseMode: (mode) => set({ eraseMode: mode }),
+    setFloorShapeKind: (kind) => set({ floorShapeKind: kind }),
+    setFloorOp: (op) => set({ floorOp: op }),
+    setFloorPolygonSides: (sides) => set({ floorPolygonSides: clampFloorPolygonSides(sides) }),
     erasePartOfDrawing: (drawingId, center, radius) => {
       const { map } = get()
       const drawing = map.drawings.find((d) => d.id === drawingId)
@@ -731,6 +772,26 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
         lights: state.map.lights.map((l) => (l.id === id ? { ...l, radius } : l)),
       },
     })),
+    addFloorPiece: (piece) => withHistory((map) => mapFactory.addFloorPiece(map, piece)),
+    addFloorPieces: (pieces) => {
+      // Lista vazia não gasta entrada de undo que não desfaz nada.
+      if (pieces.length === 0) return
+      withHistory((map) => mapFactory.addFloorPieces(map, pieces))
+    },
+    updateFloorPiece: (id, patch) => withHistory((map) => mapFactory.updateFloorPiece(map, id, patch)),
+    updateFloorPieceLive: (id, patch) => set((state) => ({ map: mapFactory.updateFloorPiece(state.map, id, patch) })),
+    removeFloorPiece: (id) => withHistory((map) => mapFactory.removeFloorPiece(map, id)),
+    reorderFloorPiece: (id, delta) => withHistory((map) => mapFactory.reorderFloorPiece(map, id, delta)),
+    moveFloorPiece: (id, dx, dy) => withHistory((map) => mapFactory.moveFloorPiece(map, id, dx, dy)),
+    moveFloorPieceLive: (id, dx, dy) => set((state) => ({ map: mapFactory.moveFloorPiece(state.map, id, dx, dy) })),
+    setFloorStyle: (patch) => withHistory((map) => mapFactory.setFloorStyle(map, patch)),
+    addMapDetails: (lines, markers) => {
+      if (lines.length === 0 && markers.length === 0) return
+      withHistory((map) => mapFactory.addMapDetails(map, lines, markers))
+    },
+    setMapFrame: (frame) => withHistory((map) => mapFactory.setMapFrame(map, frame)),
+    applyMinimapTrace: (pieces, lines, markers, style) =>
+      withHistory((map) => mapFactory.applyMinimapTrace(map, pieces, lines, markers, style)),
     addRegion: (region) => withHistory((map) => mapFactory.addRegion(map, region)),
     removeRegion: (id) => withHistory((map) => mapFactory.removeRegion(map, id)),
     addRoom: (region, walls) => withHistory((map) => mapFactory.addRoom(map, region, walls)),

@@ -1,5 +1,5 @@
 import type { DrawingTool } from '../types/tools'
-import type { Drawing, Light, Prop, Region, Stair, Token, Wall } from '../types/map'
+import type { Drawing, FloorPiece, Light, Prop, Region, Stair, Token, Wall } from '../types/map'
 import { LabyrinthMark } from './icons'
 import { DrawingStyleControls, type DrawingStyleControlsProps } from './DrawingStyleControls'
 import { GridControls, type GridControlsProps } from './GridControls'
@@ -25,6 +25,8 @@ import { LineCapControls, type LineCapControlsProps } from './LineCapControls'
 import { LineShapeControls, type LineShapeControlsProps } from './LineShapeControls'
 import { FillControls, type FillControlsProps } from './FillControls'
 import { AreaSelectionControls } from './AreaSelectionControls'
+import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceControls'
+import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleControls'
 import { roomDimensions } from '../lib/roomOps'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import type { PropertyGroupId } from '../lib/toolProperties'
@@ -84,6 +86,11 @@ interface PropertiesPanelProps {
   selectedStair: Stair | null
   stairControls: Omit<StairControlsProps, 'direction'>
   polygonSides: PolygonSidesControlsProps
+  /** Chão por peças — peça selecionada (`null` = nenhuma) e seus controles. */
+  selectedFloorPiece: FloorPiece | null
+  floorPieceControls: Omit<FloorPieceControlsProps, 'piece'>
+  /** Chão por peças — estilo do chão do mapa e "Chão a partir da imagem de fundo". */
+  floorStyle: FloorStyleControlsProps
 }
 
 /**
@@ -127,6 +134,9 @@ export function PropertiesPanel({
   selectedStair,
   stairControls,
   polygonSides,
+  selectedFloorPiece,
+  floorPieceControls,
+  floorStyle,
 }: PropertiesPanelProps) {
   return (
     <div className="lb-panel lb-inspector">
@@ -172,6 +182,14 @@ export function PropertiesPanel({
             />
           </ToolPropertiesSection>
         )}
+        {selectedFloorPiece && (
+          <ToolPropertiesSection group="floorPiece" groups={groups}>
+            <FloorPieceControls piece={selectedFloorPiece} {...floorPieceControls} />
+          </ToolPropertiesSection>
+        )}
+        <ToolPropertiesSection group="floorStyle" groups={groups}>
+          <FloorStyleControls {...floorStyle} />
+        </ToolPropertiesSection>
         <ToolPropertiesSection group="grid" groups={groups}>
           <GridControls {...grid} />
         </ToolPropertiesSection>

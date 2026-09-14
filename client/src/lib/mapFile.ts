@@ -1,4 +1,7 @@
-import type { MapData } from '../types/map'
+import type { FloorStyle, MapData } from '../types/map'
+
+/** Verde do minimapa dos mapas de referência (`Objetivo/*.png`, cor dominante #006B00). */
+export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#006b00', strokeColor: null, strokeWidth: 1 }
 
 export function serializeMap(map: MapData): string {
   return JSON.stringify(map, null, 2)
@@ -50,6 +53,11 @@ export function deserializeMap(json: string): MapData {
     drawings: (parsed.drawings ?? []).map((d) =>
       d.kind === 'circle' && d.fillAlpha === undefined ? { ...d, fillAlpha: d.filled ? 0.5 : 0 } : d,
     ),
+    floor: parsed.floor ?? [],
+    floorStyle: parsed.floorStyle ?? { ...DEFAULT_FLOOR_STYLE },
+    lines: parsed.lines ?? [],
+    markers: parsed.markers ?? [],
+    frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
     hiddenLayers: parsed.hiddenLayers ?? [],
     // NOVO (Onda 4, Frente D) — mesmo padrão de hiddenLayers acima: mapa

@@ -159,6 +159,20 @@ export function RegularPolygonIcon(props: IconProps) {
   )
 }
 
+/**
+ * Chão por peças — contorno irregular com um furo redondo: as duas operações
+ * da ferramenta (somar forma, subtrair buraco) num ícone só. Distingue de
+ * `RegionIcon` (contorno sem furo) e `DungeonMapIcon` (quadrado de mapa).
+ */
+export function FloorIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4.5 9L9 4.5h10.5v10L15 19.5H4.5z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </Icon>
+  )
+}
+
 /** Miniatura de tabuleiro — distingue "peça" de "imagem de fundo". */
 export function PropIcon(props: IconProps) {
   return (

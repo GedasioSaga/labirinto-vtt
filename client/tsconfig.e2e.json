@@ -2,8 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "paths": {
-      "/src/*": ["./src/*"]
+      "/src/*": ["./src/*"],
+      "/recreate/*": ["./recreate/*"]
     }
   },
-  "include": ["e2e", "playwright.config.ts"]
+  "include": ["e2e", "recreate", "playwright.config.ts", "playwright.recreate.config.ts"]
 }

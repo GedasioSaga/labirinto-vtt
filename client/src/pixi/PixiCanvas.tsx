@@ -15,7 +15,7 @@ import { resolveShortcut } from '../lib/keymap'
 import { resolveHoverHit, type HoverHit, type HoverTarget } from '../lib/hoverHitTest'
 import { drawHover } from './drawHover'
 // Onda 2, item 16 (Frente C) — número ao vivo durante o arrasto de forma.
-import { dimensionLabel } from '../lib/dimensionText'
+import { dimensionLabel, type DimensionDraft } from '../lib/dimensionText'
 import { createDimensionLabelRenderer } from './drawDimensionLabel'
 // Onda 2, item 14 (Frente E) — Shift trava proporção em rect/room/ellipse.
 import { constrainDraft } from '../lib/shapeConstraint'
@@ -33,6 +33,20 @@ import { drawDoors } from './drawDoors'
 import { drawStairs } from './drawStairs'
 import { drawLights } from './drawLights'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
+import { createFloorRenderer, drawFloorDraft } from './drawFloor'
+import { drawMapLines, drawMapMarkers } from './drawMapLines'
+import { drawMapFrame } from './drawMapFrame'
+import { layoutMapFrame } from '../lib/mapFrame'
+import { hexToRgb, rasterizeMinimap } from '../lib/minimapRaster'
+import { compileFloor } from '../lib/floorSdf'
+
+/** Subamostras por eixo do render fiel: 4×4 é o que reproduz o antisserrilhado dos mapas de referência. */
+const MINIMAP_RASTER_SAMPLES = 4
+import type { FloorPiece, MapFrame } from '../types/map'
+import { buildCorridorShape, buildFloorPiece, buildFloorShapeFromDrag, clampFloorPolygonSides, findFloorPieceAt } from '../lib/floorTool'
+
+/** Referência estável: camada oculta não força recalcular o contorno a cada redraw. */
+const EMPTY_FLOOR: FloorPiece[] = []
 // Onda 3, item 21 (Frente E) — moldura do mapa (contorno + sombra fora dela).
 import { drawMapBounds } from './drawMapBounds'
 import { createTokensRenderer } from './tokensRenderer'
@@ -84,7 +98,7 @@ import { createAngleIndicatorRenderer } from './drawAngleIndicator'
 import { subscribeToPropsRedraw } from '../stores/propsSubscription'
 import { pickImageFile, importPropImage } from '../lib/imageImport'
 import { mapDirFor } from '../lib/mapFileIO'
-import { findSelectableAt, findCurveControlPointAt, findWallAt, findNearestExistingVertex } from '../lib/selectionHitTest'
+import { findSelectableAt, findCurveControlPointAt, findWallAt, findNearestExistingVertex, type SelectableHit } from '../lib/selectionHitTest'
 import type { SelectionKind } from '../types/tools'
 import { drawDrawings } from './drawDrawings'
 import { drawEditHandles, findLightRadiusHandleAt, circleDrawingRadiusHandle } from './drawEditHandles'
@@ -132,6 +146,10 @@ const ERASE_PART_RADIUS_RATIO = 0.25
 // segments fixo alto o bastante pra ler como círculo suave — não configurável
 // pelo usuário (ver PolygonSidesControls, que só aparece pra 'roomPolygon').
 const ROOM_CIRCLE_SIDES = 24
+
+// Largura padrão do corredor de chão, como fração do grid: meia célula lê
+// como passagem sem engolir a sala ao lado, e escala com grids diferentes.
+const FLOOR_CORRIDOR_WIDTH_RATIO = 0.5
 
 // Abaixo disso (em unidades de mundo) o pointerup da ferramenta "Luz" trata
 // como clique simples (sem arrasto de verdade) e usa o raio padrao do grid,
@@ -241,6 +259,12 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const mapBoundsGraphics = new Graphics()
       const gridGraphics = new Graphics()
       const gridAlignOverlayGraphics = new Graphics()
+      const floorGraphics = new Graphics()
+      // Traços e portas de minimapa (MapData.lines/markers) por cima do chão; moldura atrás de tudo do mapa.
+      const mapLinesGraphics = new Graphics()
+      const mapFrameContainer = new Container()
+      // Render fiel (FloorStyle.renderMode === 'raster'): conteúdo do mapa rasterizado por software.
+      const mapRasterSprite = new Sprite(Texture.EMPTY)
       const regionsContainer = new Container()
       const wallsGraphics = new Graphics()
       const doorsGraphics = new Graphics()
@@ -251,6 +275,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const lightsGraphics = new Graphics()
       const tokensContainer = new Container()
       const handlesGraphics = new Graphics()
+      // Destaque da peça de chão selecionada. Graphics próprio, acima do
+      // conteúdo: o chão em si fica atrás de Regiões/paredes e esconderia o contorno.
+      const floorSelectionGraphics = new Graphics()
       // Onda 2, item 15 (Frente B) — anel de hover, entre "já selecionado"
       // (handlesGraphics) e o draft ativo, mesma ordem do CONTRATO da frente.
       const hoverGraphics = new Graphics()
@@ -268,6 +295,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         mapBoundsGraphics,
         gridGraphics,
         gridAlignOverlayGraphics,
+        mapFrameContainer,
+        mapRasterSprite,
+        floorGraphics,
+        mapLinesGraphics,
         regionsContainer,
         wallsGraphics,
         doorsGraphics,
@@ -277,6 +308,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         propsContainer,
         lightsGraphics,
         tokensContainer,
+        floorSelectionGraphics,
         handlesGraphics,
         hoverGraphics,
         areaSelectionOutlineGraphics,
@@ -412,6 +444,24 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         // (selection.kind === 'wall' com wall.regionId apontando pra cá)
         // deixava a sala sem confirmar visualmente a seleção. Ver
         // `resolveHighlightedRegionId` (drawRegions.ts) para os dois casos.
+        // Chão por peças fica na camada 'salas', junto das Regiões.
+        const rasterMode = map.floorStyle.renderMode === 'raster'
+        if (rasterMode) {
+          floorGraphics.clear()
+          redrawMapRaster(map)
+        } else {
+          clearMapRaster()
+          floorRenderer.draw(floorGraphics, map.hiddenLayers.includes('salas') ? EMPTY_FLOOR : map.floor, map.floorStyle)
+        }
+        floorRenderer.drawSelection(
+          floorSelectionGraphics,
+          single?.kind === 'floor' && !map.hiddenLayers.includes('salas') ? map.floor.find((p) => p.id === single.id) ?? null : null,
+          map.floorStyle.sampleStep,
+        )
+        mapLinesGraphics.clear()
+        if (!rasterMode && !map.hiddenLayers.includes('paredes')) drawMapLines(mapLinesGraphics, map.lines)
+        if (!rasterMode && !map.hiddenLayers.includes('portas')) drawMapMarkers(mapLinesGraphics, map.markers)
+        redrawMapFrame(map.frame)
         regionsRenderer.draw(regionsContainer, visibleRegions(map.regions, map.hiddenLayers), resolveHighlightedRegionId(map.walls, single))
         drawWalls(wallsGraphics, visibleWalls(map.walls, map.hiddenLayers), single?.kind === 'wall' ? single.id : null)
         drawDoors(doorsGraphics, visibleWalls(map.walls, map.hiddenLayers), single?.kind === 'wall' ? single.id : null)
@@ -439,6 +489,86 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const angleIndicatorRenderer = createAngleIndicatorRenderer()
       const measurementIndicatorRenderer = createMeasurementIndicatorRenderer()
       const regionsRenderer = createRegionsRenderer()
+      const floorRenderer = createFloorRenderer()
+      // Render fiel: re-rasteriza só quando alguma entrada muda de referência (a store é imutável).
+      let lastRaster: {
+        floor: MapData['floor']
+        lines: MapData['lines']
+        markers: MapData['markers']
+        style: MapData['floorStyle']
+        hidden: MapData['hiddenLayers']
+        width: number
+        height: number
+      } | null = null
+      const replaceRasterTexture = (texture: Texture) => {
+        const old = mapRasterSprite.texture
+        mapRasterSprite.texture = texture
+        if (old !== Texture.EMPTY) old.destroy(true)
+      }
+      const clearMapRaster = () => {
+        if (!lastRaster) return
+        lastRaster = null
+        replaceRasterTexture(Texture.EMPTY)
+      }
+      const redrawMapRaster = (map: MapData) => {
+        const width = map.width * map.grid
+        const height = map.height * map.grid
+        const same =
+          lastRaster !== null &&
+          lastRaster.floor === map.floor &&
+          lastRaster.lines === map.lines &&
+          lastRaster.markers === map.markers &&
+          lastRaster.style === map.floorStyle &&
+          lastRaster.hidden === map.hiddenLayers &&
+          lastRaster.width === width &&
+          lastRaster.height === height
+        if (same) return
+        lastRaster = { floor: map.floor, lines: map.lines, markers: map.markers, style: map.floorStyle, hidden: map.hiddenLayers, width, height }
+        const style = map.floorStyle
+        const hidden = map.hiddenLayers
+        const rgba = rasterizeMinimap(
+          {
+            originX: 0,
+            originY: 0,
+            width,
+            height,
+            floor: !hidden.includes('salas') && map.floor.length > 0 ? compileFloor(map.floor) : null,
+            lines: hidden.includes('paredes') ? [] : map.lines,
+            markers: hidden.includes('portas') ? [] : map.markers,
+          },
+          {
+            background: [0, 0, 0],
+            floor: hexToRgb(style.fillColor),
+            stroke: style.strokeColor ? hexToRgb(style.strokeColor) : null,
+            strokeAlpha: style.strokeAlpha ?? 1,
+            strokeWidth: style.strokeWidth,
+            lineAlpha: style.lineAlpha ?? 1,
+            samples: MINIMAP_RASTER_SAMPLES,
+            // Borda do chão por área exata (mesmo modo que venceu na recriação dos mapas de referência).
+            pattern: 'analytic',
+          },
+        )
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+        ctx.putImageData(new ImageData(rgba, width, height), 0, 0)
+        replaceRasterTexture(Texture.from(canvas))
+      }
+
+      // Moldura recriada só quando `map.frame` muda de referência: tem um Text do Pixi dentro.
+      let lastMapFrame: MapFrame | null | undefined
+      const redrawMapFrame = (frame: MapFrame | null) => {
+        if (frame === lastMapFrame) return
+        lastMapFrame = frame
+        for (const child of mapFrameContainer.removeChildren()) child.destroy({ children: true })
+        if (!frame) return
+        const layout = layoutMapFrame(frame.w, frame.h, frame.title)
+        const drawn = drawMapFrame(layout, frame.titleFont)
+        drawn.position.set(frame.x - layout.content.x, frame.y - layout.content.y)
+        mapFrameContainer.addChild(drawn)
+      }
       const tokensRenderer = createTokensRenderer()
       // Onda 2, item 16 (Frente C) — número ao vivo durante o arrasto de forma.
       const dimensionLabelRenderer = createDimensionLabelRenderer()
@@ -562,7 +692,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         | 'resizing-prop-corner'
         // N3 "ferramenta de seleção de área".
         | 'area-marquee-drag'
-        | 'dragging-area-selection' = 'idle'
+        | 'dragging-area-selection'
+        // Chão por peças: arrasto de criação e mover corpo da peça selecionada.
+        | 'drawing-floor'
+        | 'dragging-floor-body' = 'idle'
       let lastPoint = { x: 0, y: 0 }
       let draggingTokenId: string | null = null
       let draggingPropId: string | null = null
@@ -597,6 +730,11 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       let polygonDraftCenter: Point | null = null
       let polygonDraftSides = ROOM_CIRCLE_SIDES
       let stairDraftStart: Point | null = null
+      // Chão por peças: início do arrasto (retângulo/elipse/polígono) e os
+      // pontos do corredor em construção — este sem `mode`, como
+      // regionDraftPoints: cada clique é um pointerdown independente.
+      let floorDraftStart: Point | null = null
+      let corridorDraftPoints: Point[] = []
       // Estado do arrasto de canto de Sala retangular (resize) — mesmo padrão
       // de curveDragSnapshot/lightRadiusDragSnapshot: `roomCornerDragSnapshot`
       // é o `map` de ANTES do gesto (pointerdown), usado só pra fechar um
@@ -622,6 +760,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // `moveStair` já existe na store (I7); só faltava este mode + os 2
       // branches de pointerdown/pointermove, mesmo padrão de wall/region body.
       let draggingStairBodyId: string | null = null
+      let draggingFloorBodyId: string | null = null
       let bodyDragLastPoint: Point | null = null
       let draggingLineId: string | null = null
       let draggingLinePointIndex: 0 | 1 = 0
@@ -819,8 +958,19 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           stair: useMapStore.getState().removeStair,
           prop: useMapStore.getState().removeProp,
           drawing: useMapStore.getState().removeDrawing,
+          floor: useMapStore.getState().removeFloorPiece,
         }
         removers[hit.kind](hit.id)
+      }
+
+      /**
+       * Chão fica por baixo de tudo: só vira alvo de clique quando nada acima
+       * dele (`findSelectableAt`) foi acertado. Camada/hidden/locked já são
+       * tratados em `findFloorPieceAt`.
+       */
+      const floorHitAt = (map: MapData, point: Point): SelectableHit | null => {
+        const piece = findFloorPieceAt(map, point)
+        return piece ? { kind: 'floor', id: piece.id, draggable: true } : null
       }
 
       const clearDrafts = () => {
@@ -839,12 +989,56 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         polygonDraftCenter = null
         stairDraftStart = null
         measureDraftStart = null
+        floorDraftStart = null
+        corridorDraftPoints = []
         draftGraphics.clear()
         angleIndicatorRenderer.hide()
         measurementIndicatorRenderer.hide()
         dimensionLabelRenderer.hide()
         hoverGraphics.clear()
         hoverTarget = null
+      }
+
+      /**
+       * Peça-rascunho do arrasto da ferramenta Chão, com o MESMO snap/Shift do
+       * preview e do commit (Shift = quadrado/círculo, igual Retângulo/Elipse).
+       * `piece: null` = arrasto ainda pequeno demais para virar peça.
+       */
+      const floorDraftFromDrag = (start: Point, rawEnd: Point, shiftKey: boolean, altKey: boolean) => {
+        const { map, floorShapeKind, floorOp, floorPolygonSides } = useMapStore.getState()
+        if (floorShapeKind === 'corridor') return null
+        const snapped = applySnap(rawEnd, map.grid, 'wall', altKey)
+        const end = floorShapeKind === 'polygon' ? snapped : constrainDraft(start, snapped, floorShapeKind, { shift: shiftKey, alt: altKey })
+        const result = buildFloorShapeFromDrag(floorShapeKind, start, end, floorPolygonSides)
+        const piece = result ? buildFloorPiece('draft', result.shape, floorOp, result.rotation) : null
+        const dimension: DimensionDraft =
+          floorShapeKind === 'rect'
+            ? { tool: 'rect', start, end }
+            : floorShapeKind === 'ellipse'
+              ? { tool: 'ellipse', center: start, end }
+              : { tool: 'polygon-room', center: start, end, sides: clampFloorPolygonSides(floorPolygonSides) }
+        return { end, piece, dimension }
+      }
+
+      /** Prévia do corredor: pontos já clicados + cursor; com 1 ponto só marca o ponto. */
+      const drawCorridorDraft = (cursor: Point | null) => {
+        const { map, floorOp } = useMapStore.getState()
+        const points = cursor ? [...corridorDraftPoints, cursor] : corridorDraftPoints
+        const shape = buildCorridorShape(points, map.grid * FLOOR_CORRIDOR_WIDTH_RATIO)
+        if (!shape) {
+          drawRegionDraft(draftGraphics, corridorDraftPoints, null)
+          return
+        }
+        drawFloorDraft(draftGraphics, buildFloorPiece('draft', shape, floorOp), map.floorStyle.fillColor)
+      }
+
+      /** Duplo clique ou Enter: vira peça se houver 2+ pontos distintos; sempre limpa o rascunho. */
+      const finishCorridor = () => {
+        const { map, floorOp, addFloorPiece } = useMapStore.getState()
+        const shape = buildCorridorShape(corridorDraftPoints, map.grid * FLOOR_CORRIDOR_WIDTH_RATIO)
+        if (shape) addFloorPiece(buildFloorPiece(crypto.randomUUID(), shape, floorOp))
+        corridorDraftPoints = []
+        draftGraphics.clear()
       }
 
       // Onda 1, item 1 (Frente A, "cursor vivo") — `updateCursor` não recebe
@@ -1066,6 +1260,18 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           const point = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           regionDraftPoints = [...regionDraftPoints, point]
           drawRegionDraft(draftGraphics, regionDraftPoints, null)
+          return
+        }
+
+        if (activeTool === 'floor') {
+          const point = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          if (useMapStore.getState().floorShapeKind === 'corridor') {
+            corridorDraftPoints = [...corridorDraftPoints, point]
+            drawCorridorDraft(null)
+            return
+          }
+          mode = 'drawing-floor'
+          floorDraftStart = point
           return
         }
 
@@ -1319,7 +1525,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           }
         }
 
-        const hit = findSelectableAt(hitTestMap(map), worldPoint)
+        const hit = findSelectableAt(hitTestMap(map), worldPoint) ?? floorHitAt(map, worldPoint)
         if (hit && event.shiftKey) {
           // Onda 4, item 24 — Shift+clique soma/tira ESTE item da seleção,
           // sem iniciar nenhum arrasto neste gesto (o gesto de Shift+clique é
@@ -1384,6 +1590,14 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             bodyDragSnapshot = map
             const stair = map.stairs.find((s) => s.id === hit.id)
             draggingStairBodyId = event.altKey && stair ? cloneForAltDrag({ kind: 'stair', entity: stair }) : hit.id
+            bodyDragLastPoint = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          } else if (hit.kind === 'floor') {
+            // Mesmo esquema de corpo de wall/region/stair: snapshot de antes
+            // do gesto, pointermove com moveFloorPieceLive, 1 undo no pointerup.
+            mode = 'dragging-floor-body'
+            bodyDragSnapshot = map
+            const piece = map.floor.find((p) => p.id === hit.id)
+            draggingFloorBodyId = event.altKey && piece ? cloneForAltDrag({ kind: 'floor', entity: piece }) : hit.id
             bodyDragLastPoint = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           } else if (hit.kind === 'drawing') {
             const drawing = map.drawings.find((d) => d.id === hit.id)
@@ -1629,6 +1843,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           draftGraphics.clear()
         }
 
+        if (mode === 'drawing-floor' && floorDraftStart) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const draft = floorDraftFromDrag(floorDraftStart, worldPoint, event.shiftKey, event.altKey)
+          // Clique sem arrasto dá `piece: null` — nada nasce.
+          if (draft?.piece) useMapStore.getState().addFloorPiece({ ...draft.piece, id: crypto.randomUUID() })
+          floorDraftStart = null
+          draftGraphics.clear()
+        }
+
         if (useMapStore.getState().activeTool === 'measure' && measureDraftStart) {
           measurementIndicatorRenderer.hide()
           measureDraftStart = null
@@ -1699,7 +1922,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         }
         if (
           (mode === 'dragging-wall-body' || mode === 'dragging-region-body' ||
-            mode === 'dragging-stair-body' || mode === 'dragging-line-body') &&
+            mode === 'dragging-stair-body' || mode === 'dragging-line-body' || mode === 'dragging-floor-body') &&
           bodyDragSnapshot
         ) {
           useMapStore.getState().commitDragHistory(bodyDragSnapshot)
@@ -1733,6 +1956,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         draggingWallBodyId = null
         draggingRegionBodyId = null
         draggingStairBodyId = null
+        draggingFloorBodyId = null
         draggingLineId = null
         draggingLineBodyId = null
         draggingLightId = null
@@ -1785,7 +2009,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         }
         if (
           (mode === 'dragging-wall-body' || mode === 'dragging-region-body' ||
-            mode === 'dragging-stair-body' || mode === 'dragging-line-body') &&
+            mode === 'dragging-stair-body' || mode === 'dragging-line-body' || mode === 'dragging-floor-body') &&
           bodyDragSnapshot
         ) {
           useMapStore.getState().commitDragHistory(bodyDragSnapshot)
@@ -1818,6 +2042,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         draggingWallBodyId = null
         draggingRegionBodyId = null
         draggingStairBodyId = null
+        draggingFloorBodyId = null
         draggingLineId = null
         draggingLineBodyId = null
         draggingLightId = null
@@ -1858,6 +2083,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         }
         if (ellipseDraftCenter) {
           ellipseDraftCenter = null
+          draftGraphics.clear()
+        }
+        if (floorDraftStart) {
+          floorDraftStart = null
           draftGraphics.clear()
         }
         if (
@@ -1908,6 +2137,11 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           // Onda 2, item 15 (Frente B) — anel de hover, mesmo custo marginal
           // ~0 do resolveHoverHit (ver docstring do módulo).
           drawHover(hoverGraphics, useMapStore.getState().map, hoverTarget)
+          // Corredor em construção não tem `mode` (cliques soltos), então a
+          // prévia até o cursor mora aqui, no pointermove ocioso.
+          if (corridorDraftPoints.length > 0 && useMapStore.getState().activeTool === 'floor') {
+            drawCorridorDraft(applySnap(worldPoint, useMapStore.getState().map.grid, 'wall', event.altKey))
+          }
           return
         }
 
@@ -2092,6 +2326,38 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             }
             bodyDragLastPoint = p
           }
+          return
+        }
+
+        if (mode === 'dragging-floor-body' && draggingFloorBodyId !== null && bodyDragLastPoint) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { map, moveFloorPieceLive } = useMapStore.getState()
+          const p = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          const dx = p.x - bodyDragLastPoint.x
+          const dy = p.y - bodyDragLastPoint.y
+          if (dx !== 0 || dy !== 0) {
+            moveFloorPieceLive(draggingFloorBodyId, dx, dy)
+            bodyDragLastPoint = p
+          }
+          return
+        }
+
+        if (mode === 'drawing-floor' && floorDraftStart) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const draft = floorDraftFromDrag(floorDraftStart, worldPoint, event.shiftKey, event.altKey)
+          const { map } = useMapStore.getState()
+          if (!draft?.piece) {
+            draftGraphics.clear()
+            dimensionLabelRenderer.hide()
+            return
+          }
+          drawFloorDraft(draftGraphics, draft.piece, map.floorStyle.fillColor)
+          dimensionLabelRenderer.show(
+            angleIndicatorContainer,
+            draft.end,
+            dimensionLabel(draft.dimension, map.grid, map.gridShape, map.scale),
+            computeViewport(),
+          )
           return
         }
 
@@ -2514,6 +2780,11 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           return
         }
 
+        if (activeTool === 'floor') {
+          if (corridorDraftPoints.length > 0) finishCorridor()
+          return
+        }
+
         if (activeTool !== 'region') return
 
         const last = regionDraftPoints[regionDraftPoints.length - 1]
@@ -2571,6 +2842,19 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           }
           event.preventDefault()
           return
+        }
+
+        // Enter fecha o corredor de chão em construção (mesma saída do duplo
+        // clique). preventDefault: o foco pode estar no botão da barra, e o
+        // Enter "clicaria" nele de novo.
+        if (event.key === 'Enter' && corridorDraftPoints.length > 0) {
+          const target = event.target as HTMLElement | null
+          const editable = target !== null && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')
+          if (!editable) {
+            event.preventDefault()
+            finishCorridor()
+            return
+          }
         }
 
         const action = resolveShortcut({

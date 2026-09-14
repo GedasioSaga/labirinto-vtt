@@ -53,6 +53,7 @@ import type { HoverTarget } from '../lib/hoverHitTest'
 import { tokenBoundingBox, propBoundingBox } from '../lib/objectTransform'
 import { LIGHT_HIT_RADIUS, estimateTextWidth } from '../lib/selectionHitTest'
 import { STROKE_WEIGHT } from './constants'
+import { pieceBounds } from '../lib/floorSdf'
 
 /** Azul frio — ver docstring do módulo para a justificativa de não reusar
  *  `SELECTION_COLOR`. */
@@ -163,6 +164,14 @@ export function resolveHoverGeometry(map: MapData, target: HoverTarget): HoverGe
         default:
           return assertNeverDrawingKind(drawing)
       }
+    }
+    case 'floor': {
+      // Retângulo envolvente: contornar a peça exata exigiria amostrar o
+      // campo de distância a cada pointermove ocioso.
+      const piece = map.floor.find((p) => p.id === target.id)
+      if (!piece) return null
+      const b = pieceBounds(piece)
+      return { shape: 'rect', x: b.minX, y: b.minY, w: b.maxX - b.minX, h: b.maxY - b.minY }
     }
     default:
       // `target` (HoverTarget) não é união discriminada — só `target.kind` é

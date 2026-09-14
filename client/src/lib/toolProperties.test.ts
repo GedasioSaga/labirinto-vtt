@@ -8,7 +8,7 @@ import type { DrawingTool } from '../types/tools'
 const ALL_TOOLS: DrawingTool[] = [
   'select', 'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon',
   'stair', 'token', 'prop', 'brush', 'line', 'circle', 'ellipse', 'rect', 'polygon',
-  'curve', 'text', 'measure', 'eraser',
+  'curve', 'text', 'measure', 'eraser', 'floor',
 ]
 
 function groupsOf(tool: DrawingTool, selection?: Parameters<typeof relevantPropertyGroups>[1]): Set<PropertyGroupId> {

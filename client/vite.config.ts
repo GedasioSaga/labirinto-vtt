@@ -13,9 +13,19 @@ export default defineConfig({
     host: host || false,
     hmr: host ? { protocol: 'ws', host, port: 1421 } : undefined,
   },
+  // Duas páginas no mesmo build: o editor (index.html) e a página do jogador
+  // (player.html), servida pelo servidor axum do app em /player.
+  build: {
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        player: 'player.html',
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
-    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**', 'recreate/**'],
   },
 })

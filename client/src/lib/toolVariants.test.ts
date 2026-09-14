@@ -8,7 +8,7 @@ import type { DrawingTool } from '../types/tools'
 const ALL_TOOLS: DrawingTool[] = [
   'select', 'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon',
   'stair', 'token', 'prop', 'brush', 'line', 'circle', 'ellipse', 'rect', 'polygon',
-  'curve', 'text', 'measure', 'eraser',
+  'curve', 'text', 'measure', 'eraser', 'floor',
 ]
 
 describe('TOOL_VARIANTS', () => {
@@ -60,6 +60,7 @@ describe('TOOL_VARIANTS', () => {
     const validKeys: ToolVariantGroup['storeKey'][] = [
       'doorKind', 'wallKind', 'regionFillPattern', 'polygonSides',
       'stairSizePreset', 'drawTexture', 'eraseMode',
+      'floorShapeKind', 'floorOp', 'floorPolygonSides',
     ]
     for (const entry of readyToolVariants()) {
       for (const group of entry.groups) {

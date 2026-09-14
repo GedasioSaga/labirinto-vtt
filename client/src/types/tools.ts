@@ -20,8 +20,9 @@ export type DrawingTool =
   | 'text'
   | 'measure'
   | 'eraser'
+  | 'floor'
 
-export type SelectionKind = 'token' | 'wall' | 'light' | 'region' | 'stair' | 'prop' | 'drawing'
+export type SelectionKind = 'token' | 'wall' | 'light' | 'region' | 'stair' | 'prop' | 'drawing' | 'floor'
 
 export interface Selection {
   kind: SelectionKind

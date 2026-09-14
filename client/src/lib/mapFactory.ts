@@ -1,12 +1,13 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
-  Stair, StairDirection, DoorKind, MapScale, MeasurementMode,
+  Stair, StairDirection, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { syncWallsToRegionPoint, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
 import { simplifyPolygon, chaikinSmooth } from './regionSmoothing'
 import { resizeRoomCorner, resizeRoomDimensions as resizeRoomDimensionsPoints, type RoomCorner } from './roomOps'
 import { defaultMeasurementModeForShape } from './measurement'
+import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -32,6 +33,11 @@ export function createEmptyMap(id: string, name: string, width: number, height: 
     props: [],
     stairs: [],
     drawings: [],
+    floor: [],
+    floorStyle: { ...DEFAULT_FLOOR_STYLE },
+    lines: [],
+    markers: [],
+    frame: null,
     fog: { mode: 'none', revealed: [] },
     hiddenLayers: [],
     lockedLayers: [],
@@ -40,6 +46,70 @@ export function createEmptyMap(id: string, name: string, width: number, height: 
     ownerId: null,
     scenarioLink: null,
   }
+}
+
+export function addFloorPiece(map: MapData, piece: FloorPiece): MapData {
+  return { ...map, floor: [...map.floor, piece] }
+}
+
+/** Várias peças de uma vez, na ordem dada — "Chão a partir da imagem" vira 1 undo, não N. */
+export function addFloorPieces(map: MapData, pieces: FloorPiece[]): MapData {
+  if (pieces.length === 0) return map
+  return { ...map, floor: [...map.floor, ...pieces] }
+}
+
+export function updateFloorPiece(map: MapData, pieceId: string, patch: Partial<Omit<FloorPiece, 'id'>>): MapData {
+  if (!map.floor.some((piece) => piece.id === pieceId)) return map
+  return { ...map, floor: map.floor.map((piece) => (piece.id === pieceId ? { ...piece, ...patch } : piece)) }
+}
+
+export function removeFloorPiece(map: MapData, pieceId: string): MapData {
+  if (!map.floor.some((piece) => piece.id === pieceId)) return map
+  return { ...map, floor: map.floor.filter((piece) => piece.id !== pieceId) }
+}
+
+/** Move a peça `delta` posições na ordem de aplicação (negativo = mais cedo). */
+export function reorderFloorPiece(map: MapData, pieceId: string, delta: number): MapData {
+  const from = map.floor.findIndex((piece) => piece.id === pieceId)
+  if (from < 0) return map
+  const to = Math.max(0, Math.min(map.floor.length - 1, from + delta))
+  if (to === from) return map
+  const floor = [...map.floor]
+  const [piece] = floor.splice(from, 1)
+  floor.splice(to, 0, piece)
+  return { ...map, floor }
+}
+
+export function moveFloorPiece(map: MapData, pieceId: string, dx: number, dy: number): MapData {
+  const piece = map.floor.find((p) => p.id === pieceId)
+  if (!piece) return map
+  const { shape } = piece
+  const moved: FloorPiece['shape'] =
+    shape.kind === 'corridor'
+      ? { ...shape, points: shape.points.map((p) => ({ ...p, x: p.x + dx, y: p.y + dy })) }
+      : shape.kind === 'poly'
+        ? { ...shape, points: shape.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) }
+        : { ...shape, cx: shape.cx + dx, cy: shape.cy + dy }
+  return updateFloorPiece(map, pieceId, { shape: moved })
+}
+
+export function setFloorStyle(map: MapData, patch: Partial<FloorStyle>): MapData {
+  return { ...map, floorStyle: { ...map.floorStyle, ...patch } }
+}
+
+/** Traços e marcadores de uma vez — "Linhas e portas a partir da imagem" vira 1 undo. */
+export function addMapDetails(map: MapData, lines: MapLine[], markers: MapMarker[]): MapData {
+  if (lines.length === 0 && markers.length === 0) return map
+  return { ...map, lines: [...map.lines, ...lines], markers: [...map.markers, ...markers] }
+}
+
+export function setMapFrame(map: MapData, frame: MapFrame | null): MapData {
+  return { ...map, frame }
+}
+
+/** Resultado de "Recriar minimapa a partir da imagem" inteiro de uma vez: 1 undo. */
+export function applyMinimapTrace(map: MapData, pieces: FloorPiece[], lines: MapLine[], markers: MapMarker[], style: Partial<FloorStyle>): MapData {
+  return setFloorStyle(addMapDetails(addFloorPieces(map, pieces), lines, markers), style)
 }
 
 export function addWall(map: MapData, wall: Wall): MapData {

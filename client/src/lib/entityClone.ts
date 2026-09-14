@@ -1,4 +1,4 @@
-import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, StairSegment } from '../types/map'
+import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, StairSegment, FloorPiece, FloorShape } from '../types/map'
 import type { SelectionKind } from '../types/tools'
 
 /**
@@ -204,7 +204,29 @@ export function cloneDrawing(drawing: Drawing, offset: Offset): Drawing {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Dispatcher — cobre os 7 `SelectionKind` (types/tools.ts), o mesmo
+// FloorPiece
+// ─────────────────────────────────────────────────────────────
+
+/** Peça de chão: pontos (corredor/poly) e `noise` viram objetos novos, mesmo cuidado nº2 do cabeçalho. */
+export function cloneFloorPiece(piece: FloorPiece, offset: Offset): FloorPiece {
+  const { shape } = piece
+  const moved: FloorShape =
+    shape.kind === 'corridor'
+      ? { ...shape, points: shape.points.map((p) => ({ x: p.x + offset.dx, y: p.y + offset.dy, width: p.width })) }
+      : shape.kind === 'poly'
+        ? { ...shape, points: offsetPoints(shape.points, offset) }
+        : { ...shape, cx: shape.cx + offset.dx, cy: shape.cy + offset.dy }
+  const { noise } = piece.modifiers
+  return {
+    ...piece,
+    id: crypto.randomUUID(),
+    shape: moved,
+    modifiers: noise ? { ...piece.modifiers, noise: { ...noise } } : { ...piece.modifiers },
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Dispatcher — cobre os 8 `SelectionKind` (types/tools.ts), o mesmo
 // discriminante que `stores/mapStore.ts`/`pixi/PixiCanvas.tsx` já usam para
 // os `Record<SelectionKind, ...>` de remoção/desenho. Pensado para o
 // integrador montar `cloneEntity({ kind: selection.kind, entity }, offset)`
@@ -220,6 +242,7 @@ interface EntityByKind {
   prop: Prop
   stair: Stair
   drawing: Drawing
+  floor: FloorPiece
 }
 
 /**
@@ -251,6 +274,8 @@ export function cloneEntity(input: CloneableEntity, offset: Offset): CloneableEn
       return { kind: 'stair', entity: cloneStair(input.entity, offset) }
     case 'drawing':
       return { kind: 'drawing', entity: cloneDrawing(input.entity, offset) }
+    case 'floor':
+      return { kind: 'floor', entity: cloneFloorPiece(input.entity, offset) }
     default:
       return assertNeverSelectionKind(input)
   }

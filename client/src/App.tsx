@@ -5,7 +5,11 @@ import { Toast } from './components/Toast'
 import { useToastStore } from './stores/toastStore'
 import { useSessionStore, subscribeToDirtyFlag } from './stores/sessionStore'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { isTauri } from '@tauri-apps/api/core'
+import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import { createHostBridge, type HostBridge, type RoomInfo } from './net/hostBridge'
+import type { PlayerInfo } from './net/hostSession'
+import { RoomPanel } from './components/RoomPanel'
 import { ask } from '@tauri-apps/plugin-dialog'
 import type { Camera } from './pixi/world'
 import { MainMenu } from './screens/MainMenu'
@@ -30,6 +34,12 @@ import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
 import { EMPTY_SELECTION, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
+import { traceFloorPieces } from './lib/traceImage'
+import { loadImagePixels } from './lib/imagePixels'
+import { traceMapDetails } from './lib/traceDetails'
+import { buildMinimapFromImage, MINIMAP_IMAGE_DEFAULTS } from './lib/minimapFromImage'
+import { layoutMapFrame, MINIMAP_FRAME_STYLE } from './lib/mapFrame'
+import { fitTitleFont } from './pixi/frameTitle'
 
 /**
  * Onda 2, item 12 (Frente A) — empurra um toast de erro padronizado pros
@@ -152,6 +162,21 @@ function App() {
   const stairSizePreset = useMapStore((state) => state.stairSizePreset)
   const setStairSizePreset = useMapStore((state) => state.setStairSizePreset)
   const setStairStepWidthForStair = useMapStore((state) => state.setStairStepWidthForStair)
+  // Chão por peças — preferências da ferramenta (setinha) e edição da peça
+  // selecionada / do estilo do chão (painel).
+  const floorShapeKind = useMapStore((state) => state.floorShapeKind)
+  const setFloorShapeKind = useMapStore((state) => state.setFloorShapeKind)
+  const floorOp = useMapStore((state) => state.floorOp)
+  const setFloorOp = useMapStore((state) => state.setFloorOp)
+  const floorPolygonSides = useMapStore((state) => state.floorPolygonSides)
+  const setFloorPolygonSides = useMapStore((state) => state.setFloorPolygonSides)
+  const updateFloorPiece = useMapStore((state) => state.updateFloorPiece)
+  const reorderFloorPiece = useMapStore((state) => state.reorderFloorPiece)
+  const setFloorStyle = useMapStore((state) => state.setFloorStyle)
+  const addFloorPieces = useMapStore((state) => state.addFloorPieces)
+  const addMapDetails = useMapStore((state) => state.addMapDetails)
+  const setMapFrame = useMapStore((state) => state.setMapFrame)
+  const applyMinimapTrace = useMapStore((state) => state.applyMinimapTrace)
   // Fase 4 — N2 "tirar o fundo" (Região/Sala) e edição de fillAlpha/filled de
   // uma forma preenchível JÁ SELECIONADA (as actions já existiam órfãs, sem
   // nenhuma UI usando — ver dossiê F4).
@@ -161,6 +186,43 @@ function App() {
   const setDrawingFilled = useMapStore((state) => state.setDrawingFilled)
   // Onda 2, item 12 (Frente A) — pilha de avisos (erro/info).
   const toasts = useToastStore((state) => state.toasts)
+
+  // Multiplayer em LAN: ponte do mestre criada sob demanda (só dentro do Tauri, ver RoomPanel abaixo).
+  const [room, setRoom] = useState<RoomInfo | null>(null)
+  const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
+  const hostBridgeRef = useRef<HostBridge | null>(null)
+  const hostBridge = (): HostBridge => {
+    if (!hostBridgeRef.current) {
+      hostBridgeRef.current = createHostBridge({
+        invoke,
+        listen,
+        getMap: () => useMapStore.getState().map,
+        // Movimento já validado pela sessão (dono, paredes, borda do chão).
+        applyMove: (tokenId, x, y) => useMapStore.getState().setTokenPosition(tokenId, x, y),
+        onPlayersChange: setRoomPlayers,
+      })
+    }
+    return hostBridgeRef.current
+  }
+  useEffect(() => useMapStore.subscribe((state) => state.map, () => hostBridgeRef.current?.notifyMapChanged()), [])
+  useEffect(
+    () => () => {
+      void hostBridgeRef.current?.stop()
+    },
+    [],
+  )
+  const handleStartRoom = async () => {
+    try {
+      setRoom(await hostBridge().start())
+    } catch {
+      // A ponte já mostrou o toast com o motivo; o painel continua com a sala fechada.
+    }
+  }
+  const handleStopRoom = async () => {
+    await hostBridgeRef.current?.stop()
+    setRoom(null)
+    setRoomPlayers([])
+  }
   const dismissToast = useToastStore((state) => state.dismiss)
   const [previousMapPath, setPreviousMapPath] = useState<string | null>(null)
   /**
@@ -330,6 +392,8 @@ function App() {
   const selectedRegion = singleSelection?.kind === 'region' ? map.regions.find((r) => r.id === singleSelection.id) ?? null : null
   const selectedLight = singleSelection?.kind === 'light' ? map.lights.find((l) => l.id === singleSelection.id) ?? null : null
   const selectedStair = singleSelection?.kind === 'stair' ? map.stairs.find((s) => s.id === singleSelection.id) ?? null : null
+  const selectedFloorIndex = singleSelection?.kind === 'floor' ? map.floor.findIndex((p) => p.id === singleSelection.id) : -1
+  const selectedFloorPiece = selectedFloorIndex >= 0 ? map.floor[selectedFloorIndex] : null
 
   // Fase 4 (integrador I8) — N2 "painel contextual": quais seções do painel
   // esquerdo são relevantes agora, dado a ferramenta ativa e o que está
@@ -347,7 +411,97 @@ function App() {
     light: selectedLight !== null,
     stair: selectedStair !== null,
     drawingKind: selectedDrawing && selectedDrawing.kind !== 'text' ? selectedDrawing.kind : null,
+    floorPiece: selectedFloorPiece !== null,
   })
+
+  /**
+   * "Chão a partir da imagem de fundo": lê os pixels da MESMA imagem que
+   * `redrawBackground` (PixiCanvas.tsx) desenha em (0,0) sem escala — então
+   * pixel da imagem === px de mundo, sem conversão. Todas as peças entram
+   * numa entrada de histórico só (`addFloorPieces`). Falha de carga vira
+   * toast, nunca silêncio.
+   */
+  const handleFloorFromBackground = async () => {
+    if (map.background.type !== 'image' || !map.background.src) return
+    try {
+      const pixels = await loadImagePixels(convertFileSrc(map.background.src))
+      const pieces = traceFloorPieces(pixels.data, pixels.width, pixels.height, {}, () => crypto.randomUUID())
+      if (pieces.length === 0) {
+        useToastStore.getState().push('info', 'Nenhum chão encontrado na imagem de fundo.')
+        return
+      }
+      addFloorPieces(pieces)
+      useToastStore.getState().push('info', `Chão criado a partir da imagem: ${pieces.length} peças.`)
+    } catch (err) {
+      reportFileError('criar o chão a partir da imagem de fundo', err)
+    }
+  }
+
+  /** "Linhas e portas a partir da imagem de fundo" — mesmo contrato de `handleFloorFromBackground`, 1 undo. */
+  const handleDetailsFromBackground = async () => {
+    if (map.background.type !== 'image' || !map.background.src) return
+    try {
+      const pixels = await loadImagePixels(convertFileSrc(map.background.src))
+      const { lines, markers } = traceMapDetails(pixels.data, pixels.width, pixels.height, {}, () => crypto.randomUUID())
+      if (lines.length === 0 && markers.length === 0) {
+        useToastStore.getState().push('info', 'Nenhuma linha ou porta encontrada na imagem de fundo.')
+        return
+      }
+      addMapDetails(lines, markers)
+      useToastStore.getState().push('info', `Criadas ${lines.length} linhas e ${markers.length} portas a partir da imagem.`)
+    } catch (err) {
+      reportFileError('criar linhas e portas a partir da imagem de fundo', err)
+    }
+  }
+
+  /**
+   * "Recriar minimapa a partir da imagem de fundo": pipeline completo
+   * (lib/minimapFromImage.ts) — chão, linhas, portas, pontilhado, detalhes
+   * escuros e calibração do contorno — aplicado em 1 undo, já com o render
+   * fiel ligado. Roda no thread principal e leva alguns segundos.
+   */
+  const handleMinimapFromBackground = async () => {
+    if (map.background.type !== 'image' || !map.background.src) return
+    try {
+      useToastStore.getState().push('info', 'Recriando o minimapa a partir da imagem — pode levar alguns segundos.')
+      const pixels = await loadImagePixels(convertFileSrc(map.background.src))
+      // Deixa o aviso aparecer antes do cálculo pesado travar o thread.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      const options = { ...MINIMAP_IMAGE_DEFAULTS, rect: { x: 0, y: 0, w: pixels.width, h: pixels.height } }
+      const result = buildMinimapFromImage(pixels.data, pixels.width, pixels.height, options, () => crypto.randomUUID())
+      if (result.pieces.length === 0) {
+        useToastStore.getState().push('info', 'Nenhum chão encontrado na imagem de fundo.')
+        return
+      }
+      applyMinimapTrace(result.pieces, result.lines, result.markers, {
+        fillColor: options.floorColor,
+        strokeColor: options.strokeColor,
+        strokeWidth: result.strokeWidth,
+        strokeAlpha: options.strokeAlpha,
+        lineAlpha: options.lineAlpha,
+        renderMode: 'raster',
+      })
+      // Com moldura: escolhe a fonte do título comparando com a própria imagem (pixi/frameTitle.ts).
+      if (map.frame) {
+        const layout = layoutMapFrame(map.frame.w, map.frame.h, map.frame.title)
+        const titleFont = fitTitleFont(
+          pixels.data,
+          pixels.width,
+          pixels.height,
+          layout,
+          map.frame.x - layout.content.x,
+          map.frame.y - layout.content.y,
+          MINIMAP_FRAME_STYLE.titleBarFill,
+        )
+        if (titleFont) setMapFrame({ ...map.frame, titleFont })
+      }
+      useToastStore
+        .getState()
+        .push('info', `Minimapa recriado: ${result.pieces.length} peças, ${result.lines.length} linhas, ${result.markers.length} marcadores.`)
+    } catch (err) {
+      reportFileError('recriar o minimapa a partir da imagem de fundo', err)
+    }
+  }
 
   const handleRegionColorChange = (color: string) => {
     if (selectedRegion) {
@@ -716,6 +870,9 @@ function App() {
             stairSizePreset: { value: stairSizePreset, onChange: setStairSizePreset },
             drawTexture: { value: drawTexture, onChange: setDrawTexture },
             eraseMode: { value: eraseMode, onChange: setEraseMode },
+            floorShapeKind: { value: floorShapeKind, onChange: setFloorShapeKind },
+            floorOp: { value: floorOp, onChange: setFloorOp },
+            floorPolygonSides: { value: floorPolygonSides, onChange: setFloorPolygonSides },
           }}
         />
       </div>
@@ -937,7 +1094,41 @@ function App() {
             sides: polygonSides,
             onSidesChange: setPolygonSides,
           }}
+          selectedFloorPiece={selectedFloorPiece}
+          floorPieceControls={{
+            index: selectedFloorIndex,
+            count: map.floor.length,
+            grid: map.grid,
+            onChange: (patch) => selectedFloorPiece && updateFloorPiece(selectedFloorPiece.id, patch),
+            onReorder: (delta) => selectedFloorPiece && reorderFloorPiece(selectedFloorPiece.id, delta),
+            // removeSelected (não removeFloorPiece) para também limpar a seleção.
+            onRemove: removeSelected,
+          }}
+          floorStyle={{
+            style: map.floorStyle,
+            onStyleChange: setFloorStyle,
+            canTraceFromBackground: map.background.type === 'image' && map.background.src !== '',
+            onTraceFromBackground: () => void handleFloorFromBackground(),
+            onTraceDetailsFromBackground: () => void handleDetailsFromBackground(),
+            onRecreateMinimapFromBackground: () => void handleMinimapFromBackground(),
+            frame: map.frame,
+            // Moldura nova envolve o mapa inteiro (moldura de mapa desenhado à mão); a recriação usa retângulo próprio.
+            onFrameChange: (frame) => setMapFrame(frame),
+            defaultFrameRect: { x: 0, y: 0, w: map.width * map.grid, h: map.height * map.grid },
+          }}
         />
+        {isTauri() && (
+          <RoomPanel
+            room={room}
+            players={roomPlayers}
+            tokens={map.tokens.map((token) => ({ id: token.id, name: token.name }))}
+            onStart={() => void handleStartRoom()}
+            onStop={() => void handleStopRoom()}
+            onAssign={(playerId, tokenId) => hostBridgeRef.current?.assignToken(playerId, tokenId)}
+            onUnassign={(playerId, tokenId) => hostBridgeRef.current?.unassignToken(playerId, tokenId)}
+            onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
+          />
+        )}
         <ActionBar
           onSave={handleSave}
           onOpen={handleOpen}

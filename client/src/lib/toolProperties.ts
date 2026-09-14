@@ -45,14 +45,19 @@ export type PropertyGroupId =
   | 'layers'
   | 'scenarioLink'
   | 'selection'
+  /** Chão por peças: controles da peça selecionada (FloorPieceControls). */
+  | 'floorPiece'
+  /** Chão por peças: estilo do chão do mapa + "Chão a partir da imagem" (FloorStyleControls). */
+  | 'floorStyle'
 
 /** Todos os IDs, na mesma ordem do type acima — usado pelo teste pra
- *  conferir exaustão sem precisar listar os 21 valores de novo lá. */
+ *  conferir exaustão sem precisar listar os valores de novo lá. */
 export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'drawingStyle', 'lineCap', 'fill', 'regionStyle', 'polygonSides', 'textLabel',
   'wallStyle', 'wallDoor', 'doorKind', 'portal', 'itemTransform', 'tokenImage',
   'lightControls', 'stairControls', 'stairSize', 'room',
   'grid', 'mapScale', 'gridAlign', 'layers', 'scenarioLink', 'selection',
+  'floorPiece', 'floorStyle',
 ]
 
 /**
@@ -89,6 +94,8 @@ export interface ToolPropertiesSelection {
    * `null`/`undefined` = nenhum desenho não-texto selecionado.
    */
   drawingKind?: Exclude<Drawing['kind'], 'text'> | null
+  /** Espelha `selectedFloorPiece !== null` (peça de chão selecionada). */
+  floorPiece?: boolean
 }
 
 /**
@@ -156,6 +163,7 @@ export function relevantPropertyGroups(
     light = false,
     stair = false,
     drawingKind = null,
+    floorPiece = false,
   } = selection
 
   const groups = new Set<PropertyGroupId>()
@@ -245,9 +253,15 @@ export function relevantPropertyGroups(
   // PropertiesPanel.tsx:180.
   if (region && regionIsRoom) groups.add('room')
 
+  if (floorPiece) groups.add('floorPiece')
+
   const hasAnySelection =
-    wall || prop || token || textLabel || region || light || stair || drawingKind !== null
+    wall || prop || token || textLabel || region || light || stair || drawingKind !== null || floorPiece
   const isMapWideMoment = activeTool === 'select' || hasAnySelection
+
+  // Estilo do chão é configuração do MAPA (como Grade): aparece no momento
+  // de mapa e também com a ferramenta Chão ativa, que é quem mais precisa dele.
+  if (isMapWideMoment || activeTool === 'floor') groups.add('floorStyle')
 
   if (isMapWideMoment) {
     groups.add('grid')

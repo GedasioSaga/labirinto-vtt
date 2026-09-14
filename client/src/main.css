@@ -979,6 +979,31 @@ body {
 
 /* --------------------------------------------------------- barra de ações */
 
+/* Painel da sala (só no Tauri): cartão próprio no rail, rola por dentro para
+   nunca empurrar conteúdo para fora do cartão nem cobrir o canvas. */
+.lb-room {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 45vh;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.lb-room__urls {
+  margin: 0;
+  padding-left: var(--lb-space-4);
+  overflow-wrap: anywhere;
+}
+
+.lb-room__qr {
+  display: block;
+  width: 140px;
+  max-width: 100%;
+  height: auto;
+  align-self: center;
+  flex: none;
+}
+
 .lb-actionbar {
   display: flex;
   align-items: center;

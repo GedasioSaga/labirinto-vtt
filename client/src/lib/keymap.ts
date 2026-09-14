@@ -83,6 +83,9 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   text: 'T',
   measure: 'M',
   eraser: 'E',
+  // Chão: nenhuma letra mnemônica sobrou (C/H/A ocupadas); I é livre e
+  // X/Y/Z seguem sem atalho de propósito (keymap.test.ts).
+  floor: 'I',
 }
 
 const TOOL_BY_LETTER = new Map<string, DrawingTool>()

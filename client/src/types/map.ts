@@ -299,6 +299,128 @@ export interface Stair {
   hidden?: boolean
 }
 
+/**
+ * Chão construído por peças geométricas (etapa 1 do plano "chão por peças").
+ * Todas as coordenadas em px de mundo. `rect`/`ellipse`/`polygon` giram em
+ * torno do próprio centro; `corridor` é um caminho em que cada ponto tem a
+ * sua largura, interpolada ao longo do segmento.
+ */
+export type FloorShape =
+  | { kind: 'rect'; cx: number; cy: number; w: number; h: number }
+  | { kind: 'ellipse'; cx: number; cy: number; rx: number; ry: number }
+  | { kind: 'polygon'; cx: number; cy: number; radius: number; sides: number }
+  | { kind: 'corridor'; points: { x: number; y: number; width: number }[] }
+  /** Polígono livre: vértices em px de mundo, gira em torno do centro do retângulo que o envolve. */
+  | { kind: 'poly'; points: { x: number; y: number }[] }
+
+/** Borda irregular determinística: mesma `seed` reabre idêntica. */
+export interface FloorNoise {
+  /** Desvio máximo da borda, em px de mundo. */
+  amplitude: number
+  /** Comprimento de onda do "dente", em px de mundo. */
+  scale: number
+  seed: number
+}
+
+export interface FloorModifiers {
+  /** Raio de arredondamento dos cantos, em px de mundo. */
+  rounding?: number
+  noise?: FloorNoise
+  /**
+   * Engordar (positivo) ou emagrecer (negativo) a peça inteira, em px de
+   * mundo — desloca a borda na direção da normal. `undefined` === 0.
+   */
+  grow?: number
+}
+
+/**
+ * Uma peça do chão. A ordem em `MapData.floor` importa: cada peça se aplica
+ * sobre o resultado das anteriores — 'add' soma chão, 'subtract' abre buraco.
+ */
+export interface FloorPiece {
+  id: string
+  shape: FloorShape
+  op: 'add' | 'subtract'
+  /** Graus, sentido horário, em torno do centro. `undefined` === 0. */
+  rotation?: number
+  modifiers: FloorModifiers
+  locked?: boolean
+  hidden?: boolean
+}
+
+export interface FloorStyle {
+  fillColor: string
+  /** `null` = sem contorno. */
+  strokeColor: string | null
+  strokeWidth: number
+  /**
+   * Precisão do contorno: distância entre amostras do campo, em px de mundo.
+   * `undefined` === 2. Menor = detalhe de 1 px sobrevive, cálculo mais lento.
+   */
+  sampleStep?: number
+  /**
+   * 'raster' = render fiel de minimapa: chão, contorno, linhas e portas
+   * rasterizados por software com antisserrilhado por cobertura
+   * (lib/minimapRaster.ts). `undefined` === 'vector' (renderers do Pixi).
+   */
+  renderMode?: 'vector' | 'raster'
+  /** Opacidade do contorno no render fiel. `undefined` === 1. */
+  strokeAlpha?: number
+  /** Opacidade das linhas no render fiel. `undefined` === 1. */
+  lineAlpha?: number
+}
+
+/**
+ * Traço de mapa estilo minimapa (contorno de prédio, divisória), contínuo ou
+ * pontilhado. Só visual — não bloqueia movimento nem luz (isso é `Wall`).
+ * Vértices em px de mundo; vértice em (x + 0.5, y + 0.5) cai no centro do pixel.
+ */
+export interface MapLine {
+  id: string
+  points: { x: number; y: number }[]
+  closed: boolean
+  dotted: boolean
+  color: string
+  /** Espessura em px de mundo. */
+  width: number
+  /** Pontilhado: distância entre centros de pontos, em px ao longo do caminho. `undefined` === 2. */
+  dotPeriod?: number
+  /** Pontilhado: comprimento de cada ponto, em px. `undefined` === 1. */
+  dotLength?: number
+  /**
+   * Pontilhado com ponto em caixa ALINHADA À TELA (largura × altura), igual em
+   * linha horizontal e vertical — é o que os mapas de referência fazem (Mapa3:
+   * ~1,85 × 1,42 px). Com os dois definidos, `dotLength` e `width` são ignorados.
+   */
+  dotWidth?: number
+  dotHeight?: number
+}
+
+/** Marcador sólido girado (porta de minimapa). Só visual. */
+export interface MapMarker {
+  id: string
+  cx: number
+  cy: number
+  w: number
+  h: number
+  /** Graus, sentido horário. */
+  rotation: number
+  color: string
+  /** 'ellipse' = poço/decoração redonda com eixos `w` × `h`. `undefined` === 'rect'. */
+  shape?: 'rect' | 'ellipse'
+}
+
+/** Moldura com título lateral em volta do retângulo `x, y, w, h` do mundo (ver lib/mapFrame.ts). */
+export interface MapFrame {
+  title: string
+  /** Fonte do título ajustada à referência (pixi/frameTitle.ts). `undefined` = fonte padrão escalada. */
+  titleFont?: { family: string; size: number; weight: 'normal' | 'bold' }
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 export interface FogState {
   mode: 'per-token' | 'none'
   revealed: string[]
@@ -362,6 +484,12 @@ export interface MapData {
   props: Prop[]
   stairs: Stair[]
   drawings: Drawing[]
+  /** Chão por peças. Vazio em mapa antigo — migração em `lib/mapFile.ts`. */
+  floor: FloorPiece[]
+  floorStyle: FloorStyle
+  lines: MapLine[]
+  markers: MapMarker[]
+  frame: MapFrame | null
   fog: FogState
   hiddenLayers: LayerId[] // vazio = tudo visível
   /** Onda 4, Frente D (camadas) — "travar camada inteira": item na camada

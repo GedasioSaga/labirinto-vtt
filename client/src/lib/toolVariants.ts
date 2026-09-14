@@ -1,6 +1,7 @@
 import type { DrawingTool } from '../types/tools'
-import type { DoorKind, FreehandTexture, Region, Wall } from '../types/map'
+import type { DoorKind, FloorPiece, FreehandTexture, Region, Wall } from '../types/map'
 import type { StairSizePreset } from './stairs'
+import type { FloorShapeKind } from './floorTool'
 
 /**
  * Catálogo de dados puro (sem JSX, sem store) da feature N1 do usuário
@@ -56,6 +57,9 @@ export type ToolVariantGroup =
   | { storeKey: 'stairSizePreset'; label: string; options: ToolVariantOption<StairSizePreset>[] }
   | { storeKey: 'drawTexture'; label: string; options: ToolVariantOption<FreehandTexture>[] }
   | { storeKey: 'eraseMode'; label: string; options: ToolVariantOption<'objeto' | 'parte'>[] }
+  | { storeKey: 'floorShapeKind'; label: string; options: ToolVariantOption<FloorShapeKind>[] }
+  | { storeKey: 'floorOp'; label: string; options: ToolVariantOption<FloorPiece['op']>[] }
+  | { storeKey: 'floorPolygonSides'; label: string; options: ToolVariantOption<number>[] }
 
 /** Ferramenta com variante PRONTA — schema e ação de store já existem. */
 export interface ToolVariantReady {
@@ -121,18 +125,49 @@ const REGION_FILL_PATTERN_GROUP: ToolVariantGroup = {
  * lados) — a setinha dá acesso rápido aos formatos mais comuns; o slider
  * completo continua no painel esquerdo para qualquer valor entre eles.
  */
+// Opções soltas numa const para o chão reusar os mesmos presets num eixo próprio
+// (`floorPolygonSides`) sem compartilhar a preferência da Sala.
+const POLYGON_SIDES_OPTIONS: ToolVariantOption<number>[] = [
+  { id: 'sides-3', label: 'Triângulo', value: 3, description: '3 lados.' },
+  { id: 'sides-4', label: 'Quadrado', value: 4, description: '4 lados.' },
+  { id: 'sides-5', label: 'Pentágono', value: 5, description: '5 lados.' },
+  { id: 'sides-6', label: 'Hexágono', value: 6, description: '6 lados — padrão.' },
+  { id: 'sides-8', label: 'Octógono', value: 8, description: '8 lados.' },
+  { id: 'sides-10', label: 'Decágono', value: 10, description: '10 lados.' },
+  { id: 'sides-12', label: 'Dodecágono', value: 12, description: '12 lados — máximo.' },
+]
+
 const POLYGON_SIDES_GROUP: ToolVariantGroup = {
   storeKey: 'polygonSides',
   label: 'Lados do polígono',
+  options: POLYGON_SIDES_OPTIONS,
+}
+
+/** Chão por peças: as 4 formas que a ferramenta desenha (`poly` só nasce de imagem). */
+const FLOOR_SHAPE_GROUP: ToolVariantGroup = {
+  storeKey: 'floorShapeKind',
+  label: 'Forma',
   options: [
-    { id: 'sides-3', label: 'Triângulo', value: 3, description: '3 lados.' },
-    { id: 'sides-4', label: 'Quadrado', value: 4, description: '4 lados.' },
-    { id: 'sides-5', label: 'Pentágono', value: 5, description: '5 lados.' },
-    { id: 'sides-6', label: 'Hexágono', value: 6, description: '6 lados — padrão.' },
-    { id: 'sides-8', label: 'Octógono', value: 8, description: '8 lados.' },
-    { id: 'sides-10', label: 'Decágono', value: 10, description: '10 lados.' },
-    { id: 'sides-12', label: 'Dodecágono', value: 12, description: '12 lados — máximo.' },
+    { id: 'rect', label: 'Retângulo', value: 'rect', description: 'Arraste de um canto ao outro. Shift faz quadrado.' },
+    { id: 'ellipse', label: 'Elipse', value: 'ellipse', description: 'Arraste do centro para fora. Shift faz círculo.' },
+    { id: 'polygon', label: 'Polígono regular', value: 'polygon', description: 'Arraste do centro até um vértice.' },
+    { id: 'corridor', label: 'Corredor', value: 'corridor', description: 'Clique ponto a ponto; duplo clique ou Enter termina.' },
   ],
+}
+
+const FLOOR_OP_GROUP: ToolVariantGroup = {
+  storeKey: 'floorOp',
+  label: 'Operação',
+  options: [
+    { id: 'add', label: 'Somar', value: 'add', description: 'A peça acrescenta chão.' },
+    { id: 'subtract', label: 'Subtrair', value: 'subtract', description: 'A peça abre um buraco no chão desenhado antes dela.' },
+  ],
+}
+
+const FLOOR_POLYGON_SIDES_GROUP: ToolVariantGroup = {
+  storeKey: 'floorPolygonSides',
+  label: 'Lados do polígono',
+  options: POLYGON_SIDES_OPTIONS,
 }
 
 /**
@@ -201,6 +236,10 @@ export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
   brush: { available: true, tool: 'brush', groups: [BRUSH_TEXTURE_GROUP] },
   eraser: { available: true, tool: 'eraser', groups: [ERASE_MODE_GROUP] },
   stair: { available: true, tool: 'stair', groups: [STAIR_SIZE_GROUP] },
+
+  // Chão por peças: schema/motor/store já existiam (floorSdf/floorContour/
+  // add*FloorPiece*); a setinha é o caminho até forma e operação.
+  floor: { available: true, tool: 'floor', groups: [FLOOR_SHAPE_GROUP, FLOOR_OP_GROUP, FLOOR_POLYGON_SIDES_GROUP] },
 
   // ---- pedida pelo usuário, capacidade agora existe mas SEM setinha ------
   line: {

@@ -1,5 +1,7 @@
 use tauri_plugin_fs::FsExt;
 
+pub mod net;
+
 // Este comando concede acesso de FS para um path arbitrário. Não dá pra validar
 // genericamente aqui: `path` também chega de diálogo nativo de arquivo/pasta
 // (escolha explícita do usuário), onde qualquer path é legítimo por design.
@@ -15,12 +17,22 @@ fn grant_fs_access(app: tauri::AppHandle, path: String) -> Result<(), String> {
     Ok(())
 }
 
+// Ponto de entrada: se o runtime do Tauri não sobe, não há o que recuperar,
+// então abortar com mensagem é o comportamento correto.
+#[allow(clippy::expect_used)]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![grant_fs_access])
+        .manage(net::commands::NetState::default())
+        .invoke_handler(tauri::generate_handler![
+            grant_fs_access,
+            net::commands::net_start_room,
+            net::commands::net_stop_room,
+            net::commands::net_send,
+            net::commands::net_kick
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

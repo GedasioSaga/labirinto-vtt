@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { useMapStore } from './mapStore'
-import type { Drawing, Light, Prop, Region, RegionPoint, Stair, Token, Wall } from '../types/map'
+import type { Drawing, FloorPiece, Light, Prop, Region, RegionPoint, Stair, Token, Wall } from '../types/map'
 import { buildRoomFromDraft } from '../lib/drawingFactory'
 
 const token: Token = { id: 't1', characterId: null, name: 'Herói', x: 0, y: 0, size: 1, image: null }
@@ -2005,5 +2005,77 @@ describe('mapStore Fase 5 — eraseMode/erasePartOfDrawing (borracha: apagar par
     useMapStore.getState().erasePartOfDrawing('inexistente', { x: 0, y: 0 }, 10)
 
     expect(useMapStore.getState().map).toBe(before)
+  })
+})
+
+describe('mapStore — chão por peças: preferências da ferramenta Chão e addFloorPieces', () => {
+  const pieceA: FloorPiece = { id: 'fa', shape: { kind: 'rect', cx: 100, cy: 100, w: 80, h: 60 }, op: 'add', modifiers: {} }
+  const pieceB: FloorPiece = { id: 'fb', shape: { kind: 'ellipse', cx: 100, cy: 100, rx: 10, ry: 10 }, op: 'subtract', modifiers: {} }
+
+  beforeEach(() => {
+    useMapStore.setState({
+      map: { ...useMapStore.getState().map, floor: [] },
+      selection: [],
+      past: [],
+      future: [],
+      floorShapeKind: 'rect',
+      floorOp: 'add',
+      floorPolygonSides: 6,
+    })
+  })
+
+  it('setters de forma/operação/lados mudam a preferência sem entrada de histórico', () => {
+    const { setFloorShapeKind, setFloorOp, setFloorPolygonSides } = useMapStore.getState()
+    setFloorShapeKind('corridor')
+    setFloorOp('subtract')
+    setFloorPolygonSides(8)
+    const state = useMapStore.getState()
+    expect(state.floorShapeKind).toBe('corridor')
+    expect(state.floorOp).toBe('subtract')
+    expect(state.floorPolygonSides).toBe(8)
+    expect(state.past).toHaveLength(0)
+  })
+
+  it('setFloorPolygonSides limita a 3..12', () => {
+    useMapStore.getState().setFloorPolygonSides(2)
+    expect(useMapStore.getState().floorPolygonSides).toBe(3)
+    useMapStore.getState().setFloorPolygonSides(99)
+    expect(useMapStore.getState().floorPolygonSides).toBe(12)
+  })
+
+  it('addFloorPieces adiciona todas na ordem dada com UMA entrada de histórico; um undo tira todas', () => {
+    useMapStore.getState().addFloorPieces([pieceA, pieceB])
+    expect(useMapStore.getState().map.floor.map((p) => p.id)).toEqual(['fa', 'fb'])
+    expect(useMapStore.getState().past).toHaveLength(1)
+
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map.floor).toEqual([])
+  })
+
+  it('addFloorPieces([]) não cria entrada de histórico', () => {
+    const before = useMapStore.getState().map
+    useMapStore.getState().addFloorPieces([])
+    expect(useMapStore.getState().map).toBe(before)
+    expect(useMapStore.getState().past).toHaveLength(0)
+  })
+
+  it('removeSelected apaga a peça de chão selecionada e limpa a seleção', () => {
+    useMapStore.getState().addFloorPieces([pieceA, pieceB])
+    useMapStore.getState().setSelection([{ kind: 'floor', id: 'fa' }])
+    useMapStore.getState().removeSelected()
+    expect(useMapStore.getState().map.floor.map((p) => p.id)).toEqual(['fb'])
+    expect(useMapStore.getState().selection).toEqual([])
+  })
+
+  it('duplicateSelected clona a peça de chão com id novo, deslocada de 1 célula, e seleciona a cópia', () => {
+    useMapStore.getState().addFloorPieces([pieceA])
+    useMapStore.getState().setSelection([{ kind: 'floor', id: 'fa' }])
+    const grid = useMapStore.getState().map.grid
+    useMapStore.getState().duplicateSelected()
+    const floor = useMapStore.getState().map.floor
+    expect(floor).toHaveLength(2)
+    expect(floor[1].id).not.toBe('fa')
+    expect(floor[1].shape).toEqual({ kind: 'rect', cx: 100 + grid, cy: 100 + grid, w: 80, h: 60 })
+    expect(useMapStore.getState().selection).toEqual([{ kind: 'floor', id: floor[1].id }])
   })
 })

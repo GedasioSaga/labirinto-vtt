@@ -281,5 +281,28 @@ I1 (store) + I2 (canvas/UI).
 no canto. Token já posicionado em mapa salvo pula meio quadrado no primeiro arrasto. Não corrompe
 arquivo.
 
+## Programa "Objetivo → Tentativa" (13/09/2026)
+
+Pedido do usuário: recriar "frame por frame", **com as ferramentas do editor**, os 3 mapas de
+`Objetivo/` em `Tentativa/`; depois deixar jogável multiplayer. Plano:
+`~/.claude/plans/valiant-enchanting-patterson.md`. Estado vivo e evidência: `HANDOFF.md`.
+
+| Etapa | Conteúdo | Estado |
+|---|---|---|
+| 1 | Chão por peças (SDF: rect/elipse/polígono/corredor/poly, somar/subtrair, arredondar, irregular, engordar) + UI + "Chão a partir da imagem" | ✅ silhueta IoU ≥ 0,99 nos 3 |
+| 2 | Linhas cinzas/pontilhadas, portas, moldura com título (`MapData.lines/markers/frame`) | ✅ entidades + render; fidelidade em curso |
+| 2b | Fidelidade de pixel: rasterizador com cobertura, contorno subpixel, largura medida/calibrada por mapa, detalhes escuros (escada, glifos, poço) | em curso — cor por pixel 98,2% / 95,0% / 94,1% |
+| 3 | Laço livre como peça | fila |
+| 4 | Render fiel (`minimapRaster`) ligado no editor | fila |
+| 5 | Jogável multiplayer | fila |
+
+**Achados que valem memória:**
+- Borda de pixel dura tem teto: 86–89% dos erros de cor eram pixels antisserrilhados do objetivo.
+- A largura do traço **muda por mapa** (0,70 px no mapa2, ~1,4–1,7 px no Mapa3): parâmetro fixo
+  não serve; a ferramenta mede ou calibra na própria imagem de entrada.
+- Tolerância 0,75 na simplificação entortava lado reto (chanfro do marching squares); padrão 0,3.
+- Harness em servidor Vite próprio (porta 1422, sem HMR): com HMR, edição durante a medição
+  recarregava a página ("Execution context was destroyed").
+
 ## Já entregue antes deste programa
 - Menu inicial hierárquico, Carregar Mapa, Opções (commit `d5e5ad1`, branch `feat/menu-inicial`)

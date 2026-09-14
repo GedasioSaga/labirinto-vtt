@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
-import type { DoorKind, FreehandTexture, Region, Wall } from '../types/map'
+import type { DoorKind, FloorPiece, FreehandTexture, Region, Wall } from '../types/map'
 import type { StairSizePreset } from '../lib/stairs'
+import type { FloorShapeKind } from '../lib/floorTool'
 import type { ToolVariantGroup, ToolVariantOption, ToolVariantReady } from '../lib/toolVariants'
 import { TOOL_LABELS } from './labels'
 
@@ -30,6 +31,10 @@ export interface ToolVariantBindings {
   drawTexture: { value: FreehandTexture; onChange: (value: FreehandTexture) => void }
   /** Fase 5 — modo de gesto da Borracha. */
   eraseMode: { value: 'objeto' | 'parte'; onChange: (value: 'objeto' | 'parte') => void }
+  /** Chão por peças — forma, operação e lados da PRÓXIMA peça. */
+  floorShapeKind: { value: FloorShapeKind; onChange: (value: FloorShapeKind) => void }
+  floorOp: { value: FloorPiece['op']; onChange: (value: FloorPiece['op']) => void }
+  floorPolygonSides: { value: number; onChange: (value: number) => void }
 }
 
 export interface ToolVariantMenuProps {
@@ -102,6 +107,12 @@ function GroupOptions({
       return <>{renderOptions(group.options, bindings.drawTexture.value, bindings.drawTexture.onChange, onPicked)}</>
     case 'eraseMode':
       return <>{renderOptions(group.options, bindings.eraseMode.value, bindings.eraseMode.onChange, onPicked)}</>
+    case 'floorShapeKind':
+      return <>{renderOptions(group.options, bindings.floorShapeKind.value, bindings.floorShapeKind.onChange, onPicked)}</>
+    case 'floorOp':
+      return <>{renderOptions(group.options, bindings.floorOp.value, bindings.floorOp.onChange, onPicked)}</>
+    case 'floorPolygonSides':
+      return <>{renderOptions(group.options, bindings.floorPolygonSides.value, bindings.floorPolygonSides.onChange, onPicked)}</>
     default:
       return null
   }

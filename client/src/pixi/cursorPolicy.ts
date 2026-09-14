@@ -68,6 +68,10 @@ export type GestureMode =
   | 'resizing-prop-corner'
   | 'area-marquee-drag'
   | 'dragging-area-selection'
+  // Chão por peças: arrasto de criação (retângulo/elipse/polígono) e mover
+  // o corpo de uma peça selecionada.
+  | 'drawing-floor'
+  | 'dragging-floor-body'
 
 /**
  * O que está sob o ponteiro em `mode === 'idle'`, achado por um hit-test
@@ -172,6 +176,7 @@ const CREATION_TOOLS = new Set<DrawingTool>([
   'curve',
   'text',
   'measure',
+  'floor',
 ])
 
 function resizeCursorForCorner(corner: ResizeCorner | null): string {
@@ -270,6 +275,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'drawing-room':
     case 'drawing-polygon-room':
     case 'drawing-stair':
+    case 'drawing-floor':
     case 'area-marquee-drag':
       return CURSOR_CROSSHAIR
 
@@ -283,6 +289,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'dragging-stair-body':
     case 'dragging-curve-body':
     case 'dragging-line-body':
+    case 'dragging-floor-body':
     case 'dragging-area-selection':
       return CURSOR_MOVE
 

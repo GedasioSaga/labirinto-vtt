@@ -44,9 +44,10 @@ describe('resolveShortcut — letras de ferramenta', () => {
     ['text', 'T'],
     ['measure', 'M'],
     ['eraser', 'E'],
+    ['floor', 'I'],
   ]
 
-  it('TOOL_SHORTCUTS cobre exatamente as 21 ferramentas esperadas, sem duplicar letra', () => {
+  it('TOOL_SHORTCUTS cobre exatamente as 22 ferramentas esperadas, sem duplicar letra', () => {
     expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length)
     const letters = Object.values(TOOL_SHORTCUTS)
     expect(new Set(letters).size).toBe(letters.length)

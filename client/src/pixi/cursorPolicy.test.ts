@@ -49,9 +49,11 @@ const ALL_MODES: GestureMode[] = [
   'resizing-prop-corner',
   'area-marquee-drag',
   'dragging-area-selection',
+  'drawing-floor',
+  'dragging-floor-body',
 ]
 
-/** Cópia local dos 21 literais de `DrawingTool` (`types/tools.ts:1-22`). */
+/** Cópia local dos 22 literais de `DrawingTool` (`types/tools.ts:1-23`). */
 const ALL_TOOLS: DrawingTool[] = [
   'select',
   'wall',
@@ -74,6 +76,7 @@ const ALL_TOOLS: DrawingTool[] = [
   'text',
   'measure',
   'eraser',
+  'floor',
 ]
 
 const ALL_HOVER_KINDS: HoverKind[] = ['none', 'selectable', 'resize-corner', 'vertex', 'radius', 'area-selection']
@@ -102,16 +105,16 @@ const baseInput = (overrides: Partial<ResolveCursorInput> = {}): ResolveCursorIn
 })
 
 describe('resolveCursor — exaustividade', () => {
-  it('cobre TODOS os 34 modos de PixiCanvas.tsx sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_MODES).toHaveLength(34)
+  it('cobre TODOS os 36 modos de PixiCanvas.tsx sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_MODES).toHaveLength(36)
     for (const mode of ALL_MODES) {
       const cursor = resolveCursor(baseInput({ mode, corner: 0 }))
       expect(VALID_CSS_CURSORS.has(cursor), `mode "${mode}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
     }
   })
 
-  it('cobre TODAS as 21 ferramentas (idle) sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_TOOLS).toHaveLength(21)
+  it('cobre TODAS as 22 ferramentas (idle) sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_TOOLS).toHaveLength(22)
     for (const activeTool of ALL_TOOLS) {
       const cursor = resolveCursor(baseInput({ activeTool }))
       expect(VALID_CSS_CURSORS.has(cursor), `tool "${activeTool}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
@@ -131,14 +134,14 @@ describe('resolveCursor — ferramentas de criação (idle): crosshair', () => {
   const creationTools: DrawingTool[] = [
     'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon',
     'stair', 'prop', 'brush', 'line', 'circle', 'ellipse', 'rect', 'polygon',
-    'curve', 'text', 'measure',
+    'curve', 'text', 'measure', 'floor',
   ]
 
   it.each(creationTools)('%s ocioso é crosshair — mira de precisão pra colocar algo novo', (activeTool) => {
     expect(resolveCursor(baseInput({ activeTool }))).toBe('crosshair')
   })
 
-  it('as 18 ferramentas de criação são exatamente DrawingTool menos select/token/eraser', () => {
+  it('as 19 ferramentas de criação são exatamente DrawingTool menos select/token/eraser', () => {
     const naoCriacao = new Set(['select', 'token', 'eraser'])
     const criacaoDoModulo = ALL_TOOLS.filter((tool) => !naoCriacao.has(tool))
     expect(criacaoDoModulo.sort()).toEqual([...creationTools].sort())

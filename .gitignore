@@ -13,3 +13,9 @@ client/playwright-report/
 graphify-out/
 # Trilha de sessão do Claude Code, local por máquina
 .claude-trail.md
+
+# Fora do repositório público: imagens de referência (direitos de terceiros), saídas geradas
+# pelo harness de recriação (regeneráveis com playwright.recreate.config.ts) e ambiente local.
+Objetivo/
+Tentativa/
+.genesis/
