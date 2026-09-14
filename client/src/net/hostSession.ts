@@ -1,4 +1,5 @@
-import type { MapData } from '../types/map'
+import type { DoorState, MapData } from '../types/map'
+import { createExploration, encodeExploration, markRings, type Exploration } from '../lib/exploration'
 import { filterMapForPlayer } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { parsePlayerMessage, type HostMessage, type JoinMessage, type TokenMoveMessage } from './protocol'
@@ -57,6 +58,13 @@ export interface HostSession {
   readonly rev: number
 }
 
+/** O que um jogador lembra de um mapa: células exploradas e último estado visto de cada porta. */
+interface PlayerMemory {
+  key: string
+  exp: Exploration
+  doors: Map<string, DoorState>
+}
+
 interface PlayerRecord {
   playerId: string
   name: string
@@ -71,14 +79,43 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const players = new Map<string, PlayerRecord>() // playerId -> registro
   const byClient = new Map<string, string>() // clientId conectado -> playerId
   const ownership: Record<string, string[]> = {}
+  // Por playerId (não clientId): sobrevive a reconexão/resume; só o kick apaga.
+  // `doors`: último estado de cada porta que o jogador VIU (por id da parede).
+  const explorations = new Map<string, PlayerMemory>()
   let rev = 0
 
   const statusOf = (playerId: string): PlayerStatus => ((ownership[playerId]?.length ?? 0) > 0 ? 'playing' : 'waiting')
 
-  /** Nunca manda o mapa do host: sempre o recorte de `filterMapForPlayer`. */
+  /** Memória do jogador para este mapa; outro mapa (ou mesmo id redimensionado) começa do zero. */
+  const memoryFor = (playerId: string, map: MapData): PlayerMemory => {
+    const key = `${map.id}|${map.width}|${map.height}|${map.grid}`
+    const current = explorations.get(playerId)
+    if (current !== undefined && current.key === key) return current
+    // MapData.width/height estão em células; o explorado mede px de mundo (mesma unidade da visão).
+    const exp = createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid })
+    const memory: PlayerMemory = { key, exp, doors: new Map() }
+    explorations.set(playerId, memory)
+    return memory
+  }
+
+  /**
+   * Nunca manda o mapa do host: sempre o recorte de `filterMapForPlayer`. O
+   * filtro usa o explorado e as portas lembradas de antes desta visão (a visão
+   * atual já entra por si); a marcação vem depois e segue junto para o jogador
+   * desenhar a névoa.
+   */
   const snapshotFor = (playerId: string, map: MapData): HostMessage => {
-    const view = filterMapForPlayer(map, playerId, ownership, options.visionRadius)
-    return { type: 'snapshot', rev, map: view.map, vision: view.vision }
+    const memory = memoryFor(playerId, map)
+    const exp = memory.exp
+    const view = filterMapForPlayer(map, playerId, ownership, options.visionRadius, exp, memory.doors)
+    markRings(exp, view.vision)
+    const seenNow = new Set(view.visibleDoorIds)
+    for (const w of view.map.walls) {
+      if (w.door !== null && seenNow.has(w.id)) memory.doors.set(w.id, { ...w.door })
+    }
+    const sent = new Set(view.map.tokens.map((t) => t.id))
+    const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
+    return { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens }
   }
 
   const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
@@ -178,6 +215,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       byClient.delete(clientId)
       players.delete(playerId) // invalida o resumeToken
       delete ownership[playerId]
+      explorations.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },
 

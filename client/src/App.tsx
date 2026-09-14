@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { ZoomHud } from './components/ZoomHud'
 import { Toast } from './components/Toast'
@@ -7,9 +7,10 @@ import { useSessionStore, subscribeToDirtyFlag } from './stores/sessionStore'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { createHostBridge, type HostBridge, type RoomInfo } from './net/hostBridge'
+import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } from './net/hostBridge'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
+import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
 import type { Camera } from './pixi/world'
 import { MainMenu } from './screens/MainMenu'
@@ -190,6 +191,8 @@ function App() {
   // Multiplayer em LAN: ponte do mestre criada sob demanda (só dentro do Tauri, ver RoomPanel abaixo).
   const [room, setRoom] = useState<RoomInfo | null>(null)
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
+  const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
+  const [railTab, setRailTab] = useState<RailTab>('map')
   const hostBridgeRef = useRef<HostBridge | null>(null)
   const hostBridge = (): HostBridge => {
     if (!hostBridgeRef.current) {
@@ -200,6 +203,7 @@ function App() {
         // Movimento já validado pela sessão (dono, paredes, borda do chão).
         applyMove: (tokenId, x, y) => useMapStore.getState().setTokenPosition(tokenId, x, y),
         onPlayersChange: setRoomPlayers,
+        onTunnelChange: setTunnel,
       })
     }
     return hostBridgeRef.current
@@ -223,6 +227,32 @@ function App() {
     setRoom(null)
     setRoomPlayers([])
   }
+  /** Fora do Tauri o rail segue só com o inspetor; no app ganha as abas Mapa | Sala. */
+  const withRoomTabs = (mapPanel: ReactNode): ReactNode =>
+    isTauri() ? (
+      <RailTabs
+        active={railTab}
+        onChange={setRailTab}
+        mapPanel={mapPanel}
+        roomPanel={
+          <RoomPanel
+            room={room}
+            players={roomPlayers}
+            tokens={map.tokens.map((token) => ({ id: token.id, name: token.name }))}
+            tunnel={tunnel}
+            onStart={() => void handleStartRoom()}
+            onStop={() => void handleStopRoom()}
+            onStartTunnel={() => void hostBridgeRef.current?.startTunnel()}
+            onStopTunnel={() => void hostBridgeRef.current?.stopTunnel()}
+            onAssign={(playerId, tokenId) => hostBridgeRef.current?.assignToken(playerId, tokenId)}
+            onUnassign={(playerId, tokenId) => hostBridgeRef.current?.unassignToken(playerId, tokenId)}
+            onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
+          />
+        }
+      />
+    ) : (
+      mapPanel
+    )
   const dismissToast = useToastStore((state) => state.dismiss)
   const [previousMapPath, setPreviousMapPath] = useState<string | null>(null)
   /**
@@ -878,256 +908,246 @@ function App() {
       </div>
 
       <div className="lb-editor__rail">
-        <PropertiesPanel
-          mapName={map.name}
-          mapWidth={map.width}
-          mapHeight={map.height}
-          mapGrid={map.grid}
-          activeTool={activeTool}
-          groups={propertyGroups}
-          lineCap={
-            activeTool === 'brush' || activeTool === 'line' || activeTool === 'curve'
-              ? { cap: drawCap, onCapChange: setDrawCap }
-              : selectedDrawing && 'cap' in selectedDrawing
-                ? { cap: selectedDrawing.cap ?? 'round', onCapChange: (cap: DrawingCap) => setDrawingCap(selectedDrawing.id, cap) }
-                : null
-          }
-          lineShape={
-            selectedDrawing?.kind === 'line'
-              ? { kind: 'line', onConvertToCurve: () => convertDrawingToCurve(selectedDrawing.id), onConvertToLine: null }
-              : selectedDrawing?.kind === 'curve'
-                ? {
-                    kind: 'curve',
-                    onConvertToCurve: () => convertDrawingToCurve(selectedDrawing.id),
-                    onConvertToLine: selectedDrawing.points.length === 2 ? () => convertDrawingToLine(selectedDrawing.id) : null,
-                  }
-                : null
-          }
-          fill={
-            selectedRegion
-              ? { filled: selectedRegion.filled ?? true, onFilledChange: (f: boolean) => setRegionFilled(selectedRegion.id, f) }
-              : selectedDrawing && 'filled' in selectedDrawing
-                ? {
-                    filled: selectedDrawing.filled,
-                    onFilledChange: (f: boolean) => setDrawingFilled(selectedDrawing.id, f),
-                    fillAlpha: selectedDrawing.fillAlpha,
-                    // Onda 1, item 4 — ver liveSliderChange acima.
-                    onFillAlphaChange: (a: number) =>
-                      liveSliderChange(`drawing-fillalpha-${selectedDrawing.id}`, () =>
-                        useMapStore.getState().setDrawingFillAlphaLive(selectedDrawing.id, a),
-                      ),
-                  }
-                : { filled: regionFillEnabled, onFilledChange: setRegionFillEnabled }
-          }
-          // Onda 4, item 24 — resumo de grupo só aparece com 2+ itens: com
-          // exatamente 1, o painel de propriedade do item já cobre (ver
-          // singleSelection acima); mostrar os dois ao mesmo tempo pra 1
-          // item seria redundante. `onClear` limpa o conjunto inteiro.
-          areaSelection={{
-            selection: selection.length > 1 ? selectionToAreaSelection(selection) : null,
-            onClear: () => setSelection(EMPTY_SELECTION),
-          }}
-          drawingStyle={{
-            color: drawColor,
-            onColorChange: setDrawColor,
-            width: drawWidth,
-            onWidthChange: setDrawWidth,
-            filled: drawFilled,
-            onFilledChange: setDrawFilled,
-            fillAlpha: drawFillAlpha,
-            onFillAlphaChange: setDrawFillAlpha,
-            showFilled: activeTool === 'circle' || activeTool === 'ellipse' || activeTool === 'rect' || activeTool === 'polygon',
-            showWidth: activeTool !== 'text',
-            fontSize: drawFontSize,
-            onFontSizeChange: setDrawFontSize,
-            fontFamily: drawFontFamily,
-            onFontFamilyChange: setDrawFontFamily,
-            showFontSize: activeTool === 'text',
-          }}
-          grid={{
-            showGrid,
-            onShowGridChange: setShowGrid,
-            gridShape,
-            onGridShapeChange: setGridShapeAction,
-            snapTargets,
-            onSnapTargetChange: setSnapTarget,
-            gridSettings: map.gridSettings,
-            onGridSettingsChange: setGridSettings,
-          }}
-          mapScale={{
-            scale: map.scale,
-            onScaleChange: (patch) => setMapScale({ ...map.scale, ...patch }),
-            measurementMode: map.measurementMode,
-            onMeasurementModeChange: setMeasurementMode,
-            gridShape,
-          }}
-          gridAlign={{
-            backgroundFilename:
-              map.background.type === 'image' && map.background.src
-                ? (map.background.src.split(/[\\/]/).pop() ?? null)
-                : null,
-            imageWidth: backgroundImageSize?.width ?? null,
-            imageHeight: backgroundImageSize?.height ?? null,
-            cellSize: map.grid,
-            offset: map.gridOffset ?? { x: 0, y: 0 },
-            onOffsetChange: setGridOffset,
-            // 2 chamadas = 2 entradas de histórico (Ctrl+Z desfaz offset e
-            // cellSize separadamente) — aceito de propósito, mesma decisão
-            // já documentada no CONTRATO do agente C5: sem ação combinada,
-            // é o preço de reusar as duas actions atômicas que já existem.
-            onApply: (cellSize, offset) => {
-              setGridCellSize(cellSize)
-              setGridOffset(offset)
-            },
-            onPreviewChange: setGridAlignPreview,
-          }}
-          layers={{
-            hiddenLayers: map.hiddenLayers,
-            lockedLayers: map.lockedLayers,
-            counts: countEntitiesByLayer(map),
-            onToggleLayer: toggleLayerVisibility,
-            onToggleLock: toggleLayerLock,
-            selectedProp,
-            onSetPropLayer: setPropLayer,
-          }}
-          selection={{
-            // SelectionControls (Onda 4, item 24) só precisa de um resumo:
-            // `kind` do primeiro item (só importa quando count === 1) +
-            // quantos itens no total. `null` = seleção vazia (botão desabilita).
-            selection: selection.length > 0 ? { kind: selection[0].kind, count: selection.length } : null,
-            onAddToken: handleAddToken,
-            onRemoveSelected: removeSelected,
-          }}
-          scenarioLink={{
-            scenarioLink: map.scenarioLink,
-            onScenarioLinkChange: setScenarioLink,
-          }}
-          selectedWall={selectedWall}
-          wallDoor={{
-            onToggleDoor: handleToggleDoor,
-            onToggleOpen: handleToggleOpen,
-            onToggleLocked: handleToggleLocked,
-          }}
-          doorKind={{
-            kind: selectedWall?.door ? selectedWall.door.kind : doorKind,
-            onKindChange: handleDoorKindChange,
-          }}
-          wallStyle={{
-            wallKind: selectedWall ? selectedWall.wallKind : wallKind,
-            onWallKindChange: handleWallKindChange,
-            thickness: selectedWall ? selectedWall.thickness : wallThickness,
-            onThicknessChange: handleWallThicknessChange,
-            lineStyle: selectedWall ? selectedWall.lineStyle : wallLineStyle,
-            onLineStyleChange: handleWallLineStyleChange,
-          }}
-          selectedProp={selectedProp}
-          portal={{
-            onCreateLinkedMap: () => selectedProp && handleCreateLinkedMap(selectedProp.id),
-            onLinkExistingMap: () => selectedProp && handleLinkExistingMap(selectedProp.id),
-            onEnterLinkedMap: handleEnterLinkedMap,
-            onUnlink: () => selectedProp && useMapStore.getState().setPropLinkedPath(selectedProp.id, null),
-          }}
-          propTransform={{
-            onRotationChange: (rotation) => selectedProp && updateProp(selectedProp.id, { rotation }),
-            onLockedChange: (locked) => selectedProp && updateProp(selectedProp.id, { locked }),
-            onHiddenChange: (hidden) => selectedProp && updateProp(selectedProp.id, { hidden }),
-          }}
-          selectedToken={selectedToken}
-          tokenImage={{
-            onChangeImage: () => selectedToken && handleChangeTokenImage(selectedToken.id),
-            onClearImage: () => selectedToken && setTokenImage(selectedToken.id, null),
-          }}
-          tokenTransform={{
-            onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
-            onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
-            onHiddenChange: (hidden) => selectedToken && updateToken(selectedToken.id, { hidden }),
-          }}
-          selectedTextLabel={selectedTextLabel}
-          textLabel={{
-            onTextChange: handleTextChange,
-            onColorChange: handleTextColorChange,
-            onFontSizeChange: handleTextFontSizeChange,
-            onFontFamilyChange: handleTextFontFamilyChange,
-          }}
-          selectedRegion={selectedRegion}
-          regionStyle={{
-            color: selectedRegion ? selectedRegion.fillColor : regionFillColor,
-            onColorChange: handleRegionColorChange,
-            pattern: selectedRegion ? selectedRegion.fillPattern : regionFillPattern,
-            onPatternChange: handleRegionPatternChange,
-            strokeWidth: selectedRegion ? selectedRegion.strokeWidth ?? 2 : regionStrokeWidth,
-            onStrokeWidthChange: handleRegionStrokeWidthChange,
-            strokeJoin: selectedRegion ? selectedRegion.strokeJoin ?? 'miter' : regionStrokeJoin,
-            onStrokeJoinChange: handleRegionStrokeJoinChange,
-            onLinkWalls: selectedRegion
-              ? () => useMapStore.getState().linkRegionWalls(selectedRegion.id)
-              : undefined,
-            onSmoothRegion: selectedRegion
-              ? () => useMapStore.getState().smoothRegion(selectedRegion.id)
-              : undefined,
-          }}
-          room={{
-            onNameChange: (name) => selectedRegion && setRoomName(selectedRegion.id, name),
-            onWidthChange: (width) =>
-              selectedRegion && resizeRoomDimensions(selectedRegion.id, width, roomDimensions(selectedRegion.points).height),
-            onHeightChange: (height) =>
-              selectedRegion && resizeRoomDimensions(selectedRegion.id, roomDimensions(selectedRegion.points).width, height),
-          }}
-          selectedLight={selectedLight}
-          lightControls={{
-            onColorChange: (color) => selectedLight && updateLight(selectedLight.id, { color }),
-            // Onda 1, item 4 — ver liveSliderChange acima.
-            onIntensityChange: (intensity) =>
-              selectedLight &&
-              liveSliderChange(`light-intensity-${selectedLight.id}`, () =>
-                useMapStore.getState().updateLightIntensityLive(selectedLight.id, intensity),
-              ),
-          }}
-          selectedStair={selectedStair}
-          stairControls={{
-            onDirectionChange: (direction) => selectedStair && setStairDirection(selectedStair.id, direction),
-            stepWidth: selectedStair?.stepWidth ?? map.grid,
-            onStepWidthChange: (stepWidth) => selectedStair && setStairStepWidthForStair(selectedStair.id, stepWidth),
-            grid: map.grid,
-          }}
-          polygonSides={{
-            sides: polygonSides,
-            onSidesChange: setPolygonSides,
-          }}
-          selectedFloorPiece={selectedFloorPiece}
-          floorPieceControls={{
-            index: selectedFloorIndex,
-            count: map.floor.length,
-            grid: map.grid,
-            onChange: (patch) => selectedFloorPiece && updateFloorPiece(selectedFloorPiece.id, patch),
-            onReorder: (delta) => selectedFloorPiece && reorderFloorPiece(selectedFloorPiece.id, delta),
-            // removeSelected (não removeFloorPiece) para também limpar a seleção.
-            onRemove: removeSelected,
-          }}
-          floorStyle={{
-            style: map.floorStyle,
-            onStyleChange: setFloorStyle,
-            canTraceFromBackground: map.background.type === 'image' && map.background.src !== '',
-            onTraceFromBackground: () => void handleFloorFromBackground(),
-            onTraceDetailsFromBackground: () => void handleDetailsFromBackground(),
-            onRecreateMinimapFromBackground: () => void handleMinimapFromBackground(),
-            frame: map.frame,
-            // Moldura nova envolve o mapa inteiro (moldura de mapa desenhado à mão); a recriação usa retângulo próprio.
-            onFrameChange: (frame) => setMapFrame(frame),
-            defaultFrameRect: { x: 0, y: 0, w: map.width * map.grid, h: map.height * map.grid },
-          }}
-        />
-        {isTauri() && (
-          <RoomPanel
-            room={room}
-            players={roomPlayers}
-            tokens={map.tokens.map((token) => ({ id: token.id, name: token.name }))}
-            onStart={() => void handleStartRoom()}
-            onStop={() => void handleStopRoom()}
-            onAssign={(playerId, tokenId) => hostBridgeRef.current?.assignToken(playerId, tokenId)}
-            onUnassign={(playerId, tokenId) => hostBridgeRef.current?.unassignToken(playerId, tokenId)}
-            onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
-          />
+        {withRoomTabs(
+          <PropertiesPanel
+            mapName={map.name}
+            mapWidth={map.width}
+            mapHeight={map.height}
+            mapGrid={map.grid}
+            activeTool={activeTool}
+            groups={propertyGroups}
+            lineCap={
+              activeTool === 'brush' || activeTool === 'line' || activeTool === 'curve'
+                ? { cap: drawCap, onCapChange: setDrawCap }
+                : selectedDrawing && 'cap' in selectedDrawing
+                  ? { cap: selectedDrawing.cap ?? 'round', onCapChange: (cap: DrawingCap) => setDrawingCap(selectedDrawing.id, cap) }
+                  : null
+            }
+            lineShape={
+              selectedDrawing?.kind === 'line'
+                ? { kind: 'line', onConvertToCurve: () => convertDrawingToCurve(selectedDrawing.id), onConvertToLine: null }
+                : selectedDrawing?.kind === 'curve'
+                  ? {
+                      kind: 'curve',
+                      onConvertToCurve: () => convertDrawingToCurve(selectedDrawing.id),
+                      onConvertToLine: selectedDrawing.points.length === 2 ? () => convertDrawingToLine(selectedDrawing.id) : null,
+                    }
+                  : null
+            }
+            fill={
+              selectedRegion
+                ? { filled: selectedRegion.filled ?? true, onFilledChange: (f: boolean) => setRegionFilled(selectedRegion.id, f) }
+                : selectedDrawing && 'filled' in selectedDrawing
+                  ? {
+                      filled: selectedDrawing.filled,
+                      onFilledChange: (f: boolean) => setDrawingFilled(selectedDrawing.id, f),
+                      fillAlpha: selectedDrawing.fillAlpha,
+                      // Onda 1, item 4 — ver liveSliderChange acima.
+                      onFillAlphaChange: (a: number) =>
+                        liveSliderChange(`drawing-fillalpha-${selectedDrawing.id}`, () =>
+                          useMapStore.getState().setDrawingFillAlphaLive(selectedDrawing.id, a),
+                        ),
+                    }
+                  : { filled: regionFillEnabled, onFilledChange: setRegionFillEnabled }
+            }
+            // Onda 4, item 24 — resumo de grupo só aparece com 2+ itens: com
+            // exatamente 1, o painel de propriedade do item já cobre (ver
+            // singleSelection acima); mostrar os dois ao mesmo tempo pra 1
+            // item seria redundante. `onClear` limpa o conjunto inteiro.
+            areaSelection={{
+              selection: selection.length > 1 ? selectionToAreaSelection(selection) : null,
+              onClear: () => setSelection(EMPTY_SELECTION),
+            }}
+            drawingStyle={{
+              color: drawColor,
+              onColorChange: setDrawColor,
+              width: drawWidth,
+              onWidthChange: setDrawWidth,
+              filled: drawFilled,
+              onFilledChange: setDrawFilled,
+              fillAlpha: drawFillAlpha,
+              onFillAlphaChange: setDrawFillAlpha,
+              showFilled: activeTool === 'circle' || activeTool === 'ellipse' || activeTool === 'rect' || activeTool === 'polygon',
+              showWidth: activeTool !== 'text',
+              fontSize: drawFontSize,
+              onFontSizeChange: setDrawFontSize,
+              fontFamily: drawFontFamily,
+              onFontFamilyChange: setDrawFontFamily,
+              showFontSize: activeTool === 'text',
+            }}
+            grid={{
+              showGrid,
+              onShowGridChange: setShowGrid,
+              gridShape,
+              onGridShapeChange: setGridShapeAction,
+              snapTargets,
+              onSnapTargetChange: setSnapTarget,
+              gridSettings: map.gridSettings,
+              onGridSettingsChange: setGridSettings,
+            }}
+            mapScale={{
+              scale: map.scale,
+              onScaleChange: (patch) => setMapScale({ ...map.scale, ...patch }),
+              measurementMode: map.measurementMode,
+              onMeasurementModeChange: setMeasurementMode,
+              gridShape,
+            }}
+            gridAlign={{
+              backgroundFilename:
+                map.background.type === 'image' && map.background.src
+                  ? (map.background.src.split(/[\\/]/).pop() ?? null)
+                  : null,
+              imageWidth: backgroundImageSize?.width ?? null,
+              imageHeight: backgroundImageSize?.height ?? null,
+              cellSize: map.grid,
+              offset: map.gridOffset ?? { x: 0, y: 0 },
+              onOffsetChange: setGridOffset,
+              // 2 chamadas = 2 entradas de histórico (Ctrl+Z desfaz offset e
+              // cellSize separadamente) — aceito de propósito, mesma decisão
+              // já documentada no CONTRATO do agente C5: sem ação combinada,
+              // é o preço de reusar as duas actions atômicas que já existem.
+              onApply: (cellSize, offset) => {
+                setGridCellSize(cellSize)
+                setGridOffset(offset)
+              },
+              onPreviewChange: setGridAlignPreview,
+            }}
+            layers={{
+              hiddenLayers: map.hiddenLayers,
+              lockedLayers: map.lockedLayers,
+              counts: countEntitiesByLayer(map),
+              onToggleLayer: toggleLayerVisibility,
+              onToggleLock: toggleLayerLock,
+              selectedProp,
+              onSetPropLayer: setPropLayer,
+            }}
+            selection={{
+              // SelectionControls (Onda 4, item 24) só precisa de um resumo:
+              // `kind` do primeiro item (só importa quando count === 1) +
+              // quantos itens no total. `null` = seleção vazia (botão desabilita).
+              selection: selection.length > 0 ? { kind: selection[0].kind, count: selection.length } : null,
+              onAddToken: handleAddToken,
+              onRemoveSelected: removeSelected,
+            }}
+            scenarioLink={{
+              scenarioLink: map.scenarioLink,
+              onScenarioLinkChange: setScenarioLink,
+            }}
+            selectedWall={selectedWall}
+            wallDoor={{
+              onToggleDoor: handleToggleDoor,
+              onToggleOpen: handleToggleOpen,
+              onToggleLocked: handleToggleLocked,
+            }}
+            doorKind={{
+              kind: selectedWall?.door ? selectedWall.door.kind : doorKind,
+              onKindChange: handleDoorKindChange,
+            }}
+            wallStyle={{
+              wallKind: selectedWall ? selectedWall.wallKind : wallKind,
+              onWallKindChange: handleWallKindChange,
+              thickness: selectedWall ? selectedWall.thickness : wallThickness,
+              onThicknessChange: handleWallThicknessChange,
+              lineStyle: selectedWall ? selectedWall.lineStyle : wallLineStyle,
+              onLineStyleChange: handleWallLineStyleChange,
+            }}
+            selectedProp={selectedProp}
+            portal={{
+              onCreateLinkedMap: () => selectedProp && handleCreateLinkedMap(selectedProp.id),
+              onLinkExistingMap: () => selectedProp && handleLinkExistingMap(selectedProp.id),
+              onEnterLinkedMap: handleEnterLinkedMap,
+              onUnlink: () => selectedProp && useMapStore.getState().setPropLinkedPath(selectedProp.id, null),
+            }}
+            propTransform={{
+              onRotationChange: (rotation) => selectedProp && updateProp(selectedProp.id, { rotation }),
+              onLockedChange: (locked) => selectedProp && updateProp(selectedProp.id, { locked }),
+              onHiddenChange: (hidden) => selectedProp && updateProp(selectedProp.id, { hidden }),
+            }}
+            selectedToken={selectedToken}
+            tokenImage={{
+              onChangeImage: () => selectedToken && handleChangeTokenImage(selectedToken.id),
+              onClearImage: () => selectedToken && setTokenImage(selectedToken.id, null),
+            }}
+            tokenTransform={{
+              onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
+              onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
+              onHiddenChange: (hidden) => selectedToken && updateToken(selectedToken.id, { hidden }),
+            }}
+            selectedTextLabel={selectedTextLabel}
+            textLabel={{
+              onTextChange: handleTextChange,
+              onColorChange: handleTextColorChange,
+              onFontSizeChange: handleTextFontSizeChange,
+              onFontFamilyChange: handleTextFontFamilyChange,
+            }}
+            selectedRegion={selectedRegion}
+            regionStyle={{
+              color: selectedRegion ? selectedRegion.fillColor : regionFillColor,
+              onColorChange: handleRegionColorChange,
+              pattern: selectedRegion ? selectedRegion.fillPattern : regionFillPattern,
+              onPatternChange: handleRegionPatternChange,
+              strokeWidth: selectedRegion ? selectedRegion.strokeWidth ?? 2 : regionStrokeWidth,
+              onStrokeWidthChange: handleRegionStrokeWidthChange,
+              strokeJoin: selectedRegion ? selectedRegion.strokeJoin ?? 'miter' : regionStrokeJoin,
+              onStrokeJoinChange: handleRegionStrokeJoinChange,
+              onLinkWalls: selectedRegion
+                ? () => useMapStore.getState().linkRegionWalls(selectedRegion.id)
+                : undefined,
+              onSmoothRegion: selectedRegion
+                ? () => useMapStore.getState().smoothRegion(selectedRegion.id)
+                : undefined,
+            }}
+            room={{
+              onNameChange: (name) => selectedRegion && setRoomName(selectedRegion.id, name),
+              onWidthChange: (width) =>
+                selectedRegion && resizeRoomDimensions(selectedRegion.id, width, roomDimensions(selectedRegion.points).height),
+              onHeightChange: (height) =>
+                selectedRegion && resizeRoomDimensions(selectedRegion.id, roomDimensions(selectedRegion.points).width, height),
+            }}
+            selectedLight={selectedLight}
+            lightControls={{
+              onColorChange: (color) => selectedLight && updateLight(selectedLight.id, { color }),
+              // Onda 1, item 4 — ver liveSliderChange acima.
+              onIntensityChange: (intensity) =>
+                selectedLight &&
+                liveSliderChange(`light-intensity-${selectedLight.id}`, () =>
+                  useMapStore.getState().updateLightIntensityLive(selectedLight.id, intensity),
+                ),
+            }}
+            selectedStair={selectedStair}
+            stairControls={{
+              onDirectionChange: (direction) => selectedStair && setStairDirection(selectedStair.id, direction),
+              stepWidth: selectedStair?.stepWidth ?? map.grid,
+              onStepWidthChange: (stepWidth) => selectedStair && setStairStepWidthForStair(selectedStair.id, stepWidth),
+              grid: map.grid,
+            }}
+            polygonSides={{
+              sides: polygonSides,
+              onSidesChange: setPolygonSides,
+            }}
+            selectedFloorPiece={selectedFloorPiece}
+            floorPieceControls={{
+              index: selectedFloorIndex,
+              count: map.floor.length,
+              grid: map.grid,
+              onChange: (patch) => selectedFloorPiece && updateFloorPiece(selectedFloorPiece.id, patch),
+              onReorder: (delta) => selectedFloorPiece && reorderFloorPiece(selectedFloorPiece.id, delta),
+              // removeSelected (não removeFloorPiece) para também limpar a seleção.
+              onRemove: removeSelected,
+            }}
+            floorStyle={{
+              style: map.floorStyle,
+              onStyleChange: setFloorStyle,
+              canTraceFromBackground: map.background.type === 'image' && map.background.src !== '',
+              onTraceFromBackground: () => void handleFloorFromBackground(),
+              onTraceDetailsFromBackground: () => void handleDetailsFromBackground(),
+              onRecreateMinimapFromBackground: () => void handleMinimapFromBackground(),
+              frame: map.frame,
+              // Moldura nova envolve o mapa inteiro (moldura de mapa desenhado à mão); a recriação usa retângulo próprio.
+              onFrameChange: (frame) => setMapFrame(frame),
+              defaultFrameRect: { x: 0, y: 0, w: map.width * map.grid, h: map.height * map.grid },
+            }}
+          />,
         )}
         <ActionBar
           onSave={handleSave}

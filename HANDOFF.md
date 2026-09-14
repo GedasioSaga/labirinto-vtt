@@ -188,6 +188,66 @@ com tinta e inspeção lado a lado sem diferença visível. Gate normal verde: `
 exit 0, `npm run test` 0 falhas, `cd client && npx playwright test` 0 falhas.
 
 ## Evidência
+- Tela do jogador parte 1 (workflow `wf_f34be423-e3d`, 8 agentes, só Opus, portão aprovado na 3ª
+  rodada): tsc client e e2e exit 0; vitest 96 arquivos / 1668 passed; playwright 118 passed (inclui
+  `task-player-map.spec.ts`). Screenshots `scratchpad/jogador-parte1/antes-sala-a.png`,
+  `depois-sala-b.png`, `painel-ajustado.png`. Exe release (WebView2 isolado,
+  `scratchpad/e2e-parte1-release.mjs`): Sala desenhada pela UI com nome "Taverna" aparece no editor;
+  jogador recebeu 1 região, 4 paredes e 1317 células exploradas. Cancelar durante "Conectando"
+  (`scratchpad/cancel-timeline.mjs`): sem link por 40 s e 0 cloudflared. (1ª tentativa inválida: um
+  jogador real "Saga" entrou na janela de teste e o link foi reaberto manualmente.)
+- Revisão de segurança (agente `revisor`, opus): CRÍTICO reproduzido — célula de exploração marcada
+  pelo centro atravessa parede e vaza sala vizinha (grid 20 e mapa grande); MÉDIO — vértice na linha
+  da parede marca/enviar sala vizinha (confirmado no app real: "Taverna" enviada com token do lado de
+  fora); MÉDIO — estado da porta ao vivo fora da visão; BAIXO — `scenarioLink`/`ownerId` no spread.
+  CORRIGIDOS (agente `operario` opus): célula só marcada se inteira dentro do anel
+  (`exploration.ts:71-140`); amostras internas para regiões/formas com área (`fogFilter.ts:69`);
+  memória de portas por jogador com último estado visto (`fogFilter.ts:170,218`,
+  `hostSession.ts:62,90,114`); `scenarioLink`/`ownerId`/`fog.revealed` neutralizados
+  (`fogFilter.ts:232`). Cada um com teste que falhava antes. tsc client/e2e exit 0; vitest 1676
+  passed; playwright 118 passed (rodado sozinho; rodar duas suítes Playwright ao mesmo tempo dá
+  falsas falhas).
+- Exe release depois das correções (WebView2 isolado): token FORA de uma Sala sem porta →
+  `regions-count 0` (a sala não vaza); token posto antes de desenhar a Sala ao redor →
+  `regions-count 1`, WebSocket trouxe `room.name = "Taverna"`, tela do jogador com a sala azul e o
+  nome legível (`scratchpad/e2e-parte1b/4-dentro-jogador.png`), erros de página `[]`; fechar o app
+  deixa 0 labirinto.exe e 0 cloudflared. Scripts `scratchpad/e2e-parte1b-release.mjs` e
+  `e2e-parte1c-release.mjs`. Nada commitado; instalador publicado continua o v0.1.0.
+- Correções da varredura do túnel (agente Rust, 14/09/2026): stop perdido em `net_start_tunnel`
+  (geração capturada na entrada, `discard_leftover_tunnel`, `spawn_tunnel`/`wait_ready` com
+  cancelamento), chave /64 para IPv6 (`limit_key`), testes de ciclo de vida; clippy 0 avisos, lib
+  25/25, `net_server` 11/11. Teste real de liga/desliga no exe mostrou que durante "Conectando" a UI
+  não tinha como cancelar (botão desabilitado, sem "Encerrar"): adicionado botão "Cancelar" em
+  `RoomPanel.tsx` (+3 testes). E2E real do cancelamento pendente para depois da parte 1 do jogador.
+- Fila de pedidos do usuário: (1) tela do jogador parte 1 — EM ANDAMENTO (workflow sequencial só
+  Opus, run `wf_f34be423-e3d`); (2) parte 2: laser só do mestre + controles do mestre por jogador
+  (revelar só a planta) + PING do jogador (botão "Sinalizar" + toque; mestre vê sempre com nome,
+  ondas ~3 s, som e seta na borda; outros jogadores só se o lugar já foi explorado por eles); (3) tokens: renomear, imagem que persiste, biblioteca de imagens, jogador vê
+  e muda imagem/nome do próprio token, personagem salvo reutilizável; (4) cenas com vários mapas
+  (vila → casa, andares). Restrição: sem Fable, só Opus, máx 3 agentes simultâneos, sequencial.
+- Sala pública via Cloudflare Quick Tunnel (14/09/2026, plano
+  `~/.claude/plans/valiant-enchanting-patterson.md`): Rust `cargo clippy ... -D warnings` exit 0;
+  `cargo test` 16 unit + 9 integração passed (log `scratchpad/cargo-test-tunnel.log`); TS typecheck 0,
+  vitest 1604 passed, playwright 116 passed (inclui `e2e/task-canvas-resize.spec.ts`). E2E REAL pela
+  internet no exe release (`scratchpad/e2e-tunnel.mjs`, WebView2 isolado): download do cloudflared
+  2026.9.1 com progresso, link `https://creatures-phones-deer-hollywood.trycloudflare.com/player`,
+  GET público 200, jogador entrou com código `33FA7K`, token atribuído, `data-tokens-count=1`,
+  erros `[]`; após "Encerrar link público" o link responde 502. Fechar o app pelo WM_CLOSE (botão X)
+  encerra o app e o cloudflared (antes 1, depois 0) — `scratchpad/close-test-app.ps1`.
+- Varredura curta + segurança (run `wf_ccfed6ee-be8`, 14 agentes, erro vazio, relatório
+  `docs/varredura-2026-09-14.md`, banca de 1 refutador): 7 CONFIRMADOS, 0 descartados. Alto:
+  stop perdido em `net_start_tunnel` (`commands.rs:243`, túnel fica público com a UI "parada").
+  Médio: limites por IP com IPv6 sem /64 (`server.rs:345`); ciclo de vida do túnel sem teste
+  (`commands.rs:58`). Baixos: testes de pendentes via túnel, queda do link no hostBridge, resize do
+  PlayerView. EM CORREÇÃO por 2 agentes (Rust e TS), com teste que reproduz antes do fix.
+- Bug antigo corrigido: o botão X não fechava o app (`onCloseRequested` em `App.tsx:387` chama
+  `destroy()`, recusado: "Command plugin:window|destroy not allowed by ACL"). Fix:
+  `core:window:allow-destroy` em `desktop/src-tauri/capabilities/default.json`.
+- Faixa preta à direita do editor: canvas Pixi preso no tamanho inicial + grade/sombra sem redraw no
+  resize. Fix com `ResizeObserver` + `renderer.on('resize')` em `pixi/PixiCanvas.tsx` (e observer em
+  `player/PlayerView.tsx`). Verificado no WebView2 real (exe release, `scratchpad/canvas-size.mjs`):
+  inicial 1280x800 → maximizada 1536x794 com canvas 1536x794 e grade até a borda
+  (`scratchpad/canvas-size-maximized.png`) → normal 1280x800.
 - Instalador (14/09/2026): build release exit 0, "Finished 2 bundles" (setup.exe 1,7 MB, msi 2,3 MB).
   E2E no exe RELEASE (sem Vite) via CDP 9222, script `scratchpad/e2e-release.mjs`: mapa criado pela
   UI + "Adicionar token", sala `MUTSN7` com 4 URLs de LAN, `GET /player` 200 do asset embutido,

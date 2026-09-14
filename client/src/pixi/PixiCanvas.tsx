@@ -33,6 +33,7 @@ import { drawDoors } from './drawDoors'
 import { drawStairs } from './drawStairs'
 import { drawLights } from './drawLights'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
+import { createRoomNamesRenderer } from './drawRoomNames'
 import { createFloorRenderer, drawFloorDraft } from './drawFloor'
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
 import { drawMapFrame } from './drawMapFrame'
@@ -266,6 +267,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // Render fiel (FloorStyle.renderMode === 'raster'): conteúdo do mapa rasterizado por software.
       const mapRasterSprite = new Sprite(Texture.EMPTY)
       const regionsContainer = new Container()
+      // Nomes das salas logo acima do preenchimento: abaixo das paredes para
+      // não cobrir porta/escada, mas nunca escondidos pela cor da própria sala.
+      const roomNamesContainer = new Container()
       const wallsGraphics = new Graphics()
       const doorsGraphics = new Graphics()
       const stairsGraphics = new Graphics()
@@ -300,6 +304,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         floorGraphics,
         mapLinesGraphics,
         regionsContainer,
+        roomNamesContainer,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
@@ -463,6 +468,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (!rasterMode && !map.hiddenLayers.includes('portas')) drawMapMarkers(mapLinesGraphics, map.markers)
         redrawMapFrame(map.frame)
         regionsRenderer.draw(regionsContainer, visibleRegions(map.regions, map.hiddenLayers), resolveHighlightedRegionId(map.walls, single))
+        roomNamesRenderer.draw(roomNamesContainer, visibleRegions(map.regions, map.hiddenLayers), map.grid)
         drawWalls(wallsGraphics, visibleWalls(map.walls, map.hiddenLayers), single?.kind === 'wall' ? single.id : null)
         drawDoors(doorsGraphics, visibleWalls(map.walls, map.hiddenLayers), single?.kind === 'wall' ? single.id : null)
         drawStairs(stairsGraphics, visibleStairs(map.stairs, map.hiddenLayers), single?.kind === 'stair' ? single.id : null)
@@ -489,6 +495,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const angleIndicatorRenderer = createAngleIndicatorRenderer()
       const measurementIndicatorRenderer = createMeasurementIndicatorRenderer()
       const regionsRenderer = createRegionsRenderer()
+      const roomNamesRenderer = createRoomNamesRenderer()
       const floorRenderer = createFloorRenderer()
       // Render fiel: re-rasteriza só quando alguma entrada muda de referência (a store é imutável).
       let lastRaster: {
@@ -625,6 +632,21 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         redrawGrid()
         redrawMapBounds()
       })
+      // Grade e sombra fora do mapa são recortadas ao viewport (app.screen):
+      // quando o renderer muda de tamanho, redesenha as duas sem mexer na
+      // câmera. Sem isso a área nova ao maximizar ficava sem grade/sombra.
+      app.renderer.on('resize', () => {
+        if (destroyed) return
+        redrawGrid()
+        redrawMapBounds()
+      })
+      // O ResizePlugin do Pixi só escuta 'resize' da janela; o container pode
+      // mudar de tamanho sem esse evento (layout, WebView2 maximizando) e o
+      // canvas ficava preso no tamanho antigo, deixando o fundo da página à mostra.
+      const containerResizeObserver = new ResizeObserver(() => {
+        if (!destroyed) app.resize()
+      })
+      containerResizeObserver.observe(el)
       const unsubscribeShapes = subscribeToShapesRedraw(redrawShapes)
       const unsubscribeTokens = subscribeToTokensRedraw(redrawTokens)
       const unsubscribeProps = subscribeToPropsRedraw(redrawProps)
@@ -2943,6 +2965,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       el.addEventListener('wheel', onWheel, { passive: false })
 
       return () => {
+        containerResizeObserver.disconnect()
         unsubscribeGrid()
         unsubscribeGridOffset()
         unsubscribeShapes()

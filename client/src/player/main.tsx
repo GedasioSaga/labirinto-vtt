@@ -1,13 +1,27 @@
-import { StrictMode, useEffect, useState, useSyncExternalStore } from 'react'
+import { StrictMode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH } from '../net/protocol'
+import { themeCss } from '../theme'
 import { createPlayerConnection } from './playerConnection'
 import type { PlayerConnection, PlayerState, StorageLike } from './playerConnection'
-import { PlayerView } from './PlayerView'
+import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
+import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
+import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
+import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
+
+// Mesmas custom properties `--lb-*` do editor (ver main.tsx da raiz), antes do primeiro render.
+const themeStyle = document.createElement('style')
+themeStyle.id = 'lb-theme'
+themeStyle.textContent = themeCss()
+document.head.prepend(themeStyle)
+
+/** Referência estável: um `[]` novo a cada render redesenharia o canvas sem motivo. */
+const NO_TOKENS: string[] = []
+const OWN_TOKEN_CSS = `#${OWN_TOKEN_COLOR.toString(16).padStart(6, '0')}`
 
 const REASON_TEXT: Record<string, string> = {
   bad_code: 'Código de sala incorreto. Confira com o mestre e tente de novo.',
@@ -20,6 +34,15 @@ const REASON_TEXT: Record<string, string> = {
 function sessionStorageOrNull(): StorageLike | null {
   try {
     return window.sessionStorage
+  } catch {
+    return null
+  }
+}
+
+/** Ajustes do painel sobrevivem a fechar a aba; o acesso pode lançar (site bloqueado). */
+function localStorageOrNull(): StorageLike | null {
+  try {
+    return window.localStorage
   } catch {
     return null
   }
@@ -78,11 +101,44 @@ function JoinForm({ onJoin, message }: { onJoin: (code: string, name: string) =>
 
 function Session({ connection, onLeave }: { connection: PlayerConnection; onLeave: () => void }) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
+  const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(localStorageOrNull()))
+  const [focus, setFocus] = useState<{ tokenId: string | null; seq: number }>({ tokenId: null, seq: 0 })
+  const ownTokens = state.ownTokens ?? NO_TOKENS
+  const map = state.map
+  const characters = useMemo(() => {
+    if (!map) return []
+    const byId = new Map(map.tokens.map((t) => [t.id, t]))
+    return ownTokens.flatMap((id) => {
+      const token = byId.get(id)
+      return token ? [{ id, name: token.name }] : []
+    })
+  }, [map, ownTokens])
+
+  function changeSettings(next: PlayerViewSettings) {
+    setSettings(next)
+    savePlayerSettings(localStorageOrNull(), next)
+  }
 
   if (state.status === 'playing' && state.map && state.vision) {
     return (
       <PlayerErrorBoundary onReconnect={() => connection.reconnect()}>
-        <PlayerView map={state.map} vision={state.vision} onMove={(id, x, y) => connection.requestMove(id, x, y)} />
+        <PlayerView
+          map={state.map}
+          vision={state.vision}
+          explored={state.explored}
+          ownTokens={ownTokens}
+          settings={settings}
+          focusTokenId={focus.tokenId}
+          focusSeq={focus.seq}
+          onMove={(id, x, y) => connection.requestMove(id, x, y)}
+        />
+        <PlayerPanel
+          characters={characters}
+          characterColor={OWN_TOKEN_CSS}
+          settings={settings}
+          onSettingsChange={changeSettings}
+          onFocusToken={(tokenId) => setFocus((current) => ({ tokenId, seq: current.seq + 1 }))}
+        />
       </PlayerErrorBoundary>
     )
   }

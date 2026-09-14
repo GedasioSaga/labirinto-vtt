@@ -1,4 +1,5 @@
 import type { MapData, RegionPoint } from '../types/map'
+import { decodeExploration, type Exploration } from '../lib/exploration'
 import type { JoinMessage, PlayerMessage } from '../net/protocol'
 
 /**
@@ -13,6 +14,10 @@ export interface PlayerState {
   status: PlayerStatus
   map?: MapData
   vision?: RegionPoint[][]
+  /** O que o jogador já viu neste mapa (autoridade do mestre). */
+  explored?: Exploration
+  /** Ids dos tokens do próprio jogador presentes no mapa recebido. */
+  ownTokens?: string[]
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -86,6 +91,10 @@ function isPointList(value: unknown): value is RegionPoint[] {
 
 function isVision(value: unknown): value is RegionPoint[][] {
   return Array.isArray(value) && value.every(isPointList)
+}
+
+function isStringList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
 /**
@@ -171,7 +180,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return null
   }
 
-  function applySnapshot(rev: number, map: MapData, vision: RegionPoint[][]): void {
+  function applySnapshot(rev: number, map: MapData, vision: RegionPoint[][], explored: Exploration | undefined, ownTokens: string[]): void {
     if (rev <= state.rev) return
     let next = map
     // Reaplica, em ordem, só os movimentos ainda não confirmados pelo mestre.
@@ -185,7 +194,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       move.prevY = token.y
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
-    setState({ status: 'playing', rev, map: next, vision, error: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, error: undefined })
   }
 
   function handleRejected(reqId: string): void {
@@ -231,13 +240,23 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting' })
         return
       case 'lobby.waiting':
-        setState({ status: 'waiting', map: undefined, vision: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined })
         return
       case 'snapshot':
-      case 'delta':
+      case 'delta': {
         if (!isFiniteNumber(data.rev) || !isMapShape(data.map) || !isVision(data.vision)) return
-        applySnapshot(data.rev, data.map, data.vision)
+        // Campos aditivos: ausentes são tolerados (sem memória, sem "meus
+        // personagens"); presentes e malformados descartam a mensagem inteira.
+        let explored: Exploration | undefined
+        if (data.explored !== undefined) {
+          const decoded = decodeExploration(data.explored)
+          if (decoded === null) return
+          explored = decoded
+        }
+        if (data.ownTokens !== undefined && !isStringList(data.ownTokens)) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [])
         return
+      }
       case 'token.move.accepted':
         if (typeof data.reqId !== 'string' || !isFiniteNumber(data.x) || !isFiniteNumber(data.y)) return
         handleAccepted(data.reqId, data.x, data.y)
@@ -323,7 +342,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined })
       open()
     },
     close: detach,

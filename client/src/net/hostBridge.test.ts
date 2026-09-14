@@ -64,7 +64,7 @@ describe('hostBridge', () => {
     const t = setup()
     await expect(t.bridge.start()).resolves.toEqual(ROOM)
     expect(t.invoke).toHaveBeenCalledWith('net_start_room')
-    expect(t.listen.mock.calls.map((c) => c[0])).toEqual(['net:message', 'net:peer'])
+    expect(t.listen.mock.calls.map((c) => c[0])).toEqual(['net:message', 'net:peer', 'net:tunnel'])
     expect(t.bridge.room()).toEqual(ROOM)
   })
 
@@ -115,7 +115,7 @@ describe('hostBridge', () => {
     const t = setup()
     await t.bridge.start()
     await t.bridge.stop()
-    expect(t.unlisten).toHaveBeenCalledTimes(2)
+    expect(t.unlisten).toHaveBeenCalledTimes(3)
     expect(t.invoke).toHaveBeenLastCalledWith('net_stop_room')
     expect(t.bridge.room()).toBeNull()
   })
@@ -165,7 +165,7 @@ describe('hostBridge', () => {
     expect(b).toBe(a)
     await expect(Promise.all([a, b])).resolves.toEqual([ROOM, ROOM])
     expect(t.invoke.mock.calls.filter((c) => c[0] === 'net_start_room')).toHaveLength(1)
-    expect(t.listen).toHaveBeenCalledTimes(2)
+    expect(t.listen).toHaveBeenCalledTimes(3)
   })
 
   it('stop durante start pendente espera o start e não deixa listener órfão', async () => {
@@ -179,7 +179,7 @@ describe('hostBridge', () => {
     resolveRoom(ROOM)
     await starting
     await stopping
-    expect(t.unlisten).toHaveBeenCalledTimes(2)
+    expect(t.unlisten).toHaveBeenCalledTimes(3)
     expect(t.bridge.room()).toBeNull()
     expect(invoke).toHaveBeenLastCalledWith('net_stop_room')
     // Evento que chega depois do stop é ignorado.
@@ -251,6 +251,189 @@ describe('hostBridge', () => {
     await Promise.resolve()
     expect(t.invoke.mock.calls.some((c) => c[0] === 'net_kick')).toBe(false)
     expect(t.bridge.players()).toHaveLength(1)
+  })
+
+  describe('túnel público', () => {
+    const LINK = { url: 'https://abc-def.trycloudflare.com', qrSvg: '<svg id="pub"/>' }
+
+    /** net_start_tunnel fica pendente até o teste resolver/rejeitar. */
+    function setupTunnel() {
+      let settle: { resolve: (v: unknown) => void; reject: (e: unknown) => void } = { resolve: () => undefined, reject: () => undefined }
+      const invoke = vi.fn((cmd: string, _args?: unknown): Promise<unknown> => {
+        if (cmd === 'net_start_room') return Promise.resolve(ROOM)
+        if (cmd === 'net_start_tunnel') return new Promise<unknown>((resolve, reject) => (settle = { resolve, reject }))
+        return Promise.resolve(undefined)
+      })
+      const onTunnelChange = vi.fn()
+      const t = setup({ invoke, onTunnelChange })
+      // `invoke` explícito: o `t.invoke` de setup é o mock padrão, não o override.
+      return { ...t, invoke, onTunnelChange, settle: () => settle, kinds: () => onTunnelChange.mock.calls.map((c) => c[0]) }
+    }
+
+    it('downloading → connecting → ready e o invoke confirma sem notificar de novo', async () => {
+      const t = setupTunnel()
+      await t.bridge.start()
+      expect(t.bridge.tunnel()).toEqual({ kind: 'idle' })
+      const running = t.bridge.startTunnel()
+      t.emit('net:tunnel', { state: 'downloading', progress: 0.25 })
+      t.emit('net:tunnel', { state: 'downloading', progress: 0.25 })
+      t.emit('net:tunnel', { state: 'connecting' })
+      t.emit('net:tunnel', { state: 'ready', ...LINK })
+      t.settle().resolve(LINK)
+      await running
+      expect(t.kinds()).toEqual([
+        { kind: 'connecting' },
+        { kind: 'downloading', progress: 0.25 },
+        { kind: 'connecting' },
+        { kind: 'ready', ...LINK },
+      ])
+      expect(t.bridge.tunnel()).toEqual({ kind: 'ready', ...LINK })
+      expect(useToastStore.getState().toasts).toEqual([])
+    })
+
+    it('closed volta para idle', async () => {
+      const t = setupTunnel()
+      await t.bridge.start()
+      const running = t.bridge.startTunnel()
+      t.settle().resolve(LINK)
+      await running
+      t.emit('net:tunnel', { state: 'closed', reason: 'stopped' })
+      expect(t.bridge.tunnel()).toEqual({ kind: 'idle' })
+      expect(t.onTunnelChange).toHaveBeenLastCalledWith({ kind: 'idle' })
+    })
+
+    describe('queda depois de pronto', () => {
+      async function setupReady() {
+        const t = setupTunnel()
+        await t.bridge.start()
+        const running = t.bridge.startTunnel()
+        t.settle().resolve(LINK)
+        await running
+        expect(t.bridge.tunnel()).toEqual({ kind: 'ready', ...LINK })
+        return t
+      }
+
+      it('closed/exited depois de ready vira idle e 1 toast de "caiu"', async () => {
+        const t = await setupReady()
+        t.emit('net:tunnel', { state: 'closed', reason: 'exited' })
+        expect(t.bridge.tunnel()).toEqual({ kind: 'idle' })
+        expect(useToastStore.getState().toasts).toEqual([expect.objectContaining({ kind: 'error', text: expect.stringContaining('caiu') })])
+      })
+
+      it('error depois de ready vira kind error e 1 toast', async () => {
+        const t = await setupReady()
+        t.emit('net:tunnel', { state: 'error', message: 'x' })
+        expect(t.bridge.tunnel()).toEqual({ kind: 'error', message: 'x' })
+        expect(useToastStore.getState().toasts).toEqual([expect.objectContaining({ kind: 'error', text: expect.stringContaining('caiu') })])
+      })
+
+      it('closed/exited ainda em connecting não avisa que caiu', async () => {
+        const t = setupTunnel()
+        await t.bridge.start()
+        void t.bridge.startTunnel()
+        t.emit('net:tunnel', { state: 'connecting' })
+        t.emit('net:tunnel', { state: 'closed', reason: 'exited' })
+        expect(t.bridge.tunnel()).toEqual({ kind: 'idle' })
+        expect(useToastStore.getState().toasts).toEqual([])
+      })
+
+      it('closed/stopped depois de ready vira idle sem toast', async () => {
+        const t = await setupReady()
+        t.emit('net:tunnel', { state: 'closed', reason: 'stopped' })
+        expect(t.bridge.tunnel()).toEqual({ kind: 'idle' })
+        expect(useToastStore.getState().toasts).toEqual([])
+      })
+    })
+
+    it('rejeição do invoke vira estado error e toast', async () => {
+      const t = setupTunnel()
+      await t.bridge.start()
+      const running = t.bridge.startTunnel()
+      t.emit('net:tunnel', { state: 'error', message: 'sem internet' })
+      t.settle().reject('sem internet')
+      await expect(running).resolves.toBeUndefined()
+      expect(t.bridge.tunnel()).toEqual({ kind: 'error', message: 'sem internet' })
+      expect(useToastStore.getState().toasts).toEqual([expect.objectContaining({ kind: 'error', text: expect.stringContaining('sem internet') })])
+    })
+
+    it('resposta inválida de net_start_tunnel vira error', async () => {
+      const t = setupTunnel()
+      await t.bridge.start()
+      const running = t.bridge.startTunnel()
+      t.settle().resolve({ url: 'http://inseguro', qrSvg: '<svg/>' })
+      await running
+      expect(t.bridge.tunnel().kind).toBe('error')
+    })
+
+    it('stop da sala zera o túnel e ignora a rejeição tardia', async () => {
+      const t = setupTunnel()
+      await t.bridge.start()
+      const running = t.bridge.startTunnel()
+      t.emit('net:tunnel', { state: 'connecting' })
+      await t.bridge.stop()
+      expect(t.bridge.tunnel()).toEqual({ kind: 'idle' })
+      t.settle().reject('túnel encerrado')
+      await running
+      expect(t.bridge.tunnel()).toEqual({ kind: 'idle' })
+      expect(useToastStore.getState().toasts).toEqual([])
+    })
+
+    it('stopTunnel chama net_stop_tunnel e evento atrasado não ressuscita o estado', async () => {
+      const t = setupTunnel()
+      await t.bridge.start()
+      void t.bridge.startTunnel()
+      await t.bridge.stopTunnel()
+      expect(t.invoke).toHaveBeenLastCalledWith('net_stop_tunnel')
+      t.emit('net:tunnel', { state: 'downloading', progress: 0.9 })
+      t.emit('net:tunnel', { state: 'ready', ...LINK })
+      expect(t.bridge.tunnel()).toEqual({ kind: 'idle' })
+    })
+
+    it.each([
+      ['não-objeto', 'ready'],
+      ['estado desconhecido', { state: 'lixo' }],
+      ['progress string', { state: 'downloading', progress: '50' }],
+      ['progress NaN', { state: 'downloading', progress: Number.NaN }],
+      ['ready sem qrSvg', { state: 'ready', url: LINK.url }],
+      ['ready com url não-https', { state: 'ready', url: 'javascript:alert(1)', qrSvg: '<svg/>' }],
+      ['closed com reason inválido', { state: 'closed', reason: 'x' }],
+      ['error sem message', { state: 'error' }],
+    ])('payload inválido (%s) é ignorado', async (_label, payload) => {
+      const t = setupTunnel()
+      await t.bridge.start()
+      void t.bridge.startTunnel()
+      t.onTunnelChange.mockClear()
+      t.emit('net:tunnel', payload)
+      expect(t.onTunnelChange).not.toHaveBeenCalled()
+      expect(t.bridge.tunnel()).toEqual({ kind: 'connecting' })
+    })
+
+    it('duplo clique devolve a mesma promise e chama net_start_tunnel uma vez', async () => {
+      const t = setupTunnel()
+      await t.bridge.start()
+      const a = t.bridge.startTunnel()
+      const b = t.bridge.startTunnel()
+      expect(b).toBe(a)
+      t.settle().resolve(LINK)
+      await Promise.all([a, b])
+      expect(t.invoke.mock.calls.filter((c) => c[0] === 'net_start_tunnel')).toHaveLength(1)
+    })
+
+    it('sem sala aberta não chama net_start_tunnel e avisa', async () => {
+      const t = setupTunnel()
+      await t.bridge.startTunnel()
+      expect(t.invoke).not.toHaveBeenCalled()
+      expect(t.bridge.tunnel()).toEqual({ kind: 'idle' })
+      expect(useToastStore.getState().toasts).toHaveLength(1)
+    })
+
+    it('progress fora de 0..1 é limitado', async () => {
+      const t = setupTunnel()
+      await t.bridge.start()
+      void t.bridge.startTunnel()
+      t.emit('net:tunnel', { state: 'downloading', progress: 1.7 })
+      expect(t.bridge.tunnel()).toEqual({ kind: 'downloading', progress: 1 })
+    })
   })
 
   it('falha de invoke vira toast de erro', async () => {

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createExploration, encodeExploration, isPointExplored, markRings } from '../lib/exploration'
 import { createEmptyMap, addToken } from '../lib/mapFactory'
 import type { MapData } from '../types/map'
 import { createPlayerConnection, PING_INTERVAL_MS, RESUME_STORAGE_KEY } from './playerConnection'
@@ -132,6 +133,40 @@ describe('createPlayerConnection', () => {
     socket.receive({ type: 'snapshot', rev: 1, map: { tokens: 'x' }, vision: [] })
     socket.rawReceive('não é json')
     expect(connection.getState().status).toBe('connecting')
+  })
+
+  it('guarda explored decodificado e ownTokens; lobby.waiting e reconnect limpam', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    const exp = createExploration({ width: 400, height: 400, grid: 40 })
+    markRings(exp, [[{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }]])
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [], explored: encodeExploration(exp), ownTokens: ['t1'] })
+    const state = connection.getState()
+    expect(state.ownTokens).toEqual(['t1'])
+    expect(state.explored).toMatchObject({ cell: 10, cols: 40, rows: 40 })
+    expect(state.explored && isPointExplored(state.explored, { x: 50, y: 50 })).toBe(true)
+
+    socket.receive({ type: 'lobby.waiting' })
+    expect(connection.getState()).toMatchObject({ explored: undefined, ownTokens: undefined })
+
+    socket.receive({ type: 'snapshot', rev: 2, map: mapWithToken(10, 10), vision: [], explored: encodeExploration(exp), ownTokens: ['t1'] })
+    connection.reconnect()
+    expect(connection.getState()).toMatchObject({ explored: undefined, ownTokens: undefined })
+  })
+
+  it.each([
+    ['explored com bits corrompidos', { explored: { cell: 10, cols: 40, rows: 40, bits: '***' }, ownTokens: [] }],
+    ['explored acima do teto', { explored: { cell: 1, cols: 2000, rows: 2000, bits: '' }, ownTokens: [] }],
+    ['explored não objeto', { explored: 'x', ownTokens: [] }],
+    ['ownTokens com número', { explored: undefined, ownTokens: ['t1', 7] }],
+    ['ownTokens não array', { ownTokens: 't1' }],
+  ])('snapshot com %s é descartado inteiro', (_label, extra) => {
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'delta', rev: 2, map: mapWithToken(40, 40), vision: [], ...extra })
+    expect(connection.getState()).toMatchObject({ rev: 1, ownTokens: [] })
+    expect(connection.getState().map?.tokens[0]).toMatchObject({ x: 10, y: 10 })
   })
 
   it('requestMove é otimista e rejected desfaz para a posição anterior', () => {

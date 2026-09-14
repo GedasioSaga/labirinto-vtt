@@ -1,4 +1,5 @@
 import type { MapData, RegionPoint } from '../types/map'
+import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 
 /**
@@ -10,6 +11,9 @@ import type { TokenMoveRejection } from '../lib/moveValidation'
  * só com `rev` maior que o anterior. O cliente trata `delta` igual a
  * `snapshot` e descarta qualquer `rev` menor ou igual ao último aplicado.
  * Delta incremental de verdade fica para uma versão futura do protocolo.
+ *
+ * `explored` (bitset do que o jogador já viu) e `ownTokens` (ids dos tokens
+ * dele) entraram depois como campos aditivos: a versão continua 1.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -49,8 +53,8 @@ export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'a
 export type HostMessage =
   | { type: 'welcome'; playerId: string; resumeToken: string }
   | { type: 'lobby.waiting' }
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][] }
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[] }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'kicked' }

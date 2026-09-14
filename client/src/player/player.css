@@ -1,0 +1,179 @@
+/*
+ * Página do jogador — painel sobre o canvas.
+ *
+ * Cores das custom properties `--lb-*` de `theme.ts` (injetadas por
+ * `player/main.tsx`), as mesmas do editor: pedra escura, pergaminho, latão.
+ * Tudo escopado em `.pp-*` para não mudar o formulário de entrada.
+ */
+
+.pp-panel {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  width: 248px;
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  padding: 12px;
+  display: grid;
+  gap: 14px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-lg, 10px);
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+}
+
+.pp-toggle {
+  display: none;
+}
+
+.pp-section {
+  display: grid;
+  gap: 8px;
+}
+
+.pp-heading {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-empty {
+  margin: 0;
+  color: var(--lb-color-parchment-faint, #6d6c68);
+}
+
+.pp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.pp-character,
+.pp-button,
+.pp-toggle {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--lb-radius-md, 6px);
+}
+
+.pp-character {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.pp-character:hover {
+  background: var(--lb-color-stone-hover, #2c2c33);
+}
+
+.pp-character__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
+.pp-button,
+.pp-toggle {
+  padding: 8px 10px;
+  background: var(--lb-color-stone-raised, #232328);
+  border: 1px solid var(--lb-color-brass, #e0a44a);
+  color: var(--lb-color-brass-bright, #f3ba66);
+  font-weight: 600;
+}
+
+.pp-button:hover:not(:disabled),
+.pp-toggle:hover {
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+}
+
+.pp-button:disabled {
+  cursor: not-allowed;
+  border-color: var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  color: var(--lb-color-parchment-faint, #6d6c68);
+}
+
+.pp-field {
+  display: grid;
+  gap: 4px;
+}
+
+.pp-field__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pp-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+.pp-range {
+  width: 100%;
+  accent-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.pp-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--lb-color-brass, #e0a44a);
+}
+
+/* Foco por teclado visível em tudo que é interativo no painel (anel de latão do editor). */
+.pp-panel :focus-visible,
+.pp-toggle:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+@media (max-width: 699px) {
+  .pp-toggle {
+    display: block;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 11;
+  }
+
+  .pp-panel {
+    top: 56px;
+    width: min(280px, calc(100% - 24px));
+    max-height: calc(100% - 68px);
+  }
+
+  .pp-panel:not(.is-open) {
+    display: none;
+  }
+}

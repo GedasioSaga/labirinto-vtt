@@ -989,6 +989,54 @@ body {
   overflow-wrap: anywhere;
 }
 
+.lb-room__code {
+  font-size: 2rem;
+  letter-spacing: 0.2em;
+}
+
+.lb-room__public {
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+/* Link público: texto selecionável e quebrável — o usuário copia daqui. */
+.lb-room__link {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-brass);
+  user-select: text;
+  -webkit-user-select: text;
+  overflow-wrap: anywhere;
+}
+
+.lb-room__warning,
+.lb-room__error,
+.lb-room__hint {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  flex: none;
+}
+
+.lb-room__warning {
+  color: var(--lb-color-parchment);
+}
+
+.lb-room__error {
+  color: var(--lb-color-ember);
+}
+
+.lb-room__hint {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border-left: 2px solid var(--lb-color-line-strong);
+  color: var(--lb-color-parchment-dim);
+}
+
 .lb-room__urls {
   margin: 0;
   padding-left: var(--lb-space-4);
@@ -1002,6 +1050,63 @@ body {
   height: auto;
   align-self: center;
   flex: none;
+}
+
+/* Abas Mapa | Sala no topo do rail (só no Tauri). Visual do segmented. */
+.lb-railtabs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1);
+  flex: none;
+}
+
+.lb-railtabs__tab {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-md);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-medium);
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-railtabs__tab:hover {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-railtabs__tab[aria-selected='true'] {
+  background: var(--lb-color-brass-soft);
+  border-color: rgba(224, 164, 74, 0.28);
+  color: var(--lb-color-brass);
+}
+
+.lb-railtabs__panel {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.lb-railtabs__panel[hidden] {
+  display: none;
+}
+
+/* Aba Sala: o painel ocupa toda a altura entre as abas e a ActionBar. */
+.lb-railtabs__panel--fill {
+  flex: 1 1 auto;
+}
+
+.lb-railtabs__panel--fill > .lb-room {
+  flex: 1 1 auto;
+  max-height: none;
 }
 
 .lb-actionbar {

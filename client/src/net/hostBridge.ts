@@ -20,6 +20,16 @@ export interface RoomInfo {
   qrSvg: string
 }
 
+/** Estado do link público (Cloudflare Quick Tunnel) visto pelo painel. */
+export type TunnelState =
+  | { kind: 'idle' }
+  | { kind: 'downloading'; progress: number }
+  | { kind: 'connecting' }
+  | { kind: 'ready'; url: string; qrSvg: string }
+  | { kind: 'error'; message: string }
+
+const TUNNEL_IDLE: TunnelState = { kind: 'idle' }
+
 /** Formas mínimas que `invoke`/`listen` reais de `@tauri-apps/api` satisfazem. */
 export type InvokeFn = (cmd: string, args?: InvokeArgs) => Promise<unknown>
 export type ListenFn = (event: string, handler: (event: { payload: unknown }) => void) => Promise<UnlistenFn>
@@ -31,6 +41,7 @@ export interface HostBridgeDeps {
   applyMove: (tokenId: string, x: number, y: number) => void
   visionRadius?: number
   onPlayersChange?: (players: PlayerInfo[]) => void
+  onTunnelChange?: (state: TunnelState) => void
   now?: () => number
 }
 
@@ -43,6 +54,10 @@ export interface HostBridge {
   kick(clientId: string): Promise<void>
   players(): PlayerInfo[]
   room(): RoomInfo | null
+  /** Nunca rejeita: falha vira estado `error` + toast. */
+  startTunnel(): Promise<void>
+  stopTunnel(): Promise<void>
+  tunnel(): TunnelState
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -66,6 +81,44 @@ function parseRoomInfo(value: unknown): RoomInfo | null {
   return { code, urls, qrSvg }
 }
 
+/** Só `https://`: o link vai para a tela e para o QR; qualquer outra coisa é lixo. */
+function parseTunnelLink(value: unknown): { url: string; qrSvg: string } | null {
+  if (!isRecord(value)) return null
+  const { url, qrSvg } = value
+  if (typeof url !== 'string' || !url.startsWith('https://') || typeof qrSvg !== 'string') return null
+  return { url, qrSvg }
+}
+
+type TunnelEvent =
+  | { state: 'downloading'; progress: number }
+  | { state: 'connecting' }
+  | { state: 'ready'; url: string; qrSvg: string }
+  | { state: 'closed'; reason: 'stopped' | 'exited' }
+  | { state: 'error'; message: string }
+
+function parseTunnelEvent(value: unknown): TunnelEvent | null {
+  if (!isRecord(value)) return null
+  switch (value.state) {
+    case 'downloading': {
+      const { progress } = value
+      if (typeof progress !== 'number' || !Number.isFinite(progress)) return null
+      return { state: 'downloading', progress: Math.min(1, Math.max(0, progress)) }
+    }
+    case 'connecting':
+      return { state: 'connecting' }
+    case 'ready': {
+      const link = parseTunnelLink(value)
+      return link === null ? null : { state: 'ready', ...link }
+    }
+    case 'closed':
+      return value.reason === 'stopped' || value.reason === 'exited' ? { state: 'closed', reason: value.reason } : null
+    case 'error':
+      return typeof value.message === 'string' ? { state: 'error', message: value.message } : null
+    default:
+      return null
+  }
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -81,6 +134,72 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let pendingBroadcast: ReturnType<typeof setTimeout> | null = null
   let pendingStart: Promise<RoomInfo> | null = null
   let lastPlayersKey = '[]'
+  let tunnelState: TunnelState = TUNNEL_IDLE
+  let lastTunnelKey = JSON.stringify(TUNNEL_IDLE)
+  let pendingTunnel: Promise<void> | null = null
+  let tunnelAttemptSeq = 0
+  /** Tentativa de `startTunnel` em curso; `null` depois de encerrar, fechar a sala ou terminar. */
+  let activeTunnelAttempt: number | null = null
+
+  const setTunnel = (next: TunnelState) => {
+    tunnelState = next
+    const key = JSON.stringify(next)
+    if (key === lastTunnelKey) return
+    lastTunnelKey = key
+    deps.onTunnelChange?.(next)
+  }
+
+  const onTunnel = (event: { payload: unknown }) => {
+    if (session === null) return
+    const parsed = parseTunnelEvent(event.payload)
+    if (parsed === null) return
+    const starting = activeTunnelAttempt !== null
+    const wasReady = tunnelState.kind === 'ready'
+    switch (parsed.state) {
+      case 'downloading':
+        // Progresso atrasado depois de "Encerrar" não pode ressuscitar o estado.
+        if (starting) setTunnel({ kind: 'downloading', progress: parsed.progress })
+        return
+      case 'connecting':
+        if (starting) setTunnel({ kind: 'connecting' })
+        return
+      case 'ready':
+        if (starting || wasReady) setTunnel({ kind: 'ready', url: parsed.url, qrSvg: parsed.qrSvg })
+        return
+      case 'error':
+        if (!starting && !wasReady) return
+        setTunnel({ kind: 'error', message: parsed.message })
+        // Durante o start o toast sai da rejeição do invoke; aqui só o túnel que caiu depois de pronto.
+        if (!starting) reportError('O link público caiu', parsed.message)
+        return
+      case 'closed':
+        setTunnel(TUNNEL_IDLE)
+        if (parsed.reason === 'exited' && wasReady) useToastStore.getState().push('error', 'O link público caiu: o cloudflared encerrou')
+        return
+    }
+  }
+
+  const runTunnel = async (attempt: number): Promise<void> => {
+    try {
+      const link = parseTunnelLink(await deps.invoke('net_start_tunnel'))
+      if (attempt !== activeTunnelAttempt) return
+      if (link === null) throw new Error('resposta inválida de net_start_tunnel')
+      setTunnel({ kind: 'ready', ...link })
+    } catch (error) {
+      // Rejeição de tentativa já encerrada (ou sala fechada) é esperada, não é falha.
+      if (attempt !== activeTunnelAttempt) return
+      setTunnel({ kind: 'error', message: errorText(error) })
+      reportError('Não foi possível tornar a sala pública', error)
+    } finally {
+      if (attempt === activeTunnelAttempt) activeTunnelAttempt = null
+    }
+  }
+
+  const resetTunnel = () => {
+    activeTunnelAttempt = null
+    pendingTunnel = null
+    setTunnel(TUNNEL_IDLE)
+  }
 
   const notifyPlayersIfChanged = () => {
     const list = session?.listPlayers() ?? []
@@ -158,7 +277,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const room = parseRoomInfo(await deps.invoke('net_start_room'))
       if (room === null) throw new Error('resposta inválida de net_start_room')
       session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now })
-      unlisteners = [await deps.listen('net:message', onMessage), await deps.listen('net:peer', onPeer)]
+      unlisteners = [
+        await deps.listen('net:message', onMessage),
+        await deps.listen('net:peer', onPeer),
+        await deps.listen('net:tunnel', onTunnel),
+      ]
       currentRoom = room
       notifyPlayersIfChanged()
       return room
@@ -196,6 +319,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       removeListeners()
       session = null
       currentRoom = null
+      // O Rust derruba o túnel junto com a sala.
+      resetTunnel()
       notifyPlayersIfChanged()
       try {
         await deps.invoke('net_stop_room')
@@ -239,6 +364,40 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
     room() {
       return currentRoom
+    },
+
+    startTunnel() {
+      // Duplo clique: mesma promise, um túnel só.
+      if (pendingTunnel !== null) return pendingTunnel
+      if (currentRoom === null) {
+        useToastStore.getState().push('error', 'Abra a sala antes de torná-la pública')
+        return Promise.resolve()
+      }
+      if (tunnelState.kind === 'ready') return Promise.resolve()
+      tunnelAttemptSeq += 1
+      const attempt = tunnelAttemptSeq
+      activeTunnelAttempt = attempt
+      // Retorno imediato ao clique; o Rust troca para "downloading" se precisar baixar.
+      setTunnel({ kind: 'connecting' })
+      const running = runTunnel(attempt)
+      pendingTunnel = running
+      void running.then(() => {
+        if (pendingTunnel === running) pendingTunnel = null
+      })
+      return running
+    },
+
+    async stopTunnel() {
+      resetTunnel()
+      try {
+        await deps.invoke('net_stop_tunnel')
+      } catch (error) {
+        reportError('Não foi possível encerrar o link público', error)
+      }
+    },
+
+    tunnel() {
+      return tunnelState
     },
   }
 }

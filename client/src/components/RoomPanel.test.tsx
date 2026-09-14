@@ -1,17 +1,24 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
+import type { TunnelState } from '../net/hostBridge'
 import type { PlayerInfo } from '../net/hostSession'
-import { FIREWALL_HINT, RoomPanel, assignableTokens, playerStatusLabel, qrDataUrl } from './RoomPanel'
+import { FIREWALL_HINT, RoomPanel, TUNNEL_WARNING, assignableTokens, downloadLabel, playerStatusLabel, qrDataUrl } from './RoomPanel'
 
 const noop = vi.fn()
-const handlers = { onStart: noop, onStop: noop, onAssign: noop, onUnassign: noop, onKick: noop }
+const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop }
 const TOKENS = [
   { id: 't1', name: 'Herói' },
   { id: 't2', name: 'Ladino' },
 ]
+const ROOM = { code: 'AB12CD', urls: ['http://10.0.0.2:7777'], qrSvg: '<svg/>' }
+const IDLE: TunnelState = { kind: 'idle' }
 
 function player(overrides: Partial<PlayerInfo> = {}): PlayerInfo {
   return { clientId: 'c1', playerId: 'p1', name: 'Ana', status: 'waiting', connected: true, tokenIds: [], ...overrides }
+}
+
+function renderWithTunnel(tunnel: TunnelState): string {
+  return renderToStaticMarkup(<RoomPanel room={ROOM} players={[]} tokens={TOKENS} tunnel={tunnel} {...handlers} />)
 }
 
 describe('RoomPanel', () => {
@@ -26,16 +33,16 @@ describe('RoomPanel', () => {
   })
 
   it('sem sala mostra só Abrir sala e a dica', () => {
-    const html = renderToStaticMarkup(<RoomPanel room={null} players={[]} tokens={TOKENS} {...handlers} />)
+    const html = renderToStaticMarkup(<RoomPanel room={null} players={[]} tokens={TOKENS} tunnel={IDLE} {...handlers} />)
     expect(html).toContain('Abrir sala')
     expect(html).not.toContain('Fechar sala')
+    expect(html).not.toContain('Tornar pública')
     expect(html).toContain(FIREWALL_HINT)
   })
 
   it('com sala mostra código, URLs, QR e jogadores; desconectado não tem Expulsar', () => {
-    const room = { code: 'AB12CD', urls: ['http://10.0.0.2:7777'], qrSvg: '<svg/>' }
     const players = [player(), player({ playerId: 'p2', clientId: null, name: 'Bia', connected: false, tokenIds: ['t2'] })]
-    const html = renderToStaticMarkup(<RoomPanel room={room} players={players} tokens={TOKENS} {...handlers} />)
+    const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={players} tokens={TOKENS} tunnel={IDLE} {...handlers} />)
     expect(html).toContain('Fechar sala')
     expect(html).toContain('AB12CD')
     expect(html).toContain('http://10.0.0.2:7777')
@@ -43,5 +50,59 @@ describe('RoomPanel', () => {
     expect(html).toContain('Bia — aguardando · desconectado')
     expect(html).toContain('Remover Ladino')
     expect(html.match(/Expulsar/g)).toHaveLength(1)
+  })
+
+  it('idle: botão Tornar pública habilitado e dica do firewall rotulada como rede local', () => {
+    const html = renderWithTunnel(IDLE)
+    expect(html).toMatch(/<button type="button" class="lb-btn lb-btn--block">Tornar pública<\/button>/)
+    expect(html).toContain('Rede local')
+    expect(html).toContain(FIREWALL_HINT)
+    expect(html).not.toContain('Link público')
+  })
+
+  it('downloading: porcentagem com role status e botão desabilitado', () => {
+    expect(downloadLabel(0.426)).toBe('Baixando cloudflared 43%')
+    const html = renderWithTunnel({ kind: 'downloading', progress: 0.43 })
+    expect(html).toContain('<p class="lb-label" role="status">Baixando cloudflared 43%</p>')
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Tornar pública<\/button>/)
+  })
+
+  it('connecting: texto de conexão e botão desabilitado', () => {
+    const html = renderWithTunnel({ kind: 'connecting' })
+    expect(html).toContain('Conectando ao túnel…')
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Tornar pública<\/button>/)
+    expect(html).toMatch(/<button(?![^>]*disabled)[^>]*>Cancelar<\/button>/)
+  })
+
+  it('downloading: botão Cancelar habilitado para desistir do download', () => {
+    const html = renderWithTunnel({ kind: 'downloading', progress: 0.1 })
+    expect(html).toMatch(/<button(?![^>]*disabled)[^>]*>Cancelar<\/button>/)
+  })
+
+  it('idle e ready: sem botão Cancelar', () => {
+    expect(renderWithTunnel({ kind: 'idle' })).not.toContain('>Cancelar<')
+    expect(renderWithTunnel({ kind: 'ready', url: 'https://a-b.trycloudflare.com/player', qrSvg: '<svg/>' })).not.toContain('>Cancelar<')
+  })
+
+  it('error: mensagem acima do botão Tornar pública', () => {
+    const html = renderWithTunnel({ kind: 'error', message: 'sem internet' })
+    expect(html).toContain('role="alert">sem internet</p>')
+    expect(html.indexOf('sem internet')).toBeLessThan(html.indexOf('Tornar pública'))
+    expect(html).not.toMatch(/disabled=""[^>]*>Tornar pública/)
+  })
+
+  it('ready: link, QR público no lugar do da LAN, aviso, encerrar; código e URLs da LAN continuam', () => {
+    const url = 'https://abc-def.trycloudflare.com'
+    const html = renderWithTunnel({ kind: 'ready', url, qrSvg: '<svg id="pub"/>' })
+    expect(html).toContain('Link público')
+    expect(html).toContain(`<strong class="lb-room__link">${url}</strong>`)
+    expect(html).toContain('alt="QR do link público"')
+    expect(html).toContain(qrDataUrl('<svg id="pub"/>').replace(/&/g, '&amp;'))
+    expect(html).not.toContain('alt="QR da sala"')
+    expect(html).toContain(TUNNEL_WARNING)
+    expect(html).toContain('Encerrar link público')
+    expect(html).not.toContain('Tornar pública')
+    expect(html).toContain('AB12CD')
+    expect(html).toContain('http://10.0.0.2:7777')
   })
 })

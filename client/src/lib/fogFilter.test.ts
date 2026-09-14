@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MapData, Token, Wall } from '../types/map'
+import { createExploration, markRings } from './exploration'
 import { pointInRing } from './floorContour'
 import { filterMapForHost, filterMapForPlayer } from './fogFilter'
 import { createEmptyMap } from './mapFactory'
@@ -166,6 +167,108 @@ describe('filterMapForPlayer', () => {
     expect(out.lines.map((l) => l.id)).toEqual(['trilha'])
     expect(out.drawings.map((d) => d.id)).toEqual(['traco', 'retangulo'])
     expect(out.regions.map((r) => r.id)).toEqual(['sala-larga'])
+  })
+
+  describe('com explorado', () => {
+    /** Explorado cobrindo a sala da direita (x 520-980), onde o herói não enxerga. */
+    function exploredRightRoom() {
+      const exp = createExploration({ width: 1000, height: 1000, grid: 40 })
+      markRings(exp, [[{ x: 520, y: 20 }, { x: 980, y: 20 }, { x: 980, y: 980 }, { x: 520, y: 980 }]])
+      return exp
+    }
+
+    function mapWithRightRoomPlan(): MapData {
+      const door = { open: false, locked: false, kind: 'normal' as const }
+      return twoRooms({
+        regions: [
+          { id: 'sala-direita', points: [{ x: 600, y: 100 }, { x: 900, y: 100 }, { x: 900, y: 400 }, { x: 600, y: 400 }], tag: '', fillColor: '#a33', fillPattern: 'solid', data: {} },
+        ],
+        drawings: [
+          { id: 'txt-explorado', kind: 'text', x: 700, y: 300, text: 'placa-da-sala', color: '#fff', fontSize: 12 },
+        ],
+        walls: [wall('divisoria', 500, 0, 500, 1000), wall('porta-direita', 700, 500, 800, 500, { door })],
+        stairs: [{ id: 'escada-direita', segments: [{ x1: 650, y1: 600, x2: 750, y2: 600 }] }] as MapData['stairs'],
+        lines: [{ id: 'trilha-direita', points: [{ x: 600, y: 700 }, { x: 700, y: 700 }], closed: false, dotted: false, color: '#000', width: 2 }],
+        markers: [{ id: 'mk-direita', cx: 850, cy: 850, w: 4, h: 4, rotation: 0, color: '#000' }],
+        props: [{ id: 'bau-direita', src: '', x: 820, y: 220, width: 40, height: 40, linkedMapPath: null }],
+        lights: [{ id: 'tocha-direita', x: 820, y: 240, radius: 50, color: '#fff', intensity: 1 }],
+      })
+    }
+
+    it('sala só explorada é enviada, com texto, escada, porta, linha e marcador', () => {
+      const { map: out } = filterMapForPlayer(mapWithRightRoomPlan(), 'p1', ownership, RADIUS, exploredRightRoom())
+      expect(out.regions.map((r) => r.id)).toEqual(['sala-direita'])
+      expect(out.drawings.map((d) => d.id)).toEqual(['txt-explorado'])
+      expect(out.stairs.map((s) => s.id)).toEqual(['escada-direita'])
+      expect(out.walls.map((w) => w.id)).toEqual(['divisoria', 'porta-direita'])
+      expect(out.lines.map((l) => l.id)).toEqual(['trilha-direita'])
+      expect(out.markers.map((m) => m.id)).toEqual(['mk-direita'])
+    })
+
+    it('SEGURANÇA: token, prop e luz dentro da área explorada mas fora da visão NÃO saem no JSON', () => {
+      const { map: out } = filterMapForPlayer(mapWithRightRoomPlan(), 'p1', ownership, RADIUS, exploredRightRoom())
+      const json = JSON.stringify(out)
+      expect(json).not.toContain('espiao')
+      expect(json).not.toContain('ladino')
+      expect(json).not.toContain('bau-direita')
+      expect(json).not.toContain('tocha-direita')
+      expect(out.tokens.map((t) => t.id).sort()).toEqual(['aliado', 'heroi'])
+    })
+
+    it('texto e sala não explorados nem visíveis não são enviados', () => {
+      const exp = createExploration({ width: 1000, height: 1000, grid: 40 })
+      markRings(exp, [[{ x: 520, y: 900 }, { x: 980, y: 900 }, { x: 980, y: 980 }, { x: 520, y: 980 }]])
+      const { map: out } = filterMapForPlayer(mapWithRightRoomPlan(), 'p1', ownership, RADIUS, exp)
+      const json = JSON.stringify(out)
+      expect(json).not.toContain('placa-da-sala')
+      expect(json).not.toContain('sala-direita')
+      expect(json).not.toContain('porta-direita')
+      expect(out.markers).toEqual([])
+    })
+
+    it('SEGURANÇA: porta explorada nunca vista com estado sai fechada e destrancada; a memória vale fora da visão', () => {
+      const map = mapWithRightRoomPlan()
+      const live: MapData = {
+        ...map,
+        walls: map.walls.map((w) => (w.id === 'porta-direita' ? { ...w, door: { open: true, locked: true, kind: 'double' as const } } : w)),
+      }
+      const never = filterMapForPlayer(live, 'p1', ownership, RADIUS, exploredRightRoom()).map
+      expect(never.walls.find((w) => w.id === 'porta-direita')?.door).toEqual({ open: false, locked: false, kind: 'double' })
+      const remembered = new Map([['porta-direita', { open: true, locked: false, kind: 'double' as const }]])
+      const withMemory = filterMapForPlayer(live, 'p1', ownership, RADIUS, exploredRightRoom(), remembered)
+      expect(withMemory.map.walls.find((w) => w.id === 'porta-direita')?.door).toEqual({ open: true, locked: false, kind: 'double' })
+      expect(withMemory.visibleDoorIds).toEqual([])
+      // Memória é só leitura: o filtro não a altera.
+      expect(remembered.get('porta-direita')).toEqual({ open: true, locked: false, kind: 'double' })
+    })
+
+    it('camada oculta e item hidden continuam fora mesmo explorados', () => {
+      const map = mapWithRightRoomPlan()
+      const hidden: MapData = { ...map, regions: map.regions.map((r) => ({ ...r, hidden: true })), hiddenLayers: ['anotacoes'] }
+      const { map: out } = filterMapForPlayer(hidden, 'p1', ownership, RADIUS, exploredRightRoom())
+      expect(out.regions).toEqual([])
+      expect(JSON.stringify(out)).not.toContain('placa-da-sala')
+    })
+  })
+
+  it('SEGURANÇA: scenarioLink, ownerId e fog.revealed do mestre não saem; camadas seguem para o render', () => {
+    const map = twoRooms({
+      scenarioLink: 'C:\\cenarios\\link-secreto.json',
+      ownerId: 'dono-mestre-123',
+      fog: { mode: 'per-token', revealed: ['area-revelada-secreta'] },
+      hiddenLayers: ['anotacoes'],
+      lockedLayers: ['paredes'],
+    })
+    const { map: out } = filterMapForPlayer(map, 'p1', ownership, RADIUS)
+    const json = JSON.stringify(out)
+    expect(json).not.toContain('link-secreto')
+    expect(json).not.toContain('dono-mestre-123')
+    expect(json).not.toContain('area-revelada-secreta')
+    expect(out.scenarioLink).toBeNull()
+    expect(out.ownerId).toBeNull()
+    expect(out.fog).toEqual({ mode: 'per-token', revealed: [] })
+    expect(out.hiddenLayers).toEqual(['anotacoes'])
+    expect(out.lockedLayers).toEqual(['paredes'])
   })
 
   it('jogador sem token não vê entidade nenhuma', () => {

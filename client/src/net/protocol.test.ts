@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { PROTOCOL_VERSION, parsePlayerMessage } from './protocol'
+import { createExploration, decodeExploration, encodeExploration, markRings } from '../lib/exploration'
+import { createEmptyMap } from '../lib/mapFactory'
+import { PROTOCOL_VERSION, parsePlayerMessage, type HostMessage } from './protocol'
 
 describe('parsePlayerMessage', () => {
   it('expõe a versão 1 do protocolo', () => {
@@ -68,6 +70,24 @@ describe('parsePlayerMessage', () => {
 
   it('token.move com coordenada finita gigante passa no parser (quem recusa é a validação do mapa)', () => {
     expect(parsePlayerMessage({ type: 'token.move', reqId: 'r', tokenId: 't', x: 1.7e308, y: -1e20 })).not.toBeNull()
+  })
+
+  it('snapshot carrega explored e ownTokens que atravessam o JSON sem perda', () => {
+    const exp = createExploration({ width: 400, height: 400, grid: 40 })
+    markRings(exp, [[{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }]])
+    const msg: HostMessage = {
+      type: 'snapshot',
+      rev: 1,
+      map: createEmptyMap('m', 'M', 400, 400, 40),
+      vision: [],
+      explored: encodeExploration(exp),
+      ownTokens: ['t1'],
+    }
+    const back: unknown = JSON.parse(JSON.stringify(msg))
+    expect(back).toMatchObject({ ownTokens: ['t1'], explored: { cell: 10, cols: 40, rows: 40 } })
+    const explored = decodeExploration(Reflect.get(back as object, 'explored'))
+    expect(Array.from(explored?.bits ?? [])).toEqual(Array.from(exp.bits))
+    expect(PROTOCOL_VERSION).toBe(1)
   })
 
   it('aceita name com exatamente 32 chars e reqId com 64', () => {

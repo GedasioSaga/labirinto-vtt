@@ -25,12 +25,11 @@ export function createTextLabelsRenderer(): TextLabelsRenderer {
     const texts = drawings.filter((d): d is Extract<Drawing, { kind: 'text' }> => d.kind === 'text')
     const currentIds = new Set(texts.map((t) => t.id))
 
+    // Esconde em vez de destruir: destruir Text durante a sessão quebra o Pixi
+    // 8.20 em TexturePool.returnTexture (texto que sai e volta ao payload do
+    // jogador, ou apagado no editor). O objeto fica no cache e é reaproveitado.
     for (const [id, textObj] of cache) {
-      if (!currentIds.has(id)) {
-        container.removeChild(textObj)
-        textObj.destroy()
-        cache.delete(id)
-      }
+      if (!currentIds.has(id)) textObj.visible = false
     }
 
     highlightGraphics.clear()
@@ -42,6 +41,7 @@ export function createTextLabelsRenderer(): TextLabelsRenderer {
         cache.set(label.id, textObj)
         container.addChild(textObj)
       }
+      textObj.visible = true
       textObj.text = label.text
       textObj.x = label.x
       textObj.y = label.y
