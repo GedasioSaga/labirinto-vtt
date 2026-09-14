@@ -193,6 +193,12 @@ exit 0, `npm run test` 0 falhas, `cd client && npx playwright test` 0 falhas.
   UI + "Adicionar token", sala `MUTSN7` com 4 URLs de LAN, `GET /player` 200 do asset embutido,
   jogador em "Aguardando o mestre", token atribuído, jogador com `data-tokens-count=1`, erros de
   página app `[]` e jogador `[]`, exit 0.
+- GitHub (14/09/2026): `gh repo create` criou https://github.com/GedasioSaga/labirinto-vtt (PUBLIC,
+  branch padrão `main`). Commit `8d635af` (125 arquivos) na `feat/menu-inicial`; `master` local
+  renomeada para `main` e avançada por fast-forward; push de `main`, `feat/menu-inicial` e da tag
+  anotada `v0.1.0`. Release https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.1.0 com
+  `Labirinto_0.1.0_x64-setup.exe` (1.739.131 bytes) e `Labirinto_0.1.0_x64_en-US.msi`
+  (2.383.872 bytes), ambos `uploaded`. Árvore remota sem `Objetivo/`, `Tentativa/`, `.genesis/`.
 - Gate em 14/09/2026: typecheck exit 0; vitest `83 arquivos, 1451 passed`; playwright normal
   `113 passed` (rodado depois de ligar botão e render fiel no editor).
 - Tentativa principal atual (`Tentativa/mapaN.json`): mapa1 cor 98,17% IoU 0,9949 buracos 16/17
