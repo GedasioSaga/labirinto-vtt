@@ -39,15 +39,14 @@ export type PropertyGroupId =
   | 'stairControls'
   | 'stairSize'
   | 'room'
-  | 'grid'
-  | 'mapScale'
-  | 'gridAlign'
+  /** Camadas (e o acesso rápido da grade). Grade, Medição, Alinhar grade e
+   *  Link de cenário deixaram de ser grupos do painel: são configuração do
+   *  mapa inteiro e vão para a janela "Configurações do mapa". */
   | 'layers'
-  | 'scenarioLink'
   | 'selection'
   /** Chão por peças: controles da peça selecionada (FloorPieceControls). */
   | 'floorPiece'
-  /** Chão por peças: estilo do chão do mapa + "Chão a partir da imagem" (FloorStyleControls). */
+  /** Chão por peças: estilo do chão do mapa (FloorStyleControls). */
   | 'floorStyle'
   /** A5 — "Oculto para jogadores" de Região/Escada/Desenho selecionado
    *  (Token e Objeto têm o toggle dentro de `itemTransform`). */
@@ -61,7 +60,7 @@ export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'drawingStyle', 'lineCap', 'fill', 'regionStyle', 'polygonSides', 'textLabel',
   'wallStyle', 'wallDoor', 'doorKind', 'portal', 'itemTransform', 'tokenImage',
   'lightControls', 'stairControls', 'stairSize', 'room',
-  'grid', 'mapScale', 'gridAlign', 'layers', 'scenarioLink', 'selection',
+  'layers', 'selection',
   'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone',
 ]
 
@@ -141,17 +140,12 @@ const EMPTY_SELECTION: ToolPropertiesSelection = {}
  * Decide quais seções aparecem para `activeTool` + o que está selecionado.
  * Pura: mesma entrada sempre devolve o mesmo `Set`, sem ler DOM/store/React.
  *
- * Grupos "sempre visíveis" hoje (Grade/Medição/Alinhar grade/Camadas/
- * Cenário) passam a aparecer só num "momento de mapa" — ferramenta Selecionar
+ * Camadas (e Chão) aparecem só num "momento de mapa" — ferramenta Selecionar
  * ativa OU já existe alguma seleção — nunca enquanto uma ferramenta de
- * DESENHO está ativa sem nada selecionado, que é exatamente quando elas hoje
- * empurram "Medição" pra fora da tela (DOSSIE-FEEDBACK-F4.md). Verificado
- * contra os specs e2e existentes: nenhum interage com essas 5 seções fora de
- * `activeTool==='select'` — todos chamam `setActiveTool('select')` antes
- * (`rg "Grudar|Alinhar grade|Cenário" client/e2e`); os toggles de snap que
- * ficam DENTRO de `GridControls` são acionados nos testes direto pela store
- * (`setSnapTarget`), nunca clicando no controle, então gatear a seção não
- * quebra esses specs. `selection` (SelectionControls) fica de fora dessa
+ * DESENHO está ativa sem nada selecionado, que é quando empurravam as seções
+ * da ferramenta pra fora da tela (DOSSIE-FEEDBACK-F4.md). Grade, Medição,
+ * Alinhar grade e Link de cenário não são mais grupos daqui: são
+ * configuração do mapa e saem do painel. `selection` (SelectionControls) fica de fora dessa
  * regra: tem o botão "Adicionar token", que não depende de haver seleção —
  * escondê-la removeria a única forma de adicionar token pelo painel.
  */
@@ -177,9 +171,12 @@ export function relevantPropertyGroups(
   const groups = new Set<PropertyGroupId>()
   const toolDrawingKind = DRAWING_TOOL_KIND[activeTool] ?? null
 
-  // Estilo de desenho (cor/espessura/preenchimento/fonte do PRÓXIMO desenho)
-  // — mesma condição de `showDrawingStyle`, PropertiesPanel.tsx:108-109.
-  if (DRAWING_STYLE_TOOLS.has(activeTool) || (activeTool === 'text' && !textLabel)) {
+  // Estilo de desenho: cor/espessura/preenchimento/fonte do PRÓXIMO desenho
+  // (ferramenta de desenho ou Texto sem rótulo selecionado) OU cor/espessura
+  // de um desenho não-texto JÁ SELECIONADO — auditoria 14/09: retângulo,
+  // linha e pincel desenhados não tinham Cor nem Espessura no painel. Quem
+  // renderiza (App.tsx) escolhe a fonte: desenho selecionado primeiro.
+  if (DRAWING_STYLE_TOOLS.has(activeTool) || (activeTool === 'text' && !textLabel) || drawingKind !== null) {
     groups.add('drawingStyle')
   }
 
@@ -275,15 +272,7 @@ export function relevantPropertyGroups(
   // de mapa e também com a ferramenta Chão ativa, que é quem mais precisa dele.
   if (isMapWideMoment || activeTool === 'floor') groups.add('floorStyle')
 
-  if (isMapWideMoment) {
-    groups.add('grid')
-    groups.add('gridAlign')
-    groups.add('layers')
-    groups.add('scenarioLink')
-  }
-  // Medição também entra com a ferramenta Medir ativa — é literalmente a
-  // configuração (escala/modo de medição) que essa ferramenta consome.
-  if (isMapWideMoment || activeTool === 'measure') groups.add('mapScale')
+  if (isMapWideMoment) groups.add('layers')
 
   // Sempre — ver docstring da função ("Adicionar token" independe de seleção).
   groups.add('selection')

@@ -367,8 +367,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
           // A falha do start já virou toast lá; aqui só importa que ele terminou.
         }
       }
+      // Snapshot pendente sai antes: não pode chegar ao jogador depois do aviso.
       cancelPendingBroadcast()
       resetLaser()
+      // Avisa antes de derrubar: sem `room.closed` o jogador veria queda de rede,
+      // não "O mestre encerrou a sala".
+      if (session) await dispatch(session.closeRoom())
       removeListeners()
       session = null
       currentRoom = null

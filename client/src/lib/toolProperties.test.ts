@@ -60,6 +60,14 @@ describe('relevantPropertyGroups — casos concretos do pedido do usuário (F4-N
     expect(groupsOf('select', { drawingKind: 'freehand' }).has('lineCap')).toBe(true)
   })
 
+  // Auditoria 14/09: retângulo, linha e pincel já desenhados não tinham Cor nem Espessura no painel.
+  it('ferramenta Selecionar + desenho (não texto) selecionado: mostra drawingStyle para editar cor/espessura', () => {
+    for (const drawingKind of ['freehand', 'line', 'curve', 'circle', 'rect', 'ellipse', 'polygon'] as const) {
+      expect(groupsOf('select', { drawingKind }).has('drawingStyle'), drawingKind).toBe(true)
+    }
+    expect(groupsOf('select', { textLabel: true }).has('drawingStyle')).toBe(false)
+  })
+
   it('ferramenta Selecionar + um "circle" selecionado: NÃO mostra lineCap, mostra fill (editar forma existente)', () => {
     const groups = groupsOf('select', { drawingKind: 'circle' })
     expect(groups.has('lineCap')).toBe(false)
@@ -104,32 +112,45 @@ describe('relevantPropertyGroups — casos concretos do pedido do usuário (F4-N
 })
 
 describe('relevantPropertyGroups — as 6 seções "sempre visíveis" hoje (bug real do painel, DOSSIE-FEEDBACK-F4.md)', () => {
-  it('ferramenta Selecionar, nada selecionado: grid/mapScale/gridAlign/layers/scenarioLink aparecem (momento de mapa)', () => {
+  it('ferramenta Selecionar, nada selecionado: layers e floorStyle aparecem (momento de mapa)', () => {
     const groups = groupsOf('select')
-    for (const g of ['grid', 'mapScale', 'gridAlign', 'layers', 'scenarioLink'] as const) {
-      expect(groups.has(g), g).toBe(true)
-    }
+    expect(groups.has('layers')).toBe(true)
+    expect(groups.has('floorStyle')).toBe(true)
   })
 
-  it('ferramenta Parede ativa, NADA selecionado: NÃO mostra grid/mapScale/gridAlign/layers/scenarioLink — é o bug que "Medição fica cortada embaixo"', () => {
+  it('ferramenta Parede ativa, NADA selecionado: NÃO mostra layers nem floorStyle — é o bug que "Medição fica cortada embaixo"', () => {
     const groups = groupsOf('wall')
-    for (const g of ['grid', 'mapScale', 'gridAlign', 'layers', 'scenarioLink'] as const) {
-      expect(groups.has(g), g).toBe(false)
-    }
+    expect(groups.has('layers')).toBe(false)
+    expect(groups.has('floorStyle')).toBe(false)
   })
 
   it('ferramenta Parede ativa MAS já existe uma Parede selecionada: volta a mostrar (momento de mapa por causa da seleção)', () => {
     const groups = groupsOf('wall', { wall: true })
-    for (const g of ['grid', 'mapScale', 'gridAlign', 'layers', 'scenarioLink'] as const) {
-      expect(groups.has(g), g).toBe(true)
+    expect(groups.has('layers')).toBe(true)
+    expect(groups.has('floorStyle')).toBe(true)
+  })
+
+  it('Grade, Medição, Alinhar grade e Link de cenário não são grupos do painel (vão para a janela de configurações do mapa)', () => {
+    const migrated = ['grid', 'mapScale', 'gridAlign', 'scenarioLink']
+    const ids: readonly string[] = PROPERTY_GROUP_IDS
+    for (const g of migrated) {
+      expect(ids.includes(g), g).toBe(false)
+    }
+    // Nenhuma ferramenta nem seleção faz esses grupos reaparecerem.
+    for (const tool of ALL_TOOLS) {
+      for (const selection of [undefined, { wall: true }, { token: true }, { region: true, regionIsRoom: true }]) {
+        const groups: ReadonlySet<string> = groupsOf(tool, selection)
+        for (const g of migrated) {
+          expect(groups.has(g), `tool=${tool} grupo=${g}`).toBe(false)
+        }
+      }
     }
   })
 
-  it('ferramenta Medir: mapScale aparece mesmo sem seleção (é a configuração que a régua usa), mas grid/gridAlign/layers/scenarioLink não', () => {
+  it('ferramenta Medir, nada selecionado: não traz seções de mapa inteiro', () => {
     const groups = groupsOf('measure')
-    expect(groups.has('mapScale')).toBe(true)
-    expect(groups.has('grid')).toBe(false)
-    expect(groups.has('gridAlign')).toBe(false)
+    expect(groups.has('layers')).toBe(false)
+    expect(groups.has('floorStyle')).toBe(false)
   })
 
   it('selection (SelectionControls) aparece SEMPRE, em qualquer ferramenta, com ou sem seleção — tem o botão "Adicionar token"', () => {

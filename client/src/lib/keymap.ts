@@ -1,4 +1,5 @@
 import type { DrawingTool } from '../types/tools'
+import { FEATURES, type FeatureFlags } from './features'
 
 /**
  * Mapa de teclado — itens 5 e 7 do `docs/PLANO-REFINAMENTO.md` (Onda 1,
@@ -91,14 +92,31 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   concealZone: 'X',
 }
 
-const TOOL_BY_LETTER = new Map<string, DrawingTool>()
-for (const tool of Object.keys(TOOL_SHORTCUTS) as DrawingTool[]) {
-  // `Object.keys` devolve `string[]` na lib padrão do TS — limitação
-  // conhecida da própria assinatura, não imprecisão nossa: `TOOL_SHORTCUTS`
-  // é `Record<DrawingTool, string>` EXAUSTIVO (comentário acima), então toda
-  // chave que sai daqui é garantidamente uma `DrawingTool` de verdade.
-  TOOL_BY_LETTER.set(TOOL_SHORTCUTS[tool].toLowerCase(), tool)
+/** Ferramentas escondidas por flag: a letra delas fica na tabela, mas não aciona nada. */
+export function hiddenTools(flags: Readonly<FeatureFlags> = FEATURES): ReadonlySet<DrawingTool> {
+  const hidden = new Set<DrawingTool>()
+  if (!flags.tokenTool) hidden.add('token')
+  return hidden
 }
+
+/**
+ * Índice letra → ferramenta, pulando as escondidas. `TOOL_SHORTCUTS` segue
+ * exaustivo; religar a ferramenta é trocar a flag, sem mexer na tabela.
+ */
+export function buildToolByLetter(hidden: ReadonlySet<DrawingTool>): Map<string, DrawingTool> {
+  const byLetter = new Map<string, DrawingTool>()
+  for (const tool of Object.keys(TOOL_SHORTCUTS) as DrawingTool[]) {
+    // `Object.keys` devolve `string[]` na lib padrão do TS — limitação
+    // conhecida da própria assinatura, não imprecisão nossa: `TOOL_SHORTCUTS`
+    // é `Record<DrawingTool, string>` EXAUSTIVO (comentário acima), então toda
+    // chave que sai daqui é garantidamente uma `DrawingTool` de verdade.
+    if (hidden.has(tool)) continue
+    byLetter.set(TOOL_SHORTCUTS[tool].toLowerCase(), tool)
+  }
+  return byLetter
+}
+
+const TOOL_BY_LETTER = buildToolByLetter(hiddenTools())
 
 type ArrowKey = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
 

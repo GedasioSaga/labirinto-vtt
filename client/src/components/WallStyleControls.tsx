@@ -71,11 +71,10 @@ export function WallStyleControls({
   onWallKindChange,
   thickness,
   onThicknessChange,
-  lineStyle,
-  onLineStyleChange,
 }: WallStyleControlsProps) {
+  // `lineStyle`/`onLineStyleChange` continuam no tipo (o chamador monta um
+  // objeto só), mas quem desenha é `WallLineStyleField`, no Avançado.
   const resolvedThickness = thickness ?? 'medium'
-  const resolvedLineStyle = lineStyle ?? 'round'
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Parede</h2>
@@ -106,24 +105,40 @@ export function WallStyleControls({
           ))}
         </div>
       </div>
-      <div className="lb-field">
-        <span className="lb-label">Ponta e canto</span>
-        <div className="lb-seg" role="radiogroup" aria-label="Ponta e canto da parede">
-          {LINE_STYLE_OPTIONS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={resolvedLineStyle === value}
-              className="lb-seg__option"
-              disabled={!onLineStyleChange}
-              onClick={() => onLineStyleChange?.(value)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
     </section>
+  )
+}
+
+export interface WallLineStyleFieldProps extends Pick<WallStyleControlsProps, 'lineStyle' | 'onLineStyleChange'> {
+  /** Id da frase do Avançado que explica o controle. */
+  describedBy?: string
+}
+
+/**
+ * "Ponta e canto" da parede, fora de `WallStyleControls` desde a fatia 3 do
+ * plano de 15/09/2026: mora na seção Avançado do painel. `undefined` conta
+ * como 'round'; sem `onLineStyleChange` os botões nascem desabilitados.
+ */
+export function WallLineStyleField({ lineStyle, onLineStyleChange, describedBy }: WallLineStyleFieldProps) {
+  const resolvedLineStyle = lineStyle ?? 'round'
+  return (
+    <div className="lb-field">
+      <span className="lb-label">Ponta e canto</span>
+      <div className="lb-seg" role="radiogroup" aria-label="Ponta e canto da parede" aria-describedby={describedBy}>
+        {LINE_STYLE_OPTIONS.map(({ value, label }) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={resolvedLineStyle === value}
+            className="lb-seg__option"
+            disabled={!onLineStyleChange}
+            onClick={() => onLineStyleChange?.(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }

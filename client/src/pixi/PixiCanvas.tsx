@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Application, Container, Graphics, Sprite, Texture, Assets } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
+import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
 import type { MapData } from '../types/map'
 import { useMapStore } from '../stores/mapStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
@@ -31,12 +32,15 @@ import { isHidden, canInteract } from '../lib/itemTransform'
 import { drawWalls } from './drawWalls'
 import { drawDoors } from './drawDoors'
 import { drawStairs } from './drawStairs'
-import { drawLights } from './drawLights'
+import { createLightsRenderer } from './drawLights'
+import { createHatchRenderer } from './drawHatch'
+import { createDungeonTextures } from './dungeonTextures'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
 import { createRoomNamesRenderer, findRoomLabelAt, roomLabelFontSize, roomLabelPosition } from './drawRoomNames'
 import { createFloorRenderer, drawFloorDraft } from './drawFloor'
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
 import { drawMapFrame } from './drawMapFrame'
+import { createDebouncedTask, syncWorldTextResolution } from './textResolution'
 import { layoutMapFrame } from '../lib/mapFrame'
 import { hexToRgb, rasterizeMinimap } from '../lib/minimapRaster'
 import { compileFloor } from '../lib/floorSdf'
@@ -102,7 +106,7 @@ import {
 import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { findConcealZoneAt } from '../lib/concealZones'
-import { buildConcealZoneFromDraft } from '../lib/mapFactory'
+import { buildConcealZoneFromDraft, nextTokenName } from '../lib/mapFactory'
 import { SECRET_ITEM_ALPHA } from './constants'
 import { createTextLabelsRenderer } from './drawTextLabels'
 import { createAngleIndicatorRenderer } from './drawAngleIndicator'
@@ -221,10 +225,15 @@ interface PixiCanvasProps {
   resetZoomRequest?: number
   /**
    * A3 — chamada quando Sala, Sala Circular ou Polígono Regular termina de ser
-   * desenhada (a região já está no mapa e selecionada). O App usa para trocar
-   * o rail para a aba Mapa e focar o campo Nome.
+   * desenhada (a região já está no mapa e selecionada). O nome é pedido aqui
+   * mesmo, num campo sobre a Sala; o App só troca o rail para a aba Mapa.
    */
   onRoomCreated?: (regionId: string) => void
+  /**
+   * Ferramenta Token: clique no mapa, nome confirmado no campo sobre o ponto.
+   * O App cria o token pelo mesmo caminho do botão "Adicionar token".
+   */
+  onPlaceToken?: (name: string, at: Point) => void
   /**
    * B2 — posição de mundo do ponteiro sobre o canvas, a cada movimento, só
    * enquanto o laser está ligado (L segurado ou botão Laser). O App repassa
@@ -233,15 +242,18 @@ interface PixiCanvasProps {
   onLaserMove?: (x: number, y: number) => void
 }
 
-/** Campo de nome aberto por duplo clique sobre a Sala ou o rótulo dela. */
-interface RoomNameEditorState {
-  regionId: string
-  value: string
-}
+/**
+ * Campo de nome sobre o canvas: nome de Sala (duplo clique na Sala ou no
+ * rótulo, ou Sala recém-desenhada) ou nome de um token novo (ferramenta Token).
+ */
+type NameEditorState = { kind: 'room'; regionId: string; value: string } | { kind: 'token'; at: Point; value: string }
 
 const MIN_ROOM_NAME_EDITOR_FONT = 12
 
-export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChange, onCameraChange, resetZoomRequest, onRoomCreated, onLaserMove }: PixiCanvasProps) {
+/** Retângulo que cobre qualquer mapa: Ctrl+A reusa o filtro da seleção por área. */
+const SELECT_ALL_RECT: AreaRect = { x1: -1e9, y1: -1e9, x2: 1e9, y2: 1e9 }
+
+export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChange, onCameraChange, resetZoomRequest, onRoomCreated, onPlaceToken, onLaserMove }: PixiCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const onLaserMoveRef = useRef(onLaserMove)
   useEffect(() => {
@@ -254,23 +266,39 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
     onRoomCreatedRef.current = onRoomCreated
   }, [onRoomCreated])
 
-  const [roomNameEditor, setRoomNameEditor] = useState<RoomNameEditorState | null>(null)
+  const onPlaceTokenRef = useRef(onPlaceToken)
+  useEffect(() => {
+    onPlaceTokenRef.current = onPlaceToken
+  }, [onPlaceToken])
+
+  const [nameEditor, setNameEditor] = useState<NameEditorState | null>(null)
   // Enter e Esc desmontam o campo, e o navegador pode disparar blur depois;
   // sem esta trava o blur gravaria o nome que o Esc acabou de cancelar.
-  const roomNameEditorOpenRef = useRef(false)
-  const editorCamera = useMapStore((state) => (roomNameEditor ? state.camera : null))
+  const nameEditorOpenRef = useRef(false)
+  const editorCamera = useMapStore((state) => (nameEditor ? state.camera : null))
   const editorRegion = useMapStore((state) =>
-    roomNameEditor ? state.map.regions.find((r) => r.id === roomNameEditor.regionId) ?? null : null,
+    nameEditor?.kind === 'room' ? state.map.regions.find((r) => r.id === nameEditor.regionId) ?? null : null,
   )
   const editorGrid = useMapStore((state) => state.map.grid)
 
-  const closeRoomNameEditor = (commit: boolean) => {
-    if (!roomNameEditorOpenRef.current || !roomNameEditor) return
-    roomNameEditorOpenRef.current = false
-    if (commit && editorRegion?.room && editorRegion.room.name !== roomNameEditor.value) {
-      useMapStore.getState().setRoomName(roomNameEditor.regionId, roomNameEditor.value)
+  // Só usa ref e setter estáveis: o setup() do Pixi, que roda uma vez, pode chamar.
+  const openNameEditor = (next: NameEditorState) => {
+    nameEditorOpenRef.current = true
+    setNameEditor(next)
+  }
+
+  const closeNameEditor = (commit: boolean) => {
+    if (!nameEditorOpenRef.current || !nameEditor) return
+    nameEditorOpenRef.current = false
+    if (commit && nameEditor.kind === 'room' && editorRegion?.room && editorRegion.room.name !== nameEditor.value) {
+      useMapStore.getState().setRoomName(nameEditor.regionId, nameEditor.value)
     }
-    setRoomNameEditor(null)
+    if (commit && nameEditor.kind === 'token') {
+      // Mesmo contrato do "Adicionar token": nome vazio vira o nome sugerido.
+      const name = nameEditor.value.trim()
+      onPlaceTokenRef.current?.(name === '' ? nextTokenName(useMapStore.getState().map.tokens) : name, nameEditor.at)
+    }
+    setNameEditor(null)
   }
   // Ponte entre a prop `gridAlignPreview` (muda a cada render) e o redraw que
   // vive DENTRO do `setup()` assíncrono do efeito abaixo (`[]` de
@@ -300,7 +328,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
     const app = new Application()
 
     const setup = async () => {
-      await app.init({ backgroundColor: 0x2b2b2b, resizeTo: el })
+      // Densidade do monitor (125%/150%): o backbuffer tem pixels físicos e o
+      // canvas fica no tamanho CSS; event.global e app.screen seguem em px CSS.
+      await app.init({
+        backgroundColor: 0x2b2b2b,
+        resizeTo: el,
+        resolution: currentRendererResolution(),
+        autoDensity: true,
+        antialias: true,
+      })
       if (destroyed) {
         app.destroy(true, { children: true })
         return
@@ -322,6 +358,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const mapBoundsGraphics = new Graphics()
       const gridGraphics = new Graphics()
       const gridAlignOverlayGraphics = new Graphics()
+      // Passo 3, F2 — faixa de hachura por fora das paredes externas, por baixo
+      // de todo piso; a máscara (inversa) é a silhueta do piso (floorMask.ts).
+      const hatchMaskGraphics = new Graphics()
+      const hatchGraphics = new Graphics()
       const floorGraphics = new Graphics()
       // Traços e portas de minimapa (MapData.lines/markers) por cima do chão; moldura atrás de tudo do mapa.
       const mapLinesGraphics = new Graphics()
@@ -371,6 +411,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         gridAlignOverlayGraphics,
         mapFrameContainer,
         mapRasterSprite,
+        hatchMaskGraphics,
+        hatchGraphics,
         floorGraphics,
         mapLinesGraphics,
         regionsContainer,
@@ -401,6 +443,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       world.scale.set(camera.scale)
       onCameraChange?.(camera)
 
+      // Texto no mundo escalado acompanha o zoom em degraus (textResolution.ts):
+      // sem isso ele é rasterizado a 1x e esticado (mole a 2x, em blocos a 4x).
+      // `data-text-resolution` = maior resolução aplicada, lida pelo e2e.
+      const syncTextResolution = () => {
+        if (destroyed) return
+        el.dataset.textResolution = String(syncWorldTextResolution(world, camera.scale, app.renderer.resolution))
+      }
+      const textResolutionTask = createDebouncedTask(syncTextResolution)
+
       // Onda 1 — todo ponto do arquivo que muda `camera` passa por aqui (pan,
       // roda, atalho de enquadrar/resetar): aplica no Pixi, grava na store E
       // notifica App.tsx (ZoomHud). Antes desta fase cada call site repetia
@@ -413,6 +464,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         world.scale.set(camera.scale)
         useMapStore.getState().setCamera(camera)
         onCameraChange?.(camera)
+        textResolutionTask.schedule()
       }
 
       // Item #9 do plano — reset explícito (Ctrl+0 / clique no ZoomHud):
@@ -588,8 +640,66 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         const single = selectionSingle(selection)
         const walls = visibleWalls(map.walls, map.hiddenLayers)
         const selectedWallId = single?.kind === 'wall' ? single.id : null
-        drawWalls(wallsGraphics, walls, selectedWallId, camera.scale)
+        // Sala selecionada: o contorno segue as paredes grossas (sob elas o da Região some).
+        drawWalls(wallsGraphics, walls, selectedWallId, camera.scale, map.grid, single?.kind === 'region' ? single.id : null)
         drawDoors(doorsGraphics, walls, selectedWallId, camera.scale)
+      }
+
+      /**
+       * Faixa de hachura + máscara do piso. O renderer só repinta quando
+       * paredes, salas, chão, camadas ou grade mudam de referência, ou quando o
+       * zoom cruza o LOD — seleção sozinha não custa nada aqui.
+       */
+      const redrawHatch = () => {
+        const { map } = useMapStore.getState()
+        const rasterMode = map.floorStyle.renderMode === 'raster'
+        dungeonTextures?.setGrid(map.grid)
+        const floorPolygons = rasterMode || map.hiddenLayers.includes('salas') ? [] : floorRenderer.polygons()
+        hatchRenderer.draw(
+          hatchGraphics,
+          hatchMaskGraphics,
+          {
+            walls: visibleWalls(map.walls, map.hiddenLayers),
+            regions: visibleRegions(map.regions, map.hiddenLayers),
+            floorPolygons,
+            grid: map.grid,
+            cameraScale: camera.scale,
+          },
+          [map.walls, map.regions, map.floor, map.hiddenLayers, map.floorStyle, map.grid, rasterMode],
+        )
+      }
+
+      /** Luz com gradiente e marcador de tamanho fixo na tela: redesenha também no zoom. */
+      const redrawLights = () => {
+        const { map, selection } = useMapStore.getState()
+        const single = selectionSingle(selection)
+        lightsRenderer.draw(lightsGraphics, visibleLights(map.lights, map.hiddenLayers), single?.kind === 'light' ? single.id : null, camera.scale)
+        // Para o e2e: gradientes vivos (1 textura cada) não podem crescer com trocas de intensidade.
+        el.dataset.lightGradients = String(lightsRenderer.liveGradients())
+      }
+
+      /**
+       * Regiões e desenhos recebem `camera.scale` para o contorno de seleção
+       * manter espessura fixa na tela; roda sozinha quando só o zoom muda.
+       */
+      const redrawRegionsAndDrawings = () => {
+        const { map, selection } = useMapStore.getState()
+        const single = selectionSingle(selection)
+        regionsRenderer.draw(regionsContainer, visibleRegions(map.regions, map.hiddenLayers), resolveHighlightedRegionId(map.walls, single), camera.scale)
+        const drawings = visibleDrawings(map.drawings, map.hiddenLayers)
+        const selectedDrawingId = single?.kind === 'drawing' ? single.id : null
+        drawDrawings(drawingsGraphics, drawings.filter((d) => !d.secret), selectedDrawingId, camera.scale)
+        drawDrawings(secretDrawingsGraphics, drawings.filter((d) => d.secret), selectedDrawingId, camera.scale)
+      }
+
+      /** Escadas também têm contorno de seleção em px de tela: redesenham no zoom. */
+      const redrawStairs = () => {
+        const { map, selection } = useMapStore.getState()
+        const single = selectionSingle(selection)
+        const stairs = visibleStairs(map.stairs, map.hiddenLayers)
+        const selectedStairId = single?.kind === 'stair' ? single.id : null
+        drawStairs(stairsGraphics, stairs.filter((s) => !s.secret), selectedStairId, camera.scale)
+        drawStairs(secretStairsGraphics, stairs.filter((s) => s.secret), selectedStairId, camera.scale)
       }
 
       const redrawShapes = () => {
@@ -616,6 +726,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           clearMapRaster()
           floorRenderer.draw(floorGraphics, map.hiddenLayers.includes('salas') ? EMPTY_FLOOR : map.floor, map.floorStyle)
         }
+        redrawHatch()
         floorRenderer.drawSelection(
           floorSelectionGraphics,
           single?.kind === 'floor' && !map.hiddenLayers.includes('salas') ? map.floor.find((p) => p.id === single.id) ?? null : null,
@@ -625,18 +736,11 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (!rasterMode && !map.hiddenLayers.includes('paredes')) drawMapLines(mapLinesGraphics, map.lines)
         if (!rasterMode && !map.hiddenLayers.includes('portas')) drawMapMarkers(mapLinesGraphics, map.markers)
         redrawMapFrame(map.frame)
-        regionsRenderer.draw(regionsContainer, visibleRegions(map.regions, map.hiddenLayers), resolveHighlightedRegionId(map.walls, single))
+        redrawRegionsAndDrawings()
         roomNamesRenderer.draw(roomNamesContainer, visibleRegions(map.regions, map.hiddenLayers), map.grid)
         redrawWallsAndDoors()
-        const stairs = visibleStairs(map.stairs, map.hiddenLayers)
-        const selectedStairId = single?.kind === 'stair' ? single.id : null
-        drawStairs(stairsGraphics, stairs.filter((s) => !s.secret), selectedStairId)
-        drawStairs(secretStairsGraphics, stairs.filter((s) => s.secret), selectedStairId)
-        drawLights(lightsGraphics, visibleLights(map.lights, map.hiddenLayers), single?.kind === 'light' ? single.id : null)
-        const drawings = visibleDrawings(map.drawings, map.hiddenLayers)
-        const selectedDrawingId = single?.kind === 'drawing' ? single.id : null
-        drawDrawings(drawingsGraphics, drawings.filter((d) => !d.secret), selectedDrawingId)
-        drawDrawings(secretDrawingsGraphics, drawings.filter((d) => d.secret), selectedDrawingId)
+        redrawStairs()
+        redrawLights()
         concealZonesRenderer.draw(concealZonesContainer, map.concealZones, map.grid, useMapStore.getState().selectedConcealZoneId)
         textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
         drawEditHandles(handlesGraphics, map, single, activeTool)
@@ -646,12 +750,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           areaSelectionOutlineGraphics,
           selection.length > 1 ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null,
         )
+        // Text novo (nome, rótulo) nasce na resolução do renderer: ajusta já ao zoom atual.
+        syncTextResolution()
       }
 
       const redrawTokens = () => {
         const { map, selection } = useMapStore.getState()
         const single = selectionSingle(selection)
         tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null)
+        syncTextResolution()
       }
 
       const propsRenderer = createPropsRenderer()
@@ -662,6 +769,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const roomNamesRenderer = createRoomNamesRenderer()
       const concealZonesRenderer = createConcealZonesRenderer()
       const floorRenderer = createFloorRenderer()
+      // Texturas procedurais e gradientes nascem POR RENDERER e morrem no teardown.
+      const dungeonTextures = createDungeonTextures(useMapStore.getState().map.grid)
+      const hatchRenderer = createHatchRenderer(() => dungeonTextures?.hatchPattern ?? null)
+      const lightsRenderer = createLightsRenderer()
       // Render fiel: re-rasteriza só quando alguma entrada muda de referência (a store é imutável).
       let lastRaster: {
         floor: MapData['floor']
@@ -765,7 +876,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
         try {
           const url = convertFileSrc(map.background.src)
-          const texture = await Assets.load(url)
+          // Mipmaps: sem eles a imagem afastada (zoom < 100%) pula texels e
+          // serrilha/faz moiré (medido a 50%). Filtro já é 'linear' por padrão.
+          const texture = await Assets.load<Texture>({ src: url, data: { autoGenerateMipmaps: true } })
           if (loadToken !== backgroundLoadToken) return
           backgroundSprite.texture = texture
           // Dimensões NATURAIS da textura (não afetadas por camera.scale) —
@@ -812,6 +925,16 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (!destroyed) app.resize()
       })
       containerResizeObserver.observe(el)
+      // Janela arrastada para outro monitor ou zoom do navegador: troca a
+      // resolução (textos se refazem pelo runner resolutionChange) e o resize
+      // emite 'resize', que redesenha grade e moldura acima.
+      const stopWatchingResolution = watchDevicePixelRatio((resolution) => {
+        if (destroyed) return
+        app.renderer.resolution = resolution
+        app.resize()
+        // Text com resolução fixa não segue o runner resolutionChange do Pixi.
+        textResolutionTask.flush()
+      })
       const unsubscribeShapes = subscribeToShapesRedraw(redrawShapes)
       const unsubscribeTokens = subscribeToTokensRedraw(redrawTokens)
       const unsubscribeProps = subscribeToPropsRedraw(redrawProps)
@@ -828,11 +951,18 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         (state) => state.map.gridOffset,
         () => redrawGrid(),
       )
-      // Só a escala importa para o piso de 1 px das paredes: pan não muda a
+      // Só a escala importa para o piso de 1 px das paredes e para o contorno
+      // de seleção (px de tela) de regiões, desenhos e escadas: pan não muda a
       // largura na tela, então não redesenha a cada movimento de arrasto.
       const unsubscribeCameraScaleForWalls = useMapStore.subscribe(
         (state) => state.camera.scale,
-        () => redrawWallsAndDoors(),
+        () => {
+          redrawWallsAndDoors()
+          redrawRegionsAndDrawings()
+          redrawStairs()
+          redrawHatch()
+          redrawLights()
+        },
       )
       // tokensSubscription.ts/propsSubscription.ts (fora do escopo deste
       // integrador) só assinam [map.tokens/map.props, selection] — nenhum dos
@@ -924,6 +1054,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // inserido não deve gerar uma SEGUNDA entrada de histórico.
       let curveDragSnapshot: MapData | null = null
       let roomDraftStart: Point | null = null
+      // Ferramenta Token: ponto do clique. O campo de nome só abre no
+      // pointerup — aberto no pointerdown, o mousedown seguinte no canvas
+      // tirava o foco do campo e confirmava o nome sugerido na hora.
+      let tokenPlacementPoint: Point | null = null
       // A5 — canto inicial (com snap) e ponto bruto do clique da Zona oculta.
       let concealDraftStart: Point | null = null
       let concealDraftRawStart: Point | null = null
@@ -1102,6 +1236,21 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         drawings: map.drawings.filter((drawing) => !isLayerLocked(map.lockedLayers, drawingLayer(drawing))),
         tokens: map.tokens.filter((token) => !isHidden(token) && canInteractInLayer(token, tokenLayer(token), map.lockedLayers)),
         props: map.props.filter((prop) => !isHidden(prop) && canInteractInLayer(prop, propLayer(prop), map.lockedLayers)),
+      })
+
+      /**
+       * Clique de seleção: igual a `hitTestMap`, mas token TRAVADO e token
+       * OCULTO NO EDITOR continuam clicáveis — é o único jeito de chegar aos
+       * toggles do painel para destravar ou mostrar. Travado não se move (o
+       * arrasto abaixo já checa `canInteract`); oculto aparece como fantasma
+       * (`tokensRenderer.ts`). Só a camada travada tira o token do clique.
+       * Objeto oculto no editor também fica clicável (fantasma em drawProps.ts);
+       * objeto travado segue a regra de antes (`canInteractInLayer`).
+       */
+      const clickSelectMap = (map: MapData): MapData => ({
+        ...hitTestMap(map),
+        tokens: map.tokens.filter((token) => !isLayerLocked(map.lockedLayers, tokenLayer(token))),
+        props: map.props.filter((prop) => canInteractInLayer(prop, propLayer(prop), map.lockedLayers)),
       })
 
       /**
@@ -1423,6 +1572,14 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           mode = 'drawing-light'
           lightDraftCenter = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           lightDraftRawStart = worldPoint
+          return
+        }
+
+        // Ferramenta Token (K): clique no vazio pede o nome e cria o token ali
+        // (pointerup abre o campo; o App cria pelo caminho do "Adicionar
+        // token"). Clique sobre um token existente segue o fluxo de sempre.
+        if (activeTool === 'token' && findSelectableAt(clickSelectMap(map), worldPoint)?.kind !== 'token') {
+          tokenPlacementPoint = applySnap(worldPoint, map.grid, 'token', event.altKey)
           return
         }
 
@@ -1785,7 +1942,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           }
         }
 
-        const hit = findSelectableAt(hitTestMap(map), worldPoint) ?? floorHitAt(map, worldPoint)
+        const hit = findSelectableAt(clickSelectMap(map), worldPoint) ?? floorHitAt(map, worldPoint)
         if (hit && event.shiftKey) {
           // Onda 4, item 24 — Shift+clique soma/tira ESTE item da seleção,
           // sem iniciar nenhum arrasto neste gesto (o gesto de Shift+clique é
@@ -1911,6 +2068,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       app.stage.on('pointerup', (event) => {
         // B2 — fim do traço do laser; o App manda `laser {off}` na transição.
         if (laserGesture.pointerUp()) return
+        if (tokenPlacementPoint) {
+          openNameEditor({ kind: 'token', at: tokenPlacementPoint, value: nextTokenName(useMapStore.getState().map.tokens) })
+          tokenPlacementPoint = null
+        }
         if (mode === 'drawing-wall' && wallDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, addWall } = useMapStore.getState()
@@ -2040,7 +2201,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
         if (mode === 'drawing-room' && roomDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map, addRoom, regionFillColor, regionFillPattern } = useMapStore.getState()
+          const { map, addRoom, roomFillColor, regionFillPattern } = useMapStore.getState()
           const snapped = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           // Onda 2, item 14 (Frente E) — Shift trava em quadrado.
           const end = constrainDraft(roomDraftStart, snapped, 'room', { shift: event.shiftKey, alt: event.altKey })
@@ -2051,11 +2212,13 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
               crypto.randomUUID(),
               crypto.randomUUID(),
             ]
-            const result = buildRoomFromDraft(crypto.randomUUID(), wallIds, roomDraftStart, end, regionFillColor, regionFillPattern)
+            const result = buildRoomFromDraft(crypto.randomUUID(), wallIds, roomDraftStart, end, roomFillColor, regionFillPattern)
             addRoom(result.region, result.walls)
-            // A3 — a Sala nova já nasce selecionada para o Nome aparecer.
+            // A3 — a Sala nova já nasce selecionada e pede o nome sobre ela
+            // mesma (o mesmo campo do duplo clique), com o texto selecionado.
             useMapStore.getState().setSelection(selectionOfItem({ kind: 'region', id: result.region.id }))
             onRoomCreatedRef.current?.(result.region.id)
+            if (result.region.room) openNameEditor({ kind: 'room', regionId: result.region.id, value: result.region.room.name })
           }
           roomDraftStart = null
           draftGraphics.clear()
@@ -2082,7 +2245,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
         if (mode === 'drawing-polygon-room' && polygonDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map, addRoom, regionFillColor, regionFillPattern } = useMapStore.getState()
+          const { map, addRoom, roomFillColor, regionFillPattern } = useMapStore.getState()
           const end = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           if (isValidRegularPolygonDraft(polygonDraftCenter, end)) {
             const wallIds = Array.from({ length: polygonDraftSides }, () => crypto.randomUUID())
@@ -2092,12 +2255,13 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
               polygonDraftCenter,
               end,
               polygonDraftSides,
-              regionFillColor,
+              roomFillColor,
               regionFillPattern,
             )
             addRoom(result.region, result.walls)
             useMapStore.getState().setSelection(selectionOfItem({ kind: 'region', id: result.region.id }))
             onRoomCreatedRef.current?.(result.region.id)
+            if (result.region.room) openNameEditor({ kind: 'room', regionId: result.region.id, value: result.region.room.name })
           }
           polygonDraftCenter = null
           draftGraphics.clear()
@@ -2259,6 +2423,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       })
 
       app.stage.on('pointerupoutside', () => {
+        tokenPlacementPoint = null
         if (laserGesture.pointerUp()) return
         // Mesmo fechamento de gesto do pointerup acima — o mouse pode sair do
         // canvas no meio de um arrasto de Curva, e o gesto ainda precisa virar
@@ -2444,6 +2609,16 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           // prévia até o cursor mora aqui, no pointermove ocioso.
           if (corridorDraftPoints.length > 0 && useMapStore.getState().activeTool === 'floor') {
             drawCorridorDraft(applySnap(worldPoint, useMapStore.getState().map.grid, 'wall', event.altKey))
+          }
+          // A régua também não muda `mode` (pointerdown da ferramenta Medir),
+          // então a prévia dela precisa morar aqui: depois deste `return` o
+          // arrasto de medição nunca chegava a desenhar. Lê o mapa da store a
+          // cada move para o modo de medição trocado na janela valer na hora.
+          if (useMapStore.getState().activeTool === 'measure' && measureDraftStart) {
+            const { map } = useMapStore.getState()
+            const end = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+            const result = measureDistance(measureDraftStart, end, map.grid, map.gridShape, map.measurementMode, map.scale)
+            measurementIndicatorRenderer.show(angleIndicatorContainer, measureDraftStart, end, result.label)
           }
           return
         }
@@ -2849,11 +3024,11 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
         if (mode === 'drawing-room' && roomDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map, regionFillColor } = useMapStore.getState()
+          const { map, roomFillColor } = useMapStore.getState()
           const snapped = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           // Onda 2, item 14 (Frente E) — Shift trava em quadrado.
           const end = constrainDraft(roomDraftStart, snapped, 'room', { shift: event.shiftKey, alt: event.altKey })
-          drawRoomDraft(draftGraphics, roomDraftStart, end, regionFillColor)
+          drawRoomDraft(draftGraphics, roomDraftStart, end, roomFillColor)
           // Onda 2, item 16 (Frente C) — número ao vivo.
           dimensionLabelRenderer.show(
             angleIndicatorContainer,
@@ -2901,9 +3076,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
         if (mode === 'drawing-polygon-room' && polygonDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map, regionFillColor } = useMapStore.getState()
+          const { map, roomFillColor } = useMapStore.getState()
           const end = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          drawRegularPolygonDraft(draftGraphics, polygonDraftCenter, end, polygonDraftSides, regionFillColor)
+          drawRegularPolygonDraft(draftGraphics, polygonDraftCenter, end, polygonDraftSides, roomFillColor)
           // Onda 2, item 16 (Frente C) — número ao vivo.
           dimensionLabelRenderer.show(
             angleIndicatorContainer,
@@ -3032,14 +3207,6 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           const cursor = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           drawPolygonDraft(draftGraphics, polygonDraftPoints, cursor, drawColor, drawWidth, drawFilled, drawFillAlpha)
         }
-
-        if (useMapStore.getState().activeTool === 'measure' && measureDraftStart) {
-          const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map } = useMapStore.getState()
-          const end = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          const result = measureDistance(measureDraftStart, end, map.grid, map.gridShape, map.measurementMode, map.scale)
-          measurementIndicatorRenderer.show(angleIndicatorContainer, measureDraftStart, end, result.label)
-        }
       })
 
       const onDblClick = (event: MouseEvent) => {
@@ -3095,8 +3262,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           }
           if (roomRegion?.room) {
             useMapStore.getState().setSelection(selectionOfItem({ kind: 'region', id: roomRegion.id }))
-            roomNameEditorOpenRef.current = true
-            setRoomNameEditor({ regionId: roomRegion.id, value: roomRegion.room.name })
+            openNameEditor({ kind: 'room', regionId: roomRegion.id, value: roomRegion.room.name })
           }
           return
         }
@@ -3225,6 +3391,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           targetTagName: (event.target as HTMLElement | null)?.tagName ?? '',
         })
         if (action === null) return
+        // Sem isto o navegador também seleciona o texto da interface (laranja).
+        if (action.kind === 'selectAll') event.preventDefault()
         runShortcut(action)
       }
 
@@ -3268,13 +3436,18 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           case 'duplicate':
             useMapStore.getState().duplicateSelected()
             break
-          // save/open/selectAll/undo/redo: fora do escopo da Onda 1 (undo/
-          // redo já têm handler próprio em App.tsx:161-178, com o MESMO
-          // mapeamento de tecla — tratar aqui de novo disparava undo/redo
-          // DUAS vezes por tecla).
+          // Ctrl+A: tudo das camadas visíveis e destravadas, pelas mesmas
+          // regras da seleção por área (item travado e token oculto ficam de fora).
+          case 'selectAll': {
+            const { map, setSelection } = useMapStore.getState()
+            setSelection(selectionFromAreaSelection(selectEntitiesInArea(hitTestMap(map), SELECT_ALL_RECT)))
+            break
+          }
+          // save/open/undo/redo têm handler próprio em App.tsx, com o MESMO
+          // mapeamento de tecla — tratar aqui de novo disparava a ação DUAS
+          // vezes por tecla.
           case 'save':
           case 'open':
-          case 'selectAll':
           case 'undo':
           case 'redo':
             break
@@ -3317,6 +3490,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         el.removeEventListener('pointerleave', onCanvasPointerLeave)
         window.removeEventListener('blur', onWindowBlur)
         containerResizeObserver.disconnect()
+        stopWatchingResolution()
+        textResolutionTask.cancel()
         unsubscribeGrid()
         unsubscribeGridOffset()
         unsubscribeCameraScaleForWalls()
@@ -3326,6 +3501,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()
         unsubscribeActiveTool()
+        // Antes do app.destroy: gradientes e o tile de hachura não são filhos da cena.
+        lightsRenderer.destroy()
+        dungeonTextures?.destroy()
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
         window.removeEventListener('keydown', onKeyDown)
@@ -3339,38 +3517,57 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
     return () => {
       destroyed = true
-      void cleanupPromise.then((cleanup) => cleanup?.())
-      if (initialized) {
-        app.destroy(true, { children: true })
-      }
+      // A limpeza (tickers, assinaturas da store, listeners) roda ANTES do
+      // destroy. Na ordem inversa, `app.ticker` já era null, a limpeza quebrava
+      // na 1ª linha e as assinaturas da store ficavam vivas desenhando em
+      // Graphics destruídos: o próximo loadMap (Criar/Abrir depois de Início)
+      // lançava dentro do setState e o editor não abria mais.
+      void cleanupPromise.then((cleanup) => {
+        try {
+          cleanup?.()
+        } finally {
+          if (initialized) app.destroy(true, { children: true })
+        }
+      })
     }
   }, [])
 
-  const editorPosition = editorRegion && editorCamera ? roomLabelPosition(editorRegion) : null
+  const editorPosition = nameEditor?.kind === 'token' ? nameEditor.at : editorRegion ? roomLabelPosition(editorRegion) : null
 
   return (
     // O canvas do Pixi é anexado por fora do React no div do ref; o campo de
     // nome fica num irmão para o React nunca reconciliar filhos do Pixi.
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-      {roomNameEditor && editorPosition && editorCamera && (
+      {nameEditor && editorPosition && editorCamera && (
         <input
+          // Trocar de alvo remonta o campo, para o autoFocus valer de novo.
+          key={nameEditor.kind === 'room' ? `room-${nameEditor.regionId}` : 'token'}
           className="lb-input"
-          aria-label="Nome da sala no mapa"
+          aria-label={nameEditor.kind === 'room' ? 'Nome da sala no mapa' : 'Nome do token no mapa'}
           autoFocus
-          value={roomNameEditor.value}
+          value={nameEditor.value}
           onFocus={(event) => event.currentTarget.select()}
-          onChange={(event) => setRoomNameEditor({ ...roomNameEditor, value: event.target.value })}
+          onChange={(event) => setNameEditor({ ...nameEditor, value: event.target.value })}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') {
+            const key = event.key.toLowerCase()
+            const history = event.ctrlKey || event.metaKey ? (key === 'y' || (key === 'z' && event.shiftKey) ? 'redo' : key === 'z' ? 'undo' : null) : null
+            // Ctrl+Z/Ctrl+Y com o nome sugerido ainda intacto: o mestre quer
+            // desfazer o desenho, não um texto que ele não digitou.
+            if (history && nameEditor.kind === 'room' && editorRegion?.room?.name === nameEditor.value) {
               event.preventDefault()
-              closeRoomNameEditor(true)
+              closeNameEditor(false)
+              if (history === 'undo') useMapStore.getState().undo()
+              else useMapStore.getState().redo()
+            } else if (event.key === 'Enter') {
+              event.preventDefault()
+              closeNameEditor(true)
             } else if (event.key === 'Escape') {
               event.preventDefault()
-              closeRoomNameEditor(false)
+              closeNameEditor(false)
             }
           }}
-          onBlur={() => closeRoomNameEditor(true)}
+          onBlur={() => closeNameEditor(true)}
           style={{
             position: 'absolute',
             left: editorPosition.x * editorCamera.scale + editorCamera.x,

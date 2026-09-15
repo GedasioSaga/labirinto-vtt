@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { Graphics } from 'pixi.js'
 import { drawWalls, MIN_SCREEN_STROKE_PX, screenSafeWidth, type WallWithStyle } from './drawWalls'
+import { WALL_EXTERIOR_COLOR, WALL_INTERIOR_COLOR, wallWidthFor } from './dungeonStyle'
+import { SELECTION_COLOR } from './constants'
 import type { Wall } from '../types/map'
 
 /** Instruções `action: 'stroke'` de fato empilhadas no GraphicsContext — mesmo padrão de drawRegions.test.ts/drawDoors.test.ts. */
@@ -59,17 +61,17 @@ describe('drawWalls — path único por Região (correção geométrica de B1, d
     }
   })
 
-  it('parede selecionada dentro da Sala quebra a run mesmo com regionEdgeIndex consecutivo — Pixi só aceita 1 estilo por stroke()', () => {
+  it('parede selecionada dentro da Sala NÃO quebra a run: a seleção é um contorno por baixo, a Sala continua 1 loop com a cor real', () => {
     const g = new Graphics()
     drawWalls(g, squareRoomWalls(), 'right')
     const strokes = strokeInstructions(g)
-    // [top] sozinha, [right] sozinha (selecionada), [bottom,left] juntas — 3 runs, nenhuma fecha (open chains)
-    expect(strokes).toHaveLength(3)
-    for (const stroke of strokes) {
-      expect(hasClosePath(stroke)).toBe(false)
-    }
-    const selectedStroke = strokes.find((s) => s.action === 'stroke' && s.data.style.color === 0xffdd55)
-    expect(selectedStroke).toBeDefined()
+    // [0] contorno de seleção da parede 'right' (desenhado antes = por baixo), [1] a Sala inteira fechada.
+    expect(strokes).toHaveLength(2)
+    const [outline, room] = strokes
+    expect(outline.action === 'stroke' && outline.data.style.color).toBe(SELECTION_COLOR)
+    expect(hasClosePath(outline)).toBe(false)
+    expect(room.action === 'stroke' && room.data.style.color).toBe(WALL_EXTERIOR_COLOR)
+    expect(hasClosePath(room)).toBe(true)
   })
 
   it('paredes soltas (sem regionId) continuam 1 stroke por parede, como antes desta fase', () => {
@@ -77,6 +79,23 @@ describe('drawWalls — path único por Região (correção geométrica de B1, d
     const walls: Wall[] = [baseWall({ id: 'lone' }), baseWall({ id: 'other', x1: 0, y1: 50, x2: 50, y2: 50 })]
     drawWalls(g, walls, null)
     expect(strokeInstructions(g)).toHaveLength(2)
+  })
+})
+
+describe('drawWalls — porta abre vão (passo 3, F2)', () => {
+  it('parede com porta não vira linha: a Sala com porta na direita quebra em 2 runs abertas', () => {
+    const g = new Graphics()
+    const walls = squareRoomWalls().map((w) => (w.id === 'right' ? { ...w, door: { open: false, locked: false, kind: 'normal' as const } } : w))
+    drawWalls(g, walls, null)
+    const strokes = strokeInstructions(g)
+    expect(strokes).toHaveLength(2)
+    for (const stroke of strokes) expect(hasClosePath(stroke)).toBe(false)
+  })
+
+  it('parede solta com porta: nenhum stroke de linha', () => {
+    const g = new Graphics()
+    drawWalls(g, [baseWall({ door: { open: true, locked: true, kind: 'gate' } })], null)
+    expect(strokeInstructions(g)).toHaveLength(0)
   })
 })
 
@@ -110,61 +129,93 @@ describe('drawWalls — ponta e canto por escolha (lineStyle, F6: "quero a opcao
   })
 })
 
-describe('drawWalls — espessura extremamente fina + preset thin/medium/thick (F6)', () => {
-  // Casos explícitos (sem it.each) para preservar o literal exato de cada
-  // combinação sem depender de inferência de tupla do it.each — wallKind/
-  // thickness precisam continuar como os literais de union (não `string`
-  // largo) pra `baseWall({ wallKind, thickness })` tipar sem `as`.
-  // Zoom 400% (MAX_SCALE): o piso de 1 px de tela vale 0.25 de mundo e não
-  // interfere — aqui se mede a largura de MUNDO de cada preset.
-  function widthFor(wallKind: Wall['wallKind'], thickness: WallWithStyle['thickness']): number {
+describe('drawWalls — espessura em fração de célula + preset thin/medium/thick (passo 3, F2)', () => {
+  function widthFor(wallKind: Wall['wallKind'], thickness: WallWithStyle['thickness'], grid = 64): number {
     const g = new Graphics()
-    drawWalls(g, [baseWall({ wallKind, thickness })], null, 4)
+    drawWalls(g, [baseWall({ wallKind, thickness })], null, 4, grid)
     const [stroke] = strokeInstructions(g)
     return stroke.action === 'stroke' ? stroke.data.style.width : NaN
   }
 
-  it('exterior, thickness indefinido (medium): 1.5 — 62.5% mais fina que o hardcoded de antes desta fase (4)', () => {
-    expect(widthFor('exterior', undefined)).toBe(1.5)
+  it('exterior medium, grid 64: 0,25 célula = 16', () => {
+    expect(widthFor('exterior', undefined)).toBe(16)
   })
-  it('exterior thin: 0.75 (metade do medium, mesma razão 0.5 de STAIR_SIZE_PRESET_RATIO)', () => {
-    expect(widthFor('exterior', 'thin')).toBe(0.75)
+  it('exterior thin 8 e thick 32 (preset 0,5/1/2)', () => {
+    expect(widthFor('exterior', 'thin')).toBe(8)
+    expect(widthFor('exterior', 'thick')).toBe(32)
   })
-  it('exterior thick: 3 (dobro do medium)', () => {
-    expect(widthFor('exterior', 'thick')).toBe(3)
+  it('interior medium, grid 64: 0,125 célula = 8 — metade da exterior', () => {
+    expect(widthFor('interior', undefined)).toBe(8)
   })
-  it('interior, thickness indefinido (medium): 1 — 60% mais fina que o hardcoded de antes desta fase (2.5)', () => {
-    expect(widthFor('interior', undefined)).toBe(1)
+  it('interior thin 4 e thick 16', () => {
+    expect(widthFor('interior', 'thin')).toBe(4)
+    expect(widthFor('interior', 'thick')).toBe(16)
   })
-  it('interior thin: 0.5', () => {
-    expect(widthFor('interior', 'thin')).toBe(0.5)
+  it('escala com a grade: grid 128 dá 32, grid 32 dá 8 (exterior medium)', () => {
+    expect(widthFor('exterior', undefined, 128)).toBe(32)
+    expect(widthFor('exterior', undefined, 32)).toBe(8)
   })
-  it('interior thick: 2', () => {
-    expect(widthFor('interior', 'thick')).toBe(2)
+  it('wallWidthFor bate com o que drawWalls desenha', () => {
+    expect(wallWidthFor({ wallKind: 'interior', thickness: 'thick' }, 64)).toBe(widthFor('interior', 'thick'))
+  })
+  it('cor: exterior #1f1b16, interior #3a342c', () => {
+    const g = new Graphics()
+    drawWalls(g, [baseWall({ id: 'e', wallKind: 'exterior' }), baseWall({ id: 'i', wallKind: 'interior', y1: 50, y2: 50 })], null)
+    const colors = strokeInstructions(g).map((s) => (s.action === 'stroke' ? s.data.style.color : NaN))
+    expect(colors).toEqual([WALL_EXTERIOR_COLOR, WALL_INTERIOR_COLOR])
   })
 })
 
-describe('drawWalls — realce de seleção com piso mínimo', () => {
-  it('parede exterior/medium selecionada: width = base × 1.6 (2.4), acima do piso', () => {
+describe('drawWalls — seleção como contorno por fora', () => {
+  it('parede exterior/medium selecionada: traço real intacto (cor e largura) + contorno por baixo 2 px de tela maior de cada lado', () => {
     const g = new Graphics()
-    drawWalls(g, [baseWall({ wallKind: 'exterior' })], 'w1')
-    const [stroke] = strokeInstructions(g)
-    expect(stroke.action === 'stroke' && stroke.data.style.width).toBeCloseTo(2.4)
-    expect(stroke.action === 'stroke' && stroke.data.style.color).toBe(0xffdd55)
+    drawWalls(g, [baseWall({ wallKind: 'exterior' })], 'w1', 1)
+    const [outline, real] = strokeInstructions(g)
+    expect(outline.action === 'stroke' && outline.data.style).toMatchObject({ color: SELECTION_COLOR, width: 16 + 2 * 2 })
+    expect(real.action === 'stroke' && real.data.style).toMatchObject({ color: WALL_EXTERIOR_COLOR, width: 16 })
   })
 
-  it('parede interior/thin selecionada: base×1.6 (0.8) fica ABAIXO do piso — usa o piso (2), nunca mais fina que uma parede thick comum não selecionada', () => {
+  it('a largura da parede NÃO muda com a seleção (contrato com o agente de seleção)', () => {
+    const plain = new Graphics()
+    const selected = new Graphics()
+    drawWalls(plain, squareRoomWalls(), null, 1, 64)
+    drawWalls(selected, squareRoomWalls(), 'top', 1, 64, 'r1')
+    const widthOf = (g: Graphics) => {
+      const strokes = strokeInstructions(g)
+      const last = strokes[strokes.length - 1]
+      return last.action === 'stroke' ? last.data.style : null
+    }
+    expect(widthOf(selected)).toMatchObject({ width: widthOf(plain)?.width, color: widthOf(plain)?.color })
+  })
+
+  it('Sala selecionada (highlightedRegionId): contorno fechado por baixo das paredes, 2 px de tela de cada lado', () => {
     const g = new Graphics()
-    drawWalls(g, [baseWall({ wallKind: 'interior', thickness: 'thin' })], 'w1')
-    const [stroke] = strokeInstructions(g)
-    expect(stroke.action === 'stroke' && stroke.data.style.width).toBe(2)
+    drawWalls(g, squareRoomWalls(), null, 1, 64, 'r1')
+    const [outline, room] = strokeInstructions(g)
+    expect(outline.action === 'stroke' && outline.data.style).toMatchObject({ color: SELECTION_COLOR, width: 16 + 4 })
+    expect(hasClosePath(outline)).toBe(true)
+    expect(room.action === 'stroke' && room.data.style.color).toBe(WALL_EXTERIOR_COLOR)
+  })
+
+  it('parede com ponta reta (butt): contorno usa ponta quadrada para cercar também as pontas', () => {
+    const g = new Graphics()
+    drawWalls(g, [baseWall({ lineStyle: 'straight' })], 'w1', 1)
+    const [outline] = strokeInstructions(g)
+    expect(outline.action === 'stroke' && outline.data.style.cap).toBe('square')
+  })
+
+  it('contorno tem 2 px de TELA: a zoom 400% cresce só 0.5 de mundo de cada lado', () => {
+    const g = new Graphics()
+    drawWalls(g, [baseWall({ wallKind: 'exterior' })], 'w1', 4)
+    const [outline] = strokeInstructions(g)
+    expect(outline.action === 'stroke' && outline.data.style.width).toBe(16 + 2 * 0.5)
   })
 })
 
-describe('drawWalls — piso de 1 px de tela (paredes sumiam com zoom < 100%, app sem antialias)', () => {
-  function widthAt(cameraScale: number, overrides: Partial<WallWithStyle> = {}): number {
+describe('drawWalls — piso de 1 px de tela (screenSafeWidth)', () => {
+  function widthAt(cameraScale: number, overrides: Partial<WallWithStyle> = {}, grid = 64): number {
     const g = new Graphics()
-    drawWalls(g, [baseWall({ wallKind: 'exterior', ...overrides })], null, cameraScale)
+    drawWalls(g, [baseWall({ wallKind: 'exterior', ...overrides })], null, cameraScale, grid)
     const [stroke] = strokeInstructions(g)
     return stroke.action === 'stroke' ? stroke.data.style.width : NaN
   }
@@ -176,24 +227,24 @@ describe('drawWalls — piso de 1 px de tela (paredes sumiam com zoom < 100%, ap
     expect(screenSafeWidth(0.5, 1)).toBe(1)
   })
 
-  it('zoom 50%: parede exterior (1.5 de mundo = 0.75 px de tela) engorda para 2 de mundo = 1 px de tela', () => {
-    const width = widthAt(0.5)
+  it('grade pequena (8) e zoom 50%: parede exterior fina (1 de mundo = 0.5 px de tela) engorda para 2 de mundo = 1 px de tela', () => {
+    const width = widthAt(0.5, { thickness: 'thin' }, 8)
     expect(width).toBe(2)
     expect(width * 0.5).toBeGreaterThanOrEqual(MIN_SCREEN_STROKE_PX)
   })
 
-  it('zoom mínimo (10%): largura na tela nunca fica abaixo de 1 px', () => {
-    expect(widthAt(0.1) * 0.1).toBeCloseTo(MIN_SCREEN_STROKE_PX)
+  it('zoom 5% com grid 64: 16 de mundo = 0,8 px de tela engorda para 1 px de tela', () => {
+    expect(widthAt(0.05) * 0.05).toBeCloseTo(MIN_SCREEN_STROKE_PX)
   })
 
-  it('zoom 200%: largura de mundo intacta (1.5), cresce com o zoom como o resto do mapa', () => {
-    expect(widthAt(2)).toBe(1.5)
+  it('zoom 200%: largura de mundo intacta (16), cresce com o zoom como o resto do mapa', () => {
+    expect(widthAt(2)).toBe(16)
   })
 
-  it('sem cameraScale (default 1): exterior medium continua 1.5', () => {
+  it('sem cameraScale nem grid (default 1 e 64): exterior medium continua 16', () => {
     const g = new Graphics()
     drawWalls(g, [baseWall({ wallKind: 'exterior' })], null)
     const [stroke] = strokeInstructions(g)
-    expect(stroke.action === 'stroke' && stroke.data.style.width).toBe(1.5)
+    expect(stroke.action === 'stroke' && stroke.data.style.width).toBe(16)
   })
 })

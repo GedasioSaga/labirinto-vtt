@@ -51,21 +51,25 @@ describe('buildWallFromDraft', () => {
 })
 
 describe('buildLightAt', () => {
-  it('cria luz com raio proporcional ao grid e defaults de tocha', () => {
+  it('cria luz com raio de 4 células (luz plena da tocha, 20 ft) e defaults de tocha', () => {
     const light = buildLightAt('l1', { x: 32, y: 32 }, 64)
     expect(light).toEqual({
       id: 'l1',
       x: 32,
       y: 32,
-      radius: 512,
+      radius: 256,
       color: '#ffaa33',
       intensity: 0.8,
     })
   })
 
-  it('raio escala com o tamanho do grid', () => {
-    const light = buildLightAt('l2', { x: 0, y: 0 }, 32)
-    expect(light.radius).toBe(256)
+  it('raio escala com o tamanho do grid (4 × grid)', () => {
+    expect(buildLightAt('l2', { x: 0, y: 0 }, 32).radius).toBe(128)
+    expect(buildLightAt('l3', { x: 0, y: 0 }, 128).radius).toBe(512)
+  })
+
+  it('arrasto (radiusOverride) ignora o padrão de 4 células', () => {
+    expect(buildLightAt('l4', { x: 0, y: 0 }, 64, 700).radius).toBe(700)
   })
 })
 

@@ -44,7 +44,7 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('desenhar Sala com a aba Jogo aberta volta para a aba Mapa e foca o Nome', async ({ page }) => {
+test('desenhar Sala com a aba Jogo aberta volta para a aba Mapa e pede o nome sobre a Sala', async ({ page }) => {
   const mapTab = page.getByRole('tab', { name: 'Mapa' })
   const gameTab = page.getByRole('tab', { name: 'Jogo' })
   await gameTab.click()
@@ -61,5 +61,7 @@ test('desenhar Sala com a aba Jogo aberta volta para a aba Mapa e foca o Nome', 
 
   await expect(mapTab).toHaveAttribute('aria-selected', 'true')
   await expect(page.locator('#lb-rail-panel-map')).toBeVisible()
-  await expect(page.locator('#lb-room-name')).toBeFocused()
+  // O nome é pedido no campo sobre a Sala; o do painel não rouba o foco.
+  await expect(page.getByRole('textbox', { name: 'Nome da sala no mapa' })).toBeFocused()
+  await expect(page.locator('#lb-room-name')).not.toBeFocused()
 })

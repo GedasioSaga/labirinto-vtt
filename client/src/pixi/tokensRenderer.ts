@@ -12,6 +12,23 @@ import { useToastStore } from '../stores/toastStore'
  * porque `Token.image`/`Prop.src` guardam caminho absoluto do SO (Windows
  * usa `\`, mas o projeto roda teste em jsdom, que não normaliza).
  */
+/** Token "Oculto no editor": fantasma bem transparente, mas ainda clicável. */
+const HIDDEN_TOKEN_GHOST_ALPHA = 0.3
+const GHOST_DASH_COUNT = 16
+const GHOST_OUTLINE_WIDTH = 2
+const GHOST_OUTLINE_COLOR = 0xffffff
+
+/** Contorno tracejado: metade de cada fatia do círculo é traço, metade é vão. */
+function strokeDashedCircle(graphics: Graphics, radius: number): void {
+  const slice = (Math.PI * 2) / GHOST_DASH_COUNT
+  for (let i = 0; i < GHOST_DASH_COUNT; i++) {
+    const start = i * slice
+    graphics.moveTo(Math.cos(start) * radius, Math.sin(start) * radius)
+    graphics.arc(0, 0, radius, start, start + slice / 2)
+  }
+  graphics.stroke({ width: GHOST_OUTLINE_WIDTH, color: GHOST_OUTLINE_COLOR })
+}
+
 function fileBaseName(path: string): string {
   const normalized = path.replace(/\\/g, '/')
   const idx = normalized.lastIndexOf('/')
@@ -130,8 +147,10 @@ export function createTokensRenderer(): TokensRenderer {
       }
 
       const selected = token.id === selectedTokenId
-      entry.wrapper.alpha = token.secret ? SECRET_ITEM_ALPHA : 1
+      const ghost = isHidden(token)
+      entry.wrapper.alpha = ghost ? HIDDEN_TOKEN_GHOST_ALPHA : token.secret ? SECRET_ITEM_ALPHA : 1
       entry.ring.clear()
+      let outlineRadius: number
 
       // Checagem por veracidade (truthy), não `!== null`: `Token.image` é
       // obrigatório no tipo (`string | null`), mas objeto construído fora do
@@ -186,6 +205,7 @@ export function createTokensRenderer(): TokensRenderer {
           entry.ring.circle(0, 0, diameter / 2).stroke({ width: 4, color: SELECTION_COLOR })
         }
         entry.label.position.set(0, diameter / 2 + 2)
+        outlineRadius = diameter / 2
       } else {
         const graphics = ensureGraphics(entry)
         const radius = (gridSize * token.size) / 2 - 2
@@ -194,15 +214,16 @@ export function createTokensRenderer(): TokensRenderer {
         // não haver salto visual quando o token ganha/perde imagem depois.
         graphics.rotation = rotationToRadians(token.rotation)
         entry.label.position.set(0, radius + 2)
+        outlineRadius = radius
       }
+
+      // hidden === "Oculto no editor" (organização de cena do mestre). Antes
+      // o token sumia de vez e não havia como clicar nele para desfazer; agora
+      // fica como fantasma (alpha baixo acima + contorno tracejado), clicável.
+      if (ghost) strokeDashedCircle(entry.ring, outlineRadius)
 
       entry.label.text = token.name
       entry.wrapper.position.set(token.x, token.y)
-      // hidden === "não renderiza no editor" (organização de cena do
-      // mestre) — não existe segunda tela/modo jogador neste app, ver
-      // comentário de Token.hidden em types/map.ts. `wrapper.visible = false`
-      // esconde ring/label/sprite/graphics juntos, um só lugar.
-      entry.wrapper.visible = !isHidden(token)
     }
   }
 

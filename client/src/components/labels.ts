@@ -1,11 +1,11 @@
-import type { DrawingTool } from '../types/tools'
+import type { DrawingTool, SelectionKind } from '../types/tools'
 
 /**
  * Textos visíveis da interface do editor.
  *
- * ATENÇÃO: `TOOL_LABELS` e `SELECTION_LABELS` são lidos pelos testes e2e por
+ * ATENÇÃO: `TOOL_LABELS` e `deleteSelectionLabel` são lidos pelos testes e2e por
  * nome acessível / textContent exato (`getByRole('button', { name, exact: true })`
- * e `toHaveText('Apagar parede selecionada(o)')`). Estilo, ícone e estrutura ao
+ * e `toHaveText('Apagar parede selecionada')`). Estilo, ícone e estrutura ao
  * redor podem mudar à vontade; estas strings, não.
  */
 // Partial, não Record<DrawingTool, string>: assim uma futura extensão de
@@ -36,14 +36,32 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   concealZone: 'Zona oculta',
 }
 
-export const SELECTION_LABELS: Record<string, string> = {
-  token: 'token',
-  wall: 'parede',
-  light: 'luz',
-  region: 'região',
-  prop: 'peça',
-  drawing: 'desenho',
-  floor: 'peça de chão',
+export interface SelectionNoun {
+  noun: string
+  gender: 'm' | 'f'
+}
+
+/**
+ * Nome e gênero de cada tipo selecionável. `Record<SelectionKind, …>` (não
+ * `Record<string, …>`): um tipo novo em `SelectionKind` sem entrada aqui é
+ * erro de tsc — a escada ficou de fora e o botão dizia
+ * "Apagar undefined selecionada(o)" (auditoria 14/09).
+ */
+export const SELECTION_LABELS: Record<SelectionKind, SelectionNoun> = {
+  token: { noun: 'token', gender: 'm' },
+  wall: { noun: 'parede', gender: 'f' },
+  light: { noun: 'luz', gender: 'f' },
+  region: { noun: 'região', gender: 'f' },
+  stair: { noun: 'escada', gender: 'f' },
+  prop: { noun: 'peça', gender: 'f' },
+  drawing: { noun: 'desenho', gender: 'm' },
+  floor: { noun: 'peça de chão', gender: 'f' },
+}
+
+/** "Apagar sala selecionada", "Apagar token selecionado". */
+export function deleteSelectionLabel(kind: SelectionKind): string {
+  const { noun, gender } = SELECTION_LABELS[kind]
+  return `Apagar ${noun} ${gender === 'f' ? 'selecionada' : 'selecionado'}`
 }
 
 export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
@@ -79,21 +97,48 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
 }
 
 /**
- * Ferramentas agrupadas por intenção — a barra desenha um separador entre
- * grupos.
+ * Botão da barra que agrupa várias ferramentas (plano de 15/09/2026, fatia 2).
+ * O nome acessível é fixo (`label`); o ícone e o `data-tip` mostram a forma
+ * que o clique vai ativar.
  */
-export const TOOL_GROUPS: DrawingTool[][] = [
+export interface ToolCluster {
+  label: string
+  tools: DrawingTool[]
+}
+
+export type ToolClusterId = 'drawing'
+
+export const TOOL_CLUSTERS: Record<ToolClusterId, ToolCluster> = {
+  // Ordem do usuário. Cada forma continua sendo uma ferramenta própria, com a
+  // sua letra (P/L/U/C/O/R/A em lib/keymap.ts).
+  drawing: { label: 'Desenho', tools: ['brush', 'line', 'curve', 'circle', 'ellipse', 'rect', 'polygon'] },
+}
+
+/** Uma posição da barra: uma ferramenta, ou um grupo (`cluster:<id>`). */
+export type ToolbarSlot = DrawingTool | `cluster:${ToolClusterId}`
+
+/**
+ * Posições da barra agrupadas por intenção — a barra desenha um separador
+ * entre grupos. `token` fica fora de propósito (FEATURES.tokenTool).
+ */
+export const TOOLBAR_SLOTS: ToolbarSlot[][] = [
   ['select'],
-  // stair entra na Fase 2 (escada reta, B2) — já tinha ícone e rótulo desde
-  // a Fase 0, só faltava aparecer aqui.
   // floor (chão por peças) fica junto das Salas: mesma camada 'salas'.
   // concealZone (A5) no fim do grupo: não desloca os botões que já existiam.
   ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'floor', 'stair', 'prop', 'concealZone'],
-  // ellipse/rect/polygon entram na Fase 1 (formas + transparência, A3); measure
-  // entra na Fase 2 (medição efêmera, B4) — mesmo caso de stair acima: ícone e
-  // rótulo já existiam, só faltava a linha aqui.
-  ['brush', 'line', 'circle', 'ellipse', 'rect', 'polygon', 'curve', 'text', 'measure', 'eraser'],
+  ['cluster:drawing', 'text', 'measure', 'eraser'],
 ]
+
+/** Id do grupo quando a posição é um grupo, `null` quando é uma ferramenta. */
+export function clusterIdOf(slot: ToolbarSlot): ToolClusterId | null {
+  return slot === 'cluster:drawing' ? 'drawing' : null
+}
+
+/** Ferramentas de uma posição, na ordem: o grupo expande, a ferramenta vale por si. */
+export function toolsOfSlot(slot: ToolbarSlot): DrawingTool[] {
+  const clusterId = clusterIdOf(slot)
+  return clusterId ? TOOL_CLUSTERS[clusterId].tools : [slot as DrawingTool]
+}
 
 /**
  * Ferramentas que expõem os controles de cor/espessura/preenchimento.

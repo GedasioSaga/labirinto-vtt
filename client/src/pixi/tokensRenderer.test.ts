@@ -180,3 +180,34 @@ describe('createTokensRenderer — token com imagem (image !== null)', () => {
     expect(visualOf(container.children[0])).toBeInstanceOf(Sprite)
   })
 })
+
+describe('createTokensRenderer — token "Oculto no editor" vira fantasma', () => {
+  /** Anel é o filho 1 do wrapper: [visual, ring, label] (ver ensureGraphics). */
+  function ringOf(wrapper: Container): Graphics {
+    return wrapper.children[1] as Graphics
+  }
+
+  it('continua visível (clicável), bem transparente e com contorno no anel', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+
+    renderer.draw(container, [buildToken({ hidden: true })], GRID, null)
+
+    const wrapper = container.children[0]
+    expect(wrapper.visible).toBe(true)
+    expect(wrapper.alpha).toBeLessThan(0.5)
+    expect(ringOf(wrapper).getLocalBounds().width).toBeGreaterThan(0)
+  })
+
+  it('token normal não ganha contorno, e desocultar tira o fantasma', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+
+    renderer.draw(container, [buildToken({ hidden: true })], GRID, null)
+    renderer.draw(container, [buildToken({ hidden: false })], GRID, null)
+
+    const wrapper = container.children[0]
+    expect(wrapper.alpha).toBe(1)
+    expect(ringOf(wrapper).getLocalBounds().width).toBe(0)
+  })
+})

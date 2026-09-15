@@ -20,6 +20,7 @@ import { cloneEntity, type CloneableEntity, type Offset } from '../lib/entityClo
 import { resolveTokenMove } from '../lib/collision'
 import { DEFAULT_TEXT_FONT_FAMILY, convertLineToCurve, convertCurveToLine } from '../lib/drawingFactory'
 import { moveAreaSelection } from '../lib/areaSelection'
+import { TOOL_CLUSTERS } from '../components/labels'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer } from '../lib/layers'
 // Onda 4, item 24 (Frente C) — modelo canônico de seleção. `selection` do
@@ -218,6 +219,11 @@ interface MapStoreState {
    *  Fase 4) — preferência de ferramenta, mesma classe de `drawCap`. */
   drawTexture: FreehandTexture
   setDrawTexture: (texture: FreehandTexture) => void
+  /** Última forma de desenho ativada (Pincel a Polígono) — o botão "Desenho"
+   *  da barra mostra o ícone dela e a reativa no clique. Preferência de
+   *  sessão, mesma classe de `drawTexture`: não vai para o mapa nem para o
+   *  localStorage. Só `setActiveTool` escreve aqui. */
+  lastDrawingTool: DrawingTool
   /** Edita a textura de um freehand JÁ CRIADO e selecionado. Guarda por
    *  `d.kind` (não `'texture' in d`), mesmo motivo de `setDrawingCap`: campo
    *  opcional pode não existir como chave ainda num Drawing recém-criado sem
@@ -348,6 +354,9 @@ interface MapStoreState {
   smoothRegion: (regionId: string) => void
   regionFillColor: string
   setRegionFillColor: (color: string) => void
+  /** Cor de piso da próxima Sala (Sala, Sala Circular, Polígono Regular); Região usa `regionFillColor`. */
+  roomFillColor: string
+  setRoomFillColor: (color: string) => void
   setRegionColor: (id: string, color: string) => void
   regionFillPattern: Region['fillPattern']
   setRegionFillPattern: (pattern: Region['fillPattern']) => void
@@ -574,6 +583,19 @@ interface MapStoreState {
    * polygon/circle/text (kinds sem `cap` no schema).
    */
   setDrawingCap: (id: string, cap: DrawingCap) => void
+  /** Cor de um desenho JÁ EXISTENTE (qualquer kind, texto incluso), com
+   *  histórico. Auditoria 14/09: retângulo, linha e pincel desenhados não
+   *  tinham como trocar de cor — só apagar e redesenhar. Não confundir com
+   *  `setDrawColor`, a preferência do PRÓXIMO desenho. */
+  setDrawingColor: (id: string, color: string) => void
+  /** Variante sem histórico de `setDrawingColor`, para o seletor de cor que
+   *  dispara a cada movimento — mesmo par de `setDrawingFillAlphaLive`. */
+  setDrawingColorLive: (id: string, color: string) => void
+  /** Espessura de um desenho JÁ EXISTENTE (texto não tem), com histórico.
+   *  Valor não finito ou menor que 1 é ignorado. */
+  setDrawingWidth: (id: string, width: number) => void
+  /** Variante sem histórico de `setDrawingWidth`, para o arrasto do slider. */
+  setDrawingWidthLive: (id: string, width: number) => void
   /**
    * Leitura B do pedido do usuário (B2, "dobrar a linha"): converte um
    * Drawing `kind:'line'` selecionado em `kind:'curve'`, preservando
@@ -637,6 +659,13 @@ function pushPast(past: MapData[], entry: MapData): MapData[] {
   return next.length > HISTORY_CAP ? next.slice(next.length - HISTORY_CAP) : next
 }
 
+/** Espessura mínima de desenho — mesmo `min` do slider de DrawingStyleControls. */
+const MIN_DRAWING_WIDTH = 1
+
+function isValidDrawingWidth(width: number): boolean {
+  return Number.isFinite(width) && width >= MIN_DRAWING_WIDTH
+}
+
 export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, get) => {
   /**
    * Toda action que muda conteúdo do mapa (não estado de UI/ferramenta como
@@ -679,12 +708,15 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     doorKind: 'normal',
     drawCap: 'round',
     drawTexture: 'pen',
+    lastDrawingTool: 'brush',
     stairSizePreset: 'medium',
     eraseMode: 'objeto',
     floorShapeKind: 'rect',
     floorOp: 'add',
     floorPolygonSides: 6,
     regionFillColor: '#3a7ad0',
+    // Pergaminho, igual ao chão do mapa novo (F1 do visual): Sala nova não nasce azul.
+    roomFillColor: '#e9e1cf',
     regionFillPattern: 'solid',
     regionFillEnabled: true,
     regionStrokeWidth: 2,
@@ -740,7 +772,20 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       map: addClonedEntity(state.map, cloned),
       selection: selectionOfItem({ kind: cloned.kind, id: cloned.entity.id }),
     })),
-    setActiveTool: (tool) => set({ activeTool: tool }),
+    setActiveTool: (tool) => set((state) => {
+      // Forma de desenho vira a "última forma" do botão Desenho, também quando
+      // é reescolhida (a setinha escolhe a mesma forma que já está ativa).
+      const lastDrawing = TOOL_CLUSTERS.drawing.tools.includes(tool) ? { lastDrawingTool: tool } : {}
+      // Reescolher a mesma ferramenta (setinha de variantes) não é troca: a
+      // sala recém-criada continua selecionada com o Nome no painel.
+      if (tool === state.activeTool) return lastDrawing
+      // Auditoria 14/09: com a Luz ativa o painel ainda mostrava a Escada
+      // selecionada antes, e o Preenchimento aparecia com a Linha por causa de
+      // um retângulo que ficou selecionado. Ferramenta que cria limpa a
+      // seleção; Selecionar mantém.
+      if (tool === 'select' || isSelectionEmpty(state.selection)) return { activeTool: tool, ...lastDrawing }
+      return { activeTool: tool, selection: EMPTY_SELECTION, ...lastDrawing }
+    }),
     setSnapTarget: (kind, on) => set((state) => ({ snapTargets: { ...state.snapTargets, [kind]: on } })),
     setSnapEnabled: (enabled) => set({ snapTargets: { token: enabled, wall: enabled, prop: enabled } }),
     setDrawColor: (color) => set({ drawColor: color }),
@@ -843,6 +888,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       withHistory(() => after)
     },
     setRegionFillColor: (color) => set({ regionFillColor: color }),
+    setRoomFillColor: (color) => set({ roomFillColor: color }),
     setRegionColor: (id, color) => withHistory((map) => ({
       ...map,
       regions: map.regions.map((r) => (r.id === id ? { ...r, fillColor: color } : r)),
@@ -1068,6 +1114,26 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       ...map,
       drawings: map.drawings.map((d) => (d.id === id && 'fillAlpha' in d ? { ...d, fillAlpha } : d)),
     })),
+    setDrawingColor: (id, color) => withHistory((map) => ({
+      ...map,
+      drawings: map.drawings.map((d) => (d.id === id ? { ...d, color } : d)),
+    })),
+    setDrawingColorLive: (id, color) => set((state) => ({
+      map: { ...state.map, drawings: state.map.drawings.map((d) => (d.id === id ? { ...d, color } : d)) },
+    })),
+    setDrawingWidth: (id, width) => {
+      if (!isValidDrawingWidth(width)) return
+      withHistory((map) => ({
+        ...map,
+        drawings: map.drawings.map((d) => (d.id === id && d.kind !== 'text' ? { ...d, width } : d)),
+      }))
+    },
+    setDrawingWidthLive: (id, width) => {
+      if (!isValidDrawingWidth(width)) return
+      set((state) => ({
+        map: { ...state.map, drawings: state.map.drawings.map((d) => (d.id === id && d.kind !== 'text' ? { ...d, width } : d)) },
+      }))
+    },
     setDrawingFilled: (id, filled) => withHistory((map) => ({
       ...map,
       drawings: map.drawings.map((d) => (d.id === id && 'filled' in d ? { ...d, filled } : d)),

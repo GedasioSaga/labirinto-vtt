@@ -18,6 +18,12 @@ import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
  * `concealed` (polígonos das zonas ocultas ativas, pintados de preto) e a
  * mensagem `signal` nos dois sentidos (sinal de mapa do jogador) e a `laser`
  * do mestre para o jogador.
+ *
+ * `room.closed` (mestre -> jogador) também é aditiva: o mestre avisa que
+ * encerrou a sala antes de derrubar a conexão, e o jogador mostra "O mestre
+ * encerrou a sala" em vez de "A conexão caiu". Cliente antigo cai no
+ * `default` do switch e ignora; mestre antigo não envia e o jogador novo
+ * continua tratando a queda como hoje.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -74,6 +80,7 @@ export type HostMessage =
   | { type: 'signal'; x: number; y: number; from: string; color: string }
   | LaserMessage
   | { type: 'kicked' }
+  | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

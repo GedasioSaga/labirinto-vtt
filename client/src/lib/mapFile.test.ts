@@ -21,6 +21,12 @@ describe('serializeMap/deserializeMap', () => {
     expect(deserializeMap(serializeMap(map)).concealZones).toEqual([zone])
   })
 
+  it('scenarioLink faz ida e volta (campo escondido da janela, mas o dado continua gravado)', () => {
+    const link = 'https://exemplo.com/cenario-1'
+    const map = { ...createEmptyMap('map_link', 'Link', 5, 5, 64), scenarioLink: link }
+    expect(deserializeMap(serializeMap(map)).scenarioLink).toBe(link)
+  })
+
   it('rejeita JSON malformado com mensagem clara', () => {
     expect(() => deserializeMap('{ isso não é json')).toThrow()
   })

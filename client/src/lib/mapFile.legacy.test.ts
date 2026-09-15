@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { serializeMap, deserializeMap } from './mapFile'
+import { createEmptyMap } from './mapFactory'
+import { measureDistance } from './measurement'
 import legacyMapJson from './__fixtures__/legacy-map.json'
 
 /**
@@ -43,6 +45,44 @@ describe('deserializeMap — migração de mapa legado (fixture real)', () => {
   it('preenche scale com o default 5ft', () => {
     const restored = deserializeMap(legacyJson)
     expect(restored.scale).toEqual({ unitsPerCell: 5, unit: 'ft', precision: 0 })
+  })
+
+  it('preenche floorStyle com o verde de antes (#006b00), não com o pergaminho do mapa novo', () => {
+    const restored = deserializeMap(legacyJson)
+    expect(restored.floorStyle).toEqual({ fillColor: '#006b00', strokeColor: null, strokeWidth: 1 })
+  })
+
+  it('passo 3 (F1): mapa legado sem scale/gridSettings/floorStyle abre IGUAL a antes, mesmo com os padrões novos do createEmptyMap', () => {
+    // A fixture não pode ter esses campos, senão o teste não prova nada.
+    expect('scale' in legacyMapJson).toBe(false)
+    expect('gridSettings' in legacyMapJson).toBe(false)
+    expect('floorStyle' in legacyMapJson).toBe(false)
+
+    const restored = deserializeMap(legacyJson)
+    const fresh = createEmptyMap('novo', 'Novo', 20, 15, 40)
+    expect(restored.scale).not.toEqual(fresh.scale)
+    expect(restored.gridSettings).not.toEqual(fresh.gridSettings)
+    expect(restored.floorStyle).not.toEqual(fresh.floorStyle)
+    expect(measureDistance({ x: 0, y: 0 }, { x: restored.grid, y: 0 }, restored.grid, restored.gridShape, restored.measurementMode, restored.scale).label).toBe('5 ft')
+  })
+
+  it('floorStyle migrado é cópia: mexer num mapa não contamina o próximo carregado', () => {
+    const a = deserializeMap(legacyJson)
+    a.floorStyle.fillColor = '#ff0000'
+    expect(deserializeMap(legacyJson).floorStyle.fillColor).toBe('#006b00')
+  })
+
+  it('mapa salvo COM floorStyle/scale/gridSettings mantém exatamente o que foi salvo', () => {
+    const saved = {
+      ...legacyMapJson,
+      floorStyle: { fillColor: '#123456', strokeColor: '#000000', strokeWidth: 3 },
+      scale: { unitsPerCell: 1.5, unit: 'm', precision: 1 },
+      gridSettings: { color: '#1f1b16', opacity: 0.18, lineWidth: 1, lineStyle: 'solid' },
+    }
+    const restored = deserializeMap(JSON.stringify(saved))
+    expect(restored.floorStyle).toEqual(saved.floorStyle)
+    expect(restored.scale).toEqual(saved.scale)
+    expect(restored.gridSettings).toEqual(saved.gridSettings)
   })
 
   it('preenche measurementMode derivado do gridShape JÁ RESOLVIDO ("square" -> "chessboard")', () => {

@@ -700,7 +700,7 @@ body {
   max-width: 100%;
 }
 
-/* Cada grupo de TOOL_GROUPS (components/labels.ts) vira uma dessas — largura
+/* Cada grupo de TOOLBAR_SLOTS (components/labels.ts) vira uma dessas — largura
    mínima intacta (`flex-wrap: nowrap` interno, nunca quebra NO MEIO de um
    grupo) e é o próprio grupo que migra pra linha seguinte quando a barra
    (acima) não tem mais espaço na linha atual. */
@@ -893,6 +893,25 @@ body {
   color: var(--lb-color-parchment-faint);
 }
 
+/* Opção com ícone (grupo Forma do botão Desenho): ícone à esquerda, rótulo e
+   descrição empilhados à direita. */
+.lb-toolvariant-menu__option--icon {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-toolvariant-menu__option-icon {
+  display: inline-flex;
+  flex: none;
+}
+
+.lb-toolvariant-menu__option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
 /* ------------------------------------------------------------------ inspetor */
 
 /* Encolhe até o conteúdo; só vira rolagem quando não couber na altura da janela. */
@@ -967,6 +986,172 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--lb-space-3);
+}
+
+/* Seção recolhível (CollapsibleSection): o cabeçalho é um botão com a mesma
+   legenda de .lb-eyebrow; fechada, a seção fica só com a linha do título. */
+.lb-collapsible__heading {
+  margin: 0;
+}
+
+.lb-collapsible__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  width: 100%;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-faint);
+  cursor: pointer;
+  text-align: left;
+}
+
+.lb-collapsible__toggle:hover .lb-eyebrow,
+.lb-collapsible__toggle:hover .lb-collapsible__chevron {
+  color: var(--lb-color-parchment);
+}
+
+.lb-collapsible__chevron {
+  display: inline-flex;
+  color: var(--lb-color-parchment-faint);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-collapsible__toggle[aria-expanded='false'] .lb-collapsible__chevron {
+  transform: rotate(-90deg);
+}
+
+.lb-collapsible__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+}
+
+/* O `display: flex` acima vence o `display: none` que o navegador dá a
+   [hidden]: sem esta regra a seção "fechada" girava o chevron e continuava
+   mostrando o corpo inteiro. */
+.lb-collapsible__body[hidden] {
+  display: none;
+}
+
+/* Acesso rápido da grade dentro de Camadas: interruptores mais baixos que o
+   padrão para caber acima da lista sem empurrá-la para fora da dobra. */
+.lb-quick-toggles {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--lb-space-2);
+  border-bottom: 1px solid var(--lb-color-line);
+}
+
+.lb-quick-toggles .lb-switch {
+  min-height: 26px;
+  font-size: var(--lb-font-size-sm);
+}
+
+/* Camadas compacta (LayersPanel): nome · contagem · olho · cadeado. */
+.lb-layers {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-layers__row {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 30px;
+}
+
+.lb-layers__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment);
+}
+
+/* Mesmo tamanho do nome: com tamanhos diferentes, centralizar a linha deixava
+   a linha de base do número acima da do nome. */
+.lb-layers__count {
+  font-size: var(--lb-font-size-md);
+}
+
+/* Camada oculta: nome e contagem esmaecidos; os botões seguem legíveis para
+   o usuário achar onde mostrar de novo. */
+.lb-layers__row[data-hidden] .lb-layers__name,
+.lb-layers__row[data-hidden] .lb-layers__count {
+  opacity: 0.45;
+}
+
+.lb-iconbtn--sm {
+  width: 28px;
+  height: 28px;
+}
+
+/* Linha de explicação abaixo de um campo (modo de medição, link de cenário). */
+.lb-field__hint {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Engrenagem do cabeçalho do inspetor: empurrada para a direita do nome. */
+.lb-inspector__settings {
+  flex: none;
+  margin-left: auto;
+}
+
+/* Janela "Configurações do mapa" (MapSettingsDialog). O fundo escurece pouco:
+   "Alinhar grade à imagem" desenha a prévia no canvas e o usuário precisa
+   enxergar a imagem atrás da janela. */
+.lb-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: var(--lb-space-6);
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.lb-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(480px, 100%);
+  max-height: calc(100vh - 2 * var(--lb-space-6));
+  min-height: 0;
+}
+
+.lb-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-3) var(--lb-space-3) var(--lb-space-3) var(--lb-space-4);
+  border-bottom: 1px solid var(--lb-color-line);
+}
+
+.lb-dialog__title {
+  margin: 0;
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-lg);
+  font-weight: var(--lb-font-weight-regular);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment);
+}
+
+.lb-dialog__body {
+  overflow-y: auto;
+  min-height: 0;
 }
 
 /* F4 N3 — resumo da ferramenta "Selecionar área" (AreaSelectionControls). */

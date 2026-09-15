@@ -10,13 +10,20 @@ import type { Exploration } from '../lib/exploration'
 import { computeAlignedGridLines } from '../lib/gridAlign'
 import { visibleDrawings, visibleRegions, visibleStairs } from '../lib/layers'
 import { fitCamera, panBy, zoomAt } from '../pixi/world'
+import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
 import type { Camera } from '../pixi/world'
 import { drawGrid } from '../pixi/drawGrid'
+import { currentRendererResolution, watchDevicePixelRatio } from '../pixi/rendererResolution'
 import { drawHexGrid } from '../pixi/drawHexGrid'
 import { drawTriGrid } from '../pixi/drawTriGrid'
 import { computeVisibleHexCenters } from '../pixi/hexGrid'
 import { computeVisibleTriEdges } from '../pixi/triGrid'
 import { createFloorRenderer } from '../pixi/drawFloor'
+import { drawWalls } from '../pixi/drawWalls'
+import { drawDoors } from '../pixi/drawDoors'
+import { createHatchRenderer } from '../pixi/drawHatch'
+import { createDungeonTextures, type DungeonTextures } from '../pixi/dungeonTextures'
+import { hatchUsesFlatBand } from '../pixi/dungeonStyle'
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer } from '../pixi/drawRegions'
 import { drawDrawings } from '../pixi/drawDrawings'
@@ -120,48 +127,10 @@ function rasterizeMap(map: MapData): Texture | null {
   return Texture.from(canvas)
 }
 
-/** Espessura em px de mundo por `wall.thickness` (`undefined` === 'medium', ver types/map.ts). */
-const WALL_WIDTH: Record<NonNullable<Wall['thickness']>, number> = { thin: 2, medium: 4, thick: 6 }
-// Mesmo cinza das linhas do minimapa: #333333 sumia contra a borda da névoa.
-const WALL_COLOR = 0x858585
-const DOOR_COLOR = 0xd08c3a
-const DOOR_LOCKED_COLOR = 0xc0392b
-const DOOR_DASH = 8
-const DOOR_GAP = 6
-
-// Não reaproveita pixi/drawWalls.ts: lá a espessura é ~1px, feita para edição
-// de perto; o jogador vê de longe e precisa das portas em laranja.
-function drawDashedLine(g: Graphics, wall: Wall): void {
-  const length = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1)
-  if (length === 0) return
-  const ux = (wall.x2 - wall.x1) / length
-  const uy = (wall.y2 - wall.y1) / length
-  for (let start = 0; start < length; start += DOOR_DASH + DOOR_GAP) {
-    const end = Math.min(start + DOOR_DASH, length)
-    g.moveTo(wall.x1 + ux * start, wall.y1 + uy * start).lineTo(wall.x1 + ux * end, wall.y1 + uy * end)
-  }
-}
-
 /** Paredes visíveis ao jogador, respeitando as camadas ocultas do mestre (mesma regra do raster). */
 function visibleWalls(map: MapData): Wall[] {
   const hidden = map.hiddenLayers
   return map.walls.filter((w) => (w.door === null ? !hidden.includes('paredes') : !hidden.includes('portas')))
-}
-
-function drawPlayerWalls(g: Graphics, walls: Wall[]): void {
-  g.clear()
-  for (const wall of walls) {
-    const width = WALL_WIDTH[wall.thickness ?? 'medium']
-    if (wall.door === null) {
-      g.moveTo(wall.x1, wall.y1).lineTo(wall.x2, wall.y2).stroke({ width, color: WALL_COLOR, cap: 'round' })
-    } else if (wall.door.open) {
-      drawDashedLine(g, wall)
-      g.stroke({ width, color: DOOR_COLOR, cap: 'butt' })
-    } else {
-      const color = wall.door.locked ? DOOR_LOCKED_COLOR : DOOR_COLOR
-      g.moveTo(wall.x1, wall.y1).lineTo(wall.x2, wall.y2).stroke({ width, color, cap: 'butt' })
-    }
-  }
 }
 
 /** Grade inteira do mapa: o viewport é o próprio retângulo do mapa, e a máscara corta o que a hex/tri passa da borda. */
@@ -234,7 +203,14 @@ interface Scene {
   stairs: Graphics
   lastDrawingsKey: string | null
   walls: Graphics
+  /** Portas do mesmo renderer do editor (drawDoors.ts): trancada continua visível. */
+  doors: Graphics
   lastWallsKey: string | null
+  /** Faixa de hachura por fora das paredes externas, sob o piso, com máscara inversa do piso. */
+  hatch: Graphics
+  hatchMask: Graphics
+  hatchRenderer: ReturnType<typeof createHatchRenderer>
+  dungeonTextures: DungeonTextures | null
   wallsCount: number
   roomNames: Container
   roomNamesRenderer: ReturnType<typeof createRoomNamesRenderer>
@@ -261,6 +237,8 @@ interface Scene {
   /** Espaço de tela, acima do `world`: ondas e seta de borda com tamanho fixo. */
   signalsLayer: Container
   signalsRenderer: ReturnType<typeof createSignalsRenderer>
+  /** Resolução dos Text do mundo acompanhando o zoom (pixi/textResolution.ts). */
+  textResolution: ReturnType<typeof createDebouncedTask>
 }
 
 /** Referência estável para o padrão da prop: sem sinais, nada muda entre renders. */
@@ -269,6 +247,7 @@ const NO_SIGNALS: readonly SignalMark[] = []
 function applyCamera(scene: Scene): void {
   scene.world.position.set(scene.camera.x, scene.camera.y)
   scene.world.scale.set(scene.camera.scale)
+  scene.textResolution.schedule()
 }
 
 function redrawFloor(scene: Scene, map: MapData): void {
@@ -418,13 +397,31 @@ export function PlayerView({
       drawStairs(scene.stairs, stairs)
     }
 
+    // Mesmo desenho do editor (parede grossa, porta por tipo, hachura). A faixa
+    // usa SÓ a lista de paredes e salas que o jogador já recebe: não revela nada.
     const walls = visibleWalls(currentMap)
-    const wallsKey = JSON.stringify(walls)
+    const grid = currentMap.grid
+    const flatHatch = hatchUsesFlatBand(scene.camera.scale, grid)
+    const wallsKey = JSON.stringify([walls, grid, flatHatch])
     if (wallsKey !== scene.lastWallsKey) {
       scene.lastWallsKey = wallsKey
       scene.wallsCount = walls.length
-      drawPlayerWalls(scene.walls, walls)
+      drawWalls(scene.walls, walls, null, scene.camera.scale, grid)
+      drawDoors(scene.doors, walls, null, scene.camera.scale)
     }
+    scene.dungeonTextures?.setGrid(grid)
+    scene.hatchRenderer.draw(
+      scene.hatch,
+      scene.hatchMask,
+      {
+        walls,
+        regions,
+        floorPolygons: isRasterMode(currentMap) || hidden.includes('salas') ? [] : scene.floorRenderer.polygons(),
+        grid,
+        cameraScale: scene.camera.scale,
+      },
+      [wallsKey, scene.lastFloorKey, JSON.stringify(regions.map((r) => [r.id, r.points]))],
+    )
 
     scene.roomNamesRenderer.draw(scene.roomNames, regions, currentMap.grid)
     scene.textLabelsRenderer.draw(scene.textLabels, drawings)
@@ -485,6 +482,8 @@ export function PlayerView({
       scene.camera = fitCamera(bounds, { width: scene.app.screen.width, height: scene.app.screen.height }, FIT_MARGIN)
       applyCamera(scene)
     }
+    // Nomes e rótulos novos nascem na resolução do renderer: ajusta ao zoom atual.
+    scene.textResolution.flush()
   }
 
   function startTokenDrag(scene: Scene, tokenId: string, event: FederatedPointerEvent): void {
@@ -507,7 +506,14 @@ export function PlayerView({
     let resizeObserver: ResizeObserver | null = null
 
     const setup = async () => {
-      await app.init({ backgroundColor: OUTSIDE_BACKGROUND, resizeTo: el, antialias: true })
+      // Densidade do monitor/celular: backbuffer em pixels físicos, canvas no tamanho CSS.
+      await app.init({
+        backgroundColor: OUTSIDE_BACKGROUND,
+        resizeTo: el,
+        resolution: currentRendererResolution(),
+        autoDensity: true,
+        antialias: true,
+      })
       if (destroyed) {
         app.destroy(true, { children: true })
         return
@@ -521,12 +527,15 @@ export function PlayerView({
       const gridMask = new Graphics()
       grid.mask = gridMask
       const raster = new Sprite(Texture.EMPTY)
+      const hatchMask = new Graphics()
+      const hatch = new Graphics()
       const floor = new Graphics()
       const mapLines = new Graphics()
       const regions = new Container()
       const drawings = new Graphics()
       const stairs = new Graphics()
       const walls = new Graphics()
+      const doors = new Graphics()
       const roomNames = new Container()
       const textLabels = new Container()
       const fogUnknown = new Graphics()
@@ -542,12 +551,15 @@ export function PlayerView({
         grid,
         gridMask,
         raster,
+        hatchMask,
+        hatch,
         floor,
         mapLines,
         regions,
         drawings,
         stairs,
         walls,
+        doors,
         roomNames,
         textLabels,
         fogUnknown,
@@ -566,6 +578,8 @@ export function PlayerView({
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
+      // Tile de hachura por renderer; morre no removeWheel, antes do app.destroy.
+      const dungeonTextures = createDungeonTextures(latestRef.current.map.grid)
       const scene: Scene = {
         app,
         world,
@@ -584,7 +598,12 @@ export function PlayerView({
         stairs,
         lastDrawingsKey: null,
         walls,
+        doors,
         lastWallsKey: null,
+        hatch,
+        hatchMask,
+        hatchRenderer: createHatchRenderer(() => dungeonTextures?.hatchPattern ?? null),
+        dungeonTextures,
         wallsCount: 0,
         roomNames,
         roomNamesRenderer: createRoomNamesRenderer(),
@@ -607,6 +626,11 @@ export function PlayerView({
         drag: null,
         signalsLayer,
         signalsRenderer: createSignalsRenderer(),
+        // Texto rasterizado a 1x e esticado pelo zoom sai mole: resolução em degraus.
+        textResolution: createDebouncedTask(() => {
+          if (destroyed) return
+          el.dataset.textResolution = String(syncWorldTextResolution(world, scene.camera.scale, app.renderer.resolution))
+        }),
       }
       sceneRef.current = scene
 
@@ -703,15 +727,30 @@ export function PlayerView({
       const onWheel = (event: WheelEvent) => {
         event.preventDefault()
         const rect = app.canvas.getBoundingClientRect()
+        const grid = latestRef.current.map.grid
+        const flatBefore = hatchUsesFlatBand(scene.camera.scale, grid)
         scene.camera = zoomAt(scene.camera, { x: event.clientX - rect.left, y: event.clientY - rect.top }, event.deltaY)
         applyCamera(scene)
+        // Cruzou o LOD da hachura: repinta faixa e paredes (o resto não depende do zoom).
+        if (hatchUsesFlatBand(scene.camera.scale, grid) !== flatBefore) redraw(scene)
       }
       app.canvas.addEventListener('wheel', onWheel, { passive: false })
+      // Outro monitor ou zoom do navegador: resolução nova e resize (textos se refazem sozinhos).
+      const stopWatchingResolution = watchDevicePixelRatio((resolution) => {
+        if (destroyed) return
+        app.renderer.resolution = resolution
+        app.resize()
+        // Text com resolução fixa não segue o runner resolutionChange do Pixi.
+        scene.textResolution.flush()
+      })
       removeWheel = () => {
+        stopWatchingResolution()
+        scene.textResolution.cancel()
         app.canvas.removeEventListener('wheel', onWheel)
         cancelLongPress()
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickLaser)
+        dungeonTextures?.destroy()
       }
       // ResizePlugin só escuta 'resize' da janela: acompanha o container também.
       resizeObserver = new ResizeObserver(() => {

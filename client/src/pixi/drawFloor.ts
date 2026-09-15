@@ -7,6 +7,8 @@ export interface FloorRenderer {
   draw: (graphics: Graphics, floor: FloorPiece[], style: FloorStyle, selectedPieceId?: string | null) => void
   /** Contorno da peça selecionada, isolada das outras; `null` limpa. */
   drawSelection: (graphics: Graphics, piece: FloorPiece | null, step?: number) => void
+  /** Polígonos do último `draw` (cache por referência): a hachura e a máscara do piso reusam sem recalcular. */
+  polygons: () => FloorPolygon[]
 }
 
 /** Prévia do arrasto com amostragem fixa: fluidez vale mais que o detalhe de 1 px aqui. */
@@ -110,5 +112,5 @@ export function createFloorRenderer(): FloorRenderer {
     strokeRings(graphics, selectedPolygons, STROKE_WEIGHT.medium, 1)
   }
 
-  return { draw, drawSelection }
+  return { draw, drawSelection, polygons: () => polygons }
 }

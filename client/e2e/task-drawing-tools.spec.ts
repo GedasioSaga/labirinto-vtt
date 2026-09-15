@@ -3,6 +3,7 @@
 // tela inicial, prova estado (drawings/selection) E pixel (redraw do destaque acontece de verdade).
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 import type { Drawing } from '../src/types/map'
 
 async function getDrawings(page: Page): Promise<Drawing[]> {
@@ -30,8 +31,9 @@ async function resetMap(page: Page) {
   })
 }
 
+// Pincel/Linha/Círculo moram no botão Desenho: `pickTool` abre a setinha e escolhe o rádio.
 async function selectTool(page: Page, label: 'Selecionar' | 'Pincel' | 'Linha' | 'Círculo') {
-  await page.getByRole('button', { name: label, exact: true }).click()
+  await pickTool(page, label)
 }
 
 function deleteButton(page: Page) {
@@ -62,7 +64,7 @@ test('1. pincel: arrasto com múltiplos pontos cria freehand, seleciona e apaga'
   await selectTool(page, 'Selecionar')
   await page.mouse.click(box.x + 450, box.y + 420)
   expect(await getSelection(page)).toEqual({ kind: 'drawing', id: expect.any(String) })
-  await expect(deleteButton(page)).toHaveText('Apagar desenho selecionada(o)')
+  await expect(deleteButton(page)).toHaveText('Apagar desenho selecionado')
 
   await page.keyboard.press('Delete')
   expect(await getDrawings(page)).toEqual([])

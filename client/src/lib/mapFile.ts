@@ -1,7 +1,14 @@
 import type { FloorStyle, MapData } from '../types/map'
 
-/** Verde do minimapa dos mapas de referência (`Objetivo/*.png`, cor dominante #006B00). */
-export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#006b00', strokeColor: null, strokeWidth: 1 }
+/** Chão de mapa NOVO: pergaminho do estilo "one-page dungeon" (passo 3, F1). */
+export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#e9e1cf', strokeColor: null, strokeWidth: 1 }
+
+/**
+ * Chão de mapa SALVO antes do campo `floorStyle` existir: o verde do minimapa
+ * dos mapas de referência (`Objetivo/*.png`, cor dominante #006B00). Fica
+ * separado do default novo para mapa antigo abrir igual a antes.
+ */
+export const LEGACY_FLOOR_STYLE: FloorStyle = { fillColor: '#006b00', strokeColor: null, strokeWidth: 1 }
 
 export function serializeMap(map: MapData): string {
   return JSON.stringify(map, null, 2)
@@ -54,7 +61,7 @@ export function deserializeMap(json: string): MapData {
       d.kind === 'circle' && d.fillAlpha === undefined ? { ...d, fillAlpha: d.filled ? 0.5 : 0 } : d,
     ),
     floor: parsed.floor ?? [],
-    floorStyle: parsed.floorStyle ?? { ...DEFAULT_FLOOR_STYLE },
+    floorStyle: parsed.floorStyle ?? { ...LEGACY_FLOOR_STYLE },
     lines: parsed.lines ?? [],
     markers: parsed.markers ?? [],
     concealZones: parsed.concealZones ?? [],

@@ -3,6 +3,7 @@ import type { Region, RegionPoint, Wall } from '../types/map'
 import type { Selection } from '../types/tools'
 import { isDegenerateRegion } from './shapes'
 import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
+import { resolveCameraScale, selectionOutlineWidth } from './drawWalls'
 
 const HATCH_SPACING = 10
 const HATCH_ANGLE = Math.PI / 4 // 45°
@@ -27,13 +28,6 @@ const HATCH_WIDTH = 2
  */
 const REGION_STROKE_WIDTH_DEFAULT = 2
 const REGION_STROKE_JOIN_DEFAULT: 'round' | 'miter' = 'miter'
-/** Realce de seleção somado à espessura base — mesma convenção de
- *  `drawDrawings.ts` (`width = isSelected ? drawing.width + 2 : drawing.width`),
- *  escolhida em vez do valor fixo `4` que o código anterior usava porque
- *  agora a base é configurável (1–20): +2 escala com contorno fino OU grosso,
- *  em vez de "achatar" tudo pra um valor fixo quando selecionado. Com o
- *  default de hoje (2), dá exatamente 4 — idêntico ao comportamento anterior. */
-const REGION_SELECTED_STROKE_BONUS = 2
 
 /**
  * Lê `Region.strokeWidth` SEM depender do campo já existir em `types/map.ts`
@@ -163,7 +157,18 @@ export function scanlineIntersections(points: { u: number; v: number }[], v: num
 }
 
 export interface RegionsRenderer {
-  draw: (container: Container, regions: Region[], selectedRegionId?: string | null) => void
+  /** `cameraScale` dá ao contorno de seleção 2 px de TELA; omitido, vem da
+   *  escala de mundo do `container` no último render (`resolveCameraScale`). */
+  draw: (container: Container, regions: Region[], selectedRegionId?: string | null, cameraScale?: number) => void
+}
+
+function traceRegionPath(g: Graphics, points: RegionPoint[]): void {
+  const [first, ...rest] = points
+  g.moveTo(first.x, first.y)
+  for (const point of rest) {
+    g.lineTo(point.x, point.y)
+  }
+  g.closePath()
 }
 
 /**
@@ -182,7 +187,8 @@ export interface RegionsRenderer {
 export function createRegionsRenderer(): RegionsRenderer {
   const cache = new Map<string, Graphics>()
 
-  function draw(container: Container, regions: Region[], selectedRegionId: string | null = null): void {
+  function draw(container: Container, regions: Region[], selectedRegionId: string | null = null, cameraScale?: number): void {
+    const outlineWidth = selectionOutlineWidth(resolveCameraScale(container, cameraScale))
     const visibleRegions = regions.filter((region) => !isDegenerateRegion(region.points))
     const currentIds = new Set(visibleRegions.map((r) => r.id))
 
@@ -204,15 +210,23 @@ export function createRegionsRenderer(): RegionsRenderer {
       }
       g.clear()
 
-      const [first, ...rest] = region.points
-      g.moveTo(first.x, first.y)
-      for (const point of rest) {
-        g.lineTo(point.x, point.y)
-      }
-      g.closePath()
       const isSelected = region.id === selectedRegionId
       g.alpha = region.secret ? SECRET_ITEM_ALPHA : 1
-      const color = isSelected ? SELECTION_COLOR : new Color(region.fillColor).toNumber()
+      const color = new Color(region.fillColor).toNumber()
+      const strokeWidth = readRegionStrokeWidth(region)
+      const join = readRegionStrokeJoin(region)
+
+      // Auditoria 14/09: a seleção pintava a região inteira de amarelo (fill
+      // 0.85 + contorno), escondendo a cor e a hachura que o usuário acabou de
+      // escolher. Agora é um contorno POR FORA, desenhado antes (por baixo):
+      // `alignment: 0` põe o traço do lado de fora do polígono, e a largura
+      // cobre a metade externa do contorno real + 2 px de tela.
+      if (isSelected) {
+        traceRegionPath(g, region.points)
+        g.stroke({ width: strokeWidth / 2 + outlineWidth, color: SELECTION_COLOR, alignment: 0, join })
+      }
+
+      traceRegionPath(g, region.points)
       // Pedido N2 do usuário ("tirar o fundo" de Região/Sala) — `Region.filled`
       // já existe no schema e a store já tem `setRegionFilled`/`FillControls`
       // ligados (App.tsx), mas nada lia o campo aqui: `g.fill(...)` disparava
@@ -220,17 +234,16 @@ export function createRegionsRenderer(): RegionsRenderer {
       // idêntica à de hoje), mesmo padrão de wallKind/locked/hidden.
       const isFilled = region.filled !== false
       if (isFilled) {
-        g.fill({ color, alpha: isSelected ? 0.85 : 1 })
+        g.fill({ color, alpha: 1 })
       }
-      const baseStrokeWidth = readRegionStrokeWidth(region)
-      const strokeWidth = isSelected ? baseStrokeWidth + REGION_SELECTED_STROKE_BONUS : baseStrokeWidth
-      g.stroke({ width: strokeWidth, color, join: readRegionStrokeJoin(region) })
+      g.stroke({ width: strokeWidth, color, join })
 
       // Hachura é tratamento de FUNDO (alternativa a preenchimento sólido) —
       // sem fundo, não faz sentido desenhar diagonais soltas por cima do
       // contorno. Serve exatamente o caso "rua"/"construção artesanal" do
-      // usuário: contorno só, sem nenhum traço extra por dentro.
-      if (!isSelected && isFilled && region.fillPattern === 'hatch') {
+      // usuário: contorno só, sem nenhum traço extra por dentro. Continua
+      // visível com a região selecionada.
+      if (isFilled && region.fillPattern === 'hatch') {
         const segments = computeHatchSegments(region.points)
         for (const segment of segments) {
           g.moveTo(segment.x1, segment.y1)

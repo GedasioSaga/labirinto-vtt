@@ -79,7 +79,7 @@ describe('createEmptyMap', () => {
       grid: 64,
       gridShape: 'square',
       showGrid: true,
-      gridSettings: { color: '#4a4a4a', opacity: 1, lineWidth: 1, lineStyle: 'solid' },
+      gridSettings: { color: '#1f1b16', opacity: 0.18, lineWidth: 1, lineStyle: 'solid' },
       background: { type: 'color', src: '#2b2b2b' },
       walls: [],
       lights: [],
@@ -89,7 +89,7 @@ describe('createEmptyMap', () => {
       stairs: [],
       drawings: [],
       floor: [],
-      floorStyle: { fillColor: '#006b00', strokeColor: null, strokeWidth: 1 },
+      floorStyle: { fillColor: '#e9e1cf', strokeColor: null, strokeWidth: 1 },
       lines: [],
       markers: [],
       concealZones: [],
@@ -97,11 +97,17 @@ describe('createEmptyMap', () => {
       fog: { mode: 'none', revealed: [] },
       hiddenLayers: [],
       lockedLayers: [],
-      scale: { unitsPerCell: 5, unit: 'ft', precision: 0 },
+      scale: { unitsPerCell: 1.5, unit: 'm', precision: 1 },
       measurementMode: 'chessboard',
       ownerId: null,
       scenarioLink: null,
     })
+  })
+
+  it('floorStyle de cada mapa novo é cópia, não a constante compartilhada', () => {
+    const a = createEmptyMap('a', 'A', 10, 10, 64)
+    const b = createEmptyMap('b', 'B', 10, 10, 64)
+    expect(a.floorStyle).not.toBe(b.floorStyle)
   })
 })
 
@@ -934,7 +940,8 @@ describe('setGridSettings', () => {
 
     const next = setGridSettings(map, { color: '#ff0000' })
 
-    expect(next.gridSettings).toEqual({ color: '#ff0000', opacity: 1, lineWidth: 1, lineStyle: 'solid' })
+    // opacity/lineWidth/lineStyle = padrões do mapa novo (createEmptyMap), intactos
+    expect(next.gridSettings).toEqual({ color: '#ff0000', opacity: 0.18, lineWidth: 1, lineStyle: 'solid' })
   })
 
   it('não muda nenhum outro campo do map', () => {

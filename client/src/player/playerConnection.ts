@@ -11,7 +11,8 @@ import { parseLaserMessage } from '../net/protocol'
  * e avisa os ouvintes (encaixa em `useSyncExternalStore`).
  */
 
-export type PlayerStatus = 'connecting' | 'waiting' | 'playing' | 'kicked' | 'error'
+/** `closed`: o mestre avisou que encerrou a sala (`room.closed`) — fim de sessão, não falha de rede. */
+export type PlayerStatus = 'connecting' | 'waiting' | 'playing' | 'kicked' | 'closed' | 'error'
 
 export interface PlayerState {
   status: PlayerStatus
@@ -360,6 +361,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         writeResume(storage, null)
         setState({ status: 'kicked' })
         return
+      case 'room.closed':
+        // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
+        writeResume(storage, null)
+        clearSignalTimers()
+        clearLaserTimer()
+        setState({ status: 'closed' })
+        return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
         // O transporte pode avisar a expulsão como erro: mesmo efeito de `kicked`.
@@ -401,7 +409,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (socket !== current) return
       socket = null
       stopPing()
-      if (state.status === 'kicked' || state.status === 'error') return
+      // Depois de kicked/closed a queda é esperada: o mestre derrubou de propósito.
+      if (state.status === 'kicked' || state.status === 'closed' || state.status === 'error') return
       setState({ status: 'error', error: CONNECTION_LOST })
     }
   }

@@ -4,16 +4,13 @@ import { Toggle } from './Toggle'
 export interface FloorStyleControlsProps {
   style: FloorStyle
   onStyleChange: (patch: Partial<FloorStyle>) => void
-  /** `false` sem imagem de fundo — o botão fica desabilitado, com o motivo escrito. */
-  canTraceFromBackground: boolean
-  onTraceFromBackground: () => void
-  onTraceDetailsFromBackground: () => void
-  /** Pipeline completo (chão + linhas + portas + calibração) com render fiel ligado. */
-  onRecreateMinimapFromBackground: () => void
   frame: MapFrame | null
   onFrameChange: (frame: MapFrame | null) => void
   /** Retângulo usado ao ligar a moldura pela primeira vez. */
   defaultFrameRect: Pick<MapFrame, 'x' | 'y' | 'w' | 'h'>
+  /** O mapa tem peças de chão, linhas ou portas de minimapa. Cor, contorno,
+   *  precisão e render fiel só desenham isso; sem nada, mudar não aparece. */
+  hasFloorContent: boolean
 }
 
 const DEFAULT_FRAME_TITLE = 'Mapa'
@@ -30,27 +27,31 @@ const SAMPLE_STEP_OPTIONS: Array<{ value: number; label: string }> = [
 ]
 
 /**
- * Estilo do chão do MAPA inteiro (não de uma peça) e a criação de peças a
- * partir da imagem de fundo. Mesma seção do painel para os dois porque os
- * dois são "o chão deste mapa", independentes de seleção.
+ * Estilo do chão do MAPA inteiro (não de uma peça). A criação de peças a
+ * partir da imagem de fundo saiu daqui para o menu do botão de imagem da
+ * ActionBar, que só existe quando há imagem.
  */
 export function FloorStyleControls({
   style,
   onStyleChange,
-  canTraceFromBackground,
-  onTraceFromBackground,
-  onTraceDetailsFromBackground,
-  onRecreateMinimapFromBackground,
   frame,
   onFrameChange,
   defaultFrameRect,
+  hasFloorContent,
 }: FloorStyleControlsProps) {
   const sampleStep = style.sampleStep ?? DEFAULT_SAMPLE_STEP
 
+  // Sem <section>/título próprios: quem envolve é a `CollapsibleSection`
+  // "Chão" do PropertiesPanel, que já é a seção e o cabeçalho.
   return (
-    <section className="lb-section">
-      <h2 className="lb-eyebrow">Chão</h2>
-
+    <>
+      {!hasFloorContent && (
+        // Num mapa sem chão estes controles não mudam nada na tela; a frase
+        // evita que pareçam quebrados e aponta onde o chão nasce.
+        <p className="lb-field__hint">
+          Vale para o chão por peças e para o minimapa recriado. Este mapa ainda não tem nenhum: use a ferramenta Chão ou o menu da imagem de fundo.
+        </p>
+      )}
       <div className="lb-field">
         <label className="lb-label" htmlFor="lb-floor-fill-color">
           Cor do chão
@@ -103,21 +104,11 @@ export function FloorStyleControls({
         </div>
       </div>
 
-      <button type="button" className="lb-btn lb-btn--block" disabled={!canTraceFromBackground} onClick={onTraceFromBackground}>
-        Chão a partir da imagem de fundo
-      </button>
-      <button type="button" className="lb-btn lb-btn--block" disabled={!canTraceFromBackground} onClick={onTraceDetailsFromBackground}>
-        Linhas e portas a partir da imagem de fundo
-      </button>
-      <button type="button" className="lb-btn lb-btn--block" disabled={!canTraceFromBackground} onClick={onRecreateMinimapFromBackground}>
-        Recriar minimapa a partir da imagem de fundo
-      </button>
       <Toggle
         label="Render fiel (minimapa)"
         checked={style.renderMode === 'raster'}
         onChange={(checked) => onStyleChange({ renderMode: checked ? 'raster' : 'vector' })}
       />
-      {!canTraceFromBackground && <span className="lb-label">Importe uma imagem de fundo para usar.</span>}
 
       <Toggle
         label="Moldura com título"
@@ -138,6 +129,6 @@ export function FloorStyleControls({
           />
         </div>
       )}
-    </section>
+    </>
   )
 }

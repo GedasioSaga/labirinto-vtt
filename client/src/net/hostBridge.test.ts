@@ -123,6 +123,32 @@ describe('hostBridge', () => {
     expect(t.bridge.room()).toBeNull()
   })
 
+  it('stop avisa room.closed a cada jogador conectado ANTES de net_stop_room', async () => {
+    const t = setup()
+    await t.bridge.start()
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+    t.emit('net:message', { clientId: 'c2', msg: { type: 'join', code: ROOM.code, name: 'Bia' } })
+    await t.bridge.stop()
+    const cmds = t.invoke.mock.calls.map((call) => call[0])
+    const closedCalls = t.invoke.mock.calls
+      .map((call, index) => ({ call, index }))
+      .filter(({ call }) => call[0] === 'net_send' && (call[1] as { msg: { type: string } }).msg.type === 'room.closed')
+    expect(closedCalls.map(({ call }) => call[1])).toEqual([
+      { clientId: 'c1', msg: { type: 'room.closed' } },
+      { clientId: 'c2', msg: { type: 'room.closed' } },
+    ])
+    const stopIndex = cmds.lastIndexOf('net_stop_room')
+    expect(stopIndex).toBeGreaterThan(-1)
+    expect(closedCalls.every(({ index }) => index < stopIndex)).toBe(true)
+  })
+
+  it('stop sem sala aberta não envia room.closed', async () => {
+    const t = setup()
+    await t.bridge.stop()
+    expect(t.sent()).toEqual([])
+    expect(t.invoke).toHaveBeenLastCalledWith('net_stop_room')
+  })
+
   it('kick envia kicked e chama net_kick', async () => {
     const t = setup()
     await t.bridge.start()
@@ -201,7 +227,8 @@ describe('hostBridge', () => {
     await t.bridge.stop()
     t.bridge.notifyMapChanged()
     vi.advanceTimersByTime(BROADCAST_THROTTLE_MS * 4)
-    expect(t.sent().length).toBe(before)
+    // Único envio depois do stop é o aviso de sala encerrada: nenhum snapshot.
+    expect(t.sent().slice(before)).toEqual([{ clientId: 'c1', msg: { type: 'room.closed' } }])
   })
 
   it('unassign do último token manda lobby.waiting pela ponte', async () => {

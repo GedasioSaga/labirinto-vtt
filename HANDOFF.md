@@ -246,7 +246,123 @@ exit 0, `npm run test` 0 falhas, `cd client && npx playwright test` 0 falhas.
   Sala fácil + arrastar, visibilidade para jogadores e zona oculta) e Fase B (ping, laser, controles
   por jogador) EM ANDAMENTO no workflow sequencial `wf_8528625b-063` (só Opus). Plano em
   `~/.claude/plans/valiant-enchanting-patterson.md`.
-- PRÓXIMO depois do workflow Fase A/B — remodelar o painel de propriedades (decisões do usuário
+- NOVA DIREÇÃO (usuário, 14/09/2026, após testar o painel): "ta tudo muito medíocre… nem tudo é
+  útil e funciona… parece tão borrado". Diagnóstico aceito: (a) canvas sem densidade de pixels
+  (Windows 125% estica 1280→1600, borra) e sem antialias no editor; (b) visual de rascunho (salas
+  chapadas, paredes de 1–2 px, sem textura/hachura/sombra); (c) recursos construídos aos pedaços e
+  validados por testes, não por uso real; (d) acúmulo sem cortar. ORDEM APROVADA: 1) nitidez do
+  canvas (resolution=devicePixelRatio + autoDensity + antialias no editor e no jogador, reagir a
+  mudança de DPR) — CONCLUÍDO em 2 partes (ver abaixo); 2) auditoria honesta de
+  funcionalidades com o app real (tabela funciona?/útil?/proposta manter-consertar-esconder-remover)
+  para o usuário decidir; 3) polir o fluxo principal (criar masmorra salas/portas/corredores →
+  jogar) com visual de verdade (piso com textura, paredes grossas com hachura, portas, grade
+  discreta). Parar de adicionar recursos até isso. Fila antiga (tokens/personagens, cenas) só
+  depois. Remodelagem do painel ainda NÃO commitada (último commit `839173c`).
+- NITIDEZ CONCLUÍDA (não commitada):
+  - **Parte 1.** `client/src/pixi/rendererResolution.ts` define a resolução como
+    devicePixelRatio (entre 1 e 3). Liga autoDensity e antialias no editor e no jogador e reage a
+    troca de DPR.
+    - e2e: `task-device-pixel-ratio.spec.ts`.
+    - Prints em `scratchpad/nitidez/`.
+  - **Parte 2.** Motivo: o monitor principal do usuário é 2560x1080 a 100%, e lá o borrão vinha do
+    zoom.
+    - `client/src/pixi/textResolution.ts`: a resolução de cada Text dentro de `world` segue o
+      degrau de zoom (1, 2 ou 4), limitada a 4096 px e aplicada com debounce de 120 ms.
+    - Imagem de fundo com `autoGenerateMipmaps`.
+    - e2e: `task-text-zoom-resolution.spec.ts`.
+    - Prints em `scratchpad/nitidez2/`: com zoom de 400% o texto antes aparecia em blocos e agora
+      sai liso, conferido no olho.
+  - **Portão.** tsc 0/0; vitest 109 arquivos, 1838 testes; playwright 149 passaram.
+  - **Fora do escopo.** Rótulos de arrasto a 400% no primeiro uso; "Render fiel" sem mipmap;
+    nenhum print da tela do jogador.
+  - **Inventário para a auditoria (205 itens, 7 suspeitos).** Salvo em
+    `scratchpad/auditoria/inventario.md`. Os suspeitos:
+    1. Ctrl+O e Ctrl+A mortos.
+    2. `stairSize` sem leitor.
+    3. Link de cenário não é usado.
+    4. Tela Opções desabilitada.
+    5. 2 tipos de mapa desabilitados.
+    6. 4 controles duplicados entre a barra e o painel.
+    7. "Oculto no editor" sem render.
+- AUDITORIA NO APP REAL CONCLUÍDA (14/09/2026)
+  - **Onde está:** `scratchpad/auditoria/parte-a.md` (ferramentas, atalhos, config), `parte-b.md` (painel) e `parte-c.md` (barra, menus, aba Jogo, exe real). Screenshots em `a/`, `b/` e `c/`.
+  - **Bugs graves:**
+    1. Início quebra o editor: a limpeza do PixiCanvas explode.
+    2. Voltar do andar perde o que foi desenhado no andar.
+    3. Nome da sala rouba o teclado: apertar V renomeou a sala para "v".
+    4. Ctrl+A e Ctrl+O não funcionam.
+    5. Ferramenta Token (K) não faz nada.
+    6. Token Travado ou Oculto vira armadilha: não dá mais para selecionar.
+    7. A grade não redesenha ao mudar as configurações.
+    8. A seleção amarela cobre a cor e a hachura.
+    9. Espessura, parede interna e ponta da parede não aparecem no canvas.
+    10. Rótulos errados: "Apagar undefined", "selecionada(o)".
+    11. Trocar de ferramenta não limpa a seleção.
+    12. Desenho existente não tem cor nem espessura editáveis.
+    13. Fechar a sala aparece para o jogador como "conexão caiu".
+    14. Avisos não aparecem nas telas de menu.
+  - **Pendentes, sem conserto em andamento:**
+    - O QR aponta para o IP da VPN (`commands.rs:264`).
+    - A tela do jogador é uma página branca.
+    - A porta é minúscula e os tipos não se distinguem.
+    - A luz nasce com raio 8.
+    - O chão verde padrão e a régua em pés têm cara de placeholder.
+    - Parte vai para o passo 3 (visual).
+  - **Consertos em andamento, nesta ordem:**
+    - 2 `operario` opus com arquivos disjuntos. O primeiro cobre PixiCanvas, App, keymap, RoomControls, drawRoomNames, tokensRenderer, ItemTransformControls e screens. O segundo cobre gridSubscription, mapStore, draw*, labels, controles do painel, net e player.
+    - Os dois caíram por limite de sessão às 22:50 sem editar nada e foram retomados às 23:54.
+    - Depois: 1 verificador-realidade roda a suíte inteira, o build sai e o app é aberto para o usuário.
+  - **Decisões do usuário (14/09/2026, lote seguinte, depois dos consertos):**
+    - ESCONDER a tela Opções, os tipos Isometric/World, o Link de cenário e a ferramenta Token (K).
+    - AGRUPAR as 7 ferramentas de desenho livre (Pincel, Linha, Curva, Círculo, Elipse, Retângulo, Polígono) num botão "Desenho", com a setinha escolhendo a forma.
+    - Mover para uma seção "Avançado" fechada, com uma frase explicativa: Ponta e canto, Cantos do contorno, Suavizar, Precisão do contorno, Render fiel e Moldura.
+    - PAINEL com um bloco por objeto: Nome > Visível para jogadores > Aparência > Avançado > Apagar; remover o "Nada selecionado".
+- CONSERTOS 1 e 2 CONCLUÍDOS (15/09/2026 ~00:40, sem commit). Vitest 1873 nos dois. Suíte do playwright ainda NÃO rodada.
+- PASSO 3, VISUAL
+  - **Plano:** `scratchpad/passo3/plano.md`. BAR "Dyson Logos / one-page dungeon": piso pergaminho, parede preta grossa, hachura externa, portas por tipo.
+  - **F0 feita:** fixture de 55 salas, `scratchpad/passo3/f0/dungeonShots.mjs`. Base: loadMap 191 ms, pan 23 fps.
+  - **F1 feita:** chão novo #e9e1cf; mapa legado continua verde; 1,5 m; luz com raio 4; dica some. Vitest 1881.
+  - **Decisões do usuário:**
+    - Grade fora do piso: bem apagada no editor, some para o jogador.
+    - Mapa antigo mantém a cor e ganha textura.
+    - Jogador vê a porta trancada.
+  - **Próximas fatias:** F6 (luz com gradiente), F2 (parede + hachura), F3 (textura do piso), F4 (portas), F5 (grade só no piso), F8 (integração e comparação cega).
+- INTEGRAÇÃO CONCLUÍDA (15/09/2026, ~09:40, sem commit).
+  - **Portão:**
+    - tsc 0/0;
+    - vitest 116 arquivos, 1892 testes;
+    - playwright 168 passed, rodado 2 vezes seguidas com Vite novo (3,1 e 3,2 min).
+  - **Prints:** `scratchpad/integracao/` (sala pergaminho, retângulo com cor editada, porta trancada e escada selecionadas, prop fantasma).
+  - **Ficou de fora:** prop e token ocultos são selecionáveis, mas não arrastáveis (`hitTestMap` filtra `isHidden`).
+  - **Notado no print:** a sala nova não mostra parede visível e a grade some sobre o fundo escuro. Vai para F2 e F5.
+  - **Plano das decisões:** `scratchpad/decisoes/plano.md`, 7 fatias. A primeira, "esconder via `lib/features.ts`", já pode começar.
+  - **Build do release:** em andamento.
+- (histórico) INTEGRAÇÃO (1 operario opus). Pendências entre arquivos:
+  - fiação do estilo de desenho selecionado no `App.tsx`;
+  - `closeRoom` no `stop()` do `hostBridge`;
+  - `camera.scale` nos contornos;
+  - `roomFillColor` pergaminho;
+  - escada e porta selecionadas com contorno;
+  - prop oculto como fantasma;
+  - specs com rótulos novos;
+  - PORTÃO COMPLETO com a suíte rodada 2 vezes.
+- DEPOIS
+  1. Build e abrir o app para o usuário.
+  2. Lote de decisões: esconder, agrupar Desenho, Avançado, bloco por objeto.
+  3. Fatias F2 a F8.
+- Remodelagem do painel CONCLUÍDA (workflow `wf_3dac649a-765`, 7 agentes só Opus, portão aprovado
+  na 2ª rodada): tsc 0/0; vitest 107 arquivos / 1812; playwright 145 passed. Entregue: seção
+  recolhível (bug de display:flex vencendo hidden achado e corrigido na revisão visual), Camadas
+  compacta com olho/cadeado + atalhos de grade, "Chão do mapa" recolhível, janela "Configurações do
+  mapa" (engrenagem) com Grade/Alinhar/Medição em select/Link de cenário, menu "Imagem de fundo e
+  conversão" na barra de baixo. Pendências listadas pela revisão: rótulo "Apagar token
+  selecionada(o)", botão "Nada selecionado" parece campo, títulos duplicados por objeto (SALA +
+  REGIÃO + JOGADORES; TOKEN + IMAGEM DO TOKEN + TOKEN), "Precisão do contorno" sem explicação
+  visível. Não commitado; build release em andamento para o usuário testar.
+- Checkpoint commit `839173c` (Fase A/B + laser + correções de segurança). Remodelagem do painel no
+  workflow sequencial `wf_3dac649a-765` (operario opus P1-P4 + verificador), plano em
+  `~/.claude/plans/valiant-enchanting-patterson.md`; screenshots em `scratchpad/painel-remodelado/`.
+- (histórico) remodelar o painel de propriedades (decisões do usuário
   14/09/2026): Camadas vira lista compacta (nome + contagem + olho + cadeado, seção recolhível);
   botões "Chão / Linhas e portas / Recriar minimapa a partir da imagem de fundo" saem do painel e
   viram menu "Converter imagem em mapa" no botão de imagem de fundo da barra de baixo (só com imagem);

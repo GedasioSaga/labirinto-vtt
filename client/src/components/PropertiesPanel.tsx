@@ -2,24 +2,28 @@ import type { DrawingTool } from '../types/tools'
 import type { Drawing, FloorPiece, Light, Prop, Region, Stair, Token, Wall } from '../types/map'
 import { LabyrinthMark } from './icons'
 import { DrawingStyleControls, type DrawingStyleControlsProps } from './DrawingStyleControls'
-import { GridControls, type GridControlsProps } from './GridControls'
+import { GridQuickToggles, type GridControlsProps } from './GridControls'
+import { MapSettingsButton } from './MapSettingsDialog'
+import { CollapsibleSection } from './CollapsibleSection'
+import { PropLayerControls, type PropLayerControlsProps } from './PropLayerControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
 import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
-import { ScenarioLinkControls, type ScenarioLinkControlsProps } from './ScenarioLinkControls'
+import type { ScenarioLinkControlsProps } from './ScenarioLinkControls'
 import { PortalControls, type PortalControlsProps } from './PortalControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
-import { RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
+import { RegionJoinField, RegionSmoothButton, RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
+import { AdvancedField, AdvancedSection } from './AdvancedSection'
 import { PolygonSidesControls, type PolygonSidesControlsProps } from './PolygonSidesControls'
 import { LayersPanel, type LayersPanelProps } from './LayersPanel'
 import { TokenImageControls, type TokenImageControlsProps } from './TokenImageControls'
 import { TokenNameControls, type TokenNameControlsProps } from './TokenNameControls'
 import { LightControls, type LightControlsProps } from './LightControls'
-import { WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
+import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
-import { MapScaleControls, type MapScaleControlsProps } from './MapScaleControls'
-import { GridAlignControls, type GridAlignControlsProps } from './GridAlignControls'
+import type { MapScaleControlsProps } from './MapScaleControls'
+import type { GridAlignControlsProps } from './GridAlignControls'
 import { ItemTransformControls, type ItemTransformControlsProps } from './ItemTransformControls'
 import { ToolPropertiesSection } from './ToolPropertiesSection'
 import { LineCapControls, type LineCapControlsProps } from './LineCapControls'
@@ -72,6 +76,8 @@ interface PropertiesPanelProps {
   doorKind: DoorKindControlsProps
   wallStyle: WallStyleControlsProps
   selectedProp: Prop | null
+  /** "Objetos | Decoração" do Prop selecionado — mora na seção do objeto. */
+  onSetPropLayer: PropLayerControlsProps['onSetPropLayer']
   portal: Omit<PortalControlsProps, 'linkedMapPath'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Objeto selecionado. */
   propTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
@@ -93,7 +99,7 @@ interface PropertiesPanelProps {
   /** Chão por peças — peça selecionada (`null` = nenhuma) e seus controles. */
   selectedFloorPiece: FloorPiece | null
   floorPieceControls: Omit<FloorPieceControlsProps, 'piece'>
-  /** Chão por peças — estilo do chão do mapa e "Chão a partir da imagem de fundo". */
+  /** Chão por peças — estilo do chão do mapa (a conversão da imagem fica no menu da ActionBar). */
   floorStyle: FloorStyleControlsProps
   /** A5 — "Oculto para jogadores" da Região/Escada/Desenho selecionado; `null` = nenhum. */
   playerSecret: PlayerSecretControlsProps | null
@@ -110,6 +116,7 @@ export function PropertiesPanel({
   mapWidth,
   mapHeight,
   mapGrid,
+  activeTool,
   groups,
   lineCap,
   lineShape,
@@ -127,6 +134,7 @@ export function PropertiesPanel({
   doorKind,
   wallStyle,
   selectedProp,
+  onSetPropLayer,
   portal,
   propTransform,
   selectedToken,
@@ -149,6 +157,13 @@ export function PropertiesPanel({
   playerSecret,
   concealZone,
 }: PropertiesPanelProps) {
+  // "Só o que importa agora": as seções de mapa inteiro só abrem sozinhas
+  // quando o usuário não está mexendo em nada (Selecionar, sem seleção).
+  // Depois do primeiro clique no cabeçalho vale o estado lembrado.
+  const mapSectionsOpenByDefault = activeTool === 'select' && selection.selection === null
+  // Campos da região que moram no Avançado (fatia 3), em consts para o TS estreitar dentro do render prop.
+  const { strokeJoin, onStrokeJoinChange, onSmoothRegion } = regionStyle
+
   return (
     <div className="lb-panel lb-inspector">
       <header className="lb-inspector__head">
@@ -161,6 +176,7 @@ export function PropertiesPanel({
             {mapName} · {mapWidth}×{mapHeight} · {mapGrid}px
           </span>
         </span>
+        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} scenarioLink={scenarioLink} />
       </header>
 
       <div className="lb-inspector__body lb-scroll">
@@ -199,6 +215,20 @@ export function PropertiesPanel({
         )}
         <ToolPropertiesSection group="regionStyle" groups={groups}>
           <RegionStyleControls {...regionStyle} />
+          {/* Provisório (a fatia 4 reposiciona dentro do bloco do objeto). `key`
+              pelo id: outra região selecionada faz o Avançado nascer fechado. */}
+          <AdvancedSection key={selectedRegion?.id ?? 'region-tool'}>
+            {strokeJoin !== undefined && onStrokeJoinChange && (
+              <AdvancedField hint="Define se os vértices do contorno ficam arredondados ou em quina.">
+                {(hintId) => <RegionJoinField strokeJoin={strokeJoin} onStrokeJoinChange={onStrokeJoinChange} describedBy={hintId} />}
+              </AdvancedField>
+            )}
+            {onSmoothRegion && (
+              <AdvancedField hint="Simplifica e arredonda o contorno inteiro de uma vez; Ctrl+Z desfaz.">
+                {(hintId) => <RegionSmoothButton onSmoothRegion={onSmoothRegion} describedBy={hintId} />}
+              </AdvancedField>
+            )}
+          </AdvancedSection>
         </ToolPropertiesSection>
         <ToolPropertiesSection group="fill" groups={groups}>
           <FillControls {...fill} />
@@ -222,26 +252,17 @@ export function PropertiesPanel({
             <FloorPieceControls piece={selectedFloorPiece} {...floorPieceControls} />
           </ToolPropertiesSection>
         )}
-        <ToolPropertiesSection group="floorStyle" groups={groups}>
-          <FloorStyleControls {...floorStyle} />
-        </ToolPropertiesSection>
-        <ToolPropertiesSection group="grid" groups={groups}>
-          <GridControls {...grid} />
-        </ToolPropertiesSection>
-        <ToolPropertiesSection group="mapScale" groups={groups}>
-          <MapScaleControls {...mapScale} />
-        </ToolPropertiesSection>
-        <ToolPropertiesSection group="gridAlign" groups={groups}>
-          <GridAlignControls {...gridAlign} />
-        </ToolPropertiesSection>
-        <ToolPropertiesSection group="layers" groups={groups}>
-          <LayersPanel {...layers} />
-        </ToolPropertiesSection>
-        <ToolPropertiesSection group="scenarioLink" groups={groups}>
-          <ScenarioLinkControls {...scenarioLink} />
-        </ToolPropertiesSection>
         <ToolPropertiesSection group="wallStyle" groups={groups}>
           <WallStyleControls {...wallStyle} />
+          {/* Provisório (a fatia 4 reposiciona). `key` pelo id: outra parede
+              selecionada faz o Avançado nascer fechado. */}
+          <AdvancedSection key={selectedWall?.id ?? 'wall-tool'}>
+            <AdvancedField hint="Arredondada suaviza a ponta solta e a quina entre paredes; Reta deixa a quina viva.">
+              {(hintId) => (
+                <WallLineStyleField lineStyle={wallStyle.lineStyle} onLineStyleChange={wallStyle.onLineStyleChange} describedBy={hintId} />
+              )}
+            </AdvancedField>
+          </AdvancedSection>
         </ToolPropertiesSection>
         {selectedWall && (
           <ToolPropertiesSection group="wallDoor" groups={groups}>
@@ -266,6 +287,7 @@ export function PropertiesPanel({
               secret={!!selectedProp.secret}
               {...propTransform}
             />
+            <PropLayerControls prop={selectedProp} onSetPropLayer={onSetPropLayer} />
           </ToolPropertiesSection>
         )}
         {selectedToken && (
@@ -299,6 +321,19 @@ export function PropertiesPanel({
         <ToolPropertiesSection group="selection" groups={groups}>
           <AreaSelectionControls selection={areaSelection.selection} onClear={areaSelection.onClear} />
           <SelectionControls {...selection} />
+        </ToolPropertiesSection>
+        <ToolPropertiesSection group="floorStyle" groups={groups}>
+          {/* "Chão do mapa", não "Chão": o botão da ferramenta na barra já se
+              chama "Chão" e dois botões com o mesmo nome confundem leitor de
+              tela (e o getByRole dos specs). */}
+          <CollapsibleSection id="floor" title="Chão do mapa" defaultOpen={mapSectionsOpenByDefault}>
+            <FloorStyleControls {...floorStyle} />
+          </CollapsibleSection>
+        </ToolPropertiesSection>
+        <ToolPropertiesSection group="layers" groups={groups}>
+          <CollapsibleSection id="layers" title="Camadas" defaultOpen={mapSectionsOpenByDefault}>
+            <LayersPanel {...layers} quickToggles={<GridQuickToggles {...grid} />} />
+          </CollapsibleSection>
         </ToolPropertiesSection>
       </div>
     </div>

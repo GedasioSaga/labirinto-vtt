@@ -329,6 +329,20 @@ describe('hostSession', () => {
     expect(s.kick('desconhecido').outbound).toEqual([])
   })
 
+  it('closeRoom avisa room.closed a todo jogador CONECTADO (jogando ou aguardando), antes de o mestre derrubar a sala', () => {
+    const s = newSession()
+    const map = twoRooms()
+    const p1 = welcomeOf(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, map).outbound)
+    welcomeOf(s.handleMessage('c2', { type: 'join', code: CODE, name: 'Bia' }, map).outbound)
+    welcomeOf(s.handleMessage('c3', { type: 'join', code: CODE, name: 'Caio' }, map).outbound)
+    s.assignToken(p1.playerId, 'heroi')
+    s.disconnect('c3') // caiu antes: não tem para onde enviar
+    expect(s.closeRoom().outbound).toEqual([
+      { clientId: 'c1', msg: { type: 'room.closed' } },
+      { clientId: 'c2', msg: { type: 'room.closed' } },
+    ])
+  })
+
   it('assignToken tira o token do dono anterior; unassign volta a aguardando', () => {
     const s = newSession()
     const map = twoRooms()

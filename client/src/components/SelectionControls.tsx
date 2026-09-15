@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { SelectionKind } from '../types/tools'
-import { SELECTION_LABELS } from './labels'
+import { deleteSelectionLabel } from './labels'
 import { TokenIcon } from './icons'
 
 /**
@@ -15,9 +15,9 @@ import { TokenIcon } from './icons'
  * selecionados (`selection: Selection | null` não tem como representar
  * "vários") — quebraria justamente o deliverable pedido ("apagar passa a
  * valer para o conjunto inteiro"). Mudança mínima: só o tipo do prop e o
- * texto do botão para `count > 1`; o texto de `count === 1` é BYTE A BYTE o
- * mesmo de antes (e2e `toHaveText('Apagar parede selecionada(o)')` continua
- * válido).
+ * texto do botão para `count > 1`. O texto de `count === 1` mudou na
+ * auditoria de 14/09: gênero por tipo ("Apagar parede selecionada",
+ * "Apagar token selecionado"), ver `deleteSelectionLabel` em labels.ts.
  */
 export interface SelectionSummary {
   kind: SelectionKind
@@ -37,7 +37,7 @@ export interface SelectionControlsProps {
  * Ações sobre o que está selecionado no mapa.
  *
  * O texto do botão de apagar para 1 item selecionado é verificado byte a
- * byte pelos testes e2e (`toHaveText('Apagar parede selecionada(o)')`),
+ * byte pelos testes e2e (`toHaveText('Apagar parede selecionada')`),
  * então esse caso não pode ganhar ícone nem qualquer outro nó de texto.
  *
  * "Adicionar token" pede o nome antes de criar: sem isso todo token nascia
@@ -49,7 +49,7 @@ export function SelectionControls({ selection, defaultTokenName, onAddToken, onR
     selection === null
       ? 'Nada selecionado'
       : selection.count === 1
-        ? `Apagar ${SELECTION_LABELS[selection.kind]} selecionada(o)`
+        ? deleteSelectionLabel(selection.kind)
         : `Apagar ${selection.count} itens selecionados`
 
   const confirmToken = () => {

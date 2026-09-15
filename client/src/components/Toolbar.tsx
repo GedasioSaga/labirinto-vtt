@@ -1,10 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from 'react'
 import type { DrawingTool } from '../types/tools'
 import { theme } from '../theme'
-import { TOOL_GROUPS, TOOL_HINTS, TOOL_LABELS } from './labels'
+import { TOOLBAR_SLOTS, TOOL_CLUSTERS, TOOL_HINTS, TOOL_LABELS, clusterIdOf, type ToolbarSlot } from './labels'
 import { TOOL_SHORTCUTS } from '../lib/keymap'
 import { placeHint, type HintPlacement } from './hintPlacement'
-import { TOOL_VARIANTS, type ToolVariantReady } from '../lib/toolVariants'
+import { TOOL_VARIANTS, drawingClusterGroups, type ToolVariantGroup } from '../lib/toolVariants'
 import { ToolVariantMenu, type ToolVariantBindings } from './ToolVariantMenu'
 import {
   BrushIcon,
@@ -35,14 +35,15 @@ import {
 interface ToolbarProps {
   activeTool: DrawingTool
   onSelectTool: (tool: DrawingTool) => void
+  /** Última forma de desenho ativada (mapStore) — o botão Desenho mostra e reativa esta quando nenhuma forma está ativa. */
+  lastDrawingTool: DrawingTool
   /**
    * Valor/ação por eixo de variante (doorKind/wallKind/regionFillPattern/
-   * polygonSides) — a setinha de cada ferramenta com entrada `available: true`
-   * em `TOOL_VARIANTS` (lib/toolVariants.ts) lê e escreve daqui. Mesmas
-   * preferências de sessão que `PropertiesPanel` já edita no painel esquerdo
-   * (App.tsx) — a setinha é só um segundo caminho de UI até o MESMO estado,
-   * não um estado novo. Ver CONTRATO do agente N1 pro trecho pronto de
-   * App.tsx.
+   * polygonSides/drawShape...) — a setinha de cada ferramenta com entrada
+   * `available: true` em `TOOL_VARIANTS` (lib/toolVariants.ts), e a do botão
+   * Desenho, lê e escreve daqui. Mesmas preferências de sessão que
+   * `PropertiesPanel` já edita no painel esquerdo (App.tsx) — a setinha é só
+   * um segundo caminho de UI até o MESMO estado, não um estado novo.
    */
   variantBindings: ToolVariantBindings
 }
@@ -75,6 +76,14 @@ const TOOL_ICONS: Partial<Record<DrawingTool, ComponentType<{ size?: number }>>>
   concealZone: ConcealZoneIcon,
 }
 
+/** Tamanho do ícone dentro de uma opção do grupo Forma. */
+const MENU_ICON_SIZE = 16
+
+function menuIconFor(tool: DrawingTool): ReactNode {
+  const Icon = TOOL_ICONS[tool]
+  return Icon ? <Icon size={MENU_ICON_SIZE} /> : null
+}
+
 /**
  * Setinha de variantes — canto do botão principal. Ícone LOCAL de propósito:
  * `components/icons.tsx` é arquivo de integrador/fundação (fora do escopo de
@@ -105,83 +114,152 @@ const EDGE_GAP = parseFloat(theme.layout.edgeGap)
 /** Primeiro x livre à direita do painel lateral. */
 const HINT_MIN_LEFT = parseFloat(theme.layout.railWidth) + EDGE_GAP * 2
 
+/** O que uma posição da barra desenha: nome, ícone, dica, ação e menu. */
+interface SlotView {
+  label: string
+  Icon: ComponentType<{ size?: number }>
+  pressed: boolean
+  tip: string
+  target: DrawingTool
+  /** Grupos do popover da setinha; `null` = sem setinha. */
+  groups: ToolVariantGroup[] | null
+  iconFor?: (tool: DrawingTool) => ReactNode
+}
+
+function slotView(slot: ToolbarSlot, activeTool: DrawingTool, lastDrawingTool: DrawingTool): SlotView | null {
+  const clusterId = clusterIdOf(slot)
+  if (clusterId) {
+    const cluster = TOOL_CLUSTERS[clusterId]
+    const pressed = cluster.tools.includes(activeTool)
+    // O ícone diz o que o clique fará (D5): a forma ativa, ou a última usada.
+    const shape = pressed ? activeTool : lastDrawingTool
+    const Icon = TOOL_ICONS[shape]
+    if (!Icon) return null
+    return {
+      label: cluster.label,
+      Icon,
+      pressed,
+      tip: `${cluster.label}: ${TOOL_LABELS[shape]} (${TOOL_SHORTCUTS[shape]})`,
+      target: shape,
+      groups: drawingClusterGroups(shape),
+      iconFor: menuIconFor,
+    }
+  }
+  const tool = slot as DrawingTool
+  const Icon = TOOL_ICONS[tool]
+  const label = TOOL_LABELS[tool]
+  // TOOLBAR_SLOTS só lista ferramentas com ícone e rótulo — se faltar, é bug
+  // de wiring ao adicionar a ferramenta, não caso de runtime a tratar.
+  if (!Icon || !label) return null
+  const variantEntry = TOOL_VARIANTS[tool]
+  return {
+    label,
+    Icon,
+    pressed: activeTool === tool,
+    tip: `${label} (${TOOL_SHORTCUTS[tool]})`,
+    target: tool,
+    groups: variantEntry && variantEntry.available ? variantEntry.groups : null,
+  }
+}
+
 /**
  * Barra de ferramentas flutuante e a dica contextual ancorada na ferramenta
  * ativa.
  *
  * Os botões são só de ícone: o nome acessível — e o tooltip de hover — vêm de
- * `TOOL_LABELS`, que os testes e2e leem com `exact: true`. Nada de texto dentro
- * do `<button>`, para o nome acessível continuar sendo exatamente o rótulo.
+ * `TOOL_LABELS` (ou do rótulo do grupo), que os testes e2e leem com
+ * `exact: true`. Nada de texto dentro do `<button>`, para o nome acessível
+ * continuar sendo exatamente o rótulo.
  *
  * A dica não fica centralizada sob a barra inteira: ela nasce sob o ícone que a
  * disparou, com uma seta apontando para ele. A posição precisa ser medida
  * porque depende da largura do texto e de onde a janela deixa o balão caber —
  * `placeHint` faz a conta, este componente só fornece as medidas.
  *
- * A barra quebra em mais de uma linha quando não cabe na largura central
- * (ROADMAP.md, dívida D2: 20 botões ≈ 846px, área central ≈ 688px em
- * 1280×800 — já estourava ~40px por lado na Fase 1, ~80px agora). A unidade
- * de quebra é o GRUPO (`TOOL_GROUPS`), não o botão: cada grupo vira um
- * `.lb-toolbar__group` com `flex-wrap: nowrap` interno, e é a barra
+ * A barra quebra em mais de uma linha quando não cabe na largura central. A
+ * unidade de quebra é o GRUPO de `TOOLBAR_SLOTS`, não o botão: cada grupo vira
+ * um `.lb-toolbar__group` com `flex-wrap: nowrap` interno, e é a barra
  * (`.lb-toolbar`, `flex-wrap: wrap`) que distribui grupos inteiros entre
- * linhas. Isso evita separador órfão na borda de uma linha — o ponto de
- * quebra nunca cai no meio de um grupo, porque um grupo não pode encolher
- * abaixo da sua largura mínima. Nenhum botão sai do DOM nem fica
- * `display: none`: todos continuam clicáveis por `getByRole('button', {
- * name })` direto, sem passo de abrir menu antes — é a restrição dura dos
- * 105 specs e2e que clicam nos botões pelo nome acessível (dossiê F4 corrige
- * a contagem de "87" pra "105" — ROADMAP.md estava desatualizado).
+ * linhas, sem separador órfão na borda de uma linha.
  *
- * Fase 4 (N1, "setinha de variantes"): cada ferramenta listada como
- * `available: true` em `TOOL_VARIANTS` (lib/toolVariants.ts) ganha uma
- * SEGUNDA `<button>`, irmã da principal (nunca aninhada — dois `<button>`
- * um dentro do outro é HTML inválido), com nome acessível PRÓPRIO
- * (`Opções de <ferramenta>`) que abre um popover (`ToolVariantMenu`) de
- * preferências pra próxima entidade daquele tipo. O clique no CORPO do
- * botão principal nunca muda — continua só chamando `onSelectTool` — e a
- * setinha só existe para quem tem variante pronta, nunca um item de menu
- * morto.
+ * Botão Desenho (plano de 15/09/2026, fatia 2): as 7 formas (Pincel a
+ * Polígono) dividem UM botão. O nome acessível é fixo em "Desenho" (D6); o
+ * ícone e o `data-tip` mostram a forma ativa ou a última usada, e o clique no
+ * corpo reativa essa forma (D5). As formas continuam alcançáveis pela UI em
+ * dois cliques — setinha "Opções de Desenho" e o rádio da forma, que é o
+ * caminho do helper `e2e/helpers/tools.ts` (`pickTool`) — e em uma tecla
+ * (P/L/U/C/O/R/A, D4).
+ *
+ * Setinha de variantes (Fase 4, N1): cada ferramenta com `available: true` em
+ * `TOOL_VARIANTS` ganha uma SEGUNDA `<button>`, irmã da principal (nunca
+ * aninhada — dois `<button>` um dentro do outro é HTML inválido), com nome
+ * acessível próprio (`Opções de <nome>`) que abre um popover
+ * (`ToolVariantMenu`). O clique no CORPO do botão principal só chama
+ * `onSelectTool`, e a setinha só existe para quem tem opção pronta.
  */
-export function Toolbar({ activeTool, onSelectTool, variantBindings }: ToolbarProps) {
-  const hint = TOOL_HINTS[activeTool]
+export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBindings }: ToolbarProps) {
+  /**
+   * Passo 3, F1: a dica some depois do primeiro uso da ferramenta no canvas e
+   * volta ao trocar de ferramenta. Estado só de UI, nunca vai para o mapa.
+   * O reset na troca é feito durante o render (padrão "estado derivado da
+   * prop"), porque a ferramenta também muda por atalho de teclado, fora do Toolbar.
+   */
+  const [hintDismissed, setHintDismissed] = useState(false)
+  const [hintTool, setHintTool] = useState(activeTool)
+  if (hintTool !== activeTool) {
+    setHintTool(activeTool)
+    setHintDismissed(false)
+  }
+  const hint = hintDismissed ? undefined : TOOL_HINTS[activeTool]
   const dockRef = useRef<HTMLDivElement>(null)
   const hintRef = useRef<HTMLParagraphElement>(null)
   const activeButtonRef = useRef<HTMLButtonElement>(null)
   const [placement, setPlacement] = useState<HintPlacement | null>(null)
 
   /**
-   * Ferramenta cuja setinha está aberta agora (no máximo uma, mesmo padrão
-   * de "um dropdown por vez" de qualquer barra de ferramentas). `null` =
-   * nenhuma aberta.
+   * Posição da barra cuja setinha está aberta agora (no máximo uma, mesmo
+   * padrão de "um dropdown por vez" de qualquer barra de ferramentas). `null`
+   * = nenhuma aberta.
    */
-  const [openVariantTool, setOpenVariantTool] = useState<DrawingTool | null>(null)
-  /** Um `<div>` âncora por ferramenta (guarda o botão + a setinha) — usado só
+  const [openVariantSlot, setOpenVariantSlot] = useState<ToolbarSlot | null>(null)
+  /** Um `<div>` âncora por posição (guarda o botão + a setinha) — usado só
    *  pra decidir "o clique foi dentro do popover aberto ou fora dele" no
    *  listener de pointerdown abaixo. */
-  const variantAnchorRefs = useRef<Map<DrawingTool, HTMLDivElement>>(new Map())
-  /** Um botão de setinha por ferramenta — usado só pra devolver o foco a ela
+  const variantAnchorRefs = useRef<Map<ToolbarSlot, HTMLDivElement>>(new Map())
+  /** Um botão de setinha por posição — usado só pra devolver o foco a ela
    *  quando o popover fecha (Escape, clique fora, ou opção escolhida). */
-  const variantArrowRefs = useRef<Map<DrawingTool, HTMLButtonElement>>(new Map())
+  const variantArrowRefs = useRef<Map<ToolbarSlot, HTMLButtonElement>>(new Map())
 
   const closeVariantMenu = () => {
-    const tool = openVariantTool
-    setOpenVariantTool(null)
-    if (tool) variantArrowRefs.current.get(tool)?.focus()
+    const slot = openVariantSlot
+    setOpenVariantSlot(null)
+    if (slot) variantArrowRefs.current.get(slot)?.focus()
   }
 
   // Fecha ao clicar fora do popover aberto. `pointerdown` (não `click`) pra
   // fechar ANTES do clique seguinte poder acertar outro alvo por baixo do
   // popover — mesma ordem de eventos que um <select> nativo usa.
   useEffect(() => {
-    if (!openVariantTool) return
+    if (!openVariantSlot) return
     const handlePointerDown = (event: PointerEvent) => {
-      const anchor = variantAnchorRefs.current.get(openVariantTool)
+      const anchor = variantAnchorRefs.current.get(openVariantSlot)
       if (anchor && event.target instanceof Node && anchor.contains(event.target)) return
-      setOpenVariantTool(null)
+      setOpenVariantSlot(null)
     }
     document.addEventListener('pointerdown', handlePointerDown)
     return () => document.removeEventListener('pointerdown', handlePointerDown)
-  }, [openVariantTool])
+  }, [openVariantSlot])
+
+  // Primeiro pointerdown de botão principal num <canvas> (o do Pixi) = ferramenta usada.
+  // Captura, para o Pixi não conseguir engolir o evento antes; botão do meio é pan, não uso.
+  useEffect(() => {
+    if (hintDismissed) return
+    const handleCanvasPointerDown = (event: PointerEvent) => {
+      if (event.button === 0 && event.target instanceof HTMLCanvasElement) setHintDismissed(true)
+    }
+    document.addEventListener('pointerdown', handleCanvasPointerDown, true)
+    return () => document.removeEventListener('pointerdown', handleCanvasPointerDown, true)
+  }, [hintDismissed])
 
   useLayoutEffect(() => {
     if (!hint) {
@@ -223,83 +301,74 @@ export function Toolbar({ activeTool, onSelectTool, variantBindings }: ToolbarPr
   return (
     <div className="lb-toolbar-dock" ref={dockRef}>
       <div className="lb-panel lb-toolbar" role="toolbar" aria-label="Ferramentas do mapa">
-        {TOOL_GROUPS.map((group, index) => (
+        {TOOLBAR_SLOTS.map((group, index) => (
           // Grupo inteiro é a unidade de quebra de linha — ver comentário do
           // componente. O separador mora dentro do grupo que ele abre, então
           // os dois sempre migram juntos para a linha seguinte.
           <div className="lb-toolbar__group" key={group[0]}>
             {index > 0 && <span className="lb-toolbar__sep" aria-hidden="true" />}
-            {group.map((tool) => {
-              // TOOL_GROUPS só lista ferramentas com entrada em TOOL_ICONS —
-              // se faltar, é bug de wiring ao adicionar a ferramenta, não
-              // caso de runtime a tratar silenciosamente.
-              const ToolIcon = TOOL_ICONS[tool]
-              if (!ToolIcon) return null
-              // `variantEntry && variantEntry.available ? variantEntry : null`
-              // (não `?.`) de propósito: só essa forma estreita o tipo pro
-              // TypeScript reconhecer `readyEntry` como `ToolVariantReady`,
-              // não só `boolean | undefined` — precisa disso pra passar pra
-              // `<ToolVariantMenu entry={readyEntry}>` sem `as`.
-              const variantEntry = TOOL_VARIANTS[tool]
-              const readyEntry: ToolVariantReady | null = variantEntry && variantEntry.available ? variantEntry : null
+            {group.map((slot) => {
+              const view = slotView(slot, activeTool, lastDrawingTool)
+              if (!view) return null
+              const { Icon } = view
+              const menuOpen = openVariantSlot === slot
               return (
-                // Âncora do par botão+setinha. NÃO substitui o `<button>`
-                // principal no DOM nem muda seu nome acessível — os 105
-                // specs e2e que clicam por `getByRole('button', { name })`
-                // continuam achando o MESMO botão, só que agora dentro de um
-                // `<div>` a mais. A setinha é um `<button>` IRMÃO (nunca
-                // aninhado dentro do botão principal — dois `<button>`
-                // aninhados é HTML inválido), então o clique no corpo do
-                // botão principal continua só chamando `onSelectTool`, nunca
-                // abrindo o popover.
+                // Âncora do par botão+setinha. A setinha é um `<button>` IRMÃO
+                // do principal (nunca aninhado), então o clique no corpo do
+                // botão principal só chama `onSelectTool`, nunca abre o popover.
                 <div
-                  key={tool}
+                  key={slot}
                   className="lb-toolvariant-anchor"
                   ref={(node) => {
-                    if (node) variantAnchorRefs.current.set(tool, node)
-                    else variantAnchorRefs.current.delete(tool)
+                    if (node) variantAnchorRefs.current.set(slot, node)
+                    else variantAnchorRefs.current.delete(slot)
                   }}
                 >
                   <button
-                    ref={activeTool === tool ? activeButtonRef : undefined}
+                    // A dica da ferramenta ativa ancora no botão que está
+                    // pressionado — no grupo Desenho, o próprio botão do grupo.
+                    ref={view.pressed ? activeButtonRef : undefined}
                     type="button"
                     className="lb-iconbtn lb-tip"
-                    aria-label={TOOL_LABELS[tool]}
-                    aria-pressed={activeTool === tool}
+                    aria-label={view.label}
+                    aria-pressed={view.pressed}
                     // Onda 1, item 6 do plano — atalho invisível é atalho
-                    // inexistente. `aria-label` (nome acessível, lido pelos
-                    // e2e via `getByRole`) fica intocado; só o balão de dica
-                    // ganha a letra.
-                    data-tip={`${TOOL_LABELS[tool]} (${TOOL_SHORTCUTS[tool]})`}
-                    onClick={() => onSelectTool(tool)}
+                    // inexistente. `aria-label` fica intocado; só o balão de
+                    // dica ganha a letra.
+                    data-tip={view.tip}
+                    onClick={() => onSelectTool(view.target)}
                   >
-                    <ToolIcon />
+                    <Icon />
                   </button>
-                  {readyEntry && (
+                  {view.groups && (
                     <button
                       ref={(node) => {
-                        if (node) variantArrowRefs.current.set(tool, node)
-                        else variantArrowRefs.current.delete(tool)
+                        if (node) variantArrowRefs.current.set(slot, node)
+                        else variantArrowRefs.current.delete(slot)
                       }}
                       type="button"
                       className="lb-toolvariant-arrow"
-                      aria-label={`Opções de ${TOOL_LABELS[tool]}`}
+                      aria-label={`Opções de ${view.label}`}
                       aria-haspopup="true"
-                      aria-expanded={openVariantTool === tool}
+                      aria-expanded={menuOpen}
                       onClick={(event) => {
-                        // Nunca deixa o clique borbulhar pro botão principal
-                        // por baixo (são irmãos, não aninhados, então isto é
-                        // defensivo, não estritamente necessário — mas barato
-                        // e evita depender da ordem de handlers do React).
+                        // Defensivo: os dois botões são irmãos, mas não custa
+                        // garantir que o clique não chegue ao principal.
                         event.stopPropagation()
-                        setOpenVariantTool((current) => (current === tool ? null : tool))
+                        setOpenVariantSlot((current) => (current === slot ? null : slot))
                       }}
                     >
                       <ChevronDownIcon />
                     </button>
                   )}
-                  {readyEntry && openVariantTool === tool && (
-                    <ToolVariantMenu entry={readyEntry} bindings={variantBindings} onClose={closeVariantMenu} />
+                  {view.groups && menuOpen && (
+                    <ToolVariantMenu
+                      title={view.label}
+                      groups={view.groups}
+                      bindings={variantBindings}
+                      iconFor={view.iconFor}
+                      onClose={closeVariantMenu}
+                    />
                   )}
                 </div>
               )

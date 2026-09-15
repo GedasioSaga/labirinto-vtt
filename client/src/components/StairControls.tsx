@@ -1,5 +1,4 @@
 import type { StairDirection } from '../types/map'
-import { Toggle } from './Toggle'
 import { stairSizePresetForStepWidth, stairStepWidthForPreset, type StairSizePreset } from '../lib/stairs'
 
 export interface StairControlsProps {
@@ -17,6 +16,13 @@ export interface StairControlsProps {
 const MIN_STEP_WIDTH = 1
 
 const PRESET_ORDER: StairSizePreset[] = ['small', 'medium', 'large']
+
+const DIRECTION_ORDER: StairDirection[] = ['up', 'down']
+
+const DIRECTION_LABELS: Record<StairDirection, string> = {
+  up: 'Sobe',
+  down: 'Desce',
+}
 
 const PRESET_LABELS: Record<StairSizePreset, string> = {
   small: 'Pequena',
@@ -48,11 +54,25 @@ export function StairControls({ direction, onDirectionChange, stepWidth, onStepW
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Escada</h2>
-      <Toggle
-        label="Sobe (desmarcado = desce)"
-        checked={direction === 'up'}
-        onChange={(checked) => onDirectionChange(checked ? 'up' : 'down')}
-      />
+      {/* Segmento Sobe | Desce (auditoria 14/09): o toggle "Sobe (desmarcado =
+          desce)" pedia para ler a regra antes de clicar. */}
+      <div className="lb-field">
+        <span className="lb-label">Sentido</span>
+        <div className="lb-seg" role="radiogroup" aria-label="Sentido da escada">
+          {DIRECTION_ORDER.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={direction === option}
+              className="lb-seg__option"
+              onClick={() => onDirectionChange(option)}
+            >
+              {DIRECTION_LABELS[option]}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="lb-field">
         <span className="lb-label">Tamanho</span>

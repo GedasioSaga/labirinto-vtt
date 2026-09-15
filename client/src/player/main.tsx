@@ -171,6 +171,11 @@ function Session({ connection, onLeave }: { connection: PlayerConnection; onLeav
       message = 'Você foi removido da sala pelo mestre.'
       action = { label: 'Voltar', run: onLeave }
       break
+    case 'closed':
+      // Sem Reconectar: a sala não existe mais.
+      message = 'O mestre encerrou a sala.'
+      action = { label: 'Voltar', run: onLeave }
+      break
     case 'error': {
       const reason = state.error ?? 'unknown'
       message = REASON_TEXT[reason] ?? `Erro: ${reason}`

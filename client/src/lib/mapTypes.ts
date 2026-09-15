@@ -7,6 +7,8 @@
  * convenção travada para os três tipos; a linha de apoio e o resto da
  * interface seguem em português.
  */
+import { FEATURES, type FeatureFlags } from './features'
+
 export interface MapTypeDef {
   id: 'dungeon' | 'isometric' | 'world'
   name: string
@@ -37,3 +39,11 @@ export const MAP_TYPES: MapTypeDef[] = [
     badge: 'Em breve',
   },
 ]
+
+/**
+ * Tipos que o seletor mostra. `MAP_TYPES` fica intacto (o catálogo é o
+ * contrato); sem `otherMapTypes` só o Dungeon Map aparece.
+ */
+export function visibleMapTypes(flags: Readonly<FeatureFlags> = FEATURES): MapTypeDef[] {
+  return flags.otherMapTypes ? MAP_TYPES : MAP_TYPES.filter((type) => type.id === 'dungeon')
+}

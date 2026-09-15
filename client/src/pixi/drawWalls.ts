@@ -1,84 +1,32 @@
-import type { Graphics } from 'pixi.js'
+import type { Container, Graphics } from 'pixi.js'
 import type { Wall } from '../types/map'
 import { SELECTION_COLOR } from './constants'
+import { HATCH_TILE_REFERENCE_GRID, wallColorFor, wallWidthFor } from './dungeonStyle'
 
 /**
  * Espessura nomeada da parede (Fase 6, pedido do usuário: "se eu quero
  * poligono finos ou medios ou gordos") — EIXO SEPARADO de `wall.wallKind`.
- * `wallKind` (interior/exterior) é classificação SEMÂNTICA (estrutural vs
- * divisória, herdada de uma fase anterior); `thickness` é preferência de
- * ESTILO por cima disso, ortogonal. Fundir os dois num único enum (ex.
- * 'ext-fina' | 'ext-grossa' | 'int-fina' | 'int-grossa') quebraria o campo já
- * persistido `wallKind` em todo mapa salvo e impediria exatamente o que o
- * usuário pediu: "externa fina" pra rua/construção artesanal, que hoje seria
- * uma contradição semântica se 'exterior' já significasse "grossa". Mantendo
- * os dois eixos, qualquer uma das 6 combinações é representável.
- * `undefined` === 'medium' — ver `WallWithStyle` abaixo (campo ainda não
- * existe em `types/map.ts`, CONTRATO no relatório do agente G1).
+ * `wallKind` (interior/exterior) é classificação SEMÂNTICA; `thickness` é
+ * preferência de ESTILO por cima disso. Qualquer uma das 6 combinações é
+ * representável. `undefined` === 'medium'.
  */
 export type WallThickness = 'thin' | 'medium' | 'thick'
 
 /**
- * Ponta/canto reto ou arredondado (Fase 6, pedido literal: "essas paredes
- * tem a ponta redonda, quero a opcao de colocar reta ou redondo" +
- * "as linhas dos poligonos se eu quero eles arredondados ou retos"). Um
- * único eixo cobre os dois pedidos porque são a MESMA escolha visual em dois
- * contextos: numa parede solta (ou na ponta aberta de uma cadeia — ver
- * `groupWallsForPath` abaixo) vira o `cap` do stroke; num canto fechado
- * (Sala) vira o `join`. 'round' → cap 'round' + join 'round' (comportamento
- * hardcoded de antes desta fase). 'straight' → cap 'butt' + join 'miter'
- * (cantos de 90° ficam nítidos, sem sobra — ver `drawRegions.ts`, que já usa
- * miter como default do Pixi pra ângulo reto sem problema). `undefined` ===
- * 'round'.
+ * Ponta/canto reto ou arredondado (Fase 6: "quero a opcao de colocar reta ou
+ * redondo"). Numa parede solta vira o `cap`; num canto fechado (Sala) vira o
+ * `join`. 'round' → cap/join 'round'. 'straight' → cap 'butt' + join 'miter'.
+ * `undefined` === 'round'.
  */
 export type WallLineStyle = 'round' | 'straight'
 
-/**
- * `Wall` (types/map.ts) ainda não tem `thickness`/`lineStyle` — são campos
- * novos desta fase e `types/map.ts` é arquivo de integrador, fora do meu
- * escopo de escrita (ver CONTRATO no relatório). Em vez de fazer `as` pra
- * "forçar" os campos em cima de `Wall`, esta extensão estrutural resolve o
- * mesmo problema sem calar o compilador: como os 2 campos são opcionais,
- * qualquer `Wall[]` de HOJE (sem eles) já satisfaz `WallWithStyle[]`
- * naturalmente — nenhum call site (PixiCanvas.tsx, drawDoors.test.ts) precisa
- * mudar pra continuar compilando. Assim que o integrador adicionar os 2
- * campos em `Wall`, este alias e os 2 tipos acima devem se mudar para
- * `types/map.ts` e este arquivo/`WallStyleControls.tsx` trocam o import.
- */
 export type WallWithStyle = Wall & { thickness?: WallThickness; lineStyle?: WallLineStyle }
 
 /**
- * Espessura base (kind × thickness='medium'), em px de MUNDO — reduzida em
- * ~60% em relação ao que era hardcoded antes desta fase (interior 2.5→1,
- * exterior 4→1.5). Pedido literal do usuário: "ta muito gordo tudo isso,
- * tente deixar tudo extremamente fino". Referência de proporção: `map.grid`
- * default é 64px (`lib/mapFile.ts:24`) — a parede exterior ia de 6.25% de uma
- * célula pra 2.34%. Este valor é o preset 'medium'; 'thin'/'thick' escalam a
- * partir dele via THICKNESS_RATIO abaixo.
+ * Grade padrão para quem chama sem `grid` (testes antigos): a mesma de
+ * `HATCH_TILE_REFERENCE_GRID`, em que a parede externa média dá 16 px.
  */
-const KIND_BASE_WIDTH: Record<'interior' | 'exterior', number> = { interior: 1, exterior: 1.5 }
-
-/** Cor por `wallKind` — inalterada desta fase (só a espessura mudou). */
-const WALL_COLOR: Record<'interior' | 'exterior', number> = { interior: 0xa8a8a8, exterior: 0xe0e0e0 }
-
-/**
- * Multiplicador do preset de espessura sobre `KIND_BASE_WIDTH` — mesma escala
- * 0.5/1/2 que `STAIR_SIZE_PRESET_RATIO` (`lib/stairs.ts`) já usa pra
- * pequena/média/grande, reaproveitada de propósito: mesmo vocabulário
- * "P/M/G" do usuário (N1), agora aplicado a espessura de parede em vez de
- * tamanho de lance de escada.
- */
-const THICKNESS_RATIO: Record<WallThickness, number> = { thin: 0.5, medium: 1, thick: 2 }
-
-/**
- * Realce de seleção: multiplicativo sobre a largura já resolvida (kind ×
- * thickness), com PISO absoluto. Sem o piso, uma parede 'thin' selecionada
- * (1 × 0.5 × 1.6 = 0.8px) ficaria mais FINA que uma parede 'thick' comum não
- * selecionada (1.5 × 2 = 3px), invertendo a hierarquia visual
- * "selecionado = destaque" que a UI promete em todo o resto do app.
- */
-const SELECTION_WIDTH_MULTIPLIER = 1.6
-const MIN_SELECTED_WIDTH = 2
+export const DEFAULT_WALL_GRID = HATCH_TILE_REFERENCE_GRID
 
 interface WallVisualStyle {
   width: number
@@ -91,68 +39,40 @@ function capJoinFor(lineStyle: WallLineStyle): Pick<WallVisualStyle, 'cap' | 'jo
   return lineStyle === 'straight' ? { cap: 'butt', join: 'miter' } : { cap: 'round', join: 'round' }
 }
 
-/** Resolve os 3 eixos (`wallKind`/`thickness`/`lineStyle`, todos com default
- *  por `undefined`) mais seleção num estilo visual concreto — única função
- *  que sabe a fórmula, tanto pro caso "1 parede = 1 stroke" quanto pro caso
- *  "N paredes = 1 path" (`drawRun` abaixo usa o resultado do primeiro membro
- *  do grupo, garantido idêntico aos demais por `sameStyle` em
- *  `groupWallsForPath`). */
-function resolveWallStyle(wall: WallWithStyle, isSelected: boolean): WallVisualStyle {
-  const kind = wall.wallKind ?? 'exterior'
-  const thickness = wall.thickness ?? 'medium'
-  const lineStyle = wall.lineStyle ?? 'round'
-  const baseWidth = KIND_BASE_WIDTH[kind] * THICKNESS_RATIO[thickness]
-  const width = isSelected ? Math.max(baseWidth * SELECTION_WIDTH_MULTIPLIER, MIN_SELECTED_WIDTH) : baseWidth
-  const color = isSelected ? SELECTION_COLOR : WALL_COLOR[kind]
-  return { width, color, ...capJoinFor(lineStyle) }
+/**
+ * Resolve os eixos (`wallKind`/`thickness`/`lineStyle`) num estilo concreto.
+ * Passo 3 (BAR "Dyson Logos"): a largura é fração da célula (`wallWidthFor`,
+ * dungeonStyle.ts) — 0,25 célula externa, 0,125 interna — e a cor é tinta
+ * escura. A seleção NÃO entra aqui: é contorno à parte e a parede
+ * selecionada mantém cor e espessura reais.
+ */
+function resolveWallStyle(wall: WallWithStyle, grid: number): WallVisualStyle {
+  return { width: wallWidthFor(wall, grid), color: wallColorFor(wall), ...capJoinFor(wall.lineStyle ?? 'round') }
 }
 
 function sameStyle(a: WallVisualStyle, b: WallVisualStyle): boolean {
   return a.width === b.width && a.color === b.color && a.cap === b.cap && a.join === b.join
 }
 
-/** Parede vinculada a uma Região com o índice de aresta já resolvido (não
- *  `undefined`) — narrowing explícito via type guard, pra nunca precisar de
- *  `as number` ao ler `regionEdgeIndex` depois de agrupar por `regionId`. */
 type RegionEdgeWall = WallWithStyle & { regionId: string; regionEdgeIndex: number }
 
 function hasRegionEdge(wall: WallWithStyle): wall is RegionEdgeWall {
   return wall.regionId !== undefined && wall.regionEdgeIndex !== undefined
 }
 
-interface WallRun {
-  walls: WallWithStyle[]
-  style: WallVisualStyle
-}
-
 /**
- * Agrupa paredes em "runs" — sequências que vão virar UM path com UM
- * `stroke()`, em vez de um `stroke()` por parede. Corrige o bug B1
- * (`docs/DOSSIE-FEEDBACK-F4.md`, "bug1 canto-aberto") pela via geometricamente
- * correta que o dossiê descreveu como opção 2: paredes da MESMA Região,
- * ordenadas por `regionEdgeIndex`, formam um path contínuo — o canto fecha
- * pelo *line join* do Pixi, não pelo `cap` de cada ponta (o hack da Fase 4).
- *
- * Uma "run" quebra em dois casos, ambos obrigatórios pra não regredir nada:
- *  1. `regionEdgeIndex` não é consecutivo (aresta apagada no meio — invariante
- *     documentada em `types/map.ts`, `Wall.regionEdgeIndex`: "o conjunto em
- *     uso é um SUBCONJUNTO de 0..n-1, nunca presumido completo"). Sem isso,
- *     duas paredes que NÃO são vizinhas geometricamente ganhariam um
- *     `lineTo` ligando os dois pontos errados.
- *  2. Estilo diferente entre paredes vizinhas (kind/thickness/lineStyle
- *     distintos, OU só uma das duas está selecionada) — Pixi só aceita UM
- *     `width`/`color`/`cap`/`join` por `stroke()`; sem essa quebra, editar o
- *     estilo de 1 parede de uma Sala de 4 mudaria a aparência das outras 3
- *     (ou pior, o Pixi aplicaria o estilo errado a alguma delas).
- *
- * Paredes soltas (sem `regionId`+`regionEdgeIndex`) e runs de 1 parede só
- * (por quebra de estilo, ou vizinho apagado) continuam se comportando como
- * "parede solta, cap independente" — mesmo fallback que já existia antes
- * desta fase, agora também alcançável a partir de uma Região com estilo misto.
+ * Agrupa paredes em cadeias contíguas — sequências que viram UM path com UM
+ * `stroke()`. Paredes da MESMA Região, ordenadas por `regionEdgeIndex`, formam
+ * um path contínuo e o canto fecha pelo *line join* (correção de B1,
+ * docs/DOSSIE-FEEDBACK-F4.md). A cadeia quebra quando:
+ *  1. `regionEdgeIndex` não é consecutivo (aresta apagada no meio);
+ *  2. `breaksBetween(anterior, próxima)` diz que sim (estilo diferente, porta…).
+ * Parede sem `regionId`+`regionEdgeIndex` é cadeia de 1.
+ * Exportada para a hachura (drawHatch.ts) usar a mesma geometria de canto.
  */
-function groupWallsForPath(walls: WallWithStyle[], selectedWallId: string | null): WallRun[] {
-  const byRegion = new Map<string, RegionEdgeWall[]>()
-  const runs: WallRun[] = []
+export function groupWallChains<T extends WallWithStyle>(walls: T[], breaksBetween: (previous: T, next: T) => boolean): T[][] {
+  const byRegion = new Map<string, (T & RegionEdgeWall)[]>()
+  const chains: T[][] = []
 
   for (const wall of walls) {
     if (hasRegionEdge(wall)) {
@@ -160,107 +80,151 @@ function groupWallsForPath(walls: WallWithStyle[], selectedWallId: string | null
       list.push(wall)
       byRegion.set(wall.regionId, list)
     } else {
-      runs.push({ walls: [wall], style: resolveWallStyle(wall, wall.id === selectedWallId) })
+      chains.push([wall])
     }
   }
 
   for (const group of byRegion.values()) {
     const sorted = [...group].sort((a, b) => a.regionEdgeIndex - b.regionEdgeIndex)
-
-    let currentRun: WallWithStyle[] = []
-    let currentStyle: WallVisualStyle | null = null
-    let previousIndex: number | null = null
-
-    const flush = () => {
-      if (currentRun.length > 0 && currentStyle) {
-        runs.push({ walls: currentRun, style: currentStyle })
-      }
-    }
-
+    let current: T[] = []
+    let previous: (T & RegionEdgeWall) | null = null
     for (const wall of sorted) {
-      const style = resolveWallStyle(wall, wall.id === selectedWallId)
-      const contiguous = previousIndex !== null && wall.regionEdgeIndex === previousIndex + 1
-      const styleMatches = currentStyle !== null && sameStyle(style, currentStyle)
-      if (contiguous && styleMatches) {
-        currentRun.push(wall)
+      const contiguous = previous !== null && wall.regionEdgeIndex === previous.regionEdgeIndex + 1
+      if (previous !== null && contiguous && !breaksBetween(previous, wall)) {
+        current.push(wall)
       } else {
-        flush()
-        currentRun = [wall]
-        currentStyle = style
+        if (current.length > 0) chains.push(current)
+        current = [wall]
       }
-      previousIndex = wall.regionEdgeIndex
+      previous = wall
     }
-    flush()
+    if (current.length > 0) chains.push(current)
   }
 
-  return runs
+  return chains
 }
 
 const CLOSE_EPSILON = 1e-6
 
-/** Uma run fecha (vira loop, `closePath()`) quando a última parede termina
- *  exatamente onde a primeira começa — checagem GEOMÉTRICA (coordenadas),
- *  não de índice: `drawWalls` só recebe `Wall[]`, nunca o `Region.points`
- *  original, então não há como saber `n` (o total de arestas da região) pra
- *  comparar contra `regionEdgeIndex`. Exigir `length >= 3` evita fechar um
- *  "polígono" degenerado de 2 lados (impossível fisicamente, mas a checagem
- *  de coordenada sozinha não bastaria pra descartar). */
-function isClosedRun(run: WallWithStyle[]): boolean {
-  if (run.length < 3) return false
-  const first = run[0]
-  const last = run[run.length - 1]
+/** A cadeia fecha (loop, `closePath()`) quando a última parede termina onde a
+ *  primeira começa — checagem GEOMÉTRICA. `length >= 3` descarta "polígono" de 2 lados. */
+export function isClosedChain(chain: readonly Pick<Wall, 'x1' | 'y1' | 'x2' | 'y2'>[]): boolean {
+  if (chain.length < 3) return false
+  const first = chain[0]
+  const last = chain[chain.length - 1]
   return Math.abs(last.x2 - first.x1) < CLOSE_EPSILON && Math.abs(last.y2 - first.y1) < CLOSE_EPSILON
 }
 
-/** Desenha uma run inteira como UM path (`moveTo` + `lineTo` em sequência) e
- *  UM `stroke()` — mesmo padrão de `drawRegions.ts` (`createRegionsRenderer`,
- *  `draw`). Run de 1 parede só cai no mesmo código: `rest` fica vazio,
- *  `isClosedRun` é `false` (comprimento < 3), resultado idêntico a antes
- *  desta fase (1 `moveTo`+`lineTo`+`stroke`, sem `closePath`). */
-function drawRun(graphics: Graphics, run: WallWithStyle[], style: WallVisualStyle): void {
-  const [first, ...rest] = run
+/** Traça a cadeia como UM path (`moveTo` + `lineTo`s, `closePath` se fechar); quem chama faz o stroke. */
+export function traceWallChain(graphics: Graphics, chain: readonly Pick<Wall, 'x1' | 'y1' | 'x2' | 'y2'>[]): void {
+  const [first, ...rest] = chain
   graphics.moveTo(first.x1, first.y1).lineTo(first.x2, first.y2)
   for (const wall of rest) {
     graphics.lineTo(wall.x2, wall.y2)
   }
-  if (isClosedRun(run)) {
+  if (isClosedChain(chain)) {
     graphics.closePath()
   }
-  graphics.stroke({ width: style.width, color: style.color, cap: style.cap, join: style.join })
 }
 
 /**
- * Desenha a LINHA da parede — largura/cor/ponta por `wallKind`/`thickness`/
- * `lineStyle`, com ou sem porta. `pixi/drawDoors.ts` desenha por cima o que
- * distingue visualmente uma parede-com-porta (ombreira + folha/barras, por
- * `door.kind`/`locked`).
- *
- * `cameraScale`: `camera.scale` atual (default 1). `wallsGraphics` é filho de
- * `world` (`PixiCanvas.tsx`, `world.scale.set(camera.scale)`), então a
- * largura de mundo é multiplicada pelo zoom na tela; `screenSafeWidth` impõe
- * o piso de 1 px de tela. O PixiCanvas redesenha as paredes quando a escala
- * muda, senão o piso ficaria preso na escala do último redraw.
+ * Runs da LINHA da parede: parede com porta NÃO é desenhada como linha (o vão
+ * é da porta, drawDoors.ts) e por isso quebra a cadeia; estilo diferente
+ * também quebra (Pixi aceita um width/color/cap/join por stroke).
  */
-export function drawWalls(graphics: Graphics, walls: WallWithStyle[], selectedWallId: string | null = null, cameraScale = 1): void {
+function groupWallsForPath(walls: WallWithStyle[], grid: number): { walls: WallWithStyle[]; style: WallVisualStyle }[] {
+  const solid = walls.filter((wall) => wall.door === null)
+  const chains = groupWallChains(solid, (previous, next) => !sameStyle(resolveWallStyle(previous, grid), resolveWallStyle(next, grid)))
+  return chains.map((chain) => ({ walls: chain, style: resolveWallStyle(chain[0], grid) }))
+}
+
+/**
+ * Desenha a LINHA das paredes sem porta — largura em fração de célula
+ * (`grid`), cor de tinta e ponta por `lineStyle`.
+ *
+ * `cameraScale`: `camera.scale` atual (default 1). `screenSafeWidth` impõe o
+ * piso de 1 px de tela; o PixiCanvas redesenha quando a escala muda.
+ *
+ * Seleção é contorno POR BAIXO, `SELECTION_OUTLINE_SCREEN_PX` mais largo de
+ * cada lado da parede grossa — cor e espessura reais continuam por cima:
+ *  - `selectedWallId`: a parede selecionada;
+ *  - `highlightedRegionId`: a Sala selecionada — o contorno segue todas as
+ *    paredes dela (inclusive as de porta, para não abrir no vão). Sem isso o
+ *    contorno da Região (drawRegions.ts) ficaria escondido sob a parede de
+ *    0,25 célula.
+ */
+export function drawWalls(
+  graphics: Graphics,
+  walls: WallWithStyle[],
+  selectedWallId: string | null = null,
+  cameraScale = 1,
+  grid: number = DEFAULT_WALL_GRID,
+  highlightedRegionId: string | null = null,
+): void {
   graphics.clear()
-  const runs = groupWallsForPath(walls, selectedWallId)
-  for (const { walls: run, style } of runs) {
-    drawRun(graphics, run, { ...style, width: screenSafeWidth(style.width, cameraScale) })
+  if (highlightedRegionId !== null) drawRegionWallsOutline(graphics, walls, highlightedRegionId, cameraScale, grid)
+  const selected = selectedWallId === null ? undefined : walls.find((wall) => wall.id === selectedWallId)
+  if (selected) drawWallSelectionOutline(graphics, selected, cameraScale, grid)
+  for (const { walls: run, style } of groupWallsForPath(walls, grid)) {
+    traceWallChain(graphics, run)
+    graphics.stroke({ width: screenSafeWidth(style.width, cameraScale), color: style.color, cap: style.cap, join: style.join })
+  }
+}
+
+/** Traço mais largo em `SELECTION_COLOR` sob a parede. Ponta reta (`butt`)
+ *  vira `square` no contorno: sem isso as duas pontas ficariam sem moldura. */
+function drawWallSelectionOutline(graphics: Graphics, wall: WallWithStyle, cameraScale: number, grid: number): void {
+  const style = resolveWallStyle(wall, grid)
+  const width = screenSafeWidth(style.width, cameraScale) + 2 * selectionOutlineWidth(cameraScale)
+  graphics.moveTo(wall.x1, wall.y1).lineTo(wall.x2, wall.y2)
+  graphics.stroke({ width, color: SELECTION_COLOR, cap: style.cap === 'butt' ? 'square' : 'round', join: style.join })
+}
+
+function drawRegionWallsOutline(graphics: Graphics, walls: WallWithStyle[], regionId: string, cameraScale: number, grid: number): void {
+  const own = walls.filter((wall) => wall.regionId === regionId)
+  if (own.length === 0) return
+  const outline = 2 * selectionOutlineWidth(cameraScale)
+  for (const chain of groupWallChains(own, () => false)) {
+    const width = Math.max(...chain.map((wall) => screenSafeWidth(wallWidthFor(wall, grid), cameraScale)))
+    traceWallChain(graphics, chain)
+    graphics.stroke({ width: width + outline, color: SELECTION_COLOR, cap: 'square', join: 'miter' })
   }
 }
 
 /**
- * Largura mínima de um traço em px de TELA. O app Pixi do editor roda sem
- * antialias: abaixo de 1 px na tela a linha cai entre os centros de pixel e
- * some (parede exterior de 1,5 px de mundo a 50% de zoom vira 0,75 px).
+ * Espessura, em px de TELA, do contorno de seleção de parede, região e
+ * desenho (auditoria 14/09: o destaque amarelo pintava por cima da cor real).
+ * Fica POR FORA do objeto, sem preencher.
+ */
+export const SELECTION_OUTLINE_SCREEN_PX = 2
+
+/** `SELECTION_OUTLINE_SCREEN_PX` convertido para px de mundo na escala atual. */
+export function selectionOutlineWidth(cameraScale: number): number {
+  return SELECTION_OUTLINE_SCREEN_PX / cameraScale
+}
+
+/**
+ * Escala da câmera para quem desenha: a explícita, se válida; senão a escala
+ * de mundo do próprio nó (filho de `world`, cujo `scale` é `camera.scale`),
+ * que o Pixi atualiza a cada render. Fora da cena (testes) dá 1.
+ */
+export function resolveCameraScale(node: Container, explicit: number | undefined): number {
+  if (explicit !== undefined && Number.isFinite(explicit) && explicit > 0) return explicit
+  const t = node.worldTransform
+  const scale = Math.hypot(t.a, t.b)
+  return Number.isFinite(scale) && scale > 0 ? scale : 1
+}
+
+/**
+ * Largura mínima de um traço em px de TELA: abaixo de 1 px a linha cai entre
+ * os centros de pixel e some.
  */
 export const MIN_SCREEN_STROKE_PX = 1
 
 /**
  * Largura de mundo que garante pelo menos `MIN_SCREEN_STROKE_PX` na tela.
- * Acima do piso a espessura acompanha o zoom como qualquer geometria do mapa
- * (a hierarquia fina/média/grossa continua valendo); só abaixo dele o traço
- * é engordado o mínimo para continuar visível.
+ * Acima do piso a espessura acompanha o zoom; só abaixo dele o traço é
+ * engordado o mínimo para continuar visível.
  */
 export function screenSafeWidth(worldWidth: number, cameraScale: number): number {
   return Math.max(worldWidth, MIN_SCREEN_STROKE_PX / cameraScale)

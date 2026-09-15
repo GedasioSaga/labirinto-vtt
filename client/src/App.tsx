@@ -31,7 +31,7 @@ import { PropertiesPanel } from './components/PropertiesPanel'
 import { ActionBar } from './components/ActionBar'
 import type { DoorKind, DrawingCap, MapData, Region, Wall } from './types/map'
 import type { Screen } from './types/screen'
-import { parentScreen } from './lib/navigation'
+import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
 import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
@@ -56,6 +56,14 @@ import { fitTitleFont } from './pixi/frameTitle'
 function reportFileError(action: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err)
   useToastStore.getState().push('error', `Não foi possível ${action}: ${message}`)
+}
+
+/** Aviso de sucesso de Salvar (botão, Ctrl+S) e de sair por Início. */
+const MAP_SAVED_TEXT = 'Mapa salvo'
+
+/** Ferramentas que criam Sala (piso em `roomFillColor`); Região usa `regionFillColor`. */
+function isRoomTool(tool: string): boolean {
+  return tool === 'room' || tool === 'roomCircle' || tool === 'roomPolygon'
 }
 
 /**
@@ -103,6 +111,8 @@ function App() {
   const setPolygonSides = useMapStore((state) => state.setPolygonSides)
   const regionFillColor = useMapStore((state) => state.regionFillColor)
   const setRegionFillColor = useMapStore((state) => state.setRegionFillColor)
+  const roomFillColor = useMapStore((state) => state.roomFillColor)
+  const setRoomFillColor = useMapStore((state) => state.setRoomFillColor)
   const setRegionColor = useMapStore((state) => state.setRegionColor)
   const regionFillPattern = useMapStore((state) => state.regionFillPattern)
   const setRegionFillPattern = useMapStore((state) => state.setRegionFillPattern)
@@ -160,6 +170,7 @@ function App() {
   // Fase 5 — N1 "setinha de variantes": os 3 eixos que faltavam
   // (pincel/borracha/escada), mesma classe de drawCap/wallKind/doorKind acima.
   const drawTexture = useMapStore((state) => state.drawTexture)
+  const lastDrawingTool = useMapStore((state) => state.lastDrawingTool)
   const setDrawTexture = useMapStore((state) => state.setDrawTexture)
   const eraseMode = useMapStore((state) => state.eraseMode)
   const setEraseMode = useMapStore((state) => state.setEraseMode)
@@ -196,8 +207,6 @@ function App() {
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
-  /** A3 — Sala recém-desenhada cujo Nome deve ganhar foco uma vez. */
-  const [roomNameFocusId, setRoomNameFocusId] = useState<string | null>(null)
   const hostBridgeRef = useRef<HostBridge | null>(null)
   const hostBridge = (): HostBridge => {
     if (!hostBridgeRef.current) {
@@ -578,6 +587,10 @@ function App() {
       setRegionColor(selectedRegion.id, color)
       return
     }
+    if (isRoomTool(activeTool)) {
+      setRoomFillColor(color)
+      return
+    }
     setRegionFillColor(color)
   }
 
@@ -758,6 +771,9 @@ function App() {
   const handleGoBack = async () => {
     if (!previousMapPath) return
     try {
+      // Salva o andar antes de sair dele: sem isto, o que foi desenhado no
+      // andar sumia ao Voltar (só a entrada salvava, a saída não).
+      await persistMap()
       loadMap(await loadMapFromDisk(previousMapPath))
       setCurrentMapPath(previousMapPath)
       setPreviousMapPath(null)
@@ -771,10 +787,11 @@ function App() {
    * Token nasce no centro da área visível do canvas (câmera da store, que o
    * PixiCanvas mantém em dia a cada pan/zoom) e já selecionado, para o painel
    * mostrar o Nome dele. Sem o container montado cai em (0,0), como antes.
+   * `at` (ferramenta Token, clique no mapa) troca o centro pelo ponto clicado.
    */
-  const handleAddToken = (name: string) => {
+  const handleAddToken = (name: string, at?: { x: number; y: number }) => {
     const host = canvasHostRef.current
-    const { x, y } = host ? viewportCenterWorld(useMapStore.getState().camera, host.clientWidth, host.clientHeight) : { x: 0, y: 0 }
+    const { x, y } = at ?? (host ? viewportCenterWorld(useMapStore.getState().camera, host.clientWidth, host.clientHeight) : { x: 0, y: 0 })
     const id = crypto.randomUUID()
     addToken({ id, characterId: null, name, x, y, size: 1, image: null })
     useMapStore.getState().setSelection(selectionOfItem({ kind: 'token', id }))
@@ -782,42 +799,20 @@ function App() {
 
   const handleSave = async () => {
     try {
-      const path = await persistMap()
+      await persistMap()
       useSessionStore.getState().markSaved()
-      console.log('Mapa salvo em', path)
+      useToastStore.getState().push('info', MAP_SAVED_TEXT)
     } catch (err) {
       reportFileError('salvar o mapa', err)
     }
   }
-
-  /**
-   * Onda 2, item 11 (Frente D) — Ctrl+S salva sem diálogo, só no editor.
-   * `handleSave` entra nas deps (não memoizado) de propósito: ele fecha
-   * sobre `currentMapPath`/`map` via `persistMap`, então uma dep desatualizada
-   * salvaria no caminho ou conteúdo ERRADO — o mesmo cuidado que o app já
-   * toma em `pixi/PixiCanvas.tsx` lendo `useMapStore.getState()` fresco a
-   * cada gesto, só que aqui via dependência do efeito (currentMapPath/map
-   * não vivem na store do Zustand, são `useState` deste componente).
-   */
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (screen !== 'editor') return
-      const target = event.target as HTMLElement | null
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return
-      const ctrlOrCmd = event.ctrlKey || event.metaKey
-      if (!ctrlOrCmd || event.key.toLowerCase() !== 's') return
-      event.preventDefault()
-      void handleSave()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [screen, handleSave])
 
   /** Roda o mesmo salvamento de `handleSave` e só depois troca para o menu — sem diálogo. */
   const handleGoHome = async () => {
     try {
       await persistMap()
       useSessionStore.getState().markSaved()
+      useToastStore.getState().push('info', MAP_SAVED_TEXT)
       setScreen('menu')
     } catch (err) {
       reportFileError('salvar o mapa', err)
@@ -847,6 +842,32 @@ function App() {
       reportFileError('abrir o mapa', err)
     }
   }
+
+  /**
+   * Onda 2, item 11 (Frente D) — Ctrl+S salva sem diálogo, só no editor; Ctrl+O
+   * faz o mesmo que o botão "Abrir..." da barra. Fica DEPOIS de `handleOpen`:
+   * as deps são lidas no render e um `const` ainda não declarado quebraria.
+   * `handleSave`/`handleOpen` entram nas deps (não memoizados) de propósito: eles
+   * fecham sobre `currentMapPath`/`map` via `persistMap`, então uma dep
+   * desatualizada salvaria no caminho ou conteúdo ERRADO — o mesmo cuidado que
+   * o app já toma em `pixi/PixiCanvas.tsx` lendo `useMapStore.getState()` fresco
+   * a cada gesto. Em campo de texto os dois ficam com o comportamento nativo.
+   */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (screen !== 'editor') return
+      const target = event.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return
+      const ctrlOrCmd = event.ctrlKey || event.metaKey
+      if (!ctrlOrCmd || event.shiftKey || event.altKey) return
+      const key = event.key.toLowerCase()
+      if (key !== 's' && key !== 'o') return
+      event.preventDefault()
+      void (key === 's' ? handleSave() : handleOpen())
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [screen, handleSave, handleOpen])
 
   const handleCreate = (newMap: MapData) => {
     loadMap(newMap)
@@ -900,30 +921,57 @@ function App() {
     }
   }
 
+  // Avisos e erros valem em toda tela, não só no editor: "Mapa salvo" ao sair
+  // por Início e um erro ao abrir um mapa da lista aparecem no menu.
+  const toastStack = <Toast toasts={toasts} onDismiss={dismissToast} />
+
   if (screen === 'menu') {
     return (
-      <MainMenu
-        onCreate={() => setScreen('map-type')}
-        onLoad={() => setScreen('load-map')}
-        onOptions={() => setScreen('options')}
-      />
+      <>
+        <MainMenu
+          onCreate={() => setScreen(createMapScreen())}
+          onLoad={() => setScreen('load-map')}
+          onOptions={() => setScreen('options')}
+        />
+        {toastStack}
+      </>
     )
   }
 
   if (screen === 'map-type') {
-    return <MapTypePicker onPickDungeon={() => setScreen('new-dungeon')} onBack={() => setScreen(parentScreen(screen))} />
+    return (
+      <>
+        <MapTypePicker onPickDungeon={() => setScreen('new-dungeon')} onBack={() => setScreen(parentScreen(screen))} />
+        {toastStack}
+      </>
+    )
   }
 
   if (screen === 'new-dungeon') {
-    return <NewDungeonMap onCreate={handleCreate} onBack={() => setScreen(parentScreen(screen))} />
+    return (
+      <>
+        <NewDungeonMap onCreate={handleCreate} onBack={() => setScreen(parentScreen(screen))} />
+        {toastStack}
+      </>
+    )
   }
 
   if (screen === 'load-map') {
-    return <LoadMapScreen onOpenPath={handleOpenSavedPath} onBack={() => setScreen(parentScreen(screen))} />
+    return (
+      <>
+        <LoadMapScreen onOpenPath={handleOpenSavedPath} onBack={() => setScreen(parentScreen(screen))} />
+        {toastStack}
+      </>
+    )
   }
 
   if (screen === 'options') {
-    return <OptionsScreen onBack={() => setScreen(parentScreen(screen))} />
+    return (
+      <>
+        <OptionsScreen onBack={() => setScreen(parentScreen(screen))} />
+        {toastStack}
+      </>
+    )
   }
 
   return (
@@ -935,11 +983,12 @@ function App() {
           onCameraChange={(camera: Camera) => setCameraScale(camera.scale)}
           resetZoomRequest={resetZoomRequest}
           onLaserMove={(x, y) => hostBridgeRef.current?.laserMove(x, y)}
-          onRoomCreated={(regionId) => {
-            // O Nome vive na aba Mapa; se o mestre estava na aba Jogo, não veria o campo.
+          onRoomCreated={() => {
+            // O nome é pedido sobre a própria Sala (PixiCanvas); a aba Mapa só
+            // mostra o resto da Sala recém-criada, sem tirar o foco do canvas.
             setRailTab('map')
-            setRoomNameFocusId(regionId)
           }}
+          onPlaceToken={handleAddToken}
         />
       </div>
 
@@ -947,6 +996,7 @@ function App() {
         <Toolbar
           activeTool={activeTool}
           onSelectTool={setActiveTool}
+          lastDrawingTool={lastDrawingTool}
           variantBindings={{
             doorKind: { value: doorKind, onChange: setDoorKind },
             wallKind: { value: wallKind, onChange: setWallKind },
@@ -958,6 +1008,7 @@ function App() {
             floorShapeKind: { value: floorShapeKind, onChange: setFloorShapeKind },
             floorOp: { value: floorOp, onChange: setFloorOp },
             floorPolygonSides: { value: floorPolygonSides, onChange: setFloorPolygonSides },
+            drawShape: { value: activeTool, onChange: setActiveTool },
           }}
         />
       </div>
@@ -1013,7 +1064,31 @@ function App() {
               selection: selection.length > 1 ? selectionToAreaSelection(selection) : null,
               onClear: () => setSelection(EMPTY_SELECTION),
             }}
-            drawingStyle={{
+            drawingStyle={selectedDrawing && selectedDrawing.kind !== 'text' ? {
+              // Desenho já selecionado: o painel edita ELE, não a preferência do próximo.
+              target: 'selected',
+              color: selectedDrawing.color,
+              onColorChange: (c: string) =>
+                liveSliderChange(`drawing-color-${selectedDrawing.id}`, () =>
+                  useMapStore.getState().setDrawingColorLive(selectedDrawing.id, c),
+                ),
+              width: selectedDrawing.width,
+              onWidthChange: (w: number) =>
+                liveSliderChange(`drawing-width-${selectedDrawing.id}`, () =>
+                  useMapStore.getState().setDrawingWidthLive(selectedDrawing.id, w),
+                ),
+              filled: drawFilled,
+              onFilledChange: setDrawFilled,
+              fillAlpha: drawFillAlpha,
+              onFillAlphaChange: setDrawFillAlpha,
+              showFilled: false,
+              showWidth: true,
+              fontSize: drawFontSize,
+              onFontSizeChange: setDrawFontSize,
+              fontFamily: drawFontFamily,
+              onFontFamilyChange: setDrawFontFamily,
+              showFontSize: false,
+            } : {
               color: drawColor,
               onColorChange: setDrawColor,
               width: drawWidth,
@@ -1073,9 +1148,8 @@ function App() {
               counts: countEntitiesByLayer(map),
               onToggleLayer: toggleLayerVisibility,
               onToggleLock: toggleLayerLock,
-              selectedProp,
-              onSetPropLayer: setPropLayer,
             }}
+            onSetPropLayer={setPropLayer}
             selection={{
               // SelectionControls (Onda 4, item 24) só precisa de um resumo:
               // `kind` do primeiro item (só importa quando count === 1) +
@@ -1143,7 +1217,7 @@ function App() {
             }}
             selectedRegion={selectedRegion}
             regionStyle={{
-              color: selectedRegion ? selectedRegion.fillColor : regionFillColor,
+              color: selectedRegion ? selectedRegion.fillColor : isRoomTool(activeTool) ? roomFillColor : regionFillColor,
               onColorChange: handleRegionColorChange,
               pattern: selectedRegion ? selectedRegion.fillPattern : regionFillPattern,
               onPatternChange: handleRegionPatternChange,
@@ -1160,9 +1234,6 @@ function App() {
             }}
             room={{
               onNameChange: (name) => selectedRegion && setRoomName(selectedRegion.id, name),
-              autoFocusName: selectedRegion !== null && selectedRegion.id === roomNameFocusId,
-              onAutoFocusDone: () => setRoomNameFocusId(null),
-              onHistoryKey: (action) => (action === 'undo' ? useMapStore.getState().undo() : useMapStore.getState().redo()),
               onNameHiddenFromPlayersChange: (hidden) =>
                 selectedRegion && useMapStore.getState().setRoomNameHiddenFromPlayers(selectedRegion.id, hidden),
               onWidthChange: (width) =>
@@ -1219,14 +1290,11 @@ function App() {
             floorStyle={{
               style: map.floorStyle,
               onStyleChange: setFloorStyle,
-              canTraceFromBackground: map.background.type === 'image' && map.background.src !== '',
-              onTraceFromBackground: () => void handleFloorFromBackground(),
-              onTraceDetailsFromBackground: () => void handleDetailsFromBackground(),
-              onRecreateMinimapFromBackground: () => void handleMinimapFromBackground(),
               frame: map.frame,
               // Moldura nova envolve o mapa inteiro (moldura de mapa desenhado à mão); a recriação usa retângulo próprio.
               onFrameChange: (frame) => setMapFrame(frame),
               defaultFrameRect: { x: 0, y: 0, w: map.width * map.grid, h: map.height * map.grid },
+              hasFloorContent: map.floor.length > 0 || map.lines.length > 0 || map.markers.length > 0,
             }}
           />,
         )}
@@ -1242,6 +1310,10 @@ function App() {
           canRedo={canRedo}
           onUndo={undo}
           onRedo={redo}
+          hasBackgroundImage={map.background.type === 'image' && map.background.src !== ''}
+          onFloorFromBackground={() => void handleFloorFromBackground()}
+          onDetailsFromBackground={() => void handleDetailsFromBackground()}
+          onRecreateMinimapFromBackground={() => void handleMinimapFromBackground()}
         />
       </div>
 

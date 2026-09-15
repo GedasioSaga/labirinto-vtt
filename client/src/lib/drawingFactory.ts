@@ -23,7 +23,8 @@ export function buildWallFromDraft(id: string, start: Point, end: Point, wallKin
   }
 }
 
-const LIGHT_RADIUS_IN_CELLS = 8
+// Luz plena da tocha no D&D 5e: 20 ft = 4 células de 5 ft.
+const LIGHT_RADIUS_IN_CELLS = 4
 const DEFAULT_LIGHT_COLOR = '#ffaa33'
 const DEFAULT_LIGHT_INTENSITY = 0.8
 

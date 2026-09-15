@@ -43,10 +43,9 @@ describe('drawDoors + drawWalls — distinguibilidade visual (risco nº 6 do pla
     drawWalls(wallsGraphics, walls, null)
     drawDoors(doorsGraphics, walls, null)
 
-    // drawWalls não distingue mais (mesma espessura/cor pra ambas, ver comentário
-    // do arquivo) — a prova de distinguibilidade tem que vir da combinação com
-    // drawDoors, não de drawWalls sozinho.
-    expect(strokeInstructions(wallsGraphics)).toHaveLength(2)
+    // Passo 3, F2: parede com porta não vira linha (o vão é da porta) — só a
+    // parede sólida tem stroke em drawWalls.
+    expect(strokeInstructions(wallsGraphics)).toHaveLength(1)
 
     // drawDoors ignora a parede sem porta e desenha algo pra a com porta —
     // é isso que mantém as duas visualmente diferentes na composição final.
@@ -112,10 +111,56 @@ describe('drawDoors — cor por locked/seleção', () => {
     expect(lockedColor).not.toBe(unlockedColor)
   })
 
-  it('parede selecionada usa SELECTION_COLOR mesmo se trancada', () => {
-    const g = new Graphics()
-    drawDoors(g, [baseWall({ id: 'sel', door: { open: false, locked: true, kind: 'normal' } })], 'sel')
-    const color = strokeInstructions(g)[0].data.style.color
-    expect(color).toBe(0xffdd55)
+  // Auditoria 14/09: trancar não mudava nada visível no canvas (a troca de cor
+  // da linha fina não se nota). Agora a porta trancada ganha um cadeado.
+  it('trancada desenha um cadeado (corpo preenchido); destrancada não', () => {
+    const fillCount = (g: Graphics) => g.context.instructions.filter((i) => i.action === 'fill').length
+    const gLocked = new Graphics()
+    const gUnlocked = new Graphics()
+    drawDoors(gLocked, [baseWall({ door: { open: false, locked: true, kind: 'normal' } })], null)
+    drawDoors(gUnlocked, [baseWall({ door: { open: false, locked: false, kind: 'normal' } })], null)
+
+    expect(fillCount(gLocked)).toBe(1)
+    expect(fillCount(gUnlocked)).toBe(0)
+    // alça do cadeado é um traço a mais
+    expect(strokeInstructions(gLocked).length).toBe(strokeInstructions(gUnlocked).length + 1)
+  })
+
+  it('porta trancada selecionada: contorno SELECTION_COLOR por baixo, e o vermelho de trancada continua por cima', () => {
+    const gSelected = new Graphics()
+    const gLocked = new Graphics()
+    drawDoors(gSelected, [baseWall({ id: 'sel', door: { open: false, locked: true, kind: 'normal' } })], 'sel')
+    drawDoors(gLocked, [baseWall({ id: 'sel', door: { open: false, locked: true, kind: 'normal' } })], null)
+    const lockedColor = strokeInstructions(gLocked)[0].data.style.color
+
+    const strokes = strokeInstructions(gSelected)
+    const outline = strokes[0]
+    const leaf = strokes.find((s) => s.data.style.color !== 0xffdd55)
+    if (!leaf) throw new Error('folha da porta não foi desenhada')
+    // 1º traço = contorno amarelo mais largo que a folha; depois, a folha na cor de trancada.
+    expect(outline.data.style.color).toBe(0xffdd55)
+    expect(leaf.data.style.color).toBe(lockedColor)
+    expect(leaf.data.style.color).not.toBe(0xffdd55)
+    expect(outline.data.style.width).toBeGreaterThan(leaf.data.style.width)
+    // Nenhuma parte da porta real (folha, alça do cadeado) é pintada de amarelo.
+    const yellowStrokes = strokes.filter((s) => s.data.style.color === 0xffdd55)
+    expect(yellowStrokes).toHaveLength(2) // contorno da folha + contorno do corpo do cadeado
+    const fills = gSelected.context.instructions.filter((i) => i.action === 'fill')
+    expect(fills.map((f) => (f.data.style as { color: number }).color)).toEqual([lockedColor])
+  })
+
+  it('contorno da porta selecionada tem espessura fixa na TELA (engorda em mundo quando o zoom diminui)', () => {
+    const wall = baseWall({ id: 'sel', door: { open: false, locked: false, kind: 'normal' } })
+    const g1 = new Graphics()
+    const gHalf = new Graphics()
+    drawDoors(g1, [wall], 'sel', 1)
+    drawDoors(gHalf, [wall], 'sel', 0.5)
+    const outlineMinusLeaf = (g: Graphics) => {
+      const [outline, leaf] = strokeInstructions(g)
+      return outline.data.style.width - leaf.data.style.width
+    }
+    // 2 px de tela de cada lado: 4 px de mundo a 100%, 8 px de mundo a 50%.
+    expect(outlineMinusLeaf(g1)).toBeCloseTo(4, 6)
+    expect(outlineMinusLeaf(gHalf)).toBeCloseTo(8, 6)
   })
 })

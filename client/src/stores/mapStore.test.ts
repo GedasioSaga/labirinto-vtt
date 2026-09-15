@@ -275,12 +275,26 @@ describe('mapStore regionFillColor', () => {
     useMapStore.setState({
       map: { ...useMapStore.getState().map, regions: [] },
       regionFillColor: '#3a7ad0',
+      roomFillColor: '#e9e1cf',
     })
   })
 
   it('setRegionFillColor atualiza a cor usada ao desenhar a próxima região', () => {
     useMapStore.getState().setRegionFillColor('#00ff00')
     expect(useMapStore.getState().regionFillColor).toBe('#00ff00')
+    // Região e Sala têm preferências separadas: mudar uma não mexe na outra.
+    expect(useMapStore.getState().roomFillColor).toBe('#e9e1cf')
+  })
+
+  it('Sala nova nasce em pergaminho (#e9e1cf), não no azul da Região', () => {
+    expect(useMapStore.getInitialState().roomFillColor).toBe('#e9e1cf')
+    expect(useMapStore.getInitialState().regionFillColor).toBe('#3a7ad0')
+  })
+
+  it('setRoomFillColor atualiza só a cor da próxima Sala', () => {
+    useMapStore.getState().setRoomFillColor('#123456')
+    expect(useMapStore.getState().roomFillColor).toBe('#123456')
+    expect(useMapStore.getState().regionFillColor).toBe('#3a7ad0')
   })
 
   it('setRegionColor muda a cor só da região alvo, sem tocar outras', () => {

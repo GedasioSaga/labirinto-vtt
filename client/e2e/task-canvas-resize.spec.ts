@@ -30,9 +30,13 @@ async function canvasCoversWindow(page: Page) {
     const canvas = document.querySelector('canvas')
     if (!canvas) return null
     const rect = canvas.getBoundingClientRect()
+    // Backbuffer em pixels físicos (autoDensity): canvas.width = CSS × devicePixelRatio,
+    // devolvido já dividido para comparar com o tamanho CSS em qualquer DPR.
+    const dpr = window.devicePixelRatio
     return {
       rect: [Math.round(rect.width), Math.round(rect.height)],
       window: [window.innerWidth, window.innerHeight],
+      backbuffer: [Math.round(canvas.width / dpr), Math.round(canvas.height / dpr)],
     }
   })
 }
@@ -71,13 +75,13 @@ test.beforeEach(async ({ page }) => {
 
 test('1. maximizar a janela: canvas cobre a janela e a sombra fora do mapa cobre a área nova', async ({ page }) => {
   await page.setViewportSize({ width: 1521, height: 778 })
-  await expect.poll(() => canvasCoversWindow(page)).toEqual({ rect: [1521, 778], window: [1521, 778] })
+  await expect.poll(() => canvasCoversWindow(page)).toEqual({ rect: [1521, 778], window: [1521, 778], backbuffer: [1521, 778] })
   await expectOutsideShadeAtProbe(page)
 })
 
 test('2. container cresce sem evento resize da janela: canvas acompanha e redesenha', async ({ page }) => {
   await page.setViewportSize({ width: 1521, height: 778 })
-  await expect.poll(() => canvasCoversWindow(page)).toEqual({ rect: [1521, 778], window: [1521, 778] })
+  await expect.poll(() => canvasCoversWindow(page)).toEqual({ rect: [1521, 778], window: [1521, 778], backbuffer: [1521, 778] })
 
   await page.evaluate(() => {
     const editor = document.querySelector<HTMLElement>('.lb-editor')
@@ -85,7 +89,7 @@ test('2. container cresce sem evento resize da janela: canvas acompanha e redese
     editor.style.width = '1200px'
     editor.style.height = '600px'
   })
-  await expect.poll(() => canvasCoversWindow(page)).toEqual({ rect: [1200, 600], window: [1521, 778] })
+  await expect.poll(() => canvasCoversWindow(page)).toEqual({ rect: [1200, 600], window: [1521, 778], backbuffer: [1200, 600] })
 
   // Solta o CSS sem disparar 'resize' na janela.
   await page.evaluate(() => {
@@ -94,6 +98,6 @@ test('2. container cresce sem evento resize da janela: canvas acompanha e redese
     editor.style.width = ''
     editor.style.height = ''
   })
-  await expect.poll(() => canvasCoversWindow(page)).toEqual({ rect: [1521, 778], window: [1521, 778] })
+  await expect.poll(() => canvasCoversWindow(page)).toEqual({ rect: [1521, 778], window: [1521, 778], backbuffer: [1521, 778] })
   await expectOutsideShadeAtProbe(page)
 })

@@ -23,9 +23,10 @@ export function createEmptyMap(id: string, name: string, width: number, height: 
     grid,
     gridShape: 'square',
     showGrid: true,
-    // Mesmos defaults literais que deserializeMap.ts aplica a um mapa antigo
-    // sem gridSettings — mapa novo e mapa migrado têm que se comportar igual.
-    gridSettings: { color: '#4a4a4a', opacity: 1, lineWidth: 1, lineStyle: 'solid' },
+    // Grade discreta do mapa novo (passo 3, F1). Diverge DE PROPÓSITO do
+    // default que deserializeMap (mapFile.ts) aplica a mapa antigo sem
+    // gridSettings: mapa salvo continua abrindo com a grade de antes.
+    gridSettings: { color: '#1f1b16', opacity: 0.18, lineWidth: 1, lineStyle: 'solid' },
     background: { type: 'color', src: '#2b2b2b' },
     walls: [],
     lights: [],
@@ -43,7 +44,8 @@ export function createEmptyMap(id: string, name: string, width: number, height: 
     fog: { mode: 'none', revealed: [] },
     hiddenLayers: [],
     lockedLayers: [],
-    scale: { unitsPerCell: 5, unit: 'ft', precision: 0 },
+    // Metros para mapa novo; mapa salvo sem scale continua em pés (mapFile.ts).
+    scale: { unitsPerCell: 1.5, unit: 'm', precision: 1 },
     measurementMode: 'chessboard',
     ownerId: null,
     scenarioLink: null,

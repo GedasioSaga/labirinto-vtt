@@ -58,17 +58,33 @@ test.beforeEach(async ({ page }) => {
   await resetMap(page)
 })
 
-test('1. desenhar Sala: Nome focado no topo do painel e digitar renomeia', async ({ page }) => {
-  await drawRoom(page)
+test('1. desenhar Sala pede o nome sobre a Sala: Enter grava; Esc mantém o padrão e V troca a ferramenta', async ({ page }) => {
+  const box = await drawRoom(page)
 
-  const nameInput = page.locator('#lb-room-name')
-  await expect(nameInput).toBeFocused()
-  // Topo do painel: o primeiro campo do corpo do inspetor é o Nome da Sala.
-  await expect(page.locator('.lb-inspector__body input').first()).toHaveAttribute('id', 'lb-room-name')
+  // O mesmo campo do duplo clique, sobre a Sala — nunca o Nome escondido no painel.
+  const overlay = page.getByRole('textbox', { name: 'Nome da sala no mapa' })
+  await expect(overlay).toBeFocused()
+  await expect(page.locator('#lb-room-name')).not.toBeFocused()
 
-  await page.keyboard.type('Cripta')
+  await page.keyboard.type('Taverna')
+  await page.keyboard.press('Enter')
+  await expect(overlay).toHaveCount(0)
+  await expect.poll(async () => (await getRegions(page))[0]?.room?.name).toBe('Taverna')
 
-  await expect.poll(async () => (await getRegions(page))[0]?.room?.name).toBe('Cripta')
+  await page.mouse.move(box.x + 700, box.y + 150)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 900, box.y + 250, { steps: 5 })
+  await page.mouse.up()
+  await expect(overlay).toBeFocused()
+  const defaultName = (await getRegions(page))[1].room?.name
+
+  await page.keyboard.press('Escape')
+  await expect(overlay).toHaveCount(0)
+  await page.keyboard.press('v')
+
+  const activeTool = await page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().activeTool)
+  expect(activeTool).toBe('select')
+  expect((await getRegions(page))[1].room?.name).toBe(defaultName)
 })
 
 test('2. duplo clique na Sala abre o campo sobre o canvas: Enter grava, Esc cancela', async ({ page }) => {

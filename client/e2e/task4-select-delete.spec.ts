@@ -84,7 +84,7 @@ test('1. selecionar parede: destaca, botão vira "Apagar parede...", Delete apag
 
   const selection = await getSelection(page)
   expect(selection).toEqual({ kind: 'wall', id: expect.any(String) })
-  await expect(deleteButton(page)).toHaveText('Apagar parede selecionada(o)')
+  await expect(deleteButton(page)).toHaveText('Apagar parede selecionada')
 
   await page.keyboard.press('Delete')
   expect((await getMapState(page)).walls.length).toBe(0)
@@ -103,7 +103,7 @@ test('2. selecionar luz: anel de destaque, Delete apaga', async ({ page }) => {
   await page.mouse.click(box.x + 500, box.y + 500)
 
   expect(await getSelection(page)).toEqual({ kind: 'light', id: expect.any(String) })
-  await expect(deleteButton(page)).toHaveText('Apagar luz selecionada(o)')
+  await expect(deleteButton(page)).toHaveText('Apagar luz selecionada')
 
   await page.keyboard.press('Delete')
   expect((await getMapState(page)).lights.length).toBe(0)
@@ -125,7 +125,7 @@ test('3. selecionar região: preenchimento de destaque, Delete apaga', async ({ 
   await page.mouse.click(box.x + 450, box.y + 435)
 
   expect(await getSelection(page)).toEqual({ kind: 'region', id: expect.any(String) })
-  await expect(deleteButton(page)).toHaveText('Apagar região selecionada(o)')
+  await expect(deleteButton(page)).toHaveText('Apagar região selecionada')
 
   await page.keyboard.press('Delete')
   expect((await getMapState(page)).regions.length).toBe(0)
@@ -143,7 +143,7 @@ test('4. selecionar token: halo de destaque, Delete apaga (comportamento preexis
   await page.mouse.click(box.x + 400, box.y + 400)
 
   expect(await getSelection(page)).toEqual({ kind: 'token', id: 'tokSel' })
-  await expect(deleteButton(page)).toHaveText('Apagar token selecionada(o)')
+  await expect(deleteButton(page)).toHaveText('Apagar token selecionado')
 
   await page.keyboard.press('Delete')
   expect((await getMapState(page)).tokens.length).toBe(0)
@@ -164,7 +164,7 @@ test('5. selecionar peça (prop): contorno de destaque, Delete apaga', async ({ 
   await page.mouse.click(box.x + 400, box.y + 400)
 
   expect(await getSelection(page)).toEqual({ kind: 'prop', id: 'propSel' })
-  await expect(deleteButton(page)).toHaveText('Apagar peça selecionada(o)')
+  await expect(deleteButton(page)).toHaveText('Apagar peça selecionada')
 
   await page.keyboard.press('Delete')
   expect((await getMapState(page)).props.length).toBe(0)

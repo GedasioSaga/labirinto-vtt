@@ -108,6 +108,28 @@ describe('createPlayerConnection', () => {
     expect(connection.getState().status).toBe('waiting')
   })
 
+  it('room.closed: status closed, esquece o resume e a queda do socket logo depois NÃO vira connection_lost', () => {
+    const storage = memoryStorage()
+    const { connection, socket } = setup(storage)
+    socket.open()
+    socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok' })
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'room.closed' })
+    expect(connection.getState().status).toBe('closed')
+    expect(storage.data.has(RESUME_STORAGE_KEY)).toBe(false)
+    socket.drop()
+    expect(connection.getState()).toMatchObject({ status: 'closed', error: undefined })
+  })
+
+  it('queda de rede real (sem room.closed) continua sendo error connection_lost', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok' })
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.drop()
+    expect(connection.getState()).toMatchObject({ status: 'error', error: 'connection_lost' })
+  })
+
   it('lobby.waiting muda status para waiting', () => {
     const { connection, socket } = setup()
     socket.open()

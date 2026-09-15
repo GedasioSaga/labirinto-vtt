@@ -5,6 +5,7 @@
 // Soltar Ctrl no meio do arrasto -> volta ao livre.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 import type { Wall, Drawing } from '../src/types/map'
 
 // Distância (em graus) do ângulo do segmento (dx,dy) até o múltiplo de
@@ -59,8 +60,9 @@ async function resetMapHexSnap(page: Page) {
   })
 }
 
+// Linha mora no botão Desenho: `pickTool` abre a setinha e escolhe o rádio.
 async function selectTool(page: Page, label: 'Parede' | 'Linha') {
-  await page.getByRole('button', { name: label, exact: true }).click()
+  await pickTool(page, label)
 }
 
 test.beforeEach(async ({ page }) => {

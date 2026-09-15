@@ -1,4 +1,3 @@
-import { useEffect, useRef, type KeyboardEvent } from 'react'
 import type { RoomMeta } from '../types/map'
 import { MIN_ROOM_DIMENSION } from '../lib/roomOps'
 import { Toggle } from './Toggle'
@@ -6,14 +5,6 @@ import { Toggle } from './Toggle'
 export interface RoomControlsProps {
   name: string
   onNameChange: (name: string) => void
-  /** Verdadeiro só logo depois de desenhar a Sala: foca e seleciona o Nome
-   *  para o usuário digitar direto. `onAutoFocusDone` avisa o App para
-   *  desligar, senão reselecionar a sala depois roubaria o foco de novo. */
-  autoFocusName?: boolean
-  onAutoFocusDone?: () => void
-  /** Ctrl+Z / Ctrl+Y com o Nome recém-focado e ainda sem digitação: o
-   *  usuário quer desfazer o desenho, não um texto que ele não escreveu. */
-  onHistoryKey?: (action: 'undo' | 'redo') => void
   /** A5 — `RoomMeta.nameHiddenFromPlayers`. O toggle mostra o inverso
    *  ("Jogadores veem o nome", ligado por padrão). Ausente omite o toggle. */
   nameHiddenFromPlayers?: boolean
@@ -40,13 +31,14 @@ export interface RoomControlsProps {
  * `width`/`height` já vêm calculados pelo chamador via `roomDimensions`
  * (`lib/roomOps.ts`) a partir de `region.points` — este componente só exibe
  * e repassa o número editado, não faz geometria.
+ *
+ * O Nome aqui nunca ganha foco sozinho: logo depois de desenhar, o nome é
+ * pedido num campo sobre a própria Sala (`pixi/PixiCanvas.tsx`). Um foco
+ * escondido neste painel fazia a próxima tecla de atalho (V) renomear a Sala.
  */
 export function RoomControls({
   name,
   onNameChange,
-  autoFocusName = false,
-  onAutoFocusDone,
-  onHistoryKey,
   nameHiddenFromPlayers,
   onNameHiddenFromPlayersChange,
   shape,
@@ -55,35 +47,6 @@ export function RoomControls({
   onWidthChange,
   onHeightChange,
 }: RoomControlsProps) {
-  const nameInputRef = useRef<HTMLInputElement | null>(null)
-  // Verdadeiro entre o foco automático e a primeira edição. O atalho global
-  // de desfazer ignora campos de texto; sem isto, Ctrl+Z logo depois de
-  // desenhar a Sala caía no campo e a Sala não era desfeita.
-  const pristineAutoFocusRef = useRef(false)
-
-  useEffect(() => {
-    if (!autoFocusName) return
-    const input = nameInputRef.current
-    if (input) {
-      input.focus()
-      // Selecionado: a primeira tecla substitui o "Sala" padrão.
-      input.select()
-      pristineAutoFocusRef.current = true
-    }
-    onAutoFocusDone?.()
-  }, [autoFocusName, onAutoFocusDone])
-
-  const onNameKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (!pristineAutoFocusRef.current || !(event.ctrlKey || event.metaKey)) return
-    const key = event.key.toLowerCase()
-    const action = key === 'y' || (key === 'z' && event.shiftKey) ? 'redo' : key === 'z' ? 'undo' : null
-    if (action === null) return
-    event.preventDefault()
-    pristineAutoFocusRef.current = false
-    event.currentTarget.blur()
-    onHistoryKey?.(action)
-  }
-
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Sala</h2>
@@ -92,20 +55,7 @@ export function RoomControls({
         <label className="lb-label" htmlFor="lb-room-name">
           Nome
         </label>
-        <input
-          ref={nameInputRef}
-          id="lb-room-name"
-          className="lb-input"
-          value={name}
-          onKeyDown={onNameKeyDown}
-          onChange={(event) => {
-            pristineAutoFocusRef.current = false
-            onNameChange(event.target.value)
-          }}
-          onBlur={() => {
-            pristineAutoFocusRef.current = false
-          }}
-        />
+        <input id="lb-room-name" className="lb-input" value={name} onChange={(event) => onNameChange(event.target.value)} />
       </div>
 
       {nameHiddenFromPlayers !== undefined && onNameHiddenFromPlayersChange !== undefined && (

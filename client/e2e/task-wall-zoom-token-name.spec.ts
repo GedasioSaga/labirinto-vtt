@@ -1,10 +1,13 @@
 // Fase A, itens A1 e A2 (plano de 14/09/2026):
 // A1 — paredes sumiam com zoom abaixo de 100%: parede exterior tem 1,5 px de
-// mundo, o app Pixi do editor roda sem antialias, e a 50% ela virava 0,75 px
+// mundo, o app Pixi do editor rodava sem antialias, e a 50% ela virava 0,75 px
 // de tela. Com a linha centrada num limite de pixel (y de tela inteiro) a
 // faixa de 0,75 px não cobre nenhum centro de pixel e nada é pintado. Com o
 // piso de 1 px de tela (drawWalls.ts, screenSafeWidth) a faixa sempre cobre
-// uma linha de pixels.
+// uma linha de pixels. Hoje o editor tem antialias e backbuffer em pixels
+// físicos; a leitura abaixo usa um recorte de screenshot em px CSS, que o
+// Playwright devolve em px físicos — por isso a coluna é lida pela altura real
+// da imagem (img.height), não por SCAN_HEIGHT, e vale para qualquer DPR.
 // A2 — "Adicionar token" pede o nome; o nome aparece no painel do token. A
 // lista de atribuir (RoomPanel) só existe no Tauri e é coberta por
 // RoomPanel.test.tsx.

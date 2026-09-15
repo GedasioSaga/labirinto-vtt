@@ -377,12 +377,16 @@ describe('createRegionsRenderer — Region.strokeWidth/strokeJoin (pedido G2, "r
     expect(strokeStyleAt(firstGraphics(container)).width).toBe(12)
   })
 
-  it('região SELECIONADA soma o realce (+2) sobre o strokeWidth configurado, não substitui por um valor fixo', () => {
+  it('região SELECIONADA mantém o strokeWidth configurado; o destaque é um contorno à parte, por fora', () => {
     const container = new Container()
     const renderer = createRegionsRenderer()
-    renderer.draw(container, [buildSquareRegion('r1', { strokeWidth: 12 })], 'r1')
+    renderer.draw(container, [buildSquareRegion('r1', { strokeWidth: 12 })], 'r1', 1)
 
-    expect(strokeStyleAt(firstGraphics(container)).width).toBe(14)
+    const g = firstGraphics(container)
+    // [0] contorno de seleção: meia espessura real + 2 px de tela, alinhado por fora.
+    expect(strokeStyleAt(g, 0)).toMatchObject({ color: 0xffdd55, width: 12 / 2 + 2, alignment: 0 })
+    // [1] contorno real, intacto.
+    expect(strokeStyleAt(g, 1).width).toBe(12)
   })
 
   it("strokeJoin: 'round' é aplicado ao contorno de verdade", () => {
@@ -435,24 +439,26 @@ describe('resolveHighlightedRegionId (bug 22 — parede-dona-de-Sala confirma a 
 })
 
 describe('createRegionsRenderer — bug 22, os dois casos visuais lado a lado', () => {
-  it('região selecionada DIRETAMENTE (kind "region"): pinta com SELECTION_COLOR', () => {
+  it('região selecionada DIRETAMENTE (kind "region"): ganha contorno SELECTION_COLOR por fora e mantém a cor real', () => {
     const container = new Container()
     const renderer = createRegionsRenderer()
     const region = buildSquareRegion('sala-1')
     const walls = [buildWall('w1', 'sala-1')]
 
     const highlighted = resolveHighlightedRegionId(walls, { kind: 'region', id: 'sala-1' })
-    renderer.draw(container, [region], highlighted)
+    renderer.draw(container, [region], highlighted, 1)
 
     const g = firstGraphics(container)
-    // isSelected: fill alpha 0.85 (vs 1 de não-selecionada) e stroke com o
-    // realce de +2 sobre o default (2) — mesma assinatura usada nos testes
-    // de strokeWidth/strokeJoin acima.
-    expect(strokeStyleAt(g).color).toBe(0xffdd55) // SELECTION_COLOR
-    expect(strokeStyleAt(g).width).toBe(4)
+    // Auditoria 14/09: o amarelo pintava por cima da cor e da hachura. Agora
+    // [0] é o contorno de seleção (sem fill próprio) e [1] o contorno real.
+    expect(strokeStyleAt(g, 0)).toMatchObject({ color: 0xffdd55, alignment: 0, width: 2 / 2 + 2 })
+    expect(strokeStyleAt(g, 1)).toMatchObject({ color: 0x204060, width: 2 })
+    const fillsOf = g.context.instructions.filter((i) => i.action === 'fill')
+    expect(fillsOf).toHaveLength(1)
+    expect(fillsOf[0].action === 'fill' && fillsOf[0].data.style).toMatchObject({ color: 0x204060, alpha: 1 })
   })
 
-  it('BUG 22 corrigido: parede-dona-de-Sala selecionada (kind "wall") também pinta a região com SELECTION_COLOR', () => {
+  it('BUG 22 corrigido: parede-dona-de-Sala selecionada (kind "wall") também destaca a região', () => {
     const container = new Container()
     const renderer = createRegionsRenderer()
     const region = buildSquareRegion('sala-1')
@@ -460,11 +466,29 @@ describe('createRegionsRenderer — bug 22, os dois casos visuais lado a lado', 
 
     // Usuário clicou numa das 4 paredes que a Sala gerou — não na região.
     const highlighted = resolveHighlightedRegionId(walls, { kind: 'wall', id: 'w3' })
-    renderer.draw(container, [region], highlighted)
+    renderer.draw(container, [region], highlighted, 1)
 
     const g = firstGraphics(container)
-    expect(strokeStyleAt(g).color).toBe(0xffdd55) // SELECTION_COLOR — antes do fix, ficava 0x204060 (fillColor normal)
-    expect(strokeStyleAt(g).width).toBe(4)
+    expect(strokeStyleAt(g, 0).color).toBe(0xffdd55) // contorno de seleção
+    expect(strokeStyleAt(g, 1).color).toBe(0x204060) // cor real preservada
+  })
+
+  it('região hachurada selecionada: a hachura continua desenhada', () => {
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+    renderer.draw(container, [buildSquareRegion('sala-1', { fillPattern: 'hatch' })], 'sala-1', 1)
+
+    const g = firstGraphics(container)
+    // seleção + contorno real + hachura
+    expect(countStrokeInstructions(g)).toBe(3)
+  })
+
+  it('contorno de seleção tem 2 px de TELA: a zoom 50% ele vale 4 de mundo', () => {
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+    renderer.draw(container, [buildSquareRegion('sala-1')], 'sala-1', 0.5)
+
+    expect(strokeStyleAt(firstGraphics(container), 0).width).toBe(2 / 2 + 4)
   })
 
   it('parede selecionada que NÃO é dona de nenhuma região: a região continua com a cor normal (sem falso positivo)', () => {

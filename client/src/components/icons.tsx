@@ -411,6 +411,65 @@ export function SettingsIcon(props: IconProps) {
   )
 }
 
+/** Olho aberto: amêndoa + pupila `r 3` (acima do limite de miolo fechado). */
+export function EyeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2.5 12C4.6 7.8 8 5.5 12 5.5S19.4 7.8 21.5 12C19.4 16.2 16 18.5 12 18.5S4.6 16.2 2.5 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </Icon>
+  )
+}
+
+/** Olho riscado: mesma amêndoa do `EyeIcon` cortada por uma diagonal. */
+export function EyeOffIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2.5 12C4.6 7.8 8 5.5 12 5.5S19.4 7.8 21.5 12C19.4 16.2 16 18.5 12 18.5S4.6 16.2 2.5 12Z" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M4 4l16 16" />
+    </Icon>
+  )
+}
+
+/** Cadeado fechado: corpo + arco inteiro encaixado nos dois lados. */
+export function LockIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="5" y="10.5" width="14" height="10" rx="1.5" />
+      <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+    </Icon>
+  )
+}
+
+/** Cadeado aberto: mesmo corpo, arco solto do lado direito. */
+export function UnlockIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="5" y="10.5" width="14" height="10" rx="1.5" />
+      <path d="M8 10.5V7.5a4 4 0 0 1 7.6-1.7" />
+    </Icon>
+  )
+}
+
+/** Divisa para baixo — cabeçalho de seção recolhível (o CSS gira quando fechada). */
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6 9l6 6 6-6" />
+    </Icon>
+  )
+}
+
+/** X de fechar janela — duas diagonais do mesmo comprimento da divisa acima. */
+export function CloseIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </Icon>
+  )
+}
+
 /**
  * "Criar Mapas" no menu raiz: retângulo de mapa + um `+` fora, no canto
  * superior direito. Distingue de `ImageIcon` (:266, mesmo retângulo mas com

@@ -1,7 +1,7 @@
 import type { Graphics } from 'pixi.js'
-import type { Wall } from '../types/map'
+import type { DoorState, Wall } from '../types/map'
 import { SELECTION_COLOR, STROKE_WEIGHT } from './constants'
-import { screenSafeWidth } from './drawWalls'
+import { screenSafeWidth, selectionOutlineWidth } from './drawWalls'
 
 /**
  * Cor de porta destrancada — MESMO valor RGB que `drawWalls.ts` hardcodava
@@ -27,6 +27,28 @@ const LEAF_OPEN_ANGLE = (55 * Math.PI) / 180
  *  mundo — barra a cada ~12px lê como grade sem virar hachura ilegível em
  *  vãos grandes (gate = 96px de vão → ~8 barras). */
 const GATE_BAR_SPACING = 12
+
+/**
+ * Cadeado da porta trancada (auditoria 14/09: trancar só trocava a cor da
+ * folha fina, e na tela nada mudava). Px de mundo: corpo 8×6 e alça de raio
+ * 2.5, na ordem de grandeza da ombreira. Fica do lado `-perp` do vão, oposto
+ * ao lado para onde a folha abre (`drawLeaf`), para não sobrepor a folha aberta.
+ */
+const LOCK_BODY_WIDTH = 8
+const LOCK_BODY_HEIGHT = 6
+const LOCK_SHACKLE_RADIUS = 2.5
+const LOCK_SHACKLE_WIDTH = 1.5
+const LOCK_OFFSET = JAMB_HALF + 6
+
+/** Cadeado de pé (sempre na vertical da tela, não gira com a parede), centrado em `(cx, cy)`. */
+function drawLock(graphics: Graphics, cx: number, cy: number, color: number, cameraScale: number): void {
+  const bodyTop = cy - LOCK_BODY_HEIGHT / 2 + 1
+  graphics.rect(cx - LOCK_BODY_WIDTH / 2, bodyTop, LOCK_BODY_WIDTH, LOCK_BODY_HEIGHT).fill({ color })
+  graphics
+    .moveTo(cx - LOCK_SHACKLE_RADIUS, bodyTop)
+    .arc(cx, bodyTop, LOCK_SHACKLE_RADIUS, Math.PI, 0)
+    .stroke({ width: screenSafeWidth(LOCK_SHACKLE_WIDTH, cameraScale), color })
+}
 
 /**
  * Desenha uma ombreira: traço curto perpendicular à parede, centrado no
@@ -124,26 +146,49 @@ export function drawDoors(graphics: Graphics, walls: Wall[], selectedWallId: str
     const px = -uy
     const py = ux
 
+    // Seleção NÃO troca a cor: o vermelho de trancada continua visível. A
+    // porta selecionada ganha contorno por baixo em SELECTION_COLOR (mesma
+    // regra de drawWalls.ts, `SELECTION_OUTLINE_SCREEN_PX` de cada lado).
     const isSelected = wall.id === selectedWallId
-    const color = isSelected ? SELECTION_COLOR : door.locked ? DOOR_LOCKED_COLOR : DOOR_COLOR
-    const strokeWidth = isSelected ? STROKE_WEIGHT.medium : STROKE_WEIGHT.thin
+    const color = door.locked ? DOOR_LOCKED_COLOR : DOOR_COLOR
+    const strokeWidth = screenSafeWidth(isSelected ? STROKE_WEIGHT.medium : STROKE_WEIGHT.thin, cameraScale)
+    const midX = (wall.x1 + wall.x2) / 2
+    const midY = (wall.y1 + wall.y2) / 2
+    const lockX = midX - px * LOCK_OFFSET
+    const lockY = midY - py * LOCK_OFFSET
 
-    drawJamb(graphics, wall.x1, wall.y1, px, py)
-    drawJamb(graphics, wall.x2, wall.y2, px, py)
-
-    if (door.kind === 'gate') {
-      drawGateBars(graphics, wall.x1, wall.y1, ux, uy, px, py, length, door.open)
-    } else if (door.kind === 'double') {
-      // Duas folhas, uma dobradiça em cada ponta do vão, cada uma cobrindo
-      // metade do comprimento — ambas giram pro mesmo lado (+perp) quando
-      // abertas, convenção comum de porta dupla de duas folhas.
-      drawLeaf(graphics, wall.x1, wall.y1, ux, uy, px, py, length / 2, door.open)
-      drawLeaf(graphics, wall.x2, wall.y2, -ux, -uy, px, py, length / 2, door.open)
-    } else {
-      drawLeaf(graphics, wall.x1, wall.y1, ux, uy, px, py, length, door.open)
+    if (isSelected) {
+      const outline = 2 * selectionOutlineWidth(cameraScale)
+      traceDoorShape(graphics, wall, door, ux, uy, px, py, length)
+      graphics.stroke({ width: strokeWidth + outline, color: SELECTION_COLOR, cap: 'square' })
+      if (door.locked) {
+        const bodyTop = lockY - LOCK_BODY_HEIGHT / 2 + 1
+        graphics.rect(lockX - LOCK_BODY_WIDTH / 2, bodyTop, LOCK_BODY_WIDTH, LOCK_BODY_HEIGHT).stroke({ width: outline, color: SELECTION_COLOR })
+      }
     }
 
+    traceDoorShape(graphics, wall, door, ux, uy, px, py, length)
     // Mesmo piso de 1 px de tela das paredes: sem antialias a folha fina some com zoom baixo.
-    graphics.stroke({ width: screenSafeWidth(strokeWidth, cameraScale), color })
+    graphics.stroke({ width: strokeWidth, color })
+
+    if (door.locked) drawLock(graphics, lockX, lockY, color, cameraScale)
+  }
+}
+
+/** Ombreiras + folha(s)/barras do `door.kind`, só o path (quem chama faz o stroke). */
+function traceDoorShape(graphics: Graphics, wall: Wall, door: DoorState, ux: number, uy: number, px: number, py: number, length: number): void {
+  drawJamb(graphics, wall.x1, wall.y1, px, py)
+  drawJamb(graphics, wall.x2, wall.y2, px, py)
+
+  if (door.kind === 'gate') {
+    drawGateBars(graphics, wall.x1, wall.y1, ux, uy, px, py, length, door.open)
+  } else if (door.kind === 'double') {
+    // Duas folhas, uma dobradiça em cada ponta do vão, cada uma cobrindo
+    // metade do comprimento — ambas giram pro mesmo lado (+perp) quando
+    // abertas, convenção comum de porta dupla de duas folhas.
+    drawLeaf(graphics, wall.x1, wall.y1, ux, uy, px, py, length / 2, door.open)
+    drawLeaf(graphics, wall.x2, wall.y2, -ux, -uy, px, py, length / 2, door.open)
+  } else {
+    drawLeaf(graphics, wall.x1, wall.y1, ux, uy, px, py, length, door.open)
   }
 }

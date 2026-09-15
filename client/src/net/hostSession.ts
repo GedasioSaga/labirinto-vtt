@@ -72,6 +72,12 @@ export interface HostSession {
   unassignToken(playerId: string, tokenId: string): HostResult
   disconnect(clientId: string): void
   kick(clientId: string): HostResult
+  /**
+   * `room.closed` para todo jogador conectado (jogando ou aguardando). O
+   * integrador envia isto ANTES de derrubar a sala, para o jogador ler "O
+   * mestre encerrou a sala" e não "A conexão caiu". Não mexe no estado.
+   */
+  closeRoom(): HostResult
   broadcast(map: MapData): HostResult
   /** Laser do mestre para todo jogador conectado e jogando (quem aguarda não tem mapa onde desenhar). */
   laser(message: LaserMessage): HostResult
@@ -325,6 +331,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       lastSignalAt.delete(playerId)
       visionOverrides.delete(playerId)
       return reply(clientId, { type: 'kicked' })
+    },
+
+    closeRoom() {
+      const outbound: Outbound[] = []
+      for (const clientId of byClient.keys()) {
+        outbound.push({ clientId, msg: { type: 'room.closed' } })
+      }
+      return { outbound }
     },
 
     setVisionRadius(playerId, radius) {

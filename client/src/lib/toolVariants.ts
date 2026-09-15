@@ -2,6 +2,7 @@ import type { DrawingTool } from '../types/tools'
 import type { DoorKind, FloorPiece, FreehandTexture, Region, Wall } from '../types/map'
 import type { StairSizePreset } from './stairs'
 import type { FloorShapeKind } from './floorTool'
+import { TOOL_SHORTCUTS } from './keymap'
 
 /**
  * Catálogo de dados puro (sem JSX, sem store) da feature N1 do usuário
@@ -22,10 +23,9 @@ import type { FloorShapeKind } from './floorTool'
  * Fase 5: dos 4 exemplos que o usuário deu por nome (Pincel, Borracha, Linha,
  * Escada — ROADMAP.md, tabela N1), 3 saíram de `available:false` pra `true`
  * (brush/eraser/stair) — schema/render/store entraram nesta fase. `line`
- * continua `false`: a capacidade de converter reta⇄curva já existe (painel
- * esquerdo, `LineShapeControls.tsx`), só falta a SETINHA — que exigiria
- * fundir os botões "Linha"/"Curva" em `TOOL_GROUPS` (components/labels.ts),
- * arquivo de integrador/fundação fora do escopo desta fase.
+ * continua `false`: não tem eixo próprio para a próxima linha. Desde 15/09 a
+ * escolha Linha/Curva mora no grupo Forma do botão Desenho
+ * (`DRAWING_SHAPE_GROUP`, abaixo).
  */
 
 /** Uma opção dentro de um grupo de variantes. `value` é o literal que a ação
@@ -60,6 +60,8 @@ export type ToolVariantGroup =
   | { storeKey: 'floorShapeKind'; label: string; options: ToolVariantOption<FloorShapeKind>[] }
   | { storeKey: 'floorOp'; label: string; options: ToolVariantOption<FloorPiece['op']>[] }
   | { storeKey: 'floorPolygonSides'; label: string; options: ToolVariantOption<number>[] }
+  /** Forma do botão "Desenho": escolher ATIVA a ferramenta (não é preferência da próxima entidade). */
+  | { storeKey: 'drawShape'; label: string; options: ToolVariantOption<DrawingTool>[] }
 
 /** Ferramenta com variante PRONTA — schema e ação de store já existem. */
 export interface ToolVariantReady {
@@ -241,24 +243,52 @@ export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
   // add*FloorPiece*); a setinha é o caminho até forma e operação.
   floor: { available: true, tool: 'floor', groups: [FLOOR_SHAPE_GROUP, FLOOR_OP_GROUP, FLOOR_POLYGON_SIDES_GROUP] },
 
-  // ---- pedida pelo usuário, capacidade agora existe mas SEM setinha ------
+  // ---- pedida pelo usuário, capacidade existe mas SEM eixo próprio ------
   line: {
     available: false,
     tool: 'line',
     requested: 'Linha reta ou linha que se curva',
     missing:
-      'A conversão em si agora existe NOS DOIS SENTIDOS: convertLineToCurve e convertCurveToLine ' +
-      '(lib/drawingFactory.ts), ligadas em mapStore.ts (convertDrawingToCurve/convertDrawingToLine, com ' +
-      'histórico) e alcançáveis pelo usuário via LineShapeControls.tsx no painel esquerdo — aparece na seção ' +
-      '"Formato da linha" com uma line ou curve selecionada. O que continua faltando é só a SETINHA da barra: ' +
-      '"line" e "curve" são hoje duas ferramentas SEPARADAS em TOOL_GROUPS (components/labels.ts:81), não uma ' +
-      'variante de uma ferramenta só — fundir os dois botões num com submenu exigiria editar TOOL_GROUPS/' +
-      'labels.ts, arquivo de integrador/fundação fora do escopo desta fase (a mesma lista de "não tocar" que ' +
-      'existe pra evitar colisão de escrita concorrente entre fases), e continua sendo decisão de produto em ' +
-      'aberto (DOSSIE-FEEDBACK-F4.md, seção "bug2 linha reta ou curva", "Qual o usuário quis dizer"). Não ' +
-      'confundir com B2 (ponta arredondada vs reta do TRAÇO, "cap") — B2 já está disponível via LineCapControls ' +
-      'no painel, sem relação com esta entrada.',
+      'Linha e Curva agora ficam no mesmo botão "Desenho" da barra (TOOL_CLUSTERS.drawing em ' +
+      'components/labels.ts): a setinha dele escolhe entre as duas no grupo Forma. A conversão de um desenho JÁ ' +
+      'criado existe nos dois sentidos (convertLineToCurve/convertCurveToLine em lib/drawingFactory.ts, ligadas ' +
+      'em mapStore.ts) e fica no painel esquerdo, seção "Formato da linha" (LineShapeControls.tsx). O que não ' +
+      'existe é um eixo de variante só da Linha para a PRÓXIMA linha, então com a Linha como forma o menu ' +
+      'mostra só o grupo Forma. Não confundir com B2 (ponta arredondada vs reta do traço, "cap"), que está no ' +
+      'painel via LineCapControls.',
   },
+}
+
+/**
+ * Grupo "Forma" do botão Desenho: as 7 formas na ordem de
+ * `TOOL_CLUSTERS.drawing` (components/labels.ts). Rótulo igual a
+ * `TOOL_LABELS` (labels.test.ts prova); a descrição é a dica curta e a letra.
+ */
+const SHAPE_HINTS: ReadonlyArray<[DrawingTool, string, string]> = [
+  ['brush', 'Pincel', 'Traço livre'],
+  ['line', 'Linha', 'Reta entre dois pontos'],
+  ['curve', 'Curva', 'Curva suave'],
+  ['circle', 'Círculo', 'Do centro para fora'],
+  ['ellipse', 'Elipse', 'Oval do centro para fora'],
+  ['rect', 'Retângulo', 'De canto a canto'],
+  ['polygon', 'Polígono', 'Vértice a vértice'],
+]
+
+export const DRAWING_SHAPE_GROUP: Extract<ToolVariantGroup, { storeKey: 'drawShape' }> = {
+  storeKey: 'drawShape',
+  label: 'Forma',
+  options: SHAPE_HINTS.map(([tool, label, hint]) => ({
+    id: tool,
+    label,
+    value: tool,
+    description: `${hint} (${TOOL_SHORTCUTS[tool]})`,
+  })),
+}
+
+/** Grupos do menu do botão Desenho: Forma e, abaixo, as variantes prontas da forma corrente. */
+export function drawingClusterGroups(shape: DrawingTool): ToolVariantGroup[] {
+  const entry = TOOL_VARIANTS[shape]
+  return entry && entry.available ? [DRAWING_SHAPE_GROUP, ...entry.groups] : [DRAWING_SHAPE_GROUP]
 }
 
 /** Só as entradas com variante pronta — o que `ToolVariantMenu`/`Toolbar`

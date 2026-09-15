@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { resolveShortcut, TOOL_SHORTCUTS } from './keymap'
+import { buildToolByLetter, hiddenTools, resolveShortcut, TOOL_SHORTCUTS } from './keymap'
+import { FEATURES } from './features'
 import type { ShortcutEvent } from './keymap'
 import type { DrawingTool } from '../types/tools'
 
@@ -32,7 +33,8 @@ describe('resolveShortcut — letras de ferramenta', () => {
     ['roomCircle', 'J'],
     ['roomPolygon', 'Q'],
     ['stair', 'S'],
-    ['token', 'K'],
+    // token/K fica fora do laço: a ferramenta está escondida (FEATURES.tokenTool);
+    // os testes de K logo abaixo cobrem os dois estados.
     ['prop', 'B'],
     ['brush', 'P'],
     ['line', 'L'],
@@ -49,9 +51,22 @@ describe('resolveShortcut — letras de ferramenta', () => {
   ]
 
   it('TOOL_SHORTCUTS cobre exatamente as 23 ferramentas esperadas, sem duplicar letra', () => {
-    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length)
+    // 22 do laço + token, que continua na tabela mesmo escondido.
+    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 1)
+    expect(TOOL_SHORTCUTS.token).toBe('K')
     const letters = Object.values(TOOL_SHORTCUTS)
     expect(new Set(letters).size).toBe(letters.length)
+  })
+
+  it('k devolve null: a ferramenta Token está escondida', () => {
+    expect(resolveShortcut(evt({ key: 'k' }))).toBeNull()
+    expect(resolveShortcut(evt({ key: 'K' }))).toBeNull()
+  })
+
+  it('buildToolByLetter(vazio) mapeia k para token (religar é trocar a flag)', () => {
+    expect(buildToolByLetter(new Set()).get('k')).toBe('token')
+    expect(buildToolByLetter(hiddenTools({ ...FEATURES, tokenTool: true })).get('k')).toBe('token')
+    expect(buildToolByLetter(hiddenTools(FEATURES)).has('k')).toBe(false)
   })
 
   for (const [tool, letter] of ALL_TOOLS) {
