@@ -1,5 +1,5 @@
 import type { MapData } from '../types/map'
-import { resolveTokenMove } from './collision'
+import { findTokenPath } from './collision'
 import { compileFloor } from './floorSdf'
 
 /**
@@ -69,10 +69,16 @@ export function validateTokenMove(
 
   const from = { x: token.x, y: token.y }
   const to = { x: request.x, y: request.y }
-  const resolved = resolveTokenMove(from, to, map.walls)
-  if (resolved !== to) return { ok: false, reason: 'wall' }
+  // Pode ter 2 trechos: entrar em diagonal por porta aberta passa pelo vão (lib/collision.ts).
+  const path = findTokenPath(from, to, map.walls, map.grid)
+  if (path === null) return { ok: false, reason: 'wall' }
 
-  if (!pathStaysOnFloor(map, from.x, from.y, to.x, to.y)) return { ok: false, reason: 'outside_floor' }
+  for (let i = 1; i < path.length; i += 1) {
+    const a = path[i - 1]
+    const b = path[i]
+    if (a === undefined || b === undefined) continue
+    if (!pathStaysOnFloor(map, a.x, a.y, b.x, b.y)) return { ok: false, reason: 'outside_floor' }
+  }
 
   return { ok: true, x: to.x, y: to.y }
 }

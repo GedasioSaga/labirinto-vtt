@@ -6,8 +6,9 @@ plano curto → portão (tsc, vitest, playwright) → exe → olhar de usuário 
 (bom/ruim/estranho) → commit.
 
 ## Em andamento
-- **Item 1 da fila: consertar os 2 defeitos** (iniciado 15/09/2026). Em paralelo: perguntas de
-  como o pincel de blocos deve funcionar.
+- **Item 2a: portas** (iniciado 15/09/2026 ~19:55, 1 `operario` Opus): jogador abre porta
+  destrancada perto do token; trancada sempre bloqueia; "Virar porta" com tamanho padrão;
+  diagonal pela porta; dica da Sala. Prints em `scratchpad/portas/`.
 
 ## Fila nova (ordem aprovada em 15/09/2026, depois da lista de 11 itens) — VALE ESTA
 1. Defeitos já em conserto: Ctrl+Z no rascunho de Área apaga Sala; campo de nome engole arrasto.
@@ -94,6 +95,8 @@ plano curto → portão (tsc, vitest, playwright) → exe → olhar de usuário 
    - push e release no GitHub só com pedido explícito.
 
 ## Aguardando teste do usuário
+- **2 defeitos de desenho** — commit `ce848d4` (15/09/2026): Ctrl+Z/Backspace no rascunho de Área
+  tira só o último ponto (não apaga Sala); campo de nome da Sala nova não engole mais o arrasto.
 - **Salas dentro de sala** — commit `c8a990b` (15/09/2026, ponto de salvamento antes das features
   novas): roteiro de 8 itens enviado no chat; se algo sair ruim, vira conserto na fila.
 

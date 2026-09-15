@@ -107,10 +107,16 @@ test('2. porta: virar parede em porta e alternar aberta/fechada reflete no store
   expect(await getSelection(page)).toEqual({ kind: 'wall', id: 'wallDoor' })
 
   await page.getByRole('button', { name: 'Virar porta', exact: true }).click()
+  // "Virar porta" cria porta de tamanho padrão (32 px) no MEIO da parede,
+  // partindo-a em 3 pedaços — antes o lado inteiro virava porta (bug P10).
   let { walls } = await getMapSnapshot(page)
-  let wall = walls.find((w) => w.id === 'wallDoor')
-  expect(wall?.door).not.toBeNull()
-  expect(wall?.door?.open).toBe(false)
+  expect(walls.filter((w) => w.id === 'wallDoor')).toHaveLength(0)
+  let door = walls.find((w) => w.door !== null)
+  expect(door?.door?.open).toBe(false)
+  expect(Math.hypot(door!.x2 - door!.x1, door!.y2 - door!.y1)).toBeCloseTo(32, 6)
+  expect(Math.min(door!.x1, door!.x2)).toBeCloseTo(509, 6)
+  // A porta nova fica selecionada: o painel segue mostrando Aberta/Trancada.
+  expect(await getSelection(page)).toEqual({ kind: 'wall', id: door!.id })
 
   // O checkbox real fica visualmente coberto pelo track decorativo do Toggle (span
   // com o desenho do interruptor) — force:true clica direto no input, igual o usuário
@@ -120,9 +126,19 @@ test('2. porta: virar parede em porta e alternar aberta/fechada reflete no store
   await expect(aberta).not.toBeChecked()
   await aberta.click({ force: true })
   ;({ walls } = await getMapSnapshot(page))
-  wall = walls.find((w) => w.id === 'wallDoor')
-  expect(wall?.door?.open).toBe(true)
+  const doorId = door!.id
+  door = walls.find((w) => w.id === doorId)
+  expect(door?.door?.open).toBe(true)
   await expect(aberta).toBeChecked()
+
+  // Aberta + Trancada não existe: trancar fecha, e abrir de novo destranca.
+  const trancada = page.getByRole('checkbox', { name: 'Trancada', exact: true })
+  await trancada.click({ force: true })
+  ;({ walls } = await getMapSnapshot(page))
+  expect(walls.find((w) => w.id === doorId)?.door).toMatchObject({ open: false, locked: true })
+  await aberta.click({ force: true })
+  ;({ walls } = await getMapSnapshot(page))
+  expect(walls.find((w) => w.id === doorId)?.door).toMatchObject({ open: true, locked: false })
 })
 
 test('3. link de cenário: campo escondido da janela, mas o dado ainda é salvo e reaberto', async ({ page }) => {

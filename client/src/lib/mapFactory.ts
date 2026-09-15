@@ -614,10 +614,21 @@ export function toggleLayerLock(map: MapData, layerId: LayerId): MapData {
   }
 }
 
+/**
+ * Troca o `DoorState` da parede inteira (ou volta a parede sólida com `null`).
+ * O botão "Virar porta" do painel NÃO usa mais isto: ele cria porta de tamanho
+ * padrão no meio da parede (`mapStore.turnWallIntoDoor` → `addDoorOnWall`),
+ * porque virar o lado inteiro da sala em porta era o bug P10.
+ *
+ * Invariante "aberta+trancada não existe" (decisão 15/09/2026): abrir uma
+ * porta trancada DESTRANCA — é o caminho óbvio para o mestre que liga
+ * "Aberta" numa porta trancada. Trancar fecha (ver `setDoorLocked`).
+ */
 export function setWallDoor(map: MapData, wallId: string, door: DoorState | null): MapData {
+  const normalized = door !== null && door.open && door.locked ? { ...door, locked: false } : door
   return {
     ...map,
-    walls: map.walls.map((w) => (w.id === wallId ? { ...w, door } : w)),
+    walls: map.walls.map((w) => (w.id === wallId ? { ...w, door: normalized } : w)),
   }
 }
 
@@ -692,8 +703,12 @@ export function setWallDoorKind(map: MapData, wallId: string, kind: DoorKind, do
 
 /**
  * Alterna `DoorState.locked` de uma porta já existente. Campo no schema desde
- * sempre (types/map.ts), sem UI até esta fase (F2). Parede inexistente ou sem
+ * sempre (types/map.ts), sem UI até a fase F2. Parede inexistente ou sem
  * porta: devolve `map` pela mesma referência.
+ *
+ * TRANCAR FECHA a porta (decisão 15/09/2026): porta trancada sempre barra
+ * movimento e visão (`lib/collision.ts`), então "aberta e trancada" não é um
+ * estado que o mestre possa ver na tela. Destrancar não abre.
  */
 export function setDoorLocked(map: MapData, wallId: string, locked: boolean): MapData {
   const wall = map.walls.find((w) => w.id === wallId)
@@ -701,7 +716,9 @@ export function setDoorLocked(map: MapData, wallId: string, locked: boolean): Ma
 
   return {
     ...map,
-    walls: map.walls.map((w) => (w.id === wallId && w.door ? { ...w, door: { ...w.door, locked } } : w)),
+    walls: map.walls.map((w) =>
+      w.id === wallId && w.door ? { ...w, door: { ...w.door, locked, open: locked ? false : w.door.open } } : w,
+    ),
   }
 }
 

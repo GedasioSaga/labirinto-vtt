@@ -76,7 +76,9 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   door: 'Clique em cima de uma parede para criar uma porta alinhada com ela.',
   light: 'Clique para colocar uma luz.',
   region: 'Clique para adicionar vértice. Duplo clique fecha (mín. 3 pontos). Esc cancela.',
-  room: 'Clique e arraste para criar uma sala: uma região preenchida com paredes na borda.',
+  // A sala nasce fechada e o jogador não entra sem porta (P10): a dica diz aqui
+  // como abrir a entrada, em vez de só na ferramenta Porta já ativa.
+  room: 'Clique e arraste para criar uma sala: uma região preenchida com paredes na borda. Para a entrada, use Porta (D) e clique na parede.',
   roomCircle: 'Clique no centro e arraste até a borda para criar uma sala circular.',
   roomPolygon: 'Clique no centro e arraste até a borda para criar um polígono regular — ajuste o número de lados no painel.',
   stair: 'Clique e arraste para desenhar um lance de escada.',

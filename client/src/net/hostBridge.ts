@@ -41,6 +41,8 @@ export interface HostBridgeDeps {
   listen: ListenFn
   getMap: () => MapData
   applyMove: (tokenId: string, x: number, y: number) => void
+  /** Porta que o jogador abriu/fechou, já validada pela sessão (visível, destrancada, token perto). */
+  applyDoor: (wallId: string, open: boolean) => void
   visionRadius?: number
   onPlayersChange?: (players: PlayerInfo[]) => void
   onTunnelChange?: (state: TunnelState) => void
@@ -306,6 +308,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (result.applyMove !== undefined) {
       const { tokenId, x, y } = result.applyMove
       deps.applyMove(tokenId, x, y)
+      broadcastNow()
+    }
+    if (result.applyDoor !== undefined) {
+      // Todos veem a porta nova: o mestre pela store, os jogadores pelo snapshot imediato.
+      deps.applyDoor(result.applyDoor.wallId, result.applyDoor.open)
       broadcastNow()
     }
     notifyPlayersIfChanged()

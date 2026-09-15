@@ -5,7 +5,7 @@ import type { MapData } from '../types/map'
 import { NAME_MAX_LENGTH } from '../net/protocol'
 import { SIGNAL_TTL_MS } from '../lib/signals'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_TRAIL_MS } from '../lib/laser'
-import { createPlayerConnection, PING_INTERVAL_MS, RESUME_STORAGE_KEY } from './playerConnection'
+import { createPlayerConnection, DOOR_NOTICE_TTL_MS, PING_INTERVAL_MS, RESUME_STORAGE_KEY } from './playerConnection'
 import type { SocketLike, StorageLike } from './playerConnection'
 
 class FakeSocket implements SocketLike {
@@ -315,6 +315,39 @@ describe('createPlayerConnection', () => {
     expect(connection.sendSignal(Number.NaN, 1)).toBe(false)
     socket.drop()
     expect(connection.sendSignal(1, 1)).toBe(false)
+  })
+
+  it('toggleDoor só envia jogando e com socket aberto', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    expect(connection.toggleDoor('w1')).toBe(false)
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    expect(connection.toggleDoor('w1')).toBe(true)
+    expect(socket.sent.at(-1)).toEqual({ type: 'door.toggle', wallId: 'w1' })
+    expect(connection.toggleDoor('')).toBe(false)
+    socket.drop()
+    expect(connection.toggleDoor('w1')).toBe(false)
+  })
+
+  it('recusa de porta vira aviso que some sozinho; motivo desconhecido ou fora do jogo é descartado', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'door.toggle.rejected', wallId: 'w1', reason: 'locked' })
+    expect(connection.getState().doorNotice).toBeUndefined()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'door.toggle.rejected', wallId: 'w1', reason: 'inventado' })
+    expect(connection.getState().doorNotice).toBeUndefined()
+    socket.receive({ type: 'door.toggle.rejected', wallId: 'w1', reason: 'locked' })
+    expect(connection.getState().doorNotice).toMatchObject({ reason: 'locked' })
+    // Aviso novo substitui o anterior e reinicia o tempo (id diferente).
+    const first = connection.getState().doorNotice?.id
+    socket.receive({ type: 'door.toggle.rejected', wallId: 'w1', reason: 'far' })
+    expect(connection.getState().doorNotice?.id).not.toBe(first)
+    vi.advanceTimersByTime(DOOR_NOTICE_TTL_MS - 1)
+    expect(connection.getState().doorNotice).toMatchObject({ reason: 'far' })
+    vi.advanceTimersByTime(1)
+    expect(connection.getState().doorNotice).toBeUndefined()
   })
 
   it('signal recebido entra no estado com nome e cor e some em 3 s; malformado ou fora do jogo é descartado', () => {

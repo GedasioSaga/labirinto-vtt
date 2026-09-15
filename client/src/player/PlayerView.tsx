@@ -9,6 +9,7 @@ import { countExploredCells, forEachExploredRun } from '../lib/exploration'
 import type { Exploration } from '../lib/exploration'
 import { computeAlignedGridLines } from '../lib/gridAlign'
 import { visibleDrawings, visibleRegions, visibleStairs } from '../lib/layers'
+import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
 import { fitCamera, panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
 import type { Camera } from '../pixi/world'
@@ -55,6 +56,8 @@ interface PlayerViewProps {
   /** Botão "Sinalizar" ligado: o próximo toque no mapa vira sinal em vez de arrasto. */
   signalArmed?: boolean
   onSignal?: (x: number, y: number) => void
+  /** Toque curto numa porta: pede ao mestre para abrir/fechar (o mestre valida). */
+  onDoorToggle?: (wallId: string) => void
   /** Rastro do laser do mestre; o ticker esmaece cada ponto pela idade. */
   laser?: LaserTrail
 }
@@ -71,10 +74,17 @@ const OTHER_TOKEN_COLOR = 0x9ca3af
 const TOKEN_OUTLINE = 0xffffff
 const LABEL_FONT_SIZE = 12
 const DEFAULT_FLOOR: Rgb = [200, 200, 200]
+/** Destaque da porta que o token alcança: sem ele ninguém descobre que dá para tocar na porta. */
+const DOOR_HINT_COLOR = 0xe8c170
+const DOOR_HINT_ALPHA = 0.45
+const DOOR_HINT_WIDTH_PX = 10
+/** Raio do toque na porta, em px de TELA: dedo em celular erra por alguns px. */
+const DOOR_TAP_TOLERANCE_PX = 18
 const HEX_COLOR = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i
 
 type Drag =
-  | { kind: 'pan'; lastX: number; lastY: number }
+  // `startX`/`startY`: onde o gesto começou — se ele terminar sem andar, é um toque (porta), não um arrasto de câmera.
+  | { kind: 'pan'; lastX: number; lastY: number; startX: number; startY: number }
   | { kind: 'token'; tokenId: string; offsetX: number; offsetY: number; x: number; y: number }
 
 function safeRgb(hex: string | null, fallback: Rgb): Rgb {
@@ -217,6 +227,10 @@ interface Scene {
   walls: Graphics
   /** Portas do mesmo renderer do editor (drawDoors.ts): trancada continua visível. */
   doors: Graphics
+  /** Halo nas portas destrancadas que o token do jogador alcança (abaixo do desenho da porta). */
+  doorHints: Graphics
+  lastDoorHintsKey: string | null
+  doorHintsCount: number
   /** Paredes e portas têm espessura em px de tela: a chave inclui zoom e resolução. */
   lastWallsKey: string | null
   wallsCount: number
@@ -371,12 +385,13 @@ export function PlayerView({
   signals = NO_SIGNALS,
   signalArmed = false,
   onSignal,
+  onDoorToggle,
   laser,
 }: PlayerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
-  const latestRef = useRef({ map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, laser })
-  latestRef.current = { map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, laser }
+  const latestRef = useRef({ map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, onDoorToggle, laser })
+  latestRef.current = { map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, onDoorToggle, laser }
 
   function redrawGridLayer(scene: Scene): void {
     const { map: currentMap, settings: currentSettings } = latestRef.current
@@ -416,11 +431,47 @@ export function PlayerView({
     drawDoors(scene.doors, walls, null, scale, res)
   }
 
+  /**
+   * Halo nas portas que o token do jogador alcança (mesmo alcance que o mestre
+   * valida, `lib/doorReach.ts`). Trancada não ganha halo: ela não abre com
+   * toque — o toque nela responde "Trancada".
+   */
+  function redrawDoorHints(scene: Scene): void {
+    const { map: currentMap, ownTokens: own } = latestRef.current
+    const ownSet = new Set(own)
+    const tokens = currentMap.tokens.filter((t) => ownSet.has(t.id))
+    const doors = visibleWalls(currentMap).filter(
+      (w) => w.door !== null && !w.door.locked && tokens.some((t) => tokenReachesDoor(t, w, currentMap.grid)),
+    )
+    const { scale } = scene.camera
+    const key = JSON.stringify([doors.map((w) => [w.id, w.x1, w.y1, w.x2, w.y2, w.door?.open]), scale])
+    if (key === scene.lastDoorHintsKey) return
+    scene.lastDoorHintsKey = key
+    scene.doorHints.clear()
+    for (const door of doors) {
+      scene.doorHints
+        .moveTo(door.x1, door.y1)
+        .lineTo(door.x2, door.y2)
+        .stroke({ width: DOOR_HINT_WIDTH_PX / scale, color: DOOR_HINT_COLOR, alpha: DOOR_HINT_ALPHA, cap: 'round' })
+    }
+    scene.doorHintsCount = doors.length
+    // Para o e2e: canvas WebGL não é legível pelo DOM.
+    const el = containerRef.current
+    if (el) el.dataset.doorHints = String(doors.length)
+  }
+
+  /** Porta sob o ponto da TELA, dentro da tolerância do toque; `null` se não tem porta ali. */
+  function doorAtScreen(scene: Scene, screenX: number, screenY: number): Wall | null {
+    const point = scene.world.toLocal({ x: screenX, y: screenY })
+    return findDoorAt(visibleWalls(latestRef.current.map), point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
+  }
+
   /** Só o zoom (ou a resolução) mudou: nada de chão ou névoa. */
   function redrawZoomLayers(scene: Scene): void {
     redrawGridLayer(scene)
     redrawStairsLayer(scene)
     redrawWallsLayer(scene)
+    redrawDoorHints(scene)
     scene.roomNamesRenderer.setCameraScale(scene.camera.scale)
     const { showNames } = latestRef.current.settings
     for (const view of scene.tokenViews.values()) sizeTokenLabel(view.label, scene.camera.scale, showNames)
@@ -454,6 +505,7 @@ export function PlayerView({
     redrawStairsLayer(scene)
 
     redrawWallsLayer(scene)
+    redrawDoorHints(scene)
     const walls = visibleWalls(currentMap)
     const wallsKey = JSON.stringify([walls, currentMap.grid])
     const raster = isRasterMode(currentMap)
@@ -581,6 +633,7 @@ export function PlayerView({
       const drawings = new Graphics()
       const stairs = new Graphics()
       const walls = new Graphics()
+      const doorHints = new Graphics()
       const doors = new Graphics()
       const roomNames = new Container()
       const textLabels = new Container()
@@ -604,6 +657,7 @@ export function PlayerView({
         drawings,
         stairs,
         walls,
+        doorHints,
         doors,
         roomNames,
         textLabels,
@@ -644,6 +698,9 @@ export function PlayerView({
         lastStairsKey: null,
         walls,
         doors,
+        doorHints,
+        lastDoorHintsKey: null,
+        doorHintsCount: 0,
         lastWallsKey: null,
         wallsCount: 0,
         roomNames,
@@ -723,7 +780,7 @@ export function PlayerView({
           sendSignalAt(x, y)
           return
         }
-        scene.drag = { kind: 'pan', lastX: x, lastY: y }
+        scene.drag = { kind: 'pan', lastX: x, lastY: y, startX: x, startY: y }
         cancelLongPress()
         const timer = setTimeout(() => {
           longPress = null
@@ -738,7 +795,12 @@ export function PlayerView({
           cancelLongPress()
         }
         const drag = scene.drag
-        if (!drag) return
+        if (!drag) {
+          // Mouse parado sobre porta: cursor de mão (no celular não existe hover).
+          const overDoor = !latestRef.current.signalArmed && doorAtScreen(scene, event.global.x, event.global.y) !== null
+          app.stage.cursor = overDoor ? 'pointer' : 'default'
+          return
+        }
         if (drag.kind === 'pan') {
           scene.camera = panBy(scene.camera, event.global.x - drag.lastX, event.global.y - drag.lastY)
           drag.lastX = event.global.x
@@ -755,6 +817,13 @@ export function PlayerView({
         cancelLongPress()
         const drag = scene.drag
         scene.drag = null
+        if (drag?.kind === 'pan') {
+          // Toque curto e parado em cima de uma porta: pede ao mestre para abrir/fechar.
+          if (Math.hypot(drag.lastX - drag.startX, drag.lastY - drag.startY) > SIGNAL_LONG_PRESS_TOLERANCE_PX) return
+          const door = doorAtScreen(scene, drag.startX, drag.startY)
+          if (door !== null) latestRef.current.onDoorToggle?.(door.id)
+          return
+        }
         if (drag?.kind !== 'token') return
         const token = latestRef.current.map.tokens.find((t) => t.id === drag.tokenId)
         const x = Math.round(drag.x)

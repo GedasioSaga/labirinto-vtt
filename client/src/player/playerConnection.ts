@@ -1,6 +1,6 @@
 import type { MapData, RegionPoint } from '../types/map'
 import { decodeExploration, type Exploration } from '../lib/exploration'
-import { NAME_MAX_LENGTH, type JoinMessage, type PlayerMessage } from '../net/protocol'
+import { NAME_MAX_LENGTH, type DoorToggleRejection, type JoinMessage, type PlayerMessage } from '../net/protocol'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
 import { parseLaserMessage } from '../net/protocol'
@@ -28,6 +28,8 @@ export interface PlayerState {
   signals?: SignalMark[]
   /** Rastro do laser do mestre; some sozinho `LASER_TRAIL_MS` depois da última mensagem com o laser desligado. */
   laser?: LaserTrail
+  /** Recusa do mestre ao pedido de porta (trancada, longe, não visível); some sozinho. `id` novo repete o aviso. */
+  doorNotice?: { id: number; reason: DoorToggleRejection }
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -66,6 +68,8 @@ export interface PlayerConnection {
   requestMove(tokenId: string, x: number, y: number): boolean
   /** Sinal no ponto (px de mundo). `false` se não está jogando ou o socket não está aberto. */
   sendSignal(x: number, y: number): boolean
+  /** Pede ao mestre para abrir/fechar a porta. `false` se não está jogando ou o socket não está aberto. */
+  toggleDoor(wallId: string): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -73,6 +77,8 @@ export interface PlayerConnection {
 
 export const RESUME_STORAGE_KEY = 'labirinto.resume'
 export const PING_INTERVAL_MS = 15_000
+/** Quanto tempo o aviso da porta ("Trancada") fica na tela. */
+export const DOOR_NOTICE_TTL_MS = 2500
 const SOCKET_OPEN = 1
 const CONNECTION_LOST = 'connection_lost'
 
@@ -187,6 +193,23 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ signals: (state.signals ?? []).filter((s) => s.id !== id) })
       }, SIGNAL_TTL_MS),
     )
+  }
+
+  let doorNoticeTimer: ReturnType<typeof setTimeout> | null = null
+  let nextNoticeId = 1
+
+  function clearDoorNotice(): void {
+    if (doorNoticeTimer !== null) clearTimeout(doorNoticeTimer)
+    doorNoticeTimer = null
+  }
+
+  function showDoorNotice(reason: DoorToggleRejection): void {
+    clearDoorNotice()
+    setState({ doorNotice: { id: nextNoticeId++, reason } })
+    doorNoticeTimer = setTimeout(() => {
+      doorNoticeTimer = null
+      setState({ doorNotice: undefined })
+    }, DOOR_NOTICE_TTL_MS)
   }
 
   let laserTimer: ReturnType<typeof setTimeout> | null = null
@@ -306,7 +329,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'lobby.waiting':
         clearSignalTimers()
         clearLaserTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined })
+        clearDoorNotice()
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined })
         return
       case 'laser': {
         // Laser sem mapa na tela não tem onde aparecer.
@@ -331,6 +355,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (typeof from !== 'string' || from.length > NAME_MAX_LENGTH) return
         if (typeof color !== 'string' || !SIGNAL_COLOR_PATTERN.test(color)) return
         addSignal(x, y, from, color)
+        return
+      }
+      case 'door.toggle.rejected': {
+        // Aviso sem mapa na tela não tem onde aparecer.
+        if (state.status !== 'playing') return
+        const { reason } = data
+        if (reason !== 'locked' && reason !== 'far' && reason !== 'not_visible') return
+        showDoorNotice(reason)
         return
       }
       case 'snapshot':
@@ -366,7 +398,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         writeResume(storage, null)
         clearSignalTimers()
         clearLaserTimer()
-        setState({ status: 'closed' })
+        clearDoorNotice()
+        setState({ status: 'closed', doorNotice: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -419,6 +452,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     stopPing()
     clearSignalTimers()
     clearLaserTimer()
+    clearDoorNotice()
     const current = socket
     socket = null
     current?.close()
@@ -446,9 +480,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.status !== 'playing' || !Number.isFinite(x) || !Number.isFinite(y)) return false
       return send({ type: 'signal', x: Math.round(x), y: Math.round(y) })
     },
+    toggleDoor(wallId) {
+      if (state.status !== 'playing' || wallId.length === 0) return false
+      return send({ type: 'door.toggle', wallId })
+    },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined })
       open()
     },
     close: detach,

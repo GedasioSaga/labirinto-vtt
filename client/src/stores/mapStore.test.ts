@@ -1434,6 +1434,33 @@ describe('mapStore addDoorOnWall/setWallDoorKind/setDoorLocked (F2)', () => {
     expect(useMapStore.getState().map.walls.find((w) => w.id === doorId)?.door?.locked).toBe(true)
     expect(useMapStore.getState().past.length).toBe(pastLengthBefore + 1)
   })
+
+  it('turnWallIntoDoor ("Virar porta" do painel): porta de tamanho padrão no MEIO, parede partida, vínculo com a sala mantido e porta selecionada', () => {
+    useMapStore.setState({
+      map: { ...useMapStore.getState().map, walls: [] },
+      past: [],
+      future: [],
+      selection: [],
+    })
+    // A porta nasce com a preferência da ferramenta Porta (`doorKind`); outro
+    // describe deste arquivo deixa 'gate' no store, então fixa aqui.
+    useMapStore.getState().setDoorKind('normal')
+    useMapStore.getState().addWall({ ...longWall, regionId: 'sala-1', regionEdgeIndex: 2 })
+    const pastLengthBefore = useMapStore.getState().past.length
+
+    useMapStore.getState().turnWallIntoDoor('w1')
+
+    const { map, selection, past } = useMapStore.getState()
+    expect(map.walls).toHaveLength(3)
+    const door = map.walls.find((w) => w.door !== null)
+    expect(door?.door).toEqual({ open: false, locked: false, kind: 'normal' })
+    // Parede 0..200 em y=40: vão de DOOR_LENGTH_BY_KIND.normal (32 px) centrado em x=100.
+    expect(door && Math.min(door.x1, door.x2)).toBeCloseTo(84, 9)
+    expect(door && Math.max(door.x1, door.x2)).toBeCloseTo(116, 9)
+    for (const piece of map.walls) expect(piece).toMatchObject({ regionId: 'sala-1', regionEdgeIndex: 2 })
+    expect(selection).toEqual([{ kind: 'wall', id: door?.id }])
+    expect(past.length).toBe(pastLengthBefore + 1)
+  })
 })
 
 describe('mapStore Stair (F2): addStair/removeStair/moveStair/updateStairPoint/setStairDirection', () => {

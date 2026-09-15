@@ -1061,6 +1061,18 @@ describe('setDoorLocked', () => {
 
     expect(setDoorLocked(map, 'wSolid', true)).toBe(map)
   })
+
+  it('trancar uma porta aberta fecha a porta (aberta+trancada não existe)', () => {
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), { ...doorWall, door: { open: true, locked: false, kind: 'normal' } })
+
+    expect(setDoorLocked(map, 'wDoor', true).walls[0].door).toEqual({ open: false, locked: true, kind: 'normal' })
+  })
+
+  it('setWallDoor abrindo uma trancada destranca (o mestre ligou "Aberta")', () => {
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), { ...doorWall, door: { open: false, locked: true, kind: 'normal' } })
+
+    expect(setWallDoor(map, 'wDoor', { open: true, locked: true, kind: 'normal' }).walls[0].door).toEqual({ open: true, locked: false, kind: 'normal' })
+  })
 })
 
 describe('Stair (F2): addStair/removeStair/moveStair/updateStairPoint/setStairDirection', () => {

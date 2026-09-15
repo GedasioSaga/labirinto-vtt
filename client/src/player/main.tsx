@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
-import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH } from '../net/protocol'
+import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type DoorToggleRejection } from '../net/protocol'
 import { themeCss } from '../theme'
 import { createPlayerConnection } from './playerConnection'
 import type { PlayerConnection, PlayerState, StorageLike } from './playerConnection'
@@ -24,6 +24,13 @@ document.head.prepend(themeStyle)
 const NO_TOKENS: string[] = []
 const NO_SIGNALS: SignalMark[] = []
 const OWN_TOKEN_CSS = `#${OWN_TOKEN_COLOR.toString(16).padStart(6, '0')}`
+
+/** Recusa do mestre ao toque na porta, em uma linha curta. */
+const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
+  locked: 'Trancada',
+  far: 'Chegue mais perto da porta',
+  not_visible: 'Você não vê essa porta daqui',
+}
 
 const REASON_TEXT: Record<string, string> = {
   bad_code: 'Código de sala incorreto. Confira com o mestre e tente de novo.',
@@ -143,6 +150,7 @@ function Session({ connection, onLeave }: { connection: PlayerConnection; onLeav
             // Modo de um toque: sinalizou, desliga.
             setSignalArmed(false)
           }}
+          onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
         />
         <PlayerPanel
           characters={characters}
@@ -153,6 +161,12 @@ function Session({ connection, onLeave }: { connection: PlayerConnection; onLeav
           signalArmed={signalArmed}
           onToggleSignal={() => setSignalArmed((armed) => !armed)}
         />
+        {state.doorNotice && (
+          // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
+          <p key={state.doorNotice.id} className="pp-notice" role="status" aria-live="polite">
+            {DOOR_NOTICE_TEXT[state.doorNotice.reason]}
+          </p>
+        )}
       </PlayerErrorBoundary>
     )
   }

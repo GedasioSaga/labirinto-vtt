@@ -119,6 +119,7 @@ function App() {
   const setRegionPattern = useMapStore((state) => state.setRegionPattern)
   const setWallDoor = useMapStore((state) => state.setWallDoor)
   const setDoorLocked = useMapStore((state) => state.setDoorLocked)
+  const turnWallIntoDoor = useMapStore((state) => state.turnWallIntoDoor)
   const doorKind = useMapStore((state) => state.doorKind)
   const setDoorKind = useMapStore((state) => state.setDoorKind)
   const setWallDoorKind = useMapStore((state) => state.setWallDoorKind)
@@ -216,6 +217,14 @@ function App() {
         getMap: () => useMapStore.getState().map,
         // Movimento já validado pela sessão (dono, paredes, borda do chão).
         applyMove: (tokenId, x, y) => useMapStore.getState().setTokenPosition(tokenId, x, y),
+        // Porta aberta/fechada pelo jogador, já validada pela sessão (visível, destrancada, token perto).
+        applyDoor: (wallId, open) => {
+          const store = useMapStore.getState()
+          const wall = store.map.walls.find((w) => w.id === wallId)
+          // Trancada só o mestre abre: recusa defensiva se o mapa mudou entre a validação e aqui.
+          if (!wall?.door || (open && wall.door.locked)) return
+          store.setWallDoor(wallId, { ...wall.door, open })
+        },
         onPlayersChange: setRoomPlayers,
         onTunnelChange: setTunnel,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
@@ -606,7 +615,10 @@ function App() {
 
   const handleToggleDoor = () => {
     if (!selectedWall) return
-    setWallDoor(selectedWall.id, selectedWall.door === null ? { open: false, locked: false, kind: 'normal' } : null)
+    // Porta nasce do tamanho padrão no MEIO da parede, partindo a parede como a
+    // ferramenta Porta faz. Antes o LADO INTEIRO da sala virava porta (bug P10).
+    if (selectedWall.door === null) turnWallIntoDoor(selectedWall.id)
+    else setWallDoor(selectedWall.id, null)
   }
 
   const handleToggleOpen = () => {

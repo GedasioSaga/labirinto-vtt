@@ -19,6 +19,10 @@ import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
  * mensagem `signal` nos dois sentidos (sinal de mapa do jogador) e a `laser`
  * do mestre para o jogador.
  *
+ * `door.toggle` (jogador -> mestre) e `door.toggle.rejected` (volta) são
+ * aditivas pelo mesmo motivo: mestre antigo responde `error invalid_message`
+ * (o jogador só não abre a porta) e jogador antigo ignora a recusa.
+ *
  * `room.closed` (mestre -> jogador) também é aditiva: o mestre avisa que
  * encerrou a sala antes de derrubar a conexão, e o jogador mostra "O mestre
  * encerrou a sala" em vez de "A conexão caiu". Cliente antigo cai no
@@ -62,7 +66,20 @@ export interface SignalMessage {
   y: number
 }
 
-export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage
+/**
+ * Jogador pede para abrir/fechar uma porta encostada no token dele. O host
+ * valida (porta existe, visível para ele agora, destrancada, token perto) e
+ * aplica no mapa do mestre; recusa volta em `door.toggle.rejected`.
+ */
+export interface DoorToggleMessage {
+  type: 'door.toggle'
+  wallId: string
+}
+
+export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage | DoorToggleMessage
+
+/** Por que o host recusou o pedido de porta do jogador. */
+export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
 
 // Mestre -> jogador
 /** Laser do mestre: lote de pontos (px de mundo) desde o último envio, ou `off` ao soltar. */
@@ -78,6 +95,7 @@ export type HostMessage =
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
+  | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
   | LaserMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
@@ -157,6 +175,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return { type: 'ping' }
     case 'signal':
       return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
+    case 'door.toggle':
+      return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
     default:
       return null
   }

@@ -18,6 +18,9 @@ const ROOM = { code: 'AB12CD', urls: ['http://192.168.0.2:7777'], qrSvg: '<svg/>
 function sampleMap(): MapData {
   return {
     ...createEmptyMap('m', 'M', 1000, 1000, 40),
+    // Porta fechada encostada no herói (40 px abaixo dele): o jogador pode abrir.
+    // Fica ABAIXO, fora do caminho do movimento para (240, 200) usado nos testes de move.
+    walls: [{ id: 'porta', x1: 180, y1: 240, x2: 220, y2: 240, blocksLight: false, blocksMove: true, door: { open: false, locked: false, kind: 'normal' } }],
     tokens: [{ id: 'heroi', characterId: null, name: 'Herói', x: 200, y: 200, size: 1, image: null }],
   }
 }
@@ -34,15 +37,18 @@ function setup(overrides: Partial<HostBridgeDeps> = {}) {
   const applyMove = vi.fn((tokenId: string, x: number, y: number) => {
     map = { ...map, tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : t)) }
   })
+  const applyDoor = vi.fn((wallId: string, open: boolean) => {
+    map = { ...map, walls: map.walls.map((w) => (w.id === wallId && w.door ? { ...w, door: { ...w.door, open } } : w)) }
+  })
   const onPlayersChange = vi.fn()
-  const bridge = createHostBridge({ invoke, listen, getMap: () => map, applyMove, onPlayersChange, now: () => 0, ...overrides })
+  const bridge = createHostBridge({ invoke, listen, getMap: () => map, applyMove, applyDoor, onPlayersChange, now: () => 0, ...overrides })
   const emit = (name: string, payload: unknown) => {
     const handler = handlers.get(name)
     if (handler === undefined) throw new Error(`sem listener para ${name}`)
     handler({ payload })
   }
   const sent = () => invoke.mock.calls.filter((call) => call[0] === 'net_send').map((call) => call[1])
-  return { bridge, invoke, listen, unlisten, applyMove, onPlayersChange, emit, sent }
+  return { bridge, invoke, listen, unlisten, applyMove, applyDoor, onPlayersChange, emit, sent }
 }
 
 function joinedPlayerId(sent: unknown[]): string {
@@ -91,6 +97,30 @@ describe('hostBridge', () => {
     const after = t.sent().slice(before)
     expect(after[0]).toMatchObject({ clientId: 'c1', msg: { type: 'token.move.accepted', reqId: 'r1' } })
     expect(after[1]).toMatchObject({ clientId: 'c1', msg: { type: 'snapshot' } })
+  })
+
+  it('porta aceita chama applyDoor e manda snapshot para todos', async () => {
+    const t = setup()
+    await t.bridge.start()
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+    t.bridge.assignToken(joinedPlayerId(t.sent()), 'heroi')
+    const before = t.sent().length
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'door.toggle', wallId: 'porta' } })
+    expect(t.applyDoor).toHaveBeenCalledWith('porta', true)
+    expect(t.sent().slice(before)).toMatchObject([{ clientId: 'c1', msg: { type: 'snapshot' } }])
+  })
+
+  it('porta recusada não chama applyDoor e manda a recusa', async () => {
+    const t = setup()
+    await t.bridge.start()
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+    t.bridge.assignToken(joinedPlayerId(t.sent()), 'heroi')
+    const before = t.sent().length
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'door.toggle', wallId: 'inexistente' } })
+    expect(t.applyDoor).not.toHaveBeenCalled()
+    expect(t.sent().slice(before)).toMatchObject([
+      { clientId: 'c1', msg: { type: 'door.toggle.rejected', wallId: 'inexistente', reason: 'not_visible' } },
+    ])
   })
 
   it('net:peer disconnected marca o jogador como desconectado', async () => {

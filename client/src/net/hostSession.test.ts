@@ -3,7 +3,7 @@ import { countExploredCells, decodeExploration, isPointExplored } from '../lib/e
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Region, Token, Wall } from '../types/map'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
-import { createHostSession, VISION_RADIUS_MAX, VISION_RADIUS_MIN, type HostResult } from './hostSession'
+import { createHostSession, DOOR_TOGGLE_MIN_INTERVAL_MS, VISION_RADIUS_MAX, VISION_RADIUS_MIN, type HostResult } from './hostSession'
 import type { HostMessage } from './protocol'
 
 const CODE = 'AB12CD'
@@ -731,5 +731,105 @@ describe('hostSession: sinal do jogador', () => {
     expect(signal('c2').signal).toBeDefined()
     t.advance(1)
     expect(signal('c1').signal).toBeDefined()
+  })
+})
+
+describe('hostSession door.toggle (jogador abre porta)', () => {
+  const GRID = 40
+  /** Parede vertical em x=500 partida por uma porta (y 180..220), como a ferramenta Porta faz. */
+  function doorMap(door: NonNullable<Wall['door']>, tokenX = 460): MapData {
+    return {
+      ...createEmptyMap('m', 'M', 1000, 1000, GRID),
+      walls: [
+        wall('acima', 500, 0, 500, 180),
+        { ...wall('porta', 500, 180, 500, 220, door), blocksLight: false },
+        wall('abaixo', 500, 220, 500, 1000),
+      ],
+      tokens: [token('heroi', tokenX, 200)],
+    }
+  }
+
+  const closed = { open: false, locked: false, kind: 'normal' as const }
+
+  /** Sessão com Ana jogando com o 'heroi' e um snapshot já enviado (a memória de visão existe). */
+  function doorSetup(map: MapData) {
+    let clock = 0
+    const s = createHostSession({ code: CODE, visionRadius: RADIUS, now: () => clock, randomId: sequentialIds() })
+    const ana = welcomeOf(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, map).outbound)
+    s.assignToken(ana.playerId, 'heroi')
+    s.broadcast(map)
+    return { s, ana, advance: (ms: number) => void (clock += ms) }
+  }
+
+  it('porta destrancada encostada no token: abre e devolve applyDoor, sem mensagem de recusa', () => {
+    const map = doorMap(closed)
+    const t = doorSetup(map)
+    const r = t.s.handleMessage('c1', { type: 'door.toggle', wallId: 'porta' }, map)
+    expect(r.applyDoor).toEqual({ wallId: 'porta', open: true })
+    expect(r.outbound).toEqual([])
+  })
+
+  it('porta aberta encostada no token: fecha', () => {
+    const map = doorMap({ ...closed, open: true })
+    const t = doorSetup(map)
+    expect(t.s.handleMessage('c1', { type: 'door.toggle', wallId: 'porta' }, map).applyDoor).toEqual({ wallId: 'porta', open: false })
+  })
+
+  it('token longe: recusa "far" e não mexe na porta', () => {
+    const map = doorMap(closed, 200)
+    const t = doorSetup(map)
+    const r = t.s.handleMessage('c1', { type: 'door.toggle', wallId: 'porta' }, map)
+    expect(r.applyDoor).toBeUndefined()
+    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'far' } }])
+  })
+
+  it('porta trancada: recusa "locked" mesmo com o token encostado', () => {
+    const map = doorMap({ ...closed, locked: true })
+    const t = doorSetup(map)
+    const r = t.s.handleMessage('c1', { type: 'door.toggle', wallId: 'porta' }, map)
+    expect(r.applyDoor).toBeUndefined()
+    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'locked' } }])
+  })
+
+  it('porta que o jogador não vê, parede sem porta e id inexistente: todas "not_visible" (não dizem o que existe no escuro)', () => {
+    const map = doorMap(closed)
+    // Porta do outro lado do mapa, fora da visão do herói.
+    const longe: Wall = { ...wall('longe', 40, 900, 40, 940, closed), blocksLight: false }
+    const withFar: MapData = { ...map, walls: [...map.walls, longe] }
+    const t = doorSetup(withFar)
+    for (const wallId of ['longe', 'acima', 'nao-existe']) {
+      t.advance(DOOR_TOGGLE_MIN_INTERVAL_MS)
+      const r = t.s.handleMessage('c1', { type: 'door.toggle', wallId }, withFar)
+      expect(r.applyDoor).toBeUndefined()
+      expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'door.toggle.rejected', wallId, reason: 'not_visible' } }])
+    }
+  })
+
+  it('de quem não entrou devolve not_joined; de quem só aguarda é descartado', () => {
+    const map = doorMap(closed)
+    const t = doorSetup(map)
+    expect(t.s.handleMessage('cx', { type: 'door.toggle', wallId: 'porta' }, map).outbound).toEqual([
+      { clientId: 'cx', msg: { type: 'error', reason: 'not_joined' } },
+    ])
+    t.s.handleMessage('c2', { type: 'join', code: CODE, name: 'Bia' }, map)
+    expect(t.s.handleMessage('c2', { type: 'door.toggle', wallId: 'porta' }, map)).toEqual({ outbound: [] })
+  })
+
+  it('limita a 1 pedido de porta por janela por jogador', () => {
+    const map = doorMap(closed)
+    const t = doorSetup(map)
+    expect(t.s.handleMessage('c1', { type: 'door.toggle', wallId: 'porta' }, map).applyDoor).toBeDefined()
+    t.advance(DOOR_TOGGLE_MIN_INTERVAL_MS - 1)
+    expect(t.s.handleMessage('c1', { type: 'door.toggle', wallId: 'porta' }, map)).toEqual({ outbound: [] })
+    t.advance(1)
+    expect(t.s.handleMessage('c1', { type: 'door.toggle', wallId: 'porta' }, map).applyDoor).toBeDefined()
+  })
+
+  it('wallId malformado é mensagem inválida', () => {
+    const map = doorMap(closed)
+    const t = doorSetup(map)
+    expect(t.s.handleMessage('c1', { type: 'door.toggle', wallId: 7 }, map).outbound).toEqual([
+      { clientId: 'c1', msg: { type: 'error', reason: 'invalid_message' } },
+    ])
   })
 })

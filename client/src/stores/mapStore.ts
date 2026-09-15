@@ -459,6 +459,12 @@ interface MapStoreState {
   setWallDoorKind: (wallId: string, kind: DoorKind) => void
   /** Alterna `DoorState.locked` de uma porta já criada. Com histórico. */
   setDoorLocked: (wallId: string, locked: boolean) => void
+  /** Botão "Virar porta" do painel: porta de `DOOR_LENGTH_BY_KIND[doorKind]`
+   *  no MEIO da parede selecionada, partindo a parede como a ferramenta Porta
+   *  (mantém o vínculo com a Sala). Antes o painel virava o LADO INTEIRO da
+   *  sala em porta (bug P10). Deixa a porta nova selecionada, para o mestre
+   *  seguir em Aberta/Trancada. Parede inexistente ou que já é porta: nada. */
+  turnWallIntoDoor: (wallId: string) => void
   addStair: (stair: Stair) => void
   removeStair: (id: string) => void
   moveStair: (id: string, dx: number, dy: number) => void
@@ -1014,7 +1020,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const { map } = get()
       const token = map.tokens.find((t) => t.id === id)
       if (!token) return
-      const resolved = resolveTokenMove({ x: token.x, y: token.y }, { x: targetX, y: targetY }, map.walls)
+      const resolved = resolveTokenMove({ x: token.x, y: token.y }, { x: targetX, y: targetY }, map.walls, map.grid)
       withHistory((m) => mapFactory.setTokenPosition(m, id, resolved.x, resolved.y))
     },
     setTokenImage: (id, image) => withHistory((map) => mapFactory.setTokenImage(map, id, image)),
@@ -1072,6 +1078,17 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       mapFactory.setWallDoorKind(map, wallId, kind, DOOR_LENGTH_BY_KIND[kind]),
     ),
     setDoorLocked: (wallId, locked) => withHistory((map) => mapFactory.setDoorLocked(map, wallId, locked)),
+    turnWallIntoDoor: (wallId) => {
+      const { map, doorKind } = get()
+      const wall = map.walls.find((w) => w.id === wallId)
+      if (!wall || wall.door !== null) return
+      const before = new Set(map.walls.map((w) => w.id))
+      const middle = { x: (wall.x1 + wall.x2) / 2, y: (wall.y1 + wall.y2) / 2 }
+      withHistory((m) => mapFactory.addDoorOnWall(m, wallId, middle, DOOR_LENGTH_BY_KIND[doorKind], doorKind))
+      // A parede virou de 1 a 3 pedaços novos: seleciona o pedaço que é a porta.
+      const door = get().map.walls.find((w) => w.door !== null && !before.has(w.id))
+      if (door !== undefined) set({ selection: selectionOfItem({ kind: 'wall', id: door.id }) })
+    },
     addStair: (stair) => withHistory((map) => mapFactory.addStair(map, stair)),
     removeStair: (id) => withHistory((map) => mapFactory.removeStair(map, id)),
     moveStair: (id, dx, dy) => withHistory((map) => mapFactory.moveStair(map, id, dx, dy)),
@@ -1163,7 +1180,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       // Mesma resolução de colisão de moveToken (linha ~599) — sem isto o
       // token atravessaria parede durante o arrasto e só "corrigiria" ao
       // soltar, regressão visual em relação ao comportamento com histórico.
-      const resolved = resolveTokenMove({ x: token.x, y: token.y }, { x: targetX, y: targetY }, map.walls)
+      const resolved = resolveTokenMove({ x: token.x, y: token.y }, { x: targetX, y: targetY }, map.walls, map.grid)
       set((state) => ({ map: mapFactory.setTokenPosition(state.map, id, resolved.x, resolved.y) }))
     },
     movePropLive: (id, x, y) => set((state) => ({ map: mapFactory.setPropPosition(state.map, id, x, y) })),

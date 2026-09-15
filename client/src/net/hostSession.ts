@@ -3,8 +3,9 @@ import { createExploration, encodeExploration, isPointExplored, markAll, markRin
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
+import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
-import { parsePlayerMessage, type HostMessage, type JoinMessage, type LaserMessage, type SignalMessage, type TokenMoveMessage } from './protocol'
+import { parsePlayerMessage, type DoorToggleMessage, type HostMessage, type JoinMessage, type LaserMessage, type SignalMessage, type TokenMoveMessage } from './protocol'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -26,6 +27,12 @@ export interface AppliedMove {
   y: number
 }
 
+/** Porta que o jogador abriu/fechou: o integrador aplica no mapa do mestre. */
+export interface AppliedDoor {
+  wallId: string
+  open: boolean
+}
+
 /** Sinal aceito de um jogador, para a UI do mestre desenhar. */
 export interface HostSignal {
   playerId: string
@@ -38,6 +45,7 @@ export interface HostSignal {
 export interface HostResult {
   outbound: Outbound[]
   applyMove?: AppliedMove
+  applyDoor?: AppliedDoor
   signal?: HostSignal
 }
 
@@ -56,6 +64,9 @@ export interface PlayerInfo {
 export const VISION_RADIUS_MIN = 50
 export const VISION_RADIUS_MAX = 2000
 export const VISION_RADIUS_STEP = 50
+
+/** Um pedido de porta por jogador nesta janela; o excesso morre em silêncio (igual ao sinal). */
+export const DOOR_TOGGLE_MIN_INTERVAL_MS = 250
 
 export interface HostSessionOptions {
   code: string
@@ -131,6 +142,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const explorations = new Map<string, PlayerMemory>()
   // Por playerId: reconectar não zera o limite de 1 sinal por segundo.
   const lastSignalAt = new Map<string, number>()
+  // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
+  const lastDoorToggleAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
   const visionOverrides = new Map<string, number>()
   let rev = 0
@@ -272,6 +285,41 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { outbound, signal: { playerId, name: record.name, color, x: msg.x, y: msg.y } }
   }
 
+  /**
+   * Jogador abre ou fecha porta. Autoridade é aqui: a porta precisa existir,
+   * estar VISÍVEL para ele agora (não só lembrada — senão abriria porta do
+   * outro lado do mapa), estar DESTRANCADA (trancada é só do mestre) e ter um
+   * token dele encostado (`tokenReachesDoor`). Recusa vira aviso curto na tela
+   * do jogador; porta inexistente ou invisível responde o mesmo
+   * `not_visible`, para não dizer o que existe no escuro.
+   */
+  function handleDoorToggle(clientId: string, msg: DoorToggleMessage, map: MapData): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const at = now()
+    const last = lastDoorToggleAt.get(playerId)
+    if (last !== undefined && at - last < DOOR_TOGGLE_MIN_INTERVAL_MS) return { outbound: [] }
+    lastDoorToggleAt.set(playerId, at)
+
+    const reject = (reason: 'locked' | 'far' | 'not_visible'): HostResult =>
+      reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
+
+    const wall = map.walls.find((w) => w.id === msg.wallId)
+    if (wall === undefined || wall.door === null) return reject('not_visible')
+    const memory = memoryFor(playerId, map)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
+    // Trancada antes de longe: a cor da porta já diz que está trancada, e "Trancada" é a informação útil.
+    if (wall.door.locked) return reject('locked')
+    const owned = new Set(ownership[playerId] ?? [])
+    // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
+    const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
+    if (!near) return reject('far')
+
+    return { outbound: [], applyDoor: { wallId: wall.id, open: !wall.door.open } }
+  }
+
   return {
     get rev() {
       return rev
@@ -289,6 +337,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return { outbound: [] }
         case 'signal':
           return handleSignal(clientId, msg, map)
+        case 'door.toggle':
+          return handleDoorToggle(clientId, msg, map)
       }
     },
 
@@ -329,6 +379,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       delete ownership[playerId]
       explorations.delete(playerId)
       lastSignalAt.delete(playerId)
+      lastDoorToggleAt.delete(playerId)
       visionOverrides.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },

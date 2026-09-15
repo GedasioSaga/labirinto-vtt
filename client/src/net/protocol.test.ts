@@ -77,6 +77,15 @@ describe('parsePlayerMessage', () => {
     expect(parsePlayerMessage({ type: 'signal', x: 1, y: Number.POSITIVE_INFINITY })).toBeNull()
   })
 
+  it('aceita door.toggle com wallId e descarta o resto', () => {
+    expect(parsePlayerMessage({ type: 'door.toggle', wallId: 'w1', extra: 'x' })).toEqual({ type: 'door.toggle', wallId: 'w1' })
+    expect(parsePlayerMessage('{"type":"door.toggle","wallId":"w1"}')).toEqual({ type: 'door.toggle', wallId: 'w1' })
+    expect(parsePlayerMessage({ type: 'door.toggle' })).toBeNull()
+    expect(parsePlayerMessage({ type: 'door.toggle', wallId: '' })).toBeNull()
+    expect(parsePlayerMessage({ type: 'door.toggle', wallId: 7 })).toBeNull()
+    expect(parsePlayerMessage({ type: 'door.toggle', wallId: 'w'.repeat(65) })).toBeNull()
+  })
+
   it('descarta campos desconhecidos', () => {
     expect(parsePlayerMessage({ type: 'ping', extra: 1 })).toEqual({ type: 'ping' })
   })
