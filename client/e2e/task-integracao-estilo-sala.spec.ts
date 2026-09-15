@@ -1,6 +1,6 @@
 // Integração dos consertos de 15/09/2026:
 // 1. retângulo já desenhado e selecionado: o painel edita a cor/espessura DELE;
-// 2. Sala nova nasce em pergaminho (roomFillColor), Região continua com a cor dela;
+// 2. Sala nova nasce marrom (roomFillColor), Região continua com a cor dela;
 // 3. contorno de seleção tem espessura fixa na tela (não engorda com o zoom);
 // 4. porta trancada e escada selecionadas mantêm a cor real sob o contorno amarelo;
 // 5. objeto "Oculto no editor" aparece como fantasma e continua clicável.
@@ -109,12 +109,12 @@ test('retângulo selecionado: mudar cor e espessura no painel muda o retângulo,
   expect(await storeValue<number>(page, 'drawWidth')).toBe(drawWidthBefore)
 })
 
-test('Sala nova nasce em pergaminho; a cor escolhida com a ferramenta Sala vale só para Sala', async ({ page }) => {
+test('Sala nova nasce marrom; a cor escolhida com a ferramenta Sala vale só para Sala', async ({ page }) => {
   const box = await page.locator('canvas').boundingBox()
   if (!box) throw new Error('canvas sem bounding box')
 
   await page.getByRole('button', { name: 'Sala', exact: true }).click()
-  await expect(page.locator('#lb-region-color')).toHaveValue('#e9e1cf')
+  await expect(page.locator('#lb-region-color')).toHaveValue('#a8776a')
 
   await page.mouse.move(box.x + 300, box.y + 300)
   await page.mouse.down()
@@ -124,7 +124,7 @@ test('Sala nova nasce em pergaminho; a cor escolhida com a ferramenta Sala vale 
   let regions = await storeValue<{ fillColor: string; room?: unknown }[]>(page, 'map.regions')
   expect(regions).toHaveLength(1)
   expect(regions[0].room).toBeTruthy()
-  expect(regions[0].fillColor).toBe('#e9e1cf')
+  expect(regions[0].fillColor).toBe('#a8776a')
 
   // Sem nada selecionado, com a ferramenta Sala: o swatch edita roomFillColor.
   await page.keyboard.press('Escape')
@@ -132,7 +132,7 @@ test('Sala nova nasce em pergaminho; a cor escolhida com a ferramenta Sala vale 
     const mod = await import('/src/stores/mapStore.ts')
     mod.useMapStore.getState().setSelection([])
   })
-  await expect(page.locator('#lb-region-color')).toHaveValue('#e9e1cf')
+  await expect(page.locator('#lb-region-color')).toHaveValue('#a8776a')
   await page.locator('#lb-region-color').fill('#aa5500')
   expect(await storeValue<string>(page, 'roomFillColor')).toBe('#aa5500')
   expect(await storeValue<string>(page, 'regionFillColor')).toBe('#3a7ad0')
@@ -142,7 +142,7 @@ test('Sala nova nasce em pergaminho; a cor escolhida com a ferramenta Sala vale 
   await page.mouse.move(box.x + 900, box.y + 450, { steps: 5 })
   await page.mouse.up()
   regions = await storeValue<{ fillColor: string }[]>(page, 'map.regions')
-  expect(regions.map((r) => r.fillColor)).toEqual(['#e9e1cf', '#aa5500'])
+  expect(regions.map((r) => r.fillColor)).toEqual(['#a8776a', '#aa5500'])
 
   // Região continua com a cor dela.
   await page.getByRole('button', { name: 'Região', exact: true }).click()

@@ -51,7 +51,7 @@ describe('subscribeToGridRedraw', () => {
     const onChange = vi.fn()
     const unsubscribe = subscribeToGridRedraw(onChange)
 
-    useMapStore.getState().setShowGrid(false)
+    useMapStore.getState().setShowGrid(true)
 
     expect(onChange).toHaveBeenCalledTimes(1)
     unsubscribe()

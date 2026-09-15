@@ -1,4 +1,4 @@
-// Passo 3, F1: padrões do mapa novo (chão pergaminho, 1,5 m por célula com
+// Passo 3, F1: padrões do mapa novo (chão marrom, 1,5 m por célula com
 // vírgula, grade discreta, luz de 4 células) e a dica da ferramenta que some do
 // canvas depois do primeiro uso. Mapa novo é criado pelo fluxo real do menu.
 import { test, expect, type Page } from '@playwright/test'
@@ -18,12 +18,12 @@ test.beforeEach(async ({ page }) => {
   await enterEditor(page)
 })
 
-test('1. mapa novo nasce com chão pergaminho, 1,5 m por célula e grade discreta', async ({ page }) => {
+test('1. mapa novo nasce com chão marrom, 1,5 m por célula e grade desligada', async ({ page }) => {
   const map = await readNewMap(page)
-  expect(map.floorStyle.fillColor).toBe('#e9e1cf')
+  expect(map.floorStyle.fillColor).toBe('#a8776a')
   expect(map.scale).toEqual({ unitsPerCell: 1.5, unit: 'm', precision: 1 })
   expect(map.oneCellLabel).toBe('1,5 m')
-  expect(map.gridSettings).toEqual({ color: '#1f1b16', opacity: 0.18, lineWidth: 1, lineStyle: 'solid' })
+  expect(map.gridSettings).toEqual({ color: '#000000', opacity: 0.25, lineWidth: 1, lineStyle: 'solid' })
 })
 
 test('2. clique simples com a ferramenta Luz cria luz de 4 células', async ({ page }) => {

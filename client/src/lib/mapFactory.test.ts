@@ -78,8 +78,8 @@ describe('createEmptyMap', () => {
       height: 20,
       grid: 64,
       gridShape: 'square',
-      showGrid: true,
-      gridSettings: { color: '#1f1b16', opacity: 0.18, lineWidth: 1, lineStyle: 'solid' },
+      showGrid: false,
+      gridSettings: { color: '#000000', opacity: 0.25, lineWidth: 1, lineStyle: 'solid' },
       background: { type: 'color', src: '#2b2b2b' },
       walls: [],
       lights: [],
@@ -89,7 +89,7 @@ describe('createEmptyMap', () => {
       stairs: [],
       drawings: [],
       floor: [],
-      floorStyle: { fillColor: '#e9e1cf', strokeColor: null, strokeWidth: 1 },
+      floorStyle: { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 },
       lines: [],
       markers: [],
       concealZones: [],
@@ -941,7 +941,7 @@ describe('setGridSettings', () => {
     const next = setGridSettings(map, { color: '#ff0000' })
 
     // opacity/lineWidth/lineStyle = padrões do mapa novo (createEmptyMap), intactos
-    expect(next.gridSettings).toEqual({ color: '#ff0000', opacity: 0.18, lineWidth: 1, lineStyle: 'solid' })
+    expect(next.gridSettings).toEqual({ color: '#ff0000', opacity: 0.25, lineWidth: 1, lineStyle: 'solid' })
   })
 
   it('não muda nenhum outro campo do map', () => {

@@ -22,11 +22,14 @@ export function createEmptyMap(id: string, name: string, width: number, height: 
     height,
     grid,
     gridShape: 'square',
-    showGrid: true,
-    // Grade discreta do mapa novo (passo 3, F1). Diverge DE PROPÓSITO do
-    // default que deserializeMap (mapFile.ts) aplica a mapa antigo sem
-    // gridSettings: mapa salvo continua abrindo com a grade de antes.
-    gridSettings: { color: '#1f1b16', opacity: 0.18, lineWidth: 1, lineStyle: 'solid' },
+    // Minimapa do Resident Evil: mapa novo nasce sem grade. Mapa salvo continua
+    // com o `showGrid` dele (arquivo sem o campo abre com grade, mapFile.ts).
+    showGrid: false,
+    // Grade do mapa novo quando o usuário ligar: preto translúcido aparece
+    // sobre o chão marrom e sobre o fundo escuro (a grade de fora do piso usa
+    // outra cor no PixiCanvas). Diverge DE PROPÓSITO do default que
+    // deserializeMap (mapFile.ts) aplica a mapa antigo sem gridSettings.
+    gridSettings: { color: '#000000', opacity: 0.25, lineWidth: 1, lineStyle: 'solid' },
     background: { type: 'color', src: '#2b2b2b' },
     walls: [],
     lights: [],

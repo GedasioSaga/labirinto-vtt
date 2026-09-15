@@ -21,9 +21,6 @@ import { computeVisibleTriEdges } from '../pixi/triGrid'
 import { createFloorRenderer } from '../pixi/drawFloor'
 import { drawWalls } from '../pixi/drawWalls'
 import { drawDoors } from '../pixi/drawDoors'
-import { createHatchRenderer } from '../pixi/drawHatch'
-import { createDungeonTextures, type DungeonTextures } from '../pixi/dungeonTextures'
-import { hatchStrokeWidth, hatchUsesFlatBand } from '../pixi/dungeonStyle'
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer } from '../pixi/drawRegions'
 import { drawDrawings } from '../pixi/drawDrawings'
@@ -220,12 +217,8 @@ interface Scene {
   walls: Graphics
   /** Portas do mesmo renderer do editor (drawDoors.ts): trancada continua visível. */
   doors: Graphics
+  /** Paredes e portas têm espessura em px de tela: a chave inclui zoom e resolução. */
   lastWallsKey: string | null
-  /** Faixa de hachura por fora das paredes externas, sob o piso, com máscara inversa do piso. */
-  hatch: Graphics
-  hatchMask: Graphics
-  hatchRenderer: ReturnType<typeof createHatchRenderer>
-  dungeonTextures: DungeonTextures | null
   wallsCount: number
   roomNames: Container
   roomNamesRenderer: ReturnType<typeof createRoomNamesRenderer>
@@ -410,10 +403,24 @@ export function PlayerView({
     drawStairs(scene.stairs, stairs, null, scale, res)
   }
 
-  /** Só o zoom (ou a resolução) mudou: nada de chão, paredes ou névoa. */
+  /** Mesmo desenho do editor (linha clara fina, porta retângulo), em px de tela. */
+  function redrawWallsLayer(scene: Scene): void {
+    const walls = visibleWalls(latestRef.current.map)
+    const { scale } = scene.camera
+    const res = scene.app.renderer.resolution
+    const key = JSON.stringify([walls, scale, res])
+    if (key === scene.lastWallsKey) return
+    scene.lastWallsKey = key
+    scene.wallsCount = walls.length
+    drawWalls(scene.walls, walls, null, scale, res)
+    drawDoors(scene.doors, walls, null, scale, res)
+  }
+
+  /** Só o zoom (ou a resolução) mudou: nada de chão ou névoa. */
   function redrawZoomLayers(scene: Scene): void {
     redrawGridLayer(scene)
     redrawStairsLayer(scene)
+    redrawWallsLayer(scene)
     scene.roomNamesRenderer.setCameraScale(scene.camera.scale)
     const { showNames } = latestRef.current.settings
     for (const view of scene.tokenViews.values()) sizeTokenLabel(view.label, scene.camera.scale, showNames)
@@ -446,34 +453,12 @@ export function PlayerView({
     }
     redrawStairsLayer(scene)
 
-    // Mesmo desenho do editor (parede grossa, porta por tipo, hachura). A faixa
-    // usa SÓ a lista de paredes e salas que o jogador já recebe: não revela nada.
+    redrawWallsLayer(scene)
     const walls = visibleWalls(currentMap)
-    const grid = currentMap.grid
-    const flatHatch = hatchUsesFlatBand(scene.camera.scale, grid)
-    const wallsKey = JSON.stringify([walls, grid, flatHatch])
-    if (wallsKey !== scene.lastWallsKey) {
-      scene.lastWallsKey = wallsKey
-      scene.wallsCount = walls.length
-      drawWalls(scene.walls, walls, null, scene.camera.scale, grid)
-      drawDoors(scene.doors, walls, null, scene.camera.scale)
-    }
-    scene.dungeonTextures?.setGrid(grid)
+    const wallsKey = JSON.stringify([walls, currentMap.grid])
     const raster = isRasterMode(currentMap)
     const floorPolygons = raster || hidden.includes('salas') ? [] : scene.floorRenderer.polygons()
     const regionsKey = JSON.stringify(regions.map((r) => [r.id, r.points]))
-    scene.hatchRenderer.draw(
-      scene.hatch,
-      scene.hatchMask,
-      {
-        walls,
-        regions,
-        floorPolygons,
-        grid,
-        cameraScale: scene.camera.scale,
-      },
-      [wallsKey, scene.lastFloorKey, regionsKey],
-    )
 
     // Grade só dentro do piso (salas com parede + chão por peças): fora dele o
     // jogador não vê grade. Render fiel não tem contorno vetorial: vale o mapa.
@@ -590,8 +575,6 @@ export function PlayerView({
       const gridMask = new Graphics()
       grid.mask = gridMask
       const raster = new Sprite(Texture.EMPTY)
-      const hatchMask = new Graphics()
-      const hatch = new Graphics()
       const floor = new Graphics()
       const mapLines = new Graphics()
       const regions = new Container()
@@ -613,8 +596,6 @@ export function PlayerView({
       world.addChild(
         mapBackground,
         raster,
-        hatchMask,
-        hatch,
         floor,
         mapLines,
         regions,
@@ -642,8 +623,6 @@ export function PlayerView({
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
-      // Tile de hachura por renderer; morre no removeWheel, antes do app.destroy.
-      const dungeonTextures = createDungeonTextures(latestRef.current.map.grid)
       const scene: Scene = {
         app,
         world,
@@ -666,10 +645,6 @@ export function PlayerView({
         walls,
         doors,
         lastWallsKey: null,
-        hatch,
-        hatchMask,
-        hatchRenderer: createHatchRenderer(() => dungeonTextures?.hatchPattern ?? null),
-        dungeonTextures,
         wallsCount: 0,
         roomNames,
         roomNamesRenderer: createRoomNamesRenderer(),
@@ -796,15 +771,9 @@ export function PlayerView({
       const onWheel = (event: WheelEvent) => {
         event.preventDefault()
         const rect = app.canvas.getBoundingClientRect()
-        const grid = latestRef.current.map.grid
-        const flatBefore = hatchUsesFlatBand(scene.camera.scale, grid)
-        const tierBefore = hatchStrokeWidth(grid, scene.camera.scale).tier
         scene.camera = zoomAt(scene.camera, { x: event.clientX - rect.left, y: event.clientY - rect.top }, event.deltaY)
+        // applyCamera chama onZoom → redrawZoomLayers: paredes e portas refazem a largura de tela.
         applyCamera(scene)
-        // Cruzou o LOD da hachura ou o degrau da largura do traço (abaixo de 1 px de
-        // tela ele engorda): repinta faixa e paredes (o resto não depende do zoom).
-        const flatChanged = hatchUsesFlatBand(scene.camera.scale, grid) !== flatBefore
-        if (flatChanged || hatchStrokeWidth(grid, scene.camera.scale).tier !== tierBefore) redraw(scene)
       }
       app.canvas.addEventListener('wheel', onWheel, { passive: false })
       // Outro monitor ou zoom do navegador: resolução nova e resize (textos se refazem sozinhos).
@@ -825,7 +794,6 @@ export function PlayerView({
         cancelLongPress()
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickLaser)
-        dungeonTextures?.destroy()
       }
       // ResizePlugin só escuta 'resize' da janela: acompanha o container também.
       resizeObserver = new ResizeObserver(() => {

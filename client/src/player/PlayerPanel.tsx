@@ -17,7 +17,8 @@ export interface PlayerViewSettings {
 export const EXPLORED_BRIGHTNESS_MIN = 0.3
 export const EXPLORED_BRIGHTNESS_MAX = 0.8
 const EXPLORED_BRIGHTNESS_STEP = 0.05
-export const DEFAULT_PLAYER_SETTINGS: PlayerViewSettings = { exploredBrightness: 0.55, showGrid: true, showNames: true }
+// Grade desligada por padrão: o mapa do jogador segue o minimapa limpo do editor.
+export const DEFAULT_PLAYER_SETTINGS: PlayerViewSettings = { exploredBrightness: 0.55, showGrid: false, showNames: true }
 export const PLAYER_SETTINGS_KEY = 'labirinto.jogador.ajustes'
 
 export interface PlayerCharacter {

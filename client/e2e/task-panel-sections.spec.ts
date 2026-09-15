@@ -123,14 +123,15 @@ test('4. interruptores rápidos da grade dentro de Camadas mudam a store', async
   const quick = layersBody.getByRole('group', { name: 'Grade' })
   await expect(quick).toBeVisible()
 
-  expect(await getGridState(page)).toEqual({ showGrid: true, snapTargets: { token: false, wall: false, prop: false } })
+  // Mapa novo nasce sem grade (minimapa do Resident Evil, 15/09/2026).
+  expect(await getGridState(page)).toEqual({ showGrid: false, snapTargets: { token: false, wall: false, prop: false } })
 
   // O input do Toggle fica visualmente escondido (Toggle.tsx); mesmo `force` dos outros specs.
   const showGrid = quick.getByRole('checkbox', { name: 'Mostrar grade', exact: true })
-  await expect(showGrid).toBeChecked()
-  await showGrid.click({ force: true })
-  await expect.poll(async () => (await getGridState(page)).showGrid).toBe(false)
   await expect(showGrid).not.toBeChecked()
+  await showGrid.click({ force: true })
+  await expect.poll(async () => (await getGridState(page)).showGrid).toBe(true)
+  await expect(showGrid).toBeChecked()
 
   const snapCases = [
     { name: 'Grudar Token no centro', kind: 'token' },

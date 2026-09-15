@@ -16,7 +16,7 @@ import * as mapFactory from '../lib/mapFactory'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
 // pixi/PixiCanvas.tsx).
-import { cloneEntity, type CloneableEntity, type Offset } from '../lib/entityClone'
+import { cloneEntity, cloneLinkedWalls, type CloneableEntity, type Offset } from '../lib/entityClone'
 import { resolveTokenMove } from '../lib/collision'
 import { DEFAULT_TEXT_FONT_FAMILY, convertLineToCurve, convertCurveToLine } from '../lib/drawingFactory'
 import { moveAreaSelection } from '../lib/areaSelection'
@@ -303,7 +303,7 @@ interface MapStoreState {
    * pointerup, então "clonar" + "arrastar até a posição final" viram UMA
    * entrada de undo só, não duas.
    */
-  insertClonedEntityLive: (cloned: CloneableEntity) => void
+  insertClonedEntityLive: (cloned: CloneableEntity, sourceRegionId?: string) => void
   setActiveTool: (tool: DrawingTool) => void
   setSnapTarget: (kind: SnapTargetKind, on: boolean) => void
   /**
@@ -715,8 +715,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     floorOp: 'add',
     floorPolygonSides: 6,
     regionFillColor: '#3a7ad0',
-    // Pergaminho, igual ao chão do mapa novo (F1 do visual): Sala nova não nasce azul.
-    roomFillColor: '#e9e1cf',
+    // Marrom, igual ao chão do mapa novo (minimapa do RE4): Sala nova não nasce azul.
+    roomFillColor: '#a8776a',
     regionFillPattern: 'solid',
     regionFillEnabled: true,
     regionStrokeWidth: 2,
@@ -754,12 +754,18 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (isSelectionEmpty(selection)) return
       const offset = { dx: map.grid, dy: map.grid }
       const clonedItems: SelectionItem[] = []
+      const selectedRegionIds = new Set(selection.filter((item) => item.kind === 'region').map((item) => item.id))
       withHistory((m) => {
         let next = m
         for (const item of selection) {
+          // Parede de uma Sala que também está selecionada já vem junto com a Sala.
+          if (item.kind === 'wall' && selectedRegionIds.has(m.walls.find((w) => w.id === item.id)?.regionId ?? '')) continue
           const cloned = cloneSelectedEntity(next, item, offset)
           if (!cloned) continue
           next = addClonedEntity(next, cloned)
+          if (cloned.kind === 'region') {
+            next = { ...next, walls: [...next.walls, ...cloneLinkedWalls(m.walls, item.id, cloned.entity.id, offset)] }
+          }
           clonedItems.push({ kind: cloned.kind, id: cloned.entity.id })
         }
         return next
@@ -768,10 +774,13 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       // seleção antiga em vez de trocar por um conjunto vazio.
       if (clonedItems.length > 0) set({ selection: clonedItems })
     },
-    insertClonedEntityLive: (cloned) => set((state) => ({
-      map: addClonedEntity(state.map, cloned),
-      selection: selectionOfItem({ kind: cloned.kind, id: cloned.entity.id }),
-    })),
+    insertClonedEntityLive: (cloned, sourceRegionId) => set((state) => {
+      const withEntity = addClonedEntity(state.map, cloned)
+      const map = cloned.kind === 'region' && sourceRegionId !== undefined
+        ? { ...withEntity, walls: [...withEntity.walls, ...cloneLinkedWalls(state.map.walls, sourceRegionId, cloned.entity.id, { dx: 0, dy: 0 })] }
+        : withEntity
+      return { map, selection: selectionOfItem({ kind: cloned.kind, id: cloned.entity.id }) }
+    }),
     setActiveTool: (tool) => set((state) => {
       // Forma de desenho vira a "última forma" do botão Desenho, também quando
       // é reescolhida (a setinha escolhe a mesma forma que já está ativa).

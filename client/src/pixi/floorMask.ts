@@ -14,9 +14,9 @@ function flatten(ring: RegionPoint[]): number[] {
 
 /**
  * Regiões que são PISO: as que têm parede apontando para elas (`wall.regionId`),
- * ou seja, Salas. Região genérica sem paredes não gera faixa e não entra.
+ * ou seja, Salas. Região genérica sem paredes não entra.
  */
-export function floorRegions(regions: Region[], walls: Wall[]): Region[] {
+function floorRegions(regions: Region[], walls: Wall[]): Region[] {
   const withWalls = new Set<string>()
   for (const wall of walls) {
     if (wall.regionId !== undefined) withWalls.add(wall.regionId)
@@ -26,10 +26,11 @@ export function floorRegions(regions: Region[], walls: Wall[]): Region[] {
 
 /**
  * Desenha no `graphics` a silhueta de todo piso (salas com paredes + chão por
- * peças, com os buracos recortados). Usado como máscara INVERSA da hachura:
- * nenhum pixel da faixa cai dentro de piso, nem em sala sem preenchimento
- * (`filled === false`) ou oculta translúcida. O `graphics.context` pode ser
- * compartilhado com outra máscara (grade de dentro, F5).
+ * peças, com os buracos recortados). Usado como máscara da grade: dentro do
+ * piso na cor do usuário, fora dele apagada (editor) ou ausente (jogador).
+ * Sala sem preenchimento (`filled === false`) ou oculta também conta como piso.
+ * O `graphics.context` pode ser compartilhado com outra máscara (a inversa,
+ * de fora do piso).
  *
  * Devolve `false` quando não há piso nenhum (quem chama tira a máscara).
  */

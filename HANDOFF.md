@@ -390,7 +390,48 @@ exit 0, `npm run test` 0 falhas, `cd client && npx playwright test` 0 falhas.
   vertical no papel da hachura entre 2 salas a ~1 célula (x≈945 em `1-editor-100.png`); (2) o print
   a 332% ficou fora das salas (ponteiro do script, não do app); (3) "Nada selecionado" ainda no
   painel e bloco por objeto (fatia 4 do lote de decisões) pendentes. Varredura curta (§2j) não
-  rodada: limite de 2 agentes. SEM COMMIT desde `05da139`. Aguardando teste do usuário no exe.
+  rodada: limite de 2 agentes. Commit `2c39cd2` (local, sem push) a pedido do usuário; exe release
+  aberto para ele às 13:44 (pid 28852). Aguardando o teste do roteiro (bom/ruim/estranho por item).
+- ESTILO REJEITADO (15/09/2026 ~13:50). Ao ver o exe: "Mas que diabos é isso? eu não quero esse
+  tipo de mapa, tem que ser aqueles mapas simples igual resident evil". Referências: minimapa RE
+  clássico (chão verde chapado, contorno fino, portas laranja pequenas, fundo preto), planta azul e
+  RE4 remake. Decisões: paredes = linha fina clara (RE clássico), sem grade por padrão, cor do chão
+  escolhível; salas dentro de sala pelos dois jeitos (desenhar dentro vira sub-sala + botão "Criar
+  sala dentro" no painel); sub-sala herda a cor e pode trocar; hachura, parede preta grossa e
+  pergaminho REMOVIDOS DE VEZ (código apagado). Mapeamento em curso (2 batedor-fundo: superfície
+  do estilo masmorra; modelo de sala e aninhamento). Depois: plano + aprovação antes de codar.
+- PLANO APROVADO (15/09/2026): `~/.claude/plans/temporal-yawning-quiche.md`. Decisões extras: sala
+  nova marrom `#a8776a`; porta = retângulo chapado (laranja fechada, vermelha trancada, contorno
+  aberta); apagar sala de fora apaga as de dentro; "caminho" = faixa colorida larga por cima do
+  chão, sem parede (Drawing kind 'path'). 3 fatias sequenciais, cada uma testada pelo usuário no
+  exe: (1) visual RE removendo o estilo masmorra; (2) sub-salas com `Region.parentId`; (3)
+  caminhos. FATIA 1 EM ANDAMENTO (1 `operario` Opus; prints em `scratchpad/re-fatia1/`).
+- FATIA 1 IMPLEMENTADA (sem commit): apagados drawHatch/hatchGeometry/dungeonTextures/
+  proceduralTiles/dungeonStyle (+testes); `drawWalls.ts` com largura em px de tela (1/2/3), cor
+  0xd8d2c4, interna alpha 0.6, 5º parâmetro virou `rendererResolution`; `drawDoors.ts` retângulo
+  60% do vão × 5 px (laranja/vermelho/contorno), cadeado removido; padrões marrom `#a8776a`,
+  `showGrid: false`, grade `#000000` 0.25, jogador sem grade. Portão do orquestrador com Vite
+  novo (os antigos 1420/1431 foram parados; o da 1420 tinha 2 cópias do mapStore por HMR e gerou 85
+  falhas falsas para o agente): tsc exit 0; vitest 124 arquivos / 1968; playwright 180 passed
+  (2,9 min, `scratchpad/re-fatia1/pw-gate.log`). Build release em andamento
+  (`scratchpad/re-fatia1/build.log`); smoke do exe em `scratchpad/exe-re-fatia1/`.
+  Varredura curta (1 `revisor` correção): 1 achado BAIXO confirmado no código — `drawWalls.ts:199`
+  contornava o vão inteiro de parede com porta selecionada (pontas amarelas fora do retângulo de
+  60%). Corrigido (`wall.door === null` no find) + teste em `drawWalls.test.ts`. Depois: tsc 0,
+  vitest 1969 passed, 4 specs de porta/seleção 25 passed. Rebuild `re-fatia1/build2.log` exit 0
+  (exe 15/09 14:55). Smoke no exe (`scratchpad/exe-re-fatia1/smoke.mjs`): 2 salas pela UI, zoom
+  100% → 38% → 332%, Avançado, erros `[]`; prints conferidos (chão marrom chapado, linha fina
+  clara, sem grade, sem hachura). App aberto para o usuário às 14:55 (pid 13164). SEM COMMIT:
+  aguardando teste do usuário na fatia 1 antes de commit e da fatia 2 (sub-salas).
+- BUG DO USUÁRIO NO TESTE (15/09 ~15:05): "Porque a cópia não tem as linhas brancas?". Causa:
+  `lib/entityClone.ts` clonava só a Região; `duplicateSelected` e o Alt+arrastar
+  (`insertClonedEntityLive`) nunca clonavam as paredes vinculadas. Fix: `cloneLinkedWalls`
+  (entityClone.ts) usado em `mapStore.duplicateSelected` (pula parede de Sala também selecionada)
+  e `insertClonedEntityLive(cloned, sourceRegionId)` chamado de `PixiCanvas.tsx` cloneForAltDrag;
+  Sala sem nome não ganha mais "(cópia)". Testes novos em `mapStore.test.ts` e
+  `entityClone.test.ts`. tsc 0; vitest 124 arquivos / 1974 passed. Sub-salas dentro da cópia ficam
+  para a fatia 2. Linha branca = parede (confirmado ao usuário). Playwright 180 passed
+  (`re-fatia1/pw-gate2.log`). Rebuild `re-fatia1/build3.log` para o usuário testar.
 - INTEGRAÇÃO CONCLUÍDA (15/09/2026, ~09:40, sem commit).
   - **Portão:**
     - tsc 0/0;

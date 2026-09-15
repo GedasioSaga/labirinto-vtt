@@ -61,6 +61,11 @@ test('grade redesenha na hora ao mudar a cor em gridSettings', async ({ page }) 
   const at = await worldToPage(page, 64 * 5, 64 * 6 + 32)
   const clip = { x: at.x - 4, y: at.y, width: 9, height: 1 }
   const isRed = ([r, g, b]: Rgb) => r > 150 && g < 90 && b < 90
+  // Mapa novo nasce sem grade (minimapa RE): liga antes de testar o redesenho da cor.
+  await page.evaluate(async () => {
+    const mod = await import('/src/stores/mapStore.ts')
+    mod.useMapStore.getState().setShowGrid(true)
+  })
   expect((await clipPixels(page, clip)).some(isRed)).toBe(false)
 
   await page.evaluate(async () => {
@@ -96,35 +101,39 @@ test('região selecionada mantém a cor e a hachura reais', async ({ page }) => 
   expect(ring.some(isYellow)).toBe(true)
 })
 
-test('parede fina e grossa ficam visivelmente diferentes a 100%', async ({ page }) => {
+test('parede fina, média e grossa ficam visivelmente diferentes a 100%', async ({ page }) => {
   await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
     const s = mod.useMapStore.getState()
     s.setShowGrid(false)
-    const wall = (id: string, y: number, thickness: 'thin' | 'thick') =>
+    const wall = (id: string, y: number, thickness: 'thin' | 'medium' | 'thick') =>
       ({ id, x1: 128, y1: y, x2: 512, y2: y, blocksLight: true, blocksMove: true, door: null, thickness })
     s.addWall(wall('w_thin', 256, 'thin'))
+    s.addWall(wall('w_medium', 320, 'medium'))
     s.addWall(wall('w_thick', 384, 'thick'))
   })
-  // Parede escura sobre a faixa de papel da hachura: mede a maior sequência
-  // contínua de pixels escuros na coluna que cruza a parede. Um traço de
-  // hachura encostado soma poucos px, bem menos que a diferença fina/grossa.
-  const DARK_LUMA = 60
+  // Minimapa RE: parede é linha CLARA fina sobre o fundo escuro, com espessura
+  // em px de tela. Mede a maior sequência contínua de pixels claros na coluna
+  // que cruza a parede (grade desligada, nada claro em volta).
+  const LIGHT_LUMA = 120
   const wallRun = async (y: number) => {
     const at = await worldToPage(page, 320, y)
-    const column = await clipPixels(page, { x: at.x, y: at.y - 32, width: 1, height: 64 })
+    const column = await clipPixels(page, { x: at.x, y: at.y - 16, width: 1, height: 32 })
     let longest = 0
     let current = 0
     for (const [r, g, b] of column) {
-      current = 0.299 * r + 0.587 * g + 0.114 * b < DARK_LUMA ? current + 1 : 0
+      current = 0.299 * r + 0.587 * g + 0.114 * b > LIGHT_LUMA ? current + 1 : 0
       longest = Math.max(longest, current)
     }
     return longest
   }
+  await expect.poll(() => wallRun(320)).toBeGreaterThan(0)
   const thin = await wallRun(256)
+  const medium = await wallRun(320)
   const thick = await wallRun(384)
   expect(thin).toBeGreaterThan(0)
-  expect(thick).toBeGreaterThanOrEqual(thin * 2)
+  expect(thin).toBeLessThan(medium)
+  expect(medium).toBeLessThan(thick)
 })
 
 test('Apagar escada tem rótulo; escolher ferramenta de criação limpa a seleção', async ({ page }) => {

@@ -33,8 +33,6 @@ import { drawWalls } from './drawWalls'
 import { drawDoors } from './drawDoors'
 import { drawStairs } from './drawStairs'
 import { createLightsRenderer } from './drawLights'
-import { createHatchRenderer } from './drawHatch'
-import { createDungeonTextures } from './dungeonTextures'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
 import { createRoomNamesRenderer, findRoomLabelAt, roomLabelFontSize, roomLabelPosition } from './drawRoomNames'
 import { createFloorRenderer, drawFloorDraft } from './drawFloor'
@@ -55,7 +53,7 @@ import { buildCorridorShape, buildFloorPiece, buildFloorShapeFromDrag, clampFloo
 /** Referência estável: camada oculta não força recalcular o contorno a cada redraw. */
 const EMPTY_FLOOR: FloorPiece[] = []
 /** Grade FORA do piso no editor: bem apagada e clara. A cor do usuário (escura,
- *  feita para o pergaminho) some no fundo 0x2b2b2b. */
+ *  feita para aparecer sobre o chão) some no fundo 0x2b2b2b. */
 const OUTSIDE_FLOOR_GRID_COLOR = 0xd8d8d8
 const OUTSIDE_FLOOR_GRID_ALPHA = 0.08
 // Onda 3, item 21 (Frente E) — moldura do mapa (contorno + sombra fora dela).
@@ -364,8 +362,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const mapBoundsGraphics = new Graphics()
       // Grade acima do chão e das salas, abaixo de paredes e portas. Uma só
       // geometria (branca) em dois Graphics com tint próprio: dentro do piso na
-      // cor do usuário, fora dele bem apagada. Máscara própria (a da hachura
-      // não pode ser compartilhada); sem piso nenhum, a grade vai inteira.
+      // cor do usuário, fora dele bem apagada. Sem piso nenhum, a grade vai inteira.
       const gridGraphics = new Graphics()
       const gridOutsideGraphics = new Graphics(gridGraphics.context)
       const gridFloorMask = new Graphics()
@@ -373,10 +370,6 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       gridOutsideGraphics.visible = false
       let gridHasFloor = false
       const gridAlignOverlayGraphics = new Graphics()
-      // Passo 3, F2 — faixa de hachura por fora das paredes externas, por baixo
-      // de todo piso; a máscara (inversa) é a silhueta do piso (floorMask.ts).
-      const hatchMaskGraphics = new Graphics()
-      const hatchGraphics = new Graphics()
       const floorGraphics = new Graphics()
       // Traços e portas de minimapa (MapData.lines/markers) por cima do chão; moldura atrás de tudo do mapa.
       const mapLinesGraphics = new Graphics()
@@ -424,8 +417,6 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         mapBoundsGraphics,
         mapFrameContainer,
         mapRasterSprite,
-        hatchMaskGraphics,
-        hatchGraphics,
         floorGraphics,
         mapLinesGraphics,
         regionsContainer,
@@ -636,8 +627,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       }
 
       /**
-       * Silhueta do piso para a grade (mesma entrada da hachura, Graphics
-       * próprio). Com piso: grade forte dentro, apagada fora. Sem piso (mapa só
+       * Silhueta do piso para a grade. Com piso: grade forte dentro, apagada fora. Sem piso (mapa só
        * com imagem de fundo, por exemplo): a grade inteira como antes.
        */
       const redrawGridMask = () => {
@@ -693,43 +683,20 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       }
 
       /**
-       * Paredes e portas recebem a escala da câmera para manter o traço com
-       * pelo menos 1 px de tela (`screenSafeWidth`, drawWalls.ts). Função
-       * própria porque também roda sozinha quando só o zoom muda, sem pagar o
-       * redesenho do chão/regiões de `redrawShapes`.
+       * Paredes e portas têm espessura fixa em px de TELA (drawWalls.ts,
+       * drawDoors.ts): recebem escala e resolução e redesenham quando qualquer
+       * uma muda. Função própria porque também roda sozinha no zoom, sem pagar
+       * o redesenho do chão/regiões de `redrawShapes`.
        */
       const redrawWallsAndDoors = () => {
         const { map, selection } = useMapStore.getState()
         const single = selectionSingle(selection)
         const walls = visibleWalls(map.walls, map.hiddenLayers)
         const selectedWallId = single?.kind === 'wall' ? single.id : null
-        // Sala selecionada: o contorno segue as paredes grossas (sob elas o da Região some).
-        drawWalls(wallsGraphics, walls, selectedWallId, camera.scale, map.grid, single?.kind === 'region' ? single.id : null)
-        drawDoors(doorsGraphics, walls, selectedWallId, camera.scale)
-      }
-
-      /**
-       * Faixa de hachura + máscara do piso. O renderer só repinta quando
-       * paredes, salas, chão, camadas ou grade mudam de referência, ou quando o
-       * zoom cruza o LOD — seleção sozinha não custa nada aqui.
-       */
-      const redrawHatch = () => {
-        const { map } = useMapStore.getState()
-        const rasterMode = map.floorStyle.renderMode === 'raster'
-        dungeonTextures?.setGrid(map.grid)
-        const floorPolygons = rasterMode || map.hiddenLayers.includes('salas') ? [] : floorRenderer.polygons()
-        hatchRenderer.draw(
-          hatchGraphics,
-          hatchMaskGraphics,
-          {
-            walls: visibleWalls(map.walls, map.hiddenLayers),
-            regions: visibleRegions(map.regions, map.hiddenLayers),
-            floorPolygons,
-            grid: map.grid,
-            cameraScale: camera.scale,
-          },
-          [map.walls, map.regions, map.floor, map.hiddenLayers, map.floorStyle, map.grid, rasterMode],
-        )
+        const res = app.renderer.resolution
+        // Sala selecionada: o contorno segue as paredes (sob elas o da Região some).
+        drawWalls(wallsGraphics, walls, selectedWallId, camera.scale, res, single?.kind === 'region' ? single.id : null)
+        drawDoors(doorsGraphics, walls, selectedWallId, camera.scale, res)
       }
 
       /** Luz com gradiente e marcador de tamanho fixo na tela: redesenha também no zoom. */
@@ -790,7 +757,6 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           clearMapRaster()
           floorRenderer.draw(floorGraphics, map.hiddenLayers.includes('salas') ? EMPTY_FLOOR : map.floor, map.floorStyle)
         }
-        redrawHatch()
         redrawGridMask()
         floorRenderer.drawSelection(
           floorSelectionGraphics,
@@ -834,9 +800,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const roomNamesRenderer = createRoomNamesRenderer()
       const concealZonesRenderer = createConcealZonesRenderer()
       const floorRenderer = createFloorRenderer()
-      // Texturas procedurais e gradientes nascem POR RENDERER e morrem no teardown.
-      const dungeonTextures = createDungeonTextures(useMapStore.getState().map.grid)
-      const hatchRenderer = createHatchRenderer(() => dungeonTextures?.hatchPattern ?? null)
+      // Gradientes de luz nascem POR RENDERER e morrem no teardown.
       const lightsRenderer = createLightsRenderer()
       // Render fiel: re-rasteriza só quando alguma entrada muda de referência (a store é imutável).
       let lastRaster: {
@@ -997,10 +961,11 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (destroyed) return
         app.renderer.resolution = resolution
         app.resize()
-        // Pixel físico mudou de tamanho: reposiciona o world e realinha a escada
-        // (grade e moldura já redesenham no 'resize' acima).
+        // Pixel físico mudou de tamanho: reposiciona o world e realinha escada,
+        // paredes e portas (grade e moldura já redesenham no 'resize' acima).
         positionWorld()
         redrawStairs()
+        redrawWallsAndDoors()
         // Text com resolução fixa não segue o runner resolutionChange do Pixi.
         textResolutionTask.flush()
       })
@@ -1032,7 +997,6 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           redrawWallsAndDoors()
           redrawRegionsAndDrawings()
           redrawStairs()
-          redrawHatch()
           redrawLights()
         },
       )
@@ -1278,7 +1242,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
        */
       const cloneForAltDrag = (input: CloneableEntity): string => {
         const cloned = cloneEntity(input, { dx: 0, dy: 0 })
-        useMapStore.getState().insertClonedEntityLive(cloned)
+        // Sala: as paredes vinculadas vão junto (senão a cópia sai só com o chão).
+        useMapStore.getState().insertClonedEntityLive(cloned, input.kind === 'region' ? input.entity.id : undefined)
         return cloned.entity.id
       }
 
@@ -3573,9 +3538,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()
         unsubscribeActiveTool()
-        // Antes do app.destroy: gradientes e o tile de hachura não são filhos da cena.
+        // Antes do app.destroy: os gradientes de luz não são filhos da cena.
         lightsRenderer.destroy()
-        dungeonTextures?.destroy()
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
         window.removeEventListener('keydown', onKeyDown)

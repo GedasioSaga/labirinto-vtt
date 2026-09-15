@@ -47,7 +47,7 @@ describe('deserializeMap — migração de mapa legado (fixture real)', () => {
     expect(restored.scale).toEqual({ unitsPerCell: 5, unit: 'ft', precision: 0 })
   })
 
-  it('preenche floorStyle com o verde de antes (#006b00), não com o pergaminho do mapa novo', () => {
+  it('preenche floorStyle com o verde de antes (#006b00), não com o marrom do mapa novo', () => {
     const restored = deserializeMap(legacyJson)
     expect(restored.floorStyle).toEqual({ fillColor: '#006b00', strokeColor: null, strokeWidth: 1 })
   })

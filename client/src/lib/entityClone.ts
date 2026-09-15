@@ -106,7 +106,8 @@ export function cloneLight(light: Light, offset: Offset): Light {
 const ROOM_CLONE_SUFFIX = ' (cópia)'
 
 function duplicateRoomName(name: string): string {
-  return `${name}${ROOM_CLONE_SUFFIX}`
+  // Sala sem nome continua sem nome: "(cópia)" solto no meio do chão parecia rótulo quebrado.
+  return name.trim() === '' ? name : `${name}${ROOM_CLONE_SUFFIX}`
 }
 
 export function cloneRegion(region: Region, offset: Offset): Region {
@@ -117,6 +118,19 @@ export function cloneRegion(region: Region, offset: Offset): Region {
     data: { ...region.data },
     ...(region.room ? { room: { ...region.room, name: duplicateRoomName(region.room.name) } } : {}),
   }
+}
+
+/**
+ * Paredes de uma Sala duplicada: cada parede vinculada a `sourceRegionId` vira
+ * cópia vinculada a `targetRegionId`, na MESMA aresta (`regionEdgeIndex`), com
+ * porta copiada. Sem isto a cópia da Sala saía só com o chão (bug visto em
+ * 15/09/2026: "a cópia não tem as linhas brancas"). Não fere a invariante de
+ * `cloneWall` (uma parede por aresta): as cópias apontam para a Região NOVA.
+ */
+export function cloneLinkedWalls(walls: readonly Wall[], sourceRegionId: string, targetRegionId: string, offset: Offset): Wall[] {
+  return walls
+    .filter((wall) => wall.regionId === sourceRegionId)
+    .map((wall) => ({ ...cloneWall(wall, offset), regionId: targetRegionId, regionEdgeIndex: wall.regionEdgeIndex }))
 }
 
 // ─────────────────────────────────────────────────────────────

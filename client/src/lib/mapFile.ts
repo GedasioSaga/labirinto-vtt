@@ -1,7 +1,7 @@
 import type { FloorStyle, MapData } from '../types/map'
 
-/** Chão de mapa NOVO: pergaminho do estilo "one-page dungeon" (passo 3, F1). */
-export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#e9e1cf', strokeColor: null, strokeWidth: 1 }
+/** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
+export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
 
 /**
  * Chão de mapa SALVO antes do campo `floorStyle` existir: o verde do minimapa
