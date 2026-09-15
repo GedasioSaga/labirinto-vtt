@@ -23,6 +23,7 @@ import { visibleWalls, visibleRegions, visibleLights, visibleTokens, visibleProp
 import { canInteract } from './itemTransform'
 import { isDegenerateRegion } from '../pixi/shapes'
 import { moveWall, moveRegion, moveStair } from './mapFactory'
+import { ancestorsOf, subtreeIds } from './roomNesting'
 
 // ─────────────────────────────────────────────────────────────
 // Geometria genérica: todo tipo de entidade do mapa se reduz a um destes 5
@@ -543,9 +544,12 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
 
   for (const regionId of selection.regions) {
     const region = next.regions.find((r) => r.id === regionId)
-    if (!region || !canInteract(region)) continue
+    if (!region || !canInteract(region) || movedRegionIds.has(regionId)) continue
+    // Sub-sala cuja sala de fora também está na seleção já anda com ela.
+    if (ancestorsOf(next.regions, regionId).some((a) => selection.regions.includes(a.id) && canInteract(a))) continue
     next = moveRegion(next, regionId, dx, dy)
-    movedRegionIds.add(regionId)
+    // moveRegion leva a subárvore: paredes das sub-salas não podem andar de novo.
+    for (const id of subtreeIds(next.regions, regionId)) movedRegionIds.add(id)
   }
 
   for (const wallId of selection.walls) {

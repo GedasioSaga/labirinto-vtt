@@ -16,10 +16,14 @@ import * as mapFactory from '../lib/mapFactory'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
 // pixi/PixiCanvas.tsx).
-import { cloneEntity, cloneLinkedWalls, type CloneableEntity, type Offset } from '../lib/entityClone'
+import { cloneEntity, cloneLinkedWalls, cloneRoomDescendants, type CloneableEntity, type Offset } from '../lib/entityClone'
+import { ancestorsOf, descendantsOf } from '../lib/roomNesting'
+
+/** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
+const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon'])
 import { resolveTokenMove } from '../lib/collision'
 import { DEFAULT_TEXT_FONT_FAMILY, convertLineToCurve, convertCurveToLine } from '../lib/drawingFactory'
-import { moveAreaSelection } from '../lib/areaSelection'
+import { moveAreaSelection, areaSelectionBounds } from '../lib/areaSelection'
 import { TOOL_CLUSTERS } from '../components/labels'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer } from '../lib/layers'
@@ -305,6 +309,11 @@ interface MapStoreState {
    */
   insertClonedEntityLive: (cloned: CloneableEntity, sourceRegionId?: string) => void
   setActiveTool: (tool: DrawingTool) => void
+  /** "Criar sala dentro": a próxima Sala desenhada tenta virar filha desta.
+   *  Estado de UI, sem histórico. Limpo ao criar a sala e ao trocar para
+   *  ferramenta que não cria Sala. */
+  pendingParentRoomId: string | null
+  setPendingParentRoom: (regionId: string | null) => void
   setSnapTarget: (kind: SnapTargetKind, on: boolean) => void
   /**
    * Compat: aplica o mesmo booleano aos 3 `snapTargets` de uma vez. Mantida
@@ -350,6 +359,12 @@ interface MapStoreState {
   insertRegionPoint: (regionId: string, afterEdgeIndex: number, x: number, y: number, newWallId: string) => void
   removeRegionPoint: (regionId: string, index: number) => void
   moveRegion: (regionId: string, dx: number, dy: number) => void
+  /** Fim de arrasto ou redimensionamento de Sala: recalcula a sala de fora
+   *  (`reparentRoom`) das Salas mexidas — `regionIds`, ou as da seleção — a
+   *  partir de `before` (snapshot do início do gesto). `sources`: cópia →
+   *  original no Alt+arrastar. SEM histórico: o `commitDragHistory` do gesto
+   *  fecha a entrada. */
+  reparentAfterMoveLive: (before: MapData, regionIds?: string[], sources?: Record<string, string>) => void
   linkRegionWalls: (regionId: string) => void
   smoothRegion: (regionId: string) => void
   regionFillColor: string
@@ -659,6 +674,39 @@ function pushPast(past: MapData[], entry: MapData): MapData[] {
   return next.length > HISTORY_CAP ? next.slice(next.length - HISTORY_CAP) : next
 }
 
+/** Salas movidas por uma seleção: as selecionadas e as donas das paredes selecionadas. */
+function movedRoomIds(map: MapData, selection: readonly SelectionItem[]): string[] {
+  const ids = new Set<string>()
+  for (const item of selection) {
+    if (item.kind === 'region') ids.add(item.id)
+    if (item.kind === 'wall') {
+      const regionId = map.walls.find((w) => w.id === item.id)?.regionId
+      if (regionId !== undefined) ids.add(regionId)
+    }
+  }
+  return [...ids]
+}
+
+/**
+ * Recalcula a mãe (e as arestas que saíram de cima da parede da mãe) de cada
+ * Sala movida, redimensionada ou duplicada. `before` é o mapa de antes do
+ * gesto; `sources` liga cópia → sala original (Ctrl+D, Alt+arrastar). Sub-sala
+ * que andou junto com a mãe da mesma lista fica como está; filhas diretas
+ * também passam, porque a mãe redimensionada pode ter se afastado delas.
+ */
+function reparentRooms(map: MapData, regionIds: readonly string[], before?: MapData, sources: Readonly<Record<string, string>> = {}): MapData {
+  const ids = new Set(regionIds)
+  let next = map
+  for (const id of ids) {
+    if (ancestorsOf(next.regions, id).some((a) => ids.has(a.id))) continue
+    next = mapFactory.reparentRoom(next, id, before, sources[id] ?? id)
+  }
+  for (const child of next.regions.filter((r) => r.parentId !== undefined && ids.has(r.parentId) && !ids.has(r.id))) {
+    next = mapFactory.reparentRoom(next, child.id, before)
+  }
+  return next
+}
+
 /** Espessura mínima de desenho — mesmo `min` do slider de DrawingStyleControls. */
 const MIN_DRAWING_WIDTH = 1
 
@@ -717,6 +765,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     regionFillColor: '#3a7ad0',
     // Marrom, igual ao chão do mapa novo (minimapa do RE4): Sala nova não nasce azul.
     roomFillColor: '#a8776a',
+    pendingParentRoomId: null,
+    setPendingParentRoom: (regionId) => set({ pendingParentRoomId: regionId }),
     regionFillPattern: 'solid',
     regionFillEnabled: true,
     regionStrokeWidth: 2,
@@ -752,23 +802,43 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     duplicateSelected: () => {
       const { map, selection } = get()
       if (isSelectionEmpty(selection)) return
-      const offset = { dx: map.grid, dy: map.grid }
+      // Com Sala na seleção, a cópia nasce ao lado (largura do conjunto + 1
+      // célula), sem cobrir o original nem sobrepor os nomes.
+      const hasRoom = selection.some((item) => item.kind === 'region' && map.regions.find((r) => r.id === item.id)?.room !== undefined)
+      const bounds = hasRoom ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null
+      const offset = bounds ? { dx: bounds.maxX - bounds.minX + map.grid, dy: 0 } : { dx: map.grid, dy: map.grid }
       const clonedItems: SelectionItem[] = []
+      // Cópia de Sala → Sala original, para a cópia herdar as arestas que estavam sobre a mãe.
+      const sources: Record<string, string> = {}
       const selectedRegionIds = new Set(selection.filter((item) => item.kind === 'region').map((item) => item.id))
+      // Sala selecionada leva as sub-salas: elas e as paredes delas não se copiam de novo.
+      const coveredRegionIds = new Set<string>()
+      for (const id of selectedRegionIds) {
+        for (const d of descendantsOf(map.regions, id)) coveredRegionIds.add(d.id)
+      }
       withHistory((m) => {
         let next = m
         for (const item of selection) {
+          if (item.kind === 'region' && coveredRegionIds.has(item.id)) continue
           // Parede de uma Sala que também está selecionada já vem junto com a Sala.
-          if (item.kind === 'wall' && selectedRegionIds.has(m.walls.find((w) => w.id === item.id)?.regionId ?? '')) continue
+          const wallRegionId = item.kind === 'wall' ? m.walls.find((w) => w.id === item.id)?.regionId ?? '' : ''
+          if (item.kind === 'wall' && (selectedRegionIds.has(wallRegionId) || coveredRegionIds.has(wallRegionId))) continue
           const cloned = cloneSelectedEntity(next, item, offset)
           if (!cloned) continue
           next = addClonedEntity(next, cloned)
           if (cloned.kind === 'region') {
-            next = { ...next, walls: [...next.walls, ...cloneLinkedWalls(m.walls, item.id, cloned.entity.id, offset)] }
+            sources[cloned.entity.id] = item.id
+            const inner = cloneRoomDescendants(m.regions, m.walls, item.id, cloned.entity.id, offset)
+            next = {
+              ...next,
+              regions: [...next.regions, ...inner.regions],
+              walls: [...next.walls, ...cloneLinkedWalls(m.walls, item.id, cloned.entity.id, offset), ...inner.walls],
+            }
           }
           clonedItems.push({ kind: cloned.kind, id: cloned.entity.id })
         }
-        return next
+        // Cópia de sub-sala que caiu fora da mãe vira sala de topo (ou filha de onde caiu).
+        return reparentRooms(next, movedRoomIds(next, clonedItems), m, sources)
       })
       // Nenhum item existia mais no mapa (janela de corrida): mantém a
       // seleção antiga em vez de trocar por um conjunto vazio.
@@ -776,8 +846,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     },
     insertClonedEntityLive: (cloned, sourceRegionId) => set((state) => {
       const withEntity = addClonedEntity(state.map, cloned)
-      const map = cloned.kind === 'region' && sourceRegionId !== undefined
-        ? { ...withEntity, walls: [...withEntity.walls, ...cloneLinkedWalls(state.map.walls, sourceRegionId, cloned.entity.id, { dx: 0, dy: 0 })] }
+      const zero = { dx: 0, dy: 0 }
+      const inner = cloned.kind === 'region' && sourceRegionId !== undefined
+        ? cloneRoomDescendants(state.map.regions, state.map.walls, sourceRegionId, cloned.entity.id, zero)
+        : null
+      const map = cloned.kind === 'region' && sourceRegionId !== undefined && inner
+        ? {
+            ...withEntity,
+            regions: [...withEntity.regions, ...inner.regions],
+            walls: [...withEntity.walls, ...cloneLinkedWalls(state.map.walls, sourceRegionId, cloned.entity.id, zero), ...inner.walls],
+          }
         : withEntity
       return { map, selection: selectionOfItem({ kind: cloned.kind, id: cloned.entity.id }) }
     }),
@@ -788,12 +866,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       // Reescolher a mesma ferramenta (setinha de variantes) não é troca: a
       // sala recém-criada continua selecionada com o Nome no painel.
       if (tool === state.activeTool) return lastDrawing
+      // "Criar sala dentro" só vale enquanto a ferramenta cria Sala.
+      const pending = ROOM_TOOLS.has(tool) ? {} : { pendingParentRoomId: null }
       // Auditoria 14/09: com a Luz ativa o painel ainda mostrava a Escada
       // selecionada antes, e o Preenchimento aparecia com a Linha por causa de
       // um retângulo que ficou selecionado. Ferramenta que cria limpa a
       // seleção; Selecionar mantém.
-      if (tool === 'select' || isSelectionEmpty(state.selection)) return { activeTool: tool, ...lastDrawing }
-      return { activeTool: tool, selection: EMPTY_SELECTION, ...lastDrawing }
+      if (tool === 'select' || isSelectionEmpty(state.selection)) return { activeTool: tool, ...lastDrawing, ...pending }
+      return { activeTool: tool, selection: EMPTY_SELECTION, ...lastDrawing, ...pending }
     }),
     setSnapTarget: (kind, on) => set((state) => ({ snapTargets: { ...state.snapTargets, [kind]: on } })),
     setSnapEnabled: (enabled) => set({ snapTargets: { token: enabled, wall: enabled, prop: enabled } }),
@@ -883,7 +963,12 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (after === before) return
       withHistory(() => after)
     },
-    moveRegion: (regionId, dx, dy) => withHistory((map) => mapFactory.moveRegion(map, regionId, dx, dy)),
+    moveRegion: (regionId, dx, dy) => withHistory((map) => reparentRooms(mapFactory.moveRegion(map, regionId, dx, dy), [regionId], map)),
+    reparentAfterMoveLive: (before, regionIds, sources) => set((state) => {
+      const ids = regionIds ?? movedRoomIds(state.map, state.selection)
+      const map = reparentRooms(state.map, ids, before, sources)
+      return map === state.map ? {} : { map }
+    }),
     linkRegionWalls: (regionId) => {
       const before = get().map
       const after = mapFactory.linkRegionWalls(before, regionId)
@@ -1017,7 +1102,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       withHistory((map) => mapFactory.removeConcealZone(map, id))
       if (get().selectedConcealZoneId === id) set({ selectedConcealZoneId: null })
     },
-    resizeRoomDimensions: (id, wPx, hPx) => withHistory((map) => mapFactory.resizeRoomDimensions(map, id, wPx, hPx)),
+    resizeRoomDimensions: (id, wPx, hPx) => withHistory((map) => reparentRooms(mapFactory.resizeRoomDimensions(map, id, wPx, hPx), [id], map)),
     resizeRoomCornerLive: (id, corner, x, y) => set((state) => ({
       map: mapFactory.resizeRoomCornerLive(state.map, id, corner, x, y),
     })),
@@ -1103,8 +1188,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     moveSelectionBy: (dx, dy) => {
       const { map, selection } = get()
       if (isSelectionEmpty(selection)) return
-      const after = moveAreaSelection(map, selectionToAreaSelection(selection), dx, dy)
-      if (after === map) return
+      const moved = moveAreaSelection(map, selectionToAreaSelection(selection), dx, dy)
+      if (moved === map) return
+      const after = reparentRooms(moved, movedRoomIds(moved, selection), map)
       withHistory(() => after)
     },
     updateTextLabel: (id, patch) => withHistory((map) => ({

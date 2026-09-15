@@ -1880,7 +1880,7 @@ describe('mapStore Onda 4 (item 24) — selection como SelectionSet/moveSelectio
     })
     const roomWalls = [roomWall(0, 0, 0, 100, 0), roomWall(1, 100, 0, 100, 100), roomWall(2, 100, 100, 0, 100), roomWall(3, 0, 100, 0, 0)]
 
-    it('Ctrl+D: a cópia ganha as 4 paredes (com a porta) vinculadas a ela, deslocadas de 1 célula', () => {
+    it('Ctrl+D: a cópia ganha as 4 paredes (com a porta) vinculadas a ela, ao lado (largura + 1 célula)', () => {
       useMapStore.getState().addRoom(roomRegion, roomWalls)
       useMapStore.getState().setSelection([{ kind: 'region', id: 'sala' }])
 
@@ -1892,7 +1892,8 @@ describe('mapStore Onda 4 (item 24) — selection como SelectionSet/moveSelectio
       expect(copyId).not.toBe('sala')
       expect(map.walls).toHaveLength(8)
       expect(copyWalls.map((w) => w.regionEdgeIndex).sort()).toEqual([0, 1, 2, 3])
-      expect(copyWalls.find((w) => w.regionEdgeIndex === 0)).toMatchObject({ x1: map.grid, y1: map.grid, x2: 100 + map.grid, y2: map.grid })
+      // Sala na seleção: desloca pela largura do conjunto (100) + 1 célula, sem descer.
+      expect(copyWalls.find((w) => w.regionEdgeIndex === 0)).toMatchObject({ x1: 100 + map.grid, y1: 0, x2: 200 + map.grid, y2: 0 })
       expect(copyWalls.find((w) => w.regionEdgeIndex === 2)?.door).toEqual({ open: false, locked: false, kind: 'normal' })
       expect(map.regions.find((r) => r.id === copyId)?.room?.name).toBe('')
     })

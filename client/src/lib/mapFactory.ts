@@ -4,8 +4,9 @@ import type {
   ConcealZone,
 } from '../types/map'
 import type { Point } from '../pixi/world'
-import { syncWallsToRegionPoint, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
+import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
 import { simplifyPolygon, chaikinSmooth } from './regionSmoothing'
+import { edgesCoveredByParent, findContainingRoom, insertIndexAfterSubtree, subtreeIds } from './roomNesting'
 import { resizeRoomCorner, resizeRoomDimensions as resizeRoomDimensionsPoints, type RoomCorner } from './roomOps'
 import { defaultMeasurementModeForShape } from './measurement'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
@@ -139,16 +140,22 @@ export function addRegion(map: MapData, region: Region): MapData {
   return { ...map, regions: [...map.regions, region] }
 }
 
+/** Apaga a região e, se for Sala com sub-salas, a subárvore inteira com as paredes vinculadas. */
 export function removeRegion(map: MapData, regionId: string): MapData {
+  const ids = subtreeIds(map.regions, regionId)
   return {
     ...map,
-    regions: map.regions.filter((r) => r.id !== regionId),
-    walls: map.walls.filter((w) => w.regionId !== regionId),
+    regions: map.regions.filter((r) => !ids.has(r.id)),
+    walls: map.walls.filter((w) => w.regionId === undefined || !ids.has(w.regionId)),
   }
 }
 
+/** Sub-sala (`parentId` de uma sala existente) entra logo depois da subárvore da mãe: desenha por cima e ganha o clique. */
 export function addRoom(map: MapData, region: Region, walls: Wall[]): MapData {
-  return { ...map, regions: [...map.regions, region], walls: [...map.walls, ...walls] }
+  const hasParent = region.parentId !== undefined && map.regions.some((r) => r.id === region.parentId)
+  const index = hasParent && region.parentId !== undefined ? insertIndexAfterSubtree(map.regions, region.parentId) : map.regions.length
+  const regions = [...map.regions.slice(0, index), region, ...map.regions.slice(index)]
+  return { ...map, regions, walls: [...map.walls, ...walls] }
 }
 
 export function updateWallPoint(map: MapData, wallId: string, endpoint: 0 | 1, x: number, y: number): MapData {
@@ -180,14 +187,12 @@ export function updateRegionPoint(map: MapData, regionId: string, index: number,
   const region = map.regions.find((r) => r.id === regionId)
   if (!region) return map
 
-  const n = region.points.length
+  const points = region.points.map((p, i) => (i === index ? { x, y } : p))
 
   return {
     ...map,
-    regions: map.regions.map((r) =>
-      r.id === regionId ? { ...r, points: r.points.map((p, i) => (i === index ? { x, y } : p)) } : r,
-    ),
-    walls: syncWallsToRegionPoint(map.walls, regionId, index, x, y, n),
+    regions: map.regions.map((r) => (r.id === regionId ? { ...r, points } : r)),
+    walls: syncLinkedWallsToPoints(map.walls, regionId, region.points, points),
   }
 }
 
@@ -202,17 +207,55 @@ export function insertRegionPoint(
   const region = map.regions.find((r) => r.id === regionId)
   if (!region) return map
 
+  const { x: px, y: py } = insertPointOutsideDoor(map.walls, region, afterEdgeIndex, { x, y })
   const points = [
     ...region.points.slice(0, afterEdgeIndex + 1),
-    { x, y },
+    { x: px, y: py },
     ...region.points.slice(afterEdgeIndex + 1),
   ]
 
   return {
     ...map,
     regions: map.regions.map((r) => (r.id === regionId ? { ...r, points } : r)),
-    walls: remapForInsert(map.walls, regionId, afterEdgeIndex, newWallId, x, y),
+    walls: remapForInsert(
+      map.walls,
+      regionId,
+      afterEdgeIndex,
+      newWallId,
+      px,
+      py,
+      region.points[afterEdgeIndex],
+      region.points[(afterEdgeIndex + 1) % region.points.length],
+    ),
   }
+}
+
+/**
+ * Vértice novo pedido dentro do vão de uma porta (o ponto do meio da aresta
+ * cai no meio de porta centralizada) vai para a ponta mais próxima da porta:
+ * a porta fica inteira numa das arestas novas. Porta que ocupa a aresta
+ * inteira não tem ponta livre: o ponto fica onde foi pedido.
+ */
+function insertPointOutsideDoor(walls: readonly Wall[], region: Region, edge: number, point: Point): Point {
+  const a = region.points[edge]
+  const b = region.points[(edge + 1) % region.points.length]
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const len2 = dx * dx + dy * dy
+  if (len2 === 0) return point
+  const param = (p: Point) => ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2
+  const t = param(point)
+  for (const w of walls) {
+    if (w.regionId !== region.id || w.regionEdgeIndex !== edge || w.door === null) continue
+    const t1 = param({ x: w.x1, y: w.y1 })
+    const t2 = param({ x: w.x2, y: w.y2 })
+    const lo = Math.min(t1, t2)
+    const hi = Math.max(t1, t2)
+    if (t <= lo || t >= hi || (lo <= 0 && hi >= 1)) continue
+    const end = t - lo <= hi - t ? lo : hi
+    return { x: a.x + dx * end, y: a.y + dy * end }
+  }
+  return point
 }
 
 export function removeRegionPoint(map: MapData, regionId: string, index: number): MapData {
@@ -228,7 +271,7 @@ export function removeRegionPoint(map: MapData, regionId: string, index: number)
   return {
     ...map,
     regions: map.regions.map((r) => (r.id === regionId ? { ...r, points } : r)),
-    walls: remapForRemove(map.walls, regionId, index, n, prevPoint, nextPoint),
+    walls: remapForRemove(map.walls, regionId, index, n, prevPoint, nextPoint, region.points[index]),
   }
 }
 
@@ -311,19 +354,117 @@ export function smoothRegion(map: MapData, regionId: string): MapData {
     walls: mapWithSmoothedPoints.walls.filter((w) => w.regionId !== regionId),
   }
 
-  return linkRegionWalls(mapWithoutOldWalls, regionId)
+  // Portas não somem ao suavizar: voltam no ponto mais perto do contorno novo,
+  // com o mesmo tamanho, tipo e estado.
+  const doors = map.walls.filter((w) => w.regionId === regionId && w.door !== null)
+  return doors.reduce((acc, doorWall) => restoreDoorOnRegion(acc, regionId, doorWall), linkRegionWalls(mapWithoutOldWalls, regionId))
 }
 
+function distancePointToSegment(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const len2 = dx * dx + dy * dy
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2))
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
+}
+
+function restoreDoorOnRegion(map: MapData, regionId: string, doorWall: Wall): MapData {
+  const door = doorWall.door
+  if (!door) return map
+  const mid = { x: (doorWall.x1 + doorWall.x2) / 2, y: (doorWall.y1 + doorWall.y2) / 2 }
+  const length = Math.hypot(doorWall.x2 - doorWall.x1, doorWall.y2 - doorWall.y1)
+  let best: Wall | null = null
+  let bestDistance = Infinity
+  for (const w of map.walls) {
+    if (w.regionId !== regionId || w.door !== null) continue
+    const d = distancePointToSegment(mid, { x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 })
+    if (d < bestDistance) {
+      best = w
+      bestDistance = d
+    }
+  }
+  if (!best) return map
+  const before = new Set(map.walls.map((w) => w.id))
+  const withDoor = addDoorOnWall(map, best.id, mid, length, door.kind)
+  return {
+    ...withDoor,
+    walls: withDoor.walls.map((w) => (!before.has(w.id) && w.door !== null ? { ...w, door: { ...door } } : w)),
+  }
+}
+
+/**
+ * Recalcula a Sala de fora de `regionId` depois de mover: a sala mais funda
+ * que contém a movida (fora da própria subárvore) vira mãe e a subárvore vai
+ * para logo depois da subárvore dela no array; fora de todas vira sala de
+ * topo, no mesmo lugar do array. Cor não muda. Sem mudança (ou região que não
+ * é Sala) devolve `map` pela mesma referência.
+ */
+export function reparentRoom(map: MapData, regionId: string, before?: MapData, sourceId: string = regionId): MapData {
+  const region = map.regions.find((r) => r.id === regionId)
+  if (!region || region.room === undefined) return map
+  const subtree = subtreeIds(map.regions, regionId)
+  const others = map.regions.filter((r) => !subtree.has(r.id))
+  const parent = findContainingRoom(others, region.points)
+  const currentParentId = region.parentId !== undefined && others.some((r) => r.id === region.parentId) ? region.parentId : undefined
+  // `before` é o mapa de antes do gesto (mover, redimensionar, duplicar a partir de `sourceId`).
+  const newWalls = before ? wallsForEdgesLeftByParent(before, sourceId, map.walls, region, parent ?? null) : []
+  if (parent?.id === currentParentId) return newWalls.length === 0 ? map : { ...map, walls: [...map.walls, ...newWalls] }
+
+  const { parentId: _previousParent, ...withoutParent } = region
+  const updated: Region = parent ? { ...withoutParent, parentId: parent.id } : withoutParent
+  const block = map.regions.filter((r) => subtree.has(r.id)).map((r) => (r.id === regionId ? updated : r))
+  // O primeiro índice da subárvore já é a posição dela entre as outras (nada da subárvore vem antes).
+  const at = parent ? insertIndexAfterSubtree(others, parent.id) : map.regions.findIndex((r) => subtree.has(r.id))
+  return {
+    ...map,
+    regions: [...others.slice(0, at), ...block, ...others.slice(at)],
+    walls: newWalls.length === 0 ? map.walls : [...map.walls, ...newWalls],
+  }
+}
+
+/**
+ * Sub-sala nasce sem parede nas arestas que estavam sobre a parede da mãe.
+ * Depois de mover, redimensionar ou duplicar, a aresta que ESTAVA coberta pela
+ * mãe antiga (sala `sourceId` em `before`) e não está coberta pela mãe nova
+ * ganha parede vinculada — com ou sem troca de mãe. Buraco feito pelo usuário
+ * (aresta sem parede que não estava sobre a mãe) continua buraco; aresta que
+ * já tem parede (ou pedaço) não é tocada.
+ */
+function wallsForEdgesLeftByParent(before: MapData, sourceId: string, walls: readonly Wall[], region: Region, parent: Region | null): Wall[] {
+  const old = before.regions.find((r) => r.id === sourceId)
+  if (!old || old.parentId === undefined || old.points.length !== region.points.length) return []
+  const oldParentId = old.parentId
+  const oldParent = before.regions.find((r) => r.id === oldParentId && r.room !== undefined)
+  if (!oldParent) return []
+  const wasCovered = edgesCoveredByParent(old.points, before.walls, oldParent)
+  if (wasCovered.size === 0) return []
+  const covered = parent ? edgesCoveredByParent(region.points, walls, parent) : new Set<number>()
+  const linked = new Set(walls.filter((w) => w.regionId === region.id).map((w) => w.regionEdgeIndex))
+  const n = region.points.length
+  const out: Wall[] = []
+  for (let edge = 0; edge < n; edge += 1) {
+    if (!wasCovered.has(edge) || linked.has(edge) || covered.has(edge)) continue
+    const from = region.points[edge]
+    const to = region.points[(edge + 1) % n]
+    out.push({ id: crypto.randomUUID(), x1: from.x, y1: from.y, x2: to.x, y2: to.y, blocksLight: true, blocksMove: true, door: null, regionId: region.id, regionEdgeIndex: edge })
+  }
+  return out
+}
+
+/** Move a região e as sub-salas dela (subárvore inteira), com as paredes vinculadas. */
 export function moveRegion(map: MapData, regionId: string, dx: number, dy: number): MapData {
   const region = map.regions.find((r) => r.id === regionId)
   if (!region) return map
 
+  const ids = subtreeIds(map.regions, regionId)
+  let walls = map.walls
+  for (const id of ids) walls = translateLinkedWalls(walls, id, dx, dy)
   return {
     ...map,
     regions: map.regions.map((r) =>
-      r.id === regionId ? { ...r, points: r.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) } : r,
+      ids.has(r.id) ? { ...r, points: r.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) } : r,
     ),
-    walls: translateLinkedWalls(map.walls, regionId, dx, dy),
+    walls,
   }
 }
 
@@ -584,11 +725,11 @@ export function setDoorLocked(map: MapData, wallId: string, locked: boolean): Ma
  * (mesmo ângulo) da parede original — herdado por construção, nunca recalculado
  * como horizontal/vertical.
  *
- * Se a parede original estava vinculada a uma Região (`regionId`/
- * `regionEdgeIndex`), os pedaços novos NÃO herdam esse vínculo — colocar uma
- * porta no meio quebra a premissa de "1 parede = 1 aresta inteira", então a
- * parede vinculada vira paredes soltas normais a partir daqui. Intencional,
- * não é bug.
+ * Se a parede original estava vinculada a uma Sala (`regionId`/
+ * `regionEdgeIndex`), TODOS os pedaços herdam o vínculo e a mesma aresta: uma
+ * aresta pode ter vários pedaços colineares (`lib/roomLink.ts`). Assim mover,
+ * redimensionar, duplicar e apagar a Sala levam a porta junto. Antes os
+ * pedaços viravam paredes soltas e ficavam para trás ao mover a Sala.
  *
  * `kind` (F2) é o tipo estrutural da porta a nascer (`normal | double | gate`
  * — preferência de ferramenta `doorKind`, lida pelo store no momento do
@@ -629,8 +770,6 @@ export function addDoorOnWall(map: MapData, wallId: string, point: { x: number; 
     x2: wall.x1 + ux * toDistance,
     y2: wall.y1 + uy * toDistance,
     door,
-    regionId: undefined,
-    regionEdgeIndex: undefined,
   })
 
   const pieces: Wall[] = []
@@ -881,19 +1020,12 @@ export function setStairStepWidth(map: MapData, stairId: string, stepWidth: numb
 // SALA: identidade + resize (F2) — contrato do agente B3. `resizeRoomDimensions`
 // e `resizeRoomCornerLive` sincronizam as paredes vinculadas via `regionId`
 // (ferramenta Sala cria as 4 paredes do contorno já vinculadas, ver
-// buildRoomFromDraft/drawingFactory.ts), reusando `syncWallsToRegionPoint`
-// (lib/roomLink.ts) — mesma função que `updateRegionPoint` já usa. Sem essa
+// buildRoomFromDraft/drawingFactory.ts), reusando `syncLinkedWallsToPoints`
+// (lib/roomLink.ts) — mesma função que `updateRegionPoint` já usa; porta e
+// pedaços da aresta ficam na mesma posição relativa. Sem essa
 // sincronização a Sala "redimensiona" visualmente mas as paredes ficam para
 // trás, desalinhadas do contorno novo.
 // ─────────────────────────────────────────────────────────────
-
-/** Aplica `syncWallsToRegionPoint` a TODOS os vértices de `points` em sequência
- *  — usado depois de recalcular os 4 cantos de uma Sala inteira de uma vez
- *  (resize), diferente de `updateRegionPoint`, que move só 1 vértice. */
-function syncAllRoomPoints(walls: Wall[], regionId: string, points: Region['points']): Wall[] {
-  const n = points.length
-  return points.reduce((acc, p, i) => syncWallsToRegionPoint(acc, regionId, i, p.x, p.y, n), walls)
-}
 
 /** Renomeia a Sala (`region.room.name`). Sem efeito se a região não existir
  *  ou não for uma Sala (`room` ausente) — devolve `map` pela mesma referência. */
@@ -1024,7 +1156,7 @@ export function resizeRoomDimensions(map: MapData, id: string, wPx: number, hPx:
   return {
     ...map,
     regions: map.regions.map((r) => (r.id === id ? { ...r, points } : r)),
-    walls: syncAllRoomPoints(map.walls, id, points),
+    walls: syncLinkedWallsToPoints(map.walls, id, region.points, points),
   }
 }
 
@@ -1043,7 +1175,7 @@ export function resizeRoomCornerLive(map: MapData, id: string, corner: RoomCorne
   return {
     ...map,
     regions: map.regions.map((r) => (r.id === id ? { ...r, points } : r)),
-    walls: syncAllRoomPoints(map.walls, id, points),
+    walls: syncLinkedWallsToPoints(map.walls, id, region.points, points),
   }
 }
 

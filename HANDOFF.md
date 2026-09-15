@@ -1,11 +1,70 @@
 ## Objetivo
-Recriar "frame por frame", com as ferramentas do próprio editor, os 3 mapas de
-`C:\dev\labirinto\Objetivo` (Mapa1 "Village Lake" com moldura, mapa2, Mapa3) e salvar as
-tentativas em `C:\dev\labirinto\Tentativa`. Depois disso: deixar jogável multiplayer.
-Plano: `C:\Users\gedasio.filho\.claude\plans\valiant-enchanting-patterson.md` (etapas 1-5).
+"Fazer um programa não medíocre e funcional" (usuário, 14/09/2026): VTT com mapa SIMPLES estilo
+minimapa Resident Evil. Fluxo principal: criar masmorra (salas, salas dentro de sala, portas,
+caminhos coloridos) e jogar com os jogadores (LAN ou link público). Qualidade e uso real antes de
+recurso novo; cortar ou esconder o que não serve.
+Plano ativo: `C:\Users\gedasio.filho\.claude\plans\temporal-yawning-quiche.md` (fatia 1 feita; 2 e 3
+pendentes).
 
-## Estado atual
-Branch `feat/menu-inicial`, nada commitado desta frente ainda.
+## Estado atual (15/09/2026 ~15:45, sessão encerrada a pedido do usuário)
+- **Git.** Branch `feat/menu-inicial`, último commit `3ef5007`, só local (sem push; o GitHub ainda
+  está na tag `v0.1.0`). Árvore limpa, exceto este HANDOFF.
+- **Commits do dia.**
+  - `05da139`: ponto de salvamento (nitidez, consertos da auditoria, corte de recursos).
+  - `2c39cd2`: nitidez de verdade + hachura vetorial. A hachura foi REJEITADA depois.
+  - `3ef5007`: visual RE + cópia de Sala com paredes. APROVADO pelo usuário no exe ("Perfeito").
+- **Visual atual.**
+  - Chão chapado, marrom `#a8776a` por padrão; cor por Sala no painel.
+  - Parede como linha fina clara com espessura em px de tela (`client/src/pixi/drawWalls.ts`).
+  - Porta como retângulo: laranja fechada, vermelha trancada, contorno aberta
+    (`client/src/pixi/drawDoors.ts`).
+  - Mapa novo sem grade.
+  - Nomes de sala e token com mínimo de 11 px na tela; somem abaixo de 30% de zoom
+    (`pixi/screenLabel.ts`).
+  - Linhas finas presas ao pixel físico (`pixi/pixelAlign.ts`); Text com resolução exata
+    (`pixi/textResolution.ts`).
+  - O estilo masmorra (hachura, pergaminho, parede grossa) foi APAGADO.
+- **Painel.** Seção Avançado (`components/AdvancedSection.tsx`). Opções, Isometric/World, Link de
+  cenário e ferramenta Token estão escondidos por flag em `lib/features.ts`. As 7 ferramentas de
+  desenho ficam agrupadas no botão Desenho.
+- **Duplicar Sala** (Ctrl+D e Alt+arrastar) copia as paredes e as portas (`lib/entityClone.ts`
+  `cloneLinkedWalls`). As salas de dentro ainda NÃO vão junto (fatia 2).
+- **Correção crítica do Pixi.** Destruir o app SEMPRE com
+  `app.destroy({ removeView: true }, { children: true })`. Nunca `destroy(true)`: isso limpa o
+  TexturePool global e quebra Text de outro app ("reading 'push'").
+- **Exe.** `desktop/src-tauri/target/release/labirinto.exe` (15/09 15:36) corresponde ao `3ef5007`.
+- **Portão do `3ef5007`.** tsc exit 0; vitest 124 arquivos / 1974 testes; playwright 180 passed;
+  smoke no exe com erros `[]`.
+
+## Como trabalhar neste projeto (regras do usuário; valem para toda sessão)
+- **Estilo visual.** Minimapa Resident Evil: chão chapado numa cor, parede como linha fina clara,
+  porta como retângulo pequeno, fundo escuro, sem grade por padrão. NUNCA hachura, pergaminho ou
+  parede preta grossa.
+- **Decisão visual.** Pergunte com opções e preview; se a resposta vier vaga, pergunte de novo. Não
+  siga um plano antigo sem confirmar.
+- **Agentes.** Só Opus, nunca Fable (inclusive `programador-frontend` e `designer-fable`). No máximo
+  2 agentes ao mesmo tempo; prefira sequencial.
+- **Ritual de cada fatia.** Teste verde NÃO é pronto.
+  1. Fatia pequena, com plano aprovado.
+  2. Portão: tsc, vitest e playwright, com Vite NOVO.
+  3. `npm run tauri:build` na raiz.
+  4. Smoke no exe com prints conferidos no olho.
+  5. Abrir o exe para o usuário, com roteiro curto que ele responde bom/ruim/estranho.
+  6. Só então commit e próxima fatia.
+- **Antes do build.** Se o Labirinto estiver aberto, ele trava o exe: pedir ao usuário para fechar.
+- **Antes do portão.** Um Vite antigo na porta 1420 (ou 1431) com HMR gera dezenas de falhas falsas
+  no playwright: pare-o antes (`Get-NetTCPConnection -LocalPort 1420`).
+- **Comandos** (dentro de `client`): `rtk proxy npx tsc --noEmit` · `rtk proxy npx vitest run` ·
+  `rtk proxy npx playwright test`. Build: `npm run tauri:build` na raiz.
+- **Smoke no exe.**
+  - Script: `C:\Users\gedasio.filho\AppData\Local\Temp\claude\C--dev-labirinto\01dcb595-0521-47ac-95c4-ca885f731a25\scratchpad\exe-re-fatia1\smoke.mjs`.
+    A pasta é temporária; se sumir, recrie.
+  - Como funciona: abre o exe com `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`,
+    conecta com `chromium.connectOverCDP`, clica Criar Mapas → Criar mapa, faz Sala com `N` +
+    arrasto + Enter, e tira prints com Ctrl+roda (roda sozinha faz pan).
+- **Vocabulário do usuário.** Linha branca = parede (bloqueia token e visão).
+
+### Frente antiga: recriação de minimapa a partir de imagem (pausada, referência técnica)
 
 **Ferramentas no app (client/src):**
 - Chão por peças: `types/map.ts` (`FloorPiece`, formas rect/ellipse/polygon/corridor/poly,
@@ -33,6 +92,130 @@ RECREATE_DARK=1 RECREATE_RASTER=1 RECREATE_COVERAGE=1 RECREATE_SUBPIXEL=1 RECREA
 RECREATE_STROKE=#858585`.
 
 ## Próximos passos
+FATIA 2 EM ANDAMENTO (15/09/2026, após "Pronto, pode continuar com as melhorias"): 1 `operario`
+Opus; prints do fluxo pela UI em `scratchpad/fatia2/` desta sessão; depois portão, build, smoke e
+teste do usuário.
+- 1ª entrega (sem commit): `Region.parentId`, `lib/roomNesting.ts` (+19 testes),
+  `stores/subRoom.test.ts` (11), mapFactory addRoom/removeRegion/moveRegion por subárvore,
+  areaSelection sem mover 2x, `cloneRoomDescendants`, `pendingParentRoomId` + botão "Criar sala
+  dentro" + "Dentro de:" no painel, aviso de sala fora via toast, `drawRegions.ts` reordena cache
+  pela ordem do array, fogFilter por ancestral, `e2e/task-sub-sala.spec.ts`. Agente relatou tsc 0,
+  vitest 126 arquivos / 2005, playwright 184 passed.
+- OLHAR DE USUÁRIO achou bug grave antigo (print `scratchpad/fatia2/07-casa-movida.png`): parede
+  com porta perde o vínculo com a sala (`mapFactory.ts:643` addDoorOnWall zera regionId), então
+  mover/apagar/duplicar a Casa deixa portas e paredes para trás. Pedido ao mesmo agente: pedaços
+  herdam o vínculo, `roomLink.ts` reposiciona pedaços proporcionalmente, migração de mapa antigo
+  (parede contida numa aresta de uma única Sala é revinculada), recalcular mãe ao arrastar
+  sub-sala, Ctrl+D de Sala desloca pela largura + 1 célula. Prints em `scratchpad/fatia2b/`.
+- 2ª entrega (sem commit): `roomLink.ts` reescrito (aresta com vários pedaços,
+  `syncLinkedWallsToPoints`, `linkLooseWallsToRooms` na migração de `mapFile.ts`), `addDoorOnWall`
+  mantém vínculo, `smoothRegion` preserva portas, `reparentRoom` + recálculo da mãe no fim do
+  arrasto/setas, Ctrl+D de Sala ao lado, `groupWallChains` só encadeia pedaços que encostam.
+  Decisão do agente: ao virar sala de topo, arestas sem parede ganham parede (pode recriar parede
+  apagada de propósito). Prints conferidos pelo orquestrador (`fatia2b/04-casa-movida.png`,
+  `06-ctrl-d-casa.png`, `07b-quarto-selecionado.png`): porta e paredes acompanham, cópia ao lado.
+  Portão do orquestrador: tsc exit 0; vitest 127 arquivos / 2021 passed; playwright 188 passed
+  (3,1 min, `fatia2b/pw-gate.log`). Varredura curta (1 `revisor` correção) em andamento. App do
+  usuário aberto (pid 33100) bloqueia o build: pedir para fechar. Fora do escopo anotado: arrastar
+  no centro de sala pequena pega o rótulo do nome; redimensionar a mãe não recalcula filhas; sala
+  parcialmente sobre outra fica com a parede da outra por cima.
+- Varredura curta da fatia 2 (revisor): 4 médios + 1 baixo, sem repro ainda — reparentRoom early
+  return deixa aresta sem parede ao mover filha na mesma mãe (`mapFactory.ts:~380`, também
+  resizeRoomDimensions); `wallsForUncoveredEdges` fecha buraco apagado de propósito (`:~406`);
+  aresta antiga de comprimento zero colapsa pedaços no arrasto de vértice (`roomLink.ts:~41`);
+  `remapForInsert` parte porta ao meio (`:~140`); `remapForRemove` estica pedaço parcial (`:~184`).
+  Limpos: ciclo de parentId, undo com 1 entrada, jogador com filhas de secreta, migração com sala
+  compartilhada. Enviado ao mesmo operario: teste que reproduz antes de cada fix.
+- Os 5 REPRODUZIDOS e corrigidos (`client/src/stores/reviewFatia2.test.ts`, 7 testes que falhavam
+  antes): reparentRoom sem early return + chamado com mapa de antes em mover/setas/Ctrl+D/
+  redimensionar/fim de arrasto/Alt+arrastar; parede nova só em aresta coberta pela mãe antiga e
+  descoberta pela nova; aresta degenerada não esmaga pedaços; porta não é partida (vértice novo vai
+  para a ponta da porta); remapForRemove simples só com parede cobrindo a aresta inteira. Pendente:
+  arrasto de vértice não recalcula mãe/arestas cobertas. Portão do orquestrador: tsc exit 0; vitest
+  128 arquivos / 2029; playwright 188 passed (3,5 min, `fatia2b/pw-gate2.log`). App do usuário
+  aberto (pid 33100): build feito com `CARGO_TARGET_DIR=scratchpad/target-f2` para não fechar o app
+  dele; smoke da fatia em `scratchpad/exe-fatia2/smoke.mjs <exe>` (CDP 9223).
+- DISCO CHEIO (15/09/2026): 1º build em `target-f2` falhou com "Espaço insuficiente no disco (os
+  error 112)"; C: com 0,00 GB livres de 476 GB. Com autorização do usuário foram apagados
+  `desktop/src-tauri/target/debug` (3,2 GB), cache do npm (`npm cache clean --force`, 2,4 GB) e
+  `%LOCALAPPDATA%\Temp\claude\C--Users-gedasio-filho-DesktopVertis` (11,2 GB): livre 13,94 GB.
+  Fechar o app pelo botão (CloseMainWindow) não fechou (pid 33100 respondendo; talvez aviso de
+  salvar dentro do app) — não foi forçado. Build refeito em `scratchpad/target-f2`
+  (`fatia2b/build2.log`). Ao terminar a sessão, a pasta `target-f2` pode ser apagada (~2-3 GB).
+- Build `target-f2` exit 0 (exe 15/09 18:17). 1º smoke falhou "CDP nao conectou": com outro
+  Labirinto aberto o WebView2 reaproveita o processo dele; resolvido com
+  `WEBVIEW2_USER_DATA_FOLDER` próprio no smoke. Smoke da fatia 2 no exe: Sala grande + Sala dentro
+  ("Dentro de:" no painel, sem parede dupla), Ctrl+D copia as duas ao lado, zoom 43%, erros `[]`
+  (prints `scratchpad/exe-fatia2/`). Olhar de usuário notou (não corrigido): toda sala nova se
+  chama "Sala", então "Dentro de: Sala" fica ambíguo; o nome da sala de fora fica no centro da
+  caixa e cai sobre o canto da sala de dentro; a cópia do Ctrl+D pode nascer fora da tela. Exe
+  aberto para o usuário a partir de `target-f2`. SEM COMMIT: aguardando teste da fatia 2.
+- NOVAS REFERÊNCIAS (15/09/2026 18:24): `Objetivo/` foi trocado pelo usuário por 3 mapas do Zelda
+  em AVIF (`mapa1png.avif` Kakariko Village, `mapa2.avif` Lake Hylia, `map3.avif` Kokiri Forest;
+  pixel art com contorno em escadinha, papel de fundo, etiquetas). PNGs convertidos com ffmpeg em
+  `scratchpad/objetivo/`. As tentativas antigas em `Tentativa/` são dos mapas RE anteriores.
+  Pedido: "ignore a coloração, foque no formatos e tente desenhar, usando as ferramentas do mapa de
+  resident". EXPERIMENTO em andamento (1 `operario` Opus, sem tocar em client/src): analisar
+  blocos, desenhar pela UI com Sala Polígono/Chão/Sala/Parede/Região, medir IoU de formato, prints
+  lado a lado em `Tentativa/zelda/` e lista de fricções do usuário.
+- RESULTADO DO EXPERIMENTO ZELDA (desenhado pela UI, a store foi só lida; grade 48 px/bloco;
+  scripts em `scratchpad/zelda/`):
+  - IoU de formato renderizado: Lake Hylia 0,986 (Região, 144 pontos; ou Chão por 49 retângulos),
+    Kakariko 0,932 (130 pontos, 13/14 salas), Kokiri 0,966 (154 pontos, 26/27).
+  - Silhueta e saídas batem. O detalhe interno sai ruidoso: cercas diagonais viram escadas de
+    paredes curtas com "cruzinhas", e casas não retangulares viram Região sem parede.
+  - Fricções, em ordem de dor:
+    1. silhueta em escadinha custa ~130-154 cliques; não há pintar por blocos nem polígono livre
+       para Sala ou Chão (Q é polígono regular);
+    2. não dá para desfazer o último ponto no rascunho de Região;
+    3. o campo de nome da Sala nova "come" o próximo arrasto quando o zoom é baixo;
+    4. não existe Sala de forma livre, então sala dentro de sala só funciona com retângulos;
+    5. o snap vem desligado e o rótulo dele é enganoso;
+    6. o ímã de vértice da parede é fixo em 12 px de mundo e puxa cercas pequenas;
+    7. Região nova nasce da mesma cor da de baixo;
+    8. F (enquadrar) ignora o painel e a barra.
+  - Bugs:
+    1. arrastar Sala logo abaixo de uma Sala recém-criada (zoom ~20%) não cria nada
+       (`scratchpad/zelda/repro-nome.cjs`);
+    2. Ctrl+Z durante o rascunho de Região apaga a última Sala e mantém o rascunho;
+    3. Salvar no navegador dá erro cru do Tauri ("reading 'invoke'"), só no navegador;
+    4. Importar imagem de fundo no navegador não faz nada nem avisa, só no navegador.
+Ordem sugerida ao usuário:
+1. **Fatia 2: salas dentro de sala.** Detalhes no plano ativo.
+   - `Region.parentId?`.
+   - Lib pura `lib/roomNesting.ts`: contenção, sala mais funda, índice depois da subárvore, aresta
+     sobre parede da mãe sem parede duplicada.
+   - Detecção nos 3 caminhos de sala (`PixiCanvas.tsx` buildRoomFromDraft ~2274 e circular/polígono
+     ~2318).
+   - Botão "Criar sala dentro" em `RoomControls.tsx`, com `pendingParentRoomId` no store.
+   - A filha herda a cor e pode trocar.
+   - Mover a mãe move as filhas; apagar a mãe apaga as filhas num único Ctrl+Z; mãe
+     secreta/oculta esconde as filhas para o jogador (`lib/fogFilter.ts` ~406).
+   - Painel "Dentro de: <mãe>".
+   - A cópia de Sala leva as filhas.
+2. **Conferir no olho a tela do jogador** com o visual novo: abrir o player, criar sala e tirar
+   prints. Até agora só os e2e passaram.
+3. **Fatia 3: caminhos coloridos.** `Drawing` kind `'path'` com `widthCells` (0,5/1/2), cor própria
+   (`pathColor`, padrão `#d9c7a3`), camada acima do chão/regiões e abaixo da grade/paredes, sem
+   bloquear token. Ferramenta "Caminho" ponto a ponto (Enter/duplo clique termina).
+4. **Painel.** Remover "Nada selecionado" e montar um bloco por objeto (Nome > Visível para jogadores
+   > Aparência > Avançado > Apagar). Plano antigo com as fatias 4a-4d:
+   `C:\Users\gedasio.filho\AppData\Local\Temp\claude\C--dev-labirinto\201c847f-22a8-4467-9dd3-2780a9d65396\scratchpad\decisoes\plano.md`.
+5. **QR da sala aponta para o IP da VPN** (`desktop/src-tauri/src/commands.rs:264`): o celular pode
+   não entrar.
+6. **Push e release novos no GitHub:** SÓ com pedido explícito.
+- **Pendências menores:**
+  - nome do token com pouco contraste sobre chão claro;
+  - nomes de zona oculta sem a regra de tamanho mínimo;
+  - grade hex/tri sem alinhamento ao pixel;
+  - `client/recreate/renderFloorPng.ts:360` ainda usa `app.destroy(true)` (harness isolado);
+  - comentário "pergaminho" em `pixi/drawLights.ts:14`;
+  - contorno da porta aberta inverte a zoom ≤ 5%.
+- **Ideia a oferecer** (o usuário perguntou como manter o olhar de qualidade): criar `CLAUDE.md` no
+  repo com a seção "Como trabalhar" acima e mover o smoke do exe para dentro do repo
+  (ex. `scripts/exe-smoke.mjs`, com a pasta de saída como argumento). Aguardando a resposta dele.
+
+### Histórico de próximos passos da frente de recriação (pausada)
 - Ler as variantes `gap-title` (grade) e `gap-title-rooks` (n-torres): correção de ligação de
   pontilhado por cima de fundo + fonte do título ajustada. Promover a melhor como principal.
 - Maior fonte de erro restante: borda do chão antisserrilhada (55–82% dos pixels errados), depois
@@ -182,7 +365,23 @@ RECREATE_STROKE=#858585`.
   dev` + celular na LAN (manual).
 
 ## Critério de pronto
-Para os 3 mapas, `cd client && npx playwright test -c playwright.recreate.config.ts` com a melhor
+Vale para cada fatia. Um terceiro consegue verificar, desde que tenha acesso ao usuário para o
+item 3.
+1. **Portão.** Dentro de `client`, com Vite novo: `rtk proxy npx tsc --noEmit` exit 0;
+   `rtk proxy npx vitest run` com 0 falhas; `rtk proxy npx playwright test` com 0 falhas.
+2. **Build e smoke.** `npm run tauri:build` exit 0 ("Finished 2 bundles"). Smoke no exe com
+   `errors: []` e prints a 100%/38%/300% salvos e conferidos.
+3. **Usuário.** Aprova no exe aberto: responde "bom" (ou equivalente, ex. "Perfeito") aos itens do
+   roteiro.
+- **Fatia 2** (além disso):
+  - `lib/roomNesting.test.ts` verde;
+  - `e2e/task-sub-sala.spec.ts` verde: desenhar dentro vira filha com a cor da mãe; o clique
+    seleciona a filha; o botão arma e cria; mover a mãe move a filha; apagar a mãe apaga as duas
+    e Ctrl+Z traz as duas de volta.
+- **Fatia 3** (além disso): `e2e/task-caminho.spec.ts` verde: caminho de 3 pontos com cor e largura,
+  acima da sala e abaixo da parede por amostra de pixel, token atravessa, jogador recebe.
+
+Critério antigo (frente de recriação, pausada): para os 3 mapas, `cd client && npx playwright test -c playwright.recreate.config.ts` com a melhor
 configuração: IoU ≥ 0,97, ilhas e buracos iguais ao objetivo, cor por pixel perto de 100% dos pixels
 com tinta e inspeção lado a lado sem diferença visível. Gate normal verde: `npm run typecheck`
 exit 0, `npm run test` 0 falhas, `cd client && npx playwright test` 0 falhas.
@@ -432,6 +631,11 @@ exit 0, `npm run test` 0 falhas, `cd client && npx playwright test` 0 falhas.
   `entityClone.test.ts`. tsc 0; vitest 124 arquivos / 1974 passed. Sub-salas dentro da cópia ficam
   para a fatia 2. Linha branca = parede (confirmado ao usuário). Playwright 180 passed
   (`re-fatia1/pw-gate2.log`). Rebuild `re-fatia1/build3.log` para o usuário testar.
+- FATIA 1 APROVADA pelo usuário no exe ("Perfeito") e commitada: `3ef5007` (local, sem push).
+  Próximo: fatia 2 (sub-salas, incluindo cópia de sala levar as salas de dentro), depois fatia 3
+  (caminhos coloridos). Pendências fora do plano: painel com "Nada selecionado" e bloco por
+  objeto; tela do jogador sem conferência visual; QR aponta IP da VPN (`commands.rs:264`);
+  instalador do GitHub ainda é o 0.1.0 antigo.
 - INTEGRAÇÃO CONCLUÍDA (15/09/2026, ~09:40, sem commit).
   - **Portão:**
     - tsc 0/0;

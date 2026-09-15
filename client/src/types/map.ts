@@ -55,7 +55,11 @@ export interface Wall {
    * Invariante: para um dado `regionId`, o conjunto de `regionEdgeIndex` em
    * uso é um SUBCONJUNTO de `0..n-1` — nunca presumido completo. Uma parede
    * vinculada continua apagável individualmente, deixando um "buraco" (aresta
-   * sem parede) nesse conjunto.
+   * sem parede) nesse conjunto. Uma aresta pode ter VÁRIAS paredes: pedaços
+   * colineares cobrindo trechos dela (a porta parte a parede e os pedaços
+   * mantêm o vínculo, `addDoorOnWall`). Mover vértice ou redimensionar
+   * reposiciona cada pedaço pela posição relativa na aresta (`lib/roomLink.ts`);
+   * então a parede traça um TRECHO da aresta, não necessariamente ela inteira.
    */
   regionId?: string
   regionEdgeIndex?: number
@@ -175,6 +179,11 @@ export interface Region extends PlayerSecret {
    *  SEM retroatividade: sala desenhada antes desta mudança carrega como
    *  região comum e não ganha nome/resize — comportamento aceito. */
   room?: RoomMeta
+  /** Sub-sala: id da Sala de fora (quarto dentro da casa). Mover, apagar e
+   *  duplicar a de fora leva as de dentro junto; sala de fora secreta/oculta
+   *  esconde as de dentro do jogador (`lib/roomNesting.ts`, `lib/fogFilter.ts`).
+   *  `undefined` ou id que não existe mais no mapa = sala de topo, sem migração. */
+  parentId?: string
   /** Pedido N2 do usuário ("tirar o fundo" de Região/Sala). Diferente de
    *  `Drawing`, que já tem `filled` por kind, `Region` sempre preenchia sem
    *  guarda nenhuma (`drawRegions.ts` chamava `g.fill(...)` incondicional) —

@@ -119,25 +119,44 @@ export function groupWallChains<T extends WallWithStyle>(walls: T[], breaksBetwe
 
   for (const group of byRegion.values()) {
     const sorted = [...group].sort((a, b) => a.regionEdgeIndex - b.regionEdgeIndex)
+    const regionChains: T[][] = []
     let current: T[] = []
     let previous: (T & RegionEdgeWall) | null = null
     for (const wall of sorted) {
-      const contiguous = previous !== null && wall.regionEdgeIndex === previous.regionEdgeIndex + 1
+      // Pedaços da mesma aresta (porta no meio) também encadeiam, mas só se
+      // encostam: sem isso o lineTo cruzaria o vão da porta.
+      const nextEdge = previous !== null && (wall.regionEdgeIndex === previous.regionEdgeIndex + 1 || wall.regionEdgeIndex === previous.regionEdgeIndex)
+      const contiguous = previous !== null && nextEdge && touches(previous, wall)
       if (previous !== null && contiguous && !breaksBetween(previous, wall)) {
         current.push(wall)
       } else {
-        if (current.length > 0) chains.push(current)
+        if (current.length > 0) regionChains.push(current)
         current = [wall]
       }
       previous = wall
     }
-    if (current.length > 0) chains.push(current)
+    if (current.length > 0) regionChains.push(current)
+    // Porta na aresta 0 parte o contorno: a última cadeia termina onde a
+    // primeira começa e vira uma só, para o canto fechar pelo line join.
+    if (regionChains.length >= 2) {
+      const first = regionChains[0]
+      const last = regionChains[regionChains.length - 1]
+      if (touches(last[last.length - 1], first[0]) && !breaksBetween(last[last.length - 1], first[0])) {
+        regionChains.splice(regionChains.length - 1, 1)
+        regionChains[0] = [...last, ...first]
+      }
+    }
+    chains.push(...regionChains)
   }
 
   return chains
 }
 
 const CLOSE_EPSILON = 1e-6
+
+function touches(previous: Pick<Wall, 'x2' | 'y2'>, next: Pick<Wall, 'x1' | 'y1'>): boolean {
+  return Math.abs(previous.x2 - next.x1) < CLOSE_EPSILON && Math.abs(previous.y2 - next.y1) < CLOSE_EPSILON
+}
 
 /** A cadeia fecha (loop, `closePath()`) quando a última parede termina onde a
  *  primeira começa — checagem GEOMÉTRICA. `length >= 3` descarta "polígono" de 2 lados. */

@@ -48,16 +48,15 @@ function offsetPoints(points: readonly RegionPoint[], offset: Offset): RegionPoi
  * Clona uma Parede. `regionId`/`regionEdgeIndex` NÃO são copiados —
  * DECISÃO: soltar o vínculo, nunca mantê-lo.
  *
- * Por quê: `types/map.ts` documenta a invariante de `Wall.regionId` — "para
- * um dado `regionId`, o conjunto de `regionEdgeIndex` em uso é um
- * SUBCONJUNTO de `0..n-1`, nunca presumido completo" (isto é, cada aresta da
- * Região tem NO MÁXIMO uma parede vinculada). Se o clone herdasse
- * `regionId`+`regionEdgeIndex`, duas paredes passariam a reivindicar a
- * MESMA aresta da mesma Região — `syncWallsToRegionPoint`
- * (`lib/roomLink.ts`, usado por `updateRegionPoint`/`moveRegion` em
- * `mapFactory.ts`) atualiza QUALQUER parede cujo `regionEdgeIndex` bata,
- * então mover a Região passaria a mover as duas juntas, e a cópia deixaria
- * de ser uma entidade independente — o oposto do que "duplicar" promete.
+ * Por quê: `types/map.ts` documenta a invariante de `Wall.regionId` — uma
+ * aresta pode ter vários pedaços colineares, cada um cobrindo um TRECHO dela
+ * (a porta parte a parede sem soltar o vínculo). Uma cópia solta de uma
+ * parede vinculada, se herdasse `regionId`+`regionEdgeIndex`, viraria um
+ * pedaço SOBREPOSTO ao original na mesma aresta: `syncLinkedWallsToPoints`
+ * e `translateLinkedWalls` (`lib/roomLink.ts`, usados por
+ * `updateRegionPoint`/`moveRegion` em `mapFactory.ts`) moveriam as duas juntas
+ * com a Sala, e a cópia deixaria de ser uma entidade independente — o oposto
+ * do que "duplicar" promete.
  * Clonar a Região INTEIRA (com suas paredes) é uma operação diferente,
  * fora do escopo de "clonar uma Wall" — cabe ao integrador decidir se
  * duplicar uma Sala duplica as 4 paredes junto, compondo `cloneRegion` +
@@ -131,6 +130,49 @@ export function cloneLinkedWalls(walls: readonly Wall[], sourceRegionId: string,
   return walls
     .filter((wall) => wall.regionId === sourceRegionId)
     .map((wall) => ({ ...cloneWall(wall, offset), regionId: targetRegionId, regionEdgeIndex: wall.regionEdgeIndex }))
+}
+
+/**
+ * Sub-salas de uma Sala duplicada: cada descendente de `sourceRegionId` vira
+ * cópia com id novo, `parentId` apontando para a cópia da mãe e paredes
+ * vinculadas copiadas (`cloneLinkedWalls`). Mantém a ordem do array (a mãe
+ * vem antes das filhas). As de dentro mantêm o nome: só a sala copiada ganha
+ * "(cópia)".
+ */
+export function cloneRoomDescendants(
+  regions: readonly Region[],
+  walls: readonly Wall[],
+  sourceRegionId: string,
+  targetRegionId: string,
+  offset: Offset,
+): { regions: Region[]; walls: Wall[] } {
+  // Id novo de cada descendente, em ondas (filha, neta…); para em ciclo.
+  const idMap = new Map<string, string>([[sourceRegionId, targetRegionId]])
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const r of regions) {
+      if (idMap.has(r.id) || r.parentId === undefined || !idMap.has(r.parentId)) continue
+      idMap.set(r.id, crypto.randomUUID())
+      grew = true
+    }
+  }
+  const outRegions: Region[] = []
+  const outWalls: Wall[] = []
+  for (const r of regions) {
+    const copyId = idMap.get(r.id)
+    if (r.id === sourceRegionId || copyId === undefined || r.parentId === undefined) continue
+    outRegions.push({
+      ...r,
+      id: copyId,
+      parentId: idMap.get(r.parentId),
+      points: offsetPoints(r.points, offset),
+      data: { ...r.data },
+      ...(r.room ? { room: { ...r.room } } : {}),
+    })
+    outWalls.push(...cloneLinkedWalls(walls, r.id, copyId, offset))
+  }
+  return { regions: outRegions, walls: outWalls }
 }
 
 // ─────────────────────────────────────────────────────────────

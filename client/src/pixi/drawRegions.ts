@@ -254,6 +254,15 @@ export function createRegionsRenderer(): RegionsRenderer {
         }
       }
     }
+
+    // Ordem do array = ordem de pintura. O Graphics em cache fica na posição em
+    // que nasceu; sub-sala inserida no meio do array (`lib/roomNesting.ts`) e
+    // Ctrl+Z que devolve a sala de fora precisam reordenar, senão a mãe cobre a
+    // filha. O container só guarda Graphics de região.
+    visibleRegions.forEach((region, index) => {
+      const g = cache.get(region.id)
+      if (g && container.getChildIndex(g) !== index) container.setChildIndex(g, index)
+    })
   }
 
   return { draw }

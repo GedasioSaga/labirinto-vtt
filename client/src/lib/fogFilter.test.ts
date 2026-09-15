@@ -406,6 +406,56 @@ describe('filterMapForPlayer — A5: oculto para jogadores e zona oculta', () =>
     // Com o nome visível, o mesmo mapa manda o nome.
     expect(JSON.stringify(filterMapForPlayer(map, 'p1', ownership, RADIUS).map)).toContain('nome-que-o-jogador-nao-ve')
   })
+
+  describe('sub-salas', () => {
+    const casa = [{ x: 100, y: 100 }, { x: 400, y: 100 }, { x: 400, y: 400 }, { x: 100, y: 400 }]
+    const quarto = [{ x: 150, y: 250 }, { x: 250, y: 250 }, { x: 250, y: 350 }, { x: 150, y: 350 }]
+    const armario = [{ x: 160, y: 260 }, { x: 200, y: 260 }, { x: 200, y: 300 }, { x: 160, y: 300 }]
+
+    function nested(casaExtra: Partial<Region>, casaName = 'nome-casa'): MapData {
+      return twoRooms({
+        regions: [
+          room('casa', casaName, casa, casaExtra),
+          room('quarto-filho', 'nome-quarto-filho', quarto, { parentId: 'casa' }),
+          room('armario-neto', 'nome-armario-neto', armario, { parentId: 'quarto-filho' }),
+        ],
+        walls: [
+          wall('divisoria', 500, 0, 500, 1000),
+          wall('parede-do-quarto', 250, 250, 250, 350, { regionId: 'quarto-filho', regionEdgeIndex: 1 }),
+          wall('parede-do-armario', 200, 260, 200, 300, { regionId: 'armario-neto', regionEdgeIndex: 1 }),
+        ],
+      })
+    }
+
+    it('SEGURANÇA: mãe secreta esconde filha, neta e as paredes delas', () => {
+      const { map: out } = filterMapForPlayer(nested({ secret: true }), 'p1', ownership, RADIUS)
+      const json = JSON.stringify(out)
+      for (const id of ['casa', 'quarto-filho', 'armario-neto', 'parede-do-quarto', 'parede-do-armario']) expect(json).not.toContain(id)
+      expect(out.walls.map((w) => w.id)).toEqual(['divisoria'])
+    })
+
+    it('SEGURANÇA: mãe oculta no editor esconde a filha e as paredes dela', () => {
+      const { map: out } = filterMapForPlayer(nested({ hidden: true } as Partial<Region>), 'p1', ownership, RADIUS)
+      const json = JSON.stringify(out)
+      expect(json).not.toContain('quarto-filho')
+      expect(json).not.toContain('parede-do-quarto')
+    })
+
+    it('nome oculto da mãe não oculta o nome da filha; órfã sai como sala de topo', () => {
+      const map = nested({})
+      const hiddenName: MapData = {
+        ...map,
+        regions: map.regions.map((r) => (r.id === 'casa' && r.room ? { ...r, room: { ...r.room, nameHiddenFromPlayers: true } } : r)),
+      }
+      const { map: out } = filterMapForPlayer(hiddenName, 'p1', ownership, RADIUS)
+      const names = Object.fromEntries(out.regions.map((r) => [r.id, r.room?.name]))
+      expect(names).toEqual({ casa: '', 'quarto-filho': 'nome-quarto-filho', 'armario-neto': 'nome-armario-neto' })
+      expect(JSON.stringify(out)).toContain('parede-do-quarto')
+
+      const orphan = twoRooms({ regions: [room('orfa', 'nome-orfa', quarto, { parentId: 'nao-existe' })] })
+      expect(filterMapForPlayer(orphan, 'p1', ownership, RADIUS).map.regions.map((r) => r.id)).toEqual(['orfa'])
+    })
+  })
 })
 
 describe('filterMapForPlayer — revisão de segurança da visibilidade', () => {

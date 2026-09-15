@@ -345,10 +345,11 @@ describe('addDoorOnWall', () => {
 
     const next = addDoorOnWall(map, 'wLinked', { x: 32, y: 0 }, 16, 'normal')
 
+    // Os pedaços mantêm o vínculo: mover/apagar/duplicar a Sala leva a porta junto.
     expect(next.walls).toHaveLength(3)
     for (const piece of next.walls) {
-      expect(piece.regionId).toBeUndefined()
-      expect(piece.regionEdgeIndex).toBeUndefined()
+      expect(piece.regionId).toBe('r1')
+      expect(piece.regionEdgeIndex).toBe(2)
     }
   })
 

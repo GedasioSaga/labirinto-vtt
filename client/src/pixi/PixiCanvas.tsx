@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Application, Container, Graphics, Sprite, Texture, Assets } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
-import type { MapData } from '../types/map'
+import type { MapData, Region, Wall } from '../types/map'
 import { useMapStore } from '../stores/mapStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
@@ -128,6 +128,8 @@ import { drawGuides } from './drawGuides'
 // pelo Alt+arrastar (Ctrl+D chama `duplicateSelected`, que já embute a
 // clonagem dentro da store — ver mapStore.ts).
 import { cloneEntity, type CloneableEntity } from '../lib/entityClone'
+import { placeNewRoom, subtreeIds } from '../lib/roomNesting'
+import { useToastStore } from '../stores/toastStore'
 import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps,
   canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
@@ -1124,6 +1126,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       let draggingRegionPointIndex = 0
       let draggingWallBodyId: string | null = null
       let draggingRegionBodyId: string | null = null
+      // Alt+arrastar de Sala: id da sala original da cópia arrastada (senão `null`).
+      let altDragRegionSource: string | null = null
       // Escada — `findSelectableAt` (selectionHitTest.ts) já devolve
       // `kind:'stair'` mas com `draggable:false` de propósito, deixando o
       // wiring de arrasto pro integrador (comentário explícito no arquivo).
@@ -1245,6 +1249,23 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         // Sala: as paredes vinculadas vão junto (senão a cópia sai só com o chão).
         useMapStore.getState().insertClonedEntityLive(cloned, input.kind === 'region' ? input.entity.id : undefined)
         return cloned.entity.id
+      }
+
+      /**
+       * Os 3 caminhos de Sala (retângulo, circular, polígono) passam por aqui:
+       * sala desenhada dentro de outra vira sub-sala (cor da mãe, sem parede
+       * duplicada, desenhada por cima) — `lib/roomNesting.ts`. Com "Criar sala
+       * dentro" armado e a sala fora da mãe, avisa e cria sala normal.
+       */
+      const addRoomWithNesting = (draft: { region: Region; walls: Wall[] }) => {
+        const store = useMapStore.getState()
+        const placed = placeNewRoom(store.map.regions, store.map.walls, draft, store.pendingParentRoomId)
+        store.addRoom(placed.region, placed.walls)
+        store.setPendingParentRoom(null)
+        if (placed.missedParent) {
+          const name = placed.missedParent.room?.name.trim() ?? ''
+          useToastStore.getState().push('info', name === '' ? 'A sala ficou fora da sala' : `A sala ficou fora de ${name}`)
+        }
       }
 
       /**
@@ -2035,6 +2056,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             bodyDragSnapshot = map
             const region = map.regions.find((r) => r.id === hit.id)
             draggingRegionBodyId = event.altKey && region ? cloneForAltDrag({ kind: 'region', entity: region }) : hit.id
+            altDragRegionSource = event.altKey && region ? region.id : null
             bodyDragLastPoint = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           } else if (hit.kind === 'stair') {
             // B3 (bug3 "mover e redimensionar"): wiring que faltava — a ação
@@ -2238,7 +2260,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
         if (mode === 'drawing-room' && roomDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map, addRoom, roomFillColor, regionFillPattern } = useMapStore.getState()
+          const { map, roomFillColor, regionFillPattern } = useMapStore.getState()
           const snapped = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           // Onda 2, item 14 (Frente E) — Shift trava em quadrado.
           const end = constrainDraft(roomDraftStart, snapped, 'room', { shift: event.shiftKey, alt: event.altKey })
@@ -2250,7 +2272,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
               crypto.randomUUID(),
             ]
             const result = buildRoomFromDraft(crypto.randomUUID(), wallIds, roomDraftStart, end, roomFillColor, regionFillPattern)
-            addRoom(result.region, result.walls)
+            addRoomWithNesting(result)
             // A3 — a Sala nova já nasce selecionada e pede o nome sobre ela
             // mesma (o mesmo campo do duplo clique), com o texto selecionado.
             useMapStore.getState().setSelection(selectionOfItem({ kind: 'region', id: result.region.id }))
@@ -2282,7 +2304,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
         if (mode === 'drawing-polygon-room' && polygonDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map, addRoom, roomFillColor, regionFillPattern } = useMapStore.getState()
+          const { map, roomFillColor, regionFillPattern } = useMapStore.getState()
           const end = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           if (isValidRegularPolygonDraft(polygonDraftCenter, end)) {
             const wallIds = Array.from({ length: polygonDraftSides }, () => crypto.randomUUID())
@@ -2295,7 +2317,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
               roomFillColor,
               regionFillPattern,
             )
-            addRoom(result.region, result.walls)
+            addRoomWithNesting(result)
             useMapStore.getState().setSelection(selectionOfItem({ kind: 'region', id: result.region.id }))
             onRoomCreatedRef.current?.(result.region.id)
             if (result.region.room) openNameEditor({ kind: 'room', regionId: result.region.id, value: result.region.room.name })
@@ -2364,6 +2386,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         // (pointerdown); os pointermoves do meio usaram resizeRoomCornerLive,
         // sem histórico.
         if (mode === 'resizing-room-corner' && roomCornerDragSnapshot) {
+          // Canto arrastado pode tirar a aresta de cima da parede da mãe (ou afastar a mãe das filhas).
+          if (resizingRoomId !== null) useMapStore.getState().reparentAfterMoveLive(roomCornerDragSnapshot, [resizingRoomId])
           useMapStore.getState().commitDragHistory(roomCornerDragSnapshot)
         }
         // B3 (bug3 "mover e redimensionar") — mesmo padrão de Sala acima,
@@ -2395,6 +2419,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           areaMarqueeGraphics.clear()
         }
         if (mode === 'dragging-area-selection' && areaSelectionDragBefore) {
+          useMapStore.getState().reparentAfterMoveLive(areaSelectionDragBefore)
           useMapStore.getState().commitDragHistory(areaSelectionDragBefore)
         }
         // Onda 1, item 3 (Frente F) — fecha mover-corpo de Token/Prop/Wall/
@@ -2412,6 +2437,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             mode === 'dragging-stair-body' || mode === 'dragging-line-body' || mode === 'dragging-floor-body') &&
           bodyDragSnapshot
         ) {
+          // Sala arrastada (pelo corpo ou por uma parede dela) recalcula a sala de fora antes de fechar o Ctrl+Z.
+          if (mode === 'dragging-region-body' && draggingRegionBodyId !== null) {
+            const sources = altDragRegionSource === null ? undefined : { [draggingRegionBodyId]: altDragRegionSource }
+            useMapStore.getState().reparentAfterMoveLive(bodyDragSnapshot, [draggingRegionBodyId], sources)
+          }
+          if (mode === 'dragging-wall-body' && draggingWallBodyId !== null) {
+            const movedRegionId = useMapStore.getState().map.walls.find((w) => w.id === draggingWallBodyId)?.regionId
+            if (movedRegionId !== undefined) useMapStore.getState().reparentAfterMoveLive(bodyDragSnapshot, [movedRegionId])
+          }
           useMapStore.getState().commitDragHistory(bodyDragSnapshot)
         }
         curveDragSnapshot = null
@@ -2474,6 +2508,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           useMapStore.getState().commitDragHistory(lightRadiusDragSnapshot)
         }
         if (mode === 'resizing-room-corner' && roomCornerDragSnapshot) {
+          // Canto arrastado pode tirar a aresta de cima da parede da mãe (ou afastar a mãe das filhas).
+          if (resizingRoomId !== null) useMapStore.getState().reparentAfterMoveLive(roomCornerDragSnapshot, [resizingRoomId])
           useMapStore.getState().commitDragHistory(roomCornerDragSnapshot)
         }
         // B3/N3 — mesmo padrão de commit acima, ver comentário no pointerup.
@@ -2487,6 +2523,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           useMapStore.getState().commitDragHistory(resizingPropSnapshot)
         }
         if (mode === 'dragging-area-selection' && areaSelectionDragBefore) {
+          useMapStore.getState().reparentAfterMoveLive(areaSelectionDragBefore)
           useMapStore.getState().commitDragHistory(areaSelectionDragBefore)
         }
         // Onda 1, item 3 (Frente F) — mesmo padrão de commit acima, ver
@@ -2502,6 +2539,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             mode === 'dragging-stair-body' || mode === 'dragging-line-body' || mode === 'dragging-floor-body') &&
           bodyDragSnapshot
         ) {
+          // Sala arrastada (pelo corpo ou por uma parede dela) recalcula a sala de fora antes de fechar o Ctrl+Z.
+          if (mode === 'dragging-region-body' && draggingRegionBodyId !== null) {
+            const sources = altDragRegionSource === null ? undefined : { [draggingRegionBodyId]: altDragRegionSource }
+            useMapStore.getState().reparentAfterMoveLive(bodyDragSnapshot, [draggingRegionBodyId], sources)
+          }
+          if (mode === 'dragging-wall-body' && draggingWallBodyId !== null) {
+            const movedRegionId = useMapStore.getState().map.walls.find((w) => w.id === draggingWallBodyId)?.regionId
+            if (movedRegionId !== undefined) useMapStore.getState().reparentAfterMoveLive(bodyDragSnapshot, [movedRegionId])
+          }
           useMapStore.getState().commitDragHistory(bodyDragSnapshot)
         }
         curveDragSnapshot = null
@@ -2810,8 +2856,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
               // Mesma ancoragem do wall-body acima, no primeiro ponto da regiao.
               const anchor = region.points[0]
               const tentativeAnchor = { x: anchor.x + dx, y: anchor.y + dy }
+              // Sub-salas andam junto: alinhar com elas seria alinhar consigo mesma.
+              const moving = subtreeIds(map.regions, draggingRegionBodyId)
               const candidates = map.regions
-                .filter((r) => r.id !== draggingRegionBodyId)
+                .filter((r) => !moving.has(r.id))
                 .flatMap((r) => r.points)
               const result = computeAlignment(tentativeAnchor, candidates)
               drawGuides(guidesGraphics, result.guides, computeViewport())

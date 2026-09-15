@@ -54,15 +54,14 @@ describe('drawWalls — path único por Região (correção geométrica de B1, d
     expect(hasClosePath(strokes[0])).toBe(true)
   })
 
-  it('aresta apagada no meio (regionEdgeIndex com buraco, invariante documentada em Wall.regionEdgeIndex): quebra em 2 runs, nenhuma fecha', () => {
+  it('aresta apagada no meio (regionEdgeIndex com buraco, invariante documentada em Wall.regionEdgeIndex): 1 run aberta, sem closePath', () => {
     const g = new Graphics()
     const walls = squareRoomWalls().filter((w) => w.regionEdgeIndex !== 1) // remove 'right' — sobra [0] e [2,3]
     drawWalls(g, walls, null)
     const strokes = strokeInstructions(g)
-    expect(strokes).toHaveLength(2)
-    for (const stroke of strokes) {
-      expect(hasClosePath(stroke)).toBe(false)
-    }
+    // [2,3] termina em (0,0), onde [0] começa: vira uma run só (bottom→left→top), e o canto A fecha pelo join.
+    expect(strokes).toHaveLength(1)
+    expect(hasClosePath(strokes[0])).toBe(false)
   })
 
   it('parede selecionada dentro da Sala NÃO quebra a run: a seleção é um contorno por baixo, a Sala continua 1 loop com a cor real', () => {
@@ -87,13 +86,29 @@ describe('drawWalls — path único por Região (correção geométrica de B1, d
 })
 
 describe('drawWalls — porta abre vão (passo 3, F2)', () => {
-  it('parede com porta não vira linha: a Sala com porta na direita quebra em 2 runs abertas', () => {
+  it('parede com porta não vira linha: a Sala com porta na direita vira 1 run aberta (bottom→left→top)', () => {
     const g = new Graphics()
     const walls = squareRoomWalls().map((w) => (w.id === 'right' ? { ...w, door: { open: false, locked: false, kind: 'normal' as const } } : w))
     drawWalls(g, walls, null)
     const strokes = strokeInstructions(g)
-    expect(strokes).toHaveLength(2)
-    for (const stroke of strokes) expect(hasClosePath(stroke)).toBe(false)
+    expect(strokes).toHaveLength(1)
+    expect(hasClosePath(strokes[0])).toBe(false)
+  })
+
+  it('porta no meio da aresta 0 (pedaços vinculados à mesma aresta): o vão fica aberto e os pedaços encadeiam só onde encostam', () => {
+    const g = new Graphics()
+    const [, right, bottom, left] = squareRoomWalls()
+    const walls: Wall[] = [
+      baseWall({ id: 'antes', x1: 0, y1: 0, x2: 40, y2: 0, regionId: 'r1', regionEdgeIndex: 0 }),
+      baseWall({ id: 'porta', x1: 40, y1: 0, x2: 60, y2: 0, regionId: 'r1', regionEdgeIndex: 0, door: { open: false, locked: false, kind: 'normal' } }),
+      baseWall({ id: 'depois', x1: 60, y1: 0, x2: 100, y2: 0, regionId: 'r1', regionEdgeIndex: 0 }),
+      right, bottom, left,
+    ]
+    drawWalls(g, walls, null)
+    const strokes = strokeInstructions(g)
+    // 'depois'→right→bottom→left→'antes': uma run aberta; nada liga 'antes' (termina em 40) a 'depois' (começa em 60).
+    expect(strokes).toHaveLength(1)
+    expect(hasClosePath(strokes[0])).toBe(false)
   })
 
   it('parede solta com porta: nenhum stroke de linha', () => {

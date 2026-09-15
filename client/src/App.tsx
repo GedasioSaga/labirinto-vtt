@@ -457,6 +457,8 @@ function App() {
   const selectedDrawing = singleSelection?.kind === 'drawing' ? map.drawings.find((d) => d.id === singleSelection.id) ?? null : null
   const selectedTextLabel = selectedDrawing && selectedDrawing.kind === 'text' ? selectedDrawing : null
   const selectedRegion = singleSelection?.kind === 'region' ? map.regions.find((r) => r.id === singleSelection.id) ?? null : null
+  // Sub-sala: a sala de fora (parentId órfão = sala de topo, sem linha "Dentro de").
+  const selectedRegionParent = selectedRegion?.parentId !== undefined ? map.regions.find((r) => r.id === selectedRegion.parentId) ?? null : null
   const selectedLight = singleSelection?.kind === 'light' ? map.lights.find((l) => l.id === singleSelection.id) ?? null : null
   const selectedStair = singleSelection?.kind === 'stair' ? map.stairs.find((s) => s.id === singleSelection.id) ?? null : null
   const selectedFloorIndex = singleSelection?.kind === 'floor' ? map.floor.findIndex((p) => p.id === singleSelection.id) : -1
@@ -1240,6 +1242,14 @@ function App() {
                 selectedRegion && resizeRoomDimensions(selectedRegion.id, width, roomDimensions(selectedRegion.points).height),
               onHeightChange: (height) =>
                 selectedRegion && resizeRoomDimensions(selectedRegion.id, roomDimensions(selectedRegion.points).width, height),
+              parentName: selectedRegionParent ? selectedRegionParent.room?.name.trim() || 'Sala sem nome' : undefined,
+              onCreateRoomInside: selectedRegion?.room
+                ? () => {
+                    const store = useMapStore.getState()
+                    store.setActiveTool('room')
+                    store.setPendingParentRoom(selectedRegion.id)
+                  }
+                : undefined,
             }}
             playerSecret={
               secretTarget && {

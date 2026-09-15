@@ -18,6 +18,10 @@ export interface RoomControlsProps {
   height: number
   onWidthChange: (width: number) => void
   onHeightChange: (height: number) => void
+  /** Sub-sala: nome da sala de fora ("Sala sem nome" se vazio). Ausente = sala de topo. */
+  parentName?: string
+  /** "Criar sala dentro": arma a ferramenta Sala com esta sala como mãe. Ausente omite o botão. */
+  onCreateRoomInside?: () => void
 }
 
 /**
@@ -46,10 +50,18 @@ export function RoomControls({
   height,
   onWidthChange,
   onHeightChange,
+  parentName,
+  onCreateRoomInside,
 }: RoomControlsProps) {
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Sala</h2>
+
+      {parentName !== undefined && (
+        <p className="lb-label" data-testid="room-parent">
+          Dentro de: {parentName}
+        </p>
+      )}
 
       <div className="lb-field">
         <label className="lb-label" htmlFor="lb-room-name">
@@ -104,6 +116,12 @@ export function RoomControls({
             </div>
           </div>
         </>
+      )}
+
+      {onCreateRoomInside !== undefined && (
+        <button type="button" className="lb-btn lb-btn--block" onClick={onCreateRoomInside}>
+          Criar sala dentro
+        </button>
       )}
     </section>
   )

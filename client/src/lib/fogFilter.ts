@@ -4,6 +4,7 @@ import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { computeVisibility, visionSegments } from './visibility'
+import { ancestorsOf, subtreeIds } from './roomNesting'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -295,7 +296,12 @@ export function filterMapForPlayer(
 
   // Sala "Oculta para jogadores" leva junto as paredes dela e o que está dentro dela.
   const secretRooms = secretRoomsOf(map)
-  const secretRoomIds = new Set(secretRooms.map((r) => r.id))
+  // Sub-sala de sala secreta ou oculta some junto, com as paredes dela. O nome
+  // oculto da sala de fora NÃO passa para a de dentro.
+  const hiddenByAncestorIds = new Set(
+    map.regions.filter((r) => r.parentId !== undefined && ancestorsOf(map.regions, r.id).some((a) => a.secret || a.hidden)).map((r) => r.id),
+  )
+  const secretRoomIds = new Set([...secretRooms.flatMap((r) => [...subtreeIds(map.regions, r.id)]), ...hiddenByAncestorIds])
   const secretRoomRings = boxRings(secretRooms.map((r) => r.points))
   const inSecretRoom = (point: RegionPoint): boolean => secretRoomRings.length > 0 && inAnyRing(secretRoomRings, point)
   const blocked = [...concealed, ...secretRooms.map((r) => r.points)]
@@ -404,7 +410,7 @@ export function filterMapForPlayer(
       return isShapeKnown(samples)
     }),
     regions: visibleRegions(map.regions, hiddenLayers)
-      .filter((r) => !r.hidden && !r.secret && isShapeKnown(interiorSamples(r.points, r.points)))
+      .filter((r) => !r.hidden && !r.secret && !hiddenByAncestorIds.has(r.id) && isShapeKnown(interiorSamples(r.points, r.points)))
       .map((r) => {
         if (r.room === undefined) return r
         // Sala com a maioria do interior dentro de zona ativa: o nome é do que a zona esconde.
