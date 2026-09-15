@@ -52,7 +52,34 @@ export function hatchBandWidth(grid: number): number {
   return grid * HATCH_BAND_CELLS
 }
 
-/** `true` quando a faixa deve ser lisa: o traço do tile não chegaria a 1 px de tela. */
+/**
+ * `true` quando a faixa deve ser lisa (LOD): abaixo de 35% de escala efetiva
+ * (zoom × grid / 64) os cachos viram ruído. O nome do limite ainda é do tile
+ * antigo; o limite continua o mesmo.
+ */
 export function hatchUsesFlatBand(cameraScale: number, grid: number): boolean {
   return cameraScale * (grid / HATCH_TILE_REFERENCE_GRID) < HATCH_MIN_TILE_SCALE
+}
+
+/** Hachura vetorial: espaçamento do grid global de cachos, em células. */
+export const HATCH_CLUSTER_SPACING_CELLS = 0.3
+/** Ruído do alcance da faixa (borda externa irregular), ± em células. */
+export const HATCH_REACH_NOISE_CELLS = 0.15
+/** Largura de mundo do traço da hachura, em células (2,30 px a grid 64 e 100%): bem mais fino que a parede (16 px). */
+export const HATCH_STROKE_CELLS = 0.036
+/** Degrau da largura engordada abaixo de 1 px de tela: largura de tela fica em [1, 1,25). */
+export const HATCH_STROKE_TIER_RATIO = 1.25
+
+/**
+ * Largura de mundo do traço da hachura na escala atual e o degrau (`tier`) dela.
+ * Acima de 1 px de tela, `tier` 0 e largura fixa: zoom não refaz geometria. Abaixo,
+ * a largura engorda em degraus de `HATCH_STROKE_TIER_RATIO` (mesma ideia de
+ * `screenSafeWidth`, quantizada): só cruzar degrau refaz os traços.
+ */
+export function hatchStrokeWidth(grid: number, cameraScale: number): { width: number; tier: number } {
+  const base = grid * HATCH_STROKE_CELLS
+  const screen = base * cameraScale
+  if (!(screen > 0) || screen >= 1) return { width: base, tier: 0 }
+  const tier = Math.ceil(Math.log(1 / screen) / Math.log(HATCH_STROKE_TIER_RATIO) - 1e-9)
+  return { width: base * HATCH_STROKE_TIER_RATIO ** tier, tier }
 }

@@ -23,11 +23,14 @@ import { drawWalls } from '../pixi/drawWalls'
 import { drawDoors } from '../pixi/drawDoors'
 import { createHatchRenderer } from '../pixi/drawHatch'
 import { createDungeonTextures, type DungeonTextures } from '../pixi/dungeonTextures'
-import { hatchUsesFlatBand } from '../pixi/dungeonStyle'
+import { hatchStrokeWidth, hatchUsesFlatBand } from '../pixi/dungeonStyle'
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer } from '../pixi/drawRegions'
 import { drawDrawings } from '../pixi/drawDrawings'
 import { drawStairs } from '../pixi/drawStairs'
+import { buildFloorMask } from '../pixi/floorMask'
+import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
+import { screenLabelSizing } from '../pixi/screenLabel'
 import { createRoomNamesRenderer } from '../pixi/drawRoomNames'
 import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
 import { isDegenerateRegion } from '../pixi/shapes'
@@ -133,8 +136,9 @@ function visibleWalls(map: MapData): Wall[] {
   return map.walls.filter((w) => (w.door === null ? !hidden.includes('paredes') : !hidden.includes('portas')))
 }
 
-/** Grade inteira do mapa: o viewport é o próprio retângulo do mapa, e a máscara corta o que a hex/tri passa da borda. */
-function drawPlayerGrid(g: Graphics, map: MapData): void {
+/** Grade inteira do mapa: o viewport é o próprio retângulo do mapa, e a máscara (silhueta do piso) corta o resto.
+ *  Quadrada com `pixel`: traço de `lineWidth` px de tela no pixel físico inteiro. */
+function drawPlayerGrid(g: Graphics, map: MapData, pixel: PixelGrid): void {
   g.clear()
   const viewport = { left: 0, top: 0, right: map.width * map.grid, bottom: map.height * map.grid }
   if (map.gridShape === 'hex') {
@@ -142,7 +146,7 @@ function drawPlayerGrid(g: Graphics, map: MapData): void {
   } else if (map.gridShape === 'triangle') {
     drawTriGrid(g, computeVisibleTriEdges(map.grid, viewport), map.gridSettings)
   } else {
-    drawGrid(g, computeAlignedGridLines(map.grid, map.gridOffset ?? { x: 0, y: 0 }, viewport), viewport, map.gridSettings)
+    drawGrid(g, computeAlignedGridLines(map.grid, map.gridOffset ?? { x: 0, y: 0 }, viewport), viewport, map.gridSettings, pixel)
   }
 }
 
@@ -180,6 +184,13 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
   return view
 }
 
+/** Nome do token: nunca abaixo de 11 px na tela e escondido abaixo de 30% de zoom (screenLabel.ts). */
+function sizeTokenLabel(label: Text, cameraScale: number, showNames: boolean): void {
+  const sizing = screenLabelSizing(LABEL_FONT_SIZE, cameraScale)
+  label.scale.set(sizing.scale)
+  label.visible = showNames && sizing.visible
+}
+
 /** O que exige repintar a view: posição muda sem repintar. */
 function tokenViewKey(token: Token, grid: number, own: boolean): string {
   return JSON.stringify([token.name, token.size, grid, own])
@@ -190,8 +201,10 @@ interface Scene {
   world: Container
   mapBackground: Graphics
   grid: Graphics
+  /** Silhueta do piso: a grade do jogador só existe dentro dele. */
   gridMask: Graphics
   lastGridKey: string | null
+  lastGridMaskKey: string | null
   raster: Sprite
   floor: Graphics
   mapLines: Graphics
@@ -202,6 +215,8 @@ interface Scene {
   drawings: Graphics
   stairs: Graphics
   lastDrawingsKey: string | null
+  /** Escadas dependem do zoom e da resolução (linha central alinhada ao pixel). */
+  lastStairsKey: string | null
   walls: Graphics
   /** Portas do mesmo renderer do editor (drawDoors.ts): trancada continua visível. */
   doors: Graphics
@@ -232,6 +247,10 @@ interface Scene {
   tokens: Container
   tokenViews: Map<string, TokenView>
   camera: Camera
+  /** Escala para a qual grade, escadas e rótulos foram ajustados por último. */
+  zoomScale: number
+  /** Ajusta o que depende só do zoom (grade, escadas, rótulos); montado no setup. */
+  onZoom: () => void
   fitted: boolean
   drag: Drag | null
   /** Espaço de tela, acima do `world`: ondas e seta de borda com tamanho fixo. */
@@ -245,8 +264,14 @@ interface Scene {
 const NO_SIGNALS: readonly SignalMark[] = []
 
 function applyCamera(scene: Scene): void {
-  scene.world.position.set(scene.camera.x, scene.camera.y)
+  const res = scene.app.renderer.resolution
+  // Pixel físico inteiro: traço fino alinhado (pixelAlign.ts) não depende do pan.
+  scene.world.position.set(snapToPhysicalPixel(scene.camera.x, res), snapToPhysicalPixel(scene.camera.y, res))
   scene.world.scale.set(scene.camera.scale)
+  if (scene.camera.scale !== scene.zoomScale) {
+    scene.zoomScale = scene.camera.scale
+    scene.onZoom()
+  }
   scene.textResolution.schedule()
 }
 
@@ -360,6 +385,40 @@ export function PlayerView({
   const latestRef = useRef({ map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, laser })
   latestRef.current = { map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, laser }
 
+  function redrawGridLayer(scene: Scene): void {
+    const { map: currentMap, settings: currentSettings } = latestRef.current
+    const worldWidth = currentMap.width * currentMap.grid
+    const worldHeight = currentMap.height * currentMap.grid
+    const showGrid = currentMap.showGrid && currentSettings.showGrid
+    const pixel = pixelGrid(scene.camera.scale, scene.app.renderer.resolution, currentMap.gridSettings.lineWidth)
+    const gridKey = JSON.stringify([worldWidth, worldHeight, currentMap.grid, currentMap.gridOffset, currentMap.gridShape, currentMap.gridSettings, showGrid, pixel])
+    if (gridKey === scene.lastGridKey) return
+    scene.lastGridKey = gridKey
+    scene.mapBackground.clear().rect(0, 0, worldWidth, worldHeight).fill({ color: MAP_BACKGROUND })
+    if (showGrid) drawPlayerGrid(scene.grid, currentMap, pixel)
+    else scene.grid.clear()
+  }
+
+  function redrawStairsLayer(scene: Scene): void {
+    const currentMap = latestRef.current.map
+    const stairs = visibleStairs(currentMap.stairs, currentMap.hiddenLayers)
+    const { scale } = scene.camera
+    const res = scene.app.renderer.resolution
+    const key = JSON.stringify([stairs, scale, res])
+    if (key === scene.lastStairsKey) return
+    scene.lastStairsKey = key
+    drawStairs(scene.stairs, stairs, null, scale, res)
+  }
+
+  /** Só o zoom (ou a resolução) mudou: nada de chão, paredes ou névoa. */
+  function redrawZoomLayers(scene: Scene): void {
+    redrawGridLayer(scene)
+    redrawStairsLayer(scene)
+    scene.roomNamesRenderer.setCameraScale(scene.camera.scale)
+    const { showNames } = latestRef.current.settings
+    for (const view of scene.tokenViews.values()) sizeTokenLabel(view.label, scene.camera.scale, showNames)
+  }
+
   function redraw(scene: Scene): void {
     const {
       map: currentMap,
@@ -373,29 +432,19 @@ export function PlayerView({
     const worldWidth = currentMap.width * currentMap.grid
     const worldHeight = currentMap.height * currentMap.grid
 
-    const showGrid = currentMap.showGrid && currentSettings.showGrid
-    const gridKey = JSON.stringify([worldWidth, worldHeight, currentMap.grid, currentMap.gridOffset, currentMap.gridShape, currentMap.gridSettings, showGrid])
-    if (gridKey !== scene.lastGridKey) {
-      scene.lastGridKey = gridKey
-      scene.mapBackground.clear().rect(0, 0, worldWidth, worldHeight).fill({ color: MAP_BACKGROUND })
-      scene.gridMask.clear().rect(0, 0, worldWidth, worldHeight).fill({ color: 0xffffff })
-      if (showGrid) drawPlayerGrid(scene.grid, currentMap)
-      else scene.grid.clear()
-    }
-
+    redrawGridLayer(scene)
     redrawFloor(scene, currentMap)
 
     const regions = visibleRegions(currentMap.regions, hidden)
     scene.regionsRenderer.draw(scene.regions, regions)
 
     const drawings = visibleDrawings(currentMap.drawings, hidden)
-    const stairs = visibleStairs(currentMap.stairs, hidden)
-    const drawingsKey = JSON.stringify([drawings, stairs])
+    const drawingsKey = JSON.stringify(drawings)
     if (drawingsKey !== scene.lastDrawingsKey) {
       scene.lastDrawingsKey = drawingsKey
       drawDrawings(scene.drawings, drawings)
-      drawStairs(scene.stairs, stairs)
     }
+    redrawStairsLayer(scene)
 
     // Mesmo desenho do editor (parede grossa, porta por tipo, hachura). A faixa
     // usa SÓ a lista de paredes e salas que o jogador já recebe: não revela nada.
@@ -410,20 +459,34 @@ export function PlayerView({
       drawDoors(scene.doors, walls, null, scene.camera.scale)
     }
     scene.dungeonTextures?.setGrid(grid)
+    const raster = isRasterMode(currentMap)
+    const floorPolygons = raster || hidden.includes('salas') ? [] : scene.floorRenderer.polygons()
+    const regionsKey = JSON.stringify(regions.map((r) => [r.id, r.points]))
     scene.hatchRenderer.draw(
       scene.hatch,
       scene.hatchMask,
       {
         walls,
         regions,
-        floorPolygons: isRasterMode(currentMap) || hidden.includes('salas') ? [] : scene.floorRenderer.polygons(),
+        floorPolygons,
         grid,
         cameraScale: scene.camera.scale,
       },
-      [wallsKey, scene.lastFloorKey, JSON.stringify(regions.map((r) => [r.id, r.points]))],
+      [wallsKey, scene.lastFloorKey, regionsKey],
     )
 
-    scene.roomNamesRenderer.draw(scene.roomNames, regions, currentMap.grid)
+    // Grade só dentro do piso (salas com parede + chão por peças): fora dele o
+    // jogador não vê grade. Render fiel não tem contorno vetorial: vale o mapa.
+    const gridMaskKey = raster ? JSON.stringify(['raster', worldWidth, worldHeight]) : JSON.stringify([wallsKey, scene.lastFloorKey, regionsKey])
+    if (gridMaskKey !== scene.lastGridMaskKey) {
+      scene.lastGridMaskKey = gridMaskKey
+      const hasFloor = raster
+        ? (scene.gridMask.clear().rect(0, 0, worldWidth, worldHeight).fill({ color: 0xffffff }), true)
+        : buildFloorMask(scene.gridMask, regions, walls, floorPolygons)
+      scene.grid.visible = hasFloor
+    }
+
+    scene.roomNamesRenderer.draw(scene.roomNames, regions, currentMap.grid, scene.camera.scale)
     scene.textLabelsRenderer.draw(scene.textLabels, drawings)
     scene.roomNames.visible = currentSettings.showNames
     scene.textLabels.visible = currentSettings.showNames
@@ -456,7 +519,7 @@ export function PlayerView({
         view.key = key
         paintTokenView(view, token, currentMap.grid, isOwn)
       }
-      view.label.visible = currentSettings.showNames
+      sizeTokenLabel(view.label, scene.camera.scale, currentSettings.showNames)
       view.wrapper.visible = true
       view.wrapper.position.set(token.x, token.y)
     }
@@ -515,7 +578,7 @@ export function PlayerView({
         antialias: true,
       })
       if (destroyed) {
-        app.destroy(true, { children: true })
+        app.destroy({ removeView: true }, { children: true }) // `true` limparia o TexturePool GLOBAL e quebraria Text de outro app vivo
         return
       }
       initialized = true
@@ -546,16 +609,17 @@ export function PlayerView({
       const tokens = new Container()
       // Mesma ordem do editor, de baixo para cima; tudo da planta fica sob a
       // névoa, e só os tokens (que já chegam filtrados pela visão) ficam acima.
+      // Grade acima do chão e das salas, abaixo de paredes e portas.
       world.addChild(
         mapBackground,
-        grid,
-        gridMask,
         raster,
         hatchMask,
         hatch,
         floor,
         mapLines,
         regions,
+        gridMask,
+        grid,
         drawings,
         stairs,
         walls,
@@ -587,6 +651,7 @@ export function PlayerView({
         grid,
         gridMask,
         lastGridKey: null,
+        lastGridMaskKey: null,
         raster,
         floor,
         mapLines,
@@ -597,6 +662,7 @@ export function PlayerView({
         drawings,
         stairs,
         lastDrawingsKey: null,
+        lastStairsKey: null,
         walls,
         doors,
         lastWallsKey: null,
@@ -622,6 +688,8 @@ export function PlayerView({
         tokens,
         tokenViews: new Map(),
         camera: { x: 0, y: 0, scale: 1 },
+        zoomScale: 1,
+        onZoom: () => {},
         fitted: false,
         drag: null,
         signalsLayer,
@@ -632,6 +700,7 @@ export function PlayerView({
           el.dataset.textResolution = String(syncWorldTextResolution(world, scene.camera.scale, app.renderer.resolution))
         }),
       }
+      scene.onZoom = () => redrawZoomLayers(scene)
       sceneRef.current = scene
 
       let signalsDrawn = 0
@@ -729,10 +798,13 @@ export function PlayerView({
         const rect = app.canvas.getBoundingClientRect()
         const grid = latestRef.current.map.grid
         const flatBefore = hatchUsesFlatBand(scene.camera.scale, grid)
+        const tierBefore = hatchStrokeWidth(grid, scene.camera.scale).tier
         scene.camera = zoomAt(scene.camera, { x: event.clientX - rect.left, y: event.clientY - rect.top }, event.deltaY)
         applyCamera(scene)
-        // Cruzou o LOD da hachura: repinta faixa e paredes (o resto não depende do zoom).
-        if (hatchUsesFlatBand(scene.camera.scale, grid) !== flatBefore) redraw(scene)
+        // Cruzou o LOD da hachura ou o degrau da largura do traço (abaixo de 1 px de
+        // tela ele engorda): repinta faixa e paredes (o resto não depende do zoom).
+        const flatChanged = hatchUsesFlatBand(scene.camera.scale, grid) !== flatBefore
+        if (flatChanged || hatchStrokeWidth(grid, scene.camera.scale).tier !== tierBefore) redraw(scene)
       }
       app.canvas.addEventListener('wheel', onWheel, { passive: false })
       // Outro monitor ou zoom do navegador: resolução nova e resize (textos se refazem sozinhos).
@@ -740,6 +812,9 @@ export function PlayerView({
         if (destroyed) return
         app.renderer.resolution = resolution
         app.resize()
+        // Pixel físico mudou: world, grade e escadas realinham à resolução nova.
+        applyCamera(scene)
+        redrawZoomLayers(scene)
         // Text com resolução fixa não segue o runner resolutionChange do Pixi.
         scene.textResolution.flush()
       })
@@ -769,7 +844,7 @@ export function PlayerView({
       sceneRef.current = null
       removeWheel?.()
       resizeObserver?.disconnect()
-      if (initialized) app.destroy(true, { children: true })
+      if (initialized) app.destroy({ removeView: true }, { children: true }) // `true` limparia o TexturePool GLOBAL e quebraria Text de outro app vivo
     }
     // Monta uma vez; mapa e visão chegam pelo efeito abaixo via latestRef.
   }, [])

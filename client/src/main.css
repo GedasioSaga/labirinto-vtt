@@ -66,9 +66,11 @@ body {
 .lb-eyebrow {
   margin: 0;
   font-family: var(--lb-font-utility);
-  font-size: var(--lb-font-size-xs);
+  /* 11,5 px com tracking moderado: a 10,5 px e 0,14em as letras se separavam
+     e o rótulo borrava em DPR 1 (medido 15/09/2026). */
+  font-size: var(--lb-font-size-sm);
   font-weight: var(--lb-font-weight-semibold);
-  letter-spacing: var(--lb-font-tracking-wider);
+  letter-spacing: var(--lb-font-tracking-wide);
   text-transform: uppercase;
   color: var(--lb-color-parchment-faint);
 }

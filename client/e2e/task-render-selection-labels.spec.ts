@@ -106,14 +106,23 @@ test('parede fina e grossa ficam visivelmente diferentes a 100%', async ({ page 
     s.addWall(wall('w_thin', 256, 'thin'))
     s.addWall(wall('w_thick', 384, 'thick'))
   })
-  const lit = async (y: number) => {
+  // Parede escura sobre a faixa de papel da hachura: mede a maior sequência
+  // contínua de pixels escuros na coluna que cruza a parede. Um traço de
+  // hachura encostado soma poucos px, bem menos que a diferença fina/grossa.
+  const DARK_LUMA = 60
+  const wallRun = async (y: number) => {
     const at = await worldToPage(page, 320, y)
-    const column = await clipPixels(page, { x: at.x, y: at.y - 8, width: 1, height: 16 })
-    const background = column[0][0]
-    return column.filter(([r]) => r - background > 60).length
+    const column = await clipPixels(page, { x: at.x, y: at.y - 32, width: 1, height: 64 })
+    let longest = 0
+    let current = 0
+    for (const [r, g, b] of column) {
+      current = 0.299 * r + 0.587 * g + 0.114 * b < DARK_LUMA ? current + 1 : 0
+      longest = Math.max(longest, current)
+    }
+    return longest
   }
-  const thin = await lit(256)
-  const thick = await lit(384)
+  const thin = await wallRun(256)
+  const thick = await wallRun(384)
   expect(thin).toBeGreaterThan(0)
   expect(thick).toBeGreaterThanOrEqual(thin * 2)
 })

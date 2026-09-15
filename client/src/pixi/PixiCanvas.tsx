@@ -41,6 +41,8 @@ import { createFloorRenderer, drawFloorDraft } from './drawFloor'
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
 import { drawMapFrame } from './drawMapFrame'
 import { createDebouncedTask, syncWorldTextResolution } from './textResolution'
+import { pixelGrid, snapToPhysicalPixel } from './pixelAlign'
+import { buildFloorMask } from './floorMask'
 import { layoutMapFrame } from '../lib/mapFrame'
 import { hexToRgb, rasterizeMinimap } from '../lib/minimapRaster'
 import { compileFloor } from '../lib/floorSdf'
@@ -52,6 +54,10 @@ import { buildCorridorShape, buildFloorPiece, buildFloorShapeFromDrag, clampFloo
 
 /** Referência estável: camada oculta não força recalcular o contorno a cada redraw. */
 const EMPTY_FLOOR: FloorPiece[] = []
+/** Grade FORA do piso no editor: bem apagada e clara. A cor do usuário (escura,
+ *  feita para o pergaminho) some no fundo 0x2b2b2b. */
+const OUTSIDE_FLOOR_GRID_COLOR = 0xd8d8d8
+const OUTSIDE_FLOOR_GRID_ALPHA = 0.08
 // Onda 3, item 21 (Frente E) — moldura do mapa (contorno + sombra fora dela).
 import { drawMapBounds } from './drawMapBounds'
 import { createTokensRenderer } from './tokensRenderer'
@@ -338,7 +344,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         antialias: true,
       })
       if (destroyed) {
-        app.destroy(true, { children: true })
+        app.destroy({ removeView: true }, { children: true }) // `true` limparia o TexturePool GLOBAL e quebraria Text de outro app vivo
         return
       }
       initialized = true
@@ -356,7 +362,16 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // Onda 3, item 21 (Frente E) — moldura do mapa. Fica atrás da grade e
       // do conteúdo, na frente só do fundo (mesma ordem do CONTRATO).
       const mapBoundsGraphics = new Graphics()
+      // Grade acima do chão e das salas, abaixo de paredes e portas. Uma só
+      // geometria (branca) em dois Graphics com tint próprio: dentro do piso na
+      // cor do usuário, fora dele bem apagada. Máscara própria (a da hachura
+      // não pode ser compartilhada); sem piso nenhum, a grade vai inteira.
       const gridGraphics = new Graphics()
+      const gridOutsideGraphics = new Graphics(gridGraphics.context)
+      const gridFloorMask = new Graphics()
+      const gridOutsideMask = new Graphics(gridFloorMask.context)
+      gridOutsideGraphics.visible = false
+      let gridHasFloor = false
       const gridAlignOverlayGraphics = new Graphics()
       // Passo 3, F2 — faixa de hachura por fora das paredes externas, por baixo
       // de todo piso; a máscara (inversa) é a silhueta do piso (floorMask.ts).
@@ -369,8 +384,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // Render fiel (FloorStyle.renderMode === 'raster'): conteúdo do mapa rasterizado por software.
       const mapRasterSprite = new Sprite(Texture.EMPTY)
       const regionsContainer = new Container()
-      // Nomes das salas logo acima do preenchimento: abaixo das paredes para
-      // não cobrir porta/escada, mas nunca escondidos pela cor da própria sala.
+      // Nomes das salas acima de paredes, portas e escadas: abaixo delas a
+      // parede interna cortava o nome ao meio (medido 15/09/2026).
       const roomNamesContainer = new Container()
       const wallsGraphics = new Graphics()
       const doorsGraphics = new Graphics()
@@ -407,8 +422,6 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       world.addChild(
         backgroundSprite,
         mapBoundsGraphics,
-        gridGraphics,
-        gridAlignOverlayGraphics,
         mapFrameContainer,
         mapRasterSprite,
         hatchMaskGraphics,
@@ -416,11 +429,16 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         floorGraphics,
         mapLinesGraphics,
         regionsContainer,
-        roomNamesContainer,
+        gridFloorMask,
+        gridOutsideMask,
+        gridOutsideGraphics,
+        gridGraphics,
+        gridAlignOverlayGraphics,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
         secretStairsGraphics,
+        roomNamesContainer,
         drawingsGraphics,
         secretDrawingsGraphics,
         textLabelsContainer,
@@ -439,7 +457,13 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       )
 
       let camera: Camera = useMapStore.getState().camera
-      world.position.set(camera.x, camera.y)
+      // `world` sempre em pixel físico inteiro: o alinhamento dos traços finos
+      // (pixelAlign.ts) passa a depender só do zoom, não do pan.
+      const positionWorld = () => {
+        const res = app.renderer.resolution
+        world.position.set(snapToPhysicalPixel(camera.x, res), snapToPhysicalPixel(camera.y, res))
+      }
+      positionWorld()
       world.scale.set(camera.scale)
       onCameraChange?.(camera)
 
@@ -460,7 +484,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // em algum dos pontos novos.
       const applyCamera = (next: Camera) => {
         camera = next
-        world.position.set(camera.x, camera.y)
+        positionWorld()
         world.scale.set(camera.scale)
         useMapStore.getState().setCamera(camera)
         onCameraChange?.(camera)
@@ -572,23 +596,21 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const redrawGrid = () => {
         const { map } = useMapStore.getState()
         if (!map.showGrid) {
+          // Contexto compartilhado: limpa as duas camadas (dentro e fora do piso).
           gridGraphics.clear()
           return
         }
-        const viewport = {
-          left: -camera.x / camera.scale,
-          top: -camera.y / camera.scale,
-          right: (app.screen.width - camera.x) / camera.scale,
-          bottom: (app.screen.height - camera.y) / camera.scale,
-        }
+        const viewport = computeViewport()
+        // Traço branco opaco; cor e opacidade saem do tint/alpha de cada camada.
+        const lineSettings = { ...map.gridSettings, color: '#ffffff', opacity: 1 }
         if (map.gridShape === 'hex') {
-          drawHexGrid(gridGraphics, computeVisibleHexCenters(map.grid, viewport), map.grid, map.gridSettings)
+          drawHexGrid(gridGraphics, computeVisibleHexCenters(map.grid, viewport), map.grid, lineSettings)
         } else if (map.gridShape === 'triangle') {
           // F3, dívida "grid-triangular" (agente C6): matemática pronta em
           // triGrid.ts, só faltava este call site — snap (tokenInteraction.ts,
           // fora da minha lista de escrita) ainda cai no snap quadrado padrão
           // para esta forma; ver relatório.
-          drawTriGrid(gridGraphics, computeVisibleTriEdges(map.grid, viewport), map.gridSettings)
+          drawTriGrid(gridGraphics, computeVisibleTriEdges(map.grid, viewport), lineSettings)
         } else {
           // computeAlignedGridLines (lib/gridAlign.ts, agente C5) no lugar de
           // computeVisibleGridLines (pixi/grid.ts): a única diferença é somar
@@ -596,8 +618,49 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           // produzem exatamente as mesmas linhas (comentário no topo da
           // função), então nenhum mapa que nunca usou "Alinhar grade à
           // imagem" muda de aparência.
-          drawGrid(gridGraphics, computeAlignedGridLines(map.grid, map.gridOffset ?? { x: 0, y: 0 }, viewport), viewport, map.gridSettings)
+          // Quadrada: cada linha no pixel físico, `lineWidth` em px de tela.
+          const pixel = pixelGrid(camera.scale, app.renderer.resolution, map.gridSettings.lineWidth)
+          drawGrid(gridGraphics, computeAlignedGridLines(map.grid, map.gridOffset ?? { x: 0, y: 0 }, viewport), viewport, lineSettings, pixel)
         }
+        applyGridStyle()
+      }
+
+      /** Cor/opacidade das duas camadas da grade e máscara ligada só com piso. */
+      const applyGridStyle = () => {
+        const { gridSettings } = useMapStore.getState().map
+        gridGraphics.tint = gridSettings.color
+        gridGraphics.alpha = gridSettings.opacity
+        gridOutsideGraphics.visible = gridHasFloor
+        gridOutsideGraphics.tint = OUTSIDE_FLOOR_GRID_COLOR
+        gridOutsideGraphics.alpha = gridSettings.opacity > 0 ? OUTSIDE_FLOOR_GRID_ALPHA : 0
+      }
+
+      /**
+       * Silhueta do piso para a grade (mesma entrada da hachura, Graphics
+       * próprio). Com piso: grade forte dentro, apagada fora. Sem piso (mapa só
+       * com imagem de fundo, por exemplo): a grade inteira como antes.
+       */
+      const redrawGridMask = () => {
+        const { map } = useMapStore.getState()
+        const rasterMode = map.floorStyle.renderMode === 'raster'
+        const floorPolygons = rasterMode || map.hiddenLayers.includes('salas') ? [] : floorRenderer.polygons()
+        const hasFloor = buildFloorMask(
+          gridFloorMask,
+          visibleRegions(map.regions, map.hiddenLayers),
+          visibleWalls(map.walls, map.hiddenLayers),
+          floorPolygons,
+        )
+        if (hasFloor !== gridHasFloor) {
+          gridHasFloor = hasFloor
+          if (hasFloor) {
+            gridGraphics.setMask({ mask: gridFloorMask })
+            gridOutsideGraphics.setMask({ mask: gridOutsideMask, inverse: true })
+          } else {
+            gridGraphics.mask = null
+            gridOutsideGraphics.mask = null
+          }
+        }
+        applyGridStyle()
       }
 
       /**
@@ -610,7 +673,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
        */
       const redrawMapBounds = () => {
         const { map } = useMapStore.getState()
-        drawMapBounds(mapBoundsGraphics, map, computeViewport())
+        drawMapBounds(mapBoundsGraphics, map, computeViewport(), pixelGrid(camera.scale, app.renderer.resolution))
       }
 
       /**
@@ -698,8 +761,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         const single = selectionSingle(selection)
         const stairs = visibleStairs(map.stairs, map.hiddenLayers)
         const selectedStairId = single?.kind === 'stair' ? single.id : null
-        drawStairs(stairsGraphics, stairs.filter((s) => !s.secret), selectedStairId, camera.scale)
-        drawStairs(secretStairsGraphics, stairs.filter((s) => s.secret), selectedStairId, camera.scale)
+        const res = app.renderer.resolution
+        drawStairs(stairsGraphics, stairs.filter((s) => !s.secret), selectedStairId, camera.scale, res)
+        drawStairs(secretStairsGraphics, stairs.filter((s) => s.secret), selectedStairId, camera.scale, res)
       }
 
       const redrawShapes = () => {
@@ -727,6 +791,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           floorRenderer.draw(floorGraphics, map.hiddenLayers.includes('salas') ? EMPTY_FLOOR : map.floor, map.floorStyle)
         }
         redrawHatch()
+        redrawGridMask()
         floorRenderer.drawSelection(
           floorSelectionGraphics,
           single?.kind === 'floor' && !map.hiddenLayers.includes('salas') ? map.floor.find((p) => p.id === single.id) ?? null : null,
@@ -737,7 +802,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (!rasterMode && !map.hiddenLayers.includes('portas')) drawMapMarkers(mapLinesGraphics, map.markers)
         redrawMapFrame(map.frame)
         redrawRegionsAndDrawings()
-        roomNamesRenderer.draw(roomNamesContainer, visibleRegions(map.regions, map.hiddenLayers), map.grid)
+        roomNamesRenderer.draw(roomNamesContainer, visibleRegions(map.regions, map.hiddenLayers), map.grid, camera.scale)
         redrawWallsAndDoors()
         redrawStairs()
         redrawLights()
@@ -757,7 +822,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const redrawTokens = () => {
         const { map, selection } = useMapStore.getState()
         const single = selectionSingle(selection)
-        tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null)
+        tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null, camera.scale)
         syncTextResolution()
       }
 
@@ -932,6 +997,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (destroyed) return
         app.renderer.resolution = resolution
         app.resize()
+        // Pixel físico mudou de tamanho: reposiciona o world e realinha a escada
+        // (grade e moldura já redesenham no 'resize' acima).
+        positionWorld()
+        redrawStairs()
         // Text com resolução fixa não segue o runner resolutionChange do Pixi.
         textResolutionTask.flush()
       })
@@ -956,7 +1025,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // largura na tela, então não redesenha a cada movimento de arrasto.
       const unsubscribeCameraScaleForWalls = useMapStore.subscribe(
         (state) => state.camera.scale,
-        () => {
+        (scale) => {
+          // Nomes de sala/token: tamanho mínimo na tela e somem abaixo de 30% (screenLabel.ts).
+          roomNamesRenderer.setCameraScale(scale)
+          tokensRenderer.setCameraScale(scale)
           redrawWallsAndDoors()
           redrawRegionsAndDrawings()
           redrawStairs()
@@ -1892,7 +1964,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         // nele arrastaria a sala inteira. Com grupo (2+) o arrasto do grupo
         // continua valendo, e Shift continua sendo "somar à seleção".
         if (activeTool === 'select' && !event.shiftKey && selection.length <= 1) {
-          const labelRegion = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), worldPoint, map.grid)
+          const labelRegion = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), worldPoint, map.grid, camera.scale)
           if (labelRegion?.room) {
             setSelection(selectionOfItem({ kind: 'region', id: labelRegion.id }))
             if (canInteract(labelRegion)) {
@@ -3253,7 +3325,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           // ponto acima: duplo clique em vértice continua removendo o vértice.
           const rect = el.getBoundingClientRect()
           const worldPoint = toWorldPoint(event.clientX - rect.left, event.clientY - rect.top)
-          let roomRegion = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), worldPoint, map.grid)
+          let roomRegion = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), worldPoint, map.grid, camera.scale)
           if (!roomRegion) {
             const hit = findSelectableAt(hitTestMap(map), worldPoint)
             const regionId =
@@ -3526,7 +3598,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         try {
           cleanup?.()
         } finally {
-          if (initialized) app.destroy(true, { children: true })
+          if (initialized) app.destroy({ removeView: true }, { children: true }) // `true` limparia o TexturePool GLOBAL e quebraria Text de outro app vivo
         }
       })
     }

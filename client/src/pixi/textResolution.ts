@@ -4,19 +4,26 @@ import { Container, Text } from 'pixi.js'
 // resolução do renderer; dentro do `world` escalado (zoom 2x, 4x) essa textura
 // é esticada e o texto sai mole a 2x e em blocos a 4x (medido em
 // screenshot, 14/09/2026). Aqui a resolução do Text acompanha a escala
-// efetiva, em degraus, para não re-rasterizar a cada quadro de zoom.
+// efetiva EXATA, quantizada em passos de TEXT_ZOOM_STEP. O degrau antigo em
+// potência de 2 rasterizava 150% a 2x e reduzia 0,75 com filtro linear, o que
+// deixava rampa de 1 px em cada borda de letra (medido 15/09/2026).
 
 /** Fator máximo aplicado por zoom: acima de 4x a memória cresce ao quadrado sem ganho. */
 export const MAX_TEXT_ZOOM_FACTOR = 4
+/** Passo da quantização: zoom de 1,5 vira exatamente 1,5; 1,6 vira 1,75. */
+export const TEXT_ZOOM_STEP = 0.25
 /** Lado maior da textura de um Text, em px físicos (limite seguro de GPU). */
 export const MAX_TEXT_TEXTURE_SIDE = 4096
 /** Espera depois do último passo de zoom antes de re-rasterizar os textos. */
 export const TEXT_RESOLUTION_DEBOUNCE_MS = 120
+/** Folga de ponto flutuante: 0,35 × 1,6 não pode virar o passo seguinte. */
+const STEP_EPSILON = 1e-6
 
-/** Degrau do zoom: 1, 2 ou 4 (potência de 2 acima da escala, entre 1 e o teto). */
+/** Fator do zoom: escala efetiva arredondada para cima ao passo, entre 1 e o teto. */
 export function textZoomStep(scale: number): number {
   if (!Number.isFinite(scale) || scale <= 1) return 1
-  return Math.min(MAX_TEXT_ZOOM_FACTOR, 2 ** Math.ceil(Math.log2(scale)))
+  const stepped = Math.ceil(scale / TEXT_ZOOM_STEP - STEP_EPSILON) * TEXT_ZOOM_STEP
+  return Math.min(MAX_TEXT_ZOOM_FACTOR, stepped)
 }
 
 /**
@@ -53,6 +60,8 @@ export function syncWorldTextResolution(world: Container, worldScale: number, re
       if (child instanceof Text) {
         const next = chooseTextResolution(rendererResolution, childScale, largestLocalSide(child))
         if (child.resolution !== next) child.resolution = next
+        // Quad do texto no pixel físico inteiro: textura 1:1 sem meia amostra de borda.
+        if (!child.roundPixels) child.roundPixels = true
         highest = Math.max(highest, next)
       }
       if (child.children.length > 0) visit(child, childScale)

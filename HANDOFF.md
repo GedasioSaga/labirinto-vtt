@@ -327,6 +327,70 @@ exit 0, `npm run test` 0 falhas, `cd client && npx playwright test` 0 falhas.
     - Mapa antigo mantém a cor e ganha textura.
     - Jogador vê a porta trancada.
   - **Próximas fatias:** F6 (luz com gradiente), F2 (parede + hachura), F3 (textura do piso), F4 (portas), F5 (grade só no piso), F8 (integração e comparação cega).
+- RETOMADA (15/09/2026 ~10:50, nova sessão). A sessão anterior parou ~09:47 no meio do lote de
+  decisões (fatias 1-3) e da F2 (hachura). Checkpoint local `05da139` (sem push) com tudo; portão
+  no commit: tsc 0, vitest 124 arquivos / 1961 passed; playwright NÃO rodado. Decisões do usuário:
+  critério visual = "sem parecer borrado" (sem estilo de referência); valida o exe a cada fatia.
+  Agentes: só Opus, máximo 2 em paralelo. Em curso: diagnóstico medido do borrão (1 debugador,
+  prints em `scratchpad/borrado/` desta sessão). A hachura atual (faixa bege com tracinhos
+  repetidos) foi julgada fraca no print e será refeita.
+- DIAGNÓSTICO DO BORRÃO CONCLUÍDO (medido em pixel): a 100% quase tudo já é nítido; sobram (1) nome de
+  sala/token ilegível a 35-50% (fonte fixa em px de mundo), (2) texto mole a 150% (degrau potência de
+  2 em `textResolution.ts`), (3) hairline de 1 px vira 2 px cinza (`drawStairs.ts:26`,
+  `drawMapBounds.ts:160`, `drawGrid.ts:26`), (4) grade abaixo do chão (`PixiCanvas.tsx:410`), (5)
+  rótulo do painel com contraste 3,6:1 (`main.css:69-73`); extra: nome da sala sob a parede.
+  Decisões do usuário: nome de sala/token com mínimo ~11 px na tela e some abaixo de 30% de zoom;
+  nitidez e hachura na MESMA fatia. EM ANDAMENTO: 2 `operario` Opus em paralelo com arquivos
+  disjuntos — nitidez (PixiCanvas, PlayerView, textResolution, drawRoomNames, tokensRenderer,
+  drawStairs, drawMapBounds, drawGrid, main.css; porta 1431, `scratchpad/nitidez3/`) e hachura
+  vetorial com cachos em grid global e borda irregular (drawHatch, dungeonStyle, dungeonTextures,
+  proceduralTiles, floorMask; porta 1432, `scratchpad/hachura/`). Depois: portão completo (tsc,
+  vitest, playwright), build do exe e teste do usuário com roteiro.
+- NITIDEZ (agente 1) CONCLUÍDA, sem commit. Novos `pixi/screenLabel.ts` (mínimo 11 px, some <30%)
+  e `pixi/pixelAlign.ts` (world e hairlines presos ao pixel físico); textResolution com escala exata
+  em passos de 0,25 + roundPixels; grade acima das salas em 2 Graphics (dentro do piso cor do
+  usuário, fora #d8d8d8 a 8%, máscara via buildFloorMask); nomes acima das paredes; theme.ts
+  parchmentFaint #858480 e eyebrow 11,5 px. Medido: escada 2 px→1 px, grade sobre pergaminho
+  35 níveis, texto a 150% sem rampa, eyebrow 3,48→4,89:1, nome a 25% ausente; a 35% caixa-alta
+  7 px (Arial 11 px). tsc 0; vitest 1985 ok, 8 falhas só em drawHatch.test.ts (hachura em
+  andamento). NÃO verificado: tela do jogador no browser; specs task-player-map e
+  task-render-selection-labels podem mudar. Pendências anotadas: nome de token sem contorno some
+  sobre pergaminho; nomes de zona oculta sem regra de tamanho; grade hex/tri sem alinhamento.
+  Prints: `scratchpad/nitidez3/crops/` (antes/depois) desta sessão.
+- HACHURA VETORIAL (agente 2) CONCLUÍDA, sem commit. Novo `pixi/hatchGeometry.ts` (cachos em grid
+  global de 0,3 célula com hash inteiro, alcance 0,5 ± 0,15 célula, distância por bucket de
+  segmentos, papel por ladrilhos com borda irregular, 1 fill + 1 stroke) e `hatchGeometry.test.ts`
+  (14 testes); `drawHatch.ts` mantém a API (getPattern ignorado); `dungeonStyle.ts` com
+  `hatchStrokeWidth` em degraus abaixo de 1 px. Medido: 0 px escuro dentro do piso nas 7 cenas,
+  densidade 0,29–0,36, borda irregular 0,11–0,15 célula, AA a 400% 0,8 (textura antiga 0,12),
+  salas encostadas sem dobra (−1%). Custo: construção 8,8→68 ms na fixture de 55 salas, pan −6%.
+  Prints: `scratchpad/hachura/final/`. Ajuste do orquestrador: `PlayerView.tsx` repinta a hachura
+  também ao cruzar degrau da largura do traço no zoom. Sobra: `createDungeonTextures` sem uso em
+  PixiCanvas/PlayerView (remover depois).
+- PORTÃO DA FATIA (15/09/2026 ~12:15): tsc exit 0; vitest 127 arquivos / 2007 passed. Playwright
+  1ª rodada 178/180: (a) `task-render-selection-labels` media parede CLARA sobre fundo escuro —
+  spec atualizada para a maior sequência de pixels escuros (parede preta sobre papel); (b)
+  `task-avancado` 3: Precisão/Render fiel/Moldura ainda soltos — movidos para `AdvancedSection` em
+  `FloorStyleControls.tsx` (fatia 3 do lote de decisões que tinha ficado pela metade). 2ª rodada
+  179/180: `task-player-map` com pageerror intermitente "Cannot read properties of undefined
+  (reading 'push')" em `TexturePool.returnTexture`. CAUSA RAIZ (lida no Pixi 8.20):
+  `app.destroy(true, …)` → `renderer.destroy(true)` → `GlobalResourceRegistry.release()` →
+  `TexturePool.clear()` zera o pool GLOBAL; sob StrictMode a 1ª montagem destruída depois da 2ª já
+  ter Text quebra o próximo re-raster (mais frequente agora que a resolução do Text muda). FIX:
+  `app.destroy({ removeView: true }, { children: true })` em `PlayerView.tsx:581/847` e
+  `PixiCanvas.tsx:347/3601`. Prova: stress 4 specs do jogador x6 com 8 workers antes 4 pageerrors,
+  depois 0 (as falhas restantes a 8 workers são canvas >5 s sob carga, sem pageerror, já existiam);
+  com 4 workers 30/30. `recreate/renderFloorPng.ts:360` ainda usa `app.destroy(true)` (harness
+  isolado, não mexido). Rodada final: tsc exit 0; vitest 127 arquivos / 2007 passed; playwright
+  180 passed (3,4 min), exit 0 (log `scratchpad/playwright-fatia1c.log`). Build release exit 0,
+  "Finished 2 bundles" 15/09 12:53 (`Labirinto_0.1.0_x64-setup.exe` 1.911.024 bytes). Smoke no exe
+  via CDP (`scratchpad/exe-fatia1/smoke.mjs`): mapa novo + 2 salas pela UI (N + arrasto + Enter),
+  Ctrl+roda 100% → 38% → 332%, Avançado do chão fechado/aberto, erros de página e console `[]`.
+  Prints `scratchpad/exe-fatia1/`. Defeitos vistos no print, NÃO corrigidos: (1) fresta escura
+  vertical no papel da hachura entre 2 salas a ~1 célula (x≈945 em `1-editor-100.png`); (2) o print
+  a 332% ficou fora das salas (ponteiro do script, não do app); (3) "Nada selecionado" ainda no
+  painel e bloco por objeto (fatia 4 do lote de decisões) pendentes. Varredura curta (§2j) não
+  rodada: limite de 2 agentes. SEM COMMIT desde `05da139`. Aguardando teste do usuário no exe.
 - INTEGRAÇÃO CONCLUÍDA (15/09/2026, ~09:40, sem commit).
   - **Portão:**
     - tsc 0/0;

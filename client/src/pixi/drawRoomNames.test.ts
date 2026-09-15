@@ -176,6 +176,38 @@ describe('createRoomNamesRenderer', () => {
     expect(textChildren(container)[0].style.fontSize).toBeCloseTo(27)
   })
 
+  it('zoom baixo: nome compensa até 11 px de tela e some abaixo de 30%, sem re-rasterizar', () => {
+    const container = new Container()
+    const renderer = createRoomNamesRenderer()
+    renderer.draw(container, [buildRoom('sala', 'Cripta', SQUARE)], 64, 1)
+    const text = textChildren(container)[0]
+    expect(text.scale.x).toBe(1)
+    const fontSize = roomLabelFontSize(64)
+
+    renderer.setCameraScale(0.35)
+    expect(text.visible).toBe(true)
+    expect(fontSize * 0.35 * text.scale.x).toBeCloseTo(11, 6)
+
+    renderer.setCameraScale(0.25)
+    expect(text.visible).toBe(false)
+
+    // Redraw sem zoom explícito mantém o último informado.
+    renderer.draw(container, [buildRoom('sala', 'Cripta', SQUARE)], 64)
+    expect(text.visible).toBe(false)
+    renderer.setCameraScale(2)
+    expect(text.visible).toBe(true)
+    expect(text.scale.x).toBe(1)
+  })
+
+  it('setCameraScale não reexibe sala que perdeu o nome', () => {
+    const container = new Container()
+    const renderer = createRoomNamesRenderer()
+    renderer.draw(container, [buildRoom('sala', 'Cripta', SQUARE)], 64, 1)
+    renderer.draw(container, [buildRoom('sala', '', SQUARE)], 64)
+    renderer.setCameraScale(0.5)
+    expect(textChildren(container)[0].visible).toBe(false)
+  })
+
   it('labelOffset desloca o texto a partir do centróide (mesmo renderer do jogador)', () => {
     const container = new Container()
     const renderer = createRoomNamesRenderer()
@@ -191,6 +223,19 @@ function withOffset(region: Region, labelOffset: { x: number; y: number }): Regi
   if (!region.room) throw new Error('região sem room')
   return { ...region, room: { ...region.room, labelOffset } }
 }
+
+describe('roomLabelBounds com zoom', () => {
+  it('caixa de clique cresce com a compensação e some abaixo de 30%', () => {
+    const room = buildRoom('sala', 'Cripta', SQUARE)
+    const at100 = roomLabelBounds(room, 64, 1)
+    const at35 = roomLabelBounds(room, 64, 0.35)
+    if (!at100 || !at35) throw new Error('esperava caixa')
+    expect(at35.maxX - at35.minX).toBeGreaterThan(at100.maxX - at100.minX)
+    expect(roomLabelBounds(room, 64, 0.25)).toBeNull()
+    expect(findRoomLabelAt([room], { x: 50, y: 50 }, 64, 0.25)).toBeNull()
+    expect(findRoomLabelAt([room], { x: 50, y: 50 }, 64, 0.35)).toBe(room)
+  })
+})
 
 describe('roomLabelPosition', () => {
   it('sem offset é o centróide; com offset soma', () => {

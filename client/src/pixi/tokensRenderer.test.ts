@@ -30,6 +30,33 @@ function visualOf(wrapper: Container): Container['children'][number] {
   return wrapper.children[0]
 }
 
+describe('createTokensRenderer — nome com tamanho mínimo na tela', () => {
+  function labelOf(container: Container): Text {
+    const label = (container.children[0] as Container).children.find((c): c is Text => c instanceof Text)
+    if (!label) throw new Error('rótulo ausente')
+    return label
+  }
+
+  it('a 50% o nome de 12 px de mundo vira 11 px de tela; abaixo de 30% some; a 100% volta a escala 1', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+    renderer.draw(container, [buildToken()], GRID, null, 0.5)
+    const label = labelOf(container)
+    expect(12 * 0.5 * label.scale.x).toBeCloseTo(11, 6)
+    expect(label.visible).toBe(true)
+
+    renderer.setCameraScale(0.2)
+    expect(label.visible).toBe(false)
+
+    renderer.draw(container, [buildToken()], GRID)
+    expect(label.visible).toBe(false)
+
+    renderer.setCameraScale(1)
+    expect(label.visible).toBe(true)
+    expect(label.scale.x).toBe(1)
+  })
+})
+
 describe('createTokensRenderer — ciclo de vida (risco nº 3 do plano)', () => {
   it('instanciar, desenhar, destruir e reinstanciar duas vezes: children.length sempre bate com tokens.length', () => {
     const tokens = [buildToken({ id: 't1' }), buildToken({ id: 't2', image: 'C:\\imgs\\heroi.png' })]

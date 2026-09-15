@@ -21,12 +21,16 @@ describe('textZoomStep', () => {
     [0.1, 1],
     [0.5, 1],
     [1, 1],
-    [1.01, 2],
+    [1.01, 1.25],
+    [1.25, 1.25],
+    [1.5, 1.5],
+    [1.6, 1.75],
     [2, 2],
-    [2.01, 4],
+    [2.01, 2.25],
+    [3.3, 3.5],
     [4, 4],
     [10, 4],
-  ])('escala %s → degrau %s', (scale, step) => {
+  ])('escala %s → fator %s (exato, em passos de 0,25, nunca abaixo da escala)', (scale, step) => {
     expect(textZoomStep(scale)).toBe(step)
   })
 
@@ -38,11 +42,23 @@ describe('textZoomStep', () => {
 })
 
 describe('chooseTextResolution', () => {
-  it('multiplica a resolução do renderer pelo degrau do zoom', () => {
+  it('multiplica a resolução do renderer pela escala efetiva exata', () => {
     expect(chooseTextResolution(1, 4)).toBe(4)
-    expect(chooseTextResolution(1, 3)).toBe(4)
+    expect(chooseTextResolution(1, 3)).toBe(3)
     expect(chooseTextResolution(1.25, 2)).toBe(2.5)
     expect(chooseTextResolution(2, 0.5)).toBe(2)
+  })
+
+  it('150% rasteriza a 1,5x (antes 2x reduzido 0,75 com filtro linear: rampa na borda)', () => {
+    expect(chooseTextResolution(1, 1.5)).toBe(1.5)
+    expect(chooseTextResolution(1.25, 1.5)).toBe(1.875)
+    // Zoom de roda fica entre passos: sobe para o passo seguinte, nunca amostra abaixo.
+    expect(chooseTextResolution(1, 1.37)).toBe(1.5)
+  })
+
+  it('zoom < 100% nunca desce abaixo da resolução do renderer', () => {
+    expect(chooseTextResolution(1, 0.35)).toBe(1)
+    expect(chooseTextResolution(1.25, 0.57)).toBe(1.25)
   })
 
   it('limita o lado maior da textura a MAX_TEXT_TEXTURE_SIDE', () => {
@@ -89,12 +105,31 @@ describe('syncWorldTextResolution', () => {
     world.addChild(text)
     syncWorldTextResolution(world, 4, 1)
     const update = vi.spyOn(text, 'onViewUpdate')
-    syncWorldTextResolution(world, 3.5, 1)
+    // 3,9 cai no mesmo passo (4): pequenos passos de roda não re-rasterizam.
+    syncWorldTextResolution(world, 3.9, 1)
     expect(update).not.toHaveBeenCalled()
     expect(text.resolution).toBe(4)
     syncWorldTextResolution(world, 1.5, 1)
     expect(update).toHaveBeenCalledTimes(1)
-    expect(text.resolution).toBe(2)
+    expect(text.resolution).toBe(1.5)
+  })
+
+  it('liga roundPixels no Text (quad no pixel físico inteiro)', () => {
+    const world = new Container()
+    const text = sizedText(80, 20)
+    world.addChild(text)
+    expect(text.roundPixels).toBe(false)
+    syncWorldTextResolution(world, 1, 1)
+    expect(text.roundPixels).toBe(true)
+  })
+
+  it('escala do próprio Text (rótulo compensado pelo zoom) entra no produto', () => {
+    const world = new Container()
+    const label = sizedText(80, 20)
+    label.scale.set(3)
+    world.addChild(label)
+    // world 0,5 × rótulo 3 = 1,5 efetivo.
+    expect(syncWorldTextResolution(world, 0.5, 1)).toBe(1.5)
   })
 
   it('texto grande respeita o teto de textura', () => {

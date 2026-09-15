@@ -1,24 +1,23 @@
 import type { FillPattern, Graphics } from 'pixi.js'
 import type { FloorPolygon } from '../lib/floorContour'
-import type { Region, RegionPoint, Wall } from '../types/map'
-import { HATCH_FLAT_COLOR, hatchBandWidth, hatchUsesFlatBand, isInteriorWall, wallWidthFor } from './dungeonStyle'
-import { groupWallChains, screenSafeWidth, traceWallChain } from './drawWalls'
+import type { Region, Wall } from '../types/map'
+import {
+  HATCH_FLAT_COLOR,
+  HATCH_INK_COLOR,
+  PARCHMENT_COLOR,
+  hatchStrokeWidth,
+  hatchUsesFlatBand,
+  isInteriorWall,
+  wallWidthFor,
+} from './dungeonStyle'
+import { groupWallChains } from './drawWalls'
 import { buildFloorMask } from './floorMask'
-
-function flatten(ring: RegionPoint[]): number[] {
-  const out: number[] = new Array(ring.length * 2)
-  ring.forEach((p, i) => {
-    out[i * 2] = p.x
-    out[i * 2 + 1] = p.y
-  })
-  return out
-}
+import { buildHatchGeometry, type HatchGeometry } from './hatchGeometry'
 
 /**
- * Cadeias da faixa de hachura: só parede EXTERNA (interna não ganha faixa).
- * Parede com porta ENTRA — a faixa continua atrás do vão, e o chão do
- * corredor por cima recorta o que for passagem. Quebra só quando a largura
- * da parede muda (thickness diferente), porque a faixa é medida da face dela.
+ * Cadeias de parede EXTERNA (interna não ganha faixa), quebradas quando a
+ * largura muda. Mantida para quem ainda agrupa por cadeia; a hachura vetorial
+ * mede a distância parede a parede (hatchGeometry.ts) e não usa mais cadeias.
  */
 export function hatchWallChains(walls: Wall[], grid: number): Wall[][] {
   const exterior = walls.filter((wall) => !isInteriorWall(wall))
@@ -26,37 +25,45 @@ export function hatchWallChains(walls: Wall[], grid: number): Wall[][] {
 }
 
 /**
- * Faixa de hachura por ORDEM DE PINTURA (plano, abordagem A): um stroke largo
- * texturizado sob todo piso. A faixa se estende `hatchBandWidth(grid)` além da
- * FACE da parede: largura do stroke = parede + 2 × faixa. Anéis de chão por
- * peças recebem stroke de 2 × faixa (sem parede).
+ * Pinta a geometria pronta: papel (ladrilhos do miolo + ladrilhos com calombo da borda, sem sobreposição) num
+ * único `fill`, e os traços num único `stroke` de ponta reta. No LOD
+ * (`flat`) só o papel, em cor lisa — com a MESMA borda irregular.
+ */
+export function paintHatchGeometry(graphics: Graphics, geometry: HatchGeometry, flat: boolean, cameraScale: number): void {
+  graphics.clear()
+  const rects = geometry.paperRects
+  if (rects.length === 0 && geometry.paperPolygons.length === 0) return
+  for (let k = 0; k < rects.length; k += 4) graphics.rect(rects[k], rects[k + 1], rects[k + 2], rects[k + 3])
+  for (const polygon of geometry.paperPolygons) graphics.poly(polygon, true)
+  graphics.fill({ color: flat ? HATCH_FLAT_COLOR : PARCHMENT_COLOR })
+  if (flat) return
+
+  const strokes = geometry.strokes
+  if (strokes.length === 0) return
+  for (let k = 0; k < strokes.length; k += 4) graphics.moveTo(strokes[k], strokes[k + 1]).lineTo(strokes[k + 2], strokes[k + 3])
+  graphics.stroke({ width: hatchStrokeWidth(geometry.grid, cameraScale).width, color: HATCH_INK_COLOR, cap: 'butt' })
+}
+
+/**
+ * Faixa de hachura VETORIAL "Dyson Logos" (hatchGeometry.ts): cachos de traços
+ * num grid global de mundo, borda externa irregular, papel opaco atrás.
  *
- * `pattern === null` (sem canvas 2D) ou zoom abaixo do LOD (`hatchUsesFlatBand`)
- * pinta a faixa em cor lisa.
+ * `_pattern` não é mais usado (a textura do tile ficou para trás); o parâmetro
+ * fica pela compatibilidade de assinatura. `regions` tira do conjunto os
+ * cachos cujo centro cai em sala.
  */
 export function drawHatch(
   graphics: Graphics,
   walls: Wall[],
   floorPolygons: FloorPolygon[],
   grid: number,
-  pattern: FillPattern | null,
+  _pattern: FillPattern | null,
   cameraScale = 1,
-): void {
-  graphics.clear()
-  const band = hatchBandWidth(grid)
-  const texture = pattern !== null && !hatchUsesFlatBand(cameraScale, grid) ? { fill: pattern } : { color: HATCH_FLAT_COLOR }
-  const paint = (width: number) => ({ ...texture, width: screenSafeWidth(width, cameraScale), cap: 'round' as const, join: 'round' as const })
-
-  for (const chain of hatchWallChains(walls, grid)) {
-    traceWallChain(graphics, chain)
-    graphics.stroke(paint(wallWidthFor(chain[0], grid) + 2 * band))
-  }
-  for (const polygon of floorPolygons) {
-    for (const ring of [polygon.outer, ...polygon.holes]) {
-      if (ring.length < 3) continue
-      graphics.poly(flatten(ring), true).stroke(paint(2 * band))
-    }
-  }
+  regions: Region[] = [],
+): HatchGeometry {
+  const geometry = buildHatchGeometry({ walls, regions, floorPolygons, grid })
+  paintHatchGeometry(graphics, geometry, hatchUsesFlatBand(cameraScale, grid), cameraScale)
+  return geometry
 }
 
 export interface HatchInput {
@@ -69,8 +76,10 @@ export interface HatchInput {
 
 export interface HatchRenderer {
   /**
-   * Redesenha faixa e máscara só quando `cacheKey` muda (comparação por `===`
-   * item a item) ou quando o LOD cruza o limite. Seleção sozinha não repinta.
+   * Refaz a GEOMETRIA (e a máscara) só quando `cacheKey` muda (comparação por
+   * `===` item a item). Repinta o Graphics sem recalcular quando o zoom cruza
+   * o LOD ou o degrau da largura do traço (`hatchStrokeWidth`). Seleção e pan
+   * não custam nada.
    */
   draw: (hatch: Graphics, mask: Graphics, input: HatchInput, cacheKey: readonly unknown[]) => void
 }
@@ -79,11 +88,15 @@ export interface HatchRenderer {
  * Renderer com cache, uma instância por canvas (editor e jogador). A máscara
  * é INVERSA: a silhueta do piso (floorMask.ts) apaga a faixa dentro de sala e
  * corredor, inclusive em sala sem preenchimento ou oculta translúcida.
+ *
+ * `_getPattern` é ignorado desde a hachura vetorial; continua na assinatura
+ * para PixiCanvas/PlayerView não mudarem.
  */
-export function createHatchRenderer(getPattern: () => FillPattern | null): HatchRenderer {
+export function createHatchRenderer(_getPattern?: () => FillPattern | null): HatchRenderer {
   let lastKey: readonly unknown[] | null = null
+  let geometry: HatchGeometry | null = null
   let lastFlat: boolean | null = null
-  let lastPattern: FillPattern | null = null
+  let lastTier: number | null = null
   let masked = false
 
   function sameKey(a: readonly unknown[] | null, b: readonly unknown[]): boolean {
@@ -91,22 +104,26 @@ export function createHatchRenderer(getPattern: () => FillPattern | null): Hatch
   }
 
   function draw(hatch: Graphics, mask: Graphics, input: HatchInput, cacheKey: readonly unknown[]): void {
-    const pattern = getPattern()
-    const flat = pattern === null || hatchUsesFlatBand(input.cameraScale, input.grid)
-    if (sameKey(lastKey, cacheKey) && flat === lastFlat && pattern === lastPattern) return
-    lastKey = cacheKey
+    const flat = hatchUsesFlatBand(input.cameraScale, input.grid)
+    const tier = flat ? -1 : hatchStrokeWidth(input.grid, input.cameraScale).tier
+    const keyChanged = geometry === null || !sameKey(lastKey, cacheKey)
+    if (!keyChanged && flat === lastFlat && tier === lastTier) return
     lastFlat = flat
-    lastPattern = pattern
+    lastTier = tier
 
-    drawHatch(hatch, input.walls, input.floorPolygons, input.grid, pattern, input.cameraScale)
-    const hasFloor = buildFloorMask(mask, input.regions, input.walls, input.floorPolygons)
-    if (hasFloor && !masked) {
-      hatch.setMask({ mask, inverse: true })
-      masked = true
-    } else if (!hasFloor && masked) {
-      hatch.mask = null
-      masked = false
+    if (keyChanged) {
+      lastKey = cacheKey
+      geometry = buildHatchGeometry(input)
+      const hasFloor = buildFloorMask(mask, input.regions, input.walls, input.floorPolygons)
+      if (hasFloor && !masked) {
+        hatch.setMask({ mask, inverse: true })
+        masked = true
+      } else if (!hasFloor && masked) {
+        hatch.mask = null
+        masked = false
+      }
     }
+    paintHatchGeometry(hatch, geometry as HatchGeometry, flat, input.cameraScale)
   }
 
   return { draw }

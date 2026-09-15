@@ -1,4 +1,5 @@
 import type { FloorStyle, MapFrame } from '../types/map'
+import { AdvancedField, AdvancedSection } from './AdvancedSection'
 import { Toggle } from './Toggle'
 
 export interface FloorStyleControlsProps {
@@ -85,50 +86,68 @@ export function FloorStyleControls({
         </div>
       )}
 
-      <div className="lb-field">
-        <span className="lb-label">Precisão do contorno</span>
-        <div className="lb-seg" role="radiogroup" aria-label="Precisão do contorno do chão">
-          {SAMPLE_STEP_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={sampleStep === option.value}
-              className="lb-seg__option"
-              title={`Amostra a cada ${option.value} px — menor é mais fiel e mais lento`}
-              onClick={() => onStyleChange({ sampleStep: option.value })}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Decisão do usuário (14/09/2026): controles técnicos ficam no Avançado, fechado, com a frase do que fazem. */}
+      <AdvancedSection>
+        <AdvancedField hint="Quanto o contorno do chão segue a forma original: Alta é mais fiel e mais lenta, Rápida é mais leve.">
+          {(hintId) => (
+            <div className="lb-field">
+              <span className="lb-label">Precisão do contorno</span>
+              <div className="lb-seg" role="radiogroup" aria-label="Precisão do contorno do chão" aria-describedby={hintId}>
+                {SAMPLE_STEP_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={sampleStep === option.value}
+                    className="lb-seg__option"
+                    onClick={() => onStyleChange({ sampleStep: option.value })}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </AdvancedField>
 
-      <Toggle
-        label="Render fiel (minimapa)"
-        checked={style.renderMode === 'raster'}
-        onChange={(checked) => onStyleChange({ renderMode: checked ? 'raster' : 'vector' })}
-      />
+        <AdvancedField hint="Desenha o minimapa recriado ponto a ponto, igual à imagem original, em vez de traços.">
+          {(hintId) => (
+            <Toggle
+              label="Render fiel (minimapa)"
+              checked={style.renderMode === 'raster'}
+              describedBy={hintId}
+              onChange={(checked) => onStyleChange({ renderMode: checked ? 'raster' : 'vector' })}
+            />
+          )}
+        </AdvancedField>
 
-      <Toggle
-        label="Moldura com título"
-        checked={frame !== null}
-        onChange={(checked) => onFrameChange(checked ? { title: DEFAULT_FRAME_TITLE, ...defaultFrameRect } : null)}
-      />
-      {frame !== null && (
-        <div className="lb-field">
-          <label className="lb-label" htmlFor="lb-map-frame-title">
-            Título da moldura
-          </label>
-          <input
-            id="lb-map-frame-title"
-            className="lb-input"
-            type="text"
-            value={frame.title}
-            onChange={(event) => onFrameChange({ ...frame, title: event.target.value })}
-          />
-        </div>
-      )}
+        <AdvancedField hint="Coloca uma moldura com título em volta do mapa, como numa folha impressa.">
+          {(hintId) => (
+            <>
+              <Toggle
+                label="Moldura com título"
+                checked={frame !== null}
+                describedBy={hintId}
+                onChange={(checked) => onFrameChange(checked ? { title: DEFAULT_FRAME_TITLE, ...defaultFrameRect } : null)}
+              />
+              {frame !== null && (
+                <div className="lb-field">
+                  <label className="lb-label" htmlFor="lb-map-frame-title">
+                    Título da moldura
+                  </label>
+                  <input
+                    id="lb-map-frame-title"
+                    className="lb-input"
+                    type="text"
+                    value={frame.title}
+                    onChange={(event) => onFrameChange({ ...frame, title: event.target.value })}
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </AdvancedField>
+      </AdvancedSection>
     </>
   )
 }

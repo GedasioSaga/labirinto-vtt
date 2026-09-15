@@ -5,6 +5,7 @@ import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { drawTokenCircle } from './drawTokens'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { useToastStore } from '../stores/toastStore'
+import { screenLabelSizing } from './screenLabel'
 
 /**
  * Onda 2, item 12 (notificação) — reduz um caminho de arquivo ao nome
@@ -35,8 +36,14 @@ function fileBaseName(path: string): string {
   return idx === -1 ? normalized : normalized.slice(idx + 1)
 }
 
+/** Fonte do nome do token em px de mundo; na tela nunca abaixo de 11 px (screenLabel.ts). */
+export const TOKEN_LABEL_FONT_SIZE = 12
+
 export interface TokensRenderer {
-  draw: (container: Container, tokens: Token[], gridSize: number, selectedTokenId?: string | null) => void
+  /** `cameraScale` omitido mantém o último zoom informado. */
+  draw: (container: Container, tokens: Token[], gridSize: number, selectedTokenId?: string | null, cameraScale?: number) => void
+  /** Só o zoom mudou: reescala e mostra/esconde os nomes sem redesenhar os tokens. */
+  setCameraScale: (cameraScale: number) => void
 }
 
 interface TokenEntry {
@@ -88,6 +95,18 @@ export function createTokensRenderer(): TokensRenderer {
   // CAMINHO, não por token — dois tokens com a mesma imagem quebrada avisam
   // uma vez só, não duas.
   const warnedImagePaths = new Set<string>()
+  let lastCameraScale = 1
+
+  function applyLabelSizing(label: Text): void {
+    const sizing = screenLabelSizing(TOKEN_LABEL_FONT_SIZE, lastCameraScale)
+    label.scale.set(sizing.scale)
+    label.visible = sizing.visible
+  }
+
+  function setCameraScale(cameraScale: number): void {
+    lastCameraScale = cameraScale
+    for (const entry of cache.values()) applyLabelSizing(entry.label)
+  }
 
   function ensureSprite(entry: TokenEntry): Sprite {
     if (entry.graphics) {
@@ -122,7 +141,8 @@ export function createTokensRenderer(): TokensRenderer {
     return entry.graphics
   }
 
-  function draw(container: Container, tokens: Token[], gridSize: number, selectedTokenId: string | null = null): void {
+  function draw(container: Container, tokens: Token[], gridSize: number, selectedTokenId: string | null = null, cameraScale?: number): void {
+    if (cameraScale !== undefined) lastCameraScale = cameraScale
     const currentIds = new Set(tokens.map((t) => t.id))
 
     for (const [id, entry] of cache) {
@@ -138,7 +158,7 @@ export function createTokensRenderer(): TokensRenderer {
       if (!entry) {
         const wrapper = new Container()
         const ring = new Graphics()
-        const label = new Text({ text: '', style: { fontSize: 12, fill: 0xffffff } })
+        const label = new Text({ text: '', style: { fontSize: TOKEN_LABEL_FONT_SIZE, fill: 0xffffff } })
         label.anchor.set(0.5, 0)
         wrapper.addChild(ring, label)
         entry = { wrapper, sprite: null, graphics: null, ring, label, loadedSrc: null, loadToken: 0 }
@@ -223,9 +243,10 @@ export function createTokensRenderer(): TokensRenderer {
       if (ghost) strokeDashedCircle(entry.ring, outlineRadius)
 
       entry.label.text = token.name
+      applyLabelSizing(entry.label)
       entry.wrapper.position.set(token.x, token.y)
     }
   }
 
-  return { draw }
+  return { draw, setCameraScale }
 }

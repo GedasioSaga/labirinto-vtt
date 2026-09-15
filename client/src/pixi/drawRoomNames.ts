@@ -1,8 +1,12 @@
 import { Container, Text } from 'pixi.js'
 import type { Region, RegionPoint } from '../types/map'
+import { screenLabelSizing } from './screenLabel'
 
 export interface RoomNamesRenderer {
-  draw: (container: Container, regions: Region[], grid: number) => void
+  /** `cameraScale` omitido mantém o último zoom informado. */
+  draw: (container: Container, regions: Region[], grid: number, cameraScale?: number) => void
+  /** Só o zoom mudou: reescala e mostra/esconde os nomes sem re-rasterizar. */
+  setCameraScale: (cameraScale: number) => void
 }
 
 const FONT_SIZE_PER_GRID = 0.3
@@ -60,14 +64,19 @@ const LABEL_CHAR_WIDTH_PER_FONT = 0.62
 const LABEL_HEIGHT_PER_FONT = 1.3
 const LABEL_HIT_PADDING = 6
 
-/** Retângulo (mundo) aproximado do rótulo de uma Sala; `null` sem nome. */
+/** Retângulo (mundo) aproximado do rótulo de uma Sala; `null` sem nome ou
+ *  com o nome escondido pelo zoom. `cameraScale` acompanha a escala de tela
+ *  mínima do rótulo (screenLabel.ts). */
 export function roomLabelBounds(
   region: Region,
   grid: number,
+  cameraScale = 1,
 ): { minX: number; minY: number; maxX: number; maxY: number } | null {
   const name = region.room?.name.trim() ?? ''
   if (name === '') return null
-  const fontSize = roomLabelFontSize(grid)
+  const sizing = screenLabelSizing(roomLabelFontSize(grid), cameraScale)
+  if (!sizing.visible) return null
+  const fontSize = roomLabelFontSize(grid) * sizing.scale
   const center = roomLabelPosition(region)
   const halfWidth = (Math.max(1, name.length) * fontSize * LABEL_CHAR_WIDTH_PER_FONT) / 2 + LABEL_HIT_PADDING
   const halfHeight = (fontSize * LABEL_HEIGHT_PER_FONT) / 2 + LABEL_HIT_PADDING
@@ -76,9 +85,9 @@ export function roomLabelBounds(
 
 /** Sala cujo rótulo contém o ponto. Percorre de trás para a frente porque a
  * região desenhada por último fica por cima. */
-export function findRoomLabelAt(regions: Region[], point: { x: number; y: number }, grid: number): Region | null {
+export function findRoomLabelAt(regions: Region[], point: { x: number; y: number }, grid: number, cameraScale = 1): Region | null {
   for (let i = regions.length - 1; i >= 0; i--) {
-    const bounds = roomLabelBounds(regions[i], grid)
+    const bounds = roomLabelBounds(regions[i], grid, cameraScale)
     if (bounds && point.x >= bounds.minX && point.x <= bounds.maxX && point.y >= bounds.minY && point.y <= bounds.maxY) {
       return regions[i]
     }
@@ -93,15 +102,35 @@ export function findRoomLabelAt(regions: Region[], point: { x: number; y: number
 export function createRoomNamesRenderer(): RoomNamesRenderer {
   const cache = new Map<string, Text>()
   const styledKey = new Map<string, string>()
+  /** Nomes desenhados no último `draw` (os demais ficam invisíveis). */
+  let namedIds = new Set<string>()
+  let lastFontSize = roomLabelFontSize(0)
+  let lastCameraScale = 1
 
-  function draw(container: Container, regions: Region[], grid: number): void {
+  function applySizing(textObj: Text, fontSize: number): void {
+    const sizing = screenLabelSizing(fontSize, lastCameraScale)
+    textObj.scale.set(sizing.scale)
+    textObj.visible = sizing.visible
+  }
+
+  function setCameraScale(cameraScale: number): void {
+    lastCameraScale = cameraScale
+    for (const id of namedIds) {
+      const textObj = cache.get(id)
+      if (textObj) applySizing(textObj, lastFontSize)
+    }
+  }
+
+  function draw(container: Container, regions: Region[], grid: number, cameraScale?: number): void {
+    if (cameraScale !== undefined) lastCameraScale = cameraScale
     const named = regions.filter((r) => r.room !== undefined && r.room.name.trim() !== '')
-    const namedIds = new Set(named.map((r) => r.id))
+    namedIds = new Set(named.map((r) => r.id))
     for (const [id, textObj] of cache) {
       if (!namedIds.has(id)) textObj.visible = false
     }
 
     const fontSize = roomLabelFontSize(grid)
+    lastFontSize = fontSize
     for (const region of named) {
       let textObj = cache.get(region.id)
       if (!textObj) {
@@ -131,9 +160,9 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
         }
       }
       textObj.alpha = hiddenFromPlayers ? HIDDEN_NAME_ALPHA : 1
-      textObj.visible = true
+      applySizing(textObj, fontSize)
     }
   }
 
-  return { draw }
+  return { draw, setCameraScale }
 }
