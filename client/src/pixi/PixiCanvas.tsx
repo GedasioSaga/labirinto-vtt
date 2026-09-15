@@ -1464,6 +1464,32 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         draftGraphics.clear()
       }
 
+      /** Rascunho feito clique a clique aberto: Região, Área poligonal ou Chão corredor. */
+      const hasPointDraft = () => regionDraftPoints.length > 0 || polygonDraftPoints.length > 0 || corridorDraftPoints.length > 0
+
+      /**
+       * Ctrl+Z/Backspace com rascunho aberto: tira o último ponto e redesenha a
+       * prévia até o cursor. Sem ponto sobrando o rascunho some. Nunca mexe no
+       * histórico do mapa — o ponto ainda não é mapa.
+       */
+      const undoDraftPoint = () => {
+        const { map, drawColor, drawWidth, drawFilled, drawFillAlpha } = useMapStore.getState()
+        const cursor = laserPointer ? applySnap(laserPointer, map.grid, 'wall', false) : null
+        draftGraphics.clear()
+        if (regionDraftPoints.length > 0) {
+          regionDraftPoints = regionDraftPoints.slice(0, -1)
+          if (regionDraftPoints.length > 0) drawRegionDraft(draftGraphics, regionDraftPoints, cursor)
+        }
+        if (polygonDraftPoints.length > 0) {
+          polygonDraftPoints = polygonDraftPoints.slice(0, -1)
+          if (polygonDraftPoints.length > 0) drawPolygonDraft(draftGraphics, polygonDraftPoints, cursor, drawColor, drawWidth, drawFilled, drawFillAlpha)
+        }
+        if (corridorDraftPoints.length > 0) {
+          corridorDraftPoints = corridorDraftPoints.slice(0, -1)
+          if (corridorDraftPoints.length > 0) drawCorridorDraft(cursor)
+        }
+      }
+
       // Onda 1, item 1 (Frente A, "cursor vivo") — `updateCursor` não recebe
       // mais `tool`: sempre lê `activeTool` fresco de `useMapStore.getState()`,
       // e delega toda a tabela de decisão pra `resolveCursor` (pixi/
@@ -3540,7 +3566,29 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       }
       window.addEventListener('keydown', onKeyDown)
 
-      const onKeyUp = (event: KeyboardEvent) => {
+      // Fase de CAPTURA: roda antes do Ctrl+Z global de App.tsx e do
+      // Backspace=apagar seleção de `onKeyDown` (os dois na bolha do window).
+      // Sem isto o Ctrl+Z com rascunho aberto desfazia a última Sala e o
+      // rascunho continuava na tela.
+      const onDraftKeyDown = (event: KeyboardEvent) => {
+        if (!hasPointDraft()) return
+        const action = resolveShortcut({
+          key: event.key,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+          targetTagName: (event.target as HTMLElement | null)?.tagName ?? '',
+          hasPointDraft: true,
+        })
+        if (action?.kind !== 'undoDraftPoint') return
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        undoDraftPoint()
+      }
+      window.addEventListener('keydown', onDraftKeyDown, true)
+
+      const onKeyUp =(event: KeyboardEvent) => {
         if (event.key === 'l' || event.key === 'L') {
           releaseLaserKey(true)
           return
@@ -3591,6 +3639,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
         window.removeEventListener('keydown', onKeyDown)
+        window.removeEventListener('keydown', onDraftKeyDown, true)
         window.removeEventListener('keyup', onKeyUp)
         gridAlignOverlayRedrawRef.current = null
         resetZoomRequestRef.current = null
@@ -3657,7 +3706,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             left: editorPosition.x * editorCamera.scale + editorCamera.x,
             top: editorPosition.y * editorCamera.scale + editorCamera.y,
             transform: 'translate(-50%, -50%)',
-            width: '14em',
+            // Caixa do tamanho do texto, não os 14em x 38px do .lb-input: com
+            // zoom afastado aquela caixa passava das bordas da Sala e engolia o
+            // arrasto da Sala seguinte começado logo abaixo dela.
+            fieldSizing: 'content',
+            width: 'auto',
+            minWidth: '4ch',
+            minHeight: 0,
+            padding: '0 0.3em',
+            lineHeight: 1.3,
             textAlign: 'center',
             fontSize: Math.max(MIN_ROOM_NAME_EDITOR_FONT, roomLabelFontSize(editorGrid) * editorCamera.scale),
             zIndex: 2,

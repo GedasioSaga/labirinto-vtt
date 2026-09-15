@@ -92,6 +92,11 @@ RECREATE_DARK=1 RECREATE_RASTER=1 RECREATE_COVERAGE=1 RECREATE_SUBPIXEL=1 RECREA
 RECREATE_STROKE=#858585`.
 
 ## Próximos passos
+**A FILA OFICIAL AGORA VIVE EM `C:\dev\labirinto\PEDIDOS.md`** (seção "Fila nova"). Fatia 2
+commitada em `c8a990b` (aguardando teste do usuário). Em andamento (15/09/2026 noite): conserto
+dos 2 defeitos de desenho (operario) e diagnóstico de visão do jogador/luz/porta da casa/escada
+(debugador, `scratchpad/diag-usuario/`). O texto abaixo é histórico desta sessão.
+
 FATIA 2 EM ANDAMENTO (15/09/2026, após "Pronto, pode continuar com as melhorias"): 1 `operario`
 Opus; prints do fluxo pela UI em `scratchpad/fatia2/` desta sessão; depois portão, build, smoke e
 teste do usuário.

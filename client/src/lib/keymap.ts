@@ -27,6 +27,9 @@ export interface ShortcutEvent {
   shiftKey: boolean
   altKey: boolean
   targetTagName: string
+  /** Há rascunho ponto a ponto aberto (Região, Área poligonal, Chão corredor).
+   *  Com ele, Ctrl+Z e Backspace tiram o último ponto do rascunho. */
+  hasPointDraft?: boolean
 }
 
 export type Action =
@@ -46,6 +49,8 @@ export type Action =
   | { kind: 'deleteSelected' }
   | { kind: 'undo' }
   | { kind: 'redo' }
+  /** Tira o último ponto do rascunho aberto; sem ponto sobrando, cancela o rascunho. */
+  | { kind: 'undoDraftPoint' }
 
 /**
  * Tabela ferramenta → letra, para o integrador mostrar no `data-tip` de cada
@@ -161,7 +166,9 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
 
   if (ctrlOrCmd) {
     if (lower === 'z' && evt.shiftKey) return { kind: 'redo' }
-    if (lower === 'z') return { kind: 'undo' }
+    // Com rascunho aberto o último ponto é o "último passo" do mestre;
+    // desfazer o mapa aqui apagava a Sala anterior e deixava o rascunho vivo.
+    if (lower === 'z') return evt.hasPointDraft ? { kind: 'undoDraftPoint' } : { kind: 'undo' }
     if (lower === 'y') return { kind: 'redo' }
     if (lower === 'd') return { kind: 'duplicate' }
     if (lower === 's') return { kind: 'save' }
@@ -171,6 +178,7 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
     return null
   }
 
+  if (key === 'Backspace' && evt.hasPointDraft) return { kind: 'undoDraftPoint' }
   if (key === 'Delete' || key === 'Backspace') return { kind: 'deleteSelected' }
 
   if (isArrowKey(key)) {

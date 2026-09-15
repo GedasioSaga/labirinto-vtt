@@ -194,6 +194,26 @@ describe('resolveShortcut — ações globais sem modificador', () => {
   })
 })
 
+describe('resolveShortcut — rascunho ponto a ponto aberto', () => {
+  // Região/Área/Corredor em construção: Ctrl+Z e Backspace tiram o último
+  // ponto do rascunho. Desfazer o mapa ou apagar a seleção nessa hora perdia
+  // trabalho (a última Sala sumia e o rascunho continuava na tela).
+  it('Ctrl+Z tira o último ponto em vez de desfazer o mapa', () => {
+    expect(resolveShortcut(evt({ key: 'z', ctrlKey: true, hasPointDraft: true }))).toEqual({ kind: 'undoDraftPoint' })
+    expect(resolveShortcut(evt({ key: 'Z', metaKey: true, hasPointDraft: true }))).toEqual({ kind: 'undoDraftPoint' })
+  })
+
+  it('Backspace tira o último ponto em vez de apagar a seleção', () => {
+    expect(resolveShortcut(evt({ key: 'Backspace', hasPointDraft: true }))).toEqual({ kind: 'undoDraftPoint' })
+  })
+
+  it('Delete, refazer e campo de texto não mudam', () => {
+    expect(resolveShortcut(evt({ key: 'Delete', hasPointDraft: true }))).toEqual({ kind: 'deleteSelected' })
+    expect(resolveShortcut(evt({ key: 'z', ctrlKey: true, shiftKey: true, hasPointDraft: true }))).toEqual({ kind: 'redo' })
+    expect(resolveShortcut(evt({ key: 'Backspace', targetTagName: 'INPUT', hasPointDraft: true }))).toBeNull()
+  })
+})
+
 describe('resolveShortcut — nudge por seta', () => {
   it('seta sozinha empurra 1 célula', () => {
     expect(resolveShortcut(evt({ key: 'ArrowRight' }))).toEqual({ kind: 'nudge', dx: 1, dy: 0, fine: false })
