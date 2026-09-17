@@ -9,6 +9,7 @@ import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
+import { LabyrinthMark } from '../components/icons'
 import type { SignalMark } from '../lib/signals'
 import './player.css'
 
@@ -19,152 +20,6 @@ const themeStyle = document.createElement('style')
 themeStyle.id = 'lb-theme'
 themeStyle.textContent = themeCss()
 document.head.prepend(themeStyle)
-
-/**
- * CSS das telas de TEXTO do jogador: entrar, esperar, aviso. Mora aqui, e não
- * em `player.css`, porque aquele arquivo declara no topo que é só do painel
- * sobre o canvas (`.pp-*`) e que não mexe no formulário de entrada. Tudo em
- * `.pe-*`, sem colisão.
- *
- * Antes destas regras a página era a branca de fábrica do navegador — o resto
- * do app é pedra escura com um acento de latão, e o amigo que abre o QR no
- * celular via primeiro uma tela que não parecia do mesmo programa.
- *
- * Medidas vindas do celular, que é onde este fluxo acontece: cartão de 360px
- * centrado, alvo de toque de 48px (o dedo, de pé, com uma mão só) e campo em
- * 18px — abaixo de 16px o iOS dá zoom sozinho ao focar e joga o resto da tela
- * para fora. `env(safe-area-inset-bottom)` mantém o último botão acima da
- * barra de gestos.
- */
-const entryCss = `
-:root { color-scheme: dark; }
-body { margin: 0; background: var(--lb-color-ink, #121214); }
-
-.pe-page {
-  box-sizing: border-box;
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
-  color: var(--lb-color-parchment, #eceae4);
-  font-family: var(--lb-font-sans, system-ui, sans-serif);
-  line-height: 1.45;
-}
-
-.pe-card {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 360px;
-  display: grid;
-  gap: 16px;
-  padding: 24px 20px;
-  background: var(--lb-color-stone-solid, #1a1a1e);
-  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
-  border-radius: var(--lb-radius-lg, 14px);
-  box-shadow: var(--lb-shadow-float, 0 18px 44px rgba(0, 0, 0, 0.5));
-}
-
-.pe-title {
-  margin: 0;
-  font-family: var(--lb-font-display, Georgia, serif);
-  font-size: 26px;
-  font-weight: 400;
-  letter-spacing: 0.02em;
-  color: var(--lb-color-brass, #e0a44a);
-}
-
-.pe-form { display: grid; gap: 16px; margin: 0; }
-.pe-field { display: grid; gap: 6px; }
-.pe-label { font-size: 14px; color: var(--lb-color-parchment-dim, #a2a09a); }
-
-.pe-input {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 48px;
-  padding: 10px 12px;
-  font-family: inherit;
-  font-size: 18px;
-  color: var(--lb-color-parchment, #eceae4);
-  background: var(--lb-color-stone-raised, #232328);
-  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
-  border-radius: var(--lb-radius-md, 9px);
-}
-
-.pe-input--code { font-size: 22px; letter-spacing: 6px; }
-
-.pe-input:focus-visible,
-.pe-btn:focus-visible {
-  outline: 2px solid var(--lb-color-brass, #e0a44a);
-  outline-offset: 2px;
-}
-
-.pe-hint { margin: 0; font-size: 13px; color: var(--lb-color-parchment-faint, #858480); }
-.pe-notice { margin: 0; font-size: 14px; }
-.pe-notice--error { color: var(--lb-color-ember, #e2645a); }
-
-.pe-btn {
-  box-sizing: border-box;
-  min-height: 48px;
-  padding: 12px 16px;
-  font-family: inherit;
-  font-size: 17px;
-  color: var(--lb-color-parchment, #eceae4);
-  background: var(--lb-color-stone-raised, #232328);
-  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
-  border-radius: var(--lb-radius-md, 9px);
-  cursor: pointer;
-  transition: background var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
-}
-
-.pe-btn--primary {
-  font-weight: 600;
-  color: var(--lb-color-brass-contrast, #1c1608);
-  background: var(--lb-color-brass, #e0a44a);
-  border-color: transparent;
-}
-
-.pe-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.pe-btn:not(:disabled):active { background: var(--lb-color-stone-hover, #2c2c33); }
-.pe-btn--primary:not(:disabled):active { background: var(--lb-color-brass-bright, #f3ba66); }
-
-.pe-actions { display: grid; gap: 8px; }
-
-.pe-id { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; align-items: baseline; }
-.pe-id dt { font-size: 13px; color: var(--lb-color-parchment-dim, #a2a09a); }
-.pe-id dd { margin: 0; font-size: 18px; font-weight: 600; }
-.pe-code { font-family: var(--lb-font-utility, monospace); letter-spacing: 4px; }
-
-.pe-live { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; color: var(--lb-color-parchment-dim, #a2a09a); }
-
-/* A frase que responde "e agora?" é a maior da tela; o resto é apoio. */
-.pe-waiting { margin: 0; font-size: 18px; }
-
-.pe-dot {
-  flex: none;
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  background: var(--lb-color-brass, #e0a44a);
-  animation: pe-pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes pe-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.25; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pe-dot { animation: none; }
-  .pe-btn { transition: none; }
-}
-`
-
-const entryStyle = document.createElement('style')
-entryStyle.id = 'lb-player-entry'
-entryStyle.textContent = entryCss
-document.head.append(entryStyle)
 
 /** Referência estável: um `[]` novo a cada render redesenharia o canvas sem motivo. */
 const NO_TOKENS: string[] = []
@@ -196,7 +51,7 @@ interface Notice {
   tone: 'info' | 'error'
 }
 
-const JOIN_NOTICE: Notice = { text: 'Informe o código da sala e seu nome.', tone: 'info' }
+const JOIN_NOTICE: Notice = { text: 'O código da sala vem do mestre.', tone: 'info' }
 
 function sessionStorageOrNull(): StorageLike | null {
   try {
@@ -370,15 +225,41 @@ function forgetResume(): void {
   }
 }
 
+/**
+ * Casca de toda tela de texto do jogador. O fundo — pedra, halo de lampião,
+ * grade do mapa e a ficha acesa — é inteiro do CSS de `.pe-page`, sem markup
+ * nenhum. É isso que deixa `ErrorBoundary.tsx` ter a MESMA tela sem importar
+ * nada daqui: importar criaria ciclo, porque é este módulo que importa a
+ * boundary.
+ */
 function Screen({ children }: { children: ReactNode }) {
   return (
     <main className="pe-page">
       <div className="pe-card">
-        <h1 className="pe-title">Labirinto</h1>
+        <header className="pe-brand">
+          <span className="pe-brand__mark" aria-hidden="true">
+            <LabyrinthMark size={20} />
+          </span>
+          <h1 className="pe-title">Labirinto</h1>
+        </header>
         {children}
       </div>
     </main>
   )
+}
+
+/**
+ * Dica do campo de código. Campo vazio é convite (diz o formato e que dá para
+ * colar); campo pela metade é contagem, porque o botão Entrar só acende com o
+ * código fechado e sem dizer quanto falta a desabilitação vira mistério.
+ * Não é região viva de propósito: o leitor de tela lê esta frase pelo
+ * `aria-describedby` quando o campo recebe foco, e reler a cada tecla seria
+ * tagarelice.
+ */
+function codeHint(typed: number): string {
+  if (typed === 0) return `${JOIN_CODE_LENGTH} letras e números. Pode colar do chat: espaço e minúscula são ajustados.`
+  if (typed < JOIN_CODE_LENGTH) return `Faltam ${JOIN_CODE_LENGTH - typed} de ${JOIN_CODE_LENGTH} caracteres.`
+  return `Código completo, ${JOIN_CODE_LENGTH} de ${JOIN_CODE_LENGTH} caracteres.`
 }
 
 interface JoinFormProps {
@@ -411,7 +292,7 @@ function JoinForm({ initial, notice, onJoin }: JoinFormProps) {
 
   return (
     <Screen>
-      <p className={notice.tone === 'error' ? 'pe-notice pe-notice--error' : 'pe-hint'} role="status" aria-live="polite">
+      <p className={notice.tone === 'error' ? 'pe-notice pe-notice--error' : 'pe-lead'} role="status" aria-live="polite">
         {notice.text}
       </p>
       <form onSubmit={submit} className="pe-form">
@@ -435,7 +316,7 @@ function JoinForm({ initial, notice, onJoin }: JoinFormProps) {
             required
           />
           <p id="lb-join-code-hint" className="pe-hint">
-            {JOIN_CODE_LENGTH} letras e números. Pode colar do chat com espaços — eles são ignorados.
+            {codeHint(code.length)}
           </p>
         </div>
         <div className="pe-field">
@@ -558,11 +439,50 @@ interface SessionProps {
   onQuit: () => void
 }
 
+/** Ação de uma tela de texto. `primary` é o botão de latão, no máximo um por tela. */
+interface ScreenAction {
+  label: string
+  primary?: boolean
+  run: () => void
+}
+
+/**
+ * Prazo do aperto de mão. Passado ele, "Conectando…" vira explicação.
+ *
+ * Oito segundos: o handshake de uma sala na mesma rede fecha em milissegundos,
+ * e perto de dez a atenção da pessoa já foi embora (Nielsen, limites de tempo
+ * de resposta). Generoso o bastante para um Wi-Fi ruim, curto o bastante para
+ * a tela não parecer travada.
+ */
+const HANDSHAKE_DEADLINE_MS = 8_000
+
 function Session({ connection, code, typedName, hostName, onLeave, onQuit }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(localStorageOrNull()))
   const [focus, setFocus] = useState<{ tokenId: string | null; seq: number }>({ tokenId: null, seq: 0 })
   const [signalArmed, setSignalArmed] = useState(false)
+  /** Cada "Reconectar" conta uma tentativa nova e reinicia o prazo do aperto de mão. */
+  const [attempt, setAttempt] = useState(0)
+  const [handshakeOverdue, setHandshakeOverdue] = useState(false)
+  const connecting = state.status === 'connecting'
+
+  /**
+   * "Conectando…" não tinha prazo, e essa era a tela mais cruel do app: o
+   * socket ABRE e o mestre pode nunca responder — app travado, porta certa com
+   * outro servidor atrás, portal cativo de hotel que aceita o upgrade e engole
+   * o resto. Nada disso fecha a conexão, então `playerConnection` fica em
+   * `connecting` para sempre e o jogador olha uma frase parada sem erro, sem
+   * prazo e sem caminho de volta. O relógio mora aqui, e não no cliente de
+   * rede, porque é decisão de tela: quando desistir de esperar e o que
+   * oferecer no lugar.
+   */
+  useEffect(() => {
+    setHandshakeOverdue(false)
+    if (!connecting) return
+    const timer = setTimeout(() => setHandshakeOverdue(true), HANDSHAKE_DEADLINE_MS)
+    return () => clearTimeout(timer)
+  }, [connecting, attempt])
+
   const ownTokens = state.ownTokens ?? NO_TOKENS
   const map = state.map
   const characters = useMemo(() => {
@@ -637,26 +557,70 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   }
 
   let message: string
-  /** Primeiro da lista é o botão de destaque; a ordem é a que o dedo encontra de baixo para cima no celular. */
-  const actions: { label: string; run: () => void }[] = []
+  let tone: Notice['tone'] = 'info'
+  /** O que a frase não cabe: explicação, prova de vida, lista do que conferir. */
+  let detail: ReactNode = null
+  const actions: ScreenAction[] = []
   switch (state.status) {
     case 'connecting':
-      message = 'Conectando…'
+      if (handshakeOverdue) {
+        // Sem `bad_code` nem `close`: o mestre simplesmente não respondeu. A
+        // tela não tem como saber QUAL das causas é, então lista as três e
+        // deixa o jogador conferir — chutar uma delas seria mentir.
+        tone = 'error'
+        message = `A sala ${code} não respondeu.`
+        detail = (
+          <div className="pe-explain">
+            <p className="pe-hint">
+              A conexão com o computador do mestre abriu, mas ninguém respondeu em{' '}
+              {Math.round(HANDSHAKE_DEADLINE_MS / 1000)} segundos.
+            </p>
+            <ul className="pe-checklist">
+              <li>O Labirinto precisa estar aberto no computador do mestre, com a sala no ar.</li>
+              <li>Você e ele precisam estar na mesma rede — o mesmo Wi-Fi da casa.</li>
+              <li>Confira o código com ele: você entrou com {code}.</li>
+            </ul>
+          </div>
+        )
+        actions.push({
+          label: 'Reconectar',
+          primary: true,
+          // Reinicia o prazo: sem isto a tela voltaria a "Conectando…" e ficaria
+          // lá para sempre, porque o estado já era `connecting` antes do clique.
+          run: () => {
+            setAttempt((n) => n + 1)
+            connection.reconnect()
+          },
+        })
+        actions.push({ label: 'Entrar em outra sala', run: () => onQuit() })
+      } else {
+        message = 'Conectando…'
+        detail = (
+          <p className="pe-live">
+            <span className="pe-dot" aria-hidden="true" />
+            <span>Procurando a sala {code} na rede.</span>
+          </p>
+        )
+        // Desistir no meio da espera é direito dele, e volta ao formulário com
+        // código e nome preenchidos. Discreto de propósito: a ação esperada é esperar.
+        actions.push({ label: 'Cancelar', run: () => onLeave() })
+      }
       break
     case 'kicked':
       message = 'Você foi removido da sala pelo mestre.'
-      actions.push({ label: 'Voltar', run: () => onLeave() })
+      actions.push({ label: 'Voltar', primary: true, run: () => onLeave() })
       break
     case 'closed':
       // Sem Reconectar: a sala não existe mais.
       message = 'O mestre encerrou a sala.'
-      actions.push({ label: 'Voltar', run: () => onLeave() })
+      actions.push({ label: 'Voltar', primary: true, run: () => onLeave() })
       break
     case 'error': {
       const reason = state.error ?? 'unknown'
+      tone = 'error'
       message = REASON_TEXT[reason] ?? `Erro: ${reason}`
       if (reason === 'connection_lost') {
-        actions.push({ label: 'Reconectar', run: () => connection.reconnect() })
+        actions.push({ label: 'Reconectar', primary: true, run: () => connection.reconnect() })
         // Beco sem saída até aqui: o único botão tentava a MESMA sala, e quando
         // ela não existe mais (o mestre fechou o app, o Wi-Fi do celular mudou)
         // o jogador ficava preso na mensagem, sem caminho de volta. Esquece o
@@ -664,7 +628,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         actions.push({ label: 'Entrar em outra sala', run: () => onQuit() })
       } else {
         // Código errado volta ao formulário COM o que ele digitou: o nome estava certo.
-        actions.push({ label: 'Corrigir e entrar de novo', run: () => onLeave({ text: message, tone: 'error' }) })
+        actions.push({
+          label: 'Corrigir e entrar de novo',
+          primary: true,
+          run: () => onLeave({ text: message, tone: 'error' }),
+        })
       }
       break
     }
@@ -672,16 +640,17 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
 
   return (
     <Screen>
-      <p role="status" aria-live="polite" className="pe-notice">
+      <p role="status" aria-live="polite" className={tone === 'error' ? 'pe-notice pe-notice--error' : 'pe-notice'}>
         {message}
       </p>
+      {detail}
       {actions.length > 0 && (
         <div className="pe-actions">
-          {actions.map((action, index) => (
+          {actions.map((action) => (
             <button
               key={action.label}
               type="button"
-              className={index === 0 ? 'pe-btn pe-btn--primary' : 'pe-btn'}
+              className={action.primary === true ? 'pe-btn pe-btn--primary' : 'pe-btn'}
               onClick={action.run}
             >
               {action.label}
@@ -711,6 +680,18 @@ function PlayerApp() {
    * dois WebSocket e o mestre veria o mesmo amigo entrar como "Ana" e "Ana (2)".
    */
   const rejoined = useRef(false)
+
+  /**
+   * Tira a tela de abertura de `player.html` assim que o app existe. Ela é
+   * fixa e opaca, e sai depois da primeira pintura — por isso nunca aparecem
+   * as duas juntas nem pisca preto entre uma e outra. Se este efeito nunca
+   * rodar (módulo que não chega, render que explode no primeiro quadro), a
+   * tela de abertura FICA, e ela mesma diz o que fazer: é a rede de segurança
+   * mais rasteira do produto.
+   */
+  useEffect(() => {
+    document.getElementById('lb-boot')?.remove()
+  }, [])
 
   useEffect(() => () => session?.connection.close(), [session])
 

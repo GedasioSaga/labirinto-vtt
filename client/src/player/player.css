@@ -1,10 +1,408 @@
 /*
- * Página do jogador — painel sobre o canvas.
+ * Página do jogador — folha única do lado JavaScript.
+ *
+ * Dois blocos, sem colisão entre eles:
+ *   `.pe-*`  telas de TEXTO (entrar, esperar, conectar, erro do desenho);
+ *   `.pp-*`  painel sobre o canvas, durante o jogo.
  *
  * Cores das custom properties `--lb-*` de `theme.ts` (injetadas por
  * `player/main.tsx`), as mesmas do editor: pedra escura, pergaminho, latão.
- * Tudo escopado em `.pp-*` para não mudar o formulário de entrada.
+ * Os fallbacks de cada `var()` repetem o mesmo valor e só entram se o tema
+ * ainda não tiver sido injetado.
+ *
+ * As regras `.pe-*` moraram numa string dentro de `main.tsx` até 17/09/2026.
+ * Vieram para cá porque dobraram de tamanho: 400 linhas de CSS dentro de um
+ * template literal não têm destaque de sintaxe, nem formatação, nem busca.
+ *
+ * O que NÃO está aqui: o fundo escuro da página. Em `npm run dev` o Vite serve
+ * este arquivo como módulo JavaScript, então nada daqui chega ao navegador com
+ * o script desligado. `player.html` traz a casca escura embutida, e é lá que
+ * `html`, `body` e a tela sem JavaScript moram.
  */
+
+/* ========================================================== telas de texto */
+
+/*
+ * A tela inteira, e não um cartão solto no meio do nada.
+ *
+ * Três camadas, todas em CSS, nenhuma dependendo de imagem ou de rede:
+ *   1. a pedra do fundo (`--lb-color-ink`);
+ *   2. o halo do lampião caindo do alto — o mesmo `.lb-start::after` da tela
+ *      inicial do editor, aqui em tela cheia porque não há preview ao lado;
+ *   3. a grade do mapa, apagando nas bordas (`.lb-start::before` do editor).
+ * Mais a ficha acesa lá embaixo: é o mesmo azul que marca o SEU token dentro
+ * do jogo (`OWN_TOKEN_COLOR`, #3b82f6), uma promessa do que essa pessoa vai
+ * ser daqui a um minuto.
+ */
+.pe-page {
+  position: relative;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  color: var(--lb-color-parchment, #eceae4);
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  line-height: 1.45;
+  background-color: var(--lb-color-ink, #121214);
+  background-image:
+    radial-gradient(ellipse 900px 620px at 50% 4%, rgba(224, 164, 74, 0.18) 0%, rgba(224, 164, 74, 0) 68%),
+    radial-gradient(circle 170px at 30% 74%, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0) 72%);
+  background-repeat: no-repeat;
+}
+
+/* Grade do mapa. `--lb-color-line` é 8% de branco: some nas bordas pela
+   máscara e nunca compete com o cartão. */
+.pe-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--lb-color-line, rgba(255, 255, 255, 0.08)) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lb-color-line, rgba(255, 255, 255, 0.08)) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.55;
+  -webkit-mask-image: radial-gradient(ellipse 78% 62% at 50% 36%, #000 0%, transparent 100%);
+  mask-image: radial-gradient(ellipse 78% 62% at 50% 36%, #000 0%, transparent 100%);
+  pointer-events: none;
+}
+
+/* A ficha acesa sobre a grade. Fora da coluna do cartão de propósito: é
+   atmosfera, não conteúdo, e no celular o cartão passa por cima dela. */
+.pe-page::after {
+  content: '';
+  position: absolute;
+  left: 30%;
+  top: 74%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: #3b82f6;
+  box-shadow:
+    0 0 0 3px rgba(59, 130, 246, 0.3),
+    0 0 26px 10px rgba(59, 130, 246, 0.28);
+  pointer-events: none;
+}
+
+.pe-card {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 400px;
+  display: grid;
+  gap: 20px;
+  padding: 26px 28px 28px;
+  background: var(--lb-color-stone-solid, #1a1a1e);
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-xl, 20px);
+  box-shadow:
+    var(--lb-shadow-lg, 0 18px 44px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.34)),
+    var(--lb-shadow-bevel, inset 0 1px 0 rgba(255, 255, 255, 0.07));
+}
+
+.pe-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pe-brand__mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--lb-radius-md, 9px);
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  border: 1px solid rgba(224, 164, 74, 0.24);
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+.pe-title {
+  margin: 0;
+  font-family: var(--lb-font-display, Georgia, serif);
+  font-size: 27px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.pe-form {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+}
+
+.pe-field {
+  display: grid;
+  gap: 6px;
+}
+
+.pe-label {
+  font-size: 14px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pe-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  font-family: inherit;
+  /* Abaixo de 16px o iOS dá zoom sozinho ao focar e joga o resto da tela para fora. */
+  font-size: 18px;
+  color: var(--lb-color-parchment, #eceae4);
+  caret-color: var(--lb-color-brass, #e0a44a);
+  background: var(--lb-color-stone-raised, #232328);
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-md, 9px);
+  transition:
+    border-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+.pe-input::placeholder {
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+.pe-input:hover:not(:focus) {
+  border-color: var(--lb-color-line-divider, rgba(255, 255, 255, 0.26));
+}
+
+/*
+ * O código é o herói da tela: é o único dado que vem de fora da cabeça do
+ * jogador, ditado em voz alta na mesa. Fonte condensada, corpo grande e
+ * entreletra larga fazem cada caractere ser conferido um a um. O `text-indent`
+ * devolve a folga que a entreletra deixa depois da última letra — sem ele o
+ * texto centrado fica visivelmente à esquerda.
+ */
+.pe-input--code {
+  font-family: var(--lb-font-utility, 'Bahnschrift', 'DIN Alternate', system-ui, sans-serif);
+  font-size: 30px;
+  line-height: 1.1;
+  padding: 12px;
+  text-align: center;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+}
+
+.pe-input:focus {
+  border-color: var(--lb-color-brass, #e0a44a);
+  background: var(--lb-color-stone-hover, #2c2c33);
+}
+
+.pe-input:focus-visible,
+.pe-btn:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+.pe-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+/* A frase logo abaixo da marca: é o que a tela tem a dizer antes dos rótulos.
+   Maior que `.pe-hint` de propósito — no tamanho de dica ela virava legenda
+   do wordmark e ninguém lia. */
+.pe-lead {
+  margin: 0;
+  font-size: 15px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pe-notice {
+  margin: 0;
+  font-size: 16px;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.pe-notice--error {
+  color: var(--lb-color-ember, #e2645a);
+}
+
+.pe-btn {
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: 12px 16px;
+  font-family: inherit;
+  font-size: 17px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone-raised, #232328);
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-md, 9px);
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    border-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+.pe-btn--primary {
+  min-height: 52px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--lb-color-brass-contrast, #1c1608);
+  background: var(--lb-color-brass, #e0a44a);
+  border-color: transparent;
+}
+
+.pe-btn:hover:not(:disabled) {
+  background: var(--lb-color-stone-hover, #2c2c33);
+}
+
+.pe-btn--primary:hover:not(:disabled) {
+  background: var(--lb-color-brass-bright, #f3ba66);
+}
+
+.pe-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/*
+ * Desabilitado não é "latão apagado": 45% de opacidade sobre o latão dá um
+ * ocre sujo que ainda parece clicável, e o jogador bate nele sem entender.
+ * Vira superfície neutra — e o latão voltando de uma vez, em 110ms, é o
+ * retorno de que o formulário fechou e dá para entrar.
+ */
+.pe-btn--primary:disabled {
+  opacity: 1;
+  /* `parchment-dim`, e não `parchment-faint`: sobre `stone-raised` o apagado dá
+     4,18:1 e o rótulo do botão mais importante da tela não pode ficar abaixo de
+     4,5:1. Um degrau abaixo do texto normal já basta para ler como inativo. */
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  background: var(--lb-color-stone-raised, #232328);
+  border-color: var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+}
+
+/* Afundar 2% no toque é o retorno que diz "o dedo pegou" antes de a rede
+   responder; num botão largo 3% já vira salto, por isso 0.98 e não 0.97. */
+.pe-btn:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+.pe-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.pe-id {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  align-items: baseline;
+}
+
+.pe-id dt {
+  font-size: 13px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pe-id dd {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.pe-code {
+  font-family: var(--lb-font-utility, monospace);
+  letter-spacing: 0.22em;
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+.pe-live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+/* A frase que responde "e agora?" é a maior da tela; o resto é apoio. */
+.pe-waiting {
+  margin: 0;
+  font-size: 18px;
+}
+
+.pe-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--lb-color-brass, #e0a44a);
+  animation: pe-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pe-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* O que conferir quando a sala não responde. Lista, e não passos numerados:
+   são três coisas independentes, qualquer uma delas explica o silêncio. */
+.pe-checklist {
+  margin: 0;
+  padding: 0 0 0 18px;
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pe-checklist li::marker {
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+/*
+ * Único movimento não pedido pelo usuário nestas telas: a explicação que entra
+ * quando a espera vira falha. Anima porque é a troca que ele PRECISA notar
+ * numa tela que estava parada — 180ms, ease-out, uma vez por tentativa.
+ */
+.pe-explain {
+  display: grid;
+  gap: 12px;
+  animation: pe-rise 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes pe-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pe-dot,
+  .pe-explain {
+    animation: none;
+  }
+
+  .pe-btn,
+  .pe-input {
+    transition: none;
+  }
+}
+
+/* ==================================================== painel sobre o canvas */
 
 .pp-panel {
   position: fixed;
