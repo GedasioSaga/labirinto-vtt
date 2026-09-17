@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { PROPERTY_GROUP_IDS, relevantPropertyGroups, type PropertyGroupId } from './toolProperties'
-import { DRAWING_TOOLS } from '../components/labels'
+import { PROPERTY_GROUP_IDS, panelHeadingTool, relevantPropertyGroups, type PropertyGroupId } from './toolProperties'
+import { DRAWING_TOOLS, TOOL_LABELS } from '../components/labels'
 import type { DrawingTool } from '../types/tools'
 
 /** Todos os tools do app (mesma lista de types/tools.ts) — usado só pra
@@ -8,7 +8,7 @@ import type { DrawingTool } from '../types/tools'
 const ALL_TOOLS: DrawingTool[] = [
   'select', 'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon',
   'stair', 'token', 'prop', 'brush', 'line', 'circle', 'ellipse', 'rect', 'polygon',
-  'curve', 'text', 'measure', 'eraser', 'floor',
+  'curve', 'text', 'measure', 'eraser', 'floor', 'concealZone',
 ]
 
 function groupsOf(tool: DrawingTool, selection?: Parameters<typeof relevantPropertyGroups>[1]): Set<PropertyGroupId> {
@@ -222,6 +222,47 @@ describe('relevantPropertyGroups — robustez', () => {
   it('chamar sem segundo argumento é equivalente a chamar com seleção vazia', () => {
     for (const tool of ALL_TOOLS) {
       expect(relevantPropertyGroups(tool)).toEqual(relevantPropertyGroups(tool, {}))
+    }
+  })
+})
+
+describe('panelHeadingTool — o painel abre com o nome da ferramenta que está na mão', () => {
+  // A dor medida no passeio cego: Sala Circular ativa e o primeiro título do
+  // painel dizendo "REGIÃO", o nome de OUTRA ferramenta da barra. Jornada de
+  // tela: client/e2e/task-jornada-painel-com-nome-certo.spec.ts.
+  it('Sala, Sala Circular e Polígono Regular são nomeadas pelo painel (a seção delas se chama "Região")', () => {
+    for (const tool of ['room', 'roomCircle', 'roomPolygon'] as const) {
+      expect(panelHeadingTool(tool, false), tool).toBe(tool)
+    }
+  })
+
+  it('Parede e Região não ganham título extra: a própria seção delas já imprime esse nome', () => {
+    expect(panelHeadingTool('wall', false)).toBeNull()
+    expect(panelHeadingTool('region', false)).toBeNull()
+  })
+
+  it('Selecionar não ganha título: não cria nada, o painel ali é do mapa', () => {
+    expect(panelHeadingTool('select', false)).toBeNull()
+  })
+
+  it('com algo selecionado nenhuma ferramenta é nomeada — o painel passa a ser do item selecionado', () => {
+    for (const tool of ALL_TOOLS) {
+      expect(panelHeadingTool(tool, true), tool).toBeNull()
+    }
+  })
+
+  it('nunca nomeia uma ferramenta DIFERENTE da ativa — é exatamente o bug que a jornada cobra', () => {
+    for (const tool of ALL_TOOLS) {
+      const nomeada = panelHeadingTool(tool, false)
+      expect(nomeada === null || nomeada === tool, `tool=${tool} nomeou ${nomeada}`).toBe(true)
+    }
+  })
+
+  it('toda ferramenta nomeada tem rótulo visível em TOOL_LABELS (senão o painel imprimiria vazio)', () => {
+    for (const tool of ALL_TOOLS) {
+      const nomeada = panelHeadingTool(tool, false)
+      if (nomeada === null) continue
+      expect(TOOL_LABELS[nomeada], `tool=${nomeada}`).toBeTruthy()
     }
   })
 })

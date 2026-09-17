@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Container, Text } from 'pixi.js'
 import {
+  childRoomsOf,
   createRoomNamesRenderer,
   findRoomLabelAt,
   roomLabelAnchor,
   roomLabelBounds,
   roomLabelFontSize,
   roomLabelPosition,
+  roomLabelPositionAvoidingChildren,
 } from './drawRoomNames'
 import type { Region, RegionPoint } from '../types/map'
 
@@ -261,5 +263,211 @@ describe('findRoomLabelAt', () => {
   it('com rótulos sobrepostos vence a região desenhada por último', () => {
     const regions = [buildRoom('baixo', 'Cripta', SQUARE), buildRoom('cima', 'Cripta', SQUARE)]
     expect(findRoomLabelAt(regions, { x: 50, y: 50 }, 70)?.id).toBe('cima')
+  })
+})
+
+/*
+ * Dor medida no passeio cego de 17/09/2026: o nome da sala de FORA era
+ * desenhado no centróide dela, que numa sala com um quarto dentro cai em cima
+ * do quarto — 0,30% do recorte da filha pintado com a tinta do rótulo da mãe.
+ */
+const GRID = 64
+/** Mãe 512×448 com um quarto de 256×256 no canto superior esquerdo: o
+ *  centróide da mãe (256, 224) cai dentro do quarto. Mesma forma da cena
+ *  medida na jornada. */
+const MAE_PONTOS: RegionPoint[] = [
+  { x: 0, y: 0 },
+  { x: 512, y: 0 },
+  { x: 512, y: 448 },
+  { x: 0, y: 448 },
+]
+const FILHA_PONTOS: RegionPoint[] = [
+  { x: 0, y: 0 },
+  { x: 256, y: 0 },
+  { x: 256, y: 256 },
+  { x: 0, y: 256 },
+]
+
+function comMae(region: Region, parentId: string): Region {
+  return { ...region, parentId }
+}
+
+function cenaMaeEFilha(nomeDaMae = 'Sala 1', nomeDaFilha = 'Sala 2'): { mae: Region; filha: Region; cena: Region[] } {
+  const mae = buildRoom('mae', nomeDaMae, MAE_PONTOS)
+  const filha = comMae(buildRoom('filha', nomeDaFilha, FILHA_PONTOS), 'mae')
+  return { mae, filha, cena: [mae, filha] }
+}
+
+/** Caixa do rótulo pela mesma régua do hit-test, já com o desvio aplicado. */
+function caixaDoRotulo(region: Region, cena: Region[]) {
+  const box = roomLabelBounds(region, GRID, 1, cena)
+  if (!box) throw new Error('esperava caixa de rótulo')
+  return box
+}
+
+const FILHA_CAIXA = { minX: 0, minY: 0, maxX: 256, maxY: 256 }
+
+function invade(box: { minX: number; minY: number; maxX: number; maxY: number }, alvo: typeof FILHA_CAIXA): boolean {
+  return box.minX < alvo.maxX && box.maxX > alvo.minX && box.minY < alvo.maxY && box.maxY > alvo.minY
+}
+
+describe('childRoomsOf', () => {
+  it('pega só quem aponta para esta sala em parentId', () => {
+    const { cena } = cenaMaeEFilha()
+    expect(childRoomsOf(cena, 'mae').map((r) => r.id)).toEqual(['filha'])
+    expect(childRoomsOf(cena, 'filha')).toEqual([])
+  })
+
+  it('ignora polígono degenerado (menos de 3 pontos), que não esconde nada', () => {
+    const risco = comMae(buildRoom('risco', 'X', [{ x: 0, y: 0 }, { x: 10, y: 0 }]), 'mae')
+    expect(childRoomsOf([risco], 'mae')).toEqual([])
+  })
+})
+
+describe('roomLabelPositionAvoidingChildren', () => {
+  it('sala sem filha continua no centróide (nada muda para a maioria das salas)', () => {
+    const sozinha = buildRoom('sala', 'Cripta', MAE_PONTOS)
+    expect(roomLabelPositionAvoidingChildren(sozinha, [sozinha], GRID)).toEqual(roomLabelAnchor(MAE_PONTOS))
+  })
+
+  it('o rótulo da mãe sai de cima da filha, continua dentro da mãe e continua perto do centróide', () => {
+    const { mae, cena } = cenaMaeEFilha()
+    const centroide = roomLabelAnchor(MAE_PONTOS)
+    const posicao = roomLabelPositionAvoidingChildren(mae, cena, GRID)
+
+    expect(posicao).not.toEqual(centroide)
+    // Dentro da mãe, e a caixa inteira do rótulo fora da filha.
+    expect(invade(caixaDoRotulo(mae, cena), FILHA_CAIXA)).toBe(false)
+    const box = caixaDoRotulo(mae, cena)
+    expect(box.minX).toBeGreaterThanOrEqual(0)
+    expect(box.maxX).toBeLessThanOrEqual(512)
+    expect(box.minY).toBeGreaterThanOrEqual(0)
+    expect(box.maxY).toBeLessThanOrEqual(448)
+    // Perto: o desvio é o mínimo que resolve, não um canto qualquer da sala.
+    expect(Math.hypot(posicao.x - centroide.x, posicao.y - centroide.y)).toBeLessThan(120)
+  })
+
+  it('CONTROLE: sem o desvio (cena sem as vizinhas) o rótulo da mãe cai dentro da filha', () => {
+    const { mae } = cenaMaeEFilha()
+    const box = caixaDoRotulo(mae, [])
+    expect(invade(box, FILHA_CAIXA)).toBe(true)
+  })
+
+  it('o rótulo da própria filha não se mexe: quem tem filha é a mãe', () => {
+    const { filha, cena } = cenaMaeEFilha()
+    expect(roomLabelPositionAvoidingChildren(filha, cena, GRID)).toEqual(roomLabelAnchor(FILHA_PONTOS))
+  })
+
+  it('offset arrastado pelo mestre manda: sem desvio nenhum', () => {
+    const { mae, filha } = cenaMaeEFilha()
+    const arrastada = withOffset(mae, { x: 10, y: 20 })
+    expect(roomLabelPositionAvoidingChildren(arrastada, [arrastada, filha], GRID)).toEqual({ x: 266, y: 244 })
+  })
+
+  it('sala tomada inteira pela filha cai de volta no centróide (nome dentro da sala é melhor que nome fora)', () => {
+    const mae = buildRoom('mae', 'Sala 1', MAE_PONTOS)
+    const filha = comMae(buildRoom('filha', 'Sala 2', MAE_PONTOS), 'mae')
+    expect(roomLabelPositionAvoidingChildren(mae, [mae, filha], GRID)).toEqual(roomLabelAnchor(MAE_PONTOS))
+  })
+
+  it('região crua (sem room, sem parentId, sem ponto nenhum) não quebra nem produz NaN', () => {
+    const crua: Region = { id: 'crua', points: [], tag: '', fillColor: '#333', fillPattern: 'solid', data: {} }
+    const posicao = roomLabelPositionAvoidingChildren(crua, [crua], GRID)
+    expect(posicao).toEqual({ x: 0, y: 0 })
+    expect(roomLabelBounds(crua, GRID, 1, [crua])).toBeNull()
+  })
+
+  it('sala com nome mas sem filha e sem parentId na cena continua no centróide', () => {
+    const solta = buildRoom('solta', 'Sala 9', FILHA_PONTOS)
+    expect(roomLabelPositionAvoidingChildren(solta, [solta], GRID)).toEqual({ x: 128, y: 128 })
+  })
+
+  it('nome comprido ou curto, o desvio é estável entre duas chamadas iguais', () => {
+    const { mae, cena } = cenaMaeEFilha()
+    expect(roomLabelPositionAvoidingChildren(mae, cena, GRID)).toEqual(roomLabelPositionAvoidingChildren(mae, cena, GRID))
+  })
+})
+
+describe('a cena exata que a jornada mede', () => {
+  // Mesmas coordenadas da jornada `task-jornada-sala-de-verdade.spec.ts` (mãe
+  // 384..896 × 192..640, quarto 384..640 × 192..448, grade 64). Na tela elas
+  // aparecem deslocadas pela origem do canvas; o deslocamento é o mesmo para a
+  // sala, para o quarto e para o recorte, então a geometria relativa — que é o
+  // que decide se o rótulo invade — é esta aqui.
+  const MAE_JORNADA: RegionPoint[] = [
+    { x: 384, y: 192 },
+    { x: 896, y: 192 },
+    { x: 896, y: 640 },
+    { x: 384, y: 640 },
+  ]
+  const FILHA_JORNADA: RegionPoint[] = [
+    { x: 384, y: 192 },
+    { x: 640, y: 192 },
+    { x: 640, y: 448 },
+    { x: 384, y: 448 },
+  ]
+  /** O recorte que a jornada fotografa: o miolo do quarto, 6 px para dentro. */
+  const RECORTE_DA_FILHA = { minX: 390, minY: 198, maxX: 634, maxY: 442 }
+
+  it('o rótulo da mãe ("Sala 1") não põe um pixel dentro do recorte do quarto', () => {
+    const mae = buildRoom('mae', 'Sala 1', MAE_JORNADA)
+    const filha = comMae(buildRoom('filha', 'Sala 2', FILHA_JORNADA), 'mae')
+    const cena = [mae, filha]
+
+    const box = caixaDoRotulo(mae, cena)
+    const invadeRecorte =
+      box.minX < RECORTE_DA_FILHA.maxX &&
+      box.maxX > RECORTE_DA_FILHA.minX &&
+      box.minY < RECORTE_DA_FILHA.maxY &&
+      box.maxY > RECORTE_DA_FILHA.minY
+    expect(invadeRecorte).toBe(false)
+    // E continua sendo o nome DAQUELA sala: dentro dela, e não no meio do mapa.
+    expect(box.minX).toBeGreaterThanOrEqual(384)
+    expect(box.maxX).toBeLessThanOrEqual(896)
+    expect(box.minY).toBeGreaterThanOrEqual(192)
+    expect(box.maxY).toBeLessThanOrEqual(640)
+  })
+})
+
+describe('findRoomLabelAt com sala dentro de sala', () => {
+  it('o clique pega o nome da mãe onde ele está desenhado, não no centróide', () => {
+    const { mae, cena } = cenaMaeEFilha()
+    const posicao = roomLabelPositionAvoidingChildren(mae, cena, GRID)
+
+    expect(findRoomLabelAt(cena, posicao, GRID)?.id).toBe('mae')
+    // No centróide da mãe (dentro da filha) quem responde é a filha, ou ninguém
+    // — o que nunca pode acontecer é a mãe responder por um rótulo que não
+    // está mais lá.
+    expect(findRoomLabelAt(cena, roomLabelAnchor(MAE_PONTOS), GRID)?.id).not.toBe('mae')
+  })
+})
+
+describe('createRoomNamesRenderer com sala dentro de sala', () => {
+  it('desenha o nome da mãe na posição desviada', () => {
+    const container = new Container()
+    const renderer = createRoomNamesRenderer()
+    const { mae, cena } = cenaMaeEFilha()
+
+    renderer.draw(container, cena, GRID, 1)
+
+    const esperado = roomLabelPositionAvoidingChildren(mae, cena, GRID)
+    const textoDaMae = textChildren(container).find((t) => t.text === 'Sala 1')
+    if (!textoDaMae) throw new Error('esperava o rótulo da mãe desenhado')
+    expect(textoDaMae.position.x).toBeCloseTo(esperado.x)
+    expect(textoDaMae.position.y).toBeCloseTo(esperado.y)
+    expect(textoDaMae.position.y).not.toBeCloseTo(224)
+  })
+
+  it('filha ainda sem nome também desvia o rótulo da mãe (o quarto já está na tela)', () => {
+    const container = new Container()
+    const renderer = createRoomNamesRenderer()
+    const mae = buildRoom('mae', 'Sala 1', MAE_PONTOS)
+    const filhaSemNome = comMae(buildRoom('filha', '', FILHA_PONTOS), 'mae')
+
+    renderer.draw(container, [mae, filhaSemNome], GRID, 1)
+
+    const textos = textChildren(container).filter((t) => t.visible)
+    expect(textos).toHaveLength(1)
+    expect(textos[0].position.y).not.toBeCloseTo(224)
   })
 })

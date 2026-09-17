@@ -12,6 +12,7 @@ import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCa
 import { resolveCursor, type HoverKind, type ResizeCorner } from './cursorPolicy'
 import { resolveMapWheel } from './wheelGesture'
 import { resolveShortcut } from '../lib/keymap'
+import { ROOM_CIRCLE_SIDES } from '../lib/roomCircle'
 // Onda 2, item 15 (Frente B) — hit-test + desenho do anel de hover.
 import { resolveHoverHit, type HoverHit, type HoverTarget } from '../lib/hoverHitTest'
 import { drawHover } from './drawHover'
@@ -167,10 +168,6 @@ import {
 // raio, não tem opinião sobre o valor.
 const ERASE_PART_RADIUS_RATIO = 0.25
 
-// "Sala Circular" é o mesmo poligono regular de "Poligono Regular", só que com
-// segments fixo alto o bastante pra ler como círculo suave — não configurável
-// pelo usuário (ver PolygonSidesControls, que só aparece pra 'roomPolygon').
-const ROOM_CIRCLE_SIDES = 24
 
 // Largura padrão do corredor de chão, como fração do grid: meia célula lê
 // como passagem sem engolir a sala ao lado, e escala com grids diferentes.
@@ -2093,20 +2090,40 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (activeTool === 'prop') {
           const point = applySnap(worldPoint, map.grid, 'prop', event.altKey)
           void (async () => {
-            const sourcePath = await pickImageFile()
-            if (!sourcePath) return
-            const propId = crypto.randomUUID()
-            const mapDir = await mapDirFor(map.id)
-            const imported = await importPropImage(sourcePath, mapDir, propId)
-            useMapStore.getState().addProp({
-              id: propId,
-              src: imported.destPath,
-              x: point.x,
-              y: point.y,
-              width: imported.width,
-              height: imported.height,
-              linkedMapPath: null,
-            })
+            // Passeio cego de 17/09/2026: este bloco era um `void (async ...)()`
+            // SEM try/catch. Qualquer rejeição (o caso comum: o seletor de
+            // imagem não existe fora do aplicativo) virava unhandled rejection
+            // calada — a tela ficava muda, a Peça seguia marcada como ativa e a
+            // pessoa clicava de novo achando que tinha errado o alvo.
+            try {
+              const sourcePath = await pickImageFile()
+              // `null` é cancelamento: a pessoa fechou o diálogo de propósito.
+              // Não é falha, então nada de aviso e a Peça continua ativa.
+              if (!sourcePath) return
+              const propId = crypto.randomUUID()
+              const mapDir = await mapDirFor(map.id)
+              const imported = await importPropImage(sourcePath, mapDir, propId)
+              useMapStore.getState().addProp({
+                id: propId,
+                src: imported.destPath,
+                x: point.x,
+                y: point.y,
+                width: imported.width,
+                height: imported.height,
+                linkedMapPath: null,
+              })
+            } catch (err) {
+              // A tela DIZ o que houve, com a razão junto — mesmo formato de
+              // `reportFileError` em App.tsx:57, que é o texto de erro de
+              // arquivo que o resto do app já usa.
+              const message = err instanceof Error ? err.message : String(err)
+              useToastStore.getState().push('error', `Não foi possível pôr a peça: ${message}`)
+              // E a pessoa não fica presa numa ferramenta que não funciona: a
+              // marcação de ativo volta para Selecionar, que é o estado de onde
+              // dá para fazer qualquer outra coisa. Mesmo caminho de
+              // `setActiveTool` já usado neste arquivo (linha ~4045).
+              useMapStore.getState().setActiveTool('select')
+            }
           })()
           return
         }

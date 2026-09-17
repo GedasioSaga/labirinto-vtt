@@ -88,6 +88,20 @@ const QUADROS_MINIMOS = 20
 const PASSO_MS = 16
 /** Janela parada usada como linha de base do quadro. */
 const OCIOSO_MS = 800
+/**
+ * PORTÃO DE VALIDADE DA PRÓPRIA MEDIDA. Um segundo worker do Playwright é outro
+ * Chromium com outro Pixi/WebGL na mesma máquina e no mesmo vite dev: o
+ * `longtask` que sair daqui passa a ser o da MÁQUINA CARREGADA, não o do app.
+ * Medido em 17/09/2026, mesma jornada, mesmo commit, desenhando a sala:
+ *   com 4 workers:        longtask_max_ms = 168, 192, 199  (teto 200 — cara ou coroa)
+ *   sozinha, workers=1:   longtask_max_ms =  95, 120, 130  (folga de 70 ms)
+ * Rodar este arquivo dentro da bateria de regressão produzia um número que
+ * ninguém podia usar, e ele ia para o relatório como se fosse do app. Em vez de
+ * sair verde com a medida inválida, o arquivo REPROVA e diz o comando certo —
+ * `scripts/portao.cjs` tem um passo só para ele, com `--workers=1`, e a bateria
+ * o exclui (guarda `g11-fluidez-fora-da-bateria`).
+ */
+const WORKERS_EXIGIDOS = 1
 
 type Amostra = {
   longtask_max_ms: number
@@ -244,7 +258,15 @@ function relatar(titulo: string, gesto: Amostra, ocioso: Amostra): string {
   return linha
 }
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, info) => {
+  // Antes de qualquer medida: a medida é válida nesta execução? Ver `WORKERS_EXIGIDOS`.
+  expect(
+    info.config.workers,
+    `medida de fluidez inválida: esta execução tem ${info.config.workers} workers, e cada um sobe outro ` +
+      'Pixi/WebGL na mesma máquina — o longtask sairia da máquina carregada, não do app. ' +
+      'Rode `node scripts/portao.cjs --so=jornada-fluidez` (ou `npx playwright test ' +
+      'e2e/task-jornada-portao-fluidez.spec.ts --workers=1`).',
+  ).toBe(WORKERS_EXIGIDOS)
   await instalarColetor(page)
   await enterEditor(page)
 })

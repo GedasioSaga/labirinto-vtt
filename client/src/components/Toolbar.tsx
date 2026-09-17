@@ -4,8 +4,16 @@ import { theme } from '../theme'
 import { TOOLBAR_SLOTS, TOOL_CLUSTERS, TOOL_HINTS, TOOL_LABELS, clusterIdOf, type ToolbarSlot } from './labels'
 import { TOOL_SHORTCUTS } from '../lib/keymap'
 import { placeHint, type HintPlacement } from './hintPlacement'
-import { TOOL_VARIANTS, drawingClusterGroups, type ToolVariantGroup } from '../lib/toolVariants'
-import { ToolVariantMenu, type ToolVariantBindings } from './ToolVariantMenu'
+import {
+  TOOL_VARIANTS,
+  drawingClusterGroups,
+  hasVariantEcho,
+  toolHasVariantAxis,
+  variantEcho,
+  type ToolVariantGroup,
+  type ToolVariantStoreKey,
+} from '../lib/toolVariants'
+import { ToolVariantMenu, readVariantValue, type ToolVariantBindings } from './ToolVariantMenu'
 import {
   BrushIcon,
   CircleIcon,
@@ -114,6 +122,79 @@ const EDGE_GAP = parseFloat(theme.layout.edgeGap)
 /** Primeiro x livre à direita do painel lateral. */
 const HINT_MIN_LEFT = parseFloat(theme.layout.railWidth) + EDGE_GAP * 2
 
+/* ---------------------------------------------- eco da escolha de variante */
+
+/**
+ * ESTILO EM LINHA, e não classe nova em `main.css`, por limite de escopo: esta
+ * peça só pode escrever em Toolbar/ToolVariantMenu/toolVariants, e a folha de
+ * estilo é de outra. O que importa está mantido — nenhum valor nasce aqui:
+ * cor, raio, espaço e tempo vêm todos de `theme.ts`, a mesma fonte que gera as
+ * `--lb-*` que o `main.css` consome. Se um dia a folha puder ser tocada, isto
+ * vira `.lb-toolbar__echo` sem mudar um valor sequer.
+ */
+
+/**
+ * Marca da escolha no canto do botão dono dela: ponto de latão — o MESMO
+ * acento que marcou a opção clicada dentro do menu
+ * (`.lb-toolvariant-menu__option[aria-checked='true']`) — para o texto do balão
+ * e o botão que o originou serem lidos como uma coisa só.
+ *
+ * `position: absolute` de propósito: a `.lb-toolvariant-anchor` já é
+ * `position: relative`, então o ponto NÃO entra no fluxo e a barra não muda de
+ * largura nem arrisca quebrar linha por causa dele. 7px com anel de 2px da cor
+ * do painel afundado: medidas de desenho de ícone, na mesma faixa dos 15px da
+ * setinha e dos 9px da seta do balão, que também não saem da escala de 4pt.
+ */
+const VARIANT_MARK_STYLE: CSSProperties = {
+  position: 'absolute',
+  top: '-1px',
+  right: '-1px',
+  width: '7px',
+  height: '7px',
+  borderRadius: theme.radius.full,
+  background: theme.color.brass,
+  boxShadow: `0 0 0 2px ${theme.color.stoneSunken}`,
+  pointerEvents: 'none',
+}
+
+/** Rótulo do eco: mesma legenda de seção do resto do app (`.lb-eyebrow`), só
+ *  com respiro até o valor. O espaço EM TEXTO entre os dois (no JSX) não é
+ *  decoração: sem ele o `role="status"` anuncia "Próxima paredeInterna", e a
+ *  margem, que é só visual, não separa palavra nenhuma para quem ouve. */
+const ECHO_SUBJECT_STYLE: CSSProperties = { marginRight: theme.space[1] }
+
+/** Valor do eco em latão: fecha o caminho do olho — a opção ficou em latão no
+ *  menu, o ponto no botão é de latão, o valor aqui também. */
+const ECHO_VALUE_STYLE: CSSProperties = { color: theme.color.brass, fontWeight: theme.font.weight.medium }
+
+/** Linha do eco dentro do balão. Com dica em cima, um filete separa os dois
+ *  registros (a dica ensina a ferramenta ativa; o eco relata um estado). */
+function echoLineStyle(withSeparator: boolean): CSSProperties {
+  return {
+    display: 'block',
+    marginTop: withSeparator ? theme.space[2] : undefined,
+    paddingTop: withSeparator ? theme.space[2] : undefined,
+    borderTop: withSeparator ? `1px solid ${theme.color.line}` : undefined,
+  }
+}
+
+/**
+ * Entrada do eco. Propósito: confirmar uma ação que o usuário acabou de fazer —
+ * o único motivo que justifica movimento aqui. Só `opacity`/`transform` (nada
+ * de layout), abaixo de 300ms e com a curva de desaceleração do app. A frase
+ * usa `base` (170ms) e o ponto usa `fast` (110ms): o ponto é pequeno e nasce
+ * embaixo do ponteiro, então chega primeiro; a frase, que é o que se lê, entra
+ * logo atrás.
+ */
+const ECHO_LINE_MOTION: KeyframeAnimationOptions = { duration: parseFloat(theme.motion.base), easing: theme.motion.ease }
+const ECHO_MARK_MOTION: KeyframeAnimationOptions = { duration: parseFloat(theme.motion.fast), easing: theme.motion.ease }
+
+/** Posição da barra e eixo tocados pela última escolha de variante. */
+interface VariantChoice {
+  slot: ToolbarSlot
+  storeKey: ToolVariantStoreKey
+}
+
 /** O que uma posição da barra desenha: nome, ícone, dica, ação e menu. */
 interface SlotView {
   label: string
@@ -206,14 +287,33 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
    */
   const [hintDismissed, setHintDismissed] = useState(false)
   const [hintTool, setHintTool] = useState(activeTool)
+  /**
+   * Última escolha feita numa setinha — só QUAL posição e QUAL eixo. O VALOR
+   * fica de fora de propósito: ele é relido de `variantBindings` a cada render
+   * (`variantEcho` abaixo), então a barra mostra o estado de AGORA e não a
+   * lembrança de um clique. Se a mesma preferência mudar pelo painel esquerdo,
+   * a frase acompanha; se virar um valor sem rótulo no menu, a frase some.
+   */
+  const [variantChoice, setVariantChoice] = useState<VariantChoice | null>(null)
   if (hintTool !== activeTool) {
     setHintTool(activeTool)
     setHintDismissed(false)
+    // O eco sobrevive à troca de ferramenta quando a nova ferramenta é dona do
+    // mesmo eixo (escolher "Interna" e então ativar a Parede deixa a frase MAIS
+    // relevante, não menos). Indo para uma ferramenta que não tem esse eixo, a
+    // barra volta a falar só da ferramenta ativa.
+    if (variantChoice && !toolHasVariantAxis(activeTool, variantChoice.storeKey)) setVariantChoice(null)
   }
   const hint = hintDismissed ? undefined : TOOL_HINTS[activeTool]
+  /** O que a barra diz sobre a escolha, recalculado do valor corrente do eixo. */
+  const echo = variantChoice ? variantEcho(variantChoice.storeKey, readVariantValue(variantBindings, variantChoice.storeKey)) : null
   const dockRef = useRef<HTMLDivElement>(null)
   const hintRef = useRef<HTMLParagraphElement>(null)
   const activeButtonRef = useRef<HTMLButtonElement>(null)
+  /** Os dois pedaços do eco — a frase no balão e o ponto no botão —, só para a
+   *  animação de entrada. */
+  const echoRef = useRef<HTMLSpanElement>(null)
+  const markRef = useRef<HTMLSpanElement>(null)
   const [placement, setPlacement] = useState<HintPlacement | null>(null)
 
   /**
@@ -262,7 +362,9 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
   }, [hintDismissed])
 
   useLayoutEffect(() => {
-    if (!hint) {
+    // O balão existe com dica, com eco, ou com os dois — e precisa ser medido
+    // em qualquer um dos casos, porque a largura muda quando o eco entra.
+    if (!hint && !echo) {
       setPlacement(null)
       return
     }
@@ -291,7 +393,20 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
-  }, [activeTool, hint])
+  }, [activeTool, hint, echo?.subject, echo?.value])
+
+  // Entrada do eco — ver ECHO_LINE_MOTION. Roda por escolha, não por render: a
+  // dependência é o objeto `variantChoice`, que só nasce de novo num clique de
+  // opção (inclusive ao reescolher a MESMA, onde repetir o movimento é a
+  // resposta certa a "cliquei de novo"). Movimento é decoração: com
+  // `prefers-reduced-motion` ou sem Web Animations, o estado final é o mesmo,
+  // já pintado pelo React.
+  useEffect(() => {
+    if (!variantChoice) return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    echoRef.current?.animate?.([{ opacity: 0, transform: 'translateY(-3px)' }, { opacity: 1, transform: 'none' }], ECHO_LINE_MOTION)
+    markRef.current?.animate?.([{ opacity: 0, transform: 'scale(0.92)' }, { opacity: 1, transform: 'none' }], ECHO_MARK_MOTION)
+  }, [variantChoice])
 
   const hintStyle: CSSProperties = placement
     ? ({ left: placement.left, '--lb-hint-arrow': `${placement.arrow}px` } as CSSProperties)
@@ -361,6 +476,16 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
                       <ChevronDownIcon />
                     </button>
                   )}
+                  {echo && variantChoice?.slot === slot && (
+                    // Onde a escolha PEGOU. Sem isto a fileira de botões fica
+                    // pixel por pixel igual depois de uma escolha — o defeito
+                    // que esta peça conserta: quem estava olhando o botão
+                    // precisa ver a resposta no botão, não só no balão abaixo.
+                    // Decorativo para leitor de tela: o nome acessível do botão
+                    // continua sendo só o rótulo (os e2e leem com `exact`), e
+                    // quem anuncia a mudança é o balão, que é `role="status"`.
+                    <span ref={markRef} aria-hidden="true" style={VARIANT_MARK_STYLE} />
+                  )}
                   {view.groups && menuOpen && (
                     <ToolVariantMenu
                       title={view.label}
@@ -368,6 +493,14 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
                       bindings={variantBindings}
                       iconFor={view.iconFor}
                       onClose={closeVariantMenu}
+                      onChoose={(storeKey) => {
+                        // `drawShape` não ecoa — escolher a forma ATIVA a
+                        // ferramenta, e a troca já é o rastro (ícone,
+                        // `aria-pressed` e dica mudam sozinhos). Escolher uma
+                        // forma também LIMPA um eco anterior: a barra passou a
+                        // falar de outra coisa.
+                        setVariantChoice(hasVariantEcho(storeKey) ? { slot, storeKey } : null)
+                      }}
                     />
                   )}
                 </div>
@@ -376,9 +509,23 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
           </div>
         ))}
       </div>
-      {hint && (
+      {(hint || echo) && (
+        // O balão é a única superfície de texto da barra, então é ele que fala
+        // dos dois assuntos: a dica ensina a ferramenta ativa, e o eco relata a
+        // preferência que a última escolha deixou valendo. Ele continua sendo
+        // UM elemento `.lb-hint` (os testes contam por esse seletor), e vive
+        // enquanto houver o que dizer — o eco não morre junto com a dica, que
+        // some no primeiro uso da ferramenta no canvas.
         <p className="lb-hint" role="status" ref={hintRef} style={hintStyle}>
           {hint}
+          {echo && (
+            <span ref={echoRef} style={echoLineStyle(Boolean(hint))}>
+              <span className="lb-eyebrow" style={ECHO_SUBJECT_STYLE}>
+                {echo.subject}
+              </span>{' '}
+              <span style={ECHO_VALUE_STYLE}>{echo.value}</span>
+            </span>
+          )}
         </p>
       )}
     </div>
