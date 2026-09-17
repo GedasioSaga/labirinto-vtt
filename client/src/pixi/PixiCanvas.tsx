@@ -34,6 +34,7 @@ import { drawWalls } from './drawWalls'
 import { drawDoors } from './drawDoors'
 import { drawStairs } from './drawStairs'
 import { createLightsRenderer } from './drawLights'
+import { visionSegments, type Segment } from '../lib/visibility'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
 import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelFontSize, roomLabelPosition } from './drawRoomNames'
 import { createFloorRenderer, drawFloorDraft } from './drawFloor'
@@ -494,7 +495,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       secretDrawingsGraphics.alpha = SECRET_ITEM_ALPHA
       const textLabelsContainer = new Container()
       const propsContainer = new Container()
-      const lightsGraphics = new Graphics()
+      // Container, não Graphics: cada luz tem o halo em um objeto próprio para
+      // receber a máscara do recorte por parede (drawLights.ts).
+      const lightsContainer = new Container()
       const tokensContainer = new Container()
       // A5 — zonas ocultas por cima do conteúdo: o mestre precisa ver o que cobre.
       const concealZonesContainer = new Container()
@@ -536,7 +539,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         secretDrawingsGraphics,
         textLabelsContainer,
         propsContainer,
-        lightsGraphics,
+        lightsContainer,
         tokensContainer,
         concealZonesContainer,
         floorSelectionGraphics,
@@ -848,11 +851,31 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         drawDoors(doorsGraphics, walls, selectedWallId, camera.scale, res)
       }
 
+      /**
+       * Obstáculos que barram a luz, memorizados por REFERÊNCIA de `walls` e
+       * `floor` (a store é imutável). `visionSegments` devolve um array novo a
+       * cada chamada, e `redrawLights` roda em todo passo de zoom: sem este
+       * memo, o recorte por raycast de cada luz seria refeito a cada quadro do
+       * zoom, com o mapa parado.
+       */
+      let lightOccluders: { walls: MapData['walls']; floor: MapData['floor']; segments: Segment[] } | null = null
+      const lightOccludersOf = (map: MapData): Segment[] => {
+        if (lightOccluders !== null && lightOccluders.walls === map.walls && lightOccluders.floor === map.floor) return lightOccluders.segments
+        const segments = visionSegments(map)
+        lightOccluders = { walls: map.walls, floor: map.floor, segments }
+        return segments
+      }
+
       /** Luz com gradiente e marcador de tamanho fixo na tela: redesenha também no zoom. */
       const redrawLights = () => {
         const { map, selection } = useMapStore.getState()
         const single = selectionSingle(selection)
-        lightsRenderer.draw(lightsGraphics, visibleLights(map.lights, map.hiddenLayers), single?.kind === 'light' ? single.id : null, camera.scale)
+        // Mesmos obstáculos da visão: a luz para onde o olho pararia.
+        lightsRenderer.draw(lightsContainer, visibleLights(map.lights, map.hiddenLayers), {
+          selectedLightId: single?.kind === 'light' ? single.id : null,
+          cameraScale: camera.scale,
+          occluders: lightOccludersOf(map),
+        })
         // Para o e2e: gradientes vivos (1 textura cada) não podem crescer com trocas de intensidade.
         el.dataset.lightGradients = String(lightsRenderer.liveGradients())
       }

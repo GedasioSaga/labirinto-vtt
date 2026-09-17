@@ -8,7 +8,8 @@ import { compileFloor } from '../lib/floorSdf'
 import { countExploredCells, forEachExploredRun } from '../lib/exploration'
 import type { Exploration } from '../lib/exploration'
 import { computeAlignedGridLines } from '../lib/gridAlign'
-import { visibleDrawings, visibleRegions, visibleStairs } from '../lib/layers'
+import { visibleDrawings, visibleLights, visibleRegions, visibleStairs } from '../lib/layers'
+import { visionSegments } from '../lib/visibility'
 import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
 import { fitCamera, panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
@@ -24,6 +25,7 @@ import { drawWalls } from '../pixi/drawWalls'
 import { drawDoors } from '../pixi/drawDoors'
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer } from '../pixi/drawRegions'
+import { createLightsRenderer } from '../pixi/drawLights'
 import { drawDrawings } from '../pixi/drawDrawings'
 import { drawStairs } from '../pixi/drawStairs'
 import { buildFloorMask } from '../pixi/floorMask'
@@ -238,6 +240,10 @@ interface Scene {
   roomNamesRenderer: ReturnType<typeof createRoomNamesRenderer>
   textLabels: Container
   textLabelsRenderer: ReturnType<typeof createTextLabelsRenderer>
+  /** Halos das luzes do mestre, recortados pelas paredes; sob a névoa. */
+  lights: Container
+  lightsRenderer: ReturnType<typeof createLightsRenderer>
+  lastLightsKey: string | null
   /** Nunca visto: preto opaco fora de (explorado ∪ visão). */
   fogUnknown: Graphics
   knownMask: Graphics
@@ -442,6 +448,31 @@ export function PlayerView({
   }
 
   /**
+   * Luz do mestre na tela do jogador: o halo para na parede em vez de
+   * atravessar. O recorte é o MESMO raycast da visão (`visionSegments` +
+   * `computeVisibility`, dentro de `drawLights`), sobre as paredes que o
+   * jogador enxerga — parede de camada oculta não projeta sombra inexplicável.
+   * Sem marcador: o ponto da origem é ferramenta de edição do mestre.
+   *
+   * Nada aqui depende do zoom (o gradiente acompanha o círculo em coordenadas
+   * de mundo), então fica fora de `redrawZoomLayers`.
+   */
+  function redrawLights(scene: Scene): void {
+    const currentMap = latestRef.current.map
+    const lights = visibleLights(currentMap.lights, currentMap.hiddenLayers)
+    const walls = visibleWalls(currentMap)
+    // `lastFloorKey` já resume o chão (redrawFloor roda antes): evita um
+    // JSON.stringify do chão inteiro a cada snapshot só para esta camada.
+    const key = JSON.stringify([lights, walls, scene.lastFloorKey])
+    if (key === scene.lastLightsKey) return
+    scene.lastLightsKey = key
+    scene.lightsRenderer.draw(scene.lights, lights, {
+      occluders: visionSegments({ ...currentMap, walls }),
+      showMarkers: false,
+    })
+  }
+
+  /**
    * Halo nas portas que o token do jogador alcança (mesmo alcance que o mestre
    * valida, `lib/doorReach.ts`). Trancada não ganha halo: ela não abre com
    * toque — o toque nela responde "Trancada".
@@ -538,6 +569,7 @@ export function PlayerView({
     scene.roomNames.visible = currentSettings.showNames
     scene.textLabels.visible = currentSettings.showNames
 
+    redrawLights(scene)
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
     redrawConcealed(scene, currentConcealed)
 
@@ -647,6 +679,7 @@ export function PlayerView({
       const doors = new Graphics()
       const roomNames = new Container()
       const textLabels = new Container()
+      const lights = new Container()
       const fogUnknown = new Graphics()
       const knownMask = new Graphics()
       const fogDim = new Graphics()
@@ -671,6 +704,9 @@ export function PlayerView({
         doors,
         roomNames,
         textLabels,
+        // Luz acima da planta e ABAIXO da névoa: o que o jogador não vê segue
+        // escuro mesmo com uma tocha acesa do outro lado.
+        lights,
         fogUnknown,
         knownMask,
         fogDim,
@@ -717,6 +753,9 @@ export function PlayerView({
         roomNamesRenderer: createRoomNamesRenderer(),
         textLabels,
         textLabelsRenderer: createTextLabelsRenderer(),
+        lights,
+        lightsRenderer: createLightsRenderer(),
+        lastLightsKey: null,
         fogUnknown,
         knownMask,
         fogDim,
@@ -873,6 +912,8 @@ export function PlayerView({
         cancelLongPress()
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickLaser)
+        // Antes do app.destroy: os gradientes de luz não são filhos da cena.
+        scene.lightsRenderer.destroy()
       }
       // ResizePlugin só escuta 'resize' da janela: acompanha o container também.
       resizeObserver = new ResizeObserver(() => {
