@@ -393,3 +393,13 @@ embaixo a descrição e tal."
 4. Sala de formato livre.
 5. Pinos de ponto de interesse (exclamação e interrogação) com imagem e descrição ao clicar.
 6. Mapas conectados (por último, sozinho) — `docs/plano-mapas-conectados.md`.
+
+### Mapas conectados — §8 do plano respondido por mim (17/09/2026)
+O usuário deu autonomia total para este loop ("não precisa me perguntar"), então respondi as 4
+perguntas de produto do `docs/plano-mapas-conectados.md` §8 com a recomendação do próprio plano.
+Ele pode vetar qualquer uma:
+1. Aventura vira **pasta com as cenas dentro**, caminho relativo (exportar e levar para outra
+   máquina funciona).
+2. Token que pisa no portal **passa direto**; "perguntar antes" fica como opção por portal, depois.
+3. Quem ficou de fora **vê o token sumir** (o personagem entrou mesmo).
+4. O editor do mestre **não segue** o jogador: aparece aviso "Fulano entrou em X" com botão "Ir lá".
