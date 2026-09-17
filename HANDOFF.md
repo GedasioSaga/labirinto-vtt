@@ -827,3 +827,57 @@ Peça que só tem teste verde não está pronta. Nenhuma frente fecha por contag
   identidade, nas duas pilhas.
 - Disco: `desktop/src-tauri/target/debug` (5,1 GB) apagado com autorização explícita do usuário; o exe
   release de 15/09 foi preservado. De 778 MB para 32 GB livres.
+
+---
+
+# Sessão de 17/09/2026 (noite) — seis gauntlets, um por feature
+
+## Objetivo
+Lista do usuário: (1) luz barrada por parede, mais visível e desenhada na tela do jogador;
+(2) token com foto, redondo com moldura, e o jogador trocando nome e foto do próprio token;
+(3) pincel de blocos com balde e caminhos com cor por caminho; (4) sala de formato livre;
+(5) pinos de ponto de interesse (! e ?) com imagem e descrição; (6) mapas conectados, por último e
+sozinho (`docs/plano-mapas-conectados.md`). Registro literal em `PEDIDOS.md`.
+
+## Estado atual
+Seis `Workflow` do template `gauntlet-workflow.js` rodando, um por feature, cada peça em `git
+worktree` próprio (`modo_portao: 'worktree'`). Jornadas vermelhas escritas ANTES do build pelo
+`testador` e seladas por hash (`scripts/portao-selo.json`):
+
+- `client/e2e/task-jornada-luz-que-para-na-parede.spec.ts`
+- `client/e2e/task-jornada-token-com-foto.spec.ts` (+ `client/e2e/fixtures/foto-do-jogador.png`)
+- `client/e2e/task-jornada-pincel-balde-caminhos.spec.ts`
+- `client/e2e/task-jornada-sala-livre.spec.ts`
+- `client/e2e/task-jornada-pinos-ponto-de-interesse.spec.ts`
+- `client/e2e/task-jornada-ferramentas-mudas.spec.ts` (vermelho PRÉ-EXISTENTE, virou peça)
+
+Portão por rodada: `tipos-src`, `tipos-e2e`, `unidade`, `jornadas-intactas`. Na rodada que declara
+vencedor: `estilo-minimapa` e `jornadas-e2e` (7 jornadas de regressão).
+
+## Próximos passos
+1. Receber os seis resultados, fundir os worktrees um a um na `feat/consolidado-17set` (o merge é do
+   orquestrador, §4b), rodar o portão completo na árvore fundida.
+2. Rodar `/varredura curta` (§2j) sobre os arquivos tocados.
+3. Só então mapas conectados, sozinho, a partir de `docs/plano-mapas-conectados.md`.
+
+## Critério de pronto
+Cada feature: jornada dela verde sem ter sido editada (hash do selo confere), portão verde na árvore
+fundida, e os dois `critico-cego` de ordem invertida escolhendo o nosso lado contra a bar declarada.
+
+## Evidência
+- Portão consertado antes do loop, com medida: `node scripts/portao.cjs --fase0` saía
+  `PORTÃO COMPROMETIDO: 1 achado`, agora sai `PORTÃO ÍNTEGRO`; `--autoteste` continua
+  "TODAS as guardas reprovam a entrada ruim conhecida".
+- Defeito que eu mesmo introduzi e a Fase 0 do gauntlet pegou: `client/porta.cjs` em CommonJS fez o
+  vite falhar com `Dynamic require of "node:crypto" is not supported`; `vitest` e `npm run dev` não
+  subiam e as jornadas só passavam por causa de um vite fantasma na 1420 (PID 46496, anterior ao
+  commit). Corrigido em `client/porta.js` (ESM). Depois: `--so=unidade` VERDE (exit 0, 23,4 s) e
+  `--so=jornadas-e2e` VERDE com servidor novo.
+- `node_modules/.bin` não existia no repositório (`vite` não era reconhecido); `npm install`
+  recriou os links sem alterar `package-lock.json`.
+- Selo das jornadas comparava fim de linha (`core.autocrlf=true`): jornada intacta reprovava dentro
+  de worktree. Hash agora normaliza CRLF; provado em worktree limpo:
+  `VERDE g12-jornadas-intactas: 5 jornada(s) da bar com o hash do selo`.
+- Porta por árvore provada: principal 1420, worktree 1532 (`client/porta.js`).
+- Vermelho pré-existente confirmado nos dois commits (HEAD e `29b77a4`):
+  `task-jornada-ferramentas-mudas.spec.ts:240` — mapa novo abre sem grade e sem limite visível.
