@@ -1,0 +1,37 @@
+{
+  "_o_que_e": "Invariante 5 — quem escreve onde. O passo `particao` de scripts/portao.cjs pergunta ao git o que mudou na árvore e exige um dono declarado para cada arquivo. Duas peças escrevendo o mesmo arquivo na mesma árvore se sobrescrevem SEM ERRO; este manifesto é o que torna isso visível.",
+  "_quem_mantem": "O ORQUESTRADOR do run, antes de disparar os builders. O portão não adivinha a partição: ele cobra que ela exista e bate a lista contra a realidade. Arquivo mudado sem dono sai vermelho com nome e endereço.",
+  "_rodada": "17/09/2026 — luz, token com foto, pincel/balde/caminhos, sala livre, pinos. Cada peça constrói em `git worktree` PRÓPRIO (modo_portao worktree): arquivo de origem compartilhado (types/map.ts, PixiCanvas.tsx, PlayerView.tsx, fogFilter.ts, protocol.ts) não pode ser particionado entre as peças e é o ORQUESTRADOR quem funde os diffs no fim. Por isso este manifesto declara só o que é exclusivo de cada peça — a jornada dela — mais os arquivos do portão; o passo `particao` fica FORA do gate_cmds desta rodada, porque na árvore isolada ele mediria o que o isolamento já garante.",
+  "pecas": {
+    "portao": [
+      "client/porta.cjs",
+      "client/porta.d.cts",
+      "client/playwright.config.ts",
+      "client/vite.config.ts",
+      "scripts/portao.cjs",
+      "scripts/portao-particao.json",
+      "scripts/portao-selo.json"
+    ],
+    "luz": [
+      "client/e2e/task-jornada-luz-que-para-na-parede.spec.ts"
+    ],
+    "token-com-foto": [
+      "client/e2e/task-jornada-token-com-foto.spec.ts"
+    ],
+    "pincel-balde-caminhos": [
+      "client/e2e/task-jornada-pincel-balde-caminhos.spec.ts"
+    ],
+    "sala-livre": [
+      "client/e2e/task-jornada-sala-livre.spec.ts"
+    ],
+    "pinos": [
+      "client/e2e/task-jornada-pinos-ponto-de-interesse.spec.ts"
+    ]
+  },
+  "livres": [
+    "PEDIDOS.md",
+    "HANDOFF.md",
+    ".claude-trail.md",
+    ".gitignore"
+  ]
+}

@@ -2,8 +2,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 // Porta por árvore de trabalho: 1420 na principal, própria em cada worktree.
-// Sem isso, dois portões em paralelo testam o mesmo servidor (client/porta.cjs).
-import { portaDoProjeto } from './porta.cjs'
+// Sem isso, dois portões em paralelo testam o mesmo servidor (client/porta.js).
+import { portaDoProjeto } from './porta.js'
 
 const host = process.env.TAURI_DEV_HOST
 const porta = portaDoProjeto()

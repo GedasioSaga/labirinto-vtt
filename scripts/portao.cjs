@@ -74,6 +74,7 @@ const os = require('os')
 const http = require('http')
 const crypto = require('crypto')
 const { spawnSync } = require('child_process')
+const { pathToFileURL } = require('url')
 
 const RAIZ = path.resolve(__dirname, '..')
 const CLIENTE = path.join(RAIZ, 'client')
@@ -116,13 +117,25 @@ const URL_JOGADOR = process.env.PORTAO_URL_JOGADOR || 'http://192.168.0.6:7777/p
 const TIMEOUT_JOGADOR_MS = 8000
 /**
  * Editor do mestre no servidor de desenvolvimento — o mesmo baseURL do
- * playwright.config.ts, derivado da árvore de trabalho (client/porta.cjs):
+ * playwright.config.ts, derivado da árvore de trabalho (client/porta.js):
  * 1420 na principal, porta própria em cada worktree, para que dois portões em
  * paralelo não testem o mesmo servidor.
+ *
+ * `client/porta.js` é ESM (o vite empacota o config e um require de builtin em
+ * CJS quebra o bundle), e este arquivo é CommonJS — então a porta vem de um
+ * node curto, uma vez só, em vez de duas cópias da regra que divergem.
  */
-const URL_EDITOR =
-  process.env.PORTAO_URL_EDITOR ||
-  'http://localhost:' + require(path.join(RAIZ, 'client', 'porta.cjs')).portaDoProjeto() + '/'
+function portaDaArvore() {
+  const alvo = pathToFileURL(path.join(RAIZ, 'client', 'porta.js')).href
+  const r = spawnSync(
+    process.execPath,
+    ['--input-type=module', '-e', 'import(' + JSON.stringify(alvo) + ').then((m) => process.stdout.write(String(m.portaDoProjeto())))'],
+    { encoding: 'utf8', timeout: 15000, windowsHide: true },
+  )
+  const n = Number(String(r.stdout || '').trim())
+  return Number.isFinite(n) && n > 0 ? n : 1420
+}
+const URL_EDITOR = process.env.PORTAO_URL_EDITOR || 'http://localhost:' + portaDaArvore() + '/'
 /** Os módulos que os specs importam dentro de `page.evaluate` — os que podem virar instância dupla. */
 const MODULOS_DE_SPEC = ['/src/stores/mapStore.ts', '/src/lib/mapFactory.ts']
 
@@ -131,10 +144,12 @@ const MODULOS_DE_SPEC = ['/src/stores/mapStore.ts', '/src/lib/mapFactory.ts']
  * vezes (`--repeat-each=3`), que é o que a interface da peça pede.
  */
 const JORNADAS_E2E = [
+  'e2e/task-jornada-parede-grossa.spec.ts',
+  'e2e/task-jornada-selecao-arrasto.spec.ts',
+  'e2e/task-jornada-escada-legivel.spec.ts',
   'e2e/task-jornada-entrada-jogador.spec.ts',
   'e2e/task-jornada-nao-perder-trabalho.spec.ts',
   'e2e/task-jornada-gestos-centrais.spec.ts',
-  'e2e/task-jornada-ferramentas-mudas.spec.ts',
   'e2e/task-jornada-porta-sem-buraco.spec.ts',
 ]
 /**
@@ -163,9 +178,12 @@ const JORNADA_VISTA_MOVEL = 'e2e/task-jornada-portao-vista-movel.spec.ts'
  * o passo `jornadas-intactas` confere isso por hash.
  */
 const JORNADAS_DA_BAR = [
-  'e2e/task-jornada-parede-grossa.spec.ts',
-  'e2e/task-jornada-selecao-arrasto.spec.ts',
-  'e2e/task-jornada-escada-legivel.spec.ts',
+  'e2e/task-jornada-ferramentas-mudas.spec.ts',
+  'e2e/task-jornada-luz-que-para-na-parede.spec.ts',
+  'e2e/task-jornada-token-com-foto.spec.ts',
+  'e2e/task-jornada-pincel-balde-caminhos.spec.ts',
+  'e2e/task-jornada-sala-livre.spec.ts',
+  'e2e/task-jornada-pinos-ponto-de-interesse.spec.ts',
 ]
 /** Tudo que a FASE 0 audita arquivo a arquivo — a de fluidez inclusive. */
 const TODAS_JORNADAS_E2E = JORNADAS_E2E.concat([JORNADA_FLUIDEZ, JORNADA_ESTILO, JORNADA_VISTA_MOVEL], JORNADAS_DA_BAR)
@@ -569,7 +587,7 @@ const PLANO = [
   jornada('estilo-minimapa', 'Invariante 1 medida em pixel (chão chapado, parede clara e fina, sem grade)', [JORNADA_ESTILO]),
   jornada('jornada-vista-movel', 'Invariante 4: a vista continua móvel por botão do meio e por Espaço+arrastar', [JORNADA_VISTA_MOVEL]),
   jornada('jornadas-e2e', 'jornadas já entregues, com ponteiro real', JORNADAS_E2E),
-  jornada('jornadas-da-bar', 'os três gestos que a bar deste run pede (parede grossa, seleção por arrasto, escada legível)', JORNADAS_DA_BAR),
+  jornada('jornadas-da-bar', 'os gestos que a bar deste run pede (luz, token com foto, pincel e balde, sala livre, pinos)', JORNADAS_DA_BAR),
   jornada('jornada-fluidez', 'Invariante 6 medida com a máquina só para ela (workers=1)', [JORNADA_FLUIDEZ], ['--workers=1']),
 ]
 

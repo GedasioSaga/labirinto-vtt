@@ -1,8 +1,8 @@
 import { defineConfig } from '@playwright/test'
-// Mesma porta que o vite desta árvore (client/porta.cjs): 1420 na principal,
+// Mesma porta que o vite desta árvore (client/porta.js): 1420 na principal,
 // própria em cada worktree. Dois portões em paralelo na 1420 testavam o app da
 // outra árvore com `reuseExistingServer`.
-import { portaDoProjeto } from './porta.cjs'
+import { portaDoProjeto } from './porta.js'
 const PORTA = portaDoProjeto()
 const URL_BASE = `http://localhost:${PORTA}`
 
