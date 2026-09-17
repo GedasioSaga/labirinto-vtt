@@ -102,8 +102,16 @@ const REPETICOES = String(Number(process.env.PORTAO_REPETICOES || '1') || 1)
  *  33,9 GB de 511 em 17/09/2026 — premissa velha, então o portão MEDE em vez de citar. */
 const PISO_DE_DISCO_GB = 3
 
+/**
+ * Hash do CONTEÚDO, não do fim de linha. `core.autocrlf` é true nesta máquina:
+ * a árvore principal fica com LF e todo `git worktree` novo nasce com CRLF, de
+ * modo que o selo tirado aqui reprovava toda peça lá — vermelho por quebra de
+ * linha, sem ninguém ter tocado na jornada. Normalizar CRLF para LF mede o que
+ * a Invariante 6 quer medir: se o texto da jornada mudou.
+ */
 function sha256(texto) {
-  return crypto.createHash('sha256').update(texto, 'utf8').digest('hex')
+  const normalizado = String(texto).replace(/\r\n/g, '\n')
+  return crypto.createHash('sha256').update(normalizado, 'utf8').digest('hex')
 }
 
 /** Roda git e devolve stdout, ou null quando o comando falha (arquivo novo, repo sem HEAD…). */
