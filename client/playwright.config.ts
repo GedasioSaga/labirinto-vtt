@@ -42,9 +42,17 @@ export default defineConfig({
     // `task-room-tool.spec.ts:85` lia `regions: []` — vermelho falso. No
     // sentido oposto, um spec que escreve E lê pela store do evaluate não toca
     // o app nenhuma vez: verde falso. `node scripts/portao.cjs --so=servidor-limpo`
-    // detecta, e reiniciar o `npm run dev` resolve. Para o portão pegar um
-    // servidor recém-nascido, rode com PORTAO_SERVIDOR_LIMPO=1 (exige a 1420 livre).
-    reuseExistingServer: process.env.PORTAO_SERVIDOR_LIMPO !== '1',
+    // detecta, e reiniciar o `npm run dev` resolve.
+    //
+    // 17/09/2026: o padrão virou servidor NOVO a cada invocação. Reaproveitar
+    // custou duas vezes no mesmo dia — um vite órfão de antes de um commit
+    // servindo código velho (as jornadas passavam sobre o app errado) e outro
+    // órfão preso só em `::1`, que fazia o Playwright abortar com "Port 1420 is
+    // already in use" e ZERO teste rodado. Subir o servidor custa poucos
+    // segundos; testar o app errado custa uma rodada inteira de gauntlet.
+    // `LAB_REUSA_SERVIDOR=1` volta ao reaproveitamento, quando alguém quiser a
+    // suíte mais rápida sabendo do risco.
+    reuseExistingServer: process.env.LAB_REUSA_SERVIDOR === '1',
     timeout: 30_000,
   },
 })

@@ -583,6 +583,11 @@ const PLANO = [
     sonda: sondarParticao,
   },
   {
+    id: 'rust-intocado',
+    titulo: 'Invariante 9 sozinha: nenhuma peça tocou o lado Rust',
+    sonda: sondarRustIntocado,
+  },
+  {
     id: 'jornadas-intactas',
     titulo: 'Invariante 6: as jornadas da bar continuam com o hash do selo',
     sonda: sondarJornadasIntactas,
@@ -643,6 +648,38 @@ function sondarJogador() {
  * lista contra a realidade. Arquivo mudado sem dono é vermelho com nome e
  * endereço — é a pergunta "quem escreveu isto?" virando comando.
  */
+/**
+ * Invariante 9 sozinha — o lado Rust não é tocado por nenhuma peça.
+ *
+ * O passo `particao` já media isso, mas junto com a Invariante 5 (quem escreve
+ * onde), que só faz sentido quando as peças dividem a MESMA árvore. Com cada
+ * peça no próprio `git worktree`, a partição é garantida pelo isolamento e o
+ * manifesto não tem como declarar arquivo compartilhado sem acusar disputa —
+ * então a Invariante 9 ficava sem comando nenhum. Aqui ela tem o dela, e roda
+ * em qualquer modo.
+ */
+function sondarRustIntocado() {
+  return Promise.resolve().then(() => {
+    const mudados = git(['status', '--porcelain'])
+    if (mudados === null) return { codigo: 1, saida: 'git status falhou: sem repositório?' }
+    const arquivos = mudados
+      .split('\n')
+      .map((l) => l.slice(3).trim().replace(/^"|"$/g, ''))
+      .filter((l) => l.length > 0)
+      .map((l) => l.replace(/\\/g, '/'))
+    const rust = arquivos.filter(
+      (a) => a.startsWith('desktop/') || a.endsWith('.rs') || a.endsWith('Cargo.toml') || a.endsWith('Cargo.lock'),
+    )
+    return {
+      codigo: rust.length === 0 ? 0 : 1,
+      saida:
+        rust.length === 0
+          ? arquivos.length + ' arquivo(s) mudado(s), nenhum do lado Rust'
+          : 'Invariante 9 violada — lado Rust tocado: ' + rust.join(', '),
+    }
+  })
+}
+
 function sondarParticao() {
   return Promise.resolve().then(() => {
     const mudados = git(['status', '--porcelain'])
@@ -802,7 +839,20 @@ function sondarServidorLimpo() {
       } finally {
         await navegador.close()
       }
-    })().catch((e) => resolve({ codigo: 1, saida: 'sonda do servidor falhou: ' + String((e && e.message) || e) }))
+    })().catch((e) => {
+      const msg = String((e && e.message) || e)
+      // Servidor NO AR com módulo duplicado é o defeito que esta sonda existe
+      // para pegar. Servidor ausente não é defeito nenhum desde 17/09/2026: o
+      // `playwright.config.ts` passou a subir um servidor novo por invocação
+      // (`reuseExistingServer` desligado), então não há histórico de HMR para
+      // contaminar spec. Reprovar por ausência transformava este passo em
+      // vermelho permanente fora de uma sessão de `npm run dev` aberta.
+      if (/ERR_CONNECTION_REFUSED|ECONNREFUSED|net::ERR_CONNECTION_RESET/.test(msg)) {
+        resolve({ codigo: 0, saida: 'nenhum servidor no ar em ' + URL_EDITOR + ': nada para duplicar; as jornadas sobem servidor novo' })
+        return
+      }
+      resolve({ codigo: 1, saida: 'sonda do servidor falhou: ' + msg })
+    })
   })
 }
 
