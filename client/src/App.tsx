@@ -24,7 +24,7 @@ import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { useMapStore } from './stores/mapStore'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, loadMapFromDisk, mapDirFor, defaultMapsDir } from './lib/mapFileIO'
-import { pickBackgroundImage, importBackgroundImage, pickImageFile, importTokenImage } from './lib/imageImport'
+import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage } from './lib/imageImport'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
@@ -601,14 +601,22 @@ function App() {
   // A5 — zona aberta no painel. Some sozinha se o Ctrl+Z tirar a zona do mapa.
   const selectedConcealZoneId = useMapStore((state) => state.selectedConcealZoneId)
   const selectedConcealZone = map.concealZones.find((z) => z.id === selectedConcealZoneId) ?? null
+  // Pino aberto no painel. Some sozinho se o Ctrl+Z tirar o pino do mapa.
+  const selectedPinId = useMapStore((state) => state.selectedPinId)
+  const selectedPin = map.pins.find((p) => p.id === selectedPinId) ?? null
+  const pinKind = useMapStore((state) => state.pinKind)
   // A5 — "Oculto para jogadores" do item selecionado que não é Token/Objeto.
-  const secretTarget: { kind: 'region' | 'stair' | 'drawing'; id: string; secret: boolean } | null = selectedRegion
+  const secretTarget: { kind: 'region' | 'stair' | 'drawing' | 'pin'; id: string; secret: boolean } | null = selectedRegion
     ? { kind: 'region', id: selectedRegion.id, secret: !!selectedRegion.secret }
     : selectedStair
       ? { kind: 'stair', id: selectedStair.id, secret: !!selectedStair.secret }
       : selectedDrawing
         ? { kind: 'drawing', id: selectedDrawing.id, secret: !!selectedDrawing.secret }
-        : null
+        // Pino também precisa do toggle: sem ele, "esconder este ponto do
+        // jogador" existiria no recorte (lib/fogFilter.ts) e não teria botão.
+        : selectedPin
+          ? { kind: 'pin', id: selectedPin.id, secret: !!selectedPin.secret }
+          : null
 
   // Fase 4 (integrador I8) — N2 "painel contextual": quais seções do painel
   // esquerdo são relevantes agora, dado a ferramenta ativa e o que está
@@ -628,6 +636,7 @@ function App() {
     drawingKind: selectedDrawing && selectedDrawing.kind !== 'text' ? selectedDrawing.kind : null,
     floorPiece: selectedFloorPiece !== null,
     concealZone: selectedConcealZone !== null,
+    pin: selectedPin !== null,
   })
 
   /**
@@ -832,6 +841,23 @@ function App() {
       setTokenImage(tokenId, imported.destPath)
     } catch (err) {
       reportFileError('trocar a imagem do token', err)
+    }
+  }
+
+  /**
+   * Imagem do cartão do ponto de interesse. Diferente do token e da Peça, o
+   * que entra no mapa é a imagem EMBUTIDA (data URL) e não o caminho do
+   * arquivo: é a única forma de ela chegar à tela do jogador sem abrir o disco
+   * do mestre (ver `importPinImage` e `lib/fogFilter.ts`).
+   */
+  const handleChoosePinImage = async (pinId: string) => {
+    try {
+      const sourcePath = await pickImageFile()
+      // `null` é cancelamento: a pessoa fechou o diálogo de propósito.
+      if (!sourcePath) return
+      useMapStore.getState().updatePin(pinId, { image: await importPinImage(sourcePath) })
+    } catch (err) {
+      reportFileError('escolher a imagem do ponto de interesse', err)
     }
   }
 
@@ -1491,6 +1517,20 @@ function App() {
                 onDelete: () => useMapStore.getState().removeConcealZone(selectedConcealZone.id),
               }
             }
+            pin={{
+              kind: selectedPin?.kind ?? pinKind,
+              // Com um pino aberto, o controle edita ESSE pino; sem nenhum, ele
+              // guarda a preferência do próximo — mesmo padrão de DoorKindControls.
+              onKindChange: (kind) =>
+                selectedPin ? useMapStore.getState().updatePin(selectedPin.id, { kind }) : useMapStore.getState().setPinKind(kind),
+              description: selectedPin?.description ?? null,
+              onDescriptionChange: (description) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { description }),
+              image: selectedPin?.image ?? null,
+              onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
+              onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),
+              onDelete: () => selectedPin && useMapStore.getState().removePin(selectedPin.id),
+            }}
+            pinSelected={selectedPin !== null}
             selectedLight={selectedLight}
             lightControls={{
               onColorChange: (color) => selectedLight && updateLight(selectedLight.id, { color }),

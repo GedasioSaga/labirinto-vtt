@@ -189,6 +189,33 @@ export interface PlayerSecret {
   secret?: boolean
 }
 
+/** Os dois pinos que o usuário pediu: "!" (aqui tem algo) e "?" (investigue aqui). */
+export type PinKind = 'exclamacao' | 'interrogacao'
+
+/**
+ * Ponto de interesse cravado pelo mestre. O jogador toca o pino no mapa e lê o
+ * cartão: imagem em cima, descrição embaixo.
+ *
+ * `image` guarda a imagem EM DATA URL (`data:image/...;base64,...`), nunca um
+ * caminho do disco — é a única forma de o cartão chegar ao jogador sem abrir o
+ * computador do mestre (o recorte de `lib/fogFilter.ts` recusa qualquer valor
+ * que não comece em `data:image/`). `null` = cartão sem foto, que o jogador vê
+ * como área vazia rotulada.
+ */
+export interface Pin extends PlayerSecret {
+  id: string
+  x: number
+  y: number
+  kind: PinKind
+  /** O que o jogador lê no cartão. Vazio = o mestre ainda não escreveu nada. */
+  description: string
+  image: string | null
+  /** Pino não pode ser movido/editado. `undefined` === false — sem migração. */
+  locked?: boolean
+  /** Não renderiza NO EDITOR (organização de cena do mestre). `undefined` === false. */
+  hidden?: boolean
+}
+
 /**
  * A5 — área desenhada pelo mestre que o jogador não vê: tudo que tem ponto
  * amostrado dentro dela fica fora do recorte e o jogador pinta preto por cima.
@@ -566,6 +593,8 @@ export interface MapData {
   markers: MapMarker[]
   /** A5 — zonas ocultas do mestre. Vazio em mapa antigo — migração em `lib/mapFile.ts`. */
   concealZones: ConcealZone[]
+  /** Pontos de interesse ("!" e "?"). Vazio em mapa antigo — migração em `lib/mapFile.ts`. */
+  pins: Pin[]
   frame: MapFrame | null
   fog: FogState
   hiddenLayers: LayerId[] // vazio = tudo visível

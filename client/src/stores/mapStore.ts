@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinKind,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import type { DrawingTool, Selection } from '../types/tools'
@@ -249,6 +249,11 @@ interface MapStoreState {
   /** A5 — zona oculta aberta no painel. Fora de `selection` de propósito: a
    *  zona não participa de mover/duplicar/apagar em grupo. `null` = nenhuma. */
   selectedConcealZoneId: string | null
+  /** Pino aberto no painel. Fora de `selection` pelo mesmo motivo da zona
+   *  oculta: o pino não participa de mover/duplicar/apagar em grupo. */
+  selectedPinId: string | null
+  /** Tipo do PRÓXIMO pino a cravar (preferência de sessão, sem histórico). */
+  pinKind: PinKind
   activeTool: DrawingTool
   /**
    * Substituído por `snapTargets` (Fase 1) — 3 toggles independentes por
@@ -556,6 +561,12 @@ interface MapStoreState {
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
+  /** Abre o pino no painel e limpa a seleção comum (`null` fecha). */
+  setSelectedPin: (id: string | null) => void
+  setPinKind: (kind: PinKind) => void
+  addPin: (pin: MapData['pins'][number]) => void
+  updatePin: (id: string, patch: Partial<Pick<MapData['pins'][number], 'kind' | 'description' | 'image'>>) => void
+  removePin: (id: string) => void
   setSelectedConcealZone: (id: string | null) => void
   addConcealZone: (zone: MapData['concealZones'][number]) => void
   updateConcealZone: (id: string, patch: Partial<Pick<MapData['concealZones'][number], 'name' | 'revealed'>>) => void
@@ -824,6 +835,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     camera: { x: 0, y: 0, scale: 1 },
     selection: EMPTY_SELECTION,
     selectedConcealZoneId: null,
+    selectedPinId: null,
+    pinKind: 'exclamacao',
     activeTool: 'select',
     snapTargets: { token: false, wall: false, prop: false },
     drawColor: '#ffffff',
@@ -856,7 +869,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     regionStrokeJoin: 'miter',
     setCamera: (camera) => set({ camera }),
     // Selecionar algo no mapa fecha a zona oculta do painel; limpar a seleção não.
-    setSelection: (selection) => set(isSelectionEmpty(selection) ? { selection } : { selection, selectedConcealZoneId: null }),
+    setSelection: (selection) =>
+      set(isSelectionEmpty(selection) ? { selection } : { selection, selectedConcealZoneId: null, selectedPinId: null }),
     removeSelected: () => {
       const { selection } = get()
       if (isSelectionEmpty(selection)) return
@@ -1187,8 +1201,21 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return
       withHistory((map) => mapFactory.setItemSecret(map, kind, id, secret))
     },
+    setSelectedPin: (id) =>
+      set(id === null ? { selectedPinId: null } : { selectedPinId: id, selection: EMPTY_SELECTION, selectedConcealZoneId: null }),
+    setPinKind: (kind) => set({ pinKind: kind }),
+    addPin: (pin) => withHistory((map) => mapFactory.addPin(map, pin)),
+    updatePin: (id, patch) => {
+      if (mapFactory.updatePin(get().map, id, patch) === get().map) return
+      withHistory((map) => mapFactory.updatePin(map, id, patch))
+    },
+    removePin: (id) => {
+      if (mapFactory.removePin(get().map, id) === get().map) return
+      withHistory((map) => mapFactory.removePin(map, id))
+      if (get().selectedPinId === id) set({ selectedPinId: null })
+    },
     setSelectedConcealZone: (id) =>
-      set(id === null ? { selectedConcealZoneId: null } : { selectedConcealZoneId: id, selection: EMPTY_SELECTION }),
+      set(id === null ? { selectedConcealZoneId: null } : { selectedConcealZoneId: id, selection: EMPTY_SELECTION, selectedPinId: null }),
     addConcealZone: (zone) => withHistory((map) => mapFactory.addConcealZone(map, zone)),
     updateConcealZone: (id, patch) => {
       if (mapFactory.updateConcealZone(get().map, id, patch) === get().map) return
@@ -1345,7 +1372,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       ...map,
       drawings: map.drawings.map((d) => (d.id === id ? convertCurveToLine(d) : d)),
     })),
-    loadMap: (map) => set({ map, selection: EMPTY_SELECTION, selectedConcealZoneId: null, past: [], future: [] }),
+    loadMap: (map) => set({ map, selection: EMPTY_SELECTION, selectedConcealZoneId: null, selectedPinId: null, past: [], future: [] }),
     undo: () => {
       const { past, map } = get()
       if (past.length === 0) return

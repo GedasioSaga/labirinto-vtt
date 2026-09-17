@@ -53,6 +53,8 @@ export type PropertyGroupId =
   | 'playerVisibility'
   /** A5 — Nome, "Revelar para jogadores" e excluir da zona oculta aberta. */
   | 'concealZone'
+  /** Tipo (! / ?), descrição e imagem do ponto de interesse. */
+  | 'pin'
 
 /** Todos os IDs, na mesma ordem do type acima — usado pelo teste pra
  *  conferir exaustão sem precisar listar os valores de novo lá. */
@@ -61,7 +63,7 @@ export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'wallStyle', 'wallDoor', 'doorKind', 'portal', 'itemTransform', 'tokenImage',
   'lightControls', 'stairControls', 'stairSize', 'room',
   'layers', 'selection',
-  'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone',
+  'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone', 'pin',
 ]
 
 /**
@@ -102,6 +104,8 @@ export interface ToolPropertiesSelection {
   floorPiece?: boolean
   /** A5 — zona oculta aberta no painel (`selectedConcealZoneId` existente no mapa). */
   concealZone?: boolean
+  /** Ponto de interesse aberto no painel (`selectedPinId` existente no mapa). */
+  pin?: boolean
 }
 
 /**
@@ -203,6 +207,7 @@ export function relevantPropertyGroups(
     drawingKind = null,
     floorPiece = false,
     concealZone = false,
+    pin = false,
   } = selection
 
   const groups = new Set<PropertyGroupId>()
@@ -298,8 +303,13 @@ export function relevantPropertyGroups(
   if (floorPiece) groups.add('floorPiece')
 
   // A5 — texto conta como desenho: também pode ser "Oculto para jogadores".
-  if (region || stair || textLabel || drawingKind !== null) groups.add('playerVisibility')
+  // O pino entra pelo mesmo motivo: o recorte já sabe escondê-lo do jogador,
+  // e sem esta linha o toggle não teria onde aparecer.
+  if (region || stair || textLabel || drawingKind !== null || pin) groups.add('playerVisibility')
   if (concealZone) groups.add('concealZone')
+  // Pino: com a ferramenta na mão aparece só o tipo do PRÓXIMO pino; com um
+  // pino aberto no painel, o tipo dele mais descrição e imagem.
+  if (activeTool === 'pin' || pin) groups.add('pin')
 
   const hasAnySelection =
     wall || prop || token || textLabel || region || light || stair || drawingKind !== null || floorPiece

@@ -10,6 +10,9 @@ import type { Exploration } from '../lib/exploration'
 import { computeAlignedGridLines } from '../lib/gridAlign'
 import { visibleDrawings, visibleRegions, visibleStairs } from '../lib/layers'
 import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
+import { findPinAt } from '../lib/pins'
+import { visiblePins } from '../lib/layers'
+import { createPinsRenderer } from '../pixi/drawPins'
 import { fitCamera, panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
 import type { Camera } from '../pixi/world'
@@ -58,6 +61,8 @@ interface PlayerViewProps {
   onSignal?: (x: number, y: number) => void
   /** Toque curto numa porta: pede ao mestre para abrir/fechar (o mestre valida). */
   onDoorToggle?: (wallId: string) => void
+  /** Toque curto num pino: abre o cartão do ponto de interesse. */
+  onPinOpen?: (pinId: string) => void
   /** Rastro do laser do mestre; o ticker esmaece cada ponto pela idade. */
   laser?: LaserTrail
 }
@@ -247,6 +252,10 @@ interface Scene {
   lastExplored: Exploration | undefined
   lastVision: RegionPoint[][] | null
   exploredCells: number
+  /** Pinos de ponto de interesse, acima da névoa: o jogador toca para ler o cartão. */
+  pins: Container
+  pinsRenderer: ReturnType<typeof createPinsRenderer>
+  lastPinsKey: string | null
   /** Zonas ocultas: preto opaco acima da névoa e abaixo dos tokens. */
   concealed: Graphics
   lastConcealed: RegionPoint[][] | null
@@ -396,12 +405,13 @@ export function PlayerView({
   signalArmed = false,
   onSignal,
   onDoorToggle,
+  onPinOpen,
   laser,
 }: PlayerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
-  const latestRef = useRef({ map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, onDoorToggle, laser })
-  latestRef.current = { map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, onDoorToggle, laser }
+  const latestRef = useRef({ map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, onDoorToggle, onPinOpen, laser })
+  latestRef.current = { map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, onDoorToggle, onPinOpen, laser }
 
   function redrawGridLayer(scene: Scene): void {
     const { map: currentMap, settings: currentSettings } = latestRef.current
@@ -476,6 +486,14 @@ export function PlayerView({
     return findDoorAt(visibleWalls(latestRef.current.map), point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
   }
 
+  /** Pino sob o ponto da TELA, com a mesma folga de dedo da porta. */
+  function pinAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
+    const map = latestRef.current.map
+    const point = scene.world.toLocal({ x: screenX, y: screenY })
+    const pin = findPinAt(visiblePins(map.pins ?? [], map.hiddenLayers), point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
+    return pin === null ? null : pin.id
+  }
+
   /** Só o zoom (ou a resolução) mudou: nada de chão ou névoa. */
   function redrawZoomLayers(scene: Scene): void {
     redrawGridLayer(scene)
@@ -541,6 +559,15 @@ export function PlayerView({
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
     redrawConcealed(scene, currentConcealed)
 
+    // O recorte do mestre já tirou daqui todo pino que este jogador não pode
+    // ver (lib/fogFilter.ts): o que chegou é o que ele pode tocar.
+    const pins = visiblePins(currentMap.pins ?? [], hidden)
+    const pinsKey = JSON.stringify(pins)
+    if (pinsKey !== scene.lastPinsKey) {
+      scene.lastPinsKey = pinsKey
+      scene.pinsRenderer.draw(scene.pins, pins, null)
+    }
+
     // Reaproveita a view por id e NUNCA destrói `Text` durante a sessão: Text
     // destruído antes de ser renderizado (3 redraws por movimento: otimista,
     // accepted, snapshot; ou token saindo da visão) derruba o Pixi 8.20 em
@@ -583,6 +610,7 @@ export function PlayerView({
       el.dataset.labelsCount = String(drawings.filter((d) => d.kind === 'text').length)
       el.dataset.exploredCells = String(scene.exploredCells)
       el.dataset.concealedCount = String(scene.concealedCount)
+      el.dataset.pinsCount = String(pins.length)
       el.dataset.ownTokens = own.join(',')
     }
 
@@ -652,6 +680,7 @@ export function PlayerView({
       const fogDim = new Graphics()
       const visionMask = new Graphics()
       const concealed = new Graphics()
+      const pins = new Container()
       const tokens = new Container()
       // Mesma ordem do editor, de baixo para cima; tudo da planta fica sob a
       // névoa, e só os tokens (que já chegam filtrados pela visão) ficam acima.
@@ -676,6 +705,7 @@ export function PlayerView({
         fogDim,
         visionMask,
         concealed,
+        pins,
         tokens,
       )
       const signalsLayer = new Container()
@@ -724,6 +754,9 @@ export function PlayerView({
         lastExplored: undefined,
         lastVision: null,
         exploredCells: 0,
+        pins,
+        pinsRenderer: createPinsRenderer(),
+        lastPinsKey: null,
         concealed,
         lastConcealed: null,
         concealedCount: 0,
@@ -792,6 +825,11 @@ export function PlayerView({
         }
         scene.drag = { kind: 'pan', lastX: x, lastY: y, startX: x, startY: y }
         cancelLongPress()
+        // Dedo em cima de um PINO não arma o sinal. O pino é um controle: quem
+        // aperta ali quer ler o cartão, e demorar meio segundo para soltar não
+        // muda a intenção — sem esta guarda, a mesma pressão virava ping de
+        // mapa e o cartão nunca abria (medido no toque lento).
+        if (pinAtScreen(scene, x, y) !== null) return
         const timer = setTimeout(() => {
           longPress = null
           // Virou sinal: o gesto não continua como arrasto de câmera.
@@ -807,8 +845,10 @@ export function PlayerView({
         const drag = scene.drag
         if (!drag) {
           // Mouse parado sobre porta: cursor de mão (no celular não existe hover).
-          const overDoor = !latestRef.current.signalArmed && doorAtScreen(scene, event.global.x, event.global.y) !== null
-          app.stage.cursor = overDoor ? 'pointer' : 'default'
+          const overTappable =
+            !latestRef.current.signalArmed &&
+            (pinAtScreen(scene, event.global.x, event.global.y) !== null || doorAtScreen(scene, event.global.x, event.global.y) !== null)
+          app.stage.cursor = overTappable ? 'pointer' : 'default'
           return
         }
         if (drag.kind === 'pan') {
@@ -828,8 +868,16 @@ export function PlayerView({
         const drag = scene.drag
         scene.drag = null
         if (drag?.kind === 'pan') {
-          // Toque curto e parado em cima de uma porta: pede ao mestre para abrir/fechar.
+          // Toque curto e parado: primeiro o pino (desenhado por cima de tudo),
+          // depois a porta. Segurar mais que `SIGNAL_LONG_PRESS_MS` já virou
+          // sinal de mapa lá em cima e nem chega aqui — abrir o cartão é o
+          // toque RÁPIDO, não o demorado.
           if (Math.hypot(drag.lastX - drag.startX, drag.lastY - drag.startY) > SIGNAL_LONG_PRESS_TOLERANCE_PX) return
+          const pinId = pinAtScreen(scene, drag.startX, drag.startY)
+          if (pinId !== null) {
+            latestRef.current.onPinOpen?.(pinId)
+            return
+          }
           const door = doorAtScreen(scene, drag.startX, drag.startY)
           if (door !== null) latestRef.current.onDoorToggle?.(door.id)
           return
