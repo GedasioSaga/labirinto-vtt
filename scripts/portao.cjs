@@ -188,7 +188,7 @@ const JORNADA_VISTA_MOVEL = 'e2e/task-jornada-portao-vista-movel.spec.ts'
 const JORNADAS_DA_BAR = [
   'e2e/task-jornada-ferramentas-mudas.spec.ts',
   'e2e/task-jornada-luz-que-para-na-parede.spec.ts',
-  'e2e/task-jornada-token-com-foto.spec.ts',
+  // a jornada do token com foto entra aqui quando estiver escrita e commitada
   'e2e/task-jornada-pincel-balde-caminhos.spec.ts',
   'e2e/task-jornada-sala-livre.spec.ts',
   'e2e/task-jornada-pinos-ponto-de-interesse.spec.ts',
