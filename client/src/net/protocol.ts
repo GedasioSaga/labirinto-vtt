@@ -23,6 +23,11 @@ import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
  * aditivas pelo mesmo motivo: mestre antigo responde `error invalid_message`
  * (o jogador só não abre a porta) e jogador antigo ignora a recusa.
  *
+ * `welcome.name` é aditivo pelo mesmo critério: o host já renomeia nome
+ * repetido para "Ana (2)" (`uniqueName`) e sem este campo o jogador nunca
+ * descobre com que nome entrou. Cliente antigo ignora o campo; mestre antigo
+ * não o envia e o jogador cai no nome que digitou.
+ *
  * `room.closed` (mestre -> jogador) também é aditiva: o mestre avisa que
  * encerrou a sala antes de derrubar a conexão, e o jogador mostra "O mestre
  * encerrou a sala" em vez de "A conexão caiu". Cliente antigo cai no
@@ -88,7 +93,8 @@ export type LaserMessage = { type: 'laser'; points: RegionPoint[] } | { type: 'l
 export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
 export type HostMessage =
-  | { type: 'welcome'; playerId: string; resumeToken: string }
+  // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
+  | { type: 'welcome'; playerId: string; resumeToken: string; name: string }
   | { type: 'lobby.waiting' }
   | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
   | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }

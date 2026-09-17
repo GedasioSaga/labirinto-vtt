@@ -36,14 +36,26 @@ export function findWallAt(walls: Wall[], point: Point, tolerance = WALL_HIT_TOL
 
 const STAIR_HIT_TOLERANCE = 8 // mesma tolerância de WALL_HIT_TOLERANCE — lance tem espessura de interação equivalente à de uma parede
 
-/** Acerta se `point` está perto de QUALQUER segmento do lance (hoje só 1,
- *  shape 'straight' — 'l'/'double' terão mais de um segmento quando a
- *  ferramenta de criação deles existir, e este loop já cobre isso de graça). */
+/**
+ * Acerta se `point` está perto de QUALQUER segmento do lance (hoje só 1,
+ * shape 'straight' — 'l'/'double' terão mais de um segmento quando a
+ * ferramenta de criação deles existir, e este loop já cobre isso de graça).
+ *
+ * O alcance é o MAIOR entre `tolerance` e meia largura do degrau: o lance é
+ * desenhado como uma faixa de `stepWidth` de largura (`pixi/drawStairs.ts`),
+ * e clicar dentro do que está desenhado tem de selecionar. Com o alcance fixo
+ * de 8 px, uma escada de 64 px de largura só respondia numa tira central de
+ * 16 px — o passeio cego de 16/09/2026 mediu 0 de 4 tentativas de selecionar
+ * uma escada clicando em cima dela. A ordem de prioridade não muda: escada
+ * continua sendo testada DEPOIS de parede (não rouba clique de parede) e
+ * ANTES de região, em `findSelectableAt`.
+ */
 export function findStairAt(stairs: Stair[], point: Point, tolerance = STAIR_HIT_TOLERANCE): Stair | null {
   for (let i = stairs.length - 1; i >= 0; i -= 1) {
     const stair = stairs[i]
+    const reach = Math.max(tolerance, stair.stepWidth / 2)
     for (const segment of stair.segments) {
-      if (distanceToSegment(point, { x: segment.x1, y: segment.y1 }, { x: segment.x2, y: segment.y2 }) <= tolerance) {
+      if (distanceToSegment(point, { x: segment.x1, y: segment.y1 }, { x: segment.x2, y: segment.y2 }) <= reach) {
         return stair
       }
     }

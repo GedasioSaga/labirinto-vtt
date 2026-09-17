@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { ZoomHud } from './components/ZoomHud'
 import { Toast } from './components/Toast'
@@ -60,6 +61,114 @@ function reportFileError(action: string, err: unknown): void {
 
 /** Aviso de sucesso de Salvar (botão, Ctrl+S) e de sair por Início. */
 const MAP_SAVED_TEXT = 'Mapa salvo'
+
+/** Entrada do aviso de trabalho não salvo: ease-out curto, nunca de escala zero. */
+const UNSAVED_DIALOG_ENTER_MS = 160
+
+interface UnsavedChangesDialogProps {
+  onSaveAndContinue: () => void
+  onDiscardAndContinue: () => void
+  onCancel: () => void
+}
+
+/**
+ * Pergunta antes de jogar fora o que o mestre desenhou.
+ *
+ * É `alertdialog`, não `dialog`: a ação confirmada é destrutiva, então o foco
+ * entra no botão SEGURO ("Continuar editando"), o clique no fundo não fecha
+ * nada (só Esc ou o próprio botão) e o Tab circula dentro da caixa — mesma
+ * regra do Alert Dialog do Radix. Mora em `App.tsx` junto com quem decide
+ * QUANDO perguntar; o layout reusa as classes de `MapSettingsDialog`.
+ */
+function UnsavedChangesDialog({ onSaveAndContinue, onDiscardAndContinue, onCancel }: UnsavedChangesDialogProps) {
+  const titleId = useId()
+  const textId = useId()
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const keepEditingRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    keepEditingRef.current?.focus()
+    const box = dialogRef.current
+    // `animate` não existe em jsdom, e quem pediu menos movimento não recebe
+    // nenhum — a caixa já aparece no lugar certo sem a animação.
+    if (!box || typeof box.animate !== 'function') return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    box.animate([{ opacity: 0, transform: 'scale(0.95)' }, { opacity: 1, transform: 'scale(1)' }], {
+      duration: UNSAVED_DIALOG_ENTER_MS,
+      easing: 'ease-out',
+    })
+  }, [])
+
+  function onKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    // Caixa modal: nenhuma tecla daqui vale como atalho do editor — nem o
+    // próprio Ctrl+O que abriu a pergunta, nem Delete apagando a seleção.
+    event.stopPropagation()
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      onCancel()
+      return
+    }
+    if (event.key !== 'Tab') return
+    const items = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>('button:not([disabled])') ?? [])
+    if (items.length === 0) return
+    const first = items[0]
+    const last = items[items.length - 1]
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+
+  return createPortal(
+    <div className="lb-dialog-backdrop">
+      <div
+        ref={dialogRef}
+        className="lb-panel lb-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={textId}
+        onKeyDown={onKeyDown}
+      >
+        <header className="lb-dialog__head">
+          <h2 id={titleId} className="lb-dialog__title">
+            Alterações não salvas
+          </h2>
+        </header>
+        <div className="lb-dialog__body" style={{ padding: 'var(--lb-space-4)' }}>
+          <p id={textId} style={{ margin: 0, lineHeight: 'var(--lb-font-leading-normal)' }}>
+            Você tem alterações não salvas neste mapa. Abrir outro mapa agora joga fora o que você desenhou desde o
+            último Salvar.
+          </p>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 'var(--lb-space-2)',
+            justifyContent: 'flex-end',
+            padding: 'var(--lb-space-4)',
+            paddingTop: 0,
+          }}
+        >
+          <button ref={keepEditingRef} type="button" className="lb-btn lb-btn--ghost" onClick={onCancel}>
+            Continuar editando
+          </button>
+          <button type="button" className="lb-btn lb-btn--danger" onClick={onDiscardAndContinue}>
+            Descartar e abrir
+          </button>
+          <button type="button" className="lb-btn lb-btn--primary" onClick={onSaveAndContinue}>
+            Salvar e abrir
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
 
 /** Ferramentas que criam Sala (piso em `roomFillColor`); Região usa `regionFillColor`. */
 function isRoomTool(tool: string): boolean {
@@ -306,6 +415,17 @@ function App() {
    * para esse caminho, em vez de gerar cópia nova em `%APPDATA%`.
    */
   const [currentMapPath, setCurrentMapPath] = useState<string | null>(null)
+  /**
+   * Troca de mapa que está esperando o mestre responder sobre o trabalho não
+   * salvo. `run` é a abertura que já ia acontecer (seletor de arquivo ou
+   * caminho da lista) — guardada inteira para a resposta só decidir SE ela
+   * roda, sem repetir o fluxo em dois lugares. O aviso de trabalho não salvo
+   * só existia ao FECHAR a janela (`onCloseRequested`); quem abria outro mapa
+   * pela porta da frente perdia tudo calado.
+   */
+  const [pendingOpen, setPendingOpen] = useState<{ run: () => Promise<void> } | null>(null)
+  /** Quem abriu a pergunta, para devolver o foco ao cancelar (convenção de modal). */
+  const unsavedOpenerRef = useRef<HTMLElement | null>(null)
   /**
    * Prévia AO VIVO (ainda não aplicada) de "Alinhar grade à imagem" (F3,
    * agente C5) — repassada pra `<PixiCanvas>` desenhar o overlay ciano por
@@ -833,7 +953,8 @@ function App() {
     }
   }
 
-  const handleOpen = async () => {
+  /** Abre pelo seletor de arquivo. Não checa trabalho não salvo — quem checa é `askBeforeReplacingMap`. */
+  const openMapFromPicker = async () => {
     try {
       const path = await pickMapJsonToOpen()
       if (!path) return
@@ -846,7 +967,8 @@ function App() {
     }
   }
 
-  const handleOpenSavedPath = async (path: string) => {
+  /** Abre um caminho já escolhido (lista "Carregar Mapa"). Mesma regra de checagem acima. */
+  const openMapFromPath = async (path: string) => {
     try {
       loadMap(await loadMapFromDisk(path))
       setCurrentMapPath(path)
@@ -856,6 +978,62 @@ function App() {
       reportFileError('abrir o mapa', err)
     }
   }
+
+  /**
+   * Porta única de toda troca de mapa: com trabalho não salvo, PERGUNTA antes
+   * e o seletor de arquivo só abre depois da resposta; sem trabalho pendente,
+   * abre direto — abrir um mapa logo depois de salvar não pergunta nada.
+   */
+  const askBeforeReplacingMap = (run: () => Promise<void>): void => {
+    if (!useSessionStore.getState().isDirty) {
+      void run()
+      return
+    }
+    unsavedOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setPendingOpen({ run })
+  }
+
+  const handleOpen = () => askBeforeReplacingMap(openMapFromPicker)
+
+  const handleOpenSavedPath = (path: string) => askBeforeReplacingMap(() => openMapFromPath(path))
+
+  const closeUnsavedDialog = () => {
+    setPendingOpen(null)
+    unsavedOpenerRef.current?.focus()
+    unsavedOpenerRef.current = null
+  }
+
+  const discardAndOpen = () => {
+    const pending = pendingOpen
+    setPendingOpen(null)
+    unsavedOpenerRef.current = null
+    if (pending) void pending.run()
+  }
+
+  const saveAndOpen = async () => {
+    const pending = pendingOpen
+    try {
+      await persistMap()
+      useSessionStore.getState().markSaved()
+      useToastStore.getState().push('info', MAP_SAVED_TEXT)
+    } catch (err) {
+      // Falhou salvar: a pergunta CONTINUA aberta. Fechar aqui descartaria o
+      // desenho exatamente no caso em que ele não chegou ao disco.
+      reportFileError('salvar o mapa', err)
+      return
+    }
+    setPendingOpen(null)
+    unsavedOpenerRef.current = null
+    if (pending) void pending.run()
+  }
+
+  const unsavedDialog = pendingOpen ? (
+    <UnsavedChangesDialog
+      onSaveAndContinue={() => void saveAndOpen()}
+      onDiscardAndContinue={discardAndOpen}
+      onCancel={closeUnsavedDialog}
+    />
+  ) : null
 
   /**
    * Onda 2, item 11 (Frente D) — Ctrl+S salva sem diálogo, só no editor; Ctrl+O
@@ -936,8 +1114,15 @@ function App() {
   }
 
   // Avisos e erros valem em toda tela, não só no editor: "Mapa salvo" ao sair
-  // por Início e um erro ao abrir um mapa da lista aparecem no menu.
-  const toastStack = <Toast toasts={toasts} onDismiss={dismissToast} />
+  // por Início e um erro ao abrir um mapa da lista aparecem no menu. A
+  // pergunta de trabalho não salvo anda junto pelo mesmo motivo — ela também
+  // dispara da lista "Carregar Mapa", fora do editor.
+  const toastStack = (
+    <>
+      <Toast toasts={toasts} onDismiss={dismissToast} />
+      {unsavedDialog}
+    </>
+  )
 
   if (screen === 'menu') {
     return (
@@ -1340,7 +1525,7 @@ function App() {
       </div>
 
       <ZoomHud scale={cameraScale} onReset={() => setResetZoomRequest((n) => n + 1)} />
-      <Toast toasts={toasts} onDismiss={dismissToast} />
+      {toastStack}
     </div>
   )
 }

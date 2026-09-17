@@ -6,9 +6,12 @@ plano curto → portão (tsc, vitest, playwright) → exe → olhar de usuário 
 (bom/ruim/estranho) → commit.
 
 ## Em andamento
-- **Item 2a: portas** (iniciado 15/09/2026 ~19:55, 1 `operario` Opus): jogador abre porta
-  destrancada perto do token; trancada sempre bloqueia; "Virar porta" com tamanho padrão;
-  diagonal pela porta; dica da Sala. Prints em `scratchpad/portas/`.
+- Exe com as portas gerado (commit `d456fb9`, exe 15/09 20:51); conferindo no exe antes de entregar.
+  Depois começa o item 2b (memória do jogador: sala visitada fica lembrada inteira, com paredes,
+  sem escadinha).
+- Disco: apagados com autorização `~/.cache/puppeteer` e `~/.cache/codex-runtimes`; a pasta
+  temporária `scratchpad/target-f2` também foi apagada. Livre ~2,8 GB. `C:\dev\learno` (29,9 GB) e
+  `Projeto Genesis` (6,8 GB) são do usuário e não foram tocados.
 
 ## Fila nova (ordem aprovada em 15/09/2026, depois da lista de 11 itens) — VALE ESTA
 1. Defeitos já em conserto: Ctrl+Z no rascunho de Área apaga Sala; campo de nome engole arrasto.
@@ -142,3 +145,10 @@ plano curto → portão (tsc, vitest, playwright) → exe → olhar de usuário 
   - P11 "Quando eu conseguir entrar na casa como eu mudo o mapa para dentro da casa? e se só um
     token for para dentro da casa? como faz?" → mapas conectados (entrar num prédio abre o mapa de
     dentro), com tokens em mapas diferentes. Feature grande: desenhar antes.
+- 17/09/2026 — o usuário reenviou a MESMA lista de 11 itens (com os mesmos prints) depois de um
+  `/clear`, como pauta da sessão. Nenhum pedido novo: vale a "Fila nova" já aprovada acima.
+- 17/09/2026 — o usuário reenviou a lista de 11 itens e mandou rodar tudo em loop com paralelismo
+  máximo: "Use o gauntlet-loop, junto a 8 passeadores, junto ao maximo de paralelismo que conseguir
+  mas ultracode mais workflow, faça 5 agentes trabalhar em cada melhorias. Enquanto os 8 passeios
+  testam tudo e vão solicitando novas features que seriam interessantes." Sem pedido novo de
+  produto; é instrução de método (autonomia já registrada em memória, 16/09/2026).

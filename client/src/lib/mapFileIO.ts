@@ -1,9 +1,146 @@
-import { writeTextFile, mkdir, exists, readTextFile, readDir, stat, remove, copyFile } from '@tauri-apps/plugin-fs'
+import { writeTextFile, mkdir, exists, readTextFile, readDir, stat, remove, copyFile, rename } from '@tauri-apps/plugin-fs'
 import { save, open } from '@tauri-apps/plugin-dialog'
 import { appDataDir, join, dirname } from '@tauri-apps/api/path'
 import { invoke } from '@tauri-apps/api/core'
 import type { MapData } from '../types/map'
 import { serializeMap, deserializeMap } from './mapFile'
+
+/** Sufixo do arquivo de rascunho da gravação atômica (ver `writeTextFileSafely`). */
+const TEMP_WRITE_SUFFIX = '.tmp'
+
+/**
+ * `rename` está disponível? A resposta fica guardada pela sessão porque a
+ * própria PERGUNTA pode lançar: o binding vem de um módulo que nem sempre
+ * expõe o nome (build antiga do plugin, dublê de teste parcial), e nesse caso
+ * a leitura estoura em vez de devolver `undefined`. Sem o try/catch, a
+ * gravação "segura" morreria exatamente onde ela mais importa.
+ *
+ * `null` = ainda não perguntado; `false` também é gravado aqui quando o
+ * `rename` existe mas o runtime recusa (permissão `fs:allow-rename` ausente
+ * na capability do app) — daí em diante vale o plano B, em vez de deixar o
+ * usuário sem conseguir salvar.
+ */
+let renameUsable: boolean | null = null
+
+function canRename(): boolean {
+  if (renameUsable === null) {
+    try {
+      renameUsable = typeof rename === 'function'
+    } catch {
+      renameUsable = false
+    }
+  }
+  return renameUsable
+}
+
+/** Apagar sobra de `.tmp` é higiene, não requisito: falha aqui não interessa. */
+async function removeQuietly(path: string): Promise<void> {
+  try {
+    await remove(path)
+  } catch {
+    // A sobra some na próxima gravação bem-sucedida no mesmo caminho.
+  }
+}
+
+async function readIfExists(path: string): Promise<string | null> {
+  try {
+    if (!(await exists(path))) return null
+    const content = await readTextFile(path)
+    return content.length > 0 ? content : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Grava texto SEM destruir o que já estava no caminho.
+ *
+ * `writeTextFile` trunca o arquivo e só então escreve: falhar no meio (disco
+ * cheio, app morto, pendrive removido) deixava o `map.json` que estava salvo e
+ * válido como um pedaço de JSON — o mapa antigo morria junto com a tentativa
+ * de salvar o novo.
+ *
+ * Caminho principal: escreve num `.tmp` ao lado e renomeia por cima (o rename
+ * do SO troca o conteúdo de uma vez, ou não troca nada). Plano B, quando
+ * renomear não está disponível: guarda o conteúdo anterior em memória antes de
+ * escrever e o devolve se a escrita falhar — protege contra a escrita que
+ * falha, não contra o processo que morre no meio, mas é melhor que truncar.
+ */
+export async function writeTextFileSafely(path: string, data: string): Promise<void> {
+  if (canRename()) {
+    const tempPath = `${path}${TEMP_WRITE_SUFFIX}`
+    try {
+      await writeTextFile(tempPath, data)
+    } catch (error) {
+      await removeQuietly(tempPath)
+      throw error
+    }
+    try {
+      await rename(tempPath, path)
+      return
+    } catch {
+      renameUsable = false
+      await removeQuietly(tempPath)
+    }
+  }
+
+  const previous = await readIfExists(path)
+  try {
+    await writeTextFile(path, data)
+  } catch (error) {
+    if (previous !== null) {
+      // Devolver o conteúdo anterior é o que separa "não consegui salvar" de
+      // "perdi o mapa que já estava salvo". Se nem isso der, o erro original
+      // é o que interessa ao usuário — por isso o `catch` mudo só aqui.
+      await writeTextFile(path, previous).catch(() => undefined)
+    }
+    throw error
+  }
+}
+
+function toPosix(path: string): string {
+  return path.replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
+/**
+ * Reaponta um caminho de imagem que morava DENTRO de `sourceDir` para o mesmo
+ * nome dentro de `destDir`. Caminho de fora da pasta do mapa (imagem que o
+ * usuário deixou em `C:\imgs`) e caminho relativo ficam como estão — só o que
+ * a cópia levou junto é reapontado.
+ */
+function rebasePath(path: string, sourceDir: string, destDir: string): string {
+  if (path.length === 0) return path
+  const prefix = `${toPosix(sourceDir)}/`
+  const normalized = toPosix(path)
+  // Windows não distingue maiúscula de minúscula em caminho; a comparação
+  // exata deixaria "c:/users/..." escapar do reapontamento.
+  if (!normalized.toLowerCase().startsWith(prefix.toLowerCase())) return path
+  return `${toPosix(destDir)}/${normalized.slice(prefix.length)}`
+}
+
+/**
+ * Devolve o mapa com fundo, imagem de token e prop reapontados de `sourceDir`
+ * para `destDir` — ou o MESMO objeto, quando nada mudou.
+ *
+ * Copiar/exportar levava os arquivos de imagem mas mantinha no `map.json` o
+ * caminho absoluto da máquina de origem: na mesma máquina ninguém percebia, na
+ * outra o mapa compartilhado abria sem fundo e sem token.
+ */
+export function rebaseMapImagePaths(map: MapData, sourceDir: string, destDir: string): MapData {
+  if (toPosix(sourceDir) === toPosix(destDir)) return map
+  let changed = false
+  const rebase = (path: string): string => {
+    const next = rebasePath(path, sourceDir, destDir)
+    if (next !== path) changed = true
+    return next
+  }
+
+  const background = map.background.type === 'image' ? { ...map.background, src: rebase(map.background.src) } : map.background
+  const tokens = map.tokens.map((token) => (token.image ? { ...token, image: rebase(token.image) } : token))
+  const props = map.props.map((prop) => (prop.src ? { ...prop, src: rebase(prop.src) } : prop))
+
+  return changed ? { ...map, background, tokens, props } : map
+}
 
 export async function ensureDir(path: string): Promise<void> {
   if (!(await exists(path))) {
@@ -57,7 +194,7 @@ export async function saveMapToAppData(map: MapData): Promise<string> {
   const mapDir = await mapDirFor(map.id)
   await ensureDir(mapDir)
   const filePath = await join(mapDir, 'map.json')
-  await writeTextFile(filePath, serializeMap(map))
+  await writeTextFileSafely(filePath, serializeMap(map))
   return filePath
 }
 
@@ -92,6 +229,15 @@ export interface SavedMapEntry {
    *  `0` quando o SO não relata `mtime` (o campo é `Date | null` no plugin) —
    *  cai pro fim da lista ordenada por recência em vez de quebrar o sort. */
   mtimeMs: number
+  /**
+   * `true` quando o `map.json` daquela pasta não pôde ser lido (JSON
+   * truncado, sem `id`, ilegível). A entrada CONTINUA na lista, com o caminho,
+   * porque "meu map.json corrompeu" e "meu mapa foi apagado" eram a mesma tela
+   * para o usuário — e sem o caminho ele não tinha nem por onde tentar
+   * recuperar o arquivo. `id`/`name` caem no nome da pasta e as dimensões vão
+   * a `0`: não há mapa lido de onde tirá-las.
+   */
+  damaged?: boolean
 }
 
 /**
@@ -100,9 +246,21 @@ export interface SavedMapEntry {
  * PLANO-REFINAMENTO.md.
  *
  * Um `map.json` corrompido não pode derrubar a tela inteira — por isso cada
- * `deserializeMap` roda num `try/catch` individual, e a entrada ruim é só
- * omitida da lista, nunca propagada.
+ * `deserializeMap` roda num `try/catch` individual. A entrada ruim NÃO é
+ * omitida (era o que fazia o mapa danificado sumir da tela como se tivesse
+ * sido apagado): ela entra marcada com `damaged: true`, com o caminho, ao lado
+ * dos mapas bons.
  */
+/** `mtime` em ms, ou `0` quando o SO não relata (ou o `stat` falha). */
+async function mtimeMsOf(path: string): Promise<number> {
+  try {
+    const info = await stat(path)
+    return info.mtime ? info.mtime.getTime() : 0
+  } catch {
+    return 0
+  }
+}
+
 export async function listSavedMaps(): Promise<SavedMapEntry[]> {
   const mapsDir = await defaultMapsDir()
   if (!(await exists(mapsDir))) return []
@@ -117,15 +275,35 @@ export async function listSavedMaps(): Promise<SavedMapEntry[]> {
     assertPathWithinRoot(mapJsonPath, mapsDir)
     if (!(await exists(mapJsonPath))) continue
 
+    const mtimeMs = await mtimeMsOf(mapJsonPath)
     try {
       const content = await readTextFile(mapJsonPath)
       const map = deserializeMap(content)
-      const info = await stat(mapJsonPath)
-      const mtimeMs = info.mtime ? info.mtime.getTime() : 0
-      maps.push({ path: mapJsonPath, id: map.id, name: map.name, width: map.width, height: map.height, grid: map.grid, mtimeMs })
+      maps.push({
+        path: mapJsonPath,
+        id: map.id,
+        name: map.name,
+        width: map.width,
+        height: map.height,
+        grid: map.grid,
+        mtimeMs,
+      })
+      // `damaged` fica AUSENTE no mapa bom, não `false`: a marca é exceção, e
+      // quem lê a lista usa `entry.damaged ?? false`.
     } catch {
-      // map.json inválido (JSON malformado ou sem "id") — pula a entrada.
-      continue
+      // map.json inválido (JSON malformado ou sem "id"): entra marcado, com o
+      // nome da pasta, para o usuário achar o arquivo em vez de achar que o
+      // mapa foi apagado.
+      maps.push({
+        path: mapJsonPath,
+        id: entry.name,
+        name: `${entry.name} (arquivo danificado)`,
+        width: 0,
+        height: 0,
+        grid: 0,
+        mtimeMs,
+        damaged: true,
+      })
     }
   }
 
@@ -215,7 +393,7 @@ export async function renameMap(id: string, newName: string): Promise<string> {
   const otherNames = (await listSavedMaps()).filter((entry) => entry.id !== id).map((entry) => entry.name)
   const finalName = uniqueMapName(sanitizeMapName(newName), otherNames)
 
-  await writeTextFile(mapJsonPath, serializeMap({ ...map, name: finalName }))
+  await writeTextFileSafely(mapJsonPath, serializeMap({ ...map, name: finalName }))
   return finalName
 }
 
@@ -244,10 +422,11 @@ async function copyDirRecursive(srcDir: string, destDir: string): Promise<void> 
 /**
  * Duplica um mapa salvo: copia a pasta inteira para um novo `id` gerado
  * (`crypto.randomUUID()`, mesmo padrão de `App.tsx`), depois reescreve o
- * `map.json` da cópia com o `id` novo e um nome único ("<nome> (cópia)",
- * desambiguado por `uniqueMapName`). `Token.image`/`Prop.src`/background são
- * caminho absoluto fora da pasta do mapa (`types/map.ts:192`) — a cópia não
- * precisa tocar neles para as referências de imagem continuarem válidas.
+ * `map.json` da cópia com o `id` novo, um nome único ("<nome> (cópia)",
+ * desambiguado por `uniqueMapName`) e os caminhos de imagem reapontados para a
+ * pasta da cópia (`rebaseMapImagePaths`). Imagem que o usuário mantém FORA da
+ * pasta do mapa continua com o caminho absoluto dela — só o que a cópia levou
+ * junto é reapontado.
  */
 export async function duplicateMap(id: string): Promise<SavedMapEntry> {
   const sourceDir = await mapDirFor(id)
@@ -268,9 +447,12 @@ export async function duplicateMap(id: string): Promise<SavedMapEntry> {
   await copyDirRecursive(sourceDir, destDir)
 
   const finalName = uniqueMapName(sanitizeMapName(`${sourceMap.name} (cópia)`), existingNames)
-  const duplicated = { ...sourceMap, id: newId, name: finalName }
+  // `copyDirRecursive` já levou as imagens para a pasta nova; sem reapontar os
+  // caminhos, o `map.json` da cópia continuaria lendo os arquivos da pasta de
+  // ORIGEM — apagar o original deixaria a cópia sem fundo e sem token.
+  const duplicated = rebaseMapImagePaths({ ...sourceMap, id: newId, name: finalName }, sourceDir, destDir)
   const destMapJsonPath = await join(destDir, 'map.json')
-  await writeTextFile(destMapJsonPath, serializeMap(duplicated))
+  await writeTextFileSafely(destMapJsonPath, serializeMap(duplicated))
 
   const info = await stat(destMapJsonPath)
   return {
@@ -304,5 +486,5 @@ export async function deleteMap(id: string): Promise<void> {
  * `assertPathWithinRoot` não se aplica aqui.
  */
 export async function saveMapToPath(map: MapData, path: string): Promise<void> {
-  await writeTextFile(path, serializeMap(map))
+  await writeTextFileSafely(path, serializeMap(map))
 }

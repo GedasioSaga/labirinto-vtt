@@ -68,8 +68,46 @@ export function assignOptionLabel(token: RoomPanelToken): string {
   return `● ${token.name}`
 }
 
+/**
+ * Quantos tokens viram botão de um clique no card de quem está esperando. O
+ * resto continua na lista suspensa abaixo — com 20 tokens a fileira de botões
+ * viraria um paredão e o mestre leria mais devagar que no `<select>`.
+ */
+export const QUICK_ASSIGN_MAX = 6
+
+/** Nome acessível do botão de um clique; é por ele que o mestre e o teste acham o token. */
+export function quickAssignLabel(token: RoomPanelToken): string {
+  return `Atribuir ${token.name}`
+}
+
 function tokenName(tokens: RoomPanelToken[], tokenId: string): string {
   return tokens.find((token) => token.id === tokenId)?.name ?? tokenId
+}
+
+/**
+ * Quem está sem personagem AGORA, do outro lado, olhando uma tela parada: 0.
+ * O resto: 1. `sort` é estável (ES2019), então dentro de cada grupo a ordem de
+ * chegada da `listPlayers` fica de pé.
+ *
+ * Desconectado não sobe: ele não está esperando nada, fechou a aba. Subir o
+ * card dele empurraria para baixo justamente quem espera.
+ */
+function waitingRank(player: PlayerInfo): number {
+  return player.status === 'waiting' && player.connected ? 0 : 1
+}
+
+/** Cards ordenados por urgência. Não muta a lista que veio da ponte. */
+export function waitingFirst(players: PlayerInfo[]): PlayerInfo[] {
+  return [...players].sort((a, b) => waitingRank(a) - waitingRank(b))
+}
+
+/**
+ * O toast de "Ana entrou" dura 10 s e o mestre costuma estar desenhando. Esta
+ * linha é o que sobra depois dele: aberta a aba Jogo, diz de cara que alguém
+ * continua parado esperando, sem o mestre ter de ler card por card.
+ */
+export function waitingLabel(count: number): string {
+  return count === 1 ? '1 jogador esperando personagem' : `${count} jogadores esperando personagem`
 }
 
 function FirewallHint() {
@@ -144,6 +182,7 @@ export function RoomPanel({
   laserOn = false,
   onToggleLaser,
 }: RoomPanelProps) {
+  const waitingCount = players.filter((player) => player.status === 'waiting' && player.connected).length
   return (
     <section className="lb-panel lb-section lb-room lb-scroll">
       <h2 className="lb-eyebrow">Sala</h2>
@@ -190,10 +229,12 @@ export function RoomPanel({
 
           <h3 className="lb-eyebrow">Jogadores</h3>
           {players.length === 0 && <p className="lb-label">Nenhum jogador ainda.</p>}
-          {players.map((player) => {
+          {waitingCount > 0 && <p className="lb-label">{waitingLabel(waitingCount)}</p>}
+          {waitingFirst(players).map((player) => {
             const selectId = `lb-room-assign-${player.playerId}`
             const radiusId = `lb-room-vision-${player.playerId}`
             const clientId = player.clientId
+            const assignable = assignableTokens(tokens, player)
             return (
               <div key={player.playerId} className="lb-field">
                 <span className="lb-label">
@@ -204,6 +245,25 @@ export function RoomPanel({
                     Remover {tokenName(tokens, tokenId)}
                   </button>
                 ))}
+                {player.status === 'waiting' && assignable.length > 0 && (
+                  <>
+                    {/* Quem aguarda está numa tela parada: dar personagem é UM clique, sem abrir lista. */}
+                    <span className="lb-label">Sem personagem — atribua em um clique</span>
+                    {assignable.slice(0, QUICK_ASSIGN_MAX).map((token) => (
+                      <button
+                        key={token.id}
+                        type="button"
+                        className="lb-btn lb-btn--primary"
+                        onClick={() => onAssign(player.playerId, token.id)}
+                      >
+                        <span aria-hidden="true" style={{ color: tokenDotColor(token.id) }}>
+                          ●{' '}
+                        </span>
+                        {quickAssignLabel(token)}
+                      </button>
+                    ))}
+                  </>
+                )}
                 <label className="lb-label" htmlFor={selectId}>
                   Atribuir token
                 </label>
@@ -216,7 +276,7 @@ export function RoomPanel({
                   }}
                 >
                   <option value="">Escolher…</option>
-                  {assignableTokens(tokens, player).map((token) => (
+                  {assignable.map((token) => (
                     <option key={token.id} value={token.id} style={{ color: tokenDotColor(token.id) }}>
                       {assignOptionLabel(token)}
                     </option>

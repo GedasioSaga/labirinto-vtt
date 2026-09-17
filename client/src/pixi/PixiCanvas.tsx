@@ -10,7 +10,7 @@ import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
 import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
 import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, type Camera, type Point } from './world'
 import { resolveCursor, type HoverKind, type ResizeCorner } from './cursorPolicy'
-import { resolveWheel } from './wheelGesture'
+import { resolveMapWheel } from './wheelGesture'
 import { resolveShortcut } from '../lib/keymap'
 // Onda 2, item 15 (Frente B) — hit-test + desenho do anel de hover.
 import { resolveHoverHit, type HoverHit, type HoverTarget } from '../lib/hoverHitTest'
@@ -34,7 +34,7 @@ import { drawDoors } from './drawDoors'
 import { drawStairs } from './drawStairs'
 import { createLightsRenderer } from './drawLights'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
-import { createRoomNamesRenderer, findRoomLabelAt, roomLabelFontSize, roomLabelPosition } from './drawRoomNames'
+import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelFontSize, roomLabelPosition } from './drawRoomNames'
 import { createFloorRenderer, drawFloorDraft } from './drawFloor'
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
 import { drawMapFrame } from './drawMapFrame'
@@ -135,8 +135,12 @@ import {
   canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
 } from '../lib/layers'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
-import { eraseDecisionForWall, eraseDecisionForRegion, eraseDecisionForStair, eraseDecisionForToken, eraseDecisionForProp } from '../lib/eraseGeometry'
-import { findRoomCornerAt, type RoomCorner } from '../lib/roomOps'
+// `eraseDecisionForRegion` saiu da lista de propósito: a borracha "Só uma
+// parte" decide Região/Sala por `circleTouchesRegionOutline` (contorno, não
+// interior — ver a docstring de `eraseAt`). A função segue exportada e testada
+// em lib/eraseGeometry.ts para quem precise da leitura "contido conta".
+import { eraseDecisionForWall, eraseDecisionForStair, eraseDecisionForToken, eraseDecisionForProp } from '../lib/eraseGeometry'
+import { findRoomCornerAt, rectFromCorners, type RoomCorner } from '../lib/roomOps'
 import { measureDistance } from '../lib/measurement'
 // Integrador I8 (F4): B3 "mover e redimensionar" — geometria de bounding-box
 // pra resize por canto de Drawing rect/ellipse/polygon, Token e Prop.
@@ -177,6 +181,105 @@ const FLOOR_CORRIDOR_WIDTH_RATIO = 0.5
 // em vez do raio arrastado — evita que um micro-tremor do mouse vire luz
 // minuscula sem querer.
 const LIGHT_CLICK_THRESHOLD = 5
+
+// Ferramenta Região: abaixo disto (px de mundo, do ponto bruto do pointerdown
+// ao do pointerup) o gesto é um CLIQUE — mais um ponto do traçado ponto a
+// ponto. Acima, é um ARRASTO e vira um retângulo inteiro, como Sala e Chão.
+// Mesmo valor e mesma razão do LIGHT_CLICK_THRESHOLD acima: um micro-tremor
+// de mão não pode mudar o significado do gesto.
+const REGION_DRAG_THRESHOLD = 5
+
+// Folga (px de mundo) para pegar o token JÁ selecionado errando por pouco.
+// Passeio cego de 16/09/2026: pressionar poucos px fora do token virava
+// arrasto da VISTA e ainda limpava a seleção — o castigo por errar a mira era
+// perder de vista o que se estava fazendo. Dentro desta folga o gesto é o que
+// a pessoa quis: arrastar o token que está destacado na tela.
+const SELECTED_TOKEN_GRAB_SLOP = 8
+
+/**
+ * Nome em PT-BR de cada tipo de item, para o aviso de apagar dizer O QUE
+ * sumiu em vez de "1 item". Mesmos nomes que a pessoa já lê no painel
+ * ("Parede" em `WallStyleControls`, "Escada" em `StairControls`, "Região" em
+ * `RegionStyleControls`) e na lista de camadas (`LAYER_LABELS`, `lib/layers.ts`)
+ * — o aviso não pode inventar um vocabulário terceiro.
+ *
+ * `feminino` existe por causa da concordância: sem ele o aviso sairia "Parede
+ * apagado". `Record<SelectionKind, …>` é exaustivo por construção — tipo novo
+ * de seleção sem rótulo aqui não compila.
+ */
+const ENTITY_LABELS: Record<SelectionKind, EntityLabel> = {
+  wall: { um: 'parede', varios: 'paredes', feminino: true },
+  region: { um: 'região', varios: 'regiões', feminino: true },
+  stair: { um: 'escada', varios: 'escadas', feminino: true },
+  light: { um: 'luz', varios: 'luzes', feminino: true },
+  token: { um: 'token', varios: 'tokens', feminino: false },
+  prop: { um: 'objeto', varios: 'objetos', feminino: false },
+  drawing: { um: 'desenho', varios: 'desenhos', feminino: false },
+  floor: { um: 'pedaço de chão', varios: 'pedaços de chão', feminino: false },
+}
+
+interface EntityLabel {
+  um: string
+  varios: string
+  feminino: boolean
+}
+
+/** Sala é uma `Region` COM `room` (`types/map.ts`), e quem a apagou leu "Sala"
+ *  no painel, não "Região". A distinção só existe olhando o mapa, por isso
+ *  mora aqui e não na tabela acima, que é indexada só por `SelectionKind`. */
+const SALA_LABEL: EntityLabel = { um: 'sala', varios: 'salas', feminino: true }
+
+function entityLabel(map: MapData, item: { kind: SelectionKind; id: string }): EntityLabel {
+  if (item.kind === 'region' && map.regions.some((region) => region.id === item.id && region.room)) return SALA_LABEL
+  return ENTITY_LABELS[item.kind]
+}
+
+const capitalize = (texto: string): string => texto.charAt(0).toUpperCase() + texto.slice(1)
+
+/**
+ * Frase do aviso de apagar, NOMEANDO o que sumiu — "1 item apagado" não diz
+ * nada a quem acabou de varrer o mapa com Ctrl+A. Três casos, que são os que
+ * acontecem de verdade: um item ("Sala apagada"), N do mesmo tipo ("3 paredes
+ * apagadas") e mistura ("12 itens apagados: 5 paredes, 4 salas, 3 tokens").
+ *
+ * Recebe o mapa de ANTES da remoção — depois dela os ids já não existem e não
+ * há como saber se aquela região era uma Sala. Seleção vazia devolve `null`:
+ * não houve nada para apagar, e aviso nenhum deve aparecer.
+ */
+function describeDeletion(map: MapData, selection: readonly { kind: SelectionKind; id: string }[]): string | null {
+  if (selection.length === 0) return null
+
+  // Chave = o rótulo singular: é o que distingue Sala de Região, e duas
+  // entradas da tabela nunca compartilham singular.
+  const porRotulo = new Map<string, { label: EntityLabel; total: number }>()
+  for (const item of selection) {
+    const label = entityLabel(map, item)
+    const atual = porRotulo.get(label.um)
+    if (atual) atual.total += 1
+    else porRotulo.set(label.um, { label, total: 1 })
+  }
+
+  const grupos = [...porRotulo.values()]
+  const frase = ({ label, total }: { label: EntityLabel; total: number }) =>
+    total === 1 ? `1 ${label.um}` : `${total} ${label.varios}`
+  const apagado = (label: EntityLabel, total: number) => `apagad${label.feminino ? 'a' : 'o'}${total === 1 ? '' : 's'}`
+
+  if (grupos.length === 1) {
+    const grupo = grupos[0]
+    const alvo = grupo.total === 1 ? grupo.label.um : `${grupo.total} ${grupo.label.varios}`
+    return capitalize(`${alvo} ${apagado(grupo.label, grupo.total)}`)
+  }
+
+  // Mistura: o total vem primeiro (é a informação que assusta) e a quebra
+  // depois, do tipo mais numeroso para o menos — empate mantém a ordem em que
+  // o tipo apareceu na seleção, para a frase não dançar entre dois gestos iguais.
+  const detalhe = grupos
+    .slice()
+    .sort((a, b) => b.total - a.total)
+    .map(frase)
+    .join(', ')
+  return `${selection.length} itens apagados: ${detalhe}`
+}
 
 // Tolerância (em pixels de mundo) do "ímã" de vértice ao desenhar Parede ou
 // Linha: se o ponto inicial ou final do arrasto cai dentro deste raio de um
@@ -469,18 +572,60 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       }
       const textResolutionTask = createDebouncedTask(syncTextResolution)
 
+      /**
+       * Executa `tarefa` no máximo UMA vez por quadro, sempre com o estado
+       * mais recente (a chamada agendada roda depois das que ela engoliu, e a
+       * primeira chamada de um quadro novo agenda de novo — nenhuma última
+       * mudança fica sem desenhar).
+       *
+       * Só para trabalho DERIVADO da câmera: grade, moldura, contornos em px
+       * de tela e o ZoomHud do React. O pixel que a pessoa está olhando NÃO
+       * passa por aqui — `world.position`/`world.scale` continuam mudando
+       * dentro do próprio pointermove/wheel, então o mapa acompanha o
+       * ponteiro sem um quadro de atraso.
+       *
+       * Por que existe: o navegador entrega VÁRIOS pointermove e vários
+       * eventos de roda por quadro, e só o último de cada quadro chega à
+       * tela. Redesenhar em todos era trabalho jogado fora. Perfil de CPU do
+       * Chromium num gesto de roda (10 passos, editor com 6 salas, 17/09/2026):
+       * o topo do JS era `jsxDEV` repetido — a árvore inteira do React
+       * re-renderizando uma vez por evento de roda, puxada por
+       * `onCameraChange`, com frame_p95 de 50 ms no `ux-driver medir`.
+       */
+      const umaVezPorQuadro = (tarefa: () => void): (() => void) => {
+        let agendado = false
+        return () => {
+          if (agendado) return
+          agendado = true
+          requestAnimationFrame(() => {
+            agendado = false
+            // O componente pode ter desmontado entre o agendamento e o quadro.
+            if (destroyed) return
+            tarefa()
+          })
+        }
+      }
+
+      // `camera` é lida no quadro, não capturada no agendamento: o ZoomHud
+      // recebe o valor final do gesto, não o do primeiro evento dele.
+      const notifyCameraChange = umaVezPorQuadro(() => onCameraChange?.(camera))
+
       // Onda 1 — todo ponto do arquivo que muda `camera` passa por aqui (pan,
       // roda, atalho de enquadrar/resetar): aplica no Pixi, grava na store E
       // notifica App.tsx (ZoomHud). Antes desta fase cada call site repetia
       // as 3 linhas (`world.position.set` / `world.scale.set` /
       // `setCamera`) — reunidas aqui pra `onCameraChange` não ficar esquecido
       // em algum dos pontos novos.
+      //
+      // `setCamera` continua SÍNCRONO de propósito: é o que os gestos e os
+      // testes leem para converter mundo↔tela no evento seguinte. O que foi
+      // adiado para um por quadro é só o redesenho que a câmera dispara.
       const applyCamera = (next: Camera) => {
         camera = next
         positionWorld()
         world.scale.set(camera.scale)
         useMapStore.getState().setCamera(camera)
-        onCameraChange?.(camera)
+        notifyCameraChange()
         textResolutionTask.schedule()
       }
 
@@ -735,8 +880,22 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         drawStairs(secretStairsGraphics, stairs.filter((s) => s.secret), selectedStairId, camera.scale, res)
       }
 
-      const redrawShapes = () => {
+      /**
+       * Alças de edição (os quadradinhos amarelos) da seleção de UM item.
+       *
+       * Mora numa função própria porque as alças seguem TRÊS assinaturas
+       * diferentes da store — formas, tokens e props —, e antes só o redraw de
+       * formas as redesenhava. Resultado medido no passeio cego de 16/09/2026:
+       * depois de arrastar um token, as quatro alças continuavam desenhadas na
+       * posição ANTIGA (144 pixels amarelos fantasma) até a pessoa clicar fora.
+       */
+      const redrawEditHandles = () => {
         const { map, selection, activeTool } = useMapStore.getState()
+        drawEditHandles(handlesGraphics, map, selectionSingle(selection), activeTool)
+      }
+
+      const redrawShapes = () => {
+        const { map, selection } = useMapStore.getState()
         // Onda 4, item 24 — `selection` é um SelectionSet agora; o destaque
         // POR ENTIDADE (drawWalls/drawDoors/etc., 1 highlight cada) só faz
         // sentido pro caso de 1 item — `single` é essa borda. Grupo (2+
@@ -776,7 +935,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         redrawLights()
         concealZonesRenderer.draw(concealZonesContainer, map.concealZones, map.grid, useMapStore.getState().selectedConcealZoneId)
         textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
-        drawEditHandles(handlesGraphics, map, single, activeTool)
+        redrawEditHandles()
         // N3 (agora genérico, não só marquee): contorno do GRUPO — só com 2+
         // itens (1 item já tem o próprio destaque acima; 0 não desenha nada).
         drawAreaSelectionOutline(
@@ -791,6 +950,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         const { map, selection } = useMapStore.getState()
         const single = selectionSingle(selection)
         tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null, camera.scale)
+        // As alças do token acompanham o token: `moveTokenLive` (arrasto) e
+        // `moveSelectionBy` (setas) só acordam ESTE redraw, nunca o de formas.
+        redrawEditHandles()
         syncTextResolution()
       }
 
@@ -891,6 +1053,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         const { map, selection } = useMapStore.getState()
         const single = selectionSingle(selection)
         propsRenderer.draw(propsContainer, visibleProps(map.props, map.hiddenLayers), single?.kind === 'prop' ? single.id : null)
+        // Mesmo motivo do redraw de tokens: `movePropLive` não acorda o redraw
+        // de formas, e sem isto as alças ficam na posição de onde o prop saiu.
+        redrawEditHandles()
       }
 
       let backgroundLoadToken = 0
@@ -937,10 +1102,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // de `subscribeToGridRedraw` porque nenhuma UI desta fase edita as
       // dimensões do mapa depois de criado — se isso mudar, este é o ponto a
       // revisitar.
-      const unsubscribeGrid = subscribeToGridRedraw(() => {
-        redrawGrid()
-        redrawMapBounds()
-      })
+      // Um redesenho por quadro: durante um arrasto de vista a câmera muda
+      // várias vezes dentro do mesmo quadro, e a grade só precisa do último
+      // valor (ver `umaVezPorQuadro`).
+      const unsubscribeGrid = subscribeToGridRedraw(
+        umaVezPorQuadro(() => {
+          redrawGrid()
+          redrawMapBounds()
+        }),
+      )
       // Grade e sombra fora do mapa são recortadas ao viewport (app.screen):
       // quando o renderer muda de tamanho, redesenha as duas sem mexer na
       // câmera. Sem isso a área nova ao maximizar ficava sem grade/sombra.
@@ -990,9 +1160,14 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // Só a escala importa para o piso de 1 px das paredes e para o contorno
       // de seleção (px de tela) de regiões, desenhos e escadas: pan não muda a
       // largura na tela, então não redesenha a cada movimento de arrasto.
+      // Também um por quadro: é o bloco mais caro que a câmera dispara (4
+      // redraws de forma), e uma rolada de roda entrega vários eventos dentro
+      // do mesmo quadro. A escala vem da store na hora de desenhar, não do
+      // argumento do listener, pra valer sempre a última (ver `umaVezPorQuadro`).
       const unsubscribeCameraScaleForWalls = useMapStore.subscribe(
         (state) => state.camera.scale,
-        (scale) => {
+        umaVezPorQuadro(() => {
+          const { scale } = useMapStore.getState().camera
           // Nomes de sala/token: tamanho mínimo na tela e somem abaixo de 30% (screenLabel.ts).
           roomNamesRenderer.setCameraScale(scale)
           tokensRenderer.setCameraScale(scale)
@@ -1000,7 +1175,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           redrawRegionsAndDrawings()
           redrawStairs()
           redrawLights()
-        },
+        }),
       )
       // tokensSubscription.ts/propsSubscription.ts (fora do escopo deste
       // integrador) só assinam [map.tokens/map.props, selection] — nenhum dos
@@ -1066,6 +1241,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       let draggingPropId: string | null = null
       let wallDraftStart: Point | null = null
       let regionDraftPoints: Point[] = []
+      // Ferramenta Região: o pointerdown NÃO decide mais nada sozinho. Guarda
+      // o ponto (snapado, para virar vértice; e bruto, para medir o arrasto) e
+      // quem decide entre "um ponto do traçado" e "um retângulo inteiro" é o
+      // pointerup, pela distância percorrida — mesmo padrão de decisão tardia
+      // que a ferramenta Luz já usa (lightDraftRawStart/LIGHT_CLICK_THRESHOLD).
+      // Antes, arrastar com a Região só deixava um pontinho no início e nada
+      // ao soltar: 0 de 2 tentativas no passeio cego de 16/09/2026.
+      let regionDraftStart: Point | null = null
+      let regionDraftRawStart: Point | null = null
       let freehandDraftPoints: Point[] = []
       let lineDraftStart: Point | null = null
       let circleDraftCenter: Point | null = null
@@ -1178,6 +1362,41 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         roomLabelDragStartOffset = null
       }
 
+      /**
+       * O nome de um cômodo não sai do cômodo.
+       *
+       * Prende o CENTRO do rótulo à caixa do polígono da sala e devolve o
+       * offset (relativo à âncora, `roomLabelAnchor`) que corresponde a esse
+       * ponto preso. Antes disto o arrasto do nome era livre: no passeio de
+       * 17/09/2026 o rótulo de um quarto acabou desenhado por cima do quarto
+       * vizinho, e quem lia o mapa passava a ler o nome errado na sala errada.
+       *
+       * Prende o centro, não a caixa do texto: um nome comprido numa sala
+       * pequena não cabe inteiro de jeito nenhum, e encolher o alcance até a
+       * caixa caber tiraria do mestre posições legítimas perto da parede.
+       * Com o centro dentro da sala o nome sempre pertence visualmente a ela.
+       */
+      const clampRoomLabelOffset = (region: Region | undefined, offset: Point): Point => {
+        const arredondado = { x: Math.round(offset.x), y: Math.round(offset.y) }
+        if (!region || region.points.length === 0) return arredondado
+        let minX = Infinity
+        let minY = Infinity
+        let maxX = -Infinity
+        let maxY = -Infinity
+        for (const p of region.points) {
+          if (p.x < minX) minX = p.x
+          if (p.x > maxX) maxX = p.x
+          if (p.y < minY) minY = p.y
+          if (p.y > maxY) maxY = p.y
+        }
+        const anchor = roomLabelAnchor(region.points)
+        const preso = (valor: number, menor: number, maior: number) => Math.min(maior, Math.max(menor, valor))
+        return {
+          x: Math.round(preso(anchor.x + arredondado.x, minX, maxX) - anchor.x),
+          y: Math.round(preso(anchor.y + arredondado.y, minY, maxY) - anchor.y),
+        }
+      }
+
       // Onda 1, item 3 (Frente F, "rede de segurança do undo") — snapshot de
       // ANTES do gesto pra fechar mover-corpo de Token/Prop/Wall/Region/
       // Stair/Drawing num Ctrl+Z só, mesmo padrão de curveDragSnapshot/
@@ -1187,6 +1406,19 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       let tokenDragSnapshot: MapData | null = null
       let propDragSnapshot: MapData | null = null
       let bodyDragSnapshot: MapData | null = null
+
+      // Uma passada de borracha = UM Ctrl+Z. `eraseGestureSnapshot` é o `map`
+      // de ANTES do pointerdown; `eraseGesturePast`/`eraseGestureFuture` são
+      // as pilhas de histórico daquele instante, restauradas depois de CADA
+      // corte do arrasto (ver `eraseDuringGesture`) para que os N cortes
+      // intermediários não virem N entradas de undo. Mesmo par
+      // "snapshot no pointerdown + commitDragHistory no pointerup" dos
+      // arrastos acima — a diferença é que as actions de apagar da store
+      // (`removeWall`, `erasePartOfDrawing`, …) não têm variante "live", então
+      // o desfazer é desfeito aqui em vez de nunca acontecer lá.
+      let eraseGestureSnapshot: MapData | null = null
+      let eraseGesturePast: MapData[] | null = null
+      let eraseGestureFuture: MapData[] | null = null
 
       // Onda 1, item 1 (cursor vivo) — estado de hover em `mode === 'idle'`,
       // recalculado a cada pointermove ocioso (ver `resolveHoverAtIdle`
@@ -1312,6 +1544,45 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       })
 
       /**
+       * "O círculo da borracha encostou no CONTORNO desta Região/Sala?" — as
+       * `n` arestas de `region.points`, cada uma testada como o segmento que
+       * é. Diferente de `eraseDecisionForRegion` (lib/eraseGeometry.ts), que
+       * responde `remove` também com o círculo inteiramente DENTRO do
+       * polígono; ver a docstring de `eraseAt` logo abaixo para o porquê de a
+       * borracha "Só uma parte" precisar da leitura estrita.
+       *
+       * Reusa `eraseDecisionForWall` com uma parede-sonda em vez de repetir a
+       * conta círculo↔segmento aqui: é a MESMA tolerância que o ramo `wall` do
+       * `eraseAt` usa duas linhas adiante, e manter uma implementação só evita
+       * que borda de Sala e parede de Sala passem a responder diferente. Os
+       * campos da sonda fora da geometria (`id`, `blocksLight`, `blocksMove`,
+       * `door`) não são lidos por `eraseDecisionForWall` — ela só olha
+       * `x1,y1,x2,y2` — e a sonda nunca entra no `map`.
+       *
+       * Região com menos de 3 pontos (não deveria existir; defensivo, igual ao
+       * guard de `eraseDecisionForRegion`) não tem contorno fechado: nunca some
+       * por toque.
+       */
+      const circleTouchesRegionOutline = (region: Region, center: Point, radius: number): boolean => {
+        const n = region.points.length
+        if (n < 3) return false
+        return region.points.some((from, index) => {
+          const to = region.points[(index + 1) % n]
+          const probe: Wall = {
+            id: 'erase-outline-probe',
+            x1: from.x,
+            y1: from.y,
+            x2: to.x,
+            y2: to.y,
+            blocksLight: false,
+            blocksMove: false,
+            door: null,
+          }
+          return eraseDecisionForWall(probe, center, radius) === 'remove'
+        })
+      }
+
+      /**
        * Hit-test da borracha: reaproveita a mesma cadeia de prioridade da
        * ferramenta "Selecionar" (token > prop > light > drawing > wall >
        * region — drawing já cobre texto/linha/círculo/curva/pincel) e decide
@@ -1329,6 +1600,25 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
        * agente D (não documentada no contrato); cai no comportamento
        * "objeto inteiro" mesmo em modo "parte" — mais seguro que não fazer
        * nada com o clique.
+       *
+       * CONTORNO, NÃO INTERIOR (correção do gesto "apaguei um risco dentro do
+       * saguão e a sala inteira sumiu"): `eraseDecisionForRegion` responde por
+       * `circleOverlapsPolygon`, que trata "círculo CONTIDO no polígono" como
+       * toque. Numa Sala isso significa que qualquer pincelada no MEIO do
+       * cômodo — justamente onde estão os riscos que a borracha "Só uma parte"
+       * existe para recortar — decidia `remove`, e `mapFactory.removeRegion`
+       * apaga em cascata a subárvore inteira de Salas MAIS todas as paredes
+       * com `regionId` nelas (mapFactory.ts:144-151) — ou seja, o cômodo, as
+       * paredes dele e as portas cravadas nessas paredes, de uma vez. O menu
+       * da ferramenta promete outra coisa: "formas fechadas somem só se o
+       * círculo TOCAR". Tocar é encostar no contorno. `circleTouchesRegionOutline`
+       * abaixo implementa exatamente essa leitura, e só ela, no modo "parte" —
+       * e, para SALA (`region.room`), nem isso: ver o comentário no ramo
+       * `region` do `eraseAt`. Arrastar sobre a borda continua apagando a
+       * PAREDE encostada, que ganha o hit-test antes da região (wall > region
+       * em `findSelectableAt`); Região solta, sem parede, segue sumindo ao
+       * encostar no próprio contorno. O modo "objeto" (default) não muda em
+       * nada — lá o clique é deliberado e removedor por definição.
        */
       const eraseAt = (point: Point) => {
         const { map, eraseMode } = useMapStore.getState()
@@ -1348,7 +1638,19 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           }
           if (hit.kind === 'region') {
             const region = map.regions.find((r) => r.id === hit.id)
-            if (region && eraseDecisionForRegion(region, point, radius) === 'remove') useMapStore.getState().removeRegion(hit.id)
+            // SALA NUNCA MORRE AQUI (`region.room`): apagar uma Sala é apagar o
+            // chão, as paredes dela, as portas cravadas nessas paredes e a
+            // subárvore de sub-salas (`mapFactory.removeRegion`) — o oposto de
+            // "só uma parte", em qualquer leitura. Passada de borracha que
+            // encosta na borda continua apagando a PAREDE encostada (o ramo
+            // `wall` acima ganha o hit-test antes deste), que é de fato uma
+            // parte da sala; o cômodo inteiro sai pelo modo "Objeto inteiro" ou
+            // por selecionar e apagar, onde o gesto é deliberado. Região SOLTA
+            // (sem `room`) segue a regra de forma fechada prometida no menu:
+            // some ao tocar o contorno.
+            if (region && !region.room && circleTouchesRegionOutline(region, point, radius)) {
+              useMapStore.getState().removeRegion(hit.id)
+            }
             return
           }
           if (hit.kind === 'stair') {
@@ -1366,8 +1668,13 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             if (prop && eraseDecisionForProp(prop, point, radius) === 'remove') useMapStore.getState().removeProp(hit.id)
             return
           }
-          // hit.kind === 'light' — sem função de decisão dedicada, ver docstring acima.
-          useMapStore.getState().removeLight(hit.id)
+          // Sobrou `light` — sem função de decisão dedicada, ver docstring
+          // acima. O `if` explícito (em vez de cair direto no removeLight) é
+          // para que um `kind` novo em `SelectionKind`, ou um `floor` vindo de
+          // `findSelectableAt`, não seja apagado como se fosse uma luz: id de
+          // outra entidade passado para `removeLight` apagaria a coisa errada
+          // em silêncio. Kind desconhecido não apaga nada.
+          if (hit.kind === 'light') useMapStore.getState().removeLight(hit.id)
           return
         }
 
@@ -1385,6 +1692,55 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       }
 
       /**
+       * Abre a passada de borracha: guarda o mapa e as duas pilhas de
+       * histórico de ANTES do primeiro corte. Chamado no pointerdown da
+       * ferramenta, antes de qualquer `eraseAt`.
+       */
+      const beginEraseGesture = () => {
+        const { map, past, future } = useMapStore.getState()
+        eraseGestureSnapshot = map
+        eraseGesturePast = past
+        eraseGestureFuture = future
+      }
+
+      /**
+       * Corte de borracha DENTRO de uma passada: apaga de verdade, mas devolve
+       * `past`/`future` ao estado de antes da passada.
+       *
+       * Por quê (passeio cego de 16/09/2026, "apaguei um risco e não consegui
+       * desfazer"): cada action de apagar da store passa por `withHistory`, que
+       * empurra uma entrada por chamada — e o pointermove chama `eraseAt` a
+       * cada micro-movimento. Um arrasto curto sobre um traço freehand vira
+       * dezenas de entradas, uma por pedacinho recortado: os três Ctrl+Z que a
+       * pessoa deu desfizeram três pedacinhos (nada visível volta) e, com o
+       * `HISTORY_CAP` de 50 da store estourado pela própria passada, as
+       * entradas ANTERIORES ao gesto tinham sido descartadas — daí o botão
+       * Desfazer esmaecido com o mapa ainda mutilado. Restaurar as pilhas a
+       * cada corte resolve os dois: a passada não consome o histórico antigo, e
+       * o `finishEraseGesture` fecha tudo numa entrada só.
+       *
+       * Restaura a REFERÊNCIA dos arrays de antes (nunca cópia): `past`/`future`
+       * só são substituídos, nunca mutados, na store inteira.
+       */
+      const eraseDuringGesture = (point: Point) => {
+        eraseAt(point)
+        if (eraseGesturePast === null || eraseGestureFuture === null) return
+        useMapStore.setState({ past: eraseGesturePast, future: eraseGestureFuture })
+      }
+
+      /**
+       * Fecha a passada num Ctrl+Z só. `commitDragHistory` não faz nada quando
+       * o mapa é o MESMO objeto do snapshot — passada que não apagou nada não
+       * gasta entrada de undo nem descarta o redo pendente.
+       */
+      const finishEraseGesture = () => {
+        if (eraseGestureSnapshot !== null) useMapStore.getState().commitDragHistory(eraseGestureSnapshot)
+        eraseGestureSnapshot = null
+        eraseGesturePast = null
+        eraseGestureFuture = null
+      }
+
+      /**
        * Chão fica por baixo de tudo: só vira alvo de clique quando nada acima
        * dele (`findSelectableAt`) foi acertado. Camada/hidden/locked já são
        * tratados em `findFloorPieceAt`.
@@ -1397,6 +1753,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const clearDrafts = () => {
         wallDraftStart = null
         regionDraftPoints = []
+        regionDraftStart = null
+        regionDraftRawStart = null
         freehandDraftPoints = []
         lineDraftStart = null
         circleDraftCenter = null
@@ -1453,6 +1811,49 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           return
         }
         drawFloorDraft(draftGraphics, buildFloorPiece('draft', shape, floorOp), map.floorStyle.fillColor)
+      }
+
+      /**
+       * Fecha o traçado ponto a ponto da Região — duplo clique OU Enter.
+       * Enter existe porque é o que a mão faz depois do último ponto: o passeio
+       * cego de 16/09/2026 bateu Enter, nada aconteceu, e o traçado ficou preso
+       * na tela sem saída visível. Mesma dupla de saídas que o Chão corredor já
+       * tinha (`finishCorridor`). Menos de 3 pontos não é polígono: descarta.
+       */
+      const finishRegion = () => {
+        const last = regionDraftPoints[regionDraftPoints.length - 1]
+        const secondToLast = regionDraftPoints[regionDraftPoints.length - 2]
+        if (last && secondToLast && last.x === secondToLast.x && last.y === secondToLast.y) {
+          regionDraftPoints = regionDraftPoints.slice(0, -1)
+        }
+
+        if (regionDraftPoints.length < 3) {
+          clearDrafts()
+          return
+        }
+
+        commitRegion(regionDraftPoints)
+        regionDraftPoints = []
+        draftGraphics.clear()
+      }
+
+      /**
+       * Põe a região no mapa — ponto a ponto (duplo clique/Enter) ou retângulo
+       * de um arrasto só, os dois caminhos passam por aqui para não existir
+       * duas receitas de "como nasce uma Região".
+       *
+       * A região NÃO nasce selecionada, ao contrário da Sala e da Escada. Não é
+       * esquecimento: `task4-selection-pixel-diff.spec.ts` prova, em pixel, que
+       * SELECIONAR uma região muda o que está desenhado (o preenchimento de
+       * destaque). Com a região já selecionada ao nascer, o "antes" daquele
+       * teste já viria destacado e o clique de seleção não mudaria pixel nenhum
+       * — a prova do destaque morreria em silêncio. Quem acabou de desenhar
+       * seleciona com um clique; a dor medida no passeio cego era a região não
+       * aparecer, não a de ter que clicar nela.
+       */
+      const commitRegion = (points: Point[]) => {
+        const { addRegion, regionFillColor, regionFillPattern } = useMapStore.getState()
+        addRegion(buildRegionFromPoints(crypto.randomUUID(), points, 'region', regionFillColor, regionFillPattern))
       }
 
       /** Duplo clique ou Enter: vira peça se houver 2+ pontos distintos; sempre limpa o rascunho. */
@@ -1621,7 +2022,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           // vem da preferência de ferramenta (doorKind/setDoorKind no store,
           // ver DoorKindControls) — antes desta fase era um comprimento fixo
           // (DOOR_LENGTH); agora addDoorOnWall calcula o comprimento pelo tipo.
-          if (wall) useMapStore.getState().addDoorOnWall(wall.id, worldPoint, useMapStore.getState().doorKind)
+          if (wall) {
+            useMapStore.getState().addDoorOnWall(wall.id, worldPoint, useMapStore.getState().doorKind)
+          } else {
+            // Passeio cego de 16/09/2026: o clique que erra a parede não criava
+            // porta e o app não dizia NADA — sem cursor diferente, sem realce,
+            // sem mensagem. A pessoa clicava de novo, no mesmo lugar, achando
+            // que o clique não tinha "pegado". Agora a tela responde ao gesto.
+            useToastStore.getState().push('info', 'Nenhuma parede aqui: clique em cima da linha da parede para pôr a porta.')
+          }
           return
         }
 
@@ -1735,9 +2144,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         }
 
         if (activeTool === 'region') {
-          const point = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          regionDraftPoints = [...regionDraftPoints, point]
-          drawRegionDraft(draftGraphics, regionDraftPoints, null)
+          // Só guarda o início; ponto-a-ponto vs. retângulo se decide no
+          // pointerup (ver `regionDraftStart`).
+          regionDraftStart = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+          regionDraftRawStart = worldPoint
           return
         }
 
@@ -1764,7 +2174,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
         if (activeTool === 'eraser') {
           mode = 'erasing'
-          eraseAt(worldPoint)
+          beginEraseGesture()
+          eraseDuringGesture(worldPoint)
           return
         }
 
@@ -1971,13 +2382,26 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           }
         }
 
-        // A4 — clicar no nome da Sala arrasta só o rótulo. Vem antes do
-        // hit-test de corpo: o nome fica dentro da sala, e sem isto o clique
-        // nele arrastaria a sala inteira. Com grupo (2+) o arrasto do grupo
-        // continua valendo, e Shift continua sendo "somar à seleção".
-        if (activeTool === 'select' && !event.shiftKey && selection.length <= 1) {
+        // A4 — arrastar o nome da Sala move só o rótulo, e só quando a Sala
+        // JÁ ESTÁ SELECIONADA. Vem antes do hit-test de corpo: o nome fica
+        // dentro da sala, e sem esta exceção o gesto arrastaria a sala.
+        //
+        // A condição "já selecionada" é nova (passeio de 17/09/2026). O nome
+        // nasce no MEIO da sala, então quem pega o cômodo pelo meio para
+        // levá-lo a outro canto — o gesto que a dica da ferramenta promete,
+        // "Arraste o corpo do item para mover" — caía aqui: a sala ficava
+        // parada e só marcada de amarelo, enquanto o nome escapulia dela e
+        // ia parar por cima do cômodo vizinho. Só um SEGUNDO arrasto movia,
+        // e movia porque o nome já tinha saído de baixo do cursor. Agora o
+        // primeiro arrasto seleciona E move a sala no mesmo gesto (cai no
+        // `dragging-region-body` lá embaixo), e o ajuste fino do rótulo
+        // continua sendo o segundo gesto, com a sala destacada.
+        //
+        // Com grupo (2+) o arrasto do grupo continua valendo, e Shift
+        // continua sendo "somar à seleção".
+        if (activeTool === 'select' && !event.shiftKey && single?.kind === 'region') {
           const labelRegion = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), worldPoint, map.grid, camera.scale)
-          if (labelRegion?.room) {
+          if (labelRegion?.room && labelRegion.id === single.id) {
             setSelection(selectionOfItem({ kind: 'region', id: labelRegion.id }))
             if (canInteract(labelRegion)) {
               mode = 'dragging-room-label'
@@ -2138,9 +2562,27 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           //  2. nenhum dos dois → comportamento de sempre, pan da câmera E
           //     limpa a seleção (preserva o spec e2e "pan de área vazia move
           //     a câmera", que nunca segura Shift).
+          // Errar o token JÁ selecionado por poucos px não pode custar a
+          // seleção nem o enquadramento (passeio cego de 16/09/2026: virava
+          // arrasto da vista E limpava a seleção, sem aviso). Dentro da folga,
+          // o gesto é o que a pessoa quis — arrastar o token destacado. Fora
+          // dela, nada muda: clique no vazio continua panando e limpando.
+          const selectedToken = single?.kind === 'token' ? map.tokens.find((t) => t.id === single.id) ?? null : null
+          const grabBox = selectedToken ? tokenBoundingBox(selectedToken, map.grid) : null
+          const nearSelectedToken =
+            grabBox !== null &&
+            worldPoint.x >= grabBox.minX - SELECTED_TOKEN_GRAB_SLOP &&
+            worldPoint.x <= grabBox.maxX + SELECTED_TOKEN_GRAB_SLOP &&
+            worldPoint.y >= grabBox.minY - SELECTED_TOKEN_GRAB_SLOP &&
+            worldPoint.y <= grabBox.maxY + SELECTED_TOKEN_GRAB_SLOP
+
           if (activeTool === 'select' && event.shiftKey) {
             mode = 'area-marquee-drag'
             areaMarqueeStart = worldPoint
+          } else if (activeTool === 'select' && selectedToken && nearSelectedToken && canInteract(selectedToken)) {
+            mode = 'dragging-token'
+            tokenDragSnapshot = map
+            draggingTokenId = selectedToken.id
           } else {
             mode = 'panning'
             setSelection(EMPTY_SELECTION)
@@ -2372,7 +2814,14 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             // 1×grid, byte a byte o `map.grid` que este call site sempre usou
             // antes desta fase — nenhuma mudança de comportamento pra quem
             // não mexer na setinha).
-            addStair(buildStairFromDraft(crypto.randomUUID(), stairDraftStart, end, stairStepWidthForPreset(stairSizePreset, map.grid)))
+            const stairId = crypto.randomUUID()
+            addStair(buildStairFromDraft(stairId, stairDraftStart, end, stairStepWidthForPreset(stairSizePreset, map.grid)))
+            // A escada recém-desenhada nasce SELECIONADA, como a Sala (ver o
+            // bloco 'drawing-room' acima). Sem isto ela nascia órfã: o painel
+            // não mostrava nada e não havia como trocar o sentido nem mover
+            // sem antes acertar um clique em cima dela — o passeio cego de
+            // 16/09/2026 gastou 4 tentativas e não conseguiu.
+            useMapStore.getState().setSelection(selectionOfItem({ kind: 'stair', id: stairId }))
           }
           stairDraftStart = null
           draftGraphics.clear()
@@ -2385,6 +2834,31 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           if (draft?.piece) useMapStore.getState().addFloorPiece({ ...draft.piece, id: crypto.randomUUID() })
           floorDraftStart = null
           draftGraphics.clear()
+        }
+
+        // Ferramenta Região — o gesto só ganha significado aqui (ver
+        // `regionDraftStart`). Não mexe em `mode` de propósito: Região é feita
+        // de cliques soltos, mesmo padrão da régua logo abaixo.
+        if (useMapStore.getState().activeTool === 'region' && regionDraftStart && regionDraftRawStart) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { map } = useMapStore.getState()
+          const dragged = Math.hypot(worldPoint.x - regionDraftRawStart.x, worldPoint.y - regionDraftRawStart.y)
+          const start = regionDraftStart
+          regionDraftStart = null
+          regionDraftRawStart = null
+
+          // Arrasto com o traçado vazio: retângulo inteiro num gesto só, do
+          // jeito que Sala, Retângulo e Chão já se comportam. Com traçado
+          // aberto, um arrasto continua valendo como mais um ponto — misturar
+          // as duas coisas no meio de um polígono não tem leitura possível.
+          if (regionDraftPoints.length === 0 && dragged >= REGION_DRAG_THRESHOLD) {
+            const end = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+            if (isValidRoomDraft(start, end)) commitRegion(rectFromCorners(start, end))
+            draftGraphics.clear()
+          } else {
+            regionDraftPoints = [...regionDraftPoints, start]
+            drawRegionDraft(draftGraphics, regionDraftPoints, null)
+          }
         }
 
         if (useMapStore.getState().activeTool === 'measure' && measureDraftStart) {
@@ -2474,6 +2948,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           }
           useMapStore.getState().commitDragHistory(bodyDragSnapshot)
         }
+        // Passada de borracha: um Ctrl+Z desfaz o gesto inteiro (ver
+        // `eraseDuringGesture`). Vale igual no pointerupoutside — soltar o
+        // botão fora do canvas encerra a passada do mesmo jeito.
+        if (mode === 'erasing') finishEraseGesture()
         curveDragSnapshot = null
         lightRadiusDragSnapshot = null
         roomCornerDragSnapshot = null
@@ -2576,6 +3054,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           }
           useMapStore.getState().commitDragHistory(bodyDragSnapshot)
         }
+        // Passada de borracha: um Ctrl+Z desfaz o gesto inteiro (ver
+        // `eraseDuringGesture`). Vale igual no pointerupoutside — soltar o
+        // botão fora do canvas encerra a passada do mesmo jeito.
+        if (mode === 'erasing') finishEraseGesture()
         curveDragSnapshot = null
         lightRadiusDragSnapshot = null
         roomCornerDragSnapshot = null
@@ -2627,6 +3109,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (stairDraftStart) {
           stairDraftStart = null
           draftGraphics.clear()
+        }
+        // Arrasto de Região que terminou fora do canvas: descarta o retângulo
+        // em curso e NÃO deixa o ponto virar vértice — mesma regra dos drafts
+        // vizinhos. O traçado ponto a ponto já fechado (regionDraftPoints)
+        // continua vivo de propósito: ele não é um gesto em curso.
+        if (regionDraftStart) {
+          regionDraftStart = null
+          regionDraftRawStart = null
+          if (regionDraftPoints.length === 0) draftGraphics.clear()
         }
         if (measureDraftStart) {
           measurementIndicatorRenderer.hide()
@@ -2719,6 +3210,22 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           if (corridorDraftPoints.length > 0 && useMapStore.getState().activeTool === 'floor') {
             drawCorridorDraft(applySnap(worldPoint, useMapStore.getState().map.grid, 'wall', event.altKey))
           }
+          // Região também é feita de cliques soltos (`mode` nunca sai de
+          // 'idle'), e por isso a prévia dela precisa morar aqui: enquanto
+          // estava lá embaixo, depois do `return` deste bloco, NUNCA era
+          // desenhada — nem o retângulo do arrasto, nem a linha até o cursor
+          // no traçado ponto a ponto. Era a queixa "não aparece nada".
+          if (useMapStore.getState().activeTool === 'region') {
+            const cursor = applySnap(worldPoint, useMapStore.getState().map.grid, 'wall', event.altKey)
+            if (regionDraftStart && regionDraftPoints.length === 0) {
+              const rect = rectFromCorners(regionDraftStart, cursor)
+              // `cursor` = primeiro vértice: fecha o retângulo na prévia (a
+              // prévia de polígono liga ponto a ponto, sem fechar sozinha).
+              drawRegionDraft(draftGraphics, rect, rect[0])
+            } else if (regionDraftPoints.length > 0) {
+              drawRegionDraft(draftGraphics, regionDraftPoints, cursor)
+            }
+          }
           // A régua também não muda `mode` (pointerdown da ferramenta Medir),
           // então a prévia dela precisa morar aqui: depois deste `return` o
           // arrasto de medição nunca chegava a desenhar. Lê o mapa da store a
@@ -2766,7 +3273,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
         if (mode === 'erasing') {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          eraseAt(worldPoint)
+          eraseDuringGesture(worldPoint)
           return
         }
 
@@ -2863,10 +3370,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (mode === 'dragging-room-label' && roomLabelDragId !== null && roomLabelDragStartPoint && roomLabelDragStartOffset) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           // Sem snap: o rótulo é texto solto, e o grid o prenderia em cima das paredes.
-          useMapStore.getState().setRoomLabelOffsetLive(roomLabelDragId, {
-            x: Math.round(roomLabelDragStartOffset.x + worldPoint.x - roomLabelDragStartPoint.x),
-            y: Math.round(roomLabelDragStartOffset.y + worldPoint.y - roomLabelDragStartPoint.y),
-          })
+          // Mas preso à sala: ver `clampRoomLabelOffset`.
+          const regiaoDoRotulo = useMapStore.getState().map.regions.find((r) => r.id === roomLabelDragId)
+          useMapStore.getState().setRoomLabelOffsetLive(
+            roomLabelDragId,
+            clampRoomLabelOffset(regiaoDoRotulo, {
+              x: roomLabelDragStartOffset.x + worldPoint.x - roomLabelDragStartPoint.x,
+              y: roomLabelDragStartOffset.y + worldPoint.y - roomLabelDragStartPoint.y,
+            }),
+          )
           return
         }
 
@@ -3321,7 +3833,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       })
 
       const onDblClick = (event: MouseEvent) => {
-        const { activeTool, addRegion, selection, map } = useMapStore.getState()
+        const { activeTool, selection, map } = useMapStore.getState()
         // Onda 4, item 24 — editar vértice de região/curva é sempre sobre UM
         // item; com 2+ selecionados (grupo) não há "o" item pra editar.
         const single = selectionSingle(selection)
@@ -3404,20 +3916,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
         if (activeTool !== 'region') return
 
-        const last = regionDraftPoints[regionDraftPoints.length - 1]
-        const secondToLast = regionDraftPoints[regionDraftPoints.length - 2]
-        if (last && secondToLast && last.x === secondToLast.x && last.y === secondToLast.y) {
-          regionDraftPoints = regionDraftPoints.slice(0, -1)
-        }
-
-        if (regionDraftPoints.length < 3) {
-          clearDrafts()
-          return
-        }
-
-        addRegion(buildRegionFromPoints(crypto.randomUUID(), regionDraftPoints, 'region', useMapStore.getState().regionFillColor, useMapStore.getState().regionFillPattern))
-        regionDraftPoints = []
-        draftGraphics.clear()
+        finishRegion()
       }
       el.addEventListener('dblclick', onDblClick)
 
@@ -3480,15 +3979,16 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           return
         }
 
-        // Enter fecha o corredor de chão em construção (mesma saída do duplo
-        // clique). preventDefault: o foco pode estar no botão da barra, e o
-        // Enter "clicaria" nele de novo.
-        if (event.key === 'Enter' && corridorDraftPoints.length > 0) {
+        // Enter fecha o traçado ponto a ponto em construção — corredor de Chão
+        // ou Região (mesma saída do duplo clique). preventDefault: o foco pode
+        // estar no botão da barra, e o Enter "clicaria" nele de novo.
+        if (event.key === 'Enter' && (corridorDraftPoints.length > 0 || regionDraftPoints.length > 0)) {
           const target = event.target as HTMLElement | null
           const editable = target !== null && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')
           if (!editable) {
             event.preventDefault()
-            finishCorridor()
+            if (corridorDraftPoints.length > 0) finishCorridor()
+            else finishRegion()
             return
           }
         }
@@ -3511,24 +4011,39 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         switch (action.kind) {
           case 'cancel':
             clearDrafts()
-            // Onda 4, item 24 — Esc cancela um marquee aberto (sem fechar
-            // seleção) e também limpa um GRUPO já fechado (2+ itens) —
-            // mesma convenção de Esc "desfazer o que está em progresso" já
-            // usada pelos outros drafts deste handler. Seleção de 1 item só
-            // (clique simples) não é tocada aqui, mesmo comportamento de
-            // antes da migração (Esc nunca desfazia um clique simples).
+            // Onda 4, item 24 — Esc cancela um marquee aberto e limpa a
+            // seleção, de QUALQUER tamanho.
+            //
+            // O "de qualquer tamanho" é de 17/09/2026: até aqui só grupo (2+
+            // itens) era largado, e um item só ficava grudado. No passeio, o
+            // "Closet secreto" seguia contornado de amarelo depois de dois
+            // Escape — um com a ferramenta Sala, outro com a Selecionar — e o
+            // painel continuava mostrando as propriedades dele. Largar a
+            // seleção só clicando numa área vazia é dizer que a tecla
+            // universal de "deixa pra lá" não vale aqui; ela vale.
             if (mode === 'area-marquee-drag') {
               areaMarqueeStart = null
               areaMarqueeGraphics.clear()
               mode = 'idle'
             }
-            if (useMapStore.getState().selection.length > 1) {
+            if (useMapStore.getState().selection.length > 0) {
               useMapStore.getState().setSelection(EMPTY_SELECTION)
             }
             break
-          case 'deleteSelected':
+          // Apagar é o gesto mais barato de fazer e o mais caro de errar:
+          // Ctrl+A seguido de Delete varria o mapa inteiro em silêncio, sem
+          // dizer o que sumiu nem que dá para voltar (passeio cego de
+          // 16/09/2026). O aviso NOMEIA o que foi apagado e mostra a saída —
+          // mesma função do toast de desfazer da referência do nicho.
+          case 'deleteSelected': {
+            // O mapa é lido ANTES da remoção: depois dela não há como saber se
+            // a região apagada era uma Sala (ver `describeDeletion`).
+            const { map: mapaAntes, selection: apagados } = useMapStore.getState()
+            const oQueSumiu = describeDeletion(mapaAntes, apagados)
             useMapStore.getState().removeSelected()
+            if (oQueSumiu !== null) useToastStore.getState().push('info', `${oQueSumiu} — Ctrl+Z desfaz`)
             break
+          }
           case 'selectTool':
             useMapStore.getState().setActiveTool(action.tool)
             break
@@ -3603,7 +4118,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         event.preventDefault()
         const rect = el.getBoundingClientRect()
         const pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top }
-        const gesture = resolveWheel({
+        const gesture = resolveMapWheel({
           deltaX: event.deltaX,
           deltaY: event.deltaY,
           deltaMode: event.deltaMode,

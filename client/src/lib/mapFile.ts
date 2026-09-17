@@ -23,6 +23,50 @@ export function deserializeMap(json: string): MapData {
   return walls === map.walls ? map : { ...map, walls }
 }
 
+/**
+ * Número que serve como dimensão de mapa. `map.json` editado à mão, truncado
+ * ou de versão futura chega aqui com `grid: -8`, `grid: 0` ou `width: "30"` —
+ * o `??` de antes aceitava os três, e a geometria impossível entrava no editor
+ * em silêncio (célula negativa, divisão por zero virando `Infinity`, número de
+ * texto contaminando todo cálculo de mundo). O valor impossível é DESCARTADO,
+ * não recusado: o resto do mapa (salas, portas, escadas) continua abrindo, que
+ * é o oposto de "o arquivo sumiu".
+ */
+function positiveNumberOr(value: number | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+/**
+ * Lista de entidades do mapa: o que não é lista (`regions: "nenhuma"`) vira
+ * lista vazia e item que não é objeto (`walls: [null]`) sai fora. Sem isto o
+ * `.map()` logo abaixo estoura `TypeError: Cannot read properties of null`
+ * cru na tela, que para o usuário é igual a ter perdido o mapa.
+ */
+function entityList<T>(value: T[] | undefined): T[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item) => item !== null && typeof item === 'object')
+}
+
+/** Lista de valores simples (ids de camada): só a forma de lista é garantida. */
+function plainList<T>(value: T[] | undefined): T[] {
+  return Array.isArray(value) ? value : []
+}
+
+/**
+ * Alinhamento da grade à imagem de fundo (`types/map.ts:516`). Era o campo
+ * ESQUECIDO desta função: `serializeMap` gravava, a leitura descartava, e todo
+ * o trabalho de encaixar a grade nas casas da imagem morria ao reabrir. Só
+ * `{ x, y }` finito conta — offset `NaN`/`Infinity` empurraria a grade para
+ * fora de qualquer viewport, e "sem alinhamento" é o estado recuperável.
+ */
+function gridOffsetOrNone(value: MapData['gridOffset']): MapData['gridOffset'] {
+  if (value === null || typeof value !== 'object') return undefined
+  const { x, y } = value
+  if (typeof x !== 'number' || !Number.isFinite(x)) return undefined
+  if (typeof y !== 'number' || !Number.isFinite(y)) return undefined
+  return { x, y }
+}
+
 function deserializeMapFields(json: string): MapData {
   let parsed: Partial<MapData>
   try {
@@ -37,10 +81,13 @@ function deserializeMapFields(json: string): MapData {
 
   return {
     id: parsed.id,
-    name: parsed.name ?? 'Mapa sem título',
-    width: parsed.width ?? 30,
-    height: parsed.height ?? 20,
-    grid: parsed.grid ?? 64,
+    name: typeof parsed.name === 'string' ? parsed.name : 'Mapa sem título',
+    width: positiveNumberOr(parsed.width, 30),
+    height: positiveNumberOr(parsed.height, 20),
+    grid: positiveNumberOr(parsed.grid, 64),
+    // NOVO — o alinhamento da grade à imagem volta do disco em vez de morrer
+    // calado a cada "Salvar + Abrir" (ver `gridOffsetOrNone` acima).
+    gridOffset: gridOffsetOrNone(parsed.gridOffset),
     gridShape: parsed.gridShape ?? 'square',
     showGrid: parsed.showGrid ?? true,
     // NOVO — valores = cópia literal dos hardcodes de drawGrid.ts:4 / drawHexGrid.ts:4
@@ -50,36 +97,36 @@ function deserializeMapFields(json: string): MapData {
     background: parsed.background ?? { type: 'color', src: '#2b2b2b' },
     // MUDA de cru para .map(): DoorState ganhou campo obrigatório.
     // wallKind ausente fica undefined de propósito (=== 'exterior').
-    walls: (parsed.walls ?? []).map((w) => ({
+    walls: entityList(parsed.walls).map((w) => ({
       ...w,
       door: w.door ? { ...w.door, kind: w.door.kind ?? 'normal' } : null,
     })),
-    lights: parsed.lights ?? [],
+    lights: entityList(parsed.lights),
     // inalterado — `room` ausente fica undefined (região comum)
-    regions: (parsed.regions ?? []).map((r) => ({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })),
+    regions: entityList(parsed.regions).map((r) => ({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })),
     // MUDA de cru para .map(): Token.image é obrigatório
-    tokens: (parsed.tokens ?? []).map((t) => ({ ...t, image: t.image ?? null })),
+    tokens: entityList(parsed.tokens).map((t) => ({ ...t, image: t.image ?? null })),
     // inalterado fora o que já existia — Prop.layer ausente fica undefined
-    props: (parsed.props ?? []).map((p) => ({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
-    stairs: parsed.stairs ?? [],
+    props: entityList(parsed.props).map((p) => ({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
+    stairs: entityList(parsed.stairs),
     // MUDA de cru para .map(): PONTO DE MAIOR RISCO DE TODA A MIGRAÇÃO.
     // 0.5/0 é o alpha que drawDrawings.ts:50 já aplicava (filled ? 0.5 : 0);
     // sem esta linha, alpha: undefined vira 1 no Pixi e TODO círculo
     // preenchido de mapa salvo muda de aparência ao abrir.
-    drawings: (parsed.drawings ?? []).map((d) =>
+    drawings: entityList(parsed.drawings).map((d) =>
       d.kind === 'circle' && d.fillAlpha === undefined ? { ...d, fillAlpha: d.filled ? 0.5 : 0 } : d,
     ),
-    floor: parsed.floor ?? [],
+    floor: entityList(parsed.floor),
     floorStyle: parsed.floorStyle ?? { ...LEGACY_FLOOR_STYLE },
-    lines: parsed.lines ?? [],
-    markers: parsed.markers ?? [],
-    concealZones: parsed.concealZones ?? [],
+    lines: entityList(parsed.lines),
+    markers: entityList(parsed.markers),
+    concealZones: entityList(parsed.concealZones),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
-    hiddenLayers: parsed.hiddenLayers ?? [],
+    hiddenLayers: plainList(parsed.hiddenLayers),
     // NOVO (Onda 4, Frente D) — mesmo padrão de hiddenLayers acima: mapa
     // salvo antes deste campo existir abre com nada travado.
-    lockedLayers: parsed.lockedLayers ?? [],
+    lockedLayers: plainList(parsed.lockedLayers),
     scale: parsed.scale ?? { unitsPerCell: 5, unit: 'ft', precision: 0 },
     // depende do gridShape JÁ RESOLVIDO, não do literal cru — senão mapa hex
     // antigo sem gridShape salvo cairia em 'chessboard' por engano

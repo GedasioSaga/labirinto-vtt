@@ -229,7 +229,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     players.set(record.playerId, record)
     byClient.set(clientId, record.playerId)
 
-    const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken }
+    // `name` é o nome já passado por `uniqueName`: é assim que o jogador
+    // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
+    const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken, name: record.name }
     const next: HostMessage = statusOf(record.playerId) === 'playing' ? snapshotFor(record.playerId, map) : { type: 'lobby.waiting' }
     return { outbound: [{ clientId, msg: welcome }, { clientId, msg: next }] }
   }

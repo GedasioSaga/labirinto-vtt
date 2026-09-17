@@ -19,7 +19,18 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:1420',
-    reuseExistingServer: true,
+    // ATENÇÃO — servidor reaproveitado é servidor com história. A cada HMR o
+    // vite passa a servir o módulo carimbado (`mapStore.ts?t=<ms>`), e a página
+    // acaba carregando as DUAS versões: a do app (carimbada) e a que um
+    // `page.evaluate(import('/src/stores/mapStore.ts'))` de spec pede (sem
+    // carimbo). São duas stores zustand. Medido em 17/09/2026: o botão Sala
+    // ficava com `aria-pressed="true"` e o canvas desenhava, mas
+    // `task-room-tool.spec.ts:85` lia `regions: []` — vermelho falso. No
+    // sentido oposto, um spec que escreve E lê pela store do evaluate não toca
+    // o app nenhuma vez: verde falso. `node scripts/portao.cjs --so=servidor-limpo`
+    // detecta, e reiniciar o `npm run dev` resolve. Para o portão pegar um
+    // servidor recém-nascido, rode com PORTAO_SERVIDOR_LIMPO=1 (exige a 1420 livre).
+    reuseExistingServer: process.env.PORTAO_SERVIDOR_LIMPO !== '1',
     timeout: 30_000,
   },
 })

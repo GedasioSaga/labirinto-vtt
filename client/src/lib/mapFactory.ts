@@ -658,6 +658,93 @@ export function setWallLineStyleForWall(map: MapData, wallId: string, lineStyle:
 }
 
 /**
+ * Folga, em px de mundo, para decidir "este pedaço está na MESMA RETA do vão" e
+ * "estes dois pedaços se ENCOSTAM". Os pedaços de uma aresta nascem do mesmo
+ * vetor unitário (`addDoorOnWall`), então o erro real aqui é de arredondamento
+ * de ponto flutuante — inclusive depois de um `syncLinkedWallsToPoints`. 1e-4 é
+ * 320.000x menor que o menor vão de porta (32px), então nunca confunde pedaço
+ * vizinho com pedaço distante.
+ */
+const EDGE_PIECE_EPSILON = 1e-4
+
+/** Reta orientada de uma aresta: origem `(ox, oy)` e vetor unitário `(ux, uy)`. */
+interface EdgeAxis {
+  ox: number
+  oy: number
+  ux: number
+  uy: number
+}
+
+/** Distância ao longo do eixo (negativa antes da origem). */
+function axisParam(axis: EdgeAxis, x: number, y: number): number {
+  return (x - axis.ox) * axis.ux + (y - axis.oy) * axis.uy
+}
+
+/** Distância PERPENDICULAR ao eixo — é o que mede "está na mesma reta". */
+function axisOffset(axis: EdgeAxis, x: number, y: number): number {
+  return Math.abs((x - axis.ox) * -axis.uy + (y - axis.oy) * axis.ux)
+}
+
+/** Trecho `[from, to]` que um pedaço ocupa no eixo, já ordenado. */
+interface EdgePieceSpan {
+  wall: Wall
+  from: number
+  to: number
+}
+
+/** Trecho de `wall` no eixo, ou `null` quando `wall` não está na mesma reta. */
+function spanOnAxis(axis: EdgeAxis, wall: Wall): EdgePieceSpan | null {
+  if (axisOffset(axis, wall.x1, wall.y1) > EDGE_PIECE_EPSILON) return null
+  if (axisOffset(axis, wall.x2, wall.y2) > EDGE_PIECE_EPSILON) return null
+  const a = axisParam(axis, wall.x1, wall.y1)
+  const b = axisParam(axis, wall.x2, wall.y2)
+  return { wall, from: Math.min(a, b), to: Math.max(a, b) }
+}
+
+/**
+ * `other` é irmão de `piece` na MESMA aresta? Parede vinculada a Sala tem
+ * identidade explícita (`regionId` + `regionEdgeIndex`, ver `lib/roomLink.ts`):
+ * sem ela, duas Salas encostadas — que têm paredes colineares e sobrepostas —
+ * seriam tratadas como a mesma aresta e uma comeria a outra.
+ *
+ * Parede SOLTA não tem esse vínculo, então a identidade é a origem comum: os
+ * pedaços que `addDoorOnWall` cria são clones do mesmo original e carregam os
+ * mesmos atributos. Exigir todos evita juntar duas paredes desenhadas
+ * separadamente que só por acaso ficaram colineares e encostadas.
+ */
+function sameEdgeIdentity(piece: Wall, other: Wall): boolean {
+  if (piece.regionId !== undefined || other.regionId !== undefined) {
+    return piece.regionId === other.regionId && piece.regionEdgeIndex === other.regionEdgeIndex
+  }
+  return (
+    piece.wallKind === other.wallKind &&
+    piece.thickness === other.thickness &&
+    piece.lineStyle === other.lineStyle &&
+    piece.blocksLight === other.blocksLight &&
+    piece.blocksMove === other.blocksMove
+  )
+}
+
+/**
+ * Limites da aresta da Sala a que `wall` pertence, projetados no eixo — é o que
+ * impede uma porta perto do canto de crescer PARA FORA da sala. `null` para
+ * parede solta (sem aresta que a limite: o vão cresce livre, como antes).
+ */
+function regionEdgeBoundsOnAxis(map: MapData, wall: Wall, axis: EdgeAxis): { low: number; high: number } | null {
+  const { regionId, regionEdgeIndex } = wall
+  if (regionId === undefined || regionEdgeIndex === undefined) return null
+  const region = map.regions.find((r) => r.id === regionId)
+  if (!region) return null
+  const n = region.points.length
+  if (n === 0 || regionEdgeIndex >= n) return null
+  const from = region.points[regionEdgeIndex]
+  const to = region.points[(regionEdgeIndex + 1) % n]
+  const a = axisParam(axis, from.x, from.y)
+  const b = axisParam(axis, to.x, to.y)
+  return { low: Math.min(a, b), high: Math.max(a, b) }
+}
+
+/**
  * Troca o `DoorKind` de uma porta JÁ EXISTENTE (parede com `door !== null`) e
  * REDIMENSIONA o vão pra `doorLength` (= `DOOR_LENGTH_BY_KIND[kind]`,
  * calculado pelo chamador em mapStore.ts), centrado no meio do vão ATUAL —
@@ -665,9 +752,26 @@ export function setWallLineStyleForWall(map: MapData, wallId: string, lineStyle:
  * mesmo centro. Direção herdada do vetor unitário da própria `Wall`, nunca
  * recalculada como horizontal/vertical (mesma convenção de `addDoorOnWall`).
  *
- * Parede inexistente, sem porta (`door === null`), ou de comprimento zero
- * (não deveria existir uma porta assim, mas defensivo): devolve `map` pela
- * mesma referência.
+ * A ARESTA CONTINUA INTEIRA (conserto de 17/09/2026). Antes esta função mexia
+ * SÓ no pedaço-porta e deixava os pedaços sólidos irmãos onde estavam
+ * (`addDoorOnWall` parte a parede em até 3), o que dava:
+ *  - vão que ENCOLHE (Portão 96 → Normal 32): duas faixas de 32px da aresta sem
+ *    parede nenhuma — buraco invisível por onde o token atravessava e a luz
+ *    vazava, mesmo com a porta trancada;
+ *  - vão que CRESCE (Normal 32 → Portão 96): a porta desenhada por cima dos
+ *    sólidos, abrindo 96px na tela e só 32px na colisão;
+ *  - vão sem limite de aresta: porta perto do canto saindo para fora da sala.
+ *
+ * Agora o vizinho sólido de cada lado é REDIMENSIONADO junto (mantendo id,
+ * estilo e vínculo), some quando o vão o cobre inteiro, e nasce um pedaço novo
+ * quando o vão encolhe e não havia vizinho daquele lado. O vão fica preso ao
+ * trecho que a porta pode ocupar: até a ponta do vizinho sólido, e nunca além
+ * da aresta da Sala. Vizinho que é OUTRA porta bloqueia o crescimento — uma
+ * porta nunca engole a outra.
+ *
+ * Parede inexistente, sem porta (`door === null`), de comprimento zero, ou cujo
+ * trecho disponível é degenerado (não deveria existir, mas defensivo): devolve
+ * `map` pela mesma referência.
  */
 export function setWallDoorKind(map: MapData, wallId: string, kind: DoorKind, doorLength: number): MapData {
   const wall = map.walls.find((w) => w.id === wallId)
@@ -680,25 +784,95 @@ export function setWallDoorKind(map: MapData, wallId: string, kind: DoorKind, do
   const length = Math.hypot(dx, dy)
   if (length === 0) return map
 
-  const midX = (wall.x1 + wall.x2) / 2
-  const midY = (wall.y1 + wall.y2) / 2
-  const ux = dx / length
-  const uy = dy / length
+  // Eixo com origem no início do vão atual: o vão ocupa 0..length nesse eixo, e
+  // pedaço antes da porta tem parâmetro negativo.
+  const axis: EdgeAxis = { ox: wall.x1, oy: wall.y1, ux: dx / length, uy: dy / length }
+  const center = length / 2
   const half = doorLength / 2
 
-  const updatedWall: Wall = {
-    ...wall,
-    x1: midX - ux * half,
-    y1: midY - uy * half,
-    x2: midX + ux * half,
-    y2: midY + uy * half,
-    door: { ...door, kind },
+  const siblings: EdgePieceSpan[] = []
+  for (const other of map.walls) {
+    if (other.id === wall.id) continue
+    if (!sameEdgeIdentity(wall, other)) continue
+    const span = spanOnAxis(axis, other)
+    if (span) siblings.push(span)
   }
 
-  return {
-    ...map,
-    walls: map.walls.map((w) => (w.id === wallId ? updatedWall : w)),
+  const encostaEm = (a: number, b: number): boolean => Math.abs(a - b) <= EDGE_PIECE_EPSILON
+  const leftSolid = siblings.find((s) => s.wall.door === null && encostaEm(s.to, 0))
+  const rightSolid = siblings.find((s) => s.wall.door === null && encostaEm(s.from, length))
+  const bounds = regionEdgeBoundsOnAxis(map, wall, axis)
+
+  // Até onde o vão pode crescer para cada lado: a ponta de fora do vizinho
+  // sólido; se o vizinho é outra porta, não cresce nada; sem vizinho nenhum, o
+  // limite é a aresta da Sala (parede solta: livre, como era antes).
+  const lowLimit =
+    leftSolid !== undefined ? leftSolid.from
+    : siblings.some((s) => encostaEm(s.to, 0)) ? 0
+    : bounds !== null ? bounds.low
+    : Number.NEGATIVE_INFINITY
+  const highLimit =
+    rightSolid !== undefined ? rightSolid.to
+    : siblings.some((s) => encostaEm(s.from, length)) ? length
+    : bounds !== null ? bounds.high
+    : Number.POSITIVE_INFINITY
+  const low = bounds !== null ? Math.max(lowLimit, bounds.low) : lowLimit
+  const high = bounds !== null ? Math.min(highLimit, bounds.high) : highLimit
+
+  const newFrom = Math.max(center - half, low)
+  const newTo = Math.min(center + half, high)
+  if (newTo - newFrom <= EDGE_PIECE_EPSILON) return map
+
+  const pieceAt = (template: Wall, id: string, from: number, to: number): Wall => ({
+    ...template,
+    id,
+    x1: axis.ox + axis.ux * from,
+    y1: axis.oy + axis.uy * from,
+    x2: axis.ox + axis.ux * to,
+    y2: axis.oy + axis.uy * to,
+    door: null,
+  })
+
+  const replacements = new Map<string, Wall>()
+  const removed = new Set<string>()
+  const created: Wall[] = []
+
+  // Trecho que cada lado precisa manter coberto: o vizinho sólido inteiro, ou —
+  // quando não há vizinho — o pedaço do vão antigo que deixou de ser porta.
+  const leftCoverFrom = leftSolid !== undefined ? leftSolid.from : 0
+  if (newFrom - leftCoverFrom > EDGE_PIECE_EPSILON) {
+    const template = leftSolid !== undefined ? leftSolid.wall : wall
+    const id = leftSolid !== undefined ? leftSolid.wall.id : crypto.randomUUID()
+    const piece = pieceAt(template, id, leftCoverFrom, newFrom)
+    if (leftSolid !== undefined) replacements.set(id, piece)
+    else created.push(piece)
+  } else if (leftSolid !== undefined) {
+    removed.add(leftSolid.wall.id) // o vão novo cobre o vizinho inteiro
   }
+
+  const rightCoverTo = rightSolid !== undefined ? rightSolid.to : length
+  if (rightCoverTo - newTo > EDGE_PIECE_EPSILON) {
+    const template = rightSolid !== undefined ? rightSolid.wall : wall
+    const id = rightSolid !== undefined ? rightSolid.wall.id : crypto.randomUUID()
+    const piece = pieceAt(template, id, newTo, rightCoverTo)
+    if (rightSolid !== undefined) replacements.set(id, piece)
+    else created.push(piece)
+  } else if (rightSolid !== undefined) {
+    removed.add(rightSolid.wall.id)
+  }
+
+  replacements.set(wall.id, {
+    ...wall,
+    x1: axis.ox + axis.ux * newFrom,
+    y1: axis.oy + axis.uy * newFrom,
+    x2: axis.ox + axis.ux * newTo,
+    y2: axis.oy + axis.uy * newTo,
+    door: { ...door, kind },
+  })
+
+  const walls = map.walls.filter((w) => !removed.has(w.id)).map((w) => replacements.get(w.id) ?? w)
+
+  return { ...map, walls: [...walls, ...created] }
 }
 
 /**
