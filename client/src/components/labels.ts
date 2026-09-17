@@ -1,4 +1,5 @@
 import type { DrawingTool, SelectionKind } from '../types/tools'
+import type { BlockedMoveReason } from '../lib/moveValidation'
 
 /**
  * Textos visíveis da interface do editor.
@@ -141,6 +142,39 @@ export function toolsOfSlot(slot: ToolbarSlot): DrawingTool[] {
   const clusterId = clusterIdOf(slot)
   return clusterId ? TOOL_CLUSTERS[clusterId].tools : [slot as DrawingTool]
 }
+
+/**
+ * O que a tela diz quando o token do mestre NÃO passa (P10, "não consigo
+ * entrar na casa"). Cada texto responde duas perguntas, nesta ordem: por que
+ * parou, e o que fazer agora. A parede culpada é realçada junto pelo store
+ * (`mapStore.moveTokenLive`), então nenhum texto precisa dizer "qual".
+ *
+ * PALAVRA PROIBIDA: nenhum destes textos diz "parede". O caminho que a
+ * mensagem ensina é seguido lendo a tela — quem lê procura na mensagem o nome
+ * de um botão visível —, e "Parede" é o nome do botão VIZINHO ao de "Porta" na
+ * barra. Dizer "parede" aqui manda o mestre para a ferramenta de desenhar
+ * parede, que é o oposto de abrir uma passagem. O nome citado é sempre o do
+ * controle que resolve: `TOOL_LABELS.door`.
+ */
+export const BLOCKED_MOVE_TEXT: Record<BlockedMoveReason, string> = {
+  wall:
+    'Caminho bloqueado: não tem passagem por aqui. Para abrir a entrada, escolha a ferramenta Porta e clique em cima do trecho realçado.',
+  // Só aparece quando abrir a porta NÃO resolveria (outra coisa também barra):
+  // a porta que sozinha destranca o caminho abre no próprio arrasto.
+  door_closed:
+    'A porta do caminho está fechada e segurou o movimento. Ligue "Aberta" no painel, ou tire o que mais estiver barrando o vão.',
+  door_locked:
+    'A porta do caminho está trancada: com o cadeado ligado ninguém passa, nem o mestre. Desligue "Trancada" no painel para liberar.',
+}
+
+/**
+ * Arrastar o token PARA DENTRO do vão de uma porta fechada e destrancada abre
+ * a porta e deixa passar — o gesto é o de empurrar a porta. O aviso existe
+ * porque isso muda o mapa (o jogador passa a enxergar pelo vão): mudança de
+ * mapa que o mestre não pediu por botão tem de aparecer escrita, e dizer como
+ * voltar atrás.
+ */
+export const DOOR_OPENED_BY_MOVE_TEXT = 'A porta estava fechada e abriu na passagem. Ctrl+Z desfaz.'
 
 /**
  * Ferramentas que expõem os controles de cor/espessura/preenchimento.

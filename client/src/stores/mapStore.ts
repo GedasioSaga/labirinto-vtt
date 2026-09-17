@@ -21,10 +21,15 @@ import { ancestorsOf, descendantsOf } from '../lib/roomNesting'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
 const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon'])
-import { resolveTokenMove } from '../lib/collision'
+// P10 ("não consigo entrar na casa"): `describeBlockedMove` no lugar de
+// `resolveTokenMove` — as duas decidem passar/não passar pelo mesmo
+// `findTokenPath`, mas esta diz QUEM barrou e se era porta, que é o que a
+// tela precisa para explicar a recusa em vez de devolver o token em silêncio.
+import { describeBlockedMove } from '../lib/moveValidation'
 import { DEFAULT_TEXT_FONT_FAMILY, convertLineToCurve, convertCurveToLine } from '../lib/drawingFactory'
 import { moveAreaSelection, areaSelectionBounds } from '../lib/areaSelection'
-import { TOOL_CLUSTERS } from '../components/labels'
+import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, TOOL_CLUSTERS } from '../components/labels'
+import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer } from '../lib/layers'
 // Onda 4, item 24 (Frente C) — modelo canônico de seleção. `selection` do
@@ -35,6 +40,78 @@ import {
   EMPTY_SELECTION, selectionOfItem, selectionToAreaSelection, isSelectionEmpty,
   type SelectionSet, type SelectionItem,
 } from '../lib/selectionModel'
+
+/**
+ * Quanto tempo o aviso de movimento barrado fica na tela. O dobro do `info`
+ * padrão (4 s, toastStore.ts) de propósito: este texto não relata um fato
+ * consumado, ENSINA um caminho ("escolha a ferramenta Porta e clique…") — 4 s
+ * dá para ler ou para agir, não para os dois.
+ */
+const BLOCKED_MOVE_TOAST_MS = 8000
+
+/**
+ * Último aviso de movimento mostrado (motivo+parede, e quando). Um arrasto
+ * barrado chama `moveTokenLive` a CADA pointermove: dezenas de recusas com o
+ * mesmo motivo, e sem esta memória a pilha de avisos enche de cópias do mesmo
+ * texto. Fora do state de propósito, igual aos timers de toastStore.ts: não é
+ * dado de UI e não deve disparar render.
+ */
+let lastMoveNotice: { key: string; at: number } | null = null
+
+/** Avisa uma vez por motivo: repete só depois do aviso anterior ter sumido. */
+function noticeMoveOnce(key: string, text: string): void {
+  const now = Date.now()
+  if (lastMoveNotice !== null && lastMoveNotice.key === key && now - lastMoveNotice.at < BLOCKED_MOVE_TOAST_MS) return
+  lastMoveNotice = { key, at: now }
+  useToastStore.getState().push('info', text, BLOCKED_MOVE_TOAST_MS)
+}
+
+/**
+ * Move o token e, quando alguma coisa barra, EXPLICA — em vez de devolver o
+ * token para a origem em silêncio, que era a dor P10: o mestre arrastava para
+ * dentro da casa, o token parava encostado e a tela não ganhava uma letra.
+ *
+ * Três saídas:
+ *  - caminho livre: token no destino, nada dito;
+ *  - porta fechada e destrancada que, aberta, libera o traço inteiro: a porta
+ *    ABRE e o token passa. O gesto de arrastar para dentro do vão é o gesto de
+ *    empurrar a porta; cabe no mesmo Ctrl+Z do arrasto (o snapshot do
+ *    pointerdown em PixiCanvas cobre mapa inteiro) e o aviso diz que abriu.
+ *    Trancada nunca abre assim — é a regra combinada, só o mestre destranca,
+ *    e destrancar é decisão por botão, não por arrasto;
+ *  - qualquer outra recusa: o token fica onde está e o aviso diz o motivo e o
+ *    que fazer. Devolve o MESMO mapa (mesma referência), que é como o chamador
+ *    sabe que não houve movimento.
+ *
+ * REALCE DA PAREDE QUE BARROU — POR QUE NÃO ESTÁ AQUI (medido em 17/09/2026):
+ * a tentação é `set({ selection: parede })`, e funciona visualmente. Mas o
+ * único realce por entidade do canvas é o do item ÚNICO selecionado
+ * (`pixi/PixiCanvas.tsx`, `redrawShapes`: `selectionSingle(selection)`; com 2+
+ * itens sai só o contorno do grupo), e selecionar uma parede de Sala repinta o
+ * contorno da Sala INTEIRA (`pixi/drawRegions.ts`, `resolveHighlightedRegionId`).
+ * Duas consequências medidas: o token perde o próprio realce e a borda oposta
+ * da Sala (320 px à direita) passa a mudar de cor. Quem procura o token na
+ * tela pelo que mudou passa a achá-lo 50 px à direita, DENTRO da Sala —
+ * arrastar dali pega a Sala, não o token. Realçar sem esse efeito colateral
+ * exige mexer nos renderers (`drawWalls.ts` e os outros), que não são desta
+ * peça; enquanto isso o aviso explica, e a parede continua onde o mestre a vê.
+ */
+function moveTokenExplaining(map: MapData, token: Token, targetX: number, targetY: number): MapData {
+  const from = { x: token.x, y: token.y }
+  const to = { x: targetX, y: targetY }
+  const blocked = describeBlockedMove(from, to, map.walls, map.grid)
+  if (blocked === null) return mapFactory.setTokenPosition(map, token.id, targetX, targetY)
+
+  const door = map.walls.find((w) => w.id === blocked.wallId)?.door ?? null
+  if (blocked.reason === 'door_closed' && blocked.opensPath && door !== null) {
+    noticeMoveOnce(`opened:${blocked.wallId}`, DOOR_OPENED_BY_MOVE_TEXT)
+    const opened = mapFactory.setWallDoor(map, blocked.wallId, { ...door, open: true })
+    return mapFactory.setTokenPosition(opened, token.id, targetX, targetY)
+  }
+
+  noticeMoveOnce(`${blocked.reason}:${blocked.wallId}`, BLOCKED_MOVE_TEXT[blocked.reason])
+  return map
+}
 
 /**
  * Deriva a LayerId da entidade atualmente selecionada, usando as mesmas
@@ -1020,8 +1097,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const { map } = get()
       const token = map.tokens.find((t) => t.id === id)
       if (!token) return
-      const resolved = resolveTokenMove({ x: token.x, y: token.y }, { x: targetX, y: targetY }, map.walls, map.grid)
-      withHistory((m) => mapFactory.setTokenPosition(m, id, resolved.x, resolved.y))
+      // Mesma explicação de moveTokenLive (abaixo). Recusa não mexe no mapa,
+      // então também não empurra histórico: Ctrl+Z não ganha um passo que não
+      // mudou nada (antes, `withHistory` rodava mesmo com o token parado).
+      const next = moveTokenExplaining(map, token, targetX, targetY)
+      if (next !== map) withHistory(() => next)
     },
     setTokenImage: (id, image) => withHistory((map) => mapFactory.setTokenImage(map, id, image)),
     renameToken: (id, name) => withHistory((map) => mapFactory.renameToken(map, id, name)),
@@ -1177,11 +1257,12 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const { map } = get()
       const token = map.tokens.find((t) => t.id === id)
       if (!token) return
-      // Mesma resolução de colisão de moveToken (linha ~599) — sem isto o
-      // token atravessaria parede durante o arrasto e só "corrigiria" ao
-      // soltar, regressão visual em relação ao comportamento com histórico.
-      const resolved = resolveTokenMove({ x: token.x, y: token.y }, { x: targetX, y: targetY }, map.walls, map.grid)
-      set((state) => ({ map: mapFactory.setTokenPosition(state.map, id, resolved.x, resolved.y) }))
+      // Mesma colisão de antes — sem isto o token atravessaria parede durante
+      // o arrasto e só "corrigiria" ao soltar. A diferença é que a recusa
+      // agora FALA (ver moveTokenExplaining). Barrado, `next` volta pela
+      // MESMA referência: o `set` nem acontece e nenhum render acorda.
+      const next = moveTokenExplaining(map, token, targetX, targetY)
+      if (next !== map) set({ map: next })
     },
     movePropLive: (id, x, y) => set((state) => ({ map: mapFactory.setPropPosition(state.map, id, x, y) })),
     moveWallLive: (wallId, dx, dy) => set((state) => ({ map: mapFactory.moveWall(state.map, wallId, dx, dy) })),
