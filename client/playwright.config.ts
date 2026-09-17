@@ -1,4 +1,10 @@
 import { defineConfig } from '@playwright/test'
+// Mesma porta que o vite desta árvore (client/porta.cjs): 1420 na principal,
+// própria em cada worktree. Dois portões em paralelo na 1420 testavam o app da
+// outra árvore com `reuseExistingServer`.
+import { portaDoProjeto } from './porta.cjs'
+const PORTA = portaDoProjeto()
+const URL_BASE = `http://localhost:${PORTA}`
 
 export default defineConfig({
   testDir: './e2e',
@@ -19,14 +25,14 @@ export default defineConfig({
   // suíte fecha verde no mesmo 1,5-1,7 min.
   workers: 4,
   use: {
-    baseURL: 'http://localhost:1420',
+    baseURL: URL_BASE,
     viewport: { width: 1280, height: 800 },
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:1420',
+    url: URL_BASE,
     // ATENÇÃO — servidor reaproveitado é servidor com história. A cada HMR o
     // vite passa a servir o módulo carimbado (`mapStore.ts?t=<ms>`), e a página
     // acaba carregando as DUAS versões: a do app (carimbada) e a que um

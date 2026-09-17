@@ -1,17 +1,21 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+// Porta por árvore de trabalho: 1420 na principal, própria em cada worktree.
+// Sem isso, dois portões em paralelo testam o mesmo servidor (client/porta.cjs).
+import { portaDoProjeto } from './porta.cjs'
 
 const host = process.env.TAURI_DEV_HOST
+const porta = portaDoProjeto()
 
 export default defineConfig({
   plugins: [react()],
   clearScreen: false,
   server: {
-    port: 1420,
+    port: porta,
     strictPort: true,
     host: host || false,
-    hmr: host ? { protocol: 'ws', host, port: 1421 } : undefined,
+    hmr: host ? { protocol: 'ws', host, port: porta + 1 } : undefined,
   },
   // Duas páginas no mesmo build: o editor (index.html) e a página do jogador
   // (player.html), servida pelo servidor axum do app em /player.

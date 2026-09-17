@@ -348,3 +348,48 @@ mim, para não entregar uma tela que nem sobe — exit 0 nas quatro.
 NÃO foram rodados, e portanto NÃO há prova de: vitest, bateria e2e de regressão, jornadas das peças,
 juízo cego por dois critics, passeio de usuário. O que existe é código que compila e sobe.
 
+
+## Feito em 17/09/2026 — branch `feat/consolidado-17set` (sem push)
+
+Aprovado pelo usuário no exe ("gostei da maioria das features"). Commits `90a8778`, `a503d06`,
+`252244f`, `928b7d6`, consolidados em `29b77a4`. Provado só por `tsc --noEmit` (exit 0) — vitest,
+e2e, jornadas e juízo cego foram dispensados pelo usuário, que testou na mão.
+
+- P1 seleção com mouse (arrastar no vazio, sem Shift)
+- P3 espessura livre de parede
+- P5 escada legível (sentido visível sem painel)
+- P4 memória do jogador sem escadinha
+- P10 entrar na casa: recusa de movimento que explica
+- P6 tela de entrada do jogador (nunca abre branca; `<style>` embutido no player.html)
+- 6 achados dos passeios: ferramenta Peça muda, prévia que mentia, token nascendo na parede,
+  sala sem nome distinto e circular facetada, barra sem rastro, painel com título errado
+
+
+## Pedido de 17/09/2026 (registro literal, com prints)
+
+"Vamos seguir com as melhorias do programa use o gauntlet-loop, junto ao ultracode, junto workflow
+para: 1. Iluminação — hoje o halo atravessa parede e o jogador nunca desenha luz nenhuma, embora ela
+seja enviada a ele. Decisão já tomada: barrada por parede, mais visível, desenhada na tela do
+jogador. "Mapa escuro com tocha" fica fora.
+2. Token do jogador — foto no lugar do círculo azul fixo, e o jogador mudando nome e foto do próprio
+token. net/protocol.ts não tem hoje nenhuma mensagem de editar token.
+3. Pincel de blocos com balde, e caminhos com cor por caminho. Não existe flood fill no projeto;
+FloorStyle é global e Region.fillColor é por instância — é daí que sai.
+4. Sala de formato livre.
+5. Mapas conectados, por último e sozinho: docs/plano-mapas-conectados.md. O host serve
+6-[print do token do mestre com foto] para mim o token ta com imagem tudo certinho mas para o
+jogador, ele não consegue nem colocar imagem nem ver a imagem, isso não é para acontecer, ele é para
+poder colocar a imagem e coloque o token para ser assim [print de tokens redondos com moldura]
+7-[print da tela] Uma ferramenta que eu gostaria que tivesse são os Pinos seria dois pinos um com
+exclamação e outro com interrogação, que seriam ponto de interesse e quando o jogar clicasse na
+parte lateral dele iria abrir o que seria o pino poderia abrir a imagem de uma cenári ou um item e
+embaixo a descrição e tal."
+
+### Fila desta rodada (ordem do usuário)
+1. Luz: barrada por parede, mais visível, desenhada na tela do jogador.
+2. Token: foto no lugar do círculo; token redondo com moldura; jogador troca nome e foto do próprio
+   token (mensagem nova no protocolo); jogador VÊ a foto (hoje fogFilter zera `image`).
+3. Pincel de blocos com balde + caminhos com cor por caminho.
+4. Sala de formato livre.
+5. Pinos de ponto de interesse (exclamação e interrogação) com imagem e descrição ao clicar.
+6. Mapas conectados (por último, sozinho) — `docs/plano-mapas-conectados.md`.

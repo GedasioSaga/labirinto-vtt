@@ -21,3 +21,6 @@ Tentativa/
 .genesis/
 test-results/
 playwright-report/
+
+# Material temporario de sessao (bars, prints, diagnosticos)
+scratchpad/

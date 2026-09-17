@@ -114,8 +114,15 @@ function git(args) {
 /** Página do jogador servida pelo exe RELEASE na LAN — o artefato que está em julgamento. */
 const URL_JOGADOR = process.env.PORTAO_URL_JOGADOR || 'http://192.168.0.6:7777/player'
 const TIMEOUT_JOGADOR_MS = 8000
-/** Editor do mestre no servidor de desenvolvimento — o mesmo baseURL do playwright.config.ts. */
-const URL_EDITOR = process.env.PORTAO_URL_EDITOR || 'http://localhost:1420/'
+/**
+ * Editor do mestre no servidor de desenvolvimento — o mesmo baseURL do
+ * playwright.config.ts, derivado da árvore de trabalho (client/porta.cjs):
+ * 1420 na principal, porta própria em cada worktree, para que dois portões em
+ * paralelo não testem o mesmo servidor.
+ */
+const URL_EDITOR =
+  process.env.PORTAO_URL_EDITOR ||
+  'http://localhost:' + require(path.join(RAIZ, 'client', 'porta.cjs')).portaDoProjeto() + '/'
 /** Os módulos que os specs importam dentro de `page.evaluate` — os que podem virar instância dupla. */
 const MODULOS_DE_SPEC = ['/src/stores/mapStore.ts', '/src/lib/mapFactory.ts']
 
@@ -266,8 +273,21 @@ function guardaTetoSemControle(arquivo, texto) {
  */
 function guardaTransporteFalsificado(arquivo, texto) {
   const marcas = []
-  if (/__emitTauri\s*\(/.test(texto)) marcas.push('__emitTauri (evento de transporte inventado na página)')
-  if (/case\s+'net_(start_room|send|kick|stop_room)'/.test(texto)) marcas.push("stub de invoke 'net_*'")
+  // `__emitTauri` e o stub de `net_*` falsificam o lado do MESTRE (o evento e os
+  // comandos Rust que abrem a sala). Quando a MESMA jornada dirige a página do
+  // jogador por `routeWebSocket` ligado à sessão REAL do host
+  // (`createHostSession`), o que o jogador recebe vem do código de produção, não
+  // de um switch de mentira: a jornada continua sendo prova de tela, e o
+  // transporte de verdade é medido pelo passo `transporte-vivo` (exe release na
+  // 7777), que é o lugar certo para isso. Sem esse par (socket real + host
+  // real), os dois voltam a reprovar — jornada que fabrica TUDO não prova nada.
+  const jogadorNoSocketReal = /routeWebSocket\s*\(/.test(texto) && /createHostSession\s*\(/.test(texto)
+  if (/__emitTauri\s*\(/.test(texto) && !jogadorNoSocketReal) {
+    marcas.push('__emitTauri (evento de transporte inventado na página)')
+  }
+  if (/case\s+'net_(start_room|send|kick|stop_room)'/.test(texto) && !jogadorNoSocketReal) {
+    marcas.push("stub de invoke 'net_*'")
+  }
   if (marcas.length > 0) {
     return reprova(
       'g5-transporte-falsificado',
