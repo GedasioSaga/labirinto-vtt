@@ -480,7 +480,8 @@ interface MapStoreState {
   removeToken: (id: string) => void
   setTokenPosition: (id: string, x: number, y: number) => void
   moveToken: (id: string, targetX: number, targetY: number) => void
-  setTokenImage: (id: string, image: string | null) => void
+  /** `imageData`: cópia auto-contida que viaja até o jogador (ver lib/tokenPhoto.ts). Omitido = sem cópia. */
+  setTokenImage: (id: string, image: string | null, imageData?: string | null) => void
   /** Campo Nome do painel do token — com histórico, mesmo padrão de `setRoomName`. */
   renameToken: (id: string, name: string) => void
   /**
@@ -1103,7 +1104,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const next = moveTokenExplaining(map, token, targetX, targetY)
       if (next !== map) withHistory(() => next)
     },
-    setTokenImage: (id, image) => withHistory((map) => mapFactory.setTokenImage(map, id, image)),
+    setTokenImage: (id, image, imageData = null) => withHistory((map) => mapFactory.setTokenImage(map, id, image, imageData)),
     renameToken: (id, name) => withHistory((map) => mapFactory.renameToken(map, id, name)),
     updateToken: (id, patch) => withHistory((map) => ({
       ...map,

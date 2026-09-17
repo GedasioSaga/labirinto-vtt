@@ -2,6 +2,7 @@ import type { MapData, RegionPoint } from '../types/map'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
+import { isTokenPhotoData } from '../lib/tokenPhoto'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -81,7 +82,26 @@ export interface DoorToggleMessage {
   wallId: string
 }
 
-export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage | DoorToggleMessage
+/**
+ * Jogador troca o NOME e a FOTO do PRÓPRIO token, da tela dele. Campo ausente
+ * = não mexe naquele dado; `image: null` remove a foto.
+ *
+ * `image` é sempre uma referência AUTO-CONTIDA (`data:image/...;base64,...`),
+ * validada por `isTokenPhotoData`: o jogador não tem, e nunca terá, caminho
+ * nenhum no disco do mestre, e o host não aceita outra forma.
+ *
+ * Aditiva pelo mesmo critério de `door.toggle`: mestre antigo responde
+ * `error invalid_message` (o jogador só não troca nada) e jogador antigo nunca
+ * a envia.
+ */
+export interface TokenEditMessage {
+  type: 'token.edit'
+  tokenId: string
+  name?: string
+  image?: string | null
+}
+
+export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage | DoorToggleMessage | TokenEditMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -140,6 +160,32 @@ function parseTokenMove(obj: Record<string, unknown>): TokenMoveMessage | null {
 }
 
 /**
+ * Edição do próprio token. Recusa a mensagem inteira quando qualquer campo
+ * presente está malformado, e também quando ela não muda NADA — mensagem que
+ * não pede nada não vale um broadcast.
+ */
+function parseTokenEdit(obj: Record<string, unknown>): TokenEditMessage | null {
+  const { tokenId, name, image } = obj
+  if (!isBoundedString(tokenId, 1, REQ_ID_MAX_LENGTH)) return null
+  const parsed: TokenEditMessage = { type: 'token.edit', tokenId }
+  if (name !== undefined) {
+    if (typeof name !== 'string') return null
+    const trimmed = name.trim()
+    // Mesmo limite do nome do jogador: é texto que o mestre vê na tela dele.
+    if (trimmed.length < NAME_MIN_LENGTH || trimmed.length > NAME_MAX_LENGTH) return null
+    parsed.name = trimmed
+  }
+  if (image !== undefined) {
+    // Fronteira de segurança: só foto embutida. Caminho de disco, `http://` e
+    // `javascript:` não casam com o padrão e a mensagem inteira cai.
+    if (image !== null && !isTokenPhotoData(image)) return null
+    parsed.image = image
+  }
+  if (parsed.name === undefined && parsed.image === undefined) return null
+  return parsed
+}
+
+/**
  * Valida a mensagem `laser` que o jogador recebe (objeto já desserializado).
  * Aceita `off: true` ou 1 a `LASER_MAX_POINTS_PER_MESSAGE` pontos finitos; devolve
  * cópia só com `x`/`y`, e `null` para qualquer outra forma.
@@ -183,6 +229,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
     case 'door.toggle':
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
+    case 'token.edit':
+      return parseTokenEdit(value)
     default:
       return null
   }

@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react'
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import type { StorageLike } from './playerConnection'
+import { NAME_MAX_LENGTH } from '../net/protocol'
 
 // Painel do jogador: meus personagens, ajustes de visão e centralizar a câmera.
 // Fica sobre o canvas (não ao lado) para o enquadramento do mapa não depender
@@ -76,12 +77,28 @@ interface PlayerPanelProps {
   /** Modo "Sinalizar" ligado: o próximo toque no mapa vira sinal. */
   signalArmed: boolean
   onToggleSignal: () => void
+  /** Nome novo do próprio token (já aparado); o mestre recebe pelo socket. */
+  onRenameToken: (tokenId: string, name: string) => void
+  /** Foto nova do próprio token. Rejeita (lança) quando a imagem não serve, e o aviso vai para a tela. */
+  onChangeTokenPhoto: (tokenId: string, file: File) => Promise<void>
 }
 
-export function PlayerPanel({ characters, characterColor, settings, onSettingsChange, onFocusToken, signalArmed, onToggleSignal }: PlayerPanelProps) {
+export function PlayerPanel({
+  characters,
+  characterColor,
+  settings,
+  onSettingsChange,
+  onFocusToken,
+  signalArmed,
+  onToggleSignal,
+  onRenameToken,
+  onChangeTokenPhoto,
+}: PlayerPanelProps) {
   const [open, setOpen] = useState(false)
   const panelId = useId()
   const brightnessId = useId()
+  const nameFieldId = useId()
+  const photoFieldId = useId()
 
   useEffect(() => {
     if (!open) return
@@ -110,6 +127,49 @@ export function PlayerPanel({ characters, characterColor, settings, onSettingsCh
   }
 
   const first = characters[0]
+  // O personagem editável é o primeiro da lista: é quase sempre o único, e
+  // "qual dos meus" só faria sentido com uma escolha na tela que ninguém pediu.
+  const myTokenId = first?.id ?? null
+  const myTokenName = first?.name ?? ''
+  const [nameDraft, setNameDraft] = useState(myTokenName)
+  const [photoError, setPhotoError] = useState<string | null>(null)
+  const [photoBusy, setPhotoBusy] = useState(false)
+
+  // O nome mandado pelo mestre manda: trocar de personagem, ou o mestre
+  // renomear o seu, recarrega o rascunho. Enquanto a pessoa digita nada muda
+  // de fora, então não há como o campo ser limpo no meio da frase.
+  useEffect(() => {
+    setNameDraft(myTokenName)
+  }, [myTokenId, myTokenName])
+
+  function applyName() {
+    const limpo = nameDraft.trim()
+    if (myTokenId === null || limpo === '' || limpo === myTokenName) return
+    onRenameToken(myTokenId, limpo)
+  }
+
+  function submitName(event: FormEvent<HTMLFormElement>) {
+    // Enter num formulário de um campo só recarregaria a página.
+    event.preventDefault()
+    applyName()
+  }
+
+  async function chooseTokenPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    // Zera o campo ANTES de usar o arquivo: escolher a MESMA foto de novo
+    // (depois de um erro, por exemplo) precisa disparar `change` outra vez.
+    event.target.value = ''
+    if (file === undefined || myTokenId === null) return
+    setPhotoError(null)
+    setPhotoBusy(true)
+    try {
+      await onChangeTokenPhoto(myTokenId, file)
+    } catch (erro) {
+      setPhotoError(erro instanceof Error ? erro.message : 'não deu para usar essa foto')
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
 
   return (
     <>
@@ -154,6 +214,41 @@ export function PlayerPanel({ characters, characterColor, settings, onSettingsCh
           </button>
           <p className="pp-empty">No PC: Alt+clique ou segure o clique parado.</p>
         </section>
+
+        {first !== undefined && (
+          <section className="pp-section" aria-labelledby={`${panelId}-me`}>
+            <h2 id={`${panelId}-me`} className="pp-heading">
+              Meu personagem
+            </h2>
+            <form className="pp-field" onSubmit={submitName}>
+              <label className="pp-label" htmlFor={nameFieldId}>
+                Nome
+              </label>
+              {/* Enter aplica; sair do campo também, para quem clica fora sem apertar nada. */}
+              <input
+                id={nameFieldId}
+                className="pp-input"
+                type="text"
+                value={nameDraft}
+                maxLength={NAME_MAX_LENGTH}
+                onChange={(event) => setNameDraft(event.target.value)}
+                onBlur={applyName}
+              />
+            </form>
+            <div className="pp-field">
+              <label className="pp-label" htmlFor={photoFieldId}>
+                Foto
+              </label>
+              <input id={photoFieldId} className="pp-file" type="file" accept="image/*" onChange={chooseTokenPhoto} />
+            </div>
+            {photoBusy && <p className="pp-empty">Preparando a foto…</p>}
+            {photoError !== null && (
+              <p className="pp-error" role="alert">
+                {photoError}
+              </p>
+            )}
+          </section>
+        )}
 
         <section className="pp-section" aria-labelledby={`${panelId}-vision`}>
           <h2 id={`${panelId}-vision`} className="pp-heading">

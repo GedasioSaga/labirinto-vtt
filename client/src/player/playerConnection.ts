@@ -1,6 +1,7 @@
-import type { MapData, RegionPoint } from '../types/map'
+import type { MapData, RegionPoint, Token } from '../types/map'
 import { decodeExploration, type Exploration } from '../lib/exploration'
-import { NAME_MAX_LENGTH, type DoorToggleRejection, type JoinMessage, type PlayerMessage } from '../net/protocol'
+import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, type DoorToggleRejection, type JoinMessage, type PlayerMessage } from '../net/protocol'
+import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
 import { parseLaserMessage } from '../net/protocol'
@@ -70,6 +71,16 @@ export interface PlayerConnection {
   sendSignal(x: number, y: number): boolean
   /** Pede ao mestre para abrir/fechar a porta. `false` se não está jogando ou o socket não está aberto. */
   toggleDoor(wallId: string): boolean
+  /**
+   * Nome novo do PRÓPRIO token: aplica na hora e envia. `false` quando o token
+   * não é dele, não está no mapa, o nome não cabe ou o socket não está aberto.
+   */
+  setOwnTokenName(tokenId: string, name: string): boolean
+  /**
+   * Foto nova do PRÓPRIO token (referência auto-contida). Mesmas recusas de
+   * `setOwnTokenName`, mais a forma da foto.
+   */
+  setOwnTokenPhoto(tokenId: string, image: string): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -162,6 +173,10 @@ function writeResume(storage: StorageLike | null, value: StoredResume | null): v
 
 function withTokenAt(map: MapData, tokenId: string, x: number, y: number): MapData {
   return { ...map, tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : t)) }
+}
+
+function withTokenPatch(map: MapData, tokenId: string, patch: Partial<Token>): MapData {
+  return { ...map, tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, ...patch } : t)) }
 }
 
 export function createPlayerConnection(options: PlayerConnectionOptions): PlayerConnection {
@@ -309,6 +324,24 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return
     }
     if (state.map) setState({ map: withTokenAt(state.map, move.tokenId, x, y) })
+  }
+
+  /**
+   * Edita o próprio token: valida a posse aqui, envia e aplica LOCAL na hora.
+   *
+   * Otimista igual ao movimento (`requestMove`), e pelo mesmo motivo: a tela
+   * precisa responder ao gesto sem esperar a volta do mestre. O snapshot
+   * seguinte é a autoridade e sobrescreve — se o mestre recusar, a tela volta
+   * sozinha no próximo `rev`.
+   */
+  function editOwnToken(tokenId: string, message: PlayerMessage, patch: Partial<Token>): boolean {
+    const map = state.map
+    if (state.status !== 'playing' || !map) return false
+    if (!(state.ownTokens ?? []).includes(tokenId)) return false
+    if (!map.tokens.some((t) => t.id === tokenId)) return false
+    if (!send(message)) return false
+    setState({ map: withTokenPatch(map, tokenId, patch) })
+    return true
   }
 
   function handleMessage(raw: unknown): void {
@@ -483,6 +516,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     toggleDoor(wallId) {
       if (state.status !== 'playing' || wallId.length === 0) return false
       return send({ type: 'door.toggle', wallId })
+    },
+
+    setOwnTokenName(tokenId, name) {
+      const limpo = name.trim()
+      if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
+      return editOwnToken(tokenId, { type: 'token.edit', tokenId, name: limpo }, { name: limpo })
+    },
+
+    setOwnTokenPhoto(tokenId, image) {
+      if (!isTokenPhotoData(image)) return false
+      // `image: null` junto: o caminho do disco do mestre (quando havia um)
+      // deixa de valer para este token — a foto agora é a que o jogador
+      // escolheu, e é a embutida que viaja. Mesma forma que o host vai gravar.
+      return editOwnToken(tokenId, { type: 'token.edit', tokenId, image }, { image: null, imageData: image })
     },
     reconnect() {
       detach()

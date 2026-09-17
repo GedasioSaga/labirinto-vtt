@@ -5,7 +5,7 @@ import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
-import { parsePlayerMessage, type DoorToggleMessage, type HostMessage, type JoinMessage, type LaserMessage, type SignalMessage, type TokenMoveMessage } from './protocol'
+import { parsePlayerMessage, type DoorToggleMessage, type HostMessage, type JoinMessage, type LaserMessage, type SignalMessage, type TokenEditMessage, type TokenMoveMessage } from './protocol'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -33,6 +33,16 @@ export interface AppliedDoor {
   open: boolean
 }
 
+/**
+ * Nome/foto novos do token, já validados: o token existe e é DO jogador que
+ * pediu. Campo ausente = não mexe naquele dado.
+ */
+export interface AppliedTokenEdit {
+  tokenId: string
+  name?: string
+  image?: string | null
+}
+
 /** Sinal aceito de um jogador, para a UI do mestre desenhar. */
 export interface HostSignal {
   playerId: string
@@ -46,6 +56,7 @@ export interface HostResult {
   outbound: Outbound[]
   applyMove?: AppliedMove
   applyDoor?: AppliedDoor
+  applyTokenEdit?: AppliedTokenEdit
   signal?: HostSignal
 }
 
@@ -67,6 +78,14 @@ export const VISION_RADIUS_STEP = 50
 
 /** Um pedido de porta por jogador nesta janela; o excesso morre em silêncio (igual ao sinal). */
 export const DOOR_TOGGLE_MIN_INTERVAL_MS = 250
+
+/**
+ * Uma FOTO nova por jogador nesta janela. Só a foto: ela é o único campo caro
+ * de `token.edit` (centenas de KB), e trocar o nome é texto de 32 caracteres —
+ * estrangular os dois juntos faria o jogador que digita o nome e escolhe a
+ * foto no mesmo gesto perder um dos dois em silêncio.
+ */
+export const TOKEN_PHOTO_MIN_INTERVAL_MS = 500
 
 export interface HostSessionOptions {
   code: string
@@ -144,6 +163,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastSignalAt = new Map<string, number>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
   const lastDoorToggleAt = new Map<string, number>()
+  // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
+  const lastTokenPhotoAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
   const visionOverrides = new Map<string, number>()
   let rev = 0
@@ -322,6 +343,31 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { outbound: [], applyDoor: { wallId: wall.id, open: !wall.door.open } }
   }
 
+  /**
+   * Jogador troca o nome e a foto do PRÓPRIO token. A autoridade é aqui: o
+   * token precisa existir no mapa do mestre E estar na posse DELE
+   * (`ownership`) — sem essa checagem qualquer jogador renomearia o dragão do
+   * mestre ou trocaria a cara do personagem do colega.
+   *
+   * Pedido de quem não é dono morre em silêncio, como o sinal fora do
+   * intervalo: não é mensagem malformada (a forma é válida), é pedido que não
+   * vale — responder "recusado" só ensinaria quais ids existem no mapa.
+   */
+  function handleTokenEdit(clientId: string, msg: TokenEditMessage, map: MapData): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return { outbound: [] }
+    if (!map.tokens.some((t) => t.id === msg.tokenId)) return { outbound: [] }
+    if (msg.image !== undefined) {
+      const at = now()
+      const last = lastTokenPhotoAt.get(playerId)
+      if (last !== undefined && at - last < TOKEN_PHOTO_MIN_INTERVAL_MS) return { outbound: [] }
+      lastTokenPhotoAt.set(playerId, at)
+    }
+    return { outbound: [], applyTokenEdit: { tokenId: msg.tokenId, name: msg.name, image: msg.image } }
+  }
+
   return {
     get rev() {
       return rev
@@ -341,6 +387,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleSignal(clientId, msg, map)
         case 'door.toggle':
           return handleDoorToggle(clientId, msg, map)
+        case 'token.edit':
+          return handleTokenEdit(clientId, msg, map)
       }
     },
 
@@ -382,6 +430,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       explorations.delete(playerId)
       lastSignalAt.delete(playerId)
       lastDoorToggleAt.delete(playerId)
+      lastTokenPhotoAt.delete(playerId)
       visionOverrides.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },

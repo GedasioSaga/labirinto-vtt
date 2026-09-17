@@ -263,8 +263,16 @@ export interface Token extends PlayerSecret {
   y: number
   size: number
   /** Caminho absoluto da imagem importada (mesmo pipeline de Prop.src).
-   *  null = círculo genérico, render idêntico ao de drawTokens.ts:10-18. */
+   *  null = círculo genérico, render idêntico ao de drawTokens.ts:10-18.
+   *  NÃO viaja para o jogador: é caminho do disco do mestre (lib/fogFilter.ts). */
   image: string | null
+  /** Cópia pequena e AUTO-CONTIDA da foto (`data:image/...;base64,...`) — a
+   *  única forma que atravessa o recorte do jogador, e por onde a foto que o
+   *  JOGADOR escolhe na tela dele chega ao mapa. `undefined` === null (token
+   *  sem cópia embutida, aparência idêntica à de antes deste campo) — mesmo
+   *  padrão de `rotation`/`locked`/`hidden`. Regra de uso e teto em
+   *  `lib/tokenPhoto.ts`. */
+  imageData?: string | null
   /** Rotação em graus, sentido horário. `undefined` === 0 (aparência
    *  idêntica à de hoje) — sem linha de migração, mesmo padrão de wallKind
    *  (Wall, acima). */

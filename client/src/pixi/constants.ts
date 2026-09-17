@@ -56,3 +56,14 @@ export const HANDLE_MIDPOINT_RADIUS = 2.5
 
 /** A5 — item "Oculto para jogadores" desenhado esmaecido no editor. */
 export const SECRET_ITEM_ALPHA = 0.5
+
+/**
+ * Moldura do token com foto — o anel de latão que fica SEMPRE em volta da
+ * foto, não só quando o token está selecionado. Pedido do usuário (prints de
+ * 17/09/2026): token redondo, foto recortada dentro do círculo e moldura em
+ * volta. `--lb-color-brass` do tema (theme.ts), para o mapa e a interface
+ * falarem a mesma língua.
+ */
+export const TOKEN_FRAME_COLOR = 0xe0a44a
+/** Espessura da moldura, em px de mundo: a foto é recortada no raio do token MENOS isto. */
+export const TOKEN_FRAME_WIDTH = 4
