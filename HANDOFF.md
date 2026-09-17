@@ -751,3 +751,79 @@ exit 0, `npm run test` 0 falhas, `cd client && npx playwright test` 0 falhas.
   298/1028/3393 px, título da moldura 474 px (mapa1).
 - Ganho por etapa medido: pixel duro 96,9/91,7/92,2% → largura medida por mapa 98,2/95,0/94,1% →
   calibração por render + detalhes escuros + pontilhado 98,2/95,0/95,5%.
+
+---
+
+# Sessão de 17/09/2026 — quatro gauntlets em paralelo, um por árvore
+
+## Objetivo
+Atacar a lista de 11 itens que o usuário mandou com prints (registrada literal em `PEDIDOS.md`),
+com paralelismo máximo e sem cortar escopo: "vá resolvendo os problemas, criando as features e tudo
+mais, o que eu quero é paralelismo". O item 6 foi esclarecido depois: é a **tela de entrada do
+jogador**, que abre branca.
+
+## Estado atual
+Quatro `git worktree`, cada um com um gauntlet rodando, porta de vite própria e `node_modules` por
+junction. Nenhuma peça de uma árvore toca arquivo de outra; o merge de volta é manual, branch por
+branch.
+
+| Árvore | Branch | Porta | Bar | Peças |
+|---|---|---|---|---|
+| `C:\dev\labirinto` | `feat/menu-inicial` | 1420 | app.dungeonscrawl.com | parede grossa · seleção por arrasto · escada legível · portão |
+| `C:\dev\labirinto-jogador` | `feat/tela-jogador` | 1440 | jackbox.tv | tela de entrada do jogador |
+| `C:\dev\labirinto-fog` | `feat/visao-e-porta` | 1450 | demo.foundryvtt.com/join | visão lembrada inteira · entrar na casa |
+| `C:\dev\labirinto-consertos` | `fix/achados-passeio` | 1437 | app.dungeonscrawl.com | 6 achados dos passeios cegos |
+
+11 jornadas vermelhas novas, escritas por `testador` ANTES do build, todas com controle positivo que
+morde e asserção em pixel de tela (nunca em store). Bars conferidas abrindo no driver antes de usar;
+**Owlbear Rodeo foi descartada** por cair em verificação da Cloudflare no navegador automatizado.
+
+## Próximos passos
+1. Esperar o veredito de cada frente (dois `critico-cego` por rodada, ordens invertidas).
+2. Merge branch por branch, revisando diff. Atenção ao conflito conhecido: `task4-drawing-tools.spec.ts:175`
+   ("ferramenta Selecionar: pan de área vazia move a câmera") passa hoje e **vai quebrar** quando a peça
+   `selecao-arrasto` entrar — é mudança de comportamento pedida pelo usuário, não regressão.
+3. Fila sem construtor ainda: balde/piscina e caminhos coloridos (itens 2 e 7); luz barrada por parede
+   e desenhada no jogador (item 8); foto e nome do token pelo jogador (itens 8b e 9); mapas conectados
+   (item 11).
+4. Dívida nova, achada por medição e sem dono: os 3 testes que já estavam vermelhos no HEAD (abaixo).
+
+## Critério de pronto
+Por peça: os dois `critico-cego` frescos escolhem o nosso lado às cegas, cada um com a ordem A/B
+invertida do outro, **e** os quatro gate_cmds da árvore saem verdes, **e** a jornada da peça passa.
+Peça que só tem teste verde não está pronta. Nenhuma frente fecha por contagem de rodadas.
+
+## Evidência
+- Portão de cada árvore, medido pelo orquestrador ANTES de disparar o run (não por relato de agente):
+  - `labirinto-consertos`: `tsc -p client/tsconfig.json` exit 0; `tsc -p client/tsconfig.e2e.json` exit 0;
+    `npm run test --workspace=client` → `Test Files 132 passed (132) | Tests 2096 passed (2096)`;
+    bateria de regressão e2e → `196 passed (4.5m)`.
+  - `labirinto-jogador`: gates 1 e 2 exit 0; vitest 132/2096; bateria Playwright do jogador
+    (`task-player-page`, `task-player-map`, `task-player-door`, `task-player-signal`,
+    `task-jornada-entrada-jogador`) → `10 passed (1.1m)`; jornada da peça → `4 failed / 0 passed`.
+- **3 testes já vermelhos no HEAD `25de80c`, sem relação com esta sessão** (medidos rodando o e2e
+  inteiro; excluídos do portão de consertos e declarados nas invariantes, não escondidos):
+  `task-fluxo-consertos.spec.ts:84` (Voltar do andar salva o que foi desenhado),
+  `task-fluxo-consertos.spec.ts:109` (Ctrl+A e Ctrl+O),
+  `task-alignment-door-curve-portal.spec.ts:144` (link de cenário).
+  Mais a vermelha de propósito já documentada em `25de80c`: `task-jornada-ferramentas-mudas.spec.ts:240`.
+- Duas Fases 0 me bloquearam, com razão, e as duas eram erro do orquestrador:
+  1. `tsc -p client/tsconfig.e2e.json` vermelho por `TS2352` dentro da própria jornada, num arquivo que
+     a invariante proíbe o builder de tocar — portão impossível de fechar.
+  2. A jornada media `http://localhost:1420` (outro checkout) com endereço escrito na mão. Provado por
+     conteúdo servido: `curl localhost:1420/src/lib/stairs.ts` e `localhost:1440/...` devolvem arquivos
+     diferentes, e os checkouts estão em branches diferentes. Daria falso-vermelho eterno e falso-verde
+     no sentido oposto. Corrigido: endereço sai do `baseURL` do `playwright.config` de cada checkout.
+- Terceira armadilha, achada pela Fase 0 do run do jogador e que mudaria o trabalho do builder: em
+  `npm run dev` o Vite serve `client/src/player/player.css` com `Content-Type: text/javascript` e o
+  `client/player.html` não tem `<link>` nem `<style>`. Com JavaScript desligado **nenhuma** regra
+  daquele arquivo chega ao navegador, então editar `player.css` jamais tiraria a página do branco. A
+  instrução foi reescrita: o fundo escuro tem de nascer de `<style>` no `player.html` ou de CSS
+  estático em `client/public/`.
+- Incidente de porta: 1430 estava ocupada pelo vite de `C:/dev/learno` **no IPv6** (`[::1]:1430` →
+  `<title>Tauri + React + Typescript`) enquanto o IPv4 era o worktree. O Chromium resolve `localhost`
+  para IPv6 primeiro, então o teste ia para o app errado e o `curl` do terminal dizia que estava tudo
+  bem. Consertos movido para 1437. **Porta respondendo 200 não prova que é o seu app** — conferir por
+  identidade, nas duas pilhas.
+- Disco: `desktop/src-tauri/target/debug` (5,1 GB) apagado com autorização explícita do usuário; o exe
+  release de 15/09 foi preservado. De 778 MB para 32 GB livres.

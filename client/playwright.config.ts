@@ -4,6 +4,14 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
   retries: 0,
+  // PROVA QUE NÃO SE APAGA. O Playwright LIMPA o `outputDir` inteiro no começo
+  // de cada invocação — screenshot de falha, trace e error-context da rodada
+  // anterior somem antes de alguém olhar. Rodar as jornadas uma a uma, como o
+  // portão faz, significava apagar a evidência de cada uma ao começar a
+  // seguinte. Com `PORTAO_ARTEFATOS` cada passo escreve numa pasta própria
+  // (scripts/portao.cjs passa `<temp>/portao-labirinto/artefatos/<passo>-<ms>`),
+  // sempre em pasta temporária — nada do repositório nem do usuário é tocado.
+  outputDir: process.env.PORTAO_ARTEFATOS || './test-results',
   // Todos os workers batem no MESMO vite dev (módulos sem bundle) e cada um
   // sobe um Pixi/WebGL. No padrão (metade dos núcleos, 10 aqui) a máquina
   // satura e testes aleatórios estouram os 30s em goto/beforeEach — medido

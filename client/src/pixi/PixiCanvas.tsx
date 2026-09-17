@@ -146,8 +146,8 @@ import { measureDistance } from '../lib/measurement'
 // pra resize por canto de Drawing rect/ellipse/polygon, Token e Prop.
 import { findBoxCornerAt, drawingBoundingBox, tokenBoundingBox, propBoundingBox, resizeTokenSize, type Corner } from '../lib/objectTransform'
 // N3 "ferramenta de seleção de área" — geometria pura de marquee + mover grupo.
-import { selectEntitiesInArea, areaSelectionBounds, isAreaSelectionEmpty, type AreaRect } from '../lib/areaSelection'
-import { drawSelectionMarquee, drawAreaSelectionOutline } from './drawSelectionMarquee'
+import { selectEntitiesInArea, areaSelectionBounds, classifyMarqueeGesture, type AreaRect } from '../lib/areaSelection'
+import { drawSelectionMarquee, drawAreaSelectionOutline, createMarqueeHintRenderer } from './drawSelectionMarquee'
 // Onda 4, item 24 — modelo canônico de seleção (lib/selectionModel.ts).
 // `useMapStore.getState().selection` agora é um SelectionSet (conjunto);
 // estes helpers convertem na borda pros consumidores que só entendem "um
@@ -551,6 +551,11 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         angleIndicatorContainer,
         guidesGraphics,
       )
+      // 17/09/2026 — arrastar no vazio virou marquee (era pan). A dica que
+      // conta por onde o pan foi mora DENTRO do retângulo em curso; entra no
+      // `world` DEPOIS de todas as camadas acima, por cima de todas elas, que
+      // é o lugar de uma dica.
+      const marqueeHint = createMarqueeHintRenderer(world)
 
       let camera: Camera = useMapStore.getState().camera
       // `world` sempre em pixel físico inteiro: o alinhamento dos traços finos
@@ -1430,6 +1435,13 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // `mode === 'idle'`, `null` fora dela ou quando já é a seleção atual.
       let hoverTarget: HoverTarget | null = null
       let spaceHeld = false
+      // 17/09/2026 — a pessoa já moveu a vista pelo botão do meio ou por
+      // Espaço+arrastar pelo menos uma vez nesta sessão do canvas. A dica
+      // dentro do marquee ("Espaço ou botão do meio move a vista") existe
+      // porque o arrasto no vazio deixou de panar; quem já achou o caminho
+      // não precisa mais dela, e dica que insiste depois de aprendida vira
+      // ruído em cima do próprio gesto.
+      let panPathLearned = false
 
       const toWorldPoint = (globalX: number, globalY: number) => ({
         x: (globalX - camera.x) / camera.scale,
@@ -1971,6 +1983,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         // outro if de ferramenta e sair com "return" pra nao rodar selecao/desenho.
         if (event.button === 1) {
           mode = 'panning'
+          panPathLearned = true
           lastPoint = { x: event.global.x, y: event.global.y }
           return
         }
@@ -1981,6 +1994,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         // pra não disparar desenho/seleção por baixo do gesto de pan.
         if (spaceHeld) {
           mode = 'panning'
+          panPathLearned = true
           lastPoint = { x: event.global.x, y: event.global.y }
           updateCursor()
           return
@@ -2553,20 +2567,34 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           // um segundo campo `areaSelection` paralelo que precisava ser
           // limpo à parte; não existe mais).
         } else {
-          // Onda 4, item 24 — clique em espaço vazio (o caso "dentro do
-          // grupo já fechado" já foi resolvido ANTES do hit-test, acima).
-          // Dois casos, nesta ordem:
-          //  1. Shift segurado, com Selecionar ativa → começa um novo
-          //     marquee, que ao fechar SOMA à seleção já existente (não
-          //     substitui — ver pointerup, 'area-marquee-drag');
-          //  2. nenhum dos dois → comportamento de sempre, pan da câmera E
-          //     limpa a seleção (preserva o spec e2e "pan de área vazia move
-          //     a câmera", que nunca segura Shift).
+          // Clique/arrasto em espaço vazio (o caso "dentro do grupo já
+          // fechado" já foi resolvido ANTES do hit-test, acima).
+          //
+          // 17/09/2026 — com a ferramenta Selecionar, ESTE gesto é o
+          // retângulo de seleção, com ou sem Shift. Antes, o retângulo só
+          // nascia com Shift no pointerdown e o mesmo arrasto sem Shift
+          // panava a câmera E limpava a seleção; ninguém descobria o Shift
+          // sozinho, e o pedido do usuário era literalmente "capacidade de
+          // selecionar tudo com mouse".
+          //
+          // O que cada um significa é decidido no pointerup, por
+          // `classifyMarqueeGesture` (lib/areaSelection.ts) — aqui o gesto
+          // ainda não tem tamanho: quase parado = clique no vazio (larga a
+          // seleção, como sempre foi); arrasto sem Shift = a área SUBSTITUI
+          // a seleção; arrasto com Shift = a área SOMA. Por isso este bloco
+          // NÃO chama mais `setSelection(EMPTY_SELECTION)`: limpar aqui
+          // apagaria a seleção que um Shift+arrasto vem justamente somar.
+          //
+          // Mover a vista não morreu e não mudou de lugar: botão do meio e
+          // Espaço+arrastar continuam panando em QUALQUER ferramenta, os dois
+          // lá em cima, antes de qualquer if de ferramenta (cobertos por
+          // e2e/task-middle-button-pan.spec.ts). Enquanto o retângulo está
+          // aberto, `marqueeHint` diz isso dentro dele.
+          //
           // Errar o token JÁ selecionado por poucos px não pode custar a
           // seleção nem o enquadramento (passeio cego de 16/09/2026: virava
           // arrasto da vista E limpava a seleção, sem aviso). Dentro da folga,
-          // o gesto é o que a pessoa quis — arrastar o token destacado. Fora
-          // dela, nada muda: clique no vazio continua panando e limpando.
+          // o gesto é o que a pessoa quis — arrastar o token destacado.
           const selectedToken = single?.kind === 'token' ? map.tokens.find((t) => t.id === single.id) ?? null : null
           const grabBox = selectedToken ? tokenBoundingBox(selectedToken, map.grid) : null
           const nearSelectedToken =
@@ -2576,14 +2604,26 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             worldPoint.y >= grabBox.minY - SELECTED_TOKEN_GRAB_SLOP &&
             worldPoint.y <= grabBox.maxY + SELECTED_TOKEN_GRAB_SLOP
 
-          if (activeTool === 'select' && event.shiftKey) {
-            mode = 'area-marquee-drag'
-            areaMarqueeStart = worldPoint
-          } else if (activeTool === 'select' && selectedToken && nearSelectedToken && canInteract(selectedToken)) {
+          if (
+            activeTool === 'select' &&
+            !event.shiftKey &&
+            selectedToken &&
+            nearSelectedToken &&
+            canInteract(selectedToken)
+          ) {
+            // Shift continua tendo prioridade sobre a folga do token (era a
+            // ordem de antes: o `if` do Shift vinha primeiro) — com Shift o
+            // gesto é sempre construir conjunto, nunca arrastar um item.
             mode = 'dragging-token'
             tokenDragSnapshot = map
             draggingTokenId = selectedToken.id
+          } else if (activeTool === 'select') {
+            mode = 'area-marquee-drag'
+            areaMarqueeStart = worldPoint
           } else {
+            // Nenhuma ferramenta de desenho chega aqui (todas saem com
+            // `return` bem acima); sobra a Selecionar. Este ramo é a rede de
+            // segurança pra uma ferramenta futura sem gesto próprio no vazio.
             mode = 'panning'
             setSelection(EMPTY_SELECTION)
           }
@@ -2903,18 +2943,35 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (mode === 'resizing-prop-corner' && resizingPropSnapshot) {
           useMapStore.getState().commitDragHistory(resizingPropSnapshot)
         }
-        // Onda 4, item 24 — fecha o marquee: calcula a área e SOMA ao
-        // conjunto já selecionado (Shift+arrastar acumula sobre Shift+clique
-        // anterior, ou sobre outro marquee anterior — `selectionFromItems`
-        // dedupica quem já estava nos dois). Área vazia (nada dentro do
-        // retângulo) não muda nada.
+        // Fecha o gesto do vazio com a ferramenta Selecionar. Um gesto só,
+        // três significados, decididos aqui por `classifyMarqueeGesture`
+        // (lib/areaSelection.ts, puro e testado) porque só agora o gesto tem
+        // tamanho:
+        //
+        //  'click'   — quase parado: foi um clique no vazio, e clique no
+        //              vazio larga a seleção (e2e/task4-select-delete.spec.ts
+        //              #6). Com Shift, não larga nada: Shift é sempre
+        //              "construir conjunto", e um Shift+clique que erra o
+        //              alvo por 2 px não pode destruir o conjunto.
+        //  'replace' — arrasto sem Shift: a área SUBSTITUI a seleção, mesmo
+        //              quando não pega nada (arrastar no nada é o jeito
+        //              natural de dizer "nada selecionado"). Convenção de
+        //              Figma/Inkscape/Dungeon Scrawl.
+        //  'add'     — arrasto com Shift: SOMA ao conjunto já selecionado
+        //              (comportamento original desta ferramenta;
+        //              `selectionFromItems` dedupica quem já estava nos dois).
         if (mode === 'area-marquee-drag' && areaMarqueeStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const rect: AreaRect = { x1: areaMarqueeStart.x, y1: areaMarqueeStart.y, x2: worldPoint.x, y2: worldPoint.y }
-          const result = selectEntitiesInArea(useMapStore.getState().map, rect)
-          if (!isAreaSelectionEmpty(result)) {
-            const store = useMapStore.getState()
-            store.setSelection(selectionFromItems([...store.selection, ...selectionFromAreaSelection(result)]))
+          const gesture = classifyMarqueeGesture(rect, camera.scale, event.shiftKey)
+          const store = useMapStore.getState()
+          if (gesture === 'click') {
+            if (!event.shiftKey && store.selection.length > 0) store.setSelection(EMPTY_SELECTION)
+          } else {
+            const encontrados = selectionFromAreaSelection(selectEntitiesInArea(store.map, rect))
+            store.setSelection(
+              gesture === 'add' ? selectionFromItems([...store.selection, ...encontrados]) : selectionFromItems(encontrados),
+            )
           }
           areaMarqueeGraphics.clear()
         }
@@ -2994,6 +3051,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         // (room/stair/polygon-room/rect/ellipse/circle) sem precisar de um
         // hide() por bloco.
         dimensionLabelRenderer.hide()
+        // Mesmo choke point: a dica do marquee vive só enquanto o botão está
+        // apertado. Sem isto ela ficaria "grudada" na tela depois de soltar,
+        // o mesmo bug que os dois `hide()` acima documentam.
+        marqueeHint.hide()
         updateCursor()
       })
 
@@ -3101,6 +3162,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (areaMarqueeStart) {
           areaMarqueeStart = null
           areaMarqueeGraphics.clear()
+          marqueeHint.hide()
         }
         if (wallDraftStart) {
           wallDraftStart = null
@@ -3574,11 +3636,18 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           return
         }
 
-        // N3 "ferramenta de seleção de área".
+        // N3 "ferramenta de seleção de área". Só geometria por pointermove:
+        // quem está dentro do retângulo é calculado UMA vez, ao soltar — o
+        // gesto precisa ficar liso com mapa grande, e `selectEntitiesInArea`
+        // varre todas as entidades do mapa.
         if (mode === 'area-marquee-drag' && areaMarqueeStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const rect: AreaRect = { x1: areaMarqueeStart.x, y1: areaMarqueeStart.y, x2: worldPoint.x, y2: worldPoint.y }
           drawSelectionMarquee(areaMarqueeGraphics, rect)
+          // A dica de "e a vista, como move?" só enquanto a pessoa ainda não
+          // achou o caminho nesta sessão — ver `panPathLearned`.
+          if (panPathLearned) marqueeHint.hide()
+          else marqueeHint.show(rect, camera.scale)
           return
         }
 
@@ -4024,6 +4093,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             if (mode === 'area-marquee-drag') {
               areaMarqueeStart = null
               areaMarqueeGraphics.clear()
+              marqueeHint.hide()
               mode = 'idle'
             }
             if (useMapStore.getState().selection.length > 0) {

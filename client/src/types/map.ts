@@ -26,6 +26,31 @@ export const LAYER_IDS: readonly LayerId[] = [
   'objetos', 'decoracao', 'iluminacao', 'tokens', 'anotacoes',
 ] as const
 
+/**
+ * Os 3 degraus nomeados de sempre. Cada um vale uma espessura em px de TELA
+ * (`WALL_SCREEN_PX`, `pixi/drawWalls.ts`): traço de planta, que NÃO muda de
+ * grossura com o zoom — é o visual de minimapa.
+ */
+export type WallThicknessPreset = 'thin' | 'medium' | 'thick'
+
+/**
+ * Espessura da parede: um dos 3 degraus OU um número CONTÍNUO em px de MUNDO
+ * (17/09/2026, pedido literal do usuário: "isso era para ser uma muralha de
+ * castelo mas nao consigo engrossar a linha o quanto eu quiser" — os degraus
+ * davam no máximo um risco de 3 px de tela).
+ *
+ * Por que o número é px de MUNDO e não px de tela: muralha é massa construída,
+ * tem largura NO MAPA — numa célula de 64 px, 32 px é meia célula em qualquer
+ * zoom, como já vale para `Region.strokeWidth` (mesma unidade, mesmo app). Os
+ * degraus continuam em px de tela justamente porque são o contrário: fio de
+ * planta, espessura de leitura. A faixa do contínuo é
+ * `WALL_WIDTH_WORLD_MIN`..`WALL_WIDTH_WORLD_MAX` (`pixi/drawWalls.ts`).
+ *
+ * Só controla `pixi/drawWalls.ts`, nunca `blocksLight`/`blocksMove`/collision —
+ * o eixo inteiro continua sendo desenho, como antes.
+ */
+export type WallThickness = WallThicknessPreset | number
+
 export interface Wall {
   id: string
   x1: number
@@ -73,8 +98,17 @@ export interface Wall {
    * controla `pixi/drawWalls.ts`, nunca `blocksLight`/`blocksMove`/collision.
    * `undefined` === 'medium' (aparência idêntica à de antes desta fase) —
    * sem linha de migração, mesmo padrão de wallKind/locked/hidden (acima).
+   *
+   * 17/09/2026: passou a aceitar também NÚMERO (px de mundo, ver
+   * `WallThickness` no topo do arquivo) para a muralha de castelo. Mapa salvo
+   * antes disso guarda string ou nada, e as duas formas continuam valendo —
+   * `lib/mapFile.ts` copia a parede inteira sem lista de campos permitidos
+   * (`walls: entityList(parsed.walls).map(...)`), então nenhuma linha de
+   * migração é necessária nem para o mapa antigo (fica `undefined` === 'medium')
+   * nem para o novo. Valor corrompido (NaN, negativo, absurdo) não quebra o
+   * render: `pixi/drawWalls.ts` limita à faixa e cai no default.
    */
-  thickness?: 'thin' | 'medium' | 'thick'
+  thickness?: WallThickness
   /**
    * Ponta/canto reto ou arredondado — Fase 6, pedido literal: "essas paredes
    * tem a ponta redonda, quero a opcao de colocar reta ou redondo". Um único

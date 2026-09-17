@@ -1,16 +1,19 @@
 import type { Container, Graphics } from 'pixi.js'
-import type { Wall } from '../types/map'
+import type { Wall, WallThickness, WallThicknessPreset } from '../types/map'
 import { SELECTION_COLOR } from './constants'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
 
 /**
- * Espessura nomeada da parede (Fase 6, pedido do usuário: "se eu quero
- * poligono finos ou medios ou gordos") — EIXO SEPARADO de `wall.wallKind`.
- * `wallKind` (interior/exterior) é classificação SEMÂNTICA; `thickness` é
- * preferência de ESTILO por cima disso. Qualquer uma das 6 combinações é
- * representável. `undefined` === 'medium'.
+ * Espessura da parede (Fase 6, pedido do usuário: "se eu quero poligono finos
+ * ou medios ou gordos"; 17/09/2026: "isso era para ser uma muralha de castelo
+ * mas nao consigo engrossar a linha o quanto eu quiser") — EIXO SEPARADO de
+ * `wall.wallKind`. `wallKind` (interior/exterior) é classificação SEMÂNTICA;
+ * `thickness` é preferência de ESTILO por cima disso. `undefined` === 'medium'.
+ *
+ * O tipo mora em `types/map.ts` (é campo do schema, persistido em map.json);
+ * aqui só é reexportado para quem já importava daqui (`WallStyleControls`).
  */
-export type WallThickness = 'thin' | 'medium' | 'thick'
+export type { WallThickness, WallThicknessPreset }
 
 /**
  * Ponta/canto reto ou arredondado (Fase 6: "quero a opcao de colocar reta ou
@@ -26,19 +29,84 @@ export type WallWithStyle = Wall & { thickness?: WallThickness; lineStyle?: Wall
  * Visual "minimapa do Resident Evil" (15/09/2026, pedido do usuário): parede é
  * uma linha FINA e CLARA sobre fundo escuro, com a mesma espessura na tela em
  * qualquer zoom — é planta de consulta, não desenho à mão. Por isso a largura
- * vive em px de TELA (não em fração de célula) e o PixiCanvas redesenha a cada
- * mudança de escala.
+ * dos DEGRAUS vive em px de TELA (não em fração de célula) e o PixiCanvas
+ * redesenha a cada mudança de escala.
+ *
+ * A muralha de castelo (valor contínuo, px de mundo) é o outro caso e continua
+ * dentro do mesmo visual: a COR não muda (`WALL_COLOR` claro sobre fundo
+ * escuro, nunca preenchimento preto, nunca hachura) — muda só a largura da
+ * mesma faixa clara. O que era fio de planta vira massa clara de planta.
  */
-export const WALL_SCREEN_PX: Record<WallThickness, number> = { thin: 1, medium: 2, thick: 3 }
+export const WALL_SCREEN_PX: Record<WallThicknessPreset, number> = { thin: 1, medium: 2, thick: 3 }
+
+/** `undefined` === este degrau: mapa antigo abre idêntico ao de antes. */
+export const DEFAULT_WALL_THICKNESS: WallThicknessPreset = 'medium'
+
+/**
+ * Faixa do valor CONTÍNUO, em px de MUNDO (o que o controle de grossura
+ * oferece). O topo é uma célula inteira da grade padrão (64 px): acima disso a
+ * parede engoliria o cômodo que ela delimita, e "mais grosso que a sala" não é
+ * muralha, é mancha. O piso é 1 px de mundo — mais fino que isso o traço já
+ * está no limite de 1 px físico em qualquer zoom (`hairlinePhysicalWidth`).
+ */
+export const WALL_WIDTH_WORLD_MIN = 1
+export const WALL_WIDTH_WORLD_MAX = 64
 
 /** Mesma cor para externa e interna; a interna se distingue só pela opacidade. */
 export const WALL_COLOR = 0xd8d2c4
 export const WALL_EXTERIOR_ALPHA = 1
 export const WALL_INTERIOR_ALPHA = 0.6
 
-/** Espessura da parede em px de TELA (antes do arredondamento ao pixel físico). */
-export function wallScreenWidth(wall: Pick<WallWithStyle, 'thickness'>): number {
-  return WALL_SCREEN_PX[wall.thickness ?? 'medium']
+export function clampWallWidth(width: number): number {
+  return Math.min(WALL_WIDTH_WORLD_MAX, Math.max(WALL_WIDTH_WORLD_MIN, width))
+}
+
+/**
+ * Largura em px de MUNDO quando a parede usa o controle contínuo — `null`
+ * quando ela está num dos degraus nomeados. Número não-finito (mapa salvo
+ * corrompido, `"thickness": null` virando NaN) devolve `null` de propósito: cai
+ * no degrau default em vez de pintar `NaN` de largura e sumir com a parede.
+ */
+function continuousWorldWidth(thickness: WallThickness | undefined): number | null {
+  return typeof thickness === 'number' && Number.isFinite(thickness) ? clampWallWidth(thickness) : null
+}
+
+/**
+ * Degrau nomeado de fato existente. A checagem no objeto não é cerimônia: o
+ * mapa salvo entra por `JSON.parse(json) as Partial<MapData>`
+ * (`lib/mapFile.ts:73`), então o compilador ACREDITA que a string é um dos 3
+ * degraus sem nunca ter conferido. Com `"thickness": "muralha"` num map.json
+ * editado à mão, `WALL_SCREEN_PX[...]` devolveria `undefined`, o stroke sairia
+ * com `width: NaN` e a parede sumiria do desenho — sem erro nenhum na tela.
+ */
+function presetOf(thickness: WallThickness | undefined): WallThicknessPreset {
+  return typeof thickness === 'string' && thickness in WALL_SCREEN_PX ? thickness : DEFAULT_WALL_THICKNESS
+}
+
+/** Escala de câmera utilizável; `pixelGrid` faz a mesma guarda para o resto. */
+function usableScale(cameraScale: number): number {
+  return Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1
+}
+
+/**
+ * Largura em px de MUNDO que o controle de grossura mostra e edita. Degrau
+ * nomeado vira o equivalente dele a 100% de zoom (fina 1, média 2, grossa 3),
+ * para arrastar o controle a partir de onde a parede já está — e não de um
+ * salto invisível.
+ */
+export function wallWorldWidth(thickness: WallThickness | undefined): number {
+  return continuousWorldWidth(thickness) ?? WALL_SCREEN_PX[presetOf(thickness)]
+}
+
+/**
+ * Espessura da parede em px de TELA (antes do arredondamento ao pixel físico).
+ * Degrau nomeado: constante na tela em qualquer zoom (fio de planta). Valor
+ * contínuo: px de mundo × escala, então a muralha engrossa junto com o mapa,
+ * como qualquer coisa que tem largura construída.
+ */
+export function wallScreenWidth(wall: Pick<WallWithStyle, 'thickness'>, cameraScale = 1): number {
+  const world = continuousWorldWidth(wall.thickness)
+  return world === null ? WALL_SCREEN_PX[presetOf(wall.thickness)] : world * usableScale(cameraScale)
 }
 
 export function wallAlphaFor(wall: Pick<Wall, 'wallKind'>): number {
@@ -65,7 +133,7 @@ function capJoinFor(lineStyle: WallLineStyle): Pick<WallVisualStyle, 'cap' | 'jo
  * é contorno à parte e a parede selecionada mantém cor e espessura reais.
  */
 function resolveWallStyle(wall: WallWithStyle, cameraScale: number, rendererResolution: number): WallVisualStyle {
-  const pixel = pixelGrid(cameraScale, rendererResolution, wallScreenWidth(wall))
+  const pixel = pixelGrid(cameraScale, rendererResolution, wallScreenWidth(wall, cameraScale))
   return { pixel, width: strokeWidthInWorld(pixel), alpha: wallAlphaFor(wall), ...capJoinFor(wall.lineStyle ?? 'round') }
 }
 
@@ -240,8 +308,11 @@ function drawRegionWallsOutline(graphics: Graphics, walls: WallWithStyle[], regi
   if (own.length === 0) return
   const outline = 2 * selectionOutlineWidth(cameraScale)
   for (const chain of groupWallChains(own, () => false)) {
-    // A parede mais grossa da cadeia define a moldura (e o alinhamento, para o contorno ficar centrado nela).
-    const widest = chain.reduce((best, wall) => (wallScreenWidth(wall) > wallScreenWidth(best) ? wall : best))
+    // A parede mais grossa da cadeia define a moldura (e o alinhamento, para o
+    // contorno ficar centrado nela). A comparação é na ESCALA ATUAL: numa
+    // cadeia que mistura degrau (px de tela) com muralha (px de mundo), quem é
+    // a mais grossa depende do zoom.
+    const widest = chain.reduce((best, wall) => (wallScreenWidth(wall, cameraScale) > wallScreenWidth(best, cameraScale) ? wall : best))
     const style = resolveWallStyle(widest, cameraScale, rendererResolution)
     traceWallChain(graphics, alignChain(chain, style.pixel))
     graphics.stroke({ width: style.width + outline, color: SELECTION_COLOR, cap: 'square', join: 'miter' })

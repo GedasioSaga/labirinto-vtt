@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { Graphics } from 'pixi.js'
-import { drawWalls, WALL_COLOR, WALL_EXTERIOR_ALPHA, WALL_INTERIOR_ALPHA, type WallWithStyle } from './drawWalls'
+import {
+  drawWalls,
+  wallWorldWidth,
+  WALL_COLOR,
+  WALL_EXTERIOR_ALPHA,
+  WALL_INTERIOR_ALPHA,
+  WALL_WIDTH_WORLD_MAX,
+  WALL_WIDTH_WORLD_MIN,
+  type WallWithStyle,
+} from './drawWalls'
 import { SELECTION_COLOR } from './constants'
 import type { Wall } from '../types/map'
 
@@ -196,6 +205,86 @@ describe('drawWalls — linha clara em px de TELA (minimapa RE, 15/09/2026)', ()
     expect(yOf('thin')).toBe(10.5)
     expect(yOf('medium')).toBe(10)
     expect(yOf('thick')).toBe(10.5)
+  })
+})
+
+describe('drawWalls — muralha de castelo: grossura contínua em px de MUNDO (17/09/2026)', () => {
+  /** Largura do traço em px de TELA na escala dada — o que o olho mede. */
+  function screenWidthFor(overrides: Partial<WallWithStyle>, cameraScale = 1, resolution = 1): number {
+    const g = new Graphics()
+    drawWalls(g, [baseWall(overrides)], null, cameraScale, resolution)
+    return styleOf(strokeInstructions(g)[0]).width * cameraScale
+  }
+
+  it('número = px de mundo: a 100% de zoom, 32 vira 32 px de tela — muito além do teto de 3 px dos degraus', () => {
+    expect(screenWidthFor({ thickness: 32 })).toBeCloseTo(32, 9)
+    expect(screenWidthFor({ thickness: WALL_WIDTH_WORLD_MAX })).toBeCloseTo(64, 9)
+  })
+
+  it('A DOR DO USUÁRIO, medida: no máximo a parede é >= 12 px de tela e mais de 3× a "Grossa" (o piso que a jornada cobra)', () => {
+    const grossa = screenWidthFor({ thickness: 'thick' })
+    const muralha = screenWidthFor({ thickness: WALL_WIDTH_WORLD_MAX })
+    expect(muralha).toBeGreaterThanOrEqual(12)
+    expect(muralha).toBeGreaterThanOrEqual(grossa * 3)
+  })
+
+  it('a muralha ACOMPANHA o zoom (é largura construída), enquanto o degrau continua constante na tela', () => {
+    for (const scale of [0.38, 1, 3]) {
+      // Meio px físico de folga: a largura é arredondada para px físico
+      // INTEIRO (pixelAlign.ts), senão a borda da muralha sai borrada.
+      expect(Math.abs(screenWidthFor({ thickness: 16 }, scale) - 16 * scale)).toBeLessThanOrEqual(0.5)
+      expect(screenWidthFor({ thickness: 'thick' }, scale)).toBeCloseTo(3, 9)
+    }
+  })
+
+  it('a muralha nunca some no zoom-out: abaixo de 1 px físico o traço ainda é 1 px', () => {
+    expect(screenWidthFor({ thickness: WALL_WIDTH_WORLD_MIN }, 0.05)).toBeCloseTo(1, 9)
+  })
+
+  it('valor fora da faixa é limitado, não obedecido: 500 vira o máximo, 0 e negativo viram o mínimo', () => {
+    expect(screenWidthFor({ thickness: 500 })).toBeCloseTo(WALL_WIDTH_WORLD_MAX, 9)
+    expect(screenWidthFor({ thickness: 0 })).toBeCloseTo(WALL_WIDTH_WORLD_MIN, 9)
+    expect(screenWidthFor({ thickness: -40 })).toBeCloseTo(WALL_WIDTH_WORLD_MIN, 9)
+  })
+
+  it('número quebrado em mapa salvo (NaN) cai no degrau default em vez de sumir com a parede', () => {
+    expect(screenWidthFor({ thickness: Number.NaN })).toBe(2)
+    expect(screenWidthFor({ thickness: Number.POSITIVE_INFINITY })).toBe(2)
+  })
+
+  it('degrau inventado em map.json editado à mão cai no default — o cast de mapFile.ts:73 não confere isso', () => {
+    // O cast `JSON.parse(json) as Partial<MapData>` deixa esta string passar
+    // pelo tipo; aqui ela é forçada de volta para reproduzir o arquivo real.
+    const thickness = 'muralha' as unknown as WallWithStyle['thickness'] // cast DE PROPÓSITO: é o único jeito de reproduzir o valor que mapFile.ts:73 deixa entrar sem conferir
+    expect(screenWidthFor({ thickness })).toBe(2)
+  })
+
+  it('wallWorldWidth: o controle abre no valor em que a parede já está — degrau vira o equivalente a 100%', () => {
+    expect(wallWorldWidth(undefined)).toBe(2)
+    expect(wallWorldWidth('thin')).toBe(1)
+    expect(wallWorldWidth('medium')).toBe(2)
+    expect(wallWorldWidth('thick')).toBe(3)
+    expect(wallWorldWidth(32)).toBe(32)
+    expect(wallWorldWidth(9_000)).toBe(WALL_WIDTH_WORLD_MAX)
+  })
+
+  it('degrau e muralha na mesma Sala não viram um stroke só: larguras diferentes quebram a cadeia', () => {
+    const g = new Graphics()
+    const walls = squareRoomWalls().map((w) => (w.id === 'right' ? { ...w, thickness: 40 } : w))
+    drawWalls(g, walls, null)
+    expect(strokeInstructions(g).length).toBeGreaterThan(1)
+  })
+
+  it('Sala selecionada com uma muralha no meio: o contorno segue a mais grossa NA ESCALA ATUAL', () => {
+    const g = new Graphics()
+    const walls: WallWithStyle[] = [
+      baseWall({ id: 'a', x1: 0, y1: 0, x2: 100, y2: 0, regionId: 'r1', regionEdgeIndex: 0, thickness: 40 }),
+      baseWall({ id: 'b', x1: 100, y1: 0, x2: 100, y2: 100, regionId: 'r1', regionEdgeIndex: 1, thickness: 'thin' }),
+    ]
+    drawWalls(g, walls, null, 1, 1, 'r1')
+    const outline = strokeInstructions(g).find((s) => styleOf(s).color === SELECTION_COLOR)
+    // 40 px de mundo da muralha + 2 px de tela de contorno de cada lado.
+    expect(styleOf(outline)).toMatchObject({ width: 40 + 2 * 2 })
   })
 })
 

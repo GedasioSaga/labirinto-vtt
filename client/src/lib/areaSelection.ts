@@ -602,3 +602,91 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
 
   return next
 }
+
+// ─────────────────────────────────────────────────────────────
+// API pública — 3. leitura do GESTO de marquee
+//
+// A partir de 17/09/2026 o arrasto em área vazia com a ferramenta Selecionar
+// É o marquee (antes ele panava a câmera e ainda limpava a seleção; o Shift
+// que ligava o retângulo era invisível e ninguém o descobria — jornada
+// `e2e/task-jornada-selecao-arrasto.spec.ts`). Com isso, o MESMO gesto
+// precisa significar três coisas diferentes conforme o que a pessoa fez, e
+// essa decisão é pura o bastante pra viver aqui, longe do PixiJS:
+//
+//   - quase parado         → clique no vazio (larga a seleção, como sempre);
+//   - arrasto sem Shift    → a área SUBSTITUI a seleção (convenção de todo
+//                            editor 2D: Figma, Inkscape, Dungeon Scrawl);
+//   - arrasto com Shift    → a área SOMA à seleção já existente (era o único
+//                            comportamento antes desta mudança).
+//
+// Mover a vista não morreu: continua no botão do meio e em Espaço+arrastar,
+// os dois caminhos que `PixiCanvas.tsx` já tinha ANTES de qualquer if de
+// ferramenta (e que `e2e/task-middle-button-pan.spec.ts` cobre).
+// ─────────────────────────────────────────────────────────────
+
+/** Abaixo disto, em px de TELA, o gesto foi um clique, não um arrasto. O
+ *  limiar é de tela (e não de mundo como `AREA_SELECTION_MIN_DRAG`) porque o
+ *  tremor de mão de quem clica tem tamanho fixo no dedo, não no mapa: com
+ *  zoom em 25% um tremor de 3 px de tela viraria 12 px de mundo e o clique de
+ *  "largar a seleção" viraria um marquee minúsculo. */
+export const MARQUEE_DRAG_THRESHOLD_SCREEN_PX = 4
+
+export type MarqueeGesture = 'click' | 'replace' | 'add'
+
+/** `cameraScale` inválido (0, negativo, NaN) vira 1 em vez de propagar — o
+ *  mesmo tratamento defensivo que `screenLabelSizing` (pixi/screenLabel.ts)
+ *  dá a esse parâmetro, pra um zoom corrompido não travar o gesto. */
+function safeScale(cameraScale: number): number {
+  return Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1
+}
+
+export function classifyMarqueeGesture(rect: AreaRect, cameraScale: number, shiftKey: boolean): MarqueeGesture {
+  const travelledOnScreen = Math.hypot(rect.x2 - rect.x1, rect.y2 - rect.y1) * safeScale(cameraScale)
+  if (travelledOnScreen < MARQUEE_DRAG_THRESHOLD_SCREEN_PX) return 'click'
+  return shiftKey ? 'add' : 'replace'
+}
+
+/** Onde cabe a dica "Espaço ou botão do meio move a vista" DENTRO do
+ *  retângulo em curso, em coordenadas de MUNDO (é lá que o marquee é
+ *  desenhado). `visible: false` quando o retângulo é pequeno demais pra
+ *  comportar o texto com folga — dica que vaza pra fora da própria caixa é
+ *  pior que dica nenhuma. */
+export interface MarqueeHintPlacement {
+  visible: boolean
+  x: number
+  y: number
+}
+
+/** Folga entre o texto e a borda do retângulo, em px de tela. */
+const MARQUEE_HINT_PADDING_SCREEN_PX = 10
+
+/**
+ * `labelScreenSize` é o tamanho do texto em px de TELA (medido pelo próprio
+ * PixiJS com escala 1, ver `createMarqueeHintRenderer`) — este módulo não
+ * mede fonte, não conhece PixiJS e continua testável sem canvas.
+ *
+ * A dica fica encostada no canto ONDE O GESTO COMEÇOU, nunca no canto que o
+ * cursor está arrastando: ali ela ficaria debaixo do ponteiro, tremendo junto
+ * com ele.
+ */
+export function marqueeHintPlacement(
+  rect: AreaRect,
+  cameraScale: number,
+  labelScreenSize: { width: number; height: number },
+): MarqueeHintPlacement {
+  const scale = safeScale(cameraScale)
+  const padding = MARQUEE_HINT_PADDING_SCREEN_PX / scale
+  const labelWidth = labelScreenSize.width / scale
+  const labelHeight = labelScreenSize.height / scale
+  const bounds = normalizeRect(rect)
+
+  const fits =
+    bounds.maxX - bounds.minX >= labelWidth + padding * 2 && bounds.maxY - bounds.minY >= labelHeight + padding * 2
+  if (!fits) return { visible: false, x: bounds.minX, y: bounds.minY }
+
+  return {
+    visible: true,
+    x: rect.x2 >= rect.x1 ? bounds.minX + padding : bounds.maxX - padding - labelWidth,
+    y: rect.y2 >= rect.y1 ? bounds.minY + padding : bounds.maxY - padding - labelHeight,
+  }
+}
