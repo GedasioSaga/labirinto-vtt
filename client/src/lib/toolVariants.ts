@@ -2,6 +2,7 @@ import type { DrawingTool } from '../types/tools'
 import type { DoorKind, FloorPiece, FreehandTexture, Region, Wall } from '../types/map'
 import type { StairSizePreset } from './stairs'
 import type { FloorShapeKind } from './floorTool'
+import { TAMANHOS_DE_PINCEL, type TamanhoDePincel } from './floorBlocks'
 import { TOOL_SHORTCUTS } from './keymap'
 
 /**
@@ -60,6 +61,7 @@ export type ToolVariantGroup =
   | { storeKey: 'floorShapeKind'; label: string; options: ToolVariantOption<FloorShapeKind>[] }
   | { storeKey: 'floorOp'; label: string; options: ToolVariantOption<FloorPiece['op']>[] }
   | { storeKey: 'floorPolygonSides'; label: string; options: ToolVariantOption<number>[] }
+  | { storeKey: 'floorBrushSize'; label: string; options: ToolVariantOption<TamanhoDePincel>[] }
   /** Forma do botão "Desenho": escolher ATIVA a ferramenta (não é preferência da próxima entidade). */
   | { storeKey: 'drawShape'; label: string; options: ToolVariantOption<DrawingTool>[] }
 
@@ -145,7 +147,12 @@ const POLYGON_SIDES_GROUP: ToolVariantGroup = {
   options: POLYGON_SIDES_OPTIONS,
 }
 
-/** Chão por peças: as 4 formas que a ferramenta desenha (`poly` só nasce de imagem). */
+/**
+ * Chão por peças: o que a ferramenta tem na mão. As 4 primeiras são as formas
+ * geométricas de sempre; as 2 últimas são os gestos presos à grade pedidos em
+ * 15/09/2026 — o pincel, que pinta célula inteira e apaga com o botão direito,
+ * e o balde, que enche uma área fechada de uma vez.
+ */
 const FLOOR_SHAPE_GROUP: ToolVariantGroup = {
   storeKey: 'floorShapeKind',
   label: 'Forma',
@@ -154,7 +161,30 @@ const FLOOR_SHAPE_GROUP: ToolVariantGroup = {
     { id: 'ellipse', label: 'Elipse', value: 'ellipse', description: 'Arraste do centro para fora. Shift faz círculo.' },
     { id: 'polygon', label: 'Polígono regular', value: 'polygon', description: 'Arraste do centro até um vértice.' },
     { id: 'corridor', label: 'Corredor', value: 'corridor', description: 'Clique ponto a ponto; duplo clique ou Enter termina.' },
+    {
+      id: 'blocos',
+      label: 'Pincel de blocos',
+      value: 'blocos',
+      description: 'Arraste para pintar chão preso à grade; o botão DIREITO apaga no mesmo traço.',
+    },
+    { id: 'balde', label: 'Balde', value: 'balde', description: 'Clique dentro de uma área fechada para enchê-la de uma vez.' },
   ],
+}
+
+/**
+ * Lado do pincel de blocos. Fica sempre no menu, como `floorPolygonSides` já
+ * fica: esconder um eixo quando a forma muda tira do lugar o que a pessoa
+ * acabou de achar ali.
+ */
+const FLOOR_BRUSH_SIZE_GROUP: ToolVariantGroup = {
+  storeKey: 'floorBrushSize',
+  label: 'Tamanho do pincel',
+  options: TAMANHOS_DE_PINCEL.map((tamanho) => ({
+    id: `pincel-${tamanho}`,
+    label: tamanho === 1 ? '1 bloco' : `${tamanho} blocos`,
+    value: tamanho,
+    description: tamanho === 1 ? 'Uma célula por vez.' : `Quadrado de ${tamanho}×${tamanho} células.`,
+  })),
 }
 
 const FLOOR_OP_GROUP: ToolVariantGroup = {
@@ -241,7 +271,11 @@ export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
 
   // Chão por peças: schema/motor/store já existiam (floorSdf/floorContour/
   // add*FloorPiece*); a setinha é o caminho até forma e operação.
-  floor: { available: true, tool: 'floor', groups: [FLOOR_SHAPE_GROUP, FLOOR_OP_GROUP, FLOOR_POLYGON_SIDES_GROUP] },
+  floor: {
+    available: true,
+    tool: 'floor',
+    groups: [FLOOR_SHAPE_GROUP, FLOOR_BRUSH_SIZE_GROUP, FLOOR_OP_GROUP, FLOOR_POLYGON_SIDES_GROUP],
+  },
 
   // ---- pedida pelo usuário, capacidade existe mas SEM eixo próprio ------
   line: {
@@ -331,6 +365,8 @@ const VARIANT_ECHO_SUBJECT: Partial<Record<ToolVariantStoreKey, string>> = {
   floorShapeKind: 'Próxima peça de chão',
   floorOp: 'Próxima peça de chão',
   floorPolygonSides: 'Próxima peça de chão',
+  // Não é a "próxima peça": é o tamanho com que o pincel pinta, agora.
+  floorBrushSize: 'Pincel de blocos',
 }
 
 /** Todos os grupos por eixo — a barra precisa achar o RÓTULO da opção a partir
@@ -346,6 +382,7 @@ const GROUP_BY_STORE_KEY: Record<ToolVariantStoreKey, ToolVariantGroup> = {
   floorShapeKind: FLOOR_SHAPE_GROUP,
   floorOp: FLOOR_OP_GROUP,
   floorPolygonSides: FLOOR_POLYGON_SIDES_GROUP,
+  floorBrushSize: FLOOR_BRUSH_SIZE_GROUP,
   drawShape: DRAWING_SHAPE_GROUP,
 }
 

@@ -1,5 +1,6 @@
 import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, StairSegment, FloorPiece, FloorShape } from '../types/map'
 import type { SelectionKind } from '../types/tools'
+import { moveBlocos } from './floorBlocks'
 
 /**
  * FRENTE A (ONDA 3, item 13 do PLANO-REFINAMENTO.md) — clonagem PURA por
@@ -271,7 +272,11 @@ export function cloneFloorPiece(piece: FloorPiece, offset: Offset): FloorPiece {
       ? { ...shape, points: shape.points.map((p) => ({ x: p.x + offset.dx, y: p.y + offset.dy, width: p.width })) }
       : shape.kind === 'poly'
         ? { ...shape, points: offsetPoints(shape.points, offset) }
-        : { ...shape, cx: shape.cx + offset.dx, cy: shape.cy + offset.dy }
+        : // Blocos: a cópia também anda em célula inteira, e `cells` vira lista
+          // nova (mesmo cuidado nº2 do cabeçalho).
+          shape.kind === 'blocos'
+          ? moveBlocos({ ...shape, cells: shape.cells.map((c) => ({ col: c.col, row: c.row })) }, offset.dx, offset.dy)
+          : { ...shape, cx: shape.cx + offset.dx, cy: shape.cy + offset.dy }
   const { noise } = piece.modifiers
   return {
     ...piece,

@@ -301,6 +301,8 @@ function App() {
   const setFloorOp = useMapStore((state) => state.setFloorOp)
   const floorPolygonSides = useMapStore((state) => state.floorPolygonSides)
   const setFloorPolygonSides = useMapStore((state) => state.setFloorPolygonSides)
+  const floorBrushSize = useMapStore((state) => state.floorBrushSize)
+  const setFloorBrushSize = useMapStore((state) => state.setFloorBrushSize)
   const updateFloorPiece = useMapStore((state) => state.updateFloorPiece)
   const reorderFloorPiece = useMapStore((state) => state.reorderFloorPiece)
   const setFloorStyle = useMapStore((state) => state.setFloorStyle)
@@ -1235,6 +1237,7 @@ function App() {
             floorShapeKind: { value: floorShapeKind, onChange: setFloorShapeKind },
             floorOp: { value: floorOp, onChange: setFloorOp },
             floorPolygonSides: { value: floorPolygonSides, onChange: setFloorPolygonSides },
+            floorBrushSize: { value: floorBrushSize, onChange: setFloorBrushSize },
             drawShape: { value: activeTool, onChange: setActiveTool },
           }}
         />

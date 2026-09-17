@@ -33,6 +33,7 @@ function bindings(activeTool: DrawingTool, onSelectTool: (tool: DrawingTool) => 
     floorShapeKind: { value: 'rect', onChange: vi.fn() },
     floorOp: { value: 'add', onChange: vi.fn() },
     floorPolygonSides: { value: 6, onChange: vi.fn() },
+  floorBrushSize: { value: 1, onChange: vi.fn() },
     drawShape: { value: activeTool, onChange: onSelectTool },
   }
 }

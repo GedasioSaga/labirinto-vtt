@@ -9,6 +9,8 @@ import { simplifyPolygon, chaikinSmooth } from './regionSmoothing'
 import { edgesCoveredByParent, findContainingRoom, insertIndexAfterSubtree, subtreeIds } from './roomNesting'
 import { resizeRoomCorner, resizeRoomDimensions as resizeRoomDimensionsPoints, type RoomCorner } from './roomOps'
 import { defaultMeasurementModeForShape } from './measurement'
+import { moveBlocos, type Bloco } from './floorBlocks'
+import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
@@ -107,8 +109,22 @@ export function moveFloorPiece(map: MapData, pieceId: string, dx: number, dy: nu
       ? { ...shape, points: shape.points.map((p) => ({ ...p, x: p.x + dx, y: p.y + dy })) }
       : shape.kind === 'poly'
         ? { ...shape, points: shape.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) }
-        : { ...shape, cx: shape.cx + dx, cy: shape.cy + dy }
+        : // Blocos andam em célula inteira — sair da grade é perder a única
+          // promessa da forma (ver `moveBlocos`).
+          shape.kind === 'blocos'
+          ? moveBlocos(shape, dx, dy)
+          : { ...shape, cx: shape.cx + dx, cy: shape.cy + dy }
   return updateFloorPiece(map, pieceId, { shape: moved })
+}
+
+/**
+ * Botão direito do pincel de blocos: apaga as células do chão numa entrada de
+ * histórico só. Devolve o MESMO mapa quando o gesto não apagou nada — aí o
+ * chamador não empurra um Ctrl+Z vazio (ver `apagarBlocosDoChao`).
+ */
+export function eraseFloorBlocks(map: MapData, blocos: readonly Bloco[], cell: number, novoId: () => string): MapData {
+  const floor = apagarBlocosDoChao(map.floor, blocos, cell, novoId)
+  return floor === null ? map : { ...map, floor }
 }
 
 export function setFloorStyle(map: MapData, patch: Partial<FloorStyle>): MapData {

@@ -1,5 +1,13 @@
 import type { FloorPiece, FloorShape, LayerId, MapData } from '../types/map'
-import { pieceDistance } from './floorSdf'
+import {
+  areaFechadaAPartirDe,
+  blocoNoPonto,
+  buildBlocosShape,
+  centroDoBloco,
+  tirarBlocosDasPecas,
+  type Bloco,
+} from './floorBlocks'
+import { compileFloor, pieceDistance } from './floorSdf'
 import { isLayerLocked, isLayerVisible } from './layers'
 
 /**
@@ -14,8 +22,26 @@ interface Point {
   y: number
 }
 
-/** Forma que a ferramenta cria — `poly` fica de fora: só nasce de imagem (`lib/traceImage.ts`). */
-export type FloorShapeKind = 'rect' | 'ellipse' | 'polygon' | 'corridor'
+/**
+ * Forma que nasce de UM arrasto de dois pontos (canto a canto ou centro a
+ * borda). Separada de `FloorShapeKind` porque só estas três passam por
+ * `buildFloorShapeFromDrag` — e o tipo é o que impede o corredor, o pincel e o
+ * balde de chegarem lá por engano.
+ */
+export type FloorDragShapeKind = 'rect' | 'ellipse' | 'polygon'
+
+/**
+ * O que a ferramenta "Chão" pode ter na mão — `poly` fica de fora: só nasce de
+ * imagem (`lib/traceImage.ts`). `blocos` é o pincel preso à grade e `balde`
+ * enche a área fechada de uma vez; os dois desenham a mesma `FloorShape`
+ * (`kind: 'blocos'`), a diferença está no gesto.
+ */
+export type FloorShapeKind = FloorDragShapeKind | 'corridor' | 'blocos' | 'balde'
+
+/** Estreita para as formas de arrasto — usado onde o corredor/pincel/balde não cabem. */
+export function isFloorDragShape(kind: FloorShapeKind): kind is FloorDragShapeKind {
+  return kind === 'rect' || kind === 'ellipse' || kind === 'polygon'
+}
 
 /** Chão por peças mora na camada das Regiões (ver `redrawShapes` em PixiCanvas.tsx). */
 export const FLOOR_LAYER: LayerId = 'salas'
@@ -52,7 +78,7 @@ function normalizeDegrees(degrees: number): number {
  * e do Polígono Regular). `null` = arrasto pequeno demais para virar peça.
  */
 export function buildFloorShapeFromDrag(
-  kind: Exclude<FloorShapeKind, 'corridor'>,
+  kind: FloorDragShapeKind,
   start: Point,
   end: Point,
   sides: number,
@@ -122,4 +148,64 @@ export function findFloorPieceAt(map: Pick<MapData, 'floor' | 'hiddenLayers' | '
     if (pieceDistance(piece, point.x, point.y) < 0) return piece
   }
   return null
+}
+
+/**
+ * Lista de peças depois de apagar `blocos` com o botão direito do pincel.
+ *
+ * Dois passos, nessa ordem, porque nem todo chão nasceu do pincel:
+ *  1. as células saem de toda peça de blocos (o caso comum — apagar o que você
+ *     acabou de pintar não deixa lixo na lista);
+ *  2. a célula que AINDA tem chão depois disso veio de peça de outra forma
+ *     (retângulo, corredor, imagem convertida): só um buraco a tira, então
+ *     entra numa peça `blocos` 'subtract' no fim da lista.
+ *
+ * `pieces` de volta sem mudança nenhuma devolve `null` — quem chama não gasta
+ * uma entrada de Ctrl+Z por um gesto que não apagou nada.
+ */
+export function apagarBlocosDoChao(
+  pieces: readonly FloorPiece[],
+  blocos: readonly Bloco[],
+  cell: number,
+  novoId: () => string,
+): FloorPiece[] | null {
+  const semBlocos = tirarBlocosDasPecas(pieces, blocos, cell)
+  const base = semBlocos ?? [...pieces]
+  // Peça TRAVADA que soma chão fica de fora da conta: abrir um buraco por cima
+  // dela seria apagá-la por outro caminho, que é exatamente o que a trava
+  // proíbe. Peça travada que SUBTRAI continua contando — ela só tira chão, e
+  // ignorá-la faria nascer um buraco em cima de vazio.
+  const compilado = compileFloor(base.filter((p) => !(p.locked && p.op === 'add')))
+  const aindaComChao = blocos.filter((bloco) => {
+    const centro = centroDoBloco(bloco, cell)
+    return compilado.sample(centro.x, centro.y) < 0
+  })
+  if (aindaComChao.length === 0) return semBlocos
+  const shape = buildBlocosShape(cell, aindaComChao)
+  if (!shape) return semBlocos
+  return [...base, buildFloorPiece(novoId(), shape, 'subtract')]
+}
+
+/**
+ * Peça de chão que o balde cria ao clicar em `point` — `null` quando não há o
+ * que encher: a área já tem chão, ou ela não é fechada (ver
+ * `areaFechadaAPartirDe`, que chama de aberta tudo que escapa pela borda do
+ * mapa, onde não existe parede nenhuma).
+ */
+export function baldeNoPonto(
+  map: Pick<MapData, 'floor' | 'grid' | 'width' | 'height'>,
+  point: Point,
+  novoId: () => string,
+): FloorPiece | null {
+  const cell = map.grid
+  if (!(cell > 0)) return null
+  const compilado = compileFloor(map.floor)
+  const temChao = (col: number, row: number): boolean => {
+    const centro = centroDoBloco({ col, row }, cell)
+    return compilado.sample(centro.x, centro.y) < 0
+  }
+  const area = areaFechadaAPartirDe(temChao, blocoNoPonto(point.x, point.y, cell), map.width, map.height)
+  if (area === null) return null
+  const shape = buildBlocosShape(cell, area)
+  return shape ? buildFloorPiece(novoId(), shape, 'add') : null
 }

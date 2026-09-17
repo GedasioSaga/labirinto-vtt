@@ -116,7 +116,13 @@ function deserializeMapFields(json: string): MapData {
     drawings: entityList(parsed.drawings).map((d) =>
       d.kind === 'circle' && d.fillAlpha === undefined ? { ...d, fillAlpha: d.filled ? 0.5 : 0 } : d,
     ),
-    floor: entityList(parsed.floor),
+    // MUDA de cru para .map(): `FloorPiece.fillColor` (cor própria do caminho)
+    // é campo NOVO. O default dele é a AUSÊNCIA — peça sem cor própria usa
+    // `floorStyle.fillColor`, que é exatamente como todo mapa salvo antes deste
+    // campo se desenhava. Valor que não é string (arquivo editado à mão, versão
+    // futura) é descartado em vez de recusado: `new Color(...)` com lixo dentro
+    // estouraria no render e levaria o mapa inteiro junto.
+    floor: entityList(parsed.floor).map((f) => (typeof f.fillColor === 'string' ? f : { ...f, fillColor: undefined })),
     floorStyle: parsed.floorStyle ?? { ...LEGACY_FLOOR_STYLE },
     lines: entityList(parsed.lines),
     markers: entityList(parsed.markers),

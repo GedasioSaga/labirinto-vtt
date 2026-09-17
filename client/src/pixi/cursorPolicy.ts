@@ -72,6 +72,8 @@ export type GestureMode =
   // o corpo de uma peça selecionada.
   | 'drawing-floor'
   | 'dragging-floor-body'
+  // Pincel de blocos: arrasto que pinta ou apaga célula da grade.
+  | 'painting-floor-blocks'
   // A4 — arrastar só o nome da Sala.
   | 'dragging-room-label'
   // A5 — arrasto de criação da Zona oculta.
@@ -281,6 +283,10 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'drawing-polygon-room':
     case 'drawing-stair':
     case 'drawing-floor':
+    // O pincel é gesto de criação como qualquer outro: a mira não muda do
+    // começo ao fim do traço (nem quando ele apaga — o que apaga é o botão,
+    // e trocar o cursor no meio do arrasto seria dizer que a ferramenta mudou).
+    case 'painting-floor-blocks':
     case 'drawing-conceal-zone':
     case 'area-marquee-drag':
       return CURSOR_CROSSHAIR
