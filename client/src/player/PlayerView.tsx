@@ -326,9 +326,19 @@ function redrawFog(scene: Scene, map: MapData, vision: RegionPoint[][], explored
     scene.knownMask.poly(poly, true).fill({ color: 0xffffff })
   }
   let runs = 0
+  let memoryRings = 0
   if (explored) {
+    // O contorno lembrado vem com a MESMA borda que o jogador viu ao vivo; sem
+    // ele a memória sairia recortada em degrau de célula, faltando a faixa que
+    // o bitset perde por só marcar célula inteira (lib/exploration.ts).
+    for (const ring of explored.rings) {
+      scene.knownMask.poly(ring.points, true).fill({ color: 0xffffff })
+      memoryRings += 1
+    }
     const cell = explored.cell
     // colEnd exclusivo (lib/exploration.ts): largura = (colEnd - colStart) * cell.
+    // Continua valendo: é a memória de "Revelar planta" e a de perto de área
+    // proibida, que não tem contorno guardado.
     forEachExploredRun(explored, (row, colStart, colEnd) => {
       scene.knownMask.rect(colStart * cell, row * cell, (colEnd - colStart) * cell, cell)
       runs += 1
@@ -341,7 +351,7 @@ function redrawFog(scene: Scene, map: MapData, vision: RegionPoint[][], explored
   else scene.fogDim.mask = null
   scene.visionMask.visible = polygons.length > 0
 
-  const hasKnown = polygons.length > 0 || runs > 0
+  const hasKnown = polygons.length > 0 || runs > 0 || memoryRings > 0
   if (hasKnown) scene.fogUnknown.setMask({ mask: scene.knownMask, inverse: true })
   else scene.fogUnknown.mask = null
   scene.knownMask.visible = hasKnown

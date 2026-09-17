@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { FloorPiece, MapData, Token, Wall } from '../types/map'
 import { createEmptyMap } from './mapFactory'
-import { validateTokenMove } from './moveValidation'
+import { describeBlockedMove, validateTokenMove } from './moveValidation'
 
 function token(id: string, x: number, y: number, extra: Partial<Token> = {}): Token {
   return { id, characterId: null, name: id, x, y, size: 1, image: null, ...extra }
@@ -95,5 +95,79 @@ describe('validateTokenMove', () => {
   it('peças de chão todas ocultas não restringem movimento', () => {
     const map = baseMap({ floor: [{ ...rect('f', 100, 100, 50, 50), hidden: true }] })
     expect(validateTokenMove(map, { playerId: 'p1', tokenId: 't1', x: 700, y: 700 }, ownership)).toEqual({ ok: true, x: 700, y: 700 })
+  })
+})
+
+describe('describeBlockedMove', () => {
+  const FROM = { x: 100, y: 100 }
+  const TO = { x: 300, y: 100 }
+  const SLACK = 40
+  const fechada = { open: false, locked: false, kind: 'normal' as const }
+
+  /** Lado de sala partido em 3, com o pedaço do meio (y 80..120) na altura do traço. */
+  function ladoComPorta(door: Wall['door']): Wall[] {
+    return [
+      wall('acima', 200, 0, 200, 80),
+      wall('vao', 200, 80, 200, 120, { door }),
+      wall('abaixo', 200, 120, 200, 400),
+    ]
+  }
+
+  it('caminho livre => null (mesma resposta de resolveTokenMove: passou)', () => {
+    expect(describeBlockedMove(FROM, TO, [], SLACK)).toBeNull()
+    expect(describeBlockedMove(FROM, TO, [wall('longe', 200, 300, 200, 400)], SLACK)).toBeNull()
+  })
+
+  it('parede que não bloqueia movimento não barra', () => {
+    expect(describeBlockedMove(FROM, TO, [wall('vidro', 200, 0, 200, 400, { blocksMove: false })], SLACK)).toBeNull()
+  })
+
+  it('parede sólida => wall, com o id de quem barrou', () => {
+    expect(describeBlockedMove(FROM, TO, [wall('w', 200, 0, 200, 400)], SLACK)).toEqual({
+      reason: 'wall',
+      wallId: 'w',
+      opensPath: false,
+    })
+  })
+
+  it('porta aberta e destrancada deixa passar => null', () => {
+    const walls = ladoComPorta({ ...fechada, open: true })
+    expect(describeBlockedMove(FROM, TO, walls, SLACK)).toBeNull()
+  })
+
+  it('porta fechada sozinha no caminho => door_closed com opensPath (abrir ELA resolve)', () => {
+    expect(describeBlockedMove(FROM, TO, ladoComPorta(fechada), SLACK)).toEqual({
+      reason: 'door_closed',
+      wallId: 'vao',
+      opensPath: true,
+    })
+  })
+
+  it('porta fechada + outra parede atrás => door_closed sem opensPath (abrir não adiantaria)', () => {
+    const walls = [...ladoComPorta(fechada), wall('atras', 250, 0, 250, 400)]
+    expect(describeBlockedMove(FROM, TO, walls, SLACK)).toEqual({
+      reason: 'door_closed',
+      wallId: 'vao',
+      opensPath: false,
+    })
+  })
+
+  it('porta trancada => door_locked, nunca opensPath (trancada não abre por movimento)', () => {
+    const walls = ladoComPorta({ ...fechada, locked: true })
+    expect(describeBlockedMove(FROM, TO, walls, SLACK)).toEqual({
+      reason: 'door_locked',
+      wallId: 'vao',
+      opensPath: false,
+    })
+    // Aberta E trancada é estado de mapa antigo: continua trancada, continua barrando.
+    const abertaETrancada = ladoComPorta({ ...fechada, open: true, locked: true })
+    expect(describeBlockedMove(FROM, TO, abertaETrancada, SLACK)).toMatchObject({ reason: 'door_locked' })
+  })
+
+  it('com parede e porta cruzando o mesmo traço, a porta é a explicação escolhida', () => {
+    // A parede sólida vem primeiro na lista de propósito: a escolha é por
+    // utilidade para quem lê o aviso, não pela ordem do array.
+    const walls = [wall('solida', 150, 0, 150, 400), ...ladoComPorta(fechada)]
+    expect(describeBlockedMove(FROM, TO, walls, SLACK)).toMatchObject({ reason: 'door_closed', wallId: 'vao' })
   })
 })
