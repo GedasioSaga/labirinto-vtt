@@ -104,7 +104,13 @@ function deserializeMapFields(json: string): MapData {
     lights: entityList(parsed.lights),
     // inalterado — `room` ausente fica undefined (região comum)
     regions: entityList(parsed.regions).map((r) => ({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })),
-    // MUDA de cru para .map(): Token.image é obrigatório
+    // MUDA de cru para .map(): Token.image é obrigatório.
+    // `imageData` (a cópia embutida que viaja até o jogador) NÃO ganha linha
+    // aqui, de propósito: é campo opcional com `undefined === null` documentado
+    // em types/map.ts, mesmo padrão de rotation/locked/hidden/wallKind. Mapa
+    // salvo antes do campo existir abre igual, e escrever `?? null` quebraria a
+    // promessa que mapFile.test.ts cobra — round-trip que preserva o mapa
+    // EXATAMENTE, sem inventar campo que o arquivo não tinha.
     tokens: entityList(parsed.tokens).map((t) => ({ ...t, image: t.image ?? null })),
     // inalterado fora o que já existia — Prop.layer ausente fica undefined
     props: entityList(parsed.props).map((p) => ({ ...p, linkedMapPath: p.linkedMapPath ?? null })),

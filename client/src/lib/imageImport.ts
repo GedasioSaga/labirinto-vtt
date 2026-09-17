@@ -4,6 +4,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core'
 import { dirname, join } from '@tauri-apps/api/path'
 import { computeResampleDimensions } from './imageResample'
 import { ensureDir } from './mapFileIO'
+import { buildTokenPhotoData } from './tokenPhoto'
 
 export const MAX_BACKGROUND_SIDE = 4096
 export const MAX_PROP_SIDE = 1024
@@ -111,4 +112,17 @@ export async function importPropImage(sourcePath: string, mapDir: string, propId
  *  1024px) — token com imagem não precisa de resolução maior que uma peça. */
 export async function importTokenImage(sourcePath: string, mapDir: string, tokenId: string): Promise<ImportedImage> {
   return importImageAsset(sourcePath, mapDir, `token_${tokenId}`, MAX_PROP_SIDE)
+}
+
+/**
+ * Cópia pequena e auto-contida da MESMA foto, para o token do mestre poder
+ * aparecer na tela do jogador. O arquivo de `importTokenImage` fica no disco
+ * do mestre e nunca sai de lá (lib/fogFilter.ts); é esta referência que viaja.
+ *
+ * Chamar DEPOIS de `importTokenImage`: é ele que concede o acesso de leitura à
+ * pasta de origem (`grant_fs_access`).
+ */
+export async function buildTokenSharedPhoto(sourcePath: string): Promise<string> {
+  const bytes = await readFile(sourcePath)
+  return buildTokenPhotoData(new Blob([bytes]))
 }

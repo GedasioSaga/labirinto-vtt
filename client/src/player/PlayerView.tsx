@@ -29,6 +29,9 @@ import { drawStairs } from '../pixi/drawStairs'
 import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
 import { screenLabelSizing } from '../pixi/screenLabel'
+import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from '../pixi/constants'
+import { fitPhotoSprite, textureFromDataUrl } from '../pixi/tokenPhotoSprite'
+import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
 import { createRoomNamesRenderer } from '../pixi/drawRoomNames'
 import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
 import { isDegenerateRegion } from '../pixi/shapes'
@@ -160,33 +163,89 @@ function drawPlayerGrid(g: Graphics, map: MapData, pixel: PixelGrid): void {
 interface TokenView {
   wrapper: Container
   body: Graphics
+  /** Foto do token, recortada no círculo por `photoMask`; invisível quando o token não tem foto. */
+  photo: Sprite
+  photoMask: Graphics
   label: Text
   key: string
+  /** Referência já carregada em `photo`: sem isto, todo snapshot recarregaria a mesma foto. */
+  loadedPhoto: string | null
+  /** Contador do carregamento em curso — o mesmo guard de pixi/tokensRenderer.ts, para a foto antiga não vencer a nova. */
+  loadSeq: number
 }
 
 function tokenRadius(token: Token, grid: number): number {
   return Math.max((grid / 2) * token.size, 4)
 }
 
-/** Atualiza no lugar: nunca destrói `Text`, que em Pixi 8.20 quebra em TexturePool.returnTexture. */
+/**
+ * Atualiza no lugar: nunca destrói `Text`, que em Pixi 8.20 quebra em
+ * TexturePool.returnTexture. Só a GEOMETRIA (círculo chapado ou moldura +
+ * máscara da foto); a textura chega depois e é assunto de `syncTokenPhoto`.
+ */
 function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean): void {
   const radius = tokenRadius(token, grid)
-  // Imagem do token é caminho local da máquina do mestre: o jogador vê o círculo.
   const color = own ? OWN_TOKEN_COLOR : OTHER_TOKEN_COLOR
-  view.body.clear().circle(0, 0, radius).fill({ color }).stroke({ width: 2, color: TOKEN_OUTLINE })
+  view.body.clear()
+  if (tokenPhotoRef(token) === null) {
+    view.photo.visible = false
+    view.body.circle(0, 0, radius).fill({ color }).stroke({ width: 2, color: TOKEN_OUTLINE })
+  } else {
+    // Só referência auto-contida chega aqui: lib/fogFilter.ts apaga o caminho
+    // do disco do mestre antes de o mapa sair da máquina dele.
+    const photoRadius = Math.max(1, radius - TOKEN_FRAME_WIDTH)
+    view.photoMask.clear().circle(0, 0, photoRadius).fill({ color: 0xffffff })
+    view.photo.visible = true
+    fitPhotoSprite(view.photo, photoRadius)
+    // Moldura da cor do dono: com a foto ocupando o disco, é ela que continua
+    // dizendo qual token é o seu sem depender do nome estar ligado.
+    view.body.circle(0, 0, radius - TOKEN_FRAME_WIDTH / 2).stroke({ width: TOKEN_FRAME_WIDTH, color: own ? TOKEN_FRAME_COLOR : OTHER_TOKEN_COLOR })
+  }
   view.label.text = token.name
   view.label.position.set(0, radius + 2)
+}
+
+/** Carrega a foto nova, se mudou, e reencaixa no círculo quando a textura chega. */
+function syncTokenPhoto(view: TokenView, token: Token, grid: number): void {
+  const ref = tokenPhotoRef(token)
+  if (ref === null || !isTokenPhotoData(ref)) {
+    view.loadedPhoto = null
+    return
+  }
+  if (view.loadedPhoto === ref) return
+  view.loadedPhoto = ref
+  view.loadSeq += 1
+  const seq = view.loadSeq
+  const photoRadius = Math.max(1, tokenRadius(token, grid) - TOKEN_FRAME_WIDTH)
+  void textureFromDataUrl(ref)
+    .then((texture) => {
+      // Trocou de foto de novo (ou a cena morreu) durante o carregamento: a antiga não vence.
+      if (view.loadSeq !== seq || view.photo.destroyed) return
+      view.photo.texture = texture
+      fitPhotoSprite(view.photo, photoRadius)
+    })
+    .catch(() => {
+      // Foto que não decodifica deixa o token com a moldura e o disco vazio —
+      // a mesa não cai por causa de uma imagem ruim. Solta o guard para uma
+      // tentativa nova no próximo snapshot.
+      if (view.loadSeq === seq) view.loadedPhoto = null
+    })
 }
 
 function createTokenView(token: Token, grid: number, own: boolean): TokenView {
   const wrapper = new Container()
   const body = new Graphics()
+  const photo = new Sprite(Texture.EMPTY)
+  photo.anchor.set(0.5)
+  // A máscara precisa estar na árvore de exibição para o Pixi recortá-la; ela não aparece por si.
+  const photoMask = new Graphics()
+  photo.mask = photoMask
   const label = new Text({ text: token.name, style: { fontSize: LABEL_FONT_SIZE, fill: 0xffffff, stroke: { color: 0x000000, width: 3 } } })
   label.anchor.set(0.5, 0)
-  wrapper.addChild(body, label)
+  wrapper.addChild(photoMask, photo, body, label)
   wrapper.eventMode = 'static'
   wrapper.cursor = 'grab'
-  const view: TokenView = { wrapper, body, label, key: tokenViewKey(token, grid, own) }
+  const view: TokenView = { wrapper, body, photo, photoMask, label, key: tokenViewKey(token, grid, own), loadedPhoto: null, loadSeq: 0 }
   paintTokenView(view, token, grid, own)
   return view
 }
@@ -198,9 +257,14 @@ function sizeTokenLabel(label: Text, cameraScale: number, showNames: boolean): v
   label.visible = showNames && sizing.visible
 }
 
-/** O que exige repintar a view: posição muda sem repintar. */
+/**
+ * O que exige repintar a view: posição muda sem repintar. A FOTO entra como
+ * "tem ou não tem", não pelo conteúdo: a referência tem dezenas de milhares de
+ * caracteres e entraria nesta chave a cada quadro — a troca de uma foto por
+ * outra é tratada em `syncTokenPhoto`, que compara a referência uma vez só.
+ */
 function tokenViewKey(token: Token, grid: number, own: boolean): string {
-  return JSON.stringify([token.name, token.size, grid, own])
+  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null])
 }
 
 interface Scene {
@@ -566,6 +630,8 @@ export function PlayerView({
         view.key = key
         paintTokenView(view, token, currentMap.grid, isOwn)
       }
+      // Fora do `if` de propósito: trocar uma foto por outra não muda a chave.
+      syncTokenPhoto(view, token, currentMap.grid)
       sizeTokenLabel(view.label, scene.camera.scale, currentSettings.showNames)
       view.wrapper.visible = true
       view.wrapper.position.set(token.x, token.y)

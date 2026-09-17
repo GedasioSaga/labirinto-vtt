@@ -3,7 +3,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, RegionPoint } from '../types/map'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
-import { createHostSession, type HostResult, type HostSession, type HostSignal, type PlayerInfo } from './hostSession'
+import { createHostSession, type AppliedTokenEdit, type HostResult, type HostSession, type HostSignal, type PlayerInfo } from './hostSession'
 import type { LaserMessage } from './protocol'
 
 /**
@@ -43,6 +43,12 @@ export interface HostBridgeDeps {
   applyMove: (tokenId: string, x: number, y: number) => void
   /** Porta que o jogador abriu/fechou, já validada pela sessão (visível, destrancada, token perto). */
   applyDoor: (wallId: string, open: boolean) => void
+  /**
+   * Nome/foto novos do token do jogador, já validados pela sessão (o token é
+   * dele e a foto é auto-contida). Opcional como `onSignal`: quem monta a
+   * ponte sem este retorno simplesmente não oferece a edição ao jogador.
+   */
+  applyTokenEdit?: (edit: AppliedTokenEdit) => void
   visionRadius?: number
   onPlayersChange?: (players: PlayerInfo[]) => void
   onTunnelChange?: (state: TunnelState) => void
@@ -361,6 +367,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (result.applyDoor !== undefined) {
       // Todos veem a porta nova: o mestre pela store, os jogadores pelo snapshot imediato.
       deps.applyDoor(result.applyDoor.wallId, result.applyDoor.open)
+      broadcastNow()
+    }
+    if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
+      // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
+      deps.applyTokenEdit(result.applyTokenEdit)
       broadcastNow()
     }
     notifyPlayersIfChanged()

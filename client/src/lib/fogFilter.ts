@@ -1,4 +1,5 @@
-import type { DoorState, Drawing, FloorPiece, MapData, RegionPoint, Wall } from '../types/map'
+import type { DoorState, Drawing, FloorPiece, MapData, RegionPoint, Token, Wall } from '../types/map'
+import { isTokenPhotoData } from './tokenPhoto'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
@@ -259,6 +260,22 @@ function floorWithout(floor: FloorPiece[], hiddenIds: ReadonlySet<string>): Floo
   return out
 }
 
+/**
+ * Foto do token como o jogador pode recebê-la: só referência AUTO-CONTIDA
+ * (`data:image/...;base64,...`) atravessa; qualquer outra coisa vira `null`.
+ *
+ * O filtro é por FORMA e não por nome de campo: `Token.image` costuma ser
+ * caminho no disco do mestre e some, mas some porque não é auto-contido — se
+ * um dia guardar uma foto embutida, ela passa pelo mesmo critério. É o que
+ * leva a foto até a tela do jogador sem abrir a pasta do mestre.
+ */
+function sanitizeTokenPhoto(token: Token): Token {
+  const image = isTokenPhotoData(token.image) ? token.image : null
+  const imageData = isTokenPhotoData(token.imageData) ? token.imageData : null
+  if (token.image === image && (token.imageData ?? null) === imageData) return token
+  return { ...token, image, imageData }
+}
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
@@ -389,7 +406,7 @@ export function filterMapForPlayer(
     // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
     tokens: layerTokens
       .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && isVisible({ x: t.x, y: t.y }))))
-      .map((t) => (t.image === null ? t : { ...t, image: null })),
+      .map(sanitizeTokenPhoto),
     markers: map.markers.filter((m) => !inSecretRoom({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
     lines: map.lines.filter((l) => !l.points.some(inSecretRoom) && !l.points.some(inConcealZone) && isShapeKnown(l.points)),
     lights: visibleLights(map.lights, hiddenLayers).filter((l) => !l.hidden && isVisible({ x: l.x, y: l.y })),

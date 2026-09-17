@@ -24,7 +24,7 @@ import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { useMapStore } from './stores/mapStore'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, loadMapFromDisk, mapDirFor, defaultMapsDir } from './lib/mapFileIO'
-import { pickBackgroundImage, importBackgroundImage, pickImageFile, importTokenImage } from './lib/imageImport'
+import { pickBackgroundImage, importBackgroundImage, pickImageFile, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
@@ -339,6 +339,15 @@ function App() {
           // Trancada só o mestre abre: recusa defensiva se o mapa mudou entre a validação e aqui.
           if (!wall?.door || (open && wall.door.locked)) return
           store.setWallDoor(wallId, { ...wall.door, open })
+        },
+        // Nome/foto que o jogador trocou no próprio token, já validados pela
+        // sessão (o token é dele, a foto é auto-contida). `image` chega como
+        // referência embutida: ela vira a cópia que viaja, e o caminho do
+        // disco do mestre (se havia um) deixa de valer para este token.
+        applyTokenEdit: ({ tokenId, name, image }) => {
+          const store = useMapStore.getState()
+          if (name !== undefined) store.renameToken(tokenId, name)
+          if (image !== undefined) store.setTokenImage(tokenId, null, image)
         },
         onPlayersChange: setRoomPlayers,
         onTunnelChange: setTunnel,
@@ -829,7 +838,22 @@ function App() {
       if (!sourcePath) return
       const mapDir = await mapDirFor(map.id)
       const imported = await importTokenImage(sourcePath, mapDir, tokenId)
-      setTokenImage(tokenId, imported.destPath)
+      // A cópia embutida sai junto: sem ela o jogador receberia o token sem
+      // foto nenhuma, porque o caminho do disco do mestre não atravessa o
+      // recorte (lib/fogFilter.ts).
+      //
+      // Melhor esforço, e não parte do gesto: se a redução falhar (formato que
+      // o `createImageBitmap` recusa, foto que não cabe no teto), a imagem do
+      // mestre entra do mesmo jeito — perder a foto INTEIRA porque a cópia não
+      // saiu seria trocar um problema pequeno por um grande. O aviso diz o que
+      // ficou faltando.
+      let shared: string | null = null
+      try {
+        shared = await buildTokenSharedPhoto(sourcePath)
+      } catch (err) {
+        reportFileError('preparar a foto do token para os jogadores (o token fica com a imagem só na sua tela)', err)
+      }
+      setTokenImage(tokenId, imported.destPath, shared)
     } catch (err) {
       reportFileError('trocar a imagem do token', err)
     }

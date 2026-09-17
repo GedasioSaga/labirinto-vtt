@@ -11,6 +11,7 @@ import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import type { SignalMark } from '../lib/signals'
+import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -530,6 +531,12 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           onFocusToken={(tokenId) => setFocus((current) => ({ tokenId, seq: current.seq + 1 }))}
           signalArmed={signalArmed}
           onToggleSignal={() => setSignalArmed((armed) => !armed)}
+          onRenameToken={(tokenId, name) => connection.setOwnTokenName(tokenId, name)}
+          onChangeTokenPhoto={async (tokenId, file) => {
+            // A foto é reduzida AQUI, antes de sair da máquina do jogador: é
+            // quem escolhe que paga o custo, e o que viaja já cabe no teto.
+            connection.setOwnTokenPhoto(tokenId, await buildTokenPhotoData(file))
+          }}
         />
         {state.doorNotice && (
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.

@@ -520,10 +520,18 @@ export function nextTokenName(tokens: readonly Pick<Token, 'name'>[]): string {
   return `Token ${n}`
 }
 
-export function setTokenImage(map: MapData, tokenId: string, image: string | null): MapData {
+/**
+ * Foto do token: o arquivo no disco do mestre (`image`) e a cópia embutida que
+ * viaja até o jogador (`imageData`) andam JUNTAS, sempre. Separá-las em duas
+ * chamadas deixaria o mapa passar por um estado em que a foto na tela do
+ * mestre e a foto na tela do jogador são de pessoas diferentes — e daria duas
+ * entradas de desfazer para um gesto só. `imageData` omitido limpa a cópia, que
+ * é o certo tanto para "Remover imagem" quanto para uma foto nova sem cópia.
+ */
+export function setTokenImage(map: MapData, tokenId: string, image: string | null, imageData: string | null = null): MapData {
   return {
     ...map,
-    tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, image } : t)),
+    tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, image, imageData } : t)),
   }
 }
 

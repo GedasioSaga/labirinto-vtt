@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Container, Graphics, Sprite, Text } from 'pixi.js'
 import { createTokensRenderer } from './tokensRenderer'
+import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from './constants'
 import type { Token } from '../types/map'
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -21,6 +22,10 @@ function buildToken(overrides: Partial<Token> = {}): Token {
 }
 
 const GRID = 64
+
+/** 1x1 px transparente: forma válida de foto embutida, pequena o bastante para o teste. */
+const FOTO_EMBUTIDA =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
 /** Único filho de `wrapper` que representa o visual do token (Sprite ou
  *  Graphics do círculo) — ring/label também são Graphics/Text, então
@@ -167,7 +172,10 @@ describe('createTokensRenderer — token com imagem (image !== null)', () => {
     expect(visual).toBeInstanceOf(Sprite)
   })
 
-  it('sprite.width/height cobrem o diâmetro inteiro da célula (gridSize * size)', () => {
+  it('a foto fica DENTRO da moldura: o lado do sprite é o diâmetro menos a moldura dos dois lados', () => {
+    // Mudou de propósito (pedido do usuário, 17/09/2026): antes o sprite
+    // ocupava a célula inteira e a foto vazava para os cantos do quadrado.
+    // Agora ela é recortada no círculo de raio `raio - TOKEN_FRAME_WIDTH`.
     const token = buildToken({ image: 'C:\\imgs\\heroi.png', size: 2 })
     const container = new Container()
     const renderer = createTokensRenderer()
@@ -175,8 +183,58 @@ describe('createTokensRenderer — token com imagem (image !== null)', () => {
     renderer.draw(container, [token], GRID, null)
 
     const sprite = visualOf(container.children[0]) as Sprite
-    expect(sprite.width).toBe(GRID * 2)
-    expect(sprite.height).toBe(GRID * 2)
+    const ladoEsperado = GRID * 2 - TOKEN_FRAME_WIDTH * 2
+    expect(sprite.width).toBe(ladoEsperado)
+    expect(sprite.height).toBe(ladoEsperado)
+  })
+
+  it('o sprite tem máscara circular: a foto sai RECORTADA no círculo, não no quadrado', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+
+    renderer.draw(container, [buildToken({ image: 'C:\\imgs\\heroi.png' })], GRID, null)
+
+    const sprite = visualOf(container.children[0]) as Sprite
+    const mask = sprite.mask
+    expect(mask).toBeInstanceOf(Graphics)
+    const desenho = mask as Graphics
+    // Preenchimento de verdade, e do tamanho do círculo interno: sem isto a
+    // máscara existiria sem recortar nada.
+    expect(desenho.context.instructions.filter((i) => i.action === 'fill')).toHaveLength(1)
+    expect(desenho.getLocalBounds().width).toBeCloseTo(GRID - TOKEN_FRAME_WIDTH * 2, 6)
+  })
+
+  it('a moldura aparece mesmo SEM seleção — foi a queixa: anel só existia no token selecionado', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+
+    renderer.draw(container, [buildToken({ image: 'C:\\imgs\\heroi.png' })], GRID, null)
+
+    const ring = container.children[0].children[1] as Graphics
+    const strokes = ring.context.instructions.filter((i) => i.action === 'stroke')
+    expect(strokes).toHaveLength(1)
+    expect((strokes[0]?.data as { style?: { color?: number } })?.style?.color).toBe(TOKEN_FRAME_COLOR)
+  })
+
+  it('CONTROLE: token SEM foto não ganha moldura no anel (senão o teste acima passaria por acidente)', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+
+    renderer.draw(container, [buildToken({ image: null })], GRID, null)
+
+    const ring = container.children[0].children[1] as Graphics
+    expect(ring.context.instructions.filter((i) => i.action === 'stroke')).toHaveLength(0)
+  })
+
+  it('a foto embutida do jogador (data URL) desenha sprite igual, sem passar pelo convertFileSrc do Tauri', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+
+    // `image: null` com a foto só em `imageData` é a forma que o host grava
+    // quando o JOGADOR escolhe a foto na tela dele.
+    renderer.draw(container, [buildToken({ image: null, imageData: FOTO_EMBUTIDA })], GRID, null)
+
+    expect(visualOf(container.children[0])).toBeInstanceOf(Sprite)
   })
 
   it('trocar de imagem para null no redraw substitui o Sprite pelo círculo genérico (sem restos do sprite antigo)', () => {

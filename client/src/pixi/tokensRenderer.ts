@@ -1,18 +1,14 @@
 import { Container, Sprite, Graphics, Text, Assets, Texture } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { Token } from '../types/map'
-import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
+import { SECRET_ITEM_ALPHA, SELECTION_COLOR, TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from './constants'
 import { drawTokenCircle } from './drawTokens'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
+import { isTokenPhotoData, tokenPhotoLabel, tokenPhotoRef } from '../lib/tokenPhoto'
+import { fitPhotoSprite, textureFromDataUrl } from './tokenPhotoSprite'
 import { useToastStore } from '../stores/toastStore'
 import { screenLabelSizing } from './screenLabel'
 
-/**
- * Onda 2, item 12 (notificação) — reduz um caminho de arquivo ao nome
- * exibível no toast ("C:\...\tocha.png" → "tocha.png"). Aceita `/` e `\`
- * porque `Token.image`/`Prop.src` guardam caminho absoluto do SO (Windows
- * usa `\`, mas o projeto roda teste em jsdom, que não normaliza).
- */
 /** Token "Oculto no editor": fantasma bem transparente, mas ainda clicável. */
 const HIDDEN_TOKEN_GHOST_ALPHA = 0.3
 const GHOST_DASH_COUNT = 16
@@ -28,12 +24,6 @@ function strokeDashedCircle(graphics: Graphics, radius: number): void {
     graphics.arc(0, 0, radius, start, start + slice / 2)
   }
   graphics.stroke({ width: GHOST_OUTLINE_WIDTH, color: GHOST_OUTLINE_COLOR })
-}
-
-function fileBaseName(path: string): string {
-  const normalized = path.replace(/\\/g, '/')
-  const idx = normalized.lastIndexOf('/')
-  return idx === -1 ? normalized : normalized.slice(idx + 1)
 }
 
 /** Fonte do nome do token em px de mundo; na tela nunca abaixo de 11 px (screenLabel.ts). */
@@ -54,6 +44,10 @@ interface TokenEntry {
    *  mesmo quando o token troca de "círculo" pra "imagem" e vice-versa. */
   wrapper: Container
   sprite: Sprite | null
+  /** Máscara circular do `sprite`: é ela que faz a foto sair RECORTADA no
+   *  círculo em vez de ocupar o quadrado inteiro, cantos inclusive. Vive junto
+   *  do sprite (nasce e morre com ele). */
+  photoMask: Graphics | null
   graphics: Graphics | null
   ring: Graphics
   label: Text
@@ -117,8 +111,19 @@ export function createTokensRenderer(): TokensRenderer {
     if (!entry.sprite) {
       const sprite = new Sprite(Texture.EMPTY)
       sprite.anchor.set(0.5)
+      // A máscara precisa estar na árvore de exibição para o Pixi renderizá-la
+      // como máscara; ela não aparece por si, só recorta o sprite.
+      const photoMask = new Graphics()
+      sprite.mask = photoMask
       entry.sprite = sprite
+      entry.photoMask = photoMask
       entry.wrapper.addChildAt(sprite, 0)
+      // A máscara entra no FIM, e não no começo: o índice 0 do wrapper é o
+      // visual do token (Sprite ou Graphics do círculo) e o 1 é o anel, tanto
+      // aqui quanto em ensureGraphics. Máscara não é desenhada, então a
+      // posição dela na lista não muda nada na tela — e mudar os índices
+      // mudaria o significado de "o visual é o filho 0".
+      entry.wrapper.addChild(photoMask)
     }
     return entry.sprite
   }
@@ -128,6 +133,11 @@ export function createTokensRenderer(): TokensRenderer {
       entry.wrapper.removeChild(entry.sprite)
       entry.sprite.destroy()
       entry.sprite = null
+      if (entry.photoMask) {
+        entry.wrapper.removeChild(entry.photoMask)
+        entry.photoMask.destroy()
+        entry.photoMask = null
+      }
       // Imagem removida do token (voltou a ser círculo): esquece a imagem
       // carregada, senão reatribuir a MESMA imagem depois não dispara reload
       // (o guard de loadedSrc abaixo compara contra este campo).
@@ -161,7 +171,7 @@ export function createTokensRenderer(): TokensRenderer {
         const label = new Text({ text: '', style: { fontSize: TOKEN_LABEL_FONT_SIZE, fill: 0xffffff } })
         label.anchor.set(0.5, 0)
         wrapper.addChild(ring, label)
-        entry = { wrapper, sprite: null, graphics: null, ring, label, loadedSrc: null, loadToken: 0 }
+        entry = { wrapper, sprite: null, photoMask: null, graphics: null, ring, label, loadedSrc: null, loadToken: 0 }
         cache.set(token.id, entry)
         container.addChild(wrapper)
       }
@@ -172,60 +182,78 @@ export function createTokensRenderer(): TokensRenderer {
       entry.ring.clear()
       let outlineRadius: number
 
-      // Checagem por veracidade (truthy), não `!== null`: `Token.image` é
-      // obrigatório no tipo (`string | null`), mas objeto construído fora do
-      // type-checker (JSON de mapa legado antes da migração, ou um
-      // `addToken` cru como o que vários specs e2e fazem via
-      // `page.evaluate`) pode chegar com o campo `undefined` — e
-      // `undefined !== null` é `true`, o que tentaria carregar
-      // `convertFileSrc(undefined)` e quebrar quando a ponte do Tauri não
-      // está disponível (ambiente de teste, sem `window.__TAURI_INTERNALS__`).
-      if (token.image) {
+      // `tokenPhotoRef` devolve `null` (e não `undefined`) para token
+      // construído fora do type-checker — mapa legado antes da migração, ou o
+      // `addToken` cru que vários specs e2e fazem via `page.evaluate`. Sem
+      // isso, `undefined !== null` entrava no ramo "tem imagem" e quebrava em
+      // `convertFileSrc(undefined)` onde a ponte do Tauri não existe.
+      const photoRef = tokenPhotoRef(token)
+      if (photoRef !== null) {
         const sprite = ensureSprite(entry)
-        const diameter = gridSize * token.size
-        sprite.width = diameter
-        sprite.height = diameter
+        const radius = (gridSize * token.size) / 2
+        // A foto é recortada DENTRO da moldura: raio do token menos a
+        // espessura do anel, senão o latão cobriria a borda da foto.
+        const photoRadius = Math.max(1, radius - TOKEN_FRAME_WIDTH)
+        entry.photoMask?.clear().circle(0, 0, photoRadius).fill({ color: 0xffffff })
+        fitPhotoSprite(sprite, photoRadius)
         // Anchor já é 0.5 (ensureSprite), então gira em torno do centro do
         // token. `undefined` → 0 radiano: aparência idêntica à de hoje
         // (types/map.ts documenta Token.rotation undefined === 0).
         sprite.rotation = rotationToRadians(token.rotation)
 
-        if (entry.loadedSrc !== token.image) {
+        if (entry.loadedSrc !== photoRef) {
           entry.loadToken += 1
           const localLoadToken = entry.loadToken
           const currentEntry = entry
           // Capturado num `const` separado: dentro do `.catch()` abaixo
-          // (fronteira de função nova), o TS não carrega a narrowing de
-          // `token.image` como `string` feita pelo `if (token.image)` da
-          // linha 123 — precisa de uma variável própria para não perder o
-          // tipo sem recorrer a `as`/`!`.
-          const imagePath = token.image
+          // (fronteira de função nova), o TS não carrega a narrowing feita
+          // pelo `if` acima — precisa de uma variável própria para não perder
+          // o tipo sem recorrer a `as`/`!`.
+          const imagePath = photoRef
           const tokenName = token.name
-          const url = convertFileSrc(imagePath)
-          entry.loadedSrc = token.image
-          Assets.load(url)
+          // Chave do aviso. Foto embutida NÃO pode entrar aqui pelo valor: são
+          // dezenas de milhares de caracteres, e `warnedImagePaths` viveria a
+          // sessão inteira guardando cada uma. Por token resolve — um token
+          // tem uma foto embutida só.
+          const warnKey = isTokenPhotoData(imagePath) ? `token:${token.id}` : imagePath
+          entry.loadedSrc = photoRef
+          // Foto embutida (a que veio do jogador, ou a cópia que viaja) não
+          // passa por `convertFileSrc`: ela já é auto-contida, e o Assets do
+          // Pixi não sabe carregar data URL (ver pixi/tokenPhotoSprite.ts).
+          const carregar: Promise<Texture> = isTokenPhotoData(imagePath)
+            ? textureFromDataUrl(imagePath)
+            : Assets.load<Texture>(convertFileSrc(imagePath))
+          carregar
             .then((texture) => {
-              if (cache.get(token.id) === currentEntry && currentEntry.loadToken === localLoadToken && currentEntry.sprite) {
-                currentEntry.sprite.texture = texture
-              }
+              if (cache.get(token.id) !== currentEntry || currentEntry.loadToken !== localLoadToken || !currentEntry.sprite) return
+              currentEntry.sprite.texture = texture
+              // A proporção só é conhecida com a textura na mão: reencaixa.
+              fitPhotoSprite(currentEntry.sprite, photoRadius)
             })
             .catch(() => {
               // textura não carregou — sprite fica com Texture.EMPTY
               // (invisível), sem quebrar o resto do mapa. Onda 2, item 12:
               // antes isso era silencioso; agora avisa, uma vez por caminho
               // (warnedImagePaths), não uma vez por token nem por frame.
-              if (!warnedImagePaths.has(imagePath)) {
-                warnedImagePaths.add(imagePath)
-                useToastStore.getState().push('error', `Imagem do token "${tokenName}" não carregou: ${fileBaseName(imagePath)}`)
+              if (!warnedImagePaths.has(warnKey)) {
+                warnedImagePaths.add(warnKey)
+                // `tokenPhotoLabel`: nome do arquivo quando é caminho, e uma
+                // frase curta quando é foto embutida — despejar a base64 no
+                // toast encheria a tela do mestre de lixo.
+                useToastStore.getState().push('error', `Imagem do token "${tokenName}" não carregou: ${tokenPhotoLabel(imagePath)}`)
               }
             })
         }
 
+        // Moldura SEMPRE, não só quando selecionado: foi o pedido do usuário
+        // (token redondo com moldura em volta). O anel de seleção fica por
+        // fora dela, para os dois continuarem legíveis ao mesmo tempo.
+        entry.ring.circle(0, 0, radius - TOKEN_FRAME_WIDTH / 2).stroke({ width: TOKEN_FRAME_WIDTH, color: TOKEN_FRAME_COLOR })
         if (selected) {
-          entry.ring.circle(0, 0, diameter / 2).stroke({ width: 4, color: SELECTION_COLOR })
+          entry.ring.circle(0, 0, radius).stroke({ width: 4, color: SELECTION_COLOR })
         }
-        entry.label.position.set(0, diameter / 2 + 2)
-        outlineRadius = diameter / 2
+        entry.label.position.set(0, radius + 2)
+        outlineRadius = radius
       } else {
         const graphics = ensureGraphics(entry)
         const radius = (gridSize * token.size) / 2 - 2

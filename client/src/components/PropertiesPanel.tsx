@@ -17,6 +17,7 @@ import { AdvancedField, AdvancedSection } from './AdvancedSection'
 import { PolygonSidesControls, type PolygonSidesControlsProps } from './PolygonSidesControls'
 import { LayersPanel, type LayersPanelProps } from './LayersPanel'
 import { TokenImageControls, type TokenImageControlsProps } from './TokenImageControls'
+import { tokenPhotoRef } from '../lib/tokenPhoto'
 import { TokenNameControls, type TokenNameControlsProps } from './TokenNameControls'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
@@ -315,7 +316,8 @@ export function PropertiesPanel({
         {selectedToken && (
           <ToolPropertiesSection group="tokenImage" groups={groups}>
             <TokenNameControls name={selectedToken.name} {...tokenName} />
-            <TokenImageControls image={selectedToken.image} {...tokenImage} />
+            {/* `tokenPhotoRef`: foto escolhida pelo JOGADOR vive em `imageData` — sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
+            <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
           </ToolPropertiesSection>
         )}
         {selectedToken && (

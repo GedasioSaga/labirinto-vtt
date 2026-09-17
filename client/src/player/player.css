@@ -585,6 +585,53 @@
   accent-color: var(--lb-color-brass, #e0a44a);
 }
 
+/* "Meu personagem": nome e foto do próprio token, trocados pelo jogador. */
+.pp-label {
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font: inherit;
+  color: inherit;
+  background: var(--lb-color-stone-deep, rgba(0, 0, 0, 0.35));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-sm, 6px);
+}
+
+.pp-input:hover {
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+/* O seletor de arquivo do navegador não se estiliza por dentro; só o botão dele. */
+.pp-file {
+  width: 100%;
+  font: inherit;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-file::file-selector-button {
+  margin-right: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: var(--lb-color-stone-deep, rgba(0, 0, 0, 0.35));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-sm, 6px);
+}
+
+.pp-file::file-selector-button:hover {
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-error {
+  margin: 0;
+  color: var(--lb-color-danger, #e07a5f);
+}
+
 /* Foco por teclado visível em tudo que é interativo no painel (anel de latão do editor). */
 .pp-panel :focus-visible,
 .pp-toggle:focus-visible {

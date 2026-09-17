@@ -1,3 +1,5 @@
+import { tokenPhotoLabel } from '../lib/tokenPhoto'
+
 export interface TokenImageControlsProps {
   image: string | null
   onChangeImage: () => void
@@ -27,7 +29,8 @@ export function TokenImageControls({ image, onChangeImage, onClearImage }: Token
         </button>
       ) : (
         <>
-          <span className="lb-label">{image.split(/[\\/]/).pop()}</span>
+          {/* Foto embutida (a que o jogador escolheu) não tem nome de arquivo: ver lib/tokenPhoto.ts. */}
+          <span className="lb-label">{tokenPhotoLabel(image)}</span>
           <button type="button" className="lb-btn lb-btn--block" onClick={onChangeImage}>
             Trocar imagem...
           </button>
