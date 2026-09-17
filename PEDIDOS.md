@@ -403,3 +403,15 @@ Ele pode vetar qualquer uma:
 2. Token que pisa no portal **passa direto**; "perguntar antes" fica como opção por portal, depois.
 3. Quem ficou de fora **vê o token sumir** (o personagem entrou mesmo).
 4. O editor do mestre **não segue** o jogador: aparece aviso "Fulano entrou em X" com botão "Ir lá".
+
+### Conflito parado para você decidir (17/09/2026): grade no mapa novo
+Eu tinha posto na fila um conserto que NÃO é seu pedido: a jornada
+`task-jornada-ferramentas-mudas.spec.ts` cobra que o mapa recém-criado abra mostrando a grade
+escolhida e o limite do mapa ("escolhi grade Quadrado, o editor abriu preto"). A auditoria mostrou
+que isso BATE DE FRENTE com a invariante do minimapa Resident Evil que você aprovou, medida em
+`task-portao-estilo-minimapa.spec.ts`: chão chapado, **sem grade impressa**, no mesmo caminho de
+formulário. Fechar os dois ao mesmo tempo só sairia com truque (ligar a grade no clique do seletor),
+o que é verde sem entregar o comportamento. Então PAREI essa peça.
+Decisão sua, quando quiser: (a) mapa novo abre com grade visível e a invariante do minimapa passa a
+valer só depois que houver chão desenhado; (b) mapa novo continua sem grade, e o que muda é só o
+LIMITE do mapa ficar visível; (c) deixar como está.
