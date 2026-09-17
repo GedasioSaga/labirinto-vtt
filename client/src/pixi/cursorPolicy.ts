@@ -171,6 +171,7 @@ const CREATION_TOOLS = new Set<DrawingTool>([
   'room',
   'roomCircle',
   'roomPolygon',
+  'roomFree',
   'stair',
   'prop',
   'brush',

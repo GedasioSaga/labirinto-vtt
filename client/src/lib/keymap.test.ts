@@ -52,11 +52,21 @@ describe('resolveShortcut — letras de ferramenta', () => {
   ]
 
   it('TOOL_SHORTCUTS cobre exatamente as 24 ferramentas esperadas, sem duplicar letra', () => {
-    // 23 do laço + token, que continua na tabela mesmo escondido.
-    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 1)
+    // Do laço saem duas: token, que continua na tabela mesmo escondida, e
+    // roomFree, que ficou SEM letra na integração de 17/09/2026 — ela e o Pino
+    // escolheram 'Y' em árvores separadas, e duas ferramentas na mesma letra
+    // fariam o índice perder uma em silêncio.
+    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 2)
     expect(TOOL_SHORTCUTS.token).toBe('K')
-    const letters = Object.values(TOOL_SHORTCUTS)
+    expect(TOOL_SHORTCUTS.roomFree).toBe('')
+    const letters = Object.values(TOOL_SHORTCUTS).filter((l) => l.length > 0)
     expect(new Set(letters).size).toBe(letters.length)
+  })
+
+  it('Sala livre não tem letra: o índice não a alcança, só a barra', () => {
+    const porLetra = buildToolByLetter(new Set())
+    expect([...porLetra.values()]).not.toContain('roomFree')
+    expect(porLetra.has('')).toBe(false)
   })
 
   it('k devolve null: a ferramenta Token está escondida', () => {
@@ -82,7 +92,8 @@ describe('resolveShortcut — letras de ferramenta', () => {
   }
 
   it('letra desconhecida (sem tool nem ação) devolve null', () => {
-    // 'x' virou a Zona oculta (A5) e 'y' o Pino; Z continua livre.
+    // 'x' virou a Zona oculta (A5) e 'y' o Pino; Z segue livre, reservada ao
+    // Ctrl+Z. A Sala livre ficou sem letra nenhuma (ver o teste acima).
     expect(resolveShortcut(evt({ key: 'z' }))).toBeNull()
   })
 

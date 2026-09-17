@@ -76,6 +76,16 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   room: 'N',
   roomCircle: 'J',
   roomPolygon: 'Q',
+  // Sala livre NASCEU SEM ATALHO, e isso é decisão de integração, não esquecimento:
+  // ela e o Pino foram construídos em árvores separadas no mesmo dia e as duas
+  // escolheram 'Y', a última letra livre (F é "enquadrar tudo" e Z fica reservada
+  // ao Ctrl+Z, para quem erra o Ctrl não trocar de ferramenta sem querer). Duas
+  // ferramentas na mesma letra fazem o índice letra→ferramenta perder uma delas
+  // em silêncio. O Pino ficou com Y por ser anotação avulsa, usada no meio do
+  // desenho; a Sala livre é a quarta forma da família Sala e o caminho natural
+  // dela é o botão, ao lado de Sala, Sala Circular e Polígono Regular.
+  // String vazia = sem letra; `buildToolByLetter` pula.
+  roomFree: '',
   stair: 'S',
   token: 'K',
   prop: 'B',
@@ -119,7 +129,11 @@ export function buildToolByLetter(hidden: ReadonlySet<DrawingTool>): Map<string,
     // é `Record<DrawingTool, string>` EXAUSTIVO (comentário acima), então toda
     // chave que sai daqui é garantidamente uma `DrawingTool` de verdade.
     if (hidden.has(tool)) continue
-    byLetter.set(TOOL_SHORTCUTS[tool].toLowerCase(), tool)
+    const letra = TOOL_SHORTCUTS[tool]
+    // Ferramenta sem letra (string vazia) fica fora do índice: só a barra a
+    // alcança. Sem esta guarda, todas elas colidiriam na chave ''.
+    if (letra.length === 0) continue
+    byLetter.set(letra.toLowerCase(), tool)
   }
   return byLetter
 }

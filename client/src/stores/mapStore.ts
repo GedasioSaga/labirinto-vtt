@@ -21,7 +21,7 @@ import { cloneEntity, cloneLinkedWalls, cloneRoomDescendants, type CloneableEnti
 import { ancestorsOf, descendantsOf } from '../lib/roomNesting'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
-const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon'])
+const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon', 'roomFree'])
 // P10 ("não consigo entrar na casa"): `describeBlockedMove` no lugar de
 // `resolveTokenMove` — as duas decidem passar/não passar pelo mesmo
 // `findTokenPath`, mas esta diz QUEM barrou e se era porta, que é o que a

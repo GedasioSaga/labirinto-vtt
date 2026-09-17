@@ -56,7 +56,7 @@ const ALL_MODES: GestureMode[] = [
   'drawing-conceal-zone',
 ]
 
-/** Cópia local dos 23 literais de `DrawingTool` (`types/tools.ts:1-24`). */
+/** Cópia local dos 24 literais de `DrawingTool` (`types/tools.ts`). */
 const ALL_TOOLS: DrawingTool[] = [
   'select',
   'wall',
@@ -66,6 +66,7 @@ const ALL_TOOLS: DrawingTool[] = [
   'room',
   'roomCircle',
   'roomPolygon',
+  'roomFree',
   'stair',
   'token',
   'prop',
@@ -117,8 +118,8 @@ describe('resolveCursor — exaustividade', () => {
     }
   })
 
-  it('cobre TODAS as 23 ferramentas (idle) sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_TOOLS).toHaveLength(23)
+  it('cobre TODAS as 24 ferramentas (idle) sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_TOOLS).toHaveLength(24)
     for (const activeTool of ALL_TOOLS) {
       const cursor = resolveCursor(baseInput({ activeTool }))
       expect(VALID_CSS_CURSORS.has(cursor), `tool "${activeTool}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
@@ -136,7 +137,7 @@ describe('resolveCursor — exaustividade', () => {
 
 describe('resolveCursor — ferramentas de criação (idle): crosshair', () => {
   const creationTools: DrawingTool[] = [
-    'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon',
+    'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree',
     'stair', 'prop', 'brush', 'line', 'circle', 'ellipse', 'rect', 'polygon',
     'curve', 'text', 'measure', 'floor', 'concealZone',
   ]
@@ -145,7 +146,7 @@ describe('resolveCursor — ferramentas de criação (idle): crosshair', () => {
     expect(resolveCursor(baseInput({ activeTool }))).toBe('crosshair')
   })
 
-  it('as 20 ferramentas de criação são exatamente DrawingTool menos select/token/eraser', () => {
+  it('as 21 ferramentas de criação são exatamente DrawingTool menos select/token/eraser', () => {
     const naoCriacao = new Set(['select', 'token', 'eraser'])
     const criacaoDoModulo = ALL_TOOLS.filter((tool) => !naoCriacao.has(tool))
     expect(criacaoDoModulo.sort()).toEqual([...creationTools].sort())

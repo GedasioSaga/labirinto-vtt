@@ -20,6 +20,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   room: 'Sala',
   roomCircle: 'Sala Circular',
   roomPolygon: 'Polígono Regular',
+  roomFree: 'Sala livre',
   stair: 'Escada',
   token: 'Token',
   prop: 'Peça',
@@ -83,6 +84,11 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   room: 'Clique e arraste para criar uma sala: uma região preenchida com paredes na borda. Para a entrada, use Porta (D) e clique na parede.',
   roomCircle: 'Clique no centro e arraste até a borda para criar uma sala circular.',
   roomPolygon: 'Clique no centro e arraste até a borda para criar um polígono regular — ajuste o número de lados no painel.',
+  // Mesma gramática de traçado da Região (é o mesmo rascunho ponto a ponto),
+  // mais o que a Região não tem e é o motivo desta ferramenta existir: o
+  // resultado é Sala, com parede em todo lado e porta possível.
+  roomFree:
+    'Clique canto a canto para desenhar uma sala com o formato que quiser. Duplo clique ou Enter fecha (mín. 3 cantos), Backspace/Ctrl+Z tira o último canto, Esc cancela. Nasce com parede em todos os lados — para a entrada, use Porta (D).',
   stair: 'Clique e arraste para desenhar um lance de escada.',
   token: 'Clique no mapa para colocar um token — escolha uma imagem depois no painel, ou deixe o círculo genérico.',
   prop: 'Clique no mapa e escolha uma imagem — vira um objeto que pode ser arrastado depois (ferramenta Selecionar).',
@@ -130,7 +136,10 @@ export const TOOLBAR_SLOTS: ToolbarSlot[][] = [
   ['select'],
   // floor (chão por peças) fica junto das Salas: mesma camada 'salas'.
   // concealZone (A5) no fim do grupo: não desloca os botões que já existiam.
-  ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'floor', 'stair', 'prop', 'concealZone'],
+  // roomFree entra logo depois das outras Salas: é a quarta forma da MESMA
+  // entidade, e ficar ao lado delas é o que faz o usuário achar a ferramenta
+  // no lugar onde já procura por sala.
+  ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree', 'floor', 'stair', 'prop', 'concealZone'],
   // Pino fica com Texto/Medir: os três são anotação por cima da planta, não construção.
   ['cluster:drawing', 'text', 'pin', 'measure', 'eraser'],
 ]

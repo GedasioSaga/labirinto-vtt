@@ -102,6 +102,37 @@ export function buildRegionFromPoints(id: string, points: RegionPoint[], tag = '
   return { id, points, tag, fillColor, fillPattern, data: {} }
 }
 
+/**
+ * Uma parede por aresta do polígono da Sala, vinculada pelo par
+ * `regionId`/`regionEdgeIndex` (0..n-1) — é essa convenção que `lib/roomLink.ts`
+ * usa para reposicionar a parede quando o vértice se move e que `addDoorOnWall`
+ * usa para partir a parede numa porta.
+ *
+ * Extraído porque as TRÊS fábricas de Sala (retângulo, polígono regular e
+ * formato livre) escreviam o mesmo laço: três usos reais, uma receita só — se
+ * uma delas divergisse, o vínculo daquele caminho quebraria em silêncio.
+ *
+ * `wallIds.length` deve ser exatamente `points.length`.
+ */
+function buildRoomEdgeWalls(regionId: string, points: RegionPoint[], wallIds: string[]): Wall[] {
+  return wallIds.map((wallId, edgeIndex) => {
+    const from = points[edgeIndex]
+    const to = points[(edgeIndex + 1) % points.length]
+    return {
+      id: wallId,
+      x1: from.x,
+      y1: from.y,
+      x2: to.x,
+      y2: to.y,
+      blocksLight: true,
+      blocksMove: true,
+      door: null,
+      regionId,
+      regionEdgeIndex: edgeIndex,
+    }
+  })
+}
+
 export function isValidRoomDraft(start: Point, end: Point): boolean {
   return start.x !== end.x && start.y !== end.y
 }
@@ -142,24 +173,7 @@ export function buildRoomFromDraft(
     room: { shape: 'rect', name: roomName },
   }
 
-  const walls: Wall[] = wallIds.map((wallId, edgeIndex) => {
-    const from = points[edgeIndex]
-    const to = points[(edgeIndex + 1) % points.length]
-    return {
-      id: wallId,
-      x1: from.x,
-      y1: from.y,
-      x2: to.x,
-      y2: to.y,
-      blocksLight: true,
-      blocksMove: true,
-      door: null,
-      regionId: region.id,
-      regionEdgeIndex: edgeIndex,
-    }
-  })
-
-  return { region, walls }
+  return { region, walls: buildRoomEdgeWalls(region.id, points, wallIds) }
 }
 
 // Abaixo desse raio (em px de mundo) o arrasto conta como "clique sem
@@ -217,24 +231,78 @@ export function buildRegularPolygonRoomFromDraft(
     room: { shape: 'polygon', name: roomName },
   }
 
-  const walls: Wall[] = wallIds.map((wallId, edgeIndex) => {
-    const from = points[edgeIndex]
-    const to = points[(edgeIndex + 1) % points.length]
-    return {
-      id: wallId,
-      x1: from.x,
-      y1: from.y,
-      x2: to.x,
-      y2: to.y,
-      blocksLight: true,
-      blocksMove: true,
-      door: null,
-      regionId: region.id,
-      regionEdgeIndex: edgeIndex,
-    }
-  })
+  return { region, walls: buildRoomEdgeWalls(region.id, points, wallIds) }
+}
 
-  return { region, walls }
+/**
+ * Descarta vértice repetido de um rascunho clicado canto a canto (Região e
+ * Sala livre, que compartilham o mesmo traçado em pixi/PixiCanvas.tsx): o
+ * duplo clique que fecha deixa o último ponto duas vezes, e a mão que tenta
+ * "fechar" clicando de volta no primeiro canto deixa outro repetido no fim.
+ *
+ * Na Região isso era só um ponto morto no polígono. Na Sala livre cada
+ * repetido vira uma parede de comprimento ZERO — que não desenha nada, não
+ * bloqueia movimento nenhum e ainda desloca o `regionEdgeIndex` de todas as
+ * arestas seguintes, quebrando o vínculo de que porta e arrasto de vértice
+ * dependem (lib/roomLink.ts).
+ *
+ * Compara por igualdade exata porque os pontos vêm do MESMO `applySnap` do
+ * clique: dois cliques no mesmo lugar dão exatamente o mesmo número.
+ */
+export function normalizeDraftPolygonPoints(points: Point[]): Point[] {
+  const out: Point[] = []
+  for (const point of points) {
+    const last = out[out.length - 1]
+    if (last && last.x === point.x && last.y === point.y) continue
+    out.push(point)
+  }
+  // O fechamento é implícito (aresta n-1 → 0): um último ponto igual ao
+  // primeiro é a mesma repetição, só que dando a volta.
+  const first = out[0]
+  const last = out[out.length - 1]
+  if (out.length > 1 && first && last && first.x === last.x && first.y === last.y) out.pop()
+  return out
+}
+
+/** Polígono de verdade precisa de 3 cantos distintos. */
+export function isValidFreeRoomDraft(points: Point[]): boolean {
+  return points.length >= 3
+}
+
+/**
+ * Sala de formato livre — os cantos vêm clicados um a um pelo usuário
+ * (`regionDraftPoints` em pixi/PixiCanvas.tsx), sem nenhuma restrição de
+ * forma: não é retângulo (`buildRoomFromDraft`) nem polígono regular
+ * (`buildRegularPolygonRoomFromDraft`).
+ *
+ * `shape: 'polygon'` de propósito, o MESMO das outras salas não-retangulares:
+ * é o que faz o hit-test do PixiCanvas escolher arrasto de vértice e inserção
+ * de ponto médio em vez do resize por canto, e o que esconde largura/altura
+ * numérica no painel (RoomControls) — medida que não existe num polígono
+ * arbitrário. Nenhum campo novo entra no arquivo de mapa, então não há linha
+ * de migração em lib/mapFile.ts.
+ *
+ * `points` já deve ter passado por `normalizeDraftPolygonPoints`, e
+ * `wallIds.length` deve ser exatamente `points.length`.
+ */
+export function buildFreeRoomFromPoints(
+  regionId: string,
+  wallIds: string[],
+  points: Point[],
+  fillColor = DEFAULT_REGION_FILL_COLOR,
+  fillPattern: Region['fillPattern'] = DEFAULT_REGION_FILL_PATTERN,
+  // Mesma sequência das outras Salas (ver buildRoomFromDraft): as quatro
+  // ferramentas de Sala numeram na mesma corrida, sem "Sala 1" repetido.
+  roomName = nextDefaultRoomName(),
+): { region: Region; walls: Wall[] } {
+  const vertices: RegionPoint[] = points.map((point) => ({ x: point.x, y: point.y }))
+
+  const region: Region = {
+    ...buildRegionFromPoints(regionId, vertices, 'region', fillColor, fillPattern),
+    room: { shape: 'polygon', name: roomName },
+  }
+
+  return { region, walls: buildRoomEdgeWalls(region.id, vertices, wallIds) }
 }
 
 export function isValidFreehandDraft(points: Point[]): boolean {

@@ -8,7 +8,7 @@ import type { DrawingTool } from '../types/tools'
  *  `types/tools.ts` (DrawingTool), senão o catálogo referencia uma
  *  ferramenta que não existe mais na barra. */
 const ALL_TOOLS: DrawingTool[] = [
-  'select', 'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon',
+  'select', 'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree',
   'stair', 'token', 'prop', 'brush', 'line', 'circle', 'ellipse', 'rect', 'polygon',
   'curve', 'text', 'measure', 'eraser', 'floor',
 ]
