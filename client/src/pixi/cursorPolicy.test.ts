@@ -51,6 +51,7 @@ const ALL_MODES: GestureMode[] = [
   'dragging-area-selection',
   'drawing-floor',
   'dragging-floor-body',
+  'painting-floor-blocks',
   'dragging-room-label',
   'drawing-conceal-zone',
 ]
@@ -108,8 +109,8 @@ const baseInput = (overrides: Partial<ResolveCursorInput> = {}): ResolveCursorIn
 })
 
 describe('resolveCursor — exaustividade', () => {
-  it('cobre TODOS os 38 modos de PixiCanvas.tsx sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_MODES).toHaveLength(38)
+  it('cobre TODOS os 39 modos de PixiCanvas.tsx sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_MODES).toHaveLength(39)
     for (const mode of ALL_MODES) {
       const cursor = resolveCursor(baseInput({ mode, corner: 0 }))
       expect(VALID_CSS_CURSORS.has(cursor), `mode "${mode}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
@@ -274,7 +275,7 @@ describe('resolveCursor — gesto de desenho em andamento: crosshair do início 
   const drawingModes: GestureMode[] = [
     'drawing-wall', 'drawing-freehand', 'drawing-line', 'drawing-circle', 'drawing-rect',
     'drawing-ellipse', 'drawing-polygon', 'drawing-light', 'drawing-curve', 'drawing-room',
-    'drawing-polygon-room', 'drawing-stair',
+    'drawing-polygon-room', 'drawing-stair', 'painting-floor-blocks',
   ]
 
   it.each(drawingModes)('mode "%s" é "crosshair"', (mode) => {

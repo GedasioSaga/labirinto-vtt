@@ -6,6 +6,9 @@ export type FloorPiecePatch = Partial<Omit<FloorPiece, 'id'>>
 
 export interface FloorPieceControlsProps {
   piece: FloorPiece
+  /** `map.floorStyle.fillColor` — a cor do chão do mapa inteiro, que é o que a
+   *  peça usa enquanto não tem cor própria (`FloorPiece.fillColor`). */
+  floorFillColor: string
   /** Posição da peça na ordem de aplicação (0 = aplicada primeiro) e o total de peças. */
   index: number
   count: number
@@ -23,6 +26,7 @@ const SHAPE_TITLES: Record<FloorShape['kind'], string> = {
   polygon: 'Polígono regular',
   corridor: 'Corredor',
   poly: 'Polígono livre',
+  blocos: 'Blocos',
 }
 
 const OP_OPTIONS: Array<{ value: FloorPiece['op']; label: string }> = [
@@ -132,6 +136,15 @@ function ShapeFields({ shape, onShapeChange }: { shape: FloorShape; onShapeChang
     case 'poly':
       // Vértices vindos de imagem: editar um a um por número não é um fluxo real.
       return <span className="lb-label">{shape.points.length} vértices</span>
+    case 'blocos':
+      // Célula é o que está preso à grade: mexer nela por número tiraria a peça
+      // da grade, que é a única promessa desta forma. Quem muda a área é o
+      // pincel (botão esquerdo pinta, direito apaga) e o balde.
+      return (
+        <span className="lb-label">
+          {shape.cells.length} {shape.cells.length === 1 ? 'bloco' : 'blocos'} de {shape.cell}px
+        </span>
+      )
   }
 }
 
@@ -141,7 +154,16 @@ function ShapeFields({ shape, onShapeChange }: { shape: FloorShape; onShapeChang
  * histórico (`updateFloorPiece`) — mesmo contrato de campo numérico de
  * `StairControls` (1 entrada de undo por valor digitado).
  */
-export function FloorPieceControls({ piece, index, count, grid, onChange, onReorder, onRemove }: FloorPieceControlsProps) {
+export function FloorPieceControls({
+  piece,
+  floorFillColor,
+  index,
+  count,
+  grid,
+  onChange,
+  onReorder,
+  onRemove,
+}: FloorPieceControlsProps) {
   const noise = piece.modifiers.noise
 
   const setNoiseEnabled = (enabled: boolean) => {
@@ -179,7 +201,33 @@ export function FloorPieceControls({ piece, index, count, grid, onChange, onReor
 
       <ShapeFields shape={piece.shape} onShapeChange={(shape) => onChange({ shape })} />
 
-      <NumberField id="lb-floor-rotation" label="Rotação (graus)" value={piece.rotation ?? 0} onChange={(rotation) => onChange({ rotation })} />
+      {/* Cor SÓ desta peça — é o que faz um caminho ter uma cor e o chão em
+          volta ter outra. Enquanto ela não existe, o swatch mostra a cor do
+          chão do mapa (o que está na tela), para a pessoa mexer a partir do
+          que vê em vez de partir de um preto vindo do nada. */}
+      <div className="lb-field">
+        <label className="lb-label" htmlFor="lb-floor-piece-color">
+          Cor desta peça
+        </label>
+        <input
+          id="lb-floor-piece-color"
+          className="lb-swatch"
+          type="color"
+          value={piece.fillColor ?? floorFillColor}
+          onChange={(event) => onChange({ fillColor: event.target.value })}
+        />
+      </div>
+      {piece.fillColor !== undefined && (
+        <button type="button" className="lb-btn lb-btn--block" onClick={() => onChange({ fillColor: undefined })}>
+          Voltar à cor do chão
+        </button>
+      )}
+
+      {/* Blocos não giram: a peça é feita de célula da grade, e um giro de
+          alguns graus a tiraria da grade sem nada para colocar no lugar. */}
+      {piece.shape.kind !== 'blocos' && (
+        <NumberField id="lb-floor-rotation" label="Rotação (graus)" value={piece.rotation ?? 0} onChange={(rotation) => onChange({ rotation })} />
+      )}
       <NumberField
         id="lb-floor-rounding"
         label="Arredondar (px)"

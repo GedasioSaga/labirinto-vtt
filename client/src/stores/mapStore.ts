@@ -12,6 +12,7 @@ import type { RoomCorner } from '../lib/roomOps'
 import type { Corner, ResizeModifiers } from '../lib/objectTransform'
 import type { StairSizePreset } from '../lib/stairs'
 import { FLOOR_LAYER, clampFloorPolygonSides, type FloorShapeKind } from '../lib/floorTool'
+import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
 import * as mapFactory from '../lib/mapFactory'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
@@ -340,6 +341,10 @@ interface MapStoreState {
   setFloorOp: (op: FloorPiece['op']) => void
   floorPolygonSides: number
   setFloorPolygonSides: (sides: number) => void
+  /** Lado do pincel de blocos, em blocos (1, 2 ou 3) — mesma classe de
+   *  preferência de sessão dos três acima. */
+  floorBrushSize: TamanhoDePincel
+  setFloorBrushSize: (tamanho: number) => void
   /** Recorta um Drawing freehand/curve/line pela parte dentro do círculo
    *  (center, radius) — COM histórico, 0 a N `Drawing` novos (ver
    *  `eraseFromDrawing`, lib/eraseGeometry.ts). Sem efeito (nenhuma entrada
@@ -426,6 +431,9 @@ interface MapStoreState {
   reorderFloorPiece: (id: string, delta: number) => void
   moveFloorPiece: (id: string, dx: number, dy: number) => void
   moveFloorPieceLive: (id: string, dx: number, dy: number) => void
+  /** Botão direito do pincel de blocos: apaga as células numa entrada de
+   *  histórico só, e NENHUMA quando o gesto não achou chão para apagar. */
+  eraseFloorBlocks: (blocos: Bloco[], cell: number) => void
   setFloorStyle: (patch: Partial<FloorStyle>) => void
   /** Traços e marcadores numa entrada de histórico só. */
   addMapDetails: (lines: MapLine[], markers: MapMarker[]) => void
@@ -859,6 +867,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     floorShapeKind: 'rect',
     floorOp: 'add',
     floorPolygonSides: 6,
+    floorBrushSize: 1,
     regionFillColor: '#3a7ad0',
     // Marrom, igual ao chão do mapa novo (minimapa do RE4): Sala nova não nasce azul.
     roomFillColor: '#a8776a',
@@ -998,6 +1007,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setFloorShapeKind: (kind) => set({ floorShapeKind: kind }),
     setFloorOp: (op) => set({ floorOp: op }),
     setFloorPolygonSides: (sides) => set({ floorPolygonSides: clampFloorPolygonSides(sides) }),
+    setFloorBrushSize: (tamanho) => set({ floorBrushSize: clampTamanhoDePincel(tamanho) }),
     erasePartOfDrawing: (drawingId, center, radius) => {
       const { map } = get()
       const drawing = map.drawings.find((d) => d.id === drawingId)
@@ -1035,6 +1045,12 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     reorderFloorPiece: (id, delta) => withHistory((map) => mapFactory.reorderFloorPiece(map, id, delta)),
     moveFloorPiece: (id, dx, dy) => withHistory((map) => mapFactory.moveFloorPiece(map, id, dx, dy)),
     moveFloorPieceLive: (id, dx, dy) => set((state) => ({ map: mapFactory.moveFloorPiece(state.map, id, dx, dy) })),
+    eraseFloorBlocks: (blocos, cell) => {
+      const atual = get().map
+      const proximo = mapFactory.eraseFloorBlocks(atual, blocos, cell, () => crypto.randomUUID())
+      // Arrastar a borracha por onde nao havia chao nao e mudanca: nao gasta Ctrl+Z.
+      if (proximo !== atual) withHistory(() => proximo)
+    },
     setFloorStyle: (patch) => withHistory((map) => mapFactory.setFloorStyle(map, patch)),
     addMapDetails: (lines, markers) => {
       if (lines.length === 0 && markers.length === 0) return

@@ -3,6 +3,7 @@ import type { DoorKind, FloorPiece, FreehandTexture, Region, Wall } from '../typ
 import type { DrawingTool } from '../types/tools'
 import type { StairSizePreset } from '../lib/stairs'
 import type { FloorShapeKind } from '../lib/floorTool'
+import type { TamanhoDePincel } from '../lib/floorBlocks'
 import type { ToolVariantGroup, ToolVariantOption, ToolVariantStoreKey } from '../lib/toolVariants'
 
 /**
@@ -37,6 +38,8 @@ export interface ToolVariantBindings {
   floorShapeKind: { value: FloorShapeKind; onChange: (value: FloorShapeKind) => void }
   floorOp: { value: FloorPiece['op']; onChange: (value: FloorPiece['op']) => void }
   floorPolygonSides: { value: number; onChange: (value: number) => void }
+  /** Lado do pincel de blocos, em blocos (1, 2 ou 3). */
+  floorBrushSize: { value: TamanhoDePincel; onChange: (value: TamanhoDePincel) => void }
   /** Botão Desenho — forma ativa (`value` = ferramenta ativa) e a ação que troca de ferramenta. */
   drawShape: { value: DrawingTool; onChange: (value: DrawingTool) => void }
 }
@@ -199,6 +202,8 @@ function GroupOptions({
       return <>{renderOptions(group.options, bindings.floorOp.value, bindings.floorOp.onChange, onPicked)}</>
     case 'floorPolygonSides':
       return <>{renderOptions(group.options, bindings.floorPolygonSides.value, bindings.floorPolygonSides.onChange, onPicked)}</>
+    case 'floorBrushSize':
+      return <>{renderOptions(group.options, bindings.floorBrushSize.value, bindings.floorBrushSize.onChange, onPicked)}</>
     case 'drawShape':
       return <>{renderOptions(group.options, bindings.drawShape.value, bindings.drawShape.onChange, onPicked, iconFor)}</>
     default:

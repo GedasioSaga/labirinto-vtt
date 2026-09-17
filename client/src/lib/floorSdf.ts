@@ -1,4 +1,5 @@
 import type { FloorPiece, FloorShape } from '../types/map'
+import { blocosBounds, blocosCenter, blocosDistance } from './floorBlocks'
 import { createPolygonDistance, type PolygonDistance } from './polygonSdf'
 
 /**
@@ -20,6 +21,7 @@ export interface Bounds {
 const CULL_MARGIN = 8
 
 export function shapeCenter(shape: FloorShape): { x: number; y: number } {
+  if (shape.kind === 'blocos') return blocosCenter(shape)
   if (shape.kind !== 'corridor' && shape.kind !== 'poly') return { x: shape.cx, y: shape.cy }
   const b = pointsBounds(shape.points)
   return { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 }
@@ -50,7 +52,12 @@ export function pieceBounds(piece: FloorPiece): Bounds {
     Math.max(0, piece.modifiers.grow ?? 0)
   let halfW: number
   let halfH: number
-  if (shape.kind === 'corridor' || shape.kind === 'poly') {
+  if (shape.kind === 'blocos') {
+    const b = blocosBounds(shape)
+    // Forma sem célula nenhuma: retângulo degenerado no centro, sem chão.
+    halfW = b ? (b.maxX - b.minX) / 2 : 0
+    halfH = b ? (b.maxY - b.minY) / 2 : 0
+  } else if (shape.kind === 'corridor' || shape.kind === 'poly') {
     const b = pointsBounds(shape.points)
     halfW = (b.maxX - b.minX) / 2
     halfH = (b.maxY - b.minY) / 2
@@ -198,6 +205,8 @@ export function pieceDistance(piece: FloorPiece, x: number, y: number): number {
     d = sdPolygon(px, py, regularPolygonVertices(shape.radius, shape.sides)) - rounding
   } else if (shape.kind === 'poly') {
     d = polygonDistanceFor(shape)(px + center.x, py + center.y) - rounding
+  } else if (shape.kind === 'blocos') {
+    d = blocosDistance(shape, px + center.x, py + center.y) - rounding
   } else {
     d = sdCorridor(px + center.x, py + center.y, shape.points) - rounding
   }

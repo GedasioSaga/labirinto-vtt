@@ -37,7 +37,7 @@ import { createLightsRenderer } from './drawLights'
 import { visionSegments, type Segment } from '../lib/visibility'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
 import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelFontSize, roomLabelPosition } from './drawRoomNames'
-import { createFloorRenderer, drawFloorDraft } from './drawFloor'
+import { createFloorRenderer, drawBlocosDraft, drawFloorDraft } from './drawFloor'
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
 import { drawMapFrame } from './drawMapFrame'
 import { createDebouncedTask, syncWorldTextResolution } from './textResolution'
@@ -50,7 +50,16 @@ import { compileFloor } from '../lib/floorSdf'
 /** Subamostras por eixo do render fiel: 4×4 é o que reproduz o antisserrilhado dos mapas de referência. */
 const MINIMAP_RASTER_SAMPLES = 4
 import type { FloorPiece, MapFrame } from '../types/map'
-import { buildCorridorShape, buildFloorPiece, buildFloorShapeFromDrag, clampFloorPolygonSides, findFloorPieceAt } from '../lib/floorTool'
+import {
+  baldeNoPonto,
+  buildCorridorShape,
+  buildFloorPiece,
+  buildFloorShapeFromDrag,
+  clampFloorPolygonSides,
+  findFloorPieceAt,
+  isFloorDragShape,
+} from '../lib/floorTool'
+import { blocosDoTraco, buildBlocosShape, chaveDoBloco, type Bloco } from '../lib/floorBlocks'
 
 /** Referência estável: camada oculta não força recalcular o contorno a cada redraw. */
 const EMPTY_FLOOR: FloorPiece[] = []
@@ -1273,6 +1282,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         // Chão por peças: arrasto de criação e mover corpo da peça selecionada.
         | 'drawing-floor'
         | 'dragging-floor-body'
+        // Pincel de blocos: arrasto que pinta (botão esquerdo) ou apaga (direito).
+        | 'painting-floor-blocks'
         // A4 — arrastar só o nome da Sala.
         | 'dragging-room-label'
         // A5 — arrasto de criação da Zona oculta.
@@ -1331,6 +1342,21 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // pontos do corredor em construção — este sem `mode`, como
       // regionDraftPoints: cada clique é um pointerdown independente.
       let floorDraftStart: Point | null = null
+      /**
+       * Pincel de blocos: as células já tocadas neste arrasto, por chave de
+       * coluna/linha. O gesto NÃO escreve na store enquanto anda — ele só
+       * acumula e desenha a prévia, e o mapa muda uma vez só no pointerup.
+       * É o que dá 1 Ctrl+Z por traço (e não um por célula) e o que mantém o
+       * arrasto fluido: o contorno do chão inteiro é caro demais para
+       * recalcular a cada pointermove.
+       */
+      let blocoCells: Map<string, Bloco> | null = null
+      /** Botão direito apaga em vez de pintar — decisão do usuário (15/09/2026). */
+      let blocoApagando = false
+      /** `map.grid` de quando o traço começou: mudar a grade no meio não parte o traço. */
+      let blocoCellSize = 0
+      /** Último ponto do ponteiro, para amostrar o caminho entre dois pointermove. */
+      let blocoUltimoPonto: Point | null = null
       let corridorDraftPoints: Point[] = []
       // Estado do arrasto de canto de Sala retangular (resize) — mesmo padrão
       // de curveDragSnapshot/lightRadiusDragSnapshot: `roomCornerDragSnapshot`
@@ -1832,6 +1858,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         measureDraftStart = null
         floorDraftStart = null
         corridorDraftPoints = []
+        blocoCells = null
+        blocoUltimoPonto = null
         draftGraphics.clear()
         angleIndicatorRenderer.hide()
         measurementIndicatorRenderer.hide()
@@ -1847,7 +1875,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
        */
       const floorDraftFromDrag = (start: Point, rawEnd: Point, shiftKey: boolean, altKey: boolean) => {
         const { map, floorShapeKind, floorOp, floorPolygonSides } = useMapStore.getState()
-        if (floorShapeKind === 'corridor') return null
+        // Corredor, pincel e balde não nascem de um arrasto de dois pontos — o
+        // tipo (`isFloorDragShape`) é quem garante que eles não chegam abaixo.
+        if (!isFloorDragShape(floorShapeKind)) return null
         const snapped = applySnap(rawEnd, map.grid, 'wall', altKey)
         const end = floorShapeKind === 'polygon' ? snapped : constrainDraft(start, snapped, floorShapeKind, { shift: shiftKey, alt: altKey })
         const result = buildFloorShapeFromDrag(floorShapeKind, start, end, floorPolygonSides)
@@ -1859,6 +1889,58 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
               ? { tool: 'ellipse', center: start, end }
               : { tool: 'polygon-room', center: start, end, sides: clampFloorPolygonSides(floorPolygonSides) }
         return { end, piece, dimension }
+      }
+
+
+      /**
+       * Acumula as células do trecho percorrido pelo pincel e redesenha a
+       * prévia. Amostra o caminho inteiro de `de` até `ate` (e não só o ponto
+       * de chegada): o navegador entrega pointermove em saltos, e sem isso um
+       * arrasto rápido deixaria buraco no traço.
+       */
+      const acumularBlocos = (de: Point, ate: Point) => {
+        if (!blocoCells) return
+        const { map, floorBrushSize } = useMapStore.getState()
+        for (const bloco of blocosDoTraco(de, ate, blocoCellSize, floorBrushSize)) {
+          blocoCells.set(chaveDoBloco(bloco.col, bloco.row), bloco)
+        }
+        drawBlocosDraft(draftGraphics, [...blocoCells.values()], blocoCellSize, map.floorStyle.fillColor, blocoApagando)
+      }
+
+      /** Fecha o traço do pincel: uma peça nova (pintando) ou um apagar (botão direito). */
+      const finishBlocos = () => {
+        const cells = blocoCells ? [...blocoCells.values()] : []
+        const cell = blocoCellSize
+        const apagando = blocoApagando
+        blocoCells = null
+        blocoUltimoPonto = null
+        draftGraphics.clear()
+        if (cells.length === 0) return
+        if (apagando) {
+          useMapStore.getState().eraseFloorBlocks(cells, cell)
+          return
+        }
+        // O traço inteiro é UMA peça: é ela que o painel seleciona para ganhar
+        // cor própria, e é por isso que dois caminhos têm duas cores.
+        const shape = buildBlocosShape(cell, cells)
+        if (shape) useMapStore.getState().addFloorPiece(buildFloorPiece(crypto.randomUUID(), shape, 'add'))
+      }
+
+      /**
+       * Balde: enche de chão a área fechada em volta do clique. Área aberta (o
+       * vazio escapa pela borda do mapa) não tem o que encher — e calar seria
+       * repetir o defeito da porta sem parede, então a tela responde.
+       */
+      const encherAreaFechada = (point: Point) => {
+        const { map, addFloorPiece } = useMapStore.getState()
+        const piece = baldeNoPonto(map, point, () => crypto.randomUUID())
+        if (!piece) {
+          useToastStore
+            .getState()
+            .push('info', 'Nada para encher aqui: o balde só enche área fechada, e esta escapa pela borda do mapa (ou já tem chão).')
+          return
+        }
+        addFloorPiece(piece)
       }
 
       /** Prévia do corredor: pontos já clicados + cursor; com 1 ponto só marca o ponto. */
@@ -2250,8 +2332,26 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         }
 
         if (activeTool === 'floor') {
+          const { floorShapeKind } = useMapStore.getState()
+          // Pincel de blocos: sem applySnap: a célula sai do ponto bruto, e é a
+          // CÉLULA inteira que pinta — é isso que separa "preso à grade" de
+          // "fita centrada no ponteiro".
+          if (floorShapeKind === 'blocos') {
+            mode = 'painting-floor-blocks'
+            blocoApagando = event.button === 2
+            blocoCellSize = map.grid
+            blocoCells = new Map()
+            blocoUltimoPonto = worldPoint
+            acumularBlocos(worldPoint, worldPoint)
+            return
+          }
+          // Balde é um clique só: não há arrasto para acompanhar.
+          if (floorShapeKind === 'balde') {
+            if (event.button === 0) encherAreaFechada(worldPoint)
+            return
+          }
           const point = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          if (useMapStore.getState().floorShapeKind === 'corridor') {
+          if (floorShapeKind === 'corridor') {
             corridorDraftPoints = [...corridorDraftPoints, point]
             drawCorridorDraft(null)
             return
@@ -2965,6 +3065,12 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           draftGraphics.clear()
         }
 
+        if (mode === 'painting-floor-blocks') {
+          // Clique parado também conta: uma célula pintada é uma peça válida
+          // (ao contrário do arrasto de retângulo, que precisa de área).
+          finishBlocos()
+        }
+
         if (mode === 'drawing-floor' && floorDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const draft = floorDraftFromDrag(floorDraftStart, worldPoint, event.shiftKey, event.altKey)
@@ -3189,6 +3295,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           useMapStore.getState().reparentAfterMoveLive(areaSelectionDragBefore)
           useMapStore.getState().commitDragHistory(areaSelectionDragBefore)
         }
+        // Soltar o botão fora do canvas no meio de um traço do pincel: o que já
+        // foi pintado vira peça, em vez de sumir sem explicação. Precisa vir
+        // ANTES do `mode = 'idle'` lá embaixo, como os commits vizinhos.
+        if (mode === 'painting-floor-blocks') finishBlocos()
         // Onda 1, item 3 (Frente F) — mesmo padrão de commit acima, ver
         // comentário completo no pointerup.
         if (mode === 'dragging-token' && tokenDragSnapshot) {
@@ -3610,6 +3720,13 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             moveFloorPieceLive(draggingFloorBodyId, dx, dy)
             bodyDragLastPoint = p
           }
+          return
+        }
+
+        if (mode === 'painting-floor-blocks' && blocoUltimoPonto) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          acumularBlocos(blocoUltimoPonto, worldPoint)
+          blocoUltimoPonto = worldPoint
           return
         }
 
@@ -4088,6 +4205,18 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       el.addEventListener('dblclick', onDblClick)
 
       /**
+       * O botão DIREITO apaga com o pincel de blocos (decisão do usuário,
+       * 15/09/2026). O menu de contexto do navegador nasce do mesmo botão e
+       * abriria por cima do gesto — some só onde o gesto existe, para o clique
+       * direito continuar normal em toda outra ferramenta.
+       */
+      const onContextMenu = (event: MouseEvent) => {
+        const { activeTool, floorShapeKind } = useMapStore.getState()
+        if (activeTool === 'floor' && floorShapeKind === 'blocos') event.preventDefault()
+      }
+      el.addEventListener('contextmenu', onContextMenu)
+
+      /**
        * Onda 1, item 7 (nudge por seta) — move TODO o conjunto selecionado
        * (Onda 4, item 24: "operações passam a valer para o conjunto
        * inteiro") por `dx`/`dy` já na unidade certa (célula de grade sem
@@ -4321,6 +4450,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         lightsRenderer.destroy()
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
+        el.removeEventListener('contextmenu', onContextMenu)
         window.removeEventListener('keydown', onKeyDown)
         window.removeEventListener('keydown', onDraftKeyDown, true)
         window.removeEventListener('keyup', onKeyUp)

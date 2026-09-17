@@ -420,6 +420,15 @@ export type FloorShape =
   | { kind: 'ellipse'; cx: number; cy: number; rx: number; ry: number }
   | { kind: 'polygon'; cx: number; cy: number; radius: number; sides: number }
   | { kind: 'corridor'; points: { x: number; y: number; width: number }[] }
+  /**
+   * Blocos presos à grade (pincel de blocos e balde). Cada célula é um quadrado
+   * de `cell` px alinhado à origem do mundo, e o que fica guardado é COLUNA e
+   * LINHA, não px: assim a peça não sai da grade por arredondamento, nem quando
+   * é movida. A borda externa da união das células é o contorno do chão — é ela
+   * que vira parede (`lib/visibility.ts`) e limite de movimento
+   * (`lib/moveValidation.ts`), sem nenhuma costura entre células vizinhas.
+   */
+  | { kind: 'blocos'; cell: number; cells: { col: number; row: number }[] }
   /** Polígono livre: vértices em px de mundo, gira em torno do centro do retângulo que o envolve. */
   | { kind: 'poly'; points: { x: number; y: number }[] }
 
@@ -453,6 +462,12 @@ export interface FloorPiece {
   op: 'add' | 'subtract'
   /** Graus, sentido horário, em torno do centro. `undefined` === 0. */
   rotation?: number
+  /**
+   * Cor só desta peça — é o que faz um caminho ter cor diferente do chão em
+   * volta. `undefined` === usa `MapData.floorStyle.fillColor`, a cor do chão do
+   * mapa inteiro, que é como todo mapa salvo antes deste campo abre.
+   */
+  fillColor?: string
   modifiers: FloorModifiers
   locked?: boolean
   hidden?: boolean

@@ -101,7 +101,7 @@ interface PropertiesPanelProps {
   polygonSides: PolygonSidesControlsProps
   /** Chão por peças — peça selecionada (`null` = nenhuma) e seus controles. */
   selectedFloorPiece: FloorPiece | null
-  floorPieceControls: Omit<FloorPieceControlsProps, 'piece'>
+  floorPieceControls: Omit<FloorPieceControlsProps, 'piece' | 'floorFillColor'>
   /** Chão por peças — estilo do chão do mapa (a conversão da imagem fica no menu da ActionBar). */
   floorStyle: FloorStyleControlsProps
   /** A5 — "Oculto para jogadores" da Região/Escada/Desenho selecionado; `null` = nenhum. */
@@ -284,7 +284,9 @@ export function PropertiesPanel({
         )}
         {selectedFloorPiece && (
           <ToolPropertiesSection group="floorPiece" groups={groups}>
-            <FloorPieceControls piece={selectedFloorPiece} {...floorPieceControls} />
+            {/* A cor do chão do mapa vem de `floorStyle`, que este painel já
+                recebe: o swatch da peça sem cor própria mostra ela. */}
+            <FloorPieceControls piece={selectedFloorPiece} floorFillColor={floorStyle.style.fillColor} {...floorPieceControls} />
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="wallStyle" groups={groups}>
