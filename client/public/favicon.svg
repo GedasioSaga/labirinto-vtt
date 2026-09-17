@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" role="img" aria-label="Labirinto">
+  <!--
+    Marca da aba: o mesmo traço de `LabyrinthMark` (src/components/icons.tsx)
+    sobre a pedra do tema. Os valores estão escritos à mão porque um favicon é
+    um arquivo servido direto ao navegador, fora do alcance de `theme.ts` e de
+    qualquer `var(--lb-*)`: #121214 é `color.ink` e #e0a44a é `color.brass`.
+    Se o tema mudar, este arquivo muda junto.
+
+    Traço em 2 (e não 1.7 como o ícone da interface) porque a aba desenha isto
+    em 16px: em 1.7 as linhas somem no meio do escuro.
+  -->
+  <rect width="24" height="24" rx="5" fill="#121214" />
+  <path
+    d="M12 21H3V3h18v18h-6V7H7v10h4"
+    fill="none"
+    stroke="#e0a44a"
+    stroke-width="2"
+    stroke-linecap="square"
+    stroke-linejoin="miter"
+  />
+</svg>
