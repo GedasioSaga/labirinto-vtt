@@ -127,6 +127,15 @@ function deserializeMapFields(json: string): MapData {
     lines: entityList(parsed.lines),
     markers: entityList(parsed.markers),
     concealZones: entityList(parsed.concealZones),
+    // NOVO — pinos de ponto de interesse. Mapa salvo antes deste campo existir
+    // abre sem nenhum pino; pino gravado por uma versão futura sem `kind` ou
+    // sem `description` volta como "!" mudo em vez de derrubar o desenho.
+    pins: entityList(parsed.pins).map((p) => ({
+      ...p,
+      kind: p.kind === 'interrogacao' ? 'interrogacao' : 'exclamacao',
+      description: typeof p.description === 'string' ? p.description : '',
+      image: typeof p.image === 'string' ? p.image : null,
+    })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
     hiddenLayers: plainList(parsed.hiddenLayers),

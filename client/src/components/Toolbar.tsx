@@ -27,6 +27,7 @@ import {
   LightIcon,
   LineIcon,
   MeasureIcon,
+  PinIcon,
   PolygonIcon,
   PropIcon,
   RectIcon,
@@ -82,6 +83,7 @@ const TOOL_ICONS: Partial<Record<DrawingTool, ComponentType<{ size?: number }>>>
   measure: MeasureIcon,
   eraser: EraserIcon,
   concealZone: ConcealZoneIcon,
+  pin: PinIcon,
 }
 
 /** Tamanho do ícone dentro de uma opção do grupo Forma. */

@@ -93,6 +93,7 @@ describe('createEmptyMap', () => {
       lines: [],
       markers: [],
       concealZones: [],
+      pins: [],
       frame: null,
       fog: { mode: 'none', revealed: [] },
       hiddenLayers: [],

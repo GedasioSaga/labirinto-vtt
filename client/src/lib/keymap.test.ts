@@ -48,10 +48,11 @@ describe('resolveShortcut — letras de ferramenta', () => {
     ['eraser', 'E'],
     ['floor', 'I'],
     ['concealZone', 'X'],
+    ['pin', 'Y'],
   ]
 
-  it('TOOL_SHORTCUTS cobre exatamente as 23 ferramentas esperadas, sem duplicar letra', () => {
-    // 22 do laço + token, que continua na tabela mesmo escondido.
+  it('TOOL_SHORTCUTS cobre exatamente as 24 ferramentas esperadas, sem duplicar letra', () => {
+    // 23 do laço + token, que continua na tabela mesmo escondido.
     expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 1)
     expect(TOOL_SHORTCUTS.token).toBe('K')
     const letters = Object.values(TOOL_SHORTCUTS)
@@ -81,8 +82,7 @@ describe('resolveShortcut — letras de ferramenta', () => {
   }
 
   it('letra desconhecida (sem tool nem ação) devolve null', () => {
-    // 'x' virou a Zona oculta (A5); Y e Z continuam livres.
-    expect(resolveShortcut(evt({ key: 'y' }))).toBeNull()
+    // 'x' virou a Zona oculta (A5) e 'y' o Pino; Z continua livre.
     expect(resolveShortcut(evt({ key: 'z' }))).toBeNull()
   })
 

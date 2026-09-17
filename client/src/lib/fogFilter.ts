@@ -4,6 +4,7 @@ import { isPointExplored, isShapeExplored, type Exploration } from './exploratio
 import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
+import { isPlayerSafePinImage } from './pins'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, subtreeIds } from './roomNesting'
 
@@ -441,6 +442,17 @@ export function filterMapForPlayer(
       return wallSamples(w).some(inConcealZone) ? [] : [w]
     }),
     floor: map.floor.filter((f) => !f.hidden && !hiddenFloorIds.has(f.id)),
+    // Pino de ponto de interesse: anotação estática, então vale o explorado
+    // (mesma regra de linha/marcador). `image` só atravessa em data URL — se
+    // um dia alguém guardar caminho de disco no campo, o jogador recebe
+    // `null` em vez do computador do mestre (`isPlayerSafePinImage`).
+    pins: (map.pins ?? [])
+      .filter((p) => {
+        if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return false
+        const point = { x: p.x, y: p.y }
+        return !inSecretRoom(point) && isPointKnown(point)
+      })
+      .map((p) => (isPlayerSafePinImage(p.image) ? p : { ...p, image: null })),
     // Metadado do mestre: nome e estado das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }

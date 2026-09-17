@@ -7,6 +7,7 @@ import { createPlayerConnection, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnection, PlayerState, SocketLike, StorageLike } from './playerConnection'
 import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
+import { PlayerPinCard } from './PlayerPinCard'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
@@ -462,6 +463,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(localStorageOrNull()))
   const [focus, setFocus] = useState<{ tokenId: string | null; seq: number }>({ tokenId: null, seq: 0 })
   const [signalArmed, setSignalArmed] = useState(false)
+  /** Pino aberto no cartão; `null` = cartão fechado. */
+  const [openPinId, setOpenPinId] = useState<string | null>(null)
   /** Cada "Reconectar" conta uma tentativa nova e reinicia o prazo do aperto de mão. */
   const [attempt, setAttempt] = useState(0)
   const [handshakeOverdue, setHandshakeOverdue] = useState(false)
@@ -500,6 +503,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
     savePlayerSettings(localStorageOrNull(), next)
   }
 
+  const openPin = openPinId === null ? null : (map?.pins ?? []).find((p) => p.id === openPinId) ?? null
+
   if (state.status === 'playing' && state.map && state.vision) {
     return (
       <PlayerErrorBoundary onReconnect={() => connection.reconnect()}>
@@ -522,6 +527,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             setSignalArmed(false)
           }}
           onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
+          onPinOpen={setOpenPinId}
         />
         <PlayerPanel
           characters={characters}
@@ -538,6 +544,10 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             connection.setOwnTokenPhoto(tokenId, await buildTokenPhotoData(file))
           }}
         />
+        {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
+            andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
+            sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}
+        {openPin && <PlayerPinCard pin={openPin} onClose={() => setOpenPinId(null)} />}
         {state.doorNotice && (
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
           <p key={state.doorNotice.id} className="pp-notice" role="status" aria-live="polite">

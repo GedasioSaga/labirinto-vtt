@@ -21,6 +21,18 @@ describe('serializeMap/deserializeMap', () => {
     expect(deserializeMap(serializeMap(map)).concealZones).toEqual([zone])
   })
 
+  it('mapa salvo antes dos pinos abre com [] e pino salvo volta igual', () => {
+    expect(deserializeMap('{"id": "sem-pino"}').pins).toEqual([])
+    const pin = { id: 'p1', x: 120, y: 80, kind: 'interrogacao' as const, description: 'O que tem atrás?', image: null }
+    const map = { ...createEmptyMap('map_p', 'P', 5, 5, 64), pins: [pin] }
+    expect(deserializeMap(serializeMap(map)).pins).toEqual([pin])
+  })
+
+  it('pino gravado torto (sem kind, sem descrição, imagem que não é texto) abre mudo em vez de derrubar o mapa', () => {
+    const json = '{"id": "torto", "pins": [{"id": "p1", "x": 10, "y": 20, "image": 7}]}'
+    expect(deserializeMap(json).pins).toEqual([{ id: 'p1', x: 10, y: 20, kind: 'exclamacao', description: '', image: null }])
+  })
+
   it('scenarioLink faz ida e volta (campo escondido da janela, mas o dado continua gravado)', () => {
     const link = 'https://exemplo.com/cenario-1'
     const map = { ...createEmptyMap('map_link', 'Link', 5, 5, 64), scenarioLink: link }

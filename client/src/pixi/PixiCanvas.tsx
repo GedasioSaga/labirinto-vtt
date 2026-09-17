@@ -111,8 +111,10 @@ import {
 } from '../lib/drawingFactory'
 import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
+import { createPinsRenderer } from './drawPins'
 import { findConcealZoneAt } from '../lib/concealZones'
-import { buildConcealZoneFromDraft, nextTokenName } from '../lib/mapFactory'
+import { findPinAt } from '../lib/pins'
+import { buildConcealZoneFromDraft, buildPin, nextTokenName } from '../lib/mapFactory'
 import { SECRET_ITEM_ALPHA } from './constants'
 import { createTextLabelsRenderer } from './drawTextLabels'
 import { createAngleIndicatorRenderer } from './drawAngleIndicator'
@@ -133,7 +135,7 @@ import { cloneEntity, type CloneableEntity } from '../lib/entityClone'
 import { placeNewRoom, subtreeIds } from '../lib/roomNesting'
 import { useToastStore } from '../stores/toastStore'
 import {
-  visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps,
+  visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
   canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
 } from '../lib/layers'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
@@ -287,6 +289,9 @@ function describeDeletion(map: MapData, selection: readonly { kind: SelectionKin
 // em findNearestExistingVertex; repetido aqui só para o call site ficar
 // explícito sobre qual tolerância está em jogo.
 const VERTEX_MAGNET_TOLERANCE = 12
+
+/** Folga de clique do pino, em px de TELA — o alvo do dedo não encolhe com o zoom. */
+const PIN_TAP_TOLERANCE_PX = 6
 
 // Rótulo do indicador de ângulo durante o arrasto de Parede/Linha. Travado
 // (Ctrl segurado) sempre cai num múltiplo exato de stepDegrees — arredondar
@@ -501,6 +506,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const tokensContainer = new Container()
       // A5 — zonas ocultas por cima do conteúdo: o mestre precisa ver o que cobre.
       const concealZonesContainer = new Container()
+      // Pinos acima das zonas ocultas: o pino é o chamariz da cena e o mestre
+      // precisa achá-lo mesmo sobre uma área que ele mesmo escondeu.
+      const pinsContainer = new Container()
       const handlesGraphics = new Graphics()
       // Destaque da peça de chão selecionada. Graphics próprio, acima do
       // conteúdo: o chão em si fica atrás de Regiões/paredes e esconderia o contorno.
@@ -542,6 +550,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         lightsContainer,
         tokensContainer,
         concealZonesContainer,
+        pinsContainer,
         floorSelectionGraphics,
         handlesGraphics,
         hoverGraphics,
@@ -959,6 +968,12 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         redrawStairs()
         redrawLights()
         concealZonesRenderer.draw(concealZonesContainer, map.concealZones, map.grid, useMapStore.getState().selectedConcealZoneId)
+        // Pino "Oculto no editor" some daqui como qualquer outro item do mestre.
+        pinsRenderer.draw(
+          pinsContainer,
+          visiblePins(map.pins, map.hiddenLayers).filter((pin) => !pin.hidden),
+          useMapStore.getState().selectedPinId,
+        )
         textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
         redrawEditHandles()
         // N3 (agora genérico, não só marquee): contorno do GRUPO — só com 2+
@@ -988,6 +1003,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const regionsRenderer = createRegionsRenderer()
       const roomNamesRenderer = createRoomNamesRenderer()
       const concealZonesRenderer = createConcealZonesRenderer()
+      const pinsRenderer = createPinsRenderer()
       const floorRenderer = createFloorRenderer()
       // Gradientes de luz nascem POR RENDERER e morrem no teardown.
       const lightsRenderer = createLightsRenderer()
@@ -1569,6 +1585,18 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
        * Objeto oculto no editor também fica clicável (fantasma em drawProps.ts);
        * objeto travado segue a regra de antes (`canInteractInLayer`).
        */
+      /**
+       * Pino sob o ponto do mundo, respeitando camada oculta/travada e o
+       * "oculto no editor" do próprio pino. A folga é em px de TELA dividida
+       * pelo zoom: longe o pino fica pequeno, mas o alvo do dedo não encolhe
+       * junto. Mesma ideia do `DOOR_TAP_TOLERANCE_PX` do lado do jogador.
+       */
+      const pinAt = (map: MapData, point: Point) => {
+        if (isLayerLocked(map.lockedLayers, 'anotacoes')) return null
+        const clickable = visiblePins(map.pins, map.hiddenLayers).filter((pin) => !pin.hidden)
+        return findPinAt(clickable, point, PIN_TAP_TOLERANCE_PX / camera.scale)
+      }
+
       const clickSelectMap = (map: MapData): MapData => ({
         ...hitTestMap(map),
         tokens: map.tokens.filter((token) => !isLayerLocked(map.lockedLayers, tokenLayer(token))),
@@ -2074,6 +2102,22 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           return
         }
 
+        if (activeTool === 'pin') {
+          // Sem snap: o pino é anotação, e o usuário pediu que ele apareça
+          // ONDE ele clicou — não no centro da célula mais próxima.
+          const existing = pinAt(map, worldPoint)
+          if (existing) {
+            // Clicar num pino que já existe abre ele no painel em vez de
+            // empilhar um segundo em cima (o de baixo ficaria inalcançável).
+            useMapStore.getState().setSelectedPin(existing.id)
+            return
+          }
+          const pin = buildPin(crypto.randomUUID(), worldPoint, useMapStore.getState().pinKind)
+          useMapStore.getState().addPin(pin)
+          useMapStore.getState().setSelectedPin(pin.id)
+          return
+        }
+
         if (activeTool === 'concealZone') {
           mode = 'drawing-conceal-zone'
           concealDraftStart = applySnap(worldPoint, map.grid, 'wall', event.altKey)
@@ -2500,6 +2544,20 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             areaSelectionDragBefore = map
             areaSelectionDragLastPoint = worldPoint
             lastPoint = { x: event.global.x, y: event.global.y }
+            return
+          }
+        }
+
+        // Pino antes do hit-test geral: ele é desenhado POR CIMA de tudo, e o
+        // que está por cima é o que o dedo acerta. Fica fora de `selection`
+        // (igual à zona oculta), então abre o painel e encerra o gesto.
+        if (activeTool === 'select') {
+          const pin = pinAt(map, worldPoint)
+          if (pin) {
+            useMapStore.getState().setSelectedPin(pin.id)
+            mode = 'idle'
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
             return
           }
         }

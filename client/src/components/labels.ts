@@ -35,6 +35,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   eraser: 'Borracha',
   floor: 'Chão',
   concealZone: 'Zona oculta',
+  pin: 'Pino',
 }
 
 export interface SelectionNoun {
@@ -97,6 +98,7 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   eraser: 'Clique ou arraste sobre um item do mapa para apagá-lo.',
   floor: 'Arraste para criar uma peça de chão (forma e Somar/Subtrair na setinha). Corredor: clique ponto a ponto, duplo clique ou Enter termina, Esc cancela.',
   concealZone: 'Arraste para marcar uma área que os jogadores não veem. Clique numa zona para editar o nome ou revelá-la.',
+  pin: 'Escolha ! ou ? e clique no mapa para cravar um ponto de interesse. No painel, escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
 }
 
 /**
@@ -129,7 +131,8 @@ export const TOOLBAR_SLOTS: ToolbarSlot[][] = [
   // floor (chão por peças) fica junto das Salas: mesma camada 'salas'.
   // concealZone (A5) no fim do grupo: não desloca os botões que já existiam.
   ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'floor', 'stair', 'prop', 'concealZone'],
-  ['cluster:drawing', 'text', 'measure', 'eraser'],
+  // Pino fica com Texto/Medir: os três são anotação por cima da planta, não construção.
+  ['cluster:drawing', 'text', 'pin', 'measure', 'eraser'],
 ]
 
 /** Id do grupo quando a posição é um grupo, `null` quando é uma ferramenta. */

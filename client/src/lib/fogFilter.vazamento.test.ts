@@ -14,7 +14,7 @@
 // o JSON devolvido inteiro e denunciam o CAMINHO do campo que vazou.
 import { describe, expect, it } from 'vitest'
 import type {
-  ConcealZone, Drawing, FloorPiece, Light, MapData, MapLine, MapMarker, Prop, Region, Stair, Token, Wall,
+  ConcealZone, Drawing, FloorPiece, Light, MapData, MapLine, MapMarker, Pin, Prop, Region, Stair, Token, Wall,
 } from '../types/map'
 import { filterMapForPlayer } from './fogFilter'
 import { createEmptyMap } from './mapFactory'
@@ -137,6 +137,13 @@ function mapaCompletoDoMestre(): MapData {
   const lines: MapLine[] = [{ id: 'linha', points: [{ x: 205, y: 205 }, { x: 235, y: 205 }], closed: false, dotted: false, color: '#fff', width: 1 }]
   const markers: MapMarker[] = [{ id: 'marcador', cx: 220, cy: 220, w: 10, h: 4, rotation: 0, color: '#fff' }]
   const concealZones: ConcealZone[] = [{ id: 'zona', points: quadrado(LONGE - 400, LONGE - 400, 100), name: 'esconderijo do vilão', revealed: false }]
+  // Pino de ponto de interesse: `image` com caminho de disco prova que o
+  // recorte apaga o campo em vez de mandar o computador do mestre pela rede.
+  const pins: Pin[] = [
+    { id: 'pino_visivel', x: 225, y: 205, kind: 'exclamacao', description: 'Estatua rachada', image: DISCO_LINUX },
+    { id: 'pino_oculto', x: 195, y: 205, kind: 'interrogacao', description: 'Alcapao', image: DISCO_WINDOWS, hidden: true },
+    { id: 'pino_secreto', x: 205, y: 195, kind: 'interrogacao', description: 'Passagem', image: DISCO_REDE, secret: true },
+  ]
 
   return {
     ...createEmptyMap('m_vazamento', 'Cripta do mestre', 2000, 2000, 50),
@@ -146,7 +153,7 @@ function mapaCompletoDoMestre(): MapData {
     ownerId: 'mestre',
     scenarioLink: DISCO_WINDOWS,
     walls: [parede('parede_visivel', 205, 240), parede('parede_oculta', 195, 245, { hidden: true })],
-    tokens, props, regions, stairs, drawings, lights, floor, lines, markers, concealZones,
+    tokens, props, regions, stairs, drawings, lights, floor, lines, markers, concealZones, pins,
   }
 }
 

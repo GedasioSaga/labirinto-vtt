@@ -8,6 +8,15 @@ import { buildTokenPhotoData } from './tokenPhoto'
 
 export const MAX_BACKGROUND_SIDE = 4096
 export const MAX_PROP_SIDE = 1024
+/**
+ * Imagem do cartão do ponto de interesse. Menor que a da Peça de propósito: ela
+ * viaja EMBUTIDA no mapa (data URL) e o mapa inteiro é reenviado ao jogador a
+ * cada snapshot — 640px em WebP cabe num cartão de celular sem engordar a rede
+ * a cada movimento de token.
+ */
+export const MAX_PIN_SIDE = 640
+/** Qualidade do WebP do cartão: acima disto o arquivo cresce sem o olho ganhar. */
+const PIN_IMAGE_QUALITY = 0.8
 
 /**
  * Razão, em português, de por que não dá para escolher uma imagem quando a
@@ -106,6 +115,55 @@ export async function importBackgroundImage(sourcePath: string, mapDir: string):
 
 export async function importPropImage(sourcePath: string, mapDir: string, propId: string): Promise<ImportedImage> {
   return importImageAsset(sourcePath, mapDir, `prop_${propId}`, MAX_PROP_SIDE)
+}
+
+/** Blob → `data:image/...;base64,...`, que é a forma que o cartão do pino guarda. */
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Falha ao ler a imagem escolhida'))
+    reader.onload = () => {
+      // `readAsDataURL` sempre produz string; o tipo do DOM abre para
+      // ArrayBuffer por causa dos outros modos de leitura.
+      if (typeof reader.result === 'string') resolve(reader.result)
+      else reject(new Error('Falha ao converter a imagem escolhida'))
+    }
+    reader.readAsDataURL(blob)
+  })
+}
+
+/**
+ * Imagem do cartão do ponto de interesse, EMBUTIDA: devolve uma data URL, não
+ * um caminho de arquivo. É essa a razão de este importador ser diferente dos
+ * outros — o cartão precisa aparecer na tela do jogador, e caminho do disco do
+ * mestre nunca sai pela rede (`lib/fogFilter.ts`). Nada é gravado na pasta do
+ * mapa: a imagem vive dentro do `map.json`, junto do pino.
+ */
+export async function importPinImage(sourcePath: string): Promise<string> {
+  const sourceDir = await dirname(sourcePath)
+  await invoke('grant_fs_access', { path: sourceDir })
+
+  const bytes = await readFile(sourcePath)
+  const bitmap = await createImageBitmap(new Blob([bytes]))
+  const { width, height } = computeResampleDimensions(bitmap.width, bitmap.height, MAX_PIN_SIDE)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 2D não disponível')
+  ctx.drawImage(bitmap, 0, 0, width, height)
+
+  // Sempre reencodado, mesmo sem reduzir de tamanho: um PNG de 2 MB viraria 2,7 MB
+  // em base64 dentro de cada snapshot, e o cartão não precisa dessa fidelidade.
+  const blob: Blob = await new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (result) => (result ? resolve(result) : reject(new Error('Falha ao gerar WebP'))),
+      'image/webp',
+      PIN_IMAGE_QUALITY,
+    )
+  })
+  return blobToDataUrl(blob)
 }
 
 /** Mesmo pipeline e mesmo teto de reamostragem de importPropImage (MAX_PROP_SIDE,

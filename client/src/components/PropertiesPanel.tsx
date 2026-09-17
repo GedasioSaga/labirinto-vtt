@@ -35,6 +35,7 @@ import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceCo
 import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleControls'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
 import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZoneControls'
+import { PinControls, type PinControlsProps } from './PinControls'
 import { roomDimensions } from '../lib/roomOps'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
@@ -107,6 +108,10 @@ interface PropertiesPanelProps {
   playerSecret: PlayerSecretControlsProps | null
   /** A5 — zona oculta aberta no painel; `null` = nenhuma. */
   concealZone: ConcealZoneControlsProps | null
+  /** Ponto de interesse: tipo do próximo pino, ou o pino aberto no painel. */
+  pin: PinControlsProps
+  /** Há um pino aberto no painel — conta como seleção para o título do topo. */
+  pinSelected: boolean
 }
 
 /**
@@ -158,6 +163,8 @@ export function PropertiesPanel({
   floorStyle,
   playerSecret,
   concealZone,
+  pin,
+  pinSelected,
 }: PropertiesPanelProps) {
   // "Só o que importa agora": as seções de mapa inteiro só abrem sozinhas
   // quando o usuário não está mexendo em nada (Selecionar, sem seleção).
@@ -172,7 +179,7 @@ export function PropertiesPanel({
   // o mesmo `TOOL_LABELS` do botão da barra, para o painel repetir letra por
   // letra o que o usuário acabou de apertar. Zona oculta aberta conta como
   // seleção: `ConcealZoneControls` já é o título "Zona oculta".
-  const headingTool = panelHeadingTool(activeTool, selection.selection !== null || concealZone !== null)
+  const headingTool = panelHeadingTool(activeTool, selection.selection !== null || concealZone !== null || pinSelected)
   const toolHeading = headingTool === null ? undefined : TOOL_LABELS[headingTool]
   // Campos da região que moram no Avançado (fatia 3), em consts para o TS estreitar dentro do render prop.
   const { strokeJoin, onStrokeJoinChange, onSmoothRegion } = regionStyle
@@ -222,6 +229,11 @@ export function PropertiesPanel({
             <ConcealZoneControls {...concealZone} />
           </ToolPropertiesSection>
         )}
+        {/* Perto do topo pelo mesmo motivo da Sala: descrição e imagem são o
+            que o mestre quer mexer logo depois de cravar o pino. */}
+        <ToolPropertiesSection group="pin" groups={groups}>
+          <PinControls {...pin} />
+        </ToolPropertiesSection>
         {playerSecret && (
           <ToolPropertiesSection group="playerVisibility" groups={groups}>
             <PlayerSecretControls {...playerSecret} />

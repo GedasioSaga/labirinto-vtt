@@ -133,6 +133,20 @@ export function ConcealZoneIcon(props: IconProps) {
   )
 }
 
+/**
+ * Pino de ponto de interesse: a gota cravada no mapa, com o miolo vazado —
+ * o glifo ("!" ou "?") é escolha do pino, não do ícone da barra, então aqui
+ * fica só a forma que identifica a ferramenta.
+ */
+export function PinIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 21s6-6.2 6-10.5A6 6 0 006 10.5C6 14.8 12 21 12 21z" />
+      <circle cx="12" cy="10.3" r="2.2" />
+    </Icon>
+  )
+}
+
 export function RoomIcon(props: IconProps) {
   return (
     <Icon {...props}>

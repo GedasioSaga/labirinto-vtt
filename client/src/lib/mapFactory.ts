@@ -1,7 +1,7 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone,
+  ConcealZone, Pin, PinKind,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
@@ -54,6 +54,7 @@ export function createEmptyMap(id: string, name: string, width: number, height: 
     lines: [],
     markers: [],
     concealZones: [],
+    pins: [],
     frame: null,
     fog: { mode: 'none', revealed: [] },
     hiddenLayers: [],
@@ -1276,7 +1277,7 @@ export function setRoomNameHiddenFromPlayers(map: MapData, id: string, hidden: b
 }
 
 /** Entidades que aceitam "Oculto para jogadores" (`PlayerSecret` em types/map.ts). */
-export type SecretKind = 'token' | 'region' | 'prop' | 'stair' | 'drawing'
+export type SecretKind = 'token' | 'region' | 'prop' | 'stair' | 'drawing' | 'pin'
 
 function withSecret<T extends { id: string; secret?: boolean }>(items: T[], id: string, secret: boolean): T[] | null {
   const item = items.find((i) => i.id === id)
@@ -1307,7 +1308,34 @@ export function setItemSecret(map: MapData, kind: SecretKind, id: string, secret
       const drawings = withSecret(map.drawings, id, secret)
       return drawings ? { ...map, drawings } : map
     }
+    case 'pin': {
+      const pins = withSecret(map.pins, id, secret)
+      return pins ? { ...map, pins } : map
+    }
   }
+}
+
+/** Pino novo no ponto clicado, sem descrição e sem imagem — o painel completa depois. */
+export function buildPin(id: string, point: Point, kind: PinKind): Pin {
+  return { id, x: point.x, y: point.y, kind, description: '', image: null }
+}
+
+export function addPin(map: MapData, pin: Pin): MapData {
+  return { ...map, pins: [...map.pins, pin] }
+}
+
+/** Tipo, descrição e imagem do pino. Id inexistente ou nada mudando devolve o mesmo `map`. */
+export function updatePin(map: MapData, id: string, patch: Partial<Pick<Pin, 'kind' | 'description' | 'image'>>): MapData {
+  const pin = map.pins.find((p) => p.id === id)
+  if (!pin) return map
+  const next = { ...pin, ...patch }
+  if (next.kind === pin.kind && next.description === pin.description && next.image === pin.image) return map
+  return { ...map, pins: map.pins.map((p) => (p.id === id ? next : p)) }
+}
+
+export function removePin(map: MapData, id: string): MapData {
+  if (!map.pins.some((p) => p.id === id)) return map
+  return { ...map, pins: map.pins.filter((p) => p.id !== id) }
 }
 
 /** Nome padrão da zona nova. */

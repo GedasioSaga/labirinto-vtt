@@ -135,6 +135,7 @@ function makeMap(overrides: Partial<MapData> = {}): MapData {
     lines: [],
     markers: [],
     concealZones: [],
+    pins: [],
     frame: null,
     fog: { mode: 'none', revealed: [] },
     hiddenLayers: [],

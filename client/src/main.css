@@ -352,6 +352,30 @@ body {
   color: var(--lb-color-parchment-faint);
 }
 
+/* Descrição do ponto de interesse: o mestre escreve um parágrafo, não uma
+   linha, então o campo precisa de altura e de quebra — o resto da moldura
+   (borda, fundo, foco) continua sendo `.lb-input`. */
+.lb-textarea {
+  min-height: 84px;
+  padding: var(--lb-space-2) var(--lb-space-3);
+  line-height: 1.45;
+  resize: vertical;
+}
+
+/* "!" e "?" dentro do segmented control do tipo de pino: a mesma pastilha de
+   latão que o pino tem no mapa e no cartão do jogador. */
+.lb-pin-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-brass);
+  color: var(--lb-color-ink);
+  font-weight: var(--lb-font-weight-bold);
+}
+
 .lb-input[type='number'] {
   font-family: var(--lb-font-utility);
   font-variant-numeric: tabular-nums;
