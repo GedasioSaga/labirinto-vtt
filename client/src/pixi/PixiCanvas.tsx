@@ -3,6 +3,7 @@ import { Application, Container, Graphics, Sprite, Texture, Assets } from 'pixi.
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
 import type { MapData, Region, Wall } from '../types/map'
+import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
@@ -107,6 +108,9 @@ import {
   buildRoomFromDraft,
   isValidRegularPolygonDraft,
   buildRegularPolygonRoomFromDraft,
+  normalizeDraftPolygonPoints,
+  isValidFreeRoomDraft,
+  buildFreeRoomFromPoints,
 } from '../lib/drawingFactory'
 import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
@@ -1243,6 +1247,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       let draggingPropId: string | null = null
       let wallDraftStart: Point | null = null
       let regionDraftPoints: Point[] = []
+      /**
+       * As duas ferramentas que desenham canto a canto com `regionDraftPoints`:
+       * Região e Sala livre. A Sala livre reusa o MESMO rascunho de propósito —
+       * a prévia até o cursor, o Enter/duplo clique que fecha e o
+       * Backspace/Ctrl+Z que tira o último canto já moram nele, e duas receitas
+       * de "traçado ponto a ponto" divergiriam na primeira correção. O que
+       * muda entre as duas é só o que NASCE no fim (ver `finishRegion`).
+       */
+      const usaTracadoPontoAPonto = (tool: DrawingTool): boolean => tool === 'region' || tool === 'roomFree'
       // Ferramenta Região: o pointerdown NÃO decide mais nada sozinho. Guarda
       // o ponto (snapado, para virar vértice; e bruto, para medir o arrasto) e
       // quem decide entre "um ponto do traçado" e "um retângulo inteiro" é o
@@ -1823,25 +1836,26 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       }
 
       /**
-       * Fecha o traçado ponto a ponto da Região — duplo clique OU Enter.
-       * Enter existe porque é o que a mão faz depois do último ponto: o passeio
-       * cego de 16/09/2026 bateu Enter, nada aconteceu, e o traçado ficou preso
-       * na tela sem saída visível. Mesma dupla de saídas que o Chão corredor já
-       * tinha (`finishCorridor`). Menos de 3 pontos não é polígono: descarta.
+       * Fecha o traçado ponto a ponto — duplo clique OU Enter. Enter existe
+       * porque é o que a mão faz depois do último ponto: o passeio cego de
+       * 16/09/2026 bateu Enter, nada aconteceu, e o traçado ficou preso na tela
+       * sem saída visível. Mesma dupla de saídas que o Chão corredor já tinha
+       * (`finishCorridor`). Menos de 3 pontos não é polígono: descarta.
+       *
+       * O MESMO traçado serve a duas ferramentas (`usaTracadoPontoAPonto`), e é
+       * só aqui que elas se separam: Região vira uma Region pelada, Sala livre
+       * vira Sala com parede em toda aresta.
        */
       const finishRegion = () => {
-        const last = regionDraftPoints[regionDraftPoints.length - 1]
-        const secondToLast = regionDraftPoints[regionDraftPoints.length - 2]
-        if (last && secondToLast && last.x === secondToLast.x && last.y === secondToLast.y) {
-          regionDraftPoints = regionDraftPoints.slice(0, -1)
-        }
+        const points = normalizeDraftPolygonPoints(regionDraftPoints)
 
-        if (regionDraftPoints.length < 3) {
+        if (points.length < 3) {
           clearDrafts()
           return
         }
 
-        commitRegion(regionDraftPoints)
+        if (useMapStore.getState().activeTool === 'roomFree') commitFreeRoom(points)
+        else commitRegion(points)
         regionDraftPoints = []
         draftGraphics.clear()
       }
@@ -1863,6 +1877,42 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const commitRegion = (points: Point[]) => {
         const { addRegion, regionFillColor, regionFillPattern } = useMapStore.getState()
         addRegion(buildRegionFromPoints(crypto.randomUUID(), points, 'region', regionFillColor, regionFillPattern))
+      }
+
+      /**
+       * Põe a Sala de formato livre no mapa — o fim do traçado ponto a ponto
+       * quando a ferramenta é `roomFree`. Daqui pra frente ela é uma Sala igual
+       * às outras três: passa pelo MESMO `addRoomWithNesting` (sub-sala dentro
+       * de sala mãe), nasce selecionada e pede o nome no campo sobre ela mesma,
+       * exatamente como a Sala retangular e a Circular — é isso que faz o
+       * painel abrir em "Sala" em vez de "Região".
+       *
+       * Ao contrário da Região, aqui a sala NASCE SELECIONADA de propósito: é a
+       * regra das outras Salas (o nome é a primeira coisa que o mestre quer
+       * mexer), e o motivo que mantém a Região sem seleção
+       * (`task4-selection-pixel-diff.spec.ts` mede o destaque de uma região
+       * recém-criada) não alcança Sala nenhuma.
+       *
+       * `pontos.length` paredes: uma por aresta, inclusive as inclinadas.
+       */
+      const commitFreeRoom = (points: Point[]) => {
+        const { roomFillColor, regionFillPattern } = useMapStore.getState()
+        if (!isValidFreeRoomDraft(points)) return
+        const wallIds = points.map(() => crypto.randomUUID())
+        const result = buildFreeRoomFromPoints(crypto.randomUUID(), wallIds, points, roomFillColor, regionFillPattern)
+        addRoomWithNesting(result)
+        // Traçado fechado = gesto terminado, volta para Selecionar. As outras
+        // Salas são um arrasto só (soltar o botão já termina, e o próximo
+        // arrasto é outra sala); esta tem um FIM explícito — Enter ou duplo
+        // clique — e depois dele todo clique no mapa viraria canto de um
+        // polígono novo: nem dá pra tirar a seleção clicando no vazio, nem dá
+        // pra arrastar o que acabou de nascer. `setActiveTool('select')`
+        // preserva a seleção (mapStore: "Selecionar mantém"), então o painel
+        // continua no que a pessoa acabou de desenhar.
+        useMapStore.getState().setActiveTool('select')
+        useMapStore.getState().setSelection(selectionOfItem({ kind: 'region', id: result.region.id }))
+        onRoomCreatedRef.current?.(result.region.id)
+        if (result.region.room) openNameEditor({ kind: 'room', regionId: result.region.id, value: result.region.room.name })
       }
 
       /** Duplo clique ou Enter: vira peça se houver 2+ pontos distintos; sempre limpa o rascunho. */
@@ -2174,7 +2224,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           return
         }
 
-        if (activeTool === 'region') {
+        if (usaTracadoPontoAPonto(activeTool)) {
           // Só guarda o início; ponto-a-ponto vs. retângulo se decide no
           // pointerup (ver `regionDraftStart`).
           regionDraftStart = applySnap(worldPoint, map.grid, 'wall', event.altKey)
@@ -2893,10 +2943,11 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           draftGraphics.clear()
         }
 
-        // Ferramenta Região — o gesto só ganha significado aqui (ver
-        // `regionDraftStart`). Não mexe em `mode` de propósito: Região é feita
-        // de cliques soltos, mesmo padrão da régua logo abaixo.
-        if (useMapStore.getState().activeTool === 'region' && regionDraftStart && regionDraftRawStart) {
+        // Região e Sala livre — o gesto só ganha significado aqui (ver
+        // `regionDraftStart`). Não mexe em `mode` de propósito: as duas são
+        // feitas de cliques soltos, mesmo padrão da régua logo abaixo.
+        const toolDoTracado = useMapStore.getState().activeTool
+        if (usaTracadoPontoAPonto(toolDoTracado) && regionDraftStart && regionDraftRawStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map } = useMapStore.getState()
           const dragged = Math.hypot(worldPoint.x - regionDraftRawStart.x, worldPoint.y - regionDraftRawStart.y)
@@ -2908,7 +2959,12 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           // jeito que Sala, Retângulo e Chão já se comportam. Com traçado
           // aberto, um arrasto continua valendo como mais um ponto — misturar
           // as duas coisas no meio de um polígono não tem leitura possível.
-          if (regionDraftPoints.length === 0 && dragged >= REGION_DRAG_THRESHOLD) {
+          //
+          // Atalho SÓ da Região: na Sala livre o retângulo de um arrasto já é
+          // a ferramenta Sala (tecla N), e um arrasto sem querer viraria uma
+          // sala retangular no lugar do primeiro canto do polígono — aqui o
+          // arrasto sempre vale como mais um canto.
+          if (toolDoTracado === 'region' && regionDraftPoints.length === 0 && dragged >= REGION_DRAG_THRESHOLD) {
             const end = applySnap(worldPoint, map.grid, 'wall', event.altKey)
             if (isValidRoomDraft(start, end)) commitRegion(rectFromCorners(start, end))
             draftGraphics.clear()
@@ -3289,14 +3345,16 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           if (corridorDraftPoints.length > 0 && useMapStore.getState().activeTool === 'floor') {
             drawCorridorDraft(applySnap(worldPoint, useMapStore.getState().map.grid, 'wall', event.altKey))
           }
-          // Região também é feita de cliques soltos (`mode` nunca sai de
-          // 'idle'), e por isso a prévia dela precisa morar aqui: enquanto
-          // estava lá embaixo, depois do `return` deste bloco, NUNCA era
-          // desenhada — nem o retângulo do arrasto, nem a linha até o cursor
-          // no traçado ponto a ponto. Era a queixa "não aparece nada".
-          if (useMapStore.getState().activeTool === 'region') {
+          // Região e Sala livre também são feitas de cliques soltos (`mode`
+          // nunca sai de 'idle'), e por isso a prévia delas precisa morar aqui:
+          // enquanto estava lá embaixo, depois do `return` deste bloco, NUNCA
+          // era desenhada — nem o retângulo do arrasto, nem a linha até o
+          // cursor no traçado ponto a ponto. Era a queixa "não aparece nada".
+          const toolDaPrevia = useMapStore.getState().activeTool
+          if (usaTracadoPontoAPonto(toolDaPrevia)) {
             const cursor = applySnap(worldPoint, useMapStore.getState().map.grid, 'wall', event.altKey)
-            if (regionDraftStart && regionDraftPoints.length === 0) {
+            // Prévia de retângulo é do atalho de arrasto, que só a Região tem.
+            if (toolDaPrevia === 'region' && regionDraftStart && regionDraftPoints.length === 0) {
               const rect = rectFromCorners(regionDraftStart, cursor)
               // `cursor` = primeiro vértice: fecha o retângulo na prévia (a
               // prévia de polígono liga ponto a ponto, sem fechar sozinha).
@@ -3903,7 +3961,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           return
         }
 
-        if (useMapStore.getState().activeTool === 'region' && regionDraftPoints.length > 0) {
+        if (usaTracadoPontoAPonto(useMapStore.getState().activeTool) && regionDraftPoints.length > 0) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map } = useMapStore.getState()
           const cursor = applySnap(worldPoint, map.grid, 'wall', event.altKey)
@@ -4000,7 +4058,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           return
         }
 
-        if (activeTool !== 'region') return
+        if (!usaTracadoPontoAPonto(activeTool)) return
 
         finishRegion()
       }
@@ -4289,16 +4347,26 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             const history = event.ctrlKey || event.metaKey ? (key === 'y' || (key === 'z' && event.shiftKey) ? 'redo' : key === 'z' ? 'undo' : null) : null
             // Ctrl+Z/Ctrl+Y com o nome sugerido ainda intacto: o mestre quer
             // desfazer o desenho, não um texto que ele não digitou.
+            // `stopPropagation` nos três ramos: a tecla que ESTE campo já
+            // tratou não pode ser tratada DE NOVO pelos atalhos globais no
+            // window. Sem isso o Esc daqui fechava o campo e seguia viagem até
+            // o `case 'cancel'` do mapa, que larga a seleção — a sala recém-
+            // desenhada saía do painel no mesmo Esc que só devia manter o nome
+            // padrão. Mesma armadilha nos outros dois: o Ctrl+Z já desfaz aqui
+            // dentro (desfaria duas vezes) e o Enter fecha traçado aberto.
             if (history && nameEditor.kind === 'room' && editorRegion?.room?.name === nameEditor.value) {
               event.preventDefault()
+              event.stopPropagation()
               closeNameEditor(false)
               if (history === 'undo') useMapStore.getState().undo()
               else useMapStore.getState().redo()
             } else if (event.key === 'Enter') {
               event.preventDefault()
+              event.stopPropagation()
               closeNameEditor(true)
             } else if (event.key === 'Escape') {
               event.preventDefault()
+              event.stopPropagation()
               closeNameEditor(false)
             }
           }}

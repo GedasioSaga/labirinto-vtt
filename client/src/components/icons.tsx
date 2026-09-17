@@ -171,6 +171,22 @@ export function RegularPolygonIcon(props: IconProps) {
 }
 
 /**
+ * Sala de formato livre: contorno IRREGULAR (como `RegionIcon`) mas com um vão
+ * de porta numa das arestas (como `RoomIcon`) — as duas metades da leitura que
+ * a ferramenta precisa passar de relance, "o formato é seu" e "é sala, tem
+ * parede e aceita porta". Sem o vão, ficaria igual à Região; sem a
+ * irregularidade, igual à Sala retangular.
+ */
+export function RoomFreeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M7.5 19.5L4.5 7L12.5 3.5L19.5 8.5L17 18" />
+      <path d="M17 18l-3 1.1" />
+    </Icon>
+  )
+}
+
+/**
  * Chão por peças — contorno irregular com um furo redondo: as duas operações
  * da ferramenta (somar forma, subtrair buraco) num ícone só. Distingue de
  * `RegionIcon` (contorno sem furo) e `DungeonMapIcon` (quadrado de mapa).

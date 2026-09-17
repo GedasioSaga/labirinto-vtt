@@ -231,6 +231,10 @@ export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
   // 3 Salas) E número de lados (só ela lê `polygonSides` —
   // PropertiesPanel.tsx: `activeTool === 'roomPolygon'`).
   roomPolygon: { available: true, tool: 'roomPolygon', groups: [REGION_FILL_PATTERN_GROUP, POLYGON_SIDES_GROUP] },
+  // Sala livre: mesma preferência `regionFillPattern` das outras três Salas
+  // (o commit dela em pixi/PixiCanvas.tsx lê do mesmo store). Sem eixo de
+  // número de lados — quem escolhe os lados aqui é o clique do usuário.
+  roomFree: { available: true, tool: 'roomFree', groups: [REGION_FILL_PATTERN_GROUP] },
 
   // ---- Fase 5: as 3 variantes abaixo saíram de available:false pra true —
   // schema/render já existiam (F4-0/agentes de feature), só faltava a

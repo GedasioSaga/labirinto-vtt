@@ -9,6 +9,9 @@ import {
   buildRoomFromDraft,
   isValidRegularPolygonDraft,
   buildRegularPolygonRoomFromDraft,
+  normalizeDraftPolygonPoints,
+  isValidFreeRoomDraft,
+  buildFreeRoomFromPoints,
   DEFAULT_ROOM_NAME,
   nextDefaultRoomName,
   syncRoomNameSequence,
@@ -385,6 +388,102 @@ describe('nome padrão numerado da Sala', () => {
     nextDefaultRoomName()
     syncRoomNameSequence([])
     expect(nextDefaultRoomName()).toBe('Sala 1')
+  })
+})
+
+describe('normalizeDraftPolygonPoints', () => {
+  it('descarta canto clicado duas vezes no mesmo lugar (o duplo clique que fecha)', () => {
+    const pontos = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+      { x: 100, y: 100 },
+    ]
+    expect(normalizeDraftPolygonPoints(pontos)).toEqual([
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+    ])
+  })
+
+  it('descarta o último canto em cima do primeiro (o fechamento é implícito)', () => {
+    const pontos = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+      { x: 0, y: 0 },
+    ]
+    expect(normalizeDraftPolygonPoints(pontos)).toEqual([
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+    ])
+  })
+
+  it('polígono sem repetição passa intacto, e lista vazia continua vazia', () => {
+    const pontos = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 50, y: 80 },
+    ]
+    expect(normalizeDraftPolygonPoints(pontos)).toEqual(pontos)
+    expect(normalizeDraftPolygonPoints([])).toEqual([])
+  })
+})
+
+describe('isValidFreeRoomDraft', () => {
+  it('menos de 3 cantos não é polígono', () => {
+    expect(isValidFreeRoomDraft([])).toBe(false)
+    expect(isValidFreeRoomDraft([{ x: 0, y: 0 }, { x: 10, y: 0 }])).toBe(false)
+  })
+
+  it('3 cantos já é polígono', () => {
+    expect(isValidFreeRoomDraft([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 9 }])).toBe(true)
+  })
+})
+
+describe('buildFreeRoomFromPoints (Sala de formato livre)', () => {
+  // Pentágono irregular, nenhuma aresta horizontal nem vertical pura: é a
+  // forma que a Sala retangular e o Polígono Regular NÃO conseguem produzir.
+  const CANTOS: Point[] = [
+    { x: 384, y: 192 },
+    { x: 704, y: 224 },
+    { x: 768, y: 448 },
+    { x: 512, y: 544 },
+    { x: 320, y: 384 },
+  ]
+  const IDS = ['w0', 'w1', 'w2', 'w3', 'w4']
+
+  it('é Sala (shape polygon) com uma parede por aresta, inclusive a que fecha o contorno', () => {
+    const { region, walls } = buildFreeRoomFromPoints('r_livre', IDS, CANTOS, '#a8776a', 'solid', 'Cripta torta')
+
+    expect(region.room).toEqual({ shape: 'polygon', name: 'Cripta torta' })
+    expect(region.points).toEqual(CANTOS)
+    expect(walls).toHaveLength(CANTOS.length)
+
+    walls.forEach((wall, i) => {
+      const de = CANTOS[i]
+      const para = CANTOS[(i + 1) % CANTOS.length]
+      expect([wall.x1, wall.y1, wall.x2, wall.y2]).toEqual([de.x, de.y, para.x, para.y])
+      // O vínculo de que porta e arrasto de vértice dependem (lib/roomLink.ts).
+      expect(wall.regionId).toBe('r_livre')
+      expect(wall.regionEdgeIndex).toBe(i)
+      expect(wall.blocksMove).toBe(true)
+      expect(wall.blocksLight).toBe(true)
+      expect(wall.door).toBeNull()
+    })
+    // A ÚLTIMA aresta é a que fecha: do último canto de volta ao primeiro.
+    expect([walls[4].x2, walls[4].y2]).toEqual([CANTOS[0].x, CANTOS[0].y])
+  })
+
+  it('sem nenhum argumento opcional: cor, padrão e nome caem no default, e continua Sala', () => {
+    const { region, walls } = buildFreeRoomFromPoints('r_sem_opcional', IDS, CANTOS)
+
+    expect(region.room?.shape).toBe('polygon')
+    expect(region.room?.name.startsWith(DEFAULT_ROOM_NAME)).toBe(true)
+    expect(region.fillPattern).toBe('solid')
+    expect(typeof region.fillColor).toBe('string')
+    expect(walls).toHaveLength(CANTOS.length)
   })
 })
 

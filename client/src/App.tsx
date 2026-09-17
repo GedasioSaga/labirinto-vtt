@@ -178,7 +178,7 @@ function UnsavedChangesDialog({ onSaveAndContinue, onDiscardAndContinue, onCance
 
 /** Ferramentas que criam Sala (piso em `roomFillColor`); Região usa `regionFillColor`. */
 function isRoomTool(tool: string): boolean {
-  return tool === 'room' || tool === 'roomCircle' || tool === 'roomPolygon'
+  return tool === 'room' || tool === 'roomCircle' || tool === 'roomPolygon' || tool === 'roomFree'
 }
 
 /**

@@ -7,6 +7,7 @@ export type DrawingTool =
   | 'room'
   | 'roomCircle'
   | 'roomPolygon'
+  | 'roomFree'
   | 'stair'
   | 'token'
   | 'prop'

@@ -236,6 +236,7 @@ export function relevantPropertyGroups(
     activeTool === 'room' ||
     activeTool === 'roomCircle' ||
     activeTool === 'roomPolygon' ||
+    activeTool === 'roomFree' ||
     region
   if (showRegionGroup) groups.add('regionStyle')
 

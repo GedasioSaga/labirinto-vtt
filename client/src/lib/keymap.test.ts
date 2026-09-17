@@ -32,6 +32,7 @@ describe('resolveShortcut — letras de ferramenta', () => {
     ['room', 'N'],
     ['roomCircle', 'J'],
     ['roomPolygon', 'Q'],
+    ['roomFree', 'Y'],
     ['stair', 'S'],
     // token/K fica fora do laço: a ferramenta está escondida (FEATURES.tokenTool);
     // os testes de K logo abaixo cobrem os dois estados.
@@ -50,8 +51,8 @@ describe('resolveShortcut — letras de ferramenta', () => {
     ['concealZone', 'X'],
   ]
 
-  it('TOOL_SHORTCUTS cobre exatamente as 23 ferramentas esperadas, sem duplicar letra', () => {
-    // 22 do laço + token, que continua na tabela mesmo escondido.
+  it('TOOL_SHORTCUTS cobre exatamente as 24 ferramentas esperadas, sem duplicar letra', () => {
+    // 23 do laço + token, que continua na tabela mesmo escondido.
     expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 1)
     expect(TOOL_SHORTCUTS.token).toBe('K')
     const letters = Object.values(TOOL_SHORTCUTS)
@@ -81,8 +82,8 @@ describe('resolveShortcut — letras de ferramenta', () => {
   }
 
   it('letra desconhecida (sem tool nem ação) devolve null', () => {
-    // 'x' virou a Zona oculta (A5); Y e Z continuam livres.
-    expect(resolveShortcut(evt({ key: 'y' }))).toBeNull()
+    // 'x' virou a Zona oculta (A5) e 'y' virou a Sala livre; Z segue livre,
+    // reservada ao Ctrl+Z.
     expect(resolveShortcut(evt({ key: 'z' }))).toBeNull()
   })
 

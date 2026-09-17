@@ -76,6 +76,10 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   room: 'N',
   roomCircle: 'J',
   roomPolygon: 'Q',
+  // Sala livre: nenhuma letra mnemônica sobrou (S/L/F ocupadas por Escada,
+  // Linha e "enquadrar tudo"); Y era uma das duas livres. Z segue sem atalho
+  // de propósito, reservada ao Ctrl+Z (keymap.test.ts).
+  roomFree: 'Y',
   stair: 'S',
   token: 'K',
   prop: 'B',
