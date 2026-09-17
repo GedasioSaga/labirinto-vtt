@@ -36,7 +36,8 @@ import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSe
 import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZoneControls'
 import { roomDimensions } from '../lib/roomOps'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
-import type { PropertyGroupId } from '../lib/toolProperties'
+import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
+import { TOOL_LABELS } from './labels'
 import type { AreaSelection } from '../lib/areaSelection'
 
 interface PropertiesPanelProps {
@@ -161,6 +162,17 @@ export function PropertiesPanel({
   // quando o usuário não está mexendo em nada (Selecionar, sem seleção).
   // Depois do primeiro clique no cabeçalho vale o estado lembrado.
   const mapSectionsOpenByDefault = activeTool === 'select' && selection.selection === null
+  // "Que ferramenta está na minha mão?": com uma ferramenta armada e nada
+  // selecionado, as seções abaixo são as da ferramenta — mas várias delas são
+  // compartilhadas (Sala/Sala Circular/Polígono Regular usam a seção "Região")
+  // ou nem existem (Escada/Peça abrem em "Seleção de área"), e o primeiro
+  // título do painel acabava dizendo o nome de OUTRA ferramenta da barra.
+  // `panelHeadingTool` decide QUEM nomear (e quando calar); o rótulo visível é
+  // o mesmo `TOOL_LABELS` do botão da barra, para o painel repetir letra por
+  // letra o que o usuário acabou de apertar. Zona oculta aberta conta como
+  // seleção: `ConcealZoneControls` já é o título "Zona oculta".
+  const headingTool = panelHeadingTool(activeTool, selection.selection !== null || concealZone !== null)
+  const toolHeading = headingTool === null ? undefined : TOOL_LABELS[headingTool]
   // Campos da região que moram no Avançado (fatia 3), em consts para o TS estreitar dentro do render prop.
   const { strokeJoin, onStrokeJoinChange, onSmoothRegion } = regionStyle
 
@@ -180,6 +192,16 @@ export function PropertiesPanel({
       </header>
 
       <div className="lb-inspector__body lb-scroll">
+        {/* Cabeçalho de contexto: a primeira coisa lida na coluna é o nome da
+            ferramenta ativa. O prefixo "Ferramenta ·" separa este título dos
+            títulos de bloco que vêm abaixo ("Região", "Preenchimento"), que
+            são propriedades e não o nome do que está na mão — mesmo padrão de
+            `FloorPieceControls` ("Peça de chão · Retângulo"). */}
+        {toolHeading && (
+          <section className="lb-section">
+            <h2 className="lb-eyebrow">Ferramenta · {toolHeading}</h2>
+          </section>
+        )}
         {/* Sala no topo: o nome é o que o usuário quer mexer logo depois de
             desenhar, e no fim do painel ele precisava rolar para achar. */}
         {selectedRegion?.room && (

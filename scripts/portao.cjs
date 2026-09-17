@@ -34,6 +34,33 @@
  *            FALSO-VERDE: se saiu 0 mas a saída contém ruína (erro de tipo,
  *            teste pulado, flaky, panic), o portão reprova assim mesmo.
  *
+ * O QUE ESTA RODADA CONSERTOU (17/09/2026), cada item com o achado que o gerou:
+ *
+ *   a. O "gate 4" era um comando de playwright montado à mão no terminal do
+ *      orquestrador, com filtro de exclusão que morria junto com a sessão. Ele
+ *      não reproduzia o próprio baseline (2 de 2 execuções vermelhas, com
+ *      CONJUNTOS DE FALHA DIFERENTES) e ninguém conseguia dizer o que ficara de
+ *      fora. Agora a bateria é o passo `regressao` daqui: a lista sai do
+ *      diretório `client/e2e`, as exclusões estão declaradas em
+ *      EXCLUSOES_DA_BATERIA com motivo e endereço, e uma guarda (g10) reprova
+ *      exclusão muda.
+ *   b. A jornada de FLUIDEZ rodava dentro dessa bateria, com 4 workers. O
+ *      número que saía era o da máquina carregada, e ia para o relatório como
+ *      se fosse do app. Ela tem passo próprio com `--workers=1`, está fora da
+ *      bateria (g11) e o próprio arquivo reprova se for medido acompanhado.
+ *   c. A sonda de servidor limpo abria `localhost:1420` — o checkout errado.
+ *      O endereço agora sai do `baseURL` do playwright.config DESTE checkout
+ *      (g9), que é a mesma fonte das jornadas.
+ *   d. `PORTAO_SERVIDOR_LIMPO=1` não era conferido de forma nenhuma: no modo de
+ *      servidor novo a sonda agora exige a porta do baseURL LIVRE, em vez de
+ *      certificar o servidor velho de outra pessoa.
+ *   e. A partição de arquivos entre as peças não existia: a Invariante 4 ("cada
+ *      peça escreve só nos arquivos dela") não tinha comando. Passo `particao`
+ *      + `scripts/portao-particao.json`, que é do ORQUESTRADOR.
+ *   f. `task-jornada-ferramentas-mudas.spec.ts` estava excluída do gate e cobre
+ *      o assunto de DUAS peças deste run. Voltou para a bateria; g10 proíbe
+ *      excluir jornada de peça.
+ *
  * Uso:
  *   node scripts/portao.cjs              portão completo
  *   node scripts/portao.cjs --fase0      só a auditoria estática (segundos)
@@ -49,20 +76,46 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const http = require('http')
+const net = require('net')
+const crypto = require('crypto')
 const { spawnSync } = require('child_process')
 
 const RAIZ = path.resolve(__dirname, '..')
 const CLIENTE = path.join(RAIZ, 'client')
 const TAURI = path.join(RAIZ, 'desktop', 'src-tauri')
 const SAIDA = path.join(os.tmpdir(), 'portao-labirinto')
+const CONFIG_PLAYWRIGHT = path.join(CLIENTE, 'playwright.config.ts')
+const PARTICAO = path.join(__dirname, 'portao-particao.json')
 
 /** Página do jogador servida pelo exe RELEASE na LAN — o artefato que está em julgamento. */
 const URL_JOGADOR = process.env.PORTAO_URL_JOGADOR || 'http://192.168.0.6:7777/player'
 const TIMEOUT_JOGADOR_MS = 8000
-/** Editor do mestre no servidor de desenvolvimento — o mesmo baseURL do playwright.config.ts. */
-const URL_EDITOR = process.env.PORTAO_URL_EDITOR || 'http://localhost:1420/'
+
+/**
+ * O endereço do editor NÃO é escrito à mão aqui.
+ *
+ * Estava: `'http://localhost:1420/'`. Este checkout serve na 1437
+ * (`client/playwright.config.ts`, `use.baseURL`), e cada worktree do projeto
+ * tem a porta dele. Com a constante fixa, a sonda `servidor-limpo` abria o
+ * EDITOR DE OUTRO CHECKOUT: ou não achava nada (vermelho enganoso), ou —
+ * pior — encontrava um vite alheio limpo e dava VERDE para um servidor que
+ * jornada nenhuma deste run usa. O portão certificava o checkout errado.
+ *
+ * A única fonte é o `baseURL` do playwright.config deste checkout: o mesmo
+ * lugar de onde as jornadas tiram o endereço delas.
+ */
+function baseUrlDoPlaywright() {
+  const texto = fs.readFileSync(CONFIG_PLAYWRIGHT, 'utf8')
+  const achado = /baseURL\s*:\s*['"]([^'"]+)['"]/.exec(texto)
+  if (!achado) throw new Error('client/playwright.config.ts não declara use.baseURL — sem endereço, o portão não tem o que sondar')
+  return achado[1].replace(/\/+$/, '') + '/'
+}
+
+const URL_EDITOR = process.env.PORTAO_URL_EDITOR || baseUrlDoPlaywright()
 /** Os módulos que os specs importam dentro de `page.evaluate` — os que podem virar instância dupla. */
 const MODULOS_DE_SPEC = ['/src/stores/mapStore.ts', '/src/lib/mapFactory.ts']
+/** `PORTAO_SERVIDOR_LIMPO=1` manda o Playwright subir servidor próprio (playwright.config.ts). */
+const EXIGE_SERVIDOR_NOVO = process.env.PORTAO_SERVIDOR_LIMPO === '1'
 
 /**
  * As jornadas que a bar declarou, mais a desta peça. O portão roda cada uma 3
@@ -86,13 +139,101 @@ const JORNADAS_E2E = [
  * máquina só para ela a folga é de 70 ms e o número passa a ser do app.
  */
 const JORNADA_FLUIDEZ = 'e2e/task-jornada-portao-fluidez.spec.ts'
-/** Tudo que a FASE 0 audita arquivo a arquivo — a de fluidez inclusive. */
-const TODAS_JORNADAS_E2E = JORNADAS_E2E.concat([JORNADA_FLUIDEZ])
+
+/**
+ * As jornadas das PEÇAS deste run — os seis pontos em que a tela mente ou fica
+ * muda, mais a jornada do próprio portão. Cada uma é o comando que prova a peça
+ * dela; ficar de fora do portão é a peça não ser julgada.
+ */
+const JORNADAS_DAS_PECAS = [
+  'e2e/task-jornada-peca-muda.spec.ts',
+  'e2e/task-jornada-previa-honesta.spec.ts',
+  'e2e/task-jornada-token-no-lugar.spec.ts',
+  'e2e/task-jornada-sala-de-verdade.spec.ts',
+  'e2e/task-jornada-barra-honesta.spec.ts',
+  'e2e/task-jornada-painel-com-nome-certo.spec.ts',
+  'e2e/task-jornada-portao-honesto.spec.ts',
+]
+
+/** Tudo que a FASE 0 audita arquivo a arquivo — a de fluidez e as das peças inclusive. */
+const TODAS_JORNADAS_E2E = JORNADAS_E2E.concat([JORNADA_FLUIDEZ]).concat(JORNADAS_DAS_PECAS)
 const JORNADAS_UNIDADE = [
   'src/lib/mapFile.persistencia.test.ts',
   'src/lib/mapFileIO.persistencia.test.ts',
   'src/lib/mapFactory.porta-tipo.test.ts',
 ]
+
+/**
+ * Quantos workers a BATERIA DE REGRESSÃO usa. Passado na linha de comando, que
+ * vence a config — o número mora aqui, num lugar só.
+ *
+ * Medido em 17/09/2026 neste worktree: com 4 workers a bateria saiu vermelha em
+ * 2 de 2 execuções e com CONJUNTOS DE FALHA DIFERENTES. Conjunto que troca a
+ * cada rodada é saturação (cada worker sobe outro Pixi/WebGL no mesmo vite
+ * dev), não regressão — e um baseline que não reproduz não distingue vermelho
+ * de peça de vermelho de máquina. Metade, pela mesma alavanca que já levou 10
+ * para 4. AINDA NÃO MEDIDO: quem rodar a bateria mede; se 2 também não
+ * reproduzir, o passo seguinte é 1.
+ */
+const WORKERS_BATERIA = Number(process.env.PORTAO_WORKERS || 2)
+
+/**
+ * O QUE A BATERIA DE REGRESSÃO NÃO COBRE — declarado, com motivo e endereço.
+ *
+ * Um filtro de exclusão escrito na linha de comando do orquestrador some junto
+ * com o terminal, e ninguém mais sabe o que ficou de fora. Aqui cada exclusão
+ * tem de dizer POR QUÊ e ONDE; a guarda `g10-exclusoes-declaradas` reprova
+ * exclusão sem motivo, exclusão de arquivo que não existe mais (lista podre) e
+ * — principalmente — exclusão de jornada que é assunto de uma PEÇA deste run.
+ *
+ * Foi exatamente isso que tinha acontecido com `task-jornada-ferramentas-mudas`:
+ * ela cobre o assunto de DUAS peças desta tarefa (a ferramenta Peça e o mapa
+ * novo com grade) e estava fora do gate. Peça julgada por um portão que não
+ * roda a jornada do assunto dela não foi julgada. Ela voltou para a bateria.
+ */
+const EXCLUSOES_DA_BATERIA = [
+  {
+    arquivo: 'e2e/task-alignment-door-curve-portal.spec.ts',
+    motivo: 'já vermelho em HEAD antes deste run (link de cenário), e nenhuma peça deste run toca o assunto',
+    endereco: 'e2e/task-alignment-door-curve-portal.spec.ts',
+  },
+  {
+    arquivo: 'e2e/task-fluxo-consertos.spec.ts',
+    motivo: 'já vermelho em HEAD antes deste run ("Voltar do andar salva"; Ctrl+A e Ctrl+O), assunto de nenhuma peça deste run',
+    endereco: 'e2e/task-fluxo-consertos.spec.ts',
+  },
+  {
+    arquivo: JORNADA_FLUIDEZ,
+    motivo: 'medida de fluidez só vale com a máquina sozinha — roda no passo `jornada-fluidez` com --workers=1',
+    coberto_em: 'jornada-fluidez',
+  },
+].concat(
+  JORNADAS_E2E.map((a) => ({ arquivo: a, motivo: 'roda no passo `jornadas-e2e`, com repetição', coberto_em: 'jornadas-e2e' })),
+).concat(
+  JORNADAS_DAS_PECAS.map((a) => ({ arquivo: a, motivo: 'roda no passo `jornadas-das-pecas`, com repetição', coberto_em: 'jornadas-das-pecas' })),
+)
+
+/** Todo `*.spec.ts` de `client/e2e`, menos o que está declarado em EXCLUSOES_DA_BATERIA. */
+function bateriaDeRegressao() {
+  const dir = path.join(CLIENTE, 'e2e')
+  const fora = new Set(EXCLUSOES_DA_BATERIA.map((e) => e.arquivo))
+  return fs
+    .readdirSync(dir)
+    .filter((n) => n.endsWith('.spec.ts'))
+    .map((n) => 'e2e/' + n)
+    .filter((a) => !fora.has(a))
+    .sort()
+}
+
+function sha256(texto) {
+  return crypto.createHash('sha256').update(texto, 'utf8').digest('hex')
+}
+
+function git(args) {
+  const r = spawnSync('git', args, { cwd: RAIZ, encoding: 'utf8' })
+  if (r.status !== 0) return null
+  return String(r.stdout || '')
+}
 
 // ---------------------------------------------------------------------------
 // FASE 0 — guardas. Funções puras sobre texto: dá para provar que reprovam.
@@ -224,8 +365,13 @@ function guardaPlanoCobreArtefato(plano) {
   // Sem passo próprio, a fluidez volta a ser medida junto dos outros workers — e
   // aí o número é o da máquina carregada, não o do app.
   if (!plano.some((p) => p.id === 'jornada-fluidez')) faltando.push('nenhum passo mede a Invariante 6 com a máquina sozinha')
+  // Sem estes dois o portão julga peça sem rodar a jornada da peça, e deixa a
+  // Invariante 4 (quem escreve onde) sem comando nenhum.
+  if (!plano.some((p) => p.id === 'jornadas-das-pecas')) faltando.push('nenhum passo roda as jornadas das peças deste run')
+  if (!plano.some((p) => p.id === 'particao')) faltando.push('nenhum passo confere a partição de arquivos entre as peças')
+  if (!plano.some((p) => p.id === 'regressao')) faltando.push('nenhum passo roda a bateria de regressão do resto da suíte')
   if (faltando.length > 0) return reprova('g7-plano-cobre-artefato', faltando.join('; '), 'scripts/portao.cjs (PLANO)')
-  return ok('g7-plano-cobre-artefato', 'plano cobre tipos, unidade, Rust, jornadas e exe vivo')
+  return ok('g7-plano-cobre-artefato', 'plano cobre tipos, unidade, Rust, partição, jornadas, regressão e exe vivo')
 }
 
 /** Jornada declarada que não existe, ou que não declara teste nenhum, é invariante vazia. */
@@ -245,6 +391,121 @@ function guardaJornadasExistem(arquivos) {
   return ok('g8-jornadas-existem', arquivos.length + ' arquivos de jornada presentes e com testes')
 }
 
+/**
+ * Endereço escrito à mão no portão certifica o checkout errado. O editor que a
+ * sonda abre tem de ser o MESMO `baseURL` que as jornadas usam — e este
+ * checkout tem porta própria (Invariante 9).
+ */
+function guardaEnderecoDoConfig(textoConfig, urlUsada) {
+  const achado = /baseURL\s*:\s*['"]([^'"]+)['"]/.exec(textoConfig)
+  if (!achado) {
+    return reprova('g9-endereco-do-config', 'playwright.config.ts não declara use.baseURL', 'client/playwright.config.ts')
+  }
+  const doConfig = achado[1].replace(/\/+$/, '') + '/'
+  if (doConfig !== urlUsada) {
+    return reprova(
+      'g9-endereco-do-config',
+      'o portão sonda ' + urlUsada + ' e as jornadas usam ' + doConfig + ' — são checkouts diferentes',
+      'scripts/portao.cjs (URL_EDITOR) x client/playwright.config.ts (use.baseURL)',
+    )
+  }
+  return ok('g9-endereco-do-config', 'editor e jornadas no mesmo endereço, tirado do config: ' + urlUsada)
+}
+
+/**
+ * Exclusão de bateria é dívida: só vale declarada, com motivo e endereço, e
+ * NUNCA sobre o assunto de uma peça que este run vai julgar.
+ */
+function guardaExclusoesDeclaradas(exclusoes, jornadasDasPecas, existe) {
+  const problemas = []
+  for (const e of exclusoes) {
+    if (!e || !e.arquivo) {
+      problemas.push('exclusão sem arquivo')
+      continue
+    }
+    if (!e.motivo) problemas.push(e.arquivo + ' excluído sem motivo declarado')
+    if (!e.coberto_em && !e.endereco) problemas.push(e.arquivo + ' excluído sem endereço e sem passo do portão que o cubra')
+    if (!existe(e.arquivo)) problemas.push(e.arquivo + ' não existe — lista de exclusão podre')
+    if (jornadasDasPecas.indexOf(e.arquivo) !== -1 && !e.coberto_em) {
+      problemas.push(e.arquivo + ' é jornada de peça deste run e está fora do portão — a peça não seria julgada')
+    }
+  }
+  if (problemas.length > 0) return reprova('g10-exclusoes-declaradas', problemas.join('; '), 'scripts/portao.cjs (EXCLUSOES_DA_BATERIA)')
+  return ok('g10-exclusoes-declaradas', exclusoes.length + ' exclusão(ões), cada uma com motivo e com passo que cubra ou endereço')
+}
+
+/**
+ * A jornada de fluidez dentro da bateria mede a máquina carregada, não o app —
+ * e o número ia para o relatório como se fosse do app. Ela tem passo próprio,
+ * com `--workers=1`; na bateria ela não pode estar.
+ */
+function guardaFluidezForaDaBateria(bateria, fluidez) {
+  if (bateria.indexOf(fluidez) !== -1) {
+    return reprova(
+      'g11-fluidez-fora-da-bateria',
+      fluidez + ' está na bateria de regressão: com mais de um worker o longtask medido é o da máquina',
+      'scripts/portao.cjs (EXCLUSOES_DA_BATERIA) + client/e2e/task-jornada-portao-fluidez.spec.ts (WORKERS_EXIGIDOS)',
+    )
+  }
+  return ok('g11-fluidez-fora-da-bateria', 'a fluidez roda no passo próprio, com a máquina só para ela')
+}
+
+/**
+ * Sonda de servidor limpo DEPOIS das jornadas não serve para nada: quando ela
+ * acusa a store duplicada, as asserções já foram dadas como boas.
+ */
+function guardaOrdemDoPlano(plano) {
+  const ids = plano.map((p) => p.id)
+  const limpo = ids.indexOf('servidor-limpo')
+  const primeiraJornada = ids.findIndex((id) => id === 'jornadas-e2e' || id === 'jornadas-das-pecas' || id === 'regressao' || id === 'jornada-fluidez')
+  if (limpo === -1) return reprova('g12-ordem-do-plano', 'sem passo servidor-limpo', 'scripts/portao.cjs (PLANO)')
+  if (primeiraJornada === -1) return reprova('g12-ordem-do-plano', 'sem nenhum passo de jornada', 'scripts/portao.cjs (PLANO)')
+  if (limpo > primeiraJornada) {
+    return reprova('g12-ordem-do-plano', 'servidor-limpo roda DEPOIS das jornadas — o aviso chega tarde demais', 'scripts/portao.cjs (PLANO)')
+  }
+  return ok('g12-ordem-do-plano', 'servidor-limpo vem antes de qualquer jornada')
+}
+
+/**
+ * Invariante 4 do run ("cada peça escreve só nos arquivos dela") não é
+ * verificável sem alguém declarar quem escreve onde: as peças rodam na MESMA
+ * árvore e duas escritas no mesmo arquivo se sobrescrevem sem erro nenhum. O
+ * manifesto é do ORQUESTRADOR; o portão exige que exista e bate contra o git.
+ */
+function guardaParticaoDeclarada(manifesto) {
+  if (!manifesto || !manifesto.pecas) {
+    return reprova(
+      'g13-particao-declarada',
+      'sem manifesto de partição — a Invariante 4 não tem como ser verificada',
+      'scripts/portao-particao.json',
+    )
+  }
+  const donos = new Map()
+  for (const peca of Object.keys(manifesto.pecas)) {
+    for (const arquivo of manifesto.pecas[peca]) {
+      if (!donos.has(arquivo)) donos.set(arquivo, [])
+      donos.get(arquivo).push(peca)
+    }
+  }
+  const disputados = Array.from(donos.keys()).filter((a) => donos.get(a).length > 1)
+  if (disputados.length > 0) {
+    return reprova(
+      'g13-particao-declarada',
+      'arquivo declarado por DUAS peças (a segunda escrita apaga a primeira em silêncio): ' +
+        disputados.map((a) => a + ' [' + donos.get(a).join(' e ') + ']').join('; '),
+      'scripts/portao-particao.json',
+    )
+  }
+  if (manifesto.pendente) {
+    return reprova(
+      'g13-particao-declarada',
+      'manifesto marcado como PENDENTE: ' + manifesto.pendente,
+      'scripts/portao-particao.json',
+    )
+  }
+  return ok('g13-particao-declarada', donos.size + ' arquivo(s) com dono declarado, nenhum disputado')
+}
+
 // ---------------------------------------------------------------------------
 // FASE 1 — comandos, com exit code real e detector de falso-verde.
 // ---------------------------------------------------------------------------
@@ -252,6 +513,31 @@ function guardaJornadasExistem(arquivos) {
 const TSC = path.join(RAIZ, 'node_modules', 'typescript', 'bin', 'tsc')
 const VITEST = path.join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs')
 const PLAYWRIGHT = path.join(RAIZ, 'node_modules', '@playwright', 'test', 'cli.js')
+
+/** Repetições das jornadas. 3 é o que a interface das peças pede na volta de vitória. */
+const REPETICOES = Number(process.env.PORTAO_REPETICOES || 3)
+
+/**
+ * Um passo de jornada. `workers` é explícito em TODO passo: a CLI vence a
+ * config, então o número de workers de cada medida mora aqui, num lugar só, e
+ * não depende de quem editou o playwright.config por último.
+ */
+function jornada(id, titulo, arquivos, opcoes) {
+  const o = opcoes || {}
+  const repeticoes = o.repeticoes === undefined ? REPETICOES : o.repeticoes
+  const args = [PLAYWRIGHT, 'test', '--config', 'playwright.config.ts', '--reporter=list', '--workers=' + (o.workers || WORKERS_BATERIA)]
+  if (repeticoes > 1) args.push('--repeat-each=' + repeticoes)
+  return {
+    id,
+    titulo,
+    exe: process.execPath,
+    args: args.concat(arquivos),
+    cwd: CLIENTE,
+    ruina: [/\b\d+ skipped\b/, /\b\d+ flaky\b/, /\bdid not run\b/, /\b\d+ failed\b/],
+    // Prova positiva: comando que não rodou teste nenhum sai 0 e passaria por verde.
+    exige: [/\b[1-9]\d* passed\b/],
+  }
+}
 
 const PLANO = [
   {
@@ -317,22 +603,96 @@ const PLANO = [
     sonda: sondarServidorLimpo,
   },
   {
-    id: 'jornadas-e2e',
-    titulo: 'jornadas com ponteiro real, 3 execuções cada',
-    exe: process.execPath,
-    args: [PLAYWRIGHT, 'test', '--config', 'playwright.config.ts', '--repeat-each=3', '--reporter=list'].concat(JORNADAS_E2E),
-    cwd: CLIENTE,
-    ruina: [/\b\d+ skipped\b/, /\b\d+ flaky\b/, /\bdid not run\b/, /\b\d+ failed\b/],
+    id: 'particao',
+    titulo: 'Invariante 4: quem escreveu onde (partição declarada, Rust intocado)',
+    sonda: sondarParticao,
   },
-  {
-    id: 'jornada-fluidez',
-    titulo: 'Invariante 6 medida com a máquina só para ela (workers=1, 3 execuções)',
-    exe: process.execPath,
-    args: [PLAYWRIGHT, 'test', '--config', 'playwright.config.ts', '--repeat-each=3', '--workers=1', '--reporter=list', JORNADA_FLUIDEZ],
-    cwd: CLIENTE,
-    ruina: [/\b\d+ skipped\b/, /\b\d+ flaky\b/, /\bdid not run\b/, /\b\d+ failed\b/],
-  },
+  jornada('jornadas-e2e', 'jornadas já entregues, com ponteiro real', JORNADAS_E2E),
+  jornada('jornadas-das-pecas', 'as jornadas das peças deste run — cada peça julgada pelo comando dela', JORNADAS_DAS_PECAS),
+  jornada('regressao', 'bateria de regressão: o resto da suíte e2e, uma execução', bateriaDeRegressao(), { repeticoes: 1 }),
+  jornada('jornada-fluidez', 'Invariante 6 medida com a máquina só para ela (workers=1)', [JORNADA_FLUIDEZ], { workers: 1 }),
 ]
+
+/**
+ * Invariante 4 — quem escreveu onde.
+ *
+ * As peças deste run rodam na MESMA árvore de trabalho, e duas escritas no
+ * mesmo arquivo se sobrescrevem sem erro nenhum: a segunda peça apaga a
+ * primeira e as duas saem "verdes". Nenhum passo media isso; o portão nem
+ * tinha o que comparar, porque a partição nunca foi escrita em lugar algum.
+ *
+ * O manifesto (`scripts/portao-particao.json`) é do ORQUESTRADOR: o portão não
+ * adivinha a partição, ele exige que ela exista e bate a lista contra o que o
+ * git diz que mudou. Arquivo mudado sem dono sai vermelho com nome e endereço.
+ */
+function sondarParticao() {
+  return Promise.resolve().then(() => {
+    const mudados = git(['status', '--porcelain'])
+    if (mudados === null) return { codigo: 1, saida: 'git status falhou: sem repositório?' }
+    const arquivos = mudados
+      .split('\n')
+      .map((l) => l.slice(3).trim().replace(/^"|"$/g, ''))
+      .filter((l) => l.length > 0)
+      .map((l) => l.split('\\').join('/'))
+
+    const problemas = []
+    // Invariante 8 do run: o lado Rust não é tocado. Esta parte não depende de
+    // manifesto nenhum — reprova sozinha.
+    const rust = arquivos.filter((a) => a.startsWith('desktop/') || a.endsWith('.rs') || a.endsWith('Cargo.toml') || a.endsWith('Cargo.lock'))
+    if (rust.length > 0) problemas.push('Invariante 8 violada — lado Rust tocado: ' + rust.join(', '))
+
+    let manifesto = null
+    try {
+      manifesto = JSON.parse(fs.readFileSync(PARTICAO, 'utf8'))
+    } catch (e) {
+      return {
+        codigo: 1,
+        saida:
+          'sem manifesto de partição em scripts/portao-particao.json (' + e.message + ').\n' +
+          'A Invariante 4 não é verificável enquanto ninguém declarar quem escreve onde.\n' +
+          'Arquivos mudados agora, para o orquestrador distribuir entre as peças:\n  ' +
+          arquivos.join('\n  '),
+      }
+    }
+
+    const estatica = guardaParticaoDeclarada(manifesto)
+    if (!estatica.ok) problemas.push(estatica.detalhe)
+
+    const donos = new Map()
+    for (const peca of Object.keys(manifesto.pecas || {})) {
+      for (const arquivo of manifesto.pecas[peca]) {
+        if (!donos.has(arquivo)) donos.set(arquivo, [])
+        donos.get(arquivo).push(peca)
+      }
+    }
+    const livres = manifesto.livres || []
+    const semDono = arquivos.filter((a) => !donos.has(a) && livres.indexOf(a) === -1)
+    if (semDono.length > 0) problemas.push('arquivo mudado sem dono declarado: ' + semDono.join(', '))
+
+    return {
+      codigo: problemas.length === 0 ? 0 : 1,
+      saida:
+        arquivos.length + ' arquivo(s) mudado(s); ' + donos.size + ' com dono declarado\n' +
+        (problemas.length === 0 ? 'partição respeitada e Rust intocado' : problemas.join('\n')),
+    }
+  })
+}
+
+/** Porta livre = o Playwright vai subir servidor próprio, e ele nasce sem história. */
+function portaLivre(url) {
+  return new Promise((resolve) => {
+    const alvo = new URL(url)
+    const porta = Number(alvo.port || (alvo.protocol === 'https:' ? 443 : 80))
+    const soquete = net.connect({ host: alvo.hostname, port: porta })
+    const decidir = (livre) => {
+      soquete.destroy()
+      resolve(livre)
+    }
+    soquete.setTimeout(2000, () => decidir(true))
+    soquete.on('connect', () => decidir(false))
+    soquete.on('error', () => decidir(true))
+  })
+}
 
 /**
  * Prova que o exe RELEASE está no ar e é ele que serve o jogador — não o vite
@@ -382,8 +742,25 @@ function sondarJogador() {
  * escreve E lê pela store do evaluate nunca toca o app: verde falso.
  *
  * Conserto do operador: reiniciar o `npm run dev` antes de rodar o portão.
+ *
+ * COM `PORTAO_SERVIDOR_LIMPO=1` a pergunta é outra. Nesse modo o Playwright
+ * sobe o servidor DELE (`reuseExistingServer: false`), então não há servidor
+ * velho para sondar — e sondar o que estiver na porta seria certificar um
+ * servidor que jornada nenhuma vai usar. O que importa aí é a porta do
+ * `baseURL` estar LIVRE: livre, o servidor nasce sem história e a sonda não tem
+ * o que fazer; ocupada, o `npm run dev` do Playwright nem sobe e a bateria
+ * inteira morre. Nenhum dos dois casos sai verde por ausência de resposta.
  */
 function sondarServidorLimpo() {
+  if (EXIGE_SERVIDOR_NOVO) {
+    return portaLivre(URL_EDITOR).then((livre) => ({
+      codigo: livre ? 0 : 1,
+      saida: livre
+        ? 'PORTAO_SERVIDOR_LIMPO=1 e ' + URL_EDITOR + ' está livre: o Playwright sobe um servidor novo, sem histórico de HMR'
+        : 'PORTAO_SERVIDOR_LIMPO=1 exige a porta do baseURL livre, e ' + URL_EDITOR + ' já tem alguém ouvindo.\n' +
+          'O webServer do Playwright não vai conseguir subir. Derrube o `npm run dev` desta porta ou rode sem a variável.',
+    }))
+  }
   return new Promise((resolve) => {
     let chromium
     try {
@@ -491,10 +868,22 @@ function rodarFase0() {
   const projetos = [path.join(CLIENTE, 'tsconfig.json'), path.join(CLIENTE, 'tsconfig.e2e.json')]
     .filter((p) => fs.existsSync(p))
     .map(lerTsconfig)
+  const textoConfig = fs.readFileSync(CONFIG_PLAYWRIGHT, 'utf8')
   resultados.push(guardaCoberturaDeTipos(projetos))
-  resultados.push(guardaSemRetries(fs.readFileSync(path.join(CLIENTE, 'playwright.config.ts'), 'utf8')))
+  resultados.push(guardaSemRetries(textoConfig))
   resultados.push(guardaJornadasExistem(TODAS_JORNADAS_E2E.concat(JORNADAS_UNIDADE)))
   resultados.push(guardaPlanoCobreArtefato(PLANO))
+  resultados.push(guardaEnderecoDoConfig(textoConfig, URL_EDITOR))
+  resultados.push(guardaExclusoesDeclaradas(EXCLUSOES_DA_BATERIA, JORNADAS_DAS_PECAS, (a) => fs.existsSync(path.join(CLIENTE, a))))
+  resultados.push(guardaFluidezForaDaBateria(bateriaDeRegressao(), JORNADA_FLUIDEZ))
+  resultados.push(guardaOrdemDoPlano(PLANO))
+  let manifesto = null
+  try {
+    manifesto = JSON.parse(fs.readFileSync(PARTICAO, 'utf8'))
+  } catch (e) {
+    manifesto = null
+  }
+  resultados.push(guardaParticaoDeclarada(manifesto))
 
   const textos = {}
   for (const arquivo of TODAS_JORNADAS_E2E.concat(JORNADAS_UNIDADE)) {
@@ -541,6 +930,46 @@ function rodarAutoteste() {
     ],
     ['g7 aprova plano real', guardaPlanoCobreArtefato(PLANO), true],
     ['g8 reprova jornada inexistente', guardaJornadasExistem(['e2e/nao-existe-mesmo.spec.ts']), false],
+    [
+      'g9 reprova endereço de outro checkout',
+      guardaEnderecoDoConfig("baseURL: 'http://localhost:1437',", 'http://localhost:1420/'),
+      false,
+    ],
+    ['g9 reprova config sem baseURL', guardaEnderecoDoConfig('viewport: { width: 1280 }', 'http://localhost:1437/'), false],
+    ['g9 aprova endereço tirado do config', guardaEnderecoDoConfig("baseURL: 'http://localhost:1437',", 'http://localhost:1437/'), true],
+    [
+      'g10 reprova exclusão sem motivo',
+      guardaExclusoesDeclaradas([{ arquivo: 'e2e/x.spec.ts' }], [], () => true),
+      false,
+    ],
+    [
+      'g10 reprova exclusão de jornada de peça',
+      guardaExclusoesDeclaradas([{ arquivo: 'e2e/p.spec.ts', motivo: 'm', endereco: 'e' }], ['e2e/p.spec.ts'], () => true),
+      false,
+    ],
+    [
+      'g10 reprova exclusão de arquivo que não existe',
+      guardaExclusoesDeclaradas([{ arquivo: 'e2e/sumiu.spec.ts', motivo: 'm', endereco: 'e' }], [], () => false),
+      false,
+    ],
+    [
+      'g10 aprova exclusão declarada',
+      guardaExclusoesDeclaradas([{ arquivo: 'e2e/x.spec.ts', motivo: 'vermelho em HEAD', endereco: 'e2e/x.spec.ts' }], [], () => true),
+      true,
+    ],
+    ['g11 reprova fluidez dentro da bateria', guardaFluidezForaDaBateria(['e2e/a.spec.ts', JORNADA_FLUIDEZ], JORNADA_FLUIDEZ), false],
+    ['g11 aprova bateria sem a fluidez', guardaFluidezForaDaBateria(['e2e/a.spec.ts'], JORNADA_FLUIDEZ), true],
+    ['g12 reprova sonda depois das jornadas', guardaOrdemDoPlano([{ id: 'regressao' }, { id: 'servidor-limpo' }]), false],
+    ['g12 reprova plano sem sonda de servidor', guardaOrdemDoPlano([{ id: 'regressao' }]), false],
+    ['g12 aprova plano real', guardaOrdemDoPlano(PLANO), true],
+    ['g13 reprova sem manifesto', guardaParticaoDeclarada(null), false],
+    [
+      'g13 reprova arquivo com dois donos',
+      guardaParticaoDeclarada({ pecas: { a: ['client/src/x.ts'], b: ['client/src/x.ts'] } }),
+      false,
+    ],
+    ['g13 reprova manifesto pendente', guardaParticaoDeclarada({ pecas: { a: ['x'] }, pendente: 'falta o resto' }), false],
+    ['g13 aprova partição sem disputa', guardaParticaoDeclarada({ pecas: { a: ['x'], b: ['y'] } }), true],
   ]
   return casos.map(([nome, resultado, esperado]) => ({
     id: nome,
@@ -569,8 +998,13 @@ async function principal() {
         {
           raiz: RAIZ,
           url_jogador: URL_JOGADOR,
+          url_editor: URL_EDITOR,
+          workers_bateria: WORKERS_BATERIA,
           jornadas_e2e: TODAS_JORNADAS_E2E,
+          jornadas_das_pecas: JORNADAS_DAS_PECAS,
           jornadas_unidade: JORNADAS_UNIDADE,
+          bateria_regressao: bateriaDeRegressao(),
+          fora_da_bateria: EXCLUSOES_DA_BATERIA,
           plano: PLANO.map((p) => ({
             id: p.id,
             titulo: p.titulo,

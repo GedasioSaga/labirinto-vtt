@@ -35,6 +35,7 @@ import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
 import { countEntitiesByLayer } from './lib/layers'
+import { findTokenSpawn, tokenRadiusFor, wallClearanceForScale } from './lib/tokenPlacement'
 import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
@@ -61,6 +62,11 @@ function reportFileError(action: string, err: unknown): void {
 
 /** Aviso de sucesso de Salvar (botão, Ctrl+S) e de sair por Início. */
 const MAP_SAVED_TEXT = 'Mapa salvo'
+
+/** Toda peça nova nasce ocupando uma célula; o painel muda o tamanho depois. */
+const NEW_TOKEN_SIZE = 1
+/** Diz por que nenhuma peça apareceu, com o que fazer a seguir — silêncio aqui é o defeito que esta mudança conserta. */
+const NO_TOKEN_SPOT_TEXT = 'Sem lugar livre para a peça aqui: as paredes em volta não deixam espaço. Mova a vista para um trecho vazio e tente de novo.'
 
 /** Entrada do aviso de trabalho não salvo: ease-out curto, nunca de escala zero. */
 const UNSAVED_DIALOG_ENTER_MS = 160
@@ -922,12 +928,34 @@ function App() {
    * PixiCanvas mantém em dia a cada pan/zoom) e já selecionado, para o painel
    * mostrar o Nome dele. Sem o container montado cai em (0,0), como antes.
    * `at` (ferramenta Token, clique no mapa) troca o centro pelo ponto clicado.
+   *
+   * O ponto pedido é só o PEDIDO: `findTokenSpawn` (lib/tokenPlacement.ts)
+   * empurra a peça para o lugar livre mais perto quando o disco cairia em
+   * cima da linha de uma parede — antes disto, com a vista enquadrada numa
+   * parede, a peça nascia atravessada nela e o app não dizia nada. Vale
+   * também para o clique da ferramenta Token: o usuário aponta mais ou menos,
+   * o app assenta a peça onde ela cabe. Sem lugar livre por perto ele não
+   * cria peça nenhuma e FALA por quê (toast), em vez de largar na parede.
+   *
+   * Lê mapa e câmera de `getState()` e não da closure de render: este handler
+   * também vai como prop para dentro do PixiCanvas, e lá o valor capturado
+   * pode ser de um render anterior — mesmo motivo de a câmera já ser lida
+   * assim antes desta mudança.
    */
   const handleAddToken = (name: string, at?: { x: number; y: number }) => {
     const host = canvasHostRef.current
-    const { x, y } = at ?? (host ? viewportCenterWorld(useMapStore.getState().camera, host.clientWidth, host.clientHeight) : { x: 0, y: 0 })
+    const { map: currentMap, camera } = useMapStore.getState()
+    const requested = at ?? (host ? viewportCenterWorld(camera, host.clientWidth, host.clientHeight) : { x: 0, y: 0 })
+    const spot = findTokenSpawn(requested, currentMap.walls, {
+      radius: tokenRadiusFor(currentMap.grid, NEW_TOKEN_SIZE),
+      clearance: wallClearanceForScale(camera.scale),
+    })
+    if (spot === null) {
+      useToastStore.getState().push('error', NO_TOKEN_SPOT_TEXT)
+      return
+    }
     const id = crypto.randomUUID()
-    addToken({ id, characterId: null, name, x, y, size: 1, image: null })
+    addToken({ id, characterId: null, name, x: spot.x, y: spot.y, size: NEW_TOKEN_SIZE, image: null })
     useMapStore.getState().setSelection(selectionOfItem({ kind: 'token', id }))
   }
 

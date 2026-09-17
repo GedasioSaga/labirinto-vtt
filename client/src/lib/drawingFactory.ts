@@ -45,12 +45,58 @@ export function buildLightAt(id: string, point: Point, gridSize: number, radiusO
 const DEFAULT_REGION_FILL_COLOR = '#3a7ad0'
 const DEFAULT_REGION_FILL_PATTERN = 'solid'
 
-// Nome padrão de uma Sala recém-criada (mesmo texto usado pelo botão da
+// Prefixo do nome de uma Sala recém-criada (mesmo texto usado pelo botão da
 // ferramenta em components/labels.ts:19, TOOL_LABELS.room) — editável depois
 // via RoomControls/setRoomName. Compartilhado pelas 3 ferramentas de Sala
 // (retângulo, Circular, Polígono Regular): as três produzem uma entidade
 // "Sala", só a FORMA do contorno muda (RoomMeta.shape).
 export const DEFAULT_ROOM_NAME = 'Sala'
+
+/*
+ * Toda sala nascia com o MESMO nome ("Sala"), então um mapa com cinco cômodos
+ * mostrava cinco rótulos idênticos e o mestre não distinguia um do outro pela
+ * tela (passeio cego de 17/09/2026). O esquema novo é o mesmo já usado pelos
+ * tokens — `nextTokenName` em lib/mapFactory.ts, "Token 1", "Token 2"… — só
+ * que numerado por uma sequência de sessão em vez da lista de nomes já usados:
+ * as duas fábricas abaixo recebem um rascunho geométrico (dois pontos), NUNCA
+ * o mapa, e um módulo puro de geometria não pode importar a store sem inverter
+ * a dependência (lib não conhece stores/). O contador vive aqui porque é aqui
+ * que o nome nasce.
+ *
+ * LIMITE CONHECIDO, de propósito e não silencioso: a sequência é de sessão.
+ * Recarregar a página e abrir um mapa que já tem "Sala 1" faz a próxima sala
+ * nova se chamar "Sala 1" de novo. `syncRoomNameSequence` existe justamente
+ * para fechar isso a partir de quem TEM a lista de regiões (o carregamento do
+ * mapa, em stores/mapStore.ts) — arquivo de outra peça, não tocado aqui.
+ */
+let roomNameSequence = 0
+
+/** Próximo nome sugerido para uma Sala nova: "Sala 1", "Sala 2", … */
+export function nextDefaultRoomName(): string {
+  roomNameSequence += 1
+  return `${DEFAULT_ROOM_NAME} ${roomNameSequence}`
+}
+
+/**
+ * Empurra a sequência para depois do maior "Sala N" já presente em `names`
+ * (nome fora desse padrão é ignorado), para que a próxima sala criada não
+ * repita um nome que já está no mapa. Lista vazia zera a sequência.
+ */
+export function syncRoomNameSequence(names: Iterable<string>): void {
+  const prefix = `${DEFAULT_ROOM_NAME} `
+  let highest = 0
+  for (const name of names) {
+    const trimmed = name.trim()
+    if (!trimmed.startsWith(prefix)) continue
+    const digits = trimmed.slice(prefix.length)
+    const parsed = Number(digits)
+    // `digits !== String(parsed)` descarta "01", "1.0", " 1", "1e3" e vazio:
+    // só conta o que esta mesma fábrica escreveria.
+    if (!Number.isInteger(parsed) || parsed <= 0 || digits !== String(parsed)) continue
+    if (parsed > highest) highest = parsed
+  }
+  roomNameSequence = highest
+}
 
 export function buildRegionFromPoints(id: string, points: RegionPoint[], tag = 'region', fillColor = DEFAULT_REGION_FILL_COLOR, fillPattern: Region['fillPattern'] = DEFAULT_REGION_FILL_PATTERN): Region {
   return { id, points, tag, fillColor, fillPattern, data: {} }
@@ -73,7 +119,9 @@ export function buildRoomFromDraft(
   end: Point,
   fillColor = DEFAULT_REGION_FILL_COLOR,
   fillPattern: Region['fillPattern'] = DEFAULT_REGION_FILL_PATTERN,
-  roomName = DEFAULT_ROOM_NAME,
+  // Avaliado a CADA chamada sem 7º argumento (default de parâmetro), que é
+  // como PixiCanvas.tsx:2739 chama: é isso que faz a 2ª sala nascer "Sala 2".
+  roomName = nextDefaultRoomName(),
 ): { region: Region; walls: Wall[] } {
   const minX = Math.min(start.x, end.x)
   const minY = Math.min(start.y, end.y)
@@ -152,7 +200,9 @@ export function buildRegularPolygonRoomFromDraft(
   sides: number,
   fillColor = DEFAULT_REGION_FILL_COLOR,
   fillPattern: Region['fillPattern'] = DEFAULT_REGION_FILL_PATTERN,
-  roomName = DEFAULT_ROOM_NAME,
+  // Mesma sequência da Sala retangular (ver buildRoomFromDraft): as três
+  // ferramentas de Sala numeram na mesma corrida, sem "Sala 1" repetido.
+  roomName = nextDefaultRoomName(),
 ): { region: Region; walls: Wall[] } {
   const radius = Math.hypot(radiusPoint.x - center.x, radiusPoint.y - center.y)
   const angle0 = Math.atan2(radiusPoint.y - center.y, radiusPoint.x - center.x)

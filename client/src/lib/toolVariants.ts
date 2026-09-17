@@ -296,3 +296,99 @@ export function drawingClusterGroups(shape: DrawingTool): ToolVariantGroup[] {
 export function readyToolVariants(): ToolVariantReady[] {
   return Object.values(TOOL_VARIANTS).filter((entry): entry is ToolVariantReady => entry.available)
 }
+
+/* ------------------------------------------------- eco da escolha na barra */
+
+/** Eixo de variante, pelo nome do par valor/ação em `mapStore.ts`. */
+export type ToolVariantStoreKey = ToolVariantGroup['storeKey']
+
+/**
+ * Sujeito da frase que a barra mostra depois de uma escolha na setinha
+ * ("PRÓXIMA PAREDE" + "Interna"). Escrito eixo a eixo, e não derivado de
+ * `TOOL_LABELS`, por duas razões concretas:
+ *
+ *  - gênero: "Próxima Parede" e "Próximo Chão" não saem da mesma fórmula, e o
+ *    app já paga esse preço em `SELECTION_LABELS` (components/labels.ts);
+ *  - `regionFillPattern` é UM valor compartilhado por Região, Sala, Sala
+ *    Circular e Polígono Regular (ver TOOL_VARIANTS acima), então nenhum nome
+ *    de ferramenta seria verdade para os quatro — o sujeito aqui é o que a
+ *    preferência realmente controla, o preenchimento.
+ *
+ * `drawShape` fica de FORA de propósito: escolher uma forma ATIVA a ferramenta
+ * (contrato documentado em `components/ToolVariantMenu.tsx`), e a troca de
+ * ferramenta já deixa rastro sozinha — ícone, `aria-pressed` e dica mudam. Um
+ * eco ali seria uma segunda voz dizendo o que a barra inteira já diz.
+ */
+const VARIANT_ECHO_SUBJECT: Partial<Record<ToolVariantStoreKey, string>> = {
+  doorKind: 'Próxima porta',
+  wallKind: 'Próxima parede',
+  regionFillPattern: 'Próximo preenchimento',
+  polygonSides: 'Próximo polígono',
+  stairSizePreset: 'Próxima escada',
+  drawTexture: 'Próximo traço',
+  // Não é "próxima" coisa nenhuma: é o modo com que a ferramenta apaga.
+  eraseMode: 'Borracha',
+  floorShapeKind: 'Próxima peça de chão',
+  floorOp: 'Próxima peça de chão',
+  floorPolygonSides: 'Próxima peça de chão',
+}
+
+/** Todos os grupos por eixo — a barra precisa achar o RÓTULO da opção a partir
+ *  do valor cru que está na store, sem depender de quem abriu o menu. */
+const GROUP_BY_STORE_KEY: Record<ToolVariantStoreKey, ToolVariantGroup> = {
+  doorKind: DOOR_KIND_GROUP,
+  wallKind: WALL_KIND_GROUP,
+  regionFillPattern: REGION_FILL_PATTERN_GROUP,
+  polygonSides: POLYGON_SIDES_GROUP,
+  stairSizePreset: STAIR_SIZE_GROUP,
+  drawTexture: BRUSH_TEXTURE_GROUP,
+  eraseMode: ERASE_MODE_GROUP,
+  floorShapeKind: FLOOR_SHAPE_GROUP,
+  floorOp: FLOOR_OP_GROUP,
+  floorPolygonSides: FLOOR_POLYGON_SIDES_GROUP,
+  drawShape: DRAWING_SHAPE_GROUP,
+}
+
+/** Existe frase para este eixo? — `false` só para `drawShape` (ver acima). */
+export function hasVariantEcho(storeKey: ToolVariantStoreKey): boolean {
+  return VARIANT_ECHO_SUBJECT[storeKey] !== undefined
+}
+
+export interface VariantEcho {
+  /** "Próxima parede" — o que a escolha vai afetar. */
+  subject: string
+  /** "Interna" — o MESMO rótulo que o usuário clicou no menu (H6: ele
+   *  reconhece em vez de lembrar). */
+  value: string
+}
+
+/**
+ * O que a barra diz sobre um eixo, a partir do VALOR CORRENTE dele — nunca de
+ * uma cópia guardada na hora do clique. A diferença importa: as mesmas
+ * preferências são editáveis pelo painel esquerdo (PropertiesPanel), e uma
+ * frase congelada no momento do clique viraria mentira no primeiro ajuste feito
+ * por fora. Lendo o valor de agora, a frase ou está certa ou some.
+ *
+ * `null` quando o eixo não tem frase (`drawShape`) ou quando o valor não bate
+ * com opção nenhuma do catálogo — caso real: `polygonSides` aceita 3 a 12 pelo
+ * slider do painel e o menu só oferece 7 presets. Preferir o silêncio a
+ * inventar rótulo para 9 lados.
+ */
+export function variantEcho(storeKey: ToolVariantStoreKey, value: unknown): VariantEcho | null {
+  const subject = VARIANT_ECHO_SUBJECT[storeKey]
+  if (!subject) return null
+  const options: ToolVariantOption<unknown>[] = GROUP_BY_STORE_KEY[storeKey].options
+  const option = options.find((candidate) => candidate.value === value)
+  return option ? { subject, value: option.label } : null
+}
+
+/**
+ * A ferramenta ativa tem este eixo no menu dela? A barra usa isto para decidir
+ * se o eco sobrevive a uma troca de ferramenta: escolher "Interna" e depois
+ * ativar a Parede mantém a frase (ela ficou MAIS relevante), enquanto ir para a
+ * Luz a apaga — ali a barra volta a falar só da ferramenta ativa.
+ */
+export function toolHasVariantAxis(tool: DrawingTool, storeKey: ToolVariantStoreKey): boolean {
+  const entry = TOOL_VARIANTS[tool]
+  return entry !== undefined && entry.available && entry.groups.some((group) => group.storeKey === storeKey)
+}

@@ -15,6 +15,18 @@ import {
   type Corner, type ResizeModifiers,
 } from './objectTransform'
 
+/**
+ * Minimapa do Resident Evil: mapa novo nasce sem grade. Mapa salvo continua com
+ * o `showGrid` dele (arquivo sem o campo abre com grade, mapFile.ts).
+ *
+ * Exportada porque a tela de criação (screens/NewDungeonMap.tsx) precisa do
+ * MESMO valor para o interruptor "Mostrar grade" nascer no estado em que o mapa
+ * nasce. Repetir o literal lá seria um segundo lugar onde a tela e o mapa podem
+ * divergir sem ninguém perceber — foi exatamente assim que a prévia passou a
+ * prometer uma grade que o editor não desenhava.
+ */
+export const NEW_MAP_SHOW_GRID = false
+
 export function createEmptyMap(id: string, name: string, width: number, height: number, grid: number): MapData {
   return {
     id,
@@ -23,9 +35,7 @@ export function createEmptyMap(id: string, name: string, width: number, height: 
     height,
     grid,
     gridShape: 'square',
-    // Minimapa do Resident Evil: mapa novo nasce sem grade. Mapa salvo continua
-    // com o `showGrid` dele (arquivo sem o campo abre com grade, mapFile.ts).
-    showGrid: false,
+    showGrid: NEW_MAP_SHOW_GRID,
     // Grade do mapa novo quando o usuário ligar: preto translúcido aparece
     // sobre o chão marrom e sobre o fundo escuro (a grade de fora do piso usa
     // outra cor no PixiCanvas). Diverge DE PROPÓSITO do default que

@@ -3,7 +3,7 @@ import type { DoorKind, FloorPiece, FreehandTexture, Region, Wall } from '../typ
 import type { DrawingTool } from '../types/tools'
 import type { StairSizePreset } from '../lib/stairs'
 import type { FloorShapeKind } from '../lib/floorTool'
-import type { ToolVariantGroup, ToolVariantOption } from '../lib/toolVariants'
+import type { ToolVariantGroup, ToolVariantOption, ToolVariantStoreKey } from '../lib/toolVariants'
 
 /**
  * Binding de valor/ação por eixo de variante (`ToolVariantGroup['storeKey']`)
@@ -41,6 +41,22 @@ export interface ToolVariantBindings {
   drawShape: { value: DrawingTool; onChange: (value: DrawingTool) => void }
 }
 
+/**
+ * Valor corrente de UM eixo, lido pelo `storeKey` e já normalizado
+ * (`wallKind === undefined` conta como 'exterior', mesma convenção de
+ * `types/map.ts` aplicada em `GroupOptions` abaixo).
+ *
+ * Existe para a `Toolbar` poder ECOAR a escolha na tela sem repetir o switch
+ * de bindings, e o retorno é `unknown` de propósito: quem chama compara o valor
+ * com as opções do catálogo (`variantEcho`, em lib/toolVariants.ts), não faz
+ * conta com ele. Só leitura — escrever continua sendo pelo `onChange` do eixo,
+ * que é onde os tipos estreitos moram.
+ */
+export function readVariantValue(bindings: ToolVariantBindings, storeKey: ToolVariantStoreKey): unknown {
+  if (storeKey === 'wallKind') return bindings.wallKind.value ?? 'exterior'
+  return bindings[storeKey].value
+}
+
 export interface ToolVariantMenuProps {
   /** Nome do botão dono do menu: o grupo se chama `Opções de <title>`. */
   title: string
@@ -50,6 +66,17 @@ export interface ToolVariantMenuProps {
    *  (selecionar fecha, mesmo comportamento de um <select> nativo). O
    *  chamador (Toolbar) também usa isto para devolver o foco à setinha. */
   onClose: () => void
+  /**
+   * Avisa QUAL eixo o usuário acabou de escolher — chamado depois do `onChange`
+   * do eixo e antes de fechar. Só o eixo: o valor o chamador já lê da store
+   * (`readVariantValue`), e é de lá que ele tem de ler para a tela mostrar o
+   * estado de agora em vez da lembrança de um clique.
+   *
+   * Por que o menu não mostra a confirmação sozinho: ele FECHA na escolha, e
+   * uma confirmação que some junto com quem a disparou não confirma nada. Quem
+   * fica na tela é a barra — então a barra é que fala.
+   */
+  onChoose?: (storeKey: ToolVariantStoreKey) => void
   /** Ícone de cada opção do grupo Forma (`drawShape`). Os outros grupos não têm ícone. */
   iconFor?: (tool: DrawingTool) => ReactNode
 }
@@ -192,7 +219,7 @@ function GroupOptions({
  * clique OU teclado de graça: a setinha é um `<button>` nativo, e Enter/Space
  * nele já disparam `onClick` sem nenhum código extra aqui.
  */
-export function ToolVariantMenu({ title, groups, bindings, onClose, iconFor }: ToolVariantMenuProps) {
+export function ToolVariantMenu({ title, groups, bindings, onClose, onChoose, iconFor }: ToolVariantMenuProps) {
   const rootRef = useRef<HTMLDivElement>(null)
 
   // Foco entra no popover ao abrir — Tab a partir daqui já alcança a
@@ -220,7 +247,15 @@ export function ToolVariantMenu({ title, groups, bindings, onClose, iconFor }: T
         <div className="lb-toolvariant-menu__group" key={group.storeKey}>
           <h3 className="lb-eyebrow">{group.label}</h3>
           <div className="lb-toolvariant-menu__options" role="radiogroup" aria-label={group.label}>
-            <GroupOptions group={group} bindings={bindings} onPicked={onClose} iconFor={iconFor} />
+            <GroupOptions
+              group={group}
+              bindings={bindings}
+              onPicked={() => {
+                onChoose?.(group.storeKey)
+                onClose()
+              }}
+              iconFor={iconFor}
+            />
           </div>
         </div>
       ))}
