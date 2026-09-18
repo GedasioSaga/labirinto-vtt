@@ -1018,3 +1018,51 @@ Para cada bug da lista A, na ordem que o usuário escolher:
   de união, e elas só ficam verdes **depois** do conserto, então nenhuma peça passava — nem a do
   próprio portão); e a etapa final não usou comparação cega A/B, fechou por `SEM_COMPARACAO`, com a
   jornada e o portão como prova.
+
+---
+
+## Objetivo
+Entregar as quatro melhorias do pedido de 18/09/2026 (teto de construção, acervo de tokens prontos,
+travar movimentação de Sala/Região, pino arrastável com cartão à direita), cada uma com jornada de
+usuário selada no portão.
+
+## Estado atual (18/09/2026, noite)
+- **Branches.** `auto/acervo` (peça do cliente) em cima de `auto/portao-acervo` (peça do juiz).
+  `auto/base-acervo` é o ponteiro congelado em `29e0e19`. Nada foi enviado ao GitHub.
+- **As quatro entregas estão feitas.** Teto `34406f8`; travar `0f4ac20`; pino `482fe5e`; acervo
+  `b2df68d` + correções da varredura em `4909d49`.
+- **Acervo de tokens** (`client/src/lib/tokenLibrary.ts`, `client/src/stores/tokenLibraryStore.ts`,
+  `client/src/components/TokenLibraryPanel.tsx`): índice em `appDataDir()/tokens/acervo.json`,
+  imagens ao lado, painel no fim do inspetor, "Salvar no acervo" na seção Imagem do token.
+- **Dois defeitos fora do acervo, consertados de passagem:** o campo "Nome do novo token" grudava o
+  nome digitado no sugerido ("Token 1Goblin"), e `pararDeOuvir` em `client/src/App.tsx` impede que a
+  limpeza de listener do Tauri derrube a tela.
+
+## Próximos passos
+1. Gerar o exe e o usuário testar o acervo no app de verdade (o e2e usa disco do Tauri falsificado).
+2. Decidir a dívida da grade: `NEW_MAP_SHOW_GRID = false` (`client/src/lib/mapFactory.ts:30`) contra
+   `task-jornada-ferramentas-mudas.spec.ts`, que cobra grade ligada no mapa novo. Um dos dois muda.
+3. Jornada nova para o mapeamento item→arquivo do acervo: a atual não testemunha isso porque o stub
+   devolve a mesma foto para qualquer caminho com `token_` (achado da varredura, não consertado).
+4. Achado `SEM_REFUTACAO` da varredura em `docs/varredura-2026-09-18.md` — 10 ficaram fora do cap.
+
+## Critério de pronto
+- `node scripts/portao.cjs --prova` com `jornadas-do-criterio` VERDE e nenhum passo vermelho novo em
+  relação à base medida (`auto/base-acervo`).
+- A jornada `client/e2e/task-jornada-acervo-de-tokens.spec.ts` 3/3.
+- `client/src/lib/tokenLibrary.test.ts` verde e com prova de mutação registrada.
+
+## Evidência
+- `node scripts/portao.cjs --prova` (18/09, noite): VERDE em tipos-src, unidade, rust-clippy,
+  rust-test, servidor-limpo, particao, rust-intocado, jornadas-intactas (33 seladas), disco,
+  estilo-minimapa, jornada-vista-movel, **jornadas-do-criterio** e jornada-fluidez. 1 vermelho:
+  `jornadas-da-bar`, no teste 3 de `task-jornada-pincel-balde-caminhos.spec.ts` ("canvas sem bounding
+  box").
+- **Esse vermelho foi medido na base**: `git stash push -u -- client/` + `--so=jornadas-da-bar` →
+  mesma falha, mesmo teste, `1 failed / 15 passed`. Não é regressão destas mudanças.
+- `npx playwright test e2e/task-jornada-acervo-de-tokens.spec.ts` → `PASS (3) FAIL (0)`.
+- `npx vitest run` → `PASS (2348) FAIL (0)` (eram 2326 antes dos testes do acervo).
+- Prova de mutação em `client/src/lib/tokenLibrary.ts`: com `exigirLeitura` neutralizado e
+  `trazerDoAcervo` lendo `arquivo` no lugar de `caminho` → `PASS (18) FAIL (4)`, nomeando os quatro.
+- Varredura (`docs/varredura-2026-09-18.md`): 9 confirmados, banca de 1 refutador; o principal com
+  repro executado (20 itens → 0 no disco falso).
