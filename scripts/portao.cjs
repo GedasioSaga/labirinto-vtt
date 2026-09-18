@@ -873,22 +873,68 @@ function guardaJornadasIntactas(selo, textos, esperadas, hashesDaBase) {
  * migração", o vocabulário que o arquivo já usa). Campo novo em silêncio é
  * mapa antigo abrindo diferente do que a pessoa salvou.
  *
- * 18/09/2026, Fase 0 do run do teto: a guarda escapava por FORMATAÇÃO. O
- * padrão anterior era `/^\s{2,}([a-zA-Z_][\w]*)\?:/`, então `readonly roof?:`
- * (o modificador na frente), `\troof?:` (um tab só é UM caractere de espaço,
- * não dois) e `roof ?:` (espaço antes da interrogação) passavam sem ser vistos
- * — e quem escreve o campo escolhe como formatar. Agora: um espaço em branco
- * basta, `readonly` é absorvido, e a interrogação pode vir separada. Linha de
- * comentário continua fora porque `*` e `/` não abrem identificador.
+ * 18/09/2026, Fase 0 do run do teto: a guarda escapava por FORMATAÇÃO, e quem
+ * escreve o campo é quem escolhe como formatar — então a guarda não pode
+ * depender disso. Seis escapes medidos e fechados, em duas levas:
+ *   `readonly roof?:`  o modificador na frente
+ *   `\troof?:`         um tab é UM caractere, e o padrão exigia dois
+ *   `roof ?:`          espaço antes da interrogação
+ *   `roof?:` na coluna 0
+ *   `type X = { roof?: boolean }`  tudo numa linha só
+ *   `"roof"?:`         chave entre aspas
+ *
+ * Por isso a busca deixou de ser ancorada no começo da linha: o campo é
+ * procurado depois de `{`, `;` ou `,` também, que é onde ele aparece num
+ * literal de uma linha. Em troca, o comentário precisa ser tirado ANTES (antes
+ * bastava o `*` não abrir identificador) — senão `* roof?: number` num bloco de
+ * documentação viraria campo. A isenção continua lida no texto ORIGINAL: ela
+ * mora justamente no comentário.
  */
+const CAMPO_OPCIONAL = /(?:^|[{;,])\s*(?:readonly\s+)?["']?([A-Za-z_]\w*)["']?\s*\?\s*:/g
+
+/**
+ * A linha sem comentário — só o código. `bloco` entra e sai dizendo se estamos
+ * dentro de um `/* ... *\/` aberto numa linha anterior.
+ */
+function semComentario(linha, blocoAberto) {
+  let codigo = ''
+  let bloco = blocoAberto
+  let i = 0
+  while (i < linha.length) {
+    if (bloco) {
+      const fim = linha.indexOf('*/', i)
+      if (fim === -1) return { codigo, bloco: true }
+      i = fim + 2
+      bloco = false
+      continue
+    }
+    if (linha.startsWith('//', i)) return { codigo, bloco: false }
+    if (linha.startsWith('/*', i)) {
+      bloco = true
+      i += 2
+      continue
+    }
+    codigo += linha[i]
+    i += 1
+  }
+  return { codigo, bloco }
+}
+
 function camposOpcionais(textoDeTipos) {
   const campos = []
   const linhas = textoDeTipos.split('\n')
+  let bloco = false
   for (let i = 0; i < linhas.length; i++) {
-    const achado = /^\s+(?:readonly\s+)?([a-zA-Z_][\w]*)\s*\?\s*:/.exec(linhas[i])
-    if (!achado) continue
+    const limpa = semComentario(linhas[i], bloco)
+    bloco = limpa.bloco
+    CAMPO_OPCIONAL.lastIndex = 0
     const contexto = linhas.slice(Math.max(0, i - 14), i + 1).join('\n')
-    campos.push({ nome: achado[1], isento: /undefined\s*===|sem linha de migração/i.test(contexto) })
+    const isento = /undefined\s*===|sem linha de migração/i.test(contexto)
+    let achado = CAMPO_OPCIONAL.exec(limpa.codigo)
+    while (achado !== null) {
+      campos.push({ nome: achado[1], isento })
+      achado = CAMPO_OPCIONAL.exec(limpa.codigo)
+    }
   }
   return campos
 }
@@ -1118,6 +1164,19 @@ function pecaMoveABase(manifesto, chave) {
   const pecas = (manifesto && manifesto.pecas) || {}
   const lista = Array.isArray(pecas[chave]) ? pecas[chave] : []
   return lista.some((p) => casaCom(MANIFESTO_NO_REPO, p))
+}
+
+/**
+ * Uma peça do manifesto que NÃO pode reescrevê-lo — ou seja, das medidas por
+ * `base`."ramo". Existe para o autoteste, que precisa de um nome de peça REAL e
+ * não pode carregar um literal: em 18/09/2026 o fixture dizia
+ * `menu-cabe-na-janela`, a rodada seguinte apagou essa peça do manifesto e o
+ * autoteste saiu vermelho por fixture velho — tirando do orquestrador o direito
+ * de usar o exit code dele como portão.
+ */
+function pecaDeClienteDoManifesto(manifesto) {
+  const pecas = (manifesto && manifesto.pecas) || {}
+  return Object.keys(pecas).find((chave) => !pecaMoveABase(manifesto, chave)) || null
 }
 
 /** Qual dos dois ponteiros julga ESTA peça, e por quê (a frase sai no relatório). */
@@ -2759,6 +2818,43 @@ function rodarAutoteste() {
       guardaCamposNovosMigrados('interface Wall {\n  id: string\n}', 'interface Wall {\n  id: string\n  /* espessuraNova?: number ficou para depois */\n}', 'return { id: parsed.id }'),
       true,
     ],
+    // Segunda leva de escapes, achada pela RE-auditoria de 18/09/2026: a busca
+    // ancorada no começo da linha não via campo na coluna 0, nem campo dentro de
+    // um literal escrito numa linha só, nem chave entre aspas.
+    [
+      'g13 reprova campo novo na coluna 0',
+      guardaCamposNovosMigrados('interface Wall {\n  id: string\n}', 'interface Wall {\n  id: string\nespessuraNova?: number\n}', 'return { id: parsed.id }'),
+      false,
+    ],
+    [
+      'g13 reprova campo novo em literal de uma linha só',
+      guardaCamposNovosMigrados('type Wall = { id: string }', 'type Wall = { id: string, espessuraNova?: number }', 'return { id: parsed.id }'),
+      false,
+    ],
+    [
+      'g13 reprova campo novo com a chave entre aspas',
+      guardaCamposNovosMigrados('interface Wall {\n  id: string\n}', 'interface Wall {\n  id: string\n  "espessuraNova"?: number\n}', 'return { id: parsed.id }'),
+      false,
+    ],
+    [
+      'g13 reprova a combinação: tab, readonly e interrogação solta',
+      guardaCamposNovosMigrados('interface Wall {\n\tid: string\n}', 'interface Wall {\n\tid: string\n\treadonly  espessuraNova  ?:  number\n}', 'return { id: parsed.id }'),
+      false,
+    ],
+    [
+      'g13 não confunde bloco de documentação de várias linhas com campo',
+      guardaCamposNovosMigrados(
+        'interface Wall {\n  id: string\n}',
+        'interface Wall {\n  id: string\n  /**\n   * espessuraNova?: number ficou para a próxima rodada.\n   */\n}',
+        'return { id: parsed.id }',
+      ),
+      true,
+    ],
+    [
+      'g13 não confunde comentário de fim de linha com campo',
+      guardaCamposNovosMigrados('interface Wall {\n  id: string\n}', 'interface Wall {\n  id: string // espessuraNova?: number fica para depois\n}', 'return { id: parsed.id }'),
+      true,
+    ],
     [
       'g14 reprova peça que escreve fora da lista dela',
       guardaParticao({ arquivos: ['client/src/App.tsx'], manifesto: { pecas: { portao: ['scripts/portao.cjs'] } }, peca: 'portao' }),
@@ -2999,7 +3095,15 @@ function rodarAutoteste() {
       true,
     ],
     provaDeBase('g20 no manifesto real: a peça do portão cai na base imutável', manifestoReal(), 'portao', (manifestoReal().base || {}).origem || null),
-    provaDeBase('g20 no manifesto real: a peça do menu cai na base das peças', manifestoReal(), 'menu-cabe-na-janela', (manifestoReal().base || {}).ramo || null),
+    // O nome da peça de cliente sai do MANIFESTO REAL, nunca digitado aqui: ver
+    // `pecaDeClienteDoManifesto`. Fixture com nome literal morre na rodada que
+    // troca as peças, e o vermelho parece defeito de guarda quando é só idade.
+    provaDeBase(
+      'g20 no manifesto real: uma peça de cliente cai na base das peças',
+      manifestoReal(),
+      pecaDeClienteDoManifesto(manifestoReal()),
+      (manifestoReal().base || {}).ramo || null,
+    ),
     // g19 — a lista do comando 15. O que não entra na linha de comando não sai
     // no relatório nem como vermelho nem como skipped: sai como nada.
     // g25 — a regressão dos alvos desta rodada só protege alguma coisa se
