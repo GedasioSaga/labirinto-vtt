@@ -446,3 +446,45 @@ Mapa dos prints:
    trava.
 4. Pino: mover depois de colocado; painel do pino abre no lado direito, não no meio da tela; e o
    jogador ganha um cantinho no lado direito para ver essas coisas.
+
+### Estado das quatro entregas (18/09/2026, noite)
+
+Todas as quatro estão na branch `auto/acervo` (que descende de `auto/teto`), com jornada de usuário
+selada no portão para cada uma:
+
+| # | Entrega | Commit | Jornada que prova |
+|---|---|---|---|
+| 1 | Teto de construção | `34406f8` | `task-jornada-teto-de-construcao.spec.ts` |
+| 3 | Travar Sala/Região | `0f4ac20` | `task-jornada-item-travado.spec.ts` |
+| 4 | Pino arrastável + cartão na direita | `482fe5e` | `task-jornada-pino-move-e-cartao-direita.spec.ts` |
+| 2 | Acervo de tokens prontos | `d805cc2` | `task-jornada-acervo-de-tokens.spec.ts` |
+
+A entrega 2 ficou por último porque o módulo de disco (`client/src/lib/tokenLibrary.ts`) e a jornada
+tinham sido escritos na rodada da tarde e nunca ligados a tela nenhuma — o que faltava era a UI e a
+fiação.
+
+**Dívida herdada medida nesta noite (não é regressão destas entregas — as duas falham igual na base,
+sem as mudanças):**
+- `task-jornada-ferramentas-mudas.spec.ts`: "mapa recém-criado com grade quadrada já abre mostrando a
+  grade" falha porque `NEW_MAP_SHOW_GRID = false` (`client/src/lib/mapFactory.ts:30`) — decisão de
+  visual posterior à jornada. Ou a decisão volta atrás, ou a jornada é reescrita; é chamada do
+  usuário.
+- `task-jornada-pincel-balde-caminhos.spec.ts` teste 3: "canvas sem bounding box" quando roda dentro
+  do portão (passa sozinha). Instabilidade do passo `jornadas-da-bar`, pré-existente.
+
+### Varredura da noite (18/09/2026) sobre o acervo
+
+Relatório: `docs/varredura-2026-09-18.md`. 4 lentes + 1 refutador (modo `curta`, banca de 1 voz),
+9 achados confirmados. Consertados no commit `4909d49`:
+
+1. **Perda do acervo inteiro** (repro executado): leitura do `acervo.json` que falhasse por I/O
+   virava "acervo vazio", e o salvar/apagar seguinte regravava por cima — 20 NPCs viravam 0, calados.
+2. Caminho absoluto no índice: copiar a pasta do acervo para outro PC deixava a estante sem foto.
+3. "Colocar no mapa" gastava dois Ctrl+Z, e o Ctrl+Z no meio da cópia matava o Refazer.
+4. Token sem `name` estourava com a imagem já gravada, deixando foto órfã.
+
+**Ficou registrado e NÃO consertado** (é chamada sua): a jornada do acervo prova a foto com uma
+imagem que o próprio disco falso devolve (`convertFileSrc` do stub responde a mesma foto para
+qualquer caminho com `token_`), então ela não testemunha o mapeamento item→arquivo. Os 22 testes de
+unidade novos cobrem esse mapeamento; fechar o buraco na jornada pede uma jornada nova, e a atual
+está selada.
