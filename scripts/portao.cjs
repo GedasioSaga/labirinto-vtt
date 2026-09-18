@@ -154,7 +154,14 @@ function portaDaArvore() {
   const n = Number(String(r.stdout || '').trim())
   return Number.isFinite(n) && n > 0 ? n : 1420
 }
-const URL_EDITOR = process.env.PORTAO_URL_EDITOR || 'http://localhost:' + portaDaArvore() + '/'
+/**
+ * A porta que as JORNADAS vão usar — a mesma que `playwright.config.ts` lê de
+ * `client/porta.js`. Guardada num const próprio porque o passo `servidor-limpo`
+ * precisa comparar a porta que ele SONDOU com esta: sonda numa porta e jornada
+ * em outra é verde sobre servidor que ninguém vai abrir (ver `guardaPortaDaSonda`).
+ */
+const PORTA_DAS_JORNADAS = portaDaArvore()
+const URL_EDITOR = process.env.PORTAO_URL_EDITOR || 'http://localhost:' + PORTA_DAS_JORNADAS + '/'
 /** Os módulos que os specs importam dentro de `page.evaluate` — os que podem virar instância dupla. */
 const MODULOS_DE_SPEC = ['/src/stores/mapStore.ts', '/src/lib/mapFactory.ts']
 
@@ -213,6 +220,17 @@ const JORNADAS_DA_BAR = [
 ]
 /** Tudo que a FASE 0 audita arquivo a arquivo — a de fluidez inclusive. */
 const TODAS_JORNADAS_E2E = JORNADAS_E2E.concat([JORNADA_FLUIDEZ, JORNADA_ESTILO, JORNADA_VISTA_MOVEL], JORNADAS_DA_BAR)
+/**
+ * As jornadas que o selo PROTEGE (Invariante 6). Eram só as 9 da bar: fluidez,
+ * estilo, vista-móvel e as 7 já entregues ficavam sem hash nenhum — e são
+ * exatamente as réguas que uma peça tem motivo para afrouxar quando o conserto
+ * dela quebra uma entrega antiga. Agora são as 19 jornadas e2e.
+ *
+ * Quem não estiver no `portao-selo.json` não fica sem juiz: `guardaJornadasIntactas`
+ * compara essa jornada com o conteúdo dela no COMMIT BASE do run (as 19 são
+ * rastreadas pelo git). Sem selo E sem base é vermelho, nunca silêncio.
+ */
+const JORNADAS_SELADAS = TODAS_JORNADAS_E2E
 const JORNADAS_UNIDADE = [
   'src/lib/mapFile.persistencia.test.ts',
   'src/lib/mapFileIO.persistencia.test.ts',
@@ -435,7 +453,7 @@ function guardaOrdemDoPlano(plano) {
  * jornada e o portão nem piscava. O selo guarda o hash de cada uma no começo
  * do run (`--selar`), e esta guarda compara.
  */
-function guardaJornadasIntactas(selo, textos) {
+function guardaJornadasIntactas(selo, textos, esperadas, hashesDaBase) {
   if (!selo || !selo.jornadas) {
     return reprova('g12-jornadas-intactas', 'sem selo: rode `node scripts/portao.cjs --selar` ANTES dos builders', 'scripts/portao-selo.json')
   }
@@ -448,8 +466,36 @@ function guardaJornadasIntactas(selo, textos) {
     }
     if (sha256(texto) !== selo.jornadas[arquivo]) problemas.push(arquivo + ' MUDOU depois do selo')
   }
+  // O selo escrito antes desta rodada cobria 9 das 19 jornadas. As outras 10
+  // não ficam sem juiz por causa disso: elas são rastreadas pelo git, então o
+  // conteúdo delas no COMMIT BASE do run é um hash tão bom quanto o do selo.
+  // Jornada sem selo E sem base é a única sem juiz — e essa é VERMELHA.
+  const base = hashesDaBase || {}
+  const porBase = []
+  const semJuiz = []
+  for (const arquivo of esperadas || []) {
+    if (Object.prototype.hasOwnProperty.call(selo.jornadas, arquivo)) continue
+    const texto = textos[arquivo]
+    if (texto === undefined) {
+      problemas.push(arquivo + ' declarada e ausente da árvore')
+      continue
+    }
+    if (!Object.prototype.hasOwnProperty.call(base, arquivo)) {
+      semJuiz.push(arquivo)
+      continue
+    }
+    porBase.push(arquivo)
+    if (sha256(texto) !== base[arquivo]) problemas.push(arquivo + ' MUDOU desde a base do run (fora do selo)')
+  }
+  if (semJuiz.length > 0) {
+    problemas.push('sem selo E sem conteúdo no commit base — nenhum juiz: ' + semJuiz.join(', ') + '. Rode `node scripts/portao.cjs --selar`.')
+  }
   if (problemas.length > 0) return reprova('g12-jornadas-intactas', problemas.join('; '), 'client/e2e')
-  return ok('g12-jornadas-intactas', Object.keys(selo.jornadas).length + ' jornada(s) da bar com o hash do selo')
+  return ok(
+    'g12-jornadas-intactas',
+    Object.keys(selo.jornadas).length + ' jornada(s) com o hash do selo' +
+      (porBase.length > 0 ? ' + ' + porBase.length + ' conferida(s) contra o commit base do run' : ''),
+  )
 }
 
 /**
@@ -540,7 +586,13 @@ function guardaParticao(entrada) {
   const peca = entrada.peca || null
   const pecas = manifesto.pecas || {}
   const livres = manifesto.livres || []
+  const alvos = manifesto.alvos || {}
   const donosDe = (arquivo) => Object.keys(pecas).filter((nome) => (pecas[nome] || []).some((p) => casaCom(arquivo, p)))
+  // `Array.isArray` e não `|| []`: o manifesto é documentado em campos `_...`
+  // de texto, e um deles caindo aqui dentro derrubaria o portão com TypeError
+  // em vez de julgar.
+  const listaDeAlvos = (nome) => (Array.isArray(alvos[nome]) ? alvos[nome] : [])
+  const donoDoAlvo = (arquivo) => Object.keys(alvos).filter((nome) => listaDeAlvos(nome).some((p) => casaCom(arquivo, p)))
 
   if (peca !== null) {
     const chave = pecaDeclarada(pecas, manifesto.apelidos, peca)
@@ -562,7 +614,34 @@ function guardaParticao(entrada) {
         'scripts/portao-particao.json ("pecas"."' + chave + '")',
       )
     }
-    return ok('g14-particao', 'peça `' + chave + '`: ' + arquivos.length + ' arquivo(s) mudado(s), todos na lista dela')
+    // ÁREA declarada não é o mesmo que ARQUIVO ALVO. Nesta rodada as três peças
+    // de cliente declaram a MESMA área (`client/src/**`), então a checagem acima
+    // aprovava a peça do menu editando o arquivo que a peça da camada existe
+    // para consertar: em ramos separados ninguém apaga ninguém na hora, mas o
+    // merge do usuário resolve o conflito escolhendo UM dos dois — e o conserto
+    // perdido some sem erro. `alvos` declara o arquivo que é EXCLUSIVO de cada
+    // peça (o endereço da causa, citado na jornada dela); escrever no alvo de
+    // outra peça é vermelho com nome e dono.
+    const meuAlvo = (a) => listaDeAlvos(chave).some((p) => casaCom(a, p))
+    const alheios = arquivos.filter((a) => !meuAlvo(a) && donoDoAlvo(a).some((n) => n !== chave))
+    if (alheios.length > 0) {
+      return reprova(
+        'g14-particao',
+        'a peça `' + chave + '` escreveu no arquivo ALVO de outra peça: ' +
+          alheios.map((a) => a + ' [alvo de ' + donoDoAlvo(a).filter((n) => n !== chave).join(' e ') + ']').join('; ') +
+          '. Em ramos separados isso não dá erro — o merge é que escolhe um dos dois consertos e perde o outro.',
+        'scripts/portao-particao.json ("alvos")',
+      )
+    }
+    // Arquivo que DUAS peças podem legitimamente tocar (PixiCanvas.tsx, nesta
+    // rodada) continua permitido: sai nomeado no verde, para quem for juntar as
+    // branches saber onde olhar antes de aceitar um dos lados.
+    const compartilhados = arquivos.filter((a) => !meuAlvo(a) && donosDe(a).length > 1)
+    return ok(
+      'g14-particao',
+      'peça `' + chave + '`: ' + arquivos.length + ' arquivo(s) mudado(s), todos na lista dela e nenhum no alvo de outra' +
+        (compartilhados.length > 0 ? '\nATENÇÃO AO MERGE — arquivo em área que outra peça também declara: ' + compartilhados.join(', ') : ''),
+    )
   }
 
   const problemas = []
@@ -620,15 +699,29 @@ function arquivosMudados(porcelain, diff) {
  * ("base".ramo) — o ponto de onde toda peça saiu. Sem ela não existe "o que
  * esta peça commitou", e o portão prefere ficar VERMELHO a medir o vazio.
  *
- * A última cláusula é a que fecha a porta dos fundos: se a base resolver para o
- * próprio HEAD de uma peça, o diff sai vazio por construção e tudo o que a peça
- * commitou escapa. Isso é reprovado com endereço, não silenciado.
+ * A última cláusula é a que fecha a porta dos fundos: se a base ANDAR junto com
+ * a peça — isto é, se o que o manifesto declara como base for o próprio ramo em
+ * que ela commita —, o diff sai vazio por construção e tudo o que ela commitou
+ * escapa. Isso é reprovado com endereço, não silenciado.
+ *
+ * 18/09/2026 — o que estava ERRADO aqui. A cláusula comparava SHA: `base ===
+ * cabeça` era vermelho. Mas esse é exatamente o estado normal de toda peça
+ * ANTES do primeiro commit dela: o ponteiro congelado `auto/base-noite` aponta
+ * para o mesmo commit em que a peça começou, e `merge-base` devolve o próprio
+ * HEAD. Resultado medido nesta máquina: `particao` e `rust-intocado` saíam
+ * VERMELHOS com "SEM JUIZ" enquanto a peça só tivesse trabalho na árvore suja —
+ * dois dos 15 comandos do portão sem medir nada, e vermelho que não é do
+ * builder. O que importa não é o SHA coincidir hoje: é a base ser um ponteiro
+ * que a peça EMPURRA quando commita. Por isso agora a comparação é de NOME de
+ * ramo, e a coincidência de SHA sai como nota no verde ("ainda sem commit
+ * próprio"), com a árvore suja medida normalmente.
  */
 function guardaBaseDoRun(entrada) {
   const ref = entrada.ref || null
   const base = entrada.base || null
   const cabeca = entrada.cabeca || null
   const peca = entrada.peca || null
+  const ramo = entrada.ramo || (peca !== null ? 'auto/' + peca : null)
   if (!ref) {
     return reprova(
       'g17-base-do-run',
@@ -644,15 +737,40 @@ function guardaBaseDoRun(entrada) {
       'scripts/portao-particao.json ("base"."ramo")',
     )
   }
-  if (peca !== null && cabeca !== null && base === cabeca) {
+  if (ramo !== null && baseAndaComOramo(ref, ramo)) {
     return reprova(
       'g17-base-do-run',
-      'a base `' + ref + '` resolve para o próprio HEAD da peça `' + peca + '`: o diff sairia vazio por construção e tudo o que ela ' +
-        'commitou escaparia das Invariantes 5 e 9. A base tem de ser o ponto de onde as peças SAÍRAM.',
+      'a base declarada `' + ref + '` é o PRÓPRIO ramo em que a peça `' + (peca || '?') + '` commita: ela avança a cada commit, o diff ' +
+        'sai vazio por construção e tudo o que a peça commitar escapa das Invariantes 5 e 9. A base tem de ser um ponteiro CONGELADO, ' +
+        'no ponto de onde as peças saíram.',
       'scripts/portao-particao.json ("base"."ramo")',
     )
   }
+  if (cabeca !== null && base === cabeca) {
+    // Não é buraco: é a peça que ainda não commitou. A base é um ponteiro de
+    // outro nome, parado no commit de partida; cada commit da peça move só o
+    // HEAD e passa a contar no diff. Enquanto isso a medida é a árvore suja —
+    // dito em voz alta, para ninguém ler este verde como "nada a declarar".
+    return ok(
+      'g17-base-do-run',
+      'base do run: ' + ref + ' = ' + String(base).slice(0, 8) + ' — a peça ainda não commitou nada (base = HEAD), ' +
+        'então esta rodada mede a árvore suja; cada commit dela entra na medida a partir daqui',
+    )
+  }
   return ok('g17-base-do-run', 'base do run: ' + ref + ' = ' + String(base).slice(0, 8))
+}
+
+/**
+ * A base declarada é o mesmo ramo em que a peça commita? Comparação por NOME,
+ * não por SHA: `refs/heads/auto/portao`, `origin/auto/portao` e `auto/portao`
+ * são o mesmo ponteiro, e `HEAD`/`@` também andam junto por definição.
+ */
+function baseAndaComOramo(ref, ramo) {
+  const limpar = (t) => String(t || '').trim().replace(/^refs\/heads\//, '').replace(/^refs\/remotes\//, '').replace(/^origin\//, '')
+  const a = limpar(ref)
+  const b = limpar(ramo)
+  if (/^(HEAD|@)$/.test(a)) return true
+  return a.length > 0 && a === b
 }
 
 /**
@@ -695,6 +813,43 @@ function guardaConfigDeServidorNovo(texto, ambiente) {
     )
   }
   return ok('g15-servidor-novo', 'reuseExistingServer: ' + valor + ' e LAB_REUSA_SERVIDOR desligado — cada invocação sobe servidor próprio')
+}
+
+/**
+ * A sonda olhou a MESMA porta que as jornadas vão usar?
+ *
+ * POR QUE ISTO EXISTE (18/09/2026). Sem servidor no ar, o passo `servidor-limpo`
+ * saía verde apoiado só no `playwright.config.ts` ("cada invocação sobe servidor
+ * novo"). Só que o endereço sondado vem de `PORTAO_URL_EDITOR`, que qualquer um
+ * pode apontar para outra porta ou outra máquina, enquanto as jornadas usam
+ * `client/porta.js` (`LAB_PORTA` = 1466 nesta noite). Com os dois divergindo, o
+ * verde é sobre um servidor que ninguém vai abrir — a prova é verdadeira e
+ * IRRELEVANTE, que é a forma mais educada de falso-verde. Aqui a prova passa a
+ * dizer de qual servidor ela fala, e diverge em vermelho.
+ */
+function guardaPortaDaSonda(url, portaDasJornadas) {
+  const achado = /^https?:\/\/([^/:]+):(\d+)(?:\/|$)/.exec(String(url || ''))
+  if (!achado) {
+    return reprova('g18-porta-da-sonda', 'endereço sondado sem host e porta explícitos: `' + url + '`', 'PORTAO_URL_EDITOR')
+  }
+  const host = achado[1]
+  const porta = Number(achado[2])
+  if (!/^(localhost|127\.0\.0\.1|\[::1\]|::1)$/i.test(host)) {
+    return reprova(
+      'g18-porta-da-sonda',
+      'a sonda olhou `' + host + '`, mas as jornadas abrem http://localhost:' + portaDasJornadas + ' — o verde seria sobre outra máquina',
+      'PORTAO_URL_EDITOR + client/porta.js',
+    )
+  }
+  if (porta !== Number(portaDasJornadas)) {
+    return reprova(
+      'g18-porta-da-sonda',
+      'a sonda olhou a porta ' + porta + ' e as jornadas vão usar a ' + portaDasJornadas +
+        ': nada do que foi medido aqui vale para o servidor que as jornadas abrem',
+      'PORTAO_URL_EDITOR + client/porta.js (LAB_PORTA)',
+    )
+  }
+  return ok('g18-porta-da-sonda', 'sonda e jornadas no mesmo endereço: localhost:' + porta)
 }
 
 /** Jornada declarada que não existe, ou que não declara teste nenhum, é invariante vazia. */
@@ -819,7 +974,7 @@ const PLANO = [
   },
   {
     id: 'jornadas-intactas',
-    titulo: 'Invariante 6: as jornadas da bar continuam com o hash do selo',
+    titulo: 'Invariante 6: as 19 jornadas continuam com o hash do selo (ou o do commit base do run)',
     sonda: sondarJornadasIntactas,
   },
   {
@@ -893,19 +1048,32 @@ function sondarJogador() {
  * passos. Devolve `{ erro }` quando não dá para medir — e quem chama fica
  * VERMELHO, porque "não consegui medir" nunca é verde (ver `arquivosMudados`).
  */
-function arquivosDoRun() {
+/**
+ * O commit de onde as peças saíram, resolvido uma vez para todos os passos que
+ * precisam comparar "antes" com "agora": `particao`, `rust-intocado`, o hash
+ * das jornadas fora do selo e a base de esquema da guarda g13.
+ */
+function baseDoRun() {
   const { ramo, peca } = pecaDaArvore()
   let manifesto = null
   try {
     manifesto = JSON.parse(fs.readFileSync(PARTICAO, 'utf8'))
   } catch (e) {
-    return { ramo, peca, manifesto: null, erro: 'sem manifesto de partição em scripts/portao-particao.json (' + e.message + ')' }
+    return { ramo, peca, manifesto: null, base: null, ref: null, erro: 'sem manifesto de partição em scripts/portao-particao.json (' + e.message + ')' }
   }
   const ref = (manifesto.base && manifesto.base.ramo) || null
   const cabeca = String(git(['rev-parse', 'HEAD']) || '').trim() || null
   const base = ref ? String(git(['merge-base', 'HEAD', ref]) || '').trim() || null : null
-  const r = guardaBaseDoRun({ ref, base, cabeca, peca })
-  if (!r.ok) return { ramo, peca, manifesto, erro: r.detalhe + (r.endereco ? '  [' + r.endereco + ']' : '') }
+  const r = guardaBaseDoRun({ ref, base, cabeca, peca, ramo })
+  if (!r.ok) return { ramo, peca, manifesto, ref, base, cabeca, erro: r.detalhe + (r.endereco ? '  [' + r.endereco + ']' : '') }
+  return { ramo, peca, manifesto, ref, base, cabeca, erro: null, nota: r.detalhe }
+}
+
+function arquivosDoRun() {
+  const medida = baseDoRun()
+  const { ramo, peca, manifesto, base } = medida
+  if (medida.erro) return { ramo, peca, manifesto, erro: medida.erro }
+  const ref = medida.ref
 
   const sujos = git(['status', '--porcelain'])
   if (sujos === null) return { ramo, peca, manifesto, erro: 'git status falhou: sem repositório?' }
@@ -979,11 +1147,29 @@ function sondarParticao() {
   })
 }
 
-/** Invariante 6 — as jornadas da bar são fixas; o selo guarda o hash delas. */
+/**
+ * O conteúdo de cada jornada NO COMMIT BASE do run, virado hash. É o juiz das
+ * jornadas que o selo desta rodada não cobriu: as 19 são rastreadas pelo git,
+ * então "como estava quando as peças saíram" é um fato do repositório, não uma
+ * lembrança. Devolve `{}` quando a base não resolve — e aí a guarda fica
+ * vermelha por falta de juiz, que é o certo.
+ */
+function hashesDaBaseDasJornadas(arquivos) {
+  const medida = baseDoRun()
+  if (medida.erro || !medida.base) return { hashes: {}, base: null, erro: medida.erro || 'base do run não resolveu' }
+  const hashes = {}
+  for (const arquivo of arquivos) {
+    const texto = git(['show', medida.base + ':client/' + arquivo])
+    if (texto !== null) hashes[arquivo] = sha256(texto)
+  }
+  return { hashes, base: medida.base, ref: medida.ref, erro: null }
+}
+
+/** Invariante 6 — as jornadas são fixas; o selo (ou a base do run) guarda o hash delas. */
 function sondarJornadasIntactas() {
   return Promise.resolve().then(() => {
     const textos = {}
-    for (const arquivo of JORNADAS_DA_BAR) {
+    for (const arquivo of JORNADAS_SELADAS) {
       const absoluto = path.join(CLIENTE, arquivo)
       if (fs.existsSync(absoluto)) textos[arquivo] = fs.readFileSync(absoluto, 'utf8')
     }
@@ -993,8 +1179,14 @@ function sondarJornadasIntactas() {
     } catch (e) {
       return { codigo: 1, saida: 'sem selo (' + e.message + '). Rode `node scripts/portao.cjs --selar` ANTES dos builders.' }
     }
-    const r = guardaJornadasIntactas(selo, textos)
-    return { codigo: r.ok ? 0 : 1, saida: r.detalhe + '\nselo de ' + (selo.selado_em || '?') }
+    const daBase = hashesDaBaseDasJornadas(JORNADAS_SELADAS)
+    const r = guardaJornadasIntactas(selo, textos, JORNADAS_SELADAS, daBase.hashes)
+    return {
+      codigo: r.ok ? 0 : 1,
+      saida:
+        r.detalhe + '\nselo de ' + (selo.selado_em || '?') +
+        '\nbase do run para as jornadas fora do selo: ' + (daBase.base ? daBase.ref + ' = ' + daBase.base.slice(0, 8) : 'NÃO RESOLVEU (' + daBase.erro + ')'),
+    }
   })
 }
 
@@ -1037,6 +1229,22 @@ function sondarDisco() {
  */
 function sondarServidorLimpo() {
   return new Promise((resolve) => {
+    // Antes de qualquer medida: de QUAL servidor ela vai falar? Medido em
+    // 18/09/2026 com `LAB_PORTA=1466` e `PORTAO_URL_EDITOR=http://localhost:1420/`
+    // — a sonda achou o vite órfão da 1420, inspecionou os módulos DELE e saiu
+    // verde, enquanto as jornadas iam abrir a 1466. Verde verdadeiro sobre o
+    // servidor errado. Esta guarda vale para os dois casos (servidor no ar e
+    // servidor ausente), por isso vem antes de subir o navegador.
+    const endereco = guardaPortaDaSonda(URL_EDITOR, PORTA_DAS_JORNADAS)
+    if (!endereco.ok) {
+      resolve({
+        codigo: 1,
+        saida:
+          'a sonda não fala do servidor das jornadas: ' + endereco.detalhe + (endereco.endereco ? '  [' + endereco.endereco + ']' : '') +
+          '\nQualquer coisa medida aqui seria sobre outro servidor — verde assim é verdadeiro e irrelevante.',
+      })
+      return
+    }
     let chromium
     try {
       chromium = require(path.join(RAIZ, 'node_modules', 'playwright')).chromium
@@ -1109,14 +1317,19 @@ function sondarServidorLimpo() {
           resolve({ codigo: 1, saida: 'nenhum servidor em ' + URL_EDITOR + ' e o playwright.config.ts não abriu (' + erro.message + '): nada foi medido' })
           return
         }
-        const prova = guardaConfigDeServidorNovo(config, process.env)
+        // `guardaPortaDaSonda` já rodou lá em cima, antes do navegador: aqui ela
+        // entra de novo só para o relatório dizer as DUAS coisas que sustentam
+        // este verde, em vez de deixar uma delas implícita.
+        const provas = [guardaPortaDaSonda(URL_EDITOR, PORTA_DAS_JORNADAS), guardaConfigDeServidorNovo(config, process.env)]
+        const ruins = provas.filter((p) => !p.ok)
         resolve({
-          codigo: prova.ok ? 0 : 1,
+          codigo: ruins.length === 0 ? 0 : 1,
           saida:
-            'nenhum servidor no ar em ' + URL_EDITOR + ': nada para inspecionar aqui.\n' +
-            (prova.ok
-              ? 'o verde vem do config, não do silêncio — ' + prova.detalhe
-              : 'e o config NÃO garante servidor novo: ' + prova.detalhe + (prova.endereco ? '  [' + prova.endereco + ']' : '')),
+            'MEDIDO: a porta ' + PORTA_DAS_JORNADAS + ' de ' + URL_EDITOR + ' recusou conexão (' + msg.split('\n')[0] + ') — ' +
+            'não há servidor algum para carregar módulo duas vezes.\n' +
+            'A pergunta que sobra é se esse fato vale para o servidor das JORNADAS. Duas provas:\n' +
+            provas.map((p) => (p.ok ? '  VERDE  ' : '  VERMELHO ') + p.id + ': ' + p.detalhe + (p.endereco ? '  [' + p.endereco + ']' : '')).join('\n') +
+            (ruins.length === 0 ? '' : '\nCom uma delas vermelha, "nenhum servidor no ar" não prova nada sobre o que as jornadas vão abrir.'),
         })
         return
       }
@@ -1223,16 +1436,29 @@ function rodarFase0() {
   } catch (e) {
     selo = null
   }
-  resultados.push(guardaJornadasIntactas(selo, textos))
+  const daBase = hashesDaBaseDasJornadas(JORNADAS_SELADAS)
+  resultados.push(guardaJornadasIntactas(selo, textos, JORNADAS_SELADAS, daBase.hashes))
 
-  // Base do esquema = o `types/map.ts` do último commit, não um arquivo selado
-  // à mão: é exatamente "o que existia antes deste run", sem ninguém precisar
-  // lembrar de carimbar nada.
-  const tiposBase = git(['show', 'HEAD:client/src/types/map.ts'])
+  // Base do esquema = o `types/map.ts` do COMMIT BASE DO RUN, não o de HEAD.
+  //
+  // Com HEAD, esta guarda se apagava sozinha: a Invariante 6 do run manda a
+  // peça COMMITAR, e o primeiro commit dela vira o novo HEAD — o campo que ela
+  // acabou de acrescentar passa a estar nos DOIS lados da comparação e a guarda
+  // aprova o que existe para reprovar. Falso-verde dentro da própria FASE 0,
+  // medido em 18/09/2026. Contra a base do run a pergunta volta a ser a certa:
+  // "o que esta peça acrescentou desde que saiu?".
+  const medidaDaBase = baseDoRun()
+  const tiposBase = medidaDaBase.base ? git(['show', medidaDaBase.base + ':client/src/types/map.ts']) : null
   const tiposAtual = fs.readFileSync(path.join(CLIENTE, 'src', 'types', 'map.ts'), 'utf8')
   const migracao = fs.readFileSync(path.join(CLIENTE, 'src', 'lib', 'mapFile.ts'), 'utf8')
   if (tiposBase === null) {
-    resultados.push(reprova('g13-campo-novo-migrado', 'git show HEAD:client/src/types/map.ts falhou — sem base de esquema para comparar', 'client/src/types/map.ts'))
+    resultados.push(
+      reprova(
+        'g13-campo-novo-migrado',
+        'sem base de esquema para comparar: ' + (medidaDaBase.erro || 'git show <base do run>:client/src/types/map.ts falhou'),
+        'client/src/types/map.ts + scripts/portao-particao.json ("base")',
+      ),
+    )
   } else {
     resultados.push(guardaCamposNovosMigrados(tiposBase, tiposAtual, migracao))
   }
@@ -1253,7 +1479,9 @@ function rodarFase0() {
 function selar() {
   const jornadas = {}
   const faltando = []
-  for (const arquivo of JORNADAS_DA_BAR) {
+  // Todas as 19, não só as 9 da bar: fluidez, estilo, vista-móvel e as 7 já
+  // entregues são réguas tão afrouxáveis quanto as da rodada.
+  for (const arquivo of JORNADAS_SELADAS) {
     const absoluto = path.join(CLIENTE, arquivo)
     if (!fs.existsSync(absoluto)) {
       faltando.push(arquivo)
@@ -1340,6 +1568,34 @@ function rodarAutoteste() {
       guardaJornadasIntactas({ jornadas: { 'e2e/j.spec.ts': sha256('original') } }, { 'e2e/j.spec.ts': 'original' }),
       true,
     ],
+    // As 10 jornadas que o selo desta rodada não cobriu: o juiz delas é o
+    // conteúdo no commit base do run. Sem selo e sem base não há juiz nenhum —
+    // e isso é vermelho, não silêncio.
+    [
+      'g12 reprova jornada fora do selo que mudou desde a base do run',
+      guardaJornadasIntactas(
+        { jornadas: {} },
+        { 'e2e/fluidez.spec.ts': 'afrouxada' },
+        ['e2e/fluidez.spec.ts'],
+        { 'e2e/fluidez.spec.ts': sha256('original') },
+      ),
+      false,
+    ],
+    [
+      'g12 reprova jornada sem selo E sem base (ninguém a julga)',
+      guardaJornadasIntactas({ jornadas: {} }, { 'e2e/fluidez.spec.ts': 'qualquer' }, ['e2e/fluidez.spec.ts'], {}),
+      false,
+    ],
+    [
+      'g12 aprova jornada fora do selo igual à base do run',
+      guardaJornadasIntactas(
+        { jornadas: {} },
+        { 'e2e/fluidez.spec.ts': 'original' },
+        ['e2e/fluidez.spec.ts'],
+        { 'e2e/fluidez.spec.ts': sha256('original') },
+      ),
+      true,
+    ],
     [
       'g13 reprova campo novo sem default nem isenção',
       guardaCamposNovosMigrados('interface Wall {\n  id: string\n}', 'interface Wall {\n  id: string\n  espessuraNova?: number\n}', 'return { id: parsed.id }'),
@@ -1412,6 +1668,42 @@ function rodarAutoteste() {
       true,
     ],
     [
+      'g14 reprova peça que escreve no arquivo ALVO de outra, mesmo dentro da área declarada',
+      guardaParticao({
+        arquivos: ['client/src/lib/selectionHitTest.ts'],
+        manifesto: {
+          pecas: { 'menu-cabe-na-janela': ['client/src/**'], 'camada-travada': ['client/src/**'] },
+          alvos: { 'camada-travada': ['client/src/lib/selectionHitTest.ts'] },
+        },
+        peca: 'menu-cabe-na-janela',
+      }),
+      false,
+    ],
+    [
+      'g14 aprova peça escrevendo no alvo DELA',
+      guardaParticao({
+        arquivos: ['client/src/lib/selectionHitTest.ts'],
+        manifesto: {
+          pecas: { 'menu-cabe-na-janela': ['client/src/**'], 'camada-travada': ['client/src/**'] },
+          alvos: { 'camada-travada': ['client/src/lib/selectionHitTest.ts'] },
+        },
+        peca: 'camada-travada',
+      }),
+      true,
+    ],
+    [
+      'g14 aprova arquivo compartilhado que não é alvo de ninguém (sai nomeado no verde)',
+      guardaParticao({
+        arquivos: ['client/src/pixi/PixiCanvas.tsx'],
+        manifesto: {
+          pecas: { 'menu-cabe-na-janela': ['client/src/**'], 'camada-travada': ['client/src/**'] },
+          alvos: { 'camada-travada': ['client/src/lib/selectionHitTest.ts'] },
+        },
+        peca: 'menu-cabe-na-janela',
+      }),
+      true,
+    ],
+    [
       'g14 aprova árvore compartilhada com dono único e arquivo livre',
       guardaParticao({ arquivos: ['x.ts', 'HANDOFF.md'], manifesto: { pecas: { a: ['x.ts'] }, livres: ['HANDOFF.md'] }, peca: null }),
       true,
@@ -1430,13 +1722,27 @@ function rodarAutoteste() {
       false,
     ],
     [
-      'g17 reprova base que é o próprio HEAD da peça (diff vazio por construção)',
-      guardaBaseDoRun({ ref: 'auto/portao', base: 'aaaa', cabeca: 'aaaa', peca: 'portao' }),
+      'g17 reprova base que é o próprio ramo da peça (diff vazio por construção)',
+      guardaBaseDoRun({ ref: 'auto/portao', base: 'aaaa', cabeca: 'aaaa', peca: 'portao', ramo: 'auto/portao' }),
       false,
     ],
     [
+      'g17 reprova o ramo da peça escrito como refs/heads/, mesmo com sha diferente do HEAD',
+      guardaBaseDoRun({ ref: 'refs/heads/auto/portao', base: 'bbbb', cabeca: 'aaaa', peca: 'portao', ramo: 'auto/portao' }),
+      false,
+    ],
+    ['g17 reprova base declarada como HEAD', guardaBaseDoRun({ ref: 'HEAD', base: 'bbbb', cabeca: 'aaaa', peca: 'portao', ramo: 'auto/portao' }), false],
+    [
       'g17 aprova base anterior ao HEAD da peça',
       guardaBaseDoRun({ ref: 'feat/consolidado-17set', base: 'bbbb', cabeca: 'aaaa', peca: 'portao' }),
+      true,
+    ],
+    // O caso que deixava `particao` e `rust-intocado` sem medir nada: ponteiro
+    // CONGELADO de outro nome, parado no commit em que a peça começou. Antes era
+    // vermelho "SEM JUIZ"; agora é verde com a árvore suja medida.
+    [
+      'g17 aprova ponteiro congelado que ainda coincide com o HEAD (peça sem commit próprio)',
+      guardaBaseDoRun({ ref: 'auto/base-noite', base: 'aaaa', cabeca: 'aaaa', peca: 'portao', ramo: 'auto/portao' }),
       true,
     ],
     provaDeMedida(
@@ -1470,6 +1776,12 @@ function rodarAutoteste() {
       guardaConfigDeServidorNovo("webServer: {\n  reuseExistingServer: process.env.LAB_REUSA_SERVIDOR === '1',\n}", {}),
       true,
     ],
+    // g18 — de qual servidor a prova de `servidor-limpo` fala. Verde verdadeiro
+    // sobre a porta errada é verde irrelevante.
+    ['g18 reprova sonda em porta diferente da das jornadas', guardaPortaDaSonda('http://localhost:1420/', 1466), false],
+    ['g18 reprova sonda em outra máquina', guardaPortaDaSonda('http://192.168.0.8:1466/', 1466), false],
+    ['g18 reprova endereço sem porta', guardaPortaDaSonda('http://localhost/', 1466), false],
+    ['g18 aprova sonda na mesma porta das jornadas', guardaPortaDaSonda('http://localhost:1466/', 1466), true],
     // g16 — o detector de falso-verde do passo de jornada, com relatório
     // sintético. É o que separa "exit 0" de "passou", e era a diferença entre o
     // passo de jornada do PLANO e o comando de Playwright CRU da lista do run.
@@ -1562,7 +1874,7 @@ async function principal() {
   if (argv.includes('--selar')) {
     const { selo, faltando } = selar()
     process.stdout.write('selo escrito em ' + SELO + '\n' + JSON.stringify(selo, null, 2) + '\n')
-    if (faltando.length > 0) process.stdout.write('\nATENÇÃO — jornada da bar ausente no selo: ' + faltando.join(', ') + '\n')
+    if (faltando.length > 0) process.stdout.write('\nATENÇÃO — jornada declarada e ausente do disco, fora do selo: ' + faltando.join(', ') + '\n')
     return faltando.length === 0 ? 0 : 1
   }
 

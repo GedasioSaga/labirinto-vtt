@@ -2,6 +2,7 @@
   "_o_que_e": "Invariante 5 — quem escreve onde. O passo `particao` de scripts/portao.cjs pergunta ao git o que mudou na árvore e confere contra o que foi declarado. Duas peças escrevendo o mesmo arquivo na MESMA árvore se sobrescrevem SEM ERRO; este manifesto é o que torna isso visível.",
   "_quem_mantem": "O ORQUESTRADOR do run, antes de disparar os builders. O portão não adivinha a partição: ele cobra que ela exista e bate a lista contra a realidade. Manifesto de OUTRA rodada não é neutro — ele reprova toda correção legítima da rodada atual, porque todo arquivo mudado sai 'sem dono declarado'. Foi o que aconteceu em 18/09/2026.",
   "_dois_modos": "O passo lê o nome do ramo. Ramo `auto/<id>` = peça isolada: o git já garante que ninguém apaga o trabalho da irmã, e a única pergunta que sobra é se ESTA peça escreveu fora do que foi declarado para ela — por isso arquivo de origem compartilhado pode aparecer na lista de mais de uma peça sem virar disputa. Ramo de integração (`feat/...`, `main`) = árvore compartilhada: aí volta a valer dono único por arquivo mudado.",
+  "_alvos": "ÁREA não é ALVO. As três peças de cliente declaram a MESMA área (`client/src/**`) porque nenhuma delas sabe de antemão todo arquivo que o conserto vai pedir — mas cada uma tem UM endereço que é a causa dela, citado na própria jornada. Sem `alvos`, `particao` aprovava a peça do menu reescrevendo o arquivo que a peça da camada existe para consertar: em ramos separados ninguém apaga ninguém na hora, e o merge do usuário resolve o conflito escolhendo um dos lados — o outro conserto some sem erro nenhum. Cada arquivo aqui é EXCLUSIVO da peça que o declara; escrever no alvo de outra é vermelho. Arquivo que duas peças podem legitimamente tocar (`client/src/pixi/PixiCanvas.tsx`, que as três jornadas apontam) fica FORA desta lista: continua permitido e sai nomeado no verde, para quem juntar as branches saber onde olhar.",
   "_padroes": "Cada entrada é um caminho exato ou um padrão: `*` dentro de um segmento, `**` atravessando pasta. Uma peça declara a ÁREA que é dela sem enumerar arquivo que ainda não escreveu. O que fica FORA de toda área é o que importa proteger: scripts/ (o juiz), client/e2e/ (as jornadas seladas) e desktop/ (o lado Rust).",
   "_rodada": "18/09/2026 — cadeado de camada ao arrastar, encerramento do traçado do Polígono, menu 'Opções de Chão'. Cada peça vive na própria branch auto/<id>; o merge é do usuário. As três jornadas da rodada (camada travada, polígono termina, menu cabe na janela) nascem VERMELHAS e são o critério de conserto: ninguém as edita — `jornadas-intactas` confere por hash.",
   "_base": "A base do run: o ponto de onde TODA peça saiu. Sem ela, `particao` e `rust-intocado` só enxergariam a árvore suja — e como a Invariante 6 manda cada peça COMMITAR na própria branch auto/<id>, a peça que termina o trabalho fica com a árvore limpa e as duas Invariantes passam a medir ZERO arquivo e sair verdes. Medido em 18/09/2026: a mesma invasão (scripts/ e desktop/src-tauri/) era VERMELHA suja e VERDE depois do commit. Com a base declarada, o portão mede `git merge-base HEAD <ramo>` até HEAD MAIS a árvore suja. Manifesto sem `base` é VERMELHO, não verde.",
@@ -23,6 +24,13 @@
     "menu-cabe-na-janela": [
       "client/src/**"
     ]
+  },
+  "_alvos_desta_rodada": "Um arquivo só entra em `alvos` quando a jornada da peça o cita como A CAUSA e nenhuma outra jornada tem motivo para tocá-lo. `poligono-termina` fica com a lista VAZIA de propósito: a causa dela (`PixiCanvas.tsx:4339`, a condição do Enter que ignora `polygonDraftPoints`) mora no mesmo arquivo que as outras duas precisam editar, e inventar exclusividade ali reprovaria conserto legítimo. `client/src/main.css` também ficou de fora: é a folha global do app, qualquer peça pode ter motivo honesto de mexer nela.",
+  "alvos": {
+    "portao": ["scripts/portao.cjs", "scripts/portao-particao.json"],
+    "camada-travada": ["client/src/lib/selectionHitTest.ts"],
+    "poligono-termina": [],
+    "menu-cabe-na-janela": ["client/src/components/ToolVariantMenu.tsx", "client/src/lib/toolVariants.ts"]
   },
   "apelidos": {
     "portao": ["gate", "fase0"],
