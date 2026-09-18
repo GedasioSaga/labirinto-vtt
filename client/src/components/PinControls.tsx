@@ -1,5 +1,6 @@
 import type { PinKind } from '../types/map'
 import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER } from '../lib/pins'
+import { Toggle } from './Toggle'
 
 export interface PinControlsProps {
   kind: PinKind
@@ -7,6 +8,9 @@ export interface PinControlsProps {
   /** `null` = nenhum pino selecionado: só o tipo do próximo aparece. */
   description: string | null
   onDescriptionChange: (description: string) => void
+  /** Pino travado não se move no arrasto — continua clicável para destravar aqui. */
+  locked: boolean
+  onLockedChange: (locked: boolean) => void
   image: string | null
   onChooseImage: () => void
   onClearImage: () => void
@@ -31,6 +35,8 @@ export function PinControls({
   onKindChange,
   description,
   onDescriptionChange,
+  locked,
+  onLockedChange,
   image,
   onChooseImage,
   onClearImage,
@@ -70,6 +76,11 @@ export function PinControls({
               onChange={(event) => onDescriptionChange(event.target.value)}
             />
           </div>
+          {/* Mesmo rótulo de `ItemTransformControls` ("Travado"), porque é a
+              mesma promessa: o item fica onde está quando alguém esbarra nele
+              arrastando. O pino não usa aquele componente porque não tem
+              rotação nem "oculto no editor" separado do resto do painel. */}
+          <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
           {/* Só o nome do arquivo, nunca o caminho inteiro: o cartão do jogador
               recebe a imagem embutida, e mostrar a pasta do mestre aqui só
               enche a coluna. Data URL não tem nome, então diz o que é. */}

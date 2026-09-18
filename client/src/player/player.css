@@ -662,9 +662,9 @@
 /* ============================================ cartão do ponto de interesse */
 
 /*
- * O toque no pino abre um cartão sobre o mapa. O fundo escuro cobre a tela
- * inteira porque ele tem DUAS funções: apagar o mapa para o olho ir ao texto,
- * e receber o "tocar fora" — sem essa camada o toque de fechar chegaria ao
+ * O toque no pino abre um cartão sobre o mapa. O fundo cobre a tela inteira
+ * porque ele tem DUAS funções: escurecer o mapa para o olho ir ao texto, e
+ * receber o "tocar fora" — sem essa camada o toque de fechar chegaria ao
  * canvas e arrastaria o mapa junto.
  */
 .pp-pincard__backdrop {
@@ -672,13 +672,19 @@
   inset: 0;
   z-index: 30;
   display: flex;
-  /* Encostado no ALTO, não centralizado: o cartão fala de um ponto que está no
-     mapa, e o mapa continua embaixo, à vista. Centralizado, ele tapava
+  /* Encostado no ALTO e à DIREITA (pedido do usuário em 18/09/2026: "ao invés
+     de aparecer no meio da tela, aparece do lado direito"). O cartão fala de um
+     ponto que está no mapa, e o mapa continua à vista: centralizado, ele tapava
      justamente a região onde o jogador acabou de tocar. */
   align-items: flex-start;
-  justify-content: center;
+  justify-content: flex-end;
   padding: 24px;
-  background: rgba(0, 0, 0, 0.62);
+  /* Véu assimétrico, não chapado: escurecer a tela inteira a 0,62 anulava o
+     ganho de encostar o cartão à direita — o mapa sumia do mesmo jeito. O
+     escuro se concentra atrás do cartão, e a metade esquerda (onde está o pino
+     que o jogador acabou de tocar) continua legível. Clique continua pegando: é
+     a mesma caixa de sempre, só com outra pintura. */
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.28) 50%, rgba(0, 0, 0, 0.62) 100%);
   animation: pp-pincard-fade 140ms ease-out;
 }
 
@@ -686,6 +692,8 @@
 .pp-pincard {
   display: flex;
   flex-direction: column;
+  /* "Um pequeno lugar" no lado direito, não meia tela: 420 px cabe a descrição
+     sem o cartão invadir o centro do mapa numa janela de 1280 px. */
   width: min(420px, 100%);
   max-height: 100%;
   overflow: auto;
@@ -696,6 +704,25 @@
   border-radius: 14px;
   box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
   animation: pp-pincard-in 160ms ease-out;
+}
+
+/*
+ * Tela estreita (celular em pé): encostar o cartão à direita numa janela de
+ * 400 px deixaria uma tira ilegível ao lado de uma faixa de mapa que também não
+ * serve para nada. Aí ele volta a ocupar a largura inteira, com respiro menor
+ * para sobrar texto, e o véu volta a ser chapado — não há "outro lado da tela"
+ * para preservar. Depois de `.pp-pincard` de propósito: mesma especificidade,
+ * quem vem por último ganha.
+ */
+@media (max-width: 699px) {
+  .pp-pincard__backdrop {
+    padding: 16px 12px;
+    background: rgba(0, 0, 0, 0.62);
+  }
+
+  .pp-pincard {
+    width: 100%;
+  }
 }
 
 /*

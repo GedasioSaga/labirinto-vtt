@@ -1557,6 +1557,10 @@ function App() {
                 selectedPin ? useMapStore.getState().updatePin(selectedPin.id, { kind }) : useMapStore.getState().setPinKind(kind),
               description: selectedPin?.description ?? null,
               onDescriptionChange: (description) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { description }),
+              // Veracidade, nunca `=== true`: `locked` é opcional no schema e
+              // pino de mapa salvo antes desta fase chega sem o campo.
+              locked: !!selectedPin?.locked,
+              onLockedChange: (locked) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { locked }),
               image: selectedPin?.image ?? null,
               onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
               onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),

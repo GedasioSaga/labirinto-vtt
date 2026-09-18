@@ -59,6 +59,10 @@ import {
   moveDrawing,
   resizeDrawingCornerLive,
   resizePropCornerLive,
+  buildPin,
+  addPin,
+  updatePin,
+  setPinPosition,
 } from './mapFactory'
 import type { MapData, Wall, Light, Region, Token, Prop, Drawing, Stair } from '../types/map'
 import { buildRoomFromDraft } from './drawingFactory'
@@ -1185,5 +1189,42 @@ describe('MapScale/MeasurementMode (F2)', () => {
   it('setMeasurementMode troca o modo', () => {
     const map = createEmptyMap('m', 'x', 10, 10, 64)
     expect(setMeasurementMode(map, 'euclidean').measurementMode).toBe('euclidean')
+  })
+})
+
+describe('Pino: mover e travar', () => {
+  function mapaComPino(): MapData {
+    return addPin(createEmptyMap('m', 'x', 10, 10, 64), buildPin('p1', { x: 100, y: 200 }, 'exclamacao'))
+  }
+
+  it('setPinPosition leva o pino para o ponto novo, sem snap', () => {
+    const next = setPinPosition(mapaComPino(), 'p1', 133, 271)
+    expect(next.pins[0]).toMatchObject({ id: 'p1', x: 133, y: 271 })
+  })
+
+  // O arrasto chama isto dezenas de vezes por gesto: sem a mesma referência de
+  // volta, cada pointermove parado acordaria um render inteiro do Pixi.
+  it('setPinPosition com a MESMA posição devolve o map pela mesma referência', () => {
+    const map = mapaComPino()
+    expect(setPinPosition(map, 'p1', 100, 200)).toBe(map)
+  })
+
+  it('setPinPosition com id inexistente devolve o map pela mesma referência', () => {
+    const map = mapaComPino()
+    expect(setPinPosition(map, 'nao-existe', 10, 10)).toBe(map)
+  })
+
+  it('updatePin liga e desliga a trava do pino', () => {
+    const travado = updatePin(mapaComPino(), 'p1', { locked: true })
+    expect(travado.pins[0].locked).toBe(true)
+    expect(updatePin(travado, 'p1', { locked: false }).pins[0].locked).toBe(false)
+  })
+
+  // `undefined` === false é o contrato do schema: destravar um pino que nunca
+  // foi travado não é mudança, e não pode empurrar uma entrada de undo vazia.
+  it('updatePin com locked: false num pino sem o campo devolve o map pela mesma referência', () => {
+    const map = mapaComPino()
+    expect(map.pins[0].locked).toBeUndefined()
+    expect(updatePin(map, 'p1', { locked: false })).toBe(map)
   })
 })

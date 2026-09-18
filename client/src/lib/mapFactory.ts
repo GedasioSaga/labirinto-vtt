@@ -1353,13 +1353,38 @@ export function addPin(map: MapData, pin: Pin): MapData {
   return { ...map, pins: [...map.pins, pin] }
 }
 
-/** Tipo, descrição e imagem do pino. Id inexistente ou nada mudando devolve o mesmo `map`. */
-export function updatePin(map: MapData, id: string, patch: Partial<Pick<Pin, 'kind' | 'description' | 'image'>>): MapData {
+/** Tipo, descrição, imagem e trava do pino. Id inexistente ou nada mudando devolve o mesmo `map`. */
+export function updatePin(map: MapData, id: string, patch: Partial<Pick<Pin, 'kind' | 'description' | 'image' | 'locked'>>): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
   const next = { ...pin, ...patch }
-  if (next.kind === pin.kind && next.description === pin.description && next.image === pin.image) return map
+  // `locked` por veracidade, não por igualdade estrita: `undefined` === false é
+  // o contrato de compatibilidade do schema (types/map.ts), e `false !== undefined`
+  // faria destravar um pino nunca travado empurrar uma entrada de undo vazia.
+  if (
+    next.kind === pin.kind &&
+    next.description === pin.description &&
+    next.image === pin.image &&
+    !!next.locked === !!pin.locked
+  ) {
+    return map
+  }
   return { ...map, pins: map.pins.map((p) => (p.id === id ? next : p)) }
+}
+
+/**
+ * Posição do pino durante o arrasto do mestre. Sem snap de propósito: o pino é
+ * anotação e fica ONDE o mestre soltou, a mesma regra de `buildPin`.
+ *
+ * Não checa `locked` aqui — quem decide se o gesto começa é o `pointerdown` de
+ * `pixi/PixiCanvas.tsx`, do mesmo jeito que o arrasto de Token faz com
+ * `canInteract`. Id inexistente ou posição igual devolve o mesmo `map`, para o
+ * `set` da store nem acontecer (dezenas de pointermove por gesto).
+ */
+export function setPinPosition(map: MapData, id: string, x: number, y: number): MapData {
+  const pin = map.pins.find((p) => p.id === id)
+  if (!pin || (pin.x === x && pin.y === y)) return map
+  return { ...map, pins: map.pins.map((p) => (p.id === id ? { ...p, x, y } : p)) }
 }
 
 export function removePin(map: MapData, id: string): MapData {

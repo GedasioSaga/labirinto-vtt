@@ -36,6 +36,8 @@ export type GestureMode =
   | 'panning'
   | 'dragging-token'
   | 'dragging-prop'
+  // Pino de ponto de interesse arrastado depois de cravado.
+  | 'dragging-pin'
   | 'drawing-wall'
   | 'drawing-freehand'
   | 'drawing-line'
@@ -297,6 +299,9 @@ export function resolveCursor(input: ResolveCursorInput): string {
 
     case 'dragging-token':
     case 'dragging-prop':
+    // O pino vai inteiro atrás do ponteiro, como Token e Objeto: `move`, não
+    // `grabbing` (que é para quem segura um PONTO de um objeto maior).
+    case 'dragging-pin':
     case 'dragging-wall-body':
     case 'dragging-region-body':
     case 'dragging-stair-body':

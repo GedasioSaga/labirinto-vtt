@@ -585,7 +585,10 @@ interface MapStoreState {
   setSelectedPin: (id: string | null) => void
   setPinKind: (kind: PinKind) => void
   addPin: (pin: MapData['pins'][number]) => void
-  updatePin: (id: string, patch: Partial<Pick<MapData['pins'][number], 'kind' | 'description' | 'image'>>) => void
+  updatePin: (id: string, patch: Partial<Pick<MapData['pins'][number], 'kind' | 'description' | 'image' | 'locked'>>) => void
+  /** Arrasto do pino — SEM histórico, par de `commitDragHistory(before)` no
+   *  pointerup, mesmo padrão de `moveTokenLive`/`movePropLive`. */
+  movePinLive: (id: string, x: number, y: number) => void
   removePin: (id: string) => void
   setSelectedConcealZone: (id: string | null) => void
   addConcealZone: (zone: MapData['concealZones'][number]) => void
@@ -1245,6 +1248,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (mapFactory.updatePin(get().map, id, patch) === get().map) return
       withHistory((map) => mapFactory.updatePin(map, id, patch))
     },
+    movePinLive: (id, x, y) => set((state) => ({ map: mapFactory.setPinPosition(state.map, id, x, y) })),
     removePin: (id) => {
       if (mapFactory.removePin(get().map, id) === get().map) return
       withHistory((map) => mapFactory.removePin(map, id))

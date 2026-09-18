@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Application, Container, Graphics, Sprite, Texture, Assets } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
-import type { MapData, Region, Wall } from '../types/map'
+import type { MapData, Pin, Region, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
@@ -1297,10 +1297,20 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         // A4 — arrastar só o nome da Sala.
         | 'dragging-room-label'
         // A5 — arrasto de criação da Zona oculta.
-        | 'drawing-conceal-zone' = 'idle'
+        | 'drawing-conceal-zone'
+        // Mover um pino de ponto de interesse já cravado.
+        | 'dragging-pin' = 'idle'
       let lastPoint = { x: 0, y: 0 }
       let draggingTokenId: string | null = null
       let draggingPropId: string | null = null
+      let draggingPinId: string | null = null
+      /**
+       * Distância entre a PONTA do pino e o ponto onde o dedo o pegou. Sem ela
+       * o pino saltaria para debaixo do cursor no primeiro pointermove: a
+       * pessoa quase sempre pega pela CABEÇA, que fica `PIN_HEAD_OFFSET` px de
+       * mundo acima da ponta cravada (lib/pins.ts).
+       */
+      let pinDragOffset: Point | null = null
       let wallDraftStart: Point | null = null
       let regionDraftPoints: Point[] = []
       /**
@@ -1492,6 +1502,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       let tokenDragSnapshot: MapData | null = null
       let propDragSnapshot: MapData | null = null
       let bodyDragSnapshot: MapData | null = null
+      let pinDragSnapshot: MapData | null = null
 
       // Uma passada de borracha = UM Ctrl+Z. `eraseGestureSnapshot` é o `map`
       // de ANTES do pointerdown; `eraseGesturePast`/`eraseGestureFuture` são
@@ -1640,6 +1651,32 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (isLayerLocked(map.lockedLayers, 'anotacoes')) return null
         const clickable = visiblePins(map.pins, map.hiddenLayers).filter((pin) => !pin.hidden)
         return findPinAt(clickable, point, PIN_TAP_TOLERANCE_PX / camera.scale)
+      }
+
+      /**
+       * Abre o pino no painel e, se ele não estiver travado, começa o arrasto
+       * que o leva para outro lugar (pedido do usuário em 18/09/2026: "poder
+       * mover ele depois de colocado").
+       *
+       * Seleciona SEMPRE, mesmo travado — é como a pessoa alcança o
+       * interruptor "Travado" do painel para destravar; só o MODO de arrasto é
+       * condicionado a `canInteract`, exatamente como o Token faz mais abaixo.
+       * Pino travado fica com `mode` parado em 'idle' e nenhum branch de
+       * pointermove reage: ele não se move, mas continua clicável.
+       */
+      const abrirETalvezArrastarPino = (map: MapData, pin: Pin, worldPoint: Point) => {
+        useMapStore.getState().setSelectedPin(pin.id)
+        if (!canInteract(pin)) {
+          mode = 'idle'
+          return
+        }
+        mode = 'dragging-pin'
+        // Snapshot de ANTES do gesto: fecha o arrasto inteiro (dezenas de
+        // pointermove via `movePinLive`, que não empurra histórico) num
+        // Ctrl+Z só no pointerup/pointerupoutside.
+        pinDragSnapshot = map
+        draggingPinId = pin.id
+        pinDragOffset = { x: pin.x - worldPoint.x, y: pin.y - worldPoint.y }
       }
 
       const clickSelectMap = (map: MapData): MapData => ({
@@ -2285,8 +2322,13 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           const existing = pinAt(map, worldPoint)
           if (existing) {
             // Clicar num pino que já existe abre ele no painel em vez de
-            // empilhar um segundo em cima (o de baixo ficaria inalcançável).
-            useMapStore.getState().setSelectedPin(existing.id)
+            // empilhar um segundo em cima (o de baixo ficaria inalcançável) —
+            // e arrastar ali mesmo o move. A ferramenta Pino continua na mão
+            // logo depois de cravar, e é ali que a pessoa tenta corrigir a
+            // posição antes de pensar em trocar de ferramenta.
+            abrirETalvezArrastarPino(map, existing, worldPoint)
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
             return
           }
           const pin = buildPin(crypto.randomUUID(), worldPoint, useMapStore.getState().pinKind)
@@ -2748,12 +2790,12 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
         // Pino antes do hit-test geral: ele é desenhado POR CIMA de tudo, e o
         // que está por cima é o que o dedo acerta. Fica fora de `selection`
-        // (igual à zona oculta), então abre o painel e encerra o gesto.
+        // (igual à zona oculta), então abre o painel — e, destravado, o gesto
+        // segue como arrasto do próprio pino em vez de encerrar aqui.
         if (activeTool === 'select') {
           const pin = pinAt(map, worldPoint)
           if (pin) {
-            useMapStore.getState().setSelectedPin(pin.id)
-            mode = 'idle'
+            abrirETalvezArrastarPino(map, pin, worldPoint)
             lastPoint = { x: event.global.x, y: event.global.y }
             updateCursor()
             return
@@ -3337,6 +3379,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (mode === 'dragging-prop' && propDragSnapshot) {
           useMapStore.getState().commitDragHistory(propDragSnapshot)
         }
+        // Mesmo par do Token: arrastar o pino inteiro vira UM Ctrl+Z.
+        if (mode === 'dragging-pin' && pinDragSnapshot) {
+          useMapStore.getState().commitDragHistory(pinDragSnapshot)
+        }
         if (
           (mode === 'dragging-wall-body' || mode === 'dragging-region-body' ||
             mode === 'dragging-stair-body' || mode === 'dragging-line-body' || mode === 'dragging-floor-body') &&
@@ -3376,9 +3422,12 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         tokenDragSnapshot = null
         propDragSnapshot = null
         bodyDragSnapshot = null
+        pinDragSnapshot = null
         mode = 'idle'
         draggingTokenId = null
         draggingPropId = null
+        draggingPinId = null
+        pinDragOffset = null
         draggingCurveId = null
         draggingCurveBodyId = null
         draggingWallPointId = null
@@ -3451,6 +3500,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (mode === 'dragging-prop' && propDragSnapshot) {
           useMapStore.getState().commitDragHistory(propDragSnapshot)
         }
+        // Mesmo par do Token: arrastar o pino inteiro vira UM Ctrl+Z.
+        if (mode === 'dragging-pin' && pinDragSnapshot) {
+          useMapStore.getState().commitDragHistory(pinDragSnapshot)
+        }
         if (
           (mode === 'dragging-wall-body' || mode === 'dragging-region-body' ||
             mode === 'dragging-stair-body' || mode === 'dragging-line-body' || mode === 'dragging-floor-body') &&
@@ -3489,9 +3542,12 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         tokenDragSnapshot = null
         propDragSnapshot = null
         bodyDragSnapshot = null
+        pinDragSnapshot = null
         mode = 'idle'
         draggingTokenId = null
         draggingPropId = null
+        draggingPinId = null
+        pinDragOffset = null
         draggingCurveId = null
         draggingCurveBodyId = null
         draggingWallPointId = null
@@ -3665,6 +3721,15 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           const result = computeAlignment(snapped, candidates)
           drawGuides(guidesGraphics, result.guides, computeViewport())
           useMapStore.getState().moveTokenLive(draggingTokenId, result.point.x, result.point.y)
+          return
+        }
+
+        if (mode === 'dragging-pin' && draggingPinId && pinDragOffset) {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          // Sem snap e sem guias de alinhamento, de propósito: o pino nasce
+          // ONDE o mestre clica (ver o pointerdown da ferramenta Pino), e mover
+          // não pode obedecer a uma regra diferente de criar.
+          useMapStore.getState().movePinLive(draggingPinId, worldPoint.x + pinDragOffset.x, worldPoint.y + pinDragOffset.y)
           return
         }
 
