@@ -247,6 +247,11 @@ const JORNADAS_DO_CRITERIO = [
   // 18/09/2026, tarde: teto de construção. O jogador vê o prédio fechado e
   // nada do interior; o teto abre quando o token dele entra e fecha quando sai.
   'e2e/task-jornada-teto-de-construcao.spec.ts',
+  // 18/09/2026, noite, nas palavras do usuário: "eu queria que eu pudesse
+  // salvar Tokens pre prontos, tipos tokens de npcs e afins para colocar para
+  // os jogadores". O acervo é GLOBAL do app: sobrevive ao outro mapa e ao
+  // reinício, e é isso que a jornada mede (disco falso que atravessa o reload).
+  'e2e/task-jornada-acervo-de-tokens.spec.ts',
 ]
 /**
  * A bar inteira, na ordem de sempre: é esta lista que o SELO carimba e que a

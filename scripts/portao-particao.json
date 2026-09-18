@@ -4,24 +4,30 @@
   "_dois_modos": "O passo lê o nome do ramo. Ramo `auto/<id>` = peça isolada: o git já garante que ninguém apaga o trabalho da irmã, e a única pergunta que sobra é se ESTA peça escreveu fora do que foi declarado para ela — por isso arquivo de origem compartilhado pode aparecer na lista de mais de uma peça sem virar disputa. Ramo de integração (`feat/...`, `main`) = árvore compartilhada: aí volta a valer dono único por arquivo mudado.",
   "_alvos": "ÁREA não é ALVO. As três peças de cliente declaram a MESMA área (`client/src/**`) porque nenhuma delas sabe de antemão todo arquivo que o conserto vai pedir — mas cada uma tem UM endereço que é a causa dela, citado na própria jornada. Sem `alvos`, `particao` aprovava a peça do menu reescrevendo o arquivo que a peça da camada existe para consertar: em ramos separados ninguém apaga ninguém na hora, e o merge do usuário resolve o conflito escolhendo um dos lados — o outro conserto some sem erro nenhum. Cada arquivo aqui é EXCLUSIVO da peça que o declara; escrever no alvo de outra é vermelho. Arquivo que duas peças podem legitimamente tocar (`client/src/pixi/PixiCanvas.tsx`, que as três jornadas apontam) fica FORA desta lista: continua permitido e sai nomeado no verde, para quem juntar as branches saber onde olhar.",
   "_padroes": "Cada entrada é um caminho exato ou um padrão: `*` dentro de um segmento, `**` atravessando pasta. Uma peça declara a ÁREA que é dela sem enumerar arquivo que ainda não escreveu. O que fica FORA de toda área é o que importa proteger: scripts/ (o juiz), client/e2e/ (as jornadas seladas) e desktop/ (o lado Rust).",
-  "_rodada": "18/09/2026, tarde — TRES entregas do pedido do usuario, construidas em paralelo e reunidas na branch auto/teto: (1) teto de construcao, (3) travar movimentacao de Sala/Regiao, (4) pino que se arrasta e cartao do jogador na direita. A entrega (2), acervo de tokens prontos, ficou de fora desta rodada. As pecas 3 e 4 nasceram em worktree isolado e vieram por squash; por isso o passo `particao` ve tudo sob a peca da branch.",
+  "_rodada": "18/09/2026, tarde — TRES entregas do pedido do usuario, construidas em paralelo e reunidas na branch auto/teto: (1) teto de construcao, (3) travar movimentacao de Sala/Regiao, (4) pino que se arrasta e cartao do jogador na direita. As pecas 3 e 4 nasceram em worktree isolado e vieram por squash; por isso o passo `particao` ve tudo sob a peca da branch.",
+  "_rodada_acervo": "18/09/2026, noite — a QUARTA entrega do mesmo pedido, a que tinha ficado de fora: (2) acervo de tokens prontos. Peca UNICA (`acervo`, ramo auto/acervo), sem worktree: §4b isenta um escritor so. A jornada e o modulo `client/src/lib/tokenLibrary.ts` ja existiam da rodada da tarde, escritos e nunca ligados a tela nenhuma — faltava a UI e a fiacao, e e isso que esta peca entrega. A JORNADA ficou com a peca `portao`, nao com a peca que ela julga: e a regua do criterio, e regua no bolso do reu nao e regua (Invariante 6). Ela entra commitada e selada no commit-base `auto/base-acervo`, do mesmo jeito que a jornada do teto entrou em `auto/base-teto`.",
   "_base": "A base do run: o ponto de onde TODA peça saiu. Sem ela, `particao` e `rust-intocado` só enxergariam a árvore suja — e como a Invariante 6 manda cada peça COMMITAR na própria branch auto/<id>, a peça que termina o trabalho fica com a árvore limpa e as duas Invariantes passam a medir ZERO arquivo e sair verdes. Medido em 18/09/2026: a mesma invasão (scripts/ e desktop/src-tauri/) era VERMELHA suja e VERDE depois do commit. Com a base declarada, o portão mede `git merge-base HEAD <ramo>` até HEAD MAIS a árvore suja. Manifesto sem `base` é VERMELHO, não verde.",
   "_base_18set_corrigida": "A base APONTAVA para auto/base-noite (6500be7) enquanto as pecas desta rodada foram cortadas de auto/portao (32a74cd), um commit DEPOIS. Medido em 18/09/2026 rodando a propria funcao guardaParticao contra `git diff --name-only auto/base-noite HEAD`: as tres pecas de cliente saiam VERMELHAS por escrever em scripts/portao.cjs e scripts/portao-particao.json ANTES de escreverem uma linha — a conta do commit do PORTAO caindo em cima de quem nao o escreveu, e vermelho que builder nenhum consegue consertar. A base agora e auto/base-pecas, ponteiro CONGELADO em 32a74cd: o commit de onde as pecas sairam, e o primeiro que ja traz o portao consertado (a5c4960 + 32a74cd). Quem cortar peca nova a partir daqui corta de um commit que contem este juiz. E `guardaBaseDoRun` passou a conferir a ancestralidade: base que nao e ancestral do HEAD sai como DIAGNOSTICO com endereco, nao como acusacao de invasao.",
   "_base_desta_rodada": "auto/base-teto e o ponteiro CONGELADO no commit de onde a peca desta rodada sai (676fb58: portao endurecido, jornada vermelha commitada e selada, trabalho herdado da noite fechado). Nao pode ser o ramo em que o HEAD trabalha: com o HEAD tambem nele, merge-base(HEAD, <ref>) resolve para o proprio HEAD, o diff sai vazio por construcao e tudo escapa das Invariantes 5 e 9 — o portao ja reprovou exatamente isso em 18/09/2026. Por isso a peca vive em auto/teto e a base e uma branch separada que nunca se move.",
   "_base_duas_pontas": "Os dois papeis, na ordem em que o portao os le. `origem` e o ponteiro CONGELADO do comeco do run e e quem julga a peca que pode reescrever este manifesto (a peca `portao`) — por isso continua em auto/base-noite/6500be7, o mesmo que scripts/portao-selo.json carimbou em base_do_run. Apontar `origem` para a branch onde o HEAD trabalha e o reu escolhendo o juiz: foi o que eu fiz em b067f94 e custou quatro guardas SEM JUIZ (g13, g24, particao, rust-intocado). `ramo` e o corte das pecas de cliente — o topo do portao no instante em que os builders sairam — e por isso ele SOBE a cada conserto do portao: auto/base-teto/b067f94 nesta rodada.",
   "_base_r4": "auto/base-pecas-r4 é um ponteiro CONGELADO no topo do portão depois deste conserto — o único commit que já traz a guarda de alvo cruzado, a regressão dos menus, o g19 e o g20. É de lá que as três peças de cliente desta rodada têm de ser cortadas: cortadas de auto/base-noite, `particao` e `rust-intocado` saem SEM JUIZ; cortadas de auto/base-pecas, elas perdem os consertos do portão. Se o portão receber commit novo ANTES de os builders saírem, quem reaponta este ponteiro é o ORQUESTRADOR (ver _quem_mantem) — e `g20-base-imutavel` não deixa isso passar em silêncio: ponteiro que não descende de `origem` é vermelho com endereço.",
+  "_base_da_noite": "A peca `acervo` sai de `auto/base-acervo`, ponteiro CONGELADO no commit em que o portao passou a conhecer a jornada do acervo (lista do criterio + selo com 33 hashes). Cortar a peca de `auto/base-teto` a deixaria sem esse juiz: a jornada nova nao estaria na bar e `jornadas-intactas` nao a protegeria. `origem` nao se move — continua em auto/base-noite, o mesmo que `base_do_run` do selo carimba.",
   "base": {
     "origem": "auto/base-noite",
-    "ramo": "auto/base-teto"
+    "ramo": "auto/base-acervo"
   },
   "pecas": {
     "portao": [
-      "scripts/**"
+      "scripts/**",
+      "client/e2e/task-jornada-acervo-de-tokens.spec.ts"
     ],
     "teto": [
       "client/src/**",
       "client/e2e/task-jornada-item-travado.spec.ts",
       "client/e2e/task-jornada-pino-move-e-cartao-direita.spec.ts"
+    ],
+    "acervo": [
+      "client/src/**"
     ]
   },
   "_alvos_desta_rodada": "Com UMA peca de cliente nesta rodada, `alvos` protege pouco na pratica — entra mesmo assim porque o alvo e o endereco da causa e documenta onde o conserto mora. `client/src/lib/fogFilter.ts` (o que o jogador RECEBE) e `client/src/components/RoomControls.tsx` (o interruptor que a jornada cobra pelo rotulo literal) sao da peca `teto`. `client/src/pixi/PixiCanvas.tsx`, `client/src/types/map.ts` e `client/src/main.css` ficam FORA: sao arquivos que qualquer peca pode ter motivo honesto de tocar, e inventar exclusividade neles reprovaria conserto legitimo.",
@@ -34,12 +40,19 @@
       "client/src/components/RoomControls.tsx",
       "client/src/player/player.css",
       "client/src/components/PinControls.tsx"
+    ],
+    "acervo": [
+      "client/src/lib/tokenLibrary.ts",
+      "client/src/stores/tokenLibraryStore.ts",
+      "client/src/components/TokenLibraryPanel.tsx",
+      "client/src/components/TokenImageControls.tsx"
     ]
   },
   "apelidos": {
     "portao": [
       "gate",
-      "fase0"
+      "fase0",
+      "portao-acervo"
     ],
     "teto": [
       "teto-de-construcao",
@@ -49,6 +62,11 @@
       "item-travado",
       "pino",
       "pino-move"
+    ],
+    "acervo": [
+      "acervo-de-tokens",
+      "token-library",
+      "npcs-prontos"
     ]
   },
   "_selo_r5": "scripts/portao-selo.json entrou em `pecas`.`portao` e em `alvos`.`portao` — EXCLUSIVO da peca do portao, proibido para as tres pecas de cliente. O selo desta rodada foi tirado ANTES de a guarda g20 existir e por isso nao trazia `base_do_run`: a ancora que impede o reu de escolher o proprio juiz estava INATIVA, e a ausencia dela saia como nota no verde em vez de vermelho. Recarimbar foi verificado antes, nao depois: `--so=jornadas-intactas` estava VERDE com as 23 jornadas, e as 23 hashes do selo novo batem com o DISCO e com o commit-base (auto/base-r5) ao mesmo tempo — nenhuma jornada mudou, o selo so trocou o fallback 'hash do commit base' por hash explicito e ganhou o carimbo. `base_do_run` foi carimbado com auto/base-noite = 6500be7, o mesmo valor que o manifesto da arvore e o manifesto commitado dentro do proprio commit-base ja declaravam. RISCO ACEITO E ANOTADO PARA A MANHA: com o selo declarado como alvo, uma peca de portao futura pode recarimba-lo. O que segura agora e g20 ficar VERMELHO quando NAO ha ancora nenhuma, mais a clausula de ancestralidade contra o manifesto commitado na propria base. Se a manha quiser fechar de vez, o selo sai desta lista e passa a ser tirado so pelo orquestrador.",

@@ -1,5 +1,5 @@
 {
-  "selado_em": "2026-09-18T17:36:43.257Z",
+  "selado_em": "2026-09-18T21:46:55.084Z",
   "jornadas": {
     "e2e/task-jornada-parede-grossa.spec.ts": "527e40bd7728c8b27e9334e40ce45223816eef2f88b14351545951c57af89314",
     "e2e/task-jornada-selecao-arrasto.spec.ts": "0e9113e9b71bfac3ce19108908c4421e680919e8f07c99638a75f94c4b0b4062",
@@ -23,6 +23,7 @@
     "e2e/task-jornada-escada-fala.spec.ts": "15bac83064c3b6cd2054e860c582bf8815e713dda6f428bfcbdd55a0b868291e",
     "e2e/task-jornada-pino-apaga-com-delete.spec.ts": "db7eb15fb038c3b373dfacce9adb21d19c64d4f5e580ded4f801cec83c857f17",
     "e2e/task-jornada-teto-de-construcao.spec.ts": "625c709236200a87ceeed94dbf4f8fe0e653bb24b2e1c7a8e4515e9a924b79d5",
+    "e2e/task-jornada-acervo-de-tokens.spec.ts": "3801cd383bffade9a3fe3e243e3fc3acc440060f88ae7e9d621d0e44ad75878d",
     "e2e/task-drawing-group.spec.ts": "041a8dcd35adb866c814cdd4b39df5c477c2e19803fc128c90cf113b73b04219",
     "e2e/task-fase5-variantes.spec.ts": "ac7df717b703fcb098ba259294f269670977d9b02e64249e2f132212e0019bfc",
     "e2e/task-floor-pieces.spec.ts": "defffc561737ddede5131c5cfdfaaf0b06708186092b54839a7aa445047f7e25",
