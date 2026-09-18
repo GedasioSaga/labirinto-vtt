@@ -185,3 +185,130 @@ sozinho contra o que sou medido" precisa ser fechado antes de liberar.
 Nenhuma foto de tela (antes/depois) existe ainda para nenhuma das três peças de interação/menu — falta
 gerar quando as correções forem escritas. Nada foi perdido: cada branch guarda o trabalho da
 respectiva peça.
+
+---
+---
+
+# FECHAMENTO DA NOITE — vale este, o resto acima é histórico
+
+Tudo que está escrito acima descreve rodadas que **bloquearam**. Elas foram superadas. O estado
+final é este.
+
+## Os três defeitos foram consertados, e eu conferi cada um rodando
+
+| O que estava quebrado | Onde está o conserto |
+|---|---|
+| Ferramenta **Polígono** não terminava: Enter não fazia nada, e ao trocar de ferramenta o desenho sumia | `134064d` em `auto/poligono-termina` |
+| **Cadeado da camada** não protegia: com Tokens travada, arrastar no token arrastava a sala inteira | `8f5b82b` em `auto/camada-travada` |
+| **Menu "Opções de Chão"** empurrava a página para fora da janela e escondia 6 opções | `2753d47` em `auto/menu-cabe-na-janela` |
+
+As três branches formam uma corrente: cada uma parte da anterior, então dá para juntar na ordem sem
+conflito. A branch **`auto/noite-18set`** já é o topo dessa corrente e tem as três.
+
+## O que você vai perceber usando o app
+
+- **Desenhar polígono agora termina.** Clique os cantos e aperte Enter (ou duplo clique). A figura
+  fica no mapa, e continua lá quando você troca de ferramenta. Detalhe pensado: Enter cedo demais
+  **não apaga** o que você já clicou — o rascunho fica de pé para você continuar.
+- **O cadeado passou a proteger de verdade.** Com uma camada travada, o gesto não passa por ela —
+  nem para ela, nem para o que está embaixo. E aparece um aviso no canto: *"A camada Tokens está
+  travada"*. Antes não aparecia nada, e você só descobria o estrago depois. Vale para as 9 camadas.
+- **O menu de Chão cabe na janela.** Ele se reparte em duas colunas quando não cabe, em vez de virar
+  uma parede de texto rolável. O cabeçalho e a barra de ferramentas param de sair da tela. Os outros
+  9 menus não mudaram.
+
+## Como conferir você mesmo
+
+```
+cd C:\dev\labirinto
+git checkout auto/noite-18set
+cd client
+LAB_PORTA=1466 npx playwright test e2e/task-jornada-poligono-termina.spec.ts e2e/task-jornada-camada-travada.spec.ts e2e/task-jornada-menu-cabe-na-janela.spec.ts --reporter=list
+```
+
+Tem de dar **6 passed**. Três desses seis são os defeitos; os outros três são controles positivos,
+que já passavam antes e provam que o conserto não afrouxou a régua.
+
+`LAB_PORTA=1466` está aí porque sobrou um servidor Vite na porta 1420 (ver pendências).
+
+## Prova que eu mesmo rodei, não só os agentes
+
+- as 6 jornadas acima: **6 passed**;
+- `unidade` (vitest inteiro): verde, **140 arquivos / 2297 testes** — cresceu, não encolheu;
+- `jornadas-e2e` (regressão ampla): verde, **59 testes**;
+- `estilo-minimapa` (estilo medido em pixel): verde;
+- `jornada-fluidez` (travamento): verde;
+- `particao` (quem escreveu onde): verde;
+- `jornadas-intactas`: **29 jornadas seladas**, nenhuma editada por builder;
+- `rust-intocado`: lado Rust não foi tocado.
+
+## Sua branch está intocada
+
+`feat/consolidado-17set` **não recebeu um commit sequer**. Tudo vive em branches `auto/*`. O merge é
+decisão sua, com o diff na mão.
+
+## O que NÃO foi entregue, e por quê
+
+**Feature nova: nenhuma.** Você autorizou features autônomas sem teto, e eu não entreguei nenhuma.
+Quando o orçamento apertou, preferi três consertos provados a features inventadas. É uma escolha
+minha, e você pode discordar dela.
+
+**Três rodadas foram perdidas num erro meu.** Coloquei as jornadas-critério dentro do portão que
+toda peça precisa passar. Como elas só ficam verdes **depois** do conserto, nenhuma peça conseguia
+passar — nem a do próprio portão. Levei três rodadas insistindo antes de virar a chave.
+
+**A última etapa não usou o gauntlet completo.** Usei as partes dele que funcionam — jornada vermelha
+selada com controle positivo, portão de regressão de 15 passos, partição com base congelada — mas
+sem o loop de Fase 0, que estava consumindo a noite auditando a si mesmo. Não houve comparação cega
+A/B. Para conserto de defeito isso é defensável (o protocolo chama de `SEM_COMPARACAO`: o critério é
+a jornada virar verde), mas é menos do que o gauntlet inteiro, e não vou chamar de outra coisa.
+
+## O portão ficou muito melhor — e foi ele que impôs o rigor
+
+As rodadas que "falharam" endureceram o fiscal, e cada conserto dele foi provado por mutação:
+
+| | Antes | Depois |
+|---|---|---|
+| Jornadas e2e no portão | 20 | **59** |
+| Jornadas protegidas contra edição | 9 | **29** |
+| `servidor-limpo` | verde de brinde | mede de verdade |
+| `particao` | invasão sumia ao commitar | enxerga o que foi commitado |
+| Suíte de unidade | podia encolher calada | piso de 139 arquivos / 2290 testes |
+| Grupo de jornadas | dava para rodar só uma | exige o grupo completo |
+
+Foi esse portão endurecido que segurou os builders desta noite: ele **recusou** um deles rodar só a
+jornada dele.
+
+## Pendências — coisas que precisam de você
+
+1. **Vite órfão na porta 1420** (PID 45804): sobra de um passeio que interrompi. Enquanto viver, todo
+   Playwright precisa de `LAB_PORTA=<porta>`. `Stop-Process -Id 45804 -Force` resolve. Tentei
+   encerrar e o classificador de segurança negou.
+2. **2,2 GB recuperáveis** em `.claude/worktrees/wf_4774aa00-f19-{2,3,4,5}` — pastas órfãs de branches
+   já mergeadas. A remoção também foi negada.
+3. **`transporte-vivo` do portão nunca passa sem você**: `scripts/portao.cjs` fixa `192.168.0.6:7777`
+   e o IP da máquina é `192.168.0.8`; e o servidor 7777 só nasce quando alguém abre a sala pela
+   interface. A parte do IP é conserto de uma linha.
+4. **`task-jornada-ferramentas-mudas.spec.ts` está vencida e é decisão sua**: duas das três asserções
+   dela cobram o contrário de `NEW_MAP_SHOW_GRID = false` ("mapa novo nasce sem grade", estilo
+   minimapa — decisão sua). Ou a jornada muda, ou a decisão muda.
+5. **Trava por ITEM tem o mesmo buraco do cadeado de camada**, e não foi consertada: item com
+   `locked: true` é filtrado antes do hit-test e o clique cai no que está embaixo.
+   Endereço: `client/src/pixi/PixiCanvas.tsx`, função `hitTestMap`.
+6. **A interface mostra texto cru de exceção** quando salvar falha. No app Tauri real salvar funciona,
+   mas disco cheio ou permissão negada mostraria a mesma coisa ao usuário.
+7. **Vale uma varredura de falso-VERMELHO nas outras jornadas.** Das duas que examinei esta noite,
+   **as duas** estavam vencidas — descreviam defeito que não existe mais.
+
+## Sugestões que o passeio e os builders levantaram, para você decidir
+
+Não implementei nenhuma: são decisão de produto, e o combinado é uma feature por vez.
+
+- Setas do teclado não navegam nos menus de variante (18 Tabs para chegar ao fim do menu de Chão).
+  Defeito pré-existente nos 11 menus.
+- Descrições redundantes em "Lados do polígono" ("3 lados." sob "Triângulo") — ~150px de altura sem
+  informação.
+- Ferramenta Token ainda **cria** token com a camada Tokens travada.
+- Sem feedback de cursor ao pairar sobre camada travada.
+- Os outros 12 achados do passeio de usuário estão em
+  `scratchpad/gauntlet-noite/passeio-mestre/relatorio.md`, com passos e 25 fotos.
