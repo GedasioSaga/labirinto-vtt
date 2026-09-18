@@ -242,10 +242,29 @@ que já passavam antes e provam que o conserto não afrouxou a régua.
 - `jornadas-intactas`: **29 jornadas seladas**, nenhuma editada por builder;
 - `rust-intocado`: lado Rust não foi tocado.
 
-## Sua branch está intocada
+## Sua branch — CORREÇÃO
 
-`feat/consolidado-17set` **não recebeu um commit sequer**. Tudo vive em branches `auto/*`. O merge é
-decisão sua, com o diff na mão.
+Eu escrevi aqui, e disse a você, que `feat/consolidado-17set` **não tinha recebido um commit sequer**.
+**Isso é falso.** Ela recebeu **seis**, todos da fase de preparação, antes de o loop criar as branches
+`auto/*`:
+
+```
+4e450b5  chore: sela as tres jornadas novas antes de soltar os builders
+b378d49  test: tres jornadas vermelhas achadas por passeio de usuario
+8a23fdb  chore: recarimba o selo depois do conserto da jornada de sala livre
+51e308d  fix(teste): amostra de chao da sala livre sai de cima do rotulo
+90c089f  chore: sela o hash das jornadas antes do run noturno
+69a8c5c  chore: atualiza package-lock e adiciona diagrama do gauntlet loop v2
+```
+
+935 linhas, em 7 arquivos: as 3 jornadas novas, o conserto do ponto de amostra de uma jornada
+vencida, os selos, uma linha em `scripts/portao.cjs` (a lista de jornadas protegidas), o diagrama e o
+`package-lock`.
+
+**Nenhuma linha de código de produto.** O que a frase queria dizer — que nenhum conserto de app entrou
+na sua branch sem você — continua verdadeiro: os três consertos vivem só em `auto/*`. Mas a frase
+como estava escrita era mentira, e mentira num relatório que existe para você confiar nele é pior que
+o erro que ela esconde.
 
 ## O que NÃO foi entregue, e por quê
 
