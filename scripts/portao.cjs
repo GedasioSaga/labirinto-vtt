@@ -315,6 +315,53 @@ const JORNADAS_REGRESSAO_MENUS = [
   'e2e/task-floor-pieces.spec.ts',
   'e2e/task-new-shapes.spec.ts',
 ]
+/**
+ * REGRESSÃO dos TRÊS ALVOS desta rodada — o buraco que sobrava depois da
+ * regressão dos menus.
+ *
+ * O que estava errado: dos três defeitos que as peças vão consertar, só o do
+ * menu tinha regressão (`JORNADAS_REGRESSAO_MENUS`, 4 specs). O cadeado de
+ * camada e o encerramento do polígono tinham UM comando cada — as jornadas do
+ * CRITÉRIO —, e essas nascem VERMELHAS e só rodam na volta da PROVA
+ * (`prova: true`). Enquanto elas estão vermelhas, elas não distinguem "a peça
+ * ainda não consertou" de "a peça quebrou o que já funcionava": nenhum comando
+ * da volta comum tocava `selectionHitTest.ts` nem o rascunho do Polígono em
+ * `PixiCanvas.tsx`. Uma peça podia arrastar o hit-test de camada para o lixo e
+ * os 13 comandos que rodam de verdade saírem verdes.
+ *
+ * Estes seis specs são a rede embaixo dos alvos. Escolhidos por DUAS provas,
+ * não por nome: (1) dirigem o arquivo-alvo declarado de alguma peça; (2) estão
+ * VERDES hoje, medido em 18/09/2026 na base desta rodada —
+ * `--jornada=cobertura-dos-alvos` com os seis: `25 passed (21.6s)`, exit 0.
+ * Spec vermelho antes da rodada não entra: seria vermelho herdado, que peça
+ * nenhuma consegue consertar (por isso `task-alignment-door-curve-portal.spec.ts`
+ * ficou de fora — `1 failed` hoje, anterior a este run, como os 5 de
+ * task-room-tool/task-room-circle-polygon).
+ *
+ * Endereço de cada um contra o alvo que ele protege:
+ *  - task-rascunho-desfazer.spec.ts:97 — o rascunho ponto a ponto do Polígono
+ *    (alvo de `poligono-termina`: a condição do Enter sobre `polygonDraftPoints`).
+ *  - task-layers-visibility.spec.ts:54 — o hit-test por camada
+ *    (alvo de `camada-travada`: client/src/lib/selectionHitTest.ts).
+ *  - task-background-convert-menu.spec.ts, task-drawing-tools.spec.ts,
+ *    task-ctrl-reto.spec.ts, task-jornada-barra-honesta.spec.ts — menu de
+ *    variante e barra de ferramentas (alvo de `menu-cabe-na-janela`:
+ *    ToolVariantMenu.tsx + toolVariants.ts).
+ *
+ * Entram no passo `jornadas-e2e` (que a volta comum alcança) e no SELO, pela
+ * mesma porta dos specs de menu: são rastreados pelo git, então o hash sai do
+ * commit base do run e o selo não precisa ser recarimbado. Não entram na
+ * auditoria arquivo a arquivo da FASE 0, pelo mesmo motivo já escrito acima —
+ * não foram escritos com a régua das jornadas da bar.
+ */
+const JORNADAS_REGRESSAO_DOS_ALVOS = [
+  'e2e/task-rascunho-desfazer.spec.ts',
+  'e2e/task-layers-visibility.spec.ts',
+  'e2e/task-background-convert-menu.spec.ts',
+  'e2e/task-drawing-tools.spec.ts',
+  'e2e/task-ctrl-reto.spec.ts',
+  'e2e/task-jornada-barra-honesta.spec.ts',
+]
 /** Tudo que a FASE 0 audita arquivo a arquivo — a de fluidez inclusive. */
 const TODAS_JORNADAS_E2E = JORNADAS_E2E.concat([JORNADA_FLUIDEZ, JORNADA_ESTILO, JORNADA_VISTA_MOVEL], JORNADAS_DA_BAR)
 /**
@@ -333,7 +380,7 @@ const TODAS_JORNADAS_E2E = JORNADAS_E2E.concat([JORNADA_FLUIDEZ, JORNADA_ESTILO,
  * base do run. Afrouxar o spec que prova que o menu ainda abre é tão barato
  * quanto afrouxar uma jornada da bar.
  */
-const JORNADAS_SELADAS = TODAS_JORNADAS_E2E.concat(JORNADAS_REGRESSAO_MENUS)
+const JORNADAS_SELADAS = TODAS_JORNADAS_E2E.concat(JORNADAS_REGRESSAO_MENUS, JORNADAS_REGRESSAO_DOS_ALVOS)
 const JORNADAS_UNIDADE = [
   'src/lib/mapFile.persistencia.test.ts',
   'src/lib/mapFileIO.persistencia.test.ts',
@@ -1358,6 +1405,75 @@ function guardaPortaDaSonda(url, portaDasJornadas) {
   return ok('g18-porta-da-sonda', 'sonda e jornadas no mesmo endereço: localhost:' + porta)
 }
 
+/**
+ * O servidor que respondeu nesta porta é o DESTA árvore?
+ *
+ * `g18` compara o NÚMERO da porta e nada mais. Com as peças em `git worktree`
+ * separados e TODAS forçadas à mesma porta por `LAB_PORTA` (é o que a
+ * Invariante 3 deste run manda fazer), `client/porta.js:44` faz a variável de
+ * ambiente VENCER a porta por árvore que as linhas 47-51 existem para dar: as
+ * quatro peças apontam para localhost:1466 e quem chegar primeiro fica com a
+ * porta. Daí saem dois desfechos, e `g18` não distingue nenhum dos dois —
+ * ambos passam pelo "mesmo número de porta":
+ *  - `strictPort: true` derruba o vite da segunda árvore e o Playwright dela
+ *    testa o app da PRIMEIRA (verde ou vermelho sobre código que não é o dela);
+ *  - a sonda inspeciona os módulos do vite da árvore vizinha e sai verde sobre
+ *    um servidor que não é o desta peça.
+ *
+ * O discriminador é o CAMINHO ABSOLUTO, não a porta: `/@fs/<caminho absoluto>`
+ * só entrega o arquivo quando ele está dentro da raiz do vite que atendeu — o
+ * de outra árvore está fora dela. Endereço absoluto é a única coisa que difere
+ * entre dois worktrees do mesmo repositório rodando o mesmo código.
+ *
+ * E o JUIZ É O CORPO, NÃO O STATUS. Medido nesta máquina em 18/09/2026 com um
+ * vite desta árvore no ar na 1466: `/@fs/C:/dev/labirinto-outro/client/porta.js`
+ * — caminho que NÃO EXISTE — respondeu **200**, porque o vite cai no
+ * `index.html` do app (fallback de SPA) em vez de recusar. Um `status === 200`
+ * teria aprovado qualquer servidor, que é exatamente o falso-verde que esta
+ * guarda existe para fechar. O que prova a árvore é o corpo trazer o arquivo
+ * pedido: a marca sai do `client/porta.js` DESTA árvore, lido na hora.
+ */
+/**
+ * A marca que reconhece `client/porta.js` desta árvore dentro da resposta do
+ * servidor. Sai do arquivo LIDO na hora e não de uma string digitada aqui: se
+ * alguém renomear a função, a guarda fica vermelha com endereço em vez de
+ * aprovar qualquer corpo.
+ */
+const MARCA_DA_ARVORE = (() => {
+  try {
+    const texto = fs.readFileSync(path.join(CLIENTE, 'porta.js'), 'utf8')
+    return texto.indexOf('portaDoProjeto') === -1 ? '' : 'portaDoProjeto'
+  } catch (e) {
+    return ''
+  }
+})()
+
+function guardaArvoreDoServidor(resposta, url, marcaLocal) {
+  const status = (resposta || {}).status
+  const corpo = String((resposta || {}).corpo || '')
+  const marca = String(marcaLocal || '')
+  if (marca === '') {
+    return reprova(
+      'g26-arvore-do-servidor',
+      'não há marca para reconhecer esta árvore: `client/porta.js` não foi lido ou está vazio. Sem marca, qualquer resposta passaria.',
+      'client/porta.js',
+    )
+  }
+  const trecho = corpo.replace(/\s+/g, ' ').slice(0, 120)
+  if (status !== 200 || corpo.indexOf(marca) === -1) {
+    return reprova(
+      'g26-arvore-do-servidor',
+      'o servidor que atendeu nesta porta NÃO serve esta árvore de trabalho: GET ' + url + ' -> ' +
+        (status === -1 ? 'sem resposta' : 'status ' + status) + ', e o corpo não traz `' + marca + '`' +
+        (trecho === '' ? '' : ' (veio: ' + trecho + '…)') +
+        '. Com LAB_PORTA fixo, duas árvores disputam a mesma porta e quem chegou primeiro fica com ela — tudo o que for medido aqui ' +
+        'seria sobre o código de OUTRA peça. Feche o servidor alheio, ou tire LAB_PORTA e deixe `client/porta.js` dar uma porta por árvore.',
+      'client/porta.js (LAB_PORTA vence a porta por árvore) + PORTAO_URL_EDITOR',
+    )
+  }
+  return ok('g26-arvore-do-servidor', 'o servidor desta porta serve ESTA árvore: GET ' + url + ' -> 200 com `' + marca + '` no corpo')
+}
+
 /** Jornada declarada que não existe, ou que não declara teste nenhum, é invariante vazia. */
 function guardaJornadasExistem(arquivos) {
   const problemas = []
@@ -1443,6 +1559,46 @@ function guardaListaDeJornadas(alvos, grupos, dispensadas) {
       (dispensadasFora.length === 0
         ? '\nnenhuma dispensada'
         : '\ndispensada(s) com motivo declarado:\n' + dispensadasFora.map((j) => '  ' + j + ': ' + dispensa[j]).join('\n')),
+  )
+}
+
+/**
+ * Os alvos desta rodada têm REGRESSÃO dentro da volta comum?
+ *
+ * `JORNADAS_REGRESSAO_DOS_ALVOS` só vale alguma coisa se algum passo que a
+ * volta comum ALCANÇA de fato rodar aqueles specs. Declarar a lista e esquecer
+ * de ligá-la num passo — ou ligá-la só num passo `prova: true`, que nasce
+ * vermelho e fica fora da volta comum — devolve o portão exatamente ao buraco
+ * que ela existe para fechar: exit 0 com o alvo quebrado. A lista não se
+ * fiscaliza sozinha; esta guarda é o fiscal dela.
+ */
+function guardaAlvosComRegressao(plano, specs) {
+  const lista = specs || []
+  if (lista.length === 0) {
+    return reprova(
+      'g25-alvos-com-regressao',
+      'nenhum spec de regressão declarado para os alvos da rodada: os defeitos do critério ficam com UM comando só, e ele nasce vermelho',
+      'scripts/portao.cjs (JORNADAS_REGRESSAO_DOS_ALVOS)',
+    )
+  }
+  const rodados = new Set()
+  for (const passo of plano || []) {
+    if (passo.fora || passo.prova || !Array.isArray(passo.args)) continue
+    for (const arg of passo.args) rodados.add(arg)
+  }
+  const fora = lista.filter((s) => !rodados.has(s))
+  if (fora.length > 0) {
+    return reprova(
+      'g25-alvos-com-regressao',
+      'declarado(s) e NÃO rodado(s) por passo nenhum da volta comum: ' + fora.join(', ') +
+        '. Spec que só existe na constante não protege alvo nenhum — o passo do critério nasce vermelho e fica de fora da volta comum, ' +
+        'então sem isto os alvos voltam a poder quebrar com exit 0.',
+      'scripts/portao.cjs (PLANO, passo `jornadas-e2e`)',
+    )
+  }
+  return ok(
+    'g25-alvos-com-regressao',
+    lista.length + ' spec(s) de regressão dos alvos dentro da volta comum (cadeado de camada, rascunho do polígono, menu de variante)',
   )
 }
 
@@ -1582,8 +1738,8 @@ const PLANO = [
   jornada('jornada-vista-movel', 'Invariante 4: a vista continua móvel por botão do meio e por Espaço+arrastar', [JORNADA_VISTA_MOVEL]),
   jornada(
     'jornadas-e2e',
-    'jornadas já entregues, com ponteiro real, mais a regressão dos menus que esta rodada reestrutura',
-    JORNADAS_E2E.concat(JORNADAS_REGRESSAO_MENUS),
+    'jornadas já entregues, com ponteiro real, mais a regressão dos menus e dos TRÊS ALVOS que esta rodada reestrutura',
+    JORNADAS_E2E.concat(JORNADAS_REGRESSAO_MENUS, JORNADAS_REGRESSAO_DOS_ALVOS),
   ),
   // REGRESSÃO. Roda em toda volta e tem de sair verde em toda volta. A lista é
   // DERIVADA do grupo, não digitada: antes era a bar inteira, e por isso este
@@ -2040,6 +2196,26 @@ function sondarServidorLimpo() {
       try {
         const pagina = await navegador.newPage({ viewport: { width: 1280, height: 800 } })
         await pagina.goto(URL_EDITOR, { waitUntil: 'load', timeout: 30000 })
+        // ANTES de medir qualquer módulo: este servidor é o DESTA árvore?
+        // (ver `guardaArvoreDoServidor`). Medir módulo duplicado no vite da
+        // peça vizinha é verde verdadeiro sobre o código errado.
+        const alvoDaArvore = String(URL_EDITOR).replace(/\/$/, '') + '/@fs/' + CLIENTE.split(path.sep).join('/') + '/porta.js'
+        const respostaDaArvore = await pagina.evaluate(async (u) => {
+          try {
+            const r = await fetch(u, { cache: 'no-store' })
+            return { status: r.status, corpo: (await r.text()).slice(0, 4000) }
+          } catch (e) {
+            return { status: -1, corpo: '' }
+          }
+        }, alvoDaArvore)
+        const arvore = guardaArvoreDoServidor(respostaDaArvore, alvoDaArvore, MARCA_DA_ARVORE)
+        if (!arvore.ok) {
+          resolve({
+            codigo: 1,
+            saida: arvore.detalhe + (arvore.endereco ? '  [' + arvore.endereco + ']' : ''),
+          })
+          return
+        }
         await pagina.waitForTimeout(1500)
         // O carimbo sozinho não basta como prova: é o import do jeito que um
         // spec faz que materializa a SEGUNDA instância. A sonda reproduz esse
@@ -2063,7 +2239,7 @@ function sondarServidorLimpo() {
         }
         const duplicados = []
         for (const [limpo, urls] of porCaminho) if (urls.size > 1) duplicados.push(limpo + ' -> ' + Array.from(urls).join(' , '))
-        const resumo = modulos.length + ' módulos de /src/, ' + carimbados.length + ' carimbados por HMR'
+        const resumo = arvore.detalhe + '\n' + modulos.length + ' módulos de /src/, ' + carimbados.length + ' carimbados por HMR'
         resolve({
           codigo: duplicados.length === 0 ? 0 : 1,
           saida:
@@ -2221,6 +2397,7 @@ function rodarFase0() {
   resultados.push(guardaConfigDeServidorNovo(configPlaywright, process.env))
   resultados.push(guardaJornadasExistem(TODAS_JORNADAS_E2E.concat(JORNADAS_UNIDADE)))
   resultados.push(guardaPlanoCobreArtefato(PLANO))
+  resultados.push(guardaAlvosComRegressao(PLANO, JORNADAS_REGRESSAO_DOS_ALVOS))
 
   const textos = {}
   for (const arquivo of TODAS_JORNADAS_E2E.concat(JORNADAS_UNIDADE)) {
@@ -2768,6 +2945,76 @@ function rodarAutoteste() {
     provaDeBase('g20 no manifesto real: a peça do menu cai na base das peças', manifestoReal(), 'menu-cabe-na-janela', (manifestoReal().base || {}).ramo || null),
     // g19 — a lista do comando 15. O que não entra na linha de comando não sai
     // no relatório nem como vermelho nem como skipped: sai como nada.
+    // g25 — a regressão dos alvos desta rodada só protege alguma coisa se
+    // algum passo da VOLTA COMUM rodar aqueles specs.
+    [
+      'g25 reprova spec de alvo declarado e rodado por passo nenhum',
+      guardaAlvosComRegressao(
+        [{ id: 'x', args: ['e2e/outro.spec.ts'] }],
+        ['e2e/task-layers-visibility.spec.ts'],
+      ),
+      false,
+    ],
+    [
+      'g25 reprova regressão de alvo pendurada só no passo de PROVA (que nasce vermelho e fica fora da volta comum)',
+      guardaAlvosComRegressao(
+        [{ id: 'criterio', prova: true, args: ['e2e/task-layers-visibility.spec.ts'] }],
+        ['e2e/task-layers-visibility.spec.ts'],
+      ),
+      false,
+    ],
+    [
+      'g25 reprova lista de regressão dos alvos VAZIA',
+      guardaAlvosComRegressao([{ id: 'x', args: ['e2e/task-layers-visibility.spec.ts'] }], []),
+      false,
+    ],
+    [
+      'g25 aprova o PLANO real desta rodada (os seis specs dos alvos dentro da volta comum)',
+      guardaAlvosComRegressao(PLANO, JORNADAS_REGRESSAO_DOS_ALVOS),
+      true,
+    ],
+    // g26 — porta igual não é árvore igual. O primeiro caso é o que mediu nesta
+    // máquina: caminho de outra árvore devolve 200 com o index.html do app.
+    [
+      'g26 reprova o 200 de fallback de SPA (caminho de outra árvore, corpo = index.html)',
+      guardaArvoreDoServidor(
+        { status: 200, corpo: '<!doctype html>\n<html lang="pt-BR"><head><script type="module">…' },
+        'http://localhost:1466/@fs/C:/dev/labirinto-outro/client/porta.js',
+        'portaDoProjeto',
+      ),
+      false,
+    ],
+    [
+      'g26 reprova recusa do vite da árvore vizinha (403)',
+      guardaArvoreDoServidor({ status: 403, corpo: 'Forbidden' }, 'http://localhost:1466/@fs/C:/dev/labirinto/client/porta.js', 'portaDoProjeto'),
+      false,
+    ],
+    [
+      'g26 reprova servidor que não respondeu',
+      guardaArvoreDoServidor({ status: -1, corpo: '' }, 'http://localhost:1466/@fs/C:/dev/labirinto/client/porta.js', 'portaDoProjeto'),
+      false,
+    ],
+    [
+      'g26 reprova quando a MARCA sumiu de client/porta.js (sem marca, tudo passaria)',
+      guardaArvoreDoServidor({ status: 200, corpo: 'export function portaDoProjeto() {}' }, 'http://localhost:1466/x', ''),
+      false,
+    ],
+    [
+      'g26 aprova o servidor desta árvore (200 com o arquivo pedido no corpo)',
+      guardaArvoreDoServidor(
+        { status: 200, corpo: 'export function portaDoProjeto() { return 1466 }' },
+        'http://localhost:1466/@fs/C:/dev/labirinto/client/porta.js',
+        'portaDoProjeto',
+      ),
+      true,
+    ],
+    [
+      'g26 a marca real desta árvore existe em client/porta.js',
+      MARCA_DA_ARVORE !== ''
+        ? ok('g26-marca-real', 'marca `' + MARCA_DA_ARVORE + '` lida de client/porta.js')
+        : reprova('g26-marca-real', 'client/porta.js não traz a marca que reconhece esta árvore', 'client/porta.js'),
+      true,
+    ],
     [
       'g19 reprova lista da bar com uma jornada omitida',
       guardaListaDeJornadas(['e2e/a.spec.ts', 'e2e/b.spec.ts'], ['e2e/a.spec.ts', 'e2e/b.spec.ts', 'e2e/c.spec.ts'], {}),
@@ -3053,6 +3300,21 @@ async function principal() {
     // aviso: sem ele, os comandos `--jornada=` do run saíam verdes sem nomear
     // os 16 passos do PLANO que ficaram de fora.
     imprimirForaDaVolta(PLANO, '--jornada=' + jornadaAvulsa, false)
+    // A FASE 0 roda AQUI TAMBÉM, como em toda outra chamada.
+    //
+    // O que estava errado: este bloco devolvia antes da linha
+    // `const fase0 = rodarFase0()`, e os dois comandos de jornada do run
+    // (regressão da bar e critério da noite) eram os únicos que não imprimiam
+    // guarda nenhuma além de `g19`. Quem rodasse SÓ eles ficava sem auditoria
+    // estática: sem `g12` (jornada afrouxada depois do selo), sem `g24`
+    // (suíte de unidade encolhida) e sem `g3`/`g4` (only/skip e teto sem
+    // controle positivo) — e são justamente essas as guardas que pegam o
+    // builder afrouxando a própria régua no MESMO commit em que a jornada fica
+    // verde. Como no modo comum, achado da FASE 0 não aborta a jornada: ela
+    // roda, e o exit code soma os dois lados.
+    const fase0Avulsa = rodarFase0()
+    imprimir('FASE 0 — auditoria do portão', fase0Avulsa)
+    const fase0AvulsaRuim = fase0Avulsa.filter((x) => !x.ok)
     const r = await rodarPasso(jornada(jornadaAvulsa, alvos.length + ' spec(s) pela linha de comando', alvos, extras))
     process.stdout.write(r.saida + '\n')
     process.stdout.write(
@@ -3061,7 +3323,8 @@ async function principal() {
         (r.falsoVerde ? ' FALSO-VERDE: saiu 0 com ' + r.ruina.join(', ') : '') +
         ' — ' + r.titulo + '\n',
     )
-    return r.ok ? 0 : 1
+    process.stdout.write(fase0AvulsaRuim.length + ' achado(s) na FASE 0\n')
+    return r.ok && fase0AvulsaRuim.length === 0 ? 0 : 1
   }
 
   if (argv.includes('--selar')) {
