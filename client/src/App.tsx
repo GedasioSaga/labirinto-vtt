@@ -1516,6 +1516,7 @@ function App() {
               onNameChange: (name) => selectedRegion && setRoomName(selectedRegion.id, name),
               onNameHiddenFromPlayersChange: (hidden) =>
                 selectedRegion && useMapStore.getState().setRoomNameHiddenFromPlayers(selectedRegion.id, hidden),
+              onRoofChange: (roof) => selectedRegion && useMapStore.getState().setRoomRoof(selectedRegion.id, roof),
               onWidthChange: (width) =>
                 selectedRegion && resizeRoomDimensions(selectedRegion.id, width, roomDimensions(selectedRegion.points).height),
               onHeightChange: (height) =>

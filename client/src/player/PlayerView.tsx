@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
 import type { FederatedPointerEvent } from 'pixi.js'
-import type { MapData, RegionPoint, Token, Wall } from '../types/map'
+import type { MapData, Region, RegionPoint, Token, Wall } from '../types/map'
 import { rasterizeMinimap, hexToRgb } from '../lib/minimapRaster'
 import type { Rgb } from '../lib/minimapRaster'
 import { compileFloor } from '../lib/floorSdf'
@@ -91,6 +91,15 @@ const DOOR_HINT_WIDTH_PX = 10
 /** Raio do toque na porta, em px de TELA: dedo em celular erra por alguns px. */
 const DOOR_TAP_TOLERANCE_PX = 18
 const HEX_COLOR = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i
+/**
+ * TETO DE CONSTRUÇÃO — o telhado visto de cima. Tom de madeira escura, bem
+ * acima do preto da névoa (para o prédio ler como objeto, e não como buraco) e
+ * bem abaixo do chão iluminado, porque teto não é lugar iluminado por lanterna.
+ */
+const ROOF_COLOR = 0x52483f
+/** Aresta do telhado: um passo mais claro, para o contorno do prédio ler contra a névoa. */
+const ROOF_EDGE_COLOR = 0x6e6055
+const ROOF_EDGE_WIDTH = 3
 
 type Drag =
   // `startX`/`startY`: onde o gesto começou — se ele terminar sem andar, é um toque (porta), não um arrasto de câmera.
@@ -330,6 +339,10 @@ interface Scene {
   concealed: Graphics
   lastConcealed: RegionPoint[][] | null
   concealedCount: number
+  /** Silhueta dos prédios de teto fechado: chapada acima da névoa. */
+  roofs: Graphics
+  lastRoofsKey: string | null
+  roofsCount: number
   tokens: Container
   tokenViews: Map<string, TokenView>
   camera: Camera
@@ -450,6 +463,31 @@ function redrawConcealed(scene: Scene, concealed: RegionPoint[][]): void {
   for (const poly of polygons) scene.concealed.poly(poly, true)
   if (polygons.length > 0) scene.concealed.fill({ color: 0x000000, alpha: 1 })
   scene.concealedCount = polygons.length
+}
+
+/**
+ * TETO DE CONSTRUÇÃO — a silhueta do prédio, pintada CHAPADA acima da névoa.
+ *
+ * Sala com `room.roof` só chega aqui quando o teto está FECHADO para este
+ * jogador: o recorte do mestre (`lib/fogFilter.ts`) manda o polígono e mais
+ * nada de dentro — prop, desenho, escada, pino, luz, token alheio e o chão do
+ * interior nem entram no pacote. Então este preenchimento não está ESCONDENDO
+ * nada: debaixo dele não existe nada para esconder. Ele fica acima da névoa de
+ * propósito, porque um prédio não some quando a lanterna não alcança o telhado:
+ * quem está na rua vê a construção inteira.
+ */
+function redrawRoofs(scene: Scene, regions: Region[]): void {
+  const roofs = regions.filter((r) => r.room?.roof === true && r.points.length >= 3)
+  const key = JSON.stringify(roofs.map((r) => r.points))
+  if (key === scene.lastRoofsKey) return
+  scene.lastRoofsKey = key
+  scene.roofs.clear()
+  for (const region of roofs) scene.roofs.poly(region.points, true)
+  if (roofs.length > 0) {
+    scene.roofs.fill({ color: ROOF_COLOR, alpha: 1 })
+    scene.roofs.stroke({ width: ROOF_EDGE_WIDTH, color: ROOF_EDGE_COLOR, alpha: 1 })
+  }
+  scene.roofsCount = roofs.length
 }
 
 function centerCameraOn(scene: Scene, x: number, y: number): void {
@@ -654,6 +692,7 @@ export function PlayerView({
     redrawLights(scene)
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
     redrawConcealed(scene, currentConcealed)
+    redrawRoofs(scene, regions)
 
     // O recorte do mestre já tirou daqui todo pino que este jogador não pode
     // ver (lib/fogFilter.ts): o que chegou é o que ele pode tocar.
@@ -779,6 +818,7 @@ export function PlayerView({
       const fogDim = new Graphics()
       const visionMask = new Graphics()
       const concealed = new Graphics()
+      const roofs = new Graphics()
       const pins = new Container()
       const tokens = new Container()
       // Mesma ordem do editor, de baixo para cima; tudo da planta fica sob a
@@ -807,6 +847,9 @@ export function PlayerView({
         fogDim,
         visionMask,
         concealed,
+        // Telhado acima da névoa e abaixo dos tokens: o token do jogador está
+        // do lado de fora (senão o teto teria aberto) e nunca fica sob o prédio.
+        roofs,
         pins,
         tokens,
       )
@@ -865,6 +908,9 @@ export function PlayerView({
         concealed,
         lastConcealed: null,
         concealedCount: 0,
+        roofs,
+        lastRoofsKey: null,
+        roofsCount: 0,
         tokens,
         tokenViews: new Map(),
         camera: { x: 0, y: 0, scale: 1 },

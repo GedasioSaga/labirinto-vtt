@@ -93,7 +93,7 @@ interface PropertiesPanelProps {
   textLabel: Omit<TextLabelControlsProps, 'text' | 'color' | 'fontSize' | 'fontFamily'>
   selectedRegion: Region | null
   regionStyle: RegionStyleControlsProps
-  room: Omit<RoomControlsProps, 'name' | 'shape' | 'width' | 'height' | 'nameHiddenFromPlayers'>
+  room: Omit<RoomControlsProps, 'name' | 'shape' | 'width' | 'height' | 'nameHiddenFromPlayers' | 'roof'>
   selectedLight: Light | null
   lightControls: Omit<LightControlsProps, 'color' | 'intensity'>
   selectedStair: Stair | null
@@ -220,6 +220,7 @@ export function PropertiesPanel({
               width={roomDimensions(selectedRegion.points).width}
               height={roomDimensions(selectedRegion.points).height}
               nameHiddenFromPlayers={!!selectedRegion.room.nameHiddenFromPlayers}
+              roof={!!selectedRegion.room.roof}
               {...room}
             />
           </ToolPropertiesSection>

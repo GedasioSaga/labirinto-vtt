@@ -567,6 +567,8 @@ interface MapStoreState {
   setRoomLabelOffsetLive: (id: string, offset: { x: number; y: number }) => void
   /** A5 — "Jogadores veem o nome" (invertido: `true` esconde). Com histórico. */
   setRoomNameHiddenFromPlayers: (id: string, hidden: boolean) => void
+  /** TETO DE CONSTRUÇÃO — liga/desliga `RoomMeta.roof` da Sala, com histórico. */
+  setRoomRoof: (id: string, roof: boolean) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
@@ -1213,6 +1215,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRoomNameHiddenFromPlayers: (id, hidden) => {
       if (mapFactory.setRoomNameHiddenFromPlayers(get().map, id, hidden) === get().map) return
       withHistory((map) => mapFactory.setRoomNameHiddenFromPlayers(map, id, hidden))
+    },
+    setRoomRoof: (id, roof) => {
+      if (mapFactory.setRoomRoof(get().map, id, roof) === get().map) return
+      withHistory((map) => mapFactory.setRoomRoof(map, id, roof))
     },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return

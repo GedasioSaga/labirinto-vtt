@@ -177,6 +177,19 @@ export interface RoomMeta {
   /** A5 — o jogador recebe a Sala com `name = ''` (`lib/fogFilter.ts`).
    *  `undefined` === false (jogadores veem o nome), sem migração. */
   nameHiddenFromPlayers?: boolean
+  /** TETO DE CONSTRUÇÃO — "Teto fechado para jogadores". Com o teto ligado o
+   *  jogador recebe só o POLÍGONO da Sala (a silhueta do prédio, pintada
+   *  chapada por `player/PlayerView.tsx`) e NADA do interior: prop, desenho,
+   *  escada, pino, luz, token alheio e o chão de dentro ficam fora do pacote,
+   *  com o mesmo rigor da sala secreta (`lib/fogFilter.ts`). O teto ABRE
+   *  sozinho para o jogador que tem um token dentro do polígono e fecha
+   *  quando ele sai — inclusive apagando o que ele já tinha visto. O mestre vê
+   *  tudo, sempre. Distinto de `Region.secret` ("Oculto para jogadores"), que
+   *  apaga a Sala inteira do jogador; os dois convivem.
+   *
+   *  `undefined` === false (sem teto, comportamento idêntico ao de hoje) —
+   *  sem linha de migração: a Sala de todo mapa já salvo continua aberta. */
+  roof?: boolean
 }
 
 /**

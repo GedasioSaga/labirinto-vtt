@@ -5,6 +5,17 @@ import { isDegenerateRegion } from './shapes'
 import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { resolveCameraScale, selectionOutlineWidth } from './drawWalls'
 
+/**
+ * TETO DE CONSTRUÇÃO — marca do telhado NO EDITOR. O mestre vê tudo, sempre
+ * (é promessa da feature), então a sala de teto ligado não pode ser escondida
+ * dele: o que ele ganha é um segundo contorno POR DENTRO, no tom do telhado
+ * que o jogador vê em `player/PlayerView.tsx`, dizendo "daqui o jogador só vê
+ * a silhueta". Por dentro (`alignment: 1`) para não brigar com o contorno de
+ * seleção, que é desenhado por fora.
+ */
+const ROOF_MARK_COLOR = 0x6e6055
+const ROOF_MARK_WIDTH = 3
+
 const HATCH_SPACING = 10
 const HATCH_ANGLE = Math.PI / 4 // 45°
 const HATCH_COLOR = 0x000000
@@ -156,6 +167,16 @@ export function scanlineIntersections(points: { u: number; v: number }[], v: num
   return us.sort((x, y) => x - y)
 }
 
+export interface RegionsRendererOptions {
+  /**
+   * Desenha a marca de "Teto fechado para jogadores" (`RoomMeta.roof`). Só o
+   * EDITOR liga: na tela do jogador a sala de teto fechado já vem coberta pela
+   * silhueta chapada, e a sala de teto ABERTO chega sem o campo — marcar ali
+   * seria contar ao jogador uma decisão que é do mestre.
+   */
+  roofMarker?: boolean
+}
+
 export interface RegionsRenderer {
   /** `cameraScale` dá ao contorno de seleção 2 px de TELA; omitido, vem da
    *  escala de mundo do `container` no último render (`resolveCameraScale`). */
@@ -184,8 +205,9 @@ function traceRegionPath(g: Graphics, points: RegionPoint[]): void {
  * fill + stroke + hachura da mesma região podem ficar na mesma instância sem
  * risco de corromper o path de outra região.
  */
-export function createRegionsRenderer(): RegionsRenderer {
+export function createRegionsRenderer(options: RegionsRendererOptions = {}): RegionsRenderer {
   const cache = new Map<string, Graphics>()
+  const roofMarker = options.roofMarker === true
 
   function draw(container: Container, regions: Region[], selectedRegionId: string | null = null, cameraScale?: number): void {
     const outlineWidth = selectionOutlineWidth(resolveCameraScale(container, cameraScale))
@@ -243,6 +265,14 @@ export function createRegionsRenderer(): RegionsRenderer {
       // contorno. Serve exatamente o caso "rua"/"construção artesanal" do
       // usuário: contorno só, sem nenhum traço extra por dentro. Continua
       // visível com a região selecionada.
+      if (roofMarker && region.room?.roof === true) {
+        traceRegionPath(g, region.points)
+        // `alignment: 1` = traço inteiro POR DENTRO do polígono (0 = por fora,
+        // 0,5 = centrado; StrokeAttributes.alignment do Pixi 8). Por fora é
+        // onde mora o contorno de seleção, e os dois brigariam.
+        g.stroke({ width: ROOF_MARK_WIDTH, color: ROOF_MARK_COLOR, alignment: 1, join })
+      }
+
       if (isFilled && region.fillPattern === 'hatch') {
         const segments = computeHatchSegments(region.points)
         for (const segment of segments) {

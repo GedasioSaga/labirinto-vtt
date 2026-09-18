@@ -1018,7 +1018,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const textLabelsRenderer = createTextLabelsRenderer()
       const angleIndicatorRenderer = createAngleIndicatorRenderer()
       const measurementIndicatorRenderer = createMeasurementIndicatorRenderer()
-      const regionsRenderer = createRegionsRenderer()
+      // O mestre vê tudo, sempre: a marca do teto é DELE, e só existe no editor.
+      const regionsRenderer = createRegionsRenderer({ roofMarker: true })
       const roomNamesRenderer = createRoomNamesRenderer()
       const concealZonesRenderer = createConcealZonesRenderer()
       const pinsRenderer = createPinsRenderer()

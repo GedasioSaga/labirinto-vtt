@@ -1292,6 +1292,19 @@ export function setRoomNameHiddenFromPlayers(map: MapData, id: string, hidden: b
   }
 }
 
+/** TETO DE CONSTRUÇÃO — "Teto fechado para jogadores" (`RoomMeta.roof`).
+ * Mesmo contrato de `setRoomNameHiddenFromPlayers`: região comum, id
+ * inexistente ou valor igual devolve o mesmo `map`, para não gravar entrada de
+ * histórico vazia (Ctrl+Z tem de desfazer um clique, não um não-clique). */
+export function setRoomRoof(map: MapData, id: string, roof: boolean): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room || !!region.room.roof === roof) return map
+  return {
+    ...map,
+    regions: map.regions.map((r) => (r.id === id && r.room ? { ...r, room: { ...r.room, roof } } : r)),
+  }
+}
+
 /** Entidades que aceitam "Oculto para jogadores" (`PlayerSecret` em types/map.ts). */
 export type SecretKind = 'token' | 'region' | 'prop' | 'stair' | 'drawing' | 'pin'
 

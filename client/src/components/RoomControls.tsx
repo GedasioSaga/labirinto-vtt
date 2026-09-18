@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import type { RoomMeta } from '../types/map'
 import { MIN_ROOM_DIMENSION } from '../lib/roomOps'
 import { Toggle } from './Toggle'
@@ -9,6 +10,12 @@ export interface RoomControlsProps {
    *  ("Jogadores veem o nome", ligado por padrão). Ausente omite o toggle. */
   nameHiddenFromPlayers?: boolean
   onNameHiddenFromPlayersChange?: (hidden: boolean) => void
+  /** TETO DE CONSTRUÇÃO — `RoomMeta.roof`. Aqui o toggle é DIRETO ("Teto
+   *  fechado para jogadores", desligado por padrão): o irmão acima mostra o
+   *  inverso porque o padrão dele é "ligado", e inverter os dois deixaria um
+   *  interruptor com o nome negado sem motivo. Ausente omite o toggle. */
+  roof?: boolean
+  onRoofChange?: (roof: boolean) => void
   /** 'polygon' (Sala Circular/Polígono Regular) esconde os campos de
    *  largura/altura — resize numérico só vale pra 'rect' (ver
    *  RoomMeta.shape em types/map.ts e lib/roomOps.ts). O nome continua
@@ -45,6 +52,8 @@ export function RoomControls({
   onNameChange,
   nameHiddenFromPlayers,
   onNameHiddenFromPlayersChange,
+  roof,
+  onRoofChange,
   shape,
   width,
   height,
@@ -53,6 +62,7 @@ export function RoomControls({
   parentName,
   onCreateRoomInside,
 }: RoomControlsProps) {
+  const roofHintId = `${useId()}-roof-hint`
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Sala</h2>
@@ -76,6 +86,15 @@ export function RoomControls({
           checked={!nameHiddenFromPlayers}
           onChange={(visible) => onNameHiddenFromPlayersChange(!visible)}
         />
+      )}
+
+      {roof !== undefined && onRoofChange !== undefined && (
+        <>
+          <Toggle label="Teto fechado para jogadores" checked={roof} onChange={onRoofChange} describedBy={roofHintId} />
+          <p className="lb-field__hint" id={roofHintId}>
+            De fora o jogador vê só a silhueta do prédio; ele entra e o teto abre. Você continua vendo tudo.
+          </p>
+        </>
       )}
 
       {shape === 'rect' && (
