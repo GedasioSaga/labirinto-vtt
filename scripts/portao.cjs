@@ -192,6 +192,13 @@ const JORNADAS_DA_BAR = [
   'e2e/task-jornada-pincel-balde-caminhos.spec.ts',
   'e2e/task-jornada-sala-livre.spec.ts',
   'e2e/task-jornada-pinos-ponto-de-interesse.spec.ts',
+  // As três do passeio de usuário de 18/09/2026. Entram aqui para ganharem o selo
+  // e a auditoria arquivo a arquivo da FASE 0: sem isso, `jornadas-intactas` não as
+  // protege e um builder poderia afrouxar a própria régua sem o portão piscar.
+  // Nascem VERMELHAS de propósito — são o critério de conserto, não regressão.
+  'e2e/task-jornada-camada-travada.spec.ts',
+  'e2e/task-jornada-poligono-termina.spec.ts',
+  'e2e/task-jornada-menu-cabe-na-janela.spec.ts',
 ]
 /** Tudo que a FASE 0 audita arquivo a arquivo — a de fluidez inclusive. */
 const TODAS_JORNADAS_E2E = JORNADAS_E2E.concat([JORNADA_FLUIDEZ, JORNADA_ESTILO, JORNADA_VISTA_MOVEL], JORNADAS_DA_BAR)
