@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { DoorKind, FloorPiece, FreehandTexture, Region, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import type { StairSizePreset } from '../lib/stairs'
@@ -212,6 +212,48 @@ function GroupOptions({
 }
 
 /**
+ * Teto de colunas. Duas resolvem o menu mais alto que existe (Chão: 4 grupos,
+ * 18 opções) e ainda deixam o popover mais estreito que um terço da janela;
+ * daí em diante um menu de ferramenta viraria painel, e quem assume é a
+ * rolagem. Não é "quantas cabem": é quantas ainda parecem um menu.
+ */
+const MAXIMO_DE_COLUNAS = 2
+
+/**
+ * Reparte os grupos em `quantas` colunas, na ordem em que eles chegam — a
+ * leitura desce a primeira coluna inteira antes de começar a segunda, e o Tab
+ * segue exatamente esse caminho porque a ordem do DOM é a mesma.
+ *
+ * O peso de cada grupo é o número de opções dele, não a altura medida: é a
+ * conta que dá para fazer ANTES de desenhar, sem um ciclo medir-redesenhar-
+ * medir. No menu de Chão ela cai em [Forma, Tamanho do pincel] | [Operação,
+ * Lados do polígono] — 9 opções de cada lado, a mesma divisão que o
+ * balanceador de colunas do navegador escolhe quando se pede a ele.
+ *
+ * Um grupo nunca é partido ao meio: título e opções migram juntos, senão a
+ * segunda coluna começaria com opções órfãs de legenda.
+ */
+export function dividirEmColunas(groups: ToolVariantGroup[], quantas: number): ToolVariantGroup[][] {
+  if (quantas <= 1 || groups.length < 2) return [groups]
+  const totalDeOpcoes = groups.reduce((soma, group) => soma + group.options.length, 0)
+  const alvoPorColuna = Math.ceil(totalDeOpcoes / quantas)
+  const colunas: ToolVariantGroup[][] = [[]]
+  let acumulado = 0
+  for (const group of groups) {
+    const atual = colunas[colunas.length - 1] ?? []
+    const abrirOutra = atual.length > 0 && colunas.length < quantas && acumulado + group.options.length > alvoPorColuna
+    if (abrirOutra) {
+      colunas.push([group])
+      acumulado = group.options.length
+    } else {
+      atual.push(group)
+      acumulado += group.options.length
+    }
+  }
+  return colunas
+}
+
+/**
  * Popover de variantes ancorado na setinha de uma ferramenta da barra — a
  * "mesma ideia para cada ferramenta" que o usuário pediu (ROADMAP.md, N1).
  * Puramente presentacional: só sabe desenhar `groups` e delegar
@@ -226,18 +268,70 @@ function GroupOptions({
  */
 export function ToolVariantMenu({ title, groups, bindings, onClose, onChoose, iconFor }: ToolVariantMenuProps) {
   const rootRef = useRef<HTMLDivElement>(null)
+  const [colunas, setColunas] = useState(1)
+  const [ancorarPelaDireita, setAncorarPelaDireita] = useState(false)
+  const colunasDeGrupos = useMemo(() => dividirEmColunas(groups, colunas), [groups, colunas])
 
-  // Foco entra no popover ao abrir — Tab a partir daqui já alcança a
-  // primeira opção, sem precisar de um ref por botão.
-  useEffect(() => {
-    rootRef.current?.focus()
+  /**
+   * O popover cabe na janela ou rola — o que ele nunca faz é empurrar a página.
+   *
+   * `preventScroll` é o conserto de UMA linha do defeito mais grosseiro: o
+   * popover nasce fora da área visível, e um `focus()` comum faz o navegador
+   * rolar o ancestral rolável mais próximo (`.lb-editor`) para alcançá-lo —
+   * arrastando junto canvas, barra de ferramentas e o painel do cabeçalho,
+   * que saíam da janela só de a pessoa abrir o menu.
+   */
+  useLayoutEffect(() => {
+    rootRef.current?.focus({ preventScroll: true })
   }, [])
+
+  /**
+   * Orçamento de altura e número de colunas, medidos na tela.
+   *
+   * O TypeScript contribui com UMA medida — `--lb-toolvariant-topo`, a
+   * distância entre o topo da janela e o topo do popover, que depende de em
+   * qual fileira da barra a setinha caiu. O orçamento (`max-height`) é conta de
+   * CSS a partir dela, com o respiro de borda vindo do mesmo
+   * `--lb-layout-edge-gap` dos outros painéis flutuantes: a régua de
+   * espaçamento continua morando num lugar só.
+   *
+   * Com o orçamento aplicado, "não coube" é `scrollHeight > clientHeight` — o
+   * próprio CSS respondendo, em vez de uma segunda conta de altura em
+   * JavaScript para discordar dele. Enquanto não couber, o menu ganha mais uma
+   * coluna; no teto, a rolagem assume. A subida é monotônica (`Math.min` com o
+   * teto), então o efeito não se realimenta.
+   */
+  useLayoutEffect(() => {
+    const raiz = rootRef.current
+    if (!raiz) return
+    const ajustar = () => {
+      const topo = Math.max(0, Math.round(raiz.getBoundingClientRect().top))
+      raiz.style.setProperty('--lb-toolvariant-topo', `${topo}px`)
+      if (raiz.scrollHeight > raiz.clientHeight) setColunas((atual) => Math.min(atual + 1, MAXIMO_DE_COLUNAS))
+      // A largura cresce junto com as colunas, então a borda da direita vira
+      // um risco novo — e menu cortado à direita é o mesmo defeito de menu
+      // cortado embaixo. A conta sai da ÂNCORA (`offsetParent` é a
+      // `.lb-toolvariant-anchor`, a única `position: relative` em volta), nunca
+      // da caixa já virada: medir a caixa virada faria a resposta depender de
+      // si mesma e o menu ficaria piscando de um lado para o outro.
+      const folga = Number.parseFloat(getComputedStyle(raiz).getPropertyValue('--lb-layout-edge-gap')) || 0
+      const ancora = raiz.offsetParent ?? raiz
+      setAncorarPelaDireita(ancora.getBoundingClientRect().left + raiz.offsetWidth > window.innerWidth - folga)
+    }
+    ajustar()
+    window.addEventListener('resize', ajustar)
+    return () => window.removeEventListener('resize', ajustar)
+  }, [colunas])
+
+  const classes = ['lb-panel', 'lb-scroll', 'lb-toolvariant-menu']
+  if (colunasDeGrupos.length > 1) classes.push('lb-toolvariant-menu--multi')
+  if (ancorarPelaDireita) classes.push('lb-toolvariant-menu--direita')
 
   return (
     <div
       ref={rootRef}
       tabIndex={-1}
-      className="lb-panel lb-toolvariant-menu"
+      className={classes.join(' ')}
       role="group"
       aria-label={`Opções de ${title}`}
       onKeyDown={(event) => {
@@ -248,20 +342,30 @@ export function ToolVariantMenu({ title, groups, bindings, onClose, onChoose, ic
         onClose()
       }}
     >
-      {groups.map((group) => (
-        <div className="lb-toolvariant-menu__group" key={group.storeKey}>
-          <h3 className="lb-eyebrow">{group.label}</h3>
-          <div className="lb-toolvariant-menu__options" role="radiogroup" aria-label={group.label}>
-            <GroupOptions
-              group={group}
-              bindings={bindings}
-              onPicked={() => {
-                onChoose?.(group.storeKey)
-                onClose()
-              }}
-              iconFor={iconFor}
-            />
-          </div>
+      {colunasDeGrupos.map((grupos, indice) => (
+        // A coluna é só caixa de layout: um `<div>` sem papel não entra na
+        // árvore de acessibilidade, então `role="group"` da raiz e cada
+        // `role="radiogroup"` continuam vizinhos diretos como antes. Ela também
+        // é quem faz o primeiro grupo de CADA coluna não herdar a linha
+        // divisória de `.lb-toolvariant-menu__group + .lb-toolvariant-menu__group`
+        // — sem isso a segunda coluna abriria com um risco solto no topo.
+        <div className="lb-toolvariant-menu__coluna" key={grupos[0]?.storeKey ?? indice}>
+          {grupos.map((group) => (
+            <div className="lb-toolvariant-menu__group" key={group.storeKey}>
+              <h3 className="lb-eyebrow">{group.label}</h3>
+              <div className="lb-toolvariant-menu__options" role="radiogroup" aria-label={group.label}>
+                <GroupOptions
+                  group={group}
+                  bindings={bindings}
+                  onPicked={() => {
+                    onChoose?.(group.storeKey)
+                    onClose()
+                  }}
+                  iconFor={iconFor}
+                />
+              </div>
+            </div>
+          ))}
         </div>
       ))}
     </div>

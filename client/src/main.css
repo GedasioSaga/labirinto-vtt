@@ -863,16 +863,78 @@ body {
   display: block;
 }
 
+/* O popover é uma FILEIRA de colunas (uma só, na maioria das ferramentas), e
+   o orçamento de altura é o que sobra da janela abaixo do topo dele. Quem mede
+   o topo é `ToolVariantMenu.tsx`, que entrega o número em
+   `--lb-toolvariant-topo`; o respiro até a borda de baixo é o mesmo
+   `--lb-layout-edge-gap` dos outros painéis flutuantes.
+
+   O piso de 160px é para janela curta demais (ou barra que quebrou em duas
+   fileiras): abaixo disso o menu vira uma fresta que não mostra opção nenhuma,
+   e é melhor ele rolar um pouco do que sumir. É o único px solto aqui de
+   propósito — não é medida de desenho, é o ponto onde o controle deixa de ser
+   usável.
+
+   `overflow-y` vem de `.lb-scroll` (a rolagem da casa, com a mesma barra fina
+   dos painéis). `overscroll-behavior: contain` é o que segura a roda do mouse
+   dentro do menu: sem ele, chegar ao fim da lista faz a rolagem vazar para o
+   que estiver atrás. */
 .lb-toolvariant-menu {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   z-index: 20;
   display: flex;
-  flex-direction: column;
-  gap: var(--lb-space-2);
+  /* `stretch` (o padrão do flex, escrito aqui porque é decisão e não descuido):
+     as colunas ficam todas com a altura da mais alta, e é isso que faz a
+     divisória de pé correr de ponta a ponta. Com `flex-start` ela parava na
+     altura da coluna mais curta e parecia risco inacabado. O conteúdo continua
+     alinhado no topo — quem empilha é o `flex-direction: column` da coluna. */
+  align-items: stretch;
+  gap: var(--lb-space-3);
   min-width: 170px;
   padding: var(--lb-space-2);
+  max-height: max(160px, calc(100vh - var(--lb-toolvariant-topo, 0px) - var(--lb-layout-edge-gap)));
+  overscroll-behavior: contain;
+}
+
+/* Abre para a esquerda quando abrir para a direita passaria da janela — o
+   mesmo cuidado da borda de baixo, no outro eixo. */
+.lb-toolvariant-menu--direita {
+  left: auto;
+  right: 0;
+}
+
+/* Uma coluna. Em menu de coluna única é ela que dá ao popover a largura de
+   sempre: 152px de conteúdo + o padding e a borda fecham os 170px de antes.
+   Não encolhe (`0 0`), senão a caixa flutuante — que se dimensiona pelo
+   conteúdo — colapsaria na largura da maior palavra. */
+.lb-toolvariant-menu__coluna {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  /* Exceção consciente ao `border-box` global: aqui a base do flex precisa ser
+     a largura do TEXTO, não a da caixa. Com `border-box`, o padding e a linha
+     divisória da segunda coluna comiam 13px dela, e as duas colunas do menu de
+     Chão saíam com larguras diferentes — "Retângulo" com 186px de texto e
+     "Dodecágono" com 173px, no mesmo menu. */
+  box-sizing: content-box;
+  flex: 0 0 var(--lb-toolvariant-coluna, 152px);
+  min-width: 0;
+}
+
+/* Duas colunas. A coluna fica mais larga de propósito: a 152px a descrição de
+   "Pincel de blocos" quebrava em cinco linhas, e era daí que vinha a altura do
+   menu de Chão — 1110px num app de 800. A 186px a mesma frase cabe em três, e
+   a linha de texto continua bem abaixo dos 65 caracteres de leitura confortável.
+   A divisória é a mesma linha fina que separa dois grupos, só que de pé. */
+.lb-toolvariant-menu--multi {
+  --lb-toolvariant-coluna: 186px;
+}
+
+.lb-toolvariant-menu--multi .lb-toolvariant-menu__coluna + .lb-toolvariant-menu__coluna {
+  padding-left: var(--lb-space-3);
+  border-left: 1px solid var(--lb-color-line);
 }
 
 .lb-toolvariant-menu__group + .lb-toolvariant-menu__group {
