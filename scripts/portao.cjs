@@ -120,6 +120,17 @@ function git(args) {
   return r.status === 0 ? String(r.stdout) : null
 }
 
+/**
+ * Qual peça é esta árvore, lida do nome do ramo. O run dá a cada peça um ramo
+ * `auto/<id>`; a integração vive em `feat/...`. É o que distingue os dois modos
+ * da Invariante 5 (ver `guardaParticao`) sem inventar variável de ambiente nova.
+ */
+function pecaDaArvore() {
+  const ramo = String(git(['rev-parse', '--abbrev-ref', 'HEAD']) || '').trim()
+  const achado = /^auto\/(.+)$/.exec(ramo)
+  return { ramo, peca: achado ? achado[1] : null }
+}
+
 /** Página do jogador servida pelo exe RELEASE na LAN — o artefato que está em julgamento. */
 const URL_JOGADOR = process.env.PORTAO_URL_JOGADOR || 'http://192.168.0.6:7777/player'
 const TIMEOUT_JOGADOR_MS = 8000
@@ -474,6 +485,142 @@ function guardaCamposNovosMigrados(textoDeTiposBase, textoDeTiposAtual, textoDaM
   return ok('g13-campo-novo-migrado', novos.length + ' campo(s) opcional(is) novo(s) neste run, todos tratados')
 }
 
+/**
+ * Invariante 5 em função pura — "cada peça escreve SOMENTE nos arquivos
+ * declarados nela".
+ *
+ * POR QUE TEM DOIS MODOS. A pergunta que a Invariante 5 faz muda conforme as
+ * peças dividirem ou não a árvore de trabalho:
+ *
+ *  - ÁRVORE COMPARTILHADA (branch de integração, `feat/...`): duas escritas no
+ *    mesmo arquivo se sobrescrevem sem erro. Aí a pergunta é "todo arquivo
+ *    mudado tem UM dono?", e arquivo declarado por duas peças é o defeito.
+ *
+ *  - PEÇA ISOLADA (branch `auto/<id>`, uma por peça): o git já garante que
+ *    ninguém apaga o trabalho da irmã — só a integração junta. A pergunta que
+ *    sobra é a única que importa ali: "esta peça escreveu fora do que foi
+ *    declarado PARA ELA?". Exigir dono único aqui era pior que inútil: arquivo
+ *    de origem compartilhado (PixiCanvas.tsx e afins) tem de aparecer na lista
+ *    de mais de uma peça, e a regra de dono único reprovava a declaração
+ *    correta. Foi assim que, em 18/09/2026, o manifesto ficou com as peças da
+ *    rodada ANTERIOR e o passo passou a reprovar toda correção legítima: todo
+ *    arquivo mudado saía "sem dono declarado".
+ *
+ * A peça vem do nome do ramo (`auto/<id>`) porque é o mesmo endereço que o
+ * orquestrador já usa para separar as peças — nada de variável nova para
+ * alguém esquecer de passar.
+ */
+function casaCom(arquivo, padrao) {
+  if (padrao === arquivo) return true
+  if (padrao.indexOf('*') === -1) return false
+  const escapar = (t) => t.replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+  // `**` atravessa pasta; `*` fica dentro de um segmento. Uma peça pode
+  // declarar a ÁREA que é dela ("client/src/**") sem enumerar arquivo que
+  // ainda não escreveu — enumerar o que não existe era o que empurrava o
+  // orquestrador a deixar o manifesto velho no lugar.
+  const corpo = padrao
+    .split('**')
+    .map((parte) => parte.split('*').map(escapar).join('[^/]*'))
+    .join('.*')
+  return new RegExp('^' + corpo + '$').test(arquivo)
+}
+
+/** Nomes de peça que aceitam este ramo: a chave, ou um apelido declarado nela. */
+function pecaDeclarada(pecas, apelidos, peca) {
+  if (Object.prototype.hasOwnProperty.call(pecas, peca)) return peca
+  for (const nome of Object.keys(apelidos || {})) {
+    if ((apelidos[nome] || []).includes(peca)) return nome
+  }
+  return null
+}
+
+function guardaParticao(entrada) {
+  const arquivos = entrada.arquivos || []
+  const manifesto = entrada.manifesto || {}
+  const peca = entrada.peca || null
+  const pecas = manifesto.pecas || {}
+  const livres = manifesto.livres || []
+  const donosDe = (arquivo) => Object.keys(pecas).filter((nome) => (pecas[nome] || []).some((p) => casaCom(arquivo, p)))
+
+  if (peca !== null) {
+    const chave = pecaDeclarada(pecas, manifesto.apelidos, peca)
+    if (chave === null) {
+      return reprova(
+        'g14-particao',
+        'a peça `' + peca + '` (ramo auto/' + peca + ') não está declarada no manifesto; declaradas: ' +
+          (Object.keys(pecas).join(', ') || 'nenhuma') +
+          '. Manifesto de outra rodada reprova toda correção legítima desta.',
+        'scripts/portao-particao.json ("pecas")',
+      )
+    }
+    const permitido = (a) => (pecas[chave] || []).some((p) => casaCom(a, p)) || livres.some((p) => casaCom(a, p))
+    const invasao = arquivos.filter((a) => !permitido(a))
+    if (invasao.length > 0) {
+      return reprova(
+        'g14-particao',
+        'a peça `' + chave + '` escreveu fora do que foi declarado para ela: ' + invasao.join(', '),
+        'scripts/portao-particao.json ("pecas"."' + chave + '")',
+      )
+    }
+    return ok('g14-particao', 'peça `' + chave + '`: ' + arquivos.length + ' arquivo(s) mudado(s), todos na lista dela')
+  }
+
+  const problemas = []
+  const disputados = arquivos.filter((a) => donosDe(a).length > 1)
+  if (disputados.length > 0) {
+    problemas.push(
+      'árvore compartilhada e arquivo mudado que DUAS peças declaram (a segunda escrita apaga a primeira em silêncio): ' +
+        disputados.map((a) => a + ' [' + donosDe(a).join(' e ') + ']').join('; '),
+    )
+  }
+  const semDono = arquivos.filter((a) => donosDe(a).length === 0 && !livres.some((p) => casaCom(a, p)))
+  if (semDono.length > 0) problemas.push('arquivo mudado sem dono declarado: ' + semDono.join(', '))
+  if (problemas.length > 0) return reprova('g14-particao', problemas.join('\n'), 'scripts/portao-particao.json')
+  return ok('g14-particao', arquivos.length + ' arquivo(s) mudado(s), cada um com uma peça dona')
+}
+
+/**
+ * O que torna "nenhum servidor no ar" uma resposta HONESTA em vez de verde
+ * vazio: o `playwright.config.ts` sobe um servidor NOVO por invocação. Sem
+ * essa cláusula lida do arquivo, "não achei servidor" não prova nada — e era
+ * exatamente o estado do passo `servidor-limpo` rodando em porta onde nunca
+ * houve servidor nenhum (LAB_PORTA=1466): verde permanente sem medida.
+ */
+function guardaConfigDeServidorNovo(texto, ambiente) {
+  const env = ambiente || {}
+  if (!/webServer\s*:/.test(texto)) {
+    return reprova(
+      'g15-servidor-novo',
+      'playwright.config.ts não declara `webServer` — as jornadas dependem de um servidor que ninguém sobe nem inspeciona',
+      'client/playwright.config.ts',
+    )
+  }
+  const achado = /reuseExistingServer\s*:\s*([^,\n]+)/.exec(texto)
+  if (!achado) {
+    return reprova(
+      'g15-servidor-novo',
+      'playwright.config.ts não declara `reuseExistingServer` — o padrão reaproveita servidor com história de HMR',
+      'client/playwright.config.ts',
+    )
+  }
+  const valor = achado[1].trim()
+  if (valor === 'true') {
+    return reprova(
+      'g15-servidor-novo',
+      'reuseExistingServer: true — a jornada pode pegar um vite órfão servindo código velho',
+      'client/playwright.config.ts',
+    )
+  }
+  if (env.LAB_REUSA_SERVIDOR === '1') {
+    return reprova(
+      'g15-servidor-novo',
+      'LAB_REUSA_SERVIDOR=1 no ambiente: o reaproveitamento está LIGADO nesta execução, então "nenhum servidor no ar" não garante servidor novo',
+      'ambiente da execução + client/playwright.config.ts',
+    )
+  }
+  return ok('g15-servidor-novo', 'reuseExistingServer: ' + valor + ' e LAB_REUSA_SERVIDOR desligado — cada invocação sobe servidor próprio')
+}
+
 /** Jornada declarada que não existe, ou que não declara teste nenhum, é invariante vazia. */
 function guardaJornadasExistem(arquivos) {
   const problemas = []
@@ -715,25 +862,15 @@ function sondarParticao() {
       }
     }
 
-    const donos = new Map()
-    for (const peca of Object.keys(manifesto.pecas || {})) {
-      for (const arquivo of manifesto.pecas[peca]) {
-        if (!donos.has(arquivo)) donos.set(arquivo, [])
-        donos.get(arquivo).push(peca)
-      }
-    }
-    const disputados = Array.from(donos.keys()).filter((a) => donos.get(a).length > 1)
-    if (disputados.length > 0) {
-      problemas.push('arquivo declarado por DUAS peças (a segunda escrita apaga a primeira em silêncio): ' + disputados.map((a) => a + ' [' + donos.get(a).join(' e ') + ']').join('; '))
-    }
+    const { ramo, peca } = pecaDaArvore()
+    const r = guardaParticao({ arquivos, manifesto, peca })
+    if (!r.ok) problemas.push(r.detalhe + (r.endereco ? '  [' + r.endereco + ']' : ''))
 
-    const semDono = arquivos.filter((a) => !donos.has(a) && !(manifesto.livres || []).includes(a))
-    if (semDono.length > 0) problemas.push('arquivo mudado sem dono declarado: ' + semDono.join(', '))
-
+    const modo = peca !== null ? 'peça isolada `' + peca + '` (ramo ' + ramo + ')' : 'árvore compartilhada (ramo ' + (ramo || '?') + ')'
     return {
       codigo: problemas.length === 0 ? 0 : 1,
       saida:
-        arquivos.length + ' arquivo(s) mudado(s); ' + donos.size + ' com dono declarado\n' +
+        'modo: ' + modo + '\n' + r.detalhe + '\n' +
         (problemas.length === 0 ? 'partição respeitada e Rust intocado' : problemas.join('\n')),
     }
   })
@@ -854,8 +991,30 @@ function sondarServidorLimpo() {
       // (`reuseExistingServer` desligado), então não há histórico de HMR para
       // contaminar spec. Reprovar por ausência transformava este passo em
       // vermelho permanente fora de uma sessão de `npm run dev` aberta.
+      //
+      // 18/09/2026: ausência deixou de sair verde SOZINHA. Rodando com
+      // `LAB_PORTA=1466` — porta onde nunca houve servidor — este passo era
+      // verde permanente sem medir nada, que é falso-verde do mesmo tipo que o
+      // portão existe para pegar. Agora o verde por ausência carrega a prova
+      // que o justifica, lida do `playwright.config.ts`: servidor novo por
+      // invocação. Se essa cláusula cair, o passo fica vermelho em vez de mudo.
       if (/ERR_CONNECTION_REFUSED|ECONNREFUSED|net::ERR_CONNECTION_RESET/.test(msg)) {
-        resolve({ codigo: 0, saida: 'nenhum servidor no ar em ' + URL_EDITOR + ': nada para duplicar; as jornadas sobem servidor novo' })
+        let config = null
+        try {
+          config = fs.readFileSync(path.join(CLIENTE, 'playwright.config.ts'), 'utf8')
+        } catch (erro) {
+          resolve({ codigo: 1, saida: 'nenhum servidor em ' + URL_EDITOR + ' e o playwright.config.ts não abriu (' + erro.message + '): nada foi medido' })
+          return
+        }
+        const prova = guardaConfigDeServidorNovo(config, process.env)
+        resolve({
+          codigo: prova.ok ? 0 : 1,
+          saida:
+            'nenhum servidor no ar em ' + URL_EDITOR + ': nada para inspecionar aqui.\n' +
+            (prova.ok
+              ? 'o verde vem do config, não do silêncio — ' + prova.detalhe
+              : 'e o config NÃO garante servidor novo: ' + prova.detalhe + (prova.endereco ? '  [' + prova.endereco + ']' : '')),
+        })
         return
       }
       resolve({ codigo: 1, saida: 'sonda do servidor falhou: ' + msg })
@@ -888,22 +1047,39 @@ async function rodarPasso(passo) {
     saida = String(r.stdout || '') + String(r.stderr || '')
     if (r.error) saida += '\n' + r.error.message
   }
+  const veredito = julgarSaida(passo, codigo, saida)
+  return {
+    id: passo.id,
+    titulo: passo.titulo,
+    codigo,
+    ms: Date.now() - t0,
+    ok: veredito.ok,
+    falsoVerde: veredito.falsoVerde,
+    ruina: veredito.ruina,
+    saida,
+  }
+}
+
+/**
+ * O detector de falso-verde, separado de quem roda o comando para poder ser
+ * testado com relatório sintético (`--autoteste`). Ele é a única coisa entre
+ * "exit 0" e "passou": relatório com `skipped`, `flaky` ou `did not run` sai 0
+ * no Playwright, e relatório sem nenhum "N passed" é suíte que não rodou.
+ */
+function julgarSaida(passo, codigo, saida) {
   const ruina = (passo.ruina || []).filter((re) => re.test(saida)).map(String)
   // `exige` é a prova positiva: sem ela, um comando que não rodou nada sai 0 e
   // passa por verde. Marca ausente conta como ruína, com o mesmo peso.
   const faltando = (passo.exige || []).filter((re) => !re.test(saida)).map((re) => 'faltou ' + String(re))
   const ruinaTotal = ruina.concat(faltando)
   const falsoVerde = codigo === 0 && ruinaTotal.length > 0
-  return {
-    id: passo.id,
-    titulo: passo.titulo,
-    codigo,
-    ms: Date.now() - t0,
-    ok: codigo === 0 && !falsoVerde,
-    falsoVerde,
-    ruina: ruinaTotal,
-    saida,
-  }
+  return { ok: codigo === 0 && !falsoVerde, falsoVerde, ruina: ruinaTotal }
+}
+
+/** Forma de guarda (`ok`/`detalhe`) para o detector entrar no `--autoteste`. */
+function guardaFalsoVerde(nome, passo, codigo, saida) {
+  const v = julgarSaida(passo, codigo, saida)
+  return v.ok ? ok(nome, 'exit ' + codigo + ' aceito') : reprova(nome, 'exit ' + codigo + ' recusado: ' + (v.ruina.join(', ') || 'exit não-zero'))
 }
 
 // ---------------------------------------------------------------------------
@@ -922,8 +1098,10 @@ function rodarFase0() {
   const projetos = [path.join(CLIENTE, 'tsconfig.json'), path.join(CLIENTE, 'tsconfig.e2e.json')]
     .filter((p) => fs.existsSync(p))
     .map(lerTsconfig)
+  const configPlaywright = fs.readFileSync(path.join(CLIENTE, 'playwright.config.ts'), 'utf8')
   resultados.push(guardaCoberturaDeTipos(projetos))
-  resultados.push(guardaSemRetries(fs.readFileSync(path.join(CLIENTE, 'playwright.config.ts'), 'utf8')))
+  resultados.push(guardaSemRetries(configPlaywright))
+  resultados.push(guardaConfigDeServidorNovo(configPlaywright, process.env))
   resultados.push(guardaJornadasExistem(TODAS_JORNADAS_E2E.concat(JORNADAS_UNIDADE)))
   resultados.push(guardaPlanoCobreArtefato(PLANO))
 
@@ -1072,6 +1250,81 @@ function rodarAutoteste() {
       ),
       true,
     ],
+    [
+      'g14 reprova peça que escreve fora da lista dela',
+      guardaParticao({ arquivos: ['client/src/App.tsx'], manifesto: { pecas: { portao: ['scripts/portao.cjs'] } }, peca: 'portao' }),
+      false,
+    ],
+    [
+      'g14 reprova ramo auto/<id> que o manifesto não declara (manifesto de outra rodada)',
+      guardaParticao({ arquivos: ['scripts/portao.cjs'], manifesto: { pecas: { luz: ['client/e2e/luz.spec.ts'] } }, peca: 'portao' }),
+      false,
+    ],
+    [
+      'g14 aprova peça isolada dentro da lista dela, com arquivo compartilhado por duas peças',
+      guardaParticao({
+        arquivos: ['client/src/PixiCanvas.tsx'],
+        manifesto: { pecas: { a: ['client/src/PixiCanvas.tsx'], b: ['client/src/PixiCanvas.tsx'] } },
+        peca: 'a',
+      }),
+      true,
+    ],
+    [
+      'g14 reprova arquivo sem dono na árvore compartilhada',
+      guardaParticao({ arquivos: ['client/src/App.tsx'], manifesto: { pecas: { a: ['client/src/PixiCanvas.tsx'] } }, peca: null }),
+      false,
+    ],
+    [
+      'g14 reprova arquivo mudado que duas peças declaram na árvore compartilhada',
+      guardaParticao({ arquivos: ['x.ts'], manifesto: { pecas: { a: ['x.ts'], b: ['x.ts'] } }, peca: null }),
+      false,
+    ],
+    [
+      'g14 reprova peça que sai da área declarada por padrão',
+      guardaParticao({ arquivos: ['scripts/portao.cjs'], manifesto: { pecas: { a: ['client/src/**'] } }, peca: 'a' }),
+      false,
+    ],
+    [
+      'g14 aprova arquivo novo dentro da área declarada por padrão',
+      guardaParticao({ arquivos: ['client/src/components/Menu.tsx'], manifesto: { pecas: { a: ['client/src/**'] } }, peca: 'a' }),
+      true,
+    ],
+    [
+      'g14 aprova ramo que bate por apelido declarado',
+      guardaParticao({
+        arquivos: ['client/src/App.tsx'],
+        manifesto: { pecas: { 'menu-cabe-na-janela': ['client/src/**'] }, apelidos: { 'menu-cabe-na-janela': ['menu'] } },
+        peca: 'menu',
+      }),
+      true,
+    ],
+    [
+      'g14 aprova árvore compartilhada com dono único e arquivo livre',
+      guardaParticao({ arquivos: ['x.ts', 'HANDOFF.md'], manifesto: { pecas: { a: ['x.ts'] }, livres: ['HANDOFF.md'] }, peca: null }),
+      true,
+    ],
+    ['g15 reprova config sem webServer', guardaConfigDeServidorNovo('export default defineConfig({ retries: 0 })', {}), false],
+    ['g15 reprova webServer sem reuseExistingServer', guardaConfigDeServidorNovo('webServer: { command: "npm run dev" }', {}), false],
+    ['g15 reprova reuseExistingServer: true', guardaConfigDeServidorNovo('webServer: {\n  reuseExistingServer: true,\n}', {}), false],
+    [
+      'g15 reprova reaproveitamento ligado pelo ambiente',
+      guardaConfigDeServidorNovo("webServer: {\n  reuseExistingServer: process.env.LAB_REUSA_SERVIDOR === '1',\n}", { LAB_REUSA_SERVIDOR: '1' }),
+      false,
+    ],
+    [
+      'g15 aprova servidor novo por invocação',
+      guardaConfigDeServidorNovo("webServer: {\n  reuseExistingServer: process.env.LAB_REUSA_SERVIDOR === '1',\n}", {}),
+      true,
+    ],
+    // g16 — o detector de falso-verde do passo de jornada, com relatório
+    // sintético. É o que separa "exit 0" de "passou", e era a diferença entre o
+    // passo de jornada do PLANO e o comando de Playwright CRU da lista do run.
+    ['g16 reprova relatório com skipped e exit 0', guardaFalsoVerde('g16', jornada('j', 't', ['a']), 0, '1 passed\n2 skipped\n'), false],
+    ['g16 reprova relatório com flaky e exit 0', guardaFalsoVerde('g16', jornada('j', 't', ['a']), 0, '1 passed\n1 flaky\n'), false],
+    ['g16 reprova "did not run" com exit 0', guardaFalsoVerde('g16', jornada('j', 't', ['a']), 0, '1 passed\n3 did not run\n'), false],
+    ['g16 reprova suíte que não rodou nada (exit 0 sem nenhum passed)', guardaFalsoVerde('g16', jornada('j', 't', ['a']), 0, 'Running 0 tests using 0 workers\n'), false],
+    ['g16 reprova "0 passed" com exit 0', guardaFalsoVerde('g16', jornada('j', 't', ['a']), 0, '0 passed (1.0s)\n'), false],
+    ['g16 aprova relatório com testes passando', guardaFalsoVerde('g16', jornada('j', 't', ['a']), 0, '  2 passed (10.0s)\n'), true],
   ]
   return casos.map(([nome, resultado, esperado]) => ({
     id: nome,
@@ -1114,6 +1367,42 @@ async function principal() {
       ) + '\n',
     )
     return 0
+  }
+
+  // `--jornada=<id> <spec...>` — o MESMO passo de jornada do PLANO, para uma
+  // lista de specs escolhida na linha de comando.
+  //
+  // POR QUE EXISTE. A lista de comandos do run tinha um passo de Playwright
+  // CRU (`node node_modules/@playwright/test/cli.js test <8 specs>`), o único
+  // de jornada sem detector de falso-verde: `N skipped`, `N flaky`, `did not
+  // run` e até relatório sem nenhum "N passed" saem com exit 0, e o run inteiro
+  // lê isso como verde. Aqui a mesma lista passa pelo `jornada()` — ruína,
+  // prova positiva de que algo passou, `--repeat-each` e pasta de artefato
+  // própria. Trocar o comando cru por este é uma linha na lista do run.
+  const jornadaAvulsa = (argv.find((a) => a.startsWith('--jornada=')) || '').slice(10)
+  if (jornadaAvulsa) {
+    const alvos = argv.filter((a) => !a.startsWith('--'))
+    const extras = argv.filter((a) => a.startsWith('--pw=')).map((a) => a.slice(5))
+    if (alvos.length === 0) {
+      process.stderr.write('--jornada=<id> precisa de pelo menos um spec: --jornada=novas e2e/a.spec.ts e2e/b.spec.ts\n')
+      return 2
+    }
+    const ausentes = alvos.filter((a) => !fs.existsSync(path.join(CLIENTE, a)))
+    if (ausentes.length > 0) {
+      // Spec que não existe faz o Playwright rodar ZERO teste e sair 0 — o
+      // falso-verde mais barato de todos, e por erro de digitação.
+      process.stderr.write('spec inexistente em client/: ' + ausentes.join(', ') + '\n')
+      return 2
+    }
+    const r = await rodarPasso(jornada(jornadaAvulsa, alvos.length + ' spec(s) pela linha de comando', alvos, extras))
+    process.stdout.write(r.saida + '\n')
+    process.stdout.write(
+      (r.ok ? 'VERDE  ' : 'VERMELHO') +
+        ' ' + r.id + ' (' + r.ms + ' ms, exit ' + r.codigo + ')' +
+        (r.falsoVerde ? ' FALSO-VERDE: saiu 0 com ' + r.ruina.join(', ') : '') +
+        ' — ' + r.titulo + '\n',
+    )
+    return r.ok ? 0 : 1
   }
 
   if (argv.includes('--selar')) {

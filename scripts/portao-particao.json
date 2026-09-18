@@ -1,32 +1,29 @@
 {
-  "_o_que_e": "Invariante 5 — quem escreve onde. O passo `particao` de scripts/portao.cjs pergunta ao git o que mudou na árvore e exige um dono declarado para cada arquivo. Duas peças escrevendo o mesmo arquivo na mesma árvore se sobrescrevem SEM ERRO; este manifesto é o que torna isso visível.",
-  "_quem_mantem": "O ORQUESTRADOR do run, antes de disparar os builders. O portão não adivinha a partição: ele cobra que ela exista e bate a lista contra a realidade. Arquivo mudado sem dono sai vermelho com nome e endereço.",
-  "_rodada": "17/09/2026 — luz, token com foto, pincel/balde/caminhos, sala livre, pinos. Cada peça constrói em `git worktree` PRÓPRIO (modo_portao worktree): arquivo de origem compartilhado (types/map.ts, PixiCanvas.tsx, PlayerView.tsx, fogFilter.ts, protocol.ts) não pode ser particionado entre as peças e é o ORQUESTRADOR quem funde os diffs no fim. Por isso este manifesto declara só o que é exclusivo de cada peça — a jornada dela — mais os arquivos do portão; o passo `particao` fica FORA do gate_cmds desta rodada, porque na árvore isolada ele mediria o que o isolamento já garante.",
+  "_o_que_e": "Invariante 5 — quem escreve onde. O passo `particao` de scripts/portao.cjs pergunta ao git o que mudou na árvore e confere contra o que foi declarado. Duas peças escrevendo o mesmo arquivo na MESMA árvore se sobrescrevem SEM ERRO; este manifesto é o que torna isso visível.",
+  "_quem_mantem": "O ORQUESTRADOR do run, antes de disparar os builders. O portão não adivinha a partição: ele cobra que ela exista e bate a lista contra a realidade. Manifesto de OUTRA rodada não é neutro — ele reprova toda correção legítima da rodada atual, porque todo arquivo mudado sai 'sem dono declarado'. Foi o que aconteceu em 18/09/2026.",
+  "_dois_modos": "O passo lê o nome do ramo. Ramo `auto/<id>` = peça isolada: o git já garante que ninguém apaga o trabalho da irmã, e a única pergunta que sobra é se ESTA peça escreveu fora do que foi declarado para ela — por isso arquivo de origem compartilhado pode aparecer na lista de mais de uma peça sem virar disputa. Ramo de integração (`feat/...`, `main`) = árvore compartilhada: aí volta a valer dono único por arquivo mudado.",
+  "_padroes": "Cada entrada é um caminho exato ou um padrão: `*` dentro de um segmento, `**` atravessando pasta. Uma peça declara a ÁREA que é dela sem enumerar arquivo que ainda não escreveu. O que fica FORA de toda área é o que importa proteger: scripts/ (o juiz), client/e2e/ (as jornadas seladas) e desktop/ (o lado Rust).",
+  "_rodada": "18/09/2026 — cadeado de camada ao arrastar, encerramento do traçado do Polígono, menu 'Opções de Chão'. Cada peça vive na própria branch auto/<id>; o merge é do usuário. As três jornadas da rodada (camada travada, polígono termina, menu cabe na janela) nascem VERMELHAS e são o critério de conserto: ninguém as edita — `jornadas-intactas` confere por hash.",
   "pecas": {
     "portao": [
-      "client/porta.cjs",
-      "client/porta.d.cts",
-      "client/playwright.config.ts",
-      "client/vite.config.ts",
       "scripts/portao.cjs",
-      "scripts/portao-particao.json",
-      "scripts/portao-selo.json"
+      "scripts/portao-particao.json"
     ],
-    "luz": [
-      "client/e2e/task-jornada-luz-que-para-na-parede.spec.ts"
+    "camada-travada": [
+      "client/src/**"
     ],
-    "token-com-foto": [
-      "client/e2e/task-jornada-token-com-foto.spec.ts"
+    "poligono-termina": [
+      "client/src/**"
     ],
-    "pincel-balde-caminhos": [
-      "client/e2e/task-jornada-pincel-balde-caminhos.spec.ts"
-    ],
-    "sala-livre": [
-      "client/e2e/task-jornada-sala-livre.spec.ts"
-    ],
-    "pinos": [
-      "client/e2e/task-jornada-pinos-ponto-de-interesse.spec.ts"
+    "menu-cabe-na-janela": [
+      "client/src/**"
     ]
+  },
+  "apelidos": {
+    "portao": ["gate", "fase0"],
+    "camada-travada": ["camada", "cadeado", "cadeado-de-camada", "camada-travada-arrasto"],
+    "poligono-termina": ["poligono", "poligono-encerra", "ferramenta-poligono"],
+    "menu-cabe-na-janela": ["menu", "menu-opcoes-de-chao", "opcoes-de-chao", "menu-cabe"]
   },
   "livres": [
     "PEDIDOS.md",
