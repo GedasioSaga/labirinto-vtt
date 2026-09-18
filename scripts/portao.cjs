@@ -218,6 +218,53 @@ const JORNADAS_DA_BAR = [
   'e2e/task-jornada-poligono-termina.spec.ts',
   'e2e/task-jornada-menu-cabe-na-janela.spec.ts',
 ]
+/**
+ * Jornada da bar DISPENSADA desta rodada, com o motivo escrito — a única forma
+ * de sair da lista do comando 15 sem ser omissão.
+ *
+ * A lista de specs daquele comando é digitada à mão pelo orquestrador (as 9 da
+ * bar menos a dispensada), e nada a conferia: omitir uma das jornadas do
+ * critério devolvia exit 0 com um `N passed` de aparência impecável. Quem julga
+ * não pode depender de alguém lembrar de digitar oito caminhos certos.
+ * `guardaListaDeJornadas` cobra a lista completa; este objeto é a exceção
+ * declarada, e o motivo dela sai impresso no verde.
+ */
+const JORNADAS_DISPENSADAS = {
+  'e2e/task-jornada-ferramentas-mudas.spec.ts':
+    'Invariante 11 do run de 18/09/2026: duas das três asserções cobram o contrário de NEW_MAP_SHOW_GRID = false, ' +
+    'decisão de produto já tomada pelo usuário. Pendência da manhã — não é licença para quebrar a jornada.',
+}
+
+/**
+ * REGRESSÃO das telas que as peças desta rodada reestruturam.
+ *
+ * O repositório tem 88 specs em `client/e2e`; o portão citava 25. Os 63 de fora
+ * não tinham comando NENHUM — e quatro deles dirigem exatamente o que a peça
+ * `menu-cabe-na-janela` vai mexer: o menu 'Opções de Chão'
+ * (task-floor-pieces.spec.ts:74-75) e o `ToolVariantMenu` da setinha
+ * (task-drawing-group.spec.ts:30, task-fase5-variantes, task-new-shapes).
+ * Medido em 18/09/2026 pelo modo `--jornada=`: os 14 testes destes quatro
+ * arquivos passam hoje. Sem eles na lista, um builder podia reestruturar
+ * `ToolVariantMenu.tsx` e `toolVariants.ts`, quebrar as quatro telas, e os 15
+ * comandos do portão seguirem verdes.
+ *
+ * Entram no passo `jornadas-e2e` (as já entregues, que só têm de continuar
+ * passando) e no SELO, mas NÃO na auditoria arquivo a arquivo da FASE 0: eles
+ * não foram escritos com a régua das jornadas da bar (prova por gesto, teto com
+ * controle positivo), e cobrar isso deles agora reprovaria o portão inteiro por
+ * causa de spec antigo — vermelho que nenhuma peça desta rodada pode consertar.
+ * O que se cobra deles é o que eles provam: continuam passando.
+ *
+ * Os outros 59 seguem fora, com endereço: `client/e2e/task-room-tool.spec.ts` e
+ * `client/e2e/task-room-circle-polygon.spec.ts` já falham hoje (5 testes,
+ * anterior a esta rodada) e entrar com eles seria vermelho herdado.
+ */
+const JORNADAS_REGRESSAO_MENUS = [
+  'e2e/task-drawing-group.spec.ts',
+  'e2e/task-fase5-variantes.spec.ts',
+  'e2e/task-floor-pieces.spec.ts',
+  'e2e/task-new-shapes.spec.ts',
+]
 /** Tudo que a FASE 0 audita arquivo a arquivo — a de fluidez inclusive. */
 const TODAS_JORNADAS_E2E = JORNADAS_E2E.concat([JORNADA_FLUIDEZ, JORNADA_ESTILO, JORNADA_VISTA_MOVEL], JORNADAS_DA_BAR)
 /**
@@ -229,8 +276,14 @@ const TODAS_JORNADAS_E2E = JORNADAS_E2E.concat([JORNADA_FLUIDEZ, JORNADA_ESTILO,
  * Quem não estiver no `portao-selo.json` não fica sem juiz: `guardaJornadasIntactas`
  * compara essa jornada com o conteúdo dela no COMMIT BASE do run (as 19 são
  * rastreadas pelo git). Sem selo E sem base é vermelho, nunca silêncio.
+ *
+ * 18/09/2026 — entram também os quatro specs de REGRESSÃO dos menus. É por essa
+ * porta que eles ganham hash sem o selo precisar ser tirado de novo: são
+ * rastreados pelo git, então "como estavam quando as peças saíram" sai do commit
+ * base do run. Afrouxar o spec que prova que o menu ainda abre é tão barato
+ * quanto afrouxar uma jornada da bar.
  */
-const JORNADAS_SELADAS = TODAS_JORNADAS_E2E
+const JORNADAS_SELADAS = TODAS_JORNADAS_E2E.concat(JORNADAS_REGRESSAO_MENUS)
 const JORNADAS_UNIDADE = [
   'src/lib/mapFile.persistencia.test.ts',
   'src/lib/mapFileIO.persistencia.test.ts',
@@ -722,6 +775,8 @@ function guardaBaseDoRun(entrada) {
   const cabeca = entrada.cabeca || null
   const peca = entrada.peca || null
   const ramo = entrada.ramo || (peca !== null ? 'auto/' + peca : null)
+  /** O sha para onde o ponteiro declarado aponta — não o `merge-base` com o HEAD. */
+  const commitDaBase = entrada.commitDaBase || null
   if (!ref) {
     return reprova(
       'g17-base-do-run',
@@ -743,6 +798,27 @@ function guardaBaseDoRun(entrada) {
       'a base declarada `' + ref + '` é o PRÓPRIO ramo em que a peça `' + (peca || '?') + '` commita: ela avança a cada commit, o diff ' +
         'sai vazio por construção e tudo o que a peça commitar escapa das Invariantes 5 e 9. A base tem de ser um ponteiro CONGELADO, ' +
         'no ponto de onde as peças saíram.',
+      'scripts/portao-particao.json ("base"."ramo")',
+    )
+  }
+  // A base declarada é ANCESTRAL desta peça?
+  //
+  // `particao` cobra da peça tudo o que está entre `merge-base(HEAD, base)` e o
+  // HEAD dela. Quando o ponteiro declarado NÃO é ancestral do HEAD — a peça foi
+  // cortada de um commit mais novo que a base, ou de outro ramo —, o merge-base
+  // cai para trás e todo commit que OUTRA peça fez nesse meio vira "invasão"
+  // desta. Medido em 18/09/2026: com `base.ramo = auto/base-noite` (6500be7) e
+  // as peças cortadas de auto/portao (32a74cd), `particao` reprovava as três
+  // peças de cliente por escreverem em `scripts/portao.cjs` ANTES de elas
+  // escreverem uma linha — vermelho por invasão que não existe, e que nenhum
+  // builder consegue consertar. Agora isso sai como diagnóstico com endereço,
+  // no lugar de acusação contra quem não escreveu nada.
+  if (commitDaBase !== null && base !== null && commitDaBase !== base) {
+    return reprova(
+      'g17-base-do-run',
+      'a base declarada `' + ref + '` = ' + String(commitDaBase).slice(0, 8) + ' NÃO é ancestral desta peça: `merge-base` caiu em ' +
+        String(base).slice(0, 8) + '. Tudo o que foi commitado entre os dois vai ser cobrado desta peça como invasão, mesmo que outra ' +
+        'peça é que tenha escrito. A base tem de ser o commit de onde ESTA peça saiu.',
       'scripts/portao-particao.json ("base"."ramo")',
     )
   }
@@ -869,6 +945,49 @@ function guardaJornadasExistem(arquivos) {
   return ok('g8-jornadas-existem', arquivos.length + ' arquivos de jornada presentes e com testes')
 }
 
+/**
+ * A lista de specs do modo `--jornada=` está COMPLETA?
+ *
+ * O detector de falso-verde (`ruina` + `exige`) julga o relatório do que rodou:
+ * ele pega `N skipped`, `N flaky`, `did not run` e suíte sem nenhum `N passed`.
+ * O que ele não tem como pegar é a jornada que nunca entrou na linha de comando
+ * — sete das oito jornadas do critério saem `19 passed`, exit 0, relatório
+ * impecável, e a oitava (vermelha) simplesmente não existiu. Era o último
+ * caminho de verde silencioso do comando 15, e ele dependia de digitar oito
+ * caminhos à mão sem errar.
+ *
+ * A regra é só uma: quem roda ALGUMA jornada da bar roda TODAS, menos as
+ * dispensadas com motivo (`JORNADAS_DISPENSADAS`). Lista que não toca nenhuma
+ * jornada da bar é amostra avulsa e segue livre — é para isso que o modo existe.
+ */
+function guardaListaDeJornadas(alvos, daBar, dispensadas) {
+  const pedidas = new Set(alvos || [])
+  const bar = daBar || []
+  const dispensa = dispensadas || {}
+  const daBarPedidas = bar.filter((j) => pedidas.has(j))
+  if (daBarPedidas.length === 0) {
+    return ok('g19-lista-de-jornadas', (alvos || []).length + ' spec(s) fora das jornadas da bar: lista avulsa, sem exigência de completude')
+  }
+  const faltando = bar.filter((j) => !pedidas.has(j) && !Object.prototype.hasOwnProperty.call(dispensa, j))
+  if (faltando.length > 0) {
+    return reprova(
+      'g19-lista-de-jornadas',
+      'a linha de comando roda ' + daBarPedidas.length + ' jornada(s) da bar mas OMITE ' + faltando.length + ': ' + faltando.join(', ') +
+        '. Jornada que não entra na lista não aparece como vermelha — aparece como nada, e o relatório sai `N passed` com exit 0. ' +
+        'Rode todas, ou declare a dispensa com motivo.',
+      'scripts/portao.cjs (JORNADAS_DA_BAR / JORNADAS_DISPENSADAS)',
+    )
+  }
+  const dispensadasFora = bar.filter((j) => !pedidas.has(j))
+  return ok(
+    'g19-lista-de-jornadas',
+    daBarPedidas.length + ' de ' + bar.length + ' jornada(s) da bar na lista' +
+      (dispensadasFora.length === 0
+        ? ', nenhuma dispensada'
+        : '\ndispensada(s) com motivo declarado:\n' + dispensadasFora.map((j) => '  ' + j + ': ' + dispensa[j]).join('\n')),
+  )
+}
+
 // ---------------------------------------------------------------------------
 // FASE 1 — comandos, com exit code real e detector de falso-verde.
 // ---------------------------------------------------------------------------
@@ -974,7 +1093,8 @@ const PLANO = [
   },
   {
     id: 'jornadas-intactas',
-    titulo: 'Invariante 6: as 19 jornadas continuam com o hash do selo (ou o do commit base do run)',
+    titulo:
+      'Invariante 6: as ' + JORNADAS_SELADAS.length + ' jornadas seladas continuam com o hash do selo (ou o do commit base do run)',
     sonda: sondarJornadasIntactas,
   },
   {
@@ -984,7 +1104,11 @@ const PLANO = [
   },
   jornada('estilo-minimapa', 'Invariante 1 medida em pixel (chão chapado, parede clara e fina, sem grade)', [JORNADA_ESTILO]),
   jornada('jornada-vista-movel', 'Invariante 4: a vista continua móvel por botão do meio e por Espaço+arrastar', [JORNADA_VISTA_MOVEL]),
-  jornada('jornadas-e2e', 'jornadas já entregues, com ponteiro real', JORNADAS_E2E),
+  jornada(
+    'jornadas-e2e',
+    'jornadas já entregues, com ponteiro real, mais a regressão dos menus que esta rodada reestrutura',
+    JORNADAS_E2E.concat(JORNADAS_REGRESSAO_MENUS),
+  ),
   jornada('jornadas-da-bar', 'os gestos que a bar deste run pede (luz, token com foto, pincel e balde, sala livre, pinos)', JORNADAS_DA_BAR),
   jornada('jornada-fluidez', 'Invariante 6 medida com a máquina só para ela (workers=1)', [JORNADA_FLUIDEZ], ['--workers=1']),
 ]
@@ -1064,7 +1188,10 @@ function baseDoRun() {
   const ref = (manifesto.base && manifesto.base.ramo) || null
   const cabeca = String(git(['rev-parse', 'HEAD']) || '').trim() || null
   const base = ref ? String(git(['merge-base', 'HEAD', ref]) || '').trim() || null : null
-  const r = guardaBaseDoRun({ ref, base, cabeca, peca, ramo })
+  // Para onde o ponteiro aponta, separado do `merge-base`: os dois só coincidem
+  // quando a base é mesmo ancestral desta peça (ver `guardaBaseDoRun`).
+  const commitDaBase = ref ? String(git(['rev-parse', ref + '^{commit}']) || '').trim() || null : null
+  const r = guardaBaseDoRun({ ref, base, cabeca, peca, ramo, commitDaBase })
   if (!r.ok) return { ramo, peca, manifesto, ref, base, cabeca, erro: r.detalhe + (r.endereco ? '  [' + r.endereco + ']' : '') }
   return { ramo, peca, manifesto, ref, base, cabeca, erro: null, nota: r.detalhe }
 }
@@ -1195,15 +1322,87 @@ function sondarJornadasIntactas() {
  * máquina tinha 33,9 GB de 511 em 17/09/2026: a premissa estava velha. Premissa
  * velha não se copia para o relatório, se mede.
  */
+/** Bytes de uma pasta inteira, sem seguir link. Só para relatar tamanho de trace. */
+function tamanhoDaPasta(dir) {
+  let total = 0
+  let entradas = []
+  try {
+    entradas = fs.readdirSync(dir, { withFileTypes: true })
+  } catch (e) {
+    return 0
+  }
+  for (const entrada of entradas) {
+    const alvo = path.join(dir, entrada.name)
+    try {
+      if (entrada.isDirectory()) total += tamanhoDaPasta(alvo)
+      else total += fs.statSync(alvo).size
+    } catch (e) {
+      // Arquivo que sumiu no meio da varredura não é erro de medida de disco.
+    }
+  }
+  return total
+}
+
+/**
+ * Cada passo de jornada grava trace.zip e screenshot na pasta DELE
+ * (`%TEMP%/portao-labirinto/artefatos/<passo>-<ms>`, ver ARTEFATOS) e nada
+ * apagava as antigas: três peças vezes várias rodadas de gauntlet comem sozinhas
+ * a folga que o passo `disco` cobra, e o passo só reprovava DEPOIS do disco já
+ * estar no fim. Medido em 18/09/2026: 6,08 GB livres contra um piso de 3 GB.
+ *
+ * Aqui o próprio passo devolve o espaço antes de medir, com três freios:
+ *  - só mexe DENTRO de `%TEMP%/portao-labirinto/artefatos` (Invariante 9: nada
+ *    apagado fora de pasta temporária), conferido contra `os.tmpdir()`;
+ *  - só apaga pasta com nome de artefato de passo (`<id>-<ms>`);
+ *  - guarda as `ARTEFATOS_MANTIDOS` mais novas E tudo o que tem menos de duas
+ *    horas — outra rodada em paralelo ainda pode estar escrevendo na dela, e a
+ *    prova de um vermelho recente vale mais que o espaço.
+ */
+const ARTEFATOS_MANTIDOS = 12
+const ARTEFATO_IDADE_MINIMA_MS = 2 * 60 * 60 * 1000
+
+function limparArtefatosAntigos(agora) {
+  const dentroDoTemp = path.resolve(ARTEFATOS).toLowerCase().startsWith(path.resolve(os.tmpdir()).toLowerCase() + path.sep)
+  if (!dentroDoTemp || !fs.existsSync(ARTEFATOS)) {
+    return { apagadas: 0, bytes: 0, mantidas: 0, motivo: dentroDoTemp ? 'nenhuma pasta de artefato ainda' : 'pasta de artefatos fora de %TEMP%: nada apagado' }
+  }
+  const agoraMs = agora || Date.now()
+  const pastas = fs
+    .readdirSync(ARTEFATOS, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && /^[A-Za-z0-9._-]+-(\d{10,})$/.test(e.name))
+    .map((e) => ({ nome: e.name, em: Number(/-(\d{10,})$/.exec(e.name)[1]) }))
+    .sort((a, b) => b.em - a.em)
+  const candidatas = pastas.slice(ARTEFATOS_MANTIDOS).filter((p) => agoraMs - p.em > ARTEFATO_IDADE_MINIMA_MS)
+  let bytes = 0
+  let apagadas = 0
+  for (const pasta of candidatas) {
+    const alvo = path.join(ARTEFATOS, pasta.nome)
+    const tamanho = tamanhoDaPasta(alvo)
+    try {
+      fs.rmSync(alvo, { recursive: true, force: true })
+      apagadas += 1
+      bytes += tamanho
+    } catch (e) {
+      // Pasta em uso por outra rodada: fica onde está, e o relatório conta o resto.
+    }
+  }
+  return { apagadas, bytes, mantidas: pastas.length - apagadas, motivo: null }
+}
+
 function sondarDisco() {
   return Promise.resolve().then(() => {
+    const faxina = limparArtefatosAntigos(Date.now())
     const estado = fs.statfsSync(RAIZ)
     const livreGb = (estado.bfree * estado.bsize) / 1e9
     const totalGb = (estado.blocks * estado.bsize) / 1e9
+    const ocupadoGb = tamanhoDaPasta(ARTEFATOS) / 1e9
     return {
       codigo: livreGb >= PISO_DE_DISCO_GB ? 0 : 1,
       saida:
         'livre ' + livreGb.toFixed(2) + ' GB de ' + totalGb.toFixed(2) + ' GB (piso do portão: ' + PISO_DE_DISCO_GB + ' GB)' +
+        '\ntrace e screenshot de jornada: ' + faxina.apagadas + ' pasta(s) antiga(s) apagada(s) (' + (faxina.bytes / 1e9).toFixed(2) +
+        ' GB devolvidos), ' + faxina.mantidas + ' mantida(s) ocupando ' + ocupadoGb.toFixed(2) + ' GB em ' + ARTEFATOS +
+        (faxina.motivo ? ' — ' + faxina.motivo : '') +
         (livreGb < PISO_DE_DISCO_GB ? '\nabaixo do piso: worktree, build e trace não cabem — pare antes de encher o disco' : ''),
     }
   })
@@ -1436,8 +1635,18 @@ function rodarFase0() {
   } catch (e) {
     selo = null
   }
+  // O selo cobre MAIS arquivos do que a auditoria linha a linha: os quatro
+  // specs de regressão dos menus (JORNADAS_REGRESSAO_MENUS) ganham hash, mas não
+  // a régua das jornadas da bar — ver o comentário da constante. Por isso a
+  // leitura deles é própria: sem ela, `g12` os acusaria de "ausentes da árvore".
+  const textosSelados = Object.assign({}, textos)
+  for (const arquivo of JORNADAS_SELADAS) {
+    if (textosSelados[arquivo] !== undefined) continue
+    const absoluto = path.join(CLIENTE, arquivo)
+    if (fs.existsSync(absoluto)) textosSelados[arquivo] = fs.readFileSync(absoluto, 'utf8')
+  }
   const daBase = hashesDaBaseDasJornadas(JORNADAS_SELADAS)
-  resultados.push(guardaJornadasIntactas(selo, textos, JORNADAS_SELADAS, daBase.hashes))
+  resultados.push(guardaJornadasIntactas(selo, textosSelados, JORNADAS_SELADAS, daBase.hashes))
 
   // Base do esquema = o `types/map.ts` do COMMIT BASE DO RUN, não o de HEAD.
   //
@@ -1745,6 +1954,54 @@ function rodarAutoteste() {
       guardaBaseDoRun({ ref: 'auto/base-noite', base: 'aaaa', cabeca: 'aaaa', peca: 'portao', ramo: 'auto/portao' }),
       true,
     ],
+    // A base que não é ancestral da peça: `merge-base` cai para trás e a peça
+    // leva a conta do que outra escreveu. Era o vermelho fantasma de 18/09.
+    [
+      'g17 reprova base que não é ancestral desta peça (merge-base cai para trás)',
+      guardaBaseDoRun({ ref: 'auto/base-noite', base: 'bbbb', cabeca: 'aaaa', peca: 'camada-travada', ramo: 'auto/camada-travada', commitDaBase: 'cccc' }),
+      false,
+    ],
+    [
+      'g17 aprova base ancestral (ponteiro e merge-base no mesmo commit)',
+      guardaBaseDoRun({ ref: 'auto/base-pecas', base: 'bbbb', cabeca: 'aaaa', peca: 'camada-travada', ramo: 'auto/camada-travada', commitDaBase: 'bbbb' }),
+      true,
+    ],
+    // g19 — a lista do comando 15. O que não entra na linha de comando não sai
+    // no relatório nem como vermelho nem como skipped: sai como nada.
+    [
+      'g19 reprova lista da bar com uma jornada omitida',
+      guardaListaDeJornadas(['e2e/a.spec.ts', 'e2e/b.spec.ts'], ['e2e/a.spec.ts', 'e2e/b.spec.ts', 'e2e/c.spec.ts'], {}),
+      false,
+    ],
+    [
+      'g19 aprova lista completa da bar',
+      guardaListaDeJornadas(['e2e/a.spec.ts', 'e2e/b.spec.ts', 'e2e/c.spec.ts'], ['e2e/a.spec.ts', 'e2e/b.spec.ts', 'e2e/c.spec.ts'], {}),
+      true,
+    ],
+    [
+      'g19 aprova omissão declarada com motivo',
+      guardaListaDeJornadas(['e2e/a.spec.ts', 'e2e/b.spec.ts'], ['e2e/a.spec.ts', 'e2e/b.spec.ts', 'e2e/c.spec.ts'], { 'e2e/c.spec.ts': 'motivo' }),
+      true,
+    ],
+    [
+      'g19 aprova amostra avulsa que não toca a bar',
+      guardaListaDeJornadas(['e2e/outro.spec.ts'], ['e2e/a.spec.ts', 'e2e/b.spec.ts'], {}),
+      true,
+    ],
+    [
+      'g19 reprova a lista real do comando 15 com uma jornada do critério de fora',
+      guardaListaDeJornadas(
+        JORNADAS_DA_BAR.filter((j) => j !== 'e2e/task-jornada-poligono-termina.spec.ts' && !JORNADAS_DISPENSADAS[j]),
+        JORNADAS_DA_BAR,
+        JORNADAS_DISPENSADAS,
+      ),
+      false,
+    ],
+    [
+      'g19 aprova a lista real do comando 15 completa (as 8, com a dispensada declarada)',
+      guardaListaDeJornadas(JORNADAS_DA_BAR.filter((j) => !JORNADAS_DISPENSADAS[j]), JORNADAS_DA_BAR, JORNADAS_DISPENSADAS),
+      true,
+    ],
     provaDeMedida(
       'g17 mede o que a peça COMMITOU, não só a árvore suja',
       '',
@@ -1860,6 +2117,12 @@ async function principal() {
       process.stderr.write('spec inexistente em client/: ' + ausentes.join(', ') + '\n')
       return 2
     }
+    // Existir não basta: a lista também tem de estar COMPLETA. Omitir uma
+    // jornada do critério é o falso-verde que o detector de relatório não
+    // alcança, porque o que não rodou não deixa rastro no relatório.
+    const completa = guardaListaDeJornadas(alvos, JORNADAS_DA_BAR, JORNADAS_DISPENSADAS)
+    process.stdout.write((completa.ok ? 'VERDE  ' : 'VERMELHO') + ' ' + completa.id + ': ' + completa.detalhe + (completa.endereco ? '  [' + completa.endereco + ']' : '') + '\n')
+    if (!completa.ok) return 2
     const r = await rodarPasso(jornada(jornadaAvulsa, alvos.length + ' spec(s) pela linha de comando', alvos, extras))
     process.stdout.write(r.saida + '\n')
     process.stdout.write(
