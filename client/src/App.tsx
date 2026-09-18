@@ -25,12 +25,14 @@ import { OptionsScreen } from './screens/OptionsScreen'
 import { useMapStore } from './stores/mapStore'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, loadMapFromDisk, mapDirFor, defaultMapsDir } from './lib/mapFileIO'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
+import { useTokenLibraryStore } from './stores/tokenLibraryStore'
+import { apagarDoAcervo, salvarNoAcervo, trazerDoAcervo, IMAGEM_SUMIU_DO_ACERVO, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { ActionBar } from './components/ActionBar'
-import type { DoorKind, DrawingCap, MapData, Region, Wall } from './types/map'
+import type { DoorKind, DrawingCap, MapData, Region, Token, Wall } from './types/map'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -58,6 +60,30 @@ import { fitTitleFont } from './pixi/frameTitle'
 function reportFileError(action: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err)
   useToastStore.getState().push('error', `Não foi possível ${action}: ${message}`)
+}
+
+/**
+ * Cancela um listener do Tauri sem poder derrubar a tela.
+ *
+ * `unlisten` do `@tauri-apps/api/event` fala com
+ * `window.__TAURI_EVENT_PLUGIN_INTERNALS__`, uma ponte SEPARADA de
+ * `__TAURI_INTERNALS__` (que é a que `isTauri()` enxerga): onde só a segunda
+ * existe, a chamada estoura `TypeError: Cannot read properties of undefined`
+ * dentro da limpeza de um `useEffect` — o lugar onde o React não tem quem
+ * pegue o erro, e a tela inteira cai. Fechar a janela já derruba o listener de
+ * qualquer jeito, então falhar aqui não custa nada e não merece aviso.
+ */
+function pararDeOuvir(unlisten: (() => void) | undefined): void {
+  if (unlisten === undefined) return
+  try {
+    // O `unlisten` do Tauri é ASSÍNCRONO por dentro (`_unlisten` em
+    // `@tauri-apps/api/event`), mesmo declarado como `() => void`: o erro não
+    // chega ao `catch` abaixo, ele vira promessa rejeitada sem dono — que é
+    // exatamente como este defeito apareceu. Por isso os DOIS caminhos.
+    void Promise.resolve(unlisten() as unknown).catch(() => undefined)
+  } catch {
+    // Ponte de eventos ausente ou pela metade: nada a fazer e nada a dizer.
+  }
 }
 
 /** Aviso de sucesso de Salvar (botão, Ctrl+S) e de sair por Início. */
@@ -321,6 +347,14 @@ function App() {
   // Onda 2, item 12 (Frente A) — pilha de avisos (erro/info).
   const toasts = useToastStore((state) => state.toasts)
 
+  // Acervo de tokens prontos: global do app, lido do disco uma vez por
+  // execução e reler só depois de gravar (salvar/apagar). Ver `stores/tokenLibraryStore.ts`.
+  const acervoItens = useTokenLibraryStore((state) => state.itens)
+  const acervoAviso = useTokenLibraryStore((state) => state.aviso)
+  useEffect(() => {
+    void useTokenLibraryStore.getState().recarregar()
+  }, [])
+
   // Multiplayer em LAN: ponte do mestre criada sob demanda (só dentro do Tauri, ver RoomPanel abaixo).
   const [room, setRoom] = useState<RoomInfo | null>(null)
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
@@ -581,12 +615,16 @@ function App() {
         if (confirmed) await getCurrentWindow().destroy()
       })
       .then((fn) => {
-        if (cancelled) fn()
+        if (cancelled) pararDeOuvir(fn)
         else unlisten = fn
       })
+      // Registrar o aviso é melhor esforço: sem ele o app fecha sem perguntar,
+      // que é ruim — mas uma promessa rejeitada sem dono derruba a tela, que é
+      // pior, e foi assim que este efeito quebrou a jornada do acervo.
+      .catch(() => undefined)
     return () => {
       cancelled = true
-      unlisten?.()
+      pararDeOuvir(unlisten)
     }
   }, [])
 
@@ -872,6 +910,65 @@ function App() {
   }
 
   /**
+   * ACERVO DE TOKENS — guardar o token selecionado na estante do app.
+   *
+   * O erro sobe de `lib/tokenLibrary.ts` e sai pelo MESMO `reportFileError` de
+   * salvar mapa e trocar imagem: token sem foto vira "Não foi possível guardar
+   * o token no acervo: este token ainda não tem foto — escolha uma imagem para
+   * ele antes de guardar no acervo", que diz o que fazer a seguir. Checar a
+   * foto aqui também seria uma segunda regra dizendo a mesma coisa, livre para
+   * divergir da primeira.
+   */
+  const handleSaveTokenToLibrary = async (token: Token) => {
+    try {
+      const item = await salvarNoAcervo(token)
+      await useTokenLibraryStore.getState().recarregar()
+      // O nome pode ter ganhado sufixo ("Goblin (2)"): mostrar o nome FINAL é
+      // o que faz a pessoa achar a linha certa no painel logo em seguida.
+      useToastStore.getState().push('info', `${item.nome} entrou no acervo`)
+    } catch (err) {
+      reportFileError('guardar o token no acervo', err)
+    }
+  }
+
+  /**
+   * ACERVO — trazer o NPC pronto para o mapa aberto.
+   *
+   * A peça nasce primeiro (mesmo assentamento de `handleAddToken`: o disco
+   * entra onde cabe, nunca em cima de parede) e a foto entra logo depois, já
+   * copiada para a pasta DESTE mapa. Esperar a cópia para só então criar a
+   * peça deixaria o clique sem resposta enquanto o arquivo é lido.
+   */
+  const handlePlaceFromLibrary = async (item: ItemDoAcervoNaTela) => {
+    const tokenId = criarToken(item.nome, { size: item.tamanho })
+    if (tokenId === null) return
+    try {
+      const mapDir = await mapDirFor(map.id)
+      const { image, imageData } = await trazerDoAcervo(item, mapDir, tokenId)
+      if (image === null && imageData === null) {
+        // A peça continua no mapa, com o nome certo e o círculo genérico: o
+        // arquivo sumiu da pasta do acervo, e tirar a peça de volta seria punir
+        // a pessoa por um problema do disco.
+        useToastStore.getState().push('error', IMAGEM_SUMIU_DO_ACERVO)
+        return
+      }
+      setTokenImage(tokenId, image, imageData)
+    } catch (err) {
+      reportFileError('trazer o token do acervo', err)
+    }
+  }
+
+  /** ACERVO — apagar do disco. A confirmação já aconteceu em `TokenLibraryPanel`. */
+  const handleDeleteFromLibrary = async (item: ItemDoAcervoNaTela) => {
+    try {
+      await apagarDoAcervo(item.id)
+      await useTokenLibraryStore.getState().recarregar()
+    } catch (err) {
+      reportFileError('apagar o token do acervo', err)
+    }
+  }
+
+  /**
    * Imagem do cartão do ponto de interesse. Diferente do token e da Peça, o
    * que entra no mapa é a imagem EMBUTIDA (data URL) e não o caminho do
    * arquivo: é a única forma de ela chegar à tela do jogador sem abrir o disco
@@ -995,21 +1092,32 @@ function App() {
    * pode ser de um render anterior — mesmo motivo de a câmera já ser lida
    * assim antes desta mudança.
    */
-  const handleAddToken = (name: string, at?: { x: number; y: number }) => {
+  const criarToken = (name: string, opts: { at?: { x: number; y: number }; size?: number } = {}): string | null => {
     const host = canvasHostRef.current
     const { map: currentMap, camera } = useMapStore.getState()
-    const requested = at ?? (host ? viewportCenterWorld(camera, host.clientWidth, host.clientHeight) : { x: 0, y: 0 })
+    const size = opts.size ?? NEW_TOKEN_SIZE
+    const requested = opts.at ?? (host ? viewportCenterWorld(camera, host.clientWidth, host.clientHeight) : { x: 0, y: 0 })
     const spot = findTokenSpawn(requested, currentMap.walls, {
-      radius: tokenRadiusFor(currentMap.grid, NEW_TOKEN_SIZE),
+      // O raio acompanha o TAMANHO da peça: o NPC de 2 células vindo do acervo
+      // precisa de mais espaço livre que o disco de uma célula, e medir pelo
+      // tamanho fixo o assentaria encostado na parede.
+      radius: tokenRadiusFor(currentMap.grid, size),
       clearance: wallClearanceForScale(camera.scale),
     })
     if (spot === null) {
       useToastStore.getState().push('error', NO_TOKEN_SPOT_TEXT)
-      return
+      return null
     }
     const id = crypto.randomUUID()
-    addToken({ id, characterId: null, name, x: spot.x, y: spot.y, size: NEW_TOKEN_SIZE, image: null })
+    addToken({ id, characterId: null, name, x: spot.x, y: spot.y, size, image: null })
     useMapStore.getState().setSelection(selectionOfItem({ kind: 'token', id }))
+    return id
+  }
+
+  /** Assinatura que a barra de ações e o clique da ferramenta Token já usam:
+   *  cria e esquece. Quem precisa do `id` (o acervo) chama `criarToken`. */
+  const handleAddToken = (name: string, at?: { x: number; y: number }) => {
+    criarToken(name, { at })
   }
 
   const handleSave = async () => {
@@ -1482,6 +1590,7 @@ function App() {
             tokenImage={{
               onChangeImage: () => selectedToken && handleChangeTokenImage(selectedToken.id),
               onClearImage: () => selectedToken && setTokenImage(selectedToken.id, null),
+              onSaveToLibrary: () => selectedToken && void handleSaveTokenToLibrary(selectedToken),
             }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
@@ -1567,6 +1676,12 @@ function App() {
               onDelete: () => selectedPin && useMapStore.getState().removePin(selectedPin.id),
             }}
             pinSelected={selectedPin !== null}
+            tokenLibrary={{
+              itens: acervoItens,
+              aviso: acervoAviso,
+              onPlace: (item) => void handlePlaceFromLibrary(item),
+              onDelete: (item) => void handleDeleteFromLibrary(item),
+            }}
             selectedLight={selectedLight}
             lightControls={{
               onColorChange: (color) => selectedLight && updateLight(selectedLight.id, { color }),

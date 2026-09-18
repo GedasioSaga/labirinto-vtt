@@ -1903,3 +1903,102 @@ body {
   color: var(--lb-color-parchment-faint);
   text-align: center;
 }
+
+/* ── ACERVO DE TOKENS ──────────────────────────────────────────────────────
+   Estante de NPCs prontos no rail (components/TokenLibraryPanel.tsx). A linha
+   segue o desenho de .lb-maplist__item — foto, nome que se clica, e o apagar
+   discreto na ponta —, mas a linha INTEIRA não é um botão só: a miniatura fica
+   fora do botão de propósito, para o leitor de tela anunciar "Foto de Goblin" e
+   "Colocar Goblin no mapa" como duas coisas, que é o que elas são. */
+.lb-acervo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-acervo__item {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid);
+}
+
+.lb-acervo__item:hover {
+  border-color: var(--lb-color-brass);
+}
+
+/* Redonda como a peça fica no mapa: a miniatura é a promessa do que vai entrar. */
+.lb-acervo__foto {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--lb-radius-full);
+  border: 1px solid var(--lb-color-line-strong);
+  object-fit: cover;
+}
+
+.lb-acervo__foto--vazia {
+  background: var(--lb-color-stone-raised);
+}
+
+/* O nome é o alvo grande do clique; ocupa a sobra da linha. */
+.lb-acervo__nome {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lb-acervo__nome:hover {
+  color: var(--lb-color-brass);
+}
+
+.lb-acervo__apagar {
+  flex: none;
+  padding: 0 var(--lb-space-2);
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lb-acervo__apagar:hover {
+  color: var(--lb-color-ember);
+}
+
+/* A pergunta ocupa a linha inteira: os dois botões precisam caber lado a lado
+   na coluna estreita do rail, e o nome do item continua visível acima deles. */
+.lb-acervo__confirma {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+  flex: none;
+}
+
+.lb-acervo__vazio,
+.lb-acervo__aviso {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-acervo__aviso {
+  color: var(--lb-color-ember);
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { SelectionKind } from '../types/tools'
 import { deleteSelectionLabel } from './labels'
 import { TokenIcon } from './icons'
@@ -45,6 +45,17 @@ export interface SelectionControlsProps {
  */
 export function SelectionControls({ selection, defaultTokenName, onAddToken, onRemoveSelected }: SelectionControlsProps) {
   const [tokenNameDraft, setTokenNameDraft] = useState<string | null>(null)
+  /**
+   * O campo abre com o nome sugerido JÁ SELECIONADO (`onFocus` + `select()`),
+   * para quem quer outro nome só digitar por cima. Mas o clique do mouse
+   * desmancha essa seleção antes da primeira tecla — o cursor ia parar no fim
+   * do texto e o nome saía grudado: "Token 1Goblin" em vez de "Goblin".
+   *
+   * Esta marca segura a seleção no PRIMEIRO `mouseup` depois do foco. Do
+   * segundo clique em diante o campo se comporta como qualquer outro (o clique
+   * posiciona o cursor), que é o que se espera de quem foi corrigir uma letra.
+   */
+  const justSelectedOnFocus = useRef(false)
   const label =
     selection === null
       ? 'Nada selecionado'
@@ -83,7 +94,20 @@ export function SelectionControls({ selection, defaultTokenName, onAddToken, onR
             className="lb-input"
             value={tokenNameDraft}
             autoFocus
-            onFocus={(event) => event.target.select()}
+            onFocus={(event) => {
+              event.target.select()
+              justSelectedOnFocus.current = true
+            }}
+            onMouseUp={(event) => {
+              if (!justSelectedOnFocus.current) return
+              justSelectedOnFocus.current = false
+              // Impede a ação padrão do mouseup, que é colapsar a seleção no
+              // ponto do clique — ver `justSelectedOnFocus` acima.
+              event.preventDefault()
+            }}
+            onBlur={() => {
+              justSelectedOnFocus.current = false
+            }}
             onChange={(event) => setTokenNameDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Escape') setTokenNameDraft(null)

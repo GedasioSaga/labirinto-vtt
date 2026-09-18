@@ -36,6 +36,7 @@ import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleCo
 import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
 import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZoneControls'
 import { PinControls, type PinControlsProps } from './PinControls'
+import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
 import { roomDimensions } from '../lib/roomOps'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
@@ -117,6 +118,8 @@ interface PropertiesPanelProps {
   pin: PinControlsProps
   /** Há um pino aberto no painel — conta como seleção para o título do topo. */
   pinSelected: boolean
+  /** Estante de NPCs prontos, global do app (pedido de 18/09/2026). */
+  tokenLibrary: TokenLibraryPanelProps
 }
 
 /**
@@ -171,6 +174,7 @@ export function PropertiesPanel({
   concealZone,
   pin,
   pinSelected,
+  tokenLibrary,
 }: PropertiesPanelProps) {
   // "Só o que importa agora": as seções de mapa inteiro só abrem sozinhas
   // quando o usuário não está mexendo em nada (Selecionar, sem seleção).
@@ -391,6 +395,10 @@ export function PropertiesPanel({
             <LayersPanel {...layers} quickToggles={<GridQuickToggles {...grid} />} />
           </CollapsibleSection>
         </ToolPropertiesSection>
+        {/* Sem `ToolPropertiesSection` e sem `CollapsibleSection`: a estante de
+            NPCs não pertence a ferramenta nem a seleção nenhuma, e é para ela
+            estar à mão justamente quando nada está selecionado. */}
+        <TokenLibraryPanel {...tokenLibrary} />
       </div>
     </div>
   )
