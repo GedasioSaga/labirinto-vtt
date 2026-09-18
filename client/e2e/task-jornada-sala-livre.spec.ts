@@ -59,8 +59,14 @@ const MEIOS_DAS_ARESTAS = [
   { x: 352, y: 288, aresta: '5 (320,384)→(384,192)' },
 ]
 
-/** Bem dentro da sala, a pelo menos 140px de qualquer aresta: a cor do "fundo". */
-const DENTRO = { x: 544, y: 352 }
+/**
+ * Chão da sala — a cor do "fundo", a ~105px da aresta mais próxima. Fica uma
+ * célula ABAIXO do centróide (543, 356) de propósito: é no centróide que o app
+ * ancora o rótulo branco da Sala (drawRoomNames.ts, `roomLabelAnchor`), e como
+ * a amostra é a luminância MÁXIMA de uma janela 7x7, o glifo saturaria a
+ * leitura e o chão passaria por parede.
+ */
+const DENTRO = { x: 544, y: 416 }
 /** Bem LONGE da sala, canvas vazio: o controle positivo do teste 1. */
 const LONGE = { x: 1056, y: 608 }
 /** Canto vazio para tirar a seleção antes de fotografar (realce não entra na amostra). */
