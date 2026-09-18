@@ -87,3 +87,101 @@ do conserto da segunda. Conferi os dois à mão depois que o run terminou:
 
 O que **continua valendo** do texto acima: a checagem de "nenhum servidor sujo rodando" ainda é um
 verde de brinde nesta configuração, e as três peças saíram mesmo BLOQUEADAS nesta passada.
+
+---
+
+## Atualização — passada seguinte da mesma noite (fechamento: BLOQUEADO de novo)
+
+O fiscal (portão) voltou a ser mexido depois da correção acima, e a interação do mapa e o menu de
+chão ganharam medição mais precisa. Resultado da noite inteira continua **BLOQUEADO** nas três frentes.
+Atualizações por tema abaixo.
+
+### Tema: o portão que julga as outras mudanças (portao) — nova rodada
+
+**Status: BLOQUEADO** (o consertado da rodada anterior segue de pé; apareceu um problema novo, mais sério)
+
+- O que mudou: mais uma rodada de conserto no fiscal — agora ele também percebe quando uma peça
+  escreve em cima de um arquivo que já é "dono" de outra peça, e passou a proteger o histórico de
+  mais telas testadas (foram de 9 para 23 telas protegidas contra apagão sem querer).
+- Por que: esperava que o fiscal reprovasse (1) peça escrevendo no arquivo de outra peça, (2) peça
+  mexendo em tela testada que não tem selo, (3) peça adicionando campo novo no formato do mapa sem
+  avisar como migrar dados antigos; obteve os três casos realmente reprovando quando testados de
+  propósito (plantando a invasão e conferindo que virou vermelho). Também obteve a checagem de
+  "nenhum servidor sujo" agora escrevendo no relatório *como* ela mediu (duas provas: mesma porta da
+  sondagem e a opção de reaproveitar servidor desligada), em vez de ficar muda — mas ela continua sem
+  testar de verdade o caso de módulo duplicado, só ficou mais honesta sobre o que não testa.
+- Prova: os 15 comandos de checagem rodaram num retrato congelado e isolado do código (cópia
+  temporária, nada foi mudado no trabalho de verdade) — 14 ficaram verdes com números reais (exemplos:
+  testes de unidade `2290 passed`, testes Rust `25 passed` + `11 passed`, jornadas do editor
+  `34 passed`, fluidez com atraso máximo de 60ms contra um teto de 200ms) e 1 ficou vermelho do jeito
+  esperado (falta terminar as três peças de interação/menu abaixo — não é culpa desta peça do fiscal).
+  Cada um dos 3 consertos foi plantado de propósito num arquivo de teste e confirmado que vira
+  vermelho; sem o plantio, fica verde. Não há fotos de tela nesta peça — é lógica interna, não UI.
+- Onde: branch `auto/portao`; arquivo `scripts/portao.cjs` (a mesma tarefa mexeu nele quatro vezes na
+  noite) e `scripts/portao-particao.json`.
+
+**O problema novo que segura a aprovação desta peça:** o fiscal, ao consertar os itens acima, trocou
+sozinho qual é o "ponto de partida" contra o qual ele mede as outras três peças (cadeado, polígono,
+menu) — sem avisar que fez essa troca, e o próprio arquivo dele diz que essa decisão não é dele, é de
+quem organiza a noite. O efeito prático: se as três peças de interação/menu forem cortadas do ponto de
+partida que a *organização da noite* declarou, o fiscal as acusa (errado) de mexer no próprio fiscal.
+Se forem cortadas do ponto que essa peça escolheu por conta própria, passam. Só um ponto específico
+funciona nos dois lados ao mesmo tempo, e esse ponto é justamente de **antes** dos consertos de
+segurança acima — ou seja, aceitar essa peça do jeito que está reabriria a brecha que ela mesma
+fechou, para qualquer peça futura cortada do jeito "errado". Ninguém plantou isso de má-fé (os dois
+arquivos que essa peça mudou não tocam segredo, senha ou certificado), mas o mecanismo de "escolher
+sozinho contra o que sou medido" precisa ser fechado antes de liberar.
+
+### Tema: arrastar e desenhar no mapa (interação) — medição mais precisa
+
+**Status: BLOQUEADO** (mesmo problema já relatado; agora com o ponto exato do código já achado)
+
+- Cadeado da camada: confirmado o motivo exato — quando a peça está travada, o programa a tira da
+  lista de "coisas que podem ser clicadas" **antes** de checar o que tem embaixo do clique, então ele
+  acerta a sala por engano e arrasta ela inteira. Isso já estava descrito acima; a novidade é que o
+  ponto exato no código foi encontrado e a correção ainda não foi escrita.
+- Polígono: confirmado o motivo exato — a tecla Enter só olha se existe um desenho de "corredor" ou de
+  "sala" em andamento; um desenho de "polígono" em andamento não entra nessa checagem, por isso Enter
+  não faz nada nele e trocar de ferramenta descarta o rascunho. A novidade útil: o próprio desenho de
+  polígono, enquanto ainda está sendo feito, não mostra a linha que fecharia a forma — o teste
+  automático precisa medir essa linha à parte, exatamente para provar que a forma foi de fato fechada
+  (e não só desenhada até a metade).
+- Prova: continuam sem fotos antes/depois publicadas. As duas jornadas automáticas (uma para cada
+  problema) continuam vermelhas — não foram corrigidas nesta passada, só diagnosticadas com mais
+  precisão. Os testes de controle (que provam que o comportamento correto de hoje não quebrou)
+  continuam verdes.
+- Onde: branch `auto/camada-travada` (cadeado) e `auto/poligono-termina` (polígono), separadas nesta
+  passada; arquivos `client/src/pixi/PixiCanvas.tsx`, `client/src/lib/selectionHitTest.ts`,
+  `client/src/lib/layers.ts` (cadeado) e `client/src/pixi/PixiCanvas.tsx`,
+  `client/src/lib/drawingFactory.ts`, `client/src/lib/polygonSdf.ts` (polígono).
+
+### Tema: menu de opções de chão não cabe na tela — medição mais precisa
+
+**Status: BLOQUEADO** (mesmo problema já relatado; agora com o ponto exato do código já achado)
+
+- O que mudou: nada foi corrigido ainda nesta passada; o motivo exato foi confirmado no código — a
+  lista de formas de chão é a mais comprida do programa (18 opções em 4 grupos) e o quadro do menu não
+  tem limite de altura nem barra de rolagem própria, então, quando ele abre e o navegador tenta
+  mostrá-lo inteiro, a página inteira rola para tentar caber — e mesmo assim sobra conteúdo cortado.
+- Por que: esperava que abrir o menu não empurrasse o cabeçalho e a barra de ferramentas para fora da
+  tela; confirmado que o culpado é o foco automático que o menu recebe ao abrir, que faz o navegador
+  rolar a área de edição inteira para tentar mostrá-lo.
+- Prova: continuam sem fotos antes/depois publicadas. A jornada automática (que mede a caixa de cada
+  item do menu contra o tamanho real da janela, não só "existe na tela") continua vermelha. O controle
+  positivo (clicar num item alcançável) continua verde.
+- Onde: branch `auto/menu-cabe-na-janela`; arquivos `client/src/main.css`,
+  `client/src/components/ToolVariantMenu.tsx`, `client/src/components/MenuCard.tsx`,
+  `client/src/lib/toolVariants.ts`.
+
+### Resumo atualizado da noite
+
+| Peça | Status | Branch |
+|---|---|---|
+| portao (o fiscal das mudanças) | BLOQUEADO — brecha nova no "ponto de partida" que ele escolhe sozinho | auto/portao |
+| cadeado da camada trava mas arrasta a sala | BLOQUEADO — motivo achado, correção não escrita | auto/camada-travada |
+| polígono não termina o desenho | BLOQUEADO — motivo achado, correção não escrita | auto/poligono-termina |
+| menu de opções de chão não cabe na tela | BLOQUEADO — motivo achado, correção não escrita | auto/menu-cabe-na-janela |
+
+Nenhuma foto de tela (antes/depois) existe ainda para nenhuma das três peças de interação/menu — falta
+gerar quando as correções forem escritas. Nada foi perdido: cada branch guarda o trabalho da
+respectiva peça.
