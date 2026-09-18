@@ -748,9 +748,151 @@ function arquivosMudados(porcelain, diff) {
 }
 
 /**
+ * DUAS bases, porque UMA só é um juiz que o réu pode mover.
+ *
+ * O manifesto declara a base do run, e a peça `portao` é a única que pode
+ * reescrever o manifesto — é o que a Invariante 5 dá a ela. As duas coisas
+ * juntas abrem a porta dos fundos medida em 18/09/2026: a peça do portão
+ * apontou `base`."ramo" para `auto/base-pecas` = 32a74cd, o PAI do próprio topo
+ * dela, e o primeiro commit dela saiu da medida de `particao` dela mesma.
+ * Naquele run não escondeu nada (conferido commit a commit), mas o mecanismo é
+ * o falso-verde que o passo existe para caçar: quem escolhe a própria base sai
+ * verde por construção.
+ *
+ * E um ponteiro só não resolvia nem o outro lado. Medido no mesmo dia: com
+ * `base`."ramo" parado num commit ANTERIOR ao topo do portão, a peça de cliente
+ * cortada desse topo era acusada de escrever em `scripts/portao.cjs` antes de
+ * digitar uma linha; com ele à frente do commit de onde a peça saiu, `particao`
+ * e `rust-intocado` saíam "SEM JUIZ" — dois dos quinze comandos sem medir nada.
+ * Nenhum builder de cliente consegue consertar nem um nem outro: o manifesto é
+ * proibido para ele.
+ *
+ * Por isso os dois papéis, que estavam espremidos num campo só, viram dois:
+ *
+ *  - `base`."origem" — o ponteiro CONGELADO do começo do run, do orquestrador
+ *    (carimbado no selo quando o selo for tirado por este portão). É contra ele
+ *    que a peça capaz de mexer no manifesto é medida, sempre.
+ *  - `base`."ramo" — o ponto de corte das peças de cliente: o topo do portão no
+ *    instante em que os builders foram soltos. Este PRECISA andar quando o
+ *    portão recebe conserto, senão o commit do portão cai na conta de quem não
+ *    o escreveu.
+ *
+ * Quem pode mover a base não é julgado por ela; quem não pode movê-la é julgado
+ * pelo ponto de onde saiu de verdade.
+ */
+/** O manifesto visto de dentro do repositório — o arquivo que decide quem julga quem. */
+const MANIFESTO_NO_REPO = 'scripts/portao-particao.json'
+
+/**
+ * Esta peça pode reescrever o manifesto? Lido do próprio manifesto, não do nome
+ * da peça: se amanhã outra peça receber `scripts/portao-particao.json` na lista
+ * dela, ela também passa a ser medida pela base que não consegue mover.
+ */
+function pecaMoveABase(manifesto, chave) {
+  // Peça não declarada e árvore compartilhada caem aqui: sem dono conhecido, a
+  // medida vai para a base mais antiga, que é a que mede MAIS coisa.
+  if (chave === null) return true
+  const pecas = (manifesto && manifesto.pecas) || {}
+  const lista = Array.isArray(pecas[chave]) ? pecas[chave] : []
+  return lista.some((p) => casaCom(MANIFESTO_NO_REPO, p))
+}
+
+/** Qual dos dois ponteiros julga ESTA peça, e por quê (a frase sai no relatório). */
+function refDaBase(manifesto, peca) {
+  const base = (manifesto && manifesto.base) || {}
+  const refPecas = base.ramo || null
+  const refOrigem = base.origem || null
+  const chave = peca === null ? null : pecaDeclarada((manifesto && manifesto.pecas) || {}, manifesto && manifesto.apelidos, peca)
+  const move = pecaMoveABase(manifesto, chave)
+  return {
+    chave,
+    refPecas,
+    refOrigem,
+    move,
+    ref: move ? refOrigem : refPecas,
+    papel: move
+      ? 'base IMUTÁVEL do run (`base`."origem"): esta peça pode reescrever o manifesto, então não é a base que ela move que a julga'
+      : 'base das peças (`base`."ramo"): o ponteiro congelado no commit de onde esta peça foi cortada',
+  }
+}
+
+/**
+ * A base imutável existe, resolve, está na linha do run — e bate com o que o
+ * selo carimbou.
+ *
+ * O selo é tirado pelo orquestrador ANTES dos builders e nenhum builder pode
+ * editá-lo (Invariante 5). Quando ele traz `base_do_run`, é ele quem manda: a
+ * peça do portão pode reescrever `origem` no manifesto, mas não consegue mexer
+ * no carimbo, e a divergência sai VERMELHA com os dois endereços. Selo sem o
+ * campo (o desta rodada, tirado antes desta guarda existir) não vira vermelho —
+ * vira nota no verde, dizendo em voz alta que a âncora ainda não existe.
+ */
+function guardaOrigemDaBase(entrada) {
+  const refOrigem = entrada.refOrigem || null
+  const refPecas = entrada.refPecas || null
+  const commitOrigem = entrada.commitOrigem || null
+  const commitPecas = entrada.commitPecas || null
+  const origemEhAncestral = entrada.origemEhAncestral === true
+  const refSelada = entrada.refSelada || null
+  const commitSelado = entrada.commitSelado || null
+  if (!refOrigem) {
+    return reprova(
+      'g20-base-imutavel',
+      'o manifesto não declara `base`."origem" — a base IMUTÁVEL do run, a única que a peça do portão não pode mover. Sem ela, quem ' +
+        'reescreve o manifesto escolhe o próprio juiz: basta apontar "ramo" para o topo dela e o diff sai vazio por construção, com ' +
+        'tudo o que ela commitou fora das Invariantes 5 e 9. Declare `"origem": "<ponteiro congelado do começo do run>"`.',
+      'scripts/portao-particao.json ("base"."origem")',
+    )
+  }
+  if (!commitOrigem) {
+    return reprova(
+      'g20-base-imutavel',
+      'a base imutável `' + refOrigem + '` não resolve neste repositório (ponteiro apagado, ou sha de outra máquina).',
+      'scripts/portao-particao.json ("base"."origem")',
+    )
+  }
+  if (refSelada !== null && commitSelado !== null && commitSelado !== commitOrigem) {
+    return reprova(
+      'g20-base-imutavel',
+      'o manifesto diz que a base do run é `' + refOrigem + '` = ' + String(commitOrigem).slice(0, 8) + ', mas o SELO carimbou `' +
+        refSelada + '` = ' + String(commitSelado).slice(0, 8) + ' antes dos builders. O selo é de quem abriu o run e nenhum builder ' +
+        'pode editá-lo: base trocada no meio do run é o réu escolhendo o juiz.',
+      'scripts/portao-particao.json ("base"."origem") + scripts/portao-selo.json ("base_do_run")',
+    )
+  }
+  if (refPecas !== null && commitPecas === null) {
+    return reprova(
+      'g20-base-imutavel',
+      'a base das peças `' + refPecas + '` não resolve neste repositório (ponteiro apagado, ou sha de outra máquina).',
+      'scripts/portao-particao.json ("base"."ramo")',
+    )
+  }
+  if (refPecas !== null && commitPecas !== commitOrigem && !origemEhAncestral) {
+    return reprova(
+      'g20-base-imutavel',
+      'a base das peças `' + refPecas + '` = ' + String(commitPecas).slice(0, 8) + ' NÃO descende da base imutável `' + refOrigem +
+        '` = ' + String(commitOrigem).slice(0, 8) + '. Ponto de corte fora da linha do run não é ponto de corte: ele muda o que cada ' +
+        'peça parece ter escrito, sem que ninguém tenha escrito nada.',
+      'scripts/portao-particao.json ("base")',
+    )
+  }
+  return ok(
+    'g20-base-imutavel',
+    'base imutável do run: ' + refOrigem + ' = ' + String(commitOrigem).slice(0, 8) +
+      (refPecas !== null && refPecas !== refOrigem
+        ? '; base das peças: ' + refPecas + ' = ' + String(commitPecas).slice(0, 8) + ' (descende dela)'
+        : '') +
+      (refSelada !== null && commitSelado !== null
+        ? '; confere com o selo tirado antes dos builders'
+        : '; o selo desta rodada não carimbou a base — a partir do próximo `--selar` ela fica ancorada fora do alcance dos builders'),
+  )
+}
+
+/**
  * A base do run, declarada pelo ORQUESTRADOR em `scripts/portao-particao.json`
- * ("base".ramo) — o ponto de onde toda peça saiu. Sem ela não existe "o que
- * esta peça commitou", e o portão prefere ficar VERMELHO a medir o vazio.
+ * ("base".ramo / "base".origem) — o ponto de onde toda peça saiu. Sem ela não
+ * existe "o que esta peça commitou", e o portão prefere ficar VERMELHO a medir
+ * o vazio.
  *
  * A última cláusula é a que fecha a porta dos fundos: se a base ANDAR junto com
  * a peça — isto é, se o que o manifesto declara como base for o próprio ramo em
@@ -1185,15 +1327,57 @@ function baseDoRun() {
   } catch (e) {
     return { ramo, peca, manifesto: null, base: null, ref: null, erro: 'sem manifesto de partição em scripts/portao-particao.json (' + e.message + ')' }
   }
-  const ref = (manifesto.base && manifesto.base.ramo) || null
   const cabeca = String(git(['rev-parse', 'HEAD']) || '').trim() || null
+  const sha = (r) => (r ? String(git(['rev-parse', r + '^{commit}']) || '').trim() || null : null)
+  // Qual dos dois ponteiros julga esta peça — ver `refDaBase`. Quem pode
+  // reescrever o manifesto é medido pela base que ela não consegue mover.
+  const escolha = refDaBase(manifesto, peca)
+  const commitOrigem = sha(escolha.refOrigem)
+  const commitPecas = sha(escolha.refPecas)
+  // `merge-base --is-ancestor` não imprime nada: o veredito é o código de saída,
+  // e `git()` devolve string vazia no sucesso e null na reprovação.
+  const origemEhAncestral =
+    escolha.refOrigem !== null && escolha.refPecas !== null
+      ? git(['merge-base', '--is-ancestor', escolha.refOrigem, escolha.refPecas]) !== null
+      : false
+  const carimbo = baseSelada()
+  const rOrigem = guardaOrigemDaBase({
+    refOrigem: escolha.refOrigem,
+    refPecas: escolha.refPecas,
+    commitOrigem,
+    commitPecas,
+    origemEhAncestral,
+    refSelada: carimbo.ref,
+    commitSelado: carimbo.commit,
+  })
+  const ref = escolha.ref
+  if (!rOrigem.ok) {
+    return { ramo, peca, manifesto, ref, base: null, cabeca, papel: escolha.papel, erro: rOrigem.detalhe + (rOrigem.endereco ? '  [' + rOrigem.endereco + ']' : '') }
+  }
   const base = ref ? String(git(['merge-base', 'HEAD', ref]) || '').trim() || null : null
   // Para onde o ponteiro aponta, separado do `merge-base`: os dois só coincidem
   // quando a base é mesmo ancestral desta peça (ver `guardaBaseDoRun`).
-  const commitDaBase = ref ? String(git(['rev-parse', ref + '^{commit}']) || '').trim() || null : null
+  const commitDaBase = ref === escolha.refOrigem ? commitOrigem : commitPecas
   const r = guardaBaseDoRun({ ref, base, cabeca, peca, ramo, commitDaBase })
-  if (!r.ok) return { ramo, peca, manifesto, ref, base, cabeca, erro: r.detalhe + (r.endereco ? '  [' + r.endereco + ']' : '') }
-  return { ramo, peca, manifesto, ref, base, cabeca, erro: null, nota: r.detalhe }
+  if (!r.ok) return { ramo, peca, manifesto, ref, base, cabeca, papel: escolha.papel, erro: r.detalhe + (r.endereco ? '  [' + r.endereco + ']' : '') }
+  return { ramo, peca, manifesto, ref, base, cabeca, papel: escolha.papel, erro: null, nota: rOrigem.detalhe + '\n' + r.detalhe }
+}
+
+/**
+ * A base que o SELO carimbou antes dos builders, quando carimbou. Fica fora de
+ * `baseDoRun` porque é leitura de arquivo, e a guarda que a usa é pura.
+ */
+function baseSelada() {
+  let selo = null
+  try {
+    selo = JSON.parse(fs.readFileSync(SELO, 'utf8'))
+  } catch (e) {
+    return { ref: null, commit: null }
+  }
+  const carimbo = selo && selo.base_do_run
+  const ref = typeof carimbo === 'string' ? carimbo : (carimbo && (carimbo.sha || carimbo.ramo)) || null
+  if (!ref) return { ref: null, commit: null }
+  return { ref, commit: String(git(['rev-parse', ref + '^{commit}']) || '').trim() || null }
 }
 
 function arquivosDoRun() {
@@ -1218,7 +1402,8 @@ function arquivosDoRun() {
     erro: null,
     origem:
       'medido contra a base do run (' + ref + ' = ' + String(base).slice(0, 8) + '): ' +
-      nCommitados + ' commitado(s) + ' + nSujos + ' na árvore suja = ' + arquivos.length + ' arquivo(s)',
+      nCommitados + ' commitado(s) + ' + nSujos + ' na árvore suja = ' + arquivos.length + ' arquivo(s)' +
+      (medida.papel ? '\njuiz desta peça: ' + medida.papel : ''),
   }
 }
 
@@ -1698,7 +1883,22 @@ function selar() {
     }
     jornadas[arquivo] = sha256(fs.readFileSync(absoluto, 'utf8'))
   }
+  // A base do run carimbada junto com as jornadas. É o que tira `base`."origem"
+  // do alcance de quem pode reescrever o manifesto: o selo é tirado pelo
+  // orquestrador ANTES dos builders e nenhum builder pode editá-lo (Invariante
+  // 5). Sem carimbo, `g20-base-imutavel` ainda mede o resto e diz em voz alta
+  // que a âncora não existe — ver `guardaOrigemDaBase`.
+  let manifesto = null
+  try {
+    manifesto = JSON.parse(fs.readFileSync(PARTICAO, 'utf8'))
+  } catch (e) {
+    manifesto = null
+  }
+  const refOrigem = (manifesto && manifesto.base && manifesto.base.origem) || null
   const selo = { selado_em: new Date().toISOString(), jornadas }
+  if (refOrigem) {
+    selo.base_do_run = { ramo: refOrigem, sha: String(git(['rev-parse', refOrigem + '^{commit}']) || '').trim() || null }
+  }
   fs.writeFileSync(SELO, JSON.stringify(selo, null, 2) + '\n', 'utf8')
   return { selo, faltando }
 }
@@ -1717,6 +1917,34 @@ function rodarAutoteste() {
       achado === esperado ? ok('g17-medida', achado) : reprova('g17-medida', 'esperava `' + esperado + '`, veio `' + achado + '`'),
       true,
     ]
+  }
+  // `refDaBase` também devolve escolha, não veredito: aqui ela vira caso de
+  // autoteste comparando QUAL base julgaria cada peça.
+  const provaDeBase = (nome, manifesto, peca, esperado) => {
+    const achado = refDaBase(manifesto, peca).ref
+    return [
+      nome,
+      achado === esperado
+        ? ok('g20-juiz-da-peca', String(achado))
+        : reprova('g20-juiz-da-peca', 'esperava `' + String(esperado) + '`, veio `' + String(achado) + '`'),
+      true,
+    ]
+  }
+  const MANIFESTO_DE_PROVA = {
+    base: { ramo: 'auto/base-pecas-r4', origem: 'auto/base-noite' },
+    pecas: {
+      portao: ['scripts/portao.cjs', 'scripts/portao-particao.json'],
+      'camada-travada': ['client/src/**'],
+    },
+    apelidos: { portao: ['gate'] },
+  }
+  /** O manifesto de verdade, porque autoteste sobre manifesto de brinquedo não impede o real de sair errado. */
+  const manifestoReal = () => {
+    try {
+      return JSON.parse(fs.readFileSync(PARTICAO, 'utf8'))
+    } catch (e) {
+      return {}
+    }
   }
   const casos = [
     ['g1 reprova include só de src', guardaCoberturaDeTipos([{ include: ['src'] }]), false],
@@ -1966,6 +2194,59 @@ function rodarAutoteste() {
       guardaBaseDoRun({ ref: 'auto/base-pecas', base: 'bbbb', cabeca: 'aaaa', peca: 'camada-travada', ramo: 'auto/camada-travada', commitDaBase: 'bbbb' }),
       true,
     ],
+    // g20 — a base que o réu não pode mover. O buraco que fechou aqui era a
+    // peça do portão apontando `base`."ramo" para o pai do próprio topo: o
+    // primeiro commit dela saía da medida de `particao` dela mesma.
+    [
+      'g20 reprova manifesto sem a base imutável do run',
+      guardaOrigemDaBase({ refOrigem: null, refPecas: 'auto/base-pecas', commitPecas: 'bbbb' }),
+      false,
+    ],
+    [
+      'g20 reprova base imutável que não resolve neste repositório',
+      guardaOrigemDaBase({ refOrigem: 'auto/que-nao-existe', commitOrigem: null }),
+      false,
+    ],
+    [
+      'g20 reprova base das peças que não descende da base imutável',
+      guardaOrigemDaBase({ refOrigem: 'auto/base-noite', commitOrigem: 'aaaa', refPecas: 'auto/base-pecas', commitPecas: 'bbbb', origemEhAncestral: false }),
+      false,
+    ],
+    [
+      'g20 reprova origem trocada depois do selo (réu escolhendo o juiz)',
+      guardaOrigemDaBase({ refOrigem: 'auto/base-trocada', commitOrigem: 'aaaa', refSelada: 'auto/base-noite', commitSelado: 'zzzz' }),
+      false,
+    ],
+    [
+      'g20 aprova base das peças à frente da base imutável, na mesma linha',
+      guardaOrigemDaBase({ refOrigem: 'auto/base-noite', commitOrigem: 'aaaa', refPecas: 'auto/base-pecas', commitPecas: 'bbbb', origemEhAncestral: true }),
+      true,
+    ],
+    [
+      'g20 aprova origem que confere com o carimbo do selo',
+      guardaOrigemDaBase({ refOrigem: 'auto/base-noite', commitOrigem: 'aaaa', refSelada: 'auto/base-noite', commitSelado: 'aaaa' }),
+      true,
+    ],
+    provaDeBase('g20 mede a peça do portão pela base IMUTÁVEL, não pela que ela move', MANIFESTO_DE_PROVA, 'portao', 'auto/base-noite'),
+    provaDeBase('g20 aceita o apelido do ramo da peça do portão', MANIFESTO_DE_PROVA, 'gate', 'auto/base-noite'),
+    provaDeBase('g20 mede a peça de cliente pelo ponto de corte dela', MANIFESTO_DE_PROVA, 'camada-travada', 'auto/base-pecas-r4'),
+    provaDeBase('g20 manda peça não declarada para a base mais antiga', MANIFESTO_DE_PROVA, 'peca-que-ninguem-declarou', 'auto/base-noite'),
+    provaDeBase('g20 mede a árvore compartilhada pela base mais antiga', MANIFESTO_DE_PROVA, null, 'auto/base-noite'),
+    // A mesma pergunta contra o manifesto REAL desta rodada: autoteste sobre
+    // manifesto de brinquedo não impede o manifesto de verdade de sair errado.
+    [
+      'g20 o manifesto real desta rodada declara as DUAS bases',
+      (manifestoReal().base || {}).origem && (manifestoReal().base || {}).ramo
+        ? ok('g20-manifesto-real', 'origem `' + manifestoReal().base.origem + '` + ponto de corte das peças `' + manifestoReal().base.ramo + '`')
+        : reprova(
+            'g20-manifesto-real',
+            'o manifesto real não declara as duas bases — sem `origem` a peça do portão é medida pela base que ela mesma move',
+            'scripts/portao-particao.json ("base")',
+          ),
+      true,
+    ],
+    provaDeBase('g20 no manifesto real: a peça do portão cai na base imutável', manifestoReal(), 'portao', (manifestoReal().base || {}).origem || null),
+    provaDeBase('g20 no manifesto real: a peça do menu cai na base das peças', manifestoReal(), 'menu-cabe-na-janela', (manifestoReal().base || {}).ramo || null),
     // g19 — a lista do comando 15. O que não entra na linha de comando não sai
     // no relatório nem como vermelho nem como skipped: sai como nada.
     [
