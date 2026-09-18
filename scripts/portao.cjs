@@ -343,6 +343,62 @@ const JORNADAS_UNIDADE = [
   'src/lib/mapFile.invariante3.test.ts',
 ]
 
+/**
+ * 18/09/2026 — a AUDITORIA DA UNIDADE deixou de ser uma lista escrita à mão.
+ *
+ * A lista acima tem 4 nomes e a suíte tem 139 arquivos: 135 arquivos de teste
+ * passavam pela FASE 0 sem nenhuma guarda arquivo-a-arquivo, e eles moram
+ * dentro da área de escrita de TODAS as peças de cliente (`client/src/**` no
+ * manifesto de partição). Apagar `client/src/lib/areaSelection.test.ts` era
+ * aprovado por `--so=particao` (está na área da peça) e por `--so=unidade`
+ * (vitest sai verde com o que sobrou). Agora a lista auditada é DESCOBERTA no
+ * git, não digitada, e por isso não tem como ficar para trás do repositório.
+ *
+ * Os 4 continuam existindo: eles são os que a FASE 0 audita na régua ESTRITA,
+ * linha a linha, junto das jornadas e2e. Os outros 135 entram em guardas de
+ * lote (g21/g22/g23), que julgam o mesmo texto e nomeiam o arquivo quando
+ * reprovam — sem despejar 400 linhas de verde em cada uma das 16 chamadas.
+ */
+function arquivosDeUnidade() {
+  const saida = git(['ls-files', 'client/src/**/*.test.ts', 'client/src/**/*.test.tsx'])
+  if (saida === null) return null
+  return saida
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => s.replace(/^client\//, ''))
+    .sort()
+}
+
+/** Os mesmos arquivos COMO ESTAVAM no commit base do run — o juiz de quem encolheu. */
+function arquivosDeUnidadeNaBase(base) {
+  if (!base) return null
+  const saida = git(['ls-tree', '-r', '--name-only', base, '--', 'client/src'])
+  if (saida === null) return null
+  return saida
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => /\.test\.tsx?$/.test(s))
+    .map((s) => s.replace(/^client\//, ''))
+    .sort()
+}
+
+/**
+ * Piso de ESCALA da suíte de unidade. O passo `unidade` declarava só `ruína` e
+ * nenhuma prova positiva de tamanho: rodar a suíte reduzida a UM arquivo saía
+ * `1 passed`, exit 0, sem `skipped` — verde idêntico ao dos 139. Medido em
+ * 18/09/2026 com o mesmo binário do passo.
+ *
+ * O piso de ARQUIVOS não está escrito aqui de propósito: ele é contado no
+ * commit base do run (`arquivosDeUnidadeNaBase`), então uma peça que apaga um
+ * arquivo de teste derruba a contagem de agora sem conseguir mexer no juiz.
+ * O piso de TESTES é um número declarado porque não existe forma de contar
+ * caso de teste sem rodar a suíte; ele mora em `scripts/portao.cjs`, que está
+ * FORA da área de escrita de toda peça de cliente (Invariante 5). Piso só
+ * sobe: acrescentar teste mantém o verde, tirar teste fica vermelho.
+ */
+const PISO_DE_TESTES_DE_UNIDADE = 2290
+
 // ---------------------------------------------------------------------------
 // FASE 0 — guardas. Funções puras sobre texto: dá para provar que reprovam.
 // ---------------------------------------------------------------------------
@@ -397,10 +453,148 @@ function guardaSemOnlyNemSkip(arquivo, texto) {
   return ok('g3-sem-only-skip', arquivo + ' sem only/skip/fixme')
 }
 
+/**
+ * g24 — a suíte de unidade não ENCOLHEU desde a base do run.
+ *
+ * O piso de arquivos do passo `unidade` é contado aqui, no commit base: é um
+ * fato do repositório, não um número que uma peça possa baixar. Apagar um
+ * arquivo de teste derruba a contagem de agora e deixa o piso onde estava.
+ * Renomear não reprova (a contagem não muda), apagar reprova com o nome.
+ */
+function guardaEscalaDaUnidade(agora, naBase, medida) {
+  if (!naBase) {
+    return reprova(
+      'g24-unidade-nao-encolheu',
+      'sem base para contar a suíte de unidade: ' + ((medida && medida.erro) || 'base do run não resolveu') +
+        ' — sem juiz, `1 passed` e `2290 passed` são o mesmo verde',
+      'scripts/portao-particao.json ("base")',
+    )
+  }
+  const sumiram = naBase.filter((a) => agora.indexOf(a) === -1)
+  if (agora.length < naBase.length) {
+    return reprova(
+      'g24-unidade-nao-encolheu',
+      'a suíte de unidade encolheu: ' + agora.length + ' arquivos agora contra ' + naBase.length + ' na base' +
+        (sumiram.length > 0 ? ' — sumiram ' + sumiram.join(', ') : ''),
+      'client/src (arquivos *.test.ts*)',
+    )
+  }
+  return ok(
+    'g24-unidade-nao-encolheu',
+    agora.length + ' arquivos de unidade agora, ' + naBase.length + ' na base (' + ((medida && medida.ref) || 'base do run') +
+      '); piso do passo `unidade`: ' + naBase.length + ' arquivos e ' + PISO_DE_TESTES_DE_UNIDADE + ' testes',
+  )
+}
+
+/** O piso de arquivos que o passo `unidade` cobra, lido do commit base do run. */
+function pisoDeArquivosDeUnidade() {
+  const naBase = arquivosDeUnidadeNaBase(baseDoRun().base)
+  return naBase === null ? null : naBase.length
+}
+
+/**
+ * g21 — `.only`/`.skip`/`.fixme` nos 139, não nos 4.
+ *
+ * Mesma régua da g3, aplicada arquivo a arquivo a TODA a suíte de unidade, com
+ * um resultado só para não afogar o relatório. Medido em 18/09/2026: zero
+ * ocorrência nos 139, então isto nasce verde e só fica vermelho quando alguém
+ * cala um teste durante o run. O nome do arquivo sai no vermelho.
+ */
+function guardaUnidadeSemOnlyNemSkip(textos) {
+  const arquivos = Object.keys(textos).sort()
+  const sujos = arquivos.map((a) => guardaSemOnlyNemSkip(a, textos[a])).filter((r) => !r.ok)
+  if (sujos.length > 0) {
+    return reprova('g21-unidade-sem-only-skip', sujos.map((r) => r.detalhe).join('; '), sujos[0].endereco)
+  }
+  return ok('g21-unidade-sem-only-skip', arquivos.length + ' arquivos de unidade auditados, nenhum com only/skip/fixme')
+}
+
+/**
+ * g22 — asserção que compara verdade com verdade.
+ *
+ * `expect(true).toBe(true)`, `expect(x).toBe(x)` e `expect(2).toEqual(2)`
+ * passam com o código inteiro apagado: elas não têm como reprovar. É o
+ * afrouxamento mais barato que existe dentro de um arquivo de teste, e era o
+ * único que não tinha guarda nenhuma nos 135 fora da lista — o `\d+ skipped`
+ * do passo `unidade` só pega quem DESLIGA o teste, não quem o esvazia.
+ * Medido em 18/09/2026: zero ocorrência nos 139.
+ */
+function guardaAssertTautologico(arquivo, texto) {
+  const marcas = []
+  // literal comparado com ele mesmo: expect(true).toBe(true), expect(2).toEqual(2)
+  const literal = /expect\s*\(\s*(true|false|null|undefined|-?\d+(?:\.\d+)?|'[^']*'|"[^"]*")\s*\)\s*\.\s*(?:toBe|toEqual|toStrictEqual)\s*\(\s*(true|false|null|undefined|-?\d+(?:\.\d+)?|'[^']*'|"[^"]*")\s*\)/g
+  let m
+  while ((m = literal.exec(texto)) !== null) if (m[1] === m[2]) marcas.push(m[0])
+  // a mesma expressão dos dois lados: expect(mapa.grid).toBe(mapa.grid)
+  const espelho = /expect\s*\(\s*([A-Za-z_$][\w$.[\]]*)\s*\)\s*\.\s*(?:toBe|toEqual|toStrictEqual)\s*\(\s*([A-Za-z_$][\w$.[\]]*)\s*\)/g
+  while ((m = espelho.exec(texto)) !== null) if (m[1] === m[2]) marcas.push(m[0])
+  // expect(true).toBeTruthy() e parentes: verdade constante afirmada como verdade
+  const constante = /expect\s*\(\s*(?:true|1)\s*\)\s*\.\s*toBeTruthy\s*\(|expect\s*\(\s*(?:false|0|null|undefined)\s*\)\s*\.\s*toBeFalsy\s*\(/g
+  while ((m = constante.exec(texto)) !== null) marcas.push(m[0])
+  if (marcas.length > 0) {
+    return reprova('g22-assert-tautologico', arquivo + ': asserção que não tem como reprovar — ' + marcas.slice(0, 3).join(', '), arquivo)
+  }
+  return ok('g22-assert-tautologico', arquivo + ': nenhuma asserção tautológica')
+}
+
+/** g22 em lote sobre a suíte de unidade, um resultado só. */
+function guardaUnidadeSemAssertTautologico(textos) {
+  const arquivos = Object.keys(textos).sort()
+  const sujos = arquivos.map((a) => guardaAssertTautologico(a, textos[a])).filter((r) => !r.ok)
+  if (sujos.length > 0) {
+    return reprova('g22-assert-tautologico', sujos.map((r) => r.detalhe).join('; '), sujos[0].endereco)
+  }
+  return ok('g22-assert-tautologico', arquivos.length + ' arquivos de unidade sem asserção tautológica')
+}
+
+/**
+ * g23 — teto sem controle positivo na unidade, por CATRACA.
+ *
+ * A régua da g4 vale aqui igual: `toBeLessThan` sozinho aprova o app morto,
+ * porque delta zero é menor que qualquer teto. Só que 19 dos 139 arquivos já
+ * tinham teto nu ANTES deste run (medido em 18/09/2026) — ligar a régua
+ * estrita sobre eles pintaria o portão de vermelho por dívida que peça nenhuma
+ * desta rodada causou, e isso é o deadlock que a Invariante 1 manda evitar.
+ *
+ * Então a comparação é com o MESMO arquivo no commit base do run: arquivo
+ * intocado não é julgado, arquivo mexido não pode ganhar teto nu novo, e
+ * arquivo NOVO (sem versão na base) começa na régua estrita. A dívida velha
+ * fica para o relatório da manhã; ninguém acrescenta dívida durante o run.
+ */
+function guardaTetoNovoNaUnidade(agora, base) {
+  const tetosNus = (texto) => {
+    const teto = /\.toBeLessThan(OrEqual)?\s*\(/
+    const controle = /\.(toBeGreaterThan(OrEqual)?|toEqual|toStrictEqual|toBeVisible|toHaveText|toContainText|toHaveCount|toHaveAttribute|toBeChecked)\s*\(|\.toBe\s*\(/
+    return blocosDeTeste(texto)
+      .filter((b) => teto.test(b.corpo) && !controle.test(b.corpo))
+      .map((b) => b.nome)
+  }
+  const novos = []
+  for (const arquivo of Object.keys(agora).sort()) {
+    const antes = Object.prototype.hasOwnProperty.call(base, arquivo) ? tetosNus(base[arquivo]) : []
+    const depois = tetosNus(agora[arquivo])
+    const acrescentados = depois.filter((nome) => antes.indexOf(nome) === -1)
+    if (acrescentados.length > 0) novos.push(arquivo + ': ' + acrescentados.map((n) => JSON.stringify(n)).join(', '))
+  }
+  if (novos.length > 0) {
+    return reprova(
+      'g23-teto-novo-na-unidade',
+      'teto sem controle positivo APARECEU nesta rodada — ' + novos.join('; ') +
+        '. Teto sozinho aprova o app morto: acrescente um piso, uma igualdade ou uma presença.',
+      novos[0].split(':')[0],
+    )
+  }
+  return ok('g23-teto-novo-na-unidade', Object.keys(agora).length + ' arquivo(s) de unidade mexido(s) desde a base, nenhum com teto nu novo')
+}
+
 /** Recorta o corpo de cada `test('...')` de um spec, para julgar asserção por asserção. */
 function blocosDeTeste(texto) {
   const blocos = []
-  const abertura = /\btest\s*\(\s*['"`]([^'"`]+)['"`]/g
+  // `it(` além de `test(`: as jornadas e2e escrevem `test(`, mas os 139
+  // arquivos de unidade escrevem `it(` — recortar só por `test(` fazia o corpo
+  // inteiro de um arquivo de vitest virar UM bloco só, e aí qualquer piso em
+  // qualquer teste do arquivo servia de controle para um teto nu em outro.
+  const abertura = /\b(?:test|it)\s*\(\s*['"`]([^'"`]+)['"`]/g
   let m
   const inicios = []
   while ((m = abertura.exec(texto)) !== null) inicios.push({ nome: m[1], em: m.index })
@@ -1308,6 +1502,16 @@ const PLANO = [
     // `\d+ skipped` e não `skipped`: "todo" é palavra comum em português e o
     // repositório é em português — um nome de teste derrubaria o portão à toa.
     ruina: [/\d+ skipped\b/i, /\d+ todo\b/i, /\bFAIL\b/, /No test files found/],
+    // Prova positiva de ESCALA (18/09/2026). Sem ela o passo aprovava a suíte
+    // reduzida a um arquivo: `Test Files 1 passed`, exit 0, nenhuma ruína — e
+    // os arquivos de teste moram dentro da área de escrita das peças de
+    // cliente. O piso de arquivos vem do commit base do run; o de testes está
+    // declarado em `PISO_DE_TESTES_DE_UNIDADE`, aqui neste arquivo, que é área
+    // do portão e não das peças.
+    piso: [
+      { rotulo: 'arquivos de teste', re: /Test Files\s+(\d+) passed/, minimo: pisoDeArquivosDeUnidade },
+      { rotulo: 'testes', re: /\bTests\s+(\d+) passed/, minimo: PISO_DE_TESTES_DE_UNIDADE },
+    ],
   },
   {
     id: 'rust-clippy',
@@ -1339,6 +1543,14 @@ const PLANO = [
     id: 'transporte-vivo',
     titulo: 'exe release servindo /player na LAN (' + URL_JOGADOR + ')',
     sonda: sondarJogador,
+    // EXCLUSÃO DECLARADA (Invariante 11): o IP está fixo e errado, e o servidor
+    // só nasce quando alguém abre a sala — é pendência da manhã, não critério
+    // desta rodada. Antes isso era um fato invisível: o passo não era `prova`,
+    // nenhum dos 16 comandos o alcançava, e o aviso em voz alta só listava
+    // passos de prova, então os 16 saíam verdes sem nunca nomear o que ficou
+    // de fora. Agora a exclusão tem motivo escrito e sai impressa em toda
+    // chamada; `--so=transporte-vivo` continua alcançando o passo.
+    fora: 'Invariante 11: IP fixo errado e servidor que só nasce por gente abrindo a sala — pendência da manhã',
   },
   {
     id: 'servidor-limpo',
@@ -1958,7 +2170,25 @@ function julgarSaida(passo, codigo, saida) {
   // `exige` é a prova positiva: sem ela, um comando que não rodou nada sai 0 e
   // passa por verde. Marca ausente conta como ruína, com o mesmo peso.
   const faltando = (passo.exige || []).filter((re) => !re.test(saida)).map((re) => 'faltou ' + String(re))
-  const ruinaTotal = ruina.concat(faltando)
+  // `piso` é a prova positiva de ESCALA. `exige` só pergunta "passou alguma
+  // coisa?", e `1 passed` responde que sim: a suíte reduzida a um arquivo saía
+  // tão verde quanto a inteira. Aqui o relatório tem de dizer um NÚMERO e esse
+  // número tem de alcançar o piso. Ausente conta como ruína — relatório sem a
+  // marca de escala é relatório que não dá para medir.
+  const abaixoDoPiso = (passo.piso || [])
+    .map((p) => {
+      const minimo = typeof p.minimo === 'function' ? p.minimo() : p.minimo
+      if (minimo === null || minimo === undefined || !Number.isFinite(Number(minimo))) {
+        return 'piso de ' + p.rotulo + ' sem juiz (não deu para medir o mínimo)'
+      }
+      const achado = p.re.exec(saida)
+      if (achado === null) return 'relatório sem a marca de escala de ' + p.rotulo + ' (' + String(p.re) + ')'
+      const medido = Number(achado[1])
+      if (!(medido >= Number(minimo))) return p.rotulo + ': ' + medido + ' abaixo do piso ' + minimo
+      return null
+    })
+    .filter(Boolean)
+  const ruinaTotal = ruina.concat(faltando).concat(abaixoDoPiso)
   const falsoVerde = codigo === 0 && ruinaTotal.length > 0
   return { ok: codigo === 0 && !falsoVerde, falsoVerde, ruina: ruinaTotal }
 }
@@ -2000,6 +2230,45 @@ function rodarFase0() {
   resultados.push(guardaInvariante6TemComando(textos))
   resultados.push(guardaInvariantes1e4TemComando(textos))
   resultados.push(guardaOrdemDoPlano(PLANO))
+
+  // A suíte de unidade INTEIRA, descoberta no git — não os 4 nomes da lista.
+  // g21/g22 leem todos os arquivos; g23 só os que mudaram desde a base do run,
+  // que é o único conjunto para o qual vale (e custa) buscar a versão antiga.
+  const medidaParaUnidade = baseDoRun()
+  const listaUnidade = arquivosDeUnidade()
+  if (listaUnidade === null) {
+    resultados.push(
+      reprova(
+        'g21-unidade-sem-only-skip',
+        'git ls-files não respondeu: sem lista de arquivos de unidade não há auditoria arquivo-a-arquivo',
+        'scripts/portao.cjs (arquivosDeUnidade)',
+      ),
+    )
+  } else {
+    const textosUnidade = {}
+    for (const arquivo of listaUnidade) {
+      const absoluto = path.join(CLIENTE, arquivo)
+      if (fs.existsSync(absoluto)) textosUnidade[arquivo] = fs.readFileSync(absoluto, 'utf8')
+    }
+    resultados.push(guardaEscalaDaUnidade(listaUnidade, arquivosDeUnidadeNaBase(medidaParaUnidade.base), medidaParaUnidade))
+    resultados.push(guardaUnidadeSemOnlyNemSkip(textosUnidade))
+    resultados.push(guardaUnidadeSemAssertTautologico(textosUnidade))
+    const mexidos = {}
+    const base = {}
+    const diff = medidaParaUnidade.base ? git(['diff', '--name-only', medidaParaUnidade.base, '--', 'client/src']) : null
+    const novos = medidaParaUnidade.base ? git(['ls-files', '--others', '--exclude-standard', 'client/src']) : null
+    const candidatos = String((diff || '') + '\n' + (novos || ''))
+      .split('\n')
+      .map((s) => s.trim().replace(/^client\//, ''))
+      .filter((s) => /\.test\.tsx?$/.test(s))
+    for (const arquivo of candidatos) {
+      if (textosUnidade[arquivo] === undefined) continue
+      mexidos[arquivo] = textosUnidade[arquivo]
+      const antes = git(['show', medidaParaUnidade.base + ':client/' + arquivo])
+      if (antes !== null) base[arquivo] = antes
+    }
+    resultados.push(guardaTetoNovoNaUnidade(mexidos, base))
+  }
 
   let selo = null
   try {
@@ -2124,6 +2393,19 @@ function rodarAutoteste() {
       'camada-travada': ['client/src/**'],
     },
     apelidos: { portao: ['gate'] },
+  }
+  /**
+   * O passo `unidade` DE VERDADE — mesmas ruínas, mesmo `exige`, mesmos padrões
+   * de piso —, com um único ajuste: o piso de ARQUIVOS vira 10 em vez de ser
+   * contado no git. Assim os casos abaixo julgam os padrões que rodam no run,
+   * e não uma cópia que pode divergir deles, sem depender do repositório.
+   */
+  const passoUnidadeReal = PLANO.find((p) => p.id === 'unidade') || {}
+  const PASSO_DE_UNIDADE_DE_PROVA = {
+    id: 'unidade-de-prova',
+    ruina: passoUnidadeReal.ruina,
+    exige: passoUnidadeReal.exige,
+    piso: (passoUnidadeReal.piso || []).map((p) => (typeof p.minimo === 'function' ? { rotulo: p.rotulo, re: p.re, minimo: 10 } : p)),
   }
   /** O manifesto de verdade, porque autoteste sobre manifesto de brinquedo não impede o real de sair errado. */
   const manifestoReal = () => {
@@ -2588,12 +2870,110 @@ function rodarAutoteste() {
     ['g16 reprova suíte que não rodou nada (exit 0 sem nenhum passed)', guardaFalsoVerde('g16', jornada('j', 't', ['a']), 0, 'Running 0 tests using 0 workers\n'), false],
     ['g16 reprova "0 passed" com exit 0', guardaFalsoVerde('g16', jornada('j', 't', ['a']), 0, '0 passed (1.0s)\n'), false],
     ['g16 aprova relatório com testes passando', guardaFalsoVerde('g16', jornada('j', 't', ['a']), 0, '  2 passed (10.0s)\n'), true],
+    // --- escala da unidade (18/09/2026) -----------------------------------
+    // O passo `unidade` com os MESMOS pisos do PLANO, contra relatórios de
+    // vitest sintéticos. Sem estes casos, o piso seria texto: é exatamente o
+    // que o passo era antes, quando `1 passed` saía tão verde quanto 2290.
+    [
+      'piso reprova suíte reduzida a um arquivo',
+      guardaFalsoVerde('piso', PASSO_DE_UNIDADE_DE_PROVA, 0, ' Test Files  1 passed (1)\n      Tests  21 passed (21)\n'),
+      false,
+    ],
+    [
+      'piso reprova relatório sem a marca de escala',
+      guardaFalsoVerde('piso', PASSO_DE_UNIDADE_DE_PROVA, 0, 'tudo certo por aqui\n'),
+      false,
+    ],
+    [
+      'piso reprova arquivo a menos, mesmo com os testes no lugar',
+      guardaFalsoVerde('piso', PASSO_DE_UNIDADE_DE_PROVA, 0, ' Test Files  9 passed (9)\n      Tests  2290 passed (2290)\n'),
+      false,
+    ],
+    [
+      'piso aprova a suíte inteira',
+      guardaFalsoVerde('piso', PASSO_DE_UNIDADE_DE_PROVA, 0, ' Test Files  10 passed (10)\n      Tests  2290 passed (2290)\n'),
+      true,
+    ],
+    [
+      'piso aprova suíte que cresceu',
+      guardaFalsoVerde('piso', PASSO_DE_UNIDADE_DE_PROVA, 0, ' Test Files  11 passed (11)\n      Tests  2300 passed (2300)\n'),
+      true,
+    ],
+    ['g21 reprova it.skip em arquivo de unidade', guardaUnidadeSemOnlyNemSkip({ 'src/lib/a.test.ts': "it.skip('a', () => {})" }), false],
+    ['g21 aprova suíte sem only/skip', guardaUnidadeSemOnlyNemSkip({ 'src/lib/a.test.ts': "it('a', () => { expect(f(1)).toBe(2) })" }), true],
+    ['g22 reprova expect(true).toBe(true)', guardaAssertTautologico('x', "it('a', () => { expect(true).toBe(true) })"), false],
+    ['g22 reprova a mesma expressão dos dois lados', guardaAssertTautologico('x', 'expect(mapa.grid).toBe(mapa.grid)'), false],
+    ['g22 reprova expect(1).toBeTruthy()', guardaAssertTautologico('x', 'expect(1).toBeTruthy()'), false],
+    ['g22 aprova asserção que pode reprovar', guardaAssertTautologico('x', 'expect(mapa.grid).toBe(64)'), true],
+    [
+      'g23 reprova teto nu que apareceu nesta rodada',
+      guardaTetoNovoNaUnidade(
+        { 'src/lib/a.test.ts': "it('mede', () => { expect(d).toBeLessThan(24) })" },
+        { 'src/lib/a.test.ts': "it('mede', () => { expect(d).toBe(12) })" },
+      ),
+      false,
+    ],
+    [
+      'g23 reprova teto nu em arquivo novo (sem versão na base)',
+      guardaTetoNovoNaUnidade({ 'src/lib/novo.test.ts': "it('mede', () => { expect(d).toBeLessThan(24) })" }, {}),
+      false,
+    ],
+    [
+      'g23 aprova dívida velha que continua igual',
+      guardaTetoNovoNaUnidade(
+        { 'src/lib/a.test.ts': "it('mede', () => { expect(d).toBeLessThan(24) })" },
+        { 'src/lib/a.test.ts': "it('mede', () => { expect(d).toBeLessThan(24) })" },
+      ),
+      true,
+    ],
+    [
+      'g23 aprova teto que ganhou controle positivo',
+      guardaTetoNovoNaUnidade(
+        { 'src/lib/a.test.ts': "it('mede', () => { expect(d).toBeGreaterThan(0); expect(d).toBeLessThan(24) })" },
+        { 'src/lib/a.test.ts': "it('mede', () => { expect(d).toBeLessThan(24) })" },
+      ),
+      true,
+    ],
+    ['g24 reprova sem base para contar', guardaEscalaDaUnidade(['src/a.test.ts'], null, { erro: 'base do run não resolveu' }), false],
+    [
+      'g24 reprova suíte que encolheu',
+      guardaEscalaDaUnidade(['src/a.test.ts'], ['src/a.test.ts', 'src/b.test.ts'], { ref: 'base' }),
+      false,
+    ],
+    ['g24 aprova suíte do mesmo tamanho', guardaEscalaDaUnidade(['src/a.test.ts'], ['src/a.test.ts'], { ref: 'base' }), true],
+    ['g24 aprova suíte que cresceu', guardaEscalaDaUnidade(['src/a.test.ts', 'src/b.test.ts'], ['src/a.test.ts'], { ref: 'base' }), true],
   ]
   return casos.map(([nome, resultado, esperado]) => ({
     id: nome,
     ok: resultado.ok === esperado,
     detalhe: 'esperado ' + (esperado ? 'APROVA' : 'REPROVA') + ', veio ' + (resultado.ok ? 'APROVA' : 'REPROVA') + ' — ' + resultado.detalhe,
   }))
+}
+
+/**
+ * Em voz alta: o que não rodou nesta chamada, e POR QUÊ. Três motivos, nesta
+ * ordem de gravidade — exclusão declarada (o passo não roda em volta nenhuma),
+ * prova (nasce vermelha, roda na volta que declara vencedor) e recorte de
+ * `--so=` (o operador pediu um passo só). Compacto de propósito: uma linha por
+ * motivo, com os ids, para caber no relatório sem virar ruído.
+ */
+function imprimirForaDaVolta(foraDaVolta, recorteChamado, prova) {
+  if (!foraDaVolta || foraDaVolta.length === 0) return
+  const excluidos = foraDaVolta.filter((p) => p.fora)
+  const provas = foraDaVolta.filter((p) => !p.fora && p.prova && !prova)
+  const recorte = foraDaVolta.filter((p) => !p.fora && !(p.prova && !prova))
+  const ids = (lista) => lista.map((p) => p.id).join(', ')
+  let texto = 'FORA DESTA VOLTA — ' + foraDaVolta.length + ' de ' + PLANO.length + ' passos do PLANO não rodaram aqui:\n'
+  for (const p of excluidos) texto += '  EXCLUSÃO DECLARADA: ' + p.id + ' — ' + p.fora + '\n'
+  if (provas.length > 0) {
+    texto +=
+      '  PROVA (' + provas.length + '): ' + ids(provas) +
+      ' — são o critério de conserto da rodada e nascem VERMELHAS; rode `--prova` (ou `--so=<id>`) na volta que declara vencedor.\n'
+  }
+  if (recorte.length > 0) {
+    texto += '  recorte de `' + (recorteChamado || 'volta comum') + '` (' + recorte.length + '): ' + ids(recorte) + '\n'
+  }
+  process.stdout.write(texto + '\n')
 }
 
 function imprimir(titulo, linhas) {
@@ -2618,6 +2998,12 @@ async function principal() {
           url_jogador: URL_JOGADOR,
           jornadas_e2e: TODAS_JORNADAS_E2E,
           jornadas_unidade: JORNADAS_UNIDADE,
+          // A suíte de unidade inteira (descoberta no git) e o piso que o passo
+          // `unidade` cobra dela: quem lê a lista vê o tamanho auditado, não só
+          // os 4 nomes da régua estrita.
+          unidade_auditada: (arquivosDeUnidade() || []).length,
+          piso_de_unidade: { arquivos: pisoDeArquivosDeUnidade(), testes: PISO_DE_TESTES_DE_UNIDADE },
+          fora_da_volta: PLANO.filter((p) => p.fora).map((p) => ({ id: p.id, motivo: p.fora })),
           plano: PLANO.map((p) => ({
             id: p.id,
             titulo: p.titulo,
@@ -2663,6 +3049,10 @@ async function principal() {
     const completa = guardaListaDeJornadas(alvos, GRUPOS_DA_BAR, JORNADAS_DISPENSADAS)
     process.stdout.write((completa.ok ? 'VERDE  ' : 'VERMELHO') + ' ' + completa.id + ': ' + completa.detalhe + (completa.endereco ? '  [' + completa.endereco + ']' : '') + '\n')
     if (!completa.ok) return 2
+    // O modo avulso roda UM passo de jornada e nenhum outro. Ele também deve o
+    // aviso: sem ele, os comandos `--jornada=` do run saíam verdes sem nomear
+    // os 16 passos do PLANO que ficaram de fora.
+    imprimirForaDaVolta(PLANO, '--jornada=' + jornadaAvulsa, false)
     const r = await rodarPasso(jornada(jornadaAvulsa, alvos.length + ' spec(s) pela linha de comando', alvos, extras))
     process.stdout.write(r.saida + '\n')
     process.stdout.write(
@@ -2704,20 +3094,19 @@ async function principal() {
   // causou. `--so=<id>` sempre alcança um deles; `--prova` roda o portão
   // inteiro com eles dentro, que é a volta que declara vencedor.
   const prova = argv.includes('--prova')
-  const passos = so ? PLANO.filter((p) => p.id === so) : PLANO.filter((p) => !p.prova || prova)
+  const passos = so ? PLANO.filter((p) => p.id === so) : PLANO.filter((p) => !p.fora && (!p.prova || prova))
   if (so && passos.length === 0) {
     process.stderr.write('passo desconhecido: ' + so + '\n')
     return 2
   }
-  const foraDaVolta = so || prova ? [] : PLANO.filter((p) => p.prova)
-  if (foraDaVolta.length > 0) {
-    // Em voz alta: o que não rodou não pode passar por verde silencioso.
-    process.stdout.write(
-      'FORA DESTA VOLTA (é regressão, não prova) — ' + foraDaVolta.length + ' passo(s) de PROVA: ' +
-        foraDaVolta.map((p) => p.id).join(', ') +
-        '\n  são o critério de conserto da rodada e nascem VERMELHOS; rode `--prova` (ou `--so=<id>`) na volta que declara vencedor.\n\n',
-    )
-  }
+  // O que NÃO rodou sai nomeado em TODA chamada, com o motivo de cada um.
+  //
+  // A conta antiga (`so || prova ? [] : PLANO.filter(p => p.prova)`) zerava a
+  // lista sempre que havia `--so=`, e os 16 comandos do run são todos `--so=`
+  // ou `--jornada=`: nenhum deles chegou a imprimir a linha uma vez sequer, e
+  // `transporte-vivo` — que passo nenhum alcança — nunca foi nomeado. Quem
+  // lesse só o verde acharia que o PLANO inteiro rodou.
+  imprimirForaDaVolta(PLANO.filter((p) => passos.indexOf(p) === -1), so ? '--so=' + so : 'volta comum', prova)
 
   const resultados = []
   for (const passo of passos) {
