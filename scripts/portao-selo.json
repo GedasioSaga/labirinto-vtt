@@ -1,5 +1,5 @@
 {
-  "selado_em": "2026-09-18T07:47:54.560Z",
+  "selado_em": "2026-09-18T11:10:29.608Z",
   "jornadas": {
     "e2e/task-jornada-parede-grossa.spec.ts": "527e40bd7728c8b27e9334e40ce45223816eef2f88b14351545951c57af89314",
     "e2e/task-jornada-selecao-arrasto.spec.ts": "0e9113e9b71bfac3ce19108908c4421e680919e8f07c99638a75f94c4b0b4062",
@@ -20,10 +20,17 @@
     "e2e/task-jornada-camada-travada.spec.ts": "acbac029eea15434469c08a40c6e1319b19a001d7112c5c3d25af8dab386662f",
     "e2e/task-jornada-poligono-termina.spec.ts": "3fab2866f1474d0226cb17ec3da527c05e4904586b3adc802a9367535ce7880b",
     "e2e/task-jornada-menu-cabe-na-janela.spec.ts": "22c8be1e27a18bc718c2be311cd1910a30802ef48bd6c40276cefd78b97f6e89",
+    "e2e/task-jornada-escada-fala.spec.ts": "15bac83064c3b6cd2054e860c582bf8815e713dda6f428bfcbdd55a0b868291e",
     "e2e/task-drawing-group.spec.ts": "041a8dcd35adb866c814cdd4b39df5c477c2e19803fc128c90cf113b73b04219",
     "e2e/task-fase5-variantes.spec.ts": "ac7df717b703fcb098ba259294f269670977d9b02e64249e2f132212e0019bfc",
     "e2e/task-floor-pieces.spec.ts": "defffc561737ddede5131c5cfdfaaf0b06708186092b54839a7aa445047f7e25",
-    "e2e/task-new-shapes.spec.ts": "73a25c124d5e5df34f5b73dfc1bb3b911e65bd6c56178207103919ca6e885e8d"
+    "e2e/task-new-shapes.spec.ts": "73a25c124d5e5df34f5b73dfc1bb3b911e65bd6c56178207103919ca6e885e8d",
+    "e2e/task-rascunho-desfazer.spec.ts": "1e6f97d7815c918d6d9f44bff0ef636a2c37c2ef19bd94960535a063a7c5c2db",
+    "e2e/task-layers-visibility.spec.ts": "26cf226c43d694867c27567c9db1974edc8c2471daa82e79e47aadf5f5f429ee",
+    "e2e/task-background-convert-menu.spec.ts": "71833f0a2732a120b136cf470dd5bd510c685e70c6c294b0188c63f390c1ac84",
+    "e2e/task-drawing-tools.spec.ts": "3b291cfd7dba749e8699ed78fdaef938b4db0ca3440d68e62c905b2a4c3519b7",
+    "e2e/task-ctrl-reto.spec.ts": "ae5165f73264340ba07b15dfcae94789ca2add5bd089c01ef572b32b02d373d0",
+    "e2e/task-jornada-barra-honesta.spec.ts": "89d66a3ec6c32182f419dc31dfd93a3cbe3c7e66e21d4de7f13d1d401ad6277f"
   },
   "base_do_run": {
     "ramo": "auto/base-noite",

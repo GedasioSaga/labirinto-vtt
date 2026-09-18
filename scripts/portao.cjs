@@ -239,6 +239,8 @@ const JORNADAS_DO_CRITERIO = [
   'e2e/task-jornada-camada-travada.spec.ts',
   'e2e/task-jornada-poligono-termina.spec.ts',
   'e2e/task-jornada-menu-cabe-na-janela.spec.ts',
+  // A quarta jornada da noite de 18/09: a ferramenta Escada muda.
+  'e2e/task-jornada-escada-fala.spec.ts',
 ]
 /**
  * A bar inteira, na ordem de sempre: é esta lista que o SELO carimba e que a
