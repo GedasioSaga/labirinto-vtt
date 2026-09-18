@@ -134,7 +134,10 @@ import { createAngleIndicatorRenderer } from './drawAngleIndicator'
 import { subscribeToPropsRedraw } from '../stores/propsSubscription'
 import { pickImageFile, importPropImage } from '../lib/imageImport'
 import { mapDirFor } from '../lib/mapFileIO'
-import { findSelectableAt, findCurveControlPointAt, findWallAt, findNearestExistingVertex, type SelectableHit } from '../lib/selectionHitTest'
+import {
+  findSelectableAt, findCurveControlPointAt, findWallAt, findNearestExistingVertex, findLockedLayerAt,
+  type SelectableHit,
+} from '../lib/selectionHitTest'
 import type { SelectionKind } from '../types/tools'
 import { drawDrawings } from './drawDrawings'
 import { drawEditHandles, findLightRadiusHandleAt, circleDrawingRadiusHandle } from './drawEditHandles'
@@ -150,6 +153,7 @@ import { useToastStore } from '../stores/toastStore'
 import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
   canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
+  LAYER_LABELS,
 } from '../lib/layers'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
 // `eraseDecisionForRegion` saiu da lista de propósito: a borracha "Só uma
@@ -2739,6 +2743,32 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             updateCursor()
             return
           }
+        }
+
+        // Camada travada barra o GESTO, não só a seleção.
+        //
+        // `clickSelectMap`/`hitTestMap` tiram do mapa os itens de camada
+        // travada ANTES do hit-test — e com o item fora do array a cadeia de
+        // prioridade seguia em frente e acertava o que estava EMBAIXO dele.
+        // Quem travava a camada Tokens justamente para não esbarrar num token
+        // arrastava a SALA inteira por baixo dele: luz, escada e rótulo iam
+        // junto, sem aviso nenhum (jornada e2e/task-jornada-camada-travada).
+        // `findLockedLayerAt` pergunta, no mapa CRU, quem está por cima neste
+        // ponto; se a camada desse item estiver travada, o gesto para aqui:
+        // `mode` fica 'idle' (nenhum branch de pointermove reage), a seleção
+        // de antes continua de pé e o aviso diz POR QUE nada aconteceu.
+        //
+        // Só no caminho do hit-test genérico de propósito: alça de resize,
+        // vértice de sala e arrasto de grupo, acima, trabalham sobre itens JÁ
+        // selecionados — e travar uma camada remove os itens dela da seleção
+        // (mapStore.toggleLayerLock), então nenhum deles alcança item travado.
+        const lockedLayer = findLockedLayerAt(map, worldPoint)
+        if (lockedLayer !== null) {
+          mode = 'idle'
+          useToastStore.getState().push('info', `A camada ${LAYER_LABELS[lockedLayer]} está travada`)
+          lastPoint = { x: event.global.x, y: event.global.y }
+          updateCursor()
+          return
         }
 
         const hit = findSelectableAt(clickSelectMap(map), worldPoint) ?? floorHitAt(map, worldPoint)

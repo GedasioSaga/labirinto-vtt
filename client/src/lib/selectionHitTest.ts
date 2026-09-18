@@ -1,8 +1,11 @@
-import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData } from '../types/map'
+import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData, LayerId } from '../types/map'
 import type { Selection } from '../types/tools'
 import { findTokenAt } from '../pixi/tokenInteraction'
 import { findPropAt } from '../pixi/propInteraction'
-import { visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps } from './layers'
+import {
+  visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps,
+  isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
+} from './layers'
 
 export interface Point {
   x: number
@@ -316,4 +319,74 @@ export function findSelectableAt(map: MapData, point: Point): SelectableHit | nu
   if (region) return { kind: 'region', id: region.id, draggable: false }
 
   return null
+}
+
+/**
+ * A camada de um item já ACERTADO por `findSelectableAt` — a mesma derivação
+ * de `lib/layers.ts`, nunca uma segunda. `null` quando o id não está mais no
+ * mapa (o hit veio de um snapshot anterior) e para 'floor', que tem a camada
+ * própria de `lib/floorTool.ts` (FLOOR_LAYER) e nunca sai de
+ * `findSelectableAt` — o chão é testado à parte, depois desta cadeia.
+ */
+function layerOfHit(map: MapData, hit: Selection): LayerId | null {
+  switch (hit.kind) {
+    case 'token': {
+      const token = map.tokens.find((item) => item.id === hit.id)
+      return token ? tokenLayer(token) : null
+    }
+    case 'prop': {
+      const prop = map.props.find((item) => item.id === hit.id)
+      return prop ? propLayer(prop) : null
+    }
+    case 'light': {
+      const light = map.lights.find((item) => item.id === hit.id)
+      return light ? lightLayer(light) : null
+    }
+    case 'drawing': {
+      const drawing = map.drawings.find((item) => item.id === hit.id)
+      return drawing ? drawingLayer(drawing) : null
+    }
+    case 'wall': {
+      const wall = map.walls.find((item) => item.id === hit.id)
+      return wall ? wallLayer(wall) : null
+    }
+    case 'stair': {
+      const stair = map.stairs.find((item) => item.id === hit.id)
+      return stair ? stairLayer(stair) : null
+    }
+    case 'region': {
+      const region = map.regions.find((item) => item.id === hit.id)
+      return region ? regionLayer(region) : null
+    }
+    case 'floor':
+      return null
+  }
+}
+
+/**
+ * "O gesto esbarra numa camada TRAVADA neste ponto?" — devolve a camada que
+ * barra, ou `null` quando o caminho está livre.
+ *
+ * Camada travada significa "o gesto NÃO PASSA por aqui", não "este item não é
+ * selecionável". A diferença não é acadêmica: filtrar o item travado do array
+ * ANTES do hit-test deixa a cadeia de prioridade seguir em frente e acertar o
+ * que está EMBAIXO dele — quem travou a camada Tokens para não esbarrar num
+ * token arrastava a SALA inteira por baixo dele, sem aviso nenhum (jornada
+ * `e2e/task-jornada-camada-travada.spec.ts`). Travar virava um jeito novo de
+ * estragar o mapa.
+ *
+ * Por isso o teste roda sobre o mapa CRU: a mesma cadeia de prioridade de
+ * `findSelectableAt` decide quem está por cima no ponto, e só então se
+ * pergunta se a camada DESSE item está travada. Item em camada OCULTA não
+ * barra nada — `findSelectableAt` já o descarta, e o que não se vê não pode
+ * segurar o gesto. Trava por ITEM (`Lockable.locked`) também não entra aqui:
+ * é outro eixo, com outra regra (item travado é clicável de propósito, para
+ * chegar ao botão que o destrava em ItemTransformControls).
+ */
+export function findLockedLayerAt(map: MapData, point: Point): LayerId | null {
+  if (map.lockedLayers.length === 0) return null
+  const hit = findSelectableAt(map, point)
+  if (!hit) return null
+  const layer = layerOfHit(map, hit)
+  return layer !== null && isLayerLocked(map.lockedLayers, layer) ? layer : null
 }
