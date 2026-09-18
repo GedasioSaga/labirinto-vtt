@@ -68,8 +68,8 @@ export function TokenLibraryPanel({ itens, aviso, onPlace, onDelete }: TokenLibr
         <ul className="lb-acervo">
           {itens.map((item) => (
             <li key={item.id} className="lb-acervo__item">
-              {item.imagemNoDisco && fonteDaFoto(item.arquivo) !== null ? (
-                <img className="lb-acervo__foto" src={fonteDaFoto(item.arquivo) ?? ''} alt={`Foto de ${item.nome}`} />
+              {item.imagemNoDisco && fonteDaFoto(item.caminho) !== null ? (
+                <img className="lb-acervo__foto" src={fonteDaFoto(item.caminho) ?? ''} alt={`Foto de ${item.nome}`} />
               ) : (
                 // Imagem sumida do disco não apaga o item: o nome que a pessoa
                 // deu vale mais que o arquivo, e ela ainda pode colocar o token

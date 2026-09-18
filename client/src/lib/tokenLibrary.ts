@@ -24,8 +24,9 @@ import { isTokenPhotoData, tokenPhotoRef } from './tokenPhoto'
  * imagem..."), então ela chega aqui já reamostrada no teto de 1024 px. O nome
  * do arquivo é decidido lá dentro: `token_<id>.webp` quando houve
  * reamostragem, `token_<id>_original.<ext>` quando a foto já era pequena o
- * bastante. Por isso o índice guarda o CAMINHO que o importador devolveu, em
- * vez de montar um nome por conta própria.
+ * bastante. O índice guarda o NOME que o importador escolheu — não o caminho
+ * inteiro, para a pasta do acervo poder ser copiada para outra máquina sem que
+ * as fotos sumam (ver `ItemDoAcervo.arquivo`).
  *
  * NENHUMA função daqui derruba a tela por arquivo estranho: `listarAcervo`
  * nunca lança (devolve acervo vazio + aviso em português), e as que escrevem
@@ -43,6 +44,8 @@ const ARQUIVO_DO_INDICE = 'acervo.json'
  * recuperar à mão.
  */
 const ARQUIVO_INVALIDO = 'acervo.json.invalido'
+/** Cópia do índice tirada antes de CADA gravação — ver `guardarIndiceAnterior`. */
+const ARQUIVO_ANTERIOR = 'acervo.json.anterior'
 /** Versão do formato do índice; `acervo.json` de versão futura é lido como os campos que conhecemos. */
 const VERSAO_DO_INDICE = 1
 
@@ -52,8 +55,26 @@ export interface ItemDoAcervo {
   nome: string
   /** Tamanho em múltiplos da célula da grade — o mesmo `Token.size`. */
   tamanho: number
-  /** Caminho absoluto da imagem, dentro da pasta do acervo. */
+  /**
+   * NOME do arquivo de imagem dentro da pasta do acervo — `token_<id>.webp` —,
+   * nunca o caminho inteiro.
+   *
+   * Guardar o caminho absoluto quebrava a única forma natural de levar o
+   * acervo junto: copiar `%APPDATA%\com.labirinto.app\tokens` para outro PC (ou
+   * para outro usuário do Windows, ou depois de reinstalar com perfil novo).
+   * Depois da cópia, todo `arquivo` apontava para o `C:\Users\<o de antes>` e o
+   * painel abria com a estante inteira sem miniatura, com os arquivos ali do
+   * lado do próprio `acervo.json`. Índice antigo, com caminho absoluto, continua
+   * abrindo: `caminhoDaImagem` reconhece os dois formatos.
+   */
   arquivo: string
+}
+
+/** O que `itensDoIndice` extrai do texto: o que ele entende, e o que ele preserva sem entender. */
+export interface IndiceLido {
+  itens: ItemDoAcervo[]
+  /** Itens que este código não reconhece e regrava intactos — ver `itensDoIndice`. */
+  ignorados: unknown[]
 }
 
 /** Item como a TELA o recebe: com a resposta de "a imagem ainda está lá?". */
@@ -64,12 +85,34 @@ export interface ItemDoAcervoNaTela extends ItemDoAcervo {
    * lista seria perder o nome que a pessoa deu, por causa de um arquivo.
    */
   imagemNoDisco: boolean
+  /** Caminho absoluto de agora, resolvido a partir de `arquivo` e da pasta do acervo. */
+  caminho: string
 }
 
 export interface AcervoCarregado {
   itens: ItemDoAcervoNaTela[]
   /** Frase pronta para a tela quando a leitura deu errado; `null` = tudo certo. */
   aviso: string | null
+  /**
+   * O índice foi LIDO de verdade? Esta é a diferença entre "o acervo está
+   * vazio" e "não deu para saber o que tem no acervo", e ela existe porque as
+   * duas chegavam aqui como `itens: []`.
+   *
+   * Sem ela, uma leitura que falhasse por I/O (arquivo travado por antivírus ou
+   * sincronizador, permissão negada) fazia o próximo "Salvar no acervo" gravar
+   * um índice com UM item e o próximo "Apagar" gravar um índice VAZIO — por
+   * cima de um acervo bom, sem erro nenhum na tela. Medido em 18/09/2026 com
+   * `apagarDoAcervo` contra um disco falso: 20 itens viravam 0 e as 19 imagens
+   * ficavam órfãs na pasta. Quem grava agora recusa o trabalho enquanto isto
+   * for `false`.
+   *
+   * JSON ilegível NÃO cai aqui: ali o arquivo antigo é preservado como
+   * `acervo.json.invalido` antes de o acervo recomeçar vazio, e recomeçar é o
+   * único caminho possível.
+   */
+  lido: boolean
+  /** Itens do índice que este código não reconhece; voltam intactos na gravação. */
+  ignorados: unknown[]
 }
 
 interface IndiceGravado {
@@ -130,7 +173,7 @@ function itemValido(valor: ItemDoAcervo | undefined): ItemDoAcervo | null {
  * `any`): NENHUM campo é usado antes de `itemValido` conferir o tipo dele —
  * mesmo padrão de `deserializeMapFields` em `lib/mapFile.ts`.
  */
-export function itensDoIndice(texto: string): ItemDoAcervo[] | null {
+export function itensDoIndice(texto: string): IndiceLido | null {
   let lido: Partial<IndiceGravado>
   try {
     lido = JSON.parse(texto) as Partial<IndiceGravado>
@@ -139,17 +182,23 @@ export function itensDoIndice(texto: string): ItemDoAcervo[] | null {
   }
   if (!lido || typeof lido !== 'object' || !Array.isArray(lido.itens)) return null
   const itens: ItemDoAcervo[] = []
+  const ignorados: unknown[] = []
   for (const bruto of lido.itens) {
     const item = itemValido(bruto)
     // Item quebrado sai fora sozinho; o resto do acervo continua abrindo, que
-    // é o oposto de "perdi todos os meus NPCs por causa de uma linha".
+    // é o oposto de "perdi todos os meus NPCs por causa de uma linha". Mas ele
+    // sai fora só da LISTA, não do arquivo: guardado aqui, volta inteiro na
+    // próxima gravação. Sem isso, um item que uma versão futura do formato
+    // gravou (campo novo que este código não conhece) era apagado de vez pelo
+    // primeiro "Salvar no acervo" de uma versão antiga.
     if (item !== null) itens.push(item)
+    else ignorados.push(bruto)
   }
-  return itens
+  return { itens, ignorados }
 }
 
-function serializarIndice(itens: readonly ItemDoAcervo[]): string {
-  const indice: IndiceGravado = { versao: VERSAO_DO_INDICE, itens: [...itens] }
+function serializarIndice(itens: readonly ItemDoAcervo[], ignorados: readonly unknown[]): string {
+  const indice: IndiceGravado = { versao: VERSAO_DO_INDICE, itens: [...itens, ...(ignorados as ItemDoAcervo[])] }
   return JSON.stringify(indice, null, 2)
 }
 
@@ -159,32 +208,56 @@ function serializarIndice(itens: readonly ItemDoAcervo[]): string {
  */
 export async function listarAcervo(): Promise<AcervoCarregado> {
   let texto: string
+  let pasta: string
   try {
-    const caminho = await caminhoDoIndice()
-    if (!(await exists(caminho))) return { itens: [], aviso: null }
+    pasta = await pastaDoAcervo()
+    const caminho = await join(pasta, ARQUIVO_DO_INDICE)
+    // Pasta ainda sem índice é a primeira execução, não uma leitura que falhou:
+    // `lido` continua verdadeiro e o primeiro "Salvar no acervo" pode gravar.
+    if (!(await exists(caminho))) return { itens: [], aviso: null, lido: true, ignorados: [] }
     texto = await readTextFile(caminho)
   } catch (erro) {
-    return { itens: [], aviso: `${AVISO}: ${motivoEmPortugues(erro)}.` }
+    return { itens: [], aviso: `${AVISO}: ${motivoEmPortugues(erro)}.`, lido: false, ignorados: [] }
   }
 
-  const itens = itensDoIndice(texto)
-  if (itens === null) {
+  const indice = itensDoIndice(texto)
+  if (indice === null) {
     await guardarIndiceInvalido(texto)
-    return { itens: [], aviso: AVISO_ILEGIVEL }
+    return { itens: [], aviso: AVISO_ILEGIVEL, lido: true, ignorados: [] }
   }
 
   const naTela: ItemDoAcervoNaTela[] = []
-  for (const item of itens) {
+  for (const item of indice.itens) {
+    const caminho = await caminhoDaImagem(item.arquivo, pasta)
     let imagemNoDisco = false
     try {
-      imagemNoDisco = await exists(item.arquivo)
+      imagemNoDisco = await exists(caminho)
     } catch {
       // Caminho que o sistema recusa sequer consultar (unidade removida) conta
       // como imagem ausente — o item aparece sem miniatura, e nada quebra.
     }
-    naTela.push({ ...item, imagemNoDisco })
+    naTela.push({ ...item, imagemNoDisco, caminho })
   }
-  return { itens: naTela, aviso: null }
+  return { itens: naTela, aviso: null, lido: true, ignorados: indice.ignorados }
+}
+
+/**
+ * `arquivo` do índice → caminho absoluto de agora.
+ *
+ * Aceita os DOIS formatos porque o índice de 18/09/2026 (o único que pode
+ * existir antes desta mudança) guardava caminho absoluto: quem já tem acervo
+ * gravado continua vendo as fotos, e o formato novo — só o nome — passa a valer
+ * a partir da próxima gravação.
+ */
+async function caminhoDaImagem(arquivo: string, pasta: string): Promise<string> {
+  const absoluto = arquivo.indexOf('/') !== -1 || arquivo.indexOf('\\') !== -1
+  return absoluto ? arquivo : join(pasta, arquivo)
+}
+
+/** Caminho absoluto → só o nome do arquivo, que é o que o índice guarda. */
+function nomeDeArquivo(caminho: string): string {
+  const corte = Math.max(caminho.lastIndexOf('/'), caminho.lastIndexOf('\\'))
+  return corte === -1 ? caminho : caminho.slice(corte + 1)
 }
 
 /** Melhor esforço: se nem a cópia der, o aviso na tela continua sendo a verdade útil. */
@@ -200,7 +273,14 @@ async function guardarIndiceInvalido(texto: string): Promise<void> {
 /** `data:image/webp;base64,...` → bytes + extensão de arquivo. */
 function fotoEmBytes(dataUrl: string): { bytes: Uint8Array; extensao: string } {
   const virgula = dataUrl.indexOf(',')
-  const tipo = dataUrl.slice('data:image/'.length, dataUrl.indexOf(';'))
+  if (virgula === -1) throw new Error('a foto embutida deste token está num formato que não dá para gravar')
+  // Hoje só chega aqui o que `isTokenPhotoData` aprova, e o padrão dele exige
+  // `;base64,` (lib/tokenPhoto.ts:23) — então o `;` existe sempre. O piso é
+  // para o dia em que esse padrão aceitar `data:image/webp,...`: sem ele, o
+  // `slice` até -1 comeria a última letra e o arquivo sairia `.web`.
+  const pontoEVirgula = dataUrl.indexOf(';')
+  const fimDoTipo = pontoEVirgula === -1 || pontoEVirgula > virgula ? virgula : pontoEVirgula
+  const tipo = dataUrl.slice('data:image/'.length, fimDoTipo)
   const binario = atob(dataUrl.slice(virgula + 1))
   const bytes = new Uint8Array(binario.length)
   for (let i = 0; i < binario.length; i += 1) bytes[i] = binario.charCodeAt(i)
@@ -231,7 +311,18 @@ export async function salvarNoAcervo(token: Pick<Token, 'name' | 'size' | 'image
   const foto = tokenPhotoRef(token)
   if (foto === null) throw new Error(SEM_FOTO_PARA_SALVAR)
 
-  const { itens } = await listarAcervo()
+  const acervo = await listarAcervo()
+  exigirLeitura(acervo, 'guardar o token no acervo')
+
+  // O nome sai ANTES da gravação da imagem. Token de mapa antigo, ou criado
+  // fora do type-checker, pode chegar sem `name` — e com a conta feita depois,
+  // `name.trim()` estourava com o arquivo de imagem já no disco, deixando uma
+  // foto órfã que nenhum "apagar" alcança (ele só varre o que tem item no
+  // índice) e um toast em inglês de sistema.
+  const nomeCru = typeof token.name === 'string' ? token.name.trim() : ''
+  const nomeBase = nomeCru.length > 0 ? nomeCru : NOME_PADRAO
+  const tamanho = typeof token.size === 'number' && Number.isFinite(token.size) && token.size > 0 ? token.size : 1
+
   const id = crypto.randomUUID()
   const pasta = await pastaDoAcervo()
 
@@ -240,37 +331,72 @@ export async function salvarNoAcervo(token: Pick<Token, 'name' | 'size' | 'image
     await ensureDir(pasta)
     if (isTokenPhotoData(foto)) {
       const { bytes, extensao } = fotoEmBytes(foto)
-      arquivo = await join(pasta, `token_${id}.${extensao}`)
-      await writeFile(arquivo, bytes)
+      arquivo = `token_${id}.${extensao}`
+      await writeFile(await join(pasta, arquivo), bytes)
     } else {
-      arquivo = (await importTokenImage(foto, pasta, id)).destPath
+      arquivo = nomeDeArquivo((await importTokenImage(foto, pasta, id)).destPath)
     }
   } catch (erro) {
     throw falha('guardar a imagem do token no acervo', erro)
   }
 
-  const nomeBase = token.name.trim().length > 0 ? token.name.trim() : NOME_PADRAO
   const item: ItemDoAcervo = {
     id,
-    nome: uniqueMapName(nomeBase, itens.map((outro) => outro.nome)),
-    tamanho: token.size,
+    nome: uniqueMapName(nomeBase, acervo.itens.map((outro) => outro.nome)),
+    tamanho,
     arquivo,
   }
-  await gravarIndice([...itens.map(semCampoDeTela), item], 'guardar o token no acervo')
+  await gravarIndice([...acervo.itens.map(semCampoDeTela), item], 'guardar o token no acervo', acervo.ignorados)
   return item
 }
 
-/** O campo `imagemNoDisco` é resposta de agora, não dado gravado. */
+export const ACERVO_NAO_LIDO =
+  'não deu para ler o acervo agora, então nada foi alterado. Feche outro programa que possa estar com a pasta aberta (antivírus, sincronizador de nuvem) e tente de novo'
+
+/**
+ * Recusa a gravação enquanto o índice não pôde ser lido.
+ *
+ * É a guarda que impede o defeito medido em 18/09/2026: sem ela, uma leitura
+ * falha virava lista vazia e a gravação seguinte passava por cima do acervo
+ * inteiro, calada. Vale para salvar, apagar e renomear — todos os três
+ * reescrevem o índice inteiro a partir do que leram.
+ */
+function exigirLeitura(acervo: AcervoCarregado, acao: string): void {
+  if (acervo.lido) return
+  throw new Error(`${acao}: ${ACERVO_NAO_LIDO}`)
+}
+
+/** O que é resposta de agora (`imagemNoDisco`, `caminho`) não vira dado gravado. */
 function semCampoDeTela(item: ItemDoAcervoNaTela): ItemDoAcervo {
   return { id: item.id, nome: item.nome, tamanho: item.tamanho, arquivo: item.arquivo }
 }
 
-async function gravarIndice(itens: readonly ItemDoAcervo[], acao: string): Promise<void> {
+async function gravarIndice(itens: readonly ItemDoAcervo[], acao: string, ignorados: readonly unknown[]): Promise<void> {
   try {
+    const caminho = await caminhoDoIndice()
     await ensureDir(await pastaDoAcervo())
-    await writeTextFileSafely(await caminhoDoIndice(), serializarIndice(itens))
+    await guardarIndiceAnterior(caminho)
+    await writeTextFileSafely(caminho, serializarIndice(itens, ignorados))
   } catch (erro) {
     throw falha(acao, erro)
+  }
+}
+
+/**
+ * Cópia do índice ANTES de cada gravação, em `acervo.json.anterior`.
+ *
+ * `writeTextFileSafely` já protege contra a gravação interrompida no meio, mas
+ * não contra a gravação que dá certo com a lista errada. Uma linha de defesa a
+ * mais custa um arquivo pequeno e é a diferença entre "perdi 30 NPCs" e
+ * "renomeie um arquivo". Melhor esforço: sem a cópia, a gravação segue — travar
+ * o salvamento por causa do backup seria trocar um risco por um estorvo certo.
+ */
+async function guardarIndiceAnterior(caminho: string): Promise<void> {
+  try {
+    if (!(await exists(caminho))) return
+    await writeTextFile(await join(await pastaDoAcervo(), ARQUIVO_ANTERIOR), await readTextFile(caminho))
+  } catch {
+    // Sem cópia desta vez; a gravação em si continua valendo.
   }
 }
 
@@ -284,9 +410,10 @@ async function gravarIndice(itens: readonly ItemDoAcervo[], acao: string): Promi
  * seja removido: o item sumir da lista é o que a pessoa pediu.
  */
 export async function apagarDoAcervo(id: string): Promise<void> {
-  const { itens } = await listarAcervo()
-  const restantes = itens.filter((item) => item.id !== id)
-  await gravarIndice(restantes.map(semCampoDeTela), 'apagar o token do acervo')
+  const acervo = await listarAcervo()
+  exigirLeitura(acervo, 'apagar o token do acervo')
+  const restantes = acervo.itens.filter((item) => item.id !== id)
+  await gravarIndice(restantes.map(semCampoDeTela), 'apagar o token do acervo', acervo.ignorados)
 
   const pasta = await pastaDoAcervo()
   try {
@@ -304,16 +431,18 @@ export const ITEM_NAO_ENCONTRADO = 'este token não está mais no acervo'
 
 /** Troca o nome do item. Mesmo sufixo numérico de `salvarNoAcervo` em caso de colisão. */
 export async function renomearNoAcervo(id: string, nome: string): Promise<ItemDoAcervo> {
-  const { itens } = await listarAcervo()
-  const alvo = itens.find((item) => item.id === id)
+  const acervo = await listarAcervo()
+  exigirLeitura(acervo, 'renomear o token do acervo')
+  const alvo = acervo.itens.find((item) => item.id === id)
   if (!alvo) throw new Error(ITEM_NAO_ENCONTRADO)
 
   const base = nome.trim().length > 0 ? nome.trim() : NOME_PADRAO
-  const outros = itens.filter((item) => item.id !== id)
+  const outros = acervo.itens.filter((item) => item.id !== id)
   const renomeado: ItemDoAcervo = { ...semCampoDeTela(alvo), nome: uniqueMapName(base, outros.map((item) => item.nome)) }
   await gravarIndice(
-    itens.map((item) => (item.id === id ? renomeado : semCampoDeTela(item))),
+    acervo.itens.map((item) => (item.id === id ? renomeado : semCampoDeTela(item))),
     'renomear o token do acervo',
+    acervo.ignorados,
   )
   return renomeado
 }
@@ -338,10 +467,12 @@ export async function trazerDoAcervo(
   tokenId: string,
 ): Promise<{ image: string | null; imageData: string | null }> {
   if (!item.imagemNoDisco) return { image: null, imageData: null }
-  const importada = await importTokenImage(item.arquivo, mapDir, tokenId)
+  // `caminho`, não `arquivo`: o índice guarda o NOME do arquivo, e quem copia
+  // precisa do caminho absoluto resolvido contra a pasta do acervo de AGORA.
+  const importada = await importTokenImage(item.caminho, mapDir, tokenId)
   let imageData: string | null = null
   try {
-    imageData = await buildTokenSharedPhoto(item.arquivo)
+    imageData = await buildTokenSharedPhoto(item.caminho)
   } catch {
     // Mesmo critério de `App.tsx` ao escolher a imagem: perder a foto INTEIRA
     // porque a cópia que viaja não saiu seria trocar um problema pequeno

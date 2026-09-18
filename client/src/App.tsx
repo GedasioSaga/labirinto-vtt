@@ -934,27 +934,36 @@ function App() {
   /**
    * ACERVO — trazer o NPC pronto para o mapa aberto.
    *
-   * A peça nasce primeiro (mesmo assentamento de `handleAddToken`: o disco
-   * entra onde cabe, nunca em cima de parede) e a foto entra logo depois, já
-   * copiada para a pasta DESTE mapa. Esperar a cópia para só então criar a
-   * peça deixaria o clique sem resposta enquanto o arquivo é lido.
+   * A foto é copiada para a pasta DESTE mapa ANTES de a peça nascer, e a peça
+   * nasce já com ela: um clique, uma entrada de desfazer. A ordem inversa (peça
+   * primeiro, foto depois) custava dois Ctrl+Z para desfazer um gesto só e,
+   * quando o Ctrl+Z vinha no meio da cópia, a foto atrasada caía num mapa sem
+   * aquele token e matava o Refazer sem nada aparecer na tela.
+   *
+   * O `id` é sorteado aqui porque o nome do arquivo da cópia é derivado dele:
+   * a peça e a imagem dela precisam do MESMO id antes de qualquer dos dois
+   * existir.
    */
   const handlePlaceFromLibrary = async (item: ItemDoAcervoNaTela) => {
-    const tokenId = criarToken(item.nome, { size: item.tamanho })
-    if (tokenId === null) return
+    const tokenId = crypto.randomUUID()
+    let image: string | null = null
+    let imageData: string | null = null
     try {
       const mapDir = await mapDirFor(map.id)
-      const { image, imageData } = await trazerDoAcervo(item, mapDir, tokenId)
-      if (image === null && imageData === null) {
-        // A peça continua no mapa, com o nome certo e o círculo genérico: o
-        // arquivo sumiu da pasta do acervo, e tirar a peça de volta seria punir
-        // a pessoa por um problema do disco.
-        useToastStore.getState().push('error', IMAGEM_SUMIU_DO_ACERVO)
-        return
-      }
-      setTokenImage(tokenId, image, imageData)
+      const copiada = await trazerDoAcervo(item, mapDir, tokenId)
+      image = copiada.image
+      imageData = copiada.imageData
     } catch (err) {
       reportFileError('trazer o token do acervo', err)
+      return
+    }
+
+    if (criarToken(item.nome, { id: tokenId, size: item.tamanho, image, imageData }) === null) return
+    if (image === null && imageData === null) {
+      // A peça entra assim mesmo, com o nome certo e o círculo genérico: o
+      // arquivo sumiu da pasta do acervo, e não colocar a peça seria punir a
+      // pessoa por um problema do disco.
+      useToastStore.getState().push('error', IMAGEM_SUMIU_DO_ACERVO)
     }
   }
 
@@ -1092,7 +1101,10 @@ function App() {
    * pode ser de um render anterior — mesmo motivo de a câmera já ser lida
    * assim antes desta mudança.
    */
-  const criarToken = (name: string, opts: { at?: { x: number; y: number }; size?: number } = {}): string | null => {
+  const criarToken = (
+    name: string,
+    opts: { at?: { x: number; y: number }; size?: number; id?: string; image?: string | null; imageData?: string | null } = {},
+  ): string | null => {
     const host = canvasHostRef.current
     const { map: currentMap, camera } = useMapStore.getState()
     const size = opts.size ?? NEW_TOKEN_SIZE
@@ -1108,8 +1120,22 @@ function App() {
       useToastStore.getState().push('error', NO_TOKEN_SPOT_TEXT)
       return null
     }
-    const id = crypto.randomUUID()
-    addToken({ id, characterId: null, name, x: spot.x, y: spot.y, size, image: null })
+    // A foto entra JUNTO com a peça, num `addToken` só: criar a peça e depois
+    // chamar `setTokenImage` empilhava DUAS entradas de desfazer para um clique
+    // (o primeiro Ctrl+Z tirava só a foto), e a segunda, chegando depois da
+    // cópia do arquivo, ainda podia rodar sobre um mapa que já não tinha esse
+    // token — um no-op silencioso que mesmo assim zerava o Refazer.
+    const id = opts.id ?? crypto.randomUUID()
+    addToken({
+      id,
+      characterId: null,
+      name,
+      x: spot.x,
+      y: spot.y,
+      size,
+      image: opts.image ?? null,
+      imageData: opts.imageData ?? null,
+    })
     useMapStore.getState().setSelection(selectionOfItem({ kind: 'token', id }))
     return id
   }
