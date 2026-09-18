@@ -881,3 +881,140 @@ fundida, e os dois `critico-cego` de ordem invertida escolhendo o nosso lado con
 - Porta por árvore provada: principal 1420, worktree 1532 (`client/porta.js`).
 - Vermelho pré-existente confirmado nos dois commits (HEAD e `29b77a4`):
   `task-jornada-ferramentas-mudas.spec.ts:240` — mapa novo abre sem grade e sem limite visível.
+
+---
+---
+
+# Sessão de 17-18/09/2026 — noite autônoma (gauntlet-loop)
+
+## Objetivo
+
+Consertar os defeitos que um passeio de usuário achou no editor, cada um com jornada vermelha escrita
+antes do conserto. **Na próxima sessão:** fechar os 11 bugs de app que ficaram abertos, mais as
+pendências do portão.
+
+## Estado atual
+
+Quatro consertos prontos e provados, em branches `auto/*` encadeadas. Nenhum mergeado.
+`feat/consolidado-17set` recebeu só teste, selo, diagrama e `package-lock` — 935 linhas, **nenhuma de
+código de produto**.
+
+A corrente, na ordem de merge:
+
+```
+auto/base-r6
+  134064d  fix(poligono): Enter fecha o Polígono e o desenho para de sumir
+  8f5b82b  fix(camadas): camada travada barra o gesto, e a sala para de andar
+  2753d47  fix(menu): o menu de Chão cabe na janela, em duas colunas
+  8d6c72d  fix(escada): a Escada deixa de emudecer no clique parado
+```
+
+Topo: `auto/escada-fala`. A branch `auto/noite-18set` tem os três primeiros mais o relatório.
+
+- Relatório para leitura humana: `RELATORIO-NOITE-2026-09-18.md`
+- Passeio completo, com 25 fotos: `scratchpad/gauntlet-noite/passeio-mestre/relatorio.md`
+- Diário da noite: `scratchpad/gauntlet-noite/estado-da-noite.md`
+
+## Próximos passos
+
+### A. Os 11 bugs de app ainda abertos
+
+Cada um tem gesto, esperado, obtido e foto no relatório do passeio. O protocolo da noite foi: jornada
+vermelha primeiro (pelo `testador`), depois o builder, depois o portão. Repetir isso.
+
+| # | Bug | Onde |
+|---|---|---|
+| A7 | Botão direito não abre menu nenhum, e ainda troca a seleção sem avisar | área do mapa |
+| A17 | "Criar parede na borda" não muda nada e não diz nada quando a sala já tem parede | painel da sala |
+| A15 | Arrastar ferramenta da barra para dentro do mapa não faz nada e não mostra nada | barra para mapa |
+| A18 | Indicador de zoom parece botão e não faz nada ao ser clicado | canto inferior direito |
+| A10 | No grupo "Lados do polígono", "Quadrado" desenha um losango | menu de Chão |
+| A2 | Campo numérico volta sozinho a "0" ao ser apagado, e o zero gruda no que se digita | criar mapa |
+| A5 | Dica do primeiro botão da barra sai pela borda esquerda ("esfazer (Ctrl+Z)") | Ações do mapa |
+| A9 | Dica da ferramenta Sala livre mostra parênteses vazios no lugar do atalho | barra de ferramentas |
+| A1 | Aviso de campo inválido aparece em inglês num app todo em português | criar mapa |
+| A3 | Setas do teclado não navegam no grupo "Formato da grade" | criar mapa |
+| A12 | Espaço não marca as opções dos menus; só Enter e clique | menus de variante |
+
+**A3 e A12 são a mesma causa e valem uma peça só:** os 11 menus de variante não têm roving-tabindex,
+então as setas não circulam e são 18 Tabs para chegar ao fim do menu de Chão. Consertar mexe em como
+os e2e existentes tabulam — cuidado com regressão.
+
+### B. Achados adjacentes, fora do passeio
+
+- **Trava por ITEM tem o mesmo buraco que o cadeado de camada tinha:** item com `locked: true` é
+  filtrado antes do hit-test e o clique cai no que está embaixo. Endereço:
+  `client/src/pixi/PixiCanvas.tsx`, função `hitTestMap`. Mesma família do conserto `8f5b82b`, que
+  serve de modelo — lá a solução foi mover a pergunta para **depois** do hit-test.
+- **Ferramenta Token ainda CRIA token com a camada Tokens travada** — decisão de produto, não tocada.
+- **Sem feedback de cursor** ao pairar sobre camada travada (`resolveCursor`, `lib/hoverHitTest.ts`).
+- **A interface mostra texto cru de exceção** quando salvar falha. No app Tauri real salvar funciona,
+  mas disco cheio ou permissão negada mostraria a mesma coisa ao usuário.
+
+### C. Pendências do portão
+
+- **`transporte-vivo` nunca passa sem gente:** `scripts/portao.cjs` fixa `192.168.0.6:7777` e o IP da
+  máquina é `192.168.0.8`; e o servidor 7777 só nasce em `net_start_room`, que exige abrir a sala pela
+  interface. A parte do IP é conserto de uma linha; a outra precisa de humano, ou de um modo de subir
+  a sala por comando.
+- **`servidor-limpo` ainda não mede servidor** de verdade: com `LAB_PORTA` nunca há servidor no ar
+  quando ele roda, então não pode falhar pelo motivo do próprio título.
+- **Varredura de falso-VERMELHO nas outras jornadas.** Das duas examinadas nesta noite, **as duas**
+  estavam vencidas — descreviam defeito que não existe mais. É razoável supor que haja mais.
+
+### D. Decisões que são do usuário, não de builder
+
+- **`client/e2e/task-jornada-ferramentas-mudas.spec.ts` está vencida.** Duas das três asserções cobram
+  o contrário de `NEW_MAP_SHOW_GRID = false` (`client/src/lib/mapFactory.ts`), a decisão "mapa novo
+  nasce sem grade", estilo minimapa. A terceira (limite do mapa visível) **já passa**. Ou a jornada
+  muda, ou a decisão muda. Está fora do portão da noite enquanto isso.
+- **Escada no clique simples:** o conserto entregue faz a ferramenta *falar*. A outra saída é criar
+  escada de tamanho padrão no clique, como Porta e Luz. A jornada aceita as duas.
+- **Descrições redundantes em "Lados do polígono"** ("3 lados." sob "Triângulo") — cerca de 150px de
+  altura sem informação.
+
+### E. Higiene da máquina
+
+- **Vite órfão na porta 1420** (PID 45804). Enquanto viver, todo Playwright precisa de
+  `LAB_PORTA=<porta>`. `Stop-Process -Id 45804 -Force` resolve.
+- **2,2 GB** em `.claude/worktrees/wf_4774aa00-f19-{2,3,4,5}` — pastas órfãs de branches já mergeadas
+  (`build/luz`, `build/token`, `build/pinos`, `build/pincel`, `build/sala`, todas conferidas como
+  presentes na HEAD). O git já as desregistrou; sobrou a pasta.
+
+## Critério de pronto
+
+Para cada bug da lista A, na ordem que o usuário escolher:
+
+1. Existe jornada em `client/e2e/` que sai **vermelha** no commit anterior ao conserto, com gesto real
+   de ponteiro e asserção no que aparece na tela — e com **controle positivo** que já passa (a guarda
+   `g4` do portão reprova teto sem controle).
+2. A jornada está em `JORNADAS_DA_BAR` (`scripts/portao.cjs`) e **selada**
+   (`node scripts/portao.cjs --selar`), senão `g12` reprova: jornada sem selo é jornada sem juiz.
+3. O conserto vive em branch `auto/<id>`, declarada em `scripts/portao-particao.json`, e a base do
+   manifesto aponta para o commit de onde a peça saiu — **não** para a branch em que o HEAD está, que
+   faz o diff sair vazio e tudo escapar.
+4. Depois do conserto: a jornada fica **verde**, o controle positivo continua verde, e os 14 passos do
+   portão saem exit 0 — incluindo `unidade` acima do piso, `jornadas-intactas`, `particao` e
+   `rust-intocado`.
+5. `feat/consolidado-17set` não recebe commit de código de produto sem decisão do usuário.
+
+## Evidência
+
+- **Quatro jornadas escritas antes do conserto, todas 3/3 vermelhas com controle positivo 3/3 verde:**
+  `task-jornada-camada-travada`, `task-jornada-poligono-termina`, `task-jornada-menu-cabe-na-janela`,
+  `task-jornada-escada-fala`. Depois dos consertos, as quatro verdes (8 testes).
+- **Regressão rodada pelo orquestrador, não só pelos agentes**, no topo da corrente: `unidade` 140
+  arquivos / 2297 testes; `jornadas-e2e` 59 testes; `estilo-minimapa` 3; `jornada-vista-movel` 4;
+  `jornada-fluidez` 2 (`longtask_max_ms` 60 contra teto 200); `particao`, `rust-intocado`,
+  `tipos-src`, `tipos-e2e` exit 0; `jornadas-intactas` com **30 jornadas seladas**.
+- **Portão endurecido nesta noite, cada conserto provado por mutação** (sonda plantada, medida antes e
+  depois): jornadas e2e 20 → 59; jornadas protegidas 9 → 30; `particao` deixou de aprovar invasão já
+  commitada; a suíte de unidade ganhou piso (`g24`: 139 arquivos / 2290 testes); o grupo de jornadas
+  deixou de aceitar lista incompleta (`g19`); `servidor-limpo` deixou de ser mudo.
+- **Custo:** cerca de 79% do limite semanal da conta 5x, partindo de 72%. Corte automático em 83%
+  armado, não disparou.
+- **O que NÃO foi feito:** nenhuma feature nova, embora autorizadas sem teto; três rodadas do gauntlet
+  perdidas num deadlock de desenho do orquestrador (as jornadas-critério foram postas dentro do portão
+  de união, e elas só ficam verdes **depois** do conserto, então nenhuma peça passava — nem a do
+  próprio portão); e a etapa final não usou comparação cega A/B, fechou por `SEM_COMPARACAO`, com a
+  jornada e o portão como prova.
