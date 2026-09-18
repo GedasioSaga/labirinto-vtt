@@ -580,6 +580,82 @@ function guardaParticao(entrada) {
 }
 
 /**
+ * O que a peça ESCREVEU neste run — não o que sobrou sujo na árvore.
+ *
+ * POR QUE ISTO EXISTE. Os passos `particao` e `rust-intocado` perguntavam só
+ * `git status --porcelain`. A Invariante 6 do run manda cada peça COMMITAR na
+ * própria branch `auto/<id>`; depois do commit a árvore fica limpa e as duas
+ * Invariantes que mais importam (5 — quem escreve onde; 9 — Rust intocado)
+ * passavam a medir ZERO arquivo e sair verdes. Medido em 18/09/2026 num
+ * worktree descartável do mesmo sha: a MESMA invasão (`scripts/__probe_fora.cjs`
+ * + `desktop/src-tauri/__probe.rs`) era VERMELHA suja e VERDE depois de
+ * `git commit`. Verde sem medida é o falso-verde mais caro do portão, porque
+ * ele aparece exatamente quando a peça terminou o trabalho.
+ *
+ * A medida certa é a UNIÃO do que está sujo com o que foi commitado desde a
+ * base do run (`git diff --name-only <base> HEAD`). Renomeação no porcelain vem
+ * como `antigo -> novo`: os DOIS lados são escrita da peça, e ignorar o lado
+ * esquerdo deixaria "mover arquivo de outra peça para dentro da minha área"
+ * sem juiz.
+ */
+function arquivosMudados(porcelain, diff) {
+  const nomes = new Set()
+  const limpar = (t) => String(t).trim().replace(/^"|"$/g, '').replace(/\\/g, '/')
+  for (const linha of String(porcelain || '').split('\n')) {
+    if (linha.trim().length === 0) continue
+    for (const lado of linha.slice(3).split(' -> ')) {
+      const nome = limpar(lado)
+      if (nome.length > 0) nomes.add(nome)
+    }
+  }
+  for (const linha of String(diff || '').split('\n')) {
+    const nome = limpar(linha)
+    if (nome.length > 0) nomes.add(nome)
+  }
+  return Array.from(nomes).sort()
+}
+
+/**
+ * A base do run, declarada pelo ORQUESTRADOR em `scripts/portao-particao.json`
+ * ("base".ramo) — o ponto de onde toda peça saiu. Sem ela não existe "o que
+ * esta peça commitou", e o portão prefere ficar VERMELHO a medir o vazio.
+ *
+ * A última cláusula é a que fecha a porta dos fundos: se a base resolver para o
+ * próprio HEAD de uma peça, o diff sai vazio por construção e tudo o que a peça
+ * commitou escapa. Isso é reprovado com endereço, não silenciado.
+ */
+function guardaBaseDoRun(entrada) {
+  const ref = entrada.ref || null
+  const base = entrada.base || null
+  const cabeca = entrada.cabeca || null
+  const peca = entrada.peca || null
+  if (!ref) {
+    return reprova(
+      'g17-base-do-run',
+      'o manifesto não declara a base do run em "base".ramo. Sem base, `particao` e `rust-intocado` só veriam a árvore suja — ' +
+        'e toda peça que commitar (Invariante 6) sai verde sem ser medida.',
+      'scripts/portao-particao.json ("base")',
+    )
+  }
+  if (!base) {
+    return reprova(
+      'g17-base-do-run',
+      'a base declarada `' + ref + '` não resolve neste repositório (ramo apagado, sha de outra máquina ou históricos sem ancestral comum).',
+      'scripts/portao-particao.json ("base"."ramo")',
+    )
+  }
+  if (peca !== null && cabeca !== null && base === cabeca) {
+    return reprova(
+      'g17-base-do-run',
+      'a base `' + ref + '` resolve para o próprio HEAD da peça `' + peca + '`: o diff sairia vazio por construção e tudo o que ela ' +
+        'commitou escaparia das Invariantes 5 e 9. A base tem de ser o ponto de onde as peças SAÍRAM.',
+      'scripts/portao-particao.json ("base"."ramo")',
+    )
+  }
+  return ok('g17-base-do-run', 'base do run: ' + ref + ' = ' + String(base).slice(0, 8))
+}
+
+/**
  * O que torna "nenhum servidor no ar" uma resposta HONESTA em vez de verde
  * vazio: o `playwright.config.ts` sobe um servidor NOVO por invocação. Sem
  * essa cláusula lida do arquivo, "não achei servidor" não prova nada — e era
@@ -812,57 +888,84 @@ function sondarJogador() {
  * então a Invariante 9 ficava sem comando nenhum. Aqui ela tem o dela, e roda
  * em qualquer modo.
  */
+/**
+ * A pergunta "o que esta peça escreveu?" respondida uma vez só, para os dois
+ * passos. Devolve `{ erro }` quando não dá para medir — e quem chama fica
+ * VERMELHO, porque "não consegui medir" nunca é verde (ver `arquivosMudados`).
+ */
+function arquivosDoRun() {
+  const { ramo, peca } = pecaDaArvore()
+  let manifesto = null
+  try {
+    manifesto = JSON.parse(fs.readFileSync(PARTICAO, 'utf8'))
+  } catch (e) {
+    return { ramo, peca, manifesto: null, erro: 'sem manifesto de partição em scripts/portao-particao.json (' + e.message + ')' }
+  }
+  const ref = (manifesto.base && manifesto.base.ramo) || null
+  const cabeca = String(git(['rev-parse', 'HEAD']) || '').trim() || null
+  const base = ref ? String(git(['merge-base', 'HEAD', ref]) || '').trim() || null : null
+  const r = guardaBaseDoRun({ ref, base, cabeca, peca })
+  if (!r.ok) return { ramo, peca, manifesto, erro: r.detalhe + (r.endereco ? '  [' + r.endereco + ']' : '') }
+
+  const sujos = git(['status', '--porcelain'])
+  if (sujos === null) return { ramo, peca, manifesto, erro: 'git status falhou: sem repositório?' }
+  const commitados = git(['diff', '--name-only', base, 'HEAD'])
+  if (commitados === null) return { ramo, peca, manifesto, erro: 'git diff ' + String(base).slice(0, 8) + '..HEAD falhou' }
+
+  const arquivos = arquivosMudados(sujos, commitados)
+  const nSujos = arquivosMudados(sujos, '').length
+  const nCommitados = arquivosMudados('', commitados).length
+  return {
+    ramo,
+    peca,
+    manifesto,
+    arquivos,
+    erro: null,
+    origem:
+      'medido contra a base do run (' + ref + ' = ' + String(base).slice(0, 8) + '): ' +
+      nCommitados + ' commitado(s) + ' + nSujos + ' na árvore suja = ' + arquivos.length + ' arquivo(s)',
+  }
+}
+
 function sondarRustIntocado() {
   return Promise.resolve().then(() => {
-    const mudados = git(['status', '--porcelain'])
-    if (mudados === null) return { codigo: 1, saida: 'git status falhou: sem repositório?' }
-    const arquivos = mudados
-      .split('\n')
-      .map((l) => l.slice(3).trim().replace(/^"|"$/g, ''))
-      .filter((l) => l.length > 0)
-      .map((l) => l.replace(/\\/g, '/'))
+    const medida = arquivosDoRun()
+    if (medida.erro) return { codigo: 1, saida: 'Invariante 9 SEM JUIZ: ' + medida.erro }
+    const arquivos = medida.arquivos
     const rust = arquivos.filter(
       (a) => a.startsWith('desktop/') || a.endsWith('.rs') || a.endsWith('Cargo.toml') || a.endsWith('Cargo.lock'),
     )
     return {
       codigo: rust.length === 0 ? 0 : 1,
       saida:
-        rust.length === 0
+        medida.origem + '\n' +
+        (rust.length === 0
           ? arquivos.length + ' arquivo(s) mudado(s), nenhum do lado Rust'
-          : 'Invariante 9 violada — lado Rust tocado: ' + rust.join(', '),
+          : 'Invariante 9 violada — lado Rust tocado: ' + rust.join(', ')),
     }
   })
 }
 
 function sondarParticao() {
   return Promise.resolve().then(() => {
-    const mudados = git(['status', '--porcelain'])
-    if (mudados === null) return { codigo: 1, saida: 'git status falhou: sem repositório?' }
-    const arquivos = mudados
-      .split('\n')
-      .map((l) => l.slice(3).trim().replace(/^"|"$/g, ''))
-      .filter((l) => l.length > 0)
-      .map((l) => l.replace(/\\/g, '/'))
+    const medida = arquivosDoRun()
+    if (medida.erro) {
+      return {
+        codigo: 1,
+        saida:
+          'Invariantes 5 e 9 SEM JUIZ: ' + medida.erro + '\n' +
+          'Enquanto ninguém declarar a base do run e quem escreve onde, nenhuma das duas é verificável.',
+      }
+    }
+    const arquivos = medida.arquivos
+    const manifesto = medida.manifesto
 
     const problemas = []
     const rust = arquivos.filter((a) => a.startsWith('desktop/') || a.endsWith('.rs') || a.endsWith('Cargo.toml') || a.endsWith('Cargo.lock'))
     if (rust.length > 0) problemas.push('Invariante 9 violada — lado Rust tocado: ' + rust.join(', '))
 
-    let manifesto = null
-    try {
-      manifesto = JSON.parse(fs.readFileSync(PARTICAO, 'utf8'))
-    } catch (e) {
-      return {
-        codigo: 1,
-        saida:
-          'sem manifesto de partição em scripts/portao-particao.json (' + e.message + ').\n' +
-          'A Invariante 5 não é verificável enquanto ninguém declarar quem escreve onde.\n' +
-          'Arquivos mudados agora, para o orquestrador distribuir entre as peças:\n  ' +
-          arquivos.join('\n  '),
-      }
-    }
-
-    const { ramo, peca } = pecaDaArvore()
+    const peca = medida.peca
+    const ramo = medida.ramo
     const r = guardaParticao({ arquivos, manifesto, peca })
     if (!r.ok) problemas.push(r.detalhe + (r.endereco ? '  [' + r.endereco + ']' : ''))
 
@@ -870,7 +973,7 @@ function sondarParticao() {
     return {
       codigo: problemas.length === 0 ? 0 : 1,
       saida:
-        'modo: ' + modo + '\n' + r.detalhe + '\n' +
+        'modo: ' + modo + '\n' + medida.origem + '\n' + r.detalhe + '\n' +
         (problemas.length === 0 ? 'partição respeitada e Rust intocado' : problemas.join('\n')),
     }
   })
@@ -1168,6 +1271,16 @@ function selar() {
  * boa. Sem isto não dá para saber se uma guarda virou decoração.
  */
 function rodarAutoteste() {
+  // `arquivosMudados` devolve lista, não veredito: aqui ela vira caso de
+  // autoteste comparando a lista medida com a esperada.
+  const provaDeMedida = (nome, porcelain, diff, esperado) => {
+    const achado = arquivosMudados(porcelain, diff).join(',')
+    return [
+      nome,
+      achado === esperado ? ok('g17-medida', achado) : reprova('g17-medida', 'esperava `' + esperado + '`, veio `' + achado + '`'),
+      true,
+    ]
+  }
   const casos = [
     ['g1 reprova include só de src', guardaCoberturaDeTipos([{ include: ['src'] }]), false],
     ['g1 aprova src + e2e + config', guardaCoberturaDeTipos([{ include: ['src'] }, { include: ['e2e', 'playwright.config.ts'] }]), true],
@@ -1303,6 +1416,47 @@ function rodarAutoteste() {
       guardaParticao({ arquivos: ['x.ts', 'HANDOFF.md'], manifesto: { pecas: { a: ['x.ts'] }, livres: ['HANDOFF.md'] }, peca: null }),
       true,
     ],
+    // g17 — a medida de "o que a peça escreveu". O buraco que fechou aqui era
+    // VERDE MEDINDO ZERO: depois do commit a árvore fica limpa e as
+    // Invariantes 5 e 9 ficavam sem entrada nenhuma.
+    [
+      'g17 reprova manifesto sem base declarada',
+      guardaBaseDoRun({ ref: null, base: null, cabeca: 'aaaa', peca: 'portao' }),
+      false,
+    ],
+    [
+      'g17 reprova base declarada que não resolve',
+      guardaBaseDoRun({ ref: 'feat/que-nao-existe', base: null, cabeca: 'aaaa', peca: 'portao' }),
+      false,
+    ],
+    [
+      'g17 reprova base que é o próprio HEAD da peça (diff vazio por construção)',
+      guardaBaseDoRun({ ref: 'auto/portao', base: 'aaaa', cabeca: 'aaaa', peca: 'portao' }),
+      false,
+    ],
+    [
+      'g17 aprova base anterior ao HEAD da peça',
+      guardaBaseDoRun({ ref: 'feat/consolidado-17set', base: 'bbbb', cabeca: 'aaaa', peca: 'portao' }),
+      true,
+    ],
+    provaDeMedida(
+      'g17 mede o que a peça COMMITOU, não só a árvore suja',
+      '',
+      'scripts/portao.cjs\ndesktop/src-tauri/__probe.rs\n',
+      'desktop/src-tauri/__probe.rs,scripts/portao.cjs',
+    ),
+    provaDeMedida(
+      'g17 soma árvore suja e commitado sem repetir arquivo',
+      ' M scripts/portao.cjs\n?? scripts/__probe_fora.cjs\n',
+      'scripts/portao.cjs\n',
+      'scripts/__probe_fora.cjs,scripts/portao.cjs',
+    ),
+    provaDeMedida(
+      'g17 conta os DOIS lados de uma renomeação',
+      'R  client/src/velho.tsx -> client/src/novo.tsx\n',
+      '',
+      'client/src/novo.tsx,client/src/velho.tsx',
+    ),
     ['g15 reprova config sem webServer', guardaConfigDeServidorNovo('export default defineConfig({ retries: 0 })', {}), false],
     ['g15 reprova webServer sem reuseExistingServer', guardaConfigDeServidorNovo('webServer: { command: "npm run dev" }', {}), false],
     ['g15 reprova reuseExistingServer: true', guardaConfigDeServidorNovo('webServer: {\n  reuseExistingServer: true,\n}', {}), false],
