@@ -241,6 +241,9 @@ const JORNADAS_DO_CRITERIO = [
   'e2e/task-jornada-menu-cabe-na-janela.spec.ts',
   // A quarta jornada da noite de 18/09: a ferramenta Escada muda.
   'e2e/task-jornada-escada-fala.spec.ts',
+  // 18/09/2026, manhã, nas palavras do usuário: "o pino, eu consigo colocar,
+  // não consigo tirar". Delete e Backspace não alcançavam o pino.
+  'e2e/task-jornada-pino-apaga-com-delete.spec.ts',
 ]
 /**
  * A bar inteira, na ordem de sempre: é esta lista que o SELO carimba e que a

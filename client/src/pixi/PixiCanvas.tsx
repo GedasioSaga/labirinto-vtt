@@ -4444,6 +4444,13 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             if (useMapStore.getState().selection.length > 0) {
               useMapStore.getState().setSelection(EMPTY_SELECTION)
             }
+            // O pino tem estado de seleção próprio e `setSelection` o preserva
+            // de propósito, então Esc o deixava selecionado calado — e o Delete
+            // de minutos depois apagaria um pino que o mestre já achava solto.
+            // "Deixa pra lá" vale para ele também.
+            if (useMapStore.getState().selectedPinId !== null) {
+              useMapStore.getState().setSelectedPin(null)
+            }
             break
           // Apagar é o gesto mais barato de fazer e o mais caro de errar:
           // Ctrl+A seguido de Delete varria o mapa inteiro em silêncio, sem
@@ -4451,6 +4458,24 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           // 16/09/2026). O aviso NOMEIA o que foi apagado e mostra a saída —
           // mesma função do toast de desfazer da referência do nicho.
           case 'deleteSelected': {
+            // O pino de ponto de interesse vive FORA de `selection` (estado
+            // próprio, `selectedPinId`), então Delete nunca o alcançava: dava
+            // para colocar e não dava para tirar sem achar "Excluir ponto de
+            // interesse" no painel. Os dois estados são exclusivos — selecionar
+            // um limpa o outro —, então atender o pino primeiro não esconde
+            // nenhuma seleção comum.
+            //
+            // `selectedPinId` pode estar VELHO: `undo` não mexe em seleção, então
+            // colocar um pino e desfazer deixa o id apontando para um pino que
+            // não existe mais. Sem conferir o mapa, o atalho engolia o
+            // `removeSelected` e ainda prometia "Ctrl+Z desfaz" para uma ação que
+            // não aconteceu — e o Ctrl+Z do mestre desfaria outra coisa.
+            const { map: mapaDoPino, selectedPinId: pinoSelecionado } = useMapStore.getState()
+            if (pinoSelecionado !== null && mapaDoPino.pins.some((pino) => pino.id === pinoSelecionado)) {
+              useMapStore.getState().removePin(pinoSelecionado)
+              useToastStore.getState().push('info', 'Ponto de interesse apagado — Ctrl+Z desfaz')
+              break
+            }
             // O mapa é lido ANTES da remoção: depois dela não há como saber se
             // a região apagada era uma Sala (ver `describeDeletion`).
             const { map: mapaAntes, selection: apagados } = useMapStore.getState()
