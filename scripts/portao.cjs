@@ -244,6 +244,9 @@ const JORNADAS_DO_CRITERIO = [
   // 18/09/2026, manhã, nas palavras do usuário: "o pino, eu consigo colocar,
   // não consigo tirar". Delete e Backspace não alcançavam o pino.
   'e2e/task-jornada-pino-apaga-com-delete.spec.ts',
+  // 18/09/2026, tarde: teto de construção. O jogador vê o prédio fechado e
+  // nada do interior; o teto abre quando o token dele entra e fecha quando sai.
+  'e2e/task-jornada-teto-de-construcao.spec.ts',
 ]
 /**
  * A bar inteira, na ordem de sempre: é esta lista que o SELO carimba e que a
@@ -448,8 +451,24 @@ function arquivosDeUnidadeNaBase(base) {
  * caso de teste sem rodar a suíte; ele mora em `scripts/portao.cjs`, que está
  * FORA da área de escrita de toda peça de cliente (Invariante 5). Piso só
  * sobe: acrescentar teste mantém o verde, tirar teste fica vermelho.
+ *
+ * 18/09/2026, Fase 0 do run do teto: o piso estava em 2290 contra 2299 medidos
+ * na árvore. Nove testes de folga é o bastante para apagar do disco um arquivo
+ * pequeno (`fogFilter.vazamento.test.ts`, 4 testes) sem `git rm`, acrescentar
+ * um arquivo trivial e sair verde com o teste de vazamento do jogador fora —
+ * a guarda de ARQUIVOS conta pelo índice do git, não pelo disco. Subido para o
+ * medido.
  */
-const PISO_DE_TESTES_DE_UNIDADE = 2290
+const PISO_DE_TESTES_DE_UNIDADE = 2299
+
+/**
+ * Relatório de vitest sintético, só para o autoteste das guardas: os fixtures
+ * do passo `unidade` derivam do piso em vez de repetir o número, senão subir o
+ * piso pinta o autoteste de vermelho e o conserto barato vira baixar o piso.
+ */
+function relatorioDeUnidade(arquivos, testes) {
+  return ' Test Files  ' + arquivos + ' passed (' + arquivos + ')\n      Tests  ' + testes + ' passed (' + testes + ')\n'
+}
 
 // ---------------------------------------------------------------------------
 // FASE 0 — guardas. Funções puras sobre texto: dá para provar que reprovam.
@@ -853,12 +872,20 @@ function guardaJornadasIntactas(selo, textos, esperadas, hashesDaBase) {
  * por que a ausência já é o default ("undefined === …", "sem linha de
  * migração", o vocabulário que o arquivo já usa). Campo novo em silêncio é
  * mapa antigo abrindo diferente do que a pessoa salvou.
+ *
+ * 18/09/2026, Fase 0 do run do teto: a guarda escapava por FORMATAÇÃO. O
+ * padrão anterior era `/^\s{2,}([a-zA-Z_][\w]*)\?:/`, então `readonly roof?:`
+ * (o modificador na frente), `\troof?:` (um tab só é UM caractere de espaço,
+ * não dois) e `roof ?:` (espaço antes da interrogação) passavam sem ser vistos
+ * — e quem escreve o campo escolhe como formatar. Agora: um espaço em branco
+ * basta, `readonly` é absorvido, e a interrogação pode vir separada. Linha de
+ * comentário continua fora porque `*` e `/` não abrem identificador.
  */
 function camposOpcionais(textoDeTipos) {
   const campos = []
   const linhas = textoDeTipos.split('\n')
   for (let i = 0; i < linhas.length; i++) {
-    const achado = /^\s{2,}([a-zA-Z_][\w]*)\?:/.exec(linhas[i])
+    const achado = /^\s+(?:readonly\s+)?([a-zA-Z_][\w]*)\s*\?\s*:/.exec(linhas[i])
     if (!achado) continue
     const contexto = linhas.slice(Math.max(0, i - 14), i + 1).join('\n')
     campos.push({ nome: achado[1], isento: /undefined\s*===|sem linha de migração/i.test(contexto) })
@@ -2707,6 +2734,31 @@ function rodarAutoteste() {
       ),
       true,
     ],
+    // 18/09/2026: os três jeitos de escrever o MESMO campo opcional que
+    // escapavam do padrão anterior (`/^\s{2,}([a-zA-Z_][\w]*)\?:/`). Quem
+    // declara o campo escolhe a formatação, então a guarda não pode depender
+    // dela — sem estes casos, `readonly roof?: boolean` entra sem migração e o
+    // mapa antigo abre diferente sem ninguém piscar.
+    [
+      'g13 reprova campo novo declarado com readonly',
+      guardaCamposNovosMigrados('interface Wall {\n  id: string\n}', 'interface Wall {\n  id: string\n  readonly espessuraNova?: number\n}', 'return { id: parsed.id }'),
+      false,
+    ],
+    [
+      'g13 reprova campo novo indentado com tab',
+      guardaCamposNovosMigrados('interface Wall {\n\tid: string\n}', 'interface Wall {\n\tid: string\n\tespessuraNova?: number\n}', 'return { id: parsed.id }'),
+      false,
+    ],
+    [
+      'g13 reprova campo novo com espaço antes da interrogação',
+      guardaCamposNovosMigrados('interface Wall {\n  id: string\n}', 'interface Wall {\n  id: string\n  espessuraNova ?: number\n}', 'return { id: parsed.id }'),
+      false,
+    ],
+    [
+      'g13 não confunde linha de comentário com campo',
+      guardaCamposNovosMigrados('interface Wall {\n  id: string\n}', 'interface Wall {\n  id: string\n  /* espessuraNova?: number ficou para depois */\n}', 'return { id: parsed.id }'),
+      true,
+    ],
     [
       'g14 reprova peça que escreve fora da lista dela',
       guardaParticao({ arquivos: ['client/src/App.tsx'], manifesto: { pecas: { portao: ['scripts/portao.cjs'] } }, peca: 'portao' }),
@@ -3136,19 +3188,28 @@ function rodarAutoteste() {
       guardaFalsoVerde('piso', PASSO_DE_UNIDADE_DE_PROVA, 0, 'tudo certo por aqui\n'),
       false,
     ],
+    // Os relatórios sintéticos abaixo DERIVAM do piso em vez de repetir o
+    // número: quando o piso sobe (18/09/2026, de 2290 para 2299), um fixture
+    // literal vira vermelho no autoteste e o conserto barato é baixar o piso de
+    // volta — exatamente o dente que a guarda existe para ter.
     [
       'piso reprova arquivo a menos, mesmo com os testes no lugar',
-      guardaFalsoVerde('piso', PASSO_DE_UNIDADE_DE_PROVA, 0, ' Test Files  9 passed (9)\n      Tests  2290 passed (2290)\n'),
+      guardaFalsoVerde('piso', PASSO_DE_UNIDADE_DE_PROVA, 0, relatorioDeUnidade(9, PISO_DE_TESTES_DE_UNIDADE)),
       false,
     ],
     [
       'piso aprova a suíte inteira',
-      guardaFalsoVerde('piso', PASSO_DE_UNIDADE_DE_PROVA, 0, ' Test Files  10 passed (10)\n      Tests  2290 passed (2290)\n'),
+      guardaFalsoVerde('piso', PASSO_DE_UNIDADE_DE_PROVA, 0, relatorioDeUnidade(10, PISO_DE_TESTES_DE_UNIDADE)),
       true,
     ],
     [
+      'piso reprova um teste a menos que o piso',
+      guardaFalsoVerde('piso', PASSO_DE_UNIDADE_DE_PROVA, 0, relatorioDeUnidade(10, PISO_DE_TESTES_DE_UNIDADE - 1)),
+      false,
+    ],
+    [
       'piso aprova suíte que cresceu',
-      guardaFalsoVerde('piso', PASSO_DE_UNIDADE_DE_PROVA, 0, ' Test Files  11 passed (11)\n      Tests  2300 passed (2300)\n'),
+      guardaFalsoVerde('piso', PASSO_DE_UNIDADE_DE_PROVA, 0, relatorioDeUnidade(11, PISO_DE_TESTES_DE_UNIDADE + 1)),
       true,
     ],
     ['g21 reprova it.skip em arquivo de unidade', guardaUnidadeSemOnlyNemSkip({ 'src/lib/a.test.ts': "it.skip('a', () => {})" }), false],
