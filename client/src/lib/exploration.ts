@@ -1,6 +1,7 @@
 import type { MapData, RegionPoint } from '../types/map'
 import { pointInRing } from './floorContour'
 import { simplifyRing } from './refineFloor'
+import { NESTING_TOLERANCE, pointInPolygonInclusive } from './roomNesting'
 
 /**
  * Memória do que um jogador já viu, em duas camadas que valem juntas:
@@ -100,6 +101,11 @@ function setRun(exp: Exploration, row: number, colStart: number, colEnd: number)
     const index = base + col
     exp.bits[index >> 3] |= 1 << (index & 7)
   }
+}
+
+function clearCell(exp: Exploration, col: number, row: number): void {
+  const index = row * exp.cols + col
+  exp.bits[index >> 3] &= ~(1 << (index & 7))
 }
 
 function isCellSet(exp: Exploration, col: number, row: number): boolean {
@@ -376,6 +382,69 @@ export function markRings(exp: Exploration, rings: readonly (readonly RegionPoin
       }
     }
   }
+}
+
+/** Fração dos vértices de um contorno lembrado que precisa cair dentro do polígono para ele ser esquecido. */
+const RING_INSIDE_MAJORITY = 0.5
+
+/**
+ * TETO DE CONSTRUÇÃO — apaga da memória o que está DENTRO destes polígonos.
+ *
+ * É o que faz o teto fechar de verdade. `filterMapForPlayer` já tira o interior
+ * de todo snapshot, mas a memória do explorado é outra via: ela viaja no
+ * `explored` do pacote (`encodeExploration`) e é a grade de células que o
+ * jogador percorreu — ou seja, a planta do que ele visitou enquanto o teto
+ * estava ABERTO. Sem apagar, sair do prédio deixava o desenho do caminho dele
+ * na rede para sempre, contra a promessa escrita em `types/map.ts`.
+ *
+ * DUAS REGRAS DIFERENTES, e a diferença é o ponto:
+ *
+ *  - CÉLULA: só apaga a que está INTEIRA dentro do polígono (4 cantos + centro).
+ *    Célula que apenas encosta no muro fica: é ela que guarda a rua colada na
+ *    parede, e apagá-la fazia o jogador esquecer a calçada — e, pior, a própria
+ *    silhueta do prédio sumia quando ele se afastava, porque as amostras do
+ *    contorno (4 px para fora) moram justamente nessas células.
+ *  - CONTORNO LEMBRADO: apaga o anel cuja MAIORIA dos vértices está dentro. Anel
+ *    nascido lá dentro é quase todo interior; anel nascido na rua só raspa o
+ *    muro. Descartar todo anel que TOCA o prédio é o que a área proibida faz, e
+ *    era exatamente o defeito: um prédio no campo de visão apagava a borda da
+ *    memória no mapa inteiro, longe dele.
+ */
+export function forgetInside(exp: Exploration, rings: readonly (readonly RegionPoint[])[]): void {
+  const areas = zoneBoxes(rings.map((r) => r.map((p) => ({ x: p.x, y: p.y })))).map((z) => ({
+    ...z,
+    minX: z.minX - NESTING_TOLERANCE,
+    minY: z.minY - NESTING_TOLERANCE,
+    maxX: z.maxX + NESTING_TOLERANCE,
+    maxY: z.maxY + NESTING_TOLERANCE,
+  }))
+  if (areas.length === 0) return
+  // MESMO predicado inclusivo de `lib/fogFilter.ts`: vértice de anel em cima da
+  // parede do predio conta como dentro, senao o anel nascido la dentro (que e
+  // quase todo parede) ficava metade fora pela assimetria do raycast.
+  const covers = (x: number, y: number): boolean =>
+    areas.some((z) => x >= z.minX && x <= z.maxX && y >= z.minY && y <= z.maxY && pointInPolygonInclusive({ x, y }, z.ring))
+  const { cell, cols, rows } = exp
+  for (let row = 0; row < rows; row += 1) {
+    const y0 = row * cell
+    const y1 = y0 + cell
+    if (!areas.some((z) => z.maxY >= y0 && z.minY <= y1)) continue
+    for (let col = 0; col < cols; col += 1) {
+      if (!isCellSet(exp, col, row)) continue
+      const x0 = col * cell
+      const x1 = x0 + cell
+      const inteira =
+        covers(x0, y0) && covers(x1, y0) && covers(x0, y1) && covers(x1, y1) && covers((x0 + x1) / 2, (y0 + y1) / 2)
+      if (inteira) clearCell(exp, col, row)
+    }
+  }
+  const kept = exp.rings.filter((r) => {
+    const dentro = r.points.filter((p) => covers(p.x, p.y)).length
+    return dentro <= r.points.length * RING_INSIDE_MAJORITY
+  })
+  if (kept.length === exp.rings.length) return
+  exp.rings = kept
+  exp.ringVertices = kept.reduce((total, r) => total + r.points.length, 0)
 }
 
 /**

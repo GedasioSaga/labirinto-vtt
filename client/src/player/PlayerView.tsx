@@ -8,6 +8,7 @@ import { compileFloor } from '../lib/floorSdf'
 import { countExploredCells, forEachExploredRun } from '../lib/exploration'
 import type { Exploration } from '../lib/exploration'
 import { computeAlignedGridLines } from '../lib/gridAlign'
+import { roomHasRoof } from '../lib/roomOps'
 import { visibleDrawings, visibleLights, visibleRegions, visibleStairs } from '../lib/layers'
 import { visionSegments } from '../lib/visibility'
 import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
@@ -477,7 +478,7 @@ function redrawConcealed(scene: Scene, concealed: RegionPoint[][]): void {
  * quem está na rua vê a construção inteira.
  */
 function redrawRoofs(scene: Scene, regions: Region[]): void {
-  const roofs = regions.filter((r) => r.room?.roof === true && r.points.length >= 3)
+  const roofs = regions.filter((r) => roomHasRoof(r.room) && r.points.length >= 3)
   const key = JSON.stringify(roofs.map((r) => r.points))
   if (key === scene.lastRoofsKey) return
   scene.lastRoofsKey = key

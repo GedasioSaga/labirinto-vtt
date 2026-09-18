@@ -1,5 +1,5 @@
 import type { DoorState, MapData, RegionPoint } from '../types/map'
-import { createExploration, encodeExploration, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
+import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
@@ -199,6 +199,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
+    // TETO DE CONSTRUÇÃO: o teto não entra em `view.blocked` (o contorno do
+    // prédio não é segredo, e o veto de lá joga fora o anel de visão inteiro,
+    // apagando a memória do jogador longe do prédio). O veto do teto é só a
+    // grade de células, e é aqui: apaga o que está DENTRO do prédio, inclusive
+    // o que o jogador percorreu enquanto o teto estava aberto. Sem esta linha o
+    // `explored` que viaja abaixo continuaria desenhando o caminho dele lá
+    // dentro depois que ele sai.
+    forgetInside(exp, view.roofs)
     memory.vision = view.vision
     const seenNow = new Set(view.visibleDoorIds)
     for (const w of view.map.walls) {

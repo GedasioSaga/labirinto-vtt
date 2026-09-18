@@ -1,5 +1,17 @@
-import type { RegionPoint } from '../types/map'
+import type { RegionPoint, RoomMeta } from '../types/map'
 import type { Point } from '../pixi/world'
+
+/**
+ * TETO DE CONSTRUÇÃO ligado (`RoomMeta.roof`), lido em UM lugar só.
+ *
+ * `=== true` era estrito demais: arquivo de mapa editado à mão com
+ * `"roof": 1` ou `"roof": "sim"` virava "sem teto" e o app entregava o
+ * interior do prédio em silêncio. A regra deste recurso inteiro é a mesma —
+ * na dúvida, FECHE —, então qualquer valor verdadeiro conta como teto.
+ */
+export function roomHasRoof(room: RoomMeta | undefined): boolean {
+  return room !== undefined && !!room.roof
+}
 
 /**
  * Índice de canto num polígono de Sala retangular (4 vértices, mesma ordem

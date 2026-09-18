@@ -1,4 +1,4 @@
-import type { DoorState, Drawing, FloorPiece, MapData, RegionPoint, Token, Wall } from '../types/map'
+import type { DoorState, Drawing, FloorPiece, MapData, Region, RegionPoint, Token, Wall } from '../types/map'
 import { isTokenPhotoData } from './tokenPhoto'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing } from './floorContour'
@@ -6,7 +6,8 @@ import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
 import { computeVisibility, visionSegments } from './visibility'
-import { ancestorsOf, pointInPolygonInclusive, subtreeIds } from './roomNesting'
+import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
+import { roomHasRoof } from './roomOps'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -33,11 +34,23 @@ export interface PlayerMapView {
    */
   concealed: RegionPoint[][]
   /**
-   * Zonas ocultas ativas + salas secretas + salas de teto FECHADO para este
-   * jogador: o chamador não marca explorado em célula que toque nelas. NÃO sai
-   * pela rede (o anel da sala secreta é o formato dela).
+   * Zonas ocultas ativas + salas secretas: o chamador não marca explorado em
+   * célula que toque nelas, e NÃO guarda o contorno do anel de visão que
+   * encosta nelas. NÃO sai pela rede (o anel da sala secreta é o formato dela).
    */
   blocked: RegionPoint[][]
+  /**
+   * TETO DE CONSTRUÇÃO — polígonos das salas de teto FECHADO para este jogador.
+   *
+   * Separado de `blocked` DE PROPÓSITO, e a separação é a feature: o contorno
+   * de um prédio não é segredo (ele já sai desenhado em `map.regions`), então
+   * ele não pode entrar no balde que faz `rememberRing` jogar fora o anel de
+   * visão inteiro. O que o teto veta é só a GRADE de células: o chamador apaga
+   * as células cobertas por estes polígonos depois de marcar
+   * (`forgetInside`, `lib/exploration.ts`), e é isso que apaga da memória do
+   * jogador o interior que ele percorreu enquanto o teto estava aberto.
+   */
+  roofs: RegionPoint[][]
 }
 
 /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
@@ -52,13 +65,22 @@ function secretRoomsOf(map: MapData): MapData['regions'] {
   return map.regions.filter((r) => r.secret && r.room !== undefined)
 }
 
+/** Todo vértice com coordenada finita e polígono com área: sem isso não dá para decidir nada. */
+function isUsablePolygon(points: readonly RegionPoint[]): boolean {
+  return points.length >= 3 && points.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+}
+
 /**
  * Sala com TETO DE CONSTRUÇÃO ligado (`RoomMeta.roof`). Ligado é do mapa; se o
  * teto está aberto ou fechado é por JOGADOR, e isso se decide em
  * `filterMapForPlayer` (token dele dentro do polígono).
+ *
+ * `regions` vem de fora (e não de `map.regions`) porque o recorte do jogador
+ * respeita `hiddenLayers`: com a camada Salas escondida NENHUMA região sai, e
+ * um teto ali viraria buraco — interior apagado e silhueta nenhuma no lugar.
  */
-function roofRoomsOf(map: MapData): MapData['regions'] {
-  return map.regions.filter((r) => r.room !== undefined && r.room.roof === true)
+function roofRoomsOf(regions: readonly Region[]): Region[] {
+  return regions.filter((r) => roomHasRoof(r.room))
 }
 
 /**
@@ -71,7 +93,25 @@ function roofRoomsOf(map: MapData): MapData['regions'] {
  * abre andando para dentro, e só para quem andou.
  */
 export function playerBlockedRings(map: MapData): RegionPoint[][] {
-  return [...activeConcealRings(map), ...secretRoomsOf(map).map((r) => r.points), ...roofRoomsOf(map).map((r) => r.points)]
+  return [
+    ...activeConcealRings(map),
+    ...secretRoomsOf(map).map((r) => r.points),
+    ...roofRoomsOf(map.regions).filter((r) => isUsablePolygon(r.points)).map((r) => r.points),
+  ]
+}
+
+/**
+ * Sala de teto FECHADO para este jogador, com a caixa envolvente pronta.
+ *
+ * A folga da caixa é `NESTING_TOLERANCE` (e não `BBOX_SLACK`) porque o teste de
+ * dentro é `pointInPolygonInclusive`, que aceita ponto na borda com essa mesma
+ * folga: caixa mais apertada que o predicado recusaria antes de perguntar.
+ */
+interface ClosedRoof extends Box {
+  id: string
+  points: RegionPoint[]
+  /** Geometria que não dá para julgar: bloqueia pela caixa e NUNCA abre. */
+  broken: boolean
 }
 
 interface Box {
@@ -392,47 +432,137 @@ export function filterMapForPlayer(
    * diferença: a própria `Region` continua saindo, marcada, porque é a silhueta
    * do prédio que o jogador tem de ver.
    *
-   * O teto ABRE quando o jogador tem um token DENTRO do polígono, e nada mais:
-   * o cálculo roda a cada snapshot e não consulta a memória do explorado, então
-   * sair fecha o teto e apaga da tela até o que ele já tinha visto.
+   * UM PREDICADO SÓ, dos dois lados. Abrir o teto e esconder o interior são a
+   * mesma pergunta geométrica, e a primeira versão respondia com predicados
+   * diferentes: `pointInRing` escondia (raycast de borda EXCLUSIVA, assimétrica
+   * entre norte/oeste e sul/leste) e `pointInPolygonInclusive` abria. Medido:
+   * token parado EM CIMA da parede leste abria o teto DE FORA e levava o
+   * interior inteiro; divisória interna encostada no muro vazava na rede por
+   * ter uma ponta "fora"; e a parede solta sobre o muro NORTE sumia junto com a
+   * porta da frente, então o jogador nunca entrava e o teto nunca abria.
    *
-   * Sala secreta vence: quem já sumiu inteiro não precisa de teto.
+   * Agora tudo passa por `inRoof` (inclusivo, com a tolerância de
+   * `pointInPolygonInclusive` também na caixa envolvente) e ABRIR exige o token
+   * ESTRITAMENTE dentro: em cima do muro, o teto fica fechado. Na dúvida, fecha.
+   *
+   * Sala secreta vence: quem já sumiu inteiro não precisa de teto. Polígono com
+   * menos de 3 vértices ou com coordenada não-finita é INDECIDÍVEL: a sala some
+   * do pacote (`brokenRoofIds`) em vez de virar um teto que nunca fecha.
    */
-  const closedRoofRooms = roofRoomsOf(map).filter(
-    (r) => !r.hidden && !r.secret && !secretRoomIds.has(r.id) && !ownTokens.some((t) => pointInPolygonInclusive({ x: t.x, y: t.y }, r.points)),
+  const roofCandidates = roofRoomsOf(visibleRegions(map.regions, hiddenLayers)).filter(
+    (r) => !r.hidden && !r.secret && !secretRoomIds.has(r.id),
   )
-  const closedRoofIds = new Set(closedRoofRooms.map((r) => r.id))
-  /** Sub-sala de teto fechado some junto, com as paredes dela. A sala do teto NÃO: ela é a silhueta. */
-  const underRoofIds = new Set(
-    closedRoofRooms.flatMap((r) => [...subtreeIds(map.regions, r.id)].filter((id) => id !== r.id)),
-  )
-  const closedRoofRings = boxRings(closedRoofRooms.map((r) => r.points))
-  const inClosedRoof = (point: RegionPoint): boolean => closedRoofRings.length > 0 && inAnyRing(closedRoofRings, point)
+  /** Sala de teto que a geometria não sabe julgar: não sai para o jogador, e não abre. */
+  const brokenRoofIds = new Set(roofCandidates.filter((r) => !isUsablePolygon(r.points)).map((r) => r.id))
+
+  const roofBoxes: ClosedRoof[] = roofCandidates.flatMap((r) => {
+    const broken = !isUsablePolygon(r.points)
+    // Sala quebrada bloqueia pela CAIXA dos vértices que sobraram: a caixa
+    // CONTÉM o polígono real, então o erro é sempre para o lado de fechar
+    // demais. Largar o bloqueio (o que a primeira versão fazia) era o lado
+    // errado — um vértice NaN abria o prédio inteiro para o jogador.
+    const box = boxOf(r.points.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y)))
+    if (box === null) return []
+    const points = broken
+      ? [
+          { x: box.minX, y: box.minY },
+          { x: box.maxX, y: box.minY },
+          { x: box.maxX, y: box.maxY },
+          { x: box.minX, y: box.maxY },
+        ]
+      : r.points
+    if (points.length < 3 || box.minX === box.maxX || box.minY === box.maxY) return []
+    return [
+      {
+        id: r.id,
+        points,
+        broken,
+        minX: box.minX - NESTING_TOLERANCE,
+        minY: box.minY - NESTING_TOLERANCE,
+        maxX: box.maxX + NESTING_TOLERANCE,
+        maxY: box.maxY + NESTING_TOLERANCE,
+      },
+    ]
+  })
+  const inRoof = (roof: ClosedRoof, p: RegionPoint): boolean =>
+    p.x >= roof.minX && p.x <= roof.maxX && p.y >= roof.minY && p.y <= roof.maxY && pointInPolygonInclusive(p, roof.points)
+  /** Token EM CIMA do muro não abre o teto: para quem quer entrar, a borda conta como fora. */
+  const opensRoof = (roof: ClosedRoof): boolean =>
+    ownTokens.some((t) => inRoof(roof, { x: t.x, y: t.y }) && !pointOnPolygonBorder({ x: t.x, y: t.y }, roof.points))
+
+  // Sala quebrada nunca abre: quem não sabe onde estão as paredes não sabe dizer que o jogador entrou.
+  const closedRoofs = roofBoxes.filter((roof) => roof.broken || !opensRoof(roof))
+  const closedRoofIds = new Set(closedRoofs.map((roof) => roof.id))
+  const inClosedRoof = (point: RegionPoint): boolean => closedRoofs.some((roof) => inRoof(roof, point))
   /** Ponto que o jogador não recebe por causa da SALA: secreta ou de teto fechado. */
   const inRoomHiddenFromPlayer = (point: RegionPoint): boolean => inSecretRoom(point) || inClosedRoof(point)
 
   /**
-   * Parede que é MOBÍLIA de dentro de um teto fechado: parede de sub-sala e
-   * parede solta com o traço inteiro dentro do polígono. A parede da PRÓPRIA
-   * sala do teto está fora desta conta — ela fica na borda, que
-   * `pointInPolygonInclusive` conta como dentro, e é justamente o contorno do
-   * prédio que o jogador precisa enxergar.
+   * Região ENGOLIDA por um prédio de teto fechado, medida na GEOMETRIA e não em
+   * `parentId`.
+   *
+   * `parentId` não basta e nunca vai bastar: `lib/roomNesting.ts` só dá mãe à
+   * região NOVA e `mapFactory.reparentRoom` só reprocessa a MOVIDA, então o
+   * cômodo desenhado ANTES do prédio fica órfão para sempre — e "Área"
+   * (`room === undefined`) nunca ganha `parentId` em hipótese alguma. Sem este
+   * teste, o polígono e o nome desses cômodos saíam no pacote.
+   *
+   * `mostly` e não `some`: uma Área GRANDE que CONTÉM o prédio (um pátio, um
+   * bairro) tem o centróide dentro dele e continua sendo do jogador.
+   */
+  const swallowedByClosedRoof = (r: Region): boolean =>
+    closedRoofs.some((roof) => roof.id !== r.id && mostly(interiorSamples(r.points, r.points), (p) => inRoof(roof, p)))
+
+  /** Sub-sala declarada por `parentId`: continua valendo, é mais barata que a geometria. */
+  const underRoofIds = new Set(closedRoofs.flatMap((roof) => [...subtreeIds(map.regions, roof.id)].filter((id) => id !== roof.id)))
+  /** Prédio que o jogador vê MESMO: teto fechado que não está dentro de outro prédio de teto fechado. */
+  const visibleRoofIds = new Set(
+    closedRoofs
+      .filter((roof) => !closedRoofs.some((outer) => outer.id !== roof.id && mostly(roof.points, (p) => inRoof(outer, p))))
+      .map((roof) => roof.id),
+  )
+
+  /**
+   * Parede que é MOBÍLIA de dentro de um teto fechado.
+   *
+   * Duas perguntas, não uma: a parede está inteira dentro do polígono E não é o
+   * CONTORNO dele. Sem a segunda, a parede do próprio muro (e a porta da frente
+   * nela) sumia; sem a primeira, a divisória encostada no muro vazava. O
+   * `regionId` é só um atalho: parede desenhada à mão sobre o muro não tem
+   * nenhum, e era exatamente o caso que quebrava.
    */
   const isUnderClosedRoof = (w: Wall): boolean => {
     if (w.regionId !== undefined && underRoofIds.has(w.regionId)) return true
-    if (closedRoofRings.length === 0) return false
-    if (w.regionId !== undefined && closedRoofIds.has(w.regionId)) return false
-    return wallSamples(w).every(inClosedRoof)
+    if (closedRoofs.length === 0) return false
+    if (w.regionId !== undefined && visibleRoofIds.has(w.regionId)) return false
+    const samples = wallSamples(w)
+    return closedRoofs.some((roof) => samples.every((p) => inRoof(roof, p)) && samples.some((p) => !pointOnPolygonBorder(p, roof.points)))
   }
 
-  const blocked = [...concealed, ...secretRooms.map((r) => r.points), ...closedRoofRooms.map((r) => r.points)]
+  /**
+   * Polígonos dos prédios de teto fechado. Vão SEPARADOS de `blocked`, e essa
+   * separação é a correção de um defeito grande: `blocked` alimenta
+   * `rememberRing` (`lib/exploration.ts`), cuja regra é "anel de visão que
+   * ENCOSTA em área proibida não é guardado". Com o teto ali dentro, bastava um
+   * prédio no campo de visão para o jogador PERDER a borda da memória em todo o
+   * resto do mapa — e, pior, para a própria silhueta sumir quando ele se
+   * afastava. O contorno de um prédio não é segredo: ele já sai desenhado. O
+   * veto do teto é só sobre a grade de células, e quem o aplica é
+   * `forgetInside` (`net/hostSession.ts`).
+   */
+  const roofs = closedRoofs.map((roof) => roof.points)
+  const blocked = [...concealed, ...secretRooms.map((r) => r.points)]
 
   // Peça de chão com a maioria das amostras em área escondida não sai. Limitação
   // aceita: peça grande que cruza a borda sai inteira, e tirar peça 'subtract'
   // fecha o buraco dela (só dentro da área escondida).
+  // O chão de dentro do prédio de teto fechado some pelo mesmo caminho, embora
+  // o teto não esteja mais em `blocked` (ver o comentário de `roofs` acima).
   const hiddenAreas = boxRings(blocked)
   const hiddenFloorIds = new Set(
-    hiddenAreas.length === 0 ? [] : map.floor.filter((f) => mostly(floorPieceSamples(f), (p) => inAnyRing(hiddenAreas, p))).map((f) => f.id),
+    hiddenAreas.length === 0 && closedRoofs.length === 0
+      ? []
+      : map.floor.filter((f) => mostly(floorPieceSamples(f), (p) => inAnyRing(hiddenAreas, p) || inClosedRoof(p))).map((f) => f.id),
   )
 
   /**
@@ -540,6 +670,11 @@ export function filterMapForPlayer(
     regions: visibleRegions(map.regions, hiddenLayers)
       .filter((r) => {
         if (r.hidden || r.secret || hiddenByAncestorIds.has(r.id) || underRoofIds.has(r.id)) return false
+        // Sala de teto que a geometria não sabe julgar não vira silhueta: some.
+        if (brokenRoofIds.has(r.id)) return false
+        // Cômodo órfão dentro do prédio, Área sem `parentId`, prédio de teto
+        // dentro de outro prédio de teto: tudo isso é interior. Ver `swallowedByClosedRoof`.
+        if (swallowedByClosedRoof(r)) return false
         // Teto fechado: o "conhecido" é medido NO CONTORNO, nunca no interior
         // — que está bloqueado justamente por causa do teto. Ver `contourSamples`.
         if (closedRoofIds.has(r.id)) return isShapeKnown(contourSamples(r.points))
@@ -581,7 +716,7 @@ export function filterMapForPlayer(
     // Metadado do mestre: nome e estado das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
-  return { map: filtered, vision, visibleDoorIds, concealed, blocked }
+  return { map: filtered, vision, visibleDoorIds, concealed, blocked, roofs }
 }
 
 /** O host vê o mapa inteiro, inclusive itens ocultos. */

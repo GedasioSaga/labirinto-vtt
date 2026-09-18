@@ -4,6 +4,7 @@ import type { Selection } from '../types/tools'
 import { isDegenerateRegion } from './shapes'
 import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { resolveCameraScale, selectionOutlineWidth } from './drawWalls'
+import { roomHasRoof } from '../lib/roomOps'
 
 /**
  * TETO DE CONSTRUÇÃO — marca do telhado NO EDITOR. O mestre vê tudo, sempre
@@ -265,7 +266,7 @@ export function createRegionsRenderer(options: RegionsRendererOptions = {}): Reg
       // contorno. Serve exatamente o caso "rua"/"construção artesanal" do
       // usuário: contorno só, sem nenhum traço extra por dentro. Continua
       // visível com a região selecionada.
-      if (roofMarker && region.room?.roof === true) {
+      if (roofMarker && roomHasRoof(region.room)) {
         traceRegionPath(g, region.points)
         // `alignment: 1` = traço inteiro POR DENTRO do polígono (0 = por fora,
         // 0,5 = centrado; StrokeAttributes.alignment do Pixi 8). Por fora é

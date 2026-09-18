@@ -20,8 +20,15 @@ function distanceToSegment(p: RegionPoint, a: RegionPoint, b: RegionPoint): numb
   return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
 }
 
-/** Ponto sobre alguma aresta do polígono (com folga). */
-function pointOnPolygonBorder(point: RegionPoint, polygon: readonly RegionPoint[], tolerance = NESTING_TOLERANCE): boolean {
+/**
+ * Ponto sobre alguma aresta do polígono (com folga).
+ *
+ * EXPORTADO para o TETO DE CONSTRUÇÃO (`lib/fogFilter.ts`): "está dentro do
+ * prédio" e "é o contorno do prédio" são perguntas diferentes, e a segunda é a
+ * única que separa a divisória interna encostada no muro (que tem de sumir do
+ * pacote do jogador) da parede do muro em si (que é a silhueta e tem de ficar).
+ */
+export function pointOnPolygonBorder(point: RegionPoint, polygon: readonly RegionPoint[], tolerance = NESTING_TOLERANCE): boolean {
   const n = polygon.length
   for (let i = 0; i < n; i += 1) {
     if (distanceToSegment(point, polygon[i], polygon[(i + 1) % n]) <= tolerance) return true
