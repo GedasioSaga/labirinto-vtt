@@ -415,3 +415,34 @@ o que é verde sem entregar o comportamento. Então PAREI essa peça.
 Decisão sua, quando quiser: (a) mapa novo abre com grade visível e a invariante do minimapa passa a
 valer só depois que houver chão desenhado; (b) mapa novo continua sem grade, e o que muda é só o
 LIMITE do mapa ficar visível; (c) deixar como está.
+
+## Pedido de 18/09/2026 (registro literal, com prints)
+
+Prints salvos em `docs/pedidos/2026-09-18/`.
+
+"Eu quero fazer algumas melhorias simples: 1- Eu queria poder escolher se para o jogador a parte de
+cima da construção fica visivel ou não, tipo assim [Image #1] 2-Os tokens, eu queria que eu pudesse
+salvar Tokens pre prontos, tipos tokens de npcs e afins para colocar para os jogadores 3-[Image #2]
+A parte verde é uma Sala e a parte azul é o chão, coloquei o chão para representar o mar e a sala
+para representar ilha, eu queria que desse para bloquear a parte da ilha porque no meio da sessão eu
+fui clicar em um coisa e eu acabei movendo a ilha então seria legal ter o botão de bloquear
+movimentação. 4-[Image #3] Sobre o pino, seria interessante poder mover ele depois de colocado,
+[Image #4] e ao invés de aparece no meio da tela, aparede do lado direito e inclusive eu imagino o
+jogador tendo no lado direito um pequeno lugar para ver essa coisas."
+
+Mapa dos prints:
+- Image #1 = `docs/pedidos/2026-09-18/1-teto-construcao.png` (sala "Sky Lagoon (cópia)" com o
+  interior fechado, hachurado, sem deixar ver o que tem dentro)
+- Image #2 = `docs/pedidos/2026-09-18/2-ilha-no-mar.png` (sala verde = ilha, chão azul = mar; a ilha
+  foi movida sem querer durante a sessão)
+- Image #3 = `docs/pedidos/2026-09-18/3-pino.png` (pino de exclamação, amarelo)
+- Image #4 = `docs/pedidos/2026-09-18/4-painel-do-pino.png` (painel do pino abrindo no meio da tela)
+
+### Fila desta rodada (ordem do usuário)
+1. Teto de construção: o mestre escolhe se o jogador vê ou não a parte de cima da construção.
+2. Biblioteca de tokens prontos: salvar tokens de NPC e afins para reusar e colocar para os
+   jogadores.
+3. Bloquear movimentação de item (a sala/ilha não se move mais por clique acidental) — botão de
+   trava.
+4. Pino: mover depois de colocado; painel do pino abre no lado direito, não no meio da tela; e o
+   jogador ganha um cantinho no lado direito para ver essas coisas.
