@@ -489,6 +489,15 @@ interface MapStoreState {
   regionFillEnabled: boolean
   setRegionFillEnabled: (enabled: boolean) => void
   setRegionFilled: (id: string, filled: boolean) => void
+  /**
+   * Trava/destrava uma Região/Sala JÁ CRIADA ("travar movimentação de item",
+   * pedido de 18/09/2026: a ilha arrastada sem querer no meio da sessão).
+   * Com histórico, mesmo motivo de `updateToken`/`updateProp`: travar muda
+   * CONTEÚDO do mapa, não preferência de sessão — então Ctrl+Z desfaz.
+   * Só `locked`, não `hidden`: `pixi/drawRegions.ts` ignora `Region.hidden`,
+   * e ação sem efeito visível não ganha UI (ver ItemTransformControls.tsx).
+   */
+  setRegionLocked: (id: string, locked: boolean) => void
   addToken: (token: Token) => void
   removeToken: (id: string) => void
   setTokenPosition: (id: string, x: number, y: number) => void
@@ -1122,6 +1131,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRegionFilled: (id, filled) => withHistory((map) => ({
       ...map,
       regions: map.regions.map((r) => (r.id === id ? { ...r, filled } : r)),
+    })),
+    setRegionLocked: (id, locked) => withHistory((map) => ({
+      ...map,
+      regions: map.regions.map((r) => (r.id === id ? { ...r, locked } : r)),
     })),
     addToken: (token) => withHistory((map) => mapFactory.addToken(map, token)),
     removeToken: (id) => withHistory((map) => mapFactory.removeToken(map, id)),

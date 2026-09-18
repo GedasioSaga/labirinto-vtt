@@ -316,6 +316,7 @@ function App() {
   const regionFillEnabled = useMapStore((state) => state.regionFillEnabled)
   const setRegionFillEnabled = useMapStore((state) => state.setRegionFillEnabled)
   const setRegionFilled = useMapStore((state) => state.setRegionFilled)
+  const setRegionLocked = useMapStore((state) => state.setRegionLocked)
   const setDrawingFilled = useMapStore((state) => state.setDrawingFilled)
   // Onda 2, item 12 (Frente A) — pilha de avisos (erro/info).
   const toasts = useToastStore((state) => state.toasts)
@@ -1511,6 +1512,9 @@ function App() {
               onSmoothRegion: selectedRegion
                 ? () => useMapStore.getState().smoothRegion(selectedRegion.id)
                 : undefined,
+            }}
+            regionTransform={{
+              onLockedChange: (locked) => selectedRegion && setRegionLocked(selectedRegion.id, locked),
             }}
             room={{
               onNameChange: (name) => selectedRegion && setRoomName(selectedRegion.id, name),

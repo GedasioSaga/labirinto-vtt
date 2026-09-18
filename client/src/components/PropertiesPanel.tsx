@@ -91,6 +91,11 @@ interface PropertiesPanelProps {
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
   textLabel: Omit<TextLabelControlsProps, 'text' | 'color' | 'fontSize' | 'fontFamily'>
+  /** "Travar movimentação" da Região/Sala selecionada (pedido de 18/09/2026:
+   *  a ilha arrastada sem querer no meio da sessão). Só `onLockedChange`:
+   *  Região não tem `rotation` no schema, o render ignora `hidden`, e
+   *  "Oculto para jogadores" já mora no grupo `playerVisibility`. */
+  regionTransform: Pick<ItemTransformControlsProps, 'onLockedChange'>
   selectedRegion: Region | null
   regionStyle: RegionStyleControlsProps
   room: Omit<RoomControlsProps, 'name' | 'shape' | 'width' | 'height' | 'nameHiddenFromPlayers' | 'roof'>
@@ -150,6 +155,7 @@ export function PropertiesPanel({
   tokenTransform,
   selectedTextLabel,
   textLabel,
+  regionTransform,
   selectedRegion,
   regionStyle,
   room,
@@ -266,6 +272,17 @@ export function PropertiesPanel({
             )}
           </AdvancedSection>
         </ToolPropertiesSection>
+        {selectedRegion && (
+          <ToolPropertiesSection group="itemTransform" groups={groups}>
+            <ItemTransformControls
+              // Rótulo segue o que o usuário chama a coisa: desenhada pela
+              // ferramenta Sala é "Sala", pela ferramenta Região é "Região".
+              title={selectedRegion.room ? 'Sala' : 'Região'}
+              locked={!!selectedRegion.locked}
+              {...regionTransform}
+            />
+          </ToolPropertiesSection>
+        )}
         <ToolPropertiesSection group="fill" groups={groups}>
           <FillControls {...fill} />
         </ToolPropertiesSection>

@@ -1646,6 +1646,16 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         ...hitTestMap(map),
         tokens: map.tokens.filter((token) => !isLayerLocked(map.lockedLayers, tokenLayer(token))),
         props: map.props.filter((prop) => canInteractInLayer(prop, propLayer(prop), map.lockedLayers)),
+        // Região/Sala TRAVADA continua clicável, pelo mesmo motivo do token
+        // travado acima — e por um que só aparece aqui: Região é o kind mais
+        // EMBAIXO da cadeia de prioridade (selectionHitTest.ts), então tirá-la
+        // do array não deixa o clique sem alvo, deixa o clique pegar o que
+        // está por baixo. Pedido de 18/09/2026: o mestre tinha uma Sala-ilha
+        // sobre o chão-mar; clicar na ilha travada selecionava o mar e o
+        // arrasto levava o MAR junto, sem caminho de volta pra destravar.
+        // Continua não se movendo — quem cobra isso é `canInteract` em cada
+        // branch de arrasto/edição de vértice abaixo.
+        regions: map.regions.filter((region) => !isLayerLocked(map.lockedLayers, regionLayer(region))),
       })
 
       /**
@@ -2625,7 +2635,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
           if (editRegionId !== null) {
             const region = map.regions.find((r) => r.id === editRegionId)
-            if (region) {
+            // `canInteract`: travada agora fica SELECIONADA, então as alças de
+            // canto/vértice/midpoint passariam a ser alcançáveis. Travado vale
+            // pra geometria também, não só pro corpo.
+            if (region && canInteract(region)) {
               // Sala retangular (Region.room?.shape === 'rect'): resize SÓ
               // pelos 4 cantos (findRoomCornerAt, lib/roomOps.ts) — nunca cai
               // no arrasto de vértice/midpoint genérico abaixo, que deixaria a
@@ -2825,12 +2838,19 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             draggingWallBodyId = event.altKey && wall ? cloneForAltDrag({ kind: 'wall', entity: wall }) : hit.id
             bodyDragLastPoint = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           } else if (hit.kind === 'region') {
-            mode = 'dragging-region-body'
-            bodyDragSnapshot = map
+            // `canInteract`: desde que `clickSelectMap` passou a deixar a
+            // Região travada chegar no hit-test, é ESTE ponto que segura o
+            // "não move" — mesmo padrão das alças de Token/Prop acima. Sem a
+            // checagem aqui, travar só teria tirado o item do clique, que é
+            // exatamente o defeito que estamos consertando.
             const region = map.regions.find((r) => r.id === hit.id)
-            draggingRegionBodyId = event.altKey && region ? cloneForAltDrag({ kind: 'region', entity: region }) : hit.id
-            altDragRegionSource = event.altKey && region ? region.id : null
-            bodyDragLastPoint = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+            if (region && canInteract(region)) {
+              mode = 'dragging-region-body'
+              bodyDragSnapshot = map
+              draggingRegionBodyId = event.altKey ? cloneForAltDrag({ kind: 'region', entity: region }) : hit.id
+              altDragRegionSource = event.altKey ? region.id : null
+              bodyDragLastPoint = applySnap(worldPoint, map.grid, 'wall', event.altKey)
+            }
           } else if (hit.kind === 'stair') {
             // B3 (bug3 "mover e redimensionar"): wiring que faltava — a ação
             // já existia na store (moveStair), só não tinha gesto nenhum a
@@ -4259,7 +4279,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
           if (editRegionId !== null) {
             const region = map.regions.find((r) => r.id === editRegionId)
-            if (region) {
+            // `canInteract`: remover vértice é editar a geometria — região
+            // travada também não perde ponto por duplo clique.
+            if (region && canInteract(region)) {
               const rect = el.getBoundingClientRect()
               const worldPoint = toWorldPoint(event.clientX - rect.left, event.clientY - rect.top)
               const index = findCurveControlPointAt(region.points, worldPoint)

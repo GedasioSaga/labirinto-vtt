@@ -245,6 +245,12 @@ export function relevantPropertyGroups(
     region
   if (showRegionGroup) groups.add('regionStyle')
 
+  // Travar a Região/Sala SELECIONADA — pedido de 18/09/2026 ("eu fui clicar
+  // em um coisa e eu acabei movendo a ilha"). Diferente de `regionStyle`
+  // acima, NÃO é dual: não existe "travar a próxima região", só a que está
+  // selecionada — por isso `region`, não `showRegionGroup`.
+  if (region) groups.add('itemTransform')
+
   // Tirar o fundo — NOVO (F4-N2). Dois casos, doc no relatório do F4-0:
   // (a) Região/Sala — schema `Region.filled` é novo, NÃO tinha UI nenhuma,
   //     nem pra próxima região nem pra selecionada: mesma condição de
