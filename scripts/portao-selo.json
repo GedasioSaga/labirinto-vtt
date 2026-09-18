@@ -1,11 +1,14 @@
 {
-  "selado_em": "2026-09-18T02:20:06.146Z",
+  "selado_em": "2026-09-18T04:17:06.185Z",
   "jornadas": {
     "e2e/task-jornada-ferramentas-mudas.spec.ts": "98af08cab09cbcc79cf15a2fed16755f02cedd41ef87ad6be2a6d93a2243a1b3",
     "e2e/task-jornada-luz-que-para-na-parede.spec.ts": "a1c6516ccc46cf539095a4d48fffd36ea889176165f203c655e58cd81b896bf2",
     "e2e/task-jornada-token-com-foto.spec.ts": "2e5702ab8365d61bebfff39a40d0faebd7dd9cee2b0cf447a0f2bc1a1f648b00",
     "e2e/task-jornada-pincel-balde-caminhos.spec.ts": "8160220c7e44a2086613fc5c614456b3447acd4c6f399e85d296dc55d8f3a487",
     "e2e/task-jornada-sala-livre.spec.ts": "1eaa6c5aa8288e7491886f720fdaec218fa224a1c88c9be2eccf95e9cbab52e9",
-    "e2e/task-jornada-pinos-ponto-de-interesse.spec.ts": "e93630c7287c59338602598d595a33e15bc0da18dea3b17abb4bad4b6cf1e946"
+    "e2e/task-jornada-pinos-ponto-de-interesse.spec.ts": "e93630c7287c59338602598d595a33e15bc0da18dea3b17abb4bad4b6cf1e946",
+    "e2e/task-jornada-camada-travada.spec.ts": "acbac029eea15434469c08a40c6e1319b19a001d7112c5c3d25af8dab386662f",
+    "e2e/task-jornada-poligono-termina.spec.ts": "3fab2866f1474d0226cb17ec3da527c05e4904586b3adc802a9367535ce7880b",
+    "e2e/task-jornada-menu-cabe-na-janela.spec.ts": "22c8be1e27a18bc718c2be311cd1910a30802ef48bd6c40276cefd78b97f6e89"
   }
 }
