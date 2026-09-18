@@ -150,6 +150,7 @@ import { drawGuides } from './drawGuides'
 import { cloneEntity, type CloneableEntity } from '../lib/entityClone'
 import { placeNewRoom, subtreeIds } from '../lib/roomNesting'
 import { useToastStore } from '../stores/toastStore'
+import { STAIR_CLICK_WITHOUT_DRAG_TEXT } from '../components/labels'
 import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
   canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
@@ -3169,6 +3170,13 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             // sem antes acertar um clique em cima dela — o passeio cego de
             // 16/09/2026 gastou 4 tentativas e não conseguiu.
             useMapStore.getState().setSelection(selectionOfItem({ kind: 'stair', id: stairId }))
+          } else {
+            // Rascunho recusado = clique parado (início e fim no mesmo ponto).
+            // Antes daqui a ferramenta simplesmente emudecia, e o relato de
+            // 18/09/2026 é exatamente esse: nada nasceu e nada foi dito. Mesmo
+            // caminho de fala que a Porta já usa no pointerdown deste arquivo
+            // quando o clique erra a parede.
+            useToastStore.getState().push('info', STAIR_CLICK_WITHOUT_DRAG_TEXT)
           }
           stairDraftStart = null
           draftGraphics.clear()

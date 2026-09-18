@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { deleteSelectionLabel, SELECTION_LABELS, TOOLBAR_SLOTS, TOOL_CLUSTERS, TOOL_LABELS, toolsOfSlot } from './labels'
+import {
+  deleteSelectionLabel,
+  SELECTION_LABELS,
+  STAIR_CLICK_WITHOUT_DRAG_TEXT,
+  TOOLBAR_SLOTS,
+  TOOL_CLUSTERS,
+  TOOL_HINTS,
+  TOOL_LABELS,
+  toolsOfSlot,
+} from './labels'
 import { DRAWING_SHAPE_GROUP } from '../lib/toolVariants'
 import type { DrawingTool, SelectionKind } from '../types/tools'
 
@@ -42,5 +51,20 @@ describe('deleteSelectionLabel', () => {
       expect(SELECTION_LABELS[kind], kind).toBeDefined()
       expect(deleteSelectionLabel(kind), kind).not.toMatch(/undefined|\(o\)/)
     }
+  })
+})
+
+describe('aviso do clique parado com a Escada', () => {
+  it('não é a dica da barra repetida: a dica já estava na tela quando a pessoa clicou', () => {
+    const dica = TOOL_HINTS.stair
+    expect(dica).toBeDefined()
+    expect(STAIR_CLICK_WITHOUT_DRAG_TEXT).not.toBe(dica)
+  })
+
+  it('diz que o gesto falhou e qual é o gesto certo', () => {
+    // Uma pessoa que só lê "arraste" fica sem saber se a escada nasceu; uma que
+    // só lê "não deu" fica sem saber o que fazer. Precisa das duas metades.
+    expect(STAIR_CLICK_WITHOUT_DRAG_TEXT).toMatch(/n[ãa]o deu|n[ãa]o foi poss[íi]vel|n[ãa]o criou/i)
+    expect(STAIR_CLICK_WITHOUT_DRAG_TEXT).toMatch(/arrast/i)
   })
 })

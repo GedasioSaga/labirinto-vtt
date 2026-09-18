@@ -189,6 +189,21 @@ export const BLOCKED_MOVE_TEXT: Record<BlockedMoveReason, string> = {
 export const DOOR_OPENED_BY_MOVE_TEXT = 'A porta estava fechada e abriu na passagem. Ctrl+Z desfaz.'
 
 /**
+ * Clique parado com a Escada armada (relato de 18/09/2026). A Escada precisa de
+ * um lance — dois pontos —, mas as duas vizinhas de barra (Porta e Luz) nascem
+ * com UM clique, então o gesto errado é o gesto óbvio. Até aqui o clique parado
+ * não produzia nada: nem escada, nem contorno, nem mensagem; a pessoa repetia o
+ * mesmo clique achando que não tinha "pegado".
+ *
+ * Não repete `TOOL_HINTS.stair` palavra por palavra de propósito, e o teste ao
+ * lado prende isso: a dica da barra JÁ estava na tela quando a pessoa clicou, e
+ * reexibi-la seria dizer de novo o que ela leu e não a ajudou. Este texto diz o
+ * que a dica não diz — que o gesto FALHOU, e por quê.
+ */
+export const STAIR_CLICK_WITHOUT_DRAG_TEXT =
+  'Não deu para criar a escada: um clique parado não tem lance. Segure o botão e arraste até onde a escada termina.'
+
+/**
  * Ferramentas que expõem os controles de cor/espessura/preenchimento.
  * `rect`/`ellipse`/`polygon` entram junto de `circle`: os quatro produzem um
  * `Drawing` com `filled`/`fillAlpha` no schema (types/map.ts). `text` fica de
