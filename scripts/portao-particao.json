@@ -12,7 +12,7 @@
   "_base_r4": "auto/base-pecas-r4 é um ponteiro CONGELADO no topo do portão depois deste conserto — o único commit que já traz a guarda de alvo cruzado, a regressão dos menus, o g19 e o g20. É de lá que as três peças de cliente desta rodada têm de ser cortadas: cortadas de auto/base-noite, `particao` e `rust-intocado` saem SEM JUIZ; cortadas de auto/base-pecas, elas perdem os consertos do portão. Se o portão receber commit novo ANTES de os builders saírem, quem reaponta este ponteiro é o ORQUESTRADOR (ver _quem_mantem) — e `g20-base-imutavel` não deixa isso passar em silêncio: ponteiro que não descende de `origem` é vermelho com endereço.",
   "base": {
     "origem": "auto/base-noite",
-    "ramo": "auto/base-r6"
+    "ramo": "auto/base-r7"
   },
   "pecas": {
     "portao": [
