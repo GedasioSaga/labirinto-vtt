@@ -12,7 +12,7 @@
   "_base_r4": "auto/base-pecas-r4 é um ponteiro CONGELADO no topo do portão depois deste conserto — o único commit que já traz a guarda de alvo cruzado, a regressão dos menus, o g19 e o g20. É de lá que as três peças de cliente desta rodada têm de ser cortadas: cortadas de auto/base-noite, `particao` e `rust-intocado` saem SEM JUIZ; cortadas de auto/base-pecas, elas perdem os consertos do portão. Se o portão receber commit novo ANTES de os builders saírem, quem reaponta este ponteiro é o ORQUESTRADOR (ver _quem_mantem) — e `g20-base-imutavel` não deixa isso passar em silêncio: ponteiro que não descende de `origem` é vermelho com endereço.",
   "base": {
     "origem": "auto/base-noite",
-    "ramo": "auto/base-r5"
+    "ramo": "auto/base-r6"
   },
   "pecas": {
     "portao": [
@@ -32,19 +32,45 @@
   },
   "_alvos_desta_rodada": "Um arquivo só entra em `alvos` quando a jornada da peça o cita como A CAUSA e nenhuma outra jornada tem motivo para tocá-lo. `poligono-termina` fica com a lista VAZIA de propósito: a causa dela (`PixiCanvas.tsx:4339`, a condição do Enter que ignora `polygonDraftPoints`) mora no mesmo arquivo que as outras duas precisam editar, e inventar exclusividade ali reprovaria conserto legítimo. `client/src/main.css` também ficou de fora: é a folha global do app, qualquer peça pode ter motivo honesto de mexer nela.",
   "alvos": {
-    "portao": ["scripts/portao.cjs", "scripts/portao-particao.json", "scripts/portao-selo.json"],
-    "camada-travada": ["client/src/lib/selectionHitTest.ts"],
+    "portao": [
+      "scripts/portao.cjs",
+      "scripts/portao-particao.json",
+      "scripts/portao-selo.json"
+    ],
+    "camada-travada": [
+      "client/src/lib/selectionHitTest.ts"
+    ],
     "poligono-termina": [],
-    "menu-cabe-na-janela": ["client/src/components/ToolVariantMenu.tsx", "client/src/lib/toolVariants.ts"]
+    "menu-cabe-na-janela": [
+      "client/src/components/ToolVariantMenu.tsx",
+      "client/src/lib/toolVariants.ts"
+    ]
   },
   "apelidos": {
-    "portao": ["gate", "fase0"],
-    "camada-travada": ["camada", "cadeado", "cadeado-de-camada", "camada-travada-arrasto"],
-    "poligono-termina": ["poligono", "poligono-encerra", "ferramenta-poligono"],
-    "menu-cabe-na-janela": ["menu", "menu-opcoes-de-chao", "opcoes-de-chao", "menu-cabe"]
+    "portao": [
+      "gate",
+      "fase0"
+    ],
+    "camada-travada": [
+      "camada",
+      "cadeado",
+      "cadeado-de-camada",
+      "camada-travada-arrasto"
+    ],
+    "poligono-termina": [
+      "poligono",
+      "poligono-encerra",
+      "ferramenta-poligono"
+    ],
+    "menu-cabe-na-janela": [
+      "menu",
+      "menu-opcoes-de-chao",
+      "opcoes-de-chao",
+      "menu-cabe"
+    ]
   },
   "_selo_r5": "scripts/portao-selo.json entrou em `pecas`.`portao` e em `alvos`.`portao` — EXCLUSIVO da peca do portao, proibido para as tres pecas de cliente. O selo desta rodada foi tirado ANTES de a guarda g20 existir e por isso nao trazia `base_do_run`: a ancora que impede o reu de escolher o proprio juiz estava INATIVA, e a ausencia dela saia como nota no verde em vez de vermelho. Recarimbar foi verificado antes, nao depois: `--so=jornadas-intactas` estava VERDE com as 23 jornadas, e as 23 hashes do selo novo batem com o DISCO e com o commit-base (auto/base-r5) ao mesmo tempo — nenhuma jornada mudou, o selo so trocou o fallback 'hash do commit base' por hash explicito e ganhou o carimbo. `base_do_run` foi carimbado com auto/base-noite = 6500be7, o mesmo valor que o manifesto da arvore e o manifesto commitado dentro do proprio commit-base ja declaravam. RISCO ACEITO E ANOTADO PARA A MANHA: com o selo declarado como alvo, uma peca de portao futura pode recarimba-lo. O que segura agora e g20 ficar VERMELHO quando NAO ha ancora nenhuma, mais a clausula de ancestralidade contra o manifesto commitado na propria base. Se a manha quiser fechar de vez, o selo sai desta lista e passa a ser tirado so pelo orquestrador.",
-  "_livres_r5":"RELATORIO-NOITE-*.md entrou em `livres` porque `--so=particao` nascia VERMELHO no proprio commit-base do run, antes de qualquer builder escrever uma linha: o relatorio da noite foi commitado pelo ORQUESTRADOR em 16a41b7, o diff contra `base`.`origem` (auto/base-noite) o enxerga, e a conta caia na peca `portao` como 'escreveu fora do que foi declarado para ela'. Vermelho que builder nenhum consegue consertar nao mede nada — mede o proprio manifesto. Relatorio de run e da mesma familia de HANDOFF.md e PEDIDOS.md: texto do orquestrador para a manha, sem dono de peca e sem efeito no app.",
+  "_livres_r5": "RELATORIO-NOITE-*.md entrou em `livres` porque `--so=particao` nascia VERMELHO no proprio commit-base do run, antes de qualquer builder escrever uma linha: o relatorio da noite foi commitado pelo ORQUESTRADOR em 16a41b7, o diff contra `base`.`origem` (auto/base-noite) o enxerga, e a conta caia na peca `portao` como 'escreveu fora do que foi declarado para ela'. Vermelho que builder nenhum consegue consertar nao mede nada — mede o proprio manifesto. Relatorio de run e da mesma familia de HANDOFF.md e PEDIDOS.md: texto do orquestrador para a manha, sem dono de peca e sem efeito no app.",
   "livres": [
     "PEDIDOS.md",
     "HANDOFF.md",
