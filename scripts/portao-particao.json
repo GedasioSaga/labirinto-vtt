@@ -70,7 +70,7 @@
     ]
   },
   "_selo_r5": "scripts/portao-selo.json entrou em `pecas`.`portao` e em `alvos`.`portao` — EXCLUSIVO da peca do portao, proibido para as tres pecas de cliente. O selo desta rodada foi tirado ANTES de a guarda g20 existir e por isso nao trazia `base_do_run`: a ancora que impede o reu de escolher o proprio juiz estava INATIVA, e a ausencia dela saia como nota no verde em vez de vermelho. Recarimbar foi verificado antes, nao depois: `--so=jornadas-intactas` estava VERDE com as 23 jornadas, e as 23 hashes do selo novo batem com o DISCO e com o commit-base (auto/base-r5) ao mesmo tempo — nenhuma jornada mudou, o selo so trocou o fallback 'hash do commit base' por hash explicito e ganhou o carimbo. `base_do_run` foi carimbado com auto/base-noite = 6500be7, o mesmo valor que o manifesto da arvore e o manifesto commitado dentro do proprio commit-base ja declaravam. RISCO ACEITO E ANOTADO PARA A MANHA: com o selo declarado como alvo, uma peca de portao futura pode recarimba-lo. O que segura agora e g20 ficar VERMELHO quando NAO ha ancora nenhuma, mais a clausula de ancestralidade contra o manifesto commitado na propria base. Se a manha quiser fechar de vez, o selo sai desta lista e passa a ser tirado so pelo orquestrador.",
-  "_livres_r5": "Arquivo sem dono: registro e evidencia, nunca codigo. `docs/pedidos/**` entrou em 18/09/2026 (os prints do pedido do usuario) e `docs/verification/**` idem (foto de evidencia de jornada) — os dois ficavam fora de toda area e faziam o passo `particao` acusar arquivo sem dono por material que nao e codigo.",
+  "_livres_r5": "Arquivo sem dono: registro e evidencia, nunca codigo. `docs/pedidos/**` entrou em 18/09/2026 (os prints do pedido do usuario) e `docs/verification/**` idem (foto de evidencia de jornada) — os dois ficavam fora de toda area e faziam o passo `particao` acusar arquivo sem dono por material que nao e codigo. `docs/varredura-*.md` entrou na noite de 18/09 pelo mesmo motivo: e o relatorio que a skill `varredura` escreve, achado com endereco e status, e ele precisa ficar versionado para alguem poder discordar de um descarte depois. Nenhum dos tres e codigo, e nenhum deles muda o que o portao julga.",
   "livres": [
     "PEDIDOS.md",
     "HANDOFF.md",
@@ -78,6 +78,7 @@
     ".gitignore",
     "RELATORIO-NOITE-*.md",
     "docs/pedidos/**",
-    "docs/verification/**"
+    "docs/verification/**",
+    "docs/varredura-*.md"
   ]
 }
