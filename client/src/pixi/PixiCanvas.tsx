@@ -2057,6 +2057,35 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         draftGraphics.clear()
       }
 
+      /**
+       * Fecha o Polígono do Desenho e o põe no mapa — duplo clique OU Enter, as
+       * mesmas duas saídas que a Região, a Sala livre e o Chão corredor já
+       * tinham. Sem uma saída por Enter o traçado só existia como rascunho, e
+       * `clearDrafts()` (trocar de ferramenta, Esc) o apagava sem aviso: o
+       * desenho sumia da tela e nunca chegou a ser mapa.
+       *
+       * `normalizeDraftPolygonPoints` é a MESMA normalização da Sala livre, e
+       * cobre as duas repetições que nascem do gesto: o duplo clique, que já
+       * mandou dois `pointerdown` no mesmo ponto, e o fechamento manual, em que
+       * a pessoa clica de volta no primeiro vértice para "amarrar" a figura.
+       *
+       * Devolve `false` quando ainda não é polígono (menos de 3 cantos), porque
+       * as duas saídas discordam do que fazer com traçado curto: o duplo clique
+       * descarta (comportamento antigo, preservado), o Enter deixa o rascunho
+       * de pé para a pessoa continuar clicando — teclar Enter cedo demais não
+       * pode custar o que já foi desenhado.
+       */
+      const finishPolygon = (): boolean => {
+        const points = normalizeDraftPolygonPoints(polygonDraftPoints)
+        if (!isValidPolygonDraft(points)) return false
+
+        const { addDrawing, drawColor, drawWidth, drawFilled, drawFillAlpha } = useMapStore.getState()
+        addDrawing(buildPolygonDrawing(crypto.randomUUID(), points, drawColor, drawWidth, drawFilled, drawFillAlpha))
+        polygonDraftPoints = []
+        draftGraphics.clear()
+        return true
+      }
+
       /** Rascunho feito clique a clique aberto: Região, Área poligonal ou Chão corredor. */
       const hasPointDraft = () => regionDraftPoints.length > 0 || polygonDraftPoints.length > 0 || corridorDraftPoints.length > 0
 
@@ -4233,21 +4262,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         }
 
         if (activeTool === 'polygon') {
-          const last = polygonDraftPoints[polygonDraftPoints.length - 1]
-          const secondToLast = polygonDraftPoints[polygonDraftPoints.length - 2]
-          if (last && secondToLast && last.x === secondToLast.x && last.y === secondToLast.y) {
-            polygonDraftPoints = polygonDraftPoints.slice(0, -1)
-          }
-
-          if (!isValidPolygonDraft(polygonDraftPoints)) {
-            clearDrafts()
-            return
-          }
-
-          const { addDrawing, drawColor, drawWidth, drawFilled, drawFillAlpha } = useMapStore.getState()
-          addDrawing(buildPolygonDrawing(crypto.randomUUID(), polygonDraftPoints, drawColor, drawWidth, drawFilled, drawFillAlpha))
-          polygonDraftPoints = []
-          draftGraphics.clear()
+          if (!finishPolygon()) clearDrafts()
           return
         }
 
@@ -4333,15 +4348,22 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           return
         }
 
-        // Enter fecha o traçado ponto a ponto em construção — corredor de Chão
-        // ou Região (mesma saída do duplo clique). preventDefault: o foco pode
-        // estar no botão da barra, e o Enter "clicaria" nele de novo.
-        if (event.key === 'Enter' && (corridorDraftPoints.length > 0 || regionDraftPoints.length > 0)) {
+        // Enter fecha o traçado ponto a ponto em construção — corredor de Chão,
+        // Região/Sala livre ou Polígono do Desenho (mesma saída do duplo
+        // clique). preventDefault: o foco pode estar no botão da barra, e o
+        // Enter "clicaria" nele de novo.
+        //
+        // O Polígono entrou aqui em 18/09/2026: `hasPointDraft()` já contava os
+        // TRÊS rascunhos, mas esta condição só olhava dois, então o Polígono era
+        // a única ferramenta de clique-a-clique sem fim — e o rascunho que não
+        // vira mapa morre no `clearDrafts()` da próxima troca de ferramenta.
+        if (event.key === 'Enter' && hasPointDraft()) {
           const target = event.target as HTMLElement | null
           const editable = target !== null && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')
           if (!editable) {
             event.preventDefault()
             if (corridorDraftPoints.length > 0) finishCorridor()
+            else if (polygonDraftPoints.length > 0) finishPolygon()
             else finishRegion()
             return
           }
