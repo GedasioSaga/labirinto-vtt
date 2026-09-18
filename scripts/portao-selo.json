@@ -1,6 +1,16 @@
 {
-  "selado_em": "2026-09-18T04:17:06.185Z",
+  "selado_em": "2026-09-18T07:47:54.560Z",
   "jornadas": {
+    "e2e/task-jornada-parede-grossa.spec.ts": "527e40bd7728c8b27e9334e40ce45223816eef2f88b14351545951c57af89314",
+    "e2e/task-jornada-selecao-arrasto.spec.ts": "0e9113e9b71bfac3ce19108908c4421e680919e8f07c99638a75f94c4b0b4062",
+    "e2e/task-jornada-escada-legivel.spec.ts": "396ca2e53e088a24c9346595d16a821e820f988cfca0f2169f52b090075aba6c",
+    "e2e/task-jornada-entrada-jogador.spec.ts": "f3bc99bfb7ee5db2ae183bc538d5b61dfaa1d4ce436ba66b0f6f4eb0a052e63f",
+    "e2e/task-jornada-nao-perder-trabalho.spec.ts": "9e7562f7491c781f8d90b6f5165fc859b8ab43b4bc575c02d1b72f51e0936b74",
+    "e2e/task-jornada-gestos-centrais.spec.ts": "bd60928d3873cb6782f16013c35045958efbc5aaa894e1fe1b7e3379ee8f3d3e",
+    "e2e/task-jornada-porta-sem-buraco.spec.ts": "1a8471b1d44003656b08da5280787df08e545769aea4b5bcb47f4e9854bbdaaa",
+    "e2e/task-jornada-portao-fluidez.spec.ts": "3e6f46fe52bb053b275f6d883b62cd38472a2a761388fb01b165653718a81293",
+    "e2e/task-portao-estilo-minimapa.spec.ts": "c3bec327ebe20834a8f7463f02c170ea93f203d82d8efc5820d2a05d4aee6384",
+    "e2e/task-jornada-portao-vista-movel.spec.ts": "57626081a8b694f840c424dd77c65fbe2e4894d58e46b07148baa0a31a158008",
     "e2e/task-jornada-ferramentas-mudas.spec.ts": "98af08cab09cbcc79cf15a2fed16755f02cedd41ef87ad6be2a6d93a2243a1b3",
     "e2e/task-jornada-luz-que-para-na-parede.spec.ts": "a1c6516ccc46cf539095a4d48fffd36ea889176165f203c655e58cd81b896bf2",
     "e2e/task-jornada-token-com-foto.spec.ts": "2e5702ab8365d61bebfff39a40d0faebd7dd9cee2b0cf447a0f2bc1a1f648b00",
@@ -9,6 +19,14 @@
     "e2e/task-jornada-pinos-ponto-de-interesse.spec.ts": "e93630c7287c59338602598d595a33e15bc0da18dea3b17abb4bad4b6cf1e946",
     "e2e/task-jornada-camada-travada.spec.ts": "acbac029eea15434469c08a40c6e1319b19a001d7112c5c3d25af8dab386662f",
     "e2e/task-jornada-poligono-termina.spec.ts": "3fab2866f1474d0226cb17ec3da527c05e4904586b3adc802a9367535ce7880b",
-    "e2e/task-jornada-menu-cabe-na-janela.spec.ts": "22c8be1e27a18bc718c2be311cd1910a30802ef48bd6c40276cefd78b97f6e89"
+    "e2e/task-jornada-menu-cabe-na-janela.spec.ts": "22c8be1e27a18bc718c2be311cd1910a30802ef48bd6c40276cefd78b97f6e89",
+    "e2e/task-drawing-group.spec.ts": "041a8dcd35adb866c814cdd4b39df5c477c2e19803fc128c90cf113b73b04219",
+    "e2e/task-fase5-variantes.spec.ts": "ac7df717b703fcb098ba259294f269670977d9b02e64249e2f132212e0019bfc",
+    "e2e/task-floor-pieces.spec.ts": "defffc561737ddede5131c5cfdfaaf0b06708186092b54839a7aa445047f7e25",
+    "e2e/task-new-shapes.spec.ts": "73a25c124d5e5df34f5b73dfc1bb3b911e65bd6c56178207103919ca6e885e8d"
+  },
+  "base_do_run": {
+    "ramo": "auto/base-noite",
+    "sha": "6500be707c666afc88a345ccbf305cee1ec420ae"
   }
 }

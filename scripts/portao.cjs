@@ -101,6 +101,16 @@ const REPETICOES = String(Number(process.env.PORTAO_REPETICOES || '1') || 1)
 /** Piso de disco livre. A Invariante 8 declarava 5,9 GB de 476; a máquina tinha
  *  33,9 GB de 511 em 17/09/2026 — premissa velha, então o portão MEDE em vez de citar. */
 const PISO_DE_DISCO_GB = 3
+/**
+ * Folga de trabalho acima do piso. Abaixo dela o passo `disco` AINDA sai verde
+ * — o piso é o piso —, mas grita o número: com pouca folga, um worktree, um
+ * build ou uma pasta de trace derruba o passo NO MEIO do run, e a peça que
+ * estiver rodando na hora leva a culpa de um vermelho que não é dela. Medido em
+ * 18/09/2026: 5,27 GB livres de 511 — folga de 2,27 GB sobre o piso, que é
+ * MENOS que uma volta de jornadas com trace e um build de release juntos. Por
+ * isso o alvo é piso + 3 GB: com a folga de hoje, o aviso SAI.
+ */
+const FOLGA_DE_TRABALHO_GB = PISO_DE_DISCO_GB + 3
 
 /**
  * Hash do CONTEÚDO, não do fim de linha. `core.autocrlf` é true nesta máquina:
@@ -203,20 +213,60 @@ const JORNADA_VISTA_MOVEL = 'e2e/task-jornada-portao-vista-movel.spec.ts'
  * e escada legível. São fixas (Invariante 6): nenhum builder pode editá-las, e
  * o passo `jornadas-intactas` confere isso por hash.
  */
-const JORNADAS_DA_BAR = [
+/**
+ * REGRESSÃO: o que já estava verde antes desta rodada e precisa CONTINUAR verde
+ * em toda volta. É o lado do portão que roda sempre.
+ */
+const JORNADAS_DE_REGRESSAO_DA_BAR = [
   'e2e/task-jornada-ferramentas-mudas.spec.ts',
   'e2e/task-jornada-luz-que-para-na-parede.spec.ts',
   'e2e/task-jornada-token-com-foto.spec.ts',
   'e2e/task-jornada-pincel-balde-caminhos.spec.ts',
   'e2e/task-jornada-sala-livre.spec.ts',
   'e2e/task-jornada-pinos-ponto-de-interesse.spec.ts',
-  // As três do passeio de usuário de 18/09/2026. Entram aqui para ganharem o selo
-  // e a auditoria arquivo a arquivo da FASE 0: sem isso, `jornadas-intactas` não as
-  // protege e um builder poderia afrouxar a própria régua sem o portão piscar.
-  // Nascem VERMELHAS de propósito — são o critério de conserto, não regressão.
+]
+/**
+ * CRITÉRIO: as três do passeio de usuário de 18/09/2026. Entram na bar para
+ * ganharem o selo e a auditoria arquivo a arquivo da FASE 0 — sem isso,
+ * `jornadas-intactas` não as protege e um builder poderia afrouxar a própria
+ * régua sem o portão piscar.
+ *
+ * Nascem VERMELHAS de propósito: são o critério de conserto, não regressão. É
+ * exatamente por isso que elas NÃO podem estar no mesmo grupo da regressão —
+ * ver `GRUPOS_DA_BAR`.
+ */
+const JORNADAS_DO_CRITERIO = [
   'e2e/task-jornada-camada-travada.spec.ts',
   'e2e/task-jornada-poligono-termina.spec.ts',
   'e2e/task-jornada-menu-cabe-na-janela.spec.ts',
+]
+/**
+ * A bar inteira, na ordem de sempre: é esta lista que o SELO carimba e que a
+ * auditoria arquivo a arquivo da FASE 0 percorre. Concatenar os dois grupos
+ * mantém a ordem byte a byte da lista anterior — o selo não se mexe.
+ */
+const JORNADAS_DA_BAR = JORNADAS_DE_REGRESSAO_DA_BAR.concat(JORNADAS_DO_CRITERIO)
+/**
+ * O PORTÃO ESTÁ DIVIDIDO EM DOIS DE PROPÓSITO, e a divisão mora aqui.
+ *
+ * `guardaListaDeJornadas` cobra COMPLETUDE — quem roda alguma jornada da bar
+ * roda todas. Com a bar sendo uma lista só, isso virou um deadlock de desenho
+ * nas rodadas 3 e 4: o comando de REGRESSÃO (as 6 que já estavam verdes) era
+ * acusado de omitir as 3 do critério, e o comando de PROVA (as 3 do critério)
+ * era acusado de omitir as 6 da regressão. Os dois saíam em exit 2 ANTES do
+ * Playwright, e o run inteiro rodava ZERO jornada — falso-verde disfarçado de
+ * erro. Nenhuma peça conseguia passar, nem a do próprio portão, porque as
+ * jornadas do critério só ficam verdes DEPOIS que as peças de cliente
+ * consertam os defeitos.
+ *
+ * A completude continua valendo, mas DENTRO de cada grupo: rodar 5 das 6 da
+ * regressão é vermelho, rodar 2 das 3 do critério é vermelho. O que deixa de
+ * ser exigido é misturar os dois lados na mesma linha de comando — e o verde
+ * diz em voz alta qual grupo NÃO entrou, para que a omissão continue audível.
+ */
+const GRUPOS_DA_BAR = [
+  { id: 'regressao', titulo: 'regressão (tem de estar verde em TODA volta)', jornadas: JORNADAS_DE_REGRESSAO_DA_BAR },
+  { id: 'criterio', titulo: 'critério desta rodada (vermelho até a peça consertar; roda na volta da PROVA)', jornadas: JORNADAS_DO_CRITERIO },
 ]
 /**
  * Jornada da bar DISPENSADA desta rodada, com o motivo escrito — a única forma
@@ -823,9 +873,14 @@ function refDaBase(manifesto, peca) {
  * O selo é tirado pelo orquestrador ANTES dos builders e nenhum builder pode
  * editá-lo (Invariante 5). Quando ele traz `base_do_run`, é ele quem manda: a
  * peça do portão pode reescrever `origem` no manifesto, mas não consegue mexer
- * no carimbo, e a divergência sai VERMELHA com os dois endereços. Selo sem o
- * campo (o desta rodada, tirado antes desta guarda existir) não vira vermelho —
- * vira nota no verde, dizendo em voz alta que a âncora ainda não existe.
+ * no carimbo, e a divergência sai VERMELHA com os dois endereços.
+ *
+ * Selo SEM o campo (o desta rodada, tirado antes desta guarda existir) deixava
+ * a âncora INATIVA: nada a comparar, nota no verde, e o réu escolhendo o juiz
+ * na prática. A segunda âncora fecha isso sem pedir nada ao orquestrador — o
+ * commit da base é imutável e a cópia do manifesto que vive DENTRO dele já diz
+ * qual era a base do run (`origemDeclaradaNoCommit`). Base sem NENHUMA das duas
+ * âncoras é VERMELHA: âncora ausente não é detalhe, é o juiz faltando.
  */
 function guardaOrigemDaBase(entrada) {
   const refOrigem = entrada.refOrigem || null
@@ -835,6 +890,8 @@ function guardaOrigemDaBase(entrada) {
   const origemEhAncestral = entrada.origemEhAncestral === true
   const refSelada = entrada.refSelada || null
   const commitSelado = entrada.commitSelado || null
+  const refOrigemCommitada = entrada.refOrigemCommitada || null
+  const commitadaEhAncestral = entrada.commitadaEhAncestral === true
   if (!refOrigem) {
     return reprova(
       'g20-base-imutavel',
@@ -860,6 +917,38 @@ function guardaOrigemDaBase(entrada) {
       'scripts/portao-particao.json ("base"."origem") + scripts/portao-selo.json ("base_do_run")',
     )
   }
+  // SEGUNDA ÂNCORA, que não depende de ninguém ter rodado `--selar`: o commit
+  // da base é CONGELADO, e a cópia do manifesto que vive DENTRO dele já declara
+  // qual era a base daquele momento. A base do run só pode ANDAR PARA A FRENTE
+  // na mesma linha — de uma rodada para a outra o orquestrador congela um
+  // ponteiro novo, e o antigo continua sendo ancestral dele. `origem` apontada
+  // para fora dessa linha não é avanço de rodada: é ponto de corte escolhido a
+  // dedo, e muda o que cada peça parece ter escrito sem ninguém ter escrito nada.
+  //
+  // A comparação é por ANCESTRALIDADE e não por nome de ponteiro de propósito:
+  // por nome, a rodada seguinte — que legitimamente congela `auto/base-r6` sobre
+  // um commit cujo manifesto ainda dizia `auto/base-noite` — sairia vermelha sem
+  // ninguém ter feito nada de errado.
+  if (refOrigemCommitada !== null && refOrigemCommitada !== refOrigem && !commitadaEhAncestral) {
+    return reprova(
+      'g20-base-imutavel',
+      'o manifesto da árvore diz que a base imutável do run é `' + refOrigem + '` = ' + String(commitOrigem).slice(0, 8) +
+        ', mas o manifesto commitado DENTRO desse commit declara `' + refOrigemCommitada + '`, que não é ancestral dele. Base fora da ' +
+        'linha do run é o réu escolhendo o próprio juiz: basta apontar `origem` para perto do topo e tudo o que a peça commitou some ' +
+        'do diff das Invariantes 5 e 9.',
+      'scripts/portao-particao.json ("base"."origem") + o manifesto commitado em ' + String(commitOrigem).slice(0, 8),
+    )
+  }
+  if (refSelada === null && refOrigemCommitada === null) {
+    return reprova(
+      'g20-base-imutavel',
+      'a base imutável `' + refOrigem + '` não tem ÂNCORA NENHUMA: o selo não carimbou `base_do_run` e o commit ' +
+        String(commitOrigem).slice(0, 8) + ' não traz `scripts/portao-particao.json` para se confirmar. Sem âncora, `origem` é só um ' +
+        'campo que a peça capaz de reescrever este arquivo pode apontar para onde quiser — e o diff das Invariantes 5 e 9 sai do ' +
+        'tamanho que ela escolher. Rode `node scripts/portao.cjs --selar` ANTES de soltar os builders.',
+      'scripts/portao-selo.json ("base_do_run") + scripts/portao-particao.json ("base"."origem")',
+    )
+  }
   if (refPecas !== null && commitPecas === null) {
     return reprova(
       'g20-base-imutavel',
@@ -882,9 +971,14 @@ function guardaOrigemDaBase(entrada) {
       (refPecas !== null && refPecas !== refOrigem
         ? '; base das peças: ' + refPecas + ' = ' + String(commitPecas).slice(0, 8) + ' (descende dela)'
         : '') +
-      (refSelada !== null && commitSelado !== null
-        ? '; confere com o selo tirado antes dos builders'
-        : '; o selo desta rodada não carimbou a base — a partir do próximo `--selar` ela fica ancorada fora do alcance dos builders'),
+      '\nâncoras ATIVAS (é o que impede a peça que reescreve este manifesto de escolher o próprio juiz): ' +
+      [
+        refSelada !== null && commitSelado !== null ? 'selo tirado antes dos builders (`base_do_run`)' : null,
+        refOrigemCommitada !== null ? 'o manifesto commitado dentro de ' + String(commitOrigem).slice(0, 8) + ', que declara `' + refOrigemCommitada + '`' : null,
+      ]
+        .filter(Boolean)
+        .join(' + ') +
+      (refSelada === null ? '\nnota: o selo desta rodada não carimbou `base_do_run`; a âncora que segura hoje é a do commit. Rode `--selar` antes do próximo run para ter as duas.' : ''),
   )
 }
 
@@ -1098,34 +1192,62 @@ function guardaJornadasExistem(arquivos) {
  * caminho de verde silencioso do comando 15, e ele dependia de digitar oito
  * caminhos à mão sem errar.
  *
- * A regra é só uma: quem roda ALGUMA jornada da bar roda TODAS, menos as
- * dispensadas com motivo (`JORNADAS_DISPENSADAS`). Lista que não toca nenhuma
- * jornada da bar é amostra avulsa e segue livre — é para isso que o modo existe.
+ * A regra é: quem roda ALGUMA jornada de um GRUPO da bar roda TODAS as daquele
+ * grupo, menos as dispensadas com motivo (`JORNADAS_DISPENSADAS`). Lista que não
+ * toca nenhuma jornada da bar é amostra avulsa e segue livre — é para isso que o
+ * modo existe.
+ *
+ * A completude é POR GRUPO e não pela bar inteira porque o portão tem dois
+ * lados de propósito (ver `GRUPOS_DA_BAR`): exigir os dois na mesma linha de
+ * comando trava a regressão atrás de um critério que ainda está vermelho, e
+ * nenhum dos dois comandos chega a rodar um teste sequer. O grupo que NÃO foi
+ * tocado sai NOMEADO no verde: omitir continua sendo audível, só deixou de ser
+ * fatal.
  */
-function guardaListaDeJornadas(alvos, daBar, dispensadas) {
+function guardaListaDeJornadas(alvos, grupos, dispensadas) {
   const pedidas = new Set(alvos || [])
-  const bar = daBar || []
   const dispensa = dispensadas || {}
-  const daBarPedidas = bar.filter((j) => pedidas.has(j))
-  if (daBarPedidas.length === 0) {
+  // Aceita tanto a lista de grupos quanto uma lista plana de specs (um grupo só):
+  // as provas do autoteste e qualquer chamador antigo continuam significando a
+  // mesma coisa.
+  const lista =
+    Array.isArray(grupos) && grupos.length > 0 && typeof grupos[0] === 'string'
+      ? [{ id: 'bar', titulo: 'jornadas da bar', jornadas: grupos }]
+      : (grupos || []).map((g) => ({ id: g.id, titulo: g.titulo || g.id, jornadas: g.jornadas || [] }))
+  const tocados = lista.filter((g) => g.jornadas.some((j) => pedidas.has(j)))
+  if (tocados.length === 0) {
     return ok('g19-lista-de-jornadas', (alvos || []).length + ' spec(s) fora das jornadas da bar: lista avulsa, sem exigência de completude')
   }
-  const faltando = bar.filter((j) => !pedidas.has(j) && !Object.prototype.hasOwnProperty.call(dispensa, j))
-  if (faltando.length > 0) {
+  const buracos = tocados
+    .map((g) => ({ grupo: g, faltando: g.jornadas.filter((j) => !pedidas.has(j) && !Object.prototype.hasOwnProperty.call(dispensa, j)) }))
+    .filter((x) => x.faltando.length > 0)
+  if (buracos.length > 0) {
     return reprova(
       'g19-lista-de-jornadas',
-      'a linha de comando roda ' + daBarPedidas.length + ' jornada(s) da bar mas OMITE ' + faltando.length + ': ' + faltando.join(', ') +
+      buracos
+        .map(
+          (x) =>
+            'o grupo `' + x.grupo.id + '` (' + x.grupo.titulo + ') está INCOMPLETO na linha de comando: OMITE ' +
+            x.faltando.length + ' de ' + x.grupo.jornadas.length + ' — ' + x.faltando.join(', '),
+        )
+        .join('\n') +
         '. Jornada que não entra na lista não aparece como vermelha — aparece como nada, e o relatório sai `N passed` com exit 0. ' +
-        'Rode todas, ou declare a dispensa com motivo.',
-      'scripts/portao.cjs (JORNADAS_DA_BAR / JORNADAS_DISPENSADAS)',
+        'Rode o grupo inteiro, ou declare a dispensa com motivo.',
+      'scripts/portao.cjs (GRUPOS_DA_BAR / JORNADAS_DISPENSADAS)',
     )
   }
-  const dispensadasFora = bar.filter((j) => !pedidas.has(j))
+  const naoTocados = lista.filter((g) => !tocados.includes(g))
+  const dispensadasFora = tocados.reduce((acc, g) => acc.concat(g.jornadas.filter((j) => !pedidas.has(j))), [])
   return ok(
     'g19-lista-de-jornadas',
-    daBarPedidas.length + ' de ' + bar.length + ' jornada(s) da bar na lista' +
+    'grupo(s) COMPLETO(s) nesta linha: ' +
+      tocados.map((g) => g.id + ' (' + g.jornadas.filter((j) => pedidas.has(j)).length + ' de ' + g.jornadas.length + ')').join(', ') +
+      (naoTocados.length === 0
+        ? ''
+        : '\ngrupo(s) que NÃO entraram nesta linha — rodam em comando próprio, e a ausência aqui não é prova de nada:\n' +
+          naoTocados.map((g) => '  ' + g.id + ': ' + g.titulo + ' (' + g.jornadas.join(', ') + ')').join('\n')) +
       (dispensadasFora.length === 0
-        ? ', nenhuma dispensada'
+        ? '\nnenhuma dispensada'
         : '\ndispensada(s) com motivo declarado:\n' + dispensadasFora.map((j) => '  ' + j + ': ' + dispensa[j]).join('\n')),
   )
 }
@@ -1251,7 +1373,29 @@ const PLANO = [
     'jornadas já entregues, com ponteiro real, mais a regressão dos menus que esta rodada reestrutura',
     JORNADAS_E2E.concat(JORNADAS_REGRESSAO_MENUS),
   ),
-  jornada('jornadas-da-bar', 'os gestos que a bar deste run pede (luz, token com foto, pincel e balde, sala livre, pinos)', JORNADAS_DA_BAR),
+  // REGRESSÃO. Roda em toda volta e tem de sair verde em toda volta. A lista é
+  // DERIVADA do grupo, não digitada: antes era a bar inteira, e por isso este
+  // passo nascia vermelho por causa do critério — nenhum builder conseguia
+  // passar num passo que não dependia dele.
+  jornada(
+    'jornadas-da-bar',
+    'REGRESSÃO: os gestos que a bar deste run já tinha verdes (luz, token com foto, pincel e balde, sala livre, pinos)',
+    JORNADAS_DE_REGRESSAO_DA_BAR.filter((j) => !JORNADAS_DISPENSADAS[j]),
+  ),
+  // PROVA. As três jornadas do critério desta rodada. Nascem VERMELHAS: só
+  // ficam verdes depois que as peças de cliente consertam os defeitos, e por
+  // isso este passo fica FORA da volta comum (`prova: true`) e só entra em
+  // `--prova` ou `--so=jornadas-do-criterio`. Antes dele não existia rota
+  // nenhuma: os comandos de regressão saíam exit 0 com os três defeitos
+  // intactos, porque nenhum passo do PLANO alcançava estes três specs.
+  Object.assign(
+    jornada(
+      'jornadas-do-criterio',
+      'PROVA: as três jornadas do critério de 18/09/2026 (cadeado de camada, encerramento do polígono, menu que cabe na janela)',
+      JORNADAS_DO_CRITERIO.filter((j) => !JORNADAS_DISPENSADAS[j]),
+    ),
+    { prova: true },
+  ),
   jornada('jornada-fluidez', 'Invariante 6 medida com a máquina só para ela (workers=1)', [JORNADA_FLUIDEZ], ['--workers=1']),
 ]
 
@@ -1341,6 +1485,7 @@ function baseDoRun() {
       ? git(['merge-base', '--is-ancestor', escolha.refOrigem, escolha.refPecas]) !== null
       : false
   const carimbo = baseSelada()
+  const refOrigemCommitada = origemDeclaradaNoCommit(commitOrigem)
   const rOrigem = guardaOrigemDaBase({
     refOrigem: escolha.refOrigem,
     refPecas: escolha.refPecas,
@@ -1349,6 +1494,11 @@ function baseDoRun() {
     origemEhAncestral,
     refSelada: carimbo.ref,
     commitSelado: carimbo.commit,
+    refOrigemCommitada: refOrigemCommitada,
+    commitadaEhAncestral:
+      refOrigemCommitada !== null && commitOrigem !== null
+        ? git(['merge-base', '--is-ancestor', refOrigemCommitada, commitOrigem]) !== null
+        : false,
   })
   const ref = escolha.ref
   if (!rOrigem.ok) {
@@ -1361,6 +1511,28 @@ function baseDoRun() {
   const r = guardaBaseDoRun({ ref, base, cabeca, peca, ramo, commitDaBase })
   if (!r.ok) return { ramo, peca, manifesto, ref, base, cabeca, papel: escolha.papel, erro: r.detalhe + (r.endereco ? '  [' + r.endereco + ']' : '') }
   return { ramo, peca, manifesto, ref, base, cabeca, papel: escolha.papel, erro: null, nota: rOrigem.detalhe + '\n' + r.detalhe }
+}
+
+/**
+ * Que base o manifesto declarava DENTRO do commit para onde `base`."origem"
+ * aponta — a âncora que não depende de ninguém ter rodado `--selar`.
+ *
+ * Um commit é imutável: a cópia de `scripts/portao-particao.json` que vive lá
+ * dentro é do começo do run e nenhum builder alcança. Se a árvore de trabalho
+ * aponta `origem` para um lugar e aquele commit declarava outro, a base foi
+ * movida depois que o run começou. Commit sem o manifesto (base anterior a ele)
+ * devolve null: a guarda trata como âncora ausente, não como divergência.
+ */
+function origemDeclaradaNoCommit(commitOrigem) {
+  if (!commitOrigem) return null
+  const bruto = git(['show', commitOrigem + ':scripts/portao-particao.json'])
+  if (!bruto) return null
+  try {
+    const base = (JSON.parse(bruto) || {}).base || {}
+    return base.origem || base.ramo || null
+  } catch (e) {
+    return null
+  }
 }
 
 /**
@@ -1403,7 +1575,13 @@ function arquivosDoRun() {
     origem:
       'medido contra a base do run (' + ref + ' = ' + String(base).slice(0, 8) + '): ' +
       nCommitados + ' commitado(s) + ' + nSujos + ' na árvore suja = ' + arquivos.length + ' arquivo(s)' +
-      (medida.papel ? '\njuiz desta peça: ' + medida.papel : ''),
+      (medida.papel ? '\njuiz desta peça: ' + medida.papel : '') +
+      // O veredito do g20 vinha sendo montado e JOGADO FORA aqui: `baseDoRun`
+      // devolve `nota` com o estado das âncoras e este retorno não a copiava,
+      // então o relatório nunca dizia se a âncora que impede o réu de escolher
+      // o próprio juiz estava ativa ou não. Guarda que ninguém lê é guarda que
+      // ninguém sabe que apagou.
+      (medida.nota ? '\n' + medida.nota : ''),
   }
 }
 
@@ -1581,14 +1759,23 @@ function sondarDisco() {
     const livreGb = (estado.bfree * estado.bsize) / 1e9
     const totalGb = (estado.blocks * estado.bsize) / 1e9
     const ocupadoGb = tamanhoDaPasta(ARTEFATOS) / 1e9
+    const folgaGb = livreGb - PISO_DE_DISCO_GB
     return {
       codigo: livreGb >= PISO_DE_DISCO_GB ? 0 : 1,
       saida:
-        'livre ' + livreGb.toFixed(2) + ' GB de ' + totalGb.toFixed(2) + ' GB (piso do portão: ' + PISO_DE_DISCO_GB + ' GB)' +
+        'AMBIENTE DA MÁQUINA — este passo não mede trabalho de peça nenhuma; vermelho aqui é disco, não builder.' +
+        '\nlivre ' + livreGb.toFixed(2) + ' GB de ' + totalGb.toFixed(2) + ' GB (piso do portão: ' + PISO_DE_DISCO_GB +
+        ' GB; folga sobre o piso: ' + folgaGb.toFixed(2) + ' GB)' +
         '\ntrace e screenshot de jornada: ' + faxina.apagadas + ' pasta(s) antiga(s) apagada(s) (' + (faxina.bytes / 1e9).toFixed(2) +
         ' GB devolvidos), ' + faxina.mantidas + ' mantida(s) ocupando ' + ocupadoGb.toFixed(2) + ' GB em ' + ARTEFATOS +
         (faxina.motivo ? ' — ' + faxina.motivo : '') +
-        (livreGb < PISO_DE_DISCO_GB ? '\nabaixo do piso: worktree, build e trace não cabem — pare antes de encher o disco' : ''),
+        (livreGb < PISO_DE_DISCO_GB
+          ? '\nabaixo do piso: worktree, build e trace não cabem — pare antes de encher o disco'
+          : livreGb < FOLGA_DE_TRABALHO_GB
+            ? '\nFOLGA CURTA (' + folgaGb.toFixed(2) + ' GB sobre o piso, alvo ' + (FOLGA_DE_TRABALHO_GB - PISO_DE_DISCO_GB).toFixed(2) +
+              ' GB): um worktree, um build de release ou uma pasta de trace derruba este passo NO MEIO do run, e quem estiver ' +
+              'rodando na hora leva a culpa. Libere disco antes da volta da prova — é pendência de ambiente, não de peça.'
+            : ''),
     }
   })
 }
@@ -2209,7 +2396,16 @@ function rodarAutoteste() {
     ],
     [
       'g20 reprova base das peças que não descende da base imutável',
-      guardaOrigemDaBase({ refOrigem: 'auto/base-noite', commitOrigem: 'aaaa', refPecas: 'auto/base-pecas', commitPecas: 'bbbb', origemEhAncestral: false }),
+      guardaOrigemDaBase({
+        refOrigem: 'auto/base-noite',
+        commitOrigem: 'aaaa',
+        refPecas: 'auto/base-pecas',
+        commitPecas: 'bbbb',
+        origemEhAncestral: false,
+        // Com âncora: sem ela a guarda pararia antes, e este caso passaria a
+        // provar a ausência de âncora em vez da cláusula de ancestralidade.
+        refOrigemCommitada: 'auto/base-noite',
+      }),
       false,
     ],
     [
@@ -2219,13 +2415,54 @@ function rodarAutoteste() {
     ],
     [
       'g20 aprova base das peças à frente da base imutável, na mesma linha',
-      guardaOrigemDaBase({ refOrigem: 'auto/base-noite', commitOrigem: 'aaaa', refPecas: 'auto/base-pecas', commitPecas: 'bbbb', origemEhAncestral: true }),
+      guardaOrigemDaBase({
+        refOrigem: 'auto/base-noite',
+        commitOrigem: 'aaaa',
+        refPecas: 'auto/base-pecas',
+        commitPecas: 'bbbb',
+        origemEhAncestral: true,
+        refOrigemCommitada: 'auto/base-noite',
+      }),
       true,
     ],
     [
       'g20 aprova origem que confere com o carimbo do selo',
       guardaOrigemDaBase({ refOrigem: 'auto/base-noite', commitOrigem: 'aaaa', refSelada: 'auto/base-noite', commitSelado: 'aaaa' }),
       true,
+    ],
+    // A âncora que NÃO depende do selo. Sem ela, o selo desta rodada (tirado
+    // antes da guarda existir) deixava g20 sem nada para comparar: a peça capaz
+    // de reescrever o manifesto apontava `origem` para onde quisesse e o diff
+    // das Invariantes 5 e 9 saía do tamanho que ela escolhesse.
+    [
+      'g20 reprova origem fora da linha do manifesto commitado na própria base (sem selo)',
+      guardaOrigemDaBase({
+        refOrigem: 'auto/base-que-eu-escolhi',
+        commitOrigem: 'aaaa',
+        refOrigemCommitada: 'auto/base-noite',
+        commitadaEhAncestral: false,
+      }),
+      false,
+    ],
+    [
+      'g20 aprova origem confirmada pelo manifesto commitado na própria base (sem selo)',
+      guardaOrigemDaBase({ refOrigem: 'auto/base-noite', commitOrigem: 'aaaa', refOrigemCommitada: 'auto/base-noite' }),
+      true,
+    ],
+    [
+      'g20 aprova a base avançada de uma rodada para a outra (ponteiro novo, linha antiga)',
+      guardaOrigemDaBase({
+        refOrigem: 'auto/base-r6',
+        commitOrigem: 'cccc',
+        refOrigemCommitada: 'auto/base-noite',
+        commitadaEhAncestral: true,
+      }),
+      true,
+    ],
+    [
+      'g20 reprova base sem ÂNCORA nenhuma (selo sem carimbo e commit sem manifesto)',
+      guardaOrigemDaBase({ refOrigem: 'auto/base-noite', commitOrigem: 'aaaa', refSelada: null, refOrigemCommitada: null }),
+      false,
     ],
     provaDeBase('g20 mede a peça do portão pela base IMUTÁVEL, não pela que ela move', MANIFESTO_DE_PROVA, 'portao', 'auto/base-noite'),
     provaDeBase('g20 aceita o apelido do ramo da peça do portão', MANIFESTO_DE_PROVA, 'gate', 'auto/base-noite'),
@@ -2270,17 +2507,39 @@ function rodarAutoteste() {
       true,
     ],
     [
-      'g19 reprova a lista real do comando 15 com uma jornada do critério de fora',
+      'g19 reprova a PROVA real com uma jornada do critério de fora',
       guardaListaDeJornadas(
-        JORNADAS_DA_BAR.filter((j) => j !== 'e2e/task-jornada-poligono-termina.spec.ts' && !JORNADAS_DISPENSADAS[j]),
-        JORNADAS_DA_BAR,
+        JORNADAS_DO_CRITERIO.filter((j) => j !== 'e2e/task-jornada-poligono-termina.spec.ts'),
+        GRUPOS_DA_BAR,
         JORNADAS_DISPENSADAS,
       ),
       false,
     ],
     [
-      'g19 aprova a lista real do comando 15 completa (as 8, com a dispensada declarada)',
-      guardaListaDeJornadas(JORNADAS_DA_BAR.filter((j) => !JORNADAS_DISPENSADAS[j]), JORNADAS_DA_BAR, JORNADAS_DISPENSADAS),
+      'g19 reprova a REGRESSÃO real com uma jornada da regressão de fora',
+      guardaListaDeJornadas(
+        JORNADAS_DE_REGRESSAO_DA_BAR.filter((j) => j !== 'e2e/task-jornada-sala-livre.spec.ts' && !JORNADAS_DISPENSADAS[j]),
+        GRUPOS_DA_BAR,
+        JORNADAS_DISPENSADAS,
+      ),
+      false,
+    ],
+    // As duas linhas que as rodadas 3 e 4 reprovavam por deadlock de desenho.
+    // São os comandos de verdade do run: se alguma delas voltar a sair vermelha,
+    // o portão voltou a rodar ZERO teste.
+    [
+      'g19 aprova a REGRESSÃO real sozinha (grupo completo, critério fora por desenho)',
+      guardaListaDeJornadas(JORNADAS_DE_REGRESSAO_DA_BAR.filter((j) => !JORNADAS_DISPENSADAS[j]), GRUPOS_DA_BAR, JORNADAS_DISPENSADAS),
+      true,
+    ],
+    [
+      'g19 aprova a PROVA real sozinha (as três do critério, regressão fora por desenho)',
+      guardaListaDeJornadas(JORNADAS_DO_CRITERIO, GRUPOS_DA_BAR, JORNADAS_DISPENSADAS),
+      true,
+    ],
+    [
+      'g19 aprova a bar inteira numa linha só (os dois grupos completos)',
+      guardaListaDeJornadas(JORNADAS_DA_BAR.filter((j) => !JORNADAS_DISPENSADAS[j]), GRUPOS_DA_BAR, JORNADAS_DISPENSADAS),
       true,
     ],
     provaDeMedida(
@@ -2401,7 +2660,7 @@ async function principal() {
     // Existir não basta: a lista também tem de estar COMPLETA. Omitir uma
     // jornada do critério é o falso-verde que o detector de relatório não
     // alcança, porque o que não rodou não deixa rastro no relatório.
-    const completa = guardaListaDeJornadas(alvos, JORNADAS_DA_BAR, JORNADAS_DISPENSADAS)
+    const completa = guardaListaDeJornadas(alvos, GRUPOS_DA_BAR, JORNADAS_DISPENSADAS)
     process.stdout.write((completa.ok ? 'VERDE  ' : 'VERMELHO') + ' ' + completa.id + ': ' + completa.detalhe + (completa.endereco ? '  [' + completa.endereco + ']' : '') + '\n')
     if (!completa.ok) return 2
     const r = await rodarPasso(jornada(jornadaAvulsa, alvos.length + ' spec(s) pela linha de comando', alvos, extras))
@@ -2439,10 +2698,25 @@ async function principal() {
     return fase0Ruim.length === 0 ? 0 : 1
   }
 
-  const passos = so ? PLANO.filter((p) => p.id === so) : PLANO
+  // Os passos de PROVA (`prova: true`) ficam fora da volta comum de propósito:
+  // eles são o critério de conserto desta rodada e nascem vermelhos, então
+  // deixá-los na regressão trava toda peça atrás de um defeito que ela não
+  // causou. `--so=<id>` sempre alcança um deles; `--prova` roda o portão
+  // inteiro com eles dentro, que é a volta que declara vencedor.
+  const prova = argv.includes('--prova')
+  const passos = so ? PLANO.filter((p) => p.id === so) : PLANO.filter((p) => !p.prova || prova)
   if (so && passos.length === 0) {
     process.stderr.write('passo desconhecido: ' + so + '\n')
     return 2
+  }
+  const foraDaVolta = so || prova ? [] : PLANO.filter((p) => p.prova)
+  if (foraDaVolta.length > 0) {
+    // Em voz alta: o que não rodou não pode passar por verde silencioso.
+    process.stdout.write(
+      'FORA DESTA VOLTA (é regressão, não prova) — ' + foraDaVolta.length + ' passo(s) de PROVA: ' +
+        foraDaVolta.map((p) => p.id).join(', ') +
+        '\n  são o critério de conserto da rodada e nascem VERMELHOS; rode `--prova` (ou `--so=<id>`) na volta que declara vencedor.\n\n',
+    )
   }
 
   const resultados = []
