@@ -1,10 +1,10 @@
 {
   "_o_que_e": "Invariante 5 — quem escreve onde. O passo `particao` de scripts/portao.cjs pergunta ao git o que mudou na árvore e confere contra o que foi declarado. Duas peças escrevendo o mesmo arquivo na MESMA árvore se sobrescrevem SEM ERRO; este manifesto é o que torna isso visível.",
-  "_quem_mantem": "O ORQUESTRADOR do run, antes de disparar os builders. O portão não adivinha a partição: ele cobra que ela exista e bate a lista contra a realidade. Manifesto de OUTRA rodada não é neutro — ele reprova toda correção legítima da rodada atual, porque todo arquivo mudado sai 'sem dono declarado'. Foi o que aconteceu em 18/09/2026.",
+  "_quem_mantem": "O ORQUESTRADOR do run, antes de disparar os builders. O portão não adivinha a partição: ele cobra que ela exista e bate a lista contra a realidade. Manifesto de OUTRA rodada não é neutro — ele reprova toda correção legítima da rodada atual, porque todo arquivo mudado sai 'sem dono declarado'. Foi o que aconteceu em 18/09/2026. LICAO DE 18/09/2026, tarde: eu declarei UMA peca (teto) e depois soltei mais duas (travar, pino) em worktree. Ao reunir, o manifesto ficou velho de novo e o passo particao acusou as jornadas novas como escrita fora de area — correto, e por isso a correcao do manifesto so pode vir da peca portao, medida por base.origem, que ela nao move. Declare TODAS as pecas da rodada ANTES do primeiro builder, mesmo as que voce so pretende soltar depois.",
   "_dois_modos": "O passo lê o nome do ramo. Ramo `auto/<id>` = peça isolada: o git já garante que ninguém apaga o trabalho da irmã, e a única pergunta que sobra é se ESTA peça escreveu fora do que foi declarado para ela — por isso arquivo de origem compartilhado pode aparecer na lista de mais de uma peça sem virar disputa. Ramo de integração (`feat/...`, `main`) = árvore compartilhada: aí volta a valer dono único por arquivo mudado.",
   "_alvos": "ÁREA não é ALVO. As três peças de cliente declaram a MESMA área (`client/src/**`) porque nenhuma delas sabe de antemão todo arquivo que o conserto vai pedir — mas cada uma tem UM endereço que é a causa dela, citado na própria jornada. Sem `alvos`, `particao` aprovava a peça do menu reescrevendo o arquivo que a peça da camada existe para consertar: em ramos separados ninguém apaga ninguém na hora, e o merge do usuário resolve o conflito escolhendo um dos lados — o outro conserto some sem erro nenhum. Cada arquivo aqui é EXCLUSIVO da peça que o declara; escrever no alvo de outra é vermelho. Arquivo que duas peças podem legitimamente tocar (`client/src/pixi/PixiCanvas.tsx`, que as três jornadas apontam) fica FORA desta lista: continua permitido e sai nomeado no verde, para quem juntar as branches saber onde olhar.",
   "_padroes": "Cada entrada é um caminho exato ou um padrão: `*` dentro de um segmento, `**` atravessando pasta. Uma peça declara a ÁREA que é dela sem enumerar arquivo que ainda não escreveu. O que fica FORA de toda área é o que importa proteger: scripts/ (o juiz), client/e2e/ (as jornadas seladas) e desktop/ (o lado Rust).",
-  "_rodada": "18/09/2026, tarde — Entrega 1 do pedido do usuario: TETO DE CONSTRUCAO. O mestre escolhe, por Sala, se o jogador ve o interior; com o teto ligado o jogador ve a silhueta do predio e nada de dentro, e o teto abre sozinho quando o token dele entra e fecha quando sai. Uma peca de cliente (`teto`), na branch auto/teto. A jornada `e2e/task-jornada-teto-de-construcao.spec.ts` nasce VERMELHA e e o criterio; ninguem a edita, `jornadas-intactas` confere por hash.",
+  "_rodada": "18/09/2026, tarde — TRES entregas do pedido do usuario, construidas em paralelo e reunidas na branch auto/teto: (1) teto de construcao, (3) travar movimentacao de Sala/Regiao, (4) pino que se arrasta e cartao do jogador na direita. A entrega (2), acervo de tokens prontos, ficou de fora desta rodada. As pecas 3 e 4 nasceram em worktree isolado e vieram por squash; por isso o passo `particao` ve tudo sob a peca da branch.",
   "_base": "A base do run: o ponto de onde TODA peça saiu. Sem ela, `particao` e `rust-intocado` só enxergariam a árvore suja — e como a Invariante 6 manda cada peça COMMITAR na própria branch auto/<id>, a peça que termina o trabalho fica com a árvore limpa e as duas Invariantes passam a medir ZERO arquivo e sair verdes. Medido em 18/09/2026: a mesma invasão (scripts/ e desktop/src-tauri/) era VERMELHA suja e VERDE depois do commit. Com a base declarada, o portão mede `git merge-base HEAD <ramo>` até HEAD MAIS a árvore suja. Manifesto sem `base` é VERMELHO, não verde.",
   "_base_18set_corrigida": "A base APONTAVA para auto/base-noite (6500be7) enquanto as pecas desta rodada foram cortadas de auto/portao (32a74cd), um commit DEPOIS. Medido em 18/09/2026 rodando a propria funcao guardaParticao contra `git diff --name-only auto/base-noite HEAD`: as tres pecas de cliente saiam VERMELHAS por escrever em scripts/portao.cjs e scripts/portao-particao.json ANTES de escreverem uma linha — a conta do commit do PORTAO caindo em cima de quem nao o escreveu, e vermelho que builder nenhum consegue consertar. A base agora e auto/base-pecas, ponteiro CONGELADO em 32a74cd: o commit de onde as pecas sairam, e o primeiro que ja traz o portao consertado (a5c4960 + 32a74cd). Quem cortar peca nova a partir daqui corta de um commit que contem este juiz. E `guardaBaseDoRun` passou a conferir a ancestralidade: base que nao e ancestral do HEAD sai como DIAGNOSTICO com endereco, nao como acusacao de invasao.",
   "_base_desta_rodada": "auto/base-teto e o ponteiro CONGELADO no commit de onde a peca desta rodada sai (676fb58: portao endurecido, jornada vermelha commitada e selada, trabalho herdado da noite fechado). Nao pode ser o ramo em que o HEAD trabalha: com o HEAD tambem nele, merge-base(HEAD, <ref>) resolve para o proprio HEAD, o diff sai vazio por construcao e tudo escapa das Invariantes 5 e 9 — o portao ja reprovou exatamente isso em 18/09/2026. Por isso a peca vive em auto/teto e a base e uma branch separada que nunca se move.",
@@ -19,7 +19,9 @@
       "scripts/**"
     ],
     "teto": [
-      "client/src/**"
+      "client/src/**",
+      "client/e2e/task-jornada-item-travado.spec.ts",
+      "client/e2e/task-jornada-pino-move-e-cartao-direita.spec.ts"
     ]
   },
   "_alvos_desta_rodada": "Com UMA peca de cliente nesta rodada, `alvos` protege pouco na pratica — entra mesmo assim porque o alvo e o endereco da causa e documenta onde o conserto mora. `client/src/lib/fogFilter.ts` (o que o jogador RECEBE) e `client/src/components/RoomControls.tsx` (o interruptor que a jornada cobra pelo rotulo literal) sao da peca `teto`. `client/src/pixi/PixiCanvas.tsx`, `client/src/types/map.ts` e `client/src/main.css` ficam FORA: sao arquivos que qualquer peca pode ter motivo honesto de tocar, e inventar exclusividade neles reprovaria conserto legitimo.",
@@ -29,7 +31,9 @@
     ],
     "teto": [
       "client/src/lib/fogFilter.ts",
-      "client/src/components/RoomControls.tsx"
+      "client/src/components/RoomControls.tsx",
+      "client/src/player/player.css",
+      "client/src/components/PinControls.tsx"
     ]
   },
   "apelidos": {
@@ -39,9 +43,12 @@
     ],
     "teto": [
       "teto-de-construcao",
-      "teto-da-construcao",
       "roof",
-      "telhado"
+      "telhado",
+      "travar",
+      "item-travado",
+      "pino",
+      "pino-move"
     ]
   },
   "_selo_r5": "scripts/portao-selo.json entrou em `pecas`.`portao` e em `alvos`.`portao` — EXCLUSIVO da peca do portao, proibido para as tres pecas de cliente. O selo desta rodada foi tirado ANTES de a guarda g20 existir e por isso nao trazia `base_do_run`: a ancora que impede o reu de escolher o proprio juiz estava INATIVA, e a ausencia dela saia como nota no verde em vez de vermelho. Recarimbar foi verificado antes, nao depois: `--so=jornadas-intactas` estava VERDE com as 23 jornadas, e as 23 hashes do selo novo batem com o DISCO e com o commit-base (auto/base-r5) ao mesmo tempo — nenhuma jornada mudou, o selo so trocou o fallback 'hash do commit base' por hash explicito e ganhou o carimbo. `base_do_run` foi carimbado com auto/base-noite = 6500be7, o mesmo valor que o manifesto da arvore e o manifesto commitado dentro do proprio commit-base ja declaravam. RISCO ACEITO E ANOTADO PARA A MANHA: com o selo declarado como alvo, uma peca de portao futura pode recarimba-lo. O que segura agora e g20 ficar VERMELHO quando NAO ha ancora nenhuma, mais a clausula de ancestralidade contra o manifesto commitado na propria base. Se a manha quiser fechar de vez, o selo sai desta lista e passa a ser tirado so pelo orquestrador.",
