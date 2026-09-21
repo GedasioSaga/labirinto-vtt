@@ -6,6 +6,28 @@ import { portaDoProjeto } from './porta.js'
 const PORTA = portaDoProjeto()
 const URL_BASE = `http://localhost:${PORTA}`
 
+// Onde a prova de uma corrida SEM o portão é escrita.
+//
+// 20/09/2026: o conserto de `outputDir` só valia para quem rodava pelo portão.
+// Quem roda o comando declarado de uma jornada na mão (`npx playwright test
+// e2e/task-jornada-x.spec.ts`, que é como as jornadas desta noite foram
+// declaradas) cai no `else` — e ali estava `./test-results`, DENTRO do
+// repositório, apagado inteiro no começo da invocação seguinte. Duas jornadas
+// rodadas em sequência: a prova da primeira some ao começar a segunda, que é
+// exatamente o bug que o portão diz ter consertado.
+//
+// Uma pasta por invocação, sempre em %TEMP%, com o mesmo formato `<id>-<ms>`
+// que `limparArtefatosAntigos` (scripts/portao.cjs) sabe podar — a evidência
+// não se acumula para sempre, e nada do repositório nem do usuário é tocado.
+//
+// A pasta sai do AMBIENTE e não de `node:os`: `client/tsconfig.e2e.json` não
+// carrega os tipos do Node (medido — `error TS2307: Cannot find module
+// 'node:os'`), e o passo `tipos-e2e` do portão é justamente quem confere este
+// arquivo. `process.env` já era usado aqui embaixo e continua sendo a única
+// coisa que este config lê do sistema.
+const TEMP = process.env.TEMP || process.env.TMP || process.env.TMPDIR || '/tmp'
+const ARTEFATOS_AVULSOS = `${TEMP.replace(/[\\/]+$/, '')}/portao-labirinto/artefatos/avulso-${Date.now()}`
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
@@ -17,7 +39,10 @@ export default defineConfig({
   // seguinte. Com `PORTAO_ARTEFATOS` cada passo escreve numa pasta própria
   // (scripts/portao.cjs passa `<temp>/portao-labirinto/artefatos/<passo>-<ms>`),
   // sempre em pasta temporária — nada do repositório nem do usuário é tocado.
-  outputDir: process.env.PORTAO_ARTEFATOS || './test-results',
+  // Sem o portão, cai em `ARTEFATOS_AVULSOS` (uma pasta por invocação, também
+  // em %TEMP%): `./test-results` era compartilhado por TODA invocação e por
+  // isso destruía a prova da corrida anterior — ver o comentário lá em cima.
+  outputDir: process.env.PORTAO_ARTEFATOS || ARTEFATOS_AVULSOS,
   // Todos os workers batem no MESMO vite dev (módulos sem bundle) e cada um
   // sobe um Pixi/WebGL. No padrão (metade dos núcleos, 10 aqui) a máquina
   // satura e testes aleatórios estouram os 30s em goto/beforeEach — medido

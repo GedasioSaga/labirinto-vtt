@@ -72,6 +72,7 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const http = require('http')
+const net = require('net')
 const crypto = require('crypto')
 const { spawnSync } = require('child_process')
 const { pathToFileURL } = require('url')
@@ -187,6 +188,11 @@ const JORNADAS_E2E = [
   'e2e/task-jornada-nao-perder-trabalho.spec.ts',
   'e2e/task-jornada-gestos-centrais.spec.ts',
   'e2e/task-jornada-porta-sem-buraco.spec.ts',
+  // A jornada DESTA peça (20/09/2026): rodar teste não escreve dentro do
+  // repositório nem apaga a prova da corrida anterior. Nasce VERDE — é o
+  // contrato do conserto de `outputDir` em client/playwright.config.ts —, então
+  // o lugar dela é aqui, no passo que roda em toda volta, e não no critério.
+  'e2e/task-jornada-portao-nao-apaga-prova.spec.ts',
 ]
 /**
  * A jornada de FLUIDEZ roda sozinha, com `--workers=1`. Não é preferência: medir
@@ -252,6 +258,42 @@ const JORNADAS_DO_CRITERIO = [
   // os jogadores". O acervo é GLOBAL do app: sobrevive ao outro mapa e ao
   // reinício, e é isso que a jornada mede (disco falso que atravessa o reload).
   'e2e/task-jornada-acervo-de-tokens.spec.ts',
+  // -------------------------------------------------------------------------
+  // 20/09/2026, noite — as jornadas DESTA rodada.
+  //
+  // Elas já estavam COMMITADAS no repositório (4b9a9de e 41c3a7a) e fora desta
+  // lista, e uma omissão só produziu três falso-verdes ao mesmo tempo:
+  //   - `--so=jornadas-do-criterio` saía exit 0 julgando o critério de 18/09,
+  //     com as oito desta noite vermelhas e fora de qualquer linha de comando;
+  //   - o SELO não as cobria (`JORNADAS_SELADAS` deriva desta lista), então um
+  //     builder podia afrouxar a própria régua sem o portão piscar;
+  //   - a FASE 0 imprimia PORTÃO ÍNTEGRO sem ter auditado nenhuma delas
+  //     (`TODAS_JORNADAS_E2E` também deriva daqui).
+  // Estes oito nomes são o conserto de hoje; `guardaJornadaNovaSemComando`
+  // (g27) é o que impede a omissão de voltar a passar em silêncio.
+  //
+  // Os cinco pedidos da noite:
+  'e2e/task-jornada-caminho-com-cor-propria.spec.ts',
+  'e2e/task-jornada-etiqueta-pilula.spec.ts',
+  'e2e/task-jornada-linha-pontilhada.spec.ts',
+  'e2e/task-jornada-marcador-com-icone.spec.ts',
+  'e2e/task-jornada-saida-sem-parede.spec.ts',
+  // As três do acervo, escritas depois do passeio de usuário: trocar a foto do
+  // token não troca o que aparece na tela, o aviso de escolher imagem some
+  // sozinho aos 7 segundos, e apagar item com o arquivo travado engole a falha
+  // num catch mudo (o app diz que apagou e a foto fica no disco).
+  'e2e/task-jornada-acervo-foto-certa.spec.ts',
+  'e2e/task-jornada-apagar-limpa-disco.spec.ts',
+  'e2e/task-jornada-salvar-sem-foto-avisa.spec.ts',
+  // AS DUAS QUE A g27 ACHOU SOZINHA, e que nenhum humano tinha notado: elas
+  // entraram na tarde de 18/09 declaradas no manifesto (`pecas`.`teto`), foram
+  // commitadas, e passo NENHUM do portão jamais as rodou — duas rodadas
+  // inteiras de gauntlet passaram por cima delas. Ficam aqui, no grupo do
+  // critério, porque ninguém mediu se estão verdes: grupo de regressão é
+  // promessa de verde em toda volta, e promessa sem medida é o falso-verde que
+  // este arquivo existe para não fazer.
+  'e2e/task-jornada-item-travado.spec.ts',
+  'e2e/task-jornada-pino-move-e-cartao-direita.spec.ts',
 ]
 /**
  * A bar inteira, na ordem de sempre: é esta lista que o SELO carimba e que a
@@ -441,6 +483,90 @@ function arquivosDeUnidadeNaBase(base) {
     .filter((s) => /\.test\.tsx?$/.test(s))
     .map((s) => s.replace(/^client\//, ''))
     .sort()
+}
+
+/**
+ * As jornadas que NASCERAM nesta rodada — descobertas no git, não digitadas.
+ *
+ * POR QUE EXISTE (20/09/2026). As oito jornadas desta noite entraram
+ * commitadas no repositório e ficaram fora de `JORNADAS_DO_CRITERIO`. Nenhuma
+ * guarda notou: `g8-jornadas-existem` só confere as que a lista DECLARA, e o
+ * detector de falso-verde julga o relatório do que rodou — o que nunca entrou
+ * em linha de comando nenhuma não deixa rastro em relatório nenhum. Resultado:
+ * `--so=jornadas-do-criterio` exit 0 julgando a rodada anterior, selo sem
+ * hash delas, e FASE 0 imprimindo PORTÃO ÍNTEGRO sem tê-las lido.
+ *
+ * A pergunta certa não é "as listas estão completas?" — quem responde a essa é
+ * quem escreveu a lista. É "o repositório ganhou jornada que comando nenhum
+ * alcança?", e essa o git responde sozinho, toda rodada, sem ninguém lembrar.
+ *
+ * O recorte é NOVIDADE, não o repositório inteiro, de propósito: `client/e2e`
+ * tem 45 specs de jornada e o PLANO alcança pouco mais de vinte. Cobrar
+ * comando das 20 antigas seria vermelho herdado, que peça nenhuma desta rodada
+ * consegue consertar — o mesmo motivo já escrito em `JORNADAS_REGRESSAO_MENUS`.
+ * Jornada escrita DEPOIS da base do run é outra história: ela é o critério
+ * desta rodada, e critério sem comando é critério que ninguém cobra.
+ */
+function jornadasNovasDesdeABase(base) {
+  if (!base) return null
+  const acrescentadas = git(['diff', '--name-only', '--diff-filter=A', base, 'HEAD', '--', 'client/e2e'])
+  const naArvore = git(['ls-files', '--others', '--exclude-standard', 'client/e2e'])
+  if (acrescentadas === null && naArvore === null) return null
+  const vistas = new Set()
+  return String((acrescentadas || '') + '\n' + (naArvore || ''))
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => /^client\/e2e\/.+\.spec\.ts$/.test(s))
+    .map((s) => s.replace(/^client\//, ''))
+    .filter((s) => (vistas.has(s) ? false : (vistas.add(s), true)))
+    .sort()
+}
+
+/**
+ * Os specs que o PLANO realmente alcança — lidos das LINHAS DE COMANDO, não das
+ * listas que as montam. É a diferença entre "está declarado numa constante" e
+ * "entra num `npx playwright test`": a constante pode existir e nenhum passo
+ * usá-la, e foi por aí que `JORNADAS_DO_CRITERIO` passou a julgar a rodada
+ * errada sem nada ficar vermelho.
+ */
+function specsDoPlano(plano) {
+  const alcancados = new Set()
+  for (const passo of plano || []) {
+    for (const arg of passo.args || []) {
+      const texto = String(arg)
+      if (/\.spec\.ts$/.test(texto)) alcancados.add(texto)
+    }
+  }
+  return alcancados
+}
+
+/** Jornada nascida nesta rodada que nenhum passo do PLANO roda é critério sem cobrança. */
+function guardaJornadaNovaSemComando(novas, alcancados, medida) {
+  const m = medida || {}
+  if (novas === null) {
+    return reprova(
+      'g27-jornada-nova-sem-comando',
+      'não deu para descobrir as jornadas desta rodada: ' + (m.erro || 'git não respondeu ao diff contra a base do run') +
+        '. Sem essa lista, jornada nova fica sem cobrança e o portão não sabe.',
+      'scripts/portao-particao.json ("base") + scripts/portao.cjs (jornadasNovasDesdeABase)',
+    )
+  }
+  const orfas = novas.filter((arquivo) => !alcancados.has(arquivo))
+  if (orfas.length > 0) {
+    return reprova(
+      'g27-jornada-nova-sem-comando',
+      orfas.length + ' jornada(s) escrita(s) nesta rodada que passo NENHUM do portão roda: ' + orfas.join(', ') +
+        '. Enquanto elas estiverem fora, `--so=jornadas-do-criterio` sai verde julgando a rodada anterior, o selo não as cobre e a FASE 0 não as lê.' +
+        ' Acrescente cada uma a `JORNADAS_DO_CRITERIO` (ou ao grupo de regressão, se já nasceu verde).',
+      'scripts/portao.cjs (JORNADAS_DO_CRITERIO) + client/e2e',
+    )
+  }
+  return ok(
+    'g27-jornada-nova-sem-comando',
+    novas.length === 0
+      ? 'nenhuma jornada nova desde a base do run (' + (m.ref || '?') + ')'
+      : novas.length + ' jornada(s) nova(s) desde ' + (m.ref || '?') + ', todas alcançadas por algum passo do PLANO',
+  )
 }
 
 /**
@@ -1721,7 +1847,23 @@ function jornada(id, titulo, arquivos, extras) {
       .concat(arquivos),
     cwd: CLIENTE,
     artefatos: true,
-    ruina: [/\b\d+ skipped\b/, /\b\d+ flaky\b/, /\bdid not run\b/, /\b\d+ failed\b/],
+    ruina: [
+      /\b\d+ skipped\b/,
+      /\b\d+ flaky\b/,
+      /\bdid not run\b/,
+      /\b\d+ failed\b/,
+      // COLISÃO DE PORTA, nomeada. Com `reuseExistingServer` desligado (é o
+      // padrão desta árvore, e por bons motivos — ver playwright.config.ts), o
+      // Playwright RECUSA a rodar quando alguém já atende naquele endereço:
+      // "http://localhost:1420 is already used". Ele aborta ANTES do primeiro
+      // teste, e um aborto não imprime `failed` nem `passed` — o relatório sai
+      // sem número nenhum. Aqui isso ficava só por conta do `exige`, e quem
+      // lia o portão via "faltou /passed/" em vez de "a porta estava ocupada".
+      // Pior fora do portão: o filtro do rtk resume o mesmo aborto como
+      // "PASS (0) FAIL (0)", que é verde para quem passa o olho.
+      /is already used/i,
+      /Port \d+ is already in use/i,
+    ],
     // Prova positiva: relatório sem nenhuma linha "N passed" é relatório de
     // suíte que não rodou — e exit 0 nesse caso é o falso-verde mais barato.
     exige: [/\b[1-9]\d* passed\b/],
@@ -1855,7 +1997,8 @@ const PLANO = [
   Object.assign(
     jornada(
       'jornadas-do-criterio',
-      'PROVA: as três jornadas do critério de 18/09/2026 (cadeado de camada, encerramento do polígono, menu que cabe na janela)',
+      'PROVA: as ' + JORNADAS_DO_CRITERIO.filter((j) => !JORNADAS_DISPENSADAS[j]).length +
+        ' jornadas de critério AINDA EM ABERTO — as de 18/09 e as de 20/09 (caminho com cor, etiqueta, linha pontilhada, marcador, saída sem parede e as três do acervo)',
       JORNADAS_DO_CRITERIO.filter((j) => !JORNADAS_DISPENSADAS[j]),
     ),
     { prova: true },
@@ -2112,11 +2255,35 @@ function hashesDaBaseDasJornadas(arquivos) {
   const medida = baseDoRun()
   if (medida.erro || !medida.base) return { hashes: {}, base: null, erro: medida.erro || 'base do run não resolveu' }
   const hashes = {}
+  const porNascimento = []
   for (const arquivo of arquivos) {
     const texto = git(['show', medida.base + ':client/' + arquivo])
-    if (texto !== null) hashes[arquivo] = sha256(texto)
+    if (texto !== null) {
+      hashes[arquivo] = sha256(texto)
+      continue
+    }
+    // TERCEIRO JUIZ: o COMMIT EM QUE A JORNADA NASCEU.
+    //
+    // Jornada escrita DEPOIS da base do run não existe naquele commit, e o selo
+    // desta rodada foi tirado antes de ela entrar na lista da bar: sem isto, as
+    // oito jornadas desta noite caíam em "sem selo E sem base — nenhum juiz" e a
+    // única saída era recarimbar o selo. Recarimbar DEPOIS dos builders é
+    // exatamente o que a Invariante 6 existe para impedir: carimba a régua já
+    // afrouxada.
+    //
+    // O conteúdo com que a jornada entrou no repositório é tão imutável quanto o
+    // da base — está num commit, e commit não se reescreve sem force. Afrouxar
+    // um `expect` depois do nascimento muda o hash e fica VERMELHO do mesmo
+    // jeito. Quem não tem nem nascimento (arquivo nunca commitado) continua sem
+    // juiz, e continua vermelho.
+    const nascimento = String(git(['log', '--format=%H', '--diff-filter=A', '-1', 'HEAD', '--', 'client/' + arquivo]) || '').trim()
+    if (nascimento === '') continue
+    const comoNasceu = git(['show', nascimento + ':client/' + arquivo])
+    if (comoNasceu === null) continue
+    hashes[arquivo] = sha256(comoNasceu)
+    porNascimento.push(arquivo + ' (nasceu em ' + nascimento.slice(0, 8) + ')')
   }
-  return { hashes, base: medida.base, ref: medida.ref, erro: null }
+  return { hashes, base: medida.base, ref: medida.ref, porNascimento, erro: null }
 }
 
 /** Invariante 6 — as jornadas são fixas; o selo (ou a base do run) guarda o hash delas. */
@@ -2139,7 +2306,12 @@ function sondarJornadasIntactas() {
       codigo: r.ok ? 0 : 1,
       saida:
         r.detalhe + '\nselo de ' + (selo.selado_em || '?') +
-        '\nbase do run para as jornadas fora do selo: ' + (daBase.base ? daBase.ref + ' = ' + daBase.base.slice(0, 8) : 'NÃO RESOLVEU (' + daBase.erro + ')'),
+        '\nbase do run para as jornadas fora do selo: ' + (daBase.base ? daBase.ref + ' = ' + daBase.base.slice(0, 8) : 'NÃO RESOLVEU (' + daBase.erro + ')') +
+        // Qual jornada está sendo julgada pelo commit em que NASCEU sai
+        // nomeada: juiz mais fraco que o selo não pode ficar implícito.
+        ((daBase.porNascimento || []).length > 0
+          ? '\njulgadas pelo commit de nascimento (nasceram depois da base, fora do selo): ' + daBase.porNascimento.join(', ')
+          : ''),
     }
   })
 }
@@ -2393,6 +2565,59 @@ function sondarServidorLimpo() {
   })
 }
 
+/** Alguém está escutando nesta porta, em qualquer das duas pilhas? */
+function portaOcupada(porta) {
+  const sonda = (host) =>
+    new Promise((resolve) => {
+      const tomada = net.connect({ host, port: porta })
+      let respondido = false
+      const fim = (ocupada) => {
+        if (respondido) return
+        respondido = true
+        tomada.destroy()
+        resolve(ocupada)
+      }
+      tomada.setTimeout(1000)
+      tomada.on('connect', () => fim(true))
+      tomada.on('error', () => fim(false))
+      tomada.on('timeout', () => fim(false))
+    })
+  // IPv4 E IPv6: um vite órfão preso só em `::1` não aparece em 127.0.0.1, e foi
+  // exatamente esse que fez o Playwright abortar com "Port 1420 is already in
+  // use" e ZERO teste em 17/09/2026.
+  return Promise.all([sonda('127.0.0.1'), sonda('::1')]).then((r) => r[0] || r[1])
+}
+
+/**
+ * Espera a porta das jornadas ser LIBERADA antes do próximo passo de jornada.
+ *
+ * POR QUE EXISTE (20/09/2026). Cada passo de jornada é uma invocação própria do
+ * Playwright, e com `reuseExistingServer` desligado cada uma sobe o seu vite.
+ * O servidor do passo anterior não solta a porta no mesmo instante em que o
+ * processo morre: o seguinte chega, encontra alguém atendendo, e o Playwright
+ * ABORTA — sem rodar um teste sequer. O portão pegava isso pelo `exige` (é
+ * vermelho, nunca foi verde), mas era vermelho de RELÓGIO, não do app: a peça
+ * que estivesse na vez levava a culpa de uma corrida entre dois passos.
+ *
+ * Esperar alguns segundos é mais barato que uma rodada inteira perdida. O que
+ * NÃO se faz aqui é matar processo: se o servidor for de outra pessoa (um
+ * `npm run dev` aberto, ou a árvore vizinha disputando `LAB_PORTA`), o portão
+ * diz o que viu e deixa o Playwright falhar com a mensagem dele. Com
+ * `LAB_REUSA_SERVIDOR=1` a espera não faz sentido — ali o servidor no ar é o
+ * que se QUER reaproveitar — e por isso ela nem começa.
+ */
+const ESPERA_DE_PORTA_MS = 20000
+async function esperarPortaLivre(porta, limiteMs) {
+  if (process.env.LAB_REUSA_SERVIDOR === '1') return { esperou: 0, ocupada: false, dispensada: true }
+  const t0 = Date.now()
+  let ocupada = await portaOcupada(porta)
+  while (ocupada && Date.now() - t0 < limiteMs) {
+    await new Promise((r) => setTimeout(r, 500))
+    ocupada = await portaOcupada(porta)
+  }
+  return { esperou: Date.now() - t0, ocupada, dispensada: false }
+}
+
 async function rodarPasso(passo) {
   const t0 = Date.now()
   let codigo
@@ -2406,7 +2631,21 @@ async function rodarPasso(passo) {
     // começar, então sem isto cada jornada apagaria o screenshot e o trace da
     // anterior. Sempre em %TEMP% (Invariante 7: nada fora de pasta temporária).
     const ambiente = Object.assign({}, process.env)
-    if (passo.artefatos) ambiente.PORTAO_ARTEFATOS = path.join(ARTEFATOS, passo.id + '-' + t0)
+    let aviso = ''
+    if (passo.artefatos) {
+      ambiente.PORTAO_ARTEFATOS = path.join(ARTEFATOS, passo.id + '-' + t0)
+      // A porta do passo ANTERIOR ainda está sendo devolvida? Ver `esperarPortaLivre`.
+      const porta = await esperarPortaLivre(PORTA_DAS_JORNADAS, ESPERA_DE_PORTA_MS)
+      if (porta.ocupada) {
+        aviso =
+          'ATENÇÃO — a porta ' + PORTA_DAS_JORNADAS + ' continuou ocupada depois de ' + porta.esperou + ' ms de espera. ' +
+          'Com `reuseExistingServer` desligado, o Playwright vai RECUSAR a rodar ("is already used") e nenhum teste sairá. ' +
+          'Isso é servidor de outra pessoa ou de outra árvore: feche o `npm run dev` aberto, ou tire LAB_PORTA e deixe ' +
+          'client/porta.js dar uma porta por árvore.\n'
+      } else if (porta.esperou >= 500) {
+        aviso = 'nota: esperei ' + porta.esperou + ' ms a porta ' + PORTA_DAS_JORNADAS + ' ser liberada pelo passo anterior.\n'
+      }
+    }
     const r = spawnSync(passo.exe, passo.args, {
       cwd: passo.cwd,
       encoding: 'utf8',
@@ -2415,7 +2654,7 @@ async function rodarPasso(passo) {
       maxBuffer: 64 * 1024 * 1024,
     })
     codigo = r.status === null ? 1 : r.status
-    saida = String(r.stdout || '') + String(r.stderr || '')
+    saida = aviso + String(r.stdout || '') + String(r.stderr || '')
     if (r.error) saida += '\n' + r.error.message
   }
   const veredito = julgarSaida(passo, codigo, saida)
@@ -2508,6 +2747,11 @@ function rodarFase0() {
   // g21/g22 leem todos os arquivos; g23 só os que mudaram desde a base do run,
   // que é o único conjunto para o qual vale (e custa) buscar a versão antiga.
   const medidaParaUnidade = baseDoRun()
+  // O repositório ganhou jornada que comando nenhum alcança? A pergunta é feita
+  // ao git, não às listas deste arquivo — ver `jornadasNovasDesdeABase`.
+  resultados.push(
+    guardaJornadaNovaSemComando(jornadasNovasDesdeABase(medidaParaUnidade.base), specsDoPlano(PLANO), medidaParaUnidade),
+  )
   const listaUnidade = arquivosDeUnidade()
   if (listaUnidade === null) {
     resultados.push(
@@ -3179,6 +3423,34 @@ function rodarAutoteste() {
       MARCA_DA_ARVORE !== ''
         ? ok('g26-marca-real', 'marca `' + MARCA_DA_ARVORE + '` lida de client/porta.js')
         : reprova('g26-marca-real', 'client/porta.js não traz a marca que reconhece esta árvore', 'client/porta.js'),
+      true,
+    ],
+    // g27 — jornada nascida nesta rodada que passo NENHUM roda. É a guarda que
+    // teria pegado o falso-verde de 20/09/2026: oito jornadas commitadas, fora
+    // de `JORNADAS_DO_CRITERIO`, e três comandos saindo verdes por cima delas.
+    // O último caso é o que impede a guarda de virar decoração: ela julga as
+    // LINHAS DE COMANDO do PLANO real, não uma lista digitada ao lado.
+    [
+      'g27 reprova jornada nova que passo nenhum do PLANO roda',
+      guardaJornadaNovaSemComando(['e2e/task-jornada-nova.spec.ts'], new Set(['e2e/task-jornada-velha.spec.ts']), { ref: 'auto/base-x' }),
+      false,
+    ],
+    [
+      'g27 reprova quando a lista de jornadas novas não pôde ser descoberta (sem base, sem juiz)',
+      guardaJornadaNovaSemComando(null, new Set(), { erro: 'base do run não resolveu' }),
+      false,
+    ],
+    [
+      'g27 aprova jornada nova que algum passo roda',
+      guardaJornadaNovaSemComando(['e2e/task-jornada-nova.spec.ts'], new Set(['e2e/task-jornada-nova.spec.ts']), { ref: 'auto/base-x' }),
+      true,
+    ],
+    [
+      'g27 aprova a árvore de agora contra o PLANO real (as jornadas desta rodada têm comando)',
+      (() => {
+        const medida = baseDoRun()
+        return guardaJornadaNovaSemComando(jornadasNovasDesdeABase(medida.base), specsDoPlano(PLANO), medida)
+      })(),
       true,
     ],
     [
