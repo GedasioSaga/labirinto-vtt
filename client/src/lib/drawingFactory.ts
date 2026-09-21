@@ -1,4 +1,4 @@
-import type { Wall, Light, Region, RegionPoint, Drawing, DrawingCap, FreehandTexture } from '../types/map'
+import type { Wall, Light, Region, RegionPoint, Drawing, DrawingCap, DrawingDash, FreehandTexture } from '../types/map'
 import type { Point } from '../pixi/world'
 import { simplifyToControlPoints } from './curveMath'
 
@@ -328,8 +328,24 @@ export function isValidLineDraft(start: Point, end: Point): boolean {
   return start.x !== end.x || start.y !== end.y
 }
 
-export function buildLineDrawing(id: string, start: Point, end: Point, color: string, width: number, cap?: DrawingCap): Drawing {
-  return { id, kind: 'line', x1: start.x, y1: start.y, x2: end.x, y2: end.y, color, width, ...(cap !== undefined ? { cap } : {}) }
+// dash: mesma convenção opcional de `cap` acima — omitido ou 'solid', a chave
+// NÃO entra no objeto, que sai idêntico ao de antes desta mudança (é o que
+// mantém `buildLineDrawing(id, a, b, cor, 3)` com o mesmo resultado de sempre
+// e o mapa salvo antes desta feature abrindo igual). `undefined` === 'solid',
+// regra de `readDash` (lib/dashPattern.ts) e de `types/map.ts` (DrawingDash).
+export function buildLineDrawing(id: string, start: Point, end: Point, color: string, width: number, cap?: DrawingCap, dash?: DrawingDash): Drawing {
+  return {
+    id,
+    kind: 'line',
+    x1: start.x,
+    y1: start.y,
+    x2: end.x,
+    y2: end.y,
+    color,
+    width,
+    ...(cap !== undefined ? { cap } : {}),
+    ...(dash !== undefined && dash !== 'solid' ? { dash } : {}),
+  }
 }
 
 export function isValidCircleDraft(radius: number): boolean {
@@ -386,8 +402,16 @@ export function isValidCurveDraft(points: Point[]): boolean {
   return points.length >= 2
 }
 
-export function buildCurveDrawing(id: string, rawPoints: Point[], color: string, width: number, cap?: DrawingCap): Drawing {
-  return { id, kind: 'curve', points: simplifyToControlPoints(rawPoints), color, width, ...(cap !== undefined ? { cap } : {}) }
+export function buildCurveDrawing(id: string, rawPoints: Point[], color: string, width: number, cap?: DrawingCap, dash?: DrawingDash): Drawing {
+  return {
+    id,
+    kind: 'curve',
+    points: simplifyToControlPoints(rawPoints),
+    color,
+    width,
+    ...(cap !== undefined ? { cap } : {}),
+    ...(dash !== undefined && dash !== 'solid' ? { dash } : {}),
+  }
 }
 
 // Leitura B do pedido do usuário ("dobrar essa linha") — caminho mais barato
@@ -404,7 +428,17 @@ export function buildCurveDrawing(id: string, rawPoints: Point[], color: string,
 export function convertLineToCurve(drawing: Drawing): Drawing {
   if (drawing.kind !== 'line') return drawing
   const points: Point[] = [{ x: drawing.x1, y: drawing.y1 }, { x: drawing.x2, y: drawing.y2 }]
-  return { id: drawing.id, kind: 'curve', points, color: drawing.color, width: drawing.width, ...(drawing.cap !== undefined ? { cap: drawing.cap } : {}) }
+  return {
+    id: drawing.id,
+    kind: 'curve',
+    points,
+    color: drawing.color,
+    width: drawing.width,
+    ...(drawing.cap !== undefined ? { cap: drawing.cap } : {}),
+    // Dobrar a linha não pode trocar o estilo do traço: uma passagem secreta
+    // continua pontilhada depois de virar curva.
+    ...(drawing.dash !== undefined ? { dash: drawing.dash } : {}),
+  }
 }
 
 // Sentido inverso de convertLineToCurve (Fase 4, Agente B — CONTRATO item 2:
@@ -432,6 +466,7 @@ export function convertCurveToLine(drawing: Drawing): Drawing {
     color: drawing.color,
     width: drawing.width,
     ...(drawing.cap !== undefined ? { cap: drawing.cap } : {}),
+    ...(drawing.dash !== undefined ? { dash: drawing.dash } : {}),
   }
 }
 

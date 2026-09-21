@@ -1,9 +1,27 @@
 import { Color, type Graphics } from 'pixi.js'
 import type { Point } from './world'
-import type { DrawingCap } from '../types/map'
+import type { DrawingCap, DrawingDash } from '../types/map'
 import { SELECTION_COLOR } from './constants'
 import { computeStairSteps } from '../lib/stairs'
 import { computeMarkerStroke, computePencilSegments, type BrushTexture } from '../lib/brushTexture'
+import { computeDashSegments, dashGeometry } from '../lib/dashPattern'
+
+/** A ponta que os drafts de linha e curva usam — ver `drawLineDraft` abaixo:
+ *  o preview sempre foi `round` e continua sendo, então o padrão do traço
+ *  interrompido tem de ser calculado com essa mesma ponta, senão o preview
+ *  mostraria um vão que o desenho final não tem. */
+const PONTA_DO_DRAFT: DrawingCap = 'round'
+
+/** Abre os pedacinhos do traço interrompido sem fechar o `stroke()` — quem
+ *  chama decide cor/espessura/alpha uma vez só (mesma regra de `pixi/grid.ts`). */
+function traceDashedPolyline(graphics: Graphics, points: Point[], width: number, dash: DrawingDash): boolean {
+  const geometria = dashGeometry(dash, width, PONTA_DO_DRAFT)
+  if (!geometria) return false
+  for (const { from, to } of computeDashSegments(points, geometria)) {
+    graphics.moveTo(from.x, from.y).lineTo(to.x, to.y)
+  }
+  return true
+}
 
 export function drawWallDraft(graphics: Graphics, start: Point, end: Point): void {
   graphics.clear()
@@ -82,18 +100,29 @@ export function drawFreehandDraft(graphics: Graphics, points: Point[], color: st
   graphics.stroke({ width, color: numericColor, alpha: 0.8, cap, join: 'round' })
 }
 
-export function drawCurveDraft(graphics: Graphics, points: Point[], color: string, width: number, cap: DrawingCap = 'round'): void {
+// dash: preferência de ferramenta ("estilo do traço", `Drawing.dash`).
+// Opcional com default 'solid' — o traço inteiriço de sempre — pra não exigir
+// nada dos call sites que ainda não passam o parâmetro.
+export function drawCurveDraft(graphics: Graphics, points: Point[], color: string, width: number, cap: DrawingCap = 'round', dash: DrawingDash = 'solid'): void {
   graphics.clear()
   if (points.length < 2) return
-  const [first, ...rest] = points
-  graphics.moveTo(first.x, first.y)
-  for (const point of rest) graphics.lineTo(point.x, point.y)
+  // O draft da curva já desenhava polilinha (não Bézier): o traço
+  // interrompido usa a MESMA polilinha, então preview e preview continuam
+  // batendo entre si.
+  if (!traceDashedPolyline(graphics, points, width, dash)) {
+    const [first, ...rest] = points
+    graphics.moveTo(first.x, first.y)
+    for (const point of rest) graphics.lineTo(point.x, point.y)
+  }
   graphics.stroke({ width, color: new Color(color).toNumber(), alpha: 0.8, cap, join: 'round' })
 }
 
-export function drawLineDraft(graphics: Graphics, start: Point, end: Point, color: string, width: number, cap: DrawingCap = 'round'): void {
+export function drawLineDraft(graphics: Graphics, start: Point, end: Point, color: string, width: number, cap: DrawingCap = 'round', dash: DrawingDash = 'solid'): void {
   graphics.clear()
-  graphics.moveTo(start.x, start.y).lineTo(end.x, end.y).stroke({ width, color: new Color(color).toNumber(), alpha: 0.8, cap })
+  if (!traceDashedPolyline(graphics, [start, end], width, dash)) {
+    graphics.moveTo(start.x, start.y).lineTo(end.x, end.y)
+  }
+  graphics.stroke({ width, color: new Color(color).toNumber(), alpha: 0.8, cap })
 }
 
 export function drawCircleDraft(graphics: Graphics, center: Point, radius: number, color: string, width: number, filled: boolean): void {

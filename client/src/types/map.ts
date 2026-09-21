@@ -376,12 +376,25 @@ export type DrawingCap = 'round' | 'butt' | 'square'
  */
 export type FreehandTexture = 'pen' | 'pencil' | 'marker'
 
+/**
+ * Estilo do traço (contínuo/tracejado/pontilhado) dos kinds com traço
+ * visível — o que separa "isto é parede" de "isto é passagem secreta, limite
+ * ou caminho sugerido". `undefined` === 'solid', que é exatamente o traço
+ * inteiriço que `drawDrawings.ts`/`drawDraft.ts` desenham hoje: mapa salvo
+ * antes desta mudança abre igual, sem linha de migração — mesmo padrão de
+ * `cap`/`texture`/`wallKind` acima. Os mesmos três valores de
+ * `GridSettings['lineStyle']`, de propósito: é o vocabulário que o usuário já
+ * lê no painel da Grade ("Sólida | Tracejada | Pontilhada").
+ * A geometria de cada estilo vive em `lib/dashPattern.ts`.
+ */
+export type DrawingDash = 'solid' | 'dashed' | 'dotted'
+
 // `& PlayerSecret` distribui sobre a união: cada variante ganha `secret?`.
 export type Drawing = PlayerSecret & (
-  | { id: string; kind: 'freehand'; points: DrawingPoint[]; color: string; width: number; cap?: DrawingCap; texture?: FreehandTexture }
-  | { id: string; kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number; cap?: DrawingCap }
+  | { id: string; kind: 'freehand'; points: DrawingPoint[]; color: string; width: number; cap?: DrawingCap; texture?: FreehandTexture; dash?: DrawingDash }
+  | { id: string; kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number; cap?: DrawingCap; dash?: DrawingDash }
   | { id: string; kind: 'circle'; cx: number; cy: number; radius: number; color: string; width: number; filled: boolean; fillAlpha: number }
-  | { id: string; kind: 'curve'; points: DrawingPoint[]; color: string; width: number; cap?: DrawingCap }
+  | { id: string; kind: 'curve'; points: DrawingPoint[]; color: string; width: number; cap?: DrawingCap; dash?: DrawingDash }
   | { id: string; kind: 'text'; x: number; y: number; text: string; color: string; fontSize: number; fontFamily?: string }
   // NOVOS. `width` continua = espessura de traço; `w`/`h` = geometria.
   | { id: string; kind: 'rect'; x: number; y: number; w: number; h: number; color: string; width: number; filled: boolean; fillAlpha: number }

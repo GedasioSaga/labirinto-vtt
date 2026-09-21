@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
-  Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, FreehandTexture,
+  Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinKind,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
@@ -302,6 +302,12 @@ interface MapStoreState {
    *  linha/pincel/curva JÁ CRIADA e selecionada. */
   drawCap: DrawingCap
   setDrawCap: (cap: DrawingCap) => void
+  /** Estilo do traço ("Contínua | Tracejada | Pontilhada") da PRÓXIMA linha
+   *  ou curva — preferência de ferramenta, mesma classe de `drawCap`. É o que
+   *  separa passagem secreta / limite sugerido de parede. Não confundir com
+   *  `setDrawingDash`, que edita uma linha/curva JÁ CRIADA e selecionada. */
+  drawDash: DrawingDash
+  setDrawDash: (dash: DrawingDash) => void
   /** Textura do PRÓXIMO traço livre (N1, "pincel: caneta/lápis/marcador",
    *  Fase 4) — preferência de ferramenta, mesma classe de `drawCap`. */
   drawTexture: FreehandTexture
@@ -715,6 +721,15 @@ interface MapStoreState {
    * polygon/circle/text (kinds sem `cap` no schema).
    */
   setDrawingCap: (id: string, cap: DrawingCap) => void
+  /**
+   * Edita `dash` de uma linha/curva JÁ CRIADA e selecionada. Guarda por
+   * `d.kind` pelo mesmo motivo de `setDrawingCap`: `dash` é campo OPCIONAL e
+   * nem existe como chave num traço contínuo, então `'dash' in d` daria falso
+   * negativo. Sem efeito nos outros kinds (sem `dash` no schema) — Pincel
+   * fica de fora de propósito: a aparência do traço livre é `texture`
+   * (caneta/lápis/marcador), e cruzar as duas não foi pedido.
+   */
+  setDrawingDash: (id: string, dash: DrawingDash) => void
   /** Cor de um desenho JÁ EXISTENTE (qualquer kind, texto incluso), com
    *  histórico. Auditoria 14/09: retângulo, linha e pincel desenhados não
    *  tinham como trocar de cor — só apagar e redesenhar. Não confundir com
@@ -874,6 +889,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     wallLineStyle: undefined,
     doorKind: 'normal',
     drawCap: 'round',
+    drawDash: 'solid',
     drawTexture: 'pen',
     lastDrawingTool: 'brush',
     stairSizePreset: 'medium',
@@ -1010,6 +1026,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setWallLineStyle: (lineStyle) => set({ wallLineStyle: lineStyle }),
     setDoorKind: (kind) => set({ doorKind: kind }),
     setDrawCap: (cap) => set({ drawCap: cap }),
+    setDrawDash: (dash) => set({ drawDash: dash }),
     setDrawTexture: (texture) => set({ drawTexture: texture }),
     setDrawingTexture: (id, texture) => withHistory((map) => ({
       ...map,
@@ -1403,6 +1420,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       drawings: map.drawings.map((d) =>
         d.id === id && (d.kind === 'line' || d.kind === 'freehand' || d.kind === 'curve') ? { ...d, cap } : d,
       ),
+    })),
+    setDrawingDash: (id, dash) => withHistory((map) => ({
+      ...map,
+      drawings: map.drawings.map((d) => (d.id === id && (d.kind === 'line' || d.kind === 'curve') ? { ...d, dash } : d)),
     })),
     convertDrawingToCurve: (id) => withHistory((map) => ({
       ...map,

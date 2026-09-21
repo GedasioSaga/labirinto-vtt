@@ -2,6 +2,7 @@ import { Color, type Graphics } from 'pixi.js'
 import type { Drawing, DrawingCap, DrawingPoint } from '../types/map'
 import { catmullRomToBezierSegments } from '../lib/curveMath'
 import { computeMarkerStroke, computePencilSegments, readFreehandTexture, type BrushTexture } from '../lib/brushTexture'
+import { computeDashSegments, dashGeometry, flattenCurve, readDash, type DashSegment } from '../lib/dashPattern'
 import { SELECTION_COLOR } from './constants'
 import { resolveCameraScale, selectionOutlineWidth } from './drawWalls'
 
@@ -45,18 +46,36 @@ export function drawDrawings(graphics: Graphics, drawings: Drawing[], selectedDr
       drawFreehandStroke(graphics, drawing.points, width, color, cap, readFreehandTexture(drawing))
     } else if (drawing.kind === 'line') {
       const cap = drawing.cap ?? 'round'
+      // Traço interrompido: os pedacinhos são calculados UMA vez e traçados
+      // de novo para o contorno de seleção — assim o halo acompanha os vãos
+      // em vez de virar uma barra cheia por baixo do pontilhado.
+      const geometria = dashGeometry(readDash(drawing), width, cap)
+      const pedacos = geometria
+        ? computeDashSegments([{ x: drawing.x1, y: drawing.y1 }, { x: drawing.x2, y: drawing.y2 }], geometria)
+        : null
       if (isSelected) {
-        graphics.moveTo(drawing.x1, drawing.y1).lineTo(drawing.x2, drawing.y2).stroke({ ...openOutline, cap: outlineCap(cap) })
+        if (pedacos) traceDashSegments(graphics, pedacos)
+        else graphics.moveTo(drawing.x1, drawing.y1).lineTo(drawing.x2, drawing.y2)
+        graphics.stroke({ ...openOutline, cap: outlineCap(cap) })
       }
-      graphics.moveTo(drawing.x1, drawing.y1).lineTo(drawing.x2, drawing.y2).stroke({ width, color, cap })
+      if (pedacos) traceDashSegments(graphics, pedacos)
+      else graphics.moveTo(drawing.x1, drawing.y1).lineTo(drawing.x2, drawing.y2)
+      graphics.stroke({ width, color, cap })
     } else if (drawing.kind === 'curve') {
       if (drawing.points.length < 2) continue
       const cap = drawing.cap ?? 'round'
+      // Contínua continua indo para a tela como Bézier de verdade; só o traço
+      // interrompido passa pelo achatamento (o padrão precisa de comprimento
+      // de arco, que a Bézier não dá de graça).
+      const geometria = dashGeometry(readDash(drawing), width, cap)
+      const pedacos = geometria ? computeDashSegments(flattenCurve(drawing.points), geometria) : null
       if (isSelected) {
-        traceCurve(graphics, drawing.points)
+        if (pedacos) traceDashSegments(graphics, pedacos)
+        else traceCurve(graphics, drawing.points)
         graphics.stroke({ ...openOutline, cap: outlineCap(cap) })
       }
-      traceCurve(graphics, drawing.points)
+      if (pedacos) traceDashSegments(graphics, pedacos)
+      else traceCurve(graphics, drawing.points)
       graphics.stroke({ width, color, cap, join: 'round' })
       if (isSelected) {
         for (const point of drawing.points) {
@@ -97,6 +116,16 @@ function tracePolyline(graphics: Graphics, points: DrawingPoint[]): void {
   const [first, ...rest] = points
   graphics.moveTo(first.x, first.y)
   for (const point of rest) graphics.lineTo(point.x, point.y)
+}
+
+/**
+ * Abre os pedacinhos do traço interrompido no `graphics` SEM chamar
+ * `stroke()` — mesma disciplina de `pixi/grid.ts`: um `stroke()` só, depois
+ * de todos os `moveTo`/`lineTo`, porque fechar por pedacinho reconstrói a
+ * malha inteira a cada um.
+ */
+function traceDashSegments(graphics: Graphics, segments: DashSegment[]): void {
+  for (const { from, to } of segments) graphics.moveTo(from.x, from.y).lineTo(to.x, to.y)
 }
 
 function traceCurve(graphics: Graphics, points: DrawingPoint[]): void {

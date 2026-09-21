@@ -3044,7 +3044,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
         if (mode === 'drawing-line' && lineDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map, addDrawing, drawColor, drawWidth, drawCap } = useMapStore.getState()
+          const { map, addDrawing, drawColor, drawWidth, drawCap, drawDash } = useMapStore.getState()
           // Ímã primeiro — mesma lógica do bloco de Parede acima, ver lá.
           const magnet = findNearestExistingVertex(map, worldPoint, VERTEX_MAGNET_TOLERANCE)
           let end: Point
@@ -3057,7 +3057,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             end = event.ctrlKey && map.gridShape === 'hex' ? constrained : applySnap(constrained, map.grid, 'wall', event.altKey)
           }
           if (isValidLineDraft(lineDraftStart, end)) {
-            addDrawing(buildLineDrawing(crypto.randomUUID(), lineDraftStart, end, drawColor, drawWidth, drawCap))
+            addDrawing(buildLineDrawing(crypto.randomUUID(), lineDraftStart, end, drawColor, drawWidth, drawCap, drawDash))
           }
           lineDraftStart = null
           draftGraphics.clear()
@@ -3129,9 +3129,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         }
 
         if (mode === 'drawing-curve') {
-          const { addDrawing, drawColor, drawWidth, drawCap } = useMapStore.getState()
+          const { addDrawing, drawColor, drawWidth, drawCap, drawDash } = useMapStore.getState()
           if (isValidCurveDraft(curveDraftPoints)) {
-            addDrawing(buildCurveDrawing(crypto.randomUUID(), curveDraftPoints, drawColor, drawWidth, drawCap))
+            addDrawing(buildCurveDrawing(crypto.randomUUID(), curveDraftPoints, drawColor, drawWidth, drawCap, drawDash))
           }
           curveDraftPoints = []
           draftGraphics.clear()
@@ -4256,7 +4256,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
         if (mode === 'drawing-line' && lineDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map, drawColor, drawWidth } = useMapStore.getState()
+          const { map, drawColor, drawWidth, drawDash } = useMapStore.getState()
           // Ímã primeiro — mesma lógica do bloco de preview de Parede acima, ver
           // lá. Preview e commit (pointerup acima) usam a MESMA checagem.
           const magnet = findNearestExistingVertex(map, worldPoint, VERTEX_MAGNET_TOLERANCE)
@@ -4273,7 +4273,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             end = event.ctrlKey && map.gridShape === 'hex' ? constrained : applySnap(constrained, map.grid, 'wall', event.altKey)
             angleReference = constrained
           }
-          drawLineDraft(draftGraphics, lineDraftStart, end, drawColor, drawWidth)
+          // `cap` fica no default 'round' do draft, como sempre foi — quem
+          // muda aqui é só o estilo do traço, para o preview já mostrar o
+          // pontilhado em vez de prometer uma linha cheia.
+          drawLineDraft(draftGraphics, lineDraftStart, end, drawColor, drawWidth, 'round', drawDash)
           angleIndicatorRenderer.show(
             angleIndicatorContainer,
             end,
@@ -4307,8 +4310,8 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (mode === 'drawing-curve') {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           curveDraftPoints = [...curveDraftPoints, worldPoint]
-          const { drawColor, drawWidth } = useMapStore.getState()
-          drawCurveDraft(draftGraphics, curveDraftPoints, drawColor, drawWidth)
+          const { drawColor, drawWidth, drawDash } = useMapStore.getState()
+          drawCurveDraft(draftGraphics, curveDraftPoints, drawColor, drawWidth, 'round', drawDash)
           return
         }
 

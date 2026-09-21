@@ -32,7 +32,7 @@ import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { ActionBar } from './components/ActionBar'
-import type { DoorKind, DrawingCap, MapData, Region, Token, Wall } from './types/map'
+import type { DoorKind, DrawingCap, DrawingDash, MapData, Region, Token, Wall } from './types/map'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -307,6 +307,12 @@ function App() {
   const drawCap = useMapStore((state) => state.drawCap)
   const setDrawCap = useMapStore((state) => state.setDrawCap)
   const setDrawingCap = useMapStore((state) => state.setDrawingCap)
+  // "Estilo do traço" (contínuo/tracejado/pontilhado) — passagem secreta e
+  // limite sugerido deixam de sair iguais a uma parede. Mesma dupla de
+  // drawCap: preferência da PRÓXIMA linha/curva + edição da já selecionada.
+  const drawDash = useMapStore((state) => state.drawDash)
+  const setDrawDash = useMapStore((state) => state.setDrawDash)
+  const setDrawingDash = useMapStore((state) => state.setDrawingDash)
   const convertDrawingToCurve = useMapStore((state) => state.convertDrawingToCurve)
   const convertDrawingToLine = useMapStore((state) => state.convertDrawingToLine)
   // Fase 5 — N1 "setinha de variantes": os 3 eixos que faltavam
@@ -1439,9 +1445,25 @@ function App() {
             groups={propertyGroups}
             lineCap={
               activeTool === 'brush' || activeTool === 'line' || activeTool === 'curve'
-                ? { cap: drawCap, onCapChange: setDrawCap }
+                ? {
+                    cap: drawCap,
+                    onCapChange: setDrawCap,
+                    // Pincel não entra: a aparência do traço livre já é a
+                    // textura (caneta/lápis/marcador) — ver LineCapControls.
+                    dash: activeTool === 'brush' ? null : { dash: drawDash, onDashChange: setDrawDash },
+                  }
                 : selectedDrawing && 'cap' in selectedDrawing
-                  ? { cap: selectedDrawing.cap ?? 'round', onCapChange: (cap: DrawingCap) => setDrawingCap(selectedDrawing.id, cap) }
+                  ? {
+                      cap: selectedDrawing.cap ?? 'round',
+                      onCapChange: (cap: DrawingCap) => setDrawingCap(selectedDrawing.id, cap),
+                      dash:
+                        selectedDrawing.kind === 'line' || selectedDrawing.kind === 'curve'
+                          ? {
+                              dash: selectedDrawing.dash ?? 'solid',
+                              onDashChange: (dash: DrawingDash) => setDrawingDash(selectedDrawing.id, dash),
+                            }
+                          : null,
+                    }
                   : null
             }
             lineShape={
