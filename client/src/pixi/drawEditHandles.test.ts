@@ -14,6 +14,15 @@ function countStrokeInstructions(g: Graphics): number {
   return g.context.instructions.filter((instruction) => instruction.action === 'stroke').length
 }
 
+/**
+ * Fills por alça de CANTO (Sala retangular, Drawing rect/ellipse/polygon,
+ * Token, Prop): o chip é faixa escura por baixo + quadrado amarelo dentro
+ * (`pixi/drawRoomHandles.ts` → `drawCornerHandle`). Nomeado aqui para os
+ * testes abaixo falarem em "cantos", não em "número de fills" — se um dia o
+ * chip virar 1 ou 3 fills, muda um número só.
+ */
+const FILLS_POR_CHIP = 2
+
 function buildSquareRegion(id: string): Region {
   return {
     id,
@@ -163,14 +172,19 @@ describe('drawEditHandles — Sala (region.room)', () => {
     expect(countStrokeInstructions(g)).toBe(region.points.length)
   })
 
-  it('região com room.shape "rect" (Sala retangular): alças quadradas — só fill, sem stroke de ponto médio', () => {
+  // FILLS_POR_CHIP: desde 21/09/2026 a alça de canto é um chip de DOIS fills
+  // (faixa escura por baixo + quadrado amarelo dentro, ver `drawRoomHandles.ts`)
+  // — é a faixa escura que separa a alça do contorno de seleção, que tem a
+  // mesma cor dela. Continua SEM stroke nenhum: o "sem ponto médio de aresta"
+  // que estes testes guardam segue valendo, e continua sendo medido pelo 0.
+  it('região com room.shape "rect" (Sala retangular): chip de canto — 2 fills por canto, sem stroke de ponto médio', () => {
     const region = buildRectRoomRegion('r1')
     const map = { ...createEmptyMap('m', 'M', 30, 20, 64), regions: [region] }
     const g = new Graphics()
 
     drawEditHandles(g, map, { kind: 'region', id: 'r1' }, 'select')
 
-    expect(countFillInstructions(g)).toBe(region.points.length)
+    expect(countFillInstructions(g)).toBe(region.points.length * FILLS_POR_CHIP)
     expect(countStrokeInstructions(g)).toBe(0)
   })
 
@@ -182,14 +196,15 @@ describe('drawEditHandles — Sala (region.room)', () => {
 
     drawEditHandles(g, map, { kind: 'wall', id: 'w1' }, 'select')
 
-    expect(countFillInstructions(g)).toBe(region.points.length)
+    expect(countFillInstructions(g)).toBe(region.points.length * FILLS_POR_CHIP)
     expect(countStrokeInstructions(g)).toBe(0)
   })
 })
 
 // Agente B3 (dossiê F4, bug3): rect/ellipse/polygon (Drawing), Token e Prop
-// ganham alça de canto (drawBoxResizeHandles → 4 fills, 0 stroke, mesmo
-// padrão visual de drawRoomHandles). circle/text/freehand continuam sem
+// ganham alça de canto (drawBoxResizeHandles → 4 chips, 0 stroke, o MESMO
+// desenho de drawRoomHandles — desde 21/09/2026 os dois chamam a mesma
+// `drawCornerHandle`). circle/text/freehand continuam sem
 // handle nenhum — têm move nesta fase, mas não resize (ver relatório).
 describe('drawEditHandles — Drawing rect/ellipse/polygon (bounding box)', () => {
   it('rect selecionado: 4 alças de canto preenchidas, nenhum stroke', () => {
@@ -199,7 +214,7 @@ describe('drawEditHandles — Drawing rect/ellipse/polygon (bounding box)', () =
 
     drawEditHandles(g, map, { kind: 'drawing', id: 'd1' }, 'select')
 
-    expect(countFillInstructions(g)).toBe(4)
+    expect(countFillInstructions(g)).toBe(4 * FILLS_POR_CHIP)
     expect(countStrokeInstructions(g)).toBe(0)
   })
 
@@ -210,7 +225,7 @@ describe('drawEditHandles — Drawing rect/ellipse/polygon (bounding box)', () =
 
     drawEditHandles(g, map, { kind: 'drawing', id: 'd2' }, 'select')
 
-    expect(countFillInstructions(g)).toBe(4)
+    expect(countFillInstructions(g)).toBe(4 * FILLS_POR_CHIP)
     expect(countStrokeInstructions(g)).toBe(0)
   })
 
@@ -225,7 +240,7 @@ describe('drawEditHandles — Drawing rect/ellipse/polygon (bounding box)', () =
 
     drawEditHandles(g, map, { kind: 'drawing', id: 'd3' }, 'select')
 
-    expect(countFillInstructions(g)).toBe(4)
+    expect(countFillInstructions(g)).toBe(4 * FILLS_POR_CHIP)
     expect(countStrokeInstructions(g)).toBe(0)
   })
 
@@ -292,7 +307,7 @@ describe('drawEditHandles — Token / Prop (bounding box)', () => {
 
     drawEditHandles(g, map, { kind: 'token', id: 't1' }, 'select')
 
-    expect(countFillInstructions(g)).toBe(4)
+    expect(countFillInstructions(g)).toBe(4 * FILLS_POR_CHIP)
     expect(countStrokeInstructions(g)).toBe(0)
   })
 
@@ -303,7 +318,7 @@ describe('drawEditHandles — Token / Prop (bounding box)', () => {
 
     drawEditHandles(g, map, { kind: 'prop', id: 'p1' }, 'select')
 
-    expect(countFillInstructions(g)).toBe(4)
+    expect(countFillInstructions(g)).toBe(4 * FILLS_POR_CHIP)
     expect(countStrokeInstructions(g)).toBe(0)
   })
 

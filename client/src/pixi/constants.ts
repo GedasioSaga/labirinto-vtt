@@ -33,11 +33,14 @@ export const STROKE_WEIGHT = {
 } as const
 
 /**
- * Raio (alça redonda) / metade do lado (alça quadrada) do desenho VISUAL das
- * alças de edição — vértice de Região/Parede solta/Linha, canto de Sala
- * retangular, canto de bounding box (Token/Prop/Drawing rect-ellipse-polygon).
+ * Raio do desenho VISUAL das alças de VÉRTICE — mover um ponto de Região /
+ * Parede solta / Linha, e a alça de raio de Luz/Círculo. Bolinha preenchida.
  * Antes, `drawEditHandles.ts`, `drawRoomHandles.ts` e `drawResizeHandles.ts`
  * tinham cada um seu próprio `5` local — mesmo número, sem fonte comum.
+ *
+ * Alça de CANTO (redimensionar) NÃO usa mais este número desde 21/09/2026:
+ * é o chip de `CORNER_HANDLE_RADIUS` logo abaixo. Este continua sendo o piso
+ * do chip em objeto pequeno, para a alça nunca ficar menor do que já era.
  *
  * NÃO é a área de clique: a área de clique é maior de propósito e vive em
  * outros arquivos, fora deste agente — `RESIZE_HANDLE_TOLERANCE` (10,
@@ -53,6 +56,54 @@ export const HANDLE_VISUAL_RADIUS = 3.5
  *  (`HANDLE_VISUAL_RADIUS`), pra manter a hierarquia visual "vértice pesa
  *  mais que meio de aresta" que já existia (5 vs 4), só em escala menor. */
 export const HANDLE_MIDPOINT_RADIUS = 2.5
+
+/**
+ * Metade do lado do CHIP de canto — o "quadradinho de canto" que todo editor
+ * de desenho tem, e que diz "pegue aqui para redimensionar". Vale para Sala
+ * retangular (`drawRoomHandles.ts`) e para bounding box de Token / Prop /
+ * Drawing rect-ellipse-polygon (`drawResizeHandles.ts`), que dividem o mesmo
+ * desenho.
+ *
+ * POR QUE NÃO É `HANDLE_VISUAL_RADIUS`. Até 21/09/2026 o canto era um quadrado
+ * de 7 px na MESMA cor do contorno de seleção, e cabia inteiro dentro da faixa
+ * dupla do contorno (parede de 2 px + 2 px de amarelo de cada lado). Medido
+ * pela jornada `e2e/task-jornada-selecao-mostra-alcas.spec.ts` em 21/09/2026:
+ * a 4..10 px do canto a seleção acrescentava 4 px de espessura — exatamente os
+ * mesmos 4 px que ela acrescenta no MEIO da aresta. Ou seja, o canto era
+ * indistinguível de "aqui as duas linhas da moldura se cruzam", e quem não
+ * sabia que dava para redimensionar não descobria olhando.
+ *
+ * A hierarquia fica MAIS legível com o chip maior, não menos: bolinha redonda
+ * de `HANDLE_VISUAL_RADIUS` = "move este vértice"; chip quadrado com borda
+ * escura = "redimensiona a partir deste canto". Duas formas, dois gestos.
+ *
+ * Continua NÃO sendo a área de clique, que é maior de propósito e vive em
+ * `ROOM_CORNER_HIT_TOLERANCE` (24, `lib/roomOps.ts`) e
+ * `RESIZE_HANDLE_TOLERANCE` (10, `lib/objectTransform.ts`).
+ */
+export const CORNER_HANDLE_RADIUS = 6
+
+/**
+ * Faixa escura desenhada POR BAIXO e em volta do chip, sobrando de cada lado.
+ * É ela que SEPARA a alça do contorno: o contorno de seleção é amarelo, e o
+ * único amarelo do canvas com uma borda escura em volta é a alça de canto.
+ * Sem a faixa, crescer o chip só engrossaria a moldura naquele ponto — a
+ * pessoa leria "a linha ficou mais gorda aqui", não "isto é uma peça solta
+ * para pegar".
+ *
+ * Mesmo peso de `STROKE_WEIGHT.medium` (traço de elemento selecionado), mas é
+ * fill e não stroke: desenhada como um quadrado maior por baixo, a faixa RECORTA
+ * o contorno em vez de somar mais uma linha em cima dele.
+ */
+export const CORNER_HANDLE_KEYLINE_WIDTH = 2
+
+/**
+ * Cor da faixa: um passo abaixo do fundo do canvas (0x2b2b2b, `PixiCanvas.tsx`),
+ * para o chip ter borda tanto sobre o fundo escuro (fora da sala) quanto sobre
+ * o chão claro (dentro dela). Não é hue nova — é a família do fundo, para não
+ * brigar com o estilo do minimapa (fundo escuro, parede como linha fina clara).
+ */
+export const CORNER_HANDLE_KEYLINE_COLOR = 0x1e1e1e
 
 /** A5 — item "Oculto para jogadores" desenhado esmaecido no editor. */
 export const SECRET_ITEM_ALPHA = 0.5
