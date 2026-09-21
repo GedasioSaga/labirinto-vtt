@@ -26,7 +26,8 @@
       "scripts/**",
       "client/playwright.config.ts",
       "client/e2e/**",
-      "docs/**"
+      "docs/**",
+      "client/src/**"
     ],
     "r3-linha-pontilhada": [
       "client/src/**"
@@ -97,5 +98,6 @@
     "docs/varredura-*.md"
   ],
   "_dono_unico_de_scripts": "NAO crie outra chave que declare scripts/**. No instantaneo o git fica em HEAD destacado, o portao perde o nome do ramo (pecaDaArvore, portao.cjs:336-340) e cai no modo `arvore compartilhada`, que exige DONO UNICO por arquivo mudado. Com `portao`, `r3-portao` e `acervo` declarando scripts/portao.cjs ao mesmo tempo, esse modo reprovava sempre — e era vermelho que builder nenhum conseguia consertar, porque a disputa estava no manifesto, nao no codigo. Ramo de portao novo entra em `apelidos`.`portao`, nunca como chave nova.",
-  "_base_pecas_21set": "Ponteiro CONGELADO em 5bc2117: o commit de onde as cinco pecas de feature desta noite foram cortadas, e o primeiro que ja traz o portao endurecido desta rodada. Apontar a base para um commit ANTERIOR a esse fazia a Fase 0 sair sem juiz (g27, g24, g13); apontar para um POSTERIOR fazia o conserto do portao cair na conta da peca de cliente, que nao o escreveu. As duas pontas ficam aqui ate o merge da noite."
+  "_base_pecas_21set": "Ponteiro CONGELADO em 5bc2117: o commit de onde as cinco pecas de feature desta noite foram cortadas, e o primeiro que ja traz o portao endurecido desta rodada. Apontar a base para um commit ANTERIOR a esse fazia a Fase 0 sair sem juiz (g27, g24, g13); apontar para um POSTERIOR fazia o conserto do portao cair na conta da peca de cliente, que nao o escreveu. As duas pontas ficam aqui ate o merge da noite.",
+  "_portao_e_a_integracao": "Na noite de 20-21/09 o ramo auto/acervo e o do ORQUESTRADOR e tambem o de INTEGRACAO: e nele que cada peca vencedora entra depois de provada na propria branch. Por isso a area do apelido acervo inclui client/src/** — nao para builder escrever ali, e sim porque o merge da peca aparece como escrita deste ramo. A protecao que importa continua de pe: peca de cliente declara SO client/src/** e nao alcanca scripts/ nem client/e2e/."
 }
