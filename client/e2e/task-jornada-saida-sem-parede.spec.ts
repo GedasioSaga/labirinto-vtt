@@ -39,8 +39,20 @@ const X_PAREDE = 416
 const Y_DENTRO = 288
 /** Fileira de células logo fora da sala. */
 const Y_FORA = 224
-/** Bem no meio da sala: a cor do chão com que a parede contrasta. */
-const Y_CHAO = 416
+/**
+ * Chão limpo, com que a parede contrasta — uma fileira ABAIXO do meio da sala.
+ *
+ * Era 416, o centro exato, e em 21/09/2026 isso passou a medir a coisa errada: a
+ * etiqueta em pílula do nome da sala (`pixi/drawRoomNames.ts`) ocupa ~104x32 px
+ * bem no centro, e a amostra lia a plaqueta (luma 193) achando que era chão. A
+ * calibração então reprovava — `parede sólida=210, vão=132, chão=193` — com a
+ * feature funcionando: o 132 é o traço tendo sumido no trecho do vão.
+ *
+ * Quem estava errada era a régua, não a obra, e o conserto é medir chão onde há
+ * chão. 480 continua sendo centro de célula (32 + 64k) e fica dentro da sala,
+ * longe da plaqueta e longe da aresta de baixo (576).
+ */
+const Y_CHAO = 480
 const SALA = { x1: 320, y1: ARESTA_Y, x2: 832, y2: 576 }
 /** Canto vazio do canvas, fora da sala: clique que tira a seleção antes de fotografar. */
 const VAZIO = { x: 1150, y: 720 }
