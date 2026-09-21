@@ -234,8 +234,6 @@ export function PropertiesPanel({
       </header>
 
       <div className="lb-inspector__body lb-scroll">
-        {/* Cenas da aventura: primeira coisa da aba Mapa, acima do que é da ferramenta. */}
-        {scenes}
         {/* Cabeçalho de contexto: a primeira coisa lida na coluna é o nome da
             ferramenta ativa. O prefixo "Ferramenta ·" separa este título dos
             títulos de bloco que vêm abaixo ("Região", "Preenchimento"), que
@@ -430,6 +428,11 @@ export function PropertiesPanel({
           <AreaSelectionControls selection={areaSelection.selection} onClear={areaSelection.onClear} />
           <SelectionControls {...selection} />
         </ToolPropertiesSection>
+        {/* Cenas da aventura: depois do bloco da ferramenta e do objeto, junto das
+            seções do mapa inteiro. No topo ela roubava o primeiro título da coluna,
+            que é o nome do que está na mão ou do que acabou de ser desenhado
+            (task-jornada-sala-livre.spec.ts, teste 3). */}
+        {scenes}
         <ToolPropertiesSection group="floorStyle" groups={groups}>
           {/* "Chão do mapa", não "Chão": o botão da ferramenta na barra já se
               chama "Chão" e dois botões com o mesmo nome confundem leitor de
