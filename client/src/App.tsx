@@ -1690,6 +1690,13 @@ function App() {
               // `withHistory`) ter o que restaurar.
               onColorChange: (color) => selectedToken && updateToken(selectedToken.id, { color }),
             }}
+            tokenSize={{
+              // Mesmo caminho da cor: `updateToken` passa por `withHistory`,
+              // então escolher o tamanho errado se desfaz com Ctrl+Z. Não
+              // mexe em x/y — a ficha cresce em volta de onde já está, e é o
+              // próximo arrasto que a assenta na grade (`seatTokenCenter`).
+              onSizeChange: (size) => selectedToken && updateToken(selectedToken.id, { size }),
+            }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),

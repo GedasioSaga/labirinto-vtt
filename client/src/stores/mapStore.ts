@@ -534,14 +534,19 @@ interface MapStoreState {
   /** Campo Nome do painel do token — com histórico, mesmo padrão de `setRoomName`. */
   renameToken: (id: string, name: string) => void
   /**
-   * Patch de rotação/travar/ocultar/COR de um Token JÁ EXISTENTE (F3, contrato
-   * do agente C4 — `ItemTransformControls`; `color` entrou com a escolha de cor
-   * da ficha). Mesmo padrão inline de `updateLight` acima: sem função em
-   * mapFactory.ts porque o patch é reuso direto de `Partial<Pick<...>>`, sem
-   * lógica além do merge. Com histórico — rotação/travar/ocultar/cor mudam
-   * CONTEÚDO do mapa, não preferência de sessão.
+   * Patch de rotação/travar/ocultar/COR/TAMANHO de um Token JÁ EXISTENTE (F3,
+   * contrato do agente C4 — `ItemTransformControls`; `color` entrou com a
+   * escolha de cor da ficha, `size` com a escolha de tamanho em quadrados).
+   * Mesmo padrão inline de `updateLight` acima: sem função em mapFactory.ts
+   * porque o patch é reuso direto de `Partial<Pick<...>>`, sem lógica além do
+   * merge. Com histórico — rotação/travar/ocultar/cor/tamanho mudam CONTEÚDO
+   * do mapa, não preferência de sessão.
+   *
+   * `size` aqui é o número ESCOLHIDO no painel, em quadrados. O arrasto pela
+   * alça de canto continua em `updateTokenLive` (sem histórico por frame, uma
+   * entrada só no `pointerup`) — são dois gestos, não dois campos.
    */
-  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color'>>) => void
+  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size'>>) => void
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
