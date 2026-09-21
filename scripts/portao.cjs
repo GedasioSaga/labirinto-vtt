@@ -431,6 +431,10 @@ const JORNADAS_DO_CRITERIO = [
   // (docs/features-candidatas-2026-09-21.md): o que a mesa faz no olhômetro
   // hoje (quantos quadrados o token andou) e o que o painel não deixa dizer
   // (cor e tamanho da ficha).
+  // 21/09/2026 — pino de viagem e várias cenas na mesma sessão, entrega 1
+  // (plano aprovado em ~/.claude/plans/immutable-inventing-acorn.md): várias
+  // cenas numa aventura, trocando com um clique e sobrevivendo a reabrir.
+  'e2e/task-jornada-varias-cenas.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
