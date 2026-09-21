@@ -422,6 +422,14 @@ const JORNADAS_DO_CRITERIO = [
   // token não troca o que aparece na tela, o aviso de escolher imagem some
   // sozinho aos 7 segundos, e apagar item com o arquivo travado engole a falha
   // num catch mudo (o app diz que apagou e a foto fica no disco).
+  // 21/09/2026, manhã — os três achados do passeio de usuário que têm convenção
+  // demonstrada em produto público. Dois deles foram RE-MIRADOS pelo testador
+  // depois de medir: o duplo clique FECHA a forma hoje (o defeito é a janela fixa
+  // de 500 ms do Chromium, que ignora o duplo clique mais lento do Windows), e a
+  // alça de seleção EXISTE, mas é um quadrado de 7 px na mesma cor do contorno.
+  'e2e/task-jornada-texto-recebe-o-que-se-digita.spec.ts',
+  'e2e/task-jornada-duplo-clique-fecha-a-forma.spec.ts',
+  'e2e/task-jornada-selecao-mostra-alcas.spec.ts',
   'e2e/task-jornada-acervo-foto-certa.spec.ts',
   'e2e/task-jornada-apagar-limpa-disco.spec.ts',
   'e2e/task-jornada-salvar-sem-foto-avisa.spec.ts',
