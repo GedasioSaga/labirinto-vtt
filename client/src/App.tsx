@@ -24,7 +24,9 @@ import { NewDungeonMap } from './screens/NewDungeonMap'
 import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { useMapStore } from './stores/mapStore'
-import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, loadMapFromDisk, mapDirFor, defaultMapsDir } from './lib/mapFileIO'
+import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
+import { hasUnsavedWork, sceneList, useAdventureStore } from './stores/adventureStore'
+import { ScenesSection } from './components/ScenesSection'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
 import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, IMAGEM_SUMIU_DO_ACERVO, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
@@ -480,12 +482,18 @@ function App() {
       mapPanel
     )
   const dismissToast = useToastStore((state) => state.dismiss)
-  const [previousMapPath, setPreviousMapPath] = useState<string | null>(null)
+  // Cenas da aventura (`stores/adventureStore.ts`). O Voltar da barra leva à
+  // cena de onde se veio na última troca.
+  const adventure = useAdventureStore((state) => state.adventure)
+  const activeSceneId = useAdventureStore((state) => state.activeSceneId)
+  const sceneCache = useAdventureStore((state) => state.cache)
+  const previousSceneId = useAdventureStore((state) => state.previousSceneId)
+  const canGoBackToScene = previousSceneId !== null && sceneCache[previousSceneId]?.status === 'ok'
   /**
-   * Caminho de origem do mapa em edição — diferente de `previousMapPath`
-   * (pilha de "voltar" entre mapas ligados por portal). `null` enquanto o
-   * mapa é novo (ainda não salvo); a partir daí toda escrita vai de volta
-   * para esse caminho, em vez de gerar cópia nova em `%APPDATA%`.
+   * Caminho de origem do mapa em edição. `null` enquanto o mapa é novo
+   * (ainda não salvo); a partir daí toda escrita vai de volta para esse
+   * caminho, em vez de gerar cópia nova em `%APPDATA%`. Numa aventura é o
+   * arquivo da cena aberta, e quem grava é `useAdventureStore.flush`.
    */
   const [currentMapPath, setCurrentMapPath] = useState<string | null>(null)
   /**
@@ -624,7 +632,7 @@ function App() {
     let cancelled = false
     getCurrentWindow()
       .onCloseRequested(async (event) => {
-        if (!useSessionStore.getState().isDirty) return
+        if (!hasUnsavedWork()) return
         event.preventDefault()
         // Timeout de segurança: se o diálogo nativo nunca resolver (ou
         // `ask` falhar), fecha mesmo assim — travar a janela do usuário é
@@ -1057,35 +1065,21 @@ function App() {
     setTextFontFamily(selectedTextLabel.id, fontFamily)
   }
 
-  const handleCreateLinkedMap = async (propId: string) => {
-    try {
-      const newMap = mapFactory.createEmptyMap(`map_${crypto.randomUUID()}`, 'Andar sem título', map.width, map.height, map.grid)
-      const path = await saveMapToAppData(newMap)
-      useMapStore.getState().setPropLinkedPath(propId, path)
-    } catch (err) {
-      reportFileError('criar o mapa ligado', err)
-    }
-  }
-
-  const handleLinkExistingMap = async (propId: string) => {
-    try {
-      const path = await pickMapJsonToOpen()
-      if (!path) return
-      useMapStore.getState().setPropLinkedPath(propId, path)
-    } catch (err) {
-      reportFileError('ligar o mapa existente', err)
-    }
-  }
-
   /**
    * Salva o mapa em edição de volta na origem (`currentMapPath`) quando ela
    * existe; um mapa novo (`currentMapPath === null`) ainda não tem origem,
-   * então cai em `saveMapToAppData` e passa a ter uma a partir daqui.
-   * Compartilhado por `handleSave`, `handleGoHome` e `handleEnterLinkedMap` —
-   * os três precisam do mesmo "salvar no lugar certo", só o que acontece
-   * depois muda (log, trocar de tela, ou seguir pro mapa ligado).
+   * então cai em `saveMapToAppData` e passa a ter uma a partir daqui. Numa
+   * aventura grava todas as cenas pendentes e o `adventure.json`
+   * (`useAdventureStore.flush`). Compartilhado por `handleSave`,
+   * `handleGoHome` e `saveAndOpen` — só o que acontece depois muda.
    */
   const persistMap = async (): Promise<string> => {
+    const adventureState = useAdventureStore.getState()
+    if (adventureState.adventure !== null) {
+      const path = await adventureState.flush()
+      setCurrentMapPath(path)
+      return path
+    }
     if (currentMapPath) {
       await saveMapToPath(map, currentMapPath)
       return currentMapPath
@@ -1095,34 +1089,18 @@ function App() {
     return path
   }
 
-  const handleEnterLinkedMap = async (path: string) => {
-    try {
-      const currentPath = await persistMap()
-      setPreviousMapPath(currentPath)
-      loadMap(await loadMapFromDisk(path))
-      setCurrentMapPath(path)
-      // Onda 2, item 11 (Frente D) — os dois mapas envolvidos acabaram de
-      // sincronizar com o disco (o de origem por persistMap, o de destino
-      // por já vir de loadMapFromDisk).
-      useSessionStore.getState().markSaved()
-    } catch (err) {
-      reportFileError('entrar no mapa ligado', err)
-    }
+  /** Um clique na lista "Cenas". O que foi feito na cena de onde se sai fica no cache, esperando o Salvar. */
+  const handleSelectScene = (sceneId: string) => {
+    useAdventureStore.getState().switchScene(sceneId)
   }
 
-  const handleGoBack = async () => {
-    if (!previousMapPath) return
-    try {
-      // Salva o andar antes de sair dele: sem isto, o que foi desenhado no
-      // andar sumia ao Voltar (só a entrada salvava, a saída não).
-      await persistMap()
-      loadMap(await loadMapFromDisk(previousMapPath))
-      setCurrentMapPath(previousMapPath)
-      setPreviousMapPath(null)
-      useSessionStore.getState().markSaved()
-    } catch (err) {
-      reportFileError('voltar para o mapa anterior', err)
-    }
+  /** "+ Nova cena": a aventura nasce aqui quando o mapa ainda era solto. */
+  const handleCreateScene = (name: string) => {
+    useAdventureStore.getState().createScene(name, currentMapPath)
+  }
+
+  const handleGoBack = () => {
+    if (previousSceneId !== null) useAdventureStore.getState().switchScene(previousSceneId)
   }
 
   /**
@@ -1211,14 +1189,23 @@ function App() {
     }
   }
 
+  /**
+   * Põe no editor o que `openMapFile` leu: o mapa pedido e, se ele é cena de
+   * uma aventura, as outras cenas na lista. O store marca o ponto de
+   * sincronia com o disco (`markSaved`) — portal antigo convertido ao abrir
+   * continua pendente, porque a conversão ainda não foi gravada.
+   */
+  const openInEditor = (opened: OpenedMapFile) => {
+    useAdventureStore.getState().open(opened)
+    setCurrentMapPath(opened.path)
+  }
+
   /** Abre pelo seletor de arquivo. Não checa trabalho não salvo — quem checa é `askBeforeReplacingMap`. */
   const openMapFromPicker = async () => {
     try {
       const path = await pickMapJsonToOpen()
       if (!path) return
-      loadMap(await loadMapFromDisk(path))
-      setCurrentMapPath(path)
-      useSessionStore.getState().markSaved()
+      openInEditor(await openMapFile(path))
       setScreen('editor')
     } catch (err) {
       reportFileError('abrir o mapa', err)
@@ -1228,9 +1215,7 @@ function App() {
   /** Abre um caminho já escolhido (lista "Carregar Mapa"). Mesma regra de checagem acima. */
   const openMapFromPath = async (path: string) => {
     try {
-      loadMap(await loadMapFromDisk(path))
-      setCurrentMapPath(path)
-      useSessionStore.getState().markSaved()
+      openInEditor(await openMapFile(path))
       setScreen('editor')
     } catch (err) {
       reportFileError('abrir o mapa', err)
@@ -1243,7 +1228,7 @@ function App() {
    * abre direto — abrir um mapa logo depois de salvar não pergunta nada.
    */
   const askBeforeReplacingMap = (run: () => Promise<void>): void => {
-    if (!useSessionStore.getState().isDirty) {
+    if (!hasUnsavedWork()) {
       void run()
       return
     }
@@ -1320,6 +1305,7 @@ function App() {
   }, [screen, handleSave, handleOpen])
 
   const handleCreate = (newMap: MapData) => {
+    useAdventureStore.getState().reset()
     loadMap(newMap)
     setCurrentMapPath(null)
     // Onda 2, item 11 (Frente D) — mapa recém-criado, sem edição nenhuma
@@ -1360,12 +1346,10 @@ function App() {
       const mapsDir = await defaultMapsDir()
       const importedMapId = await importMapFolder(sourceDir, mapsDir)
       const importedPath = await join(await mapDirFor(importedMapId), 'map.json')
-      loadMap(await loadMapFromDisk(importedPath))
       // O mapa importado já ganha pasta própria em mapsDir/importedMapId — mesma
       // lógica de "sincronizar currentMapPath com a origem" de handleOpen, senão
       // o próximo Salvar/Início gravaria por engano no caminho do mapa anterior.
-      setCurrentMapPath(importedPath)
-      useSessionStore.getState().markSaved()
+      openInEditor(await openMapFile(importedPath))
     } catch (err) {
       reportFileError('importar a pasta do mapa', err)
     }
@@ -1474,6 +1458,14 @@ function App() {
       <div className="lb-editor__rail">
         {withRoomTabs(
           <PropertiesPanel
+            scenes={
+              <ScenesSection
+                scenes={sceneList({ adventure, activeSceneId, cache: sceneCache }, map)}
+                onSelect={handleSelectScene}
+                onCreate={handleCreateScene}
+                onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
+              />
+            }
             mapName={map.name}
             mapWidth={map.width}
             mapHeight={map.height}
@@ -1663,12 +1655,6 @@ function App() {
               onLineStyleChange: handleWallLineStyleChange,
             }}
             selectedProp={selectedProp}
-            portal={{
-              onCreateLinkedMap: () => selectedProp && handleCreateLinkedMap(selectedProp.id),
-              onLinkExistingMap: () => selectedProp && handleLinkExistingMap(selectedProp.id),
-              onEnterLinkedMap: handleEnterLinkedMap,
-              onUnlink: () => selectedProp && useMapStore.getState().setPropLinkedPath(selectedProp.id, null),
-            }}
             propTransform={{
               onRotationChange: (rotation) => selectedProp && updateProp(selectedProp.id, { rotation }),
               onLockedChange: (locked) => selectedProp && updateProp(selectedProp.id, { locked }),
@@ -1847,7 +1833,7 @@ function App() {
           onExportFolder={handleExportFolder}
           onImportFolder={handleImportFolder}
           onGoHome={handleGoHome}
-          onGoBack={previousMapPath !== null ? handleGoBack : undefined}
+          onGoBack={canGoBackToScene ? handleGoBack : undefined}
           canUndo={canUndo}
           canRedo={canRedo}
           onUndo={undo}

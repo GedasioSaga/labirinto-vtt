@@ -2021,3 +2021,93 @@ body {
 .lb-acervo__aviso {
   color: var(--lb-color-ember);
 }
+
+/* Cenas da aventura (aba Mapa): mesma linha de cartão do acervo, com a cena
+   aberta marcada pela borda de latão — o destaque que o leitor de tela lê é
+   o `aria-current` do botão. */
+.lb-cenas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0 0 var(--lb-space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.lb-cenas__item {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid);
+}
+
+.lb-cenas__item--ativa {
+  border-color: var(--lb-color-brass);
+}
+
+.lb-cenas__nome {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lb-cenas__nome[aria-current='true'] {
+  color: var(--lb-color-brass);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lb-cenas__nome:hover:not(:disabled) {
+  color: var(--lb-color-brass);
+}
+
+.lb-cenas__nome:disabled {
+  color: var(--lb-color-parchment-faint);
+  cursor: not-allowed;
+}
+
+.lb-cenas__conta {
+  flex: none;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-cenas__renomear {
+  flex: none;
+  padding: 0 var(--lb-space-1);
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lb-cenas__renomear:hover {
+  color: var(--lb-color-brass);
+}
+
+.lb-cenas__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin-top: var(--lb-space-2);
+}
+
+.lb-cenas__acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--lb-space-2);
+}

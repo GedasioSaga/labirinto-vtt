@@ -12,7 +12,6 @@ import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
 import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
 import type { ScenarioLinkControlsProps } from './ScenarioLinkControls'
-import { PortalControls, type PortalControlsProps } from './PortalControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
 import { RegionJoinField, RegionSmoothButton, RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
@@ -49,8 +48,11 @@ import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
 import { TOOL_LABELS } from './labels'
 import type { AreaSelection } from '../lib/areaSelection'
+import type { ReactNode } from 'react'
 
 interface PropertiesPanelProps {
+  /** Seção "Cenas" da aventura, montada por quem sabe da aventura (App). */
+  scenes?: ReactNode
   mapName: string
   mapWidth: number
   mapHeight: number
@@ -93,7 +95,6 @@ interface PropertiesPanelProps {
   selectedProp: Prop | null
   /** "Objetos | Decoração" do Prop selecionado — mora na seção do objeto. */
   onSetPropLayer: PropLayerControlsProps['onSetPropLayer']
-  portal: Omit<PortalControlsProps, 'linkedMapPath'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Objeto selecionado. */
   propTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedToken: Token | null
@@ -145,6 +146,7 @@ interface PropertiesPanelProps {
  * propriedade. Só compõe — cada seção é responsável pelos próprios controles.
  */
 export function PropertiesPanel({
+  scenes,
   mapName,
   mapWidth,
   mapHeight,
@@ -170,7 +172,6 @@ export function PropertiesPanel({
   wallStyle,
   selectedProp,
   onSetPropLayer,
-  portal,
   propTransform,
   selectedToken,
   tokenName,
@@ -233,6 +234,8 @@ export function PropertiesPanel({
       </header>
 
       <div className="lb-inspector__body lb-scroll">
+        {/* Cenas da aventura: primeira coisa da aba Mapa, acima do que é da ferramenta. */}
+        {scenes}
         {/* Cabeçalho de contexto: a primeira coisa lida na coluna é o nome da
             ferramenta ativa. O prefixo "Ferramenta ·" separa este título dos
             títulos de bloco que vêm abaixo ("Região", "Preenchimento"), que
@@ -373,11 +376,6 @@ export function PropertiesPanel({
               que o clique seguinte ignoraria. */}
           {(activeTool !== 'door' || doorMode.mode === 'porta') && <DoorKindControls {...doorKind} />}
         </ToolPropertiesSection>
-        {selectedProp && (
-          <ToolPropertiesSection group="portal" groups={groups}>
-            <PortalControls linkedMapPath={selectedProp.linkedMapPath} {...portal} />
-          </ToolPropertiesSection>
-        )}
         {selectedProp && (
           <ToolPropertiesSection group="itemTransform" groups={groups}>
             <ItemTransformControls
