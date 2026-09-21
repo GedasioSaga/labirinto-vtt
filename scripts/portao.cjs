@@ -435,6 +435,9 @@ const JORNADAS_DO_CRITERIO = [
   // (plano aprovado em ~/.claude/plans/immutable-inventing-acorn.md): várias
   // cenas numa aventura, trocando com um clique e sobrevivendo a reabrir.
   'e2e/task-jornada-varias-cenas.spec.ts',
+  // Entrega 2 do mesmo plano: pino de viagem no editor, ligado em mão dupla a
+  // um pino de chegada noutra cena, e o painel dizendo para onde leva.
+  'e2e/task-jornada-pino-de-viagem.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
