@@ -505,6 +505,17 @@ body {
   background: var(--lb-color-stone-sunken);
 }
 
+/* Mesma pastilha do segmented, em GRADE. Existe para a escolha de ícone do
+   ponto de interesse: seis opções numa fila só dariam 36 px por coluna na
+   largura do rail (264 px) e o rótulo "Armadilha" não caberia em lugar nenhum.
+   Em três colunas cada alvo passa de 70 px, acima do mínimo para o dedo.
+   `minmax(0, 1fr)` e não `1fr`: sem isso o rótulo mais longo empurra a coluna
+   e a grade deixa de ser regular. */
+.lb-seg--grid {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .lb-seg__option {
   display: flex;
   flex-direction: column;

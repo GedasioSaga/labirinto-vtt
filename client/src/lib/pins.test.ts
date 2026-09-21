@@ -2,7 +2,18 @@ import { describe, expect, it } from 'vitest'
 import type { Pin } from '../types/map'
 import { filterMapForPlayer } from './fogFilter'
 import { createEmptyMap } from './mapFactory'
-import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS, PIN_HEIGHT, findPinAt, isPlayerSafePinImage, pinSummary } from './pins'
+import {
+  PIN_HEAD_OFFSET,
+  PIN_HEAD_RADIUS,
+  PIN_HEIGHT,
+  PIN_ICON_LABELS,
+  PIN_ICON_ORDER,
+  PIN_SYMBOLS,
+  findPinAt,
+  isPinIcon,
+  isPlayerSafePinImage,
+  pinSummary,
+} from './pins'
 
 function pino(id: string, x: number, y: number, extra: Partial<Pin> = {}): Pin {
   return { id, x, y, kind: 'exclamacao', description: '', image: null, ...extra }
@@ -70,6 +81,59 @@ describe('pinSummary', () => {
   })
 })
 
+describe('ícone do ponto de interesse', () => {
+  it('os seis ícones pedidos têm rótulo, ordem e forma', () => {
+    expect(PIN_ICON_ORDER).toEqual(['bau', 'armadilha', 'chave', 'perigo', 'escada', 'agua'])
+    for (const icon of PIN_ICON_ORDER) {
+      expect(PIN_ICON_LABELS[icon].length, icon).toBeGreaterThan(0)
+      expect(PIN_SYMBOLS[icon].strokes.length, icon).toBeGreaterThan(0)
+    }
+  })
+
+  it('ícone desconhecido não passa pela guarda — é o que impede o render de quebrar', () => {
+    expect(isPinIcon('bau')).toBe(true)
+    expect(isPinIcon('armadilha')).toBe(true)
+    expect(isPinIcon('dragao')).toBe(false)
+    expect(isPinIcon('')).toBe(false)
+    expect(isPinIcon(undefined)).toBe(false)
+    expect(isPinIcon(null)).toBe(false)
+    expect(isPinIcon(7)).toBe(false)
+  })
+
+  it('dois ícones diferentes são desenhos diferentes: nenhuma forma se repete', () => {
+    const desenhos = PIN_ICON_ORDER.map((icon) => JSON.stringify(PIN_SYMBOLS[icon]))
+    expect(new Set(desenhos).size).toBe(PIN_ICON_ORDER.length)
+  })
+
+  it('toda forma cabe dentro da cabeça: nenhum ponto passa de 1 no quadrado normalizado', () => {
+    for (const icon of PIN_ICON_ORDER) {
+      const forma = PIN_SYMBOLS[icon]
+      for (const stroke of forma.strokes) {
+        expect(stroke.points.length, icon).toBeGreaterThan(1)
+        for (const ponto of stroke.points) {
+          expect(Math.abs(ponto.x), `${icon} x`).toBeLessThanOrEqual(1)
+          expect(Math.abs(ponto.y), `${icon} y`).toBeLessThanOrEqual(1)
+        }
+      }
+      for (const circulo of [...(forma.rings ?? []), ...(forma.dots ?? [])]) {
+        expect(circulo.r, `${icon} r`).toBeGreaterThan(0)
+        expect(Math.abs(circulo.x) + circulo.r, `${icon} x+r`).toBeLessThanOrEqual(1)
+        expect(Math.abs(circulo.y) + circulo.r, `${icon} y+r`).toBeLessThanOrEqual(1)
+      }
+    }
+  })
+
+  it('sem descrição, o ícone é quem nomeia o pino; sem ícone, volta o glifo de hoje', () => {
+    expect(pinSummary(pino('p1', 0, 0, { icon: 'bau' }))).toBe('Ponto de interesse — Baú')
+    expect(pinSummary(pino('p2', 0, 0, { icon: 'armadilha' }))).toBe('Ponto de interesse — Armadilha')
+    expect(pinSummary(pino('p3', 0, 0))).toBe('Ponto de interesse !')
+  })
+
+  it('a descrição continua ganhando do ícone', () => {
+    expect(pinSummary(pino('p1', 0, 0, { icon: 'bau', description: 'Baú vazio' }))).toBe('Baú vazio')
+  })
+})
+
 describe('recorte do pino para o jogador', () => {
   const RAIO = 300
   const POSSE = { p1: ['heroi'] }
@@ -85,6 +149,11 @@ describe('recorte do pino para o jogador', () => {
   it('pino perto do token sai; pino fora da visão não sai', () => {
     const { map } = filterMapForPlayer(mapaCom([pino('perto', 240, 200), pino('longe', 950, 950)]), 'p1', POSSE, RAIO)
     expect(map.pins.map((p) => p.id)).toEqual(['perto'])
+  })
+
+  it('o ícone atravessa o recorte: é o mesmo desenho na tela do mestre e na do jogador', () => {
+    const { map } = filterMapForPlayer(mapaCom([pino('perto', 240, 200, { icon: 'armadilha' })]), 'p1', POSSE, RAIO)
+    expect(map.pins.map((p) => p.icon)).toEqual(['armadilha'])
   })
 
   it('pino com todo campo opcional ausente atravessa inteiro, com a descrição do mestre', () => {

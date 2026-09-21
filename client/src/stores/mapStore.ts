@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinKind,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
@@ -255,6 +255,8 @@ interface MapStoreState {
   selectedPinId: string | null
   /** Tipo do PRÓXIMO pino a cravar (preferência de sessão, sem histórico). */
   pinKind: PinKind
+  /** Ícone do PRÓXIMO pino a cravar. `null` = sem ícone, que é o pino de hoje. */
+  pinIcon: PinIcon | null
   activeTool: DrawingTool
   /**
    * Substituído por `snapTargets` (Fase 1) — 3 toggles independentes por
@@ -603,8 +605,12 @@ interface MapStoreState {
   /** Abre o pino no painel e limpa a seleção comum (`null` fecha). */
   setSelectedPin: (id: string | null) => void
   setPinKind: (kind: PinKind) => void
+  setPinIcon: (icon: PinIcon | null) => void
   addPin: (pin: MapData['pins'][number]) => void
-  updatePin: (id: string, patch: Partial<Pick<MapData['pins'][number], 'kind' | 'description' | 'image' | 'locked'>>) => void
+  updatePin: (
+    id: string,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked'>>,
+  ) => void
   /** Arrasto do pino — SEM histórico, par de `commitDragHistory(before)` no
    *  pointerup, mesmo padrão de `moveTokenLive`/`movePropLive`. */
   movePinLive: (id: string, x: number, y: number) => void
@@ -888,6 +894,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     selectedConcealZoneId: null,
     selectedPinId: null,
     pinKind: 'exclamacao',
+    pinIcon: null,
     activeTool: 'select',
     snapTargets: { token: false, wall: false, prop: false },
     drawColor: '#ffffff',
@@ -1278,6 +1285,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setSelectedPin: (id) =>
       set(id === null ? { selectedPinId: null } : { selectedPinId: id, selection: EMPTY_SELECTION, selectedConcealZoneId: null }),
     setPinKind: (kind) => set({ pinKind: kind }),
+    setPinIcon: (icon) => set({ pinIcon: icon }),
     addPin: (pin) => withHistory((map) => mapFactory.addPin(map, pin)),
     updatePin: (id, patch) => {
       if (mapFactory.updatePin(get().map, id, patch) === get().map) return

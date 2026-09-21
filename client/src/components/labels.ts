@@ -104,7 +104,7 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   eraser: 'Clique ou arraste sobre um item do mapa para apagá-lo.',
   floor: 'Arraste para criar uma peça de chão (forma e Somar/Subtrair na setinha). Corredor: clique ponto a ponto, duplo clique ou Enter termina, Esc cancela.',
   concealZone: 'Arraste para marcar uma área que os jogadores não veem. Clique numa zona para editar o nome ou revelá-la.',
-  pin: 'Escolha ! ou ? e clique no mapa para cravar um ponto de interesse. No painel, escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
+  pin: 'Clique no mapa para cravar um ponto de interesse. No painel, escolha o ícone (baú, armadilha, chave...), escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
 }
 
 /**

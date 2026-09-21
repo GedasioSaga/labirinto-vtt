@@ -33,6 +33,22 @@ describe('serializeMap/deserializeMap', () => {
     expect(deserializeMap(json).pins).toEqual([{ id: 'p1', x: 10, y: 20, kind: 'exclamacao', description: '', image: null }])
   })
 
+  it('pino com ícone faz ida e volta, e pino salvo ANTES do campo abre sem ícone (a cara de hoje)', () => {
+    const comIcone = { id: 'p1', x: 120, y: 80, kind: 'exclamacao' as const, icon: 'bau' as const, description: '', image: null }
+    const map = { ...createEmptyMap('map_i', 'I', 5, 5, 64), pins: [comIcone] }
+    expect(deserializeMap(serializeMap(map)).pins).toEqual([comIcone])
+    // O mapa gravado antes desta mudança: nenhum `icon` no arquivo.
+    const antigo = '{"id": "antigo", "pins": [{"id": "p1", "x": 10, "y": 20, "kind": "interrogacao", "description": "", "image": null}]}'
+    expect(deserializeMap(antigo).pins[0].icon).toBeUndefined()
+  })
+
+  it('ícone desconhecido abre como pino sem ícone em vez de derrubar o desenho do mapa', () => {
+    const json = '{"id": "futuro", "pins": [{"id": "p1", "x": 10, "y": 20, "icon": "dragao", "description": "", "image": null}]}'
+    const pin = deserializeMap(json).pins[0]
+    expect(pin.icon).toBeUndefined()
+    expect(pin.kind).toBe('exclamacao')
+  })
+
   it('scenarioLink faz ida e volta (campo escondido da janela, mas o dado continua gravado)', () => {
     const link = 'https://exemplo.com/cenario-1'
     const map = { ...createEmptyMap('map_link', 'Link', 5, 5, 64), scenarioLink: link }

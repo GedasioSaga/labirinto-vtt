@@ -1227,4 +1227,37 @@ describe('Pino: mover e travar', () => {
     expect(map.pins[0].locked).toBeUndefined()
     expect(updatePin(map, 'p1', { locked: false })).toBe(map)
   })
+
+  // O campo do ícone é OPCIONAL: quem não escolher continua cravando o pino de
+  // hoje, e é isso que faz mapa salvo antes desta mudança abrir igual.
+  it('buildPin sem ícone não grava o campo: o pino nasce com a cara de hoje', () => {
+    const pin = buildPin('p1', { x: 10, y: 20 }, 'exclamacao')
+    expect(pin.icon).toBeUndefined()
+    expect(Object.prototype.hasOwnProperty.call(pin, 'icon')).toBe(false)
+  })
+
+  it('buildPin com ícone grava o ícone escolhido', () => {
+    expect(buildPin('p1', { x: 10, y: 20 }, 'exclamacao', 'bau').icon).toBe('bau')
+  })
+
+  it('updatePin troca o ícone do pino e depois tira', () => {
+    const comBau = updatePin(mapaComPino(), 'p1', { icon: 'bau' })
+    expect(comBau.pins[0].icon).toBe('bau')
+    const comArmadilha = updatePin(comBau, 'p1', { icon: 'armadilha' })
+    expect(comArmadilha.pins[0].icon).toBe('armadilha')
+    expect(updatePin(comArmadilha, 'p1', { icon: undefined }).pins[0].icon).toBeUndefined()
+  })
+
+  // Mesma regra de `locked`: tirar o que nunca existiu não é mudança e não
+  // pode empurrar uma entrada de undo vazia.
+  it('updatePin tirando o ícone de um pino que nunca teve devolve o map pela mesma referência', () => {
+    const map = mapaComPino()
+    expect(map.pins[0].icon).toBeUndefined()
+    expect(updatePin(map, 'p1', { icon: undefined })).toBe(map)
+  })
+
+  it('updatePin com o MESMO ícone devolve o map pela mesma referência', () => {
+    const comBau = updatePin(mapaComPino(), 'p1', { icon: 'bau' })
+    expect(updatePin(comBau, 'p1', { icon: 'bau' })).toBe(comBau)
+  })
 })
