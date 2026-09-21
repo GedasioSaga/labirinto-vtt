@@ -534,13 +534,14 @@ interface MapStoreState {
   /** Campo Nome do painel do token — com histórico, mesmo padrão de `setRoomName`. */
   renameToken: (id: string, name: string) => void
   /**
-   * Patch de rotação/travar/ocultar de um Token JÁ EXISTENTE (F3, contrato do
-   * agente C4 — `ItemTransformControls`). Mesmo padrão inline de `updateLight`
-   * acima: sem função em mapFactory.ts porque o patch é reuso direto de
-   * `Partial<Pick<...>>`, sem lógica além do merge. Com histórico — rotação/
-   * travar/ocultar mudam CONTEÚDO do mapa, não preferência de sessão.
+   * Patch de rotação/travar/ocultar/COR de um Token JÁ EXISTENTE (F3, contrato
+   * do agente C4 — `ItemTransformControls`; `color` entrou com a escolha de cor
+   * da ficha). Mesmo padrão inline de `updateLight` acima: sem função em
+   * mapFactory.ts porque o patch é reuso direto de `Partial<Pick<...>>`, sem
+   * lógica além do merge. Com histórico — rotação/travar/ocultar/cor mudam
+   * CONTEÚDO do mapa, não preferência de sessão.
    */
-  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden'>>) => void
+  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color'>>) => void
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void

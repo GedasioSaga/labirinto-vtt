@@ -333,6 +333,15 @@ export interface Token extends PlayerSecret {
    *  idêntica à de hoje) — sem linha de migração, mesmo padrão de wallKind
    *  (Wall, acima). */
   rotation?: number
+  /** Cor do disco da ficha, em `#rrggbb` — é o que separa aliado de inimigo
+   *  no meio da luta. `undefined`/`null` === a cor de fábrica
+   *  (`TOKEN_COLOR_DEFAULT`, o mesmo azul de sempre), então mapa salvo antes
+   *  deste campo abre idêntico e não há linha de migração — mesmo padrão de
+   *  `rotation`/`locked`/`hidden`. Valor fora de `#rrggbb` também cai no
+   *  default (`lib/tokenColor.ts`), porque mapa do disco chega cru.
+   *  ATRAVESSA para o jogador: não é caminho de disco do mestre, é aparência
+   *  da peça, e a mesa inteira precisa enxergar a mesma separação. */
+  color?: string | null
   /** Token não pode ser movido/editado. `undefined` === false (comportamento
    *  idêntico ao de hoje) — sem linha de migração. */
   locked?: boolean

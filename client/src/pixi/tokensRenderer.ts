@@ -3,6 +3,7 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import type { Token } from '../types/map'
 import { SECRET_ITEM_ALPHA, SELECTION_COLOR, TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from './constants'
 import { drawTokenCircle } from './drawTokens'
+import { parseHexColor, tokenFillColor } from '../lib/tokenColor'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { isTokenPhotoData, tokenPhotoLabel, tokenPhotoRef } from '../lib/tokenPhoto'
 import { fitPhotoSprite, textureFromDataUrl } from './tokenPhotoSprite'
@@ -311,7 +312,13 @@ export function createTokensRenderer(): TokensRenderer {
         // Moldura SEMPRE, não só quando selecionado: foi o pedido do usuário
         // (token redondo com moldura em volta). O anel de seleção fica por
         // fora dela, para os dois continuarem legíveis ao mesmo tempo.
-        entry.ring.circle(0, 0, radius - TOKEN_FRAME_WIDTH / 2).stroke({ width: TOKEN_FRAME_WIDTH, color: TOKEN_FRAME_COLOR })
+        // A cor escolhida pelo mestre manda na MOLDURA quando o token tem
+        // foto: o disco inteiro é a cara do personagem, então é o aro que
+        // sobra para dizer "este é aliado". Sem cor escolhida, o latão de
+        // sempre — token com foto antigo não muda de aparência.
+        entry.ring
+          .circle(0, 0, radius - TOKEN_FRAME_WIDTH / 2)
+          .stroke({ width: TOKEN_FRAME_WIDTH, color: parseHexColor(token.color) ?? TOKEN_FRAME_COLOR })
         if (selected) {
           entry.ring.circle(0, 0, radius).stroke({ width: 4, color: SELECTION_COLOR })
         }
@@ -320,7 +327,7 @@ export function createTokensRenderer(): TokensRenderer {
       } else {
         const graphics = ensureGraphics(entry)
         const radius = (gridSize * token.size) / 2 - 2
-        drawTokenCircle(graphics, radius, selected)
+        drawTokenCircle(graphics, radius, selected, tokenFillColor(token))
         // Círculo genérico é simétrico hoje, mas gira igual ao sprite pra
         // não haver salto visual quando o token ganha/perde imagem depois.
         graphics.rotation = rotationToRadians(token.rotation)

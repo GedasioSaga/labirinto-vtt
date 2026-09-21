@@ -560,6 +560,14 @@ body {
   opacity: 1;
 }
 
+/* Amostra de cor da ficha: opacidade cheia SEMPRE. O glifo de ícone acima
+   desbota a 0.8 quando não está marcado, o que ali é só ênfase; aqui
+   desbotaria a própria informação — a amostra tem de mostrar a tinta que sai
+   no mapa, e não uma versão lavada dela. */
+.lb-seg__option .lb-token-color__chip {
+  opacity: 1;
+}
+
 /* ------------------------------------------------------------ cor / espessura */
 
 .lb-swatch {

@@ -36,6 +36,7 @@ import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
 import { screenLabelSizing } from '../pixi/screenLabel'
 import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from '../pixi/constants'
+import { parseHexColor } from '../lib/tokenColor'
 import { fitPhotoSprite, textureFromDataUrl } from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
 import { createRoomNamesRenderer } from '../pixi/drawRoomNames'
@@ -202,11 +203,18 @@ function tokenRadius(token: Token, grid: number): number {
  */
 function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean): void {
   const radius = tokenRadius(token, grid)
-  const color = own ? OWN_TOKEN_COLOR : OTHER_TOKEN_COLOR
+  // A cor que o MESTRE deu à ficha vale aqui também: a separação entre aliado
+  // e inimigo não serve de nada se só o mestre a enxerga. Sem cor escolhida,
+  // o azul do dono e o cinza dos outros de sempre — tela idêntica à de antes.
+  const chosen = parseHexColor(token.color)
+  const color = chosen ?? (own ? OWN_TOKEN_COLOR : OTHER_TOKEN_COLOR)
+  // Com cor escolhida, o preenchimento deixa de dizer "este é o seu": o aro
+  // passa a dizer. Uma regra só, igual nos dois ramos (disco e foto).
+  const ownRing = chosen !== null && own
   view.body.clear()
   if (tokenPhotoRef(token) === null) {
     view.photo.visible = false
-    view.body.circle(0, 0, radius).fill({ color }).stroke({ width: 2, color: TOKEN_OUTLINE })
+    view.body.circle(0, 0, radius).fill({ color }).stroke({ width: ownRing ? 3 : 2, color: ownRing ? OWN_TOKEN_COLOR : TOKEN_OUTLINE })
   } else {
     // Só referência auto-contida chega aqui: lib/fogFilter.ts apaga o caminho
     // do disco do mestre antes de o mapa sair da máquina dele.
@@ -216,7 +224,10 @@ function paintTokenView(view: TokenView, token: Token, grid: number, own: boolea
     fitPhotoSprite(view.photo, photoRadius)
     // Moldura da cor do dono: com a foto ocupando o disco, é ela que continua
     // dizendo qual token é o seu sem depender do nome estar ligado.
-    view.body.circle(0, 0, radius - TOKEN_FRAME_WIDTH / 2).stroke({ width: TOKEN_FRAME_WIDTH, color: own ? TOKEN_FRAME_COLOR : OTHER_TOKEN_COLOR })
+    view.body
+      .circle(0, 0, radius - TOKEN_FRAME_WIDTH / 2)
+      .stroke({ width: TOKEN_FRAME_WIDTH, color: chosen ?? (own ? TOKEN_FRAME_COLOR : OTHER_TOKEN_COLOR) })
+    if (ownRing) view.body.circle(0, 0, radius).stroke({ width: 2, color: OWN_TOKEN_COLOR })
   }
   view.label.text = token.name
   view.label.position.set(0, radius + 2)
@@ -281,7 +292,9 @@ function sizeTokenLabel(label: Text, cameraScale: number, showNames: boolean): v
  * outra é tratada em `syncTokenPhoto`, que compara a referência uma vez só.
  */
 function tokenViewKey(token: Token, grid: number, own: boolean): string {
-  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null])
+  // `token.color` entra na chave: sem isto, o mestre troca a cor e a tela do
+  // jogador continua com a tinta velha até o token mudar de nome ou tamanho.
+  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null])
 }
 
 interface Scene {

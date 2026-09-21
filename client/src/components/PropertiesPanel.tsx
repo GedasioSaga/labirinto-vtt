@@ -20,7 +20,9 @@ import { PolygonSidesControls, type PolygonSidesControlsProps } from './PolygonS
 import { LayersPanel, type LayersPanelProps } from './LayersPanel'
 import { TokenImageControls, type TokenImageControlsProps } from './TokenImageControls'
 import { tokenPhotoRef } from '../lib/tokenPhoto'
+import { selectedTokenColor } from '../lib/tokenColor'
 import { TokenNameControls, type TokenNameControlsProps } from './TokenNameControls'
+import { TokenColorControls, type TokenColorControlsProps } from './TokenColorControls'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
@@ -95,6 +97,8 @@ interface PropertiesPanelProps {
   selectedToken: Token | null
   tokenName: Omit<TokenNameControlsProps, 'name'>
   tokenImage: Omit<TokenImageControlsProps, 'image'>
+  /** Cor da ficha selecionada — separa aliado de inimigo no meio da luta. */
+  tokenColor: Omit<TokenColorControlsProps, 'color'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -166,6 +170,7 @@ export function PropertiesPanel({
   selectedToken,
   tokenName,
   tokenImage,
+  tokenColor,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -383,6 +388,10 @@ export function PropertiesPanel({
         {selectedToken && (
           <ToolPropertiesSection group="tokenImage" groups={groups}>
             <TokenNameControls name={selectedToken.name} {...tokenName} />
+            {/* Antes da imagem: a cor é o caminho de um clique, a foto é o de
+                abrir o disco. Quem só quer separar aliado de inimigo não
+                precisa passar pelo controle caro para chegar no barato. */}
+            <TokenColorControls color={selectedTokenColor(selectedToken)} {...tokenColor} />
             {/* `tokenPhotoRef`: foto escolhida pelo JOGADOR vive em `imageData` — sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
             <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
           </ToolPropertiesSection>

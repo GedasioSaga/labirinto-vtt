@@ -1684,6 +1684,12 @@ function App() {
               onClearImage: () => selectedToken && setTokenImage(selectedToken.id, null),
               onSaveToLibrary: () => selectedToken && void handleSaveTokenToLibrary(selectedToken),
             }}
+            tokenColor={{
+              // `null` devolve o token à cor de fábrica: grava o campo como
+              // null em vez de apagá-lo, para o undo (`updateToken` passa por
+              // `withHistory`) ter o que restaurar.
+              onColorChange: (color) => selectedToken && updateToken(selectedToken.id, { color }),
+            }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
