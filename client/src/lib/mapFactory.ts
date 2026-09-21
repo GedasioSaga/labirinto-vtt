@@ -12,6 +12,7 @@ import { defaultMeasurementModeForShape } from './measurement'
 import { moveBlocos, type Bloco } from './floorBlocks'
 import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
+import { sameDestination } from './pinTravel'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -1428,11 +1429,14 @@ export function addPin(map: MapData, pin: Pin): MapData {
   return { ...map, pins: [...map.pins, pin] }
 }
 
-/** Tipo, símbolo, descrição, imagem e trava do pino. Id inexistente ou nada mudando devolve o mesmo `map`. */
+/**
+ * Tipo, símbolo, descrição, imagem, trava e destino (pino de viagem) do pino.
+ * Id inexistente ou nada mudando devolve o mesmo `map`.
+ */
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1447,7 +1451,9 @@ export function updatePin(
     next.icon === pin.icon &&
     next.description === pin.description &&
     next.image === pin.image &&
-    !!next.locked === !!pin.locked
+    !!next.locked === !!pin.locked &&
+    // Mesma regra: desligar um pino que nunca foi ligado não é mudança.
+    sameDestination(next.destino, pin.destino)
   ) {
     return map
   }

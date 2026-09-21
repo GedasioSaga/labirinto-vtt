@@ -42,6 +42,45 @@ describe('serializeMap/deserializeMap', () => {
     expect(deserializeMap(antigo).pins[0].icon).toBeUndefined()
   })
 
+  it('pino de viagem: mapa salvo antes do campo abre igual — sem destino, e regravar não inventa campo', () => {
+    // O mapa gravado antes desta mudança: nenhum `destino` no arquivo.
+    const antigo =
+      '{"id": "antigo", "pins": [' +
+      '{"id": "p1", "x": 10, "y": 20, "kind": "exclamacao", "description": "Estátua", "image": null},' +
+      '{"id": "p2", "x": 30, "y": 40, "kind": "interrogacao", "description": "", "image": null}]}'
+    const pins = deserializeMap(antigo).pins
+    expect(pins).toEqual([
+      { id: 'p1', x: 10, y: 20, kind: 'exclamacao', description: 'Estátua', image: null },
+      { id: 'p2', x: 30, y: 40, kind: 'interrogacao', description: '', image: null },
+    ])
+    // Ausente continua ausente: `null` em todo pino antigo seria campo que o arquivo não tinha.
+    expect(pins.map((p) => p.destino)).toEqual([undefined, undefined])
+    expect(serializeMap(deserializeMap(antigo))).not.toContain('destino')
+  })
+
+  it('pino de viagem ligado faz ida e volta; destino torto volta "sem destino" e o tipo continua viagem', () => {
+    const viagem = {
+      id: 'a',
+      x: 64,
+      y: 64,
+      kind: 'viagem' as const,
+      description: 'Escada que desce',
+      image: null,
+      destino: { sceneId: 'scene_cripta', pinId: 'b' },
+    }
+    const map = { ...createEmptyMap('map_v', 'V', 5, 5, 64), pins: [viagem] }
+    expect(deserializeMap(serializeMap(map)).pins).toEqual([viagem])
+
+    const torto =
+      '{"id": "torto", "pins": [' +
+      '{"id": "a", "x": 1, "y": 2, "kind": "viagem", "description": "", "image": null, "destino": "Cripta"},' +
+      '{"id": "c", "x": 1, "y": 2, "kind": "viagem", "description": "", "image": null, "destino": {"sceneId": "", "pinId": "b"}}]}'
+    expect(deserializeMap(torto).pins.map((p) => [p.kind, p.destino])).toEqual([
+      ['viagem', null],
+      ['viagem', null],
+    ])
+  })
+
   it('ícone desconhecido abre como pino sem ícone em vez de derrubar o desenho do mapa', () => {
     const json = '{"id": "futuro", "pins": [{"id": "p1", "x": 10, "y": 20, "icon": "dragao", "description": "", "image": null}]}'
     const pin = deserializeMap(json).pins[0]

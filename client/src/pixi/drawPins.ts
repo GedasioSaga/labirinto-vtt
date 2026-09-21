@@ -1,10 +1,24 @@
 import { Container, Graphics, Text } from 'pixi.js'
 import type { Pin } from '../types/map'
-import { PIN_GLYPH, PIN_HEAD_OFFSET, PIN_HEAD_RADIUS, PIN_HEIGHT, PIN_SYMBOLS, isPinIcon } from '../lib/pins'
+import {
+  PIN_GLYPH,
+  PIN_HEAD_OFFSET,
+  PIN_HEAD_RADIUS,
+  PIN_HEIGHT,
+  PIN_SYMBOLS,
+  PIN_TRAVEL_SYMBOL,
+  isPinIcon,
+  type PinSymbolShape,
+} from '../lib/pins'
 import { SELECTION_COLOR } from './constants'
 
 export interface PinsRenderer {
-  draw: (container: Container, pins: readonly Pin[], selectedId: string | null) => void
+  /**
+   * `unlinkedIds`: pinos de viagem SEM par, desenhados apagados. Só o editor
+   * do mestre sabe disso — o recorte do jogador nunca leva o destino
+   * (`lib/fogFilter.ts`) —, então sem o conjunto todo pino de viagem sai aceso.
+   */
+  draw: (container: Container, pins: readonly Pin[], selectedId: string | null, unlinkedIds?: ReadonlySet<string>) => void
 }
 
 /** Latão quente: o pino é chamariz, precisa saltar do chão marrom e do preto da névoa. */
@@ -28,6 +42,20 @@ const SYMBOL_RADIUS = PIN_HEAD_RADIUS * 0.64
 const SYMBOL_WIDTH = 1.7
 
 /**
+ * Pino de VIAGEM: o negativo do marcador. Cabeça escura — o chão do minimapa
+ * — com a linha clara por cima, aro e símbolo no mesmo latão do pino de
+ * sempre. Lê como "passagem" ao lado dos marcadores de latão sem inventar
+ * cor nova nem engrossar traço.
+ */
+const TRAVEL_HEAD_FILL = PIN_OUTLINE
+const TRAVEL_LINE = PIN_FILL
+/**
+ * Passagem sem par: a mesma linha, apagada. O pino continua no mapa e
+ * clicável, mas o latão some — é o aviso de que ele ainda não leva a lugar nenhum.
+ */
+const TRAVEL_LINE_UNLINKED = 0x8a8478
+
+/**
  * Pino de ponto de interesse: gota cravada no ponto (a ponta fica EXATAMENTE
  * em `pin.x`/`pin.y`, que é o que o mestre clicou) com o glifo dentro da
  * cabeça. Desenhado por código, como a escada (`drawStairs.ts`) — nada de
@@ -40,17 +68,16 @@ const SYMBOL_WIDTH = 1.7
  * `drawConcealZones.ts`. Pino apagado só fica invisível.
  */
 /**
- * Símbolo escolhido dentro da cabeça, a partir da forma normalizada de
- * `lib/pins.ts`. Desenhado no MESMO `Graphics` do pino — um símbolo é traço,
- * não texto, e desenhá-lo aqui evita mais um `Text` por pino (ver o aviso de
- * `TexturePool.returnTexture` no cabeçalho deste arquivo).
+ * Símbolo dentro da cabeça — o escolhido pelo mestre ou a passagem do pino de
+ * viagem —, a partir da forma normalizada de `lib/pins.ts`. Desenhado no MESMO
+ * `Graphics` do pino — um símbolo é traço, não texto, e desenhá-lo aqui evita
+ * mais um `Text` por pino (ver o aviso de `TexturePool.returnTexture` no
+ * cabeçalho deste arquivo).
  */
-function drawSymbol(graphics: Graphics, pin: Pin, headY: number): void {
-  if (!isPinIcon(pin.icon)) return
-  const shape = PIN_SYMBOLS[pin.icon]
-  const px = (n: number) => pin.x + n * SYMBOL_RADIUS
-  const py = (n: number) => headY + n * SYMBOL_RADIUS
-  const traco = { width: SYMBOL_WIDTH, color: GLYPH_COLOR, cap: 'round', join: 'round' } as const
+function drawShape(graphics: Graphics, shape: PinSymbolShape, cx: number, cy: number, color: number): void {
+  const px = (n: number) => cx + n * SYMBOL_RADIUS
+  const py = (n: number) => cy + n * SYMBOL_RADIUS
+  const traco = { width: SYMBOL_WIDTH, color, cap: 'round', join: 'round' } as const
 
   for (const stroke of shape.strokes) {
     const [primeiro, ...resto] = stroke.points
@@ -64,15 +91,28 @@ function drawSymbol(graphics: Graphics, pin: Pin, headY: number): void {
     graphics.circle(px(ring.x), py(ring.y), ring.r * SYMBOL_RADIUS).stroke(traco)
   }
   for (const dot of shape.dots ?? []) {
-    graphics.circle(px(dot.x), py(dot.y), dot.r * SYMBOL_RADIUS).fill({ color: GLYPH_COLOR })
+    graphics.circle(px(dot.x), py(dot.y), dot.r * SYMBOL_RADIUS).fill({ color })
   }
+}
+
+/** Cabeça do marcador ("!" e "?"): latão com contorno escuro e, se escolhido, o símbolo em traço escuro. */
+function drawMarkerHead(graphics: Graphics, pin: Pin, headY: number): void {
+  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS).fill({ color: PIN_FILL }).stroke({ width: PIN_OUTLINE_WIDTH, color: PIN_OUTLINE })
+  if (isPinIcon(pin.icon)) drawShape(graphics, PIN_SYMBOLS[pin.icon], pin.x, headY, GLYPH_COLOR)
+}
+
+/** Cabeça do pino de viagem: escura, com aro e passagem na linha clara — apagada quando não tem par. */
+function drawTravelHead(graphics: Graphics, pin: Pin, headY: number, unlinked: boolean): void {
+  const linha = unlinked ? TRAVEL_LINE_UNLINKED : TRAVEL_LINE
+  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS).fill({ color: TRAVEL_HEAD_FILL }).stroke({ width: PIN_OUTLINE_WIDTH, color: linha })
+  drawShape(graphics, PIN_TRAVEL_SYMBOL, pin.x, headY, linha)
 }
 
 export function createPinsRenderer(): PinsRenderer {
   const graphics = new Graphics()
   const glyphs = new Map<string, Text>()
 
-  function draw(container: Container, pins: readonly Pin[], selectedId: string | null): void {
+  function draw(container: Container, pins: readonly Pin[], selectedId: string | null, unlinkedIds?: ReadonlySet<string>): void {
     if (graphics.parent !== container) container.addChildAt(graphics, 0)
     graphics.clear()
 
@@ -93,12 +133,14 @@ export function createPinsRenderer(): PinsRenderer {
         .moveTo(pin.x, pin.y)
         .lineTo(pin.x, pin.y - PIN_HEIGHT + PIN_HEAD_RADIUS)
         .stroke({ width: PIN_OUTLINE_WIDTH + 2, color: PIN_OUTLINE, cap: 'round' })
-      graphics.circle(pin.x, headY, PIN_HEAD_RADIUS).fill({ color: PIN_FILL }).stroke({ width: PIN_OUTLINE_WIDTH, color: PIN_OUTLINE })
 
-      // Com símbolo escolhido, é ELE que ocupa a cabeça: o glifo sai de cena
-      // (invisível, nunca destruído) em vez de dividir o espaço com o desenho.
-      const comSimbolo = isPinIcon(pin.icon)
-      drawSymbol(graphics, pin, headY)
+      // Com símbolo (escolhido, ou a passagem do pino de viagem), é ELE que
+      // ocupa a cabeça: o glifo sai de cena (invisível, nunca destruído) em
+      // vez de dividir o espaço com o desenho.
+      const viagem = pin.kind === 'viagem'
+      const comSimbolo = viagem || isPinIcon(pin.icon)
+      if (viagem) drawTravelHead(graphics, pin, headY, unlinkedIds?.has(pin.id) === true)
+      else drawMarkerHead(graphics, pin, headY)
 
       let glyph = glyphs.get(pin.id)
       if (!glyph) {

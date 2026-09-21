@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { Pin } from '../types/map'
 import { PIN_GLYPH, isPlayerSafePinImage } from '../lib/pins'
+import { PinTravelArt } from '../components/PinSymbolArt'
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -53,6 +54,10 @@ export function PlayerPinCard({ pin, onClose }: PlayerPinCardProps) {
   // Só data URL vira foto: se um caminho de disco escapasse até aqui, o
   // `<img>` tentaria abrir o computador do mestre pelo navegador do jogador.
   const foto = isPlayerSafePinImage(pin.image) ? pin.image : null
+  // Pino de viagem: o cartão é o de sempre (imagem e descrição do mestre), com
+  // a passagem no lugar do glifo — a mesma cabeça que o jogador vê no mapa.
+  // O nome da cena de destino nunca chega aqui (`lib/fogFilter.ts`).
+  const viagem = pin.kind === 'viagem'
 
   return (
     <div className="pp-pincard__backdrop" onPointerDown={onClose}>
@@ -60,7 +65,7 @@ export function PlayerPinCard({ pin, onClose }: PlayerPinCardProps) {
         className="pp-pincard"
         role="dialog"
         aria-modal="true"
-        aria-label={`Ponto de interesse ${PIN_GLYPH[pin.kind]}`}
+        aria-label={viagem ? 'Passagem' : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`}
         // Toque DENTRO do cartão não conta como "tocar fora".
         onPointerDown={(event) => event.stopPropagation()}
       >
@@ -70,8 +75,8 @@ export function PlayerPinCard({ pin, onClose }: PlayerPinCardProps) {
           alt={foto === null ? 'Este ponto de interesse ainda não tem imagem' : 'Imagem deixada pelo mestre neste ponto de interesse'}
         />
         <div className="pp-pincard__body">
-          <span className="pp-pincard__glyph" aria-hidden="true">
-            {PIN_GLYPH[pin.kind]}
+          <span className={viagem ? 'pp-pincard__glyph pp-pincard__glyph--viagem' : 'pp-pincard__glyph'} aria-hidden="true">
+            {viagem ? <PinTravelArt size={16} /> : PIN_GLYPH[pin.kind]}
           </span>
           <p className="pp-pincard__text">
             {descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao}

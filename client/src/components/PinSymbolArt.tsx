@@ -1,5 +1,10 @@
 import type { PinIcon } from '../types/map'
-import { PIN_SYMBOLS, type PinSymbolPoint } from '../lib/pins'
+import { PIN_SYMBOLS, PIN_TRAVEL_SYMBOL, type PinSymbolPoint, type PinSymbolShape } from '../lib/pins'
+
+interface PinShapeArtProps {
+  shape: PinSymbolShape
+  size?: number
+}
 
 interface PinSymbolArtProps {
   icon: PinIcon
@@ -20,17 +25,16 @@ function paraTela(ponto: PinSymbolPoint): string {
 }
 
 /**
- * O símbolo do pino como SVG, para o painel do mestre e para o cartão do
- * jogador. A geometria não mora aqui: vem de `PIN_SYMBOLS` (`lib/pins.ts`),
- * a mesma fonte que `pixi/drawPins.ts` usa no mapa — o desenho do controle e o
- * desenho do mapa não têm como divergir.
+ * Uma forma de `lib/pins.ts` como SVG, para o painel do mestre e para o
+ * cartão do jogador. A geometria não mora aqui: vem da mesma fonte que
+ * `pixi/drawPins.ts` usa no mapa — o desenho do controle e o desenho do mapa
+ * não têm como divergir.
  *
  * Decorativo de propósito (`aria-hidden`): quem carrega o nome acessível é
  * sempre o botão ou o rótulo que contém a arte, do mesmo jeito que em
  * `components/icons.tsx`.
  */
-export function PinSymbolArt({ icon, size = 18 }: PinSymbolArtProps) {
-  const shape = PIN_SYMBOLS[icon]
+export function PinShapeArt({ shape, size = 18 }: PinShapeArtProps) {
   return (
     <svg
       width={size}
@@ -66,4 +70,14 @@ export function PinSymbolArt({ icon, size = 18 }: PinSymbolArtProps) {
       ))}
     </svg>
   )
+}
+
+/** O símbolo que o mestre escolhe para o marcador (baú, armadilha…). */
+export function PinSymbolArt({ icon, size = 18 }: PinSymbolArtProps) {
+  return <PinShapeArt shape={PIN_SYMBOLS[icon]} size={size} />
+}
+
+/** A passagem do pino de viagem: a seta entrando no vão da porta. */
+export function PinTravelArt({ size = 18 }: { size?: number }) {
+  return <PinShapeArt shape={PIN_TRAVEL_SYMBOL} size={size} />
 }

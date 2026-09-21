@@ -271,7 +271,9 @@ export function PropertiesPanel({
               `LineShapeControls` logo abaixo usa a mesma composição): o último
               botão daquela seção é "Excluir ponto de interesse", e ação
               destrutiva não pode ficar no meio da coluna. */}
-          <PinIconControls {...pinIcon} pinSelected={pinSelected} />
+          {/* O pino de viagem tem símbolo próprio (a passagem): a grade de
+              ícones não faria nada nele, então não aparece. */}
+          {pin.kind !== 'viagem' && <PinIconControls {...pinIcon} pinSelected={pinSelected} />}
           <PinControls {...pin} />
         </ToolPropertiesSection>
         {playerSecret && (

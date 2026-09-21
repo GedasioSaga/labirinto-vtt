@@ -25,7 +25,15 @@ import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { useMapStore } from './stores/mapStore'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
-import { hasUnsavedWork, sceneList, useAdventureStore } from './stores/adventureStore'
+import {
+  hasUnsavedWork,
+  pinTravelOf,
+  pinTravelOptions,
+  sceneList,
+  subscribeToTravelLinks,
+  travelSceneOptions,
+  useAdventureStore,
+} from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
@@ -35,7 +43,7 @@ import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { ActionBar } from './components/ActionBar'
-import type { DoorKind, DrawingCap, DrawingDash, MapData, Region, Token, Wall } from './types/map'
+import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, Region, Token, Wall } from './types/map'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -613,6 +621,9 @@ function App() {
 
   // Onda 2, item 11 (Frente D) — liga a flag "tem alteração não salva".
   useEffect(() => subscribeToDirtyFlag(), [])
+  // Pino de viagem: toda mudança de ligação na cena aberta (ligar, desligar,
+  // apagar, Ctrl+Z) é espelhada no par da outra cena.
+  useEffect(() => subscribeToTravelLinks(), [])
 
   /**
    * Avisa antes de fechar a janela (X, Alt+F4, taskbar) se houver edição não
@@ -1106,6 +1117,31 @@ function App() {
   }
 
   /**
+   * O destino do pino de viagem aberto no painel: o que ele diz ("Leva a
+   * Cripta", "Sem destino") e o que o "Leva a…" oferece. A ligação vive no
+   * `adventureStore` — o painel só lê e pede.
+   */
+  const pinTravelPanel = (pin: Pin) => {
+    const scenes = { adventure, activeSceneId, cache: sceneCache }
+    return {
+      pinId: pin.id,
+      travel: pinTravelOf(scenes, map, pin),
+      scenes: travelSceneOptions(scenes),
+      pinsIn: (sceneId: string) => pinTravelOptions(scenes, map, sceneId, pin.id),
+      onLinkNew: (sceneId: string) => {
+        useAdventureStore.getState().linkPinToNewArrival(pin.id, sceneId)
+      },
+      onLinkExisting: (sceneId: string, partnerId: string) => {
+        useAdventureStore.getState().linkPinToExisting(pin.id, sceneId, partnerId)
+      },
+      onUnlink: () => useAdventureStore.getState().unlinkPin(pin.id),
+      onGo: () => {
+        useAdventureStore.getState().travelThroughPin(pin.id)
+      },
+    }
+  }
+
+  /**
    * Token nasce no centro da área visível do canvas (câmera da store, que o
    * PixiCanvas mantém em dia a cada pan/zoom) e já selecionado, para o painel
    * mostrar o Nome dele. Sem o container montado cai em (0,0), como antes.
@@ -1426,6 +1462,7 @@ function App() {
           onCameraChange={(camera: Camera) => setCameraScale(camera.scale)}
           resetZoomRequest={resetZoomRequest}
           cameraRequest={sceneCameraRequest}
+          onTravelPin={(pinId) => useAdventureStore.getState().travelThroughPin(pinId)}
           onLaserMove={(x, y) => hostBridgeRef.current?.laserMove(x, y)}
           onRoomCreated={() => {
             // O nome é pedido sobre a própria Sala (PixiCanvas); a aba Mapa só
@@ -1756,8 +1793,13 @@ function App() {
               kind: selectedPin?.kind ?? pinKind,
               // Com um pino aberto, o controle edita ESSE pino; sem nenhum, ele
               // guarda a preferência do próximo — mesmo padrão de DoorKindControls.
+              // Pino que deixa de ser de viagem perde o destino no MESMO passo
+              // do desfazer; o par da outra cena é desligado pelo adventureStore.
               onKindChange: (kind) =>
-                selectedPin ? useMapStore.getState().updatePin(selectedPin.id, { kind }) : useMapStore.getState().setPinKind(kind),
+                selectedPin
+                  ? useMapStore.getState().updatePin(selectedPin.id, kind === 'viagem' ? { kind } : { kind, destino: null })
+                  : useMapStore.getState().setPinKind(kind),
+              travel: selectedPin?.kind === 'viagem' ? pinTravelPanel(selectedPin) : null,
               description: selectedPin?.description ?? null,
               onDescriptionChange: (description) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { description }),
               // Veracidade, nunca `=== true`: `locked` é opcional no schema e

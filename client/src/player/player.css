@@ -759,6 +759,14 @@
   border-radius: 999px;
 }
 
+/* Pino de viagem: o negativo do marcador, como no mapa (`pixi/drawPins.ts`) —
+   cabeça escura, aro e passagem no latão. */
+.pp-pincard__glyph--viagem {
+  color: #f2c14e;
+  background: #1b1208;
+  box-shadow: inset 0 0 0 2px #f2c14e;
+}
+
 .pp-pincard__text {
   margin: 0;
   font-size: 15px;

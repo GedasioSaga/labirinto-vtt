@@ -1,4 +1,4 @@
-import type { DoorState, Drawing, FloorPiece, MapData, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
 import { isTokenPhotoData } from './tokenPhoto'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing } from './floorContour'
@@ -713,7 +713,7 @@ export function filterMapForPlayer(
         const point = { x: p.x, y: p.y }
         return !inRoomHiddenFromPlayer(point) && isPointKnown(point)
       })
-      .map((p) => (isPlayerSafePinImage(p.image) ? p : { ...p, image: null })),
+      .map(pinForPlayer),
     // Metadado do mestre: nome e estado das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
@@ -723,4 +723,17 @@ export function filterMapForPlayer(
 /** O host vê o mapa inteiro, inclusive itens ocultos. */
 export function filterMapForHost(map: MapData): MapData {
   return map
+}
+
+/**
+ * O pino como o jogador pode recebê-lo. Sai SEMPRE numa cópia:
+ * - `image` só em data URL (`isPlayerSafePinImage`) — nunca um caminho do
+ *   disco do mestre;
+ * - `destino` (pino de viagem) NUNCA: o id da cena de destino e o do pino par
+ *   diriam ao jogador que a outra cena existe, antes de o mestre deixar passar.
+ */
+function pinForPlayer(pin: Pin): Pin {
+  const forPlayer: Pin = { ...pin, image: isPlayerSafePinImage(pin.image) ? pin.image : null }
+  delete forPlayer.destino
+  return forPlayer
 }
