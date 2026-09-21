@@ -18,8 +18,8 @@
   "_base_movida_no_meio_do_run": "21/09/2026, madrugada — MEDIDO antes de mexer. O ponteiro `auto/base-noite-21set` foi criado em 5bd6054, e foi esse sha que `scripts/portao-selo.json` carimbou em `base_do_run`. Depois disso o commit 86843fc, que declarou a particao desta noite, MOVEU o ponteiro para si mesmo. Resultado medido: `base`.`origem` resolvia para 86843fc enquanto o selo dizia 5bd6054, `g20-base-imutavel` saia VERMELHA com 'base trocada no meio do run', `baseDoRun()` devolvia erro em vez de base, e os cinco passos que dependem dela — `particao`, `rust-intocado`, `jornadas-intactas`, g13 e g24 — ficavam SEM JUIZ: os comandos da rodada inteira vermelhos sem ninguem ter escrito uma linha de codigo. O conserto NAO e recarimbar o selo, que seria exatamente o reu escolhendo o juiz (o risco que `_selo_r5` ja tinha anotado): e apontar `origem` para um ponteiro que resolve no MESMO sha que o selo carimbou. `auto/base-r3` e 5bd6054 e nunca se moveu.",
   "_base_ramo_por_sha": "`ramo` passa a ser um SHA e nao um nome. `auto/base-noite-21set` acabou de provar que nome de ponteiro se move no meio do run; 86843fc0b6582b73957e8c511666b45ef2205d87 nao tem como. E ele tem de ser 86843fc e nao 5bd6054 porque foi de 86843fc que as cinco pecas de cliente desta rodada foram cortadas: com `ramo` em 5bd6054, cada uma delas seria cobrada pelos dois arquivos de `scripts/` que 86843fc mudou ANTES de escrever uma linha — o vermelho impossivel descrito em `_base_18set_corrigida`. 5bd6054 e ancestral de 86843fc (conferido com `git merge-base --is-ancestor`), entao a clausula de descendencia de g20 continua verde.",
   "base": {
-    "origem": "auto/base-r3",
-    "ramo": "86843fc0b6582b73957e8c511666b45ef2205d87"
+    "origem": "auto/base-pecas-21set",
+    "ramo": "auto/base-pecas-21set"
   },
   "pecas": {
     "portao": [
@@ -96,5 +96,6 @@
     "docs/verification/**",
     "docs/varredura-*.md"
   ],
-  "_dono_unico_de_scripts": "NAO crie outra chave que declare scripts/**. No instantaneo o git fica em HEAD destacado, o portao perde o nome do ramo (pecaDaArvore, portao.cjs:336-340) e cai no modo `arvore compartilhada`, que exige DONO UNICO por arquivo mudado. Com `portao`, `r3-portao` e `acervo` declarando scripts/portao.cjs ao mesmo tempo, esse modo reprovava sempre — e era vermelho que builder nenhum conseguia consertar, porque a disputa estava no manifesto, nao no codigo. Ramo de portao novo entra em `apelidos`.`portao`, nunca como chave nova."
+  "_dono_unico_de_scripts": "NAO crie outra chave que declare scripts/**. No instantaneo o git fica em HEAD destacado, o portao perde o nome do ramo (pecaDaArvore, portao.cjs:336-340) e cai no modo `arvore compartilhada`, que exige DONO UNICO por arquivo mudado. Com `portao`, `r3-portao` e `acervo` declarando scripts/portao.cjs ao mesmo tempo, esse modo reprovava sempre — e era vermelho que builder nenhum conseguia consertar, porque a disputa estava no manifesto, nao no codigo. Ramo de portao novo entra em `apelidos`.`portao`, nunca como chave nova.",
+  "_base_pecas_21set": "Ponteiro CONGELADO em 5bc2117: o commit de onde as cinco pecas de feature desta noite foram cortadas, e o primeiro que ja traz o portao endurecido desta rodada. Apontar a base para um commit ANTERIOR a esse fazia a Fase 0 sair sem juiz (g27, g24, g13); apontar para um POSTERIOR fazia o conserto do portao cair na conta da peca de cliente, que nao o escreveu. As duas pontas ficam aqui ate o merge da noite."
 }
