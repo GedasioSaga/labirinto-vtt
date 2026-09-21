@@ -1283,7 +1283,12 @@ function guardaParticao(entrada) {
   const pecas = manifesto.pecas || {}
   const livres = manifesto.livres || []
   const alvos = manifesto.alvos || {}
-  const donosDe = (arquivo) => Object.keys(pecas).filter((nome) => (pecas[nome] || []).some((p) => casaCom(arquivo, p)))
+  // `Array.isArray` e não `|| []`, pela mesma razão que em `alvos` logo abaixo: o
+  // manifesto é documentado em campos de texto, e um comentário escrito dentro de
+  // `pecas` derrubava o portão inteiro com `TypeError: (...).some is not a function`
+  // — medido em 21/09/2026. Portão que estoura não reprova nem aprova: some.
+  const areaDaPeca = (nome) => (Array.isArray(pecas[nome]) ? pecas[nome] : [])
+  const donosDe = (arquivo) => Object.keys(pecas).filter((nome) => areaDaPeca(nome).some((p) => casaCom(arquivo, p)))
   // `Array.isArray` e não `|| []`: o manifesto é documentado em campos `_...`
   // de texto, e um deles caindo aqui dentro derrubaria o portão com TypeError
   // em vez de julgar.
@@ -1301,7 +1306,7 @@ function guardaParticao(entrada) {
         'scripts/portao-particao.json ("pecas")',
       )
     }
-    const permitido = (a) => (pecas[chave] || []).some((p) => casaCom(a, p)) || livres.some((p) => casaCom(a, p))
+    const permitido = (a) => areaDaPeca(chave).some((p) => casaCom(a, p)) || livres.some((p) => casaCom(a, p))
     const invasao = arquivos.filter((a) => !permitido(a))
     if (invasao.length > 0) {
       return reprova(

@@ -25,12 +25,8 @@
     "portao": [
       "scripts/**",
       "client/playwright.config.ts",
-      "client/e2e/task-jornada-portao-nao-apaga-prova.spec.ts"
-    ],
-    "r3-portao": [
-      "scripts/**",
-      "client/playwright.config.ts",
-      "client/e2e/task-jornada-portao-nao-apaga-prova.spec.ts"
+      "client/e2e/**",
+      "docs/**"
     ],
     "r3-linha-pontilhada": [
       "client/src/**"
@@ -51,12 +47,6 @@
       "client/src/**",
       "client/e2e/task-jornada-item-travado.spec.ts",
       "client/e2e/task-jornada-pino-move-e-cartao-direita.spec.ts"
-    ],
-    "acervo": [
-      "client/src/**",
-      "scripts/portao-particao.json",
-      "scripts/portao-selo.json",
-      "client/e2e/**"
     ]
   },
   "_acervo_e_o_ramo_do_orquestrador": "Na noite de 20-21/09 o ramo `auto/acervo` deixou de ser peça de builder e virou o ramo em que o ORQUESTRADOR trabalha: é dele que saem as jornadas vermelhas da rodada, o selo e este manifesto, todos escritos antes do primeiro builder. Por isso a área dele inclui `client/e2e/**` e os dois arquivos de juiz — que continuam PROIBIDOS para toda peça de cliente, cuja área é só `client/src/**`. Builder nenhum roda nesta branch: cada um vive em `auto/r3-<id>`.",
@@ -67,12 +57,6 @@
       "client/src/components/RoomControls.tsx",
       "client/src/player/player.css",
       "client/src/components/PinControls.tsx"
-    ],
-    "acervo": [
-      "client/src/lib/tokenLibrary.ts",
-      "client/src/stores/tokenLibraryStore.ts",
-      "client/src/components/TokenLibraryPanel.tsx",
-      "client/src/components/TokenImageControls.tsx"
     ]
   },
   "_apelido_r4_portao": "A peca do portao desta volta commita em `auto/r4-portao`, e o id que o passo `particao` le do nome do ramo e `r4-portao`. Ele entra em `apelidos`.`portao` — e NAO como peca nova — pelo mesmo motivo que `_pecas_r3` escreveu para `r3-portao`: e a MESMA peca (mesma area `scripts/**`, mesmo alvo `scripts/portao.cjs`, mesmo juiz), e duplicar a entrada duplicaria tambem quem tem direito de reescrever este arquivo. O ramo `auto/r3-portao` ja estava ocupado por outro worktree, com trabalho nao commitado e cortado de um commit que nao e a base desta rodada (5bd6054 em vez de 86843fc): commitar nele exigiria merge ou rebase, os dois proibidos.",
@@ -82,8 +66,13 @@
       "gate",
       "fase0",
       "portao-acervo",
+      "acervo",
+      "r3-portao",
+      "r3-portao-b3",
+      "r3-portao-b5",
+      "r3-portao-b4",
       "r4-portao",
-      "r3-portao-b5"
+      "r5-portao"
     ],
     "teto": [
       "teto-de-construcao",
@@ -93,11 +82,6 @@
       "item-travado",
       "pino",
       "pino-move"
-    ],
-    "acervo": [
-      "acervo-de-tokens",
-      "token-library",
-      "npcs-prontos"
     ]
   },
   "_selo_r5": "scripts/portao-selo.json entrou em `pecas`.`portao` e em `alvos`.`portao` — EXCLUSIVO da peca do portao, proibido para as tres pecas de cliente. O selo desta rodada foi tirado ANTES de a guarda g20 existir e por isso nao trazia `base_do_run`: a ancora que impede o reu de escolher o proprio juiz estava INATIVA, e a ausencia dela saia como nota no verde em vez de vermelho. Recarimbar foi verificado antes, nao depois: `--so=jornadas-intactas` estava VERDE com as 23 jornadas, e as 23 hashes do selo novo batem com o DISCO e com o commit-base (auto/base-r5) ao mesmo tempo — nenhuma jornada mudou, o selo so trocou o fallback 'hash do commit base' por hash explicito e ganhou o carimbo. `base_do_run` foi carimbado com auto/base-noite = 6500be7, o mesmo valor que o manifesto da arvore e o manifesto commitado dentro do proprio commit-base ja declaravam. RISCO ACEITO E ANOTADO PARA A MANHA: com o selo declarado como alvo, uma peca de portao futura pode recarimba-lo. O que segura agora e g20 ficar VERMELHO quando NAO ha ancora nenhuma, mais a clausula de ancestralidade contra o manifesto commitado na propria base. Se a manha quiser fechar de vez, o selo sai desta lista e passa a ser tirado so pelo orquestrador.",
@@ -111,5 +95,6 @@
     "docs/pedidos/**",
     "docs/verification/**",
     "docs/varredura-*.md"
-  ]
+  ],
+  "_dono_unico_de_scripts": "NAO crie outra chave que declare scripts/**. No instantaneo o git fica em HEAD destacado, o portao perde o nome do ramo (pecaDaArvore, portao.cjs:336-340) e cai no modo `arvore compartilhada`, que exige DONO UNICO por arquivo mudado. Com `portao`, `r3-portao` e `acervo` declarando scripts/portao.cjs ao mesmo tempo, esse modo reprovava sempre — e era vermelho que builder nenhum conseguia consertar, porque a disputa estava no manifesto, nao no codigo. Ramo de portao novo entra em `apelidos`.`portao`, nunca como chave nova."
 }
