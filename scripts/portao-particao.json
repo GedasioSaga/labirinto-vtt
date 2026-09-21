@@ -12,14 +12,38 @@
   "_base_duas_pontas": "Os dois papeis, na ordem em que o portao os le. `origem` e o ponteiro CONGELADO do comeco do run e e quem julga a peca que pode reescrever este manifesto (a peca `portao`) — por isso continua em auto/base-noite/6500be7, o mesmo que scripts/portao-selo.json carimbou em base_do_run. Apontar `origem` para a branch onde o HEAD trabalha e o reu escolhendo o juiz: foi o que eu fiz em b067f94 e custou quatro guardas SEM JUIZ (g13, g24, particao, rust-intocado). `ramo` e o corte das pecas de cliente — o topo do portao no instante em que os builders sairam — e por isso ele SOBE a cada conserto do portao: auto/base-teto/b067f94 nesta rodada.",
   "_base_r4": "auto/base-pecas-r4 é um ponteiro CONGELADO no topo do portão depois deste conserto — o único commit que já traz a guarda de alvo cruzado, a regressão dos menus, o g19 e o g20. É de lá que as três peças de cliente desta rodada têm de ser cortadas: cortadas de auto/base-noite, `particao` e `rust-intocado` saem SEM JUIZ; cortadas de auto/base-pecas, elas perdem os consertos do portão. Se o portão receber commit novo ANTES de os builders saírem, quem reaponta este ponteiro é o ORQUESTRADOR (ver _quem_mantem) — e `g20-base-imutavel` não deixa isso passar em silêncio: ponteiro que não descende de `origem` é vermelho com endereço.",
   "_base_da_noite": "A peca `acervo` sai de `auto/base-acervo`, ponteiro CONGELADO no commit em que o portao passou a conhecer a jornada do acervo (lista do criterio + selo com 33 hashes). Cortar a peca de `auto/base-teto` a deixaria sem esse juiz: a jornada nova nao estaria na bar e `jornadas-intactas` nao a protegeria. `origem` nao se move — continua em auto/base-noite, o mesmo que `base_do_run` do selo carimba.",
+  "_rodada_noite_21set": "20-21/09/2026, noite — as cinco features pendentes do PEDIDOS.md, uma peça por vez, cada uma em worktree próprio e branch `auto/r3-<id>`. As oito jornadas da rodada entraram commitadas e seladas ANTES do primeiro builder (4b9a9de, 41c3a7a, 23fab2c) e estão na lista do critério desde 12ae80e.",
+  "_sem_alvos_nesta_rodada": "Esta rodada declara ÁREA e não declara `alvos`, de propósito. `alvos` existe para o caso de duas peças construírem ao mesmo tempo na mesma árvore; aqui `pecas_simultaneas` é 1 e cada peça vive em worktree próprio, então o risco que `alvos` cobre não existe — e declarar exclusividade sobre arquivo que duas features legitimamente tocam (`client/src/pixi/drawWalls.ts` é da linha pontilhada E do vão sem parede) reprovaria conserto honesto. O merge das branches continua sendo do orquestrador.",
+  "_base_da_noite_21set": "As duas pontas passam a apontar para `auto/base-noite-21set`, ponteiro CONGELADO em 5bd6054 — o commit em que esta rodada começa, já com o portão consertado (12ae80e), as oito jornadas vermelhas commitadas e seladas, e o passeio registrado. Não é o réu escolhendo o juiz: `auto/base-noite-21set` não se move e descende de `auto/base-noite`, que era a origem anterior; g20 confere essa ancestralidade. Mantê-la em 6500be7 fazia a conta de commits já julgados (o merge do portão, o lado Rust de setembro) cair em cima da rodada de hoje, e vermelho que builder nenhum consegue consertar é vermelho que ninguém lê.",
   "base": {
-    "origem": "auto/base-noite",
-    "ramo": "auto/base-acervo"
+    "origem": "auto/base-noite-21set",
+    "ramo": "auto/base-noite-21set"
   },
   "pecas": {
     "portao": [
       "scripts/**",
-      "client/e2e/task-jornada-acervo-de-tokens.spec.ts"
+      "client/playwright.config.ts",
+      "client/e2e/task-jornada-portao-nao-apaga-prova.spec.ts"
+    ],
+    "r3-portao": [
+      "scripts/**",
+      "client/playwright.config.ts",
+      "client/e2e/task-jornada-portao-nao-apaga-prova.spec.ts"
+    ],
+    "r3-linha-pontilhada": [
+      "client/src/**"
+    ],
+    "r3-etiqueta-pilula": [
+      "client/src/**"
+    ],
+    "r3-marcador-com-icone": [
+      "client/src/**"
+    ],
+    "r3-saida-sem-parede": [
+      "client/src/**"
+    ],
+    "r3-caminho-com-cor-propria": [
+      "client/src/**"
     ],
     "teto": [
       "client/src/**",
@@ -27,14 +51,15 @@
       "client/e2e/task-jornada-pino-move-e-cartao-direita.spec.ts"
     ],
     "acervo": [
-      "client/src/**"
+      "client/src/**",
+      "scripts/portao-particao.json",
+      "scripts/portao-selo.json",
+      "client/e2e/**"
     ]
   },
+  "_acervo_e_o_ramo_do_orquestrador": "Na noite de 20-21/09 o ramo `auto/acervo` deixou de ser peça de builder e virou o ramo em que o ORQUESTRADOR trabalha: é dele que saem as jornadas vermelhas da rodada, o selo e este manifesto, todos escritos antes do primeiro builder. Por isso a área dele inclui `client/e2e/**` e os dois arquivos de juiz — que continuam PROIBIDOS para toda peça de cliente, cuja área é só `client/src/**`. Builder nenhum roda nesta branch: cada um vive em `auto/r3-<id>`.",
   "_alvos_desta_rodada": "Com UMA peca de cliente nesta rodada, `alvos` protege pouco na pratica — entra mesmo assim porque o alvo e o endereco da causa e documenta onde o conserto mora. `client/src/lib/fogFilter.ts` (o que o jogador RECEBE) e `client/src/components/RoomControls.tsx` (o interruptor que a jornada cobra pelo rotulo literal) sao da peca `teto`. `client/src/pixi/PixiCanvas.tsx`, `client/src/types/map.ts` e `client/src/main.css` ficam FORA: sao arquivos que qualquer peca pode ter motivo honesto de tocar, e inventar exclusividade neles reprovaria conserto legitimo.",
   "alvos": {
-    "portao": [
-      "scripts/portao.cjs"
-    ],
     "teto": [
       "client/src/lib/fogFilter.ts",
       "client/src/components/RoomControls.tsx",
