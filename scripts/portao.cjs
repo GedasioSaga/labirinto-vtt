@@ -80,6 +80,20 @@ const { pathToFileURL } = require('url')
 const RAIZ = path.resolve(__dirname, '..')
 const CLIENTE = path.join(RAIZ, 'client')
 const TAURI = path.join(RAIZ, 'desktop', 'src-tauri')
+/**
+ * A prova positiva do passo `rust-clippy`: o cargo NOMEOU o crate desta árvore.
+ *
+ * `Fresh` é o caso do cache cheio (com `-v`), `Checking` o do lint a fazer e
+ * `Compiling` o do build frio — os três dizem que o crate entrou no grafo. O
+ * caminho absoluto entre parênteses é o que separa ESTA árvore da vizinha: dois
+ * worktrees do mesmo repositório rodam o mesmo código com o mesmo nome de crate,
+ * e só o endereço difere. Case-insensitive porque no Windows o mesmo caminho
+ * aparece com letra de unidade maiúscula ou minúscula conforme quem chamou.
+ */
+const PROVA_DE_CLIPPY_NESTA_ARVORE = new RegExp(
+  '\\b(Fresh|Checking|Compiling)\\s+labirinto\\s+v\\d[^\\n(]*\\(' + TAURI.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\)',
+  'i',
+)
 const SAIDA = path.join(os.tmpdir(), 'portao-labirinto')
 /**
  * Uma pasta por passo de jornada. O Playwright APAGA o `outputDir` inteiro ao
@@ -89,6 +103,31 @@ const SAIDA = path.join(os.tmpdir(), 'portao-labirinto')
  * `PORTAO_ARTEFATOS` próprio, em pasta temporária (Invariante 7).
  */
 const ARTEFATOS = path.join(SAIDA, 'artefatos')
+/**
+ * UM diretório de build do cargo para TODAS as árvores, em vez de um por peça.
+ *
+ * MEDIDO em 21/09/2026, madrugada, nesta máquina. Os dois passos de Rust que o
+ * portão exige (`rust-clippy` e `rust-test`) criam
+ * `desktop/src-tauri/target` DENTRO da árvore em que rodam: 5,50 GB medidos no
+ * worktree desta peça, do zero, só por rodar a lista de validade. A rodada tem
+ * cinco peças de cliente, cada uma em worktree próprio, e o passo `disco` cobra
+ * um piso de 3 GB livres — a conta não fecha em disco nenhum, e o que sobra é
+ * `disco` VERMELHO para a peça que chegar depois, por sujeira que não é dela.
+ * Foi exatamente o que aconteceu aqui: 0,32 GB livres depois de UM worktree.
+ *
+ * Compartilhar é seguro e não é preguiça. As dependências do crates.io são
+ * byte a byte iguais entre as árvores (mesmo Cargo.lock), e o crate LOCAL não
+ * colide porque o cargo carimba o hash de metadados do pacote com o caminho do
+ * manifesto — cada worktree tem o seu, e `PROVA_DE_CLIPPY_NESTA_ARVORE` continua
+ * cobrando que a linha `Fresh|Checking|Compiling labirinto` traga o caminho
+ * DESTA árvore. Duas árvores que rodarem cargo ao mesmo tempo esperam no lock
+ * do cargo ("Blocking waiting for file lock on build directory") e seguem em
+ * série: mais lento que disputar disco, e muito melhor que ficar sem ele.
+ *
+ * Fica em pasta temporária, como todo o resto do que o portão escreve
+ * (Invariante 7): nada do repositório e nada do usuário é tocado.
+ */
+const ALVO_DO_CARGO = path.join(SAIDA, 'cargo-target')
 /** Selo do começo do run: hash das jornadas da bar e campos opcionais do esquema. */
 const SELO = path.join(__dirname, 'portao-selo.json')
 /** Quem pode escrever onde (Invariante 5), declarado pelo orquestrador. */
@@ -1750,6 +1789,43 @@ function guardaListaDeJornadas(alvos, grupos, dispensadas) {
   if (tocados.length === 0) {
     return ok('g19-lista-de-jornadas', (alvos || []).length + ' spec(s) fora das jornadas da bar: lista avulsa, sem exigência de completude')
   }
+  // UMA jornada só: o comando de UMA PEÇA, e ele passa.
+  //
+  // MEDIDO em 21/09/2026, madrugada. A rodada tinha cinco peças de cliente, uma
+  // por feature, e o comando declarado de cada uma rodava a jornada DELA:
+  // `--jornada=r3-linha-pontilhada e2e/task-jornada-linha-pontilhada.spec.ts`.
+  // Todas as cinco jornadas moram no grupo `criterio` (17 specs), então a regra
+  // de completude acusava cada comando de omitir as outras 16 e devolvia exit 2
+  // ANTES do Playwright: as cinco peças da rodada ficaram sem conseguir rodar
+  // uma jornada sequer. É o MESMO deadlock de desenho que `GRUPOS_DA_BAR`
+  // descreve entre os dois grupos, reaparecido um nível abaixo — agora entre a
+  // peça e o grupo dela.
+  //
+  // POR QUE ISTO NÃO REABRE O FALSO-VERDE que a guarda existe para fechar. O
+  // buraco original era outro: uma linha de comando com OITO caminhos digitados
+  // à mão, em que esquecer um fazia o relatório sair `19 passed`, exit 0, e a
+  // jornada ausente não deixava rastro nenhum. Uma lista de UM spec não tem
+  // onde esconder: ela nomeia exatamente o que mede, o `exige` do passo cobra
+  // que esse um tenha passado, e caminho errado já morre no teste de existência
+  // logo acima. A exigência de completude continua FATAL para qualquer lista de
+  // dois ou mais — que é onde a omissão por digitação mora.
+  //
+  // O que se perde é a garantia de que as outras 16 rodaram, e ela não se perde
+  // em silêncio: o verde abaixo nomeia o grupo, quantas ficaram de fora e diz
+  // com todas as letras que este comando não prova nada sobre elas.
+  if (pedidas.size === 1) {
+    const grupo = tocados[0]
+    const unica = Array.from(pedidas)[0]
+    const foraDesteComando = grupo.jornadas.filter((j) => j !== unica)
+    return ok(
+      'g19-lista-de-jornadas',
+      'UMA jornada nesta linha (' + unica + '), do grupo `' + grupo.id + '` (' + grupo.titulo + '): é o comando de UMA PEÇA, e a ' +
+        'completude do grupo não é cobrada dele — uma lista de um spec nomeia exatamente o que mede.\n' +
+        'este comando NÃO prova nada sobre as outras ' + foraDesteComando.length + ' do grupo `' + grupo.id + '`: ' +
+        (foraDesteComando.join(', ') || '(nenhuma)') + '\n' +
+        'o grupo inteiro tem passo próprio no PLANO — rode-o antes de declarar a rodada verde.',
+    )
+  }
   const buracos = tocados
     .map((g) => ({ grupo: g, faltando: g.jornadas.filter((j) => !pedidas.has(j) && !Object.prototype.hasOwnProperty.call(dispensa, j)) }))
     .filter((x) => x.faltando.length > 0)
@@ -1847,6 +1923,11 @@ function jornada(id, titulo, arquivos, extras) {
       .concat(arquivos),
     cwd: CLIENTE,
     artefatos: true,
+    // A lista de specs guardada à parte da linha de comando: `imprimirForaDaVolta`
+    // precisa NOMEAR o que um passo de regressão deixou de medir, e garimpar os
+    // caminhos de dentro de `args` (que tem config, repeat-each e reporter no
+    // meio) é o tipo de leitura que erra em silêncio.
+    specs: (arquivos || []).slice(),
     ruina: [
       /\b\d+ skipped\b/,
       /\b\d+ flaky\b/,
@@ -1911,12 +1992,30 @@ const PLANO = [
     id: 'rust-clippy',
     titulo: 'cargo clippy do exe (desktop/src-tauri)',
     exe: 'cargo',
-    args: ['clippy', '--all-targets', '--all-features', '--', '-D', 'warnings', '-W', 'clippy::unwrap_used', '-W', 'clippy::expect_used'],
+    // `-v` NÃO é enfeite: é o que dá PROVA POSITIVA a este passo.
+    //
+    // MEDIDO nesta máquina em 21/09/2026, três invocações seguidas do mesmo
+    // comando, todas exit 0:
+    //   1ª (frio):   ... Compiling labirinto v0.1.0 (<caminho>) ... Finished
+    //   2ª (morno):  ... Checking  labirinto v0.1.0 (<caminho>) ... Finished
+    //   3ª (quente): `Finished `dev` profile ... in 0.34s`   — UMA LINHA, e só.
+    // Com o cache cheio a saída verde inteira cabe numa linha que não diz o
+    // nome de nada: "lint limpo" e "não lintei coisa nenhuma" ficam com a
+    // MESMA cara, e o passo não tinha `exige` para separar os dois. Com `-v` o
+    // cargo imprime `Fresh labirinto v0.1.0 (<caminho>)` também no caso
+    // quente — medido: 299 linhas, 10 KB, custo nenhum.
+    args: ['clippy', '--all-targets', '--all-features', '-v', '--', '-D', 'warnings', '-W', 'clippy::unwrap_used', '-W', 'clippy::expect_used'],
     cwd: TAURI,
     shell: true,
+    cargo: true,
     // Sem `^warning:`: o `-D warnings` acima já reprova warning de verdade pelo
     // exit code, e cargo imprime aviso benigno de manifesto que viraria falso vermelho.
     ruina: [/\berror(\[E\d+\])?:/],
+    // Prova positiva, nas duas pontas: o crate DESTA árvore foi considerado (e
+    // pelo caminho absoluto, que é a única coisa que difere entre dois
+    // worktrees do mesmo repositório — o mesmo discriminador que `/@fs/` dá às
+    // jornadas), e o cargo chegou ao fim do grafo.
+    exige: [PROVA_DE_CLIPPY_NESTA_ARVORE, /\bFinished\b/],
   },
   {
     id: 'rust-test',
@@ -1925,6 +2024,7 @@ const PLANO = [
     args: ['test', '--all-features'],
     cwd: TAURI,
     shell: true,
+    cargo: true,
     ruina: [/\bFAILED\b/, /panicked at/, /\b[1-9]\d* ignored/],
     // `running 0 tests` NÃO serve como ruína: o cargo imprime uma linha dessas
     // por alvo, e a seção de doc-tests de um crate sem doc-test sempre sai
@@ -2618,6 +2718,40 @@ async function esperarPortaLivre(porta, limiteMs) {
   return { esperou: Date.now() - t0, ocupada, dispensada: false }
 }
 
+/**
+ * QUEM está segurando a porta — o PID, e o nome do processo quando dá.
+ *
+ * Sem isto a mensagem de porta ocupada mandava "feche o `npm run dev` aberto"
+ * sem dizer QUAL: em 21/09/2026 o que segurava a 1420 era um vite órfão preso
+ * em `[::1]`, de nenhuma janela visível, e achá-lo custou mais que o conserto.
+ * Só leitura: o portão NUNCA mata processo (pode ser o `npm run dev` do
+ * usuário), ele nomeia e deixa a decisão com quem está olhando.
+ */
+function quemOcupaAPorta(porta) {
+  if (process.platform !== 'win32') return []
+  // `netstat` e não o módulo `net` deste arquivo: aqui a pergunta não é "alguém
+  // atende?" (isso é `portaOcupada`) e sim "QUEM atende?".
+  const netstat = spawnSync('netstat', ['-ano'], { encoding: 'utf8', timeout: 15000, windowsHide: true })
+  if (netstat.status !== 0) return []
+  const pids = new Set()
+  for (const linha of String(netstat.stdout || '').split('\n')) {
+    if (!/\bLISTENING\b/i.test(linha)) continue
+    if (!new RegExp(':' + porta + '\\s').test(linha)) continue
+    const campos = linha.trim().split(/\s+/)
+    const pid = campos[campos.length - 1]
+    if (/^\d+$/.test(pid)) pids.add(pid)
+  }
+  return Array.from(pids).map((pid) => {
+    const t = spawnSync('tasklist', ['/FI', 'PID eq ' + pid, '/NH', '/FO', 'CSV'], {
+      encoding: 'utf8',
+      timeout: 15000,
+      windowsHide: true,
+    })
+    const nome = (/^"([^"]+)"/.exec(String(t.stdout || '').trim()) || [])[1] || 'processo desconhecido'
+    return 'PID ' + pid + ' (' + nome + ')'
+  })
+}
+
 async function rodarPasso(passo) {
   const t0 = Date.now()
   let codigo
@@ -2631,17 +2765,52 @@ async function rodarPasso(passo) {
     // começar, então sem isto cada jornada apagaria o screenshot e o trace da
     // anterior. Sempre em %TEMP% (Invariante 7: nada fora de pasta temporária).
     const ambiente = Object.assign({}, process.env)
+    // Ver `ALVO_DO_CARGO`: um diretório de build para todas as árvores, senão
+    // cada worktree da rodada deixa 5,5 GB para trás e o passo `disco` fica
+    // vermelho para quem chegar depois.
+    if (passo.cargo) ambiente.CARGO_TARGET_DIR = ALVO_DO_CARGO
     let aviso = ''
     if (passo.artefatos) {
       ambiente.PORTAO_ARTEFATOS = path.join(ARTEFATOS, passo.id + '-' + t0)
       // A porta do passo ANTERIOR ainda está sendo devolvida? Ver `esperarPortaLivre`.
       const porta = await esperarPortaLivre(PORTA_DAS_JORNADAS, ESPERA_DE_PORTA_MS)
       if (porta.ocupada) {
-        aviso =
-          'ATENÇÃO — a porta ' + PORTA_DAS_JORNADAS + ' continuou ocupada depois de ' + porta.esperou + ' ms de espera. ' +
-          'Com `reuseExistingServer` desligado, o Playwright vai RECUSAR a rodar ("is already used") e nenhum teste sairá. ' +
-          'Isso é servidor de outra pessoa ou de outra árvore: feche o `npm run dev` aberto, ou tire LAB_PORTA e deixe ' +
-          'client/porta.js dar uma porta por árvore.\n'
+        // PARA AQUI, e diz de quem é a culpa.
+        //
+        // MEDIDO em 21/09/2026: a porta 1420 estava presa por um vite órfão em
+        // `[::1]` e, com `reuseExistingServer` desligado, TODA jornada da
+        // rodada morreu antes de rodar um teste. O portão já avisava — mas
+        // chamava o Playwright assim mesmo, e o que sobrava no relatório era o
+        // vermelho do PASSO, colado na peça que estava na vez. Vermelho de
+        // ambiente cobrado da peça é pior que vermelho nenhum: manda o builder
+        // consertar código que não tem defeito.
+        //
+        // Gastar 30 s por passo para produzir uma acusação errada não compra
+        // nada. Aqui o passo sai vermelho na hora, com a palavra AMBIENTE, a
+        // porta, a árvore e o PID de quem a segura — e quem lê sabe que não é
+        // com a peça que ele tem de falar. Continua vermelho de propósito: sem
+        // jornada rodada, ninguém tem prova de nada.
+        const donos = quemOcupaAPorta(PORTA_DAS_JORNADAS)
+        return {
+          id: passo.id,
+          titulo: passo.titulo,
+          codigo: 1,
+          ms: Date.now() - t0,
+          ok: false,
+          falsoVerde: false,
+          ruina: [],
+          ambiente: true,
+          saida:
+            'VERMELHO DE AMBIENTE — nenhuma jornada rodou, e a causa NÃO é a peça.\n' +
+            'a porta ' + PORTA_DAS_JORNADAS + ' desta árvore (' + RAIZ + ') continuou ocupada depois de ' +
+            porta.esperou + ' ms de espera.\n' +
+            (donos.length > 0 ? 'quem a segura agora: ' + donos.join(', ') + '\n' : 'não consegui identificar o processo que a segura.\n') +
+            'com `reuseExistingServer` desligado (client/playwright.config.ts), o Playwright recusa a subir o servidor e sai sem ' +
+            'rodar um teste sequer — e o filtro do rtk resume esse aborto como "PASS (0) FAIL (0)", que passa por verde para quem ' +
+            'lê rápido. Por isso o portão nem chamou o Playwright.\n' +
+            'o que fazer: feche o servidor acima, ou rode este comando de dentro do worktree da peça, que tem porta própria ' +
+            '(client/porta.js dá 1420 na árvore principal e uma porta por worktree). Nenhum processo foi morto por este portão.\n',
+        }
       } else if (porta.esperou >= 500) {
         aviso = 'nota: esperei ' + porta.esperou + ' ms a porta ' + PORTA_DAS_JORNADAS + ' ser liberada pelo passo anterior.\n'
       }
@@ -2655,6 +2824,22 @@ async function rodarPasso(passo) {
     })
     codigo = r.status === null ? 1 : r.status
     saida = aviso + String(r.stdout || '') + String(r.stderr || '')
+    // DISCO CHEIO tem nome, e o nome não é o da peça.
+    //
+    // MEDIDO em 21/09/2026: `rust-test` saiu VERDE (144 s) e, cinco minutos
+    // depois, VERMELHO com `failed to build archive ...: Espaço insuficiente no
+    // disco. (os error 112)` — mesmo commit, mesmo código, zero linhas
+    // mudadas. Sem este aviso o relatório entrega um passo de Rust vermelho e
+    // quem lê manda o builder consertar Rust que está intacto. O passo continua
+    // VERMELHO de propósito (não houve medida), mas com a causa na primeira
+    // linha, e `--so=disco` diz quanto falta.
+    if (/os error 112|insufficient space|No space left on device|Espa.o insuficiente no disco/i.test(saida)) {
+      saida =
+        'VERMELHO DE AMBIENTE — o disco acabou no meio deste passo, e a causa NÃO é a peça.\n' +
+        'o compilador não conseguiu escrever o artefato; nenhum teste foi medido. Rode `node scripts/portao.cjs --so=disco` ' +
+        'para ver quanto falta para o piso, e libere espaço antes de julgar qualquer peça por este vermelho.\n' +
+        saida
+    }
     if (r.error) saida += '\n' + r.error.message
   }
   const veredito = julgarSaida(passo, codigo, saida)
@@ -3509,6 +3694,32 @@ function rodarAutoteste() {
       guardaListaDeJornadas(JORNADAS_DA_BAR.filter((j) => !JORNADAS_DISPENSADAS[j]), GRUPOS_DA_BAR, JORNADAS_DISPENSADAS),
       true,
     ],
+    // O comando REAL de cada peça de cliente desta rodada: uma jornada, a dela.
+    // Saía em exit 2 antes do Playwright e deixou as cinco peças sem rodar nada.
+    // Se alguma destas voltar a sair vermelha, a rodada voltou a rodar ZERO
+    // jornada de peça.
+    [
+      'g19 aprova o comando de UMA peça (uma jornada do critério, sozinha)',
+      guardaListaDeJornadas(['e2e/task-jornada-linha-pontilhada.spec.ts'], GRUPOS_DA_BAR, JORNADAS_DISPENSADAS),
+      true,
+    ],
+    [
+      'g19 aprova o comando de UMA peça também no grupo da regressão',
+      guardaListaDeJornadas(['e2e/task-jornada-sala-livre.spec.ts'], GRUPOS_DA_BAR, JORNADAS_DISPENSADAS),
+      true,
+    ],
+    // O dente que a exceção de uma jornada NÃO pode tirar: dois specs ou mais,
+    // com o grupo incompleto, continuam fatais — é ali que mora a omissão por
+    // digitação que a guarda nasceu para pegar.
+    [
+      'g19 continua reprovando DUAS do critério com o resto de fora',
+      guardaListaDeJornadas(
+        ['e2e/task-jornada-linha-pontilhada.spec.ts', 'e2e/task-jornada-etiqueta-pilula.spec.ts'],
+        GRUPOS_DA_BAR,
+        JORNADAS_DISPENSADAS,
+      ),
+      false,
+    ],
     provaDeMedida(
       'g17 mede o que a peça COMMITOU, não só a árvore suja',
       '',
@@ -3555,6 +3766,28 @@ function rodarAutoteste() {
     ['g16 reprova suíte que não rodou nada (exit 0 sem nenhum passed)', guardaFalsoVerde('g16', jornada('j', 't', ['a']), 0, 'Running 0 tests using 0 workers\n'), false],
     ['g16 reprova "0 passed" com exit 0', guardaFalsoVerde('g16', jornada('j', 't', ['a']), 0, '0 passed (1.0s)\n'), false],
     ['g16 aprova relatório com testes passando', guardaFalsoVerde('g16', jornada('j', 't', ['a']), 0, '  2 passed (10.0s)\n'), true],
+    // g28 — a prova positiva do `rust-clippy`, com saída sintética.
+    //
+    // O passo era só `ruina`: com o cache cheio a saída verde inteira era
+    // `Finished \`dev\` profile ... in 0.34s`, UMA linha que não nomeia coisa
+    // nenhuma — "lint limpo" e "não lintei nada" tinham a mesma cara e as duas
+    // saíam exit 0. Estes casos são o dente do `exige` novo, e o caso da árvore
+    // vizinha é o mesmo discriminador de caminho absoluto que as jornadas usam.
+    ...(() => {
+      const passo = PLANO.find((p) => p.id === 'rust-clippy')
+      const linhaDoCrate = (raiz) => '       Fresh labirinto v0.1.0 (' + path.join(raiz, 'desktop', 'src-tauri') + ')\n'
+      const finished = '    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.34s\n'
+      return [
+        ['g28 reprova a saída de UMA linha do cache cheio (o buraco de antes)', guardaFalsoVerde('g28', passo, 0, finished), false],
+        ['g28 reprova saída vazia (nada foi lintado)', guardaFalsoVerde('g28', passo, 0, ''), false],
+        [
+          'g28 reprova clippy que nomeou o crate de OUTRA árvore',
+          guardaFalsoVerde('g28', passo, 0, linhaDoCrate(path.join(path.dirname(RAIZ), 'labirinto-outra-arvore')) + finished),
+          false,
+        ],
+        ['g28 aprova clippy que nomeou o crate DESTA árvore', guardaFalsoVerde('g28', passo, 0, linhaDoCrate(RAIZ) + finished), true],
+      ]
+    })(),
     // --- escala da unidade (18/09/2026) -----------------------------------
     // O passo `unidade` com os MESMOS pisos do PLANO, contra relatórios de
     // vitest sintéticos. Sem estes casos, o piso seria texto: é exatamente o
@@ -3666,6 +3899,23 @@ function imprimirForaDaVolta(foraDaVolta, recorteChamado, prova) {
   }
   if (recorte.length > 0) {
     texto += '  recorte de `' + (recorteChamado || 'volta comum') + '` (' + recorte.length + '): ' + ids(recorte) + '\n'
+    // A REGRESSÃO tem nome próprio nesta linha.
+    //
+    // MEDIDO em 21/09/2026: `jornadas-da-bar` ficou fora dos 14 comandos da
+    // rodada e as seis jornadas de regressão não rodaram em lugar nenhum —
+    // "nenhuma jornada já existente pode ficar vermelha" era, naquela rodada,
+    // uma promessa que ninguém mediu. O aviso antigo listava o id no meio dos
+    // outros e não dizia o que ele carregava, então ler a linha não bastava
+    // para perceber o buraco. Aqui ele sai destacado, com os specs que ficaram
+    // sem medida e o comando exato que os mede.
+    const regressao = recorte.filter((p) => p.id === 'jornadas-da-bar' || p.id === 'jornadas-e2e')
+    for (const p of regressao) {
+      texto +=
+        '  ATENÇÃO — REGRESSÃO SEM MEDIDA nesta chamada: `' + p.id + '` (' + (p.specs || []).length + ' spec(s)) não rodou.\n' +
+        '    ' + (p.specs || []).join(', ') + '\n' +
+        '    é o lado do portão que promete verde em TODA volta; sem este comando a promessa não foi medida.\n' +
+        '    rode: node scripts/portao.cjs --so=' + p.id + '\n'
+    }
   }
   process.stdout.write(texto + '\n')
 }
@@ -3698,10 +3948,31 @@ async function principal() {
           unidade_auditada: (arquivosDeUnidade() || []).length,
           piso_de_unidade: { arquivos: pisoDeArquivosDeUnidade(), testes: PISO_DE_TESTES_DE_UNIDADE },
           fora_da_volta: PLANO.filter((p) => p.fora).map((p) => ({ id: p.id, motivo: p.fora })),
+          // A LISTA DE COMANDOS DA VOLTA COMUM, pronta para copiar.
+          //
+          // MEDIDO em 21/09/2026: a rodada declarou 14 comandos digitados à mão
+          // e o passo `jornadas-da-bar` ficou de fora — as SEIS jornadas de
+          // regressão da bar (luz, token com foto, pincel e balde, sala livre,
+          // pinos, ferramentas mudas) não tiveram comando nenhum, e a rodada
+          // inteira podia sair verde com qualquer uma delas quebrada. Nada no
+          // portão acusava, porque o portão não sabe qual lista alguém digitou.
+          //
+          // Agora ele publica a lista certa. Quem orquestra copia este array em
+          // vez de transcrever o PLANO: `comandos_da_volta_comum.length` é
+          // quantos comandos a rodada precisa ter, e a conferência vira uma
+          // comparação de números em vez de uma leitura atenta.
+          //
+          // `prova: true` e exclusão declarada ficam FORA deste array de
+          // propósito — são os passos que não rodam na volta comum —, e saem
+          // logo abaixo, nomeados, para não sumirem.
+          comandos_da_volta_comum: PLANO.filter((p) => !p.fora && !p.prova).map((p) => 'node scripts/portao.cjs --so=' + p.id),
+          comandos_da_prova: PLANO.filter((p) => !p.fora && p.prova).map((p) => 'node scripts/portao.cjs --so=' + p.id),
           plano: PLANO.map((p) => ({
             id: p.id,
             titulo: p.titulo,
             comando: p.sonda ? 'sonda HTTP interna' : [p.exe].concat(p.args).join(' '),
+            comando_portao: 'node scripts/portao.cjs --so=' + p.id,
+            volta_comum: !p.fora && !p.prova,
             cwd: p.cwd || RAIZ,
           })),
         },

@@ -15,9 +15,11 @@
   "_rodada_noite_21set": "20-21/09/2026, noite — as cinco features pendentes do PEDIDOS.md, uma peça por vez, cada uma em worktree próprio e branch `auto/r3-<id>`. As oito jornadas da rodada entraram commitadas e seladas ANTES do primeiro builder (4b9a9de, 41c3a7a, 23fab2c) e estão na lista do critério desde 12ae80e.",
   "_sem_alvos_nesta_rodada": "Esta rodada declara ÁREA e não declara `alvos`, de propósito. `alvos` existe para o caso de duas peças construírem ao mesmo tempo na mesma árvore; aqui `pecas_simultaneas` é 1 e cada peça vive em worktree próprio, então o risco que `alvos` cobre não existe — e declarar exclusividade sobre arquivo que duas features legitimamente tocam (`client/src/pixi/drawWalls.ts` é da linha pontilhada E do vão sem parede) reprovaria conserto honesto. O merge das branches continua sendo do orquestrador.",
   "_base_da_noite_21set": "As duas pontas passam a apontar para `auto/base-noite-21set`, ponteiro CONGELADO em 5bd6054 — o commit em que esta rodada começa, já com o portão consertado (12ae80e), as oito jornadas vermelhas commitadas e seladas, e o passeio registrado. Não é o réu escolhendo o juiz: `auto/base-noite-21set` não se move e descende de `auto/base-noite`, que era a origem anterior; g20 confere essa ancestralidade. Mantê-la em 6500be7 fazia a conta de commits já julgados (o merge do portão, o lado Rust de setembro) cair em cima da rodada de hoje, e vermelho que builder nenhum consegue consertar é vermelho que ninguém lê.",
+  "_base_movida_no_meio_do_run": "21/09/2026, madrugada — MEDIDO antes de mexer. O ponteiro `auto/base-noite-21set` foi criado em 5bd6054, e foi esse sha que `scripts/portao-selo.json` carimbou em `base_do_run`. Depois disso o commit 86843fc, que declarou a particao desta noite, MOVEU o ponteiro para si mesmo. Resultado medido: `base`.`origem` resolvia para 86843fc enquanto o selo dizia 5bd6054, `g20-base-imutavel` saia VERMELHA com 'base trocada no meio do run', `baseDoRun()` devolvia erro em vez de base, e os cinco passos que dependem dela — `particao`, `rust-intocado`, `jornadas-intactas`, g13 e g24 — ficavam SEM JUIZ: os comandos da rodada inteira vermelhos sem ninguem ter escrito uma linha de codigo. O conserto NAO e recarimbar o selo, que seria exatamente o reu escolhendo o juiz (o risco que `_selo_r5` ja tinha anotado): e apontar `origem` para um ponteiro que resolve no MESMO sha que o selo carimbou. `auto/base-r3` e 5bd6054 e nunca se moveu.",
+  "_base_ramo_por_sha": "`ramo` passa a ser um SHA e nao um nome. `auto/base-noite-21set` acabou de provar que nome de ponteiro se move no meio do run; 86843fc0b6582b73957e8c511666b45ef2205d87 nao tem como. E ele tem de ser 86843fc e nao 5bd6054 porque foi de 86843fc que as cinco pecas de cliente desta rodada foram cortadas: com `ramo` em 5bd6054, cada uma delas seria cobrada pelos dois arquivos de `scripts/` que 86843fc mudou ANTES de escrever uma linha — o vermelho impossivel descrito em `_base_18set_corrigida`. 5bd6054 e ancestral de 86843fc (conferido com `git merge-base --is-ancestor`), entao a clausula de descendencia de g20 continua verde.",
   "base": {
-    "origem": "auto/base-noite-21set",
-    "ramo": "auto/base-noite-21set"
+    "origem": "auto/base-r3",
+    "ramo": "86843fc0b6582b73957e8c511666b45ef2205d87"
   },
   "pecas": {
     "portao": [
@@ -73,11 +75,13 @@
       "client/src/components/TokenImageControls.tsx"
     ]
   },
+  "_apelido_r4_portao": "A peca do portao desta volta commita em `auto/r4-portao`, e o id que o passo `particao` le do nome do ramo e `r4-portao`. Ele entra em `apelidos`.`portao` — e NAO como peca nova — pelo mesmo motivo que `_pecas_r3` escreveu para `r3-portao`: e a MESMA peca (mesma area `scripts/**`, mesmo alvo `scripts/portao.cjs`, mesmo juiz), e duplicar a entrada duplicaria tambem quem tem direito de reescrever este arquivo. O ramo `auto/r3-portao` ja estava ocupado por outro worktree, com trabalho nao commitado e cortado de um commit que nao e a base desta rodada (5bd6054 em vez de 86843fc): commitar nele exigiria merge ou rebase, os dois proibidos.",
   "apelidos": {
     "portao": [
       "gate",
       "fase0",
-      "portao-acervo"
+      "portao-acervo",
+      "r4-portao"
     ],
     "teto": [
       "teto-de-construcao",
