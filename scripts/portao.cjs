@@ -227,18 +227,30 @@ const PISO_DE_DISCO_GB = 3
  * quando o texto está certo.
  *
  * Trocado por uma conta que o passo cobra de verdade: o piso MAIS o que falta
- * escrever. Quanto falta depende de uma coisa só, e ela é medível — se o alvo
- * do cargo está quente (build incremental) ou frio (build do zero):
- *   frio    5,50 GB  medido em 21/09/2026, crate do zero num worktree
- *   quente  1,00 GB  incremental do crate local + trace e screenshot de uma
- *                    volta inteira de jornadas (0,06 GB medidos em %TEMP%,
- *                    arredondado para cima porque a volta da vencedora roda
- *                    cada jornada 3x)
- * Com isso o número impresso é o número cobrado, e a régua ficou mais dura que
- * a de antes: o piso sozinho aprovava 3,01 GB livres com um build frio pela
- * frente; agora isso é VERMELHO, com a conta na tela.
+ * escrever. E cada um cobra o que ELE escreve, que não é a mesma coisa:
+ *
+ *   `disco`, uma vez por volta, cobra a VOLTA inteira (CUSTO_DE_VOLTA_GB):
+ *     1,00 GB — trace e screenshot de todas as jornadas (0,06 GB medidos em
+ *     %TEMP% em 21/09/2026) mais o build, arredondado para cima porque a volta
+ *     da vencedora roda cada jornada 3x.
+ *   a barreira de cada passo de cargo cobra só o CARGO daquele passo:
+ *     frio      5,50 GB  medido em 21/09/2026, crate do zero num worktree
+ *     quente    0,50 GB  medido no mesmo dia: com o alvo compartilhado quente,
+ *                        `rust-clippy` (0,33 s) e `rust-test` (38 s) juntos
+ *                        deixaram o target em 10,17 GB — o mesmo valor de
+ *                        antes deles, com a casa de 0,01 GB da medida.
+ *
+ * Misturar os dois cobrava do cargo o disco das jornadas: em 21/09/2026, com
+ * 3,86 GB livres, a barreira recusou um `clippy` incremental que precisava de
+ * 0,05 GB e tinha acabado de rodar em 0,33 s. Cobrar de cada passo o que ele
+ * causa é o que separa "não cabe" de "não quis".
+ *
+ * A régua continua mais dura que a de antes nas duas pontas: o piso sozinho
+ * aprovava 3,01 GB livres com um build FRIO de 5,50 GB pela frente, e aprovava
+ * uma volta inteira de jornadas sem folga nenhuma.
  */
 const CUSTO_DE_BUILD_FRIO_GB = 5.5
+const CUSTO_DE_BUILD_INCREMENTAL_GB = 0.5
 const CUSTO_DE_VOLTA_GB = 1
 
 /**
@@ -2603,7 +2615,7 @@ function sondarDisco() {
     const totalGb = (estado.blocks * estado.bsize) / 1e9
     const ocupadoGb = tamanhoDaPasta(ARTEFATOS) / 1e9
     const quente = cargoQuente(ALVO_DO_CARGO)
-    const conta = contaDeDisco(livreGb, quente)
+    const conta = contaDeDisco(livreGb, custoDaVolta(quente))
     return {
       codigo: conta.cabe ? 0 : 1,
       saida:
@@ -2631,10 +2643,19 @@ function sondarDisco() {
  * números de entrada (`--autoteste`) em vez de com o disco da máquina — que
  * muda sozinho entre duas chamadas e nunca reprova nada em teste.
  */
-function contaDeDisco(livreGb, quente) {
-  const aEscreverGb = quente ? CUSTO_DE_VOLTA_GB : CUSTO_DE_BUILD_FRIO_GB
+function contaDeDisco(livreGb, aEscreverGb) {
   const necessidadeGb = PISO_DE_DISCO_GB + aEscreverGb
   return { aEscreverGb, necessidadeGb, folgaGb: livreGb - necessidadeGb, cabe: livreGb >= necessidadeGb }
+}
+
+/** O que a VOLTA inteira ainda escreve: jornadas sempre, mais o build se o alvo estiver frio. */
+function custoDaVolta(quente) {
+  return quente ? CUSTO_DE_VOLTA_GB : CUSTO_DE_BUILD_FRIO_GB + CUSTO_DE_VOLTA_GB
+}
+
+/** O que UM passo de cargo escreve — sem o disco das jornadas, que não são dele. */
+function custoDoCargo(quente) {
+  return quente ? CUSTO_DE_BUILD_INCREMENTAL_GB : CUSTO_DE_BUILD_FRIO_GB
 }
 
 /**
@@ -3027,7 +3048,7 @@ function vereditoDePortaOcupada(passo, porta, esperouMs, donos, ms) {
  * acima do piso. Este é o passo que se recusa a tentar.
  */
 function vereditoDeDiscoParaCargo(passo, livreGb, quente, ms) {
-  const conta = contaDeDisco(livreGb, quente)
+  const conta = contaDeDisco(livreGb, custoDoCargo(quente))
   if (conta.cabe) return null
   return {
     id: passo.id,
@@ -4097,8 +4118,13 @@ async function rodarAutoteste() {
       }
       return [
         ['g30 barra o cargo com alvo FRIO e o disco de hoje (5,76 GB)', barrou(5.76, false), false],
-        ['g30 barra o cargo com alvo quente e disco no osso (3,50 GB)', barrou(3.5, true), false],
+        ['g30 barra o cargo com alvo quente e disco no osso (3,20 GB)', barrou(3.2, true), false],
         ['g30 deixa passar alvo QUENTE com o disco de hoje (5,76 GB)', barrou(5.76, true), true],
+        // O caso que fez a conta ser separada em duas: com 3,86 GB livres a
+        // barreira recusava um clippy incremental de 0,05 GB porque cobrava
+        // dele o disco das jornadas. O passo `disco` continua vermelho aqui —
+        // a VOLTA não cabe —, e é lá que essa conta mora.
+        ['g30 deixa o cargo incremental rodar com 3,86 GB livres', barrou(3.86, true), true],
         ['g30 deixa passar alvo frio quando o disco comporta o build (20 GB)', barrou(20, false), true],
       ]
     })(),
