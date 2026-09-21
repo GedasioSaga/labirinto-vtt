@@ -14,8 +14,8 @@ gauntlet-loop conduzindo. Conta 5x — ritmo lento de propósito, um workflow po
 |---|---|---|---|
 | 1 | traço pontilhado e tracejado na ferramenta Linha | `d18f4a6` | jornada `linha-pontilhada` 2 passed; unidade 2348; tipos-src, tipos-e2e, jornadas-intactas (44), particao VERDES |
 | 2 | etiqueta em pilula no nome da sala | 4242572 | jornada etiqueta-pilula 2 passed; estilo-minimapa VERDE |
-| 3 | vao aberto na parede (nem parede, nem porta) | 4d28e48 | jornada saida-sem-parede 2 passed; jornada da porta VERDE |
-| 4 | icone escolhivel no marcador | 1a0c9f4 | jornada marcador-com-icone 2 passed |
+| 3 | vão aberto na parede (nem parede, nem porta) | `886a514` | jornada `saida-sem-parede` 2 passed; jornada da porta VERDE |
+| 4 | ícone escolhível no marcador | `c1e58f4` | jornada `marcador-com-icone` 2 passed; `estilo-minimapa` VERDE |
 
 ### Régua escrita antes da obra (8 jornadas vermelhas, commitadas e seladas)
 
@@ -49,10 +49,16 @@ ao reabrir.
 
 ### Prova de integracao (21/09, madrugada)
 
-As quatro rodadas juntas na arvore integrada, dentro de worktree com porta propria:
-, ,  e  todas VERDES ao mesmo
-tempo;  VERDE (56 s) e  VERDE (77 s) — este ultimo estava vermelho no
-comeco da noite. ,  e  VERDES na arvore principal.
+As quatro features juntas na árvore integrada, dentro de worktree com porta própria:
+`linha-pontilhada` (9,0 s), `etiqueta-pilula` (12,9 s), `saida-sem-parede` (21,6 s) e
+`marcador-com-icone` (11,0 s) — as quatro VERDES ao mesmo tempo, 2 passed cada.
+
+Regressão inteira no mesmo estado: `jornadas-e2e` VERDE (56,3 s) e `jornadas-da-bar` VERDE (77,2 s).
+Esse segundo grupo estava VERMELHO no começo da noite (o teste 3 do pincel e balde).
+
+Na árvore principal: `unidade` VERDE (2348 testes), `tipos-src`, `tipos-e2e` e `particao` VERDES.
+O merge de `marcador-com-icone` deu conflito em `client/src/stores/mapStore.ts` — as duas features
+somaram estado de ferramenta na mesma linha de import — e foi resolvido à mão mantendo os dois.
 
 ## Próximos passos
 
