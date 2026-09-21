@@ -509,3 +509,14 @@ para outro mapa, e eu gostaria que pensasse em um forma de ter varios mapas, na 
 Plano aprovado: `C:\Users\gedasio.filho\.claude\plans\immutable-inventing-acorn.md`, em três entregas —
 (1) aventura com várias cenas no editor; (2) pino de viagem no editor; (3) cada jogador no seu mapa,
 com pedido e aprovação. Depois das três, volta a fila automática do `HANDOFF.md`.
+
+### Andamento
+
+| # | Entrega | Commit | Jornada que prova |
+|---|---|---|---|
+| 1 | Aventura com várias cenas no editor; cada cena lembra a própria câmera; portal antigo removido e migrado | `ad71dd8` + `21f783f` | `task-jornada-varias-cenas.spec.ts` (3 passed), `jornadas-e2e` e `jornadas-da-bar` VERDES |
+| 2 | Pino de viagem no editor | em construção | `task-jornada-pino-de-viagem.spec.ts` (selada em `9dbba4d`, vermelha na base) |
+| 3 | Cada jogador no seu mapa, com pedido e aprovação | — | — |
+
+Entrega 1, não verificado ainda: abrir no exe desktop, salvar, fechar, reabrir e conferir `adventure.json`
+e `scenes/<id>/map.json` no disco. "Exportar pasta" continua exportando só a cena aberta.
