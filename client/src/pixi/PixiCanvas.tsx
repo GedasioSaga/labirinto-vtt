@@ -167,6 +167,8 @@ import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from 
 import { eraseDecisionForWall, eraseDecisionForStair, eraseDecisionForToken, eraseDecisionForProp } from '../lib/eraseGeometry'
 import { findRoomCornerAt, rectFromCorners, type RoomCorner } from '../lib/roomOps'
 import { measureDistance } from '../lib/measurement'
+import { rotuloDeQuadradosAndados } from '../lib/tokenDragDistance'
+import { tokenRadiusOf } from '../lib/doorReach'
 // Integrador I8 (F4): B3 "mover e redimensionar" — geometria de bounding-box
 // pra resize por canto de Drawing rect/ellipse/polygon, Token e Prop.
 import { findBoxCornerAt, drawingBoundingBox, tokenBoundingBox, propBoundingBox, resizeTokenSize, type Corner } from '../lib/objectTransform'
@@ -216,6 +218,12 @@ const REGION_DRAG_THRESHOLD = 5
 // perder de vista o que se estava fazendo. Dentro desta folga o gesto é o que
 // a pessoa quis: arrastar o token que está destacado na tela.
 const SELECTED_TOKEN_GRAB_SLOP = 8
+
+// Respiro (px de mundo) entre a borda do disco e o número de quadrados do
+// arrasto. Medido na tela: com menos que isso o texto encosta no anel de
+// seleção e deixa de ser legível; com muito mais ele desgruda da ficha e a
+// pessoa precisa procurar o número em vez de ler de canto de olho.
+const FOLGA_DO_ROTULO_DE_QUADRADOS = 12
 
 /**
  * Nome em PT-BR de cada tipo de item, para o aviso de apagar dizer O QUE
@@ -1021,6 +1029,12 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       const textLabelsRenderer = createTextLabelsRenderer()
       const angleIndicatorRenderer = createAngleIndicatorRenderer()
       const measurementIndicatorRenderer = createMeasurementIndicatorRenderer()
+      // Quantos quadrados a ficha já andou, mostrado DURANTE o arrasto. É o
+      // MESMO desenhista da ferramenta Medir (linha fina + rótulo discreto),
+      // numa instância própria: o cache de Graphics/Text é fechado por closure
+      // dentro de `createMeasurementIndicatorRenderer`, então compartilhar a
+      // instância faria um gesto apagar o rótulo do outro.
+      const tokenDragDistanceRenderer = createMeasurementIndicatorRenderer()
       // O mestre vê tudo, sempre: a marca do teto é DELE, e só existe no editor.
       const regionsRenderer = createRegionsRenderer({ roofMarker: true })
       const roomNamesRenderer = createRoomNamesRenderer()
@@ -1410,6 +1424,14 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // padrão de regionDraftPoints/polygonDraftPoints no fim do pointermove):
       // pointerdown/move/up checam `activeTool === 'measure'` direto.
       let measureDraftStart: Point | null = null
+      // Onde a ficha ESTAVA quando o arrasto começou — a origem de "quantos
+      // quadrados ela já andou". Guarda a posição da PEÇA, não a do ponteiro:
+      // quem pega o disco pela borda não pode ver um quadrado a mais.
+      let tokenDragOrigin: Point | null = null
+      // Último rótulo+ponto já desenhados, para o pointermove não remexer em
+      // Graphics/Text quando o snap devolve a mesma célula — arrastar ficha é
+      // o gesto mais usado do app e a maioria dos moves não muda nada aqui.
+      let tokenDragLastShown: string | null = null
       let draggingWallPointId: string | null = null
       let draggingWallPointIndex: 0 | 1 = 0
       let draggingRegionId: string | null = null
@@ -2044,6 +2066,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         draftGraphics.clear()
         angleIndicatorRenderer.hide()
         measurementIndicatorRenderer.hide()
+        tokenDragDistanceRenderer.hide()
+        tokenDragOrigin = null
+        tokenDragLastShown = null
         dimensionLabelRenderer.hide()
         hoverGraphics.clear()
         hoverTarget = null
@@ -3055,6 +3080,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
               // inteiro (40 pointermove) num Ctrl+Z só no pointerup/
               // pointerupoutside (moveTokenLive não empurra histórico).
               tokenDragSnapshot = map
+              // Origem do contador de quadrados: onde a PEÇA está agora. Vale
+              // igual no Alt+arrastar — a cópia nasce exatamente aqui.
+              tokenDragOrigin = { x: token.x, y: token.y }
+              tokenDragLastShown = null
               // Onda 3, item 13 (Alt+arrastar duplica) — clona no pointerdown
               // e arrasta a CÓPIA; o original fica onde estava. Ver
               // `cloneForAltDrag` para a nota sobre Alt="inverter snap".
@@ -3182,6 +3211,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             mode = 'dragging-token'
             tokenDragSnapshot = map
             draggingTokenId = selectedToken.id
+            // Mesma origem do ramo de cima: pegar a ficha pela folga em volta
+            // do disco não pode contar quadrado que ela não andou.
+            tokenDragOrigin = { x: selectedToken.x, y: selectedToken.y }
+            tokenDragLastShown = null
           } else if (activeTool === 'select') {
             mode = 'area-marquee-drag'
             areaMarqueeStart = worldPoint
@@ -3637,6 +3670,12 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         finishRoomLabelDrag()
         guidesGraphics.clear()
         angleIndicatorRenderer.hide()
+        // O número de quadrados é informação PASSAGEIRA: vive só enquanto o
+        // botão está apertado. Mesmo choke point de `angleIndicatorRenderer`,
+        // pra não precisar de um hide() por ramo de pointerup.
+        tokenDragDistanceRenderer.hide()
+        tokenDragOrigin = null
+        tokenDragLastShown = null
         // Onda 2, item 16 (Frente C) — mesmo choke point de
         // angleIndicatorRenderer: cobre TODOS os pointerup de forma
         // (room/stair/polygon-room/rect/ellipse/circle) sem precisar de um
@@ -3830,6 +3869,11 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         curveDraftPoints = []
         polygonDraftPoints = []
         angleIndicatorRenderer.hide()
+        // Soltar a ficha fora do canvas encerra o arrasto do mesmo jeito: o
+        // número não pode ficar grudado na tela.
+        tokenDragDistanceRenderer.hide()
+        tokenDragOrigin = null
+        tokenDragLastShown = null
         // Onda 2, item 16 (Frente C) — mesmo choke point acima: o mouse saiu
         // do canvas no meio de um arrasto de forma, o rótulo não pode ficar
         // "grudado" na tela.
@@ -3915,6 +3959,42 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           const result = computeAlignment(snapped, candidates)
           drawGuides(guidesGraphics, result.guides, computeViewport())
           useMapStore.getState().moveTokenLive(draggingTokenId, result.point.x, result.point.y)
+          // Quantos quadrados a ficha já andou, enquanto o botão está apertado.
+          // A conta é a da ferramenta Medir (`measureCells`, via
+          // `rotuloDeQuadradosAndados`) e o desenho é o desenhista dela, com o
+          // modo de medição da própria mesa — duas réguas divergentes seriam
+          // pior que nenhuma. `tokenDragOrigin` é a posição de ANTES do gesto.
+          if (tokenDragOrigin) {
+            const rotulo = rotuloDeQuadradosAndados(
+              tokenDragOrigin,
+              result.point,
+              map.grid,
+              map.gridShape,
+              map.measurementMode,
+            )
+            // Sem mexer em Graphics/Text quando nada mudou: entre dois centros
+            // de célula cabem dezenas de pointermove idênticos, e este é o
+            // gesto mais usado do app.
+            const assinatura = rotulo === null ? null : `${rotulo}@${result.point.x},${result.point.y}`
+            if (assinatura !== tokenDragLastShown) {
+              if (rotulo === null) {
+                tokenDragDistanceRenderer.hide()
+              } else {
+                // Logo acima do disco, nunca por dentro dele: o raio sai de
+                // `tokenRadiusOf` (lib/doorReach.ts), a mesma conta que o
+                // desenho e o hit-test usam, então ficha grande não engole o
+                // número. O nome da peça é desenhado ABAIXO do disco, então
+                // acima está livre.
+                const arrastada = map.tokens.find((t) => t.id === draggingTokenId)
+                const raio = arrastada ? tokenRadiusOf(arrastada, map.grid) : map.grid / 2
+                tokenDragDistanceRenderer.show(angleIndicatorContainer, tokenDragOrigin, result.point, rotulo, {
+                  x: result.point.x,
+                  y: result.point.y - raio - FOLGA_DO_ROTULO_DE_QUADRADOS,
+                })
+              }
+              tokenDragLastShown = assinatura
+            }
+          }
           return
         }
 
