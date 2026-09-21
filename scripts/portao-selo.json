@@ -1,5 +1,5 @@
 {
-  "selado_em": "2026-09-21T09:18:28.384Z",
+  "selado_em": "2026-09-21T10:25:03.638Z",
   "jornadas": {
     "e2e/task-jornada-parede-grossa.spec.ts": "527e40bd7728c8b27e9334e40ce45223816eef2f88b14351545951c57af89314",
     "e2e/task-jornada-selecao-arrasto.spec.ts": "0e9113e9b71bfac3ce19108908c4421e680919e8f07c99638a75f94c4b0b4062",
@@ -30,6 +30,9 @@
     "e2e/task-jornada-linha-pontilhada.spec.ts": "836aeeaf57b1cae3b1931f0e10fe8f1838126cdfde90e040db56e6462e8752ec",
     "e2e/task-jornada-marcador-com-icone.spec.ts": "aebeb5815bc68fb2c4ead8e1b42119f226cd231efb8d93c3571fc30b6829a55b",
     "e2e/task-jornada-saida-sem-parede.spec.ts": "5c56f769ffe0e1665c681370e5e2eaaade350ee1d02793855bbd145b5901d90c",
+    "e2e/task-jornada-texto-recebe-o-que-se-digita.spec.ts": "f184dc1601e1fc22b62c8222862dc994e4604ddb140de8bae95d85fcc50a0cf2",
+    "e2e/task-jornada-duplo-clique-fecha-a-forma.spec.ts": "527d9bff6a91158e39947ee3d57839d3dfec7812c63908ce6607dc82497c7ccb",
+    "e2e/task-jornada-selecao-mostra-alcas.spec.ts": "79f158e9fbfe169d4c372ddf5d2f93022aaf38ca1f727844d934667b8f71d6bd",
     "e2e/task-jornada-acervo-foto-certa.spec.ts": "815d69a35498bc31756c53f123c073f61cfc6ffffa453b36ce863ac102ac99ea",
     "e2e/task-jornada-apagar-limpa-disco.spec.ts": "0d2a2e08d2412da6078b856319f8dd670752392dd6e3450b342d7dfd1daf1997",
     "e2e/task-jornada-salvar-sem-foto-avisa.spec.ts": "37f6fc7ca668ec7c88c420937dd114705b4095bc3640c0a36e0c8ede5eb8363e",
