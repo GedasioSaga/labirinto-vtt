@@ -43,23 +43,11 @@
     ],
     "r3-caminho-com-cor-propria": [
       "client/src/**"
-    ],
-    "teto": [
-      "client/src/**",
-      "client/e2e/task-jornada-item-travado.spec.ts",
-      "client/e2e/task-jornada-pino-move-e-cartao-direita.spec.ts"
     ]
   },
   "_acervo_e_o_ramo_do_orquestrador": "Na noite de 20-21/09 o ramo `auto/acervo` deixou de ser peça de builder e virou o ramo em que o ORQUESTRADOR trabalha: é dele que saem as jornadas vermelhas da rodada, o selo e este manifesto, todos escritos antes do primeiro builder. Por isso a área dele inclui `client/e2e/**` e os dois arquivos de juiz — que continuam PROIBIDOS para toda peça de cliente, cuja área é só `client/src/**`. Builder nenhum roda nesta branch: cada um vive em `auto/r3-<id>`.",
   "_alvos_desta_rodada": "Com UMA peca de cliente nesta rodada, `alvos` protege pouco na pratica — entra mesmo assim porque o alvo e o endereco da causa e documenta onde o conserto mora. `client/src/lib/fogFilter.ts` (o que o jogador RECEBE) e `client/src/components/RoomControls.tsx` (o interruptor que a jornada cobra pelo rotulo literal) sao da peca `teto`. `client/src/pixi/PixiCanvas.tsx`, `client/src/types/map.ts` e `client/src/main.css` ficam FORA: sao arquivos que qualquer peca pode ter motivo honesto de tocar, e inventar exclusividade neles reprovaria conserto legitimo.",
-  "alvos": {
-    "teto": [
-      "client/src/lib/fogFilter.ts",
-      "client/src/components/RoomControls.tsx",
-      "client/src/player/player.css",
-      "client/src/components/PinControls.tsx"
-    ]
-  },
+  "alvos": {},
   "_apelido_r4_portao": "A peca do portao desta volta commita em `auto/r4-portao`, e o id que o passo `particao` le do nome do ramo e `r4-portao`. Ele entra em `apelidos`.`portao` — e NAO como peca nova — pelo mesmo motivo que `_pecas_r3` escreveu para `r3-portao`: e a MESMA peca (mesma area `scripts/**`, mesmo alvo `scripts/portao.cjs`, mesmo juiz), e duplicar a entrada duplicaria tambem quem tem direito de reescrever este arquivo. O ramo `auto/r3-portao` ja estava ocupado por outro worktree, com trabalho nao commitado e cortado de um commit que nao e a base desta rodada (5bd6054 em vez de 86843fc): commitar nele exigiria merge ou rebase, os dois proibidos.",
   "_apelido_r3_portao_b5": "A volta de conserto do portao (21/09/2026, madrugada) commita em `auto/r3-portao-b5`, e por isso `r3-portao-b5` entra em `apelidos`.`portao` pelo mesmo motivo de `_apelido_r4_portao`: e a MESMA peca, mesma area `scripts/**`, mesmo juiz (`base`.`origem`, que ela nao move). O nome pedido para a peca era `auto/r3-portao`, mas ele ja esta com checkout em outro worktree vivo (wf_eabcffe3-b68-3, com trabalho proprio cortado de 5bd6054): usar o mesmo ramo em duas arvores e recusado pelo git, e forcar exigiria merge ou rebase, os dois proibidos neste run. O sufixo `-b5` e o worktree desta volta.",
   "apelidos": {
@@ -74,15 +62,6 @@
       "r3-portao-b4",
       "r4-portao",
       "r5-portao"
-    ],
-    "teto": [
-      "teto-de-construcao",
-      "roof",
-      "telhado",
-      "travar",
-      "item-travado",
-      "pino",
-      "pino-move"
     ]
   },
   "_selo_r5": "scripts/portao-selo.json entrou em `pecas`.`portao` e em `alvos`.`portao` — EXCLUSIVO da peca do portao, proibido para as tres pecas de cliente. O selo desta rodada foi tirado ANTES de a guarda g20 existir e por isso nao trazia `base_do_run`: a ancora que impede o reu de escolher o proprio juiz estava INATIVA, e a ausencia dela saia como nota no verde em vez de vermelho. Recarimbar foi verificado antes, nao depois: `--so=jornadas-intactas` estava VERDE com as 23 jornadas, e as 23 hashes do selo novo batem com o DISCO e com o commit-base (auto/base-r5) ao mesmo tempo — nenhuma jornada mudou, o selo so trocou o fallback 'hash do commit base' por hash explicito e ganhou o carimbo. `base_do_run` foi carimbado com auto/base-noite = 6500be7, o mesmo valor que o manifesto da arvore e o manifesto commitado dentro do proprio commit-base ja declaravam. RISCO ACEITO E ANOTADO PARA A MANHA: com o selo declarado como alvo, uma peca de portao futura pode recarimba-lo. O que segura agora e g20 ficar VERMELHO quando NAO ha ancora nenhuma, mais a clausula de ancestralidade contra o manifesto commitado na propria base. Se a manha quiser fechar de vez, o selo sai desta lista e passa a ser tirado so pelo orquestrador.",
@@ -99,5 +78,6 @@
   ],
   "_dono_unico_de_scripts": "NAO crie outra chave que declare scripts/**. No instantaneo o git fica em HEAD destacado, o portao perde o nome do ramo (pecaDaArvore, portao.cjs:336-340) e cai no modo `arvore compartilhada`, que exige DONO UNICO por arquivo mudado. Com `portao`, `r3-portao` e `acervo` declarando scripts/portao.cjs ao mesmo tempo, esse modo reprovava sempre — e era vermelho que builder nenhum conseguia consertar, porque a disputa estava no manifesto, nao no codigo. Ramo de portao novo entra em `apelidos`.`portao`, nunca como chave nova.",
   "_base_pecas_21set": "Ponteiro CONGELADO em 5bc2117: o commit de onde as cinco pecas de feature desta noite foram cortadas, e o primeiro que ja traz o portao endurecido desta rodada. Apontar a base para um commit ANTERIOR a esse fazia a Fase 0 sair sem juiz (g27, g24, g13); apontar para um POSTERIOR fazia o conserto do portao cair na conta da peca de cliente, que nao o escreveu. As duas pontas ficam aqui ate o merge da noite.",
-  "_portao_e_a_integracao": "Na noite de 20-21/09 o ramo auto/acervo e o do ORQUESTRADOR e tambem o de INTEGRACAO: e nele que cada peca vencedora entra depois de provada na propria branch. Por isso a area do apelido acervo inclui client/src/** — nao para builder escrever ali, e sim porque o merge da peca aparece como escrita deste ramo. A protecao que importa continua de pe: peca de cliente declara SO client/src/** e nao alcanca scripts/ nem client/e2e/."
+  "_portao_e_a_integracao": "Na noite de 20-21/09 o ramo auto/acervo e o do ORQUESTRADOR e tambem o de INTEGRACAO: e nele que cada peca vencedora entra depois de provada na propria branch. Por isso a area do apelido acervo inclui client/src/** — nao para builder escrever ali, e sim porque o merge da peca aparece como escrita deste ramo. A protecao que importa continua de pe: peca de cliente declara SO client/src/** e nao alcanca scripts/ nem client/e2e/.",
+  "_teto_saiu_em_21set": "A peca teto e os alvos exclusivos dela sairam do manifesto em 21/09/2026: a rodada dela fechou em 18/09 e ja esta mesclada. Alvo exclusivo de rodada morta nao protege nada e reprova conserto legitimo da rodada viva — foi o que aconteceu com client/src/lib/fogFilter.ts, tocado pela integracao desta noite e ainda declarado como alvo do teto. Regra que o proprio manifesto ja dizia em _quem_mantem: manifesto de OUTRA rodada nao e neutro."
 }
