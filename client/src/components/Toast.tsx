@@ -15,9 +15,12 @@ interface ToastProps {
  * precisar montar a store real e dá ao integrador o mesmo ponto de wiring
  * (um `useToastStore()` + `useToastStore.getState().dismiss` em `App.tsx`).
  *
- * Acessibilidade: cada aviso tem `role="alert"` (erro, interrompe o leitor
- * de tela) ou `role="status"` (info, anuncia sem interromper — mesmo papel
- * já usado no hint da Toolbar, `Toolbar.tsx:307`). O nome acessível é o
+ * Acessibilidade: cada aviso tem `role="alert"` (erro e instrução —
+ * interrompe o leitor de tela) ou `role="status"` (info, anuncia sem
+ * interromper — mesmo papel já usado no hint da Toolbar, `Toolbar.tsx:307`).
+ * A instrução entra com `alert` de propósito: ela é o único aviso que a
+ * pessoa PRECISA ouvir inteiro, porque o gesto dela não foi adiante. O nome
+ * acessível é o
  * PRÓPRIO texto do aviso (conteúdo, não `aria-label`) — estável e é
  * exatamente o que a spec e2e deve procurar com
  * `getByRole('alert', { name: '...' })` / `getByRole('status', { name: '...' })`.
@@ -33,7 +36,7 @@ export function Toast({ toasts, onDismiss }: ToastProps) {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          role={toast.kind === 'error' ? 'alert' : 'status'}
+          role={toast.kind === 'info' ? 'status' : 'alert'}
           className={`lb-panel lb-toast lb-toast--${toast.kind}`}
         >
           <span className="lb-toast__text">{toast.text}</span>

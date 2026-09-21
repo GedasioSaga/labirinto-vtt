@@ -2,6 +2,7 @@ import { exists, readDir, readTextFile, remove, writeFile, writeTextFile } from 
 import { appDataDir, join } from '@tauri-apps/api/path'
 import type { Token } from '../types/map'
 import { buildTokenSharedPhoto, importTokenImage } from './imageImport'
+import { ErroQueEnsina } from './erroQueEnsina'
 import { ensureDir, uniqueMapName, writeTextFileSafely } from './mapFileIO'
 import { isTokenPhotoData, tokenPhotoRef } from './tokenPhoto'
 
@@ -309,7 +310,11 @@ export const SEM_FOTO_PARA_SALVAR =
  */
 export async function salvarNoAcervo(token: Pick<Token, 'name' | 'size' | 'image' | 'imageData'>): Promise<ItemDoAcervo> {
   const foto = tokenPhotoRef(token)
-  if (foto === null) throw new Error(SEM_FOTO_PARA_SALVAR)
+  // `ErroQueEnsina`, e não `Error`: a frase termina numa tarefa da pessoa
+  // ("escolha uma imagem para ele antes de guardar no acervo"), e quem lança é
+  // quem sabe disso. `App.tsx` lê a marca e mostra o aviso sem prazo — ver
+  // `lib/erroQueEnsina.ts`.
+  if (foto === null) throw new ErroQueEnsina(SEM_FOTO_PARA_SALVAR)
 
   const acervo = await listarAcervo()
   exigirLeitura(acervo, 'guardar o token no acervo')

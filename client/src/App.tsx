@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { ZoomHud } from './components/ZoomHud'
 import { Toast } from './components/Toast'
-import { useToastStore } from './stores/toastStore'
+import { useToastStore, type ToastKind } from './stores/toastStore'
+import { ensinaOQueFazer } from './lib/erroQueEnsina'
 import { useSessionStore, subscribeToDirtyFlag } from './stores/sessionStore'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
@@ -56,10 +57,18 @@ import { fitTitleFont } from './pixi/frameTitle'
  * imagem") — vira `Não foi possível <action>: <mensagem>`. Módulo-escopo
  * (não precisa de hook) porque só chama `useToastStore.getState().push`,
  * mesmo padrão que o próprio CONTRATO da Frente A já usa fora de componente.
+ *
+ * DOIS TIPOS DE AVISO, UM CAMINHO SÓ (21/09/2026): se o erro veio marcado
+ * como `ErroQueEnsina`, a mensagem pede uma AÇÃO da pessoa e o aviso fica na
+ * tela até ela dispensar (`kind: 'instrucao'`); qualquer outro erro só relata
+ * o que falhou e continua sumindo sozinho aos 7 s. A marca viaja no erro
+ * porque só quem o lançou sabe se a frase termina numa tarefa — a fronteira
+ * inteira está em `lib/erroQueEnsina.ts`.
  */
 function reportFileError(action: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err)
-  useToastStore.getState().push('error', `Não foi possível ${action}: ${message}`)
+  const kind: ToastKind = ensinaOQueFazer(err) ? 'instrucao' : 'error'
+  useToastStore.getState().push(kind, `Não foi possível ${action}: ${message}`)
 }
 
 /**
@@ -931,6 +940,12 @@ function App() {
    * ele antes de guardar no acervo", que diz o que fazer a seguir. Checar a
    * foto aqui também seria uma segunda regra dizendo a mesma coisa, livre para
    * divergir da primeira.
+   *
+   * Esse aviso é o único deste handler que FICA na tela até a pessoa
+   * dispensar (`ErroQueEnsina` → `kind: 'instrucao'`): ele manda ela ir
+   * escolher uma imagem, e ela precisa da frase enquanto procura o arquivo na
+   * pasta dela. O "<nome> entrou no acervo" do caminho feliz continua sumindo
+   * sozinho — ali não sobrou passo nenhum para ela.
    */
   const handleSaveTokenToLibrary = async (token: Token) => {
     try {

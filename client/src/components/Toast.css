@@ -50,13 +50,26 @@
   color: var(--lb-color-parchment);
 }
 
+/* Instrução: o aviso que ESPERA a pessoa (stores/toastStore.ts, sem prazo).
+   Cor de latão, e não de brasa: não é uma falha do sistema, é uma tarefa dela
+   — o mesmo acento que os botões de ação do app já usam. O fundo tingido
+   separa à distância o cartão que vai ficar dos que vão sumir, para a pilha
+   não parecer uma fila de erros. */
+.lb-toast--instrucao {
+  border-color: var(--lb-color-brass);
+  background-image: linear-gradient(var(--lb-color-brass-soft), var(--lb-color-brass-soft));
+}
+
 .lb-toast__dismiss {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  /* 24px é o alvo mínimo de ponteiro. Era 20 e o × ficava menor que a polpa
+     do dedo/precisão do mouse — num aviso que só sai no clique, errar o alvo
+     é ficar preso com o cartão na tela. */
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: none;
   border-radius: var(--lb-radius-sm);
@@ -66,6 +79,18 @@
   line-height: 1;
   cursor: pointer;
   transition: color var(--lb-motion-fast) var(--lb-motion-ease), background var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+/* No aviso que fica, o botão é a ÚNICA saída — então ele é desenhado, e não
+   insinuado: contorno visível e texto em cheio, sem depender de a pessoa
+   passar o mouse por cima para descobrir que ali dá para clicar. */
+.lb-toast--instrucao .lb-toast__dismiss {
+  border: 1px solid var(--lb-color-brass);
+  color: var(--lb-color-parchment);
+}
+
+.lb-toast--instrucao .lb-toast__dismiss:hover {
+  background: var(--lb-color-brass-soft);
 }
 
 .lb-toast__dismiss:hover {

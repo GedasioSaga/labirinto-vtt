@@ -10,7 +10,17 @@ import { create } from 'zustand'
  * `dismiss`; toda a lógica de fila/tempo mora aqui.
  */
 
-export type ToastKind = 'info' | 'error'
+/**
+ * `info` e `error` RELATAM um fato ("Mapa salvo", "não deu para abrir o
+ * arquivo") e somem sozinhos. `instrucao` ENSINA: a frase pede uma ação da
+ * pessoa para o gesto poder acontecer, e ela precisa da frase na tela
+ * ENQUANTO cumpre — ler, achar o botão, abrir o seletor do sistema, procurar
+ * o arquivo. Esse não tem prazo: quem apaga é ela, pelo "Dispensar aviso".
+ *
+ * A fronteira, e por que ela não é "todo erro fica", estão em
+ * `lib/erroQueEnsina.ts`.
+ */
+export type ToastKind = 'info' | 'error' | 'instrucao'
 
 export interface ToastMessage {
   id: string
@@ -24,17 +34,32 @@ interface ToastState {
    * Empilha um aviso e agenda a auto-dispensa. Devolve o `id` gerado — quem
    * chama pode ignorar, ou guardar para dispensar cedo (não usado hoje, mas
    * mantém a action simétrica com `dismiss`).
+   *
+   * `durationMs: null` (o padrão de `instrucao`) não agenda timer nenhum: o
+   * aviso fica até alguém chamar `dismiss`. Passar `null` num `info` é
+   * legítimo e faz a mesma coisa — o `kind` escolhe o padrão, não a regra.
    */
-  push: (kind: ToastKind, text: string, durationMs?: number) => string
+  push: (kind: ToastKind, text: string, durationMs?: number | null) => string
   /** Dispensa por `id`, na mão (botão) ou pelo próprio timer de `push`. Idempotente: `id` que já não está na fila é um no-op silencioso. */
   dismiss: (id: string) => void
 }
 
-/** Info some sozinho rápido; erro fica mais tempo porque normalmente pede
- *  atenção (nome de arquivo, o que fazer a seguir). */
-const DEFAULT_DURATION_MS: Record<ToastKind, number> = {
+/**
+ * Info some sozinho rápido; erro fica mais tempo porque normalmente pede
+ * atenção (nome de arquivo, o que falhou).
+ *
+ * `instrucao: null` é o conserto de 21/09/2026 (jornada
+ * `e2e/task-jornada-salvar-sem-foto-avisa.spec.ts`): o aviso de "este token
+ * ainda não tem foto — escolha uma imagem" se apagava aos 7 s, no meio da
+ * leitura, e não sobrava lugar nenhum na tela para reencontrá-lo. Prazo maior
+ * não resolve — qualquer número seria o app apostando em quanto tempo a
+ * pessoa leva para achar um arquivo na pasta dela. Sem prazo, quem decide que
+ * já leu é ela.
+ */
+const DEFAULT_DURATION_MS: Record<ToastKind, number | null> = {
   info: 4000,
   error: 7000,
+  instrucao: null,
 }
 
 /**
@@ -52,12 +77,14 @@ export const useToastStore = create<ToastState>()((set, get) => ({
   push: (kind, text, durationMs = DEFAULT_DURATION_MS[kind]) => {
     const id = crypto.randomUUID()
     set((state) => ({ toasts: [...state.toasts, { id, kind, text }] }))
-    timers.set(
-      id,
-      setTimeout(() => {
-        get().dismiss(id)
-      }, durationMs),
-    )
+    if (durationMs !== null) {
+      timers.set(
+        id,
+        setTimeout(() => {
+          get().dismiss(id)
+        }, durationMs),
+      )
+    }
     return id
   },
 

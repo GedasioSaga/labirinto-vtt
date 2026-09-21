@@ -44,7 +44,11 @@ export function TokenImageControls({ image, onChangeImage, onClearImage, onSaveT
       {/* Mora aqui, e não no painel do acervo, porque é a FOTO deste token que
           vai para a estante: o gesto é "guardar este, com esta cara". Aparece
           mesmo sem imagem — sem foto o app responde por que não dá
-          (`SEM_FOTO_PARA_SALVAR`), que ensina; botão escondido não ensina. */}
+          (`SEM_FOTO_PARA_SALVAR`), que ensina; botão escondido não ensina.
+          E esse aviso FICA na tela até a pessoa dispensar (`ErroQueEnsina` →
+          `kind: 'instrucao'`, ver lib/erroQueEnsina.ts): ele manda subir até
+          "Escolher imagem..." aqui em cima, e instrução que se apaga sozinha
+          no meio do caminho também não ensina. */}
       <button type="button" className="lb-btn lb-btn--block" onClick={onSaveToLibrary}>
         Salvar no acervo
       </button>
