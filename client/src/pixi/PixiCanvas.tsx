@@ -314,6 +314,39 @@ const VERTEX_MAGNET_TOLERANCE = 12
 /** Folga de clique do pino, em px de TELA — o alvo do dedo não encolhe com o zoom. */
 const PIN_TAP_TOLERANCE_PX = 6
 
+/**
+ * Traçado ponto a ponto — quanto tempo pode passar entre SOLTAR um toque e
+ * APERTAR o seguinte para os dois ainda contarem como "duplo clique".
+ *
+ * O evento `dblclick` do navegador tem janela FIXA de ~500 ms e não consulta o
+ * sistema operacional. No Windows a velocidade do duplo clique é uma régua do
+ * usuário, de ~200 ms a ~900 ms: quem a deixou lenta — ou quem simplesmente
+ * mira com calma no último vértice antes de bater de novo — batia dois toques
+ * que o Windows chama de duplo clique, o Chromium não, e a forma não fechava
+ * (passeio de 20/09/2026; medido de novo em 21/09/2026 com 700 ms). 900 ms é o
+ * TETO dessa régua: é o gesto mais lento que o próprio sistema ainda chama de
+ * duplo clique, e nada além disso — dois cliques mais espaçados continuam
+ * sendo dois vértices, como sempre foram.
+ *
+ * A janela é medida do `pointerup` do primeiro toque ao `pointerdown` do
+ * segundo, isto é, a PAUSA entre os toques. Quanto tempo o dedo ficou no botão
+ * é outra coisa: quem mira com calma segura mais, e isso não transforma o
+ * gesto em dois cliques separados.
+ */
+const FECHAMENTO_DOIS_TOQUES_JANELA_MS = 900
+
+/**
+ * E os dois toques precisam cair no MESMO lugar, em px de TELA. Sem isto,
+ * dois vértices cravados em sequência rápida — o gesto normal de quem desenha
+ * — fechariam a forma sozinhos. 8 px é o dobro da folga que o Windows dá ao
+ * duplo clique (`SM_CXDOUBLECLK`, 4 px por padrão) e continua muito menor que
+ * a distância entre dois cantos que alguém quis desenhar de propósito.
+ *
+ * Em px de tela, e não de mundo, de propósito: a folga é da MÃO, e a mão não
+ * fica mais firme porque o mapa está com zoom afastado.
+ */
+const FECHAMENTO_DOIS_TOQUES_TOLERANCIA_PX = 8
+
 // Rótulo do indicador de ângulo durante o arrasto de Parede/Linha. Travado
 // (Ctrl segurado) sempre cai num múltiplo exato de stepDegrees — arredondar
 // pro inteiro mais próximo só limpa erro de ponto flutuante (ex.: 89.9999999
@@ -2290,6 +2323,125 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         regionDraftPoints.length > 0 || polygonDraftPoints.length > 0 || pathDraftPoints.length > 0 || corridorDraftPoints.length > 0
 
       /**
+       * Quantos cantos o traçado ABERTO desta ferramenta ainda tem, e quantos
+       * ela precisa. `null` quando a ferramenta não faz traçado ponto a ponto,
+       * ou quando não há rascunho aberto nela.
+       *
+       * Os mínimos não são inventados aqui: são os mesmos de `finishRegion`
+       * (3), `isValidPolygonDraft` (3), `isValidPathDraft` (2) e do corredor,
+       * que precisa de dois pontos para ter comprimento.
+       */
+      /**
+       * A ferramenta termina por duplo clique/Enter? É a lista das que
+       * desenham clicando ponto a ponto — `floor` entra porque uma das formas
+       * dela (o Corredor) é ponto a ponto; as outras formas do Chão nascem de
+       * um arrasto e simplesmente não têm traçado aberto para fechar.
+       */
+      const fazTracadoPontoAPonto = (tool: DrawingTool): boolean =>
+        tool === 'path' || tool === 'polygon' || tool === 'floor' || usaTracadoPontoAPonto(tool)
+
+      const contagemDoTracado = (tool: DrawingTool): { tem: number; minimo: number; oQue: string } | null => {
+        if (tool === 'path') {
+          const tem = normalizeDraftPolygonPoints(pathDraftPoints).length
+          return tem > 0 ? { tem, minimo: 2, oQue: 'O caminho' } : null
+        }
+        if (tool === 'polygon') {
+          const tem = normalizeDraftPolygonPoints(polygonDraftPoints).length
+          return tem > 0 ? { tem, minimo: 3, oQue: 'O polígono' } : null
+        }
+        if (tool === 'floor') {
+          const tem = normalizeDraftPolygonPoints(corridorDraftPoints).length
+          return tem > 0 ? { tem, minimo: 2, oQue: 'O corredor' } : null
+        }
+        if (usaTracadoPontoAPonto(tool)) {
+          const tem = normalizeDraftPolygonPoints(regionDraftPoints).length
+          return tem > 0 ? { tem, minimo: 3, oQue: tool === 'roomFree' ? 'A sala' : 'A região' } : null
+        }
+        return null
+      }
+
+      /**
+       * A pessoa pediu para fechar e a forma não tinha pontos suficientes. Até
+       * 21/09/2026 isso era MUDO: o rascunho curto sumia da tela no `dblclick`
+       * e nada explicava por quê — a mesma queixa do passeio que originou o
+       * toast da Escada e o da Porta que erra a parede. O rascunho continua
+       * sendo descartado (é o comportamento de sempre do duplo clique, e
+       * `task-rascunho-desfazer` depende dele para o Ctrl+Z seguinte voltar a
+       * desfazer o MAPA); o que muda é que agora a tela diz o que faltou.
+       */
+      const explicarTracadoCurto = (contagem: { tem: number; minimo: number; oQue: string }) => {
+        const faltam = contagem.minimo - contagem.tem
+        useToastStore
+          .getState()
+          .push(
+            'info',
+            `${contagem.oQue} precisa de ${contagem.minimo} pontos para fechar — ${
+              faltam === 1 ? 'faltou 1' : `faltaram ${faltam}`
+            }. Clique os pontos e feche de novo.`,
+          )
+      }
+
+      /**
+       * A saída ÚNICA do traçado ponto a ponto. O `dblclick` do navegador e o
+       * gesto de dois toques deste arquivo (janela do Windows, não a fixa do
+       * Chromium) passam os dois por aqui — duas receitas de "o que é fechar a
+       * forma" divergiriam na primeira correção.
+       *
+       * Devolve `true` quando havia um traçado desta ferramenta e ele foi
+       * resolvido (fechado ou descartado com explicação); `false` quando não
+       * havia nada para fechar, e quem chamou deve seguir em frente.
+       */
+      const fecharTracadoPontoAPonto = (tool: DrawingTool): boolean => {
+        const contagem = contagemDoTracado(tool)
+        if (contagem === null) return false
+
+        // Curto demais: explica o que faltou e descarta — as três ferramentas
+        // no mesmo lugar, porque a pergunta ("dá para fechar?") é a mesma e a
+        // resposta muda só no número.
+        if (contagem.tem < contagem.minimo) {
+          explicarTracadoCurto(contagem)
+          clearDrafts()
+          return true
+        }
+
+        if (tool === 'path') finishPath()
+        else if (tool === 'polygon') finishPolygon()
+        else if (tool === 'floor') finishCorridor()
+        else finishRegion()
+        return true
+      }
+
+      /**
+       * O último toque SOLTO sobre o canvas com uma ferramenta de traçado
+       * ponto a ponto na mão: onde ele caiu (px de tela) e quando o botão
+       * subiu. É contra ele que o toque seguinte se mede para virar, ou não,
+       * um fechamento — ver `FECHAMENTO_DOIS_TOQUES_JANELA_MS`.
+       */
+      let ultimoToqueDoTracado: { x: number; y: number; soltoEmMs: number } | null = null
+
+      /**
+       * Quando o gesto de dois toques fechou a forma pela última vez. O
+       * `dblclick` do navegador chega LOGO DEPOIS do segundo toque (a janela
+       * dele, ~500 ms, cabe inteira dentro da nossa) e não pode repetir o
+       * fechamento nem descartar o rascunho que a pessoa já começou a seguir.
+       * O evento nativo continua ligado de propósito: é a rede de segurança
+       * para o caso de o gesto daqui não reconhecer o toque.
+       */
+      let fechadoPorDoisToquesEmMs = Number.NEGATIVE_INFINITY
+
+      /**
+       * Este `pointerdown` é o SEGUNDO toque de um duplo clique no mesmo
+       * ponto? Mesma pergunta que o sistema operacional faz — pausa curta E
+       * mesmo lugar —, só que com a régua do Windows em vez da do Chromium.
+       */
+      const eSegundoToqueNoMesmoPonto = (x: number, y: number): boolean => {
+        const anterior = ultimoToqueDoTracado
+        if (anterior === null) return false
+        if (performance.now() - anterior.soltoEmMs > FECHAMENTO_DOIS_TOQUES_JANELA_MS) return false
+        return Math.hypot(x - anterior.x, y - anterior.y) <= FECHAMENTO_DOIS_TOQUES_TOLERANCIA_PX
+      }
+
+      /**
        * Ctrl+Z/Backspace com rascunho aberto: tira o último ponto e redesenha a
        * prévia até o cursor. Sem ponto sobrando o rascunho some. Nunca mexe no
        * histórico do mapa — o ponto ainda não é mapa.
@@ -2428,6 +2580,28 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         // fazem sentido pra seleção de EXATAMENTE 1 item — `single` é essa
         // borda, mesma forma que `selection` tinha antes da migração.
         const single = selectionSingle(selection)
+
+        // DUPLO CLIQUE QUE FECHA A FORMA, no ritmo de quem mira. A dica da
+        // tela promete "Duplo clique fecha" (labels.ts) e até 21/09/2026 quem
+        // cumpria a promessa era só o evento `dblclick` do navegador, de
+        // janela FIXA (~500 ms): dois toques a 700 ms — duplo clique legítimo
+        // na régua do Windows — não fechavam nada e nada era dito.
+        //
+        // O gesto mora AQUI, antes de qualquer if de ferramenta, porque ele
+        // precisa decidir ANTES de o toque virar mais um vértice: o segundo
+        // toque de um duplo clique não é um canto novo, é o fim do traçado.
+        // Só vale com botão esquerdo, e só quando o toque anterior caiu no
+        // MESMO ponto (`eSegundoToqueNoMesmoPonto`) — dois cliques em lugares
+        // diferentes continuam sendo dois vértices, por mais rápidos que
+        // sejam.
+        if (event.button === 0 && eSegundoToqueNoMesmoPonto(event.global.x, event.global.y)) {
+          if (fecharTracadoPontoAPonto(activeTool)) {
+            ultimoToqueDoTracado = null
+            fechadoPorDoisToquesEmMs = performance.now()
+            updateCursor()
+            return
+          }
+        }
 
         if (activeTool === 'wall') {
           mode = 'drawing-wall'
@@ -3200,6 +3374,17 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       app.stage.on('pointerup', (event) => {
         // B2 — fim do traço do laser; o App manda `laser {off}` na transição.
         if (laserGesture.pointerUp()) return
+
+        // Guarda ONDE e QUANDO este toque foi solto, para o toque seguinte
+        // poder se medir contra ele e virar (ou não) um fechamento — ver
+        // `eSegundoToqueNoMesmoPonto` no pointerdown. Só com a ferramenta de
+        // traçado na mão e só com o botão esquerdo: o botão do meio pana e o
+        // direito apaga blocos, nenhum dos dois é toque de vértice.
+        if (event.button === 0 && fazTracadoPontoAPonto(useMapStore.getState().activeTool)) {
+          ultimoToqueDoTracado = { x: event.global.x, y: event.global.y, soltoEmMs: performance.now() }
+        } else {
+          ultimoToqueDoTracado = null
+        }
         if (tokenPlacementPoint) {
           openNameEditor({ kind: 'token', at: tokenPlacementPoint, value: nextTokenName(useMapStore.getState().map.tokens) })
           tokenPlacementPoint = null
@@ -3651,6 +3836,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
       app.stage.on('pointerupoutside', () => {
         tokenPlacementPoint = null
+        // O toque terminou FORA do canvas: ele não é mais a primeira metade de
+        // um duplo clique, e o próximo toque dentro do mapa é um toque novo.
+        ultimoToqueDoTracado = null
         if (laserGesture.pointerUp()) return
         // Mesmo fechamento de gesto do pointerup acima — o mouse pode sair do
         // canvas no meio de um arrasto de Curva, e o gesto ainda precisa virar
@@ -4588,24 +4776,19 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           return
         }
 
-        if (activeTool === 'path') {
-          if (!finishPath()) clearDrafts()
-          return
-        }
+        // Daqui para baixo é o fechamento do traçado ponto a ponto — e ele já
+        // foi resolvido pelo gesto de dois toques do `pointerdown`, que roda
+        // na janela do WINDOWS. A janela deste evento (~500 ms, fixa no
+        // Chromium) cabe inteira dentro dela, então todo `dblclick` que chega
+        // aqui logo depois de um fechamento é o eco do mesmo gesto: repetir
+        // descartaria o rascunho que a pessoa já começou a seguir.
+        if (performance.now() - fechadoPorDoisToquesEmMs <= FECHAMENTO_DOIS_TOQUES_JANELA_MS) return
 
-        if (activeTool === 'polygon') {
-          if (!finishPolygon()) clearDrafts()
-          return
-        }
-
-        if (activeTool === 'floor') {
-          if (corridorDraftPoints.length > 0) finishCorridor()
-          return
-        }
-
-        if (!usaTracadoPontoAPonto(activeTool)) return
-
-        finishRegion()
+        // Rede de segurança, de propósito NÃO removida: se por qualquer razão
+        // o gesto de dois toques não tiver reconhecido o duplo clique (outro
+        // dispositivo de entrada, um toque solto fora do canvas no meio), o
+        // evento nativo continua fechando a forma como sempre fechou.
+        fecharTracadoPontoAPonto(activeTool)
       }
       el.addEventListener('dblclick', onDblClick)
 
