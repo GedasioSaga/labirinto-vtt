@@ -13,6 +13,9 @@ gauntlet-loop conduzindo. Conta 5x — ritmo lento de propósito, um workflow po
 | # | feature | commit | prova |
 |---|---|---|---|
 | 1 | traço pontilhado e tracejado na ferramenta Linha | `d18f4a6` | jornada `linha-pontilhada` 2 passed; unidade 2348; tipos-src, tipos-e2e, jornadas-intactas (44), particao VERDES |
+| 2 | etiqueta em pilula no nome da sala | 4242572 | jornada etiqueta-pilula 2 passed; estilo-minimapa VERDE |
+| 3 | vao aberto na parede (nem parede, nem porta) | 4d28e48 | jornada saida-sem-parede 2 passed; jornada da porta VERDE |
+| 4 | icone escolhivel no marcador | 1a0c9f4 | jornada marcador-com-icone 2 passed |
 
 ### Régua escrita antes da obra (8 jornadas vermelhas, commitadas e seladas)
 
@@ -43,6 +46,13 @@ ao reabrir.
   no instantâneo (HEAD destacado) isso reprovava sempre; e um comentário dentro de `pecas` derrubava
   o portão inteiro com `TypeError`. Portão que estoura não reprova nem aprova: some.
 - `d9ea945` — selo e manifesto voltaram a declarar a mesma base.
+
+### Prova de integracao (21/09, madrugada)
+
+As quatro rodadas juntas na arvore integrada, dentro de worktree com porta propria:
+, ,  e  todas VERDES ao mesmo
+tempo;  VERDE (56 s) e  VERDE (77 s) — este ultimo estava vermelho no
+comeco da noite. ,  e  VERDES na arvore principal.
 
 ## Próximos passos
 
