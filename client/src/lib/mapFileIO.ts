@@ -4,6 +4,22 @@ import { appDataDir, join, dirname } from '@tauri-apps/api/path'
 import { invoke } from '@tauri-apps/api/core'
 import type { MapData } from '../types/map'
 import { serializeMap, deserializeMap } from './mapFile'
+import {
+  ADVENTURE_FILE,
+  ADVENTURE_VERSION,
+  baseName,
+  clearLegacyPortals,
+  fileSegments,
+  isSafeRelativeFile,
+  legacyPortalPaths,
+  newSceneId,
+  parseAdventure,
+  samePath,
+  sceneFileFor,
+  serializeAdventure,
+  type Adventure,
+  type SceneEntry,
+} from './adventure'
 
 /** Sufixo do arquivo de rascunho da gravação atômica (ver `writeTextFileSafely`). */
 const TEMP_WRITE_SUFFIX = '.tmp'
@@ -487,4 +503,217 @@ export async function deleteMap(id: string): Promise<void> {
  */
 export async function saveMapToPath(map: MapData, path: string): Promise<void> {
   await writeTextFileSafely(path, serializeMap(map))
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Aventura: várias cenas numa pasta (`lib/adventure.ts`)
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Uma cena lida do disco: o mapa, ou o motivo de não estar disponível. */
+export type SceneLoad =
+  | { entry: SceneEntry; status: 'ok'; map: MapData }
+  | { entry: SceneEntry; status: 'indisponivel'; reason: string }
+
+/** O que abrir um `map.json` devolve: o mapa pedido e, se ele é cena de uma aventura, a aventura inteira. */
+export interface OpenedMapFile {
+  /** O arquivo que a pessoa pediu para abrir. */
+  path: string
+  /** O mapa desse arquivo, já sem portal antigo. */
+  map: MapData
+  /** `null` = mapa solto, como sempre foi. */
+  adventure: Adventure | null
+  adventureDir: string | null
+  activeSceneId: string | null
+  /** Todas as cenas da aventura, a aberta inclusive; vazio para mapa solto. */
+  scenes: SceneLoad[]
+  /** Cenas cujo conteúdo em memória já não é o do disco (portal antigo convertido). */
+  changedSceneIds: string[]
+  /** A lista de cenas mudou ao abrir (portal antigo virou cena): o `adventure.json` precisa ser regravado. */
+  adventureChanged: boolean
+}
+
+/** Teto de cenas que a conversão de portais antigos cria de uma vez: corrente de andares, não labirinto infinito. */
+const MAX_MIGRATED_SCENES = 32
+
+/**
+ * Caminho absoluto da cena, conferido contra a pasta da aventura. `file` vem
+ * de um `adventure.json` que pode ter sido editado à mão: caminho absoluto ou
+ * com `..` é recusado aqui, antes de qualquer leitura ou escrita.
+ */
+export async function scenePath(adventureDir: string, file: string): Promise<string> {
+  if (!isSafeRelativeFile(file)) {
+    throw new Error(`Cena com caminho inválido: "${file}" precisa ser relativo à pasta da aventura.`)
+  }
+  const path = await join(adventureDir, ...fileSegments(file))
+  assertPathWithinRoot(path, adventureDir)
+  return path
+}
+
+async function loadScene(adventureDir: string, entry: SceneEntry): Promise<SceneLoad> {
+  try {
+    const path = await scenePath(adventureDir, entry.file)
+    if (!(await exists(path))) return { entry, status: 'indisponivel', reason: `arquivo não encontrado: ${entry.file}` }
+    return { entry, status: 'ok', map: deserializeMap(await readTextFile(path)) }
+  } catch (error) {
+    return { entry, status: 'indisponivel', reason: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/**
+ * Procura o `adventure.json` de quem `mapPath` é cena: na pasta do próprio
+ * arquivo (a primeira cena, `map.json`) e duas pastas acima (as cenas novas
+ * moram em `scenes/<id>/map.json`). `adventure.json` quebrado conta como
+ * ausente: o mapa abre solto em vez de não abrir.
+ */
+async function findAdventureFor(mapPath: string): Promise<{ adventure: Adventure; dir: string; sceneId: string } | null> {
+  const ownDir = await dirname(mapPath)
+  const candidates = [ownDir]
+  try {
+    candidates.push(await dirname(await dirname(ownDir)))
+  } catch {
+    // Arquivo perto da raiz do disco: não há pasta duas acima para olhar.
+  }
+  for (const dir of candidates) {
+    if (dir.length === 0) continue
+    const raw = await readIfExists(await join(dir, ADVENTURE_FILE))
+    if (raw === null) continue
+    let adventure: Adventure
+    try {
+      adventure = parseAdventure(raw)
+    } catch {
+      continue
+    }
+    for (const entry of adventure.scenes) {
+      try {
+        if (samePath(await scenePath(dir, entry.file), mapPath)) return { adventure, dir, sceneId: entry.id }
+      } catch {
+        // Cena com caminho inválido não é a que foi pedida.
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Abre um `map.json`: o mapa pedido e, quando ele é cena de uma aventura,
+ * todas as outras cenas (as que sumiram do disco voltam como "indisponível",
+ * sem derrubar a abertura). Por último converte o portal antigo
+ * (`convertLegacyPortals`).
+ */
+export async function openMapFile(path: string): Promise<OpenedMapFile> {
+  const map = await loadMapFromDisk(path)
+  const found = await findAdventureFor(path)
+  if (found === null) {
+    return convertLegacyPortals({ path, map, adventure: null, adventureDir: null, activeSceneId: null, scenes: [], changedSceneIds: [], adventureChanged: false })
+  }
+  const scenes: SceneLoad[] = []
+  for (const entry of found.adventure.scenes) {
+    scenes.push(entry.id === found.sceneId ? { entry, status: 'ok', map } : await loadScene(found.dir, entry))
+  }
+  return convertLegacyPortals({
+    path,
+    map,
+    adventure: found.adventure,
+    adventureDir: found.dir,
+    activeSceneId: found.sceneId,
+    scenes,
+    changedSceneIds: [],
+    adventureChanged: false,
+  })
+}
+
+/** Chave de comparação de caminho: barra e maiúscula não contam (Windows). */
+function pathKey(path: string): string {
+  return path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+}
+
+/**
+ * PORTAL ANTIGO (`Prop.linkedMapPath`, removido da interface): o mapa de
+ * destino entra na aventura como cena e o campo é zerado. O destino é COPIADO
+ * para `scenes/<id>/map.json` na próxima gravação — o `file` da aventura é
+ * relativo à pasta dela, e o destino antigo morava em outra pasta. O arquivo
+ * original fica onde estava.
+ *
+ * Destino ilegível (apagado, sem permissão) não vira cena e o campo daquele
+ * prop NÃO é zerado: zerar apagaria a única pista de onde o mapa estava.
+ * Mapa solto com portal vira aventura aqui mesmo — a primeira cena é ele.
+ */
+async function convertLegacyPortals(opened: OpenedMapFile): Promise<OpenedMapFile> {
+  const rootEntry: SceneEntry = { id: newSceneId(), name: opened.map.name, file: baseName(opened.path) }
+  const activeId = opened.activeSceneId ?? rootEntry.id
+  const loads: SceneLoad[] = opened.adventure ? [...opened.scenes] : [{ entry: rootEntry, status: 'ok', map: opened.map }]
+  const dir = opened.adventureDir ?? (await dirname(opened.path))
+
+  // Caminho absoluto -> cena que já o representa.
+  const sceneByPath = new Map<string, string>()
+  for (const load of loads) {
+    try {
+      sceneByPath.set(pathKey(await scenePath(dir, load.entry.file)), load.entry.id)
+    } catch {
+      // Caminho inválido não casa com destino nenhum.
+    }
+  }
+
+  const changed = new Set(opened.changedSceneIds)
+  let added = 0
+  for (let i = 0; i < loads.length; i += 1) {
+    const load = loads[i]
+    if (load.status !== 'ok') continue
+    const resolved: string[] = []
+    for (const target of legacyPortalPaths(load.map)) {
+      if (sceneByPath.has(pathKey(target))) {
+        resolved.push(target)
+        continue
+      }
+      if (added >= MAX_MIGRATED_SCENES) continue
+      try {
+        const destination = await loadMapFromDisk(target)
+        const id = newSceneId()
+        loads.push({ entry: { id, name: destination.name, file: sceneFileFor(id) }, status: 'ok', map: destination })
+        sceneByPath.set(pathKey(target), id)
+        changed.add(id)
+        added += 1
+        resolved.push(target)
+      } catch {
+        // Destino ilegível: o campo fica, ver o comentário da função.
+      }
+    }
+    const cleared = clearLegacyPortals(load.map, resolved)
+    if (cleared !== load.map) {
+      loads[i] = { ...load, map: cleared }
+      changed.add(load.entry.id)
+    }
+  }
+
+  if (changed.size === opened.changedSceneIds.length) return opened
+
+  const activeLoad = loads.find((load) => load.entry.id === activeId)
+  const activeMap = activeLoad && activeLoad.status === 'ok' ? activeLoad.map : opened.map
+  const adventure: Adventure = opened.adventure
+    ? { ...opened.adventure, scenes: loads.map((load) => load.entry) }
+    : { version: ADVENTURE_VERSION, id: `adv_${crypto.randomUUID()}`, name: opened.map.name, startSceneId: rootEntry.id, scenes: loads.map((load) => load.entry) }
+  return {
+    ...opened,
+    map: activeMap,
+    adventure,
+    adventureDir: dir,
+    activeSceneId: activeId,
+    scenes: loads,
+    changedSceneIds: [...changed],
+    adventureChanged: added > 0 || opened.adventure === null,
+  }
+}
+
+/**
+ * Grava as cenas pedidas e, POR ÚLTIMO, o `adventure.json` — nessa ordem para
+ * a lista nunca apontar para uma cena que ainda não chegou ao disco.
+ */
+export async function saveAdventureToDisk(adventureDir: string, adventure: Adventure, writes: { file: string; map: MapData }[]): Promise<void> {
+  await ensureDir(adventureDir)
+  for (const write of writes) {
+    const path = await scenePath(adventureDir, write.file)
+    await ensureDir(await dirname(path))
+    await writeTextFileSafely(path, serializeMap(write.map))
+  }
+  await writeTextFileSafely(await join(adventureDir, ADVENTURE_FILE), serializeAdventure(adventure))
 }
