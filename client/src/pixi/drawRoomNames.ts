@@ -1,4 +1,4 @@
-import { Container, Text } from 'pixi.js'
+import { Container, Graphics, Text } from 'pixi.js'
 import type { Region, RegionPoint } from '../types/map'
 import { pointInPolygonInclusive } from '../lib/roomNesting'
 import { screenLabelSizing } from './screenLabel'
@@ -16,8 +16,44 @@ const MAX_FONT_SIZE = 28
 // Abaixo disso o polígono é praticamente uma linha ou um ponto: o centróide
 // por área divide por ~0 e explode, então vale a média dos vértices.
 const DEGENERATE_AREA_EPSILON = 1e-6
-const LABEL_FILL = 0xffffff
-const LABEL_STROKE = 0x111111
+/**
+ * ETIQUETA EM PÍLULA — o nome da sala deixa de ser tinta solta sobre o chão.
+ *
+ * O desenho anterior era letra branca com um fio escuro em volta. Sobre chão
+ * escuro lia bem; sobre chão claro (pedra, areia) o branco encostava no branco
+ * e sobrava o fio de 1 px segurando a leitura — e a cor do chão é escolha do
+ * mestre (`#lb-region-color`), então a legibilidade do nome dependia do gosto
+ * dele. Agora o nome vem sobre uma plaquinha opaca: o que está atrás das
+ * letras é SEMPRE a mesma coisa, em qualquer chão.
+ *
+ * Por que uma plaquinha CLARA num mapa escuro, e não a pílula escura de
+ * costume: a plaqueta precisa se separar dos dois extremos de chão ao mesmo
+ * tempo. Em luminância relativa da WCAG, um chão claro tipo `#efe6d2` marca
+ * ~0,80 e um chão de cripta tipo `#1d2026` marca ~0,01 — qualquer tom escuro
+ * some contra o segundo, e qualquer tom de pergaminho some contra o primeiro.
+ * Sobra a faixa do meio. `0xc9c1ac` (pedra clara, quente, quase sem croma —
+ * primo do bege de escada em `constants.ts`) marca ~0,54: fica a ~0,26 do chão
+ * claro, a ~0,53 do escuro, e dá 10:1 com a tinta — três vezes o mínimo AA de
+ * 4,5:1. Croma baixo de propósito: o latão (`--lb-color-brass`) continua sendo
+ * o único acento do mapa, e a etiqueta não disputa a cena com ele.
+ */
+const LABEL_PLATE_COLOR = 0xc9c1ac
+/** Tinta do nome sobre a plaquinha — o mesmo quase-preto do fundo do app
+ *  (`--lb-color-ink`, theme.ts). Letra escura sobre pedra clara não precisa do
+ *  contorno que segurava a letra branca: o fio some junto com o problema. */
+const LABEL_FILL = 0x121214
+/** Respiro dos lados da plaquinha, em múltiplos do tamanho da fonte. */
+const PLATE_PAD_X_PER_FONT = 0.35
+/** Altura da plaquinha: a linha de texto ocupa ~1,2 da fonte, o resto é respiro. */
+const PLATE_HEIGHT_PER_FONT = 1.85
+/**
+ * Largura mínima da plaquinha. Nome curto ("Poço") não vira lozango atarracado:
+ * todas as etiquetas do mapa guardam a mesma silhueta, e o alvo de arrasto do
+ * nome (é a própria plaquinha, ver `labelHalfExtents`) nunca fica pequeno
+ * demais para a mão — o critério 2.5.8 da WCAG 2.2 pede alvo de 24 px, e a
+ * plaquinha passa folgada disso nos dois eixos.
+ */
+const PLATE_MIN_WIDTH_PER_FONT = 5.5
 /** A5 — nome que os jogadores não veem: esmaecido e itálico só no editor
  *  (o jogador recebe `name = ''` e nem chega a desenhar). */
 const HIDDEN_NAME_ALPHA = 0.5
@@ -62,20 +98,43 @@ export function roomLabelPosition(region: Region): { x: number; y: number } {
 // fora do Pixi (pointerdown e duplo clique). Estimativa por caractere com
 // folga: pegar um pouco além do texto é melhor que errar o clique.
 const LABEL_CHAR_WIDTH_PER_FONT = 0.62
-const LABEL_HEIGHT_PER_FONT = 1.3
-const LABEL_HIT_PADDING = 6
+
+/** Largura do nome sem rasterizar — chute por caractere, sempre um pouco
+ *  acima do real em texto latino, que é o lado certo de errar num alvo de
+ *  clique. */
+export function estimateRoomLabelTextWidth(name: string, fontSize: number): number {
+  return Math.max(1, name.length) * fontSize * LABEL_CHAR_WIDTH_PER_FONT
+}
+
+export interface RoomLabelPlate {
+  width: number
+  height: number
+  /** Metade da altura: canto totalmente arredondado, é pílula e não caixinha. */
+  radius: number
+}
+
+/** A plaquinha que fica atrás do nome, em px de mundo, a partir da largura do
+ *  texto (medida no Pixi quando dá, estimada quando não dá). */
+export function roomLabelPlateSize(textWidth: number, fontSize: number): RoomLabelPlate {
+  const height = fontSize * PLATE_HEIGHT_PER_FONT
+  const width = Math.max(textWidth + 2 * fontSize * PLATE_PAD_X_PER_FONT, fontSize * PLATE_MIN_WIDTH_PER_FONT)
+  return { width, height, radius: height / 2 }
+}
 
 interface LabelHalfExtents {
   halfWidth: number
   halfHeight: number
 }
 
-/** Meia-largura e meia-altura do retângulo do rótulo, já com a folga de clique. */
+/**
+ * Meia-largura e meia-altura do alvo de clique do rótulo — que é exatamente a
+ * plaquinha desenhada: o que o mestre vê é o que ele pega para arrastar ou
+ * renomear. Aqui a largura do texto vem da estimativa, porque hit-test roda
+ * fora do Pixi; como a estimativa fica acima do real, o alvo cobre a pílula.
+ */
 function labelHalfExtents(name: string, fontSize: number): LabelHalfExtents {
-  return {
-    halfWidth: (Math.max(1, name.length) * fontSize * LABEL_CHAR_WIDTH_PER_FONT) / 2 + LABEL_HIT_PADDING,
-    halfHeight: (fontSize * LABEL_HEIGHT_PER_FONT) / 2 + LABEL_HIT_PADDING,
-  }
+  const plate = roomLabelPlateSize(estimateRoomLabelTextWidth(name, fontSize), fontSize)
+  return { halfWidth: plate.width / 2, halfHeight: plate.height / 2 }
 }
 
 interface Box {
@@ -246,30 +305,52 @@ export function findRoomLabelAt(regions: Region[], point: { x: number; y: number
   return null
 }
 
-/** Cache de Text por id, fechado por closure (instanciar uma vez por mount).
- * NUNCA destrói Text durante a sessão: Text destruído antes de renderizar
- * derruba o Pixi 8.20 em TexturePool.returnTexture (ver PlayerView.tsx).
+/**
+ * Largura que o texto REALMENTE ocupa depois de rasterizado. Só o Pixi sabe,
+ * e só onde existe canvas 2D: no jsdom dos testes de unidade tanto
+ * `getLocalBounds()` quanto `.width` estouram (medido em 21/09/2026), então o
+ * chamador cai na estimativa por caractere. `null` = não deu para medir.
+ */
+function measuredTextWidth(textObj: Text): number | null {
+  try {
+    const width = textObj.getLocalBounds().width
+    return Number.isFinite(width) && width > 0 ? width : null
+  } catch {
+    return null
+  }
+}
+
+/** Cache de Text e da plaquinha por id, fechado por closure (instanciar uma vez
+ * por mount). NUNCA destrói Text durante a sessão: Text destruído antes de
+ * renderizar derruba o Pixi 8.20 em TexturePool.returnTexture (ver PlayerView.tsx).
  * Região que some ou perde o nome só fica invisível; tudo morre no app.destroy. */
 export function createRoomNamesRenderer(): RoomNamesRenderer {
   const cache = new Map<string, Text>()
+  const plateCache = new Map<string, Graphics>()
   const styledKey = new Map<string, string>()
+  const plateKey = new Map<string, string>()
   /** Nomes desenhados no último `draw` (os demais ficam invisíveis). */
   let namedIds = new Set<string>()
   let lastFontSize = roomLabelFontSize(0)
   let lastCameraScale = 1
 
-  function applySizing(textObj: Text, fontSize: number): void {
+  function applySizing(id: string, fontSize: number): void {
     const sizing = screenLabelSizing(fontSize, lastCameraScale)
-    textObj.scale.set(sizing.scale)
-    textObj.visible = sizing.visible
+    const textObj = cache.get(id)
+    if (textObj) {
+      textObj.scale.set(sizing.scale)
+      textObj.visible = sizing.visible
+    }
+    const plate = plateCache.get(id)
+    if (plate) {
+      plate.scale.set(sizing.scale)
+      plate.visible = sizing.visible
+    }
   }
 
   function setCameraScale(cameraScale: number): void {
     lastCameraScale = cameraScale
-    for (const id of namedIds) {
-      const textObj = cache.get(id)
-      if (textObj) applySizing(textObj, lastFontSize)
-    }
+    for (const id of namedIds) applySizing(id, lastFontSize)
   }
 
   function draw(container: Container, regions: Region[], grid: number, cameraScale?: number): void {
@@ -278,6 +359,9 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
     namedIds = new Set(named.map((r) => r.id))
     for (const [id, textObj] of cache) {
       if (!namedIds.has(id)) textObj.visible = false
+    }
+    for (const [id, plate] of plateCache) {
+      if (!namedIds.has(id)) plate.visible = false
     }
 
     const fontSize = roomLabelFontSize(grid)
@@ -289,7 +373,13 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
         textObj.anchor.set(0.5)
         cache.set(region.id, textObj)
       }
+      let plate = plateCache.get(region.id)
+      if (!plate) {
+        plate = new Graphics()
+        plateCache.set(region.id, plate)
+      }
       // Container pode ter sido trocado entre redraws; addChild reparenta sem duplicar.
+      if (plate.parent !== container) container.addChild(plate)
       if (textObj.parent !== container) container.addChild(textObj)
       // `regions` (a cena toda, não só as nomeadas): o desvio precisa enxergar
       // a sala filha mesmo quando ela ainda não tem nome.
@@ -299,7 +389,8 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
       // redrawShapes dispara a cada mudança do mapa; recriar o estilo toda vez
       // força o Pixi a re-rasterizar o texto mesmo sem nada ter mudado.
       // Compara com o último estilo aplicado, não com style.fontSize: o default
-      // do Pixi (26) coincide com grid ~86,7 e deixaria o texto preto sem contorno.
+      // do Pixi (26) coincide com grid ~86,7 e o nome nasceria com o tamanho
+      // errado sem nunca ser corrigido.
       const hiddenFromPlayers = !!region.room?.nameHiddenFromPlayers
       const key = `${fontSize}|${hiddenFromPlayers}`
       if (styledKey.get(region.id) !== key) {
@@ -308,12 +399,35 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
           fontSize,
           fontStyle: hiddenFromPlayers ? 'italic' : 'normal',
           fill: LABEL_FILL,
-          stroke: { color: LABEL_STROKE, width: Math.max(2, fontSize / 6) },
           align: 'center',
         }
       }
-      textObj.alpha = hiddenFromPlayers ? HIDDEN_NAME_ALPHA : 1
-      applySizing(textObj, fontSize)
+
+      // A plaquinha nasce do texto que ela carrega: medida quando o Pixi
+      // consegue medir, estimada quando não (teste de unidade roda em jsdom,
+      // que não tem canvas 2D — medir ali estoura, sonda de 21/09/2026).
+      // Redesenhar só quando o tamanho muda: `draw` roda a cada mexida no mapa.
+      const size = roomLabelPlateSize(measuredTextWidth(textObj) ?? estimateRoomLabelTextWidth(textObj.text, fontSize), fontSize)
+      const plateShape = `${size.width}|${size.height}`
+      if (plateKey.get(region.id) !== plateShape) {
+        plateKey.set(region.id, plateShape)
+        plate.clear()
+        plate.roundRect(-size.width / 2, -size.height / 2, size.width, size.height, size.radius).fill({ color: LABEL_PLATE_COLOR })
+      }
+      plate.position.set(position.x, position.y)
+
+      const alpha = hiddenFromPlayers ? HIDDEN_NAME_ALPHA : 1
+      textObj.alpha = alpha
+      plate.alpha = alpha
+      applySizing(region.id, fontSize)
+    }
+
+    // Toda plaquinha desce para o fundo do container: com duas salas coladas,
+    // a etiqueta de uma não pode tapar o nome da outra.
+    let index = 0
+    for (const region of named) {
+      const plate = plateCache.get(region.id)
+      if (plate && plate.parent === container) container.setChildIndex(plate, index++)
     }
   }
 

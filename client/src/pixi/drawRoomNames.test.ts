@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Container, Text } from 'pixi.js'
+import { Container, Graphics, Text } from 'pixi.js'
 import {
   childRoomsOf,
   createRoomNamesRenderer,
+  estimateRoomLabelTextWidth,
   findRoomLabelAt,
   roomLabelAnchor,
   roomLabelBounds,
   roomLabelFontSize,
+  roomLabelPlateSize,
   roomLabelPosition,
   roomLabelPositionAvoidingChildren,
 } from './drawRoomNames'
@@ -469,5 +471,122 @@ describe('createRoomNamesRenderer com sala dentro de sala', () => {
     const textos = textChildren(container).filter((t) => t.visible)
     expect(textos).toHaveLength(1)
     expect(textos[0].position.y).not.toBeCloseTo(224)
+  })
+})
+
+function plateChildren(container: Container): Graphics[] {
+  return container.children.filter((child): child is Graphics => child instanceof Graphics)
+}
+
+describe('roomLabelPlateSize', () => {
+  it('nome curto cai na largura mínima; nome comprido cresce com o texto mais o respiro', () => {
+    const fonte = 20
+    const curto = roomLabelPlateSize(10, fonte)
+    const comprido = roomLabelPlateSize(200, fonte)
+
+    expect(curto.width).toBe(fonte * 5.5)
+    expect(comprido.width).toBe(200 + 2 * fonte * 0.35)
+  })
+
+  it('é pílula: o canto é metade da altura, não um raio qualquer', () => {
+    const plaquinha = roomLabelPlateSize(80, 20)
+    expect(plaquinha.height).toBe(37)
+    expect(plaquinha.radius).toBe(plaquinha.height / 2)
+  })
+
+  it('cresce junto com a fonte (a plaquinha acompanha o zoom do rótulo)', () => {
+    expect(roomLabelPlateSize(40, 40).height).toBe(roomLabelPlateSize(40, 20).height * 2)
+  })
+})
+
+describe('caixa de clique do nome', () => {
+  it('é exatamente a plaquinha desenhada: o que o mestre vê é o que ele pega', () => {
+    const room = buildRoom('sala', 'Cripta', SQUARE)
+    const caixa = roomLabelBounds(room, GRID, 1)
+    if (!caixa) throw new Error('esperava caixa')
+    const fonte = roomLabelFontSize(GRID)
+    const plaquinha = roomLabelPlateSize(estimateRoomLabelTextWidth('Cripta', fonte), fonte)
+
+    expect(caixa.maxX - caixa.minX).toBeCloseTo(plaquinha.width)
+    expect(caixa.maxY - caixa.minY).toBeCloseTo(plaquinha.height)
+  })
+})
+
+describe('etiqueta em pílula do nome da sala', () => {
+  it('cada nome ganha uma plaquinha na mesma posição do texto', () => {
+    const container = new Container()
+    const renderer = createRoomNamesRenderer()
+
+    renderer.draw(container, [buildRoom('sala', 'Cripta', SQUARE)], GRID, 1)
+
+    const plaquinhas = plateChildren(container)
+    expect(plaquinhas).toHaveLength(1)
+    expect(plaquinhas[0].visible).toBe(true)
+    expect(plaquinhas[0].position.x).toBeCloseTo(textChildren(container)[0].position.x)
+    expect(plaquinhas[0].position.y).toBeCloseTo(textChildren(container)[0].position.y)
+  })
+
+  it('toda plaquinha fica ATRÁS de todo nome: a etiqueta de uma sala não tapa o nome da vizinha', () => {
+    const container = new Container()
+    const renderer = createRoomNamesRenderer()
+    const vizinha: RegionPoint[] = [
+      { x: 60, y: 0 },
+      { x: 160, y: 0 },
+      { x: 160, y: 100 },
+      { x: 60, y: 100 },
+    ]
+
+    renderer.draw(container, [buildRoom('a', 'Cripta', SQUARE), buildRoom('b', 'Adega', vizinha)], GRID, 1)
+
+    // As duas plaquinhas ocupam o fundo do container e os dois nomes vêm
+    // depois — ordem de pintura do Pixi é a ordem dos filhos.
+    expect(plateChildren(container).map((g) => container.getChildIndex(g))).toEqual([0, 1])
+    expect(textChildren(container).map((t) => container.getChildIndex(t))).toEqual([2, 3])
+  })
+
+  it('a plaquinha some junto com o nome, some junto no zoom afastado e volta inteira', () => {
+    const container = new Container()
+    const renderer = createRoomNamesRenderer()
+
+    renderer.draw(container, [buildRoom('sala', 'Cripta', SQUARE)], GRID, 1)
+    const plaquinha = plateChildren(container)[0]
+
+    renderer.draw(container, [buildRoom('sala', '', SQUARE)], GRID, 1)
+    expect(plaquinha.visible).toBe(false)
+    // Mesmo cuidado do Text: esconder, nunca destruir durante a sessão.
+    expect(plaquinha.destroyed).toBe(false)
+
+    renderer.draw(container, [buildRoom('sala', 'Cripta', SQUARE)], GRID, 1)
+    expect(plateChildren(container)).toHaveLength(1)
+    expect(plaquinha.visible).toBe(true)
+
+    renderer.setCameraScale(0.25)
+    expect(plaquinha.visible).toBe(false)
+    renderer.setCameraScale(1)
+    expect(plaquinha.visible).toBe(true)
+  })
+
+  it('no zoom afastado a plaquinha cresce na mesma medida do texto, e os dois continuam do mesmo tamanho', () => {
+    const container = new Container()
+    const renderer = createRoomNamesRenderer()
+
+    renderer.draw(container, [buildRoom('sala', 'Cripta', SQUARE)], GRID, 1)
+    expect(plateChildren(container)[0].scale.x).toBe(1)
+
+    renderer.setCameraScale(0.35)
+    expect(plateChildren(container)[0].scale.x).toBe(textChildren(container)[0].scale.x)
+    expect(plateChildren(container)[0].scale.x).toBeGreaterThan(1)
+  })
+
+  it('nome escondido dos jogadores esmaece a etiqueta inteira, não só as letras', () => {
+    const container = new Container()
+    const renderer = createRoomNamesRenderer()
+    const secreta = buildRoom('sala', 'Cripta', SQUARE)
+    if (!secreta.room) throw new Error('região sem room')
+
+    renderer.draw(container, [{ ...secreta, room: { ...secreta.room, nameHiddenFromPlayers: true } }], GRID, 1)
+
+    expect(plateChildren(container)[0].alpha).toBe(textChildren(container)[0].alpha)
+    expect(plateChildren(container)[0].alpha).toBe(0.5)
   })
 })
