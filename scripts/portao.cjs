@@ -427,6 +427,13 @@ const JORNADAS_DO_CRITERIO = [
   // depois de medir: o duplo clique FECHA a forma hoje (o defeito é a janela fixa
   // de 500 ms do Chromium, que ignora o duplo clique mais lento do Windows), e a
   // alça de seleção EXISTE, mas é um quadrado de 7 px na mesma cor do contorno.
+  // 21/09/2026, manhã — as três primeiras da fila de features candidatas
+  // (docs/features-candidatas-2026-09-21.md): o que a mesa faz no olhômetro
+  // hoje (quantos quadrados o token andou) e o que o painel não deixa dizer
+  // (cor e tamanho da ficha).
+  'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
+  'e2e/task-jornada-cor-do-token.spec.ts',
+  'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
   'e2e/task-jornada-texto-recebe-o-que-se-digita.spec.ts',
   'e2e/task-jornada-duplo-clique-fecha-a-forma.spec.ts',
   'e2e/task-jornada-selecao-mostra-alcas.spec.ts',
