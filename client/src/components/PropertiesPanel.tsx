@@ -2,6 +2,7 @@ import type { DrawingTool } from '../types/tools'
 import type { Drawing, FloorPiece, Light, Prop, Region, Stair, Token, Wall } from '../types/map'
 import { LabyrinthMark } from './icons'
 import { DrawingStyleControls, type DrawingStyleControlsProps } from './DrawingStyleControls'
+import { PathStyleControls, type PathStyleControlsProps } from './PathStyleControls'
 import { GridQuickToggles, type GridControlsProps } from './GridControls'
 import { MapSettingsButton } from './MapSettingsDialog'
 import { CollapsibleSection } from './CollapsibleSection'
@@ -71,6 +72,8 @@ interface PropertiesPanelProps {
   /** F4 — N3 "ferramenta de seleção de área". */
   areaSelection: { selection: AreaSelection | null; onClear: () => void }
   drawingStyle: DrawingStyleControlsProps
+  /** Cor e largura do PRÓXIMO caminho (ferramenta "Caminho"). */
+  pathStyle: PathStyleControlsProps
   grid: GridControlsProps
   mapScale: MapScaleControlsProps
   gridAlign: GridAlignControlsProps
@@ -144,6 +147,7 @@ export function PropertiesPanel({
   fill,
   areaSelection,
   drawingStyle,
+  pathStyle,
   grid,
   mapScale,
   gridAlign,
@@ -263,6 +267,12 @@ export function PropertiesPanel({
             <PlayerSecretControls {...playerSecret} />
           </ToolPropertiesSection>
         )}
+        {/* ANTES do Estilo de desenho: com a ferramenta Caminho na mão esta é
+            a seção da ferramenta, e a cor tem de ser a primeira coisa lida —
+            ela é escolhida antes do primeiro ponto. */}
+        <ToolPropertiesSection group="pathStyle" groups={groups}>
+          <PathStyleControls {...pathStyle} />
+        </ToolPropertiesSection>
         <ToolPropertiesSection group="drawingStyle" groups={groups}>
           <DrawingStyleControls {...drawingStyle} />
         </ToolPropertiesSection>

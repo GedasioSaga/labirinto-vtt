@@ -470,6 +470,52 @@ export function convertCurveToLine(drawing: Drawing): Drawing {
   }
 }
 
+/**
+ * Largura padrão do Caminho, em CÉLULAS da grade. Uma célula é a largura de
+ * passagem de uma figura no tabuleiro: é a trilha por onde se anda, não um
+ * risco de caneta.
+ */
+export const DEFAULT_PATH_WIDTH_CELLS = 1
+
+/** Faixa que o painel oferece — meia célula é uma vereda, quatro é uma estrada. */
+export const MIN_PATH_WIDTH_CELLS = 0.5
+export const MAX_PATH_WIDTH_CELLS = 4
+
+/**
+ * Prende a largura na faixa oferecida e descarta lixo (`NaN`, vindo de um
+ * campo vazio ou de um mapa adulterado): largura zero desenharia um caminho
+ * invisível, e a pessoa acharia que a ferramenta não funciona.
+ */
+export function clampPathWidthCells(widthCells: number): number {
+  if (!Number.isFinite(widthCells)) return DEFAULT_PATH_WIDTH_CELLS
+  return Math.min(MAX_PATH_WIDTH_CELLS, Math.max(MIN_PATH_WIDTH_CELLS, widthCells))
+}
+
+/** Dois pontos distintos já são um caminho; um ponto só não leva a lugar nenhum. */
+export function isValidPathDraft(points: Point[]): boolean {
+  return points.length >= 2
+}
+
+/**
+ * Caminho com cor PRÓPRIA (fatia 3 do plano): os pontos vêm clicados um a um,
+ * a cor e a largura vêm da preferência da ferramenta lida ANTES do primeiro
+ * ponto (`pathColor`/`pathWidthCells` no mapStore) — é isso que separa "um
+ * caminho de terra e outro de pedra" de "a cor do chão", que vale para o mapa
+ * inteiro.
+ *
+ * `widthCells` × `gridSize` = espessura em px de mundo, congelada no objeto:
+ * mudar a grade do mapa depois não reescreve caminho já traçado.
+ */
+export function buildPathDrawing(id: string, points: Point[], color: string, widthCells: number, gridSize: number): Drawing {
+  return {
+    id,
+    kind: 'path',
+    points: points.map((point) => ({ x: point.x, y: point.y })),
+    color,
+    width: widthCells * gridSize,
+  }
+}
+
 export function isValidTextDraft(): boolean {
   return true
 }

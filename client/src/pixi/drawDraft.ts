@@ -187,6 +187,29 @@ export function drawPolygonDraft(graphics: Graphics, points: Point[], cursor: Po
 }
 
 /**
+ * Preview do Caminho durante o clique-ponto-a-ponto: a MESMA faixa que vai
+ * nascer (cor e largura escolhidas antes do primeiro ponto), só que
+ * translúcida e com um ponto grudável em cada canto já cravado — assim a
+ * pessoa vê a grossura e a cor reais antes de fechar, e não descobre no fim
+ * que a trilha ficou fina demais.
+ */
+export function drawPathDraft(graphics: Graphics, points: Point[], cursor: Point | null, color: string, width: number): void {
+  graphics.clear()
+  if (points.length === 0) return
+  const numericColor = new Color(color).toNumber()
+
+  const [first, ...rest] = points
+  graphics.moveTo(first.x, first.y)
+  for (const point of rest) graphics.lineTo(point.x, point.y)
+  if (cursor) graphics.lineTo(cursor.x, cursor.y)
+  graphics.stroke({ width, color: numericColor, alpha: 0.7, cap: 'round', join: 'round' })
+
+  for (const point of points) {
+    graphics.circle(point.x, point.y, 4).fill({ color: SELECTION_COLOR })
+  }
+}
+
+/**
  * Preview do raio da ferramenta "Luz" durante o arrasto — mesmo estilo visual
  * de drawCircleDraft (fill translúcido + stroke), sem os parâmetros de cor/
  * largura de desenho porque a luz não tem esses controles no toolbar; usa

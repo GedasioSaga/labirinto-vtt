@@ -108,6 +108,11 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   // Pino (ponto de interesse): P é do Pincel e I do Chão; Y era a única letra
   // livre além de Z.
   pin: 'Y',
+  // Caminho nasce SEM letra, pelo mesmo motivo da Sala livre acima: quando ele
+  // chegou não sobrava nenhuma (C/H/A/I/P/X/Y ocupadas; F é "enquadrar tudo" e
+  // Z fica reservada ao Ctrl+Z). String vazia = `buildToolByLetter` pula, e a
+  // ferramenta fica alcançável pelo botão da barra, ao lado do Chão.
+  path: '',
 }
 
 /** Ferramentas escondidas por flag: a letra delas fica na tabela, mas não aciona nada. */

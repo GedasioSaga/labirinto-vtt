@@ -214,6 +214,21 @@ export function FloorIcon(props: IconProps) {
   )
 }
 
+/**
+ * Trilha que serpenteia entre duas margens — as duas bordas paralelas dizem
+ * "faixa por onde se anda", e não "risco de caneta" (que é o `LineIcon`).
+ * Mesma família de contorno das demais: viewBox 24, sem fill.
+ */
+export function PathIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M7 20c0-5 6-5 6-9s-4-4-4-7" />
+      <path d="M15 20c0-6 4-6 4-10" />
+      <path d="M4.5 20h15" />
+    </Icon>
+  )
+}
+
 /** Miniatura de tabuleiro — distingue "peça" de "imagem de fundo". */
 export function PropIcon(props: IconProps) {
   return (

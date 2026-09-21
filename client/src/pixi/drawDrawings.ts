@@ -36,7 +36,19 @@ export function drawDrawings(graphics: Graphics, drawings: Drawing[], selectedDr
     const openOutline = { width: width + 2 * outline, color: SELECTION_COLOR, join: 'round' as const }
     const closedOutline = { width: width / 2 + outline, color: SELECTION_COLOR, alignment: 0 }
 
-    if (drawing.kind === 'freehand') {
+    if (drawing.kind === 'path') {
+      if (drawing.points.length < 2) continue
+      // Trilha chapada: uma cor só, ponta e junta redondas, sem trama nem
+      // contorno — é a mesma regra de "chão chapado" do minimapa, aplicada a
+      // uma faixa em vez de a uma área. A seleção continua sendo contorno POR
+      // FORA, nunca troca de cor do caminho.
+      if (isSelected) {
+        tracePolyline(graphics, drawing.points)
+        graphics.stroke({ ...openOutline, cap: 'round' })
+      }
+      tracePolyline(graphics, drawing.points)
+      graphics.stroke({ width, color, cap: 'round', join: 'round' })
+    } else if (drawing.kind === 'freehand') {
       if (drawing.points.length < 2) continue
       const cap = drawing.cap ?? 'round'
       if (isSelected) {

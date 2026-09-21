@@ -1198,6 +1198,11 @@ export function moveDrawing(map: MapData, drawingId: string, dx: number, dy: num
         case 'ellipse':
           return { ...d, cx: d.cx + dx, cy: d.cy + dy }
         case 'polygon':
+        // `path` entra junto pelo mesmo motivo do comentário acima: ele JÁ
+        // nasce clicável (`selectionHitTest.findDrawingAt`), então cair no
+        // `default` faria a pessoa arrastar o caminho selecionado e nada se
+        // mexer, em silêncio.
+        case 'path':
           return { ...d, points: d.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) }
         default:
           return d

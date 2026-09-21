@@ -27,7 +27,7 @@ const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPoly
 // `findTokenPath`, mas esta diz QUEM barrou e se era porta, que é o que a
 // tela precisa para explicar a recusa em vez de devolver o token em silêncio.
 import { describeBlockedMove } from '../lib/moveValidation'
-import { DEFAULT_TEXT_FONT_FAMILY, convertLineToCurve, convertCurveToLine } from '../lib/drawingFactory'
+import { DEFAULT_PATH_WIDTH_CELLS, DEFAULT_TEXT_FONT_FAMILY, clampPathWidthCells, convertLineToCurve, convertCurveToLine } from '../lib/drawingFactory'
 import { moveAreaSelection, areaSelectionBounds } from '../lib/areaSelection'
 import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, TOOL_CLUSTERS } from '../components/labels'
 import { useToastStore } from './toastStore'
@@ -274,6 +274,16 @@ interface MapStoreState {
   drawFillAlpha: number
   drawFontSize: number
   drawFontFamily: string
+  /**
+   * Cor do PRÓXIMO caminho — a que o painel oferece com a ferramenta Caminho
+   * na mão, ANTES do primeiro ponto. Preferência de sessão, mesma classe de
+   * `drawColor`: o caminho já traçado guarda a própria cor em
+   * `Drawing.color` e não muda quando esta aqui muda. É essa separação que faz
+   * um caminho de terra e um de pedra conviverem no mesmo mapa.
+   */
+  pathColor: string
+  /** Largura do PRÓXIMO caminho, em CÉLULAS da grade (ver `drawingFactory`). */
+  pathWidthCells: number
   polygonSides: number
   /** Classificação (interior/exterior) da PRÓXIMA parede a desenhar —
    *  preferência de ferramenta, mesma classe de `polygonSides`. `undefined`
@@ -376,6 +386,8 @@ interface MapStoreState {
   setDrawFillAlpha: (fillAlpha: number) => void
   setDrawFontSize: (size: number) => void
   setDrawFontFamily: (fontFamily: string) => void
+  setPathColor: (color: string) => void
+  setPathWidthCells: (widthCells: number) => void
   setPolygonSides: (sides: number) => void
   setWallKind: (kind: NonNullable<Wall['wallKind']>) => void
   setDoorKind: (kind: DoorKind) => void
@@ -903,6 +915,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     drawFillAlpha: 0.5,
     drawFontSize: 16,
     drawFontFamily: DEFAULT_TEXT_FONT_FAMILY,
+    // Terra batida: o primeiro caminho já nasce parecendo trilha, e não um
+    // risco branco por cima da planta (que é o default do Desenho).
+    pathColor: '#8a6a45',
+    pathWidthCells: DEFAULT_PATH_WIDTH_CELLS,
     polygonSides: 6,
     wallKind: undefined,
     wallThickness: undefined,
@@ -1041,6 +1057,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setDrawFillAlpha: (fillAlpha) => set({ drawFillAlpha: fillAlpha }),
     setDrawFontSize: (size) => set({ drawFontSize: size }),
     setDrawFontFamily: (fontFamily) => set({ drawFontFamily: fontFamily }),
+    setPathColor: (color) => set({ pathColor: color }),
+    setPathWidthCells: (widthCells) => set({ pathWidthCells: clampPathWidthCells(widthCells) }),
     setPolygonSides: (sides) => set({ polygonSides: sides }),
     setWallKind: (kind) => set({ wallKind: kind }),
     setWallThickness: (thickness) => set({ wallThickness: thickness }),

@@ -118,7 +118,8 @@ function extendDrawing(bounds: Bounds | null, drawing: Drawing): Bounds | null {
   switch (drawing.kind) {
     case 'freehand':
     case 'curve':
-    case 'polygon': {
+    case 'polygon':
+    case 'path': {
       // Lista de pontos vazia (drawing degenerado) devolve `bounds` intacto,
       // `null` incluso — nunca fabrica um ponto (0,0) que não existe no mapa.
       let next = bounds

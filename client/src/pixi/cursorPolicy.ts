@@ -186,6 +186,7 @@ const CREATION_TOOLS = new Set<DrawingTool>([
   'text',
   'measure',
   'floor',
+  'path',
   'concealZone',
 ])
 

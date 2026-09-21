@@ -131,7 +131,11 @@ export function findDrawingAt(drawings: Drawing[], point: Point, tolerance = DRA
 
     const reach = tolerance + drawing.width / 2
 
-    if (drawing.kind === 'freehand' || drawing.kind === 'curve') {
+    if (drawing.kind === 'freehand' || drawing.kind === 'curve' || drawing.kind === 'path') {
+      // O Caminho entra aqui pela MESMA conta dos outros traços abertos, e o
+      // `reach` (metade da espessura + tolerância) faz o clique valer em
+      // qualquer ponto da faixa, não só na linha do meio: uma trilha de uma
+      // célula de largura tem de ser clicável onde ela é pintada.
       if (drawing.points.length >= 2 && distanceToPolyline(point, drawing.points) <= reach) return drawing
     } else if (drawing.kind === 'line') {
       if (distanceToSegment(point, { x: drawing.x1, y: drawing.y1 }, { x: drawing.x2, y: drawing.y2 }) <= reach) return drawing

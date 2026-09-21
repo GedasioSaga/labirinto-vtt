@@ -88,6 +88,7 @@ import {
   drawRectDraft,
   drawEllipseDraft,
   drawPolygonDraft,
+  drawPathDraft,
   drawCurveDraft,
   drawRoomDraft,
   drawRegularPolygonDraft,
@@ -111,6 +112,8 @@ import {
   buildEllipseDrawing,
   isValidPolygonDraft,
   buildPolygonDrawing,
+  isValidPathDraft,
+  buildPathDrawing,
   isValidCurveDraft,
   buildCurveDrawing,
   buildTextDrawing,
@@ -1337,6 +1340,13 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       let rectDraftStart: Point | null = null
       let ellipseDraftCenter: Point | null = null
       let polygonDraftPoints: Point[] = []
+      /**
+       * Caminho: os pontos já clicados da trilha em construção. Sem `mode`,
+       * pelo mesmo motivo de `regionDraftPoints`/`polygonDraftPoints` — cada
+       * clique é um pointerdown independente, e quem fecha é o duplo clique
+       * ou o Enter.
+       */
+      let pathDraftPoints: Point[] = []
       let lightDraftCenter: Point | null = null
       // Ponto bruto (sem snap) do pointerdown da ferramenta Luz — usado SO para
       // medir dragDistance no pointerup. lightDraftCenter e sempre snapado (para
@@ -1913,6 +1923,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         rectDraftStart = null
         ellipseDraftCenter = null
         polygonDraftPoints = []
+        pathDraftPoints = []
         lightDraftCenter = null
         lightDraftRawStart = null
         curveDraftPoints = []
@@ -2139,8 +2150,40 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         return true
       }
 
-      /** Rascunho feito clique a clique aberto: Região, Área poligonal ou Chão corredor. */
-      const hasPointDraft = () => regionDraftPoints.length > 0 || polygonDraftPoints.length > 0 || corridorDraftPoints.length > 0
+      /**
+       * Fecha o Caminho e o põe no mapa — duplo clique OU Enter, as mesmas
+       * duas saídas do Polígono, da Região e do Chão corredor.
+       *
+       * A cor e a largura são lidas AQUI, de `pathColor`/`pathWidthCells`, e
+       * gravadas no próprio desenho: daí em diante aquele caminho é dono da
+       * cor dele, e escolher outra cor para o caminho seguinte não o repinta.
+       * `map.grid` converte a largura de células para px de mundo uma única
+       * vez, no nascimento (ver `buildPathDrawing`).
+       *
+       * Devolve `false` quando ainda não há dois pontos, pela mesma razão do
+       * Polígono: o duplo clique descarta o traçado curto, o Enter deixa o
+       * rascunho de pé para a pessoa continuar clicando.
+       */
+      const finishPath = (): boolean => {
+        const points = normalizeDraftPolygonPoints(pathDraftPoints)
+        if (!isValidPathDraft(points)) return false
+
+        const { addDrawing, pathColor, pathWidthCells, map } = useMapStore.getState()
+        addDrawing(buildPathDrawing(crypto.randomUUID(), points, pathColor, pathWidthCells, map.grid))
+        pathDraftPoints = []
+        draftGraphics.clear()
+        return true
+      }
+
+      /** Prévia do caminho em construção: pontos já clicados + cursor. */
+      const drawPathPreview = (cursor: Point | null) => {
+        const { pathColor, pathWidthCells, map } = useMapStore.getState()
+        drawPathDraft(draftGraphics, pathDraftPoints, cursor, pathColor, pathWidthCells * map.grid)
+      }
+
+      /** Rascunho feito clique a clique aberto: Região, Área poligonal, Caminho ou Chão corredor. */
+      const hasPointDraft = () =>
+        regionDraftPoints.length > 0 || polygonDraftPoints.length > 0 || pathDraftPoints.length > 0 || corridorDraftPoints.length > 0
 
       /**
        * Ctrl+Z/Backspace com rascunho aberto: tira o último ponto e redesenha a
@@ -2158,6 +2201,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (polygonDraftPoints.length > 0) {
           polygonDraftPoints = polygonDraftPoints.slice(0, -1)
           if (polygonDraftPoints.length > 0) drawPolygonDraft(draftGraphics, polygonDraftPoints, cursor, drawColor, drawWidth, drawFilled, drawFillAlpha)
+        }
+        if (pathDraftPoints.length > 0) {
+          pathDraftPoints = pathDraftPoints.slice(0, -1)
+          if (pathDraftPoints.length > 0) drawPathPreview(cursor)
         }
         if (corridorDraftPoints.length > 0) {
           corridorDraftPoints = corridorDraftPoints.slice(0, -1)
@@ -2470,6 +2517,16 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           polygonDraftPoints = [...polygonDraftPoints, point]
           const { drawColor, drawWidth, drawFilled, drawFillAlpha } = useMapStore.getState()
           drawPolygonDraft(draftGraphics, polygonDraftPoints, null, drawColor, drawWidth, drawFilled, drawFillAlpha)
+          return
+        }
+
+        if (activeTool === 'path') {
+          // SEM applySnap, de propósito: o caminho atravessa a sala, não a
+          // grade — prendê-lo aos vértices da célula faria a trilha andar em
+          // degraus e sair de baixo do ponto onde a pessoa clicou. É a mesma
+          // escolha do pincel de blocos, que também ignora o snap.
+          pathDraftPoints = [...pathDraftPoints, worldPoint]
+          drawPathPreview(null)
           return
         }
 
@@ -4341,6 +4398,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           drawRegionDraft(draftGraphics, regionDraftPoints, cursor)
         }
 
+        if (useMapStore.getState().activeTool === 'path' && pathDraftPoints.length > 0) {
+          drawPathPreview(toWorldPoint(event.global.x, event.global.y))
+        }
+
         if (useMapStore.getState().activeTool === 'polygon' && polygonDraftPoints.length > 0) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, drawColor, drawWidth, drawFilled, drawFillAlpha } = useMapStore.getState()
@@ -4406,6 +4467,11 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             useMapStore.getState().setSelection(selectionOfItem({ kind: 'region', id: roomRegion.id }))
             openNameEditor({ kind: 'room', regionId: roomRegion.id, value: roomRegion.room.name })
           }
+          return
+        }
+
+        if (activeTool === 'path') {
+          if (!finishPath()) clearDrafts()
           return
         }
 
@@ -4512,6 +4578,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             event.preventDefault()
             if (corridorDraftPoints.length > 0) finishCorridor()
             else if (polygonDraftPoints.length > 0) finishPolygon()
+            else if (pathDraftPoints.length > 0) finishPath()
             else finishRegion()
             return
           }

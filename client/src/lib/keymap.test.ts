@@ -51,14 +51,16 @@ describe('resolveShortcut — letras de ferramenta', () => {
     ['pin', 'Y'],
   ]
 
-  it('TOOL_SHORTCUTS cobre exatamente as 24 ferramentas esperadas, sem duplicar letra', () => {
-    // Do laço saem duas: token, que continua na tabela mesmo escondida, e
+  it('TOOL_SHORTCUTS cobre exatamente as 25 ferramentas esperadas, sem duplicar letra', () => {
+    // Do laço saem TRÊS: token, que continua na tabela mesmo escondida;
     // roomFree, que ficou SEM letra na integração de 17/09/2026 — ela e o Pino
     // escolheram 'Y' em árvores separadas, e duas ferramentas na mesma letra
-    // fariam o índice perder uma em silêncio.
-    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 2)
+    // fariam o índice perder uma em silêncio; e Caminho, que chegou quando já
+    // não sobrava letra nenhuma (F é "enquadrar tudo", Z fica com o Ctrl+Z).
+    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 3)
     expect(TOOL_SHORTCUTS.token).toBe('K')
     expect(TOOL_SHORTCUTS.roomFree).toBe('')
+    expect(TOOL_SHORTCUTS.path).toBe('')
     const letters = Object.values(TOOL_SHORTCUTS).filter((l) => l.length > 0)
     expect(new Set(letters).size).toBe(letters.length)
   })
@@ -67,6 +69,14 @@ describe('resolveShortcut — letras de ferramenta', () => {
     const porLetra = buildToolByLetter(new Set())
     expect([...porLetra.values()]).not.toContain('roomFree')
     expect(porLetra.has('')).toBe(false)
+  })
+
+  it('Caminho também não tem letra: nenhuma tecla o ativa, e ele não rouba a de ninguém', () => {
+    const porLetra = buildToolByLetter(new Set())
+    expect([...porLetra.values()]).not.toContain('path')
+    // Controle positivo do mesmo índice: quem TEM letra continua alcançável,
+    // senão este teste passaria com um índice vazio.
+    expect(porLetra.get('i')).toBe('floor')
   })
 
   it('k devolve null: a ferramenta Token está escondida', () => {
