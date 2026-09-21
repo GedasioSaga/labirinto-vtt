@@ -1,5 +1,5 @@
 {
-  "selado_em": "2026-09-21T10:28:51.555Z",
+  "selado_em": "2026-09-21T19:37:27.507Z",
   "jornadas": {
     "e2e/task-jornada-parede-grossa.spec.ts": "527e40bd7728c8b27e9334e40ce45223816eef2f88b14351545951c57af89314",
     "e2e/task-jornada-selecao-arrasto.spec.ts": "0e9113e9b71bfac3ce19108908c4421e680919e8f07c99638a75f94c4b0b4062",
@@ -30,6 +30,7 @@
     "e2e/task-jornada-linha-pontilhada.spec.ts": "836aeeaf57b1cae3b1931f0e10fe8f1838126cdfde90e040db56e6462e8752ec",
     "e2e/task-jornada-marcador-com-icone.spec.ts": "aebeb5815bc68fb2c4ead8e1b42119f226cd231efb8d93c3571fc30b6829a55b",
     "e2e/task-jornada-saida-sem-parede.spec.ts": "5c56f769ffe0e1665c681370e5e2eaaade350ee1d02793855bbd145b5901d90c",
+    "e2e/task-jornada-varias-cenas.spec.ts": "c30ad7ec8492174ce305e21f3d096aaae65cd64ca3d197e01d4608926fc21fdc",
     "e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts": "5f155f2e008355609708b64e582ad908b8bca4b3708a70e3f2a20a520245362e",
     "e2e/task-jornada-cor-do-token.spec.ts": "e1623d0fff5762afdb6b31e08b93af3f111ab27e5e5552683cac6b8b6c2e8e05",
     "e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts": "8ce7d796aaf58b31aaf3d8e317de9b6d72aff11daacccaf831bdd39f4638f748",
