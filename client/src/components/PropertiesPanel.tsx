@@ -9,6 +9,7 @@ import { PropLayerControls, type PropLayerControlsProps } from './PropLayerContr
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
 import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
+import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
 import type { ScenarioLinkControlsProps } from './ScenarioLinkControls'
 import { PortalControls, type PortalControlsProps } from './PortalControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
@@ -78,6 +79,8 @@ interface PropertiesPanelProps {
   selectedWall: Wall | null
   wallDoor: Omit<WallDoorControlsProps, 'door'>
   doorKind: DoorKindControlsProps
+  /** "Porta | Vão aberto": o que o clique da ferramenta Porta abre na parede. */
+  doorMode: DoorModeControlsProps
   wallStyle: WallStyleControlsProps
   selectedProp: Prop | null
   /** "Objetos | Decoração" do Prop selecionado — mora na seção do objeto. */
@@ -147,6 +150,7 @@ export function PropertiesPanel({
   selectedWall,
   wallDoor,
   doorKind,
+  doorMode,
   wallStyle,
   selectedProp,
   onSetPropLayer,
@@ -329,7 +333,15 @@ export function PropertiesPanel({
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="doorKind" groups={groups}>
-          <DoorKindControls {...doorKind} />
+          {/* Só com a ferramenta Porta na mão: escolher "Porta ou vão" é
+              preferência do PRÓXIMO clique, não propriedade de uma porta já
+              selecionada (aí o grupo abre pela outra metade da condição de
+              `relevantPropertyGroups`). */}
+          {activeTool === 'door' && <DoorModeControls {...doorMode} />}
+          {/* Não existe porta normal/dupla/portão de um buraco: com o vão
+              escolhido a seção "Tipo de porta" sairia oferecendo uma escolha
+              que o clique seguinte ignoraria. */}
+          {(activeTool !== 'door' || doorMode.mode === 'porta') && <DoorKindControls {...doorKind} />}
         </ToolPropertiesSection>
         {selectedProp && (
           <ToolPropertiesSection group="portal" groups={groups}>

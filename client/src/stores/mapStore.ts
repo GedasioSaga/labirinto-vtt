@@ -6,7 +6,7 @@ import type {
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinKind,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
-import type { DrawingTool, Selection } from '../types/tools'
+import type { DoorMode, DrawingTool, Selection } from '../types/tools'
 import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
 import type { RoomCorner } from '../lib/roomOps'
 import type { Corner, ResizeModifiers } from '../lib/objectTransform'
@@ -296,6 +296,13 @@ interface MapStoreState {
    *  mesma classe de `wallKind`/`polygonSides`. Não confundir com
    *  `setWallDoorKind`, que edita uma porta JÁ CRIADA e selecionada. */
   doorKind: DoorKind
+  /** O que a ferramenta "Porta" abre na parede clicada: a porta de sempre
+   *  (`'porta'`, o padrão — comportamento idêntico ao de antes deste campo)
+   *  ou o VÃO ABERTO (`'vao'` → `mapFactory.addOpeningOnWall`). Preferência
+   *  de ferramenta, sem histórico e fora do map.json, mesma classe de
+   *  `doorKind`/`eraseMode`. */
+  doorMode: DoorMode
+  setDoorMode: (mode: DoorMode) => void
   /** Ponta do traço (N2/B2, "ponta da linha") da PRÓXIMA forma com traço
    *  (brush/line/curve) — preferência de ferramenta, mesma classe de
    *  `wallKind`/`doorKind`. Não confundir com `setDrawingCap`, que edita uma
@@ -559,6 +566,12 @@ interface MapStoreState {
    *  chamar mapFactory) — o chamador (PixiCanvas) passa a preferência atual
    *  `doorKind`, não mais um `doorLength` literal. */
   addDoorOnWall: (wallId: string, point: { x: number; y: number }, kind: DoorKind) => void
+  /** VÃO ABERTO na parede clicada: o trecho some e por ali se passa sempre
+   *  (`mapFactory.addOpeningOnWall`). O comprimento do vão é UMA CÉLULA do
+   *  mapa (`map.grid`) — a largura em que um token passa —, calculado aqui
+   *  como `DOOR_LENGTH_BY_KIND` é para a porta: mapFactory recebe o número
+   *  pronto. Com histórico (Ctrl+Z devolve a parede inteira). */
+  addOpeningOnWall: (wallId: string, point: { x: number; y: number }) => void
   /** Troca o tipo estrutural de uma porta JÁ CRIADA e redimensiona o vão pra
    *  `DOOR_LENGTH_BY_KIND[kind]`, centrado no meio do vão atual (ver
    *  mapFactory.setWallDoorKind). Com histórico. */
@@ -888,6 +901,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     wallThickness: undefined,
     wallLineStyle: undefined,
     doorKind: 'normal',
+    doorMode: 'porta',
     drawCap: 'round',
     drawDash: 'solid',
     drawTexture: 'pen',
@@ -1025,6 +1039,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setWallThickness: (thickness) => set({ wallThickness: thickness }),
     setWallLineStyle: (lineStyle) => set({ wallLineStyle: lineStyle }),
     setDoorKind: (kind) => set({ doorKind: kind }),
+    setDoorMode: (mode) => set({ doorMode: mode }),
     setDrawCap: (cap) => set({ drawCap: cap }),
     setDrawDash: (dash) => set({ drawDash: dash }),
     setDrawTexture: (texture) => set({ drawTexture: texture }),
@@ -1219,6 +1234,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setWallLineStyleForWall: (id, lineStyle) => withHistory((map) => mapFactory.setWallLineStyleForWall(map, id, lineStyle)),
     addDoorOnWall: (wallId, point, kind) => withHistory((map) =>
       mapFactory.addDoorOnWall(map, wallId, point, DOOR_LENGTH_BY_KIND[kind], kind),
+    ),
+    addOpeningOnWall: (wallId, point) => withHistory((map) =>
+      mapFactory.addOpeningOnWall(map, wallId, point, map.grid),
     ),
     setWallDoorKind: (wallId, kind) => withHistory((map) =>
       mapFactory.setWallDoorKind(map, wallId, kind, DOOR_LENGTH_BY_KIND[kind]),

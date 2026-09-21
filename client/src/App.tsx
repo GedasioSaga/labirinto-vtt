@@ -263,6 +263,8 @@ function App() {
   const turnWallIntoDoor = useMapStore((state) => state.turnWallIntoDoor)
   const doorKind = useMapStore((state) => state.doorKind)
   const setDoorKind = useMapStore((state) => state.setDoorKind)
+  const doorMode = useMapStore((state) => state.doorMode)
+  const setDoorMode = useMapStore((state) => state.setDoorMode)
   const setWallDoorKind = useMapStore((state) => state.setWallDoorKind)
   const wallKind = useMapStore((state) => state.wallKind)
   const setWallKind = useMapStore((state) => state.setWallKind)
@@ -1610,6 +1612,7 @@ function App() {
               kind: selectedWall?.door ? selectedWall.door.kind : doorKind,
               onKindChange: handleDoorKindChange,
             }}
+            doorMode={{ mode: doorMode, onModeChange: setDoorMode }}
             wallStyle={{
               wallKind: selectedWall ? selectedWall.wallKind : wallKind,
               onWallKindChange: handleWallKindChange,

@@ -970,43 +970,108 @@ export function setDoorLocked(map: MapData, wallId: string, locked: boolean): Ma
 export function addDoorOnWall(map: MapData, wallId: string, point: { x: number; y: number }, doorLength: number, kind: DoorKind): MapData {
   const wall = map.walls.find((w) => w.id === wallId)
   if (!wall) return map
+  const split = splitWallAround(wall, point, doorLength)
+  if (split === null) return map
 
+  const door: Wall = { ...split.middle, door: { open: false, locked: false, kind } }
+  return replaceWallWithPieces(map, wallId, [split.before, door, split.after])
+}
+
+/** Os até 3 pedaços colineares em que uma parede se parte em volta de um trecho. */
+interface WallSplit {
+  /** Antes do trecho, ou `null` quando o trecho começa na ponta da parede. */
+  before: Wall | null
+  /** O trecho em si: vira porta em `addDoorOnWall`, some em `addOpeningOnWall`. */
+  middle: Wall
+  /** Depois do trecho, ou `null` quando o trecho termina na ponta da parede. */
+  after: Wall | null
+}
+
+/**
+ * Geometria compartilhada por `addDoorOnWall` e `addOpeningOnWall`: parte
+ * `wall` num trecho de `length` px centrado no ponto do clique PROJETADO na
+ * linha da parede. Todos os pedaços nascem com o mesmo vetor unitário da
+ * original (herdado por construção, nunca recalculado como horizontal/
+ * vertical) e com `door: null` — quem quiser porta sobrescreve o `middle`.
+ *
+ * `null` quando a parede tem comprimento zero (não dá para projetar nada
+ * numa linha que não existe).
+ */
+function splitWallAround(wall: Wall, point: { x: number; y: number }, length: number): WallSplit | null {
   const dx = wall.x2 - wall.x1
   const dy = wall.y2 - wall.y1
-  const length = Math.hypot(dx, dy)
-  if (length === 0) return map
+  const total = Math.hypot(dx, dy)
+  if (total === 0) return null
 
-  const ux = dx / length
-  const uy = dy / length
+  const ux = dx / total
+  const uy = dy / total
 
   // Parâmetro t (0..1) do ponto mais próximo do clique NA PRÓPRIA LINHA da
   // parede — mesma projeção escalar de distanceToSegment (selectionHitTest.ts).
-  const t = Math.max(0, Math.min(1, ((point.x - wall.x1) * dx + (point.y - wall.y1) * dy) / (length * length)))
-  const projectedDistance = t * length
+  const t = Math.max(0, Math.min(1, ((point.x - wall.x1) * dx + (point.y - wall.y1) * dy) / (total * total)))
+  const projectedDistance = t * total
 
-  const half = doorLength / 2
-  const doorStart = Math.max(0, projectedDistance - half)
-  const doorEnd = Math.min(length, projectedDistance + half)
+  const half = length / 2
+  const start = Math.max(0, projectedDistance - half)
+  const end = Math.min(total, projectedDistance + half)
 
-  const pieceAt = (fromDistance: number, toDistance: number, door: DoorState | null): Wall => ({
+  const pieceAt = (fromDistance: number, toDistance: number): Wall => ({
     ...wall,
     id: crypto.randomUUID(),
     x1: wall.x1 + ux * fromDistance,
     y1: wall.y1 + uy * fromDistance,
     x2: wall.x1 + ux * toDistance,
     y2: wall.y1 + uy * toDistance,
-    door,
+    door: null,
   })
 
-  const pieces: Wall[] = []
-  if (doorStart > 0) pieces.push(pieceAt(0, doorStart, null))
-  pieces.push(pieceAt(doorStart, doorEnd, { open: false, locked: false, kind }))
-  if (doorEnd < length) pieces.push(pieceAt(doorEnd, length, null))
-
   return {
-    ...map,
-    walls: [...map.walls.filter((w) => w.id !== wallId), ...pieces],
+    before: start > 0 ? pieceAt(0, start) : null,
+    middle: pieceAt(start, end),
+    after: end < total ? pieceAt(end, total) : null,
   }
+}
+
+/** Troca a parede `wallId` pelos pedaços dados, descartando os ausentes. */
+function replaceWallWithPieces(map: MapData, wallId: string, pieces: ReadonlyArray<Wall | null>): MapData {
+  const kept = pieces.filter((piece): piece is Wall => piece !== null)
+  return { ...map, walls: [...map.walls.filter((w) => w.id !== wallId), ...kept] }
+}
+
+/**
+ * VÃO ABERTO — a abertura livre na parede: nem parede, nem porta. É o buraco
+ * de corredor/arco por onde se entra e se sai sem nada no caminho.
+ *
+ * Parte a parede exatamente como `addDoorOnWall` (mesma projeção do clique,
+ * mesmos pedaços colineares, mesmo vínculo `regionId`/`regionEdgeIndex`
+ * herdado por todos eles) e simplesmente NÃO devolve o pedaço do meio: o vão
+ * é AUSÊNCIA de parede naquele trecho, nunca uma entidade nova desenhada por
+ * cima. É por isso que ele não precisa de campo novo no schema nem de linha
+ * em renderer nenhum — onde não há `Wall`, nada é desenhado, nada bloqueia
+ * movimento (`lib/collision.ts`) e nada corta a visão (`lib/visibility.ts`),
+ * no editor e na tela do jogador pelo mesmo caminho.
+ *
+ * O trecho vizinho continua parede: abrir o vão num ponto NÃO fura a aresta
+ * inteira da Sala. `types/map.ts` (`Wall.regionId`) já previa essa aresta com
+ * buraco — "uma parede vinculada continua apagável individualmente, deixando
+ * um buraco (aresta sem parede) nesse conjunto".
+ *
+ * Casos de borda, todos com comportamento definido:
+ *  - clique perto de uma ponta: só sobra o pedaço do outro lado;
+ *  - `openingLength` ≥ comprimento da parede: a parede inteira vira vão e
+ *    desaparece (o lado todo ficou aberto);
+ *  - clique num pedaço que JÁ é porta: a porta é substituída pelo vão — o
+ *    mestre trocou o objeto pelo buraco;
+ *  - parede inexistente ou de comprimento zero: devolve `map` pela mesma
+ *    referência (sem mudança), igual a `addDoorOnWall`.
+ */
+export function addOpeningOnWall(map: MapData, wallId: string, point: { x: number; y: number }, openingLength: number): MapData {
+  const wall = map.walls.find((w) => w.id === wallId)
+  if (!wall) return map
+  const split = splitWallAround(wall, point, openingLength)
+  if (split === null) return map
+
+  return replaceWallWithPieces(map, wallId, [split.before, split.after])
 }
 
 export function setScenarioLink(map: MapData, scenarioLink: string | null): MapData {

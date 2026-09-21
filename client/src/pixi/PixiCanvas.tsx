@@ -2299,13 +2299,25 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           // ver DoorKindControls) — antes desta fase era um comprimento fixo
           // (DOOR_LENGTH); agora addDoorOnWall calcula o comprimento pelo tipo.
           if (wall) {
-            useMapStore.getState().addDoorOnWall(wall.id, worldPoint, useMapStore.getState().doorKind)
+            const store = useMapStore.getState()
+            // `doorMode` decide o que o clique abre: a porta de sempre ou o
+            // VÃO ABERTO, que tira o trecho da parede e deixa passagem livre
+            // (DoorModeControls, no painel da Porta).
+            if (store.doorMode === 'vao') store.addOpeningOnWall(wall.id, worldPoint)
+            else store.addDoorOnWall(wall.id, worldPoint, store.doorKind)
           } else {
             // Passeio cego de 16/09/2026: o clique que erra a parede não criava
             // porta e o app não dizia NADA — sem cursor diferente, sem realce,
             // sem mensagem. A pessoa clicava de novo, no mesmo lugar, achando
             // que o clique não tinha "pegado". Agora a tela responde ao gesto.
-            useToastStore.getState().push('info', 'Nenhuma parede aqui: clique em cima da linha da parede para pôr a porta.')
+            useToastStore
+              .getState()
+              .push(
+                'info',
+                useMapStore.getState().doorMode === 'vao'
+                  ? 'Nenhuma parede aqui: clique em cima da linha da parede para abrir o vão.'
+                  : 'Nenhuma parede aqui: clique em cima da linha da parede para pôr a porta.',
+              )
           }
           return
         }
