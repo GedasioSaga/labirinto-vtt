@@ -20,6 +20,14 @@ const binarios = new Map<string, Uint8Array>()
 const pastas = new Set<string>()
 /** Caminhos cuja LEITURA falha — é assim que o antivírus/sincronizador aparece aqui. */
 const leituraFalhaEm = new Set<string>()
+/**
+ * Caminhos que o sistema RECUSA remover, com o `os error 5` do Windows.
+ *
+ * É o outro jeito de o mesmo antivírus (ou o OneDrive, ou o visualizador de
+ * fotos) aparecer: o arquivo está aberto em outro programa e some da lista sem
+ * sair do disco.
+ */
+const remocaoFalhaEm = new Set<string>()
 
 const APPDATA = 'C:/Users/test/AppData/Roaming/labirinto'
 const PASTA = `${APPDATA}/tokens`
@@ -63,6 +71,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
     return nomes.map((name) => ({ name, isDirectory: false, isFile: true, isSymlink: false }))
   }),
   remove: vi.fn(async (path: string) => {
+    if (remocaoFalhaEm.has(path)) throw new Error('Access is denied. (os error 5)')
     textos.delete(path)
     binarios.delete(path)
   }),
@@ -86,6 +95,7 @@ const {
   renomearNoAcervo,
   trazerDoAcervo,
   itensDoIndice,
+  fotoSobrouNoDisco,
   ACERVO_NAO_LIDO,
   SEM_FOTO_PARA_SALVAR,
 } = await import('./tokenLibrary')
@@ -116,6 +126,7 @@ beforeEach(() => {
   binarios.clear()
   pastas.clear()
   leituraFalhaEm.clear()
+  remocaoFalhaEm.clear()
 })
 
 describe('leitura que falha nunca é confundida com acervo vazio', () => {
@@ -318,6 +329,64 @@ describe('apagar leva os arquivos junto', () => {
 
     expect(itensGravados().map((item) => item.id)).toEqual([orc.id])
     expect(binarios.has(`${PASTA}/token_${orc.id}.webp`)).toBe(true)
+  })
+})
+
+/**
+ * O DEFEITO de 21/09/2026: o `catch` em volta da varredura engolia a recusa do
+ * disco. O app dizia "Apagar Goblin para sempre", a lista perdia o nome, a foto
+ * ficava no `%APPDATA%` e a tela ficava IDÊNTICA à de um apagamento que deu
+ * certo. Jornada: `e2e/task-jornada-apagar-limpa-disco.spec.ts`.
+ */
+describe('quando o disco recusa apagar a foto', () => {
+  it('lança um erro que NOMEIA o arquivo que sobrou, em vez de se calar', async () => {
+    const item = await salvarNoAcervo(tokenComFoto)
+    const preso = `token_${item.id}.webp`
+    remocaoFalhaEm.add(`${PASTA}/${preso}`)
+
+    await expect(apagarDoAcervo(item.id)).rejects.toThrow(preso)
+    // O nome do arquivo é um `token_<uuid>`: sem ele na frase, a pessoa não tem
+    // como achar o que apagar à mão, e o aviso não serve para nada.
+    expect(binarios.has(`${PASTA}/${preso}`)).toBe(true)
+  })
+
+  it('o aviso ENSINA — ele termina numa tarefa da pessoa, então não pode sumir sozinho', async () => {
+    const { ensinaOQueFazer } = await import('./erroQueEnsina')
+    const item = await salvarNoAcervo(tokenComFoto)
+    remocaoFalhaEm.add(`${PASTA}/token_${item.id}.webp`)
+
+    const erro = await apagarDoAcervo(item.id).catch((causa: unknown) => causa)
+
+    expect(fotoSobrouNoDisco(erro)).toBe(true)
+    expect(ensinaOQueFazer(erro)).toBe(true)
+  })
+
+  it('o item SAI da lista mesmo assim: o gesto era dele, não do antivírus', async () => {
+    const item = await salvarNoAcervo(tokenComFoto)
+    remocaoFalhaEm.add(`${PASTA}/token_${item.id}.webp`)
+
+    await apagarDoAcervo(item.id).catch(() => undefined)
+
+    expect(itensGravados()).toHaveLength(0)
+  })
+
+  it('apaga o que dá e nomeia só o que resistiu — não desiste no primeiro erro', async () => {
+    const item = await salvarNoAcervo(tokenComFoto)
+    const solto = `token_${item.id}_original.png`
+    binarios.set(`${PASTA}/${solto}`, new Uint8Array([5]))
+    const preso = `token_${item.id}.webp`
+    remocaoFalhaEm.add(`${PASTA}/${preso}`)
+
+    const erro = await apagarDoAcervo(item.id).catch((causa: unknown) => causa)
+
+    expect(binarios.has(`${PASTA}/${solto}`)).toBe(false)
+    expect(fotoSobrouNoDisco(erro) ? erro.arquivos : []).toEqual([preso])
+  })
+
+  it('remoção que dá certo continua SEM aviso nenhum', async () => {
+    const item = await salvarNoAcervo(tokenComFoto)
+
+    await expect(apagarDoAcervo(item.id)).resolves.toBeUndefined()
   })
 })
 

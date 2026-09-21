@@ -145,8 +145,13 @@ async function caminhoDoIndice(): Promise<string> {
  * entre parênteses: ele é inútil para o usuário e essencial para quem for
  * consertar depois.
  */
+/** A mensagem crua do sistema, do jeito que ela veio — o que vai entre parênteses. */
+function textoCru(causa: unknown): string {
+  return causa instanceof Error ? causa.message : String(causa)
+}
+
 function motivoEmPortugues(causa: unknown): string {
-  const bruto = causa instanceof Error ? causa.message : String(causa)
+  const bruto = textoCru(causa)
   if (/denied|permission|forbidden|read-?only|os error 5|os error 13/i.test(bruto)) {
     return `a pasta do acervo não aceitou a gravação, provavelmente por falta de permissão de escrita (${bruto})`
   }
@@ -406,30 +411,101 @@ async function guardarIndiceAnterior(caminho: string): Promise<void> {
 }
 
 /**
+ * A foto que o disco RECUSOU apagar.
+ *
+ * `ErroQueEnsina`, e não `Error`: a frase termina numa tarefa da pessoa —
+ * fechar o programa que está segurando o arquivo e apagá-lo à mão —, e essa
+ * tarefa acontece FORA do app, na pasta, com o nome do arquivo na mão. O nome
+ * é um `token_<uuid>...`: um aviso que se apaga sozinho aos 7 s leva embora a
+ * única informação que torna a tarefa possível. Mesmo argumento do conserto de
+ * 21/09/2026 em `stores/toastStore.ts`, e o oposto de `IMAGEM_SUMIU_DO_ACERVO`,
+ * que relata um arquivo que JÁ não existe e não deixa nada a fazer.
+ *
+ * `arquivos` fica no erro (e não só embutido na frase) para quem tratar poder
+ * contar e listar sem reler texto.
+ */
+export class FotoQueSobrouNoDisco extends ErroQueEnsina {
+  readonly arquivos: readonly string[]
+
+  constructor(message: string, arquivos: readonly string[]) {
+    super(message)
+    this.name = 'FotoQueSobrouNoDisco'
+    this.arquivos = arquivos
+  }
+}
+
+/**
+ * O erro é "o item saiu da estante, mas a foto ficou no disco"?
+ *
+ * Existe para `App.tsx` escolher a frase de abertura certa sem saber como a
+ * marca é feita — mesmo motivo de `ensinaOQueFazer` em `lib/erroQueEnsina.ts`.
+ */
+export function fotoSobrouNoDisco(err: unknown): err is FotoQueSobrouNoDisco {
+  return err instanceof FotoQueSobrouNoDisco
+}
+
+/** Frase do aviso: o que sobrou, onde, por quê, e o que a pessoa faz com isso. */
+function avisoDeFotoQueSobrou(arquivos: readonly string[], pasta: string, causa: unknown): string {
+  const lista = arquivos.join(', ')
+  const quantos = arquivos.length === 1 ? 'a foto' : 'as fotos'
+  return (
+    `${quantos} ${lista} continua${arquivos.length === 1 ? '' : 'm'} em ${pasta} (${textoCru(causa)}). ` +
+    'O nome já saiu da estante; feche o programa que estiver com o arquivo aberto ' +
+    '(antivírus, sincronizador de nuvem, visualizador de fotos) e apague-o à mão por lá.'
+  )
+}
+
+/**
  * Apaga o item e os arquivos de imagem dele.
  *
  * Varre a pasta por `token_<id>` em vez de apagar só o caminho do índice:
  * `importTokenImage` pode ter deixado DOIS arquivos (o original e a versão
  * reamostrada) e só um deles está no índice — apagar pelo índice deixaria o
- * outro na pasta para sempre. O índice é reescrito mesmo que nenhum arquivo
- * seja removido: o item sumir da lista é o que a pessoa pediu.
+ * outro na pasta para sempre.
+ *
+ * O ÍNDICE SAI PRIMEIRO, E ISSO É DE PROPÓSITO: tirar o item da lista é o que a
+ * pessoa pediu, e segurar o nome na estante porque o antivírus não soltou o
+ * arquivo faria o gesto dela não acontecer por um motivo que não é dela. O que
+ * NÃO pode é a tela ficar idêntica à de um apagamento que deu certo — era esse
+ * o defeito: o `catch` em volta da varredura engolia `os error 5` e a foto
+ * ficava no `%APPDATA%` para sempre, calada (jornada
+ * `e2e/task-jornada-apagar-limpa-disco.spec.ts`).
+ *
+ * A varredura NÃO para no primeiro arquivo que resiste: o item pode ter dois, e
+ * apagar o que dá enquanto se anota o que sobrou deixa menos lixo do que
+ * desistir no primeiro erro. Só no fim, com a lista completa, o erro sobe.
  */
 export async function apagarDoAcervo(id: string): Promise<void> {
   const acervo = await listarAcervo()
   exigirLeitura(acervo, 'apagar o token do acervo')
+  const alvo = acervo.itens.find((item) => item.id === id)
   const restantes = acervo.itens.filter((item) => item.id !== id)
   await gravarIndice(restantes.map(semCampoDeTela), 'apagar o token do acervo', acervo.ignorados)
 
   const pasta = await pastaDoAcervo()
+  const sobraram: string[] = []
+  let causa: unknown = null
   try {
     for (const entrada of await readDir(pasta)) {
       if (!entrada.isFile || entrada.name.indexOf(`token_${id}`) !== 0) continue
-      await remove(await join(pasta, entrada.name))
+      try {
+        await remove(await join(pasta, entrada.name))
+      } catch (erro) {
+        sobraram.push(entrada.name)
+        if (causa === null) causa = erro
+      }
     }
-  } catch {
-    // O item já saiu da lista; arquivo órfão na pasta é lixo, não defeito
-    // visível, e avisar sobre ele depois de a ação ter dado certo só assusta.
+  } catch (erro) {
+    // Nem LISTAR a pasta deu (unidade removida, permissão negada na pasta).
+    // Não dá para saber quantos arquivos são; o índice sabe o nome de um deles,
+    // e um nome verdadeiro vale mais que um aviso genérico. Item que já não
+    // estava no índice não tem nome nenhum a oferecer — aí vai o prefixo.
+    sobraram.push(alvo === undefined ? `token_${id}*` : nomeDeArquivo(alvo.arquivo))
+    causa = erro
   }
+
+  if (sobraram.length === 0) return
+  throw new FotoQueSobrouNoDisco(avisoDeFotoQueSobrou(sobraram, pasta, causa), sobraram)
 }
 
 export const ITEM_NAO_ENCONTRADO = 'este token não está mais no acervo'

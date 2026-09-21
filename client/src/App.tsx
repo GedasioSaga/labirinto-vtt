@@ -27,7 +27,7 @@ import { useMapStore } from './stores/mapStore'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, loadMapFromDisk, mapDirFor, defaultMapsDir } from './lib/mapFileIO'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
-import { apagarDoAcervo, salvarNoAcervo, trazerDoAcervo, IMAGEM_SUMIU_DO_ACERVO, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
+import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, IMAGEM_SUMIU_DO_ACERVO, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
@@ -995,13 +995,28 @@ function App() {
     }
   }
 
-  /** ACERVO — apagar do disco. A confirmação já aconteceu em `TokenLibraryPanel`. */
+  /**
+   * ACERVO — apagar do disco. A confirmação já aconteceu em `TokenLibraryPanel`.
+   *
+   * O `finally` não é zelo: `apagarDoAcervo` reescreve o índice ANTES de mexer
+   * nos arquivos de imagem, então quando ela lança por causa de uma foto que o
+   * disco recusou apagar o item JÁ saiu do índice. Sem recarregar aí, a estante
+   * continuaria mostrando um nome que não existe mais no disco até a próxima
+   * releitura — uma segunda mentira, em cima da que este conserto veio tirar.
+   *
+   * Duas frases de abertura porque são dois acidentes diferentes: "não deu para
+   * apagar o token do acervo" é o índice que não foi reescrito (nada mudou), e
+   * "não deu para apagar do disco a foto de X" é o nome que saiu com a foto
+   * para trás. Dizer a primeira nos dois casos mandaria a pessoa procurar na
+   * estante um item que não está mais lá.
+   */
   const handleDeleteFromLibrary = async (item: ItemDoAcervoNaTela) => {
     try {
       await apagarDoAcervo(item.id)
-      await useTokenLibraryStore.getState().recarregar()
     } catch (err) {
-      reportFileError('apagar o token do acervo', err)
+      reportFileError(fotoSobrouNoDisco(err) ? `apagar do disco a foto de ${item.nome}` : 'apagar o token do acervo', err)
+    } finally {
+      await useTokenLibraryStore.getState().recarregar()
     }
   }
 
