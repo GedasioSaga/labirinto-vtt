@@ -2331,7 +2331,14 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
             updateCursor()
             return
           }
-          const pin = buildPin(crypto.randomUUID(), worldPoint, useMapStore.getState().pinKind)
+          // `?? undefined`: `pinIcon` é `null` quando o mestre não escolheu
+          // ícone, e `buildPin` trata a AUSÊNCIA como "pino de hoje".
+          const pin = buildPin(
+            crypto.randomUUID(),
+            worldPoint,
+            useMapStore.getState().pinKind,
+            useMapStore.getState().pinIcon ?? undefined,
+          )
           useMapStore.getState().addPin(pin)
           useMapStore.getState().setSelectedPin(pin.id)
           return

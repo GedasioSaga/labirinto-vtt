@@ -1,7 +1,7 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone, Pin, PinKind,
+  ConcealZone, Pin, PinIcon, PinKind,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
@@ -1344,17 +1344,26 @@ export function setItemSecret(map: MapData, kind: SecretKind, id: string, secret
   }
 }
 
-/** Pino novo no ponto clicado, sem descrição e sem imagem — o painel completa depois. */
-export function buildPin(id: string, point: Point, kind: PinKind): Pin {
-  return { id, x: point.x, y: point.y, kind, description: '', image: null }
+/**
+ * Pino novo no ponto clicado, sem descrição e sem imagem — o painel completa
+ * depois. `icon` é opcional e o padrão é a AUSÊNCIA: quem não escolhe símbolo
+ * crava o pino de hoje, com o glifo de `kind`.
+ */
+export function buildPin(id: string, point: Point, kind: PinKind, icon?: PinIcon): Pin {
+  const pin: Pin = { id, x: point.x, y: point.y, kind, description: '', image: null }
+  return icon === undefined ? pin : { ...pin, icon }
 }
 
 export function addPin(map: MapData, pin: Pin): MapData {
   return { ...map, pins: [...map.pins, pin] }
 }
 
-/** Tipo, descrição, imagem e trava do pino. Id inexistente ou nada mudando devolve o mesmo `map`. */
-export function updatePin(map: MapData, id: string, patch: Partial<Pick<Pin, 'kind' | 'description' | 'image' | 'locked'>>): MapData {
+/** Tipo, símbolo, descrição, imagem e trava do pino. Id inexistente ou nada mudando devolve o mesmo `map`. */
+export function updatePin(
+  map: MapData,
+  id: string,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked'>>,
+): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
   const next = { ...pin, ...patch }
@@ -1363,6 +1372,9 @@ export function updatePin(map: MapData, id: string, patch: Partial<Pick<Pin, 'ki
   // faria destravar um pino nunca travado empurrar uma entrada de undo vazia.
   if (
     next.kind === pin.kind &&
+    // `icon` também é opcional: `undefined` é "sem símbolo", e tirar o símbolo
+    // de um pino que nunca teve não pode empurrar entrada vazia no histórico.
+    next.icon === pin.icon &&
     next.description === pin.description &&
     next.image === pin.image &&
     !!next.locked === !!pin.locked

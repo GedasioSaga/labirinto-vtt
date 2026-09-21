@@ -1,5 +1,6 @@
 import type { FloorStyle, MapData } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
+import { isPinIcon } from './pins'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -136,9 +137,14 @@ function deserializeMapFields(json: string): MapData {
     // NOVO — pinos de ponto de interesse. Mapa salvo antes deste campo existir
     // abre sem nenhum pino; pino gravado por uma versão futura sem `kind` ou
     // sem `description` volta como "!" mudo em vez de derrubar o desenho.
+    // `icon` é campo NOVO e OPCIONAL: o default é a AUSÊNCIA, que desenha o
+    // pino de hoje. Símbolo desconhecido (arquivo editado à mão, versão
+    // futura) volta como ausente em vez de derrubar `PIN_SYMBOLS[icon]` no
+    // render e levar o mapa inteiro junto — mesma regra de `FloorPiece.fillColor`.
     pins: entityList(parsed.pins).map((p) => ({
       ...p,
       kind: p.kind === 'interrogacao' ? 'interrogacao' : 'exclamacao',
+      icon: isPinIcon(p.icon) ? p.icon : undefined,
       description: typeof p.description === 'string' ? p.description : '',
       image: typeof p.image === 'string' ? p.image : null,
     })),

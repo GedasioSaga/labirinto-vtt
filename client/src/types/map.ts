@@ -206,6 +206,17 @@ export interface PlayerSecret {
 export type PinKind = 'exclamacao' | 'interrogacao'
 
 /**
+ * Símbolo desenhado DENTRO da cabeça do pino, no lugar do glifo. Os seis que o
+ * usuário pediu: o mestre crava "aqui tem um baú" e "aqui tem uma armadilha" e
+ * enxerga a diferença no mapa, sem abrir os dois para lembrar qual é qual.
+ *
+ * O campo é OPCIONAL no `Pin` de propósito: a AUSÊNCIA é o padrão, e ausente
+ * desenha exatamente o pino de hoje ("!" ou "?"). Mapa salvo antes deste campo
+ * abre com a cara que tinha — mesma regra de `locked` e de `FloorPiece.fillColor`.
+ */
+export type PinIcon = 'bau' | 'armadilha' | 'chave' | 'perigo' | 'escada' | 'agua'
+
+/**
  * Ponto de interesse cravado pelo mestre. O jogador toca o pino no mapa e lê o
  * cartão: imagem em cima, descrição embaixo.
  *
@@ -220,6 +231,11 @@ export interface Pin extends PlayerSecret {
   x: number
   y: number
   kind: PinKind
+  /**
+   * Símbolo dentro da cabeça. `undefined` === sem símbolo: o pino desenha o
+   * glifo de `kind`, que é a cara de todo pino já gravado. Sem migração.
+   */
+  icon?: PinIcon
   /** O que o jogador lê no cartão. Vazio = o mestre ainda não escreveu nada. */
   description: string
   image: string | null

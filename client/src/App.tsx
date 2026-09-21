@@ -655,6 +655,7 @@ function App() {
   const selectedPinId = useMapStore((state) => state.selectedPinId)
   const selectedPin = map.pins.find((p) => p.id === selectedPinId) ?? null
   const pinKind = useMapStore((state) => state.pinKind)
+  const pinIcon = useMapStore((state) => state.pinIcon)
   // A5 — "Oculto para jogadores" do item selecionado que não é Token/Objeto.
   const secretTarget: { kind: 'region' | 'stair' | 'drawing' | 'pin'; id: string; secret: boolean } | null = selectedRegion
     ? { kind: 'region', id: selectedRegion.id, secret: !!selectedRegion.secret }
@@ -1700,6 +1701,17 @@ function App() {
               onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
               onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),
               onDelete: () => selectedPin && useMapStore.getState().removePin(selectedPin.id),
+            }}
+            pinIcon={{
+              // Mesma ligação dupla do tipo logo acima: com um pino aberto, o
+              // controle edita ESSE pino; sem nenhum, guarda a preferência do
+              // próximo. `?? null` porque `icon` é opcional no schema — pino
+              // salvo antes deste campo chega sem ele.
+              icon: selectedPin ? selectedPin.icon ?? null : pinIcon,
+              onIconChange: (icon) =>
+                selectedPin
+                  ? useMapStore.getState().updatePin(selectedPin.id, { icon: icon ?? undefined })
+                  : useMapStore.getState().setPinIcon(icon),
             }}
             pinSelected={selectedPin !== null}
             tokenLibrary={{
