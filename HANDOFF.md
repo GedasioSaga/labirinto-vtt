@@ -62,14 +62,111 @@ Três achados de builder que valem registro, porque desmentiram o diagnóstico d
 - `docs/features-candidatas-2026-09-21.md` — 21 features candidatas, cada uma com a dor de quem usa e
   o arquivo:linha que prova que falta. Quatro já foram entregues desta lista.
 
-## Próximos passos
+## Fila de trabalho futuro
 
-1. Terminar o que está em obra: duplo clique lento; réguas de medir-no-jogador e copiar/colar.
-2. Seguir a fila de `docs/features-candidatas-2026-09-21.md` de cima para baixo.
-3. Os 8 achados do passeio ainda sem conserto (menu que vaza clique, Subtrair sem efeito, borracha que
-   ignora chão em silêncio, `W` e `?` mortos com foco no painel, acervo que não lista o que acabou de
-   nascer, corredor que some sem aviso, dica `Sala livre ()`).
-4. Decidir a dívida da grade: `NEW_MAP_SHOW_GRID = false` contra `task-jornada-ferramentas-mudas`.
+Tudo o que ficou de fora desta rodada, num lugar só. Cada linha já tem endereço; nenhuma precisa de
+investigação para começar. **Ordem sugerida: primeiro os defeitos de gesto (são rápidos e enganam
+quem usa), depois as features de tamanho P, depois as M.**
+
+### A. Features — fila principal
+
+Detalhe completo, com a dor de quem usa e a evidência de cada uma, em
+`docs/features-candidatas-2026-09-21.md`. Três já saíram (cor da ficha, tamanho em quadrados,
+quadrados ao arrastar); **restam 18**:
+
+| tam | feature | onde mora |
+|---|---|---|
+| P | **Medir distância na tela do jogador** — a de maior valor da lista: o cálculo já existe pronto e puro, só não atravessa | `lib/measurement.ts`, `player/`, `net/protocol.ts` |
+| P | Tela de atalhos (tecla `?`) dizendo o que cada letra faz | `components/Toolbar.tsx:229` |
+| P | Token anda suave na tela do jogador, sem teleporte | `pixi/tokensRenderer.ts:338` |
+| P | Jogador aponta com laser (segurar e arrastar), não só um ping | `net/protocol.ts:69-73,111` |
+| P | Copiar e colar objeto, inclusive entre mapas | `lib/keymap.ts:195` |
+| M | Salvamento automático com recuperação ao reabrir | `stores/sessionStore.ts` |
+| M | Tocha: luz presa ao token, que anda junto | `types/map.ts:144-159`, `pixi/drawLights.ts:102` |
+| M | Pincel de revelar/esconder um pedaço do mapa | `types/map.ts:253-258`, `net/hostBridge.ts:77-79` |
+| M | Marcador de condição no token (envenenado, caído, dormindo) | `pixi/tokensRenderer.ts:199-338` |
+| M | Recado curto entre mestre e jogador na própria tela | `net/protocol.ts:104-128`, `player/` |
+| M | Barra de vida discreta no token | `types/map.ts:314-344` |
+| M | Mestre espelha a tela do jogador antes de mostrar | `components/RoomPanel.tsx:301-304` |
+| M | Exportar o mapa como imagem PNG | `components/ActionBar.tsx:101`, `lib/mapExport.ts` |
+| M | Lista de objetos do mapa com busca e "ir até lá" | `components/LayersPanel.tsx:16` |
+| M | Agrupar objetos e mover a construção inteira | `lib/selectionModel.ts`, `lib/entityClone.ts` |
+| M | Alinhar e distribuir os itens selecionados | `lib/alignmentGuides.ts` |
+| G | Ordem de iniciativa, com a vez destacada nos dois lados | não existe nada ainda |
+| G | Dado rolado na sala, resultado visível a todos | não existe nada ainda |
+
+### B. Defeitos do passeio ainda sem conserto — 8
+
+Descrição completa e repro em `docs/passeio-2026-09-20.md`.
+
+1. **Salvar / Exportar / Início falham** com `Cannot read properties of undefined (reading invoke)` e o
+   trabalho some ao reabrir. É o mesmo defeito de ambiente de `PEDIDOS.md:247-255` (plugin do Tauri
+   fora do webview). Mesmo que a causa seja de ambiente, a pessoa vê erro técnico na tela.
+2. **Clique no menu atravessa** e crava vértice no mapa embaixo do item. Uma busca já foi feita e
+   **não achou a causa no texto do código**: `ToolVariantMenu.tsx:117` não tem `stopPropagation`, e o
+   popover está no stacking context certo (`main.css:901-918`). Próxima frente: medir as coordenadas
+   em tempo de execução — o popover pode nascer fora da área realmente clicada
+   (`ToolVariantMenu.tsx:304-324`).
+3. **Subtrair não faz nada** (Opções de Chão → OPERAÇÃO), e em área meio vazia pinta chão novo em vez
+   de abrir buraco.
+4. **Borracha "Objeto inteiro" ignora chão em silêncio** — o mesmo clique apaga desenho normalmente,
+   então a pessoa acha que errou o alvo e repete.
+5. **`W` e `?` não funcionam com foco no painel** — o atalho só volta depois de um clique no mapa.
+   (O conserto do rótulo de texto tocou perto disso, mas deixou este caso de fora de propósito.)
+6. **Corredor de chão aberto some sem aviso** ao trocar de forma no menu.
+7. **ACERVO DE TOKENS fica vazio** mesmo depois de "Adicionar token" — e, como nunca tem item, não há
+   o que arrastar de lá para o mapa.
+8. **Dica mostra `Sala livre ()`**, parêntese vazio, sugerindo um atalho que não existe.
+
+### C. Achados que os builders devolveram de passagem
+
+Cada um foi medido por quem entregou a peça vizinha, e deixado de fora de propósito para não misturar
+escopo:
+
+- **Irmão do aviso que ensina**: `net/hostBridge.ts:517` empurra "Abra a sala antes de torná-la
+  pública" como erro comum, e some aos 7 s. É instrução pela mesma régua do conserto desta noite; não
+  foi mexido porque `hostBridge.test.ts` fixa o tipo ali.
+- **Alça não acompanha o zoom**: a camada de alças não é redesenhada quando a câmera muda de escala —
+  a assinatura em `pixi/PixiCanvas.tsx:1230` redesenha parede, região, escada e luz, mas não chama
+  `redrawEditHandles()`. Por isso a alça ficou em px de mundo (encolhe com o mapa); alça de tamanho
+  constante na tela pede uma linha ali.
+- **4 testes vermelhos que ninguém vê**: `e2e/task-room-tool.spec.ts` falha em 4 testes por
+  `room.name` vir "Sala 1" onde o spec espera "Sala". **É pré-existente e esse arquivo não está na
+  regressão do portão**, então o vermelho não trava nada — e por isso ninguém olha.
+- **Ícone do marcador não chega ao cartão do jogador**: `player/PlayerPinCard.tsx` ainda mostra `!`/`?`
+  na pastilha. O ícone chega ao mapa do jogador, só não ao cartão.
+- **Painel do marcador**: a escolha de ícone entrou como seção própria ("ÍCONE NO MAPA") em vez de
+  ficar ao lado do tipo `!`/`?`, porque `components/PinControls.tsx` era alvo exclusivo de outra peça.
+  Vale reunir as duas coisas num lugar só.
+- **Ficha de lado par**: o assentamento na linha da grade tem prova de unidade (`seatTokenCenter`),
+  não de tela — nenhuma jornada arrasta ficha de 2 quadrados.
+- **Digitar no rótulo custa um Ctrl+Z por letra**: cada tecla entra no histórico. É o mesmo
+  comportamento que o campo do painel já tinha, mas fica registrado como dívida.
+- **Escape hatch herdado**: `lib/tokenLibrary.ts:serializarIndice` faz `ignorados as ItemDoAcervo[]`
+  sobre `unknown[]`. Não quebra hoje (os itens só entram em `JSON.stringify`), mas toda gravação do
+  acervo passa por ali.
+
+### D. Dívidas de decisão — precisam de você, não de código
+
+- **Grade do mapa novo**: `NEW_MAP_SHOW_GRID = false` (`lib/mapFactory.ts:30`) contra
+  `task-jornada-ferramentas-mudas.spec.ts`, que cobra grade ligada. Um dos dois tem de mudar — hoje
+  essa jornada está vermelha por causa disso e é a única dispensada da bar.
+- **Jornada do acervo não testemunha o mapeamento item→arquivo**: o disco falso devolve a mesma foto
+  para qualquer caminho com `token_`. Achado da varredura de 18/09, ainda de pé.
+- **Achados `SEM_REFUTACAO`** da varredura de 18/09 (`docs/varredura-2026-09-18.md`): 10 ficaram fora
+  do cap e nunca foram auditados.
+- **Testar no exe**: nada desta rodada foi aberto no app empacotado. Dois pontos só o exe resolve — o
+  cache do webview na troca de foto da ficha, e o `reading invoke` do salvar/exportar.
+
+### E. Réguas que eu ia escrever e não cheguei a terminar
+
+Quatro jornadas foram encomendadas e interrompidas a seu pedido: `medir-na-tela-do-jogador`,
+`copiar-e-colar-objeto`, `menu-nao-vaza-clique`, `subtrair-abre-buraco` e
+`borracha-diz-o-que-nao-apaga`. Nenhuma foi escrita — começar por elas é o caminho para as features A
+e os defeitos B2, B3 e B4.
+
+**Regra que valeu a noite inteira e deve continuar valendo:** a régua vem antes da obra, nasce
+vermelha, tem controle positivo ao lado, e o builder nunca toca nela.
 
 ## Critério de pronto
 
