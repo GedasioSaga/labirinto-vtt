@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { MapData } from '../types/map'
+import type { Camera } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
 import { ADVENTURE_VERSION, baseName, cleanSceneName, newSceneId, sceneFileFor, type Adventure, type SceneEntry } from '../lib/adventure'
 import { mapDirFor, saveAdventureToDisk, scenePath, type OpenedMapFile } from '../lib/mapFileIO'
@@ -25,10 +26,23 @@ import { useSessionStore } from './sessionStore'
  * cache —, então a troca funciona igual sem Tauri e nunca falha no meio.
  */
 
-/** Cena de fundo: o mapa e o desfazer dela, ou o motivo de não ter aberto. */
+/**
+ * Cena de fundo: o mapa, o desfazer e a câmera dela, ou o motivo de não ter
+ * aberto. `camera: null` = cena ainda não vista nesta sessão: ao entrar, ela
+ * é enquadrada. A câmera só vive em memória, nunca vai ao disco.
+ */
 export type SceneSlot =
-  | { status: 'ok'; map: MapData; past: MapData[]; future: MapData[] }
+  | { status: 'ok'; map: MapData; past: MapData[]; future: MapData[]; camera: Camera | null }
   | { status: 'indisponivel'; reason: string }
+
+/**
+ * O que o canvas deve fazer com a câmera depois de uma troca de cena: voltar
+ * a `camera`, ou enquadrar o conteúdo quando `null`. Um objeto novo por troca
+ * — o canvas reage à identidade, como ao contador do reset de zoom.
+ */
+export interface CameraRequest {
+  camera: Camera | null
+}
 
 /** Uma linha da lista "Cenas". */
 export interface SceneListItem {
@@ -59,6 +73,8 @@ interface AdventureState {
   dirty: Record<string, true>
   /** A lista de cenas (nome, cena nova) mudou desde a última gravação. */
   structureDirty: boolean
+  /** Último pedido de câmera da troca de cena; `null` até a primeira troca. */
+  cameraRequest: CameraRequest | null
 
   /** Mapa novo ou solto: esquece qualquer aventura anterior. */
   reset: () => void
@@ -87,6 +103,7 @@ const EMPTY = {
   cache: {},
   dirty: {},
   structureDirty: false,
+  cameraRequest: null,
 } satisfies Partial<AdventureState>
 
 /** Lista pronta para a tela: a cena aberta conta os tokens do mapa vivo. */
@@ -125,7 +142,8 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const cache: Record<string, SceneSlot> = {}
     for (const load of opened.scenes) {
       if (load.entry.id === opened.activeSceneId) continue
-      cache[load.entry.id] = load.status === 'ok' ? { status: 'ok', map: load.map, past: [], future: [] } : { status: 'indisponivel', reason: load.reason }
+      cache[load.entry.id] =
+        load.status === 'ok' ? { status: 'ok', map: load.map, past: [], future: [], camera: null } : { status: 'indisponivel', reason: load.reason }
     }
     const dirty: Record<string, true> = {}
     for (const id of opened.changedSceneIds) dirty[id] = true
@@ -159,7 +177,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       adventure: { ...adventure, scenes: [...adventure.scenes, { id, name: sceneName, file: sceneFileFor(id) }] },
       activeSceneId,
       ...(born ? { rootPath: loosePath, rootMapId: live.id, dir: null } : {}),
-      cache: { ...state.cache, [id]: { status: 'ok', map, past: [], future: [] } },
+      cache: { ...state.cache, [id]: { status: 'ok', map, past: [], future: [], camera: null } },
       dirty: { ...state.dirty, [id]: true },
       structureDirty: true,
     })
@@ -183,14 +201,22 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const target = cache[sceneId]
     if (target === undefined || target.status !== 'ok') return false
 
-    const { map, past, future } = useMapStore.getState()
+    // A câmera da cena que sai fica com ela: voltar a essa cena devolve a vista de onde se saiu.
+    const { map, past, future, camera } = useMapStore.getState()
     const leavingDirty = useSessionStore.getState().isDirty || dirty[activeSceneId] === true
-    const nextCache: Record<string, SceneSlot> = { ...cache, [activeSceneId]: { status: 'ok', map, past, future } }
+    const nextCache: Record<string, SceneSlot> = { ...cache, [activeSceneId]: { status: 'ok', map, past, future, camera } }
     delete nextCache[sceneId]
     const nextDirty: Record<string, true> = { ...dirty }
     if (leavingDirty) nextDirty[activeSceneId] = true
 
-    set({ cache: nextCache, dirty: nextDirty, activeSceneId: sceneId, previousSceneId: activeSceneId })
+    set({
+      cache: nextCache,
+      dirty: nextDirty,
+      activeSceneId: sceneId,
+      previousSceneId: activeSceneId,
+      // Cena nunca vista nesta sessão (camera null) é enquadrada pelo canvas.
+      cameraRequest: { camera: target.camera },
+    })
     showInEditor(target.map, target.past, target.future)
     return true
   },

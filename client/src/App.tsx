@@ -488,6 +488,8 @@ function App() {
   const activeSceneId = useAdventureStore((state) => state.activeSceneId)
   const sceneCache = useAdventureStore((state) => state.cache)
   const previousSceneId = useAdventureStore((state) => state.previousSceneId)
+  // Cada cena lembra a própria câmera; a troca pede ao canvas que volte a ela (ou enquadre).
+  const sceneCameraRequest = useAdventureStore((state) => state.cameraRequest)
   const canGoBackToScene = previousSceneId !== null && sceneCache[previousSceneId]?.status === 'ok'
   /**
    * Caminho de origem do mapa em edição. `null` enquanto o mapa é novo
@@ -1423,6 +1425,7 @@ function App() {
           onBackgroundImageSizeChange={setBackgroundImageSize}
           onCameraChange={(camera: Camera) => setCameraScale(camera.scale)}
           resetZoomRequest={resetZoomRequest}
+          cameraRequest={sceneCameraRequest}
           onLaserMove={(x, y) => hostBridgeRef.current?.laserMove(x, y)}
           onRoomCreated={() => {
             // O nome é pedido sobre a própria Sala (PixiCanvas); a aba Mapa só

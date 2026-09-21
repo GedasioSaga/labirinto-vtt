@@ -399,6 +399,13 @@ interface PixiCanvasProps {
    */
   resetZoomRequest?: number
   /**
+   * Pedido de câmera vindo da troca de cena (`stores/adventureStore.ts`):
+   * `camera` volta à vista que a cena tinha; `null` enquadra o conteúdo, como
+   * na abertura do mapa. Cada troca é um objeto novo — a ponte reage à
+   * identidade, no molde de `resetZoomRequest`, sem remontar o canvas.
+   */
+  cameraRequest?: { camera: Camera | null } | null
+  /**
    * A3 — chamada quando Sala, Sala Circular ou Polígono Regular termina de ser
    * desenhada (a região já está no mapa e selecionada). O nome é pedido aqui
    * mesmo, num campo sobre a Sala; o App só troca o rail para a aba Mapa.
@@ -428,7 +435,16 @@ const MIN_ROOM_NAME_EDITOR_FONT = 12
 /** Retângulo que cobre qualquer mapa: Ctrl+A reusa o filtro da seleção por área. */
 const SELECT_ALL_RECT: AreaRect = { x1: -1e9, y1: -1e9, x2: 1e9, y2: 1e9 }
 
-export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChange, onCameraChange, resetZoomRequest, onRoomCreated, onPlaceToken, onLaserMove }: PixiCanvasProps) {
+export function PixiCanvas({
+  gridAlignPreview = null,
+  onBackgroundImageSizeChange,
+  onCameraChange,
+  resetZoomRequest,
+  cameraRequest = null,
+  onRoomCreated,
+  onPlaceToken,
+  onLaserMove,
+}: PixiCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const onLaserMoveRef = useRef(onLaserMove)
   useEffect(() => {
@@ -493,6 +509,13 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
   useEffect(() => {
     if (resetZoomRequest !== undefined) resetZoomRequestRef.current?.()
   }, [resetZoomRequest])
+
+  // Mesma ponte, para a câmera de cada cena. Pedido que chega antes do
+  // `setup()` terminar é descartado: a montagem já enquadra o mapa aberto.
+  const cameraRequestRef = useRef<((camera: Camera | null) => void) | null>(null)
+  useEffect(() => {
+    if (cameraRequest !== null) cameraRequestRef.current?.(cameraRequest.camera)
+  }, [cameraRequest])
 
   useEffect(() => {
     const el = containerRef.current
@@ -730,6 +753,9 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // pra este componente, sem precisar de uma segunda assinatura de
       // `map.id`.
       fitToContent()
+      // Troca de cena: volta à câmera que a cena tinha, ou enquadra a cena
+      // vista pela primeira vez (cena vazia mantém a câmera, ver acima).
+      cameraRequestRef.current = (requested) => (requested ? applyCamera(requested) : fitToContent())
 
       // B1 — ondas animadas precisam de quadro a quadro; a store só diz quais sinais estão vivos.
       const signalsRenderer = createSignalsRenderer()
@@ -5189,6 +5215,7 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         window.removeEventListener('keyup', onKeyUp)
         gridAlignOverlayRedrawRef.current = null
         resetZoomRequestRef.current = null
+        cameraRequestRef.current = null
       }
     }
 

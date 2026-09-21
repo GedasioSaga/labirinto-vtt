@@ -124,6 +124,59 @@ describe('createScene + switchScene', () => {
   })
 })
 
+describe('câmera por cena', () => {
+  it('a cena que sai guarda a câmera; voltar a ela pede essa câmera; cena nunca vista pede enquadrar', () => {
+    useMapStore.getState().setCamera({ x: -300, y: -120, scale: 3.75 })
+    const cripta = useAdventureStore.getState().createScene('Cripta', null)
+    const vale = useAdventureStore.getState().adventure?.scenes[0].id ?? ''
+
+    // Cripta é nova: nenhuma câmera guardada, o canvas enquadra.
+    expect(useAdventureStore.getState().cameraRequest).toEqual({ camera: null })
+    const slotVale = useAdventureStore.getState().cache[vale]
+    expect(slotVale.status === 'ok' ? slotVale.camera : 'indisponível').toEqual({ x: -300, y: -120, scale: 3.75 })
+
+    useMapStore.getState().setCamera({ x: 10, y: 20, scale: 0.5 })
+    useAdventureStore.getState().switchScene(vale)
+    expect(useAdventureStore.getState().cameraRequest).toEqual({ camera: { x: -300, y: -120, scale: 3.75 } })
+
+    useAdventureStore.getState().switchScene(cripta)
+    expect(useAdventureStore.getState().cameraRequest).toEqual({ camera: { x: 10, y: 20, scale: 0.5 } })
+  })
+
+  it('cena aberta do disco (depois de reiniciar) não herda câmera: pede enquadrar', () => {
+    const vale = createEmptyMap('map_vale', 'Vale', 30, 20, 64)
+    const cripta = createEmptyMap('map_cripta', 'Cripta', 30, 20, 64)
+    useAdventureStore.getState().open({
+      path: 'C:/appdata/maps/map_vale/map.json',
+      map: vale,
+      adventure: {
+        version: 1,
+        id: 'adv',
+        name: 'Vale',
+        startSceneId: 's_vale',
+        scenes: [
+          { id: 's_vale', name: 'Vale', file: 'map.json' },
+          { id: 's_cripta', name: 'Cripta', file: 'scenes/s_cripta/map.json' },
+        ],
+      },
+      adventureDir: 'C:/appdata/maps/map_vale',
+      activeSceneId: 's_vale',
+      scenes: [
+        { entry: { id: 's_vale', name: 'Vale', file: 'map.json' }, status: 'ok', map: vale },
+        { entry: { id: 's_cripta', name: 'Cripta', file: 'scenes/s_cripta/map.json' }, status: 'ok', map: cripta },
+      ],
+      changedSceneIds: [],
+      adventureChanged: false,
+    })
+    expect(useAdventureStore.getState().cameraRequest).toBeNull()
+    useMapStore.getState().setCamera({ x: -900, y: -400, scale: 3.75 })
+
+    useAdventureStore.getState().switchScene('s_cripta')
+
+    expect(useAdventureStore.getState().cameraRequest).toEqual({ camera: null })
+  })
+})
+
 describe('updateBackgroundScene', () => {
   it('muda a cena de fundo sem tocar no desfazer nem no mapa da cena aberta', () => {
     const cripta = useAdventureStore.getState().createScene('Cripta', null)
