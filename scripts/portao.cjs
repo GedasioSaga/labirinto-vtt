@@ -45,9 +45,12 @@
  *
  * Variáveis: PORTAO_REPETICOES (1 na rodada comum, 3 na volta da vencedora).
  *
- * Escrita em disco: o relatório e os artefatos de jornada, os dois em
- * %TEMP%/portao-labirinto/, mais o selo em scripts/portao-selo.json. Nenhum
- * passo apaga ou sobrescreve dado do repositório nem do usuário.
+ * Escrita em disco: o relatório, os artefatos de jornada e os recibos de
+ * regressão, os três em %TEMP%/portao-labirinto/, mais o selo em
+ * scripts/portao-selo.json. Os passos de cargo escrevem no `target` da árvore
+ * PRINCIPAL (ver `ALVO_DO_CARGO`) — build ignorado pelo git, compartilhado por
+ * todas as árvores e já quente; nunca fonte. Nenhum passo apaga ou sobrescreve
+ * dado do repositório nem do usuário.
  *
  * CORREÇÕES DE 17/09/2026 (a rodada que auditou o próprio portão):
  *   - Invariante 1 não tinha comando NENHUM: agora é medida em pixel
@@ -104,6 +107,24 @@ const SAIDA = path.join(os.tmpdir(), 'portao-labirinto')
  */
 const ARTEFATOS = path.join(SAIDA, 'artefatos')
 /**
+ * Onde fica a PROVA de que a regressão rodou — um recibo por passo de
+ * regressão, carimbado com a árvore e o estado exato em que ele saiu verde.
+ *
+ * POR QUE EXISTE. Em 21/09/2026 a rodada declarou 14 comandos e nenhum deles
+ * era `jornadas-da-bar`: as jornadas de regressão não rodaram em lugar nenhum,
+ * e a rodada podia ser declarada verde com qualquer uma delas quebrada. O
+ * conserto daquela volta foi um AVISO em voz alta — e aviso não é portão: o
+ * juiz da volta seguinte anotou que "nada fica vermelho por causa dele" e que
+ * o invariante "nenhuma jornada já existente pode ficar vermelha" seguia sem
+ * medida. Aqui ele vira passo: `regressao-em-dia` (ver `sondarRegressaoEmDia`)
+ * sai VERMELHO enquanto não existir recibo verde da regressão para ESTA árvore
+ * no estado de AGORA. Quem não rodar a regressão não consegue mais fechar a
+ * volta comum em verde.
+ */
+const RECIBOS = path.join(SAIDA, 'recibos')
+/** Os passos cuja ausência é regressão sem medida, e não recorte legítimo. */
+const PASSOS_DE_REGRESSAO = ['jornadas-e2e', 'jornadas-da-bar']
+/**
  * UM diretório de build do cargo para TODAS as árvores, em vez de um por peça.
  *
  * MEDIDO em 21/09/2026, madrugada, nesta máquina. Os dois passos de Rust que o
@@ -124,10 +145,63 @@ const ARTEFATOS = path.join(SAIDA, 'artefatos')
  * do cargo ("Blocking waiting for file lock on build directory") e seguem em
  * série: mais lento que disputar disco, e muito melhor que ficar sem ele.
  *
- * Fica em pasta temporária, como todo o resto do que o portão escreve
- * (Invariante 7): nada do repositório e nada do usuário é tocado.
+ * ONDE fica: no `target` da ÁRVORE PRINCIPAL, e não numa pasta temporária.
+ *
+ * MEDIDO em 21/09/2026, depois da primeira volta desta peça. Apontar o alvo
+ * para `%TEMP%/portao-labirinto/cargo-target` compartilhava, sim — mas
+ * compartilhava uma pasta VAZIA. Os números da máquina na hora:
+ *   C:/dev/labirinto/desktop/src-tauri/target   10,17 GB  (cache QUENTE, já pago)
+ *   %TEMP%/portao-labirinto/cargo-target        ausente   (0 GB)
+ *   disco livre                                  5,76 GB
+ *   build frio do crate                          5,50 GB  (medido no worktree)
+ * Ou seja: o primeiro `cargo` da rodada abandonaria 10 GB de cache pronto para
+ * refazer tudo do zero com 0,26 GB de sobra sobre um piso de 3 GB — o mesmo
+ * `os error 112` para o qual este arquivo já tinha mensagem escrita. Trocar
+ * disco por disco não é economia.
+ *
+ * O `target` da árvore principal resolve as duas coisas ao mesmo tempo: é UM
+ * diretório para todas as árvores (a intenção de antes) e é o que já está
+ * quente (o que faltava). Continua sendo build, não fonte: `target/` é
+ * ignorado pelo git, não entra em diff nenhum e a partição das peças
+ * (`sondarParticao`) segue medindo o que o git vê. `PORTAO_ALVO_DO_CARGO`
+ * troca o destino para quem quiser outro, e `vereditoDeDiscoParaCargo` recusa
+ * rodar o cargo quando o alvo escolhido está FRIO e o disco não comporta o
+ * build — o portão para antes de encher o disco, em vez de descobrir depois.
  */
-const ALVO_DO_CARGO = path.join(SAIDA, 'cargo-target')
+function alvoDoCargo() {
+  if (process.env.PORTAO_ALVO_DO_CARGO) return path.resolve(process.env.PORTAO_ALVO_DO_CARGO)
+  // `--git-common-dir` é o `.git` da árvore PRINCIPAL, também quando se roda de
+  // dentro de um worktree (onde `--git-dir` aponta para `.git/worktrees/<nome>`).
+  const comum = String(git(['rev-parse', '--git-common-dir']) || '').trim()
+  if (comum) {
+    const principal = path.dirname(path.resolve(RAIZ, comum))
+    if (fs.existsSync(path.join(principal, 'desktop', 'src-tauri', 'Cargo.toml'))) {
+      return path.join(principal, 'desktop', 'src-tauri', 'target')
+    }
+  }
+  // Sem git legível, o padrão do próprio cargo. Frio, e por isso o veredito de
+  // disco (abaixo) é quem decide se ele pode rodar.
+  return path.join(TAURI, 'target')
+}
+const ALVO_DO_CARGO = alvoDoCargo()
+/**
+ * Quantos deps já compilados fazem um alvo de cargo ser QUENTE.
+ *
+ * A pergunta é "o próximo cargo é incremental ou é build do zero?", e a
+ * resposta barata está em `<alvo>/debug/deps`: o crate tem ~350 dependências
+ * transitivas, então uma pasta com menos de 100 artefatos é cache pela metade
+ * ou nenhum. Medir o TAMANHO da pasta custaria uma varredura de 10 GB a cada
+ * chamada; contar entradas custa um `readdir`.
+ */
+const DEPS_DE_CARGO_QUENTE = 100
+function cargoQuente(alvo) {
+  try {
+    if (!fs.existsSync(path.join(alvo, '.rustc_info.json'))) return false
+    return fs.readdirSync(path.join(alvo, 'debug', 'deps')).length >= DEPS_DE_CARGO_QUENTE
+  } catch (e) {
+    return false
+  }
+}
 /** Selo do começo do run: hash das jornadas da bar e campos opcionais do esquema. */
 const SELO = path.join(__dirname, 'portao-selo.json')
 /** Quem pode escrever onde (Invariante 5), declarado pelo orquestrador. */
@@ -142,15 +216,30 @@ const REPETICOES = String(Number(process.env.PORTAO_REPETICOES || '1') || 1)
  *  33,9 GB de 511 em 17/09/2026 — premissa velha, então o portão MEDE em vez de citar. */
 const PISO_DE_DISCO_GB = 3
 /**
- * Folga de trabalho acima do piso. Abaixo dela o passo `disco` AINDA sai verde
- * — o piso é o piso —, mas grita o número: com pouca folga, um worktree, um
- * build ou uma pasta de trace derruba o passo NO MEIO do run, e a peça que
- * estiver rodando na hora leva a culpa de um vermelho que não é dela. Medido em
- * 18/09/2026: 5,27 GB livres de 511 — folga de 2,27 GB sobre o piso, que é
- * MENOS que uma volta de jornadas com trace e um build de release juntos. Por
- * isso o alvo é piso + 3 GB: com a folga de hoje, o aviso SAI.
+ * O que ESTA rodada ainda vai escrever — a parte do disco que o passo cobra
+ * além do piso.
+ *
+ * Antes daqui havia `FOLGA_DE_TRABALHO_GB = PISO + 3`, que o passo IMPRIMIA
+ * como "alvo" e nunca cobrava: em 21/09/2026 ele mediu 2,77 GB de folga contra
+ * um alvo declarado de 3,00 GB e saiu exit 0 dizendo, no mesmo parágrafo, que
+ * "um worktree, um build ou uma pasta de trace derruba este passo NO MEIO do
+ * run". Passo que contradiz o próprio texto e sai verde é falso-verde, mesmo
+ * quando o texto está certo.
+ *
+ * Trocado por uma conta que o passo cobra de verdade: o piso MAIS o que falta
+ * escrever. Quanto falta depende de uma coisa só, e ela é medível — se o alvo
+ * do cargo está quente (build incremental) ou frio (build do zero):
+ *   frio    5,50 GB  medido em 21/09/2026, crate do zero num worktree
+ *   quente  1,00 GB  incremental do crate local + trace e screenshot de uma
+ *                    volta inteira de jornadas (0,06 GB medidos em %TEMP%,
+ *                    arredondado para cima porque a volta da vencedora roda
+ *                    cada jornada 3x)
+ * Com isso o número impresso é o número cobrado, e a régua ficou mais dura que
+ * a de antes: o piso sozinho aprovava 3,01 GB livres com um build frio pela
+ * frente; agora isso é VERMELHO, com a conta na tela.
  */
-const FOLGA_DE_TRABALHO_GB = PISO_DE_DISCO_GB + 3
+const CUSTO_DE_BUILD_FRIO_GB = 5.5
+const CUSTO_DE_VOLTA_GB = 1
 
 /**
  * Hash do CONTEÚDO, não do fim de linha. `core.autocrlf` é true nesta máquina:
@@ -926,6 +1015,9 @@ function guardaPlanoCobreArtefato(plano) {
   if (!plano.some((p) => p.id === 'particao')) faltando.push('nenhum passo mede quem escreveu onde (Invariantes 5 e 9)')
   if (!plano.some((p) => p.id === 'jornadas-intactas')) faltando.push('nenhum passo confere se uma jornada da bar foi editada (Invariante 6)')
   if (!plano.some((p) => p.id === 'jornadas-da-bar')) faltando.push('nenhum passo roda os três gestos que a bar deste run pede')
+  // Sem este passo, "nenhuma jornada já existente pode ficar vermelha" volta a
+  // depender de alguém lembrar de digitar dois comandos (ver `RECIBOS`).
+  if (!plano.some((p) => p.id === 'regressao-em-dia')) faltando.push('nenhum passo cobra o recibo verde da regressão')
   if (faltando.length > 0) return reprova('g7-plano-cobre-artefato', faltando.join('; '), 'scripts/portao.cjs (PLANO)')
   return ok('g7-plano-cobre-artefato', 'plano cobre tipos, unidade, Rust, jornadas e exe vivo')
 }
@@ -2004,6 +2096,16 @@ const PLANO = [
     // MESMA cara, e o passo não tinha `exige` para separar os dois. Com `-v` o
     // cargo imprime `Fresh labirinto v0.1.0 (<caminho>)` também no caso
     // quente — medido: 299 linhas, 10 KB, custo nenhum.
+    //
+    // CONFRONTADO COM CARGO DE VERDADE em 21/09/2026, com o alvo compartilhado
+    // já quente (14,2 s, exit 0, 302 linhas). As duas linhas que o `exige`
+    // cobra, copiadas da saída daquele run:
+    //     Compiling labirinto v0.1.0 (C:\dev\labirinto\.claude\worktrees\wf_58a1f005-b8d-5\desktop\src-tauri)
+    //      Finished `dev` profile [unoptimized + debuginfo] target(s) in 14.10s
+    // Importa porque o autoteste do `exige` monta o texto esperado com o mesmo
+    // `path.join` que alimenta a regex — ele prova a régua, não o formato do
+    // cargo. Quem prova o formato é este run, e ele nomeou o crate DESTA
+    // árvore mesmo escrevendo no `target` da principal (CARGO_TARGET_DIR).
     args: ['clippy', '--all-targets', '--all-features', '-v', '--', '-D', 'warnings', '-W', 'clippy::unwrap_used', '-W', 'clippy::expect_used'],
     cwd: TAURI,
     shell: true,
@@ -2088,6 +2190,11 @@ const PLANO = [
     'REGRESSÃO: os gestos que a bar deste run já tinha verdes (luz, token com foto, pincel e balde, sala livre, pinos)',
     JORNADAS_DE_REGRESSAO_DA_BAR.filter((j) => !JORNADAS_DISPENSADAS[j]),
   ),
+  {
+    id: 'regressao-em-dia',
+    titulo: 'os dois passos de regressão rodaram VERDES nesta árvore, neste estado (recibo, não promessa)',
+    sonda: sondarRegressaoEmDia,
+  },
   // PROVA. As três jornadas do critério desta rodada. Nascem VERMELHAS: só
   // ficam verdes depois que as peças de cliente consertam os defeitos, e por
   // isso este passo fica FORA da volta comum (`prova: true`) e só entra em
@@ -2495,23 +2602,146 @@ function sondarDisco() {
     const livreGb = (estado.bfree * estado.bsize) / 1e9
     const totalGb = (estado.blocks * estado.bsize) / 1e9
     const ocupadoGb = tamanhoDaPasta(ARTEFATOS) / 1e9
-    const folgaGb = livreGb - PISO_DE_DISCO_GB
+    const quente = cargoQuente(ALVO_DO_CARGO)
+    const conta = contaDeDisco(livreGb, quente)
     return {
-      codigo: livreGb >= PISO_DE_DISCO_GB ? 0 : 1,
+      codigo: conta.cabe ? 0 : 1,
       saida:
         'AMBIENTE DA MÁQUINA — este passo não mede trabalho de peça nenhuma; vermelho aqui é disco, não builder.' +
-        '\nlivre ' + livreGb.toFixed(2) + ' GB de ' + totalGb.toFixed(2) + ' GB (piso do portão: ' + PISO_DE_DISCO_GB +
-        ' GB; folga sobre o piso: ' + folgaGb.toFixed(2) + ' GB)' +
+        '\nlivre ' + livreGb.toFixed(2) + ' GB de ' + totalGb.toFixed(2) + ' GB' +
+        '\nalvo do cargo: ' + ALVO_DO_CARGO + ' — ' + (quente ? 'QUENTE (build incremental)' : 'FRIO (build do zero)') +
+        '\nnecessidade desta rodada: ' + conta.necessidadeGb.toFixed(2) + ' GB = piso ' + PISO_DE_DISCO_GB + ' GB + ' +
+        conta.aEscreverGb.toFixed(2) + ' GB ainda por escrever; folga sobre a necessidade: ' + conta.folgaGb.toFixed(2) + ' GB' +
         '\ntrace e screenshot de jornada: ' + faxina.apagadas + ' pasta(s) antiga(s) apagada(s) (' + (faxina.bytes / 1e9).toFixed(2) +
         ' GB devolvidos), ' + faxina.mantidas + ' mantida(s) ocupando ' + ocupadoGb.toFixed(2) + ' GB em ' + ARTEFATOS +
         (faxina.motivo ? ' — ' + faxina.motivo : '') +
-        (livreGb < PISO_DE_DISCO_GB
-          ? '\nabaixo do piso: worktree, build e trace não cabem — pare antes de encher o disco'
-          : livreGb < FOLGA_DE_TRABALHO_GB
-            ? '\nFOLGA CURTA (' + folgaGb.toFixed(2) + ' GB sobre o piso, alvo ' + (FOLGA_DE_TRABALHO_GB - PISO_DE_DISCO_GB).toFixed(2) +
-              ' GB): um worktree, um build de release ou uma pasta de trace derruba este passo NO MEIO do run, e quem estiver ' +
-              'rodando na hora leva a culpa. Libere disco antes da volta da prova — é pendência de ambiente, não de peça.'
-            : ''),
+        (conta.cabe
+          ? ''
+          : '\nNÃO CABE: faltam ' + (-conta.folgaGb).toFixed(2) + ' GB. ' +
+            (quente
+              ? 'Libere disco antes de julgar qualquer peça — é pendência de ambiente, não de peça.'
+              : 'O alvo do cargo está FRIO: o próximo `cargo` escreveria ' + CUSTO_DE_BUILD_FRIO_GB.toFixed(2) +
+                ' GB do zero. Aponte `PORTAO_ALVO_DO_CARGO` para um target já quente, ou libere disco.')),
+    }
+  })
+}
+
+/**
+ * A conta de disco, separada de quem a imprime para poder ser testada com
+ * números de entrada (`--autoteste`) em vez de com o disco da máquina — que
+ * muda sozinho entre duas chamadas e nunca reprova nada em teste.
+ */
+function contaDeDisco(livreGb, quente) {
+  const aEscreverGb = quente ? CUSTO_DE_VOLTA_GB : CUSTO_DE_BUILD_FRIO_GB
+  const necessidadeGb = PISO_DE_DISCO_GB + aEscreverGb
+  return { aEscreverGb, necessidadeGb, folgaGb: livreGb - necessidadeGb, cabe: livreGb >= necessidadeGb }
+}
+
+/**
+ * O estado exato desta árvore: o commit MAIS o que está por commitar. Um
+ * recibo de regressão só vale para a árvore em que foi tirado e para o texto
+ * que estava lá na hora — mudou uma linha de cliente, a regressão voltou a ser
+ * promessa e tem de rodar de novo.
+ */
+function identidadeDaArvore() {
+  const sha = String(git(['rev-parse', 'HEAD']) || '').trim() || 'sem-HEAD'
+  const sujo = String(git(['status', '--porcelain']) || '')
+  return sujo.trim() === '' ? sha : sha + '+' + sha256(sujo).slice(0, 12)
+}
+
+/** Grava o recibo de um passo de regressão que saiu VERDE. Só verde deixa recibo. */
+function escreverRecibo(passo, resultado) {
+  if (PASSOS_DE_REGRESSAO.indexOf(passo.id) === -1 || !resultado.ok) return
+  try {
+    fs.mkdirSync(RECIBOS, { recursive: true })
+    fs.writeFileSync(
+      path.join(RECIBOS, passo.id + '.json'),
+      JSON.stringify(
+        {
+          id: passo.id,
+          raiz: RAIZ,
+          identidade: identidadeDaArvore(),
+          specs: (passo.specs || []).slice().sort(),
+          repeticoes: Number(REPETICOES),
+          quando: new Date().toISOString(),
+          ms: resultado.ms,
+        },
+        null,
+        2,
+      ) + '\n',
+      'utf8',
+    )
+  } catch (e) {
+    // Recibo é prova, não é o trabalho: se %TEMP% recusar a escrita, o passo
+    // `regressao-em-dia` continua vermelho e diz o que falta rodar.
+  }
+}
+
+function lerRecibo(id) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(RECIBOS, id + '.json'), 'utf8'))
+  } catch (e) {
+    return null
+  }
+}
+
+/**
+ * O juízo dos recibos, separado do disco para ter autoteste com entrada
+ * sintética: recibo ausente, recibo de OUTRA árvore, recibo de um estado
+ * anterior e recibo com lista de specs ENCOLHIDA têm de reprovar os quatro.
+ */
+function julgarRecibosDeRegressao(esperados, recibos, identidade, raiz) {
+  const faltas = []
+  const emDia = []
+  for (const esperado of esperados) {
+    const recibo = recibos[esperado.id]
+    const specsEsperados = (esperado.specs || []).slice().sort().join(',')
+    if (!recibo) {
+      faltas.push(esperado.id + ': sem recibo — este comando não rodou nesta máquina')
+    } else if (recibo.raiz !== raiz) {
+      faltas.push(esperado.id + ': o recibo é de outra árvore (' + recibo.raiz + ')')
+    } else if (recibo.identidade !== identidade) {
+      faltas.push(esperado.id + ': o recibo é de outro estado da árvore (' + recibo.identidade + ', agora ' + identidade + ')')
+    } else if ((recibo.specs || []).slice().sort().join(',') !== specsEsperados) {
+      faltas.push(
+        esperado.id + ': o recibo cobre ' + (recibo.specs || []).length + ' spec(s) e o passo pede ' +
+          (esperado.specs || []).length + ' — lista encolhida entre uma coisa e outra',
+      )
+    } else {
+      emDia.push(esperado.id + ' (' + (recibo.specs || []).length + ' spec(s), ' + recibo.quando + ')')
+    }
+  }
+  return { ok: faltas.length === 0, faltas, emDia }
+}
+
+/**
+ * REGRESSÃO MEDIDA, não prometida.
+ *
+ * A promessa desta bar é "nenhuma jornada já existente pode ficar vermelha", e
+ * quem a mede são `jornadas-e2e` e `jornadas-da-bar`. Enquanto isso era só um
+ * aviso no relatório, uma rodada inteira saiu verde sem que nenhum dos dois
+ * tivesse rodado. Agora a volta comum carrega este passo, e ele fica VERMELHO
+ * até existir recibo verde dos dois para esta árvore neste estado.
+ */
+function sondarRegressaoEmDia() {
+  return Promise.resolve().then(() => {
+    const esperados = PLANO.filter((p) => PASSOS_DE_REGRESSAO.indexOf(p.id) !== -1).map((p) => ({ id: p.id, specs: p.specs || [] }))
+    const recibos = {}
+    for (const e of esperados) recibos[e.id] = lerRecibo(e.id)
+    const identidade = identidadeDaArvore()
+    const veredito = julgarRecibosDeRegressao(esperados, recibos, identidade, RAIZ)
+    return {
+      codigo: veredito.ok ? 0 : 1,
+      saida:
+        'REGRESSÃO — "nenhuma jornada já existente pode ficar vermelha" medida, não prometida.\n' +
+        'árvore ' + RAIZ + ' no estado ' + identidade + '\n' +
+        (veredito.emDia.length > 0 ? 'em dia: ' + veredito.emDia.join('; ') + '\n' : '') +
+        (veredito.ok
+          ? 'os ' + esperados.length + ' passos de regressão rodaram verdes neste estado da árvore.'
+          : 'SEM MEDIDA:\n  ' + veredito.faltas.join('\n  ') + '\n' +
+            'rode, desta árvore:\n' +
+            esperados.map((e) => '  node scripts/portao.cjs --so=' + e.id).join('\n') + '\n' +
+            'recibo só nasce de passo VERDE, e morre a cada mudança na árvore (recibos em ' + RECIBOS + ').'),
     }
   })
 }
@@ -2752,6 +2982,73 @@ function quemOcupaAPorta(porta) {
   })
 }
 
+/**
+ * O passo VERMELHO DE AMBIENTE de porta ocupada, montado à parte de quem o
+ * dispara.
+ *
+ * Estava embutido dentro de `rodarPasso`, e por isso era código que só rodava
+ * quando a máquina tivesse, naquele instante, a porta desta árvore tomada por
+ * outro processo — condição que nenhum autoteste alcançava. O juiz de
+ * 21/09/2026 anotou exatamente isso: "o ramo só foi LIDO, nunca executado".
+ * Separado assim, `--autoteste` ABRE uma porta de verdade, deixa o portão
+ * descobri-la e compara o veredito (ver `casosDePortaOcupada`).
+ */
+function vereditoDePortaOcupada(passo, porta, esperouMs, donos, ms) {
+  return {
+    id: passo.id,
+    titulo: passo.titulo,
+    codigo: 1,
+    ms,
+    ok: false,
+    falsoVerde: false,
+    ruina: [],
+    ambiente: true,
+    saida:
+      'VERMELHO DE AMBIENTE — nenhuma jornada rodou, e a causa NÃO é a peça.\n' +
+      'a porta ' + porta + ' desta árvore (' + RAIZ + ') continuou ocupada depois de ' + esperouMs + ' ms de espera.\n' +
+      (donos.length > 0 ? 'quem a segura agora: ' + donos.join(', ') + '\n' : 'não consegui identificar o processo que a segura.\n') +
+      'com `reuseExistingServer` desligado (client/playwright.config.ts), o Playwright recusa a subir o servidor e sai sem ' +
+      'rodar um teste sequer — e o filtro do rtk resume esse aborto como "PASS (0) FAIL (0)", que passa por verde para quem ' +
+      'lê rápido. Por isso o portão nem chamou o Playwright.\n' +
+      'o que fazer: feche o servidor acima, ou rode este comando de dentro do worktree da peça, que tem porta própria ' +
+      '(client/porta.js dá 1420 na árvore principal e uma porta por worktree). Nenhum processo foi morto por este portão.\n',
+  }
+}
+
+/**
+ * A barreira que roda ANTES do cargo: devolve o passo vermelho quando o build
+ * não cabe no disco, ou `null` quando cabe.
+ *
+ * MEDIDO em 21/09/2026: `rust-test` saiu verde e, cinco minutos depois,
+ * vermelho com `os error 112` — mesmo commit, zero linhas mudadas. O portão já
+ * sabia traduzir esse vermelho depois do estrago (ver `rodarPasso`); o que
+ * faltava era não causá-lo. Com o alvo FRIO e 5,76 GB livres, a conta é
+ * conhecida antes de começar: 5,50 GB de build contra 2,76 GB utilizáveis
+ * acima do piso. Este é o passo que se recusa a tentar.
+ */
+function vereditoDeDiscoParaCargo(passo, livreGb, quente, ms) {
+  const conta = contaDeDisco(livreGb, quente)
+  if (conta.cabe) return null
+  return {
+    id: passo.id,
+    titulo: passo.titulo,
+    codigo: 1,
+    ms,
+    ok: false,
+    falsoVerde: false,
+    ruina: [],
+    ambiente: true,
+    saida:
+      'VERMELHO DE AMBIENTE — o cargo NÃO foi chamado, e a causa NÃO é a peça.\n' +
+      'livre ' + livreGb.toFixed(2) + ' GB; esta rodada precisa de ' + conta.necessidadeGb.toFixed(2) + ' GB (piso ' +
+      PISO_DE_DISCO_GB + ' GB + ' + conta.aEscreverGb.toFixed(2) + ' GB de build) — faltam ' + (-conta.folgaGb).toFixed(2) + ' GB.\n' +
+      'alvo do cargo: ' + ALVO_DO_CARGO + ' — ' + (quente ? 'QUENTE (build incremental)' : 'FRIO (build do zero)') + '\n' +
+      'chamar o cargo aqui encheria o disco no meio do build (`os error 112`) e deixaria a máquina pior do que está, sem medir ' +
+      'nada. Rode `node scripts/portao.cjs --so=disco` para a conta, aponte `PORTAO_ALVO_DO_CARGO` para um target já quente, ou ' +
+      'libere espaço. Nenhum arquivo foi apagado por este portão.\n',
+  }
+}
+
 async function rodarPasso(passo) {
   const t0 = Date.now()
   let codigo
@@ -2765,10 +3062,22 @@ async function rodarPasso(passo) {
     // começar, então sem isto cada jornada apagaria o screenshot e o trace da
     // anterior. Sempre em %TEMP% (Invariante 7: nada fora de pasta temporária).
     const ambiente = Object.assign({}, process.env)
-    // Ver `ALVO_DO_CARGO`: um diretório de build para todas as árvores, senão
-    // cada worktree da rodada deixa 5,5 GB para trás e o passo `disco` fica
-    // vermelho para quem chegar depois.
-    if (passo.cargo) ambiente.CARGO_TARGET_DIR = ALVO_DO_CARGO
+    // Ver `ALVO_DO_CARGO`: um diretório de build para todas as árvores, e o da
+    // árvore principal, que já está quente — senão cada worktree da rodada
+    // deixa 5,5 GB para trás e o passo `disco` fica vermelho para quem chegar
+    // depois. E ANTES de chamar o cargo, a conta de disco: encher o disco no
+    // meio de um build é o vermelho mais caro que este portão já produziu.
+    if (passo.cargo) {
+      ambiente.CARGO_TARGET_DIR = ALVO_DO_CARGO
+      const estado = fs.statfsSync(RAIZ)
+      const barreira = vereditoDeDiscoParaCargo(
+        passo,
+        (estado.bfree * estado.bsize) / 1e9,
+        cargoQuente(ALVO_DO_CARGO),
+        Date.now() - t0,
+      )
+      if (barreira) return barreira
+    }
     let aviso = ''
     if (passo.artefatos) {
       ambiente.PORTAO_ARTEFATOS = path.join(ARTEFATOS, passo.id + '-' + t0)
@@ -2790,27 +3099,13 @@ async function rodarPasso(passo) {
         // porta, a árvore e o PID de quem a segura — e quem lê sabe que não é
         // com a peça que ele tem de falar. Continua vermelho de propósito: sem
         // jornada rodada, ninguém tem prova de nada.
-        const donos = quemOcupaAPorta(PORTA_DAS_JORNADAS)
-        return {
-          id: passo.id,
-          titulo: passo.titulo,
-          codigo: 1,
-          ms: Date.now() - t0,
-          ok: false,
-          falsoVerde: false,
-          ruina: [],
-          ambiente: true,
-          saida:
-            'VERMELHO DE AMBIENTE — nenhuma jornada rodou, e a causa NÃO é a peça.\n' +
-            'a porta ' + PORTA_DAS_JORNADAS + ' desta árvore (' + RAIZ + ') continuou ocupada depois de ' +
-            porta.esperou + ' ms de espera.\n' +
-            (donos.length > 0 ? 'quem a segura agora: ' + donos.join(', ') + '\n' : 'não consegui identificar o processo que a segura.\n') +
-            'com `reuseExistingServer` desligado (client/playwright.config.ts), o Playwright recusa a subir o servidor e sai sem ' +
-            'rodar um teste sequer — e o filtro do rtk resume esse aborto como "PASS (0) FAIL (0)", que passa por verde para quem ' +
-            'lê rápido. Por isso o portão nem chamou o Playwright.\n' +
-            'o que fazer: feche o servidor acima, ou rode este comando de dentro do worktree da peça, que tem porta própria ' +
-            '(client/porta.js dá 1420 na árvore principal e uma porta por worktree). Nenhum processo foi morto por este portão.\n',
-        }
+        return vereditoDePortaOcupada(
+          passo,
+          PORTA_DAS_JORNADAS,
+          porta.esperou,
+          quemOcupaAPorta(PORTA_DAS_JORNADAS),
+          Date.now() - t0,
+        )
       } else if (porta.esperou >= 500) {
         aviso = 'nota: esperei ' + porta.esperou + ' ms a porta ' + PORTA_DAS_JORNADAS + ' ser liberada pelo passo anterior.\n'
       }
@@ -3065,7 +3360,7 @@ function selar() {
  * Autoteste: cada guarda tem de REPROVAR a entrada ruim conhecida e APROVAR a
  * boa. Sem isto não dá para saber se uma guarda virou decoração.
  */
-function rodarAutoteste() {
+async function rodarAutoteste() {
   // `arquivosMudados` devolve lista, não veredito: aqui ela vira caso de
   // autoteste comparando a lista medida com a esperada.
   const provaDeMedida = (nome, porcelain, diff, esperado) => {
@@ -3788,6 +4083,45 @@ function rodarAutoteste() {
         ['g28 aprova clippy que nomeou o crate DESTA árvore', guardaFalsoVerde('g28', passo, 0, linhaDoCrate(RAIZ) + finished), true],
       ]
     })(),
+    // --- disco antes do cargo (21/09/2026) --------------------------------
+    //
+    // A conta entra por PARÂMETRO, e não pelo disco da máquina: teste que lê o
+    // disco de verdade aprova ou reprova conforme a hora do dia e não reprova
+    // nada de propósito nunca. Os números são os medidos nesta máquina na
+    // madrugada de 21/09/2026 — 5,76 GB livres, build frio de 5,50 GB.
+    ...(() => {
+      const passo = PLANO.find((p) => p.id === 'rust-clippy')
+      const barrou = (livreGb, quente) => {
+        const r = vereditoDeDiscoParaCargo(passo, livreGb, quente, 1)
+        return r === null ? ok('g30-disco-antes-do-cargo', 'deixou o cargo rodar') : reprova('g30-disco-antes-do-cargo', r.saida.split('\n')[1])
+      }
+      return [
+        ['g30 barra o cargo com alvo FRIO e o disco de hoje (5,76 GB)', barrou(5.76, false), false],
+        ['g30 barra o cargo com alvo quente e disco no osso (3,50 GB)', barrou(3.5, true), false],
+        ['g30 deixa passar alvo QUENTE com o disco de hoje (5,76 GB)', barrou(5.76, true), true],
+        ['g30 deixa passar alvo frio quando o disco comporta o build (20 GB)', barrou(20, false), true],
+      ]
+    })(),
+    // --- recibo da regressão (21/09/2026) ---------------------------------
+    //
+    // O aviso "REGRESSÃO SEM MEDIDA" não reprovava nada: a rodada saía verde
+    // com as jornadas de regressão nunca rodadas. Estes casos são o dente do
+    // passo `regressao-em-dia` — os quatro jeitos de não ter medido.
+    ...(() => {
+      const esperados = [{ id: 'jornadas-e2e', specs: ['e2e/a.spec.ts', 'e2e/b.spec.ts'] }]
+      const bom = { id: 'jornadas-e2e', raiz: '/arvore', identidade: 'sha1', specs: ['e2e/a.spec.ts', 'e2e/b.spec.ts'], quando: 'agora' }
+      const julgar = (recibo) => {
+        const r = julgarRecibosDeRegressao(esperados, { 'jornadas-e2e': recibo }, 'sha1', '/arvore')
+        return r.ok ? ok('g31-recibo-da-regressao', r.emDia.join('; ')) : reprova('g31-recibo-da-regressao', r.faltas.join('; '))
+      }
+      return [
+        ['g31 reprova regressão sem recibo nenhum', julgar(null), false],
+        ['g31 reprova recibo tirado em OUTRA árvore', julgar(Object.assign({}, bom, { raiz: '/outra' })), false],
+        ['g31 reprova recibo de um estado anterior da árvore', julgar(Object.assign({}, bom, { identidade: 'sha0' })), false],
+        ['g31 reprova recibo com a lista de specs encolhida', julgar(Object.assign({}, bom, { specs: ['e2e/a.spec.ts'] })), false],
+        ['g31 aprova recibo verde desta árvore neste estado', julgar(bom), true],
+      ]
+    })(),
     // --- escala da unidade (18/09/2026) -----------------------------------
     // O passo `unidade` com os MESMOS pisos do PLANO, contra relatórios de
     // vitest sintéticos. Sem estes casos, o piso seria texto: é exatamente o
@@ -3870,11 +4204,92 @@ function rodarAutoteste() {
     ['g24 aprova suíte do mesmo tamanho', guardaEscalaDaUnidade(['src/a.test.ts'], ['src/a.test.ts'], { ref: 'base' }), true],
     ['g24 aprova suíte que cresceu', guardaEscalaDaUnidade(['src/a.test.ts', 'src/b.test.ts'], ['src/a.test.ts'], { ref: 'base' }), true],
   ]
-  return casos.map(([nome, resultado, esperado]) => ({
+  const sinteticos = casos.map(([nome, resultado, esperado]) => ({
     id: nome,
     ok: resultado.ok === esperado,
     detalhe: 'esperado ' + (esperado ? 'APROVA' : 'REPROVA') + ', veio ' + (resultado.ok ? 'APROVA' : 'REPROVA') + ' — ' + resultado.detalhe,
   }))
+  // O único caso que NÃO é sintético: uma porta de verdade, ocupada de verdade.
+  return sinteticos.concat(await casosDePortaOcupada())
+}
+
+/**
+ * O ramo "VERMELHO DE AMBIENTE — porta ocupada", exercitado DE VERDADE.
+ *
+ * O juiz de 21/09/2026: "o código novo de `quemOcupaAPorta` + VERMELHO DE
+ * AMBIENTE NÃO foi exercitado — a porta do worktree estava livre, então esse
+ * ramo só foi LIDO, nao rodado. Não há autoteste cobrindo ele." Aqui o teste
+ * ABRE um servidor numa porta livre do sistema, faz o portão descobrir sozinho
+ * que ela está ocupada, confere que ele NOMEIA o PID (que é o deste processo, o
+ * único dono possível) e que o veredito sai vermelho com a palavra AMBIENTE.
+ * Depois fecha o servidor e cobra o controle negativo: porta livre não acusa
+ * ninguém. Nada é morto e nada é escrito — e a porta é sorteada pelo sistema
+ * (`listen(0)`), então isto não disputa a porta de jornada de árvore nenhuma.
+ */
+async function casosDePortaOcupada() {
+  const caso = (id, passou, detalhe) => ({ id, ok: passou, detalhe })
+  const passo = jornada('autoteste-porta-ocupada', 'passo de jornada que NÃO deve ser chamado', ['e2e/nao-roda.spec.ts'])
+  const reusa = process.env.LAB_REUSA_SERVIDOR
+  const servidor = net.createServer(() => {})
+  const resultados = []
+  try {
+    // `LAB_REUSA_SERVIDOR=1` dispensa a espera de propósito (ali o servidor no
+    // ar é o que se quer reaproveitar); o que está sob teste é o outro caminho.
+    delete process.env.LAB_REUSA_SERVIDOR
+    await new Promise((resolve, reject) => {
+      servidor.once('error', reject)
+      servidor.listen(0, '127.0.0.1', resolve)
+    })
+    const porta = servidor.address().port
+    const ocupada = await esperarPortaLivre(porta, 1200)
+    resultados.push(
+      caso(
+        'g29 enxerga porta REALMENTE ocupada (servidor aberto por este teste)',
+        ocupada.ocupada === true && ocupada.dispensada !== true,
+        'porta ' + porta + ', esperou ' + ocupada.esperou + ' ms e continuou ocupada: ' + ocupada.ocupada,
+      ),
+    )
+    const donos = quemOcupaAPorta(porta)
+    resultados.push(
+      caso(
+        'g29 nomeia o PID que segura a porta',
+        process.platform !== 'win32' || donos.some((d) => d.indexOf('PID ' + process.pid + ' ') === 0),
+        'esperava PID ' + process.pid + ', veio: ' + (donos.join(', ') || '(ninguém)'),
+      ),
+    )
+    const veredito = vereditoDePortaOcupada(passo, porta, ocupada.esperou, donos, 1)
+    resultados.push(
+      caso(
+        'g29 devolve VERMELHO DE AMBIENTE, sem chamar o Playwright',
+        veredito.ok === false &&
+          veredito.ambiente === true &&
+          veredito.codigo === 1 &&
+          /VERMELHO DE AMBIENTE/.test(veredito.saida) &&
+          veredito.saida.indexOf(String(porta)) !== -1,
+        'ok=' + veredito.ok + ', ambiente=' + veredito.ambiente + ', primeira linha: ' + veredito.saida.split('\n')[0],
+      ),
+    )
+    await new Promise((resolve) => servidor.close(resolve))
+    const livre = await esperarPortaLivre(porta, 1200)
+    resultados.push(
+      caso(
+        'g29 NÃO acusa porta livre (controle negativo, mesma porta depois de fechar)',
+        livre.ocupada === false,
+        'porta ' + porta + ' depois do close: ocupada=' + livre.ocupada + ' em ' + livre.esperou + ' ms',
+      ),
+    )
+  } catch (e) {
+    resultados.push(caso('g29 porta ocupada de verdade', false, 'o autoteste não conseguiu abrir a porta: ' + String((e && e.message) || e)))
+  } finally {
+    try {
+      servidor.close()
+    } catch (e) {
+      // já fechado pelo controle negativo
+    }
+    if (reusa === undefined) delete process.env.LAB_REUSA_SERVIDOR
+    else process.env.LAB_REUSA_SERVIDOR = reusa
+  }
+  return resultados
 }
 
 /**
@@ -3914,7 +4329,8 @@ function imprimirForaDaVolta(foraDaVolta, recorteChamado, prova) {
         '  ATENÇÃO — REGRESSÃO SEM MEDIDA nesta chamada: `' + p.id + '` (' + (p.specs || []).length + ' spec(s)) não rodou.\n' +
         '    ' + (p.specs || []).join(', ') + '\n' +
         '    é o lado do portão que promete verde em TODA volta; sem este comando a promessa não foi medida.\n' +
-        '    rode: node scripts/portao.cjs --so=' + p.id + '\n'
+        '    rode: node scripts/portao.cjs --so=' + p.id + '\n' +
+        '    enquanto ele não rodar VERDE nesta árvore, o passo `regressao-em-dia` fica VERMELHO (recibo, não aviso).\n'
     }
   }
   process.stdout.write(texto + '\n')
@@ -4053,7 +4469,7 @@ async function principal() {
   }
 
   if (argv.includes('--autoteste')) {
-    const r = rodarAutoteste()
+    const r = await rodarAutoteste()
     imprimir('autoteste das guardas', r)
     const maus = r.filter((x) => !x.ok)
     process.stdout.write('\n' + (maus.length === 0 ? 'TODAS as guardas reprovam a entrada ruim conhecida.' : maus.length + ' guarda(s) sem dente.') + '\n')
@@ -4092,6 +4508,8 @@ async function principal() {
   const resultados = []
   for (const passo of passos) {
     const r = await rodarPasso(passo)
+    // Passo de regressão verde deixa recibo; é dele que `regressao-em-dia` vive.
+    escreverRecibo(passo, r)
     resultados.push(r)
     process.stdout.write(
       (r.ok ? 'VERDE  ' : 'VERMELHO') + ' ' + r.id + ' (' + r.ms + ' ms, exit ' + r.codigo + ')' + (r.falsoVerde ? ' FALSO-VERDE: saiu 0 com ' + r.ruina.join(', ') : '') + ' — ' + r.titulo + '\n',

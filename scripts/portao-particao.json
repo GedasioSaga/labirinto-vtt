@@ -76,12 +76,14 @@
     ]
   },
   "_apelido_r4_portao": "A peca do portao desta volta commita em `auto/r4-portao`, e o id que o passo `particao` le do nome do ramo e `r4-portao`. Ele entra em `apelidos`.`portao` — e NAO como peca nova — pelo mesmo motivo que `_pecas_r3` escreveu para `r3-portao`: e a MESMA peca (mesma area `scripts/**`, mesmo alvo `scripts/portao.cjs`, mesmo juiz), e duplicar a entrada duplicaria tambem quem tem direito de reescrever este arquivo. O ramo `auto/r3-portao` ja estava ocupado por outro worktree, com trabalho nao commitado e cortado de um commit que nao e a base desta rodada (5bd6054 em vez de 86843fc): commitar nele exigiria merge ou rebase, os dois proibidos.",
+  "_apelido_r3_portao_b5": "A volta de conserto do portao (21/09/2026, madrugada) commita em `auto/r3-portao-b5`, e por isso `r3-portao-b5` entra em `apelidos`.`portao` pelo mesmo motivo de `_apelido_r4_portao`: e a MESMA peca, mesma area `scripts/**`, mesmo juiz (`base`.`origem`, que ela nao move). O nome pedido para a peca era `auto/r3-portao`, mas ele ja esta com checkout em outro worktree vivo (wf_eabcffe3-b68-3, com trabalho proprio cortado de 5bd6054): usar o mesmo ramo em duas arvores e recusado pelo git, e forcar exigiria merge ou rebase, os dois proibidos neste run. O sufixo `-b5` e o worktree desta volta.",
   "apelidos": {
     "portao": [
       "gate",
       "fase0",
       "portao-acervo",
-      "r4-portao"
+      "r4-portao",
+      "r3-portao-b5"
     ],
     "teto": [
       "teto-de-construcao",
