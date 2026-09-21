@@ -22,6 +22,14 @@ export type DrawingTool =
   | 'measure'
   | 'eraser'
   | 'floor'
+  /**
+   * Caminho: a trilha de terra/pedra/tábua traçada ponto a ponto, com a cor
+   * DAQUELE caminho escolhida no painel ANTES do primeiro ponto. Não é chão
+   * (`floor`, cuja cor é do mapa inteiro) nem forma de desenho (`cluster:drawing`,
+   * que fala de linha e polígono): é uma COISA própria, e é por isso que dois
+   * caminhos convivem no mesmo mapa com duas cores diferentes.
+   */
+  | 'path'
   | 'concealZone'
   | 'pin'
 

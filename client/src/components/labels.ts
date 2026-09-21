@@ -35,6 +35,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   measure: 'Medir',
   eraser: 'Borracha',
   floor: 'Chão',
+  path: 'Caminho',
   concealZone: 'Zona oculta',
   pin: 'Pino',
 }
@@ -102,6 +103,7 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   text: 'Clique pra colocar um rótulo — edite o texto no painel.',
   measure: 'Clique e arraste para medir a distância entre dois pontos.',
   eraser: 'Clique ou arraste sobre um item do mapa para apagá-lo.',
+  path: 'Escolha a cor DESTE caminho no painel e clique ponto a ponto. Duplo clique ou Enter termina; Backspace tira o último ponto; Esc cancela. Cada caminho guarda a cor dele.',
   floor: 'Arraste para criar uma peça de chão (forma e Somar/Subtrair na setinha). Corredor: clique ponto a ponto, duplo clique ou Enter termina, Esc cancela.',
   concealZone: 'Arraste para marcar uma área que os jogadores não veem. Clique numa zona para editar o nome ou revelá-la.',
   pin: 'Clique no mapa para cravar um ponto de interesse. No painel, escolha o ícone (baú, armadilha, chave...), escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
@@ -139,7 +141,10 @@ export const TOOLBAR_SLOTS: ToolbarSlot[][] = [
   // roomFree entra logo depois das outras Salas: é a quarta forma da MESMA
   // entidade, e ficar ao lado delas é o que faz o usuário achar a ferramenta
   // no lugar onde já procura por sala.
-  ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree', 'floor', 'stair', 'prop', 'concealZone'],
+  // Caminho fica colado no Chão, e NÃO dentro do grupo Desenho: quem quer uma
+  // trilha de terra procura onde mora o piso, não onde moram linha e polígono
+  // — e, ao contrário das formas do grupo, cada caminho carrega a própria cor.
+  ['wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree', 'floor', 'path', 'stair', 'prop', 'concealZone'],
   // Pino fica com Texto/Medir: os três são anotação por cima da planta, não construção.
   ['cluster:drawing', 'text', 'pin', 'measure', 'eraser'],
 ]

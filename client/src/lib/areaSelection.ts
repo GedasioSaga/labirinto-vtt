@@ -279,6 +279,11 @@ function drawingEntity(drawing: Drawing): AreaGeometryEntity {
       }
     case 'polygon':
       return { kind: 'polygon', points: drawing.points }
+    case 'path':
+      // Traço ABERTO, como freehand/curve: a trilha nunca fecha sozinha, e
+      // tratá-la como polígono selecionaria por engano tudo o que estivesse
+      // dentro da área que ela contorna.
+      return { kind: 'polyline', points: drawing.points }
   }
 }
 
@@ -507,6 +512,7 @@ function moveDrawingItem(drawing: Drawing, dx: number, dy: number): Drawing {
     case 'ellipse':
       return { ...drawing, cx: drawing.cx + dx, cy: drawing.cy + dy }
     case 'polygon':
+    case 'path':
       return { ...drawing, points: drawing.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) }
   }
 }

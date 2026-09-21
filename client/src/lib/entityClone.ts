@@ -254,6 +254,7 @@ export function cloneDrawing(drawing: Drawing, offset: Offset): Drawing {
     case 'ellipse':
       return { ...drawing, id, cx: drawing.cx + offset.dx, cy: drawing.cy + offset.dy }
     case 'polygon':
+    case 'path':
       return { ...drawing, id, points: offsetPoints(drawing.points, offset) }
     default:
       return assertNeverDrawingKind(drawing)

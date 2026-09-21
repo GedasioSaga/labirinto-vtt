@@ -260,6 +260,7 @@ function drawingSamplePoints(drawing: Drawing): RegionPoint[] {
   switch (drawing.kind) {
     case 'freehand':
     case 'curve':
+    case 'path':
       return drawing.points
     case 'polygon':
       return interiorSamples(drawing.points, drawing.points)

@@ -55,6 +55,11 @@ export type PropertyGroupId =
   | 'concealZone'
   /** Tipo (! / ?), descrição e imagem do ponto de interesse. */
   | 'pin'
+  /** Cor e largura do PRÓXIMO caminho (ferramenta "Caminho"), escolhidas
+   *  ANTES do primeiro ponto — é o que separa um caminho de terra de um de
+   *  pedra. Não é dual como `regionStyle`: caminho JÁ traçado se edita pelo
+   *  `drawingStyle` do desenho selecionado, que já cobre cor e espessura. */
+  | 'pathStyle'
 
 /** Todos os IDs, na mesma ordem do type acima — usado pelo teste pra
  *  conferir exaustão sem precisar listar os valores de novo lá. */
@@ -63,7 +68,7 @@ export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'wallStyle', 'wallDoor', 'doorKind', 'portal', 'itemTransform', 'tokenImage',
   'lightControls', 'stairControls', 'stairSize', 'room',
   'layers', 'selection',
-  'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone', 'pin',
+  'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone', 'pin', 'pathStyle',
 ]
 
 /**
@@ -317,6 +322,12 @@ export function relevantPropertyGroups(
   // Pino: com a ferramenta na mão aparece só o tipo do PRÓXIMO pino; com um
   // pino aberto no painel, o tipo dele mais descrição e imagem.
   if (activeTool === 'pin' || pin) groups.add('pin')
+
+  // Caminho: com a ferramenta na mão, a cor e a largura do PRÓXIMO caminho.
+  // Sem `drawingKind === 'path'` de propósito — o caminho já traçado e
+  // selecionado cai em `drawingStyle` (cor + espessura do desenho
+  // selecionado), e duplicar aqui poria dois seletores de cor na mesma tela.
+  if (activeTool === 'path') groups.add('pathStyle')
 
   const hasAnySelection =
     wall || prop || token || textLabel || region || light || stair || drawingKind !== null || floorPiece

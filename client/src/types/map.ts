@@ -416,6 +416,20 @@ export type Drawing = PlayerSecret & (
   | { id: string; kind: 'rect'; x: number; y: number; w: number; h: number; color: string; width: number; filled: boolean; fillAlpha: number }
   | { id: string; kind: 'ellipse'; cx: number; cy: number; rx: number; ry: number; color: string; width: number; filled: boolean; fillAlpha: number }
   | { id: string; kind: 'polygon'; points: DrawingPoint[]; color: string; width: number; filled: boolean; fillAlpha: number }
+  /**
+   * CAMINHO (ferramenta "Caminho", `types/tools.ts`): trilha traçada ponto a
+   * ponto, com a cor DAQUELE caminho. Traço aberto como `freehand`/`curve` —
+   * `points` em ordem, `width` em px de MUNDO (a largura em células que o
+   * painel mostra é convertida com `map.grid` na hora de criar, para o caminho
+   * não mudar de grossura quando a grade do mapa muda) e `color` próprio, que
+   * é o que faz um caminho de terra e um de pedra conviverem sem um repintar o
+   * outro.
+   *
+   * Kind NOVO, nunca escrito por versão anterior: mapa salvo antes desta
+   * feature abre igual e não precisa de linha de migração em `lib/mapFile.ts`
+   * — mesma regra dos campos opcionais `cap`/`dash`/`texture` acima.
+   */
+  | { id: string; kind: 'path'; points: DrawingPoint[]; color: string; width: number }
 )
 
 export type StairDirection = 'up' | 'down'

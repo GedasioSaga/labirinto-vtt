@@ -248,6 +248,10 @@ function App() {
   const setDrawFontSize = useMapStore((state) => state.setDrawFontSize)
   const drawFontFamily = useMapStore((state) => state.drawFontFamily)
   const setDrawFontFamily = useMapStore((state) => state.setDrawFontFamily)
+  const pathColor = useMapStore((state) => state.pathColor)
+  const setPathColor = useMapStore((state) => state.setPathColor)
+  const pathWidthCells = useMapStore((state) => state.pathWidthCells)
+  const setPathWidthCells = useMapStore((state) => state.setPathWidthCells)
   const polygonSides = useMapStore((state) => state.polygonSides)
   const setPolygonSides = useMapStore((state) => state.setPolygonSides)
   const regionFillColor = useMapStore((state) => state.regionFillColor)
@@ -1544,6 +1548,12 @@ function App() {
               fontFamily: drawFontFamily,
               onFontFamilyChange: setDrawFontFamily,
               showFontSize: activeTool === 'text',
+            }}
+            pathStyle={{
+              color: pathColor,
+              onColorChange: setPathColor,
+              widthCells: pathWidthCells,
+              onWidthCellsChange: setPathWidthCells,
             }}
             grid={{
               showGrid,
