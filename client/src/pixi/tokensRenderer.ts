@@ -54,6 +54,19 @@ interface TokenEntry {
   /** `Token.image` já carregado no `sprite` atual, ou null enquanto nenhuma
    *  imagem foi carregada ainda (token sem imagem, ou sprite recém-criado). */
   loadedSrc: string | null
+  /** `Token.imageData` que acompanhava a foto carregada. É a TESTEMUNHA DO
+   *  CONTEÚDO: `loadedSrc` sozinho não serve porque trocar a foto grava por
+   *  cima do MESMO arquivo (`token_<id>_original.<ext>`, lib/imageImport.ts) e
+   *  o caminho fica idêntico dos dois lados da troca. A cópia embutida é
+   *  derivada dos BYTES da foto escolhida (lib/tokenPhoto.ts), então muda
+   *  junto com o conteúdo. */
+  loadedData: string | null
+  /** Última URL de ARQUIVO que este token entregou ao `Assets.load` (o caminho
+   *  já passado por `convertFileSrc`); null enquanto ele nunca carregou foto de
+   *  arquivo, ou depois de perder a imagem. Foto embutida não passa pelo
+   *  `Assets` e não mexe aqui. É por este campo que se sabe QUANDO o cache do
+   *  Pixi precisa ser descarregado — ver `textureDoArquivo`. */
+  loadedUrl: string | null
   /** Incrementado a cada novo Assets.load disparado para este token. O
    *  callback assíncrono só aplica a textura se o contador não mudou nesse
    *  meio-tempo — protege contra: (a) o token trocar de imagem de novo antes
@@ -142,6 +155,8 @@ export function createTokensRenderer(): TokensRenderer {
       // carregada, senão reatribuir a MESMA imagem depois não dispara reload
       // (o guard de loadedSrc abaixo compara contra este campo).
       entry.loadedSrc = null
+      entry.loadedData = null
+      entry.loadedUrl = null
     }
     if (!entry.graphics) {
       const graphics = new Graphics()
@@ -149,6 +164,36 @@ export function createTokensRenderer(): TokensRenderer {
       entry.wrapper.addChildAt(graphics, 0)
     }
     return entry.graphics
+  }
+
+  /**
+   * Textura de um arquivo do disco do mestre, ignorando a cópia que o Pixi
+   * guardou para aquela URL quando o ARQUIVO mudou embaixo dela.
+   *
+   * `Assets.load` é um cache por URL, e a URL de uma foto de token não muda
+   * quando a pessoa troca a foto: `lib/imageImport.ts` grava sempre por cima
+   * de `token_<id>_original.<ext>`. Sem descarregar, o `load` devolveria a
+   * textura velha sem chegar a tocar no disco — a pessoa escolhe uma cara nova
+   * e continua vendo a antiga.
+   *
+   * Descarrega SÓ quando esta mesma URL já tinha sido carregada por ESTE token:
+   * quem chama já só entra aqui quando o conteúdo mudou (nunca por quadro), e
+   * descarregar uma URL que este token nunca carregou destruiria a textura de
+   * outro dono (o fundo do mapa, uma peça) sem motivo. `Assets.unload` de uma
+   * URL fora do cache é operação nula, então o caminho comum não paga nada.
+   *
+   * O sprite volta para `Texture.EMPTY` ANTES do `unload`: `unload` destrói a
+   * textura, e deixar o sprite apontando para textura destruída é erro de
+   * render até a foto nova chegar.
+   */
+  async function textureDoArquivo(entry: TokenEntry, url: string): Promise<Texture> {
+    if (entry.loadedUrl === url) {
+      if (entry.sprite) entry.sprite.texture = Texture.EMPTY
+      entry.loadedUrl = null
+      await Assets.unload(url)
+    }
+    entry.loadedUrl = url
+    return Assets.load<Texture>(url)
   }
 
   function draw(container: Container, tokens: Token[], gridSize: number, selectedTokenId: string | null = null, cameraScale?: number): void {
@@ -171,7 +216,7 @@ export function createTokensRenderer(): TokensRenderer {
         const label = new Text({ text: '', style: { fontSize: TOKEN_LABEL_FONT_SIZE, fill: 0xffffff } })
         label.anchor.set(0.5, 0)
         wrapper.addChild(ring, label)
-        entry = { wrapper, sprite: null, photoMask: null, graphics: null, ring, label, loadedSrc: null, loadToken: 0 }
+        entry = { wrapper, sprite: null, photoMask: null, graphics: null, ring, label, loadedSrc: null, loadedData: null, loadedUrl: null, loadToken: 0 }
         cache.set(token.id, entry)
         container.addChild(wrapper)
       }
@@ -201,7 +246,22 @@ export function createTokensRenderer(): TokensRenderer {
         // (types/map.ts documenta Token.rotation undefined === 0).
         sprite.rotation = rotationToRadians(token.rotation)
 
-        if (entry.loadedSrc !== photoRef) {
+        // CONTEÚDO, não só nome de arquivo. Trocar a foto de um token grava a
+        // foto nova por cima do MESMO caminho, então `photoRef` é idêntico dos
+        // dois lados da troca e sozinho ele deixaria a cara velha na tela. A
+        // cópia embutida (`imageData`) é gerada a partir dos bytes da foto
+        // escolhida, então é ela quem denuncia a troca.
+        //
+        // Os dois lados da comparação são as MESMAS instâncias de string que o
+        // store guarda enquanto a foto não muda — comparar não aloca nada e não
+        // percorre a base64: quadro que não trocou de foto sai por aqui na
+        // primeira comparação, sem `Assets.load` nenhum.
+        //
+        // Limite conhecido: quando a cópia embutida não pôde ser gerada
+        // (`null`, o melhor esforço de App.tsx, que já avisa a pessoa), não
+        // sobra testemunha do conteúdo e o comportamento volta a ser o antigo.
+        const photoData = token.imageData ?? null
+        if (entry.loadedSrc !== photoRef || entry.loadedData !== photoData) {
           entry.loadToken += 1
           const localLoadToken = entry.loadToken
           const currentEntry = entry
@@ -217,12 +277,15 @@ export function createTokensRenderer(): TokensRenderer {
           // tem uma foto embutida só.
           const warnKey = isTokenPhotoData(imagePath) ? `token:${token.id}` : imagePath
           entry.loadedSrc = photoRef
+          entry.loadedData = photoData
           // Foto embutida (a que veio do jogador, ou a cópia que viaja) não
           // passa por `convertFileSrc`: ela já é auto-contida, e o Assets do
           // Pixi não sabe carregar data URL (ver pixi/tokenPhotoSprite.ts).
+          // Ela também não precisa de descarga de cache: a própria referência
+          // É o conteúdo, então conteúdo novo já é URL nova.
           const carregar: Promise<Texture> = isTokenPhotoData(imagePath)
             ? textureFromDataUrl(imagePath)
-            : Assets.load<Texture>(convertFileSrc(imagePath))
+            : textureDoArquivo(currentEntry, convertFileSrc(imagePath))
           carregar
             .then((texture) => {
               if (cache.get(token.id) !== currentEntry || currentEntry.loadToken !== localLoadToken || !currentEntry.sprite) return
