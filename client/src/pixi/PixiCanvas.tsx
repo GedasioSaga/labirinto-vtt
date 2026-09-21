@@ -1545,6 +1545,110 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       // ruído em cima do próprio gesto.
       let panPathLearned = false
 
+      /**
+       * RÓTULO RECÉM-CRIADO RECEBENDO O TECLADO (achado 2 do passeio de
+       * 20/09/2026; jornada `texto-recebe-o-que-se-digita`). Com a ferramenta
+       * Texto, clicar no mapa criava um rótulo escrito "Rótulo" e NADA ligava
+       * o teclado a ele: cada letra caía em `resolveShortcut` e virava atalho
+       * de ferramenta (S=Escada, A=Polígono). Quem digitava `SAIDA` escrevia
+       * nada e trocava de ferramenta quatro vezes, sem aviso nenhum.
+       *
+       * A trava mora AQUI e não em `lib/keymap.ts` de propósito: a guarda de
+       * lá (`isEditableTarget`) só reconhece INPUT/TEXTAREA/SELECT, e o rótulo
+       * é um `PIXI.Text` desenhado no canvas, não um campo do DOM. Quem sabe
+       * que existe um rótulo em edição é este módulo — e só enquanto ele
+       * souber disso a letra deixa de ser atalho. Fora da edição
+       * (`textEditingId === null`, o estado normal), nada muda: a tecla segue
+       * exatamente o mesmo caminho de antes.
+       */
+      let textEditingId: string | null = null
+      /**
+       * O conteúdo com que o rótulo nasceu ("Rótulo") ainda está inteiro
+       * "selecionado": a próxima letra o SUBSTITUI, em vez de se somar a ele.
+       * É a convenção de Excalidraw e Figma — quem crava e digita `SAIDA`
+       * termina com `SAIDA`, não com `RótuloSAIDA`.
+       */
+      let textEditingReplacesAll = false
+
+      const endTextEditing = () => {
+        textEditingId = null
+        textEditingReplacesAll = false
+      }
+
+      /**
+       * Enquanto o rótulo recém-criado edita, letra é letra e não atalho.
+       * Devolve `true` quando consumiu a tecla — aí `onKeyDown` para ali e
+       * `resolveShortcut` nem chega a ser consultado. Devolve `false` quando
+       * a tecla não é digitação (ou quando não há mais edição de pé), e a
+       * tecla segue o caminho normal de atalho.
+       */
+      const handleTextEditingKey = (event: KeyboardEvent): boolean => {
+        const id = textEditingId
+        if (id === null) return false
+
+        // O rótulo pode ter sumido debaixo da edição — um Ctrl+Z no meio da
+        // digitação desfaz a própria criação. Escrever num id morto seria
+        // silêncio puro: a edição morre junto e a tecla volta a valer.
+        const label = useMapStore.getState().map.drawings.find((d) => d.id === id)
+        if (label === undefined || label.kind !== 'text') {
+          endTextEditing()
+          return false
+        }
+
+        // A edição vale só enquanto o rótulo continua sendo O selecionado. Se
+        // a seleção mudou por outro caminho (Ctrl+A, painel de camadas), quem
+        // digita não está mais escrevendo nele e a tecla volta a ser atalho.
+        const { selection } = useMapStore.getState()
+        const primeiro = selection.length === 1 ? selection[0] : undefined
+        if (primeiro === undefined || primeiro.kind !== 'drawing' || primeiro.id !== id) {
+          endTextEditing()
+          return false
+        }
+
+        // Ctrl/Cmd seguem globais: Ctrl+Z, Ctrl+S e Ctrl+O valem digitando,
+        // como valem dentro de qualquer campo de texto do painel.
+        if (event.ctrlKey || event.metaKey) return false
+
+        const escrever = (texto: string) => {
+          useMapStore.getState().updateTextLabel(id, { text: texto })
+          textEditingReplacesAll = false
+        }
+
+        // Enter e Escape FECHAM a edição — daí em diante a letra é atalho de
+        // novo. São consumidos: o Enter reacionaria o botão da barra que ainda
+        // tem o foco, e o Escape largaria a seleção no mesmo gesto em que
+        // fecha a edição (dois efeitos numa tecla só).
+        if (event.key === 'Enter' || event.key === 'Escape') {
+          event.preventDefault()
+          endTextEditing()
+          return true
+        }
+
+        // Backspace e Delete NÃO podem cair no `deleteSelected`: o selecionado
+        // é justamente o rótulo que está sendo escrito, e apagá-lo inteiro no
+        // meio da digitação é o pior desfecho possível. Backspace tira a
+        // última letra; Delete não tem para onde apagar (não há cursor de
+        // texto no mapa) e fica sem efeito, de propósito.
+        if (event.key === 'Backspace') {
+          event.preventDefault()
+          escrever(textEditingReplacesAll ? '' : label.text.slice(0, -1))
+          return true
+        }
+        if (event.key === 'Delete') {
+          event.preventDefault()
+          return true
+        }
+
+        // Só tecla que PRODUZ caractere entra no rótulo. `key.length === 1`
+        // cobre letra, dígito, pontuação e o espaço (que fora daqui armaria o
+        // pan); deixa de fora `ArrowLeft`, `Tab`, `F5` e companhia, que seguem
+        // para quem já as tratava.
+        if (event.key.length !== 1) return false
+        event.preventDefault()
+        escrever(textEditingReplacesAll ? event.key : label.text + event.key)
+        return true
+      }
+
       const toWorldPoint = (globalX: number, globalY: number) => ({
         x: (globalX - camera.x) / camera.scale,
         y: (globalY - camera.y) / camera.scale,
@@ -2272,11 +2376,19 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
 
       const unsubscribeActiveTool = useMapStore.subscribe((state) => state.activeTool, () => {
         clearDrafts()
+        // Trocar de ferramenta é sair de vez do rótulo: com a Escada na mão,
+        // a próxima tecla tem de voltar a ser atalho.
+        endTextEditing()
         updateCursor()
         redrawShapes()
       })
 
       app.stage.on('pointerdown', (event) => {
+        // Clicar em qualquer lugar do mapa encerra a edição do rótulo
+        // anterior. O bloco da ferramenta Texto, mais abaixo, religa a edição
+        // no rótulo que ESTE mesmo clique cria.
+        endTextEditing()
+
         // Onda 2, item 15 (Frente B) — o anel de hover só existe em
         // `mode === 'idle'`; qualquer gesto que comece agora entra num modo
         // que não roda mais `resolveHoverAtIdle`, então sem isto o anel
@@ -2580,6 +2692,12 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
           const { addDrawing, drawColor, drawFontSize, drawFontFamily, setSelection: select } = useMapStore.getState()
           addDrawing(buildTextDrawing(id, point, drawColor, drawFontSize, drawFontFamily))
           select(selectionOfItem({ kind: 'drawing', id }))
+          // O rótulo nasce PRONTO para receber o teclado, com o conteúdo
+          // inicial ainda inteiro "selecionado" — a primeira letra o
+          // substitui. É o gesto de todo editor de desenho: clicar com a
+          // ferramenta Texto e sair digitando.
+          textEditingId = id
+          textEditingReplacesAll = true
           return
         }
 
@@ -4524,6 +4642,21 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
       }
 
       const onKeyDown = (event: KeyboardEvent) => {
+        // Rótulo recém-criado em edição: enquanto ele recebe o teclado, letra
+        // é letra e não atalho de ferramenta. Vem ANTES de tudo — inclusive do
+        // laser (L) e do Espaço=pan — porque esses também são teclas que
+        // alguém pode querer escrever dentro do rótulo.
+        //
+        // Com o foco DENTRO de um campo do DOM quem manda é o campo: digitar
+        // no painel lateral fecha a edição no mapa em vez de escrever duas
+        // vezes no mesmo rótulo.
+        if (textEditingId !== null) {
+          const alvo = event.target as HTMLElement | null
+          const tag = alvo?.tagName ?? ''
+          if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') endTextEditing()
+          else if (handleTextEditingKey(event)) return
+        }
+
         // B2 — L com o ponteiro sobre o canvas: segurar liga o laser; o toque
         // curto vira o atalho da Linha só no keyup (releaseLaserKey). Fora do
         // canvas, L segue direto para `resolveShortcut` como antes.
