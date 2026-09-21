@@ -28,6 +28,8 @@ const leituraFalhaEm = new Set<string>()
  * sair do disco.
  */
 const remocaoFalhaEm = new Set<string>()
+/** Pastas que o sistema recusa LISTAR — pendrive arrancado, permissão negada na pasta. */
+const listagemFalhaEm = new Set<string>()
 
 const APPDATA = 'C:/Users/test/AppData/Roaming/labirinto'
 const PASTA = `${APPDATA}/tokens`
@@ -63,6 +65,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
     pastas.add(path)
   }),
   readDir: vi.fn(async (dir: string) => {
+    if (listagemFalhaEm.has(dir)) throw new Error('Access is denied. (os error 5)')
     const prefixo = `${dir}/`
     const nomes = [...textos.keys(), ...binarios.keys()]
       .filter((caminho) => caminho.startsWith(prefixo))
@@ -127,6 +130,7 @@ beforeEach(() => {
   pastas.clear()
   leituraFalhaEm.clear()
   remocaoFalhaEm.clear()
+  listagemFalhaEm.clear()
 })
 
 describe('leitura que falha nunca é confundida com acervo vazio', () => {
@@ -381,6 +385,27 @@ describe('quando o disco recusa apagar a foto', () => {
 
     expect(binarios.has(`${PASTA}/${solto}`)).toBe(false)
     expect(fotoSobrouNoDisco(erro) ? erro.arquivos : []).toEqual([preso])
+  })
+
+  it('nem LISTAR a pasta deu: o nome vem do índice, que é o único que ainda sabe', async () => {
+    const item = await salvarNoAcervo(tokenComFoto)
+    listagemFalhaEm.add(PASTA)
+
+    const erro = await apagarDoAcervo(item.id).catch((causa: unknown) => causa)
+
+    expect(fotoSobrouNoDisco(erro) ? erro.arquivos : []).toEqual([item.arquivo])
+  })
+
+  it('nem LISTAR deu E o id não está no índice: sobra o prefixo, não um nome inventado', async () => {
+    // Nenhum item gravado — `alvo` é `undefined` e não há `arquivo` de onde
+    // tirar nome. É o caso em que todo campo opcional está ausente, e ele tem
+    // de avisar assim mesmo, porque a pasta pode ter ficado com lixo.
+    pastas.add(PASTA)
+    listagemFalhaEm.add(PASTA)
+
+    const erro = await apagarDoAcervo('id-que-nao-existe').catch((causa: unknown) => causa)
+
+    expect(fotoSobrouNoDisco(erro) ? erro.arquivos : []).toEqual(['token_id-que-nao-existe*'])
   })
 
   it('remoção que dá certo continua SEM aviso nenhum', async () => {
