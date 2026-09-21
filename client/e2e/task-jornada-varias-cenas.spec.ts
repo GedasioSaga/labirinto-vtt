@@ -281,13 +281,16 @@ interface CaixaDoChao {
 
 /**
  * Caixa que envolve todo pixel com a cor do chão de sala, na foto do canvas.
- * Só DECODIFICA o PNG num canvas solto: não toca no app.
+ * Só conta pixel em que o CANVAS está por cima: o rail e os painéis ficam sobre
+ * o canvas e mostram amostras com a mesma cor do chão (a "Cor" da seção Região,
+ * com a ferramenta Sala ativa), que não são sala desenhada.
+ * Só DECODIFICA o PNG num canvas solto e pergunta `elementFromPoint`: não toca no app.
  */
 async function caixaDoChao(page: Page, chao: Cor): Promise<CaixaDoChao> {
   const c = await caixaDoCanvas(page)
   const foto = await fotografar(page, { x: c.x, y: c.y, width: c.width, height: c.height })
   return page.evaluate(
-    async ({ b64, chao, tolerancia, minimo }) => {
+    async ({ b64, chao, tolerancia, minimo, origem }) => {
       const bmp = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob())
       const tela = document.createElement('canvas')
       tela.width = bmp.width
@@ -296,6 +299,22 @@ async function caixaDoChao(page: Page, chao: Cor): Promise<CaixaDoChao> {
       if (!ctx) throw new Error('sem contexto 2d para ler a foto')
       ctx.drawImage(bmp, 0, 0)
       const { data, width, height } = ctx.getImageData(0, 0, bmp.width, bmp.height)
+      // Quem está por cima em cada bloco de 4x4 px da foto, perguntado no centro do bloco.
+      const canvasDoMapa = document.querySelector('canvas')
+      const escalaX = origem.width / width
+      const escalaY = origem.height / height
+      const canvasPorCima = new Map<number, boolean>()
+      const canvasVisivel = (x: number, y: number): boolean => {
+        const bx = x >> 2
+        const by = y >> 2
+        const chave = by * 65536 + bx
+        let visivel = canvasPorCima.get(chave)
+        if (visivel === undefined) {
+          visivel = document.elementFromPoint(origem.x + (bx * 4 + 2) * escalaX, origem.y + (by * 4 + 2) * escalaY) === canvasDoMapa
+          canvasPorCima.set(chave, visivel)
+        }
+        return visivel
+      }
       const porColuna = new Array<number>(width).fill(0)
       const porLinha = new Array<number>(height).fill(0)
       let pixels = 0
@@ -304,7 +323,7 @@ async function caixaDoChao(page: Page, chao: Cor): Promise<CaixaDoChao> {
           const i = (y * width + x) * 4
           const perto =
             Math.abs(data[i] - chao[0]) <= tolerancia && Math.abs(data[i + 1] - chao[1]) <= tolerancia && Math.abs(data[i + 2] - chao[2]) <= tolerancia
-          if (!perto) continue
+          if (!perto || !canvasVisivel(x, y)) continue
           pixels += 1
           porColuna[x] += 1
           porLinha[y] += 1
@@ -319,7 +338,7 @@ async function caixaDoChao(page: Page, chao: Cor): Promise<CaixaDoChao> {
       }
       return { pixels, largura: extensao(porColuna), altura: extensao(porLinha) }
     },
-    { b64: foto.toString('base64'), chao, tolerancia: TOLERANCIA_CHAO, minimo: PIXELS_MINIMOS_POR_LINHA },
+    { b64: foto.toString('base64'), chao, tolerancia: TOLERANCIA_CHAO, minimo: PIXELS_MINIMOS_POR_LINHA, origem: c },
   )
 }
 
@@ -384,8 +403,9 @@ async function desenharSala(page: Page, r: Retangulo, nomeDaSala: string): Promi
   await page.keyboard.type(nomeDaSala)
   await page.keyboard.press('Enter')
   await expect(nome).toHaveCount(0)
-  // Esc devolve a ferramenta de seleção e tira a sala recém-criada da seleção,
-  // para as alças de seleção não sujarem a foto.
+  // Esc tira a sala recém-criada da seleção, para as alças não sujarem a foto.
+  // (A ferramenta continua a Sala; a amostra de cor dela no rail fica fora da
+  // régua porque `caixaDoChao` só lê onde o canvas está por cima.)
   await page.keyboard.press('Escape')
 }
 
