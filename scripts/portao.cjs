@@ -438,6 +438,9 @@ const JORNADAS_DO_CRITERIO = [
   // Entrega 2 do mesmo plano: pino de viagem no editor, ligado em mão dupla a
   // um pino de chegada noutra cena, e o painel dizendo para onde leva.
   'e2e/task-jornada-pino-de-viagem.spec.ts',
+  // Entrega 3 do mesmo plano: cada jogador no mapa em que está o token dele,
+  // indo para outra cena pelo pino de viagem com pedido e aprovação do mestre.
+  'e2e/task-jornada-viagem-do-jogador.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
