@@ -488,3 +488,24 @@ imagem que o próprio disco falso devolve (`convertFileSrc` do stub responde a m
 qualquer caminho com `token_`), então ela não testemunha o mapeamento item→arquivo. Os 22 testes de
 unidade novos cobrem esse mapeamento; fechar o buraco na jornada pede uma jornada nova, e a atual
 está selada.
+
+## Pedido de 21/09/2026, manhã (registro literal)
+
+"Pode continuar as fazer as features, mas eu quero que faça um coisa em especifico primeiro e deois
+você volta no automatico: 1-Eu quero que você faça um pino especial que ao clicar o jogador é enviado
+para outro mapa, e eu gostaria que pensasse em um forma de ter varios mapas, na mesma sessão."
+
+### Decisões do usuário (21/09/2026, perguntadas uma a uma)
+
+- **Modelo:** cada jogador no seu mapa — o grupo pode se separar.
+- **Gatilho:** o jogador pede, o mestre aprova.
+- **Chegada:** num pino par no mapa de destino; o mesmo pino leva de volta.
+- **Confirmação:** o jogador confirma antes de mandar o pedido.
+- **Portal antigo** (peça de cenário com "Entrar no andar"): substituir e remover; o destino dele vira
+  um mapa da aventura.
+- Continuam valendo as de 17/09: aventura = pasta com as cenas, caminho relativo; quem fica vê o token
+  sumir; o editor do mestre não segue o jogador ("Fulano entrou em X" com **Ir lá**).
+
+Plano aprovado: `C:\Users\gedasio.filho\.claude\plans\immutable-inventing-acorn.md`, em três entregas —
+(1) aventura com várias cenas no editor; (2) pino de viagem no editor; (3) cada jogador no seu mapa,
+com pedido e aprovação. Depois das três, volta a fila automática do `HANDOFF.md`.
