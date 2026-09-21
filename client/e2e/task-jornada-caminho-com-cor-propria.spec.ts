@@ -283,6 +283,19 @@ test('dois caminhos, duas cores: cada caminho aparece na cor escolhida no painel
     `o segundo caminho não saiu na cor escolhida: pedi ${COR_DO_CAMINHO_B} e a tela mostra ${comoTexto(b)}`,
   ).toBeLessThanOrEqual(TOLERANCIA)
 
+  // CONTROLE POSITIVO DA RÉGUA, dentro deste mesmo teste: as medidas acima são
+  // todas tetos, e teto aprova app morto (se nada foi desenhado, todo ponto lê
+  // o fundo e a distância cai). Estas duas exigem DIFERENÇA: com o mapa vazio
+  // os três pontos leriam a mesma cor e estas linhas ficariam vermelhas.
+  expect(
+    distancia(a, b),
+    `os dois caminhos saíram da mesma cor: ${comoTexto(a)} e ${comoTexto(b)} — a régua não está separando um do outro`,
+  ).toBeGreaterThan(TOLERANCIA * 3)
+  expect(
+    distancia(b, COR_DO_FUNDO),
+    `o segundo caminho não se distingue do fundo: tela ${comoTexto(b)}, fundo ${comoTexto(COR_DO_FUNDO)} — nada foi desenhado ali`,
+  ).toBeGreaterThan(TOLERANCIA * 3)
+
   // OS DOIS AO MESMO TEMPO: pintar o segundo não pode ter levado o primeiro
   // junto — é exatamente o que "Cor do chão" faz hoje.
   const aDepois = await corNaTela(page, MEIO_DO_A)
