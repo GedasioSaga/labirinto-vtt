@@ -95,6 +95,7 @@ import {
   drawLightDraft,
 } from './drawDraft'
 import { snapPointForTarget } from './tokenInteraction'
+import { seatTokenCenter, tokenSizeInSquares } from '../lib/tokenSize'
 import {
   isValidWallDraft,
   buildWallFromDraft,
@@ -1688,12 +1689,25 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
        * deixaria um call site esquecido compilar limpo e silenciosamente sem
        * snap por alvo nem Alt — obrigatório faz o `tsc --noEmit` listar todo
        * call site que ainda não foi atualizado.
+       *
+       * `tokenCells` é o lado da ficha em quadrados, e é o ÚNICO parâmetro com
+       * default aqui: `1` é exatamente o que todo call site fazia antes de
+       * existir escolha de tamanho, então quem não passa nada continua com o
+       * comportamento de sempre. Só a ficha de lado PAR muda de regra — ela
+       * assenta na linha da grade, não no centro da célula (`seatTokenCenter`,
+       * lib/tokenSize.ts), senão um disco de 2 quadrados fica meio fora dos
+       * quatro quadrados que deveria cobrir.
        */
-      const applySnap = (point: Point, gridSize: number, target: SnapTargetKind, altKey: boolean): Point => {
+      const applySnap = (point: Point, gridSize: number, target: SnapTargetKind, altKey: boolean, tokenCells = 1): Point => {
         const { map, snapTargets } = useMapStore.getState()
         const enabled = altKey ? !snapTargets[target] : snapTargets[target]
         if (!enabled) return point
-        return snapPointForTarget(target, map.gridShape, point.x, point.y, gridSize)
+        const snapped = snapPointForTarget(target, map.gridShape, point.x, point.y, gridSize)
+        // Só na grade quadrada: hex e triângulo têm centro de célula próprio
+        // (`snapToHexGrid`/`triGrid.ts`), e "linha da grade" ali não é a
+        // mesma coisa.
+        if (map.gridShape !== 'square') return snapped
+        return seatTokenCenter(point, snapped, gridSize, tokenCells)
       }
 
       /**
@@ -3952,7 +3966,10 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         if (mode === 'dragging-token' && draggingTokenId) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map } = useMapStore.getState()
-          const snapped = applySnap(worldPoint, map.grid, 'token', event.altKey)
+          // O tamanho da ficha arrastada decide ONDE ela assenta: a de lado
+          // par gruda na linha da grade, a de lado ímpar no centro da célula.
+          const cells = tokenSizeInSquares(map.tokens.find((token) => token.id === draggingTokenId))
+          const snapped = applySnap(worldPoint, map.grid, 'token', event.altKey, cells)
           const candidates = map.tokens
             .filter((token) => token.id !== draggingTokenId)
             .map((token) => ({ x: token.x, y: token.y }))

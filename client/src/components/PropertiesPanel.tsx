@@ -23,6 +23,8 @@ import { tokenPhotoRef } from '../lib/tokenPhoto'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { TokenNameControls, type TokenNameControlsProps } from './TokenNameControls'
 import { TokenColorControls, type TokenColorControlsProps } from './TokenColorControls'
+import { TokenSizeControls, type TokenSizeControlsProps } from './TokenSizeControls'
+import { selectedTokenSize } from '../lib/tokenSize'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
@@ -99,6 +101,9 @@ interface PropertiesPanelProps {
   tokenImage: Omit<TokenImageControlsProps, 'image'>
   /** Cor da ficha selecionada — separa aliado de inimigo no meio da luta. */
   tokenColor: Omit<TokenColorControlsProps, 'color'>
+  /** Tamanho da ficha em QUADRADOS da grade — para o dragão não ficar do
+   *  tamanho do rato. */
+  tokenSize: Omit<TokenSizeControlsProps, 'size'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -171,6 +176,7 @@ export function PropertiesPanel({
   tokenName,
   tokenImage,
   tokenColor,
+  tokenSize,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -388,6 +394,10 @@ export function PropertiesPanel({
         {selectedToken && (
           <ToolPropertiesSection group="tokenImage" groups={groups}>
             <TokenNameControls name={selectedToken.name} {...tokenName} />
+            {/* Logo depois do nome: quem acabou de criar "Dragão" quer dizer
+                em seguida que ele é grande — e o tamanho manda no que a peça
+                cobre na grade, então vem antes da aparência (cor, foto). */}
+            <TokenSizeControls size={selectedTokenSize(selectedToken)} {...tokenSize} />
             {/* Antes da imagem: a cor é o caminho de um clique, a foto é o de
                 abrir o disco. Quem só quer separar aliado de inimigo não
                 precisa passar pelo controle caro para chegar no barato. */}
