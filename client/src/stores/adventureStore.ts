@@ -1,8 +1,22 @@
 import { create } from 'zustand'
-import type { MapData } from '../types/map'
-import type { Camera } from '../pixi/world'
+import type { MapData, Pin, PinDestination } from '../types/map'
+import type { Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
 import { ADVENTURE_VERSION, baseName, cleanSceneName, newSceneId, sceneFileFor, type Adventure, type SceneEntry } from '../lib/adventure'
+import {
+  arrivalPoint,
+  linkBack,
+  pinFocusPoint,
+  resolvePinTravel,
+  sameDestination,
+  travelLinkChanges,
+  travelPinOptions,
+  unlinkBack,
+  type PinTravel,
+  type TravelPinOption,
+  type TravelScene,
+  type TravelSceneOption,
+} from '../lib/pinTravel'
 import { mapDirFor, saveAdventureToDisk, scenePath, type OpenedMapFile } from '../lib/mapFileIO'
 import { dirname } from '@tauri-apps/api/path'
 import { useMapStore } from './mapStore'
@@ -42,6 +56,12 @@ export type SceneSlot =
  */
 export interface CameraRequest {
   camera: Camera | null
+  /**
+   * Chegada por um pino de viagem: o ponto do mundo que fica no centro da
+   * tela, com o zoom de `camera` (ou o de agora, na cena nunca vista). Ausente
+   * na troca comum pela lista de Cenas.
+   */
+  focus?: Point
 }
 
 /** Uma linha da lista "Cenas". */
@@ -83,10 +103,30 @@ interface AdventureState {
   /** Cria a cena, já aberta. `loosePath` é o arquivo do mapa solto, quando a aventura nasce agora. */
   createScene: (name: string, loosePath: string | null) => string
   renameScene: (sceneId: string, name: string) => void
-  /** Troca a cena aberta. `false` quando não há o que trocar (mesma cena, cena indisponível). */
-  switchScene: (sceneId: string) => boolean
+  /**
+   * Troca a cena aberta. `false` quando não há o que trocar (mesma cena, cena
+   * indisponível). `focus` centraliza a câmera nesse ponto da cena que entra.
+   */
+  switchScene: (sceneId: string, focus?: Point) => boolean
   /** Muda uma cena de FUNDO sem passar pelo desfazer da cena aberta. */
   updateBackgroundScene: (sceneId: string, updater: (map: MapData) => MapData) => void
+  /**
+   * Liga o pino de viagem `pinId` (da cena aberta) a um pino de chegada NOVO,
+   * que nasce no centro de `sceneId`. A volta é gravada pelo guardião da mão
+   * dupla (ver `syncTravelLinks`). Devolve o id da chegada, ou `null` se não
+   * deu para ligar.
+   */
+  linkPinToNewArrival: (pinId: string, sceneId: string) => string | null
+  /** Liga o pino de viagem `pinId` ao pino de viagem `partnerId`, que já existe em `sceneId`. */
+  linkPinToExisting: (pinId: string, sceneId: string, partnerId: string) => boolean
+  /** Desliga o pino e, pelo guardião, o par dele. Entra no desfazer da cena aberta. */
+  unlinkPin: (pinId: string) => void
+  /**
+   * Leva a visão do mestre pelo pino ligado: abre a cena de destino com o par
+   * no centro da tela e aberto no painel. `false` quando o pino não leva a
+   * lugar nenhum.
+   */
+  travelThroughPin: (pinId: string) => boolean
   /** Há cena de fundo ou lista de cenas esperando gravação? (A cena aberta é o `useSessionStore` que diz.) */
   hasPendingScenes: () => boolean
   /** Grava a aventura inteira e devolve o caminho da cena aberta. */
@@ -121,10 +161,69 @@ export function sceneList(state: Pick<AdventureState, 'adventure' | 'activeScene
   })
 }
 
+type SceneState = Pick<AdventureState, 'adventure' | 'activeSceneId' | 'cache'>
+
+/**
+ * As cenas da aventura como a ligação dos pinos de viagem as enxerga: a
+ * aberta pelo mapa vivo, as de fundo pelo cache. Cena fora da aventura é `null`.
+ */
+function sceneLookup(state: SceneState, liveMap: MapData): (sceneId: string) => TravelScene | null {
+  return (sceneId) => {
+    const entry = state.adventure?.scenes.find((scene) => scene.id === sceneId)
+    if (entry === undefined) return null
+    if (sceneId === state.activeSceneId) return { name: entry.name, map: liveMap }
+    const slot = state.cache[sceneId]
+    return { name: entry.name, map: slot !== undefined && slot.status === 'ok' ? slot.map : null }
+  }
+}
+
+/** Para onde o pino da cena aberta leva — o que o painel diz e o que o clique faz. */
+export function pinTravelOf(state: SceneState, liveMap: MapData, pin: Pin): PinTravel {
+  return resolvePinTravel(pin, state.activeSceneId, sceneLookup(state, liveMap))
+}
+
+/** Pinos de viagem da cena aberta que não levam a lugar nenhum: o canvas os desenha apagados. */
+export function unlinkedTravelPinIds(state: SceneState, liveMap: MapData): Set<string> {
+  const ids = new Set<string>()
+  const lookup = sceneLookup(state, liveMap)
+  for (const pin of liveMap.pins) {
+    if (pin.kind === 'viagem' && resolvePinTravel(pin, state.activeSceneId, lookup).status !== 'ligado') ids.add(pin.id)
+  }
+  return ids
+}
+
+/** As cenas para onde um pino da cena aberta pode levar: todas as outras. */
+export function travelSceneOptions(state: SceneState): TravelSceneOption[] {
+  if (state.adventure === null) return []
+  return state.adventure.scenes
+    .filter((entry) => entry.id !== state.activeSceneId)
+    .map((entry) => {
+      const slot = state.cache[entry.id]
+      return { id: entry.id, name: entry.name, available: slot !== undefined && slot.status === 'ok' }
+    })
+}
+
+/** Os pinos de viagem de `sceneId` que o pino `pinId` da cena aberta pode escolher como par. */
+export function pinTravelOptions(state: SceneState, liveMap: MapData, sceneId: string, pinId: string): TravelPinOption[] {
+  return travelPinOptions(sceneId, state.activeSceneId, pinId, sceneLookup(state, liveMap))
+}
+
+/**
+ * `true` enquanto uma cena ENTRA no editor. `loadMap` troca o mapa inteiro, e
+ * isso não é edição: sem esta trava o guardião da mão dupla leria os pinos da
+ * cena que saiu como "apagados" e desligaria todos os pares deles.
+ */
+let sceneLoading = false
+
 /** Põe um mapa no editor com o desfazer que ele já tinha, e marca esse ponto como "igual ao cache". */
 function showInEditor(map: MapData, past: MapData[], future: MapData[]): void {
-  useMapStore.getState().loadMap(map)
-  useMapStore.setState({ past, future })
+  sceneLoading = true
+  try {
+    useMapStore.getState().loadMap(map)
+    useMapStore.setState({ past, future })
+  } finally {
+    sceneLoading = false
+  }
   useSessionStore.getState().markSaved()
 }
 
@@ -195,7 +294,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     })
   },
 
-  switchScene: (sceneId) => {
+  switchScene: (sceneId, focus) => {
     const { activeSceneId, cache, dirty } = get()
     if (activeSceneId === null || sceneId === activeSceneId) return false
     const target = cache[sceneId]
@@ -215,7 +314,8 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       activeSceneId: sceneId,
       previousSceneId: activeSceneId,
       // Cena nunca vista nesta sessão (camera null) é enquadrada pelo canvas.
-      cameraRequest: { camera: target.camera },
+      // Chegada por pino: a câmera centraliza o pino par, no zoom da cena.
+      cameraRequest: focus === undefined ? { camera: target.camera } : { camera: target.camera, focus },
     })
     showInEditor(target.map, target.past, target.future)
     return true
@@ -228,6 +328,56 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const map = updater(slot.map)
     if (map === slot.map) return
     set({ cache: { ...cache, [sceneId]: { ...slot, map } }, dirty: { ...dirty, [sceneId]: true } })
+  },
+
+  linkPinToNewArrival: (pinId, sceneId) => {
+    const { activeSceneId, cache } = get()
+    const pin = useMapStore.getState().map.pins.find((p) => p.id === pinId)
+    const slot = cache[sceneId]
+    if (pin === undefined || pin.kind !== 'viagem' || activeSceneId === null || sceneId === activeSceneId) return null
+    if (slot === undefined || slot.status !== 'ok') return null
+    // A chegada nasce SEM destino: quem grava a volta é o guardião, quando a
+    // ida é gravada logo abaixo — o mesmo caminho do desfazer e do refazer.
+    const arrival = mapFactory.buildPin(crypto.randomUUID(), arrivalPoint(slot.map), 'viagem')
+    get().updateBackgroundScene(sceneId, (map) => mapFactory.addPin(map, arrival))
+    useMapStore.getState().updatePin(pinId, { destino: { sceneId, pinId: arrival.id } })
+    return arrival.id
+  },
+
+  linkPinToExisting: (pinId, sceneId, partnerId) => {
+    const { activeSceneId, cache } = get()
+    const live = useMapStore.getState().map
+    const pin = live.pins.find((p) => p.id === pinId)
+    const slot = cache[sceneId]
+    if (pin === undefined || pin.kind !== 'viagem' || activeSceneId === null || sceneId === activeSceneId) return false
+    if (slot === undefined || slot.status !== 'ok') return false
+    const partner = slot.map.pins.find((p) => p.id === partnerId)
+    if (partner === undefined || partner.kind !== 'viagem') return false
+    const destino: PinDestination = { sceneId, pinId: partnerId }
+    // Um par, uma volta: outro pino DESTA cena que chegava no mesmo par perde a
+    // ligação antes — senão dois pinos daqui levariam ao lugar que só traz um de volta.
+    for (const other of live.pins) {
+      if (other.id !== pinId && sameDestination(other.destino, destino)) useMapStore.getState().updatePin(other.id, { destino: null })
+    }
+    useMapStore.getState().updatePin(pinId, { destino })
+    return true
+  },
+
+  unlinkPin: (pinId) => {
+    useMapStore.getState().updatePin(pinId, { destino: null })
+  },
+
+  travelThroughPin: (pinId) => {
+    const live = useMapStore.getState().map
+    const pin = live.pins.find((p) => p.id === pinId)
+    if (pin === undefined) return false
+    const travel = pinTravelOf(get(), live, pin)
+    if (travel.status !== 'ligado') return false
+    if (!get().switchScene(travel.sceneId, pinFocusPoint(travel.partner))) return false
+    // O par aberto no painel: é ele que diz "leva de volta a …" e é nele que
+    // o próximo clique atravessa de volta.
+    useMapStore.getState().setSelectedPin(travel.partner.id)
+    return true
   },
 
   hasPendingScenes: () => {
@@ -274,4 +424,50 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
 /** Leitura síncrona para quem pergunta "há trabalho não salvo?" (fechar janela, trocar de mapa). */
 export function hasUnsavedWork(): boolean {
   return useSessionStore.getState().isDirty || useAdventureStore.getState().hasPendingScenes()
+}
+
+/**
+ * GUARDIÃO DA MÃO DUPLA do pino de viagem.
+ *
+ * O mestre só edita a cena ABERTA; o par de um pino de viagem mora sempre em
+ * OUTRA cena. Então toda mudança de ligação vista aqui — ligar, desligar,
+ * religar, apagar o pino, deixar de ser viagem, e também o Ctrl+Z e o Ctrl+Y
+ * de qualquer uma delas — é espelhada no par, na cena de fundo, por
+ * `updateBackgroundScene`: fora do desfazer da cena aberta, como toda mudança
+ * de cena de fundo. Um lugar só, em vez de um remendo em cada botão, atalho e
+ * borracha que tira pino do mapa.
+ *
+ * Só olha EDIÇÃO: troca de cena (`sceneLoading`) e mapa de outro id (abrir,
+ * criar) não são mudança de pino, são outro mapa entrando.
+ *
+ * Liga-se UMA VEZ, na raiz do app, como `subscribeToDirtyFlag`:
+ * `useEffect(() => subscribeToTravelLinks(), [])`. Devolve o cancelamento.
+ */
+export function subscribeToTravelLinks(): () => void {
+  return useMapStore.subscribe((state) => state.map, syncTravelLinks)
+}
+
+function syncTravelLinks(after: MapData, before: MapData): void {
+  if (sceneLoading || after.pins === before.pins || after.id !== before.id) return
+  const { adventure, activeSceneId } = useAdventureStore.getState()
+  if (adventure === null || activeSceneId === null) return
+  for (const change of travelLinkChanges(before.pins, after.pins)) {
+    const daqui: PinDestination = { sceneId: activeSceneId, pinId: change.pinId }
+    // O par antigo, se ainda voltava para cá, fica sem destino.
+    if (change.before !== null && change.before.sceneId !== activeSceneId) {
+      const antigo = change.before
+      useAdventureStore.getState().updateBackgroundScene(antigo.sceneId, (map) => unlinkBack(map, antigo.pinId, daqui))
+    }
+    // O par novo passa a voltar para cá — e quem ele trazia antes perde a volta.
+    if (change.after !== null && change.after.sceneId !== activeSceneId) {
+      const novo = change.after
+      const slot = useAdventureStore.getState().cache[novo.sceneId]
+      if (slot === undefined || slot.status !== 'ok') continue
+      const { map, displaced } = linkBack(slot.map, novo.pinId, daqui)
+      useAdventureStore.getState().updateBackgroundScene(novo.sceneId, () => map)
+      if (displaced !== null && displaced.sceneId !== activeSceneId) {
+        useAdventureStore.getState().updateBackgroundScene(displaced.sceneId, (outro) => unlinkBack(outro, displaced.pinId, novo))
+      }
+    }
+  }
 }

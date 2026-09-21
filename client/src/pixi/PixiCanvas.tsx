@@ -5,6 +5,7 @@ import { currentRendererResolution, watchDevicePixelRatio } from './rendererReso
 import type { MapData, Pin, Region, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
+import { pinTravelOf, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
@@ -324,6 +325,14 @@ const VERTEX_MAGNET_TOLERANCE = 12
 const PIN_TAP_TOLERANCE_PX = 6
 
 /**
+ * Pino de viagem com a Selecionar: até esta distância (px de TELA) entre
+ * apertar e soltar, o gesto é CLIQUE e atravessa a passagem; passou disso, é
+ * arrasto e move o pino. O mesmo limiar do arrasto de Região: a mão treme um
+ * pouco no clique, e esse tremor não pode virar "mover o pino 2 px".
+ */
+const TRAVEL_CLICK_SLOP_PX = REGION_DRAG_THRESHOLD
+
+/**
  * Traçado ponto a ponto — quanto tempo pode passar entre SOLTAR um toque e
  * APERTAR o seguinte para os dois ainda contarem como "duplo clique".
  *
@@ -403,8 +412,16 @@ interface PixiCanvasProps {
    * `camera` volta à vista que a cena tinha; `null` enquadra o conteúdo, como
    * na abertura do mapa. Cada troca é um objeto novo — a ponte reage à
    * identidade, no molde de `resetZoomRequest`, sem remontar o canvas.
+   * `focus` (chegada por pino de viagem) põe esse ponto do mundo no centro da
+   * tela, no zoom de `camera` ou no de agora.
    */
-  cameraRequest?: { camera: Camera | null } | null
+  cameraRequest?: { camera: Camera | null; focus?: Point } | null
+  /**
+   * Clique (sem arrasto) num pino de VIAGEM com a ferramenta Selecionar: o App
+   * leva a visão do mestre pela passagem. Com a ferramenta Pino o mesmo clique
+   * só abre o painel, como em todo pino.
+   */
+  onTravelPin?: (pinId: string) => void
   /**
    * A3 — chamada quando Sala, Sala Circular ou Polígono Regular termina de ser
    * desenhada (a região já está no mapa e selecionada). O nome é pedido aqui
@@ -444,12 +461,17 @@ export function PixiCanvas({
   onRoomCreated,
   onPlaceToken,
   onLaserMove,
+  onTravelPin,
 }: PixiCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const onLaserMoveRef = useRef(onLaserMove)
   useEffect(() => {
     onLaserMoveRef.current = onLaserMove
   }, [onLaserMove])
+  const onTravelPinRef = useRef(onTravelPin)
+  useEffect(() => {
+    onTravelPinRef.current = onTravelPin
+  }, [onTravelPin])
   // Mesma ponte de ref das outras props: o setup roda uma vez só e precisa
   // enxergar sempre a callback mais recente do App.
   const onRoomCreatedRef = useRef(onRoomCreated)
@@ -512,9 +534,9 @@ export function PixiCanvas({
 
   // Mesma ponte, para a câmera de cada cena. Pedido que chega antes do
   // `setup()` terminar é descartado: a montagem já enquadra o mapa aberto.
-  const cameraRequestRef = useRef<((camera: Camera | null) => void) | null>(null)
+  const cameraRequestRef = useRef<((request: { camera: Camera | null; focus?: Point }) => void) | null>(null)
   useEffect(() => {
-    if (cameraRequest !== null) cameraRequestRef.current?.(cameraRequest.camera)
+    if (cameraRequest !== null) cameraRequestRef.current?.(cameraRequest)
   }, [cameraRequest])
 
   useEffect(() => {
@@ -755,7 +777,17 @@ export function PixiCanvas({
       fitToContent()
       // Troca de cena: volta à câmera que a cena tinha, ou enquadra a cena
       // vista pela primeira vez (cena vazia mantém a câmera, ver acima).
-      cameraRequestRef.current = (requested) => (requested ? applyCamera(requested) : fitToContent())
+      // Chegada por pino de viagem: o pino par no centro da tela, no zoom que
+      // a cena tinha (ou no de agora) — o mestre vê de cara por onde entrou.
+      cameraRequestRef.current = ({ camera: requested, focus }) => {
+        if (focus !== undefined) {
+          const scale = requested?.scale ?? camera.scale
+          applyCamera({ scale, x: app.screen.width / 2 - focus.x * scale, y: app.screen.height / 2 - focus.y * scale })
+          return
+        }
+        if (requested) applyCamera(requested)
+        else fitToContent()
+      }
 
       // B1 — ondas animadas precisam de quadro a quadro; a store só diz quais sinais estão vivos.
       const signalsRenderer = createSignalsRenderer()
@@ -1017,6 +1049,22 @@ export function PixiCanvas({
         drawEditHandles(handlesGraphics, map, selectionSingle(selection), activeTool)
       }
 
+      /**
+       * Pinos do mestre. Pino "Oculto no editor" some daqui como qualquer outro
+       * item do mestre; pino de viagem sem par sai apagado — e o par mora em
+       * OUTRA cena, então quem pede este redesenho é também a assinatura da
+       * aventura (ver `unsubscribeTravelLinks`), não só `map.pins`.
+       */
+      const redrawPins = () => {
+        const { map, selectedPinId } = useMapStore.getState()
+        pinsRenderer.draw(
+          pinsContainer,
+          visiblePins(map.pins, map.hiddenLayers).filter((pin) => !pin.hidden),
+          selectedPinId,
+          unlinkedTravelPinIds(useAdventureStore.getState(), map),
+        )
+      }
+
       const redrawShapes = () => {
         const { map, selection } = useMapStore.getState()
         // Onda 4, item 24 — `selection` é um SelectionSet agora; o destaque
@@ -1057,12 +1105,7 @@ export function PixiCanvas({
         redrawStairs()
         redrawLights()
         concealZonesRenderer.draw(concealZonesContainer, map.concealZones, map.grid, useMapStore.getState().selectedConcealZoneId)
-        // Pino "Oculto no editor" some daqui como qualquer outro item do mestre.
-        pinsRenderer.draw(
-          pinsContainer,
-          visiblePins(map.pins, map.hiddenLayers).filter((pin) => !pin.hidden),
-          useMapStore.getState().selectedPinId,
-        )
+        redrawPins()
         textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
         redrawEditHandles()
         // N3 (agora genérico, não só marquee): contorno do GRUPO — só com 2+
@@ -1279,6 +1322,14 @@ export function PixiCanvas({
         textResolutionTask.flush()
       })
       const unsubscribeShapes = subscribeToShapesRedraw(redrawShapes)
+      // O par de um pino de viagem mora numa cena de FUNDO: ligar, desligar ou
+      // apagar o par muda o cache da aventura sem tocar em `map.pins` daqui, e
+      // o pino daqui precisa acender ou apagar mesmo assim.
+      const unsubscribeTravelLinks = useAdventureStore.subscribe((state, previous) => {
+        if (state.cache !== previous.cache || state.adventure !== previous.adventure || state.activeSceneId !== previous.activeSceneId) {
+          redrawPins()
+        }
+      })
       const unsubscribeTokens = subscribeToTokensRedraw(redrawTokens)
       const unsubscribeProps = subscribeToPropsRedraw(redrawProps)
       const unsubscribeBackground = subscribeToBackgroundRedraw(() => {
@@ -1388,6 +1439,13 @@ export function PixiCanvas({
        * mundo acima da ponta cravada (lib/pins.ts).
        */
       let pinDragOffset: Point | null = null
+      /**
+       * Pino de VIAGEM apertado com a Selecionar, em px de tela. Enquanto o
+       * ponteiro não passa de `TRAVEL_CLICK_SLOP_PX`, o pino não se move; se o
+       * botão sobe ali, o clique atravessa (`onTravelPin`). `moved` = o gesto
+       * já virou arrasto e não atravessa mais.
+       */
+      let travelPress: { pinId: string; x: number; y: number; moved: boolean } | null = null
       let wallDraftStart: Point | null = null
       let regionDraftPoints: Point[] = []
       /**
@@ -2612,6 +2670,9 @@ export function PixiCanvas({
         // ficaria "grudado" na tela até o próximo pointermove ocioso.
         hoverGraphics.clear()
         hoverTarget = null
+        // Todo gesto novo começa sem travessia pendente: só o ramo do pino de
+        // viagem, mais abaixo, arma uma — e só para ESTE aperto.
+        travelPress = null
 
         // B2 — laser armado + botão esquerdo: o traço é do laser e a ferramenta ativa não roda.
         if (!spaceHeld && laserGesture.pointerDown(event.button, toWorldPoint(event.global.x, event.global.y))) return
@@ -3229,6 +3290,9 @@ export function PixiCanvas({
           const pin = pinAt(map, worldPoint)
           if (pin) {
             abrirETalvezArrastarPino(map, pin, worldPoint)
+            // Pino de viagem: soltar sem arrastar atravessa a passagem (no
+            // pointerup); arrastar continua movendo o pino, como qualquer pino.
+            travelPress = pin.kind === 'viagem' && event.button === 0 ? { pinId: pin.id, x: event.global.x, y: event.global.y, moved: false } : null
             lastPoint = { x: event.global.x, y: event.global.y }
             updateCursor()
             return
@@ -3911,10 +3975,27 @@ export function PixiCanvas({
         // o mesmo bug que os dois `hide()` acima documentam.
         marqueeHint.hide()
         updateCursor()
+
+        // Clique num pino de viagem com a Selecionar: atravessa. Por último, com
+        // o gesto já fechado — a travessia troca o mapa inteiro do editor. A
+        // distância é medida de novo aqui porque o pino TRAVADO não entra no
+        // modo de arrasto e nenhum pointermove marca `moved`.
+        const travessia = travelPress
+        travelPress = null
+        if (
+          travessia !== null &&
+          !travessia.moved &&
+          event.button === 0 &&
+          Math.hypot(event.global.x - travessia.x, event.global.y - travessia.y) < TRAVEL_CLICK_SLOP_PX
+        ) {
+          onTravelPinRef.current?.(travessia.pinId)
+        }
       })
 
       app.stage.on('pointerupoutside', () => {
         tokenPlacementPoint = null
+        // Soltou fora do canvas: não é clique no pino, não atravessa.
+        travelPress = null
         // O toque terminou FORA do canvas: ele não é mais a primeira metade de
         // um duplo clique, e o próximo toque dentro do mapa é um toque novo.
         ultimoToqueDoTracado = null
@@ -4230,6 +4311,12 @@ export function PixiCanvas({
         }
 
         if (mode === 'dragging-pin' && draggingPinId && pinDragOffset) {
+          // Pino de viagem: dentro da folga o gesto ainda é o clique que
+          // atravessa, e o pino fica onde está.
+          if (travelPress !== null && !travelPress.moved) {
+            if (Math.hypot(event.global.x - travelPress.x, event.global.y - travelPress.y) < TRAVEL_CLICK_SLOP_PX) return
+            travelPress.moved = true
+          }
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           // Sem snap e sem guias de alinhamento, de propósito: o pino nasce
           // ONDE o mestre clica (ver o pointerdown da ferramenta Pino), e mover
@@ -5087,9 +5174,22 @@ export function PixiCanvas({
             // `removeSelected` e ainda prometia "Ctrl+Z desfaz" para uma ação que
             // não aconteceu — e o Ctrl+Z do mestre desfaria outra coisa.
             const { map: mapaDoPino, selectedPinId: pinoSelecionado } = useMapStore.getState()
-            if (pinoSelecionado !== null && mapaDoPino.pins.some((pino) => pino.id === pinoSelecionado)) {
-              useMapStore.getState().removePin(pinoSelecionado)
-              useToastStore.getState().push('info', 'Ponto de interesse apagado — Ctrl+Z desfaz')
+            const pinoApagado = pinoSelecionado === null ? undefined : mapaDoPino.pins.find((pino) => pino.id === pinoSelecionado)
+            if (pinoApagado !== undefined) {
+              // O par de um pino de viagem mora em OUTRA cena: o aviso diz o
+              // que mudou lá, porque daqui não dá para ver.
+              const travessia = pinoApagado.kind === 'viagem' ? pinTravelOf(useAdventureStore.getState(), mapaDoPino, pinoApagado) : null
+              useMapStore.getState().removePin(pinoApagado.id)
+              useToastStore
+                .getState()
+                .push(
+                  'info',
+                  travessia?.status === 'ligado'
+                    ? `Pino de viagem apagado; o de ${travessia.sceneName} ficou sem destino — Ctrl+Z desfaz`
+                    : pinoApagado.kind === 'viagem'
+                      ? 'Pino de viagem apagado — Ctrl+Z desfaz'
+                      : 'Ponto de interesse apagado — Ctrl+Z desfaz',
+                )
               break
             }
             // O mapa é lido ANTES da remoção: depois dela não há como saber se
@@ -5200,6 +5300,7 @@ export function PixiCanvas({
         unsubscribeGridOffset()
         unsubscribeCameraScaleForWalls()
         unsubscribeShapes()
+        unsubscribeTravelLinks()
         unsubscribeTokens()
         unsubscribeProps()
         unsubscribeBackground()

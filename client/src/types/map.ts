@@ -202,8 +202,22 @@ export interface PlayerSecret {
   secret?: boolean
 }
 
-/** Os dois pinos que o usuário pediu: "!" (aqui tem algo) e "?" (investigue aqui). */
-export type PinKind = 'exclamacao' | 'interrogacao'
+/**
+ * "!" (aqui tem algo), "?" (investigue aqui) e o pino de VIAGEM: a passagem
+ * que leva de uma cena da aventura para outra. O terceiro valor é aditivo —
+ * pino gravado antes dele continua sendo "!" ou "?".
+ */
+export type PinKind = 'exclamacao' | 'interrogacao' | 'viagem'
+
+/**
+ * Para onde um pino de viagem leva: a cena de destino e o pino PAR dela, que é
+ * o ponto de chegada. A ligação é gravada nos DOIS pinos (mão dupla), então o
+ * par sempre leva de volta.
+ */
+export interface PinDestination {
+  sceneId: string
+  pinId: string
+}
 
 /**
  * Símbolo desenhado DENTRO da cabeça do pino, no lugar do glifo. Os seis que o
@@ -243,6 +257,13 @@ export interface Pin extends PlayerSecret {
   locked?: boolean
   /** Não renderiza NO EDITOR (organização de cena do mestre). `undefined` === false. */
   hidden?: boolean
+  /**
+   * Só do pino de viagem: a cena e o pino par para onde ele leva. Ausente ou
+   * `null` = pino ainda não ligado; mapa salvo antes deste campo abre igual (a
+   * migração de `lib/mapFile.ts` confere a forma). NUNCA sai no recorte do
+   * jogador (`lib/fogFilter.ts`): revelaria que a outra cena existe.
+   */
+  destino?: PinDestination | null
 }
 
 /**

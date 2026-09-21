@@ -6,7 +6,7 @@
  * indisponível não abre, e gravar escreve a pasta da aventura inteira.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import type { MapData, Token } from '../types/map'
+import type { MapData, Pin, Token } from '../types/map'
 
 const arquivos = new Map<string, string>()
 
@@ -40,7 +40,7 @@ vi.mock('@tauri-apps/api/path', () => ({
   dirname: vi.fn(async (path: string) => path.slice(0, path.lastIndexOf('/'))),
 }))
 
-const { useAdventureStore, sceneList, hasUnsavedWork } = await import('./adventureStore')
+const { useAdventureStore, sceneList, hasUnsavedWork, pinTravelOf, unlinkedTravelPinIds, subscribeToTravelLinks } = await import('./adventureStore')
 const { useMapStore } = await import('./mapStore')
 const { useSessionStore, subscribeToDirtyFlag } = await import('./sessionStore')
 const { createEmptyMap } = await import('../lib/mapFactory')
@@ -48,6 +48,8 @@ const { parseAdventure } = await import('../lib/adventure')
 const { deserializeMap } = await import('../lib/mapFile')
 
 subscribeToDirtyFlag()
+// O guardião da mão dupla do pino de viagem, ligado como o App liga.
+subscribeToTravelLinks()
 
 function token(id: string): Token {
   return { id, characterId: null, name: id, x: 64, y: 64, size: 1, image: null }
@@ -272,5 +274,164 @@ describe('flush', () => {
     await useAdventureStore.getState().flush()
     const aventura = parseAdventure(arquivos.get('C:/appdata/maps/map_raiz/adventure.json') ?? '')
     expect(aventura.scenes[1].name).toBe('Cena sem nome')
+  })
+})
+
+describe('pino de viagem', () => {
+  function viagem(id: string, extra: Partial<Pin> = {}): Pin {
+    return { id, x: 200, y: 200, kind: 'viagem', description: '', image: null, ...extra }
+  }
+
+  /** Vale (mapa solto que vira aventura) com o pino de viagem "a", e a Cripta criada vazia. Termina no Vale. */
+  function montar(): { vale: string; cripta: string } {
+    const cripta = useAdventureStore.getState().createScene('Cripta', null)
+    const vale = useAdventureStore.getState().adventure?.scenes[0].id ?? ''
+    useAdventureStore.getState().switchScene(vale)
+    useMapStore.getState().addPin(viagem('a', { description: 'Escada que desce' }))
+    return { vale, cripta }
+  }
+
+  function pinoDoFundo(sceneId: string, pinId: string): Pin | undefined {
+    const slot = useAdventureStore.getState().cache[sceneId]
+    return slot?.status === 'ok' ? slot.map.pins.find((p) => p.id === pinId) : undefined
+  }
+
+  function pinoAberto(pinId: string): Pin {
+    const pin = useMapStore.getState().map.pins.find((p) => p.id === pinId)
+    if (pin === undefined) throw new Error(`pino ${pinId} não está na cena aberta`)
+    return pin
+  }
+
+  it('ligar em mão dupla: a chegada nasce no centro da Cripta, já ligada de volta, e o painel de cada lado diz para onde leva', () => {
+    const { vale, cripta } = montar()
+
+    const chegada = useAdventureStore.getState().linkPinToNewArrival('a', cripta)
+    if (chegada === null) throw new Error('não ligou')
+
+    // A ida, na cena aberta.
+    expect(pinoAberto('a').destino).toEqual({ sceneId: cripta, pinId: chegada })
+    // A volta, na cena de fundo — gravada sem abrir a Cripta.
+    expect(pinoDoFundo(cripta, chegada)).toMatchObject({ kind: 'viagem', x: 960, y: 640, destino: { sceneId: vale, pinId: 'a' } })
+    expect(useAdventureStore.getState().dirty[cripta]).toBe(true)
+    expect(pinTravelOf(useAdventureStore.getState(), useMapStore.getState().map, pinoAberto('a'))).toMatchObject({
+      status: 'ligado',
+      sceneName: 'Cripta',
+      partner: { id: chegada },
+    })
+
+    useAdventureStore.getState().switchScene(cripta)
+    expect(pinTravelOf(useAdventureStore.getState(), useMapStore.getState().map, pinoAberto(chegada))).toMatchObject({
+      status: 'ligado',
+      sceneName: 'Vale',
+      partner: { id: 'a', description: 'Escada que desce' },
+    })
+  })
+
+  it('ligar a um pino de viagem que já está na outra cena grava a volta nele', () => {
+    const cripta = useAdventureStore.getState().createScene('Cripta', null)
+    useMapStore.getState().addPin(viagem('b', { description: 'Portão' }))
+    const vale = useAdventureStore.getState().adventure?.scenes[0].id ?? ''
+    useAdventureStore.getState().switchScene(vale)
+    useMapStore.getState().addPin(viagem('a'))
+
+    expect(useAdventureStore.getState().linkPinToExisting('a', cripta, 'b')).toBe(true)
+
+    expect(pinoAberto('a').destino).toEqual({ sceneId: cripta, pinId: 'b' })
+    expect(pinoDoFundo(cripta, 'b')?.destino).toEqual({ sceneId: vale, pinId: 'a' })
+    expect(unlinkedTravelPinIds(useAdventureStore.getState(), useMapStore.getState().map).size).toBe(0)
+  })
+
+  it('apagar o pino de chegada desliga o par que está na cena de FUNDO, fora do desfazer da cena aberta; Ctrl+Z religa', () => {
+    const { vale, cripta } = montar()
+    const chegada = useAdventureStore.getState().linkPinToNewArrival('a', cripta) ?? ''
+    useAdventureStore.getState().switchScene(cripta)
+    const passosAntes = useMapStore.getState().past.length
+
+    useMapStore.getState().removePin(chegada)
+
+    // O pino do Vale, que está no cache, perdeu o destino...
+    expect(pinoDoFundo(vale, 'a')?.destino).toBeNull()
+    expect(useAdventureStore.getState().dirty[vale]).toBe(true)
+    // ... e o desfazer da Cripta só conhece a remoção dela.
+    expect(useMapStore.getState().past.length).toBe(passosAntes + 1)
+
+    // No Vale o painel diz "sem destino" e o pino é desenhado apagado.
+    useAdventureStore.getState().switchScene(vale)
+    const mapaDoVale = useMapStore.getState().map
+    expect(pinTravelOf(useAdventureStore.getState(), mapaDoVale, pinoAberto('a')).status).toBe('sem-destino')
+    expect(unlinkedTravelPinIds(useAdventureStore.getState(), mapaDoVale).has('a')).toBe(true)
+
+    // Voltar à Cripta e desfazer a remoção devolve a chegada E a ligação.
+    useAdventureStore.getState().switchScene(cripta)
+    useMapStore.getState().undo()
+    expect(pinoAberto(chegada).destino).toEqual({ sceneId: vale, pinId: 'a' })
+    expect(pinoDoFundo(vale, 'a')?.destino).toEqual({ sceneId: cripta, pinId: chegada })
+  })
+
+  it('deixar de ser pino de viagem desliga o par', () => {
+    const { cripta } = montar()
+    const chegada = useAdventureStore.getState().linkPinToNewArrival('a', cripta) ?? ''
+    expect(pinoDoFundo(cripta, chegada)?.destino).not.toBeNull()
+
+    useMapStore.getState().updatePin('a', { kind: 'interrogacao', destino: null })
+
+    expect(pinoDoFundo(cripta, chegada)?.destino).toBeNull()
+  })
+
+  it('trocar de cena não mexe em ligação nenhuma — nem com a meia ligação que a cena que entra traz', () => {
+    // O pior caso para quem confunde "cena entrando" com "pino ligado agora":
+    // Vale e Cripta com o MESMO id de mapa (arquivo copiado à mão) e, na
+    // Cripta, um pino que aponta para o par do Vale sem ser apontado de volta.
+    // Abrir a Cripta não pode roubar o par da Torre nem desligar o pino do Vale.
+    const mapaVale: MapData = { ...createEmptyMap('map_copiado', 'Vale', 30, 20, 64), pins: [viagem('x', { destino: { sceneId: 's_torre', pinId: 't' } })] }
+    const mapaCripta: MapData = { ...createEmptyMap('map_copiado', 'Cripta', 30, 20, 64), pins: [viagem('b', { destino: { sceneId: 's_torre', pinId: 't' } })] }
+    const mapaTorre: MapData = { ...createEmptyMap('map_torre', 'Torre', 30, 20, 64), pins: [viagem('t', { destino: { sceneId: 's_vale', pinId: 'x' } })] }
+    const cena = (id: string, name: string, file: string) => ({ id, name, file })
+    const vale = cena('s_vale', 'Vale', 'map.json')
+    const cripta = cena('s_cripta', 'Cripta', 'scenes/s_cripta/map.json')
+    const torre = cena('s_torre', 'Torre', 'scenes/s_torre/map.json')
+    useAdventureStore.getState().open({
+      path: 'C:/appdata/maps/vale/map.json',
+      map: mapaVale,
+      adventure: { version: 1, id: 'adv', name: 'Vale', startSceneId: 's_vale', scenes: [vale, cripta, torre] },
+      adventureDir: 'C:/appdata/maps/vale',
+      activeSceneId: 's_vale',
+      scenes: [
+        { entry: vale, status: 'ok', map: mapaVale },
+        { entry: cripta, status: 'ok', map: mapaCripta },
+        { entry: torre, status: 'ok', map: mapaTorre },
+      ],
+      changedSceneIds: [],
+      adventureChanged: false,
+    })
+
+    useAdventureStore.getState().switchScene('s_cripta')
+    useAdventureStore.getState().switchScene('s_vale')
+
+    expect(pinoAberto('x').destino).toEqual({ sceneId: 's_torre', pinId: 't' })
+    expect(pinoDoFundo('s_torre', 't')?.destino).toEqual({ sceneId: 's_vale', pinId: 'x' })
+    expect(pinoDoFundo('s_cripta', 'b')?.destino).toEqual({ sceneId: 's_torre', pinId: 't' })
+    expect(hasUnsavedWork()).toBe(false)
+  })
+
+  it('atravessar: a visão do mestre vai para a cena de destino, com o par no centro e aberto no painel', () => {
+    const { vale, cripta } = montar()
+    const chegada = useAdventureStore.getState().linkPinToNewArrival('a', cripta) ?? ''
+
+    expect(useAdventureStore.getState().travelThroughPin('a')).toBe(true)
+
+    expect(useAdventureStore.getState().activeSceneId).toBe(cripta)
+    expect(useMapStore.getState().selectedPinId).toBe(chegada)
+    // O pino de chegada nasce em (960, 640); a câmera centraliza o meio do desenho dele.
+    expect(useAdventureStore.getState().cameraRequest?.focus).toEqual({ x: 960, y: 640 - 17 })
+    // E o par leva de volta.
+    expect(useAdventureStore.getState().travelThroughPin(chegada)).toBe(true)
+    expect(useAdventureStore.getState().activeSceneId).toBe(vale)
+  })
+
+  it('pino de viagem sem par não atravessa: a cena não muda', () => {
+    const { vale } = montar()
+    expect(useAdventureStore.getState().travelThroughPin('a')).toBe(false)
+    expect(useAdventureStore.getState().activeSceneId).toBe(vale)
   })
 })

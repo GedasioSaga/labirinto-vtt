@@ -8,9 +8,12 @@ import {
   PIN_HEIGHT,
   PIN_ICON_LABELS,
   PIN_ICON_ORDER,
+  PIN_KIND_ORDER,
   PIN_SYMBOLS,
+  PIN_TRAVEL_SYMBOL,
   findPinAt,
   isPinIcon,
+  isPinKind,
   isPlayerSafePinImage,
   pinSummary,
 } from './pins'
@@ -123,6 +126,25 @@ describe('ícone do ponto de interesse', () => {
     }
   })
 
+  it('a passagem do pino de viagem cabe na cabeça e não repete nenhum dos seis símbolos', () => {
+    for (const stroke of PIN_TRAVEL_SYMBOL.strokes) {
+      expect(stroke.points.length).toBeGreaterThan(1)
+      for (const ponto of stroke.points) {
+        expect(Math.abs(ponto.x)).toBeLessThanOrEqual(1)
+        expect(Math.abs(ponto.y)).toBeLessThanOrEqual(1)
+      }
+    }
+    const seis = PIN_ICON_ORDER.map((icon) => JSON.stringify(PIN_SYMBOLS[icon]))
+    expect(seis).not.toContain(JSON.stringify(PIN_TRAVEL_SYMBOL))
+  })
+
+  it('o tipo viagem é o terceiro, ao lado de "!" e "?", e tipo desconhecido não passa pela guarda', () => {
+    expect(PIN_KIND_ORDER).toEqual(['exclamacao', 'interrogacao', 'viagem'])
+    expect(isPinKind('viagem')).toBe(true)
+    expect(isPinKind('portal')).toBe(false)
+    expect(isPinKind(undefined)).toBe(false)
+  })
+
   it('sem descrição, o ícone é quem nomeia o pino; sem ícone, volta o glifo de hoje', () => {
     expect(pinSummary(pino('p1', 0, 0, { icon: 'bau' }))).toBe('Ponto de interesse — Baú')
     expect(pinSummary(pino('p2', 0, 0, { icon: 'armadilha' }))).toBe('Ponto de interesse — Armadilha')
@@ -131,6 +153,12 @@ describe('ícone do ponto de interesse', () => {
 
   it('a descrição continua ganhando do ícone', () => {
     expect(pinSummary(pino('p1', 0, 0, { icon: 'bau', description: 'Baú vazio' }))).toBe('Baú vazio')
+  })
+
+  it('pino de viagem sem descrição se chama "Pino de viagem", nunca pelo símbolo que ele não desenha', () => {
+    expect(pinSummary(pino('p1', 0, 0, { kind: 'viagem' }))).toBe('Pino de viagem')
+    expect(pinSummary(pino('p2', 0, 0, { kind: 'viagem', icon: 'bau' }))).toBe('Pino de viagem')
+    expect(pinSummary(pino('p3', 0, 0, { kind: 'viagem', description: 'Escada da cripta' }))).toBe('Escada da cripta')
   })
 })
 
@@ -170,6 +198,25 @@ describe('recorte do pino para o jogador', () => {
     )
     expect(map.pins.find((p) => p.id === 'foto')?.image).toBe(UMA_IMAGEM)
     expect(map.pins.find((p) => p.id === 'disco')?.image).toBeNull()
+  })
+
+  it('o destino do pino de viagem nunca sai: nem a cena de destino, nem o pino par', () => {
+    const viagem = pino('passagem', 240, 200, {
+      kind: 'viagem',
+      description: 'Escada que desce',
+      destino: { sceneId: 'scene_cripta_secreta', pinId: 'pino_par_da_cripta' },
+    })
+    const { map } = filterMapForPlayer(mapaCom([viagem]), 'p1', POSSE, RAIO)
+
+    // O pino sai — o jogador vê a passagem e lê a descrição que o mestre escreveu.
+    expect(map.pins).toEqual([{ id: 'passagem', x: 240, y: 200, kind: 'viagem', description: 'Escada que desce', image: null }])
+    expect('destino' in map.pins[0]).toBe(false)
+    // Nem o id da cena nem o do par aparecem em lugar nenhum do recorte.
+    const recorte = JSON.stringify(map)
+    expect(recorte).not.toContain('scene_cripta_secreta')
+    expect(recorte).not.toContain('pino_par_da_cripta')
+    // O recorte é cópia: o mapa do mestre continua ligado.
+    expect(viagem.destino).toEqual({ sceneId: 'scene_cripta_secreta', pinId: 'pino_par_da_cripta' })
   })
 
   it('camada Anotações oculta tira todos os pinos', () => {

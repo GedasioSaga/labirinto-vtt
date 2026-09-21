@@ -12,20 +12,31 @@ export const PIN_HEAD_RADIUS = 11
 /** Centro da cabeça fica esta distância acima do ponto cravado. */
 export const PIN_HEAD_OFFSET = PIN_HEIGHT - PIN_HEAD_RADIUS
 
-/** Glifo de cada tipo — é o que distingue os dois pinos na tela do jogador. */
+/**
+ * Glifo de cada tipo — é o que distingue "!" de "?" na tela do jogador. O pino
+ * de viagem não desenha glifo: a cabeça dele leva o símbolo de passagem
+ * (`PIN_TRAVEL_SYMBOL`); a seta aqui só existe para quem precisa de texto.
+ */
 export const PIN_GLYPH: Record<PinKind, string> = {
   exclamacao: '!',
   interrogacao: '?',
+  viagem: '→',
 }
 
 /** Nome de cada tipo na interface do mestre. */
 export const PIN_KIND_LABELS: Record<PinKind, string> = {
   exclamacao: 'Exclamação (!)',
   interrogacao: 'Interrogação (?)',
+  viagem: 'Viagem',
 }
 
-/** Ordem em que os dois tipos aparecem no painel. */
-export const PIN_KIND_ORDER: readonly PinKind[] = ['exclamacao', 'interrogacao']
+/** Ordem em que os tipos aparecem no painel: a viagem por último, ao lado dos dois de sempre. */
+export const PIN_KIND_ORDER: readonly PinKind[] = ['exclamacao', 'interrogacao', 'viagem']
+
+/** Guarda de leitura: tipo desconhecido (arquivo editado à mão, versão futura) não entra no desenho. */
+export function isPinKind(value: unknown): value is PinKind {
+  return typeof value === 'string' && (PIN_KIND_ORDER as readonly string[]).includes(value)
+}
 
 /** Nome de cada símbolo na interface do mestre e no leitor de tela. */
 export const PIN_ICON_LABELS: Record<PinIcon, string> = {
@@ -236,6 +247,41 @@ export const PIN_SYMBOLS: Record<PinIcon, PinSymbolShape> = {
 }
 
 /**
+ * Símbolo do pino de VIAGEM: a seta entrando num vão de porta — "passe por
+ * aqui". Mesma régua normalizada e mesmo traço fino dos seis símbolos acima;
+ * o que separa o pino de viagem dos outros no mapa é a cabeça ESCURA com a
+ * linha clara (`pixi/drawPins.ts`), não um traço mais grosso.
+ */
+export const PIN_TRAVEL_SYMBOL: PinSymbolShape = {
+  strokes: [
+    // O vão: batente de cima, lateral e batente de baixo, aberto para a seta.
+    {
+      points: [
+        { x: 0.02, y: -0.74 },
+        { x: 0.8, y: -0.74 },
+        { x: 0.8, y: 0.74 },
+        { x: 0.02, y: 0.74 },
+      ],
+    },
+    // A haste da seta, vinda de fora.
+    {
+      points: [
+        { x: -0.86, y: 0 },
+        { x: 0.44, y: 0 },
+      ],
+    },
+    // A ponta.
+    {
+      points: [
+        { x: 0.08, y: -0.36 },
+        { x: 0.44, y: 0 },
+        { x: 0.08, y: 0.36 },
+      ],
+    },
+  ],
+}
+
+/**
  * Só data URL de imagem viaja para o jogador. Caminho de disco do mestre
  * (`C:\...`, `/home/...`, `file://...`) NUNCA sai: quem recorta o mapa
  * (`lib/fogFilter.ts`) apaga o campo quando esta função devolve `false`.
@@ -271,6 +317,9 @@ export function findPinAt(pins: readonly Pin[], point: RegionPoint, tolerance = 
 export function pinSummary(pin: Pin): string {
   const description = pin.description.trim()
   if (description !== '') return description
+  // O pino de viagem desenha a passagem, nunca o símbolo escolhido: nomeá-lo
+  // pelo símbolo diria "Baú" de um pino que no mapa é uma porta.
+  if (pin.kind === 'viagem') return 'Pino de viagem'
   if (isPinIcon(pin.icon)) return `Ponto de interesse — ${PIN_ICON_LABELS[pin.icon]}`
   return `Ponto de interesse ${PIN_GLYPH[pin.kind]}`
 }

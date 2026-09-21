@@ -1,6 +1,7 @@
 import type { FloorStyle, MapData } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
-import { isPinIcon } from './pins'
+import { isPinIcon, isPinKind } from './pins'
+import { readPinDestination } from './pinTravel'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -141,12 +142,21 @@ function deserializeMapFields(json: string): MapData {
     // pino de hoje. Símbolo desconhecido (arquivo editado à mão, versão
     // futura) volta como ausente em vez de derrubar `PIN_SYMBOLS[icon]` no
     // render e levar o mapa inteiro junto — mesma regra de `FloorPiece.fillColor`.
+    //
+    // `destino` é campo NOVO do pino de viagem. Ausente continua ausente, que
+    // já é "sem destino" — escrever `null` em todo pino de mapa antigo
+    // inventaria campo que o arquivo não tinha. Presente, só a forma certa
+    // (`{ sceneId, pinId }` com os dois textos) vira destino; o resto volta
+    // `null` em vez de levar o clique do mestre para uma cena que não existe.
+    // `kind: 'viagem'` é o terceiro tipo: sem ele na lista, todo pino de
+    // viagem voltaria do disco como "!".
     pins: entityList(parsed.pins).map((p) => ({
       ...p,
-      kind: p.kind === 'interrogacao' ? 'interrogacao' : 'exclamacao',
+      kind: isPinKind(p.kind) ? p.kind : 'exclamacao',
       icon: isPinIcon(p.icon) ? p.icon : undefined,
       description: typeof p.description === 'string' ? p.description : '',
       image: typeof p.image === 'string' ? p.image : null,
+      destino: p.destino === undefined ? undefined : readPinDestination(p.destino),
     })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },

@@ -376,6 +376,20 @@ body {
   font-weight: var(--lb-font-weight-bold);
 }
 
+/* Pino de viagem: o negativo da pastilha, como no mapa — cabeça escura, aro e
+   passagem em latão. Opacidade cheia: é a identidade do tipo, não um ícone de
+   ênfase que desbota quando a opção não está marcada. */
+.lb-pin-glyph--viagem {
+  flex: none;
+  background: var(--lb-color-ink);
+  box-shadow: inset 0 0 0 1.5px var(--lb-color-brass);
+  color: var(--lb-color-brass);
+}
+
+.lb-seg__option .lb-pin-glyph--viagem svg {
+  opacity: 1;
+}
+
 .lb-input[type='number'] {
   font-family: var(--lb-font-utility);
   font-variant-numeric: tabular-nums;
@@ -514,6 +528,23 @@ body {
 .lb-seg--grid {
   grid-auto-flow: row;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Mesma pastilha do segmented, em LINHAS: o tipo do pino tem três opções, e
+   três colunas na largura do rail dariam 60 px a cada rótulo — "Interrogação"
+   mede 68. A marca vai à esquerda, na altura do texto, como numa legenda de mapa. */
+.lb-seg--rows {
+  grid-auto-flow: row;
+}
+
+.lb-seg--rows .lb-seg__option {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: var(--lb-space-3);
+  min-height: 34px;
+  padding: var(--lb-space-1) var(--lb-space-2);
+  font-size: var(--lb-font-size-md);
+  text-align: left;
 }
 
 .lb-seg__option {
@@ -2110,4 +2141,151 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: var(--lb-space-2);
+}
+
+/* Destino do pino de viagem (PinTravelControls): um poço rebaixado logo abaixo
+   do tipo, com a régua da esquerda dizendo o estado sem precisar ler — latão
+   quando a passagem leva a algum lugar, apagada quando não. É a mesma troca
+   que o ícone faz no mapa. */
+.lb-travel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-left: 2px solid var(--lb-color-parchment-faint);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-travel--ligado {
+  border-left-color: var(--lb-color-brass);
+}
+
+.lb-travel p {
+  margin: 0;
+}
+
+.lb-travel__status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: var(--lb-radius-sm);
+}
+
+.lb-travel__title {
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-medium);
+  color: var(--lb-color-parchment);
+  overflow-wrap: anywhere;
+}
+
+.lb-travel--sem-destino .lb-travel__title {
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-travel__scene {
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lb-travel__detail {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  overflow-wrap: anywhere;
+}
+
+.lb-travel__hint {
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-travel__row {
+  display: flex;
+  gap: var(--lb-space-2);
+}
+
+/* Ações secundárias numa linha só, menores que a principal ("Ir para …"):
+   em duas metades iguais "Trocar destino" quebrava em duas linhas ao lado de
+   "Desligar" (medido na largura do rail, 21/09/2026). */
+.lb-travel__row > .lb-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+}
+
+.lb-travel__chevron {
+  display: inline-flex;
+  color: var(--lb-color-parchment-faint);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+[aria-expanded='false'] > .lb-travel__chevron {
+  transform: rotate(-90deg);
+}
+
+/* Aberto, o gatilho fica marcado como a opção escolhida do segmented: é dele
+   que sai a escolha embaixo. */
+.lb-travel .lb-btn[aria-expanded='true'] {
+  border-color: color-mix(in srgb, var(--lb-color-brass) 28%, transparent);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+}
+
+.lb-travel .lb-btn[aria-expanded='true'] .lb-travel__chevron {
+  color: var(--lb-color-brass);
+}
+
+.lb-travel__row--end {
+  justify-content: flex-end;
+}
+
+.lb-travel__row--end > .lb-btn {
+  flex: none;
+}
+
+/* A escolha abre no próprio poço, separada do estado por um fio: o que está
+   decidido fica em cima, o que está sendo escolhido fica embaixo. */
+.lb-travel__picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding-top: var(--lb-space-3);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-travel__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-travel__option {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+/* Nome da cena ou do pino inteiro no botão (é o nome acessível dele); o que
+   não cabe na largura do rail vira reticência só na tela. */
+.lb-travel__choice {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-travel__note {
+  flex: none;
+  max-width: 50%;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+  text-align: right;
 }
