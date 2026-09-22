@@ -473,6 +473,9 @@ const JORNADAS_DO_CRITERIO = [
   // 22/09/2026, grupo espalhado G5 — reunir o grupo num pino: fichas marcadas
   // vêm de qualquer cena para casas livres em volta dele.
   'e2e/task-jornada-reunir-o-grupo.spec.ts',
+  // 22/09/2026, grupo espalhado G6 — sinal de jogador em cena de fundo vira
+  // aviso "<jogador> chamou em <cena>" com Ir lá, um por jogador.
+  'e2e/task-jornada-chamado-de-fundo.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
