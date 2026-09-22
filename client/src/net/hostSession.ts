@@ -204,6 +204,13 @@ export const TOKEN_PHOTO_MIN_INTERVAL_MS = 500
 export const TRAVEL_REQUEST_MIN_INTERVAL_MS = 3000
 
 /**
+ * Um pedido de passagem por jogador nesta janela, de QUALQUER pino. É o
+ * limite que vem antes de tudo: barato, de tamanho fixo por jogador, e segura
+ * quem troca de pino (ou de conexão) a cada toque.
+ */
+export const TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS = 1500
+
+/**
  * Quantas cenas cada jogador lembra (exploração e portas vistas). Passou do
  * teto, esquece a cena visitada há mais tempo: memória de host não pode
  * crescer sem limite numa aventura longa.
@@ -264,6 +271,12 @@ export interface HostSession {
   hidePlan(playerId: string, source?: HostMapSource): void
   /** Com `source` de uma aventura, cada jogador que joga vem com o nome da cena onde está. */
   listPlayers(source?: HostMapSource): PlayerInfo[]
+  /**
+   * Quantas entradas os limites do pedido de passagem guardam agora (por
+   * jogador + por jogador/cena/pino). Diagnóstico: é o número que um cliente
+   * hostil tentaria inflar mandando ids de pino inventados.
+   */
+  travelLimitEntries(): number
   readonly rev: number
 }
 
@@ -272,6 +285,9 @@ interface PendingTravel {
   requestId: string
   playerId: string
   pinId: string
+  /** O destino do aviso que o mestre leu. Religou o pino depois? A aprovação não vale. */
+  toSceneId: string
+  partnerId: string
 }
 
 /** Pedido que passou em tudo: de onde, para onde, por qual pino e com qual token. */
@@ -327,7 +343,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: o pedido de passagem que espera o mestre (no máximo um).
   const pendingTravels = new Map<string, PendingTravel>()
   // Por `playerId|cena|pino`: quando o jogador pediu por último aquele pino.
+  // Só entra pino que existe na cena dele (ver `handleTravelRequest`).
   const lastTravelRequestAt = new Map<string, number>()
+  // Por playerId: o último pedido de passagem, de qualquer pino. Sobrevive ao
+  // disconnect; só o kick apaga.
+  const lastTravelRequestByPlayer = new Map<string, number>()
   // Por playerId: reconectar não zera o limite de 1 sinal por segundo.
   const lastSignalAt = new Map<string, number>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
@@ -386,18 +406,30 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   /**
    * A cena deste jogador: a que tem o token dele. Com token em mais de uma,
-   * fica na última em que ele foi visto. Sem token em cena nenhuma (ou mapa
-   * solto), a cena aberta no editor — o que todo jogador via antes das cenas.
+   * fica na última em que ele foi visto. No mapa solto, sem token, a cena
+   * aberta — o que todo jogador sempre viu.
+   *
+   * `null` = COM AVENTURA, o jogador não tem token em cena nenhuma (o mestre
+   * apagou a ficha dele, ou ela está numa cena que não abriu). Ele NÃO cai na
+   * cena do editor: seria entregar a ele um lugar onde ele não está (nome,
+   * planta, a memória dele de lá, o laser do mestre). Quem chama trata como
+   * espera — o mesmo "Aguardando o mestre" do lobby.
    */
-  const sceneFor = (playerId: string, world: HostWorld): HostScene => {
+  const sceneFor = (playerId: string, world: HostWorld): HostScene | null => {
     const scenes = allScenes(world)
     const last = currentScene.get(playerId)
     const stay = last === undefined ? undefined : scenes.find((scene) => sceneKey(scene) === last && ownsTokenIn(playerId, scene))
     if (stay !== undefined) return stay
     const found = scenes.find((scene) => ownsTokenIn(playerId, scene))
-    if (found === undefined) return world.open
+    if (found === undefined) return world.open.sceneId === null ? world.open : null
     currentScene.set(playerId, sceneKey(found))
     return found
+  }
+
+  /** O que o jogador vê agora: o recorte da cena dele, ou a espera quando ele não está em cena nenhuma. */
+  const viewFor = (playerId: string, world: HostWorld): HostMessage => {
+    const scene = sceneFor(playerId, world)
+    return scene === null ? { type: 'lobby.waiting' } : snapshotFor(playerId, scene.map)
   }
 
   /** `sceneId` para os "Applied": só quando a cena é de fundo (a aberta é o `mapStore`). */
@@ -479,8 +511,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // `name` é o nome já passado por `uniqueName`: é assim que o jogador
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
     const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken, name: record.name }
-    const next: HostMessage =
-      statusOf(record.playerId) === 'playing' ? snapshotFor(record.playerId, sceneFor(record.playerId, world).map) : { type: 'lobby.waiting' }
+    const next: HostMessage = statusOf(record.playerId) === 'playing' ? viewFor(record.playerId, world) : { type: 'lobby.waiting' }
     return { outbound: [{ clientId, msg: welcome }, { clientId, msg: next }] }
   }
 
@@ -489,6 +520,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     // O movimento vale na cena DELE: token de outra cena é `unknown_token` aqui.
     const scene = sceneFor(playerId, world)
+    // Sem cena (aventura aberta, ficha em lugar nenhum): não há onde mover.
+    if (scene === null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'unknown_token' })
     const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership)
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     return {
@@ -517,6 +550,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const record = players.get(playerId)
     if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
     const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
     const map = scene.map
     if (msg.x < 0 || msg.y < 0 || msg.x > map.width * map.grid || msg.y > map.height * map.grid) return { outbound: [] }
     const at = now()
@@ -535,7 +569,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (otherId === playerId || statusOf(otherId) !== 'playing') continue
         // Quem está em outra cena não recebe: o ponto é deste mapa, e a
         // memória antiga dele desta cena diria que o sinal é para lá.
-        if (sceneKey(sceneFor(otherId, world)) !== sceneKey(scene)) continue
+        if (sceneFor(otherId, world) !== scene) continue
         if (knowsPoint(otherId, map, point)) outbound.push({ clientId: otherClient, msg: message })
       }
     }
@@ -555,6 +589,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     if (statusOf(playerId) !== 'playing') return { outbound: [] }
     const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
     const map = scene.map
     const at = now()
     const last = lastDoorToggleAt.get(playerId)
@@ -618,7 +653,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    */
   function validTravel(playerId: string, pinId: string, world: HostWorld): ValidTravel | null {
     const from = sceneFor(playerId, world)
-    if (from.sceneId === null) return null
+    if (from === null || from.sceneId === null) return null
+    const fromSceneId = from.sceneId
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map)
@@ -629,7 +665,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const scene = scenes.find((s) => s.sceneId === sceneId)
       return scene === undefined ? null : { name: scene.name, map: scene.map }
     }
-    const travel = resolvePinTravel(pin, from.sceneId, lookup)
+    const travel = resolvePinTravel(pin, fromSceneId, lookup)
     if (travel.status !== 'ligado') return null
     const to = scenes.find((s) => s.sceneId === travel.sceneId)
     if (to === undefined || to.sceneId === null) return null
@@ -641,7 +677,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
     }
     if (token === null) return null
-    return { from: { ...from, sceneId: from.sceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner, token }
+    return { from: { ...from, sceneId: fromSceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner, token }
   }
 
   function handleTravelRequest(clientId: string, msg: PinTravelRequestMessage, world: HostWorld): HostResult {
@@ -651,10 +687,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const reject = (reason: PinTravelRejection): HostResult => reply(clientId, { type: 'pin.travel.rejected', reason })
     if (record === undefined || statusOf(playerId) !== 'playing') return reject('unavailable')
     if (pendingTravels.has(playerId)) return reject('pending')
-    // O limite vem ANTES da validação: o recorte da névoa é a parte cara, e
-    // quem martela o botão não pode fazer o mestre refazê-lo a cada toque.
-    const limitKey = `${playerId}|${sceneKey(sceneFor(playerId, world))}|${msg.pinId}`
+    // PRIMEIRO LIMITE, por jogador e para qualquer pino, ANTES de validar: o
+    // recorte da névoa é a parte cara, e o mapa fica do tamanho do número de
+    // jogadores — o id do pino vem do cliente e nunca vira chave aqui. Não
+    // apaga no disconnect (como o sinal): reconectar não zera o limite.
     const at = now()
+    const lastByPlayer = lastTravelRequestByPlayer.get(playerId)
+    if (lastByPlayer !== undefined && at - lastByPlayer < TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS) return reject('too_soon')
+    lastTravelRequestByPlayer.set(playerId, at)
+    // SEGUNDO LIMITE, por pino, só para pino que EXISTE na cena do jogador:
+    // o tamanho fica preso aos pinos de verdade, não ao que o cliente inventa.
+    const scene = sceneFor(playerId, world)
+    if (scene === null || !scene.map.pins.some((p) => p.id === msg.pinId)) return reject('unavailable')
+    const limitKey = `${playerId}|${sceneKey(scene)}|${msg.pinId}`
     const last = lastTravelRequestAt.get(limitKey)
     if (last !== undefined && at - last < TRAVEL_REQUEST_MIN_INTERVAL_MS) return reject('too_soon')
     lastTravelRequestAt.set(limitKey, at)
@@ -662,7 +707,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const travel = validTravel(playerId, msg.pinId, world)
     if (travel === null) return reject('unavailable')
     const requestId = randomId()
-    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId })
+    // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
+    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
     const description = travel.pin.description.trim()
     return {
       outbound: [],
@@ -683,6 +729,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /** Apaga o que só vale enquanto o jogador está na sala: pedido pendente e limites do pedido. */
   const forgetTravelsOf = (playerId: string): void => {
     pendingTravels.delete(playerId)
+    lastTravelRequestByPlayer.delete(playerId)
     for (const key of [...lastTravelRequestAt.keys()]) {
       if (key.startsWith(`${playerId}|`)) lastTravelRequestAt.delete(key)
     }
@@ -725,7 +772,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (record === undefined || record.clientId === null || statusOf(pending.playerId) !== 'playing') return { outbound: [] }
       const world = toWorld(source)
       const travel = validTravel(pending.playerId, pending.pinId, world)
-      if (travel === null) return reply(record.clientId, { type: 'pin.travel.rejected', reason: 'unavailable' })
+      // O mestre deixou ir para o lugar que o aviso DIZIA. Se o pino foi
+      // religado depois (Torre no lugar da Cripta), o consentimento não cobre o
+      // destino novo: recusa, e o jogador pede de novo.
+      const sameDestination = travel !== null && travel.to.sceneId === pending.toSceneId && travel.partner.id === pending.partnerId
+      if (travel === null || !sameDestination) return reply(record.clientId, { type: 'pin.travel.rejected', reason: 'unavailable' })
       const spot = arrivalSpot(travel.to.map, travel.partner, travel.token.size)
       // A cena dele passa a ser a de destino a partir daqui: é ela que o
       // próximo broadcast manda, com a memória que ele tem DELA.
@@ -751,6 +802,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       pendingTravels.delete(pending.playerId)
       const clientId = players.get(pending.playerId)?.clientId ?? null // null = saiu: não há a quem avisar
       return clientId === null ? { outbound: [] } : reply(clientId, { type: 'pin.travel.denied' })
+    },
+
+    travelLimitEntries() {
+      return lastTravelRequestByPlayer.size + lastTravelRequestAt.size
     },
 
     isTravelPending(requestId) {
@@ -825,7 +880,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     revealPlan(playerId, source) {
       if (!players.has(playerId)) return
-      const map = sceneFor(playerId, toWorld(source)).map
+      const scene = sceneFor(playerId, toWorld(source))
+      if (scene === null) return
+      const map = scene.map
       markAll(memoryFor(playerId, map).exp, playerBlockedRings(map))
     },
 
@@ -835,7 +892,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         memories.delete(playerId)
         return
       }
-      memories.get(playerId)?.delete(sceneFor(playerId, toWorld(source)).map.id)
+      const scene = sceneFor(playerId, toWorld(source))
+      if (scene !== null) memories.get(playerId)?.delete(scene.map.id)
     },
 
     broadcast(source) {
@@ -845,7 +903,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       for (const [clientId, playerId] of byClient) {
         if (statusOf(playerId) !== 'playing') continue
         // Cada um a SUA cena: quem ficou no Salão nunca recebe nada da Cripta.
-        outbound.push({ clientId, msg: snapshotFor(playerId, sceneFor(playerId, world).map) })
+        // Quem não está em cena nenhuma recebe a espera, e não a cena do editor.
+        outbound.push({ clientId, msg: viewFor(playerId, world) })
       }
       return { outbound }
     },
@@ -855,6 +914,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const outbound: Outbound[] = []
       for (const [clientId, playerId] of byClient) {
         if (statusOf(playerId) !== 'playing') continue
+        // Sem cena (`null`) também fica de fora: não está no mapa em que o mestre aponta.
         if (world !== null && sceneFor(playerId, world) !== world.open) continue
         outbound.push({ clientId, msg: message })
       }
@@ -877,7 +937,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
             tokenIds: [...(ownership[p.playerId] ?? [])],
             visionRadius: radiusFor(p.playerId),
           }
-          if (withScenes && info.status === 'playing') info.sceneName = sceneFor(p.playerId, world).name
+          if (withScenes && info.status === 'playing') {
+            const scene = sceneFor(p.playerId, world)
+            // Sem cena, o painel o mostra aguardando: é o que a tela dele diz, e
+            // é o que leva o mestre a dar outra ficha a ele.
+            if (scene === null) info.status = 'waiting'
+            else info.sceneName = scene.name
+          }
           return info
         })
     },

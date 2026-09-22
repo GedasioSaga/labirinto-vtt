@@ -6,6 +6,7 @@ import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import {
   createHostSession,
   DOOR_TOGGLE_MIN_INTERVAL_MS,
+  TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS,
   MAX_SCENE_MEMORIES_PER_PLAYER,
   TRAVEL_REQUEST_MIN_INTERVAL_MS,
   VISION_RADIUS_MAX,
@@ -996,9 +997,11 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
     const primeiro = t.pedir('escada-a').travelRequest
     if (primeiro === undefined) throw new Error('o primeiro pedido deveria valer')
     t.s.denyTravel(primeiro.requestId)
-    t.advance(TRAVEL_REQUEST_MIN_INTERVAL_MS - 1)
+    // Passou o limite do jogador, mas não o do pino: ainda cedo para ESTE pino.
+    t.advance(TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS)
     expect(recusa(t.pedir('escada-a'))).toBe('too_soon')
-    t.advance(1)
+    // Completa o intervalo do pino (e mais um intervalo do jogador desde a tentativa): vale.
+    t.advance(TRAVEL_REQUEST_MIN_INTERVAL_MS - TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS)
     expect(t.pedir('escada-a').travelRequest).toBeDefined()
   })
 
@@ -1124,5 +1127,112 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
     }
     const deVolta = decodeExploration(snapshotDe(t.s.broadcast(mundo({ heroi: { cena: 'A', x: 200, y: 200 } })), 'c1').explored)
     expect(deVolta !== null && isPointExplored(deVolta, FUNDO)).toBe(false)
+  })
+})
+
+describe('hostSession: revisão de segurança do pedido de passagem', () => {
+  // Reaproveita o mesmo mundo de duas cenas do bloco acima, com os casos da revisão.
+  const CENA_A = 'cena-salao'
+  const CENA_B = 'cena-cripta'
+
+  function viagem(id: string, x: number, y: number, description: string, destino: Pin['destino']): Pin {
+    return { id, x, y, kind: 'viagem', description, image: null, destino }
+  }
+
+  function mundo(heroi: 'A' | 'nenhuma', religado = false): HostWorld {
+    const salao: MapData = {
+      ...createEmptyMap('mapa-salao', 'Aventura', 40, 10, 50),
+      tokens: [...(heroi === 'A' ? [token('heroi', 200, 200)] : []), token('ladino', 300, 200)],
+      pins: [viagem('escada-a', 400, 200, 'Escada que desce', { sceneId: CENA_B, pinId: religado ? 'torre-b' : 'escada-b' })],
+    }
+    const cripta: MapData = {
+      ...createEmptyMap('mapa-cripta', 'Cripta', 40, 10, 50),
+      pins: [
+        viagem('escada-b', 1000, 250, 'Escada que sobe', religado ? null : { sceneId: CENA_A, pinId: 'escada-a' }),
+        viagem('torre-b', 1800, 100, 'Alto da torre', religado ? { sceneId: CENA_A, pinId: 'escada-a' } : null),
+      ],
+    }
+    return { open: { sceneId: CENA_A, name: 'Salão', map: salao }, background: [{ sceneId: CENA_B, name: 'Cripta', map: cripta }] }
+  }
+
+  function mesa() {
+    let clock = 1_000_000
+    const s = createHostSession({ code: CODE, visionRadius: RADIUS, now: () => clock, randomId: sequentialIds() })
+    const w = mundo('A')
+    const ana = welcomeOf(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, w).outbound)
+    const bia = welcomeOf(s.handleMessage('c2', { type: 'join', code: CODE, name: 'Bia' }, w).outbound)
+    s.assignToken(ana.playerId, 'heroi')
+    s.assignToken(bia.playerId, 'ladino')
+    s.broadcast(w)
+    return { s, w, ana, advance: (ms: number) => void (clock += ms) }
+  }
+
+  function recusa(r: HostResult): string | null {
+    const msg = r.outbound[0]?.msg
+    return msg?.type === 'pin.travel.rejected' ? msg.reason : null
+  }
+
+  it('1. com aventura, quem não tem ficha em cena nenhuma recebe a espera: nem a cena do editor, nem laser, nem sinal', () => {
+    const t = mesa()
+    const semFicha = mundo('nenhuma')
+    const b = t.s.broadcast(semFicha)
+    expect(b.outbound.find((o) => o.clientId === 'c1')?.msg).toEqual({ type: 'lobby.waiting' })
+    expect(JSON.stringify(b.outbound.filter((o) => o.clientId === 'c1'))).not.toContain('mapa-salao')
+    // Bia, que está no Salão, continua recebendo o Salão.
+    expect(b.outbound.find((o) => o.clientId === 'c2')?.msg.type).toBe('snapshot')
+    expect(t.s.laser({ type: 'laser', off: true }, semFicha).outbound.map((o) => o.clientId)).toEqual(['c2'])
+    expect(t.s.handleMessage('c1', { type: 'signal', x: 300, y: 200 }, semFicha).outbound).toEqual([])
+    expect(t.s.listPlayers(semFicha).map((p) => [p.name, p.status, p.sceneName])).toEqual([
+      ['Ana', 'waiting', undefined],
+      ['Bia', 'playing', 'Salão'],
+    ])
+    // Reconectar não fura: o resume também cai na espera.
+    t.s.disconnect('c1')
+    const volta = t.s.handleMessage('c3', { type: 'join', code: CODE, name: 'Ana', resume: t.ana.resumeToken }, semFicha)
+    expect(volta.outbound.map((o) => o.msg.type)).toEqual(['welcome', 'lobby.waiting'])
+  })
+
+  it('1b. mapa solto continua como sempre: sem ficha no mapa, o jogador vê o mapa aberto', () => {
+    const s = createHostSession({ code: CODE, visionRadius: RADIUS, now: () => 0, randomId: sequentialIds() })
+    const map = twoRooms()
+    const ana = welcomeOf(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, map).outbound)
+    s.assignToken(ana.playerId, 'heroi')
+    const semFicha: MapData = { ...map, tokens: map.tokens.filter((tk) => tk.id !== 'heroi') }
+    expect(s.broadcast(semFicha).outbound[0]?.msg.type).toBe('snapshot')
+  })
+
+  it('2. mil pedidos com ids de pino inventados não fazem os limites crescer além do número de jogadores', () => {
+    const t = mesa()
+    for (let i = 0; i < 1000; i += 1) {
+      t.advance(TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS)
+      expect(recusa(t.s.handleMessage('c1', { type: 'pin.travel.request', pinId: `inventado-${i}` }, t.w))).toBe('unavailable')
+    }
+    expect(t.s.travelLimitEntries()).toBeLessThanOrEqual(2)
+  })
+
+  it('3. reconectar com o resume não zera o limite: pedir de novo logo depois é too_soon', () => {
+    const t = mesa()
+    expect(t.s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'escada-a' }, t.w).travelRequest).toBeDefined()
+    t.s.disconnect('c1')
+    t.s.handleMessage('c3', { type: 'join', code: CODE, name: 'Ana', resume: t.ana.resumeToken }, t.w)
+    expect(recusa(t.s.handleMessage('c3', { type: 'pin.travel.request', pinId: 'outro-pino' }, t.w))).toBe('too_soon')
+    expect(recusa(t.s.handleMessage('c3', { type: 'pin.travel.request', pinId: 'escada-a' }, t.w))).toBe('too_soon')
+    t.advance(TRAVEL_REQUEST_MIN_INTERVAL_MS)
+    expect(t.s.handleMessage('c3', { type: 'pin.travel.request', pinId: 'escada-a' }, t.w).travelRequest).toBeDefined()
+  })
+
+  it('4. o mestre religa o pino depois de ler o aviso: "Deixar ir" é recusado, e o jogador não vai para o destino novo', () => {
+    const t = mesa()
+    const pedido = t.s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'escada-a' }, t.w).travelRequest
+    if (pedido === undefined) throw new Error('pedido deveria valer')
+    const r = t.s.approveTravel(pedido.requestId, mundo('A', true))
+    expect(r.applyTransfer).toBeUndefined()
+    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'pin.travel.rejected', reason: 'unavailable' } }])
+    expect(t.s.isTravelPending(pedido.requestId)).toBe(false)
+    // Controle positivo: sem religar, o mesmo caminho deixa ir.
+    t.advance(TRAVEL_REQUEST_MIN_INTERVAL_MS)
+    const outro = t.s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'escada-a' }, t.w).travelRequest
+    if (outro === undefined) throw new Error('segundo pedido deveria valer')
+    expect(t.s.approveTravel(outro.requestId, t.w).applyTransfer?.toSceneId).toBe(CENA_B)
   })
 })
