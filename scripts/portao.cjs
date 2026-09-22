@@ -1007,7 +1007,24 @@ function guardaTransporteFalsificado(arquivo, texto) {
   // transporte de verdade é medido pelo passo `transporte-vivo` (exe release na
   // 7777), que é o lugar certo para isso. Sem esse par (socket real + host
   // real), os dois voltam a reprovar — jornada que fabrica TUDO não prova nada.
-  const jogadorNoSocketReal = /routeWebSocket\s*\(/.test(texto) && /createHostSession\s*\(/.test(texto)
+  //
+  // Segunda forma do mesmo par (21/09/2026, régua da viagem do jogador): o host
+  // real é o APP INTEIRO na página do mestre (`net/hostBridge.ts` cria a sessão
+  // lá dentro), e a jornada só faz o papel do fio Rust — o que o `player.html`
+  // de verdade manda pelo socket roteado entra no mestre como `net:message`, e o
+  // `net_send` do mestre volta ao socket por `exposeFunction`. Vale só se TODA
+  // chamada de `__emitTauri` for esse repasse, com a mensagem tirada do socket
+  // (`JSON.parse` do que chegou); um evento inventado a mais derruba a exceção.
+  const chamadasDeEmit = (texto.match(/__emitTauri\s*\(/g) || []).length
+  const repassesDoSocket = (texto.match(/__emitTauri\s*\(\s*['"]net:message['"]\s*,\s*\{[^}]*JSON\.parse\(/g) || []).length
+  const mestreEhOAppComSocketRepassado =
+    /routeWebSocket\s*\(/.test(texto) &&
+    /goto\(\s*['"]\/player\.html/.test(texto) &&
+    /exposeFunction\s*\(/.test(texto) &&
+    chamadasDeEmit > 0 &&
+    chamadasDeEmit === repassesDoSocket
+  const jogadorNoSocketReal =
+    (/routeWebSocket\s*\(/.test(texto) && /createHostSession\s*\(/.test(texto)) || mestreEhOAppComSocketRepassado
   if (/__emitTauri\s*\(/.test(texto) && !jogadorNoSocketReal) {
     marcas.push('__emitTauri (evento de transporte inventado na página)')
   }
