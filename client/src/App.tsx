@@ -14,12 +14,13 @@ import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } fr
 import { useSignalStore } from './stores/signalStore'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { playSignalSound } from './lib/signalSound'
+import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { viewportCenterWorld, type Camera } from './pixi/world'
+import { viewportCenterWorld, type Bounds, type Camera } from './pixi/world'
 import { MainMenu } from './screens/MainMenu'
 import { MapTypePicker } from './screens/MapTypePicker'
 import { NewDungeonMap } from './screens/NewDungeonMap'
@@ -456,10 +457,15 @@ function App() {
         onPlayersChange: setRoomPlayers,
         onTunnelChange: setTunnel,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
-        onSignal: (signal) => {
-          useSignalStore.getState().push(signal)
-          playSignalSound()
-        },
+        // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
+        // outro mapa): vira o aviso "chamou em", com "Ir lá" (`net/chamadoDeFundo.ts`).
+        onSignal: createSignalRouter({
+          drawPing: (signal) => useSignalStore.getState().push(signal),
+          beep: playSignalSound,
+          goTo: (sceneId, x, y) => {
+            useAdventureStore.getState().goToPoint(sceneId, { x, y })
+          },
+        }),
       })
     }
     return hostBridgeRef.current
@@ -598,6 +604,24 @@ function App() {
   const [resetZoomRequest, setResetZoomRequest] = useState(0)
   /** Container do canvas: o tamanho dele é a "tela" usada para achar o centro visível ao adicionar token. */
   const canvasHostRef = useRef<HTMLDivElement | null>(null)
+  /** Barra de ferramentas e rail: flutuam sobre o canvas e tapam o que está embaixo. */
+  const editorTopRef = useRef<HTMLDivElement | null>(null)
+  const editorRailRef = useRef<HTMLDivElement | null>(null)
+  /**
+   * Os painéis flutuantes em px relativos ao canvas, lidos na hora: o "Ir lá"
+   * (e toda chegada com foco) centra o ponto no que eles deixam livre, e não
+   * embaixo da barra de ferramentas (ver `freeAreaCenter`).
+   */
+  const canvasObstacles = (): Bounds[] => {
+    const host = canvasHostRef.current
+    if (host === null) return []
+    const base = host.getBoundingClientRect()
+    return [editorTopRef.current, editorRailRef.current].flatMap((el) => {
+      if (el === null) return []
+      const r = el.getBoundingClientRect()
+      return [{ minX: r.left - base.left, minY: r.top - base.top, maxX: r.right - base.left, maxY: r.bottom - base.top }]
+    })
+  }
 
   /**
    * Onda 1, item 4 do plano — sliders de propriedade (intensidade de luz,
@@ -1542,6 +1566,7 @@ function App() {
           onCameraChange={(camera: Camera) => setCameraScale(camera.scale)}
           resetZoomRequest={resetZoomRequest}
           cameraRequest={sceneCameraRequest}
+          focusObstacles={canvasObstacles}
           onTravelPin={(pinId) => useAdventureStore.getState().travelThroughPin(pinId)}
           onLaserMove={(x, y) => hostBridgeRef.current?.laserMove(x, y)}
           onRoomCreated={() => {
@@ -1553,7 +1578,7 @@ function App() {
         />
       </div>
 
-      <div className="lb-editor__top">
+      <div className="lb-editor__top" ref={editorTopRef}>
         <Toolbar
           activeTool={activeTool}
           onSelectTool={setActiveTool}
@@ -1575,7 +1600,7 @@ function App() {
         />
       </div>
 
-      <div className="lb-editor__rail">
+      <div className="lb-editor__rail" ref={editorRailRef}>
         {withRoomTabs(
           <PropertiesPanel
             scenes={
