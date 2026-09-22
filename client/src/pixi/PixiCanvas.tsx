@@ -13,7 +13,7 @@ import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
 import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, type Camera, type Point } from './world'
 import { resolveCursor, type HoverKind, type ResizeCorner } from './cursorPolicy'
 import { resolveMapWheel } from './wheelGesture'
-import { resolveShortcut } from '../lib/keymap'
+import { resolveShortcut, type ShortcutEvent } from '../lib/keymap'
 import { ROOM_CIRCLE_SIDES } from '../lib/roomCircle'
 // Onda 2, item 15 (Frente B) — hit-test + desenho do anel de hover.
 import { resolveHoverHit, type HoverHit, type HoverTarget } from '../lib/hoverHitTest'
@@ -59,6 +59,7 @@ import {
   buildFloorPiece,
   buildFloorShapeFromDrag,
   clampFloorPolygonSides,
+  corridorDraftOnShapeChange,
   findFloorPieceAt,
   isFloorDragShape,
   pincelDeBlocosApaga,
@@ -133,7 +134,7 @@ import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { createPinsRenderer } from './drawPins'
 import { findConcealZoneAt } from '../lib/concealZones'
-import { findPinAt } from '../lib/pins'
+import { findPinAt, pinKindAfterShortcut } from '../lib/pins'
 import { buildConcealZoneFromDraft, buildPin, nextTokenName } from '../lib/mapFactory'
 import { SECRET_ITEM_ALPHA } from './constants'
 import { createTextLabelsRenderer } from './drawTextLabels'
@@ -157,7 +158,7 @@ import { drawGuides } from './drawGuides'
 import { cloneEntity, type CloneableEntity } from '../lib/entityClone'
 import { placeNewRoom, subtreeIds } from '../lib/roomNesting'
 import { useToastStore } from '../stores/toastStore'
-import { STAIR_CLICK_WITHOUT_DRAG_TEXT } from '../components/labels'
+import { CORRIDOR_DISCARDED_TEXT, STAIR_CLICK_WITHOUT_DRAG_TEXT } from '../components/labels'
 import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
   canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
@@ -373,6 +374,22 @@ const FECHAMENTO_DOIS_TOQUES_TOLERANCIA_PX = 8
 // pro inteiro mais próximo só limpa erro de ponto flutuante (ex.: 89.9999999
 // vira "90°"), não perde precisão real. Livre (sem Ctrl) mostra 1 casa
 // decimal (ex.: "87.3°") pra deixar claro que não está travado num valor exato.
+/**
+ * O que `resolveShortcut` precisa saber de ONDE a tecla caiu: a tag e, num
+ * INPUT, o tipo — interruptor e rádio não recebem texto, então a letra
+ * continua sendo atalho com o foco neles (achado 10 do passeio de 20/09/2026).
+ * `instanceof` em vez de cast: o alvo de um `keydown` de `window` pode ser o
+ * próprio `document` ou a janela, que não têm tag.
+ */
+function alvoDoAtalho(target: EventTarget | null): Pick<ShortcutEvent, 'targetTagName' | 'targetInputType' | 'targetContentEditable'> {
+  if (!(target instanceof HTMLElement)) return { targetTagName: '' }
+  return {
+    targetTagName: target.tagName,
+    targetInputType: target instanceof HTMLInputElement ? target.type : undefined,
+    targetContentEditable: target.isContentEditable,
+  }
+}
+
 function formatAngleLabel(degrees: number, locked: boolean): string {
   return locked ? `${Math.round(degrees)}°` : `${degrees.toFixed(1)}°`
 }
@@ -2708,6 +2725,25 @@ export function PixiCanvas({
         endTextEditing()
         updateCursor()
         redrawShapes()
+      })
+
+      // Trocar de forma no menu do Chão com um Corredor ABERTO (achado 7 do
+      // passeio de 20/09/2026): o traço ficava pendurado e morria calado no
+      // `clearDrafts()` da próxima troca de ferramenta. Agora a troca resolve
+      // o traço na hora — vira chão se já é corredor (a mesma saída do Enter),
+      // ou some COM aviso se tinha um ponto só. A regra é pura e testada em
+      // `corridorDraftOnShapeChange`.
+      const unsubscribeFloorShape = useMapStore.subscribe((state) => state.floorShapeKind, () => {
+        const decisao = corridorDraftOnShapeChange(corridorDraftPoints)
+        if (decisao === 'finalizar') {
+          finishCorridor()
+          return
+        }
+        if (decisao === 'descartar') {
+          corridorDraftPoints = []
+          draftGraphics.clear()
+          useToastStore.getState().push('info', CORRIDOR_DISCARDED_TEXT)
+        }
       })
 
       app.stage.on('pointerdown', (event) => {
@@ -5221,7 +5257,7 @@ export function PixiCanvas({
           metaKey: event.metaKey,
           shiftKey: event.shiftKey,
           altKey: event.altKey,
-          targetTagName: (event.target as HTMLElement | null)?.tagName ?? '',
+          ...alvoDoAtalho(event.target),
         })
         if (action === null) return
         // Sem isto o navegador também seleciona o texto da interface (laranja).
@@ -5308,6 +5344,20 @@ export function PixiCanvas({
           case 'selectTool':
             useMapStore.getState().setActiveTool(action.tool)
             break
+          // `?` (achado 11 do passeio de 20/09/2026): alterna "!"/"?" do pino
+          // SELECIONADO. Sem pino — ou com id velho, que o `undo` deixa para
+          // trás (ver `deleteSelected` acima) — a tecla não faz nada e fica
+          // livre para outro papel sem o pino. O `destino: null` é o mesmo do
+          // painel (`App.tsx`, `onKindChange`): tipo que não é viagem não leva
+          // destino.
+          case 'togglePinType': {
+            const { map: mapaAtual, selectedPinId: pinoId, updatePin } = useMapStore.getState()
+            const pino = pinoId === null ? undefined : mapaAtual.pins.find((p) => p.id === pinoId)
+            if (pino === undefined) break
+            const proximo = pinKindAfterShortcut(pino.kind)
+            if (proximo !== null) updatePin(pino.id, { kind: proximo, destino: null })
+            break
+          }
           case 'nudge':
             nudgeSelected(action.dx, action.dy, action.fine)
             break
@@ -5354,7 +5404,7 @@ export function PixiCanvas({
           metaKey: event.metaKey,
           shiftKey: event.shiftKey,
           altKey: event.altKey,
-          targetTagName: (event.target as HTMLElement | null)?.tagName ?? '',
+          ...alvoDoAtalho(event.target),
           hasPointDraft: true,
         })
         if (action?.kind !== 'undoDraftPoint') return
@@ -5417,6 +5467,7 @@ export function PixiCanvas({
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()
         unsubscribeActiveTool()
+        unsubscribeFloorShape()
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
         lightsRenderer.destroy()
         el.removeEventListener('wheel', onWheel)

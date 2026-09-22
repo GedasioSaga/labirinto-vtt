@@ -2144,6 +2144,36 @@ body {
   color: var(--lb-color-brass);
 }
 
+/* O nome também se ARRASTA até o mapa: sem isto o gesto selecionaria o texto
+   do rail no caminho, e no toque a página rolaria em vez de levar a peça. */
+.lb-acervo__nome {
+  user-select: none;
+  touch-action: none;
+}
+
+/* Fantasma do arrasto: a mesma linha da estante, levantada, seguindo o
+   ponteiro. `pointer-events: none` é funcional — o soltar pergunta ao
+   navegador o que está SOB o ponteiro, e o fantasma não pode ser a resposta. */
+.lb-acervo__fantasma {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-brass);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md);
+  box-shadow: var(--lb-shadow-md);
+  opacity: 0.92;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 .lb-acervo__apagar {
   flex: none;
   padding: 0 var(--lb-space-2);
