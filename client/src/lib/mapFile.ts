@@ -188,6 +188,10 @@ function deserializeMapFields(json: string): MapData {
       // jogador: arquivo que o traga (editado à mão) não o põe no mapa do mestre.
       rotulo: p.rotulo === undefined ? undefined : cleanExitLabel(p.rotulo) || undefined,
       saidas: readPinExits(p.saidas),
+      // MÃO ÚNICA: `soChegada` é campo NOVO e OPCIONAL. Só `true` vale; o resto
+      // (`false`, texto, número, arquivo editado à mão) volta AUSENTE — o par de
+      // sempre, visível. O `...p` acima copiaria o valor cru, por isso a linha.
+      soChegada: p.soChegada === true ? true : undefined,
       escolhas: undefined,
     })),
     frame: parsed.frame ?? null,

@@ -2395,6 +2395,20 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* "Mão única" (botão de alternar): pressionado ganha o latão do botão de
+   ferramenta ativo — o mesmo "ligado" que a barra já ensina. */
+.lb-travel .lb-btn[aria-pressed='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+  border-color: rgba(224, 164, 74, 0.28);
+}
+
+/* Chegada oculta: régua tracejada, a cabeça vazada do mapa dita no poço. */
+.lb-travel--chegada {
+  border-left-style: dashed;
+  border-left-color: var(--lb-color-brass);
+}
+
 .lb-travel--sem-destino .lb-travel__title {
   color: var(--lb-color-parchment-dim);
 }

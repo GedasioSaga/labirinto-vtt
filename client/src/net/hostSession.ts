@@ -5,7 +5,7 @@ import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
-import { arrivalPoint, arrivalSpot, exitLabelsOf, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
+import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
 import {
   parsePlayerMessage,
@@ -700,6 +700,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // e não só no pedido, faz o "Deixar ir" de um pedido feito antes de trancar
     // recusar também.
     if (passageOf(pin) === 'trancada') return null
+    // Chegada oculta (mão única) não leva de volta. O recorte já não a manda,
+    // mas a recusa não depende da névoa: mesmo `null`, mesmo motivo genérico.
+    if (isArrivalOnly(pin)) return null
     const scenes = allScenes(world)
     const lookup = (sceneId: string): TravelScene | null => {
       const scene = scenes.find((s) => s.sceneId === sceneId)

@@ -7,12 +7,14 @@ import { ADVENTURE_VERSION, baseName, cleanSceneName, newSceneId, sceneFileFor, 
 import {
   addExit,
   arrivalPoint,
+  isArrivalOnly,
   linkBack,
   pinFocusPoint,
   renameExit,
   resolvePinTravel,
   SAIDA_PRINCIPAL,
   sameDestination,
+  setArrivalOnly,
   setExitDestination,
   travelExitsOf,
   travelLinkChanges,
@@ -140,6 +142,14 @@ interface AdventureState {
   unlinkPin: (pinId: string, exitId?: string) => void
   /** Dá nome à saída `exitId` do pino `pinId`. Entra no desfazer da cena aberta. */
   renamePinExit: (pinId: string, exitId: string, rotulo: string) => void
+  /**
+   * MÃO ÚNICA da saída `exitId` do pino `pinId` (da cena aberta): marcar põe
+   * a marca de chegada oculta no PAR, na cena de fundo; desmarcar tira. Fora
+   * do desfazer da cena aberta, como toda mudança de cena de fundo. `false`
+   * quando não deu: saída sem par, ou par que é encruzilhada (esconder o par
+   * esconderia as outras saídas dele junto).
+   */
+  setPinOneWay: (pinId: string, exitId: string, on: boolean) => boolean
   /**
    * Leva a visão do mestre pela saída `exitId` (ausente = a principal): abre
    * a cena de destino com o par no centro da tela e aberto no painel. `false`
@@ -495,10 +505,25 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     useMapStore.getState().updatePin(pinId, renameExit(pin, exitId, rotulo))
   },
 
+  setPinOneWay: (pinId, exitId, on) => {
+    const live = useMapStore.getState().map
+    const pin = live.pins.find((p) => p.id === pinId)
+    if (pin === undefined) return false
+    const travel = resolvePinTravel(pin, get().activeSceneId, sceneLookup(get(), live), exitId)
+    if (travel.status !== 'ligado') return false
+    if (on && travelExitsOf(travel.partner).length > 1) return false
+    const partnerId = travel.partner.id
+    get().updateBackgroundScene(travel.sceneId, (map) => setArrivalOnly(map, partnerId, on))
+    return true
+  },
+
   travelThroughPin: (pinId, exitId = SAIDA_PRINCIPAL) => {
     const live = useMapStore.getState().map
     const pin = live.pins.find((p) => p.id === pinId)
     if (pin === undefined) return false
+    // Chegada oculta não leva de volta, nem para o mestre: o clique nela só
+    // a seleciona, como o de um marcador.
+    if (isArrivalOnly(pin)) return false
     const travel = resolvePinTravel(pin, get().activeSceneId, sceneLookup(get(), live), exitId)
     if (travel.status !== 'ligado') return false
     if (!get().switchScene(travel.sceneId, pinFocusPoint(travel.partner))) return false
