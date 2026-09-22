@@ -51,6 +51,8 @@ export type TravelNotice =
   | { id: number; phase: 'arrived' }
   /** O mestre levou o jogador para outra cena sem ele pedir. */
   | { id: number; phase: 'moved' }
+  /** O mestre reuniu o grupo num pino e trouxe o jogador de outra cena. */
+  | { id: number; phase: 'gathered' }
   | { id: number; phase: 'denied' }
   | { id: number; phase: 'rejected'; reason: PinTravelRejection }
 
@@ -133,6 +135,12 @@ export const FREE_PASSAGE_BEAT_MS = 450
  * não esperava nada e pode estar olhando a mesa quando o mapa troca.
  */
 export const MOVED_NOTICE_TTL_MS = 12_000
+/**
+ * "O mestre reuniu o grupo" espera o jogador: a reunião costuma vir depois de
+ * uma pausa da mesa, com o jogador olhando para longe da tela. Some quando
+ * ele mexe a própria ficha (aí já viu onde está) ou depois de um minuto.
+ */
+export const GATHERED_NOTICE_TTL_MS = 60_000
 const SOCKET_OPEN = 1
 const CONNECTION_LOST = 'connection_lost'
 
@@ -286,8 +294,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         travelTimer = null
         setState({ travel: undefined })
       },
-      notice.phase === 'moved' ? MOVED_NOTICE_TTL_MS : TRAVEL_NOTICE_TTL_MS,
+      travelNoticeTtl(notice),
     )
+  }
+
+  function travelNoticeTtl(notice: TravelNotice): number {
+    if (notice.phase === 'gathered') return GATHERED_NOTICE_TTL_MS
+    return notice.phase === 'moved' ? MOVED_NOTICE_TTL_MS : TRAVEL_NOTICE_TTL_MS
   }
 
   let laserTimer: ReturnType<typeof setTimeout> | null = null
@@ -441,7 +454,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         setState({ signals: undefined, laser: undefined, doorNotice: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
-        showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'master' ? 'moved' : 'arrived' })
+        // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
+        showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
         return
       case 'pin.travel.denied':
         if (state.status !== 'playing') return
@@ -597,6 +611,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const reqId = `m${nextReqId++}`
       if (!send({ type: 'token.move', reqId, tokenId, x, y })) return false
       pending.set(reqId, { tokenId, x, y, prevX: token.x, prevY: token.y })
+      // Mexeu a ficha depois da reunião: já viu onde está, o aviso sai.
+      if (state.travel?.phase === 'gathered') {
+        clearTravelTimer()
+        setState({ map: withTokenAt(map, tokenId, x, y), travel: undefined })
+        return true
+      }
       setState({ map: withTokenAt(map, tokenId, x, y) })
       return true
     },

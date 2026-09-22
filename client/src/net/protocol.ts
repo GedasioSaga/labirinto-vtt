@@ -153,7 +153,9 @@ export type HostMessage =
   | { type: 'pin.travel.denied' }
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
-  | { type: 'scene.changed'; by?: 'master' }
+  // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um
+  // pino — o aviso diz que o GRUPO foi reunido, e continua sem dizer onde.
+  | { type: 'scene.changed'; by?: 'master' | 'gather' }
   | LaserMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }

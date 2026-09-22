@@ -110,8 +110,9 @@ export interface HostBridge {
    * "Mandar para…" do painel Grupo: leva a ficha do jogador para `toSceneId`,
    * no pino `pinId` ou no centro (`null`), sem pedido. `false` quando não deu
    * (sala fechada, destino ou ficha sumiram): o painel avisa e fica aberto.
+   * `gatherAt`: "Reunir o grupo aqui" — chega nessa casa, com o aviso de reunião.
    */
-  sendPlayer(playerId: string, toSceneId: string, pinId: string | null): boolean
+  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: { x: number; y: number }): boolean
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -632,9 +633,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       broadcastNow()
     },
 
-    sendPlayer(playerId, toSceneId, pinId) {
+    sendPlayer(playerId, toSceneId, pinId, gatherAt) {
       if (session === null) return false
-      const result = session.sendPlayer(playerId, toSceneId, pinId, world())
+      const result = session.sendPlayer(playerId, toSceneId, pinId, world(), gatherAt)
       const transfer = result.applyTransfer
       // Mesmo caminho do "Deixar ir" (`answerTravel`): a ficha muda de cena
       // antes do `scene.changed` sair, e o snapshot da cena nova vem atrás.
