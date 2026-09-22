@@ -105,12 +105,15 @@ const POS_J1: Ponto = { x: 1500, y: 300 }
  */
 const POS_J2: Ponto = { x: 1600, y: 150 }
 /**
- * Seis casas para a ESQUERDA (testes 1 e 2). Para a esquerda porque o centro
+ * Dez casas para a ESQUERDA (testes 1 e 2). Para a esquerda porque o centro
  * da parte visível do canvas fica à direita do centro do canvas (o painel
  * cobre a esquerda): andar para a direita levaria a ficha, sem seguir, para
- * perto do centro visível (medido em 22/09: 57 px, limite 120).
+ * perto do centro visível (medido em 22/09: 57 px, limite 120). Dez e não
+ * seis: desde a G6 o "Ir lá" centra na área LIVRE, e seis casas a partir de
+ * lá deixavam a ficha a 64 px do centro do CANVAS — o controle do teste 1
+ * lia "no centro" sem ninguém seguir (medido pelo builder da G7 em 22/09).
  */
-const POS_J1_ANDOU: Ponto = { x: POS_J1.x - 6 * GRADE, y: POS_J1.y }
+const POS_J1_ANDOU: Ponto = { x: POS_J1.x - 10 * GRADE, y: POS_J1.y }
 /** Dez casas para a esquerda (teste 4). */
 const POS_J1_VOLTOU: Ponto = { x: POS_J1.x - 10 * GRADE, y: POS_J1.y }
 const POS_ESCADA_A: Ponto = { x: 1300, y: 480 }
@@ -819,7 +822,7 @@ test('1. controle: o Grupo mostra Ana e Bruno, "Ir lá" em Ana põe a ficha dela
     .poll(async () => pertoDoCentro(await lerTela(page)), { timeout: ESPERA_TELA_MESTRE, message: `depois do "Ir lá", a ficha de ${J1} deveria ficar no centro da tela do mestre` })
     .toBe(true)
 
-  // A régua dos testes 2 e 4 funciona hoje: Ana arrasta 6 casas na tela dela, a
+  // A régua dos testes 2 e 4 funciona hoje: Ana arrasta 10 casas na tela dela, a
   // razão Ana–Bruno na tela do mestre acusa a chegada, e o "Ir lá" (uma vez só)
   // não segue — a ficha sai do centro. É isto que o teste 2 tem de inverter.
   const antesDoArrasto = distanciaAnaBruno(await lerTela(page))
@@ -832,14 +835,14 @@ test('1. controle: o Grupo mostra Ana e Bruno, "Ir lá" em Ana põe a ficha dela
         ultima = await lerTela(page)
         return anaChegouNoMestre(antesDoArrasto ?? 1, ultima, POS_J1, POS_J1_ANDOU)
       },
-      { timeout: ESPERA_TELA_MESTRE, message: `a ficha de ${J1} deveria andar 6 casas na tela do mestre` },
+      { timeout: ESPERA_TELA_MESTRE, message: `a ficha de ${J1} deveria andar 10 casas na tela do mestre` },
     )
     .toBe(true)
   const tela = ultima ?? (await lerTela(page))
   expect(pertoDoCentro(tela), `sem "Seguir", o "Ir lá" não acompanha: a ficha de ${J1} deveria sair do centro (${descreverCentro(tela)})`).toBe(false)
 })
 
-test('2. "Seguir" em Ana fica pressionado; Ana arrasta a ficha 6 casas e ela continua no centro da tela do mestre', async ({ browser, page, baseURL }) => {
+test('2. "Seguir" em Ana fica pressionado; Ana arrasta a ficha 10 casas e ela continua no centro da tela do mestre', async ({ browser, page, baseURL }) => {
   test.setTimeout(180_000)
   const { ana } = await mesaMontada(browser, page, baseURL ?? '')
 
@@ -855,7 +858,7 @@ test('2. "Seguir" em Ana fica pressionado; Ana arrasta a ficha 6 casas e ela con
         ultima = await lerTela(page)
         return anaChegouNoMestre(antes ?? 1, ultima, POS_J1, POS_J1_ANDOU) && pertoDoCentro(ultima)
       },
-      { timeout: ESPERA_TELA_MESTRE, message: `seguindo ${J1}: a ficha dela andou 6 casas e deveria continuar no centro da tela do mestre` },
+      { timeout: ESPERA_TELA_MESTRE, message: `seguindo ${J1}: a ficha dela andou 10 casas e deveria continuar no centro da tela do mestre` },
     )
     .toBe(true)
   const tela = ultima ?? (await lerTela(page))
