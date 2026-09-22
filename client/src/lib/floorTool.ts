@@ -132,6 +132,37 @@ export function buildFloorPiece(id: string, shape: FloorShape, op: FloorPiece['o
   return rotation === 0 ? { id, shape, op, modifiers: {} } : { id, shape, op, rotation, modifiers: {} }
 }
 
+/** `PointerEvent.button` do botão direito do mouse. */
+const BOTAO_DIREITO = 2
+
+/**
+ * O traço do Pincel de blocos apaga (em vez de pintar)?
+ *
+ * Duas portas de entrada para apagar, e qualquer uma basta:
+ *  - o botão DIREITO apaga em qualquer operação — decisão do usuário de
+ *    15/09/2026, é o atalho que a descrição do pincel ensina;
+ *  - a OPERAÇÃO "Subtrair" apaga também com o botão esquerdo. Antes o pincel
+ *    olhava só o botão e Subtrair pintava igual a Somar, contrariando a
+ *    promessa da própria opção ("abre um buraco no chão desenhado antes
+ *    dela") — achado 8 do passeio de 20/09/2026.
+ *
+ * Apagar reaproveita `apagarBlocosDoChao`, que só abre buraco onde HÁ chão:
+ * Subtrair no vazio não cria nada.
+ */
+export function pincelDeBlocosApaga(op: FloorPiece['op'], botao: number): boolean {
+  return botao === BOTAO_DIREITO || op === 'subtract'
+}
+
+/**
+ * Aviso da borracha ao cair num chão sem nada por cima. A borracha não apaga
+ * chão de propósito (decisão de 22/09/2026): a pessoa passaria a borracha para
+ * limpar um risco e levaria o piso junto. Mas calar fazia ela achar que errou
+ * o alvo — então a frase diz os dois caminhos que de fato apagam chão. Numa
+ * linha só: o card do aviso mostra o texto inteiro num bloco.
+ */
+export const AVISO_BORRACHA_NAO_APAGA_CHAO =
+  'A borracha não apaga chão. Para abrir um buraco no chão, use a ferramenta Chão com o Pincel de blocos e o botão direito (ou a operação Subtrair), ou selecione a peça de chão e apague.'
+
 /**
  * Peça sob o ponto: a MAIS RECENTE (fim da lista) cujo interior contém o
  * ponto — é a que foi aplicada por último, logo a que o usuário vê "por

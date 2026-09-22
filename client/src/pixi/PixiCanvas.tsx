@@ -53,6 +53,7 @@ import { compileFloor } from '../lib/floorSdf'
 const MINIMAP_RASTER_SAMPLES = 4
 import type { FloorPiece, MapFrame } from '../types/map'
 import {
+  AVISO_BORRACHA_NAO_APAGA_CHAO,
   baldeNoPonto,
   buildCorridorShape,
   buildFloorPiece,
@@ -60,6 +61,7 @@ import {
   clampFloorPolygonSides,
   findFloorPieceAt,
   isFloorDragShape,
+  pincelDeBlocosApaga,
 } from '../lib/floorTool'
 import { blocosDoTraco, buildBlocosShape, chaveDoBloco, type Bloco } from '../lib/floorBlocks'
 
@@ -1535,7 +1537,7 @@ export function PixiCanvas({
        * recalcular a cada pointermove.
        */
       let blocoCells: Map<string, Bloco> | null = null
-      /** Botão direito apaga em vez de pintar — decisão do usuário (15/09/2026). */
+      /** Apaga em vez de pintar: botão direito (decisão de 15/09/2026) ou operação Subtrair — `pincelDeBlocosApaga`. */
       let blocoApagando = false
       /** `map.grid` de quando o traço começou: mudar a grade no meio não parte o traço. */
       let blocoCellSize = 0
@@ -1679,6 +1681,12 @@ export function PixiCanvas({
       let eraseGestureSnapshot: MapData | null = null
       let eraseGesturePast: MapData[] | null = null
       let eraseGestureFuture: MapData[] | null = null
+      /**
+       * A passada atual já avisou que a borracha não apaga chão? Um arrasto
+       * sobre o piso chama `eraseAt` a cada pointermove; sem esta trava o
+       * aviso reapareceria a cada micro-movimento depois de dispensado.
+       */
+      let eraseGestureAvisouChao = false
 
       // Onda 1, item 1 (cursor vivo) — estado de hover em `mode === 'idle'`,
       // recalculado a cada pointermove ocioso (ver `resolveHoverAtIdle`
@@ -2055,7 +2063,15 @@ export function PixiCanvas({
       const eraseAt = (point: Point) => {
         const { map, eraseMode } = useMapStore.getState()
         const hit = findSelectableAt(hitTestMap(map), point)
-        if (!hit) return
+        if (!hit) {
+          // Nada apagável aqui, mas pode haver CHÃO: `findSelectableAt` nunca
+          // devolve peça de chão, que só vira alvo por `floorHitAt`. A
+          // borracha não apaga chão por decisão (22/09/2026) — só que calar
+          // fazia a pessoa achar que errou o alvo. Vale nos dois modos: nenhum
+          // deles alcança chão.
+          if (floorHitAt(map, point)) avisarQueBorrachaNaoApagaChao()
+          return
+        }
 
         if (eraseMode === 'parte') {
           const radius = map.grid * ERASE_PART_RADIUS_RATIO
@@ -2110,7 +2126,12 @@ export function PixiCanvas({
           return
         }
 
-        const removers: Record<SelectionKind, (id: string) => void> = {
+        // Sem `floor` na tabela: `findSelectableAt` nunca devolve chão, então a
+        // entrada `removeFloorPiece` que existia aqui nunca rodava — e se um
+        // dia rodasse, contradiria a decisão de a borracha não apagar chão. O
+        // `if` abaixo mantém a tabela exaustiva no tipo sem fingir que o caso
+        // existe; chão é respondido pelo aviso no topo desta função.
+        const removers: Record<Exclude<SelectionKind, 'floor'>, (id: string) => void> = {
           token: useMapStore.getState().removeToken,
           wall: useMapStore.getState().removeWall,
           light: useMapStore.getState().removeLight,
@@ -2118,9 +2139,25 @@ export function PixiCanvas({
           stair: useMapStore.getState().removeStair,
           prop: useMapStore.getState().removeProp,
           drawing: useMapStore.getState().removeDrawing,
-          floor: useMapStore.getState().removeFloorPiece,
         }
+        if (hit.kind === 'floor') return
         removers[hit.kind](hit.id)
+      }
+
+      /**
+       * Mostra, uma vez por passada e sem empilhar, que a borracha não apaga
+       * chão e por onde ele sai. `instrucao` porque a frase pede uma ação (ir
+       * a outra ferramenta) e precisa ficar na tela enquanto a pessoa a
+       * cumpre (`lib/erroQueEnsina.ts`); como esse tipo não some sozinho, o
+       * mesmo texto já na fila não entra de novo — clicar três vezes no piso
+       * não deixa três cartões iguais.
+       */
+      const avisarQueBorrachaNaoApagaChao = () => {
+        if (eraseGestureAvisouChao) return
+        eraseGestureAvisouChao = true
+        const toasts = useToastStore.getState()
+        if (toasts.toasts.some((toast) => toast.text === AVISO_BORRACHA_NAO_APAGA_CHAO)) return
+        toasts.push('instrucao', AVISO_BORRACHA_NAO_APAGA_CHAO)
       }
 
       /**
@@ -2133,6 +2170,7 @@ export function PixiCanvas({
         eraseGestureSnapshot = map
         eraseGesturePast = past
         eraseGestureFuture = future
+        eraseGestureAvisouChao = false
       }
 
       /**
@@ -2257,7 +2295,7 @@ export function PixiCanvas({
         drawBlocosDraft(draftGraphics, [...blocoCells.values()], blocoCellSize, map.floorStyle.fillColor, blocoApagando)
       }
 
-      /** Fecha o traço do pincel: uma peça nova (pintando) ou um apagar (botão direito). */
+      /** Fecha o traço do pincel: uma peça nova (pintando) ou um apagar (botão direito ou Subtrair). */
       const finishBlocos = () => {
         const cells = blocoCells ? [...blocoCells.values()] : []
         const cell = blocoCellSize
@@ -2971,13 +3009,14 @@ export function PixiCanvas({
         }
 
         if (activeTool === 'floor') {
-          const { floorShapeKind } = useMapStore.getState()
+          const { floorShapeKind, floorOp } = useMapStore.getState()
           // Pincel de blocos: sem applySnap: a célula sai do ponto bruto, e é a
           // CÉLULA inteira que pinta — é isso que separa "preso à grade" de
           // "fita centrada no ponteiro".
           if (floorShapeKind === 'blocos') {
             mode = 'painting-floor-blocks'
-            blocoApagando = event.button === 2
+            // Botão direito OU operação Subtrair apagam: ver `pincelDeBlocosApaga`.
+            blocoApagando = pincelDeBlocosApaga(floorOp, event.button)
             blocoCellSize = map.grid
             blocoCells = new Map()
             blocoUltimoPonto = worldPoint
