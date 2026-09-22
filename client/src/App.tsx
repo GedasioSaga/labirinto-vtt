@@ -5,6 +5,7 @@ import { ZoomHud } from './components/ZoomHud'
 import { Toast } from './components/Toast'
 import { useToastStore, type ToastKind } from './stores/toastStore'
 import { ensinaOQueFazer } from './lib/erroQueEnsina'
+import { motivoDaFalhaDeArquivo, temPonteDoApp } from './lib/foraDoApp'
 import { useSessionStore, subscribeToDirtyFlag } from './stores/sessionStore'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
@@ -77,7 +78,9 @@ import { fitTitleFont } from './pixi/frameTitle'
  * inteira está em `lib/erroQueEnsina.ts`.
  */
 function reportFileError(action: string, err: unknown): void {
-  const message = err instanceof Error ? err.message : String(err)
+  // Fora do app desktop o erro é sempre a ponte do Tauri ausente, e a frase
+  // explica isso em vez de mostrar o `TypeError` cru (`lib/foraDoApp.ts`).
+  const message = motivoDaFalhaDeArquivo(err, temPonteDoApp())
   const kind: ToastKind = ensinaOQueFazer(err) ? 'instrucao' : 'error'
   useToastStore.getState().push(kind, `Não foi possível ${action}: ${message}`)
 }
@@ -1023,7 +1026,7 @@ function App() {
    * a peça e a imagem dela precisam do MESMO id antes de qualquer dos dois
    * existir.
    */
-  const handlePlaceFromLibrary = async (item: ItemDoAcervoNaTela) => {
+  const handlePlaceFromLibrary = async (item: ItemDoAcervoNaTela, at?: { x: number; y: number }) => {
     const tokenId = crypto.randomUUID()
     let image: string | null = null
     let imageData: string | null = null
@@ -1037,13 +1040,37 @@ function App() {
       return
     }
 
-    if (criarToken(item.nome, { id: tokenId, size: item.tamanho, image, imageData }) === null) return
+    if (criarToken(item.nome, { at, id: tokenId, size: item.tamanho, image, imageData }) === null) return
     if (image === null && imageData === null) {
       // A peça entra assim mesmo, com o nome certo e o círculo genérico: o
       // arquivo sumiu da pasta do acervo, e não colocar a peça seria punir a
       // pessoa por um problema do disco.
       useToastStore.getState().push('error', IMAGEM_SUMIU_DO_ACERVO)
     }
+  }
+
+  /**
+   * ACERVO — soltar um item ARRASTADO da estante (achado 12 do passeio de
+   * 20/09/2026). Recebe o ponto da tela onde o ponteiro subiu; só aceita se
+   * ali está o MAPA — o elemento sob o ponteiro mora dentro do canvas, e não
+   * no painel que o cobre. Fora dele devolve `false` e nada nasce: soltar
+   * no painel é desistir, como soltar fora do botão desiste do clique.
+   *
+   * Tela → mundo pela mesma conta de `viewportCenterWorld`: a câmera da store
+   * é a do Pixi (`applyCamera` a grava a cada gesto) e o canvas ocupa o
+   * `lb-editor__canvas` inteiro.
+   */
+  const handleDropFromLibrary = (item: ItemDoAcervoNaTela, clientX: number, clientY: number): boolean => {
+    const host = canvasHostRef.current
+    const sobOPonteiro = document.elementFromPoint(clientX, clientY)
+    if (host === null || sobOPonteiro === null || !host.contains(sobOPonteiro)) return false
+    const caixa = host.getBoundingClientRect()
+    const { camera } = useMapStore.getState()
+    void handlePlaceFromLibrary(item, {
+      x: (clientX - caixa.left - camera.x) / camera.scale,
+      y: (clientY - caixa.top - camera.y) / camera.scale,
+    })
+    return true
   }
 
   /**
@@ -1859,6 +1886,7 @@ function App() {
               itens: acervoItens,
               aviso: acervoAviso,
               onPlace: (item) => void handlePlaceFromLibrary(item),
+              onDropOnMap: handleDropFromLibrary,
               onDelete: (item) => void handleDeleteFromLibrary(item),
             }}
             selectedLight={selectedLight}

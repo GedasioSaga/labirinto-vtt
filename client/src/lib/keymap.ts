@@ -27,6 +27,12 @@ export interface ShortcutEvent {
   shiftKey: boolean
   altKey: boolean
   targetTagName: string
+  /** `type` do INPUT focado, em minúsculas (`'checkbox'`, `'text'`…); ignorado
+   *  nas outras tags. Ausente num INPUT = campo de texto, o lado seguro: na
+   *  dúvida a letra continua sendo letra. */
+  targetInputType?: string
+  /** O alvo é `contenteditable` — digita como um campo, mesmo sem ser INPUT. */
+  targetContentEditable?: boolean
   /** Há rascunho ponto a ponto aberto (Região, Área poligonal, Chão corredor).
    *  Com ele, Ctrl+Z e Backspace tiram o último ponto do rascunho. */
   hasPointDraft?: boolean
@@ -51,6 +57,9 @@ export type Action =
   | { kind: 'redo' }
   /** Tira o último ponto do rascunho aberto; sem ponto sobrando, cancela o rascunho. */
   | { kind: 'undoDraftPoint' }
+  /** `?` — alterna o pino selecionado entre "!" e "?". Sem pino selecionado,
+   *  quem executa não faz nada: a tecla fica livre para outro papel. */
+  | { kind: 'togglePinType' }
 
 /**
  * Tabela ferramenta → letra, para o integrador mostrar no `data-tip` de cada
@@ -160,8 +169,40 @@ function isArrowKey(key: string): key is ArrowKey {
   return key === 'ArrowUp' || key === 'ArrowDown' || key === 'ArrowLeft' || key === 'ArrowRight'
 }
 
-function isEditableTarget(tagName: string): boolean {
-  return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT'
+/**
+ * Tipos de INPUT que NÃO recebem digitação: marcar, escolher, arrastar,
+ * apertar. Com o foco num deles a letra não tem onde cair, então ela volta a
+ * ser atalho (achado 10 do passeio de 20/09/2026: clicar no interruptor
+ * "Mostrar grade" matava o W até alguém clicar no mapa).
+ *
+ * É lista do que NÃO digita, e não do que digita, de propósito: tipo
+ * desconhecido ou futuro (e o `type` ausente, que o HTML trata como `text`)
+ * continua sendo campo de texto — errar para esse lado só custa um atalho,
+ * errar para o outro troca de ferramenta no meio de um nome.
+ */
+const INPUT_QUE_NAO_DIGITA: ReadonlySet<string> = new Set([
+  'checkbox',
+  'radio',
+  'range',
+  'button',
+  'submit',
+  'reset',
+  'color',
+  'file',
+  'image',
+])
+
+/**
+ * O foco está num lugar onde a tecla vira TEXTO? Campo de texto (INPUT de
+ * digitar, TEXTAREA), lista suspensa (SELECT, que salta pela inicial) e
+ * `contenteditable`. Interruptor, rádio, controle deslizante e botão não.
+ */
+export function isEditableTarget(tagName: string, inputType?: string, contentEditable = false): boolean {
+  if (contentEditable) return true
+  if (tagName === 'TEXTAREA' || tagName === 'SELECT') return true
+  if (tagName !== 'INPUT') return false
+  if (inputType === undefined) return true
+  return !INPUT_QUE_NAO_DIGITA.has(inputType.toLowerCase())
 }
 
 /**
@@ -180,7 +221,7 @@ function isEditableTarget(tagName: string): boolean {
  */
 export function resolveShortcut(evt: ShortcutEvent): Action | null {
   if (evt.key === 'Escape') return { kind: 'cancel' }
-  if (isEditableTarget(evt.targetTagName)) return null
+  if (isEditableTarget(evt.targetTagName, evt.targetInputType, evt.targetContentEditable)) return null
 
   const ctrlOrCmd = evt.ctrlKey || evt.metaKey
   const key = evt.key
@@ -218,6 +259,12 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
   // `F`=enquadrar). Shift e Alt já têm significado próprio nas setas acima;
   // exigir ausência dos dois aqui evita, por exemplo, Shift+V competir no
   // futuro com um atalho de Shift+letra que venha a existir.
+  //
+  // `?` é a exceção, e vem ANTES da trava: ele só existe com Shift (Shift+/
+  // no teclado americano e no ABNT2), então a trava o engolia sempre. Lê
+  // `key`, não a tecla física, para valer em qualquer layout. Alt fica de
+  // fora pelo mesmo motivo das letras.
+  if (key === '?' && !evt.altKey) return { kind: 'togglePinType' }
   if (evt.shiftKey || evt.altKey) return null
 
   if (lower === 'f') return { kind: 'fitAll' }

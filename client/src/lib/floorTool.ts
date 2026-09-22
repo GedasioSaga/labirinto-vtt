@@ -127,6 +127,32 @@ export function buildCorridorShape(points: readonly Point[], width: number): Flo
   return { kind: 'corridor', points: distinct.map((p) => ({ x: p.x, y: p.y, width })) }
 }
 
+/**
+ * O que fazer com o traço de Corredor ABERTO quando a pessoa troca de forma
+ * no menu do Chão (achado 7 do passeio de 20/09/2026: o traço sumia calado).
+ *
+ * - `finalizar`: 2 pontos distintos ou mais já são corredor — vira chão como
+ *   está, igual ao Enter. Os pontos foram clicados de propósito; jogá-los fora
+ *   por um clique no menu é punir o gesto errado.
+ * - `descartar`: 1 ponto só não tem comprimento; não há o que salvar, mas quem
+ *   chama AVISA, porque o rascunho estava na tela e vai sumir.
+ * - `nada`: não havia traço aberto.
+ *
+ * "Distinto" é a mesma conta de `buildCorridorShape` (repetição consecutiva,
+ * como o duplo clique, não conta), para a decisão nunca prometer um corredor
+ * que a construção recusaria.
+ */
+export function corridorDraftOnShapeChange(points: readonly Point[]): 'finalizar' | 'descartar' | 'nada' {
+  let distintos = 0
+  let anterior: Point | undefined
+  for (const point of points) {
+    if (!anterior || anterior.x !== point.x || anterior.y !== point.y) distintos += 1
+    anterior = point
+  }
+  if (distintos === 0) return 'nada'
+  return distintos >= 2 ? 'finalizar' : 'descartar'
+}
+
 export function buildFloorPiece(id: string, shape: FloorShape, op: FloorPiece['op'], rotation = 0): FloorPiece {
   // `rotation` ausente === 0 (types/map.ts) — não grava o campo à toa.
   return rotation === 0 ? { id, shape, op, modifiers: {} } : { id, shape, op, rotation, modifiers: {} }

@@ -209,6 +209,16 @@ export const STAIR_CLICK_WITHOUT_DRAG_TEXT =
   'Não deu para criar a escada: um clique parado não tem lance. Segure o botão e arraste até onde a escada termina.'
 
 /**
+ * Trocou de forma no menu do Chão com um Corredor de UM ponto só (achado 7 do
+ * passeio de 20/09/2026). Um ponto não tem comprimento, então não há chão a
+ * salvar — mas o rascunho estava na tela, e sumir sem dizer é o defeito. Com 2
+ * pontos ou mais a troca FINALIZA o corredor e não precisa de aviso: o chão
+ * fica à vista.
+ */
+export const CORRIDOR_DISCARDED_TEXT =
+  'O traço do corredor foi descartado: com um ponto só ainda não havia chão. Escolha Corredor e clique pelo menos dois pontos.'
+
+/**
  * Ferramentas que expõem os controles de cor/espessura/preenchimento.
  * `rect`/`ellipse`/`polygon` entram junto de `circle`: os quatro produzem um
  * `Drawing` com `filled`/`fillAlpha` no schema (types/map.ts). `text` fica de

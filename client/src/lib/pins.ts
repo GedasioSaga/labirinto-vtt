@@ -33,6 +33,18 @@ export const PIN_KIND_LABELS: Record<PinKind, string> = {
 /** Ordem em que os tipos aparecem no painel: a viagem por último, ao lado dos dois de sempre. */
 export const PIN_KIND_ORDER: readonly PinKind[] = ['exclamacao', 'interrogacao', 'viagem']
 
+/**
+ * O tipo que o atalho `?` dá ao pino selecionado: alterna entre "!" e "?"
+ * (achado 11 do passeio de 20/09/2026). O pino de VIAGEM devolve `null` — não
+ * muda: ele não é um ponto de interesse, e virá-lo "?" por uma tecla apagaria
+ * o destino dele e desligaria o par da outra cena sem a pessoa ver.
+ */
+export function pinKindAfterShortcut(kind: PinKind): PinKind | null {
+  if (kind === 'exclamacao') return 'interrogacao'
+  if (kind === 'interrogacao') return 'exclamacao'
+  return null
+}
+
 /** Guarda de leitura: tipo desconhecido (arquivo editado à mão, versão futura) não entra no desenho. */
 export function isPinKind(value: unknown): value is PinKind {
   return typeof value === 'string' && (PIN_KIND_ORDER as readonly string[]).includes(value)
