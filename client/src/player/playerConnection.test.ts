@@ -499,14 +499,14 @@ describe('playerConnection: pedido de passagem', () => {
     expect(connection.getState().travel).toBeUndefined()
   })
 
-  it('scene.changed do mestre (Mandar para…): "levado", não "chegou", e o aviso fica mais tempo', () => {
+  it('scene.changed do mestre (Mandar para…): "levado", não "chegou", fica além da recusa e sai no teto', () => {
     vi.useFakeTimers()
     const { connection, socket } = jogando()
     socket.receive({ type: 'scene.changed', by: 'master' })
     expect(connection.getState().travel?.phase).toBe('moved')
-    vi.advanceTimersByTime(ARRIVAL_NOTICE_TTL_MS)
+    vi.advanceTimersByTime(TRAVEL_NOTICE_TTL_MS)
     expect(connection.getState().travel?.phase).toBe('moved')
-    vi.advanceTimersByTime(MOVED_NOTICE_TTL_MS - ARRIVAL_NOTICE_TTL_MS)
+    vi.advanceTimersByTime(MOVED_NOTICE_TTL_MS - TRAVEL_NOTICE_TTL_MS)
     expect(connection.getState().travel).toBeUndefined()
   })
 
@@ -515,7 +515,7 @@ describe('playerConnection: pedido de passagem', () => {
     const { connection, socket } = jogando()
     socket.receive({ type: 'scene.changed', by: 'gather' })
     expect(connection.getState().travel?.phase).toBe('gathered')
-    vi.advanceTimersByTime(MOVED_NOTICE_TTL_MS)
+    vi.advanceTimersByTime(GATHERED_NOTICE_TTL_MS - 1)
     expect(connection.getState().travel?.phase).toBe('gathered')
     socket.receive({ type: 'snapshot', rev: 2, map: mapWithToken(100, 100), vision: [], ownTokens: ['t1'], concealed: [] })
     expect(connection.requestMove('t1', 60, 70)).toBe(true)

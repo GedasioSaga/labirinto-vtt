@@ -119,12 +119,13 @@ export const DOOR_NOTICE_TTL_MS = 2500
 export const TRAVEL_NOTICE_TTL_MS = 4000
 /**
  * "Você chegou" é mudança de lugar: sai quando o jogador mexe a própria ficha
- * (aí já viu onde está, mesma regra da reunião) ou depois deste prazo. Era
+ * (aí já viu onde está, mesma regra da reunião) ou depois deste teto. Era
  * 4 s, igual à recusa, e não bastava com a mesa cheia: no "Deixar todos" da
  * caixa de pedidos vários chegam juntos, e medido na jornada da caixa o aviso
- * de Carla sumia antes de alguém olhar a tela dela.
+ * de Carla sumia antes de alguém olhar a tela dela — com 8 s e com 20 s
+ * também. O teto é o mesmo da reunião: quem sai é o gesto do jogador.
  */
-export const ARRIVAL_NOTICE_TTL_MS = 20_000
+export const ARRIVAL_NOTICE_TTL_MS = 60_000
 /**
  * Pausa entre confirmar a passagem LIVRE e o pedido sair: o tempo de o cartão
  * fechar e o "Passando…" aparecer antes de a cena trocar. Curta de propósito —
@@ -132,11 +133,11 @@ export const ARRIVAL_NOTICE_TTL_MS = 20_000
  */
 export const FREE_PASSAGE_BEAT_MS = 450
 /**
- * "O mestre levou você para outro lugar" fica mais que o "Você chegou": quem
- * pediu para passar está olhando a tela esperando a resposta; quem foi LEVADO
- * não esperava nada e pode estar olhando a mesa quando o mapa troca.
+ * "O mestre levou você para outro lugar": quem foi LEVADO não esperava nada e
+ * pode estar olhando a mesa quando o mapa troca. Mesmo teto e mesma saída
+ * (mexer a ficha) do "Você chegou" e da reunião.
  */
-export const MOVED_NOTICE_TTL_MS = 30_000
+export const MOVED_NOTICE_TTL_MS = 60_000
 /**
  * "O mestre reuniu o grupo" espera o jogador: a reunião costuma vir depois de
  * uma pausa da mesa, com o jogador olhando para longe da tela. Some quando
