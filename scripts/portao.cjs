@@ -451,6 +451,9 @@ const JORNADAS_DO_CRITERIO = [
   // abre buraco em vez de pintar, e a borracha diz que não apaga chão.
   'e2e/task-jornada-subtrair-abre-buraco.spec.ts',
   'e2e/task-jornada-borracha-diz-o-que-nao-apaga.spec.ts',
+  // 22/09/2026, grupo espalhado G2 — passagem do pino de viagem: pede ao
+  // mestre, livre ou trancada, cada pino do par com a sua.
+  'e2e/task-jornada-modos-do-pino.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
