@@ -11,6 +11,12 @@ const porta = portaDoProjeto()
 export default defineConfig({
   plugins: [react()],
   clearScreen: false,
+  // Cache de dependências por porta, e não o `node_modules/.vite` padrão: os
+  // worktrees de teste ligam o `node_modules` da árvore principal por junction,
+  // então todos dividiam a MESMA pasta, e um vite reotimizando no meio do teste
+  // do outro dava tela branca ("Failed to fetch dynamically imported module",
+  // medido em 22/09). Cada porta é uma árvore de trabalho (client/porta.js).
+  cacheDir: `node_modules/.vite-${porta}`,
   server: {
     port: porta,
     strictPort: true,
