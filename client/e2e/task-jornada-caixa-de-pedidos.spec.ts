@@ -536,10 +536,15 @@ function caixaDePedidos(mestre: Page, n: number | null): Locator {
 
 /** A linha de um jogador dentro de `onde`: o menor bloco com a frase dele e um "Deixar ir". */
 function linhaDe(onde: Page | Locator, jogador: string): Locator {
+  // O `has` é procurado DENTRO de cada candidato. Vindo de `onde` quando
+  // `onde` é a caixa, o seletor começava pela caixa e exigia uma caixa dentro
+  // da linha — nunca casava (achado do builder em 22/09, conferido no
+  // playwright-core). Ancorado na página, ele vira só "tem este botão dentro".
+  const pagina: Page = 'goto' in onde ? onde : onde.page()
   return onde
     .locator('div, li, section, aside, [role]')
     .filter({ hasText: frasePedido(jogador) })
-    .filter({ has: onde.getByRole('button', { name: DEIXAR_IR, exact: true }) })
+    .filter({ has: pagina.getByRole('button', { name: DEIXAR_IR, exact: true }) })
     .last()
 }
 
