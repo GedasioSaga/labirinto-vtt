@@ -1128,6 +1128,95 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
     const deVolta = decodeExploration(snapshotDe(t.s.broadcast(mundo({ heroi: { cena: 'A', x: 200, y: 200 } })), 'c1').explored)
     expect(deVolta !== null && isPointExplored(deVolta, FUNDO)).toBe(false)
   })
+
+  describe('modos de passagem do pino', () => {
+    /** O mesmo mundo, com o pino `pinId` do Salão no modo `passagem`. */
+    function comPassagem(w: HostWorld, pinId: string, passagem: Pin['passagem']): HostWorld {
+      const pins = w.open.map.pins.map((p) => (p.id === pinId ? { ...p, passagem } : p))
+      return { ...w, open: { ...w.open, map: { ...w.open.map, pins } } }
+    }
+
+    it('livre: passa direto — scene.changed ao dono e applyTransfer, sem pedido ao mestre e sem pendente', () => {
+      const t = mesa()
+      const livre = comPassagem(t.w, 'escada-a', 'livre')
+      const r = t.pedir('escada-a', livre)
+      expect(r.travelRequest).toBeUndefined()
+      expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'scene.changed' } }])
+      expect(r.applyTransfer).toEqual({
+        tokenId: 'heroi',
+        playerId: t.ana.playerId,
+        playerName: 'Ana',
+        fromSceneId: CENA_A,
+        toSceneId: CENA_B,
+        toSceneName: NOME_B,
+        x: 1025,
+        y: 275,
+      })
+      // Nada ficou esperando: um próximo pedido não é recusado como 'pending'.
+      t.advance(TRAVEL_REQUEST_MIN_INTERVAL_MS)
+      const naCripta = mundo({ heroi: { cena: 'B', x: 1025, y: 275 } })
+      t.s.broadcast(naCripta)
+      expect(recusa(t.pedir('escada-b', naCripta))).toBeNull()
+      // A cena dela já é a Cripta.
+      expect(t.s.listPlayers(naCripta).find((p) => p.name === 'Ana')?.sceneName).toBe(NOME_B)
+    })
+
+    it('livre: as mesmas recusas do pedido — névoa, e os limites por jogador e por pino', () => {
+      const t = mesa()
+      const livre = comPassagem(comPassagem(t.w, 'escada-longe', 'livre'), 'escada-a', 'livre')
+      // No escuro, livre ou não, é o mesmo "unavailable".
+      expect(recusa(t.pedir('escada-longe', livre))).toBe('unavailable')
+      // A tentativa acima já conta no limite do jogador.
+      expect(recusa(t.pedir('escada-a', livre))).toBe('too_soon')
+      t.advance(TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS)
+      expect(t.pedir('escada-a', livre).applyTransfer).toBeDefined()
+      // A Bia (no Salão) insiste pela mesma escada livre: o limite por pino vale para ela também.
+      expect(t.pedir('escada-a', livre, 'c2').applyTransfer).toBeDefined()
+      t.advance(TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS)
+      expect(recusa(t.pedir('escada-a', livre, 'c2'))).toBe('too_soon')
+    })
+
+    it('livre não passa por cima de um pedido pendente de outro pino', () => {
+      const t = mesa()
+      const w = comPassagem(t.w, 'escada-a', 'livre')
+      // Pedido pelo mesmo pino antes de ele ficar livre: espera o mestre.
+      expect(t.pedir('escada-a').travelRequest).toBeDefined()
+      t.advance(TRAVEL_REQUEST_MIN_INTERVAL_MS)
+      const r = t.pedir('escada-a', w)
+      expect(recusa(r)).toBe('pending')
+      expect(r.applyTransfer).toBeUndefined()
+    })
+
+    it('trancada: recusa com o motivo genérico, sem nada ao mestre e sem nome da outra cena', () => {
+      const t = mesa()
+      const trancada = comPassagem(t.w, 'escada-a', 'trancada')
+      const r = t.pedir('escada-a', trancada)
+      expect(r).toEqual({ outbound: [{ clientId: 'c1', msg: { type: 'pin.travel.rejected', reason: 'unavailable' } }] })
+      expect(JSON.stringify(r)).not.toContain(NOME_B)
+      // Controle: o mesmo pino, no modo de sempre, vai ao mestre.
+      t.advance(TRAVEL_REQUEST_MIN_INTERVAL_MS)
+      expect(t.pedir('escada-a').travelRequest).toBeDefined()
+    })
+
+    it('trancar com pedido pendente: o "Deixar ir" recusa e o herói fica', () => {
+      const t = mesa()
+      const pedido = t.pedir('escada-a').travelRequest
+      if (pedido === undefined) throw new Error('pedido deveria valer')
+      const r = t.s.approveTravel(pedido.requestId, comPassagem(t.w, 'escada-a', 'trancada'))
+      expect(r.applyTransfer).toBeUndefined()
+      expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'pin.travel.rejected', reason: 'unavailable' } }])
+      expect(t.s.isTravelPending(pedido.requestId)).toBe(false)
+    })
+
+    it('cada pino tem o seu: o par trancado não tranca a ida', () => {
+      const t = mesa()
+      const w = t.w
+      const trancarVolta = (p: Pin): Pin => (p.id === 'escada-b' ? { ...p, passagem: 'trancada' } : p)
+      const background = w.background.map((b) => ({ ...b, map: { ...b.map, pins: b.map.pins.map(trancarVolta) } }))
+      const r = t.pedir('escada-a', comPassagem({ ...w, background }, 'escada-a', 'livre'))
+      expect(r.applyTransfer?.toSceneId).toBe(CENA_B)
+    })
+  })
 })
 
 describe('hostSession: revisão de segurança do pedido de passagem', () => {

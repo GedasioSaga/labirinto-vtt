@@ -231,6 +231,17 @@ export interface PinDestination {
 }
 
 /**
+ * Como o pino de viagem deixa o jogador passar. Numa mesa de 4 a 7 jogadores
+ * espalhados por várias cenas, aprovar cada passagem vira gargalo do mestre:
+ * - `pede`: o jogador pede e o mestre decide ("Deixar ir"). É o de sempre;
+ * - `livre`: o jogador passa sozinho, e o mestre só lê que ele chegou;
+ * - `trancada`: ninguém passa, e nenhum pedido chega ao mestre.
+ * Cada pino do par tem o seu: a porta pode ser livre para ir e trancada para
+ * voltar.
+ */
+export type PinPassage = 'pede' | 'livre' | 'trancada'
+
+/**
  * Símbolo desenhado DENTRO da cabeça do pino, no lugar do glifo. Os seis que o
  * usuário pediu: o mestre crava "aqui tem um baú" e "aqui tem uma armadilha" e
  * enxerga a diferença no mapa, sem abrir os dois para lembrar qual é qual.
@@ -275,6 +286,14 @@ export interface Pin extends PlayerSecret {
    * jogador (`lib/fogFilter.ts`): revelaria que a outra cena existe.
    */
   destino?: PinDestination | null
+  /**
+   * Só do pino de viagem: se o jogador pede, passa livre ou encontra trancado.
+   * `undefined` === 'pede' — todo pino gravado antes deste campo continua
+   * pedindo ao mestre, sem migração. Ao contrário de `destino`, SAI no recorte
+   * do jogador: o cartão dele precisa saber se oferece "Passar", "Pedir para
+   * passar" ou "Está trancada", e o modo não diz nada da outra cena.
+   */
+  passagem?: PinPassage
 }
 
 /**

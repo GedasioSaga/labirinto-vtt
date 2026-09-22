@@ -17,6 +17,7 @@ import { moveBlocos, type Bloco } from './floorBlocks'
 import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination } from './pinTravel'
+import { passageOf } from './pins'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -1549,7 +1550,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1566,7 +1567,10 @@ export function updatePin(
     next.image === pin.image &&
     !!next.locked === !!pin.locked &&
     // Mesma regra: desligar um pino que nunca foi ligado não é mudança.
-    sameDestination(next.destino, pin.destino)
+    sameDestination(next.destino, pin.destino) &&
+    // E aqui também: `undefined` === 'pede'. Escolher "Pede ao mestre" num
+    // pino que nunca teve modo não empurra entrada vazia no histórico.
+    passageOf(next) === passageOf(pin)
   ) {
     return map
   }

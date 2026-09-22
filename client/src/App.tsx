@@ -44,7 +44,8 @@ import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { ActionBar } from './components/ActionBar'
-import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, Region, Token, Wall } from './types/map'
+import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
+import { passageOf } from './lib/pins'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -1168,6 +1169,10 @@ function App() {
       onGo: () => {
         useAdventureStore.getState().travelThroughPin(pin.id)
       },
+      // O modo é do pino desta cena, com desfazer como o resto do painel; o
+      // par da outra cena fica como está.
+      passage: passageOf(pin),
+      onPassageChange: (passagem: PinPassage) => useMapStore.getState().updatePin(pin.id, { passagem }),
     }
   }
 

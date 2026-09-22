@@ -402,12 +402,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return
     }
     const result = session.approveTravel(requestId, world())
-    const transfer = result.applyTransfer
-    if (transfer === undefined) {
-      // Recusa da revalidação (o token andou, o pino sumiu) ou pedido que já morreu.
+    if (result.applyTransfer === undefined) {
+      // Recusa da revalidação (o token andou, o pino sumiu, a porta foi
+      // trancada) ou pedido que já morreu.
       void dispatch(result)
       return
     }
+    completeTransfer(result, result.applyTransfer)
+  }
+
+  /**
+   * A ficha troca de cena: "Deixar ir" do mestre ou pino livre. Move pela
+   * store ANTES de mandar o `scene.changed`, e só avisa a chegada se moveu.
+   */
+  const completeTransfer = (result: HostResult, transfer: AppliedTransfer) => {
     const moved = deps.applyTransfer?.(transfer) ?? false
     if (!moved) {
       // O "Você chegou" não pode sair: a ficha não saiu do lugar.
@@ -470,7 +478,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       void sendThenKick(result, clientId)
       return
     }
-    void dispatch(result)
+    // Pino livre: a passagem já vem decidida. O `scene.changed` do resultado
+    // só pode sair DEPOIS de a ficha mudar de cena, então quem despacha é a
+    // mesma conclusão do "Deixar ir".
+    if (result.applyTransfer !== undefined) completeTransfer(result, result.applyTransfer)
+    else void dispatch(result)
     if (result.signal !== undefined) deps.onSignal?.(result.signal)
     if (result.applyMove !== undefined) {
       const { tokenId, x, y, sceneId } = result.applyMove

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Pin } from '../types/map'
-import { PIN_GLYPH, isPlayerSafePinImage } from '../lib/pins'
+import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { PinTravelArt } from '../components/PinSymbolArt'
 
 interface PlayerPinCardProps {
@@ -31,6 +31,29 @@ const IMAGEM_AUSENTE =
       '</svg>',
   )
 
+/** O que o cartão diz em cada passo da passagem, por modo do pino. */
+interface TextosDaPassagem {
+  botao: string
+  esperando: string
+  pergunta: string
+  confirmar: string
+}
+
+const TEXTOS_PEDE: TextosDaPassagem = {
+  botao: 'Pedir para passar',
+  esperando: 'Pedido enviado ao mestre',
+  pergunta: 'Pedir ao mestre para passar por aqui?',
+  confirmar: 'Pedir',
+}
+
+/** Livre: ninguém é interrompido, então o cartão não fala em mestre. */
+const TEXTOS_LIVRE: TextosDaPassagem = {
+  botao: 'Passar',
+  esperando: 'Passando…',
+  pergunta: 'Passar por aqui?',
+  confirmar: 'Passar',
+}
+
 /**
  * O cartão do ponto de interesse, do jeito que o usuário descreveu: "abrir a
  * imagem de um cenário ou um item e embaixo a descrição".
@@ -39,11 +62,14 @@ const IMAGEM_AUSENTE =
  * posicionamento que desmanche a ordem de leitura: quem enxerga e quem ouve
  * recebem a mesma sequência.
  *
- * Fecha por Escape, pelo botão e por tocar fora. O "fora" é um fundo que cobre
- * a tela inteira: sem ele, o toque de fechar passaria direto para o canvas e
- * arrastaria o mapa junto.
+ * Fecha por Escape, pelo botão e por tocar fora. O "fora" é ouvido na janela,
+ * na fase de captura, e não por um fundo que cobre a tela: o véu continua
+ * pintado, mas não tapa o mapa — o jogador que lê "Está trancada" continua
+ * vendo onde está. O toque de fechar que cai no mapa para ali, antes do canvas:
+ * fechar o cartão não arrasta o mapa nem abre outro pino.
  */
 export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false }: PlayerPinCardProps) {
+  const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
   const askRef = useRef<HTMLButtonElement | null>(null)
@@ -70,6 +96,23 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      const alvo = event.target
+      if (alvo instanceof Node && cardRef.current?.contains(alvo)) return
+      onClose()
+      // No mapa, o toque só fecha. Nos painéis ao lado, ele segue para o
+      // controle tocado: quem aperta "Centralizar" com o cartão aberto quer
+      // as duas coisas.
+      if (alvo instanceof HTMLCanvasElement) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    }
+    window.addEventListener('pointerdown', onPointerDown, true)
+    return () => window.removeEventListener('pointerdown', onPointerDown, true)
+  }, [onClose])
+
   const descricao = pin.description.trim()
   // Só data URL vira foto: se um caminho de disco escapasse até aqui, o
   // `<img>` tentaria abrir o computador do mestre pelo navegador do jogador.
@@ -78,17 +121,21 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // a passagem no lugar do glifo — a mesma cabeça que o jogador vê no mapa.
   // O nome da cena de destino nunca chega aqui (`lib/fogFilter.ts`).
   const viagem = pin.kind === 'viagem'
-  const podePedir = viagem && onRequestTravel !== undefined
+  // O modo vem no recorte (o destino, não). Trancada não oferece botão nenhum:
+  // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
+  const passagem = passageOf(pin)
+  const trancada = viagem && passagem === 'trancada'
+  const podePedir = viagem && !trancada && onRequestTravel !== undefined
+  const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
 
   return (
-    <div className="pp-pincard__backdrop" onPointerDown={onClose}>
+    <div className="pp-pincard__backdrop">
       <div
+        ref={cardRef}
         className="pp-pincard"
         role="dialog"
         aria-modal="true"
         aria-label={viagem ? 'Passagem' : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`}
-        // Toque DENTRO do cartão não conta como "tocar fora".
-        onPointerDown={(event) => event.stopPropagation()}
       >
         <img
           className="pp-pincard__image"
@@ -103,6 +150,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
             {descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao}
           </p>
         </div>
+        {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
         {podePedir && !confirming && (
           <button
             ref={askRef}
@@ -114,15 +162,16 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
               setFocusTarget('confirm')
             }}
           >
-            {travelWaiting ? 'Pedido enviado ao mestre' : 'Pedir para passar'}
+            {travelWaiting ? textos.esperando : textos.botao}
           </button>
         )}
         {podePedir && confirming && (
-          // Confirmação antes de mandar: o pedido interrompe o mestre, então
-          // um toque sem querer não pode virar um aviso na tela dele.
+          // Confirmação antes de mandar: no modo "pede" o pedido interrompe o
+          // mestre, e no livre o jogador troca de cena — nos dois, um toque
+          // sem querer não pode virar a ação.
           <div className="pp-pincard__confirm" role="group" aria-labelledby={`pp-travel-ask-${pin.id}`}>
             <p id={`pp-travel-ask-${pin.id}`} className="pp-pincard__question">
-              Pedir ao mestre para passar por aqui?
+              {textos.pergunta}
             </p>
             <div className="pp-pincard__choices">
               <button
@@ -134,7 +183,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
                   onRequestTravel()
                 }}
               >
-                Pedir
+                {textos.confirmar}
               </button>
               <button
                 type="button"

@@ -731,6 +731,9 @@ export function filterMapForHost(map: MapData): MapData {
  *   disco do mestre;
  * - `destino` (pino de viagem) NUNCA: o id da cena de destino e o do pino par
  *   diriam ao jogador que a outra cena existe, antes de o mestre deixar passar.
+ * - `passagem` VAI, de propósito: o cartão do jogador precisa saber se oferece
+ *   "Passar", "Pedir para passar" ou "Está trancada". O modo diz como a porta
+ *   se comporta, não para onde ela leva.
  */
 function pinForPlayer(pin: Pin): Pin {
   const forPlayer: Pin = { ...pin, image: isPlayerSafePinImage(pin.image) ? pin.image : null }

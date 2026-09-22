@@ -6,7 +6,7 @@ import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalSpot, resolvePinTravel, type TravelScene } from '../lib/pinTravel'
-import { pinSummary } from '../lib/pins'
+import { passageOf, pinSummary } from '../lib/pins'
 import {
   parsePlayerMessage,
   type DoorToggleMessage,
@@ -162,7 +162,10 @@ export interface HostResult {
   signal?: HostSignal
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
   travelRequest?: TravelRequest
-  /** O mestre deixou ir: o integrador move o token entre as cenas ANTES de despachar `outbound`. */
+  /**
+   * O mestre deixou ir, ou o pino é livre (aí vem de `handleMessage`): o
+   * integrador move o token entre as cenas ANTES de despachar `outbound`.
+   */
   applyTransfer?: AppliedTransfer
 }
 
@@ -660,6 +663,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const memory = memoryFor(playerId, from.map)
     const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
     if (!view.map.pins.some((p) => p.id === pinId)) return null
+    // Trancada: ninguém passa. Cai no mesmo `null` de todo o resto, então o
+    // jogador lê o motivo genérico de sempre e nada chega ao mestre. Estar aqui,
+    // e não só no pedido, faz o "Deixar ir" de um pedido feito antes de trancar
+    // recusar também.
+    if (passageOf(pin) === 'trancada') return null
     const scenes = allScenes(world)
     const lookup = (sceneId: string): TravelScene | null => {
       const scene = scenes.find((s) => s.sceneId === sceneId)
@@ -706,6 +714,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     const travel = validTravel(playerId, msg.pinId, world)
     if (travel === null) return reject('unavailable')
+    // Livre: passou em tudo que o pedido passaria (névoa, token na cena, pino
+    // ligado, limites, nenhum pendente) e vai direto, sem esperar o mestre —
+    // ele só lê o aviso de chegada que o integrador mostra com a transferência.
+    if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel)
     const requestId = randomId()
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
     pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
@@ -719,6 +731,30 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         pinLabel: description === '' ? pinSummary(travel.pin) : description,
         toSceneId: travel.to.sceneId,
         toSceneName: travel.to.name,
+      },
+    }
+  }
+
+  /**
+   * A passagem acontece: `scene.changed` ao dono e `applyTransfer` para o
+   * integrador mover a ficha. Vale para o "Deixar ir" e para o pino livre.
+   */
+  function transferResult(playerId: string, clientId: string, playerName: string, travel: ValidTravel): HostResult {
+    const spot = arrivalSpot(travel.to.map, travel.partner, travel.token.size)
+    // A cena dele passa a ser a de destino a partir daqui: é ela que o
+    // próximo broadcast manda, com a memória que ele tem DELA.
+    currentScene.set(playerId, sceneKey(travel.to))
+    return {
+      outbound: [{ clientId, msg: { type: 'scene.changed' } }],
+      applyTransfer: {
+        tokenId: travel.token.id,
+        playerId,
+        playerName,
+        fromSceneId: travel.from.sceneId,
+        toSceneId: travel.to.sceneId,
+        toSceneName: travel.to.name,
+        x: spot.x,
+        y: spot.y,
       },
     }
   }
@@ -777,23 +813,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // destino novo: recusa, e o jogador pede de novo.
       const sameDestination = travel !== null && travel.to.sceneId === pending.toSceneId && travel.partner.id === pending.partnerId
       if (travel === null || !sameDestination) return reply(record.clientId, { type: 'pin.travel.rejected', reason: 'unavailable' })
-      const spot = arrivalSpot(travel.to.map, travel.partner, travel.token.size)
-      // A cena dele passa a ser a de destino a partir daqui: é ela que o
-      // próximo broadcast manda, com a memória que ele tem DELA.
-      currentScene.set(pending.playerId, sceneKey(travel.to))
-      return {
-        outbound: [{ clientId: record.clientId, msg: { type: 'scene.changed' } }],
-        applyTransfer: {
-          tokenId: travel.token.id,
-          playerId: pending.playerId,
-          playerName: record.name,
-          fromSceneId: travel.from.sceneId,
-          toSceneId: travel.to.sceneId,
-          toSceneName: travel.to.name,
-          x: spot.x,
-          y: spot.y,
-        },
-      }
+      return transferResult(pending.playerId, record.clientId, record.name, travel)
     },
 
     denyTravel(requestId) {

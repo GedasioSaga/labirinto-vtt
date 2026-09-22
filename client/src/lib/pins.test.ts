@@ -14,7 +14,9 @@ import {
   findPinAt,
   isPinIcon,
   isPinKind,
+  isPinPassage,
   isPlayerSafePinImage,
+  passageOf,
   pinSummary,
 } from './pins'
 
@@ -217,6 +219,30 @@ describe('recorte do pino para o jogador', () => {
     expect(recorte).not.toContain('pino_par_da_cripta')
     // O recorte é cópia: o mapa do mestre continua ligado.
     expect(viagem.destino).toEqual({ sceneId: 'scene_cripta_secreta', pinId: 'pino_par_da_cripta' })
+  })
+
+  it('a passagem do pino de viagem sai (o cartão precisa dela); o destino continua não saindo', () => {
+    const pinos = [
+      pino('livre', 240, 200, { kind: 'viagem', passagem: 'livre', destino: { sceneId: 'scene_cripta_secreta', pinId: 'par_livre' } }),
+      pino('trancada', 220, 220, { kind: 'viagem', passagem: 'trancada', destino: { sceneId: 'scene_cripta_secreta', pinId: 'par_trancado' } }),
+      pino('antiga', 200, 240, { kind: 'viagem', destino: { sceneId: 'scene_cripta_secreta', pinId: 'par_antigo' } }),
+    ]
+    const { map } = filterMapForPlayer(mapaCom(pinos), 'p1', POSSE, RAIO)
+    expect(map.pins.map((p) => [p.id, p.passagem])).toEqual([
+      ['livre', 'livre'],
+      ['trancada', 'trancada'],
+      // Pino sem o campo não ganha um no recorte: ausente é "pede ao mestre".
+      ['antiga', undefined],
+    ])
+    expect(map.pins.some((p) => 'destino' in p)).toBe(false)
+    expect(JSON.stringify(map)).not.toContain('scene_cripta_secreta')
+  })
+
+  it('passageOf: ausente e desconhecido são "pede"; só os três modos valem', () => {
+    expect(passageOf(pino('a', 0, 0, { kind: 'viagem' }))).toBe('pede')
+    expect(passageOf(pino('b', 0, 0, { kind: 'viagem', passagem: 'livre' }))).toBe('livre')
+    expect(passageOf(pino('c', 0, 0, { kind: 'viagem', passagem: 'trancada' }))).toBe('trancada')
+    expect([isPinPassage('pede'), isPinPassage('Livre'), isPinPassage(undefined), isPinPassage(null)]).toEqual([true, false, false, false])
   })
 
   it('camada Anotações oculta tira todos os pinos', () => {

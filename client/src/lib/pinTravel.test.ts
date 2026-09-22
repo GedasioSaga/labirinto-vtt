@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { MapData, Pin } from '../types/map'
-import { createEmptyMap } from './mapFactory'
+import { createEmptyMap, updatePin } from './mapFactory'
 import {
   arrivalPoint,
   linkBack,
@@ -112,6 +112,24 @@ describe('linkBack e unlinkBack', () => {
     expect(unlinkBack(voltava, 'b', daqui).pins[0].destino).toBeNull()
     const religado = cena('cripta', [pino('b', { destino: { sceneId: 'torre', pinId: 'c' } })])
     expect(unlinkBack(religado, 'b', daqui)).toBe(religado)
+  })
+
+  it('ligar e desligar o par não mexe no modo de passagem dele', () => {
+    const trancado = cena('cripta', [pino('b', { passagem: 'trancada' })])
+    const ligado = linkBack(trancado, 'b', daqui).map
+    expect(ligado.pins[0]).toMatchObject({ destino: daqui, passagem: 'trancada' })
+    expect(unlinkBack(ligado, 'b', daqui).pins[0]).toMatchObject({ destino: null, passagem: 'trancada' })
+  })
+})
+
+describe('updatePin e o modo de passagem', () => {
+  it('trocar o modo muda o pino; escolher "pede" num pino sem modo não é mudança', () => {
+    const map = cena('vale', [pino('a')])
+    expect(updatePin(map, 'a', { passagem: 'pede' })).toBe(map)
+    const livre = updatePin(map, 'a', { passagem: 'livre' })
+    expect(livre.pins[0].passagem).toBe('livre')
+    // O modo não toca no destino, e o destino não toca no modo.
+    expect(updatePin(livre, 'a', { destino: { sceneId: 'cripta', pinId: 'b' } }).pins[0].passagem).toBe('livre')
   })
 })
 

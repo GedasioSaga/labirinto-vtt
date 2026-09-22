@@ -703,14 +703,17 @@
 
 /*
  * O toque no pino abre um cartão sobre o mapa. O fundo cobre a tela inteira
- * porque ele tem DUAS funções: escurecer o mapa para o olho ir ao texto, e
- * receber o "tocar fora" — sem essa camada o toque de fechar chegaria ao
- * canvas e arrastaria o mapa junto.
+ * só na PINTURA: escurece o mapa para o olho ir ao texto, mas deixa o toque e
+ * a leitura passarem (`pointer-events: none`). O "tocar fora" é ouvido na
+ * janela (`PlayerPinCard`), que segura o toque de fechar antes do canvas.
+ * Tapar o mapa com uma caixa invisível escondia do jogador o lugar onde ele
+ * está justamente quando o cartão diz "Está trancada".
  */
 .pp-pincard__backdrop {
   position: fixed;
   inset: 0;
   z-index: 30;
+  pointer-events: none;
   display: flex;
   /* Encostado no ALTO e à DIREITA (pedido do usuário em 18/09/2026: "ao invés
      de aparecer no meio da tela, aparece do lado direito"). O cartão fala de um
@@ -732,6 +735,7 @@
 .pp-pincard {
   display: flex;
   flex-direction: column;
+  pointer-events: auto;
   /* "Um pequeno lugar" no lado direito, não meia tela: 420 px cabe a descrição
      sem o cartão invadir o centro do mapa numa janela de 1280 px. */
   width: min(420px, 100%);
@@ -881,6 +885,18 @@
   margin: 0;
   font-size: 15px;
   line-height: 1.4;
+}
+
+/* Passagem trancada: frase, não botão — não há o que tocar. A mesma moldura
+   de linha fina da pergunta, para ler como estado da porta e não como erro. */
+.pp-pincard__locked {
+  margin: 10px 12px 0;
+  padding: 10px 12px;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 10px;
 }
 
 .pp-pincard__choices {
