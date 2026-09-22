@@ -636,6 +636,10 @@ export function filterMapForPlayer(
 
   const filtered: MapData = {
     ...map,
+    // O nome do mapa é o nome da CENA (a aventura cria a cena com
+    // `createEmptyMap(id, nomeDaCena, …)`): o jogador descobre onde está pelo
+    // que vê, nunca pelo nome que o mestre deu. Nada na tela dele lê este campo.
+    name: '',
     // Metadado do mestre: vínculo de cenário, dono e áreas reveladas não são do jogador.
     scenarioLink: null,
     ownerId: null,

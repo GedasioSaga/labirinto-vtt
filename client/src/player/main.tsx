@@ -47,6 +47,9 @@ function travelNoticeText(notice: TravelNotice): string {
       return notice.direct ? 'Passando…' : 'Aguardando o mestre…'
     case 'arrived':
       return 'Você chegou'
+    case 'moved':
+      // Nunca diz para onde: o nome da cena é do mestre.
+      return 'O mestre levou você para outro lugar'
     case 'denied':
       return 'O mestre não deixou passar agora'
     case 'rejected':

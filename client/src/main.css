@@ -1398,6 +1398,109 @@ body {
   flex: none;
 }
 
+/* Grupo (aba Jogo): uma linha por jogador, no poço afundado da sala. A cor
+   fica SÓ na bolinha — é a cor da ficha no mapa; nada mais na linha disputa
+   com ela (nem verde de "online": o status é texto). */
+.lb-party {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  flex: none;
+}
+
+.lb-party__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-party__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-party__who {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+.lb-party__dot {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--lb-color-line-strong);
+  background: transparent;
+}
+
+.lb-party__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment);
+}
+
+.lb-party__presence {
+  margin-left: auto;
+  flex: none;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-party__presence--on {
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-party__where {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  overflow-wrap: anywhere;
+}
+
+/* Alvo de toque: o .lb-btn já tem 34 px de altura; aqui as duas ações dividem a linha. */
+.lb-party__actions {
+  display: flex;
+  gap: var(--lb-space-2);
+}
+
+.lb-party__actions > .lb-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+}
+
+.lb-party__send {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-party__send .lb-party__actions {
+  justify-content: flex-end;
+}
+
+.lb-party__send .lb-party__actions > .lb-btn {
+  flex: none;
+  min-height: 34px;
+}
+
 /* Abas Mapa | Sala no topo do rail (só no Tauri). Visual do segmented. */
 .lb-railtabs {
   display: grid;

@@ -1,5 +1,6 @@
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type PlayerInfo } from '../net/hostSession'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
+import { PartySection, type PartySectionProps } from './PartySection'
 
 export interface RoomPanelToken {
   id: string
@@ -10,6 +11,14 @@ export interface RoomPanelProps {
   room: RoomInfo | null
   players: PlayerInfo[]
   tokens: RoomPanelToken[]
+  /**
+   * Fichas de TODAS as cenas da aventura, para dar nome ao "Remover …": o
+   * jogador que viajou tem a ficha numa cena de fundo, fora de `tokens` (que é
+   * só a cena aberta, a lista de atribuir). Ausente = `tokens`.
+   */
+  knownTokens?: RoomPanelToken[]
+  /** Seção "Grupo" (uma linha por jogador, "Ir lá" e "Mandar para…"). Ausente = sem a seção. */
+  party?: PartySectionProps
   tunnel: TunnelState
   onStart(): void
   onStop(): void
@@ -80,7 +89,8 @@ export function quickAssignLabel(token: RoomPanelToken): string {
   return `Atribuir ${token.name}`
 }
 
-function tokenName(tokens: RoomPanelToken[], tokenId: string): string {
+/** Nome da ficha para o botão "Remover …"; o id só quando ela não existe em cena nenhuma. */
+export function tokenName(tokens: RoomPanelToken[], tokenId: string): string {
   return tokens.find((token) => token.id === tokenId)?.name ?? tokenId
 }
 
@@ -168,6 +178,8 @@ export function RoomPanel({
   room,
   players,
   tokens,
+  knownTokens,
+  party,
   tunnel,
   onStart,
   onStop,
@@ -204,6 +216,9 @@ export function RoomPanel({
             <span className="lb-label">Código</span>
             <strong className="lb-room__code">{room.code}</strong>
           </div>
+
+          {/* O grupo vem antes do resto: é o que o mestre consulta a cada cena, o resto é de montar a sala. */}
+          {party !== undefined && party.members.length > 0 && <PartySection {...party} />}
 
           {onToggleLaser !== undefined && (
             <div className="lb-field">
@@ -244,7 +259,7 @@ export function RoomPanel({
                 </span>
                 {player.tokenIds.map((tokenId) => (
                   <button key={tokenId} type="button" className="lb-btn lb-btn--ghost" onClick={() => onUnassign(player.playerId, tokenId)}>
-                    Remover {tokenName(tokens, tokenId)}
+                    Remover {tokenName(knownTokens ?? tokens, tokenId)}
                   </button>
                 ))}
                 {player.status === 'waiting' && assignable.length > 0 && (

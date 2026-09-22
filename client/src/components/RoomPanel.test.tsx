@@ -42,6 +42,17 @@ describe('RoomPanel', () => {
     expect(html).toContain(PLAN_HINT)
   })
 
+  it('"Remover …" dá o nome da ficha que está numa cena de FUNDO (quem viajou), não o id', () => {
+    // `tokens` é só a cena aberta; a ficha da Ana foi para a Cripta.
+    const viajou = player({ status: 'playing', tokenIds: ['tok-cripta'] })
+    const semCenas = renderToStaticMarkup(<RoomPanel room={ROOM} players={[viajou]} tokens={TOKENS} tunnel={IDLE} {...handlers} />)
+    expect(semCenas).toContain('Remover tok-cripta')
+    const knownTokens = [...TOKENS, { id: 'tok-cripta', name: 'Lanterna' }]
+    const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={[viajou]} tokens={TOKENS} knownTokens={knownTokens} tunnel={IDLE} {...handlers} />)
+    expect(html).toContain('Remover Lanterna')
+    expect(html).not.toContain('tok-cripta<')
+  })
+
   it('qrDataUrl codifica o SVG', () => {
     expect(qrDataUrl('<svg a="1"/>')).toBe('data:image/svg+xml;charset=utf-8,%3Csvg%20a%3D%221%22%2F%3E')
   })

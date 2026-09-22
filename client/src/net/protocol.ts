@@ -151,7 +151,9 @@ export type HostMessage =
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
   | { type: 'pin.travel.denied' }
-  | { type: 'scene.changed' }
+  // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
+  // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
+  | { type: 'scene.changed'; by?: 'master' }
   | LaserMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
