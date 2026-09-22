@@ -59,7 +59,7 @@
 // CONTROLE POSITIVO (verde hoje): teste 1. Dois jogadores entram, cada um vê o
 // próprio token e o do outro, e tocar no pino "!" abre o cartão. Sem ele, o
 // vermelho dos testes 2 a 6 poderia ser a infraestrutura quebrada.
-import { test, expect, type Browser, type Locator, type Page, type WebSocketRoute } from '@playwright/test'
+import { test, expect, type Browser, type BrowserContext, type Locator, type Page, type WebSocketRoute } from '@playwright/test'
 import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
 import { fitCamera } from '../src/pixi/world'
@@ -122,6 +122,8 @@ const TOQUE_MS = 120
 const PINTURA_MS = 400
 /** Espera curta por tela: a feature ausente tem de falhar rápido. */
 const ESPERA = 6000
+/** Espera de quem LÊ PIXEL: cada leitura da tela custa segundos (foto + decodificação), e com 6 s o poll estourava antes de a primeira leitura voltar (medido em 21/09). */
+const ESPERA_TELA = 15_000
 /** Cabeça do pino: centro 23 px de mundo acima da ponta (`lib/pins.ts`); 31 acerta a cabeça e foge do token. */
 const CABECA_DO_PINO = 31
 
@@ -391,8 +393,21 @@ interface Jogador {
   frames: string[]
 }
 
+/**
+ * Contextos de jogador abertos pelo teste que está rodando. O `page` do mestre
+ * o Playwright fecha sozinho; estes não. Sem fechar, cada teste deixava duas
+ * telas de jogador vivas desenhando Pixi, e a leitura de tela do teste
+ * seguinte levava ~10 s só pela carga (medido pelo builder em 21/09).
+ */
+const contextosDeJogador: BrowserContext[] = []
+
+test.afterEach(async () => {
+  await Promise.all(contextosDeJogador.splice(0).map((contexto) => contexto.close()))
+})
+
 async function jogadorEntra(browser: Browser, baseURL: string, rede: Rede, clientId: string, nome: string): Promise<Jogador> {
   const contexto = await browser.newContext({ baseURL, viewport: TELA })
+  contextosDeJogador.push(contexto)
   const page = await contexto.newPage()
   const frames: string[] = []
   rede.enviados.set(clientId, frames)
@@ -617,7 +632,7 @@ async function avisoNoMestre(mestre: Page, pinoDoPedido = ESCADA_A, destino = CE
 async function anaChegaNaCenaB(ana: Jogador): Promise<Tela> {
   await expect(ana.page.getByText(VOCE_CHEGOU).first(), `${J1} deveria ler "Você chegou"`).toBeVisible({ timeout: ESPERA })
   await expect
-    .poll(async () => (await telaParada(ana.page)).chaoB, { timeout: ESPERA, message: `${J1} deveria passar a ver o chão da ${CENA_B}` })
+    .poll(async () => (await telaParada(ana.page)).chaoB, { timeout: ESPERA_TELA, message: `${J1} deveria passar a ver o chão da ${CENA_B}` })
     .toBeGreaterThan(PIXELS_DE_CENA)
   const tela = await telaParada(ana.page)
   expect(tela.chaoAClaro + tela.chaoAEscuro, `${J1} chegou à ${CENA_B} e continua vendo o chão do ${CENA_A}`).toBeLessThanOrEqual(RESIDUO)
@@ -678,7 +693,7 @@ test('3. aprovação: Ana vai para a Cripta e vê só ela; Bruno fica no Salão 
 
   // Bruno continua no Salão: a ficha de Ana some da tela dele, nada da Cripta aparece.
   await expect
-    .poll(async () => (await telaParada(bruno.page)).fichaAna, { timeout: ESPERA, message: `a ficha de ${J1} deveria sumir da tela de ${J2}` })
+    .poll(async () => (await telaParada(bruno.page)).fichaAna, { timeout: ESPERA_TELA, message: `a ficha de ${J1} deveria sumir da tela de ${J2}` })
     .toBeLessThanOrEqual(RESIDUO)
   const telaDeBruno = await telaParada(bruno.page)
   expect(telaDeBruno.chaoAClaro, `${J2} deveria continuar vendo o ${CENA_A}`).toBeGreaterThan(PIXELS_DE_CENA)
@@ -719,11 +734,11 @@ test('5. volta com memória: Ana explora o fundo do Salão, vai à Cripta, volta
   const antesDeAndar = await telaParada(ana.page)
   await arrastar(ana.page, naTela(POS_J1), naTela(POS_LONGE))
   await expect
-    .poll(async () => (await telaParada(ana.page)).centroDaFichaDeAna?.x ?? 0, { timeout: ESPERA, message: `a ficha de ${J1} deveria ir para o fundo do ${CENA_A}` })
+    .poll(async () => (await telaParada(ana.page)).centroDaFichaDeAna?.x ?? 0, { timeout: ESPERA_TELA, message: `a ficha de ${J1} deveria ir para o fundo do ${CENA_A}` })
     .toBeGreaterThan(naTela(POS_LONGE).x - 20)
   await arrastar(ana.page, naTela(POS_LONGE), naTela(POS_VOLTA))
   await expect
-    .poll(async () => (await telaParada(ana.page)).centroDaFichaDeAna?.x ?? 9999, { timeout: ESPERA, message: `a ficha de ${J1} deveria voltar para perto da escada` })
+    .poll(async () => (await telaParada(ana.page)).centroDaFichaDeAna?.x ?? 9999, { timeout: ESPERA_TELA, message: `a ficha de ${J1} deveria voltar para perto da escada` })
     .toBeLessThan(naTela(POS_VOLTA).x + 20)
   const lembrado = (await telaParada(ana.page)).chaoAEscuro
   // Controle (verde hoje): andar deixou memória a mais na tela.
@@ -760,7 +775,7 @@ test('5. volta com memória: Ana explora o fundo do Salão, vai à Cripta, volta
 
   await expect(ana.page.getByText(VOCE_CHEGOU).first(), `${J1} deveria ler "Você chegou" de volta ao ${CENA_A}`).toBeVisible({ timeout: ESPERA })
   await expect
-    .poll(async () => (await telaParada(ana.page)).chaoAClaro, { timeout: ESPERA, message: `de volta, ${J1} deveria ver o ${CENA_A}` })
+    .poll(async () => (await telaParada(ana.page)).chaoAClaro, { timeout: ESPERA_TELA, message: `de volta, ${J1} deveria ver o ${CENA_A}` })
     .toBeGreaterThan(PIXELS_DE_CENA)
   const deVolta = await telaParada(ana.page)
   expect(deVolta.chaoB, `de volta ao ${CENA_A}, ${J1} não deveria ver a ${CENA_B}`).toBeLessThanOrEqual(RESIDUO)
