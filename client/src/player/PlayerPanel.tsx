@@ -77,6 +77,9 @@ interface PlayerPanelProps {
   /** Modo "Sinalizar" ligado: o próximo toque no mapa vira sinal. */
   signalArmed: boolean
   onToggleSignal: () => void
+  /** Modo "Medir" ligado: arrastar no mapa mede a distância (só nesta tela). */
+  measureArmed: boolean
+  onToggleMeasure: () => void
   /** Nome novo do próprio token (já aparado); o mestre recebe pelo socket. */
   onRenameToken: (tokenId: string, name: string) => void
   /** Foto nova do próprio token. Rejeita (lança) quando a imagem não serve, e o aviso vai para a tela. */
@@ -91,6 +94,8 @@ export function PlayerPanel({
   onFocusToken,
   signalArmed,
   onToggleSignal,
+  measureArmed,
+  onToggleMeasure,
   onRenameToken,
   onChangeTokenPhoto,
 }: PlayerPanelProps) {
@@ -124,6 +129,12 @@ export function PlayerPanel({
     // Ao ligar, a gaveta fecha para o toque cair no mapa (no celular ela cobre a tela).
     if (!signalArmed) setOpen(false)
     onToggleSignal()
+  }
+
+  function toggleMeasure() {
+    // Mesma razão do Sinalizar: no celular a gaveta cobre o mapa onde o dedo vai medir.
+    if (!measureArmed) setOpen(false)
+    onToggleMeasure()
   }
 
   const first = characters[0]
@@ -213,6 +224,10 @@ export function PlayerPanel({
             {signalArmed ? 'Toque no mapa…' : 'Sinalizar'}
           </button>
           <p className="pp-empty">No PC: Alt+clique ou segure o clique parado.</p>
+          <button type="button" className="pp-button pp-button--toggle" aria-pressed={measureArmed} onClick={toggleMeasure}>
+            Medir
+          </button>
+          {measureArmed && <p className="pp-empty">Arraste no mapa para medir. Esc sai.</p>}
         </section>
 
         {first !== undefined && (
