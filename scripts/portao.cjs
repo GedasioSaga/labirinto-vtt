@@ -482,6 +482,9 @@ const JORNADAS_DO_CRITERIO = [
   // 22/09/2026, grupo espalhado G8 — encruzilhada: pino de viagem com várias
   // saídas nomeadas pelo mestre; o jogador escolhe pelo nome da saída.
   'e2e/task-jornada-encruzilhada.spec.ts',
+  // 22/09/2026, grupo espalhado G9 — mão única: a chegada fica oculta ao
+  // jogador e não leva de volta.
+  'e2e/task-jornada-chegada-oculta.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
