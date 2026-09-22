@@ -47,6 +47,17 @@ import { SIGNAL_LONG_PRESS_MS, SIGNAL_LONG_PRESS_TOLERANCE_PX, type SignalMark }
 import { createLaserRenderer } from '../pixi/drawLaser'
 import type { LaserTrail } from '../lib/laser'
 import type { PlayerViewSettings } from './PlayerPanel'
+import {
+  MEASURE_OFF,
+  measurePointFromScreen,
+  measureWorldToScreen,
+  playerMeasureLabel,
+  playerMeasureReducer,
+  withMeasureArmed,
+  type PlayerMeasureEvent,
+  type PlayerMeasureState,
+} from './playerMeasure'
+import { drawPlayerMeasure } from './drawPlayerMeasure'
 
 interface PlayerViewProps {
   map: MapData
@@ -66,6 +77,11 @@ interface PlayerViewProps {
   /** Botão "Sinalizar" ligado: o próximo toque no mapa vira sinal em vez de arrasto. */
   signalArmed?: boolean
   onSignal?: (x: number, y: number) => void
+  /**
+   * Botão "Medir" ligado: arrastar no mapa mede a distância em vez de mover a
+   * câmera. A medida é só desta tela — nada vai pelo socket.
+   */
+  measureArmed?: boolean
   /** Toque curto numa porta: pede ao mestre para abrir/fechar (o mestre valida). */
   onDoorToggle?: (wallId: string) => void
   /** Toque curto num pino: abre o cartão do ponto de interesse. */
@@ -76,6 +92,8 @@ interface PlayerViewProps {
 
 const RASTER_SAMPLES = 4
 const FIT_MARGIN = 24
+/** Distância do rótulo da régua até a ponta, em px de tela: não cobre o próprio dedo/cursor. */
+const MEASURE_LABEL_OFFSET_PX = 12
 /** Fundo do mapa, igual ao do canvas do editor. */
 const MAP_BACKGROUND = 0x2b2b2b
 const MAP_BACKGROUND_RGB: Rgb = [0x2b, 0x2b, 0x2b]
@@ -107,6 +125,8 @@ type Drag =
   // `startX`/`startY`: onde o gesto começou — se ele terminar sem andar, é um toque (porta), não um arrasto de câmera.
   | { kind: 'pan'; lastX: number; lastY: number; startX: number; startY: number }
   | { kind: 'token'; tokenId: string; offsetX: number; offsetY: number; x: number; y: number }
+  // Régua do jogador: o ponto vive em `scene.measure`, aqui só se marca que o gesto é dela.
+  | { kind: 'measure' }
 
 function safeRgb(hex: string | null, fallback: Rgb): Rgb {
   return hex && HEX_COLOR.test(hex) ? hexToRgb(hex) : fallback
@@ -374,6 +394,15 @@ interface Scene {
   /** Espaço de tela, acima do `world`: ondas e seta de borda com tamanho fixo. */
   signalsLayer: Container
   signalsRenderer: ReturnType<typeof createSignalsRenderer>
+  /**
+   * Régua do jogador, em espaço de tela como os sinais. O estado mora aqui (e
+   * não no React) de propósito: o arrasto atualiza a cada pointermove, e
+   * re-renderizar a tela inteira por passo do dedo é o custo que não se paga.
+   */
+  measureLayer: Graphics
+  measure: PlayerMeasureState
+  /** Última medida desenhada (pontos de tela + rótulo); igual = nada a repintar. */
+  lastMeasureKey: string | null
   /** Resolução dos Text do mundo acompanhando o zoom (pixi/textResolution.ts). */
   textResolution: ReturnType<typeof createDebouncedTask>
 }
@@ -531,14 +560,60 @@ export function PlayerView({
   signals = NO_SIGNALS,
   signalArmed = false,
   onSignal,
+  measureArmed = false,
   onDoorToggle,
   onPinOpen,
   laser,
 }: PlayerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const measureLabelRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
-  const latestRef = useRef({ map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, onDoorToggle, onPinOpen, laser })
-  latestRef.current = { map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, onDoorToggle, onPinOpen, laser }
+  const latestRef = useRef({ map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser })
+  latestRef.current = { map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser }
+
+  /**
+   * Pinta a régua (linha no canvas + rótulo no DOM) a partir de `scene.measure`.
+   * Chamada no gesto e no ticker — este por causa do zoom e do arrasto de
+   * câmera, que mudam a posição de tela sem mudar a medida. A chave evita
+   * repintar e tocar no DOM quando nada mudou.
+   *
+   * O rótulo é TEXTO do DOM, não letra do Pixi: leitor de tela e busca por
+   * texto o encontram, e ele fica nítido em qualquer zoom.
+   */
+  function syncMeasure(scene: Scene): void {
+    const measure = scene.measure.measure
+    const label = measureLabelRef.current
+    if (measure === null) {
+      if (scene.lastMeasureKey === null) return
+      scene.lastMeasureKey = null
+      scene.measureLayer.clear()
+      if (label) {
+        // Texto vazio, e não só escondido: a medida apagada não pode continuar legível para ninguém.
+        label.textContent = ''
+        label.hidden = true
+      }
+      return
+    }
+    const start = measureWorldToScreen(scene.camera, measure.start)
+    const end = measureWorldToScreen(scene.camera, measure.end)
+    const text = playerMeasureLabel(latestRef.current.map, measure)
+    const key = JSON.stringify([start, end, text])
+    if (key === scene.lastMeasureKey) return
+    scene.lastMeasureKey = key
+    drawPlayerMeasure(scene.measureLayer, start, end)
+    if (!label) return
+    if (label.textContent !== text) label.textContent = text
+    label.hidden = false
+    // Acima e à direita da ponta, como o rótulo do mestre, preso dentro da tela.
+    const x = Math.min(Math.max(0, end.x + MEASURE_LABEL_OFFSET_PX), scene.app.screen.width - label.offsetWidth)
+    const y = Math.min(Math.max(0, end.y - MEASURE_LABEL_OFFSET_PX - label.offsetHeight), scene.app.screen.height - label.offsetHeight)
+    label.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
+  }
+
+  function applyMeasureEvent(scene: Scene, event: PlayerMeasureEvent): void {
+    scene.measure = playerMeasureReducer(scene.measure, event)
+    syncMeasure(scene)
+  }
 
   function redrawGridLayer(scene: Scene): void {
     const { map: currentMap, settings: currentSettings } = latestRef.current
@@ -772,6 +847,9 @@ export function PlayerView({
 
     if (scene.fittedMapId !== currentMap.id) {
       scene.fittedMapId = currentMap.id
+      // Mapa novo (viagem): a medida era em pontos do mapa de antes e mentiria aqui. O modo continua ligado.
+      scene.measure = withMeasureArmed(MEASURE_OFF, scene.measure.armed)
+      syncMeasure(scene)
       const bounds = { minX: 0, minY: 0, maxX: worldWidth, maxY: worldHeight }
       scene.camera = fitCamera(bounds, { width: scene.app.screen.width, height: scene.app.screen.height }, FIT_MARGIN)
       applyCamera(scene)
@@ -782,7 +860,8 @@ export function PlayerView({
 
   function startTokenDrag(scene: Scene, tokenId: string, event: FederatedPointerEvent): void {
     // Alt+clique ou modo Sinalizar sobre um token: deixa o evento subir para o palco sinalizar.
-    if (event.altKey || latestRef.current.signalArmed) return
+    // Modo Medir também: medir a partir da própria ficha é o caso mais comum, e ela não pode andar.
+    if (event.altKey || latestRef.current.signalArmed || latestRef.current.measureArmed) return
     event.stopPropagation()
     const view = scene.tokenViews.get(tokenId)?.wrapper
     if (!view) return
@@ -877,7 +956,10 @@ export function PlayerView({
       // Laser do mestre acima dos sinais: é a mão de quem conduz a mesa.
       const laserLayer = new Container()
       laserLayer.eventMode = 'none'
-      app.stage.addChild(world, signalsLayer, laserLayer)
+      // Régua do jogador acima do mapa (e da névoa: medir até onde ainda não se vê é legítimo) e abaixo dos sinais.
+      const measureLayer = new Graphics()
+      measureLayer.eventMode = 'none'
+      app.stage.addChild(world, measureLayer, signalsLayer, laserLayer)
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
@@ -939,6 +1021,9 @@ export function PlayerView({
         drag: null,
         signalsLayer,
         signalsRenderer: createSignalsRenderer(),
+        measureLayer,
+        measure: withMeasureArmed(MEASURE_OFF, latestRef.current.measureArmed),
+        lastMeasureKey: null,
         // Texto rasterizado a 1x e esticado pelo zoom sai mole: resolução em degraus.
         textResolution: createDebouncedTask(() => {
           if (destroyed) return
@@ -974,6 +1059,10 @@ export function PlayerView({
       }
       app.ticker.add(tickLaser)
 
+      // Zoom e arrasto de câmera mudam a posição de tela da régua sem mudar a medida.
+      const tickMeasure = () => syncMeasure(scene)
+      app.ticker.add(tickMeasure)
+
       const sendSignalAt = (screenX: number, screenY: number) => {
         const point = scene.world.toLocal({ x: screenX, y: screenY })
         latestRef.current.onSignal?.(point.x, point.y)
@@ -989,6 +1078,13 @@ export function PlayerView({
       app.stage.on('pointerdown', (event: FederatedPointerEvent) => {
         if (scene.drag) return
         const { x, y } = event.global
+        if (latestRef.current.measureArmed) {
+          // Com o modo Medir, o arrasto mede: nem câmera, nem sinal, nem cartão de pino.
+          cancelLongPress()
+          scene.drag = { kind: 'measure' }
+          applyMeasureEvent(scene, { type: 'press', at: measurePointFromScreen(scene.camera, { x, y }, latestRef.current.map, event.altKey) })
+          return
+        }
         if (event.altKey || latestRef.current.signalArmed) {
           sendSignalAt(x, y)
           return
@@ -1015,10 +1111,18 @@ export function PlayerView({
         const drag = scene.drag
         if (!drag) {
           // Mouse parado sobre porta: cursor de mão (no celular não existe hover).
+          if (latestRef.current.measureArmed) {
+            app.stage.cursor = 'crosshair'
+            return
+          }
           const overTappable =
             !latestRef.current.signalArmed &&
             (pinAtScreen(scene, event.global.x, event.global.y) !== null || doorAtScreen(scene, event.global.x, event.global.y) !== null)
           app.stage.cursor = overTappable ? 'pointer' : 'default'
+          return
+        }
+        if (drag.kind === 'measure') {
+          applyMeasureEvent(scene, { type: 'move', at: measurePointFromScreen(scene.camera, event.global, latestRef.current.map, event.altKey) })
           return
         }
         if (drag.kind === 'pan') {
@@ -1037,6 +1141,11 @@ export function PlayerView({
         cancelLongPress()
         const drag = scene.drag
         scene.drag = null
+        if (drag?.kind === 'measure') {
+          // Solta: a medida fica na tela até o próximo toque ou Escape.
+          applyMeasureEvent(scene, { type: 'release' })
+          return
+        }
         if (drag?.kind === 'pan') {
           // Toque curto e parado: primeiro o pino (desenhado por cima de tudo),
           // depois a porta. Segurar mais que `SIGNAL_LONG_PRESS_MS` já virou
@@ -1091,6 +1200,7 @@ export function PlayerView({
         cancelLongPress()
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickLaser)
+        app.ticker.remove(tickMeasure)
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
         scene.lightsRenderer.destroy()
       }
@@ -1144,5 +1254,22 @@ export function PlayerView({
     // Só um pedido novo (focusSeq) move a câmera; snapshot com o token andando não.
   }, [focusSeq])
 
-  return <div ref={containerRef} style={{ position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed ? 'crosshair' : undefined }} />
+  useEffect(() => {
+    // Desligar (botão de novo ou Escape) apaga a medida; ligar começa sem nenhuma.
+    const scene = sceneRef.current
+    if (!scene) return
+    scene.measure = withMeasureArmed(scene.measure, measureArmed)
+    // Desligou no meio do arrasto: o gesto some junto, senão o próximo move reabriria a régua.
+    if (!measureArmed && scene.drag?.kind === 'measure') scene.drag = null
+    syncMeasure(scene)
+  }, [measureArmed])
+
+  return (
+    <>
+      <div ref={containerRef} style={{ position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed ? 'crosshair' : undefined }} />
+      {/* Rótulo da régua: escrito pelo gesto direto no DOM (syncMeasure), sem re-render do React por passo do dedo.
+          `aria-live` educado: com o grude na grade o texto só muda a cada quadrado, não a cada pixel. */}
+      <div ref={measureLabelRef} className="pp-measure-label" aria-live="polite" aria-atomic="true" hidden />
+    </>
+  )
 }

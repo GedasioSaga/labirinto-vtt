@@ -550,6 +550,46 @@
   color: var(--lb-color-parchment-faint, #6d6c68);
 }
 
+/* "Medir" mantém o nome ao ligar (é um interruptor): o estado aparece no
+   preenchimento, e o alvo tem 44 px porque no celular ele é tocado com o dedo. */
+.pp-button--toggle {
+  min-height: 44px;
+}
+
+.pp-button--toggle[aria-pressed='true'] {
+  background: var(--lb-color-brass, #e0a44a);
+  color: var(--lb-color-stone, #131317);
+}
+
+.pp-button--toggle[aria-pressed='true']:hover {
+  background: var(--lb-color-brass-bright, #f3ba66);
+}
+
+/* Rótulo da régua do jogador: segue a ponta da medida (posição escrita pelo
+   gesto, em transform). Por cima do mapa e abaixo do painel; não pega toque,
+   senão o dedo que passa por cima dele interromperia o arrasto. */
+.pp-measure-label {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  pointer-events: none;
+  padding: 2px 8px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-md, 6px);
+}
+
+.pp-measure-label[hidden] {
+  display: none;
+}
+
 .pp-field {
   display: grid;
   gap: 4px;

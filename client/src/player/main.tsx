@@ -8,6 +8,7 @@ import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNoti
 import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
+import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
@@ -483,6 +484,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(localStorageOrNull()))
   const [focus, setFocus] = useState<{ tokenId: string | null; seq: number }>({ tokenId: null, seq: 0 })
   const [signalArmed, setSignalArmed] = useState(false)
+  /** Régua do jogador ligada. Só o liga/desliga mora aqui; a medida em si é do PlayerView (local ao gesto). */
+  const [measureArmed, setMeasureArmed] = useState(false)
   /** Pino aberto no cartão; `null` = cartão fechado. */
   const [openPinId, setOpenPinId] = useState<string | null>(null)
   /** Cada "Reconectar" conta uma tentativa nova e reinicia o prazo do aperto de mão. */
@@ -506,6 +509,17 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
     const timer = setTimeout(() => setHandshakeOverdue(true), HANDSHAKE_DEADLINE_MS)
     return () => clearTimeout(timer)
   }, [connecting, attempt])
+
+  // Escape apaga a medida e desliga o modo. Só escuta com o modo ligado, e
+  // nunca dentro de campo de texto (lá o Escape é da edição).
+  useEffect(() => {
+    if (!measureArmed) return
+    const onKey = (event: KeyboardEvent) => {
+      if (escapeDisarmsMeasure(event.key, event.target)) setMeasureArmed(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [measureArmed])
 
   const ownTokens = state.ownTokens ?? NO_TOKENS
   const map = state.map
@@ -549,6 +563,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             // Modo de um toque: sinalizou, desliga.
             setSignalArmed(false)
           }}
+          measureArmed={measureArmed}
           onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
           onPinOpen={setOpenPinId}
         />
@@ -559,7 +574,16 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           onSettingsChange={changeSettings}
           onFocusToken={(tokenId) => setFocus((current) => ({ tokenId, seq: current.seq + 1 }))}
           signalArmed={signalArmed}
-          onToggleSignal={() => setSignalArmed((armed) => !armed)}
+          onToggleSignal={() => {
+            // Sinalizar e Medir disputam o mesmo toque no mapa: ligar um desliga o outro.
+            setSignalArmed((armed) => !armed)
+            setMeasureArmed(false)
+          }}
+          measureArmed={measureArmed}
+          onToggleMeasure={() => {
+            setMeasureArmed((armed) => !armed)
+            setSignalArmed(false)
+          }}
           onRenameToken={(tokenId, name) => connection.setOwnTokenName(tokenId, name)}
           onChangeTokenPhoto={async (tokenId, file) => {
             // A foto é reduzida AQUI, antes de sair da máquina do jogador: é
