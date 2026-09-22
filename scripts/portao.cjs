@@ -444,6 +444,9 @@ const JORNADAS_DO_CRITERIO = [
   // 21/09/2026, noite — girar sala pela alça no mapa e pelo campo Rotação do
   // painel; sala, sub-salas, paredes e portas giram juntas, o conteúdo fica.
   'e2e/task-jornada-girar-sala.spec.ts',
+  // 22/09/2026 — medir distância na tela do jogador: botão Medir, arrasto com
+  // linha e rótulo no formato do mestre, só na tela dele, sem roubar o sinal.
+  'e2e/task-jornada-medir-na-tela-do-jogador.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
