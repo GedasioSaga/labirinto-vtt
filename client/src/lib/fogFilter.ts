@@ -741,16 +741,27 @@ export function filterMapForHost(map: MapData): MapData {
  *   se comporta, não para onde ela leva.
  */
 function pinForPlayer(pin: Pin): Pin {
-  const forPlayer: Pin = { ...pin, image: isPlayerSafePinImage(pin.image) ? pin.image : null }
-  delete forPlayer.destino
-  // ENCRUZILHADA: `saidas` leva o destino de cada saída, e `rotulo` só faz
-  // sentido junto dela — nenhum dos dois vai. O jogador recebe `escolhas`,
-  // montado AQUI (nunca copiado do mestre): por saída, só o id e o rótulo.
-  // Pino de uma saída não ganha o campo: o cartão dele é o de sempre, e o
-  // recorte também.
-  delete forPlayer.rotulo
-  delete forPlayer.saidas
-  delete forPlayer.escolhas
+  // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
+  // arquivo trouxer e o app não conhece (versão futura, edição à mão) não
+  // chega ao jogador por descuido (revisão de segurança, 22/09). `destino`,
+  // `rotulo` e `saidas` ficam de fora — o destino de cada saída diria que a
+  // outra cena existe.
+  const forPlayer: Pin = {
+    id: pin.id,
+    x: pin.x,
+    y: pin.y,
+    kind: pin.kind,
+    description: pin.description,
+    image: isPlayerSafePinImage(pin.image) ? pin.image : null,
+  }
+  if (pin.icon !== undefined) forPlayer.icon = pin.icon
+  if (pin.locked !== undefined) forPlayer.locked = pin.locked
+  if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
+  if (pin.secret !== undefined) forPlayer.secret = pin.secret
+  if (pin.passagem !== undefined) forPlayer.passagem = pin.passagem
+  // ENCRUZILHADA: o jogador recebe `escolhas`, montado AQUI (nunca copiado do
+  // mestre): por saída, só o id e o rótulo. Pino de uma saída não ganha o
+  // campo: o cartão dele é o de sempre, e o recorte também.
   const escolhas = exitLabelsOf(pin)
   if (escolhas.length > 1) forPlayer.escolhas = escolhas
   return forPlayer

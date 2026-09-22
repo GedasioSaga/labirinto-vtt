@@ -10,8 +10,11 @@ import { describe, expect, it } from 'vitest'
 import type { MapData, Pin } from '../types/map'
 import { createEmptyMap, updatePin } from './mapFactory'
 import {
+  addExit,
   arrivalPoint,
+  EXIT_EXTRA_MAX_COUNT,
   linkBack,
+  readPinExits,
   readPinDestination,
   resolvePinTravel,
   travelLinkChanges,
@@ -209,5 +212,22 @@ describe('encruzilhada: saídas extras', () => {
     const depois = unlinkBack(cena('vale', [cruz]), 'a', { sceneId: 'torre', pinId: 'c' })
     expect(depois.pins[0].saidas).toBeUndefined()
     expect(depois.pins[0].destino).toEqual({ sceneId: 'cripta', pinId: 'b' })
+  })
+})
+
+describe('encruzilhada: teto de saídas', () => {
+  // Revisão de segurança (22/09): arquivo com dezenas de milhares de saídas
+  // válidas congelava o host. O teto vale na leitura e no "+ Outra saída".
+  it('readPinExits lê no máximo EXIT_EXTRA_MAX_COUNT saídas extras', () => {
+    const muitas = Array.from({ length: 5000 }, (_, i) => ({ id: `s${i}`, rotulo: '', destino: { sceneId: 'b', pinId: `p${i}` } }))
+    expect(readPinExits(muitas)).toHaveLength(EXIT_EXTRA_MAX_COUNT)
+  })
+
+  it('addExit no teto não acrescenta saída', () => {
+    const extras = Array.from({ length: EXIT_EXTRA_MAX_COUNT }, (_, i) => ({ id: `s${i}`, rotulo: '', destino: { sceneId: 'b', pinId: `p${i}` } }))
+    const cheio = pino('a', { destino: { sceneId: 'b', pinId: 'par' }, saidas: extras })
+    expect(addExit(cheio, 'mais_uma', { sceneId: 'c', pinId: 'outro' })).toEqual({})
+    const quaseCheio = pino('a', { destino: { sceneId: 'b', pinId: 'par' }, saidas: extras.slice(1) })
+    expect(addExit(quaseCheio, 'mais_uma', { sceneId: 'c', pinId: 'outro' }).saidas).toHaveLength(EXIT_EXTRA_MAX_COUNT)
   })
 })

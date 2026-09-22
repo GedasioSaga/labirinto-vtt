@@ -85,3 +85,16 @@ describe('fogFilter: encruzilhada', () => {
     expect(JSON.stringify(map)).not.toContain('scene_torre_secreta')
   })
 })
+
+describe('fogFilter: o pino do jogador leva só o que é dele', () => {
+  // Revisão de segurança (22/09): o recorte fazia "...pin" e apagava uma lista
+  // fixa. Campo que o arquivo traz e o app não conhece passava ao jogador.
+  it('campo desconhecido vindo do arquivo não chega ao jogador', () => {
+    const comSegredo = { ...ENCRUZILHADA, notaSecreta: 'o tesouro está no poço' } as Pin
+    const { map } = filterMapForPlayer(mapaCom([comSegredo]), 'p1', POSSE, RAIO)
+    const pino = map.pins.find((p) => p.id === 'cruz')
+    expect(pino).toBeDefined()
+    expect(JSON.stringify(pino)).not.toContain('tesouro')
+    expect(Object.keys(pino ?? {}).sort()).toEqual(['description', 'escolhas', 'id', 'image', 'kind', 'x', 'y'])
+  })
+})

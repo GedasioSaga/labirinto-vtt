@@ -1,6 +1,6 @@
 import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import type { PinTravel, TravelPinOption, TravelSceneOption } from '../lib/pinTravel'
-import { EXIT_LABEL_MAX_LENGTH } from '../lib/pinTravel'
+import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH } from '../lib/pinTravel'
 import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
 import type { PinPassage } from '../types/map'
 import { ChevronDownIcon } from './icons'
@@ -273,8 +273,9 @@ export function PinTravelControls({ exits, scenes, pinsIn, onLinkNew, onLinkExis
       )}
 
       {/* "+ Outra saída" só depois da primeira ligação: antes dela, o
-          "Leva a…" de sempre já é a primeira saída. */}
-      {algumaLigada && gatilho(null, '+ Outra saída', 'lb-btn lb-btn--ghost lb-btn--block')}
+          "Leva a…" de sempre já é a primeira saída. No teto de saídas
+          (`EXIT_EXTRA_MAX_COUNT` extras + a principal) o botão some. */}
+      {algumaLigada && exits.length <= EXIT_EXTRA_MAX_COUNT && gatilho(null, '+ Outra saída', 'lb-btn lb-btn--ghost lb-btn--block')}
 
       {/* Como o JOGADOR passa: numa mesa espalhada por várias cenas, aprovar
           cada passagem vira gargalo do mestre. Vale só para este pino — a

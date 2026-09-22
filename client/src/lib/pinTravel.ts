@@ -54,6 +54,13 @@ export const SAIDA_PRINCIPAL = 'principal'
 export const EXIT_ID_MAX_LENGTH = 64
 /** Teto do rótulo: cabe num botão do cartão do jogador sem virar parágrafo. */
 export const EXIT_LABEL_MAX_LENGTH = 40
+/**
+ * Teto de saídas EXTRAS de um pino (12 saídas contando a principal). Sem ele,
+ * um arquivo com dezenas de milhares de saídas válidas congelava o host: o
+ * recorte do jogador remonta `escolhas` por pino a cada envio, e a comparação
+ * de ligações é quadrática no número de saídas (revisão de segurança, 22/09).
+ */
+export const EXIT_EXTRA_MAX_COUNT = 11
 
 /** Uma saída que leva a algum lugar, com o id que o pedido do jogador usa. */
 export interface TravelExit {
@@ -77,6 +84,7 @@ export function readPinExits(value: unknown): PinExit[] | undefined {
   const vistos = new Set<string>([SAIDA_PRINCIPAL])
   const saidas: PinExit[] = []
   for (const item of value) {
+    if (saidas.length >= EXIT_EXTRA_MAX_COUNT) break
     if (item === null || typeof item !== 'object') continue
     const { id, rotulo, destino } = item as Record<string, unknown> // objeto não-nulo acima; cada campo é conferido abaixo
     if (typeof id !== 'string' || id.length === 0 || id.length > EXIT_ID_MAX_LENGTH || vistos.has(id)) continue
@@ -154,7 +162,9 @@ export function setExitDestination(pin: Pin, exitId: string, destino: PinDestina
  */
 export function addExit(pin: Pin, exitId: string, destino: PinDestination): ExitPatch {
   if (!isPinDestination(pin.destino)) return { destino }
-  return { saidas: [...(pin.saidas ?? []), { id: exitId, rotulo: '', destino }] }
+  const extras = pin.saidas ?? []
+  if (extras.length >= EXIT_EXTRA_MAX_COUNT) return {}
+  return { saidas: [...extras, { id: exitId, rotulo: '', destino }] }
 }
 
 /** Dá nome à saída `exitId`. Vazio = sem nome (o jogador lê "Saída N"). */
