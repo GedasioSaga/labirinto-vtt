@@ -7,6 +7,7 @@ import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
+import { companionSpots, companionsNear, type Companion } from '../lib/travelTogether'
 import {
   parsePlayerMessage,
   type DoorToggleMessage,
@@ -273,6 +274,22 @@ export interface HostSession {
   denyTravel(requestId: string): HostResult
   /** O pedido ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isTravelPending(requestId: string): boolean
+  /**
+   * Quem iria junto se o mestre deixasse AGORA (`playerId`s): jogadores
+   * jogando e conectados, na mesma cena, com ficha a até `NEAR_SQUARES` casas
+   * da ficha de quem pediu (`lib/travelTogether.ts`). Pedido que já não vale: nenhum.
+   */
+  travelCompanions(requestId: string, source: HostMapSource): string[]
+  /**
+   * "Deixar ir com quem está perto": aprova o pedido (a revalidação do
+   * `approveTravel`, que vem primeiro no resultado) e, só se ele passou, leva
+   * junto quem está perto NESTE instante — quem andou para longe desde o aviso
+   * fica. Cada companheiro é um resultado à parte, com `applyTransfer` numa
+   * casa livre em volta do pino par e o mesmo `scene.changed` de quem pediu
+   * ("Você chegou"). O pedido pendente de um companheiro é resolvido junto.
+   * Pedido que já não existe: lista vazia.
+   */
+  approveTravelTogether(requestId: string, source: HostMapSource): HostResult[]
   /**
    * "Mandar para…" do painel Grupo: o MESTRE leva o jogador, sem pedido, para
    * `toSceneId` — no pino de viagem `pinId` daquela cena ou, com `null`, no
@@ -810,7 +827,26 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
   }
 
-  return {
+  /**
+   * Quem está perto da ficha que viajaria no pedido `pending`, contra o mundo
+   * de agora. `null` quando o pedido em si não passa mais.
+   */
+  const companionsOf = (pending: PendingTravel, world: HostWorld): { travel: ValidTravel; near: Companion[] } | null => {
+    const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world)
+    if (travel === null) return null
+    const fromMap = travel.from.map
+    const candidates = [...players.values()].flatMap((record) => {
+      if (record.playerId === pending.playerId || record.clientId === null || statusOf(record.playerId) !== 'playing') return []
+      // A cena DELE, pela mesma regra do broadcast: ficha esquecida no Salão
+      // de quem já está na Cripta não o faz viajar.
+      if (sceneFor(record.playerId, world)?.sceneId !== travel.from.sceneId) return []
+      const owned = new Set(ownership[record.playerId] ?? [])
+      return [{ playerId: record.playerId, tokens: fromMap.tokens.filter((t) => owned.has(t.id)) }]
+    })
+    return { travel, near: companionsNear(travel.token, fromMap.grid, candidates) }
+  }
+
+  const api: HostSession = {
     get rev() {
       return rev
     },
@@ -870,6 +906,52 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     isTravelPending(requestId) {
       return findPendingTravel(requestId) !== undefined
+    },
+
+    travelCompanions(requestId, source) {
+      const pending = findPendingTravel(requestId)
+      if (pending === undefined) return []
+      return companionsOf(pending, toWorld(source))?.near.map((c) => c.playerId) ?? []
+    },
+
+    approveTravelTogether(requestId, source) {
+      const pending = findPendingTravel(requestId)
+      if (pending === undefined) return []
+      // Conta ANTES de aprovar, com o mundo do clique: a aprovação muda a cena
+      // de quem pediu, e a ficha dele é o centro da conta.
+      const group = companionsOf(pending, toWorld(source))
+      const lead = api.approveTravel(requestId, source)
+      const arrival = lead.applyTransfer
+      // Quem pediu não passou: ninguém vai "junto" de quem ficou.
+      if (group === null || arrival === undefined) return [lead]
+      const { travel, near } = group
+      const leader = { x: arrival.x, y: arrival.y, size: travel.token.size }
+      const spots = companionSpots(travel.to.map, travel.partner, leader, near.map((c) => c.token.size))
+      const results: HostResult[] = [lead]
+      near.forEach((companion, index) => {
+        const spot = spots[index] ?? null
+        const record = players.get(companion.playerId)
+        // Não coube em volta do pino: fica onde está, com o pedido dele se tinha.
+        if (spot === null || record === undefined || record.clientId === null) return
+        currentScene.set(companion.playerId, sceneKey(travel.to))
+        // O pedido que ele tinha (para esta escada ou outra) se resolve aqui: ele já foi.
+        pendingTravels.delete(companion.playerId)
+        results.push({
+          // Sem `by`: para ele é a mesma chegada de quem pediu, "Você chegou".
+          outbound: [{ clientId: record.clientId, msg: { type: 'scene.changed' } }],
+          applyTransfer: {
+            tokenId: companion.token.id,
+            playerId: companion.playerId,
+            playerName: record.name,
+            fromSceneId: travel.from.sceneId,
+            toSceneId: travel.to.sceneId,
+            toSceneName: travel.to.name,
+            x: spot.x,
+            y: spot.y,
+          },
+        })
+      })
+      return results
     },
 
     sendPlayer(playerId, toSceneId, pinId, source, gatherAt) {
@@ -1050,4 +1132,5 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         })
     },
   }
+  return api
 }

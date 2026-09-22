@@ -422,6 +422,32 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
+   * "Deixar ir com quem está perto": a sessão revalida tudo no clique (quem
+   * pediu e quem ainda está perto) e devolve quem pediu primeiro. Cada um
+   * passa pela mesma conclusão do "Deixar ir" — a ficha muda de cena pela
+   * store (`transferToken`, fora do desfazer), depois o "Você chegou".
+   */
+  const answerTravelTogether = (requestId: string) => {
+    const toastId = travelToasts.get(requestId)
+    travelToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    const [lead, ...companions] = session.approveTravelTogether(requestId, world())
+    if (lead === undefined || lead.applyTransfer === undefined) {
+      // Pedido que já morreu, ou recusa da revalidação: ninguém foi.
+      if (lead !== undefined) void dispatch(lead)
+      notifyPlayersIfChanged()
+      return
+    }
+    completeTransfer(lead, lead.applyTransfer)
+    for (const companion of companions) {
+      if (companion.applyTransfer !== undefined) completeTransfer(companion, companion.applyTransfer)
+    }
+    // Quem foi junto e também tinha pedido: o aviso dele não pergunta mais nada.
+    pruneTravelToasts()
+  }
+
+  /**
    * A ficha troca de cena: "Deixar ir" do mestre ou pino livre. Move pela
    * store ANTES de mandar o `scene.changed`, e só avisa a chegada se moveu.
    */
@@ -470,9 +496,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * "Deixar ir" (`emLote`) de cada um — a mesma revalidação, pedido a pedido.
    */
   const askTravel = (request: TravelRequest) => {
+    // Quem está perto AGORA, só para oferecer o botão e dizer quantos; o
+    // clique conta de novo (`answerTravelTogether`), porque o grupo anda.
+    const nearby = session === null ? 0 : session.travelCompanions(request.requestId, world()).length
+    const together = nearby === 0 ? [] : [{ label: `Deixar ir com quem está perto (${nearby})`, run: () => answerTravelTogether(request.requestId) }]
     const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`, null, {
       actions: [
         { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
+        ...together,
         { label: 'Não', run: () => answerTravel(request.requestId, false) },
       ],
       onDismiss: () => answerTravel(request.requestId, false),
