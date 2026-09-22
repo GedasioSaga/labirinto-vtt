@@ -113,8 +113,14 @@ export const RESUME_STORAGE_KEY = 'labirinto.resume'
 export const PING_INTERVAL_MS = 15_000
 /** Quanto tempo o aviso da porta ("Trancada") fica na tela. */
 export const DOOR_NOTICE_TTL_MS = 2500
-/** Quanto tempo "Você chegou" (e a recusa do mestre) fica na tela. Mais que a porta: é uma mudança de lugar. */
-export const TRAVEL_NOTICE_TTL_MS = 4000
+/**
+ * Quanto tempo "Você chegou" (e a recusa do mestre) fica na tela. Mais que a
+ * porta: é uma mudança de lugar. Era 4 s e não bastava com a mesa cheia: no
+ * "Deixar todos" da caixa de pedidos, vários chegam juntos e a cena nova ainda
+ * está sendo pintada nos primeiros segundos — medido na jornada da caixa, o
+ * aviso de Carla já tinha sumido quando a tela dela acabou de trocar.
+ */
+export const TRAVEL_NOTICE_TTL_MS = 8000
 /**
  * Pausa entre confirmar a passagem LIVRE e o pedido sair: o tempo de o cartão
  * fechar e o "Passando…" aparecer antes de a cena trocar. Curta de propósito —
@@ -122,11 +128,11 @@ export const TRAVEL_NOTICE_TTL_MS = 4000
  */
 export const FREE_PASSAGE_BEAT_MS = 450
 /**
- * "O mestre levou você para outro lugar" fica o dobro: quem pediu para passar
- * está olhando a tela esperando a resposta; quem foi LEVADO não esperava nada
- * e pode estar olhando a mesa quando o mapa troca.
+ * "O mestre levou você para outro lugar" fica mais que o "Você chegou": quem
+ * pediu para passar está olhando a tela esperando a resposta; quem foi LEVADO
+ * não esperava nada e pode estar olhando a mesa quando o mapa troca.
  */
-export const MOVED_NOTICE_TTL_MS = 8000
+export const MOVED_NOTICE_TTL_MS = 12_000
 const SOCKET_OPEN = 1
 const CONNECTION_LOST = 'connection_lost'
 

@@ -20,9 +20,12 @@ export const MINIMO_PARA_CAIXA = 2
 
 /**
  * Junta os avisos de mesmo `grupo` numa caixa quando há `MINIMO_PARA_CAIXA`
- * ou mais; o resto passa como aviso solto. A caixa entra no lugar do PRIMEIRO
- * aviso do grupo: o mestre continua achando o pedido mais antigo onde ele já
- * estava, e os outros avisos não pulam de posição.
+ * ou mais; o resto passa como aviso solto, na ordem de chegada.
+ *
+ * As caixas vão para o TOPO da pilha: são perguntas que alguém espera, e os
+ * avisos soltos só relatam. Também é o que impede o texto de um aviso antigo
+ * ("Bruno entrou…") de vir antes das linhas da caixa e se misturar a elas
+ * para quem lê a pilha em sequência — leitor de tela ou busca por texto.
  */
 export function agruparAvisos(toasts: readonly ToastMessage[]): ItemDaPilha[] {
   const porGrupo = new Map<string, ToastMessage[]>()
@@ -32,19 +35,20 @@ export function agruparAvisos(toasts: readonly ToastMessage[]): ItemDaPilha[] {
     if (membros === undefined) porGrupo.set(toast.grupo, [toast])
     else membros.push(toast)
   }
-  const itens: ItemDaPilha[] = []
+  const caixas: ItemDaPilha[] = []
+  const soltos: ItemDaPilha[] = []
   const caixaJaPosta = new Set<string>()
   for (const toast of toasts) {
     const membros = toast.grupo === undefined ? undefined : porGrupo.get(toast.grupo)
     if (toast.grupo === undefined || membros === undefined || membros.length < MINIMO_PARA_CAIXA) {
-      itens.push({ tipo: 'aviso', toast })
+      soltos.push({ tipo: 'aviso', toast })
       continue
     }
     if (caixaJaPosta.has(toast.grupo)) continue
     caixaJaPosta.add(toast.grupo)
-    itens.push({ tipo: 'caixa', grupo: toast.grupo, toasts: membros })
+    caixas.push({ tipo: 'caixa', grupo: toast.grupo, toasts: membros })
   }
-  return itens
+  return [...caixas, ...soltos]
 }
 
 /** O título da caixa, que é também o nome acessível dela: "Pedidos (3)". */

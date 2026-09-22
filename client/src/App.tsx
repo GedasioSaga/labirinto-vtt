@@ -1535,6 +1535,13 @@ function App() {
 
   return (
     <div className="lb-editor">
+      {/* Os avisos vêm PRIMEIRO no DOM, antes do trilho. A posição na tela é do
+          CSS (absoluto, z-index 30), mas a ordem do texto conta: com os avisos
+          depois do painel Grupo, o texto do editor lia "Bruno … Ana quer passar
+          por …" e uma busca pela frase do pedido de Bruno achava o editor
+          inteiro depois de o pedido dele já ter sido respondido. Primeiro no
+          DOM também põe os avisos que esperam resposta no começo do Tab. */}
+      {toastStack}
       <div className="lb-editor__canvas" ref={canvasHostRef}>
         <PixiCanvas
           gridAlignPreview={gridAlignPreview}
@@ -1976,7 +1983,6 @@ function App() {
       </div>
 
       <ZoomHud scale={cameraScale} onReset={() => setResetZoomRequest((n) => n + 1)} />
-      {toastStack}
     </div>
   )
 }
