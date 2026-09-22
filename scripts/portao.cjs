@@ -457,6 +457,12 @@ const JORNADAS_DO_CRITERIO = [
   // 22/09/2026, grupo espalhado G1 — painel do grupo na aba Jogo: uma linha
   // por jogador com a cena, Ir lá e Mandar para… sem pedido.
   'e2e/task-jornada-painel-do-grupo.spec.ts',
+  // 22/09/2026 — defeitos do passeio de 20/09: salvar fora do app explica,
+  // corredor aberto não some, atalho com foco no painel, acervo recebe token.
+  'e2e/task-jornada-salvar-fora-do-app-explica.spec.ts',
+  'e2e/task-jornada-corredor-aberto-nao-some.spec.ts',
+  'e2e/task-jornada-atalho-com-foco-no-painel.spec.ts',
+  'e2e/task-jornada-acervo-recebe-token.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
