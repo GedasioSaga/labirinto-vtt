@@ -81,6 +81,33 @@ describe('serializeMap/deserializeMap', () => {
     ])
   })
 
+  it('passagem do pino de viagem: os três modos voltam do disco; valor inválido vira ausente; pino antigo não ganha o campo', () => {
+    const pinos = (['pede', 'livre', 'trancada'] as const).map((passagem, i) => ({
+      id: `p${i}`,
+      x: 64,
+      y: 64,
+      kind: 'viagem' as const,
+      description: '',
+      image: null,
+      passagem,
+    }))
+    const map = { ...createEmptyMap('map_p', 'P', 5, 5, 64), pins: pinos }
+    expect(deserializeMap(serializeMap(map)).pins.map((p) => p.passagem)).toEqual(['pede', 'livre', 'trancada'])
+
+    // Arquivo editado à mão ou de versão futura: nenhum desses vira "livre".
+    const torto =
+      '{"id": "torto", "pins": [' +
+      '{"id": "a", "x": 1, "y": 2, "kind": "viagem", "description": "", "image": null, "passagem": "aberta"},' +
+      '{"id": "b", "x": 1, "y": 2, "kind": "viagem", "description": "", "image": null, "passagem": 1},' +
+      '{"id": "c", "x": 1, "y": 2, "kind": "viagem", "description": "", "image": null, "passagem": null},' +
+      '{"id": "d", "x": 1, "y": 2, "kind": "viagem", "description": "", "image": null, "passagem": "LIVRE"}]}'
+    expect(deserializeMap(torto).pins.map((p) => p.passagem)).toEqual([undefined, undefined, undefined, undefined])
+
+    const antigo = '{"id": "antigo", "pins": [{"id": "a", "x": 1, "y": 2, "kind": "viagem", "description": "", "image": null}]}'
+    expect(deserializeMap(antigo).pins[0].passagem).toBeUndefined()
+    expect(serializeMap(deserializeMap(antigo))).not.toContain('passagem')
+  })
+
   it('ícone desconhecido abre como pino sem ícone em vez de derrubar o desenho do mapa', () => {
     const json = '{"id": "futuro", "pins": [{"id": "p1", "x": 10, "y": 20, "icon": "dragao", "description": "", "image": null}]}'
     const pin = deserializeMap(json).pins[0]

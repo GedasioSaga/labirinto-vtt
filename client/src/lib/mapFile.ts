@@ -1,6 +1,6 @@
 import type { FloorStyle, MapData, Region } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
-import { isPinIcon, isPinKind } from './pins'
+import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { readPinDestination } from './pinTravel'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
@@ -176,6 +176,11 @@ function deserializeMapFields(json: string): MapData {
       description: typeof p.description === 'string' ? p.description : '',
       image: typeof p.image === 'string' ? p.image : null,
       destino: p.destino === undefined ? undefined : readPinDestination(p.destino),
+      // `passagem` é campo NOVO e OPCIONAL do pino de viagem: ausente é "pede
+      // ao mestre", o de sempre. Valor desconhecido (arquivo editado à mão,
+      // versão futura) volta AUSENTE, e não como "livre": na dúvida, a porta
+      // pergunta ao mestre em vez de deixar o grupo passar sem ninguém ver.
+      passagem: isPinPassage(p.passagem) ? p.passagem : undefined,
     })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },

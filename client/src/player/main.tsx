@@ -44,7 +44,7 @@ const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
 function travelNoticeText(notice: TravelNotice): string {
   switch (notice.phase) {
     case 'waiting':
-      return 'Aguardando o mestre…'
+      return notice.direct ? 'Passando…' : 'Aguardando o mestre…'
     case 'arrived':
       return 'Você chegou'
     case 'denied':

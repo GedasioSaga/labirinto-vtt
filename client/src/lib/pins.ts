@@ -1,4 +1,4 @@
-import type { Pin, PinIcon, PinKind, RegionPoint } from '../types/map'
+import type { Pin, PinIcon, PinKind, PinPassage, RegionPoint } from '../types/map'
 
 /**
  * Regras do pino de ponto de interesse, compartilhadas pelo editor (render e
@@ -54,6 +54,30 @@ export const PIN_ICON_ORDER: readonly PinIcon[] = ['bau', 'armadilha', 'chave', 
 /** Guarda de leitura: arquivo de mapa editado à mão ou de versão futura não derruba o desenho. */
 export function isPinIcon(value: unknown): value is PinIcon {
   return typeof value === 'string' && (PIN_ICON_ORDER as readonly string[]).includes(value)
+}
+
+/** Os três modos de passagem do pino de viagem, na ordem do painel do mestre. */
+export const PIN_PASSAGE_ORDER: readonly PinPassage[] = ['pede', 'livre', 'trancada']
+
+/** Nome de cada modo no painel do mestre. */
+export const PIN_PASSAGE_LABELS: Record<PinPassage, string> = {
+  pede: 'Pede ao mestre',
+  livre: 'Livre',
+  trancada: 'Trancada',
+}
+
+/** Guarda de leitura: modo desconhecido (arquivo editado à mão, versão futura) não vale. */
+export function isPinPassage(value: unknown): value is PinPassage {
+  return PIN_PASSAGE_ORDER.some((passage) => passage === value)
+}
+
+/**
+ * O modo que vale. Ausente é "pede ao mestre": é o que todo pino gravado antes
+ * do campo fazia, e um valor desconhecido que escapasse até aqui também cai no
+ * modo que pergunta — nunca num que deixa passar sem ninguém ver.
+ */
+export function passageOf(pin: Pin): PinPassage {
+  return isPinPassage(pin.passagem) ? pin.passagem : 'pede'
 }
 
 /** Ponto do desenho do símbolo, no quadrado normalizado -1..1 com a origem no centro da cabeça. */

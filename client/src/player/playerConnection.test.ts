@@ -5,7 +5,7 @@ import type { MapData } from '../types/map'
 import { NAME_MAX_LENGTH } from '../net/protocol'
 import { SIGNAL_TTL_MS } from '../lib/signals'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_TRAIL_MS } from '../lib/laser'
-import { createPlayerConnection, DOOR_NOTICE_TTL_MS, PING_INTERVAL_MS, RESUME_STORAGE_KEY, TRAVEL_NOTICE_TTL_MS } from './playerConnection'
+import { createPlayerConnection, DOOR_NOTICE_TTL_MS, FREE_PASSAGE_BEAT_MS, PING_INTERVAL_MS, RESUME_STORAGE_KEY, TRAVEL_NOTICE_TTL_MS } from './playerConnection'
 import type { SocketLike, StorageLike } from './playerConnection'
 
 class FakeSocket implements SocketLike {
@@ -488,5 +488,47 @@ describe('playerConnection: pedido de passagem', () => {
     expect(connection.getState().travel).toBeUndefined()
     socket.receive({ type: 'pin.travel.rejected', reason: 'too_soon' })
     expect(connection.getState().travel).toMatchObject({ phase: 'rejected', reason: 'too_soon' })
+  })
+
+  describe('pino livre', () => {
+    function comPinoLivre() {
+      const t = setup()
+      t.socket.open()
+      const livre = { id: 'escada', x: 50, y: 50, kind: 'viagem' as const, description: '', image: null, passagem: 'livre' as const }
+      t.socket.receive({ type: 'snapshot', rev: 1, map: { ...mapWithToken(100, 100), pins: [livre] }, vision: [], ownTokens: ['t1'], concealed: [] })
+      return t
+    }
+
+    it('"Passando…" na hora, e o pedido sai depois da batida — não no mesmo toque', () => {
+      vi.useFakeTimers()
+      const { connection, socket } = comPinoLivre()
+      const antes = socket.sent.length
+      expect(connection.requestTravel('escada')).toBe(true)
+      expect(connection.getState().travel).toMatchObject({ phase: 'waiting', direct: true })
+      expect(socket.sent.length).toBe(antes)
+      // Durante a batida, um segundo toque não empilha outro pedido.
+      expect(connection.requestTravel('escada')).toBe(false)
+      vi.advanceTimersByTime(FREE_PASSAGE_BEAT_MS)
+      expect(socket.sent.slice(antes)).toEqual([{ type: 'pin.travel.request', pinId: 'escada' }])
+    })
+
+    it('pino sem modo (mapa antigo) continua pedindo na hora, com "esperando o mestre"', () => {
+      const { connection, socket } = jogando()
+      connection.requestTravel('escada')
+      expect(socket.sent.at(-1)).toEqual({ type: 'pin.travel.request', pinId: 'escada' })
+      expect(connection.getState().travel).toMatchObject({ phase: 'waiting', direct: false })
+    })
+
+    it('reconectar na batida cancela o pedido: nada sai pelo socket novo', () => {
+      vi.useFakeTimers()
+      const t = comPinoLivre()
+      t.connection.requestTravel('escada')
+      t.connection.reconnect()
+      // O socket novo abre dentro da batida: se o timer sobrevivesse, o pedido sairia por ele.
+      t.sockets[1]?.open()
+      vi.advanceTimersByTime(FREE_PASSAGE_BEAT_MS)
+      const todos = t.sockets.flatMap((s) => s.sent)
+      expect(todos).not.toContainEqual({ type: 'pin.travel.request', pinId: 'escada' })
+    })
   })
 })

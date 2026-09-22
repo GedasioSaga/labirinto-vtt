@@ -1,5 +1,7 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
 import type { PinTravel, TravelPinOption, TravelSceneOption } from '../lib/pinTravel'
+import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
+import type { PinPassage } from '../types/map'
 import { ChevronDownIcon } from './icons'
 
 export interface PinTravelControlsProps {
@@ -15,6 +17,9 @@ export interface PinTravelControlsProps {
   onUnlink: () => void
   /** Leva a visão do mestre pela passagem — o mesmo que o clique com Selecionar. */
   onGo: () => void
+  /** Como o jogador passa por ESTE pino (o par tem o seu). */
+  passage: PinPassage
+  onPassageChange: (passage: PinPassage) => void
 }
 
 /** Onde está a escolha de "Leva a…": fechada, escolhendo a cena, ou escolhendo o pino de lá. */
@@ -25,6 +30,14 @@ const STATUS_ID = 'lb-pin-travel-status'
 const SELETOR_ID = 'lb-pin-travel-picker'
 const CENAS_ID = 'lb-pin-travel-scenes'
 const PINOS_ID = 'lb-pin-travel-pins'
+const PASSAGEM_ID = 'lb-pin-travel-passage'
+
+/** O que cada modo faz, dito ao mestre logo abaixo da escolha. */
+const EFEITO_DA_PASSAGEM: Record<PinPassage, string> = {
+  pede: 'O jogador pede e você decide se ele passa.',
+  livre: 'O jogador passa sozinho; você só lê que ele chegou.',
+  trancada: 'Ninguém passa por aqui, e nenhum pedido chega a você.',
+}
 
 /** Foco depois do render: quem o recebe pode ter acabado de nascer (ou de trocar de pino). */
 function focarDepois(achar: () => HTMLElement | null | undefined): void {
@@ -58,7 +71,7 @@ function detalhe(travel: PinTravel, temCena: boolean, algumaAbre: boolean): stri
  * entre as opções; depois de ligar, desligar ou atravessar, o foco vai para a
  * frase do destino, que é o que mudou (e o leitor de tela a lê: `aria-live`).
  */
-export function PinTravelControls({ travel, scenes, pinsIn, onLinkNew, onLinkExisting, onUnlink, onGo }: PinTravelControlsProps) {
+export function PinTravelControls({ travel, scenes, pinsIn, onLinkNew, onLinkExisting, onUnlink, onGo, passage, onPassageChange }: PinTravelControlsProps) {
   const [escolha, setEscolha] = useState<Escolha>(null)
   const gatilhoRef = useRef<HTMLButtonElement | null>(null)
   const seletorRef = useRef<HTMLDivElement | null>(null)
@@ -167,6 +180,29 @@ export function PinTravelControls({ travel, scenes, pinsIn, onLinkNew, onLinkExi
         </div>
       )}
       {travel.status === 'ligado' && !aberta && <p className="lb-travel__hint">No mapa, um clique no pino com Selecionar também leva.</p>}
+
+      {/* Como o JOGADOR passa: numa mesa espalhada por várias cenas, aprovar
+          cada passagem vira gargalo do mestre. Vale só para este pino — a
+          volta tem o modo dela, no pino par. Mesmo segmented em linhas do
+          "Tipo do pino": "Pede ao mestre" não cabe em um terço do poço. */}
+      <span className="lb-label" id={PASSAGEM_ID}>
+        Passagem
+      </span>
+      <div className="lb-seg lb-seg--rows" role="radiogroup" aria-labelledby={PASSAGEM_ID}>
+        {PIN_PASSAGE_ORDER.map((option) => (
+          <button
+            key={option}
+            type="button"
+            role="radio"
+            aria-checked={passage === option}
+            className="lb-seg__option"
+            onClick={() => onPassageChange(option)}
+          >
+            {PIN_PASSAGE_LABELS[option]}
+          </button>
+        ))}
+      </div>
+      <p className="lb-travel__hint">{EFEITO_DA_PASSAGEM[passage]}</p>
 
       {escolha !== null && (
         <div id={SELETOR_ID} ref={seletorRef} className="lb-travel__picker">

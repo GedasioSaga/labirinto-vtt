@@ -2,6 +2,7 @@ import type { MapData, RegionPoint, Token } from '../types/map'
 import { decodeExploration, type Exploration } from '../lib/exploration'
 import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PlayerMessage } from '../net/protocol'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
+import { passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
 import { parseLaserMessage } from '../net/protocol'
@@ -45,7 +46,8 @@ export interface PlayerState {
  * Nenhum deles sabe para onde o pino leva: o host nunca conta.
  */
 export type TravelNotice =
-  | { id: number; phase: 'waiting' }
+  /** `direct`: o pino é livre, ninguém decide — só falta a resposta do host. */
+  | { id: number; phase: 'waiting'; direct: boolean }
   | { id: number; phase: 'arrived' }
   | { id: number; phase: 'denied' }
   | { id: number; phase: 'rejected'; reason: PinTravelRejection }
@@ -95,8 +97,9 @@ export interface PlayerConnection {
    */
   setOwnTokenPhoto(tokenId: string, image: string): boolean
   /**
-   * Pede ao mestre para passar pelo pino de viagem `pinId`. `false` se não
-   * está jogando, se já há um pedido esperando ou se o socket não está aberto.
+   * Pede ao mestre para passar pelo pino de viagem `pinId` — ou, no pino
+   * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`). `false` se
+   * não está jogando, se já há um pedido esperando ou se o socket não está aberto.
    */
   requestTravel(pinId: string): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
@@ -110,6 +113,12 @@ export const PING_INTERVAL_MS = 15_000
 export const DOOR_NOTICE_TTL_MS = 2500
 /** Quanto tempo "Você chegou" (e a recusa do mestre) fica na tela. Mais que a porta: é uma mudança de lugar. */
 export const TRAVEL_NOTICE_TTL_MS = 4000
+/**
+ * Pausa entre confirmar a passagem LIVRE e o pedido sair: o tempo de o cartão
+ * fechar e o "Passando…" aparecer antes de a cena trocar. Curta de propósito —
+ * é uma batida, não uma espera.
+ */
+export const FREE_PASSAGE_BEAT_MS = 450
 const SOCKET_OPEN = 1
 const CONNECTION_LOST = 'connection_lost'
 
@@ -584,9 +593,28 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
     requestTravel(pinId) {
       if (state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
-      if (!send({ type: 'pin.travel.request', pinId })) return false
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      const direct = pin !== undefined && passageOf(pin) === 'livre'
+      if (!direct) {
+        if (!send({ type: 'pin.travel.request', pinId })) return false
+        clearTravelTimer()
+        setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: false } })
+        return true
+      }
+      // Pino livre não espera ninguém: o aviso diz "Passando…", não "Aguardando
+      // o mestre". E o pedido sai depois de um instante, não no mesmo toque: a
+      // resposta do host é quase imediata, e sem a pausa a tela trocava de cena
+      // no mesmo quadro em que o cartão fechava — o jogador não via a passagem
+      // acontecer, só um salto.
+      if (socket === null || socket.readyState !== SOCKET_OPEN) return false
       clearTravelTimer()
-      setState({ travel: { id: nextNoticeId++, phase: 'waiting' } })
+      setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: true } })
+      travelTimer = setTimeout(() => {
+        travelTimer = null
+        if (state.status !== 'playing') return
+        // O socket caiu na pausa: sem pedido no ar, o aviso não pode ficar.
+        if (!send({ type: 'pin.travel.request', pinId })) setState({ travel: undefined })
+      }, FREE_PASSAGE_BEAT_MS)
       return true
     },
 
