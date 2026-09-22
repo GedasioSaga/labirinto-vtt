@@ -27,6 +27,11 @@ interface ToastProps {
  * O botão de dispensar tem `aria-label` fixo ("Dispensar aviso"), igual para
  * todo toast — não inclui o texto do aviso porque um leitor de tela já leu o
  * texto do próprio card antes de chegar no botão.
+ *
+ * Aviso com `actions` (pedido de passagem do jogador) ganha os botões embaixo
+ * do texto, na ordem: o primeiro é a resposta esperada (latão), os outros são
+ * a alternativa. O × de um aviso desses roda `onDismiss` — a pergunta nunca
+ * some sem resposta.
  */
 export function Toast({ toasts, onDismiss }: ToastProps) {
   if (toasts.length === 0) return null
@@ -39,11 +44,36 @@ export function Toast({ toasts, onDismiss }: ToastProps) {
           role={toast.kind === 'info' ? 'status' : 'alert'}
           className={`lb-panel lb-toast lb-toast--${toast.kind}`}
         >
-          <span className="lb-toast__text">{toast.text}</span>
+          <div className="lb-toast__body">
+            <span className="lb-toast__text">{toast.text}</span>
+            {toast.actions !== undefined && (
+              <div className="lb-toast__actions">
+                {toast.actions.map((action, index) => (
+                  <button
+                    key={action.label}
+                    type="button"
+                    // O primeiro botão é a resposta esperada; os outros, a alternativa.
+                    className={index === 0 ? 'lb-btn lb-btn--primary' : 'lb-btn lb-btn--ghost'}
+                    onClick={() => {
+                      // Tira da tela ANTES de agir: a ação pode empilhar outro
+                      // aviso, e a pergunta respondida não pode ficar clicável.
+                      onDismiss(toast.id)
+                      action.run()
+                    }}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             type="button"
             className="lb-toast__dismiss"
-            onClick={() => onDismiss(toast.id)}
+            onClick={() => {
+              onDismiss(toast.id)
+              toast.onDismiss?.()
+            }}
             aria-label="Dispensar aviso"
           >
             ×

@@ -3,7 +3,18 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, RegionPoint } from '../types/map'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
-import { createHostSession, type AppliedTokenEdit, type HostResult, type HostSession, type HostSignal, type PlayerInfo } from './hostSession'
+import {
+  createHostSession,
+  singleSceneWorld,
+  type AppliedTokenEdit,
+  type AppliedTransfer,
+  type HostResult,
+  type HostSession,
+  type HostSignal,
+  type HostWorld,
+  type PlayerInfo,
+  type TravelRequest,
+} from './hostSession'
 import type { LaserMessage } from './protocol'
 
 /**
@@ -40,15 +51,30 @@ export interface HostBridgeDeps {
   invoke: InvokeFn
   listen: ListenFn
   getMap: () => MapData
-  applyMove: (tokenId: string, x: number, y: number) => void
-  /** Porta que o jogador abriu/fechou, já validada pela sessão (visível, destrancada, token perto). */
-  applyDoor: (wallId: string, open: boolean) => void
+  /**
+   * A aventura inteira: cena aberta e cenas de fundo. Ausente = só o mapa de
+   * `getMap` (mapa solto), e todo jogador vê a cena aberta, como antes.
+   */
+  getWorld?: () => HostWorld
+  /** `sceneId`: cena de FUNDO onde o token está; ausente = a cena aberta no editor. */
+  applyMove: (tokenId: string, x: number, y: number, sceneId?: string) => void
+  /** Porta que o jogador abriu/fechou, já validada pela sessão (visível, destrancada, token perto). `sceneId` como em `applyMove`. */
+  applyDoor: (wallId: string, open: boolean, sceneId?: string) => void
   /**
    * Nome/foto novos do token do jogador, já validados pela sessão (o token é
    * dele e a foto é auto-contida). Opcional como `onSignal`: quem monta a
    * ponte sem este retorno simplesmente não oferece a edição ao jogador.
    */
   applyTokenEdit?: (edit: AppliedTokenEdit) => void
+  /**
+   * O mestre deixou o jogador passar: mover o token entre as cenas. `false`
+   * quando não deu (cena sumiu, token sumiu) — o jogador recebe a recusa em
+   * vez de "Você chegou". Sem este retorno, pedido de passagem nem chega ao
+   * mestre: ninguém saberia atender.
+   */
+  applyTransfer?: (transfer: AppliedTransfer) => boolean
+  /** "Ir lá" do aviso de chegada: abrir `sceneId` no editor com (`x`, `y`) no centro. */
+  onGoToScene?: (sceneId: string, x: number, y: number) => void
   visionRadius?: number
   onPlayersChange?: (players: PlayerInfo[]) => void
   onTunnelChange?: (state: TunnelState) => void
@@ -183,10 +209,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let laserTimer: ReturnType<typeof setTimeout> | null = null
   /** Houve envio desde o último `off`: sem isso cada tecla solta viraria um `off` à toa. */
   let laserSent = false
+  /** Aviso do mestre de cada pedido de passagem ainda na tela: `requestId` -> id do toast. */
+  const travelToasts = new Map<string, string>()
+  /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
+  const arrivalToasts = new Map<string, string>()
+
+  /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
+  const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
 
   const sendLaser = (message: LaserMessage) => {
     if (session === null) return
-    void dispatch(session.laser(message))
+    // Só quem está na cena aberta: o mestre aponta no mapa que ele está vendo.
+    void dispatch(session.laser(message, world()))
   }
 
   /** Throttle com borda de entrada: o primeiro ponto sai na hora, os seguintes esperam a janela e vão juntos. */
@@ -269,7 +303,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   const notifyPlayersIfChanged = () => {
-    const list = session?.listPlayers() ?? []
+    const list = session?.listPlayers(world()) ?? []
     const key = JSON.stringify(list)
     if (key === lastPlayersKey) return
     lastPlayersKey = key
@@ -296,7 +330,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
   const broadcastNow = () => {
     if (session === null) return
-    void dispatch(session.broadcast(deps.getMap()))
+    void dispatch(session.broadcast(world()))
   }
 
   const scheduleBroadcast = () => {
@@ -345,12 +379,91 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     useToastStore.getState().push('info', text, PLAYER_JOINED_TOAST_MS)
   }
 
+  /**
+   * Tira da tela o aviso de todo pedido que já não espera o mestre: o
+   * jogador saiu, foi expulso, a sala fechou. O aviso que sobrasse seria um
+   * "Deixar ir" que não leva ninguém a lugar nenhum.
+   */
+  const pruneTravelToasts = () => {
+    for (const [requestId, toastId] of travelToasts) {
+      if (session !== null && session.isTravelPending(requestId)) continue
+      travelToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
+  const answerTravel = (requestId: string, allow: boolean) => {
+    const toastId = travelToasts.get(requestId)
+    travelToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    if (!allow) {
+      void dispatch(session.denyTravel(requestId))
+      return
+    }
+    const result = session.approveTravel(requestId, world())
+    const transfer = result.applyTransfer
+    if (transfer === undefined) {
+      // Recusa da revalidação (o token andou, o pino sumiu) ou pedido que já morreu.
+      void dispatch(result)
+      return
+    }
+    const moved = deps.applyTransfer?.(transfer) ?? false
+    if (!moved) {
+      // O "Você chegou" não pode sair: a ficha não saiu do lugar.
+      void dispatch({ outbound: result.outbound.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })) })
+      return
+    }
+    // Primeiro `scene.changed`, depois o snapshot da cena nova: a ordem dos
+    // `net_send` é a ordem em que o jogador recebe.
+    void dispatch(result)
+    broadcastNow()
+    notifyPlayersIfChanged()
+    announceArrival(transfer)
+  }
+
+  /**
+   * "Fulano entrou em X", com "Ir lá". Fica até o mestre dispensar ou ir: é
+   * uma oferta de ação, e o mestre está de olho no canvas — um aviso que some
+   * sozinho em segundos se perdia no meio da cena (medido na jornada da
+   * viagem: o mestre ainda olhava os jogadores quando ele sumiu). Para não
+   * empilhar, a chegada nova de um jogador substitui a anterior DELE.
+   */
+  const announceArrival = (transfer: AppliedTransfer) => {
+    const previous = arrivalToasts.get(transfer.playerId)
+    if (previous !== undefined) useToastStore.getState().dismiss(previous)
+    const goTo = deps.onGoToScene
+    const toastId = useToastStore.getState().push(
+      'info',
+      `${transfer.playerName} entrou em ${transfer.toSceneName}`,
+      null,
+      goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: () => goTo(transfer.toSceneId, transfer.x, transfer.y) }] },
+    )
+    arrivalToasts.set(transfer.playerId, toastId)
+  }
+
+  /**
+   * Pedido de passagem válido: vira um aviso que ESPERA o mestre (não some
+   * sozinho — o jogador está parado olhando "Aguardando o mestre…"). O × vale
+   * "Não": a pergunta nunca some sem resposta.
+   */
+  const askTravel = (request: TravelRequest) => {
+    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`, null, {
+      actions: [
+        { label: 'Deixar ir', run: () => answerTravel(request.requestId, true) },
+        { label: 'Não', run: () => answerTravel(request.requestId, false) },
+      ],
+      onDismiss: () => answerTravel(request.requestId, false),
+    })
+    travelToasts.set(request.requestId, toastId)
+  }
+
   const onMessage = (event: { payload: unknown }) => {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
     if (clientId === null) return
     const wasJoined = session.listPlayers().some((p) => p.clientId === clientId)
-    const result = session.handleMessage(clientId, event.payload.msg, deps.getMap())
+    const result = session.handleMessage(clientId, event.payload.msg, world())
     const rejectedJoin = !wasJoined && result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'invalid_message')
     if (rejectedJoin) {
       // Conexão que nem entrou manda lixo: responde e libera a vaga no Rust.
@@ -360,14 +473,24 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     void dispatch(result)
     if (result.signal !== undefined) deps.onSignal?.(result.signal)
     if (result.applyMove !== undefined) {
-      const { tokenId, x, y } = result.applyMove
-      deps.applyMove(tokenId, x, y)
+      const { tokenId, x, y, sceneId } = result.applyMove
+      // Cena aberta: a mesma chamada de sempre, sem o quarto argumento.
+      if (sceneId === undefined) deps.applyMove(tokenId, x, y)
+      else deps.applyMove(tokenId, x, y, sceneId)
       broadcastNow()
     }
     if (result.applyDoor !== undefined) {
       // Todos veem a porta nova: o mestre pela store, os jogadores pelo snapshot imediato.
-      deps.applyDoor(result.applyDoor.wallId, result.applyDoor.open)
+      const { wallId, open, sceneId } = result.applyDoor
+      if (sceneId === undefined) deps.applyDoor(wallId, open)
+      else deps.applyDoor(wallId, open, sceneId)
       broadcastNow()
+    }
+    if (result.travelRequest !== undefined) {
+      if (deps.applyTransfer === undefined) {
+        // Integrador sem transferência: ninguém do lado do mestre saberia atender.
+        void dispatch(session.denyTravel(result.travelRequest.requestId))
+      } else askTravel(result.travelRequest)
     }
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
@@ -385,6 +508,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const clientId = parseClientId(event.payload.clientId)
     if (clientId === null || event.payload.event !== 'disconnected') return
     session.disconnect(clientId)
+    pruneTravelToasts()
     notifyPlayersIfChanged()
   }
 
@@ -446,6 +570,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session) await dispatch(session.closeRoom())
       removeListeners()
       session = null
+      pruneTravelToasts()
       currentRoom = null
       // O Rust derruba o túnel junto com a sala.
       resetTunnel()
@@ -471,13 +596,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
     revealPlan(playerId) {
       if (session === null) return
-      session.revealPlan(playerId, deps.getMap())
+      session.revealPlan(playerId, world())
       broadcastNow()
     },
 
     hidePlan(playerId) {
       if (session === null) return
-      session.hidePlan(playerId)
+      session.hidePlan(playerId, world())
       broadcastNow()
     },
 
@@ -498,12 +623,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     async kick(clientId) {
       if (session === null) return
       const result = session.kick(clientId)
+      pruneTravelToasts()
       notifyPlayersIfChanged()
       await sendThenKick(result, clientId)
     },
 
     players() {
-      return session?.listPlayers() ?? []
+      return session?.listPlayers(world()) ?? []
     },
 
     room() {

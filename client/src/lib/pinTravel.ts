@@ -1,5 +1,7 @@
 import type { MapData, Pin, PinDestination } from '../types/map'
 import { PIN_HEAD_RADIUS, PIN_HEIGHT, pinSummary } from './pins'
+import { seatTokenCenter } from './tokenSize'
+import { snapPointForTarget } from '../pixi/tokenInteraction'
 
 /**
  * PINO DE VIAGEM — as regras da ligação, puras: sem store, sem DOM, sem Pixi.
@@ -172,6 +174,22 @@ export function arrivalPoint(map: MapData): { x: number; y: number } {
     }
   }
   return centro
+}
+
+/**
+ * Onde o token de quem ATRAVESSA assenta na cena de destino: na ponta do pino
+ * par, grudado no centro da célula como o snap de token do editor
+ * (`snapPointForTarget` + `seatTokenCenter`, o mesmo par de `applySnap`), e
+ * puxado para dentro do mapa — pino arrastado até a borda não pode largar a
+ * ficha fora do mundo, onde nenhum movimento a traria de volta.
+ */
+export function arrivalSpot(map: MapData, partner: Pin, tokenCells: number): { x: number; y: number } {
+  const raw = { x: partner.x, y: partner.y }
+  const snapped = snapPointForTarget('token', map.gridShape, raw.x, raw.y, map.grid)
+  const seated = map.gridShape === 'square' ? seatTokenCenter(raw, snapped, map.grid, tokenCells) : snapped
+  const largura = map.width * map.grid
+  const altura = map.height * map.grid
+  return { x: Math.min(largura, Math.max(0, seated.x)), y: Math.min(altura, Math.max(0, seated.y)) }
 }
 
 /** O ponto que a câmera centraliza ao chegar por um pino: o meio do desenho, não a ponta cravada. */

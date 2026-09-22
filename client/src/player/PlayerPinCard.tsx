@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Pin } from '../types/map'
 import { PIN_GLYPH, isPlayerSafePinImage } from '../lib/pins'
 import { PinTravelArt } from '../components/PinSymbolArt'
@@ -6,6 +6,13 @@ import { PinTravelArt } from '../components/PinSymbolArt'
 interface PlayerPinCardProps {
   pin: Pin
   onClose: () => void
+  /**
+   * Pino de viagem: manda o pedido de passagem ao mestre (já confirmado aqui).
+   * Ausente = o cartão não oferece passar, só lê.
+   */
+  onRequestTravel?: () => void
+  /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
+  travelWaiting?: boolean
 }
 
 /**
@@ -36,8 +43,21 @@ const IMAGEM_AUSENTE =
  * a tela inteira: sem ele, o toque de fechar passaria direto para o canvas e
  * arrastaria o mapa junto.
  */
-export function PlayerPinCard({ pin, onClose }: PlayerPinCardProps) {
+export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false }: PlayerPinCardProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null)
+  const confirmRef = useRef<HTMLButtonElement | null>(null)
+  const askRef = useRef<HTMLButtonElement | null>(null)
+  /** Pergunta "Pedir ao mestre…?" na tela, no lugar do botão de pedir. */
+  const [confirming, setConfirming] = useState(false)
+  /** Para onde o foco volta depois de abrir ou fechar a pergunta; `null` = não mexe. */
+  const [focusTarget, setFocusTarget] = useState<'confirm' | 'ask' | null>(null)
+
+  useEffect(() => {
+    // Quem chegou pelo teclado segue com o foco: abrir a pergunta o leva ao
+    // "Pedir"; cancelar o devolve ao botão que a abriu.
+    if (focusTarget === 'confirm') confirmRef.current?.focus()
+    if (focusTarget === 'ask') askRef.current?.focus()
+  }, [focusTarget, confirming])
 
   useEffect(() => {
     // Foco no botão de fechar: quem chegou aqui pelo teclado tem para onde ir,
@@ -58,6 +78,7 @@ export function PlayerPinCard({ pin, onClose }: PlayerPinCardProps) {
   // a passagem no lugar do glifo — a mesma cabeça que o jogador vê no mapa.
   // O nome da cena de destino nunca chega aqui (`lib/fogFilter.ts`).
   const viagem = pin.kind === 'viagem'
+  const podePedir = viagem && onRequestTravel !== undefined
 
   return (
     <div className="pp-pincard__backdrop" onPointerDown={onClose}>
@@ -82,6 +103,52 @@ export function PlayerPinCard({ pin, onClose }: PlayerPinCardProps) {
             {descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao}
           </p>
         </div>
+        {podePedir && !confirming && (
+          <button
+            ref={askRef}
+            type="button"
+            className="pp-pincard__travel"
+            disabled={travelWaiting}
+            onClick={() => {
+              setConfirming(true)
+              setFocusTarget('confirm')
+            }}
+          >
+            {travelWaiting ? 'Pedido enviado ao mestre' : 'Pedir para passar'}
+          </button>
+        )}
+        {podePedir && confirming && (
+          // Confirmação antes de mandar: o pedido interrompe o mestre, então
+          // um toque sem querer não pode virar um aviso na tela dele.
+          <div className="pp-pincard__confirm" role="group" aria-labelledby={`pp-travel-ask-${pin.id}`}>
+            <p id={`pp-travel-ask-${pin.id}`} className="pp-pincard__question">
+              Pedir ao mestre para passar por aqui?
+            </p>
+            <div className="pp-pincard__choices">
+              <button
+                ref={confirmRef}
+                type="button"
+                className="pp-pincard__travel"
+                onClick={() => {
+                  setConfirming(false)
+                  onRequestTravel()
+                }}
+              >
+                Pedir
+              </button>
+              <button
+                type="button"
+                className="pp-pincard__close pp-pincard__close--inline"
+                onClick={() => {
+                  setConfirming(false)
+                  setFocusTarget('ask')
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
         <button ref={closeRef} type="button" className="pp-pincard__close" onClick={onClose}>
           Fechar
         </button>

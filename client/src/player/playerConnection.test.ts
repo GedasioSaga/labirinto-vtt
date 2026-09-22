@@ -5,7 +5,7 @@ import type { MapData } from '../types/map'
 import { NAME_MAX_LENGTH } from '../net/protocol'
 import { SIGNAL_TTL_MS } from '../lib/signals'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_TRAIL_MS } from '../lib/laser'
-import { createPlayerConnection, DOOR_NOTICE_TTL_MS, PING_INTERVAL_MS, RESUME_STORAGE_KEY } from './playerConnection'
+import { createPlayerConnection, DOOR_NOTICE_TTL_MS, PING_INTERVAL_MS, RESUME_STORAGE_KEY, TRAVEL_NOTICE_TTL_MS } from './playerConnection'
 import type { SocketLike, StorageLike } from './playerConnection'
 
 class FakeSocket implements SocketLike {
@@ -439,5 +439,54 @@ describe('createPlayerConnection', () => {
     connection.reconnect()
     expect(connection.getState().laser).toBeUndefined()
     expect(vi.getTimerCount()).toBe(0)
+  })
+})
+
+describe('playerConnection: pedido de passagem', () => {
+  function jogando() {
+    const t = setup()
+    t.socket.open()
+    t.socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(100, 100), vision: [], ownTokens: ['t1'], concealed: [] })
+    return t
+  }
+
+  it('pedir manda só o id do pino e fica "esperando"; um segundo pedido não sai enquanto espera', () => {
+    const { connection, socket } = jogando()
+    expect(connection.requestTravel('escada')).toBe(true)
+    expect(socket.sent.at(-1)).toEqual({ type: 'pin.travel.request', pinId: 'escada' })
+    expect(connection.getState().travel?.phase).toBe('waiting')
+    const enviados = socket.sent.length
+    expect(connection.requestTravel('escada')).toBe(false)
+    expect(socket.sent.length).toBe(enviados)
+  })
+
+  it('scene.changed: "chegou", e o movimento ainda sem resposta NÃO é reaplicado no mapa novo', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    connection.requestTravel('escada')
+    // Movimento no mapa de antes, sem resposta do mestre.
+    connection.requestMove('t1', 300, 300)
+    socket.receive({ type: 'scene.changed' })
+    expect(connection.getState().travel?.phase).toBe('arrived')
+    // O mapa novo traz o token no pino par: o (300, 300) do mapa antigo não vale aqui.
+    socket.receive({ type: 'snapshot', rev: 2, map: { ...mapWithToken(40, 60), id: 'm2' }, vision: [], ownTokens: ['t1'], concealed: [] })
+    const token = connection.getState().map?.tokens.find((t) => t.id === 't1')
+    expect([token?.x, token?.y]).toEqual([40, 60])
+    vi.advanceTimersByTime(TRAVEL_NOTICE_TTL_MS)
+    expect(connection.getState().travel).toBeUndefined()
+  })
+
+  it('"Não" do mestre e recusa do host viram aviso que some; motivo desconhecido é ignorado', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    connection.requestTravel('escada')
+    socket.receive({ type: 'pin.travel.denied' })
+    expect(connection.getState().travel?.phase).toBe('denied')
+    vi.advanceTimersByTime(TRAVEL_NOTICE_TTL_MS)
+    expect(connection.getState().travel).toBeUndefined()
+    socket.receive({ type: 'pin.travel.rejected', reason: 'o-mapa-secreto' })
+    expect(connection.getState().travel).toBeUndefined()
+    socket.receive({ type: 'pin.travel.rejected', reason: 'too_soon' })
+    expect(connection.getState().travel).toMatchObject({ phase: 'rejected', reason: 'too_soon' })
   })
 })

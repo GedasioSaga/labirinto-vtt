@@ -35,6 +35,21 @@
   pointer-events: auto;
 }
 
+.lb-toast__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+/* Botões do aviso que pergunta: lado a lado, embaixo do texto. */
+.lb-toast__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+}
+
 .lb-toast__text {
   flex: 1;
   font-size: var(--lb-font-size-sm);

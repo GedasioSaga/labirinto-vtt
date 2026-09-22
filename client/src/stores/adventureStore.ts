@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import type { MapData, Pin, PinDestination } from '../types/map'
+import type { MapData, Pin, PinDestination, Token } from '../types/map'
+import { singleSceneWorld, type HostScene, type HostWorld } from '../net/hostSession'
 import type { Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
 import { ADVENTURE_VERSION, baseName, cleanSceneName, newSceneId, sceneFileFor, type Adventure, type SceneEntry } from '../lib/adventure'
@@ -127,6 +128,13 @@ interface AdventureState {
    * lugar nenhum.
    */
   travelThroughPin: (pinId: string) => boolean
+  /**
+   * O jogador atravessou: tira o token `tokenId` da cena `fromSceneId` e o
+   * põe em (`x`, `y`) da cena `toSceneId`. FORA DO DESFAZER nas duas pontas —
+   * ver `transferToken` abaixo. `false` quando não deu (cena fora do ar,
+   * token que já não está lá, mesma cena).
+   */
+  transferToken: (tokenId: string, fromSceneId: string, toSceneId: string, x: number, y: number) => boolean
   /** Há cena de fundo ou lista de cenas esperando gravação? (A cena aberta é o `useSessionStore` que diz.) */
   hasPendingScenes: () => boolean
   /** Grava a aventura inteira e devolve o caminho da cena aberta. */
@@ -206,6 +214,52 @@ export function travelSceneOptions(state: SceneState): TravelSceneOption[] {
 /** Os pinos de viagem de `sceneId` que o pino `pinId` da cena aberta pode escolher como par. */
 export function pinTravelOptions(state: SceneState, liveMap: MapData, sceneId: string, pinId: string): TravelPinOption[] {
   return travelPinOptions(sceneId, state.activeSceneId, pinId, sceneLookup(state, liveMap))
+}
+
+/**
+ * O que o host serve (`net/hostSession.ts`): a cena aberta pelo mapa vivo e as
+ * de fundo que abriram, cada uma com o nome da lista. Sem aventura, o mapa
+ * solto sozinho — e aí todo jogador vê a cena aberta, como sempre.
+ */
+export function hostWorldOf(state: SceneState, liveMap: MapData): HostWorld {
+  if (state.adventure === null || state.activeSceneId === null) return singleSceneWorld(liveMap)
+  const background: HostScene[] = []
+  let openName = liveMap.name
+  for (const entry of state.adventure.scenes) {
+    if (entry.id === state.activeSceneId) {
+      openName = entry.name
+      continue
+    }
+    const slot = state.cache[entry.id]
+    if (slot !== undefined && slot.status === 'ok') background.push({ sceneId: entry.id, name: entry.name, map: slot.map })
+  }
+  return { open: { sceneId: state.activeSceneId, name: openName, map: liveMap }, background }
+}
+
+/** Um mapa com o desfazer dele: a cena aberta (no `useMapStore`) ou uma de fundo (no cache). */
+interface SceneHistory {
+  map: MapData
+  past: MapData[]
+  future: MapData[]
+}
+
+/*
+ * A TRAVESSIA NÃO ENTRA NO DESFAZER. Tirar o token só do mapa atual deixaria
+ * o `past` inteiro com ele: um Ctrl+Z na cena de origem o traria de volta, e
+ * o mesmo token estaria nas DUAS cenas. Por isso o token sai de todo passo do
+ * histórico da origem (passado e futuro) e entra em todo passo do histórico
+ * do destino: desfazer e refazer andam pelo resto da edição sem nunca
+ * duplicar nem perder a ficha de um jogador.
+ */
+function withoutToken(history: SceneHistory, tokenId: string): SceneHistory {
+  const drop = (map: MapData): MapData => (map.tokens.some((t) => t.id === tokenId) ? mapFactory.removeToken(map, tokenId) : map)
+  return { map: drop(history.map), past: history.past.map(drop), future: history.future.map(drop) }
+}
+
+function withToken(history: SceneHistory, token: Token): SceneHistory {
+  const put = (map: MapData): MapData =>
+    map.tokens.some((t) => t.id === token.id) ? { ...map, tokens: map.tokens.map((t) => (t.id === token.id ? token : t)) } : mapFactory.addToken(map, token)
+  return { map: put(history.map), past: history.past.map(put), future: history.future.map(put) }
 }
 
 /**
@@ -377,6 +431,47 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // O par aberto no painel: é ele que diz "leva de volta a …" e é nele que
     // o próximo clique atravessa de volta.
     useMapStore.getState().setSelectedPin(travel.partner.id)
+    return true
+  },
+
+  transferToken: (tokenId, fromSceneId, toSceneId, x, y) => {
+    const { activeSceneId, cache, dirty } = get()
+    if (activeSceneId === null || fromSceneId === toSceneId) return false
+    const read = (sceneId: string): SceneHistory | null => {
+      if (sceneId === activeSceneId) {
+        const { map, past, future } = useMapStore.getState()
+        return { map, past, future }
+      }
+      const slot = cache[sceneId]
+      return slot !== undefined && slot.status === 'ok' ? { map: slot.map, past: slot.past, future: slot.future } : null
+    }
+    const from = read(fromSceneId)
+    const to = read(toSceneId)
+    const token = from?.map.tokens.find((t) => t.id === tokenId)
+    if (from === null || to === null || token === undefined) return false
+
+    const leaving = withoutToken(from, tokenId)
+    const arriving = withToken(to, { ...token, x, y })
+    const nextCache: Record<string, SceneSlot> = { ...cache }
+    const nextDirty: Record<string, true> = { ...dirty }
+    let openScene: SceneHistory | null = null
+    for (const [sceneId, history] of [
+      [fromSceneId, leaving],
+      [toSceneId, arriving],
+    ] as const) {
+      if (sceneId === activeSceneId) {
+        openScene = history
+        continue
+      }
+      const slot = cache[sceneId]
+      if (slot === undefined || slot.status !== 'ok') return false
+      nextCache[sceneId] = { ...slot, ...history }
+      nextDirty[sceneId] = true
+    }
+    set({ cache: nextCache, dirty: nextDirty })
+    // A cena aberta troca mapa E histórico juntos, sem `withHistory`: a
+    // travessia não é um passo do mestre para o Ctrl+Z desfazer.
+    if (openScene !== null) useMapStore.setState({ map: openScene.map, past: openScene.past, future: openScene.future })
     return true
   },
 
