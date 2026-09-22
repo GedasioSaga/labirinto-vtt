@@ -5,7 +5,7 @@ import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
-import { arrivalSpot, resolvePinTravel, type TravelScene } from '../lib/pinTravel'
+import { arrivalPoint, arrivalSpot, resolvePinTravel, type TravelScene } from '../lib/pinTravel'
 import { pinSummary } from '../lib/pins'
 import {
   parsePlayerMessage,
@@ -177,6 +177,8 @@ export interface PlayerInfo {
   visionRadius: number
   /** Cena em que o jogador está, para o painel do mestre. Só com aventura aberta e jogador jogando. */
   sceneName?: string
+  /** Id da mesma cena de `sceneName`: é por ele que o "Ir lá" do painel Grupo abre a cena. */
+  sceneId?: string
 }
 
 /** Faixa do "Raio de visão" por jogador, em px de mundo. */
@@ -256,6 +258,14 @@ export interface HostSession {
   denyTravel(requestId: string): HostResult
   /** O pedido ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isTravelPending(requestId: string): boolean
+  /**
+   * "Mandar para…" do painel Grupo: o MESTRE leva o jogador, sem pedido, para
+   * `toSceneId` — no pino de viagem `pinId` daquela cena ou, com `null`, no
+   * centro dela. Devolve o mesmo par da aprovação (`applyTransfer` +
+   * `scene.changed`, este marcado `by: 'master'`). Destino inválido, jogador
+   * sem ficha em cena ou já na cena de destino: nada.
+   */
+  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, source: HostMapSource): HostResult
   /**
    * Raio de visão só deste jogador (limitado à faixa); `null` volta ao global.
    * Não envia: o integrador faz o broadcast. Jogador desconhecido ou raio não finito é ignorado.
@@ -812,6 +822,41 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return findPendingTravel(requestId) !== undefined
     },
 
+    sendPlayer(playerId, toSceneId, pinId, source) {
+      const record = players.get(playerId)
+      if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+      const world = toWorld(source)
+      const from = sceneFor(playerId, world)
+      if (from === null || from.sceneId === null || from.sceneId === toSceneId) return { outbound: [] }
+      const to = allScenes(world).find((scene) => scene.sceneId === toSceneId)
+      if (to === undefined || to.sceneId === null) return { outbound: [] }
+      // A primeira ficha dele NESTA cena, na ordem em que o mestre as deu:
+      // quem tem duas fichas espalhadas não arrasta a outra cena junto.
+      const owned = ownership[playerId] ?? []
+      const token = owned.map((id) => from.map.tokens.find((t) => t.id === id)).find((t): t is Token => t !== undefined)
+      if (token === undefined) return { outbound: [] }
+      const pin = pinId === null ? null : to.map.pins.find((p) => p.id === pinId && p.kind === 'viagem')
+      // Pino que sumiu entre abrir o painel e confirmar: não chega em outro lugar calado.
+      if (pin === undefined) return { outbound: [] }
+      const spot = pin === null ? arrivalPoint(to.map) : arrivalSpot(to.map, pin, token.size)
+      currentScene.set(playerId, sceneKey(to))
+      // O pedido que ele tinha na cena de antes perde o sentido: o pino ficou lá.
+      pendingTravels.delete(playerId)
+      return {
+        outbound: record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by: 'master' } }],
+        applyTransfer: {
+          tokenId: token.id,
+          playerId,
+          playerName: record.name,
+          fromSceneId: from.sceneId,
+          toSceneId: to.sceneId,
+          toSceneName: to.name,
+          x: spot.x,
+          y: spot.y,
+        },
+      }
+    },
+
     assignToken(playerId, tokenId) {
       const outbound: Outbound[] = []
       // Um token tem no máximo um dono: tira de quem tinha antes.
@@ -942,7 +987,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
             // Sem cena, o painel o mostra aguardando: é o que a tela dele diz, e
             // é o que leva o mestre a dar outra ficha a ele.
             if (scene === null) info.status = 'waiting'
-            else info.sceneName = scene.name
+            else {
+              info.sceneName = scene.name
+              if (scene.sceneId !== null) info.sceneId = scene.sceneId
+            }
           }
           return info
         })

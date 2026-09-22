@@ -109,6 +109,12 @@ interface AdventureState {
    * indisponível). `focus` centraliza a câmera nesse ponto da cena que entra.
    */
   switchScene: (sceneId: string, focus?: Point) => boolean
+  /**
+   * "Ir lá": o editor mostra `point` da cena `sceneId` no centro da tela. Se a
+   * cena já está aberta (ou é o mapa solto, `null`), só a câmera anda — a
+   * troca de cena recusaria "mesma cena" e o clique não faria nada.
+   */
+  goToPoint: (sceneId: string | null, point: Point) => boolean
   /** Muda uma cena de FUNDO sem passar pelo desfazer da cena aberta. */
   updateBackgroundScene: (sceneId: string, updater: (map: MapData) => MapData) => void
   /**
@@ -373,6 +379,15 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     })
     showInEditor(target.map, target.past, target.future)
     return true
+  },
+
+  goToPoint: (sceneId, point) => {
+    if (sceneId === null || sceneId === get().activeSceneId) {
+      // `camera: null` com `focus`: o canvas centra no ponto com o zoom de agora.
+      set({ cameraRequest: { camera: null, focus: point } })
+      return true
+    }
+    return get().switchScene(sceneId, point)
   },
 
   updateBackgroundScene: (sceneId, updater) => {

@@ -15,6 +15,7 @@ import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { playSignalSound } from './lib/signalSound'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
+import { partyDestinations, partyMembers } from './lib/party'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { viewportCenterWorld, type Camera } from './pixi/world'
@@ -443,9 +444,10 @@ function App() {
         // "Deixar ir": o token troca de cena fora do desfazer das duas (ver `transferToken`).
         applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y }) =>
           useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y),
-        // "Ir lá" do aviso de chegada: o editor vai à cena, com a ficha no centro.
+        // "Ir lá" do aviso de chegada: o editor vai à cena, com a ficha no centro
+        // (mesmo caminho do "Ir lá" do painel Grupo, que também serve à cena já aberta).
         onGoToScene: (sceneId, x, y) => {
-          useAdventureStore.getState().switchScene(sceneId, { x, y })
+          useAdventureStore.getState().goToPoint(sceneId, { x, y })
         },
         onPlayersChange: setRoomPlayers,
         onTunnelChange: setTunnel,
@@ -488,9 +490,17 @@ function App() {
     useSignalStore.getState().clear()
     useLaserStore.getState().setToggled(false)
   }
+  /**
+   * O mundo que o host serve (cena aberta + as de fundo), para o painel Jogo:
+   * o Grupo mostra onde cada um está e o "Remover …" acha a ficha de quem
+   * viajou. Só é montado com a aba Jogo existindo (Tauri).
+   */
+  const roomPanelWorld = () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map)
   /** Fora do Tauri o rail segue só com o inspetor; no app ganha as abas Mapa | Jogo. */
-  const withRoomTabs = (mapPanel: ReactNode): ReactNode =>
-    isTauri() ? (
+  const withRoomTabs = (mapPanel: ReactNode): ReactNode => {
+    if (!isTauri()) return mapPanel
+    const world = roomPanelWorld()
+    return (
       <RailTabs
         active={railTab}
         onChange={setRailTab}
@@ -500,6 +510,15 @@ function App() {
             room={room}
             players={roomPlayers}
             tokens={map.tokens.map((token) => ({ id: token.id, name: token.name }))}
+            knownTokens={[world.open, ...world.background].flatMap((scene) => scene.map.tokens.map((token) => ({ id: token.id, name: token.name })))}
+            party={{
+              members: partyMembers(roomPlayers, world),
+              destinations: partyDestinations(world),
+              onGoTo: (member) => {
+                if (member.token !== null) useAdventureStore.getState().goToPoint(member.sceneId, { x: member.token.x, y: member.token.y })
+              },
+              onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
+            }}
             tunnel={tunnel}
             onStart={() => void handleStartRoom()}
             onStop={() => void handleStopRoom()}
@@ -516,9 +535,8 @@ function App() {
           />
         }
       />
-    ) : (
-      mapPanel
     )
+  }
   const dismissToast = useToastStore((state) => state.dismiss)
   // Cenas da aventura (`stores/adventureStore.ts`). O Voltar da barra leva à
   // cena de onde se veio na última troca.

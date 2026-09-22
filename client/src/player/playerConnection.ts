@@ -47,6 +47,8 @@ export interface PlayerState {
 export type TravelNotice =
   | { id: number; phase: 'waiting' }
   | { id: number; phase: 'arrived' }
+  /** O mestre levou o jogador para outra cena sem ele pedir. */
+  | { id: number; phase: 'moved' }
   | { id: number; phase: 'denied' }
   | { id: number; phase: 'rejected'; reason: PinTravelRejection }
 
@@ -110,6 +112,12 @@ export const PING_INTERVAL_MS = 15_000
 export const DOOR_NOTICE_TTL_MS = 2500
 /** Quanto tempo "Você chegou" (e a recusa do mestre) fica na tela. Mais que a porta: é uma mudança de lugar. */
 export const TRAVEL_NOTICE_TTL_MS = 4000
+/**
+ * "O mestre levou você para outro lugar" fica o dobro: quem pediu para passar
+ * está olhando a tela esperando a resposta; quem foi LEVADO não esperava nada
+ * e pode estar olhando a mesa quando o mapa troca.
+ */
+export const MOVED_NOTICE_TTL_MS = 8000
 const SOCKET_OPEN = 1
 const CONNECTION_LOST = 'connection_lost'
 
@@ -258,10 +266,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function showTravelAnswer(notice: TravelNotice): void {
     clearTravelTimer()
     setState({ travel: notice })
-    travelTimer = setTimeout(() => {
-      travelTimer = null
-      setState({ travel: undefined })
-    }, TRAVEL_NOTICE_TTL_MS)
+    travelTimer = setTimeout(
+      () => {
+        travelTimer = null
+        setState({ travel: undefined })
+      },
+      notice.phase === 'moved' ? MOVED_NOTICE_TTL_MS : TRAVEL_NOTICE_TTL_MS,
+    )
   }
 
   let laserTimer: ReturnType<typeof setTimeout> | null = null
@@ -414,7 +425,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         setState({ signals: undefined, laser: undefined, doorNotice: undefined })
-        showTravelAnswer({ id: nextNoticeId++, phase: 'arrived' })
+        // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
+        showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'master' ? 'moved' : 'arrived' })
         return
       case 'pin.travel.denied':
         if (state.status !== 'playing') return

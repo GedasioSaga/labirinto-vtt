@@ -5,7 +5,7 @@ import type { MapData } from '../types/map'
 import { NAME_MAX_LENGTH } from '../net/protocol'
 import { SIGNAL_TTL_MS } from '../lib/signals'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_TRAIL_MS } from '../lib/laser'
-import { createPlayerConnection, DOOR_NOTICE_TTL_MS, PING_INTERVAL_MS, RESUME_STORAGE_KEY, TRAVEL_NOTICE_TTL_MS } from './playerConnection'
+import { createPlayerConnection, DOOR_NOTICE_TTL_MS, MOVED_NOTICE_TTL_MS, PING_INTERVAL_MS, RESUME_STORAGE_KEY, TRAVEL_NOTICE_TTL_MS } from './playerConnection'
 import type { SocketLike, StorageLike } from './playerConnection'
 
 class FakeSocket implements SocketLike {
@@ -473,6 +473,17 @@ describe('playerConnection: pedido de passagem', () => {
     const token = connection.getState().map?.tokens.find((t) => t.id === 't1')
     expect([token?.x, token?.y]).toEqual([40, 60])
     vi.advanceTimersByTime(TRAVEL_NOTICE_TTL_MS)
+    expect(connection.getState().travel).toBeUndefined()
+  })
+
+  it('scene.changed do mestre (Mandar para…): "levado", não "chegou", e o aviso fica mais tempo', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'scene.changed', by: 'master' })
+    expect(connection.getState().travel?.phase).toBe('moved')
+    vi.advanceTimersByTime(TRAVEL_NOTICE_TTL_MS)
+    expect(connection.getState().travel?.phase).toBe('moved')
+    vi.advanceTimersByTime(MOVED_NOTICE_TTL_MS - TRAVEL_NOTICE_TTL_MS)
     expect(connection.getState().travel).toBeUndefined()
   })
 

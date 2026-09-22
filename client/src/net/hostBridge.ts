@@ -106,6 +106,12 @@ export interface HostBridge {
   revealPlan(playerId: string): void
   /** "Esconder de novo": snapshot imediato com exploração e portas lembradas zeradas. */
   hidePlan(playerId: string): void
+  /**
+   * "Mandar para…" do painel Grupo: leva a ficha do jogador para `toSceneId`,
+   * no pino `pinId` ou no centro (`null`), sem pedido. `false` quando não deu
+   * (sala fechada, destino ou ficha sumiram): o painel avisa e fica aberto.
+   */
+  sendPlayer(playerId: string, toSceneId: string, pinId: string | null): boolean
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -604,6 +610,22 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session === null) return
       session.hidePlan(playerId, world())
       broadcastNow()
+    },
+
+    sendPlayer(playerId, toSceneId, pinId) {
+      if (session === null) return false
+      const result = session.sendPlayer(playerId, toSceneId, pinId, world())
+      const transfer = result.applyTransfer
+      // Mesmo caminho do "Deixar ir" (`answerTravel`): a ficha muda de cena
+      // antes do `scene.changed` sair, e o snapshot da cena nova vem atrás.
+      const moved = transfer !== undefined && (deps.applyTransfer?.(transfer) ?? false)
+      // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
+      pruneTravelToasts()
+      if (!moved) return false
+      void dispatch(result)
+      broadcastNow()
+      notifyPlayersIfChanged()
+      return true
     },
 
     assignToken(playerId, tokenId) {
