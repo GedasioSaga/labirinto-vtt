@@ -32,7 +32,7 @@ import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDir
 import {
   hasUnsavedWork,
   hostWorldOf,
-  pinTravelOf,
+  pinExitsTravelOf,
   pinTravelOptions,
   sceneList,
   subscribeToTravelLinks,
@@ -1226,18 +1226,20 @@ function App() {
     const scenes = { adventure, activeSceneId, cache: sceneCache }
     return {
       pinId: pin.id,
-      travel: pinTravelOf(scenes, map, pin),
+      // Encruzilhada: uma linha por saída, a principal primeiro.
+      exits: pinExitsTravelOf(scenes, map, pin),
       scenes: travelSceneOptions(scenes),
       pinsIn: (sceneId: string) => pinTravelOptions(scenes, map, sceneId, pin.id),
-      onLinkNew: (sceneId: string) => {
-        useAdventureStore.getState().linkPinToNewArrival(pin.id, sceneId)
+      onLinkNew: (sceneId: string, exitId: string | null) => {
+        useAdventureStore.getState().linkPinToNewArrival(pin.id, sceneId, exitId)
       },
-      onLinkExisting: (sceneId: string, partnerId: string) => {
-        useAdventureStore.getState().linkPinToExisting(pin.id, sceneId, partnerId)
+      onLinkExisting: (sceneId: string, partnerId: string, exitId: string | null) => {
+        useAdventureStore.getState().linkPinToExisting(pin.id, sceneId, partnerId, exitId)
       },
-      onUnlink: () => useAdventureStore.getState().unlinkPin(pin.id),
-      onGo: () => {
-        useAdventureStore.getState().travelThroughPin(pin.id)
+      onUnlink: (exitId: string) => useAdventureStore.getState().unlinkPin(pin.id, exitId),
+      onRename: (exitId: string, rotulo: string) => useAdventureStore.getState().renamePinExit(pin.id, exitId, rotulo),
+      onGo: (exitId: string) => {
+        useAdventureStore.getState().travelThroughPin(pin.id, exitId)
       },
       // O modo é do pino desta cena, com desfazer como o resto do painel; o
       // par da outra cena fica como está.

@@ -1,7 +1,7 @@
 import type { FloorStyle, MapData, Region } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
-import { readPinDestination } from './pinTravel'
+import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -181,6 +181,14 @@ function deserializeMapFields(json: string): MapData {
       // versão futura) volta AUSENTE, e não como "livre": na dúvida, a porta
       // pergunta ao mestre em vez de deixar o grupo passar sem ninguém ver.
       passagem: isPinPassage(p.passagem) ? p.passagem : undefined,
+      // ENCRUZILHADA: `rotulo` e `saidas` são campos NOVOS e OPCIONAIS. Mapa
+      // de antes não tem nenhum dos dois e abre como sempre, com a saída de
+      // `destino`. Saída extra fora da forma é descartada sozinha (ver
+      // `readPinExits`), e as boas ficam. `escolhas` é só do recorte do
+      // jogador: arquivo que o traga (editado à mão) não o põe no mapa do mestre.
+      rotulo: p.rotulo === undefined ? undefined : cleanExitLabel(p.rotulo) || undefined,
+      saidas: readPinExits(p.saidas),
+      escolhas: undefined,
     })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },

@@ -231,6 +231,26 @@ export interface PinDestination {
 }
 
 /**
+ * Uma saída como o JOGADOR a enxerga: o id que o pedido leva de volta e o
+ * rótulo que o mestre escreveu. Nunca o destino — o nome ou o id da cena
+ * diria ao jogador que a outra cena existe antes de o mestre deixar passar.
+ */
+export interface PinExitLabel {
+  id: string
+  rotulo: string
+}
+
+/**
+ * ENCRUZILHADA (G8): uma saída EXTRA do pino de viagem. A saída principal
+ * continua em `Pin.destino` (e o rótulo dela em `Pin.rotulo`), para mapa
+ * gravado antes das encruzilhadas abrir igual; as outras moram aqui, cada uma
+ * ligada em mão dupla ao próprio pino par.
+ */
+export interface PinExit extends PinExitLabel {
+  destino: PinDestination
+}
+
+/**
  * Como o pino de viagem deixa o jogador passar. Numa mesa de 4 a 7 jogadores
  * espalhados por várias cenas, aprovar cada passagem vira gargalo do mestre:
  * - `pede`: o jogador pede e o mestre decide ("Deixar ir"). É o de sempre;
@@ -294,6 +314,23 @@ export interface Pin extends PlayerSecret {
    * passar" ou "Está trancada", e o modo não diz nada da outra cena.
    */
   passagem?: PinPassage
+  /**
+   * Só do pino de viagem com VÁRIAS saídas: como o mestre chama a saída
+   * principal (a de `destino`) — "Porta da cripta". Ausente = sem nome; o
+   * jogador lê "Saída 1". Não sai no recorte do jogador: vai dentro de `escolhas`.
+   */
+  rotulo?: string
+  /**
+   * Só do pino de viagem: as saídas além da principal. Ausente ou vazio = o
+   * pino de uma saída de sempre. NUNCA sai no recorte do jogador (leva destino).
+   */
+  saidas?: PinExit[]
+  /**
+   * SÓ NO RECORTE DO JOGADOR, e só quando o pino tem mais de uma saída: o id e
+   * o rótulo de cada uma, na ordem (a principal primeiro). O mestre nunca grava
+   * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.
+   */
+  escolhas?: PinExitLabel[]
 }
 
 /**

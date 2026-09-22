@@ -1,29 +1,48 @@
-import { useRef, useState, type KeyboardEvent } from 'react'
+import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import type { PinTravel, TravelPinOption, TravelSceneOption } from '../lib/pinTravel'
+import { EXIT_LABEL_MAX_LENGTH } from '../lib/pinTravel'
 import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
 import type { PinPassage } from '../types/map'
 import { ChevronDownIcon } from './icons'
 
-export interface PinTravelControlsProps {
-  /** Para onde o pino aberto no painel leva agora. */
+/** Uma saída do pino, como o painel a mostra. */
+export interface PinTravelExitView {
+  id: string
+  /** O nome que o mestre deu ("Porta da cripta"); vazio = sem nome. */
+  rotulo: string
+  /** Para onde ela leva agora. */
   travel: PinTravel
+}
+
+export interface PinTravelControlsProps {
+  /**
+   * As saídas do pino aberto no painel, a principal primeiro. Pino sem
+   * ligação tem uma só, "Sem destino". Com MAIS de uma é uma encruzilhada, e
+   * cada saída ganha o seu bloco com "Nome da saída".
+   */
+  exits: readonly PinTravelExitView[]
   /** Cenas para onde ele pode levar: todas as da aventura menos a aberta. */
   scenes: readonly TravelSceneOption[]
   /** Pinos de viagem de uma cena, para ligar a um que já está lá. */
   pinsIn: (sceneId: string) => readonly TravelPinOption[]
-  /** Cria o pino de chegada no centro de `sceneId` e liga os dois. */
-  onLinkNew: (sceneId: string) => void
-  onLinkExisting: (sceneId: string, pinId: string) => void
-  onUnlink: () => void
-  /** Leva a visão do mestre pela passagem — o mesmo que o clique com Selecionar. */
-  onGo: () => void
-  /** Como o jogador passa por ESTE pino (o par tem o seu). */
+  /** Cria o pino de chegada no centro de `sceneId` e liga a saída `exitId` (`null` = uma saída nova). */
+  onLinkNew: (sceneId: string, exitId: string | null) => void
+  onLinkExisting: (sceneId: string, pinId: string, exitId: string | null) => void
+  onUnlink: (exitId: string) => void
+  /** Grava o nome da saída (ao sair do campo). */
+  onRename: (exitId: string, rotulo: string) => void
+  /** Leva a visão do mestre pela saída — o mesmo que o clique com Selecionar faz pela principal. */
+  onGo: (exitId: string) => void
+  /** Como o jogador passa por ESTE pino (o par tem o seu). Vale para todas as saídas. */
   passage: PinPassage
   onPassageChange: (passage: PinPassage) => void
 }
 
-/** Onde está a escolha de "Leva a…": fechada, escolhendo a cena, ou escolhendo o pino de lá. */
-type Escolha = { passo: 'cena' } | { passo: 'pino'; sceneId: string } | null
+/**
+ * Onde está a escolha de "Leva a…": fechada, escolhendo a cena, ou escolhendo
+ * o pino de lá. `saida` é a saída que a escolha liga; `null` = "+ Outra saída".
+ */
+type Escolha = { passo: 'cena'; saida: string | null } | { passo: 'pino'; sceneId: string; saida: string | null } | null
 
 /** Ids fixos: só existe um pino aberto no painel por vez (o mesmo molde de `lb-pin-description`). */
 const STATUS_ID = 'lb-pin-travel-status'
@@ -31,6 +50,10 @@ const SELETOR_ID = 'lb-pin-travel-picker'
 const CENAS_ID = 'lb-pin-travel-scenes'
 const PINOS_ID = 'lb-pin-travel-pins'
 const PASSAGEM_ID = 'lb-pin-travel-passage'
+const NOME_ID = 'lb-pin-travel-exit-name'
+
+/** A chave do gatilho que abriu a escolha: o id da saída, ou esta para "+ Outra saída". */
+const GATILHO_NOVA = '+nova'
 
 /** O que cada modo faz, dito ao mestre logo abaixo da escolha. */
 const EFEITO_DA_PASSAGEM: Record<PinPassage, string> = {
@@ -55,6 +78,16 @@ function detalhe(travel: PinTravel, temCena: boolean, algumaAbre: boolean): stri
   return 'Escolha a cena e o pino de chegada.'
 }
 
+/** "Leva a Cripta" ou "Sem destino": o título de uma saída. */
+function TituloDoDestino({ travel }: { travel: PinTravel }) {
+  if (travel.status === 'sem-destino') return <span className="lb-travel__title">Sem destino</span>
+  return (
+    <span className="lb-travel__title">
+      Leva a <strong className="lb-travel__scene">{travel.sceneName}</strong>
+    </span>
+  )
+}
+
 /**
  * Destino do PINO DE VIAGEM, dentro do painel do pino (a mesma `section`).
  *
@@ -62,6 +95,11 @@ function detalhe(travel: PinTravel, temCena: boolean, algumaAbre: boolean): stri
  * "Sem destino". Depois o que dá para fazer. "Leva a…" abre a escolha em dois
  * passos, no próprio painel: a cena, e lá o pino de chegada — criar um novo,
  * que nasce no centro da cena, ou ligar a um pino de viagem que já está lá.
+ *
+ * ENCRUZILHADA: ligado, o pino oferece "+ Outra saída", que abre a mesma
+ * escolha para uma saída NOVA. Com duas ou mais, cada saída vira um bloco com
+ * o destino, o campo "Nome da saída" (o que o jogador lê no botão dele) e as
+ * ações dela; o pino de uma saída continua com a cara de sempre.
  *
  * A régua à esquerda do bloco diz o estado sem depender de ler: latão quando
  * a passagem leva a algum lugar, apagada quando não — a mesma troca que o
@@ -71,8 +109,9 @@ function detalhe(travel: PinTravel, temCena: boolean, algumaAbre: boolean): stri
  * entre as opções; depois de ligar, desligar ou atravessar, o foco vai para a
  * frase do destino, que é o que mudou (e o leitor de tela a lê: `aria-live`).
  */
-export function PinTravelControls({ travel, scenes, pinsIn, onLinkNew, onLinkExisting, onUnlink, onGo, passage, onPassageChange }: PinTravelControlsProps) {
+export function PinTravelControls({ exits, scenes, pinsIn, onLinkNew, onLinkExisting, onUnlink, onRename, onGo, passage, onPassageChange }: PinTravelControlsProps) {
   const [escolha, setEscolha] = useState<Escolha>(null)
+  /** Quem abriu a escolha: é para ele que o foco volta ao fechar. */
   const gatilhoRef = useRef<HTMLButtonElement | null>(null)
   const seletorRef = useRef<HTMLDivElement | null>(null)
   /** A cena escolhida no passo 1: "Voltar" devolve o foco a ela, e não ao topo da lista. */
@@ -81,26 +120,33 @@ export function PinTravelControls({ travel, scenes, pinsIn, onLinkNew, onLinkExi
   const temCena = scenes.length > 0
   const algumaAbre = scenes.some((scene) => scene.available)
   const aberta = escolha !== null
+  const encruzilhada = exits.length > 1
+  const principal = exits[0]
+  const algumaLigada = exits.some((exit) => exit.travel.status === 'ligado')
+  // A régua do poço: acesa se alguma saída leva a algum lugar.
+  const estado = algumaLigada ? 'ligado' : (principal?.travel.status ?? 'sem-destino')
 
   const opcoes = () => Array.from(seletorRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
   const frase = () => document.getElementById(STATUS_ID)
 
-  const abrir = () => {
-    setEscolha({ passo: 'cena' })
+  const abrir = (saida: string | null, gatilho: HTMLButtonElement) => {
+    gatilhoRef.current = gatilho
+    setEscolha({ passo: 'cena', saida })
     focarDepois(() => opcoes()[0])
   }
   const fechar = () => {
     setEscolha(null)
     focarDepois(() => gatilhoRef.current)
   }
-  const alternar = () => (aberta ? fechar() : abrir())
   const escolherCena = (sceneId: string) => {
+    if (escolha === null) return
     cenaEscolhidaRef.current = sceneId
-    setEscolha({ passo: 'pino', sceneId })
+    setEscolha({ passo: 'pino', sceneId, saida: escolha.saida })
     focarDepois(() => opcoes()[0])
   }
   const voltar = () => {
-    setEscolha({ passo: 'cena' })
+    if (escolha === null) return
+    setEscolha({ passo: 'cena', saida: escolha.saida })
     const cena = cenaEscolhidaRef.current
     focarDepois(() => (cena === null ? null : seletorRef.current?.querySelector<HTMLButtonElement>(`[data-cena="${CSS.escape(cena)}"]`)) ?? opcoes()[0])
   }
@@ -126,65 +172,115 @@ export function PinTravelControls({ travel, scenes, pinsIn, onLinkNew, onLinkExi
     if (botoes.length === 0) return
     event.preventDefault()
     event.stopPropagation()
-    const atual = botoes.indexOf(document.activeElement as HTMLButtonElement)
+    // `activeElement` é um Element; `indexOf` só precisa da identidade, e um
+    // Element que não é botão devolve -1, que já é o caso "nenhum focado".
+    const atual = botoes.findIndex((botao) => botao === document.activeElement)
     const passo = event.key === 'ArrowDown' ? 1 : -1
     const proximo = atual === -1 ? (passo === 1 ? 0 : botoes.length - 1) : (atual + passo + botoes.length) % botoes.length
     botoes[proximo]?.focus()
   }
 
-  const gatilho = (rotulo: string, className: string) => (
-    <button
-      ref={gatilhoRef}
-      type="button"
-      className={className}
-      aria-expanded={aberta}
-      aria-controls={aberta ? SELETOR_ID : undefined}
-      disabled={!algumaAbre}
-      onClick={alternar}
-    >
-      {rotulo}
-      {/* A mesma divisa das seções recolhíveis (CollapsibleSection): de lado
-          fechada, para baixo aberta. Decorativa: o estado é o `aria-expanded`. */}
-      <span className="lb-travel__chevron">
-        <ChevronDownIcon size={14} />
-      </span>
-    </button>
-  )
+  /** O botão que abre a escolha para a saída `saida` (`null` = uma nova). */
+  const gatilho = (saida: string | null, rotulo: string, className: string) => {
+    const chave = saida ?? GATILHO_NOVA
+    const minha = escolha !== null && (escolha.saida ?? GATILHO_NOVA) === chave
+    return (
+      <button
+        type="button"
+        className={className}
+        aria-expanded={minha}
+        aria-controls={minha ? SELETOR_ID : undefined}
+        disabled={!algumaAbre}
+        onClick={(event: MouseEvent<HTMLButtonElement>) => (minha ? fechar() : abrir(saida, event.currentTarget))}
+      >
+        {rotulo}
+        {/* A mesma divisa das seções recolhíveis (CollapsibleSection): de lado
+            fechada, para baixo aberta. Decorativa: o estado é o `aria-expanded`. */}
+        <span className="lb-travel__chevron">
+          <ChevronDownIcon size={14} />
+        </span>
+      </button>
+    )
+  }
 
   return (
-    <div className={`lb-travel lb-travel--${travel.status}`} role="group" aria-label="Destino da viagem" onKeyDown={aoTeclar}>
-      <p id={STATUS_ID} className="lb-travel__status" tabIndex={-1} aria-live="polite">
-        {travel.status === 'sem-destino' ? (
-          <span className="lb-travel__title">Sem destino</span>
-        ) : (
-          <span className="lb-travel__title">
-            Leva a <strong className="lb-travel__scene">{travel.sceneName}</strong>
-          </span>
-        )}
-        <span className="lb-travel__detail">{detalhe(travel, temCena, algumaAbre)}</span>
-      </p>
+    <div className={`lb-travel lb-travel--${estado}`} role="group" aria-label="Destino da viagem" onKeyDown={aoTeclar}>
+      {!encruzilhada && principal !== undefined && (
+        <>
+          <p id={STATUS_ID} className="lb-travel__status" tabIndex={-1} aria-live="polite">
+            <TituloDoDestino travel={principal.travel} />
+            <span className="lb-travel__detail">{detalhe(principal.travel, temCena, algumaAbre)}</span>
+          </p>
+          {principal.travel.status === 'ligado' && (
+            <button type="button" className="lb-btn lb-btn--block" onClick={() => concluir(() => onGo(principal.id))}>
+              Ir para {principal.travel.sceneName}
+            </button>
+          )}
+          {principal.travel.status === 'sem-destino' ? (
+            gatilho(principal.id, 'Leva a…', 'lb-btn lb-btn--block')
+          ) : (
+            <div className="lb-travel__row">
+              {gatilho(principal.id, 'Trocar destino', 'lb-btn lb-btn--ghost')}
+              <button type="button" className="lb-btn lb-btn--ghost" onClick={() => concluir(() => onUnlink(principal.id))}>
+                Desligar
+              </button>
+            </div>
+          )}
+          {principal.travel.status === 'ligado' && !aberta && <p className="lb-travel__hint">No mapa, um clique no pino com Selecionar também leva.</p>}
+        </>
+      )}
 
-      {travel.status === 'ligado' && (
-        <button type="button" className="lb-btn lb-btn--block" onClick={() => concluir(onGo)}>
-          Ir para {travel.sceneName}
-        </button>
+      {encruzilhada && (
+        <>
+          <p id={STATUS_ID} className="lb-travel__status" tabIndex={-1} aria-live="polite">
+            <span className="lb-travel__title">{exits.length} saídas</span>
+            <span className="lb-travel__detail">O jogador escolhe pelo nome de cada uma; o nome da cena ele não vê.</span>
+          </p>
+          <ul className="lb-travel__exits">
+            {exits.map((exit, index) => (
+              <li key={exit.id} className={`lb-travel__exit lb-travel__exit--${exit.travel.status}`}>
+                <p className="lb-travel__status">
+                  <TituloDoDestino travel={exit.travel} />
+                  <span className="lb-travel__detail">{detalhe(exit.travel, temCena, algumaAbre)}</span>
+                </p>
+                <NomeDaSaida
+                  key={`${exit.id}:${exit.rotulo}`}
+                  id={`${NOME_ID}-${index}`}
+                  rotulo={exit.rotulo}
+                  placeholder={`Saída ${index + 1}`}
+                  onCommit={(rotulo) => onRename(exit.id, rotulo)}
+                />
+                <div className="lb-travel__row">
+                  {exit.travel.status === 'ligado' && (
+                    <button
+                      type="button"
+                      className="lb-btn lb-btn--ghost"
+                      aria-label={`Ir para ${exit.travel.sceneName}`}
+                      onClick={() => concluir(() => onGo(exit.id))}
+                    >
+                      Ir
+                    </button>
+                  )}
+                  {gatilho(exit.id, 'Trocar destino', 'lb-btn lb-btn--ghost')}
+                  <button type="button" className="lb-btn lb-btn--ghost" onClick={() => concluir(() => onUnlink(exit.id))}>
+                    Desligar
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
-      {travel.status === 'sem-destino' ? (
-        gatilho('Leva a…', 'lb-btn lb-btn--block')
-      ) : (
-        <div className="lb-travel__row">
-          {gatilho('Trocar destino', 'lb-btn lb-btn--ghost')}
-          <button type="button" className="lb-btn lb-btn--ghost" onClick={() => concluir(onUnlink)}>
-            Desligar
-          </button>
-        </div>
-      )}
-      {travel.status === 'ligado' && !aberta && <p className="lb-travel__hint">No mapa, um clique no pino com Selecionar também leva.</p>}
+
+      {/* "+ Outra saída" só depois da primeira ligação: antes dela, o
+          "Leva a…" de sempre já é a primeira saída. */}
+      {algumaLigada && gatilho(null, '+ Outra saída', 'lb-btn lb-btn--ghost lb-btn--block')}
 
       {/* Como o JOGADOR passa: numa mesa espalhada por várias cenas, aprovar
           cada passagem vira gargalo do mestre. Vale só para este pino — a
-          volta tem o modo dela, no pino par. Mesmo segmented em linhas do
-          "Tipo do pino": "Pede ao mestre" não cabe em um terço do poço. */}
+          volta tem o modo dela, no pino par — e para todas as saídas dele.
+          Mesmo segmented em linhas do "Tipo do pino": "Pede ao mestre" não
+          cabe em um terço do poço. */}
       <span className="lb-label" id={PASSAGEM_ID}>
         Passagem
       </span>
@@ -209,7 +305,7 @@ export function PinTravelControls({ travel, scenes, pinsIn, onLinkNew, onLinkExi
           {escolha.passo === 'cena' ? (
             <>
               <p className="lb-label" id={CENAS_ID}>
-                Para qual cena?
+                {escolha.saida === null ? 'A outra saída leva a qual cena?' : 'Para qual cena?'}
               </p>
               <ul className="lb-travel__options" aria-labelledby={CENAS_ID}>
                 {scenes.map((scene) => (
@@ -237,14 +333,63 @@ export function PinTravelControls({ travel, scenes, pinsIn, onLinkNew, onLinkExi
             <PassoDoPino
               sceneName={scenes.find((scene) => scene.id === escolha.sceneId)?.name ?? ''}
               pins={pinsIn(escolha.sceneId)}
-              onCreate={() => concluir(() => onLinkNew(escolha.sceneId))}
-              onPick={(pinId) => concluir(() => onLinkExisting(escolha.sceneId, pinId))}
+              onCreate={() => concluir(() => onLinkNew(escolha.sceneId, escolha.saida))}
+              onPick={(pinId) => concluir(() => onLinkExisting(escolha.sceneId, pinId, escolha.saida))}
               onBack={voltar}
               onCancel={fechar}
             />
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+interface NomeDaSaidaProps {
+  id: string
+  rotulo: string
+  placeholder: string
+  onCommit: (rotulo: string) => void
+}
+
+/**
+ * "Nome da saída": o que o jogador lê no botão da saída. Grava ao SAIR do
+ * campo (Tab, clique fora) ou no Enter — gravar a cada tecla empilharia uma
+ * entrada de desfazer por letra. Esc devolve o nome gravado sem mexer em nada
+ * e não deixa o Esc chegar ao mapa (que largaria o pino inteiro).
+ * A `key` de quem usa inclui o nome gravado: o desfazer que troca o nome
+ * troca o campo junto.
+ */
+function NomeDaSaida({ id, rotulo, placeholder, onCommit }: NomeDaSaidaProps) {
+  const [rascunho, setRascunho] = useState(rotulo)
+  const gravar = () => {
+    if (rascunho.trim() !== rotulo) onCommit(rascunho)
+  }
+  return (
+    <div className="lb-field">
+      <label className="lb-label" htmlFor={id}>
+        Nome da saída
+      </label>
+      <input
+        id={id}
+        type="text"
+        className="lb-input"
+        value={rascunho}
+        placeholder={placeholder}
+        maxLength={EXIT_LABEL_MAX_LENGTH}
+        onChange={(event) => setRascunho(event.target.value)}
+        onBlur={gravar}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            event.currentTarget.blur()
+          } else if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopPropagation()
+            setRascunho(rotulo)
+          }
+        }}
+      />
     </div>
   )
 }

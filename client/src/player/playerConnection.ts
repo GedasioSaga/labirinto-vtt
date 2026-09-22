@@ -1,6 +1,6 @@
 import type { MapData, RegionPoint, Token } from '../types/map'
 import { decodeExploration, type Exploration } from '../lib/exploration'
-import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PlayerMessage } from '../net/protocol'
+import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PinTravelRequestMessage, type PlayerMessage } from '../net/protocol'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
@@ -104,8 +104,10 @@ export interface PlayerConnection {
    * Pede ao mestre para passar pelo pino de viagem `pinId` — ou, no pino
    * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`). `false` se
    * não está jogando, se já há um pedido esperando ou se o socket não está aberto.
+   * `exitId` é a saída escolhida numa encruzilhada (um id de `Pin.escolhas`);
+   * ausente, o pedido sai sem ele e vale a saída principal, como sempre.
    */
-  requestTravel(pinId: string): boolean
+  requestTravel(pinId: string, exitId?: string): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -623,12 +625,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return send({ type: 'door.toggle', wallId })
     },
 
-    requestTravel(pinId) {
+    requestTravel(pinId, exitId) {
       if (state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
       const pin = state.map?.pins.find((p) => p.id === pinId)
       const direct = pin !== undefined && passageOf(pin) === 'livre'
+      // Sem saída escolhida, a mensagem sai idêntica à de antes: o mestre
+      // antigo, que não conhece `exitId`, continua entendendo o pedido.
+      const pedido: PinTravelRequestMessage = exitId === undefined ? { type: 'pin.travel.request', pinId } : { type: 'pin.travel.request', pinId, exitId }
       if (!direct) {
-        if (!send({ type: 'pin.travel.request', pinId })) return false
+        if (!send(pedido)) return false
         clearTravelTimer()
         setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: false } })
         return true
@@ -645,7 +650,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         travelTimer = null
         if (state.status !== 'playing') return
         // O socket caiu na pausa: sem pedido no ar, o aviso não pode ficar.
-        if (!send({ type: 'pin.travel.request', pinId })) setState({ travel: undefined })
+        if (!send(pedido)) setState({ travel: undefined })
       }, FREE_PASSAGE_BEAT_MS)
       return true
     },

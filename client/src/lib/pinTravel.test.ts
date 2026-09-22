@@ -172,3 +172,42 @@ describe('readPinDestination', () => {
     expect(readPinDestination(null)).toBeNull()
   })
 })
+
+describe('encruzilhada: saídas extras', () => {
+  const cruz = pino('a', {
+    destino: { sceneId: 'cripta', pinId: 'b' },
+    saidas: [{ id: 'saida_torre', rotulo: 'Escada', destino: { sceneId: 'torre', pinId: 'c' } }],
+  })
+  const lugares = aventura({
+    cripta: { name: 'Cripta', map: cena('cripta', [pino('b', { destino: { sceneId: 'vale', pinId: 'a' } })]) },
+    torre: { name: 'Torre', map: cena('torre', [pino('c', { destino: { sceneId: 'vale', pinId: 'a' } })]) },
+  })
+
+  it('cada saída resolve o próprio par; saída que não existe é "sem destino"', () => {
+    expect(resolvePinTravel(cruz, 'vale', lugares)).toMatchObject({ status: 'ligado', sceneName: 'Cripta', partner: { id: 'b' } })
+    expect(resolvePinTravel(cruz, 'vale', lugares, 'saida_torre')).toMatchObject({ status: 'ligado', sceneName: 'Torre', partner: { id: 'c' } })
+    expect(resolvePinTravel(cruz, 'vale', lugares, 'saida_inventada').status).toBe('sem-destino')
+  })
+
+  it('o par que é encruzilhada vale se QUALQUER saída dele volta', () => {
+    const parCruz = pino('b', { destino: { sceneId: 'pantano', pinId: 'p' }, saidas: [{ id: 'volta', rotulo: '', destino: { sceneId: 'vale', pinId: 'a' } }] })
+    expect(resolvePinTravel(cruz, 'vale', aventura({ cripta: { name: 'Cripta', map: cena('cripta', [parCruz]) } })).status).toBe('ligado')
+  })
+
+  it('travelLinkChanges: acrescentar uma saída é UMA ligação nova; renomear não é mudança; apagar desliga todas', () => {
+    const umaSo = pino('a', { destino: { sceneId: 'cripta', pinId: 'b' } })
+    expect(travelLinkChanges([umaSo], [cruz])).toEqual([{ pinId: 'a', before: null, after: { sceneId: 'torre', pinId: 'c' } }])
+    const renomeada: Pin = { ...cruz, rotulo: 'Porta', saidas: [{ id: 'saida_torre', rotulo: 'Outra', destino: { sceneId: 'torre', pinId: 'c' } }] }
+    expect(travelLinkChanges([cruz], [renomeada])).toEqual([])
+    expect(travelLinkChanges([cruz], [])).toEqual([
+      { pinId: 'a', before: { sceneId: 'cripta', pinId: 'b' }, after: null },
+      { pinId: 'a', before: { sceneId: 'torre', pinId: 'c' }, after: null },
+    ])
+  })
+
+  it('unlinkBack tira só a saída que voltava para lá', () => {
+    const depois = unlinkBack(cena('vale', [cruz]), 'a', { sceneId: 'torre', pinId: 'c' })
+    expect(depois.pins[0].saidas).toBeUndefined()
+    expect(depois.pins[0].destino).toEqual({ sceneId: 'cripta', pinId: 'b' })
+  })
+})

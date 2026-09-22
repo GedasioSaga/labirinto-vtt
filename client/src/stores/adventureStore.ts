@@ -5,14 +5,20 @@ import type { Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
 import { ADVENTURE_VERSION, baseName, cleanSceneName, newSceneId, sceneFileFor, type Adventure, type SceneEntry } from '../lib/adventure'
 import {
+  addExit,
   arrivalPoint,
   linkBack,
   pinFocusPoint,
+  renameExit,
   resolvePinTravel,
+  SAIDA_PRINCIPAL,
   sameDestination,
+  setExitDestination,
+  travelExitsOf,
   travelLinkChanges,
   travelPinOptions,
   unlinkBack,
+  type ExitPatch,
   type PinTravel,
   type TravelPinOption,
   type TravelScene,
@@ -123,17 +129,23 @@ interface AdventureState {
    * dupla (ver `syncTravelLinks`). Devolve o id da chegada, ou `null` se não
    * deu para ligar.
    */
-  linkPinToNewArrival: (pinId: string, sceneId: string) => string | null
-  /** Liga o pino de viagem `pinId` ao pino de viagem `partnerId`, que já existe em `sceneId`. */
-  linkPinToExisting: (pinId: string, sceneId: string, partnerId: string) => boolean
-  /** Desliga o pino e, pelo guardião, o par dele. Entra no desfazer da cena aberta. */
-  unlinkPin: (pinId: string) => void
   /**
-   * Leva a visão do mestre pelo pino ligado: abre a cena de destino com o par
-   * no centro da tela e aberto no painel. `false` quando o pino não leva a
-   * lugar nenhum.
+   * `exitId` diz QUAL saída liga (ENCRUZILHADA): ausente = a principal, a de
+   * sempre; `null` = uma saída NOVA ("+ Outra saída").
    */
-  travelThroughPin: (pinId: string) => boolean
+  linkPinToNewArrival: (pinId: string, sceneId: string, exitId?: string | null) => string | null
+  /** Liga a saída `exitId` do pino `pinId` ao pino de viagem `partnerId`, que já existe em `sceneId`. */
+  linkPinToExisting: (pinId: string, sceneId: string, partnerId: string, exitId?: string | null) => boolean
+  /** Desliga a saída `exitId` (ausente = a principal) e, pelo guardião, o par dela. Entra no desfazer da cena aberta. */
+  unlinkPin: (pinId: string, exitId?: string) => void
+  /** Dá nome à saída `exitId` do pino `pinId`. Entra no desfazer da cena aberta. */
+  renamePinExit: (pinId: string, exitId: string, rotulo: string) => void
+  /**
+   * Leva a visão do mestre pela saída `exitId` (ausente = a principal): abre
+   * a cena de destino com o par no centro da tela e aberto no painel. `false`
+   * quando a saída não leva a lugar nenhum.
+   */
+  travelThroughPin: (pinId: string, exitId?: string) => boolean
   /**
    * O jogador atravessou: tira o token `tokenId` da cena `fromSceneId` e o
    * põe em (`x`, `y`) da cena `toSceneId`. FORA DO DESFAZER nas duas pontas —
@@ -196,14 +208,42 @@ export function pinTravelOf(state: SceneState, liveMap: MapData, pin: Pin): PinT
   return resolvePinTravel(pin, state.activeSceneId, sceneLookup(state, liveMap))
 }
 
+/** Uma saída do pino aberto no painel: o id, o nome que o mestre deu e para onde ela leva. */
+export interface PinExitTravel {
+  id: string
+  rotulo: string
+  travel: PinTravel
+}
+
+/**
+ * As saídas do pino da cena aberta, na ordem (a principal primeiro), cada uma
+ * resolvida. Pino sem ligação nenhuma tem UMA linha: a principal, "Sem destino"
+ * — é dela que sai o "Leva a…" de sempre.
+ */
+export function pinExitsTravelOf(state: SceneState, liveMap: MapData, pin: Pin): readonly PinExitTravel[] {
+  const lookup = sceneLookup(state, liveMap)
+  const saidas = travelExitsOf(pin)
+  if (saidas.length === 0) return [{ id: SAIDA_PRINCIPAL, rotulo: pin.rotulo ?? '', travel: resolvePinTravel(pin, state.activeSceneId, lookup) }]
+  return saidas.map((saida) => ({ id: saida.id, rotulo: saida.rotulo, travel: resolvePinTravel(pin, state.activeSceneId, lookup, saida.id) }))
+}
+
 /** Pinos de viagem da cena aberta que não levam a lugar nenhum: o canvas os desenha apagados. */
 export function unlinkedTravelPinIds(state: SceneState, liveMap: MapData): Set<string> {
   const ids = new Set<string>()
   const lookup = sceneLookup(state, liveMap)
   for (const pin of liveMap.pins) {
-    if (pin.kind === 'viagem' && resolvePinTravel(pin, state.activeSceneId, lookup).status !== 'ligado') ids.add(pin.id)
+    if (pin.kind !== 'viagem') continue
+    // Encruzilhada acesa se QUALQUER saída leva a algum lugar.
+    const algumaLiga = travelExitsOf(pin).some((saida) => resolvePinTravel(pin, state.activeSceneId, lookup, saida.id).status === 'ligado')
+    if (!algumaLiga) ids.add(pin.id)
   }
   return ids
+}
+
+/** O que gravar no pino para ligar a saída `exitId` (`null` = uma saída nova) a `destino`. */
+function exitPatchFor(pin: Pin, exitId: string | null, destino: PinDestination): ExitPatch {
+  if (exitId === null) return addExit(pin, `saida_${crypto.randomUUID().slice(0, 8)}`, destino)
+  return setExitDestination(pin, exitId, destino)
 }
 
 /** As cenas para onde um pino da cena aberta pode levar: todas as outras. */
@@ -399,7 +439,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     set({ cache: { ...cache, [sceneId]: { ...slot, map } }, dirty: { ...dirty, [sceneId]: true } })
   },
 
-  linkPinToNewArrival: (pinId, sceneId) => {
+  linkPinToNewArrival: (pinId, sceneId, exitId = SAIDA_PRINCIPAL) => {
     const { activeSceneId, cache } = get()
     const pin = useMapStore.getState().map.pins.find((p) => p.id === pinId)
     const slot = cache[sceneId]
@@ -409,11 +449,11 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // ida é gravada logo abaixo — o mesmo caminho do desfazer e do refazer.
     const arrival = mapFactory.buildPin(crypto.randomUUID(), arrivalPoint(slot.map), 'viagem')
     get().updateBackgroundScene(sceneId, (map) => mapFactory.addPin(map, arrival))
-    useMapStore.getState().updatePin(pinId, { destino: { sceneId, pinId: arrival.id } })
+    useMapStore.getState().updatePin(pinId, exitPatchFor(pin, exitId, { sceneId, pinId: arrival.id }))
     return arrival.id
   },
 
-  linkPinToExisting: (pinId, sceneId, partnerId) => {
+  linkPinToExisting: (pinId, sceneId, partnerId, exitId = SAIDA_PRINCIPAL) => {
     const { activeSceneId, cache } = get()
     const live = useMapStore.getState().map
     const pin = live.pins.find((p) => p.id === pinId)
@@ -423,24 +463,43 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const partner = slot.map.pins.find((p) => p.id === partnerId)
     if (partner === undefined || partner.kind !== 'viagem') return false
     const destino: PinDestination = { sceneId, pinId: partnerId }
-    // Um par, uma volta: outro pino DESTA cena que chegava no mesmo par perde a
-    // ligação antes — senão dois pinos daqui levariam ao lugar que só traz um de volta.
+    // Um par, uma volta: outro pino DESTA cena (ou outra saída deste mesmo)
+    // que chegava no mesmo par perde a ligação antes — senão dois caminhos
+    // daqui levariam ao lugar que só traz um de volta.
     for (const other of live.pins) {
-      if (other.id !== pinId && sameDestination(other.destino, destino)) useMapStore.getState().updatePin(other.id, { destino: null })
+      for (const saida of travelExitsOf(other)) {
+        if (!sameDestination(saida.destino, destino)) continue
+        if (other.id === pinId && saida.id === exitId) continue
+        const atual = useMapStore.getState().map.pins.find((p) => p.id === other.id)
+        if (atual !== undefined) useMapStore.getState().updatePin(other.id, setExitDestination(atual, saida.id, null))
+      }
     }
-    useMapStore.getState().updatePin(pinId, { destino })
+    const atual = useMapStore.getState().map.pins.find((p) => p.id === pinId)
+    if (atual === undefined) return false
+    // A saída desta ligação pode ter mudado de id acima (a principal
+    // desligada e uma extra subindo no lugar): quem ainda não existe vira nova.
+    const alvo = exitId !== null && exitId !== SAIDA_PRINCIPAL && !(atual.saidas ?? []).some((s) => s.id === exitId) ? null : exitId
+    useMapStore.getState().updatePin(pinId, exitPatchFor(atual, alvo, destino))
     return true
   },
 
-  unlinkPin: (pinId) => {
-    useMapStore.getState().updatePin(pinId, { destino: null })
+  unlinkPin: (pinId, exitId = SAIDA_PRINCIPAL) => {
+    const pin = useMapStore.getState().map.pins.find((p) => p.id === pinId)
+    if (pin === undefined) return
+    useMapStore.getState().updatePin(pinId, setExitDestination(pin, exitId, null))
   },
 
-  travelThroughPin: (pinId) => {
+  renamePinExit: (pinId, exitId, rotulo) => {
+    const pin = useMapStore.getState().map.pins.find((p) => p.id === pinId)
+    if (pin === undefined) return
+    useMapStore.getState().updatePin(pinId, renameExit(pin, exitId, rotulo))
+  },
+
+  travelThroughPin: (pinId, exitId = SAIDA_PRINCIPAL) => {
     const live = useMapStore.getState().map
     const pin = live.pins.find((p) => p.id === pinId)
     if (pin === undefined) return false
-    const travel = pinTravelOf(get(), live, pin)
+    const travel = resolvePinTravel(pin, get().activeSceneId, sceneLookup(get(), live), exitId)
     if (travel.status !== 'ligado') return false
     if (!get().switchScene(travel.sceneId, pinFocusPoint(travel.partner))) return false
     // O par aberto no painel: é ele que diz "leva de volta a …" e é nele que
