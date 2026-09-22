@@ -8,6 +8,7 @@ import {
   clampFloorPolygonSides,
   findFloorPieceAt,
   MIN_FLOOR_DRAG_SIZE,
+  pincelDeBlocosApaga,
 } from './floorTool'
 
 describe('buildFloorShapeFromDrag — retângulo', () => {
@@ -122,5 +123,23 @@ describe('findFloorPieceAt', () => {
 
   it('outra camada oculta não interfere', () => {
     expect(findFloorPieceAt({ ...base, hiddenLayers: ['tokens'] }, { x: 120, y: 120 })?.id).toBe('big')
+  })
+})
+
+describe('pincelDeBlocosApaga — operação + botão decidem pintar ou apagar', () => {
+  const ESQUERDO = 0
+  const DIREITO = 2
+
+  it('Somar com o botão esquerdo pinta', () => {
+    expect(pincelDeBlocosApaga('add', ESQUERDO)).toBe(false)
+  })
+
+  it('Subtrair com o botão esquerdo apaga (achado 8: antes pintava igual a Somar)', () => {
+    expect(pincelDeBlocosApaga('subtract', ESQUERDO)).toBe(true)
+  })
+
+  it('o botão direito apaga em qualquer operação', () => {
+    expect(pincelDeBlocosApaga('add', DIREITO)).toBe(true)
+    expect(pincelDeBlocosApaga('subtract', DIREITO)).toBe(true)
   })
 })
