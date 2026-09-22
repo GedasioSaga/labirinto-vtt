@@ -454,6 +454,9 @@ const JORNADAS_DO_CRITERIO = [
   // 22/09/2026, grupo espalhado G2 — passagem do pino de viagem: pede ao
   // mestre, livre ou trancada, cada pino do par com a sua.
   'e2e/task-jornada-modos-do-pino.spec.ts',
+  // 22/09/2026, grupo espalhado G1 — painel do grupo na aba Jogo: uma linha
+  // por jogador com a cena, Ir lá e Mandar para… sem pedido.
+  'e2e/task-jornada-painel-do-grupo.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
