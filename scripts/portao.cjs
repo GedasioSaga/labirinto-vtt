@@ -485,6 +485,9 @@ const JORNADAS_DO_CRITERIO = [
   // 22/09/2026, grupo espalhado G9 — mão única: a chegada fica oculta ao
   // jogador e não leva de volta.
   'e2e/task-jornada-chegada-oculta.spec.ts',
+  // 22/09/2026, grupo espalhado G11 — recado do mestre só para quem está numa
+  // cena, texto puro, nada para as outras cenas.
+  'e2e/task-jornada-recado-por-cena.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
