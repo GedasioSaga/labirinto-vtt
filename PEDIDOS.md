@@ -548,3 +548,27 @@ Não verificado ainda: atravessar com um jogador de verdade no desktop, em LAN.
 
 Plano aprovado em `~/.claude/plans/immutable-inventing-acorn.md` (seção "Girar sala"). Régua:
 `client/e2e/task-jornada-girar-sala.spec.ts` (em escrita). Roda em paralelo com a Entrega 3 do pino.
+
+## Pedido de 22/09/2026, madrugada (registro literal)
+
+> "Eu quero que você continue o modo automatico mas quero que leve em consideração features de um certo
+> tipo de natureza agora, veja bem, eu vou ter sempre por volta de 4 a 7 jogadores, eu preciso de uma
+> forma facil de pode adiministrar os tokens desses jogadores ambos estando em mapas diferentes entende?
+> você fez o pino e tal que muda de lugar ,mas e se um jogador for para um lugar e outro for para outro
+> lugar, pensando nisso comece a fazer features para ajudar nisso, como novas formas de pino e tal, mas
+> usando  o modo automatico pois vou dormi."
+
+### Fila "grupo espalhado" (decidida por mim no modo automático; revisável de manhã)
+
+O usuário dormiu, então as decisões abaixo são minhas, tomadas pelo padrão já aprovado nas entregas
+do pino (o jogador nunca recebe nome de outra cena; o editor do mestre não segue ninguém sozinho).
+Uma feature por vez, cada uma com régua vermelha antes da obra.
+
+| # | feature | o que o mestre ganha |
+|---|---|---|
+| G1 | **Painel do grupo** na aba Jogo: uma linha por jogador com a cor da ficha, nome, online/fora, em que cena está e se tem pedido esperando; **Ir lá** (abre a cena e centra na ficha) e **Mandar para…** (escolhe cena e pino de chegada; a ficha vai sem pedido) | ver e mover os 4-7 jogadores de um lugar só |
+| G2 | **Modos do pino de viagem**: "Pede ao mestre" (padrão de hoje), "Passagem livre" (o jogador passa direto, o mestre só é avisado) e "Trancada" (o jogador lê que está trancada) | menos avisos para aprovar; portas que ainda não abrem |
+| G3 | **Cenas com gente**: na lista Cenas, cada cena mostra as bolinhas dos jogadores que estão nela e um selo quando há pedido esperando ali | bater o olho e saber onde está todo mundo |
+| G4 | **Caixa de pedidos**: com 2 ou mais pedidos ao mesmo tempo, os avisos viram uma caixa só, "Pedidos (3)", com Deixar ir / Não por linha e "Deixar todos" | 7 jogadores pedindo não soterram a tela |
+| G5 | **Reunir o grupo aqui**: num pino, o mestre traz as fichas escolhidas de qualquer cena para casas livres em volta dele | juntar o grupo de novo depois que se separou |
+| G6 | **Chamado de cena de fundo**: o sinal de um jogador numa cena que não está aberta chega ao mestre como aviso "Ana chamou na Cripta" com **Ir lá** | não perder quem pede atenção longe |
