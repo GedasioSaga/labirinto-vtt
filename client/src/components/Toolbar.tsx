@@ -213,6 +213,16 @@ interface SlotView {
   iconFor?: (tool: DrawingTool) => ReactNode
 }
 
+/**
+ * Dica com o atalho entre parênteses — só quando a ferramenta TEM atalho. Sala
+ * livre e Caminho nasceram sem letra (`lib/keymap.ts`), e "Sala livre ()"
+ * sugeria um atalho que não existe.
+ */
+function tipWithShortcut(text: string, tool: DrawingTool): string {
+  const shortcut = TOOL_SHORTCUTS[tool]
+  return shortcut ? `${text} (${shortcut})` : text
+}
+
 function slotView(slot: ToolbarSlot, activeTool: DrawingTool, lastDrawingTool: DrawingTool): SlotView | null {
   const clusterId = clusterIdOf(slot)
   if (clusterId) {
@@ -226,7 +236,7 @@ function slotView(slot: ToolbarSlot, activeTool: DrawingTool, lastDrawingTool: D
       label: cluster.label,
       Icon,
       pressed,
-      tip: `${cluster.label}: ${TOOL_LABELS[shape]} (${TOOL_SHORTCUTS[shape]})`,
+      tip: tipWithShortcut(`${cluster.label}: ${TOOL_LABELS[shape]}`, shape),
       target: shape,
       groups: drawingClusterGroups(shape),
       iconFor: menuIconFor,
@@ -243,7 +253,7 @@ function slotView(slot: ToolbarSlot, activeTool: DrawingTool, lastDrawingTool: D
     label,
     Icon,
     pressed: activeTool === tool,
-    tip: `${label} (${TOOL_SHORTCUTS[tool]})`,
+    tip: tipWithShortcut(label, tool),
     target: tool,
     groups: variantEntry && variantEntry.available ? variantEntry.groups : null,
   }

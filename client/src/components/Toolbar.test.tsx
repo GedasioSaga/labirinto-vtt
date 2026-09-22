@@ -122,3 +122,20 @@ describe('Toolbar — botão Desenho', () => {
     expect(document.getElementById(descId ?? '')?.textContent).toBe('Reta entre dois pontos (L)')
   })
 })
+
+describe('Toolbar — dica de ferramenta sem atalho', () => {
+  // Sala livre e Caminho nasceram sem letra (lib/keymap.ts). A dica dizia
+  // "Sala: Sala livre ()": o parêntese vazio sugeria um atalho que não existe.
+  it.each<DrawingTool>(['roomFree', 'path'])('%s: a dica não tem parêntese vazio', (tool) => {
+    render(tool, 'brush')
+    const dicas = Array.from(document.body.querySelectorAll<HTMLElement>('[data-tip]')).map((el) => el.getAttribute('data-tip') ?? '')
+    const daFerramenta = dicas.filter((dica) => dica.includes(TOOL_LABELS[tool] ?? tool))
+    expect(daFerramenta.length, `nenhuma dica fala de ${tool}: ${dicas.join(' | ')}`).toBeGreaterThan(0)
+    for (const dica of daFerramenta) expect(dica).not.toContain('()')
+  })
+
+  it('ferramenta com atalho continua com a letra entre parênteses', () => {
+    render('line', 'brush')
+    expect(desenho().getAttribute('data-tip')).toBe('Desenho: Linha (L)')
+  })
+})
