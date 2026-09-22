@@ -1,5 +1,5 @@
 {
-  "selado_em": "2026-09-22T08:59:15.437Z",
+  "selado_em": "2026-09-22T08:59:37.087Z",
   "jornadas": {
     "e2e/task-jornada-parede-grossa.spec.ts": "527e40bd7728c8b27e9334e40ce45223816eef2f88b14351545951c57af89314",
     "e2e/task-jornada-selecao-arrasto.spec.ts": "0e9113e9b71bfac3ce19108908c4421e680919e8f07c99638a75f94c4b0b4062",
@@ -47,7 +47,7 @@
     "e2e/task-jornada-caixa-de-pedidos.spec.ts": "dd27050e9340ffc6e517b7c90e16ab111f2816bab729b64b7a2ccabd5738ffab",
     "e2e/task-jornada-reunir-o-grupo.spec.ts": "4db610a08785ba87114dc21d815ea58ff1d092e7f07e66124be8455482335de7",
     "e2e/task-jornada-chamado-de-fundo.spec.ts": "a2f48eacf4e81268f5035a0b3c999318bb7b58c12a9dc14707aba4733c852532",
-    "e2e/task-jornada-seguir-jogador.spec.ts": "80d411e716bead36fd1c81b50be6b50ca28b2d613b49e22b05ce8d7d98234ea2",
+    "e2e/task-jornada-seguir-jogador.spec.ts": "0a39b72d4cbe5ed18e7a435013b7b9f45c1515f6952049ad72e1647c31b837b4",
     "e2e/task-jornada-encruzilhada.spec.ts": "29285695e3d7f8301c9ce32479d6022fda6c05687654226d34f8b1b14bb2a4f7",
     "e2e/task-jornada-chegada-oculta.spec.ts": "74d1466179241a624d3ed01644b046d39a3453cacc6361605db79815f55bb648",
     "e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts": "5f155f2e008355609708b64e582ad908b8bca4b3708a70e3f2a20a520245362e",

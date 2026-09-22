@@ -858,7 +858,7 @@ test('2. "Seguir" em Ana fica pressionado; Ana arrasta a ficha 10 casas e ela co
         ultima = await lerTela(page)
         return anaChegouNoMestre(antes ?? 1, ultima, POS_J1, POS_J1_ANDOU) && pertoDoCentro(ultima)
       },
-      { timeout: ESPERA_TELA_MESTRE, message: `seguindo ${J1}: a ficha dela andou 6 casas e deveria continuar no centro da tela do mestre` },
+      { timeout: ESPERA_TELA_MESTRE, message: `seguindo ${J1}: a ficha dela andou 10 casas e deveria continuar no centro da tela do mestre` },
     )
     .toBe(true)
   const tela = ultima ?? (await lerTela(page))
