@@ -4,7 +4,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { partyDestinations, partyMembers, PARTY_CENTER_LABEL } from '../lib/party'
 import type { HostWorld, PlayerInfo } from '../net/hostSession'
 import type { MapData, Pin, Token } from '../types/map'
-import { PartySection, SEND_TO_LABEL, sendDestinationsFor } from './PartySection'
+import { FOLLOW_LABEL, PartySection, SEND_TO_LABEL, sendDestinationsFor } from './PartySection'
 
 function ficha(id: string, color: string | undefined, x = 100, y = 100): Token {
   return { id, characterId: null, name: `ficha-${id}`, x, y, size: 1, image: null, color }
@@ -89,5 +89,18 @@ describe('PartySection', () => {
     expect(html).toContain('sem ficha no mapa')
     // O formulário só abre no clique: nenhuma escolha de chegada à vista.
     expect(html).not.toContain(PARTY_CENTER_LABEL)
+  })
+
+  it('"Seguir" com nome fixo e o estado em aria-pressed, só em quem tem ficha', () => {
+    const seguindo = renderToStaticMarkup(
+      <PartySection members={partyMembers(JOGADORES, mundo())} destinations={partyDestinations(mundo())} onGoTo={vi.fn()} onSend={vi.fn(() => true)} followingId="ana" onToggleFollow={vi.fn()} />,
+    )
+    const botoes = [...seguindo.matchAll(/<button[^>]*aria-pressed="(true|false)"[^>]*>([^<]*)<\/button>/g)].map((m) => [m[1], m[2]])
+    expect(botoes).toEqual([
+      ['true', FOLLOW_LABEL],
+      ['false', FOLLOW_LABEL],
+    ])
+    // Sem o callback (quem monta o painel sem câmera), não há botão.
+    expect(html).not.toContain(`>${FOLLOW_LABEL}<`)
   })
 })
