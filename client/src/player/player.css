@@ -936,6 +936,13 @@
   bottom: 68px;
 }
 
+/* Aviso da pausa: fixo, acima dos avisos que vêm e vão (porta, viagem), com a
+   borda em latão para ler como estado da mesa e não como resposta a um gesto. */
+.pp-notice--pause {
+  bottom: 112px;
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
 @keyframes pp-pincard-fade {
   from {
     opacity: 0;

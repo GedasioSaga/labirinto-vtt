@@ -118,6 +118,11 @@ export interface HostBridge {
    * receberam (0 = ninguém lá), ou `null` com a sala fechada.
    */
   sceneNote(sceneId: string, text: string): number | null
+  /**
+   * "Pausar" da lista Cenas: pausa ou solta a cena `sceneId` e avisa quem
+   * está lá. `false` com a sala fechada (não há pausa sem sala).
+   */
+  setScenePaused(sceneId: string, paused: boolean): boolean
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -663,6 +668,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.sceneNote(sceneId, text, world())
       void dispatch(result)
       return result.outbound.length
+    },
+
+    setScenePaused(sceneId, paused) {
+      if (session === null) return false
+      void dispatch(session.setScenePaused(sceneId, paused, world()))
+      return true
     },
 
     assignToken(playerId, tokenId) {

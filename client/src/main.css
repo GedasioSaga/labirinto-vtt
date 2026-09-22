@@ -2382,6 +2382,36 @@ body {
   opacity: 0.5;
 }
 
+/* "Pausar": mesma forma do recado; pressionado, preenchido em latão para a
+   cena pausada saltar da lista num relance. */
+.lb-cenas__pausar {
+  flex: none;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+
+.lb-cenas__pausar:hover:not(:disabled) {
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass);
+}
+
+.lb-cenas__pausar[aria-pressed='true'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass);
+  color: var(--lb-color-ink);
+}
+
+.lb-cenas__pausar:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 /* O campo do recado ocupa a linha inteira do item, abaixo do nome e de quem está lá. */
 .lb-cenas__recado {
   display: flex;

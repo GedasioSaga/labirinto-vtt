@@ -46,6 +46,11 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
  * nunca o id nem o nome da cena — quem recebe já está lá.
+ *
+ * `scene.paused` (mestre -> jogador) é a PAUSA POR CENA, aditiva pelo mesmo
+ * critério: só `paused`, sem nome da cena. Com a cena pausada, o host recusa o
+ * `token.move` com o motivo `paused` — jogador antigo ignora o motivo e desfaz
+ * o movimento como em qualquer recusa.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -155,6 +160,18 @@ export interface SceneNoteMessage {
   text: string
 }
 
+/**
+ * Por que o host recusou o movimento: as recusas da validação do mapa, mais
+ * `paused` — a cena do jogador está pausada (o mestre está com outro grupo).
+ */
+export type TokenMoveRejectionReason = TokenMoveRejection | 'paused'
+
+/** A cena do jogador está (ou deixou de estar) pausada pelo mestre. */
+export interface ScenePausedMessage {
+  type: 'scene.paused'
+  paused: boolean
+}
+
 export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
 export type HostMessage =
@@ -164,7 +181,7 @@ export type HostMessage =
   | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
   | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
-  | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
+  | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejectionReason }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
@@ -176,6 +193,7 @@ export type HostMessage =
   | { type: 'scene.changed'; by?: 'master' | 'gather' }
   | LaserMessage
   | SceneNoteMessage
+  | ScenePausedMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
