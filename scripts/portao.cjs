@@ -470,6 +470,9 @@ const JORNADAS_DO_CRITERIO = [
   // 22/09/2026, grupo espalhado G4 — com 2 ou mais pedidos esperando, os
   // avisos viram uma caixa "Pedidos (N)" com linha por pedido e Deixar todos.
   'e2e/task-jornada-caixa-de-pedidos.spec.ts',
+  // 22/09/2026, grupo espalhado G5 — reunir o grupo num pino: fichas marcadas
+  // vêm de qualquer cena para casas livres em volta dele.
+  'e2e/task-jornada-reunir-o-grupo.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
