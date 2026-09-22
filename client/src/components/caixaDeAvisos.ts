@@ -1,0 +1,80 @@
+import type { ToastMessage } from '../stores/toastStore'
+
+/**
+ * CAIXA DE PEDIDOS (PEDIDOS.md, G4 — "Fila grupo espalhado").
+ *
+ * Mesa de 4 a 7 jogadores: vários pedidos de passagem chegam juntos, e três
+ * avisos soltos empilhados no canto viram uma coluna de "Deixar ir" que o
+ * mestre precisa caçar um por um. Aqui mora a regra, pura, de quando os
+ * avisos de um mesmo `grupo` se juntam numa caixa só e de como "Deixar todos"
+ * responde cada um. `Toast.tsx` só desenha o que sai daqui.
+ */
+
+/** Um item da pilha de avisos: o aviso de sempre, ou a caixa de um grupo. */
+export type ItemDaPilha =
+  | { tipo: 'aviso'; toast: ToastMessage }
+  | { tipo: 'caixa'; grupo: string; toasts: ToastMessage[] }
+
+/** A partir de quantos avisos do mesmo grupo eles viram uma caixa. Um só continua o aviso de hoje. */
+export const MINIMO_PARA_CAIXA = 2
+
+/**
+ * Junta os avisos de mesmo `grupo` numa caixa quando há `MINIMO_PARA_CAIXA`
+ * ou mais; o resto passa como aviso solto. A caixa entra no lugar do PRIMEIRO
+ * aviso do grupo: o mestre continua achando o pedido mais antigo onde ele já
+ * estava, e os outros avisos não pulam de posição.
+ */
+export function agruparAvisos(toasts: readonly ToastMessage[]): ItemDaPilha[] {
+  const porGrupo = new Map<string, ToastMessage[]>()
+  for (const toast of toasts) {
+    if (toast.grupo === undefined) continue
+    const membros = porGrupo.get(toast.grupo)
+    if (membros === undefined) porGrupo.set(toast.grupo, [toast])
+    else membros.push(toast)
+  }
+  const itens: ItemDaPilha[] = []
+  const caixaJaPosta = new Set<string>()
+  for (const toast of toasts) {
+    const membros = toast.grupo === undefined ? undefined : porGrupo.get(toast.grupo)
+    if (toast.grupo === undefined || membros === undefined || membros.length < MINIMO_PARA_CAIXA) {
+      itens.push({ tipo: 'aviso', toast })
+      continue
+    }
+    if (caixaJaPosta.has(toast.grupo)) continue
+    caixaJaPosta.add(toast.grupo)
+    itens.push({ tipo: 'caixa', grupo: toast.grupo, toasts: membros })
+  }
+  return itens
+}
+
+/** O título da caixa, que é também o nome acessível dela: "Pedidos (3)". */
+export function tituloDaCaixa(grupo: string, quantos: number): string {
+  return `${grupo} (${quantos})`
+}
+
+/**
+ * "Deixar todos": para cada aviso da caixa, o MESMO caminho do botão da linha
+ * — tira o aviso da tela e roda a ação marcada `emLote` (o "Deixar ir"). Cada
+ * pedido se revalida sozinho do lado de quem responde: o que falhar vira
+ * recusa só para o jogador dele.
+ *
+ * Um aviso que lança não trava os outros: os seguintes ainda são respondidos,
+ * e o primeiro erro é relançado no fim — calar a falha deixaria um jogador
+ * olhando "Aguardando o mestre…" sem ninguém saber por quê. Aviso sem ação
+ * `emLote` fica onde está: não há resposta em lote a dar a ele.
+ */
+export function deixarTodos(toasts: readonly ToastMessage[], dispensar: (id: string) => void): void {
+  let primeiroErro: { erro: unknown } | null = null
+  for (const toast of toasts) {
+    const acao = toast.actions?.find((action) => action.emLote === true)
+    if (acao === undefined) continue
+    // Tira da tela ANTES de agir, igual ao botão da linha (`Toast.tsx`).
+    dispensar(toast.id)
+    try {
+      acao.run()
+    } catch (erro) {
+      if (primeiroErro === null) primeiroErro = { erro }
+    }
+  }
+  if (primeiroErro !== null) throw primeiroErro.erro
+}

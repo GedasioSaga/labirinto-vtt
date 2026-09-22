@@ -116,3 +116,46 @@
 .lb-toast__dismiss:focus-visible {
   box-shadow: var(--lb-shadow-focus);
 }
+
+/* Caixa de pedidos (caixaDeAvisos.ts): dois ou mais pedidos de passagem numa
+   caixa só, "Pedidos (N)". Mesma chrome e mesmo latão do aviso que espera,
+   para ler como "os avisos de antes, juntos", e não como painel novo. Coluna:
+   título, linhas, e o "Deixar todos" embaixo. */
+.lb-toastcaixa {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.lb-toastcaixa__title {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment);
+}
+
+/* Mesa de até 7 jogadores: a lista rola antes de a caixa cobrir o canvas. */
+.lb-toastcaixa__rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 50vh;
+}
+
+/* Filete entre linhas, e não cartão por linha: são itens de UMA caixa. */
+.lb-toastcaixa__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) 0;
+}
+
+.lb-toastcaixa__row + .lb-toastcaixa__row {
+  border-top: 1px solid var(--lb-color-line-divider);
+}
+
+.lb-toastcaixa__all {
+  align-self: stretch;
+}

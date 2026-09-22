@@ -459,15 +459,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   /**
    * Pedido de passagem válido: vira um aviso que ESPERA o mestre (não some
    * sozinho — o jogador está parado olhando "Aguardando o mestre…"). O × vale
-   * "Não": a pergunta nunca some sem resposta.
+   * "Não": a pergunta nunca some sem resposta. Grupo "Pedidos": com dois ou
+   * mais esperando, viram uma caixa só, e o "Deixar todos" dela roda o
+   * "Deixar ir" (`emLote`) de cada um — a mesma revalidação, pedido a pedido.
    */
   const askTravel = (request: TravelRequest) => {
     const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`, null, {
       actions: [
-        { label: 'Deixar ir', run: () => answerTravel(request.requestId, true) },
+        { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
         { label: 'Não', run: () => answerTravel(request.requestId, false) },
       ],
       onDismiss: () => answerTravel(request.requestId, false),
+      grupo: 'Pedidos',
     })
     travelToasts.set(request.requestId, toastId)
   }

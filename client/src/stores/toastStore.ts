@@ -26,6 +26,12 @@ export type ToastKind = 'info' | 'error' | 'instrucao'
 export interface ToastAction {
   label: string
   run: () => void
+  /**
+   * A ação que o "Deixar todos" da caixa roda por este aviso
+   * (`components/caixaDeAvisos.ts`). Marcada, e não "a primeira": a ordem
+   * dos botões é de desenho, e trocar a ordem não pode trocar o que o lote faz.
+   */
+  emLote?: boolean
 }
 
 export interface ToastMessage {
@@ -43,12 +49,19 @@ export interface ToastMessage {
    * ficaria esperando para sempre.
    */
   onDismiss?: () => void
+  /**
+   * Nome do grupo do aviso ("Pedidos"). Com dois ou mais avisos do mesmo
+   * grupo na tela, eles viram UMA caixa "Pedidos (N)" em vez de uma pilha de
+   * avisos soltos (`components/caixaDeAvisos.ts`). Ausente = aviso de sempre.
+   */
+  grupo?: string
 }
 
-/** Extras de `push`: botões e o que o × faz. */
+/** Extras de `push`: botões, o que o × faz e o grupo. */
 export interface ToastExtras {
   actions?: ToastAction[]
   onDismiss?: () => void
+  grupo?: string
 }
 
 interface ToastState {
@@ -103,6 +116,7 @@ export const useToastStore = create<ToastState>()((set, get) => ({
     const toast: ToastMessage = { id, kind, text }
     if (extras.actions !== undefined && extras.actions.length > 0) toast.actions = extras.actions
     if (extras.onDismiss !== undefined) toast.onDismiss = extras.onDismiss
+    if (extras.grupo !== undefined) toast.grupo = extras.grupo
     set((state) => ({ toasts: [...state.toasts, toast] }))
     if (durationMs !== null) {
       timers.set(
