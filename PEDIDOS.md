@@ -572,3 +572,22 @@ Uma feature por vez, cada uma com régua vermelha antes da obra.
 | G4 | **Caixa de pedidos**: com 2 ou mais pedidos ao mesmo tempo, os avisos viram uma caixa só, "Pedidos (3)", com Deixar ir / Não por linha e "Deixar todos" | 7 jogadores pedindo não soterram a tela |
 | G5 | **Reunir o grupo aqui**: num pino, o mestre traz as fichas escolhidas de qualquer cena para casas livres em volta dele | juntar o grupo de novo depois que se separou |
 | G6 | **Chamado de cena de fundo**: o sinal de um jogador numa cena que não está aberta chega ao mestre como aviso "Ana chamou na Cripta" com **Ir lá** | não perder quem pede atenção longe |
+
+### Goal novo (22/09/2026, madrugada): "cria 15 features levando em consideração um ambiente com 4 - 7 jogadores cada uma querendo ir para um lugar, além disso resolver todos os bugs."
+
+A fila G1-G6 acima cresce para 15 (G7-G15 também decididas por mim, revisáveis):
+
+| # | feature | o que o mestre (ou o jogador) ganha |
+|---|---|---|
+| G7 | **Seguir jogador**: a câmera do mestre acompanha a ficha de um jogador, inclusive trocando de cena quando ele viaja; desliga ao mexer no mapa | acompanhar quem está explorando sozinho |
+| G8 | **Encruzilhada**: um pino de viagem com vários destinos; o jogador escolhe pela descrição de cada saída ("Porta da esquerda", "Escada") | um lugar com várias saídas sem vários pinos empilhados |
+| G9 | **Ponto de chegada oculto (mão única)**: pino que só recebe quem chega, invisível ao jogador e sem volta | queda em alçapão, teleporte, passagem que fecha atrás |
+| G10 | **Viajar junto**: no aviso do pedido, "Deixar ir com quem está perto" leva também as fichas a até 2 casas | o grupo que anda junto atravessa num clique |
+| G11 | **Recado por cena**: o mestre escreve uma narração que aparece só para os jogadores de uma cena | narrar para um grupo sem o outro ler |
+| G12 | **Pausa por cena**: o mestre congela o movimento dos jogadores de uma cena, que leem "O mestre está com o outro grupo" | atender um grupo de cada vez |
+| G13 | **Companheiros na tela do jogador**: lista do grupo com "aqui" / "em outro lugar" e online/fora, sem nome de cena | o jogador sabe que o amigo não sumiu, só está longe |
+| G14 | **Visão geral das cenas**: miniaturas de todas as cenas com as fichas em cima; clicar abre a cena | o mapa da mesa inteira de uma vez |
+| G15 | **Diário de viagens**: no painel Jogo, "22:10 Ana: Salão → Cripta", com **Desfazer** na última viagem de cada jogador | saber quem foi para onde e corrigir engano |
+
+Defeitos: a lista B do `HANDOFF.md` (8), o teste do balde que estoura o tempo sob carga, e "Remover <ficha>"
+mostrando o id da ficha em cena de fundo. Vão entrando entre as features, cada um com teste que falha antes.
