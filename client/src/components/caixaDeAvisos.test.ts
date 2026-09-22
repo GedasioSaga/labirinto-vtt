@@ -30,9 +30,9 @@ describe('agruparAvisos', () => {
     expect(formato(agruparAvisos([pedido('p1', 'Ana')]))).toEqual(['p1'])
   })
 
-  it('dois ou mais pedidos viram UMA caixa, no lugar do primeiro, e os outros avisos ficam fora dela', () => {
-    const pilha = [aviso('a1', 'Ana entrou em Cripta'), pedido('p1', 'Ana'), aviso('e1', 'Falhou'), pedido('p2', 'Bruno'), pedido('p3', 'Carla')]
-    expect(formato(agruparAvisos(pilha))).toEqual(['a1', 'Pedidos[p1,p2,p3]', 'e1'])
+  it('dois ou mais pedidos viram UMA caixa, no topo da pilha, e os outros avisos ficam fora dela na ordem de chegada', () => {
+    const pilha = [aviso('a1', 'Bruno entrou'), pedido('p1', 'Ana'), aviso('e1', 'Falhou'), pedido('p2', 'Bruno'), pedido('p3', 'Carla')]
+    expect(formato(agruparAvisos(pilha))).toEqual(['Pedidos[p1,p2,p3]', 'a1', 'e1'])
   })
 
   it('responder uma linha tira só ela; sobrando um, volta a ser o aviso de hoje', () => {

@@ -117,8 +117,17 @@ export const RESUME_STORAGE_KEY = 'labirinto.resume'
 export const PING_INTERVAL_MS = 15_000
 /** Quanto tempo o aviso da porta ("Trancada") fica na tela. */
 export const DOOR_NOTICE_TTL_MS = 2500
-/** Quanto tempo "Você chegou" (e a recusa do mestre) fica na tela. Mais que a porta: é uma mudança de lugar. */
+/** Quanto tempo a recusa do mestre ("não deixou passar agora") fica na tela. Mais que a porta. */
 export const TRAVEL_NOTICE_TTL_MS = 4000
+/**
+ * "Você chegou" é mudança de lugar: sai quando o jogador mexe a própria ficha
+ * (aí já viu onde está, mesma regra da reunião) ou depois deste teto. Era
+ * 4 s, igual à recusa, e não bastava com a mesa cheia: no "Deixar todos" da
+ * caixa de pedidos vários chegam juntos, e medido na jornada da caixa o aviso
+ * de Carla sumia antes de alguém olhar a tela dela — com 8 s e com 20 s
+ * também. O teto é o mesmo da reunião: quem sai é o gesto do jogador.
+ */
+export const ARRIVAL_NOTICE_TTL_MS = 60_000
 /**
  * Pausa entre confirmar a passagem LIVRE e o pedido sair: o tempo de o cartão
  * fechar e o "Passando…" aparecer antes de a cena trocar. Curta de propósito —
@@ -126,11 +135,11 @@ export const TRAVEL_NOTICE_TTL_MS = 4000
  */
 export const FREE_PASSAGE_BEAT_MS = 450
 /**
- * "O mestre levou você para outro lugar" fica o dobro: quem pediu para passar
- * está olhando a tela esperando a resposta; quem foi LEVADO não esperava nada
- * e pode estar olhando a mesa quando o mapa troca.
+ * "O mestre levou você para outro lugar": quem foi LEVADO não esperava nada e
+ * pode estar olhando a mesa quando o mapa troca. Mesmo teto e mesma saída
+ * (mexer a ficha) do "Você chegou" e da reunião.
  */
-export const MOVED_NOTICE_TTL_MS = 8000
+export const MOVED_NOTICE_TTL_MS = 60_000
 /**
  * "O mestre reuniu o grupo" espera o jogador: a reunião costuma vir depois de
  * uma pausa da mesa, com o jogador olhando para longe da tela. Some quando
@@ -296,7 +305,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   function travelNoticeTtl(notice: TravelNotice): number {
     if (notice.phase === 'gathered') return GATHERED_NOTICE_TTL_MS
-    return notice.phase === 'moved' ? MOVED_NOTICE_TTL_MS : TRAVEL_NOTICE_TTL_MS
+    if (notice.phase === 'moved') return MOVED_NOTICE_TTL_MS
+    return notice.phase === 'arrived' ? ARRIVAL_NOTICE_TTL_MS : TRAVEL_NOTICE_TTL_MS
   }
 
   let laserTimer: ReturnType<typeof setTimeout> | null = null
@@ -607,8 +617,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const reqId = `m${nextReqId++}`
       if (!send({ type: 'token.move', reqId, tokenId, x, y })) return false
       pending.set(reqId, { tokenId, x, y, prevX: token.x, prevY: token.y })
-      // Mexeu a ficha depois da reunião: já viu onde está, o aviso sai.
-      if (state.travel?.phase === 'gathered') {
+      // Mexeu a ficha depois de mudar de lugar (chegou, foi levado ou
+      // reunido): já viu onde está, o aviso sai.
+      const phase = state.travel?.phase
+      if (phase === 'gathered' || phase === 'arrived' || phase === 'moved') {
         clearTravelTimer()
         setState({ map: withTokenAt(map, tokenId, x, y), travel: undefined })
         return true
