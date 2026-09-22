@@ -463,6 +463,10 @@ const JORNADAS_DO_CRITERIO = [
   'e2e/task-jornada-corredor-aberto-nao-some.spec.ts',
   'e2e/task-jornada-atalho-com-foco-no-painel.spec.ts',
   'e2e/task-jornada-acervo-recebe-token.spec.ts',
+  // 22/09/2026, grupo espalhado G3 — lista Cenas com as bolinhas de quem está
+  // em cada cena e selo de pedido esperando. A queda do socket é repassada ao
+  // mestre como net:peer só quando a página do jogador fecha de verdade.
+  'e2e/task-jornada-cenas-com-gente.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
