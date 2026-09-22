@@ -476,6 +476,9 @@ const JORNADAS_DO_CRITERIO = [
   // 22/09/2026, grupo espalhado G6 — sinal de jogador em cena de fundo vira
   // aviso "<jogador> chamou em <cena>" com Ir lá, um por jogador.
   'e2e/task-jornada-chamado-de-fundo.spec.ts',
+  // 22/09/2026, grupo espalhado G7 — seguir jogador: a câmera do mestre
+  // acompanha a ficha, inclusive trocando de cena; mexer no mapa desliga.
+  'e2e/task-jornada-seguir-jogador.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
