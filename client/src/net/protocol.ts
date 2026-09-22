@@ -42,6 +42,10 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * vem logo depois). Nenhuma delas carrega nome nem id de cena: o jogador só
  * descobre para onde foi pelo mapa que chega depois da aprovação. Mestre
  * antigo responde `error invalid_message`; jogador antigo ignora as três.
+ *
+ * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
+ * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
+ * nunca o id nem o nome da cena — quem recebe já está lá.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -50,6 +54,8 @@ export const NAME_MIN_LENGTH = 1
 export const NAME_MAX_LENGTH = 32
 export const REQ_ID_MAX_LENGTH = 64
 export const RESUME_TOKEN_MAX_LENGTH = 128
+/** Teto do recado por cena, em unidades UTF-16 (o `maxLength` do campo do mestre conta igual). */
+export const NOTE_MAX_LENGTH = 500
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
@@ -142,6 +148,13 @@ export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon'
 /** Laser do mestre: lote de pontos (px de mundo) desde o último envio, ou `off` ao soltar. */
 export type LaserMessage = { type: 'laser'; points: RegionPoint[] } | { type: 'laser'; off: true }
 
+/** Recado do mestre a quem está numa cena. `id` novo = recado novo (substitui o que estiver aberto). */
+export interface SceneNoteMessage {
+  type: 'scene.note'
+  id: string
+  text: string
+}
+
 export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
 export type HostMessage =
@@ -162,6 +175,7 @@ export type HostMessage =
   // pino — o aviso diz que o GRUPO foi reunido, e continua sem dizer onde.
   | { type: 'scene.changed'; by?: 'master' | 'gather' }
   | LaserMessage
+  | SceneNoteMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -235,6 +249,31 @@ function parseTokenEdit(obj: Record<string, unknown>): TokenEditMessage | null {
   }
   if (parsed.name === undefined && parsed.image === undefined) return null
   return parsed
+}
+
+/**
+ * Corta o recado no teto. Não deixa meia letra no fim: um emoji partido ao
+ * meio (surrogate alto sozinho) viraria um losango de erro na tela do jogador.
+ */
+export function clampNoteText(text: string): string {
+  if (text.length <= NOTE_MAX_LENGTH) return text
+  const cut = text.slice(0, NOTE_MAX_LENGTH)
+  const last = cut.charCodeAt(cut.length - 1)
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut
+}
+
+/**
+ * Valida o `scene.note` que o jogador recebe. O mestre é confiável, mas o
+ * texto vai para a tela: forma errada, texto vazio ou acima do teto recusam a
+ * mensagem inteira em vez de mostrar um pedaço. Devolve cópia só com os campos
+ * conhecidos.
+ */
+export function parseSceneNote(value: unknown): SceneNoteMessage | null {
+  if (!isRecord(value) || value.type !== 'scene.note') return null
+  const { id, text } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
+  return { type: 'scene.note', id, text }
 }
 
 /**

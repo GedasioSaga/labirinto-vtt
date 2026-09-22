@@ -2358,6 +2358,58 @@ body {
   gap: var(--lb-space-2);
 }
 
+/* "Recado" na linha da cena: texto curto e linha fina, como o resto do minimapa. */
+.lb-cenas__recado-btn {
+  flex: none;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+
+.lb-cenas__recado-btn:hover:not(:disabled),
+.lb-cenas__recado-btn[aria-expanded='true'] {
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass);
+}
+
+.lb-cenas__recado-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* O campo do recado ocupa a linha inteira do item, abaixo do nome e de quem está lá. */
+.lb-cenas__recado {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+  gap: var(--lb-space-2);
+}
+
+.lb-cenas__recado-campo {
+  resize: vertical;
+  min-height: 4.5em;
+  font-family: inherit;
+}
+
+.lb-cenas__recado-conta {
+  margin-right: auto;
+  align-self: center;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-cenas__recado-aviso {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
 /* Destino do pino de viagem (PinTravelControls): um poço rebaixado logo abaixo
    do tipo, com a régua da esquerda dizendo o estado sem precisar ler — latão
    quando a passagem leva a algum lugar, apagada quando não. É a mesma troca

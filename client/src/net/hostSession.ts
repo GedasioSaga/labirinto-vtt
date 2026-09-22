@@ -19,6 +19,7 @@ import {
   type TokenEditMessage,
   type TokenMoveMessage,
 } from './protocol'
+import { clampNoteText } from './protocol'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -263,6 +264,13 @@ export interface HostSession {
    * o mestre aponta no mapa que ele vê.
    */
   laser(message: LaserMessage, source?: HostMapSource): HostResult
+  /**
+   * RECADO POR CENA: `scene.note` só para quem joga e está AGORA na cena
+   * `sceneId` (`sceneFor`). O texto sai cortado no teto (`NOTE_MAX_LENGTH`);
+   * vazio não sai. Quem entra ou reconecta depois não recebe recado antigo:
+   * nada fica guardado. `outbound.length` é quantos receberam.
+   */
+  sceneNote(sceneId: string, text: string, source: HostMapSource): HostResult
   /**
    * "Deixar ir": revalida o pedido contra o mundo de AGORA (o token pode ter
    * andado, o pino sumido) e devolve `applyTransfer` + `scene.changed` ao
@@ -1016,6 +1024,24 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // Sem cena (`null`) também fica de fora: não está no mapa em que o mestre aponta.
         if (world !== null && sceneFor(playerId, world) !== world.open) continue
         outbound.push({ clientId, msg: message })
+      }
+      return { outbound }
+    },
+
+    sceneNote(sceneId, text, source) {
+      const clamped = clampNoteText(text)
+      if (clamped.trim().length === 0) return { outbound: [] }
+      const world = toWorld(source)
+      // Um id por recado, igual para todos da cena: o jogador troca o cartão
+      // aberto pelo recado novo, e o mesmo recado não duplica.
+      const id = randomId()
+      const outbound: Outbound[] = []
+      for (const [clientId, playerId] of byClient) {
+        if (statusOf(playerId) !== 'playing') continue
+        // A cena de CADA jogador, não a aberta no editor: o mestre pode estar
+        // olhando a Cripta e mandar recado para o Salão.
+        if (sceneFor(playerId, world)?.sceneId !== sceneId) continue
+        outbound.push({ clientId, msg: { type: 'scene.note', id, text: clamped } })
       }
       return { outbound }
     },

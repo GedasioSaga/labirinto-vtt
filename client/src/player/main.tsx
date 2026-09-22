@@ -8,6 +8,7 @@ import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNoti
 import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
+import { PlayerNoteCard } from './PlayerNoteCard'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
@@ -547,6 +548,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
   // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
   const closePin = useCallback(() => setOpenPinId(null), [])
+  // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
+  const closeNote = useCallback(() => connection.dismissNote(), [connection])
 
   if (state.status === 'playing' && state.map && state.vision) {
     return (
@@ -611,6 +614,10 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
               if (connection.requestTravel(openPin.id, exitId)) setOpenPinId(null)
             }}
           />
+        )}
+        {state.note && (
+          // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
+          <PlayerNoteCard key={state.note.id} text={state.note.text} onClose={closeNote} escapeCloses={openPin === null} />
         )}
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
