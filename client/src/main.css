@@ -2193,6 +2193,7 @@ body {
 
 .lb-cenas__item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--lb-space-2);
   padding: var(--lb-space-2) var(--lb-space-3);
@@ -2238,6 +2239,34 @@ body {
 .lb-cenas__conta {
   flex: none;
   color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* Quem está na cena: linha própria dentro do item (o item quebra linha). */
+.lb-cenas__gente {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  align-items: center;
+  gap: var(--lb-space-1);
+}
+
+/* Mesma bolinha do painel Grupo, com contorno claro: a cor da ficha pode ser escura no fundo escuro. */
+.lb-cenas__pessoa {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--lb-color-parchment-faint);
+}
+
+.lb-cenas__pedidos {
+  flex: none;
+  margin-left: auto;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-brass);
+  border-radius: var(--lb-radius-md);
+  color: var(--lb-color-brass);
   font-size: var(--lb-font-size-sm);
 }
 

@@ -182,6 +182,11 @@ export interface PlayerInfo {
   sceneName?: string
   /** Id da mesma cena de `sceneName`: é por ele que o "Ir lá" do painel Grupo abre a cena. */
   sceneId?: string
+  /**
+   * `true` enquanto um pedido de passagem dele espera o mestre. Ausente no
+   * resto do tempo: é o que põe o selo "pedido" na cena dele, na lista Cenas.
+   */
+  travelPending?: true
 }
 
 /** Faixa do "Raio de visão" por jogador, em px de mundo. */
@@ -1002,6 +1007,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
             tokenIds: [...(ownership[p.playerId] ?? [])],
             visionRadius: radiusFor(p.playerId),
           }
+          // O selo da lista Cenas nasce e morre com o pedido: aprovar, recusar
+          // e cair a conexão já tiram o jogador de `pendingTravels`.
+          if (pendingTravels.has(p.playerId)) info.travelPending = true
           if (withScenes && info.status === 'playing') {
             const scene = sceneFor(p.playerId, world)
             // Sem cena, o painel o mostra aguardando: é o que a tela dele diz, e

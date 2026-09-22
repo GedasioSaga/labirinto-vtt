@@ -1022,6 +1022,22 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
     expect(t.s.approveTravel(pedido.requestId, t.w)).toEqual({ outbound: [] })
   })
 
+  it('listPlayers marca quem tem pedido esperando, e a marca some ao decidir ou ao cair a conexão', () => {
+    const pendentes = (t: ReturnType<typeof mesa>) => t.s.listPlayers(t.w).filter((p) => p.travelPending === true).map((p) => p.clientId)
+    const t = mesa()
+    expect(pendentes(t)).toEqual([])
+    const pedido = t.pedir('escada-a').travelRequest
+    if (pedido === undefined) throw new Error('pedido deveria valer')
+    expect(pendentes(t)).toEqual(['c1'])
+    t.s.denyTravel(pedido.requestId)
+    expect(pendentes(t)).toEqual([])
+
+    const outra = mesa()
+    if (outra.pedir('escada-a').travelRequest === undefined) throw new Error('pedido deveria valer')
+    outra.s.disconnect('c1')
+    expect(pendentes(outra)).toEqual([])
+  })
+
   it('quem sai da sala com pedido pendente: o pedido morre e "Deixar ir" fica inofensivo', () => {
     const t = mesa()
     const pedido = t.pedir('escada-a').travelRequest
