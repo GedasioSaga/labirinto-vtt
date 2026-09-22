@@ -6,6 +6,7 @@ import { NAME_MAX_LENGTH } from '../net/protocol'
 import { SIGNAL_TTL_MS } from '../lib/signals'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_TRAIL_MS } from '../lib/laser'
 import {
+  ARRIVAL_NOTICE_TTL_MS,
   createPlayerConnection,
   DOOR_NOTICE_TTL_MS,
   FREE_PASSAGE_BEAT_MS,
@@ -481,7 +482,20 @@ describe('playerConnection: pedido de passagem', () => {
     socket.receive({ type: 'snapshot', rev: 2, map: { ...mapWithToken(40, 60), id: 'm2' }, vision: [], ownTokens: ['t1'], concealed: [] })
     const token = connection.getState().map?.tokens.find((t) => t.id === 't1')
     expect([token?.x, token?.y]).toEqual([40, 60])
+    // Mais que a recusa: a caixa de pedidos põe vários jogadores na cena nova de uma vez.
     vi.advanceTimersByTime(TRAVEL_NOTICE_TTL_MS)
+    expect(connection.getState().travel?.phase).toBe('arrived')
+    vi.advanceTimersByTime(ARRIVAL_NOTICE_TTL_MS - TRAVEL_NOTICE_TTL_MS)
+    expect(connection.getState().travel).toBeUndefined()
+  })
+
+  it('"Você chegou" sai quando o jogador mexe a própria ficha', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'scene.changed' })
+    socket.receive({ type: 'snapshot', rev: 2, map: mapWithToken(100, 100), vision: [], ownTokens: ['t1'], concealed: [] })
+    expect(connection.getState().travel?.phase).toBe('arrived')
+    expect(connection.requestMove('t1', 60, 70)).toBe(true)
     expect(connection.getState().travel).toBeUndefined()
   })
 
@@ -490,9 +504,9 @@ describe('playerConnection: pedido de passagem', () => {
     const { connection, socket } = jogando()
     socket.receive({ type: 'scene.changed', by: 'master' })
     expect(connection.getState().travel?.phase).toBe('moved')
-    vi.advanceTimersByTime(TRAVEL_NOTICE_TTL_MS)
+    vi.advanceTimersByTime(ARRIVAL_NOTICE_TTL_MS)
     expect(connection.getState().travel?.phase).toBe('moved')
-    vi.advanceTimersByTime(MOVED_NOTICE_TTL_MS - TRAVEL_NOTICE_TTL_MS)
+    vi.advanceTimersByTime(MOVED_NOTICE_TTL_MS - ARRIVAL_NOTICE_TTL_MS)
     expect(connection.getState().travel).toBeUndefined()
   })
 
