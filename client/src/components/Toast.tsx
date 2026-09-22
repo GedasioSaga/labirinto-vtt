@@ -1,4 +1,6 @@
+import { useLayoutEffect, useRef } from 'react'
 import type { ToastMessage } from '../stores/toastStore'
+import { agruparAvisos, deixarTodos, tituloDaCaixa } from './caixaDeAvisos'
 import './Toast.css'
 
 interface ToastProps {
@@ -32,19 +34,117 @@ interface ToastProps {
  * do texto, na ordem: o primeiro é a resposta esperada (latão), os outros são
  * a alternativa. O × de um aviso desses roda `onDismiss` — a pergunta nunca
  * some sem resposta.
+ *
+ * Avisos de mesmo `grupo` (os pedidos de passagem), dois ou mais, viram UMA
+ * caixa — ver `CaixaDeAvisos` e a regra em `caixaDeAvisos.ts`.
  */
 export function Toast({ toasts, onDismiss }: ToastProps) {
   if (toasts.length === 0) return null
 
   return (
     <div className="lb-toaststack">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          role={toast.kind === 'info' ? 'status' : 'alert'}
-          className={`lb-panel lb-toast lb-toast--${toast.kind}`}
-        >
-          <div className="lb-toast__body">
+      {agruparAvisos(toasts).map((item) =>
+        item.tipo === 'aviso' ? (
+          <AvisoSolto key={item.toast.id} toast={item.toast} onDismiss={onDismiss} />
+        ) : (
+          <CaixaDeAvisos key={`grupo:${item.grupo}`} grupo={item.grupo} toasts={item.toasts} onDismiss={onDismiss} />
+        ),
+      )}
+    </div>
+  )
+}
+
+interface AvisoSoltoProps {
+  toast: ToastMessage
+  onDismiss: (id: string) => void
+}
+
+function AvisoSolto({ toast, onDismiss }: AvisoSoltoProps) {
+  return (
+    <div role={toast.kind === 'info' ? 'status' : 'alert'} className={`lb-panel lb-toast lb-toast--${toast.kind}`}>
+      <div className="lb-toast__body">
+        <span className="lb-toast__text">{toast.text}</span>
+        {toast.actions !== undefined && (
+          <div className="lb-toast__actions">
+            {toast.actions.map((action, index) => (
+              <button
+                key={action.label}
+                type="button"
+                // O primeiro botão é a resposta esperada; os outros, a alternativa.
+                className={index === 0 ? 'lb-btn lb-btn--primary' : 'lb-btn lb-btn--ghost'}
+                onClick={() => {
+                  // Tira da tela ANTES de agir: a ação pode empilhar outro
+                  // aviso, e a pergunta respondida não pode ficar clicável.
+                  onDismiss(toast.id)
+                  action.run()
+                }}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        className="lb-toast__dismiss"
+        onClick={() => {
+          onDismiss(toast.id)
+          toast.onDismiss?.()
+        }}
+        aria-label="Dispensar aviso"
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
+interface CaixaDeAvisosProps {
+  grupo: string
+  toasts: ToastMessage[]
+  onDismiss: (id: string) => void
+}
+
+/**
+ * A caixa "Pedidos (N)": uma linha por aviso, cada uma com os botões dela, e
+ * "Deixar todos" embaixo. É uma `region` com nome, não um diálogo modal: o
+ * mestre continua mexendo no mapa enquanto os pedidos esperam.
+ *
+ * Sem ×: cada linha já tem o "Não", e fechar a caixa inteira sumiria com
+ * perguntas que alguém do outro lado está esperando.
+ *
+ * O foco: responder uma linha pelo teclado tira o botão focado da tela. Se o
+ * foco estava na caixa e ela continua, ele volta para o primeiro botão da
+ * linha seguinte — senão cairia no `body` e quem usa teclado recomeçaria do
+ * topo da página a cada resposta.
+ */
+function CaixaDeAvisos({ grupo, toasts, onDismiss }: CaixaDeAvisosProps) {
+  const caixaRef = useRef<HTMLElement>(null)
+  const devolverFoco = useRef(false)
+  const titulo = tituloDaCaixa(grupo, toasts.length)
+
+  useLayoutEffect(() => {
+    if (!devolverFoco.current) return
+    devolverFoco.current = false
+    caixaRef.current?.querySelector('button')?.focus()
+  }, [toasts.length])
+
+  /** Guarda se o foco estava aqui antes de a resposta tirar o botão da tela. */
+  const lembrarFoco = () => {
+    const caixa = caixaRef.current
+    devolverFoco.current = caixa !== null && caixa.contains(document.activeElement)
+  }
+
+  return (
+    <section ref={caixaRef} role="region" aria-label={titulo} className="lb-panel lb-toast lb-toast--instrucao lb-toastcaixa">
+      {/* Polido, e não alerta: o número mudando é notícia, não interrupção. */}
+      <h2 className="lb-toastcaixa__title" aria-live="polite">
+        {titulo}
+      </h2>
+      <ul className="lb-toastcaixa__rows lb-scroll">
+        {toasts.map((toast) => (
+          <li key={toast.id} className="lb-toastcaixa__row">
             <span className="lb-toast__text">{toast.text}</span>
             {toast.actions !== undefined && (
               <div className="lb-toast__actions">
@@ -52,11 +152,11 @@ export function Toast({ toasts, onDismiss }: ToastProps) {
                   <button
                     key={action.label}
                     type="button"
-                    // O primeiro botão é a resposta esperada; os outros, a alternativa.
-                    className={index === 0 ? 'lb-btn lb-btn--primary' : 'lb-btn lb-btn--ghost'}
+                    // Na linha, o botão de latão é o "Deixar todos" da caixa;
+                    // aqui a resposta esperada só ganha o contorno cheio.
+                    className={index === 0 ? 'lb-btn' : 'lb-btn lb-btn--ghost'}
                     onClick={() => {
-                      // Tira da tela ANTES de agir: a ação pode empilhar outro
-                      // aviso, e a pergunta respondida não pode ficar clicável.
+                      lembrarFoco()
                       onDismiss(toast.id)
                       action.run()
                     }}
@@ -66,20 +166,12 @@ export function Toast({ toasts, onDismiss }: ToastProps) {
                 ))}
               </div>
             )}
-          </div>
-          <button
-            type="button"
-            className="lb-toast__dismiss"
-            onClick={() => {
-              onDismiss(toast.id)
-              toast.onDismiss?.()
-            }}
-            aria-label="Dispensar aviso"
-          >
-            ×
-          </button>
-        </div>
-      ))}
-    </div>
+          </li>
+        ))}
+      </ul>
+      <button type="button" className="lb-btn lb-btn--primary lb-toastcaixa__all" onClick={() => deixarTodos(toasts, onDismiss)}>
+        Deixar todos
+      </button>
+    </section>
   )
 }
