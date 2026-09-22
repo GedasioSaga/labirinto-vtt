@@ -5,7 +5,7 @@ import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
-import { exitLabelsOf } from './pinTravel'
+import { exitLabelsOf, isArrivalOnly } from './pinTravel'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
@@ -712,8 +712,12 @@ export function filterMapForPlayer(
     // (mesma regra de linha/marcador). `image` só atravessa em data URL — se
     // um dia alguém guardar caminho de disco no campo, o jogador recebe
     // `null` em vez do computador do mestre (`isPlayerSafePinImage`).
+    // CHEGADA OCULTA (mão única) sai ANTES de qualquer outra regra: não é
+    // questão de névoa nem de explorado — o jogador nunca recebe o pino, nem o
+    // id dele, estando ou não em cima dele. Ver `isArrivalOnly`.
     pins: (map.pins ?? [])
       .filter((p) => {
+        if (isArrivalOnly(p)) return false
         if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return false
         const point = { x: p.x, y: p.y }
         return !inRoomHiddenFromPlayer(point) && isPointKnown(point)

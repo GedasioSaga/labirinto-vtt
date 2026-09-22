@@ -108,6 +108,22 @@ function drawTravelHead(graphics: Graphics, pin: Pin, headY: number, unlinked: b
   drawShape(graphics, PIN_TRAVEL_SYMBOL, pin.x, headY, linha)
 }
 
+/** Traço do aro da chegada oculta: metade do contorno normal, fino como a parede do minimapa. */
+const ARRIVAL_RING_WIDTH = PIN_OUTLINE_WIDTH / 2
+/** Raio do ponto no meio da cabeça vazada, em fração do raio da cabeça. */
+const ARRIVAL_DOT_RADIUS = PIN_HEAD_RADIUS * 0.22
+
+/**
+ * CHEGADA OCULTA (mão única): cabeça VAZADA — o chão aparece por dentro —,
+ * com aro fino de latão e um ponto no meio, "aqui se chega". Nada de hachura
+ * nem cor nova (estilo minimapa); a diferença lê pelo cheio que falta, e o
+ * mestre sabe de relance que este pino não existe para o jogador.
+ */
+function drawArrivalHead(graphics: Graphics, pin: Pin, headY: number): void {
+  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS).stroke({ width: ARRIVAL_RING_WIDTH, color: TRAVEL_LINE })
+  graphics.circle(pin.x, headY, ARRIVAL_DOT_RADIUS).fill({ color: TRAVEL_LINE })
+}
+
 export function createPinsRenderer(): PinsRenderer {
   const graphics = new Graphics()
   const glyphs = new Map<string, Text>()
@@ -139,7 +155,8 @@ export function createPinsRenderer(): PinsRenderer {
       // vez de dividir o espaço com o desenho.
       const viagem = pin.kind === 'viagem'
       const comSimbolo = viagem || isPinIcon(pin.icon)
-      if (viagem) drawTravelHead(graphics, pin, headY, unlinkedIds?.has(pin.id) === true)
+      if (viagem && pin.soChegada === true) drawArrivalHead(graphics, pin, headY)
+      else if (viagem) drawTravelHead(graphics, pin, headY, unlinkedIds?.has(pin.id) === true)
       else drawMarkerHead(graphics, pin, headY)
 
       let glyph = glyphs.get(pin.id)

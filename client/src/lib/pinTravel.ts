@@ -41,6 +41,41 @@ export function travelDestinationOf(pin: Pin): PinDestination | null {
 }
 
 /**
+ * MÃO ÚNICA — o pino é a CHEGADA OCULTA de uma ligação que não volta.
+ *
+ * Só vale no pino de viagem: a marca esquecida num pino que virou "!" (o
+ * mestre trocou o tipo) não pode sumir com um marcador comum da tela do
+ * jogador. Voltando a ser de viagem, a ligação e a marca voltam juntas.
+ * Quem pergunta: o recorte do jogador, o host (pedido de viagem), o painel e
+ * o desenho do mestre — um predicado só para os quatro.
+ */
+export function isArrivalOnly(pin: Pin): boolean {
+  return pin.kind === 'viagem' && pin.soChegada === true
+}
+
+/**
+ * Marca (`on`) ou desmarca o pino `pinId` desta cena como chegada oculta.
+ * Devolve o MESMO mapa quando nada muda, para quem grava não sujar a cena à toa.
+ * Pino que sumiu ou que não é de viagem fica como está.
+ */
+export function setArrivalOnly(map: MapData, pinId: string, on: boolean): MapData {
+  const pin = map.pins.find((p) => p.id === pinId)
+  if (pin === undefined || pin.kind !== 'viagem') return map
+  if ((pin.soChegada === true) === on) return map
+  return {
+    ...map,
+    pins: map.pins.map((p) => {
+      if (p.id !== pinId) return p
+      if (on) return { ...p, soChegada: true }
+      // Desmarcar TIRA a chave, em vez de gravar `undefined`: o pino volta a
+      // ser, campo a campo, o par de sempre.
+      const { soChegada: _tirada, ...semMarca } = p
+      return semMarca
+    }),
+  }
+}
+
+/**
  * ENCRUZILHADA — um pino de viagem com várias saídas.
  *
  * A principal continua em `Pin.destino` (rótulo em `Pin.rotulo`) e as outras
@@ -309,7 +344,13 @@ export function unlinkBack(map: MapData, partnerId: string, back: PinDestination
   if (partner === undefined) return map
   const saida = rawLinks(partner).find((link) => sameDestination(link.destino, back))
   if (saida === undefined) return map
-  return withPatch(map, partnerId, setExitDestination(partner, saida.id, null))
+  const desligado = withPatch(map, partnerId, setExitDestination(partner, saida.id, null))
+  // MÃO ÚNICA ÓRFÃ: a origem sumiu (apagada, religada a outro par, desligada)
+  // e a chegada oculta volta a ser um pino de viagem COMUM, sem par — não
+  // some. Apagar pino do mestre numa cena que ele nem está olhando seria
+  // perder trabalho sem aviso; e uma chegada escondida sem origem ficaria
+  // invisível ao jogador para sempre, sem motivo que o mestre enxergue.
+  return setArrivalOnly(desligado, partnerId, false)
 }
 
 /** Direções em que o pino de chegada procura lugar quando o centro já tem pino. */

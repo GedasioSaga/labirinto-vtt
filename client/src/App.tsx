@@ -52,6 +52,7 @@ import { PropertiesPanel } from './components/PropertiesPanel'
 import { ActionBar } from './components/ActionBar'
 import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
+import { isArrivalOnly } from './lib/pinTravel'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -1263,6 +1264,12 @@ function App() {
       // par da outra cena fica como está.
       passage: passageOf(pin),
       onPassageChange: (passagem: PinPassage) => useMapStore.getState().updatePin(pin.id, { passagem }),
+      // Mão única mora no PAR (cena de fundo): marcar e desmarcar vão pela
+      // aventura, fora do desfazer desta cena.
+      onOneWayChange: (exitId: string, on: boolean) => {
+        useAdventureStore.getState().setPinOneWay(pin.id, exitId, on)
+      },
+      arrivalOnly: isArrivalOnly(pin),
     }
   }
 
