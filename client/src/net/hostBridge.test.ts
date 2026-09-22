@@ -3,7 +3,8 @@ import { listen as realListen } from '@tauri-apps/api/event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { useToastStore } from '../stores/toastStore'
-import type { MapData } from '../types/map'
+import type { MapData, Pin, Token } from '../types/map'
+import type { AppliedTransfer, HostWorld } from './hostSession'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
 import { BROADCAST_THROTTLE_MS, createHostBridge, type HostBridgeDeps } from './hostBridge'
 import { createLaserGesture } from '../pixi/laserGesture'
@@ -709,5 +710,103 @@ describe('hostBridge', () => {
         t.unsubscribe()
       })
     })
+  })
+})
+
+describe('hostBridge: pedido de passagem pelo pino de viagem', () => {
+  beforeEach(() => {
+    useToastStore.setState({ toasts: [] })
+  })
+
+  /** Salão (aberto) e Cripta (de fundo), com a escada ligada em mão dupla. `naCripta` diz onde está o herói. */
+  function aventura() {
+    const estado = { naCripta: false }
+    const heroi = (x: number, y: number): Token => ({ id: 'heroi', characterId: null, name: 'Herói', x, y, size: 1, image: null })
+    const escada = (id: string, x: number, y: number, description: string, sceneId: string, pinId: string): Pin => ({
+      id,
+      x,
+      y,
+      kind: 'viagem',
+      description,
+      image: null,
+      destino: { sceneId, pinId },
+    })
+    const world = (): HostWorld => ({
+      open: {
+        sceneId: 'cena-a',
+        name: 'Salão',
+        map: { ...createEmptyMap('mapa-a', 'A', 40, 10, 50), tokens: estado.naCripta ? [] : [heroi(200, 200)], pins: [escada('escada-a', 300, 200, 'Escada que desce', 'cena-b', 'escada-b')] },
+      },
+      background: [
+        {
+          sceneId: 'cena-b',
+          name: 'Cripta',
+          map: { ...createEmptyMap('mapa-b', 'B', 40, 10, 50), tokens: estado.naCripta ? [heroi(1025, 275)] : [], pins: [escada('escada-b', 1000, 250, 'Escada que sobe', 'cena-a', 'escada-a')] },
+        },
+      ],
+    })
+    const applyTransfer = vi.fn((_transfer: AppliedTransfer) => {
+      estado.naCripta = true
+      return true
+    })
+    const onGoToScene = vi.fn()
+    return { world, applyTransfer, onGoToScene }
+  }
+
+  async function pedido() {
+    const a = aventura()
+    const t = setup({ getWorld: a.world, applyTransfer: a.applyTransfer, onGoToScene: a.onGoToScene })
+    await t.bridge.start()
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+    t.bridge.assignToken(joinedPlayerId(t.sent()), 'heroi')
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'pin.travel.request', pinId: 'escada-a' } })
+    const aviso = useToastStore.getState().toasts.find((toast) => toast.text === 'Ana quer passar por Escada que desce → Cripta')
+    if (aviso === undefined) throw new Error('o mestre deveria ver o pedido')
+    return { ...a, t, aviso }
+  }
+
+  it('o pedido vira um aviso que ESPERA o mestre, com "Deixar ir" e "Não"', async () => {
+    const { aviso } = await pedido()
+    expect(aviso.kind).toBe('instrucao')
+    expect(aviso.actions?.map((action) => action.label)).toEqual(['Deixar ir', 'Não'])
+  })
+
+  it('"Deixar ir": move o token, manda scene.changed ANTES do snapshot da Cripta e avisa "Ana entrou em Cripta" com "Ir lá"', async () => {
+    const { t, aviso, applyTransfer, onGoToScene } = await pedido()
+    const antes = t.sent().length
+    aviso.actions?.[0]?.run()
+    expect(applyTransfer).toHaveBeenCalledWith(expect.objectContaining({ tokenId: 'heroi', fromSceneId: 'cena-a', toSceneId: 'cena-b', x: 1025, y: 275 }))
+    const depois = t.sent().slice(antes)
+    expect(depois[0]).toEqual({ clientId: 'c1', msg: { type: 'scene.changed' } })
+    expect(depois[1]).toMatchObject({ clientId: 'c1', msg: { type: 'snapshot', map: { id: 'mapa-b' } } })
+    const toasts = useToastStore.getState().toasts
+    expect(toasts.some((toast) => toast.id === aviso.id)).toBe(false)
+    const chegada = toasts.find((toast) => toast.text === 'Ana entrou em Cripta')
+    expect(chegada?.actions?.map((action) => action.label)).toEqual(['Ir lá'])
+    chegada?.actions?.[0]?.run()
+    expect(onGoToScene).toHaveBeenCalledWith('cena-b', 1025, 275)
+    expect(t.bridge.players()[0]?.sceneName).toBe('Cripta')
+  })
+
+  it('"Não" e o × do aviso respondem pin.travel.denied, sem mover nada', async () => {
+    const { t, aviso, applyTransfer } = await pedido()
+    const antes = t.sent().length
+    aviso.onDismiss?.()
+    expect(t.sent().slice(antes)).toEqual([{ clientId: 'c1', msg: { type: 'pin.travel.denied' } }])
+    expect(applyTransfer).not.toHaveBeenCalled()
+  })
+
+  it('o jogador sai da sala com o pedido pendente: o aviso do mestre some', async () => {
+    const { t, aviso } = await pedido()
+    t.emit('net:peer', { clientId: 'c1', event: 'disconnected' })
+    expect(useToastStore.getState().toasts.some((toast) => toast.id === aviso.id)).toBe(false)
+  })
+
+  it('a transferência que falha no editor vira recusa, nunca "Você chegou"', async () => {
+    const { t, aviso, applyTransfer } = await pedido()
+    applyTransfer.mockImplementation(() => false)
+    const antes = t.sent().length
+    aviso.actions?.[0]?.run()
+    expect(t.sent().slice(antes)).toEqual([{ clientId: 'c1', msg: { type: 'pin.travel.rejected', reason: 'unavailable' } }])
   })
 })

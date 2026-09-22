@@ -1,18 +1,82 @@
-import type { DoorState, MapData, RegionPoint } from '../types/map'
+import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
-import { parsePlayerMessage, type DoorToggleMessage, type HostMessage, type JoinMessage, type LaserMessage, type SignalMessage, type TokenEditMessage, type TokenMoveMessage } from './protocol'
+import { arrivalSpot, resolvePinTravel, type TravelScene } from '../lib/pinTravel'
+import { pinSummary } from '../lib/pins'
+import {
+  parsePlayerMessage,
+  type DoorToggleMessage,
+  type HostMessage,
+  type JoinMessage,
+  type LaserMessage,
+  type PinTravelRejection,
+  type PinTravelRequestMessage,
+  type SignalMessage,
+  type TokenEditMessage,
+  type TokenMoveMessage,
+} from './protocol'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
  * mensagens a enviar e o integrador (transporte + mapStore) as despacha.
  * Identidade: `clientId` é a conexão (troca a cada reconexão); `playerId` é o
  * jogador (estável, recuperável pelo `resumeToken`).
+ *
+ * CADA JOGADOR NO SEU MAPA. Com aventura aberta, o host serve a cada jogador a
+ * cena onde está o token DELE (`sceneFor`), e não a cena aberta no editor: o
+ * grupo pode se separar. Quem não tem token em cena nenhuma — e todo mundo
+ * num mapa solto — continua vendo a cena aberta, como sempre.
  */
+
+/**
+ * Uma cena que o host serve. `sceneId` é o id da cena na aventura (`null` =
+ * mapa solto). `name` é o nome que o MESTRE lê: nunca vai ao jogador.
+ */
+export interface HostScene {
+  sceneId: string | null
+  name: string
+  map: MapData
+}
+
+/**
+ * Tudo o que o host pode servir: a cena ABERTA no editor e as de FUNDO da
+ * aventura que abriram (cache do `adventureStore`). Mapa solto = só a aberta.
+ */
+export interface HostWorld {
+  open: HostScene
+  background: HostScene[]
+}
+
+/** De onde a sessão lê o mapa: um `MapData` (mapa solto, o de sempre) ou o mundo da aventura. */
+export type HostMapSource = MapData | HostWorld
+
+/** O mapa solto como mundo: uma cena só, a aberta. */
+export function singleSceneWorld(map: MapData): HostWorld {
+  return { open: { sceneId: null, name: map.name, map }, background: [] }
+}
+
+// `open` e não `background`: `MapData` já tem um campo `background` (a imagem de fundo).
+function toWorld(source: HostMapSource): HostWorld {
+  return 'open' in source ? source : singleSceneWorld(source)
+}
+
+/**
+ * CHAVE DE CENA = `MapData.id`, e não o id da cena na aventura. O id do mapa
+ * mora no próprio arquivo da cena e não muda quando o mapa solto vira a
+ * primeira cena de uma aventura (`createScene`) — com o id da cena, a memória
+ * de exploração de quem já jogava ali se apagaria no meio da mesa.
+ */
+function sceneKey(scene: HostScene): string {
+  return scene.map.id
+}
+
+function allScenes(world: HostWorld): HostScene[] {
+  return [world.open, ...world.background]
+}
 
 export type PlayerStatus = 'waiting' | 'playing'
 
@@ -21,16 +85,23 @@ export interface Outbound {
   msg: HostMessage
 }
 
+/*
+ * `sceneId` nos três "Applied" abaixo: a cena de FUNDO onde aplicar, quando o
+ * jogador está numa cena que não é a aberta no editor. Ausente = a cena
+ * aberta (o `mapStore`), como sempre foi.
+ */
 export interface AppliedMove {
   tokenId: string
   x: number
   y: number
+  sceneId?: string
 }
 
 /** Porta que o jogador abriu/fechou: o integrador aplica no mapa do mestre. */
 export interface AppliedDoor {
   wallId: string
   open: boolean
+  sceneId?: string
 }
 
 /**
@@ -41,6 +112,37 @@ export interface AppliedTokenEdit {
   tokenId: string
   name?: string
   image?: string | null
+  sceneId?: string
+}
+
+/**
+ * Pedido de passagem já validado, à espera do mestre. É o que o aviso dele
+ * mostra: quem, por qual pino e para qual cena. Nada disto vai ao jogador.
+ */
+export interface TravelRequest {
+  requestId: string
+  playerId: string
+  playerName: string
+  /** Como o mestre chama o pino: a descrição dele ou, sem descrição, o resumo. */
+  pinLabel: string
+  toSceneId: string
+  toSceneName: string
+}
+
+/**
+ * O mestre deixou ir: tirar `tokenId` da cena `fromSceneId` e pô-lo em
+ * (`x`, `y`) da cena `toSceneId`, no pino par. Quem aplica é o integrador
+ * (`adventureStore.transferToken`), fora do desfazer das duas cenas.
+ */
+export interface AppliedTransfer {
+  tokenId: string
+  playerId: string
+  playerName: string
+  fromSceneId: string
+  toSceneId: string
+  toSceneName: string
+  x: number
+  y: number
 }
 
 /** Sinal aceito de um jogador, para a UI do mestre desenhar. */
@@ -58,6 +160,10 @@ export interface HostResult {
   applyDoor?: AppliedDoor
   applyTokenEdit?: AppliedTokenEdit
   signal?: HostSignal
+  /** Pedido de passagem válido: o integrador pergunta ao mestre. */
+  travelRequest?: TravelRequest
+  /** O mestre deixou ir: o integrador move o token entre as cenas ANTES de despachar `outbound`. */
+  applyTransfer?: AppliedTransfer
 }
 
 export interface PlayerInfo {
@@ -69,6 +175,8 @@ export interface PlayerInfo {
   tokenIds: string[]
   /** Raio efetivo: o do mestre para este jogador ou, sem ajuste, o global. */
   visionRadius: number
+  /** Cena em que o jogador está, para o painel do mestre. Só com aventura aberta e jogador jogando. */
+  sceneName?: string
 }
 
 /** Faixa do "Raio de visão" por jogador, em px de mundo. */
@@ -87,6 +195,21 @@ export const DOOR_TOGGLE_MIN_INTERVAL_MS = 250
  */
 export const TOKEN_PHOTO_MIN_INTERVAL_MS = 500
 
+/**
+ * Um pedido de passagem pelo MESMO pino, do mesmo jogador, nesta janela. O
+ * mestre recusou e o jogador insiste no toque: sem o intervalo, cada toque
+ * seria um aviso novo empilhado na tela do mestre. Por jogador e por pino, e
+ * não por pino só: o grupo inteiro pedindo a mesma escada é jogo normal.
+ */
+export const TRAVEL_REQUEST_MIN_INTERVAL_MS = 3000
+
+/**
+ * Quantas cenas cada jogador lembra (exploração e portas vistas). Passou do
+ * teto, esquece a cena visitada há mais tempo: memória de host não pode
+ * crescer sem limite numa aventura longa.
+ */
+export const MAX_SCENE_MEMORIES_PER_PLAYER = 8
+
 export interface HostSessionOptions {
   code: string
   visionRadius: number
@@ -95,7 +218,7 @@ export interface HostSessionOptions {
 }
 
 export interface HostSession {
-  handleMessage(clientId: string, raw: unknown, map: MapData): HostResult
+  handleMessage(clientId: string, raw: unknown, source: HostMapSource): HostResult
   /** Devolve `lobby.waiting` para quem perdeu o último token (dono anterior). */
   assignToken(playerId: string, tokenId: string): HostResult
   /** Devolve `lobby.waiting` se o jogador ficou sem token. */
@@ -108,20 +231,56 @@ export interface HostSession {
    * mestre encerrou a sala" e não "A conexão caiu". Não mexe no estado.
    */
   closeRoom(): HostResult
-  broadcast(map: MapData): HostResult
-  /** Laser do mestre para todo jogador conectado e jogando (quem aguarda não tem mapa onde desenhar). */
-  laser(message: LaserMessage): HostResult
+  /** Snapshot para todo jogador conectado e jogando, cada um da cena ONDE ELE ESTÁ. */
+  broadcast(source: HostMapSource): HostResult
+  /**
+   * Laser do mestre para todo jogador conectado e jogando (quem aguarda não
+   * tem mapa onde desenhar). Com `source`, só para quem está na cena aberta —
+   * o mestre aponta no mapa que ele vê.
+   */
+  laser(message: LaserMessage, source?: HostMapSource): HostResult
+  /**
+   * "Deixar ir": revalida o pedido contra o mundo de AGORA (o token pode ter
+   * andado, o pino sumido) e devolve `applyTransfer` + `scene.changed` ao
+   * dono. Pedido que já não existe (jogador saiu, já decidido) não faz nada.
+   */
+  approveTravel(requestId: string, source: HostMapSource): HostResult
+  /** "Não": `pin.travel.denied` ao jogador. Pedido que já não existe não faz nada. */
+  denyTravel(requestId: string): HostResult
+  /** O pedido ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
+  isTravelPending(requestId: string): boolean
   /**
    * Raio de visão só deste jogador (limitado à faixa); `null` volta ao global.
    * Não envia: o integrador faz o broadcast. Jogador desconhecido ou raio não finito é ignorado.
    */
   setVisionRadius(playerId: string, radius: number | null): void
-  /** Marca a planta inteira como explorada para o jogador, fora de zona oculta ativa. Tokens seguem exigindo visão. */
-  revealPlan(playerId: string, map: MapData): void
-  /** Zera exploração e portas lembradas do jogador; a visão atual volta a marcar no próximo broadcast. */
-  hidePlan(playerId: string): void
-  listPlayers(): PlayerInfo[]
+  /** Marca a planta inteira da cena onde o jogador está como explorada, fora de zona oculta ativa. Tokens seguem exigindo visão. */
+  revealPlan(playerId: string, source: HostMapSource): void
+  /**
+   * Zera exploração e portas lembradas do jogador; a visão atual volta a
+   * marcar no próximo broadcast. Com `source`, só da cena onde ele está; sem,
+   * de todas.
+   */
+  hidePlan(playerId: string, source?: HostMapSource): void
+  /** Com `source` de uma aventura, cada jogador que joga vem com o nome da cena onde está. */
+  listPlayers(source?: HostMapSource): PlayerInfo[]
   readonly rev: number
+}
+
+/** Pedido de passagem à espera do mestre. Um por jogador. */
+interface PendingTravel {
+  requestId: string
+  playerId: string
+  pinId: string
+}
+
+/** Pedido que passou em tudo: de onde, para onde, por qual pino e com qual token. */
+interface ValidTravel {
+  from: HostScene & { sceneId: string }
+  to: HostScene & { sceneId: string }
+  pin: Pin
+  partner: Pin
+  token: Token
 }
 
 /** O que um jogador lembra de um mapa: células exploradas e último estado visto de cada porta. */
@@ -157,8 +316,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const byClient = new Map<string, string>() // clientId conectado -> playerId
   const ownership: Record<string, string[]> = {}
   // Por playerId (não clientId): sobrevive a reconexão/resume; só o kick apaga.
+  // Dentro, uma memória por CENA (chave `sceneKey`), na ordem do último uso:
+  // a primeira é a menos recente, a que sai quando passa do teto.
   // `doors`: último estado de cada porta que o jogador VIU (por id da parede).
-  const explorations = new Map<string, PlayerMemory>()
+  const memories = new Map<string, Map<string, PlayerMemory>>()
+  // Por playerId: a cena em que o jogador foi visto por último. Desempata
+  // quando ele tem token em mais de uma cena — sem isto, o mestre trocar a
+  // cena do editor mudaria a cena do jogador junto.
+  const currentScene = new Map<string, string>()
+  // Por playerId: o pedido de passagem que espera o mestre (no máximo um).
+  const pendingTravels = new Map<string, PendingTravel>()
+  // Por `playerId|cena|pino`: quando o jogador pediu por último aquele pino.
+  const lastTravelRequestAt = new Map<string, number>()
   // Por playerId: reconectar não zera o limite de 1 sinal por segundo.
   const lastSignalAt = new Map<string, number>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
@@ -174,17 +343,66 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
   const statusOf = (playerId: string): PlayerStatus => ((ownership[playerId]?.length ?? 0) > 0 ? 'playing' : 'waiting')
 
-  /** Memória do jogador para este mapa; outro mapa (ou mesmo id redimensionado) começa do zero. */
+  /** Memória que o jogador já tem deste mapa, sem criar. Mesmo id redimensionado não conta: é outro mapa. */
+  const existingMemory = (playerId: string, map: MapData): PlayerMemory | undefined => {
+    const memory = memories.get(playerId)?.get(map.id)
+    return memory !== undefined && memory.key === memoryKey(map) ? memory : undefined
+  }
+
+  /**
+   * Memória do jogador para este mapa. Cada cena tem a sua: ir à Cripta e
+   * voltar ao Salão devolve o Salão como ele o deixou. Mapa novo (ou mesmo id
+   * redimensionado) começa do zero; acima de `MAX_SCENE_MEMORIES_PER_PLAYER`
+   * cenas, a usada há mais tempo é esquecida.
+   */
   const memoryFor = (playerId: string, map: MapData): PlayerMemory => {
-    const key = memoryKey(map)
-    const current = explorations.get(playerId)
-    if (current !== undefined && current.key === key) return current
+    let byScene = memories.get(playerId)
+    if (byScene === undefined) {
+      byScene = new Map()
+      memories.set(playerId, byScene)
+    }
+    const found = existingMemory(playerId, map)
     // MapData.width/height estão em células; o explorado mede px de mundo (mesma unidade da visão).
-    const exp = createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid })
-    const memory: PlayerMemory = { key, exp, doors: new Map(), vision: [] }
-    explorations.set(playerId, memory)
+    const memory: PlayerMemory = found ?? {
+      key: memoryKey(map),
+      exp: createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }),
+      doors: new Map(),
+      vision: [],
+    }
+    // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
+    byScene.delete(map.id)
+    byScene.set(map.id, memory)
+    for (const oldest of byScene.keys()) {
+      if (byScene.size <= MAX_SCENE_MEMORIES_PER_PLAYER) break
+      byScene.delete(oldest)
+    }
     return memory
   }
+
+  const ownsTokenIn = (playerId: string, scene: HostScene): boolean => {
+    const owned = ownership[playerId] ?? []
+    return owned.length > 0 && scene.map.tokens.some((t) => owned.includes(t.id))
+  }
+
+  /**
+   * A cena deste jogador: a que tem o token dele. Com token em mais de uma,
+   * fica na última em que ele foi visto. Sem token em cena nenhuma (ou mapa
+   * solto), a cena aberta no editor — o que todo jogador via antes das cenas.
+   */
+  const sceneFor = (playerId: string, world: HostWorld): HostScene => {
+    const scenes = allScenes(world)
+    const last = currentScene.get(playerId)
+    const stay = last === undefined ? undefined : scenes.find((scene) => sceneKey(scene) === last && ownsTokenIn(playerId, scene))
+    if (stay !== undefined) return stay
+    const found = scenes.find((scene) => ownsTokenIn(playerId, scene))
+    if (found === undefined) return world.open
+    currentScene.set(playerId, sceneKey(found))
+    return found
+  }
+
+  /** `sceneId` para os "Applied": só quando a cena é de fundo (a aberta é o `mapStore`). */
+  const backgroundSceneId = (scene: HostScene, world: HostWorld): { sceneId?: string } =>
+    scene === world.open || scene.sceneId === null ? {} : { sceneId: scene.sceneId }
 
   /**
    * Nunca manda o mapa do host: sempre o recorte de `filterMapForPlayer`. O
@@ -239,7 +457,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return `${wanted} (${n})`
   }
 
-  function handleJoin(clientId: string, msg: JoinMessage, map: MapData): HostResult {
+  function handleJoin(clientId: string, msg: JoinMessage, world: HostWorld): HostResult {
     if (byClient.has(clientId)) return reply(clientId, { type: 'error', reason: 'already_joined' })
     if (msg.code !== options.code) return reply(clientId, { type: 'error', reason: 'bad_code' })
 
@@ -261,25 +479,28 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // `name` é o nome já passado por `uniqueName`: é assim que o jogador
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
     const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken, name: record.name }
-    const next: HostMessage = statusOf(record.playerId) === 'playing' ? snapshotFor(record.playerId, map) : { type: 'lobby.waiting' }
+    const next: HostMessage =
+      statusOf(record.playerId) === 'playing' ? snapshotFor(record.playerId, sceneFor(record.playerId, world).map) : { type: 'lobby.waiting' }
     return { outbound: [{ clientId, msg: welcome }, { clientId, msg: next }] }
   }
 
-  function handleMove(clientId: string, msg: TokenMoveMessage, map: MapData): HostResult {
+  function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
-    const result = validateTokenMove(map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership)
+    // O movimento vale na cena DELE: token de outra cena é `unknown_token` aqui.
+    const scene = sceneFor(playerId, world)
+    const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership)
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     return {
       outbound: [{ clientId, msg: { type: 'token.move.accepted', reqId: msg.reqId, x: result.x, y: result.y } }],
-      applyMove: { tokenId: msg.tokenId, x: result.x, y: result.y },
+      applyMove: { tokenId: msg.tokenId, x: result.x, y: result.y, ...backgroundSceneId(scene, world) },
     }
   }
 
   /** O jogador já conhece o ponto: está na visão do último snapshot ou numa célula explorada deste mapa. */
   const knowsPoint = (playerId: string, map: MapData, point: RegionPoint): boolean => {
-    const memory = explorations.get(playerId)
-    if (memory === undefined || memory.key !== memoryKey(map)) return false
+    const memory = existingMemory(playerId, map)
+    if (memory === undefined) return false
     return memory.vision.some((ring) => ring.length >= 3 && pointInRing(point, ring)) || isPointExplored(memory.exp, point)
   }
 
@@ -290,11 +511,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * Sinal fora do mapa, de quem não joga ou antes do intervalo mínimo é
    * descartado em silêncio (não é mensagem malformada).
    */
-  function handleSignal(clientId: string, msg: SignalMessage, map: MapData): HostResult {
+  function handleSignal(clientId: string, msg: SignalMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     const record = players.get(playerId)
     if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    const map = scene.map
     if (msg.x < 0 || msg.y < 0 || msg.x > map.width * map.grid || msg.y > map.height * map.grid) return { outbound: [] }
     const at = now()
     const last = lastSignalAt.get(playerId)
@@ -310,6 +533,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (!inBlockedArea) {
       for (const [otherClient, otherId] of byClient) {
         if (otherId === playerId || statusOf(otherId) !== 'playing') continue
+        // Quem está em outra cena não recebe: o ponto é deste mapa, e a
+        // memória antiga dele desta cena diria que o sinal é para lá.
+        if (sceneKey(sceneFor(otherId, world)) !== sceneKey(scene)) continue
         if (knowsPoint(otherId, map, point)) outbound.push({ clientId: otherClient, msg: message })
       }
     }
@@ -324,10 +550,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * do jogador; porta inexistente ou invisível responde o mesmo
    * `not_visible`, para não dizer o que existe no escuro.
    */
-  function handleDoorToggle(clientId: string, msg: DoorToggleMessage, map: MapData): HostResult {
+  function handleDoorToggle(clientId: string, msg: DoorToggleMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    const map = scene.map
     const at = now()
     const last = lastDoorToggleAt.get(playerId)
     if (last !== undefined && at - last < DOOR_TOGGLE_MIN_INTERVAL_MS) return { outbound: [] }
@@ -348,7 +576,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
     if (!near) return reject('far')
 
-    return { outbound: [], applyDoor: { wallId: wall.id, open: !wall.door.open } }
+    return { outbound: [], applyDoor: { wallId: wall.id, open: !wall.door.open, ...backgroundSceneId(scene, world) } }
   }
 
   /**
@@ -361,19 +589,103 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * intervalo: não é mensagem malformada (a forma é válida), é pedido que não
    * vale — responder "recusado" só ensinaria quais ids existem no mapa.
    */
-  function handleTokenEdit(clientId: string, msg: TokenEditMessage, map: MapData): HostResult {
+  function handleTokenEdit(clientId: string, msg: TokenEditMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     if (statusOf(playerId) !== 'playing') return { outbound: [] }
     if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return { outbound: [] }
-    if (!map.tokens.some((t) => t.id === msg.tokenId)) return { outbound: [] }
+    // O token pode estar em qualquer cena: a ficha é do jogador, não do mapa aberto.
+    const scene = allScenes(world).find((s) => s.map.tokens.some((t) => t.id === msg.tokenId))
+    if (scene === undefined) return { outbound: [] }
     if (msg.image !== undefined) {
       const at = now()
       const last = lastTokenPhotoAt.get(playerId)
       if (last !== undefined && at - last < TOKEN_PHOTO_MIN_INTERVAL_MS) return { outbound: [] }
       lastTokenPhotoAt.set(playerId, at)
     }
-    return { outbound: [], applyTokenEdit: { tokenId: msg.tokenId, name: msg.name, image: msg.image } }
+    return { outbound: [], applyTokenEdit: { tokenId: msg.tokenId, name: msg.name, image: msg.image, ...backgroundSceneId(scene, world) } }
+  }
+
+  /**
+   * O pedido de passagem vale? Autoridade é aqui, no molde da porta
+   * (`handleDoorToggle`): o pino existe NA CENA DO JOGADOR, está VISÍVEL para
+   * ele agora (a mesma regra da névoa que decide mandar o pino no recorte —
+   * sem isto, um id de pino adivinhado atravessaria o escuro), é de viagem e
+   * está ligado em mão dupla a um par que existe numa cena aberta, e o
+   * jogador tem token nesta cena. O token que viaja é o dele mais perto do
+   * pino. Qualquer falha é `null`: quem chama responde o mesmo motivo
+   * genérico para todas.
+   */
+  function validTravel(playerId: string, pinId: string, world: HostWorld): ValidTravel | null {
+    const from = sceneFor(playerId, world)
+    if (from.sceneId === null) return null
+    const pin = from.map.pins.find((p) => p.id === pinId)
+    if (pin === undefined) return null
+    const memory = memoryFor(playerId, from.map)
+    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    if (!view.map.pins.some((p) => p.id === pinId)) return null
+    const scenes = allScenes(world)
+    const lookup = (sceneId: string): TravelScene | null => {
+      const scene = scenes.find((s) => s.sceneId === sceneId)
+      return scene === undefined ? null : { name: scene.name, map: scene.map }
+    }
+    const travel = resolvePinTravel(pin, from.sceneId, lookup)
+    if (travel.status !== 'ligado') return null
+    const to = scenes.find((s) => s.sceneId === travel.sceneId)
+    if (to === undefined || to.sceneId === null) return null
+    const owned = new Set(ownership[playerId] ?? [])
+    // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
+    const mine = view.map.tokens.filter((t) => owned.has(t.id))
+    let token: Token | null = null
+    for (const t of mine) {
+      if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
+    }
+    if (token === null) return null
+    return { from: { ...from, sceneId: from.sceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner, token }
+  }
+
+  function handleTravelRequest(clientId: string, msg: PinTravelRequestMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    const reject = (reason: PinTravelRejection): HostResult => reply(clientId, { type: 'pin.travel.rejected', reason })
+    if (record === undefined || statusOf(playerId) !== 'playing') return reject('unavailable')
+    if (pendingTravels.has(playerId)) return reject('pending')
+    // O limite vem ANTES da validação: o recorte da névoa é a parte cara, e
+    // quem martela o botão não pode fazer o mestre refazê-lo a cada toque.
+    const limitKey = `${playerId}|${sceneKey(sceneFor(playerId, world))}|${msg.pinId}`
+    const at = now()
+    const last = lastTravelRequestAt.get(limitKey)
+    if (last !== undefined && at - last < TRAVEL_REQUEST_MIN_INTERVAL_MS) return reject('too_soon')
+    lastTravelRequestAt.set(limitKey, at)
+
+    const travel = validTravel(playerId, msg.pinId, world)
+    if (travel === null) return reject('unavailable')
+    const requestId = randomId()
+    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId })
+    const description = travel.pin.description.trim()
+    return {
+      outbound: [],
+      travelRequest: {
+        requestId,
+        playerId,
+        playerName: record.name,
+        pinLabel: description === '' ? pinSummary(travel.pin) : description,
+        toSceneId: travel.to.sceneId,
+        toSceneName: travel.to.name,
+      },
+    }
+  }
+
+  const findPendingTravel = (requestId: string): PendingTravel | undefined =>
+    [...pendingTravels.values()].find((pending) => pending.requestId === requestId)
+
+  /** Apaga o que só vale enquanto o jogador está na sala: pedido pendente e limites do pedido. */
+  const forgetTravelsOf = (playerId: string): void => {
+    pendingTravels.delete(playerId)
+    for (const key of [...lastTravelRequestAt.keys()]) {
+      if (key.startsWith(`${playerId}|`)) lastTravelRequestAt.delete(key)
+    }
   }
 
   return {
@@ -381,23 +693,68 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return rev
     },
 
-    handleMessage(clientId, raw, map) {
+    handleMessage(clientId, raw, source) {
       const msg = parsePlayerMessage(raw)
       if (msg === null) return reply(clientId, { type: 'error', reason: 'invalid_message' })
+      const world = toWorld(source)
       switch (msg.type) {
         case 'join':
-          return handleJoin(clientId, msg, map)
+          return handleJoin(clientId, msg, world)
         case 'token.move':
-          return handleMove(clientId, msg, map)
+          return handleMove(clientId, msg, world)
         case 'ping':
           return { outbound: [] }
         case 'signal':
-          return handleSignal(clientId, msg, map)
+          return handleSignal(clientId, msg, world)
         case 'door.toggle':
-          return handleDoorToggle(clientId, msg, map)
+          return handleDoorToggle(clientId, msg, world)
         case 'token.edit':
-          return handleTokenEdit(clientId, msg, map)
+          return handleTokenEdit(clientId, msg, world)
+        case 'pin.travel.request':
+          return handleTravelRequest(clientId, msg, world)
       }
+    },
+
+    approveTravel(requestId, source) {
+      const pending = findPendingTravel(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingTravels.delete(pending.playerId)
+      const record = players.get(pending.playerId)
+      // Saiu da sala enquanto o mestre decidia: não há a quem mandar, e mover
+      // o token de quem não está olhando seria uma surpresa na volta.
+      if (record === undefined || record.clientId === null || statusOf(pending.playerId) !== 'playing') return { outbound: [] }
+      const world = toWorld(source)
+      const travel = validTravel(pending.playerId, pending.pinId, world)
+      if (travel === null) return reply(record.clientId, { type: 'pin.travel.rejected', reason: 'unavailable' })
+      const spot = arrivalSpot(travel.to.map, travel.partner, travel.token.size)
+      // A cena dele passa a ser a de destino a partir daqui: é ela que o
+      // próximo broadcast manda, com a memória que ele tem DELA.
+      currentScene.set(pending.playerId, sceneKey(travel.to))
+      return {
+        outbound: [{ clientId: record.clientId, msg: { type: 'scene.changed' } }],
+        applyTransfer: {
+          tokenId: travel.token.id,
+          playerId: pending.playerId,
+          playerName: record.name,
+          fromSceneId: travel.from.sceneId,
+          toSceneId: travel.to.sceneId,
+          toSceneName: travel.to.name,
+          x: spot.x,
+          y: spot.y,
+        },
+      }
+    },
+
+    denyTravel(requestId) {
+      const pending = findPendingTravel(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingTravels.delete(pending.playerId)
+      const clientId = players.get(pending.playerId)?.clientId ?? null // null = saiu: não há a quem avisar
+      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'pin.travel.denied' })
+    },
+
+    isTravelPending(requestId) {
+      return findPendingTravel(requestId) !== undefined
     },
 
     assignToken(playerId, tokenId) {
@@ -427,6 +784,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       byClient.delete(clientId)
       const record = players.get(playerId)
       if (record !== undefined) record.clientId = null // mantém o registro para permitir resume
+      // O pedido pendente morre com a conexão: quem voltar não tem mais o
+      // "Aguardando o mestre…" na tela, e o aviso do mestre fica inofensivo.
+      pendingTravels.delete(playerId)
     },
 
     kick(clientId) {
@@ -435,7 +795,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       byClient.delete(clientId)
       players.delete(playerId) // invalida o resumeToken
       delete ownership[playerId]
-      explorations.delete(playerId)
+      memories.delete(playerId)
+      currentScene.delete(playerId)
+      forgetTravelsOf(playerId)
       lastSignalAt.delete(playerId)
       lastDoorToggleAt.delete(playerId)
       lastTokenPhotoAt.delete(playerId)
@@ -461,46 +823,63 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       visionOverrides.set(playerId, Math.min(VISION_RADIUS_MAX, Math.max(VISION_RADIUS_MIN, radius)))
     },
 
-    revealPlan(playerId, map) {
+    revealPlan(playerId, source) {
       if (!players.has(playerId)) return
+      const map = sceneFor(playerId, toWorld(source)).map
       markAll(memoryFor(playerId, map).exp, playerBlockedRings(map))
     },
 
-    hidePlan(playerId) {
-      // Apagar a memória inteira: o próximo snapshot recria vazia (explorado, portas e visão).
-      explorations.delete(playerId)
+    hidePlan(playerId, source) {
+      // Apagar a memória: o próximo snapshot recria vazia (explorado, portas e visão).
+      if (source === undefined) {
+        memories.delete(playerId)
+        return
+      }
+      memories.get(playerId)?.delete(sceneFor(playerId, toWorld(source)).map.id)
     },
 
-    broadcast(map) {
+    broadcast(source) {
+      const world = toWorld(source)
       rev += 1
       const outbound: Outbound[] = []
       for (const [clientId, playerId] of byClient) {
         if (statusOf(playerId) !== 'playing') continue
-        outbound.push({ clientId, msg: snapshotFor(playerId, map) })
+        // Cada um a SUA cena: quem ficou no Salão nunca recebe nada da Cripta.
+        outbound.push({ clientId, msg: snapshotFor(playerId, sceneFor(playerId, world).map) })
       }
       return { outbound }
     },
 
-    laser(message) {
+    laser(message, source) {
+      const world = source === undefined ? null : toWorld(source)
       const outbound: Outbound[] = []
       for (const [clientId, playerId] of byClient) {
-        if (statusOf(playerId) === 'playing') outbound.push({ clientId, msg: message })
+        if (statusOf(playerId) !== 'playing') continue
+        if (world !== null && sceneFor(playerId, world) !== world.open) continue
+        outbound.push({ clientId, msg: message })
       }
       return { outbound }
     },
 
-    listPlayers() {
+    listPlayers(source) {
+      const world = source === undefined ? null : toWorld(source)
+      // Nome de cena só faz sentido com aventura: no mapa solto todo mundo está no mesmo lugar.
+      const withScenes = world !== null && world.open.sceneId !== null
       return [...players.values()]
         .sort((a, b) => a.joinedAt - b.joinedAt)
-        .map((p) => ({
-          clientId: p.clientId,
-          playerId: p.playerId,
-          name: p.name,
-          status: statusOf(p.playerId),
-          connected: p.clientId !== null,
-          tokenIds: [...(ownership[p.playerId] ?? [])],
-          visionRadius: radiusFor(p.playerId),
-        }))
+        .map((p) => {
+          const info: PlayerInfo = {
+            clientId: p.clientId,
+            playerId: p.playerId,
+            name: p.name,
+            status: statusOf(p.playerId),
+            connected: p.clientId !== null,
+            tokenIds: [...(ownership[p.playerId] ?? [])],
+            visionRadius: radiusFor(p.playerId),
+          }
+          if (withScenes && info.status === 'playing') info.sceneName = sceneFor(p.playerId, world).name
+          return info
+        })
     },
   }
 }

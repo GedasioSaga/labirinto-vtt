@@ -1,6 +1,6 @@
 import type { MapData, RegionPoint, Token } from '../types/map'
 import { decodeExploration, type Exploration } from '../lib/exploration'
-import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, type DoorToggleRejection, type JoinMessage, type PlayerMessage } from '../net/protocol'
+import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PlayerMessage } from '../net/protocol'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
@@ -31,11 +31,24 @@ export interface PlayerState {
   laser?: LaserTrail
   /** Recusa do mestre ao pedido de porta (trancada, longe, não visível); some sozinho. `id` novo repete o aviso. */
   doorNotice?: { id: number; reason: DoorToggleRejection }
+  /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
+  travel?: TravelNotice
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
   error?: string
 }
+
+/**
+ * Onde está o pedido de passagem pelo pino de viagem. `waiting` fica até o
+ * mestre responder; os outros três somem sozinhos. `id` novo repete o aviso.
+ * Nenhum deles sabe para onde o pino leva: o host nunca conta.
+ */
+export type TravelNotice =
+  | { id: number; phase: 'waiting' }
+  | { id: number; phase: 'arrived' }
+  | { id: number; phase: 'denied' }
+  | { id: number; phase: 'rejected'; reason: PinTravelRejection }
 
 /** Subconjunto do WebSocket do browser que este cliente usa. */
 export interface SocketLike {
@@ -81,6 +94,11 @@ export interface PlayerConnection {
    * `setOwnTokenName`, mais a forma da foto.
    */
   setOwnTokenPhoto(tokenId: string, image: string): boolean
+  /**
+   * Pede ao mestre para passar pelo pino de viagem `pinId`. `false` se não
+   * está jogando, se já há um pedido esperando ou se o socket não está aberto.
+   */
+  requestTravel(pinId: string): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -90,6 +108,8 @@ export const RESUME_STORAGE_KEY = 'labirinto.resume'
 export const PING_INTERVAL_MS = 15_000
 /** Quanto tempo o aviso da porta ("Trancada") fica na tela. */
 export const DOOR_NOTICE_TTL_MS = 2500
+/** Quanto tempo "Você chegou" (e a recusa do mestre) fica na tela. Mais que a porta: é uma mudança de lugar. */
+export const TRAVEL_NOTICE_TTL_MS = 4000
 const SOCKET_OPEN = 1
 const CONNECTION_LOST = 'connection_lost'
 
@@ -225,6 +245,23 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       doorNoticeTimer = null
       setState({ doorNotice: undefined })
     }, DOOR_NOTICE_TTL_MS)
+  }
+
+  let travelTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearTravelTimer(): void {
+    if (travelTimer !== null) clearTimeout(travelTimer)
+    travelTimer = null
+  }
+
+  /** Resposta do mestre (ou do host): aparece e some sozinha. */
+  function showTravelAnswer(notice: TravelNotice): void {
+    clearTravelTimer()
+    setState({ travel: notice })
+    travelTimer = setTimeout(() => {
+      travelTimer = null
+      setState({ travel: undefined })
+    }, TRAVEL_NOTICE_TTL_MS)
   }
 
   let laserTimer: ReturnType<typeof setTimeout> | null = null
@@ -363,8 +400,33 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSignalTimers()
         clearLaserTimer()
         clearDoorNotice()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined })
+        clearTravelTimer()
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined })
         return
+      case 'scene.changed':
+        // O mestre deixou passar. Tudo o que era da cena de antes perde o
+        // sentido: movimento ainda sem resposta (o `x`/`y` dele é do outro
+        // mapa e seria reaplicado em cima do novo), sinais e laser. O mapa
+        // novo vem no snapshot logo atrás.
+        if (state.status !== 'playing') return
+        pending.clear()
+        clearSignalTimers()
+        clearLaserTimer()
+        clearDoorNotice()
+        setState({ signals: undefined, laser: undefined, doorNotice: undefined })
+        showTravelAnswer({ id: nextNoticeId++, phase: 'arrived' })
+        return
+      case 'pin.travel.denied':
+        if (state.status !== 'playing') return
+        showTravelAnswer({ id: nextNoticeId++, phase: 'denied' })
+        return
+      case 'pin.travel.rejected': {
+        if (state.status !== 'playing') return
+        const { reason } = data
+        if (reason !== 'unavailable' && reason !== 'pending' && reason !== 'too_soon') return
+        showTravelAnswer({ id: nextNoticeId++, phase: 'rejected', reason })
+        return
+      }
       case 'laser': {
         // Laser sem mapa na tela não tem onde aparecer.
         if (state.status !== 'playing') return
@@ -432,7 +494,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSignalTimers()
         clearLaserTimer()
         clearDoorNotice()
-        setState({ status: 'closed', doorNotice: undefined })
+        clearTravelTimer()
+        setState({ status: 'closed', doorNotice: undefined, travel: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -486,6 +549,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearSignalTimers()
     clearLaserTimer()
     clearDoorNotice()
+    clearTravelTimer()
     const current = socket
     socket = null
     current?.close()
@@ -518,6 +582,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return send({ type: 'door.toggle', wallId })
     },
 
+    requestTravel(pinId) {
+      if (state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
+      if (!send({ type: 'pin.travel.request', pinId })) return false
+      clearTravelTimer()
+      setState({ travel: { id: nextNoticeId++, phase: 'waiting' } })
+      return true
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -533,7 +605,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined })
       open()
     },
     close: detach,

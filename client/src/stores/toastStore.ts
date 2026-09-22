@@ -22,10 +22,33 @@ import { create } from 'zustand'
  */
 export type ToastKind = 'info' | 'error' | 'instrucao'
 
+/** Botão de um aviso. Clicar roda `run` e dispensa o aviso. */
+export interface ToastAction {
+  label: string
+  run: () => void
+}
+
 export interface ToastMessage {
   id: string
   kind: ToastKind
   text: string
+  /**
+   * Botões do aviso, na ordem. Ausente = só o "Dispensar aviso". É o que faz
+   * um aviso virar pergunta ("Grog quer passar…": Deixar ir / Não).
+   */
+  actions?: ToastAction[]
+  /**
+   * O que o × ("Dispensar aviso") faz além de tirar o aviso da tela. Aviso
+   * que pergunta não pode sumir sem resposta: quem espera do outro lado
+   * ficaria esperando para sempre.
+   */
+  onDismiss?: () => void
+}
+
+/** Extras de `push`: botões e o que o × faz. */
+export interface ToastExtras {
+  actions?: ToastAction[]
+  onDismiss?: () => void
 }
 
 interface ToastState {
@@ -39,7 +62,7 @@ interface ToastState {
    * aviso fica até alguém chamar `dismiss`. Passar `null` num `info` é
    * legítimo e faz a mesma coisa — o `kind` escolhe o padrão, não a regra.
    */
-  push: (kind: ToastKind, text: string, durationMs?: number | null) => string
+  push: (kind: ToastKind, text: string, durationMs?: number | null, extras?: ToastExtras) => string
   /** Dispensa por `id`, na mão (botão) ou pelo próprio timer de `push`. Idempotente: `id` que já não está na fila é um no-op silencioso. */
   dismiss: (id: string) => void
 }
@@ -74,9 +97,13 @@ const timers = new Map<string, ReturnType<typeof setTimeout>>()
 export const useToastStore = create<ToastState>()((set, get) => ({
   toasts: [],
 
-  push: (kind, text, durationMs = DEFAULT_DURATION_MS[kind]) => {
+  push: (kind, text, durationMs = DEFAULT_DURATION_MS[kind], extras = {}) => {
     const id = crypto.randomUUID()
-    set((state) => ({ toasts: [...state.toasts, { id, kind, text }] }))
+    // Os extras só entram quando existem: o aviso simples continua exatamente `{ id, kind, text }`.
+    const toast: ToastMessage = { id, kind, text }
+    if (extras.actions !== undefined && extras.actions.length > 0) toast.actions = extras.actions
+    if (extras.onDismiss !== undefined) toast.onDismiss = extras.onDismiss
+    set((state) => ({ toasts: [...state.toasts, toast] }))
     if (durationMs !== null) {
       timers.set(
         id,

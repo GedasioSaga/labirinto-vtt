@@ -1,10 +1,10 @@
-import { StrictMode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { StrictMode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type DoorToggleRejection } from '../net/protocol'
 import { themeCss } from '../theme'
 import { createPlayerConnection, RESUME_STORAGE_KEY } from './playerConnection'
-import type { PlayerConnection, PlayerState, SocketLike, StorageLike } from './playerConnection'
+import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNotice } from './playerConnection'
 import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
@@ -33,6 +33,26 @@ const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
   locked: 'Trancada',
   far: 'Chegue mais perto da porta',
   not_visible: 'Você não vê essa porta daqui',
+}
+
+/**
+ * O pedido de passagem, em uma linha. Nunca diz para onde o pino leva: o
+ * jogador só descobre ao chegar. As recusas do host são genéricas de
+ * propósito (`PinTravelRejection`), e a frase também.
+ */
+function travelNoticeText(notice: TravelNotice): string {
+  switch (notice.phase) {
+    case 'waiting':
+      return 'Aguardando o mestre…'
+    case 'arrived':
+      return 'Você chegou'
+    case 'denied':
+      return 'O mestre não deixou passar agora'
+    case 'rejected':
+      if (notice.reason === 'pending') return 'Seu pedido anterior ainda espera o mestre'
+      if (notice.reason === 'too_soon') return 'Espere um pouco antes de pedir de novo'
+      return 'Não dá para passar por aqui agora'
+  }
 }
 
 const REASON_TEXT: Record<string, string> = {
@@ -504,6 +524,9 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   }
 
   const openPin = openPinId === null ? null : (map?.pins ?? []).find((p) => p.id === openPinId) ?? null
+  // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
+  // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
+  const closePin = useCallback(() => setOpenPinId(null), [])
 
   if (state.status === 'playing' && state.map && state.vision) {
     return (
@@ -547,7 +570,23 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}
-        {openPin && <PlayerPinCard pin={openPin} onClose={() => setOpenPinId(null)} />}
+        {openPin && (
+          <PlayerPinCard
+            pin={openPin}
+            onClose={closePin}
+            travelWaiting={state.travel?.phase === 'waiting'}
+            onRequestTravel={() => {
+              // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
+              // e o mapa volta inteiro à vista enquanto o mestre decide.
+              if (connection.requestTravel(openPin.id)) setOpenPinId(null)
+            }}
+          />
+        )}
+        {state.travel && (
+          <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
+            {travelNoticeText(state.travel)}
+          </p>
+        )}
         {state.doorNotice && (
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
           <p key={state.doorNotice.id} className="pp-notice" role="status" aria-live="polite">

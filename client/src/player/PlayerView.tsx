@@ -364,7 +364,12 @@ interface Scene {
   zoomScale: number
   /** Ajusta o que depende só do zoom (grade, escadas, rótulos); montado no setup. */
   onZoom: () => void
-  fitted: boolean
+  /**
+   * Mapa que a câmera já enquadrou (`null` = nenhum ainda). Por id, e não um
+   * sim/não: o jogador que atravessa um pino de viagem recebe OUTRO mapa, de
+   * outro tamanho, e a câmera do mapa de antes o deixaria olhando para o nada.
+   */
+  fittedMapId: string | null
   drag: Drag | null
   /** Espaço de tela, acima do `world`: ondas e seta de borda com tamanho fixo. */
   signalsLayer: Container
@@ -765,8 +770,8 @@ export function PlayerView({
       el.dataset.ownTokens = own.join(',')
     }
 
-    if (!scene.fitted) {
-      scene.fitted = true
+    if (scene.fittedMapId !== currentMap.id) {
+      scene.fittedMapId = currentMap.id
       const bounds = { minX: 0, minY: 0, maxX: worldWidth, maxY: worldHeight }
       scene.camera = fitCamera(bounds, { width: scene.app.screen.width, height: scene.app.screen.height }, FIT_MARGIN)
       applyCamera(scene)
@@ -930,7 +935,7 @@ export function PlayerView({
         camera: { x: 0, y: 0, scale: 1 },
         zoomScale: 1,
         onZoom: () => {},
-        fitted: false,
+        fittedMapId: null,
         drag: null,
         signalsLayer,
         signalsRenderer: createSignalsRenderer(),

@@ -435,3 +435,79 @@ describe('pino de viagem', () => {
     expect(useAdventureStore.getState().activeSceneId).toBe(vale)
   })
 })
+
+describe('transferToken (o jogador atravessou o pino de viagem)', () => {
+  function tokensDoFundo(sceneId: string): string[] {
+    const slot = useAdventureStore.getState().cache[sceneId]
+    return slot?.status === 'ok' ? slot.map.tokens.map((t) => t.id) : []
+  }
+
+  function tokensAbertos(): string[] {
+    return useMapStore.getState().map.tokens.map((t) => t.id)
+  }
+
+  /** Vale com o Grog e o desfazer cheio (criou, andou), a Cripta vazia de fundo. Termina no Vale. */
+  function montar(): { vale: string; cripta: string } {
+    useMapStore.getState().addToken(token('grog'))
+    useMapStore.getState().setTokenPosition('grog', 128, 64)
+    const cripta = useAdventureStore.getState().createScene('Cripta', null)
+    const vale = useAdventureStore.getState().adventure?.scenes[0].id ?? ''
+    useAdventureStore.getState().switchScene(vale)
+    return { vale, cripta }
+  }
+
+  it('o token sai da cena aberta e entra na de fundo, no ponto de chegada, e a Cripta fica pendente de gravação', () => {
+    const { cripta } = montar()
+    expect(useAdventureStore.getState().transferToken('grog', useAdventureStore.getState().activeSceneId ?? '', cripta, 900, 700)).toBe(true)
+    expect(tokensAbertos()).toEqual([])
+    const slot = useAdventureStore.getState().cache[cripta]
+    expect(slot?.status === 'ok' ? slot.map.tokens.map((t) => [t.id, t.x, t.y]) : null).toEqual([['grog', 900, 700]])
+    expect(useAdventureStore.getState().dirty[cripta]).toBe(true)
+  })
+
+  it('Ctrl+Z e Ctrl+Y depois da travessia NÃO duplicam o token: ele continua só na Cripta', () => {
+    const { vale, cripta } = montar()
+    expect(useMapStore.getState().past.length).toBeGreaterThan(0)
+    useAdventureStore.getState().transferToken('grog', vale, cripta, 900, 700)
+
+    // Desfazer tudo o que o Vale tem no histórico: o Grog não volta.
+    while (useMapStore.getState().past.length > 0) {
+      useMapStore.getState().undo()
+      expect(tokensAbertos()).toEqual([])
+    }
+    while (useMapStore.getState().future.length > 0) {
+      useMapStore.getState().redo()
+      expect(tokensAbertos()).toEqual([])
+    }
+    expect(tokensDoFundo(cripta)).toEqual(['grog'])
+
+    // Na Cripta, o desfazer dela também não o perde.
+    useAdventureStore.getState().switchScene(cripta)
+    useMapStore.getState().addToken(token('esqueleto'))
+    useMapStore.getState().undo()
+    useMapStore.getState().undo()
+    expect(tokensAbertos()).toEqual(['grog'])
+  })
+
+  it('a travessia de uma cena de FUNDO para a aberta também sai do desfazer das duas', () => {
+    const { vale, cripta } = montar()
+    useAdventureStore.getState().switchScene(cripta)
+    // O editor está na Cripta; o Grog, no Vale (de fundo), atravessa para cá.
+    expect(useAdventureStore.getState().transferToken('grog', vale, cripta, 300, 300)).toBe(true)
+    expect(tokensAbertos()).toEqual(['grog'])
+    expect(tokensDoFundo(vale)).toEqual([])
+    useMapStore.getState().undo()
+    expect(tokensAbertos()).toEqual(['grog'])
+    useAdventureStore.getState().switchScene(vale)
+    while (useMapStore.getState().past.length > 0) useMapStore.getState().undo()
+    expect(tokensAbertos()).toEqual([])
+  })
+
+  it('recusa o que não dá para fazer: mesma cena, token que não está lá, cena que não existe', () => {
+    const { vale, cripta } = montar()
+    expect(useAdventureStore.getState().transferToken('grog', vale, vale, 0, 0)).toBe(false)
+    expect(useAdventureStore.getState().transferToken('fantasma', vale, cripta, 0, 0)).toBe(false)
+    expect(useAdventureStore.getState().transferToken('grog', vale, 'cena-que-nao-existe', 0, 0)).toBe(false)
+    expect(tokensAbertos()).toEqual(['grog'])
+  })
+})

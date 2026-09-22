@@ -34,6 +34,14 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * encerrou a sala" em vez de "A conexão caiu". Cliente antigo cai no
  * `default` do switch e ignora; mestre antigo não envia e o jogador novo
  * continua tratando a queda como hoje.
+ *
+ * O PEDIDO DE PASSAGEM do pino de viagem é aditivo pelo mesmo critério:
+ * `pin.travel.request` (jogador -> mestre) e, na volta, `pin.travel.rejected`
+ * (o host recusou antes de perguntar ao mestre), `pin.travel.denied` (o mestre
+ * disse "Não") e `scene.changed` (o mestre deixou ir; o snapshot da cena nova
+ * vem logo depois). Nenhuma delas carrega nome nem id de cena: o jogador só
+ * descobre para onde foi pelo mapa que chega depois da aprovação. Mestre
+ * antigo responde `error invalid_message`; jogador antigo ignora as três.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -101,10 +109,29 @@ export interface TokenEditMessage {
   image?: string | null
 }
 
-export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage | DoorToggleMessage | TokenEditMessage
+/**
+ * Jogador pede ao mestre para passar pelo pino de viagem `pinId` da cena em que
+ * está. Só o id do pino: o destino o jogador nem conhece (`lib/fogFilter.ts`).
+ * O host valida e, se valer, pergunta ao mestre.
+ */
+export interface PinTravelRequestMessage {
+  type: 'pin.travel.request'
+  pinId: string
+}
+
+export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage | DoorToggleMessage | TokenEditMessage | PinTravelRequestMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
+
+/**
+ * Por que o host recusou o pedido de passagem SEM levar ao mestre. Genérico de
+ * propósito: pino inexistente, no escuro, sem destino ou cena sem token do
+ * jogador respondem todos `unavailable` — um motivo por caso diria ao jogador
+ * o que existe do outro lado. `pending`: ele já tem um pedido esperando;
+ * `too_soon`: pediu de novo pelo mesmo pino antes do intervalo mínimo.
+ */
+export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon'
 
 // Mestre -> jogador
 /** Laser do mestre: lote de pontos (px de mundo) desde o último envio, ou `off` ao soltar. */
@@ -122,6 +149,9 @@ export type HostMessage =
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
+  | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
+  | { type: 'pin.travel.denied' }
+  | { type: 'scene.changed' }
   | LaserMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
@@ -231,6 +261,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
     case 'token.edit':
       return parseTokenEdit(value)
+    case 'pin.travel.request':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.travel.request', pinId: value.pinId } : null
     default:
       return null
   }

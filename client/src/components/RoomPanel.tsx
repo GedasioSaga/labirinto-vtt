@@ -239,6 +239,8 @@ export function RoomPanel({
               <div key={player.playerId} className="lb-field">
                 <span className="lb-label">
                   {player.name} — {playerStatusLabel(player)}
+                  {/* Com aventura, o grupo pode estar espalhado: o mestre lê onde cada um está. */}
+                  {player.sceneName !== undefined && ` · em ${player.sceneName}`}
                 </span>
                 {player.tokenIds.map((tokenId) => (
                   <button key={tokenId} type="button" className="lb-btn lb-btn--ghost" onClick={() => onUnassign(player.playerId, tokenId)}>

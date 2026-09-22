@@ -791,6 +791,78 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+/*
+ * Pedido de passagem (pino de viagem). O botão de pedir é a ação do cartão:
+ * latão, como o botão principal do resto da tela do jogador. Chapado e sem
+ * enfeite — a mesma linguagem de minimapa do resto (fundo escuro, linha fina).
+ */
+.pp-pincard__travel {
+  align-self: stretch;
+  margin: 10px 12px 0;
+  padding: 10px 18px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lb-color-brass-contrast, #1c1608);
+  background: var(--lb-color-brass, #e0a44a);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pp-pincard__travel:hover:not(:disabled) {
+  background: var(--lb-color-brass-bright, #f3ba66);
+}
+
+/* Pedido já enviado: o botão continua ali dizendo o que aconteceu, sem convidar outro toque. */
+.pp-pincard__travel:disabled {
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  background: transparent;
+  border-color: var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  cursor: default;
+}
+
+.pp-pincard__travel:focus-visible,
+.pp-pincard__close:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+.pp-pincard__confirm {
+  display: grid;
+  gap: 8px;
+  margin: 10px 12px 0;
+  padding: 12px;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 10px;
+}
+
+.pp-pincard__question {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.pp-pincard__choices {
+  display: flex;
+  gap: 8px;
+}
+
+.pp-pincard__choices .pp-pincard__travel {
+  flex: 1;
+  margin: 0;
+}
+
+.pp-pincard__close--inline {
+  align-self: auto;
+  margin: 0;
+}
+
+/* Aviso da viagem: acima do aviso da porta, para os dois nunca se cobrirem. */
+.pp-notice--travel {
+  bottom: 68px;
+}
+
 @keyframes pp-pincard-fade {
   from {
     opacity: 0;

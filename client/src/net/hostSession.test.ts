@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { countExploredCells, decodeExploration, isPointExplored } from '../lib/exploration'
 import { createEmptyMap } from '../lib/mapFactory'
-import type { MapData, Region, Token, Wall } from '../types/map'
+import type { MapData, Pin, Region, Token, Wall } from '../types/map'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
-import { createHostSession, DOOR_TOGGLE_MIN_INTERVAL_MS, VISION_RADIUS_MAX, VISION_RADIUS_MIN, type HostResult } from './hostSession'
+import {
+  createHostSession,
+  DOOR_TOGGLE_MIN_INTERVAL_MS,
+  MAX_SCENE_MEMORIES_PER_PLAYER,
+  TRAVEL_REQUEST_MIN_INTERVAL_MS,
+  VISION_RADIUS_MAX,
+  VISION_RADIUS_MIN,
+  type HostResult,
+  type HostWorld,
+} from './hostSession'
 import type { HostMessage } from './protocol'
 
 const CODE = 'AB12CD'
@@ -831,5 +840,289 @@ describe('hostSession door.toggle (jogador abre porta)', () => {
     expect(t.s.handleMessage('c1', { type: 'door.toggle', wallId: 7 }, map).outbound).toEqual([
       { clientId: 'c1', msg: { type: 'error', reason: 'invalid_message' } },
     ])
+  })
+})
+
+/*
+ * CADA JOGADOR NO SEU MAPA e o PEDIDO DE PASSAGEM pelo pino de viagem.
+ *
+ * Duas cenas do mesmo tamanho (2000 x 500 px): o Salão (aberto no editor) e a
+ * Cripta (de fundo). A escada do Salão e a da Cripta são um par em mão dupla.
+ * Ana joga com o 'heroi' e Bia com o 'ladino', os dois no Salão.
+ */
+describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
+  const CENA_A = 'cena-salao'
+  const CENA_B = 'cena-cripta'
+  const NOME_A = 'Salão'
+  const NOME_B = 'Cripta'
+  const ALTAR = 'Altar de ossos'
+
+  function viagem(id: string, x: number, y: number, description: string, destino: Pin['destino']): Pin {
+    return { id, x, y, kind: 'viagem', description, image: null, destino }
+  }
+
+  interface Mundo {
+    heroi: { cena: 'A' | 'B'; x: number; y: number }
+  }
+
+  /** O mundo que o host lê: o Salão aberto, a Cripta de fundo, o herói onde `m` diz. */
+  function mundo(m: Mundo = { heroi: { cena: 'A', x: 200, y: 200 } }): HostWorld {
+    const heroi = token('heroi', m.heroi.x, m.heroi.y)
+    const salao: MapData = {
+      ...createEmptyMap('mapa-salao', 'Aventura', 40, 10, 50),
+      tokens: [...(m.heroi.cena === 'A' ? [heroi] : []), token('ladino', 300, 200)],
+      pins: [
+        viagem('escada-a', 400, 200, 'Escada que desce', { sceneId: CENA_B, pinId: 'escada-b' }),
+        { id: 'estatua', x: 450, y: 200, kind: 'exclamacao', description: 'Estátua', image: null },
+        viagem('sem-destino', 420, 250, 'Porta emparedada', null),
+        viagem('orfa', 430, 150, 'Alçapão', { sceneId: CENA_B, pinId: 'nao-existe' }),
+        // Longe de todo mundo (1700 px do herói, raio 700): no escuro.
+        viagem('escada-longe', 1900, 250, 'Poço', { sceneId: CENA_B, pinId: 'poco-b' }),
+      ],
+    }
+    const cripta: MapData = {
+      ...createEmptyMap('mapa-cripta', NOME_B, 40, 10, 50),
+      tokens: m.heroi.cena === 'B' ? [heroi] : [],
+      pins: [
+        viagem('escada-b', 1000, 250, 'Escada que sobe', { sceneId: CENA_A, pinId: 'escada-a' }),
+        viagem('poco-b', 100, 100, 'Fundo do poço', { sceneId: CENA_A, pinId: 'escada-longe' }),
+        { id: 'altar', x: 1100, y: 250, kind: 'exclamacao', description: ALTAR, image: null },
+      ],
+    }
+    return {
+      open: { sceneId: CENA_A, name: NOME_A, map: salao },
+      background: [{ sceneId: CENA_B, name: NOME_B, map: cripta }],
+    }
+  }
+
+  function mesa() {
+    let clock = 1_000_000
+    const s = createHostSession({ code: CODE, visionRadius: RADIUS, now: () => clock, randomId: sequentialIds() })
+    const w = mundo()
+    const ana = welcomeOf(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, w).outbound)
+    const bia = welcomeOf(s.handleMessage('c2', { type: 'join', code: CODE, name: 'Bia' }, w).outbound)
+    s.assignToken(ana.playerId, 'heroi')
+    s.assignToken(bia.playerId, 'ladino')
+    s.broadcast(w)
+    return {
+      s,
+      w,
+      ana,
+      bia,
+      advance: (ms: number) => {
+        clock += ms
+      },
+      pedir: (pinId: string, world: HostWorld = w, clientId = 'c1') => s.handleMessage(clientId, { type: 'pin.travel.request', pinId }, world),
+    }
+  }
+
+  function recusa(r: HostResult): string | null {
+    const msg = r.outbound[0]?.msg
+    return msg?.type === 'pin.travel.rejected' ? msg.reason : null
+  }
+
+  function snapshotDe(r: HostResult, clientId: string) {
+    const msg = r.outbound.find((o) => o.clientId === clientId)?.msg
+    if (msg?.type !== 'snapshot') throw new Error(`esperava snapshot para ${clientId}`)
+    return msg
+  }
+
+  it('pedido válido vai ao mestre com o nome do pino e da cena; o jogador não recebe nada', () => {
+    const t = mesa()
+    const r = t.pedir('escada-a')
+    expect(r.outbound).toEqual([])
+    expect(r.travelRequest).toEqual({
+      requestId: expect.any(String),
+      playerId: t.ana.playerId,
+      playerName: 'Ana',
+      pinLabel: 'Escada que desce',
+      toSceneId: CENA_B,
+      toSceneName: NOME_B,
+    })
+  })
+
+  it('recusa: pino que não existe na cena do jogador', () => {
+    const t = mesa()
+    const r = t.pedir('nao-existe')
+    expect(recusa(r)).toBe('unavailable')
+    expect(r.travelRequest).toBeUndefined()
+  })
+
+  it('SEGURANÇA — recusa: pino de viagem ligado, mas no escuro para o jogador (névoa)', () => {
+    const t = mesa()
+    // Mesmo pino, mesmo par: a ÚNICA diferença é o jogador não o ver.
+    expect(recusa(t.pedir('escada-longe'))).toBe('unavailable')
+    // Controle positivo: com o herói perto do poço, o mesmo pedido vale.
+    const perto = mundo({ heroi: { cena: 'A', x: 1850, y: 250 } })
+    t.s.broadcast(perto)
+    t.advance(TRAVEL_REQUEST_MIN_INTERVAL_MS)
+    expect(t.pedir('escada-longe', perto).travelRequest?.pinLabel).toBe('Poço')
+  })
+
+  it('recusa: pino que não é de viagem', () => {
+    const t = mesa()
+    expect(recusa(t.pedir('estatua'))).toBe('unavailable')
+  })
+
+  it('recusa: pino de viagem sem destino', () => {
+    const t = mesa()
+    expect(recusa(t.pedir('sem-destino'))).toBe('unavailable')
+  })
+
+  it('recusa: o par do destino não existe', () => {
+    const t = mesa()
+    expect(recusa(t.pedir('orfa'))).toBe('unavailable')
+  })
+
+  it('recusa: jogador sem token na cena do pino (o dele está na Cripta) e jogador sem token nenhum', () => {
+    const t = mesa()
+    const naCripta = mundo({ heroi: { cena: 'B', x: 1000, y: 250 } })
+    t.s.broadcast(naCripta)
+    // A escada do Salão não está na cena da Ana: ela está na Cripta.
+    expect(recusa(t.pedir('escada-a', naCripta))).toBe('unavailable')
+    t.s.unassignToken(t.bia.playerId, 'ladino')
+    expect(recusa(t.pedir('escada-a', t.w, 'c2'))).toBe('unavailable')
+  })
+
+  it('recusa: segundo pedido enquanto o primeiro espera o mestre', () => {
+    const t = mesa()
+    expect(t.pedir('escada-a').travelRequest).toBeDefined()
+    t.advance(TRAVEL_REQUEST_MIN_INTERVAL_MS)
+    expect(recusa(t.pedir('escada-a'))).toBe('pending')
+  })
+
+  it('recusa: pedido repetido pelo mesmo pino dentro do intervalo mínimo, e vale de novo depois dele', () => {
+    const t = mesa()
+    const primeiro = t.pedir('escada-a').travelRequest
+    if (primeiro === undefined) throw new Error('o primeiro pedido deveria valer')
+    t.s.denyTravel(primeiro.requestId)
+    t.advance(TRAVEL_REQUEST_MIN_INTERVAL_MS - 1)
+    expect(recusa(t.pedir('escada-a'))).toBe('too_soon')
+    t.advance(1)
+    expect(t.pedir('escada-a').travelRequest).toBeDefined()
+  })
+
+  it('mensagem de forma errada é recusada como inválida, sem derrubar nada', () => {
+    const t = mesa()
+    for (const msg of [{ type: 'pin.travel.request' }, { type: 'pin.travel.request', pinId: 7 }, { type: 'pin.travel.request', pinId: '' }, { type: 'pin.travel.request', pinId: 'x'.repeat(65) }]) {
+      expect(t.s.handleMessage('c1', msg, t.w).outbound).toEqual([{ clientId: 'c1', msg: { type: 'error', reason: 'invalid_message' } }])
+    }
+    expect(t.pedir('escada-a').travelRequest).toBeDefined()
+  })
+
+  it('"Não": pin.travel.denied só para quem pediu; decidir de novo não faz nada', () => {
+    const t = mesa()
+    const pedido = t.pedir('escada-a').travelRequest
+    if (pedido === undefined) throw new Error('pedido deveria valer')
+    expect(t.s.denyTravel(pedido.requestId).outbound).toEqual([{ clientId: 'c1', msg: { type: 'pin.travel.denied' } }])
+    expect(t.s.isTravelPending(pedido.requestId)).toBe(false)
+    expect(t.s.approveTravel(pedido.requestId, t.w)).toEqual({ outbound: [] })
+  })
+
+  it('quem sai da sala com pedido pendente: o pedido morre e "Deixar ir" fica inofensivo', () => {
+    const t = mesa()
+    const pedido = t.pedir('escada-a').travelRequest
+    if (pedido === undefined) throw new Error('pedido deveria valer')
+    t.s.disconnect('c1')
+    expect(t.s.isTravelPending(pedido.requestId)).toBe(false)
+    expect(t.s.approveTravel(pedido.requestId, t.w)).toEqual({ outbound: [] })
+  })
+
+  it('"Deixar ir": o herói sai do Salão e entra no par da Cripta; Bia no Salão não recebe nada da Cripta', () => {
+    const t = mesa()
+    const pedido = t.pedir('escada-a').travelRequest
+    if (pedido === undefined) throw new Error('pedido deveria valer')
+    const r = t.s.approveTravel(pedido.requestId, t.w)
+    // Ao dono, só o aviso — sem nome de cena. O mapa novo vem no broadcast.
+    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'scene.changed' } }])
+    // Chega no par (1000, 250), assentado no centro da célula como o snap de token.
+    expect(r.applyTransfer).toEqual({
+      tokenId: 'heroi',
+      playerId: t.ana.playerId,
+      playerName: 'Ana',
+      fromSceneId: CENA_A,
+      toSceneId: CENA_B,
+      toSceneName: NOME_B,
+      x: 1025,
+      y: 275,
+    })
+
+    // O integrador aplicou: o herói agora mora na Cripta.
+    const depois = mundo({ heroi: { cena: 'B', x: 1025, y: 275 } })
+    const b = t.s.broadcast(depois)
+    const daAna = snapshotDe(b, 'c1')
+    expect(daAna.map.id).toBe('mapa-cripta')
+    expect(daAna.map.tokens.map((tk) => tk.id)).toEqual(['heroi'])
+    expect(daAna.ownTokens).toEqual(['heroi'])
+    const daBia = snapshotDe(b, 'c2')
+    expect(daBia.map.id).toBe('mapa-salao')
+    expect(daBia.map.tokens.map((tk) => tk.id)).toEqual(['ladino'])
+    const textoDaBia = JSON.stringify(b.outbound.filter((o) => o.clientId === 'c2'))
+    expect(textoDaBia).not.toContain('mapa-cripta')
+    expect(textoDaBia).not.toContain(ALTAR)
+    expect(textoDaBia).not.toContain('"destino"')
+    // O painel do mestre diz onde cada um está.
+    expect(t.s.listPlayers(depois).map((p) => [p.name, p.sceneName])).toEqual([
+      ['Ana', NOME_B],
+      ['Bia', NOME_A],
+    ])
+  })
+
+  it('a memória do Salão volta com a Ana: o fundo que ela explorou antes da viagem continua lembrado', () => {
+    const t = mesa()
+    // Longe da escada do Salão E do ponto de chegada na Cripta (mais que o raio de 700 dos dois).
+    const FUNDO = { x: 1850, y: 300 }
+    // Ana anda até o fundo do Salão e volta para perto da escada.
+    t.s.broadcast(mundo({ heroi: { cena: 'A', x: FUNDO.x, y: FUNDO.y } }))
+    const pertoDaEscada = mundo({ heroi: { cena: 'A', x: 380, y: 200 } })
+    const antes = decodeExploration(snapshotDe(t.s.broadcast(pertoDaEscada), 'c1').explored)
+    expect(antes !== null && isPointExplored(antes, FUNDO)).toBe(true)
+
+    const ida = t.pedir('escada-a', pertoDaEscada).travelRequest
+    if (ida === undefined) throw new Error('a ida deveria valer')
+    t.s.approveTravel(ida.requestId, pertoDaEscada)
+    const naCripta = decodeExploration(snapshotDe(t.s.broadcast(mundo({ heroi: { cena: 'B', x: 1025, y: 275 } })), 'c1').explored)
+    // Na Cripta a memória é OUTRA: o fundo do Salão não está lá.
+    expect(naCripta !== null && isPointExplored(naCripta, FUNDO)).toBe(false)
+
+    // Volta pelo par: de novo no Salão, junto da escada (longe do fundo: 1100 px > raio 700).
+    const deVolta = decodeExploration(snapshotDe(t.s.broadcast(mundo({ heroi: { cena: 'A', x: 425, y: 225 } })), 'c1').explored)
+    expect(deVolta !== null && isPointExplored(deVolta, FUNDO)).toBe(true)
+  })
+
+  it('o mestre trocar a cena do editor não leva o jogador junto', () => {
+    const t = mesa()
+    // O editor abre a Cripta: agora ela é a aberta e o Salão é de fundo.
+    const w = mundo()
+    const trocado: HostWorld = { open: w.background[0], background: [w.open] }
+    const b = t.s.broadcast(trocado)
+    expect(snapshotDe(b, 'c1').map.id).toBe('mapa-salao')
+    expect(snapshotDe(b, 'c2').map.id).toBe('mapa-salao')
+  })
+
+  it('movimento, porta e sinal de quem está numa cena de fundo valem NELA', () => {
+    const t = mesa()
+    const naCripta = mundo({ heroi: { cena: 'B', x: 1025, y: 275 } })
+    t.s.broadcast(naCripta)
+    const move = t.s.handleMessage('c1', { type: 'token.move', reqId: 'r1', tokenId: 'heroi', x: 1075, y: 275 }, naCripta)
+    expect(move.applyMove).toEqual({ tokenId: 'heroi', x: 1075, y: 275, sceneId: CENA_B })
+    // Sinal da Ana na Cripta não chega à Bia, que está no Salão (mesmo num ponto que ela conhece).
+    const sinal = t.s.handleMessage('c1', { type: 'signal', x: 300, y: 200 }, naCripta)
+    expect(sinal.outbound.map((o) => o.clientId)).toEqual(['c1'])
+    // O laser do mestre (na cena aberta, o Salão) não vai a quem está na Cripta.
+    expect(t.s.laser({ type: 'laser', off: true }, naCripta).outbound.map((o) => o.clientId)).toEqual(['c2'])
+  })
+
+  it('cada jogador lembra no máximo MAX_SCENE_MEMORIES_PER_PLAYER cenas: a mais antiga é esquecida', () => {
+    const t = mesa()
+    const FUNDO = { x: 1500, y: 250 }
+    t.s.broadcast(mundo({ heroi: { cena: 'A', x: FUNDO.x, y: FUNDO.y } }))
+    // A Ana passa por mais MAX cenas (mapas de id novo): o Salão sai da memória.
+    for (let i = 0; i < MAX_SCENE_MEMORIES_PER_PLAYER; i += 1) {
+      const outra: MapData = { ...createEmptyMap(`mapa-${i}`, `Cena ${i}`, 40, 10, 50), tokens: [token('heroi', 200, 200)] }
+      t.s.broadcast({ open: { sceneId: `cena-${i}`, name: `Cena ${i}`, map: outra }, background: [] })
+    }
+    const deVolta = decodeExploration(snapshotDe(t.s.broadcast(mundo({ heroi: { cena: 'A', x: 200, y: 200 } })), 'c1').explored)
+    expect(deVolta !== null && isPointExplored(deVolta, FUNDO)).toBe(false)
   })
 })
