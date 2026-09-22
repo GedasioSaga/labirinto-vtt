@@ -604,3 +604,16 @@ mostrando o id da ficha em cena de fundo. Vão entrando entre as features, cada 
 Girar sala, deixado de fora e anotado: ±90° numa sala cujos lados têm paridades diferentes em quadrados
 deixa a sala meio quadrado fora da grade (efeito do pivô no centro); sala travada ainda mostra chips de canto.
 Defeito B2 ("clique no menu atravessa") não reproduziu em 10 de 11 menus, com clique real e pixel antes/depois.
+
+### Andamento do grupo espalhado e dos defeitos (22/09/2026, madrugada)
+
+| entrega | commit | prova no commit juntado |
+|---|---|---|
+| G2 — passagem do pino: pede / livre / trancada | `6d1a4ea` | `modos-do-pino` 5, `viagem-do-jogador` 6, `pinos-ponto-de-interesse` 4 — VERDES |
+| G1 — painel do grupo (Ir lá, Mandar para…) + nome da cena nunca vai ao jogador + "Remover" com nome de ficha de cena de fundo | `ef8ba5d` | `painel-do-grupo` 5, `modos-do-pino` 5 — VERDES |
+| Defeitos: Subtrair com Pincel de blocos; borracha avisa sobre chão | `d96cf5b` | `subtrair-abre-buraco` 4, `borracha-diz-o-que-nao-apaga` 3 — VERDES |
+| Defeitos: salvar fora do app explica; corredor aberto não some; atalho com foco no painel (+ `?` troca o tipo do pino); acervo diz que guarda ficha com foto e aceita arrastar ao mapa | `00a3cf8` | as 4 réguas VERDES |
+
+Decisões do builder da G2 para o usuário revisar: o véu do cartão do jogador deixou de bloquear o mapa
+(tocar num botão do painel fecha o cartão e aciona o botão; a roda fora do cartão dá zoom); a passagem
+livre tem uma batida de 450 ms com "Passando…" antes de trocar a cena.
