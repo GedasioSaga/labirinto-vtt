@@ -9,7 +9,14 @@ export interface PartySectionProps {
   onGoTo(member: PartyMember): void
   /** "Mandar para…" confirmado. `false` = não deu, e o formulário fica aberto com o aviso. */
   onSend(playerId: string, sceneId: string, pinId: string | null): boolean
+  /** Quem a câmera do editor está seguindo agora (G7); `null` = ninguém. */
+  followingId?: string | null
+  /** "Seguir": liga neste jogador (e desliga o anterior) ou desliga se já era ele. Sem ele, não há botão. */
+  onToggleFollow?(member: PartyMember): void
 }
+
+/** Nome FIXO do botão: o estado vai em `aria-pressed`, e o leitor de tela lê "Seguir, pressionado". */
+export const FOLLOW_LABEL = 'Seguir'
 
 /** Valor do `<select>` de chegada que quer dizer "centro da cena" (id de pino nunca é vazio). */
 const CENTER = ''
@@ -129,7 +136,7 @@ function SendForm({ member, destinations, onSend, onClose }: SendFormProps) {
  * levar alguém ("Mandar para…"). A bolinha é a cor do disco da ficha: é a
  * mesma peça que o mestre procura no mapa.
  */
-export function PartySection({ members, destinations, onGoTo, onSend }: PartySectionProps) {
+export function PartySection({ members, destinations, onGoTo, onSend, followingId = null, onToggleFollow }: PartySectionProps) {
   const headingId = useId()
   const formId = useId()
   const [sendingId, setSendingId] = useState<string | null>(null)
@@ -174,6 +181,17 @@ export function PartySection({ members, destinations, onGoTo, onSend }: PartySec
                   <button type="button" className="lb-btn" onClick={() => onGoTo(member)}>
                     Ir lá
                   </button>
+                  {onToggleFollow !== undefined && (
+                    // Ligado ganha o destaque do "Laser" da mesma aba: um botão de modo, não uma ação de uma vez.
+                    <button
+                      type="button"
+                      className={member.playerId === followingId ? 'lb-btn lb-btn--primary' : 'lb-btn'}
+                      aria-pressed={member.playerId === followingId}
+                      onClick={() => onToggleFollow(member)}
+                    >
+                      {FOLLOW_LABEL}
+                    </button>
+                  )}
                   {targets.length > 0 && (
                     <button
                       type="button"

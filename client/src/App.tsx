@@ -13,6 +13,8 @@ import { listen } from '@tauri-apps/api/event'
 import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } from './net/hostBridge'
 import { useSignalStore } from './stores/signalStore'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
+import { useFollowStore } from './stores/followStore'
+import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
@@ -526,9 +528,13 @@ function App() {
               members: partyMembers(roomPlayers, world),
               destinations: partyDestinations(world),
               onGoTo: (member) => {
+                // "Ir lá" em OUTRO jogador é o mestre escolhendo a vista: desliga o seguir.
+                if (member.playerId !== followingId) useFollowStore.getState().stop()
                 if (member.token !== null) useAdventureStore.getState().goToPoint(member.sceneId, { x: member.token.x, y: member.token.y })
               },
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
+              followingId,
+              onToggleFollow: (member) => useFollowStore.getState().toggle(member.playerId),
             }}
             tunnel={tunnel}
             onStart={() => void handleStartRoom()}
@@ -558,6 +564,9 @@ function App() {
   // Cada cena lembra a própria câmera; a troca pede ao canvas que volte a ela (ou enquadre).
   const sceneCameraRequest = useAdventureStore((state) => state.cameraRequest)
   const canGoBackToScene = previousSceneId !== null && sceneCache[previousSceneId]?.status === 'ok'
+  // G7 — "Seguir" na linha do Grupo: a câmera acompanha a ficha do jogador, inclusive de cena em cena.
+  const followingId = useFollowStore((state) => state.playerId)
+  useFollowPlayer(roomPlayers, () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
   /**
    * Caminho de origem do mapa em edição. `null` enquanto o mapa é novo
    * (ainda não salvo); a partir daí toda escrita vai de volta para esse
@@ -1204,17 +1213,26 @@ function App() {
   }
 
   /** Um clique na lista "Cenas". O que foi feito na cena de onde se sai fica no cache, esperando o Salvar. */
+  // Trocar de cena à mão (lista, nova cena, Voltar, pino de viagem) é o mestre escolhendo a vista: desliga o "Seguir".
   const handleSelectScene = (sceneId: string) => {
+    useFollowStore.getState().stop()
     useAdventureStore.getState().switchScene(sceneId)
   }
 
   /** "+ Nova cena": a aventura nasce aqui quando o mapa ainda era solto. */
   const handleCreateScene = (name: string) => {
+    useFollowStore.getState().stop()
     useAdventureStore.getState().createScene(name, currentMapPath)
   }
 
   const handleGoBack = () => {
+    useFollowStore.getState().stop()
     if (previousSceneId !== null) useAdventureStore.getState().switchScene(previousSceneId)
+  }
+
+  const handleTravelPin = (pinId: string) => {
+    useFollowStore.getState().stop()
+    useAdventureStore.getState().travelThroughPin(pinId)
   }
 
   /**
@@ -1236,9 +1254,7 @@ function App() {
         useAdventureStore.getState().linkPinToExisting(pin.id, sceneId, partnerId)
       },
       onUnlink: () => useAdventureStore.getState().unlinkPin(pin.id),
-      onGo: () => {
-        useAdventureStore.getState().travelThroughPin(pin.id)
-      },
+      onGo: () => handleTravelPin(pin.id),
       // O modo é do pino desta cena, com desfazer como o resto do painel; o
       // par da outra cena fica como está.
       passage: passageOf(pin),
@@ -1593,7 +1609,7 @@ function App() {
           resetZoomRequest={resetZoomRequest}
           cameraRequest={sceneCameraRequest}
           focusObstacles={canvasObstacles}
-          onTravelPin={(pinId) => useAdventureStore.getState().travelThroughPin(pinId)}
+          onTravelPin={handleTravelPin}
           onLaserMove={(x, y) => hostBridgeRef.current?.laserMove(x, y)}
           onRoomCreated={() => {
             // O nome é pedido sobre a própria Sala (PixiCanvas); a aba Mapa só

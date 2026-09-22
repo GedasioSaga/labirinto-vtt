@@ -7,6 +7,7 @@ import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
 import { pinTravelOf, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
+import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
 import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
@@ -773,39 +774,44 @@ export function PixiCanvas({
       // `setCamera` continua SÍNCRONO de propósito: é o que os gestos e os
       // testes leem para converter mundo↔tela no evento seguinte. O que foi
       // adiado para um por quadro é só o redesenho que a câmera dispara.
-      const applyCamera = (next: Camera) => {
+      //
+      // `origin` diz quem moveu: o gesto do mestre desliga o "Seguir" (G7); o
+      // pedido do app (abrir, trocar de cena, "Ir lá", o próprio seguir) não —
+      // senão o seguir se desligaria no primeiro centro que faz.
+      const applyCamera = (next: Camera, origin: CameraOrigin) => {
         camera = next
         positionWorld()
         world.scale.set(camera.scale)
         useMapStore.getState().setCamera(camera)
         notifyCameraChange()
         textResolutionTask.schedule()
+        useFollowStore.getState().cameraApplied(origin)
       }
 
       // Item #9 do plano — reset explícito (Ctrl+0 / clique no ZoomHud):
       // volta ao estado literal de câmera nova, não um "fit" — é o que o
       // usuário lê como "100%" de verdade (fitCamera para o mapa inteiro
       // quase nunca fica em scale=1).
-      const resetZoom = () => applyCamera({ x: 0, y: 0, scale: 1 })
+      const resetZoom = () => applyCamera({ x: 0, y: 0, scale: 1 }, 'gesto')
       resetZoomRequestRef.current = resetZoom
 
       // Item #9 — margem de respiro (px de tela) ao redor do conteúdo tanto
       // no fit automático de abertura quanto na tecla F.
       const FIT_MARGIN = 40
-      const fitToContent = () => {
+      const fitToContent = (origin: CameraOrigin) => {
         const bounds = contentBounds(useMapStore.getState().map)
         // Mapa vazio (bounds nulo): não mexe na câmera — fitCamera não tem
         // "sem conteúdo" pra enquadrar, e forçar um valor arbitrário seria
         // pior que deixar a câmera onde já estava.
         if (!bounds) return
-        applyCamera(fitCamera(bounds, { width: app.screen.width, height: app.screen.height }, FIT_MARGIN))
+        applyCamera(fitCamera(bounds, { width: app.screen.width, height: app.screen.height }, FIT_MARGIN), origin)
       }
       // Fit automático ao ABRIR o mapa (item #9): PixiCanvas monta de novo
       // toda vez que `App.tsx` troca de tela pra 'editor' (Carregar Mapa,
       // Criar, Voltar por portal) — então "no mount" já É "ao abrir o mapa"
       // pra este componente, sem precisar de uma segunda assinatura de
       // `map.id`.
-      fitToContent()
+      fitToContent('pedido')
       // Troca de cena: volta à câmera que a cena tinha, ou enquadra a cena
       // vista pela primeira vez (cena vazia mantém a câmera, ver acima).
       // Chegada por pino de viagem: o pino par no centro da tela, no zoom que
@@ -814,11 +820,11 @@ export function PixiCanvas({
         if (focus !== undefined) {
           const scale = requested?.scale ?? camera.scale
           const center = freeAreaCenter({ width: app.screen.width, height: app.screen.height }, focusObstaclesRef.current?.() ?? [])
-          applyCamera({ scale, x: center.x - focus.x * scale, y: center.y - focus.y * scale })
+          applyCamera({ scale, x: center.x - focus.x * scale, y: center.y - focus.y * scale }, 'pedido')
           return
         }
-        if (requested) applyCamera(requested)
-        else fitToContent()
+        if (requested) applyCamera(requested, 'pedido')
+        else fitToContent('pedido')
       }
 
       // B1 — ondas animadas precisam de quadro a quadro; a store só diz quais sinais estão vivos.
@@ -4326,7 +4332,7 @@ export function PixiCanvas({
           const dx = event.global.x - lastPoint.x
           const dy = event.global.y - lastPoint.y
           lastPoint = { x: event.global.x, y: event.global.y }
-          applyCamera(panBy(camera, dx, dy))
+          applyCamera(panBy(camera, dx, dy), 'gesto')
           return
         }
 
@@ -5374,7 +5380,7 @@ export function PixiCanvas({
             nudgeSelected(action.dx, action.dy, action.fine)
             break
           case 'fitAll':
-            fitToContent()
+            fitToContent('gesto')
             break
           case 'zoomReset':
             resetZoom()
@@ -5454,7 +5460,7 @@ export function PixiCanvas({
           ctrlKey: event.ctrlKey,
           shiftKey: event.shiftKey,
         })
-        applyCamera(gesture.kind === 'zoom' ? zoomAt(camera, pointer, gesture.deltaY) : panBy(camera, -gesture.dx, -gesture.dy))
+        applyCamera(gesture.kind === 'zoom' ? zoomAt(camera, pointer, gesture.deltaY) : panBy(camera, -gesture.dx, -gesture.dy), 'gesto')
       }
       el.addEventListener('wheel', onWheel, { passive: false })
 
