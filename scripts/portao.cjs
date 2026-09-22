@@ -491,6 +491,9 @@ const JORNADAS_DO_CRITERIO = [
   // 22/09/2026, grupo espalhado G10 — viajar junto: no aviso do pedido, levar
   // também quem está a até 2 casas de quem pediu.
   'e2e/task-jornada-viajar-junto.spec.ts',
+  // 22/09/2026, grupo espalhado G12 — pausa por cena: quem está na cena
+  // pausada não anda e lê o aviso; as outras cenas seguem.
+  'e2e/task-jornada-pausa-por-cena.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',

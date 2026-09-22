@@ -1,5 +1,5 @@
 {
-  "selado_em": "2026-09-22T09:51:39.980Z",
+  "selado_em": "2026-09-22T10:18:18.241Z",
   "jornadas": {
     "e2e/task-jornada-parede-grossa.spec.ts": "527e40bd7728c8b27e9334e40ce45223816eef2f88b14351545951c57af89314",
     "e2e/task-jornada-selecao-arrasto.spec.ts": "0e9113e9b71bfac3ce19108908c4421e680919e8f07c99638a75f94c4b0b4062",
@@ -52,6 +52,7 @@
     "e2e/task-jornada-chegada-oculta.spec.ts": "74d1466179241a624d3ed01644b046d39a3453cacc6361605db79815f55bb648",
     "e2e/task-jornada-recado-por-cena.spec.ts": "296e0a4d8a11a40b52cb5148c32083fa579a771bffab914def414a3f95a93f2e",
     "e2e/task-jornada-viajar-junto.spec.ts": "7d28e27248976d134b50f44d19f4f261c928719a816ecf7eb8d31fd09df4d765",
+    "e2e/task-jornada-pausa-por-cena.spec.ts": "e97e47f2ef403e0c16c721012a75b914b6c4de6265056a9f74f4636dc0e6f624",
     "e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts": "5f155f2e008355609708b64e582ad908b8bca4b3708a70e3f2a20a520245362e",
     "e2e/task-jornada-cor-do-token.spec.ts": "e1623d0fff5762afdb6b31e08b93af3f111ab27e5e5552683cac6b8b6c2e8e05",
     "e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts": "8ce7d796aaf58b31aaf3d8e317de9b6d72aff11daacccaf831bdd39f4638f748",
