@@ -1,0 +1,165 @@
+/**
+ * `lib/gatherParty.ts` — onde cada ficha assenta no "Reunir o grupo aqui", sem
+ * store nem rede.
+ *
+ * O que se cobra: as casas saem em anéis em volta do pino, do mais perto ao
+ * mais longe, e nunca na casa do próprio pino; parede entre a casa e o pino
+ * tira a casa (a ficha não aparece do outro lado); casa fora do chão sai;
+ * ficha que já está lá ocupa a casa (menos a que vai sair dela); e quem não
+ * coube volta como `null`, para o mestre ser avisado.
+ */
+import { describe, expect, it } from 'vitest'
+import type { HostWorld } from '../net/hostSession'
+import type { MapData, Token, Wall } from '../types/map'
+import { applyGatherPlan, gatherCandidates, gatherSpots, planGather, type GatherPlan } from './gatherParty'
+import { createEmptyMap } from './mapFactory'
+import type { PartyMember } from './party'
+
+const GRADE = 50
+/** Centro de uma casa. */
+const casa = (coluna: number, linha: number) => ({ x: coluna * GRADE + GRADE / 2, y: linha * GRADE + GRADE / 2 })
+const PINO = casa(10, 5)
+
+function mapa(extra: Partial<MapData> = {}): MapData {
+  return { ...createEmptyMap('map_teste', 'Teste', 20, 12, GRADE), ...extra }
+}
+
+function parede(id: string, x1: number, y1: number, x2: number, y2: number): Wall {
+  return { id, x1, y1, x2, y2, blocksLight: true, blocksMove: true, door: null }
+}
+
+function ficha(id: string, p: { x: number; y: number }, size = 1): Token {
+  return { id, characterId: null, name: id, x: p.x, y: p.y, size, image: null }
+}
+
+/** Quantas casas (Chebyshev) separam o ponto do pino. */
+const anel = (p: { x: number; y: number }) => Math.max(Math.abs(p.x - PINO.x), Math.abs(p.y - PINO.y)) / GRADE
+
+function semNulo<T>(lista: (T | null)[]): T[] {
+  return lista.filter((item): item is T => item !== null)
+}
+
+describe('gatherSpots', () => {
+  it('anel sem obstáculo: os 8 vizinhos, os de lado antes das diagonais, nunca a casa do pino', () => {
+    const casas = semNulo(gatherSpots(mapa(), PINO, Array(8).fill(1)))
+    expect(casas).toHaveLength(8)
+    expect(casas.every((p) => anel(p) === 1)).toBe(true)
+    expect(casas.slice(0, 4).every((p) => Math.hypot(p.x - PINO.x, p.y - PINO.y) === GRADE)).toBe(true)
+    expect(new Set(casas.map((p) => `${p.x}|${p.y}`)).size).toBe(8)
+    // A nona já é do segundo anel.
+    const nove = semNulo(gatherSpots(mapa(), PINO, Array(9).fill(1)))
+    expect(anel(nove[8])).toBe(2)
+  })
+
+  it('parede entre a casa e o pino: nenhuma ficha do outro lado', () => {
+    // Parede de cima a baixo na linha x = 550, colada à direita do pino.
+    const map = mapa({ walls: [parede('muro', 550, 0, 550, 600)] })
+    const casas = semNulo(gatherSpots(map, PINO, Array(12).fill(1)))
+    expect(casas).toHaveLength(12)
+    expect(casas.filter((p) => p.x > 550)).toEqual([])
+  })
+
+  it('coluna de pedra ao lado do pino: a casa dentro dela fica de fora', () => {
+    const esq = casa(9, 5)
+    const x1 = esq.x - GRADE / 2
+    const y1 = esq.y - GRADE / 2
+    const x2 = x1 + GRADE
+    const y2 = y1 + GRADE
+    const coluna = [parede('n', x1, y1, x2, y1), parede('l', x2, y1, x2, y2), parede('s', x2, y2, x1, y2), parede('o', x1, y2, x1, y1)]
+    const casas = semNulo(gatherSpots(mapa({ walls: coluna }), PINO, Array(8).fill(1)))
+    expect(casas).not.toContainEqual(esq)
+  })
+
+  it('porta aberta deixa a casa do outro lado valer; fechada, não', () => {
+    const porta = (open: boolean): Wall => ({ ...parede('porta', 550, 250, 550, 300), door: { open, locked: false, kind: 'normal' } })
+    const direita = casa(11, 5)
+    const muro = [parede('muro-n', 550, 0, 550, 250), parede('muro-s', 550, 300, 550, 600)]
+    expect(gatherSpots(mapa({ walls: [...muro, porta(true)] }), PINO, Array(8).fill(1))).toContainEqual(direita)
+    expect(gatherSpots(mapa({ walls: [...muro, porta(false)] }), PINO, Array(8).fill(1))).not.toContainEqual(direita)
+  })
+
+  it('fora do chão: com chão no mapa, nenhuma ficha onde ele acaba', () => {
+    // O chão acaba em y = 300: a linha de baixo do pino (y 300-350) é vazio.
+    const map = mapa({ floor: [{ id: 'chao', shape: { kind: 'rect', cx: 500, cy: 150, w: 1000, h: 300 }, op: 'add', modifiers: {} }] })
+    const casas = semNulo(gatherSpots(map, PINO, Array(10).fill(1)))
+    expect(casas).toHaveLength(10)
+    expect(casas.filter((p) => p.y > 300)).toEqual([])
+  })
+
+  it('ficha ocupando a casa: fica de fora, menos se for uma das que vão andar', () => {
+    const direita = casa(11, 5)
+    const map = mapa({ tokens: [ficha('estatua', direita)] })
+    expect(gatherSpots(map, PINO, Array(8).fill(1))).not.toContainEqual(direita)
+    expect(semNulo(gatherSpots(map, PINO, Array(8).fill(1)))).toHaveLength(8)
+    expect(gatherSpots(map, PINO, Array(8).fill(1), new Set(['estatua']))).toContainEqual(direita)
+  })
+
+  it('ficha grande ocupa as vizinhas: a de 2 casas assenta na linha da grade e ninguém cai em cima dela', () => {
+    const [grande, ...resto] = gatherSpots(mapa(), PINO, [2, 1, 1, 1, 1])
+    expect(grande).not.toBeNull()
+    if (grande === null) return
+    expect(grande.x % GRADE).toBe(0)
+    expect(grande.y % GRADE).toBe(0)
+    // Raio da grande (1 casa) + raio da pequena (meia casa), com a folga de 0,9.
+    for (const p of semNulo(resto)) expect(Math.hypot(p.x - grande.x, p.y - grande.y)).toBeGreaterThanOrEqual(1.5 * GRADE * 0.9)
+  })
+
+  it('espaço insuficiente: quem não coube volta null, na ordem pedida', () => {
+    // Um cubículo de duas casas: a do pino e a da direita.
+    const cubiculo = [parede('n', 500, 250, 600, 250), parede('l', 600, 250, 600, 300), parede('s', 600, 300, 500, 300), parede('o', 500, 300, 500, 250)]
+    const casas = gatherSpots(mapa({ walls: cubiculo }), PINO, [1, 1, 1])
+    expect(casas).toEqual([casa(11, 5), null, null])
+  })
+})
+
+describe('planGather e applyGatherPlan', () => {
+  const lanterna = ficha('lanterna', casa(2, 2))
+  const rocha = ficha('rocha', casa(4, 4))
+  const mundo: HostWorld = {
+    open: { sceneId: 'salao', name: 'Salão', map: mapa({ tokens: [lanterna] }) },
+    background: [{ sceneId: 'cripta', name: 'Cripta', map: mapa({ tokens: [rocha] }) }],
+  }
+  const membro = (playerId: string, name: string, sceneId: string, token: Token): PartyMember => ({
+    playerId,
+    name,
+    connected: true,
+    sceneId,
+    sceneName: null,
+    token: { id: token.id, color: '#3cff00', x: token.x, y: token.y },
+  })
+  const ana = membro('p1', 'Ana', 'salao', lanterna)
+  const carla = membro('p3', 'Carla', 'cripta', rocha)
+
+  it('quem está na cena do pino só anda; quem está em outra viaja; casas diferentes', () => {
+    const plano = planGather([ana, carla], mundo, PINO)
+    expect(plano.leftOut).toEqual([])
+    expect(plano.moves.map((m) => [m.name, m.tokenId, m.travels])).toEqual([
+      ['Ana', 'lanterna', false],
+      ['Carla', 'rocha', true],
+    ])
+    const [a, c] = plano.moves
+    expect(Math.hypot(a.x - c.x, a.y - c.y)).toBeGreaterThanOrEqual(GRADE)
+    expect(plano.moves.every((m) => anel(m) === 1)).toBe(true)
+  })
+
+  it('jogador sem ficha não entra na lista nem no plano', () => {
+    const semFicha: PartyMember = { ...ana, playerId: 'p9', name: 'Zé', token: null }
+    expect(gatherCandidates([ana, semFicha]).map((c) => c.name)).toEqual(['Ana'])
+    expect(planGather([semFicha], mundo, PINO).moves).toEqual([])
+  })
+
+  it('aplica as travessias ANTES do passo local, e devolve quem não pôde vir', () => {
+    const plano: GatherPlan = planGather([ana, carla], mundo, PINO)
+    const ordem: string[] = []
+    const falhou = applyGatherPlan(plano, {
+      sceneId: 'salao',
+      bringFromOtherScene: (playerId, sceneId) => {
+        ordem.push(`viaja ${playerId} -> ${sceneId}`)
+        return false
+      },
+      placeInScene: (posicoes) => ordem.push(`anda ${posicoes.map((p) => p.id).join(',')}`),
+    })
+    expect(ordem).toEqual(['viaja p3 -> salao', 'anda lanterna'])
+    expect(falhou).toEqual(['Carla'])
+  })
+})

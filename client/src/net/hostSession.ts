@@ -267,8 +267,12 @@ export interface HostSession {
    * centro dela. Devolve o mesmo par da aprovação (`applyTransfer` +
    * `scene.changed`, este marcado `by: 'master'`). Destino inválido, jogador
    * sem ficha em cena ou já na cena de destino: nada.
+   *
+   * `gatherAt` é o "Reunir o grupo aqui": a ficha chega nessa casa (já
+   * escolhida livre por `lib/gatherParty.ts`), `pinId` é ignorado e o aviso
+   * sai como `by: 'gather'`.
    */
-  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, source: HostMapSource): HostResult
+  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, source: HostMapSource, gatherAt?: { x: number; y: number }): HostResult
   /**
    * Raio de visão só deste jogador (limitado à faixa); `null` volta ao global.
    * Não envia: o integrador faz o broadcast. Jogador desconhecido ou raio não finito é ignorado.
@@ -842,7 +846,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return findPendingTravel(requestId) !== undefined
     },
 
-    sendPlayer(playerId, toSceneId, pinId, source) {
+    sendPlayer(playerId, toSceneId, pinId, source, gatherAt) {
       const record = players.get(playerId)
       if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
       const world = toWorld(source)
@@ -855,15 +859,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const owned = ownership[playerId] ?? []
       const token = owned.map((id) => from.map.tokens.find((t) => t.id === id)).find((t): t is Token => t !== undefined)
       if (token === undefined) return { outbound: [] }
-      const pin = pinId === null ? null : to.map.pins.find((p) => p.id === pinId && p.kind === 'viagem')
+      const pin = gatherAt !== undefined || pinId === null ? null : to.map.pins.find((p) => p.id === pinId && p.kind === 'viagem')
       // Pino que sumiu entre abrir o painel e confirmar: não chega em outro lugar calado.
       if (pin === undefined) return { outbound: [] }
-      const spot = pin === null ? arrivalPoint(to.map) : arrivalSpot(to.map, pin, token.size)
+      const spot = gatherAt ?? (pin === null ? arrivalPoint(to.map) : arrivalSpot(to.map, pin, token.size))
       currentScene.set(playerId, sceneKey(to))
       // O pedido que ele tinha na cena de antes perde o sentido: o pino ficou lá.
       pendingTravels.delete(playerId)
+      const by = gatherAt === undefined ? 'master' : 'gather'
       return {
-        outbound: record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by: 'master' } }],
+        outbound: record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by } }],
         applyTransfer: {
           tokenId: token.id,
           playerId,

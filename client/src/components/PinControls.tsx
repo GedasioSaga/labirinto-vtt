@@ -1,5 +1,6 @@
 import type { PinKind } from '../types/map'
 import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER } from '../lib/pins'
+import { GatherControls, type GatherControlsProps } from './GatherControls'
 import { PinTravelArt } from './PinSymbolArt'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
 import { Toggle } from './Toggle'
@@ -23,6 +24,12 @@ export interface PinControlsProps {
    * "Leva a…" quando o painel passa a mostrar outro pino.
    */
   travel?: (PinTravelControlsProps & { pinId: string }) | null
+  /**
+   * "Reunir o grupo aqui", de QUALQUER tipo de pino aberto no painel. `null` =
+   * sem sala (fora do app não há jogador para reunir). `pinId` fecha a lista
+   * quando o painel passa a mostrar outro pino.
+   */
+  gather?: (GatherControlsProps & { pinId: string }) | null
 }
 
 /** A pastilha de cada tipo: a mesma cabeça que o pino tem no mapa. */
@@ -71,6 +78,7 @@ export function PinControls({
   onClearImage,
   onDelete,
   travel = null,
+  gather = null,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
   return (
@@ -114,6 +122,9 @@ export function PinControls({
               arrastando. O pino não usa aquele componente porque não tem
               rotação nem "oculto no editor" separado do resto do painel. */}
           <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
+          {/* Ação de MESA, não de edição do pino: fica logo depois do que o
+              pino é, antes da imagem e do excluir. */}
+          {gather !== null && <GatherControlsFor gather={gather} />}
           {/* Só o nome do arquivo, nunca o caminho inteiro: o cartão do jogador
               recebe a imagem embutida, e mostrar a pasta do mestre aqui só
               enche a coluna. Data URL não tem nome, então diz o que é. */}
@@ -143,4 +154,10 @@ export function PinControls({
 function PinTravelControlsFor({ travel }: { travel: PinTravelControlsProps & { pinId: string } }) {
   const { pinId, ...props } = travel
   return <PinTravelControls key={pinId} {...props} />
+}
+
+/** A chave é o pino: a lista de reunião aberta num pino não reaparece aberta em outro. */
+function GatherControlsFor({ gather }: { gather: GatherControlsProps & { pinId: string } }) {
+  const { pinId, ...props } = gather
+  return <GatherControls key={pinId} {...props} />
 }

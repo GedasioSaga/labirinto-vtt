@@ -1501,6 +1501,36 @@ body {
   min-height: 34px;
 }
 
+/* "Reunir o grupo aqui" (painel do pino): a lista de quem vem, no mesmo poço
+   do "Mandar para…". Cada linha é o RÓTULO inteiro — clicar no nome marca,
+   como clicar no quadrado — com a bolinha da ficha entre os dois. */
+.lb-gather__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-gather__item {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 30px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.lb-gather__check {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--lb-color-brass);
+  cursor: pointer;
+}
+
 /* Abas Mapa | Sala no topo do rail (só no Tauri). Visual do segmented. */
 .lb-railtabs {
   display: grid;
