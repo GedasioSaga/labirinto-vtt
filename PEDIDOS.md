@@ -516,7 +516,7 @@ com pedido e aprovação. Depois das três, volta a fila automática do `HANDOFF
 |---|---|---|---|
 | 1 | Aventura com várias cenas no editor; cada cena lembra a própria câmera; portal antigo removido e migrado | `ad71dd8` + `21f783f` | `task-jornada-varias-cenas.spec.ts` (3 passed), `jornadas-e2e` e `jornadas-da-bar` VERDES |
 | 2 | Pino de viagem no editor: tipo 'viagem', ícone de passagem, "Leva a…" com pino de chegada criado na outra cena, mão dupla, clique leva a visão do mestre; destino nunca sai para o jogador | `9905eb4` | `task-jornada-pino-de-viagem.spec.ts` (5 passed), vizinhas `varias-cenas` (3), `pinos-ponto-de-interesse` (4), `marcador-com-icone` (2) e `jornadas-e2e` VERDES |
-| 3 | Cada jogador no seu mapa, com pedido e aprovação | em construção | `task-jornada-viagem-do-jogador.spec.ts` (selada em `16e273c`; caso 1 verde, 2 a 6 vermelhos na base) |
+| 3 | Cada jogador no seu mapa: "Pedir para passar" → confirmação → aviso do mestre com "Deixar ir"/"Não" → "Você chegou"; quem fica vê a ficha sumir; memória de exploração por jogador e cena (teto 8); "X entrou em C" com "Ir lá"; painel Jogo diz a cena de cada um | `1aadbfa` (com `7d30053`) | `task-jornada-viagem-do-jogador.spec.ts` (6 passed), `entrada-jogador` (5), `pino-de-viagem` (5), `varias-cenas` (3), `jornadas-e2e` VERDE; revisão de segurança com 4 achados, todos corrigidos com teste e mutação |
 
 Entrega 1, não verificado ainda: abrir no exe desktop, salvar, fechar, reabrir e conferir `adventure.json`
 e `scenes/<id>/map.json` no disco. "Exportar pasta" continua exportando só a cena aberta.
@@ -525,6 +525,12 @@ Entrega 2: `jornadas-da-bar` saiu VERMELHA com um teste de `task-jornada-pincel-
 (o 3 ou o 4) estourando 30 s na foto da tela. Não é da entrega: a mesma regressão, rodada em seguida
 no commit de antes dela (`d7ab205`), falhou igual (teste 3, 50 s), e o spec sozinho passa 4 de 4 (35 s).
 É instabilidade por carga, com outro Playwright rodando na máquina.
+
+Entrega 3: `jornadas-da-bar` com o mesmo teste 3 do balde estourando o tempo (44,8 s), com outro builder
+rodando Playwright ao mesmo tempo; o resto verde. Fora do escopo, anotado para a fila: no painel Jogo,
+"Remover <ficha>" mostra o id quando a ficha está numa cena de fundo (a lista vem só da cena aberta).
+
+Não verificado ainda: atravessar com um jogador de verdade no desktop, em LAN.
 
 ## Pedido de 21/09/2026, noite (registro literal, com print)
 
