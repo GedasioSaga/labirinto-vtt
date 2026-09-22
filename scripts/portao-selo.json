@@ -1,5 +1,5 @@
 {
-  "selado_em": "2026-09-22T03:22:38.636Z",
+  "selado_em": "2026-09-22T04:09:17.542Z",
   "jornadas": {
     "e2e/task-jornada-parede-grossa.spec.ts": "527e40bd7728c8b27e9334e40ce45223816eef2f88b14351545951c57af89314",
     "e2e/task-jornada-selecao-arrasto.spec.ts": "0e9113e9b71bfac3ce19108908c4421e680919e8f07c99638a75f94c4b0b4062",
@@ -35,6 +35,8 @@
     "e2e/task-jornada-viagem-do-jogador.spec.ts": "ba57f3d00afe3f4c5d9e0aa2a7be4b6608e24433a7f1de3ec29de0aa3deba582",
     "e2e/task-jornada-girar-sala.spec.ts": "f046c96eae44916031b366c3bfbe153f1d6a3ab64c0a38a0b3164100a47f0d2e",
     "e2e/task-jornada-medir-na-tela-do-jogador.spec.ts": "02693d63d3d98437469ef781f6831d104cb17a29ce51de650386584034c9de98",
+    "e2e/task-jornada-subtrair-abre-buraco.spec.ts": "93ee110185b9992b8526bc52f9e612be2725ce30e01df5bf0bcb17ccac66d862",
+    "e2e/task-jornada-borracha-diz-o-que-nao-apaga.spec.ts": "cb250e1d714588535815d5a1871154bb322a873d10c6dacd21907f26dd28ad97",
     "e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts": "5f155f2e008355609708b64e582ad908b8bca4b3708a70e3f2a20a520245362e",
     "e2e/task-jornada-cor-do-token.spec.ts": "e1623d0fff5762afdb6b31e08b93af3f111ab27e5e5552683cac6b8b6c2e8e05",
     "e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts": "8ce7d796aaf58b31aaf3d8e317de9b6d72aff11daacccaf831bdd39f4638f748",

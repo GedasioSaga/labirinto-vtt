@@ -447,6 +447,10 @@ const JORNADAS_DO_CRITERIO = [
   // 22/09/2026 — medir distância na tela do jogador: botão Medir, arrasto com
   // linha e rótulo no formato do mestre, só na tela dele, sem roubar o sinal.
   'e2e/task-jornada-medir-na-tela-do-jogador.spec.ts',
+  // 22/09/2026 — defeitos do passeio de 20/09: Subtrair com o Pincel de blocos
+  // abre buraco em vez de pintar, e a borracha diz que não apaga chão.
+  'e2e/task-jornada-subtrair-abre-buraco.spec.ts',
+  'e2e/task-jornada-borracha-diz-o-que-nao-apaga.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
