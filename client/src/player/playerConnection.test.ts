@@ -9,6 +9,7 @@ import {
   createPlayerConnection,
   DOOR_NOTICE_TTL_MS,
   FREE_PASSAGE_BEAT_MS,
+  GATHERED_NOTICE_TTL_MS,
   MOVED_NOTICE_TTL_MS,
   PING_INTERVAL_MS,
   RESUME_STORAGE_KEY,
@@ -492,6 +493,26 @@ describe('playerConnection: pedido de passagem', () => {
     vi.advanceTimersByTime(TRAVEL_NOTICE_TTL_MS)
     expect(connection.getState().travel?.phase).toBe('moved')
     vi.advanceTimersByTime(MOVED_NOTICE_TTL_MS - TRAVEL_NOTICE_TTL_MS)
+    expect(connection.getState().travel).toBeUndefined()
+  })
+
+  it('scene.changed da reunião: "reunido", espera o jogador e sai quando ele mexe a ficha', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'scene.changed', by: 'gather' })
+    expect(connection.getState().travel?.phase).toBe('gathered')
+    vi.advanceTimersByTime(MOVED_NOTICE_TTL_MS)
+    expect(connection.getState().travel?.phase).toBe('gathered')
+    socket.receive({ type: 'snapshot', rev: 2, map: mapWithToken(100, 100), vision: [], ownTokens: ['t1'], concealed: [] })
+    expect(connection.requestMove('t1', 60, 70)).toBe(true)
+    expect(connection.getState().travel).toBeUndefined()
+  })
+
+  it('o aviso da reunião some sozinho depois do teto, sem o jogador mexer', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'scene.changed', by: 'gather' })
+    vi.advanceTimersByTime(GATHERED_NOTICE_TTL_MS)
     expect(connection.getState().travel).toBeUndefined()
   })
 

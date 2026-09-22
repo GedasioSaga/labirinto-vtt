@@ -16,12 +16,14 @@ import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { useFollowStore } from './stores/followStore'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
+import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
+import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { viewportCenterWorld, type Camera } from './pixi/world'
+import { viewportCenterWorld, type Bounds, type Camera } from './pixi/world'
 import { MainMenu } from './screens/MainMenu'
 import { MapTypePicker } from './screens/MapTypePicker'
 import { NewDungeonMap } from './screens/NewDungeonMap'
@@ -458,10 +460,15 @@ function App() {
         onPlayersChange: setRoomPlayers,
         onTunnelChange: setTunnel,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
-        onSignal: (signal) => {
-          useSignalStore.getState().push(signal)
-          playSignalSound()
-        },
+        // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
+        // outro mapa): vira o aviso "chamou em", com "Ir lá" (`net/chamadoDeFundo.ts`).
+        onSignal: createSignalRouter({
+          drawPing: (signal) => useSignalStore.getState().push(signal),
+          beep: playSignalSound,
+          goTo: (sceneId, x, y) => {
+            useAdventureStore.getState().goToPoint(sceneId, { x, y })
+          },
+        }),
       })
     }
     return hostBridgeRef.current
@@ -607,6 +614,24 @@ function App() {
   const [resetZoomRequest, setResetZoomRequest] = useState(0)
   /** Container do canvas: o tamanho dele é a "tela" usada para achar o centro visível ao adicionar token. */
   const canvasHostRef = useRef<HTMLDivElement | null>(null)
+  /** Barra de ferramentas e rail: flutuam sobre o canvas e tapam o que está embaixo. */
+  const editorTopRef = useRef<HTMLDivElement | null>(null)
+  const editorRailRef = useRef<HTMLDivElement | null>(null)
+  /**
+   * Os painéis flutuantes em px relativos ao canvas, lidos na hora: o "Ir lá"
+   * (e toda chegada com foco) centra o ponto no que eles deixam livre, e não
+   * embaixo da barra de ferramentas (ver `freeAreaCenter`).
+   */
+  const canvasObstacles = (): Bounds[] => {
+    const host = canvasHostRef.current
+    if (host === null) return []
+    const base = host.getBoundingClientRect()
+    return [editorTopRef.current, editorRailRef.current].flatMap((el) => {
+      if (el === null) return []
+      const r = el.getBoundingClientRect()
+      return [{ minX: r.left - base.left, minY: r.top - base.top, maxX: r.right - base.left, maxY: r.bottom - base.top }]
+    })
+  }
 
   /**
    * Onda 1, item 4 do plano — sliders de propriedade (intensidade de luz,
@@ -1238,6 +1263,31 @@ function App() {
   }
 
   /**
+   * "Reunir o grupo aqui" confirmado no painel do pino `pinId`. Lê tudo de
+   * novo na hora — jogadores da ponte, mundo e pino das stores —, porque a
+   * lista pode ter ficado aberta enquanto alguém andava. Quem vem de outra
+   * cena atravessa pelo caminho do "Mandar para…" (aviso "O mestre reuniu o
+   * grupo", sem nome de cena); quem já está aqui só anda. Quem não coube ou
+   * não pôde vir, o mestre fica sabendo.
+   */
+  const handleGather = (pinId: string, playerIds: string[]) => {
+    const bridge = hostBridgeRef.current
+    const pin = useMapStore.getState().map.pins.find((p) => p.id === pinId)
+    if (bridge === null || pin === undefined) return
+    const world = hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map)
+    const wanted = new Set(playerIds)
+    const members = partyMembers(bridge.players(), world).filter((member) => wanted.has(member.playerId))
+    const plan = planGather(members, world, pin)
+    const failed = applyGatherPlan(plan, {
+      sceneId: world.open.sceneId,
+      bringFromOtherScene: (playerId, sceneId, at) => bridge.sendPlayer(playerId, sceneId, null, at),
+      placeInScene: (positions) => useMapStore.getState().setTokenPositions(positions),
+    })
+    if (plan.leftOut.length > 0) useToastStore.getState().push('error', `Sem casa livre perto do pino para: ${plan.leftOut.join(', ')}. As fichas ficaram onde estavam.`)
+    if (failed.length > 0) useToastStore.getState().push('error', `Não deu para trazer: ${failed.join(', ')}. A cena ou a ficha mudou; tente de novo.`)
+  }
+
+  /**
    * Token nasce no centro da área visível do canvas (câmera da store, que o
    * PixiCanvas mantém em dia a cada pan/zoom) e já selecionado, para o painel
    * mostrar o Nome dele. Sem o container montado cai em (0,0), como antes.
@@ -1558,6 +1608,7 @@ function App() {
           onCameraChange={(camera: Camera) => setCameraScale(camera.scale)}
           resetZoomRequest={resetZoomRequest}
           cameraRequest={sceneCameraRequest}
+          focusObstacles={canvasObstacles}
           onTravelPin={handleTravelPin}
           onLaserMove={(x, y) => hostBridgeRef.current?.laserMove(x, y)}
           onRoomCreated={() => {
@@ -1569,7 +1620,7 @@ function App() {
         />
       </div>
 
-      <div className="lb-editor__top">
+      <div className="lb-editor__top" ref={editorTopRef}>
         <Toolbar
           activeTool={activeTool}
           onSelectTool={setActiveTool}
@@ -1591,7 +1642,7 @@ function App() {
         />
       </div>
 
-      <div className="lb-editor__rail">
+      <div className="lb-editor__rail" ref={editorRailRef}>
         {withRoomTabs(
           <PropertiesPanel
             scenes={
@@ -1900,6 +1951,15 @@ function App() {
                   ? useMapStore.getState().updatePin(selectedPin.id, kind === 'viagem' ? { kind } : { kind, destino: null })
                   : useMapStore.getState().setPinKind(kind),
               travel: selectedPin?.kind === 'viagem' ? pinTravelPanel(selectedPin) : null,
+              // Só com a sala aberta: sem sala não há jogador para reunir.
+              gather:
+                selectedPin && room !== null
+                  ? {
+                      pinId: selectedPin.id,
+                      candidates: gatherCandidates(partyMembers(roomPlayers, roomPanelWorld())),
+                      onGather: (playerIds) => handleGather(selectedPin.id, playerIds),
+                    }
+                  : null,
               description: selectedPin?.description ?? null,
               onDescriptionChange: (description) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { description }),
               // Veracidade, nunca `=== true`: `locked` é opcional no schema e

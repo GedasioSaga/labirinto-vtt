@@ -41,7 +41,7 @@ export function useFollowPlayer(players: PlayerInfo[], world: () => HostWorld): 
     const previous = lastRef.current?.playerId === playerId ? lastRef.current.target : null
     if (!shouldRecenter(previous, next)) return
     lastRef.current = { playerId, target: next }
-    // Centro da área livre: a ficha que o seguir acompanha não pode sumir sob o painel lateral.
-    useAdventureStore.getState().goToPoint(sceneId, { x, y }, true)
+    // O foco vai ao centro da área que os painéis não cobrem (G6, `freeAreaCenter`): a ficha seguida nunca some sob o painel.
+    useAdventureStore.getState().goToPoint(sceneId, { x, y })
   }, [playerId, kind, sceneId, x, y])
 }

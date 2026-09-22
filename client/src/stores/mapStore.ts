@@ -530,6 +530,12 @@ interface MapStoreState {
   addToken: (token: Token) => void
   removeToken: (id: string) => void
   setTokenPosition: (id: string, x: number, y: number) => void
+  /**
+   * Várias fichas assentadas de uma vez ("Reunir o grupo aqui"), num passo só
+   * do desfazer. Sem validar trajeto: as casas já vêm escolhidas livres. Lista
+   * vazia (ou só de ids que não existem) não empurra histórico.
+   */
+  setTokenPositions: (positions: readonly { id: string; x: number; y: number }[]) => void
   moveToken: (id: string, targetX: number, targetY: number) => void
   /** `imageData`: cópia auto-contida que viaja até o jogador (ver lib/tokenPhoto.ts). Omitido = sem cópia. */
   setTokenImage: (id: string, image: string | null, imageData?: string | null) => void
@@ -1243,6 +1249,12 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     addToken: (token) => withHistory((map) => mapFactory.addToken(map, token)),
     removeToken: (id) => withHistory((map) => mapFactory.removeToken(map, id)),
     setTokenPosition: (id, x, y) => withHistory((map) => mapFactory.setTokenPosition(map, id, x, y)),
+    setTokenPositions: (positions) => {
+      const { map } = get()
+      const present = positions.filter((p) => map.tokens.some((t) => t.id === p.id))
+      if (present.length === 0) return
+      withHistory((m) => present.reduce((acc, p) => mapFactory.setTokenPosition(acc, p.id, p.x, p.y), m))
+    },
     moveToken: (id, targetX, targetY) => {
       const { map } = get()
       const token = map.tokens.find((t) => t.id === id)

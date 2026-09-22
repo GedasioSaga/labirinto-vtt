@@ -11,10 +11,9 @@ import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
 import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
-import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, type Camera, type Point } from './world'
+import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, freeAreaCenter, type Bounds, type Camera, type Point } from './world'
 import { resolveCursor, type HoverKind, type ResizeCorner } from './cursorPolicy'
 import { resolveMapWheel } from './wheelGesture'
-import { freeAreaCenter } from './freeAreaCenter'
 import { resolveShortcut, type ShortcutEvent } from '../lib/keymap'
 import { ROOM_CIRCLE_SIDES } from '../lib/roomCircle'
 // Onda 2, item 15 (Frente B) — hit-test + desenho do anel de hover.
@@ -437,7 +436,13 @@ interface PixiCanvasProps {
    * `focus` (chegada por pino de viagem) põe esse ponto do mundo no centro da
    * tela, no zoom de `camera` ou no de agora.
    */
-  cameraRequest?: { camera: Camera | null; focus?: Point; focusInFreeArea?: true } | null
+  cameraRequest?: { camera: Camera | null; focus?: Point } | null
+  /**
+   * Painéis flutuantes sobre o canvas (rail, barra de ferramentas), em px
+   * relativos ao canvas, lidos na hora do `focus`: o ponto vai ao centro da
+   * parte que eles não cobrem (`freeAreaCenter`), e não para baixo da barra.
+   */
+  focusObstacles?: () => Bounds[]
   /**
    * Clique (sem arrasto) num pino de VIAGEM com a ferramenta Selecionar: o App
    * leva a visão do mestre pela passagem. Com a ferramenta Pino o mesmo clique
@@ -484,6 +489,7 @@ export function PixiCanvas({
   onPlaceToken,
   onLaserMove,
   onTravelPin,
+  focusObstacles,
 }: PixiCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const onLaserMoveRef = useRef(onLaserMove)
@@ -494,6 +500,10 @@ export function PixiCanvas({
   useEffect(() => {
     onTravelPinRef.current = onTravelPin
   }, [onTravelPin])
+  const focusObstaclesRef = useRef(focusObstacles)
+  useEffect(() => {
+    focusObstaclesRef.current = focusObstacles
+  }, [focusObstacles])
   // Mesma ponte de ref das outras props: o setup roda uma vez só e precisa
   // enxergar sempre a callback mais recente do App.
   const onRoomCreatedRef = useRef(onRoomCreated)
@@ -556,7 +566,7 @@ export function PixiCanvas({
 
   // Mesma ponte, para a câmera de cada cena. Pedido que chega antes do
   // `setup()` terminar é descartado: a montagem já enquadra o mapa aberto.
-  const cameraRequestRef = useRef<((request: { camera: Camera | null; focus?: Point; focusInFreeArea?: true }) => void) | null>(null)
+  const cameraRequestRef = useRef<((request: { camera: Camera | null; focus?: Point }) => void) | null>(null)
   useEffect(() => {
     if (cameraRequest !== null) cameraRequestRef.current?.(cameraRequest)
   }, [cameraRequest])
@@ -806,22 +816,10 @@ export function PixiCanvas({
       // vista pela primeira vez (cena vazia mantém a câmera, ver acima).
       // Chegada por pino de viagem: o pino par no centro da tela, no zoom que
       // a cena tinha (ou no de agora) — o mestre vê de cara por onde entrou.
-      //
-      // `focusInFreeArea` (o "Seguir", G7): o ponto vai ao centro do que os
-      // painéis não cobrem — no centro do canvas a ficha que anda para a
-      // esquerda some sob o painel lateral. "Livre" é o `elementFromPoint`
-      // cair no próprio canvas, a mesma pergunta que o olho faz.
-      const focusCenter = (inFreeArea: boolean): Point => {
-        const middle = { x: app.screen.width / 2, y: app.screen.height / 2 }
-        if (!inFreeArea) return middle
-        const rect = app.canvas.getBoundingClientRect()
-        const free = freeAreaCenter({ width: rect.width, height: rect.height }, (x, y) => document.elementFromPoint(rect.left + x, rect.top + y) === app.canvas)
-        return free ?? middle
-      }
-      cameraRequestRef.current = ({ camera: requested, focus, focusInFreeArea }) => {
+      cameraRequestRef.current = ({ camera: requested, focus }) => {
         if (focus !== undefined) {
           const scale = requested?.scale ?? camera.scale
-          const center = focusCenter(focusInFreeArea === true)
+          const center = freeAreaCenter({ width: app.screen.width, height: app.screen.height }, focusObstaclesRef.current?.() ?? [])
           applyCamera({ scale, x: center.x - focus.x * scale, y: center.y - focus.y * scale }, 'pedido')
           return
         }

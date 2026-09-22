@@ -63,12 +63,6 @@ export interface CameraRequest {
    * na troca comum pela lista de Cenas.
    */
   focus?: Point
-  /**
-   * `focus` vai ao centro da parte do canvas que os painéis NÃO cobrem, em vez
-   * do centro do canvas inteiro. É o do "Seguir" (G7): a ficha seguida anda
-   * para os lados, e no centro do canvas ela some sob o painel à esquerda.
-   */
-  focusInFreeArea?: true
 }
 
 /** Uma linha da lista "Cenas". */
@@ -114,13 +108,13 @@ interface AdventureState {
    * Troca a cena aberta. `false` quando não há o que trocar (mesma cena, cena
    * indisponível). `focus` centraliza a câmera nesse ponto da cena que entra.
    */
-  switchScene: (sceneId: string, focus?: Point, focusInFreeArea?: boolean) => boolean
+  switchScene: (sceneId: string, focus?: Point) => boolean
   /**
    * "Ir lá": o editor mostra `point` da cena `sceneId` no centro da tela. Se a
    * cena já está aberta (ou é o mapa solto, `null`), só a câmera anda — a
    * troca de cena recusaria "mesma cena" e o clique não faria nada.
    */
-  goToPoint: (sceneId: string | null, point: Point, focusInFreeArea?: boolean) => boolean
+  goToPoint: (sceneId: string | null, point: Point) => boolean
   /** Muda uma cena de FUNDO sem passar pelo desfazer da cena aberta. */
   updateBackgroundScene: (sceneId: string, updater: (map: MapData) => MapData) => void
   /**
@@ -293,11 +287,6 @@ function showInEditor(map: MapData, past: MapData[], future: MapData[]): void {
   useSessionStore.getState().markSaved()
 }
 
-/** Pedido de câmera com ponto no centro; o campo da área livre só existe quando pedido. */
-function focusRequest(camera: Camera | null, focus: Point, focusInFreeArea: boolean | undefined): CameraRequest {
-  return focusInFreeArea === true ? { camera, focus, focusInFreeArea: true } : { camera, focus }
-}
-
 export const useAdventureStore = create<AdventureState>()((set, get) => ({
   ...EMPTY,
 
@@ -365,7 +354,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     })
   },
 
-  switchScene: (sceneId, focus, focusInFreeArea) => {
+  switchScene: (sceneId, focus) => {
     const { activeSceneId, cache, dirty } = get()
     if (activeSceneId === null || sceneId === activeSceneId) return false
     const target = cache[sceneId]
@@ -386,19 +375,19 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       previousSceneId: activeSceneId,
       // Cena nunca vista nesta sessão (camera null) é enquadrada pelo canvas.
       // Chegada por pino: a câmera centraliza o pino par, no zoom da cena.
-      cameraRequest: focus === undefined ? { camera: target.camera } : focusRequest(target.camera, focus, focusInFreeArea),
+      cameraRequest: focus === undefined ? { camera: target.camera } : { camera: target.camera, focus },
     })
     showInEditor(target.map, target.past, target.future)
     return true
   },
 
-  goToPoint: (sceneId, point, focusInFreeArea) => {
+  goToPoint: (sceneId, point) => {
     if (sceneId === null || sceneId === get().activeSceneId) {
       // `camera: null` com `focus`: o canvas centra no ponto com o zoom de agora.
-      set({ cameraRequest: focusRequest(null, point, focusInFreeArea) })
+      set({ cameraRequest: { camera: null, focus: point } })
       return true
     }
-    return get().switchScene(sceneId, point, focusInFreeArea)
+    return get().switchScene(sceneId, point)
   },
 
   updateBackgroundScene: (sceneId, updater) => {

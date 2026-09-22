@@ -26,7 +26,7 @@ describe('useFollowPlayer', () => {
   let container: HTMLDivElement
   let root: Root
   const originalGoToPoint = useAdventureStore.getState().goToPoint
-  let goToPoint: ReturnType<typeof vi.fn<(sceneId: string | null, point: Point, focusInFreeArea?: boolean) => boolean>>
+  let goToPoint: ReturnType<typeof vi.fn<(sceneId: string | null, point: Point) => boolean>>
 
   const render = (players: PlayerInfo[], world: HostWorld) => {
     act(() => root.render(<Harness players={players} world={world} />))
@@ -59,11 +59,11 @@ describe('useFollowPlayer', () => {
   it('ligar centra na ficha; a ficha andar centra de novo; re-render parado não puxa a câmera', () => {
     render([ANA], mundo('s-a', 100, 100))
     act(() => useFollowStore.getState().toggle('ana'))
-    expect(goToPoint).toHaveBeenLastCalledWith('s-a', { x: 100, y: 100 }, true)
+    expect(goToPoint).toHaveBeenLastCalledWith('s-a', { x: 100, y: 100 })
     render([ANA], mundo('s-a', 100, 100))
     expect(goToPoint).toHaveBeenCalledTimes(1)
     render([ANA], mundo('s-a', 400, 100))
-    expect(goToPoint).toHaveBeenLastCalledWith('s-a', { x: 400, y: 100 }, true)
+    expect(goToPoint).toHaveBeenLastCalledWith('s-a', { x: 400, y: 100 })
     expect(goToPoint).toHaveBeenCalledTimes(2)
   })
 
@@ -79,7 +79,7 @@ describe('useFollowPlayer', () => {
     render([ANA], mundo('s-a', 100, 100))
     act(() => useFollowStore.getState().toggle('ana'))
     render([ANA], mundo('s-b', 550, 450))
-    expect(goToPoint).toHaveBeenLastCalledWith('s-b', { x: 550, y: 450 }, true)
+    expect(goToPoint).toHaveBeenLastCalledWith('s-b', { x: 550, y: 450 })
   })
 
   it('o gesto do mestre desliga, e a ficha andar depois não move mais a câmera', () => {
