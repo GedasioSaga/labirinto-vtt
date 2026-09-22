@@ -117,6 +117,11 @@ export interface TokenEditMessage {
 export interface PinTravelRequestMessage {
   type: 'pin.travel.request'
   pinId: string
+  /**
+   * ENCRUZILHADA: qual saída do pino (o id que veio em `Pin.escolhas`).
+   * Aditivo: ausente vale a saída principal, e é o que o cliente antigo manda.
+   */
+  exitId?: string
 }
 
 export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage | DoorToggleMessage | TokenEditMessage | PinTravelRequestMessage
@@ -194,6 +199,19 @@ function parseTokenMove(obj: Record<string, unknown>): TokenMoveMessage | null {
 }
 
 /**
+ * Pedido de passagem. `exitId` é opcional; presente, tem de ser texto curto —
+ * qualquer outra coisa recusa a mensagem inteira, em vez de cair calada na
+ * saída principal (o jogador escolheu uma porta e iria por outra).
+ */
+function parseTravelRequest(obj: Record<string, unknown>): PinTravelRequestMessage | null {
+  const { pinId, exitId } = obj
+  if (!isBoundedString(pinId, 1, REQ_ID_MAX_LENGTH)) return null
+  if (exitId === undefined) return { type: 'pin.travel.request', pinId }
+  if (!isBoundedString(exitId, 1, REQ_ID_MAX_LENGTH)) return null
+  return { type: 'pin.travel.request', pinId, exitId }
+}
+
+/**
  * Edição do próprio token. Recusa a mensagem inteira quando qualquer campo
  * presente está malformado, e também quando ela não muda NADA — mensagem que
  * não pede nada não vale um broadcast.
@@ -266,7 +284,7 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'token.edit':
       return parseTokenEdit(value)
     case 'pin.travel.request':
-      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.travel.request', pinId: value.pinId } : null
+      return parseTravelRequest(value)
     default:
       return null
   }

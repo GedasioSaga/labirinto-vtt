@@ -1,4 +1,4 @@
-import type { MapData, Pin, PinDestination } from '../types/map'
+import type { MapData, Pin, PinDestination, PinExit, PinExitLabel } from '../types/map'
 import { PIN_HEAD_RADIUS, PIN_HEIGHT, pinSummary } from './pins'
 import { seatTokenCenter } from './tokenSize'
 import { snapPointForTarget } from '../pixi/tokenInteraction'
@@ -40,6 +40,145 @@ export function travelDestinationOf(pin: Pin): PinDestination | null {
   return pin.kind === 'viagem' && isPinDestination(pin.destino) ? pin.destino : null
 }
 
+/**
+ * ENCRUZILHADA — um pino de viagem com várias saídas.
+ *
+ * A principal continua em `Pin.destino` (rótulo em `Pin.rotulo`) e as outras
+ * em `Pin.saidas`: mapa gravado antes disto abre sem migração, e todo código
+ * que só conhece `destino` continua certo para o pino de uma saída. O id da
+ * principal é fixo — é o que vale quando o pedido do jogador não diz a saída
+ * (cliente antigo) — e nenhuma saída extra pode usá-lo.
+ */
+export const SAIDA_PRINCIPAL = 'principal'
+/** Teto do id de uma saída: o mesmo `REQ_ID_MAX_LENGTH` que o protocolo aceita no pedido. */
+export const EXIT_ID_MAX_LENGTH = 64
+/** Teto do rótulo: cabe num botão do cartão do jogador sem virar parágrafo. */
+export const EXIT_LABEL_MAX_LENGTH = 40
+
+/** Uma saída que leva a algum lugar, com o id que o pedido do jogador usa. */
+export interface TravelExit {
+  id: string
+  rotulo: string
+  destino: PinDestination
+}
+
+/** O rótulo como o disco e o painel o guardam: texto, sem espaço nas pontas, no teto. */
+export function cleanExitLabel(value: unknown): string {
+  return typeof value === 'string' ? value.trim().slice(0, EXIT_LABEL_MAX_LENGTH) : ''
+}
+
+/**
+ * Leitura do disco das saídas extras. Saída sem id, com id repetido (ou o da
+ * principal), longo demais, ou com destino fora da forma é DESCARTADA — as
+ * outras ficam. Nada sobrou = campo ausente, o pino de uma saída de sempre.
+ */
+export function readPinExits(value: unknown): PinExit[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const vistos = new Set<string>([SAIDA_PRINCIPAL])
+  const saidas: PinExit[] = []
+  for (const item of value) {
+    if (item === null || typeof item !== 'object') continue
+    const { id, rotulo, destino } = item as Record<string, unknown> // objeto não-nulo acima; cada campo é conferido abaixo
+    if (typeof id !== 'string' || id.length === 0 || id.length > EXIT_ID_MAX_LENGTH || vistos.has(id)) continue
+    const lido = readPinDestination(destino)
+    if (lido === null) continue
+    vistos.add(id)
+    saidas.push({ id, rotulo: cleanExitLabel(rotulo), destino: lido })
+  }
+  return saidas.length === 0 ? undefined : saidas
+}
+
+/** As saídas que levam a algum lugar, na ordem: a principal primeiro. Só pino de VIAGEM tem saída. */
+export function travelExitsOf(pin: Pin): TravelExit[] {
+  if (pin.kind !== 'viagem') return []
+  const saidas: TravelExit[] = []
+  if (isPinDestination(pin.destino)) saidas.push({ id: SAIDA_PRINCIPAL, rotulo: pin.rotulo ?? '', destino: pin.destino })
+  for (const saida of pin.saidas ?? []) {
+    if (saida.id !== SAIDA_PRINCIPAL && isPinDestination(saida.destino)) saidas.push(saida)
+  }
+  return saidas
+}
+
+/** A saída `exitId` do pino (ausente = a principal), ou `null` se ela não leva a lugar nenhum. */
+export function travelExitOf(pin: Pin, exitId: string = SAIDA_PRINCIPAL): TravelExit | null {
+  return travelExitsOf(pin).find((saida) => saida.id === exitId) ?? null
+}
+
+/**
+ * O que o JOGADOR lê de cada saída: o id e o rótulo, nunca o destino. Sem
+ * rótulo, "Saída 1", "Saída 2"… pela posição — um botão sem nome não dá
+ * para escolher.
+ */
+export function exitLabelsOf(pin: Pin): PinExitLabel[] {
+  return travelExitsOf(pin).map((saida, index) => {
+    const rotulo = cleanExitLabel(saida.rotulo)
+    return { id: saida.id, rotulo: rotulo === '' ? `Saída ${index + 1}` : rotulo }
+  })
+}
+
+/** Alguma saída do pino leva a `destino`. É assim que o par "aponta de volta". */
+export function leadsTo(pin: Pin, destino: PinDestination): boolean {
+  return travelExitsOf(pin).some((saida) => sameDestination(saida.destino, destino))
+}
+
+/** O que muda num pino quando uma saída dele muda: vai direto para `updatePin`. */
+export type ExitPatch = Partial<Pick<Pin, 'destino' | 'rotulo' | 'saidas'>>
+
+/**
+ * Liga a saída `exitId` a `destino`, ou a desliga (`null`). Desligar a
+ * principal de uma encruzilhada faz a primeira extra subir para o lugar dela:
+ * a principal é a que o cliente antigo pede, e um pino com saídas extras e
+ * sem principal deixaria esse jogador sem porta nenhuma.
+ * Não confere o tipo do pino: quem desliga o par de um pino que deixou de ser
+ * de viagem ainda precisa achar a ligação crua.
+ */
+export function setExitDestination(pin: Pin, exitId: string, destino: PinDestination | null): ExitPatch {
+  const extras = pin.saidas ?? []
+  if (exitId === SAIDA_PRINCIPAL) {
+    if (destino !== null) return { destino }
+    const [primeira, ...resto] = extras
+    if (primeira === undefined) return { destino: null }
+    return { destino: primeira.destino, rotulo: primeira.rotulo === '' ? undefined : primeira.rotulo, saidas: resto.length === 0 ? undefined : resto }
+  }
+  if (!extras.some((saida) => saida.id === exitId)) return {}
+  if (destino === null) {
+    const resto = extras.filter((saida) => saida.id !== exitId)
+    return { saidas: resto.length === 0 ? undefined : resto }
+  }
+  return { saidas: extras.map((saida) => (saida.id === exitId ? { ...saida, destino } : saida)) }
+}
+
+/**
+ * "+ Outra saída": acrescenta a saída `exitId` para `destino`. Pino ainda sem
+ * a principal ganha a principal — a primeira ligação é sempre a de hoje.
+ */
+export function addExit(pin: Pin, exitId: string, destino: PinDestination): ExitPatch {
+  if (!isPinDestination(pin.destino)) return { destino }
+  return { saidas: [...(pin.saidas ?? []), { id: exitId, rotulo: '', destino }] }
+}
+
+/** Dá nome à saída `exitId`. Vazio = sem nome (o jogador lê "Saída N"). */
+export function renameExit(pin: Pin, exitId: string, rotulo: string): ExitPatch {
+  const limpo = cleanExitLabel(rotulo)
+  if (exitId === SAIDA_PRINCIPAL) return { rotulo: limpo === '' ? undefined : limpo }
+  const extras = pin.saidas ?? []
+  if (!extras.some((saida) => saida.id === exitId)) return {}
+  return { saidas: extras.map((saida) => (saida.id === exitId ? { ...saida, rotulo: limpo } : saida)) }
+}
+
+/** Mesmas saídas, mesmos rótulos: o que `updatePin` usa para não empilhar desfazer vazio. */
+export function sameExits(a: Pin, b: Pin): boolean {
+  if ((a.rotulo ?? '') !== (b.rotulo ?? '')) return false
+  const x = a.saidas ?? []
+  const y = b.saidas ?? []
+  return x.length === y.length && x.every((saida, i) => saida.id === y[i].id && saida.rotulo === y[i].rotulo && sameDestination(saida.destino, y[i].destino))
+}
+
+/** As ligações CRUAS do pino (sem conferir tipo nem forma), com o id de cada saída. */
+function rawLinks(pin: Pin): { id: string; destino: PinDestination | null | undefined }[] {
+  return [{ id: SAIDA_PRINCIPAL, destino: pin.destino }, ...(pin.saidas ?? [])]
+}
+
 /** Uma cena como a ligação a enxerga: o nome e o mapa (`null` = a cena não abriu). */
 export interface TravelScene {
   name: string
@@ -56,19 +195,26 @@ export type PinTravel =
 const SEM_DESTINO: PinTravel = { status: 'sem-destino' }
 
 /**
- * Resolve a ligação de `pin`, que mora na cena `hereSceneId`. `sceneById`
- * entrega as cenas da aventura (a aberta e as de fundo). Ligação para a
- * própria cena não existe: o painel só oferece as OUTRAS cenas.
+ * Resolve a ligação da saída `exitId` de `pin` (ausente = a principal), que
+ * mora na cena `hereSceneId`. `sceneById` entrega as cenas da aventura (a
+ * aberta e as de fundo). Ligação para a própria cena não existe: o painel só
+ * oferece as OUTRAS cenas. O par vale se QUALQUER saída dele volta para este
+ * pino: o par também pode ser uma encruzilhada.
  */
-export function resolvePinTravel(pin: Pin, hereSceneId: string | null, sceneById: (sceneId: string) => TravelScene | null): PinTravel {
-  const destino = travelDestinationOf(pin)
+export function resolvePinTravel(
+  pin: Pin,
+  hereSceneId: string | null,
+  sceneById: (sceneId: string) => TravelScene | null,
+  exitId: string = SAIDA_PRINCIPAL,
+): PinTravel {
+  const destino = travelExitOf(pin, exitId)?.destino ?? null
   if (destino === null || hereSceneId === null || destino.sceneId === hereSceneId) return SEM_DESTINO
   const scene = sceneById(destino.sceneId)
   if (scene === null) return SEM_DESTINO
   if (scene.map === null) return { status: 'indisponivel', sceneId: destino.sceneId, sceneName: scene.name }
   const partner = scene.map.pins.find((p) => p.id === destino.pinId)
   if (partner === undefined) return SEM_DESTINO
-  if (!sameDestination(travelDestinationOf(partner), { sceneId: hereSceneId, pinId: pin.id })) return SEM_DESTINO
+  if (!leadsTo(partner, { sceneId: hereSceneId, pinId: pin.id })) return SEM_DESTINO
   return { status: 'ligado', sceneId: destino.sceneId, sceneName: scene.name, partner }
 }
 
@@ -79,38 +225,51 @@ export interface TravelLinkChange {
   after: PinDestination | null
 }
 
-function linksOf(pins: readonly Pin[]): Map<string, PinDestination> {
-  const links = new Map<string, PinDestination>()
+/** Os destinos de todas as saídas de cada pino de viagem que leva a algum lugar. */
+function linksOf(pins: readonly Pin[]): Map<string, PinDestination[]> {
+  const links = new Map<string, PinDestination[]>()
   for (const pin of pins) {
-    const destino = travelDestinationOf(pin)
-    if (destino !== null) links.set(pin.id, destino)
+    const destinos = travelExitsOf(pin).map((saida) => saida.destino)
+    if (destinos.length > 0) links.set(pin.id, destinos)
   }
   return links
 }
+
+const semOs = (lista: readonly PinDestination[], tirar: readonly PinDestination[]): PinDestination[] =>
+  lista.filter((destino) => !tirar.some((outro) => sameDestination(outro, destino)))
 
 /**
  * O que mudou nas ligações entre `before` e `after` da MESMA cena: pino
  * ligado, desligado, religado a outro par, apagado (sai com `after: null`),
  * devolvido pelo desfazer (entra com `before: null`) ou que deixou de ser de
  * viagem. É a entrada de quem mantém o par do outro lado em dia.
+ *
+ * Numa encruzilhada cada saída é uma ligação: o que saiu e o que entrou são
+ * pareados na ordem (religar uma saída continua sendo UMA mudança com antes e
+ * depois), e o que sobra sai sozinho. Saída que só mudou de rótulo não muda
+ * ligação nenhuma.
  */
 export function travelLinkChanges(before: readonly Pin[], after: readonly Pin[]): TravelLinkChange[] {
   if (before === after) return []
   const antes = linksOf(before)
   const depois = linksOf(after)
   const changes: TravelLinkChange[] = []
-  for (const [pinId, destino] of depois) {
-    const anterior = antes.get(pinId) ?? null
-    if (!sameDestination(anterior, destino)) changes.push({ pinId, before: anterior, after: destino })
+  const parear = (pinId: string, eram: readonly PinDestination[], sao: readonly PinDestination[]) => {
+    const sairam = semOs(eram, sao)
+    const entraram = semOs(sao, eram)
+    for (let i = 0; i < Math.max(sairam.length, entraram.length); i++) {
+      changes.push({ pinId, before: sairam[i] ?? null, after: entraram[i] ?? null })
+    }
   }
-  for (const [pinId, anterior] of antes) {
-    if (!depois.has(pinId)) changes.push({ pinId, before: anterior, after: null })
+  for (const [pinId, destinos] of depois) parear(pinId, antes.get(pinId) ?? [], destinos)
+  for (const [pinId, destinos] of antes) {
+    if (!depois.has(pinId)) parear(pinId, destinos, [])
   }
   return changes
 }
 
-function withDestination(map: MapData, pinId: string, destino: PinDestination | null): MapData {
-  return { ...map, pins: map.pins.map((p) => (p.id === pinId ? { ...p, destino } : p)) }
+function withPatch(map: MapData, pinId: string, patch: ExitPatch): MapData {
+  return { ...map, pins: map.pins.map((p) => (p.id === pinId ? { ...p, ...patch } : p)) }
 }
 
 /**
@@ -123,20 +282,24 @@ function withDestination(map: MapData, pinId: string, destino: PinDestination | 
 export function linkBack(map: MapData, partnerId: string, back: PinDestination): { map: MapData; displaced: PinDestination | null } {
   const partner = map.pins.find((p) => p.id === partnerId)
   if (partner === undefined || partner.kind !== 'viagem') return { map, displaced: null }
+  // O par já volta para cá por alguma saída (ele mesmo pode ser encruzilhada): nada a gravar.
+  if (leadsTo(partner, back)) return { map, displaced: null }
   const current = travelDestinationOf(partner)
-  if (sameDestination(current, back)) return { map, displaced: null }
-  return { map: withDestination(map, partnerId, { sceneId: back.sceneId, pinId: back.pinId }), displaced: current }
+  return { map: withPatch(map, partnerId, { destino: { sceneId: back.sceneId, pinId: back.pinId } }), displaced: current }
 }
 
 /**
- * Desliga o pino `partnerId` desta cena SE ele ainda leva a `back`. Quem já
- * foi religado a outro par fica como está: desligar A não pode desmanchar a
- * ligação nova de B com C.
+ * Desliga, no pino `partnerId` desta cena, a saída que ainda leva a `back`.
+ * Quem já foi religado a outro par fica como está: desligar A não pode
+ * desmanchar a ligação nova de B com C. Numa encruzilhada, só a saída que
+ * voltava para `back` sai; as outras ficam.
  */
 export function unlinkBack(map: MapData, partnerId: string, back: PinDestination): MapData {
   const partner = map.pins.find((p) => p.id === partnerId)
-  if (partner === undefined || !sameDestination(partner.destino, back)) return map
-  return withDestination(map, partnerId, null)
+  if (partner === undefined) return map
+  const saida = rawLinks(partner).find((link) => sameDestination(link.destino, back))
+  if (saida === undefined) return map
+  return withPatch(map, partnerId, setExitDestination(partner, saida.id, null))
 }
 
 /** Direções em que o pino de chegada procura lugar quando o centro já tem pino. */
@@ -233,7 +396,7 @@ export function travelPinOptions(
       const label = p.description.trim() === '' ? `${pinSummary(p)} ${index + 1}` : pinSummary(p)
       const travel = resolvePinTravel(p, sceneId, sceneById)
       if (travel.status !== 'ligado') return { id: p.id, label, note: null }
-      if (sameDestination(travelDestinationOf(p), doMestre)) return { id: p.id, label, note: 'destino atual' }
+      if (doMestre !== null && leadsTo(p, doMestre)) return { id: p.id, label, note: 'destino atual' }
       return { id: p.id, label, note: `já leva a ${travel.sceneName}` }
     })
 }

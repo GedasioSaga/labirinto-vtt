@@ -605,10 +605,10 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             pin={openPin}
             onClose={closePin}
             travelWaiting={state.travel?.phase === 'waiting'}
-            onRequestTravel={() => {
+            onRequestTravel={(exitId) => {
               // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
               // e o mapa volta inteiro à vista enquanto o mestre decide.
-              if (connection.requestTravel(openPin.id)) setOpenPinId(null)
+              if (connection.requestTravel(openPin.id, exitId)) setOpenPinId(null)
             }}
           />
         )}

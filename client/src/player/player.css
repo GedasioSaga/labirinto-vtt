@@ -904,6 +904,23 @@
   gap: 8px;
 }
 
+/* ENCRUZILHADA: uma saída por botão, empilhadas, cada uma com o rótulo que o
+   mestre escreveu. Mesma pílula do pedido simples; a lista só tira o marcador. */
+.pp-pincard__exits {
+  display: grid;
+  gap: 8px;
+  margin: 10px 12px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-pincard__exits .pp-pincard__travel {
+  width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+
 .pp-pincard__choices .pp-pincard__travel {
   flex: 1;
   margin: 0;

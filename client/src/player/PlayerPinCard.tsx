@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Pin } from '../types/map'
+import type { Pin, PinExitLabel } from '../types/map'
 import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { PinTravelArt } from '../components/PinSymbolArt'
 
@@ -8,9 +8,10 @@ interface PlayerPinCardProps {
   onClose: () => void
   /**
    * Pino de viagem: manda o pedido de passagem ao mestre (já confirmado aqui).
-   * Ausente = o cartão não oferece passar, só lê.
+   * Ausente = o cartão não oferece passar, só lê. `exitId` é a saída escolhida
+   * numa encruzilhada; no pino de uma saída ele não vem.
    */
-  onRequestTravel?: () => void
+  onRequestTravel?: (exitId?: string) => void
   /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
   travelWaiting?: boolean
 }
@@ -73,8 +74,13 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
   const askRef = useRef<HTMLButtonElement | null>(null)
-  /** Pergunta "Pedir ao mestre…?" na tela, no lugar do botão de pedir. */
-  const [confirming, setConfirming] = useState(false)
+  /**
+   * Pergunta "Pedir ao mestre…?" na tela, no lugar do botão de pedir. Numa
+   * encruzilhada guarda a saída escolhida; `saida: null` = o pino de uma saída.
+   */
+  const [confirming, setConfirming] = useState<{ saida: PinExitLabel | null } | null>(null)
+  /** A última saída escolhida: cancelar a pergunta devolve o foco ao botão DELA. */
+  const [ultimaSaida, setUltimaSaida] = useState<string | null>(null)
   /** Para onde o foco volta depois de abrir ou fechar a pergunta; `null` = não mexe. */
   const [focusTarget, setFocusTarget] = useState<'confirm' | 'ask' | null>(null)
 
@@ -127,6 +133,22 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const trancada = viagem && passagem === 'trancada'
   const podePedir = viagem && !trancada && onRequestTravel !== undefined
   const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
+  // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
+  // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
+  // saída só (ou sem o campo), o cartão é o de sempre.
+  const escolhas = viagem ? (pin.escolhas ?? []) : []
+  const encruzilhada = escolhas.length > 1
+  const perguntar = (saida: PinExitLabel | null) => {
+    setConfirming({ saida })
+    if (saida !== null) setUltimaSaida(saida.id)
+    setFocusTarget('confirm')
+  }
+  const pergunta =
+    confirming === null || confirming.saida === null
+      ? textos.pergunta
+      : passagem === 'livre'
+        ? `Passar por ${confirming.saida.rotulo}?`
+        : `Pedir ao mestre para passar por ${confirming.saida.rotulo}?`
 
   return (
     <div className="pp-pincard__backdrop">
@@ -151,27 +173,47 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
           </p>
         </div>
         {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
-        {podePedir && !confirming && (
+        {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}
             type="button"
             className="pp-pincard__travel"
             disabled={travelWaiting}
-            onClick={() => {
-              setConfirming(true)
-              setFocusTarget('confirm')
-            }}
+            onClick={() => perguntar(null)}
           >
             {travelWaiting ? textos.esperando : textos.botao}
           </button>
         )}
-        {podePedir && confirming && (
+        {podePedir && confirming === null && encruzilhada && (
+          // Uma saída por botão, na ordem do mestre. Esperando o mestre, todas
+          // ficam desligadas: um pedido por vez, como no cartão simples.
+          <>
+            {/* A mesma moldura de estado do "Está trancada": diz o que aconteceu, sem convidar toque. */}
+            {travelWaiting && <p className="pp-pincard__locked">{textos.esperando}</p>}
+            <ul className="pp-pincard__exits" aria-label="Saídas">
+              {escolhas.map((saida, index) => (
+                <li key={saida.id}>
+                  <button
+                    ref={saida.id === ultimaSaida || (ultimaSaida === null && index === 0) ? askRef : undefined}
+                    type="button"
+                    className="pp-pincard__travel"
+                    disabled={travelWaiting}
+                    onClick={() => perguntar(saida)}
+                  >
+                    {saida.rotulo}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {podePedir && confirming !== null && (
           // Confirmação antes de mandar: no modo "pede" o pedido interrompe o
           // mestre, e no livre o jogador troca de cena — nos dois, um toque
           // sem querer não pode virar a ação.
           <div className="pp-pincard__confirm" role="group" aria-labelledby={`pp-travel-ask-${pin.id}`}>
             <p id={`pp-travel-ask-${pin.id}`} className="pp-pincard__question">
-              {textos.pergunta}
+              {pergunta}
             </p>
             <div className="pp-pincard__choices">
               <button
@@ -179,8 +221,10 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
                 type="button"
                 className="pp-pincard__travel"
                 onClick={() => {
-                  setConfirming(false)
-                  onRequestTravel()
+                  const saida = confirming.saida
+                  setConfirming(null)
+                  if (saida === null) onRequestTravel()
+                  else onRequestTravel(saida.id)
                 }}
               >
                 {textos.confirmar}
@@ -189,7 +233,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
                 type="button"
                 className="pp-pincard__close pp-pincard__close--inline"
                 onClick={() => {
-                  setConfirming(false)
+                  setConfirming(null)
                   setFocusTarget('ask')
                 }}
               >

@@ -5,6 +5,7 @@ import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
+import { exitLabelsOf } from './pinTravel'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
@@ -742,5 +743,15 @@ export function filterMapForHost(map: MapData): MapData {
 function pinForPlayer(pin: Pin): Pin {
   const forPlayer: Pin = { ...pin, image: isPlayerSafePinImage(pin.image) ? pin.image : null }
   delete forPlayer.destino
+  // ENCRUZILHADA: `saidas` leva o destino de cada saída, e `rotulo` só faz
+  // sentido junto dela — nenhum dos dois vai. O jogador recebe `escolhas`,
+  // montado AQUI (nunca copiado do mestre): por saída, só o id e o rótulo.
+  // Pino de uma saída não ganha o campo: o cartão dele é o de sempre, e o
+  // recorte também.
+  delete forPlayer.rotulo
+  delete forPlayer.saidas
+  delete forPlayer.escolhas
+  const escolhas = exitLabelsOf(pin)
+  if (escolhas.length > 1) forPlayer.escolhas = escolhas
   return forPlayer
 }

@@ -81,6 +81,9 @@ export function PinControls({
   gather = null,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
+  // As cenas onde mora um par que perde a volta se este pino sumir (uma por
+  // saída ligada; a encruzilhada pode ter várias).
+  const cenasDosPares = (travel?.exits ?? []).flatMap((exit) => (exit.travel.status === 'ligado' ? [exit.travel.sceneName] : []))
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">{viagem ? 'Pino de viagem' : 'Ponto de interesse'}</h2>
@@ -141,8 +144,12 @@ export function PinControls({
             {viagem ? 'Excluir pino de viagem' : 'Excluir ponto de interesse'}
           </button>
           {/* O efeito que não se vê daqui: o par mora em outra cena. */}
-          {travel?.travel.status === 'ligado' && (
-            <span className="lb-label">Excluir deixa o pino de {travel.travel.sceneName} sem destino.</span>
+          {cenasDosPares.length > 0 && (
+            <span className="lb-label">
+              {cenasDosPares.length === 1
+                ? `Excluir deixa o pino de ${cenasDosPares[0]} sem destino.`
+                : `Excluir desliga os pinos de ${cenasDosPares.join(', ')}.`}
+            </span>
           )}
         </>
       )}

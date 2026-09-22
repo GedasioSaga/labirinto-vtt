@@ -5,7 +5,7 @@ import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
-import { arrivalPoint, arrivalSpot, resolvePinTravel, type TravelScene } from '../lib/pinTravel'
+import { arrivalPoint, arrivalSpot, exitLabelsOf, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
 import {
   parsePlayerMessage,
@@ -314,7 +314,9 @@ interface PendingTravel {
   requestId: string
   playerId: string
   pinId: string
-  /** O destino do aviso que o mestre leu. Religou o pino depois? A aprovação não vale. */
+  /** A saída que o jogador escolheu (a principal quando o pedido não disse). */
+  exitId: string
+  /** O destino do aviso que o mestre leu. Religou a saída depois? A aprovação não vale. */
   toSceneId: string
   partnerId: string
 }
@@ -681,9 +683,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * está ligado em mão dupla a um par que existe numa cena aberta, e o
    * jogador tem token nesta cena. O token que viaja é o dele mais perto do
    * pino. Qualquer falha é `null`: quem chama responde o mesmo motivo
-   * genérico para todas.
+   * genérico para todas — inclusive `exitId` que não é saída DESTE pino
+   * (inventado, ou de outro pino): o jogador não descobre que ela existe.
    */
-  function validTravel(playerId: string, pinId: string, world: HostWorld): ValidTravel | null {
+  function validTravel(playerId: string, pinId: string, exitId: string, world: HostWorld): ValidTravel | null {
     const from = sceneFor(playerId, world)
     if (from === null || from.sceneId === null) return null
     const fromSceneId = from.sceneId
@@ -702,7 +705,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const scene = scenes.find((s) => s.sceneId === sceneId)
       return scene === undefined ? null : { name: scene.name, map: scene.map }
     }
-    const travel = resolvePinTravel(pin, fromSceneId, lookup)
+    if (travelExitOf(pin, exitId) === null) return null
+    const travel = resolvePinTravel(pin, fromSceneId, lookup, exitId)
     if (travel.status !== 'ligado') return null
     const to = scenes.find((s) => s.sceneId === travel.sceneId)
     if (to === undefined || to.sceneId === null) return null
@@ -741,7 +745,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (last !== undefined && at - last < TRAVEL_REQUEST_MIN_INTERVAL_MS) return reject('too_soon')
     lastTravelRequestAt.set(limitKey, at)
 
-    const travel = validTravel(playerId, msg.pinId, world)
+    const exitId = msg.exitId ?? SAIDA_PRINCIPAL
+    const travel = validTravel(playerId, msg.pinId, exitId, world)
     if (travel === null) return reject('unavailable')
     // Livre: passou em tudo que o pedido passaria (névoa, token na cena, pino
     // ligado, limites, nenhum pendente) e vai direto, sem esperar o mestre —
@@ -749,15 +754,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel)
     const requestId = randomId()
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
-    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
+    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
     const description = travel.pin.description.trim()
+    // Encruzilhada: o mestre lê a SAÍDA ("Escada da torre → Torre Alta"), o
+    // mesmo rótulo que a jogadora tocou; pino de uma saída continua nomeado
+    // pela descrição, como sempre.
+    const saidas = exitLabelsOf(travel.pin)
+    const saida = saidas.length > 1 ? saidas.find((s) => s.id === exitId) : undefined
     return {
       outbound: [],
       travelRequest: {
         requestId,
         playerId,
         playerName: record.name,
-        pinLabel: description === '' ? pinSummary(travel.pin) : description,
+        pinLabel: saida !== undefined ? saida.rotulo : description === '' ? pinSummary(travel.pin) : description,
         toSceneId: travel.to.sceneId,
         toSceneName: travel.to.name,
       },
@@ -836,10 +846,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // o token de quem não está olhando seria uma surpresa na volta.
       if (record === undefined || record.clientId === null || statusOf(pending.playerId) !== 'playing') return { outbound: [] }
       const world = toWorld(source)
-      const travel = validTravel(pending.playerId, pending.pinId, world)
-      // O mestre deixou ir para o lugar que o aviso DIZIA. Se o pino foi
-      // religado depois (Torre no lugar da Cripta), o consentimento não cobre o
-      // destino novo: recusa, e o jogador pede de novo.
+      const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world)
+      // O mestre deixou ir para o lugar que o aviso DIZIA. Se a saída foi
+      // religada depois (Torre no lugar da Cripta), ou desligada e outra subiu
+      // no lugar dela, o consentimento não cobre o destino novo: recusa, e o
+      // jogador pede de novo.
       const sameDestination = travel !== null && travel.to.sceneId === pending.toSceneId && travel.partner.id === pending.partnerId
       if (travel === null || !sameDestination) return reply(record.clientId, { type: 'pin.travel.rejected', reason: 'unavailable' })
       return transferResult(pending.playerId, record.clientId, record.name, travel)
