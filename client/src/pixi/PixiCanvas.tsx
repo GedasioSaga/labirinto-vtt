@@ -10,7 +10,7 @@ import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
 import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
-import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, type Camera, type Point } from './world'
+import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, freeAreaCenter, type Bounds, type Camera, type Point } from './world'
 import { resolveCursor, type HoverKind, type ResizeCorner } from './cursorPolicy'
 import { resolveMapWheel } from './wheelGesture'
 import { resolveShortcut, type ShortcutEvent } from '../lib/keymap'
@@ -437,6 +437,12 @@ interface PixiCanvasProps {
    */
   cameraRequest?: { camera: Camera | null; focus?: Point } | null
   /**
+   * Painéis flutuantes sobre o canvas (rail, barra de ferramentas), em px
+   * relativos ao canvas, lidos na hora do `focus`: o ponto vai ao centro da
+   * parte que eles não cobrem (`freeAreaCenter`), e não para baixo da barra.
+   */
+  focusObstacles?: () => Bounds[]
+  /**
    * Clique (sem arrasto) num pino de VIAGEM com a ferramenta Selecionar: o App
    * leva a visão do mestre pela passagem. Com a ferramenta Pino o mesmo clique
    * só abre o painel, como em todo pino.
@@ -482,6 +488,7 @@ export function PixiCanvas({
   onPlaceToken,
   onLaserMove,
   onTravelPin,
+  focusObstacles,
 }: PixiCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const onLaserMoveRef = useRef(onLaserMove)
@@ -492,6 +499,10 @@ export function PixiCanvas({
   useEffect(() => {
     onTravelPinRef.current = onTravelPin
   }, [onTravelPin])
+  const focusObstaclesRef = useRef(focusObstacles)
+  useEffect(() => {
+    focusObstaclesRef.current = focusObstacles
+  }, [focusObstacles])
   // Mesma ponte de ref das outras props: o setup roda uma vez só e precisa
   // enxergar sempre a callback mais recente do App.
   const onRoomCreatedRef = useRef(onRoomCreated)
@@ -802,7 +813,8 @@ export function PixiCanvas({
       cameraRequestRef.current = ({ camera: requested, focus }) => {
         if (focus !== undefined) {
           const scale = requested?.scale ?? camera.scale
-          applyCamera({ scale, x: app.screen.width / 2 - focus.x * scale, y: app.screen.height / 2 - focus.y * scale })
+          const center = freeAreaCenter({ width: app.screen.width, height: app.screen.height }, focusObstaclesRef.current?.() ?? [])
+          applyCamera({ scale, x: center.x - focus.x * scale, y: center.y - focus.y * scale })
           return
         }
         if (requested) applyCamera(requested)

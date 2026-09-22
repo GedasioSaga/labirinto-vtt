@@ -152,6 +152,13 @@ export interface HostSignal {
   color: string
   x: number
   y: number
+  /**
+   * A cena de FUNDO de onde o sinal veio (`sceneId` e o nome que o mestre
+   * lê). Ausente = a cena aberta no editor. O (`x`, `y`) é daquela cena:
+   * desenhado no mapa aberto, viraria um ping falso no lugar errado — quem
+   * recebe mostra o aviso "chamou em" no lugar do ping.
+   */
+  background?: { sceneId: string; name: string }
 }
 
 export interface HostResult {
@@ -595,7 +602,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (knowsPoint(otherId, map, point)) outbound.push({ clientId: otherClient, msg: message })
       }
     }
-    return { outbound, signal: { playerId, name: record.name, color, x: msg.x, y: msg.y } }
+    const signal: HostSignal = { playerId, name: record.name, color, x: msg.x, y: msg.y }
+    // Mesma regra de `backgroundSceneId`: a cena aberta e o mapa solto não levam o campo.
+    if (scene !== world.open && scene.sceneId !== null) signal.background = { sceneId: scene.sceneId, name: scene.name }
+    return { outbound, signal }
   }
 
   /**
