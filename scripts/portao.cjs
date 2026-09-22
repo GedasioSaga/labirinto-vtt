@@ -441,6 +441,9 @@ const JORNADAS_DO_CRITERIO = [
   // Entrega 3 do mesmo plano: cada jogador no mapa em que está o token dele,
   // indo para outra cena pelo pino de viagem com pedido e aprovação do mestre.
   'e2e/task-jornada-viagem-do-jogador.spec.ts',
+  // 21/09/2026, noite — girar sala pela alça no mapa e pelo campo Rotação do
+  // painel; sala, sub-salas, paredes e portas giram juntas, o conteúdo fica.
+  'e2e/task-jornada-girar-sala.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',

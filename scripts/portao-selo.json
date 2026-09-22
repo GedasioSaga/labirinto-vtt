@@ -1,5 +1,5 @@
 {
-  "selado_em": "2026-09-22T00:41:22.687Z",
+  "selado_em": "2026-09-22T02:32:47.952Z",
   "jornadas": {
     "e2e/task-jornada-parede-grossa.spec.ts": "527e40bd7728c8b27e9334e40ce45223816eef2f88b14351545951c57af89314",
     "e2e/task-jornada-selecao-arrasto.spec.ts": "0e9113e9b71bfac3ce19108908c4421e680919e8f07c99638a75f94c4b0b4062",
@@ -33,6 +33,7 @@
     "e2e/task-jornada-varias-cenas.spec.ts": "0c4f67a9679f441b1fba57cf5e08374980db9cc9c1aaa55fb851efedd3aca8ad",
     "e2e/task-jornada-pino-de-viagem.spec.ts": "260c5d16d21a145aa947ce68dc472de193a539a0d9f173c1de983ce850162c8c",
     "e2e/task-jornada-viagem-do-jogador.spec.ts": "ba57f3d00afe3f4c5d9e0aa2a7be4b6608e24433a7f1de3ec29de0aa3deba582",
+    "e2e/task-jornada-girar-sala.spec.ts": "f046c96eae44916031b366c3bfbe153f1d6a3ab64c0a38a0b3164100a47f0d2e",
     "e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts": "5f155f2e008355609708b64e582ad908b8bca4b3708a70e3f2a20a520245362e",
     "e2e/task-jornada-cor-do-token.spec.ts": "e1623d0fff5762afdb6b31e08b93af3f111ab27e5e5552683cac6b8b6c2e8e05",
     "e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts": "8ce7d796aaf58b31aaf3d8e317de9b6d72aff11daacccaf831bdd39f4638f748",
