@@ -167,7 +167,8 @@ import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from 
 // interior — ver a docstring de `eraseAt`). A função segue exportada e testada
 // em lib/eraseGeometry.ts para quem precise da leitura "contido conta".
 import { eraseDecisionForWall, eraseDecisionForStair, eraseDecisionForToken, eraseDecisionForProp } from '../lib/eraseGeometry'
-import { findRoomCornerAt, rectFromCorners, type RoomCorner } from '../lib/roomOps'
+import { findRoomCornerAt, isAxisAlignedRect, rectFromCorners, type RoomCorner } from '../lib/roomOps'
+import { createRoomRotateGesture } from './roomRotateGesture'
 import { measureDistance } from '../lib/measurement'
 import { rotuloDeQuadradosAndados } from '../lib/tokenDragDistance'
 import { tokenRadiusOf } from '../lib/doorReach'
@@ -1035,6 +1036,10 @@ export function PixiCanvas({
         drawStairs(secretStairsGraphics, stairs.filter((s) => s.secret), selectedStairId, camera.scale, res)
       }
 
+      // Girar sala pela alça (bolinha acima da sala selecionada). Nasce antes do
+      // redesenho das alças porque ele pergunta se o giro está em curso.
+      const roomRotateGesture = createRoomRotateGesture()
+
       /**
        * Alças de edição (os quadradinhos amarelos) da seleção de UM item.
        *
@@ -1046,7 +1051,11 @@ export function PixiCanvas({
        */
       const redrawEditHandles = () => {
         const { map, selection, activeTool } = useMapStore.getState()
-        drawEditHandles(handlesGraphics, map, selectionSingle(selection), activeTool)
+        drawEditHandles(handlesGraphics, map, selectionSingle(selection), activeTool, {
+          cameraScale: camera.scale,
+          rendererResolution: app.renderer.resolution,
+          rotating: roomRotateGesture.isActive(),
+        })
       }
 
       /**
@@ -1363,6 +1372,8 @@ export function PixiCanvas({
           redrawRegionsAndDrawings()
           redrawStairs()
           redrawLights()
+          // A alça de girar sala tem tamanho fixo na tela.
+          redrawEditHandles()
         }),
       )
       // tokensSubscription.ts/propsSubscription.ts (fora do escopo deste
@@ -1427,7 +1438,9 @@ export function PixiCanvas({
         // A5 — arrasto de criação da Zona oculta.
         | 'drawing-conceal-zone'
         // Mover um pino de ponto de interesse já cravado.
-        | 'dragging-pin' = 'idle'
+        | 'dragging-pin'
+        // Girar sala pela alça (pixi/roomRotateGesture.ts).
+        | 'rotating-room' = 'idle'
       let lastPoint = { x: 0, y: 0 }
       let draggingTokenId: string | null = null
       let draggingPropId: string | null = null
@@ -2646,6 +2659,7 @@ export function PixiCanvas({
           areaSelection: selection.length > 1 ? selectionToAreaSelection(selection) : null,
           activeTool: tool,
           worldPoint,
+          cameraScale: camera.scale,
         })
       }
 
@@ -3175,14 +3189,23 @@ export function PixiCanvas({
             // canto/vértice/midpoint passariam a ser alcançáveis. Travado vale
             // pra geometria também, não só pro corpo.
             if (region && canInteract(region)) {
+              // Alça de girar (bolinha acima da Sala): antes do canto — ela
+              // fica FORA da sala, e é o que está por cima nesse ponto.
+              if (region.room && roomRotateGesture.begin(editRegionId, worldPoint, camera.scale)) {
+                mode = 'rotating-room'
+                redrawEditHandles()
+                updateCursor()
+                return
+              }
               // Sala retangular (Region.room?.shape === 'rect'): resize SÓ
               // pelos 4 cantos (findRoomCornerAt, lib/roomOps.ts) — nunca cai
               // no arrasto de vértice/midpoint genérico abaixo, que deixaria a
               // sala virar um quadrilátero torto e dessincronizaria as 4
               // paredes vinculadas (resizeRoomCornerLive já cuida da sync,
-              // ver mapFactory.ts).
+              // ver mapFactory.ts). Girada torta, nem o canto: reconstruir o
+              // retângulo pelos cantos a desmontaria (`isAxisAlignedRect`).
               if (region.room?.shape === 'rect') {
-                const corner = findRoomCornerAt(region.points, worldPoint)
+                const corner = isAxisAlignedRect(region.points) ? findRoomCornerAt(region.points, worldPoint) : null
                 if (corner !== null) {
                   mode = 'resizing-room-corner'
                   resizingRoomId = editRegionId
@@ -3836,6 +3859,13 @@ export function PixiCanvas({
           if (resizingRoomId !== null) useMapStore.getState().reparentAfterMoveLive(roomCornerDragSnapshot, [resizingRoomId])
           useMapStore.getState().commitDragHistory(roomCornerDragSnapshot)
         }
+        // Giro da sala: sala de fora + ordem dos cantos, e o arrasto vira UM
+        // Ctrl+Z. `mode` sai já aqui para a alça voltar a ser desenhada solta.
+        if (mode === 'rotating-room') {
+          roomRotateGesture.finish()
+          mode = 'idle'
+          redrawEditHandles()
+        }
         // B3 (bug3 "mover e redimensionar") — mesmo padrão de Sala acima,
         // pros 3 resizes novos desta fase (Drawing rect/ellipse/polygon,
         // Token, Prop). Onda 3, item 18 — 'resizing-drawing-radius' (alça de
@@ -4015,6 +4045,12 @@ export function PixiCanvas({
           // Canto arrastado pode tirar a aresta de cima da parede da mãe (ou afastar a mãe das filhas).
           if (resizingRoomId !== null) useMapStore.getState().reparentAfterMoveLive(roomCornerDragSnapshot, [resizingRoomId])
           useMapStore.getState().commitDragHistory(roomCornerDragSnapshot)
+        }
+        // Giro da sala solto fora do canvas: fecha igual ao pointerup.
+        if (mode === 'rotating-room') {
+          roomRotateGesture.finish()
+          mode = 'idle'
+          redrawEditHandles()
         }
         // B3/N3 — mesmo padrão de commit acima, ver comentário no pointerup.
         if ((mode === 'resizing-drawing-corner' || mode === 'resizing-drawing-radius') && resizingDrawingSnapshot) {
@@ -4405,6 +4441,15 @@ export function PixiCanvas({
           const { map, resizeRoomCornerLive } = useMapStore.getState()
           const snapped = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           resizeRoomCornerLive(resizingRoomId, resizingCorner, snapped.x, snapped.y)
+          return
+        }
+
+        // Giro da sala ao vivo, com o ângulo numa etiqueta junto ao ponteiro
+        // (o mesmo rótulo de número do arrasto de forma; some no pointerup).
+        if (mode === 'rotating-room') {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const giro = roomRotateGesture.move(worldPoint, event.shiftKey)
+          if (giro) dimensionLabelRenderer.show(angleIndicatorContainer, worldPoint, giro.label, computeViewport())
           return
         }
 
@@ -5035,6 +5080,27 @@ export function PixiCanvas({
       }
 
       const onKeyDown = (event: KeyboardEvent) => {
+        // No meio do giro da sala, Esc devolve a sala ao ângulo do começo — e
+        // só isso: o botão ainda está apertado, então largar a seleção aqui
+        // (o que o Esc faz fora do gesto) tiraria a sala da mão da pessoa.
+        // Shift apertado agora já trava de 15 em 15°, sem esperar o mouse andar.
+        if (mode === 'rotating-room') {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            roomRotateGesture.cancel()
+            dimensionLabelRenderer.hide()
+            mode = 'idle'
+            redrawEditHandles()
+            updateCursor()
+            return
+          }
+          if (event.key === 'Shift') {
+            const giro = roomRotateGesture.setShift(true)
+            if (giro && laserPointer) dimensionLabelRenderer.show(angleIndicatorContainer, laserPointer, giro.label, computeViewport())
+            return
+          }
+        }
+
         // Rótulo recém-criado em edição: enquanto ele recebe o teclado, letra
         // é letra e não atalho de ferramenta. Vem ANTES de tudo — inclusive do
         // laser (L) e do Espaço=pan — porque esses também são teclas que
@@ -5262,6 +5328,12 @@ export function PixiCanvas({
       const onKeyUp =(event: KeyboardEvent) => {
         if (event.key === 'l' || event.key === 'L') {
           releaseLaserKey(true)
+          return
+        }
+        // Soltou o Shift no meio do giro: volta ao grau solto na hora.
+        if (event.key === 'Shift' && mode === 'rotating-room') {
+          const giro = roomRotateGesture.setShift(false)
+          if (giro && laserPointer) dimensionLabelRenderer.show(angleIndicatorContainer, laserPointer, giro.label, computeViewport())
           return
         }
         if (event.key !== ' ') return

@@ -134,6 +134,60 @@ export function rectFromCorners(a: RegionPoint, b: RegionPoint): RegionPoint[] {
   ]
 }
 
+/**
+ * Folga, em px de mundo, para "este lado está na horizontal (ou na vertical)".
+ * Um milésimo de px: invisível, e largo o bastante para o ruído de conta que
+ * um giro de ida e volta deixa (`lib/roomRotation.ts`).
+ */
+const FOLGA_DE_ALINHAMENTO = 1e-3
+
+/**
+ * Sala retangular RETA: lados na horizontal e na vertical — em pé ou deitada
+ * (0°, 90°, 180°, −90°). Só ela tem alça de canto e largura/altura, porque as
+ * duas reconstroem o retângulo a partir de dois cantos opostos alinhados à
+ * tela (`rectFromCorners`): numa sala torta isso a DESMONTARIA, trocando-a por
+ * outro retângulo, reto, no lugar dela. Torta, esses controles somem
+ * (`pixi/drawEditHandles.ts`, `components/RoomControls.tsx`) e voltam quando
+ * ela é girada de novo a um múltiplo de 90°.
+ */
+export function isAxisAlignedRect(points: readonly RegionPoint[]): boolean {
+  if (points.length !== 4) return false
+  const horizontal: boolean[] = []
+  for (let i = 0; i < 4; i += 1) {
+    const a = points[i]
+    const b = points[(i + 1) % 4]
+    const deitado = Math.abs(a.y - b.y) <= FOLGA_DE_ALINHAMENTO
+    const emPe = Math.abs(a.x - b.x) <= FOLGA_DE_ALINHAMENTO
+    // Os dois (lado de comprimento zero) ou nenhum (lado torto): não é retângulo reto.
+    if (deitado === emPe) return false
+    horizontal.push(deitado)
+  }
+  return horizontal[0] !== horizontal[1] && horizontal[0] === horizontal[2] && horizontal[1] === horizontal[3]
+}
+
+/**
+ * Quantas casas a ordem dos vértices andou em relação à convenção de
+ * `RoomCorner` (0 = canto de cima à esquerda, sentido horário). Girar 90° uma
+ * sala em pé deixa o vértice 0 no lugar do canto de cima à DIREITA: a sala
+ * continua reta, mas o arrasto de canto e a largura/altura (que contam com
+ * `points[0]` em cima à esquerda) puxariam o canto errado — e, pior,
+ * `rectFromCorners` devolve a ordem padrão, o que trocaria as paredes de lado.
+ * `null` = não é retângulo reto, ou a volta é anti-horária (arquivo feito à
+ * mão): não há o que acertar com uma rotação de índices.
+ */
+export function rectCornerShift(points: readonly RegionPoint[]): number | null {
+  if (!isAxisAlignedRect(points)) return null
+  let shift = 0
+  for (let i = 1; i < 4; i += 1) {
+    if (points[i].x + points[i].y < points[shift].x + points[shift].y) shift = i
+  }
+  const topLeft = points[shift]
+  const next = points[(shift + 1) % 4]
+  // Sentido horário na tela: do canto de cima à esquerda, o seguinte fica à DIREITA, na mesma altura.
+  const clockwise = Math.abs(next.y - topLeft.y) <= FOLGA_DE_ALINHAMENTO && next.x > topLeft.x
+  return clockwise ? shift : null
+}
+
 /** Largura/altura atuais de uma Sala retangular, derivadas dos 4 vértices —
  *  para exibir nos campos numéricos de `RoomControls`. `points` fora do
  *  formato de 4 vértices devolve `{ width: 0, height: 0 }`. */

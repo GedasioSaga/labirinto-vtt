@@ -174,6 +174,17 @@ export interface RoomMeta {
    *  (`pixi/drawRoomNames.ts`). `undefined` = centro da sala, sem migração.
    *  Vai junto para o jogador: `PlayerView` desenha com o mesmo renderer. */
   labelOffset?: { x: number; y: number }
+  /**
+   * Quanto a sala já foi girada, em graus, na faixa (−180, 180] — positivo é
+   * sentido horário na tela, como `Token.rotation`. É SÓ a leitura: o giro de
+   * verdade está gravado nos pontos (`lib/mapFactory.ts` → `rotateRegion`), e
+   * parede, névoa e colisão nem olham este número. Serve ao campo "Rotação"
+   * do painel e à alça de girar, que usa o ângulo para saber onde é o "em
+   * cima" da sala. `undefined` === 0 (sala nunca girada) — sem linha de
+   * migração: mapa salvo antes do campo abre igual. `lib/mapFile.ts` descarta
+   * valor que não é número finito.
+   */
+  rotation?: number
   /** A5 — o jogador recebe a Sala com `name = ''` (`lib/fogFilter.ts`).
    *  `undefined` === false (jogadores veem o nome), sem migração. */
   nameHiddenFromPlayers?: boolean

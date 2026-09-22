@@ -1795,6 +1795,8 @@ function App() {
                 selectedRegion && resizeRoomDimensions(selectedRegion.id, width, roomDimensions(selectedRegion.points).height),
               onHeightChange: (height) =>
                 selectedRegion && resizeRoomDimensions(selectedRegion.id, roomDimensions(selectedRegion.points).width, height),
+              onRotationChange: (degrees) => selectedRegion && useMapStore.getState().setRoomRotation(selectedRegion.id, degrees),
+              onRotateBy: (degrees) => selectedRegion && useMapStore.getState().rotateRoom(selectedRegion.id, degrees),
               parentName: selectedRegionParent ? selectedRegionParent.room?.name.trim() || 'Sala sem nome' : undefined,
               onCreateRoomInside: selectedRegion?.room
                 ? () => {

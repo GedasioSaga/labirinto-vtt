@@ -1,13 +1,17 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone, Pin, PinIcon, PinKind,
+  ConcealZone, Pin, PinIcon, PinKind, RoomMeta,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
 import { simplifyPolygon, chaikinSmooth } from './regionSmoothing'
 import { edgesCoveredByParent, findContainingRoom, insertIndexAfterSubtree, subtreeIds } from './roomNesting'
-import { resizeRoomCorner, resizeRoomDimensions as resizeRoomDimensionsPoints, type RoomCorner } from './roomOps'
+import { isAxisAlignedRect, rectCornerShift, resizeRoomCorner, resizeRoomDimensions as resizeRoomDimensionsPoints, type RoomCorner } from './roomOps'
+import {
+  normalizeRotation, roomCentroid, roomRotationOf, rotatePointAround, rotateVector, rotationTrig, withoutRotationNoise,
+  type RotationTrig,
+} from './roomRotation'
 import { defaultMeasurementModeForShape } from './measurement'
 import { moveBlocos, type Bloco } from './floorBlocks'
 import { apagarBlocosDoChao } from './floorTool'
@@ -494,6 +498,115 @@ export function moveRegion(map: MapData, regionId: string, dx: number, dy: numbe
     ),
     walls,
   }
+}
+
+/**
+ * Gira a região e as sub-salas dela (subárvore inteira) `degrees` graus —
+ * positivo = sentido horário na tela — em torno do centróide de área da
+ * região girada, com as paredes vinculadas. O alcance é o de `moveRegion`:
+ * sala, sub-salas, paredes e portas (a porta mora na parede) vão juntas; o
+ * que está DENTRO (ficha, móvel, pino, luz, escada, desenho) fica onde está.
+ *
+ * O pivô é UM só para a subárvore inteira: a sub-sala gira em volta do centro
+ * da mãe, não do dela, senão o quarto giraria dentro da casa em vez de ir
+ * junto com ela. Cada parede vinculada é reposicionada pela posição relativa
+ * na aresta (`syncLinkedWallsToPoints`, a mesma conta de arrastar vértice e de
+ * redimensionar), então a porta continua no mesmo ponto do lado dela. Parede
+ * com vínculo mas sem aresta (arquivo antigo) gira inteira, do mesmo jeito que
+ * `moveRegion` a desloca inteira.
+ *
+ * Nas Salas giradas, `room.rotation` acumula o giro e `room.labelOffset` gira
+ * junto: o nome fica no mesmo lugar em relação à sala, e sempre em pé (o texto
+ * não gira, só o ponto onde ele mora).
+ *
+ * NÃO recalcula a sala de fora (`reparentRoom`) nem a ordem dos cantos da sala
+ * retangular (`normalizeRectRoomOrder`): os dois precisam do mapa de antes do
+ * gesto e, no arrasto, rodam uma vez só, ao soltar — o mesmo contrato de
+ * `moveRegion`. Giro nulo (0°, 360°) ou região inexistente devolve `map` pela
+ * mesma referência, para `commitDragHistory` não gravar entrada vazia.
+ */
+export function rotateRegion(map: MapData, regionId: string, degrees: number): MapData {
+  const region = map.regions.find((r) => r.id === regionId)
+  const turn = normalizeRotation(degrees)
+  if (!region || turn === 0 || region.points.length === 0) return map
+
+  const trig = rotationTrig(turn)
+  const pivot = roomCentroid(region.points)
+  const ids = subtreeIds(map.regions, regionId)
+  const vertexCount = new Map<string, number>()
+  let walls = map.walls
+  const regions = map.regions.map((r) => {
+    if (!ids.has(r.id)) return r
+    const points = r.points.map((p) => rotatePointAround(p, pivot, trig))
+    vertexCount.set(r.id, points.length)
+    walls = syncLinkedWallsToPoints(walls, r.id, r.points, points)
+    return r.room ? { ...r, points, room: rotateRoomMeta(r.room, turn, trig) } : { ...r, points }
+  })
+  return {
+    ...map,
+    regions,
+    walls: walls.map((wall) => {
+      if (wall.regionId === undefined || !ids.has(wall.regionId)) return wall
+      const edge = wall.regionEdgeIndex
+      // Na aresta: `syncLinkedWallsToPoints` já a pôs no lugar — só sai o ruído de conta.
+      if (edge !== undefined && edge < (vertexCount.get(wall.regionId) ?? 0)) return wallWithoutRotationNoise(wall)
+      return rotateWallAround(wall, pivot, trig)
+    }),
+  }
+}
+
+/** Ângulo acumulado e rótulo da Sala depois de girar `turn` graus. */
+function rotateRoomMeta(room: RoomMeta, turn: number, trig: RotationTrig): RoomMeta {
+  const { rotation: _anterior, ...semAngulo } = room
+  const rotation = normalizeRotation(roomRotationOf(room) + turn)
+  // De volta a 0°, o campo sai: a sala fica igual à que nunca girou — ida e
+  // volta exato, e o arquivo salvo não ganha `"rotation": 0` à toa.
+  const next: RoomMeta = rotation === 0 ? semAngulo : { ...semAngulo, rotation }
+  return room.labelOffset ? { ...next, labelOffset: rotateVector(room.labelOffset, trig) } : next
+}
+
+function wallWithoutRotationNoise(wall: Wall): Wall {
+  const x1 = withoutRotationNoise(wall.x1)
+  const y1 = withoutRotationNoise(wall.y1)
+  const x2 = withoutRotationNoise(wall.x2)
+  const y2 = withoutRotationNoise(wall.y2)
+  if (x1 === wall.x1 && y1 === wall.y1 && x2 === wall.x2 && y2 === wall.y2) return wall
+  return { ...wall, x1, y1, x2, y2 }
+}
+
+function rotateWallAround(wall: Wall, pivot: { x: number; y: number }, trig: RotationTrig): Wall {
+  const a = rotatePointAround({ x: wall.x1, y: wall.y1 }, pivot, trig)
+  const b = rotatePointAround({ x: wall.x2, y: wall.y2 }, pivot, trig)
+  return { ...wall, x1: a.x, y1: a.y, x2: b.x, y2: b.y }
+}
+
+/**
+ * Devolve às Salas retangulares RETAS de `ids` a ordem de vértices da
+ * convenção `RoomCorner` (0 = canto de cima à esquerda, sentido horário),
+ * remapeando junto o índice de aresta das paredes vinculadas. Girar 90° uma
+ * sala em pé deixa o vértice 0 em cima à direita: sem isto, o próximo arrasto
+ * de canto puxaria o canto errado e `rectFromCorners` (que devolve a ordem
+ * padrão) trocaria as paredes de lado. Roda DEPOIS de `reparentRoom`, que
+ * compara as arestas de antes e de depois do gesto pelo índice. Sala torta ou
+ * já na ordem: nada muda, e sem mudança nenhuma volta `map` pela mesma referência.
+ */
+export function normalizeRectRoomOrder(map: MapData, ids: ReadonlySet<string>): MapData {
+  let walls = map.walls
+  let mudou = false
+  const regions = map.regions.map((r) => {
+    if (!ids.has(r.id) || r.room?.shape !== 'rect') return r
+    const shift = rectCornerShift(r.points)
+    if (shift === null || shift === 0) return r
+    mudou = true
+    // Aresta nova j = aresta velha (j + shift): a velha i vira (i − shift).
+    walls = walls.map((w) =>
+      w.regionId === r.id && w.regionEdgeIndex !== undefined && w.regionEdgeIndex < 4
+        ? { ...w, regionEdgeIndex: (w.regionEdgeIndex - shift + 4) % 4 }
+        : w,
+    )
+    return { ...r, points: r.points.map((_, i) => r.points[(i + shift) % 4]) }
+  })
+  return mudou ? { ...map, regions, walls } : map
 }
 
 export function addToken(map: MapData, token: Token): MapData {
@@ -1525,11 +1638,12 @@ export function removeConcealZone(map: MapData, id: string): MapData {
  * largura/altura numérica — âncora em `points[0]`, ver `roomOps.resizeRoomDimensions`.
  * COM histórico (chamado a partir do campo numérico do painel, não de um
  * arrasto contínuo). Sala Circular/Polígono ou região sem `room`: `map` sem
- * mudança.
+ * mudança. Sala retangular TORTA (girada fora de 0/90/180/−90°) também: a
+ * conta reconstrói um retângulo reto e desmontaria a sala (`isAxisAlignedRect`).
  */
 export function resizeRoomDimensions(map: MapData, id: string, wPx: number, hPx: number): MapData {
   const region = map.regions.find((r) => r.id === id)
-  if (!region || region.room?.shape !== 'rect') return map
+  if (!region || region.room?.shape !== 'rect' || !isAxisAlignedRect(region.points)) return map
 
   const points = resizeRoomDimensionsPoints(region.points, wPx, hPx)
   return {
@@ -1545,10 +1659,11 @@ export function resizeRoomDimensions(map: MapData, id: string, wPx: number, hPx:
  * do arrasto da alça de canto (drawRoomHandles.ts). Par de `commitDragHistory`
  * no pointerup, mesmo padrão de `updateLightRadiusLive`/`updateCurvePointLive`
  * (mapStore.ts). Sala Circular/Polígono ou região sem `room`: `map` sem mudança.
+ * Sala retangular torta também, pelo mesmo motivo de `resizeRoomDimensions`.
  */
 export function resizeRoomCornerLive(map: MapData, id: string, corner: RoomCorner, x: number, y: number): MapData {
   const region = map.regions.find((r) => r.id === id)
-  if (!region || region.room?.shape !== 'rect') return map
+  if (!region || region.room?.shape !== 'rect' || !isAxisAlignedRect(region.points)) return map
 
   const points = resizeRoomCorner(region.points, corner, x, y)
   return {

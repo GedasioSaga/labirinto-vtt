@@ -1,6 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js'
 import type { Region, RegionPoint } from '../types/map'
 import { pointInPolygonInclusive } from '../lib/roomNesting'
+import { roomCentroid } from '../lib/roomRotation'
 import { screenLabelSizing } from './screenLabel'
 
 export interface RoomNamesRenderer {
@@ -13,9 +14,6 @@ export interface RoomNamesRenderer {
 const FONT_SIZE_PER_GRID = 0.3
 const MIN_FONT_SIZE = 12
 const MAX_FONT_SIZE = 28
-// Abaixo disso o polígono é praticamente uma linha ou um ponto: o centróide
-// por área divide por ~0 e explode, então vale a média dos vértices.
-const DEGENERATE_AREA_EPSILON = 1e-6
 /**
  * ETIQUETA EM PÍLULA — o nome da sala deixa de ser tinta solta sobre o chão.
  *
@@ -60,25 +58,12 @@ const HIDDEN_NAME_ALPHA = 0.5
 
 /** Centróide por área (fórmula do shoelace). Para polígono côncavo (sala em L)
  * a média dos vértices puxa o rótulo para o lado com mais cantos; o centróide
- * de área não. Pontos degenerados (área ~0) caem na média simples. */
+ * de área não. Pontos degenerados (área ~0) caem na média simples.
+ *
+ * A conta mora em `lib/roomRotation.ts` porque é também o PIVÔ do giro da
+ * sala: uma fonte só garante que o nome fica parado quando a sala gira. */
 export function roomLabelAnchor(points: readonly RegionPoint[]): { x: number; y: number } {
-  if (points.length === 0) return { x: 0, y: 0 }
-  let doubleArea = 0
-  let cx = 0
-  let cy = 0
-  for (let i = 0; i < points.length; i++) {
-    const a = points[i]
-    const b = points[(i + 1) % points.length]
-    const cross = a.x * b.y - b.x * a.y
-    doubleArea += cross
-    cx += (a.x + b.x) * cross
-    cy += (a.y + b.y) * cross
-  }
-  if (Math.abs(doubleArea) < DEGENERATE_AREA_EPSILON) {
-    const sum = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 })
-    return { x: sum.x / points.length, y: sum.y / points.length }
-  }
-  return { x: cx / (3 * doubleArea), y: cy / (3 * doubleArea) }
+  return roomCentroid(points)
 }
 
 export function roomLabelFontSize(grid: number): number {

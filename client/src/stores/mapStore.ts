@@ -18,7 +18,9 @@ import * as mapFactory from '../lib/mapFactory'
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
 // pixi/PixiCanvas.tsx).
 import { cloneEntity, cloneLinkedWalls, cloneRoomDescendants, type CloneableEntity, type Offset } from '../lib/entityClone'
-import { ancestorsOf, descendantsOf } from '../lib/roomNesting'
+import { ancestorsOf, descendantsOf, subtreeIds } from '../lib/roomNesting'
+import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
+import { canInteract } from '../lib/itemTransform'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
 const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon', 'roomFree'])
@@ -645,6 +647,28 @@ interface MapStoreState {
    *  no pointerup, mesmo padrão de `updateLightRadiusLive`. */
   resizeRoomCornerLive: (id: string, corner: RoomCorner, x: number, y: number) => void
   /**
+   * GIRAR SALA — os botões −90°/+90° do painel. Gira a Sala e as sub-salas
+   * `degrees` graus (positivo = horário) em torno do centro dela, COM
+   * histórico: um Ctrl+Z desfaz. Recalcula a sala de fora e a ordem dos
+   * cantos na mesma entrada. Giro nulo ou id que não é Sala: nada, nem
+   * entrada de histórico.
+   */
+  rotateRoom: (id: string, degrees: number) => void
+  /** O campo "Rotação": leva a Sala ao ângulo `degrees` girando pela diferença. */
+  setRoomRotation: (id: string, degrees: number) => void
+  /**
+   * Arrasto da alça de girar — SEM histórico: gira a sala MAIS `degrees` graus
+   * sobre o mapa de agora, como `resizeRoomCornerLive` e `moveRegionLive`.
+   * Sobre o mapa de agora, e não refeito a partir do mapa do pointerdown: numa
+   * sessão em rede a ficha que o jogador anda no meio do arrasto chega por
+   * `setTokenPosition`, e refazer a partir do mapa velho a apagaria. O pivô
+   * não anda (o centróide de área girado é o próprio centróide). Par de
+   * `finishRoomRotationLive(before, id)` + `commitDragHistory(before)` no pointerup.
+   */
+  rotateRoomLive: (id: string, degrees: number) => void
+  /** Fecha o arrasto de giro: sala de fora e ordem dos cantos, uma vez só. SEM histórico. */
+  finishRoomRotationLive: (before: MapData, id: string) => void
+  /**
    * Variantes "live" de resize por canto (B3, bug3 "mover e redimensionar"),
    * para os kinds que não tinham resize algum antes desta fase: Drawing
    * rect/ellipse/polygon e Prop — SEM histórico, par de `commitDragHistory`
@@ -876,6 +900,18 @@ function reparentRooms(map: MapData, regionIds: readonly string[], before?: MapD
     next = mapFactory.reparentRoom(next, child.id, before)
   }
   return next
+}
+
+/**
+ * Fecha um giro de Sala. Primeiro a sala de fora — a girada pode ter saído da
+ * mãe, ou tirado uma aresta de cima da parede dela, e essa aresta ganha
+ * parede. Depois a ordem dos cantos das salas retangulares que ficaram retas:
+ * nesta ordem, porque `reparentRoom` compara as arestas de antes e de depois
+ * pelo índice, e a reordenação muda o índice. `before` é o mapa de antes do gesto.
+ */
+function settleRoomRotation(map: MapData, id: string, before: MapData): MapData {
+  const reparented = reparentRooms(map, [id], before)
+  return mapFactory.normalizeRectRoomOrder(reparented, subtreeIds(before.regions, id))
 }
 
 /** Espessura mínima de desenho — mesmo `min` do slider de DrawingStyleControls. */
@@ -1339,6 +1375,26 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     resizeRoomCornerLive: (id, corner, x, y) => set((state) => ({
       map: mapFactory.resizeRoomCornerLive(state.map, id, corner, x, y),
     })),
+    rotateRoom: (id, degrees) => {
+      const before = get().map
+      // Travada não gira, nem por um caminho que esqueça de conferir: o painel
+      // desabilita o campo e o canvas não desenha a alça, isto é a última rede.
+      const region = before.regions.find((r) => r.id === id)
+      if (!region?.room || !canInteract(region)) return
+      const rotated = mapFactory.rotateRegion(before, id, degrees)
+      if (rotated === before) return
+      withHistory(() => settleRoomRotation(rotated, id, before))
+    },
+    setRoomRotation: (id, degrees) => {
+      const region = get().map.regions.find((r) => r.id === id)
+      if (!region?.room || !Number.isFinite(degrees)) return
+      get().rotateRoom(id, rotationDelta(roomRotationOf(region.room), degrees))
+    },
+    rotateRoomLive: (id, degrees) => set((state) => ({ map: mapFactory.rotateRegion(state.map, id, degrees) })),
+    finishRoomRotationLive: (before, id) => set((state) => {
+      const map = settleRoomRotation(state.map, id, before)
+      return map === state.map ? {} : { map }
+    }),
     resizeDrawingCornerLive: (drawingId, corner, x, y, modifiers) => set((state) => ({
       map: mapFactory.resizeDrawingCornerLive(state.map, drawingId, corner, x, y, modifiers),
     })),

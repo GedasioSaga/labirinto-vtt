@@ -1,4 +1,4 @@
-import type { FloorStyle, MapData } from '../types/map'
+import type { FloorStyle, MapData, Region } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind } from './pins'
 import { readPinDestination } from './pinTravel'
@@ -69,6 +69,22 @@ function gridOffsetOrNone(value: MapData['gridOffset']): MapData['gridOffset'] {
   return { x, y }
 }
 
+/**
+ * `RoomMeta.rotation` (girar sala) é campo NOVO. Ausente continua ausente —
+ * é "nunca girada", e escrever `0` em toda sala de mapa antigo inventaria
+ * campo que o arquivo não tinha. Número finito passa como veio. O resto
+ * (texto, `null`, `NaN` de arquivo editado à mão) SAI em vez de virar ângulo:
+ * o campo "Rotação" e a alça de girar fazem conta com ele, e um `NaN` levaria
+ * a alça para fora da tela. A sala em si abre igual — o giro está nos pontos.
+ */
+function roomRotationFromFile(region: Region): Region {
+  const room = region.room
+  if (!room || typeof room !== 'object' || !('rotation' in room)) return region
+  if (typeof room.rotation === 'number' && Number.isFinite(room.rotation)) return region
+  const { rotation: _descartada, ...semAngulo } = room
+  return { ...region, room: semAngulo }
+}
+
 function deserializeMapFields(json: string): MapData {
   let parsed: Partial<MapData>
   try {
@@ -104,8 +120,11 @@ function deserializeMapFields(json: string): MapData {
       door: w.door ? { ...w.door, kind: w.door.kind ?? 'normal' } : null,
     })),
     lights: entityList(parsed.lights),
-    // inalterado — `room` ausente fica undefined (região comum)
-    regions: entityList(parsed.regions).map((r) => ({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })),
+    // inalterado — `room` ausente fica undefined (região comum); o ângulo do
+    // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
+    regions: entityList(parsed.regions).map((r) =>
+      roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' }),
+    ),
     // MUDA de cru para .map(): Token.image é obrigatório.
     // `imageData` (a cópia embutida que viaja até o jogador) NÃO ganha linha
     // aqui, de propósito: é campo opcional com `undefined === null` documentado
