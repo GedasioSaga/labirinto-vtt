@@ -422,6 +422,29 @@ body {
   padding-right: var(--lb-space-8);
 }
 
+/* Rotação da sala: o campo em graus divide a linha com os botões −90°/+90°.
+   Os botões ganham a altura do campo (38 px, não os 34 do .lb-btn) para a
+   linha ler como UM controle, e o número vem na fonte dos valores numéricos,
+   a mesma do campo ao lado. */
+.lb-rotation {
+  display: flex;
+  gap: var(--lb-space-2);
+}
+
+.lb-rotation__value {
+  flex: 1;
+  min-width: 0;
+}
+
+.lb-rotation__step {
+  flex: none;
+  min-height: 38px;
+  padding: 0 var(--lb-space-3);
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--lb-font-tracking-wide);
+}
+
 /* --------------------------------------------------------- switch (checkbox) */
 
 .lb-switch {

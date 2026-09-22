@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveCursor, type GestureMode, type HoverKind, type ResizeCorner, type ResolveCursorInput } from './cursorPolicy'
+import { CURSOR_ROTATE, resolveCursor, type GestureMode, type HoverKind, type ResizeCorner, type ResolveCursorInput } from './cursorPolicy'
 import type { DrawingTool } from '../types/tools'
 
 /**
@@ -54,6 +54,7 @@ const ALL_MODES: GestureMode[] = [
   'painting-floor-blocks',
   'dragging-room-label',
   'drawing-conceal-zone',
+  'rotating-room',
 ]
 
 /** Cópia local dos 24 literais de `DrawingTool` (`types/tools.ts`). */
@@ -84,7 +85,7 @@ const ALL_TOOLS: DrawingTool[] = [
   'concealZone',
 ]
 
-const ALL_HOVER_KINDS: HoverKind[] = ['none', 'selectable', 'resize-corner', 'vertex', 'radius', 'area-selection']
+const ALL_HOVER_KINDS: HoverKind[] = ['none', 'selectable', 'resize-corner', 'vertex', 'radius', 'area-selection', 'rotate']
 
 const ALL_CORNERS: ResizeCorner[] = [0, 1, 2, 3]
 
@@ -98,6 +99,8 @@ const VALID_CSS_CURSORS = new Set([
   'cell',
   'nwse-resize',
   'nesw-resize',
+  // A seta de girar sala: imagem própria, com `grab` de reserva.
+  CURSOR_ROTATE,
 ])
 
 const baseInput = (overrides: Partial<ResolveCursorInput> = {}): ResolveCursorInput => ({
@@ -110,8 +113,8 @@ const baseInput = (overrides: Partial<ResolveCursorInput> = {}): ResolveCursorIn
 })
 
 describe('resolveCursor — exaustividade', () => {
-  it('cobre TODOS os 39 modos de PixiCanvas.tsx sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_MODES).toHaveLength(39)
+  it('cobre TODOS os 40 modos de PixiCanvas.tsx sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_MODES).toHaveLength(40)
     for (const mode of ALL_MODES) {
       const cursor = resolveCursor(baseInput({ mode, corner: 0 }))
       expect(VALID_CSS_CURSORS.has(cursor), `mode "${mode}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
@@ -126,8 +129,8 @@ describe('resolveCursor — exaustividade', () => {
     }
   })
 
-  it('cobre TODOS os 6 HoverKind (idle + select) sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_HOVER_KINDS).toHaveLength(6)
+  it('cobre TODOS os 7 HoverKind (idle + select) sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_HOVER_KINDS).toHaveLength(7)
     for (const hoverKind of ALL_HOVER_KINDS) {
       const cursor = resolveCursor(baseInput({ activeTool: 'select', hoverKind, corner: 0 }))
       expect(VALID_CSS_CURSORS.has(cursor), `hoverKind "${hoverKind}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
@@ -228,6 +231,20 @@ describe('resolveCursor — alças de resize: nwse-resize / nesw-resize por cant
 
   it('os 4 ResizeCorner cobertos são exatamente 0,1,2,3', () => {
     expect(ALL_CORNERS).toEqual([0, 1, 2, 3])
+  })
+})
+
+describe('resolveCursor — alça de girar sala: a seta curva do pairar ao soltar', () => {
+  it('pairar na alça mostra a seta de girar, não a mão de arrastar', () => {
+    expect(resolveCursor(baseInput({ activeTool: 'select', hoverKind: 'rotate' }))).toBe(CURSOR_ROTATE)
+  })
+
+  it('durante o giro continua a mesma seta (como o redimensionar, que não troca de cursor ao pegar)', () => {
+    expect(resolveCursor(baseInput({ mode: 'rotating-room' }))).toBe(CURSOR_ROTATE)
+  })
+
+  it('é uma imagem SVG com ponto quente no meio e reserva "grab" se o navegador recusar a imagem', () => {
+    expect(CURSOR_ROTATE).toMatch(/^url\("data:image\/svg\+xml,[^"]+"\) 12 12, grab$/)
   })
 })
 

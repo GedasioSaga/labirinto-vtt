@@ -43,7 +43,8 @@ import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZon
 import { PinControls, type PinControlsProps } from './PinControls'
 import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
 import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
-import { roomDimensions } from '../lib/roomOps'
+import { isAxisAlignedRect, roomDimensions } from '../lib/roomOps'
+import { roomRotationOf } from '../lib/roomRotation'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
 import { TOOL_LABELS } from './labels'
@@ -116,7 +117,10 @@ interface PropertiesPanelProps {
   regionTransform: Pick<ItemTransformControlsProps, 'onLockedChange'>
   selectedRegion: Region | null
   regionStyle: RegionStyleControlsProps
-  room: Omit<RoomControlsProps, 'name' | 'shape' | 'width' | 'height' | 'nameHiddenFromPlayers' | 'roof'>
+  room: Omit<
+    RoomControlsProps,
+    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof'
+  >
   selectedLight: Light | null
   lightControls: Omit<LightControlsProps, 'color' | 'intensity'>
   selectedStair: Stair | null
@@ -249,10 +253,17 @@ export function PropertiesPanel({
         {selectedRegion?.room && (
           <ToolPropertiesSection group="room" groups={groups}>
             <RoomControls
+              // Um painel por sala: número digitado e não confirmado no campo
+              // Rotação vai para a sala DELE, não para a que o clique no mapa
+              // acabou de escolher (ver `RoomRotationField`).
+              key={selectedRegion.id}
               name={selectedRegion.room.name}
               shape={selectedRegion.room.shape}
+              axisAligned={isAxisAlignedRect(selectedRegion.points)}
               width={roomDimensions(selectedRegion.points).width}
               height={roomDimensions(selectedRegion.points).height}
+              rotation={roomRotationOf(selectedRegion.room)}
+              locked={!!selectedRegion.locked}
               nameHiddenFromPlayers={!!selectedRegion.room.nameHiddenFromPlayers}
               roof={!!selectedRegion.room.roof}
               {...room}

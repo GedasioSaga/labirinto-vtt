@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Graphics } from 'pixi.js'
 import { drawEditHandles, findLightRadiusHandleAt, lightRadiusHandlePosition, circleDrawingRadiusHandle } from './drawEditHandles'
 import { createEmptyMap } from '../lib/mapFactory'
+import { ROOM_ROTATE_HANDLE } from '../lib/roomRotation'
 import type { Light, Region, Wall, Drawing, Token, Prop } from '../types/map'
 
 /** Conta instruções `action: 'fill'` realmente empilhadas no GraphicsContext da instância. */
@@ -22,6 +23,14 @@ function countStrokeInstructions(g: Graphics): number {
  * chip virar 1 ou 3 fills, muda um número só.
  */
 const FILLS_POR_CHIP = 2
+
+/**
+ * O que a alça de GIRAR sala desenha (`drawRoomRotateHandle`): a haste é UM
+ * traço, e a bolinha é UMA fill (a cabeça) com UM traço em volta (o aro).
+ * Toda Sala selecionada e destravada a tem; região comum, não.
+ */
+const FILLS_DA_ALCA_DE_GIRAR = 1
+const STROKES_DA_ALCA_DE_GIRAR = 2
 
 function buildSquareRegion(id: string): Region {
   return {
@@ -168,8 +177,9 @@ describe('drawEditHandles — Sala (region.room)', () => {
 
     drawEditHandles(g, map, { kind: 'region', id: 'r1' }, 'select')
 
-    expect(countFillInstructions(g)).toBe(region.points.length)
-    expect(countStrokeInstructions(g)).toBe(region.points.length)
+    // Os redondos de sempre, mais a alça de girar que toda Sala ganhou.
+    expect(countFillInstructions(g)).toBe(region.points.length + FILLS_DA_ALCA_DE_GIRAR)
+    expect(countStrokeInstructions(g)).toBe(region.points.length + STROKES_DA_ALCA_DE_GIRAR)
   })
 
   // FILLS_POR_CHIP: desde 21/09/2026 a alça de canto é um chip de DOIS fills
@@ -184,8 +194,9 @@ describe('drawEditHandles — Sala (region.room)', () => {
 
     drawEditHandles(g, map, { kind: 'region', id: 'r1' }, 'select')
 
-    expect(countFillInstructions(g)).toBe(region.points.length * FILLS_POR_CHIP)
-    expect(countStrokeInstructions(g)).toBe(0)
+    // Os únicos traços são os da alça de girar (haste e aro): nenhum ponto médio.
+    expect(countFillInstructions(g)).toBe(region.points.length * FILLS_POR_CHIP + FILLS_DA_ALCA_DE_GIRAR)
+    expect(countStrokeInstructions(g)).toBe(STROKES_DA_ALCA_DE_GIRAR)
   })
 
   it('parede vinculada a uma Sala retangular: delega para as alças quadradas da sala dona', () => {
@@ -196,8 +207,78 @@ describe('drawEditHandles — Sala (region.room)', () => {
 
     drawEditHandles(g, map, { kind: 'wall', id: 'w1' }, 'select')
 
+    expect(countFillInstructions(g)).toBe(region.points.length * FILLS_POR_CHIP + FILLS_DA_ALCA_DE_GIRAR)
+    expect(countStrokeInstructions(g)).toBe(STROKES_DA_ALCA_DE_GIRAR)
+  })
+})
+
+// GIRAR SALA: toda Sala selecionada ganha a alça de girar — bolinha acima do
+// topo, ligada a ele por um traço fino. Região comum não é Sala e não gira.
+describe('drawEditHandles — alça de girar sala', () => {
+  it('região comum (sem room) não tem alça de girar: só os redondos de vértice e meio', () => {
+    const region = buildSquareRegion('r1')
+    const map = { ...createEmptyMap('m', 'M', 30, 20, 64), regions: [region] }
+    const g = new Graphics()
+
+    drawEditHandles(g, map, { kind: 'region', id: 'r1' }, 'select')
+
+    expect(countFillInstructions(g)).toBe(region.points.length)
+    expect(countStrokeInstructions(g)).toBe(region.points.length)
+  })
+
+  it('Sala travada: sem alça de girar (o gesto não existe, então o controle também não)', () => {
+    const region: Region = { ...buildRectRoomRegion('r1'), locked: true }
+    const map = { ...createEmptyMap('m', 'M', 30, 20, 64), regions: [region] }
+    const g = new Graphics()
+
+    drawEditHandles(g, map, { kind: 'region', id: 'r1' }, 'select')
+
     expect(countFillInstructions(g)).toBe(region.points.length * FILLS_POR_CHIP)
     expect(countStrokeInstructions(g)).toBe(0)
+  })
+
+  it('Sala retangular girada torta: sem chip de canto (puxar um canto a desmontaria), só a alça de girar', () => {
+    const torta: Region = {
+      ...buildRectRoomRegion('r1'),
+      points: [{ x: 50, y: -20.71 }, { x: 120.71, y: 50 }, { x: 50, y: 120.71 }, { x: -20.71, y: 50 }],
+      room: { shape: 'rect', name: 'Sala', rotation: 45 },
+    }
+    const map = { ...createEmptyMap('m', 'M', 30, 20, 64), regions: [torta] }
+    const g = new Graphics()
+
+    drawEditHandles(g, map, { kind: 'region', id: 'r1' }, 'select')
+
+    expect(countFillInstructions(g)).toBe(FILLS_DA_ALCA_DE_GIRAR)
+    expect(countStrokeInstructions(g)).toBe(STROKES_DA_ALCA_DE_GIRAR)
+  })
+
+  it('a bolinha fica acima do meio do topo, a ROOM_ROTATE_HANDLE.offsetPx de TELA — em qualquer zoom', () => {
+    const region = buildRectRoomRegion('r1')
+    const map = { ...createEmptyMap('m', 'M', 30, 20, 64), regions: [region] }
+    for (const cameraScale of [1, 2, 0.5]) {
+      const g = new Graphics()
+      drawEditHandles(g, map, { kind: 'region', id: 'r1' }, 'select', { cameraScale })
+      const bounds = g.getLocalBounds()
+      // O topo da sala está em y = 0; o que sobe acima dele é a alça (aro incluso).
+      const acima = -bounds.minY * cameraScale
+      expect(acima).toBeGreaterThan(ROOM_ROTATE_HANDLE.offsetPx + ROOM_ROTATE_HANDLE.radiusPx - 1)
+      expect(acima).toBeLessThan(ROOM_ROTATE_HANDLE.offsetPx + ROOM_ROTATE_HANDLE.radiusPx + 3)
+    }
+  })
+
+  it('pega (no arrasto), a cabeça acende: o preenchimento vira a cor da seleção', () => {
+    const region = buildPolygonRoomRegion('r1')
+    const map = { ...createEmptyMap('m', 'M', 30, 20, 64), regions: [region] }
+    const cores = (rotating: boolean): number[] => {
+      const g = new Graphics()
+      drawEditHandles(g, map, { kind: 'region', id: 'r1' }, 'select', { rotating })
+      return g.context.instructions.flatMap((instruction) => (instruction.action === 'fill' ? [instruction.data.style.color] : []))
+    }
+    const solta = cores(false)
+    const pega = cores(true)
+    // A última fill é a cabeça da alça; a primeira, um vértice — que já é da cor da seleção.
+    expect(pega[pega.length - 1]).not.toBe(solta[solta.length - 1])
+    expect(pega[pega.length - 1]).toBe(solta[0])
   })
 })
 
