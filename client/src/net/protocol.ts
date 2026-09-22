@@ -46,6 +46,11 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
  * nunca o id nem o nome da cena — quem recebe já está lá.
+ *
+ * `party.update` (mestre -> jogador) é a lista de COMPANHEIROS, aditiva pelo
+ * mesmo critério. É calculada por destinatário: diz só se cada outro jogador
+ * está na mesma cena que ele ('aqui'), em outra ('longe') ou desconectado
+ * ('fora') — nunca o id nem o nome da cena de ninguém.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -155,6 +160,26 @@ export interface SceneNoteMessage {
   text: string
 }
 
+/** Onde um companheiro está, visto por quem recebe: mesma cena, outra cena, ou desconectado. */
+export type PartyWhere = 'aqui' | 'longe' | 'fora'
+
+export interface PartyMember {
+  playerId: string
+  name: string
+  where: PartyWhere
+}
+
+/** Os OUTROS jogadores da mesa, na ordem de chegada. Quem recebe nunca está na lista. */
+export interface PartyUpdateMessage {
+  type: 'party.update'
+  members: PartyMember[]
+}
+
+/** Teto da lista: a mesa tem de 4 a 7 jogadores; acima disto a mensagem é lixo, não mesa. */
+export const PARTY_MAX_MEMBERS = 32
+/** Folga para o " (n)" que o `uniqueName` do host soma a nome repetido. */
+const PARTY_NAME_SUFFIX_MAX = 8
+
 export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
 export type HostMessage =
@@ -176,6 +201,7 @@ export type HostMessage =
   | { type: 'scene.changed'; by?: 'master' | 'gather' }
   | LaserMessage
   | SceneNoteMessage
+  | PartyUpdateMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -274,6 +300,28 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
   return { type: 'scene.note', id, text }
+}
+
+/**
+ * Valida o `party.update` que o jogador recebe. Os nomes vão para a tela:
+ * qualquer membro malformado (nome vazio ou acima do teto, `where` fora dos
+ * três) recusa a lista inteira em vez de mostrar metade do grupo. Devolve
+ * cópia só com os campos conhecidos: um `sceneId` que viesse junto não passa.
+ */
+export function parsePartyUpdate(value: unknown): PartyUpdateMessage | null {
+  if (!isRecord(value) || value.type !== 'party.update') return null
+  const { members } = value
+  if (!Array.isArray(members) || members.length > PARTY_MAX_MEMBERS) return null
+  const parsed: PartyMember[] = []
+  for (const member of members) {
+    if (!isRecord(member)) return null
+    const { playerId, name, where } = member
+    if (!isBoundedString(playerId, 1, REQ_ID_MAX_LENGTH)) return null
+    if (!isBoundedString(name, NAME_MIN_LENGTH, NAME_MAX_LENGTH + PARTY_NAME_SUFFIX_MAX)) return null
+    if (where !== 'aqui' && where !== 'longe' && where !== 'fora') return null
+    parsed.push({ playerId, name, where })
+  }
+  return { type: 'party.update', members: parsed }
 }
 
 /**

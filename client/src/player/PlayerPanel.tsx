@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import type { StorageLike } from './playerConnection'
-import { NAME_MAX_LENGTH } from '../net/protocol'
+import { NAME_MAX_LENGTH, type PartyMember, type PartyWhere } from '../net/protocol'
 
 // Painel do jogador: meus personagens, ajustes de visão e centralizar a câmera.
 // Fica sobre o canvas (não ao lado) para o enquadramento do mapa não depender
@@ -21,6 +21,9 @@ const EXPLORED_BRIGHTNESS_STEP = 0.05
 // Grade desligada por padrão: o mapa do jogador segue o minimapa limpo do editor.
 export const DEFAULT_PLAYER_SETTINGS: PlayerViewSettings = { exploredBrightness: 0.55, showGrid: false, showNames: true }
 export const PLAYER_SETTINGS_KEY = 'labirinto.jogador.ajustes'
+
+/** Como cada estado do companheiro aparece escrito: é o texto que o jogador lê. */
+const PARTY_WHERE_LABEL: Record<PartyWhere, string> = { aqui: 'aqui', longe: 'em outro lugar', fora: 'fora' }
 
 export interface PlayerCharacter {
   id: string
@@ -84,6 +87,12 @@ interface PlayerPanelProps {
   onRenameToken: (tokenId: string, name: string) => void
   /** Foto nova do próprio token. Rejeita (lança) quando a imagem não serve, e o aviso vai para a tela. */
   onChangeTokenPhoto: (tokenId: string, file: File) => Promise<void>
+  /**
+   * Os outros jogadores da mesa e onde estão para ele. `undefined` = o mestre
+   * ainda não mandou (ou é antigo e nunca manda): a seção não aparece, em vez
+   * de afirmar que ele está sozinho.
+   */
+  party?: PartyMember[]
 }
 
 export function PlayerPanel({
@@ -98,6 +107,7 @@ export function PlayerPanel({
   onToggleMeasure,
   onRenameToken,
   onChangeTokenPhoto,
+  party,
 }: PlayerPanelProps) {
   const [open, setOpen] = useState(false)
   const panelId = useId()
@@ -229,6 +239,27 @@ export function PlayerPanel({
           </button>
           {measureArmed && <p className="pp-empty">Arraste no mapa para medir. Esc sai.</p>}
         </section>
+
+        {party !== undefined && (
+          <section className="pp-section" aria-labelledby={`${panelId}-party`}>
+            <h2 id={`${panelId}-party`} className="pp-heading">
+              Grupo
+            </h2>
+            {party.length === 0 ? (
+              <p className="pp-empty">Só você na mesa.</p>
+            ) : (
+              <ul className="pp-list">
+                {party.map((member) => (
+                  <li key={member.playerId} className={`pp-member pp-member--${member.where}`}>
+                    <span className="pp-member__dot" aria-hidden="true" />
+                    <span className="pp-member__name">{member.name}</span>
+                    <span className="pp-member__where">{PARTY_WHERE_LABEL[member.where]}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         {first !== undefined && (
           <section className="pp-section" aria-labelledby={`${panelId}-me`}>

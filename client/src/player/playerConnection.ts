@@ -5,7 +5,7 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
-import { parseLaserMessage, parseSceneNote } from '../net/protocol'
+import { parseLaserMessage, parsePartyUpdate, parseSceneNote, type PartyMember } from '../net/protocol'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -40,6 +40,12 @@ export interface PlayerState {
    * tela o mostra como texto, nunca como HTML.
    */
   note?: { id: string; text: string }
+  /**
+   * Os OUTROS jogadores da mesa e onde estão para ele (aqui, longe, fora).
+   * Ausente até o primeiro `party.update`. Sobrevive à espera no lobby: o host
+   * só reenvia quando muda, então apagar aqui deixaria a lista vazia na volta.
+   */
+  party?: PartyMember[]
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -488,6 +494,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const note = parseSceneNote(data)
         if (note === null) return
         setState({ note: { id: note.id, text: note.text } })
+        return
+      }
+      case 'party.update': {
+        // Vale também na espera: é a lista que ele vê assim que ganhar ficha.
+        const party = parsePartyUpdate(data)
+        if (party === null) return
+        setState({ party: party.members })
         return
       }
       case 'laser': {
