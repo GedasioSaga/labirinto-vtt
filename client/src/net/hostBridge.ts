@@ -405,6 +405,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (session === null) return
     if (!allow) {
       void dispatch(session.denyTravel(requestId))
+      // O pedido saiu da sessão: o selo "pedido" da lista Cenas sai junto.
+      notifyPlayersIfChanged()
       return
     }
     const result = session.approveTravel(requestId, world())
@@ -412,6 +414,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Recusa da revalidação (o token andou, o pino sumiu, a porta foi
       // trancada) ou pedido que já morreu.
       void dispatch(result)
+      notifyPlayersIfChanged()
       return
     }
     completeTransfer(result, result.applyTransfer)
@@ -426,6 +429,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (!moved) {
       // O "Você chegou" não pode sair: a ficha não saiu do lugar.
       void dispatch({ outbound: result.outbound.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })) })
+      // O pedido já saiu da sessão ao ser aprovado: o selo da lista Cenas não pode ficar.
+      notifyPlayersIfChanged()
       return
     }
     // Primeiro `scene.changed`, depois o snapshot da cena nova: a ordem dos
@@ -636,7 +641,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const moved = transfer !== undefined && (deps.applyTransfer?.(transfer) ?? false)
       // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
       pruneTravelToasts()
-      if (!moved) return false
+      if (!moved) {
+        // Mesmo sem mover, o pedido que ele tinha pode ter morrido: o selo acompanha.
+        notifyPlayersIfChanged()
+        return false
+      }
       void dispatch(result)
       broadcastNow()
       notifyPlayersIfChanged()

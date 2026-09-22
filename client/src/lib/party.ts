@@ -28,6 +28,8 @@ export interface PartyMember {
   sceneName: string | null
   /** `null` = sem ficha em cena nenhuma: não há onde ir nem o que mandar. */
   token: PartyToken | null
+  /** Um pedido de passagem dele espera o mestre agora. */
+  travelPending: boolean
 }
 
 /** Um ponto de chegada do "Mandar para…": um pino de viagem da cena de destino. */
@@ -81,6 +83,7 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
       sceneId: player.sceneId ?? null,
       sceneName: player.sceneName ?? null,
       token: token === null ? null : { id: token.id, color: cssColor(tokenFillColor(token)), x: token.x, y: token.y },
+      travelPending: player.travelPending === true,
     }
   })
 }
@@ -109,4 +112,50 @@ export function partyDestinations(world: HostWorld): PartyDestination[] {
 /** Status da linha em uma palavra: é o que o mestre lê de relance. */
 export function partyPresenceLabel(member: PartyMember): string {
   return member.connected ? 'online' : 'fora'
+}
+
+/** Uma bolinha da lista Cenas: quem está na cena, na cor da ficha dele. */
+export interface ScenePerson {
+  playerId: string
+  name: string
+  /** `#rrggbb`, a mesma cor da linha do Grupo e do disco no mapa. */
+  color: string
+}
+
+/** O que a linha de UMA cena da lista Cenas mostra além do nome. */
+export interface ScenePeople {
+  people: ScenePerson[]
+  /** Pedidos de passagem esperando o mestre, feitos por quem está nesta cena. */
+  pendingRequests: number
+}
+
+/**
+ * Quem está em cada cena e quantos pedidos esperam lá, por id de cena. Monta
+ * a partir das MESMAS linhas do Grupo (`partyMembers`): uma fonte só, e o
+ * mestre nunca lê um jogador numa cena pelo Grupo e em outra pela lista.
+ *
+ * Só conta quem está CONECTADO: jogador que caiu deixa a ficha no mapa, mas
+ * não está à mesa. E só com cena de aventura (`sceneId`): no mapa solto a
+ * sessão não dá cena a ninguém, e a lista fica sem bolinha e sem selo.
+ * A bolinha pede a ficha na cena (é dela que vem a cor); o pedido não — quem
+ * pede já está em cena, e o selo não pode sumir por falta de cor.
+ */
+export function peopleByScene(members: PartyMember[]): Map<string, ScenePeople> {
+  const byScene = new Map<string, ScenePeople>()
+  for (const member of members) {
+    if (!member.connected || member.sceneId === null) continue
+    let entry = byScene.get(member.sceneId)
+    if (entry === undefined) {
+      entry = { people: [], pendingRequests: 0 }
+      byScene.set(member.sceneId, entry)
+    }
+    if (member.token !== null) entry.people.push({ playerId: member.playerId, name: member.name, color: member.token.color })
+    if (member.travelPending) entry.pendingRequests += 1
+  }
+  return byScene
+}
+
+/** "1 pedido" / "3 pedidos": o selo que o mestre lê de relance na linha da cena. */
+export function pendingRequestsLabel(count: number): string {
+  return count === 1 ? '1 pedido' : `${count} pedidos`
 }

@@ -16,7 +16,7 @@ import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { playSignalSound } from './lib/signalSound'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
-import { partyDestinations, partyMembers } from './lib/party'
+import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { viewportCenterWorld, type Camera } from './pixi/world'
@@ -1584,6 +1584,8 @@ function App() {
                 onSelect={handleSelectScene}
                 onCreate={handleCreateScene}
                 onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
+                // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
+                people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
               />
             }
             mapName={map.name}

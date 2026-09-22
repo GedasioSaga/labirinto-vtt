@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { CollapsibleSection } from './CollapsibleSection'
+import { pendingRequestsLabel, type ScenePeople } from '../lib/party'
 import type { SceneListItem } from '../stores/adventureStore'
 
 export interface ScenesSectionProps {
@@ -8,6 +9,11 @@ export interface ScenesSectionProps {
   onSelect: (sceneId: string) => void
   onCreate: (name: string) => void
   onRename: (sceneId: string, name: string) => void
+  /**
+   * Quem está em cada cena e quantos pedidos esperam lá (`peopleByScene`).
+   * Ausente ou vazio = sala fechada ou mapa solto: a linha fica só com o nome.
+   */
+  people?: ReadonlyMap<string, ScenePeople>
 }
 
 /** Campo aberto na seção: nome da cena nova, ou novo nome da cena aberta. */
@@ -19,12 +25,29 @@ function tokenLabel(count: number | null): string {
 }
 
 /**
+ * A segunda linha do item: uma bolinha por jogador na cena (cor da ficha,
+ * nome no rótulo e no título — o mouse em cima diz quem é) e o selo dos
+ * pedidos que esperam o mestre. Fica numa linha própria para sete jogadores
+ * não espremerem o nome da cena.
+ */
+function SceneGente({ people }: { people: ScenePeople }) {
+  return (
+    <div className="lb-cenas__gente">
+      {people.people.map((person) => (
+        <span key={person.playerId} role="img" className="lb-cenas__pessoa" aria-label={person.name} title={person.name} style={{ background: person.color }} />
+      ))}
+      {people.pendingRequests > 0 && <span className="lb-cenas__pedidos">{pendingRequestsLabel(people.pendingRequests)}</span>}
+    </div>
+  )
+}
+
+/**
  * "Cenas", no topo da aba Mapa: as cenas da aventura, a aberta destacada
  * (`aria-current`), "+ Nova cena" e renomear. O nome da cena é o botão
  * inteiro — trocar de cena é um clique —, e a contagem de tokens fica FORA
  * dele, para o nome acessível do botão ser só o nome da cena.
  */
-export function ScenesSection({ scenes, onSelect, onCreate, onRename }: ScenesSectionProps) {
+export function ScenesSection({ scenes, onSelect, onCreate, onRename, people }: ScenesSectionProps) {
   const [editing, setEditing] = useState<Editing>(null)
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -74,32 +97,36 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename }: ScenesSe
   return (
     <CollapsibleSection id="scenes" title="Cenas" defaultOpen>
       <ul className="lb-cenas" aria-label="Cenas da aventura">
-        {scenes.map((scene) => (
-          <li key={scene.id || 'cena-solta'} className={`lb-cenas__item${scene.active ? ' lb-cenas__item--ativa' : ''}`}>
-            <button
-              type="button"
-              className="lb-cenas__nome"
-              aria-current={scene.active ? 'true' : undefined}
-              disabled={!scene.available}
-              title={scene.available ? undefined : 'O arquivo desta cena não foi encontrado'}
-              onClick={() => onSelect(scene.id)}
-            >
-              {scene.name}
-            </button>
-            <span className="lb-cenas__conta">{tokenLabel(scene.tokenCount)}</span>
-            {scene.active && scene.renamable && editing === null && (
+        {scenes.map((scene) => {
+          const here = people?.get(scene.id)
+          return (
+            <li key={scene.id || 'cena-solta'} className={`lb-cenas__item${scene.active ? ' lb-cenas__item--ativa' : ''}`}>
               <button
                 type="button"
-                className="lb-cenas__renomear"
-                aria-label={`Renomear ${scene.name}`}
-                title="Renomear"
-                onClick={() => startEditing({ kind: 'rename', sceneId: scene.id }, scene.name)}
+                className="lb-cenas__nome"
+                aria-current={scene.active ? 'true' : undefined}
+                disabled={!scene.available}
+                title={scene.available ? undefined : 'O arquivo desta cena não foi encontrado'}
+                onClick={() => onSelect(scene.id)}
               >
-                ✎
+                {scene.name}
               </button>
-            )}
-          </li>
-        ))}
+              <span className="lb-cenas__conta">{tokenLabel(scene.tokenCount)}</span>
+              {scene.active && scene.renamable && editing === null && (
+                <button
+                  type="button"
+                  className="lb-cenas__renomear"
+                  aria-label={`Renomear ${scene.name}`}
+                  title="Renomear"
+                  onClick={() => startEditing({ kind: 'rename', sceneId: scene.id }, scene.name)}
+                >
+                  ✎
+                </button>
+              )}
+              {here !== undefined && (here.people.length > 0 || here.pendingRequests > 0) && <SceneGente people={here} />}
+            </li>
+          )
+        })}
       </ul>
       {/* Sempre montado: é para ele que o foco volta depois de criar ou cancelar. */}
       <button type="button" className="lb-btn lb-btn--block" onClick={() => startEditing({ kind: 'create' }, `Cena ${scenes.length + 1}`)}>
