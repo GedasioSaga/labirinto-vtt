@@ -50,6 +50,9 @@ function travelNoticeText(notice: TravelNotice): string {
     case 'moved':
       // Nunca diz para onde: o nome da cena é do mestre.
       return 'O mestre levou você para outro lugar'
+    case 'gathered':
+      // Também sem o nome da cena: só que o grupo está junto de novo.
+      return 'O mestre reuniu o grupo'
     case 'denied':
       return 'O mestre não deixou passar agora'
     case 'rejected':
