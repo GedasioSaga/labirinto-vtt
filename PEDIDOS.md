@@ -591,3 +591,16 @@ A fila G1-G6 acima cresce para 15 (G7-G15 também decididas por mim, revisáveis
 
 Defeitos: a lista B do `HANDOFF.md` (8), o teste do balde que estoura o tempo sob carga, e "Remover <ficha>"
 mostrando o id da ficha em cena de fundo. Vão entrando entre as features, cada um com teste que falha antes.
+
+### Andamento (22/09/2026, madrugada)
+
+| entrega | commit | prova |
+|---|---|---|
+| Girar sala (alça + campo Rotação, Shift 15°) | `28177f4` | `task-jornada-girar-sala.spec.ts` 7 passed; `sala-livre`, `viagem-do-jogador`, `jornadas-e2e` VERDES no commit juntado; fluidez da alça: longtask 52 ms, frame p95 33,5 ms |
+| Medir na tela do jogador | `ee664e0` | `task-jornada-medir-na-tela-do-jogador.spec.ts` 6 passed; `entrada-jogador` VERDE no commit juntado |
+| Defeito B8: dica "Sala livre ()" | `87d89b0` | teste de unidade vermelho antes ("Sala livre ()", "Caminho ()"), verde depois |
+| Cache do vite por porta (causa provável dos timeouts entre worktrees) | `b02b8f4` | — |
+
+Girar sala, deixado de fora e anotado: ±90° numa sala cujos lados têm paridades diferentes em quadrados
+deixa a sala meio quadrado fora da grade (efeito do pivô no centro); sala travada ainda mostra chips de canto.
+Defeito B2 ("clique no menu atravessa") não reproduziu em 10 de 11 menus, com clique real e pixel antes/depois.
