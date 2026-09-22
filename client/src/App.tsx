@@ -1657,6 +1657,8 @@ function App() {
                 onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
                 // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
                 people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
+                // Recado por cena só com a sala aberta: sem sala não há quem leia.
+                onNote={room === null ? undefined : (sceneId, text) => hostBridgeRef.current?.sceneNote(sceneId, text) ?? null}
               />
             }
             mapName={map.name}
