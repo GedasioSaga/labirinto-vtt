@@ -617,3 +617,18 @@ Defeito B2 ("clique no menu atravessa") não reproduziu em 10 de 11 menus, com c
 Decisões do builder da G2 para o usuário revisar: o véu do cartão do jogador deixou de bloquear o mapa
 (tocar num botão do painel fecha o cartão e aciona o botão; a roda fora do cartão dá zoom); a passagem
 livre tem uma batida de 450 ms com "Passando…" antes de trocar a cena.
+
+### Andamento do grupo espalhado (22/09/2026, manhã)
+
+| feature | commit juntado | prova no commit juntado |
+|---|---|---|
+| G3 — lista Cenas com quem está em cada cena e selo de pedido | `c7f6da9` | `cenas-com-gente` 5 — VERDE |
+| G6 — chamado de cena de fundo ("X chamou em C" + Ir lá); sinal de fundo deixou de ser desenhado no lugar errado | `037c2f3` | `chamado-de-fundo` 5 — VERDE (em `d32fbf1` e `0f22d79`) |
+| G7 — seguir jogador | `0f22d79` | `seguir-jogador` 5, `chamado-de-fundo` 5 — VERDES |
+| G8 — encruzilhada (várias saídas nomeadas) + revisão de segurança (teto de 11 saídas extras; pino do jogador montado por lista do que vai) | `ca26a31` + `40a3aea` | `encruzilhada` 5, `modos-do-pino` 5, `seguir-jogador` 5, `pinos-ponto-de-interesse` 4, `marcador-com-icone` 2 — VERDES |
+| G4 — caixa de pedidos | `fe9c7d4` | VERMELHA nos casos 3 e 4 no commit juntado; em conserto |
+| G5 — reunir o grupo | `ce26606` | VERMELHA nos casos 3 e 4 no commit juntado (mesma causa provável do "Mandar para…"); em conserto |
+
+Consertos de régua feitos pelo orquestrador: caixa de pedidos (filtro `has` ancorado na caixa nunca
+casava), seguir jogador (controle andava 6 casas e ficava perto do centro desde que o "Ir lá" centra na
+área livre). Consertos de teste: teto próprio para o teste de 300 vértices do SDF (estourava 5 s sob carga).
