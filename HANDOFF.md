@@ -30,9 +30,9 @@ cada entrega (commit, prova, decisão) está em `PEDIDOS.md`, seções "Andament
 | G7 seguir jogador | `0f22d79` |
 | G8 encruzilhada (várias saídas nomeadas) + revisão de segurança | `ca26a31` + `40a3aea` |
 | G9 mão única com chegada oculta | `352f7ef` |
-| G11 recado por cena — **juntado, falta a prova no commit juntado** (ver Próximos passos 1) | `aac82f1` |
+| G11 recado por cena (régua consertada em `6eed3f5`) | `aac82f1` |
 
-**Grupo espalhado: 9 de 15 provadas no commit juntado** (G1–G9), G11 juntada sem a prova final.
+**Grupo espalhado: 10 de 15 provadas no commit juntado** (G1–G9 e G11).
 
 ### Defeitos consertados nesta sessão (cada um com teste vermelho antes)
 
@@ -58,9 +58,7 @@ no lugar errado (`037c2f3`); avisos do jogador sumindo antes de serem lidos (`d1
 
 Em ordem. Cada item já tem endereço; nenhum precisa de investigação para começar.
 
-1. **G11 — provar no commit juntado.** Rodar `node scripts/portao.cjs --jornada=recado e2e/task-jornada-recado-por-cena.spec.ts`
-   num worktree em `5faf6cd` (5 passed esperado). A régua foi consertada em `6eed3f5` (código de sala
-   `RECADO` colidia com o botão), então a prova do builder foi com a régua antiga.
+1. ~~G11 — provar no commit juntado~~: feito, `recado-por-cena` VERDE e `chegada-oculta` VERDE em `5faf6cd`.
 2. **G10 viajar junto — quase pronta.** Branch `auto/r4-viajar-junto` @ `81fb0fc` (commit `wip`),
    worktree `.claude/worktrees/agent-a2f81b1641883db60`. A régua `task-jornada-viajar-junto` já deu
    **5 passed**; falta: vizinhas (`caixa-de-pedidos`, `viagem-do-jogador`, `reunir-o-grupo`,
@@ -149,6 +147,7 @@ O goal fecha com 15 features do grupo provadas assim e nenhum defeito conhecido 
 - **Provas no commit juntado** (rodadas num worktree destacado): `painel-do-grupo` 5, `modos-do-pino` 5,
   `viagem-do-jogador` 6, `entrada-jogador` 5, `cenas-com-gente` 5, `caixa-de-pedidos` 4,
   `reunir-o-grupo` 5, `chamado-de-fundo` 5, `seguir-jogador` 5, `encruzilhada` 5,
+  `recado-por-cena` 5, `chegada-oculta` 5,
   `pinos-ponto-de-interesse` 4, `marcador-com-icone` 2, `girar-sala` 7, `medir-na-tela-do-jogador` 6,
   `subtrair-abre-buraco` 4, `borracha-diz-o-que-nao-apaga` 3, as 4 réguas de defeito de `00a3cf8`,
   `jornadas-e2e` VERDE.
@@ -156,8 +155,8 @@ O goal fecha com 15 features do grupo provadas assim e nenhum defeito conhecido 
   (2 achados, corrigidos em `40a3aea`; mutantes mortos: sem o teto 1 teste, com o spread 5 testes).
 - **Bisect da escada** (`escada-legivel` sozinha em 6 junções): verde em 5, vermelha só em `c7f6da9` sob
   carga — instabilidade, não regressão.
-- **Não verificado**: nada desta sessão foi aberto no exe desktop nem jogado em LAN; G11 sem prova no
-  juntado; G10/G12/G13/G14/G15 não juntadas.
+- **Não verificado**: nada desta sessão foi aberto no exe desktop nem jogado em LAN;
+  G10/G12/G13/G14/G15 não juntadas.
 - **Incidentes registrados**: `git worktree remove --force` em worktree com junction apaga parte do
   `node_modules` compartilhado — não usar; o modo plano aberto no meio do trabalho parou um builder
   (a Entrega 3) e foi preciso retomá-lo.
