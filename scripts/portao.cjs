@@ -467,6 +467,9 @@ const JORNADAS_DO_CRITERIO = [
   // em cada cena e selo de pedido esperando. A queda do socket é repassada ao
   // mestre como net:peer só quando a página do jogador fecha de verdade.
   'e2e/task-jornada-cenas-com-gente.spec.ts',
+  // 22/09/2026, grupo espalhado G4 — com 2 ou mais pedidos esperando, os
+  // avisos viram uma caixa "Pedidos (N)" com linha por pedido e Deixar todos.
+  'e2e/task-jornada-caixa-de-pedidos.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
