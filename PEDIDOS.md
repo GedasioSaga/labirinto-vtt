@@ -525,3 +525,20 @@ Entrega 2: `jornadas-da-bar` saiu VERMELHA com um teste de `task-jornada-pincel-
 (o 3 ou o 4) estourando 30 s na foto da tela. Não é da entrega: a mesma regressão, rodada em seguida
 no commit de antes dela (`d7ab205`), falhou igual (teste 3, 50 s), e o spec sozinho passa 4 de 4 (35 s).
 É instabilidade por carga, com outro Playwright rodando na máquina.
+
+## Pedido de 21/09/2026, noite (registro literal, com print)
+
+> "Sabe um feature que eu gostaria que você adicionasse agora ? [print de uma sala livre selecionada,
+> "Sky Lagoon (cópia)"] a capacidade de rotacionar, eu queria poder rotacionar isso"
+
+### Decisões do usuário (21/09/2026, noite)
+
+| tema | decisão |
+|---|---|
+| gesto | alça no mapa (bolinha acima da sala selecionada) + campo "Rotação" no painel com −90°/+90° |
+| ângulo | livre; Shift trava de 15 em 15° |
+| o que gira | igual ao arrastar: sala, sub-salas, paredes e portas; o conteúdo fica |
+| alcance | só salas (retangular, livre, circular, polígono) |
+
+Plano aprovado em `~/.claude/plans/immutable-inventing-acorn.md` (seção "Girar sala"). Régua:
+`client/e2e/task-jornada-girar-sala.spec.ts` (em escrita). Roda em paralelo com a Entrega 3 do pino.
