@@ -5,7 +5,7 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
-import { parseLaserMessage, parseSceneNote } from '../net/protocol'
+import { parseLaserMessage, parsePartyUpdate, parseSceneNote, type PartyMember } from '../net/protocol'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -46,6 +46,12 @@ export interface PlayerState {
    * que recusa o movimento — o aviso só explica por que a ficha volta.
    */
   paused?: true
+  /**
+   * Os OUTROS jogadores da mesa e onde estão para ele (aqui, longe, fora).
+   * Ausente até o primeiro `party.update`. Sobrevive à espera no lobby: o host
+   * só reenvia quando muda, então apagar aqui deixaria a lista vazia na volta.
+   */
+  party?: PartyMember[]
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -503,6 +509,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (typeof data.paused !== 'boolean') return
         setState({ paused: data.paused ? true : undefined })
         return
+      case 'party.update': {
+        // Vale também na espera: é a lista que ele vê assim que ganhar ficha.
+        const party = parsePartyUpdate(data)
+        if (party === null) return
+        setState({ party: party.members })
+        return
+      }
       case 'laser': {
         // Laser sem mapa na tela não tem onde aparecer.
         if (state.status !== 'playing') return

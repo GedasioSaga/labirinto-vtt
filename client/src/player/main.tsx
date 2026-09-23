@@ -593,6 +593,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             setMeasureArmed((armed) => !armed)
             setSignalArmed(false)
           }}
+          party={state.party}
           onRenameToken={(tokenId, name) => connection.setOwnTokenName(tokenId, name)}
           onChangeTokenPhoto={async (tokenId, file) => {
             // A foto é reduzida AQUI, antes de sair da máquina do jogador: é

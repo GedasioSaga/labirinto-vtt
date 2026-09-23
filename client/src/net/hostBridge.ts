@@ -319,7 +319,19 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     setTunnel(TUNNEL_IDLE)
   }
 
+  /**
+   * Companheiros na tela de cada jogador. Chamado a cada evento que pode mudar
+   * quem está onde (entrar, cair, viajar, ser levado, ganhar ficha, mapa novo):
+   * a sessão só devolve quem teve a lista mudada, então chamar a mais não
+   * inunda o socket.
+   */
+  const sendPartyIfChanged = () => {
+    if (session === null) return
+    void dispatch(session.partyUpdates(world()))
+  }
+
   const notifyPlayersIfChanged = () => {
+    sendPartyIfChanged()
     const list = session?.listPlayers(world()) ?? []
     const key = JSON.stringify(list)
     if (key === lastPlayersKey) return
@@ -348,6 +360,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const broadcastNow = () => {
     if (session === null) return
     void dispatch(session.broadcast(world()))
+    // O mestre pode ter apagado ou trocado uma ficha de cena pelo editor: é
+    // mudança de mapa, que só passa por aqui.
+    sendPartyIfChanged()
   }
 
   const scheduleBroadcast = () => {

@@ -15,6 +15,8 @@ import {
   type HostMessage,
   type JoinMessage,
   type LaserMessage,
+  type PartyMember,
+  type PartyWhere,
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type SignalMessage,
@@ -336,6 +338,14 @@ export interface HostSession {
   /** Com `source` de uma aventura, cada jogador que joga vem com o nome da cena onde está. */
   listPlayers(source?: HostMapSource): PlayerInfo[]
   /**
+   * COMPANHEIROS: `party.update` para cada jogador conectado cuja lista MUDOU
+   * desde o último envio àquela conexão. A lista é dele: os outros jogadores,
+   * cada um 'aqui' (mesma cena), 'longe' (outra cena, ou ainda sem ficha) ou
+   * 'fora' (desconectado). Nunca vai id nem nome de cena. Seguro chamar a cada
+   * evento: sem mudança, `outbound` sai vazio.
+   */
+  partyUpdates(source: HostMapSource): HostResult
+  /**
    * Quantas entradas os limites do pedido de passagem guardam agora (por
    * jogador + por jogador/cena/pino). Diagnóstico: é o número que um cliente
    * hostil tentaria inflar mandando ids de pino inventados.
@@ -429,6 +439,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // jogador lê como "não pausada"). Por conexão, e não por jogador: quem
   // reconecta abre tela nova, sem o aviso, e precisa receber de novo.
   const pausedSent = new Map<string, boolean>()
+  // Por clientId: a última lista de companheiros enviada àquela conexão (JSON).
+  // Por conexão, e não por jogador: quem reconecta tem tela nova e precisa da
+  // lista de novo, mesmo que nada tenha mudado para ele.
+  const lastPartySent = new Map<string, string>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -1223,6 +1237,47 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return info
         })
     },
+
+    partyUpdates(source) {
+      const world = toWorld(source)
+      const ordered = [...players.values()].sort((a, b) => a.joinedAt - b.joinedAt)
+      // A cena de cada um, uma vez só (chave `sceneKey`). `null` = não está em
+      // cena: ainda sem ficha, ou com a ficha fora de toda cena aberta. Esse
+      // jogador fica 'longe' para todos — está na mesa, mas não ao lado de
+      // ninguém. Sumir da lista seria justamente o "caiu, saiu ou está longe?"
+      // que a lista existe para responder.
+      const sceneOf = new Map<string, string | null>()
+      for (const p of ordered) {
+        const scene = statusOf(p.playerId) === 'playing' ? sceneFor(p.playerId, world) : null
+        sceneOf.set(p.playerId, scene === null ? null : sceneKey(scene))
+      }
+      // Conexão que já caiu não recebe mais nada: a chave dela só ocuparia memória.
+      for (const clientId of lastPartySent.keys()) {
+        if (!byClient.has(clientId)) lastPartySent.delete(clientId)
+      }
+      const outbound: Outbound[] = []
+      for (const [clientId, viewerId] of byClient) {
+        const mine = sceneOf.get(viewerId) ?? null
+        const members: PartyMember[] = ordered
+          .filter((p) => p.playerId !== viewerId)
+          .map((p) => ({ playerId: p.playerId, name: p.name, where: partyWhere(p, mine, sceneOf.get(p.playerId) ?? null) }))
+        const key = JSON.stringify(members)
+        if (lastPartySent.get(clientId) === key) continue
+        lastPartySent.set(clientId, key)
+        outbound.push({ clientId, msg: { type: 'party.update', members } })
+      }
+      return { outbound }
+    },
   }
   return api
+}
+
+/**
+ * Onde `other` está para quem vê da cena `viewerScene`. Desconectado vence
+ * tudo: a ficha dele pode estar na mesma cena, mas ninguém a move. Sem cena
+ * própria (`null`), ninguém está "aqui" com ele.
+ */
+function partyWhere(other: PlayerRecord, viewerScene: string | null, otherScene: string | null): PartyWhere {
+  if (other.clientId === null) return 'fora'
+  return viewerScene !== null && otherScene === viewerScene ? 'aqui' : 'longe'
 }

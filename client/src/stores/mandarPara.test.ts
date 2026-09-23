@@ -139,8 +139,13 @@ describe('"Mandar para…" (painel Grupo)', () => {
     expect(tokensDaCena(t.cripta).map((tk) => [tk.id, tk.x, tk.y])).toEqual([['grog', esperado.x, esperado.y]])
 
     const depois = t.enviados.slice(antes)
-    // Ao dono, primeiro o aviso do mestre, depois o mapa novo.
-    expect(depois.filter((e) => e.clientId === 'c1').map((e) => e.msg.type)).toEqual(['scene.changed', 'snapshot'])
+    // Ao dono, primeiro o aviso do mestre, depois o mapa novo. A lista de
+    // companheiros muda junto (Bia ficou no Vale) e tem teste próprio abaixo.
+    const paraAna = depois.filter((e) => e.clientId === 'c1')
+    expect(paraAna.map((e) => e.msg.type).filter((tipo) => tipo !== 'party.update')).toEqual(['scene.changed', 'snapshot'])
+    expect(paraAna.filter((e) => e.msg.type === 'party.update').map((e) => e.msg)).toEqual([
+      { type: 'party.update', members: [{ playerId: t.bia, name: 'Bia', where: 'longe' }] },
+    ])
     expect(depois.find((e) => e.clientId === 'c1')?.msg).toEqual({ type: 'scene.changed', by: 'master' })
     const daAna = snapshotPara(depois, 'c1')
     expect(daAna?.map).toMatchObject({ id: mapaDaCripta(t.cripta).id, name: '' })
