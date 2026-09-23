@@ -80,6 +80,9 @@ interface PlayerPanelProps {
   /** Modo "Medir" ligado: arrastar no mapa mede a distância (só nesta tela). */
   measureArmed: boolean
   onToggleMeasure: () => void
+  /** Modo "Laser" ligado: segurar e arrastar no mapa aponta, e quem está na mesma cena vê. */
+  laserArmed: boolean
+  onToggleLaser: () => void
   /** Nome novo do próprio token (já aparado); o mestre recebe pelo socket. */
   onRenameToken: (tokenId: string, name: string) => void
   /** Foto nova do próprio token. Rejeita (lança) quando a imagem não serve, e o aviso vai para a tela. */
@@ -96,6 +99,8 @@ export function PlayerPanel({
   onToggleSignal,
   measureArmed,
   onToggleMeasure,
+  laserArmed,
+  onToggleLaser,
   onRenameToken,
   onChangeTokenPhoto,
 }: PlayerPanelProps) {
@@ -135,6 +140,12 @@ export function PlayerPanel({
     // Mesma razão do Sinalizar: no celular a gaveta cobre o mapa onde o dedo vai medir.
     if (!measureArmed) setOpen(false)
     onToggleMeasure()
+  }
+
+  function toggleLaser() {
+    // Mesma razão: no celular a gaveta cobre o mapa onde o dedo vai apontar.
+    if (!laserArmed) setOpen(false)
+    onToggleLaser()
   }
 
   const first = characters[0]
@@ -228,6 +239,10 @@ export function PlayerPanel({
             Medir
           </button>
           {measureArmed && <p className="pp-empty">Arraste no mapa para medir. Esc sai.</p>}
+          <button type="button" className="pp-button pp-button--toggle" aria-pressed={laserArmed} onClick={toggleLaser}>
+            Laser
+          </button>
+          {laserArmed && <p className="pp-empty">Segure e arraste no mapa para apontar. Quem está na sua cena vê. Esc sai.</p>}
         </section>
 
         {first !== undefined && (

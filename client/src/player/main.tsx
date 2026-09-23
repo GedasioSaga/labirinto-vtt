@@ -5,7 +5,7 @@ import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type DoorToggleRejection } from '../
 import { themeCss } from '../theme'
 import { createPlayerConnection, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNotice } from './playerConnection'
-import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
+import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
@@ -14,6 +14,8 @@ import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import type { SignalMark } from '../lib/signals'
+import type { RemoteLaser } from '../lib/laser'
+import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import './player.css'
 
@@ -28,7 +30,7 @@ document.head.prepend(themeStyle)
 /** Referência estável: um `[]` novo a cada render redesenharia o canvas sem motivo. */
 const NO_TOKENS: string[] = []
 const NO_SIGNALS: SignalMark[] = []
-const OWN_TOKEN_CSS = `#${OWN_TOKEN_COLOR.toString(16).padStart(6, '0')}`
+const NO_PLAYER_LASERS: RemoteLaser[] = []
 
 /** Recusa do mestre ao toque na porta, em uma linha curta. */
 const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
@@ -493,6 +495,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const [signalArmed, setSignalArmed] = useState(false)
   /** Régua do jogador ligada. Só o liga/desliga mora aqui; a medida em si é do PlayerView (local ao gesto). */
   const [measureArmed, setMeasureArmed] = useState(false)
+  /** Laser do jogador ligado. O rastro em si é do PlayerView (local ao gesto) e do socket. */
+  const [laserArmed, setLaserArmed] = useState(false)
   /** Pino aberto no cartão; `null` = cartão fechado. */
   const [openPinId, setOpenPinId] = useState<string | null>(null)
   /** Cada "Reconectar" conta uma tentativa nova e reinicia o prazo do aperto de mão. */
@@ -520,13 +524,16 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   // Escape apaga a medida e desliga o modo. Só escuta com o modo ligado, e
   // nunca dentro de campo de texto (lá o Escape é da edição).
   useEffect(() => {
-    if (!measureArmed) return
+    if (!measureArmed && !laserArmed) return
     const onKey = (event: KeyboardEvent) => {
-      if (escapeDisarmsMeasure(event.key, event.target)) setMeasureArmed(false)
+      if (!escapeDisarmsMeasure(event.key, event.target)) return
+      // Os dois modos não ficam ligados juntos: o Escape desliga o que estiver.
+      setMeasureArmed(false)
+      setLaserArmed(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [measureArmed])
+  }, [measureArmed, laserArmed])
 
   const ownTokens = state.ownTokens ?? NO_TOKENS
   const map = state.map
@@ -537,6 +544,14 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
       const token = byId.get(id)
       return token ? [{ id, name: token.name }] : []
     })
+  }, [map, ownTokens])
+
+  // A cor do próprio laser: a da ficha (a mesma que os outros veem, escolhida
+  // pelo host); ficha sem cor, o azul "este é o seu" da tela do jogador.
+  const ownLaserColor = useMemo(() => {
+    const owned = new Set(ownTokens)
+    const token = map?.tokens.find((t) => owned.has(t.id) && selectedTokenColor(t) !== null)
+    return (token === undefined ? null : selectedTokenColor(token)) ?? OWN_TOKEN_CSS
   }, [map, ownTokens])
 
   function changeSettings(next: PlayerViewSettings) {
@@ -573,6 +588,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             setSignalArmed(false)
           }}
           measureArmed={measureArmed}
+          laserArmed={laserArmed}
+          ownLaserColor={ownLaserColor}
+          onLaserMove={(x, y) => connection.laserMove(x, y)}
+          onLaserEnd={() => connection.laserOff()}
+          playerLasers={state.playerLasers ?? NO_PLAYER_LASERS}
           onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
           onPinOpen={setOpenPinId}
         />
@@ -584,14 +604,22 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           onFocusToken={(tokenId) => setFocus((current) => ({ tokenId, seq: current.seq + 1 }))}
           signalArmed={signalArmed}
           onToggleSignal={() => {
-            // Sinalizar e Medir disputam o mesmo toque no mapa: ligar um desliga o outro.
+            // Sinalizar, Medir e Laser disputam o mesmo toque no mapa: ligar um desliga os outros.
             setSignalArmed((armed) => !armed)
             setMeasureArmed(false)
+            setLaserArmed(false)
           }}
           measureArmed={measureArmed}
           onToggleMeasure={() => {
             setMeasureArmed((armed) => !armed)
             setSignalArmed(false)
+            setLaserArmed(false)
+          }}
+          laserArmed={laserArmed}
+          onToggleLaser={() => {
+            setLaserArmed((armed) => !armed)
+            setSignalArmed(false)
+            setMeasureArmed(false)
           }}
           onRenameToken={(tokenId, name) => connection.setOwnTokenName(tokenId, name)}
           onChangeTokenPhoto={async (tokenId, file) => {

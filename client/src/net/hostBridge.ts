@@ -9,6 +9,7 @@ import {
   type AppliedTokenEdit,
   type AppliedTransfer,
   type HostResult,
+  type HostPlayerLaser,
   type HostSession,
   type HostSignal,
   type HostWorld,
@@ -80,6 +81,8 @@ export interface HostBridgeDeps {
   onTunnelChange?: (state: TunnelState) => void
   /** Sinal aceito de um jogador (já validado e dentro do limite por segundo). */
   onSignal?: (signal: HostSignal) => void
+  /** Laser de um jogador (lote ou fim do gesto), já validado e dentro do limite. */
+  onPlayerLaser?: (laser: HostPlayerLaser) => void
   now?: () => number
 }
 
@@ -504,6 +507,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (result.applyTransfer !== undefined) completeTransfer(result, result.applyTransfer)
     else void dispatch(result)
     if (result.signal !== undefined) deps.onSignal?.(result.signal)
+    if (result.playerLaser !== undefined) deps.onPlayerLaser?.(result.playerLaser)
     if (result.applyMove !== undefined) {
       const { tokenId, x, y, sceneId } = result.applyMove
       // Cena aberta: a mesma chamada de sempre, sem o quarto argumento.

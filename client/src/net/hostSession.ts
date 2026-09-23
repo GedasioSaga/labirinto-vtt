@@ -5,6 +5,7 @@ import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
+import { selectedTokenColor } from '../lib/tokenColor'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
 import {
@@ -15,6 +16,7 @@ import {
   type LaserMessage,
   type PinTravelRejection,
   type PinTravelRequestMessage,
+  type PlayerLaserMessage,
   type SignalMessage,
   type TokenEditMessage,
   type TokenMoveMessage,
@@ -162,12 +164,31 @@ export interface HostSignal {
   background?: { sceneId: string; name: string }
 }
 
+/**
+ * LASER DO JOGADOR aceito, para a tela do mestre desenhar. O mestre vê o lote
+ * inteiro (ele vê o mapa todo); cada jogador recebeu só o recorte dele.
+ */
+export interface HostPlayerLaser {
+  playerId: string
+  name: string
+  /** A cor da ficha dele (`#rrggbb`) ou, ficha sem cor, a da paleta de sinais. */
+  color: string
+  /** Lote do rastro em px de mundo DA CENA DO JOGADOR, ou o fim do gesto. */
+  update: { points: RegionPoint[] } | { off: true }
+  /**
+   * O jogador aponta na cena aberta no editor. Fora dela os pontos são de
+   * outro mapa: desenhados aqui, cairiam num lugar que não existe.
+   */
+  onOpenScene: boolean
+}
+
 export interface HostResult {
   outbound: Outbound[]
   applyMove?: AppliedMove
   applyDoor?: AppliedDoor
   applyTokenEdit?: AppliedTokenEdit
   signal?: HostSignal
+  playerLaser?: HostPlayerLaser
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
   travelRequest?: TravelRequest
   /**
@@ -201,6 +222,16 @@ export interface PlayerInfo {
 export const VISION_RADIUS_MIN = 50
 export const VISION_RADIUS_MAX = 2000
 export const VISION_RADIUS_STEP = 50
+
+/**
+ * Teto de lotes de laser por jogador a cada `PLAYER_LASER_WINDOW_MS`; o
+ * excesso morre em silêncio. O cliente manda um a cada
+ * `LASER_SEND_INTERVAL_MS` (50 ms), 20 por segundo: o dobro dá folga para a
+ * rede que atrasa uns e entrega vários juntos (um intervalo mínimo entre dois
+ * lotes jogaria fora justamente esses), e ainda segura quem inunda.
+ */
+export const PLAYER_LASER_MAX_PER_WINDOW = 40
+export const PLAYER_LASER_WINDOW_MS = 1000
 
 /** Um pedido de porta por jogador nesta janela; o excesso morre em silêncio (igual ao sinal). */
 export const DOOR_TOGGLE_MIN_INTERVAL_MS = 250
@@ -391,6 +422,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastSignalAt = new Map<string, number>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
   const lastDoorToggleAt = new Map<string, number>()
+  // Por playerId: janela corrente do teto de lotes de laser (PLAYER_LASER_MAX_PER_WINDOW).
+  const laserWindows = new Map<string, { start: number; count: number }>()
+  // Por playerId: conexões que receberam algum ponto do gesto em curso. O
+  // `off` vai só a elas — a quem nada viu, nem o aviso de que o gesto acabou.
+  const laserRecipients = new Map<string, Set<string>>()
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
   const lastTokenPhotoAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
@@ -616,6 +652,78 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Mesma regra de `backgroundSceneId`: a cena aberta e o mapa solto não levam o campo.
     if (scene !== world.open && scene.sceneId !== null) signal.background = { sceneId: scene.sceneId, name: scene.name }
     return { outbound, signal }
+  }
+
+  /** A cor do laser do jogador: a da ficha DELE nesta cena; ficha sem cor, a da paleta de sinais. */
+  const laserColorOf = (playerId: string, map: MapData): string => {
+    const owned = ownership[playerId] ?? []
+    for (const t of map.tokens) {
+      if (!owned.includes(t.id)) continue
+      const chosen = selectedTokenColor(t)
+      if (chosen !== null) return chosen
+    }
+    return signalColor(playerId)
+  }
+
+  /** Fim do gesto: `off` só a quem recebeu algum ponto dele, e o mestre sempre. */
+  function endPlayerLaser(playerId: string, record: PlayerRecord, world: HostWorld): HostResult {
+    const scene = sceneFor(playerId, world)
+    const color = scene === null ? signalColor(playerId) : laserColorOf(playerId, scene.map)
+    const outbound: Outbound[] = []
+    for (const otherClient of laserRecipients.get(playerId) ?? []) {
+      // Quem caiu no meio do gesto não tem mais socket para o aviso.
+      if (byClient.has(otherClient)) outbound.push({ clientId: otherClient, msg: { type: 'laser', off: true, from: record.name, color } })
+    }
+    laserRecipients.delete(playerId)
+    return { outbound, playerLaser: { playerId, name: record.name, color, update: { off: true }, onOpenScene: scene === world.open } }
+  }
+
+  /**
+   * LASER DO JOGADOR. Vai ao mestre (inteiro) e a quem joga NA MESMA CENA — e,
+   * de cada lote, cada um recebe só os pontos que já conhece (visão do último
+   * snapshot ou explorado) e que estão fora de zona oculta ativa e de sala
+   * secreta: a mesma regra do sinal, ponto a ponto, porque o rastro que
+   * atravessa o escuro desenharia o formato do que o outro nunca viu. Lote de
+   * quem aguarda, fora do mapa ou acima do teto por segundo morre em silêncio.
+   * Quem aponta não recebe eco: a tela dele desenha o próprio rastro na hora.
+   */
+  function handlePlayerLaser(clientId: string, msg: PlayerLaserMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined) return { outbound: [] }
+    if ('off' in msg) return endPlayerLaser(playerId, record, world)
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    const map = scene.map
+    const inside = msg.points.filter((p) => p.x >= 0 && p.y >= 0 && p.x <= map.width * map.grid && p.y <= map.grid * map.height)
+    if (inside.length === 0) return { outbound: [] }
+    const at = now()
+    const quota = laserWindows.get(playerId)
+    if (quota === undefined || at - quota.start >= PLAYER_LASER_WINDOW_MS) laserWindows.set(playerId, { start: at, count: 1 })
+    else if (quota.count >= PLAYER_LASER_MAX_PER_WINDOW) return { outbound: [] }
+    else quota.count += 1
+
+    const color = laserColorOf(playerId, map)
+    const blocked = playerBlockedRings(map)
+    const shareable = inside.filter((p) => !blocked.some((ring) => ring.length >= 3 && pointInRing(p, ring)))
+    const outbound: Outbound[] = []
+    let recipients = laserRecipients.get(playerId)
+    for (const [otherClient, otherId] of byClient) {
+      if (otherId === playerId || statusOf(otherId) !== 'playing') continue
+      // Outra cena: o ponto é deste mapa, e nem o nome de quem aponta vai para lá.
+      if (sceneFor(otherId, world) !== scene) continue
+      const visible = shareable.filter((p) => knowsPoint(otherId, map, p))
+      if (visible.length === 0) continue
+      outbound.push({ clientId: otherClient, msg: { type: 'laser', points: visible, from: record.name, color } })
+      if (recipients === undefined) {
+        recipients = new Set()
+        laserRecipients.set(playerId, recipients)
+      }
+      recipients.add(otherClient)
+    }
+    return { outbound, playerLaser: { playerId, name: record.name, color, update: { points: inside }, onOpenScene: scene === world.open } }
   }
 
   /**
@@ -845,6 +953,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleTokenEdit(clientId, msg, world)
         case 'pin.travel.request':
           return handleTravelRequest(clientId, msg, world)
+        case 'laser':
+          return handlePlayerLaser(clientId, msg, world)
       }
     },
 
@@ -949,6 +1059,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // O pedido pendente morre com a conexão: quem voltar não tem mais o
       // "Aguardando o mestre…" na tela, e o aviso do mestre fica inofensivo.
       pendingTravels.delete(playerId)
+      // O gesto morre com a conexão; quem o via apaga a ponta sozinho (REMOTE_LASER_IDLE_MS).
+      laserRecipients.delete(playerId)
     },
 
     kick(clientId) {
@@ -962,6 +1074,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       forgetTravelsOf(playerId)
       lastSignalAt.delete(playerId)
       lastDoorToggleAt.delete(playerId)
+      laserWindows.delete(playerId)
+      laserRecipients.delete(playerId)
       lastTokenPhotoAt.delete(playerId)
       visionOverrides.delete(playerId)
       return reply(clientId, { type: 'kicked' })
