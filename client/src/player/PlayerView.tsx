@@ -58,6 +58,7 @@ import {
   type PlayerMeasureState,
 } from './playerMeasure'
 import { drawPlayerMeasure } from './drawPlayerMeasure'
+import { createTokenGlides, stepGlides, syncGlide, type TokenGlides } from './tokenGlide'
 
 interface PlayerViewProps {
   map: MapData
@@ -96,6 +97,11 @@ const FIT_MARGIN = 24
 const MEASURE_LABEL_OFFSET_PX = 12
 /** Fundo do mapa, igual ao do canvas do editor. */
 const MAP_BACKGROUND = 0x2b2b2b
+
+/** Movimento reduzido no sistema: a ficha vai direto ao ponto novo, sem deslizar. */
+function prefersReducedMotion(): boolean {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+}
 const MAP_BACKGROUND_RGB: Rgb = [0x2b, 0x2b, 0x2b]
 /** Fora do retângulo do mapa: mais escuro que o fundo, para a borda do mapa ler. */
 const OUTSIDE_BACKGROUND = 0x111111
@@ -379,6 +385,8 @@ interface Scene {
   roofsCount: number
   tokens: Container
   tokenViews: Map<string, TokenView>
+  /** Fichas deslizando do ponto antigo ao novo; o ticker as leva até lá. */
+  tokenGlides: TokenGlides
   camera: Camera
   /** Escala para a qual grade, escadas e rótulos foram ajustados por último. */
   zoomScale: number
@@ -806,12 +814,23 @@ export function PlayerView({
     const ownSet = new Set(own)
     const currentIds = new Set(currentMap.tokens.map((t) => t.id))
     for (const [id, view] of scene.tokenViews) {
-      if (!currentIds.has(id)) view.wrapper.visible = false
+      if (currentIds.has(id)) continue
+      view.wrapper.visible = false
+      scene.tokenGlides.delete(id)
     }
+    // Deslize só dentro da MESMA cena: a ficha que chega a outra cena (ou a
+    // primeira desenhada) aparece no lugar, sem atravessar a tela.
+    const sameScene = scene.fittedMapId === currentMap.id
+    const reducedMotion = prefersReducedMotion()
+    const draggedId = scene.drag?.kind === 'token' ? scene.drag.tokenId : null
+    const now = performance.now()
     for (const token of currentMap.tokens) {
       const isOwn = ownSet.has(token.id)
       const key = tokenViewKey(token, currentMap.grid, isOwn)
       let view = scene.tokenViews.get(token.id)
+      // Onde a ficha está desenhada agora; `null` = não estava na tela (nova, ou
+      // voltando para a visão): aparece no lugar, sem vir de onde estava escondida.
+      const shown = view?.wrapper.visible === true ? { x: view.wrapper.x, y: view.wrapper.y } : null
       if (!view) {
         const tokenId = token.id
         view = createTokenView(token, currentMap.grid, isOwn)
@@ -826,7 +845,10 @@ export function PlayerView({
       syncTokenPhoto(view, token, currentMap.grid)
       sizeTokenLabel(view.label, scene.camera.scale, currentSettings.showNames)
       view.wrapper.visible = true
-      view.wrapper.position.set(token.x, token.y)
+      // A ficha sob o dedo é do arrasto (abaixo): não desliza atrás dele.
+      const animate = sameScene && !reducedMotion && token.id !== draggedId
+      const at = syncGlide(scene.tokenGlides, token.id, { shown, target: { x: token.x, y: token.y }, now, animate })
+      view.wrapper.position.set(at.x, at.y)
     }
     // Snapshot chegou no meio do arrasto: o token arrastado fica sob o dedo.
     const drag = scene.drag
@@ -866,6 +888,8 @@ export function PlayerView({
     const view = scene.tokenViews.get(tokenId)?.wrapper
     if (!view) return
     const world = scene.world.toLocal(event.global)
+    // Pegou a ficha no meio de um deslize: ela para onde está e passa a seguir o dedo.
+    scene.tokenGlides.delete(tokenId)
     scene.drag = { kind: 'token', tokenId, offsetX: view.x - world.x, offsetY: view.y - world.y, x: view.x, y: view.y }
   }
 
@@ -1014,6 +1038,7 @@ export function PlayerView({
         roofsCount: 0,
         tokens,
         tokenViews: new Map(),
+        tokenGlides: createTokenGlides(),
         camera: { x: 0, y: 0, scale: 1 },
         zoomScale: 1,
         onZoom: () => {},
@@ -1062,6 +1087,16 @@ export function PlayerView({
       // Zoom e arrasto de câmera mudam a posição de tela da régua sem mudar a medida.
       const tickMeasure = () => syncMeasure(scene)
       app.ticker.add(tickMeasure)
+
+      // Leva cada ficha em deslize um passo adiante; parada, não custa nada.
+      // Mexe só na posição de quem anda: o resto da cena não é refeito.
+      const tickTokenGlides = () => {
+        if (scene.tokenGlides.size === 0) return
+        for (const { id, x, y } of stepGlides(scene.tokenGlides, performance.now())) {
+          scene.tokenViews.get(id)?.wrapper.position.set(x, y)
+        }
+      }
+      app.ticker.add(tickTokenGlides)
 
       const sendSignalAt = (screenX: number, screenY: number) => {
         const point = scene.world.toLocal({ x: screenX, y: screenY })
@@ -1201,6 +1236,7 @@ export function PlayerView({
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickMeasure)
+        app.ticker.remove(tickTokenGlides)
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
         scene.lightsRenderer.destroy()
       }
