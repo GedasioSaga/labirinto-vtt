@@ -387,6 +387,12 @@ interface PlayerMemory {
   doors: Map<string, DoorState>
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
+  /**
+   * CÔMODO LEMBRADO — ids dos cômodos (`RoomMeta.comodo`) que o jogador já viu
+   * neste mapa. Mora junto do explorado de propósito: "Esconder planta" e o
+   * mapa redimensionado esquecem os dois de uma vez.
+   */
+  seenRooms: Set<string>
 }
 
 /** Chave de comparação do nome: sem maiúsculas e sem espaços. */
@@ -489,6 +495,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       exp: createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }),
       doors: new Map(),
       vision: [],
+      seenRooms: new Set(),
     }
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
     byScene.delete(map.id)
@@ -621,10 +628,23 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
     const entered = enteredRooms.get(playerId)?.get(map.id)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, entered)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, entered, memory.seenRooms)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
+    // CÔMODO LEMBRADO: o cômodo conhecido levanta a névoa INTEIRO (é o que o
+    // jogador vê mais apagado depois de sair), menos o que toca cômodo ainda
+    // não visto — a despensa dentro da sala lembrada continua escura. Remarca
+    // a cada snapshot, antes do `forgetInside` abaixo: o prédio de teto que
+    // fecha apaga o de dentro, e quem volta a entrar recebe os cômodos de volta.
+    for (const room of view.rememberedRooms) memory.seenRooms.add(room.id)
+    if (view.rememberedRooms.length > 0) {
+      markRings(
+        exp,
+        view.rememberedRooms.map((room) => room.points),
+        [...view.blocked, ...view.unseenInsideRemembered],
+      )
+    }
     // TETO DE CONSTRUÇÃO: o teto não entra em `view.blocked` (o contorno do
     // prédio não é segredo, e o veto de lá joga fora o anel de visão inteiro,
     // apagando a memória do jogador longe do prédio). O veto do teto é só a
@@ -884,7 +904,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const wall = map.walls.find((w) => w.id === msg.wallId)
     if (wall === undefined || wall.door === null) return reject('not_visible')
     const memory = memoryFor(playerId, map)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, undefined, memory.seenRooms)
     if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
     // Trancada antes de longe: a cor da porta já diz que está trancada, e "Trancada" é a informação útil.
     if (wall.door.locked) return reject('locked')
@@ -941,7 +961,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map)
-    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, undefined, memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pinId)) return null
     // Trancada: ninguém passa. Cai no mesmo `null` de todo o resto, então o
     // jogador lê o motivo genérico de sempre e nada chega ao mestre. Estar aqui,

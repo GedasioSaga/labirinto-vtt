@@ -202,6 +202,26 @@ export interface RoomMeta {
    *  sem linha de migração: a Sala de todo mapa já salvo continua aberta. */
   roof?: boolean
   /**
+   * CÔMODO LEMBRADO — "Cômodo: aparece só depois de visto". O jogador NÃO
+   * recebe a Sala (nem silhueta, nem nome, nem pino, desenho ou escada de
+   * dentro) até vê-la: com a ficha estritamente dentro, ou olhando para dentro
+   * dela (pela porta aberta). A partir daí ela é LEMBRADA por ele — a Sala
+   * inteira, não só o pedaço que a linha de visão alcançou: a névoa levanta no
+   * cômodo todo (desenhado mais apagado, como todo explorado) e os pinos de lá
+   * continuam tocáveis depois que ele sai. Ficha, luz e objeto continuam
+   * exigindo visão ATUAL: lembrar do quarto não é espiar quem está nele agora.
+   * Quem decide e lembra é `lib/fogFilter.ts` + `net/hostSession.ts`.
+   *
+   * O teto de prédio (`roof`) VENCE: Sala com os dois se comporta como teto
+   * (`lib/roomOps.ts` → `roomIsComodo`), e o painel nunca deixa os dois
+   * ligados (`lib/mapFactory.ts`). O prédio de teto por fora e os cômodos
+   * lembrados por dentro convivem.
+   *
+   * `undefined` === false (a Sala de hoje) — sem linha de migração: mapa
+   * salvo antes do campo abre igual.
+   */
+  comodo?: boolean
+  /**
    * TEXTO DA SALA — "Ao entrar, o jogador lê". Na PRIMEIRA vez que a ficha de
    * um jogador entra na Sala, só ele recebe o cartão (`room.text`,
    * `net/hostSession.ts`); depois, tocar no rótulo reabre. Só atravessa no
