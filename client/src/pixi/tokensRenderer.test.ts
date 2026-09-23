@@ -248,7 +248,9 @@ describe('createTokensRenderer — token com imagem (image !== null)', () => {
     renderer.draw(container, [buildToken({ image: null })], GRID, null)
 
     expect(container.children.length).toBe(1)
-    expect(wrapper.children.length).toBe(3) // visual (Graphics) + ring + label, sempre os 3 mesmos slots do wrapper
+    // visual (Graphics) + ring + label + marcas de condição (pixi/drawTokenConditions.ts),
+    // sempre os 4 mesmos slots do wrapper — a camada de marcas existe mesmo vazia.
+    expect(wrapper.children.length).toBe(4)
     expect(visualOf(wrapper)).toBeInstanceOf(Graphics)
   })
 

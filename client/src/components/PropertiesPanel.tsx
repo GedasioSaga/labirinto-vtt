@@ -24,6 +24,8 @@ import { TokenNameControls, type TokenNameControlsProps } from './TokenNameContr
 import { TokenColorControls, type TokenColorControlsProps } from './TokenColorControls'
 import { TokenSizeControls, type TokenSizeControlsProps } from './TokenSizeControls'
 import { selectedTokenSize } from '../lib/tokenSize'
+import { TokenConditionControls, type TokenConditionControlsProps } from './TokenConditionControls'
+import { tokenConditionsOf } from '../lib/tokenConditions'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
@@ -106,6 +108,8 @@ interface PropertiesPanelProps {
   /** Tamanho da ficha em QUADRADOS da grade — para o dragão não ficar do
    *  tamanho do rato. */
   tokenSize: Omit<TokenSizeControlsProps, 'size'>
+  /** Condições da ficha selecionada (envenenado, caído...) — marcadas no meio da luta. */
+  tokenCondition: Omit<TokenConditionControlsProps, 'conditions'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -182,6 +186,7 @@ export function PropertiesPanel({
   tokenImage,
   tokenColor,
   tokenSize,
+  tokenCondition,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -407,6 +412,10 @@ export function PropertiesPanel({
                 em seguida que ele é grande — e o tamanho manda no que a peça
                 cobre na grade, então vem antes da aparência (cor, foto). */}
             <TokenSizeControls size={selectedTokenSize(selectedToken)} {...tokenSize} />
+            {/* Entre quem a ficha é (nome, tamanho) e como ela se parece (cor,
+                foto): a condição é o controle de MESA, mexido a cada rodada, e
+                fica à vista sem rolar. Cor e foto são de preparação. */}
+            <TokenConditionControls conditions={tokenConditionsOf(selectedToken)} {...tokenCondition} />
             {/* Antes da imagem: a cor é o caminho de um clique, a foto é o de
                 abrir o disco. Quem só quer separar aliado de inimigo não
                 precisa passar pelo controle caro para chegar no barato. */}

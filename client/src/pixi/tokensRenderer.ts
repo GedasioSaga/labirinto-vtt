@@ -9,6 +9,8 @@ import { isTokenPhotoData, tokenPhotoLabel, tokenPhotoRef } from '../lib/tokenPh
 import { fitPhotoSprite, textureFromDataUrl } from './tokenPhotoSprite'
 import { useToastStore } from '../stores/toastStore'
 import { screenLabelSizing } from './screenLabel'
+import { tokenConditionsOf } from '../lib/tokenConditions'
+import { CONDITION_MARKS_LABEL, drawTokenConditions } from './drawTokenConditions'
 
 /** Token "Oculto no editor": fantasma bem transparente, mas ainda clicável. */
 const HIDDEN_TOKEN_GHOST_ALPHA = 0.3
@@ -39,8 +41,9 @@ export interface TokensRenderer {
 
 interface TokenEntry {
   /** Único filho que este renderer adiciona a `container` por token — carrega
-   *  o visual (sprite OU graphics, nunca os dois), o anel de seleção e o
-   *  rótulo de nome como filhos internos, e é posicionado em (token.x, token.y)
+   *  o visual (sprite OU graphics, nunca os dois), o anel de seleção, o
+   *  rótulo de nome e as marcas de condição como filhos internos, e é
+   *  posicionado em (token.x, token.y)
    *  inteiro. Mantém `container.children.length === tokens.length` sempre,
    *  mesmo quando o token troca de "círculo" pra "imagem" e vice-versa. */
   wrapper: Container
@@ -52,6 +55,11 @@ interface TokenEntry {
   graphics: Graphics | null
   ring: Graphics
   label: Text
+  /** Marcas de condição (envenenado, caído...) em cima da ficha. Existe
+   *  sempre, vazia quando não há condição — é o último slot desenhado, por
+   *  cima do disco, do anel e do nome. Filha do wrapper e não do visual: o
+   *  disco gira com `Token.rotation`, a marca fica em pé. */
+  marks: Graphics
   /** `Token.image` já carregado no `sprite` atual, ou null enquanto nenhuma
    *  imagem foi carregada ainda (token sem imagem, ou sprite recém-criado). */
   loadedSrc: string | null
@@ -216,8 +224,10 @@ export function createTokensRenderer(): TokensRenderer {
         const ring = new Graphics()
         const label = new Text({ text: '', style: { fontSize: TOKEN_LABEL_FONT_SIZE, fill: 0xffffff } })
         label.anchor.set(0.5, 0)
-        wrapper.addChild(ring, label)
-        entry = { wrapper, sprite: null, photoMask: null, graphics: null, ring, label, loadedSrc: null, loadedData: null, loadedUrl: null, loadToken: 0 }
+        const marks = new Graphics()
+        marks.label = CONDITION_MARKS_LABEL
+        wrapper.addChild(ring, label, marks)
+        entry = { wrapper, sprite: null, photoMask: null, graphics: null, ring, label, marks, loadedSrc: null, loadedData: null, loadedUrl: null, loadToken: 0 }
         cache.set(token.id, entry)
         container.addChild(wrapper)
       }
@@ -339,6 +349,11 @@ export function createTokensRenderer(): TokensRenderer {
       // o token sumia de vez e não havia como clicar nele para desfazer; agora
       // fica como fantasma (alpha baixo acima + contorno tracejado), clicável.
       if (ghost) strokeDashedCircle(entry.ring, outlineRadius)
+
+      // Condição na ficha: pastilhas sentadas na borda de cima do disco que a
+      // pessoa vê (`outlineRadius`), por cima de tudo. Fantasma e "Oculto para
+      // jogadores" esmaecem a marca junto, pelo alpha do wrapper.
+      drawTokenConditions(entry.marks, tokenConditionsOf(token), outlineRadius, gridSize)
 
       entry.label.text = token.name
       applyLabelSizing(entry.label)

@@ -1,5 +1,6 @@
 import type { DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
 import { isTokenPhotoData } from './tokenPhoto'
+import { tokenConditionsForPlayer } from './tokenConditions'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
@@ -382,6 +383,17 @@ function sanitizeTokenPhoto(token: Token): Token {
   return { ...token, image, imageData }
 }
 
+/**
+ * A ficha como o jogador pode recebê-la: a foto só auto-contida
+ * (`sanitizeTokenPhoto`) e a CONDIÇÃO só com os ids da lista
+ * (`tokenConditionsForPlayer`) — texto que o mestre ou o arquivo enfiar no
+ * campo não sai da máquina dele. Quem decide SE a ficha vai é o filtro de
+ * `filterMapForPlayer`; a condição só atravessa junto com ela.
+ */
+function tokenForPlayer(token: Token): Token {
+  return tokenConditionsForPlayer(sanitizeTokenPhoto(token))
+}
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
@@ -649,7 +661,7 @@ export function filterMapForPlayer(
     // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
     tokens: layerTokens
       .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
-      .map(sanitizeTokenPhoto),
+      .map(tokenForPlayer),
     markers: map.markers.filter((m) => !inRoomHiddenFromPlayer({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
     lines: map.lines.filter((l) => !l.points.some(inRoomHiddenFromPlayer) && !l.points.some(inConcealZone) && isShapeKnown(l.points)),
     // Tocha acesa dentro do prédio de teto fechado não sai: o halo dela

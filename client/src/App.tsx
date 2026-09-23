@@ -1892,6 +1892,11 @@ function App() {
               // próximo arrasto que a assenta na grade (`seatTokenCenter`).
               onSizeChange: (size) => selectedToken && updateToken(selectedToken.id, { size }),
             }}
+            tokenCondition={{
+              // Alterna sobre o estado ATUAL da ficha no store (não sobre a
+              // cópia desta renderização) e passa pelo histórico: Ctrl+Z desfaz.
+              onToggleCondition: (condition) => selectedToken && useMapStore.getState().toggleTokenCondition(selectedToken.id, condition),
+            }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
