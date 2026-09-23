@@ -43,12 +43,12 @@ describe('RoomPanel', () => {
   })
 
   it('"Remover …" dá o nome da ficha que está numa cena de FUNDO (quem viajou), não o id', () => {
-    // `tokens` é só a cena aberta; a ficha da Ana foi para a Cripta.
+    // A ficha da Ana foi para a Cripta: sem ela em `tokens`, sobra o id.
     const viajou = player({ status: 'playing', tokenIds: ['tok-cripta'] })
     const semCenas = renderToStaticMarkup(<RoomPanel room={ROOM} players={[viajou]} tokens={TOKENS} tunnel={IDLE} {...handlers} />)
     expect(semCenas).toContain('Remover tok-cripta')
-    const knownTokens = [...TOKENS, { id: 'tok-cripta', name: 'Lanterna' }]
-    const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={[viajou]} tokens={TOKENS} knownTokens={knownTokens} tunnel={IDLE} {...handlers} />)
+    const todasAsCenas = [...TOKENS, { id: 'tok-cripta', name: 'Lanterna', sceneName: 'Cripta' }]
+    const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={[viajou]} tokens={todasAsCenas} tunnel={IDLE} {...handlers} />)
     expect(html).toContain('Remover Lanterna')
     expect(html).not.toContain('tok-cripta<')
   })

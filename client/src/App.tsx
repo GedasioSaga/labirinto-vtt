@@ -18,7 +18,7 @@ import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
-import { RoomPanel } from './components/RoomPanel'
+import { RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
@@ -523,8 +523,7 @@ function App() {
           <RoomPanel
             room={room}
             players={roomPlayers}
-            tokens={map.tokens.map((token) => ({ id: token.id, name: token.name }))}
-            knownTokens={[world.open, ...world.background].flatMap((scene) => scene.map.tokens.map((token) => ({ id: token.id, name: token.name })))}
+            tokens={roomPanelTokensOf(world)}
             party={{
               members: partyMembers(roomPlayers, world),
               destinations: partyDestinations(world),
