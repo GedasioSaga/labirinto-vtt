@@ -116,9 +116,10 @@ export interface HostBridge {
   sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: { x: number; y: number }): boolean
   /**
    * Recado do mestre a quem está na cena `sceneId`. Devolve quantos jogadores
-   * receberam (0 = ninguém lá), ou `null` com a sala fechada.
+   * receberam (0 = ninguém lá), ou `null` com a sala fechada. `playerIds`:
+   * só esses, entre os que estão na cena; ausente = a cena inteira.
    */
-  sceneNote(sceneId: string, text: string): number | null
+  sceneNote(sceneId: string, text: string, playerIds?: readonly string[]): number | null
   /**
    * "Pausar" da lista Cenas: pausa ou solta a cena `sceneId` e avisa quem
    * está lá. `false` com a sala fechada (não há pausa sem sala).
@@ -716,9 +717,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return true
     },
 
-    sceneNote(sceneId, text) {
+    sceneNote(sceneId, text, playerIds) {
       if (session === null) return null
-      const result = session.sceneNote(sceneId, text, world())
+      const result = session.sceneNote(sceneId, text, world(), playerIds)
       void dispatch(result)
       return result.outbound.length
     },

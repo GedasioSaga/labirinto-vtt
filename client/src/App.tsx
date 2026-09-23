@@ -513,6 +513,12 @@ function App() {
    * viajou. Só é montado com a aba Jogo existindo (Tauri).
    */
   const roomPanelWorld = () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map)
+  /** A lista Cenas: as mesmas linhas do Grupo, com a Sala de cada um para o recado a escolhidos. */
+  const scenePeople = () => {
+    if (roomPlayers.length === 0) return undefined
+    const world = roomPanelWorld()
+    return peopleByScene(partyMembers(roomPlayers, world), world)
+  }
   /** Fora do Tauri o rail segue só com o inspetor; no app ganha as abas Mapa | Jogo. */
   const withRoomTabs = (mapPanel: ReactNode): ReactNode => {
     if (!isTauri()) return mapPanel
@@ -1675,9 +1681,9 @@ function App() {
                 onCreate={handleCreateScene}
                 onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
                 // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
-                people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
+                people={scenePeople()}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
-                onNote={room === null ? undefined : (sceneId, text) => hostBridgeRef.current?.sceneNote(sceneId, text) ?? null}
+                onNote={room === null ? undefined : (sceneId, text, playerIds) => hostBridgeRef.current?.sceneNote(sceneId, text, playerIds) ?? null}
                 // Pausa por cena também só com a sala aberta: sem sala não há grupo esperando.
                 paused={pausedScenes}
                 onTogglePause={

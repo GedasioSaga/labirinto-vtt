@@ -276,8 +276,12 @@ export interface HostSession {
    * `sceneId` (`sceneFor`). O texto sai cortado no teto (`NOTE_MAX_LENGTH`);
    * vazio não sai. Quem entra ou reconecta depois não recebe recado antigo:
    * nada fica guardado. `outbound.length` é quantos receberam.
+   *
+   * `recipients` (RECADO PARA ESCOLHIDOS): só esses jogadores, e só se ainda
+   * estiverem na cena — a lista do mestre pode ter ficado velha. Lista vazia =
+   * ninguém. O pacote de quem recebe é o mesmo: não diz quem mais leu.
    */
-  sceneNote(sceneId: string, text: string, source: HostMapSource): HostResult
+  sceneNote(sceneId: string, text: string, source: HostMapSource, recipients?: readonly string[]): HostResult
   /**
    * PAUSA POR CENA: o mestre atende um grupo de cada vez. Com `sceneId`
    * pausada, quem está nela não move a ficha, não pede porta nem passagem —
@@ -1226,9 +1230,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return { outbound }
     },
 
-    sceneNote(sceneId, text, source) {
+    sceneNote(sceneId, text, source, recipients) {
       const clamped = clampNoteText(text)
       if (clamped.trim().length === 0) return { outbound: [] }
+      const chosen = recipients === undefined ? null : new Set(recipients)
       const world = toWorld(source)
       // Um id por recado, igual para todos da cena: o jogador troca o cartão
       // aberto pelo recado novo, e o mesmo recado não duplica.
@@ -1236,6 +1241,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const outbound: Outbound[] = []
       for (const [clientId, playerId] of byClient) {
         if (statusOf(playerId) !== 'playing') continue
+        if (chosen !== null && !chosen.has(playerId)) continue
         // A cena de CADA jogador, não a aberta no editor: o mestre pode estar
         // olhando a Cripta e mandar recado para o Salão.
         if (sceneFor(playerId, world)?.sceneId !== sceneId) continue
