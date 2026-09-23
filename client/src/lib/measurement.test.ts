@@ -127,7 +127,7 @@ describe('measureDistance — pipeline célula → unidade → rótulo', () => {
     expect(result.label).toBe('1500 ft')
   })
 
-  it('precisão negativa é tratada como 0 (nunca quebra toFixed)', () => {
+  it('precisão negativa é tratada como 0 (nunca quebra o rótulo)', () => {
     const scale: MapScale = { unitsPerCell: 5, unit: 'ft', precision: -2 }
     const result = measureDistance({ x: 0, y: 0 }, { x: 30, y: 10 }, GRID, 'square', 'chessboard', scale)
     expect(result.label).toBe('15 ft')
@@ -137,5 +137,41 @@ describe('measureDistance — pipeline célula → unidade → rótulo', () => {
     const scale: MapScale = { unitsPerCell: 5, unit: '', precision: 0 }
     const result = measureDistance({ x: 0, y: 0 }, { x: 30, y: 10 }, GRID, 'square', 'chessboard', scale)
     expect(result.label).toBe('15')
+  })
+})
+
+// Casas decimais vêm de campo numérico livre (MapScaleControls) e de mapa salvo
+// em disco (mapFile.ts repassa `parsed.scale` cru). Fora de 0..100, ou ausente,
+// o rótulo quebrava ou mostrava "NaN" a cada pointermove da régua.
+describe('measureDistance — casas decimais fora do intervalo', () => {
+  const start = { x: 0, y: 0 }
+  const end = { x: 30, y: 10 }
+
+  it('muitas casas decimais (500) não lança e limita a 3 casas', () => {
+    const scale: MapScale = { unitsPerCell: 5, unit: 'ft', precision: 500 }
+    const measure = () => measureDistance(start, end, GRID, 'square', 'chessboard', scale)
+    expect(measure).not.toThrow()
+    expect(measure().label).toBe('15,000 ft')
+  })
+
+  it('precisão ausente (mapa salvo sem o campo) cai em 0 casas, sem "NaN"', () => {
+    // JSON.parse devolve `any`: simula de propósito o `scale` cru lido de arquivo sem `precision`.
+    const scale: MapScale = JSON.parse('{"unitsPerCell":5,"unit":"ft"}')
+    const result = measureDistance(start, end, GRID, 'square', 'chessboard', scale)
+    expect(result.label).toBe('15 ft')
+    expect(result.units).toBe(15)
+  })
+
+  it('precisão fracionária é arredondada para inteiro', () => {
+    const scale: MapScale = { unitsPerCell: 1.5, unit: 'm', precision: 1.4 }
+    const result = measureDistance(start, { x: 25, y: 0 }, GRID, 'square', 'chessboard', scale)
+    expect(result.label).toBe('3,8 m')
+  })
+
+  it('precisão NaN/Infinity não lança e cai em 0 casas', () => {
+    for (const precision of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      const scale: MapScale = { unitsPerCell: 5, unit: 'ft', precision }
+      expect(measureDistance(start, end, GRID, 'square', 'chessboard', scale).label).toBe('15 ft')
+    }
   })
 })
