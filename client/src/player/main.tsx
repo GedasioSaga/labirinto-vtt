@@ -9,6 +9,8 @@ import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
+import { PlayerZoomControls } from './PlayerZoomControls'
+import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
@@ -495,6 +497,12 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const [measureArmed, setMeasureArmed] = useState(false)
   /** Pino aberto no cartão; `null` = cartão fechado. */
   const [openPinId, setOpenPinId] = useState<string | null>(null)
+  /** Último toque nos botões + e − (o `PlayerView` aplica o degrau) e o que eles ainda podem fazer. */
+  const [zoomStep, setZoomStep] = useState<ZoomStepRequest>(NO_ZOOM_STEP)
+  const [zoomLimits, setZoomLimits] = useState<ZoomLimits>({ canZoomIn: true, canZoomOut: true })
+  const requestZoomStep = useCallback((direction: ZoomDirection, animate: boolean) => {
+    setZoomStep((current) => ({ direction, animate, seq: current.seq + 1 }))
+  }, [])
   /** Cada "Reconectar" conta uma tentativa nova e reinicia o prazo do aperto de mão. */
   const [attempt, setAttempt] = useState(0)
   const [handshakeOverdue, setHandshakeOverdue] = useState(false)
@@ -575,6 +583,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           measureArmed={measureArmed}
           onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
           onPinOpen={setOpenPinId}
+          zoomStep={zoomStep}
+          onZoomLimitsChange={setZoomLimits}
         />
         <PlayerPanel
           characters={characters}
@@ -600,6 +610,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             connection.setOwnTokenPhoto(tokenId, await buildTokenPhotoData(file))
           }}
         />
+        {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
+        <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}
