@@ -37,9 +37,10 @@ export interface PlayerState {
   /**
    * Recado do mestre para a cena do jogador. Fica até ele fechar
    * (`dismissNote`); um recado novo toma o lugar do aberto. É texto puro: a
-   * tela o mostra como texto, nunca como HTML.
+   * tela o mostra como texto, nunca como HTML. `onlyYou`: o mestre mandou só
+   * para este jogador (a tela diz "Só para você").
    */
-  note?: { id: string; text: string }
+  note?: { id: string; text: string; onlyYou?: true }
   /**
    * PAUSA POR CENA: o mestre pausou a cena deste jogador (está com outro
    * grupo). Enquanto `true`, a tela mostra o aviso fixo; quem manda é o host,
@@ -499,7 +500,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (state.status !== 'playing') return
         const note = parseSceneNote(data)
         if (note === null) return
-        setState({ note: { id: note.id, text: note.text } })
+        setState({ note: note.onlyYou === true ? { id: note.id, text: note.text, onlyYou: true } : { id: note.id, text: note.text } })
         return
       }
       case 'scene.paused':

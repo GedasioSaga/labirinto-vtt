@@ -56,6 +56,10 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * mesmo critério. É calculada por destinatário: diz só se cada outro jogador
  * está na mesma cena que ele ('aqui'), em outra ('longe') ou desconectado
  * ('fora') — nunca o id nem o nome da cena de ninguém.
+ *
+ * `scene.note.onlyYou` é o RECADO PARA UM JOGADOR SÓ (linha dele no Grupo):
+ * a mesma mensagem, que o host manda a uma conexão só, com a marca para a
+ * tela dizer "Só para você". Aditivo: jogador antigo mostra como recado comum.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -163,6 +167,8 @@ export interface SceneNoteMessage {
   type: 'scene.note'
   id: string
   text: string
+  /** Recado só para este jogador (ninguém mais na sala recebeu). Ausente = recado da cena. */
+  onlyYou?: true
 }
 
 /**
@@ -317,7 +323,8 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
   const { id, text } = value
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
-  return { type: 'scene.note', id, text }
+  // Só `true` marca: qualquer outro valor é recado comum, sem faixa.
+  return value.onlyYou === true ? { type: 'scene.note', id, text, onlyYou: true } : { type: 'scene.note', id, text }
 }
 
 /**

@@ -201,6 +201,9 @@ export interface PlayerInfo {
   travelPending?: true
 }
 
+/** O que foi feito do recado para um jogador: saiu agora, ficou guardado para a volta dele, ou nada (`null`). */
+export type PlayerNoteDelivery = 'sent' | 'queued' | null
+
 /** Faixa do "Raio de visão" por jogador, em px de mundo. */
 export const VISION_RADIUS_MIN = 50
 export const VISION_RADIUS_MAX = 2000
@@ -284,6 +287,14 @@ export interface HostSession {
    */
   setScenePaused(sceneId: string, paused: boolean, source: HostMapSource): HostResult
   isScenePaused(sceneId: string): boolean
+  /**
+   * RECADO PARA UM JOGADOR SÓ ("Recado" da linha dele no Grupo): `scene.note`
+   * com `onlyYou`, só para a conexão DELE — quem está na mesma sala não recebe
+   * nem o frame. Está com o mapa na tela: sai agora (`sent`). Caiu, ou está sem
+   * ficha: fica guardado (só o último) e sai logo depois do próximo mapa dele
+   * (`queued`). Texto vazio ou jogador desconhecido: nada (`null`).
+   */
+  playerNote(playerId: string, text: string, source: HostMapSource): HostResult & { delivery: PlayerNoteDelivery }
   /**
    * "Deixar ir": revalida o pedido contra o mundo de AGORA (o token pode ter
    * andado, o pino sumido) e devolve `applyTransfer` + `scene.changed` ao
@@ -443,6 +454,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por conexão, e não por jogador: quem reconecta tem tela nova e precisa da
   // lista de novo, mesmo que nada tenha mudado para ele.
   const lastPartySent = new Map<string, string>()
+  // Por playerId: o recado só para ele que ainda não chegou (estava fora). Só o
+  // último: o cartão do jogador mostra um recado por vez. Sai com o próximo mapa dele.
+  const pendingNotes = new Map<string, { id: string; text: string }>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -535,6 +549,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return [{ clientId, msg: { type: 'scene.paused', paused } }]
   }
 
+  /**
+   * `view` e, logo atrás, o recado guardado para ele — só quando `view` é mapa:
+   * o jogador só mostra recado com o mapa na tela. Entregue, sai da fila.
+   */
+  const viewWithPendingNote = (clientId: string, playerId: string, view: HostMessage): Outbound[] => {
+    const out: Outbound[] = [{ clientId, msg: view }]
+    const note = pendingNotes.get(playerId)
+    if (note === undefined || view.type !== 'snapshot') return out
+    pendingNotes.delete(playerId)
+    out.push({ clientId, msg: { type: 'scene.note', id: note.id, text: note.text, onlyYou: true } })
+    return out
+  }
+
   /** `sceneId` para os "Applied": só quando a cena é de fundo (a aberta é o `mapStore`). */
   const backgroundSceneId = (scene: HostScene, world: HostWorld): { sceneId?: string } =>
     scene === world.open || scene.sceneId === null ? {} : { sceneId: scene.sceneId }
@@ -615,8 +642,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
     const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken, name: record.name }
     const next: HostMessage = statusOf(record.playerId) === 'playing' ? viewFor(record.playerId, world) : { type: 'lobby.waiting' }
+    // Quem volta de uma queda recebe o recado que o mestre mandou enquanto ele estava fora.
     // Depois do mapa: quem entra (ou volta) numa cena pausada já chega lendo o aviso.
-    return { outbound: [{ clientId, msg: welcome }, { clientId, msg: next }, ...pausedUpdate(clientId, record.playerId, world)] }
+    return {
+      outbound: [
+        { clientId, msg: welcome },
+        ...viewWithPendingNote(clientId, record.playerId, next),
+        ...pausedUpdate(clientId, record.playerId, world),
+      ],
+    }
   }
 
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
@@ -1110,6 +1144,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       lastDoorToggleAt.delete(playerId)
       lastTokenPhotoAt.delete(playerId)
       visionOverrides.delete(playerId)
+      pendingNotes.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },
 
@@ -1157,7 +1192,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (statusOf(playerId) !== 'playing') continue
         // Cada um a SUA cena: quem ficou no Salão nunca recebe nada da Cripta.
         // Quem não está em cena nenhuma recebe a espera, e não a cena do editor.
-        outbound.push({ clientId, msg: viewFor(playerId, world) })
+        // O recado guardado vai atrás do mapa: quem ganhou ficha agora o lê.
+        outbound.push(...viewWithPendingNote(clientId, playerId, viewFor(playerId, world)))
         // Trocou de cena (pedido, "Mandar para…", reunir): a pausa é a da cena NOVA.
         outbound.push(...pausedUpdate(clientId, playerId, world))
       }
@@ -1206,6 +1242,23 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         outbound.push({ clientId, msg: { type: 'scene.note', id, text: clamped } })
       }
       return { outbound }
+    },
+
+    playerNote(playerId, text, source) {
+      const record = players.get(playerId)
+      const clamped = clampNoteText(text)
+      if (record === undefined || clamped.trim().length === 0) return { outbound: [], delivery: null }
+      const note = { id: randomId(), text: clamped }
+      const clientId = record.clientId
+      // Sai agora só com ele conectado E com mapa na tela (jogando, numa cena):
+      // é a mesma regra do cliente, que fora disso descartaria o recado.
+      if (clientId === null || statusOf(playerId) !== 'playing' || sceneFor(playerId, toWorld(source)) === null) {
+        pendingNotes.set(playerId, note)
+        return { outbound: [], delivery: 'queued' }
+      }
+      // Recado entregue agora substitui qualquer guardado: o cartão dele mostra um por vez.
+      pendingNotes.delete(playerId)
+      return { outbound: [{ clientId, msg: { type: 'scene.note', id: note.id, text: note.text, onlyYou: true } }], delivery: 'sent' }
     },
 
     listPlayers(source) {

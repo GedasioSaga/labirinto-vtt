@@ -13,6 +13,7 @@ import {
   type HostSignal,
   type HostWorld,
   type PlayerInfo,
+  type PlayerNoteDelivery,
   type TravelRequest,
 } from './hostSession'
 import type { LaserMessage } from './protocol'
@@ -123,6 +124,12 @@ export interface HostBridge {
    * está lá. `false` com a sala fechada (não há pausa sem sala).
    */
   setScenePaused(sceneId: string, paused: boolean): boolean
+  /**
+   * "Recado" da linha do jogador no Grupo: só ele recebe. `sent` = saiu agora;
+   * `queued` = ele está fora e recebe ao voltar; `null` = sala fechada, texto
+   * vazio ou jogador que já não existe.
+   */
+  playerNote(playerId: string, text: string): PlayerNoteDelivery
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -720,6 +727,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session === null) return false
       void dispatch(session.setScenePaused(sceneId, paused, world()))
       return true
+    },
+
+    playerNote(playerId, text) {
+      if (session === null) return null
+      const result = session.playerNote(playerId, text, world())
+      void dispatch(result)
+      return result.delivery
     },
 
     assignToken(playerId, tokenId) {

@@ -1471,7 +1471,15 @@ body {
 /* Alvo de toque: o .lb-btn já tem 34 px de altura; aqui as duas ações dividem a linha. */
 .lb-party__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--lb-space-2);
+}
+
+/* "Recado enviado a Gabi": uma linha discreta sob os botões, some sozinha. */
+.lb-party__recado-aviso {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
 }
 
 .lb-party__actions > .lb-btn {

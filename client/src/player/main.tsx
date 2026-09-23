@@ -618,7 +618,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         )}
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
-          <PlayerNoteCard key={state.note.id} text={state.note.text} onClose={closeNote} escapeCloses={openPin === null} />
+          <PlayerNoteCard key={state.note.id} text={state.note.text} onClose={closeNote} escapeCloses={openPin === null} onlyYou={state.note.onlyYou === true} />
         )}
         {state.paused && (
           // Fixo enquanto durar a pausa: é o que explica por que a ficha volta ao lugar.
