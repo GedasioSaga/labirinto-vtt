@@ -605,3 +605,27 @@ export async function trazerDoAcervo(
   }
   return { image: importada.destPath, imageData }
 }
+
+/** O que a peça trazida do acervo leva ao nascer no mapa. */
+export interface PecaDoAcervo {
+  id: string
+  size: number
+  image: string | null
+  imageData: string | null
+  npc: true
+}
+
+/**
+ * A peça que sai do acervo nasce marcada como NPC: o acervo É a estante de
+ * NPCs prontos do mestre, e sem a marca o Mordomo recém-colocado virava o
+ * primeiro botão "Atribuir" do card de quem espera personagem (cena aberta
+ * vem antes das outras). Quando o mestre quer entregar a peça a um jogador,
+ * desliga "Ficha de NPC" no painel ou usa a lista completa.
+ */
+export function pecaDoAcervo(
+  item: Pick<ItemDoAcervoNaTela, 'tamanho'>,
+  tokenId: string,
+  foto: { image: string | null; imageData: string | null },
+): PecaDoAcervo {
+  return { id: tokenId, size: item.tamanho, image: foto.image, imageData: foto.imageData, npc: true }
+}

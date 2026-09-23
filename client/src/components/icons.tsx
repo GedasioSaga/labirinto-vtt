@@ -431,6 +431,17 @@ export function ExportIcon(props: IconProps) {
   )
 }
 
+/** "Exportar imagem": o quadro da imagem com a seta saindo pelo canto. */
+export function ExportImageIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M11 6H5a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2v-5" />
+      <path d="M3.5 17.5l4-3.5 3 2.5 2.5-2 5 4" />
+      <path d="M15 3h6v6M21 3l-7 7" />
+    </Icon>
+  )
+}
+
 export function ImportIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -511,6 +522,16 @@ export function CloseIcon(props: IconProps) {
   return (
     <Icon {...props}>
       <path d="M6 6l12 12M18 6L6 18" />
+    </Icon>
+  )
+}
+
+/** Lupa do campo de busca: lente com miolo largo (r bem acima de 2.8) e cabo curto. */
+export function SearchIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="10.5" cy="10.5" r="6" />
+      <path d="M15 15l5 5" />
     </Icon>
   )
 }
@@ -622,6 +643,22 @@ export function RedoIcon(props: IconProps) {
     <Icon {...props}>
       <path d="M15 15L20 10l-5-5" />
       <path d="M20 10h-9.5a5 5 0 000 10h3.5" />
+    </Icon>
+  )
+}
+
+/**
+ * Teclado — botão da tela de atalhos (ActionBar). Moldura mais larga que alta
+ * com duas fileiras de teclas curtas e a barra de espaço. Distingue de
+ * `ImageIcon` (moldura parecida, com montanha e sol por dentro) pelas teclas
+ * em grade. Cada tecla é um traço curto de ponta redonda — o mesmo traço do resto
+ * da família, sem `fill` e sem círculo pequeno que feche o miolo.
+ */
+export function KeyboardIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2.5" y="6" width="19" height="12" rx="2" />
+      <path d="M6.25 9.5h1M9.75 9.5h1M13.25 9.5h1M16.75 9.5h1M6.25 12.25h1M9.75 12.25h1M13.25 12.25h1M16.75 12.25h1M8.5 15h7" />
     </Icon>
   )
 }

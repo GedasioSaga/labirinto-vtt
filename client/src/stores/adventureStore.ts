@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { MapData, Pin, PinDestination, Token } from '../types/map'
 import { singleSceneWorld, type HostScene, type HostWorld } from '../net/hostSession'
-import type { Camera, Point } from '../pixi/world'
+import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
 import { ADVENTURE_VERSION, baseName, cleanSceneName, newSceneId, sceneFileFor, type Adventure, type SceneEntry } from '../lib/adventure'
 import {
@@ -71,6 +71,12 @@ export interface CameraRequest {
    * na troca comum pela lista de Cenas.
    */
   focus?: Point
+  /**
+   * Com `focus`: a caixa (px de mundo) do objeto que o "Ir até lá" da lista
+   * Objetos do mapa procura. O canvas só AFASTA se ela não couber na área que
+   * os painéis deixam livre (`revealScale`); cabendo, o zoom fica o de agora.
+   */
+  fit?: Bounds
 }
 
 /** Uma linha da lista "Cenas". */
@@ -120,9 +126,10 @@ interface AdventureState {
   /**
    * "Ir lá": o editor mostra `point` da cena `sceneId` no centro da tela. Se a
    * cena já está aberta (ou é o mapa solto, `null`), só a câmera anda — a
-   * troca de cena recusaria "mesma cena" e o clique não faria nada.
+   * troca de cena recusaria "mesma cena" e o clique não faria nada. `fit` (só
+   * na cena aberta) é a caixa do objeto procurado: afasta se ela não couber.
    */
-  goToPoint: (sceneId: string | null, point: Point) => boolean
+  goToPoint: (sceneId: string | null, point: Point, fit?: Bounds) => boolean
   /** Muda uma cena de FUNDO sem passar pelo desfazer da cena aberta. */
   updateBackgroundScene: (sceneId: string, updater: (map: MapData) => MapData) => void
   /**
@@ -202,6 +209,29 @@ export function sceneList(state: Pick<AdventureState, 'adventure' | 'activeScene
     if (slot === undefined || slot.status !== 'ok') return { ...base, tokenCount: null, available: false }
     return { ...base, tokenCount: slot.map.tokens.length, available: true }
   })
+}
+
+/**
+ * VISÃO GERAL DAS CENAS: o mapa de cada miniatura, pelo mesmo id da lista de
+ * Cenas (`sceneList`). A aberta é o mapa VIVO — o que o mestre acabou de mexer
+ * aparece na miniatura sem salvar —, as de fundo vêm do cache, e a que não
+ * abriu fica de fora (não há mapa para desenhar). Mapa solto: ele mesmo, id ''.
+ */
+export function sceneMaps(state: Pick<AdventureState, 'adventure' | 'activeSceneId' | 'cache'>, liveMap: MapData): Map<string, MapData> {
+  const maps = new Map<string, MapData>()
+  if (state.adventure === null) {
+    maps.set('', liveMap)
+    return maps
+  }
+  for (const entry of state.adventure.scenes) {
+    if (entry.id === state.activeSceneId) {
+      maps.set(entry.id, liveMap)
+      continue
+    }
+    const slot = state.cache[entry.id]
+    if (slot !== undefined && slot.status === 'ok') maps.set(entry.id, slot.map)
+  }
+  return maps
 }
 
 type SceneState = Pick<AdventureState, 'adventure' | 'activeSceneId' | 'cache'>
@@ -438,10 +468,11 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return true
   },
 
-  goToPoint: (sceneId, point) => {
+  goToPoint: (sceneId, point, fit) => {
     if (sceneId === null || sceneId === get().activeSceneId) {
-      // `camera: null` com `focus`: o canvas centra no ponto com o zoom de agora.
-      set({ cameraRequest: { camera: null, focus: point } })
+      // `camera: null` com `focus`: o canvas centra no ponto com o zoom de agora
+      // (menor só se `fit` não couber).
+      set({ cameraRequest: fit === undefined ? { camera: null, focus: point } : { camera: null, focus: point, fit } })
       return true
     }
     return get().switchScene(sceneId, point)

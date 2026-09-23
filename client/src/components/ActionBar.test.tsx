@@ -9,6 +9,7 @@ function makeProps(hasBackgroundImage: boolean): ActionBarProps {
     onOpen: vi.fn(),
     onImportBackground: vi.fn(),
     onExportFolder: vi.fn(),
+    onExportImage: vi.fn(),
     onImportFolder: vi.fn(),
     onGoHome: vi.fn(),
     hasBackgroundImage,
@@ -169,6 +170,29 @@ describe('ActionBar / menu da imagem de fundo', () => {
       document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }))
     })
     expect(menu()).toBeNull()
+  })
+
+  it('botão de atalhos: abre a tela de atalhos e diz que abre uma janela', () => {
+    const onShowShortcuts = vi.fn()
+    render({ ...makeProps(false), onShowShortcuts })
+    const help = button('Atalhos do teclado (?)')
+    expect(help.getAttribute('data-tip')).toBe('Atalhos do teclado (?)')
+    expect(help.getAttribute('aria-haspopup')).toBe('dialog')
+    expect(help.getAttribute('aria-expanded')).toBe('false')
+
+    click(help)
+
+    expect(onShowShortcuts).toHaveBeenCalledTimes(1)
+    render({ ...makeProps(false), onShowShortcuts, shortcutsOpen: true })
+    expect(button('Atalhos do teclado (?)').getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('sem quem abra a tela de atalhos, o botão não aparece (controle sem efeito não entra)', () => {
+    render(makeProps(false))
+    expect(container.querySelector('button[aria-label="Atalhos do teclado (?)"]')).toBeNull()
+    // Os outros botões seguem sem anunciar janela nenhuma.
+    expect(button('Salvar').hasAttribute('aria-haspopup')).toBe(false)
+    expect(button('Salvar').hasAttribute('aria-expanded')).toBe(false)
   })
 
   it('imagem removida com o menu aberto: o menu some e o botão volta a importar direto', () => {

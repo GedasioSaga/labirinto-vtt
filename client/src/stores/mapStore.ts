@@ -30,7 +30,10 @@ const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPoly
 // tela precisa para explicar a recusa em vez de devolver o token em silêncio.
 import { describeBlockedMove } from '../lib/moveValidation'
 import { DEFAULT_PATH_WIDTH_CELLS, DEFAULT_TEXT_FONT_FAMILY, clampPathWidthCells, convertLineToCurve, convertCurveToLine } from '../lib/drawingFactory'
-import { moveAreaSelection, areaSelectionBounds } from '../lib/areaSelection'
+import { moveAreaSelection, areaSelectionBounds, type AreaBounds } from '../lib/areaSelection'
+import { pieceBounds } from '../lib/floorSdf'
+import { groupItems, NO_GROUPS, ungroupItems, type ItemGroups } from '../lib/itemGroups'
+import { alignableUnitCount, alignSelectionItems, distributeSelectionItems, type AlignEdge, type DistributeAxis } from '../lib/alignDistribute'
 import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, TOOL_CLUSTERS } from '../components/labels'
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
@@ -400,6 +403,18 @@ interface MapStoreState {
    *  Shift+clique (`toggleSelectionItem`) ou limpar (`EMPTY_SELECTION`),
    *  sempre decididos no CHAMADOR (pixi/PixiCanvas.tsx); o store só grava. */
   setSelection: (selection: SelectionSet) => void
+  /**
+   * Grupos do editor (Ctrl+G), por id de mapa — cada cena guarda os seus.
+   * Fora de `MapData` de propósito: grupo é gesto do mestre, não conteúdo do
+   * mapa, então não vai para o jogador, não entra no arquivo e não ocupa
+   * Ctrl+Z. Mapa sem grupo não tem chave (ausência = nenhum grupo).
+   */
+  itemGroups: Readonly<Record<string, ItemGroups>>
+  /** Junta a seleção atual num grupo do mapa aberto. `false` = menos de 2
+   *  itens, nada mudou. */
+  groupSelected: () => boolean
+  /** Desfaz o grupo de quem está selecionado. `false` = nenhum grupo tocado. */
+  ungroupSelected: () => boolean
   /** Onda 4, item 24 — apaga TODOS os itens do conjunto (não só um), numa
    *  única entrada de histórico. Sem efeito se a seleção estiver vazia. */
   removeSelected: () => void
@@ -415,6 +430,26 @@ interface MapStoreState {
    * outros.
    */
   duplicateSelected: () => void
+  /**
+   * Área de transferência do editor (Ctrl+C/Ctrl+X/Ctrl+V). Guarda o MAPA de
+   * origem inteiro (referência imutável, custo zero) e os itens copiados: a
+   * colagem clona dali, então ela sobrevive à troca de cena e de mapa —
+   * `loadMap` e a troca de cena de `adventureStore` não tocam neste campo.
+   */
+  clipboard: MapClipboard | null
+  /** Ctrl+C — guarda a seleção sem mudar o mapa. `false` (e a área de
+   *  transferência intacta) sem nada selecionado. */
+  copySelected: () => boolean
+  /** Ctrl+X — guarda a seleção e a tira do mapa (1 entrada de histórico).
+   *  `false`, sem efeito, sem nada selecionado. */
+  cutSelected: () => boolean
+  /**
+   * Ctrl+V — cola a área de transferência com o CENTRO do conjunto no ponto
+   * dado (px de mundo), ajustado à grade do mapa aberto, e seleciona as
+   * cópias. 1 entrada de histórico. `false`, sem efeito, se não há nada
+   * copiado ou se nada do que foi copiado existia no mapa de origem.
+   */
+  pasteClipboardAt: (point: Point) => boolean
   /**
    * Par de `duplicateSelected`, para o Alt+arrastar (`pixi/PixiCanvas.tsx`):
    * insere uma entidade JÁ CLONADA (offset {0,0} — nasce exatamente sobre o
@@ -554,7 +589,7 @@ interface MapStoreState {
    * alça de canto continua em `updateTokenLive` (sem histórico por frame, uma
    * entrada só no `pointerup`) — são dois gestos, não dois campos.
    */
-  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size'>>) => void
+  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size' | 'npc'>>) => void
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
@@ -786,6 +821,14 @@ interface MapStoreState {
    * ou se nada de fato mudar (todo item travado, por exemplo).
    */
   moveSelectionBy: (dx: number, dy: number) => void
+  /**
+   * Alinhar e distribuir os itens selecionados (`lib/alignDistribute.ts`):
+   * UMA entrada de histórico por clique — um Ctrl+Z devolve o conjunto
+   * inteiro. Sem efeito (nem histórico) quando nada precisa andar: menos de 2
+   * itens para alinhar, menos de 3 para distribuir, ou já no lugar.
+   */
+  alignSelection: (edge: AlignEdge) => void
+  distributeSelection: (axis: DistributeAxis) => void
   updateTextLabel: (id: string, patch: Partial<{ text: string; color: string; fontSize: number }>) => void
   setTextFontFamily: (id: string, fontFamily: string) => void
   /**
@@ -855,6 +898,11 @@ interface MapStoreState {
 
 const initialMap = mapFactory.createEmptyMap('map_local', 'Mapa sem título', 30, 20, 64)
 
+export const GROUP_CREATED_TEXT = 'Grupo criado: um clique em qualquer parte pega tudo. Ctrl+Shift+G desfaz'
+export const GROUP_NEEDS_TWO_TEXT = 'Selecione 2 ou mais itens para agrupar'
+export const GROUP_UNDONE_TEXT = 'Grupo desfeito'
+export const UNGROUP_NOTHING_TEXT = 'Nada do que está selecionado faz parte de um grupo'
+
 /**
  * Comprimento padrão (px de mundo) do vão que a ferramenta "Porta" abre ao
  * clicar em cima de uma parede, por `DoorKind` — antes desta fase era um
@@ -902,6 +950,114 @@ function movedRoomIds(map: MapData, selection: readonly SelectionItem[]): string
     }
   }
   return [...ids]
+}
+
+/** O que Ctrl+C/Ctrl+X guardou (campo `clipboard` do estado). */
+export interface MapClipboard {
+  /** Mapa de onde os itens vieram, como estava no Ctrl+C/Ctrl+X. */
+  readonly source: MapData
+  readonly items: SelectionSet
+  /** Centro do conjunto, em px de mundo do mapa de origem. */
+  readonly center: Point
+  /** Veio de Ctrl+X e ainda não foi colado: a primeira colagem devolve o
+   *  próprio item, então a Sala mantém o nome sem "(cópia)". */
+  readonly cut: boolean
+}
+
+/** Retângulo que envolve os itens da seleção — o chão entra pela própria
+ *  caixa (`pieceBounds`), que `areaSelectionBounds` não cobre. */
+function selectionBounds(map: MapData, selection: SelectionSet): AreaBounds | null {
+  const boxes: AreaBounds[] = []
+  const rest = areaSelectionBounds(map, selectionToAreaSelection(selection))
+  if (rest !== null) boxes.push(rest)
+  for (const item of selection) {
+    if (item.kind !== 'floor') continue
+    const piece = map.floor.find((p) => p.id === item.id)
+    if (piece) boxes.push(pieceBounds(piece))
+  }
+  if (boxes.length === 0) return null
+  return {
+    minX: Math.min(...boxes.map((b) => b.minX)),
+    minY: Math.min(...boxes.map((b) => b.minY)),
+    maxX: Math.max(...boxes.map((b) => b.maxX)),
+    maxY: Math.max(...boxes.map((b) => b.maxY)),
+  }
+}
+
+/** Deslocamento em múltiplos da grade: a cópia colada fica alinhada como o original. */
+function snapOffsetToGrid(delta: number, grid: number): number {
+  return grid > 0 ? Math.round(delta / grid) * grid : delta
+}
+
+/**
+ * Clona os itens `selection` de `source` para dentro de `target`, deslocados
+ * por `offset`. Mesma regra do Ctrl+D: Sala leva paredes e sub-salas; parede
+ * de Sala também selecionada e sub-sala de Sala selecionada não se copiam de
+ * novo; cópia que caiu dentro de outra Sala vira filha dela. `source` e
+ * `target` são o MESMO mapa no Ctrl+D e podem ser mapas diferentes no Ctrl+V
+ * (outra cena, outro mapa). `keepRoomNames`: a Sala clonada mantém o nome do
+ * original (colar o que foi recortado não é cópia).
+ */
+function cloneSelectionInto(
+  target: MapData,
+  source: MapData,
+  selection: SelectionSet,
+  offset: Offset,
+  keepRoomNames: boolean,
+): { map: MapData; items: SelectionItem[] } {
+  const items: SelectionItem[] = []
+  // Cópia de Sala → Sala original, para a cópia herdar as arestas que estavam sobre a mãe.
+  const sources: Record<string, string> = {}
+  const selectedRegionIds = new Set(selection.filter((item) => item.kind === 'region').map((item) => item.id))
+  // Sala selecionada leva as sub-salas: elas e as paredes delas não se copiam de novo.
+  const coveredRegionIds = new Set<string>()
+  for (const id of selectedRegionIds) {
+    for (const d of descendantsOf(source.regions, id)) coveredRegionIds.add(d.id)
+  }
+  let next = target
+  for (const item of selection) {
+    if (item.kind === 'region' && coveredRegionIds.has(item.id)) continue
+    // Parede de uma Sala que também está selecionada já vem junto com a Sala.
+    const wallRegionId = item.kind === 'wall' ? source.walls.find((w) => w.id === item.id)?.regionId ?? '' : ''
+    if (item.kind === 'wall' && (selectedRegionIds.has(wallRegionId) || coveredRegionIds.has(wallRegionId))) continue
+    const cloned = cloneSelectedEntity(source, item, offset)
+    if (!cloned) continue
+    const named = keepRoomNames ? withSourceRoomName(cloned, source, item.id) : cloned
+    next = addClonedEntity(next, withoutMissingParent(named, next))
+    if (cloned.kind === 'region') {
+      sources[cloned.entity.id] = item.id
+      const inner = cloneRoomDescendants(source.regions, source.walls, item.id, cloned.entity.id, offset)
+      next = {
+        ...next,
+        regions: [...next.regions, ...inner.regions],
+        walls: [...next.walls, ...cloneLinkedWalls(source.walls, item.id, cloned.entity.id, offset), ...inner.walls],
+      }
+    }
+    items.push({ kind: cloned.kind, id: cloned.entity.id })
+  }
+  // Cópia de sub-sala que caiu fora da mãe vira sala de topo (ou filha de onde caiu).
+  return { map: reparentRooms(next, movedRoomIds(next, items), source, sources), items }
+}
+
+/** A Sala clonada volta ao nome do original (sem o "(cópia)" de `cloneRegion`). */
+function withSourceRoomName(cloned: CloneableEntity, source: MapData, sourceId: string): CloneableEntity {
+  if (cloned.kind !== 'region' || cloned.entity.room === undefined) return cloned
+  const original = source.regions.find((r) => r.id === sourceId)?.room
+  if (original === undefined) return cloned
+  return { kind: 'region', entity: { ...cloned.entity, room: { ...cloned.entity.room, name: original.name } } }
+}
+
+/**
+ * Sub-sala colada em outro mapa: a mãe ficou no mapa de origem, e o
+ * `parentId` apontaria para um id que não existe aqui (`reparentRoom` só
+ * troca a mãe quando acha outra; sem mãe nova, o id órfão ficava).
+ */
+function withoutMissingParent(cloned: CloneableEntity, target: MapData): CloneableEntity {
+  if (cloned.kind !== 'region' || cloned.entity.parentId === undefined) return cloned
+  const parentId = cloned.entity.parentId
+  if (target.regions.some((r) => r.id === parentId)) return cloned
+  const { parentId: _orphan, ...entity } = cloned.entity
+  return { kind: 'region', entity }
 }
 
 /**
@@ -1072,6 +1228,33 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       typingEdit = null
       set(isSelectionEmpty(selection) ? { selection } : { selection, selectedConcealZoneId: null, selectedPinId: null })
     },
+    itemGroups: {},
+    groupSelected: () => {
+      const { map, selection, itemGroups } = get()
+      const antes = itemGroups[map.id] ?? NO_GROUPS
+      const depois = groupItems(antes, selection, `grupo_${crypto.randomUUID()}`)
+      // Os avisos não dizem "N itens": o painel já conta, e repetir a contagem
+      // num aviso que fica 4 s na tela a faria sobreviver à seleção que descreve.
+      if (depois === antes) {
+        useToastStore.getState().push('info', GROUP_NEEDS_TWO_TEXT)
+        return false
+      }
+      set({ itemGroups: { ...itemGroups, [map.id]: depois } })
+      useToastStore.getState().push('info', GROUP_CREATED_TEXT)
+      return true
+    },
+    ungroupSelected: () => {
+      const { map, selection, itemGroups } = get()
+      const antes = itemGroups[map.id] ?? NO_GROUPS
+      const depois = ungroupItems(antes, selection)
+      if (depois === antes) {
+        useToastStore.getState().push('info', UNGROUP_NOTHING_TEXT)
+        return false
+      }
+      set({ itemGroups: { ...itemGroups, [map.id]: depois } })
+      useToastStore.getState().push('info', GROUP_UNDONE_TEXT)
+      return true
+    },
     removeSelected: () => {
       const { selection } = get()
       if (isSelectionEmpty(selection)) return
@@ -1105,42 +1288,45 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const hasRoom = selection.some((item) => item.kind === 'region' && map.regions.find((r) => r.id === item.id)?.room !== undefined)
       const bounds = hasRoom ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null
       const offset = bounds ? { dx: bounds.maxX - bounds.minX + map.grid, dy: 0 } : { dx: map.grid, dy: map.grid }
-      const clonedItems: SelectionItem[] = []
-      // Cópia de Sala → Sala original, para a cópia herdar as arestas que estavam sobre a mãe.
-      const sources: Record<string, string> = {}
-      const selectedRegionIds = new Set(selection.filter((item) => item.kind === 'region').map((item) => item.id))
-      // Sala selecionada leva as sub-salas: elas e as paredes delas não se copiam de novo.
-      const coveredRegionIds = new Set<string>()
-      for (const id of selectedRegionIds) {
-        for (const d of descendantsOf(map.regions, id)) coveredRegionIds.add(d.id)
-      }
+      let clonedItems: SelectionItem[] = []
       withHistory((m) => {
-        let next = m
-        for (const item of selection) {
-          if (item.kind === 'region' && coveredRegionIds.has(item.id)) continue
-          // Parede de uma Sala que também está selecionada já vem junto com a Sala.
-          const wallRegionId = item.kind === 'wall' ? m.walls.find((w) => w.id === item.id)?.regionId ?? '' : ''
-          if (item.kind === 'wall' && (selectedRegionIds.has(wallRegionId) || coveredRegionIds.has(wallRegionId))) continue
-          const cloned = cloneSelectedEntity(next, item, offset)
-          if (!cloned) continue
-          next = addClonedEntity(next, cloned)
-          if (cloned.kind === 'region') {
-            sources[cloned.entity.id] = item.id
-            const inner = cloneRoomDescendants(m.regions, m.walls, item.id, cloned.entity.id, offset)
-            next = {
-              ...next,
-              regions: [...next.regions, ...inner.regions],
-              walls: [...next.walls, ...cloneLinkedWalls(m.walls, item.id, cloned.entity.id, offset), ...inner.walls],
-            }
-          }
-          clonedItems.push({ kind: cloned.kind, id: cloned.entity.id })
-        }
-        // Cópia de sub-sala que caiu fora da mãe vira sala de topo (ou filha de onde caiu).
-        return reparentRooms(next, movedRoomIds(next, clonedItems), m, sources)
+        const result = cloneSelectionInto(m, m, selection, offset, false)
+        clonedItems = result.items
+        return result.map
       })
       // Nenhum item existia mais no mapa (janela de corrida): mantém a
       // seleção antiga em vez de trocar por um conjunto vazio.
       if (clonedItems.length > 0) set({ selection: clonedItems })
+    },
+    clipboard: null,
+    copySelected: () => {
+      const { map, selection } = get()
+      const bounds = selectionBounds(map, selection)
+      if (bounds === null) return false
+      const center = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 }
+      set({ clipboard: { source: map, items: selection, center, cut: false } })
+      return true
+    },
+    cutSelected: () => {
+      if (!get().copySelected()) return false
+      const { clipboard } = get()
+      if (clipboard !== null) set({ clipboard: { ...clipboard, cut: true } })
+      get().removeSelected()
+      return true
+    },
+    pasteClipboardAt: (point) => {
+      const { clipboard, map } = get()
+      if (clipboard === null) return false
+      const offset = {
+        dx: snapOffsetToGrid(point.x - clipboard.center.x, map.grid),
+        dy: snapOffsetToGrid(point.y - clipboard.center.y, map.grid),
+      }
+      const result = cloneSelectionInto(map, clipboard.source, clipboard.items, offset, clipboard.cut)
+      if (result.items.length === 0) return false
+      withHistory(() => result.map)
+      // Depois da primeira colagem, o que foi recortado já voltou: as próximas são cópias.
+      set({ selection: result.items, ...(clipboard.cut ? { clipboard: { ...clipboard, cut: false } } : {}) })
+      return true
     },
     insertClonedEntityLive: (cloned, sourceRegionId) => set((state) => {
       const withEntity = addClonedEntity(state.map, cloned)
@@ -1584,6 +1770,20 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const after = reparentRooms(moved, movedRoomIds(moved, selection), map)
       withHistory(() => after)
     },
+    alignSelection: (edge) => {
+      const { map, selection } = get()
+      const aligned = alignSelectionItems(map, selection, edge)
+      if (aligned === map) return
+      const after = reparentRooms(aligned, movedRoomIds(aligned, selection), map)
+      withHistory(() => after)
+    },
+    distributeSelection: (axis) => {
+      const { map, selection } = get()
+      const distributed = distributeSelectionItems(map, selection, axis)
+      if (distributed === map) return
+      const after = reparentRooms(distributed, movedRoomIds(distributed, selection), map)
+      withHistory(() => after)
+    },
     updateTextLabel: (id, patch) => withHistory(
       (map) => ({
         ...map,
@@ -1685,3 +1885,14 @@ playerSeqOfMap.set(useMapStore.getState().map, playerSeq)
 useMapStore.subscribe((state) => state.map, (map) => {
   playerSeqOfMap.set(map, playerSeq)
 })
+
+/**
+ * Quantos blocos o painel "Alinhar e distribuir" deve contar: blocos que andam
+ * inteiros, não entradas da seleção. O laço numa Sala sozinha põe 5 entradas
+ * (a região e as 4 paredes), mas é 1 bloco — com `selection.length` o painel
+ * mostraria botões clicáveis que não fazem nada. Seletor de número: o
+ * componente só re-renderiza quando a contagem muda.
+ */
+export function selectAlignableUnitCount(state: Pick<MapStoreState, 'map' | 'selection'>): number {
+  return alignableUnitCount(state.map, state.selection)
+}

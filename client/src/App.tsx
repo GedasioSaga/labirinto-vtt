@@ -20,7 +20,7 @@ import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
-import { RoomPanel } from './components/RoomPanel'
+import { RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
@@ -31,7 +31,7 @@ import { MapTypePicker } from './screens/MapTypePicker'
 import { NewDungeonMap } from './screens/NewDungeonMap'
 import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
-import { useMapStore } from './stores/mapStore'
+import { selectAlignableUnitCount, useMapStore } from './stores/mapStore'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
   hasUnsavedWork,
@@ -39,19 +39,27 @@ import {
   pinExitsTravelOf,
   pinTravelOptions,
   sceneList,
+  sceneMaps,
   subscribeToTravelLinks,
   travelSceneOptions,
   useAdventureStore,
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
+import { MapObjectsSection } from './components/MapObjectsSection'
+import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
+import { goToMapObject } from './stores/mapObjectNavigation'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
-import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, IMAGEM_SUMIU_DO_ACERVO, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
+import { apagarDoAcervo, fotoSobrouNoDisco, pecaDoAcervo, salvarNoAcervo, trazerDoAcervo, IMAGEM_SUMIU_DO_ACERVO, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { ActionBar } from './components/ActionBar'
+import { ShortcutsDialog } from './components/ShortcutsDialog'
+import { ExportImageDialog } from './components/ExportImageDialog'
+import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
+import { saveMapImage } from './lib/mapImageSave'
 import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
@@ -64,6 +72,7 @@ import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
 import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
+import { isSingleGroup, NO_GROUPS } from './lib/itemGroups'
 import { traceFloorPieces } from './lib/traceImage'
 import { loadImagePixels } from './lib/imagePixels'
 import { traceMapDetails } from './lib/traceDetails'
@@ -260,7 +269,11 @@ function App() {
   const gridShape = useMapStore((state) => state.map.gridShape)
   const setGridShapeAction = useMapStore((state) => state.setGridShape)
   const selection = useMapStore((state) => state.selection)
+  // Blocos que andam no alinhar (Sala + paredes = 1), não entradas da seleção.
+  const alignableCount = useMapStore(selectAlignableUnitCount)
   const setSelection = useMapStore((state) => state.setSelection)
+  // Agrupar objetos (Ctrl+G): só os grupos do mapa aberto.
+  const mapGroups = useMapStore((state) => state.itemGroups[state.map.id] ?? NO_GROUPS)
   const removeSelected = useMapStore((state) => state.removeSelected)
   // Onda 3, item 20 (Frente D) — histórico deixa de ser invisível: botões
   // de desfazer/refazer na ActionBar, desabilitados com past/future vazio.
@@ -404,6 +417,8 @@ function App() {
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
+  /** Muda a cada Ctrl+K: "Objetos do mapa" abre com o cursor na busca (MapObjectsSection). */
+  const [objectSearchRequest, setObjectSearchRequest] = useState(0)
   const hostBridgeRef = useRef<HostBridge | null>(null)
   const hostBridge = (): HostBridge => {
     if (!hostBridgeRef.current) {
@@ -493,8 +508,7 @@ function App() {
           <RoomPanel
             room={room}
             players={roomPlayers}
-            tokens={map.tokens.map((token) => ({ id: token.id, name: token.name }))}
-            knownTokens={[world.open, ...world.background].flatMap((scene) => scene.map.tokens.map((token) => ({ id: token.id, name: token.name })))}
+            tokens={roomPanelTokensOf(world)}
             party={{
               members: partyMembers(roomPlayers, world),
               destinations: partyDestinations(world),
@@ -583,6 +597,12 @@ function App() {
    * MUDANÇA (mesmo padrão que `gridAlignPreview` já usa como ponte).
    */
   const [resetZoomRequest, setResetZoomRequest] = useState(0)
+  /** Tela de atalhos: abre pela tecla `?` no mapa (PixiCanvas) ou pelo botão da barra de ações. */
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  /** "Exportar imagem": a função do canvas que gera o PNG (`null` sem canvas montado). */
+  const imageExporterRef = useRef<MapImageExporter | null>(null)
+  /** Janela "Exportar imagem" aberta (`null` = fechada), gerando/gravando, e o erro da última tentativa. */
+  const [exportImageState, setExportImageState] = useState<{ busy: boolean; error: string | null } | null>(null)
   /** Container do canvas: o tamanho dele é a "tela" usada para achar o centro visível ao adicionar token. */
   const canvasHostRef = useRef<HTMLDivElement | null>(null)
   /** Barra de ferramentas e rail: flutuam sobre o canvas e tapam o que está embaixo. */
@@ -753,6 +773,8 @@ function App() {
   // Pino aberto no painel. Some sozinho se o Ctrl+Z tirar o pino do mapa.
   const selectedPinId = useMapStore((state) => state.selectedPinId)
   const selectedPin = map.pins.find((p) => p.id === selectedPinId) ?? null
+  // "Objetos do mapa": a linha do objeto selecionado fica marcada na lista.
+  const currentMapObjectKey = currentObjectKey(map, selection, selectedPinId)
   const pinKind = useMapStore((state) => state.pinKind)
   const pinIcon = useMapStore((state) => state.pinIcon)
   // A5 — "Oculto para jogadores" do item selecionado que não é Token/Objeto.
@@ -1064,7 +1086,7 @@ function App() {
       return
     }
 
-    if (criarToken(item.nome, { at, id: tokenId, size: item.tamanho, image, imageData }) === null) return
+    if (criarToken(item.nome, { at, ...pecaDoAcervo(item, tokenId, { image, imageData }) }) === null) return
     if (image === null && imageData === null) {
       // A peça entra assim mesmo, com o nome certo e o círculo genérico: o
       // arquivo sumiu da pasta do acervo, e não colocar a peça seria punir a
@@ -1294,7 +1316,7 @@ function App() {
    */
   const criarToken = (
     name: string,
-    opts: { at?: { x: number; y: number }; size?: number; id?: string; image?: string | null; imageData?: string | null } = {},
+    opts: { at?: { x: number; y: number }; size?: number; id?: string; image?: string | null; imageData?: string | null; npc?: boolean } = {},
   ): string | null => {
     const host = canvasHostRef.current
     const { map: currentMap, camera } = useMapStore.getState()
@@ -1326,6 +1348,9 @@ function App() {
       size,
       image: opts.image ?? null,
       imageData: opts.imageData ?? null,
+      // Só grava a marca quando ela vale: ficha comum continua sem o campo,
+      // igual ao mapa salvo antes dele existir.
+      ...(opts.npc === true ? { npc: true } : {}),
     })
     useMapStore.getState().setSelection(selectionOfItem({ kind: 'token', id }))
     return id
@@ -1471,6 +1496,32 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [screen, handleSave, handleOpen])
 
+  // Ctrl+K — "Objetos do mapa" com o cursor na busca, de qualquer ponto do
+  // editor: volta à aba Mapa, abre a seção e foca o campo. Num campo de texto
+  // a tecla fica com o campo (`isFindObjectShortcut`).
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (screen !== 'editor') return
+      const target = event.target instanceof HTMLElement ? event.target : null
+      const pressed = isFindObjectShortcut({
+        key: event.key,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+        targetTagName: target?.tagName ?? '',
+        targetInputType: target instanceof HTMLInputElement ? target.type : undefined,
+        targetContentEditable: target?.isContentEditable ?? false,
+      })
+      if (!pressed) return
+      event.preventDefault()
+      setRailTab('map')
+      setObjectSearchRequest((request) => request + 1)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [screen])
+
   const handleCreate = (newMap: MapData) => {
     useAdventureStore.getState().reset()
     loadMap(newMap)
@@ -1503,6 +1554,32 @@ function App() {
       console.log('Mapa exportado em', destDir)
     } catch (err) {
       reportFileError('exportar o mapa', err)
+    }
+  }
+
+  /**
+   * "Exportar imagem" confirmado: gera o PNG da cena pelo canvas e grava onde
+   * o mestre escolher. Falha fica DENTRO da janela, perto do botão, com as
+   * opções como estavam; cancelar a janela de salvar só volta ao diálogo.
+   */
+  const handleExportImage = async (options: ImageExportOptions) => {
+    const exporter = imageExporterRef.current
+    if (exporter === null) {
+      setExportImageState({ busy: false, error: 'O mapa ainda está carregando. Tente de novo em instantes.' })
+      return
+    }
+    setExportImageState({ busy: true, error: null })
+    try {
+      const bytes = await exporter(options)
+      const saved = await saveMapImage(bytes, imageExportFileName(useMapStore.getState().map.name))
+      if (saved === null) {
+        setExportImageState({ busy: false, error: null })
+        return
+      }
+      setExportImageState(null)
+      useToastStore.getState().push('info', `Imagem exportada: ${saved}`)
+    } catch (err) {
+      setExportImageState({ busy: false, error: `Não foi possível exportar a imagem: ${motivoDaFalhaDeArquivo(err, temPonteDoApp())}` })
     }
   }
 
@@ -1607,6 +1684,10 @@ function App() {
             setRailTab('map')
           }}
           onPlaceToken={handleAddToken}
+          onShowShortcuts={() => setShortcutsOpen(true)}
+          onImageExporterChange={(exporter) => {
+            imageExporterRef.current = exporter
+          }}
         />
       </div>
 
@@ -1641,11 +1722,16 @@ function App() {
                 onSelect={handleSelectScene}
                 onCreate={handleCreateScene}
                 onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
+                // Visão geral: a cena aberta pelo mapa vivo, as de fundo pelo cache (fichas de jogador que andam aparecem na hora).
+                maps={sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map)}
                 // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
                 people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
                 onNote={room === null ? undefined : (sceneId, text) => hostBridgeRef.current?.sceneNote(sceneId, text) ?? null}
               />
+            }
+            objects={
+              <MapObjectsSection map={map} currentKey={currentMapObjectKey} onGoTo={goToMapObject} searchRequest={objectSearchRequest} />
             }
             mapName={map.name}
             mapWidth={map.width}
@@ -1710,6 +1796,14 @@ function App() {
             areaSelection={{
               selection: selection.length > 1 ? selectionToAreaSelection(selection) : null,
               onClear: () => setSelection(EMPTY_SELECTION),
+              grouped: isSingleGroup(mapGroups, selection),
+              onGroup: () => useMapStore.getState().groupSelected(),
+              onUngroup: () => useMapStore.getState().ungroupSelected(),
+            }}
+            alignDistribute={{
+              count: alignableCount,
+              onAlign: (edge) => useMapStore.getState().alignSelection(edge),
+              onDistribute: (axis) => useMapStore.getState().distributeSelection(axis),
             }}
             drawingStyle={selectedDrawing && selectedDrawing.kind !== 'text' ? {
               // Desenho já selecionado: o painel edita ELE, não a preferência do próximo.
@@ -1863,6 +1957,10 @@ function App() {
               // mexe em x/y — a ficha cresce em volta de onde já está, e é o
               // próximo arrasto que a assenta na grade (`seatTokenCenter`).
               onSizeChange: (size) => selectedToken && updateToken(selectedToken.id, { size }),
+            }}
+            tokenNpc={{
+              // `updateToken` passa por `withHistory`: marcar errado se desfaz com Ctrl+Z.
+              onNpcChange: (npc) => selectedToken && updateToken(selectedToken.id, { npc }),
             }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
@@ -2029,6 +2127,7 @@ function App() {
           onOpen={handleOpen}
           onImportBackground={handleImportBackground}
           onExportFolder={handleExportFolder}
+          onExportImage={() => setExportImageState({ busy: false, error: null })}
           onImportFolder={handleImportFolder}
           onGoHome={handleGoHome}
           onGoBack={canGoBackToScene ? handleGoBack : undefined}
@@ -2040,10 +2139,24 @@ function App() {
           onFloorFromBackground={() => void handleFloorFromBackground()}
           onDetailsFromBackground={() => void handleDetailsFromBackground()}
           onRecreateMinimapFromBackground={() => void handleMinimapFromBackground()}
+          onShowShortcuts={() => setShortcutsOpen(true)}
+          shortcutsOpen={shortcutsOpen}
         />
       </div>
 
       <ZoomHud scale={cameraScale} onReset={() => setResetZoomRequest((n) => n + 1)} />
+      {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
+      {exportImageState !== null && (
+        <ExportImageDialog
+          defaultGrid={map.showGrid}
+          busy={exportImageState.busy}
+          error={exportImageState.error}
+          onExport={(options) => void handleExportImage(options)}
+          onClose={() => {
+            if (!exportImageState.busy) setExportImageState(null)
+          }}
+        />
+      )}
     </div>
   )
 }

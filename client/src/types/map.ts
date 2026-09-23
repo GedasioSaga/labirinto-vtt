@@ -449,6 +449,11 @@ export interface Token extends PlayerSecret {
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
    *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
   hidden?: boolean
+  /** Ficha de personagem do mestre (NPC): não vira botão de "Atribuir" de um
+   *  clique no card de quem espera personagem (continua na lista). Metadado
+   *  do mestre: NÃO atravessa para o jogador (`lib/fogFilter.ts`).
+   *  `undefined` === false — sem linha de migração. */
+  npc?: boolean
 }
 
 export interface Prop extends PlayerSecret {

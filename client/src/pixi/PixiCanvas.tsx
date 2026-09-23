@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { Application, Container, Graphics, Sprite, Texture, Assets } from 'pixi.js'
+import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle } from 'pixi.js'
+import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
 import type { MapData, Pin, Region, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
+import { runClipboardShortcut } from '../stores/mapClipboard'
 import { pinTravelOf, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
 import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
-import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, freeAreaCenter, type Bounds, type Camera, type Point } from './world'
+import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, freeArea, freeAreaCenter, revealScale, type Bounds, type Camera, type Point } from './world'
 import { resolveCursor, type HoverKind, type ResizeCorner } from './cursorPolicy'
 import { resolveMapWheel } from './wheelGesture'
 import { resolveShortcut, type ShortcutEvent } from '../lib/keymap'
@@ -193,8 +195,10 @@ import { drawSelectionMarquee, drawAreaSelectionOutline, createMarqueeHintRender
 // fora da minha lista, CONTRATO diz "nenhuma mudança de assinatura").
 import {
   EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionFromItems, toggleSelectionItem,
-  selectionToAreaSelection, selectionFromAreaSelection, isSelectionEmpty,
+  selectionToAreaSelection, selectionFromAreaSelection, isSelectionEmpty, selectionHas,
+  type SelectionItem, type SelectionSet,
 } from '../lib/selectionModel'
+import { expandToGroup, NO_GROUPS } from '../lib/itemGroups'
 
 // Fase 5, N1 "borracha: apagar parte" — raio do círculo de corte, como fração
 // do grid do mapa (não px fixo: assim escala com mapas de grid diferente,
@@ -436,9 +440,10 @@ interface PixiCanvasProps {
    * na abertura do mapa. Cada troca é um objeto novo — a ponte reage à
    * identidade, no molde de `resetZoomRequest`, sem remontar o canvas.
    * `focus` (chegada por pino de viagem) põe esse ponto do mundo no centro da
-   * tela, no zoom de `camera` ou no de agora.
+   * tela, no zoom de `camera` ou no de agora. `fit` (o "Ir até lá" da lista
+   * Objetos do mapa) é a caixa do objeto: o zoom só diminui se ela não couber.
    */
-  cameraRequest?: { camera: Camera | null; focus?: Point } | null
+  cameraRequest?: { camera: Camera | null; focus?: Point; fit?: Bounds } | null
   /**
    * Painéis flutuantes sobre o canvas (rail, barra de ferramentas), em px
    * relativos ao canvas, lidos na hora do `focus`: o ponto vai ao centro da
@@ -468,6 +473,17 @@ interface PixiCanvasProps {
    * ao hostBridge, que faz o throttle.
    */
   onLaserMove?: (x: number, y: number) => void
+  /**
+   * `?` sem pino para alternar: o App abre a tela de atalhos
+   * (`components/ShortcutsDialog.tsx`). Com pino, o `?` continua sendo dele.
+   */
+  onShowShortcuts?: () => void
+  /**
+   * "Exportar imagem": entrega ao App a função que gera o PNG da cena, assim
+   * que o canvas fica pronto, e `null` quando ele desmonta. Ela desenha o mapa
+   * inteiro fora da tela do mestre (câmera e seleção dele não mudam).
+   */
+  onImageExporterChange?: (exporter: MapImageExporter | null) => void
 }
 
 /**
@@ -477,6 +493,9 @@ interface PixiCanvasProps {
 type NameEditorState = { kind: 'room'; regionId: string; value: string } | { kind: 'token'; at: Point; value: string }
 
 const MIN_ROOM_NAME_EDITOR_FONT = 12
+
+/** Fundo do canvas do editor; é também o fundo da imagem exportada (fora do chão). */
+const EDITOR_BACKGROUND_COLOR = 0x2b2b2b
 
 /** Retângulo que cobre qualquer mapa: Ctrl+A reusa o filtro da seleção por área. */
 const SELECT_ALL_RECT: AreaRect = { x1: -1e9, y1: -1e9, x2: 1e9, y2: 1e9 }
@@ -492,8 +511,14 @@ export function PixiCanvas({
   onLaserMove,
   onTravelPin,
   focusObstacles,
+  onShowShortcuts,
+  onImageExporterChange,
 }: PixiCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const onImageExporterChangeRef = useRef(onImageExporterChange)
+  useEffect(() => {
+    onImageExporterChangeRef.current = onImageExporterChange
+  }, [onImageExporterChange])
   const onLaserMoveRef = useRef(onLaserMove)
   useEffect(() => {
     onLaserMoveRef.current = onLaserMove
@@ -517,6 +542,11 @@ export function PixiCanvas({
   useEffect(() => {
     onPlaceTokenRef.current = onPlaceToken
   }, [onPlaceToken])
+
+  const onShowShortcutsRef = useRef(onShowShortcuts)
+  useEffect(() => {
+    onShowShortcutsRef.current = onShowShortcuts
+  }, [onShowShortcuts])
 
   const [nameEditor, setNameEditor] = useState<NameEditorState | null>(null)
   // Enter e Esc desmontam o campo, e o navegador pode disparar blur depois;
@@ -568,7 +598,7 @@ export function PixiCanvas({
 
   // Mesma ponte, para a câmera de cada cena. Pedido que chega antes do
   // `setup()` terminar é descartado: a montagem já enquadra o mapa aberto.
-  const cameraRequestRef = useRef<((request: { camera: Camera | null; focus?: Point }) => void) | null>(null)
+  const cameraRequestRef = useRef<((request: { camera: Camera | null; focus?: Point; fit?: Bounds }) => void) | null>(null)
   useEffect(() => {
     if (cameraRequest !== null) cameraRequestRef.current?.(cameraRequest)
   }, [cameraRequest])
@@ -585,7 +615,7 @@ export function PixiCanvas({
       // Densidade do monitor (125%/150%): o backbuffer tem pixels físicos e o
       // canvas fica no tamanho CSS; event.global e app.screen seguem em px CSS.
       await app.init({
-        backgroundColor: 0x2b2b2b,
+        backgroundColor: EDITOR_BACKGROUND_COLOR,
         resizeTo: el,
         resolution: currentRendererResolution(),
         autoDensity: true,
@@ -818,10 +848,16 @@ export function PixiCanvas({
       // vista pela primeira vez (cena vazia mantém a câmera, ver acima).
       // Chegada por pino de viagem: o pino par no centro da tela, no zoom que
       // a cena tinha (ou no de agora) — o mestre vê de cara por onde entrou.
-      cameraRequestRef.current = ({ camera: requested, focus }) => {
+      // "Ir até lá" (lista Objetos do mapa): com `fit`, afasta só o bastante
+      // para a caixa do objeto caber na parte que os painéis deixam livre.
+      cameraRequestRef.current = ({ camera: requested, focus, fit }) => {
         if (focus !== undefined) {
-          const scale = requested?.scale ?? camera.scale
-          const center = freeAreaCenter({ width: app.screen.width, height: app.screen.height }, focusObstaclesRef.current?.() ?? [])
+          const viewport = { width: app.screen.width, height: app.screen.height }
+          const obstacles = focusObstaclesRef.current?.() ?? []
+          const base = requested?.scale ?? camera.scale
+          const area = freeArea(viewport, obstacles)
+          const scale = fit === undefined ? base : revealScale(base, fit, { width: area.maxX - area.minX, height: area.maxY - area.minY }, FIT_MARGIN)
+          const center = freeAreaCenter(viewport, obstacles)
           applyCamera({ scale, x: center.x - focus.x * scale, y: center.y - focus.y * scale }, 'pedido')
           return
         }
@@ -914,15 +950,32 @@ export function PixiCanvas({
       }
       window.addEventListener('blur', onWindowBlur)
 
-      const computeViewport = () => ({
-        left: -camera.x / camera.scale,
-        top: -camera.y / camera.scale,
-        right: (app.screen.width - camera.x) / camera.scale,
-        bottom: (app.screen.height - camera.y) / camera.scale,
-      })
+      /**
+       * "Exportar imagem": enquanto a cena é desenhada para o PNG, os redesenhos
+       * leem ESTE mapa (já com as opções do diálogo aplicadas), sem seleção, e
+       * a vista é o mapa inteiro. `null` fora da exportação — e a exportação é
+       * síncrona do começo ao fim (ver `exportImage`), então nenhum quadro da
+       * tela do mestre chega a ser pintado com ela.
+       */
+      let exportScene: { map: MapData; viewport: { left: number; top: number; right: number; bottom: number } } | null = null
+      const sceneState = () => {
+        const state = useMapStore.getState()
+        if (exportScene === null) return state
+        return { ...state, map: exportScene.map, selection: EMPTY_SELECTION, selectedPinId: null, selectedConcealZoneId: null }
+      }
+
+      const computeViewport = () =>
+        exportScene !== null
+          ? exportScene.viewport
+          : {
+              left: -camera.x / camera.scale,
+              top: -camera.y / camera.scale,
+              right: (app.screen.width - camera.x) / camera.scale,
+              bottom: (app.screen.height - camera.y) / camera.scale,
+            }
 
       const redrawGrid = () => {
-        const { map } = useMapStore.getState()
+        const { map } = sceneState()
         if (!map.showGrid) {
           // Contexto compartilhado: limpa as duas camadas (dentro e fora do piso).
           gridGraphics.clear()
@@ -955,7 +1008,7 @@ export function PixiCanvas({
 
       /** Cor/opacidade das duas camadas da grade e máscara ligada só com piso. */
       const applyGridStyle = () => {
-        const { gridSettings } = useMapStore.getState().map
+        const { gridSettings } = sceneState().map
         gridGraphics.tint = gridSettings.color
         gridGraphics.alpha = gridSettings.opacity
         gridOutsideGraphics.visible = gridHasFloor
@@ -968,7 +1021,7 @@ export function PixiCanvas({
        * com imagem de fundo, por exemplo): a grade inteira como antes.
        */
       const redrawGridMask = () => {
-        const { map } = useMapStore.getState()
+        const { map } = sceneState()
         const rasterMode = map.floorStyle.renderMode === 'raster'
         const floorPolygons = rasterMode || map.hiddenLayers.includes('salas') ? [] : floorRenderer.polygons()
         const hasFloor = buildFloorMask(
@@ -999,7 +1052,7 @@ export function PixiCanvas({
        * de `subscribeToGridRedraw` (ver comentário mais abaixo).
        */
       const redrawMapBounds = () => {
-        const { map } = useMapStore.getState()
+        const { map } = sceneState()
         drawMapBounds(mapBoundsGraphics, map, computeViewport(), pixelGrid(camera.scale, app.renderer.resolution))
       }
 
@@ -1026,7 +1079,7 @@ export function PixiCanvas({
        * repinta (ver `shapesLayerDeps` em shapesRedraw.ts).
        */
       const paintWallsAndDoors = () => {
-        const { map, selection } = useMapStore.getState()
+        const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         const walls = visibleWalls(map.walls, map.hiddenLayers)
         const selectedWallId = single?.kind === 'wall' ? single.id : null
@@ -1054,7 +1107,7 @@ export function PixiCanvas({
 
       /** Luz com gradiente e marcador de tamanho fixo na tela: no zoom, o renderer refaz só o marcador. */
       const paintLights = () => {
-        const { map, selection } = useMapStore.getState()
+        const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         // Mesmos obstáculos da visão: a luz para onde o olho pararia.
         lightsRenderer.draw(lightsContainer, visibleLights(map.lights, map.hiddenLayers), {
@@ -1072,13 +1125,13 @@ export function PixiCanvas({
        * que mudou (referência, destaque ou, na selecionada, a espessura).
        */
       const paintRegions = () => {
-        const { map, selection } = useMapStore.getState()
+        const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         regionsRenderer.draw(regionsContainer, visibleRegions(map.regions, map.hiddenLayers), resolveHighlightedRegionId(map.walls, single), camera.scale)
       }
 
       const paintDrawings = () => {
-        const { map, selection } = useMapStore.getState()
+        const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         const drawings = visibleDrawings(map.drawings, map.hiddenLayers)
         const selectedDrawingId = single?.kind === 'drawing' ? single.id : null
@@ -1088,7 +1141,7 @@ export function PixiCanvas({
 
       /** Escadas também têm contorno de seleção em px de tela: redesenham no zoom. */
       const paintStairs = () => {
-        const { map, selection } = useMapStore.getState()
+        const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         const stairs = visibleStairs(map.stairs, map.hiddenLayers)
         const selectedStairId = single?.kind === 'stair' ? single.id : null
@@ -1112,7 +1165,7 @@ export function PixiCanvas({
        * Quem chama é `redrawEditHandles`, pelo portão da camada `handles`.
        */
       const paintEditHandles = () => {
-        const { map, selection, activeTool } = useMapStore.getState()
+        const { map, selection, activeTool } = sceneState()
         drawEditHandles(handlesGraphics, map, selectionSingle(selection), activeTool, {
           cameraScale: camera.scale,
           rendererResolution: app.renderer.resolution,
@@ -1127,7 +1180,7 @@ export function PixiCanvas({
        * aventura (ver `unsubscribeTravelLinks`), não só `map.pins`.
        */
       const paintPins = () => {
-        const { map, selectedPinId } = useMapStore.getState()
+        const { map, selectedPinId } = sceneState()
         pinsRenderer.draw(
           pinsContainer,
           visiblePins(map.pins, map.hiddenLayers).filter((pin) => !pin.hidden),
@@ -1138,7 +1191,7 @@ export function PixiCanvas({
 
       // Chão por peças fica na camada 'salas', junto das Regiões.
       const paintFloor = () => {
-        const { map } = useMapStore.getState()
+        const { map } = sceneState()
         if (map.floorStyle.renderMode === 'raster') {
           floorGraphics.clear()
           redrawMapRaster(map)
@@ -1149,7 +1202,7 @@ export function PixiCanvas({
       }
 
       const paintFloorSelection = () => {
-        const { map, selection } = useMapStore.getState()
+        const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         floorRenderer.drawSelection(
           floorSelectionGraphics,
@@ -1159,7 +1212,7 @@ export function PixiCanvas({
       }
 
       const paintMapLines = () => {
-        const { map } = useMapStore.getState()
+        const { map } = sceneState()
         const rasterMode = map.floorStyle.renderMode === 'raster'
         mapLinesGraphics.clear()
         if (!rasterMode && !map.hiddenLayers.includes('paredes')) drawMapLines(mapLinesGraphics, map.lines)
@@ -1168,7 +1221,7 @@ export function PixiCanvas({
 
       /** O que as camadas vetoriais leem, no momento do redesenho (store, aventura, câmera, gesto). */
       const shapesSnapshot = (): ShapesSnapshot => {
-        const { map, selection, activeTool, selectedConcealZoneId, selectedPinId } = useMapStore.getState()
+        const { map, selection, activeTool, selectedConcealZoneId, selectedPinId } = sceneState()
         const adventure = useAdventureStore.getState()
         return {
           map,
@@ -1199,23 +1252,23 @@ export function PixiCanvas({
         gridMask: redrawGridMask,
         floorSelection: paintFloorSelection,
         mapLines: paintMapLines,
-        mapFrame: () => redrawMapFrame(useMapStore.getState().map.frame),
+        mapFrame: () => redrawMapFrame(sceneState().map.frame),
         regions: paintRegions,
         drawings: paintDrawings,
         roomNames: () => {
-          const { map } = useMapStore.getState()
+          const { map } = sceneState()
           roomNamesRenderer.draw(roomNamesContainer, visibleRegions(map.regions, map.hiddenLayers), map.grid, camera.scale)
         },
         walls: paintWallsAndDoors,
         stairs: paintStairs,
         lights: paintLights,
         concealZones: () => {
-          const { map, selectedConcealZoneId } = useMapStore.getState()
+          const { map, selectedConcealZoneId } = sceneState()
           concealZonesRenderer.draw(concealZonesContainer, map.concealZones, map.grid, selectedConcealZoneId)
         },
         pins: paintPins,
         textLabels: () => {
-          const { map, selection } = useMapStore.getState()
+          const { map, selection } = sceneState()
           const single = selectionSingle(selection)
           textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
         },
@@ -1223,7 +1276,7 @@ export function PixiCanvas({
         // N3 (agora genérico, não só marquee): contorno do GRUPO — só com 2+
         // itens (1 item já tem o próprio destaque; 0 não desenha nada).
         areaOutline: () => {
-          const { map, selection } = useMapStore.getState()
+          const { map, selection } = sceneState()
           drawAreaSelectionOutline(
             areaSelectionOutlineGraphics,
             selection.length > 1 ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null,
@@ -1243,7 +1296,7 @@ export function PixiCanvas({
       const redrawPins = () => redrawShapeLayers(['pins'])
 
       const redrawTokens = () => {
-        const { map, selection } = useMapStore.getState()
+        const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null, camera.scale)
         // As alças do token acompanham o token: `moveTokenLive` (arrasto) e
@@ -1354,7 +1407,7 @@ export function PixiCanvas({
       const dimensionLabelRenderer = createDimensionLabelRenderer()
 
       const redrawProps = () => {
-        const { map, selection } = useMapStore.getState()
+        const { map, selection } = sceneState()
         const single = selectionSingle(selection)
         propsRenderer.draw(propsContainer, visibleProps(map.props, map.hiddenLayers), single?.kind === 'prop' ? single.id : null)
         // Mesmo motivo do redraw de tokens: `movePropLive` não acorda o redraw
@@ -1400,6 +1453,75 @@ export function PixiCanvas({
       void redrawBackground()
       gridAlignOverlayRedrawRef.current = redrawGridAlignOverlay
       redrawGridAlignOverlay(gridAlignPreview)
+
+      /** Tudo o que depende do mapa ou da câmera, na ordem da montagem. */
+      const redrawScene = () => {
+        redrawGrid()
+        redrawMapBounds()
+        redrawShapes()
+        redrawTokens()
+        redrawProps()
+      }
+
+      /**
+       * "Exportar imagem": a cena inteira (`width*grid` × `height*grid`) num PNG,
+       * desenhada pelos MESMOS renderers do editor — chão, grade, paredes,
+       * fichas saem como o mestre vê. Tudo acontece dentro desta chamada, sem
+       * `await` entre trocar a cena e devolvê-la: a tela do mestre nunca pinta
+       * a cena de exportação (o `extract` desenha num alvo próprio, e o
+       * `base64` roda o desenho de forma síncrona antes de devolver a promessa).
+       *
+       * Fica de fora o que é ferramenta do editor, não mapa: alças, contorno de
+       * seleção, prévia de desenho, guias, sombra fora do mapa, sinais e laser.
+       */
+      const exportImage = async (options: ImageExportOptions): Promise<Uint8Array> => {
+        const source = useMapStore.getState().map
+        const width = source.width * source.grid
+        const height = source.height * source.grid
+        const scale = imageExportScale(width, height)
+        const editorCamera = camera
+        // Camadas de trabalho do editor: o fundo (sombra fora do mapa), a
+        // prévia do alinhamento e tudo o que a montagem põe depois dos pinos.
+        const overlays = [
+          mapBoundsGraphics,
+          gridAlignOverlayGraphics,
+          ...world.children.slice(world.getChildIndex(pinsContainer) + 1),
+          signalsLayer,
+          laserLayer,
+        ]
+        const wasVisible = overlays.map((overlay) => overlay.visible)
+        let pending: Promise<string>
+        try {
+          exportScene = { map: mapForImageExport(source, options), viewport: { left: 0, top: 0, right: width, bottom: height } }
+          camera = { x: 0, y: 0, scale }
+          world.position.set(0, 0)
+          world.scale.set(scale)
+          roomNamesRenderer.setCameraScale(scale)
+          tokensRenderer.setCameraScale(scale)
+          for (const overlay of overlays) overlay.visible = false
+          redrawScene()
+          pending = app.renderer.extract.base64({
+            target: app.stage,
+            frame: new Rectangle(0, 0, Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale))),
+            resolution: 1,
+            clearColor: EDITOR_BACKGROUND_COLOR,
+            format: 'png',
+          })
+        } finally {
+          exportScene = null
+          camera = editorCamera
+          positionWorld()
+          world.scale.set(camera.scale)
+          roomNamesRenderer.setCameraScale(camera.scale)
+          tokensRenderer.setCameraScale(camera.scale)
+          overlays.forEach((overlay, i) => {
+            overlay.visible = wasVisible[i]
+          })
+          redrawScene()
+        }
+        return dataUrlToBytes(await pending)
+      }
+      onImageExporterChangeRef.current?.(exportImage)
       // Onda 3, item 21 — a moldura depende do MESMO gatilho que a grade
       // (câmera/showGrid/grid/gridShape, ver comentário de
       // `unsubscribeGridOffset` abaixo): sem `width`/`height` na assinatura
@@ -2095,6 +2217,20 @@ export function PixiCanvas({
         // branch de arrasto/edição de vértice abaixo.
         regions: map.regions.filter((region) => !isLayerLocked(map.lockedLayers, regionLayer(region))),
       })
+
+      /**
+       * Agrupar objetos (Ctrl+G): o que um clique em `item` seleciona — o grupo
+       * inteiro ou só ele. Membro alcançável é o que o Ctrl+A pegaria (camada
+       * visível e destravada, item não travado, token não oculto): membro
+       * apagado ou travado fica onde está, como fica no laço. Sem grupo no
+       * mapa, nem varre o mapa.
+       */
+      const selectionOnClick = (map: MapData, item: SelectionItem): SelectionSet => {
+        const groups = useMapStore.getState().itemGroups[map.id] ?? NO_GROUPS
+        if (groups.length === 0) return selectionOfItem(item)
+        const reachable = selectionFromAreaSelection(selectEntitiesInArea(hitTestMap(map), SELECT_ALL_RECT))
+        return expandToGroup(groups, item, (member) => selectionHas(reachable, member))
+      }
 
       /**
        * "O círculo da borracha encostou no CONTORNO desta Região/Sala?" — as
@@ -3532,6 +3668,22 @@ export function PixiCanvas({
           lastPoint = { x: event.global.x, y: event.global.y }
           updateCursor()
           return
+        }
+        // Agrupar objetos (Ctrl+G): um clique num membro pega o grupo inteiro,
+        // e o mesmo gesto já arrasta todos juntos — o arrasto da seleção de
+        // vários logo acima, só que sem precisar laçar de novo. Alt+arrastar
+        // segue duplicando só o item (Onda 3, item 13).
+        if (hit && !event.altKey) {
+          const grupo = selectionOnClick(map, { kind: hit.kind, id: hit.id })
+          if (grupo.length > 1) {
+            setSelection(grupo)
+            mode = 'dragging-area-selection'
+            areaSelectionDragBefore = map
+            areaSelectionDragLastPoint = worldPoint
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
+            return
+          }
         }
         if (hit) {
           // Seleciona SEMPRE, mesmo travado — é como o usuário alcança o
@@ -5250,6 +5402,20 @@ export function PixiCanvas({
         useMapStore.getState().moveSelectionBy(dx * scale, dy * scale)
       }
 
+      /**
+       * O pino que o `?` alterna AGORA: o selecionado, se ainda existe no mapa
+       * (o `undo` deixa o id velho para trás, ver `deleteSelected` abaixo) e se
+       * o tipo dele tem troca (o de viagem não tem, `pinKindAfterShortcut`).
+       * Sem ele o `?` abre a tela de atalhos em vez de sumir sem efeito.
+       */
+      const pinoDoAtalho = () => {
+        const { map: mapaAtual, selectedPinId: pinoId } = useMapStore.getState()
+        const pino = pinoId === null ? undefined : mapaAtual.pins.find((p) => p.id === pinoId)
+        if (pino === undefined) return null
+        const proximo = pinKindAfterShortcut(pino.kind)
+        return proximo === null ? null : { id: pino.id, proximo }
+      }
+
       const onKeyDown = (event: KeyboardEvent) => {
         // No meio do giro da sala, Esc devolve a sala ao ângulo do começo — e
         // só isso: o botão ainda está apertado, então largar a seleção aqui
@@ -5354,10 +5520,24 @@ export function PixiCanvas({
           shiftKey: event.shiftKey,
           altKey: event.altKey,
           ...alvoDoAtalho(event.target),
+          canTogglePinType: pinoDoAtalho() !== null,
         })
         if (action === null) return
         // Sem isto o navegador também seleciona o texto da interface (laranja).
         if (action.kind === 'selectAll') event.preventDefault()
+        // Ctrl+C/X/V: cola perto do ponteiro (ou no meio da vista, com ele
+        // fora do mapa). No meio de um arrasto a tecla não faz nada — recortar
+        // o item que está na mão deixaria o gesto segurando um id que sumiu.
+        // Tratado pelo app, o copiar/colar do navegador não roda junto.
+        if (action.kind === 'copy' || action.kind === 'cut' || action.kind === 'paste') {
+          if (mode !== 'idle') return
+          const vista = computeViewport()
+          const alvo = { cursor: laserPointer, fallback: { x: (vista.left + vista.right) / 2, y: (vista.top + vista.bottom) / 2 } }
+          if (runClipboardShortcut(action.kind, alvo)) event.preventDefault()
+          return
+        }
+        // Ctrl+G / Ctrl+Shift+G são "achar próximo/anterior" do navegador.
+        if (action.kind === 'group' || action.kind === 'ungroup') event.preventDefault()
         runShortcut(action)
       }
 
@@ -5441,19 +5621,19 @@ export function PixiCanvas({
             useMapStore.getState().setActiveTool(action.tool)
             break
           // `?` (achado 11 do passeio de 20/09/2026): alterna "!"/"?" do pino
-          // SELECIONADO. Sem pino — ou com id velho, que o `undo` deixa para
-          // trás (ver `deleteSelected` acima) — a tecla não faz nada e fica
-          // livre para outro papel sem o pino. O `destino: null` é o mesmo do
-          // painel (`App.tsx`, `onKindChange`): tipo que não é viagem não leva
-          // destino.
+          // SELECIONADO — o mapa de teclas só manda isto quando `pinoDoAtalho`
+          // achou um, e é ele de novo que diz qual pino e para que tipo. O
+          // `destino: null` é o mesmo do painel (`App.tsx`, `onKindChange`):
+          // tipo que não é viagem não leva destino.
           case 'togglePinType': {
-            const { map: mapaAtual, selectedPinId: pinoId, updatePin } = useMapStore.getState()
-            const pino = pinoId === null ? undefined : mapaAtual.pins.find((p) => p.id === pinoId)
-            if (pino === undefined) break
-            const proximo = pinKindAfterShortcut(pino.kind)
-            if (proximo !== null) updatePin(pino.id, { kind: proximo, destino: null })
+            const pino = pinoDoAtalho()
+            if (pino !== null) useMapStore.getState().updatePin(pino.id, { kind: pino.proximo, destino: null })
             break
           }
+          // `?` sem pino para alternar: a tela de atalhos, que mora no App.
+          case 'showShortcuts':
+            onShowShortcutsRef.current?.()
+            break
           case 'nudge':
             nudgeSelected(action.dx, action.dy, action.fine)
             break
@@ -5476,6 +5656,14 @@ export function PixiCanvas({
             setSelection(selectionFromAreaSelection(selectEntitiesInArea(hitTestMap(map), SELECT_ALL_RECT)))
             break
           }
+          // Agrupar objetos: o store guarda o grupo e avisa o que fez; o clique
+          // que pega o grupo inteiro fica no pointerdown (`selectionOnClick`).
+          case 'group':
+            useMapStore.getState().groupSelected()
+            break
+          case 'ungroup':
+            useMapStore.getState().ungroupSelected()
+            break
           // save/open/undo/redo têm handler próprio em App.tsx, com o MESMO
           // mapeamento de tecla — tratar aqui de novo disparava a ação DUAS
           // vezes por tecla.
@@ -5483,6 +5671,12 @@ export function PixiCanvas({
           case 'open':
           case 'undo':
           case 'redo':
+            break
+          // Ctrl+C/X/V precisam do evento (preventDefault) e do ponteiro:
+          // tratados em `onKeyDown`, antes de chegar aqui.
+          case 'copy':
+          case 'cut':
+          case 'paste':
             break
         }
       }
@@ -5494,6 +5688,11 @@ export function PixiCanvas({
       // rascunho continuava na tela.
       const onDraftKeyDown = (event: KeyboardEvent) => {
         if (!hasPointDraft()) return
+        // Janela modal aberta por cima (a tela de atalhos abre com `?` no meio
+        // de um traço, justo quando a pessoa quer saber como fechá-lo): a tecla
+        // é da janela. Sem isto, Backspace lá dentro tirava um ponto do traço
+        // atrás dela, sem ninguém ver.
+        if (event.target instanceof Element && event.target.closest('[aria-modal="true"]') !== null) return
         const action = resolveShortcut({
           key: event.key,
           ctrlKey: event.ctrlKey,
@@ -5576,6 +5775,7 @@ export function PixiCanvas({
         gridAlignOverlayRedrawRef.current = null
         resetZoomRequestRef.current = null
         cameraRequestRef.current = null
+        onImageExporterChangeRef.current?.(null)
       }
     }
 

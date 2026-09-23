@@ -23,6 +23,7 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { TokenNameControls, type TokenNameControlsProps } from './TokenNameControls'
 import { TokenColorControls, type TokenColorControlsProps } from './TokenColorControls'
 import { TokenSizeControls, type TokenSizeControlsProps } from './TokenSizeControls'
+import { TokenNpcControls, type TokenNpcControlsProps } from './TokenNpcControls'
 import { selectedTokenSize } from '../lib/tokenSize'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
@@ -35,7 +36,8 @@ import { ToolPropertiesSection } from './ToolPropertiesSection'
 import { LineCapControls, type LineCapControlsProps } from './LineCapControls'
 import { LineShapeControls, type LineShapeControlsProps } from './LineShapeControls'
 import { FillControls, type FillControlsProps } from './FillControls'
-import { AreaSelectionControls } from './AreaSelectionControls'
+import { AreaSelectionControls, type AreaSelectionControlsProps } from './AreaSelectionControls'
+import { AlignDistributeControls, type AlignDistributeControlsProps } from './AlignDistributeControls'
 import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceControls'
 import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleControls'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
@@ -48,12 +50,13 @@ import { roomRotationOf } from '../lib/roomRotation'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
 import { TOOL_LABELS } from './labels'
-import type { AreaSelection } from '../lib/areaSelection'
 import type { ReactNode } from 'react'
 
 interface PropertiesPanelProps {
   /** Seção "Cenas" da aventura, montada por quem sabe da aventura (App). */
   scenes?: ReactNode
+  /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
+  objects?: ReactNode
   mapName: string
   mapWidth: number
   mapHeight: number
@@ -77,7 +80,9 @@ interface PropertiesPanelProps {
   /** F4 — N2 "tirar o fundo" (Região/Sala e forma preenchível selecionada). */
   fill: FillControlsProps
   /** F4 — N3 "ferramenta de seleção de área". */
-  areaSelection: { selection: AreaSelection | null; onClear: () => void }
+  areaSelection: AreaSelectionControlsProps
+  /** Alinhar e distribuir os itens selecionados (aparece com 2+ itens). */
+  alignDistribute: AlignDistributeControlsProps
   drawingStyle: DrawingStyleControlsProps
   /** Cor e largura do PRÓXIMO caminho (ferramenta "Caminho"). */
   pathStyle: PathStyleControlsProps
@@ -106,6 +111,8 @@ interface PropertiesPanelProps {
   /** Tamanho da ficha em QUADRADOS da grade — para o dragão não ficar do
    *  tamanho do rato. */
   tokenSize: Omit<TokenSizeControlsProps, 'size'>
+  /** Marca de NPC — tira a ficha dos botões "Atribuir" de um clique do painel da sala. */
+  tokenNpc: Omit<TokenNpcControlsProps, 'npc'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -151,6 +158,7 @@ interface PropertiesPanelProps {
  */
 export function PropertiesPanel({
   scenes,
+  objects,
   mapName,
   mapWidth,
   mapHeight,
@@ -161,6 +169,7 @@ export function PropertiesPanel({
   lineShape,
   fill,
   areaSelection,
+  alignDistribute,
   drawingStyle,
   pathStyle,
   grid,
@@ -182,6 +191,7 @@ export function PropertiesPanel({
   tokenImage,
   tokenColor,
   tokenSize,
+  tokenNpc,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -413,6 +423,7 @@ export function PropertiesPanel({
             <TokenColorControls color={selectedTokenColor(selectedToken)} {...tokenColor} />
             {/* `tokenPhotoRef`: foto escolhida pelo JOGADOR vive em `imageData` — sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
             <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
+            <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
           </ToolPropertiesSection>
         )}
         {selectedToken && (
@@ -438,7 +449,8 @@ export function PropertiesPanel({
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="selection" groups={groups}>
-          <AreaSelectionControls selection={areaSelection.selection} onClear={areaSelection.onClear} />
+          <AreaSelectionControls {...areaSelection} />
+          <AlignDistributeControls {...alignDistribute} />
           <SelectionControls {...selection} />
         </ToolPropertiesSection>
         {/* Cenas da aventura: depois do bloco da ferramenta e do objeto, junto das
@@ -446,6 +458,11 @@ export function PropertiesPanel({
             que é o nome do que está na mão ou do que acabou de ser desenhado
             (task-jornada-sala-livre.spec.ts, teste 3). */}
         {scenes}
+        {/* Os objetos DA cena aberta, logo abaixo das cenas. Sem grupo de
+            ferramenta: é navegação, como as Cenas, e nasce recolhida — com uma
+            ferramenta de desenho na mão ela é só uma linha de título. Antes de
+            "Chão do mapa": Camadas continua o último título da coluna. */}
+        {objects}
         <ToolPropertiesSection group="floorStyle" groups={groups}>
           {/* "Chão do mapa", não "Chão": o botão da ferramenta na barra já se
               chama "Chão" e dois botões com o mesmo nome confundem leitor de
