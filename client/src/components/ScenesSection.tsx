@@ -106,6 +106,12 @@ function NoteForm({ sceneName, onSend, onCancel }: NoteFormProps) {
 /** Campo aberto na seção: nome da cena nova, ou novo nome da cena aberta. */
 type Editing = { kind: 'create' } | { kind: 'rename'; sceneId: string } | null
 
+/** Por que o nome da cena está desabilitado — `undefined` quando ela abre. */
+function unavailableTitle(scene: SceneListItem): string | undefined {
+  if (scene.available) return undefined
+  return scene.loading === true ? 'Esta cena ainda está sendo lida do disco' : 'O arquivo desta cena não foi encontrado'
+}
+
 function tokenLabel(count: number | null): string {
   if (count === null) return 'indisponível'
   return count === 1 ? '1 token' : `${count} tokens`
@@ -226,12 +232,12 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
                 className="lb-cenas__nome"
                 aria-current={scene.active ? 'true' : undefined}
                 disabled={!scene.available}
-                title={scene.available ? undefined : 'O arquivo desta cena não foi encontrado'}
+                title={unavailableTitle(scene)}
                 onClick={() => onSelect(scene.id)}
               >
                 {scene.name}
               </button>
-              <span className="lb-cenas__conta">{tokenLabel(scene.tokenCount)}</span>
+              <span className="lb-cenas__conta">{scene.loading === true ? 'carregando…' : tokenLabel(scene.tokenCount)}</span>
               {scene.active && scene.renamable && editing === null && (
                 <button
                   type="button"

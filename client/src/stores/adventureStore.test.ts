@@ -169,6 +169,7 @@ describe('câmera por cena', () => {
       ],
       changedSceneIds: [],
       adventureChanged: false,
+      legacySources: [],
     })
     expect(useAdventureStore.getState().cameraRequest).toBeNull()
     useMapStore.getState().setCamera({ x: -900, y: -400, scale: 3.75 })
@@ -225,6 +226,7 @@ describe('cena indisponível', () => {
       ],
       changedSceneIds: [],
       adventureChanged: false,
+      legacySources: [],
     })
 
     const lista = sceneList(useAdventureStore.getState(), useMapStore.getState().map)
@@ -403,6 +405,7 @@ describe('pino de viagem', () => {
       ],
       changedSceneIds: [],
       adventureChanged: false,
+      legacySources: [],
     })
 
     useAdventureStore.getState().switchScene('s_cripta')

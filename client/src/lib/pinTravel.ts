@@ -228,13 +228,18 @@ function rawLinks(pin: Pin): { id: string; destino: PinDestination | null | unde
 export interface TravelScene {
   name: string
   map: MapData | null
+  /** Sem mapa só por enquanto: a cena ainda está vindo do disco. Ausente = não está carregando. */
+  loading?: boolean
 }
 
 /** Para onde um pino de viagem leva, do ponto de vista da cena onde ele está. */
 export type PinTravel =
   | { status: 'sem-destino' }
-  /** A cena de destino está na aventura, mas o arquivo dela não abriu. */
-  | { status: 'indisponivel'; sceneId: string; sceneName: string }
+  /**
+   * A cena de destino está na aventura, mas o mapa dela não está aqui: o
+   * arquivo não abriu, ou (`loading`) ainda está sendo lido do disco.
+   */
+  | { status: 'indisponivel'; sceneId: string; sceneName: string; loading?: boolean }
   | { status: 'ligado'; sceneId: string; sceneName: string; partner: Pin }
 
 const SEM_DESTINO: PinTravel = { status: 'sem-destino' }
@@ -256,7 +261,10 @@ export function resolvePinTravel(
   if (destino === null || hereSceneId === null || destino.sceneId === hereSceneId) return SEM_DESTINO
   const scene = sceneById(destino.sceneId)
   if (scene === null) return SEM_DESTINO
-  if (scene.map === null) return { status: 'indisponivel', sceneId: destino.sceneId, sceneName: scene.name }
+  if (scene.map === null) {
+    const indisponivel: PinTravel = { status: 'indisponivel', sceneId: destino.sceneId, sceneName: scene.name }
+    return scene.loading === true ? { ...indisponivel, loading: true } : indisponivel
+  }
   const partner = scene.map.pins.find((p) => p.id === destino.pinId)
   if (partner === undefined) return SEM_DESTINO
   if (!leadsTo(partner, { sceneId: hereSceneId, pinId: pin.id })) return SEM_DESTINO
@@ -417,6 +425,8 @@ export interface TravelSceneOption {
   name: string
   /** `false` = o arquivo da cena não abriu: aparece, desabilitada, com o motivo. */
   available: boolean
+  /** A cena ainda está vindo do disco: desabilitada só por enquanto. Ausente = não está carregando. */
+  loading?: boolean
 }
 
 /** Um pino de viagem da cena escolhida, para ligar a um que já existe. */
