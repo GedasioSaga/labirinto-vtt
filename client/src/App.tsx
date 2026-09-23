@@ -6,7 +6,7 @@ import { Toast } from './components/Toast'
 import { useToastStore, type ToastKind } from './stores/toastStore'
 import { ensinaOQueFazer } from './lib/erroQueEnsina'
 import { motivoDaFalhaDeArquivo, temPonteDoApp } from './lib/foraDoApp'
-import { useSessionStore, subscribeToDirtyFlag } from './stores/sessionStore'
+import { useSessionStore, subscribeToDirtyFlag, saveOpenMap } from './stores/sessionStore'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -1196,6 +1196,10 @@ function App() {
    * aventura grava todas as cenas pendentes e o `adventure.json`
    * (`useAdventureStore.flush`). Compartilhado por `handleSave`,
    * `handleGoHome` e `saveAndOpen` — só o que acontece depois muda.
+   *
+   * Já marca como salvo SÓ o que foi gravado (`saveOpenMap` e `flush`): a
+   * edição feita enquanto o disco grava continua não salva. Quem chama não
+   * deve chamar `markSaved()` depois — isso marcaria o mapa de agora.
    */
   const persistMap = async (): Promise<string> => {
     const adventureState = useAdventureStore.getState()
@@ -1205,10 +1209,11 @@ function App() {
       return path
     }
     if (currentMapPath) {
-      await saveMapToPath(map, currentMapPath)
-      return currentMapPath
+      const path = currentMapPath
+      await saveOpenMap((saving) => saveMapToPath(saving, path))
+      return path
     }
-    const path = await saveMapToAppData(map)
+    const path = await saveOpenMap(saveMapToAppData)
     setCurrentMapPath(path)
     return path
   }
@@ -1365,7 +1370,6 @@ function App() {
   const handleSave = async () => {
     try {
       await persistMap()
-      useSessionStore.getState().markSaved()
       useToastStore.getState().push('info', MAP_SAVED_TEXT)
     } catch (err) {
       reportFileError('salvar o mapa', err)
@@ -1376,7 +1380,6 @@ function App() {
   const handleGoHome = async () => {
     try {
       await persistMap()
-      useSessionStore.getState().markSaved()
       useToastStore.getState().push('info', MAP_SAVED_TEXT)
       setScreen('menu')
     } catch (err) {
@@ -1452,7 +1455,6 @@ function App() {
     const pending = pendingOpen
     try {
       await persistMap()
-      useSessionStore.getState().markSaved()
       useToastStore.getState().push('info', MAP_SAVED_TEXT)
     } catch (err) {
       // Falhou salvar: a pergunta CONTINUA aberta. Fechar aqui descartaria o
