@@ -41,3 +41,46 @@ describe('MainMenu', () => {
     expect(onOptions).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('MainMenu: oferta de recuperação', () => {
+  const oferta = (extra: Partial<{ onRecover: () => void; onDismiss: () => void; mapName: string }> = {}) => ({
+    mapName: 'Masmorra do Autosave',
+    savedAtLabel: 'hoje às 14:05',
+    onRecover: vi.fn(),
+    onDismiss: vi.fn(),
+    ...extra,
+  })
+
+  it('sem cópia de recuperação o menu não oferece Recuperar', () => {
+    act(() => root.render(<MainMenu onCreate={vi.fn()} onLoad={vi.fn()} onOptions={vi.fn()} />))
+    expect(container.textContent).not.toContain('Recuperar')
+  })
+
+  it('com cópia, oferece Recuperar com o nome do mapa e a hora, sem esconder o menu', () => {
+    const onRecover = vi.fn()
+    act(() => root.render(<MainMenu onCreate={vi.fn()} onLoad={vi.fn()} onOptions={vi.fn()} recovery={oferta({ onRecover })} />))
+    const recuperar = Array.from(container.querySelectorAll('button')).find((b) => (b.textContent ?? '').startsWith('Recuperar'))
+    expect(recuperar).toBeDefined()
+    expect(container.textContent).toContain('Masmorra do Autosave')
+    expect(container.textContent).toContain('14:05')
+    // Não é modal: os cartões continuam na tela e nada é diálogo.
+    expect(container.querySelector('[role="dialog"], [role="alertdialog"], dialog')).toBeNull()
+    expect(cardTitles()).toEqual(['Criar Mapas', 'Carregar Mapa existente'])
+    act(() => recuperar?.click())
+    expect(onRecover).toHaveBeenCalledTimes(1)
+  })
+
+  it('"Agora não" chama onDismiss', () => {
+    const onDismiss = vi.fn()
+    act(() => root.render(<MainMenu onCreate={vi.fn()} onLoad={vi.fn()} onOptions={vi.fn()} recovery={oferta({ onDismiss })} />))
+    const agoraNao = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Agora não')
+    act(() => agoraNao?.click())
+    expect(onDismiss).toHaveBeenCalledTimes(1)
+  })
+
+  it('nome do mapa vindo do disco é texto, nunca HTML', () => {
+    act(() => root.render(<MainMenu onCreate={vi.fn()} onLoad={vi.fn()} onOptions={vi.fn()} recovery={oferta({ mapName: '<img src=x onerror=alert(1)>' })} />))
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.textContent).toContain('<img src=x onerror=alert(1)>')
+  })
+})

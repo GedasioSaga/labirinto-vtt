@@ -7,6 +7,8 @@ import { useToastStore, type ToastKind } from './stores/toastStore'
 import { ensinaOQueFazer } from './lib/erroQueEnsina'
 import { motivoDaFalhaDeArquivo, temPonteDoApp } from './lib/foraDoApp'
 import { useSessionStore, subscribeToDirtyFlag } from './stores/sessionStore'
+import { restoreRecoveryCopy, startRecoveryAutosave, type RecoveryAutosave } from './stores/recoveryAutosave'
+import { clearRecoveryCopy, formatRecoveryTime, readRecoveryCopy, writeRecoveryCopy, type RecoveryCopy } from './lib/recoveryCopy'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -575,6 +577,17 @@ function App() {
    * arquivo da cena aberta, e quem grava é `useAdventureStore.flush`.
    */
   const [currentMapPath, setCurrentMapPath] = useState<string | null>(null)
+  /** O salvamento automático lê a origem na hora da cópia, fora do render. */
+  const currentMapPathRef = useRef<string | null>(null)
+  /**
+   * Cópia de recuperação deixada por uma abertura anterior que fechou sem
+   * salvar — vira a oferta "Recuperar" no menu inicial. Só vale até o mestre
+   * entrar no editor: dali em diante o salvamento automático desta abertura
+   * pode gravar por cima dela.
+   */
+  const [recoveryCopy, setRecoveryCopy] = useState<RecoveryCopy | null>(null)
+  const recoveryOfferExpiredRef = useRef(false)
+  const recoveryAutosaveRef = useRef<RecoveryAutosave | null>(null)
   /**
    * Troca de mapa que está esperando o mestre responder sobre o trabalho não
    * salvo. `run` é a abertura que já ia acontecer (seletor de arquivo ou
@@ -711,6 +724,47 @@ function App() {
   // Pino de viagem: toda mudança de ligação na cena aberta (ligar, desligar,
   // apagar, Ctrl+Z) é espelhada no par da outra cena.
   useEffect(() => subscribeToTravelLinks(), [])
+
+  useEffect(() => {
+    currentMapPathRef.current = currentMapPath
+  }, [currentMapPath])
+
+  /**
+   * Salvamento automático com recuperação: ao abrir, procura a cópia de
+   * recuperação de uma abertura anterior (oferta no menu); enquanto o mestre
+   * edita, guarda a cópia sozinho. Só no app (Tauri) — no `vite` puro dos
+   * testes e2e sem a ponte não existe disco, mesmo guard do efeito abaixo.
+   * Ler a cópia é melhor esforço: sem cópia legível não há o que oferecer, e
+   * um erro ali não pode virar aviso na tela inicial.
+   */
+  useEffect(() => {
+    if (!isTauri()) return
+    let cancelled = false
+    readRecoveryCopy()
+      .then((copy) => {
+        if (!cancelled && !recoveryOfferExpiredRef.current) setRecoveryCopy(copy)
+      })
+      .catch(() => undefined)
+    const autosave = startRecoveryAutosave({
+      storage: { write: writeRecoveryCopy, clear: clearRecoveryCopy },
+      getLooseMapPath: () => currentMapPathRef.current,
+      onError: (err) => reportFileError('guardar a cópia de recuperação', err),
+    })
+    recoveryAutosaveRef.current = autosave
+    return () => {
+      cancelled = true
+      autosave.stop()
+      recoveryAutosaveRef.current = null
+    }
+  }, [])
+
+  // Entrou no editor (mapa novo, aberto ou recuperado): a oferta do menu
+  // deixa de valer, porque o salvamento automático desta abertura assume a cópia.
+  useEffect(() => {
+    if (screen !== 'editor') return
+    recoveryOfferExpiredRef.current = true
+    setRecoveryCopy(null)
+  }, [screen])
 
   /**
    * Avisa antes de fechar a janela (X, Alt+F4, taskbar) se houver edição não
@@ -1510,6 +1564,17 @@ function App() {
     setScreen('editor')
   }
 
+  /**
+   * "Recuperar" do menu (`restoreRecoveryCopy`): o trabalho não salvo volta
+   * ao editor como NÃO salvo, apontado para o arquivo de onde veio, e a cópia
+   * passa a ser desta abertura — Salvar a apaga.
+   */
+  const handleRecover = async (copy: RecoveryCopy) => {
+    setCurrentMapPath(await restoreRecoveryCopy(copy, openMapFile))
+    recoveryAutosaveRef.current?.adoptExistingCopy()
+    setScreen('editor')
+  }
+
   const handleImportBackground = async () => {
     try {
       const sourcePath = await pickBackgroundImage()
@@ -1568,6 +1633,14 @@ function App() {
           onCreate={() => setScreen(createMapScreen())}
           onLoad={() => setScreen('load-map')}
           onOptions={() => setScreen('options')}
+          recovery={
+            recoveryCopy && {
+              mapName: recoveryCopy.map.name,
+              savedAtLabel: formatRecoveryTime(recoveryCopy.savedAtMs, Date.now()),
+              onRecover: () => void handleRecover(recoveryCopy),
+              onDismiss: () => setRecoveryCopy(null),
+            }
+          }
         />
         {toastStack}
       </>
