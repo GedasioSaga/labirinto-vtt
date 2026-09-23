@@ -3,7 +3,10 @@ import type { AlignEdge, DistributeAxis } from '../lib/alignDistribute'
 import './AlignDistributeControls.css'
 
 export interface AlignDistributeControlsProps {
-  /** Quantos itens estão selecionados. Menos de 2: a seção não aparece. */
+  /**
+   * Quantos BLOCOS independentes a seleção tem (`selectAlignableUnitCount`:
+   * Sala + paredes dela = 1), não quantas entradas. Menos de 2: a seção não aparece.
+   */
   count: number
   onAlign: (edge: AlignEdge) => void
   onDistribute: (axis: DistributeAxis) => void

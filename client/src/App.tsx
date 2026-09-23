@@ -29,7 +29,7 @@ import { MapTypePicker } from './screens/MapTypePicker'
 import { NewDungeonMap } from './screens/NewDungeonMap'
 import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
-import { useMapStore } from './stores/mapStore'
+import { selectAlignableUnitCount, useMapStore } from './stores/mapStore'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
   hasUnsavedWork,
@@ -258,6 +258,8 @@ function App() {
   const gridShape = useMapStore((state) => state.map.gridShape)
   const setGridShapeAction = useMapStore((state) => state.setGridShape)
   const selection = useMapStore((state) => state.selection)
+  // Blocos que andam no alinhar (Sala + paredes = 1), não entradas da seleção.
+  const alignableCount = useMapStore(selectAlignableUnitCount)
   const setSelection = useMapStore((state) => state.setSelection)
   const removeSelected = useMapStore((state) => state.removeSelected)
   // Onda 3, item 20 (Frente D) — histórico deixa de ser invisível: botões
@@ -1740,7 +1742,7 @@ function App() {
               onClear: () => setSelection(EMPTY_SELECTION),
             }}
             alignDistribute={{
-              count: selection.length,
+              count: alignableCount,
               onAlign: (edge) => useMapStore.getState().alignSelection(edge),
               onDistribute: (axis) => useMapStore.getState().distributeSelection(axis),
             }}

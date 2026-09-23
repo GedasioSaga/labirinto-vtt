@@ -31,7 +31,7 @@ const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPoly
 import { describeBlockedMove } from '../lib/moveValidation'
 import { DEFAULT_PATH_WIDTH_CELLS, DEFAULT_TEXT_FONT_FAMILY, clampPathWidthCells, convertLineToCurve, convertCurveToLine } from '../lib/drawingFactory'
 import { moveAreaSelection, areaSelectionBounds } from '../lib/areaSelection'
-import { alignSelectionItems, distributeSelectionItems, type AlignEdge, type DistributeAxis } from '../lib/alignDistribute'
+import { alignableUnitCount, alignSelectionItems, distributeSelectionItems, type AlignEdge, type DistributeAxis } from '../lib/alignDistribute'
 import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, TOOL_CLUSTERS } from '../components/labels'
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
@@ -1599,3 +1599,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     },
   }
 }))
+
+/**
+ * Quantos blocos o painel "Alinhar e distribuir" deve contar: blocos que andam
+ * inteiros, não entradas da seleção. O laço numa Sala sozinha põe 5 entradas
+ * (a região e as 4 paredes), mas é 1 bloco — com `selection.length` o painel
+ * mostraria botões clicáveis que não fazem nada. Seletor de número: o
+ * componente só re-renderiza quando a contagem muda.
+ */
+export function selectAlignableUnitCount(state: Pick<MapStoreState, 'map' | 'selection'>): number {
+  return alignableUnitCount(state.map, state.selection)
+}
