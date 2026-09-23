@@ -713,6 +713,51 @@ function arquivosDeUnidade() {
     .sort()
 }
 
+/**
+ * Os arquivos de teste de unidade que existem NO DISCO agora — não no índice do
+ * git. Achado da auditoria de 23/09/2026: `git ls-files` continua listando um
+ * arquivo apagado do disco sem `git rm`, então a contagem pelo índice não
+ * encolhia e a g24 saía verde com o teste fora.
+ */
+function arquivosDeUnidadeNoDisco() {
+  let nomes
+  try {
+    nomes = fs.readdirSync(path.join(CLIENTE, 'src'), { recursive: true })
+  } catch (e) {
+    return null
+  }
+  return nomes
+    .map((n) => 'src/' + String(n).split(path.sep).join('/'))
+    .filter((n) => /\.test\.tsx?$/.test(n) && n.indexOf('/node_modules/') === -1)
+    .sort()
+}
+
+/**
+ * O JUIZ DO ACERVO: o `merge-base` entre esta árvore e `auto/acervo`.
+ *
+ * `auto/acervo` é o ramo do orquestrador: tudo o que está no merge-base foi
+ * escrito ANTES desta árvore divergir, ou trazido por merge do próprio acervo,
+ * e nenhum commit desta árvore o move. É o juiz da suíte de unidade (g24) e das
+ * réguas (g35). A base do run (`baseDoRun`, do manifesto de partição) ficou
+ * velha — `auto/base-pecas-21set`, 144 arquivos de teste contra 189 medidos
+ * em 23/09/2026 —, e juiz velho deixa sem piso tudo o que nasceu depois dele.
+ * O nome do ramo é constante AQUI, e não variável de ambiente: quem é julgado
+ * não escolhe o juiz.
+ */
+const REF_DO_ACERVO = 'auto/acervo'
+/** Ramos onde régua PODE mudar: o acervo e as lanes de réguas/infra do orquestrador. */
+const RAMOS_DE_REGUAS = /^auto\/(acervo|lane-infra|reguas-[\w.-]+)$/
+let juizDoAcervoMemo = null
+function juizDoAcervo() {
+  if (juizDoAcervoMemo) return juizDoAcervoMemo
+  const ramo = String(git(['rev-parse', '--abbrev-ref', 'HEAD']) || '').trim() || '?'
+  const base = String(git(['merge-base', 'HEAD', REF_DO_ACERVO]) || '').trim() || null
+  juizDoAcervoMemo = base
+    ? { ramo, base, ref: 'merge-base(HEAD, ' + REF_DO_ACERVO + ') = ' + base.slice(0, 8), erro: null }
+    : { ramo, base: null, ref: null, erro: 'sem merge-base com ' + REF_DO_ACERVO + ' (o ramo existe nesta máquina?)' }
+  return juizDoAcervoMemo
+}
+
 /** Os mesmos arquivos COMO ESTAVAM no commit base do run — o juiz de quem encolheu. */
 function arquivosDeUnidadeNaBase(base) {
   if (!base) return null
@@ -830,8 +875,13 @@ function guardaJornadaNovaSemComando(novas, alcancados, medida) {
  * um arquivo trivial e sair verde com o teste de vazamento do jogador fora —
  * a guarda de ARQUIVOS conta pelo índice do git, não pelo disco. Subido para o
  * medido.
+ *
+ * 23/09/2026: 2299 estava velho de cinco dias — a suíte tinha 2850 testes em
+ * 189 arquivos (medido em lane-defeitos, lane-passeio e no instantâneo da G12,
+ * todos no mesmo acervo). Com 551 testes de folga dava para apagar arquivos
+ * inteiros e sair verde. Subido para o medido.
  */
-const PISO_DE_TESTES_DE_UNIDADE = 2299
+const PISO_DE_TESTES_DE_UNIDADE = 2850
 
 /**
  * Relatório de vitest sintético, só para o autoteste das guardas: os fixtures
@@ -903,6 +953,14 @@ function guardaSemOnlyNemSkip(arquivo, texto) {
  * fato do repositório, não um número que uma peça possa baixar. Apagar um
  * arquivo de teste derruba a contagem de agora e deixa o piso onde estava.
  * Renomear não reprova (a contagem não muda), apagar reprova com o nome.
+ *
+ * 23/09/2026 — O CONJUNTO, não a contagem. A auditoria da Fase 0 das lanes
+ * G10/G12/G13 apagou `mandarPara.test.ts` e `hostBridge.test.ts` e o passo saiu
+ * VERDE: a contagem era pelo índice do git (o arquivo apagado continuava lá) e
+ * trocar um arquivo por outro não mudava o número. Agora `agora` vem do DISCO
+ * (`arquivosDeUnidadeNoDisco`), `naBase` do juiz do acervo, e TODO arquivo da
+ * base tem de existir — sumido é vermelho com o nome, mesmo que a suíte tenha
+ * crescido. Renomear passa a reprovar: o nome antigo sumiu.
  */
 function guardaEscalaDaUnidade(agora, naBase, medida) {
   if (!naBase) {
@@ -913,12 +971,16 @@ function guardaEscalaDaUnidade(agora, naBase, medida) {
       'scripts/portao-particao.json ("base")',
     )
   }
-  const sumiram = naBase.filter((a) => agora.indexOf(a) === -1)
-  if (agora.length < naBase.length) {
+  if (!agora) {
+    return reprova('g24-unidade-nao-encolheu', 'não deu para listar os arquivos de teste do disco (client/src)', 'client/src')
+  }
+  const noDisco = new Set(agora)
+  const sumiram = naBase.filter((a) => !noDisco.has(a))
+  if (sumiram.length > 0 || agora.length < naBase.length) {
     return reprova(
       'g24-unidade-nao-encolheu',
-      'a suíte de unidade encolheu: ' + agora.length + ' arquivos agora contra ' + naBase.length + ' na base' +
-        (sumiram.length > 0 ? ' — sumiram ' + sumiram.join(', ') : ''),
+      'a suíte de unidade perdeu arquivo desde ' + ((medida && medida.ref) || 'a base') + ': ' + agora.length +
+        ' no disco contra ' + naBase.length + ' na base' + (sumiram.length > 0 ? ' — SUMIRAM ' + sumiram.join(', ') : ''),
       'client/src (arquivos *.test.ts*)',
     )
   }
@@ -929,10 +991,22 @@ function guardaEscalaDaUnidade(agora, naBase, medida) {
   )
 }
 
-/** O piso de arquivos que o passo `unidade` cobra, lido do commit base do run. */
+/** O piso de arquivos que o passo `unidade` cobra, lido do juiz do acervo. */
 function pisoDeArquivosDeUnidade() {
-  const naBase = arquivosDeUnidadeNaBase(baseDoRun().base)
+  const naBase = arquivosDeUnidadeNaBase(juizDoAcervo().base)
   return naBase === null ? null : naBase.length
+}
+
+/**
+ * Antes de subir o vitest (e de pegar vaga): algum arquivo de teste do juiz
+ * sumiu do disco? Então o passo sai VERMELHO na hora, com o nome — rodar 25
+ * min de suíte sob carga para chegar ao mesmo veredito pelo piso não compra
+ * nada. Devolve `null` quando está tudo no disco.
+ */
+function unidadeSemArquivoSumido() {
+  const juiz = juizDoAcervo()
+  const r = guardaEscalaDaUnidade(arquivosDeUnidadeNoDisco(), arquivosDeUnidadeNaBase(juiz.base), juiz)
+  return r.ok ? null : { codigo: 1, saida: 'VERMELHO antes do vitest — ' + r.detalhe + '\n' }
 }
 
 /**
@@ -1284,6 +1358,61 @@ function guardaOrdemDoPlano(plano) {
     return reprova('g11-ordem-do-plano', 'a sonda do servidor roda DEPOIS das jornadas — tarde demais para valer', 'scripts/portao.cjs (PLANO)')
   }
   return ok('g11-ordem-do-plano', 'servidor-limpo vem antes das jornadas')
+}
+
+/**
+ * g35 — régua que já estava no acervo só muda em ramo de réguas.
+ *
+ * FALSO-VERDE PROVADO (auditoria das lanes G10/G12/G13, 23/09/2026): `g12` e o
+ * passo `jornadas-intactas` comparavam as jornadas com o selo DA PRÓPRIA
+ * árvore. A lane edita a régua, roda `--selar`, e volta verde — o réu
+ * carimbando o próprio juiz.
+ *
+ * O critério mais simples que fecha o furo: o juiz é o CONTEÚDO de cada
+ * jornada no merge-base com `auto/acervo` (ver `juizDoAcervo`), não o selo. Se
+ * um `*.spec.ts` que já existia ali está diferente (ou sumiu) no disco, só
+ * passa quando o ramo atual é de réguas (`auto/acervo`, `auto/lane-infra`,
+ * `auto/reguas-*`). O que o acervo recebe por merge já está no merge-base, então
+ * régua mexida pelo orquestrador nunca acusa lane nenhuma; o que muda DEPOIS
+ * dele numa lane é, por construção, da lane. Jornada NOVA (fora do merge-base)
+ * não entra aqui: quem a julga é o commit em que nasceu, como sempre.
+ * Recarimbar o selo local não muda nada disto — o selo nem é lido.
+ */
+function guardaReguasDesdeOAcervo(mudadas, juiz) {
+  if (!juiz || juiz.erro || !juiz.base) {
+    return reprova('g35-reguas-do-acervo', 'sem juiz para as réguas: ' + ((juiz && juiz.erro) || 'merge-base não resolveu'), 'git (' + REF_DO_ACERVO + ')')
+  }
+  if (mudadas === null) {
+    return reprova('g35-reguas-do-acervo', 'git diff não respondeu: sem lista de réguas mudadas não há juízo', 'git diff ' + juiz.base.slice(0, 8))
+  }
+  if (mudadas.length === 0) {
+    return ok('g35-reguas-do-acervo', 'nenhuma régua mudou desde ' + juiz.ref + ' (ramo ' + juiz.ramo + ')')
+  }
+  if (RAMOS_DE_REGUAS.test(juiz.ramo)) {
+    return ok(
+      'g35-reguas-do-acervo',
+      mudadas.length + ' régua(s) mudada(s) desde ' + juiz.ref + ' no ramo de réguas ' + juiz.ramo + ': ' + mudadas.join(', '),
+    )
+  }
+  return reprova(
+    'g35-reguas-do-acervo',
+    mudadas.length + ' régua(s) mudada(s) ou apagada(s) desde ' + juiz.ref + ' num ramo que NÃO é de réguas (' + juiz.ramo + '): ' +
+      mudadas.join(', ') + '. Selar de novo na lane não conserta — régua só muda em auto/acervo, auto/lane-infra ou auto/reguas-*.',
+    'client/e2e',
+  )
+}
+
+/** Os `*.spec.ts` de `client/e2e` que existiam no juiz e estão diferentes (ou sumiram) no disco. */
+function reguasMudadasDesde(base) {
+  if (!base) return null
+  const saida = git(['diff', '--name-only', '--no-renames', '--diff-filter=MD', base, '--', 'client/e2e'])
+  if (saida === null) return null
+  return saida
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => /\.spec\.ts$/.test(s))
+    .map((s) => s.replace(/^client\//, ''))
+    .sort()
 }
 
 /**
@@ -2528,6 +2657,21 @@ function matarArvore(pid) {
 }
 
 /**
+ * Mata (com a árvore) quem escuta na porta e devolve os PIDs mortos. Só para o
+ * pós-teto: é o que alcança o vite órfão que `matarArvore` não alcança.
+ */
+function matarQuemOcupaAPorta(porta) {
+  const mortos = []
+  for (const dono of quemOcupaAPorta(porta)) {
+    const pid = Number((/^PID (\d+)/.exec(dono) || [])[1])
+    if (!pid || pid === process.pid) continue
+    matarArvore(pid)
+    mortos.push(pid)
+  }
+  return mortos
+}
+
+/**
  * O `spawnSync` do passo, com teto. Devolve a mesma forma (`status`, `stdout`,
  * `stderr`, `error`) mais `estourou` e `tetoMs`. Assíncrono porque só assim dá
  * para matar a ÁRVORE enquanto o pai ainda vive: o `timeout` do `spawnSync`
@@ -2665,6 +2809,8 @@ const PLANO = [
     // para aguentar. Uma fila só mantém o teto de carga que o número de vagas
     // promete; o custo é o vitest (1-3 min) esperar atrás de uma jornada.
     vaga: 'vitest',
+    // Arquivo de teste do juiz sumido do disco: vermelho ANTES da vaga e do vitest.
+    previo: unidadeSemArquivoSumido,
     // Reprise: ruína de INFRAESTRUTURA do runner (worker que não subiu) roda o
     // passo de novo UMA vez, e só vale a segunda — ver `precisaDeReprise`. O
     // `piso` continua valendo na segunda: 105 de 189 arquivos nunca sai verde.
@@ -3123,9 +3269,14 @@ function sondarJornadasIntactas() {
     }
     const daBase = hashesDaBaseDasJornadas(JORNADAS_SELADAS)
     const r = guardaJornadasIntactas(selo, textos, JORNADAS_SELADAS, daBase.hashes)
+    // O selo é da própria árvore — e a árvore pode recarimbá-lo. O juiz que ela
+    // não alcança é o merge-base com o acervo (ver `guardaReguasDesdeOAcervo`).
+    const juiz = juizDoAcervo()
+    const doAcervo = guardaReguasDesdeOAcervo(reguasMudadasDesde(juiz.base), juiz)
     return {
-      codigo: r.ok ? 0 : 1,
+      codigo: r.ok && doAcervo.ok ? 0 : 1,
       saida:
+        (doAcervo.ok ? '' : 'VERMELHO ') + doAcervo.id + ': ' + doAcervo.detalhe + '\n' +
         r.detalhe + '\nselo de ' + (selo.selado_em || '?') +
         '\nbase do run para as jornadas fora do selo: ' + (daBase.base ? daBase.ref + ' = ' + daBase.base.slice(0, 8) : 'NÃO RESOLVEU (' + daBase.erro + ')') +
         // Qual jornada está sendo julgada pelo commit em que NASCEU sai
@@ -3679,6 +3830,12 @@ function vereditoDeDiscoParaCargo(passo, livreGb, quente, ms) {
  * falso-verde lê.
  */
 async function rodarPasso(passo) {
+  // Barreira barata antes da fila: veredito que não depende de rodar nada.
+  const barreira = passo.previo ? passo.previo() : null
+  if (barreira) {
+    const v = julgarSaida(passo, barreira.codigo, barreira.saida)
+    return { id: passo.id, titulo: passo.titulo, codigo: barreira.codigo, ms: 0, ok: v.ok, falsoVerde: v.falsoVerde, ruina: v.ruina, saida: barreira.saida }
+  }
   const vaga = precisaDeVaga(passo) ? pegarVaga(passo) : null
   try {
     let r = await rodarPassoNaVaga(passo)
@@ -3807,7 +3964,16 @@ async function rodarPassoNaVaga(passo) {
     if (r.estourou) {
       codigo = 1
       estourouTeto = true
-      saida = linhaDeTeto(r.tetoMs, rotuloDaVaga(passo)) + '\n' + saida
+      // O vite do webServer pode ter ficado FORA da árvore (o `npm`/`cmd` pai
+      // dele já morreu — medido na fumaça de 23/09/2026: vite órfão na porta,
+      // pai inexistente). `taskkill /T` anda pelos pais vivos e não o alcança.
+      // A porta é desta árvore, e ninguém mais a abre: quem ainda a ocupa depois
+      // do teto é o órfão deste passo.
+      const orfaos = passo.artefatos ? matarQuemOcupaAPorta(PORTA_DAS_JORNADAS) : []
+      saida =
+        linhaDeTeto(r.tetoMs, rotuloDaVaga(passo)) + '\n' +
+        (orfaos.length > 0 ? 'órfão(s) na porta ' + PORTA_DAS_JORNADAS + ' morto(s) também: PID ' + orfaos.join(', ') + '\n' : '') +
+        saida
     }
     // DISCO CHEIO tem nome, e o nome não é o da peça.
     //
@@ -3938,7 +4104,9 @@ function rodarFase0() {
       const absoluto = path.join(CLIENTE, arquivo)
       if (fs.existsSync(absoluto)) textosUnidade[arquivo] = fs.readFileSync(absoluto, 'utf8')
     }
-    resultados.push(guardaEscalaDaUnidade(listaUnidade, arquivosDeUnidadeNaBase(medidaParaUnidade.base), medidaParaUnidade))
+    // g24 julga o DISCO contra o juiz do acervo (ver `guardaEscalaDaUnidade`).
+    const juizDaUnidade = juizDoAcervo()
+    resultados.push(guardaEscalaDaUnidade(arquivosDeUnidadeNoDisco(), arquivosDeUnidadeNaBase(juizDaUnidade.base), juizDaUnidade))
     resultados.push(guardaUnidadeSemOnlyNemSkip(textosUnidade))
     resultados.push(guardaUnidadeSemAssertTautologico(textosUnidade))
     const mexidos = {}
@@ -3976,6 +4144,8 @@ function rodarFase0() {
   }
   const daBase = hashesDaBaseDasJornadas(JORNADAS_SELADAS)
   resultados.push(guardaJornadasIntactas(selo, textosSelados, JORNADAS_SELADAS, daBase.hashes))
+  // O selo acima é da própria árvore; o juiz que a árvore não reescreve é este.
+  resultados.push(guardaReguasDesdeOAcervo(reguasMudadasDesde(juizDoAcervo().base), juizDoAcervo()))
 
   // Base do esquema = o `types/map.ts` do COMMIT BASE DO RUN, não o de HEAD.
   //
@@ -4925,6 +5095,42 @@ async function rodarAutoteste() {
     ],
     ['g24 aprova suíte do mesmo tamanho', guardaEscalaDaUnidade(['src/a.test.ts'], ['src/a.test.ts'], { ref: 'base' }), true],
     ['g24 aprova suíte que cresceu', guardaEscalaDaUnidade(['src/a.test.ts', 'src/b.test.ts'], ['src/a.test.ts'], { ref: 'base' }), true],
+    // 23/09/2026 — o furo da auditoria: trocar um arquivo por outro não muda a contagem.
+    [
+      'g24 reprova arquivo da base trocado por outro (mesma contagem)',
+      guardaEscalaDaUnidade(['src/a.test.ts', 'src/trivial.test.ts'], ['src/a.test.ts', 'src/mandarPara.test.ts'], { ref: 'base' }),
+      false,
+    ],
+    ['g24 reprova sem lista do disco', guardaEscalaDaUnidade(null, ['src/a.test.ts'], { ref: 'base' }), false],
+    // g35 — régua do acervo só muda em ramo de réguas; o selo local não conta.
+    ['g35 reprova sem juiz do acervo', guardaReguasDesdeOAcervo([], { erro: 'sem merge-base', ramo: 'x' }), false],
+    ['g35 reprova sem lista do git', guardaReguasDesdeOAcervo(null, { base: 'abcdef12', ref: 'mb', ramo: 'auto/g10' }), false],
+    ['g35 aprova nada mudado', guardaReguasDesdeOAcervo([], { base: 'abcdef12', ref: 'mb', ramo: 'auto/g10' }), true],
+    [
+      'g35 reprova régua mudada numa lane (mesmo com selo recarimbado)',
+      guardaReguasDesdeOAcervo(['e2e/task-jornada-girar-sala.spec.ts'], { base: 'abcdef12', ref: 'mb', ramo: 'auto/g10-viajar-junto' }),
+      false,
+    ],
+    [
+      'g35 reprova régua mudada em HEAD destacado (instantâneo de lane)',
+      guardaReguasDesdeOAcervo(['e2e/task-jornada-girar-sala.spec.ts'], { base: 'abcdef12', ref: 'mb', ramo: 'HEAD' }),
+      false,
+    ],
+    [
+      'g35 aprova régua mudada em auto/reguas-*',
+      guardaReguasDesdeOAcervo(['e2e/task-jornada-girar-sala.spec.ts'], { base: 'abcdef12', ref: 'mb', ramo: 'auto/reguas-a' }),
+      true,
+    ],
+    [
+      'g35 aprova régua mudada em auto/lane-infra',
+      guardaReguasDesdeOAcervo(['e2e/task-jornada-girar-sala.spec.ts'], { base: 'abcdef12', ref: 'mb', ramo: 'auto/lane-infra' }),
+      true,
+    ],
+    [
+      'g35 reprova ramo que só PARECE de réguas',
+      guardaReguasDesdeOAcervo(['e2e/task-jornada-girar-sala.spec.ts'], { base: 'abcdef12', ref: 'mb', ramo: 'auto/acervo-g10' }),
+      false,
+    ],
     // g34 — `unidade` sob carga: vaga, teto de workers e reprise SÓ por infraestrutura do runner.
     [
       'g34 aprova unidade na fila de máquina com teto de workers',
@@ -5028,7 +5234,39 @@ async function casosDeTetoDoPlaywright() {
   const saida = linhaDeTeto(r.tetoMs) + '\n' + r.stdout
   const veredito = julgarSaida(passo, 1, saida)
   const rapido = await rodarComTeto(process.execPath, ['-e', "process.stdout.write('ok')"], opcoes, 60000)
+  // O órfão fora da árvore: um node escutando numa porta sorteada, que NÃO é
+  // filho de ninguém que o teto mate. Só `matarQuemOcupaAPorta` o alcança.
+  const orfao = spawn(
+    process.execPath,
+    ['-e', "const s=require('net').createServer().listen(0,'127.0.0.1',()=>process.stdout.write('porta='+s.address().port));setTimeout(()=>{},60000)"],
+    { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true },
+  )
+  const portaDoOrfao = await new Promise((pronto) => {
+    let lido = ''
+    const desiste = setTimeout(() => pronto(0), 15000)
+    orfao.stdout.on('data', (d) => {
+      lido += d
+      const m = /porta=(\d+)/.exec(lido)
+      if (m) {
+        clearTimeout(desiste)
+        pronto(Number(m[1]))
+      }
+    })
+  })
+  const mortosNaPorta = portaDoOrfao > 0 ? matarQuemOcupaAPorta(portaDoOrfao) : []
+  await new Promise((pronto) => setTimeout(pronto, 500))
+  const orfaoVivo = pidVivo(orfao.pid)
+  if (orfaoVivo) {
+    try {
+      orfao.kill()
+    } catch (e) {}
+  }
   return [
+    caso(
+      'g33 órfão fora da árvore escutando na porta morre pelo dono da porta',
+      process.platform !== 'win32' || (portaDoOrfao > 0 && mortosNaPorta.indexOf(orfao.pid) !== -1 && !orfaoVivo),
+      'porta ' + portaDoOrfao + ', mortos ' + JSON.stringify(mortosNaPorta) + ', pid ' + orfao.pid + (orfaoVivo ? ' VIVO' : ' morto'),
+    ),
     caso(
       'g33 teto estoura processo travado e mata a árvore (pai e neto)',
       r.estourou === true && neto > 0 && !netoVivo && levou < 20000,
