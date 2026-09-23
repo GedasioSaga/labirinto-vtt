@@ -6,6 +6,7 @@ import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/las
 import {
   createHostSession,
   singleSceneWorld,
+  type AppliedDoor,
   type AppliedTokenEdit,
   type AppliedTransfer,
   type HostResult,
@@ -218,6 +219,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const travelToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
+  /** Último aviso de porta de cada jogador: `playerId` -> id do toast. */
+  const doorToasts = new Map<string, string>()
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
@@ -449,6 +452,19 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
+   * "Ana abriu a porta" / "Ana fechou a porta" (com "em Cripta" quando é numa
+   * cena de fundo). Aviso comum, some sozinho; o novo do mesmo jogador
+   * substitui o anterior dele para o abre-e-fecha não empilhar.
+   */
+  const announceDoor = (door: AppliedDoor) => {
+    const previous = doorToasts.get(door.playerId)
+    if (previous !== undefined) useToastStore.getState().dismiss(previous)
+    const where = door.sceneName === undefined ? '' : ` em ${door.sceneName}`
+    const text = `${door.playerName} ${door.open ? 'abriu' : 'fechou'} a porta${where}`
+    doorToasts.set(door.playerId, useToastStore.getState().push('info', text))
+  }
+
+  /**
    * Pedido de passagem válido: vira um aviso que ESPERA o mestre (não some
    * sozinho — o jogador está parado olhando "Aguardando o mestre…"). O × vale
    * "Não": a pergunta nunca some sem resposta. Grupo "Pedidos": com dois ou
@@ -502,6 +518,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (sceneId === undefined) deps.applyDoor(wallId, open)
       else deps.applyDoor(wallId, open, sceneId)
       broadcastNow()
+      announceDoor(result.applyDoor)
     }
     if (result.travelRequest !== undefined) {
       if (deps.applyTransfer === undefined) {

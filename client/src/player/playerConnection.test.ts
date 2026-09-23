@@ -360,6 +360,15 @@ describe('createPlayerConnection', () => {
     expect(connection.getState().doorNotice).toBeUndefined()
   })
 
+  it('porta que não fecha porque há alguém no vão vira o aviso "blocked"', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'door.toggle.rejected', wallId: 'w1', reason: 'blocked' })
+    expect(connection.getState().doorNotice).toMatchObject({ reason: 'blocked' })
+  })
+
   it('signal recebido entra no estado com nome e cor e some em 3 s; malformado ou fora do jogo é descartado', () => {
     vi.useFakeTimers()
     const { connection, socket } = setup()

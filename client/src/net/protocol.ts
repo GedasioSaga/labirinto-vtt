@@ -159,8 +159,12 @@ export type PlayerMessage =
   | PinTravelRequestMessage
   | PlayerLaserMessage
 
-/** Por que o host recusou o pedido de porta do jogador. */
-export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
+/**
+ * Por que o host recusou o pedido de porta do jogador. `blocked`: fechar com
+ * uma ficha que ele VÊ no vão (nunca diz qual). Aditivo: jogador antigo
+ * descarta o motivo que não conhece, e fica só sem o aviso.
+ */
+export type DoorToggleRejection = 'locked' | 'far' | 'not_visible' | 'blocked'
 
 /**
  * Por que o host recusou o pedido de passagem SEM levar ao mestre. Genérico de

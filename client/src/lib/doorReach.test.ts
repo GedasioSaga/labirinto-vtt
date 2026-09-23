@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Token, Wall } from '../types/map'
-import { DOOR_REACH_CELLS, distanceToWall, findDoorAt, tokenReachesDoor } from './doorReach'
+import { DOOR_REACH_CELLS, distanceToWall, findDoorAt, tokenInDoorway, tokenReachesDoor } from './doorReach'
 
 const GRID = 50
 
@@ -41,6 +41,23 @@ describe('tokenReachesDoor', () => {
 
   it('parede sem porta nunca é alcançada', () => {
     expect(tokenReachesDoor(token(101, 150), { ...wall, door: null }, GRID)).toBe(false)
+  })
+})
+
+describe('tokenInDoorway', () => {
+  const wall = door('w', 100, 100, 100, 200)
+
+  it('o disco da ficha cruza a porta: está no vão; só encostar na borda não está', () => {
+    // Token de 1 célula: raio 25.
+    expect(tokenInDoorway(token(100, 150), wall, GRID)).toBe(true)
+    expect(tokenInDoorway(token(120, 150), wall, GRID)).toBe(true)
+    expect(tokenInDoorway(token(125, 150), wall, GRID)).toBe(false)
+    expect(tokenInDoorway(token(75, 150), wall, GRID)).toBe(false)
+  })
+
+  it('ficha grande ocupa o vão de mais longe; parede sem porta não tem vão', () => {
+    expect(tokenInDoorway(token(140, 150, 2), wall, GRID)).toBe(true)
+    expect(tokenInDoorway(token(100, 150), { ...wall, door: null }, GRID)).toBe(false)
   })
 })
 
