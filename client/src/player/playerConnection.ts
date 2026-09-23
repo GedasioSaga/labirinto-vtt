@@ -40,8 +40,11 @@ import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type Point
  * e avisa os ouvintes (encaixa em `useSyncExternalStore`).
  */
 
-/** `closed`: o mestre avisou que encerrou a sala (`room.closed`) — fim de sessão, não falha de rede. */
-export type PlayerStatus = 'connecting' | 'waiting' | 'playing' | 'kicked' | 'closed' | 'error'
+/**
+ * `closed`: o mestre avisou que encerrou a sala (`room.closed`) — fim de sessão, não falha de rede.
+ * `replaced`: a mesma pessoa entrou por outra aba ou aparelho (`session.replaced`) — esta aba para.
+ */
+export type PlayerStatus = 'connecting' | 'waiting' | 'playing' | 'kicked' | 'closed' | 'error' | 'replaced'
 
 export interface PlayerState {
   status: PlayerStatus
@@ -764,7 +767,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   /** Depois de kicked/closed/error a queda é esperada: o mestre derrubou de propósito. */
   function sessionOver(): boolean {
-    return state.status === 'kicked' || state.status === 'closed' || state.status === 'error'
+    return state.status === 'kicked' || state.status === 'closed' || state.status === 'error' || state.status === 'replaced'
   }
 
   /** O socket atual morreu (com ou sem `close`): volta sozinho, ou explica na tela. */
@@ -1080,6 +1083,21 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearReconnectTimers()
         forgetPointActions()
         setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined })
+        return
+      case 'session.replaced':
+        // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
+        // da aba nova, e apagar aqui tiraria a volta das duas. Sem reconexão
+        // automática — voltar sozinha tomaria a sessão de volta, e a outra aba
+        // faria o mesmo. Só o "Usar aqui" (`reconnect`) traz de volta.
+        pending.clear()
+        clearSignalTimers()
+        clearLaserTimer()
+        clearDoorNotice()
+        clearTravelTimer()
+        clearCallTimer()
+        clearReconnectTimers()
+        stopPing()
+        setState({ status: 'replaced', doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'

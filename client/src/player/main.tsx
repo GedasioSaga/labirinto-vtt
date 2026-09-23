@@ -98,6 +98,33 @@ function localStorageOrNull(): StorageLike | null {
   }
 }
 
+/**
+ * Onde mora o resume do mestre: no APARELHO (`localStorage`), e não na aba.
+ * Na aba, reabrir o QR numa aba nova (o celular descartou a velha, o link veio
+ * de novo pelo grupo) não achava o resume e a Ana virava "Ana (2)", sem ficha
+ * e sem o explorado. Lê também o da aba (`sessionStorage`), onde a versão
+ * anterior guardava: quem atualiza o app no meio da mesa não perde a volta.
+ * Gravar leva para o aparelho; apagar apaga dos dois. Qualquer acesso pode
+ * lançar (site bloqueado) — quem chama já trata.
+ */
+function resumeStorageOrNull(): StorageLike | null {
+  const device = localStorageOrNull()
+  const tab = sessionStorageOrNull()
+  if (device === null) return tab
+  return {
+    // Aba sem storage de sessão é caso legítimo (bloqueado): só não há o que ler lá.
+    getItem: (key) => device.getItem(key) ?? tab?.getItem(key) ?? null,
+    setItem: (key, value) => {
+      device.setItem(key, value)
+      tab?.removeItem(key)
+    },
+    removeItem: (key) => {
+      device.removeItem(key)
+      tab?.removeItem(key)
+    },
+  }
+}
+
 function socketUrl(): string {
   const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
   return `${protocol}://${location.host}/ws`
@@ -210,14 +237,15 @@ function rememberLastJoin(value: LastJoin): void {
 }
 
 /**
- * Esta ABA tem uma sessão viva nesta sala para retomar?
+ * Este APARELHO tem uma sessão viva nesta sala para retomar?
  *
- * O `playerConnection` guarda o resume do mestre em `sessionStorage` ao entrar
- * (`RESUME_STORAGE_KEY`) e o apaga sozinho quando a sala acaba (expulso, sala
- * encerrada, código recusado). Ele sobrevive a recarregar a página e morre com
- * a aba — que é exatamente o caso desta volta: o celular descarta a aba ao
- * trocar de app, o dedo esbarra em Atualizar, e o amigo caía no formulário
- * para digitar código e nome outra vez no meio da mesa.
+ * O `playerConnection` guarda o resume do mestre ao entrar
+ * (`RESUME_STORAGE_KEY`, em `resumeStorageOrNull`) e o apaga sozinho quando a
+ * sala acaba (expulso, sala encerrada, código recusado). Ele sobrevive a
+ * recarregar a página e a abrir o QR numa aba nova — que é exatamente o caso
+ * desta volta: o celular descarta a aba ao trocar de app, o dedo esbarra em
+ * Atualizar, e o amigo caía no formulário para digitar código e nome outra
+ * vez no meio da mesa (e, pior, entrava como "Ana (2)").
  *
  * Só lê o formato que `playerConnection.writeResume` escreve; qualquer outra
  * coisa (storage bloqueado, JSON de outra versão, sala diferente) vale como
@@ -225,7 +253,7 @@ function rememberLastJoin(value: LastJoin): void {
  */
 function hasResumeFor(code: string): boolean {
   if (code.length !== JOIN_CODE_LENGTH) return false
-  const storage = sessionStorageOrNull()
+  const storage = resumeStorageOrNull()
   if (!storage) return false
   try {
     const raw = storage.getItem(RESUME_STORAGE_KEY)
@@ -239,12 +267,12 @@ function hasResumeFor(code: string): boolean {
 
 /**
  * "Sair da sala" é decisão, não acidente: sem apagar o resume, a próxima
- * abertura desta aba voltaria sozinha para a sala de onde ele acabou de sair.
+ * abertura voltaria sozinha para a sala de onde ele acabou de sair.
  * Sair não desfaz o `lastJoin` — o formulário continua preenchido para entrar
  * de novo com um toque.
  */
 function forgetResume(): void {
-  const storage = sessionStorageOrNull()
+  const storage = resumeStorageOrNull()
   if (!storage) return
   try {
     storage.removeItem(RESUME_STORAGE_KEY)
@@ -783,6 +811,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
       message = 'O mestre encerrou a sala.'
       actions.push({ label: 'Voltar', primary: true, run: () => onLeave() })
       break
+    case 'replaced':
+      // A mesma pessoa, noutra aba: a mesa segue lá. "Usar aqui" traz a
+      // sessão para esta aba (e a outra recebe este mesmo aviso). Sair não
+      // esquece o resume: ele é o da outra aba também.
+      message = 'Você abriu a sala em outra aba ou aparelho.'
+      detail = <p className="pe-hint">Sua ficha e o que você já explorou continuam lá. Para jogar por esta tela, toque em Usar aqui.</p>
+      actions.push({ label: 'Usar aqui', primary: true, run: () => connection.reconnect() })
+      actions.push({ label: 'Sair', run: () => onLeave() })
+      break
     case 'error': {
       const reason = state.error ?? 'unknown'
       tone = 'error'
@@ -863,8 +900,9 @@ function PlayerApp() {
 
   useEffect(() => () => session?.connection.close(), [session])
 
-  // Recarregou a página com a sessão desta aba ainda viva: volta direto para a
-  // sala, sem passar pelo formulário. `join` é declaração de função (içada).
+  // Recarregou a página (ou abriu o QR numa aba nova) com a sessão deste
+  // aparelho ainda viva: volta direto para a sala, sem passar pelo formulário
+  // e como a mesma pessoa. `join` é declaração de função (içada).
   useEffect(() => {
     if (rejoined.current) return
     rejoined.current = true
@@ -886,7 +924,7 @@ function PlayerApp() {
           const registered = welcomeName(data)
           if (registered !== null) setHostName(registered)
         }),
-      storage: sessionStorageOrNull(),
+      storage: resumeStorageOrNull(),
       isHidden: () => document.visibilityState === 'hidden',
     })
     setSession({ connection, code, typedName: name })

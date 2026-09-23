@@ -359,6 +359,10 @@ export type HostMessage =
   | { type: 'point.action.rejected'; reason: PointActionRejection }
   | { type: 'kicked' }
   | { type: 'room.closed' }
+  // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
+  // conexão: esta aba para, sem voltar sozinha e sem apagar o resume, que é o
+  // da aba nova também. Sem nada dentro: nem quem, nem de onde.
+  | { type: 'session.replaced' }
   | { type: 'error'; reason: HostErrorReason }
   // Resposta ao `ping` de quem está na sala: só "estou aqui", sem nada dentro.
   // É o que deixa o jogador notar a conexão morta que nunca fecha.

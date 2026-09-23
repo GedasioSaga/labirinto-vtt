@@ -499,6 +499,20 @@ function App() {
         onGoToPoint: (sceneId, x, y) => {
           useAdventureStore.getState().goToPoint(sceneId, { x, y })
         },
+        // "Guardar ficha" de quem foi embora: a ficha sai do mapa (na cena aberta, pelo desfazer de sempre).
+        removeToken: (tokenId, sceneId) => {
+          if (sceneId === undefined) useMapStore.getState().removeToken(tokenId)
+          else useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.removeToken(m, tokenId))
+        },
+        // A ficha guardada volta. Já no mapa (o mestre desfez a retirada): não entra de novo, com o mesmo id.
+        restoreToken: (token, sceneId) => {
+          if (sceneId === undefined) {
+            const store = useMapStore.getState()
+            if (!store.map.tokens.some((t) => t.id === token.id)) store.addToken(token)
+            return
+          }
+          useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => (m.tokens.some((t) => t.id === token.id) ? m : mapFactory.addToken(m, token)))
+        },
       })
     }
     return hostBridgeRef.current
@@ -593,6 +607,8 @@ function App() {
             onAssign={(playerId, tokenId) => hostBridgeRef.current?.assignToken(playerId, tokenId)}
             onUnassign={(playerId, tokenId) => hostBridgeRef.current?.unassignToken(playerId, tokenId)}
             onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
+            onStoreTokens={(playerId) => hostBridgeRef.current?.storeTokens(playerId)}
+            onDismiss={(playerId) => hostBridgeRef.current?.dismissPlayer(playerId)}
             onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
             onRevealPlan={(playerId) => hostBridgeRef.current?.revealPlan(playerId)}
             onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}

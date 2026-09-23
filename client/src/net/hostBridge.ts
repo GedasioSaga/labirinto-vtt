@@ -1,7 +1,7 @@
 import type { InvokeArgs } from '@tauri-apps/api/core'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useToastStore } from '../stores/toastStore'
-import type { MapData, RegionPoint } from '../types/map'
+import type { MapData, RegionPoint, Token } from '../types/map'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
 import { pointActionMasterText, type PointActionAnswer } from '../lib/pointActions'
 import { addTravel, travelLogEntry, undoableTravelIds, withoutTravel, type TravelLogEntry } from '../lib/travelLog'
@@ -19,6 +19,7 @@ import {
   type PlayerInfo,
   type PlayerNoteDelivery,
   type PointActionRequest,
+  type ReturnCandidate,
   type TravelRequest,
 } from './hostSession'
 import { CALL_REASON_LABELS, NOTE_MAX_LENGTH, parsePlayerMessage, type DoorRequestHow, type LaserMessage } from './protocol'
@@ -111,6 +112,14 @@ export interface HostBridgeDeps {
    * continua chegando, e "Nada aqui"/"Feito" respondem igual).
    */
   onPointActionGo?: (request: PointActionRequest) => void
+  /**
+   * "Guardar ficha": tirar a ficha `tokenId` do mapa (da cena de fundo
+   * `sceneId`, quando vier; ausente = a cena aberta). Sem este retorno e o
+   * `restoreToken`, o mestre não tem "Guardar ficha".
+   */
+  removeToken?: (tokenId: string, sceneId?: string) => void
+  /** A ficha guardada volta ao mapa, igual ao que era, na cena `sceneId` (ausente = a aberta). */
+  restoreToken?: (token: Token, sceneId?: string) => void
   now?: () => number
 }
 
@@ -168,6 +177,19 @@ export interface HostBridge {
    * saiu da cena de destino, a cena de volta sumiu) — nada muda.
    */
   undoTravel(entryId: string): boolean
+  /**
+   * "Guardar ficha" do card de quem foi embora: as fichas dele saem do mapa
+   * (param de ocupar o corredor) e voltam sozinhas, no mesmo lugar e de novo
+   * dele, quando ele voltar. Dispensar ou fechar a sala também as devolve ao
+   * mapa, sem dono: guardar nunca apaga ficha. `false` com a sala fechada,
+   * jogador conectado ou desconhecido, ou nada a guardar.
+   */
+  storeTokens(playerId: string): boolean
+  /**
+   * "Dispensar" do card de quem foi embora: o card sai. `false` com a sala
+   * fechada, jogador conectado (esse é o Expulsar) ou desconhecido.
+   */
+  dismissPlayer(playerId: string): boolean
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -341,6 +363,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   /** Conexões cuja aba está em segundo plano (último ping com `away: true`). Nunca sai pela rede. */
   const awayClients = new Set<string>()
   let livenessTimer: ReturnType<typeof setInterval> | null = null
+  /** Pergunta "Ana voltou?" de quem entrou agora: `playerId` dele -> id do toast. */
+  const returnToasts = new Map<string, string>()
+  /**
+   * Fichas guardadas ("Guardar ficha") de quem foi embora, cópia inteira e a
+   * cena de onde saíram (`null` = mapa solto): `playerId` -> fichas. Só do
+   * mestre; nunca sai pelo `net_send`.
+   */
+  const storedTokens = new Map<string, { token: Token; sceneId: string | null }[]>()
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
@@ -459,9 +489,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     void dispatch(session.partyUpdates(world()))
   }
 
+  /** A lista da sessão com o que só a ponte sabe: as fichas guardadas de cada um. */
+  const playerList = (): PlayerInfo[] => {
+    if (session === null) return []
+    return session.listPlayers(world()).map((player) => {
+      const stored = storedTokens.get(player.playerId)
+      return stored === undefined ? player : { ...player, storedTokenNames: stored.map(({ token }) => token.name) }
+    })
+  }
+
   const notifyPlayersIfChanged = () => {
     sendPartyIfChanged()
-    const list = session?.listPlayers(world()) ?? []
+    const list = playerList()
     const key = JSON.stringify(list)
     if (key === lastPlayersKey) return
     lastPlayersKey = key
@@ -858,6 +897,89 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     travelToasts.set(request.requestId, toastId)
   }
 
+  /** A pergunta "voltou?" que já não espera o mestre (a Ana voltou pelo resume, quem entrou caiu, a sala fechou) sai da Caixa. */
+  const pruneReturnToasts = () => {
+    for (const [playerId, toastId] of returnToasts) {
+      if (session !== null && session.isReturnPending(playerId)) continue
+      returnToasts.delete(playerId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
+  /**
+   * Devolve ao mapa as fichas que o mestre guardou de `playerId`, cada uma na
+   * cena de onde saiu (sumida a cena, na aberta). `reassign`: de novo dele —
+   * ele voltou; senão ficam sem dono (Dispensar, sala fechando). Devolve os
+   * nomes, para o aviso.
+   */
+  const restoreStoredOf = (playerId: string, reassign: boolean): string[] => {
+    const stored = storedTokens.get(playerId)
+    if (stored === undefined) return []
+    storedTokens.delete(playerId)
+    const current = world()
+    const backgroundIds = new Set(current.background.map((scene) => scene.sceneId))
+    for (const { token, sceneId } of stored) {
+      // Ausente = a cena aberta: a de onde saiu, se é ela agora, ou a cena que sumiu.
+      const where = sceneId !== null && sceneId !== current.open.sceneId && backgroundIds.has(sceneId) ? sceneId : undefined
+      deps.restoreToken?.(token, where)
+      if (reassign && session !== null) void dispatch(session.assignToken(playerId, token.id))
+    }
+    return stored.map(({ token }) => token.name)
+  }
+
+  /** "É ela" ou "Outra pessoa". Só o "É ela" muda algo: a conexão nova vira a Ana, e a ficha guardada dela volta. */
+  const answerReturn = (candidate: ReturnCandidate, same: boolean) => {
+    const toastId = returnToasts.get(candidate.playerId)
+    returnToasts.delete(candidate.playerId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    if (!same) {
+      session.denyReturn(candidate.playerId)
+      return
+    }
+    const result = session.confirmReturn(candidate.playerId, candidate.previousId, world())
+    if (result.outbound.length === 0) {
+      // A pergunta já não valia: nada mudou.
+      notifyPlayersIfChanged()
+      return
+    }
+    void dispatch(result)
+    restoreStoredOf(candidate.previousId, true)
+    // Voltou: o "Ana caiu" dela sai da tela, como na volta pelo resume.
+    announceReturn(candidate.previousId, candidate.name)
+    // Uma segunda "ana" que esperava a mesma pergunta: a Ana já voltou, e a pergunta dela sai.
+    pruneReturnToasts()
+    broadcastNow()
+    notifyPlayersIfChanged()
+  }
+
+  /**
+   * Alguém entrou com o nome de quem está fora: "Ana voltou?" na Caixa. O ×
+   * vale "Outra pessoa" — juntar duas pessoas é o que não pode acontecer sem
+   * o mestre dizer. Fica até a resposta: quem entrou está esperando personagem.
+   */
+  const askReturn = (candidate: ReturnCandidate) => {
+    const toastId = useToastStore.getState().push('instrucao', `${candidate.name} voltou?`, null, {
+      actions: [
+        { label: 'É ela', run: () => answerReturn(candidate, true) },
+        { label: 'Outra pessoa', run: () => answerReturn(candidate, false) },
+      ],
+      onDismiss: () => answerReturn(candidate, false),
+      grupo: 'Pedidos',
+      sempreEmCaixa: true,
+    })
+    returnToasts.set(candidate.playerId, toastId)
+  }
+
+  /** A aba velha de quem voltou por outra aba já leu `session.replaced`: derruba a conexão dela. */
+  const dropReplaced = (clientId: string) => {
+    lastHeard.delete(clientId)
+    awayClients.delete(clientId)
+    deps.invoke('net_kick', { clientId }).catch(() => {
+      // Já fechada no Rust (a aba foi fechada antes): era o que se queria.
+    })
+  }
+
   const onMessage = (event: { payload: unknown }) => {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
@@ -881,7 +1003,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // só pode sair DEPOIS de a ficha mudar de cena, então quem despacha é a
     // mesma conclusão do "Deixar ir".
     if (result.applyTransfer !== undefined) completeTransfer(result, result.applyTransfer)
-    else void dispatch(result)
+    else {
+      const sent = dispatch(result)
+      // Aba nova da mesma pessoa: a velha lê "session.replaced" e só depois cai.
+      const replaced = result.replacedClientId
+      if (replaced !== undefined) void sent.then(() => dropReplaced(replaced))
+    }
+    if (result.returnCandidate !== undefined) askReturn(result.returnCandidate)
+    if (!wasJoined) {
+      // Voltou (resume) quem teve a ficha guardada: ela volta ao mapa, de novo dele.
+      const joined = session.listPlayers().find((p) => p.clientId === clientId)
+      if (joined !== undefined && restoreStoredOf(joined.playerId, true).length > 0) broadcastNow()
+    }
+    // A Ana voltou pelo resume: a pergunta "Ana voltou?" que outro aparelho provocou já não vale.
+    pruneReturnToasts()
     if (result.signal !== undefined) deps.onSignal?.(result.signal)
     if (result.call !== undefined) announceCall(result.call)
     // Mão baixada: a linha do chamado sai da caixa.
@@ -920,7 +1055,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     notifyPlayersIfChanged()
     if (wasJoined) return
     if (result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'bad_code')) announceBadCode()
-    else announceJoin(clientId, new Set(before.filter((p) => !p.connected).map((p) => p.playerId)))
+    // Troca de aba da mesma pessoa não é chegada; e quem provocou "Ana voltou?" já tem o aviso dele na Caixa.
+    else if (result.replacedClientId === undefined && result.returnCandidate === undefined) {
+      announceJoin(clientId, new Set(before.filter((p) => !p.connected).map((p) => p.playerId)))
+    }
   }
 
   /**
@@ -938,6 +1076,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (dropped !== undefined) scheduleDropAnnounce(dropped.playerId, dropped.name)
     pruneTravelToasts()
     pruneCallToasts()
+    pruneReturnToasts()
     notifyPlayersIfChanged()
   }
 
@@ -1046,9 +1185,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session) await dispatch(session.closeRoom())
       removeListeners()
       stopLivenessSweep()
+      // Guardar nunca apaga ficha: fechar a sala devolve ao mapa, sem dono, o que estava guardado.
+      for (const playerId of [...storedTokens.keys()]) restoreStoredOf(playerId, false)
       session = null
       pruneTravelToasts()
       pruneCallToasts()
+      pruneReturnToasts()
       setTravelLog([])
       // Sala fechada: quem "caiu" agora é o fim da sala, não uma queda.
       resetDrops()
@@ -1169,12 +1311,54 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.kick(clientId)
       pruneTravelToasts()
       pruneCallToasts()
+      pruneReturnToasts()
       notifyPlayersIfChanged()
       await sendThenKick(result, clientId)
     },
 
+    storeTokens(playerId) {
+      if (session === null || deps.removeToken === undefined || deps.restoreToken === undefined) return false
+      const player = session.listPlayers().find((p) => p.playerId === playerId)
+      if (player === undefined || player.connected || player.tokenIds.length === 0) return false
+      const current = world()
+      const stored = [...(storedTokens.get(playerId) ?? [])]
+      for (const scene of [current.open, ...current.background]) {
+        // Ausente = a cena aberta (convenção de `applyMove`); cena de fundo sempre tem id.
+        const where = scene === current.open ? undefined : scene.sceneId
+        if (where === null) continue
+        for (const token of scene.map.tokens) {
+          if (!player.tokenIds.includes(token.id)) continue
+          stored.push({ token, sceneId: scene.sceneId })
+          // Sem dono enquanto guardada: a ficha não está em mapa nenhum. Ele está fora: não há a quem avisar.
+          session.unassignToken(playerId, token.id)
+          deps.removeToken(token.id, where)
+        }
+      }
+      if (stored.length === 0) return false
+      storedTokens.set(playerId, stored)
+      const names = stored.map(({ token }) => token.name).join(', ')
+      useToastStore.getState().push('info', `Ficha guardada: ${names}. Volta ao mapa quando ${player.name} voltar.`)
+      broadcastNow()
+      notifyPlayersIfChanged()
+      return true
+    },
+
+    dismissPlayer(playerId) {
+      if (session === null) return false
+      const player = session.listPlayers().find((p) => p.playerId === playerId)
+      if (player === undefined || player.connected) return false
+      // Guardar nunca apaga ficha: quem é dispensado deixa a ficha no mapa, sem dono.
+      const restored = restoreStoredOf(playerId, false)
+      session.dismissPlayer(playerId)
+      if (restored.length > 0) useToastStore.getState().push('info', `De volta ao mapa, sem dono: ${restored.join(', ')}.`)
+      pruneReturnToasts()
+      broadcastNow()
+      notifyPlayersIfChanged()
+      return true
+    },
+
     players() {
-      return session?.listPlayers(world()) ?? []
+      return playerList()
     },
 
     room() {
