@@ -6,8 +6,10 @@ import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/las
 import {
   createHostSession,
   singleSceneWorld,
+  type AppliedItems,
   type AppliedTokenEdit,
   type DoorRequest,
+  type ItemRequest,
   type AppliedTransfer,
   type HostResult,
   type HostSession,
@@ -68,6 +70,12 @@ export interface HostBridgeDeps {
    * jogador lê "O mestre disse não".
    */
   unlockAndOpenDoor?: (wallId: string, sceneId?: string) => void
+  /**
+   * ITEM PEGÁVEL: gravar a troca de lugar do item (pino que sai, mochilas
+   * novas) na cena `change.sceneId` — a aberta quando ausente. Sem este
+   * retorno, "Pegar" nem chega ao mestre e o jogador lê "O mestre disse não".
+   */
+  applyItems?: (change: AppliedItems) => void
   /**
    * Nome/foto novos do token do jogador, já validados pela sessão (o token é
    * dele e a foto é auto-contida). Opcional como `onSignal`: quem monta a
@@ -147,6 +155,12 @@ const DOOR_REQUEST_VERB: Record<DoorRequestHow, string> = {
   knock: 'bate na porta',
   force: 'tenta forçar a porta',
   key: 'tenta usar uma chave na porta',
+}
+
+/** "Diego quer pegar Chave do Escudo", mais " em Mansão" quando o item está numa cena de fundo. */
+export function itemRequestLine(request: ItemRequest): string {
+  const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
+  return `${request.playerName} quer pegar ${request.itemName}${where}`
 }
 
 /** "Ana tenta forçar a porta", mais " em Mansão" quando a porta está numa cena de fundo. */
@@ -246,6 +260,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const travelToasts = new Map<string, string>()
   /** Linha de cada pedido de porta trancada ainda na tela: `requestId` -> id do toast. */
   const doorToasts = new Map<string, string>()
+  /** Linha de cada pedido de item ainda na tela: `requestId` -> id do toast. */
+  const itemToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
 
@@ -431,6 +447,61 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       doorToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    // E para o item: "Deixar" de quem saiu não entrega nada.
+    for (const [requestId, toastId] of itemToasts) {
+      if (session !== null && session.isItemRequestPending(requestId)) continue
+      itemToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
+  /**
+   * Item que troca de lugar: grava pela store (a cena de fundo quando é lá)
+   * ANTES de mandar o "está com você", e o snapshot sai na hora — o pino
+   * some para todos que o viam. Sem quem grave, a resposta vira "disse não":
+   * "está com você" com a mochila vazia seria mentira.
+   */
+  const completeItems = (result: HostResult, change: AppliedItems) => {
+    if (deps.applyItems === undefined) {
+      void dispatch({ outbound: result.outbound.map(({ clientId }) => ({ clientId, msg: { type: 'pin.take.answer', answer: 'denied' } })) })
+      return
+    }
+    deps.applyItems(change)
+    void dispatch(result)
+    broadcastNow()
+  }
+
+  /** Resposta ao pedido de item: "Deixar" revalida na sessão e grava; "Não" avisa o jogador. */
+  const answerItem = (requestId: string, allow: boolean) => {
+    const toastId = itemToasts.get(requestId)
+    itemToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    if (!allow) {
+      void dispatch(session.denyItemRequest(requestId))
+      return
+    }
+    const result = session.approveItemRequest(requestId, world())
+    if (result.applyItems === undefined) void dispatch(result)
+    else completeItems(result, result.applyItems)
+  }
+
+  /**
+   * "Pegar": uma linha no grupo "Pedidos", a mesma caixa da porta e da
+   * passagem. Espera o mestre (o × vale "Não"); "Deixar todos" responde
+   * "Deixar" (`emLote`). Sozinho já abre a caixa, como o pedido da porta.
+   */
+  const askItem = (request: ItemRequest) => {
+    const toastId = useToastStore.getState().push('instrucao', itemRequestLine(request), null, {
+      actions: [
+        { label: 'Deixar', run: () => answerItem(request.requestId, true), emLote: true },
+        { label: 'Não', run: () => answerItem(request.requestId, false) },
+      ],
+      onDismiss: () => answerItem(request.requestId, false),
+      grupo: 'Pedidos',
+      sempreEmCaixa: true,
+    })
+    itemToasts.set(request.requestId, toastId)
   }
 
   /**
@@ -571,6 +642,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // só pode sair DEPOIS de a ficha mudar de cena, então quem despacha é a
     // mesma conclusão do "Deixar ir".
     if (result.applyTransfer !== undefined) completeTransfer(result, result.applyTransfer)
+    // Item livre ou "Dar a…": grava antes de responder, pelo mesmo motivo.
+    else if (result.applyItems !== undefined) completeItems(result, result.applyItems)
     else void dispatch(result)
     if (result.signal !== undefined) deps.onSignal?.(result.signal)
     if (result.applyMove !== undefined) {
@@ -597,6 +670,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Integrador sem quem destranque: a pergunta não teria resposta que abrisse a porta.
       if (deps.unlockAndOpenDoor === undefined) void dispatch(session.denyDoorRequest(result.doorRequest.requestId))
       else askDoor(result.doorRequest)
+    }
+    if (result.itemRequest !== undefined) {
+      // Integrador sem quem grave a mochila: "Deixar" não teria como entregar.
+      if (deps.applyItems === undefined) void dispatch(session.denyItemRequest(result.itemRequest.requestId))
+      else askItem(result.itemRequest)
     }
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.

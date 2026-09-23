@@ -6,6 +6,7 @@ import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
+import { itemOfPin } from './items'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
@@ -382,6 +383,13 @@ function sanitizeTokenPhoto(token: Token): Token {
   return { ...token, image, imageData }
 }
 
+/** A ficha sem a mochila: é como o jogador recebe a ficha de outro. Sem mochila, o mesmo objeto. */
+function withoutBackpack(token: Token): Token {
+  if (!('mochila' in token)) return token
+  const { mochila: _dele, ...semMochila } = token
+  return semMochila
+}
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
@@ -659,9 +667,11 @@ export function filterMapForPlayer(
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
     // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
+    // MOCHILA: só a da PRÓPRIA ficha sai. O que o colega carrega é dele e do
+    // mestre — ver a ficha dele no mapa não conta o que tem no bolso.
     tokens: layerTokens
       .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
-      .map(sanitizeTokenPhoto),
+      .map((t) => sanitizeTokenPhoto(owned.has(t.id) ? t : withoutBackpack(t))),
     markers: map.markers.filter((m) => !inRoomHiddenFromPlayer({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
     lines: map.lines.filter((l) => !l.points.some(inRoomHiddenFromPlayer) && !l.points.some(inConcealZone) && isShapeKnown(l.points)),
     // Tocha acesa dentro do prédio de teto fechado não sai: o halo dela
@@ -780,5 +790,9 @@ function pinForPlayer(pin: Pin): Pin {
   // campo: o cartão dele é o de sempre, e o recorte também.
   const escolhas = exitLabelsOf(pin)
   if (escolhas.length > 1) forPlayer.escolhas = escolhas
+  // ITEM PEGÁVEL: o cartão precisa do nome e de saber se pede ao mestre.
+  // Cópia limpa (`itemOfPin`), nunca o objeto do mestre.
+  const item = itemOfPin(pin)
+  if (item !== null) forPlayer.item = item
   return forPlayer
 }

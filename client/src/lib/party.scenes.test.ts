@@ -10,6 +10,7 @@ function membro(over: Partial<PartyMember>): PartyMember {
     sceneName: 'Salao',
     token: { id: 't', color: '#3cff00', x: 0, y: 0 },
     travelPending: false,
+    mochila: [],
     ...over,
   }
 }

@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react'
-import type { ChangeEvent, FormEvent } from 'react'
+import type { ChangeEvent, ComponentProps, FormEvent } from 'react'
 import type { StorageLike } from './playerConnection'
+import { PlayerBackpack } from './PlayerBackpack'
 import { NAME_MAX_LENGTH } from '../net/protocol'
 
 // Painel do jogador: meus personagens, ajustes de visão e centralizar a câmera.
@@ -84,6 +85,8 @@ interface PlayerPanelProps {
   onRenameToken: (tokenId: string, name: string) => void
   /** Foto nova do próprio token. Rejeita (lança) quando a imagem não serve, e o aviso vai para a tela. */
   onChangeTokenPhoto: (tokenId: string, file: File) => Promise<void>
+  /** ITEM PEGÁVEL: a seção "Comigo". Ausente = o painel de sempre. */
+  backpack?: ComponentProps<typeof PlayerBackpack>
 }
 
 export function PlayerPanel({
@@ -98,6 +101,7 @@ export function PlayerPanel({
   onToggleMeasure,
   onRenameToken,
   onChangeTokenPhoto,
+  backpack,
 }: PlayerPanelProps) {
   const [open, setOpen] = useState(false)
   const panelId = useId()
@@ -229,6 +233,8 @@ export function PlayerPanel({
           </button>
           {measureArmed && <p className="pp-empty">Arraste no mapa para medir. Esc sai.</p>}
         </section>
+
+        {backpack !== undefined && <PlayerBackpack {...backpack} />}
 
         {first !== undefined && (
           <section className="pp-section" aria-labelledby={`${panelId}-me`}>

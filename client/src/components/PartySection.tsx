@@ -176,6 +176,12 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
                 <span className={`lb-party__presence${member.connected ? ' lb-party__presence--on' : ''}`}>{partyPresenceLabel(member)}</span>
               </div>{' '}
               <span className="lb-party__where">{member.token === null ? 'sem ficha no mapa' : (member.sceneName ?? 'no mapa aberto')}</span>
+              {/* ITEM PEGÁVEL: quem tem o quê, de relance. Mochila vazia não ocupa linha. */}
+              {member.mochila.length > 0 && (
+                <span className="lb-party__where">
+                  {`Mochila: ${member.mochila.length} — ${member.mochila.map((item) => item.nome).join(', ')}`}
+                </span>
+              )}
               {member.token !== null && (
                 <div className="lb-party__actions">
                   <button type="button" className="lb-btn" onClick={() => onGoTo(member)}>

@@ -56,6 +56,7 @@ import { isArrivalOnly } from './lib/pinTravel'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
+import { applyItemChange } from './lib/items'
 import { countEntitiesByLayer } from './lib/layers'
 import { findTokenSpawn, tokenRadiusFor, wallClearanceForScale } from './lib/tokenPlacement'
 import { roomDimensions } from './lib/roomOps'
@@ -447,6 +448,19 @@ function App() {
           const store = useMapStore.getState()
           const wall = store.map.walls.find((w) => w.id === wallId)
           if (wall?.door) store.setWallDoor(wallId, { ...wall.door, open: true, locked: false })
+        },
+        // ITEM PEGÁVEL: o pino pego sai e as mochilas mudam, já validados pela
+        // sessão. Na cena aberta vale para TODO passo do desfazer (como a
+        // travessia do `transferToken`): um Ctrl+Z do mestre não devolve a
+        // chave ao chão com ela ainda na mochila de alguém.
+        applyItems: (change) => {
+          const aplicar = (m: MapData): MapData => applyItemChange(m, change)
+          if (change.sceneId !== undefined) {
+            useAdventureStore.getState().updateBackgroundScene(change.sceneId, aplicar)
+            return
+          }
+          const { map, past, future } = useMapStore.getState()
+          useMapStore.setState({ map: aplicar(map), past: past.map(aplicar), future: future.map(aplicar) })
         },
         // Nome/foto que o jogador trocou no próprio token, já validados pela
         // sessão (o token é dele, a foto é auto-contida). `image` chega como
@@ -2004,6 +2018,14 @@ function App() {
               onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
               onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),
               onDelete: () => selectedPin && useMapStore.getState().removePin(selectedPin.id),
+              // ITEM PEGÁVEL: só com um pino "!"/"?" aberto (a passagem não vai para a mochila).
+              item:
+                selectedPin && selectedPin.kind !== 'viagem'
+                  ? {
+                      value: selectedPin.item ?? null,
+                      onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
+                    }
+                  : null,
             }}
             pinIcon={{
               // Mesma ligação dupla do tipo logo acima: com um pino aberto, o

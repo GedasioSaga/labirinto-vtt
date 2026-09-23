@@ -50,6 +50,11 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * O PEDIDO DA PORTA TRANCADA também é aditivo: `door.request` (jogador ->
  * mestre) e, na volta, `door.request.rejected` e `door.request.answer`. Mestre
  * antigo responde `error invalid_message`; jogador antigo ignora as duas.
+ *
+ * ITEM PEGÁVEL, aditivo pelo mesmo critério: `pin.take` e `item.give`
+ * (jogador -> mestre) e, na volta, `pin.take.rejected`, `pin.take.answer` e
+ * `item.give.rejected`. A mochila viaja no token do PRÓPRIO jogador, no
+ * snapshot (`Token.mochila`); a de outro nunca sai (`lib/fogFilter.ts`).
  */
 export const PROTOCOL_VERSION = 1
 
@@ -151,7 +156,48 @@ export interface DoorRequestMessage {
   how: DoorRequestHow
 }
 
-export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage | DoorToggleMessage | DoorRequestMessage | TokenEditMessage | PinTravelRequestMessage
+/**
+ * ITEM PEGÁVEL: o jogador pede para pegar o item do pino `pinId`. O host
+ * valida (pino visível, pegável, ficha encostada) e leva ao mestre — ou, no
+ * pino livre, entrega direto. A resposta volta em `pin.take.answer`.
+ */
+export interface PinTakeMessage {
+  type: 'pin.take'
+  pinId: string
+}
+
+/** O jogador dá o item `itemId` da própria mochila à ficha `toTokenId`, de um colega encostado. */
+export interface ItemGiveMessage {
+  type: 'item.give'
+  itemId: string
+  toTokenId: string
+}
+
+export type PlayerMessage =
+  | JoinMessage
+  | TokenMoveMessage
+  | PingMessage
+  | SignalMessage
+  | DoorToggleMessage
+  | DoorRequestMessage
+  | TokenEditMessage
+  | PinTravelRequestMessage
+  | PinTakeMessage
+  | ItemGiveMessage
+
+/**
+ * Por que o host não levou o "Pegar" ao mestre. `unavailable` junta pino
+ * inexistente, no escuro, oculto e que não é item — um motivo por caso diria
+ * o que existe no escuro. `pending`: um pedido de item dele já espera.
+ */
+export type PinTakeRejection = 'unavailable' | 'far' | 'pending'
+
+export const PIN_TAKE_REJECTIONS: readonly PinTakeRejection[] = ['unavailable', 'far', 'pending']
+
+/** Por que o "Dar a…" não valeu: colega longe, ou item/ficha que não servem. */
+export type ItemGiveRejection = 'unavailable' | 'far'
+
+export const ITEM_GIVE_REJECTIONS: readonly ItemGiveRejection[] = ['unavailable', 'far']
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -203,6 +249,11 @@ export type HostMessage =
   | { type: 'door.request.rejected'; wallId: string; reason: DoorRequestRejection }
   | { type: 'door.request.answer'; answer: DoorRequestAnswer }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
+  // ITEM PEGÁVEL. `nome` só no `taken`: o jogador lê o que agora carrega.
+  | { type: 'pin.take.rejected'; reason: PinTakeRejection }
+  | { type: 'pin.take.answer'; answer: 'taken'; nome: string }
+  | { type: 'pin.take.answer'; answer: 'denied' }
+  | { type: 'item.give.rejected'; reason: ItemGiveRejection }
   | { type: 'pin.travel.denied' }
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
@@ -372,6 +423,12 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTokenEdit(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
+    case 'pin.take':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.take', pinId: value.pinId } : null
+    case 'item.give':
+      return isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.toTokenId, 1, REQ_ID_MAX_LENGTH)
+        ? { type: 'item.give', itemId: value.itemId, toTokenId: value.toTokenId }
+        : null
     default:
       return null
   }

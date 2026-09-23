@@ -2,20 +2,25 @@ import type { MapData, RegionPoint, Token } from '../types/map'
 import { decodeExploration, type Exploration } from '../lib/exploration'
 import {
   DOOR_REQUEST_REJECTIONS,
+  ITEM_GIVE_REJECTIONS,
   NAME_MAX_LENGTH,
   NAME_MIN_LENGTH,
+  PIN_TAKE_REJECTIONS,
   isDoorRequestHow,
   type DoorRequestAnswer,
   type DoorRequestHow,
   type DoorRequestRejection,
   type DoorToggleRejection,
+  type ItemGiveRejection,
   type JoinMessage,
+  type PinTakeRejection,
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type PlayerMessage,
 } from '../net/protocol'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
+import { carriedItemsOf, cleanItemName, itemOfPin } from '../lib/items'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
 import { parseLaserMessage, parseSceneNote } from '../net/protocol'
@@ -54,6 +59,8 @@ export interface PlayerState {
   doorRequest?: { id: number; phase: DoorRequestPhase }
   /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
   travel?: TravelNotice
+  /** ITEM PEGÁVEL: "Pegar" ou "Dar a…" — enviado, a resposta do mestre ou a recusa do host. Some sozinho. */
+  item?: ItemNotice
   /**
    * Recado do mestre para a cena do jogador. Fica até ele fechar
    * (`dismissNote`); um recado novo toma o lugar do aberto. É texto puro: a
@@ -91,6 +98,18 @@ export type TravelNotice =
   | { id: number; phase: 'gathered' }
   | { id: number; phase: 'denied' }
   | { id: number; phase: 'rejected'; reason: PinTravelRejection }
+
+/**
+ * Onde está o "Pegar" (ou o "Dar a…"). `sent` espera o mestre (`direct`: o
+ * pino é livre, ninguém decide); `taken` leva o nome do que agora está com o
+ * jogador. `id` novo repete o aviso.
+ */
+export type ItemNotice =
+  | { id: number; phase: 'sent'; direct: boolean }
+  | { id: number; phase: 'taken'; nome: string }
+  | { id: number; phase: 'denied' }
+  | { id: number; phase: 'rejected'; reason: PinTakeRejection }
+  | { id: number; phase: 'give_rejected'; reason: ItemGiveRejection }
 
 /** Subconjunto do WebSocket do browser que este cliente usa. */
 export interface SocketLike {
@@ -152,6 +171,16 @@ export interface PlayerConnection {
    * ausente, o pedido sai sem ele e vale a saída principal, como sempre.
    */
   requestTravel(pinId: string, exitId?: string): boolean
+  /**
+   * "Pegar" o item do pino `pinId`. `false` se não está jogando, o pino não
+   * está no mapa dele ou não é pegável, ou o socket não está aberto.
+   */
+  takePin(pinId: string): boolean
+  /**
+   * "Dar a…": o item `itemId` da mochila de uma ficha dele vai à ficha
+   * `toTokenId`. `false` se o item não está com ele ou o socket não está aberto.
+   */
+  giveItem(itemId: string, toTokenId: string): boolean
   /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). */
   dismissNote(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
@@ -165,6 +194,8 @@ export const PING_INTERVAL_MS = 15_000
 export const DOOR_NOTICE_TTL_MS = 2500
 /** Quanto tempo o aviso do pedido da porta ("Pedido enviado", "O mestre abriu") fica na tela. */
 export const DOOR_REQUEST_NOTICE_TTL_MS = 4000
+/** Quanto tempo o aviso do item ("está com você", "O mestre disse não") fica na tela. */
+export const ITEM_NOTICE_TTL_MS = 4000
 /** Quanto tempo a recusa do mestre ("não deixou passar agora") fica na tela. Mais que a porta. */
 export const TRAVEL_NOTICE_TTL_MS = 4000
 /**
@@ -369,6 +400,24 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return notice.phase === 'arrived' ? ARRIVAL_NOTICE_TTL_MS : TRAVEL_NOTICE_TTL_MS
   }
 
+  let itemTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearItemTimer(): void {
+    if (itemTimer !== null) clearTimeout(itemTimer)
+    itemTimer = null
+  }
+
+  /** Aviso do item. "Enviado" espera a resposta; o resto some sozinho. */
+  function showItemNotice(notice: ItemNotice): void {
+    clearItemTimer()
+    setState({ item: notice })
+    if (notice.phase === 'sent') return
+    itemTimer = setTimeout(() => {
+      itemTimer = null
+      setState({ item: undefined })
+    }, ITEM_NOTICE_TTL_MS)
+  }
+
   let laserTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearLaserTimer(): void {
@@ -506,7 +555,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         clearTravelTimer()
+        clearItemTimer()
         setState({
+          item: undefined,
           status: 'waiting',
           map: undefined,
           vision: undefined,
@@ -604,6 +655,33 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         showDoorRequest(answer)
         return
       }
+      case 'pin.take.answer': {
+        if (state.status !== 'playing') return
+        if (data.answer === 'denied') {
+          showItemNotice({ id: nextNoticeId++, phase: 'denied' })
+          return
+        }
+        // O nome vai para a tela: só texto, aparado e no teto.
+        if (data.answer !== 'taken' || typeof data.nome !== 'string') return
+        const nome = cleanItemName(data.nome)
+        if (nome === '') return
+        showItemNotice({ id: nextNoticeId++, phase: 'taken', nome })
+        return
+      }
+      case 'pin.take.rejected': {
+        if (state.status !== 'playing') return
+        const reason = PIN_TAKE_REJECTIONS.find((r) => r === data.reason)
+        if (reason === undefined) return
+        showItemNotice({ id: nextNoticeId++, phase: 'rejected', reason })
+        return
+      }
+      case 'item.give.rejected': {
+        if (state.status !== 'playing') return
+        const reason = ITEM_GIVE_REJECTIONS.find((r) => r === data.reason)
+        if (reason === undefined) return
+        showItemNotice({ id: nextNoticeId++, phase: 'give_rejected', reason })
+        return
+      }
       case 'snapshot':
       case 'delta': {
         if (!isFiniteNumber(data.rev) || !isMapShape(data.map) || !isVision(data.vision)) return
@@ -639,7 +717,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         clearTravelTimer()
-        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, travel: undefined })
+        clearItemTimer()
+        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, travel: undefined, item: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -694,6 +773,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearLaserTimer()
     clearDoorNotice()
     clearTravelTimer()
+    clearItemTimer()
     const current = socket
     socket = null
     current?.close()
@@ -777,6 +857,24 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return true
     },
 
+    takePin(pinId) {
+      if (state.status !== 'playing' || pinId.length === 0) return false
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      const item = pin === undefined ? null : itemOfPin(pin)
+      if (item === null) return false
+      if (!send({ type: 'pin.take', pinId })) return false
+      showItemNotice({ id: nextNoticeId++, phase: 'sent', direct: item.livre === true })
+      return true
+    },
+
+    giveItem(itemId, toTokenId) {
+      if (state.status !== 'playing' || toTokenId.length === 0) return false
+      const own = state.ownTokens ?? []
+      const carrying = (state.map?.tokens ?? []).some((t) => own.includes(t.id) && carriedItemsOf(t).some((item) => item.id === itemId))
+      if (!carrying) return false
+      return send({ type: 'item.give', itemId, toTokenId })
+    },
+
     dismissNote() {
       if (state.note !== undefined) setState({ note: undefined })
     },
@@ -796,7 +894,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, item: undefined })
       open()
     },
     close: detach,

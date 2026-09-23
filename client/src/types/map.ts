@@ -273,6 +273,26 @@ export type PinPassage = 'pede' | 'livre' | 'trancada'
 export type PinIcon = 'bau' | 'armadilha' | 'chave' | 'perigo' | 'escada' | 'agua'
 
 /**
+ * ITEM PEGÁVEL: o pino é uma coisa que o jogador pode pegar ("Chave do
+ * Escudo"). `nome` é o que vai para a mochila; `livre` pega sem pedir ao
+ * mestre. Ausente (e `livre` ausente) é o de sempre — pino que só se lê, e
+ * "pede ao mestre" —, sem migração: mapa salvo antes do campo abre igual.
+ */
+export interface PinItem {
+  nome: string
+  livre?: true
+}
+
+/**
+ * Um item na mochila da ficha. `id` é o id do pino de onde ele saiu — único
+ * no mapa, e a ficha que viaja entre cenas leva a mochila junto.
+ */
+export interface CarriedItem {
+  id: string
+  nome: string
+}
+
+/**
  * Ponto de interesse cravado pelo mestre. O jogador toca o pino no mapa e lê o
  * cartão: imagem em cima, descrição embaixo.
  *
@@ -342,6 +362,13 @@ export interface Pin extends PlayerSecret {
    * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.
    */
   escolhas?: PinExitLabel[]
+  /**
+   * ITEM PEGÁVEL (pino "!"/"?", nunca o de viagem): o que o jogador pega com
+   * "Pegar". Pego, o pino sai do mapa e o item vai à mochila da ficha dele.
+   * Ausente = pino que só se lê. Sai no recorte do jogador (o cartão precisa
+   * do nome e de saber se pede ao mestre), sempre numa cópia limpa.
+   */
+  item?: PinItem
 }
 
 /**
@@ -449,6 +476,10 @@ export interface Token extends PlayerSecret {
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
    *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
   hidden?: boolean
+  /** MOCHILA: itens que a ficha carrega (ITEM PEGÁVEL). Gravada com a cena,
+   *  viaja com a ficha. `undefined` === vazia, sem migração. O jogador só
+   *  recebe a mochila da PRÓPRIA ficha (`lib/fogFilter.ts`). */
+  mochila?: CarriedItem[]
 }
 
 export interface Prop extends PlayerSecret {

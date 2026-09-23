@@ -1,5 +1,6 @@
 import type { HostScene, HostWorld, PlayerInfo } from '../net/hostSession'
-import type { Token } from '../types/map'
+import type { CarriedItem, Token } from '../types/map'
+import { carriedItemsOf } from './items'
 import { pinSummary } from './pins'
 import { tokenFillColor } from './tokenColor'
 
@@ -30,6 +31,8 @@ export interface PartyMember {
   token: PartyToken | null
   /** Um pedido de passagem dele espera o mestre agora. */
   travelPending: boolean
+  /** O que as fichas dele carregam, em qualquer cena aberta (ITEM PEGÁVEL). */
+  mochila: CarriedItem[]
 }
 
 /** Um ponto de chegada do "Mandar para…": um pino de viagem da cena de destino. */
@@ -72,6 +75,24 @@ function tokenOf(player: PlayerInfo, world: HostWorld): Token | null {
   return null
 }
 
+/**
+ * A mochila do jogador: o que carregam TODAS as fichas dele, em todas as
+ * cenas que o host serve — a ficha que ficou noutra cena continua com o que
+ * pegou. Cada ficha conta uma vez, mesmo que apareça em duas cenas.
+ */
+function backpackOf(player: PlayerInfo, world: HostWorld): CarriedItem[] {
+  const seen = new Set<string>()
+  const items: CarriedItem[] = []
+  for (const scene of allScenes(world)) {
+    for (const token of scene.map.tokens) {
+      if (!player.tokenIds.includes(token.id) || seen.has(token.id)) continue
+      seen.add(token.id)
+      items.push(...carriedItemsOf(token))
+    }
+  }
+  return items
+}
+
 /** As linhas do Grupo, na ordem de chegada que a ponte já dá. */
 export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMember[] {
   return players.map((player) => {
@@ -84,6 +105,7 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
       sceneName: player.sceneName ?? null,
       token: token === null ? null : { id: token.id, color: cssColor(tokenFillColor(token)), x: token.x, y: token.y },
       travelPending: player.travelPending === true,
+      mochila: backpackOf(player, world),
     }
   })
 }

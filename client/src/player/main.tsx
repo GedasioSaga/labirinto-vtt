@@ -16,6 +16,8 @@ import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import type { SignalMark } from '../lib/signals'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
+import { carriedItemsOf, tokensTouch } from '../lib/items'
+import { itemNoticeText } from './itemNotice'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -532,6 +534,18 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
       return token ? [{ id, name: token.name }] : []
     })
   }, [map, ownTokens])
+  // ITEM PEGÁVEL: "Comigo" é a mochila das fichas dele; "Dar a…" oferece as
+  // fichas de outros encostadas numa delas (o host confere se são de jogador).
+  const backpack = useMemo(() => {
+    if (!map) return { items: [], colleagues: [] }
+    const mine = map.tokens.filter((t) => ownTokens.includes(t.id))
+    return {
+      items: mine.flatMap(carriedItemsOf),
+      colleagues: map.tokens
+        .filter((t) => !ownTokens.includes(t.id) && mine.some((m) => tokensTouch(m, t, map.grid)))
+        .map((t) => ({ tokenId: t.id, name: t.name })),
+    }
+  }, [map, ownTokens])
 
   function changeSettings(next: PlayerViewSettings) {
     setSettings(next)
@@ -593,6 +607,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             // quem escolhe que paga o custo, e o que viaja já cabe no teto.
             connection.setOwnTokenPhoto(tokenId, await buildTokenPhotoData(file))
           }}
+          backpack={{ ...backpack, onGive: (itemId, toTokenId) => void connection.giveItem(itemId, toTokenId) }}
         />
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
@@ -607,7 +622,17 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
               // e o mapa volta inteiro à vista enquanto o mestre decide.
               if (connection.requestTravel(openPin.id, exitId)) setOpenPinId(null)
             }}
+            takeWaiting={state.item?.phase === 'sent' && !state.item.direct}
+            onTakeItem={() => {
+              // Mesma regra do pedido de passagem: enviado, o cartão sai e a espera fica no aviso.
+              if (connection.takePin(openPin.id)) setOpenPinId(null)
+            }}
           />
+        )}
+        {state.item && (
+          <p key={state.item.id} className="pp-notice" role="status" aria-live="polite">
+            {itemNoticeText(state.item)}
+          </p>
         )}
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
