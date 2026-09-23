@@ -23,6 +23,7 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { TokenNameControls, type TokenNameControlsProps } from './TokenNameControls'
 import { TokenColorControls, type TokenColorControlsProps } from './TokenColorControls'
 import { TokenSizeControls, type TokenSizeControlsProps } from './TokenSizeControls'
+import { TokenNpcControls, type TokenNpcControlsProps } from './TokenNpcControls'
 import { selectedTokenSize } from '../lib/tokenSize'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
@@ -106,6 +107,8 @@ interface PropertiesPanelProps {
   /** Tamanho da ficha em QUADRADOS da grade — para o dragão não ficar do
    *  tamanho do rato. */
   tokenSize: Omit<TokenSizeControlsProps, 'size'>
+  /** Marca de NPC — tira a ficha dos botões "Atribuir" de um clique do painel da sala. */
+  tokenNpc: Omit<TokenNpcControlsProps, 'npc'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -182,6 +185,7 @@ export function PropertiesPanel({
   tokenImage,
   tokenColor,
   tokenSize,
+  tokenNpc,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -413,6 +417,7 @@ export function PropertiesPanel({
             <TokenColorControls color={selectedTokenColor(selectedToken)} {...tokenColor} />
             {/* `tokenPhotoRef`: foto escolhida pelo JOGADOR vive em `imageData` — sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
             <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
+            <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
           </ToolPropertiesSection>
         )}
         {selectedToken && (
