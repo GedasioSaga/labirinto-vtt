@@ -756,6 +756,24 @@ describe('hostSession: sinal do jogador', () => {
     expect(t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)).toEqual({ outbound: [] })
   })
 
+  it('Sinalizar no tempo de quem lê o menu (1,5 s depois do toque longo) ainda só estende: nenhum segundo ping no mestre nem eco', () => {
+    const t = signalSetup()
+    const color = signalColor(t.ana.playerId)
+    const gesture = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, t.map)
+    expect(gesture.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', color, x: 800, y: 300 })
+    t.advance(1500)
+    const shared = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)
+    expect(shared.signal).toBeUndefined()
+    expect(toClient(shared, 'c1')).toEqual([])
+    expect(toClient(shared, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, from: 'Ana', color } }])
+    // O repasse conta no limite: outro sinal logo depois não chega aos colegas em rajada.
+    t.advance(SIGNAL_MIN_INTERVAL_MS - 1)
+    expect(t.s.handleMessage('c1', { type: 'signal', x: 820, y: 300 }, t.map)).toEqual({ outbound: [] })
+    // Passado o intervalo, um sinal novo volta a ser sinal novo (ping no mestre).
+    t.advance(1)
+    expect(t.s.handleMessage('c1', { type: 'signal', x: 820, y: 300 }, t.map).signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', color, x: 820, y: 300 })
+  })
+
   it('o sinal discreto não abre brecha no limite: outro ponto, ou outro discreto, dentro do intervalo é descartado', () => {
     const t = signalSetup()
     t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, t.map)

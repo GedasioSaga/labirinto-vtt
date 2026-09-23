@@ -868,8 +868,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * eco. Os colegas recebem pela regra de `relaySignalToColleagues`, menos no
    * sinal `audience: 'master'` (o do toque longo, antes do menu).
    *
-   * "Sinalizar" no menu logo depois do toque longo repete o MESMO ponto dentro
-   * do intervalo mínimo: em vez de ser descartado, estende o sinal discreto aos
+   * "Sinalizar" no menu depois do toque longo repete o MESMO ponto: a qualquer
+   * tempo (dentro ou fora do intervalo mínimo), estende o sinal discreto aos
    * colegas, uma vez, sem novo ping nem bipe no mestre (ele já recebeu).
    *
    * Sinal fora do mapa, de quem não joga ou antes do intervalo mínimo é
@@ -890,12 +890,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const toColleagues = msg.audience !== 'master'
     const at = now()
     const last = lastSignal.get(playerId)
-    if (last !== undefined && at - last.at < SIGNAL_MIN_INTERVAL_MS) {
-      const extendsLast = toColleagues && !last.relayed && last.x === msg.x && last.y === msg.y
-      if (!extendsLast) return { outbound: [] }
+    // Estender não depende do relógio: o menu fica aberto o quanto a pessoa
+    // leva para ler, e o ponto idêntico ao do gesto (px de mundo exato) é o
+    // Sinalizar desse menu. Fora da janela, virar sinal novo pingaria o
+    // mestre de novo pelo mesmo ponto.
+    if (last !== undefined && toColleagues && !last.relayed && last.x === msg.x && last.y === msg.y) {
       last.relayed = true
+      // O repasse conta no limite de 1 por segundo, para os colegas não receberem em rajada.
+      last.at = at
       return { outbound: relaySignalToColleagues(playerId, scene, message, point, world) }
     }
+    if (last !== undefined && at - last.at < SIGNAL_MIN_INTERVAL_MS) return { outbound: [] }
     lastSignal.set(playerId, { at, x: msg.x, y: msg.y, relayed: toColleagues })
 
     const outbound: Outbound[] = [{ clientId, msg: message }]
