@@ -134,6 +134,50 @@ describe('filterMapForPlayer: memória da planta sem spoiler', () => {
     expect(JSON.stringify(view.map)).not.toContain('altar')
   })
 
+  it('zona oculta ligada e desligada com ele longe devolve a lembrança: chão, sala e muro como ele viu', () => {
+    const j = jogador()
+    const visto = { walls: [wall('muro', 100, 100, 300, 100)], floor: [chao('lajota', 200, 160)], regions: [sala('sala', 'Salao')] }
+    j.ver(mapa(PERTO, visto))
+    const ids = (view: PlayerMapView) => [view.map.walls.map((w) => w.id), view.map.floor.map((f) => f.id), view.map.regions.map((r) => r.id)]
+    expect(ids(j.ver(mapa(LONGE, visto)))).toEqual([['muro'], ['lajota'], ['sala']])
+    const zona = { id: 'z', name: 'Segredo', points: [{ x: 50, y: 50 }, { x: 350, y: 50 }, { x: 350, y: 350 }, { x: 50, y: 350 }], revealed: false }
+    // Enquanto a zona está ligada, nada do lugar sai — e o mestre ainda mexe na lajota por baixo dela.
+    const escondido = j.ver(mapa(LONGE, { ...visto, floor: [{ ...chao('lajota', 200, 160), shape: { kind: 'rect', cx: 200, cy: 160, w: 200, h: 200 } }], concealZones: [zona] }))
+    expect(ids(escondido)).toEqual([[], [], []])
+    expect(JSON.stringify(escondido.map)).not.toContain('Salao')
+    // Zona desligada, ele ainda longe: volta a lembrança, na versão que ele viu (e não a mexida).
+    const depois = j.ver(mapa(LONGE, { ...visto, floor: [{ ...chao('lajota', 200, 160), shape: { kind: 'rect', cx: 200, cy: 160, w: 200, h: 200 } }] }))
+    expect(ids(depois)).toEqual([['muro'], ['lajota'], ['sala']])
+    expect(depois.map.floor[0]?.shape).toEqual({ kind: 'rect', cx: 200, cy: 160, w: 80, h: 80 })
+    expect(depois.map.regions[0]?.room?.name).toBe('Salao')
+  })
+
+  it('sala marcada secreta e desmarcada com ele longe volta com o chão e o pino de dentro', () => {
+    const j = jogador()
+    const visto = { floor: [chao('lajota', 200, 160)], regions: [sala('sala', 'Salao')], pins: [pin('bau', 180, 160)] }
+    j.ver(mapa(PERTO, visto))
+    j.ver(mapa(LONGE, visto))
+    const secreta = j.ver(mapa(LONGE, { ...visto, regions: [{ ...sala('sala', 'Salao'), secret: true }] }))
+    expect(secreta.map.regions).toEqual([])
+    expect(secreta.map.pins).toEqual([])
+    expect(JSON.stringify(secreta.map)).not.toContain('Salao')
+    const desmarcada = j.ver(mapa(LONGE, visto))
+    expect(desmarcada.map.regions.map((r) => r.id)).toEqual(['sala'])
+    expect(desmarcada.map.floor.map((f) => f.id)).toEqual(['lajota'])
+    expect(desmarcada.map.pins.map((p) => p.id)).toEqual(['bau'])
+  })
+
+  it('item escondido enquanto ele olha o lugar é esquecido: reaparecer longe dele não o devolve', () => {
+    const j = jogador()
+    const comPino = { pins: [pin('bau', 180, 160)] }
+    j.ver(mapa(PERTO, comPino))
+    // O mestre oculta o pino com ele olhando: ele vê o lugar sem o pino.
+    expect(j.ver(mapa(PERTO, { pins: [pin('bau', 180, 160, { hidden: true })] })).map.pins).toEqual([])
+    expect(j.plano().pins.has('bau')).toBe(false)
+    j.ver(mapa(LONGE, { pins: [pin('bau', 180, 160, { hidden: true })] }))
+    expect(j.ver(mapa(LONGE, comPino)).map.pins).toEqual([])
+  })
+
   it('camada escondida não sai, mas religá-la devolve a lembrança (não apaga o explorado de ninguém)', () => {
     const j = jogador()
     const comPino = { pins: [pin('bau', 180, 160)] }

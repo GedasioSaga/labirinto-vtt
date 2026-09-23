@@ -447,7 +447,9 @@ interface RecallRules<T> {
   /**
    * O mestre deixa o jogador receber o item (não está oculto nem secreto).
    * Vale para a versão atual E para a lembrada: a memória nunca devolve o que o
-   * mestre esconde. Item escondido assim é ESQUECIDO.
+   * mestre esconde. A lembrança de item escondido fica guardada SEM sair
+   * (desfeito o oculto, volta a versão que ele viu), a menos que o jogador veja o
+   * lugar enquanto está escondido: aí ele viu o lugar sem o item e esquece.
    */
   allowed: (item: T) => boolean
   /**
@@ -456,7 +458,11 @@ interface RecallRules<T> {
    * pode deixar o explorado de todo jogador vazio.
    */
   shown: (item: T) => boolean
-  /** O lugar do item permite mandá-lo (sala secreta, teto fechado, zona oculta). */
+  /**
+   * O lugar do item permite mandá-lo (sala secreta, teto fechado, zona oculta).
+   * Lugar escondido não apaga a memória: ligar e desligar uma zona longe do
+   * jogador não pode deixar buraco sem chão nem sala no explorado dele.
+   */
   placeOk: (item: T) => boolean
   /** O item está na visão ATUAL do jogador. */
   seenNow: (item: T) => boolean
@@ -473,8 +479,9 @@ interface Recalled<T> {
  * Escolhe, item a item, a versão que o jogador recebe.
  *
  * `all`: a lista do mapa do mestre. Item que o mestre esconde agora
- * (`rules.allowed` falso) é esquecido: o jogador não recebe nem a versão que
- * viu antes. Saem na ordem do mapa; os apagados que ele lembra, no fim.
+ * (`rules.allowed` ou `rules.placeOk` falso) não sai: o jogador não recebe nem
+ * a versão que viu antes, mas ela fica na memória. Saem na ordem do mapa; os
+ * apagados que ele lembra, no fim.
  *
  * Sem `memory` (quem não guarda memória por jogador), o explorado mostra o
  * presente: é a regra antiga, e `unseenOk` é que decide.
@@ -487,25 +494,29 @@ function recallItems<T extends { id: string }>(
   const items: { item: T; source: RecallSource }[] = []
   const plan = new Map<string, T>()
   for (const current of all) {
-    if (!rules.allowed(current)) continue
-    if (!rules.shown(current)) {
-      const kept = memory?.get(current.id)
-      if (kept !== undefined) plan.set(current.id, kept)
+    const remembered = memory?.get(current.id)
+    const allowedNow = rules.allowed(current)
+    if (allowedNow && !rules.shown(current)) {
+      if (remembered !== undefined) plan.set(current.id, remembered)
       continue
     }
-    if (rules.placeOk(current) && rules.seenNow(current)) {
+    if (allowedNow && rules.placeOk(current) && rules.seenNow(current)) {
       items.push({ item: current, source: 'agora' })
       plan.set(current.id, current)
       continue
     }
-    const remembered = memory?.get(current.id)
     // O lugar lembrado está à vista e o item não está lá como era: ele vê que mudou e esquece.
-    if (remembered !== undefined && rules.allowed(remembered) && rules.shown(remembered) && !rules.seenNow(remembered) && rules.placeOk(remembered)) {
-      items.push({ item: remembered, source: 'lembrado' })
+    if (remembered !== undefined && rules.allowed(remembered) && rules.shown(remembered) && !rules.seenNow(remembered)) {
+      if (allowedNow && rules.placeOk(remembered)) {
+        items.push({ item: remembered, source: 'lembrado' })
+        plan.set(current.id, remembered)
+        continue
+      }
+      // O mestre esconde agora o item ou o lugar lembrado (oculto, secreto, zona,
+      // sala secreta, teto): não sai, mas a lembrança fica para quando ele desfizer.
       plan.set(current.id, remembered)
-      continue
     }
-    if (rules.placeOk(current) && rules.unseenOk(current)) items.push({ item: current, source: 'nunca-visto' })
+    if (allowedNow && rules.placeOk(current) && rules.unseenOk(current)) items.push({ item: current, source: 'nunca-visto' })
   }
   if (memory === undefined) return { items, plan }
   const present = new Set(all.map((item) => item.id))
@@ -516,8 +527,9 @@ function recallItems<T extends { id: string }>(
       plan.set(id, remembered)
       continue
     }
-    if (rules.seenNow(remembered) || !rules.placeOk(remembered)) continue
-    items.push({ item: remembered, source: 'lembrado' })
+    if (rules.seenNow(remembered)) continue
+    // Lugar escondido agora (zona, sala secreta, teto): guarda sem mandar.
+    if (rules.placeOk(remembered)) items.push({ item: remembered, source: 'lembrado' })
     plan.set(id, remembered)
   }
   return { items, plan }
