@@ -60,6 +60,12 @@ describe('parseSceneNote', () => {
     expect(parseSceneNote({ type: 'scene.note', id: 'n1', text: 'x'.repeat(NOTE_MAX_LENGTH) })?.text.length).toBe(NOTE_MAX_LENGTH)
   })
 
+  it('"só para você" passa só quando é exatamente true', () => {
+    expect(parseSceneNote({ type: 'scene.note', id: 'n1', text: 'oi', onlyYou: true })).toEqual({ type: 'scene.note', id: 'n1', text: 'oi', onlyYou: true })
+    expect(parseSceneNote({ type: 'scene.note', id: 'n1', text: 'oi', onlyYou: 1 })).toEqual({ type: 'scene.note', id: 'n1', text: 'oi' })
+    expect(parseSceneNote({ type: 'scene.note', id: 'n1', text: 'oi', onlyYou: false })).toEqual({ type: 'scene.note', id: 'n1', text: 'oi' })
+  })
+
   it('recusa forma errada e texto acima do teto', () => {
     expect(parseSceneNote({ type: 'scene.note', id: 'n1', text: 'x'.repeat(NOTE_MAX_LENGTH + 1) })).toBeNull()
     expect(parseSceneNote({ type: 'scene.note', id: 'n1', text: '' })).toBeNull()
@@ -90,6 +96,15 @@ describe('recado no cliente do jogador', () => {
     socket.receive({ type: 'scene.note', id: 'n3' })
     socket.receive({ type: 'scene.note', id: 7, text: 'y' })
     expect(connection.getState().note).toEqual({ id: 'n1', text: 'fica' })
+  })
+
+  it('recado SÓ PARA VOCÊ guarda a marca; o da cena não ganha marca nenhuma', () => {
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'scene.note', id: 'n1', text: 'Só você viu a carta.', onlyYou: true })
+    expect(connection.getState().note).toEqual({ id: 'n1', text: 'Só você viu a carta.', onlyYou: true })
+    // Marca com valor estranho não vale: sem `true`, é recado comum.
+    socket.receive({ type: 'scene.note', id: 'n2', text: 'Todos ouvem.', onlyYou: 'sim' })
+    expect(connection.getState().note).toEqual({ id: 'n2', text: 'Todos ouvem.' })
   })
 
   it('fora do jogo (aguardando) o recado é ignorado', () => {

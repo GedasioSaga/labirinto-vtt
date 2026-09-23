@@ -1016,6 +1016,18 @@
   color: var(--lb-color-brass, #e0a44a);
 }
 
+/* "Só para você": faixa de linha fina clara, sem preenchimento — o recado não é da sala. */
+.pp-note__only {
+  align-self: flex-start;
+  margin: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lb-color-parchment, #eceae4);
+  border: 1px solid var(--lb-color-brass, #e0a44a);
+  border-radius: 999px;
+}
+
 /* `pre-wrap`: a quebra de linha que o mestre digitou chega igual; `anywhere` segura palavra gigante. */
 .pp-note__text {
   margin: 0;

@@ -536,6 +536,8 @@ function App() {
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
               followingId,
               onToggleFollow: (member) => useFollowStore.getState().toggle(member.playerId),
+              // Recado para um jogador só: sem sala não há quem leia.
+              onNote: room === null ? undefined : (playerId, text) => hostBridgeRef.current?.playerNote(playerId, text) ?? null,
             }}
             tunnel={tunnel}
             onStart={() => void handleStartRoom()}

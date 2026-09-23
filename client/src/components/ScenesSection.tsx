@@ -33,18 +33,19 @@ export function noteFeedbackText(sent: number | null): string {
   return sent === 1 ? 'Recado enviado a 1 jogador' : `Recado enviado a ${sent} jogadores`
 }
 
-interface NoteFormProps {
-  sceneName: string
+export interface NoteFormProps {
+  /** O rótulo do campo: diz para quem vai o recado. */
+  label: string
   onSend(text: string): void
   onCancel(): void
 }
 
 /**
- * O recado de uma cena, dentro da linha dela: um campo de texto curto e
+ * O recado de uma cena (ou de um jogador, no Grupo), dentro da linha dela: um campo de texto curto e
  * "Enviar"/"Cancelar", no molde do "Mandar para…" do Grupo. Enter comum quebra
  * linha (é um recado, pode ter duas frases); Ctrl+Enter envia; Esc cancela.
  */
-function NoteForm({ sceneName, onSend, onCancel }: NoteFormProps) {
+export function NoteForm({ label, onSend, onCancel }: NoteFormProps) {
   const fieldId = useId()
   const [text, setText] = useState('')
   const fieldRef = useRef<HTMLTextAreaElement | null>(null)
@@ -76,7 +77,7 @@ function NoteForm({ sceneName, onSend, onCancel }: NoteFormProps) {
   return (
     <form className="lb-cenas__recado" onSubmit={submit}>
       <label className="lb-label" htmlFor={fieldId}>
-        Recado para quem está em {sceneName}
+        {label}
       </label>
       <textarea
         id={fieldId}
@@ -261,7 +262,7 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
               )}
               {here !== undefined && (here.people.length > 0 || here.pendingRequests > 0) && <SceneGente people={here} />}
               {onNote !== undefined && noting === scene.id && (
-                <NoteForm sceneName={scene.name} onSend={(text) => sendNote(scene.id, text)} onCancel={closeNote} />
+                <NoteForm label={`Recado para quem está em ${scene.name}`} onSend={(text) => sendNote(scene.id, text)} onCancel={closeNote} />
               )}
               {noteFeedback?.sceneId === scene.id && (
                 <p className="lb-cenas__recado-aviso" role="status">
