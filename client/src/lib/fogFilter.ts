@@ -5,6 +5,7 @@ import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
+import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
@@ -843,6 +844,44 @@ function pinForPlayer(pin: Pin): Pin {
   const escolhas = exitLabelsOf(pin)
   if (escolhas.length > 1) forPlayer.escolhas = escolhas
   return forPlayer
+}
+
+/**
+ * MINHAS PISTAS — o que do cartão vai para o caderno do jogador: título, texto
+ * e foto. LISTA DO QUE VAI, como `pinForPlayer`: nada de posição (a pista
+ * sobrevive a sair da sala, e a posição diria onde o pino está depois que a
+ * névoa o esconde), nada de id do pino, de cena ou de destino.
+ */
+export interface PlayerClueContent {
+  title: string
+  text: string
+  image: string | null
+}
+
+/**
+ * A pista de um pino. Passa SEMPRE por `pinForPlayer` antes, mesmo que quem
+ * chama já tenha o recorte: foto em caminho de disco vira `null` aqui também.
+ * Cartão sem texto nem foto não é pista (`null`).
+ *
+ * Quem chama responde por o jogador PODER ver o pino agora: o host só aceita
+ * pino que saiu no último recorte da cena onde o jogador está.
+ */
+export function pinClueForPlayer(pin: Pin): PlayerClueContent | null {
+  const safe = pinForPlayer(pin)
+  const text = clampClueText(safe.description.trim())
+  if (text === '' && safe.image === null) return null
+  return { title: clueTitleFrom(text, CLUE_TITLE_ONLY_IMAGE), text, image: safe.image }
+}
+
+/**
+ * A pista de um texto de Sala. `title` é o nome da Sala COMO O JOGADOR O VÊ
+ * (vazio quando oculto; aí a primeira linha do texto nomeia a pista). A nota
+ * do mestre nunca passa por aqui: quem chama lê a Sala do recorte.
+ */
+export function roomClueForPlayer(title: string, text: string): PlayerClueContent | null {
+  const clamped = clampClueText(text.trim())
+  if (clamped === '') return null
+  return { title: clueTitleFrom(title, clueTitleFrom(clamped, CLUE_TITLE_ONLY_IMAGE)), text: clamped, image: null }
 }
 
 /**

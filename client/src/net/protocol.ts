@@ -4,6 +4,8 @@ import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
+import { isPlayerSafePinImage } from '../lib/pins'
+import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -63,6 +65,16 @@ import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
  * que AQUELE jogador já recebeu, mandada quando ele entra ou volta. Jogador
  * antigo ignora os dois; mestre antigo não manda `at` e o jogador anota a hora
  * da chegada.
+ *
+ * MINHAS PISTAS é aditivo pelo mesmo critério. Do jogador: `clue.read` (abriu o
+ * cartão de um pino), `clue.peers` (quem está na cena comigo?) e `clue.show`
+ * (mostrar uma pista a um colega pelo nome). Do mestre: `clue.added`,
+ * `clues.book` (o caderno inteiro, na entrada), `clue.shown` (um colega
+ * mostrou), `clue.peers` (os nomes) e `clue.show.result`. A pista leva título,
+ * texto, foto `data:image/` e hora, com um id que o HOST inventa: nunca a
+ * posição, o id do pino ou o nome/id da cena. Mestre antigo responde
+ * `error invalid_message` (que o jogador ignora durante o jogo); jogador
+ * antigo ignora as cinco.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -156,6 +168,28 @@ export interface PinTravelRequestMessage {
  */
 export type PlayerLaserMessage = LaserMessage
 
+/**
+ * O jogador abriu o cartão do pino `pinId`: guarde a pista no caderno dele. O
+ * host só aceita pino que saiu no último recorte da cena onde ele está, e
+ * monta a pista a partir DESSE recorte — nunca do texto que o jogador mandasse.
+ */
+export interface ClueReadMessage {
+  type: 'clue.read'
+  pinId: string
+}
+
+/** "Mostrar para…": quem joga na mesma cena agora? A resposta é `clue.peers` com os nomes. */
+export interface CluePeersRequestMessage {
+  type: 'clue.peers'
+}
+
+/** Mostrar a pista `clueId` (do caderno de quem pede) ao colega de nome `to`. */
+export interface ClueShowMessage {
+  type: 'clue.show'
+  clueId: string
+  to: string
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
@@ -165,6 +199,9 @@ export type PlayerMessage =
   | TokenEditMessage
   | PinTravelRequestMessage
   | PlayerLaserMessage
+  | ClueReadMessage
+  | CluePeersRequestMessage
+  | ClueShowMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -220,6 +257,55 @@ export interface RoomTextMessage {
   text: string
 }
 
+/**
+ * Uma pista no caderno do jogador. `id` é do HOST (não é o do pino nem o da
+ * Sala). `from`: o colega que mostrou; ausente = o próprio jogador leu.
+ */
+export interface ClueEntry {
+  id: string
+  title: string
+  /** Pode vir vazio: cartão só com foto. */
+  text: string
+  /** Só `data:image/...`; `null` = sem foto. */
+  image: string | null
+  at: number
+  from?: string
+}
+
+/** A pista que o host acabou de guardar para este jogador (nova, ou lida de novo). */
+export interface ClueAddedMessage {
+  type: 'clue.added'
+  clue: ClueEntry
+}
+
+/** O caderno de pistas inteiro, da mais antiga à mais nova, mandado quando o jogador entra ou volta. */
+export interface CluebookMessage {
+  type: 'clues.book'
+  clues: ClueEntry[]
+}
+
+/** Um colega da mesma cena mostrou uma pista. Ela já está no caderno de quem recebe. */
+export interface ClueShownMessage {
+  type: 'clue.shown'
+  from: string
+  clue: ClueEntry
+}
+
+/** Os colegas que jogam na mesma cena agora, pelo nome na sala. */
+export interface CluePeersMessage {
+  type: 'clue.peers'
+  names: string[]
+}
+
+/** A pista chegou (`ok`) ou não ao colega `to` — ele saiu da cena, da sala, ou a pista não era de quem pediu. */
+export interface ClueShowResultMessage {
+  type: 'clue.show.result'
+  to: string
+  ok: boolean
+}
+
+export type ClueHostMessage = ClueAddedMessage | CluebookMessage | ClueShownMessage | CluePeersMessage | ClueShowResultMessage
+
 export type HostErrorReason ='bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
 export type HostMessage =
@@ -244,6 +330,7 @@ export type HostMessage =
   | SceneNoteMessage
   | RoomTextMessage
   | NotebookMessage
+  | ClueHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -380,6 +467,84 @@ export function parseNotebook(value: unknown): NotebookMessage | null {
 /** Folga para o sufixo que o host põe em nome repetido ("Ana (2)", ver `uniqueName`). */
 const NAME_SUFFIX_ROOM = 8
 
+/** Nome de jogador como o host o manda (com o sufixo de nome repetido). */
+function isRoomName(value: unknown): value is string {
+  return isBoundedString(value, NAME_MIN_LENGTH, NAME_MAX_LENGTH + NAME_SUFFIX_ROOM)
+}
+
+/** Teto da lista de colegas: bem acima de uma mesa real, abaixo de um host hostil inflando a tela. */
+const CLUE_PEERS_MAX = 64
+
+function parseClueEntry(value: unknown): ClueEntry | null {
+  if (!isRecord(value)) return null
+  const { id, title, text, image, at, from } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(title, 1, CLUE_TITLE_MAX_LENGTH)) return null
+  if (!isBoundedString(text, 0, CLUE_TEXT_MAX_LENGTH)) return null
+  // Fronteira de segurança: só foto embutida. Caminho de disco, `http://` e
+  // `file://` recusam a pista inteira — o `<img>` do jogador não abre nada disso.
+  let photo: string | null = null
+  if (image !== null) {
+    if (typeof image !== 'string' || !isPlayerSafePinImage(image)) return null
+    photo = image
+  }
+  if (!isNoteTime(at)) return null
+  const entry: ClueEntry = { id, title, text, image: photo, at }
+  if (from === undefined) return entry
+  if (!isRoomName(from)) return null
+  return { ...entry, from }
+}
+
+/**
+ * Valida as mensagens de MINHAS PISTAS que o jogador recebe. Mesma regra do
+ * caderno de recados: forma errada, pista ruim ou lista acima do teto recusam
+ * a mensagem inteira. Devolve cópia só com os campos conhecidos — posição, id
+ * de pino ou de cena que viessem juntos ficam para trás.
+ */
+export function parseClueMessage(value: unknown): ClueHostMessage | null {
+  if (!isRecord(value)) return null
+  switch (value.type) {
+    case 'clue.added': {
+      const clue = parseClueEntry(value.clue)
+      return clue === null ? null : { type: 'clue.added', clue }
+    }
+    case 'clues.book': {
+      const { clues } = value
+      if (!Array.isArray(clues) || clues.length > CLUEBOOK_MAX_CLUES) return null
+      const parsed: ClueEntry[] = []
+      for (const item of clues) {
+        const clue = parseClueEntry(item)
+        if (clue === null) return null
+        parsed.push(clue)
+      }
+      return { type: 'clues.book', clues: parsed }
+    }
+    case 'clue.shown': {
+      const { from } = value
+      const clue = parseClueEntry(value.clue)
+      if (clue === null || !isRoomName(from)) return null
+      return { type: 'clue.shown', from, clue }
+    }
+    case 'clue.peers': {
+      const { names } = value
+      if (!Array.isArray(names) || names.length > CLUE_PEERS_MAX) return null
+      const parsed: string[] = []
+      for (const name of names) {
+        if (!isRoomName(name)) return null
+        parsed.push(name)
+      }
+      return { type: 'clue.peers', names: parsed }
+    }
+    case 'clue.show.result': {
+      const { to, ok } = value
+      if (!isRoomName(to) || typeof ok !== 'boolean') return null
+      return { type: 'clue.show.result', to, ok }
+    }
+    default:
+      return null
+  }
+}
+
 /** Cor do laser repassado: `#rrggbb`, a forma que `Token.color` grava. */
 const LASER_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 
@@ -464,6 +629,12 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       // Só o corpo: `from`/`color` mandados pelo jogador são jogados fora — o
       // nome e a cor quem põe é o host, pela conexão e pela ficha dele.
       return parseLaserBody(value)
+    case 'clue.read':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'clue.read', pinId: value.pinId } : null
+    case 'clue.peers':
+      return { type: 'clue.peers' }
+    case 'clue.show':
+      return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
     default:
       return null
   }

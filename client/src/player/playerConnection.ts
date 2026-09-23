@@ -2,7 +2,7 @@ import type { MapData, RegionPoint, Token } from '../types/map'
 import { decodeExploration, type Exploration } from '../lib/exploration'
 import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PinTravelRequestMessage, type PlayerMessage } from '../net/protocol'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
-import { passageOf } from '../lib/pins'
+import { isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import {
   LASER_MAX_POINTS_PER_MESSAGE,
@@ -16,7 +16,8 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { NOTEBOOK_MAX_NOTES, parseLaserMessage, parseNotebook, parseRoomText, parseSceneNote, type NoteEntry } from '../net/protocol'
+import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
 
@@ -71,6 +72,18 @@ export interface PlayerState {
   notebook?: NoteEntry[]
   /** Ids de recados que chegaram e o jogador ainda não viu (nem no cartão fechado, nem no Caderno). */
   unreadNotes?: string[]
+  /**
+   * MINHAS PISTAS: os cartões lidos e os que colegas mostraram, da mais antiga
+   * à mais nova (até `CLUEBOOK_MAX_CLUES`). Só entra o que o HOST confirmou
+   * (`clue.added`, `clue.shown`); o `clues.book` da entrada substitui tudo.
+   */
+  clues?: ClueEntry[]
+  /** Pista que um colega acabou de mostrar: o cartão "Gabi mostrou: Bilhete". `id` novo reabre. */
+  shownClue?: { id: number; from: string; clue: ClueEntry }
+  /** "Mostrar para…": esperando a lista, ou os colegas da mesma cena. */
+  cluePeers?: CluePeers
+  /** "Mostrar para…": o último envio e a resposta do host. */
+  clueShow?: ClueShow
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -92,6 +105,18 @@ export type TravelNotice =
   | { id: number; phase: 'gathered' }
   | { id: number; phase: 'denied' }
   | { id: number; phase: 'rejected'; reason: PinTravelRejection }
+
+export type CluePeers = { phase: 'loading' } | { phase: 'ready'; names: string[] }
+
+export interface ClueShow {
+  to: string
+  phase: 'sending' | 'ok' | 'failed'
+}
+
+/** Põe a pista no fim do caderno; a mesma (mesmo id) sai de onde estava. Passou do teto, sai a mais antiga. */
+function withClue(book: readonly ClueEntry[], clue: ClueEntry): ClueEntry[] {
+  return [...book.filter((entry) => entry.id !== clue.id), clue].slice(-CLUEBOOK_MAX_CLUES)
+}
 
 /** Subconjunto do WebSocket do browser que este cliente usa. */
 export interface SocketLike {
@@ -164,6 +189,20 @@ export interface PlayerConnection {
   openRoomText(regionId: string): boolean
   /** Fecha o texto da Sala aberto. */
   dismissRoomText(): void
+  /**
+   * MINHAS PISTAS: o jogador abriu o cartão do pino `pinId` — pede ao host
+   * para guardar. `false` (e nada sai) quando não joga, o pino não está no
+   * mapa dele ou o cartão não tem texto nem foto.
+   */
+  readClue(pinId: string): boolean
+  /** "Mostrar para…": pede ao host quem está na mesma cena. */
+  askCluePeers(): boolean
+  /** Mostra a pista `clueId` (do caderno dele) ao colega `to`. `false` se a pista não é dele ou o socket caiu. */
+  showClue(clueId: string, to: string): boolean
+  /** O cartão da pista fechou: a lista de colegas e o resultado do envio perdem o sentido. */
+  resetClueShare(): void
+  /** Fecha o cartão da pista que um colega mostrou (a pista continua no caderno). */
+  dismissShownClue(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -565,6 +604,38 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return true
   }
 
+  /**
+   * MINHAS PISTAS. O caderno vale também aguardando (é do jogador, não da
+   * cena); cartão de colega, lista e resultado só com o mapa na tela.
+   */
+  function handleClueMessage(data: unknown): void {
+    const msg = parseClueMessage(data)
+    if (msg === null) return
+    switch (msg.type) {
+      case 'clues.book':
+        setState({ clues: msg.clues })
+        return
+      case 'clue.added':
+        setState({ clues: withClue(state.clues ?? [], msg.clue) })
+        return
+      case 'clue.shown': {
+        // A pista fica no caderno de qualquer jeito; o cartão só abre com o mapa na tela.
+        const clues = withClue(state.clues ?? [], msg.clue)
+        setState(state.status === 'playing' ? { clues, shownClue: { id: nextNoticeId++, from: msg.from, clue: msg.clue } } : { clues })
+        return
+      }
+      case 'clue.peers':
+        // Só quem pediu espera a lista: resposta atrasada de um cartão já fechado não reabre nada.
+        if (state.cluePeers?.phase !== 'loading') return
+        setState({ cluePeers: { phase: 'ready', names: msg.names } })
+        return
+      case 'clue.show.result':
+        if (state.clueShow?.phase !== 'sending' || state.clueShow.to !== msg.to) return
+        setState({ clueShow: { to: msg.to, phase: msg.ok ? 'ok' : 'failed' } })
+        return
+    }
+  }
+
   function handleMessage(raw: unknown): void {
     if (typeof raw !== 'string') return
     let data: unknown
@@ -588,7 +659,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -603,7 +674,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         resetOwnLaser()
         clearDoorNotice()
         clearMoveNotice()
-        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined })
+        // A lista de "Mostrar para…" era de quem estava na cena de antes.
+        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, cluePeers: undefined, clueShow: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -648,6 +720,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ notebook: book.notes, unreadNotes: (state.unreadNotes ?? []).filter((id) => kept.has(id)) })
         return
       }
+      case 'clue.added':
+      case 'clues.book':
+      case 'clue.shown':
+      case 'clue.peers':
+      case 'clue.show.result':
+        handleClueMessage(data)
+        return
       case 'room.text': {
         // Mesma regra do recado: só quem joga tem tela de cartão.
         if (state.status !== 'playing') return
@@ -911,6 +990,35 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.roomText !== undefined) setState({ roomText: undefined })
     },
 
+    readClue(pinId) {
+      if (state.status !== 'playing') return false
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      // Cartão vazio ("O mestre ainda não escreveu nada") não é pista: nem pede.
+      if (pin === undefined || (pin.description.trim() === '' && !isPlayerSafePinImage(pin.image))) return false
+      return send({ type: 'clue.read', pinId })
+    },
+
+    askCluePeers() {
+      if (state.status !== 'playing' || !send({ type: 'clue.peers' })) return false
+      setState({ cluePeers: { phase: 'loading' }, clueShow: undefined })
+      return true
+    },
+
+    showClue(clueId, to) {
+      if (state.status !== 'playing' || !(state.clues ?? []).some((entry) => entry.id === clueId)) return false
+      if (!send({ type: 'clue.show', clueId, to })) return false
+      setState({ clueShow: { to, phase: 'sending' } })
+      return true
+    },
+
+    resetClueShare() {
+      if (state.cluePeers !== undefined || state.clueShow !== undefined) setState({ cluePeers: undefined, clueShow: undefined })
+    },
+
+    dismissShownClue() {
+      if (state.shownClue !== undefined) setState({ shownClue: undefined })
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -926,7 +1034,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
       open()
     },
     close: detach,
