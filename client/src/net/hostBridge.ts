@@ -9,6 +9,7 @@ import {
   type AppliedTokenEdit,
   type AppliedTransfer,
   type HostResult,
+  type HostPlayerLaser,
   type HostSession,
   type HostSignal,
   type HostWorld,
@@ -80,6 +81,8 @@ export interface HostBridgeDeps {
   onTunnelChange?: (state: TunnelState) => void
   /** Sinal aceito de um jogador (já validado e dentro do limite por segundo). */
   onSignal?: (signal: HostSignal) => void
+  /** Laser de um jogador (lote ou fim do gesto), já validado e dentro do limite. */
+  onPlayerLaser?: (laser: HostPlayerLaser) => void
   now?: () => number
 }
 
@@ -127,13 +130,6 @@ export const BROADCAST_THROTTLE_MS = 50
  * este aviso é o jogador esperando sozinho numa tela parada.
  */
 export const PLAYER_JOINED_TOAST_MS = 10_000
-/**
- * Tentativa com código errado só avisa o mestre uma vez por minuto. O amigo que
- * erra tenta três, quatro vezes seguidas, e o mestre não precisa de quatro
- * avisos: precisa de um, com o código para reenviar no grupo. A janela também
- * segura quem varre a porta de fora sem transformar o rail num paredão.
- */
-export const BAD_CODE_TOAST_INTERVAL_MS = 60_000
 const DEFAULT_VISION_RADIUS = 700
 /** Id de conexão do Rust (hoje um contador decimal); o padrão aceita folga sem abrir para lixo. */
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
@@ -201,11 +197,8 @@ function reportError(context: string, error: unknown): void {
 }
 
 export function createHostBridge(deps: HostBridgeDeps): HostBridge {
-  const now = deps.now ?? Date.now
   let session: HostSession | null = null
   let currentRoom: RoomInfo | null = null
-  /** Último aviso de código errado mostrado ao mestre; `null` = nenhum nesta sala. */
-  let lastBadCodeToastAt: number | null = null
   let unlisteners: UnlistenFn[] = []
   let pendingBroadcast: ReturnType<typeof setTimeout> | null = null
   let pendingStart: Promise<RoomInfo> | null = null
@@ -362,25 +355,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   /**
    * Alguém chegou: o mestre precisa saber SEM ir conferir o painel Jogo, que
    * costuma estar na aba inativa enquanto ele desenha. Só para conexão que
-   * acabou de entrar — join recusado (código errado) não cria jogador e não
-   * acha registro aqui.
+   * acabou de entrar — join recusado não cria jogador e não acha registro aqui.
+   *
+   * Não há aviso de código errado: o servidor Rust confere o código e recusa o
+   * errado antes de repassar qualquer coisa ao TS (server.rs, `await_join`),
+   * então um aviso disparado daqui nunca apareceria no app real. Avisar o
+   * mestre exige o Rust emitir um evento próprio nessa recusa.
    */
-  /**
-   * Alguém bateu na porta com o código errado. Sem isto o mestre não faz ideia:
-   * o amigo lê "Código de sala incorreto", acha que o mestre passou errado e
-   * desiste calado — foi assim que um passeio cego ficou 15 minutos parado. O
-   * aviso traz o código de novo, que é justamente o que o mestre precisa
-   * reenviar. Estrangulado por `BAD_CODE_TOAST_INTERVAL_MS`.
-   */
-  const announceBadCode = () => {
-    const code = currentRoom?.code
-    if (code === undefined) return
-    const at = now()
-    if (lastBadCodeToastAt !== null && at - lastBadCodeToastAt < BAD_CODE_TOAST_INTERVAL_MS) return
-    lastBadCodeToastAt = at
-    useToastStore.getState().push('info', `Alguém tentou entrar com o código errado. O código desta sala é ${code}.`, PLAYER_JOINED_TOAST_MS)
-  }
-
   const announceJoin = (clientId: string) => {
     const player = session?.listPlayers().find((p) => p.clientId === clientId)
     if (player === undefined) return
@@ -492,9 +473,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (clientId === null) return
     const wasJoined = session.listPlayers().some((p) => p.clientId === clientId)
     const result = session.handleMessage(clientId, event.payload.msg, world())
-    const rejectedJoin = !wasJoined && result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'invalid_message')
+    const rejectedJoin =
+      !wasJoined && result.outbound.some((o) => o.msg.type === 'error' && (o.msg.reason === 'invalid_message' || o.msg.reason === 'bad_code'))
     if (rejectedJoin) {
-      // Conexão que nem entrou manda lixo: responde e libera a vaga no Rust.
+      // Conexão que nem entrou manda lixo ou código que a sessão recusa: responde
+      // e libera a vaga no Rust. O código errado de verdade o Rust já barra antes
+      // de chegar aqui; esta recusa é a defesa da sessão, não o caminho comum.
       void sendThenKick(result, clientId)
       return
     }
@@ -504,6 +488,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (result.applyTransfer !== undefined) completeTransfer(result, result.applyTransfer)
     else void dispatch(result)
     if (result.signal !== undefined) deps.onSignal?.(result.signal)
+    if (result.playerLaser !== undefined) deps.onPlayerLaser?.(result.playerLaser)
     if (result.applyMove !== undefined) {
       const { tokenId, x, y, sceneId } = result.applyMove
       // Cena aberta: a mesma chamada de sempre, sem o quarto argumento.
@@ -530,9 +515,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       broadcastNow()
     }
     notifyPlayersIfChanged()
-    if (wasJoined) return
-    if (result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'bad_code')) announceBadCode()
-    else announceJoin(clientId)
+    if (!wasJoined) announceJoin(clientId)
   }
 
   const onPeer = (event: { payload: unknown }) => {
@@ -554,8 +537,6 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const room = parseRoomInfo(await deps.invoke('net_start_room'))
       if (room === null) throw new Error('resposta inválida de net_start_room')
       session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now })
-      // Sala nova, código novo: o aviso da sala anterior não pode segurar o primeiro desta.
-      lastBadCodeToastAt = null
       unlisteners = [
         await deps.listen('net:message', onMessage),
         await deps.listen('net:peer', onPeer),

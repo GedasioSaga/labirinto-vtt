@@ -223,6 +223,30 @@ describe('drawLights — a luz para na parede', () => {
     expect(alcance(container)).toEqual(primeiro)
   })
 
+  it('zoom: halo e recorte ficam parados, só o marcador (px de tela) é refeito', () => {
+    const renderer = createLightsRenderer()
+    const container = new Container()
+    const luzes = [tocha]
+    renderer.draw(container, luzes, { occluders: parede, cameraScale: 1 })
+    const halo = halos(container)[0]
+    const haloClear = vi.spyOn(halo, 'clear')
+    const markerClear = vi.spyOn(markers(container), 'clear')
+
+    // Lista nova com a MESMA luz (o filtro de camada devolve array novo a cada redesenho).
+    renderer.draw(container, [...luzes], { occluders: parede, cameraScale: 2 })
+    expect(haloClear).not.toHaveBeenCalled()
+    expect(markerClear).toHaveBeenCalledTimes(1)
+    expect(circleRadius(fills(markers(container))[0])).toBe(LIGHT_MARKER_SCREEN_RADIUS / 2)
+    expect(mascara(container)).not.toBeNull()
+
+    // Luz movida ou obstáculo novo: o halo volta a ser refeito.
+    const movida = { ...tocha, x: tocha.x + 10 }
+    renderer.draw(container, [movida], { occluders: parede, cameraScale: 2 })
+    expect(haloClear).toHaveBeenCalledTimes(1)
+    renderer.draw(container, [movida], { occluders: [...parede], cameraScale: 2 })
+    expect(haloClear).toHaveBeenCalledTimes(2)
+  })
+
   it('luz apagada (raio 0) some da tela: halo invisível, sem máscara e sem preenchimento', () => {
     const renderer = createLightsRenderer()
     const container = new Container()

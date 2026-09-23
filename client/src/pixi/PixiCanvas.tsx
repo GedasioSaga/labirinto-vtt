@@ -39,6 +39,7 @@ import { drawStairs } from './drawStairs'
 import { createLightsRenderer } from './drawLights'
 import { visionSegments, type Segment } from '../lib/visibility'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
+import { createShapesRedrawer, paintedTextLayer, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
 import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelFontSize, roomLabelPosition } from './drawRoomNames'
 import { createFloorRenderer, drawBlocosDraft, drawFloorDraft } from './drawFloor'
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
@@ -78,8 +79,9 @@ import { drawMapBounds } from './drawMapBounds'
 import { createTokensRenderer } from './tokensRenderer'
 import { createSignalsRenderer } from './drawSignals'
 import { useSignalStore } from '../stores/signalStore'
-import { createLaserRenderer } from './drawLaser'
+import { createLaserPool, createLaserRenderer } from './drawLaser'
 import { isLaserArmed, useLaserStore } from '../stores/laserStore'
+import { usePlayerLaserStore } from '../stores/playerLaserStore'
 import { createLaserGesture } from './laserGesture'
 import { LASER_KEY_TAP_MS, isLaserKey } from '../lib/laser'
 import { createMeasurementIndicatorRenderer } from './drawMeasurementIndicator'
@@ -857,6 +859,21 @@ export function PixiCanvas({
         if (drawn === 0 && !state.drawing) useLaserStore.setState({ trail: [] })
       }
       app.ticker.add(tickLaser)
+
+      // Laser dos JOGADORES da cena aberta: um rastro por jogador, na cor da ficha dele.
+      const playerLaserPool = createLaserPool()
+      let playerLasersDrawn = 0
+      el.dataset.playerLasersDrawn = '0'
+      const tickPlayerLasers = () => {
+        const { lasers, prune } = usePlayerLaserStore.getState()
+        if (lasers.length === 0 && playerLasersDrawn === 0) return
+        const now = Date.now()
+        const drawn = playerLaserPool.draw(laserLayer, lasers, camera, now)
+        if (drawn !== playerLasersDrawn) el.dataset.playerLasersDrawn = String(drawn)
+        playerLasersDrawn = drawn
+        if (drawn === 0) prune(now)
+      }
+      app.ticker.add(tickPlayerLasers)
       /** Último ponto do ponteiro sobre o canvas (px de mundo); `null` com o ponteiro fora dele. */
       let laserPointer: Point | null = null
       /** L apertado há menos de `LASER_KEY_TAP_MS`, ainda sem decidir entre atalho da Linha e laser. */
@@ -1005,10 +1022,10 @@ export function PixiCanvas({
       /**
        * Paredes e portas têm espessura fixa em px de TELA (drawWalls.ts,
        * drawDoors.ts): recebem escala e resolução e redesenham quando qualquer
-       * uma muda. Função própria porque também roda sozinha no zoom, sem pagar
-       * o redesenho do chão/regiões de `redrawShapes`.
+       * uma muda. Camada `walls` de `redrawShapes`: no zoom é das poucas que
+       * repinta (ver `shapesLayerDeps` em shapesRedraw.ts).
        */
-      const redrawWallsAndDoors = () => {
+      const paintWallsAndDoors = () => {
         const { map, selection } = useMapStore.getState()
         const single = selectionSingle(selection)
         const walls = visibleWalls(map.walls, map.hiddenLayers)
@@ -1022,9 +1039,10 @@ export function PixiCanvas({
       /**
        * Obstáculos que barram a luz, memorizados por REFERÊNCIA de `walls` e
        * `floor` (a store é imutável). `visionSegments` devolve um array novo a
-       * cada chamada, e `redrawLights` roda em todo passo de zoom: sem este
+       * cada chamada, e `paintLights` roda em todo passo de zoom: sem este
        * memo, o recorte por raycast de cada luz seria refeito a cada quadro do
-       * zoom, com o mapa parado.
+       * zoom, com o mapa parado. A mesma referência é o que deixa o renderer
+       * de luzes pular o halo inteiro e refazer só o marcador.
        */
       let lightOccluders: { walls: MapData['walls']; floor: MapData['floor']; segments: Segment[] } | null = null
       const lightOccludersOf = (map: MapData): Segment[] => {
@@ -1034,8 +1052,8 @@ export function PixiCanvas({
         return segments
       }
 
-      /** Luz com gradiente e marcador de tamanho fixo na tela: redesenha também no zoom. */
-      const redrawLights = () => {
+      /** Luz com gradiente e marcador de tamanho fixo na tela: no zoom, o renderer refaz só o marcador. */
+      const paintLights = () => {
         const { map, selection } = useMapStore.getState()
         const single = selectionSingle(selection)
         // Mesmos obstáculos da visão: a luz para onde o olho pararia.
@@ -1050,12 +1068,18 @@ export function PixiCanvas({
 
       /**
        * Regiões e desenhos recebem `camera.scale` para o contorno de seleção
-       * manter espessura fixa na tela; roda sozinha quando só o zoom muda.
+       * manter espessura fixa na tela. O renderer de regiões só repinta a sala
+       * que mudou (referência, destaque ou, na selecionada, a espessura).
        */
-      const redrawRegionsAndDrawings = () => {
+      const paintRegions = () => {
         const { map, selection } = useMapStore.getState()
         const single = selectionSingle(selection)
         regionsRenderer.draw(regionsContainer, visibleRegions(map.regions, map.hiddenLayers), resolveHighlightedRegionId(map.walls, single), camera.scale)
+      }
+
+      const paintDrawings = () => {
+        const { map, selection } = useMapStore.getState()
+        const single = selectionSingle(selection)
         const drawings = visibleDrawings(map.drawings, map.hiddenLayers)
         const selectedDrawingId = single?.kind === 'drawing' ? single.id : null
         drawDrawings(drawingsGraphics, drawings.filter((d) => !d.secret), selectedDrawingId, camera.scale)
@@ -1063,7 +1087,7 @@ export function PixiCanvas({
       }
 
       /** Escadas também têm contorno de seleção em px de tela: redesenham no zoom. */
-      const redrawStairs = () => {
+      const paintStairs = () => {
         const { map, selection } = useMapStore.getState()
         const single = selectionSingle(selection)
         const stairs = visibleStairs(map.stairs, map.hiddenLayers)
@@ -1085,8 +1109,9 @@ export function PixiCanvas({
        * formas as redesenhava. Resultado medido no passeio cego de 16/09/2026:
        * depois de arrastar um token, as quatro alças continuavam desenhadas na
        * posição ANTIGA (144 pixels amarelos fantasma) até a pessoa clicar fora.
+       * Quem chama é `redrawEditHandles`, pelo portão da camada `handles`.
        */
-      const redrawEditHandles = () => {
+      const paintEditHandles = () => {
         const { map, selection, activeTool } = useMapStore.getState()
         drawEditHandles(handlesGraphics, map, selectionSingle(selection), activeTool, {
           cameraScale: camera.scale,
@@ -1101,7 +1126,7 @@ export function PixiCanvas({
        * OUTRA cena, então quem pede este redesenho é também a assinatura da
        * aventura (ver `unsubscribeTravelLinks`), não só `map.pins`.
        */
-      const redrawPins = () => {
+      const paintPins = () => {
         const { map, selectedPinId } = useMapStore.getState()
         pinsRenderer.draw(
           pinsContainer,
@@ -1111,58 +1136,111 @@ export function PixiCanvas({
         )
       }
 
-      const redrawShapes = () => {
-        const { map, selection } = useMapStore.getState()
-        // Onda 4, item 24 — `selection` é um SelectionSet agora; o destaque
-        // POR ENTIDADE (drawWalls/drawDoors/etc., 1 highlight cada) só faz
-        // sentido pro caso de 1 item — `single` é essa borda. Grupo (2+
-        // itens, Shift+clique ou marquee mesclado) ganha o contorno de
-        // bounding-box abaixo, reaproveitando drawAreaSelectionOutline (N3),
-        // em vez de destacar item a item (exigiria mudar drawWalls.ts e os
-        // outros 6 renderers de forma, fora da minha lista de arquivos).
-        const single = selectionSingle(selection)
-        // Onda 3, item 22 (bug — Frente E): antes só `selection.kind ===
-        // 'region'` pintava a Sala com SELECTION_COLOR; clicar na PAREDE-dona
-        // (selection.kind === 'wall' com wall.regionId apontando pra cá)
-        // deixava a sala sem confirmar visualmente a seleção. Ver
-        // `resolveHighlightedRegionId` (drawRegions.ts) para os dois casos.
-        // Chão por peças fica na camada 'salas', junto das Regiões.
-        const rasterMode = map.floorStyle.renderMode === 'raster'
-        if (rasterMode) {
+      // Chão por peças fica na camada 'salas', junto das Regiões.
+      const paintFloor = () => {
+        const { map } = useMapStore.getState()
+        if (map.floorStyle.renderMode === 'raster') {
           floorGraphics.clear()
           redrawMapRaster(map)
         } else {
           clearMapRaster()
           floorRenderer.draw(floorGraphics, map.hiddenLayers.includes('salas') ? EMPTY_FLOOR : map.floor, map.floorStyle)
         }
-        redrawGridMask()
+      }
+
+      const paintFloorSelection = () => {
+        const { map, selection } = useMapStore.getState()
+        const single = selectionSingle(selection)
         floorRenderer.drawSelection(
           floorSelectionGraphics,
           single?.kind === 'floor' && !map.hiddenLayers.includes('salas') ? map.floor.find((p) => p.id === single.id) ?? null : null,
           map.floorStyle.sampleStep,
         )
+      }
+
+      const paintMapLines = () => {
+        const { map } = useMapStore.getState()
+        const rasterMode = map.floorStyle.renderMode === 'raster'
         mapLinesGraphics.clear()
         if (!rasterMode && !map.hiddenLayers.includes('paredes')) drawMapLines(mapLinesGraphics, map.lines)
         if (!rasterMode && !map.hiddenLayers.includes('portas')) drawMapMarkers(mapLinesGraphics, map.markers)
-        redrawMapFrame(map.frame)
-        redrawRegionsAndDrawings()
-        roomNamesRenderer.draw(roomNamesContainer, visibleRegions(map.regions, map.hiddenLayers), map.grid, camera.scale)
-        redrawWallsAndDoors()
-        redrawStairs()
-        redrawLights()
-        concealZonesRenderer.draw(concealZonesContainer, map.concealZones, map.grid, useMapStore.getState().selectedConcealZoneId)
-        redrawPins()
-        textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
-        redrawEditHandles()
-        // N3 (agora genérico, não só marquee): contorno do GRUPO — só com 2+
-        // itens (1 item já tem o próprio destaque acima; 0 não desenha nada).
-        drawAreaSelectionOutline(
-          areaSelectionOutlineGraphics,
-          selection.length > 1 ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null,
-        )
-        // Text novo (nome, rótulo) nasce na resolução do renderer: ajusta já ao zoom atual.
-        syncTextResolution()
       }
+
+      /** O que as camadas vetoriais leem, no momento do redesenho (store, aventura, câmera, gesto). */
+      const shapesSnapshot = (): ShapesSnapshot => {
+        const { map, selection, activeTool, selectedConcealZoneId, selectedPinId } = useMapStore.getState()
+        const adventure = useAdventureStore.getState()
+        return {
+          map,
+          selection,
+          activeTool,
+          selectedConcealZoneId,
+          selectedPinId,
+          travel: [adventure.cache, adventure.adventure, adventure.activeSceneId],
+          cameraScale: camera.scale,
+          rendererResolution: app.renderer.resolution,
+          rotatingRoom: roomRotateGesture.isActive(),
+        }
+      }
+
+      // Onda 4, item 24 — `selection` é um SelectionSet; o destaque POR
+      // ENTIDADE só faz sentido pro caso de 1 item (`selectionSingle`). Grupo
+      // (2+ itens) ganha o contorno de bounding-box (`areaOutline`). Onda 3,
+      // item 22 — a sala acende também quando a selecionada é a PAREDE-dona
+      // (`resolveHighlightedRegionId`, drawRegions.ts).
+      //
+      // Redesenho PARCIAL: cada camada passa pelo portão dela e só repinta
+      // quando uma entrada DELA muda (shapesRedraw.ts). Arrastar uma sala
+      // repinta a sala, o nome, as paredes, a máscara da grade e a luz que ela
+      // barra; selecionar repinta o destaque; o zoom repinta só o que tem
+      // espessura em px de tela.
+      const redrawLayers = createShapesRedrawer({
+        floor: paintFloor,
+        gridMask: redrawGridMask,
+        floorSelection: paintFloorSelection,
+        mapLines: paintMapLines,
+        mapFrame: () => redrawMapFrame(useMapStore.getState().map.frame),
+        regions: paintRegions,
+        drawings: paintDrawings,
+        roomNames: () => {
+          const { map } = useMapStore.getState()
+          roomNamesRenderer.draw(roomNamesContainer, visibleRegions(map.regions, map.hiddenLayers), map.grid, camera.scale)
+        },
+        walls: paintWallsAndDoors,
+        stairs: paintStairs,
+        lights: paintLights,
+        concealZones: () => {
+          const { map, selectedConcealZoneId } = useMapStore.getState()
+          concealZonesRenderer.draw(concealZonesContainer, map.concealZones, map.grid, selectedConcealZoneId)
+        },
+        pins: paintPins,
+        textLabels: () => {
+          const { map, selection } = useMapStore.getState()
+          const single = selectionSingle(selection)
+          textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
+        },
+        handles: paintEditHandles,
+        // N3 (agora genérico, não só marquee): contorno do GRUPO — só com 2+
+        // itens (1 item já tem o próprio destaque; 0 não desenha nada).
+        areaOutline: () => {
+          const { map, selection } = useMapStore.getState()
+          drawAreaSelectionOutline(
+            areaSelectionOutlineGraphics,
+            selection.length > 1 ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null,
+          )
+        },
+      })
+
+      /** Pinta as camadas pedidas (todas, sem `only`) que mudaram; Text novo nasce na resolução do renderer e é ajustado ao zoom atual. */
+      const redrawShapeLayers = (only?: readonly ShapesLayer[]) => {
+        if (paintedTextLayer(redrawLayers(shapesSnapshot(), only))) syncTextResolution()
+      }
+
+      const redrawShapes = () => redrawShapeLayers()
+      // Mesmo portão das camadas do redesenho inteiro: quem só mexe nas alças
+      // (arrasto de ficha, giro de sala) ou nos pinos não repinta o resto.
+      const redrawEditHandles = () => redrawShapeLayers(['handles'])
+      const redrawPins = () => redrawShapeLayers(['pins'])
 
       const redrawTokens = () => {
         const { map, selection } = useMapStore.getState()
@@ -1360,10 +1438,10 @@ export function PixiCanvas({
         app.renderer.resolution = resolution
         app.resize()
         // Pixel físico mudou de tamanho: reposiciona o world e realinha escada,
-        // paredes e portas (grade e moldura já redesenham no 'resize' acima).
+        // paredes, portas e alças — as camadas cujo portão lê a resolução
+        // (grade e moldura já redesenham no 'resize' acima).
         positionWorld()
-        redrawStairs()
-        redrawWallsAndDoors()
+        redrawShapes()
         // Text com resolução fixa não segue o runner resolutionChange do Pixi.
         textResolutionTask.flush()
       })
@@ -1392,12 +1470,17 @@ export function PixiCanvas({
         () => redrawGrid(),
       )
       // Só a escala importa para o piso de 1 px das paredes e para o contorno
-      // de seleção (px de tela) de regiões, desenhos e escadas: pan não muda a
-      // largura na tela, então não redesenha a cada movimento de arrasto.
-      // Também um por quadro: é o bloco mais caro que a câmera dispara (4
-      // redraws de forma), e uma rolada de roda entrega vários eventos dentro
-      // do mesmo quadro. A escala vem da store na hora de desenhar, não do
-      // argumento do listener, pra valer sempre a última (ver `umaVezPorQuadro`).
+      // de seleção (px de tela): pan não muda a largura na tela, então não
+      // redesenha a cada movimento de arrasto. Um por quadro: uma rolada de
+      // roda entrega vários eventos dentro do mesmo quadro. A escala vem da
+      // store na hora de desenhar, não do argumento do listener, pra valer
+      // sempre a última (ver `umaVezPorQuadro`).
+      //
+      // O zoom passa pelo MESMO portão de `redrawShapes`: repinta só as
+      // camadas cuja pintura lê a escala — paredes e portas, escadas, o
+      // marcador das luzes (o halo fica), e, com algo selecionado, o contorno
+      // da sala ou do desenho selecionado e as alças. Chão, salas não
+      // selecionadas, nomes, zonas, pinos e rótulos ficam parados.
       const unsubscribeCameraScaleForWalls = useMapStore.subscribe(
         (state) => state.camera.scale,
         umaVezPorQuadro(() => {
@@ -1405,12 +1488,7 @@ export function PixiCanvas({
           // Nomes de sala/token: tamanho mínimo na tela e somem abaixo de 30% (screenLabel.ts).
           roomNamesRenderer.setCameraScale(scale)
           tokensRenderer.setCameraScale(scale)
-          redrawWallsAndDoors()
-          redrawRegionsAndDrawings()
-          redrawStairs()
-          redrawLights()
-          // A alça de girar sala tem tamanho fixo na tela.
-          redrawEditHandles()
+          redrawShapes()
         }),
       )
       // tokensSubscription.ts/propsSubscription.ts (fora do escopo deste
@@ -5467,6 +5545,7 @@ export function PixiCanvas({
       return () => {
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickLaser)
+        app.ticker.remove(tickPlayerLasers)
         unsubscribeLaserCursor()
         laserGesture.cancel()
         releaseLaserKey(false)

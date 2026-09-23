@@ -16,7 +16,7 @@ import { useMapStore } from './mapStore'
  *
  * `lastSyncedMap` guarda a referência de `map` no último ponto em que o
  * estado em memória é sabido igual ao do disco (`markSaved()` grava essa
- * referência e zera `isDirty`). Comparar por referência — não recalcular
+ * referência — a do mapa que foi para o disco — e recalcula `isDirty`). Comparar por referência — não recalcular
  * "sujo" a cada tick — resolve de graça o caso de desfazer até voltar
  * exatamente à versão salva: `map` volta a ser a MESMA referência que
  * `lastSyncedMap`, logo `isDirty` volta a `false`, sem precisar de
@@ -31,8 +31,14 @@ interface SessionState {
    * OU depois de carregar um mapa do disco com sucesso (`loadMapFromDisk` +
    * `loadMap`) — as duas situações significam "o mapa em memória está em
    * sincronia com um arquivo", mesmo efeito sobre esta flag.
+   *
+   * `saved` é o mapa que de fato foi para o disco. Gravar é assíncrono e o
+   * editor não trava: sem ele, o mapa de AGORA — que pode ter uma edição
+   * feita durante a gravação — viraria a referência "salva" sem estar no
+   * arquivo. Com ele, `isDirty` fica `true` se o mapa já mudou desde então.
+   * Ausente = o mapa de agora (carregar do disco, mapa recém-criado).
    */
-  markSaved: () => void
+  markSaved: (saved?: MapData) => void
 }
 
 /**
@@ -45,11 +51,24 @@ let lastSyncedMap: MapData | null = null
 
 export const useSessionStore = create<SessionState>()((set) => ({
   isDirty: false,
-  markSaved: () => {
-    lastSyncedMap = useMapStore.getState().map
-    set({ isDirty: false })
+  markSaved: (saved) => {
+    const current = useMapStore.getState().map
+    lastSyncedMap = saved ?? current
+    set({ isDirty: current !== lastSyncedMap })
   },
 }))
+
+/**
+ * Grava o mapa aberto com `write` e marca como salvo SÓ o que foi gravado: o
+ * mapa é lido antes do `await`, e o que o mestre mudar enquanto o disco grava
+ * continua como não salvo. Se `write` falha, nada é marcado.
+ */
+export async function saveOpenMap<T>(write: (map: MapData) => Promise<T>): Promise<T> {
+  const saved = useMapStore.getState().map
+  const result = await write(saved)
+  useSessionStore.getState().markSaved(saved)
+  return result
+}
 
 /**
  * Liga a assinatura que alimenta `isDirty`. Chamar UMA VEZ, fora de

@@ -126,6 +126,13 @@ interface AdventureState {
   /** Muda uma cena de FUNDO sem passar pelo desfazer da cena aberta. */
   updateBackgroundScene: (sceneId: string, updater: (map: MapData) => MapData) => void
   /**
+   * Mudança de um JOGADOR numa cena de FUNDO. Além do mapa, `transform` entra
+   * em todo passo do desfazer guardado dela: quando o mestre abrir a cena, o
+   * Ctrl+Z não pode devolver a ficha (ou a porta) do jogador ao estado de
+   * antes. Mesmo contrato de `useMapStore.applyPlayerChange` para `transform`.
+   */
+  applyPlayerChangeToBackgroundScene: (sceneId: string, transform: (map: MapData) => MapData) => void
+  /**
    * Liga o pino de viagem `pinId` (da cena aberta) a um pino de chegada NOVO,
    * que nasce no centro de `sceneId`. A volta é gravada pelo guardião da mão
    * dupla (ver `syncTravelLinks`). Devolve o id da chegada, ou `null` se não
@@ -449,6 +456,17 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     set({ cache: { ...cache, [sceneId]: { ...slot, map } }, dirty: { ...dirty, [sceneId]: true } })
   },
 
+  applyPlayerChangeToBackgroundScene: (sceneId, transform) => {
+    const { cache, dirty } = get()
+    const slot = cache[sceneId]
+    if (slot === undefined || slot.status !== 'ok') return
+    const map = transform(slot.map)
+    if (map === slot.map) return
+    const past = slot.past.map(transform)
+    const future = slot.future.map(transform)
+    set({ cache: { ...cache, [sceneId]: { ...slot, map, past, future } }, dirty: { ...dirty, [sceneId]: true } })
+  },
+
   linkPinToNewArrival: (pinId, sceneId, exitId = SAIDA_PRINCIPAL) => {
     const { activeSceneId, cache } = get()
     const pin = useMapStore.getState().map.pins.find((p) => p.id === pinId)
@@ -593,24 +611,46 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
 
     const live = useMapStore.getState().map
     const writes: { file: string; map: MapData }[] = []
+    /** Cena → mapa exato que foi para o disco. */
+    const written = new Map<string, MapData>()
     let activeFile: string | null = null
     for (const entry of adventure.scenes) {
       if (entry.id === activeSceneId) {
         activeFile = entry.file
         writes.push({ file: entry.file, map: live })
+        written.set(entry.id, live)
         continue
       }
       const slot = state.cache[entry.id]
-      if (slot !== undefined && slot.status === 'ok' && state.dirty[entry.id] === true) writes.push({ file: entry.file, map: slot.map })
+      if (slot !== undefined && slot.status === 'ok' && state.dirty[entry.id] === true) {
+        writes.push({ file: entry.file, map: slot.map })
+        written.set(entry.id, slot.map)
+      }
     }
     if (activeFile === null) throw new Error('A cena aberta não está na lista da aventura.')
 
     await saveAdventureToDisk(dir, adventure, writes)
-    // Só o que foi escrito sai de "pendente": mudança feita enquanto o disco
-    // gravava continua pendente na próxima conta (o mapa vivo é comparado de
-    // novo pelo `markSaved` abaixo, que ancora no mapa que acabou de ir).
-    set({ dir, rootPath: null, rootMapId: null, dirty: {}, structureDirty: false })
-    if (useMapStore.getState().map === live) useSessionStore.getState().markSaved()
+
+    // O editor não trava enquanto o disco grava: só sai de "pendente" o que
+    // continua IGUAL (mesma referência) ao que foi escrito. Mudança feita no
+    // meio — cena de fundo, cena aberta, nome ou cena nova — fica pendente.
+    const after = get()
+    // Outra aventura (ou mapa solto) entrou no meio: o estado já não é desta gravação.
+    if (after.adventure === null || after.adventure.id !== adventure.id) return scenePath(dir, activeFile)
+    const nowOf = (sceneId: string): MapData | undefined => {
+      if (sceneId === after.activeSceneId) return useMapStore.getState().map
+      const slot = after.cache[sceneId]
+      return slot !== undefined && slot.status === 'ok' ? slot.map : undefined
+    }
+    const dirty: Record<string, true> = {}
+    for (const sceneId of Object.keys(after.dirty)) {
+      const sent = written.get(sceneId)
+      // Pendente antes e não escrito = não tinha o que escrever (cena fora do ar): sai, como sempre saiu.
+      if (sent === undefined ? state.dirty[sceneId] !== true : nowOf(sceneId) !== sent) dirty[sceneId] = true
+    }
+    set({ dir, rootPath: null, rootMapId: null, dirty, structureDirty: after.structureDirty && after.adventure !== adventure })
+    const activeSent = after.activeSceneId === null ? undefined : written.get(after.activeSceneId)
+    if (activeSent !== undefined) useSessionStore.getState().markSaved(activeSent)
     return scenePath(dir, activeFile)
   },
 }))

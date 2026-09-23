@@ -129,10 +129,17 @@ export function createLightsRenderer(): LightsRenderer {
     return polygon
   }
 
-  function draw(container: Container, lights: Light[], options: LightsDrawOptions = {}): void {
-    const { selectedLightId = null, cameraScale = 1, occluders = [], showMarkers = true } = options
-    const scale = Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1
-    const markersGraphics = ensureHalos(container, lights.length)
+  /** Luzes e obstáculos da última pintura dos halos; `null` = nada pintado ainda. */
+  let lastHalos: { lights: Light[]; occluders: Segment[] } | null = null
+
+  function sameHalos(lights: Light[], occluders: Segment[]): boolean {
+    if (lastHalos === null || lastHalos.occluders !== occluders || lastHalos.lights.length !== lights.length) return false
+    const previous = lastHalos.lights
+    return lights.every((light, i) => light === previous[i])
+  }
+
+  /** Halos (gradiente + recorte por parede) e a coleta de gradientes e recortes fora de uso. */
+  function drawHalos(lights: Light[], occluders: Segment[]): void {
     const usedGradients = new Set<string>()
     const usedPolygons = new Set<string>()
 
@@ -163,6 +170,27 @@ export function createLightsRenderer(): LightsRenderer {
       halo.mask = sombra
     }
 
+    for (const [key, gradient] of cache) {
+      if (!usedGradients.has(key)) {
+        cache.delete(key)
+        gradient.destroy()
+      }
+    }
+    for (const key of polygons.keys()) {
+      if (!usedPolygons.has(key)) polygons.delete(key)
+    }
+  }
+
+  function draw(container: Container, lights: Light[], options: LightsDrawOptions = {}): void {
+    const { selectedLightId = null, cameraScale = 1, occluders = [], showMarkers = true } = options
+    const scale = Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1
+    const markersGraphics = ensureHalos(container, lights.length)
+    // Halo e recorte não dependem do zoom nem da seleção: com as mesmas luzes
+    // (item a item — o filtro de camada devolve lista nova a cada redesenho)
+    // e os mesmos obstáculos, só o marcador em px de tela é refeito.
+    if (!sameHalos(lights, occluders)) drawHalos(lights, occluders)
+    lastHalos = { lights: [...lights], occluders }
+
     markersGraphics.clear()
     markersGraphics.visible = showMarkers
     if (showMarkers) {
@@ -177,22 +205,14 @@ export function createLightsRenderer(): LightsRenderer {
         }
       }
     }
-
-    for (const [key, gradient] of cache) {
-      if (!usedGradients.has(key)) {
-        cache.delete(key)
-        gradient.destroy()
-      }
-    }
-    for (const key of polygons.keys()) {
-      if (!usedPolygons.has(key)) polygons.delete(key)
-    }
   }
 
   function destroy(): void {
     for (const gradient of cache.values()) gradient.destroy()
     cache.clear()
     polygons.clear()
+    // Gradientes destruídos: o próximo draw precisa repintar os halos.
+    lastHalos = null
   }
 
   return { draw, liveGradients: () => cache.size, destroy }

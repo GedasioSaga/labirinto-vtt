@@ -46,6 +46,11 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
  * nunca o id nem o nome da cena — quem recebe já está lá.
+ *
+ * O LASER DO JOGADOR também é aditivo: `laser` (jogador -> mestre, mesma forma
+ * do laser do mestre) e, na volta a quem está na mesma cena, `laser` com
+ * `from` + `color`. Mestre antigo responde `error invalid_message`, que o
+ * jogador ignora durante o jogo.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -56,6 +61,13 @@ export const REQ_ID_MAX_LENGTH = 64
 export const RESUME_TOKEN_MAX_LENGTH = 128
 /** Teto do recado por cena, em unidades UTF-16 (o `maxLength` do campo do mestre conta igual). */
 export const NOTE_MAX_LENGTH = 500
+/**
+ * Maior mensagem, em BYTES, que o servidor da mesa aceita de um jogador —
+ * espelho de `MAX_MESSAGE_BYTES` em desktop/src-tauri/src/net/server.rs. Acima
+ * disso o servidor fecha o socket: o jogador cai da mesa. O cliente do jogador
+ * nunca envia nada maior (player/playerConnection.ts).
+ */
+export const PLAYER_MESSAGE_MAX_BYTES = 64 * 1024
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
@@ -130,7 +142,22 @@ export interface PinTravelRequestMessage {
   exitId?: string
 }
 
-export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage | DoorToggleMessage | TokenEditMessage | PinTravelRequestMessage
+/**
+ * LASER DO JOGADOR: a mesma forma do laser do mestre (lote de pontos em px de
+ * mundo, ou `off` ao soltar). Nada de nome nem cor: quem é o host sabe pela
+ * conexão, e a cor é a da ficha — o jogador não pode se passar por outro.
+ */
+export type PlayerLaserMessage = LaserMessage
+
+export type PlayerMessage =
+  | JoinMessage
+  | TokenMoveMessage
+  | PingMessage
+  | SignalMessage
+  | DoorToggleMessage
+  | TokenEditMessage
+  | PinTravelRequestMessage
+  | PlayerLaserMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -147,6 +174,14 @@ export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon'
 // Mestre -> jogador
 /** Laser do mestre: lote de pontos (px de mundo) desde o último envio, ou `off` ao soltar. */
 export type LaserMessage = { type: 'laser'; points: RegionPoint[] } | { type: 'laser'; off: true }
+
+/**
+ * Laser de um JOGADOR repassado pelo host a quem está na mesma cena: `from` é
+ * o nome dele na sala (único, igual ao `from` do sinal) e `color` a cor da
+ * ficha dele. Aditivo: jogador antigo ignora os dois campos e desenha o rastro
+ * como se fosse o do mestre.
+ */
+export type RelayedLaserMessage = LaserMessage & { from: string; color: string }
 
 /** Recado do mestre a quem está numa cena. `id` novo = recado novo (substitui o que estiver aberto). */
 export interface SceneNoteMessage {
@@ -175,6 +210,7 @@ export type HostMessage =
   // pino — o aviso diz que o GRUPO foi reunido, e continua sem dizer onde.
   | { type: 'scene.changed'; by?: 'master' | 'gather' }
   | LaserMessage
+  | RelayedLaserMessage
   | SceneNoteMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
@@ -276,13 +312,17 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
   return { type: 'scene.note', id, text }
 }
 
+/** Folga para o sufixo que o host põe em nome repetido ("Ana (2)", ver `uniqueName`). */
+const NAME_SUFFIX_ROOM = 8
+
+/** Cor do laser repassado: `#rrggbb`, a forma que `Token.color` grava. */
+const LASER_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
+
 /**
- * Valida a mensagem `laser` que o jogador recebe (objeto já desserializado).
- * Aceita `off: true` ou 1 a `LASER_MAX_POINTS_PER_MESSAGE` pontos finitos; devolve
- * cópia só com `x`/`y`, e `null` para qualquer outra forma.
+ * O corpo do laser, nos dois sentidos: `off: true` ou 1 a
+ * `LASER_MAX_POINTS_PER_MESSAGE` pontos finitos. Devolve cópia só com `x`/`y`.
  */
-export function parseLaserMessage(value: unknown): LaserMessage | null {
-  if (!isRecord(value) || value.type !== 'laser') return null
+function parseLaserBody(value: Record<string, unknown>): LaserMessage | null {
   if (value.off === true) return { type: 'laser', off: true }
   const { points } = value
   if (!Array.isArray(points) || points.length === 0 || points.length > LASER_MAX_POINTS_PER_MESSAGE) return null
@@ -292,6 +332,23 @@ export function parseLaserMessage(value: unknown): LaserMessage | null {
     parsed.push({ x: point.x, y: point.y })
   }
   return { type: 'laser', points: parsed }
+}
+
+/**
+ * Valida a mensagem `laser` que o jogador recebe (objeto já desserializado).
+ * Sem `from` nem `color` é o laser do mestre; com os dois, o de outro jogador
+ * (`RelayedLaserMessage`). Um só dos dois, nome fora do teto ou cor fora de
+ * `#rrggbb` recusam a mensagem inteira — a cor vai direto para o desenho.
+ */
+export function parseLaserMessage(value: unknown): LaserMessage | RelayedLaserMessage | null {
+  if (!isRecord(value) || value.type !== 'laser') return null
+  const body = parseLaserBody(value)
+  if (body === null) return null
+  const { from, color } = value
+  if (from === undefined && color === undefined) return body
+  if (!isBoundedString(from, NAME_MIN_LENGTH, NAME_MAX_LENGTH + NAME_SUFFIX_ROOM)) return null
+  if (typeof color !== 'string' || !LASER_COLOR_PATTERN.test(color)) return null
+  return { ...body, from, color }
 }
 
 /**
@@ -324,6 +381,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTokenEdit(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
+    case 'laser':
+      // Só o corpo: `from`/`color` mandados pelo jogador são jogados fora — o
+      // nome e a cor quem põe é o host, pela conexão e pela ficha dele.
+      return parseLaserBody(value)
     default:
       return null
   }
