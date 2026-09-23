@@ -1,10 +1,10 @@
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH } from '../net/protocol'
+import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type NoteEntry } from '../net/protocol'
 import { latestActionNotice } from './moveNotice'
 import { themeCss } from '../theme'
-import { createPlayerConnection, RESUME_STORAGE_KEY } from './playerConnection'
+import { createPlayerConnection, hasUnreadNotes, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNotice } from './playerConnection'
 import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
@@ -33,6 +33,9 @@ document.head.prepend(themeStyle)
 const NO_TOKENS: string[] = []
 const NO_SIGNALS: SignalMark[] = []
 const NO_PLAYER_LASERS: RemoteLaser[] = []
+const NO_NOTES: NoteEntry[] = []
+/** Fechar o recado não perde nada: quem fecha sabe onde reler. */
+const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
 
 /**
  * O pedido de passagem, em uma linha. Nunca diz para onde o pino leva: o
@@ -561,6 +564,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
   const closeRoomText = useCallback(() => connection.dismissRoomText(), [connection])
+  // Estável: o painel marca o Caderno como lido num efeito que depende dela.
+  const readNotebook = useCallback(() => connection.markNotebookRead(), [connection])
   /** Painel e barra do jogador: a câmera lê, na hora, o que eles cobrem do mapa. */
   const panelRef = useRef<HTMLElement | null>(null)
   const barRef = useRef<HTMLDivElement | null>(null)
@@ -632,6 +637,9 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             // quem escolhe que paga o custo, e o que viaja já cabe no teto.
             connection.setOwnTokenPhoto(tokenId, await buildTokenPhotoData(file))
           }}
+          notebook={state.notebook ?? NO_NOTES}
+          notebookUnread={hasUnreadNotes(state)}
+          onReadNotebook={readNotebook}
         />
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
@@ -650,7 +658,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         )}
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
-          <PlayerNoteCard key={state.note.id} text={state.note.text} onClose={closeNote} escapeCloses={openPin === null} />
+          <PlayerNoteCard key={state.note.id} text={state.note.text} hint={NOTE_KEPT_HINT} onClose={closeNote} escapeCloses={openPin === null} />
         )}
         {/* TEXTO DA SALA: o mesmo cartão, com o nome da Sala no alto. Um
             cartão de cada vez no mesmo lugar: com recado aberto, o texto da

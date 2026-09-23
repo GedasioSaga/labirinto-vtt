@@ -62,6 +62,9 @@ describe('PlayerPanel: painel que recolhe em qualquer largura e "Minha ficha" se
           onChangeTokenPhoto={async () => {}}
           panelRef={opcoes.panelRef}
           barRef={opcoes.barRef}
+          notebook={[]}
+          notebookUnread={false}
+          onReadNotebook={() => {}}
         />,
       ),
     )
