@@ -733,6 +733,63 @@ describe('hostSession: sinal do jogador', () => {
     expect(s.listPlayers().map((p) => p.name)).toEqual(['Ana', 'A NA (2)', 'ana (3)'])
   })
 
+  it('sinal "audience: master" (toque longo) vai ao mestre e ao eco, e nunca aos colegas que veem o ponto', () => {
+    const t = signalSetup()
+    const color = signalColor(t.ana.playerId)
+    // (800,300) é do lado que a Bia vê: sem o campo, ela receberia.
+    const quiet = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, t.map)
+    expect(quiet.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', color, x: 800, y: 300 })
+    expect(toClient(quiet, 'c1')).toEqual([{ clientId: 'c1', msg: { type: 'signal', x: 800, y: 300, from: 'Ana', color } }])
+    expect(JSON.stringify(toClient(quiet, 'c2'))).toBe('[]')
+  })
+
+  it('Sinalizar logo depois do toque longo, no mesmo ponto, estende o sinal aos colegas uma vez, sem novo ping no mestre', () => {
+    const t = signalSetup()
+    const color = signalColor(t.ana.playerId)
+    t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, t.map)
+    t.advance(SIGNAL_MIN_INTERVAL_MS - 1)
+    const shared = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)
+    expect(shared.signal).toBeUndefined()
+    expect(toClient(shared, 'c1')).toEqual([])
+    expect(toClient(shared, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, from: 'Ana', color } }])
+    // Uma vez só: repetir dentro do intervalo continua descartado.
+    expect(t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)).toEqual({ outbound: [] })
+  })
+
+  it('Sinalizar no tempo de quem lê o menu (1,5 s depois do toque longo) ainda só estende: nenhum segundo ping no mestre nem eco', () => {
+    const t = signalSetup()
+    const color = signalColor(t.ana.playerId)
+    const gesture = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, t.map)
+    expect(gesture.signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', color, x: 800, y: 300 })
+    t.advance(1500)
+    const shared = t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, t.map)
+    expect(shared.signal).toBeUndefined()
+    expect(toClient(shared, 'c1')).toEqual([])
+    expect(toClient(shared, 'c2')).toEqual([{ clientId: 'c2', msg: { type: 'signal', x: 800, y: 300, from: 'Ana', color } }])
+    // O repasse conta no limite: outro sinal logo depois não chega aos colegas em rajada.
+    t.advance(SIGNAL_MIN_INTERVAL_MS - 1)
+    expect(t.s.handleMessage('c1', { type: 'signal', x: 820, y: 300 }, t.map)).toEqual({ outbound: [] })
+    // Passado o intervalo, um sinal novo volta a ser sinal novo (ping no mestre).
+    t.advance(1)
+    expect(t.s.handleMessage('c1', { type: 'signal', x: 820, y: 300 }, t.map).signal).toEqual({ playerId: t.ana.playerId, name: 'Ana', color, x: 820, y: 300 })
+  })
+
+  it('o sinal discreto não abre brecha no limite: outro ponto, ou outro discreto, dentro do intervalo é descartado', () => {
+    const t = signalSetup()
+    t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, t.map)
+    t.advance(SIGNAL_MIN_INTERVAL_MS - 1)
+    expect(t.s.handleMessage('c1', { type: 'signal', x: 820, y: 300 }, t.map)).toEqual({ outbound: [] })
+    expect(t.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, t.map)).toEqual({ outbound: [] })
+    // Estender também respeita a zona oculta: o repasse segue a mesma regra do sinal comum.
+    const t2 = signalSetup()
+    const cofre: MapData = {
+      ...t2.map,
+      concealZones: [{ id: 'z', name: 'cofre', revealed: false, points: [{ x: 700, y: 200 }, { x: 900, y: 200 }, { x: 900, y: 400 }, { x: 700, y: 400 }] }],
+    }
+    t2.s.handleMessage('c1', { type: 'signal', x: 800, y: 300, audience: 'master' }, cofre)
+    expect(t2.s.handleMessage('c1', { type: 'signal', x: 800, y: 300 }, cofre)).toEqual({ outbound: [] })
+  })
+
   it('limita a 1 sinal por segundo por jogador, sem afetar os outros', () => {
     const t = signalSetup()
     const signal = (clientId: string) => t.s.handleMessage(clientId, { type: 'signal', x: 250, y: 250 }, t.map)

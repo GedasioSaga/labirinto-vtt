@@ -1091,6 +1091,76 @@
   border-color: var(--lb-color-brass, #e0a44a);
 }
 
+/* Ação no ponto: acima da viagem e da pausa, para os avisos não se cobrirem. */
+.pp-notice--point {
+  bottom: 156px;
+}
+
+/*
+ * AÇÕES NO PONTO: menu do toque longo, ao lado do dedo. Linguagem de
+ * minimapa: fundo escuro chapado, linha fina clara, sem textura. Largura e
+ * altura casam com POINT_MENU_WIDTH_PX / POINT_MENU_HEIGHT_PX
+ * (`PointActionMenu.tsx`), que viram o menu perto da borda da tela.
+ */
+.pp-pointmenu {
+  position: fixed;
+  z-index: 22;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-sizing: border-box;
+  width: 148px;
+  max-height: 218px;
+  padding: 4px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  background: var(--lb-color-stone, #131317);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  transform-origin: top left;
+  animation: pp-pointmenu-in 120ms ease-out;
+}
+
+.pp-pointmenu__item {
+  min-height: 40px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pp-pointmenu__item:hover,
+.pp-pointmenu__item:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pp-pointmenu__item:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: -2px;
+}
+
+@keyframes pp-pointmenu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-pointmenu {
+    animation: none;
+  }
+}
+
 @keyframes pp-pincard-fade {
   from {
     opacity: 0;

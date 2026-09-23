@@ -10,6 +10,14 @@ import { passageOf, pinSummary } from '../lib/pins'
 import { visibleTokens } from '../lib/layers'
 import { companionSpots, companionsNear, type Companion } from '../lib/travelTogether'
 import {
+  MAX_PENDING_POINT_ACTIONS_PER_PLAYER,
+  POINT_ACTION_MIN_INTERVAL_MS,
+  isPointInsideMap,
+  roomNameAt,
+  type PointActionAnswer,
+  type PointActionKind,
+} from '../lib/pointActions'
+import {
   parsePlayerMessage,
   type CallRaiseMessage,
   type CallReason,
@@ -25,6 +33,7 @@ import {
   type PartyWhere,
   type PinTravelRejection,
   type PinTravelRequestMessage,
+  type PointActionMessage,
   type SignalMessage,
   type TokenEditMessage,
   type TokenMoveMessage,
@@ -207,6 +216,29 @@ export interface CallTarget {
   y: number
 }
 
+/**
+ * AÇÃO NO PONTO aceita, à espera do mestre. É o que a linha da Caixa mostra
+ * ("Fabi quer Procurar — Ferreiro") e o que o "Ir lá" usa. Nada disto vai ao
+ * jogador: a sala é lida no mapa do MESTRE, secreta ou não.
+ */
+export interface PointActionRequest {
+  requestId: string
+  playerId: string
+  playerName: string
+  /** Mesma cor do sinal do jogador: o ponto marcado pelo "Ir lá" é dele. */
+  color: string
+  action: PointActionKind
+  x: number
+  y: number
+  /** A sala mais de dentro que contém o ponto; `null` = fora de sala com nome. */
+  roomName: string | null
+  /** Cena do ponto (`null` = mapa solto) e o nome que o mestre lê. */
+  sceneId: string | null
+  sceneName: string
+  /** `true` quando a cena do ponto não é a aberta no editor. */
+  background: boolean
+}
+
 export interface HostResult {
   outbound: Outbound[]
   /** Chamado NOVO na fila: o integrador mostra a linha e toca o bipe. Repetição do mesmo chamado não vem. */
@@ -215,6 +247,8 @@ export interface HostResult {
   applyDoor?: AppliedDoor
   applyTokenEdit?: AppliedTokenEdit
   signal?: HostSignal
+  /** Ação no ponto aceita: o integrador põe a linha na Caixa do mestre. */
+  pointAction?: PointActionRequest
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
   travelRequest?: TravelRequest
   /** Pedido da porta trancada válido: o integrador pergunta ao mestre. */
@@ -398,6 +432,14 @@ export interface HostSession {
   /** O pedido da porta ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isDoorRequestPending(requestId: string): boolean
   /**
+   * "Nada aqui" (`nothing`) ou "Feito" (`seen`) da ação no ponto: a resposta
+   * vai SÓ à conexão atual de quem pediu. Pedido já respondido, de jogador
+   * expulso, ou jogador sem conexão agora: nada sai.
+   */
+  answerPointAction(requestId: string, answer: PointActionAnswer): HostResult
+  /** A ação no ponto ainda espera o mestre? `false` depois de respondida ou com o jogador expulso. */
+  isPointActionPending(requestId: string): boolean
+  /**
    * "Mandar para…" do painel Grupo: o MESTRE leva o jogador, sem pedido, para
    * `toSceneId` — no pino de viagem `pinId` daquela cena ou, com `null`, no
    * centro dela. Devolve o mesmo par da aprovação (`applyTransfer` +
@@ -553,8 +595,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: o último pedido de passagem, de qualquer pino. Sobrevive ao
   // disconnect; só o kick apaga.
   const lastTravelRequestByPlayer = new Map<string, number>()
-  // Por playerId: reconectar não zera o limite de 1 sinal por segundo.
-  const lastSignalAt = new Map<string, number>()
+  // Por playerId: reconectar não zera o limite de 1 sinal por segundo. Guarda
+  // também o ponto e se os colegas já receberam, para o "Sinalizar" do menu
+  // estender aos colegas o sinal que o toque longo mandou só ao mestre.
+  const lastSignal = new Map<string, { at: number; x: number; y: number; relayed: boolean }>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
   const lastDoorToggleAt = new Map<string, number>()
   // Por playerId: o pedido da porta trancada que espera o mestre (no máximo um).
@@ -584,6 +628,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: quando o último chamado NOVO dele entrou. Sobrevive ao disconnect; só o kick apaga.
   const lastCallAt = new Map<string, number>()
   let callSeq = 0
+  // Por requestId: ações no ponto à espera do mestre. Sobrevivem à queda da
+  // conexão (o mestre ainda quer ler "procuro armadilha aqui"); só a resposta
+  // e o kick apagam.
+  const pendingPointActions = new Map<string, { playerId: string; action: PointActionKind }>()
+  // Por playerId: último pedido de ação no ponto aceito pelo intervalo mínimo.
+  const lastPointActionAt = new Map<string, number>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -807,9 +857,34 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * O repasse do sinal aos colegas: só quem joga na mesma cena e já conhece o
+   * ponto, e nunca ponto em zona oculta ativa ou sala secreta — senão o sinal
+   * diria que existe algo naquele lugar.
+   */
+  function relaySignalToColleagues(playerId: string, scene: HostScene, message: HostMessage, point: RegionPoint, world: HostWorld): Outbound[] {
+    const map = scene.map
+    // Sala secreta vale como zona oculta: repassar o sinal diria aos outros que ali existe algo.
+    if (playerBlockedRings(map).some((ring) => ring.length >= 3 && pointInRing(point, ring))) return []
+    const outbound: Outbound[] = []
+    for (const [otherClient, otherId] of byClient) {
+      if (otherId === playerId || statusOf(otherId) !== 'playing') continue
+      // Quem está em outra cena não recebe: o ponto é deste mapa, e a
+      // memória antiga dele desta cena diria que o sinal é para lá.
+      if (sceneFor(otherId, world) !== scene) continue
+      if (knowsPoint(otherId, map, point)) outbound.push({ clientId: otherClient, msg: message })
+    }
+    return outbound
+  }
+
+  /**
    * O mestre sempre recebe o sinal (campo `signal`) e quem sinalizou recebe o
-   * eco. Outro jogador só recebe se já conhece o ponto e o ponto está fora de
-   * zona oculta ativa: senão o sinal diria que existe algo naquele lugar.
+   * eco. Os colegas recebem pela regra de `relaySignalToColleagues`, menos no
+   * sinal `audience: 'master'` (o do toque longo, antes do menu).
+   *
+   * "Sinalizar" no menu depois do toque longo repete o MESMO ponto: a qualquer
+   * tempo (dentro ou fora do intervalo mínimo), estende o sinal discreto aos
+   * colegas, uma vez, sem novo ping nem bipe no mestre (ele já recebeu).
+   *
    * Sinal fora do mapa, de quem não joga ou antes do intervalo mínimo é
    * descartado em silêncio (não é mensagem malformada).
    */
@@ -822,30 +897,85 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (scene === null) return { outbound: [] }
     const map = scene.map
     if (msg.x < 0 || msg.y < 0 || msg.x > map.width * map.grid || msg.y > map.height * map.grid) return { outbound: [] }
-    const at = now()
-    const last = lastSignalAt.get(playerId)
-    if (last !== undefined && at - last < SIGNAL_MIN_INTERVAL_MS) return { outbound: [] }
-    lastSignalAt.set(playerId, at)
-
     const point = { x: msg.x, y: msg.y }
     const color = signalColor(playerId)
     const message: HostMessage = { type: 'signal', x: msg.x, y: msg.y, from: record.name, color }
-    const outbound: Outbound[] = [{ clientId, msg: message }]
-    // Sala secreta vale como zona oculta: repassar o sinal diria aos outros que ali existe algo.
-    const inBlockedArea = playerBlockedRings(map).some((ring) => ring.length >= 3 && pointInRing(point, ring))
-    if (!inBlockedArea) {
-      for (const [otherClient, otherId] of byClient) {
-        if (otherId === playerId || statusOf(otherId) !== 'playing') continue
-        // Quem está em outra cena não recebe: o ponto é deste mapa, e a
-        // memória antiga dele desta cena diria que o sinal é para lá.
-        if (sceneFor(otherId, world) !== scene) continue
-        if (knowsPoint(otherId, map, point)) outbound.push({ clientId: otherClient, msg: message })
-      }
+    const toColleagues = msg.audience !== 'master'
+    const at = now()
+    const last = lastSignal.get(playerId)
+    // Estender não depende do relógio: o menu fica aberto o quanto a pessoa
+    // leva para ler, e o ponto idêntico ao do gesto (px de mundo exato) é o
+    // Sinalizar desse menu. Fora da janela, virar sinal novo pingaria o
+    // mestre de novo pelo mesmo ponto.
+    if (last !== undefined && toColleagues && !last.relayed && last.x === msg.x && last.y === msg.y) {
+      last.relayed = true
+      // O repasse conta no limite de 1 por segundo, para os colegas não receberem em rajada.
+      last.at = at
+      return { outbound: relaySignalToColleagues(playerId, scene, message, point, world) }
     }
+    if (last !== undefined && at - last.at < SIGNAL_MIN_INTERVAL_MS) return { outbound: [] }
+    lastSignal.set(playerId, { at, x: msg.x, y: msg.y, relayed: toColleagues })
+
+    const outbound: Outbound[] = [{ clientId, msg: message }]
+    if (toColleagues) outbound.push(...relaySignalToColleagues(playerId, scene, message, point, world))
     const signal: HostSignal = { playerId, name: record.name, color, x: msg.x, y: msg.y }
     // Mesma regra de `backgroundSceneId`: a cena aberta e o mapa solto não levam o campo.
     if (scene !== world.open && scene.sceneId !== null) signal.background = { sceneId: scene.sceneId, name: scene.name }
     return { outbound, signal }
+  }
+
+  /**
+   * AÇÃO NO PONTO: o pedido vai SÓ ao mestre (campo `pointAction`). Nenhum
+   * jogador recebe nada — nem quem está na mesma cena, nem quem pediu: o ponto
+   * pode estar numa sala secreta, e o nome dela é leitura do mestre. De quem
+   * não joga ou sem cena: descartado em silêncio, como o sinal. Fora do mapa
+   * e os dois limites respondem ao jogador, para a tela dele não ficar
+   * esperando um pedido que nunca chegou ao mestre.
+   */
+  function handlePointAction(clientId: string, msg: PointActionMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    const map = scene.map
+    // Fora do mapa responde: calado, a tela do jogador ficaria "esperando o
+    // mestre" para sempre (a câmera dele arrasta além da borda).
+    if (!isPointInsideMap(map, msg.x, msg.y)) return reply(clientId, { type: 'point.action.rejected', reason: 'out_of_map' })
+    const at = now()
+    const last = lastPointActionAt.get(playerId)
+    if (last !== undefined && at - last < POINT_ACTION_MIN_INTERVAL_MS) return reply(clientId, { type: 'point.action.rejected', reason: 'too_soon' })
+    const waiting = [...pendingPointActions.values()].filter((pending) => pending.playerId === playerId).length
+    if (waiting >= MAX_PENDING_POINT_ACTIONS_PER_PLAYER) return reply(clientId, { type: 'point.action.rejected', reason: 'pending' })
+    lastPointActionAt.set(playerId, at)
+
+    const requestId = randomId()
+    pendingPointActions.set(requestId, { playerId, action: msg.action })
+    const point = { x: msg.x, y: msg.y }
+    return {
+      outbound: [],
+      pointAction: {
+        requestId,
+        playerId,
+        playerName: record.name,
+        color: signalColor(playerId),
+        action: msg.action,
+        x: point.x,
+        y: point.y,
+        roomName: roomNameAt(map, point),
+        sceneId: scene.sceneId,
+        sceneName: scene.name,
+        background: scene !== world.open && scene.sceneId !== null,
+      },
+    }
+  }
+
+  const forgetPointActionsOf = (playerId: string): void => {
+    lastPointActionAt.delete(playerId)
+    for (const [requestId, pending] of [...pendingPointActions]) {
+      if (pending.playerId === playerId) pendingPointActions.delete(requestId)
+    }
   }
 
   /**
@@ -1208,6 +1338,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleCallRaise(clientId, msg)
         case 'call.lower':
           return handleCallLower(clientId)
+        case 'point.action':
+          return handlePointAction(clientId, msg, world)
       }
     },
 
@@ -1247,6 +1379,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const owned = new Set(ownership[call.playerId] ?? [])
       const token = scene.map.tokens.find((t) => owned.has(t.id))
       return token === undefined ? null : { sceneId: scene.sceneId, x: token.x, y: token.y }
+    },
+
+    answerPointAction(requestId, answer) {
+      const pending = pendingPointActions.get(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingPointActions.delete(requestId)
+      const clientId = players.get(pending.playerId)?.clientId ?? null // null = sem conexão agora: não há a quem avisar
+      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'point.action.answer', action: pending.action, answer })
+    },
+
+    isPointActionPending(requestId) {
+      return pendingPointActions.has(requestId)
     },
 
     approveTravel(requestId, source) {
@@ -1476,7 +1620,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       memories.delete(playerId)
       currentScene.delete(playerId)
       forgetTravelsOf(playerId)
-      lastSignalAt.delete(playerId)
+      forgetPointActionsOf(playerId)
+      lastSignal.delete(playerId)
       lastDoorToggleAt.delete(playerId)
       pendingDoors.delete(playerId)
       lastDoorRequestAt.delete(playerId)

@@ -3,6 +3,7 @@ import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
+import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -69,6 +70,10 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * (jogador -> mestre) e, na volta, `call.state` (esperando, visto, cedo
  * demais) e `call.reply` (a resposta, só para quem chamou). Mestre antigo
  * responde `error invalid_message` (a mão não acende); jogador antigo ignora.
+ *
+ * `point.action` (jogador -> mestre) e, na volta, `point.action.answer` e
+ * `point.action.rejected` são as AÇÕES NO PONTO, aditivas pelo mesmo critério.
+ * A volta vai só a quem pediu e nunca leva sala, cena nem ponto.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -123,11 +128,20 @@ export interface PingMessage {
   away?: true
 }
 
+/**
+ * Quem vê o sinal além de quem sinalizou. `master`: só o mestre — é o sinal
+ * que sai com o toque longo, antes de o jogador escolher no menu (Espiar e
+ * Revistar ficam discretos para os colegas). Sem o campo: também os colegas
+ * da cena que conhecem o ponto (o sinal de sempre, e o "Sinalizar" do menu).
+ */
+export type SignalAudience = 'master'
+
 /** Sinal (ping de mapa) do jogador. Não confundir com `ping`, que é o heartbeat. */
 export interface SignalMessage {
   type: 'signal'
   x: number
   y: number
+  audience?: SignalAudience
 }
 
 /**
@@ -203,6 +217,19 @@ export interface CallLowerMessage {
   type: 'call.lower'
 }
 
+/**
+ * AÇÃO NO PONTO: depois do toque longo, o jogador pede ao mestre para
+ * Procurar/Escutar/Espiar/Revistar em (`x`, `y`), px de mundo da cena DELE.
+ * Aditiva pelo critério de sempre: mestre antigo responde `error
+ * invalid_message` (o pedido só não chega) e jogador antigo nunca a envia.
+ */
+export interface PointActionMessage {
+  type: 'point.action'
+  action: PointActionKind
+  x: number
+  y: number
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
@@ -214,6 +241,7 @@ export type PlayerMessage =
   | PinTravelRequestMessage
   | CallRaiseMessage
   | CallLowerMessage
+  | PointActionMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -325,6 +353,10 @@ export type HostMessage =
   | PartyUpdateMessage
   | CallStateMessage
   | CallReplyMessage
+  // Resposta do mestre à AÇÃO NO PONTO, só para quem pediu. Leva só a ação e
+  // a resposta: nem o ponto, nem a sala, nem a cena que o mestre leu.
+  | { type: 'point.action.answer'; action: PointActionKind; answer: PointActionAnswer }
+  | { type: 'point.action.rejected'; reason: PointActionRejection }
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -362,6 +394,19 @@ function parseTokenMove(obj: Record<string, unknown>): TokenMoveMessage | null {
   if (!isBoundedString(tokenId, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null
   return { type: 'token.move', reqId, tokenId, x, y }
+}
+
+/**
+ * Sinal. `audience` é opcional; presente, só vale `master` — qualquer outra
+ * coisa recusa a mensagem, em vez de cair calada no sinal para todos (o
+ * jogador pediu discrição e o ponto piscaria para os colegas).
+ */
+function parseSignal(obj: Record<string, unknown>): SignalMessage | null {
+  const { x, y, audience } = obj
+  if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null
+  if (audience === undefined) return { type: 'signal', x, y }
+  if (audience !== 'master') return null
+  return { type: 'signal', x, y, audience }
 }
 
 /**
@@ -462,6 +507,28 @@ export function parsePartyUpdate(value: unknown): PartyUpdateMessage | null {
   return { type: 'party.update', members: parsed }
 }
 
+export type PointActionReply = Extract<HostMessage, { type: 'point.action.answer' } | { type: 'point.action.rejected' }>
+
+/**
+ * Valida a resposta (ou a recusa) da AÇÃO NO PONTO que o jogador recebe.
+ * Qualquer valor fora do conhecido recusa a mensagem inteira: o texto que o
+ * jogador lê sai daqui, e um "talvez" não pode virar "O mestre viu".
+ */
+export function parsePointActionReply(value: unknown): PointActionReply | null {
+  if (!isRecord(value)) return null
+  if (value.type === 'point.action.answer') {
+    const { action, answer } = value
+    if (!isPointActionKind(action) || (answer !== 'nothing' && answer !== 'seen')) return null
+    return { type: 'point.action.answer', action, answer }
+  }
+  if (value.type === 'point.action.rejected') {
+    const { reason } = value
+    if (!isPointActionRejection(reason)) return null
+    return { type: 'point.action.rejected', reason }
+  }
+  return null
+}
+
 /**
  * Valida a mensagem `laser` que o jogador recebe (objeto já desserializado).
  * Aceita `off: true` ou 1 a `LASER_MAX_POINTS_PER_MESSAGE` pontos finitos; devolve
@@ -503,7 +570,7 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'ping':
       return value.away === true ? { type: 'ping', away: true } : { type: 'ping' }
     case 'signal':
-      return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
+      return parseSignal(value)
     case 'door.toggle':
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
     case 'door.request':
@@ -516,6 +583,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseCallRaise(value)
     case 'call.lower':
       return { type: 'call.lower' }
+    case 'point.action':
+      return isPointActionKind(value.action) && isFiniteNumber(value.x) && isFiniteNumber(value.y)
+        ? { type: 'point.action', action: value.action, x: value.x, y: value.y }
+        : null
     default:
       return null
   }

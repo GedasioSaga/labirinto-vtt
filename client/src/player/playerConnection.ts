@@ -13,6 +13,7 @@ import {
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type PlayerMessage,
+  type SignalAudience,
 } from '../net/protocol'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
@@ -28,7 +29,10 @@ import {
   type CallRaiseMessage,
   type CallReason,
   type PartyMember,
+  parsePointActionReply,
+  type PointActionReply,
 } from '../net/protocol'
+import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -85,6 +89,16 @@ export interface PlayerState {
   party?: PartyMember[]
   /** A mão do jogador (chamar o mestre): acesa esperando, ou a resposta curta do mestre. */
   call?: CallNotice
+  /** Ação no ponto: esperando o mestre, a resposta dele ou a recusa do host. */
+  pointNotice?: PointNotice
+  /**
+   * Sobe toda vez que o mapa em tela deixa de ser o da cena em que o jogador
+   * estava: troca de cena (`scene.changed`) ou saída do jogo (lobby,
+   * reconexão, queda, expulsão, sala fechada). O que a tela abriu sobre um
+   * ponto do mapa (o menu do toque longo) só vale na época em que abriu: o
+   * mesmo x/y noutra cena é outro lugar.
+   */
+  sceneEpoch: number
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -176,8 +190,11 @@ export interface PlayerConnection {
   subscribe(listener: () => void): () => void
   /** Move otimista: aplica local e envia. `false` se o token não existe ou o socket não está aberto. */
   requestMove(tokenId: string, x: number, y: number): boolean
-  /** Sinal no ponto (px de mundo). `false` se não está jogando ou o socket não está aberto. */
-  sendSignal(x: number, y: number): boolean
+  /**
+   * Sinal no ponto (px de mundo). `audience: 'master'` só o mestre vê (o do
+   * toque longo). `false` se não está jogando ou o socket não está aberto.
+   */
+  sendSignal(x: number, y: number, audience?: SignalAudience): boolean
   /** Pede ao mestre para abrir/fechar a porta. `false` se não está jogando ou o socket não está aberto. */
   toggleDoor(wallId: string): boolean
   /**
@@ -206,6 +223,12 @@ export interface PlayerConnection {
    * ausente, o pedido sai sem ele e vale a saída principal, como sempre.
    */
   requestTravel(pinId: string, exitId?: string): boolean
+  /**
+   * AÇÃO NO PONTO (px de mundo): pede ao mestre para Procurar/Escutar/
+   * Espiar/Revistar ali. `false` se não está jogando, o ponto não é finito,
+   * cai fora do mapa ou o socket não está aberto.
+   */
+  sendPointAction(action: PointActionKind, x: number, y: number): boolean
   /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). */
   dismissNote(): void
   /**
@@ -401,7 +424,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   const { url, code, name, createSocket, storage } = options
   const listeners = new Set<() => void>()
   const pending = new Map<string, PendingMove>()
-  let state: PlayerState = { status: 'connecting', rev: -1 }
+  let state: PlayerState = { status: 'connecting', rev: -1, sceneEpoch: 0 }
   let socket: SocketLike | null = null
   let pingTimer: ReturnType<typeof setInterval> | null = null
   const isHidden = options.isHidden ?? (() => false)
@@ -526,6 +549,58 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (data.state === 'seen' || data.state === 'too_soon') showCallAnswer(data.state)
   }
 
+  let pointNoticeTimer: ReturnType<typeof setTimeout> | null = null
+  /**
+   * Ações enviadas que o host ainda não respondeu nem recusou, da mais antiga
+   * à mais nova. O host deixa várias esperando o mestre ao mesmo tempo
+   * (`MAX_PENDING_POINT_ACTIONS_PER_PLAYER`): sem esta lista, a resposta de
+   * uma apagaria a espera das outras.
+   */
+  let waitingPointActions: PointActionKind[] = []
+
+  function clearPointNoticeTimer(): void {
+    if (pointNoticeTimer !== null) clearTimeout(pointNoticeTimer)
+    pointNoticeTimer = null
+  }
+
+  /** Esquece os pedidos junto com o aviso (lobby, sala fechada, reconexão). */
+  function forgetPointActions(): void {
+    clearPointNoticeTimer()
+    waitingPointActions = []
+  }
+
+  /** A espera de tudo o que sobrou, ou nada quando não sobrou pedido. */
+  function waitingPointNotice(): PointNotice | undefined {
+    const [first, ...rest] = waitingPointActions
+    return first === undefined ? undefined : { id: nextNoticeId++, phase: 'waiting', actions: [first, ...rest] }
+  }
+
+  /** A espera fica até a resposta; resposta e recusa somem sozinhas e devolvem a espera do que sobrou. */
+  function showPointNotice(notice: PointNotice | undefined): void {
+    clearPointNoticeTimer()
+    setState({ pointNotice: notice })
+    if (notice === undefined || notice.phase === 'waiting') return
+    pointNoticeTimer = setTimeout(() => {
+      pointNoticeTimer = null
+      setState({ pointNotice: waitingPointNotice() })
+    }, POINT_NOTICE_TTL_MS)
+  }
+
+  /**
+   * Tira da espera o pedido que a mensagem do host fechou. A resposta diz a
+   * ação: sai a mais antiga dela (duas iguais não se distinguem na tela). A
+   * recusa não diz, mas o host recusa na hora e na ordem em que recebe — é o
+   * pedido mais novo ainda sem destino.
+   */
+  function settlePointAction(reply: PointActionReply): void {
+    if (reply.type === 'point.action.rejected') {
+      waitingPointActions = waitingPointActions.slice(0, -1)
+      return
+    }
+    const index = waitingPointActions.indexOf(reply.action)
+    if (index !== -1) waitingPointActions = waitingPointActions.filter((_, i) => i !== index)
+  }
+
   let laserTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearLaserTimer(): void {
@@ -550,7 +625,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   function setState(patch: Partial<PlayerState>): void {
+    // Sair do jogo por qualquer caminho encerra a época da cena (ver `sceneEpoch`).
+    const leftGame = state.status === 'playing' && patch.status !== undefined && patch.status !== 'playing'
     state = { ...state, ...patch }
+    if (leftGame) state = { ...state, sceneEpoch: state.sceneEpoch + 1 }
     for (const listener of listeners) listener()
   }
 
@@ -821,6 +899,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearTravelTimer()
         clearCallTimer()
+        forgetPointActions()
         setState({
           status: 'waiting',
           map: undefined,
@@ -834,6 +913,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           doorRequest: undefined,
           travel: undefined,
           call: undefined,
+          pointNotice: undefined,
         })
         return
       case 'scene.changed':
@@ -847,7 +927,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         // A porta tocada ficou na cena de antes: o "Trancada" e os botões dele perdem o sentido.
-        setState({ signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined })
+        // O ponto do toque longo era da cena de antes: a época vira.
+        setState({ signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, sceneEpoch: state.sceneEpoch + 1 })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -922,6 +1003,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         addSignal(x, y, from, color)
         return
       }
+      case 'point.action.answer':
+      case 'point.action.rejected': {
+        if (state.status !== 'playing') return
+        const reply = parsePointActionReply(data)
+        if (reply === null) return
+        settlePointAction(reply)
+        showPointNotice(
+          reply.type === 'point.action.answer'
+            ? { id: nextNoticeId++, phase: 'answered', action: reply.action, answer: reply.answer }
+            : { id: nextNoticeId++, phase: 'rejected', reason: reply.reason },
+        )
+        return
+      }
       case 'door.toggle.rejected': {
         // Aviso sem mapa na tela não tem onde aparecer.
         if (state.status !== 'playing') return
@@ -984,7 +1078,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTravelTimer()
         clearCallTimer()
         clearReconnectTimers()
-        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined })
+        forgetPointActions()
+        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -1055,6 +1150,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearDoorNotice()
     clearTravelTimer()
     clearCallTimer()
+    forgetPointActions()
     const current = socket
     socket = null
     current?.close()
@@ -1086,13 +1182,24 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       setState({ map: withTokenAt(map, tokenId, x, y) })
       return true
     },
-    sendSignal(x, y) {
+    sendSignal(x, y, audience) {
       if (state.status !== 'playing' || !Number.isFinite(x) || !Number.isFinite(y)) return false
-      return send({ type: 'signal', x: Math.round(x), y: Math.round(y) })
+      const point = { x: Math.round(x), y: Math.round(y) }
+      return send(audience === undefined ? { type: 'signal', ...point } : { type: 'signal', ...point, audience })
     },
     toggleDoor(wallId) {
       if (state.status !== 'playing' || wallId.length === 0) return false
       return send({ type: 'door.toggle', wallId })
+    },
+    sendPointAction(action, x, y) {
+      if (state.status !== 'playing' || state.map === undefined || !Number.isFinite(x) || !Number.isFinite(y)) return false
+      const point = { x: Math.round(x), y: Math.round(y) }
+      // Fora do mapa o host recusa: nem sai, para não mostrar "esperando o mestre".
+      if (!isPointInsideMap(state.map, point.x, point.y)) return false
+      if (!send({ type: 'point.action', action, x: point.x, y: point.y })) return false
+      waitingPointActions = [...waitingPointActions, action]
+      showPointNotice(waitingPointNotice())
+      return true
     },
 
     requestDoor(wallId, how) {
@@ -1176,7 +1283,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, paused: undefined, call: undefined, reconnecting: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined })
       open()
     },
     wake() {

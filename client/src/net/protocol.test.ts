@@ -77,6 +77,13 @@ describe('parsePlayerMessage', () => {
     expect(parsePlayerMessage({ type: 'signal', x: 1, y: Number.POSITIVE_INFINITY })).toBeNull()
   })
 
+  it('signal aceita audience "master" (o do toque longo) e recusa qualquer outra audiência', () => {
+    expect(parsePlayerMessage({ type: 'signal', x: 1, y: 2, audience: 'master' })).toEqual({ type: 'signal', x: 1, y: 2, audience: 'master' })
+    // Audiência desconhecida não vira sinal para todos: o jogador pediu discrição.
+    expect(parsePlayerMessage({ type: 'signal', x: 1, y: 2, audience: 'todos' })).toBeNull()
+    expect(parsePlayerMessage({ type: 'signal', x: 1, y: 2, audience: null })).toBeNull()
+  })
+
   it('aceita door.toggle com wallId e descarta o resto', () => {
     expect(parsePlayerMessage({ type: 'door.toggle', wallId: 'w1', extra: 'x' })).toEqual({ type: 'door.toggle', wallId: 'w1' })
     expect(parsePlayerMessage('{"type":"door.toggle","wallId":"w1"}')).toEqual({ type: 'door.toggle', wallId: 'w1' })
