@@ -37,6 +37,7 @@ import {
   pinExitsTravelOf,
   pinTravelOptions,
   sceneList,
+  sceneMaps,
   subscribeToTravelLinks,
   travelSceneOptions,
   useAdventureStore,
@@ -1669,6 +1670,8 @@ function App() {
                 onSelect={handleSelectScene}
                 onCreate={handleCreateScene}
                 onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
+                // Visão geral: a cena aberta pelo mapa vivo, as de fundo pelo cache (fichas de jogador que andam aparecem na hora).
+                maps={sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map)}
                 // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
                 people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
