@@ -94,6 +94,7 @@ function TableSession({ connection, code, onChangeCode }: { connection: PlayerCo
           vision={state.vision}
           explored={state.explored}
           concealed={state.concealed}
+          hazards={state.hazards}
           ownTokens={NO_TOKENS}
           settings={settings}
           focusTokenId={null}

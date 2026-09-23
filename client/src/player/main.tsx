@@ -19,6 +19,7 @@ import type { SignalMark } from '../lib/signals'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
 import { itemNoticeText } from './itemNotice'
+import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
 import './player.css'
@@ -573,6 +574,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           vision={state.vision}
           explored={state.explored}
           concealed={state.concealed}
+          hazards={state.hazards}
           ownTokens={ownTokens}
           turnTokenId={state.turn ?? null}
           settings={settings}
@@ -672,6 +674,12 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           </p>
         )}
         <TurnWaitNotice notice={state.turnNotice} />
+        {state.hazardNotice && (
+          // ZONA DE PERIGO: "Você entrou no fogo!". `key` no id reanuncia a cada entrada.
+          <p key={state.hazardNotice.id} className="pp-notice" role="alert">
+            {hazardNoticeText(state.hazardNotice.kind)}
+          </p>
+        )}
       </PlayerErrorBoundary>
     )
   }

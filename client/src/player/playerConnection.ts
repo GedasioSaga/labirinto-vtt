@@ -1,4 +1,5 @@
-import type { MapData, RegionPoint, Token } from '../types/map'
+import type { HazardKind, MapData, RegionPoint, Token } from '../types/map'
+import { HAZARD_NOTICE_TTL_MS, isHazardKind, parsePlayerHazards, type PlayerHazard } from '../lib/hazards'
 import { decodeExploration, type Exploration } from '../lib/exploration'
 import {
   DOOR_REQUEST_REJECTIONS,
@@ -47,6 +48,10 @@ export interface PlayerState {
   partyTokens?: string[]
   /** Polígonos das zonas ocultas ativas: o jogador pinta preto por cima. */
   concealed?: RegionPoint[][]
+  /** ZONA DE PERIGO: tipo e polígono de cada sala tomada que o jogador enxerga agora. */
+  hazards?: PlayerHazard[]
+  /** ZONA DE PERIGO: a ficha dele acabou de entrar num perigo. Some sozinho; `id` novo repete o aviso. */
+  hazardNotice?: { id: number; kind: HazardKind }
   /**
    * INICIATIVA: id da ficha da vez, sempre uma ficha de `map.tokens`. Ausente
    * = ninguém que este jogador enxerga está na vez (o mestre só manda o que
@@ -428,6 +433,23 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }, MOVE_NOTICE_TTL_MS)
   }
 
+  let hazardNoticeTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearHazardNotice(): void {
+    if (hazardNoticeTimer !== null) clearTimeout(hazardNoticeTimer)
+    hazardNoticeTimer = null
+  }
+
+  /** ZONA DE PERIGO: "Você entrou no fogo!" — some sozinho; outro perigo toma o lugar. */
+  function showHazardNotice(kind: HazardKind): void {
+    clearHazardNotice()
+    setState({ hazardNotice: { id: nextNoticeId++, kind } })
+    hazardNoticeTimer = setTimeout(() => {
+      hazardNoticeTimer = null
+      setState({ hazardNotice: undefined })
+    }, HAZARD_NOTICE_TTL_MS)
+  }
+
   let turnNoticeTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearTurnNotice(): void {
@@ -557,6 +579,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     concealed: RegionPoint[][],
     turn: string | undefined,
     partyTokens: string[],
+    hazards: PlayerHazard[],
   ): void {
     if (rev <= state.rev) return
     let next = map
@@ -573,7 +596,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }
     // Vez de ficha que não veio no mapa não tem o que destacar: vale como ninguém.
     const turnOnMap = turn !== undefined && next.tokens.some((t) => t.id === turn) ? turn : undefined
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, turn: turnOnMap, error: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, hazards, turn: turnOnMap, error: undefined })
   }
 
   /** Desfaz o movimento recusado. `false` = pedido desconhecido (já resolvido, ou de antes de trocar de cena). */
@@ -649,6 +672,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTurnNotice()
         clearTravelTimer()
         clearItemTimer()
+        clearHazardNotice()
         setState({
           item: undefined,
           status: 'waiting',
@@ -658,6 +682,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           ownTokens: undefined,
           partyTokens: undefined,
           concealed: undefined,
+          hazards: undefined,
+          hazardNotice: undefined,
           turn: undefined,
           signals: undefined,
           laser: undefined,
@@ -680,8 +706,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearTurnNotice()
+        clearHazardNotice()
         // A porta tocada ficou na cena de antes: o "Trancada" e os botões dele perdem o sentido.
-        setState({ signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined })
+        setState({ signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, hazardNotice: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -796,7 +823,17 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (data.concealed !== undefined && !isVision(data.concealed)) return
         if (data.turn !== undefined && !isBoundedId(data.turn)) return
         if (data.partyTokens !== undefined && !isStringList(data.partyTokens)) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [])
+        // ZONA DE PERIGO: ausente = nenhum perigo à vista; malformado derruba a mensagem.
+        const hazards = data.hazards === undefined ? [] : parsePlayerHazards(data.hazards)
+        if (hazards === null) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards)
+        return
+      }
+      case 'hazard.entered': {
+        // Aviso sem mapa na tela não tem onde aparecer.
+        if (state.status !== 'playing') return
+        if (!isHazardKind(data.kind)) return
+        showHazardNotice(data.kind)
         return
       }
       case 'token.move.accepted':
@@ -826,7 +863,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTurnNotice()
         clearTravelTimer()
         clearItemTimer()
-        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined })
+        clearHazardNotice()
+        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, hazardNotice: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -884,6 +922,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearTurnNotice()
     clearTravelTimer()
     clearItemTimer()
+    clearHazardNotice()
     const current = socket
     socket = null
     current?.close()
@@ -1005,7 +1044,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, item: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, item: undefined })
       open()
     },
     close: detach,

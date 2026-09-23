@@ -384,6 +384,30 @@ export interface ConcealZone {
   revealed: boolean
 }
 
+/**
+ * ZONA DE PERIGO — o que toma a sala numa catástrofe. Lista curta e fechada:
+ * é o que o mestre marca no meio da cena, não campo livre. Rótulos, cores e a
+ * regra de cada um moram em `lib/hazards.ts`.
+ */
+export type HazardKind = 'fogo' | 'fumaca' | 'vapor' | 'agua'
+
+/**
+ * Zona de perigo pintada pelo mestre: um conjunto de SALAS (`Region` com
+ * `room`) tomadas pelo mesmo perigo. Avança um passo pelas portas ABERTAS
+ * (`lib/hazards.ts` → `advanceHazard`): cada sala do outro lado de uma porta
+ * aberta entra na zona.
+ *
+ * O jogador NUNCA recebe este objeto: o recorte (`lib/fogFilter.ts`) manda só
+ * o tipo e o polígono de cada sala tomada que ele enxerga agora
+ * (`PlayerMapView.hazards`), e nunca o id da zona nem o das salas.
+ */
+export interface Hazard {
+  id: string
+  kind: HazardKind
+  /** Ids das salas tomadas, sem repetição, na ordem em que entraram. */
+  roomIds: string[]
+}
+
 export interface Region extends PlayerSecret {
   id: string
   points: RegionPoint[]
@@ -887,4 +911,11 @@ export interface MapData {
   scenarioLink: string | null
   /** Passo máximo e ocupação das fichas dos jogadores. `undefined` = livre. */
   movement?: MovementRules
+  /**
+   * ZONAS DE PERIGO (fogo, fumaça, vapor, água). `undefined` === nenhuma —
+   * sem linha de migração: mapa salvo antes do campo abre igual, e a última
+   * zona apagada tira o campo em vez de gravar `[]`. Leitura segura do disco
+   * em `lib/hazards.ts` → `readHazards`. NUNCA sai no recorte do jogador.
+   */
+  hazards?: Hazard[]
 }

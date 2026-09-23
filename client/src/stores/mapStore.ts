@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, TokenCondition, MovementRules,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, TokenCondition, MovementRules, HazardKind,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
@@ -22,6 +22,7 @@ import { ancestorsOf, descendantsOf, subtreeIds } from '../lib/roomNesting'
 import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
+import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
 const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon', 'roomFree'])
@@ -638,6 +639,10 @@ interface MapStoreState {
   setRoomNameHiddenFromPlayers: (id: string, hidden: boolean) => void
   /** TETO DE CONSTRUÇÃO — liga/desliga `RoomMeta.roof` da Sala, com histórico. */
   setRoomRoof: (id: string, roof: boolean) => void
+  /** ZONA DE PERIGO — pinta a Sala com um perigo, troca ou limpa (`null`). Com histórico. */
+  setRoomHazard: (roomId: string, kind: HazardKind | null) => void
+  /** ZONA DE PERIGO — "Avançar um passo" pelas portas abertas. Com histórico; nada muda = nada grava. */
+  advanceHazard: (hazardId: string) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
@@ -1370,6 +1375,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRoomRoof: (id, roof) => {
       if (mapFactory.setRoomRoof(get().map, id, roof) === get().map) return
       withHistory((map) => mapFactory.setRoomRoof(map, id, roof))
+    },
+    setRoomHazard: (roomId, kind) => {
+      // Um id só para as duas chamadas: a conferência e a gravação criam a MESMA zona.
+      const id = crypto.randomUUID()
+      if (setRoomHazardOnMap(get().map, roomId, kind, () => id) === get().map) return
+      withHistory((map) => setRoomHazardOnMap(map, roomId, kind, () => id))
+    },
+    advanceHazard: (hazardId) => {
+      if (advanceHazardOnMap(get().map, hazardId) === get().map) return
+      withHistory((map) => advanceHazardOnMap(map, hazardId))
     },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return

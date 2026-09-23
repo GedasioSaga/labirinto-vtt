@@ -1,4 +1,5 @@
-import type { DoorState, MapData, Pin, RegionPoint, Token, Wall } from '../types/map'
+import type { DoorState, HazardKind, MapData, Pin, RegionPoint, Token, Wall } from '../types/map'
+import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForGroup, filterMapForPlayer, playerBlockedRings, turnForPlayer, type GroupViewer } from '../lib/fogFilter'
@@ -245,6 +246,17 @@ export interface HostResult {
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
    */
   applyTransfer?: AppliedTransfer
+  /** ZONA DE PERIGO: fichas de jogador que entraram num perigo neste broadcast. O integrador avisa o mestre. */
+  hazardEntries?: HazardEntryNotice[]
+}
+
+/** ZONA DE PERIGO: a linha que o mestre lê — quem entrou em quê, e onde. Nada disto vai ao jogador. */
+export interface HazardEntryNotice {
+  playerName: string
+  tokenName: string
+  kind: HazardKind
+  /** Nome da cena (o que o mestre lê), só quando ela não é a aberta no editor. */
+  sceneName?: string
 }
 
 export interface PlayerInfo {
@@ -548,6 +560,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // jogador. A tela junta a memória do grupo pela vista mais recente.
   let doorSeenSeq = 0
   let rev = 0
+  // ZONA DE PERIGO: em que zona estava cada ficha de JOGADOR no último
+  // broadcast, por cena (chave `sceneKey`). É daqui que sai "entrou agora".
+  // Uma entrada por cena da aventura: não cresce além do número de cenas.
+  const hazardSeen = new Map<string, Map<string, HazardEntry>>()
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
 
@@ -668,6 +684,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A vez sai pelo MESMO recorte do mapa: ficha que não foi ao jogador não vira vez nele.
     const turn = turnForPlayer(view.map, options.getTurn?.() ?? null)
     if (turn !== null) snapshot.turn = turn
+    // ZONA DE PERIGO: só o que ele enxerga, e o campo só existe quando há algum.
+    if (view.hazards.length > 0) snapshot.hazards = view.hazards
     return snapshot
   }
 
@@ -734,7 +752,56 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // fechado para o grupo sai dela.
     markRings(merged, view.vision, view.blocked)
     forgetInside(merged, view.roofs)
-    return { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(merged), ownTokens: [], concealed: view.concealed }
+    const snapshot: HostMessage = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(merged), ownTokens: [], concealed: view.concealed }
+    // ZONA DE PERIGO: o que o GRUPO enxerga agora, mesma regra do jogador.
+    if (view.hazards.length > 0) snapshot.hazards = view.hazards
+    return snapshot
+  }
+
+  /**
+   * ZONA DE PERIGO — quem ENTROU num perigo desde o último broadcast: a ficha
+   * andou para dentro, ou o perigo avançou sobre ela. Só ficha de JOGADOR
+   * conta (NPC no fogo não avisa ninguém). O dono recebe `hazard.entered`,
+   * e só ele, e só se está jogando nessa cena; o mestre recebe a linha em
+   * `hazardEntries`, com o nome da cena quando ela não é a aberta no editor.
+   */
+  /**
+   * O recorte deste jogador admite que a ficha está neste perigo: a sala não é
+   * escondida pelo mestre (`PlayerMapView.hazardsHere`). Usa a memória que já
+   * existe, sem criar.
+   */
+  const seesHazardAround = (playerId: string, map: MapData, token: Token, kind: HazardKind): boolean => {
+    const memory = existingMemory(playerId, map)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory?.exp, memory?.doors)
+    return view.hazardsHere.some((h) => h.tokenId === token.id && h.kind === kind)
+  }
+
+  const hazardEntriesIn = (world: HostWorld): { outbound: Outbound[]; entries: HazardEntryNotice[] } => {
+    const outbound: Outbound[] = []
+    const entries: HazardEntryNotice[] = []
+    const ownerOf = new Map<string, string>()
+    for (const [playerId, ids] of Object.entries(ownership)) for (const id of ids) ownerOf.set(id, playerId)
+    const playerTokens = [...ownerOf.keys()]
+    for (const scene of allScenes(world)) {
+      const key = sceneKey(scene)
+      const presence = hazardPresence(scene.map, playerTokens)
+      const before = hazardSeen.get(key)
+      hazardSeen.set(key, presence)
+      for (const entry of newHazardEntries(before, presence)) {
+        const playerId = ownerOf.get(entry.tokenId)
+        const record = playerId === undefined ? undefined : players.get(playerId)
+        const token = scene.map.tokens.find((t) => t.id === entry.tokenId)
+        if (playerId === undefined || record === undefined || token === undefined) continue
+        entries.push({ playerName: record.name, tokenName: token.name, kind: entry.kind, ...(scene === world.open ? {} : { sceneName: scene.name }) })
+        if (record.clientId === null || statusOf(playerId) !== 'playing' || sceneFor(playerId, world) !== scene) continue
+        // O aviso diz o TIPO do perigo: só sai se o recorte dele já mostra esse
+        // perigo em volta da ficha. Fogo pintado em sala secreta ou sob zona
+        // oculta continua escondido — o mestre lê, o jogador não.
+        if (!seesHazardAround(playerId, scene.map, token, entry.kind)) continue
+        outbound.push({ clientId: record.clientId, msg: { type: 'hazard.entered', kind: entry.kind } })
+      }
+    }
+    return { outbound, entries }
   }
 
   function handleTableJoin(clientId: string, msg: JoinMessage, world: HostWorld): HostResult {
@@ -1487,7 +1554,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         const msg = tableView(world)
         for (const clientId of tableClients) outbound.push({ clientId, msg })
       }
-      return { outbound }
+      // ZONA DE PERIGO: o aviso vai DEPOIS do snapshot — a tela já desenha o
+      // perigo quando o texto aparece.
+      const hazards = hazardEntriesIn(world)
+      outbound.push(...hazards.outbound)
+      return hazards.entries.length === 0 ? { outbound } : { outbound, hazardEntries: hazards.entries }
     },
 
     setTableScene(key) {

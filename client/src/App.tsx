@@ -35,6 +35,7 @@ import { NewDungeonMap } from './screens/NewDungeonMap'
 import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { useMapStore } from './stores/mapStore'
+import { roomHazardState } from './lib/hazards'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
   applyItemsInScene,
@@ -907,6 +908,8 @@ function App() {
   const selectedRegion = singleSelection?.kind === 'region' ? map.regions.find((r) => r.id === singleSelection.id) ?? null : null
   // Sub-sala: a sala de fora (parentId órfão = sala de topo, sem linha "Dentro de").
   const selectedRegionParent = selectedRegion?.parentId !== undefined ? map.regions.find((r) => r.id === selectedRegion.parentId) ?? null : null
+  // ZONA DE PERIGO da Sala selecionada: o perigo dela e se "Avançar um passo" muda algo.
+  const selectedRoomHazard = selectedRegion?.room ? roomHazardState(map, selectedRegion.id) : null
   const selectedLight = singleSelection?.kind === 'light' ? map.lights.find((l) => l.id === singleSelection.id) ?? null : null
   const selectedStair = singleSelection?.kind === 'stair' ? map.stairs.find((s) => s.id === singleSelection.id) ?? null : null
   const selectedFloorIndex = singleSelection?.kind === 'floor' ? map.floor.findIndex((p) => p.id === singleSelection.id) : -1
@@ -2108,6 +2111,19 @@ function App() {
                     store.setPendingParentRoom(selectedRegion.id)
                   }
                 : undefined,
+              hazard:
+                selectedRegion && selectedRoomHazard
+                  ? {
+                      kind: selectedRoomHazard.kind,
+                      roomCount: selectedRoomHazard.roomCount,
+                      canAdvance: selectedRoomHazard.canAdvance,
+                      onKindChange: (kind) => useMapStore.getState().setRoomHazard(selectedRegion.id, kind),
+                      onAdvance: () => {
+                        const hazardId = selectedRoomHazard.hazardId
+                        if (hazardId !== null) useMapStore.getState().advanceHazard(hazardId)
+                      },
+                    }
+                  : undefined,
             }}
             playerSecret={
               secretTarget && {
