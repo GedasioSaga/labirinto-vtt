@@ -10,6 +10,7 @@ import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPan
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
 import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
+import { PlayerCallButton } from './PlayerCallButton'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
@@ -620,6 +621,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             O mestre está com o outro grupo
           </p>
         )}
+        <PlayerCallButton call={state.call} onRaise={(reason, text) => connection.raiseHand(reason, text)} onLower={() => connection.lowerHand()} />
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}

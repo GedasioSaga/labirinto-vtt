@@ -32,6 +32,23 @@ export interface ToastAction {
    * dos botões é de desenho, e trocar a ordem não pode trocar o que o lote faz.
    */
   emLote?: boolean
+  /**
+   * O botão age SEM tirar o aviso da tela. É o "Ir lá" do chamado: ir ver
+   * onde o jogador está não responde a ele, e a linha precisa continuar para
+   * o "Visto" ou o "Responder" depois.
+   */
+  mantem?: boolean
+}
+
+/**
+ * Aviso que pede um TEXTO de volta (o "Responder" do chamado do jogador): o
+ * botão `rotulo` abre um campo na própria linha, e enviar roda `enviar` com o
+ * texto aparado e tira o aviso. Texto vazio não envia.
+ */
+export interface ToastResposta {
+  rotulo: string
+  maxLength: number
+  enviar: (texto: string) => void
 }
 
 export interface ToastMessage {
@@ -62,14 +79,20 @@ export interface ToastMessage {
    * de sempre (caixa só a partir de dois).
    */
   sempreEmCaixa?: boolean
+  /** Campo de resposta do aviso, depois dos botões. Ausente = o aviso não pede texto. */
+  resposta?: ToastResposta
+  /** Dentro da caixa do grupo, sobe para o topo (o chamado "Urgente"). A ordem de chegada vale entre iguais. */
+  urgente?: true
 }
 
-/** Extras de `push`: botões, o que o × faz, o grupo e se ele abre a caixa sozinho. */
+/** Extras de `push`: botões, o que o × faz, o grupo, se ele abre a caixa sozinho, o campo de resposta e a urgência. */
 export interface ToastExtras {
   actions?: ToastAction[]
   onDismiss?: () => void
   grupo?: string
   sempreEmCaixa?: boolean
+  resposta?: ToastResposta
+  urgente?: boolean
 }
 
 interface ToastState {
@@ -126,6 +149,8 @@ export const useToastStore = create<ToastState>()((set, get) => ({
     if (extras.onDismiss !== undefined) toast.onDismiss = extras.onDismiss
     if (extras.grupo !== undefined) toast.grupo = extras.grupo
     if (extras.sempreEmCaixa === true) toast.sempreEmCaixa = true
+    if (extras.resposta !== undefined) toast.resposta = extras.resposta
+    if (extras.urgente === true) toast.urgente = true
     set((state) => ({ toasts: [...state.toasts, toast] }))
     if (durationMs !== null) {
       timers.set(

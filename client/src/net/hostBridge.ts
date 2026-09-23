@@ -13,11 +13,12 @@ import {
   type HostSession,
   type HostSignal,
   type HostWorld,
+  type MasterCall,
   type PlayerInfo,
   type PlayerNoteDelivery,
   type TravelRequest,
 } from './hostSession'
-import type { DoorRequestHow, LaserMessage } from './protocol'
+import { CALL_REASON_LABELS, NOTE_MAX_LENGTH, type DoorRequestHow, type LaserMessage } from './protocol'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -89,6 +90,13 @@ export interface HostBridgeDeps {
   onTunnelChange?: (state: TunnelState) => void
   /** Sinal aceito de um jogador (já validado e dentro do limite por segundo). */
   onSignal?: (signal: HostSignal) => void
+  /** Chamado NOVO de um jogador: o bipe. A linha na caixa "Chamados" a ponte já põe. */
+  onCall?: (call: MasterCall) => void
+  /**
+   * "Ir lá" do chamado: o editor vai à cena de quem chamou (`null` = mapa
+   * solto, a cena aberta) com a ficha dele no centro. Ausente = sem "Ir lá".
+   */
+  onGoToPoint?: (sceneId: string | null, x: number, y: number) => void
   now?: () => number
 }
 
@@ -261,6 +269,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const doorToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
+  /** Linha de cada chamado aberto na caixa "Chamados": `callId` -> id do toast. */
+  const callToasts = new Map<string, string>()
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
@@ -501,6 +511,62 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     doorToasts.set(request.requestId, toastId)
   }
 
+  /** Mesma faxina de `pruneTravelToasts`, para os chamados: baixou a mão, caiu, foi expulso, a sala fechou. */
+  const pruneCallToasts = () => {
+    for (const [callId, toastId] of callToasts) {
+      if (session !== null && session.isCallOpen(callId)) continue
+      callToasts.delete(callId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
+  /** "Visto" ou "Responder": a linha sai e a resposta vai só a quem chamou. */
+  const answerCall = (callId: string, answer: (s: HostSession) => HostResult) => {
+    const toastId = callToasts.get(callId)
+    callToasts.delete(callId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session !== null) void dispatch(answer(session))
+  }
+
+  /**
+   * Chamado novo: uma linha no grupo "Chamados", em ordem de chegada (o
+   * Urgente sobe ao topo da caixa). Espera o mestre, como o pedido de
+   * passagem: o × vale "Visto" — a mão do jogador não pode ficar acesa para
+   * sempre por um aviso fechado sem resposta.
+   */
+  const announceCall = (call: MasterCall) => {
+    const label = CALL_REASON_LABELS[call.reason]
+    const text = call.text === undefined ? `${call.playerName}: ${label}` : `${call.playerName}: ${label} — ${call.text}`
+    const goTo = deps.onGoToPoint
+    const irLa =
+      goTo === undefined
+        ? []
+        : [
+            {
+              label: 'Ir lá',
+              mantem: true,
+              run: () => {
+                const target = session?.callTarget(call.callId, world()) ?? null // null = sala fechada ou ficha fora de cena
+                if (target !== null) goTo(target.sceneId, target.x, target.y)
+              },
+            },
+          ]
+    const see = () => answerCall(call.callId, (s) => s.seeCall(call.callId))
+    const toastId = useToastStore.getState().push('instrucao', text, null, {
+      actions: [...irLa, { label: 'Visto', run: see }],
+      onDismiss: see,
+      grupo: 'Chamados',
+      urgente: call.reason === 'urgente',
+      resposta: {
+        rotulo: 'Responder',
+        maxLength: NOTE_MAX_LENGTH,
+        enviar: (texto) => answerCall(call.callId, (s) => s.replyCall(call.callId, texto)),
+      },
+    })
+    callToasts.set(call.callId, toastId)
+    deps.onCall?.(call)
+  }
+
   const answerTravel = (requestId: string, allow: boolean) => {
     const toastId = travelToasts.get(requestId)
     travelToasts.delete(requestId)
@@ -632,6 +698,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (result.applyTransfer !== undefined) completeTransfer(result, result.applyTransfer)
     else void dispatch(result)
     if (result.signal !== undefined) deps.onSignal?.(result.signal)
+    if (result.call !== undefined) announceCall(result.call)
+    // Mão baixada: a linha do chamado sai da caixa.
+    pruneCallToasts()
     if (result.applyMove !== undefined) {
       const { tokenId, x, y, sceneId } = result.applyMove
       // Cena aberta: a mesma chamada de sempre, sem o quarto argumento.
@@ -674,6 +743,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (clientId === null || event.payload.event !== 'disconnected') return
     session.disconnect(clientId)
     pruneTravelToasts()
+    pruneCallToasts()
     notifyPlayersIfChanged()
   }
 
@@ -736,6 +806,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       removeListeners()
       session = null
       pruneTravelToasts()
+      pruneCallToasts()
       currentRoom = null
       // O Rust derruba o túnel junto com a sala.
       resetTunnel()
@@ -829,6 +900,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session === null) return
       const result = session.kick(clientId)
       pruneTravelToasts()
+      pruneCallToasts()
       notifyPlayersIfChanged()
       await sendThenKick(result, clientId)
     },

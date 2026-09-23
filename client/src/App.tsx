@@ -486,6 +486,12 @@ function App() {
             useAdventureStore.getState().goToPoint(sceneId, { x, y })
           },
         }),
+        // Chamar o mestre: a linha na caixa "Chamados" a ponte já põe; aqui só o bipe.
+        onCall: () => playSignalSound(),
+        // "Ir lá" do chamado: a cena de quem chamou (ou a aberta, no mapa solto) com a ficha no centro.
+        onGoToPoint: (sceneId, x, y) => {
+          useAdventureStore.getState().goToPoint(sceneId, { x, y })
+        },
       })
     }
     return hostBridgeRef.current

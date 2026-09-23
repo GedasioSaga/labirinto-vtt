@@ -1156,3 +1156,128 @@
   outline: 2px solid var(--lb-color-brass, #e0a44a);
   outline-offset: 2px;
 }
+
+/*
+ * CHAMAR O MESTRE: a mão fica no canto de BAIXO à DIREITA, longe do painel
+ * (esquerda), do recado (alto, meio) e do aviso de porta/passagem (baixo,
+ * meio). Acesa, ela troca a linha fina clara pelo latão: é o que o jogador
+ * olha para saber que está na fila.
+ */
+.pp-call {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 22;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: min(320px, calc(100% - 24px));
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 14px;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.pp-call__hand,
+.pp-call__lower {
+  min-height: 44px;
+  padding: 8px 14px;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+  background: var(--lb-color-stone, #131317);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 999px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  transition:
+    background-color 110ms ease,
+    transform 110ms ease;
+}
+
+.pp-call__hand:hover,
+.pp-call__lower:hover {
+  background: var(--lb-color-stone-hover, #2c2c33);
+}
+
+.pp-call__hand:active,
+.pp-call__lower:active {
+  transform: scale(0.97);
+}
+
+.pp-call__lit,
+.pp-call__notice {
+  margin: 0;
+  padding: 8px 14px;
+  background: var(--lb-color-stone, #131317);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 999px;
+}
+
+.pp-call__lit {
+  font-weight: 600;
+  color: var(--lb-color-brass-bright, #f3ba66);
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-call__form {
+  display: grid;
+  gap: 8px;
+  width: min(300px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: 12px;
+  background: var(--lb-color-stone, #131317);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+}
+
+.pp-call__reasons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pp-call__reasons legend {
+  margin-bottom: 4px;
+  padding: 0;
+}
+
+.pp-call__reason {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  cursor: pointer;
+  accent-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-call__reason.is-urgent {
+  color: var(--lb-color-danger, #e07a5f);
+}
+
+.pp-call__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pp-call .pp-button--primary {
+  color: var(--lb-color-brass-bright, #f3ba66);
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-call :focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-call__hand,
+  .pp-call__lower {
+    transition: none;
+  }
+}

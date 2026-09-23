@@ -11,6 +11,8 @@ import { visibleTokens } from '../lib/layers'
 import { companionSpots, companionsNear, type Companion } from '../lib/travelTogether'
 import {
   parsePlayerMessage,
+  type CallRaiseMessage,
+  type CallReason,
   type DoorRequestHow,
   type DoorRequestMessage,
   type DoorRequestRejection,
@@ -185,8 +187,30 @@ export interface HostSignal {
   background?: { sceneId: string; name: string }
 }
 
+/**
+ * Chamado de um jogador ("chamar o mestre"), como o MESTRE o lê. Nada disto
+ * vai a outro jogador: quem chamou só recebe o estado da própria mão.
+ */
+export interface MasterCall {
+  callId: string
+  playerId: string
+  playerName: string
+  reason: CallReason
+  /** Texto curto do jogador; ausente = só o motivo. */
+  text?: string
+}
+
+/** Onde o "Ir lá" do chamado leva o editor: a cena de quem chamou (`null` = mapa solto) e a ficha dele. */
+export interface CallTarget {
+  sceneId: string | null
+  x: number
+  y: number
+}
+
 export interface HostResult {
   outbound: Outbound[]
+  /** Chamado NOVO na fila: o integrador mostra a linha e toca o bipe. Repetição do mesmo chamado não vem. */
+  call?: MasterCall
   applyMove?: AppliedMove
   applyDoor?: AppliedDoor
   applyTokenEdit?: AppliedTokenEdit
@@ -262,6 +286,13 @@ export const TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS = 1500
  * crescer sem limite numa aventura longa.
  */
 export const MAX_SCENE_MEMORIES_PER_PLAYER = 8
+
+/**
+ * Um chamado NOVO por jogador nesta janela. Com a mão levantada ele já não
+ * empilha (um chamado aberto por jogador); o intervalo segura quem baixa e
+ * levanta a mão em série — cada chamado novo é um bipe na mesa do mestre.
+ */
+export const CALL_MIN_INTERVAL_MS = 3000
 
 export interface HostSessionOptions {
   code: string
@@ -398,7 +429,30 @@ export interface HostSession {
    * hostil tentaria inflar mandando ids de pino inventados.
    */
   travelLimitEntries(): number
+  /** Chamados abertos: Urgente primeiro, o resto na ordem de chegada. */
+  listCalls(): MasterCall[]
+  /** O chamado ainda espera o mestre? `false` depois de Visto/Responder, de baixar a mão ou de o jogador sair. */
+  isCallOpen(callId: string): boolean
+  /** "Visto": fecha o chamado e apaga a mão SÓ de quem chamou. Chamado que já não existe: nada. */
+  seeCall(callId: string): HostResult
+  /**
+   * "Responder": o recado vai SÓ a quem chamou (cortado no teto do recado) e
+   * fecha o chamado. Texto em branco não sai, e o chamado continua aberto.
+   */
+  replyCall(callId: string, text: string): HostResult
+  /** A cena e a ficha de quem chamou, para o "Ir lá". `null` sem chamado ou sem ficha em cena. */
+  callTarget(callId: string, source: HostMapSource): CallTarget | null
   readonly rev: number
+}
+
+/** Chamado aberto. Um por jogador. */
+interface OpenCall {
+  callId: string
+  playerId: string
+  reason: CallReason
+  text?: string
+  /** Ordem de chegada: um contador, não o relógio (dois no mesmo milissegundo ficam na ordem certa). */
+  seq: number
 }
 
 /** Pedido de passagem à espera do mestre. Um por jogador. */
@@ -505,6 +559,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: o recado só para ele que ainda não chegou (estava fora). Só o
   // último: o cartão do jogador mostra um recado por vez. Sai com o próximo mapa dele.
   const pendingNotes = new Map<string, { id: string; text: string }>()
+  // Por playerId: o chamado aberto dele (no máximo um).
+  const openCalls = new Map<string, OpenCall>()
+  // Por playerId: quando o último chamado NOVO dele entrou. Sobrevive ao disconnect; só o kick apaga.
+  const lastCallAt = new Map<string, number>()
+  let callSeq = 0
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -1051,6 +1110,50 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { travel, near: companionsNear(travel.token, fromMap.grid, candidates) }
   }
 
+  /** O chamado como o mestre lê: com o nome ATUAL do jogador. Registro ausente = já saiu. */
+  const masterCallOf = (call: OpenCall): MasterCall | null => {
+    const record = players.get(call.playerId)
+    if (record === undefined) return null
+    const result: MasterCall = { callId: call.callId, playerId: call.playerId, playerName: record.name, reason: call.reason }
+    if (call.text !== undefined) result.text = call.text
+    return result
+  }
+
+  const findOpenCall = (callId: string): OpenCall | undefined => [...openCalls.values()].find((call) => call.callId === callId)
+
+  /**
+   * Mão levantada. A resposta vai SÓ a quem chamou — é o estado da mão dele,
+   * nada da fila. Com um chamado aberto, levantar de novo só confirma o que
+   * já está na fila (mesmo motivo, mesma posição, sem bipe): cinco toques
+   * não viram cinco linhas. Chamado novo antes de `CALL_MIN_INTERVAL_MS`
+   * não entra, e o jogador lê que precisa esperar.
+   */
+  function handleCallRaise(clientId: string, msg: CallRaiseMessage): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const open = openCalls.get(playerId)
+    if (open !== undefined) return reply(clientId, { type: 'call.state', state: 'waiting', reason: open.reason })
+    const at = now()
+    const last = lastCallAt.get(playerId)
+    if (last !== undefined && at - last < CALL_MIN_INTERVAL_MS) return reply(clientId, { type: 'call.state', state: 'too_soon' })
+    lastCallAt.set(playerId, at)
+    callSeq += 1
+    const call: OpenCall = { callId: randomId(), playerId, reason: msg.reason, seq: callSeq }
+    if (msg.text !== undefined) call.text = msg.text
+    openCalls.set(playerId, call)
+    const master = masterCallOf(call)
+    const result = reply(clientId, { type: 'call.state', state: 'waiting', reason: call.reason })
+    return master === null ? result : { ...result, call: master }
+  }
+
+  /** Mão baixada: sai da fila. Nada volta ao jogador — a tela dele já apagou a mão. */
+  function handleCallLower(clientId: string): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    openCalls.delete(playerId)
+    return { outbound: [] }
+  }
+
   const api: HostSession = {
     get rev() {
       return rev
@@ -1077,7 +1180,49 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleTokenEdit(clientId, msg, world)
         case 'pin.travel.request':
           return handleTravelRequest(clientId, msg, world)
+        case 'call.raise':
+          return handleCallRaise(clientId, msg)
+        case 'call.lower':
+          return handleCallLower(clientId)
       }
+    },
+
+    listCalls() {
+      // Urgente no topo; dentro de cada faixa, quem chamou primeiro vem primeiro.
+      const ordered = [...openCalls.values()].sort((a, b) => Number(b.reason === 'urgente') - Number(a.reason === 'urgente') || a.seq - b.seq)
+      return ordered.map(masterCallOf).filter((call): call is MasterCall => call !== null)
+    },
+
+    isCallOpen(callId) {
+      return findOpenCall(callId) !== undefined
+    },
+
+    seeCall(callId) {
+      const call = findOpenCall(callId)
+      if (call === undefined) return { outbound: [] }
+      openCalls.delete(call.playerId)
+      const clientId = players.get(call.playerId)?.clientId ?? null // null = caiu: não há a quem avisar
+      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'call.state', state: 'seen' })
+    },
+
+    replyCall(callId, text) {
+      const call = findOpenCall(callId)
+      if (call === undefined) return { outbound: [] }
+      const clamped = clampNoteText(text.trim())
+      if (clamped.length === 0) return { outbound: [] }
+      openCalls.delete(call.playerId)
+      const clientId = players.get(call.playerId)?.clientId ?? null // null = caiu: a resposta não tem para onde ir
+      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'call.reply', id: randomId(), text: clamped })
+    },
+
+    callTarget(callId, source) {
+      const call = findOpenCall(callId)
+      if (call === undefined) return null
+      const scene = sceneFor(call.playerId, toWorld(source))
+      if (scene === null) return null
+      const owned = new Set(ownership[call.playerId] ?? [])
+      const token = scene.map.tokens.find((t) => owned.has(t.id))
+      return token === undefined ? null : { sceneId: scene.sceneId, x: token.x, y: token.y }
     },
 
     approveTravel(requestId, source) {
@@ -1258,6 +1403,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       pendingTravels.delete(playerId)
       // Mesmo para a porta: "Destrancar e abrir" depois da queda não abre nada.
       pendingDoors.delete(playerId)
+      // A mão também: quem volta chega com a tela zerada, sem mão acesa.
+      openCalls.delete(playerId)
     },
 
     kick(clientId) {
@@ -1277,6 +1424,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       lastTokenPhotoAt.delete(playerId)
       visionOverrides.delete(playerId)
       pendingNotes.delete(playerId)
+      openCalls.delete(playerId)
+      lastCallAt.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },
 

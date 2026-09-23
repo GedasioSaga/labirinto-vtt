@@ -18,7 +18,17 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
-import { parseLaserMessage, parsePartyUpdate, parseSceneNote, type PartyMember } from '../net/protocol'
+import {
+  CALL_TEXT_MAX_LENGTH,
+  isCallReason,
+  parseCallReply,
+  parseLaserMessage,
+  parsePartyUpdate,
+  parseSceneNote,
+  type CallRaiseMessage,
+  type CallReason,
+  type PartyMember,
+} from '../net/protocol'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -73,6 +83,8 @@ export interface PlayerState {
    * só reenvia quando muda, então apagar aqui deixaria a lista vazia na volta.
    */
   party?: PartyMember[]
+  /** A mão do jogador (chamar o mestre): acesa esperando, ou a resposta curta do mestre. */
+  call?: CallNotice
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -104,6 +116,14 @@ export type TravelNotice =
   | { id: number; phase: 'gathered' }
   | { id: number; phase: 'denied' }
   | { id: number; phase: 'rejected'; reason: PinTravelRejection }
+
+/**
+ * Onde está a mão do jogador. `waiting` fica até o mestre responder (ou ele
+ * baixar); `seen` ("O mestre viu") e `too_soon` ("espere um instante") somem
+ * sozinhos depois de `CALL_NOTICE_TTL_MS`. A resposta escrita do mestre não
+ * mora aqui: vira `note`, o mesmo cartão do recado.
+ */
+export type CallNotice = { id: number; phase: 'waiting'; reason: CallReason } | { id: number; phase: 'seen' } | { id: number; phase: 'too_soon' }
 
 /** Subconjunto do WebSocket do browser que este cliente usa. */
 export interface SocketLike {
@@ -167,6 +187,15 @@ export interface PlayerConnection {
   requestTravel(pinId: string, exitId?: string): boolean
   /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). */
   dismissNote(): void
+  /**
+   * Levanta a mão: chama o mestre com o motivo e, opcional, um texto curto
+   * (aparado; em branco não viaja). `false` se não está jogando, se a mão já
+   * está levantada, se o texto passa de `CALL_TEXT_MAX_LENGTH` ou se o socket
+   * não está aberto.
+   */
+  raiseHand(reason: CallReason, text?: string): boolean
+  /** Baixa a mão antes de o mestre ver. `false` se ela não estava levantada ou o socket não está aberto. */
+  lowerHand(): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -180,6 +209,8 @@ export const DOOR_NOTICE_TTL_MS = 2500
 export const DOOR_REQUEST_NOTICE_TTL_MS = 4000
 /** Quanto tempo a recusa do mestre ("não deixou passar agora") fica na tela. Mais que a porta. */
 export const TRAVEL_NOTICE_TTL_MS = 4000
+/** Quanto tempo "O mestre viu" e "Espere um instante" ficam no lugar da mão. */
+export const CALL_NOTICE_TTL_MS = 4000
 /**
  * "Você chegou" é mudança de lugar: sai quando o jogador mexe a própria ficha
  * (aí já viu onde está, mesma regra da reunião) ou depois deste teto. Era
@@ -382,6 +413,39 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return notice.phase === 'arrived' ? ARRIVAL_NOTICE_TTL_MS : TRAVEL_NOTICE_TTL_MS
   }
 
+  let callTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearCallTimer(): void {
+    if (callTimer !== null) clearTimeout(callTimer)
+    callTimer = null
+  }
+
+  /** "O mestre viu" / "Espere um instante": ficam no lugar da mão e somem sozinhos. */
+  function showCallAnswer(phase: 'seen' | 'too_soon'): void {
+    clearCallTimer()
+    setState({ call: { id: nextNoticeId++, phase } })
+    callTimer = setTimeout(() => {
+      callTimer = null
+      setState({ call: undefined })
+    }, CALL_NOTICE_TTL_MS)
+  }
+
+  /** `call.state` do mestre. Fora do jogo não há mão na tela. */
+  function handleCallState(data: Record<string, unknown>): void {
+    if (state.status !== 'playing') return
+    if (data.state === 'waiting' && isCallReason(data.reason)) {
+      // O "waiting" só confirma a mão acesa aqui; mesmo `id`, nada reanima na tela.
+      // Mão já baixada: é a confirmação atrasada de um chamado que o mestre
+      // apagou no `call.lower` — reacender deixaria "Esperando o mestre" para
+      // sempre, sem linha nenhuma na fila do mestre.
+      if (state.call?.phase !== 'waiting') return
+      clearCallTimer()
+      setState({ call: { id: state.call.id, phase: 'waiting', reason: data.reason } })
+      return
+    }
+    if (data.state === 'seen' || data.state === 'too_soon') showCallAnswer(data.state)
+  }
+
   let laserTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearLaserTimer(): void {
@@ -519,6 +583,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         clearTravelTimer()
+        clearCallTimer()
         setState({
           status: 'waiting',
           map: undefined,
@@ -531,6 +596,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           doorNotice: undefined,
           doorRequest: undefined,
           travel: undefined,
+          call: undefined,
         })
         return
       case 'scene.changed':
@@ -580,6 +646,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const party = parsePartyUpdate(data)
         if (party === null) return
         setState({ party: party.members })
+        return
+      }
+      case 'call.state':
+        handleCallState(data)
+        return
+      case 'call.reply': {
+        // A resposta do mestre ao chamado: o mesmo cartão do recado, e a mão apaga.
+        if (state.status !== 'playing') return
+        const reply = parseCallReply(data)
+        if (reply === null) return
+        clearCallTimer()
+        setState({ note: { id: reply.id, text: reply.text }, call: undefined })
         return
       }
       case 'laser': {
@@ -666,7 +744,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         clearTravelTimer()
-        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, travel: undefined })
+        clearCallTimer()
+        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -721,6 +800,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearLaserTimer()
     clearDoorNotice()
     clearTravelTimer()
+    clearCallTimer()
     const current = socket
     socket = null
     current?.close()
@@ -808,6 +888,25 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.note !== undefined) setState({ note: undefined })
     },
 
+    raiseHand(reason, text) {
+      // Mão já acesa: o toque repetido não vira outro chamado.
+      if (state.status !== 'playing' || state.call?.phase === 'waiting') return false
+      const limpo = text?.trim() ?? '' // sem texto = só o motivo
+      if (limpo.length > CALL_TEXT_MAX_LENGTH) return false
+      const message: CallRaiseMessage = limpo === '' ? { type: 'call.raise', reason } : { type: 'call.raise', reason, text: limpo }
+      if (!send(message)) return false
+      clearCallTimer()
+      setState({ call: { id: nextNoticeId++, phase: 'waiting', reason } })
+      return true
+    },
+
+    lowerHand() {
+      if (state.call?.phase !== 'waiting') return false
+      if (!send({ type: 'call.lower' })) return false
+      setState({ call: undefined })
+      return true
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -823,7 +922,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, paused: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, paused: undefined, call: undefined })
       open()
     },
     close: detach,
