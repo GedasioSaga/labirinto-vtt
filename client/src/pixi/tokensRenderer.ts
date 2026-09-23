@@ -1,7 +1,7 @@
 import { Container, Sprite, Graphics, Text, Assets, Texture } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { Token, TokenHealth } from '../types/map'
-import { SECRET_ITEM_ALPHA, SELECTION_COLOR, TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from './constants'
+import { SECRET_ITEM_ALPHA, SELECTION_COLOR, TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TURN_RING_COLOR, TURN_RING_GAP, TURN_RING_WIDTH } from './constants'
 import { drawTokenCircle } from './drawTokens'
 import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from './drawTokenHealth'
 import { readTokenHealth } from '../lib/tokenHealth'
@@ -35,8 +35,11 @@ function strokeDashedCircle(graphics: Graphics, radius: number): void {
 export const TOKEN_LABEL_FONT_SIZE = 12
 
 export interface TokensRenderer {
-  /** `cameraScale` omitido mantém o último zoom informado. */
-  draw: (container: Container, tokens: Token[], gridSize: number, selectedTokenId?: string | null, cameraScale?: number) => void
+  /**
+   * `cameraScale` omitido mantém o último zoom informado. `turnTokenId`: a
+   * ficha da vez na iniciativa, que ganha o anel da vez (`TURN_RING_*`).
+   */
+  draw: (container: Container, tokens: Token[], gridSize: number, selectedTokenId?: string | null, cameraScale?: number, turnTokenId?: string | null) => void
   /** Só o zoom mudou: reescala e mostra/esconde os nomes sem redesenhar os tokens. */
   setCameraScale: (cameraScale: number) => void
 }
@@ -235,7 +238,7 @@ export function createTokensRenderer(): TokensRenderer {
     return Assets.load<Texture>(url)
   }
 
-  function draw(container: Container, tokens: Token[], gridSize: number, selectedTokenId: string | null = null, cameraScale?: number): void {
+  function draw(container: Container, tokens: Token[], gridSize: number, selectedTokenId: string | null = null, cameraScale?: number, turnTokenId: string | null = null): void {
     if (cameraScale !== undefined) lastCameraScale = cameraScale
     const currentIds = new Set(tokens.map((t) => t.id))
 
@@ -383,6 +386,11 @@ export function createTokensRenderer(): TokensRenderer {
       // o token sumia de vez e não havia como clicar nele para desfazer; agora
       // fica como fantasma (alpha baixo acima + contorno tracejado), clicável.
       if (ghost) strokeDashedCircle(entry.ring, outlineRadius)
+      // A ficha da vez: anel solto por fora de tudo (moldura e seleção), para
+      // ler de relance no meio do mapa sem esconder a seleção.
+      if (token.id === turnTokenId) {
+        entry.ring.circle(0, 0, outlineRadius + TURN_RING_GAP + TURN_RING_WIDTH / 2).stroke({ width: TURN_RING_WIDTH, color: TURN_RING_COLOR })
+      }
 
       // Condição na ficha: pastilhas sentadas na borda de cima do disco que a
       // pessoa vê (`outlineRadius`), por cima de tudo. Fantasma e "Oculto para

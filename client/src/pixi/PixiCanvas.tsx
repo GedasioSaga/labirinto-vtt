@@ -10,6 +10,8 @@ import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
+import { advanceTurn, useInitiativeStore } from '../stores/initiativeStore'
+import { turnTokenIdOn } from '../lib/initiative'
 import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
 import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, freeAreaCenter, type Bounds, type Camera, type Point } from './world'
 import { resolveCursor, type HoverKind, type ResizeCorner } from './cursorPolicy'
@@ -1167,7 +1169,9 @@ export function PixiCanvas({
       const redrawTokens = () => {
         const { map, selection } = useMapStore.getState()
         const single = selectionSingle(selection)
-        tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null, camera.scale)
+        // A vez da iniciativa só acende NESTA cena: a de outra cena é outra ficha.
+        const turnTokenId = turnTokenIdOn(useInitiativeStore.getState().turn, map)
+        tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null, camera.scale, turnTokenId)
         // As alças do token acompanham o token: `moveTokenLive` (arrasto) e
         // `moveSelectionBy` (setas) só acordam ESTE redraw, nunca o de formas.
         redrawEditHandles()
@@ -1377,6 +1381,10 @@ export function PixiCanvas({
         }
       })
       const unsubscribeTokens = subscribeToTokensRedraw(redrawTokens)
+      // A vez andou (Começar, Próxima vez, Encerrar): o anel troca de ficha.
+      const unsubscribeTurn = useInitiativeStore.subscribe((state, previous) => {
+        if (state.turn !== previous.turn) redrawTokens()
+      })
       const unsubscribeProps = subscribeToPropsRedraw(redrawProps)
       const unsubscribeBackground = subscribeToBackgroundRedraw(() => {
         void redrawBackground()
@@ -5376,6 +5384,13 @@ export function PixiCanvas({
             if (proximo !== null) updatePin(pino.id, { kind: proximo, destino: null })
             break
           }
+          // Shift+N — a mesma "Próxima vez" do painel Iniciativa (aba Jogo),
+          // sem o mestre tirar o olho do mapa. Sem combate nesta cena, nada.
+          case 'nextTurn': {
+            const { map: mapaDaVez } = useMapStore.getState()
+            advanceTurn(mapaDaVez.id, mapaDaVez.tokens)
+            break
+          }
           case 'nudge':
             nudgeSelected(action.dx, action.dy, action.fine)
             break
@@ -5481,6 +5496,7 @@ export function PixiCanvas({
         unsubscribeShapes()
         unsubscribeTravelLinks()
         unsubscribeTokens()
+        unsubscribeTurn()
         unsubscribeProps()
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()

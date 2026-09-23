@@ -35,7 +35,7 @@ import { drawStairs } from '../pixi/drawStairs'
 import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
 import { screenLabelSizing } from '../pixi/screenLabel'
-import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from '../pixi/constants'
+import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TURN_RING_COLOR, TURN_RING_GAP, TURN_RING_WIDTH } from '../pixi/constants'
 import { parseHexColor } from '../lib/tokenColor'
 import { readTokenHealth } from '../lib/tokenHealth'
 import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from '../pixi/drawTokenHealth'
@@ -73,6 +73,8 @@ interface PlayerViewProps {
   /** Zonas ocultas ativas do mestre: pintadas de preto por cima da planta. */
   concealed?: RegionPoint[][]
   ownTokens: string[]
+  /** INICIATIVA: a ficha da vez (sempre uma de `map.tokens`), que ganha o anel da vez. */
+  turnTokenId?: string | null
   settings: PlayerViewSettings
   /** Token a centralizar. `focusSeq` muda a cada pedido, para repetir o mesmo token. */
   focusTokenId: string | null
@@ -246,7 +248,7 @@ function tokenRadius(token: Token, grid: number): number {
  * máscara da foto, e as marcas de condição); a textura chega depois e é
  * assunto de `syncTokenPhoto`. Exportada para o teste da condição na ficha.
  */
-export function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean): void {
+export function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean, turn = false): void {
   const radius = tokenRadius(token, grid)
   // A cor que o MESTRE deu à ficha vale aqui também: a separação entre aliado
   // e inimigo não serve de nada se só o mestre a enxerga. Sem cor escolhida,
@@ -274,6 +276,8 @@ export function paintTokenView(view: TokenView, token: Token, grid: number, own:
       .stroke({ width: TOKEN_FRAME_WIDTH, color: chosen ?? (own ? TOKEN_FRAME_COLOR : OTHER_TOKEN_COLOR) })
     if (ownRing) view.body.circle(0, 0, radius).stroke({ width: 2, color: OWN_TOKEN_COLOR })
   }
+  // A ficha da vez: o mesmo anel solto do mapa do mestre (pixi/tokensRenderer.ts).
+  if (turn) view.body.circle(0, 0, radius + TURN_RING_GAP + TURN_RING_WIDTH / 2).stroke({ width: TURN_RING_WIDTH, color: TURN_RING_COLOR })
   // Barra de vida: a mesma do mestre, e o nome desce para baixo dela.
   const health = readTokenHealth(token.health)
   drawTokenHealthBar(view.bar, radius, health)
@@ -312,7 +316,7 @@ function syncTokenPhoto(view: TokenView, token: Token, grid: number): void {
 }
 
 /** Exportada para o teste da condição na ficha (`PlayerView.condicoes.test.ts`). */
-export function createTokenView(token: Token, grid: number, own: boolean): TokenView {
+export function createTokenView(token: Token, grid: number, own: boolean, turn = false): TokenView {
   const wrapper = new Container()
   const body = new Graphics()
   const photo = new Sprite(Texture.EMPTY)
@@ -330,8 +334,8 @@ export function createTokenView(token: Token, grid: number, own: boolean): Token
   wrapper.addChild(photoMask, photo, body, bar, label, marks)
   wrapper.eventMode = 'static'
   wrapper.cursor = 'grab'
-  const view: TokenView = { wrapper, body, photo, photoMask, bar, label, marks, key: tokenViewKey(token, grid, own), loadedPhoto: null, loadSeq: 0 }
-  paintTokenView(view, token, grid, own)
+  const view: TokenView = { wrapper, body, photo, photoMask, bar, label, marks, key: tokenViewKey(token, grid, own, turn), loadedPhoto: null, loadSeq: 0 }
+  paintTokenView(view, token, grid, own, turn)
   return view
 }
 
@@ -348,15 +352,16 @@ function sizeTokenLabel(label: Text, cameraScale: number, showNames: boolean): v
  * caracteres e entraria nesta chave a cada quadro — a troca de uma foto por
  * outra é tratada em `syncTokenPhoto`, que compara a referência uma vez só.
  */
-export function tokenViewKey(token: Token, grid: number, own: boolean): string {
+export function tokenViewKey(token: Token, grid: number, own: boolean, turn = false): string {
   // `token.color` entra na chave: sem isto, o mestre troca a cor e a tela do
   // jogador continua com a tinta velha até o token mudar de nome ou tamanho.
   // A vida também: a barra do jogador acompanha cada golpe que o mestre anota.
   const health = readTokenHealth(token.health)
   const healthKey = health === null ? null : [health.current, health.max]
   // As condições entram pelo mesmo motivo — já limpas, para lixo no campo não
-  // mandar repintar nada.
-  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey, tokenConditionsOf(token)])
+  // mandar repintar nada. `turn` também: a vez andar repinta só as duas fichas
+  // que ganham/perdem o anel.
+  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey, tokenConditionsOf(token), turn])
 }
 
 interface Scene {
@@ -602,6 +607,7 @@ export function PlayerView({
   explored,
   concealed = NO_CONCEALED,
   ownTokens,
+  turnTokenId = null,
   settings,
   focusTokenId,
   focusSeq,
@@ -618,8 +624,8 @@ export function PlayerView({
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
   const tokenDragLabelRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
-  const latestRef = useRef({ map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser })
-  latestRef.current = { map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser }
+  const latestRef = useRef({ map, vision, explored, concealed, ownTokens, turnTokenId, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser })
+  latestRef.current = { map, vision, explored, concealed, ownTokens, turnTokenId, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser }
 
   /**
    * Pinta a régua (linha no canvas + rótulo no DOM) a partir de `scene.measure`.
@@ -822,6 +828,7 @@ export function PlayerView({
       explored: currentExplored,
       concealed: currentConcealed,
       ownTokens: own,
+      turnTokenId: currentTurn,
       settings: currentSettings,
     } = latestRef.current
     const hidden = currentMap.hiddenLayers
@@ -893,17 +900,18 @@ export function PlayerView({
     }
     for (const token of currentMap.tokens) {
       const isOwn = ownSet.has(token.id)
-      const key = tokenViewKey(token, currentMap.grid, isOwn)
+      const isTurn = token.id === currentTurn
+      const key = tokenViewKey(token, currentMap.grid, isOwn, isTurn)
       let view = scene.tokenViews.get(token.id)
       if (!view) {
         const tokenId = token.id
-        view = createTokenView(token, currentMap.grid, isOwn)
+        view = createTokenView(token, currentMap.grid, isOwn, isTurn)
         view.wrapper.on('pointerdown', (event: FederatedPointerEvent) => startTokenDrag(scene, tokenId, event))
         scene.tokens.addChild(view.wrapper)
         scene.tokenViews.set(tokenId, view)
       } else if (view.key !== key) {
         view.key = key
-        paintTokenView(view, token, currentMap.grid, isOwn)
+        paintTokenView(view, token, currentMap.grid, isOwn, isTurn)
       }
       // Fora do `if` de propósito: trocar uma foto por outra não muda a chave.
       syncTokenPhoto(view, token, currentMap.grid)
@@ -1339,7 +1347,7 @@ export function PlayerView({
   useEffect(() => {
     const scene = sceneRef.current
     if (scene) redraw(scene)
-  }, [map, vision, explored, concealed, ownTokens, settings])
+  }, [map, vision, explored, concealed, ownTokens, turnTokenId, settings])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.

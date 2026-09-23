@@ -60,6 +60,15 @@ export type Action =
   /** `?` — alterna o pino selecionado entre "!" e "?". Sem pino selecionado,
    *  quem executa não faz nada: a tecla fica livre para outro papel. */
   | { kind: 'togglePinType' }
+  /** Shift+N — passa a vez da iniciativa (o mesmo que o botão "Próxima vez"). */
+  | { kind: 'nextTurn' }
+
+/**
+ * Tecla do "Próxima vez" da iniciativa, no formato de `aria-keyshortcuts`
+ * (é assim que o botão anuncia o atalho). Todas as letras sem modificador já
+ * são ferramentas (N é a Sala); Shift+letra estava livre, e N é de "next".
+ */
+export const NEXT_TURN_SHORTCUT = 'Shift+N'
 
 /**
  * Tabela ferramenta → letra, para o integrador mostrar no `data-tip` de cada
@@ -265,6 +274,9 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
   // `key`, não a tecla física, para valer em qualquer layout. Alt fica de
   // fora pelo mesmo motivo das letras.
   if (key === '?' && !evt.altKey) return { kind: 'togglePinType' }
+  // Shift+N (`NEXT_TURN_SHORTCUT`): a próxima vez da iniciativa. Também antes
+  // da trava de Shift, pelo mesmo motivo do `?`.
+  if (evt.shiftKey && !evt.altKey && lower === 'n') return { kind: 'nextTurn' }
   if (evt.shiftKey || evt.altKey) return null
 
   if (lower === 'f') return { kind: 'fitAll' }

@@ -1482,6 +1482,92 @@ body {
   flex: none;
 }
 
+/* INICIATIVA (aba Jogo): campos por ficha, a ordem e os botões da vez. */
+.lb-initiative {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  flex: none;
+}
+
+.lb-initiative__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
+.lb-initiative__field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  align-items: center;
+  column-gap: var(--lb-space-2);
+}
+
+.lb-initiative__token {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment);
+}
+
+.lb-initiative__input {
+  width: 100%;
+  text-align: right;
+}
+
+.lb-initiative__error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.lb-initiative__order {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-initiative__entry {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-1) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+/* A vez: borda clara, a mesma língua do anel da vez no mapa (pixi/constants.ts). */
+.lb-initiative__entry.is-current {
+  border-color: var(--lb-color-parchment);
+  box-shadow: inset 3px 0 0 var(--lb-color-parchment);
+}
+
+.lb-initiative__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment);
+}
+
+.lb-initiative__entry .lb-num {
+  margin-left: auto;
+}
+
+.lb-initiative__actions {
+  display: flex;
+  gap: var(--lb-space-2);
+}
+
+.lb-initiative__actions > .lb-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .lb-party__list {
   display: flex;
   flex-direction: column;
