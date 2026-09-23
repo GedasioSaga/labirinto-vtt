@@ -46,6 +46,12 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
  * nunca o id nem o nome da cena — quem recebe já está lá.
+ *
+ * O CADERNO DE RECADOS é aditivo pelo mesmo critério: `scene.note.at` (a hora
+ * do mestre, em ms) e `notes.book` (mestre -> jogador), a lista dos recados
+ * que AQUELE jogador já recebeu, mandada quando ele entra ou volta. Jogador
+ * antigo ignora os dois; mestre antigo não manda `at` e o jogador anota a hora
+ * da chegada.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -56,6 +62,8 @@ export const REQ_ID_MAX_LENGTH = 64
 export const RESUME_TOKEN_MAX_LENGTH = 128
 /** Teto do recado por cena, em unidades UTF-16 (o `maxLength` do campo do mestre conta igual). */
 export const NOTE_MAX_LENGTH = 500
+/** Quantos recados o caderno de cada jogador guarda (no host e na tela dele). Passou, sai o mais antigo. */
+export const NOTEBOOK_MAX_NOTES = 50
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
@@ -153,6 +161,21 @@ export interface SceneNoteMessage {
   type: 'scene.note'
   id: string
   text: string
+  /** Hora em que o mestre mandou (ms desde 1970, relógio do mestre). Ausente em mestre antigo. */
+  at?: number
+}
+
+/** Um recado guardado no caderno do jogador. Nada da cena: só o que ele leu e quando. */
+export interface NoteEntry {
+  id: string
+  text: string
+  at: number
+}
+
+/** O caderno inteiro do jogador, do mais antigo ao mais novo, mandado quando ele entra ou volta. */
+export interface NotebookMessage {
+  type: 'notes.book'
+  notes: NoteEntry[]
 }
 
 export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
@@ -176,6 +199,7 @@ export type HostMessage =
   | { type: 'scene.changed'; by?: 'master' | 'gather' }
   | LaserMessage
   | SceneNoteMessage
+  | NotebookMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -270,10 +294,43 @@ export function clampNoteText(text: string): string {
  */
 export function parseSceneNote(value: unknown): SceneNoteMessage | null {
   if (!isRecord(value) || value.type !== 'scene.note') return null
-  const { id, text } = value
+  const { id, text, at } = value
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
-  return { type: 'scene.note', id, text }
+  if (at === undefined) return { type: 'scene.note', id, text }
+  // Presente e fora da forma recusa inteiro, como o resto: hora torta no caderno é pior que recado nenhum.
+  if (!isNoteTime(at)) return null
+  return { type: 'scene.note', id, text, at }
+}
+
+function isNoteTime(value: unknown): value is number {
+  return isFiniteNumber(value) && value >= 0
+}
+
+function parseNoteEntry(value: unknown): NoteEntry | null {
+  if (!isRecord(value)) return null
+  const { id, text, at } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || !isBoundedString(text, 1, NOTE_MAX_LENGTH) || !isNoteTime(at)) return null
+  return { id, text, at }
+}
+
+/**
+ * Valida o caderno que o jogador recebe. Até `NOTEBOOK_MAX_NOTES` itens, cada
+ * um com id, texto dentro do teto e hora; um item ruim recusa a mensagem
+ * inteira (não mostra caderno pela metade). Devolve cópia só com os campos
+ * conhecidos.
+ */
+export function parseNotebook(value: unknown): NotebookMessage | null {
+  if (!isRecord(value) || value.type !== 'notes.book') return null
+  const { notes } = value
+  if (!Array.isArray(notes) || notes.length > NOTEBOOK_MAX_NOTES) return null
+  const parsed: NoteEntry[] = []
+  for (const item of notes) {
+    const entry = parseNoteEntry(item)
+    if (entry === null) return null
+    parsed.push(entry)
+  }
+  return { type: 'notes.book', notes: parsed }
 }
 
 /**

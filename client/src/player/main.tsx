@@ -1,9 +1,9 @@
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type DoorToggleRejection } from '../net/protocol'
+import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type DoorToggleRejection, type NoteEntry } from '../net/protocol'
 import { themeCss } from '../theme'
-import { createPlayerConnection, RESUME_STORAGE_KEY } from './playerConnection'
+import { createPlayerConnection, hasUnreadNotes, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNotice } from './playerConnection'
 import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
@@ -28,6 +28,7 @@ document.head.prepend(themeStyle)
 /** Referência estável: um `[]` novo a cada render redesenharia o canvas sem motivo. */
 const NO_TOKENS: string[] = []
 const NO_SIGNALS: SignalMark[] = []
+const NO_NOTES: NoteEntry[] = []
 const OWN_TOKEN_CSS = `#${OWN_TOKEN_COLOR.toString(16).padStart(6, '0')}`
 
 /** Recusa do mestre ao toque na porta, em uma linha curta. */
@@ -550,6 +551,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const closePin = useCallback(() => setOpenPinId(null), [])
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
+  // Estável: o painel marca o Caderno como lido num efeito que depende dela.
+  const readNotebook = useCallback(() => connection.markNotebookRead(), [connection])
 
   if (state.status === 'playing' && state.map && state.vision) {
     return (
@@ -599,6 +602,9 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             // quem escolhe que paga o custo, e o que viaja já cabe no teto.
             connection.setOwnTokenPhoto(tokenId, await buildTokenPhotoData(file))
           }}
+          notebook={state.notebook ?? NO_NOTES}
+          notebookUnread={hasUnreadNotes(state)}
+          onReadNotebook={readNotebook}
         />
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
