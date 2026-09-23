@@ -12,6 +12,7 @@ import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } from './net/hostBridge'
 import { useSignalStore } from './stores/signalStore'
+import { goToPointAction } from './stores/pointActionGo'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { useFollowStore } from './stores/followStore'
 import { useFollowPlayer } from './stores/useFollowPlayer'
@@ -458,6 +459,8 @@ function App() {
         onGoToScene: (sceneId, x, y) => {
           useAdventureStore.getState().goToPoint(sceneId, { x, y })
         },
+        // "Ir lá" da ação no ponto: centra no ponto e o marca com o anel do jogador.
+        onPointActionGo: goToPointAction,
         onPlayersChange: setRoomPlayers,
         onTunnelChange: setTunnel,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.

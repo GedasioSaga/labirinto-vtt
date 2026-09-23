@@ -3,6 +3,7 @@ import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
+import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -46,6 +47,10 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
  * nunca o id nem o nome da cena — quem recebe já está lá.
+ *
+ * `point.action` (jogador -> mestre) e, na volta, `point.action.answer` e
+ * `point.action.rejected` são as AÇÕES NO PONTO, aditivas pelo mesmo critério.
+ * A volta vai só a quem pediu e nunca leva sala, cena nem ponto.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -130,7 +135,28 @@ export interface PinTravelRequestMessage {
   exitId?: string
 }
 
-export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage | DoorToggleMessage | TokenEditMessage | PinTravelRequestMessage
+/**
+ * AÇÃO NO PONTO: depois do toque longo, o jogador pede ao mestre para
+ * Procurar/Escutar/Espiar/Revistar em (`x`, `y`), px de mundo da cena DELE.
+ * Aditiva pelo critério de sempre: mestre antigo responde `error
+ * invalid_message` (o pedido só não chega) e jogador antigo nunca a envia.
+ */
+export interface PointActionMessage {
+  type: 'point.action'
+  action: PointActionKind
+  x: number
+  y: number
+}
+
+export type PlayerMessage =
+  | JoinMessage
+  | TokenMoveMessage
+  | PingMessage
+  | SignalMessage
+  | DoorToggleMessage
+  | TokenEditMessage
+  | PinTravelRequestMessage
+  | PointActionMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -176,6 +202,10 @@ export type HostMessage =
   | { type: 'scene.changed'; by?: 'master' | 'gather' }
   | LaserMessage
   | SceneNoteMessage
+  // Resposta do mestre à AÇÃO NO PONTO, só para quem pediu. Leva só a ação e
+  // a resposta: nem o ponto, nem a sala, nem a cena que o mestre leu.
+  | { type: 'point.action.answer'; action: PointActionKind; answer: PointActionAnswer }
+  | { type: 'point.action.rejected'; reason: PointActionRejection }
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -276,6 +306,28 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
   return { type: 'scene.note', id, text }
 }
 
+export type PointActionReply = Extract<HostMessage, { type: 'point.action.answer' } | { type: 'point.action.rejected' }>
+
+/**
+ * Valida a resposta (ou a recusa) da AÇÃO NO PONTO que o jogador recebe.
+ * Qualquer valor fora do conhecido recusa a mensagem inteira: o texto que o
+ * jogador lê sai daqui, e um "talvez" não pode virar "O mestre viu".
+ */
+export function parsePointActionReply(value: unknown): PointActionReply | null {
+  if (!isRecord(value)) return null
+  if (value.type === 'point.action.answer') {
+    const { action, answer } = value
+    if (!isPointActionKind(action) || (answer !== 'nothing' && answer !== 'seen')) return null
+    return { type: 'point.action.answer', action, answer }
+  }
+  if (value.type === 'point.action.rejected') {
+    const { reason } = value
+    if (!isPointActionRejection(reason)) return null
+    return { type: 'point.action.rejected', reason }
+  }
+  return null
+}
+
 /**
  * Valida a mensagem `laser` que o jogador recebe (objeto já desserializado).
  * Aceita `off: true` ou 1 a `LASER_MAX_POINTS_PER_MESSAGE` pontos finitos; devolve
@@ -324,6 +376,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTokenEdit(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
+    case 'point.action':
+      return isPointActionKind(value.action) && isFiniteNumber(value.x) && isFiniteNumber(value.y)
+        ? { type: 'point.action', action: value.action, x: value.x, y: value.y }
+        : null
     default:
       return null
   }

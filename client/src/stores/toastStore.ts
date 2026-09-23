@@ -22,10 +22,16 @@ import { create } from 'zustand'
  */
 export type ToastKind = 'info' | 'error' | 'instrucao'
 
-/** Botão de um aviso. Clicar roda `run` e dispensa o aviso. */
+/** Botão de um aviso. Clicar roda `run` e dispensa o aviso (salvo `mantemAviso`). */
 export interface ToastAction {
   label: string
   run: () => void
+  /**
+   * Clicar roda `run` SEM tirar o aviso da tela. É o "Ir lá" de um pedido que
+   * ainda espera resposta: ir ver o lugar não responde nada, e a pergunta
+   * precisa continuar ali para o "Nada aqui" ou o "Feito".
+   */
+  mantemAviso?: boolean
   /**
    * A ação que o "Deixar todos" da caixa roda por este aviso
    * (`components/caixaDeAvisos.ts`). Marcada, e não "a primeira": a ordem

@@ -75,7 +75,8 @@ function AvisoSolto({ toast, onDismiss }: AvisoSoltoProps) {
                 onClick={() => {
                   // Tira da tela ANTES de agir: a ação pode empilhar outro
                   // aviso, e a pergunta respondida não pode ficar clicável.
-                  onDismiss(toast.id)
+                  // `mantemAviso` ("Ir lá" de um pedido) não responde nada: fica.
+                  if (action.mantemAviso !== true) onDismiss(toast.id)
                   action.run()
                 }}
               >
@@ -156,6 +157,10 @@ function CaixaDeAvisos({ grupo, toasts, onDismiss }: CaixaDeAvisosProps) {
                     // aqui a resposta esperada só ganha o contorno cheio.
                     className={index === 0 ? 'lb-btn' : 'lb-btn lb-btn--ghost'}
                     onClick={() => {
+                      if (action.mantemAviso === true) {
+                        action.run()
+                        return
+                      }
                       lembrarFoco()
                       onDismiss(toast.id)
                       action.run()
