@@ -35,7 +35,7 @@ import { drawStairs } from '../pixi/drawStairs'
 import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
 import { screenLabelSizing } from '../pixi/screenLabel'
-import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from '../pixi/constants'
+import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TOKEN_NAME_FILL_COLOR, TOKEN_NAME_OUTLINE_COLOR } from '../pixi/constants'
 import { parseHexColor } from '../lib/tokenColor'
 import { fitPhotoSprite, textureFromDataUrl } from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
@@ -313,7 +313,7 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
   // A máscara precisa estar na árvore de exibição para o Pixi recortá-la; ela não aparece por si.
   const photoMask = new Graphics()
   photo.mask = photoMask
-  const label = new Text({ text: token.name, style: { fontSize: LABEL_FONT_SIZE, fill: 0xffffff, stroke: { color: 0x000000, width: 3 } } })
+  const label = new Text({ text: token.name, style: { fontSize: LABEL_FONT_SIZE, fill: TOKEN_NAME_FILL_COLOR, stroke: { color: TOKEN_NAME_OUTLINE_COLOR, width: 3 } } })
   label.anchor.set(0.5, 0)
   wrapper.addChild(photoMask, photo, body, label)
   wrapper.eventMode = 'static'
