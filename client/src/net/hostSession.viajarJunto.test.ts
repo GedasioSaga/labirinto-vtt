@@ -44,13 +44,17 @@ function mesa() {
     cajado: casa(12, 6),
     arco: casa(9, 5),
   }
+  /** O que o mestre mudou numa ficha do Salão (esconder, por exemplo). */
+  const patch: Record<string, Partial<Token>> = {}
+  /** Quem já chegou à Cripta: a ficha sai do Salão e entra lá (o que o integrador faz com `applyTransfer`). */
+  const cripta: Record<string, { x: number; y: number }> = { tocha: casa(9, 6) }
   const world = (): HostWorld => ({
     open: {
       sceneId: SALAO,
       name: 'Salão',
       map: {
         ...createEmptyMap('mapa-salao', 'Aventura', 40, 12, GRADE),
-        tokens: Object.entries(pos).map(([id, p]) => ficha(id, p)),
+        tokens: Object.entries(pos).filter(([id]) => !(id in cripta)).map(([id, p]) => ({ ...ficha(id, p), ...patch[id] })),
         pins: [escada('escada-a', ESCADA_A, CRIPTA, 'escada-b')],
       },
     },
@@ -58,7 +62,7 @@ function mesa() {
       {
         sceneId: CRIPTA,
         name: 'Cripta Rubra',
-        map: { ...createEmptyMap('mapa-cripta', 'Planta', 40, 12, GRADE), tokens: [ficha('tocha', casa(9, 6))], pins: [escada('escada-b', ESCADA_B, SALAO, 'escada-a')] },
+        map: { ...createEmptyMap('mapa-cripta', 'Planta', 40, 12, GRADE), tokens: Object.entries(cripta).map(([id, p]) => ficha(id, p)), pins: [escada('escada-b', ESCADA_B, SALAO, 'escada-a')] },
       },
     ],
   })
@@ -81,7 +85,12 @@ function mesa() {
     if (r.travelRequest === undefined) throw new Error(`o pedido de ${clientId} deveria valer`)
     return r.travelRequest.requestId
   }
-  return { s, pos, world, ids, pedir }
+  return { s, pos, patch, cripta, world, ids, pedir }
+}
+
+/** Todo mapa (`snapshot` ou `delta`) que saiu para `clientId`. */
+function mapasDe(outbound: readonly { clientId: string; msg: HostMessage }[], clientId: string) {
+  return outbound.flatMap((o) => (o.clientId === clientId && (o.msg.type === 'snapshot' || o.msg.type === 'delta') ? [o.msg.map] : []))
 }
 
 describe('hostSession: viajar junto', () => {
@@ -137,6 +146,44 @@ describe('hostSession: viajar junto', () => {
     const resultados = t.s.approveTravelTogether(pedido, t.world())
     expect(resultados).toHaveLength(1)
     expect(resultados[0].applyTransfer).toBeUndefined()
+  })
+
+  it('ficha que o mestre escondeu não conta nem viaja: Bruno escondido fica, e o jogador não é levado para a Cripta', () => {
+    const t = mesa()
+    t.patch.machado = { hidden: true }
+    const pedido = t.pedir('c1')
+    expect(t.s.travelCompanions(pedido, t.world())).toEqual([])
+    const resultados = t.s.approveTravelTogether(pedido, t.world())
+    expect(resultados.map((r) => r.applyTransfer?.tokenId)).toEqual(['lanterna'])
+    expect(resultados.flatMap((r) => r.outbound.map((o) => o.clientId))).not.toContain('c2')
+  })
+
+  it('pela rede: quem fica não recebe as fichas de quem foi, e nenhum nome de cena sai para ninguém', () => {
+    const t = mesa()
+    const pedido = t.pedir('c1')
+    const resultados = t.s.approveTravelTogether(pedido, t.world())
+    // O integrador aplica cada `applyTransfer`: a ficha sai do Salão e entra na Cripta.
+    for (const r of resultados) {
+      const chegada = r.applyTransfer
+      if (chegada !== undefined) t.cripta[chegada.tokenId] = { x: chegada.x, y: chegada.y }
+    }
+    expect(Object.keys(t.cripta).sort()).toEqual(['lanterna', 'machado', 'tocha'])
+    const rede = t.s.broadcast(t.world()).outbound
+    const fichasDe = (clientId: string) => mapasDe(rede, clientId).flatMap((m) => m.tokens.map((tok) => tok.id))
+    // Carla ficou no Salão: as fichas de Ana e Bruno (e a Cripta inteira) não chegam a ela.
+    expect(mapasDe(rede, 'c3').length).toBeGreaterThan(0)
+    expect(fichasDe('c3')).not.toContain('lanterna')
+    expect(fichasDe('c3')).not.toContain('machado')
+    expect(fichasDe('c3')).not.toContain('tocha')
+    // Ana e Bruno recebem a Cripta, com a própria ficha, e nada do Salão.
+    for (const [clientId, propria] of [['c1', 'lanterna'], ['c2', 'machado']] as const) {
+      expect(fichasDe(clientId)).toContain(propria)
+      expect(fichasDe(clientId)).not.toContain('cajado')
+      expect(mapasDe(rede, clientId).every((m) => m.id === 'mapa-cripta')).toBe(true)
+    }
+    // Nome de cena não sai: nem na chegada ("Você chegou") nem no mapa.
+    const tudo = JSON.stringify([...resultados.flatMap((r) => r.outbound), ...rede])
+    expect(tudo).not.toMatch(/Cripta Rubra|Salão/)
   })
 
   it('pedido que já não existe: nada', () => {

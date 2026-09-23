@@ -7,6 +7,7 @@ import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
+import { visibleTokens } from '../lib/layers'
 import { companionSpots, companionsNear, type Companion } from '../lib/travelTogether'
 import {
   parsePlayerMessage,
@@ -846,13 +847,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world)
     if (travel === null) return null
     const fromMap = travel.from.map
+    // A mesma regra da ficha de quem pediu (`validTravel`, pelo recorte): ficha
+    // que o mestre escondeu, ou de camada oculta, não está no tabuleiro para
+    // ninguém — não conta no "(N)" e não é levada para a outra cena.
+    const onBoard = visibleTokens(fromMap.tokens, fromMap.hiddenLayers).filter((t) => t.hidden !== true)
     const candidates = [...players.values()].flatMap((record) => {
       if (record.playerId === pending.playerId || record.clientId === null || statusOf(record.playerId) !== 'playing') return []
       // A cena DELE, pela mesma regra do broadcast: ficha esquecida no Salão
       // de quem já está na Cripta não o faz viajar.
       if (sceneFor(record.playerId, world)?.sceneId !== travel.from.sceneId) return []
       const owned = new Set(ownership[record.playerId] ?? [])
-      return [{ playerId: record.playerId, tokens: fromMap.tokens.filter((t) => owned.has(t.id)) }]
+      return [{ playerId: record.playerId, tokens: onBoard.filter((t) => owned.has(t.id)) }]
     })
     return { travel, near: companionsNear(travel.token, fromMap.grid, candidates) }
   }
