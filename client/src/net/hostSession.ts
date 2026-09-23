@@ -5,7 +5,7 @@ import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
-import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
+import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, freeSeatNear, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
 import { visibleTokens } from '../lib/layers'
 import { companionSpots, companionsNear, type Companion } from '../lib/travelTogether'
@@ -1386,9 +1386,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const from = sceneFor(playerId, world)
       if (from === null || from.sceneId === null || from.sceneId === back.sceneId) return { outbound: [] }
       // A ficha tem de estar AGORA na cena dele: se saiu por outro caminho, o "Desfazer" é de uma viagem velha.
-      if (!from.map.tokens.some((t) => t.id === tokenId)) return { outbound: [] }
+      const token = from.map.tokens.find((t) => t.id === tokenId)
+      if (token === undefined) return { outbound: [] }
       const to = allScenes(world).find((scene) => scene.sceneId === back.sceneId)
       if (to === undefined || to.sceneId === null) return { outbound: [] }
+      // Alguém parou na casa dela enquanto isso: volta ao lado, sem empilhar (a de baixo sumia).
+      const spot = freeSeatNear(to.map, { x: back.x, y: back.y }, token.size, tokenId)
       currentScene.set(playerId, sceneKey(to))
       // O pedido que ele tinha na cena de antes perde o sentido: o pino ficou lá.
       pendingTravels.delete(playerId)
@@ -1401,8 +1404,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           fromSceneId: from.sceneId,
           toSceneId: to.sceneId,
           toSceneName: to.name,
-          x: back.x,
-          y: back.y,
+          x: spot.x,
+          y: spot.y,
         },
       }
     },

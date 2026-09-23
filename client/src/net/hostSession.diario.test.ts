@@ -5,6 +5,7 @@
  * mais recebe nada.
  */
 import { describe, expect, it } from 'vitest'
+import { seatIsTaken } from '../lib/gatherParty'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Token } from '../types/map'
 import { createHostSession, type HostResult, type HostWorld } from './hostSession'
@@ -72,6 +73,28 @@ describe('returnPlayer ("Desfazer" do diário)', () => {
     expect(s.returnPlayer(ana, 't-ana', { ...volta, sceneId: 's-x' }, depoisDaIda)).toEqual({ outbound: [] })
     expect(s.returnPlayer(ana, 't-ana', { ...volta, sceneId: 's-b' }, depoisDaIda)).toEqual({ outbound: [] })
     expect(s.returnPlayer('fantasma', 't-ana', volta, depoisDaIda)).toEqual({ outbound: [] })
+  })
+
+  it('casa de partida ocupada por outra ficha (Bruno andou até lá): volta na casa livre vizinha, sem empilhar', () => {
+    const { s, ana } = mesa()
+    const brunoNaCasaDela: HostWorld = { ...depoisDaIda, open: { ...depoisDaIda.open, map: mapa('m-salao', [ficha('t-bruno', 'Bruno', 700, 300)]) } }
+    const r = s.returnPlayer(ana, 't-ana', { sceneId: 's-a', x: 700, y: 300 }, brunoNaCasaDela)
+    const volta = r.applyTransfer
+    if (volta === undefined) throw new Error('a volta deveria sair, só que ao lado')
+    expect(volta.toSceneId).toBe('s-a')
+    expect(seatIsTaken(brunoNaCasaDela.open.map, volta, 1)).toBe(false)
+    // Vizinha: fora da casa de Bruno, mas a no máximo duas casas de onde ela saiu.
+    const distancia = Math.hypot(volta.x - 700, volta.y - 300)
+    expect(distancia).toBeGreaterThan(0)
+    expect(distancia).toBeLessThanOrEqual(100)
+  })
+
+  it('casa de partida com ficha que o mestre escondeu: volta na casa exata (desviar entregaria o escondido)', () => {
+    const { s, ana } = mesa()
+    const escondido: Token = { ...ficha('t-vulto', 'Vulto', 700, 300), hidden: true }
+    const comVulto: HostWorld = { ...depoisDaIda, open: { ...depoisDaIda.open, map: mapa('m-salao', [ficha('t-bruno', 'Bruno', 820, 300), escondido]) } }
+    const r = s.returnPlayer(ana, 't-ana', { sceneId: 's-a', x: 700, y: 300 }, comVulto)
+    expect(r.applyTransfer === undefined ? null : { x: r.applyTransfer.x, y: r.applyTransfer.y }).toEqual({ x: 700, y: 300 })
   })
 
   it('pedido de passagem pendente de quem é devolvida morre junto (o pino ficou na outra cena)', () => {
