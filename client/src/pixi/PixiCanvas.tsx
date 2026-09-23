@@ -11,6 +11,7 @@ import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
 import { advanceTurn, useInitiativeStore } from '../stores/initiativeStore'
+import { turnTokenIdOn } from '../lib/initiative'
 import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
 import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, freeAreaCenter, type Bounds, type Camera, type Point } from './world'
 import { resolveCursor, type HoverKind, type ResizeCorner } from './cursorPolicy'
@@ -1169,8 +1170,7 @@ export function PixiCanvas({
         const { map, selection } = useMapStore.getState()
         const single = selectionSingle(selection)
         // A vez da iniciativa só acende NESTA cena: a de outra cena é outra ficha.
-        const turn = useInitiativeStore.getState().turn
-        const turnTokenId = turn !== null && turn.mapId === map.id ? turn.tokenId : null
+        const turnTokenId = turnTokenIdOn(useInitiativeStore.getState().turn, map)
         tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null, camera.scale, turnTokenId)
         // As alças do token acompanham o token: `moveTokenLive` (arrasto) e
         // `moveSelectionBy` (setas) só acordam ESTE redraw, nunca o de formas.

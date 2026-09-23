@@ -133,6 +133,18 @@ describe('só quem está na vez move', () => {
     }
   })
 
+  it('a ficha da vez SAIU da cena (apagada ou viajou): a vez obsoleta não prende ninguém', () => {
+    const vez: { atual: TurnRef | null } = { atual: { mapId: 'mapa-ponte', tokenId: 'goblin' } }
+    const semGoblin: MapData = { ...ponte(), tokens: ponte().tokens.filter((t) => t.id !== 'goblin') }
+    const s = createHostSession({ code: CODE, visionRadius: 700, now: () => 0, getTurn: () => vez.atual })
+    const welcome = s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, semGoblin).outbound[0]?.msg
+    if (welcome?.type !== 'welcome') throw new Error('esperava welcome')
+    s.assignToken(welcome.playerId, 'heroi')
+    const r = s.handleMessage('c1', { type: 'token.move', reqId: 'r1', tokenId: 'heroi', x: 240, y: 200 }, semGoblin)
+    expect(r.outbound[0]?.msg).toMatchObject({ type: 'token.move.accepted', reqId: 'r1' })
+    expect(r.applyMove).toMatchObject({ tokenId: 'heroi' })
+  })
+
   it('ficha que não é dele continua recusada como not_owner, mesmo na vez dela', () => {
     const { vez, mover } = sala()
     vez.atual = { mapId: 'mapa-ponte', tokenId: 'goblin' }

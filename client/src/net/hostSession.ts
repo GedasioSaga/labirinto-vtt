@@ -2,7 +2,7 @@ import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, playerBlockedRings, turnForPlayer } from '../lib/fogFilter'
-import type { TurnRef } from '../lib/initiative'
+import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
@@ -573,8 +573,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (scene === null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'unknown_token' })
     // INICIATIVA: vez nesta cena prende quem não é da vez, inclusive na vez de
     // ficha que o jogador não vê. A recusa só diz "não é a sua vez", nunca de quem é.
-    const turn = options.getTurn?.() ?? null
-    const turnTokenId = turn !== null && turn.mapId === scene.map.id ? turn.tokenId : null
+    // Vez de ficha que saiu da cena (apagada, viajou) não prende ninguém (`turnTokenIdOn`).
+    const turnTokenId = turnTokenIdOn(options.getTurn?.() ?? null, scene.map)
     const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, { turnTokenId })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     return {

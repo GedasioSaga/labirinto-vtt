@@ -15,6 +15,7 @@ import { useSignalStore } from './stores/signalStore'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { useFollowStore } from './stores/followStore'
 import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeStore'
+import { turnTokenIdOn } from './lib/initiative'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
@@ -556,7 +557,7 @@ function App() {
             initiative={{
               tokens: map.tokens.map((token) => ({ id: token.id, name: token.name })),
               values: initiativeValues[map.id] ?? NO_INITIATIVE_VALUES,
-              turnTokenId: initiativeTurn !== null && initiativeTurn.mapId === map.id ? initiativeTurn.tokenId : null,
+              turnTokenId: turnTokenIdOn(initiativeTurn, map),
               onValueChange: (tokenId, value) => useInitiativeStore.getState().setValue(map.id, tokenId, value),
               onStart: () => startTurn(map.id, map.tokens),
               onNext: () => advanceTurn(map.id, map.tokens),

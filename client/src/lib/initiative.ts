@@ -24,6 +24,19 @@ export interface InitiativeEntry {
 }
 
 /**
+ * A ficha da vez NESTE mapa, ou `null`. Vez de outro mapa não vale aqui, e vez
+ * de ficha que SAIU do mapa (apagada, ou viajou para outra cena) também não:
+ * senão ela prenderia todo jogador da cena com "Espere sua vez" enquanto o
+ * painel do mestre, que não a acha na ordem, mostra "Começar" como se não
+ * houvesse combate. Derivar em vez de apagar a vez deixa o desfazer da ficha
+ * apagada devolver a vez junto.
+ */
+export function turnTokenIdOn(turn: TurnRef | null, map: { id: string; tokens: readonly { id: string }[] }): string | null {
+  if (turn === null || turn.mapId !== map.id) return null
+  return map.tokens.some((token) => token.id === turn.tokenId) ? turn.tokenId : null
+}
+
+/**
  * Fichas com valor, do maior para o menor. Empate fica na ordem do mapa
  * (`sort` é estável): o mestre desempata trocando um valor, não adivinhando a
  * regra do app. Valor guardado de ficha que já não está na cena não entra.

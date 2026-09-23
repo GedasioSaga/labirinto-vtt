@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { initiativeOrder, nextTurnTokenId, parseInitiativeInput } from './initiative'
+import { initiativeOrder, nextTurnTokenId, parseInitiativeInput, turnTokenIdOn } from './initiative'
 
 const FICHAS = [
   { id: 'lanterna', name: 'Lanterna' },
@@ -41,6 +41,21 @@ describe('nextTurnTokenId', () => {
     expect(nextTurnTokenId(ordem, null)).toBe('machado')
     expect(nextTurnTokenId(ordem, 'vulto')).toBe('machado')
     expect(nextTurnTokenId([], 'machado')).toBeNull()
+  })
+})
+
+describe('turnTokenIdOn', () => {
+  const ponte = { id: 'ponte', tokens: [{ id: 'heroi' }, { id: 'goblin' }] }
+
+  it('a vez deste mapa, com a ficha nele, vale', () => {
+    expect(turnTokenIdOn({ mapId: 'ponte', tokenId: 'goblin' }, ponte)).toBe('goblin')
+  })
+
+  it('sem vez, vez de outro mapa, ou ficha da vez que saiu do mapa: ninguém', () => {
+    expect(turnTokenIdOn(null, ponte)).toBeNull()
+    expect(turnTokenIdOn({ mapId: 'cripta', tokenId: 'goblin' }, ponte)).toBeNull()
+    expect(turnTokenIdOn({ mapId: 'ponte', tokenId: 'goblin' }, { id: 'ponte', tokens: [{ id: 'heroi' }] })).toBeNull()
+    expect(turnTokenIdOn({ mapId: 'ponte', tokenId: 'goblin' }, { id: 'ponte', tokens: [] })).toBeNull()
   })
 })
 
