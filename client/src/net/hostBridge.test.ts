@@ -124,6 +124,31 @@ describe('hostBridge', () => {
     ])
   })
 
+  it('o mestre vê num aviso quem abriu e quem fechou a porta; o aviso novo do mesmo jogador substitui o anterior', async () => {
+    let clock = 0
+    const t = setup({ now: () => clock })
+    await t.bridge.start()
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+    t.bridge.assignToken(joinedPlayerId(t.sent()), 'heroi')
+    const avisosDePorta = () => useToastStore.getState().toasts.filter((toast) => toast.text.includes('a porta'))
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'door.toggle', wallId: 'porta' } })
+    expect(avisosDePorta()).toEqual([expect.objectContaining({ kind: 'info', text: 'Ana abriu a porta' })])
+    clock += 1000
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'door.toggle', wallId: 'porta' } })
+    expect(t.applyDoor).toHaveBeenLastCalledWith('porta', false)
+    expect(avisosDePorta()).toEqual([expect.objectContaining({ kind: 'info', text: 'Ana fechou a porta' })])
+  })
+
+  it('porta recusada (ninguém mexeu nela) não gera aviso ao mestre', async () => {
+    const t = setup()
+    await t.bridge.start()
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+    t.bridge.assignToken(joinedPlayerId(t.sent()), 'heroi')
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'door.toggle', wallId: 'inexistente' } })
+    expect(t.applyDoor).not.toHaveBeenCalled()
+    expect(useToastStore.getState().toasts.filter((toast) => toast.text.includes('a porta'))).toEqual([])
+  })
+
   it('net:peer disconnected marca o jogador como desconectado', async () => {
     const t = setup()
     await t.bridge.start()

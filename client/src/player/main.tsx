@@ -37,6 +37,7 @@ const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
   locked: 'Trancada',
   far: 'Chegue mais perto da porta',
   not_visible: 'Você não vê essa porta daqui',
+  blocked: 'Tem alguém no vão',
 }
 
 /**

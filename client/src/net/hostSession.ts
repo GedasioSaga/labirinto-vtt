@@ -3,7 +3,7 @@ import { createExploration, encodeExploration, forgetInside, isPointExplored, ma
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
-import { tokenReachesDoor } from '../lib/doorReach'
+import { tokenInDoorway, tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
@@ -11,6 +11,7 @@ import { passageOf, pinSummary } from '../lib/pins'
 import {
   parsePlayerMessage,
   type DoorToggleMessage,
+  type DoorToggleRejection,
   type HostMessage,
   type JoinMessage,
   type LaserMessage,
@@ -100,11 +101,18 @@ export interface AppliedMove {
   sceneId?: string
 }
 
-/** Porta que o jogador abriu/fechou: o integrador aplica no mapa do mestre. */
+/**
+ * Porta que o jogador abriu/fechou: o integrador aplica no mapa do mestre e
+ * mostra no aviso dele quem mexeu. Nada disto vai ao jogador.
+ */
 export interface AppliedDoor {
   wallId: string
   open: boolean
   sceneId?: string
+  /** Nome da cena de FUNDO (junto com `sceneId`), para o aviso dizer onde. */
+  sceneName?: string
+  playerId: string
+  playerName: string
 }
 
 /**
@@ -753,11 +761,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * token dele encostado (`tokenReachesDoor`). Recusa vira aviso curto na tela
    * do jogador; porta inexistente ou invisível responde o mesmo
    * `not_visible`, para não dizer o que existe no escuro.
+   *
+   * FECHAR com uma ficha no vão é `blocked`: a porta desceria em cima dela.
+   * Só conta ficha do recorte do jogador — recusar por uma que o mestre
+   * esconde diria que há alguém ali; essa, a porta fecha como se o vão
+   * estivesse livre.
    */
   function handleDoorToggle(clientId: string, msg: DoorToggleMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
-    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
     const scene = sceneFor(playerId, world)
     if (scene === null) return { outbound: [] }
     const map = scene.map
@@ -766,7 +780,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (last !== undefined && at - last < DOOR_TOGGLE_MIN_INTERVAL_MS) return { outbound: [] }
     lastDoorToggleAt.set(playerId, at)
 
-    const reject = (reason: 'locked' | 'far' | 'not_visible'): HostResult =>
+    const reject = (reason: DoorToggleRejection): HostResult =>
       reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
 
     const wall = map.walls.find((w) => w.id === msg.wallId)
@@ -780,8 +794,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
     const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
     if (!near) return reject('far')
+    const closing = wall.door.open
+    if (closing && view.map.tokens.some((t) => tokenInDoorway(t, wall, map.grid))) return reject('blocked')
 
-    return { outbound: [], applyDoor: { wallId: wall.id, open: !wall.door.open, ...backgroundSceneId(scene, world) } }
+    const background = backgroundSceneId(scene, world)
+    const where = background.sceneId === undefined ? {} : { sceneId: background.sceneId, sceneName: scene.name }
+    return { outbound: [], applyDoor: { wallId: wall.id, open: !closing, ...where, playerId, playerName: record.name } }
   }
 
   /**

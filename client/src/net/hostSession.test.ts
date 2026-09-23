@@ -775,14 +775,14 @@ describe('hostSession door.toggle (jogador abre porta)', () => {
     const map = doorMap(closed)
     const t = doorSetup(map)
     const r = t.s.handleMessage('c1', { type: 'door.toggle', wallId: 'porta' }, map)
-    expect(r.applyDoor).toEqual({ wallId: 'porta', open: true })
+    expect(r.applyDoor).toEqual({ wallId: 'porta', open: true, playerId: t.ana.playerId, playerName: 'Ana' })
     expect(r.outbound).toEqual([])
   })
 
   it('porta aberta encostada no token: fecha', () => {
     const map = doorMap({ ...closed, open: true })
     const t = doorSetup(map)
-    expect(t.s.handleMessage('c1', { type: 'door.toggle', wallId: 'porta' }, map).applyDoor).toEqual({ wallId: 'porta', open: false })
+    expect(t.s.handleMessage('c1', { type: 'door.toggle', wallId: 'porta' }, map).applyDoor).toEqual({ wallId: 'porta', open: false, playerId: t.ana.playerId, playerName: 'Ana' })
   })
 
   it('token longe: recusa "far" e não mexe na porta', () => {
