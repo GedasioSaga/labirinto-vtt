@@ -36,12 +36,13 @@ function rotuloDe(wrapper: Container): Text {
 }
 
 describe('createTokensRenderer — barra de vida', () => {
-  it('ficha sem vida não ganha barra: os mesmos 3 filhos de sempre e o nome colado no disco', () => {
+  it('ficha sem vida não ganha barra: os mesmos 4 filhos de sempre e o nome colado no disco', () => {
     const container = new Container()
     createTokensRenderer().draw(container, [ficha('og')], GRID, null)
     const wrapper = container.children[0]
     expect(barraDe(wrapper)).toBeUndefined()
-    expect(wrapper.children).toHaveLength(3)
+    // visual, anel, nome e as marcas de condição (sempre presentes, vazias sem condição).
+    expect(wrapper.children).toHaveLength(4)
     expect(rotuloDe(wrapper).position.y).toBe(RAIO + 2)
   })
 
@@ -94,7 +95,7 @@ describe('createTokensRenderer — barra de vida', () => {
     renderer.draw(container, [ficha('og')], GRID, null)
     expect(barraDe(wrapper)).toBeUndefined()
     expect(cheia?.destroyed).toBe(true)
-    expect(wrapper.children).toHaveLength(3)
+    expect(wrapper.children).toHaveLength(4)
     expect(rotuloDe(wrapper).position.y).toBe(RAIO + 2)
   })
 

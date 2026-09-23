@@ -58,7 +58,7 @@ interface TokenEntry {
   ring: Graphics
   /** Barra de vida sob o disco (`pixi/drawTokenHealth.ts`). Nasce só na
    *  ficha que TEM vida e morre quando a vida sai: ficha sem vida continua
-   *  com os mesmos 3 filhos (visual, anel, nome) de antes da barra existir. */
+   *  com os mesmos 4 filhos (visual, anel, nome, marcas) de antes da barra existir. */
   bar: Graphics | null
   label: Text
   /** Marcas de condição (envenenado, caído...) em cima da ficha. Existe
