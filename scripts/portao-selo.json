@@ -1,5 +1,5 @@
 {
-  "selado_em": "2026-09-22T11:01:54.567Z",
+  "selado_em": "2026-09-23T08:01:45.747Z",
   "jornadas": {
     "e2e/task-jornada-parede-grossa.spec.ts": "527e40bd7728c8b27e9334e40ce45223816eef2f88b14351545951c57af89314",
     "e2e/task-jornada-selecao-arrasto.spec.ts": "0e9113e9b71bfac3ce19108908c4421e680919e8f07c99638a75f94c4b0b4062",
@@ -66,6 +66,14 @@
     "e2e/task-jornada-salvar-sem-foto-avisa.spec.ts": "37f6fc7ca668ec7c88c420937dd114705b4095bc3640c0a36e0c8ede5eb8363e",
     "e2e/task-jornada-item-travado.spec.ts": "1b514482ac0ff13d67c4edd383c6f437947103a702c67701550a9e2bc330cd57",
     "e2e/task-jornada-pino-move-e-cartao-direita.spec.ts": "da2078139cadb49917357525e0864768d11f25b6be4b12e5e202ca969061b277",
+    "e2e/task-jornada-atribuir-livres-primeiro.spec.ts": "0de6cc85071a56ead688355dffceb2c45ac18fc95de0f7cc2410328f2cc82e14",
+    "e2e/task-jornada-chegada-em-casa-livre.spec.ts": "40a410069599ba1db079ac5b6e79070519c54d5ca60d7dda92f6401fd8cc6067",
+    "e2e/task-jornada-so-a-propria-ficha-arrasta.spec.ts": "b497416327619208954b51cc437d11bf6a8ed3c2b89211905412f9f7d6d51749",
+    "e2e/task-jornada-mapa-livre-do-painel.spec.ts": "dec90d4fcfe169e58e28d252685a942b26729820e4bf74e196864a27816434c2",
+    "e2e/task-jornada-zoom-no-celular.spec.ts": "803e05892683989183e3f3bbb5cbfe21eae0b4799e87dc19309e0bdbcc187b53",
+    "e2e/task-jornada-nome-publico-da-ficha.spec.ts": "0b54237413d3f08d651cd7c4b3422e22865297b958bf0f6570b5828b939a09a1",
+    "e2e/task-jornada-sala-secreta-nao-vaza.spec.ts": "d25d8d54ed1fbb83627a76aabd49e81f635b9a417bd0a7ca102be11cd74a4315",
+    "e2e/task-jornada-zona-oculta-sem-buraco.spec.ts": "ea5ba14f54fa5ea192c8f2ab0d3386acf54772cd8a36c46bbcddd77d484bf70e",
     "e2e/task-drawing-group.spec.ts": "041a8dcd35adb866c814cdd4b39df5c477c2e19803fc128c90cf113b73b04219",
     "e2e/task-fase5-variantes.spec.ts": "ac7df717b703fcb098ba259294f269670977d9b02e64249e2f132212e0019bfc",
     "e2e/task-floor-pieces.spec.ts": "defffc561737ddede5131c5cfdfaaf0b06708186092b54839a7aa445047f7e25",

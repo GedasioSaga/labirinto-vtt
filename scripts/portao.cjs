@@ -518,6 +518,16 @@ const JORNADAS_DO_CRITERIO = [
   // este arquivo existe para não fazer.
   'e2e/task-jornada-item-travado.spec.ts',
   'e2e/task-jornada-pino-move-e-cartao-direita.spec.ts',
+  // 23/09/2026, simulação de 7 jogadores, onda 1 (C:/dev/backlog-simulacao-7-jogadores.md):
+  // réguas escritas para SAIR VERMELHAS no código de hoje, uma por item do backlog.
+  'e2e/task-jornada-atribuir-livres-primeiro.spec.ts',
+  'e2e/task-jornada-chegada-em-casa-livre.spec.ts',
+  'e2e/task-jornada-so-a-propria-ficha-arrasta.spec.ts',
+  'e2e/task-jornada-mapa-livre-do-painel.spec.ts',
+  'e2e/task-jornada-zoom-no-celular.spec.ts',
+  'e2e/task-jornada-nome-publico-da-ficha.spec.ts',
+  'e2e/task-jornada-sala-secreta-nao-vaza.spec.ts',
+  'e2e/task-jornada-zona-oculta-sem-buraco.spec.ts',
 ]
 /**
  * A bar inteira, na ordem de sempre: é esta lista que o SELO carimba e que a
