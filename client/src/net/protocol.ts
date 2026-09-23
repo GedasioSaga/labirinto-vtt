@@ -46,6 +46,11 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
  * nunca o id nem o nome da cena — quem recebe já está lá.
+ *
+ * CHAMAR O MESTRE é aditivo pelo mesmo critério: `call.raise` / `call.lower`
+ * (jogador -> mestre) e, na volta, `call.state` (esperando, visto, cedo
+ * demais) e `call.reply` (a resposta, só para quem chamou). Mestre antigo
+ * responde `error invalid_message` (a mão não acende); jogador antigo ignora.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -56,6 +61,20 @@ export const REQ_ID_MAX_LENGTH = 64
 export const RESUME_TOKEN_MAX_LENGTH = 128
 /** Teto do recado por cena, em unidades UTF-16 (o `maxLength` do campo do mestre conta igual). */
 export const NOTE_MAX_LENGTH = 500
+
+/** Por que o jogador chama o mestre. Ordem = ordem na tela do jogador. */
+export const CALL_REASONS = ['ajuda', 'agir', 'pergunta', 'sair', 'urgente'] as const
+export type CallReason = (typeof CALL_REASONS)[number]
+/** Como cada motivo aparece, para o jogador e para o mestre. */
+export const CALL_REASON_LABELS: Record<CallReason, string> = {
+  ajuda: 'Ajuda',
+  agir: 'Quero agir',
+  pergunta: 'Pergunta',
+  sair: 'Vou sair',
+  urgente: 'Urgente',
+}
+/** Teto do texto curto do chamado, em unidades UTF-16 (o `maxLength` do campo conta igual). */
+export const CALL_TEXT_MAX_LENGTH = 140
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
@@ -130,7 +149,28 @@ export interface PinTravelRequestMessage {
   exitId?: string
 }
 
-export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage | DoorToggleMessage | TokenEditMessage | PinTravelRequestMessage
+/** O jogador levanta a mão. `text` ausente = só o motivo. */
+export interface CallRaiseMessage {
+  type: 'call.raise'
+  reason: CallReason
+  text?: string
+}
+
+/** O jogador baixa a mão antes de o mestre ver. */
+export interface CallLowerMessage {
+  type: 'call.lower'
+}
+
+export type PlayerMessage =
+  | JoinMessage
+  | TokenMoveMessage
+  | PingMessage
+  | SignalMessage
+  | DoorToggleMessage
+  | TokenEditMessage
+  | PinTravelRequestMessage
+  | CallRaiseMessage
+  | CallLowerMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -151,6 +191,20 @@ export type LaserMessage = { type: 'laser'; points: RegionPoint[] } | { type: 'l
 /** Recado do mestre a quem está numa cena. `id` novo = recado novo (substitui o que estiver aberto). */
 export interface SceneNoteMessage {
   type: 'scene.note'
+  id: string
+  text: string
+}
+
+/**
+ * Onde está a mão do jogador, do lado do mestre: `waiting` (na fila, com o
+ * motivo que vale), `seen` (o mestre marcou Visto) ou `too_soon` (baixou e
+ * levantou antes do intervalo: nada entrou na fila).
+ */
+export type CallStateMessage = { type: 'call.state'; state: 'waiting'; reason: CallReason } | { type: 'call.state'; state: 'seen' } | { type: 'call.state'; state: 'too_soon' }
+
+/** Resposta do mestre ao chamado: um recado SÓ para quem chamou. */
+export interface CallReplyMessage {
+  type: 'call.reply'
   id: string
   text: string
 }
@@ -176,6 +230,8 @@ export type HostMessage =
   | { type: 'scene.changed'; by?: 'master' | 'gather' }
   | LaserMessage
   | SceneNoteMessage
+  | CallStateMessage
+  | CallReplyMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -324,7 +380,39 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTokenEdit(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
+    case 'call.raise':
+      return parseCallRaise(value)
+    case 'call.lower':
+      return { type: 'call.lower' }
     default:
       return null
   }
+}
+
+export function isCallReason(value: unknown): value is CallReason {
+  return typeof value === 'string' && CALL_REASONS.some((reason) => reason === value)
+}
+
+/**
+ * Chamado do jogador. O texto é opcional e sai aparado; em branco vale "sem
+ * texto". Acima do teto recusa a mensagem inteira: cortar mudaria o que o
+ * jogador escreveu sem ele saber.
+ */
+function parseCallRaise(obj: Record<string, unknown>): CallRaiseMessage | null {
+  const { reason, text } = obj
+  if (!isCallReason(reason)) return null
+  if (text === undefined) return { type: 'call.raise', reason }
+  if (typeof text !== 'string') return null
+  const trimmed = text.trim()
+  if (trimmed.length > CALL_TEXT_MAX_LENGTH) return null
+  return trimmed.length === 0 ? { type: 'call.raise', reason } : { type: 'call.raise', reason, text: trimmed }
+}
+
+/** Valida o `call.reply` que o jogador recebe: mesma regra do recado por cena. */
+export function parseCallReply(value: unknown): CallReplyMessage | null {
+  if (!isRecord(value) || value.type !== 'call.reply') return null
+  const { id, text } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
+  return { type: 'call.reply', id, text }
 }

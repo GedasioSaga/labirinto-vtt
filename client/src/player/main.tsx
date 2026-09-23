@@ -9,6 +9,7 @@ import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
+import { PlayerCallButton } from './PlayerCallButton'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
@@ -619,6 +620,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
           <PlayerNoteCard key={state.note.id} text={state.note.text} onClose={closeNote} escapeCloses={openPin === null} />
         )}
+        <PlayerCallButton call={state.call} onRaise={(reason, text) => connection.raiseHand(reason, text)} onLower={() => connection.lowerHand()} />
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}

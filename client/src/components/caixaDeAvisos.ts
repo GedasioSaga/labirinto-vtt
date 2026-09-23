@@ -46,9 +46,22 @@ export function agruparAvisos(toasts: readonly ToastMessage[]): ItemDaPilha[] {
     }
     if (caixaJaPosta.has(toast.grupo)) continue
     caixaJaPosta.add(toast.grupo)
-    caixas.push({ tipo: 'caixa', grupo: toast.grupo, toasts: membros })
+    caixas.push({ tipo: 'caixa', grupo: toast.grupo, toasts: urgentesPrimeiro(membros) })
   }
   return [...caixas, ...soltos]
+}
+
+/**
+ * Dentro da caixa, o aviso `urgente` (o chamado "Urgente") sobe para o topo;
+ * entre iguais vale a ordem de chegada (o `sort` é estável).
+ */
+function urgentesPrimeiro(membros: ToastMessage[]): ToastMessage[] {
+  return [...membros].sort((a, b) => Number(b.urgente === true) - Number(a.urgente === true))
+}
+
+/** A caixa só oferece "Deixar todos" quando algum aviso dela tem resposta em lote. */
+export function temRespostaEmLote(toasts: readonly ToastMessage[]): boolean {
+  return toasts.some((toast) => toast.actions?.some((action) => action.emLote === true) === true)
 }
 
 /** O título da caixa, que é também o nome acessível dela: "Pedidos (3)". */
