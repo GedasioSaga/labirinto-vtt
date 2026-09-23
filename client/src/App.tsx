@@ -19,6 +19,7 @@ import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
+import { LivePlayerMirror } from './components/PlayerMirror'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
@@ -536,6 +537,9 @@ function App() {
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
               followingId,
               onToggleFollow: (member) => useFollowStore.getState().toggle(member.playerId),
+              // "Ver tela": um espelho por vez; o mesmo botão fecha o que abriu.
+              mirroringId: mirrorId,
+              onToggleMirror: (member) => setMirrorId((current) => (current === member.playerId ? null : member.playerId)),
             }}
             tunnel={tunnel}
             onStart={() => void handleStartRoom()}
@@ -568,6 +572,13 @@ function App() {
   // G7 — "Seguir" na linha do Grupo: a câmera acompanha a ficha do jogador, inclusive de cena em cena.
   const followingId = useFollowStore((state) => state.playerId)
   useFollowPlayer(roomPlayers, () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
+  // "Ver tela" do Grupo: de quem é o espelho aberto. Quem saiu da sala (expulso,
+  // sala fechada) leva o espelho junto — voltar depois não o reabre sozinho.
+  const [mirrorId, setMirrorId] = useState<string | null>(null)
+  const mirroredPlayer = mirrorId === null ? undefined : roomPlayers.find((player) => player.playerId === mirrorId)
+  useEffect(() => {
+    if (mirrorId !== null && mirroredPlayer === undefined) setMirrorId(null)
+  }, [mirrorId, mirroredPlayer])
   /**
    * Caminho de origem do mapa em edição. `null` enquanto o mapa é novo
    * (ainda não salvo); a partir daí toda escrita vai de volta para esse
@@ -2074,6 +2085,19 @@ function App() {
       </div>
 
       <ZoomHud scale={cameraScale} onReset={() => setResetZoomRequest((n) => n + 1)} />
+      {mirroredPlayer !== undefined &&
+        hostBridgeRef.current !== null &&
+        createPortal(
+          <LivePlayerMirror
+            key={mirroredPlayer.playerId}
+            playerName={mirroredPlayer.name}
+            playerId={mirroredPlayer.playerId}
+            watch={hostBridgeRef.current.watchPlayerScreens}
+            read={hostBridgeRef.current.playerScreen}
+            onClose={() => setMirrorId(null)}
+          />,
+          document.body,
+        )}
     </div>
   )
 }
