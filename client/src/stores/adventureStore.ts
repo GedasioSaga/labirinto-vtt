@@ -26,7 +26,7 @@ import {
   type TravelScene,
   type TravelSceneOption,
 } from '../lib/pinTravel'
-import { loadPendingScenes, mapDirFor, saveAdventureToDisk, scenePath, type OpenedMapFile, type SceneLoad } from '../lib/mapFileIO'
+import { loadPendingScenes, mapDirFor, saveAdventureToDisk, scenePath, type ArrivedScene, type OpenedMapFile, type SceneLoad } from '../lib/mapFileIO'
 import { dirname } from '@tauri-apps/api/path'
 import { useMapStore } from './mapStore'
 import { useSessionStore } from './sessionStore'
@@ -125,7 +125,8 @@ interface AdventureState {
   /**
    * Assume o que `openMapFileFirst` leu e põe a cena pedida no editor NA HORA.
    * As cenas `pendente` entram como "carregando" e são lidas em segundo plano;
-   * a promessa resolve quando todas chegaram (ou não abriram) e nunca rejeita.
+   * cada uma passa a abrir assim que chega (em lotes curtos), sem esperar a
+   * mais lenta. A promessa resolve quando todas chegaram (ou não abriram) e nunca rejeita.
    * Abrir outro mapa antes disso descarta o que ainda chegar desta.
    */
   open: (opened: OpenedMapFile) => Promise<void>
@@ -399,6 +400,13 @@ function showInEditor(map: MapData, past: MapData[], future: MapData[]): void {
  */
 let openGeneration = 0
 
+/**
+ * Janela que junta as cenas de fundo que chegam quase juntas numa troca de
+ * estado só. Curta para o mestre não perceber a espera; longa o bastante para
+ * as leituras em paralelo (`SCENE_READ_CONCURRENCY`) caírem no mesmo lote.
+ */
+const SCENE_ARRIVAL_BATCH_MS = 100
+
 /** O slot de cache de uma cena de fundo recém-aberta. */
 function slotFor(load: SceneLoad): SceneSlot {
   if (load.status === 'ok') return { status: 'ok', map: load.map, past: [], future: [], camera: null }
@@ -416,11 +424,36 @@ function failLoadingSlots(cache: Record<string, SceneSlot>, reason: string): Rec
 }
 
 /**
- * As cenas de fundo chegaram (`loadPendingScenes`): cada slot "carregando"
- * recebe o mapa com as mudanças que esperavam por ele, na ordem. Só slot que
- * ainda está "carregando" é tocado — a cena aberta e as que já estavam no
- * cache são as do editor, não as do disco. Cena nova da conversão do portal
- * antigo entra no fim da lista, pendente de gravação.
+ * Uma cena "carregando" recebe o mapa lido, com as mudanças que esperavam por
+ * ele, na ordem. Slot que já não está "carregando" não é tocado — a cena
+ * aberta e as que já estavam no cache são as do editor, não as do disco.
+ * `converted`: a conversão do portal antigo mudou o mapa, que já não é o do disco.
+ */
+function receiveScene(cache: Record<string, SceneSlot>, dirty: Record<string, true>, load: SceneLoad, converted: boolean): void {
+  const id = load.entry.id
+  const slot = cache[id]
+  if (slot === undefined || slot.status !== 'carregando') return
+  if (load.status !== 'ok') {
+    cache[id] = slotFor(load)
+    return
+  }
+  const map = slot.pending.reduce((current, updater) => updater(current), load.map)
+  cache[id] = { status: 'ok', map, past: [], future: [], camera: null }
+  if (map !== load.map || converted) dirty[id] = true
+}
+
+/** Cenas que chegaram antes das outras (`onArrive` de `loadPendingScenes`): já abrem. */
+function earlyScenes(state: AdventureState, loads: readonly ArrivedScene[]): Partial<AdventureState> {
+  const cache: Record<string, SceneSlot> = { ...state.cache }
+  const dirty: Record<string, true> = { ...state.dirty }
+  for (const load of loads) receiveScene(cache, dirty, load, false)
+  return { cache, dirty }
+}
+
+/**
+ * As cenas de fundo chegaram (`loadPendingScenes`): cada slot ainda
+ * "carregando" recebe o mapa (`receiveScene`). Cena nova da conversão do
+ * portal antigo entra no fim da lista, pendente de gravação.
  */
 function arrivedScenes(state: AdventureState, full: OpenedMapFile): Partial<AdventureState> {
   if (state.adventure === null) return {}
@@ -438,15 +471,7 @@ function arrivedScenes(state: AdventureState, full: OpenedMapFile): Partial<Adve
       dirty[id] = true
       continue
     }
-    const slot = cache[id]
-    if (slot === undefined || slot.status !== 'carregando') continue
-    if (load.status !== 'ok') {
-      cache[id] = slotFor(load)
-      continue
-    }
-    const map = slot.pending.reduce((current, updater) => updater(current), load.map)
-    cache[id] = { status: 'ok', map, past: [], future: [], camera: null }
-    if (map !== load.map || converted.has(id)) dirty[id] = true
+    receiveScene(cache, dirty, load, converted.has(id))
   }
   const settled = failLoadingSlots(cache, 'a cena não chegou do disco')
   if (added.length === 0) return { cache: settled, dirty }
@@ -488,11 +513,28 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     })
     showInEditor(opened.map, [], [])
     if (!opened.scenes.some((load) => load.status === 'pendente')) return Promise.resolve()
-    return loadPendingScenes(opened).then(
+
+    // Cena que chega antes das outras já abre, em lotes: uma troca de estado
+    // por cena seria um reenvio do mundo aos jogadores por cena (99 numa aventura grande).
+    const early: ArrivedScene[] = []
+    let batchTimer: ReturnType<typeof setTimeout> | null = null
+    const applyEarly = (): void => {
+      if (batchTimer !== null) clearTimeout(batchTimer)
+      batchTimer = null
+      const batch = early.splice(0)
+      if (generation === openGeneration && batch.length > 0) set(earlyScenes(get(), batch))
+    }
+    const onArrive = (load: ArrivedScene): void => {
+      early.push(load)
+      if (batchTimer === null) batchTimer = setTimeout(applyEarly, SCENE_ARRIVAL_BATCH_MS)
+    }
+    return loadPendingScenes(opened, onArrive).then(
       (full) => {
+        applyEarly()
         if (generation === openGeneration) set(arrivedScenes(get(), full))
       },
       (error: unknown) => {
+        applyEarly()
         if (generation === openGeneration) set({ cache: failLoadingSlots(get().cache, error instanceof Error ? error.message : String(error)) })
       },
     )

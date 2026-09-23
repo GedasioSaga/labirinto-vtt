@@ -204,6 +204,28 @@ describe('loadPendingScenes: as outras cenas, em segundo plano', () => {
     expect(aberto.scenes.length - TOTAL_DE_CENAS).toBe(32)
   })
 
+  it('avisa cada cena assim que ela chega, sem esperar as outras; a de portal antigo espera a conversão', async () => {
+    const ids = gravarTorre()
+    const destino = 'C:/appdata/maps/map_poco/map.json'
+    arquivos.set(destino, serializeMap(mapa('map_poco', 'Poço')))
+    arquivos.set(`${PASTA}/scenes/andar_2/map.json`, serializeMap(mapa('map_andar_2', 'Andar 2', { props: [portal('alcapao', destino)] })))
+    const primeiro = await mapFileIO.openMapFileFirst(`${PASTA}/map.json`)
+    const avisadas: string[] = []
+    let lidasNoPrimeiroAviso = -1
+
+    await mapFileIO.loadPendingScenes(primeiro, (load) => {
+      if (lidasNoPrimeiroAviso < 0) lidasNoPrimeiroAviso = cenasLidas().length
+      avisadas.push(load.entry.id)
+      expect(load.map.name).toBe(`Andar ${load.entry.id.slice('andar_'.length)}`)
+    })
+
+    // Todas as de fundo sem portal antigo: nem a aberta (já está no editor) nem o andar 2.
+    expect([...avisadas].sort()).toEqual(ids.filter((id) => id !== 'andar_0' && id !== 'andar_2').sort())
+    // O primeiro aviso saiu com a maior parte das cenas ainda por ler.
+    expect(lidasNoPrimeiroAviso).toBeGreaterThan(0)
+    expect(lidasNoPrimeiroAviso).toBeLessThan(TOTAL_DE_CENAS)
+  })
+
   it('sem cena pendente, devolve o mesmo objeto sem ler nada', async () => {
     arquivos.set('C:/appdata/maps/map_x/map.json', serializeMap(mapa('map_x', 'Casebre')))
     const primeiro = await mapFileIO.openMapFileFirst('C:/appdata/maps/map_x/map.json')

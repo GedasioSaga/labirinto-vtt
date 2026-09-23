@@ -561,6 +561,9 @@ export type SceneLoad =
   | { entry: SceneEntry; status: 'indisponivel'; reason: string }
   | { entry: SceneEntry; status: 'pendente' }
 
+/** Cena de fundo que acabou de chegar do disco, pronta (ver `loadPendingScenes`). */
+export type ArrivedScene = Extract<SceneLoad, { status: 'ok' }>
+
 /** O que abrir um `map.json` devolve: o mapa pedido e, se ele é cena de uma aventura, a aventura inteira. */
 export interface OpenedMapFile {
   /** O arquivo que a pessoa pediu para abrir. */
@@ -705,14 +708,22 @@ async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, work
  * cena aberta e as que já tinham chegado ficam como estavam — é o mapa que já
  * está no editor. Sem cena pendente, devolve o próprio `opened`. Nunca rejeita
  * por causa de uma cena: a que não abre volta "indisponível" (`loadScene`).
+ *
+ * `onArrive` recebe cada cena lida SEM portal antigo assim que ela chega, sem
+ * esperar as outras: a conversão não mexe nela, então o mapa que vai no aviso
+ * é o mesmo que volta no resultado. A de portal antigo só vem no resultado,
+ * depois da conversão.
  */
-export async function loadPendingScenes(opened: OpenedMapFile): Promise<OpenedMapFile> {
+export async function loadPendingScenes(opened: OpenedMapFile, onArrive?: (load: ArrivedScene) => void): Promise<OpenedMapFile> {
   const dir = opened.adventureDir
   if (dir === null || !opened.scenes.some((load) => load.status === 'pendente')) return opened
 
-  const fresh = await mapWithConcurrency(opened.scenes, SCENE_READ_CONCURRENCY, (load) =>
-    load.status === 'pendente' ? loadScene(dir, load.entry) : Promise.resolve(null),
-  )
+  const fresh = await mapWithConcurrency(opened.scenes, SCENE_READ_CONCURRENCY, async (load) => {
+    if (load.status !== 'pendente') return null
+    const read = await loadScene(dir, load.entry)
+    if (onArrive !== undefined && read.status === 'ok' && legacyPortalPaths(read.map).length === 0) onArrive(read)
+    return read
+  })
   // Só as recém-lidas passam pela conversão: as outras entram como `pendente`
   // (que a conversão pula) e voltam intactas logo abaixo.
   const kept = new Map<string, SceneLoad>()

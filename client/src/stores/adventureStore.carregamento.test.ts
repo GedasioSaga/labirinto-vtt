@@ -18,6 +18,15 @@ function segurarCenas(): void {
   })
 }
 
+/** Portão só da Torre: fechado, ela não chega até `abrirPortaoTorre()`; as outras cenas passam. */
+let portaoTorre: Promise<void> = Promise.resolve()
+let abrirPortaoTorre: () => void = () => undefined
+function segurarTorre(): void {
+  portaoTorre = new Promise<void>((resolve) => {
+    abrirPortaoTorre = resolve
+  })
+}
+
 /** Portão das escritas: fechado, a gravação fica parada no meio até `soltarEscrita()`. */
 let portaoEscrita: Promise<void> = Promise.resolve()
 let abrirPortaoEscrita: () => void = () => undefined
@@ -42,6 +51,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   exists: vi.fn(async (path: string) => arquivos.has(path)),
   readTextFile: vi.fn(async (path: string) => {
     if (path.includes('/scenes/')) await portao
+    if (path.includes('/scenes/s_torre/')) await portaoTorre
     const conteudo = arquivos.get(path)
     if (conteudo === undefined) throw new Error(`arquivo não existe: ${path}`)
     return conteudo
@@ -109,6 +119,7 @@ function lista(): ReturnType<typeof sceneList> {
 beforeEach(() => {
   arquivos.clear()
   portao = Promise.resolve()
+  portaoTorre = Promise.resolve()
   portaoEscrita = Promise.resolve()
   useAdventureStore.getState().reset()
 })
@@ -142,6 +153,52 @@ describe('abrir aventura: a cena pedida primeiro, as outras chegando', () => {
     expect(hasUnsavedWork()).toBe(false)
     expect(useAdventureStore.getState().switchScene('s_cripta')).toBe(true)
     expect(useMapStore.getState().map.name).toBe('Cripta')
+  })
+
+  it('a cena que chega primeiro já abre, sem esperar a mais lenta', async () => {
+    gravarAventura()
+    segurarTorre()
+    const pronto = useAdventureStore.getState().open(await openMapFileFirst(`${PASTA}/map.json`))
+
+    // A Cripta chega enquanto a Torre ainda está no disco: já dá para entrar nela.
+    await vi.waitFor(() => expect(lista().find((c) => c.name === 'Cripta')?.available).toBe(true))
+    expect(lista().map((c) => [c.name, c.available, c.loading === true])).toEqual([
+      ['Vale', true, false],
+      ['Cripta', true, false],
+      ['Torre', false, true],
+    ])
+    expect(hasUnsavedWork()).toBe(false)
+    expect(useAdventureStore.getState().switchScene('s_cripta')).toBe(true)
+    expect(useMapStore.getState().map.name).toBe('Cripta')
+
+    abrirPortaoTorre()
+    await pronto
+
+    // A Torre chega depois sem mexer na Cripta, que agora é a cena aberta.
+    expect(useMapStore.getState().map.name).toBe('Cripta')
+    expect(lista().map((c) => [c.name, c.available, c.loading === true])).toEqual([
+      ['Vale', true, false],
+      ['Cripta', true, false],
+      ['Torre', true, false],
+    ])
+    expect(hasUnsavedWork()).toBe(false)
+  })
+
+  it('mudança esperando uma cena que chega antes das outras é aplicada na chegada dela', async () => {
+    gravarAventura()
+    segurarTorre()
+    const pronto = useAdventureStore.getState().open(await openMapFileFirst(`${PASTA}/map.json`))
+    useAdventureStore.getState().unlinkPin('ida')
+
+    await vi.waitFor(() => expect(useAdventureStore.getState().cache.s_cripta?.status).toBe('ok'))
+    const cripta = useAdventureStore.getState().cache.s_cripta
+    expect(cripta?.status === 'ok' ? cripta.map.pins[0].destino : 'sem mapa').toBeNull()
+    expect(useAdventureStore.getState().dirty.s_cripta).toBe(true)
+
+    abrirPortaoTorre()
+    await pronto
+    expect(useAdventureStore.getState().dirty.s_cripta).toBe(true)
+    expect(useAdventureStore.getState().dirty.s_torre).toBeUndefined()
   })
 
   it('desligar um pino cujo par ainda está carregando: a volta é desligada quando o par chega', async () => {
