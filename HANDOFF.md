@@ -142,6 +142,43 @@ jogador.
   **Troca consciente em relação ao gauntlet:** para caber na CPU, a comparação cega A/B com fotos foi
   substituída por um revisor independente, mais a régua verde e os testes vitest que falham antes.
 
+### Onda 1 da fábrica: resultado (23/09, tarde) e onda 2 no ar
+
+A internet caiu (`ENOTFOUND`) no meio da tarde e os 7 workflows terminaram com 11 a 26 agentes mortos
+cada. Mesmo assim, **38 features ficaram integradas nos ramos de grupo** (revisor aprovou, prova verde,
+merge com tsc e unidade verdes). **Nada disso está em `auto/acervo` ainda.**
+
+| grupo | integradas em `auto/int-<grupo>` | ficou para a onda 2 |
+|---|---|---|
+| rede (`a3cf889`) | viajar junto, pausa por cena, companheiros, chegada em casa livre, recado para um, recado para escolhidos, porta trancada vira pedido, chamar o mestre | diário de viagens (prova caiu por ambiente), ações no ponto, reconexão automática + 11 sem build |
+| jogador (`3f95f70`) | laser, ficha anda suave, mapa livre do painel, só a própria ficha arrasta, texto do cômodo ao entrar, objetos como silhueta | zoom no celular (só guarda g23), caderno de recados + 11 sem build |
+| visão (`f6900bb`) | pincel revelar/esconder, espelhar tela do jogador, nome público da ficha, sala secreta não vaza, pino só para escolhidos | tocha presa na ficha, zona oculta sem buraco + 15 sem build |
+| editor (`574e53d`) | visão geral das cenas, copiar e colar, tela de atalhos, lista de objetos, exportar PNG, agrupar, alinhar e distribuir, atribuir livres primeiro | aviso ao fechar + 12 sem build; e "marcar NPC" (o atribuir não tem como gravar `npc`) |
+| mundo (`7eed84b`) | barra de vida, condição na ficha, salvamento automático, movimento contado | iniciativa, item pegável (merge meio feito abortado em `int-mundo`), tela da mesa (gap de segurança: só o código da sala libera a TV) + 8 sem build |
+| defeitos (`46de35d`) | salvar sem perder, foto do token cabe, desfazer limpo, acervo sem atropelo, gravação segura plano B, aviso de código errado, nomes de sala rápidos, redesenho parcial, Pixi não vaza memória | medir com escala de muitas casas, abrir aventura rápido + 12 sem build |
+
+Causa de parte do retrabalho: o `isolation: 'worktree'` cria a árvore a partir de `main` (`719c9fd`, 14/09,
+282 commits atrás), não de `auto/acervo`. Na onda 2 o construtor sai de `auto/int-<grupo>` e o revisor
+confere a ancestralidade (`scratchpad/fabrica-v2.js`). Três provas caíram na guarda g23 (teto sem piso no
+mesmo `it`); a regra agora vai no prompt.
+
+Rodando agora (todos com agentes Opus via `agentType`):
+
+| o quê | run | observação |
+|---|---|---|
+| juntar os 6 grupos | `wf_b7680185-c5f` | em `C:/dev/labirinto-juntar` (`auto/juntar`, saiu de `68f2c8b`), um grupo por vez: merge, tsc, tsc-e2e, unidade, réguas do grupo, prova independente; no fim `--fase0`, `--autoteste`, `jornadas-intactas`, `jornadas-entregues` e todas as réguas juntas. **Depois disso o orquestrador avança `auto/acervo` para `auto/juntar` (fast-forward).** |
+| onda 2 defeitos | `wf_2e92d23f-7d6` | 17 peças, 3 novas da torre (memória sem spoiler, porta não fecha em cima, ficha presa sem chão) |
+| onda 2 rede | `wf_1ab7d712-807` | 14 peças |
+| onda 2 jogador | `wf_c01e7789-d81` | 14 peças (+ frente da ficha no jogador) |
+| onda 2 visão | `wf_b6097cd0-2f5` | 17 peças |
+| onda 2 editor | `wf_28c7abce-ba7` | 14 peças (+ marcar NPC) |
+| onda 2 mundo | `wf_b581d949-142` | 15 peças (+ vigia do NPC, zona de perigo, alarme em várias cenas, levar ficha junto) |
+| torre | `wf_c998d8d5-b3c` (retomada) | rodadas 1–7 do cache; refaz 7 (enriquecer), 8 e 9, depois Imaginar e Consolidar |
+
+A torre ganhou as rodadas 4 e 5 salvas em `auto/torre-11-andares` `c9d7f7e`; a rodada 6 (catástrofe) deu
+50 achados. Cópia para abrir no app: `C:\dev\torre-para-ver` (versão média; no app, Carregar Mapa →
+Procurar no disco → `scenes\a00-d01-galeria-mestra\map.json`).
+
 ## As 101 features da lista (todas por fazer)
 
 Estado: **[branch]** trabalho começado numa branch · **[régua]** régua vermelha selada em `auto/acervo` ·
