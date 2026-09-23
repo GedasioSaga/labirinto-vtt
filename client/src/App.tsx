@@ -1739,6 +1739,11 @@ function App() {
               selection: selection.length > 1 ? selectionToAreaSelection(selection) : null,
               onClear: () => setSelection(EMPTY_SELECTION),
             }}
+            alignDistribute={{
+              count: selection.length,
+              onAlign: (edge) => useMapStore.getState().alignSelection(edge),
+              onDistribute: (axis) => useMapStore.getState().distributeSelection(axis),
+            }}
             drawingStyle={selectedDrawing && selectedDrawing.kind !== 'text' ? {
               // Desenho já selecionado: o painel edita ELE, não a preferência do próximo.
               target: 'selected',

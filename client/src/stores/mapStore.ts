@@ -31,6 +31,7 @@ const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPoly
 import { describeBlockedMove } from '../lib/moveValidation'
 import { DEFAULT_PATH_WIDTH_CELLS, DEFAULT_TEXT_FONT_FAMILY, clampPathWidthCells, convertLineToCurve, convertCurveToLine } from '../lib/drawingFactory'
 import { moveAreaSelection, areaSelectionBounds } from '../lib/areaSelection'
+import { alignSelectionItems, distributeSelectionItems, type AlignEdge, type DistributeAxis } from '../lib/alignDistribute'
 import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, TOOL_CLUSTERS } from '../components/labels'
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
@@ -770,6 +771,14 @@ interface MapStoreState {
    * ou se nada de fato mudar (todo item travado, por exemplo).
    */
   moveSelectionBy: (dx: number, dy: number) => void
+  /**
+   * Alinhar e distribuir os itens selecionados (`lib/alignDistribute.ts`):
+   * UMA entrada de histórico por clique — um Ctrl+Z devolve o conjunto
+   * inteiro. Sem efeito (nem histórico) quando nada precisa andar: menos de 2
+   * itens para alinhar, menos de 3 para distribuir, ou já no lugar.
+   */
+  alignSelection: (edge: AlignEdge) => void
+  distributeSelection: (axis: DistributeAxis) => void
   updateTextLabel: (id: string, patch: Partial<{ text: string; color: string; fontSize: number }>) => void
   setTextFontFamily: (id: string, fontFamily: string) => void
   /**
@@ -1493,6 +1502,20 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const moved = moveAreaSelection(map, selectionToAreaSelection(selection), dx, dy)
       if (moved === map) return
       const after = reparentRooms(moved, movedRoomIds(moved, selection), map)
+      withHistory(() => after)
+    },
+    alignSelection: (edge) => {
+      const { map, selection } = get()
+      const aligned = alignSelectionItems(map, selection, edge)
+      if (aligned === map) return
+      const after = reparentRooms(aligned, movedRoomIds(aligned, selection), map)
+      withHistory(() => after)
+    },
+    distributeSelection: (axis) => {
+      const { map, selection } = get()
+      const distributed = distributeSelectionItems(map, selection, axis)
+      if (distributed === map) return
+      const after = reparentRooms(distributed, movedRoomIds(distributed, selection), map)
       withHistory(() => after)
     },
     updateTextLabel: (id, patch) => withHistory((map) => ({
