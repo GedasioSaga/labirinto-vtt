@@ -109,6 +109,19 @@ export function partyDestinations(world: HostWorld): PartyDestination[] {
   return destinations
 }
 
+/**
+ * O "Levar para…" da ficha sem dono, como o painel da ficha o recebe. Mora
+ * aqui, junto de `PartyDestination`, para o painel e a store falarem do mesmo
+ * dado sem um importar o outro.
+ */
+export interface TokenCarryWiring {
+  /** As cenas que abriram, menos a aberta. */
+  destinations: PartyDestination[]
+  /** Fichas com dono na sala: essas vão pelo "Mandar para…" do Grupo. */
+  ownedTokenIds: ReadonlySet<string>
+  onCarry(tokenId: string, sceneId: string, pinId: string | null): boolean
+}
+
 /** Status da linha em uma palavra: é o que o mestre lê de relance. */
 export function partyPresenceLabel(member: PartyMember): string {
   return member.connected ? 'online' : 'fora'

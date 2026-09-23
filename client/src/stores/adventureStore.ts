@@ -3,10 +3,22 @@ import type { MapData, Pin, PinDestination, Token } from '../types/map'
 import { singleSceneWorld, type HostScene, type HostWorld } from '../net/hostSession'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
-import { ADVENTURE_VERSION, baseName, cleanSceneName, newSceneId, sceneFileFor, type Adventure, type SceneEntry } from '../lib/adventure'
+import {
+  ADVENTURE_VERSION,
+  baseName,
+  cleanSceneName,
+  nestScene,
+  newSceneId,
+  sceneFileFor,
+  sceneTrail,
+  SCENE_TRAIL_SEPARATOR,
+  type Adventure,
+  type SceneEntry,
+} from '../lib/adventure'
 import {
   addExit,
   arrivalPoint,
+  arrivalSpot,
   isArrivalOnly,
   linkBack,
   pinFocusPoint,
@@ -28,6 +40,7 @@ import {
 } from '../lib/pinTravel'
 import { mapDirFor, saveAdventureToDisk, scenePath, type OpenedMapFile } from '../lib/mapFileIO'
 import { dirname } from '@tauri-apps/api/path'
+import { removeSelectionItem, selectionHas, type SelectionItem } from '../lib/selectionModel'
 import { useMapStore } from './mapStore'
 import { useSessionStore } from './sessionStore'
 
@@ -63,6 +76,16 @@ export type SceneSlot =
  * a `camera`, ou enquadrar o conteúdo quando `null`. Um objeto novo por troca
  * — o canvas reage à identidade, como ao contador do reset de zoom.
  */
+/** O que `carryToken` levou: o bastante para o aviso "Zumbi foi para Térreo" e o "Ir lá" dele. */
+export interface CarriedToken {
+  tokenName: string
+  sceneId: string
+  sceneName: string
+  /** Onde a ficha assentou na cena de destino. */
+  x: number
+  y: number
+}
+
 export interface CameraRequest {
   camera: Camera | null
   /**
@@ -89,6 +112,8 @@ export interface SceneListItem {
   active: boolean
   /** Mapa solto não tem nome de cena para trocar: o nome dele é o do arquivo. */
   renamable: boolean
+  /** CENAS EM PASTAS: a cena de fora desta. Ausente = primeiro nível (e sempre, no mapa solto). */
+  parentId?: string
 }
 
 interface AdventureState {
@@ -118,6 +143,14 @@ interface AdventureState {
   /** Cria a cena, já aberta. `loosePath` é o arquivo do mapa solto, quando a aventura nasce agora. */
   createScene: (name: string, loosePath: string | null) => string
   renameScene: (sceneId: string, name: string) => void
+  /**
+   * CENAS EM PASTAS: põe `sceneId` dentro de `parentId` (`null` = primeiro
+   * nível), com o que estava dentro dela. Muda só a lista de cenas — pede
+   * Salvar como o renomear, fora do desfazer da cena aberta. `false` quando não
+   * dá (dentro dela mesma ou de uma cena que está dentro dela, cena que não
+   * existe) ou quando ela já estava lá.
+   */
+  moveScene: (sceneId: string, parentId: string | null) => boolean
   /**
    * Troca a cena aberta. `false` quando não há o que trocar (mesma cena, cena
    * indisponível). `focus` centraliza a câmera nesse ponto da cena que entra.
@@ -177,6 +210,14 @@ interface AdventureState {
    * token que já não está lá, mesma cena).
    */
   transferToken: (tokenId: string, fromSceneId: string, toSceneId: string, x: number, y: number) => boolean
+  /**
+   * "Levar para…" da ficha SEM DONO (NPC, monstro): leva o token `tokenId` da
+   * cena aberta para `toSceneId`, na ponta do pino de viagem `pinId` (`null` =
+   * centro livre da cena). A mesma ficha, com id, nome, cor e foto, pela
+   * travessia de `transferToken` — fora do desfazer. `null` quando não deu
+   * (mapa solto, cena fora do ar, pino ou ficha que sumiu, mesma cena).
+   */
+  carryToken: (tokenId: string, toSceneId: string, pinId: string | null) => CarriedToken | null
   /** Há cena de fundo ou lista de cenas esperando gravação? (A cena aberta é o `useSessionStore` que diz.) */
   hasPendingScenes: () => boolean
   /** Grava a aventura inteira e devolve o caminho da cena aberta. */
@@ -204,7 +245,8 @@ export function sceneList(state: Pick<AdventureState, 'adventure' | 'activeScene
   return state.adventure.scenes.map((entry) => {
     const active = entry.id === state.activeSceneId
     const slot = state.cache[entry.id]
-    const base = { id: entry.id, name: entry.name, active, renamable: true }
+    // `parentId` só na cena de dentro: a do primeiro nível fica como sempre foi.
+    const base = { id: entry.id, name: entry.name, active, renamable: true, ...(entry.parentId === undefined ? {} : { parentId: entry.parentId }) }
     if (active) return { ...base, tokenCount: liveMap.tokens.length, available: true }
     if (slot === undefined || slot.status !== 'ok') return { ...base, tokenCount: null, available: false }
     return { ...base, tokenCount: slot.map.tokens.length, available: true }
@@ -293,14 +335,21 @@ function exitPatchFor(pin: Pin, exitId: string | null, destino: PinDestination):
   return setExitDestination(pin, exitId, destino)
 }
 
-/** As cenas para onde um pino da cena aberta pode levar: todas as outras. */
+/**
+ * As cenas para onde um pino da cena aberta pode levar: todas as outras. A
+ * cena de dentro de outra leva o caminho no nome ("Porto Cinza › Taverna"):
+ * duas "Taverna" em cidades diferentes não se confundem na escolha. É lista
+ * do mestre; o nome que o jogador nunca recebe continua sem caminho.
+ */
 export function travelSceneOptions(state: SceneState): TravelSceneOption[] {
-  if (state.adventure === null) return []
-  return state.adventure.scenes
+  const adventure = state.adventure
+  if (adventure === null) return []
+  return adventure.scenes
     .filter((entry) => entry.id !== state.activeSceneId)
     .map((entry) => {
       const slot = state.cache[entry.id]
-      return { id: entry.id, name: entry.name, available: slot !== undefined && slot.status === 'ok' }
+      const name = [...sceneTrail(adventure.scenes, entry.id), entry.name].join(SCENE_TRAIL_SEPARATOR)
+      return { id: entry.id, name, available: slot !== undefined && slot.status === 'ok' }
     })
 }
 
@@ -439,6 +488,15 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       adventure: { ...adventure, scenes: adventure.scenes.map((entry) => (entry.id === sceneId ? { ...entry, name: sceneName } : entry)) },
       structureDirty: true,
     })
+  },
+
+  moveScene: (sceneId, parentId) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const scenes = nestScene(adventure.scenes, sceneId, parentId)
+    if (scenes === null) return false
+    set({ adventure: { ...adventure, scenes }, structureDirty: true })
+    return true
   },
 
   switchScene: (sceneId, focus) => {
@@ -621,6 +679,27 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // travessia não é um passo do mestre para o Ctrl+Z desfazer.
     if (openScene !== null) useMapStore.setState({ map: openScene.map, past: openScene.past, future: openScene.future })
     return true
+  },
+
+  carryToken: (tokenId, toSceneId, pinId) => {
+    const { adventure, activeSceneId, cache } = get()
+    if (adventure === null || activeSceneId === null) return null
+    const entry = adventure.scenes.find((scene) => scene.id === toSceneId)
+    const slot = cache[toSceneId]
+    if (entry === undefined || slot === undefined || slot.status !== 'ok') return null
+    const token = useMapStore.getState().map.tokens.find((t) => t.id === tokenId)
+    if (token === undefined) return null
+    const pin = pinId === null ? null : slot.map.pins.find((p) => p.id === pinId && p.kind === 'viagem')
+    // Pino que sumiu entre abrir o painel e confirmar: não chega em outro lugar calado.
+    if (pin === undefined) return null
+    // O mesmo assento de quem atravessa pelo "Mandar para…" (`hostSession.sendPlayer`).
+    const spot = pin === null ? arrivalPoint(slot.map) : arrivalSpot(slot.map, pin, token.size)
+    if (!get().transferToken(tokenId, activeSceneId, toSceneId, spot.x, spot.y)) return null
+    // A ficha já não está no mapa aberto: a seleção não pode apontar para ela.
+    const item: SelectionItem = { kind: 'token', id: tokenId }
+    const { selection, setSelection } = useMapStore.getState()
+    if (selectionHas(selection, item)) setSelection(removeSelectionItem(selection, item))
+    return { tokenName: token.name, sceneId: toSceneId, sceneName: entry.name, x: spot.x, y: spot.y }
   },
 
   hasPendingScenes: () => {

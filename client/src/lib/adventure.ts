@@ -18,6 +18,12 @@ export interface SceneEntry {
   name: string
   /** Caminho do `map.json` da cena, relativo à pasta da aventura, sempre com `/`. */
   file: string
+  /**
+   * CENAS EM PASTAS: a cena "de fora" desta (região > cidade > bairro > casa).
+   * Ausente = primeiro nível — é assim que toda aventura antiga abre. Só
+   * organiza a lista do mestre: nada disto vai para o jogador.
+   */
+  parentId?: string
 }
 
 export interface Adventure {
@@ -76,10 +82,47 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function sceneEntryOrNull(value: unknown): SceneEntry | null {
   if (!isRecord(value)) return null
-  const { id, name, file } = value
+  const { id, name, file, parentId } = value
   if (typeof id !== 'string' || id.length === 0) return null
   if (typeof file !== 'string') return null
-  return { id, name: typeof name === 'string' ? name : UNNAMED_SCENE, file }
+  return withParent({ id, name: typeof name === 'string' ? name : UNNAMED_SCENE, file }, typeof parentId === 'string' && parentId.length > 0 ? parentId : null)
+}
+
+/** A mesma cena dentro de `parentId`; `null` tira o campo (primeiro nível grava como cena de aventura antiga). */
+function withParent(entry: SceneEntry, parentId: string | null): SceneEntry {
+  const bare: SceneEntry = { id: entry.id, name: entry.name, file: entry.file }
+  return parentId === null ? bare : { ...bare, parentId }
+}
+
+/**
+ * Pai que não é cena da aventura, que é a própria cena, ou que fecha um ciclo
+ * (A dentro de B, B dentro de A — só num arquivo editado à mão) sai: a cena
+ * volta ao primeiro nível em vez de sumir da lista. Do ciclo, cai só o elo que
+ * o fecha, subindo a partir da primeira cena da lista que o alcança.
+ */
+function sanitizeSceneParents(scenes: SceneEntry[]): SceneEntry[] {
+  const ids = new Set(scenes.map((scene) => scene.id))
+  const parentOf = new Map<string, string>()
+  for (const scene of scenes) {
+    if (scene.parentId !== undefined && scene.parentId !== scene.id && ids.has(scene.parentId)) parentOf.set(scene.id, scene.parentId)
+  }
+  const settled = new Set<string>()
+  for (const scene of scenes) {
+    const path: string[] = []
+    const onPath = new Set<string>()
+    let current: string | undefined = scene.id
+    while (current !== undefined && !settled.has(current)) {
+      if (onPath.has(current)) {
+        parentOf.delete(path[path.length - 1])
+        break
+      }
+      onPath.add(current)
+      path.push(current)
+      current = parentOf.get(current)
+    }
+    for (const id of path) settled.add(id)
+  }
+  return scenes.map((scene) => withParent(scene, parentOf.get(scene.id) ?? null))
 }
 
 /**
@@ -113,12 +156,127 @@ export function parseAdventure(json: string): Adventure {
     id: typeof parsed.id === 'string' && parsed.id.length > 0 ? parsed.id : `adv_${crypto.randomUUID()}`,
     name: typeof parsed.name === 'string' ? parsed.name : scenes[0].name,
     startSceneId,
-    scenes,
+    scenes: sanitizeSceneParents(scenes),
   }
 }
 
 export function serializeAdventure(adventure: Adventure): string {
   return JSON.stringify(adventure, null, 2)
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Cenas em pastas: a árvore que a lista Cenas mostra
+// ───────────────────────────────────────────────────────────────────────────
+
+/** O mínimo de uma cena para montar a árvore: o id e a cena de fora (ausente ou `null` = primeiro nível). */
+export interface SceneNest {
+  id: string
+  parentId?: string | null
+}
+
+/** Uma linha da árvore, na ordem em que a lista Cenas a mostra. */
+export interface SceneTreeRow<T extends SceneNest> {
+  entry: T
+  /** 0 = primeiro nível. */
+  depth: number
+  /** A cena de fora como a árvore a usa: pai que não está na lista conta como primeiro nível. */
+  parentId: string | null
+  /** As de dentro, na ordem da lista. */
+  childIds: string[]
+}
+
+/** Separador do caminho que a lista mostra em cinza: "Costa Norte › Porto Cinza". */
+export const SCENE_TRAIL_SEPARATOR = ' › '
+
+/**
+ * A lista em profundidade: cada cena seguida das de dentro dela, as irmãs na
+ * ordem da lista. Por isso uma pasta e tudo o que ela tem dentro são sempre
+ * linhas seguidas. Pai que não está na lista vira primeiro nível, e cena presa
+ * num ciclo aparece uma vez, no primeiro nível — ninguém some.
+ */
+export function sceneTree<T extends SceneNest>(entries: readonly T[]): SceneTreeRow<T>[] {
+  const ids = new Set(entries.map((entry) => entry.id))
+  const parentOf = (entry: T): string | null => {
+    const parent = entry.parentId ?? null
+    return parent !== null && parent !== entry.id && ids.has(parent) ? parent : null
+  }
+  const children = new Map<string | null, T[]>()
+  for (const entry of entries) {
+    const key = parentOf(entry)
+    const siblings = children.get(key)
+    if (siblings === undefined) children.set(key, [entry])
+    else siblings.push(entry)
+  }
+  const rows: SceneTreeRow<T>[] = []
+  const visited = new Set<string>()
+  const visit = (entry: T, depth: number, parentId: string | null) => {
+    visited.add(entry.id)
+    const row: SceneTreeRow<T> = { entry, depth, parentId, childIds: [] }
+    rows.push(row)
+    for (const child of children.get(entry.id) ?? []) {
+      if (visited.has(child.id)) continue
+      row.childIds.push(child.id)
+      visit(child, depth + 1, entry.id)
+    }
+  }
+  for (const entry of children.get(null) ?? []) visit(entry, 0, null)
+  for (const entry of entries) if (!visited.has(entry.id)) visit(entry, 0, null)
+  return rows
+}
+
+/** As cenas de fora de `sceneId`, da mais de fora para a mais de dentro (sem ela). */
+export function sceneAncestorIds<T extends SceneNest>(entries: readonly T[], sceneId: string): string[] {
+  const rows = sceneTree(entries)
+  const byId = new Map(rows.map((row) => [row.entry.id, row]))
+  const chain: string[] = []
+  let parent = byId.get(sceneId)?.parentId ?? null
+  while (parent !== null) {
+    chain.unshift(parent)
+    parent = byId.get(parent)?.parentId ?? null
+  }
+  return chain
+}
+
+/** `sceneId` e todas as cenas dentro dela, em qualquer profundidade. */
+export function sceneSubtreeIds<T extends SceneNest>(entries: readonly T[], sceneId: string): Set<string> {
+  const rows = sceneTree(entries)
+  const start = rows.findIndex((row) => row.entry.id === sceneId)
+  const ids = new Set<string>()
+  if (start < 0) return ids
+  ids.add(sceneId)
+  for (let i = start + 1; i < rows.length && rows[i].depth > rows[start].depth; i += 1) ids.add(rows[i].entry.id)
+  return ids
+}
+
+/** Os nomes das cenas de fora de `sceneId`, da mais de fora para a mais de dentro: o caminho em cinza do filtro. */
+export function sceneTrail<T extends SceneNest & { name: string }>(entries: readonly T[], sceneId: string): string[] {
+  const byId = new Map(entries.map((entry) => [entry.id, entry]))
+  return sceneAncestorIds(entries, sceneId).map((id) => byId.get(id)?.name ?? '')
+}
+
+/**
+ * Dá para pôr `sceneId` dentro de `parentId` (`null` = primeiro nível)? Não
+ * dentro dela mesma, nem de uma cena que já está dentro dela — a pasta ficaria
+ * dentro de si e as duas sumiriam da árvore.
+ */
+export function canNestScene<T extends SceneNest>(entries: readonly T[], sceneId: string, parentId: string | null): boolean {
+  if (!entries.some((entry) => entry.id === sceneId)) return false
+  if (parentId === null) return true
+  if (!entries.some((entry) => entry.id === parentId)) return false
+  return !sceneSubtreeIds(entries, sceneId).has(parentId)
+}
+
+/**
+ * A lista com `sceneId` dentro de `parentId` (`null` = primeiro nível), e o que
+ * estava dentro dela vai junto. A cena passa para o FIM da lista: vira a última
+ * de dentro da pasta nova. `null` quando não dá (ver `canNestScene`) ou quando
+ * ela já está lá — não há o que gravar.
+ */
+export function nestScene(scenes: readonly SceneEntry[], sceneId: string, parentId: string | null): SceneEntry[] | null {
+  const entry = scenes.find((scene) => scene.id === sceneId)
+  if (entry === undefined || !canNestScene(scenes, sceneId, parentId)) return null
+  if ((entry.parentId ?? null) === parentId) return null
+  return [...scenes.filter((scene) => scene.id !== sceneId), withParent(entry, parentId)]
 }
 
 /** Caminhos de portal antigo (`Prop.linkedMapPath`) que o mapa ainda carrega, sem repetição. */
