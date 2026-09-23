@@ -751,6 +751,22 @@ export type MeasurementMode =
   | 'manhattan'
   | 'hex'
 
+/**
+ * Regras de movimento da CENA para as fichas dos jogadores (o mestre anda sem
+ * limite). Tudo opcional: mapa salvo antes deste campo abre com movimento
+ * livre, igual a sempre. Leitura segura (arquivo cru, snapshot) em
+ * `lib/movementRules.ts`. Atravessa para o jogador: é regra da mesa, não
+ * segredo — a tela dele precisa dela para parar a ficha no alcance.
+ */
+export interface MovementRules {
+  /** Passo máximo por movimento, em QUADRADOS da régua da cena. `undefined` === livre,
+   *  sem linha de migração: `readMovementRules` lê o objeto `movement` inteiro. */
+  maxStepCells?: number
+  /** `true`: uma ficha não pode parar em cima de outra ('Lugar ocupado').
+   *  `undefined` === desligado, sem linha de migração (mesma leitura acima). */
+  tokensOccupy?: boolean
+}
+
 export interface MapData {
   id: string
   name: string
@@ -795,4 +811,6 @@ export interface MapData {
   measurementMode: MeasurementMode
   ownerId: string | null
   scenarioLink: string | null
+  /** Passo máximo e ocupação das fichas dos jogadores. `undefined` = livre. */
+  movement?: MovementRules
 }

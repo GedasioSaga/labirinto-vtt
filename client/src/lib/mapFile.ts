@@ -2,6 +2,7 @@ import type { FloorStyle, MapData, Region } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
+import { readMovementRules } from './movementRules'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -83,6 +84,12 @@ function roomRotationFromFile(region: Region): Region {
   if (typeof room.rotation === 'number' && Number.isFinite(room.rotation)) return region
   const { rotation: _descartada, ...semAngulo } = room
   return { ...region, room: semAngulo }
+}
+
+/** `movement` só entra no mapa quando o arquivo traz regra válida: mapa de antes não ganha campo. */
+function movementField(raw: unknown): Pick<MapData, 'movement'> {
+  const movement = readMovementRules(raw)
+  return movement === undefined ? {} : { movement }
 }
 
 function deserializeMapFields(json: string): MapData {
@@ -207,5 +214,8 @@ function deserializeMapFields(json: string): MapData {
       parsed.measurementMode ?? ((parsed.gridShape ?? 'square') === 'hex' ? 'hex' : 'chessboard'),
     ownerId: parsed.ownerId ?? null,
     scenarioLink: parsed.scenarioLink ?? null,
+    // MOVIMENTO CONTADO: campo NOVO e OPCIONAL. Mapa de antes (ou com lixo
+    // editado à mão) abre livre e sem o campo — ver `readMovementRules`.
+    ...movementField(parsed.movement),
   }
 }

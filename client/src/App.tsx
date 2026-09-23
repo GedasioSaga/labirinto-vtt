@@ -330,6 +330,7 @@ function App() {
   const resizeRoomDimensions = useMapStore((state) => state.resizeRoomDimensions)
   const setMapScale = useMapStore((state) => state.setMapScale)
   const setMeasurementMode = useMapStore((state) => state.setMeasurementMode)
+  const setMovementRules = useMapStore((state) => state.setMovementRules)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
   const setTextFontFamily = useMapStore((state) => state.setTextFontFamily)
@@ -1803,6 +1804,7 @@ function App() {
               onMeasurementModeChange: setMeasurementMode,
               gridShape,
             }}
+            movement={{ movement: map.movement, onMovementChange: setMovementRules }}
             gridAlign={{
               backgroundFilename:
                 map.background.type === 'image' && map.background.src

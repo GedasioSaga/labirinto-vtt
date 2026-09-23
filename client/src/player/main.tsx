@@ -37,6 +37,11 @@ const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
   not_visible: 'Você não vê essa porta daqui',
 }
 
+/** Recusa de movimento que o jogador precisa ler (a ficha já voltou sozinha). Não diz QUEM está lá. */
+const MOVE_NOTICE_TEXT: Record<'occupied', string> = {
+  occupied: 'Lugar ocupado',
+}
+
 /**
  * O pedido de passagem, em uma linha. Nunca diz para onde o pino leva: o
  * jogador só descobre ao chegar. As recusas do host são genéricas de
@@ -628,6 +633,12 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
           <p key={state.doorNotice.id} className="pp-notice" role="status" aria-live="polite">
             {DOOR_NOTICE_TEXT[state.doorNotice.reason]}
+          </p>
+        )}
+        {state.moveNotice && (
+          // Mesmo aviso curto da porta; `key` no id reinicia a entrada a cada tentativa.
+          <p key={state.moveNotice.id} className="pp-notice" role="status" aria-live="polite">
+            {MOVE_NOTICE_TEXT[state.moveNotice.reason]}
           </p>
         )}
       </PlayerErrorBoundary>

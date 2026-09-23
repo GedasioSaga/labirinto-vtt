@@ -17,7 +17,7 @@ import { visiblePins } from '../lib/layers'
 import { createPinsRenderer } from '../pixi/drawPins'
 import { fitCamera, panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
-import type { Camera } from '../pixi/world'
+import type { Camera, Point } from '../pixi/world'
 import { drawGrid } from '../pixi/drawGrid'
 import { currentRendererResolution, watchDevicePixelRatio } from '../pixi/rendererResolution'
 import { drawHexGrid } from '../pixi/drawHexGrid'
@@ -57,7 +57,9 @@ import {
   type PlayerMeasureEvent,
   type PlayerMeasureState,
 } from './playerMeasure'
-import { drawPlayerMeasure } from './drawPlayerMeasure'
+import { drawPlayerMeasure, drawPlayerTokenDrag } from './drawPlayerMeasure'
+import { previewTokenDrag } from './playerTokenDrag'
+import { reachOutline } from '../lib/movementRules'
 
 interface PlayerViewProps {
   map: MapData
@@ -124,7 +126,20 @@ const ROOF_EDGE_WIDTH = 3
 type Drag =
   // `startX`/`startY`: onde o gesto começou — se ele terminar sem andar, é um toque (porta), não um arrasto de câmera.
   | { kind: 'pan'; lastX: number; lastY: number; startX: number; startY: number }
-  | { kind: 'token'; tokenId: string; offsetX: number; offsetY: number; x: number; y: number }
+  // `origin`: onde a ficha estava ao começar (de onde se contam os quadrados);
+  // `reach`: contorno do alcance em px de mundo, calculado uma vez por gesto
+  // (`null` na cena sem passo máximo); `label`: "N quadrados" ou nada.
+  | {
+      kind: 'token'
+      tokenId: string
+      offsetX: number
+      offsetY: number
+      x: number
+      y: number
+      origin: Point
+      reach: Point[] | null
+      label: string | null
+    }
   // Régua do jogador: o ponto vive em `scene.measure`, aqui só se marca que o gesto é dela.
   | { kind: 'measure' }
 
@@ -403,6 +418,13 @@ interface Scene {
   measure: PlayerMeasureState
   /** Última medida desenhada (pontos de tela + rótulo); igual = nada a repintar. */
   lastMeasureKey: string | null
+  /**
+   * Arrasto da própria ficha: trajeto, contorno do alcance e "N quadrados".
+   * Camada própria (tela, como a régua), para o gesto nunca apagar a medida.
+   */
+  tokenDragLayer: Graphics
+  /** Último arrasto desenhado; igual = nada a repintar. */
+  lastTokenDragKey: string | null
   /** Resolução dos Text do mundo acompanhando o zoom (pixi/textResolution.ts). */
   textResolution: ReturnType<typeof createDebouncedTask>
 }
@@ -567,6 +589,7 @@ export function PlayerView({
 }: PlayerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
+  const tokenDragLabelRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
   const latestRef = useRef({ map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser })
   latestRef.current = { map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser }
@@ -601,13 +624,46 @@ export function PlayerView({
     if (key === scene.lastMeasureKey) return
     scene.lastMeasureKey = key
     drawPlayerMeasure(scene.measureLayer, start, end)
-    if (!label) return
+    if (label) showScreenLabel(scene, label, text, end)
+  }
+
+  /** Escreve o rótulo acima e à direita de `end` (pontos de tela), como o do mestre, preso dentro da tela. */
+  function showScreenLabel(scene: Scene, label: HTMLDivElement, text: string, end: Point): void {
     if (label.textContent !== text) label.textContent = text
     label.hidden = false
-    // Acima e à direita da ponta, como o rótulo do mestre, preso dentro da tela.
     const x = Math.min(Math.max(0, end.x + MEASURE_LABEL_OFFSET_PX), scene.app.screen.width - label.offsetWidth)
     const y = Math.min(Math.max(0, end.y - MEASURE_LABEL_OFFSET_PX - label.offsetHeight), scene.app.screen.height - label.offsetHeight)
     label.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
+  }
+
+  /**
+   * Pinta o arrasto da própria ficha: trajeto desde onde ela saiu, contorno do
+   * alcance (cena com passo máximo) e "N quadrados" junto ao dedo — o mesmo
+   * rótulo e o mesmo traço da régua Medir. Sem arrasto de ficha, apaga tudo.
+   * Chamada no gesto e no ticker (zoom pela roda no meio do arrasto).
+   */
+  function syncTokenDrag(scene: Scene): void {
+    const drag = scene.drag
+    const label = tokenDragLabelRef.current
+    if (drag?.kind !== 'token' || drag.label === null) {
+      if (scene.lastTokenDragKey === null) return
+      scene.lastTokenDragKey = null
+      scene.tokenDragLayer.clear()
+      if (label) {
+        label.textContent = ''
+        label.hidden = true
+      }
+      return
+    }
+    const start = measureWorldToScreen(scene.camera, drag.origin)
+    const end = measureWorldToScreen(scene.camera, { x: drag.x, y: drag.y })
+    // A câmera entra na chave: o contorno é refeito só quando a tela muda.
+    const key = JSON.stringify([start, end, drag.label, scene.camera.scale, drag.reach === null])
+    if (key === scene.lastTokenDragKey) return
+    scene.lastTokenDragKey = key
+    const reach = drag.reach?.map((p) => measureWorldToScreen(scene.camera, p)) ?? null
+    drawPlayerTokenDrag(scene.tokenDragLayer, start, end, reach)
+    if (label) showScreenLabel(scene, label, drag.label, end)
   }
 
   function applyMeasureEvent(scene: Scene, event: PlayerMeasureEvent): void {
@@ -866,7 +922,18 @@ export function PlayerView({
     const view = scene.tokenViews.get(tokenId)?.wrapper
     if (!view) return
     const world = scene.world.toLocal(event.global)
-    scene.drag = { kind: 'token', tokenId, offsetX: view.x - world.x, offsetY: view.y - world.y, x: view.x, y: view.y }
+    const origin = { x: view.x, y: view.y }
+    scene.drag = {
+      kind: 'token',
+      tokenId,
+      offsetX: view.x - world.x,
+      offsetY: view.y - world.y,
+      x: view.x,
+      y: view.y,
+      origin,
+      reach: reachOutline(latestRef.current.map, origin),
+      label: null,
+    }
   }
 
   useEffect(() => {
@@ -959,7 +1026,11 @@ export function PlayerView({
       // Régua do jogador acima do mapa (e da névoa: medir até onde ainda não se vê é legítimo) e abaixo dos sinais.
       const measureLayer = new Graphics()
       measureLayer.eventMode = 'none'
-      app.stage.addChild(world, measureLayer, signalsLayer, laserLayer)
+      // Arrasto da própria ficha: mesma altura da régua. O contorno do alcance
+      // é só geometria da regra (quadrados a partir da ficha), não revela nada da névoa.
+      const tokenDragLayer = new Graphics()
+      tokenDragLayer.eventMode = 'none'
+      app.stage.addChild(world, measureLayer, tokenDragLayer, signalsLayer, laserLayer)
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
@@ -1024,6 +1095,8 @@ export function PlayerView({
         measureLayer,
         measure: withMeasureArmed(MEASURE_OFF, latestRef.current.measureArmed),
         lastMeasureKey: null,
+        tokenDragLayer,
+        lastTokenDragKey: null,
         // Texto rasterizado a 1x e esticado pelo zoom sai mole: resolução em degraus.
         textResolution: createDebouncedTask(() => {
           if (destroyed) return
@@ -1060,7 +1133,10 @@ export function PlayerView({
       app.ticker.add(tickLaser)
 
       // Zoom e arrasto de câmera mudam a posição de tela da régua sem mudar a medida.
-      const tickMeasure = () => syncMeasure(scene)
+      const tickMeasure = () => {
+        syncMeasure(scene)
+        syncTokenDrag(scene)
+      }
       app.ticker.add(tickMeasure)
 
       const sendSignalAt = (screenX: number, screenY: number) => {
@@ -1133,14 +1209,21 @@ export function PlayerView({
           return
         }
         const world = scene.world.toLocal(event.global)
-        drag.x = world.x + drag.offsetX
-        drag.y = world.y + drag.offsetY
+        // Passo máximo: a ficha para no último ponto do alcance e o dedo segue
+        // sozinho; o rótulo conta os quadrados até onde a FICHA está.
+        const preview = previewTokenDrag(latestRef.current.map, drag.origin, { x: world.x + drag.offsetX, y: world.y + drag.offsetY })
+        drag.x = preview.at.x
+        drag.y = preview.at.y
+        drag.label = preview.label
         scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
+        syncTokenDrag(scene)
       })
       const endDrag = () => {
         cancelLongPress()
         const drag = scene.drag
         scene.drag = null
+        // Soltou: trajeto, alcance e "N quadrados" somem junto com o gesto.
+        syncTokenDrag(scene)
         if (drag?.kind === 'measure') {
           // Solta: a medida fica na tela até o próximo toque ou Escape.
           applyMeasureEvent(scene, { type: 'release' })
@@ -1270,6 +1353,9 @@ export function PlayerView({
       {/* Rótulo da régua: escrito pelo gesto direto no DOM (syncMeasure), sem re-render do React por passo do dedo.
           `aria-live` educado: com o grude na grade o texto só muda a cada quadrado, não a cada pixel. */}
       <div ref={measureLabelRef} className="pp-measure-label" aria-live="polite" aria-atomic="true" hidden />
+      {/* "N quadrados" do arrasto da própria ficha: mesmo rótulo do Medir, escrito por syncTokenDrag.
+          Sem `aria-live`: o arrasto da ficha não gruda na grade, e anunciar cada décimo de quadrado enfileiraria dezenas de falas. */}
+      <div ref={tokenDragLabelRef} className="pp-measure-label" data-testid="token-drag-label" hidden />
     </>
   )
 }
