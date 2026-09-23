@@ -11,6 +11,7 @@ import {
   DOOR_NOTICE_TTL_MS,
   FREE_PASSAGE_BEAT_MS,
   GATHERED_NOTICE_TTL_MS,
+  MOVE_NOTICE_TTL_MS,
   MOVED_NOTICE_TTL_MS,
   PING_INTERVAL_MS,
   RESUME_STORAGE_KEY,
@@ -230,6 +231,50 @@ describe('createPlayerConnection', () => {
     expect(typeof reqId).toBe('string')
     socket.receive({ type: 'token.move.rejected', reqId, reason: 'not_owner' })
     expect(connection.getState().map?.tokens[0]).toMatchObject({ x: 10, y: 10 })
+  })
+
+  it('recusa do movimento diz o motivo por alguns segundos e some sozinha', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    connection.requestMove('t1', 60, 70)
+    socket.receive({ type: 'token.move.rejected', reqId: field(socket.sent.at(-1), 'reqId'), reason: 'wall' })
+    expect(connection.getState().map?.tokens[0]).toMatchObject({ x: 10, y: 10 })
+    expect(connection.getState().moveNotice).toMatchObject({ reason: 'wall' })
+
+    // Recusa nova troca o motivo e reinicia o tempo.
+    const first = connection.getState().moveNotice?.id
+    connection.requestMove('t1', 20, 20)
+    socket.receive({ type: 'token.move.rejected', reqId: field(socket.sent.at(-1), 'reqId'), reason: 'outside_floor' })
+    expect(connection.getState().moveNotice).toMatchObject({ reason: 'outside_floor' })
+    expect(connection.getState().moveNotice?.id).not.toBe(first)
+    vi.advanceTimersByTime(MOVE_NOTICE_TTL_MS - 1)
+    expect(connection.getState().moveNotice).toMatchObject({ reason: 'outside_floor' })
+    vi.advanceTimersByTime(1)
+    expect(connection.getState().moveNotice).toBeUndefined()
+  })
+
+  it('recusa com motivo desconhecido ou de pedido que não é meu desfaz sem aviso', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'token.move.rejected', reqId: 'm999', reason: 'wall' })
+    expect(connection.getState().moveNotice).toBeUndefined()
+    connection.requestMove('t1', 60, 70)
+    socket.receive({ type: 'token.move.rejected', reqId: field(socket.sent.at(-1), 'reqId'), reason: 'inventado' })
+    expect(connection.getState().map?.tokens[0]).toMatchObject({ x: 10, y: 10 })
+    expect(connection.getState().moveNotice).toBeUndefined()
+  })
+
+  it('aviso de movimento recusado não sobrevive à troca de cena', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    connection.requestMove('t1', 60, 70)
+    socket.receive({ type: 'token.move.rejected', reqId: field(socket.sent.at(-1), 'reqId'), reason: 'wall' })
+    socket.receive({ type: 'scene.changed' })
+    expect(connection.getState().moveNotice).toBeUndefined()
   })
 
   it('accepted fixa a posição do servidor', () => {

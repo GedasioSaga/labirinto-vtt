@@ -59,6 +59,7 @@ import {
 } from './playerMeasure'
 import { drawPlayerMeasure } from './drawPlayerMeasure'
 import { createTokenGlides, stepGlides, syncGlide, type TokenGlides } from './tokenGlide'
+import { applyTokenTouch, prepareTokenLayer } from './tokenTouch'
 
 interface PlayerViewProps {
   map: MapData
@@ -313,8 +314,7 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
   const label = new Text({ text: token.name, style: { fontSize: LABEL_FONT_SIZE, fill: 0xffffff, stroke: { color: 0x000000, width: 3 } } })
   label.anchor.set(0.5, 0)
   wrapper.addChild(photoMask, photo, body, label)
-  wrapper.eventMode = 'static'
-  wrapper.cursor = 'grab'
+  applyTokenTouch(wrapper, own)
   const view: TokenView = { wrapper, body, photo, photoMask, label, key: tokenViewKey(token, grid, own), loadedPhoto: null, loadSeq: 0 }
   paintTokenView(view, token, grid, own)
   return view
@@ -894,6 +894,8 @@ export function PlayerView({
       }
       // Fora do `if` de propósito: trocar uma foto por outra não muda a chave.
       syncTokenPhoto(view, token, currentMap.grid)
+      // A posse muda sem a view nascer de novo (o mestre atribui ou tira a ficha).
+      applyTokenTouch(view.wrapper, isOwn)
       sizeTokenLabel(view.label, scene.camera.scale, currentSettings.showNames)
       view.wrapper.visible = true
       // A ficha sob o dedo é do arrasto (abaixo): não desliza atrás dele.
@@ -901,6 +903,8 @@ export function PlayerView({
       const at = syncGlide(scene.tokenGlides, token.id, { shown, target: { x: token.x, y: token.y }, now, animate })
       view.wrapper.position.set(at.x, at.y)
     }
+    // Já, e não no próximo quadro: o toque que chega antes dele acharia a ordem velha.
+    scene.tokens.sortChildren()
     // Snapshot chegou no meio do arrasto: o token arrastado fica sob o dedo.
     const drag = scene.drag
     if (drag?.kind === 'token') scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
@@ -1004,6 +1008,7 @@ export function PlayerView({
       const roofs = new Graphics()
       const pins = new Container()
       const tokens = new Container()
+      prepareTokenLayer(tokens)
       // Mesma ordem do editor, de baixo para cima; tudo da planta fica sob a
       // névoa, e só os tokens (que já chegam filtrados pela visão) ficam acima.
       // Grade acima do chão e das salas, abaixo de paredes e portas.

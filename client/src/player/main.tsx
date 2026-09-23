@@ -1,7 +1,8 @@
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type DoorToggleRejection } from '../net/protocol'
+import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH } from '../net/protocol'
+import { latestActionNotice } from './moveNotice'
 import { themeCss } from '../theme'
 import { createPlayerConnection, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNotice } from './playerConnection'
@@ -31,13 +32,6 @@ document.head.prepend(themeStyle)
 const NO_TOKENS: string[] = []
 const NO_SIGNALS: SignalMark[] = []
 const NO_PLAYER_LASERS: RemoteLaser[] = []
-
-/** Recusa do mestre ao toque na porta, em uma linha curta. */
-const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
-  locked: 'Trancada',
-  far: 'Chegue mais perto da porta',
-  not_visible: 'Você não vê essa porta daqui',
-}
 
 /**
  * O pedido de passagem, em uma linha. Nunca diz para onde o pino leva: o
@@ -567,6 +561,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
 
   if (state.status === 'playing' && state.map && state.vision) {
+    const actionNotice = latestActionNotice(state.doorNotice, state.moveNotice)
     return (
       <PlayerErrorBoundary onReconnect={() => connection.reconnect()}>
         <PlayerView
@@ -652,10 +647,10 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             {travelNoticeText(state.travel)}
           </p>
         )}
-        {state.doorNotice && (
+        {actionNotice && (
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
-          <p key={state.doorNotice.id} className="pp-notice" role="status" aria-live="polite">
-            {DOOR_NOTICE_TEXT[state.doorNotice.reason]}
+          <p key={actionNotice.id} className="pp-notice" role="status" aria-live="polite">
+            {actionNotice.text}
           </p>
         )}
       </PlayerErrorBoundary>
