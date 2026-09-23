@@ -622,6 +622,26 @@ body {
   opacity: 1;
 }
 
+/* Vida da ficha: "Vida atual" e "Vida máxima" numa linha só, separadas por
+   "/", como se anota na ficha de papel (7/10). `minmax(0, 1fr)`: sem ele o
+   campo de número não encolhe abaixo da largura intrínseca e a linha vaza do
+   rail de 264 px. */
+.lb-health {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: var(--lb-space-2);
+}
+
+.lb-health__slash {
+  /* A altura do .lb-input (38 px, mesma conta do .lb-rotation__step): o traço
+     fica no meio do número, e não na linha do rótulo. */
+  line-height: 38px;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-lg);
+  color: var(--lb-color-parchment-faint);
+}
+
 /* ------------------------------------------------------------ cor / espessura */
 
 .lb-swatch {

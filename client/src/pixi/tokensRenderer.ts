@@ -1,8 +1,10 @@
 import { Container, Sprite, Graphics, Text, Assets, Texture } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
-import type { Token } from '../types/map'
+import type { Token, TokenHealth } from '../types/map'
 import { SECRET_ITEM_ALPHA, SELECTION_COLOR, TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from './constants'
 import { drawTokenCircle } from './drawTokens'
+import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from './drawTokenHealth'
+import { readTokenHealth } from '../lib/tokenHealth'
 import { parseHexColor, tokenFillColor } from '../lib/tokenColor'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { isTokenPhotoData, tokenPhotoLabel, tokenPhotoRef } from '../lib/tokenPhoto'
@@ -51,6 +53,10 @@ interface TokenEntry {
   photoMask: Graphics | null
   graphics: Graphics | null
   ring: Graphics
+  /** Barra de vida sob o disco (`pixi/drawTokenHealth.ts`). Nasce só na
+   *  ficha que TEM vida e morre quando a vida sai: ficha sem vida continua
+   *  com os mesmos 3 filhos (visual, anel, nome) de antes da barra existir. */
+  bar: Graphics | null
   label: Text
   /** `Token.image` já carregado no `sprite` atual, ou null enquanto nenhuma
    *  imagem foi carregada ainda (token sem imagem, ou sprite recém-criado). */
@@ -142,6 +148,30 @@ export function createTokensRenderer(): TokensRenderer {
     return entry.sprite
   }
 
+  /**
+   * Barra de vida da ficha: cria na primeira vida, redesenha a MESMA quando a
+   * vida muda e destrói quando a vida sai. Entra logo antes do nome, para o
+   * nome continuar por cima de tudo que é da ficha. Destruir Graphics é seguro
+   * aqui — o cuidado de nunca destruir no meio da sessão é do `Text`.
+   */
+  function syncHealthBar(entry: TokenEntry, health: TokenHealth | null, radius: number): void {
+    if (health === null) {
+      if (entry.bar) {
+        entry.wrapper.removeChild(entry.bar)
+        entry.bar.destroy()
+        entry.bar = null
+      }
+      return
+    }
+    if (!entry.bar) {
+      const bar = new Graphics()
+      bar.label = HEALTH_BAR_LABEL
+      entry.wrapper.addChildAt(bar, entry.wrapper.getChildIndex(entry.label))
+      entry.bar = bar
+    }
+    drawTokenHealthBar(entry.bar, radius, health)
+  }
+
   function ensureGraphics(entry: TokenEntry): Graphics {
     if (entry.sprite) {
       entry.wrapper.removeChild(entry.sprite)
@@ -217,7 +247,7 @@ export function createTokensRenderer(): TokensRenderer {
         const label = new Text({ text: '', style: { fontSize: TOKEN_LABEL_FONT_SIZE, fill: 0xffffff } })
         label.anchor.set(0.5, 0)
         wrapper.addChild(ring, label)
-        entry = { wrapper, sprite: null, photoMask: null, graphics: null, ring, label, loadedSrc: null, loadedData: null, loadedUrl: null, loadToken: 0 }
+        entry = { wrapper, sprite: null, photoMask: null, graphics: null, ring, bar: null, label, loadedSrc: null, loadedData: null, loadedUrl: null, loadToken: 0 }
         cache.set(token.id, entry)
         container.addChild(wrapper)
       }
@@ -322,7 +352,6 @@ export function createTokensRenderer(): TokensRenderer {
         if (selected) {
           entry.ring.circle(0, 0, radius).stroke({ width: 4, color: SELECTION_COLOR })
         }
-        entry.label.position.set(0, radius + 2)
         outlineRadius = radius
       } else {
         const graphics = ensureGraphics(entry)
@@ -331,9 +360,14 @@ export function createTokensRenderer(): TokensRenderer {
         // Círculo genérico é simétrico hoje, mas gira igual ao sprite pra
         // não haver salto visual quando o token ganha/perde imagem depois.
         graphics.rotation = rotationToRadians(token.rotation)
-        entry.label.position.set(0, radius + 2)
         outlineRadius = radius
       }
+
+      // Barra de vida SOB o disco, e o nome logo abaixo dela. `readTokenHealth`
+      // porque o mapa do disco chega cru: vida com lixo não desenha barra.
+      const health = readTokenHealth(token.health)
+      syncHealthBar(entry, health, outlineRadius)
+      entry.label.position.set(0, tokenLabelTop(outlineRadius, health !== null))
 
       // hidden === "Oculto no editor" (organização de cena do mestre). Antes
       // o token sumia de vez e não havia como clicar nele para desfazer; agora
