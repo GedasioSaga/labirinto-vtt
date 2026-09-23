@@ -1,4 +1,4 @@
-import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
+import type { DoorState, MapData, Pin, RegionPoint, Token, Wall } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
@@ -8,12 +8,21 @@ import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
+import { carriedItemsOf, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import {
   parsePlayerMessage,
+  type DoorRequestHow,
+  type DoorRequestMessage,
+  type DoorRequestRejection,
   type DoorToggleMessage,
+  type DoorToggleRejection,
   type HostMessage,
+  type ItemGiveMessage,
+  type ItemGiveRejection,
   type JoinMessage,
   type LaserMessage,
+  type PinTakeMessage,
+  type PinTakeRejection,
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type SignalMessage,
@@ -104,6 +113,43 @@ export interface AppliedDoor {
   wallId: string
   open: boolean
   sceneId?: string
+  /** O mestre disse "Destrancar e abrir" ao pedido da porta trancada: tira o cadeado antes de abrir. */
+  unlock?: true
+}
+
+/**
+ * Pedido da porta trancada, já validado, à espera do mestre. É o que a linha
+ * da caixa de Pedidos mostra; nada disto vai ao jogador.
+ */
+export interface DoorRequest {
+  requestId: string
+  playerId: string
+  playerName: string
+  how: DoorRequestHow
+  /** Nome da cena (o que o mestre lê), só quando a porta está numa cena de FUNDO. */
+  sceneName?: string
+}
+
+/**
+ * ITEM PEGÁVEL: "Pegar" já validado, à espera do mestre. É o que a linha da
+ * caixa de Pedidos mostra; nada disto vai ao jogador.
+ */
+export interface ItemRequest {
+  requestId: string
+  playerId: string
+  playerName: string
+  itemName: string
+  /** Nome da cena (o que o mestre lê), só quando o item está numa cena de FUNDO. */
+  sceneName?: string
+}
+
+/**
+ * Item que trocou de lugar (pego, ou dado a um colega): o integrador aplica
+ * com `lib/items.ts` → `applyItemChange` na cena `sceneId` (ausente = a
+ * aberta no editor), fora do desfazer — foi o jogador, não o mestre.
+ */
+export interface AppliedItems extends ItemChange {
+  sceneId?: string
 }
 
 /**
@@ -171,6 +217,12 @@ export interface HostResult {
   signal?: HostSignal
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
   travelRequest?: TravelRequest
+  /** Pedido da porta trancada válido: o integrador pergunta ao mestre. */
+  doorRequest?: DoorRequest
+  /** "Pegar" válido de pino que pede ao mestre: o integrador pergunta. */
+  itemRequest?: ItemRequest
+  /** Item pego (pino livre ou "Deixar") ou dado: o integrador grava na cena. */
+  applyItems?: AppliedItems
   /**
    * O mestre deixou ir, ou o pino é livre (aí vem de `handleMessage`): o
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
@@ -283,6 +335,28 @@ export interface HostSession {
   /** O pedido ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isTravelPending(requestId: string): boolean
   /**
+   * "Destrancar e abrir" do pedido da porta trancada: `applyDoor` (com
+   * `unlock`) na cena onde a porta está — mesmo de fundo — e
+   * `door.request.answer opened` ao jogador. Não exige mais o token perto: é
+   * decisão do mestre. Pedido que já não existe, ou porta que sumiu, não faz nada.
+   */
+  approveDoorRequest(requestId: string, source: HostMapSource): HostResult
+  /** "Não": `door.request.answer denied` ao jogador. Pedido que já não existe não faz nada. */
+  denyDoorRequest(requestId: string): HostResult
+  /** O pedido da porta ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
+  isDoorRequestPending(requestId: string): boolean
+  /**
+   * "Deixar" do pedido de item: revalida contra o mundo de AGORA (o pino pode
+   * ter sido pego por outro, a ficha pode ter saído) e devolve `applyItems` +
+   * `pin.take.answer taken` ao jogador. Não exige mais a ficha encostada: é
+   * decisão do mestre. Pedido que já não existe não faz nada.
+   */
+  approveItemRequest(requestId: string, source: HostMapSource): HostResult
+  /** "Não": `pin.take.answer denied` ao jogador. Pedido que já não existe não faz nada. */
+  denyItemRequest(requestId: string): HostResult
+  /** O pedido de item ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
+  isItemRequestPending(requestId: string): boolean
+  /**
    * "Mandar para…" do painel Grupo: o MESTRE leva o jogador, sem pedido, para
    * `toSceneId` — no pino de viagem `pinId` daquela cena ou, com `null`, no
    * centro dela. Devolve o mesmo par da aprovação (`applyTransfer` +
@@ -328,6 +402,23 @@ interface PendingTravel {
   /** O destino do aviso que o mestre leu. Religou a saída depois? A aprovação não vale. */
   toSceneId: string
   partnerId: string
+}
+
+/** Pedido da porta trancada à espera do mestre. Um por jogador. `mapId`: a `sceneKey` da cena da porta. */
+interface PendingDoor {
+  requestId: string
+  playerId: string
+  wallId: string
+  mapId: string
+}
+
+/** Pedido de item à espera do mestre. Um por jogador. `tokenId`: a ficha que pega; `mapId`: a `sceneKey` da cena. */
+interface PendingItem {
+  requestId: string
+  playerId: string
+  pinId: string
+  tokenId: string
+  mapId: string
 }
 
 /** Pedido que passou em tudo: de onde, para onde, por qual pino e com qual token. */
@@ -392,6 +483,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastSignalAt = new Map<string, number>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
   const lastDoorToggleAt = new Map<string, number>()
+  // Por playerId: o pedido da porta trancada que espera o mestre (no máximo um).
+  const pendingDoors = new Map<string, PendingDoor>()
+  // Por playerId: o mesmo limite do toque, para o pedido da porta trancada.
+  const lastDoorRequestAt = new Map<string, number>()
+  // Por playerId: o pedido de item que espera o mestre (no máximo um).
+  const pendingItems = new Map<string, PendingItem>()
+  // Por playerId: o mesmo limite do toque na porta, para "Pegar" e para "Dar a…".
+  const lastItemTakeAt = new Map<string, number>()
+  const lastItemGiveAt = new Map<string, number>()
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
   const lastTokenPhotoAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
@@ -472,6 +572,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return scene === null ? { type: 'lobby.waiting' } : snapshotFor(playerId, scene.map)
   }
 
+  /** A ficha é de OUTRO jogador (não do mestre, não dele): colega a quem se pode dar um item. */
+  const isOtherPlayersToken = (playerId: string, tokenId: string): boolean =>
+    Object.entries(ownership).some(([owner, ids]) => owner !== playerId && ids.includes(tokenId))
+
   /** `sceneId` para os "Applied": só quando a cena é de fundo (a aberta é o `mapStore`). */
   const backgroundSceneId = (scene: HostScene, world: HostWorld): { sceneId?: string } =>
     scene === world.open || scene.sceneId === null ? {} : { sceneId: scene.sceneId }
@@ -504,7 +608,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
-    return { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
+    // Só fichas que ele JÁ recebe: a lista não conta quem está no escuro.
+    const partyTokens = view.map.tokens.filter((t) => isOtherPlayersToken(playerId, t.id)).map((t) => t.id)
+    return { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed, partyTokens }
   }
 
   const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
@@ -642,34 +748,183 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * do jogador; porta inexistente ou invisível responde o mesmo
    * `not_visible`, para não dizer o que existe no escuro.
    */
+  /**
+   * A porta `wallId` do mapa do MESTRE (com o cadeado real), só se o jogador a
+   * vê AGORA — lembrada não conta, senão abriria porta do outro lado do mapa.
+   * `near`: algum token dele, no recorte dele (respeita camada oculta e token
+   * escondido pelo mestre), encosta nela. `null` = inexistente ou no escuro.
+   */
+  const doorSeenBy = (playerId: string, map: MapData, wallId: string): { wall: Wall; door: DoorState; near: boolean } | null => {
+    const wall = map.walls.find((w) => w.id === wallId)
+    if (wall === undefined || wall.door === null) return null
+    const memory = memoryFor(playerId, map)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    if (!view.visibleDoorIds.includes(wall.id)) return null
+    const owned = new Set(ownership[playerId] ?? [])
+    const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
+    return { wall, door: wall.door, near }
+  }
+
+  /** Limite de 1 pedido de porta por `DOOR_TOGGLE_MIN_INTERVAL_MS`: `false` = o excesso morre em silêncio. */
+  const withinDoorLimit = (limits: Map<string, number>, playerId: string): boolean => {
+    const at = now()
+    const last = limits.get(playerId)
+    if (last !== undefined && at - last < DOOR_TOGGLE_MIN_INTERVAL_MS) return false
+    limits.set(playerId, at)
+    return true
+  }
+
   function handleDoorToggle(clientId: string, msg: DoorToggleMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     if (statusOf(playerId) !== 'playing') return { outbound: [] }
     const scene = sceneFor(playerId, world)
     if (scene === null) return { outbound: [] }
-    const map = scene.map
-    const at = now()
-    const last = lastDoorToggleAt.get(playerId)
-    if (last !== undefined && at - last < DOOR_TOGGLE_MIN_INTERVAL_MS) return { outbound: [] }
-    lastDoorToggleAt.set(playerId, at)
+    if (!withinDoorLimit(lastDoorToggleAt, playerId)) return { outbound: [] }
 
-    const reject = (reason: 'locked' | 'far' | 'not_visible'): HostResult =>
-      reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
+    const reject = (reason: DoorToggleRejection): HostResult => reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
 
-    const wall = map.walls.find((w) => w.id === msg.wallId)
-    if (wall === undefined || wall.door === null) return reject('not_visible')
+    const seen = doorSeenBy(playerId, scene.map, msg.wallId)
+    if (seen === null) return reject('not_visible')
+    // Trancada antes de longe: "Trancada" é a informação útil, e é dela que sai o pedido ao mestre.
+    if (seen.door.locked) return reject('locked')
+    if (!seen.near) return reject('far')
+
+    return { outbound: [], applyDoor: { wallId: seen.wall.id, open: !seen.door.open, ...backgroundSceneId(scene, world) } }
+  }
+
+  /**
+   * PORTA TRANCADA VIRA PEDIDO. Autoridade no molde de `handleDoorToggle`: a
+   * porta existe, está VISÍVEL para ele agora, está TRANCADA e um token dele
+   * encosta nela. Um pedido de porta por jogador: enquanto um espera o
+   * mestre, os toques seguintes respondem `pending` e não viram outra linha.
+   * O nome da cena vai só no `doorRequest`, que o mestre lê.
+   */
+  function handleDoorRequest(clientId: string, msg: DoorRequestMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    if (!withinDoorLimit(lastDoorRequestAt, playerId)) return { outbound: [] }
+
+    const reject = (reason: DoorRequestRejection): HostResult => reply(clientId, { type: 'door.request.rejected', wallId: msg.wallId, reason })
+
+    if (pendingDoors.has(playerId)) return reject('pending')
+    const seen = doorSeenBy(playerId, scene.map, msg.wallId)
+    if (seen === null) return reject('not_visible')
+    if (!seen.door.locked) return reject('not_locked')
+    if (!seen.near) return reject('far')
+
+    const requestId = randomId()
+    pendingDoors.set(playerId, { requestId, playerId, wallId: seen.wall.id, mapId: sceneKey(scene) })
+    const request: DoorRequest = { requestId, playerId, playerName: record.name, how: msg.how }
+    // Cena de fundo: o mestre lê onde é, porque está olhando outra.
+    if (backgroundSceneId(scene, world).sceneId !== undefined) request.sceneName = scene.name
+    return { outbound: [], doorRequest: request }
+  }
+
+  const findPendingDoor = (requestId: string): PendingDoor | undefined => [...pendingDoors.values()].find((pending) => pending.requestId === requestId)
+
+  /**
+   * ITEM PEGÁVEL: o que o jogador pode pegar AGORA. Autoridade no molde da
+   * porta: o pino existe na cena dele, é pegável, está no recorte dele (a
+   * mesma névoa que decide mandar o pino — oculto, no escuro ou sob teto não
+   * vale) e uma ficha dele, no recorte dele, está ao alcance. Inexistente,
+   * invisível e não-item respondem o mesmo `unavailable`.
+   */
+  const takeCheck = (playerId: string, map: MapData, pinId: string): { pin: Pin; nome: string; livre: boolean; token: Token } | PinTakeRejection => {
+    const pin = map.pins.find((p) => p.id === pinId)
+    const item = pin === undefined ? null : itemOfPin(pin)
+    if (pin === undefined || item === null) return 'unavailable'
     const memory = memoryFor(playerId, map)
     const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
-    if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
-    // Trancada antes de longe: a cor da porta já diz que está trancada, e "Trancada" é a informação útil.
-    if (wall.door.locked) return reject('locked')
+    if (!view.map.pins.some((p) => p.id === pinId)) return 'unavailable'
     const owned = new Set(ownership[playerId] ?? [])
-    // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
-    const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
-    if (!near) return reject('far')
+    const reaching = view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))
+    // A ficha do MAPA DO MESTRE, não a do recorte: é a mochila dela que cresce.
+    const token = reaching.map((t) => map.tokens.find((m) => m.id === t.id)).find((t): t is Token => t !== undefined)
+    if (token === undefined) return 'far'
+    return { pin, nome: item.nome, livre: item.livre === true, token }
+  }
 
-    return { outbound: [], applyDoor: { wallId: wall.id, open: !wall.door.open, ...backgroundSceneId(scene, world) } }
+  /** O item vai à mochila da ficha e o pino sai do mapa; `clientId` (quando há) lê "está com você". */
+  const takeResult = (clientId: string | null, scene: HostScene, world: HostWorld, pin: Pin, nome: string, token: Token): HostResult => ({
+    outbound: clientId === null ? [] : [{ clientId, msg: { type: 'pin.take.answer', answer: 'taken', nome } }],
+    applyItems: {
+      ...backgroundSceneId(scene, world),
+      removePinId: pin.id,
+      mochilas: [{ tokenId: token.id, mochila: [...carriedItemsOf(token), { id: pin.id, nome }] }],
+    },
+  })
+
+  function handlePinTake(clientId: string, msg: PinTakeMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    if (!withinDoorLimit(lastItemTakeAt, playerId)) return { outbound: [] }
+
+    const reject = (reason: PinTakeRejection): HostResult => reply(clientId, { type: 'pin.take.rejected', reason })
+    if (pendingItems.has(playerId)) return reject('pending')
+    const found = takeCheck(playerId, scene.map, msg.pinId)
+    if (typeof found === 'string') return reject(found)
+    // Livre: passou em tudo que o pedido passaria e vai direto, sem esperar o mestre.
+    if (found.livre) return takeResult(clientId, scene, world, found.pin, found.nome, found.token)
+
+    const requestId = randomId()
+    pendingItems.set(playerId, { requestId, playerId, pinId: found.pin.id, tokenId: found.token.id, mapId: sceneKey(scene) })
+    const request: ItemRequest = { requestId, playerId, playerName: record.name, itemName: found.nome }
+    // Cena de fundo: o mestre lê onde é, porque está olhando outra.
+    if (backgroundSceneId(scene, world).sceneId !== undefined) request.sceneName = scene.name
+    return { outbound: [], itemRequest: request }
+  }
+
+  const findPendingItem = (requestId: string): PendingItem | undefined => [...pendingItems.values()].find((pending) => pending.requestId === requestId)
+
+  /**
+   * "Dar a…": o item sai da mochila de uma ficha DELE e entra na de um COLEGA
+   * (ficha de outro jogador) que ele vê agora e que está encostada. Ficha do
+   * mestre (NPC), a própria, a que ele não vê e item que ele não tem
+   * respondem o mesmo `unavailable`.
+   */
+  function handleItemGive(clientId: string, msg: ItemGiveMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    if (!withinDoorLimit(lastItemGiveAt, playerId)) return { outbound: [] }
+
+    const reject = (reason: ItemGiveRejection): HostResult => reply(clientId, { type: 'item.give.rejected', reason })
+    const map = scene.map
+    const owned = new Set(ownership[playerId] ?? [])
+    const memory = memoryFor(playerId, map)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const masterToken = (id: string): Token | undefined => map.tokens.find((t) => t.id === id)
+    const giverSeen = view.map.tokens.find((t) => owned.has(t.id) && carriedItemsOf(masterToken(t.id) ?? t).some((item) => item.id === msg.itemId))
+    const targetSeen = view.map.tokens.find((t) => t.id === msg.toTokenId && !owned.has(t.id))
+    const targetIsPlayer = isOtherPlayersToken(playerId, msg.toTokenId)
+    const giver = giverSeen === undefined ? undefined : masterToken(giverSeen.id)
+    const target = targetSeen === undefined ? undefined : masterToken(targetSeen.id)
+    const item = giver === undefined ? undefined : carriedItemsOf(giver).find((i) => i.id === msg.itemId)
+    if (giverSeen === undefined || targetSeen === undefined || !targetIsPlayer || giver === undefined || target === undefined || item === undefined) {
+      return reject('unavailable')
+    }
+    if (!tokensTouch(giverSeen, targetSeen, map.grid)) return reject('far')
+    return {
+      outbound: [],
+      applyItems: {
+        ...backgroundSceneId(scene, world),
+        mochilas: [
+          { tokenId: giver.id, mochila: carriedItemsOf(giver).filter((i) => i.id !== item.id) },
+          { tokenId: target.id, mochila: [...carriedItemsOf(target), item] },
+        ],
+      },
+    }
   }
 
   /**
@@ -857,11 +1112,49 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleSignal(clientId, msg, world)
         case 'door.toggle':
           return handleDoorToggle(clientId, msg, world)
+        case 'door.request':
+          return handleDoorRequest(clientId, msg, world)
         case 'token.edit':
           return handleTokenEdit(clientId, msg, world)
         case 'pin.travel.request':
           return handleTravelRequest(clientId, msg, world)
+        case 'pin.take':
+          return handlePinTake(clientId, msg, world)
+        case 'item.give':
+          return handleItemGive(clientId, msg, world)
       }
+    },
+
+    approveItemRequest(requestId, source) {
+      const pending = findPendingItem(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingItems.delete(pending.playerId)
+      const record = players.get(pending.playerId)
+      // Saiu da sala enquanto o mestre decidia: a chave fica no chão.
+      if (record === undefined || record.clientId === null) return { outbound: [] }
+      const world = toWorld(source)
+      const scene = allScenes(world).find((s) => sceneKey(s) === pending.mapId)
+      const pin = scene?.map.pins.find((p) => p.id === pending.pinId)
+      const item = pin === undefined ? null : itemOfPin(pin)
+      const token = scene?.map.tokens.find((t) => t.id === pending.tokenId)
+      // A ficha tem de continuar sendo dele: o mestre pode tê-la dado a outro.
+      const stillHis = (ownership[pending.playerId] ?? []).includes(pending.tokenId)
+      if (scene === undefined || pin === undefined || item === null || token === undefined || !stillHis) {
+        return reply(record.clientId, { type: 'pin.take.rejected', reason: 'unavailable' })
+      }
+      return takeResult(record.clientId, scene, world, pin, item.nome, token)
+    },
+
+    denyItemRequest(requestId) {
+      const pending = findPendingItem(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingItems.delete(pending.playerId)
+      const clientId = players.get(pending.playerId)?.clientId ?? null // null = saiu: não há a quem avisar
+      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'pin.take.answer', answer: 'denied' })
+    },
+
+    isItemRequestPending(requestId) {
+      return findPendingItem(requestId) !== undefined
     },
 
     approveTravel(requestId, source) {
@@ -897,6 +1190,34 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     isTravelPending(requestId) {
       return findPendingTravel(requestId) !== undefined
+    },
+
+    approveDoorRequest(requestId, source) {
+      const pending = findPendingDoor(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingDoors.delete(pending.playerId)
+      const clientId = players.get(pending.playerId)?.clientId ?? null
+      const world = toWorld(source)
+      // A cena da PORTA, não a do jogador agora nem a aberta no editor.
+      const scene = allScenes(world).find((s) => sceneKey(s) === pending.mapId)
+      const door = scene?.map.walls.find((w) => w.id === pending.wallId)?.door ?? null
+      if (scene === undefined || door === null) return { outbound: [] }
+      return {
+        outbound: clientId === null ? [] : [{ clientId, msg: { type: 'door.request.answer', answer: 'opened' } }],
+        applyDoor: { wallId: pending.wallId, open: true, unlock: true, ...backgroundSceneId(scene, world) },
+      }
+    },
+
+    denyDoorRequest(requestId) {
+      const pending = findPendingDoor(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingDoors.delete(pending.playerId)
+      const clientId = players.get(pending.playerId)?.clientId ?? null // null = saiu: não há a quem avisar
+      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'door.request.answer', answer: 'denied' })
+    },
+
+    isDoorRequestPending(requestId) {
+      return findPendingDoor(requestId) !== undefined
     },
 
     sendPlayer(playerId, toSceneId, pinId, source, gatherAt) {
@@ -965,6 +1286,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // O pedido pendente morre com a conexão: quem voltar não tem mais o
       // "Aguardando o mestre…" na tela, e o aviso do mestre fica inofensivo.
       pendingTravels.delete(playerId)
+      // Mesmo para a porta: "Destrancar e abrir" depois da queda não abre nada.
+      pendingDoors.delete(playerId)
+      // E para o item: "Deixar" depois da queda não entrega nada.
+      pendingItems.delete(playerId)
     },
 
     kick(clientId) {
@@ -978,6 +1303,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       forgetTravelsOf(playerId)
       lastSignalAt.delete(playerId)
       lastDoorToggleAt.delete(playerId)
+      pendingDoors.delete(playerId)
+      lastDoorRequestAt.delete(playerId)
+      pendingItems.delete(playerId)
+      lastItemTakeAt.delete(playerId)
+      lastItemGiveAt.delete(playerId)
       lastTokenPhotoAt.delete(playerId)
       visionOverrides.delete(playerId)
       return reply(clientId, { type: 'kicked' })
