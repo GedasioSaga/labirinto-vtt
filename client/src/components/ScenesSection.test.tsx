@@ -34,6 +34,19 @@ describe('ScenesSection: quem está em cada cena', () => {
     expect(item(markup, 'Cripta')).not.toContain('pedido')
   })
 
+  it('cena ainda vindo do disco diz "carregando…", e não "indisponível"', () => {
+    const cenas: SceneListItem[] = [
+      ...CENAS,
+      { id: 's-c', name: 'Torre', active: false, available: false, loading: true, renamable: false, tokenCount: null },
+      { id: 's-d', name: 'Poço', active: false, available: false, renamable: false, tokenCount: null },
+    ]
+    const markup = renderToStaticMarkup(<ScenesSection scenes={cenas} onSelect={nada} onCreate={nada} onRename={nada} />)
+    expect(markup).toContain('title="Esta cena ainda está sendo lida do disco"')
+    expect(item(markup, 'Torre')).toContain('carregando…')
+    expect(item(markup, 'Torre')).not.toContain('indisponível')
+    expect(item(markup, 'Poço')).toContain('indisponível')
+  })
+
   it('sem sala (sem `people`), a linha fica só com o nome e a contagem', () => {
     expect(html()).not.toContain('lb-cenas__gente')
     expect(html(new Map())).not.toContain('lb-cenas__gente')
