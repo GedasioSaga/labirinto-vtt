@@ -2410,6 +2410,144 @@ body {
   font-size: var(--lb-font-size-sm);
 }
 
+/* "+ Nova cena" e "Visão geral" dividem a linha; sozinho, o primeiro ocupa tudo. */
+.lb-cenas__rodape {
+  display: flex;
+  gap: var(--lb-space-2);
+}
+
+.lb-cenas__rodape > .lb-btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Visão geral das cenas (SceneOverview.tsx): uma miniatura por cena, a aberta
+   com a borda de latão da lista de Cenas. A miniatura é o próprio mapa — chão
+   chapado, parede em fio claro, ficha em disco — num poço rebaixado. */
+.lb-dialog.lb-visao {
+  width: min(920px, 100%);
+  /* Camada própria: a entrada anima a escala sem repintar o resto, e o texto
+     das legendas sai com antisserrilhado em tons de cinza. Sem ela o ClearType
+     pinta franjas coloridas nas letras, e numa miniatura que é só as cores do
+     mapa uma franja laranja parece uma ficha. */
+  will-change: transform;
+}
+
+.lb-visao__cabeca {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
+.lb-visao__grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--lb-space-3);
+  margin: 0;
+  padding: var(--lb-space-4);
+  list-style: none;
+}
+
+.lb-visao__item {
+  display: flex;
+  min-width: 0;
+}
+
+.lb-visao__cena {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-visao__cena:hover:not(:disabled) {
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-visao__cena:not([aria-current='true']):hover:not(:disabled) {
+  border-color: var(--lb-color-line-strong);
+}
+
+/* O clique responde na hora: a cena afunda de leve antes de abrir. */
+.lb-visao__cena:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.lb-visao__cena[aria-current='true'] {
+  border-color: var(--lb-color-brass);
+}
+
+.lb-visao__cena:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* O poço do mapa: 4:3, e o SVG centraliza o mapa dentro dele sem distorcer. */
+.lb-visao__mapa {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-visao__mapa svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.lb-visao__falta {
+  padding: var(--lb-space-3);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  text-align: center;
+}
+
+.lb-visao__legenda {
+  display: flex;
+  align-items: baseline;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+.lb-visao__nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-md);
+}
+
+.lb-visao__cena[aria-current='true'] .lb-visao__nome {
+  color: var(--lb-color-brass);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lb-visao__conta {
+  flex: none;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Destino do pino de viagem (PinTravelControls): um poço rebaixado logo abaixo
    do tipo, com a régua da esquerda dizendo o estado sem precisar ler — latão
    quando a passagem leva a algum lugar, apagada quando não. É a mesma troca

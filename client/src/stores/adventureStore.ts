@@ -197,6 +197,29 @@ export function sceneList(state: Pick<AdventureState, 'adventure' | 'activeScene
   })
 }
 
+/**
+ * VISÃO GERAL DAS CENAS: o mapa de cada miniatura, pelo mesmo id da lista de
+ * Cenas (`sceneList`). A aberta é o mapa VIVO — o que o mestre acabou de mexer
+ * aparece na miniatura sem salvar —, as de fundo vêm do cache, e a que não
+ * abriu fica de fora (não há mapa para desenhar). Mapa solto: ele mesmo, id ''.
+ */
+export function sceneMaps(state: Pick<AdventureState, 'adventure' | 'activeSceneId' | 'cache'>, liveMap: MapData): Map<string, MapData> {
+  const maps = new Map<string, MapData>()
+  if (state.adventure === null) {
+    maps.set('', liveMap)
+    return maps
+  }
+  for (const entry of state.adventure.scenes) {
+    if (entry.id === state.activeSceneId) {
+      maps.set(entry.id, liveMap)
+      continue
+    }
+    const slot = state.cache[entry.id]
+    if (slot !== undefined && slot.status === 'ok') maps.set(entry.id, slot.map)
+  }
+  return maps
+}
+
 type SceneState = Pick<AdventureState, 'adventure' | 'activeSceneId' | 'cache'>
 
 /**

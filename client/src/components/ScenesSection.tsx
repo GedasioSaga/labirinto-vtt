@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { CollapsibleSection } from './CollapsibleSection'
+import { SceneOverviewDialog, tokenCountLabel } from './SceneOverview'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
 import { pendingRequestsLabel, type ScenePeople } from '../lib/party'
 import type { SceneListItem } from '../stores/adventureStore'
+import type { MapData } from '../types/map'
 
 export interface ScenesSectionProps {
   scenes: SceneListItem[]
@@ -10,6 +12,12 @@ export interface ScenesSectionProps {
   onSelect: (sceneId: string) => void
   onCreate: (name: string) => void
   onRename: (sceneId: string, name: string) => void
+  /**
+   * VISÃO GERAL DAS CENAS: o mapa de cada cena, pelo id da lista (`sceneMaps`).
+   * Com duas cenas ou mais, a seção ganha o botão "Visão geral", que abre as
+   * miniaturas. Ausente = sem o botão.
+   */
+  maps?: ReadonlyMap<string, MapData>
   /**
    * Quem está em cada cena e quantos pedidos esperam lá (`peopleByScene`).
    * Ausente ou vazio = sala fechada ou mapa solto: a linha fica só com o nome.
@@ -106,11 +114,6 @@ function NoteForm({ sceneName, onSend, onCancel }: NoteFormProps) {
 /** Campo aberto na seção: nome da cena nova, ou novo nome da cena aberta. */
 type Editing = { kind: 'create' } | { kind: 'rename'; sceneId: string } | null
 
-function tokenLabel(count: number | null): string {
-  if (count === null) return 'indisponível'
-  return count === 1 ? '1 token' : `${count} tokens`
-}
-
 /**
  * A segunda linha do item: uma bolinha por jogador na cena (cor da ficha,
  * nome no rótulo e no título — o mouse em cima diz quem é) e o selo dos
@@ -130,13 +133,20 @@ function SceneGente({ people }: { people: ScenePeople }) {
 
 /**
  * "Cenas", no topo da aba Mapa: as cenas da aventura, a aberta destacada
- * (`aria-current`), "+ Nova cena" e renomear. O nome da cena é o botão
+ * (`aria-current`), "+ Nova cena", renomear e a "Visão geral" (miniaturas de
+ * todas as cenas com as fichas, `SceneOverview.tsx`). O nome da cena é o botão
  * inteiro — trocar de cena é um clique —, e a contagem de tokens fica FORA
  * dele, para o nome acessível do botão ser só o nome da cena.
  */
-export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote }: ScenesSectionProps) {
+export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote, maps }: ScenesSectionProps) {
   const [editing, setEditing] = useState<Editing>(null)
   const [draft, setDraft] = useState('')
+  /** Janela "Visão geral das cenas" aberta. */
+  const [overviewOpen, setOverviewOpen] = useState(false)
+  /** O botão "Visão geral": é para ele que o foco volta quando a janela fecha. */
+  const overviewButtonRef = useRef<HTMLButtonElement | null>(null)
+  // Com uma cena só (mapa solto) não há o que comparar: a vista dela já é o editor.
+  const canOverview = maps !== undefined && scenes.length > 1
   /** Cena com o recado aberto; `null` = nenhum. */
   const [noting, setNoting] = useState<string | null>(null)
   /** Aviso do último recado, na linha da cena dele; some sozinho. */
@@ -196,6 +206,18 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
     })
   }
 
+  const closeOverview = () => {
+    setOverviewOpen(false)
+    overviewButtonRef.current?.focus()
+  }
+
+  /** Miniatura clicada: abre aquela cena. A que já está aberta só fecha a janela — trocar para ela não faria nada. */
+  const pickFromOverview = (sceneId: string) => {
+    const picked = scenes.find((scene) => scene.id === sceneId)
+    closeOverview()
+    if (picked !== undefined && !picked.active) onSelect(sceneId)
+  }
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (editing === null) return
@@ -231,7 +253,7 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
               >
                 {scene.name}
               </button>
-              <span className="lb-cenas__conta">{tokenLabel(scene.tokenCount)}</span>
+              <span className="lb-cenas__conta">{tokenCountLabel(scene.tokenCount)}</span>
               {scene.active && scene.renamable && editing === null && (
                 <button
                   type="button"
@@ -272,10 +294,28 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
           )
         })}
       </ul>
-      {/* Sempre montado: é para ele que o foco volta depois de criar ou cancelar. */}
-      <button type="button" className="lb-btn lb-btn--block" onClick={() => startEditing({ kind: 'create' }, `Cena ${scenes.length + 1}`)}>
-        + Nova cena
-      </button>
+      <div className="lb-cenas__rodape">
+        {/* Sempre montado: é para ele que o foco volta depois de criar ou cancelar. */}
+        <button type="button" className="lb-btn" onClick={() => startEditing({ kind: 'create' }, `Cena ${scenes.length + 1}`)}>
+          + Nova cena
+        </button>
+        {canOverview && (
+          <button
+            ref={overviewButtonRef}
+            type="button"
+            className="lb-btn"
+            aria-haspopup="dialog"
+            aria-expanded={overviewOpen}
+            title="Todas as cenas lado a lado, com as fichas"
+            onClick={() => setOverviewOpen(true)}
+          >
+            Visão geral
+          </button>
+        )}
+      </div>
+      {overviewOpen && canOverview && maps !== undefined && (
+        <SceneOverviewDialog scenes={scenes} maps={maps} onPick={pickFromOverview} onClose={closeOverview} />
+      )}
       {editing !== null && (
         <form className="lb-cenas__form" onSubmit={submit}>
           <div className="lb-field">
