@@ -108,11 +108,13 @@ export function pointActionMasterText(summary: PointActionSummary): string {
 }
 
 /**
- * O aviso do pedido na tela do jogador. `waiting` fica até a resposta; os
+ * O aviso do pedido na tela do jogador. `waiting` fica até a resposta e lista
+ * TODAS as ações que ainda esperam o mestre (até
+ * `MAX_PENDING_POINT_ACTIONS_PER_PLAYER`), da mais antiga à mais nova; os
  * outros somem sozinhos (`POINT_NOTICE_TTL_MS`). `id` novo repete o aviso.
  */
 export type PointNotice =
-  | { id: number; phase: 'waiting'; action: PointActionKind }
+  | { id: number; phase: 'waiting'; actions: readonly [PointActionKind, ...PointActionKind[]] }
   | { id: number; phase: 'answered'; action: PointActionKind; answer: PointActionAnswer }
   | { id: number; phase: 'rejected'; reason: PointActionRejection }
 
@@ -122,12 +124,20 @@ const REJECTION_TEXT: Record<PointActionRejection, string> = {
   out_of_map: 'Esse ponto fica fora do mapa',
 }
 
+/** "Procurar", "Procurar e Escutar", "Procurar, Escutar e Espiar"; a mesma ação repetida conta uma vez. */
+function joinActionLabels(actions: readonly PointActionKind[]): string {
+  const labels = [...new Set(actions)].map(pointActionLabel)
+  const last = labels.pop()
+  return labels.length === 0 ? (last ?? '') : `${labels.join(', ')} e ${last}`
+}
+
 export function pointNoticeText(notice: PointNotice): string {
   switch (notice.phase) {
     case 'waiting':
-      return `${pointActionLabel(notice.action)}: esperando o mestre`
+      return `${joinActionLabels(notice.actions)}: esperando o mestre`
     case 'answered':
-      return notice.answer === 'nothing' ? 'Você não encontrou nada' : 'O mestre viu'
+      // Com vários pedidos esperando, a resposta sem o nome da ação não diz de qual é.
+      return `${pointActionLabel(notice.action)}: ${notice.answer === 'nothing' ? 'você não encontrou nada' : 'o mestre viu'}`
     case 'rejected':
       return REJECTION_TEXT[notice.reason]
   }

@@ -30,6 +30,7 @@ import {
   type CallReason,
   type PartyMember,
   parsePointActionReply,
+  type PointActionReply,
 } from '../net/protocol'
 import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
 
@@ -469,21 +470,55 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   let pointNoticeTimer: ReturnType<typeof setTimeout> | null = null
+  /**
+   * Ações enviadas que o host ainda não respondeu nem recusou, da mais antiga
+   * à mais nova. O host deixa várias esperando o mestre ao mesmo tempo
+   * (`MAX_PENDING_POINT_ACTIONS_PER_PLAYER`): sem esta lista, a resposta de
+   * uma apagaria a espera das outras.
+   */
+  let waitingPointActions: PointActionKind[] = []
 
   function clearPointNoticeTimer(): void {
     if (pointNoticeTimer !== null) clearTimeout(pointNoticeTimer)
     pointNoticeTimer = null
   }
 
-  /** A espera fica até a resposta; resposta e recusa somem sozinhas. */
-  function showPointNotice(notice: PointNotice): void {
+  /** Esquece os pedidos junto com o aviso (lobby, sala fechada, reconexão). */
+  function forgetPointActions(): void {
+    clearPointNoticeTimer()
+    waitingPointActions = []
+  }
+
+  /** A espera de tudo o que sobrou, ou nada quando não sobrou pedido. */
+  function waitingPointNotice(): PointNotice | undefined {
+    const [first, ...rest] = waitingPointActions
+    return first === undefined ? undefined : { id: nextNoticeId++, phase: 'waiting', actions: [first, ...rest] }
+  }
+
+  /** A espera fica até a resposta; resposta e recusa somem sozinhas e devolvem a espera do que sobrou. */
+  function showPointNotice(notice: PointNotice | undefined): void {
     clearPointNoticeTimer()
     setState({ pointNotice: notice })
-    if (notice.phase === 'waiting') return
+    if (notice === undefined || notice.phase === 'waiting') return
     pointNoticeTimer = setTimeout(() => {
       pointNoticeTimer = null
-      setState({ pointNotice: undefined })
+      setState({ pointNotice: waitingPointNotice() })
     }, POINT_NOTICE_TTL_MS)
+  }
+
+  /**
+   * Tira da espera o pedido que a mensagem do host fechou. A resposta diz a
+   * ação: sai a mais antiga dela (duas iguais não se distinguem na tela). A
+   * recusa não diz, mas o host recusa na hora e na ordem em que recebe — é o
+   * pedido mais novo ainda sem destino.
+   */
+  function settlePointAction(reply: PointActionReply): void {
+    if (reply.type === 'point.action.rejected') {
+      waitingPointActions = waitingPointActions.slice(0, -1)
+      return
+    }
+    const index = waitingPointActions.indexOf(reply.action)
+    if (index !== -1) waitingPointActions = waitingPointActions.filter((_, i) => i !== index)
   }
 
   let laserTimer: ReturnType<typeof setTimeout> | null = null
@@ -627,7 +662,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearTravelTimer()
         clearCallTimer()
-        clearPointNoticeTimer()
+        forgetPointActions()
         setState({
           status: 'waiting',
           map: undefined,
@@ -736,6 +771,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (state.status !== 'playing') return
         const reply = parsePointActionReply(data)
         if (reply === null) return
+        settlePointAction(reply)
         showPointNotice(
           reply.type === 'point.action.answer'
             ? { id: nextNoticeId++, phase: 'answered', action: reply.action, answer: reply.answer }
@@ -803,7 +839,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearTravelTimer()
         clearCallTimer()
-        clearPointNoticeTimer()
+        forgetPointActions()
         setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, pointNotice: undefined })
         return
       case 'error': {
@@ -860,7 +896,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearDoorNotice()
     clearTravelTimer()
     clearCallTimer()
-    clearPointNoticeTimer()
+    forgetPointActions()
     const current = socket
     socket = null
     current?.close()
@@ -907,7 +943,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // Fora do mapa o host recusa: nem sai, para não mostrar "esperando o mestre".
       if (!isPointInsideMap(state.map, point.x, point.y)) return false
       if (!send({ type: 'point.action', action, x: point.x, y: point.y })) return false
-      showPointNotice({ id: nextNoticeId++, phase: 'waiting', action })
+      waitingPointActions = [...waitingPointActions, action]
+      showPointNotice(waitingPointNotice())
       return true
     },
 

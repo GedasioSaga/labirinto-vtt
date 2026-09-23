@@ -2,6 +2,7 @@ import { act, type ComponentProps } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { POINT_NOTICE_TTL_MS } from '../lib/pointActions'
 import { createPlayerConnection, type PlayerConnection, type SocketLike } from './playerConnection'
 import type { PlayerView } from './PlayerView'
 
@@ -128,7 +129,31 @@ describe('sessão do jogador: ações no ponto', () => {
     expect(menu()).toBeNull()
     expect(aviso()).toBe('Procurar: esperando o mestre')
     act(() => socket.receive({ type: 'point.action.answer', action: 'procurar', answer: 'nothing' }))
-    expect(aviso()).toBe('Você não encontrou nada')
+    expect(aviso()).toBe('Procurar: você não encontrou nada')
+  })
+
+  // Fabi pede Procurar na bigorna e, logo depois, Escutar na porta: a resposta
+  // ao Procurar diz que é do Procurar, e a espera do Escutar volta à tela.
+  it('dois pedidos: a resposta diz de qual ação é e a espera da outra volta depois', () => {
+    vi.useFakeTimers()
+    try {
+      tocarLongo(120, 130, 200, 150)
+      escolher('Procurar')
+      act(() => vi.advanceTimersByTime(1000))
+      tocarLongo(300, 130, 380, 150)
+      escolher('Escutar')
+      expect(pedidos()).toEqual([
+        { type: 'point.action', action: 'procurar', x: 120, y: 130 },
+        { type: 'point.action', action: 'escutar', x: 300, y: 130 },
+      ])
+      expect(aviso()).toBe('Procurar e Escutar: esperando o mestre')
+      act(() => socket.receive({ type: 'point.action.answer', action: 'procurar', answer: 'nothing' }))
+      expect(aviso()).toBe('Procurar: você não encontrou nada')
+      act(() => vi.advanceTimersByTime(POINT_NOTICE_TTL_MS))
+      expect(aviso()).toBe('Escutar: esperando o mestre')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   // O gesto avisa só o mestre; o ponto piscar para os colegas é o "Sinalizar"
