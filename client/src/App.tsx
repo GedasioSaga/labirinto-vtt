@@ -400,6 +400,8 @@ function App() {
   // Multiplayer em LAN: ponte do mestre criada sob demanda (só dentro do Tauri, ver RoomPanel abaixo).
   const [room, setRoom] = useState<RoomInfo | null>(null)
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
+  // Cenas pausadas (G12): espelho do que a sessão da sala guarda; fechar a sala zera as duas.
+  const [pausedScenes, setPausedScenes] = useState<ReadonlySet<string>>(() => new Set())
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
   const hostBridgeRef = useRef<HostBridge | null>(null)
@@ -501,6 +503,7 @@ function App() {
     await hostBridgeRef.current?.stop()
     setRoom(null)
     setRoomPlayers([])
+    setPausedScenes(new Set())
     useSignalStore.getState().clear()
     useLaserStore.getState().setToggled(false)
   }
@@ -1673,6 +1676,22 @@ function App() {
                 people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
                 onNote={room === null ? undefined : (sceneId, text) => hostBridgeRef.current?.sceneNote(sceneId, text) ?? null}
+                // Pausa por cena também só com a sala aberta: sem sala não há grupo esperando.
+                paused={pausedScenes}
+                onTogglePause={
+                  room === null
+                    ? undefined
+                    : (sceneId, pause) => {
+                        // O botão só muda depois que a sessão aceitou: o estado que o jogador vê é o dela.
+                        if (hostBridgeRef.current?.setScenePaused(sceneId, pause) !== true) return
+                        setPausedScenes((current) => {
+                          const next = new Set(current)
+                          if (pause) next.add(sceneId)
+                          else next.delete(sceneId)
+                          return next
+                        })
+                      }
+                }
               />
             }
             mapName={map.name}

@@ -40,6 +40,12 @@ export interface PlayerState {
    * tela o mostra como texto, nunca como HTML.
    */
   note?: { id: string; text: string }
+  /**
+   * PAUSA POR CENA: o mestre pausou a cena deste jogador (está com outro
+   * grupo). Enquanto `true`, a tela mostra o aviso fixo; quem manda é o host,
+   * que recusa o movimento — o aviso só explica por que a ficha volta.
+   */
+  paused?: true
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -490,6 +496,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ note: { id: note.id, text: note.text } })
         return
       }
+      case 'scene.paused':
+        // Aceito em qualquer estado, e o `lobby.waiting` não apaga: o host só
+        // manda quando MUDA, então guardar o último é o que mantém os dois
+        // lados de acordo (voltar à cena pausada não reenvia `true`).
+        if (typeof data.paused !== 'boolean') return
+        setState({ paused: data.paused ? true : undefined })
+        return
       case 'laser': {
         // Laser sem mapa na tela não tem onde aparecer.
         if (state.status !== 'playing') return
@@ -702,7 +715,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, paused: undefined })
       open()
     },
     close: detach,

@@ -619,6 +619,12 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
           <PlayerNoteCard key={state.note.id} text={state.note.text} onClose={closeNote} escapeCloses={openPin === null} />
         )}
+        {state.paused && (
+          // Fixo enquanto durar a pausa: é o que explica por que a ficha volta ao lugar.
+          <p className="pp-notice pp-notice--pause" role="status" aria-live="polite">
+            O mestre está com o outro grupo
+          </p>
+        )}
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}

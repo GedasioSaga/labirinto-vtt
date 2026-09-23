@@ -21,6 +21,13 @@ export interface ScenesSectionProps {
    * sala fechada: a linha fica sem o botão "Recado".
    */
   onNote?: (sceneId: string, text: string) => number | null
+  /** PAUSA POR CENA: ids das cenas pausadas agora. Ausente = nenhuma. */
+  paused?: ReadonlySet<string>
+  /**
+   * Pausa (`true`) ou solta a cena. Ausente = sala fechada: a linha fica sem o
+   * botão "Pausar" (sem sala, não há grupo esperando).
+   */
+  onTogglePause?: (sceneId: string, paused: boolean) => void
 }
 
 /** Quanto tempo o aviso "Recado enviado…" fica na linha da cena. */
@@ -134,7 +141,7 @@ function SceneGente({ people }: { people: ScenePeople }) {
  * inteiro — trocar de cena é um clique —, e a contagem de tokens fica FORA
  * dele, para o nome acessível do botão ser só o nome da cena.
  */
-export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote }: ScenesSectionProps) {
+export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote, paused, onTogglePause }: ScenesSectionProps) {
   const [editing, setEditing] = useState<Editing>(null)
   const [draft, setDraft] = useState('')
   /** Cena com o recado aberto; `null` = nenhum. */
@@ -219,6 +226,7 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
       <ul className="lb-cenas" aria-label="Cenas da aventura">
         {scenes.map((scene) => {
           const here = people?.get(scene.id)
+          const isPaused = paused?.has(scene.id) === true
           return (
             <li key={scene.id || 'cena-solta'} className={`lb-cenas__item${scene.active ? ' lb-cenas__item--ativa' : ''}`}>
               <button
@@ -257,6 +265,22 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
                   {/* Glifo, como o ✎ do renomear: sete linhas repetindo "Recado"
                       poluem a lista. O nome vai no rótulo acessível e no título. */}
                   <span aria-hidden="true">✉</span>
+                </button>
+              )}
+              {/* Mapa solto (`id` vazio) não tem cena para pausar. O nome
+                  acessível é o mesmo ligado ou desligado; o estado vai em
+                  `aria-pressed`, como pede um botão alternável. */}
+              {onTogglePause !== undefined && scene.id !== '' && (
+                <button
+                  type="button"
+                  className="lb-cenas__pausar"
+                  aria-label={`Pausar ${scene.name}`}
+                  aria-pressed={isPaused}
+                  title={isPaused ? 'Pausada: quem está aqui espera. Clique para soltar' : 'Pausar: quem está nesta cena espera você'}
+                  disabled={!scene.available}
+                  onClick={() => onTogglePause(scene.id, !isPaused)}
+                >
+                  <span aria-hidden="true">⏸</span>
                 </button>
               )}
               {here !== undefined && (here.people.length > 0 || here.pendingRequests > 0) && <SceneGente people={here} />}

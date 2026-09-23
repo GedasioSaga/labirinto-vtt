@@ -274,6 +274,15 @@ export interface HostSession {
    */
   sceneNote(sceneId: string, text: string, source: HostMapSource): HostResult
   /**
+   * PAUSA POR CENA: o mestre atende um grupo de cada vez. Com `sceneId`
+   * pausada, quem está nela não move a ficha, não pede porta nem passagem —
+   * laser e sinal continuam, para o jogador poder chamar o mestre. As ações
+   * do MESTRE ("Mandar para…", reunir, "Deixar ir") seguem valendo. Vive só
+   * na sessão: fechar a sala esquece. Devolve `scene.paused` a quem mudou.
+   */
+  setScenePaused(sceneId: string, paused: boolean, source: HostMapSource): HostResult
+  isScenePaused(sceneId: string): boolean
+  /**
    * "Deixar ir": revalida o pedido contra o mundo de AGORA (o token pode ter
    * andado, o pino sumido) e devolve `applyTransfer` + `scene.changed` ao
    * dono. Pedido que já não existe (jogador saiu, já decidido) não faz nada.
@@ -413,6 +422,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastTokenPhotoAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
   const visionOverrides = new Map<string, number>()
+  // Ids das cenas pausadas pelo mestre. Não vai para o arquivo do mapa: é
+  // estado da mesa de hoje, não da aventura.
+  const pausedScenes = new Set<string>()
+  // Por clientId: o último `scene.paused` mandado (ausente = nada, que o
+  // jogador lê como "não pausada"). Por conexão, e não por jogador: quem
+  // reconecta abre tela nova, sem o aviso, e precisa receber de novo.
+  const pausedSent = new Map<string, boolean>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -487,6 +503,22 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const viewFor = (playerId: string, world: HostWorld): HostMessage => {
     const scene = sceneFor(playerId, world)
     return scene === null ? { type: 'lobby.waiting' } : snapshotFor(playerId, scene.map)
+  }
+
+  /** A cena do jogador está pausada? Mapa solto (`sceneId` nulo) e jogador sem cena nunca estão. */
+  const inPausedScene = (scene: HostScene | null): boolean => scene !== null && scene.sceneId !== null && pausedScenes.has(scene.sceneId)
+
+  /**
+   * `scene.paused` para esta conexão, só se mudou desde o último envio. É o
+   * que cobre entrar, pausar, despausar e trocar de cena com uma regra só:
+   * quem troca de cena recebe o snapshot da cena nova pelo broadcast, e o
+   * broadcast passa por aqui.
+   */
+  const pausedUpdate = (clientId: string, playerId: string, world: HostWorld): Outbound[] => {
+    const paused = statusOf(playerId) === 'playing' && inPausedScene(sceneFor(playerId, world))
+    if ((pausedSent.get(clientId) ?? false) === paused) return []
+    pausedSent.set(clientId, paused)
+    return [{ clientId, msg: { type: 'scene.paused', paused } }]
   }
 
   /** `sceneId` para os "Applied": só quando a cena é de fundo (a aberta é o `mapStore`). */
@@ -569,7 +601,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
     const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken, name: record.name }
     const next: HostMessage = statusOf(record.playerId) === 'playing' ? viewFor(record.playerId, world) : { type: 'lobby.waiting' }
-    return { outbound: [{ clientId, msg: welcome }, { clientId, msg: next }] }
+    // Depois do mapa: quem entra (ou volta) numa cena pausada já chega lendo o aviso.
+    return { outbound: [{ clientId, msg: welcome }, { clientId, msg: next }, ...pausedUpdate(clientId, record.playerId, world)] }
   }
 
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
@@ -579,6 +612,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     // Sem cena (aventura aberta, ficha em lugar nenhum): não há onde mover.
     if (scene === null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'unknown_token' })
+    // Cena pausada: a mesma recusa de sempre, e a ficha volta ao lugar na tela dele.
+    if (inPausedScene(scene)) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'paused' })
     const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership)
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     return {
@@ -649,7 +684,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     if (statusOf(playerId) !== 'playing') return { outbound: [] }
     const scene = sceneFor(playerId, world)
-    if (scene === null) return { outbound: [] }
+    // Cena pausada morre em silêncio: o aviso fixo da pausa já diz por quê, e
+    // não gasta o intervalo da porta de quem vai tentar de novo depois.
+    if (scene === null || inPausedScene(scene)) return { outbound: [] }
     const map = scene.map
     const at = now()
     const last = lastDoorToggleAt.get(playerId)
@@ -757,6 +794,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const reject = (reason: PinTravelRejection): HostResult => reply(clientId, { type: 'pin.travel.rejected', reason })
     if (record === undefined || statusOf(playerId) !== 'playing') return reject('unavailable')
     if (pendingTravels.has(playerId)) return reject('pending')
+    // Cena pausada: o motivo genérico de sempre, antes dos limites (tentar de
+    // novo depois de despausar não pode esbarrar num "cedo demais").
+    if (inPausedScene(sceneFor(playerId, world))) return reject('unavailable')
     // PRIMEIRO LIMITE, por jogador e para qualquer pino, ANTES de validar: o
     // recorte da névoa é a parte cara, e o mapa fica do tamanho do número de
     // jogadores — o id do pino vem do cliente e nunca vira chave aqui. Não
@@ -1031,6 +1071,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const playerId = byClient.get(clientId)
       if (playerId === undefined) return
       byClient.delete(clientId)
+      pausedSent.delete(clientId)
       const record = players.get(playerId)
       if (record !== undefined) record.clientId = null // mantém o registro para permitir resume
       // O pedido pendente morre com a conexão: quem voltar não tem mais o
@@ -1042,6 +1083,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const playerId = byClient.get(clientId)
       if (playerId === undefined) return { outbound: [] }
       byClient.delete(clientId)
+      pausedSent.delete(clientId)
       players.delete(playerId) // invalida o resumeToken
       delete ownership[playerId]
       memories.delete(playerId)
@@ -1099,8 +1141,24 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // Cada um a SUA cena: quem ficou no Salão nunca recebe nada da Cripta.
         // Quem não está em cena nenhuma recebe a espera, e não a cena do editor.
         outbound.push({ clientId, msg: viewFor(playerId, world) })
+        // Trocou de cena (pedido, "Mandar para…", reunir): a pausa é a da cena NOVA.
+        outbound.push(...pausedUpdate(clientId, playerId, world))
       }
       return { outbound }
+    },
+
+    setScenePaused(sceneId, paused, source) {
+      if (paused) pausedScenes.add(sceneId)
+      else pausedScenes.delete(sceneId)
+      const world = toWorld(source)
+      const outbound: Outbound[] = []
+      // Só quem está na cena muda; os outros saem sem mensagem pelo "mudou?".
+      for (const [clientId, playerId] of byClient) outbound.push(...pausedUpdate(clientId, playerId, world))
+      return { outbound }
+    },
+
+    isScenePaused(sceneId) {
+      return pausedScenes.has(sceneId)
     },
 
     laser(message, source) {
