@@ -439,6 +439,104 @@ function wallRunsWhere(wall: Wall, shown: (p: RegionPoint) => boolean): Wall[] {
   return runs
 }
 
+/** Contorno de uma forma: vértices em ordem; `closed` fecha o último no primeiro e a forma tem interior. */
+interface ShapeOutline {
+  points: RegionPoint[]
+  closed: boolean
+}
+
+/**
+ * Passo, em px de mundo, da amostragem densa que pergunta se a forma tem
+ * trecho escondido: meia célula do pincel, então toda célula que a forma
+ * cobre por dentro recebe ao menos uma amostra.
+ */
+const BRUSH_SHAPE_STEP = REVEAL_BRUSH_CELL / 2
+/** Acima disto a forma não é amostrada e conta como tendo trecho escondido: erra para o lado de esconder. */
+const BRUSH_SHAPE_MAX_SAMPLES = 40_000
+/** Lados do polígono que envolve círculo e elipse no contorno de desenho. */
+const ELLIPSE_OUTLINE_SIDES = 16
+
+/**
+ * Algum ponto da forma cai em `hidden`? Amostra cada aresta a cada
+ * `BRUSH_SHAPE_STEP` e, com a forma fechada, uma grade no interior. Forma
+ * grande demais ou coordenada não-finita responde "sim".
+ */
+function hasHiddenStretch(outline: ShapeOutline, hidden: (p: RegionPoint) => boolean): boolean {
+  const pts = outline.points
+  const box = boxOf(pts)
+  if (box === null) return false
+  if (pts.length === 1) return hidden(pts[0])
+  let budget = BRUSH_SHAPE_MAX_SAMPLES
+  const edges = outline.closed && pts.length >= 3 ? pts.length : pts.length - 1
+  for (let i = 0; i < edges; i += 1) {
+    const a = pts[i]
+    const b = pts[(i + 1) % pts.length]
+    const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / BRUSH_SHAPE_STEP))
+    budget -= steps + 1
+    if (!Number.isFinite(steps) || budget < 0) return true
+    for (let k = 0; k <= steps; k += 1) {
+      const t = k / steps
+      if (hidden({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })) return true
+    }
+  }
+  if (!outline.closed || pts.length < 3) return false
+  const cols = Math.ceil((box.maxX - box.minX) / BRUSH_SHAPE_STEP) + 1
+  const rows = Math.ceil((box.maxY - box.minY) / BRUSH_SHAPE_STEP) + 1
+  if (!Number.isFinite(cols * rows) || cols * rows > budget) return true
+  for (let i = 0; i < cols; i += 1) {
+    for (let j = 0; j < rows; j += 1) {
+      const p = { x: box.minX + i * BRUSH_SHAPE_STEP, y: box.minY + j * BRUSH_SHAPE_STEP }
+      if (pointInRing(p, pts) && hidden(p)) return true
+    }
+  }
+  return false
+}
+
+/** Polígono que ENVOLVE a elipse (circunscrito): a amostragem nunca fica aquém da borda desenhada. */
+function ellipseOutline(cx: number, cy: number, rx: number, ry: number): RegionPoint[] {
+  const grow = 1 / Math.cos(Math.PI / ELLIPSE_OUTLINE_SIDES)
+  return Array.from({ length: ELLIPSE_OUTLINE_SIDES }, (_, i) => {
+    const a = (2 * Math.PI * i) / ELLIPSE_OUTLINE_SIDES
+    return { x: cx + Math.cos(a) * rx * grow, y: cy + Math.sin(a) * ry * grow }
+  })
+}
+
+/** O contorno de um desenho para `hasHiddenStretch`: traço aberto, forma com área fechada, texto no ponto de âncora. */
+function drawingOutline(drawing: Drawing): ShapeOutline {
+  switch (drawing.kind) {
+    case 'freehand':
+    case 'curve':
+    case 'path':
+      return { points: drawing.points, closed: false }
+    case 'line':
+      return {
+        points: [
+          { x: drawing.x1, y: drawing.y1 },
+          { x: drawing.x2, y: drawing.y2 },
+        ],
+        closed: false,
+      }
+    case 'text':
+      return { points: [{ x: drawing.x, y: drawing.y }], closed: false }
+    case 'polygon':
+      return { points: drawing.points, closed: true }
+    case 'circle':
+      return { points: ellipseOutline(drawing.cx, drawing.cy, drawing.radius, drawing.radius), closed: true }
+    case 'ellipse':
+      return { points: ellipseOutline(drawing.cx, drawing.cy, drawing.rx, drawing.ry), closed: true }
+    case 'rect':
+      return {
+        points: [
+          { x: drawing.x, y: drawing.y },
+          { x: drawing.x + drawing.w, y: drawing.y },
+          { x: drawing.x + drawing.w, y: drawing.y + drawing.h },
+          { x: drawing.x, y: drawing.y + drawing.h },
+        ],
+        closed: true,
+      }
+  }
+}
+
 /**
  * Foto do token como o jogador pode recebê-la: só referência AUTO-CONTIDA
  * (`data:image/...;base64,...`) atravessa; qualquer outra coisa vira `null`.
@@ -707,8 +805,7 @@ export function filterMapForPlayer(
    * Forma que só atravessa a visão sem nenhum ponto amostrado dentro fica de
    * fora (aceito).
    */
-  const isShapeVisible = (points: readonly RegionPoint[]): boolean => {
-    const open = outsideZones(points)
+  const isShapeVisible = (open: readonly RegionPoint[]): boolean => {
     const box = boxOf(open)
     if (box === null) return false
     if (brushed && open.some(inBrushReveal)) return true
@@ -727,8 +824,31 @@ export function filterMapForPlayer(
 
   // Planta estática: visível agora ou já explorada. Nunca usar para entidade dinâmica.
   const isPointKnown = (point: RegionPoint): boolean => isVisible(point) || isPointExploredOpen(point)
-  const isShapeKnown = (points: readonly RegionPoint[]): boolean =>
-    isShapeVisible(points) || (explored !== undefined && isShapeExplored(explored, outsideZones(points)))
+  /**
+   * Forma com algum trecho que a zona ainda esconde (fora do pedaço pintado,
+   * ou na sala que o pincel não abre), medido no CONTORNO e no interior, não
+   * só nas amostras. Só pergunta com pincel ativo e a forma perto de uma zona.
+   */
+  const brushLeavesPartHidden = (outline: ShapeOutline): boolean => {
+    if (!brushed) return false
+    const box = boxOf(outline.points)
+    if (box === null || !zones.some((z) => box.maxX >= z.minX && box.minX <= z.maxX && box.maxY >= z.minY && box.minY <= z.maxY)) return false
+    return hasHiddenStretch(outline, hiddenByZone)
+  }
+  /**
+   * As amostras que decidem se a forma é conhecida. Forma que o pincel deixa
+   * em parte escondida é julgada como ANTES do pincel (amostra dentro da zona
+   * não conta, pintada ou não): o pincel mostra o pedaço pintado, e uma
+   * amostra no corredor entregava o polígono e a cor da sala inteira. Forma
+   * que cabe inteira no pedaço pintado (ou fora da zona) segue a regra de
+   * sempre, com o pintado contando como à vista (`inBrushReveal`).
+   */
+  const openSamples = (points: readonly RegionPoint[], outline: ShapeOutline): readonly RegionPoint[] =>
+    brushLeavesPartHidden(outline) ? points.filter((p) => !inZoneRing(p)) : outsideZones(points)
+  const isShapeKnown = (points: readonly RegionPoint[], outline: ShapeOutline): boolean => {
+    const open = openSamples(points, outline)
+    return isShapeVisible(open) || (explored !== undefined && isShapeExplored(explored, open))
+  }
 
   const visibleDoorIds: string[] = []
   /** Porta dentro da visão sai com o estado real; explorada fora dela, com o lembrado; senão não sai. */
@@ -774,9 +894,15 @@ export function filterMapForPlayer(
     return clipped === null ? [] : [clipped]
   })
 
-  /** Parede sem porta com algum trecho escondido: sai só o trecho no pedaço pintado (`wallRunsWhere`). */
+  /**
+   * Parede sem porta com amostra DENTRO da zona: sai só o trecho no pedaço
+   * pintado (`wallRunsWhere`). O teste é `inZoneRing`, não `inConcealZone`: as
+   * 3 amostras não dizem o que há entre elas, então amostra pintada não vale
+   * como "sem trecho escondido" — senão uma parede com o meio pintado e as
+   * pontas fora da zona saía inteira, com o trecho escondido junto.
+   */
   const wallForPlayer = (w: Wall): Wall[] => {
-    if (!wallSamples(w).some(inConcealZone)) return [w]
+    if (!wallSamples(w).some(inZoneRing)) return [w]
     return shownCells.length > 0 ? wallRunsWhere(w, inBrushReveal) : []
   }
 
@@ -796,7 +922,7 @@ export function filterMapForPlayer(
       .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
       .map(sanitizeTokenPhoto),
     markers: map.markers.filter((m) => !inRoomHiddenFromPlayer({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
-    lines: map.lines.filter((l) => !l.points.some(inRoomHiddenFromPlayer) && !l.points.some(inConcealZone) && isShapeKnown(l.points)),
+    lines: map.lines.filter((l) => !l.points.some(inRoomHiddenFromPlayer) && !l.points.some(inConcealZone) && isShapeKnown(l.points, { points: l.points, closed: l.closed })),
     // Tocha acesa dentro do prédio de teto fechado não sai: o halo dela
     // desenharia o interior na tela do jogador que está lá fora.
     lights: visibleLights(map.lights, hiddenLayers).filter(
@@ -816,7 +942,7 @@ export function filterMapForPlayer(
       if (samples.some(inRoomHiddenFromPlayer)) return false
       // Traço com uma ponta na zona desenharia o que ela esconde.
       if (isStrokeDrawing(d) && samples.some(inConcealZone)) return false
-      return isShapeKnown(samples)
+      return isShapeKnown(samples, drawingOutline(d))
     }),
     regions: visibleRegions(map.regions, hiddenLayers)
       .filter((r) => {
@@ -828,8 +954,13 @@ export function filterMapForPlayer(
         if (swallowedByClosedRoof(r)) return false
         // Teto fechado: o "conhecido" é medido NO CONTORNO, nunca no interior
         // — que está bloqueado justamente por causa do teto. Ver `contourSamples`.
-        if (closedRoofIds.has(r.id)) return isShapeKnown(contourSamples(r.points))
-        return isShapeKnown(interiorSamples(r.points, r.points))
+        // O contorno afastado é o que se mede também contra o pincel: o
+        // interior do teto fechado continua escondido mesmo pintado (`brushedRoom`).
+        if (closedRoofIds.has(r.id)) {
+          const contour = contourSamples(r.points)
+          return isShapeKnown(contour, { points: contour.length > 0 ? [...contour, contour[0]] : contour, closed: false })
+        }
+        return isShapeKnown(interiorSamples(r.points, r.points), { points: r.points, closed: true })
       })
       .map((r) => {
         if (r.room === undefined) return r

@@ -243,3 +243,61 @@ describe('fogFilter + pincel de revelar', () => {
     expect(preto(view.concealed, { x: 700, y: 451 })).toBe(false)
   })
 })
+
+describe('fogFilter + pincel: forma e parede que só em parte caem no pedaço pintado', () => {
+  function sala(id: string, x1: number, y1: number, x2: number, y2: number, name?: string): Region {
+    const base: Region = {
+      id,
+      points: [
+        { x: x1, y: y1 },
+        { x: x2, y: y1 },
+        { x: x2, y: y2 },
+        { x: x1, y: y2 },
+      ],
+      tag: '',
+      fillColor: '#123',
+      fillPattern: 'solid',
+      data: {},
+    }
+    return name === undefined ? base : { ...base, room: { shape: 'rect', name } }
+  }
+
+  it('SEGURANÇA: sala comum dentro da zona NÃO sai inteira quando o traço passa por ela — com visão longa ou curta', () => {
+    const mapa: MapData = { ...cena(), regions: [sala('sala-arsenal', 520, 300, 960, 570, 'Arsenal')] }
+    expect(filterMapForPlayer(mapa, 'ana', DONO, RAIO_VISAO).map.regions).toEqual([])
+    for (const raio of [RAIO_VISAO, 50]) {
+      const view = filterMapForPlayer(pintado(mapa), 'ana', DONO, raio)
+      expect(view.map.regions, `raio ${raio}`).toEqual([])
+      expect(JSON.stringify(view), `raio ${raio}`).not.toContain('Arsenal')
+    }
+  })
+
+  it('SEGURANÇA: Área e desenho com área que passam do pedaço pintado não saem; os que cabem inteiros nele saem', () => {
+    const mapa: MapData = {
+      ...cena(),
+      regions: [sala('area-grande', 520, 300, 960, 570), sala('area-no-corredor', 600, 440, 680, 460)],
+      drawings: [
+        { id: 'circulo-grande', kind: 'circle', cx: 740, cy: 450, radius: 100, color: '#fff', width: 2, filled: true, fillAlpha: 0.5 },
+        { id: 'circulo-no-corredor', kind: 'circle', cx: 760, cy: 450, radius: 10, color: '#fff', width: 2, filled: true, fillAlpha: 0.5 },
+        { id: 'linha-que-sai-do-corredor', kind: 'line', x1: 700, y1: 450, x2: 700, y2: 100, color: '#fff', width: 2 },
+      ],
+    }
+    for (const raio of [RAIO_VISAO, 50]) {
+      const view = filterMapForPlayer(pintado(mapa), 'ana', DONO, raio)
+      expect(view.map.regions.map((r) => r.id), `raio ${raio}`).toEqual(['area-no-corredor'])
+      expect(view.map.drawings.map((d) => d.id), `raio ${raio}`).toEqual(['circulo-no-corredor'])
+    }
+  })
+
+  it('SEGURANÇA: parede sem porta que atravessa a zona sai SÓ no trecho pintado, mesmo com as 3 amostras fora do escondido', () => {
+    const mapa: MapData = { ...cena(), walls: [parede('parede-longa', 300, 200, 1000, 200)] }
+    expect(filterMapForPlayer(mapa, 'ana', DONO, RAIO_VISAO).map.walls).toEqual([])
+    const view = filterMapForPlayer(paintRevealBrush(mapa, [{ x: 650, y: 200 }], RAIO_PINCEL, 'revelar').map, 'ana', DONO, RAIO_VISAO)
+    expect(view.map.walls.length).toBeGreaterThan(0)
+    for (const w of view.map.walls) {
+      expect(w.id).not.toBe('parede-longa')
+      for (const x of [w.x1, w.x2]) expect(x, w.id).toBeGreaterThanOrEqual(620)
+      for (const x of [w.x1, w.x2]) expect(x, w.id).toBeLessThanOrEqual(680)
+    }
+  })
+})
