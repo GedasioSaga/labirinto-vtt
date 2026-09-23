@@ -63,7 +63,7 @@ export function companionsNear(requester: Point, grid: number, candidates: reado
 /**
  * As casas de chegada de quem vai junto, uma por companheiro (na mesma
  * ordem), em volta do pino par — `null` = não coube, e ele fica onde estava.
- * A casa de quem pediu (`leader`, que chega em cima do pino por `arrivalSpot`)
+ * A casa de quem pediu (`leader`, que chega na casa livre junto do pino por `arrivalSpot`)
  * conta como ocupada: a transferência dele ainda não está no mapa quando a
  * conta é feita, e sem isto dois chegariam na mesma casa.
  */

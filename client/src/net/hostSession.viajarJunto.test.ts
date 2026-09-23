@@ -113,7 +113,7 @@ describe('hostSession: viajar junto', () => {
     expect(junto[0].outbound).toEqual([{ clientId: 'c3', msg: { type: 'scene.changed' } }])
   })
 
-  it('cada um numa casa diferente, em volta do pino par; quem pediu em cima do pino', () => {
+  it('cada um numa casa diferente, em volta do pino par; quem pediu na casa livre colada ao pino, não em cima dele', () => {
     const t = mesa()
     t.pos.cajado = casa(10, 6)
     const pedido = t.pedir('c1')
@@ -123,7 +123,9 @@ describe('hostSession: viajar junto', () => {
     expect(new Set(chegadas.map((a) => `${a.x}|${a.y}`)).size).toBe(3)
     expect(chegadas.every((a) => a.fromSceneId === SALAO && a.toSceneId === CRIPTA)).toBe(true)
     expect(chegadas.every((a) => Math.abs(a.x - ESCADA_B.x) <= 1.5 * GRADE && Math.abs(a.y - ESCADA_B.y) <= 1.5 * GRADE)).toBe(true)
-    expect(chegadas[0]).toMatchObject({ x: ESCADA_B.x, y: ESCADA_B.y })
+    // Chegada em casa livre: quem pediu senta na casa vizinha ao pino par, que continua livre e tocável.
+    expect(chegadas[0].x === ESCADA_B.x && chegadas[0].y === ESCADA_B.y).toBe(false)
+    expect(Math.max(Math.abs(chegadas[0].x - ESCADA_B.x), Math.abs(chegadas[0].y - ESCADA_B.y))).toBe(GRADE)
   })
 
   it('o pedido pendente de quem está perto é resolvido junto', () => {
