@@ -81,6 +81,8 @@ import {
   type ZoomLimits,
   type ZoomStepRequest,
 } from './playerZoom'
+import { drawFacingNib, facingLabelOffset, tokenFacing } from './facingMarker'
+import { createTokenTurns, stepTurns, syncTurn, type TokenTurns } from './tokenTurn'
 
 interface PlayerViewProps {
   map: MapData
@@ -157,6 +159,8 @@ export const OWN_TOKEN_CSS = `#${OWN_TOKEN_COLOR.toString(16).padStart(6, '0')}`
 const OTHER_TOKEN_COLOR = 0x9ca3af
 const TOKEN_OUTLINE = 0xffffff
 const LABEL_FONT_SIZE = 12
+/** Folga entre o disco e o nome da ficha SEM frente, em px de mundo (a com frente abre espaço para o bico). */
+const TOKEN_LABEL_GAP = 2
 const DEFAULT_FLOOR: Rgb = [200, 200, 200]
 /** Destaque da porta que o token alcança: sem ele ninguém descobre que dá para tocar na porta. */
 const DOOR_HINT_COLOR = 0xe8c170
@@ -271,6 +275,12 @@ interface TokenView {
   own: boolean
   /** Raio e zoom do aro desenhado por último; `null` = sem aro. */
   ringKey: string | null
+  /** Bico da frente (facingMarker.ts), acima do aro e abaixo do nome; vazio e escondido na ficha sem frente. */
+  facingNib: Graphics
+  /** Para onde a ficha olha, em radianos (`tokenFacing`); `null` = sem frente. O ângulo DESENHADO é `facingNib.rotation`. */
+  facing: number | null
+  /** Raio, dono e zoom do bico desenhado por último; `null` = sem bico. */
+  facingKey: string | null
   label: Text
   key: string
   /** Referência já carregada em `photo`: sem isto, todo snapshot recarregaria a mesma foto. */
@@ -318,8 +328,8 @@ function paintTokenView(view: TokenView, token: Token, grid: number, own: boolea
       .circle(0, 0, radius - TOKEN_FRAME_WIDTH / 2)
       .stroke({ width: TOKEN_FRAME_WIDTH, color: chosen ?? (own ? TOKEN_FRAME_COLOR : OTHER_TOKEN_COLOR) })
   }
+  // Só o texto: onde o nome fica depende do bico e do zoom (`syncFacingNib`).
   view.label.text = token.name
-  view.label.position.set(0, radius + 2)
 }
 
 /** Aro de dono no zoom atual; só refaz quando raio, dono ou zoom mudam. */
@@ -329,6 +339,47 @@ function syncOwnerRing(view: TokenView, cameraScale: number): void {
   view.ringKey = key
   if (key === null) view.ring.clear()
   else drawOwnerRing(view.ring, view.radius, cameraScale)
+}
+
+/**
+ * Bico da frente e posição do nome no zoom atual. O bico só se redesenha
+ * quando raio, dono ou zoom mudam: virar a ficha mexe só em `rotation`.
+ */
+function syncFacingNib(view: TokenView, cameraScale: number): void {
+  const faced = view.facing !== null
+  view.facingNib.visible = faced
+  // Com frente, o nome desce para fora do alcance do bico, em qualquer direção:
+  // assim o bico virado para baixo nunca entra nas letras, e o nome não pula
+  // quando o mestre vira a ficha.
+  view.label.position.set(0, faced ? facingLabelOffset(view.radius, cameraScale, view.own) : view.radius + TOKEN_LABEL_GAP)
+  const key = faced ? `${view.radius}@${cameraScale}@${view.own}` : null
+  if (key === view.facingKey) return
+  view.facingKey = key
+  if (key === null) view.facingNib.clear()
+  else drawFacingNib(view.facingNib, view.radius, cameraScale, view.own)
+}
+
+interface FacingSync {
+  /** Ângulo que o bico tinha na tela antes deste snapshot; `null` = não estava na tela. */
+  shown: number | null
+  now: number
+  /** `false` = vai direto à frente nova (troca de cena, movimento reduzido). */
+  animate: boolean
+  cameraScale: number
+}
+
+/**
+ * Frente da ficha vinda do mapa: o bico gira até ela (`tokenTurn.ts`), ou
+ * some quando a ficha não tem frente. O recorte do mestre já tirou do pacote
+ * toda ficha que este jogador não enxerga, então todo bico desenhado aqui é de
+ * ficha que ele pode ver.
+ */
+function syncFacing(view: TokenView, token: Token, turns: TokenTurns, sync: FacingSync): void {
+  const facing = tokenFacing(token.rotation)
+  view.facing = facing
+  if (facing === null) turns.delete(token.id)
+  else view.facingNib.rotation = syncTurn(turns, token.id, { shown: sync.shown, target: facing, now: sync.now, animate: sync.animate })
+  syncFacingNib(view, sync.cameraScale)
 }
 
 /** Carrega a foto nova, se mudou, e reencaixa no círculo quando a textura chega. */
@@ -367,9 +418,12 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
   const photoMask = new Graphics()
   photo.mask = photoMask
   const ring = new Graphics()
+  // Acima do aro, para o branco do bico emendar no branco dele; abaixo do nome, que nunca some sob o bico.
+  const facingNib = new Graphics()
+  facingNib.visible = false
   const label = new Text({ text: token.name, style: { fontSize: LABEL_FONT_SIZE, fill: TOKEN_NAME_FILL_COLOR, stroke: { color: TOKEN_NAME_OUTLINE_COLOR, width: 3 } } })
   label.anchor.set(0.5, 0)
-  wrapper.addChild(photoMask, photo, body, ring, label)
+  wrapper.addChild(photoMask, photo, body, ring, facingNib, label)
   applyTokenTouch(wrapper, own)
   const view: TokenView = {
     wrapper,
@@ -380,6 +434,9 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
     radius: tokenRadius(token, grid),
     own,
     ringKey: null,
+    facingNib,
+    facing: null,
+    facingKey: null,
     label,
     key: tokenViewKey(token, grid, own),
     loadedPhoto: null,
@@ -480,6 +537,8 @@ interface Scene {
   tokenViews: Map<string, TokenView>
   /** Fichas deslizando do ponto antigo ao novo; o ticker as leva até lá. */
   tokenGlides: TokenGlides
+  /** Bicos girando da frente antiga à nova (o mestre virou a ficha); o ticker os leva até lá. */
+  tokenTurns: TokenTurns
   camera: Camera
   /** Escala para a qual grade, escadas e rótulos foram ajustados por último. */
   zoomScale: number
@@ -967,6 +1026,7 @@ export function PlayerView({
     for (const view of scene.tokenViews.values()) {
       sizeTokenLabel(view.label, scene.camera.scale, showNames)
       syncOwnerRing(view, scene.camera.scale)
+      syncFacingNib(view, scene.camera.scale)
     }
   }
 
@@ -1048,6 +1108,7 @@ export function PlayerView({
       if (currentIds.has(id)) continue
       view.wrapper.visible = false
       scene.tokenGlides.delete(id)
+      scene.tokenTurns.delete(id)
     }
     // Deslize só dentro da MESMA cena: a ficha que chega a outra cena (ou a
     // primeira desenhada) aparece no lugar, sem atravessar a tela.
@@ -1055,6 +1116,7 @@ export function PlayerView({
     const reducedMotion = prefersReducedMotion()
     const draggedId = scene.drag?.kind === 'token' ? scene.drag.tokenId : null
     const now = performance.now()
+    let facingCount = 0
     for (const token of currentMap.tokens) {
       const isOwn = ownSet.has(token.id)
       const key = tokenViewKey(token, currentMap.grid, isOwn)
@@ -1062,6 +1124,8 @@ export function PlayerView({
       // Onde a ficha está desenhada agora; `null` = não estava na tela (nova, ou
       // voltando para a visão): aparece no lugar, sem vir de onde estava escondida.
       const shown = view?.wrapper.visible === true ? { x: view.wrapper.x, y: view.wrapper.y } : null
+      // Idem para a frente: a ficha que volta à visão já chega virada, sem girar na frente do jogador.
+      const shownFacing = view?.wrapper.visible === true && view.facing !== null ? view.facingNib.rotation : null
       if (!view) {
         const tokenId = token.id
         view = createTokenView(token, currentMap.grid, isOwn)
@@ -1078,6 +1142,8 @@ export function PlayerView({
       applyTokenTouch(view.wrapper, isOwn)
       sizeTokenLabel(view.label, scene.camera.scale, currentSettings.showNames)
       syncOwnerRing(view, scene.camera.scale)
+      syncFacing(view, token, scene.tokenTurns, { shown: shownFacing, now, animate: sameScene && !reducedMotion, cameraScale: scene.camera.scale })
+      if (view.facing !== null) facingCount += 1
       view.wrapper.visible = true
       // A ficha sob o dedo é do arrasto (abaixo): não desliza atrás dele.
       const animate = sameScene && !reducedMotion && token.id !== draggedId
@@ -1095,6 +1161,7 @@ export function PlayerView({
     if (el) {
       el.dataset.wallsCount = String(scene.wallsCount)
       el.dataset.tokensCount = String(currentMap.tokens.length)
+      el.dataset.facingCount = String(facingCount)
       el.dataset.regionsCount = String(regions.filter((r) => !isDegenerateRegion(r.points)).length)
       el.dataset.labelsCount = String(drawings.filter((d) => d.kind === 'text').length)
       el.dataset.exploredCells = String(scene.exploredCells)
@@ -1310,6 +1377,7 @@ export function PlayerView({
         tokens,
         tokenViews: new Map(),
         tokenGlides: createTokenGlides(),
+        tokenTurns: createTokenTurns(),
         camera: { x: 0, y: 0, scale: 1 },
         zoomScale: 1,
         onZoom: () => {},
@@ -1415,6 +1483,17 @@ export function PlayerView({
         }
       }
       app.ticker.add(tickTokenGlides)
+
+      // Gira o bico de cada ficha que o mestre virou; parado, não custa nada.
+      // Mexe só no ângulo do bico: a ficha, o aro e o nome não são refeitos.
+      const tickTokenTurns = () => {
+        if (scene.tokenTurns.size === 0) return
+        for (const { id, angle } of stepTurns(scene.tokenTurns, performance.now())) {
+          const view = scene.tokenViews.get(id)
+          if (view) view.facingNib.rotation = angle
+        }
+      }
+      app.ticker.add(tickTokenTurns)
 
       // Pulso "você está aqui": segue a ficha na tela (arrasto, zoom) até acabar sozinho.
       const tickPulse = () => {
@@ -1699,6 +1778,7 @@ export function PlayerView({
         app.ticker.remove(tickPlayerLasers)
         app.ticker.remove(tickMeasure)
         app.ticker.remove(tickTokenGlides)
+        app.ticker.remove(tickTokenTurns)
         app.ticker.remove(tickPulse)
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
         scene.lightsRenderer.destroy()
