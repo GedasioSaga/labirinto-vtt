@@ -32,6 +32,11 @@ export interface PlayerState {
   laser?: LaserTrail
   /** Recusa do mestre ao pedido de porta (trancada, longe, não visível); some sozinho. `id` novo repete o aviso. */
   doorNotice?: { id: number; reason: DoorToggleRejection }
+  /**
+   * Recusa de movimento que o jogador precisa LER (a ficha já voltou sozinha):
+   * hoje só 'occupied' ("Lugar ocupado"). Some sozinho; `id` novo repete o aviso.
+   */
+  moveNotice?: { id: number; reason: 'occupied' }
   /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
   travel?: TravelNotice
   /**
@@ -125,6 +130,8 @@ export const RESUME_STORAGE_KEY = 'labirinto.resume'
 export const PING_INTERVAL_MS = 15_000
 /** Quanto tempo o aviso da porta ("Trancada") fica na tela. */
 export const DOOR_NOTICE_TTL_MS = 2500
+/** Quanto tempo "Lugar ocupado" fica na tela: é a mesma escala de recado curto da porta. */
+export const MOVE_NOTICE_TTL_MS = DOOR_NOTICE_TTL_MS
 /** Quanto tempo a recusa do mestre ("não deixou passar agora") fica na tela. Mais que a porta. */
 export const TRAVEL_NOTICE_TTL_MS = 4000
 /**
@@ -291,6 +298,22 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }, DOOR_NOTICE_TTL_MS)
   }
 
+  let moveNoticeTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearMoveNotice(): void {
+    if (moveNoticeTimer !== null) clearTimeout(moveNoticeTimer)
+    moveNoticeTimer = null
+  }
+
+  function showMoveNotice(reason: 'occupied'): void {
+    clearMoveNotice()
+    setState({ moveNotice: { id: nextNoticeId++, reason } })
+    moveNoticeTimer = setTimeout(() => {
+      moveNoticeTimer = null
+      setState({ moveNotice: undefined })
+    }, MOVE_NOTICE_TTL_MS)
+  }
+
   let travelTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearTravelTimer(): void {
@@ -453,8 +476,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSignalTimers()
         clearLaserTimer()
         clearDoorNotice()
+        clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -466,7 +490,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSignalTimers()
         clearLaserTimer()
         clearDoorNotice()
-        setState({ signals: undefined, laser: undefined, doorNotice: undefined })
+        clearMoveNotice()
+        setState({ signals: undefined, laser: undefined, doorNotice: undefined, moveNotice: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -546,6 +571,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'token.move.rejected':
         if (typeof data.reqId !== 'string') return
         handleRejected(data.reqId)
+        // A ficha já voltou; 'occupied' é a recusa que o jogador precisa LER
+        // (não é parede visível na tela). Motivo desconhecido só volta a ficha.
+        if (data.reason === 'occupied' && state.status === 'playing') showMoveNotice('occupied')
         return
       case 'kicked':
         writeResume(storage, null)
@@ -557,8 +585,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSignalTimers()
         clearLaserTimer()
         clearDoorNotice()
+        clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'closed', doorNotice: undefined, travel: undefined })
+        setState({ status: 'closed', doorNotice: undefined, moveNotice: undefined, travel: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -612,6 +641,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearSignalTimers()
     clearLaserTimer()
     clearDoorNotice()
+    clearMoveNotice()
     clearTravelTimer()
     const current = socket
     socket = null
@@ -702,7 +732,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined })
       open()
     },
     close: detach,

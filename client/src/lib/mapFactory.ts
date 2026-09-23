@@ -1,7 +1,7 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone, Pin, PinIcon, PinKind, RoomMeta,
+  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
@@ -1690,4 +1690,13 @@ export function setMapScale(map: MapData, scale: MapScale): MapData {
 
 export function setMeasurementMode(map: MapData, measurementMode: MeasurementMode): MapData {
   return { ...map, measurementMode }
+}
+
+/** Regras de movimento da cena. `undefined` tira o campo: a cena volta a ser livre, igual a mapa antigo. */
+export function setMovementRules(map: MapData, movement: MovementRules | undefined): MapData {
+  if (movement === undefined) {
+    const { movement: _livre, ...rest } = map
+    return rest
+  }
+  return { ...map, movement }
 }

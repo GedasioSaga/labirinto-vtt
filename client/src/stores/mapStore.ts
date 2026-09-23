@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, TokenCondition,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, TokenCondition, MovementRules,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
@@ -714,6 +714,8 @@ interface MapStoreState {
   updateTokenLive: (id: string, patch: Partial<Pick<Token, 'size'>>) => void
   setMapScale: (scale: MapScale) => void
   setMeasurementMode: (mode: MeasurementMode) => void
+  /** Passo máximo e ocupação das fichas dos jogadores na cena aberta; `undefined` = livre. */
+  setMovementRules: (movement: MovementRules | undefined) => void
   setScenarioLink: (value: string | null) => void
   setPropLinkedPath: (id: string, path: string | null) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
@@ -1438,6 +1440,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     })),
     setMapScale: (scale) => withHistory((map) => mapFactory.setMapScale(map, scale)),
     setMeasurementMode: (mode) => withHistory((map) => mapFactory.setMeasurementMode(map, mode)),
+    setMovementRules: (movement) => withHistory((map) => mapFactory.setMovementRules(map, movement)),
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({
       ...map,

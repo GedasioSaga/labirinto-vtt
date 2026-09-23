@@ -3,6 +3,7 @@ import { createExploration, encodeExploration, forgetInside, isPointExplored, ma
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
+import { tokensOccupy } from '../lib/movementRules'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
@@ -554,6 +555,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { outbound: [{ clientId, msg: welcome }, { clientId, msg: next }] }
   }
 
+  /**
+   * "Fichas ocupam espaço" só conta ficha que o jogador ENXERGA agora: o
+   * recorte dele (`filterMapForPlayer`), o mesmo que o snapshot manda. Ficha
+   * oculta, secreta, em zona oculta ou na névoa não recusa — "Lugar ocupado"
+   * ali contaria que existe alguém onde ele não vê. Sem a regra ligada, nem
+   * calcula o recorte. Usa a memória que já existe, sem criar nem reordenar.
+   */
+  const occupantsSeenBy = (playerId: string, map: MapData): readonly Token[] | undefined => {
+    if (!tokensOccupy(map)) return undefined
+    const memory = existingMemory(playerId, map)
+    return filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory?.exp, memory?.doors).map.tokens
+  }
+
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
@@ -561,7 +575,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     // Sem cena (aventura aberta, ficha em lugar nenhum): não há onde mover.
     if (scene === null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'unknown_token' })
-    const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership)
+    const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, {
+      occupants: occupantsSeenBy(playerId, scene.map),
+    })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     return {
       outbound: [{ clientId, msg: { type: 'token.move.accepted', reqId: msg.reqId, x: result.x, y: result.y } }],

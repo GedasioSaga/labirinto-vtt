@@ -12,6 +12,7 @@ import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
 import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
 import type { ScenarioLinkControlsProps } from './ScenarioLinkControls'
+import type { MovementControlsProps } from './MovementControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
 import { RegionJoinField, RegionSmoothButton, RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
@@ -91,6 +92,8 @@ interface PropertiesPanelProps {
   layers: LayersPanelProps
   selection: SelectionControlsProps
   scenarioLink: ScenarioLinkControlsProps
+  /** "Movimento dos jogadores" na janela Configurações do mapa; ausente, a seção não aparece. */
+  movement?: MovementControlsProps
   selectedWall: Wall | null
   wallDoor: Omit<WallDoorControlsProps, 'door'>
   doorKind: DoorKindControlsProps
@@ -177,6 +180,7 @@ export function PropertiesPanel({
   layers,
   selection,
   scenarioLink,
+  movement,
   selectedWall,
   wallDoor,
   doorKind,
@@ -244,7 +248,7 @@ export function PropertiesPanel({
             {mapName} · {mapWidth}×{mapHeight} · {mapGrid}px
           </span>
         </span>
-        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} scenarioLink={scenarioLink} />
+        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} scenarioLink={scenarioLink} movement={movement} />
       </header>
 
       <div className="lb-inspector__body lb-scroll">
