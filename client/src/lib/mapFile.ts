@@ -4,6 +4,7 @@ import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { readMovementRules } from './movementRules'
 import { readCarriedItems, readPinItem } from './items'
+import { readHazards } from './hazards'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -231,5 +232,14 @@ function deserializeMapFields(json: string): MapData {
     // MOVIMENTO CONTADO: campo NOVO e OPCIONAL. Mapa de antes (ou com lixo
     // editado à mão) abre livre e sem o campo — ver `readMovementRules`.
     ...movementField(parsed.movement),
+    // ZONA DE PERIGO: campo NOVO e OPCIONAL, mesmo padrão de `movement`. Mapa
+    // de antes (ou lixo editado à mão) abre sem o campo — ver `readHazards`.
+    ...hazardsField(parsed.hazards),
   }
+}
+
+/** `hazards` só entra no mapa quando o arquivo traz zona válida: mapa de antes não ganha campo. */
+function hazardsField(raw: unknown): Pick<MapData, 'hazards'> {
+  const hazards = readHazards(raw)
+  return hazards === undefined ? {} : { hazards }
 }

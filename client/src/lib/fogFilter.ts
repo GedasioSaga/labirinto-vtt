@@ -1,4 +1,4 @@
-import type { DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { DoorState, Drawing, FloorPiece, HazardKind, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
 import { isTokenPhotoData } from './tokenPhoto'
 import { healthForPlayer } from './tokenHealth'
 import { tokenConditionsForPlayer } from './tokenConditions'
@@ -13,6 +13,7 @@ import { itemOfPin } from './items'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
+import { hazardRooms, hazardsOf, visionRadiusAt, type PlayerHazard } from './hazards'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -56,6 +57,20 @@ export interface PlayerMapView {
    * jogador o interior que ele percorreu enquanto o teto estava aberto.
    */
   roofs: RegionPoint[][]
+  /**
+   * ZONA DE PERIGO — só o que este jogador ENXERGA agora: tipo e polígono de
+   * cada sala tomada que está na visão dele. Perigo é coisa que se move, então
+   * vale a regra das entidades dinâmicas (visão atual, nunca o explorado).
+   * Nunca o id da zona nem o da sala; `map.hazards` do recorte não existe.
+   */
+  hazards: PlayerHazard[]
+  /**
+   * ZONA DE PERIGO — perigos das salas onde está uma ficha deste recorte, se
+   * o mestre não esconde a sala (secreta, zona oculta, teto). Visível ou não.
+   * NÃO sai pela rede: é o que o host consulta para mandar "Você entrou no
+   * fogo" sem contar o tipo de um perigo escondido.
+   */
+  hazardsHere: { tokenId: string; kind: HazardKind }[]
 }
 
 /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
@@ -481,7 +496,8 @@ export function filterMapForGroup(
   const layerTokens = visibleTokens(map.tokens, hiddenLayers)
   const ownTokens = layerTokens.filter((t) => owned.has(t.id) && !t.hidden)
   // `ownTokens` só tem id que está em `radiusByToken`; o 0 nunca é usado.
-  const radiusOf = (token: Token): number => radiusByToken.get(token.id) ?? 0
+  // ZONA DE PERIGO: dentro da fumaça o raio cai para o teto dela (`visionRadiusAt`).
+  const radiusOf = (token: Token): number => visionRadiusAt(map, { x: token.x, y: token.y }, radiusByToken.get(token.id) ?? 0)
 
   // Zona oculta ativa: ponto dentro dela não conta como visível nem explorado.
   // A visão continua passando (a zona esconde conteúdo, não é parede).
@@ -716,8 +732,28 @@ export function filterMapForGroup(
     return [{ ...w, door: remembered === undefined ? unseenDoor(door) : withoutLock(remembered) }]
   }
 
+  /**
+   * Região que o jogador nunca recebe, ANTES de perguntar se ele a conhece: é
+   * o mestre (ou o teto) que esconde, não a névoa.
+   * - secreta, oculta no editor, ou sub-sala de uma secreta/oculta;
+   * - interior de prédio de teto fechado (`underRoofIds`, `swallowedByClosedRoof`:
+   *   cômodo órfão, Área sem `parentId`, prédio dentro de prédio);
+   * - sala de teto que a geometria não sabe julgar (`brokenRoofIds`): não vira silhueta, some.
+   */
+  const regionHiddenByMaster = (r: Region): boolean =>
+    r.hidden === true ||
+    r.secret === true ||
+    hiddenByAncestorIds.has(r.id) ||
+    underRoofIds.has(r.id) ||
+    brokenRoofIds.has(r.id) ||
+    swallowedByClosedRoof(r)
+
+  // ZONA DE PERIGO: o objeto do mestre (ids de zona e de sala, perigo onde o
+  // jogador não está) NUNCA vai no mapa do recorte. O que ele pode ver sai
+  // separado, em `hazards`, montado mais abaixo.
+  const { hazards: _masterHazards, ...mapWithoutHazards } = map
   const filtered: MapData = {
-    ...map,
+    ...mapWithoutHazards,
     // O nome do mapa é o nome da CENA (a aventura cria a cena com
     // `createEmptyMap(id, nomeDaCena, …)`): o jogador descobre onde está pelo
     // que vê, nunca pelo nome que o mestre deu. Nada na tela dele lê este campo.
@@ -759,12 +795,7 @@ export function filterMapForGroup(
     }),
     regions: visibleRegions(map.regions, hiddenLayers)
       .filter((r) => {
-        if (r.hidden || r.secret || hiddenByAncestorIds.has(r.id) || underRoofIds.has(r.id)) return false
-        // Sala de teto que a geometria não sabe julgar não vira silhueta: some.
-        if (brokenRoofIds.has(r.id)) return false
-        // Cômodo órfão dentro do prédio, Área sem `parentId`, prédio de teto
-        // dentro de outro prédio de teto: tudo isso é interior. Ver `swallowedByClosedRoof`.
-        if (swallowedByClosedRoof(r)) return false
+        if (regionHiddenByMaster(r)) return false
         // Teto fechado: o "conhecido" é medido NO CONTORNO, nunca no interior
         // — que está bloqueado justamente por causa do teto. Ver `contourSamples`.
         if (closedRoofIds.has(r.id)) return isShapeKnown(contourSamples(r.points))
@@ -810,7 +841,42 @@ export function filterMapForGroup(
     // Metadado do mestre: nome e estado das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
-  return { map: filtered, vision, visibleDoorIds, concealed, blocked, roofs }
+
+  /**
+   * ZONA DE PERIGO. Primeiro, a sala tomada que o MESTRE esconde fica de fora
+   * de tudo — desenho e aviso:
+   * - Sala escondida por ele (`regionHiddenByMaster`) ou de camada escondida;
+   * - silhueta de teto fechado (o fogo de dentro não se vê da rua);
+   * - sala em que uma zona oculta ativa encosta (o perigo é da sala inteira, e
+   *   mostrá-lo diria o que acontece na parte escondida).
+   *
+   * Do resto, o DESENHO (`hazards`) sai quando a própria Sala saiu no recorte e
+   * alguma amostra do interior está na visão AGORA — regra das entidades que
+   * se movem. E `hazardsHere` lista o perigo das salas onde está uma ficha do
+   * jogador, visível ou não: na fumaça a visão encolhe e pode não alcançar
+   * amostra nenhuma de um salão, mas quem está dentro sabe que está. Esse
+   * campo é do host (decide o aviso) e não vai pela rede.
+   */
+  const layerRegionIds = new Set(visibleRegions(map.regions, hiddenLayers).map((r) => r.id))
+  const sentRooms = new Set(filtered.regions.map((r) => r.id))
+  const touchesConcealZone = (points: RegionPoint[]): boolean =>
+    zones.length > 0 &&
+    (interiorSamples(points, points).some(inConcealZone) || concealed.some((zone) => zone.some((p) => pointInRing(p, points))))
+  const hazardHiddenByMaster = (room: Region): boolean =>
+    !layerRegionIds.has(room.id) || regionHiddenByMaster(room) || closedRoofIds.has(room.id) || touchesConcealZone(room.points)
+  const hazards: PlayerHazard[] = []
+  const hazardsHere: { tokenId: string; kind: HazardKind }[] = []
+  for (const hazard of hazardsOf(map)) {
+    for (const room of hazardRooms(map, hazard)) {
+      if (hazardHiddenByMaster(room)) continue
+      for (const t of ownTokens) {
+        if (pointInRing({ x: t.x, y: t.y }, room.points)) hazardsHere.push({ tokenId: t.id, kind: hazard.kind })
+      }
+      if (!sentRooms.has(room.id) || !isShapeVisible(interiorSamples(room.points, room.points))) continue
+      hazards.push({ kind: hazard.kind, points: room.points.map((p) => ({ x: p.x, y: p.y })) })
+    }
+  }
+  return { map: filtered, vision, visibleDoorIds, concealed, blocked, roofs, hazards, hazardsHere }
 }
 
 /** O host vê o mapa inteiro, inclusive itens ocultos. */

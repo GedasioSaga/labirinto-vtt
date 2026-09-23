@@ -11,6 +11,7 @@ import {
   type DoorRequest,
   type ItemRequest,
   type AppliedTransfer,
+  type HazardEntryNotice,
   type HostResult,
   type HostSession,
   type HostSignal,
@@ -20,6 +21,7 @@ import {
 } from './hostSession'
 import type { DoorRequestHow, HostErrorReason, LaserMessage } from './protocol'
 import type { TurnRef } from '../lib/initiative'
+import { hazardEntryLine } from '../lib/hazards'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -410,7 +412,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
   const broadcastNow = () => {
     if (session === null) return
-    void dispatch(session.broadcast(world()))
+    const result = session.broadcast(world())
+    void dispatch(result)
+    announceHazardEntries(result.hazardEntries ?? [])
+  }
+
+  /**
+   * ZONA DE PERIGO: "Ana entrou no fogo". O mestre está olhando o canvas e
+   * não a ficha dela — sem o aviso, o fogo avança e ninguém narra. Some
+   * sozinho: é informação, não pergunta.
+   */
+  const announceHazardEntries = (entries: readonly HazardEntryNotice[]) => {
+    for (const entry of entries) {
+      useToastStore.getState().push('info', hazardEntryLine(entry.playerName, entry.kind, entry.sceneName), PLAYER_JOINED_TOAST_MS)
+    }
   }
 
   const scheduleBroadcast = () => {

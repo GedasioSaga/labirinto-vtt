@@ -1,4 +1,5 @@
-import type { MapData, RegionPoint } from '../types/map'
+import type { HazardKind, MapData, RegionPoint } from '../types/map'
+import type { PlayerHazard } from '../lib/hazards'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
@@ -62,6 +63,11 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * `snapshot.partyTokens` também é aditivo: quais das fichas que o jogador já
  * recebeu são de colegas. Jogador antigo ignora; host antigo não manda, e o
  * "Dar a…" fica sem colega (em vez de oferecer quem o host recusaria).
+ *
+ * ZONA DE PERIGO, aditiva pelo mesmo critério: `snapshot.hazards` (tipo e
+ * polígono de cada sala tomada que o jogador enxerga) e `hazard.entered`
+ * (mestre -> jogador: a ficha dele entrou no perigo). Jogador antigo ignora os
+ * dois; mestre antigo não manda, e a tela fica sem perigo desenhado.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -270,8 +276,11 @@ export type HostMessage =
   // `turn`: id da ficha da vez (iniciativa), só quando ela está em `map.tokens`
   // deste recorte (`turnForPlayer`). Ausente = ninguém que o jogador vê.
   // `partyTokens` (ITEM PEGÁVEL): das fichas que ele recebeu, as de OUTROS jogadores — o "Dar a…" não oferece NPC.
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[] }
+  // `hazards` (ZONA DE PERIGO): só o que o jogador enxerga agora, e só quando há algum (`PlayerMapView.hazards`).
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[] }
+  // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
+  | { type: 'hazard.entered'; kind: HazardKind }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }

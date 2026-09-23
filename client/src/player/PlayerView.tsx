@@ -9,6 +9,8 @@ import { countExploredCells, forEachExploredRun } from '../lib/exploration'
 import type { Exploration } from '../lib/exploration'
 import { computeAlignedGridLines } from '../lib/gridAlign'
 import { roomHasRoof } from '../lib/roomOps'
+import type { PlayerHazard } from '../lib/hazards'
+import { drawHazardAreas } from '../pixi/drawHazards'
 import { visibleDrawings, visibleLights, visibleRegions, visibleStairs } from '../lib/layers'
 import { visionSegments } from '../lib/visibility'
 import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
@@ -72,6 +74,8 @@ interface PlayerViewProps {
   explored?: Exploration
   /** Zonas ocultas ativas do mestre: pintadas de preto por cima da planta. */
   concealed?: RegionPoint[][]
+  /** ZONA DE PERIGO: salas tomadas que o jogador enxerga agora (o host já recortou). */
+  hazards?: readonly PlayerHazard[]
   ownTokens: string[]
   /** INICIATIVA: a ficha da vez (sempre uma de `map.tokens`), que ganha o anel da vez. */
   turnTokenId?: string | null
@@ -416,6 +420,12 @@ interface Scene {
   pins: Container
   pinsRenderer: ReturnType<typeof createPinsRenderer>
   lastPinsKey: string | null
+  /** ZONA DE PERIGO: cor chapada sob a névoa, recortada pela visão atual (`hazardsMask`). */
+  hazards: Graphics
+  hazardsMask: Graphics
+  lastHazards: readonly PlayerHazard[] | null
+  lastHazardsVision: RegionPoint[][] | null
+  hazardsCount: number
   /** Zonas ocultas: preto opaco acima da névoa e abaixo dos tokens. */
   concealed: Graphics
   lastConcealed: RegionPoint[][] | null
@@ -552,6 +562,24 @@ function redrawFog(scene: Scene, map: MapData, vision: RegionPoint[][], explored
 }
 
 /**
+ * ZONA DE PERIGO na tela do jogador. O host só manda a sala tomada que ele
+ * enxerga agora; a máscara da visão ainda corta o desenho na borda do anel,
+ * para o perigo aparecer SÓ onde ele enxerga — a parte da sala fora do alcance
+ * da lanterna continua sem nada pintado.
+ */
+function redrawHazards(scene: Scene, hazards: readonly PlayerHazard[], vision: RegionPoint[][]): void {
+  if (hazards === scene.lastHazards && vision === scene.lastHazardsVision) return
+  scene.lastHazards = hazards
+  scene.lastHazardsVision = vision
+  drawHazardAreas(scene.hazards, hazards)
+  scene.hazardsMask.clear()
+  const rings = vision.filter((poly) => poly.length >= 3)
+  for (const ring of rings) scene.hazardsMask.poly(ring, true).fill({ color: 0xffffff })
+  scene.hazards.visible = hazards.length > 0 && rings.length > 0
+  scene.hazardsCount = scene.hazards.visible ? hazards.length : 0
+}
+
+/**
  * Preto opaco sobre cada zona oculta ativa. A visão continua passando por ela
  * (a zona esconde conteúdo, não bloqueia), então o recorte do mestre já veio
  * sem nada lá dentro; o preto só tira a planta de fundo (chão, parede de
@@ -600,12 +628,15 @@ function centerCameraOn(scene: Scene, x: number, y: number): void {
 
 /** Referência estável: sem zonas, o redesenho não repinta a camada a cada snapshot. */
 const NO_CONCEALED: RegionPoint[][] = []
+/** Mesmo motivo, para a zona de perigo. */
+const NO_HAZARDS: readonly PlayerHazard[] = []
 
 export function PlayerView({
   map,
   vision,
   explored,
   concealed = NO_CONCEALED,
+  hazards = NO_HAZARDS,
   ownTokens,
   turnTokenId = null,
   settings,
@@ -624,8 +655,8 @@ export function PlayerView({
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
   const tokenDragLabelRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
-  const latestRef = useRef({ map, vision, explored, concealed, ownTokens, turnTokenId, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser })
-  latestRef.current = { map, vision, explored, concealed, ownTokens, turnTokenId, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser }
+  const latestRef = useRef({ map, vision, explored, concealed, hazards, ownTokens, turnTokenId, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser })
+  latestRef.current = { map, vision, explored, concealed, hazards, ownTokens, turnTokenId, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser }
 
   /**
    * Pinta a régua (linha no canvas + rótulo no DOM) a partir de `scene.measure`.
@@ -827,6 +858,7 @@ export function PlayerView({
       vision: currentVision,
       explored: currentExplored,
       concealed: currentConcealed,
+      hazards: currentHazards,
       ownTokens: own,
       turnTokenId: currentTurn,
       settings: currentSettings,
@@ -874,6 +906,7 @@ export function PlayerView({
     scene.textLabels.visible = currentSettings.showNames
 
     redrawLights(scene)
+    redrawHazards(scene, currentHazards, currentVision)
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
     redrawConcealed(scene, currentConcealed)
     redrawRoofs(scene, regions)
@@ -932,6 +965,7 @@ export function PlayerView({
       el.dataset.labelsCount = String(drawings.filter((d) => d.kind === 'text').length)
       el.dataset.exploredCells = String(scene.exploredCells)
       el.dataset.concealedCount = String(scene.concealedCount)
+      el.dataset.hazardsCount = String(scene.hazardsCount)
       el.dataset.pinsCount = String(pins.length)
       el.dataset.ownTokens = own.join(',')
     }
@@ -1013,6 +1047,9 @@ export function PlayerView({
       const roomNames = new Container()
       const textLabels = new Container()
       const lights = new Container()
+      const hazards = new Graphics()
+      const hazardsMask = new Graphics()
+      hazards.mask = hazardsMask
       const fogUnknown = new Graphics()
       const knownMask = new Graphics()
       const fogDim = new Graphics()
@@ -1042,6 +1079,10 @@ export function PlayerView({
         // Luz acima da planta e ABAIXO da névoa: o que o jogador não vê segue
         // escuro mesmo com uma tocha acesa do outro lado.
         lights,
+        // Perigo acima da planta e da luz, ABAIXO da névoa, e ainda recortado
+        // pela visão (`redrawHazards`): o jogador só vê o fogo onde enxerga.
+        hazardsMask,
+        hazards,
         fogUnknown,
         knownMask,
         fogDim,
@@ -1112,6 +1153,11 @@ export function PlayerView({
         pins,
         pinsRenderer: createPinsRenderer(),
         lastPinsKey: null,
+        hazards,
+        hazardsMask,
+        lastHazards: null,
+        lastHazardsVision: null,
+        hazardsCount: 0,
         concealed,
         lastConcealed: null,
         concealedCount: 0,
@@ -1347,7 +1393,7 @@ export function PlayerView({
   useEffect(() => {
     const scene = sceneRef.current
     if (scene) redraw(scene)
-  }, [map, vision, explored, concealed, ownTokens, turnTokenId, settings])
+  }, [map, vision, explored, concealed, hazards, ownTokens, turnTokenId, settings])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.

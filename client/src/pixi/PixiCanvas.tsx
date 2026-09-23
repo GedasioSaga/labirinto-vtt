@@ -135,6 +135,8 @@ import {
 } from '../lib/drawingFactory'
 import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
+import { drawHazardAreas } from './drawHazards'
+import { hazardAreas } from '../lib/hazards'
 import { createPinsRenderer } from './drawPins'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { findPinAt, pinKindAfterShortcut } from '../lib/pins'
@@ -648,6 +650,9 @@ export function PixiCanvas({
       const tokensContainer = new Container()
       // A5 — zonas ocultas por cima do conteúdo: o mestre precisa ver o que cobre.
       const concealZonesContainer = new Container()
+      // ZONA DE PERIGO: cor chapada sobre o chão e as salas, sob paredes e fichas.
+      const hazardsGraphics = new Graphics()
+      hazardsGraphics.eventMode = 'none'
       // Pinos acima das zonas ocultas: o pino é o chamariz da cena e o mestre
       // precisa achá-lo mesmo sobre uma área que ele mesmo escondeu.
       const pinsContainer = new Container()
@@ -680,6 +685,7 @@ export function PixiCanvas({
         gridOutsideGraphics,
         gridGraphics,
         gridAlignOverlayGraphics,
+        hazardsGraphics,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
@@ -1148,6 +1154,8 @@ export function PixiCanvas({
         if (!rasterMode && !map.hiddenLayers.includes('portas')) drawMapMarkers(mapLinesGraphics, map.markers)
         redrawMapFrame(map.frame)
         redrawRegionsAndDrawings()
+        // Camada Salas escondida esconde a sala; o perigo dela vai junto.
+        drawHazardAreas(hazardsGraphics, map.hiddenLayers.includes('salas') ? [] : hazardAreas(map))
         roomNamesRenderer.draw(roomNamesContainer, visibleRegions(map.regions, map.hiddenLayers), map.grid, camera.scale)
         redrawWallsAndDoors()
         redrawStairs()
