@@ -124,6 +124,49 @@ describe('CollapsibleSection', () => {
     expect(header().getAttribute('aria-expanded')).toBe('true')
   })
 
+  it('lazy: fechada, o conteúdo nem existe no DOM; aberta, monta; fechar de novo desmonta', () => {
+    const renderLazy = () =>
+      act(() =>
+        root.render(
+          <CollapsibleSection id="objects" title="Objetos do mapa" defaultOpen={false} lazy>
+            <input aria-label="Buscar objeto" />
+          </CollapsibleSection>,
+        ),
+      )
+    renderLazy()
+    expect(body().hidden).toBe(true)
+    expect(body().querySelector('input')).toBeNull()
+    act(() => header().click())
+    expect(body().querySelector('input')).not.toBeNull()
+    act(() => header().click())
+    expect(body().querySelector('input')).toBeNull()
+    // Sem `lazy`, o corpo fechado continua montado (só escondido), como sempre foi.
+    render(false)
+    expect(body().textContent).toBe('conteúdo')
+  })
+
+  it('openRequest: mudar o valor abre (e grava a preferência); o valor da montagem não abre nada', () => {
+    const renderPedido = (openRequest: number) =>
+      act(() =>
+        root.render(
+          <CollapsibleSection id="objects" title="Objetos do mapa" defaultOpen={false} openRequest={openRequest}>
+            <p>conteúdo</p>
+          </CollapsibleSection>,
+        ),
+      )
+    renderPedido(3)
+    expect(header().getAttribute('aria-expanded')).toBe('false')
+    renderPedido(4)
+    expect(header().getAttribute('aria-expanded')).toBe('true')
+    expect(window.localStorage.getItem('lb-section:objects')).toBe('1')
+    // Fechar à mão continua valendo até o próximo pedido.
+    act(() => header().click())
+    renderPedido(4)
+    expect(header().getAttribute('aria-expanded')).toBe('false')
+    renderPedido(5)
+    expect(header().getAttribute('aria-expanded')).toBe('true')
+  })
+
   it('localStorage indisponível (getItem/setItem lançam) não quebra: abre/fecha só em memória', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('bloqueado')

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   clampScale,
+  freeArea,
   freeAreaCenter,
+  revealScale,
   panBy,
   zoomAt,
   constrainToAngleStep,
@@ -323,5 +325,45 @@ describe('freeAreaCenter: o centro do canvas que os painéis não cobrem', () =>
 
   it('o que sobra é fresta (menos de 1/4 do canvas): volta ao centro inteiro', () => {
     expect(freeAreaCenter({ width: 400, height: 800 }, [{ minX: 0, minY: 0, maxX: 320, maxY: 800 }])).toEqual({ x: 200, y: 400 })
+  })
+})
+
+describe('freeArea: o retângulo que os painéis deixam livre (o centro dele é o freeAreaCenter)', () => {
+  const tela = { width: 1280, height: 800 }
+  const rail = { minX: 16, minY: 16, maxX: 280, maxY: 784 }
+  const barra = { minX: 0, minY: 16, maxX: 1280, maxY: 102 }
+
+  it('sem painel: o canvas inteiro', () => {
+    expect(freeArea(tela, [])).toEqual({ minX: 0, minY: 0, maxX: 1280, maxY: 800 })
+  })
+
+  it('rail tira a esquerda e a barra tira o topo', () => {
+    expect(freeArea(tela, [rail, barra])).toEqual({ minX: 280, minY: 102, maxX: 1280, maxY: 800 })
+  })
+
+  it('fresta: o canvas inteiro, como no centro', () => {
+    expect(freeArea({ width: 400, height: 800 }, [{ minX: 0, minY: 0, maxX: 320, maxY: 800 }])).toEqual({ minX: 0, minY: 0, maxX: 400, maxY: 800 })
+  })
+})
+
+describe('revealScale: zoom para o objeto aparecer inteiro ("Ir até lá")', () => {
+  const area = { width: 1000, height: 700 }
+
+  it('já cabe no zoom de agora: não mexe no zoom', () => {
+    expect(revealScale(1.5, { minX: 0, minY: 0, maxX: 350, maxY: 400 }, area, 40)).toBe(1.5)
+  })
+
+  it('não cabe: afasta só o bastante para caber com a margem', () => {
+    // Altura manda: (700 - 2*40) / 400 = 1.55.
+    expect(revealScale(3, { minX: 0, minY: 0, maxX: 350, maxY: 400 }, area, 40)).toBeCloseTo(1.55)
+  })
+
+  it('nunca aproxima: coisa pequena longe continua no zoom de agora', () => {
+    expect(revealScale(0.2, { minX: 0, minY: 0, maxX: 50, maxY: 50 }, area, 40)).toBe(0.2)
+  })
+
+  it('não passa do limite da roda, e ponto sem tamanho não vira divisão por zero', () => {
+    expect(revealScale(1, { minX: 0, minY: 0, maxX: 1e7, maxY: 1e7 }, area, 40)).toBe(MIN_SCALE)
+    expect(revealScale(2, { minX: 5, minY: 5, maxX: 5, maxY: 5 }, area, 40)).toBe(2)
   })
 })

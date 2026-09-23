@@ -2548,6 +2548,236 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Objetos do mapa (MapObjectsSection): busca e lista da cena aberta. A linha é
+   densa como a de Camadas — com trinta salas o olho precisa varrer, não ler
+   cartões —, e a marca à esquerda repete em miniatura o desenho do minimapa:
+   chão chapado da sala, retângulo pequeno da porta, cabeça de latão do pino,
+   disco do token. Nada de ícone de ferramenta: a marca diz QUAL coisa é. */
+.lb-objetos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-objetos__rotulo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+}
+
+/* O atalho escrito ao lado do rótulo: atalho invisível é atalho inexistente. */
+.lb-objetos__atalho {
+  padding: 0 var(--lb-space-1);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-sm);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-objetos__campo {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.lb-objetos__lupa {
+  position: absolute;
+  left: var(--lb-space-3);
+  display: inline-flex;
+  color: var(--lb-color-parchment-faint);
+  pointer-events: none;
+}
+
+/* Espaço da lupa à esquerda e do "limpar" à direita. */
+.lb-objetos__busca {
+  padding-left: var(--lb-space-8);
+  padding-right: var(--lb-space-8);
+}
+
+/* O X nativo do campo de busca vem com a cara do sistema (claro, sem foco
+   nosso): o "Limpar busca" é um botão do app, com nome e anel de foco. */
+.lb-objetos__busca::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.lb-objetos__limpar {
+  position: absolute;
+  top: 50%;
+  right: var(--lb-space-1);
+  transform: translateY(-50%);
+}
+
+.lb-objetos__resumo {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-faint);
+}
+
+/* Rola sozinha quando a cena é grande, para Chão do mapa e Camadas não irem
+   parar a metros de distância. A folga lateral negativa dá lugar ao anel de
+   foco, que o `overflow` cortaria. */
+.lb-objetos__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  max-height: min(420px, 50vh);
+  margin: 0 calc(var(--lb-space-2) * -1);
+  padding: var(--lb-space-1) var(--lb-space-2);
+}
+
+.lb-objetos__lista:empty {
+  display: none;
+}
+
+.lb-objetos__grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
+.lb-objetos__grupo-titulo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-objetos__itens {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-objetos__item {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  width: 100%;
+  min-height: 30px;
+  padding: 0 var(--lb-space-2);
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+/* Com busca digitada, a linha que o Enter do campo abre: o resultado ativo
+   das paletas de busca, um degrau acima do fundo — abaixo do pairar, do
+   apertar e do latão da seleção, que vêm depois. */
+.lb-objetos__item[data-enter='true'] {
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-objetos__item:hover {
+  background: var(--lb-color-stone-hover);
+}
+
+.lb-objetos__item:active {
+  background: var(--lb-color-stone-sunken);
+}
+
+/* O objeto selecionado no editor: o mesmo latão da cena aberta em Cenas. */
+.lb-objetos__item[aria-current='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+}
+
+.lb-objetos__nome {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-objetos__detalhe,
+.lb-objetos__bloqueio {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-objetos__bloqueio {
+  font-style: italic;
+}
+
+.lb-objetos__marca {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+}
+
+.lb-objetos__marca--room {
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: 2px;
+}
+
+.lb-objetos__marca--door {
+  height: 6px;
+  border: 1.5px solid var(--lb-color-parchment-dim);
+  border-radius: 1px;
+}
+
+.lb-objetos__marca--pin {
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-brass);
+}
+
+.lb-objetos__marca--pin-viagem {
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-ink);
+  box-shadow: inset 0 0 0 1.5px var(--lb-color-brass);
+}
+
+/* Contorno claro: a cor da ficha pode ser escura no fundo escuro (mesma
+   bolinha de `.lb-cenas__pessoa`). */
+.lb-objetos__marca--token {
+  border: 1px solid var(--lb-color-parchment-faint);
+  border-radius: var(--lb-radius-full);
+}
+
+.lb-objetos__marca--text {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  line-height: 1;
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-objetos__vazio {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+}
+
 /* Destino do pino de viagem (PinTravelControls): um poço rebaixado logo abaixo
    do tipo, com a régua da esquerda dizendo o estado sem precisar ler — latão
    quando a passagem leva a algum lugar, apagada quando não. É a mesma troca

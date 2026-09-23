@@ -515,6 +515,16 @@ export function CloseIcon(props: IconProps) {
   )
 }
 
+/** Lupa do campo de busca: lente com miolo largo (r bem acima de 2.8) e cabo curto. */
+export function SearchIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="10.5" cy="10.5" r="6" />
+      <path d="M15 15l5 5" />
+    </Icon>
+  )
+}
+
 /**
  * "Criar Mapas" no menu raiz: retângulo de mapa + um `+` fora, no canto
  * superior direito. Distingue de `ImageIcon` (:266, mesmo retângulo mas com

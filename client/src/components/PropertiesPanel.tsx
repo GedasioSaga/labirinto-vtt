@@ -53,6 +53,8 @@ import type { ReactNode } from 'react'
 interface PropertiesPanelProps {
   /** Seção "Cenas" da aventura, montada por quem sabe da aventura (App). */
   scenes?: ReactNode
+  /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
+  objects?: ReactNode
   mapName: string
   mapWidth: number
   mapHeight: number
@@ -150,6 +152,7 @@ interface PropertiesPanelProps {
  */
 export function PropertiesPanel({
   scenes,
+  objects,
   mapName,
   mapWidth,
   mapHeight,
@@ -445,6 +448,11 @@ export function PropertiesPanel({
             que é o nome do que está na mão ou do que acabou de ser desenhado
             (task-jornada-sala-livre.spec.ts, teste 3). */}
         {scenes}
+        {/* Os objetos DA cena aberta, logo abaixo das cenas. Sem grupo de
+            ferramenta: é navegação, como as Cenas, e nasce recolhida — com uma
+            ferramenta de desenho na mão ela é só uma linha de título. Antes de
+            "Chão do mapa": Camadas continua o último título da coluna. */}
+        {objects}
         <ToolPropertiesSection group="floorStyle" groups={groups}>
           {/* "Chão do mapa", não "Chão": o botão da ferramenta na barra já se
               chama "Chão" e dois botões com o mesmo nome confundem leitor de
