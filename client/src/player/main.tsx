@@ -10,6 +10,7 @@ import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
+import { coverBounds } from './playerCamera'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
@@ -559,6 +560,10 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const closePin = useCallback(() => setOpenPinId(null), [])
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
+  /** Painel e barra do jogador: a câmera lê, na hora, o que eles cobrem do mapa. */
+  const panelRef = useRef<HTMLElement | null>(null)
+  const barRef = useRef<HTMLDivElement | null>(null)
+  const mapObstacles = useCallback(() => coverBounds(panelRef.current, barRef.current), [])
 
   if (state.status === 'playing' && state.map && state.vision) {
     const actionNotice = latestActionNotice(state.doorNotice, state.moveNotice)
@@ -590,8 +595,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           playerLasers={state.playerLasers ?? NO_PLAYER_LASERS}
           onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
           onPinOpen={setOpenPinId}
+          focusObstacles={mapObstacles}
         />
         <PlayerPanel
+          panelRef={panelRef}
+          barRef={barRef}
           characters={characters}
           characterColor={OWN_TOKEN_CSS}
           settings={settings}

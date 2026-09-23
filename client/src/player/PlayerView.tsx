@@ -17,7 +17,9 @@ import { visiblePins } from '../lib/layers'
 import { createPinsRenderer } from '../pixi/drawPins'
 import { fitCamera, panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
-import type { Camera } from '../pixi/world'
+import type { Bounds, Camera } from '../pixi/world'
+import { arrivalCamera, centeredCamera, firstOwnToken } from './playerCamera'
+import { drawOwnerPulse, drawOwnerRing, ownerRingOuterPx } from './ownerMarker'
 import { drawGrid } from '../pixi/drawGrid'
 import { currentRendererResolution, watchDevicePixelRatio } from '../pixi/rendererResolution'
 import { drawHexGrid } from '../pixi/drawHexGrid'
@@ -103,6 +105,12 @@ interface PlayerViewProps {
   onLaserEnd?: () => void
   /** Lasers dos outros jogadores da cena. */
   playerLasers?: readonly RemoteLaser[]
+  /**
+   * Caixas da interface que flutuam sobre o mapa (o painel do jogador), em px
+   * da JANELA, lidas na hora: a câmera põe a própria ficha no centro do que
+   * elas deixam livre, e nunca faz a ficha nascer debaixo delas.
+   */
+  focusObstacles?: () => Bounds[]
 }
 
 const RASTER_SAMPLES = 4
@@ -227,6 +235,13 @@ interface TokenView {
   /** Foto do token, recortada no círculo por `photoMask`; invisível quando o token não tem foto. */
   photo: Sprite
   photoMask: Graphics
+  /** Aro de dono (ownerMarker.ts): só na ficha do próprio jogador, com espessura de TELA. */
+  ring: Graphics
+  /** Raio do disco em px de mundo e se a ficha é do jogador: o aro se refaz no zoom sem o token à mão. */
+  radius: number
+  own: boolean
+  /** Raio e zoom do aro desenhado por último; `null` = sem aro. */
+  ringKey: string | null
   label: Text
   key: string
   /** Referência já carregada em `photo`: sem isto, todo snapshot recarregaria a mesma foto. */
@@ -251,13 +266,16 @@ function paintTokenView(view: TokenView, token: Token, grid: number, own: boolea
   // o azul do dono e o cinza dos outros de sempre — tela idêntica à de antes.
   const chosen = parseHexColor(token.color)
   const color = chosen ?? (own ? OWN_TOKEN_COLOR : OTHER_TOKEN_COLOR)
-  // Com cor escolhida, o preenchimento deixa de dizer "este é o seu": o aro
-  // passa a dizer. Uma regra só, igual nos dois ramos (disco e foto).
-  const ownRing = chosen !== null && own
+  // "Este é o seu" é o aro BRANCO de fora (`syncOwnerRing`), em qualquer cor
+  // de ficha e nos dois ramos (disco e foto): o aro azul de antes sumia numa
+  // ficha azul. A ficha dos outros segue com o contorno branco fino.
+  view.radius = radius
+  view.own = own
   view.body.clear()
   if (tokenPhotoRef(token) === null) {
     view.photo.visible = false
-    view.body.circle(0, 0, radius).fill({ color }).stroke({ width: ownRing ? 3 : 2, color: ownRing ? OWN_TOKEN_COLOR : TOKEN_OUTLINE })
+    view.body.circle(0, 0, radius).fill({ color })
+    if (!own) view.body.stroke({ width: 2, color: TOKEN_OUTLINE })
   } else {
     // Só referência auto-contida chega aqui: lib/fogFilter.ts apaga o caminho
     // do disco do mestre antes de o mapa sair da máquina dele.
@@ -270,10 +288,18 @@ function paintTokenView(view: TokenView, token: Token, grid: number, own: boolea
     view.body
       .circle(0, 0, radius - TOKEN_FRAME_WIDTH / 2)
       .stroke({ width: TOKEN_FRAME_WIDTH, color: chosen ?? (own ? TOKEN_FRAME_COLOR : OTHER_TOKEN_COLOR) })
-    if (ownRing) view.body.circle(0, 0, radius).stroke({ width: 2, color: OWN_TOKEN_COLOR })
   }
   view.label.text = token.name
   view.label.position.set(0, radius + 2)
+}
+
+/** Aro de dono no zoom atual; só refaz quando raio, dono ou zoom mudam. */
+function syncOwnerRing(view: TokenView, cameraScale: number): void {
+  const key = view.own ? `${view.radius}@${cameraScale}` : null
+  if (key === view.ringKey) return
+  view.ringKey = key
+  if (key === null) view.ring.clear()
+  else drawOwnerRing(view.ring, view.radius, cameraScale)
 }
 
 /** Carrega a foto nova, se mudou, e reencaixa no círculo quando a textura chega. */
@@ -311,11 +337,25 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
   // A máscara precisa estar na árvore de exibição para o Pixi recortá-la; ela não aparece por si.
   const photoMask = new Graphics()
   photo.mask = photoMask
+  const ring = new Graphics()
   const label = new Text({ text: token.name, style: { fontSize: LABEL_FONT_SIZE, fill: 0xffffff, stroke: { color: 0x000000, width: 3 } } })
   label.anchor.set(0.5, 0)
-  wrapper.addChild(photoMask, photo, body, label)
+  wrapper.addChild(photoMask, photo, body, ring, label)
   applyTokenTouch(wrapper, own)
-  const view: TokenView = { wrapper, body, photo, photoMask, label, key: tokenViewKey(token, grid, own), loadedPhoto: null, loadSeq: 0 }
+  const view: TokenView = {
+    wrapper,
+    body,
+    photo,
+    photoMask,
+    ring,
+    radius: tokenRadius(token, grid),
+    own,
+    ringKey: null,
+    label,
+    key: tokenViewKey(token, grid, own),
+    loadedPhoto: null,
+    loadSeq: 0,
+  }
   paintTokenView(view, token, grid, own)
   return view
 }
@@ -434,6 +474,10 @@ interface Scene {
   ownLaser: LaserTrail
   /** Resolução dos Text do mundo acompanhando o zoom (pixi/textResolution.ts). */
   textResolution: ReturnType<typeof createDebouncedTask>
+  /** Pulso "você está aqui" (ownerMarker.ts), em espaço de TELA acima do mapa. */
+  pulseLayer: Graphics
+  /** Pulso em curso: qual ficha e desde quando (`performance.now()`); `null` = parado. */
+  pulse: { tokenId: string; startedAt: number } | null
 }
 
 /** Referência estável para o padrão da prop: sem sinais, nada muda entre renders. */
@@ -571,10 +615,13 @@ function redrawRoofs(scene: Scene, regions: Region[]): void {
   scene.roofsCount = roofs.length
 }
 
-function centerCameraOn(scene: Scene, x: number, y: number): void {
-  const { scale } = scene.camera
-  scene.camera = { scale, x: scene.app.screen.width / 2 - x * scale, y: scene.app.screen.height / 2 - y * scale }
-  applyCamera(scene)
+/**
+ * Liga o pulso "você está aqui" na ficha. Com movimento reduzido fica só o aro
+ * branco, que já está sempre lá: o pulso é reforço, não a única pista.
+ */
+function startOwnerPulse(scene: Scene, tokenId: string): void {
+  if (prefersReducedMotion()) return
+  scene.pulse = { tokenId, startedAt: performance.now() }
 }
 
 /** Referência estável: sem zonas, o redesenho não repinta a camada a cada snapshot. */
@@ -602,6 +649,7 @@ export function PlayerView({
   onLaserMove,
   onLaserEnd,
   playerLasers = NO_PLAYER_LASERS,
+  focusObstacles,
 }: PlayerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
@@ -626,9 +674,19 @@ export function PlayerView({
     onLaserMove,
     onLaserEnd,
     playerLasers,
+    focusObstacles,
   }
   const latestRef = useRef(latest)
   latestRef.current = latest
+
+  /** O que cobre o mapa agora, em px do CANVAS (a prop fala em px da janela). */
+  function readObstacles(): Bounds[] {
+    const read = latestRef.current.focusObstacles
+    const el = containerRef.current
+    if (!read || !el) return []
+    const base = el.getBoundingClientRect()
+    return read().map((b) => ({ minX: b.minX - base.left, minY: b.minY - base.top, maxX: b.maxX - base.left, maxY: b.maxY - base.top }))
+  }
 
   /**
    * Pinta a régua (linha no canvas + rótulo no DOM) a partir de `scene.measure`.
@@ -788,7 +846,10 @@ export function PlayerView({
     redrawDoorHints(scene)
     scene.roomNamesRenderer.setCameraScale(scene.camera.scale)
     const { showNames } = latestRef.current.settings
-    for (const view of scene.tokenViews.values()) sizeTokenLabel(view.label, scene.camera.scale, showNames)
+    for (const view of scene.tokenViews.values()) {
+      sizeTokenLabel(view.label, scene.camera.scale, showNames)
+      syncOwnerRing(view, scene.camera.scale)
+    }
   }
 
   function redraw(scene: Scene): void {
@@ -897,6 +958,7 @@ export function PlayerView({
       // A posse muda sem a view nascer de novo (o mestre atribui ou tira a ficha).
       applyTokenTouch(view.wrapper, isOwn)
       sizeTokenLabel(view.label, scene.camera.scale, currentSettings.showNames)
+      syncOwnerRing(view, scene.camera.scale)
       view.wrapper.visible = true
       // A ficha sob o dedo é do arrasto (abaixo): não desliza atrás dele.
       const animate = sameScene && !reducedMotion && token.id !== draggedId
@@ -930,8 +992,16 @@ export function PlayerView({
       // O próprio rastro também era do mapa de antes.
       scene.ownLaser = { points: [], on: scene.ownLaser.on }
       const bounds = { minX: 0, minY: 0, maxX: worldWidth, maxY: worldHeight }
-      scene.camera = fitCamera(bounds, { width: scene.app.screen.width, height: scene.app.screen.height }, FIT_MARGIN)
+      const viewport = { width: scene.app.screen.width, height: scene.app.screen.height }
+      const fitted = fitCamera(bounds, viewport, FIT_MARGIN)
+      // O mapa inteiro, como sempre — a não ser que ele deixe a própria ficha
+      // debaixo do painel ou fora da tela: aí a câmera chega centrada nela.
+      const mine = firstOwnToken(currentMap.tokens, own)
+      const disc = mine === null ? null : { x: mine.x, y: mine.y, radius: tokenRadius(mine, currentMap.grid) }
+      scene.camera = arrivalCamera(fitted, disc, viewport, readObstacles())
       applyCamera(scene)
+      // Pulso só quando a câmera foi atrás da ficha: é a resposta a "onde estou?".
+      if (mine !== null && scene.camera !== fitted) startOwnerPulse(scene, mine.id)
     }
     // Nomes e rótulos novos nascem na resolução do renderer: ajusta ao zoom atual.
     scene.textResolution.flush()
@@ -1049,7 +1119,10 @@ export function PlayerView({
       // Régua do jogador acima do mapa (e da névoa: medir até onde ainda não se vê é legítimo) e abaixo dos sinais.
       const measureLayer = new Graphics()
       measureLayer.eventMode = 'none'
-      app.stage.addChild(world, measureLayer, signalsLayer, laserLayer)
+      // Pulso da própria ficha logo acima do mapa: some sob a régua e os sinais, que são ação em curso.
+      const pulseLayer = new Graphics()
+      pulseLayer.eventMode = 'none'
+      app.stage.addChild(world, pulseLayer, measureLayer, signalsLayer, laserLayer)
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
@@ -1121,6 +1194,8 @@ export function PlayerView({
           if (destroyed) return
           el.dataset.textResolution = String(syncWorldTextResolution(world, scene.camera.scale, app.renderer.resolution))
         }),
+        pulseLayer,
+        pulse: null,
       }
       scene.onZoom = () => redrawZoomLayers(scene)
       sceneRef.current = scene
@@ -1191,6 +1266,22 @@ export function PlayerView({
         }
       }
       app.ticker.add(tickTokenGlides)
+
+      // Pulso "você está aqui": segue a ficha na tela (arrasto, zoom) até acabar sozinho.
+      const tickPulse = () => {
+        const pulse = scene.pulse
+        if (pulse === null) return
+        const view = scene.tokenViews.get(pulse.tokenId)
+        if (view === undefined || !view.wrapper.visible) {
+          scene.pulse = null
+          pulseLayer.clear()
+          return
+        }
+        const at = world.toGlobal(view.wrapper.position)
+        const from = ownerRingOuterPx(view.radius, scene.camera.scale)
+        if (!drawOwnerPulse(pulseLayer, at.x, at.y, from, performance.now() - pulse.startedAt)) scene.pulse = null
+      }
+      app.ticker.add(tickPulse)
 
       const sendSignalAt = (screenX: number, screenY: number) => {
         const point = scene.world.toLocal({ x: screenX, y: screenY })
@@ -1347,6 +1438,7 @@ export function PlayerView({
         app.ticker.remove(tickPlayerLasers)
         app.ticker.remove(tickMeasure)
         app.ticker.remove(tickTokenGlides)
+        app.ticker.remove(tickPulse)
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
         scene.lightsRenderer.destroy()
       }
@@ -1396,7 +1488,13 @@ export function PlayerView({
     const scene = sceneRef.current
     if (!scene || focusTokenId === null) return
     const token = latestRef.current.map.tokens.find((t) => t.id === focusTokenId)
-    if (token) centerCameraOn(scene, token.x, token.y)
+    if (!token) return
+    // "Minha ficha" e "Centralizar": no meio do que o painel deixa livre, no
+    // zoom de agora, e a ficha pulsa para o olho achar onde a câmera foi.
+    const viewport = { width: scene.app.screen.width, height: scene.app.screen.height }
+    scene.camera = centeredCamera(scene.camera.scale, token, viewport, readObstacles())
+    applyCamera(scene)
+    startOwnerPulse(scene, token.id)
     // Só um pedido novo (focusSeq) move a câmera; snapshot com o token andando não.
   }, [focusSeq])
 
