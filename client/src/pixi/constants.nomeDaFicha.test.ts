@@ -51,10 +51,17 @@ function contraste(a: Rgb, b: Rgb): number {
 
 const TINTA = rgbDeNumero(TOKEN_NAME_FILL_COLOR)
 const CONTORNO = rgbDeNumero(TOKEN_NAME_OUTLINE_COLOR)
+const BRANCO: Rgb = [255, 255, 255]
+const PRETO: Rgb = [0, 0, 0]
 
 describe('nome da ficha no mapa do jogador: tinta e contorno', () => {
-  it('controle: com branco e preto puros, o serrilhado passa por #a1887f (a regra morde)', () => {
-    expect(distanciaDaRampa([255, 255, 255], [0, 0, 0], rgbDeHex('#a1887f'))).toBeLessThanOrEqual(TOLERANCIA_DA_REGUA)
+  it('controle: com branco e preto puros, o serrilhado passa por #a1887f e longe de #81c784 (a regra morde e separa)', () => {
+    // Morde: o cinza 144 fica a 17 por canal de #a1887f, dentro da régua.
+    expect(distanciaDaRampa(BRANCO, PRETO, rgbDeHex('#a1887f'))).toBeLessThanOrEqual(TOLERANCIA_DA_REGUA)
+    // Separa: #81c784 é a cor de sinal mais perto dos cinzas depois de #a1887f
+    // (35 por canal). Sem esta linha, uma medida que desse "perto" para toda cor
+    // passaria na de cima sem medir nada.
+    expect(distanciaDaRampa(BRANCO, PRETO, rgbDeHex('#81c784'))).toBeGreaterThan(TOLERANCIA_DA_REGUA + FOLGA_DE_ARREDONDAMENTO)
   })
 
   it('a paleta de sinais tem cores para comparar', () => {
