@@ -664,7 +664,7 @@ export function filterMapForPlayer(
     }),
     props: visibleProps(map.props, hiddenLayers)
       .filter((p) => !p.hidden && !p.secret && !inClosedRoof({ x: p.x, y: p.y }) && isVisible({ x: p.x, y: p.y }))
-      .map((p) => ({ ...p, src: '', linkedMapPath: null })),
+      .map(propForPlayer),
     drawings: visibleDrawings(map.drawings, hiddenLayers).filter((d) => {
       if (d.secret) return false
       const samples = drawingSamplePoints(d)
@@ -768,5 +768,35 @@ function pinForPlayer(pin: Pin): Pin {
   // campo: o cartão dele é o de sempre, e o recorte também.
   const escolhas = exitLabelsOf(pin)
   if (escolhas.length > 1) forPlayer.escolhas = escolhas
+  return forPlayer
+}
+
+/**
+ * O objeto (cama, baú, mesa) como o jogador pode recebê-lo: a SILHUETA e mais
+ * nada. A tela dele pinta o retângulo chapado no lugar do móvel, com o tamanho
+ * e a rotação que o mestre deu (`pixi/drawPropSilhouettes.ts`).
+ *
+ * LISTA DO QUE VAI, no molde de `pinForPlayer`: a versão anterior copiava o
+ * objeto inteiro e só apagava a imagem, e com isso a trava de edição do mestre
+ * (`locked`) e qualquer campo que o arquivo trouxesse sem o app conhecer
+ * chegavam ao jogador. Ficam de fora:
+ * - `src`: caminho no disco do mestre — o jogador não tem a imagem;
+ * - `linkedMapPath`: diria que existe outro mapa ligado ao objeto;
+ * - `locked`, `hidden`, `secret`: estado de edição do mestre (o que está
+ *   oculto nem chega aqui: o filtro acima já tirou).
+ * `layer` vai porque a tela do jogador também filtra por camada (`visibleProps`).
+ */
+function propForPlayer(prop: MapData['props'][number]): MapData['props'][number] {
+  const forPlayer: MapData['props'][number] = {
+    id: prop.id,
+    x: prop.x,
+    y: prop.y,
+    width: prop.width,
+    height: prop.height,
+    src: '',
+    linkedMapPath: null,
+  }
+  if (prop.rotation !== undefined) forPlayer.rotation = prop.rotation
+  if (prop.layer !== undefined) forPlayer.layer = prop.layer
   return forPlayer
 }
