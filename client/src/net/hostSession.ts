@@ -244,6 +244,11 @@ export interface PlayerInfo {
    * resto do tempo: é o que põe o selo "pedido" na cena dele, na lista Cenas.
    */
   travelPending?: true
+  /**
+   * Quando a conexão dele caiu (relógio do mestre). Só enquanto está fora: é o
+   * "fora há 0:10" do Grupo. Dado do painel do mestre — nunca vai pela rede.
+   */
+  disconnectedAt?: number
 }
 
 /** O que foi feito do recado para um jogador: saiu agora, ficou guardado para a volta dele, ou nada (`null`). */
@@ -517,6 +522,8 @@ interface PlayerRecord {
   resumeToken: string
   clientId: string | null
   joinedAt: number
+  /** Quando caiu; `null` enquanto conectado. */
+  disconnectedAt: number | null
 }
 
 export function createHostSession(options: HostSessionOptions): HostSession {
@@ -746,10 +753,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       resumeToken: randomId(),
       clientId: null,
       joinedAt: now(),
+      disconnectedAt: null,
     }
     // Reassumir derruba o vínculo com a conexão antiga, se ainda existir.
     if (record.clientId !== null) byClient.delete(record.clientId)
     record.clientId = clientId
+    record.disconnectedAt = null
     record.name = uniqueName(msg.name, record.playerId)
     players.set(record.playerId, record)
     byClient.set(clientId, record.playerId)
@@ -1437,7 +1446,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       byClient.delete(clientId)
       pausedSent.delete(clientId)
       const record = players.get(playerId)
-      if (record !== undefined) record.clientId = null // mantém o registro para permitir resume
+      if (record !== undefined) {
+        record.clientId = null // mantém o registro para permitir resume
+        record.disconnectedAt = now()
+      }
       // O pedido pendente morre com a conexão: quem voltar não tem mais o
       // "Aguardando o mestre…" na tela, e o aviso do mestre fica inofensivo.
       pendingTravels.delete(playerId)
@@ -1603,6 +1615,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           // O selo da lista Cenas nasce e morre com o pedido: aprovar, recusar
           // e cair a conexão já tiram o jogador de `pendingTravels`.
           if (pendingTravels.has(p.playerId)) info.travelPending = true
+          if (p.disconnectedAt !== null) info.disconnectedAt = p.disconnectedAt
           if (withScenes && info.status === 'playing') {
             const scene = sceneFor(p.playerId, world)
             // Sem cena, o painel o mostra aguardando: é o que a tela dele diz, e
