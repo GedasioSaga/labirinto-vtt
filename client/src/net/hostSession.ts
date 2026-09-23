@@ -1,7 +1,7 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
+import { emptyPlanMemory, filterMapForPlayer, planOfWholeMap, playerBlockedRings, type PlanMemory } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
@@ -369,13 +369,19 @@ interface ValidTravel {
   token: Token
 }
 
-/** O que um jogador lembra de um mapa: células exploradas e último estado visto de cada porta. */
+/** O que um jogador lembra de um mapa: células exploradas, último estado visto de cada porta e a planta como ele a viu. */
 interface PlayerMemory {
   key: string
   exp: Exploration
   doors: Map<string, DoorState>
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
+  /**
+   * A última versão VISTA de cada item da planta (`lib/fogFilter.ts`). Fora da
+   * visão, o explorado mostra esta — o que o mestre mudou longe do jogador só
+   * chega quando ele volta a ver o lugar. Só o snapshot a atualiza.
+   */
+  plan: PlanMemory
 }
 
 /** Chave de comparação do nome: sem maiúsculas e sem espaços. */
@@ -465,6 +471,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       exp: createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }),
       doors: new Map(),
       vision: [],
+      plan: emptyPlanMemory(),
     }
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
     byScene.delete(map.id)
@@ -522,7 +529,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const snapshotFor = (playerId: string, map: MapData): HostMessage => {
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, memory.plan)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -535,6 +542,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // dentro depois que ele sai.
     forgetInside(exp, view.roofs)
     memory.vision = view.vision
+    memory.plan = view.plan
     const seenNow = new Set(view.visibleDoorIds)
     for (const w of view.map.walls) {
       if (w.door !== null && seenNow.has(w.id)) memory.doors.set(w.id, { ...w.door })
@@ -772,7 +780,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const wall = map.walls.find((w) => w.id === msg.wallId)
     if (wall === undefined || wall.door === null) return reject('not_visible')
     const memory = memoryFor(playerId, map)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, memory.plan)
     if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
     // Trancada antes de longe: a cor da porta já diz que está trancada, e "Trancada" é a informação útil.
     if (wall.door.locked) return reject('locked')
@@ -829,7 +837,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map)
-    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, memory.plan)
     if (!view.map.pins.some((p) => p.id === pinId)) return null
     // Trancada: ninguém passa. Cai no mesmo `null` de todo o resto, então o
     // jogador lê o motivo genérico de sempre e nada chega ao mestre. Estar aqui,
@@ -1124,7 +1132,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const scene = sceneFor(playerId, toWorld(source))
       if (scene === null) return
       const map = scene.map
-      markAll(memoryFor(playerId, map).exp, playerBlockedRings(map))
+      const memory = memoryFor(playerId, map)
+      markAll(memory.exp, playerBlockedRings(map))
+      // Revelar é mostrar a planta de AGORA: a memória passa a ser o presente.
+      // O que o mestre esconde o recorte tira na hora de mandar (`recallItems`).
+      memory.plan = planOfWholeMap(map)
     },
 
     hidePlan(playerId, source) {
