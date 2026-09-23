@@ -1,7 +1,7 @@
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type DoorToggleRejection } from '../net/protocol'
+import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH } from '../net/protocol'
 import { themeCss } from '../theme'
 import { createPlayerConnection, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNotice } from './playerConnection'
@@ -9,6 +9,7 @@ import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
+import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
@@ -29,13 +30,6 @@ document.head.prepend(themeStyle)
 const NO_TOKENS: string[] = []
 const NO_SIGNALS: SignalMark[] = []
 const OWN_TOKEN_CSS = `#${OWN_TOKEN_COLOR.toString(16).padStart(6, '0')}`
-
-/** Recusa do mestre ao toque na porta, em uma linha curta. */
-const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
-  locked: 'Trancada',
-  far: 'Chegue mais perto da porta',
-  not_visible: 'Você não vê essa porta daqui',
-}
 
 /**
  * O pedido de passagem, em uma linha. Nunca diz para onde o pino leva: o
@@ -626,8 +620,16 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         )}
         {state.doorNotice && (
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
-          <p key={state.doorNotice.id} className="pp-notice" role="status" aria-live="polite">
-            {DOOR_NOTICE_TEXT[state.doorNotice.reason]}
+          <PlayerDoorNotice
+            key={state.doorNotice.id}
+            notice={state.doorNotice}
+            onRequest={(wallId, how) => connection.requestDoor(wallId, how)}
+            onClose={() => connection.dismissDoorNotice()}
+          />
+        )}
+        {state.doorRequest && (
+          <p key={state.doorRequest.id} className="pp-notice" role="status" aria-live="polite">
+            {doorRequestText(state.doorRequest.phase)}
           </p>
         )}
       </PlayerErrorBoundary>

@@ -7,6 +7,7 @@ import {
   createHostSession,
   singleSceneWorld,
   type AppliedTokenEdit,
+  type DoorRequest,
   type AppliedTransfer,
   type HostResult,
   type HostSession,
@@ -15,7 +16,7 @@ import {
   type PlayerInfo,
   type TravelRequest,
 } from './hostSession'
-import type { LaserMessage } from './protocol'
+import type { DoorRequestHow, LaserMessage } from './protocol'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -60,6 +61,13 @@ export interface HostBridgeDeps {
   applyMove: (tokenId: string, x: number, y: number, sceneId?: string) => void
   /** Porta que o jogador abriu/fechou, já validada pela sessão (visível, destrancada, token perto). `sceneId` como em `applyMove`. */
   applyDoor: (wallId: string, open: boolean, sceneId?: string) => void
+  /**
+   * "Destrancar e abrir" do pedido da porta trancada: tirar o cadeado e abrir
+   * a porta `wallId` (na cena de fundo `sceneId`, quando vier). Sem este
+   * retorno, o pedido nem chega ao mestre — ninguém saberia atender — e o
+   * jogador lê "O mestre disse não".
+   */
+  unlockAndOpenDoor?: (wallId: string, sceneId?: string) => void
   /**
    * Nome/foto novos do token do jogador, já validados pela sessão (o token é
    * dele e a foto é auto-contida). Opcional como `onSignal`: quem monta a
@@ -134,6 +142,19 @@ export const PLAYER_JOINED_TOAST_MS = 10_000
  * segura quem varre a porta de fora sem transformar o rail num paredão.
  */
 export const BAD_CODE_TOAST_INTERVAL_MS = 60_000
+/** A linha do pedido da porta na caixa do mestre: o que o jogador tenta, depois do nome dele. */
+const DOOR_REQUEST_VERB: Record<DoorRequestHow, string> = {
+  knock: 'bate na porta',
+  force: 'tenta forçar a porta',
+  key: 'tenta usar uma chave na porta',
+}
+
+/** "Ana tenta forçar a porta", mais " em Mansão" quando a porta está numa cena de fundo. */
+export function doorRequestLine(request: DoorRequest): string {
+  const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
+  return `${request.playerName} ${DOOR_REQUEST_VERB[request.how]}${where}`
+}
+
 const DEFAULT_VISION_RADIUS = 700
 /** Id de conexão do Rust (hoje um contador decimal); o padrão aceita folga sem abrir para lixo. */
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
@@ -223,6 +244,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let laserSent = false
   /** Aviso do mestre de cada pedido de passagem ainda na tela: `requestId` -> id do toast. */
   const travelToasts = new Map<string, string>()
+  /** Linha de cada pedido de porta trancada ainda na tela: `requestId` -> id do toast. */
+  const doorToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
 
@@ -402,6 +425,49 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       travelToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    // Mesma regra para a porta: "Destrancar e abrir" de quem saiu não abre nada.
+    for (const [requestId, toastId] of doorToasts) {
+      if (session !== null && session.isDoorRequestPending(requestId)) continue
+      doorToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
+  /**
+   * Resposta ao pedido da porta trancada. "Destrancar e abrir" tira o cadeado
+   * e abre pela store (a cena de fundo quando a porta está lá), manda "O
+   * mestre abriu" e o snapshot na hora: a porta abre para quem a vê.
+   */
+  const answerDoor = (requestId: string, allow: boolean) => {
+    const toastId = doorToasts.get(requestId)
+    doorToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    if (!allow) {
+      void dispatch(session.denyDoorRequest(requestId))
+      return
+    }
+    const result = session.approveDoorRequest(requestId, world())
+    if (result.applyDoor !== undefined) deps.unlockAndOpenDoor?.(result.applyDoor.wallId, result.applyDoor.sceneId)
+    void dispatch(result)
+    broadcastNow()
+  }
+
+  /**
+   * Pedido da porta trancada: uma linha no grupo "Pedidos", a mesma caixa dos
+   * pedidos de passagem. Espera o mestre como eles (o × vale "Não"), e o
+   * "Deixar todos" da caixa responde "Destrancar e abrir" (`emLote`).
+   */
+  const askDoor = (request: DoorRequest) => {
+    const toastId = useToastStore.getState().push('instrucao', doorRequestLine(request), null, {
+      actions: [
+        { label: 'Destrancar e abrir', run: () => answerDoor(request.requestId, true), emLote: true },
+        { label: 'Não', run: () => answerDoor(request.requestId, false) },
+      ],
+      onDismiss: () => answerDoor(request.requestId, false),
+      grupo: 'Pedidos',
+    })
+    doorToasts.set(request.requestId, toastId)
   }
 
   const answerTravel = (requestId: string, allow: boolean) => {
@@ -523,6 +589,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         // Integrador sem transferência: ninguém do lado do mestre saberia atender.
         void dispatch(session.denyTravel(result.travelRequest.requestId))
       } else askTravel(result.travelRequest)
+    }
+    if (result.doorRequest !== undefined) {
+      // Integrador sem quem destranque: a pergunta não teria resposta que abrisse a porta.
+      if (deps.unlockAndOpenDoor === undefined) void dispatch(session.denyDoorRequest(result.doorRequest.requestId))
+      else askDoor(result.doorRequest)
     }
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.

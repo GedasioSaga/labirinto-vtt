@@ -387,6 +387,11 @@ function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
 }
 
+/** A porta como o jogador a vê: aberta ou fechada, nunca trancada. */
+function withoutLock(door: DoorState): DoorState {
+  return { ...door, locked: false }
+}
+
 /**
  * `explored`: memória do jogador ANTES desta visão (quem marca é o chamador).
  * Só a planta estática (regiões, desenhos e textos, escadas, portas, linhas,
@@ -621,18 +626,25 @@ export function filterMapForPlayer(
     isShapeVisible(points) || (explored !== undefined && isShapeExplored(explored, outsideZones(points)))
 
   const visibleDoorIds: string[] = []
-  /** Porta dentro da visão sai com o estado real; explorada fora dela, com o lembrado; senão não sai. */
+  /**
+   * Porta dentro da visão sai com o estado real; explorada fora dela, com o
+   * lembrado; senão não sai. O CADEADO nunca sai: a porta trancada chega como
+   * porta fechada comum, e o jogador só descobre que está trancada tentando
+   * abrir (a recusa `locked` do host). A lembrança (`seenDoors`) é gravada a
+   * partir deste recorte, então também nasce sem cadeado.
+   */
   const doorWallForPlayer = (w: Wall, door: DoorState): Wall[] => {
     // Porta com o meio escondido não sai nem pelas amostras dos lados.
     if (inConcealZone(wallMidpoint(w))) return []
     if (doorSamples(w, DOOR_VISION_PROBE).some(isVisible)) {
       visibleDoorIds.push(w.id)
-      return [w]
+      return [{ ...w, door: withoutLock(door) }]
     }
     if (explored === undefined) return []
     const probe = explored.cell * DOOR_EXPLORED_PROBE_CELLS
     if (!doorSamples(w, probe).some(isPointExploredOpen)) return []
-    return [{ ...w, door: seenDoors?.get(w.id) ?? unseenDoor(door) }]
+    const remembered = seenDoors?.get(w.id)
+    return [{ ...w, door: remembered === undefined ? unseenDoor(door) : withoutLock(remembered) }]
   }
 
   const filtered: MapData = {
