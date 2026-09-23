@@ -304,6 +304,33 @@ describe('hostBridge', () => {
     expect(t.sent()).toEqual([{ clientId: '17', msg: { type: 'error', reason: 'invalid_message' } }])
   })
 
+  describe('código errado', () => {
+    // No app real o servidor Rust recusa o código errado sem repassar nada ao
+    // TS (server.rs, await_join): este join nunca chega aqui. O teste simula a
+    // defesa em profundidade da sessão TS — se um dia chegar, a conexão já
+    // ocupa vaga de jogador no Rust e precisa ser liberada.
+    const joinCodigoErrado = { clientId: '17', msg: { type: 'join', code: 'ZZ9999', name: 'Ana' } }
+
+    it('join recusado com bad_code responde o erro e libera a vaga com net_kick depois', async () => {
+      const t = setup()
+      await t.bridge.start()
+      t.emit('net:message', joinCodigoErrado)
+      await vi.waitFor(() => expect(t.invoke).toHaveBeenCalledWith('net_kick', { clientId: '17' }))
+      const cmds = t.invoke.mock.calls.map((c) => c[0])
+      expect(cmds.indexOf('net_send')).toBeLessThan(cmds.indexOf('net_kick'))
+      expect(t.sent()).toEqual([{ clientId: '17', msg: { type: 'error', reason: 'bad_code' } }])
+      expect(t.bridge.players()).toEqual([])
+    })
+
+    it('a ponte não promete aviso de código errado ao mestre: esse caminho não existe no app real', async () => {
+      const t = setup()
+      await t.bridge.start()
+      t.emit('net:message', joinCodigoErrado)
+      await vi.waitFor(() => expect(t.invoke).toHaveBeenCalledWith('net_kick', { clientId: '17' }))
+      expect(useToastStore.getState().toasts).toEqual([])
+    })
+  })
+
   it('mensagem inválida de jogador já registrado não expulsa', async () => {
     const t = setup()
     await t.bridge.start()
