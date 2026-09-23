@@ -500,6 +500,29 @@ const JORNADAS_DO_CRITERIO = [
   // 22/09/2026, grupo espalhado G14 — visão geral: miniaturas de todas as
   // cenas com as fichas em cima; clicar abre a cena.
   'e2e/task-jornada-visao-geral-das-cenas.spec.ts',
+  // 22/09/2026, fila antiga e grupo G15 — réguas nascidas vermelhas:
+  // salvamento automático, diário de viagens, copiar e colar, laser do
+  // jogador, tela de atalhos, tocha presa na ficha, pincel revelar/esconder,
+  // espelhar a tela do jogador, lista de objetos, ficha andando suave no
+  // jogador, barra de vida, dado na sala, exportar PNG, condição na ficha,
+  // iniciativa, agrupar objetos, alinhar e distribuir.
+  'e2e/task-jornada-salvamento-automatico.spec.ts',
+  'e2e/task-jornada-diario-de-viagens.spec.ts',
+  'e2e/task-jornada-copiar-e-colar.spec.ts',
+  'e2e/task-jornada-laser-do-jogador.spec.ts',
+  'e2e/task-jornada-tela-de-atalhos.spec.ts',
+  'e2e/task-jornada-tocha-presa-na-ficha.spec.ts',
+  'e2e/task-jornada-pincel-revelar-esconder.spec.ts',
+  'e2e/task-jornada-espelhar-tela-do-jogador.spec.ts',
+  'e2e/task-jornada-lista-de-objetos.spec.ts',
+  'e2e/task-jornada-ficha-anda-suave-no-jogador.spec.ts',
+  'e2e/task-jornada-barra-de-vida.spec.ts',
+  'e2e/task-jornada-dado-na-sala.spec.ts',
+  'e2e/task-jornada-exportar-png.spec.ts',
+  'e2e/task-jornada-condicao-na-ficha.spec.ts',
+  'e2e/task-jornada-iniciativa.spec.ts',
+  'e2e/task-jornada-agrupar-objetos.spec.ts',
+  'e2e/task-jornada-alinhar-e-distribuir.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
