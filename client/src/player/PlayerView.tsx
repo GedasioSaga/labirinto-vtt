@@ -38,7 +38,7 @@ import { drawPropSilhouettes } from '../pixi/drawPropSilhouettes'
 import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
 import { screenLabelSizing } from '../pixi/screenLabel'
-import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from '../pixi/constants'
+import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TOKEN_NAME_FILL_COLOR, TOKEN_NAME_OUTLINE_COLOR } from '../pixi/constants'
 import { parseHexColor } from '../lib/tokenColor'
 import { fitPhotoSprite, textureFromDataUrl } from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
@@ -64,6 +64,23 @@ import {
 import { drawPlayerMeasure } from './drawPlayerMeasure'
 import { createTokenGlides, stepGlides, syncGlide, type TokenGlides } from './tokenGlide'
 import { applyTokenTouch, prepareTokenLayer } from './tokenTouch'
+import {
+  NO_TOUCH,
+  NO_ZOOM_STEP,
+  fingerDown,
+  fingerMove,
+  fingerUp,
+  rebasePinch,
+  zoomAnimationFrame,
+  zoomLimits,
+  zoomStepAnimation,
+  zoomStepNow,
+  type TouchState,
+  type ZoomAnimation,
+  type ZoomDirection,
+  type ZoomLimits,
+  type ZoomStepRequest,
+} from './playerZoom'
 
 interface PlayerViewProps {
   map: MapData
@@ -115,6 +132,10 @@ interface PlayerViewProps {
    * elas deixam livre, e nunca faz a ficha nascer debaixo delas.
    */
   focusObstacles?: () => Bounds[]
+  /** Degrau pedido pelos botões + e − (`PlayerZoomControls`): `seq` novo = um degrau, em volta do centro da tela. */
+  zoomStep?: ZoomStepRequest
+  /** Chegou ao zoom máximo ou mínimo, ou saiu dele: os botões mostram o que ainda dá para fazer. */
+  onZoomLimitsChange?: (limits: ZoomLimits) => void
 }
 
 const RASTER_SAMPLES = 4
@@ -154,14 +175,18 @@ const ROOF_COLOR = 0x52483f
 const ROOF_EDGE_COLOR = 0x6e6055
 const ROOF_EDGE_WIDTH = 3
 
+// `pointerId`: o dedo (ou mouse) dono do gesto. Com dois dedos na tela, o
+// passo e o soltar do OUTRO dedo não mexem neste gesto.
 type Drag =
   // `startX`/`startY`: onde o gesto começou — se ele terminar sem andar, é um toque (porta), não um arrasto de câmera.
-  | { kind: 'pan'; lastX: number; lastY: number; startX: number; startY: number }
-  | { kind: 'token'; tokenId: string; offsetX: number; offsetY: number; x: number; y: number }
+  // `canTap` falso: o dedo que sobrou de uma pinça. Arrasta a câmera, mas soltá-lo não abre porta nem pino.
+  | { kind: 'pan'; pointerId: number; lastX: number; lastY: number; startX: number; startY: number; canTap: boolean }
+  | { kind: 'token'; pointerId: number; tokenId: string; offsetX: number; offsetY: number; x: number; y: number }
   // Régua do jogador: o ponto vive em `scene.measure`, aqui só se marca que o gesto é dela.
-  | { kind: 'measure' }
+  // `before`: a medida de antes do toque, que volta se o toque virar pinça.
+  | { kind: 'measure'; pointerId: number; before: PlayerMeasureState }
   // Laser do jogador: o rastro vive em `scene.ownLaser`.
-  | { kind: 'laser' }
+  | { kind: 'laser'; pointerId: number }
 
 function safeRgb(hex: string | null, fallback: Rgb): Rgb {
   return hex && HEX_COLOR.test(hex) ? hexToRgb(hex) : fallback
@@ -342,7 +367,7 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
   const photoMask = new Graphics()
   photo.mask = photoMask
   const ring = new Graphics()
-  const label = new Text({ text: token.name, style: { fontSize: LABEL_FONT_SIZE, fill: 0xffffff, stroke: { color: 0x000000, width: 3 } } })
+  const label = new Text({ text: token.name, style: { fontSize: LABEL_FONT_SIZE, fill: TOKEN_NAME_FILL_COLOR, stroke: { color: TOKEN_NAME_OUTLINE_COLOR, width: 3 } } })
   label.anchor.set(0.5, 0)
   wrapper.addChild(photoMask, photo, body, ring, label)
   applyTokenTouch(wrapper, own)
@@ -467,6 +492,10 @@ interface Scene {
    */
   fittedMapId: string | null
   drag: Drag | null
+  /** Dedos na tela e a pinça (playerZoom.ts). Só toque: mouse e caneta são um ponteiro só. */
+  touch: TouchState
+  /** Degrau dos botões + e − ainda andando; `null` = parado. O ticker o leva até o fim. */
+  zoomAnimation: ZoomAnimation | null
   /** Espaço de tela, acima do `world`: ondas e seta de borda com tamanho fixo. */
   signalsLayer: Container
   signalsRenderer: ReturnType<typeof createSignalsRenderer>
@@ -636,6 +665,40 @@ function startOwnerPulse(scene: Scene, tokenId: string): void {
   scene.pulse = { tokenId, startedAt: performance.now() }
 }
 
+/**
+ * A câmera muda por pedido do app (enquadrar mapa novo, centralizar): o degrau
+ * de zoom que andava para, e a pinça em curso segue da câmera nova em vez de
+ * puxá-la de volta no próximo passo do dedo.
+ */
+function setCameraFromApp(scene: Scene, camera: Camera): void {
+  scene.zoomAnimation = null
+  scene.camera = camera
+  scene.touch = rebasePinch(scene.touch, camera)
+  applyCamera(scene)
+}
+
+/**
+ * Um degrau dos botões + e −, em volta do centro da tela. Animado para o
+ * toque e o clique; inteiro de uma vez para o teclado e para quem pediu ao
+ * sistema menos movimento.
+ */
+function stepZoom(scene: Scene, direction: ZoomDirection, animate: boolean): void {
+  // Pinça em andamento manda na câmera: o botão tocado com outro dedo não disputa com ela.
+  if (scene.touch.pinch !== null) return
+  const anchor = { x: scene.app.screen.width / 2, y: scene.app.screen.height / 2 }
+  if (animate && !prefersReducedMotion()) {
+    const animation = zoomStepAnimation(scene.camera, scene.zoomAnimation, anchor, direction, performance.now())
+    // No limite não há degrau; o que já andava termina sozinho.
+    if (animation !== null) scene.zoomAnimation = animation
+    return
+  }
+  const camera = zoomStepNow(scene.camera, scene.zoomAnimation, anchor, direction)
+  if (camera === null) return
+  scene.zoomAnimation = null
+  scene.camera = camera
+  applyCamera(scene)
+}
+
 /** Referência estável: sem zonas, o redesenho não repinta a camada a cada snapshot. */
 const NO_CONCEALED: RegionPoint[][] = []
 
@@ -663,6 +726,8 @@ export function PlayerView({
   onLaserEnd,
   playerLasers = NO_PLAYER_LASERS,
   focusObstacles,
+  zoomStep = NO_ZOOM_STEP,
+  onZoomLimitsChange,
 }: PlayerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
@@ -689,9 +754,23 @@ export function PlayerView({
     onLaserEnd,
     playerLasers,
     focusObstacles,
+    onZoomLimitsChange,
   }
   const latestRef = useRef(latest)
   latestRef.current = latest
+  /** Último limite avisado aos botões; `null` = nenhum ainda (o primeiro sempre vai, até depois de remontar). */
+  const reportedZoomLimitsRef = useRef<ZoomLimits | null>(null)
+  /** Pedido dos botões já atendido: remontar com o mesmo `seq` não repete o degrau. */
+  const handledZoomSeqRef = useRef(zoomStep.seq)
+
+  /** Avisa os botões só quando o limite muda — a pinça chama isto a cada passo do dedo, e re-render por passo não se paga. */
+  function reportZoomLimits(scale: number): void {
+    const next = zoomLimits(scale)
+    const last = reportedZoomLimitsRef.current
+    if (last !== null && last.canZoomIn === next.canZoomIn && last.canZoomOut === next.canZoomOut) return
+    reportedZoomLimitsRef.current = next
+    latestRef.current.onZoomLimitsChange?.(next)
+  }
 
   /** O que cobre o mapa agora, em px do CANVAS (a prop fala em px da janela). */
   function readObstacles(): Bounds[] {
@@ -1039,10 +1118,11 @@ export function PlayerView({
       // debaixo do painel ou fora da tela: aí a câmera chega centrada nela.
       const mine = firstOwnToken(currentMap.tokens, own)
       const disc = mine === null ? null : { x: mine.x, y: mine.y, radius: tokenRadius(mine, currentMap.grid) }
-      scene.camera = arrivalCamera(fitted, disc, viewport, readObstacles())
-      applyCamera(scene)
+      const arrival = arrivalCamera(fitted, disc, viewport, readObstacles())
+      // Pelo caminho do app: o degrau do + do mapa de antes para aqui, e a pinça recomeça da câmera nova.
+      setCameraFromApp(scene, arrival)
       // Pulso só quando a câmera foi atrás da ficha: é a resposta a "onde estou?".
-      if (mine !== null && scene.camera !== fitted) startOwnerPulse(scene, mine.id)
+      if (mine !== null && arrival !== fitted) startOwnerPulse(scene, mine.id)
     }
     // Nomes e rótulos novos nascem na resolução do renderer: ajusta ao zoom atual.
     scene.textResolution.flush()
@@ -1061,12 +1141,14 @@ export function PlayerView({
     // Modo Laser também: apontar a partir da própria ficha não pode arrastá-la.
     if (event.altKey || latestRef.current.signalArmed || latestRef.current.measureArmed || latestRef.current.laserArmed) return
     event.stopPropagation()
+    // Outro gesto já em curso (o segundo dedo nem chega aqui: a captura do palco o fez pinça).
+    if (scene.drag !== null) return
     const view = scene.tokenViews.get(tokenId)?.wrapper
     if (!view) return
     const world = scene.world.toLocal(event.global)
     // Pegou a ficha no meio de um deslize: ela para onde está e passa a seguir o dedo.
     scene.tokenGlides.delete(tokenId)
-    scene.drag = { kind: 'token', tokenId, offsetX: view.x - world.x, offsetY: view.y - world.y, x: view.x, y: view.y }
+    scene.drag = { kind: 'token', pointerId: event.pointerId, tokenId, offsetX: view.x - world.x, offsetY: view.y - world.y, x: view.x, y: view.y }
   }
 
   useEffect(() => {
@@ -1233,6 +1315,8 @@ export function PlayerView({
         onZoom: () => {},
         fittedMapId: null,
         drag: null,
+        touch: NO_TOUCH,
+        zoomAnimation: null,
         signalsLayer,
         signalsRenderer: createSignalsRenderer(),
         measureLayer,
@@ -1247,8 +1331,23 @@ export function PlayerView({
         pulseLayer,
         pulse: null,
       }
-      scene.onZoom = () => redrawZoomLayers(scene)
+      scene.onZoom = () => {
+        redrawZoomLayers(scene)
+        reportZoomLimits(scene.camera.scale)
+      }
       sceneRef.current = scene
+
+      // Degrau dos botões + e −. Primeiro ticker de propósito: sinais, laser e
+      // régua do mesmo quadro já se desenham com a câmera nova.
+      const tickZoom = () => {
+        const animation = scene.zoomAnimation
+        if (animation === null) return
+        const frame = zoomAnimationFrame(animation, performance.now())
+        scene.camera = frame.camera
+        if (frame.done) scene.zoomAnimation = null
+        applyCamera(scene)
+      }
+      app.ticker.add(tickZoom)
 
       let signalsDrawn = 0
       const tickSignals = () => {
@@ -1338,27 +1437,77 @@ export function PlayerView({
         latestRef.current.onSignal?.(point.x, point.y)
       }
       /** "Segurar parado": dispara depois de `SIGNAL_LONG_PRESS_MS` se o ponteiro não andou. */
-      let longPress: { timer: ReturnType<typeof setTimeout>; x: number; y: number } | null = null
+      let longPress: { timer: ReturnType<typeof setTimeout>; pointerId: number; x: number; y: number } | null = null
       const cancelLongPress = () => {
         if (longPress === null) return
         clearTimeout(longPress.timer)
         longPress = null
       }
 
+      /**
+       * O gesto de um dedo acaba SEM efeito — o toque virou pinça, ou o
+       * sistema cancelou o dedo: a ficha volta ao lugar do mapa, a medida
+       * volta à de antes do toque, o sinal de "segurar parado" não sai, e o
+       * laser apaga a ponta (quem está na cena não fica com ela acesa).
+       */
+      const abandonDrag = () => {
+        cancelLongPress()
+        const drag = scene.drag
+        scene.drag = null
+        if (drag?.kind === 'token') {
+          const token = latestRef.current.map.tokens.find((t) => t.id === drag.tokenId)
+          if (token) scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(token.x, token.y)
+        } else if (drag?.kind === 'measure') {
+          scene.measure = drag.before
+          syncMeasure(scene)
+        } else if (drag?.kind === 'laser') {
+          endOwnLaser(scene)
+        }
+      }
+
+      /** Dedo que sobrou da pinça: arrasta a câmera, e soltá-lo não é toque em porta ou pino. */
+      const carryPan = (carry: { id: number; at: { x: number; y: number } } | null): Drag | null =>
+        carry === null ? null : { kind: 'pan', pointerId: carry.id, lastX: carry.at.x, lastY: carry.at.y, startX: carry.at.x, startY: carry.at.y, canTap: false }
+
+      /**
+       * Todo toque passa aqui ANTES da ficha e do chão (fase de captura do
+       * Pixi). O segundo dedo vira pinça, e o gesto que o primeiro tinha
+       * começado acaba sem efeito. Sem isto o segundo dedo era ignorado e a
+       * pinça virava arrasto do primeiro: a ficha andava, ou a câmera corria.
+       */
+      app.stage.on('pointerdowncapture', (event: FederatedPointerEvent) => {
+        if (event.pointerType !== 'touch') return
+        // Primeiro dedo de um gesto novo com um gesto velho pendurado: é de um toque que o navegador cancelou sem avisar.
+        if (event.isPrimary && scene.drag !== null) abandonDrag()
+        const { state, role } = fingerDown(scene.touch, event.pointerId, { x: event.global.x, y: event.global.y }, event.isPrimary, scene.camera)
+        scene.touch = state
+        if (role === 'single') return
+        // Segundo dedo (pinça) ou terceiro (ignorado): nem a ficha nem o chão recebem este toque.
+        event.stopPropagation()
+        if (role !== 'pinch') return
+        abandonDrag()
+        // A pinça partiu da câmera deste instante: o degrau dos botões para aqui, senão puxaria o mapa de volta.
+        scene.zoomAnimation = null
+      })
+
       app.stage.on('pointerdown', (event: FederatedPointerEvent) => {
+        // Dedo que a captura já fez pinça. Quando o alvo é o próprio palco, parar a propagação
+        // lá não impede este ouvinte (o Pixi avisa captura e alvo na mesma volta).
+        if (event.pointerType === 'touch' && scene.touch.pinch !== null) return
         if (scene.drag) return
         const { x, y } = event.global
+        const pointerId = event.pointerId
         if (latestRef.current.measureArmed) {
           // Com o modo Medir, o arrasto mede: nem câmera, nem sinal, nem cartão de pino.
           cancelLongPress()
-          scene.drag = { kind: 'measure' }
+          scene.drag = { kind: 'measure', pointerId, before: scene.measure }
           applyMeasureEvent(scene, { type: 'press', at: measurePointFromScreen(scene.camera, { x, y }, latestRef.current.map, event.altKey) })
           return
         }
         if (latestRef.current.laserArmed) {
           // Com o modo Laser, apertar e arrastar aponta: nem câmera, nem sinal, nem cartão de pino.
           cancelLongPress()
-          scene.drag = { kind: 'laser' }
+          scene.drag = { kind: 'laser', pointerId }
           pointOwnLaser(x, y)
           return
         }
@@ -1366,7 +1515,7 @@ export function PlayerView({
           sendSignalAt(x, y)
           return
         }
-        scene.drag = { kind: 'pan', lastX: x, lastY: y, startX: x, startY: y }
+        scene.drag = { kind: 'pan', pointerId, lastX: x, lastY: y, startX: x, startY: y, canTap: true }
         cancelLongPress()
         // Dedo em cima de um PINO não arma o sinal. O pino é um controle: quem
         // aperta ali quer ler o cartão, e demorar meio segundo para soltar não
@@ -1379,10 +1528,25 @@ export function PlayerView({
           if (scene.drag?.kind === 'pan') scene.drag = null
           sendSignalAt(x, y)
         }, SIGNAL_LONG_PRESS_MS)
-        longPress = { timer, x, y }
+        longPress = { timer, pointerId, x, y }
       })
       app.stage.on('globalpointermove', (event: FederatedPointerEvent) => {
-        if (longPress !== null && Math.hypot(event.global.x - longPress.x, event.global.y - longPress.y) > SIGNAL_LONG_PRESS_TOLERANCE_PX) {
+        if (event.pointerType === 'touch') {
+          const { state, camera } = fingerMove(scene.touch, event.pointerId, { x: event.global.x, y: event.global.y })
+          scene.touch = state
+          if (camera !== null) {
+            scene.camera = camera
+            // applyCamera chama onZoom → paredes e portas refazem a largura de tela, como na roda.
+            applyCamera(scene)
+          }
+          // Durante a pinça nenhum dedo arrasta nada sozinho.
+          if (state.pinch !== null) return
+        }
+        if (
+          longPress !== null &&
+          event.pointerId === longPress.pointerId &&
+          Math.hypot(event.global.x - longPress.x, event.global.y - longPress.y) > SIGNAL_LONG_PRESS_TOLERANCE_PX
+        ) {
           cancelLongPress()
         }
         const drag = scene.drag
@@ -1400,6 +1564,8 @@ export function PlayerView({
           app.stage.cursor = overTappable ? 'pointer' : 'default'
           return
         }
+        // Outro ponteiro (um dedo que ficou de fora do gesto): não é com este.
+        if (event.pointerId !== drag.pointerId) return
         if (drag.kind === 'measure') {
           applyMeasureEvent(scene, { type: 'move', at: measurePointFromScreen(scene.camera, event.global, latestRef.current.map, event.altKey) })
           return
@@ -1409,6 +1575,8 @@ export function PlayerView({
           return
         }
         if (drag.kind === 'pan') {
+          // Arrastar o mapa assume a câmera: o degrau dos botões para onde está (tocar sem arrastar, não).
+          scene.zoomAnimation = null
           scene.camera = panBy(scene.camera, event.global.x - drag.lastX, event.global.y - drag.lastY)
           drag.lastX = event.global.x
           drag.lastY = event.global.y
@@ -1437,7 +1605,8 @@ export function PlayerView({
           // Toque curto e parado: primeiro o pino (desenhado por cima de tudo),
           // depois a porta. Segurar mais que `SIGNAL_LONG_PRESS_MS` já virou
           // sinal de mapa lá em cima e nem chega aqui — abrir o cartão é o
-          // toque RÁPIDO, não o demorado.
+          // toque RÁPIDO, não o demorado. O dedo que sobrou de uma pinça nunca é toque.
+          if (!drag.canTap) return
           if (Math.hypot(drag.lastX - drag.startX, drag.lastY - drag.startY) > SIGNAL_LONG_PRESS_TOLERANCE_PX) return
           const pinId = pinAtScreen(scene, drag.startX, drag.startY)
           if (pinId !== null) {
@@ -1465,11 +1634,42 @@ export function PlayerView({
         }
         latestRef.current.onMove(drag.tokenId, x, y)
       }
-      app.stage.on('pointerup', endDrag)
-      app.stage.on('pointerupoutside', endDrag)
+
+      /**
+       * Tira o dedo da conta. `true` = a pinça cuidou dele: ela acabou (e o
+       * dedo que sobrou segue arrastando a câmera) ou continua com outros
+       * dois — nada mais a fazer com este ponteiro.
+       */
+      const releaseFinger = (pointerId: number): boolean => {
+        const up = fingerUp(scene.touch, pointerId, scene.camera)
+        scene.touch = up.state
+        if (up.pinchEnded) {
+          scene.drag = carryPan(up.carry)
+          return true
+        }
+        return up.state.pinch !== null
+      }
+      const onPointerUp = (event: FederatedPointerEvent) => {
+        if (event.pointerType === 'touch' && releaseFinger(event.pointerId)) return
+        // Soltou um dedo que não é o dono do gesto em curso: o gesto continua.
+        if (scene.drag !== null && scene.drag.pointerId !== event.pointerId) return
+        endDrag()
+      }
+      app.stage.on('pointerup', onPointerUp)
+      app.stage.on('pointerupoutside', onPointerUp)
+      // O Pixi não repassa `pointercancel` (o sistema tomou o toque): sem isto o
+      // dedo ficaria na conta e a ficha meio arrastada. Gesto cancelado acaba
+      // sem efeito — nem movimento, nem porta, nem pino.
+      const onPointerCancel = (event: PointerEvent) => {
+        if (event.pointerType !== 'touch' || releaseFinger(event.pointerId)) return
+        if (scene.drag?.pointerId === event.pointerId) abandonDrag()
+      }
+      app.canvas.addEventListener('pointercancel', onPointerCancel)
 
       const onWheel = (event: WheelEvent) => {
         event.preventDefault()
+        // A roda assume a câmera: o degrau dos botões para onde está.
+        scene.zoomAnimation = null
         const rect = app.canvas.getBoundingClientRect()
         scene.camera = zoomAt(scene.camera, { x: event.clientX - rect.left, y: event.clientY - rect.top }, event.deltaY)
         // applyCamera chama onZoom → redrawZoomLayers: paredes e portas refazem a largura de tela.
@@ -1491,7 +1691,9 @@ export function PlayerView({
         stopWatchingResolution()
         scene.textResolution.cancel()
         app.canvas.removeEventListener('wheel', onWheel)
+        app.canvas.removeEventListener('pointercancel', onPointerCancel)
         cancelLongPress()
+        app.ticker.remove(tickZoom)
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)
@@ -1508,6 +1710,8 @@ export function PlayerView({
       resizeObserver.observe(el)
 
       redraw(scene)
+      // O enquadramento pode cair exatamente em 100% (sem `onZoom`): os botões recebem o limite de qualquer jeito.
+      reportZoomLimits(scene.camera.scale)
     }
     setup().catch((error: unknown) => {
       console.error('Falha ao iniciar o canvas do jogador', error)
@@ -1551,11 +1755,20 @@ export function PlayerView({
     // "Minha ficha" e "Centralizar": no meio do que o painel deixa livre, no
     // zoom de agora, e a ficha pulsa para o olho achar onde a câmera foi.
     const viewport = { width: scene.app.screen.width, height: scene.app.screen.height }
-    scene.camera = centeredCamera(scene.camera.scale, token, viewport, readObstacles())
-    applyCamera(scene)
+    // Com o degrau dos botões andando, centraliza já na escala em que ele ia parar.
+    const scale = scene.zoomAnimation?.to ?? scene.camera.scale
+    setCameraFromApp(scene, centeredCamera(scale, token, viewport, readObstacles()))
     startOwnerPulse(scene, token.id)
     // Só um pedido novo (focusSeq) move a câmera; snapshot com o token andando não.
   }, [focusSeq])
+
+  useEffect(() => {
+    // Só um toque novo nos botões (`seq`) dá um degrau; remontar com o mesmo pedido, não.
+    if (zoomStep.seq === handledZoomSeqRef.current) return
+    handledZoomSeqRef.current = zoomStep.seq
+    const scene = sceneRef.current
+    if (scene) stepZoom(scene, zoomStep.direction, zoomStep.animate)
+  }, [zoomStep])
 
   useEffect(() => {
     // Desligar (botão de novo ou Escape) apaga a medida; ligar começa sem nenhuma.

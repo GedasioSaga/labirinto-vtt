@@ -118,3 +118,22 @@ export const SECRET_ITEM_ALPHA = 0.5
 export const TOKEN_FRAME_COLOR = 0xe0a44a
 /** Espessura da moldura, em px de mundo: a foto é recortada no raio do token MENOS isto. */
 export const TOKEN_FRAME_WIDTH = 4
+
+/** Tinta do nome da ficha no mapa do jogador (`player/PlayerView.tsx`). */
+export const TOKEN_NAME_FILL_COLOR = 0xffffff
+/**
+ * Contorno do nome da ficha no mapa do jogador: separa a tinta de qualquer chão.
+ *
+ * POR QUE NÃO É PRETO PURO. O serrilhado de cada letra mistura tinta e
+ * contorno; de branco a preto essa rampa passa por todos os cinzas, e o cinza
+ * 141-147 fica a ±20 por canal de #a1887f, a cor de sinal de um dos jogadores
+ * (`lib/signals.ts`). A cor do sinal é do sinal: medido em 23/09/2026 na régua
+ * do zoom no celular (teste 2), a 2,6x de zoom os nomes 'Barril', 'Ana' e
+ * 'Caixa' davam 16 pixels "da cor do sinal" sem ninguém ter sinalizado.
+ *
+ * Quase preto no matiz do azul do dono (`OWN_TOKEN_COLOR` #3b82f6, 217°): a
+ * rampa até o branco fica a mais de 26 por canal de toda cor de sinal, e o
+ * contraste com a tinta segue em 19:1 (preto puro dá 21:1). Na tela lê como
+ * preto; a regra está em `constants.nomeDaFicha.test.ts`.
+ */
+export const TOKEN_NAME_OUTLINE_COLOR = 0x000f28
