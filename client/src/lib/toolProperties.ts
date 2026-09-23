@@ -60,6 +60,8 @@ export type PropertyGroupId =
    *  pedra. Não é dual como `regionStyle`: caminho JÁ traçado se edita pelo
    *  `drawingStyle` do desenho selecionado, que já cobre cor e espessura. */
   | 'pathStyle'
+  /** Pincel de revelar: "Revelar | Esconder" e a largura do PRÓXIMO traço. */
+  | 'revealBrush'
 
 /** Todos os IDs, na mesma ordem do type acima — usado pelo teste pra
  *  conferir exaustão sem precisar listar os valores de novo lá. */
@@ -69,6 +71,7 @@ export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'lightControls', 'stairControls', 'stairSize', 'room',
   'layers', 'selection',
   'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone', 'pin', 'pathStyle',
+  'revealBrush',
 ]
 
 /**
@@ -328,6 +331,10 @@ export function relevantPropertyGroups(
   // selecionado cai em `drawingStyle` (cor + espessura do desenho
   // selecionado), e duplicar aqui poria dois seletores de cor na mesma tela.
   if (activeTool === 'path') groups.add('pathStyle')
+
+  // Pincel de revelar: preferência do PRÓXIMO traço (revelar ou esconder, e a
+  // largura). Não há "pincel selecionado" — o que ele pinta é da zona.
+  if (activeTool === 'revealBrush') groups.add('revealBrush')
 
   const hasAnySelection =
     wall || prop || token || textLabel || region || light || stair || drawingKind !== null || floorPiece
