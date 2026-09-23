@@ -1,0 +1,23 @@
+/* Alinhar e distribuir: uma fileira de ícones por família. O separador entre
+   alinhar na horizontal (esquerda/centro/direita) e na vertical (topo/meio/base)
+   é só espaço, sem traço, para não somar linha ao painel. */
+.lb-align__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.lb-align__row + .lb-align__row {
+  margin-top: var(--lb-space-1);
+}
+
+.lb-align__row .lb-iconbtn:nth-child(3):not(:last-child) {
+  margin-right: var(--lb-space-2);
+}
+
+/* `.lb-iconbtn` não define `:disabled` (ver ActionBar.css); aqui é preciso:
+   com 2 itens os dois de distribuir aparecem desligados. */
+.lb-align .lb-iconbtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

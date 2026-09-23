@@ -33,6 +33,7 @@ import { DEFAULT_PATH_WIDTH_CELLS, DEFAULT_TEXT_FONT_FAMILY, clampPathWidthCells
 import { moveAreaSelection, areaSelectionBounds, type AreaBounds } from '../lib/areaSelection'
 import { pieceBounds } from '../lib/floorSdf'
 import { groupItems, NO_GROUPS, ungroupItems, type ItemGroups } from '../lib/itemGroups'
+import { alignableUnitCount, alignSelectionItems, distributeSelectionItems, type AlignEdge, type DistributeAxis } from '../lib/alignDistribute'
 import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, TOOL_CLUSTERS } from '../components/labels'
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
@@ -804,6 +805,14 @@ interface MapStoreState {
    * ou se nada de fato mudar (todo item travado, por exemplo).
    */
   moveSelectionBy: (dx: number, dy: number) => void
+  /**
+   * Alinhar e distribuir os itens selecionados (`lib/alignDistribute.ts`):
+   * UMA entrada de histórico por clique — um Ctrl+Z devolve o conjunto
+   * inteiro. Sem efeito (nem histórico) quando nada precisa andar: menos de 2
+   * itens para alinhar, menos de 3 para distribuir, ou já no lugar.
+   */
+  alignSelection: (edge: AlignEdge) => void
+  distributeSelection: (axis: DistributeAxis) => void
   updateTextLabel: (id: string, patch: Partial<{ text: string; color: string; fontSize: number }>) => void
   setTextFontFamily: (id: string, fontFamily: string) => void
   /**
@@ -1672,6 +1681,20 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const after = reparentRooms(moved, movedRoomIds(moved, selection), map)
       withHistory(() => after)
     },
+    alignSelection: (edge) => {
+      const { map, selection } = get()
+      const aligned = alignSelectionItems(map, selection, edge)
+      if (aligned === map) return
+      const after = reparentRooms(aligned, movedRoomIds(aligned, selection), map)
+      withHistory(() => after)
+    },
+    distributeSelection: (axis) => {
+      const { map, selection } = get()
+      const distributed = distributeSelectionItems(map, selection, axis)
+      if (distributed === map) return
+      const after = reparentRooms(distributed, movedRoomIds(distributed, selection), map)
+      withHistory(() => after)
+    },
     updateTextLabel: (id, patch) => withHistory((map) => ({
       ...map,
       drawings: map.drawings.map((d) =>
@@ -1753,3 +1776,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     },
   }
 }))
+
+/**
+ * Quantos blocos o painel "Alinhar e distribuir" deve contar: blocos que andam
+ * inteiros, não entradas da seleção. O laço numa Sala sozinha põe 5 entradas
+ * (a região e as 4 paredes), mas é 1 bloco — com `selection.length` o painel
+ * mostraria botões clicáveis que não fazem nada. Seletor de número: o
+ * componente só re-renderiza quando a contagem muda.
+ */
+export function selectAlignableUnitCount(state: Pick<MapStoreState, 'map' | 'selection'>): number {
+  return alignableUnitCount(state.map, state.selection)
+}

@@ -36,6 +36,7 @@ import { LineCapControls, type LineCapControlsProps } from './LineCapControls'
 import { LineShapeControls, type LineShapeControlsProps } from './LineShapeControls'
 import { FillControls, type FillControlsProps } from './FillControls'
 import { AreaSelectionControls, type AreaSelectionControlsProps } from './AreaSelectionControls'
+import { AlignDistributeControls, type AlignDistributeControlsProps } from './AlignDistributeControls'
 import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceControls'
 import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleControls'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
@@ -79,6 +80,8 @@ interface PropertiesPanelProps {
   fill: FillControlsProps
   /** F4 — N3 "ferramenta de seleção de área". */
   areaSelection: AreaSelectionControlsProps
+  /** Alinhar e distribuir os itens selecionados (aparece com 2+ itens). */
+  alignDistribute: AlignDistributeControlsProps
   drawingStyle: DrawingStyleControlsProps
   /** Cor e largura do PRÓXIMO caminho (ferramenta "Caminho"). */
   pathStyle: PathStyleControlsProps
@@ -163,6 +166,7 @@ export function PropertiesPanel({
   lineShape,
   fill,
   areaSelection,
+  alignDistribute,
   drawingStyle,
   pathStyle,
   grid,
@@ -441,6 +445,7 @@ export function PropertiesPanel({
         )}
         <ToolPropertiesSection group="selection" groups={groups}>
           <AreaSelectionControls {...areaSelection} />
+          <AlignDistributeControls {...alignDistribute} />
           <SelectionControls {...selection} />
         </ToolPropertiesSection>
         {/* Cenas da aventura: depois do bloco da ferramenta e do objeto, junto das

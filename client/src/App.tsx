@@ -29,7 +29,7 @@ import { MapTypePicker } from './screens/MapTypePicker'
 import { NewDungeonMap } from './screens/NewDungeonMap'
 import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
-import { useMapStore } from './stores/mapStore'
+import { selectAlignableUnitCount, useMapStore } from './stores/mapStore'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
   hasUnsavedWork,
@@ -267,6 +267,8 @@ function App() {
   const gridShape = useMapStore((state) => state.map.gridShape)
   const setGridShapeAction = useMapStore((state) => state.setGridShape)
   const selection = useMapStore((state) => state.selection)
+  // Blocos que andam no alinhar (Sala + paredes = 1), não entradas da seleção.
+  const alignableCount = useMapStore(selectAlignableUnitCount)
   const setSelection = useMapStore((state) => state.setSelection)
   // Agrupar objetos (Ctrl+G): só os grupos do mapa aberto.
   const mapGroups = useMapStore((state) => state.itemGroups[state.map.id] ?? NO_GROUPS)
@@ -1823,6 +1825,11 @@ function App() {
               grouped: isSingleGroup(mapGroups, selection),
               onGroup: () => useMapStore.getState().groupSelected(),
               onUngroup: () => useMapStore.getState().ungroupSelected(),
+            }}
+            alignDistribute={{
+              count: alignableCount,
+              onAlign: (edge) => useMapStore.getState().alignSelection(edge),
+              onDistribute: (axis) => useMapStore.getState().distributeSelection(axis),
             }}
             drawingStyle={selectedDrawing && selectedDrawing.kind !== 'text' ? {
               // Desenho já selecionado: o painel edita ELE, não a preferência do próximo.
