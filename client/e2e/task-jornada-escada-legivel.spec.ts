@@ -282,7 +282,19 @@ async function arrastar(page: Page, x0: number, y0: number, x1: number, y1: numb
   await page.mouse.up()
 }
 
-test('o mestre sabe pela TELA que aquilo é uma escada e para que lado ela vai, sem abrir painel nenhum', async ({ page }) => {
+/**
+ * Teto próprio deste teste, SOMADO ao do teste (nunca no lugar dele). Três
+ * arrastos, troca de sentido pelo painel e DUAS fotos estáveis do canvas
+ * inteiro (`fotoEstavel` tira até 13 fotos de ~1 MP cada até a tela parar).
+ * Com a máquina carregada (22/09/2026, reporter de passos, 1 worker) cada
+ * foto do canvas custou até 1,5 s e o corpo, sem a abertura do editor, ~20 s
+ * — dois terços dos 30 s. Nenhum piso, teto nem controle muda: é tempo para o
+ * MESMO gesto e as MESMAS fotos, não tolerância na prova.
+ */
+const TETO_EXTRA_DO_GESTO_LONGO_MS = 30_000
+
+test('o mestre sabe pela TELA que aquilo é uma escada e para que lado ela vai, sem abrir painel nenhum', async ({ page }, testInfo) => {
+  testInfo.setTimeout(testInfo.timeout + TETO_EXTRA_DO_GESTO_LONGO_MS)
   await enterEditor(page)
   const caixa = await page.locator('canvas').boundingBox()
   if (!caixa) throw new Error('canvas sem bounding box')

@@ -47,9 +47,17 @@ import { enterEditor } from './helpers/enterEditor'
  *  lado) e não "tem alguma cor diferente do fundo". */
 const FOTO_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAfElEQVR4nO3PUQkAIBTAwNfR0rbSEH4cwmABbnPmfN1wQQNa0IAWNKAFDWhBA1rQgBY0oAUNaEEDWtCAFjSgBQ1oQQNa0IAWNKAFrwOz1995QQNa0IAWNKAFDWhBA1rQgBY0oAUNaEEDWtCAFjSgBQ1oQQNa0IAWNKAFb10lsMlp2HT+PAAAAABJRU5ErkJggg=='
-const FOTO_DATA_URL = `data:image/png;base64,${FOTO_BASE64}`
 /** Caminho que o diálogo do sistema devolve quando o mestre escolhe a foto. */
 const FOTO_NO_DISCO_DO_MESTRE = 'C:/fotos/goblin.png'
+
+/** A foto do SEGUNDO item: as mesmas duas cores, trocadas de metade (verde em
+ *  cima, magenta embaixo). Sem uma segunda foto diferente, "o item trazido
+ *  mostra a foto DELE" não se distingue de "mostra a foto de qualquer item do
+ *  acervo" — e é exatamente o erro de trocar um item pelo outro que esta régua
+ *  precisa pegar. Cores já provadas separáveis do fundo e da bolinha genérica. */
+const FOTO_DO_ORC_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAUElEQVR42u3PQQkAAAgEsOtoaVtpBp/CYAWWdP0mICAgICAgICAgICAgICAgICAgICAgIHA2mdcEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBM4WHg3Jad0FTcQAAAAASUVORK5CYII='
+const FOTO_DO_ORC_NO_DISCO = 'C:/fotos/orc.png'
 
 type Cor = [number, number, number]
 const METADE_DE_CIMA: Cor = [255, 0, 255]
@@ -137,6 +145,8 @@ interface DiscoSalvo {
   textos: Record<string, string>
   binarios: Record<string, number[]>
   pastas: string[]
+  /** Quantas vezes o diálogo "Escolher imagem..." já respondeu. */
+  escolhas?: number
 }
 
 /**
@@ -153,7 +163,7 @@ interface DiscoSalvo {
  */
 async function discoDoMestre(page: Page, semente: Record<string, string> = {}): Promise<void> {
   await page.addInitScript(
-    (entrada: { foto: string; origem: string; dataUrl: string; semente: Record<string, string> }) => {
+    (entrada: { fotos: Record<string, string>; fila: string[]; semente: Record<string, string> }) => {
       const CHAVE = 'labirinto.disco-de-mentira'
       const alvo = window as unknown as JanelaDoMestre
       const vazio: DiscoSalvo = { textos: {}, binarios: {}, pastas: [] }
@@ -177,7 +187,22 @@ async function discoDoMestre(page: Page, semente: Record<string, string> = {}): 
       }
       gravar()
 
-      const bytesDaFoto = Array.from(Uint8Array.from(atob(entrada.foto), (c) => c.charCodeAt(0)))
+      const bytesDe = (base64: string): number[] => Array.from(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)))
+      // O protocolo de asset do Tauri serve o ARQUIVO que está naquele caminho.
+      // Aqui também: a referência sai dos bytes gravados ali, e caminho sem
+      // arquivo não vira foto nenhuma. Antes, qualquer `token_*` virava a MESMA
+      // foto, e o app trazer o arquivo de OUTRO item passava despercebido.
+      const tipoPorExtensao = (caminho: string): string => {
+        const ext = caminho.slice(caminho.lastIndexOf('.') + 1).toLowerCase()
+        return ext === 'jpg' ? 'image/jpeg' : `image/${ext}`
+      }
+      const referenciaDoArquivo = (caminho: string): string => {
+        const bytes = disco.binarios[caminho]
+        if (!bytes) return caminho
+        let binario = ''
+        for (let i = 0; i < bytes.length; i += 1) binario += String.fromCharCode(bytes[i])
+        return `data:${tipoPorExtensao(caminho)};base64,${btoa(binario)}`
+      }
       const existe = (caminho: string): boolean =>
         caminho in disco.textos || caminho in disco.binarios || disco.pastas.indexOf(caminho) !== -1
 
@@ -187,10 +212,7 @@ async function discoDoMestre(page: Page, semente: Record<string, string> = {}): 
       alvo.__TAURI_INTERNALS__ = {
         metadata: { currentWindow: { label: 'main' }, currentWebview: { windowLabel: 'main', label: 'main' } },
         transformCallback: () => 0,
-        // Toda imagem de token (a do acervo e a da pasta do mapa) nasce com o
-        // prefixo `token_` em lib/imageImport.ts; o protocolo de asset do
-        // Tauri devolve a mesma foto numa referência que o navegador carrega.
-        convertFileSrc: (caminho: string) => (String(caminho).indexOf('token_') === -1 ? String(caminho) : entrada.dataUrl),
+        convertFileSrc: (caminho: string) => referenciaDoArquivo(String(caminho)),
         invoke: async (cmd, args, options) => {
           const a = (args ?? {}) as Record<string, unknown>
           switch (cmd) {
@@ -231,7 +253,7 @@ async function discoDoMestre(page: Page, semente: Record<string, string> = {}): 
               if (caminho in disco.binarios) return disco.binarios[caminho]
               // A foto que o mestre escolheu no diálogo mora "fora" do disco
               // do app: é o arquivo original dele.
-              if (caminho === entrada.origem) return bytesDaFoto
+              if (caminho in entrada.fotos) return bytesDe(entrada.fotos[caminho])
               throw new Error(`arquivo não existe: ${caminho}`)
             }
             case 'plugin:fs|rename': {
@@ -265,8 +287,14 @@ async function discoDoMestre(page: Page, semente: Record<string, string> = {}): 
                 .filter((nome) => nome.length > 0 && nome.indexOf('/') === -1)
               return nomes.map((name) => ({ name, isDirectory: false, isFile: true, isSymlink: false }))
             }
-            case 'plugin:dialog|open':
-              return entrada.origem
+            case 'plugin:dialog|open': {
+              // O mestre escolhe as fotos da pasta dele na ordem da fila:
+              // primeiro o goblin, depois o orc.
+              const vez = disco.escolhas ?? 0
+              disco.escolhas = vez + 1
+              gravar()
+              return entrada.fila[vez % entrada.fila.length]
+            }
             case 'plugin:event|listen':
               return 1
             default:
@@ -275,7 +303,11 @@ async function discoDoMestre(page: Page, semente: Record<string, string> = {}): 
         },
       }
     },
-    { foto: FOTO_BASE64, origem: FOTO_NO_DISCO_DO_MESTRE, dataUrl: FOTO_DATA_URL, semente },
+    {
+      fotos: { [FOTO_NO_DISCO_DO_MESTRE]: FOTO_BASE64, [FOTO_DO_ORC_NO_DISCO]: FOTO_DO_ORC_BASE64 },
+      fila: [FOTO_NO_DISCO_DO_MESTRE, FOTO_DO_ORC_NO_DISCO],
+      semente,
+    },
   )
 }
 
@@ -307,11 +339,13 @@ async function criarTokenComFoto(page: Page, nome: string): Promise<void> {
   await expect(page.getByRole('button', { name: 'Trocar imagem...' })).toBeVisible({ timeout: 15_000 })
 }
 
-/** Posição do token para saber ONDE fotografar. Leitura pura: não muda nada. */
+/** Posição do token que acabou de nascer (o último) para saber ONDE
+ *  fotografar. Leitura pura: não muda nada. */
 async function ondeEstaOToken(page: Page): Promise<{ x: number; y: number; size: number }> {
   const token = await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
-    const t = mod.useMapStore.getState().map.tokens[0]
+    const tokens = mod.useMapStore.getState().map.tokens
+    const t = tokens[tokens.length - 1]
     return t ? { x: t.x, y: t.y, size: t.size } : null
   })
   if (!token) throw new Error('nenhum token foi criado no mapa')
@@ -323,7 +357,9 @@ async function ondeEstaOToken(page: Page): Promise<{ x: number; y: number; size:
 // ───────────────────────────────────────────────────────────────────────────
 
 test('1. o goblin salvo no acervo aparece com nome e miniatura, continua lá em outro mapa e depois de reiniciar o app, e volta ao mapa com nome e foto', async ({ page }) => {
-  test.setTimeout(180_000)
+  // Dois itens salvos e dois trazidos: com a máquina carregada a volta leva
+  // ~2,2 min, perto demais dos 3 de antes.
+  test.setTimeout(300_000)
   await discoDoMestre(page)
   await enterEditor(page)
 
@@ -342,6 +378,12 @@ test('1. o goblin salvo no acervo aparece com nome e miniatura, continua lá em 
   await expect
     .poll(async () => miniatura.evaluate((el) => (el instanceof HTMLImageElement ? el.naturalWidth : 0)), { timeout: 10_000 })
     .toBeGreaterThan(0)
+
+  // ── um SEGUNDO item, com OUTRA foto: sem ele, trazer o item errado passa ──
+  await criarTokenComFoto(page, 'Orc')
+  await page.getByRole('button', { name: 'Salvar no acervo' }).click()
+  const orcNoAcervo = page.getByRole('button', { name: 'Colocar Orc no mapa' })
+  await expect(orcNoAcervo).toBeVisible({ timeout: 15_000 })
 
   // ── OUTRO MAPA, mesma sessão: o acervo é do app, não do mapa ─────────────
   await page.getByRole('button', { name: 'Início' }).click()
@@ -374,8 +416,26 @@ test('1. o goblin salvo no acervo aparece com nome e miniatura, continua lá em 
 
   const emCima = await corNaTela(page, centro.x, centro.y - raio * 0.5)
   const emBaixo = await corNaTela(page, centro.x, centro.y + raio * 0.5)
-  expect(ehAMesmaCor(emCima, METADE_DE_CIMA), `a metade de cima da foto do acervo deveria estar no token; veio ${emTexto(emCima)}`).toBe(true)
-  expect(ehAMesmaCor(emBaixo, METADE_DE_BAIXO), `a metade de baixo da foto do acervo deveria estar no token; veio ${emTexto(emBaixo)}`).toBe(true)
+  expect(ehAMesmaCor(emCima, METADE_DE_CIMA), `a metade de cima da foto do GOBLIN deveria estar no token Goblin; veio ${emTexto(emCima)}`).toBe(true)
+  expect(ehAMesmaCor(emBaixo, METADE_DE_BAIXO), `a metade de baixo da foto do GOBLIN deveria estar no token Goblin; veio ${emTexto(emBaixo)}`).toBe(true)
+
+  // ── e o Orc chega com a foto DELE (metades trocadas), não com a do goblin ─
+  // Os dois sentidos juntos pegam "sempre o primeiro item" e "sempre o
+  // último", além de "o item vizinho".
+  await orcNoAcervo.click()
+  await expect(page.locator('#lb-token-name')).toHaveValue('Orc', { timeout: 15_000 })
+  await expect(page.getByRole('button', { name: 'Trocar imagem...' })).toBeVisible({ timeout: 15_000 })
+  const orc = await ondeEstaOToken(page)
+  const centroDoOrc = { x: caixa.x + orc.x, y: caixa.y + orc.y }
+  const raioDoOrc = (GRID * orc.size) / 2
+  await page.mouse.click(centroDoOrc.x + raioDoOrc * 5, centroDoOrc.y + raioDoOrc * 4)
+  await expect(page.getByRole('button', { name: 'Apagar token selecionado' })).toHaveCount(0)
+  await page.waitForTimeout(PAINT_MS)
+
+  const orcEmCima = await corNaTela(page, centroDoOrc.x, centroDoOrc.y - raioDoOrc * 0.5)
+  const orcEmBaixo = await corNaTela(page, centroDoOrc.x, centroDoOrc.y + raioDoOrc * 0.5)
+  expect(ehAMesmaCor(orcEmCima, METADE_DE_BAIXO), `a metade de cima da foto do ORC (verde) deveria estar no token Orc; veio ${emTexto(orcEmCima)}`).toBe(true)
+  expect(ehAMesmaCor(orcEmBaixo, METADE_DE_CIMA), `a metade de baixo da foto do ORC (magenta) deveria estar no token Orc; veio ${emTexto(orcEmBaixo)}`).toBe(true)
 })
 
 test('2. apagar do acervo pergunta antes, e o que foi apagado não volta quando o app reinicia', async ({ page }) => {
