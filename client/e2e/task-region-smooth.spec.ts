@@ -71,7 +71,17 @@ test('Sala selecionada: botão "Suavizar contorno" arredonda o contorno e retra�
   await page.mouse.click(box.x + 450, box.y + 400)
   expect(await getSelection(page)).toEqual({ kind: 'region', id: region.id })
 
-  await page.getByRole('button', { name: 'Suavizar contorno', exact: true }).click()
+  // "Suavizar contorno" mora no Avançado (fatia 3), que nasce fechado: o botão
+  // não aparece até abrir a seção pelo cabeçalho.
+  const inspector = page.locator('.lb-inspector')
+  const smooth = page.getByRole('button', { name: 'Suavizar contorno', exact: true })
+  const advanced = inspector.getByRole('button', { name: 'Avançado', exact: true })
+  await expect(smooth).toHaveCount(0)
+  await expect(advanced).toHaveAttribute('aria-expanded', 'false')
+  await advanced.click()
+  await expect(advanced).toHaveAttribute('aria-expanded', 'true')
+  await expect(inspector.getByText('Simplifica e arredonda o contorno inteiro de uma vez; Ctrl+Z desfaz.')).toBeVisible()
+  await smooth.click()
 
   const after = await getMapState(page)
   const smoothedRegion = after.regions.find((r) => r.id === region.id)

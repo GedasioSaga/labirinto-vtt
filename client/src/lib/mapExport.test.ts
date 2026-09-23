@@ -55,6 +55,8 @@ function makeMap(overrides: Partial<MapData> = {}): MapData {
     floorStyle: { fillColor: '#006b00', strokeColor: null, strokeWidth: 1 },
     lines: [],
     markers: [],
+    concealZones: [],
+    pins: [],
     frame: null,
     fog: { mode: 'none', revealed: [] },
     hiddenLayers: [],

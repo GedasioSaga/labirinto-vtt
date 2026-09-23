@@ -56,8 +56,11 @@ export const theme = {
     parchment: '#eceae4',
     /** Rótulo, legenda, valor secundário. */
     parchmentDim: '#a2a09a',
-    /** Placeholder, texto desabilitado. */
-    parchmentFaint: '#6d6c68',
+    /**
+     * Placeholder, texto desabilitado, legenda de seção. #6d6c68 dava 3,6:1
+     * sobre o painel composto (~#141418); #858480 dá ~5:1 (mínimo AA 4,5:1).
+     */
+    parchmentFaint: '#858480',
 
     brass: '#e0a44a',
     brassBright: '#f3ba66',

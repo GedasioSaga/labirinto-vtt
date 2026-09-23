@@ -11,8 +11,14 @@ export interface MeasurementIndicatorRenderer {
    * enquanto a ferramenta "measure" está com o botão pressionado.
    * `label` vem pronto de `lib/measurement.ts` (`measureDistance(...).label`)
    * — este módulo só desenha, não calcula distância.
+   *
+   * `labelAnchor` move o rótulo para um ponto escolhido pelo chamador, com o
+   * texto centrado e apoiado ACIMA desse ponto (âncora 0.5/1). Existe para o
+   * contador de quadrados do arrasto de ficha: lá `end` é o CENTRO do disco,
+   * e o offset padrão jogaria o texto por dentro da peça, com a própria linha
+   * riscando as letras. Sem o parâmetro nada muda para a ferramenta Medir.
    */
-  show: (container: Container, start: Point, end: Point, label: string) => void
+  show: (container: Container, start: Point, end: Point, label: string, labelAnchor?: Point) => void
   /** Esconde linha e rótulo. Chamar no pointerup/pointerupoutside da
    *  ferramenta "measure" — senão a régua fica "grudada" na tela depois que
    *  o arrasto termina, mesmo bug que o comentário de
@@ -55,7 +61,7 @@ export function createMeasurementIndicatorRenderer(): MeasurementIndicatorRender
     return { line: lineGraphics, label: labelText }
   }
 
-  function show(container: Container, start: Point, end: Point, label: string): void {
+  function show(container: Container, start: Point, end: Point, label: string, labelAnchor?: Point): void {
     const { line, label: text } = ensure(container)
 
     line.clear()
@@ -63,8 +69,18 @@ export function createMeasurementIndicatorRenderer(): MeasurementIndicatorRender
     line.visible = true
 
     text.text = label
-    text.x = end.x + LABEL_OFFSET_X
-    text.y = end.y + LABEL_OFFSET_Y
+    if (labelAnchor) {
+      // Centrado e apoiado em cima do ponto pedido.
+      text.anchor.set(0.5, 1)
+      text.x = labelAnchor.x
+      text.y = labelAnchor.y
+    } else {
+      // Âncora reposta toda vez: a mesma instância pode alternar entre os dois
+      // modos, e um `anchor` deixado em 0.5/1 deslocaria o rótulo da régua.
+      text.anchor.set(0, 0)
+      text.x = end.x + LABEL_OFFSET_X
+      text.y = end.y + LABEL_OFFSET_Y
+    }
     text.visible = true
   }
 

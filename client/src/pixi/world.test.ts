@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   clampScale,
+  freeAreaCenter,
   panBy,
   zoomAt,
   constrainToAngleStep,
@@ -9,8 +10,22 @@ import {
   fitCamera,
   MIN_SCALE,
   MAX_SCALE,
+  viewportCenterWorld,
 } from './world'
 import type { MapData, Wall, Drawing } from '../types/map'
+
+describe('viewportCenterWorld', () => {
+  it('câmera padrão: centro da tela em px é o próprio ponto de mundo', () => {
+    expect(viewportCenterWorld({ x: 0, y: 0, scale: 1 }, 800, 600)).toEqual({ x: 400, y: 300 })
+  })
+
+  it('com pan e zoom desfaz a transformação do world (tela = mundo × escala + deslocamento)', () => {
+    const center = viewportCenterWorld({ x: 100, y: 50, scale: 2 }, 800, 600)
+    expect(center).toEqual({ x: 150, y: 125 })
+    expect(center.x * 2 + 100).toBe(400)
+    expect(center.y * 2 + 50).toBe(300)
+  })
+})
 
 describe('clampScale', () => {
   it('mantém valor dentro do intervalo', () => {
@@ -281,5 +296,32 @@ describe('fitCamera', () => {
     const casosMinusculos = fitCamera({ minX: 0, minY: 0, maxX: 0.001, maxY: 0.001 }, { width: 800, height: 600 }, 0)
     expect(casosGrandes.scale).toBeGreaterThanOrEqual(MIN_SCALE)
     expect(casosMinusculos.scale).toBeLessThanOrEqual(MAX_SCALE)
+  })
+})
+
+describe('freeAreaCenter: o centro do canvas que os painéis não cobrem', () => {
+  const tela = { width: 1280, height: 800 }
+  // Medidas da tela de 1280×800: rail à esquerda (alto), barra de ferramentas em cima (larga).
+  const rail = { minX: 16, minY: 16, maxX: 280, maxY: 784 }
+  const barra = { minX: 0, minY: 16, maxX: 1280, maxY: 102 }
+
+  it('sem painel: o centro do canvas inteiro', () => {
+    expect(freeAreaCenter(tela, [])).toEqual({ x: 640, y: 400 })
+  })
+
+  it('rail come a faixa da esquerda e a barra a de cima', () => {
+    expect(freeAreaCenter(tela, [rail, barra])).toEqual({ x: 780, y: 451 })
+  })
+
+  it('painel alto encostado à direita come a direita; largo embaixo come embaixo', () => {
+    expect(freeAreaCenter(tela, [{ minX: 1000, minY: 16, maxX: 1264, maxY: 784 }, { minX: 300, minY: 700, maxX: 900, maxY: 784 }])).toEqual({ x: 500, y: 350 })
+  })
+
+  it('painel fora do canvas ou sem tamanho não conta', () => {
+    expect(freeAreaCenter(tela, [{ minX: -300, minY: 0, maxX: -10, maxY: 800 }, { minX: 50, minY: 50, maxX: 50, maxY: 700 }])).toEqual({ x: 640, y: 400 })
+  })
+
+  it('o que sobra é fresta (menos de 1/4 do canvas): volta ao centro inteiro', () => {
+    expect(freeAreaCenter({ width: 400, height: 800 }, [{ minX: 0, minY: 0, maxX: 320, maxY: 800 }])).toEqual({ x: 200, y: 400 })
   })
 })

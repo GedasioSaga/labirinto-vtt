@@ -275,12 +275,26 @@ describe('mapStore regionFillColor', () => {
     useMapStore.setState({
       map: { ...useMapStore.getState().map, regions: [] },
       regionFillColor: '#3a7ad0',
+      roomFillColor: '#a8776a',
     })
   })
 
   it('setRegionFillColor atualiza a cor usada ao desenhar a próxima região', () => {
     useMapStore.getState().setRegionFillColor('#00ff00')
     expect(useMapStore.getState().regionFillColor).toBe('#00ff00')
+    // Região e Sala têm preferências separadas: mudar uma não mexe na outra.
+    expect(useMapStore.getState().roomFillColor).toBe('#a8776a')
+  })
+
+  it('Sala nova nasce marrom (#a8776a), não no azul da Região', () => {
+    expect(useMapStore.getInitialState().roomFillColor).toBe('#a8776a')
+    expect(useMapStore.getInitialState().regionFillColor).toBe('#3a7ad0')
+  })
+
+  it('setRoomFillColor atualiza só a cor da próxima Sala', () => {
+    useMapStore.getState().setRoomFillColor('#123456')
+    expect(useMapStore.getState().roomFillColor).toBe('#123456')
+    expect(useMapStore.getState().regionFillColor).toBe('#3a7ad0')
   })
 
   it('setRegionColor muda a cor só da região alvo, sem tocar outras', () => {
@@ -1015,6 +1029,32 @@ describe('mapStore setTokenImage', () => {
   })
 })
 
+describe('mapStore renameToken', () => {
+  beforeEach(() => {
+    useMapStore.setState({
+      map: { ...useMapStore.getState().map, tokens: [] },
+      past: [],
+      future: [],
+      selection: [],
+    })
+  })
+
+  it('renomeia só o token alvo, com 1 entrada de histórico, e desfaz', () => {
+    useMapStore.getState().addToken(token)
+    useMapStore.getState().addToken({ ...token, id: 't2' })
+    const pastLengthBefore = useMapStore.getState().past.length
+
+    useMapStore.getState().renameToken('t1', 'Ana')
+
+    expect(useMapStore.getState().map.tokens.find((t) => t.id === 't1')?.name).toBe('Ana')
+    expect(useMapStore.getState().map.tokens.find((t) => t.id === 't2')?.name).toBe('Herói')
+    expect(useMapStore.getState().past.length).toBe(pastLengthBefore + 1)
+
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map.tokens.find((t) => t.id === 't1')?.name).toBe('Herói')
+  })
+})
+
 describe('mapStore setDrawingFillAlpha/setDrawingFilled', () => {
   beforeEach(() => {
     useMapStore.setState({
@@ -1393,6 +1433,33 @@ describe('mapStore addDoorOnWall/setWallDoorKind/setDoorLocked (F2)', () => {
 
     expect(useMapStore.getState().map.walls.find((w) => w.id === doorId)?.door?.locked).toBe(true)
     expect(useMapStore.getState().past.length).toBe(pastLengthBefore + 1)
+  })
+
+  it('turnWallIntoDoor ("Virar porta" do painel): porta de tamanho padrão no MEIO, parede partida, vínculo com a sala mantido e porta selecionada', () => {
+    useMapStore.setState({
+      map: { ...useMapStore.getState().map, walls: [] },
+      past: [],
+      future: [],
+      selection: [],
+    })
+    // A porta nasce com a preferência da ferramenta Porta (`doorKind`); outro
+    // describe deste arquivo deixa 'gate' no store, então fixa aqui.
+    useMapStore.getState().setDoorKind('normal')
+    useMapStore.getState().addWall({ ...longWall, regionId: 'sala-1', regionEdgeIndex: 2 })
+    const pastLengthBefore = useMapStore.getState().past.length
+
+    useMapStore.getState().turnWallIntoDoor('w1')
+
+    const { map, selection, past } = useMapStore.getState()
+    expect(map.walls).toHaveLength(3)
+    const door = map.walls.find((w) => w.door !== null)
+    expect(door?.door).toEqual({ open: false, locked: false, kind: 'normal' })
+    // Parede 0..200 em y=40: vão de DOOR_LENGTH_BY_KIND.normal (32 px) centrado em x=100.
+    expect(door && Math.min(door.x1, door.x2)).toBeCloseTo(84, 9)
+    expect(door && Math.max(door.x1, door.x2)).toBeCloseTo(116, 9)
+    for (const piece of map.walls) expect(piece).toMatchObject({ regionId: 'sala-1', regionEdgeIndex: 2 })
+    expect(selection).toEqual([{ kind: 'wall', id: door?.id }])
+    expect(past.length).toBe(pastLengthBefore + 1)
   })
 })
 
@@ -1825,6 +1892,58 @@ describe('mapStore Onda 4 (item 24) — selection como SelectionSet/moveSelectio
     expect(newSelection).toHaveLength(2)
     expect(newSelection.every((item) => item.kind === 'token' && item.id !== 't1' && item.id !== 't2')).toBe(true)
     expect(useMapStore.getState().past.length).toBe(pastLengthBefore + 1)
+  })
+
+  describe('duplicar Sala leva as paredes vinculadas (bug 15/09: cópia sem linhas brancas)', () => {
+    const roomRegion = {
+      id: 'sala', tag: '', fillColor: '#a8776a', fillPattern: 'solid' as const, data: {},
+      points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
+      room: { shape: 'rect' as const, name: '' },
+    }
+    const roomWall = (index: number, x1: number, y1: number, x2: number, y2: number) => ({
+      id: `w${index}`, x1, y1, x2, y2, blocksLight: true, blocksMove: true,
+      door: index === 2 ? { open: false, locked: false, kind: 'normal' as const } : null,
+      regionId: 'sala', regionEdgeIndex: index,
+    })
+    const roomWalls = [roomWall(0, 0, 0, 100, 0), roomWall(1, 100, 0, 100, 100), roomWall(2, 100, 100, 0, 100), roomWall(3, 0, 100, 0, 0)]
+
+    it('Ctrl+D: a cópia ganha as 4 paredes (com a porta) vinculadas a ela, ao lado (largura + 1 célula)', () => {
+      useMapStore.getState().addRoom(roomRegion, roomWalls)
+      useMapStore.getState().setSelection([{ kind: 'region', id: 'sala' }])
+
+      useMapStore.getState().duplicateSelected()
+
+      const { map, selection } = useMapStore.getState()
+      const copyId = selection[0].id
+      const copyWalls = map.walls.filter((w) => w.regionId === copyId)
+      expect(copyId).not.toBe('sala')
+      expect(map.walls).toHaveLength(8)
+      expect(copyWalls.map((w) => w.regionEdgeIndex).sort()).toEqual([0, 1, 2, 3])
+      // Sala na seleção: desloca pela largura do conjunto (100) + 1 célula, sem descer.
+      expect(copyWalls.find((w) => w.regionEdgeIndex === 0)).toMatchObject({ x1: 100 + map.grid, y1: 0, x2: 200 + map.grid, y2: 0 })
+      expect(copyWalls.find((w) => w.regionEdgeIndex === 2)?.door).toEqual({ open: false, locked: false, kind: 'normal' })
+      expect(map.regions.find((r) => r.id === copyId)?.room?.name).toBe('')
+    })
+
+    it('Sala + uma parede dela selecionadas: a parede não é duplicada duas vezes', () => {
+      useMapStore.getState().addRoom(roomRegion, roomWalls)
+      useMapStore.getState().setSelection([{ kind: 'region', id: 'sala' }, { kind: 'wall', id: 'w0' }])
+
+      useMapStore.getState().duplicateSelected()
+
+      expect(useMapStore.getState().map.walls).toHaveLength(8)
+    })
+
+    it('Alt+arrastar (insertClonedEntityLive com a Sala de origem): paredes nascem sobre as originais, vinculadas à cópia', () => {
+      useMapStore.getState().addRoom(roomRegion, roomWalls)
+      const copy = { ...roomRegion, id: 'copia' }
+
+      useMapStore.getState().insertClonedEntityLive({ kind: 'region', entity: copy }, 'sala')
+
+      const copyWalls = useMapStore.getState().map.walls.filter((w) => w.regionId === 'copia')
+      expect(copyWalls).toHaveLength(4)
+      expect(copyWalls.find((w) => w.regionEdgeIndex === 1)).toMatchObject({ x1: 100, y1: 0, x2: 100, y2: 100 })
+    })
   })
 
   it('loadMap limpa selection (volta a []) junto de past/future', () => {

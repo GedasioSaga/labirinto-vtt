@@ -32,6 +32,14 @@ export function zoomAt(camera: Camera, pointer: Point, wheelDeltaY: number): Cam
   }
 }
 
+/** Ponto de mundo no centro de uma tela de `width` × `height` px com esta câmera. */
+export function viewportCenterWorld(camera: Camera, width: number, height: number): Point {
+  return {
+    x: (width / 2 - camera.x) / camera.scale,
+    y: (height / 2 - camera.y) / camera.scale,
+  }
+}
+
 export function panBy(camera: Camera, dx: number, dy: number): Camera {
   return { ...camera, x: camera.x + dx, y: camera.y + dy }
 }
@@ -110,7 +118,8 @@ function extendDrawing(bounds: Bounds | null, drawing: Drawing): Bounds | null {
   switch (drawing.kind) {
     case 'freehand':
     case 'curve':
-    case 'polygon': {
+    case 'polygon':
+    case 'path': {
       // Lista de pontos vazia (drawing degenerado) devolve `bounds` intacto,
       // `null` incluso — nunca fabrica um ponto (0,0) que não existe no mapa.
       let next = bounds
@@ -224,4 +233,41 @@ export function fitCamera(bounds: Bounds, viewport: Viewport, margin: number): C
     x: viewport.width / 2 - centerX * scale,
     y: viewport.height / 2 - centerY * scale,
   }
+}
+
+/**
+ * Menor fração do canvas que a área livre pode ter, em cada eixo. Abaixo
+ * disso (janela estreita, painel enorme) o "livre" é só uma fresta: centrar
+ * ali seria pior que centrar no canvas inteiro.
+ */
+const MIN_FREE_FRACTION = 0.25
+
+/**
+ * Centro, em px de tela, da parte do canvas que os painéis flutuantes não
+ * cobrem. `obstacles` são os retângulos desses painéis, em px relativos ao
+ * canvas (como `minX`..`maxY`). Painel mais alto que largo (o rail) come a
+ * faixa do lado que ele encosta, esquerda ou direita; mais largo que alto (a
+ * barra de ferramentas) come a faixa de cima ou de baixo. É o centro que o
+ * mestre enxerga: o ponto posto no meio do canvas inteiro pode cair sob a
+ * barra, a 400% de zoom (medido em 22/09 no "Ir lá" do chamado de fundo).
+ */
+export function freeAreaCenter(viewport: Viewport, obstacles: Bounds[]): Point {
+  let left = 0
+  let top = 0
+  let right = viewport.width
+  let bottom = viewport.height
+  for (const o of obstacles) {
+    const width = o.maxX - o.minX
+    const height = o.maxY - o.minY
+    // Painel fora do canvas ou sem tamanho não cobre nada.
+    if (width <= 0 || height <= 0 || o.maxX <= 0 || o.maxY <= 0 || o.minX >= viewport.width || o.minY >= viewport.height) continue
+    if (height > width) {
+      if (o.minX < viewport.width - o.maxX) left = Math.max(left, o.maxX)
+      else right = Math.min(right, o.minX)
+    } else if (o.minY < viewport.height - o.maxY) top = Math.max(top, o.maxY)
+    else bottom = Math.min(bottom, o.minY)
+  }
+  const whole = { x: viewport.width / 2, y: viewport.height / 2 }
+  if (right - left < viewport.width * MIN_FREE_FRACTION || bottom - top < viewport.height * MIN_FREE_FRACTION) return whole
+  return { x: (left + right) / 2, y: (top + bottom) / 2 }
 }

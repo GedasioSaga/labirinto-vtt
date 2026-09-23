@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveCursor, type GestureMode, type HoverKind, type ResizeCorner, type ResolveCursorInput } from './cursorPolicy'
+import { CURSOR_ROTATE, resolveCursor, type GestureMode, type HoverKind, type ResizeCorner, type ResolveCursorInput } from './cursorPolicy'
 import type { DrawingTool } from '../types/tools'
 
 /**
@@ -51,9 +51,13 @@ const ALL_MODES: GestureMode[] = [
   'dragging-area-selection',
   'drawing-floor',
   'dragging-floor-body',
+  'painting-floor-blocks',
+  'dragging-room-label',
+  'drawing-conceal-zone',
+  'rotating-room',
 ]
 
-/** Cópia local dos 22 literais de `DrawingTool` (`types/tools.ts:1-23`). */
+/** Cópia local dos 24 literais de `DrawingTool` (`types/tools.ts`). */
 const ALL_TOOLS: DrawingTool[] = [
   'select',
   'wall',
@@ -63,6 +67,7 @@ const ALL_TOOLS: DrawingTool[] = [
   'room',
   'roomCircle',
   'roomPolygon',
+  'roomFree',
   'stair',
   'token',
   'prop',
@@ -77,9 +82,10 @@ const ALL_TOOLS: DrawingTool[] = [
   'measure',
   'eraser',
   'floor',
+  'concealZone',
 ]
 
-const ALL_HOVER_KINDS: HoverKind[] = ['none', 'selectable', 'resize-corner', 'vertex', 'radius', 'area-selection']
+const ALL_HOVER_KINDS: HoverKind[] = ['none', 'selectable', 'resize-corner', 'vertex', 'radius', 'area-selection', 'rotate']
 
 const ALL_CORNERS: ResizeCorner[] = [0, 1, 2, 3]
 
@@ -93,6 +99,8 @@ const VALID_CSS_CURSORS = new Set([
   'cell',
   'nwse-resize',
   'nesw-resize',
+  // A seta de girar sala: imagem própria, com `grab` de reserva.
+  CURSOR_ROTATE,
 ])
 
 const baseInput = (overrides: Partial<ResolveCursorInput> = {}): ResolveCursorInput => ({
@@ -105,24 +113,24 @@ const baseInput = (overrides: Partial<ResolveCursorInput> = {}): ResolveCursorIn
 })
 
 describe('resolveCursor — exaustividade', () => {
-  it('cobre TODOS os 36 modos de PixiCanvas.tsx sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_MODES).toHaveLength(36)
+  it('cobre TODOS os 40 modos de PixiCanvas.tsx sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_MODES).toHaveLength(40)
     for (const mode of ALL_MODES) {
       const cursor = resolveCursor(baseInput({ mode, corner: 0 }))
       expect(VALID_CSS_CURSORS.has(cursor), `mode "${mode}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
     }
   })
 
-  it('cobre TODAS as 22 ferramentas (idle) sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_TOOLS).toHaveLength(22)
+  it('cobre TODAS as 24 ferramentas (idle) sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_TOOLS).toHaveLength(24)
     for (const activeTool of ALL_TOOLS) {
       const cursor = resolveCursor(baseInput({ activeTool }))
       expect(VALID_CSS_CURSORS.has(cursor), `tool "${activeTool}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
     }
   })
 
-  it('cobre TODOS os 6 HoverKind (idle + select) sem lançar e devolve cursor CSS válido', () => {
-    expect(ALL_HOVER_KINDS).toHaveLength(6)
+  it('cobre TODOS os 7 HoverKind (idle + select) sem lançar e devolve cursor CSS válido', () => {
+    expect(ALL_HOVER_KINDS).toHaveLength(7)
     for (const hoverKind of ALL_HOVER_KINDS) {
       const cursor = resolveCursor(baseInput({ activeTool: 'select', hoverKind, corner: 0 }))
       expect(VALID_CSS_CURSORS.has(cursor), `hoverKind "${hoverKind}" devolveu cursor desconhecido: "${cursor}"`).toBe(true)
@@ -132,16 +140,16 @@ describe('resolveCursor — exaustividade', () => {
 
 describe('resolveCursor — ferramentas de criação (idle): crosshair', () => {
   const creationTools: DrawingTool[] = [
-    'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon',
+    'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree',
     'stair', 'prop', 'brush', 'line', 'circle', 'ellipse', 'rect', 'polygon',
-    'curve', 'text', 'measure', 'floor',
+    'curve', 'text', 'measure', 'floor', 'concealZone',
   ]
 
   it.each(creationTools)('%s ocioso é crosshair — mira de precisão pra colocar algo novo', (activeTool) => {
     expect(resolveCursor(baseInput({ activeTool }))).toBe('crosshair')
   })
 
-  it('as 19 ferramentas de criação são exatamente DrawingTool menos select/token/eraser', () => {
+  it('as 21 ferramentas de criação são exatamente DrawingTool menos select/token/eraser', () => {
     const naoCriacao = new Set(['select', 'token', 'eraser'])
     const criacaoDoModulo = ALL_TOOLS.filter((tool) => !naoCriacao.has(tool))
     expect(criacaoDoModulo.sort()).toEqual([...creationTools].sort())
@@ -226,10 +234,25 @@ describe('resolveCursor — alças de resize: nwse-resize / nesw-resize por cant
   })
 })
 
+describe('resolveCursor — alça de girar sala: a seta curva do pairar ao soltar', () => {
+  it('pairar na alça mostra a seta de girar, não a mão de arrastar', () => {
+    expect(resolveCursor(baseInput({ activeTool: 'select', hoverKind: 'rotate' }))).toBe(CURSOR_ROTATE)
+  })
+
+  it('durante o giro continua a mesma seta (como o redimensionar, que não troca de cursor ao pegar)', () => {
+    expect(resolveCursor(baseInput({ mode: 'rotating-room' }))).toBe(CURSOR_ROTATE)
+  })
+
+  it('é uma imagem SVG com ponto quente no meio e reserva "grab" se o navegador recusar a imagem', () => {
+    expect(CURSOR_ROTATE).toMatch(/^url\("data:image\/svg\+xml,[^"]+"\) 12 12, grab$/)
+  })
+})
+
 describe('resolveCursor — arrastando corpo inteiro: "move"', () => {
   const bodyDragModes: GestureMode[] = [
     'dragging-token', 'dragging-prop', 'dragging-wall-body', 'dragging-region-body',
     'dragging-stair-body', 'dragging-curve-body', 'dragging-line-body', 'dragging-area-selection',
+    'dragging-room-label',
   ]
 
   it.each(bodyDragModes)('mode "%s" é "move"', (mode) => {
@@ -270,7 +293,7 @@ describe('resolveCursor — gesto de desenho em andamento: crosshair do início 
   const drawingModes: GestureMode[] = [
     'drawing-wall', 'drawing-freehand', 'drawing-line', 'drawing-circle', 'drawing-rect',
     'drawing-ellipse', 'drawing-polygon', 'drawing-light', 'drawing-curve', 'drawing-room',
-    'drawing-polygon-room', 'drawing-stair',
+    'drawing-polygon-room', 'drawing-stair', 'painting-floor-blocks',
   ]
 
   it.each(drawingModes)('mode "%s" é "crosshair"', (mode) => {

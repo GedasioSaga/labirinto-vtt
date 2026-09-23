@@ -36,6 +36,8 @@ export type GestureMode =
   | 'panning'
   | 'dragging-token'
   | 'dragging-prop'
+  // Pino de ponto de interesse arrastado depois de cravado.
+  | 'dragging-pin'
   | 'drawing-wall'
   | 'drawing-freehand'
   | 'drawing-line'
@@ -72,6 +74,14 @@ export type GestureMode =
   // o corpo de uma peça selecionada.
   | 'drawing-floor'
   | 'dragging-floor-body'
+  // Pincel de blocos: arrasto que pinta ou apaga célula da grade.
+  | 'painting-floor-blocks'
+  // A4 — arrastar só o nome da Sala.
+  | 'dragging-room-label'
+  // A5 — arrasto de criação da Zona oculta.
+  | 'drawing-conceal-zone'
+  // Girar sala pela alça (bolinha acima da sala selecionada).
+  | 'rotating-room'
 
 /**
  * O que está sob o ponteiro em `mode === 'idle'`, achado por um hit-test
@@ -89,7 +99,7 @@ export type GestureMode =
  * padrão de confiança que o resto do arquivo já usa entre os `if`s da
  * cadeia de `pointerdown`.
  */
-export type HoverKind = 'none' | 'selectable' | 'resize-corner' | 'vertex' | 'radius' | 'area-selection'
+export type HoverKind = 'none' | 'selectable' | 'resize-corner' | 'vertex' | 'radius' | 'area-selection' | 'rotate'
 
 /**
  * Índice de canto de alça de resize — MESMA convenção de `Corner`
@@ -149,6 +159,23 @@ const CURSOR_NWSE = 'nwse-resize'
 const CURSOR_NESW = 'nesw-resize'
 
 /**
+ * Seta curva de GIRAR, para a alça da sala. O CSS não tem cursor de girar
+ * entre os nomes padrão, e a mão (`grab`) diria "arrastar", não "girar" — a
+ * pessoa só descobriria o que a bolinha faz depois de puxar. Desenho próprio:
+ * arco de ~320° no sentido horário com a ponta no fim, traço preto sobre halo
+ * branco como os cursores do sistema, para ler no chão claro e no fundo
+ * escuro. Ponto quente no meio do arco. O `grab` depois da vírgula vale se o
+ * navegador recusar a imagem.
+ */
+const ROTATE_CURSOR_SVG =
+  "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'>" +
+  "<g fill='none' stroke-linecap='round' stroke-linejoin='round'>" +
+  "<path d='M14.4 5.9A7 7 0 1 1 9.6 5.9M7.8 3.9L11.5 5.2L9.5 8.6' stroke='white' stroke-width='4.5'/>" +
+  "<path d='M14.4 5.9A7 7 0 1 1 9.6 5.9M7.8 3.9L11.5 5.2L9.5 8.6' stroke='black' stroke-width='2'/>" +
+  '</g></svg>'
+export const CURSOR_ROTATE = `url("data:image/svg+xml,${encodeURIComponent(ROTATE_CURSOR_SVG)}") 12 12, grab`
+
+/**
  * As 18 ferramentas de CRIAÇÃO (colocam algo novo no mapa a partir de um
  * clique/arrasto) — `activeTool` ocioso nelas é `crosshair`, mira de
  * precisão. Todo o resto de `DrawingTool` (21 valores, `types/tools.ts`)
@@ -165,6 +192,7 @@ const CREATION_TOOLS = new Set<DrawingTool>([
   'room',
   'roomCircle',
   'roomPolygon',
+  'roomFree',
   'stair',
   'prop',
   'brush',
@@ -177,6 +205,8 @@ const CREATION_TOOLS = new Set<DrawingTool>([
   'text',
   'measure',
   'floor',
+  'path',
+  'concealZone',
 ])
 
 function resizeCursorForCorner(corner: ResizeCorner | null): string {
@@ -210,6 +240,8 @@ function resolveIdleCursor(activeTool: DrawingTool, hoverKind: HoverKind, corner
   switch (hoverKind) {
     case 'resize-corner':
       return resizeCursorForCorner(corner)
+    case 'rotate':
+      return CURSOR_ROTATE
     case 'vertex':
     case 'radius':
     case 'selectable':
@@ -233,7 +265,8 @@ function assertNeverHoverKind(value: never): never {
 /**
  * Decide o valor de `el.style.cursor` (CSS puro: `'default' | 'crosshair' |
  * 'pointer' | 'move' | 'grab' | 'grabbing' | 'cell' | 'nwse-resize' |
- * 'nesw-resize'`) a partir do estado do gesto. Função total: todo
+ * 'nesw-resize'`, mais a seta de girar `CURSOR_ROTATE`) a partir do estado
+ * do gesto. Função total: todo
  * `GestureMode` e todo `HoverKind` tem um `case` explícito no `switch`
  * (o `default` de cada um força `never`, então remover um `case` sem
  * atualizar os dois quebra `tsc --noEmit`, não só o teste em runtime).
@@ -276,6 +309,11 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'drawing-polygon-room':
     case 'drawing-stair':
     case 'drawing-floor':
+    // O pincel é gesto de criação como qualquer outro: a mira não muda do
+    // começo ao fim do traço (nem quando ele apaga — o que apaga é o botão,
+    // e trocar o cursor no meio do arrasto seria dizer que a ferramenta mudou).
+    case 'painting-floor-blocks':
+    case 'drawing-conceal-zone':
     case 'area-marquee-drag':
       return CURSOR_CROSSHAIR
 
@@ -284,6 +322,9 @@ export function resolveCursor(input: ResolveCursorInput): string {
 
     case 'dragging-token':
     case 'dragging-prop':
+    // O pino vai inteiro atrás do ponteiro, como Token e Objeto: `move`, não
+    // `grabbing` (que é para quem segura um PONTO de um objeto maior).
+    case 'dragging-pin':
     case 'dragging-wall-body':
     case 'dragging-region-body':
     case 'dragging-stair-body':
@@ -291,6 +332,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'dragging-line-body':
     case 'dragging-floor-body':
     case 'dragging-area-selection':
+    case 'dragging-room-label':
       return CURSOR_MOVE
 
     case 'dragging-wall-point':
@@ -308,6 +350,11 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'resizing-token':
     case 'resizing-prop-corner':
       return resizeCursorForCorner(corner)
+
+    // O mesmo cursor do pairar sobre a alça, do começo ao fim do giro — como
+    // o de redimensionar, que não muda entre pairar e arrastar.
+    case 'rotating-room':
+      return CURSOR_ROTATE
 
     default:
       return assertNeverMode(mode)

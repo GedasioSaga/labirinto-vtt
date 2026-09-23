@@ -12,8 +12,16 @@ export interface ItemTransformControlsProps {
   onRotationChange?: (rotation: number) => void
   locked: boolean
   onLockedChange: (locked: boolean) => void
-  hidden: boolean
-  onHiddenChange: (hidden: boolean) => void
+  /** Ausente (junto de onHiddenChange) pra entidade cujo render IGNORA
+   *  `hidden` — é o caso de Region: `pixi/drawRegions.ts` desenha sem
+   *  consultar o campo, então o interruptor ali seria um controle morto, que
+   *  o mestre marca e nada muda na tela. Mesmo mecanismo de `rotation` acima
+   *  e de `secret` abaixo: omitido → a linha não renderiza. */
+  hidden?: boolean
+  onHiddenChange?: (hidden: boolean) => void
+  /** A5 — "Oculto para jogadores". Ausente (junto do callback) omite o toggle. */
+  secret?: boolean
+  onSecretChange?: (secret: boolean) => void
 }
 
 /**
@@ -25,8 +33,9 @@ export interface ItemTransformControlsProps {
  * repassa o valor editado, não faz a checagem de opcional.
  *
  * "Oculto no editor" é o rótulo do toggle de propósito, não "Invisível":
- * `hidden` aqui é só organização de cena do mestre, não existe segunda
- * tela/modo jogador neste app (ver Token.hidden em types/map.ts).
+ * `hidden` aqui é só organização de cena do mestre (ver Token.hidden em
+ * types/map.ts). "Oculto para jogadores" (`secret`, A5) é o outro toggle:
+ * o item fica no editor, só não sai no recorte do jogador.
  */
 export function ItemTransformControls({
   title,
@@ -36,6 +45,8 @@ export function ItemTransformControls({
   onLockedChange,
   hidden,
   onHiddenChange,
+  secret,
+  onSecretChange,
 }: ItemTransformControlsProps) {
   const showRotation = rotation !== undefined && onRotationChange !== undefined
   // React.useId(): duas seções deste componente podem coexistir no DOM em
@@ -66,7 +77,12 @@ export function ItemTransformControls({
         </div>
       )}
       <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
-      <Toggle label="Oculto no editor" checked={hidden} onChange={onHiddenChange} />
+      {hidden !== undefined && onHiddenChange !== undefined && (
+        <Toggle label="Oculto no editor" checked={hidden} onChange={onHiddenChange} />
+      )}
+      {secret !== undefined && onSecretChange !== undefined && (
+        <Toggle label="Oculto para jogadores" checked={secret} onChange={onSecretChange} />
+      )}
     </section>
   )
 }

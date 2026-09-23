@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Container, Text } from 'pixi.js'
 import { createTextLabelsRenderer } from './drawTextLabels'
 import type { Drawing } from '../types/map'
@@ -61,5 +61,28 @@ describe('createTextLabelsRenderer', () => {
 
     renderer.draw(container, [buildTextDrawing()], null)
     expect(findTextChild(container)?.style.fontFamily).toBe(DEFAULT_TEXT_FONT_FAMILY)
+  })
+
+  it('texto que some fica invisível sem destroy e o mesmo objeto volta quando reaparece', () => {
+    const container = new Container()
+    const renderer = createTextLabelsRenderer()
+
+    renderer.draw(container, [buildTextDrawing()], null)
+    const textObj = findTextChild(container)
+    expect(textObj?.visible).toBe(true)
+    const destroySpy = vi.spyOn(Text.prototype, 'destroy')
+
+    renderer.draw(container, [], null)
+    expect(destroySpy).not.toHaveBeenCalled()
+    expect(textObj?.destroyed).toBe(false)
+    expect(textObj?.visible).toBe(false)
+    expect(findTextChild(container)).toBe(textObj)
+
+    renderer.draw(container, [buildTextDrawing({ text: 'De volta' })], null)
+    expect(destroySpy).not.toHaveBeenCalled()
+    expect(findTextChild(container)).toBe(textObj)
+    expect(textObj?.visible).toBe(true)
+    expect(textObj?.text).toBe('De volta')
+    destroySpy.mockRestore()
   })
 })

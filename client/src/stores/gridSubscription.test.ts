@@ -51,7 +51,7 @@ describe('subscribeToGridRedraw', () => {
     const onChange = vi.fn()
     const unsubscribe = subscribeToGridRedraw(onChange)
 
-    useMapStore.getState().setShowGrid(false)
+    useMapStore.getState().setShowGrid(true)
 
     expect(onChange).toHaveBeenCalledTimes(1)
     unsubscribe()
@@ -74,6 +74,21 @@ describe('subscribeToGridRedraw', () => {
     useMapStore.getState().loadMap(mapFactory.createEmptyMap('map_test_3', 'Outro', 10, 10, 32))
 
     expect(onChange).toHaveBeenCalledTimes(1)
+    unsubscribe()
+  })
+
+  // Auditoria 14/09: cor, opacidade, espessura e estilo gravavam, mas o canvas
+  // só mudava no próximo zoom/pan — gridSettings não estava na assinatura.
+  it('dispara quando gridSettings muda (cor, opacidade, espessura, estilo)', () => {
+    const onChange = vi.fn()
+    const unsubscribe = subscribeToGridRedraw(onChange)
+
+    useMapStore.getState().setGridSettings({ color: '#ff3030' })
+    useMapStore.getState().setGridSettings({ opacity: 0.4 })
+    useMapStore.getState().setGridSettings({ lineWidth: 5 })
+    useMapStore.getState().setGridSettings({ lineStyle: 'dashed' })
+
+    expect(onChange).toHaveBeenCalledTimes(4)
     unsubscribe()
   })
 })

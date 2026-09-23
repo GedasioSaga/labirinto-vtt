@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { resolveShortcut, TOOL_SHORTCUTS } from './keymap'
+import { buildToolByLetter, hiddenTools, resolveShortcut, TOOL_SHORTCUTS } from './keymap'
+import { FEATURES } from './features'
 import type { ShortcutEvent } from './keymap'
 import type { DrawingTool } from '../types/tools'
 
@@ -32,7 +33,8 @@ describe('resolveShortcut — letras de ferramenta', () => {
     ['roomCircle', 'J'],
     ['roomPolygon', 'Q'],
     ['stair', 'S'],
-    ['token', 'K'],
+    // token/K fica fora do laço: a ferramenta está escondida (FEATURES.tokenTool);
+    // os testes de K logo abaixo cobrem os dois estados.
     ['prop', 'B'],
     ['brush', 'P'],
     ['line', 'L'],
@@ -45,12 +47,47 @@ describe('resolveShortcut — letras de ferramenta', () => {
     ['measure', 'M'],
     ['eraser', 'E'],
     ['floor', 'I'],
+    ['concealZone', 'X'],
+    ['pin', 'Y'],
   ]
 
-  it('TOOL_SHORTCUTS cobre exatamente as 22 ferramentas esperadas, sem duplicar letra', () => {
-    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length)
-    const letters = Object.values(TOOL_SHORTCUTS)
+  it('TOOL_SHORTCUTS cobre exatamente as 25 ferramentas esperadas, sem duplicar letra', () => {
+    // Do laço saem TRÊS: token, que continua na tabela mesmo escondida;
+    // roomFree, que ficou SEM letra na integração de 17/09/2026 — ela e o Pino
+    // escolheram 'Y' em árvores separadas, e duas ferramentas na mesma letra
+    // fariam o índice perder uma em silêncio; e Caminho, que chegou quando já
+    // não sobrava letra nenhuma (F é "enquadrar tudo", Z fica com o Ctrl+Z).
+    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 3)
+    expect(TOOL_SHORTCUTS.token).toBe('K')
+    expect(TOOL_SHORTCUTS.roomFree).toBe('')
+    expect(TOOL_SHORTCUTS.path).toBe('')
+    const letters = Object.values(TOOL_SHORTCUTS).filter((l) => l.length > 0)
     expect(new Set(letters).size).toBe(letters.length)
+  })
+
+  it('Sala livre não tem letra: o índice não a alcança, só a barra', () => {
+    const porLetra = buildToolByLetter(new Set())
+    expect([...porLetra.values()]).not.toContain('roomFree')
+    expect(porLetra.has('')).toBe(false)
+  })
+
+  it('Caminho também não tem letra: nenhuma tecla o ativa, e ele não rouba a de ninguém', () => {
+    const porLetra = buildToolByLetter(new Set())
+    expect([...porLetra.values()]).not.toContain('path')
+    // Controle positivo do mesmo índice: quem TEM letra continua alcançável,
+    // senão este teste passaria com um índice vazio.
+    expect(porLetra.get('i')).toBe('floor')
+  })
+
+  it('k devolve null: a ferramenta Token está escondida', () => {
+    expect(resolveShortcut(evt({ key: 'k' }))).toBeNull()
+    expect(resolveShortcut(evt({ key: 'K' }))).toBeNull()
+  })
+
+  it('buildToolByLetter(vazio) mapeia k para token (religar é trocar a flag)', () => {
+    expect(buildToolByLetter(new Set()).get('k')).toBe('token')
+    expect(buildToolByLetter(hiddenTools({ ...FEATURES, tokenTool: true })).get('k')).toBe('token')
+    expect(buildToolByLetter(hiddenTools(FEATURES)).has('k')).toBe(false)
   })
 
   for (const [tool, letter] of ALL_TOOLS) {
@@ -65,8 +102,8 @@ describe('resolveShortcut — letras de ferramenta', () => {
   }
 
   it('letra desconhecida (sem tool nem ação) devolve null', () => {
-    expect(resolveShortcut(evt({ key: 'x' }))).toBeNull()
-    expect(resolveShortcut(evt({ key: 'y' }))).toBeNull()
+    // 'x' virou a Zona oculta (A5) e 'y' o Pino; Z segue livre, reservada ao
+    // Ctrl+Z. A Sala livre ficou sem letra nenhuma (ver o teste acima).
     expect(resolveShortcut(evt({ key: 'z' }))).toBeNull()
   })
 
@@ -175,6 +212,26 @@ describe('resolveShortcut — ações globais sem modificador', () => {
 
   it('Backspace apaga seleção', () => {
     expect(resolveShortcut(evt({ key: 'Backspace' }))).toEqual({ kind: 'deleteSelected' })
+  })
+})
+
+describe('resolveShortcut — rascunho ponto a ponto aberto', () => {
+  // Região/Área/Corredor em construção: Ctrl+Z e Backspace tiram o último
+  // ponto do rascunho. Desfazer o mapa ou apagar a seleção nessa hora perdia
+  // trabalho (a última Sala sumia e o rascunho continuava na tela).
+  it('Ctrl+Z tira o último ponto em vez de desfazer o mapa', () => {
+    expect(resolveShortcut(evt({ key: 'z', ctrlKey: true, hasPointDraft: true }))).toEqual({ kind: 'undoDraftPoint' })
+    expect(resolveShortcut(evt({ key: 'Z', metaKey: true, hasPointDraft: true }))).toEqual({ kind: 'undoDraftPoint' })
+  })
+
+  it('Backspace tira o último ponto em vez de apagar a seleção', () => {
+    expect(resolveShortcut(evt({ key: 'Backspace', hasPointDraft: true }))).toEqual({ kind: 'undoDraftPoint' })
+  })
+
+  it('Delete, refazer e campo de texto não mudam', () => {
+    expect(resolveShortcut(evt({ key: 'Delete', hasPointDraft: true }))).toEqual({ kind: 'deleteSelected' })
+    expect(resolveShortcut(evt({ key: 'z', ctrlKey: true, shiftKey: true, hasPointDraft: true }))).toEqual({ kind: 'redo' })
+    expect(resolveShortcut(evt({ key: 'Backspace', targetTagName: 'INPUT', hasPointDraft: true }))).toBeNull()
   })
 })
 

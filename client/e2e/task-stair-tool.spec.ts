@@ -64,12 +64,16 @@ test('1. arrasto com a ferramenta Escada cria um Stair reto; clique seleciona; t
   await page.mouse.click(box.x + 500, box.y + 400) // ponto médio do lance
   expect(await getSelection(page)).toEqual({ kind: 'stair', id: stair.id })
 
-  // Direction 'up' -> checked=true ("Sobe (desmarcado = desce)") — desmarcar troca pra 'down'.
-  await page.getByRole('checkbox', { name: 'Sobe (desmarcado = desce)' }).click({ force: true })
+  // Sentido é um segmento Sobe | Desce (radios): 'up' começa marcado em "Sobe".
+  const sentido = page.getByRole('radiogroup', { name: 'Sentido da escada' })
+  await expect(sentido.getByRole('radio', { name: 'Sobe', exact: true })).toHaveAttribute('aria-checked', 'true')
+  await sentido.getByRole('radio', { name: 'Desce', exact: true }).click()
   stairs = await getStairs(page)
   expect(stairs.find((s) => s.id === stair.id)?.direction).toBe('down')
+  await expect(sentido.getByRole('radio', { name: 'Desce', exact: true })).toHaveAttribute('aria-checked', 'true')
 
-  await page.getByRole('checkbox', { name: 'Sobe (desmarcado = desce)' }).click({ force: true })
+  await sentido.getByRole('radio', { name: 'Sobe', exact: true }).click()
   stairs = await getStairs(page)
   expect(stairs.find((s) => s.id === stair.id)?.direction).toBe('up')
+  await expect(sentido.getByRole('radio', { name: 'Sobe', exact: true })).toHaveAttribute('aria-checked', 'true')
 })

@@ -80,17 +80,25 @@ test('1. ocultar a camada "Paredes" tira a parede do hit-test; mostrar de volta 
   await page.mouse.click(box.x + 900, box.y + 700)
   expect(await getSelection(page)).toBeNull()
 
-  // Rótulo do toggle inclui a contagem (LayersPanel.tsx): "Paredes (1)". A
-  // contagem conta TODAS as entidades da camada, visíveis ou não
-  // (countEntitiesByLayer, lib/layers.ts) — não muda ao ocultar.
-  await page.getByRole('checkbox', { name: 'Paredes (1)', exact: true }).click({ force: true })
+  // Lista compacta (LayersPanel.tsx): o olho de cada linha tem nome com a
+  // ação do próximo clique ("Ocultar Paredes" ↔ "Mostrar Paredes") e
+  // aria-pressed = camada oculta. A contagem conta TODAS as entidades da
+  // camada, visíveis ou não (countEntitiesByLayer) — não muda ao ocultar.
+  const layersSection = page.getByRole('button', { name: 'Camadas', exact: true })
+  await expect(layersSection).toHaveAttribute('aria-expanded', 'true')
+  const wallsRow = page.getByRole('list', { name: 'Camadas do mapa' }).getByRole('listitem').filter({ hasText: 'Paredes' })
+  await expect(wallsRow).toHaveText(/^Paredes\s*1$/)
+
+  await page.getByRole('button', { name: 'Ocultar Paredes', exact: true }).click()
   expect(await getHiddenLayers(page)).toContain('paredes')
+  await expect(page.getByRole('button', { name: 'Mostrar Paredes', exact: true })).toHaveAttribute('aria-pressed', 'true')
 
   await page.mouse.click(box.x + 500, box.y + 400)
   expect(await getSelection(page)).toBeNull()
 
-  await page.getByRole('checkbox', { name: 'Paredes (1)', exact: true }).click({ force: true })
+  await page.getByRole('button', { name: 'Mostrar Paredes', exact: true }).click()
   expect(await getHiddenLayers(page)).not.toContain('paredes')
+  await expect(page.getByRole('button', { name: 'Ocultar Paredes', exact: true })).toHaveAttribute('aria-pressed', 'false')
 
   await page.mouse.click(box.x + 500, box.y + 400)
   expect(await getSelection(page)).toEqual({ kind: 'wall', id: wallId })

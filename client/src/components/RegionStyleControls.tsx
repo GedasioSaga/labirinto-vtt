@@ -154,13 +154,11 @@ export function RegionStyleControls({
   onPatternChange,
   strokeWidth,
   onStrokeWidthChange,
-  strokeJoin,
-  onStrokeJoinChange,
   onLinkWalls,
-  onSmoothRegion,
 }: RegionStyleControlsProps) {
+  // `strokeJoin` e `onSmoothRegion` continuam no tipo (o chamador monta um
+  // objeto só), mas quem desenha é `RegionJoinField`/`RegionSmoothButton`, no Avançado.
   const showStrokeWidth = strokeWidth !== undefined && onStrokeWidthChange !== undefined
-  const showStrokeJoin = strokeJoin !== undefined && onStrokeJoinChange !== undefined
   const activeStrokePreset = strokeWidth !== undefined ? regionStrokePresetForWidth(strokeWidth) : undefined
 
   return (
@@ -224,39 +222,50 @@ export function RegionStyleControls({
         </div>
       )}
 
-      {showStrokeJoin && (
-        <div className="lb-field">
-          <span className="lb-label">Cantos do contorno</span>
-          <div className="lb-seg" role="radiogroup" aria-label="Cantos do contorno">
-            {JOIN_OPTIONS.map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                aria-checked={strokeJoin === value}
-                className="lb-seg__option"
-                onClick={() => onStrokeJoinChange?.(value)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <p className="lb-label">
-            Um contorno fechado não tem ponta solta — isto ajusta o vértice, não a extremidade da linha.
-          </p>
-        </div>
-      )}
-
       {onLinkWalls && (
         <button type="button" className="lb-btn lb-btn--block" onClick={onLinkWalls}>
           Criar parede na borda
         </button>
       )}
-      {onSmoothRegion && (
-        <button type="button" className="lb-btn lb-btn--block" onClick={onSmoothRegion}>
-          Suavizar contorno
-        </button>
-      )}
     </section>
+  )
+}
+
+export interface RegionJoinFieldProps {
+  strokeJoin: RegionStrokeJoin
+  onStrokeJoinChange: (strokeJoin: RegionStrokeJoin) => void
+  /** Id da frase do Avançado que explica o controle. */
+  describedBy?: string
+}
+
+/** "Cantos do contorno", fora de `RegionStyleControls` desde a fatia 3: mora no Avançado. */
+export function RegionJoinField({ strokeJoin, onStrokeJoinChange, describedBy }: RegionJoinFieldProps) {
+  return (
+    <div className="lb-field">
+      <span className="lb-label">Cantos do contorno</span>
+      <div className="lb-seg" role="radiogroup" aria-label="Cantos do contorno" aria-describedby={describedBy}>
+        {JOIN_OPTIONS.map(({ value, label }) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={strokeJoin === value}
+            className="lb-seg__option"
+            onClick={() => onStrokeJoinChange(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** "Suavizar contorno" (Douglas-Peucker + Chaikin), fora de `RegionStyleControls` desde a fatia 3: mora no Avançado. */
+export function RegionSmoothButton({ onSmoothRegion, describedBy }: { onSmoothRegion: () => void; describedBy?: string }) {
+  return (
+    <button type="button" className="lb-btn lb-btn--block" aria-describedby={describedBy} onClick={onSmoothRegion}>
+      Suavizar contorno
+    </button>
   )
 }

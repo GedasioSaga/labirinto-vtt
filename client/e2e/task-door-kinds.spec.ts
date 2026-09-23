@@ -114,12 +114,16 @@ test('4. toggle "Trancada" persiste em door.locked de uma porta já criada', asy
   // O checkbox real fica visualmente coberto pelo track decorativo do Toggle
   // (mesmo padrão de task-alignment-door-curve-portal.spec.ts) — force:true
   // clica direto no input, como o usuário clicando em cima do interruptor faria.
-  await page.getByRole('checkbox', { name: 'Destrancada' }).click({ force: true })
+  // Rótulo fixo "Trancada" (nomeia o estado LIGADO); o checked mostra se está.
+  const trancada = page.getByRole('checkbox', { name: 'Trancada', exact: true })
+  await expect(trancada).not.toBeChecked()
+  await trancada.click({ force: true })
 
   let walls = await getWalls(page)
   expect(walls.find((w) => w.id === 'wallWithDoor')?.door?.locked).toBe(true)
+  await expect(trancada).toBeChecked()
 
-  await page.getByRole('checkbox', { name: 'Trancada' }).click({ force: true })
+  await trancada.click({ force: true })
 
   walls = await getWalls(page)
   expect(walls.find((w) => w.id === 'wallWithDoor')?.door?.locked).toBe(false)

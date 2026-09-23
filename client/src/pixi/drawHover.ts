@@ -149,7 +149,8 @@ export function resolveHoverGeometry(map: MapData, target: HoverTarget): HoverGe
         case 'line':
           return { shape: 'segments', segments: [{ a: { x: drawing.x1, y: drawing.y1 }, b: { x: drawing.x2, y: drawing.y2 } }] }
         case 'freehand':
-        case 'curve': {
+        case 'curve':
+        case 'path': {
           if (drawing.points.length < 2) return null
           const segments: Array<{ a: Point; b: Point }> = []
           for (let i = 0; i < drawing.points.length - 1; i += 1) {

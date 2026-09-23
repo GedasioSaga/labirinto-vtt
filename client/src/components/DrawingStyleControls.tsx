@@ -2,6 +2,13 @@ import { Toggle } from './Toggle'
 import { TEXT_FONT_FAMILIES } from './labels'
 
 export interface DrawingStyleControlsProps {
+  /**
+   * De onde vêm e para onde vão os valores: `'next'` (padrão) é a preferência
+   * do PRÓXIMO desenho; `'selected'` edita o desenho já selecionado (auditoria
+   * 14/09: retângulo, linha e pincel desenhados não tinham Cor nem Espessura).
+   * Só muda o título — quem chama liga `color`/`width` e os `on*Change` à fonte certa.
+   */
+  target?: 'next' | 'selected'
   color: string
   onColorChange: (color: string) => void
   width: number
@@ -10,8 +17,7 @@ export interface DrawingStyleControlsProps {
   onFilledChange: (filled: boolean) => void
   /** Opacidade do preenchimento (0–1) — só relevante com `filled: true`;
    *  aplicado a `Drawing.fillAlpha` na criação da forma (círculo/retângulo/
-   *  elipse/polígono). Ver drawDrawings.ts para a mesma opacidade multiplicada
-   *  (não substituída) no destaque de seleção. */
+   *  elipse/polígono). A seleção não altera esse valor na tela (drawDrawings.ts). */
   fillAlpha: number
   onFillAlphaChange: (fillAlpha: number) => void
   /** Círculo/retângulo/elipse/polígono têm preenchimento; pincel, linha e
@@ -29,6 +35,7 @@ export interface DrawingStyleControlsProps {
 
 /** Cor, espessura/preenchimento (desenho) ou tamanho de fonte (texto), com amostra do resultado. */
 export function DrawingStyleControls({
+  target = 'next',
   color,
   onColorChange,
   width,
@@ -47,7 +54,7 @@ export function DrawingStyleControls({
 }: DrawingStyleControlsProps) {
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Estilo de desenho</h2>
+      <h2 className="lb-eyebrow">{target === 'selected' ? 'Estilo do desenho selecionado' : 'Estilo de desenho'}</h2>
 
       <div className="lb-section__row">
         <label className="lb-label" htmlFor="lb-draw-color">

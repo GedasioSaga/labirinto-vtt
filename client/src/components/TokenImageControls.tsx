@@ -1,7 +1,11 @@
+import { tokenPhotoLabel } from '../lib/tokenPhoto'
+
 export interface TokenImageControlsProps {
   image: string | null
   onChangeImage: () => void
   onClearImage: () => void
+  /** Guarda este token no acervo global do app (lib/tokenLibrary.ts). */
+  onSaveToLibrary: () => void
 }
 
 /**
@@ -17,7 +21,7 @@ export interface TokenImageControlsProps {
  * `false`, o que cairia no branch "tem imagem" e quebraria em
  * `image.split(...)`. Mesma classe de bug corrigida em tokensRenderer.ts.
  */
-export function TokenImageControls({ image, onChangeImage, onClearImage }: TokenImageControlsProps) {
+export function TokenImageControls({ image, onChangeImage, onClearImage, onSaveToLibrary }: TokenImageControlsProps) {
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Imagem do token</h2>
@@ -27,7 +31,8 @@ export function TokenImageControls({ image, onChangeImage, onClearImage }: Token
         </button>
       ) : (
         <>
-          <span className="lb-label">{image.split(/[\\/]/).pop()}</span>
+          {/* Foto embutida (a que o jogador escolheu) não tem nome de arquivo: ver lib/tokenPhoto.ts. */}
+          <span className="lb-label">{tokenPhotoLabel(image)}</span>
           <button type="button" className="lb-btn lb-btn--block" onClick={onChangeImage}>
             Trocar imagem...
           </button>
@@ -36,6 +41,17 @@ export function TokenImageControls({ image, onChangeImage, onClearImage }: Token
           </button>
         </>
       )}
+      {/* Mora aqui, e não no painel do acervo, porque é a FOTO deste token que
+          vai para a estante: o gesto é "guardar este, com esta cara". Aparece
+          mesmo sem imagem — sem foto o app responde por que não dá
+          (`SEM_FOTO_PARA_SALVAR`), que ensina; botão escondido não ensina.
+          E esse aviso FICA na tela até a pessoa dispensar (`ErroQueEnsina` →
+          `kind: 'instrucao'`, ver lib/erroQueEnsina.ts): ele manda subir até
+          "Escolher imagem..." aqui em cima, e instrução que se apaga sozinha
+          no meio do caminho também não ensina. */}
+      <button type="button" className="lb-btn lb-btn--block" onClick={onSaveToLibrary}>
+        Salvar no acervo
+      </button>
     </section>
   )
 }

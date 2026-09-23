@@ -1,0 +1,36 @@
+{
+  "id": "map_legacy_door",
+  "name": "Casa com porta (salvo antes do vínculo da porta)",
+  "width": 30,
+  "height": 20,
+  "grid": 64,
+  "regions": [
+    {
+      "id": "casa",
+      "points": [{ "x": 64, "y": 64 }, { "x": 704, "y": 64 }, { "x": 704, "y": 384 }, { "x": 64, "y": 384 }],
+      "tag": "region",
+      "fillColor": "#a8776a",
+      "fillPattern": "solid",
+      "data": {},
+      "room": { "shape": "rect", "name": "Casa" }
+    },
+    {
+      "id": "garagem",
+      "points": [{ "x": 704, "y": 64 }, { "x": 1024, "y": 64 }, { "x": 1024, "y": 384 }, { "x": 704, "y": 384 }],
+      "tag": "region",
+      "fillColor": "#a8776a",
+      "fillPattern": "solid",
+      "data": {},
+      "room": { "shape": "rect", "name": "Garagem" }
+    }
+  ],
+  "walls": [
+    { "id": "topo-antes", "x1": 64, "y1": 64, "x2": 368, "y2": 64, "blocksLight": true, "blocksMove": true, "door": null },
+    { "id": "topo-porta", "x1": 368, "y1": 64, "x2": 400, "y2": 64, "blocksLight": true, "blocksMove": true, "door": { "open": false, "locked": false } },
+    { "id": "topo-depois", "x1": 400, "y1": 64, "x2": 704, "y2": 64, "blocksLight": true, "blocksMove": true, "door": null },
+    { "id": "direita", "x1": 704, "y1": 64, "x2": 704, "y2": 384, "blocksLight": true, "blocksMove": true, "door": null },
+    { "id": "baixo", "x1": 704, "y1": 384, "x2": 64, "y2": 384, "blocksLight": true, "blocksMove": true, "door": null, "regionId": "casa", "regionEdgeIndex": 2 },
+    { "id": "esquerda", "x1": 64, "y1": 384, "x2": 64, "y2": 64, "blocksLight": true, "blocksMove": true, "door": null, "regionId": "casa", "regionEdgeIndex": 3 },
+    { "id": "solta-no-meio", "x1": 200, "y1": 200, "x2": 300, "y2": 200, "blocksLight": true, "blocksMove": true, "door": null }
+  ]
+}
