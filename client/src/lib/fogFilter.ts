@@ -781,18 +781,25 @@ export function filterMapForPlayer(
    * ativa e peças de chão escondidas; senão a sombra delas desenharia a sala na
    * névoa. Parede que só cruza a borda da zona continua na enviada: tirá-la
    * deixaria o jogador ver através dela fora da zona. Colisão não usa isto.
+   *
+   * PINCEL: parede ou porta inteira dentro da zona entra na enviada SÓ no
+   * trecho pintado (`wallRunsWhere`, o mesmo recorte que o jogador recebe). O
+   * teste é `inZoneRing` e não `inConcealZone`: com o pincel a amostra pintada
+   * deixava de contar como escondida, a parede entrava inteira e as pontas
+   * escondidas saíam no fio — com a sombra delas desenhada fora da zona.
    */
   const authoritySegments = ownTokens.length > 0 ? visionSegments(map) : []
   const authorityVision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, authoritySegments, visionRadius))
   const rings = boxRings(authorityVision)
-  const playerWalls = map.walls.filter(
-    (w) =>
-      !(w.regionId !== undefined && secretRoomIds.has(w.regionId)) &&
-      !isUnderClosedRoof(w) &&
-      !(zones.length > 0 && wallSamples(w).every(inConcealZone)),
-  )
+  const playerWalls = map.walls.flatMap((w): Wall[] => {
+    if (w.regionId !== undefined && secretRoomIds.has(w.regionId)) return []
+    if (isUnderClosedRoof(w)) return []
+    if (zones.length === 0 || !wallSamples(w).every(inZoneRing)) return [w]
+    return brushed ? wallRunsWhere(w, inBrushReveal) : []
+  })
+  const wallsChanged = playerWalls.length !== map.walls.length || playerWalls.some((w, i) => w !== map.walls[i])
   let vision = authorityVision
-  if (ownTokens.length > 0 && (playerWalls.length !== map.walls.length || hiddenFloorIds.size > 0)) {
+  if (ownTokens.length > 0 && (wallsChanged || hiddenFloorIds.size > 0)) {
     const playerSegments = visionSegments({ ...map, walls: playerWalls, floor: floorWithout(map.floor, hiddenFloorIds) })
     vision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, playerSegments, visionRadius))
   }

@@ -300,4 +300,24 @@ describe('fogFilter + pincel: forma e parede que só em parte caem no pedaço pi
       for (const x of [w.x1, w.x2]) expect(x, w.id).toBeLessThanOrEqual(680)
     }
   })
+
+  it('SEGURANÇA: parede e porta inteiras dentro da zona entram na visão enviada SÓ no trecho pintado', () => {
+    const porta: Wall = { ...parede('porta-int', 900, 400, 900, 500), door: { open: false, locked: false, kind: 'normal' } }
+    const mapa: MapData = { ...cena(), walls: [parede('w-int', 700, 360, 700, 540), porta] }
+    const antes = filterMapForPlayer(mapa, 'ana', DONO, RAIO_VISAO)
+    const depois = filterMapForPlayer(pintado(mapa), 'ana', DONO, RAIO_VISAO)
+    // Nenhum vértice da visão sobre as partes escondidas das paredes (fora do corredor pintado y 425..475).
+    for (const x of [700, 900]) {
+      const ys = depois.vision.flat().filter((p) => Math.abs(p.x - x) < 0.5).map((p) => p.y)
+      for (const y of ys) {
+        expect(y, `x=${x}`).toBeGreaterThanOrEqual(415)
+        expect(y, `x=${x}`).toBeLessThanOrEqual(485)
+      }
+    }
+    // Fora da zona, a sombra das pontas escondidas não aparece: o raio até (1050,560)
+    // passa pela ponta escondida da parede (x=700, y~416) e da porta (x=900, y~498).
+    const foraDaZona = { x: 1050, y: 560 }
+    expect(naVisao(antes.vision, foraDaZona)).toBe(true)
+    expect(naVisao(depois.vision, foraDaZona)).toBe(true)
+  })
 })
