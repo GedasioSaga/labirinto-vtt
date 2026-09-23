@@ -3,6 +3,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, RegionPoint } from '../types/map'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
+import { pointActionMasterText, type PointActionAnswer } from '../lib/pointActions'
 import {
   createHostSession,
   singleSceneWorld,
@@ -16,6 +17,7 @@ import {
   type MasterCall,
   type PlayerInfo,
   type PlayerNoteDelivery,
+  type PointActionRequest,
   type TravelRequest,
 } from './hostSession'
 import { CALL_REASON_LABELS, NOTE_MAX_LENGTH, type DoorRequestHow, type LaserMessage } from './protocol'
@@ -97,6 +99,12 @@ export interface HostBridgeDeps {
    * solto, a cena aberta) com a ficha dele no centro. Ausente = sem "Ir lá".
    */
   onGoToPoint?: (sceneId: string | null, x: number, y: number) => void
+  /**
+   * "Ir lá" de uma AÇÃO NO PONTO: abrir a cena do pedido centrada no ponto e
+   * marcá-lo. Sem este retorno a linha da Caixa vem sem o "Ir lá" (o pedido
+   * continua chegando, e "Nada aqui"/"Feito" respondem igual).
+   */
+  onPointActionGo?: (request: PointActionRequest) => void
   now?: () => number
 }
 
@@ -271,6 +279,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const arrivalToasts = new Map<string, string>()
   /** Linha de cada chamado aberto na caixa "Chamados": `callId` -> id do toast. */
   const callToasts = new Map<string, string>()
+  /** Linha da Caixa de cada ação no ponto ainda sem resposta: `requestId` -> id do toast. */
+  const pointActionToasts = new Map<string, string>()
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
@@ -469,6 +479,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       doorToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    // Mesma regra para a ação no ponto: jogador expulso ou sala fechada não
+    // deixa um "Nada aqui" que não chega a ninguém.
+    for (const [requestId, toastId] of pointActionToasts) {
+      if (session !== null && session.isPointActionPending(requestId)) continue
+      pointActionToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
   }
 
   /**
@@ -565,6 +582,37 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     })
     callToasts.set(call.callId, toastId)
     deps.onCall?.(call)
+  }
+
+  /** "Nada aqui" ou "Feito": a linha sai e a resposta vai só a quem pediu. */
+  const answerPointAction = (requestId: string, answer: PointActionAnswer) => {
+    const toastId = pointActionToasts.get(requestId)
+    pointActionToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    void dispatch(session.answerPointAction(requestId, answer))
+  }
+
+  /**
+   * AÇÃO NO PONTO: "Fabi quer Procurar — Ferreiro" na Caixa (grupo
+   * "Pedidos"), esperando o mestre. "Ir lá" leva ao ponto e deixa a linha;
+   * "Nada aqui" e "Feito" respondem só a quem pediu. O × vale "Feito": a
+   * pergunta nunca some sem resposta. Sem `emLote`: o "Deixar todos" é dos
+   * pedidos de passagem e passa por esta linha sem tocar nela.
+   */
+  const askPointAction = (request: PointActionRequest) => {
+    const goTo = deps.onPointActionGo
+    const irLa = goTo === undefined ? [] : [{ label: 'Ir lá', mantem: true, run: () => goTo(request) }]
+    const toastId = useToastStore.getState().push('instrucao', pointActionMasterText(request), null, {
+      actions: [
+        ...irLa,
+        { label: 'Nada aqui', run: () => answerPointAction(request.requestId, 'nothing') },
+        { label: 'Feito', run: () => answerPointAction(request.requestId, 'seen') },
+      ],
+      onDismiss: () => answerPointAction(request.requestId, 'seen'),
+      grupo: 'Pedidos',
+    })
+    pointActionToasts.set(request.requestId, toastId)
   }
 
   const answerTravel = (requestId: string, allow: boolean) => {
@@ -701,6 +749,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (result.call !== undefined) announceCall(result.call)
     // Mão baixada: a linha do chamado sai da caixa.
     pruneCallToasts()
+    if (result.pointAction !== undefined) askPointAction(result.pointAction)
     if (result.applyMove !== undefined) {
       const { tokenId, x, y, sceneId } = result.applyMove
       // Cena aberta: a mesma chamada de sempre, sem o quarto argumento.

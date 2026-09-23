@@ -28,7 +28,9 @@ import {
   type CallRaiseMessage,
   type CallReason,
   type PartyMember,
+  parsePointActionReply,
 } from '../net/protocol'
+import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -85,6 +87,16 @@ export interface PlayerState {
   party?: PartyMember[]
   /** A mão do jogador (chamar o mestre): acesa esperando, ou a resposta curta do mestre. */
   call?: CallNotice
+  /** Ação no ponto: esperando o mestre, a resposta dele ou a recusa do host. */
+  pointNotice?: PointNotice
+  /**
+   * Sobe toda vez que o mapa em tela deixa de ser o da cena em que o jogador
+   * estava: troca de cena (`scene.changed`) ou saída do jogo (lobby,
+   * reconexão, queda, expulsão, sala fechada). O que a tela abriu sobre um
+   * ponto do mapa (o menu do toque longo) só vale na época em que abriu: o
+   * mesmo x/y noutra cena é outro lugar.
+   */
+  sceneEpoch: number
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -185,6 +197,12 @@ export interface PlayerConnection {
    * ausente, o pedido sai sem ele e vale a saída principal, como sempre.
    */
   requestTravel(pinId: string, exitId?: string): boolean
+  /**
+   * AÇÃO NO PONTO (px de mundo): pede ao mestre para Procurar/Escutar/
+   * Espiar/Revistar ali. `false` se não está jogando, o ponto não é finito,
+   * cai fora do mapa ou o socket não está aberto.
+   */
+  sendPointAction(action: PointActionKind, x: number, y: number): boolean
   /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). */
   dismissNote(): void
   /**
@@ -331,7 +349,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   const { url, code, name, createSocket, storage } = options
   const listeners = new Set<() => void>()
   const pending = new Map<string, PendingMove>()
-  let state: PlayerState = { status: 'connecting', rev: -1 }
+  let state: PlayerState = { status: 'connecting', rev: -1, sceneEpoch: 0 }
   let socket: SocketLike | null = null
   let pingTimer: ReturnType<typeof setInterval> | null = null
   let nextReqId = 1
@@ -446,6 +464,24 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (data.state === 'seen' || data.state === 'too_soon') showCallAnswer(data.state)
   }
 
+  let pointNoticeTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearPointNoticeTimer(): void {
+    if (pointNoticeTimer !== null) clearTimeout(pointNoticeTimer)
+    pointNoticeTimer = null
+  }
+
+  /** A espera fica até a resposta; resposta e recusa somem sozinhas. */
+  function showPointNotice(notice: PointNotice): void {
+    clearPointNoticeTimer()
+    setState({ pointNotice: notice })
+    if (notice.phase === 'waiting') return
+    pointNoticeTimer = setTimeout(() => {
+      pointNoticeTimer = null
+      setState({ pointNotice: undefined })
+    }, POINT_NOTICE_TTL_MS)
+  }
+
   let laserTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearLaserTimer(): void {
@@ -470,7 +506,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   function setState(patch: Partial<PlayerState>): void {
+    // Sair do jogo por qualquer caminho encerra a época da cena (ver `sceneEpoch`).
+    const leftGame = state.status === 'playing' && patch.status !== undefined && patch.status !== 'playing'
     state = { ...state, ...patch }
+    if (leftGame) state = { ...state, sceneEpoch: state.sceneEpoch + 1 }
     for (const listener of listeners) listener()
   }
 
@@ -584,6 +623,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearTravelTimer()
         clearCallTimer()
+        clearPointNoticeTimer()
         setState({
           status: 'waiting',
           map: undefined,
@@ -597,6 +637,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           doorRequest: undefined,
           travel: undefined,
           call: undefined,
+          pointNotice: undefined,
         })
         return
       case 'scene.changed':
@@ -610,7 +651,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         // A porta tocada ficou na cena de antes: o "Trancada" e os botões dele perdem o sentido.
-        setState({ signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined })
+        // O ponto do toque longo era da cena de antes: a época vira.
+        setState({ signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, sceneEpoch: state.sceneEpoch + 1 })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -685,6 +727,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         addSignal(x, y, from, color)
         return
       }
+      case 'point.action.answer':
+      case 'point.action.rejected': {
+        if (state.status !== 'playing') return
+        const reply = parsePointActionReply(data)
+        if (reply === null) return
+        showPointNotice(
+          reply.type === 'point.action.answer'
+            ? { id: nextNoticeId++, phase: 'answered', action: reply.action, answer: reply.answer }
+            : { id: nextNoticeId++, phase: 'rejected', reason: reply.reason },
+        )
+        return
+      }
       case 'door.toggle.rejected': {
         // Aviso sem mapa na tela não tem onde aparecer.
         if (state.status !== 'playing') return
@@ -745,7 +799,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearTravelTimer()
         clearCallTimer()
-        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined })
+        clearPointNoticeTimer()
+        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, pointNotice: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -801,6 +856,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearDoorNotice()
     clearTravelTimer()
     clearCallTimer()
+    clearPointNoticeTimer()
     const current = socket
     socket = null
     current?.close()
@@ -839,6 +895,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     toggleDoor(wallId) {
       if (state.status !== 'playing' || wallId.length === 0) return false
       return send({ type: 'door.toggle', wallId })
+    },
+    sendPointAction(action, x, y) {
+      if (state.status !== 'playing' || state.map === undefined || !Number.isFinite(x) || !Number.isFinite(y)) return false
+      const point = { x: Math.round(x), y: Math.round(y) }
+      // Fora do mapa o host recusa: nem sai, para não mostrar "esperando o mestre".
+      if (!isPointInsideMap(state.map, point.x, point.y)) return false
+      if (!send({ type: 'point.action', action, x: point.x, y: point.y })) return false
+      showPointNotice({ id: nextNoticeId++, phase: 'waiting', action })
+      return true
     },
 
     requestDoor(wallId, how) {
@@ -922,7 +987,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, paused: undefined, call: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, paused: undefined, call: undefined, pointNotice: undefined })
       open()
     },
     close: detach,

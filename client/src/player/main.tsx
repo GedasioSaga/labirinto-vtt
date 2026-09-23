@@ -11,6 +11,8 @@ import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
 import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
 import { PlayerCallButton } from './PlayerCallButton'
+import { PointActionMenu } from './PointActionMenu'
+import { isPointInsideMap, pointNoticeText } from '../lib/pointActions'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
@@ -481,7 +483,8 @@ interface ScreenAction {
  */
 const HANDSHAKE_DEADLINE_MS = 8_000
 
-function Session({ connection, code, typedName, hostName, onLeave, onQuit }: SessionProps) {
+// Exportada só para o teste montar a sessão sem o formulário de entrada.
+export function Session({ connection, code, typedName, hostName, onLeave, onQuit }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(localStorageOrNull()))
   const [focus, setFocus] = useState<{ tokenId: string | null; seq: number }>({ tokenId: null, seq: 0 })
@@ -490,6 +493,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const [measureArmed, setMeasureArmed] = useState(false)
   /** Pino aberto no cartão; `null` = cartão fechado. */
   const [openPinId, setOpenPinId] = useState<string | null>(null)
+  /**
+   * Menu das ações no ponto, aberto pelo toque longo: o ponto (mundo), onde o
+   * dedo estava (tela) e a época da cena em que abriu (`sceneEpoch`).
+   */
+  const [pointMenu, setPointMenu] = useState<{ x: number; y: number; screenX: number; screenY: number; sceneEpoch: number } | null>(null)
   /** Cada "Reconectar" conta uma tentativa nova e reinicia o prazo do aperto de mão. */
   const [attempt, setAttempt] = useState(0)
   const [handshakeOverdue, setHandshakeOverdue] = useState(false)
@@ -545,6 +553,10 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const closePin = useCallback(() => setOpenPinId(null), [])
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
+  const closePointMenu = useCallback(() => setPointMenu(null), [])
+  // Trocou a cena ou saiu do jogo desde o toque longo: o ponto do menu é de
+  // outro mapa, e o menu fecha em vez de pedir no lugar errado.
+  const openPointMenu = pointMenu !== null && pointMenu.sceneEpoch === state.sceneEpoch ? pointMenu : null
 
   if (state.status === 'playing' && state.map && state.vision) {
     return (
@@ -567,6 +579,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             // Modo de um toque: sinalizou, desliga.
             setSignalArmed(false)
           }}
+          onLongPress={(x, y, screenX, screenY) => {
+            // A câmera arrasta além da borda: fora do mapa não há o que procurar.
+            if (map !== undefined && isPointInsideMap(map, x, y)) setPointMenu({ x, y, screenX, screenY, sceneEpoch: state.sceneEpoch })
+          }}
+          onMapPointerDown={closePointMenu}
           measureArmed={measureArmed}
           onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
           onPinOpen={setOpenPinId}
@@ -625,6 +642,22 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}
+          </p>
+        )}
+        {openPointMenu && (
+          <PointActionMenu
+            screenX={openPointMenu.screenX}
+            screenY={openPointMenu.screenY}
+            onChoose={(action) => {
+              connection.sendPointAction(action, openPointMenu.x, openPointMenu.y)
+              setPointMenu(null)
+            }}
+            onClose={closePointMenu}
+          />
+        )}
+        {state.pointNotice && (
+          <p key={state.pointNotice.id} className="pp-notice pp-notice--point" role="status" aria-live="polite">
+            {pointNoticeText(state.pointNotice)}
           </p>
         )}
         {state.doorNotice && (

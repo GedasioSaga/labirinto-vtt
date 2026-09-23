@@ -22,7 +22,7 @@ import { create } from 'zustand'
  */
 export type ToastKind = 'info' | 'error' | 'instrucao'
 
-/** Botão de um aviso. Clicar roda `run` e dispensa o aviso. */
+/** Botão de um aviso. Clicar roda `run` e dispensa o aviso (salvo `mantem`). */
 export interface ToastAction {
   label: string
   run: () => void
@@ -33,9 +33,9 @@ export interface ToastAction {
    */
   emLote?: boolean
   /**
-   * O botão age SEM tirar o aviso da tela. É o "Ir lá" do chamado: ir ver
-   * onde o jogador está não responde a ele, e a linha precisa continuar para
-   * o "Visto" ou o "Responder" depois.
+   * O botão age SEM tirar o aviso da tela. É o "Ir lá" do chamado e da ação
+   * no ponto: ir ver o lugar não responde nada, e a linha precisa continuar
+   * para o "Visto"/"Responder" ou o "Nada aqui"/"Feito" depois.
    */
   mantem?: boolean
 }

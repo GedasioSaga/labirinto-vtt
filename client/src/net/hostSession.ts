@@ -10,6 +10,14 @@ import { passageOf, pinSummary } from '../lib/pins'
 import { visibleTokens } from '../lib/layers'
 import { companionSpots, companionsNear, type Companion } from '../lib/travelTogether'
 import {
+  MAX_PENDING_POINT_ACTIONS_PER_PLAYER,
+  POINT_ACTION_MIN_INTERVAL_MS,
+  isPointInsideMap,
+  roomNameAt,
+  type PointActionAnswer,
+  type PointActionKind,
+} from '../lib/pointActions'
+import {
   parsePlayerMessage,
   type CallRaiseMessage,
   type CallReason,
@@ -25,6 +33,7 @@ import {
   type PartyWhere,
   type PinTravelRejection,
   type PinTravelRequestMessage,
+  type PointActionMessage,
   type SignalMessage,
   type TokenEditMessage,
   type TokenMoveMessage,
@@ -207,6 +216,29 @@ export interface CallTarget {
   y: number
 }
 
+/**
+ * AÇÃO NO PONTO aceita, à espera do mestre. É o que a linha da Caixa mostra
+ * ("Fabi quer Procurar — Ferreiro") e o que o "Ir lá" usa. Nada disto vai ao
+ * jogador: a sala é lida no mapa do MESTRE, secreta ou não.
+ */
+export interface PointActionRequest {
+  requestId: string
+  playerId: string
+  playerName: string
+  /** Mesma cor do sinal do jogador: o ponto marcado pelo "Ir lá" é dele. */
+  color: string
+  action: PointActionKind
+  x: number
+  y: number
+  /** A sala mais de dentro que contém o ponto; `null` = fora de sala com nome. */
+  roomName: string | null
+  /** Cena do ponto (`null` = mapa solto) e o nome que o mestre lê. */
+  sceneId: string | null
+  sceneName: string
+  /** `true` quando a cena do ponto não é a aberta no editor. */
+  background: boolean
+}
+
 export interface HostResult {
   outbound: Outbound[]
   /** Chamado NOVO na fila: o integrador mostra a linha e toca o bipe. Repetição do mesmo chamado não vem. */
@@ -215,6 +247,8 @@ export interface HostResult {
   applyDoor?: AppliedDoor
   applyTokenEdit?: AppliedTokenEdit
   signal?: HostSignal
+  /** Ação no ponto aceita: o integrador põe a linha na Caixa do mestre. */
+  pointAction?: PointActionRequest
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
   travelRequest?: TravelRequest
   /** Pedido da porta trancada válido: o integrador pergunta ao mestre. */
@@ -388,6 +422,14 @@ export interface HostSession {
   denyDoorRequest(requestId: string): HostResult
   /** O pedido da porta ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isDoorRequestPending(requestId: string): boolean
+  /**
+   * "Nada aqui" (`nothing`) ou "Feito" (`seen`) da ação no ponto: a resposta
+   * vai SÓ à conexão atual de quem pediu. Pedido já respondido, de jogador
+   * expulso, ou jogador sem conexão agora: nada sai.
+   */
+  answerPointAction(requestId: string, answer: PointActionAnswer): HostResult
+  /** A ação no ponto ainda espera o mestre? `false` depois de respondida ou com o jogador expulso. */
+  isPointActionPending(requestId: string): boolean
   /**
    * "Mandar para…" do painel Grupo: o MESTRE leva o jogador, sem pedido, para
    * `toSceneId` — no pino de viagem `pinId` daquela cena ou, com `null`, no
@@ -564,6 +606,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: quando o último chamado NOVO dele entrou. Sobrevive ao disconnect; só o kick apaga.
   const lastCallAt = new Map<string, number>()
   let callSeq = 0
+  // Por requestId: ações no ponto à espera do mestre. Sobrevivem à queda da
+  // conexão (o mestre ainda quer ler "procuro armadilha aqui"); só a resposta
+  // e o kick apagam.
+  const pendingPointActions = new Map<string, { playerId: string; action: PointActionKind }>()
+  // Por playerId: último pedido de ação no ponto aceito pelo intervalo mínimo.
+  const lastPointActionAt = new Map<string, number>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -824,6 +872,60 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Mesma regra de `backgroundSceneId`: a cena aberta e o mapa solto não levam o campo.
     if (scene !== world.open && scene.sceneId !== null) signal.background = { sceneId: scene.sceneId, name: scene.name }
     return { outbound, signal }
+  }
+
+  /**
+   * AÇÃO NO PONTO: o pedido vai SÓ ao mestre (campo `pointAction`). Nenhum
+   * jogador recebe nada — nem quem está na mesma cena, nem quem pediu: o ponto
+   * pode estar numa sala secreta, e o nome dela é leitura do mestre. De quem
+   * não joga ou sem cena: descartado em silêncio, como o sinal. Fora do mapa
+   * e os dois limites respondem ao jogador, para a tela dele não ficar
+   * esperando um pedido que nunca chegou ao mestre.
+   */
+  function handlePointAction(clientId: string, msg: PointActionMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    const map = scene.map
+    // Fora do mapa responde: calado, a tela do jogador ficaria "esperando o
+    // mestre" para sempre (a câmera dele arrasta além da borda).
+    if (!isPointInsideMap(map, msg.x, msg.y)) return reply(clientId, { type: 'point.action.rejected', reason: 'out_of_map' })
+    const at = now()
+    const last = lastPointActionAt.get(playerId)
+    if (last !== undefined && at - last < POINT_ACTION_MIN_INTERVAL_MS) return reply(clientId, { type: 'point.action.rejected', reason: 'too_soon' })
+    const waiting = [...pendingPointActions.values()].filter((pending) => pending.playerId === playerId).length
+    if (waiting >= MAX_PENDING_POINT_ACTIONS_PER_PLAYER) return reply(clientId, { type: 'point.action.rejected', reason: 'pending' })
+    lastPointActionAt.set(playerId, at)
+
+    const requestId = randomId()
+    pendingPointActions.set(requestId, { playerId, action: msg.action })
+    const point = { x: msg.x, y: msg.y }
+    return {
+      outbound: [],
+      pointAction: {
+        requestId,
+        playerId,
+        playerName: record.name,
+        color: signalColor(playerId),
+        action: msg.action,
+        x: point.x,
+        y: point.y,
+        roomName: roomNameAt(map, point),
+        sceneId: scene.sceneId,
+        sceneName: scene.name,
+        background: scene !== world.open && scene.sceneId !== null,
+      },
+    }
+  }
+
+  const forgetPointActionsOf = (playerId: string): void => {
+    lastPointActionAt.delete(playerId)
+    for (const [requestId, pending] of [...pendingPointActions]) {
+      if (pending.playerId === playerId) pendingPointActions.delete(requestId)
+    }
   }
 
   /**
@@ -1184,6 +1286,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleCallRaise(clientId, msg)
         case 'call.lower':
           return handleCallLower(clientId)
+        case 'point.action':
+          return handlePointAction(clientId, msg, world)
       }
     },
 
@@ -1223,6 +1327,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const owned = new Set(ownership[call.playerId] ?? [])
       const token = scene.map.tokens.find((t) => owned.has(t.id))
       return token === undefined ? null : { sceneId: scene.sceneId, x: token.x, y: token.y }
+    },
+
+    answerPointAction(requestId, answer) {
+      const pending = pendingPointActions.get(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingPointActions.delete(requestId)
+      const clientId = players.get(pending.playerId)?.clientId ?? null // null = sem conexão agora: não há a quem avisar
+      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'point.action.answer', action: pending.action, answer })
+    },
+
+    isPointActionPending(requestId) {
+      return pendingPointActions.has(requestId)
     },
 
     approveTravel(requestId, source) {
@@ -1417,6 +1533,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       memories.delete(playerId)
       currentScene.delete(playerId)
       forgetTravelsOf(playerId)
+      forgetPointActionsOf(playerId)
       lastSignalAt.delete(playerId)
       lastDoorToggleAt.delete(playerId)
       pendingDoors.delete(playerId)
