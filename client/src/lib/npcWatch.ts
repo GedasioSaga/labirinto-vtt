@@ -145,7 +145,9 @@ export interface GuardSighting {
 /**
  * Quem cada guarda do mapa vê entre as fichas `targetIds` (as fichas de
  * jogador). Guarda ou alvo oculto no editor, e camada de fichas escondida,
- * ficam de fora; guarda não vê a si mesmo. `segments` é opcional para quem já
+ * ficam de fora; guarda não vê a si mesmo. Segredo, zona oculta e teto NÃO são
+ * olhados aqui (o mestre vê tudo): o recorte do jogador passa em `targetIds`
+ * só as fichas que ele próprio recebe. `segments` é opcional para quem já
  * calculou a visão do mapa (`lib/fogFilter.ts`) não pagar duas vezes.
  */
 export function guardSightings(map: MapData, targetIds: ReadonlySet<string>, segments?: readonly Segment[]): GuardSighting[] {

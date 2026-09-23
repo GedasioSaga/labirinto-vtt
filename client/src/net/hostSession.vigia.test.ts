@@ -78,7 +78,9 @@ describe('olhos do guarda — o que chega a quem joga', () => {
 /**
  * TELA DA MESA: a TV recebe o recorte do GRUPO que está na cena escolhida.
  * Nela também o cone nunca sai, e a marca é medida contra as fichas de TODOS
- * os jogadores — inclusive de quem joga noutra cena e deixou ficha nesta.
+ * os jogadores — inclusive de quem joga noutra cena e deixou ficha nesta —,
+ * mas só das que a própria TV recebe: ficha na névoa, secreta, em zona oculta
+ * ou sob teto fechado não acende marca na tela pública.
  */
 describe('olhos do guarda — o que chega à tela da mesa', () => {
   const CHAVE = 'chave-da-tv-vigia-0123456789abcdef'
@@ -116,7 +118,7 @@ describe('olhos do guarda — o que chega à tela da mesa', () => {
     expect(texto).not.toContain('abertura')
   })
 
-  it('o guarda viu a ficha de Bia, que joga na Torre: a TV do Portão recebe a marca, mas não a ficha de Bia', () => {
+  it('o guarda viu a ficha de Bia, que joga na Torre, fora do que o grupo vê: a TV do Portão não recebe nem a ficha, nem a marca', () => {
     // Ana (x=100, raio 700) vê o guarda (x=700) e não a ficha de Bia (x=880); o guarda olha a leste, 200 px.
     const portao = mapa('m-portao', [ficha('lanterna', 100, 325), ficha('guarda', 700, 325, { vigia: LESTE }), ficha('ladra', 880, 325)])
     const torre = mapa('m-torre', [ficha('batedora', 300, 300)])
@@ -135,9 +137,45 @@ describe('olhos do guarda — o que chega à tela da mesa', () => {
     const r = s.broadcast(mundo)
     const tela = snapshotDaTela(r)
     expect(tela.tokens.map((t) => t.id).sort()).toEqual(['guarda', 'lanterna'])
-    expect(tela.tokens.find((t) => t.id === 'guarda')?.alerta).toBe('?')
     const texto = JSON.stringify(r.outbound.filter((o) => o.clientId === 'c-tv'))
     expect(texto).not.toContain('ladra')
+    expect(texto).not.toContain('alerta')
     expect(texto).not.toContain('vigia')
+  })
+
+  /** Ana e o guarda no Portão; a ficha de Bia (que joga na Torre) a 75 px à frente do guarda. */
+  function telaComFichaDeBia(extraDaLadra: Partial<Token>): MapData {
+    const portao = mapa('m-portao', [
+      ficha('lanterna', 425, 325),
+      ficha('guarda', 500, 325, { vigia: LESTE }),
+      ficha('ladra', 575, 325, extraDaLadra),
+    ])
+    const torre = mapa('m-torre', [ficha('batedora', 300, 300)])
+    const mundo: HostWorld = {
+      open: { sceneId: 's-portao', name: 'Portão', map: portao },
+      background: [{ sceneId: 's-torre', name: 'Torre', map: torre }],
+    }
+    const { s, entrar } = sessaoComTela(mundo)
+    const bia = entrar('c2', 'Bia')
+    s.assignToken(bia, 'batedora')
+    s.broadcast(mundo)
+    s.assignToken(bia, 'ladra')
+    s.handleMessage('c-tv', { type: 'join', code: CODE, name: 'Mesa', role: 'table', tableKey: CHAVE }, mundo)
+    s.setTableScene('s-portao')
+    return snapshotDaTela(s.broadcast(mundo))
+  }
+
+  it('a ficha de Bia à vista do grupo: a TV recebe a ficha e "!" no guarda', () => {
+    const tela = telaComFichaDeBia({})
+    expect(tela.tokens.map((t) => t.id).sort()).toEqual(['guarda', 'ladra', 'lanterna'])
+    expect(tela.tokens.find((t) => t.id === 'guarda')?.alerta).toBe('!')
+  })
+
+  it('a ficha de Bia "Oculta para jogadores": a TV, que é pública, não recebe a ficha nem a marca', () => {
+    const tela = telaComFichaDeBia({ secret: true })
+    expect(tela.tokens.map((t) => t.id).sort()).toEqual(['guarda', 'lanterna'])
+    const texto = JSON.stringify(tela)
+    expect(texto).not.toContain('ladra')
+    expect(texto).not.toContain('alerta')
   })
 })

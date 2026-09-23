@@ -728,7 +728,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         viewers.push({ tokenIds: ownership[playerId] ?? [], visionRadius: radiusFor(playerId) })
       }
     }
-    // A marca do guarda (?, !) conta a ficha de qualquer jogador, não só a de quem está no grupo da TV.
+    // A marca do guarda (?, !) conta a ficha de qualquer jogador, não só a de quem está no grupo da TV —
+    // desde que a própria TV a receba (o recorte descarta a da névoa, secreta, em zona oculta ou sob teto).
     const view = filterMapForGroup(map, viewers, merged, doors, allPlayerTokens(ownership))
     // Mesmas regras de `snapshotFor`: a visão de agora entra na memória que
     // viaja, fora de zona oculta e sala secreta, e o interior de prédio de teto

@@ -448,7 +448,7 @@ export function filterMapForPlayer(
   seenDoors?: ReadonlyMap<string, DoorState>,
 ): PlayerMapView {
   // Jogador sem entrada de posse não tem token nem visão. A marca do guarda
-  // (?, !) mede as fichas de TODOS os jogadores, não só as dele.
+  // (?, !) mede as fichas de TODOS os jogadores que ele recebe, não só as dele.
   return filterMapForGroup(map, [{ tokenIds: ownership[playerId] ?? [], visionRadius }], explored, seenDoors, allPlayerTokens(ownership))
 }
 
@@ -474,7 +474,9 @@ export interface GroupViewer {
  *
  * `watchTargets`: as fichas que a marca do guarda (?, !) considera — as de
  * TODOS os jogadores (`allPlayerTokens`), porque o guarda que o grupo vê pode
- * ter visto quem não é do grupo. Sem ele, só as fichas do grupo contam.
+ * ter visto quem não é do grupo. Sem ele, só as fichas do grupo contam. Em
+ * qualquer caso, só as que o recorte entrega (nada na névoa, secreto, em zona
+ * oculta ou sob teto fechado).
  */
 export function filterMapForGroup(
   map: MapData,
@@ -733,15 +735,20 @@ export function filterMapForGroup(
     (t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))),
   )
   /**
-   * OLHOS DO GUARDA. A marca (?, !) é medida no mapa INTEIRO, contra as fichas
-   * de `watchTargets` (todos os jogadores) — o guarda que o jogador vê pode ter
-   * visto um colega que ele não vê. Mas só a marca sai, e só na ficha do guarda
-   * que já está no recorte: quem foi visto, e o cone (`vigia`), ficam no mestre
-   * (`tokenWatchForPlayer`). Sem guarda no recorte, nada é calculado.
+   * OLHOS DO GUARDA. A marca (?, !) conta só as fichas de jogador (`watchTargets`,
+   * ou as do próprio grupo) que ESTE recorte entrega: colega na névoa, "Oculto
+   * para jogadores", em zona oculta ou sob teto fechado não acende marca — a
+   * marca contaria que há alguém ali, e é exatamente isso que a névoa e o mestre
+   * esconderam. Só a marca sai, e só na ficha do guarda que já está no recorte:
+   * quem foi visto, e o cone (`vigia`), ficam no mestre (`tokenWatchForPlayer`).
+   * Sem guarda no recorte, nada é calculado.
    */
-  const alerts = playerTokens.some((t) => tokenWatchOf(t) !== null)
-    ? guardAlerts(map, watchTargets ?? owned, ownTokens.length > 0 ? authoritySegments : undefined)
-    : new Map<string, WatchAlert>()
+  const watchable = watchTargets ?? owned
+  const seenTargets = new Set(playerTokens.filter((t) => watchable.has(t.id)).map((t) => t.id))
+  const alerts =
+    seenTargets.size > 0 && playerTokens.some((t) => tokenWatchOf(t) !== null)
+      ? guardAlerts(map, seenTargets, ownTokens.length > 0 ? authoritySegments : undefined)
+      : new Map<string, WatchAlert>()
 
   const filtered: MapData = {
     ...map,
