@@ -50,6 +50,9 @@ import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { ActionBar } from './components/ActionBar'
+import { ExportImageDialog } from './components/ExportImageDialog'
+import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
+import { saveMapImage } from './lib/mapImageSave'
 import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
@@ -613,6 +616,10 @@ function App() {
    * MUDANÇA (mesmo padrão que `gridAlignPreview` já usa como ponte).
    */
   const [resetZoomRequest, setResetZoomRequest] = useState(0)
+  /** "Exportar imagem": a função do canvas que gera o PNG (`null` sem canvas montado). */
+  const imageExporterRef = useRef<MapImageExporter | null>(null)
+  /** Janela "Exportar imagem" aberta (`null` = fechada), gerando/gravando, e o erro da última tentativa. */
+  const [exportImageState, setExportImageState] = useState<{ busy: boolean; error: string | null } | null>(null)
   /** Container do canvas: o tamanho dele é a "tela" usada para achar o centro visível ao adicionar token. */
   const canvasHostRef = useRef<HTMLDivElement | null>(null)
   /** Barra de ferramentas e rail: flutuam sobre o canvas e tapam o que está embaixo. */
@@ -1534,6 +1541,32 @@ function App() {
     }
   }
 
+  /**
+   * "Exportar imagem" confirmado: gera o PNG da cena pelo canvas e grava onde
+   * o mestre escolher. Falha fica DENTRO da janela, perto do botão, com as
+   * opções como estavam; cancelar a janela de salvar só volta ao diálogo.
+   */
+  const handleExportImage = async (options: ImageExportOptions) => {
+    const exporter = imageExporterRef.current
+    if (exporter === null) {
+      setExportImageState({ busy: false, error: 'O mapa ainda está carregando. Tente de novo em instantes.' })
+      return
+    }
+    setExportImageState({ busy: true, error: null })
+    try {
+      const bytes = await exporter(options)
+      const saved = await saveMapImage(bytes, imageExportFileName(useMapStore.getState().map.name))
+      if (saved === null) {
+        setExportImageState({ busy: false, error: null })
+        return
+      }
+      setExportImageState(null)
+      useToastStore.getState().push('info', `Imagem exportada: ${saved}`)
+    } catch (err) {
+      setExportImageState({ busy: false, error: `Não foi possível exportar a imagem: ${motivoDaFalhaDeArquivo(err, temPonteDoApp())}` })
+    }
+  }
+
   const handleImportFolder = async () => {
     try {
       const sourceDir = await pickImportFolder()
@@ -1635,6 +1668,9 @@ function App() {
             setRailTab('map')
           }}
           onPlaceToken={handleAddToken}
+          onImageExporterChange={(exporter) => {
+            imageExporterRef.current = exporter
+          }}
         />
       </div>
 
@@ -2057,6 +2093,7 @@ function App() {
           onOpen={handleOpen}
           onImportBackground={handleImportBackground}
           onExportFolder={handleExportFolder}
+          onExportImage={() => setExportImageState({ busy: false, error: null })}
           onImportFolder={handleImportFolder}
           onGoHome={handleGoHome}
           onGoBack={canGoBackToScene ? handleGoBack : undefined}
@@ -2072,6 +2109,17 @@ function App() {
       </div>
 
       <ZoomHud scale={cameraScale} onReset={() => setResetZoomRequest((n) => n + 1)} />
+      {exportImageState !== null && (
+        <ExportImageDialog
+          defaultGrid={map.showGrid}
+          busy={exportImageState.busy}
+          error={exportImageState.error}
+          onExport={(options) => void handleExportImage(options)}
+          onClose={() => {
+            if (!exportImageState.busy) setExportImageState(null)
+          }}
+        />
+      )}
     </div>
   )
 }

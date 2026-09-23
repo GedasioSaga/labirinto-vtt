@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement } from 'react'
-import { BackIcon, ExportIcon, FolderIcon, HomeIcon, ImageIcon, ImportIcon, RedoIcon, SaveIcon, UndoIcon } from './icons'
+import { BackIcon, ExportIcon, ExportImageIcon, FolderIcon, HomeIcon, ImageIcon, ImportIcon, RedoIcon, SaveIcon, UndoIcon } from './icons'
 import './ActionBar.css'
 
 export interface ActionBarProps {
@@ -7,6 +7,8 @@ export interface ActionBarProps {
   onOpen: () => void
   onImportBackground: () => void
   onExportFolder: () => void
+  /** Abre a janela "Exportar imagem" (a cena atual como PNG). */
+  onExportImage: () => void
   onImportFolder: () => void
   onGoHome: () => void
   onGoBack?: () => void
@@ -99,6 +101,7 @@ export function ActionBar(props: ActionBarProps) {
   ]
   const actionsAfterBackground: ActionBarAction[] = [
     { label: 'Exportar mapa (pasta)', icon: <ExportIcon />, onClick: props.onExportFolder },
+    { label: 'Exportar imagem (PNG)', icon: <ExportImageIcon />, onClick: props.onExportImage },
     { label: 'Importar mapa (pasta)', icon: <ImportIcon />, onClick: props.onImportFolder },
     { label: 'Início', icon: <HomeIcon />, onClick: props.onGoHome },
   ]
