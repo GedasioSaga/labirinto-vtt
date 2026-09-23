@@ -422,13 +422,30 @@ function byId<T extends { id: string }>(items: readonly T[]): Map<string, T> {
   return new Map(items.map((item) => [item.id, item]))
 }
 
+/** Só os itens de `all` cujo id saiu em `sent`, na versão ORIGINAL (a do mapa, não a recortada). */
+function keepSent<T extends { id: string }>(all: ReadonlyMap<string, T>, sent: readonly { id: string }[]): Map<string, T> {
+  const ids = new Set(sent.map((item) => item.id))
+  return new Map([...all].filter(([id]) => ids.has(id)))
+}
+
 /**
  * "Revelar planta" do mestre: o jogador passa a lembrar a planta como ela está
- * AGORA. Entra tudo; o que o mestre esconde (item oculto, secreto, camada, sala
- * secreta, teto, zona) o recorte tira na hora de mandar e apaga da memória.
+ * AGORA — só o que a revelação de fato mostra.
+ *
+ * NÃO entra o que está num lugar escondido NA HORA de revelar (zona oculta
+ * ativa, sala secreta, interior de teto): lá o explorado também não é marcado
+ * (`playerBlockedRings`), então o jogador nunca viu nem explorou o lugar. Se
+ * entrasse, desligar a zona ou tirar o teto depois, com o jogador longe,
+ * mandaria pela rede a versão "lembrada" de uma sala que ele nunca viu.
+ * Também não entra item oculto ou secreto: ele não foi mostrado.
+ *
+ * A decisão de lugar é a MESMA do recorte: o próprio `filterMapForPlayer`, sem
+ * token (ninguém vê nada agora) e com tudo na memória, diz o que sairia como
+ * lembrado. Camada escondida não conta: é interruptor do mapa inteiro, e
+ * religá-la mostra a planta revelada como sempre mostrou.
  */
 export function planOfWholeMap(map: MapData): PlanMemory {
-  return {
+  const everything: PlanMemory = {
     walls: byId(map.walls),
     floor: byId(map.floor),
     regions: byId(map.regions),
@@ -437,6 +454,17 @@ export function planOfWholeMap(map: MapData): PlanMemory {
     lines: byId(map.lines),
     stairs: byId(map.stairs),
     pins: byId(map.pins ?? []),
+  }
+  const { map: shown } = filterMapForPlayer({ ...map, hiddenLayers: [] }, '', {}, 0, undefined, undefined, everything)
+  return {
+    walls: keepSent(everything.walls, shown.walls),
+    floor: keepSent(everything.floor, shown.floor),
+    regions: keepSent(everything.regions, shown.regions),
+    drawings: keepSent(everything.drawings, shown.drawings),
+    markers: keepSent(everything.markers, shown.markers),
+    lines: keepSent(everything.lines, shown.lines),
+    stairs: keepSent(everything.stairs, shown.stairs),
+    pins: keepSent(everything.pins, shown.pins),
   }
 }
 

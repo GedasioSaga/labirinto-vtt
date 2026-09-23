@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { DoorState, FloorPiece, MapData, Pin, Region, Token, Wall } from '../types/map'
 import { createExploration, markAll, markRings } from './exploration'
-import { emptyPlanMemory, filterMapForPlayer, planOfWholeMap, type PlanMemory, type PlayerMapView } from './fogFilter'
+import { emptyPlanMemory, filterMapForPlayer, planOfWholeMap, playerBlockedRings, type PlanMemory, type PlayerMapView } from './fogFilter'
 import { createEmptyMap } from './mapFactory'
 
 /**
@@ -204,5 +204,56 @@ describe('filterMapForPlayer: memória da planta sem spoiler', () => {
     expect(view.map.pins.map((p) => p.id)).toEqual(['visivel'])
     expect(JSON.stringify(view.map)).not.toContain('chegada')
     expect(JSON.stringify(view.map)).not.toContain('oculto')
+  })
+
+  /** "Revelar planta" como o host faz: marca o explorado fora do bloqueado e guarda a planta de agora. */
+  function revelar(map: MapData) {
+    const j = jogador(planOfWholeMap(map))
+    markAll(j.exp, playerBlockedRings(map))
+    return j
+  }
+
+  const ZONA_GRANDE = { id: 'z', name: 'Segredo', points: [{ x: 50, y: 50 }, { x: 350, y: 50 }, { x: 350, y: 350 }, { x: 50, y: 350 }], revealed: false }
+
+  it('"Revelar planta" com zona oculta ativa não guarda o que está sob ela: desligar a zona longe não entrega nada', () => {
+    const debaixo = {
+      regions: [sala('tesouro', 'Tesouro Escondido')],
+      pins: [pin('bau', 180, 160), pin('fora', 600, 150)],
+      drawings: [{ id: 'bilhete', kind: 'text' as const, x: 250, y: 150, text: 'bilhete sob a zona', color: '#fff', fontSize: 12 }],
+      markers: [{ id: 'marca', cx: 200, cy: 200, w: 20, h: 20, rotation: 0, color: '#fff' }],
+    }
+    const j = revelar(mapa(LONGE, { ...debaixo, concealZones: [ZONA_GRANDE] }))
+    expect(j.plano().pins.has('bau')).toBe(false)
+    expect(j.plano().regions.has('tesouro')).toBe(false)
+    const semZona = j.ver(mapa(LONGE, debaixo))
+    const json = JSON.stringify(semZona.map)
+    expect(json).not.toContain('Tesouro Escondido')
+    expect(json).not.toContain('bilhete sob a zona')
+    expect(semZona.map.regions).toEqual([])
+    expect(semZona.map.markers).toEqual([])
+    // Controle: o que estava fora da zona continua lembrado.
+    expect(semZona.map.pins.map((p) => p.id)).toEqual(['fora'])
+  })
+
+  it('"Revelar planta" com sala secreta não guarda a sala nem o que está dentro: desmarcar longe não entrega nada', () => {
+    const dentro = { pins: [pin('bau', 180, 160), pin('fora', 600, 150)] }
+    const j = revelar(mapa(LONGE, { ...dentro, regions: [{ ...sala('cofre', 'Cofre do Rei'), secret: true }] }))
+    const desmarcada = j.ver(mapa(LONGE, { ...dentro, regions: [sala('cofre', 'Cofre do Rei')] }))
+    expect(JSON.stringify(desmarcada.map)).not.toContain('Cofre do Rei')
+    expect(desmarcada.map.regions).toEqual([])
+    expect(desmarcada.map.pins.map((p) => p.id)).toEqual(['fora'])
+  })
+
+  it('"Revelar planta" com teto guarda a silhueta do prédio, não o interior: tirar o teto longe não entrega o de dentro', () => {
+    const dentro = { pins: [pin('bau', 180, 160), pin('fora', 600, 150)] }
+    const j = revelar(mapa(LONGE, { ...dentro, regions: [sala('predio', 'Armazem', { roof: true })] }))
+    // A silhueta do prédio não é segredo: continua lembrada, sem nome.
+    expect(j.plano().regions.has('predio')).toBe(true)
+    const comTeto = j.ver(mapa(LONGE, { ...dentro, regions: [sala('predio', 'Armazem', { roof: true })] }))
+    expect(comTeto.map.regions.map((r) => r.id)).toEqual(['predio'])
+    expect(comTeto.map.pins.map((p) => p.id)).toEqual(['fora'])
+    const semTeto = j.ver(mapa(LONGE, { ...dentro, regions: [sala('predio', 'Armazem')] }))
+    expect(semTeto.map.pins.map((p) => p.id)).toEqual(['fora'])
+    expect(JSON.stringify(semTeto.map)).not.toContain('desc-bau')
   })
 })

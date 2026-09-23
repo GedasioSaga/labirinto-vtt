@@ -151,4 +151,32 @@ describe('hostSession: memória do explorado sem spoiler', () => {
     expect(snap.map.pins.map((p) => p.id).sort()).toEqual(['pino-novo', 'pino-velho'])
     expect(snap.map.walls.map((w) => w.id)).toEqual(['parede-nova'])
   })
+
+  it('SEGURANÇA: "Revelar planta" com zona oculta ativa não entrega pela rede o que estava sob ela quando a zona some', () => {
+    const t = mesa()
+    t.s.broadcast(antes(LONGE))
+    const zona = { id: 'z', name: 'nome-zona', revealed: false, points: [{ x: 50, y: 50 }, { x: 350, y: 50 }, { x: 350, y: 350 }, { x: 50, y: 350 }] }
+    const tesouro = {
+      id: 'sala-tesouro',
+      points: [{ x: 120, y: 120 }, { x: 280, y: 120 }, { x: 280, y: 280 }, { x: 120, y: 280 }],
+      tag: '',
+      fillColor: '#333',
+      fillPattern: 'solid' as const,
+      data: {},
+      room: { shape: 'rect' as const, name: 'Tesouro Escondido' },
+    }
+    const comZona: MapData = { ...depois(LONGE), regions: [tesouro], pins: [...depois(LONGE).pins, pin('pino-fora', 600, 150)], concealZones: [zona] }
+    t.s.revealPlan(t.playerId, comZona)
+    expect(JSON.stringify(snapshotOf(t.s.broadcast(comZona).outbound).map)).not.toContain('Tesouro Escondido')
+    // O mestre desliga a zona com a Ana longe: ela nunca viu nem explorou o lugar.
+    const snap = snapshotOf(t.s.broadcast({ ...comZona, concealZones: [] }).outbound)
+    const json = JSON.stringify(snap.map)
+    expect(json).not.toContain('Tesouro Escondido')
+    expect(json).not.toContain('tesouro escondido')
+    expect(json).not.toContain('armadilha nova')
+    expect(json).not.toContain('bilhete')
+    expect(snap.map.regions).toEqual([])
+    // Controle: o pino revelado fora da zona continua chegando.
+    expect(snap.map.pins.map((p) => p.id)).toEqual(['pino-fora'])
+  })
 })

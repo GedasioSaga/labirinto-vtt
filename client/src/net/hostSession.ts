@@ -1152,8 +1152,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const map = scene.map
       const memory = memoryFor(playerId, map)
       markAll(memory.exp, playerBlockedRings(map))
-      // Revelar é mostrar a planta de AGORA: a memória passa a ser o presente.
-      // O que o mestre esconde o recorte tira na hora de mandar (`recallItems`).
+      // Revelar é mostrar a planta de AGORA: a memória passa a ser o presente,
+      // menos o que está sob zona, sala secreta ou teto (lá o explorado também
+      // não foi marcado): desfeito o esconderijo depois, nada disso volta como lembrado.
       memory.plan = planOfWholeMap(map)
     },
 
