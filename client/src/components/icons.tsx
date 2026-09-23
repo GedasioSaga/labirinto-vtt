@@ -517,6 +517,19 @@ export function ChevronDownIcon(props: IconProps) {
   )
 }
 
+/**
+ * "Mover para…" da lista Cenas: a seta desce e entra à direita, o mesmo gesto
+ * do recuo de uma cena que vai para dentro de outra.
+ */
+export function MoveIntoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M7 4.5v8a3 3 0 0 0 3 3h9" />
+      <path d="M15.5 12l3.5 3.5-3.5 3.5" />
+    </Icon>
+  )
+}
+
 /** X de fechar janela — duas diagonais do mesmo comprimento da divisa acima. */
 export function CloseIcon(props: IconProps) {
   return (

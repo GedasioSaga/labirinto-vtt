@@ -3,7 +3,18 @@ import type { MapData, Pin, PinDestination, Token } from '../types/map'
 import { singleSceneWorld, type HostScene, type HostWorld } from '../net/hostSession'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
-import { ADVENTURE_VERSION, baseName, cleanSceneName, newSceneId, sceneFileFor, type Adventure, type SceneEntry } from '../lib/adventure'
+import {
+  ADVENTURE_VERSION,
+  baseName,
+  cleanSceneName,
+  nestScene,
+  newSceneId,
+  sceneFileFor,
+  sceneTrail,
+  SCENE_TRAIL_SEPARATOR,
+  type Adventure,
+  type SceneEntry,
+} from '../lib/adventure'
 import {
   addExit,
   arrivalPoint,
@@ -89,6 +100,8 @@ export interface SceneListItem {
   active: boolean
   /** Mapa solto não tem nome de cena para trocar: o nome dele é o do arquivo. */
   renamable: boolean
+  /** CENAS EM PASTAS: a cena de fora desta. Ausente = primeiro nível (e sempre, no mapa solto). */
+  parentId?: string
 }
 
 interface AdventureState {
@@ -118,6 +131,14 @@ interface AdventureState {
   /** Cria a cena, já aberta. `loosePath` é o arquivo do mapa solto, quando a aventura nasce agora. */
   createScene: (name: string, loosePath: string | null) => string
   renameScene: (sceneId: string, name: string) => void
+  /**
+   * CENAS EM PASTAS: põe `sceneId` dentro de `parentId` (`null` = primeiro
+   * nível), com o que estava dentro dela. Muda só a lista de cenas — pede
+   * Salvar como o renomear, fora do desfazer da cena aberta. `false` quando não
+   * dá (dentro dela mesma ou de uma cena que está dentro dela, cena que não
+   * existe) ou quando ela já estava lá.
+   */
+  moveScene: (sceneId: string, parentId: string | null) => boolean
   /**
    * Troca a cena aberta. `false` quando não há o que trocar (mesma cena, cena
    * indisponível). `focus` centraliza a câmera nesse ponto da cena que entra.
@@ -197,7 +218,8 @@ export function sceneList(state: Pick<AdventureState, 'adventure' | 'activeScene
   return state.adventure.scenes.map((entry) => {
     const active = entry.id === state.activeSceneId
     const slot = state.cache[entry.id]
-    const base = { id: entry.id, name: entry.name, active, renamable: true }
+    // `parentId` só na cena de dentro: a do primeiro nível fica como sempre foi.
+    const base = { id: entry.id, name: entry.name, active, renamable: true, ...(entry.parentId === undefined ? {} : { parentId: entry.parentId }) }
     if (active) return { ...base, tokenCount: liveMap.tokens.length, available: true }
     if (slot === undefined || slot.status !== 'ok') return { ...base, tokenCount: null, available: false }
     return { ...base, tokenCount: slot.map.tokens.length, available: true }
@@ -286,14 +308,21 @@ function exitPatchFor(pin: Pin, exitId: string | null, destino: PinDestination):
   return setExitDestination(pin, exitId, destino)
 }
 
-/** As cenas para onde um pino da cena aberta pode levar: todas as outras. */
+/**
+ * As cenas para onde um pino da cena aberta pode levar: todas as outras. A
+ * cena de dentro de outra leva o caminho no nome ("Porto Cinza › Taverna"):
+ * duas "Taverna" em cidades diferentes não se confundem na escolha. É lista
+ * do mestre; o nome que o jogador nunca recebe continua sem caminho.
+ */
 export function travelSceneOptions(state: SceneState): TravelSceneOption[] {
-  if (state.adventure === null) return []
-  return state.adventure.scenes
+  const adventure = state.adventure
+  if (adventure === null) return []
+  return adventure.scenes
     .filter((entry) => entry.id !== state.activeSceneId)
     .map((entry) => {
       const slot = state.cache[entry.id]
-      return { id: entry.id, name: entry.name, available: slot !== undefined && slot.status === 'ok' }
+      const name = [...sceneTrail(adventure.scenes, entry.id), entry.name].join(SCENE_TRAIL_SEPARATOR)
+      return { id: entry.id, name, available: slot !== undefined && slot.status === 'ok' }
     })
 }
 
@@ -432,6 +461,15 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       adventure: { ...adventure, scenes: adventure.scenes.map((entry) => (entry.id === sceneId ? { ...entry, name: sceneName } : entry)) },
       structureDirty: true,
     })
+  },
+
+  moveScene: (sceneId, parentId) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const scenes = nestScene(adventure.scenes, sceneId, parentId)
+    if (scenes === null) return false
+    set({ adventure: { ...adventure, scenes }, structureDirty: true })
+    return true
   },
 
   switchScene: (sceneId, focus) => {
