@@ -686,3 +686,9 @@ viraram **70 itens** (9 descartados por já existirem) + **15 faltantes** aponta
 Lista completa, com objetivo, aceite e arquivos por item: `docs/backlog-simulacao-7-jogadores-2026-09-22.md`.
 Os 37 itens de prioridade 5 e 4 estão virando réguas vermelhas (`auto/reguas-lote-a`) e depois lanes de
 gauntlet.
+
+### Resultado da noite de 22-23/09/2026 (parada às 09h a pedido do usuário, por CPU)
+
+Nenhuma feature nova ficou pronta no app. Ficaram prontos o portão com vagas, 17 réguas vermelhas juntadas
+(+ 8 numa branch), a lista de 101 features, 10 defeitos confirmados e a cidade-torre de 12 andares gerada
+(99 cenas, 25.805 locais). Tudo, workflow por workflow, está em `HANDOFF.md`.

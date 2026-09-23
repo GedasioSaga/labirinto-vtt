@@ -48,12 +48,28 @@ export default defineConfig({
   // satura e testes aleatórios estouram os 30s em goto/beforeEach — medido
   // igual com o PixiCanvas de HEAD, então não é regressão de código. Com 4 a
   // suíte fecha verde no mesmo 1,5-1,7 min.
-  workers: 4,
+  //
+  // 23/09/2026: 2 por padrão (`PW_WORKERS` muda). Com várias árvores rodando o
+  // portão ao mesmo tempo, 4 por suíte somavam dezenas de navegadores.
+  workers: Number(process.env.PW_WORKERS) > 0 ? Number(process.env.PW_WORKERS) : 2,
   use: {
     baseURL: URL_BASE,
     viewport: { width: 1280, height: 800 },
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
+    // WebGL NA GPU, NÃO NA CPU. O padrão do Playwright é o chrome-headless-shell,
+    // que desenha WebGL por software (SwiftShader). Medido em 23/09/2026: com
+    // várias suítes ao mesmo tempo ele consumia a CPU inteira da máquina. O
+    // Chromium completo no headless novo, com ANGLE em D3D11, desenha na placa
+    // de vídeo ("ANGLE (Intel, Intel(R) UHD Graphics … Direct3D11)" contra
+    // "SwiftShader Device (Subzero)" no padrão). `LAB_SEM_GPU=1` volta ao padrão
+    // antigo, para máquina sem GPU utilizável.
+    ...(process.env.LAB_SEM_GPU === '1'
+      ? {}
+      : {
+          channel: 'chromium',
+          launchOptions: { args: ['--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'] },
+        }),
   },
   webServer: {
     command: 'npm run dev',
