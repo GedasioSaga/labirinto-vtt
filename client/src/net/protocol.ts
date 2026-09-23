@@ -3,6 +3,7 @@ import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
+import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -46,6 +47,11 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
  * nunca o id nem o nome da cena — quem recebe já está lá.
+ *
+ * `room.text` (mestre -> jogador) é o TEXTO DA SALA, aditivo pelo mesmo
+ * critério: na primeira vez que a ficha do jogador entra numa Sala com texto,
+ * só ele recebe o id da Sala, o nome como ele pode ver ('' quando oculto) e o
+ * texto. A nota do mestre nunca viaja.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -155,7 +161,15 @@ export interface SceneNoteMessage {
   text: string
 }
 
-export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
+/** Texto da Sala na primeira entrada: `id` é o da `Region` (já vai no snapshot), `title` o nome que o jogador pode ver. */
+export interface RoomTextMessage {
+  type: 'room.text'
+  id: string
+  title: string
+  text: string
+}
+
+export type HostErrorReason ='bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
 export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
@@ -176,6 +190,7 @@ export type HostMessage =
   | { type: 'scene.changed'; by?: 'master' | 'gather' }
   | LaserMessage
   | SceneNoteMessage
+  | RoomTextMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -274,6 +289,20 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
   return { type: 'scene.note', id, text }
+}
+
+/**
+ * Valida o `room.text` que o jogador recebe. Mesma regra do recado: forma
+ * errada, texto vazio ou acima do teto recusam a mensagem inteira. O título
+ * pode vir vazio (nome da Sala oculto do jogador).
+ */
+export function parseRoomText(value: unknown): RoomTextMessage | null {
+  if (!isRecord(value) || value.type !== 'room.text') return null
+  const { id, title, text } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(title, 0, ROOM_TEXT_MAX_LENGTH)) return null
+  if (!isBoundedString(text, 1, ROOM_TEXT_MAX_LENGTH)) return null
+  return { type: 'room.text', id, title, text }
 }
 
 /**

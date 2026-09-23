@@ -61,6 +61,11 @@ describe('PlayerNoteCard (recado do mestre)', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('título próprio (texto da sala) no lugar de "Recado do mestre"', () => {
+    act(() => root.render(<PlayerNoteCard title="Cozinha" text="Pão queimado." onClose={() => {}} />))
+    expect(container.querySelector('.pp-note__title')?.textContent).toBe('Cozinha')
+  })
+
   it('não rouba o foco ao aparecer', () => {
     const campo = document.createElement('input')
     document.body.appendChild(campo)

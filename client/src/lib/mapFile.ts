@@ -85,6 +85,30 @@ function roomRotationFromFile(region: Region): Region {
   return { ...region, room: semAngulo }
 }
 
+/**
+ * TEXTO DA SALA (`textoAoEntrar`, `notaDoMestre`) é campo NOVO e OPCIONAL.
+ * Ausente continua ausente. Valor que não é texto (arquivo editado à mão,
+ * versão futura) SAI: o texto de entrada vai para a tela do jogador, e um
+ * objeto ali viraria "[object Object]" — ou coisa pior no recorte.
+ */
+function roomTextsFromFile(region: Region): Region {
+  const room = region.room
+  if (!room || typeof room !== 'object') return region
+  const textoRuim = 'textoAoEntrar' in room && typeof room.textoAoEntrar !== 'string'
+  const notaRuim = 'notaDoMestre' in room && typeof room.notaDoMestre !== 'string'
+  if (!textoRuim && !notaRuim) return region
+  const { textoAoEntrar, notaDoMestre, ...semTextos } = room
+  // Só volta o campo que era texto: o ausente continua ausente, sem chave `undefined`.
+  return {
+    ...region,
+    room: {
+      ...semTextos,
+      ...(typeof textoAoEntrar === 'string' ? { textoAoEntrar } : {}),
+      ...(typeof notaDoMestre === 'string' ? { notaDoMestre } : {}),
+    },
+  }
+}
+
 function deserializeMapFields(json: string): MapData {
   let parsed: Partial<MapData>
   try {
@@ -123,7 +147,7 @@ function deserializeMapFields(json: string): MapData {
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
     regions: entityList(parsed.regions).map((r) =>
-      roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' }),
+      roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })),
     ),
     // MUDA de cru para .map(): Token.image é obrigatório.
     // `imageData` (a cópia embutida que viaja até o jogador) NÃO ganha linha

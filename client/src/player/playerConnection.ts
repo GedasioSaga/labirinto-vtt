@@ -5,7 +5,8 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
-import { parseLaserMessage, parseSceneNote } from '../net/protocol'
+import { parseLaserMessage, parseRoomText, parseSceneNote } from '../net/protocol'
+import { hasEnterText } from '../lib/roomText'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -40,6 +41,12 @@ export interface PlayerState {
    * tela o mostra como texto, nunca como HTML.
    */
   note?: { id: string; text: string }
+  /**
+   * TEXTO DA SALA aberto: chega na primeira entrada (`room.text`) ou quando o
+   * jogador toca o rótulo (`openRoomText`). `id` é o da Sala; `title`, o nome
+   * que ele pode ver ('' quando oculto). Texto puro, como o recado.
+   */
+  roomText?: { id: string; title: string; text: string }
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -116,6 +123,13 @@ export interface PlayerConnection {
   requestTravel(pinId: string, exitId?: string): boolean
   /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). */
   dismissNote(): void
+  /**
+   * Reabre o texto da Sala `regionId` (toque no rótulo). Só abre texto que já
+   * chegou no mapa do jogador; `false` quando a Sala não tem texto para ele.
+   */
+  openRoomText(regionId: string): boolean
+  /** Fecha o texto da Sala aberto. */
+  dismissRoomText(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -490,6 +504,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ note: { id: note.id, text: note.text } })
         return
       }
+      case 'room.text': {
+        // Mesma regra do recado: só quem joga tem tela de cartão.
+        if (state.status !== 'playing') return
+        const roomText = parseRoomText(data)
+        if (roomText === null) return
+        setState({ roomText: { id: roomText.id, title: roomText.title, text: roomText.text } })
+        return
+      }
       case 'laser': {
         // Laser sem mapa na tela não tem onde aparecer.
         if (state.status !== 'playing') return
@@ -687,6 +709,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.note !== undefined) setState({ note: undefined })
     },
 
+    openRoomText(regionId) {
+      // Só o que JÁ chegou no mapa: o host manda o texto a quem entrou na Sala.
+      const room = state.map?.regions.find((r) => r.id === regionId)?.room
+      const text = room?.textoAoEntrar
+      if (room === undefined || text === undefined || !hasEnterText(room)) return false
+      setState({ roomText: { id: regionId, title: room.name, text } })
+      return true
+    },
+
+    dismissRoomText() {
+      if (state.roomText !== undefined) setState({ roomText: undefined })
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -702,7 +737,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, roomText: undefined })
       open()
     },
     close: detach,

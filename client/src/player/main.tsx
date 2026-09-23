@@ -550,6 +550,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const closePin = useCallback(() => setOpenPinId(null), [])
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
+  const closeRoomText = useCallback(() => connection.dismissRoomText(), [connection])
 
   if (state.status === 'playing' && state.map && state.vision) {
     return (
@@ -575,6 +576,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           measureArmed={measureArmed}
           onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
           onPinOpen={setOpenPinId}
+          onRoomOpen={(regionId) => connection.openRoomText(regionId)}
         />
         <PlayerPanel
           characters={characters}
@@ -618,6 +620,18 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
           <PlayerNoteCard key={state.note.id} text={state.note.text} onClose={closeNote} escapeCloses={openPin === null} />
+        )}
+        {/* TEXTO DA SALA: o mesmo cartão, com o nome da Sala no alto. Um
+            cartão de cada vez no mesmo lugar: com recado aberto, o texto da
+            sala espera o recado fechar em vez de ficar por baixo dele. */}
+        {state.roomText && !state.note && (
+          <PlayerNoteCard
+            key={state.roomText.id}
+            title={state.roomText.title || 'Ao entrar'}
+            text={state.roomText.text}
+            onClose={closeRoomText}
+            escapeCloses={openPin === null}
+          />
         )}
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
