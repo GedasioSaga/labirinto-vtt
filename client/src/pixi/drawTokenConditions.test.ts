@@ -5,9 +5,10 @@
  * `e2e/task-jornada-condicao-na-ficha.spec.ts`.
  */
 import { describe, expect, it, vi } from 'vitest'
-import { Container, Graphics } from 'pixi.js'
+import { Container, Graphics, Sprite } from 'pixi.js'
 import type { Token, TokenCondition } from '../types/map'
 import { TOKEN_CONDITION_SYMBOLS } from '../lib/tokenConditions'
+import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from './constants'
 import { CONDITION_MARKS_LABEL, drawTokenConditions } from './drawTokenConditions'
 import { createTokensRenderer } from './tokensRenderer'
 
@@ -18,6 +19,10 @@ vi.mock('@tauri-apps/api/core', () => ({
 const GRADE = 50
 /** Raio do disco da ficha de 1 quadrado no editor (`gridSize * size / 2 - 2`). */
 const RAIO = GRADE / 2 - 2
+/** Ficha COM FOTO de 1 quadrado: o disco vai até `gridSize * size / 2`, sem os 2 px de respiro — é a borda de fora da moldura. */
+const RAIO_FOTO = GRADE / 2
+/** Borda de dentro da moldura: a foto é recortada em `raio - TOKEN_FRAME_WIDTH` (`pixi/tokensRenderer.ts`). */
+const MOLDURA_POR_DENTRO = RAIO_FOTO - TOKEN_FRAME_WIDTH
 
 function corDa(condicao: TokenCondition): number {
   return Number.parseInt(TOKEN_CONDITION_SYMBOLS[condicao].fill.slice(1), 16)
@@ -38,6 +43,19 @@ function marcasDa(wrapper: Container): Graphics {
   const marcas = wrapper.children.find((c) => c.label === CONDITION_MARKS_LABEL)
   if (!(marcas instanceof Graphics)) throw new Error('a ficha não tem a camada de marcas de condição')
   return marcas
+}
+
+/** A moldura da ficha com foto: o desenho que traça o aro na cor de latão (ficha sem cor escolhida). */
+function molduraDa(wrapper: Container): Graphics {
+  const moldura = wrapper.children.find(
+    (c): c is Graphics =>
+      c instanceof Graphics &&
+      c.context.instructions.some(
+        (i) => i.action === 'stroke' && (i.data as { style?: { color?: number } }).style?.color === TOKEN_FRAME_COLOR,
+      ),
+  )
+  if (moldura === undefined) throw new Error('a ficha com foto não tem moldura')
+  return moldura
 }
 
 describe('drawTokenConditions — a pastilha em cima da ficha', () => {
@@ -127,8 +145,24 @@ describe('createTokensRenderer — a ficha do editor com condição', () => {
     const container = new Container()
     const renderer = createTokensRenderer()
     renderer.draw(container, [ficha({ image: 'C:\\imgs\\lanterna.png', conditions: ['atordoado'] })], GRADE, null, 1)
-    const marcas = marcasDa(container.children[0])
+    const wrapper = container.children[0]
+    const marcas = marcasDa(wrapper)
     expect(coresPreenchidas(marcas)).toContain(corDa('atordoado'))
-    expect(marcas.getLocalBounds().maxY).toBeLessThan(0)
+
+    // SENTADA na moldura, e não boiando acima dela: a pastilha atravessa a
+    // faixa do aro no alto da ficha. A borda de baixo passa da borda de dentro
+    // da moldura, mas não chega ao meio do disco (a metade de baixo é do nome)...
+    const caixa = marcas.getLocalBounds()
+    expect(caixa.maxY).toBeGreaterThan(-MOLDURA_POR_DENTRO)
+    expect(caixa.maxY).toBeLessThan(0)
+    // ...e a borda de cima sobe além da borda de fora, sem sair da caixa que a régua fotografa.
+    expect(caixa.minY).toBeLessThan(-RAIO_FOTO)
+    expect(caixa.minY).toBeGreaterThanOrEqual(-3 * RAIO_FOTO)
+
+    // Por CIMA na pilha de desenho: nem a foto nem a moldura cobrem a marca.
+    const foto = wrapper.children.find((c) => c instanceof Sprite)
+    if (foto === undefined) throw new Error('a ficha com foto não desenhou a foto')
+    expect(wrapper.getChildIndex(marcas)).toBeGreaterThan(wrapper.getChildIndex(foto))
+    expect(wrapper.getChildIndex(marcas)).toBeGreaterThan(wrapper.getChildIndex(molduraDa(wrapper)))
   })
 })
