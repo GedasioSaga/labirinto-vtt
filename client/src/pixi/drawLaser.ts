@@ -1,6 +1,6 @@
 import { Container, Graphics, Text } from 'pixi.js'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
-import { LASER_COLOR, LASER_LABEL, LASER_TRAIL_MS, type LaserTrail } from '../lib/laser'
+import { LASER_COLOR, LASER_LABEL, LASER_TRAIL_MS, remoteLaserTrail, type LaserTrail, type RemoteLaser } from '../lib/laser'
 import type { Camera } from './world'
 
 /**
@@ -28,26 +28,46 @@ function lifeOf(t: number, now: number): number {
   return Math.sqrt(Math.max(0, 1 - (now - t) / LASER_TRAIL_MS))
 }
 
+/** Cor e rótulo de um laser: o do mestre (vermelho, "Mestre") ou o de um jogador (cor da ficha, nome dele). */
+export interface LaserStyle {
+  color: string
+  label: string
+}
+
+const MASTER_STYLE: LaserStyle = { color: LASER_COLOR, label: LASER_LABEL }
+
 /**
  * Um Graphics e um Text criados uma vez e nunca destruídos durante a sessão
  * (Text destruído antes do primeiro render derruba o Pixi 8.20, ver PlayerView).
+ * Trocar o estilo reescreve o Text no lugar.
  */
-export function createLaserRenderer() {
+export function createLaserRenderer(initialStyle: LaserStyle = MASTER_STYLE) {
   let graphics: Graphics | null = null
   let label: Text | null = null
+  let style = initialStyle
 
   return {
+    /** Troca cor e rótulo (a ficha mudou de cor, o jogador mudou de nome). */
+    restyle(next: LaserStyle): void {
+      if (next.color === style.color && next.label === style.label) return
+      style = next
+      if (label === null) return
+      label.text = next.label
+      label.style.fill = next.color
+    },
+
     /** Desenha o rastro vivo em `now` e devolve quantos pontos apareceram (0 = nada na tela). */
     draw(container: Container, trail: LaserTrail | undefined, camera: Camera, now: number): number {
       if (graphics === null || label === null) {
         graphics = new Graphics()
         label = new Text({
-          text: LASER_LABEL,
-          style: { fontSize: LABEL_FONT_SIZE, fontWeight: 'bold', fill: LASER_COLOR, stroke: { color: OUTLINE, width: 3 }, fontFamily: DEFAULT_TEXT_FONT_FAMILY },
+          text: style.label,
+          style: { fontSize: LABEL_FONT_SIZE, fontWeight: 'bold', fill: style.color, stroke: { color: OUTLINE, width: 3 }, fontFamily: DEFAULT_TEXT_FONT_FAMILY },
         })
         label.anchor.set(0.5, 1)
         container.addChild(graphics, label)
       }
+      const color = style.color
       const g = graphics
       g.clear()
       const points = trail?.points ?? []
@@ -62,8 +82,8 @@ export function createLaserRenderer() {
         const a = toScreen(points[i - 1])
         const b = toScreen(points[i])
         const width = TRAIL_MIN_WIDTH + (TRAIL_MAX_WIDTH - TRAIL_MIN_WIDTH) * life
-        g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ color: LASER_COLOR, width: width + GLOW_EXTRA_WIDTH, alpha: GLOW_ALPHA * life, cap: 'round' })
-        g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ color: LASER_COLOR, width, alpha: life, cap: 'round' })
+        g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ color, width: width + GLOW_EXTRA_WIDTH, alpha: GLOW_ALPHA * life, cap: 'round' })
+        g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ color, width, alpha: life, cap: 'round' })
       }
 
       const last = points.at(-1)
@@ -76,12 +96,43 @@ export function createLaserRenderer() {
       // Ligado e parado: a ponta conta como desenhada mesmo com o rastro já apagado.
       if (on && drawn === 0) drawn = 1
       const head = toScreen(last)
-      g.circle(head.x, head.y, HEAD_RADIUS + GLOW_EXTRA_WIDTH / 2).fill({ color: LASER_COLOR, alpha: GLOW_ALPHA * headAlpha })
-      g.circle(head.x, head.y, HEAD_RADIUS).fill({ color: LASER_COLOR, alpha: headAlpha }).stroke({ color: OUTLINE, width: 1.5, alpha: headAlpha })
+      g.circle(head.x, head.y, HEAD_RADIUS + GLOW_EXTRA_WIDTH / 2).fill({ color, alpha: GLOW_ALPHA * headAlpha })
+      g.circle(head.x, head.y, HEAD_RADIUS).fill({ color, alpha: headAlpha }).stroke({ color: OUTLINE, width: 1.5, alpha: headAlpha })
       g.circle(head.x, head.y, HEAD_CORE_RADIUS).fill({ color: 0xffffff, alpha: headAlpha })
       label.visible = true
       label.alpha = headAlpha
       label.position.set(head.x, head.y - HEAD_RADIUS - LABEL_GAP)
+      return drawn
+    },
+  }
+}
+
+/**
+ * LASERS DOS JOGADORES: um renderer por jogador (`key`), cada um na cor da
+ * ficha dele e com o nome dele. Renderer de quem saiu da lista só se apaga —
+ * nunca é destruído, pela mesma razão do Text acima.
+ */
+export function createLaserPool() {
+  const renderers = new Map<string, ReturnType<typeof createLaserRenderer>>()
+
+  return {
+    /** Desenha todos em `now` e devolve quantos pontos apareceram, somados. */
+    draw(container: Container, lasers: readonly RemoteLaser[], camera: Camera, now: number): number {
+      let drawn = 0
+      const present = new Set<string>()
+      for (const laser of lasers) {
+        present.add(laser.key)
+        const style = { color: laser.color, label: laser.label }
+        let renderer = renderers.get(laser.key)
+        if (renderer === undefined) {
+          renderer = createLaserRenderer(style)
+          renderers.set(laser.key, renderer)
+        } else renderer.restyle(style)
+        drawn += renderer.draw(container, remoteLaserTrail(laser, now), camera, now)
+      }
+      for (const [key, renderer] of renderers) {
+        if (!present.has(key)) renderer.draw(container, undefined, camera, now)
+      }
       return drawn
     },
   }

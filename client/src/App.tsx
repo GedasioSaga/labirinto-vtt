@@ -14,6 +14,7 @@ import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } fr
 import { hostPlayerChanges } from './net/playerChanges'
 import { useSignalStore } from './stores/signalStore'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
+import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useFollowStore } from './stores/followStore'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
@@ -436,6 +437,8 @@ function App() {
             useAdventureStore.getState().goToPoint(sceneId, { x, y })
           },
         }),
+        // Laser do jogador: o canvas desenha pela store, só o da cena aberta.
+        onPlayerLaser: (laser) => usePlayerLaserStore.getState().receive(laser),
       })
     }
     return hostBridgeRef.current
@@ -468,6 +471,7 @@ function App() {
     setRoom(null)
     setRoomPlayers([])
     useSignalStore.getState().clear()
+    usePlayerLaserStore.getState().clear()
     useLaserStore.getState().setToggled(false)
   }
   /**

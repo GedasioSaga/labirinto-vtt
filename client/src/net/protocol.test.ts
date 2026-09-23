@@ -33,8 +33,8 @@ describe('parseLaserMessage', () => {
     for (const value of invalid) expect(parseLaserMessage(value)).toBeNull()
   })
 
-  it('jogador não consegue mandar laser: o parser do mestre descarta', () => {
-    expect(parsePlayerMessage({ type: 'laser', points: [{ x: 1, y: 2 }] })).toBeNull()
+  it('laser do jogador: o parser do mestre aceita só o corpo, sem nome nem cor (quem põe é o host)', () => {
+    expect(parsePlayerMessage({ type: 'laser', points: [{ x: 1, y: 2 }], from: 'Mestre', color: '#ff2d2d' })).toEqual({ type: 'laser', points: [{ x: 1, y: 2 }] })
   })
 })
 

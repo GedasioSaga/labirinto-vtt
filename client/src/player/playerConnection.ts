@@ -4,7 +4,18 @@ import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, PLAYER_MESSAGE_MAX_BYTES, type DoorTo
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
-import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
+import {
+  LASER_MAX_POINTS_PER_MESSAGE,
+  LASER_SEND_INTERVAL_MS,
+  LASER_TRAIL_MS,
+  appendLaserPoints,
+  applyRemoteLaser,
+  pruneLaserTrail,
+  pruneRemoteLasers,
+  type LaserTrail,
+  type RemoteLaser,
+  type RemoteLaserUpdate,
+} from '../lib/laser'
 import { parseLaserMessage, parseSceneNote } from '../net/protocol'
 
 /**
@@ -30,6 +41,8 @@ export interface PlayerState {
   signals?: SignalMark[]
   /** Rastro do laser do mestre; some sozinho `LASER_TRAIL_MS` depois da última mensagem com o laser desligado. */
   laser?: LaserTrail
+  /** Lasers dos OUTROS jogadores da mesma cena, um por jogador, na cor da ficha dele. */
+  playerLasers?: RemoteLaser[]
   /** Recusa do mestre ao pedido de porta (trancada, longe, não visível); some sozinho. `id` novo repete o aviso. */
   doorNotice?: { id: number; reason: DoorToggleRejection }
   /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
@@ -115,6 +128,14 @@ export interface PlayerConnection {
    * ausente, o pedido sai sem ele e vale a saída principal, como sempre.
    */
   requestTravel(pinId: string, exitId?: string): boolean
+  /**
+   * Ponteiro do LASER do jogador em px de mundo. Sai em lotes: o primeiro
+   * ponto na hora, os seguintes juntos a cada `LASER_SEND_INTERVAL_MS`.
+   * `false` se não está jogando ou o socket não está aberto.
+   */
+  laserMove(x: number, y: number): boolean
+  /** Soltou o laser: manda o que faltava e o `off`, só se algo saiu desde o último. */
+  laserOff(): void
   /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). */
   dismissNote(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
@@ -343,6 +364,56 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }, LASER_TRAIL_MS)
   }
 
+  let playerLasersTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearPlayerLasers(): void {
+    if (playerLasersTimer !== null) clearTimeout(playerLasersTimer)
+    playerLasersTimer = null
+  }
+
+  /**
+   * Lasers dos outros jogadores: guarda e agenda a faxina. A cada
+   * `LASER_TRAIL_MS` tira quem já sumiu (soltou, ou calou por
+   * `REMOTE_LASER_IDLE_MS`), até não sobrar ninguém.
+   */
+  function updatePlayerLasers(next: RemoteLaser[]): void {
+    setState({ playerLasers: next.length === 0 ? undefined : next })
+    if (playerLasersTimer !== null || next.length === 0) return
+    const sweep = () => {
+      playerLasersTimer = null
+      const current = state.playerLasers
+      if (current === undefined) return
+      const kept = pruneRemoteLasers(current, Date.now())
+      if (kept.length !== current.length) setState({ playerLasers: kept.length === 0 ? undefined : kept })
+      if (kept.length > 0) playerLasersTimer = setTimeout(sweep, LASER_TRAIL_MS)
+    }
+    playerLasersTimer = setTimeout(sweep, LASER_TRAIL_MS)
+  }
+
+  /** Pontos do PRÓPRIO laser à espera da janela de envio (mesmo throttle do laser do mestre, `hostBridge`). */
+  let ownLaserBuffer: RegionPoint[] = []
+  let ownLaserTimer: ReturnType<typeof setTimeout> | null = null
+  /** Saiu algum ponto desde o último `off`: sem isso cada toque solto viraria um `off` à toa. */
+  let ownLaserSent = false
+
+  function armOwnLaserTimer(): void {
+    ownLaserTimer = setTimeout(() => {
+      ownLaserTimer = null
+      if (ownLaserBuffer.length === 0) return
+      const points = ownLaserBuffer
+      ownLaserBuffer = []
+      send({ type: 'laser', points })
+      armOwnLaserTimer()
+    }, LASER_SEND_INTERVAL_MS)
+  }
+
+  function resetOwnLaser(): void {
+    if (ownLaserTimer !== null) clearTimeout(ownLaserTimer)
+    ownLaserTimer = null
+    ownLaserBuffer = []
+    ownLaserSent = false
+  }
+
   function setState(patch: Partial<PlayerState>): void {
     state = { ...state, ...patch }
     for (const listener of listeners) listener()
@@ -460,9 +531,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'lobby.waiting':
         clearSignalTimers()
         clearLaserTimer()
+        clearPlayerLasers()
+        resetOwnLaser()
         clearDoorNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, travel: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -473,8 +546,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         pending.clear()
         clearSignalTimers()
         clearLaserTimer()
+        clearPlayerLasers()
+        resetOwnLaser()
         clearDoorNotice()
-        setState({ signals: undefined, laser: undefined, doorNotice: undefined })
+        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -504,6 +579,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const laser = parseLaserMessage(data)
         if (laser === null) return
         const now = Date.now()
+        if ('from' in laser) {
+          // Laser de OUTRO jogador: rastro próprio, na cor da ficha dele — nunca se mistura ao do mestre.
+          const origin = { key: laser.from, label: laser.from, color: laser.color }
+          const update: RemoteLaserUpdate = 'off' in laser ? { off: true } : { points: laser.points }
+          updatePlayerLasers(applyRemoteLaser(pruneRemoteLasers(state.playerLasers ?? [], now), origin, update, now))
+          return
+        }
         const points = state.laser?.points ?? []
         if ('off' in laser) {
           // Não apaga na hora: o rastro que já estava na tela termina de sumir.
@@ -564,9 +646,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         writeResume(storage, null)
         clearSignalTimers()
         clearLaserTimer()
+        clearPlayerLasers()
+        resetOwnLaser()
         clearDoorNotice()
         clearTravelTimer()
-        setState({ status: 'closed', doorNotice: undefined, travel: undefined })
+        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, travel: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -619,6 +703,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     stopPing()
     clearSignalTimers()
     clearLaserTimer()
+    clearPlayerLasers()
+    resetOwnLaser()
     clearDoorNotice()
     clearTravelTimer()
     const current = socket
@@ -691,6 +777,32 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return true
     },
 
+    laserMove(x, y) {
+      if (state.status !== 'playing' || !Number.isFinite(x) || !Number.isFinite(y)) return false
+      if (socket === null || socket.readyState !== SOCKET_OPEN) return false
+      // Inteiro basta para o rastro e encurta o payload que sai 20 vezes por segundo.
+      const point = { x: Math.round(x), y: Math.round(y) }
+      if (ownLaserTimer === null) {
+        ownLaserSent = send({ type: 'laser', points: [point] }) || ownLaserSent
+        armOwnLaserTimer()
+        return true
+      }
+      // Acima do teto sai o ponto mais antigo: o host descartaria o lote inteiro.
+      if (ownLaserBuffer.length >= LASER_MAX_POINTS_PER_MESSAGE) ownLaserBuffer.shift()
+      ownLaserBuffer.push(point)
+      ownLaserSent = true
+      return true
+    },
+
+    laserOff() {
+      if (!ownLaserSent) return
+      // O que ainda esperava a janela sai antes do `off`: é a ponta onde o dedo parou.
+      const rest = ownLaserBuffer
+      resetOwnLaser()
+      if (rest.length > 0) send({ type: 'laser', points: rest })
+      send({ type: 'laser', off: true })
+    },
+
     dismissNote() {
       if (state.note !== undefined) setState({ note: undefined })
     },
@@ -712,7 +824,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, travel: undefined, note: undefined })
       open()
     },
     close: detach,
