@@ -47,6 +47,7 @@ import { ScenesSection } from './components/ScenesSection'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
 import { goToMapObject } from './stores/mapObjectNavigation'
+import { levarFichaPara } from './stores/levarFicha'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
 import { apagarDoAcervo, fotoSobrouNoDisco, pecaDoAcervo, salvarNoAcervo, trazerDoAcervo, IMAGEM_SUMIU_DO_ACERVO, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
@@ -1999,6 +2000,13 @@ function App() {
             tokenNpc={{
               // `updateToken` passa por `withHistory`: marcar errado se desfaz com Ctrl+Z.
               onNpcChange: (npc) => selectedToken && updateToken(selectedToken.id, { npc }),
+            }}
+            tokenCarry={{
+              // As mesmas cenas e chegadas do "Mandar para…" do Grupo, menos a aberta (onde a ficha já está).
+              destinations: partyDestinations(roomPanelWorld()).filter((destination) => destination.sceneId !== activeSceneId),
+              // Ficha com dono troca de cena pelo "Mandar para…": só ele avisa o jogador e a sessão.
+              ownedTokenIds: new Set(roomPlayers.flatMap((player) => player.tokenIds)),
+              onCarry: levarFichaPara,
             }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),

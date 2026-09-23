@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { PARTY_CENTER_LABEL, partyPresenceLabel, type PartyDestination, type PartyMember } from '../lib/party'
+import { useId, useRef, useState } from 'react'
+import { partyPresenceLabel, type PartyDestination, type PartyMember } from '../lib/party'
+import { SceneSendForm } from './SceneSendForm'
 
 export interface PartySectionProps {
   members: PartyMember[]
@@ -18,9 +19,6 @@ export interface PartySectionProps {
 /** Nome FIXO do botão: o estado vai em `aria-pressed`, e o leitor de tela lê "Seguir, pressionado". */
 export const FOLLOW_LABEL = 'Seguir'
 
-/** Valor do `<select>` de chegada que quer dizer "centro da cena" (id de pino nunca é vazio). */
-const CENTER = ''
-
 export const PARTY_SEND_FAILED = 'Não deu para mandar: a cena ou a ficha mudou. Escolha de novo.'
 
 /** O rótulo do botão que abre o envio: o teste e o leitor de tela acham a linha por ele. */
@@ -29,105 +27,6 @@ export const SEND_TO_LABEL = 'Mandar para…'
 /** As cenas para onde ESTE jogador pode ir: todas menos a dele. */
 export function sendDestinationsFor(member: PartyMember, destinations: PartyDestination[]): PartyDestination[] {
   return destinations.filter((destination) => destination.sceneId !== member.sceneId)
-}
-
-interface SendFormProps {
-  member: PartyMember
-  destinations: PartyDestination[]
-  onSend: PartySectionProps['onSend']
-  onClose(): void
-}
-
-/**
- * O envio de um jogador, logo abaixo da lista: cena e chegada em duas listas
- * nativas (teclado e leitor de tela de graça), "Centro da cena" já escolhido
- * — é o destino que sempre existe. Enter envia (é um `<form>`); Esc cancela.
- */
-function SendForm({ member, destinations, onSend, onClose }: SendFormProps) {
-  const baseId = useId()
-  const [sceneId, setSceneId] = useState(destinations[0]?.sceneId ?? '')
-  const [arrival, setArrival] = useState(CENTER)
-  const [failed, setFailed] = useState(false)
-  const sceneRef = useRef<HTMLSelectElement | null>(null)
-  const scene = destinations.find((destination) => destination.sceneId === sceneId)
-
-  useEffect(() => {
-    sceneRef.current?.focus()
-  }, [])
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (scene === undefined) return
-    if (onSend(member.playerId, scene.sceneId, arrival === CENTER ? null : arrival)) onClose()
-    else setFailed(true)
-  }
-
-  const onKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
-    if (event.key !== 'Escape') return
-    // Esc fecha sem mandar; não pode chegar ao canvas (Esc lá troca a ferramenta).
-    event.preventDefault()
-    event.stopPropagation()
-    onClose()
-  }
-
-  return (
-    <form className="lb-party__send" aria-label={`Mandar ${member.name} para outra cena`} onSubmit={submit} onKeyDown={onKeyDown}>
-      <span className="lb-label">Mandar {member.name} para…</span>
-      <label className="lb-label" htmlFor={`${baseId}-scene`}>
-        Cena
-      </label>
-      <select
-        id={`${baseId}-scene`}
-        ref={sceneRef}
-        className="lb-input"
-        value={sceneId}
-        onChange={(event) => {
-          setSceneId(event.target.value)
-          // O pino escolhido era da outra cena: a chegada volta ao centro.
-          setArrival(CENTER)
-          setFailed(false)
-        }}
-      >
-        {destinations.map((destination) => (
-          <option key={destination.sceneId} value={destination.sceneId}>
-            {destination.name}
-          </option>
-        ))}
-      </select>
-      <label className="lb-label" htmlFor={`${baseId}-arrival`}>
-        Chegada
-      </label>
-      <select
-        id={`${baseId}-arrival`}
-        className="lb-input"
-        value={arrival}
-        onChange={(event) => {
-          setArrival(event.target.value)
-          setFailed(false)
-        }}
-      >
-        <option value={CENTER}>{PARTY_CENTER_LABEL}</option>
-        {(scene?.arrivals ?? []).map((pin) => (
-          <option key={pin.pinId} value={pin.pinId}>
-            {pin.label}
-          </option>
-        ))}
-      </select>
-      {failed && (
-        <p className="lb-room__error" role="alert">
-          {PARTY_SEND_FAILED}
-        </p>
-      )}
-      <div className="lb-party__actions">
-        <button type="button" className="lb-btn lb-btn--ghost" onClick={onClose}>
-          Cancelar
-        </button>
-        <button type="submit" className="lb-btn lb-btn--primary">
-          Mandar
-        </button>
-      </div>
-    </form>
-  )
 }
 
 /**
@@ -219,7 +118,16 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
       {sending !== undefined && sending.token !== null && (
         <div id={formId}>
           {/* `key`: trocar de jogador reabre o formulário do zero, sem a escolha do anterior. */}
-          <SendForm key={sending.playerId} member={sending} destinations={sendDestinationsFor(sending, destinations)} onSend={onSend} onClose={closeSend} />
+          <SceneSendForm
+            key={sending.playerId}
+            title={`Mandar ${sending.name} para…`}
+            ariaLabel={`Mandar ${sending.name} para outra cena`}
+            submitLabel="Mandar"
+            failedText={PARTY_SEND_FAILED}
+            destinations={sendDestinationsFor(sending, destinations)}
+            onSend={(sceneId, pinId) => onSend(sending.playerId, sceneId, pinId)}
+            onClose={closeSend}
+          />
         </div>
       )}
     </section>
