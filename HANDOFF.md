@@ -7,19 +7,19 @@ features do HANDOFF; um workflow só para os problemas do HANDOFF; simulação d
 cidades/casas/cômodos/quartos; e a cidade-torre de 11+ andares (imagem em
 `docs/pedidos/2026-09-22-cidade-vertical.png`) gerada de verdade e jogada com 7 fichas.
 
-### Noite de 22-23/09 — lanes (estado às 03:35)
+### Noite de 22-23/09 — lanes (estado às 06:15)
 
 | lane | onde | estado |
 |---|---|---|
 | passeio contínuo + G14 visão geral | `C:/dev/labirinto-lane-passeio`, integração `C:/dev/labirinto-integ-passeio` | rodando (71 agentes) |
-| G10 viajar junto | `.claude/worktrees/agent-a2f81b1641883db60` (merge da base `b08dd87`) | rodando |
-| G12 pausa por cena | `.claude/worktrees/agent-a87f0e0e42de339f3` (merge da base `979b047`) | rodando |
-| G13 companheiros | `.claude/worktrees/agent-adea6b44cd5ebd85a` (merge da base `e232a78`; 2 testes de unidade vermelhos do `party.update`) | rodando |
-| defeitos do HANDOFF | `C:/dev/labirinto-lane-defeitos` | **BLOQUEADO**: `unidade` (vitest) estourou sob carga; relançar depois do conserto do portão com as 6 peças + 10 achados CONFIRMADOS da varredura (`C:/dev/labirinto-lane-defeitos/docs/varredura-2026-09-22.md`; resultado em scratchpad `defeitos-resultado.json`) |
+| G10 viajar junto |  (base nova ) | relançada às 06:10 (run ) |
+| G12 pausa por cena |  (base nova ) | relançada às 06:10 (run ) |
+| G13 companheiros |  (base nova ; 2 testes de unidade do  a decidir) | relançada às 06:10 (run ) |
+| defeitos do HANDOFF + 10 CONFIRMADOS da varredura |  (base nova ) | relançada às 06:10 com 11 peças (run ); a 1ª saiu BLOQUEADA pelo vitest sob carga |
 | réguas fila antiga + G15 | `C:/dev/labirinto-reguas` (branch `auto/reguas-22set`) | rodando |
 | réguas P5/P4 da simulação (37) | `C:/dev/labirinto-reguas-a` (branch `auto/reguas-lote-a`), ondas de 8 | rodando |
 | cidade-torre de 12 andares | `C:/dev/labirinto-torre` (branch `auto/torre-11-andares`) | rodando |
-| portão: vagas + unidade | `C:/dev/labirinto-portao-vagas` | vagas juntadas (`0e1fc70`); unidade em conserto |
+| portão |  | juntado em : vagas (Playwright e unidade), teto 45 min, webServer 120 s,  na volta comum, g24 pelo disco, g35. As lanes G10/G12/G13 foram paradas às 05:00 porque cada uma consertava o portão na própria árvore; o trabalho delas ficou em stash e em patches no scratchpad  |
 
 Juntado em `auto/acervo` nesta noite: vagas de Playwright na máquina + teto de 45 min (`0e1fc70`), réguas
 firmes sob carga + g5 (`4e0988d`), backlog da simulação (`613ad24`, `docs/backlog-simulacao-7-jogadores-2026-09-22.md`,
