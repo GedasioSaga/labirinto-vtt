@@ -2656,6 +2656,28 @@ function matarArvore(pid) {
   } catch (e) {}
 }
 
+/** Quanto antes do teto o Playwright para sozinho — tempo de imprimir o relatório e fechar o vite. */
+const FOLGA_DO_LIMITE_GLOBAL_MS = 90 * 1000
+
+/**
+ * Os args do Playwright com `--global-timeout` um pouco abaixo do teto do
+ * portão (ideia da lane G13, 23/09/2026). MEDIDO na mesma noite: o passo
+ * `jornadas-entregues` bateu no teto de 45 min sob carga e o que sobrou foi só a
+ * lista de `ok`/`x`, sem o resumo e sem o motivo de cada `x` — o Playwright
+ * morreu antes de imprimi-los. Parando sozinho antes, ele sai com o placar
+ * inteiro (`did not run`/`interrupted` são ruína, então nada vira verde) e
+ * derruba o próprio webServer; o teto continua lá para quem travar de verdade.
+ * Só para jornada (suíte do Playwright); `passo.args` fica intocado.
+ */
+function argsComLimiteGlobal(passo, tetoMs) {
+  if (!passo.artefatos || tetoMs <= FOLGA_DO_LIMITE_GLOBAL_MS * 2) return passo.args
+  // O `--global-timeout` entra ANTES da lista de specs: depois dela o Playwright o
+  // leria como filtro de arquivo.
+  const i = passo.args.indexOf('test')
+  const limite = '--global-timeout=' + (tetoMs - FOLGA_DO_LIMITE_GLOBAL_MS)
+  return passo.args.slice(0, i + 1).concat([limite], passo.args.slice(i + 1))
+}
+
 /**
  * Mata (com a árvore) quem escuta na porta e devolve os PIDs mortos. Só para o
  * pós-teto: é o que alcança o vite órfão que `matarArvore` não alcança.
@@ -3735,7 +3757,10 @@ function quemOcupaAPorta(porta) {
   if (process.platform !== 'win32') return []
   // `netstat` e não o módulo `net` deste arquivo: aqui a pergunta não é "alguém
   // atende?" (isso é `portaOcupada`) e sim "QUEM atende?".
-  const netstat = spawnSync('netstat', ['-ano'], { encoding: 'utf8', timeout: 15000, windowsHide: true })
+  // 60 s e não 15: MEDIDO em 23/09/2026 com a máquina a 100%, `netstat -ano`
+  // levou 7-15 s, estourava os 15 s e a resposta vinha vazia — "ninguém ocupa a
+  // porta" dito por quem nem chegou a olhar.
+  const netstat = spawnSync('netstat', ['-ano'], { encoding: 'utf8', timeout: 60000, windowsHide: true })
   if (netstat.status !== 0) return []
   const pids = new Set()
   for (const linha of String(netstat.stdout || '').split('\n')) {
@@ -3957,7 +3982,7 @@ async function rodarPassoNaVaga(passo) {
     // Passo que sobe o Playwright roda com TETO (ver `rodarComTeto`); o resto
     // continua no `spawnSync` de sempre.
     const r = precisaDeVaga(passo)
-      ? await rodarComTeto(passo.exe, passo.args, opcoes, tetoDoPlaywrightMs(process.env))
+      ? await rodarComTeto(passo.exe, argsComLimiteGlobal(passo, tetoDoPlaywrightMs(process.env)), opcoes, tetoDoPlaywrightMs(process.env))
       : spawnSync(passo.exe, passo.args, opcoes)
     codigo = r.status === null ? 1 : r.status
     saida = aviso + String(r.stdout || '') + String(r.stderr || '')
@@ -5095,6 +5120,17 @@ async function rodarAutoteste() {
     ],
     ['g24 aprova suíte do mesmo tamanho', guardaEscalaDaUnidade(['src/a.test.ts'], ['src/a.test.ts'], { ref: 'base' }), true],
     ['g24 aprova suíte que cresceu', guardaEscalaDaUnidade(['src/a.test.ts', 'src/b.test.ts'], ['src/a.test.ts'], { ref: 'base' }), true],
+    [
+      'g33 jornada ganha --global-timeout 90 s abaixo do teto, antes dos specs',
+      (() => {
+        const a = argsComLimiteGlobal(jornada('x', 't', ['e2e/a.spec.ts']), 45 * 60 * 1000)
+        const i = a.indexOf('--global-timeout=2610000')
+        return i > a.indexOf('test') && i < a.indexOf('e2e/a.spec.ts')
+          ? ok('g33-limite-global', a.slice(1, 3).join(' ') + ' ... ' + a[i])
+          : reprova('g33-limite-global', 'args: ' + a.slice(1).join(' '))
+      })(),
+      true,
+    ],
     // 23/09/2026 — o furo da auditoria: trocar um arquivo por outro não muda a contagem.
     [
       'g24 reprova arquivo da base trocado por outro (mesma contagem)',
