@@ -438,3 +438,52 @@ describe('trazer do acervo para o mapa', () => {
     await expect(trazerDoAcervo(acervo.itens[0], 'C:/mapas/m1', 'tk')).resolves.toEqual({ image: null, imageData: null })
   })
 })
+
+/**
+ * Salvar, apagar e renomear leem o índice inteiro, mexem num item e regravam o
+ * índice inteiro. Duas dessas em voo ao mesmo tempo (dois cliques rápidos em
+ * "Salvar no acervo", ou salvar enquanto um apagar ainda grava) liam a MESMA
+ * lista, e a segunda gravação passava por cima da primeira: a ficha salva
+ * primeiro sumia da estante, com a foto órfã na pasta e nenhum erro na tela.
+ */
+describe('operações em sequência não atropelam umas às outras', () => {
+  it('dois "Salvar" disparados juntos deixam os dois tokens na estante', async () => {
+    await Promise.all([salvarNoAcervo(tokenComFoto), salvarNoAcervo({ ...tokenComFoto, name: 'Orc' })])
+
+    expect(itensGravados().map((item) => item.nome).sort()).toEqual(['Goblin', 'Orc'])
+  })
+
+  it('dois "Salvar" com o MESMO nome recebem nomes distintos, não duas linhas iguais', async () => {
+    await Promise.all([salvarNoAcervo(tokenComFoto), salvarNoAcervo(tokenComFoto)])
+
+    expect(itensGravados().map((item) => item.nome).sort()).toEqual(['Goblin', 'Goblin (2)'])
+  })
+
+  it('apagar e salvar ao mesmo tempo: o apagado sai e o salvo fica', async () => {
+    semearAcervo(2)
+
+    await Promise.all([apagarDoAcervo('id-0'), salvarNoAcervo(tokenComFoto)])
+
+    expect(itensGravados().map((item) => item.nome).sort()).toEqual(['Goblin', 'NPC 1'])
+  })
+
+  it('renomear e salvar ao mesmo tempo: o novo nome e o novo item sobrevivem', async () => {
+    semearAcervo(1)
+
+    await Promise.all([renomearNoAcervo('id-0', 'Chefe'), salvarNoAcervo(tokenComFoto)])
+
+    expect(itensGravados().map((item) => item.nome).sort()).toEqual(['Chefe', 'Goblin'])
+  })
+
+  it('uma operação que falha não trava as que vêm depois dela na fila', async () => {
+    semearAcervo(1)
+
+    const resultados = await Promise.allSettled([
+      renomearNoAcervo('id-que-nao-existe', 'X'),
+      salvarNoAcervo(tokenComFoto),
+    ])
+
+    expect(resultados.map((resultado) => resultado.status)).toEqual(['rejected', 'fulfilled'])
+    expect(itensGravados().map((item) => item.nome).sort()).toEqual(['Goblin', 'NPC 0'])
+  })
+})
