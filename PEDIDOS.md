@@ -632,3 +632,30 @@ livre tem uma batida de 450 ms com "Passando…" antes de trocar a cena.
 Consertos de régua feitos pelo orquestrador: caixa de pedidos (filtro `has` ancorado na caixa nunca
 casava), seguir jogador (controle andava 6 casas e ficava perto do centro desde que o "Ir lá" centra na
 área livre). Consertos de teste: teto próprio para o teste de 300 vértices do SDF (estourava 5 s sob carga).
+
+## Pedido de 22/09/2026, noite (registro literal)
+
+> "Eu quero que você use o gauntlet-loop, para andar pelo programa e descubra novas features e bug, você
+> vai usar o passeio para descobrir bugs e features, além disso coloque vários workflows só para
+> trabalhar nas features que estão no handoff. Estamos em uma conta 20x, então vá o mais rápido possível
+> junto com o máximo de paralelismo, precisa durar a noite inteira, então ligue o modo automático, além
+> disso coloque em loop e siga o goal. Coloca um workflow só para resolver os problemas do handoff. Você
+> pode analisar tudo mas eu quero que você faça umas simulações de jogo, imagine 7 jogadores jogando, cada
+> um com token, e tem jogar com eles, em vários cenários em várias cidades diferentes, querendo andar em
+> casa, e dentro das casas tentando andar pelos cômodos e tentando entrar nos quartos e no quarto saber o
+> que tem no quarto, é só um exemplo, mas faça features disso, faça as possibilidades."
+
+Goal novo (22/09/2026, noite): **"melhorar o programa no geral, adicionar 50 features, resolver todos os
+bugs, refinar o programa no máximo."**
+
+### Lanes da noite (decididas por mim no automático)
+
+| lane | o que faz | onde |
+|---|---|---|
+| passeio | gauntlet canônico com passeio contínuo (mestre + jogador), modo autônomo: achado vira peça | `C:/dev/labirinto-lane-passeio` |
+| simulação | 7 jogadores com ficha em várias cidades, casas, cômodos e quartos: o que tentam, o que o app faz, o que falta → fila de features | workflow de análise, sem escrever no repo |
+| G10 / G12 / G13 / G14 | uma lane de gauntlet por feature do grupo espalhado que ficou aberta | worktree de cada uma |
+| defeitos do HANDOFF | gauntlet sem GUI sobre a lista C + varredura curta de `net`, `player`, `pinTravel`, `adventureStore` | `C:/dev/labirinto-lane-defeitos` |
+
+Conta 20x: o teto de 4 agentes simultâneos (17/09) está revogado para esta noite; o limite real é a CPU da
+máquina (Playwright sob carga estoura tempo).
