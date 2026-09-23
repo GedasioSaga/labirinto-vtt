@@ -225,7 +225,20 @@ export interface PlayerConnection {
 }
 
 export const RESUME_STORAGE_KEY = 'labirinto.resume'
-export const PING_INTERVAL_MS = 15_000
+/**
+ * O `ping` sai a cada 2 s e o host responde `pong`. Era 15 s, só para manter o
+ * túnel acordado; agora é também a prova de vida dos dois lados, e precisa
+ * caber no aceite "Grupo mostra 'Gina caiu' em 0:10" (ver `HOST_STALE_AFTER_MS`
+ * do hostBridge). Numa mesa de 7 são 3,5 mensagens minúsculas por segundo.
+ */
+export const PING_INTERVAL_MS = 2_000
+/**
+ * Sem NADA do host há isto (nem pong, nem snapshot), o socket conta como morto
+ * mesmo sem `close`: o Wi-Fi que some sem FIN deixa o navegador achando que
+ * está tudo aberto por minutos. Dois pings e meio de folga; e abaixo do prazo
+ * do host (6 s), para o jogador já estar voltando quando o mestre souber.
+ */
+export const SILENCE_DEAD_AFTER_MS = 5_000
 /** Quanto tempo o aviso da porta ("Chegue mais perto") fica na tela. O "Trancada" fica até o jogador escolher. */
 export const DOOR_NOTICE_TTL_MS = 2500
 /** Quanto tempo o aviso do pedido da porta ("Pedido enviado", "O mestre abriu") fica na tela. */
@@ -378,6 +391,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   let state: PlayerState = { status: 'connecting', rev: -1 }
   let socket: SocketLike | null = null
   let pingTimer: ReturnType<typeof setInterval> | null = null
+  /** Quando chegou a última mensagem do host no socket atual (relógio do aparelho). */
+  let lastHeardAt = 0
   let nextReqId = 1
   const signalTimers = new Map<string, ReturnType<typeof setTimeout>>()
   let nextSignalId = 1
@@ -602,6 +617,58 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function stopPing(): void {
     if (pingTimer !== null) clearInterval(pingTimer)
     pingTimer = null
+  }
+
+  /**
+   * O host sumiu sem fechar? Só conta depois de entrar na sala: antes do
+   * `welcome` quem decide quanto esperar é a tela (o prazo do aperto de mão).
+   */
+  function hostSilent(): boolean {
+    return socket !== null && state.playerId !== undefined && Date.now() - lastHeardAt >= SILENCE_DEAD_AFTER_MS
+  }
+
+  function pingOrGiveUp(): void {
+    if (hostSilent()) {
+      dropSocket()
+      return
+    }
+    send({ type: 'ping' })
+  }
+
+  /** Depois de kicked/closed/error a queda é esperada: o mestre derrubou de propósito. */
+  function sessionOver(): boolean {
+    return state.status === 'kicked' || state.status === 'closed' || state.status === 'error'
+  }
+
+  /** O socket atual morreu (com ou sem `close`): volta sozinho, ou explica na tela. */
+  function handleSocketLost(): void {
+    if (sessionOver()) return
+    if (state.reconnecting !== undefined) {
+      // A tentativa falhou (a rede ainda não voltou): a próxima espera mais.
+      clearAttemptTimer()
+      scheduleAttempt()
+      return
+    }
+    // Já estava na sala: Wi-Fi que pisca ou tela bloqueada. Volta sozinho.
+    if (state.playerId !== undefined) {
+      beginReconnect()
+      return
+    }
+    // Nunca entrou (endereço errado, sala que não existe): a tela explica.
+    setState({ status: 'error', error: CONNECTION_LOST })
+  }
+
+  /**
+   * Larga o socket que o navegador ainda acha aberto (Wi-Fi que sumiu sem FIN,
+   * host que já nos deu como caídos) e segue como se o `close` tivesse chegado.
+   * O `close` real, se vier, acha outro socket no lugar e é ignorado.
+   */
+  function dropSocket(): void {
+    const current = socket
+    socket = null
+    stopPing()
+    current?.close()
+    handleSocketLost()
   }
 
   function hasNewerPending(reqId: string, tokenId: string): PendingMove | null {
@@ -881,6 +948,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         }
         // Mensagem inválida durante o jogo não derruba a sessão.
         if (reason === 'invalid_message' && state.status === 'playing') return
+        // Já estava na sala e o host não a conhece mais: ele a deu como caída
+        // (a varredura de conexão muda) e este socket é um zumbi. Volta pelo
+        // resume, como numa queda — não é caso de tela de erro.
+        if (reason === 'not_joined' && state.playerId !== undefined) {
+          dropSocket()
+          return
+        }
         if (reason === 'bad_code') writeResume(storage, null)
         // Erro do mestre na volta (a sala acabou): não há para onde tentar de novo.
         clearReconnectTimers()
@@ -900,12 +974,17 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (socket !== current) return
       const resume = readResume(storage, code)
       const join: JoinMessage = resume ? { type: 'join', code, name, resume } : { type: 'join', code, name }
+      // O prazo do silêncio conta a partir de agora, não da conexão anterior.
+      lastHeardAt = Date.now()
       send(join)
       stopPing()
-      pingTimer = setInterval(() => send({ type: 'ping' }), PING_INTERVAL_MS)
+      pingTimer = setInterval(pingOrGiveUp, PING_INTERVAL_MS)
     }
     current.onmessage = (event) => {
-      if (socket === current) handleMessage(event.data)
+      if (socket !== current) return
+      // Qualquer mensagem do host é prova de vida, não só o pong.
+      lastHeardAt = Date.now()
+      handleMessage(event.data)
     }
     current.onerror = () => {
       // O browser sempre dispara `close` depois; o tratamento fica lá.
@@ -914,21 +993,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (socket !== current) return
       socket = null
       stopPing()
-      // Depois de kicked/closed a queda é esperada: o mestre derrubou de propósito.
-      if (state.status === 'kicked' || state.status === 'closed' || state.status === 'error') return
-      if (state.reconnecting !== undefined) {
-        // A tentativa falhou (a rede ainda não voltou): a próxima espera mais.
-        clearAttemptTimer()
-        scheduleAttempt()
-        return
-      }
-      // Já estava na sala: Wi-Fi que pisca ou tela bloqueada. Volta sozinho.
-      if (state.playerId !== undefined) {
-        beginReconnect()
-        return
-      }
-      // Nunca entrou (endereço errado, sala que não existe): a tela explica.
-      setState({ status: 'error', error: CONNECTION_LOST })
+      handleSocketLost()
     }
   }
 
@@ -1065,9 +1130,21 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       open()
     },
     wake() {
-      // Tentativa no ar tem o prazo dela; duas de uma vez só brigariam pelo socket.
-      if (state.reconnecting === undefined || socket !== null) return
-      attemptNow()
+      if (state.reconnecting !== undefined) {
+        // Tentativa no ar tem o prazo dela; duas de uma vez só brigariam pelo socket.
+        if (socket === null) attemptNow()
+        return
+      }
+      if (sessionOver() || socket === null) return
+      // A tela ficou apagada e os timers nem rodaram: o socket pode estar morto
+      // sem saber. Mudo há mais que o prazo = morto, e a volta tenta NA HORA —
+      // a pessoa está olhando. Senão, um ping agora confirma mais cedo.
+      if (hostSilent()) {
+        dropSocket()
+        attemptNow()
+        return
+      }
+      send({ type: 'ping' })
     },
     retryNow() {
       if (state.reconnecting === undefined) return

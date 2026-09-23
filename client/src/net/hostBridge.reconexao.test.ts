@@ -3,7 +3,8 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { useToastStore } from '../stores/toastStore'
 import type { Token } from '../types/map'
 import type { PlayerInfo } from './hostSession'
-import { createHostBridge, DROP_ANNOUNCE_DELAY_MS } from './hostBridge'
+import { createHostBridge, DROP_ANNOUNCE_DELAY_MS, HOST_STALE_AFTER_MS, LIVENESS_SWEEP_MS } from './hostBridge'
+import { PING_INTERVAL_MS } from '../player/playerConnection'
 
 /**
  * RECONEXÃO AUTOMÁTICA, lado do mestre: "Gina caiu" quando alguém cai (quedas
@@ -67,11 +68,23 @@ async function mesa() {
   entra('c3', 'Ana', 'f-ana')
   useToastStore.setState({ toasts: [] })
   return {
+    bridge,
+    invoke,
     cai,
     volta,
+    ping: (clientId: string) => emit('net:message', { clientId, msg: { type: 'ping' } }),
     avanca: (ms: number) => {
       relogio += ms
       vi.advanceTimersByTime(ms)
+    },
+    /** O tempo passa com estas conexões mandando o ping de sempre (o cliente vivo). */
+    avancaComPing: (ms: number, ...clientIds: string[]) => {
+      for (let t = 0; t < ms; t += PING_INTERVAL_MS) {
+        const passo = Math.min(PING_INTERVAL_MS, ms - t)
+        relogio += passo
+        vi.advanceTimersByTime(passo)
+        for (const clientId of clientIds) emit('net:message', { clientId, msg: { type: 'ping' } })
+      }
     },
     textos: () => useToastStore.getState().toasts.map((t) => t.text),
     players: () => players,
@@ -124,7 +137,7 @@ describe('hostBridge: quem caiu e quem voltou', () => {
     m.cai('c1')
     m.avanca(800)
     m.volta('c9', 'Gina')
-    m.avanca(DROP_ANNOUNCE_DELAY_MS * 2)
+    m.avancaComPing(DROP_ANNOUNCE_DELAY_MS * 2, 'c9', 'c2', 'c3')
     expect(m.textos().filter((t) => t.includes('Gina'))).toEqual([])
   })
 
@@ -133,12 +146,88 @@ describe('hostBridge: quem caiu e quem voltou', () => {
     m.cai('c1')
     m.avanca(DROP_ANNOUNCE_DELAY_MS)
     expect(m.textos()).toContain('Gina caiu')
-    m.avanca(10_000)
+    m.avancaComPing(10_000, 'c2', 'c3')
     m.volta('c9', 'Gina')
     expect(m.textos()).toContain('Gina voltou')
     expect(m.textos()).not.toContain('Gina caiu')
     const gina = m.players().find((p) => p.name === 'Gina')
     expect(gina?.connected).toBe(true)
     expect(gina?.disconnectedAt).toBeUndefined()
+  })
+})
+
+/**
+ * CONEXÃO MORTA QUE NÃO FECHA: o Wi-Fi do celular some sem FIN, e o Rust só
+ * saberia da queda minutos depois. O host guarda a hora da última mensagem
+ * de cada conexão (o ping do cliente chega a cada `PING_INTERVAL_MS`); uma
+ * varredura dá como caído quem passou do prazo — pelo MESMO caminho da queda
+ * com `close`: Grupo "fora", aviso "Gina caiu".
+ */
+describe('hostBridge: varredura de quem sumiu sem fechar', () => {
+  /** Bruno e Ana seguem mandando ping; Gina sumiu sem aviso. */
+  const passaComGinaMuda = (m: Awaited<ReturnType<typeof mesa>>, total: number) => {
+    for (let t = 0; t < total; t += 1_000) {
+      m.avanca(1_000)
+      if ((t + 1_000) % PING_INTERVAL_MS === 0) {
+        m.ping('c2')
+        m.ping('c3')
+      }
+    }
+  }
+
+  it('Gina muda: em até 0:10 o Grupo a mostra fora (desde o último sinal) e sai "Gina caiu"', async () => {
+    const m = await mesa()
+    const ultimoSinal = m.agora()
+    passaComGinaMuda(m, 10_000)
+    const gina = m.players().find((p) => p.name === 'Gina')
+    expect(gina).toMatchObject({ connected: false, disconnectedAt: ultimoSinal })
+    expect(m.textos()).toContain('Gina caiu')
+    // Só ela: quem mandou ping segue na sala.
+    expect(m.players().filter((p) => p.connected).map((p) => p.name)).toEqual(['Bruno', 'Ana'])
+    // A conexão zumbi é derrubada no Rust: se ela ressuscitar, o cliente vê o close e volta pelo resume.
+    expect(m.invoke.mock.calls).toContainEqual(['net_kick', { clientId: 'c1' }])
+    // O prazo cabe no aceite: detectar + avisar em até 10 s.
+    expect(HOST_STALE_AFTER_MS + LIVENESS_SWEEP_MS + DROP_ANNOUNCE_DELAY_MS).toBeLessThanOrEqual(10_000)
+    expect(HOST_STALE_AFTER_MS).toBeGreaterThanOrEqual(2 * PING_INTERVAL_MS)
+  })
+
+  it('quem só manda ping fica na sala por quanto tempo for, e cada ping recebe pong', async () => {
+    const m = await mesa()
+    for (let t = 0; t < 60_000; t += PING_INTERVAL_MS) {
+      m.avanca(PING_INTERVAL_MS)
+      m.ping('c1')
+      m.ping('c2')
+      m.ping('c3')
+    }
+    expect(m.players().every((p) => p.connected)).toBe(true)
+    expect(m.textos().filter((t) => t.includes('caiu') || t.includes('caíram'))).toEqual([])
+    expect(m.invoke.mock.calls.some((call) => call[0] === 'net_kick')).toBe(false)
+    const pongs = m.invoke.mock.calls.filter((call) => call[0] === 'net_send' && JSON.stringify(call[1]) === '{"clientId":"c1","msg":{"type":"pong"}}')
+    expect(pongs.length).toBeGreaterThan(0)
+  })
+
+  it('o close que o Rust manda depois do kick não vira um segundo "Gina caiu"', async () => {
+    const m = await mesa()
+    passaComGinaMuda(m, 10_000)
+    m.cai('c1')
+    m.avanca(DROP_ANNOUNCE_DELAY_MS * 2)
+    expect(m.textos().filter((t) => t.includes('Gina'))).toEqual(['Gina caiu'])
+  })
+
+  it('volta pelo resume depois da varredura: "Gina voltou"', async () => {
+    const m = await mesa()
+    passaComGinaMuda(m, 10_000)
+    m.volta('c9', 'Gina')
+    expect(m.textos()).toContain('Gina voltou')
+    expect(m.players().find((p) => p.name === 'Gina')?.connected).toBe(true)
+  })
+
+  it('sala fechada: a varredura para (ninguém é dado como caído depois)', async () => {
+    const m = await mesa()
+    await m.bridge.stop()
+    m.invoke.mockClear()
+    m.avanca(HOST_STALE_AFTER_MS * 5)
+    expect(m.invoke.mock.calls).toEqual([])
+    expect(m.textos().filter((t) => t.includes('caiu') || t.includes('caíram'))).toEqual([])
   })
 })

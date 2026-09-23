@@ -321,6 +321,9 @@ export type HostMessage =
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
+  // Resposta ao `ping` de quem está na sala: só "estou aqui", sem nada dentro.
+  // É o que deixa o jogador notar a conexão morta que nunca fecha.
+  | { type: 'pong' }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)

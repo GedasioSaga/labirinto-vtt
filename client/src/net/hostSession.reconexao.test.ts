@@ -93,6 +93,34 @@ describe('hostSession: quando cada jogador caiu', () => {
     expect(texto).not.toContain('Bruno')
   })
 
+  it('ping de quem está na sala volta como pong SÓ para ele, e o pong não leva nada', () => {
+    const m = mesa()
+    m.s.disconnect('c2')
+    const r = m.s.handleMessage('c1', { type: 'ping' }, mundo)
+    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'pong' } }])
+    // Nem quem caiu, nem desde quando, nem a outra cena: é só "estou aqui".
+    const texto = JSON.stringify(r)
+    expect(texto).not.toContain('Bruno')
+    expect(texto).not.toContain('Cripta')
+    expect(texto).not.toContain('disconnectedAt')
+  })
+
+  it('ping de conexão que não está na sala (nunca entrou, ou já foi dada como caída) não recebe nada', () => {
+    const m = mesa()
+    expect(m.s.handleMessage('c-estranho', { type: 'ping' }, mundo).outbound).toEqual([])
+    m.s.disconnect('c1')
+    expect(m.s.handleMessage('c1', { type: 'ping' }, mundo).outbound).toEqual([])
+  })
+
+  it('disconnect com a hora da última notícia: o "fora há" conta desde quando ela sumiu', () => {
+    const m = mesa()
+    const ultimaNoticia = m.agora()
+    m.avanca(6_000)
+    m.s.disconnect('c1', ultimaNoticia)
+    const gina = m.s.listPlayers(mundo).find((p) => p.playerId === m.gina.playerId)
+    expect(gina).toMatchObject({ connected: false, disconnectedAt: ultimaNoticia })
+  })
+
   it('o broadcast depois da queda não conta a ninguém quem caiu', () => {
     const m = mesa()
     m.s.disconnect('c2')

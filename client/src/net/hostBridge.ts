@@ -196,6 +196,16 @@ export function doorRequestLine(request: DoorRequest): string {
  * aviso só.
  */
 export const DROP_ANNOUNCE_DELAY_MS = 3_000
+/**
+ * Conexão sem NENHUMA mensagem há isto conta como caída. O Wi-Fi do celular
+ * que some sem FIN deixa o socket "aberto" para o Rust por minutos; o cliente
+ * manda `ping` a cada 2 s (`PING_INTERVAL_MS` do jogador), então seis segundos
+ * são três pings perdidos — Wi-Fi ruim não vira queda falsa. Somado à
+ * varredura e a `DROP_ANNOUNCE_DELAY_MS`, "Gina caiu" sai em até 10 s.
+ */
+export const HOST_STALE_AFTER_MS = 6_000
+/** De quanto em quanto tempo o host confere quem ficou mudo. */
+export const LIVENESS_SWEEP_MS = 1_000
 const DEFAULT_VISION_RADIUS = 700
 /** Id de conexão do Rust (hoje um contador decimal); o padrão aceita folga sem abrir para lixo. */
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
@@ -307,6 +317,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let dropTimer: ReturnType<typeof setTimeout> | null = null
   /** Aviso "caiu" na tela de cada jogador já avisado: `playerId` -> id do toast. */
   const dropToasts = new Map<string, string>()
+  /** Hora (relógio do mestre) da última mensagem de cada conexão: `clientId` -> ms. Nunca sai pela rede. */
+  const lastHeard = new Map<string, number>()
+  let livenessTimer: ReturnType<typeof setInterval> | null = null
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
@@ -790,6 +803,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
     if (clientId === null) return
+    // Qualquer mensagem é prova de vida, não só o ping.
+    lastHeard.set(clientId, now())
     const before = session.listPlayers()
     const wasJoined = before.some((p) => p.clientId === clientId)
     const result = session.handleMessage(clientId, event.payload.msg, world())
@@ -844,17 +859,60 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     else announceJoin(clientId, new Set(before.filter((p) => !p.connected).map((p) => p.playerId)))
   }
 
-  const onPeer = (event: { payload: unknown }) => {
-    if (session === null || !isRecord(event.payload)) return
-    const clientId = parseClientId(event.payload.clientId)
-    if (clientId === null || event.payload.event !== 'disconnected') return
-    // Conexão que nunca entrou (código errado) não acha jogador: não há quem avisar.
+  /**
+   * A conexão `clientId` caiu — pelo `close` do Rust ou pela varredura de quem
+   * ficou mudo. `at`: quando se ouviu dela por último (ausente = agora).
+   */
+  const dropClient = (clientId: string, at?: number) => {
+    if (session === null) return
+    lastHeard.delete(clientId)
+    // Conexão que nunca entrou (código errado) — ou que a varredura já deu
+    // como caída — não acha jogador: não há quem avisar de novo.
     const dropped = session.listPlayers().find((p) => p.clientId === clientId)
-    session.disconnect(clientId)
+    session.disconnect(clientId, at)
     if (dropped !== undefined) scheduleDropAnnounce(dropped.playerId, dropped.name)
     pruneTravelToasts()
     pruneCallToasts()
     notifyPlayersIfChanged()
+  }
+
+  const onPeer = (event: { payload: unknown }) => {
+    if (session === null || !isRecord(event.payload)) return
+    const clientId = parseClientId(event.payload.clientId)
+    if (clientId === null || event.payload.event !== 'disconnected') return
+    dropClient(clientId)
+  }
+
+  /**
+   * Quem está na sala e passou de `HOST_STALE_AFTER_MS` sem mandar nada caiu,
+   * mesmo sem o `close` chegar (Wi-Fi que some sem FIN). O socket zumbi é
+   * derrubado no Rust: se ele ressuscitar, o cliente vê o `close` e volta pelo
+   * resume, em vez de falar com uma sala que já não o conhece.
+   */
+  const sweepSilent = () => {
+    if (session === null) return
+    const at = now()
+    for (const player of session.listPlayers()) {
+      const clientId = player.clientId
+      if (clientId === null) continue
+      const heard = lastHeard.get(clientId)
+      if (heard === undefined) {
+        // Entrou por um caminho que não passou por `onMessage`: o prazo começa agora.
+        lastHeard.set(clientId, at)
+        continue
+      }
+      if (at - heard < HOST_STALE_AFTER_MS) continue
+      dropClient(clientId, heard)
+      deps.invoke('net_kick', { clientId }).catch(() => {
+        // Já fechada no Rust (o `close` chegou junto): era o que se queria.
+      })
+    }
+  }
+
+  const stopLivenessSweep = () => {
+    if (livenessTimer !== null) clearInterval(livenessTimer)
+    livenessTimer = null
+    lastHeard.clear()
   }
 
   const removeListeners = () => {
@@ -876,11 +934,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         await deps.listen('net:peer', onPeer),
         await deps.listen('net:tunnel', onTunnel),
       ]
+      stopLivenessSweep()
+      livenessTimer = setInterval(sweepSilent, LIVENESS_SWEEP_MS)
       currentRoom = room
       notifyPlayersIfChanged()
       return room
     } catch (error) {
       removeListeners()
+      stopLivenessSweep()
       session = null
       reportError('Não foi possível abrir a sala', error)
       throw error
@@ -916,6 +977,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // não "O mestre encerrou a sala".
       if (session) await dispatch(session.closeRoom())
       removeListeners()
+      stopLivenessSweep()
       session = null
       pruneTravelToasts()
       pruneCallToasts()

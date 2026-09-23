@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { addToken, createEmptyMap } from '../lib/mapFactory'
 import type { MapData } from '../types/map'
-import { createPlayerConnection, MANUAL_RECONNECT_AFTER_MS, RECONNECT_MAX_DELAY_MS, reconnectDelayMs } from './playerConnection'
+import {
+  createPlayerConnection,
+  MANUAL_RECONNECT_AFTER_MS,
+  PING_INTERVAL_MS,
+  RECONNECT_MAX_DELAY_MS,
+  reconnectDelayMs,
+  SILENCE_DEAD_AFTER_MS,
+} from './playerConnection'
 import type { SocketLike, StorageLike } from './playerConnection'
 
 /**
@@ -251,5 +258,103 @@ describe('playerConnection: reconexão automática', () => {
     expect(connection.getState().travel?.phase).toBe('waiting')
     first.drop()
     expect(connection.getState().travel).toBeUndefined()
+  })
+})
+
+/**
+ * CONEXÃO MORTA QUE NÃO FECHA: o Wi-Fi do celular some sem FIN e o navegador
+ * não dispara `close` por minutos. O cliente manda `ping` e o host responde
+ * `pong`; sem NADA do host no prazo, o socket conta como morto e a volta
+ * automática começa — a mesma de uma queda com `close`.
+ */
+describe('playerConnection: socket mudo conta como queda', () => {
+  const pings = (socket: FakeSocket) => socket.sent.filter((m) => JSON.stringify(m) === '{"type":"ping"}').length
+
+  it('o ping sai com folga para caber no aceite de 0:10, e o prazo é de mais de um ping', () => {
+    const { first } = jogando()
+    vi.advanceTimersByTime(PING_INTERVAL_MS)
+    expect(pings(first)).toBe(1)
+    expect(PING_INTERVAL_MS).toBeGreaterThanOrEqual(1_000)
+    expect(PING_INTERVAL_MS).toBeLessThanOrEqual(3_000)
+    // Um pong atrasado não derruba ninguém: o prazo cobre dois pings perdidos.
+    expect(SILENCE_DEAD_AFTER_MS).toBeGreaterThanOrEqual(2 * PING_INTERVAL_MS)
+    expect(SILENCE_DEAD_AFTER_MS).toBeLessThanOrEqual(6_000)
+  })
+
+  it('sem pong no prazo: larga o socket e começa a volta automática, com o mapa na tela', () => {
+    const { connection, sockets, first } = jogando()
+    // O socket segue "aberto" para o navegador, mas nada volta do host.
+    vi.advanceTimersByTime(SILENCE_DEAD_AFTER_MS + PING_INTERVAL_MS)
+    const state = connection.getState()
+    expect(state.reconnecting).toBeDefined()
+    expect(state.status).toBe('playing')
+    expect(state.map?.tokens[0]).toMatchObject({ id: 't1' })
+    expect(first.closed).toBe(true)
+    vi.advanceTimersByTime(reconnectDelayMs(1))
+    expect(sockets).toHaveLength(2)
+  })
+
+  it('com pong a cada ping a conexão fica viva, por quanto tempo for', () => {
+    const { connection, sockets, first } = jogando()
+    for (let t = 0; t < 120_000; t += PING_INTERVAL_MS) {
+      vi.advanceTimersByTime(PING_INTERVAL_MS)
+      first.receive({ type: 'pong' })
+    }
+    expect(connection.getState().reconnecting).toBeUndefined()
+    expect(sockets).toHaveLength(1)
+    expect(first.closed).toBe(false)
+    expect(pings(first)).toBeGreaterThan(10)
+  })
+
+  it('a tela acendeu depois de muito tempo muda (visibilitychange): reconecta NA HORA', () => {
+    const { connection, sockets, first } = jogando()
+    // Celular bloqueado: os timers da aba nem rodaram; o relógio andou 60 s.
+    vi.setSystemTime(Date.now() + 60_000)
+    connection.wake()
+    expect(first.closed).toBe(true)
+    expect(connection.getState().reconnecting).toBeDefined()
+    // Não espera o 1 s da primeira tentativa: a pessoa está olhando.
+    expect(sockets).toHaveLength(2)
+  })
+
+  it('a tela acendeu com a conexão viva: só um ping na hora, sem derrubar nada', () => {
+    const { connection, sockets, first } = jogando()
+    vi.advanceTimersByTime(PING_INTERVAL_MS - 1)
+    expect(pings(first)).toBe(0)
+    connection.wake()
+    expect(pings(first)).toBe(1)
+    expect(sockets).toHaveLength(1)
+    expect(connection.getState().reconnecting).toBeUndefined()
+  })
+
+  it('o host já a deu como caída (not_joined no meio do jogo): vira reconexão, não tela de erro', () => {
+    const { connection, sockets, first } = jogando()
+    first.receive({ type: 'error', reason: 'not_joined' })
+    const state = connection.getState()
+    expect(state.status).toBe('playing')
+    expect(state.error).toBeUndefined()
+    expect(state.reconnecting).toBeDefined()
+    expect(first.closed).toBe(true)
+    vi.advanceTimersByTime(reconnectDelayMs(1))
+    expect(sockets).toHaveLength(2)
+  })
+
+  it('antes de entrar (sem welcome) o silêncio NÃO derruba: o prazo do aperto de mão é da tela', () => {
+    const sockets: FakeSocket[] = []
+    const connection = createPlayerConnection({
+      url: 'ws://host/ws',
+      code: 'ABC123',
+      name: 'Gina',
+      storage: null,
+      createSocket: () => {
+        const socket = new FakeSocket()
+        sockets.push(socket)
+        return socket
+      },
+    })
+    sockets[0]?.open()
+    vi.advanceTimersByTime(SILENCE_DEAD_AFTER_MS * 3)
+    expect(connection.getState().status).toBe('connecting')
+    expect(sockets).toHaveLength(1)
   })
 })

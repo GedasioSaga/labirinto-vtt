@@ -312,7 +312,11 @@ export interface HostSession {
   assignToken(playerId: string, tokenId: string): HostResult
   /** Devolve `lobby.waiting` se o jogador ficou sem token. */
   unassignToken(playerId: string, tokenId: string): HostResult
-  disconnect(clientId: string): void
+  /**
+   * A conexão caiu. `at` = quando se ouviu dela por último (a varredura de
+   * conexão muda sabe que ela sumiu ANTES de notar); ausente, agora.
+   */
+  disconnect(clientId: string, at?: number): void
   kick(clientId: string): HostResult
   /**
    * `room.closed` para todo jogador conectado (jogando ou aguardando). O
@@ -1187,7 +1191,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         case 'token.move':
           return handleMove(clientId, msg, world)
         case 'ping':
-          return { outbound: [] }
+          // Só quem está na sala ouve o pong: a conexão dada como caída fica
+          // sem resposta, e o cliente dela nota o silêncio e volta pelo resume.
+          return byClient.has(clientId) ? reply(clientId, { type: 'pong' }) : { outbound: [] }
         case 'signal':
           return handleSignal(clientId, msg, world)
         case 'door.toggle':
@@ -1440,7 +1446,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return { outbound: waitingIfLostLast(playerId, current.length > 0) }
     },
 
-    disconnect(clientId) {
+    disconnect(clientId, at) {
       const playerId = byClient.get(clientId)
       if (playerId === undefined) return
       byClient.delete(clientId)
@@ -1448,7 +1454,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const record = players.get(playerId)
       if (record !== undefined) {
         record.clientId = null // mantém o registro para permitir resume
-        record.disconnectedAt = now()
+        // Nunca no futuro: o "fora há" não pode começar negativo.
+        record.disconnectedAt = at === undefined ? now() : Math.min(at, now())
       }
       // O pedido pendente morre com a conexão: quem voltar não tem mais o
       // "Aguardando o mestre…" na tela, e o aviso do mestre fica inofensivo.
