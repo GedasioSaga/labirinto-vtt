@@ -9,6 +9,7 @@ import { exitLabelsOf, isArrivalOnly } from './pinTravel'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
+import { clampRoomText, hasEnterText } from './roomText'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -52,6 +53,14 @@ export interface PlayerMapView {
    * jogador o interior que ele percorreu enquanto o teto estava aberto.
    */
   roofs: RegionPoint[][]
+  /**
+   * TEXTO DA SALA — ids das Salas COM texto de entrada em que uma ficha do
+   * jogador está agora, estritamente dentro, e que ele pode ler (a Sala saiu
+   * no recorte, fora de teto fechado e de zona oculta, e a ficha não está em
+   * zona oculta nem em sala secreta). O chamador compara com as que ele já
+   * visitou para mandar o cartão só na primeira entrada. Não sai pela rede.
+   */
+  occupiedRooms: string[]
 }
 
 /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
@@ -395,6 +404,9 @@ function unseenDoor(door: DoorState): DoorState {
  * `seenDoors`: último estado visto de cada porta (somente leitura). Porta
  * explorada fora da visão sai com esse estado, nunca com o atual: senão o
  * jogador longe veria o mestre abrir ou destrancar a porta.
+ * `enteredRooms`: Salas deste mapa em que o jogador JÁ entrou (texto da sala).
+ * O texto de entrada dela continua no recorte depois que ele sai, para tocar
+ * no rótulo e reler; de Sala onde ele nunca entrou o texto não sai.
  */
 export function filterMapForPlayer(
   map: MapData,
@@ -403,6 +415,7 @@ export function filterMapForPlayer(
   visionRadius: number,
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
+  enteredRooms?: ReadonlySet<string>,
 ): PlayerMapView {
   const hiddenLayers = map.hiddenLayers
   const owned = new Set(ownership[playerId] ?? []) // jogador sem entrada de posse não tem token nem visão
@@ -635,6 +648,16 @@ export function filterMapForPlayer(
     return [{ ...w, door: seenDoors?.get(w.id) ?? unseenDoor(door) }]
   }
 
+  /** Preenchida no recorte das regiões abaixo: só entra Sala que saiu no pacote. */
+  const occupiedRooms: string[] = []
+  /**
+   * A ficha está DENTRO da Sala para o texto de entrada: estritamente dentro
+   * (em cima do muro ainda é fora, mesma regra do teto) e num ponto que o
+   * jogador pode saber — nem zona oculta, nem sala secreta.
+   */
+  const isStrictlyInsideReadableRoom = (points: readonly RegionPoint[], p: RegionPoint): boolean =>
+    pointInPolygonInclusive(p, points) && !pointOnPolygonBorder(p, points) && !inConcealZone(p) && !inSecretRoom(p)
+
   const filtered: MapData = {
     ...map,
     // O nome do mapa é o nome da CENA (a aventura cria a cena com
@@ -690,15 +713,32 @@ export function filterMapForPlayer(
         if (r.room === undefined) return r
         const roofClosed = closedRoofIds.has(r.id)
         // Sala com a maioria do interior dentro de zona ativa: o nome é do que a zona esconde.
+        const inZone = zones.length > 0 && mostly(interiorSamples(r.points, r.points), inConcealZone)
         // Teto fechado esconde o nome junto: o rótulo é desenhado DENTRO do
         // polígono e é anotação do mestre sobre o que tem lá dentro.
-        const nameHidden =
-          r.room.nameHiddenFromPlayers || roofClosed || (zones.length > 0 && mostly(interiorSamples(r.points, r.points), inConcealZone))
-        if (!nameHidden && !roofClosed && r.room.roof === undefined) return r
+        const nameHidden = r.room.nameHiddenFromPlayers || roofClosed || inZone
+        const hasTexts = r.room.textoAoEntrar !== undefined || r.room.notaDoMestre !== undefined
+        if (!nameHidden && !roofClosed && r.room.roof === undefined && !hasTexts) return r
+        // TEXTO DA SALA: a nota do mestre NUNCA sai. O texto de entrada só sai
+        // para quem está dentro agora ou já esteve (`enteredRooms`), e nunca de
+        // Sala sob teto fechado ou em zona oculta — o texto fala do que tem lá dentro.
+        const { textoAoEntrar, notaDoMestre: _nota, ...room } = r.room
+        const readable = !roofClosed && !inZone && hasEnterText(r.room)
+        const occupied = readable && ownTokens.some((t) => isStrictlyInsideReadableRoom(r.points, { x: t.x, y: t.y }))
+        if (occupied) occupiedRooms.push(r.id)
+        const showText = readable && textoAoEntrar !== undefined && (occupied || enteredRooms?.has(r.id) === true)
         // `roof` atravessa SÓ quando o teto está fechado PARA ESTE JOGADOR: é o
         // sinal de "pinte a silhueta" (`player/PlayerView.tsx`). Com o teto
         // aberto o campo some e a Sala volta a desenhar como sempre desenhou.
-        return { ...r, room: { ...r.room, name: nameHidden ? '' : r.room.name, roof: roofClosed ? true : undefined } }
+        return {
+          ...r,
+          room: {
+            ...room,
+            name: nameHidden ? '' : r.room.name,
+            roof: roofClosed ? true : undefined,
+            ...(showText ? { textoAoEntrar: clampRoomText(textoAoEntrar) } : {}),
+          },
+        }
       }),
     walls: visibleWalls(map.walls, hiddenLayers).flatMap((w) => {
       if (w.hidden) return []
@@ -726,7 +766,7 @@ export function filterMapForPlayer(
     // Metadado do mestre: nome e estado das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
-  return { map: filtered, vision, visibleDoorIds, concealed, blocked, roofs }
+  return { map: filtered, vision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms }
 }
 
 /** O host vê o mapa inteiro, inclusive itens ocultos. */

@@ -1,7 +1,7 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
+import { filterMapForPlayer, playerBlockedRings, type PlayerMapView } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
@@ -433,6 +433,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastTokenPhotoAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
   const visionOverrides = new Map<string, number>()
+  // TEXTO DA SALA — por playerId, por mapa (`MapData.id`): as Salas com texto
+  // em que ele já entrou. Sobrevive a reconexão e a "Esconder planta" (o cartão
+  // não repete); só o kick apaga.
+  const enteredRooms = new Map<string, Map<string, Set<string>>>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -504,9 +508,37 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /** O que o jogador vê agora: o recorte da cena dele, ou a espera quando ele não está em cena nenhuma. */
-  const viewFor = (playerId: string, world: HostWorld): HostMessage => {
+  const viewFor = (playerId: string, world: HostWorld): HostMessage[] => {
     const scene = sceneFor(playerId, world)
-    return scene === null ? { type: 'lobby.waiting' } : snapshotFor(playerId, scene.map)
+    return scene === null ? [{ type: 'lobby.waiting' }] : snapshotFor(playerId, scene.map)
+  }
+
+  /**
+   * TEXTO DA SALA: o cartão de cada Sala em que o jogador entrou AGORA pela
+   * primeira vez (`occupiedRooms` do recorte menos as já visitadas), e marca
+   * como visitada. Lê a Sala do RECORTE, nunca do mapa do mestre: o título é o
+   * nome que o jogador pode ver e o texto já vem cortado no teto.
+   */
+  const roomTextCardsFor = (playerId: string, mapId: string, view: PlayerMapView): HostMessage[] => {
+    if (view.occupiedRooms.length === 0) return []
+    let byMap = enteredRooms.get(playerId)
+    if (byMap === undefined) {
+      byMap = new Map()
+      enteredRooms.set(playerId, byMap)
+    }
+    let entered = byMap.get(mapId)
+    if (entered === undefined) {
+      entered = new Set()
+      byMap.set(mapId, entered)
+    }
+    const cards: HostMessage[] = []
+    for (const id of view.occupiedRooms) {
+      if (entered.has(id)) continue
+      entered.add(id)
+      const room = view.map.regions.find((r) => r.id === id)?.room
+      if (room?.textoAoEntrar !== undefined) cards.push({ type: 'room.text', id, title: room.name, text: room.textoAoEntrar })
+    }
+    return cards
   }
 
   /** `sceneId` para os "Applied": só quando a cena é de fundo (a aberta é o `mapStore`). */
@@ -518,11 +550,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * filtro usa o explorado e as portas lembradas de antes desta visão (a visão
    * atual já entra por si); a marcação vem depois e segue junto para o jogador
    * desenhar a névoa.
+   *
+   * Devolve o snapshot e, DEPOIS dele, o cartão de texto de cada Sala em que o
+   * jogador acabou de entrar pela primeira vez: o mapa dele já tem a Sala
+   * quando o cartão abre.
    */
-  const snapshotFor = (playerId: string, map: MapData): HostMessage => {
+  const snapshotFor = (playerId: string, map: MapData): HostMessage[] => {
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors)
+    const entered = enteredRooms.get(playerId)?.get(map.id)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, entered)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -541,7 +578,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
-    return { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
+    const snapshot: HostMessage = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
+    return [snapshot, ...roomTextCardsFor(playerId, map.id, view)]
   }
 
   const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
@@ -588,8 +626,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // `name` é o nome já passado por `uniqueName`: é assim que o jogador
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
     const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken, name: record.name }
-    const next: HostMessage = statusOf(record.playerId) === 'playing' ? viewFor(record.playerId, world) : { type: 'lobby.waiting' }
-    return { outbound: [{ clientId, msg: welcome }, { clientId, msg: next }] }
+    const next: HostMessage[] = statusOf(record.playerId) === 'playing' ? viewFor(record.playerId, world) : [{ type: 'lobby.waiting' }]
+    return { outbound: [{ clientId, msg: welcome }, ...next.map((msg) => ({ clientId, msg }))] }
   }
 
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
@@ -1098,6 +1136,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       laserRecipients.delete(playerId)
       lastTokenPhotoAt.delete(playerId)
       visionOverrides.delete(playerId)
+      enteredRooms.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },
 
@@ -1145,7 +1184,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (statusOf(playerId) !== 'playing') continue
         // Cada um a SUA cena: quem ficou no Salão nunca recebe nada da Cripta.
         // Quem não está em cena nenhuma recebe a espera, e não a cena do editor.
-        outbound.push({ clientId, msg: viewFor(playerId, world) })
+        for (const msg of viewFor(playerId, world)) outbound.push({ clientId, msg })
       }
       return { outbound }
     },

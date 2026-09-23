@@ -41,7 +41,8 @@ import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from '../pixi/constants'
 import { parseHexColor } from '../lib/tokenColor'
 import { fitPhotoSprite, textureFromDataUrl } from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
-import { createRoomNamesRenderer } from '../pixi/drawRoomNames'
+import { createRoomNamesRenderer, findRoomLabelAt } from '../pixi/drawRoomNames'
+import { hasEnterText } from '../lib/roomText'
 import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
 import { isDegenerateRegion } from '../pixi/shapes'
 import { createSignalsRenderer } from '../pixi/drawSignals'
@@ -90,6 +91,8 @@ interface PlayerViewProps {
   onDoorToggle?: (wallId: string) => void
   /** Toque curto num pino: abre o cartão do ponto de interesse. */
   onPinOpen?: (pinId: string) => void
+  /** Toque curto no nome de uma Sala cujo texto já chegou: reabre o texto da sala. */
+  onRoomOpen?: (regionId: string) => void
   /** Rastro do laser do mestre; o ticker esmaece cada ponto pela idade. */
   laser?: LaserTrail
   /**
@@ -643,6 +646,7 @@ export function PlayerView({
   measureArmed = false,
   onDoorToggle,
   onPinOpen,
+  onRoomOpen,
   laser,
   laserArmed = false,
   ownLaserColor = OWN_TOKEN_CSS,
@@ -668,6 +672,7 @@ export function PlayerView({
     measureArmed,
     onDoorToggle,
     onPinOpen,
+    onRoomOpen,
     laser,
     laserArmed,
     ownLaserColor,
@@ -836,6 +841,18 @@ export function PlayerView({
     const point = scene.world.toLocal({ x: screenX, y: screenY })
     const pin = findPinAt(visiblePins(map.pins ?? [], map.hiddenLayers), point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
     return pin === null ? null : pin.id
+  }
+
+  /**
+   * TEXTO DA SALA: Sala cujo NOME está sob o ponto da tela e cujo texto já
+   * chegou ao jogador. A caixa do rótulo é medida com todas as Salas (o rótulo
+   * desvia das filhas); só depois se pergunta se aquela tem texto.
+   */
+  function roomTextAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
+    const map = latestRef.current.map
+    const point = scene.world.toLocal({ x: screenX, y: screenY })
+    const region = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), point, map.grid, scene.camera.scale)
+    return region !== null && hasEnterText(region.room) ? region.id : null
   }
 
   /** Só o zoom (ou a resolução) mudou: nada de chão ou névoa. */
@@ -1344,7 +1361,9 @@ export function PlayerView({
           }
           const overTappable =
             !latestRef.current.signalArmed &&
-            (pinAtScreen(scene, event.global.x, event.global.y) !== null || doorAtScreen(scene, event.global.x, event.global.y) !== null)
+            (pinAtScreen(scene, event.global.x, event.global.y) !== null ||
+              doorAtScreen(scene, event.global.x, event.global.y) !== null ||
+              roomTextAtScreen(scene, event.global.x, event.global.y) !== null)
           app.stage.cursor = overTappable ? 'pointer' : 'default'
           return
         }
@@ -1393,6 +1412,13 @@ export function PlayerView({
             return
           }
           const door = doorAtScreen(scene, drag.startX, drag.startY)
+          // O nome da Sala fica no MEIO dela, longe das portas: a porta vem
+          // antes só para o toque na parede nunca virar leitura de texto.
+          const roomId = door === null ? roomTextAtScreen(scene, drag.startX, drag.startY) : null
+          if (roomId !== null) {
+            latestRef.current.onRoomOpen?.(roomId)
+            return
+          }
           if (door !== null) latestRef.current.onDoorToggle?.(door.id)
           return
         }

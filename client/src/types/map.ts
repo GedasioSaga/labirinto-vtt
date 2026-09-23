@@ -201,6 +201,20 @@ export interface RoomMeta {
    *  `undefined` === false (sem teto, comportamento idêntico ao de hoje) —
    *  sem linha de migração: a Sala de todo mapa já salvo continua aberta. */
   roof?: boolean
+  /**
+   * TEXTO DA SALA — "Ao entrar, o jogador lê". Na PRIMEIRA vez que a ficha de
+   * um jogador entra na Sala, só ele recebe o cartão (`room.text`,
+   * `net/hostSession.ts`); depois, tocar no rótulo reabre. Só atravessa no
+   * recorte (`lib/fogFilter.ts`) de quem está ou já esteve dentro — nunca no de
+   * quem está fora. Sala secreta, sob teto fechado ou em zona oculta não dispara.
+   * `undefined` === sem texto, sem migração.
+   */
+  textoAoEntrar?: string
+  /**
+   * "Nota do mestre": lembrete só dele sobre o cômodo. NUNCA sai no recorte do
+   * jogador (`lib/fogFilter.ts`). `undefined` === sem nota, sem migração.
+   */
+  notaDoMestre?: string
 }
 
 /**
