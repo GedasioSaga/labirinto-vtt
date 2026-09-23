@@ -431,6 +431,17 @@ export function ExportIcon(props: IconProps) {
   )
 }
 
+/** "Exportar imagem": o quadro da imagem com a seta saindo pelo canto. */
+export function ExportImageIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M11 6H5a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2v-5" />
+      <path d="M3.5 17.5l4-3.5 3 2.5 2.5-2 5 4" />
+      <path d="M15 3h6v6M21 3l-7 7" />
+    </Icon>
+  )
+}
+
 export function ImportIcon(props: IconProps) {
   return (
     <Icon {...props}>

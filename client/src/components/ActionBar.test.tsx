@@ -9,6 +9,7 @@ function makeProps(hasBackgroundImage: boolean): ActionBarProps {
     onOpen: vi.fn(),
     onImportBackground: vi.fn(),
     onExportFolder: vi.fn(),
+    onExportImage: vi.fn(),
     onImportFolder: vi.fn(),
     onGoHome: vi.fn(),
     hasBackgroundImage,
