@@ -400,6 +400,8 @@ function App() {
   // Multiplayer em LAN: ponte do mestre criada sob demanda (só dentro do Tauri, ver RoomPanel abaixo).
   const [room, setRoom] = useState<RoomInfo | null>(null)
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
+  // "Quem vê" de cada pino com lista. O dono é a sessão do host; isto é só o que o painel desenha.
+  const [pinAudiences, setPinAudiences] = useState<Record<string, string[]>>({})
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
   const hostBridgeRef = useRef<HostBridge | null>(null)
@@ -459,6 +461,7 @@ function App() {
           useAdventureStore.getState().goToPoint(sceneId, { x, y })
         },
         onPlayersChange: setRoomPlayers,
+        onPinAudiencesChange: setPinAudiences,
         onTunnelChange: setTunnel,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
         // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
@@ -1949,6 +1952,19 @@ function App() {
               secretTarget && {
                 secret: secretTarget.secret,
                 onSecretChange: (secret) => useMapStore.getState().setItemSecret(secretTarget.kind, secretTarget.id, secret),
+                // "Quem vê" só no pino e só com a sala aberta: a lista vive na sessão do host.
+                audience:
+                  secretTarget.kind === 'pin' && room !== null
+                    ? {
+                        players: partyMembers(roomPlayers, roomPanelWorld()).map((member) => ({
+                          playerId: member.playerId,
+                          name: member.name,
+                          color: member.token?.color ?? null,
+                        })),
+                        chosen: pinAudiences[secretTarget.id] ?? null,
+                        onChange: (chosen) => hostBridgeRef.current?.setPinAudience(secretTarget.id, chosen),
+                      }
+                    : null,
               }
             }
             concealZone={
