@@ -1292,6 +1292,78 @@
   color: var(--lb-color-brass, #e0a44a);
 }
 
+/* =================================================== minhas pistas (Caderno) */
+
+/*
+ * Uma linha por pista, a mais nova em cima: o título em cima, a hora embaixo no
+ * latão do caderno de recados. A linha inteira é o botão — o alvo do dedo é a
+ * linha, não uma palavra dentro dela.
+ */
+.pp-clues {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.pp-clues__item {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  text-align: left;
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 120ms ease-out;
+}
+
+.pp-clues__item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pp-clues__item:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.pp-clues__item:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+.pp-clues__title {
+  overflow-wrap: anywhere;
+}
+
+.pp-clues__meta {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+/* O cartão da pista é o do pino (`.pp-pincard`): só o título e as linhas de estado são dele. */
+.pp-cluecard__title {
+  margin: 14px 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pp-cluecard__text {
+  padding: 8px 16px 4px;
+  overflow-wrap: anywhere;
+}
+
+.pp-cluecard__status {
+  margin: 10px 16px 0;
+  font-size: 14px;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
 /* =================================================== zoom do mapa (+ e −) */
 
 /*
