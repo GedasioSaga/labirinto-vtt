@@ -438,12 +438,22 @@ export function arrivalSpot(map: MapData, partner: Pin, tokenCells: number, arri
  * livre; ocupado, a casa livre mais perto dele, pela mesma procura.
  */
 export function arrivalSpotWithoutPin(map: MapData, tokenCells: number, arrivingTokenId?: string): { x: number; y: number } {
-  const center = arrivalPoint(map)
+  return freeSeatNear(map, arrivalPoint(map), tokenCells, arrivingTokenId)
+}
+
+/**
+ * `point` quando a casa está livre; ocupada por outra ficha que os jogadores
+ * veem, a casa livre mais perto dela (a procura do "Reunir o grupo aqui").
+ * Sem casa livre em volta, fica em `point`: chegar empilhado é melhor que não
+ * chegar. Usada pelo "Desfazer" do diário, que devolve a ficha à casa de
+ * onde saiu — e alguém pode ter parado nela enquanto isso.
+ */
+export function freeSeatNear(map: MapData, point: { x: number; y: number }, tokenCells: number, arrivingTokenId?: string): { x: number; y: number } {
   const moving = new Set(arrivingTokenId === undefined ? [] : [arrivingTokenId])
   const visible = withPlayerVisibleTokens(map)
-  if (!seatIsTaken(visible, center, tokenCells, moving)) return center
-  const [free] = gatherSpots(visible, center, [tokenCells], moving)
-  return free ?? center
+  if (!seatIsTaken(visible, point, tokenCells, moving)) return point
+  const [free] = gatherSpots(visible, point, [tokenCells], moving)
+  return free ?? point
 }
 
 /** O ponto que a câmera centraliza ao chegar por um pino: o meio do desenho, não a ponta cravada. */

@@ -1,6 +1,7 @@
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type PlayerInfo } from '../net/hostSession'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
+import { TravelLogSection, type TravelLogSectionProps } from './TravelLogSection'
 
 export interface RoomPanelToken {
   id: string
@@ -19,6 +20,8 @@ export interface RoomPanelProps {
   knownTokens?: RoomPanelToken[]
   /** Seção "Grupo" (uma linha por jogador, "Ir lá" e "Mandar para…"). Ausente = sem a seção. */
   party?: PartySectionProps
+  /** "Diário de viagens" (G15), logo abaixo do Grupo. Ausente = sem a seção (mapa solto: não há viagem). */
+  travelLog?: TravelLogSectionProps
   tunnel: TunnelState
   onStart(): void
   onStop(): void
@@ -180,6 +183,7 @@ export function RoomPanel({
   tokens,
   knownTokens,
   party,
+  travelLog,
   tunnel,
   onStart,
   onStop,
@@ -219,6 +223,8 @@ export function RoomPanel({
 
           {/* O grupo vem antes do resto: é o que o mestre consulta a cada cena, o resto é de montar a sala. */}
           {party !== undefined && party.members.length > 0 && <PartySection {...party} />}
+
+          {travelLog !== undefined && <TravelLogSection {...travelLog} />}
 
           {onToggleLaser !== undefined && (
             <div className="lb-field">
