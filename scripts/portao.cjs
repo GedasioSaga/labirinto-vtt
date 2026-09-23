@@ -77,7 +77,7 @@ const os = require('os')
 const http = require('http')
 const net = require('net')
 const crypto = require('crypto')
-const { spawnSync } = require('child_process')
+const { spawn, spawnSync } = require('child_process')
 const { pathToFileURL } = require('url')
 
 const RAIZ = path.resolve(__dirname, '..')
@@ -2382,6 +2382,100 @@ function precisaDeVaga(passo) {
   return Boolean(passo.artefatos || passo.vaga)
 }
 
+// ---------------------------------------------------------------------------
+// TETO DO PLAYWRIGHT — processo travado não segura vaga por 3 h.
+//
+// MEDIDO em 23/09/2026 na fumaça das vagas: duas vezes o Playwright ficou vivo
+// e parado (CPU 2 s em 15 min) depois que o vite dele subiu tarde e ficou
+// órfão na porta. Sem teto, o `spawnSync` esperava para sempre e a vaga só
+// voltava pelo teto de órfã (3 h) — a máquina inteira perdia uma vaga.
+// Estourou: a ÁRVORE do processo morre (taskkill /F /T), o passo sai VERMELHO
+// com a linha de teto na frente e a vaga volta pelo `finally` de `rodarPasso`.
+// ---------------------------------------------------------------------------
+const TETO_PLAYWRIGHT_PADRAO_MIN = 45
+/** Depois do `exit`, quanto esperar os pipes fecharem antes de desistir deles. */
+const ESPERA_DE_PIPE_MS = 15 * 1000
+
+function tetoDoPlaywrightMs(env) {
+  const n = Number(env.PORTAO_TETO_PLAYWRIGHT_MIN)
+  return (Number.isFinite(n) && n > 0 ? n : TETO_PLAYWRIGHT_PADRAO_MIN) * 60 * 1000
+}
+
+function linhaDeTeto(tetoMs) {
+  const min = Math.round((tetoMs / 60000) * 100) / 100
+  return 'Playwright passou do teto de ' + min + ' min (travado?) — a árvore de processos foi morta e o passo NÃO mediu nada; ' +
+    'não é falha de teste. Teto em PORTAO_TETO_PLAYWRIGHT_MIN.'
+}
+
+function matarArvore(pid) {
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/F', '/T', '/PID', String(pid)], { encoding: 'utf8', windowsHide: true, timeout: 30000 })
+    return
+  }
+  try {
+    process.kill(pid, 'SIGKILL')
+  } catch (e) {}
+}
+
+/**
+ * O `spawnSync` do passo, com teto. Devolve a mesma forma (`status`, `stdout`,
+ * `stderr`, `error`) mais `estourou` e `tetoMs`. Assíncrono porque só assim dá
+ * para matar a ÁRVORE enquanto o pai ainda vive: o `timeout` do `spawnSync`
+ * mata só o filho direto, e no Windows os netos (vite, chromium) ficam.
+ */
+function rodarComTeto(exe, args, opcoes, tetoMs) {
+  return new Promise((resolve) => {
+    const saidas = { stdout: '', stderr: '' }
+    let estourou = false
+    let status = null
+    let erro = null
+    let terminou = false
+    let filho
+    const fim = () => {
+      if (terminou) return
+      terminou = true
+      clearTimeout(relogio)
+      clearTimeout(desistenciaDoPipe)
+      resolve({ status, stdout: saidas.stdout, stderr: saidas.stderr, error: erro, estourou, tetoMs })
+    }
+    let desistenciaDoPipe = null
+    let relogio = null
+    try {
+      filho = spawn(exe, args, { cwd: opcoes.cwd, env: opcoes.env, shell: opcoes.shell, windowsHide: true })
+    } catch (e) {
+      erro = e
+      fim()
+      return
+    }
+    for (const nome of ['stdout', 'stderr']) {
+      filho[nome].setEncoding('utf8')
+      filho[nome].on('data', (pedaco) => {
+        // Mesmo teto de memória do `spawnSync` (maxBuffer): guarda o FIM, que é onde mora o resumo.
+        saidas[nome] = (saidas[nome] + pedaco).slice(-opcoes.maxBuffer)
+      })
+    }
+    relogio = setTimeout(() => {
+      estourou = true
+      matarArvore(filho.pid)
+    }, tetoMs)
+    filho.on('error', (e) => {
+      erro = e
+      fim()
+    })
+    filho.on('exit', (codigo) => {
+      status = estourou ? null : codigo
+      clearTimeout(relogio)
+      // Neto fora da árvore segurando o pipe não pode prender o passo de novo.
+      desistenciaDoPipe = setTimeout(() => {
+        filho.stdout.destroy()
+        filho.stderr.destroy()
+        fim()
+      }, ESPERA_DE_PIPE_MS)
+    })
+    filho.on('close', fim)
+  })
+}
+
 /**
  * Um passo de jornada. Todos iguais no que importa: exit code real, detector de
  * falso-verde, `--repeat-each` vindo de `PORTAO_REPETICOES` e pasta de
@@ -3528,15 +3622,24 @@ async function rodarPassoNaVaga(passo) {
         aviso = 'nota: esperei ' + porta.esperou + ' ms a porta ' + PORTA_DAS_JORNADAS + ' ser liberada pelo passo anterior.\n'
       }
     }
-    const r = spawnSync(passo.exe, passo.args, {
+    const opcoes = {
       cwd: passo.cwd,
       encoding: 'utf8',
       shell: Boolean(passo.shell),
       env: ambiente,
       maxBuffer: 64 * 1024 * 1024,
-    })
+    }
+    // Passo que sobe o Playwright roda com TETO (ver `rodarComTeto`); o resto
+    // continua no `spawnSync` de sempre.
+    const r = precisaDeVaga(passo)
+      ? await rodarComTeto(passo.exe, passo.args, opcoes, tetoDoPlaywrightMs(process.env))
+      : spawnSync(passo.exe, passo.args, opcoes)
     codigo = r.status === null ? 1 : r.status
     saida = aviso + String(r.stdout || '') + String(r.stderr || '')
+    if (r.estourou) {
+      codigo = 1
+      saida = linhaDeTeto(r.tetoMs) + '\n' + saida
+    }
     // DISCO CHEIO tem nome, e o nome não é o da peça.
     //
     // MEDIDO em 21/09/2026: `rust-test` saiu VERDE (144 s) e, cinco minutos
@@ -4657,7 +4760,49 @@ async function rodarAutoteste() {
     detalhe: 'esperado ' + (esperado ? 'APROVA' : 'REPROVA') + ', veio ' + (resultado.ok ? 'APROVA' : 'REPROVA') + ' — ' + resultado.detalhe,
   }))
   // O único caso que NÃO é sintético: uma porta de verdade, ocupada de verdade.
-  return sinteticos.concat(await casosDePortaOcupada())
+  return sinteticos.concat(await casosDePortaOcupada()).concat(await casosDeTetoDoPlaywright())
+}
+
+/**
+ * O teto do Playwright exercitado DE VERDADE (g33): um node que abre um NETO e
+ * fica parado, como o Playwright travado da fumaça de 23/09/2026. Com teto de
+ * 1,5 s, `rodarComTeto` tem de estourar, matar pai E neto, e o veredito tem de
+ * sair vermelho com a linha de teto — não como falso-verde nem como ruína de
+ * teste. Controle negativo: processo rápido sob o teto sai com o exit dele.
+ */
+async function casosDeTetoDoPlaywright() {
+  const caso = (id, passou, detalhe) => ({ id, ok: passou, detalhe })
+  const travado =
+    "const c=require('child_process').spawn(process.execPath,['-e','setTimeout(()=>{},60000)'],{stdio:'ignore'});" +
+    "process.stdout.write('neto='+c.pid);setTimeout(()=>{},60000)"
+  const opcoes = { cwd: RAIZ, env: process.env, shell: false, maxBuffer: 64 * 1024 * 1024 }
+  const t0 = Date.now()
+  const r = await rodarComTeto(process.execPath, ['-e', travado], opcoes, 1500)
+  const levou = Date.now() - t0
+  const neto = Number((/neto=(\d+)/.exec(r.stdout) || [])[1])
+  await new Promise((pronto) => setTimeout(pronto, 500))
+  const netoVivo = Number.isFinite(neto) && neto > 0 ? pidVivo(neto) : true
+  const passo = jornada('autoteste-teto', 'passo de jornada travado', ['e2e/nao-roda.spec.ts'])
+  const saida = linhaDeTeto(r.tetoMs) + '\n' + r.stdout
+  const veredito = julgarSaida(passo, 1, saida)
+  const rapido = await rodarComTeto(process.execPath, ['-e', "process.stdout.write('ok')"], opcoes, 60000)
+  return [
+    caso(
+      'g33 teto estoura processo travado e mata a árvore (pai e neto)',
+      r.estourou === true && neto > 0 && !netoVivo && levou < 20000,
+      'estourou=' + r.estourou + ', neto ' + (neto || '?') + (netoVivo ? ' VIVO' : ' morto') + ', ' + levou + ' ms',
+    ),
+    caso(
+      'g33 teto estourado sai VERMELHO com a linha de teto, sem falso-verde',
+      !veredito.ok && !veredito.falsoVerde && /^Playwright passou do teto de 0\.03 min \(travado\?\)/.test(saida),
+      'ok=' + veredito.ok + ', falsoVerde=' + veredito.falsoVerde + ', primeira linha: ' + saida.split('\n')[0].slice(0, 60),
+    ),
+    caso(
+      'g33 processo rápido sob o teto sai com o próprio exit (controle negativo)',
+      rapido.estourou === false && rapido.status === 0 && rapido.stdout === 'ok',
+      'estourou=' + rapido.estourou + ', status=' + rapido.status + ', stdout=' + JSON.stringify(rapido.stdout),
+    ),
+  ]
 }
 
 /**
