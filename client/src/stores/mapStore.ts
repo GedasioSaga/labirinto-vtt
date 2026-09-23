@@ -553,8 +553,11 @@ interface MapStoreState {
    * `size` aqui é o número ESCOLHIDO no painel, em quadrados. O arrasto pela
    * alça de canto continua em `updateTokenLive` (sem histórico por frame, uma
    * entrada só no `pointerup`) — são dois gestos, não dois campos.
+   *
+   * `health` (barra de vida) entra pelo mesmo caminho: cada número confirmado
+   * no painel é um Ctrl+Z, e `null` tira a barra da ficha.
    */
-  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size'>>) => void
+  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size' | 'health'>>) => void
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void

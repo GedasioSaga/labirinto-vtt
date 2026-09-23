@@ -37,6 +37,8 @@ import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAli
 import { screenLabelSizing } from '../pixi/screenLabel'
 import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from '../pixi/constants'
 import { parseHexColor } from '../lib/tokenColor'
+import { readTokenHealth } from '../lib/tokenHealth'
+import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from '../pixi/drawTokenHealth'
 import { fitPhotoSprite, textureFromDataUrl } from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
 import { createRoomNamesRenderer } from '../pixi/drawRoomNames'
@@ -204,6 +206,9 @@ interface TokenView {
   /** Foto do token, recortada no círculo por `photoMask`; invisível quando o token não tem foto. */
   photo: Sprite
   photoMask: Graphics
+  /** Barra de vida sob o disco, o mesmo desenho do mestre (`pixi/drawTokenHealth.ts`).
+   *  Só chega vida que o mestre deixou os jogadores verem (`lib/fogFilter.ts`). */
+  bar: Graphics
   label: Text
   key: string
   /** Referência já carregada em `photo`: sem isto, todo snapshot recarregaria a mesma foto. */
@@ -249,8 +254,11 @@ function paintTokenView(view: TokenView, token: Token, grid: number, own: boolea
       .stroke({ width: TOKEN_FRAME_WIDTH, color: chosen ?? (own ? TOKEN_FRAME_COLOR : OTHER_TOKEN_COLOR) })
     if (ownRing) view.body.circle(0, 0, radius).stroke({ width: 2, color: OWN_TOKEN_COLOR })
   }
+  // Barra de vida: a mesma do mestre, e o nome desce para baixo dela.
+  const health = readTokenHealth(token.health)
+  drawTokenHealthBar(view.bar, radius, health)
   view.label.text = token.name
-  view.label.position.set(0, radius + 2)
+  view.label.position.set(0, tokenLabelTop(radius, health !== null))
 }
 
 /** Carrega a foto nova, se mudou, e reencaixa no círculo quando a textura chega. */
@@ -290,10 +298,12 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
   photo.mask = photoMask
   const label = new Text({ text: token.name, style: { fontSize: LABEL_FONT_SIZE, fill: 0xffffff, stroke: { color: 0x000000, width: 3 } } })
   label.anchor.set(0.5, 0)
-  wrapper.addChild(photoMask, photo, body, label)
+  const bar = new Graphics()
+  bar.label = HEALTH_BAR_LABEL
+  wrapper.addChild(photoMask, photo, body, bar, label)
   wrapper.eventMode = 'static'
   wrapper.cursor = 'grab'
-  const view: TokenView = { wrapper, body, photo, photoMask, label, key: tokenViewKey(token, grid, own), loadedPhoto: null, loadSeq: 0 }
+  const view: TokenView = { wrapper, body, photo, photoMask, bar, label, key: tokenViewKey(token, grid, own), loadedPhoto: null, loadSeq: 0 }
   paintTokenView(view, token, grid, own)
   return view
 }
@@ -314,7 +324,10 @@ function sizeTokenLabel(label: Text, cameraScale: number, showNames: boolean): v
 function tokenViewKey(token: Token, grid: number, own: boolean): string {
   // `token.color` entra na chave: sem isto, o mestre troca a cor e a tela do
   // jogador continua com a tinta velha até o token mudar de nome ou tamanho.
-  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null])
+  // A vida também: a barra do jogador acompanha cada golpe que o mestre anota.
+  const health = readTokenHealth(token.health)
+  const healthKey = health === null ? null : [health.current, health.max]
+  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey])
 }
 
 interface Scene {

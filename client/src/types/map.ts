@@ -410,6 +410,24 @@ export interface Region extends PlayerSecret {
   hidden?: boolean
 }
 
+/**
+ * Vida da ficha — é o que desenha a barra fina SOB ela no mapa ("ninguém sabe
+ * quanto falta para o monstro cair sem o mestre narrar"). Regras de leitura,
+ * de gravação e do recorte do jogador em `lib/tokenHealth.ts`.
+ */
+export interface TokenHealth {
+  /** Pontos de vida agora, de 0 a `max`. */
+  current: number
+  /** Pontos de vida cheios, 1 ou mais. */
+  max: number
+  /**
+   * Os JOGADORES veem a barra desta ficha. `false` (o padrão) = só o mestre:
+   * a vida inteira fica fora do recorte do jogador (`lib/fogFilter.ts`). Com
+   * `true` o jogador recebe a PROPORÇÃO, nunca os pontos (`healthForPlayer`).
+   */
+  shownToPlayers: boolean
+}
+
 export interface Token extends PlayerSecret {
   id: string
   characterId: string | null
@@ -417,6 +435,11 @@ export interface Token extends PlayerSecret {
   x: number
   y: number
   size: number
+  /** `undefined`/`null` === ficha sem barra de vida (aparência idêntica à de
+   *  antes deste campo) — sem linha de migração, mesmo padrão de
+   *  `rotation`/`color`. Mapa do disco chega cru: quem lê passa por
+   *  `readTokenHealth` (`lib/tokenHealth.ts`). */
+  health?: TokenHealth | null
   /** Caminho absoluto da imagem importada (mesmo pipeline de Prop.src).
    *  null = círculo genérico, render idêntico ao de drawTokens.ts:10-18.
    *  NÃO viaja para o jogador: é caminho do disco do mestre (lib/fogFilter.ts). */

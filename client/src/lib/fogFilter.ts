@@ -1,5 +1,6 @@
 import type { DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
 import { isTokenPhotoData } from './tokenPhoto'
+import { healthForPlayer } from './tokenHealth'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
@@ -382,6 +383,21 @@ function sanitizeTokenPhoto(token: Token): Token {
   return { ...token, image, imageData }
 }
 
+/**
+ * Barra de vida como o jogador pode recebê-la (`healthForPlayer`): a que o
+ * mestre deixou só para si SOME do token — o campo inteiro, não só os
+ * números —, e a que os jogadores veem vai como proporção. Vale também para o
+ * token do próprio jogador: quem decide a barra é o mestre, ficha por ficha.
+ */
+function tokenHealthForPlayer(token: Token): Token {
+  if (token.health === undefined) return token
+  const health = healthForPlayer(token.health)
+  const copy: Token = { ...token }
+  if (health === null) delete copy.health
+  else copy.health = health
+  return copy
+}
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
@@ -649,7 +665,8 @@ export function filterMapForPlayer(
     // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
     tokens: layerTokens
       .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
-      .map(sanitizeTokenPhoto),
+      .map(sanitizeTokenPhoto)
+      .map(tokenHealthForPlayer),
     markers: map.markers.filter((m) => !inRoomHiddenFromPlayer({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
     lines: map.lines.filter((l) => !l.points.some(inRoomHiddenFromPlayer) && !l.points.some(inConcealZone) && isShapeKnown(l.points)),
     // Tocha acesa dentro do prédio de teto fechado não sai: o halo dela

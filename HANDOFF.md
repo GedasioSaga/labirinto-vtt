@@ -108,6 +108,40 @@ reproduzido); recibos por passo compartilhados entre lanes e julgamento que igno
 que deixa passar transporte inventado; `servidor-limpo` não mede nada; estilo não é medido na tela do
 jogador.
 
+### Retomada de 23/09, manhã (depois da pausa): fábrica de features sem Chrome comendo CPU
+
+- **CPU:** o vilão era o `chrome-headless-shell`, que desenha WebGL por software (SwiftShader). Agora
+  `client/playwright.config.ts` usa o Chromium completo no headless novo, com ANGLE D3D11, e o WebGL vai
+  para a GPU Intel UHD (probe: "ANGLE (Intel, Intel(R) UHD Graphics … Direct3D11)"). Também caiu de 4 para
+  2 workers por suíte (`6f139b1`). O `ux-driver` do passeio (`~/.claude/scripts/ux-driver.cjs`) usa o
+  mesmo modo. As réguas de pixel passaram na GPU: marcador 2/2, girar-sala 7/7, estilo-minimapa VERDE.
+  O tsc do projeto entra na fila de vagas (`7fe5b20`). As 8 réguas da onda 1 foram juntadas (`cbaafd6`).
+- **Torre:** workflow retomado (`wf_c998d8d5-b3c`, retomada do mesmo run, agentes prontos voltam do
+  cache), a partir do mestre da 4ª rodada. Tudo o que ele tinha produzido está salvo em
+  `auto/torre-11-andares` `662195f`: `torre/workflow/` com o script, o journal e um README de como
+  continuar, e `torre/docs/achados.md` com 260 achados.
+- **Fábrica** (script `scratchpad/fabrica-features.js`):
+  - construtor em worktree próprio, teste vitest vermelho primeiro, nunca navegador;
+  - revisor independente;
+  - prova (tsc, unidade e a régua da peça) na fila de vagas;
+  - integração serial numa branch por grupo;
+  - regressão do grupo no fim.
+- **6 workflows em paralelo**, 3 peças por vez em cada:
+
+| grupo | run | árvore de integração | peças |
+|---|---|---|---|
+| rede | `wf_64189329-f33` | `C:/dev/labirinto-int-rede` (`auto/int-rede`) | 22 (G10, G12, G13, G15, recados, pedidos, reconexão, retomar mesa…) |
+| jogador | `wf_0b3b3b42-010` | `C:/dev/labirinto-int-jogador` | 19 (laser, zoom no celular, painel, silhueta, texto do cômodo, cadernos, dado…) |
+| visão | `wf_e2994310-83e` | `C:/dev/labirinto-int-visao` | 22 (pincel, espelhar, tocha, sala secreta, porta secreta, cena escura, esconder-se…) |
+| editor | `wf_6e46f2c0-0bd` | `C:/dev/labirinto-int-editor` | 21 (G14, copiar/colar, atalhos, lista de objetos, PNG, agrupar, alinhar, cenas em pastas…) |
+| mundo | `wf_8c9146eb-bf4` | `C:/dev/labirinto-int-mundo` | 15 (vida, condição, iniciativa, salvamento automático, item, TV, caravana, patrulha, gatilho, alavanca, relógio…) |
+| defeitos | `wf_65ff5965-8c6` | `C:/dev/labirinto-int-defeitos` | 23 (os 8 defeitos da varredura, desempenho da torre, defeitos da mesa, lista C, reunir-o-grupo) |
+
+  Cada peça termina num destes estados: INTEGRADA, SECA, TETO_CONSERTOS, PROVA_AMBIENTE, NAO_INTEGROU ou
+  SEM_BUILD. O merge de cada `auto/int-<grupo>` em `auto/acervo` é feito pelo orquestrador no fim.
+  **Troca consciente em relação ao gauntlet:** para caber na CPU, a comparação cega A/B com fotos foi
+  substituída por um revisor independente, mais a régua verde e os testes vitest que falham antes.
+
 ## As 101 features da lista (todas por fazer)
 
 Estado: **[branch]** trabalho começado numa branch · **[régua]** régua vermelha selada em `auto/acervo` ·

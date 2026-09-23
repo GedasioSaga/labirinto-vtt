@@ -1892,6 +1892,11 @@ function App() {
               // próximo arrasto que a assenta na grade (`seatTokenCenter`).
               onSizeChange: (size) => selectedToken && updateToken(selectedToken.id, { size }),
             }}
+            tokenHealth={{
+              // Mesmo caminho da cor e do tamanho: cada número confirmado é um
+              // Ctrl+Z. `null` tira a barra da ficha.
+              onHealthChange: (health) => selectedToken && updateToken(selectedToken.id, { health }),
+            }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
