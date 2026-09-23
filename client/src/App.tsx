@@ -18,7 +18,7 @@ import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
-import { RoomPanel } from './components/RoomPanel'
+import { RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
@@ -48,7 +48,7 @@ import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
 import { goToMapObject } from './stores/mapObjectNavigation'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
-import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, IMAGEM_SUMIU_DO_ACERVO, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
+import { apagarDoAcervo, fotoSobrouNoDisco, pecaDoAcervo, salvarNoAcervo, trazerDoAcervo, IMAGEM_SUMIU_DO_ACERVO, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
@@ -538,8 +538,7 @@ function App() {
           <RoomPanel
             room={room}
             players={roomPlayers}
-            tokens={map.tokens.map((token) => ({ id: token.id, name: token.name }))}
-            knownTokens={[world.open, ...world.background].flatMap((scene) => scene.map.tokens.map((token) => ({ id: token.id, name: token.name })))}
+            tokens={roomPanelTokensOf(world)}
             party={{
               members: partyMembers(roomPlayers, world),
               destinations: partyDestinations(world),
@@ -1117,7 +1116,7 @@ function App() {
       return
     }
 
-    if (criarToken(item.nome, { at, id: tokenId, size: item.tamanho, image, imageData }) === null) return
+    if (criarToken(item.nome, { at, ...pecaDoAcervo(item, tokenId, { image, imageData }) }) === null) return
     if (image === null && imageData === null) {
       // A peça entra assim mesmo, com o nome certo e o círculo genérico: o
       // arquivo sumiu da pasta do acervo, e não colocar a peça seria punir a
@@ -1342,7 +1341,7 @@ function App() {
    */
   const criarToken = (
     name: string,
-    opts: { at?: { x: number; y: number }; size?: number; id?: string; image?: string | null; imageData?: string | null } = {},
+    opts: { at?: { x: number; y: number }; size?: number; id?: string; image?: string | null; imageData?: string | null; npc?: boolean } = {},
   ): string | null => {
     const host = canvasHostRef.current
     const { map: currentMap, camera } = useMapStore.getState()
@@ -1374,6 +1373,9 @@ function App() {
       size,
       image: opts.image ?? null,
       imageData: opts.imageData ?? null,
+      // Só grava a marca quando ela vale: ficha comum continua sem o campo,
+      // igual ao mapa salvo antes dele existir.
+      ...(opts.npc === true ? { npc: true } : {}),
     })
     useMapStore.getState().setSelection(selectionOfItem({ kind: 'token', id }))
     return id
@@ -1983,6 +1985,10 @@ function App() {
               // mexe em x/y — a ficha cresce em volta de onde já está, e é o
               // próximo arrasto que a assenta na grade (`seatTokenCenter`).
               onSizeChange: (size) => selectedToken && updateToken(selectedToken.id, { size }),
+            }}
+            tokenNpc={{
+              // `updateToken` passa por `withHistory`: marcar errado se desfaz com Ctrl+Z.
+              onNpcChange: (npc) => selectedToken && updateToken(selectedToken.id, { npc }),
             }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),

@@ -1383,6 +1383,21 @@ body {
   color: var(--lb-color-parchment-dim);
 }
 
+/* Confirmação de tirar a ficha de outro jogador: dentro do card, com a borda
+   da cor de perigo para não passar por dica. */
+.lb-room__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border-left: 2px solid var(--lb-color-ember);
+}
+
+.lb-room__confirm p {
+  margin: 0;
+  color: var(--lb-color-parchment);
+}
+
 .lb-room__urls {
   margin: 0;
   padding-left: var(--lb-space-4);
