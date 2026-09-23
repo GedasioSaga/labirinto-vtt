@@ -17,6 +17,9 @@ export interface TableScreenSectionProps {
 
 const SELECT_ID = 'lb-room-table-scene'
 
+/** O link carrega a chave da tela: jogador que o recebesse veria a cena da TV mesmo estando em outra. */
+export const TABLE_LINK_WARNING = 'Só para a TV: não mande aos jogadores. Quem abre este link vê a cena escolhida, mesmo estando em outra.'
+
 export function tableScreensLabel(screens: number): string {
   if (screens === 0) return 'Nenhuma tela conectada.'
   return screens === 1 ? '1 tela conectada.' : `${screens} telas conectadas.`
@@ -36,9 +39,12 @@ export function TableScreenSection({ url, scenes, sceneKey, screens, onSceneChan
       <h3 className="lb-eyebrow">Tela da mesa</h3>
       <p className="lb-label">Abra este link na TV ou no projetor. Ela mostra só o que o grupo já viu da cena escolhida, sem nada do mestre.</p>
       {url !== null && (
-        <ul className="lb-room__urls">
-          <li>{url}</li>
-        </ul>
+        <>
+          <ul className="lb-room__urls">
+            <li>{url}</li>
+          </ul>
+          <p className="lb-label">{TABLE_LINK_WARNING}</p>
+        </>
       )}
       <p className="lb-label" role="status" aria-live="polite">
         {tableScreensLabel(screens)}

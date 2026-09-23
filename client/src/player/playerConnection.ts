@@ -91,6 +91,13 @@ export interface PlayerConnectionOptions {
    * Ausente = jogador, como sempre.
    */
   role?: 'table'
+  /** TELA DA MESA: a chave do link da TV (`?chave=`), que vai no `join` junto com o código. */
+  tableKey?: string
+}
+
+/** O `join` da tela da mesa: sem chave, a mensagem vai sem o campo e a sala responde `bad_table_key`. */
+function tableJoin(code: string, name: string, tableKey: string | undefined): JoinMessage {
+  return tableKey === undefined || tableKey.length === 0 ? { type: 'join', code, name, role: 'table' } : { type: 'join', code, name, role: 'table', tableKey }
 }
 
 /** Nome que a tela da mesa manda no `join`: o servidor do app exige um nome, e o mestre nunca o lista. */
@@ -604,7 +611,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     current.onopen = () => {
       if (socket !== current) return
       const resume = readResume(storage, code)
-      const join: JoinMessage = isTable ? { type: 'join', code, name, role: 'table' } : resume ? { type: 'join', code, name, resume } : { type: 'join', code, name }
+      const join: JoinMessage = isTable ? tableJoin(code, name, options.tableKey) : resume ? { type: 'join', code, name, resume } : { type: 'join', code, name }
       send(join)
       stopPing()
       pingTimer = setInterval(() => send({ type: 'ping' }), PING_INTERVAL_MS)

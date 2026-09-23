@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TunnelState } from '../net/hostBridge'
 import { RoomPanel } from './RoomPanel'
-import { TableScreenSection, type TableScreenSectionProps } from './TableScreenSection'
+import { TABLE_LINK_WARNING, TableScreenSection, type TableScreenSectionProps } from './TableScreenSection'
 
 const CENAS = [
   { key: 's-salao', name: 'Salão Norte' },
@@ -41,6 +41,8 @@ describe('TableScreenSection (aba Jogo)', () => {
     act(() => root.render(<TableScreenSection {...props({ sceneKey: 's-cripta' })} />))
     expect(container.textContent).toContain('Tela da mesa')
     expect(container.textContent).toContain('http://10.0.0.2:7777/player?mesa=AB12CD')
+    // O link leva a chave da tela: o mestre é avisado de não mandá-lo aos jogadores.
+    expect(container.textContent).toContain(TABLE_LINK_WARNING)
     expect(select().value).toBe('s-cripta')
     const label = container.querySelector(`label[for="${select().id}"]`)
     expect(label?.textContent).toContain('Cena na tela')

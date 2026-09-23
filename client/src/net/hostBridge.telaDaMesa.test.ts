@@ -8,6 +8,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData } from '../types/map'
 import { createHostBridge } from './hostBridge'
+import { MAX_TABLE_SCREENS } from './hostSession'
 
 const ROOM = { code: 'AB12CD', urls: ['http://192.168.0.2:7777/player'], qrSvg: '<svg/>' }
 
@@ -40,7 +41,12 @@ function setup() {
   return { bridge, emit, sentTo, kicked, onTableScreensChange }
 }
 
-const TELA = { type: 'join', code: ROOM.code, name: 'Tela da mesa', role: 'table' }
+/** O join da TV com a chave que a ponte gerou para esta sala (vai só no link da aba Jogo). */
+function tela(bridge: { tableKey(): string | null }) {
+  const tableKey = bridge.tableKey()
+  if (tableKey === null) throw new Error('sala sem chave da tela')
+  return { type: 'join', code: ROOM.code, name: 'Tela da mesa', role: 'table', tableKey }
+}
 
 describe('hostBridge e a tela da mesa', () => {
   beforeEach(() => {
@@ -50,7 +56,7 @@ describe('hostBridge e a tela da mesa', () => {
   it('a TV entra: espera, o mestre é avisado de onde escolher a cena e a contagem sobe', async () => {
     const t = setup()
     await t.bridge.start()
-    t.emit('net:message', { clientId: 'tv', msg: TELA })
+    t.emit('net:message', { clientId: 'tv', msg: tela(t.bridge) })
     expect(t.sentTo('tv')).toEqual([{ type: 'lobby.waiting' }])
     expect(t.onTableScreensChange).toHaveBeenLastCalledWith(1)
     expect(useToastStore.getState().toasts.map((toast) => toast.text)).toEqual(['A tela da mesa conectou. Escolha a cena dela na aba Jogo.'])
@@ -59,7 +65,7 @@ describe('hostBridge e a tela da mesa', () => {
   it('escolher a cena manda o recorte na hora, sem o nome do mapa', async () => {
     const t = setup()
     await t.bridge.start()
-    t.emit('net:message', { clientId: 'tv', msg: TELA })
+    t.emit('net:message', { clientId: 'tv', msg: tela(t.bridge) })
     t.bridge.setTableScene('m-solto')
     const ultimo = t.sentTo('tv').at(-1)
     expect(ultimo).toMatchObject({ type: 'snapshot', ownTokens: [] })
@@ -69,15 +75,46 @@ describe('hostBridge e a tela da mesa', () => {
   it('lixo mandado pela TV depois de entrar não a derruba', async () => {
     const t = setup()
     await t.bridge.start()
-    t.emit('net:message', { clientId: 'tv', msg: TELA })
+    t.emit('net:message', { clientId: 'tv', msg: tela(t.bridge) })
     t.emit('net:message', { clientId: 'tv', msg: { type: 'qualquer' } })
     expect(t.kicked()).toEqual([])
+  })
+
+  it('a chave da tela existe só com a sala aberta, e a próxima sala tem outra', async () => {
+    const t = setup()
+    expect(t.bridge.tableKey()).toBeNull()
+    await t.bridge.start()
+    const primeira = t.bridge.tableKey()
+    expect(primeira).not.toBeNull()
+    await t.bridge.stop()
+    expect(t.bridge.tableKey()).toBeNull()
+    await t.bridge.start()
+    expect(t.bridge.tableKey()).not.toBe(primeira)
+  })
+
+  it('só o código da sala (sem a chave do link da TV): recusa, derruba o socket e não avisa TV conectada', async () => {
+    const t = setup()
+    await t.bridge.start()
+    t.emit('net:message', { clientId: 'intruso', msg: { type: 'join', code: ROOM.code, name: 'Caio', role: 'table' } })
+    await vi.waitFor(() => expect(t.kicked()).toEqual([['net_kick', { clientId: 'intruso' }]]))
+    expect(t.sentTo('intruso')).toEqual([{ type: 'error', reason: 'bad_table_key' }])
+    expect(useToastStore.getState().toasts.map((toast) => toast.text)).not.toContain('A tela da mesa conectou.')
+    expect(t.onTableScreensChange).not.toHaveBeenCalledWith(1)
+  })
+
+  it('TV recusada por table_full é derrubada: não segura vaga de jogador no servidor', async () => {
+    const t = setup()
+    await t.bridge.start()
+    for (let i = 0; i < MAX_TABLE_SCREENS; i += 1) t.emit('net:message', { clientId: `tv${i}`, msg: tela(t.bridge) })
+    t.emit('net:message', { clientId: 'tv-extra', msg: tela(t.bridge) })
+    await vi.waitFor(() => expect(t.kicked()).toEqual([['net_kick', { clientId: 'tv-extra' }]]))
+    expect(t.sentTo('tv-extra')).toEqual([{ type: 'error', reason: 'table_full' }])
   })
 
   it('a TV que cai sai da contagem', async () => {
     const t = setup()
     await t.bridge.start()
-    t.emit('net:message', { clientId: 'tv', msg: TELA })
+    t.emit('net:message', { clientId: 'tv', msg: tela(t.bridge) })
     t.emit('net:peer', { clientId: 'tv', event: 'disconnected' })
     expect(t.onTableScreensChange).toHaveBeenLastCalledWith(0)
   })

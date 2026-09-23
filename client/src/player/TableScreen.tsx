@@ -124,8 +124,12 @@ function TableSession({ connection, code, onChangeCode }: { connection: PlayerCo
   )
 }
 
-/** A página inteira da tela da mesa. `initialCode` vem do `?mesa=` (vazio = pede o código). */
-export function TableApp({ initialCode }: { initialCode: string }) {
+/**
+ * A página inteira da tela da mesa. `initialCode` vem do `?mesa=` (vazio = pede
+ * o código); `tableKey` do `?chave=` (vazio = a sala recusa e a tela manda abrir
+ * o link da aba Jogo).
+ */
+export function TableApp({ initialCode, tableKey }: { initialCode: string; tableKey: string }) {
   const [code, setCode] = useState(initialCode.length === JOIN_CODE_LENGTH ? initialCode : '')
   const [connection, setConnection] = useState<PlayerConnection | null>(null)
   const booted = useRef(false)
@@ -144,6 +148,7 @@ export function TableApp({ initialCode }: { initialCode: string }) {
       code,
       name: TABLE_SCREEN_NAME,
       role: 'table',
+      tableKey,
       createSocket: (url) => new WebSocket(url),
       storage: null,
     })
@@ -152,7 +157,7 @@ export function TableApp({ initialCode }: { initialCode: string }) {
       created.close()
       setConnection(null)
     }
-  }, [code])
+  }, [code, tableKey])
 
   if (code.length !== JOIN_CODE_LENGTH) return <CodeForm initial={initialCode} onSubmit={setCode} />
   // O instante entre escolher o código e o efeito criar a conexão.

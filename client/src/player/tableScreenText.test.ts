@@ -20,6 +20,13 @@ describe('tableScreenText (tela da mesa fora do mapa)', () => {
     expect(tableScreenText({ status: 'error', error: 'table_full' }, 'AB12CD').text).toContain('telas')
   })
 
+  it('link sem a chave da tela (ou de outra sala): manda abrir o link da aba Jogo, sem insistir nem pedir código', () => {
+    const t = tableScreenText({ status: 'error', error: 'bad_table_key' }, 'AB12CD')
+    expect(t).toMatchObject({ tone: 'error', action: null, retry: false })
+    expect(t.text).toContain('aba Jogo')
+    expect(t.text).not.toContain('bad_table_key')
+  })
+
   it('sala encerrada não tenta de novo', () => {
     expect(tableScreenText({ status: 'closed' }, 'AB12CD')).toMatchObject({ retry: false, action: 'change_code' })
   })

@@ -54,6 +54,8 @@ export const NAME_MIN_LENGTH = 1
 export const NAME_MAX_LENGTH = 32
 export const REQ_ID_MAX_LENGTH = 64
 export const RESUME_TOKEN_MAX_LENGTH = 128
+/** Teto da chave da tela da mesa no `join` (a gerada pelo mestre é um UUID, 36). */
+export const TABLE_KEY_MAX_LENGTH = 128
 /** Teto do recado por cena, em unidades UTF-16 (o `maxLength` do campo do mestre conta igual). */
 export const NOTE_MAX_LENGTH = 500
 
@@ -73,6 +75,12 @@ export interface JoinMessage {
    * Aditivo: mestre antigo ignora o campo e a trata como jogador sem ficha.
    */
   role?: 'table'
+  /**
+   * TELA DA MESA: a chave que o mestre gera por sala e põe SÓ no link da TV
+   * (aba Jogo). O código da sala todo jogador tem; sem esta chave, ninguém vira
+   * tela e recebe a cena que o mestre escolheu (que pode ser outra que a dele).
+   */
+  tableKey?: string
 }
 
 export interface TokenMoveMessage {
@@ -163,8 +171,11 @@ export interface SceneNoteMessage {
   text: string
 }
 
-/** `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`). */
-export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined' | 'table_full'
+/**
+ * `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`).
+ * `bad_table_key`: tela da mesa sem a chave do link da TV, ou com outra.
+ */
+export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined' | 'table_full' | 'bad_table_key'
 
 export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
@@ -202,7 +213,7 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
-  const { code, name, resume, role } = obj
+  const { code, name, resume, role, tableKey } = obj
   if (typeof code !== 'string' || !JOIN_CODE_PATTERN.test(code)) return null
   if (typeof name !== 'string') return null
   const trimmed = name.trim()
@@ -211,7 +222,10 @@ function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
   if (role !== undefined) {
     // Tela da mesa nunca retoma sessão de jogador: com `resume` junto, a mensagem cai inteira.
     if (role !== 'table' || resume !== undefined) return null
-    return { type: 'join', code, name: trimmed, role }
+    // Sem chave a mensagem passa: quem recusa é a sessão (`bad_table_key`), para a TV dizer o que falta.
+    if (tableKey === undefined) return { type: 'join', code, name: trimmed, role }
+    if (!isBoundedString(tableKey, 1, TABLE_KEY_MAX_LENGTH)) return null
+    return { type: 'join', code, name: trimmed, role, tableKey }
   }
   if (resume === undefined) return { type: 'join', code, name: trimmed }
   if (!isBoundedString(resume, 1, RESUME_TOKEN_MAX_LENGTH)) return null

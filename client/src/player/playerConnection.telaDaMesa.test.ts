@@ -46,6 +46,7 @@ function telaDaMesa(storage: StorageLike | null) {
     code: 'ABC123',
     name: TABLE_SCREEN_NAME,
     role: 'table',
+    tableKey: 'chave-do-link',
     storage,
     createSocket: () => {
       const socket = new FakeSocket()
@@ -61,12 +62,12 @@ function telaDaMesa(storage: StorageLike | null) {
 const mapa = addToken(createEmptyMap('m1', '', 10, 10, 50), { id: 't1', characterId: null, name: 'Aria', x: 75, y: 75, size: 1, image: null })
 
 describe('playerConnection no modo tela da mesa', () => {
-  it('entra com role table e sem resume, mesmo com resume de jogador guardado na aba', () => {
+  it('entra com role table, a chave do link da TV e sem resume, mesmo com resume de jogador guardado na aba', () => {
     const storage = memoryStorage()
     storage.setItem(RESUME_STORAGE_KEY, JSON.stringify({ code: 'ABC123', token: 'tok-da-ana' }))
     const { socket } = telaDaMesa(storage)
     socket.open()
-    expect(socket.sent[0]).toEqual({ type: 'join', code: 'ABC123', name: TABLE_SCREEN_NAME, role: 'table' })
+    expect(socket.sent[0]).toEqual({ type: 'join', code: 'ABC123', name: TABLE_SCREEN_NAME, role: 'table', tableKey: 'chave-do-link' })
   })
 
   it('welcome (mestre antigo) não grava resume: a aba do jogador não é sequestrada', () => {

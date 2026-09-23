@@ -256,6 +256,8 @@ export interface HostSessionOptions {
   visionRadius: number
   now?: () => number
   randomId?: () => string
+  /** Chave da tela da mesa (teste). Ausente = um UUID novo por sala, fora de `randomId`. */
+  tableKey?: string
 }
 
 export interface HostSession {
@@ -342,6 +344,8 @@ export interface HostSession {
   tableScreens(): number
   /** A conexão é de uma tela da mesa (e não de jogador). */
   isTable(clientId: string): boolean
+  /** TELA DA MESA: a chave que o `join` da TV precisa trazer, além do código. Vai só no link da aba Jogo. */
+  tableKey(): string
   readonly rev: number
 }
 
@@ -371,6 +375,8 @@ interface PlayerMemory {
   key: string
   exp: Exploration
   doors: Map<string, DoorState>
+  /** Por id da parede: quando (`doorSeenSeq`) a porta foi vista por último. Só a tela da mesa usa. */
+  doorsSeenAt: Map<string, number>
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
 }
@@ -428,6 +434,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const tableClients = new Set<string>()
   // A cena que a tela mostra (`tableSceneKey`); `null` = a tela espera.
   let tableSceneChoice: string | null = null
+  // Separada do código da sala (que todo jogador tem) e de `randomId` (ids de
+  // jogador): só quem tem o link da TV entra como tela.
+  const tableKey = options.tableKey ?? crypto.randomUUID()
+  // Relógio das portas lembradas: cresce a cada porta vista, de qualquer
+  // jogador. A tela junta a memória do grupo pela vista mais recente.
+  let doorSeenSeq = 0
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -459,6 +471,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       key: memoryKey(map),
       exp: createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }),
       doors: new Map(),
+      doorsSeenAt: new Map(),
       vision: [],
     }
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
@@ -532,7 +545,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     memory.vision = view.vision
     const seenNow = new Set(view.visibleDoorIds)
     for (const w of view.map.walls) {
-      if (w.door !== null && seenNow.has(w.id)) memory.doors.set(w.id, { ...w.door })
+      if (w.door === null || !seenNow.has(w.id)) continue
+      memory.doors.set(w.id, { ...w.door })
+      memory.doorsSeenAt.set(w.id, (doorSeenSeq += 1))
     }
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
@@ -576,12 +591,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const map = scene.map
     const merged = createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid })
     const doors = new Map<string, DoorState>()
+    // Porta que ninguém vê agora aparece como o grupo a viu POR ÚLTIMO, não
+    // como a viu quem entrou na sala por último (a ordem de `players`).
+    const doorsSeenAt = new Map<string, number>()
     const viewers: GroupViewer[] = []
     for (const playerId of players.keys()) {
       const memory = existingMemory(playerId, map)
       if (memory !== undefined) {
         mergeExploration(merged, memory.exp)
-        for (const [wallId, door] of memory.doors) doors.set(wallId, door)
+        for (const [wallId, door] of memory.doors) {
+          const seenAt = memory.doorsSeenAt.get(wallId) ?? 0
+          if (seenAt < (doorsSeenAt.get(wallId) ?? -1)) continue
+          doors.set(wallId, door)
+          doorsSeenAt.set(wallId, seenAt)
+        }
       }
       // Só quem está NESTA cena enxerga por ela; a ficha dele em outra cena não conta.
       if (statusOf(playerId) === 'playing' && sceneFor(playerId, world) === scene) {
@@ -599,6 +622,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   function handleTableJoin(clientId: string, msg: JoinMessage, world: HostWorld): HostResult {
     if (msg.code !== options.code) return reply(clientId, { type: 'error', reason: 'bad_code' })
+    // O código todo jogador tem; a chave só vai no link da TV. Sem ela, um
+    // jogador viraria tela e veria a cena escolhida (e quem está nela) mesmo
+    // estando em outra.
+    if (msg.tableKey !== tableKey) return reply(clientId, { type: 'error', reason: 'bad_table_key' })
     if (tableClients.size >= MAX_TABLE_SCREENS) return reply(clientId, { type: 'error', reason: 'table_full' })
     tableClients.add(clientId)
     return reply(clientId, tableView(world))
@@ -1116,6 +1143,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     isTable(clientId) {
       return tableClients.has(clientId)
+    },
+
+    tableKey() {
+      return tableKey
     },
 
     laser(message, source) {

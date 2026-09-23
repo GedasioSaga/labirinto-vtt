@@ -15,7 +15,7 @@ import {
   type PlayerInfo,
   type TravelRequest,
 } from './hostSession'
-import type { LaserMessage } from './protocol'
+import type { HostErrorReason, LaserMessage } from './protocol'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -125,9 +125,20 @@ export interface HostBridge {
    * esperar. Snapshot imediato. Sala fechada: nada.
    */
   setTableScene(key: string | null): void
+  /** TELA DA MESA: a chave do link da TV desta sala; `null` com a sala fechada. */
+  tableKey(): string | null
 }
 
 export const BROADCAST_THROTTLE_MS = 50
+
+/**
+ * Erros no `join` que derrubam a conexão depois de responder. O Rust só solta
+ * a vaga de jogador (`MAX_PLAYERS`) quando o socket fecha: a TV recusada por
+ * `table_full` ou sem a chave certa seguraria a vaga enquanto a página ficasse
+ * aberta, mandando ping. `bad_code` fica de fora: o jogador corrige o código.
+ */
+const KICK_ON_JOIN_ERROR: ReadonlySet<HostErrorReason> = new Set<HostErrorReason>(['invalid_message', 'table_full', 'bad_table_key'])
+
 /**
  * O aviso de jogador novo fica mais tempo que um info comum (4 s): o mestre
  * costuma estar desenhando no mapa, de olho no canvas e não no rail, e perder
@@ -516,9 +527,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const wasTable = session.isTable(clientId)
     const wasJoined = wasTable || session.listPlayers().some((p) => p.clientId === clientId)
     const result = session.handleMessage(clientId, event.payload.msg, world())
-    const rejectedJoin = !wasJoined && result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'invalid_message')
+    const rejectedJoin = !wasJoined && result.outbound.some((o) => o.msg.type === 'error' && KICK_ON_JOIN_ERROR.has(o.msg.reason))
     if (rejectedJoin) {
-      // Conexão que nem entrou manda lixo: responde e libera a vaga no Rust.
+      // Conexão que nem entrou manda lixo, ou é TV recusada: responde e libera a vaga no Rust.
       void sendThenKick(result, clientId)
       return
     }
@@ -694,6 +705,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session === null) return
       session.setTableScene(key)
       broadcastNow()
+    },
+
+    tableKey() {
+      return session?.tableKey() ?? null
     },
 
     assignToken(playerId, tokenId) {

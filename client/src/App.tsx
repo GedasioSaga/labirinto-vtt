@@ -404,6 +404,8 @@ function App() {
   // Tela da mesa: a cena que a TV mostra (`tableSceneKey`) e quantas TVs estão conectadas.
   const [tableScene, setTableScene] = useState<string | null>(null)
   const [tableScreens, setTableScreens] = useState(0)
+  // A chave do link da TV, gerada pela sala: sem ela o código sozinho não vira tela.
+  const [tableKey, setTableKey] = useState<string | null>(null)
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
   const hostBridgeRef = useRef<HostBridge | null>(null)
@@ -497,7 +499,9 @@ function App() {
   )
   const handleStartRoom = async () => {
     try {
-      setRoom(await hostBridge().start())
+      const bridge = hostBridge()
+      setRoom(await bridge.start())
+      setTableKey(bridge.tableKey())
     } catch {
       // A ponte já mostrou o toast com o motivo; o painel continua com a sala fechada.
     }
@@ -508,6 +512,7 @@ function App() {
     setRoomPlayers([])
     // Sala nova nasce sem cena na TV: a sessão de agora morreu com a escolha.
     setTableScene(null)
+    setTableKey(null)
     useSignalStore.getState().clear()
     useLaserStore.getState().setToggled(false)
   }
@@ -558,7 +563,7 @@ function App() {
             laserOn={laserToggled}
             onToggleLaser={() => useLaserStore.getState().setToggled(!useLaserStore.getState().toggled)}
             table={{
-              url: room === null || room.urls[0] === undefined ? null : tableScreenUrl(room.urls[0], room.code),
+              url: room === null || room.urls[0] === undefined || tableKey === null ? null : tableScreenUrl(room.urls[0], room.code, tableKey),
               scenes: [world.open, ...world.background].map((scene) => ({ key: tableSceneKey(scene), name: scene.name })),
               sceneKey: tableScene,
               screens: tableScreens,

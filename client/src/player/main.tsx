@@ -15,7 +15,7 @@ import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import type { SignalMark } from '../lib/signals'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
-import { tableCodeFromSearch } from '../lib/tableScreen'
+import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
 import './player.css'
 
@@ -846,4 +846,4 @@ const root = document.getElementById('root')
 if (!root) throw new Error('player.html sem #root')
 // `?mesa` no endereço = TELA DA MESA (TV, projetor): espectador sem ficha, ver `TableScreen.tsx`.
 const tableCode = tableCodeFromSearch(location.search)
-createRoot(root).render(<StrictMode>{tableCode === null ? <PlayerApp /> : <TableApp initialCode={tableCode} />}</StrictMode>)
+createRoot(root).render(<StrictMode>{tableCode === null ? <PlayerApp /> : <TableApp initialCode={tableCode} tableKey={tableKeyFromSearch(location.search)} />}</StrictMode>)

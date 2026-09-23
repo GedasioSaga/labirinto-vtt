@@ -15,6 +15,8 @@ import { createHostSession, MAX_TABLE_SCREENS, tableSceneKey, type HostResult, t
 import type { HostMessage } from './protocol'
 
 const CODE = 'AB12CD'
+/** A chave que só vai no link da TV (a aba Jogo do mestre), separada do código que todo jogador tem. */
+const CHAVE = 'chave-da-tv-0123456789abcdef'
 const RAIO = 700
 
 function ficha(id: string, x: number, y: number, extra: Partial<Token> = {}): Token {
@@ -70,7 +72,7 @@ function playerIdOf(r: HostResult): string {
 /** Ana (heroi) e Bia (ladino) no Salão, Caio (mago) na Cripta. */
 function mesaMontada(world: HostWorld = mundo()) {
   let n = 0
-  const s = createHostSession({ code: CODE, visionRadius: RAIO, now: () => 0, randomId: () => `id-${(n += 1)}` })
+  const s = createHostSession({ code: CODE, visionRadius: RAIO, now: () => 0, randomId: () => `id-${(n += 1)}`, tableKey: CHAVE })
   const ana = playerIdOf(s.handleMessage('c-ana', { type: 'join', code: CODE, name: 'Ana' }, world))
   const bia = playerIdOf(s.handleMessage('c-bia', { type: 'join', code: CODE, name: 'Bia' }, world))
   const caio = playerIdOf(s.handleMessage('c-caio', { type: 'join', code: CODE, name: 'Caio' }, world))
@@ -80,7 +82,7 @@ function mesaMontada(world: HostWorld = mundo()) {
   return { s, ana, bia, caio }
 }
 
-const ENTRAR_COMO_MESA = { type: 'join', code: CODE, name: 'Mesa', role: 'table' }
+const ENTRAR_COMO_MESA = { type: 'join', code: CODE, name: 'Mesa', role: 'table', tableKey: CHAVE }
 
 function paraTela(r: HostResult, clientId = 'c-tv'): HostMessage[] {
   return r.outbound.filter((o) => o.clientId === clientId).map((o) => o.msg)
@@ -112,6 +114,31 @@ describe('tela da mesa: entrar', () => {
     const { s } = mesaMontada()
     s.handleMessage('c-tv', ENTRAR_COMO_MESA, mundo())
     expect(paraTela(s.broadcast(mundo()))).toEqual([{ type: 'lobby.waiting' }])
+  })
+
+  it('o código da sala, que todo jogador tem, não basta: sem a chave do link da TV, nada da cena da tela sai', () => {
+    // Caio está na Cripta e abre /player?mesa=CODIGO com o código que já tem: não pode ver o Salão (onde estão Ana e Bia).
+    const { s } = mesaMontada()
+    s.setTableScene('s-salao')
+    const tentativas = [
+      { type: 'join', code: CODE, name: 'Caio', role: 'table' },
+      { ...ENTRAR_COMO_MESA, tableKey: 'chave-que-o-caio-chutou' },
+    ]
+    for (const [i, join] of tentativas.entries()) {
+      const clientId = `c-caio-tv${i}`
+      expect(s.handleMessage(clientId, join, mundo()).outbound).toEqual([{ clientId, msg: { type: 'error', reason: 'bad_table_key' } }])
+      expect(paraTela(s.broadcast(mundo()), clientId)).toEqual([])
+    }
+    expect(s.tableScreens()).toBe(0)
+  })
+
+  it('sem chave passada, a sala gera uma própria: longa, diferente a cada sala e diferente do código', () => {
+    const a = createHostSession({ code: CODE, visionRadius: RAIO })
+    const b = createHostSession({ code: CODE, visionRadius: RAIO })
+    expect(a.tableKey().length).toBeGreaterThanOrEqual(32)
+    expect(a.tableKey()).not.toBe(b.tableKey())
+    expect(a.tableKey()).not.toContain(CODE)
+    expect(a.handleMessage('c-tv', { ...ENTRAR_COMO_MESA, tableKey: a.tableKey() }, mundo()).outbound[0]?.msg).toEqual({ type: 'lobby.waiting' })
   })
 
   it(`passou de ${MAX_TABLE_SCREENS} telas: table_full`, () => {
@@ -199,7 +226,7 @@ describe('tela da mesa: o que ela recebe da cena escolhida', () => {
   it('mapa solto: a chave da cena é o id do mapa', () => {
     const solto = salao(FICHAS_SALAO)
     let n = 0
-    const s = createHostSession({ code: CODE, visionRadius: RAIO, now: () => 0, randomId: () => `id-${(n += 1)}` })
+    const s = createHostSession({ code: CODE, visionRadius: RAIO, now: () => 0, randomId: () => `id-${(n += 1)}`, tableKey: CHAVE })
     const ana = playerIdOf(s.handleMessage('c-ana', { type: 'join', code: CODE, name: 'Ana' }, solto))
     s.assignToken(ana, 'heroi')
     s.handleMessage('c-tv', ENTRAR_COMO_MESA, solto)
@@ -208,6 +235,45 @@ describe('tela da mesa: o que ela recebe da cena escolhida', () => {
     expect(snap.map.tokens.map((t) => t.id)).toEqual(['heroi'])
     expect(snap.map.name).toBe('')
   })
+})
+
+/** O mundo com uma porta na parede entre a sala 1 (Ana) e a sala 2 (Bia). */
+function comPorta(aberta: boolean, salaoTokens: Token[], criptaTokens: Token[]): HostWorld {
+  const w = mundo(salaoTokens, criptaTokens)
+  const map = { ...w.open.map, walls: [{ ...parede('w1', 750), door: { open: aberta, locked: false, kind: 'normal' as const } }, parede('w2', 1500)] }
+  return { ...w, open: { ...w.open, map } }
+}
+
+describe('tela da mesa: porta que ninguém vê agora', () => {
+  const MAGO = ficha('mago', 200, 200)
+  const semFicha = (...ids: string[]) => FICHAS_SALAO.filter((t) => !ids.includes(t.id))
+
+  // Ana entrou na sala antes de Bia. Quem sai primeiro da cena leva a porta como
+  // estava; quem fica vê a porta fechar. A TV mostra o estado visto POR ÚLTIMO,
+  // não o de quem entrou na sala por último.
+  for (const primeiroASair of ['bia', 'ana'] as const) {
+    it(`mostra a porta como foi vista por último (${primeiroASair === 'bia' ? 'Bia' : 'Ana'} sai com ela aberta)`, () => {
+      const { s, ana, bia } = mesaMontada()
+      s.handleMessage('c-tv', ENTRAR_COMO_MESA, mundo())
+      s.setTableScene('s-salao')
+      const [sai, fica] = primeiroASair === 'bia' ? [bia, ana] : [ana, bia]
+      const fichaSai = primeiroASair === 'bia' ? 'ladino' : 'heroi'
+
+      // As duas veem a porta aberta.
+      s.broadcast(comPorta(true, FICHAS_SALAO, [MAGO]))
+      // Uma vai para a Cripta levando a porta aberta na memória.
+      expect(s.sendPlayer(sai, 's-cripta', null, comPorta(true, FICHAS_SALAO, [MAGO])).applyTransfer?.toSceneId).toBe('s-cripta')
+      const saiu = comPorta(false, semFicha(fichaSai), [MAGO, ficha(fichaSai, 600, 250)])
+      // A outra fica e vê a porta fechar; depois também vai.
+      s.broadcast(saiu)
+      expect(s.sendPlayer(fica, 's-cripta', null, saiu).applyTransfer?.toSceneId).toBe('s-cripta')
+      const ninguem = comPorta(false, semFicha('heroi', 'ladino'), [MAGO, ficha('heroi', 500, 250), ficha('ladino', 600, 250)])
+
+      const snap = snapshotDaTela(s.broadcast(ninguem))
+      expect(snap.vision).toEqual([])
+      expect(snap.map.walls.find((w) => w.id === 'w1')?.door?.open).toBe(false)
+    })
+  }
 })
 
 describe('tela da mesa: só olha', () => {
