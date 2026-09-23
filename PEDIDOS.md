@@ -659,3 +659,20 @@ bugs, refinar o programa no máximo."**
 
 Conta 20x: o teto de 4 agentes simultâneos (17/09) está revogado para esta noite; o limite real é a CPU da
 máquina (Playwright sob carga estoura tempo).
+
+## Pedido de 22/09/2026, noite, 2º (registro literal, com imagem)
+
+Imagem: `docs/pedidos/2026-09-22-cidade-vertical.png` (cidade-torre vertical: esgoto e canos embaixo,
+casas com janelas acesas, baterias de canhão, escadarias e templo, muralha com arcos, cúpula com dois
+canhões, fábricas e canos, torre administrativa e o pico).
+
+> "veja essa imagem, isso deve dar mais de 11 andares ou até mais, eu quero que você em um workflow
+> separado imagine como eu faria isso no programa, não estou falando dos gráficos, mas imagine 7
+> jogadores cada um em um andar, e cada andar tendo milhares de locais para ir? Imagine salas de todos
+> os tipos, caminho de todos os tipos, objetos de todos os tipos e features que eu nem consigo imaginar.
+> Então nesse workflow separado, crie esses 11 andares e coloque sete tokens jogando e você como mestre
+> imagine cada token fazendo ações diferentes e você vai enriquecer mais e mais e mais"
+
+Lane própria: `torre-11-andares` (worktree `C:/dev/labirinto-torre`, branch `auto/torre-11-andares`).
+Gera de verdade uma aventura de 11+ andares no formato do app, abre no app, mede, põe 7 fichas em 7
+andares e joga em rodadas com o mestre; cada rodada enriquece o mundo e vira feature/defeito.
