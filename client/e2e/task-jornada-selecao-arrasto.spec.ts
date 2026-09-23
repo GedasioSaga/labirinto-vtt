@@ -35,6 +35,16 @@ import { enterEditor } from './helpers/enterEditor'
 const PAINT_MS = 180
 /** Um humano não solta o botão no mesmo frame do último movimento. */
 const PAUSA_ANTES_DE_SOLTAR_MS = 150
+/**
+ * Teto próprio dos dois testes, SOMADO ao do teste (nunca no lugar dele).
+ * Cada um desenha o mapa inteiro por gesto (três salas + uma parede) antes do
+ * arrasto que é a prova: cinco arrastos de 20 passos de ponteiro e nove fotos
+ * recortadas. Com a máquina carregada (22/09/2026, reporter de passos, 1
+ * worker), `Mouse move` chegou a 2,9 s cada e o corpo passou dos 30 s do teste
+ * nos DOIS testes (vermelho por timeout, verde sozinho). Nenhuma sonda nem
+ * asserção muda: é tempo para o MESMO gesto, não tolerância na prova.
+ */
+const TETO_EXTRA_DO_GESTO_LONGO_MS = 30_000
 
 /** O que `page.screenshot()` devolve. `Buffer` não é tipo declarado no projeto
  *  de tipos dos e2e (sem `@types/node`), então o tipo vem da própria API —
@@ -157,7 +167,8 @@ test.beforeEach(async ({ page }) => {
 
 test('arrastar no vazio com Selecionar (sem Shift) desenha o retângulo e seleciona os 3 objetos, sem mover a vista', async ({
   page,
-}) => {
+}, testInfo) => {
+  testInfo.setTimeout(testInfo.timeout + TETO_EXTRA_DO_GESTO_LONGO_MS)
   const box = await mapaDesenhadoComGesto(page)
 
   const dentroAntes = await recorte(page, box, SONDA_DENTRO)
@@ -216,7 +227,8 @@ test('arrastar no vazio com Selecionar (sem Shift) desenha o retângulo e seleci
 // coordenada errada, recorte no lugar errado ou sonda cega.
 test('controle positivo: o mesmo arrasto COM Shift já desenha o retângulo e o contorno (as sondas enxergam)', async ({
   page,
-}) => {
+}, testInfo) => {
+  testInfo.setTimeout(testInfo.timeout + TETO_EXTRA_DO_GESTO_LONGO_MS)
   const box = await mapaDesenhadoComGesto(page)
 
   const dentroAntes = await recorte(page, box, SONDA_DENTRO)
