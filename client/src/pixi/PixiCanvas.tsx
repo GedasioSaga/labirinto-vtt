@@ -5,6 +5,7 @@ import { currentRendererResolution, watchDevicePixelRatio } from './rendererReso
 import type { MapData, Pin, Region, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
+import { runClipboardShortcut } from '../stores/mapClipboard'
 import { pinTravelOf, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { useFollowStore, type CameraOrigin } from '../stores/followStore'
@@ -5280,6 +5281,17 @@ export function PixiCanvas({
         if (action === null) return
         // Sem isto o navegador também seleciona o texto da interface (laranja).
         if (action.kind === 'selectAll') event.preventDefault()
+        // Ctrl+C/X/V: cola perto do ponteiro (ou no meio da vista, com ele
+        // fora do mapa). No meio de um arrasto a tecla não faz nada — recortar
+        // o item que está na mão deixaria o gesto segurando um id que sumiu.
+        // Tratado pelo app, o copiar/colar do navegador não roda junto.
+        if (action.kind === 'copy' || action.kind === 'cut' || action.kind === 'paste') {
+          if (mode !== 'idle') return
+          const vista = computeViewport()
+          const alvo = { cursor: laserPointer, fallback: { x: (vista.left + vista.right) / 2, y: (vista.top + vista.bottom) / 2 } }
+          if (runClipboardShortcut(action.kind, alvo)) event.preventDefault()
+          return
+        }
         runShortcut(action)
       }
 
@@ -5405,6 +5417,12 @@ export function PixiCanvas({
           case 'open':
           case 'undo':
           case 'redo':
+            break
+          // Ctrl+C/X/V precisam do evento (preventDefault) e do ponteiro:
+          // tratados em `onKeyDown`, antes de chegar aqui.
+          case 'copy':
+          case 'cut':
+          case 'paste':
             break
         }
       }

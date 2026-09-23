@@ -46,6 +46,11 @@ export type Action =
    *  é quem tem o mapa em mãos; esta função não recebe grid nenhum. */
   | { kind: 'nudge'; dx: number; dy: number; fine: boolean }
   | { kind: 'duplicate' }
+  /** Ctrl+C / Ctrl+X / Ctrl+V — área de transferência do editor, que
+   *  sobrevive à troca de cena e de mapa (`stores/mapClipboard.ts`). */
+  | { kind: 'copy' }
+  | { kind: 'cut' }
+  | { kind: 'paste' }
   | { kind: 'save' }
   | { kind: 'open' }
   | { kind: 'zoomReset' }
@@ -234,6 +239,9 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
     if (lower === 'z') return evt.hasPointDraft ? { kind: 'undoDraftPoint' } : { kind: 'undo' }
     if (lower === 'y') return { kind: 'redo' }
     if (lower === 'd') return { kind: 'duplicate' }
+    if (lower === 'c') return { kind: 'copy' }
+    if (lower === 'x') return { kind: 'cut' }
+    if (lower === 'v') return { kind: 'paste' }
     if (lower === 's') return { kind: 'save' }
     if (lower === 'o') return { kind: 'open' }
     if (lower === 'a') return { kind: 'selectAll' }

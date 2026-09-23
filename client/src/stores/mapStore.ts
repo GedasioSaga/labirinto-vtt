@@ -30,7 +30,8 @@ const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPoly
 // tela precisa para explicar a recusa em vez de devolver o token em silêncio.
 import { describeBlockedMove } from '../lib/moveValidation'
 import { DEFAULT_PATH_WIDTH_CELLS, DEFAULT_TEXT_FONT_FAMILY, clampPathWidthCells, convertLineToCurve, convertCurveToLine } from '../lib/drawingFactory'
-import { moveAreaSelection, areaSelectionBounds } from '../lib/areaSelection'
+import { moveAreaSelection, areaSelectionBounds, type AreaBounds } from '../lib/areaSelection'
+import { pieceBounds } from '../lib/floorSdf'
 import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, TOOL_CLUSTERS } from '../components/labels'
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
@@ -415,6 +416,26 @@ interface MapStoreState {
    * outros.
    */
   duplicateSelected: () => void
+  /**
+   * Área de transferência do editor (Ctrl+C/Ctrl+X/Ctrl+V). Guarda o MAPA de
+   * origem inteiro (referência imutável, custo zero) e os itens copiados: a
+   * colagem clona dali, então ela sobrevive à troca de cena e de mapa —
+   * `loadMap` e a troca de cena de `adventureStore` não tocam neste campo.
+   */
+  clipboard: MapClipboard | null
+  /** Ctrl+C — guarda a seleção sem mudar o mapa. `false` (e a área de
+   *  transferência intacta) sem nada selecionado. */
+  copySelected: () => boolean
+  /** Ctrl+X — guarda a seleção e a tira do mapa (1 entrada de histórico).
+   *  `false`, sem efeito, sem nada selecionado. */
+  cutSelected: () => boolean
+  /**
+   * Ctrl+V — cola a área de transferência com o CENTRO do conjunto no ponto
+   * dado (px de mundo), ajustado à grade do mapa aberto, e seleciona as
+   * cópias. 1 entrada de histórico. `false`, sem efeito, se não há nada
+   * copiado ou se nada do que foi copiado existia no mapa de origem.
+   */
+  pasteClipboardAt: (point: Point) => boolean
   /**
    * Par de `duplicateSelected`, para o Alt+arrastar (`pixi/PixiCanvas.tsx`):
    * insere uma entidade JÁ CLONADA (offset {0,0} — nasce exatamente sobre o
@@ -888,6 +909,114 @@ function movedRoomIds(map: MapData, selection: readonly SelectionItem[]): string
   return [...ids]
 }
 
+/** O que Ctrl+C/Ctrl+X guardou (campo `clipboard` do estado). */
+export interface MapClipboard {
+  /** Mapa de onde os itens vieram, como estava no Ctrl+C/Ctrl+X. */
+  readonly source: MapData
+  readonly items: SelectionSet
+  /** Centro do conjunto, em px de mundo do mapa de origem. */
+  readonly center: Point
+  /** Veio de Ctrl+X e ainda não foi colado: a primeira colagem devolve o
+   *  próprio item, então a Sala mantém o nome sem "(cópia)". */
+  readonly cut: boolean
+}
+
+/** Retângulo que envolve os itens da seleção — o chão entra pela própria
+ *  caixa (`pieceBounds`), que `areaSelectionBounds` não cobre. */
+function selectionBounds(map: MapData, selection: SelectionSet): AreaBounds | null {
+  const boxes: AreaBounds[] = []
+  const rest = areaSelectionBounds(map, selectionToAreaSelection(selection))
+  if (rest !== null) boxes.push(rest)
+  for (const item of selection) {
+    if (item.kind !== 'floor') continue
+    const piece = map.floor.find((p) => p.id === item.id)
+    if (piece) boxes.push(pieceBounds(piece))
+  }
+  if (boxes.length === 0) return null
+  return {
+    minX: Math.min(...boxes.map((b) => b.minX)),
+    minY: Math.min(...boxes.map((b) => b.minY)),
+    maxX: Math.max(...boxes.map((b) => b.maxX)),
+    maxY: Math.max(...boxes.map((b) => b.maxY)),
+  }
+}
+
+/** Deslocamento em múltiplos da grade: a cópia colada fica alinhada como o original. */
+function snapOffsetToGrid(delta: number, grid: number): number {
+  return grid > 0 ? Math.round(delta / grid) * grid : delta
+}
+
+/**
+ * Clona os itens `selection` de `source` para dentro de `target`, deslocados
+ * por `offset`. Mesma regra do Ctrl+D: Sala leva paredes e sub-salas; parede
+ * de Sala também selecionada e sub-sala de Sala selecionada não se copiam de
+ * novo; cópia que caiu dentro de outra Sala vira filha dela. `source` e
+ * `target` são o MESMO mapa no Ctrl+D e podem ser mapas diferentes no Ctrl+V
+ * (outra cena, outro mapa). `keepRoomNames`: a Sala clonada mantém o nome do
+ * original (colar o que foi recortado não é cópia).
+ */
+function cloneSelectionInto(
+  target: MapData,
+  source: MapData,
+  selection: SelectionSet,
+  offset: Offset,
+  keepRoomNames: boolean,
+): { map: MapData; items: SelectionItem[] } {
+  const items: SelectionItem[] = []
+  // Cópia de Sala → Sala original, para a cópia herdar as arestas que estavam sobre a mãe.
+  const sources: Record<string, string> = {}
+  const selectedRegionIds = new Set(selection.filter((item) => item.kind === 'region').map((item) => item.id))
+  // Sala selecionada leva as sub-salas: elas e as paredes delas não se copiam de novo.
+  const coveredRegionIds = new Set<string>()
+  for (const id of selectedRegionIds) {
+    for (const d of descendantsOf(source.regions, id)) coveredRegionIds.add(d.id)
+  }
+  let next = target
+  for (const item of selection) {
+    if (item.kind === 'region' && coveredRegionIds.has(item.id)) continue
+    // Parede de uma Sala que também está selecionada já vem junto com a Sala.
+    const wallRegionId = item.kind === 'wall' ? source.walls.find((w) => w.id === item.id)?.regionId ?? '' : ''
+    if (item.kind === 'wall' && (selectedRegionIds.has(wallRegionId) || coveredRegionIds.has(wallRegionId))) continue
+    const cloned = cloneSelectedEntity(source, item, offset)
+    if (!cloned) continue
+    const named = keepRoomNames ? withSourceRoomName(cloned, source, item.id) : cloned
+    next = addClonedEntity(next, withoutMissingParent(named, next))
+    if (cloned.kind === 'region') {
+      sources[cloned.entity.id] = item.id
+      const inner = cloneRoomDescendants(source.regions, source.walls, item.id, cloned.entity.id, offset)
+      next = {
+        ...next,
+        regions: [...next.regions, ...inner.regions],
+        walls: [...next.walls, ...cloneLinkedWalls(source.walls, item.id, cloned.entity.id, offset), ...inner.walls],
+      }
+    }
+    items.push({ kind: cloned.kind, id: cloned.entity.id })
+  }
+  // Cópia de sub-sala que caiu fora da mãe vira sala de topo (ou filha de onde caiu).
+  return { map: reparentRooms(next, movedRoomIds(next, items), source, sources), items }
+}
+
+/** A Sala clonada volta ao nome do original (sem o "(cópia)" de `cloneRegion`). */
+function withSourceRoomName(cloned: CloneableEntity, source: MapData, sourceId: string): CloneableEntity {
+  if (cloned.kind !== 'region' || cloned.entity.room === undefined) return cloned
+  const original = source.regions.find((r) => r.id === sourceId)?.room
+  if (original === undefined) return cloned
+  return { kind: 'region', entity: { ...cloned.entity, room: { ...cloned.entity.room, name: original.name } } }
+}
+
+/**
+ * Sub-sala colada em outro mapa: a mãe ficou no mapa de origem, e o
+ * `parentId` apontaria para um id que não existe aqui (`reparentRoom` só
+ * troca a mãe quando acha outra; sem mãe nova, o id órfão ficava).
+ */
+function withoutMissingParent(cloned: CloneableEntity, target: MapData): CloneableEntity {
+  if (cloned.kind !== 'region' || cloned.entity.parentId === undefined) return cloned
+  const parentId = cloned.entity.parentId
+  if (target.regions.some((r) => r.id === parentId)) return cloned
+  const { parentId: _orphan, ...entity } = cloned.entity
+  return { kind: 'region', entity }
+}
+
 /**
  * Recalcula a mãe (e as arestas que saíram de cima da parede da mãe) de cada
  * Sala movida, redimensionada ou duplicada. `before` é o mapa de antes do
@@ -1031,42 +1160,45 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const hasRoom = selection.some((item) => item.kind === 'region' && map.regions.find((r) => r.id === item.id)?.room !== undefined)
       const bounds = hasRoom ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null
       const offset = bounds ? { dx: bounds.maxX - bounds.minX + map.grid, dy: 0 } : { dx: map.grid, dy: map.grid }
-      const clonedItems: SelectionItem[] = []
-      // Cópia de Sala → Sala original, para a cópia herdar as arestas que estavam sobre a mãe.
-      const sources: Record<string, string> = {}
-      const selectedRegionIds = new Set(selection.filter((item) => item.kind === 'region').map((item) => item.id))
-      // Sala selecionada leva as sub-salas: elas e as paredes delas não se copiam de novo.
-      const coveredRegionIds = new Set<string>()
-      for (const id of selectedRegionIds) {
-        for (const d of descendantsOf(map.regions, id)) coveredRegionIds.add(d.id)
-      }
+      let clonedItems: SelectionItem[] = []
       withHistory((m) => {
-        let next = m
-        for (const item of selection) {
-          if (item.kind === 'region' && coveredRegionIds.has(item.id)) continue
-          // Parede de uma Sala que também está selecionada já vem junto com a Sala.
-          const wallRegionId = item.kind === 'wall' ? m.walls.find((w) => w.id === item.id)?.regionId ?? '' : ''
-          if (item.kind === 'wall' && (selectedRegionIds.has(wallRegionId) || coveredRegionIds.has(wallRegionId))) continue
-          const cloned = cloneSelectedEntity(next, item, offset)
-          if (!cloned) continue
-          next = addClonedEntity(next, cloned)
-          if (cloned.kind === 'region') {
-            sources[cloned.entity.id] = item.id
-            const inner = cloneRoomDescendants(m.regions, m.walls, item.id, cloned.entity.id, offset)
-            next = {
-              ...next,
-              regions: [...next.regions, ...inner.regions],
-              walls: [...next.walls, ...cloneLinkedWalls(m.walls, item.id, cloned.entity.id, offset), ...inner.walls],
-            }
-          }
-          clonedItems.push({ kind: cloned.kind, id: cloned.entity.id })
-        }
-        // Cópia de sub-sala que caiu fora da mãe vira sala de topo (ou filha de onde caiu).
-        return reparentRooms(next, movedRoomIds(next, clonedItems), m, sources)
+        const result = cloneSelectionInto(m, m, selection, offset, false)
+        clonedItems = result.items
+        return result.map
       })
       // Nenhum item existia mais no mapa (janela de corrida): mantém a
       // seleção antiga em vez de trocar por um conjunto vazio.
       if (clonedItems.length > 0) set({ selection: clonedItems })
+    },
+    clipboard: null,
+    copySelected: () => {
+      const { map, selection } = get()
+      const bounds = selectionBounds(map, selection)
+      if (bounds === null) return false
+      const center = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 }
+      set({ clipboard: { source: map, items: selection, center, cut: false } })
+      return true
+    },
+    cutSelected: () => {
+      if (!get().copySelected()) return false
+      const { clipboard } = get()
+      if (clipboard !== null) set({ clipboard: { ...clipboard, cut: true } })
+      get().removeSelected()
+      return true
+    },
+    pasteClipboardAt: (point) => {
+      const { clipboard, map } = get()
+      if (clipboard === null) return false
+      const offset = {
+        dx: snapOffsetToGrid(point.x - clipboard.center.x, map.grid),
+        dy: snapOffsetToGrid(point.y - clipboard.center.y, map.grid),
+      }
+      const result = cloneSelectionInto(map, clipboard.source, clipboard.items, offset, clipboard.cut)
+      if (result.items.length === 0) return false
+      withHistory(() => result.map)
+      // Depois da primeira colagem, o que foi recortado já voltou: as próximas são cópias.
+      set({ selection: result.items, ...(clipboard.cut ? { clipboard: { ...clipboard, cut: false } } : {}) })
+      return true
     },
     insertClonedEntityLive: (cloned, sourceRegionId) => set((state) => {
       const withEntity = addClonedEntity(state.map, cloned)

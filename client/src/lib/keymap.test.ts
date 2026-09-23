@@ -193,7 +193,27 @@ describe('resolveShortcut — ações globais (Ctrl/Cmd)', () => {
   })
 
   it('Ctrl+<tecla sem atalho> devolve null', () => {
-    expect(resolveShortcut(evt({ key: 'x', ctrlKey: true }))).toBeNull()
+    expect(resolveShortcut(evt({ key: 'k', ctrlKey: true }))).toBeNull()
+  })
+
+  it('Ctrl+C copia, Ctrl+X recorta e Ctrl+V cola (não selecionam Círculo, Selecionar nem nada)', () => {
+    expect(resolveShortcut(evt({ key: 'c', ctrlKey: true }))).toEqual({ kind: 'copy' })
+    expect(resolveShortcut(evt({ key: 'x', ctrlKey: true }))).toEqual({ kind: 'cut' })
+    expect(resolveShortcut(evt({ key: 'v', ctrlKey: true }))).toEqual({ kind: 'paste' })
+  })
+
+  it('Cmd+C/X/V (mac) e Caps Lock ligado também valem', () => {
+    expect(resolveShortcut(evt({ key: 'c', metaKey: true }))).toEqual({ kind: 'copy' })
+    expect(resolveShortcut(evt({ key: 'X', ctrlKey: true }))).toEqual({ kind: 'cut' })
+    expect(resolveShortcut(evt({ key: 'V', metaKey: true }))).toEqual({ kind: 'paste' })
+  })
+
+  it('Ctrl+C/X/V num campo de texto continuam sendo do campo', () => {
+    for (const key of ['c', 'x', 'v']) {
+      expect(resolveShortcut(evt({ key, ctrlKey: true, targetTagName: 'INPUT' }))).toBeNull()
+      expect(resolveShortcut(evt({ key, ctrlKey: true, targetTagName: 'TEXTAREA' }))).toBeNull()
+      expect(resolveShortcut(evt({ key, ctrlKey: true, targetTagName: 'DIV', targetContentEditable: true }))).toBeNull()
+    }
   })
 })
 
