@@ -95,9 +95,12 @@ export interface StairStepLine {
 }
 
 /**
- * Gera as linhas perpendiculares dos degraus de um StairSegment — geometria
- * pura, sem nada de Pixi, pra drawStairs.ts (render) e drawDraft.ts (preview
- * do arrasto) reusarem a mesma fonte de verdade. Um degrau em cada ponta do
+ * Linhas perpendiculares dos degraus de um StairSegment — geometria pura, sem
+ * nada de Pixi. Hoje só `pixi/drawDraft.ts` usa: é o esqueleto do preview
+ * enquanto o arrasto acontece. O render final (`pixi/drawStairs.ts`) passou a
+ * pedir `computeStairPlan`, que devolve o lance com vigas e degraus em galão —
+ * o preview segue um pente reto, e a escada solta vira o desenho de verdade.
+ * Um degrau em cada ponta do
  * lance (t=0 e t=1) mais um a cada STAIR_STEP_SPACING entre elas, sempre
  * espaçados igualmente (divide o comprimento pelo nº de passos, não corta em
  * pedaços de tamanho fixo com sobra no fim). Segmento de comprimento zero
@@ -132,40 +135,134 @@ export function computeStairSteps(segment: StairSegment, stepWidth: number): Sta
   return steps
 }
 
-const STAIR_ARROW_SIZE = 10 // px de mundo — comprimento das hastes traseiras da seta
-const STAIR_ARROW_SPREAD = Math.PI / 7 // ângulo de abertura entre as duas hastes
+/**
+ * PROPORÇÕES DO LANCE — o que faz a escada se ler como escada e dizer o lado.
+ *
+ * Queixa do mestre (17/09/2026): "como eu sei que essa escada vai para cima ou
+ * para baixo? como eu sei que isso é uma escada... ta meio feio". O desenho
+ * antigo era um pente de traços de 2 px com chão vazio no meio, mais uma setinha
+ * de 10 px que trocava de ponta: 3,6% dos pixels de diferença entre subir e
+ * descer, e degrau nenhum no meio do lance.
+ *
+ * O desenho novo é um LANCE ENTRE DUAS VIGAS com degraus em galão — o degrau
+ * tem um bico que avança ladeira acima (`STAIR_TREAD_NOSE_RATIO`), como o nariz
+ * de uma pisada. Três pistas, todas dizendo a mesma coisa, para ninguém precisar
+ * decorar código nenhum:
+ *
+ *   1. todo degrau APONTA para o alto do lance;
+ *   2. o degrau ENGORDA ladeira acima (`STAIR_TREAD_WIDTH_AT_FOOT` ->
+ *      `..._AT_TOP`) — é o que se vê olhando um lance de cima: as pisadas de
+ *      cima aparecem inteiras, as de baixo somem atrás delas;
+ *   3. o TOM clareia ladeira acima (quem aplica é o renderer,
+ *      `pixi/drawStairs.ts`) — o pé do lance afunda na sombra.
+ *
+ * Subir e descer viram desenhos espelhados, e não "a mesma escada com a seta do
+ * outro lado". Continua sendo a gramática do minimapa de Resident Evil: fio de
+ * cabelo e traço fino sobre chão chapado, uma cor só, nada de massa preta.
+ * Também não é hachura: hachura é textura paralela preenchendo área para dizer
+ * "material"; aqui cada traço é UM degrau, no espaçamento de degrau, dentro de
+ * duas vigas que delimitam o lance.
+ *
+ * Tudo em proporção de `stepWidth`, nunca em px fixo: um lance Grande (2
+ * células) ganha degrau proporcionalmente maior em vez de virar um pente de
+ * traços apertados, e um lance Pequeno não vira bloco.
+ */
 
-export interface StairArrow {
-  tip: Point
-  back1: Point
-  back2: Point
+/** Distância entre degraus, como fração da largura do lance. */
+export const STAIR_TREAD_SPACING_RATIO = 0.34
+/**
+ * Avanço do bico do degrau, como fração da MEIA largura. Vale mais que
+ * `STAIR_TREAD_SPACING_RATIO x 2` de propósito: assim o bico de um degrau
+ * alcança a base do seguinte e o lance nunca fica com uma faixa de chão vazio
+ * atravessada — que era exatamente a queixa do "pente de fios de cabelo".
+ */
+export const STAIR_TREAD_NOSE_RATIO = 0.75
+/** Espessura do degrau do pé do lance, como fração da largura do lance. */
+export const STAIR_TREAD_WIDTH_AT_FOOT = 0.045
+/** ... e do degrau mais alto. */
+export const STAIR_TREAD_WIDTH_AT_TOP = 0.11
+
+const lerp = (from: number, to: number, t: number): number => from + (to - from) * t
+
+export interface StairTread {
+  /** Galão apontando ladeira acima: viga de um lado, bico no eixo, viga do outro. */
+  points: [Point, Point, Point]
+  /** Espessura do traço em px de mundo. */
+  width: number
+  /** 0 no degrau do pé, 1 no mais alto — o renderer converte em tom. */
+  climb: number
+}
+
+export interface StairPlan {
+  /** Pé (nível de baixo) e topo (nível de cima) já resolvidos por `direction`. */
+  foot: Point
+  top: Point
+  /** As duas vigas laterais do lance, cada uma do pé ao topo. */
+  rails: [[Point, Point], [Point, Point]]
+  /** Degraus, do pé para o topo. */
+  treads: StairTread[]
 }
 
 /**
- * Triângulo (seta) indicando o sentido de subida do lance — geometria pura,
- * 3 pontos em espaço de mundo prontos pro `Graphics.poly` de drawStairs.ts.
- * 'up': a ponta fica no fim do segmento (x2,y2), apontando no sentido de
- * avanço do traço — "sobe pra lá". 'down': a ponta fica no início (x1,y1),
- * apontando no sentido CONTRÁRIO ao traço — "desce pra cá", entrando na
- * escada a partir de quem está no nível de cima olhando pra baixo.
- * Segmento de comprimento zero degenera (ponta e hastes coincidem no mesmo
- * ponto) — sem caso especial: length=0 não quebra a trigonometria, só produz
- * um triângulo de área zero, invisível, o que é o comportamento correto pra
- * um lance ainda sem arrasto.
+ * Geometria completa de um lance, em px de mundo — pura, sem nada de Pixi, para
+ * `pixi/drawStairs.ts` desenhar e para o teste medir os mesmos pixels que a
+ * jornada mede.
+ *
+ * `direction` decide qual PONTA do segmento é o alto: 'up' sobe no sentido do
+ * traço (topo em x2,y2), 'down' desce no sentido do traço (topo em x1,y1) — a
+ * mesma convenção geométrica que a seta antiga usava para escolher em que ponta
+ * nascer, agora dita pelo desenho inteiro.
+ *
+ * Segmento de comprimento zero devolve `null`: não há lance para planejar.
  */
-export function computeStairArrow(segment: StairSegment, direction: StairDirection): StairArrow {
-  const dx = segment.x2 - segment.x1
-  const dy = segment.y2 - segment.y1
-  const forwardAngle = Math.atan2(dy, dx)
-  const angle = direction === 'up' ? forwardAngle : forwardAngle + Math.PI
-  const tip = direction === 'up' ? { x: segment.x2, y: segment.y2 } : { x: segment.x1, y: segment.y1 }
-  const back1: Point = {
-    x: tip.x - STAIR_ARROW_SIZE * Math.cos(angle - STAIR_ARROW_SPREAD),
-    y: tip.y - STAIR_ARROW_SIZE * Math.sin(angle - STAIR_ARROW_SPREAD),
+export function computeStairPlan(segment: StairSegment, stepWidth: number, direction: StairDirection): StairPlan | null {
+  const ascends = direction === 'up'
+  const foot: Point = ascends ? { x: segment.x1, y: segment.y1 } : { x: segment.x2, y: segment.y2 }
+  const top: Point = ascends ? { x: segment.x2, y: segment.y2 } : { x: segment.x1, y: segment.y1 }
+
+  const dx = top.x - foot.x
+  const dy = top.y - foot.y
+  const length = Math.hypot(dx, dy)
+  if (length === 0) return null
+
+  const ux = dx / length
+  const uy = dy / length
+  // perpendicular unitário (rotação de 90° do vetor de subida)
+  const px = -uy
+  const py = ux
+  const half = stepWidth / 2
+
+  /** Ponto a `along` px do pé, subindo, e `across` px para o lado. */
+  const at = (along: number, across: number): Point => ({
+    x: foot.x + ux * along + px * across,
+    y: foot.y + uy * along + py * across,
+  })
+
+  // O bico do degrau mais alto encosta no fim do lance: nenhum traço passa da
+  // ponta do segmento, e o pé começa no zero.
+  const nose = Math.min(STAIR_TREAD_NOSE_RATIO * half, length)
+  const run = length - nose
+  const count = Math.max(1, Math.round(run / (STAIR_TREAD_SPACING_RATIO * stepWidth)))
+  const pitch = run / count
+
+  const treads: StairTread[] = []
+  for (let i = 0; i <= count; i += 1) {
+    const climb = i / count
+    const base = i * pitch
+    treads.push({
+      points: [at(base, half), at(base + nose, 0), at(base, -half)],
+      width: stepWidth * lerp(STAIR_TREAD_WIDTH_AT_FOOT, STAIR_TREAD_WIDTH_AT_TOP, climb),
+      climb,
+    })
   }
-  const back2: Point = {
-    x: tip.x - STAIR_ARROW_SIZE * Math.cos(angle + STAIR_ARROW_SPREAD),
-    y: tip.y - STAIR_ARROW_SIZE * Math.sin(angle + STAIR_ARROW_SPREAD),
+
+  return {
+    foot,
+    top,
+    rails: [
+      [at(0, half), at(length, half)],
+      [at(0, -half), at(length, -half)],
+    ],
+    treads,
   }
-  return { tip, back1, back2 }
 }

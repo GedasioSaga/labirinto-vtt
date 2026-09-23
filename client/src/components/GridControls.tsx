@@ -39,22 +39,21 @@ export interface GridControlsProps {
   onGridSettingsChange: (patch: Partial<GridSettings>) => void
 }
 
-/** Visibilidade, formato, estilo visual e snap por alvo da grade. */
-export function GridControls({
-  showGrid,
-  onShowGridChange,
-  gridShape,
-  onGridShapeChange,
-  snapTargets,
-  onSnapTargetChange,
-  gridSettings,
-  onGridSettingsChange,
-}: GridControlsProps) {
-  return (
-    <section className="lb-section">
-      <h2 className="lb-eyebrow">Grade</h2>
-      <Toggle label="Mostrar grade" checked={showGrid} onChange={onShowGridChange} />
+export type GridQuickTogglesProps = Pick<
+  GridControlsProps,
+  'showGrid' | 'onShowGridChange' | 'snapTargets' | 'onSnapTargetChange'
+>
 
+/**
+ * Acesso rápido da grade: "Mostrar grade" e o snap por alvo. São os
+ * interruptores que se mexe durante a edição, então ficam no painel; o resto
+ * da grade (formato, cor, opacidade, espessura, estilo) é configuração do
+ * mapa e fica em `GridControls`.
+ */
+export function GridQuickToggles({ showGrid, onShowGridChange, snapTargets, onSnapTargetChange }: GridQuickTogglesProps) {
+  return (
+    <div className="lb-quick-toggles" role="group" aria-label="Grade">
+      <Toggle label="Mostrar grade" checked={showGrid} onChange={onShowGridChange} />
       {SNAP_TARGET_ORDER.map((kind) => (
         <Toggle
           key={kind}
@@ -63,6 +62,15 @@ export function GridControls({
           onChange={(on) => onSnapTargetChange(kind, on)}
         />
       ))}
+    </div>
+  )
+}
+
+/** Formato e estilo visual da grade (visibilidade e snap: `GridQuickToggles`). */
+export function GridControls({ gridShape, onGridShapeChange, gridSettings, onGridSettingsChange }: GridControlsProps) {
+  return (
+    <section className="lb-section">
+      <h2 className="lb-eyebrow">Grade</h2>
 
       <div className="lb-field">
         <span className="lb-label">Formato</span>

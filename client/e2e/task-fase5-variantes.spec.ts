@@ -7,6 +7,7 @@
 // pede: capacidade pronta não basta, precisa estar ALCANÇÁVEL pela UI.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 import type { Drawing, Stair } from '../src/types/map'
 
 async function getStairs(page: Page): Promise<Stair[]> {
@@ -70,10 +71,12 @@ test('2. setinha do Pincel: escolher "Lápis" muda a preferência e o PRÓXIMO t
   const box = await page.locator('canvas').boundingBox()
   if (!box) throw new Error('canvas sem bounding box')
 
-  await openVariantMenu(page, 'Pincel')
-  await page.getByRole('radio', { name: 'Lápis' }).click()
+  // A setinha do Pincel agora é a do botão Desenho (plano 15/09, fatia 2); com
+  // o Pincel como forma o menu mostra Textura do traço abaixo de Forma.
+  await openVariantMenu(page, 'Desenho')
+  await page.getByRole('group', { name: 'Opções de Desenho' }).getByRole('radio', { name: 'Lápis' }).click()
 
-  await selectMainTool(page, 'Pincel')
+  await pickTool(page, 'Pincel')
   await page.mouse.move(box.x + 400, box.y + 400)
   await page.mouse.down()
   await page.mouse.move(box.x + 450, box.y + 420, { steps: 5 })
@@ -91,7 +94,7 @@ test('3. setinha da Borracha: escolher "Só uma parte" corta o traço em vez de 
   const box = await page.locator('canvas').boundingBox()
   if (!box) throw new Error('canvas sem bounding box')
 
-  await selectMainTool(page, 'Pincel')
+  await pickTool(page, 'Pincel')
   await page.mouse.move(box.x + 300, box.y + 400)
   await page.mouse.down()
   await page.mouse.move(box.x + 400, box.y + 400, { steps: 10 })
@@ -118,7 +121,7 @@ test('4. painel "Formato da linha": Curva converte a linha selecionada; Reta des
   const box = await page.locator('canvas').boundingBox()
   if (!box) throw new Error('canvas sem bounding box')
 
-  await selectMainTool(page, 'Linha')
+  await pickTool(page, 'Linha')
   await page.mouse.move(box.x + 300, box.y + 400)
   await page.mouse.down()
   await page.mouse.move(box.x + 500, box.y + 400, { steps: 5 })

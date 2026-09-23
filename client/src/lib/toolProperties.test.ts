@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { PROPERTY_GROUP_IDS, relevantPropertyGroups, type PropertyGroupId } from './toolProperties'
-import { DRAWING_TOOLS } from '../components/labels'
+import { PROPERTY_GROUP_IDS, panelHeadingTool, relevantPropertyGroups, type PropertyGroupId } from './toolProperties'
+import { DRAWING_TOOLS, TOOL_LABELS } from '../components/labels'
 import type { DrawingTool } from '../types/tools'
 
 /** Todos os tools do app (mesma lista de types/tools.ts) — usado só pra
@@ -8,7 +8,7 @@ import type { DrawingTool } from '../types/tools'
 const ALL_TOOLS: DrawingTool[] = [
   'select', 'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon',
   'stair', 'token', 'prop', 'brush', 'line', 'circle', 'ellipse', 'rect', 'polygon',
-  'curve', 'text', 'measure', 'eraser', 'floor',
+  'curve', 'text', 'measure', 'eraser', 'floor', 'concealZone',
 ]
 
 function groupsOf(tool: DrawingTool, selection?: Parameters<typeof relevantPropertyGroups>[1]): Set<PropertyGroupId> {
@@ -60,6 +60,14 @@ describe('relevantPropertyGroups — casos concretos do pedido do usuário (F4-N
     expect(groupsOf('select', { drawingKind: 'freehand' }).has('lineCap')).toBe(true)
   })
 
+  // Auditoria 14/09: retângulo, linha e pincel já desenhados não tinham Cor nem Espessura no painel.
+  it('ferramenta Selecionar + desenho (não texto) selecionado: mostra drawingStyle para editar cor/espessura', () => {
+    for (const drawingKind of ['freehand', 'line', 'curve', 'circle', 'rect', 'ellipse', 'polygon'] as const) {
+      expect(groupsOf('select', { drawingKind }).has('drawingStyle'), drawingKind).toBe(true)
+    }
+    expect(groupsOf('select', { textLabel: true }).has('drawingStyle')).toBe(false)
+  })
+
   it('ferramenta Selecionar + um "circle" selecionado: NÃO mostra lineCap, mostra fill (editar forma existente)', () => {
     const groups = groupsOf('select', { drawingKind: 'circle' })
     expect(groups.has('lineCap')).toBe(false)
@@ -104,32 +112,45 @@ describe('relevantPropertyGroups — casos concretos do pedido do usuário (F4-N
 })
 
 describe('relevantPropertyGroups — as 6 seções "sempre visíveis" hoje (bug real do painel, DOSSIE-FEEDBACK-F4.md)', () => {
-  it('ferramenta Selecionar, nada selecionado: grid/mapScale/gridAlign/layers/scenarioLink aparecem (momento de mapa)', () => {
+  it('ferramenta Selecionar, nada selecionado: layers e floorStyle aparecem (momento de mapa)', () => {
     const groups = groupsOf('select')
-    for (const g of ['grid', 'mapScale', 'gridAlign', 'layers', 'scenarioLink'] as const) {
-      expect(groups.has(g), g).toBe(true)
-    }
+    expect(groups.has('layers')).toBe(true)
+    expect(groups.has('floorStyle')).toBe(true)
   })
 
-  it('ferramenta Parede ativa, NADA selecionado: NÃO mostra grid/mapScale/gridAlign/layers/scenarioLink — é o bug que "Medição fica cortada embaixo"', () => {
+  it('ferramenta Parede ativa, NADA selecionado: NÃO mostra layers nem floorStyle — é o bug que "Medição fica cortada embaixo"', () => {
     const groups = groupsOf('wall')
-    for (const g of ['grid', 'mapScale', 'gridAlign', 'layers', 'scenarioLink'] as const) {
-      expect(groups.has(g), g).toBe(false)
-    }
+    expect(groups.has('layers')).toBe(false)
+    expect(groups.has('floorStyle')).toBe(false)
   })
 
   it('ferramenta Parede ativa MAS já existe uma Parede selecionada: volta a mostrar (momento de mapa por causa da seleção)', () => {
     const groups = groupsOf('wall', { wall: true })
-    for (const g of ['grid', 'mapScale', 'gridAlign', 'layers', 'scenarioLink'] as const) {
-      expect(groups.has(g), g).toBe(true)
+    expect(groups.has('layers')).toBe(true)
+    expect(groups.has('floorStyle')).toBe(true)
+  })
+
+  it('Grade, Medição, Alinhar grade e Link de cenário não são grupos do painel (vão para a janela de configurações do mapa)', () => {
+    const migrated = ['grid', 'mapScale', 'gridAlign', 'scenarioLink']
+    const ids: readonly string[] = PROPERTY_GROUP_IDS
+    for (const g of migrated) {
+      expect(ids.includes(g), g).toBe(false)
+    }
+    // Nenhuma ferramenta nem seleção faz esses grupos reaparecerem.
+    for (const tool of ALL_TOOLS) {
+      for (const selection of [undefined, { wall: true }, { token: true }, { region: true, regionIsRoom: true }]) {
+        const groups: ReadonlySet<string> = groupsOf(tool, selection)
+        for (const g of migrated) {
+          expect(groups.has(g), `tool=${tool} grupo=${g}`).toBe(false)
+        }
+      }
     }
   })
 
-  it('ferramenta Medir: mapScale aparece mesmo sem seleção (é a configuração que a régua usa), mas grid/gridAlign/layers/scenarioLink não', () => {
+  it('ferramenta Medir, nada selecionado: não traz seções de mapa inteiro', () => {
     const groups = groupsOf('measure')
-    expect(groups.has('mapScale')).toBe(true)
-    expect(groups.has('grid')).toBe(false)
-    expect(groups.has('gridAlign')).toBe(false)
+    expect(groups.has('layers')).toBe(false)
+    expect(groups.has('floorStyle')).toBe(false)
   })
 
   it('selection (SelectionControls) aparece SEMPRE, em qualquer ferramenta, com ou sem seleção — tem o botão "Adicionar token"', () => {
@@ -201,6 +222,47 @@ describe('relevantPropertyGroups — robustez', () => {
   it('chamar sem segundo argumento é equivalente a chamar com seleção vazia', () => {
     for (const tool of ALL_TOOLS) {
       expect(relevantPropertyGroups(tool)).toEqual(relevantPropertyGroups(tool, {}))
+    }
+  })
+})
+
+describe('panelHeadingTool — o painel abre com o nome da ferramenta que está na mão', () => {
+  // A dor medida no passeio cego: Sala Circular ativa e o primeiro título do
+  // painel dizendo "REGIÃO", o nome de OUTRA ferramenta da barra. Jornada de
+  // tela: client/e2e/task-jornada-painel-com-nome-certo.spec.ts.
+  it('Sala, Sala Circular e Polígono Regular são nomeadas pelo painel (a seção delas se chama "Região")', () => {
+    for (const tool of ['room', 'roomCircle', 'roomPolygon'] as const) {
+      expect(panelHeadingTool(tool, false), tool).toBe(tool)
+    }
+  })
+
+  it('Parede e Região não ganham título extra: a própria seção delas já imprime esse nome', () => {
+    expect(panelHeadingTool('wall', false)).toBeNull()
+    expect(panelHeadingTool('region', false)).toBeNull()
+  })
+
+  it('Selecionar não ganha título: não cria nada, o painel ali é do mapa', () => {
+    expect(panelHeadingTool('select', false)).toBeNull()
+  })
+
+  it('com algo selecionado nenhuma ferramenta é nomeada — o painel passa a ser do item selecionado', () => {
+    for (const tool of ALL_TOOLS) {
+      expect(panelHeadingTool(tool, true), tool).toBeNull()
+    }
+  })
+
+  it('nunca nomeia uma ferramenta DIFERENTE da ativa — é exatamente o bug que a jornada cobra', () => {
+    for (const tool of ALL_TOOLS) {
+      const nomeada = panelHeadingTool(tool, false)
+      expect(nomeada === null || nomeada === tool, `tool=${tool} nomeou ${nomeada}`).toBe(true)
+    }
+  })
+
+  it('toda ferramenta nomeada tem rótulo visível em TOOL_LABELS (senão o painel imprimiria vazio)', () => {
+    for (const tool of ALL_TOOLS) {
+      const nomeada = panelHeadingTool(tool, false)
+      if (nomeada === null) continue
+      expect(TOOL_LABELS[nomeada], `tool=${nomeada}`).toBeTruthy()
     }
   })
 })

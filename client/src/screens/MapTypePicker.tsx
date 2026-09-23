@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { MenuShell } from './MenuShell'
 import { MenuCard } from '../components/MenuCard'
 import { DungeonMapIcon, IsometricMapIcon, WorldMapIcon } from '../components/icons'
-import { MAP_TYPES, type MapTypeDef } from '../lib/mapTypes'
+import { visibleMapTypes, type MapTypeDef } from '../lib/mapTypes'
 
 interface MapTypePickerProps {
   onPickDungeon: () => void
@@ -20,7 +20,7 @@ export function MapTypePicker({ onPickDungeon, onBack }: MapTypePickerProps) {
   return (
     <MenuShell title="Criar Mapas" onBack={onBack} wide crumbs={['Labirinto']}>
       <div className="lb-menu__grid">
-        {MAP_TYPES.map((type) => (
+        {visibleMapTypes().map((type) => (
           <MenuCard
             key={type.id}
             layout="tile"

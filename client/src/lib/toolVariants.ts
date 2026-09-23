@@ -2,6 +2,8 @@ import type { DrawingTool } from '../types/tools'
 import type { DoorKind, FloorPiece, FreehandTexture, Region, Wall } from '../types/map'
 import type { StairSizePreset } from './stairs'
 import type { FloorShapeKind } from './floorTool'
+import { TAMANHOS_DE_PINCEL, type TamanhoDePincel } from './floorBlocks'
+import { TOOL_SHORTCUTS } from './keymap'
 
 /**
  * Catálogo de dados puro (sem JSX, sem store) da feature N1 do usuário
@@ -22,10 +24,9 @@ import type { FloorShapeKind } from './floorTool'
  * Fase 5: dos 4 exemplos que o usuário deu por nome (Pincel, Borracha, Linha,
  * Escada — ROADMAP.md, tabela N1), 3 saíram de `available:false` pra `true`
  * (brush/eraser/stair) — schema/render/store entraram nesta fase. `line`
- * continua `false`: a capacidade de converter reta⇄curva já existe (painel
- * esquerdo, `LineShapeControls.tsx`), só falta a SETINHA — que exigiria
- * fundir os botões "Linha"/"Curva" em `TOOL_GROUPS` (components/labels.ts),
- * arquivo de integrador/fundação fora do escopo desta fase.
+ * continua `false`: não tem eixo próprio para a próxima linha. Desde 15/09 a
+ * escolha Linha/Curva mora no grupo Forma do botão Desenho
+ * (`DRAWING_SHAPE_GROUP`, abaixo).
  */
 
 /** Uma opção dentro de um grupo de variantes. `value` é o literal que a ação
@@ -60,6 +61,9 @@ export type ToolVariantGroup =
   | { storeKey: 'floorShapeKind'; label: string; options: ToolVariantOption<FloorShapeKind>[] }
   | { storeKey: 'floorOp'; label: string; options: ToolVariantOption<FloorPiece['op']>[] }
   | { storeKey: 'floorPolygonSides'; label: string; options: ToolVariantOption<number>[] }
+  | { storeKey: 'floorBrushSize'; label: string; options: ToolVariantOption<TamanhoDePincel>[] }
+  /** Forma do botão "Desenho": escolher ATIVA a ferramenta (não é preferência da próxima entidade). */
+  | { storeKey: 'drawShape'; label: string; options: ToolVariantOption<DrawingTool>[] }
 
 /** Ferramenta com variante PRONTA — schema e ação de store já existem. */
 export interface ToolVariantReady {
@@ -143,7 +147,12 @@ const POLYGON_SIDES_GROUP: ToolVariantGroup = {
   options: POLYGON_SIDES_OPTIONS,
 }
 
-/** Chão por peças: as 4 formas que a ferramenta desenha (`poly` só nasce de imagem). */
+/**
+ * Chão por peças: o que a ferramenta tem na mão. As 4 primeiras são as formas
+ * geométricas de sempre; as 2 últimas são os gestos presos à grade pedidos em
+ * 15/09/2026 — o pincel, que pinta célula inteira e apaga com o botão direito,
+ * e o balde, que enche uma área fechada de uma vez.
+ */
 const FLOOR_SHAPE_GROUP: ToolVariantGroup = {
   storeKey: 'floorShapeKind',
   label: 'Forma',
@@ -152,7 +161,30 @@ const FLOOR_SHAPE_GROUP: ToolVariantGroup = {
     { id: 'ellipse', label: 'Elipse', value: 'ellipse', description: 'Arraste do centro para fora. Shift faz círculo.' },
     { id: 'polygon', label: 'Polígono regular', value: 'polygon', description: 'Arraste do centro até um vértice.' },
     { id: 'corridor', label: 'Corredor', value: 'corridor', description: 'Clique ponto a ponto; duplo clique ou Enter termina.' },
+    {
+      id: 'blocos',
+      label: 'Pincel de blocos',
+      value: 'blocos',
+      description: 'Arraste para pintar chão preso à grade; o botão DIREITO apaga no mesmo traço.',
+    },
+    { id: 'balde', label: 'Balde', value: 'balde', description: 'Clique dentro de uma área fechada para enchê-la de uma vez.' },
   ],
+}
+
+/**
+ * Lado do pincel de blocos. Fica sempre no menu, como `floorPolygonSides` já
+ * fica: esconder um eixo quando a forma muda tira do lugar o que a pessoa
+ * acabou de achar ali.
+ */
+const FLOOR_BRUSH_SIZE_GROUP: ToolVariantGroup = {
+  storeKey: 'floorBrushSize',
+  label: 'Tamanho do pincel',
+  options: TAMANHOS_DE_PINCEL.map((tamanho) => ({
+    id: `pincel-${tamanho}`,
+    label: tamanho === 1 ? '1 bloco' : `${tamanho} blocos`,
+    value: tamanho,
+    description: tamanho === 1 ? 'Uma célula por vez.' : `Quadrado de ${tamanho}×${tamanho} células.`,
+  })),
 }
 
 const FLOOR_OP_GROUP: ToolVariantGroup = {
@@ -229,6 +261,10 @@ export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
   // 3 Salas) E número de lados (só ela lê `polygonSides` —
   // PropertiesPanel.tsx: `activeTool === 'roomPolygon'`).
   roomPolygon: { available: true, tool: 'roomPolygon', groups: [REGION_FILL_PATTERN_GROUP, POLYGON_SIDES_GROUP] },
+  // Sala livre: mesma preferência `regionFillPattern` das outras três Salas
+  // (o commit dela em pixi/PixiCanvas.tsx lê do mesmo store). Sem eixo de
+  // número de lados — quem escolhe os lados aqui é o clique do usuário.
+  roomFree: { available: true, tool: 'roomFree', groups: [REGION_FILL_PATTERN_GROUP] },
 
   // ---- Fase 5: as 3 variantes abaixo saíram de available:false pra true —
   // schema/render já existiam (F4-0/agentes de feature), só faltava a
@@ -239,30 +275,161 @@ export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
 
   // Chão por peças: schema/motor/store já existiam (floorSdf/floorContour/
   // add*FloorPiece*); a setinha é o caminho até forma e operação.
-  floor: { available: true, tool: 'floor', groups: [FLOOR_SHAPE_GROUP, FLOOR_OP_GROUP, FLOOR_POLYGON_SIDES_GROUP] },
+  floor: {
+    available: true,
+    tool: 'floor',
+    groups: [FLOOR_SHAPE_GROUP, FLOOR_BRUSH_SIZE_GROUP, FLOOR_OP_GROUP, FLOOR_POLYGON_SIDES_GROUP],
+  },
 
-  // ---- pedida pelo usuário, capacidade agora existe mas SEM setinha ------
+  // ---- pedida pelo usuário, capacidade existe mas SEM eixo próprio ------
   line: {
     available: false,
     tool: 'line',
     requested: 'Linha reta ou linha que se curva',
     missing:
-      'A conversão em si agora existe NOS DOIS SENTIDOS: convertLineToCurve e convertCurveToLine ' +
-      '(lib/drawingFactory.ts), ligadas em mapStore.ts (convertDrawingToCurve/convertDrawingToLine, com ' +
-      'histórico) e alcançáveis pelo usuário via LineShapeControls.tsx no painel esquerdo — aparece na seção ' +
-      '"Formato da linha" com uma line ou curve selecionada. O que continua faltando é só a SETINHA da barra: ' +
-      '"line" e "curve" são hoje duas ferramentas SEPARADAS em TOOL_GROUPS (components/labels.ts:81), não uma ' +
-      'variante de uma ferramenta só — fundir os dois botões num com submenu exigiria editar TOOL_GROUPS/' +
-      'labels.ts, arquivo de integrador/fundação fora do escopo desta fase (a mesma lista de "não tocar" que ' +
-      'existe pra evitar colisão de escrita concorrente entre fases), e continua sendo decisão de produto em ' +
-      'aberto (DOSSIE-FEEDBACK-F4.md, seção "bug2 linha reta ou curva", "Qual o usuário quis dizer"). Não ' +
-      'confundir com B2 (ponta arredondada vs reta do TRAÇO, "cap") — B2 já está disponível via LineCapControls ' +
-      'no painel, sem relação com esta entrada.',
+      'Linha e Curva agora ficam no mesmo botão "Desenho" da barra (TOOL_CLUSTERS.drawing em ' +
+      'components/labels.ts): a setinha dele escolhe entre as duas no grupo Forma. A conversão de um desenho JÁ ' +
+      'criado existe nos dois sentidos (convertLineToCurve/convertCurveToLine em lib/drawingFactory.ts, ligadas ' +
+      'em mapStore.ts) e fica no painel esquerdo, seção "Formato da linha" (LineShapeControls.tsx). O que não ' +
+      'existe é um eixo de variante só da Linha para a PRÓXIMA linha, então com a Linha como forma o menu ' +
+      'mostra só o grupo Forma. Não confundir com B2 (ponta arredondada vs reta do traço, "cap"), que está no ' +
+      'painel via LineCapControls.',
   },
+}
+
+/**
+ * Grupo "Forma" do botão Desenho: as 7 formas na ordem de
+ * `TOOL_CLUSTERS.drawing` (components/labels.ts). Rótulo igual a
+ * `TOOL_LABELS` (labels.test.ts prova); a descrição é a dica curta e a letra.
+ */
+const SHAPE_HINTS: ReadonlyArray<[DrawingTool, string, string]> = [
+  ['brush', 'Pincel', 'Traço livre'],
+  ['line', 'Linha', 'Reta entre dois pontos'],
+  ['curve', 'Curva', 'Curva suave'],
+  ['circle', 'Círculo', 'Do centro para fora'],
+  ['ellipse', 'Elipse', 'Oval do centro para fora'],
+  ['rect', 'Retângulo', 'De canto a canto'],
+  ['polygon', 'Polígono', 'Vértice a vértice'],
+]
+
+export const DRAWING_SHAPE_GROUP: Extract<ToolVariantGroup, { storeKey: 'drawShape' }> = {
+  storeKey: 'drawShape',
+  label: 'Forma',
+  options: SHAPE_HINTS.map(([tool, label, hint]) => ({
+    id: tool,
+    label,
+    value: tool,
+    description: `${hint} (${TOOL_SHORTCUTS[tool]})`,
+  })),
+}
+
+/** Grupos do menu do botão Desenho: Forma e, abaixo, as variantes prontas da forma corrente. */
+export function drawingClusterGroups(shape: DrawingTool): ToolVariantGroup[] {
+  const entry = TOOL_VARIANTS[shape]
+  return entry && entry.available ? [DRAWING_SHAPE_GROUP, ...entry.groups] : [DRAWING_SHAPE_GROUP]
 }
 
 /** Só as entradas com variante pronta — o que `ToolVariantMenu`/`Toolbar`
  *  usam para decidir se desenham a setinha. */
 export function readyToolVariants(): ToolVariantReady[] {
   return Object.values(TOOL_VARIANTS).filter((entry): entry is ToolVariantReady => entry.available)
+}
+
+/* ------------------------------------------------- eco da escolha na barra */
+
+/** Eixo de variante, pelo nome do par valor/ação em `mapStore.ts`. */
+export type ToolVariantStoreKey = ToolVariantGroup['storeKey']
+
+/**
+ * Sujeito da frase que a barra mostra depois de uma escolha na setinha
+ * ("PRÓXIMA PAREDE" + "Interna"). Escrito eixo a eixo, e não derivado de
+ * `TOOL_LABELS`, por duas razões concretas:
+ *
+ *  - gênero: "Próxima Parede" e "Próximo Chão" não saem da mesma fórmula, e o
+ *    app já paga esse preço em `SELECTION_LABELS` (components/labels.ts);
+ *  - `regionFillPattern` é UM valor compartilhado por Região, Sala, Sala
+ *    Circular e Polígono Regular (ver TOOL_VARIANTS acima), então nenhum nome
+ *    de ferramenta seria verdade para os quatro — o sujeito aqui é o que a
+ *    preferência realmente controla, o preenchimento.
+ *
+ * `drawShape` fica de FORA de propósito: escolher uma forma ATIVA a ferramenta
+ * (contrato documentado em `components/ToolVariantMenu.tsx`), e a troca de
+ * ferramenta já deixa rastro sozinha — ícone, `aria-pressed` e dica mudam. Um
+ * eco ali seria uma segunda voz dizendo o que a barra inteira já diz.
+ */
+const VARIANT_ECHO_SUBJECT: Partial<Record<ToolVariantStoreKey, string>> = {
+  doorKind: 'Próxima porta',
+  wallKind: 'Próxima parede',
+  regionFillPattern: 'Próximo preenchimento',
+  polygonSides: 'Próximo polígono',
+  stairSizePreset: 'Próxima escada',
+  drawTexture: 'Próximo traço',
+  // Não é "próxima" coisa nenhuma: é o modo com que a ferramenta apaga.
+  eraseMode: 'Borracha',
+  floorShapeKind: 'Próxima peça de chão',
+  floorOp: 'Próxima peça de chão',
+  floorPolygonSides: 'Próxima peça de chão',
+  // Não é a "próxima peça": é o tamanho com que o pincel pinta, agora.
+  floorBrushSize: 'Pincel de blocos',
+}
+
+/** Todos os grupos por eixo — a barra precisa achar o RÓTULO da opção a partir
+ *  do valor cru que está na store, sem depender de quem abriu o menu. */
+const GROUP_BY_STORE_KEY: Record<ToolVariantStoreKey, ToolVariantGroup> = {
+  doorKind: DOOR_KIND_GROUP,
+  wallKind: WALL_KIND_GROUP,
+  regionFillPattern: REGION_FILL_PATTERN_GROUP,
+  polygonSides: POLYGON_SIDES_GROUP,
+  stairSizePreset: STAIR_SIZE_GROUP,
+  drawTexture: BRUSH_TEXTURE_GROUP,
+  eraseMode: ERASE_MODE_GROUP,
+  floorShapeKind: FLOOR_SHAPE_GROUP,
+  floorOp: FLOOR_OP_GROUP,
+  floorPolygonSides: FLOOR_POLYGON_SIDES_GROUP,
+  floorBrushSize: FLOOR_BRUSH_SIZE_GROUP,
+  drawShape: DRAWING_SHAPE_GROUP,
+}
+
+/** Existe frase para este eixo? — `false` só para `drawShape` (ver acima). */
+export function hasVariantEcho(storeKey: ToolVariantStoreKey): boolean {
+  return VARIANT_ECHO_SUBJECT[storeKey] !== undefined
+}
+
+export interface VariantEcho {
+  /** "Próxima parede" — o que a escolha vai afetar. */
+  subject: string
+  /** "Interna" — o MESMO rótulo que o usuário clicou no menu (H6: ele
+   *  reconhece em vez de lembrar). */
+  value: string
+}
+
+/**
+ * O que a barra diz sobre um eixo, a partir do VALOR CORRENTE dele — nunca de
+ * uma cópia guardada na hora do clique. A diferença importa: as mesmas
+ * preferências são editáveis pelo painel esquerdo (PropertiesPanel), e uma
+ * frase congelada no momento do clique viraria mentira no primeiro ajuste feito
+ * por fora. Lendo o valor de agora, a frase ou está certa ou some.
+ *
+ * `null` quando o eixo não tem frase (`drawShape`) ou quando o valor não bate
+ * com opção nenhuma do catálogo — caso real: `polygonSides` aceita 3 a 12 pelo
+ * slider do painel e o menu só oferece 7 presets. Preferir o silêncio a
+ * inventar rótulo para 9 lados.
+ */
+export function variantEcho(storeKey: ToolVariantStoreKey, value: unknown): VariantEcho | null {
+  const subject = VARIANT_ECHO_SUBJECT[storeKey]
+  if (!subject) return null
+  const options: ToolVariantOption<unknown>[] = GROUP_BY_STORE_KEY[storeKey].options
+  const option = options.find((candidate) => candidate.value === value)
+  return option ? { subject, value: option.label } : null
+}
+
+/**
+ * A ferramenta ativa tem este eixo no menu dela? A barra usa isto para decidir
+ * se o eco sobrevive a uma troca de ferramenta: escolher "Interna" e depois
+ * ativar a Parede mantém a frase (ela ficou MAIS relevante), enquanto ir para a
+ * Luz a apaga — ali a barra volta a falar só da ferramenta ativa.
+ */
+export function toolHasVariantAxis(tool: DrawingTool, storeKey: ToolVariantStoreKey): boolean {
+  const entry = TOOL_VARIANTS[tool]
+  return entry !== undefined && entry.available && entry.groups.some((group) => group.storeKey === storeKey)
 }

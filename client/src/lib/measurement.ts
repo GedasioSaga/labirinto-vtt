@@ -174,6 +174,12 @@ export function measureDistance(
   const cells = measureCells(start, end, gridSize, gridShape, mode)
   const units = roundToPrecision(cells * scale.unitsPerCell, scale.precision)
   const safePrecision = Math.max(0, scale.precision)
-  const label = `${units.toFixed(safePrecision)} ${scale.unit}`.trim()
+  // Vírgula decimal (pt-BR) e casas fixas, sem separador de milhar: "1,5 m", "3,0 m", "1500 ft".
+  const number = units.toLocaleString('pt-BR', {
+    minimumFractionDigits: safePrecision,
+    maximumFractionDigits: safePrecision,
+    useGrouping: false,
+  })
+  const label = `${number} ${scale.unit}`.trim()
   return { cells, units, label }
 }

@@ -108,12 +108,23 @@ describe('measureDistance — pipeline célula → unidade → rótulo', () => {
     expect(result.label).toBe('15 ft')
   })
 
-  it('escala métrica com casa decimal: "7.5 m"', () => {
+  it('escala métrica com casa decimal usa vírgula: "7,5 m"', () => {
     const scale: MapScale = { unitsPerCell: 1.5, unit: 'm', precision: 1 }
     // 5 células euclidianas (3-4-5) * 1.5 = 7.5
     const result = measureDistance({ x: 0, y: 0 }, { x: 30, y: 40 }, GRID, 'square', 'euclidean', scale)
     expect(result.units).toBe(7.5)
-    expect(result.label).toBe('7.5 m')
+    expect(result.label).toBe('7,5 m')
+  })
+
+  it('padrão do mapa novo: 1 célula = "1,5 m"; inteiro mantém a casa fixa ("3,0 m")', () => {
+    const scale: MapScale = { unitsPerCell: 1.5, unit: 'm', precision: 1 }
+    expect(measureDistance({ x: 0, y: 0 }, { x: GRID, y: 0 }, GRID, 'square', 'chessboard', scale).label).toBe('1,5 m')
+    expect(measureDistance({ x: 0, y: 0 }, { x: 2 * GRID, y: 0 }, GRID, 'square', 'chessboard', scale).label).toBe('3,0 m')
+  })
+
+  it('milhar não ganha separador (rótulo curto na régua): "1500 ft"', () => {
+    const result = measureDistance({ x: 0, y: 0 }, { x: 300 * GRID, y: 0 }, GRID, 'square', 'chessboard', SCALE_5FT)
+    expect(result.label).toBe('1500 ft')
   })
 
   it('precisão negativa é tratada como 0 (nunca quebra toFixed)', () => {

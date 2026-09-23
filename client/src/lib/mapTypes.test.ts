@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { MAP_TYPES } from './mapTypes'
+import { MAP_TYPES, visibleMapTypes } from './mapTypes'
+import { FEATURES } from './features'
 
 describe('MAP_TYPES', () => {
   it('tem exatamente 3 tipos', () => {
@@ -26,5 +27,15 @@ describe('MAP_TYPES', () => {
       'Isometric Tactical Map',
       'World Map',
     ])
+  })
+})
+
+describe('visibleMapTypes', () => {
+  it('com as flags padrão mostra só o Dungeon Map', () => {
+    expect(visibleMapTypes().map((t) => t.id)).toEqual(['dungeon'])
+  })
+
+  it('com otherMapTypes ligado mostra os 3 tipos, na ordem do catálogo', () => {
+    expect(visibleMapTypes({ ...FEATURES, otherMapTypes: true })).toEqual(MAP_TYPES)
   })
 })

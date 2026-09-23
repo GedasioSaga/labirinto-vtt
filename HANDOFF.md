@@ -1,228 +1,189 @@
 ## Objetivo
-Recriar "frame por frame", com as ferramentas do próprio editor, os 3 mapas de
-`C:\dev\labirinto\Objetivo` (Mapa1 "Village Lake" com moldura, mapa2, Mapa3) e salvar as
-tentativas em `C:\dev\labirinto\Tentativa`. Depois disso: deixar jogável multiplayer.
-Plano: `C:\Users\gedasio.filho\.claude\plans\valiant-enchanting-patterson.md` (etapas 1-5).
 
-## Estado atual
-Branch `feat/menu-inicial`, nada commitado desta frente ainda.
+**Goal ativo desde a noite de 22/09/2026 (conta 20x, modo automático, loop):** "melhorar o programa no
+geral, adicionar 50 features, resolver todos os bugs, refinar o programa no máximo." Pedidos da mesma
+noite (literais em `PEDIDOS.md`): gauntlet com passeio descobrindo bugs e features; workflows para as
+features do HANDOFF; um workflow só para os problemas do HANDOFF; simulação de 7 jogadores em várias
+cidades/casas/cômodos/quartos; e a cidade-torre de 11+ andares (imagem em
+`docs/pedidos/2026-09-22-cidade-vertical.png`) gerada de verdade e jogada com 7 fichas.
 
-**Ferramentas no app (client/src):**
-- Chão por peças: `types/map.ts` (`FloorPiece`, formas rect/ellipse/polygon/corridor/poly,
-  modificadores rounding/noise/grow), `lib/floorSdf.ts`, `lib/polygonSdf.ts`, `lib/floorContour.ts`,
-  `pixi/drawFloor.ts`; UI ferramenta **Chão** (atalho `I`), `components/FloorPieceControls.tsx`.
-- Entidades de minimapa: `MapData.lines` (contínua, pontilhada com `dotPeriod`/`dotWidth`/`dotHeight`),
-  `MapData.markers` (porta retangular, poço elíptico), `MapData.frame` (moldura com título e
-  `titleFont` ajustada), `FloorStyle.renderMode: 'raster'` + `strokeAlpha`/`lineAlpha`.
-- Vetorização de imagem: `lib/traceImage.ts` (chão, cobertura subpixel), `lib/traceLines.ts`,
-  `lib/traceMarkers.ts`, `lib/traceDetails.ts`, `lib/traceDark.ts` (escada/glifos/poço),
-  `lib/traceDotted.ts` (pontilhado por período), `lib/refineLines.ts`, `lib/refineMarkers.ts`,
-  orquestrador `lib/traceMinimap.ts`.
-- Medir/calibrar na própria imagem: `lib/estimateStroke.ts`, `lib/calibrateMinimap.ts` (largura e
-  recuo do contorno por render contra a imagem; escolhe detecção de linha pela nota).
-- Pipeline único `lib/minimapFromImage.ts`, usado pelo botão **"Recriar minimapa a partir da imagem
-  de fundo"** (`App.tsx` → `applyMinimapTrace`, 1 undo) e toggle **"Render fiel (minimapa)"**
-  (`PixiCanvas.tsx` rasteriza com `lib/minimapRaster.ts`).
-- Título da moldura: `pixi/frameTitle.ts` (bitmap girado, fonte escolhida por comparação).
+### Noite de 22-23/09 — lanes (estado às 03:35)
 
-**Harness:** `client/recreate/` + `playwright.recreate.config.ts` + `vite.recreate.config.ts` (porta
-1422, sem HMR). Variáveis `RECREATE_*` escolhem a variante; `RECREATE_TAG` grava em
-`Tentativa/variantes/<tag>/`, sem tag grava a tentativa principal em `Tentativa/`.
-Melhor configuração até agora: `RECREATE_DOTTED=1 RECREATE_LINE_DETECT=auto RECREATE_CALIBRATE=1
-RECREATE_DARK=1 RECREATE_RASTER=1 RECREATE_COVERAGE=1 RECREATE_SUBPIXEL=1 RECREATE_BORDER_RADIUS=2
-RECREATE_STROKE=#858585`.
+| lane | onde | estado |
+|---|---|---|
+| passeio contínuo + G14 visão geral | `C:/dev/labirinto-lane-passeio`, integração `C:/dev/labirinto-integ-passeio` | rodando (71 agentes) |
+| G10 viajar junto | `.claude/worktrees/agent-a2f81b1641883db60` (merge da base `b08dd87`) | rodando |
+| G12 pausa por cena | `.claude/worktrees/agent-a87f0e0e42de339f3` (merge da base `979b047`) | rodando |
+| G13 companheiros | `.claude/worktrees/agent-adea6b44cd5ebd85a` (merge da base `e232a78`; 2 testes de unidade vermelhos do `party.update`) | rodando |
+| defeitos do HANDOFF | `C:/dev/labirinto-lane-defeitos` | **BLOQUEADO**: `unidade` (vitest) estourou sob carga; relançar depois do conserto do portão com as 6 peças + 10 achados CONFIRMADOS da varredura (`C:/dev/labirinto-lane-defeitos/docs/varredura-2026-09-22.md`; resultado em scratchpad `defeitos-resultado.json`) |
+| réguas fila antiga + G15 | `C:/dev/labirinto-reguas` (branch `auto/reguas-22set`) | rodando |
+| réguas P5/P4 da simulação (37) | `C:/dev/labirinto-reguas-a` (branch `auto/reguas-lote-a`), ondas de 8 | rodando |
+| cidade-torre de 12 andares | `C:/dev/labirinto-torre` (branch `auto/torre-11-andares`) | rodando |
+| portão: vagas + unidade | `C:/dev/labirinto-portao-vagas` | vagas juntadas (`0e1fc70`); unidade em conserto |
+
+Juntado em `auto/acervo` nesta noite: vagas de Playwright na máquina + teto de 45 min (`0e1fc70`), réguas
+firmes sob carga + g5 (`4e0988d`), backlog da simulação (`613ad24`, `docs/backlog-simulacao-7-jogadores-2026-09-22.md`,
+70 itens + 15 faltantes).
+
+### Goal anterior (madrugada de 22/09/2026)
+
+Goal ativo desde a madrugada de 22/09/2026: **"cria 15 features levando em consideração um ambiente com
+4 - 7 jogadores cada uma querendo ir para um lugar, além disso resolver todos os bugs."** Antes dele, na
+mesma sessão: o pino de viagem em 3 entregas, girar sala e medir na tela do jogador. O trabalho parou
+em 22/09 às 08:10, no limite de uso da janela, a pedido do usuário: **o que falta está abaixo, para
+fazer depois.** Conta 5x — ritmo contido; parar em 83% do limite semanal.
+
+## Estado atual (22/09/2026, manhã)
+
+**Branch de integração:** `auto/acervo` @ `5faf6cd` (nada foi enviado ao GitHub). Cada entrega nasceu
+numa branch `auto/r4-<id>`, provada no worktree dela, e foi mesclada aqui com `--no-ff`. O detalhe de
+cada entrega (commit, prova, decisão) está em `PEDIDOS.md`, seções "Andamento".
+
+### Entregue, provado no commit juntado e integrado
+
+| entrega | commit juntado |
+|---|---|
+| Pino de viagem — 1: várias cenas no editor (seção Cenas, câmera por cena, portal antigo migrado) | `ad71dd8` |
+| Pino de viagem — 2: pino de viagem no editor, mão dupla | `9905eb4` |
+| Pino de viagem — 3: cada jogador no seu mapa, pedido e aprovação (+ 4 achados de segurança corrigidos) | `1aadbfa` |
+| Girar sala (alça, campo Rotação, Shift 15°) | `28177f4` |
+| Medir distância na tela do jogador | `ee664e0` |
+| G1 painel do grupo (Ir lá, Mandar para…) | `ef8ba5d` |
+| G2 passagem do pino: pede / livre / trancada | `6d1a4ea` |
+| G3 lista Cenas com quem está em cada cena e selo de pedido | `c7f6da9` |
+| G4 caixa "Pedidos (N)" com Deixar todos | `fe9c7d4` + conserto `d103891` |
+| G5 reunir o grupo num pino | `ce26606` |
+| G6 chamado de cena de fundo ("X chamou em C" + Ir lá) | `037c2f3` |
+| G7 seguir jogador | `0f22d79` |
+| G8 encruzilhada (várias saídas nomeadas) + revisão de segurança | `ca26a31` + `40a3aea` |
+| G9 mão única com chegada oculta | `352f7ef` |
+| G11 recado por cena (régua consertada em `6eed3f5`) | `aac82f1` |
+
+**Grupo espalhado: 10 de 15 provadas no commit juntado** (G1–G9 e G11).
+
+### Defeitos consertados nesta sessão (cada um com teste vermelho antes)
+
+Dica "Sala livre ()" (`87d89b0`); Subtrair com Pincel de blocos e borracha que não avisava sobre chão
+(`d96cf5b`); salvar fora do app com erro técnico, corredor aberto que sumia, atalho parado com foco no
+painel (+ `?` troca o tipo do pino), acervo vazio sem explicação e sem arrastar (`00a3cf8`); "Remover
+<ficha>" mostrando o id e nome da cena vazando ao jogador (`ef8ba5d`); sinal de cena de fundo desenhado
+no lugar errado (`037c2f3`); avisos do jogador sumindo antes de serem lidos (`d103891`).
+
+### Decisões tomadas no automático — para o usuário revisar
+
+- Passagem livre tem uma batida de 450 ms com "Passando…" antes de trocar a cena.
+- O véu do cartão do jogador não bloqueia mais o mapa: tocar num botão do painel fecha o cartão e aciona
+  o botão; a roda fora do cartão dá zoom.
+- "Você chegou", "O mestre levou você…" e "O mestre reuniu o grupo" ficam até o jogador mexer a ficha
+  (teto de 60 s).
+- O botão "Recado" da lista Cenas é só o glifo ✉ (nome acessível "Recado para <cena>"). O motivo era
+  uma colisão da régua, já corrigida em `6eed3f5` — dá para voltar ao texto "Recado" se preferir.
+- A pilha de avisos vem antes do trilho no DOM (posição na tela igual): foi o que fez a régua da caixa de
+  pedidos achar a linha certa. É contorno de uma busca frouxa da régua; ver dívida em C.
 
 ## Próximos passos
-- Ler as variantes `gap-title` (grade) e `gap-title-rooks` (n-torres): correção de ligação de
-  pontilhado por cima de fundo + fonte do título ajustada. Promover a melhor como principal.
-- Maior fonte de erro restante: borda do chão antisserrilhada (55–82% dos pixels errados), depois
-  linhas cinzas antisserrilhadas no Mapa3 (41%). Ideia seguinte: ajuste subpixel dos vértices do
-  contorno do chão pelo traço cinza (como `refineLines`).
-- Buraco 16/17 do mapa1: fresta de 12 px cuja conectividade depende de 1 pixel antisserrilhado.
-- Validar o botão "Recriar minimapa" dentro do Tauri com imagem real (fora do Tauri o
-  `convertFileSrc` não carrega a imagem).
-- Etapa 5 (jogável multiplayer) só depois do critério de pronto. Reconhecimento (14/09/2026): nada
-  existe — sem transporte (nenhum WebSocket/servidor, nenhuma dependência de rede no client nem em
-  `desktop/src-tauri/Cargo.toml`), sem sala/jogador, `mapStore.ts` 100% local, `OptionsScreen.tsx`
-  é maquete desabilitada, `lib.rs` só expõe `grant_fs_access`. Decisões de transporte/autoridade de
-  estado/protocolo ainda por tomar (plan mode + grilling antes de codar).
-- Variante `analytic` (cobertura exata por semiplano do chão em `lib/minimapRaster.ts`,
-  `RECREATE_PATTERN=analytic`) CONFIRMOU a hipótese da quantização: cor 98,50% / 95,54% / 96,00%
-  (antes 98,32 / 95,02 / 95,51), IoU 0,9962 / 0,9933 / 0,9961; mas mapa2 buracos 7/8 (a ponte sob a
-  porta em x≈312–323, y≈514–557 funde 2 buracos quando a calibração escolhe recuo 0,3).
-- NEGATIVO — linhas e portas também com cobertura exata (`analytic2`): 98,49% / 95,58% / 95,81% e
-  Mapa3 buracos 8/16 (barra preta fina com cobertura fracionária não escurece o pixel central).
-  Ficou opcional (`analyticShapes`), padrão só o chão exato.
-- Proteção de topologia (`analytic-topo`: `RECREATE_TOPOLOGY=1 RECREATE_PATTERN=analytic` + melhor
-  configuração): calibração devolve candidatos ordenados (`ranked`) e o harness fica com o primeiro
-  cujo render tem ilhas/buracos iguais à referência (`lib/maskTopology.ts`). RESULTADO: topologia
-  certa nos 3 pela primeira vez — mapa1 cor 98,30% IoU 0,9960 buracos 17/17 ilhas 14/14 · mapa2
-  95,47% IoU 0,9931 8/8 1/1 · Mapa3 96,00% IoU 0,9961 16/16 4/4. Critério de silhueta cumprido nos
-  3; falta a cor por pixel perto de 100%. Promovida a tentativa principal (rodada sem tag):
-  `npx playwright test -c playwright.recreate.config.ts` → **3 passed** (IoU, ilhas e buracos) em
-  14/09/2026 00:50. Editor também usa borda exata no Render fiel e proteção de topologia no botão
-  "Recriar minimapa" (vitest 85 arquivos / 1462 passed, typecheck exit 0).
-- Erros restantes na principal: borda 3720/2523/3805 px, linha cinza 298/1028/3412, título 119 (mapa1).
-- NEGATIVO — cobertura exata também nas linhas cinzas/portas (`analytic3`, `RECREATE_ANALYTIC_SHAPES=1`):
-  98,29 / 95,51 / 95,96% (igual). Erro de linha cinza não é quantização: é largura/cor da linha.
-- NEGATIVO — largura/cor das linhas cinzas calibradas por render (`calib-lines`,
-  `RECREATE_CALIB_LINES=1`): 98,30 / 95,48 / 96,00% (igual; larguras escolhidas ≈ medidas). Erro de
-  linha cinza restante é detecção/posição local, não estilo global.
-- PLATÔ: todas as alavancas globais testadas empatam. Silhueta/ilhas/buracos passam nos 3; cor
-  98,3/95,5/96,0%.
-- DECISÃO DO USUÁRIO (14/09/2026): recriação ACEITA como replicada nesses números. Multiplayer:
-  mestre hospeda na LAN (servidor WebSocket dentro do app Tauri), jogadores entram pelo NAVEGADOR
-  (página servida pelo app do mestre), primeira entrega = mapa + tokens (jogador move só o próprio,
-  mestre move tudo, colisão) + NÉVOA por visão do token (raycast). Planta do chão vai inteira ao
-  jogador; colisão pelo centro do token (confirmado). Plano APROVADO:
-  `~/.claude/plans/valiant-enchanting-patterson.md` (E1 transporte axum/WS no Tauri → E2 espelho +
-  atribuição → E3 movimento autoritativo → E4 névoa → E5 robustez).
-- Em execução (14/09/2026): E1 com `engenheiro-desktop` (desktop/, client/player.html,
-  client/src/player/, vite.config.ts) e, em paralelo, lógica pura E3/E4 com `programador-frontend`
-  (client/src/lib/{moveValidation,visibility,fogFilter}.ts + testes). Integração
-  (mapStore/PixiCanvas/App) fica no main thread.
-- Primeira tentativa dos 2 agentes travou (watchdog 600 s sem progresso, nada gravado); relançados.
-- E3/E4 lógica pura PRONTA: `validateTokenMove`, `computeVisibility`/`visionSegments`,
-  `filterMapForPlayer`/`filterMapForHost`; 23 testes (9+6+8); vitest completo 88 arquivos / 1486
-  passed; typecheck exit 0. Benchmark visão 800 segmentos × 8 origens = 13,3 ms (meta E5 < 8 ms).
-  `token.x,y` é o centro do token (confirmado: `pixi/tokensRenderer.ts:83`, `anchor.set(0.5)`).
-- E2 parte pura PRONTA: `client/src/net/protocol.ts` (`parsePlayerMessage`, tipos, limites) e
-  `client/src/net/hostSession.ts` (`createHostSession` → handleMessage/assignToken/kick/broadcast/
-  listPlayers; devolve `{outbound, applyMove?}`); 39 testes; vitest 90 arquivos / 1525 passed;
-  typecheck exit 0. Falta: ponte Tauri (`hostBridge.ts` com eventos `net:message`/`net:peer` e IPC
-  `net_*`), `RoomPanel.tsx`, render do jogador em `client/src/player/`, aplicar `applyMove` no
-  `mapStore` e chamar `broadcast` quando o mapa muda.
-- E1 transporte PRONTA (relatório do agente): `desktop/src-tauri/src/net/{mod,server,commands}.rs`
-  (axum 0.8.9 + WS, porta 7777, Origin==Host e Host IP/localhost, 16 conexões, 30 msg/s, 64 KB,
-  join em 10 s), IPC `net_start_room|net_stop_room|net_send|net_kick`, eventos `net:message` e
-  `net:peer` (este com `name`), `tests/net_server.rs`; `client/player.html` +
-  `client/src/player/main.tsx` (formulário de entrada); Vite com 2 páginas. Portão: clippy exit 0,
-  cargo test 5+5, typecheck 0, vite build com player.html. Em dev o `/player` lê `client/dist` se
-  existir (rodar `npx vite build` antes de testar no celular). Pendente manual: celular na LAN +
-  firewall do Windows.
-- Em execução: `hostBridge.ts` + `RoomPanel.tsx` (mestre) e página de jogo do jogador
-  (`client/src/player/`). `cargo test` conferido no main thread: 5 unitários + 5 integração ok.
-- Ponte do mestre PRONTA (`client/src/net/hostBridge.ts`, `client/src/components/RoomPanel.tsx`,
-  12 testes) e INTEGRADA no `App.tsx` (ponte sob demanda, `RoomPanel` só com `isTauri()`,
-  `applyMove` → `setTokenPosition`, assinatura do mapa → `notifyMapChanged`): typecheck exit 0,
-  vitest 92 arquivos / 1537 passed, playwright normal 113 passed.
-- Página de jogo do jogador PRONTA (agente): `client/src/player/{playerConnection.ts (+14 testes),
-  PlayerView.tsx, main.tsx}` — raster do chão, névoa por máscara inversa dos polígonos de visão,
-  tokens como círculo+nome (imagem local do mestre não abre no navegador), pan/zoom, arrastar token
-  com movimento otimista, resume em sessionStorage, reconectar. vitest 93 / 1551 passed, typecheck 0,
-  vite build com player.html.
-- E2e `client/e2e/task-player-page.spec.ts` (page.routeWebSocket + `createHostSession` real) PASSA:
-  join → espera; snapshot sem token alheio (névoa no payload) e 1 polígono de visão; arrasto aceito;
-  arrasto cruzando parede → rejected `wall`; sem erro de página. Suíte e2e 114 passed, typecheck 0.
-  Bug corrigido: tela branca após mover (Pixi `Text.destroy` a cada redraw) — `PlayerView.tsx` agora
-  reaproveita a view do token por id. Pendentes em correção: paredes não desenhadas para o jogador
-  (`PlayerView.tsx:36,45-53`), falta de error boundary (`main.tsx:81`), token saindo da visão.
-  Screenshots em `client/test-results/player-page/{espera,mapa,depois-mover}.png`.
-- Correções PRONTAS: paredes/portas desenhadas para o jogador (`PlayerView.tsx`, cor da parede
-  #858585 do minimapa), `client/src/player/ErrorBoundary.tsx` (Recarregar/Reconectar), token que sai
-  da visão não é mais destruído (reaproveitado). E2e estendido (3 paredes, token some e volta 2×).
-  Portão do agente: e2e página 1 passed, e2e completo 114 passed, vitest 93/1551, typecheck 0.
-- Estado do multiplayer: E1–E4 funcionais e testados (Rust 5+5, vitest, e2e com WS simulado e
-  sessão real do mestre). E5 parcial: resume/reconexão, ping 15 s, kick e dica de firewall existem;
-  benchmark de visão OTIMIZADO: `computeVisibility` 16,9 → 7,0 ms (mediana de 3, mesma carga; meta
-  < 8 ms), poda por arco angular + busca binária, resultado idêntico à versão antiga (60 cenários com
-  seed + casos-limite, tolerância 1e-6); `fogFilter` 44,4 → 16,1 ms com corte por caixa envolvente.
-  vitest 93 / 1554 passed, typecheck 0.
-- REVISÃO (correção/segurança) achou bloqueador: `clientId` u64 no Rust chega como número e o TS
-  (`hostBridge.ts:103`) descarta → nenhum join funcionaria no Tauri real (testes usavam 'c1'). Também:
-  coordenada 1.7e308 trava o mestre (`moveValidation.ts:36`), duplo "Abrir sala" cria 2 salas,
-  16 sockets mudos bloqueiam a sala (`server.rs:174`), camadas ocultas e caminhos locais vazam
-  (`fogFilter.ts:85`), + baixas. Correções em execução em 2 frentes (Rust em desktop/, TS em client/),
-  contrato: clientId STRING dos dois lados.
-- Correções Rust PRONTAS (agente): clientId string (`commands.rs:38,79`), pendentes 4/IP e 32
-  total com join em 5 s e vaga de jogador só após join (`server.rs:29,87,262,302`), kick sem erro
-  duplicado, nome em UTF-16, bind por IP privado + 127.0.0.1 (`server.rs:181`, campo `warning` novo
-  ainda não exibido no TS). clippy estrito exit 0, cargo test 7+7 (conferido no main thread).
-- Correções TS PRONTAS (agente): clientId string com teste do payload real do Rust
-  (`hostBridge.ts:52,58,122,145`), `outside_map` + teto de 10 000 amostras (`moveValidation.ts`),
-  start/stop sem corrida (`hostBridge.ts:162-198`), camadas ocultas e caminhos locais fora do payload
-  (`fogFilter.ts:141-165`), geometria testada por caixa (`fogFilter.ts:121-139`), `lobby.waiting` ao
-  perder token (`hostSession.ts`), kick tratado e `net_send` antes de `net_kick`, join inválido
-  expulso. Portão do agente: vitest 93/1579, typecheck 0, e2e página 1 passed, e2e completo 114.
-- ESTADO: multiplayer E1–E5 implementado, revisado e corrigido. Verificação ponta a ponta REAL em
-  execução: `tauri dev` com `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`,
-  Playwright `connectOverCDP` no app real (abre sala, atribui token) + Chromium em
-  `http://127.0.0.1:7777/player` (entra, move token, parede bloqueia). RESULTADO (14/09/2026): PASSOU
-  — sala `64F7EA` com 4 URLs de IP privado; `/player` HTTP 200 pelo axum; jogador entra → espera →
-  jogando após atribuição; `data-tokens-count=1` (Vilão atrás da parede escondido), `walls=1`; arrasto
-  válido move Heroi 250→350 no store do mestre; arrasto atravessando parede não muda posição e a
-  página desfaz; zero exceção de página; processos encerrados. Script
-  `scratchpad/e2e-real.mjs`, screenshots `scratchpad/e2e-real/`. Fica fora só celular/firewall.
-- Defeito visual achado no app real (RoomPanel vazando do cartão) CORRIGIDO: `RoomPanel.tsx:43,63,70`
-  (classes `lb-panel lb-section lb-room lb-scroll`), `main.css:982-1006` (max-height 45vh, rolagem,
-  URLs quebrando, QR 140px). Script real repetido (`scratchpad/e2e-real-2.mjs`): passou (sala ZJ8J3G,
-  /player 200, token atribuído, 1 token + 1 parede para o jogador, arrasto 250→350, parede bloqueia,
-  zero erro de console). typecheck 0, playwright 114 passed, processos encerrados.
-- ESTADO FINAL: recriação aceita; multiplayer LAN funcional e verificado no app Tauri real + navegador
-  real na mesma máquina. Único não verificado: celular em outra máquina da LAN / firewall do Windows.
-  Nada commitado.
-- INSTALADOR PRONTO (14/09/2026): `npm run tauri:build` gera
-  `desktop/src-tauri/target/release/bundle/nsis/Labirinto_0.1.0_x64-setup.exe` e
-  `bundle/msi/Labirinto_0.1.0_x64_en-US.msi` (sem assinatura digital: SmartScreen avisa). Bundle
-  ligado em `tauri.conf.json` (nsis+msi, ícones, WebView2 por bootstrapper); identificador mantido
-  `com.labirinto.app` para a versão instalada enxergar os mapas já salvos. O 1º build falhou por
-  disco cheio; `cargo clean --profile dev` liberou 10,3 GB (autorizado pelo usuário).
-- GitHub, decisões do usuário: repo PÚBLICO `GedasioSaga/labirinto-vtt`; só código (`.gitignore`
-  exclui `Objetivo/`, `Tentativa/`, `.genesis/`); commit na `feat/menu-inicial` → merge na branch
-  principal → push; instalador como tag `v0.1.0` + GitHub Release com `.exe` e `.msi`. Varredura de
-  segredos com rg: sem achados (gitleaks não instalado). Depois da cor da parede #858585: e2e da página 1 passed, vitest
-  93/1551 passed (conferido no main thread). FALTA teste real: `npx vite build` → `npm run tauri:dev`
-  → "Abrir sala" no painel → abrir `http://IP:7777/player` num celular na mesma rede (liberar o app
-  no Firewall do Windows, rede Privada).
-- Integração (feita conforme planejado): em `App.tsx` criar o bridge com
-  `invoke`/`listen` reais, `getMap = () => useMapStore.getState().map`, `applyMove =
-  useMapStore.getState().setTokenPosition` (`stores/mapStore.ts:853`, colisão já validada);
-  `useMapStore.subscribe((s) => s.map, () => bridge.notifyMapChanged())`; montar `RoomPanel` junto
-  do `PropertiesPanel` (`App.tsx:840`), tokens = `map.tokens`. Depois: `npx vite build` + `tauri
-  dev` + celular na LAN (manual).
+
+Em ordem. Cada item já tem endereço; nenhum precisa de investigação para começar.
+
+1. ~~G11 — provar no commit juntado~~: feito, `recado-por-cena` VERDE e `chegada-oculta` VERDE em `5faf6cd`.
+2. **G10 viajar junto — quase pronta.** Branch `auto/r4-viajar-junto` @ `81fb0fc` (commit `wip`),
+   worktree `.claude/worktrees/agent-a2f81b1641883db60`. A régua `task-jornada-viajar-junto` já deu
+   **5 passed**; falta: vizinhas (`caixa-de-pedidos`, `viagem-do-jogador`, `reunir-o-grupo`,
+   `--so=jornadas-e2e`), reescrever a mensagem do commit (tirar o `wip`), mesclar e provar no juntado.
+   Arquivos novos: `lib/travelTogether.ts` e 3 testes.
+3. **G12 pausa por cena — no meio.** Branch `auto/r4-pausa-por-cena` @ `802089a` (`wip`), worktree
+   `.claude/worktrees/agent-a87f0e0e42de339f3`. Parou no typecheck; a régua
+   `task-jornada-pausa-por-cena` ainda não rodou. Retomar o builder com o prompt da G12 (ver `PEDIDOS.md`,
+   G12) a partir desse commit.
+4. **G13 companheiros na tela do jogador — no meio.** Branch `auto/r4-companheiros` @ `0f155de` (`wip`),
+   worktree `.claude/worktrees/agent-adea6b44cd5ebd85a`. Régua `task-jornada-companheiros-do-jogador`
+   selada e vermelha; nada rodado ainda. Rodar Playwright com **1 worker** (com 2 a página cai).
+5. **G14 visão geral das cenas — não começou.** Régua `task-jornada-visao-geral-das-cenas` selada
+   (`5faf6cd`); o builder caiu no limite antes de mexer em arquivo. Começar do zero a partir de
+   `auto/acervo`. Estilo minimapa Resident Evil; miniatura em canvas 2D/SVG, não Pixi por miniatura.
+6. **G15 diário de viagens — régua não escrita.** No painel Jogo, "22:10 Ana: Salão → Cripta", com
+   **Desfazer** na última viagem de cada jogador. Mesmo ritual: régua vermelha pelo `testador` (molde:
+   `task-jornada-painel-do-grupo.spec.ts`), registrar em `JORNADAS_DO_CRITERIO`, `--selar`, builder.
+7. **G12, G13 e G10 mexem em `net/hostSession.ts` e no jogador**: juntar uma de cada vez e rodar o portão
+   barato + as réguas vizinhas depois de cada merge (as junções desta noite tiveram conflito real em
+   `App.tsx`, `hostSession.ts` e `playerConnection.ts`).
+8. **Varredura curta (§2j) nunca rodou** sobre o que foi feito nesta sessão — rodar sobre `client/src/net`,
+   `client/src/player`, `client/src/lib/pinTravel.ts` e `client/src/stores/adventureStore.ts`.
+9. **Testar no desktop e em LAN**, com jogadores de verdade: nada desta sessão foi aberto no exe.
+   Roteiro: duas cenas, pino de viagem ligado, dois jogadores no navegador de outra máquina, pedir,
+   deixar ir, mandar para, reunir, recado, seguir.
+
+### Fila antiga (de antes do goal do grupo), ainda aberta
+
+**Features** (`docs/features-candidatas-2026-09-21.md`; "Medir na tela do jogador" e o "Recado" já
+saíram): tela de atalhos (tecla `?` sem pino selecionado está livre), token anda suave na tela do
+jogador, laser do jogador, copiar e colar objeto, salvamento automático, tocha presa ao token, pincel de
+revelar/esconder, marcador de condição, barra de vida, espelhar a tela do jogador, exportar PNG, lista
+de objetos com busca, agrupar objetos, alinhar e distribuir, iniciativa, dado na sala.
+
+**Defeitos do passeio de 20/09** (`docs/passeio-2026-09-20.md`): todos consertados, **menos o B2
+("clique no menu atravessa")**, que não se reproduziu em 10 de 11 menus com clique real e pixel
+antes/depois. O menu Desenho (a varredura travou no 8º item) e o da Borracha ficaram sem varrer.
+
+### C. Achados de passagem, ainda de pé
+
+- **Busca frouxa na régua da caixa de pedidos**: `getByText(/Bruno[^]*quer passar.../)` casa um
+  contêiner com texto de vários filhos; a ordem do DOM decide. Trocar por localizar a linha e ler dentro
+  dela.
+- **Girar sala**: ±90° numa sala com lados de paridades diferentes em quadrados sai meio quadrado fora
+  da grade (pivô no centro); sala travada ainda mostra chips de canto.
+- **Medir do jogador**: não tem o seletor de grude do mestre; o `aria-live` que começa escondido pode não
+  anunciar a primeira medida.
+- **Seguir jogador**: o "Ir lá" do aviso de chegada não desliga o seguir (não sabe de qual jogador é).
+- **g5 do portão**: a régua das cenas com gente repassa a queda do socket por uma função com outro nome
+  (`__labSocketCaiu`), que a guarda não enxerga. É transporte legítimo, mas a guarda deveria cobrir.
+- **Irmão do aviso que ensina**: `net/hostBridge.ts` empurra "Abra a sala antes de torná-la pública"
+  como erro comum que some sozinho.
+- **Alça não acompanha o zoom** (camada de alças não redesenha com a escala da câmera).
+- **4 testes vermelhos fora da regressão**: `e2e/task-room-tool.spec.ts` espera "Sala" e recebe "Sala 1".
+- **Ícone do marcador não chega ao cartão do jogador**; **painel do marcador** separa ícone e tipo.
+- **Digitar no rótulo custa um Ctrl+Z por letra.**
+- **Jornadas instáveis sob carga** (timeout, passam sozinhas): `pincel-balde` casos 3 e 4,
+  `escada-legivel`, `floor-pieces`, `gestos-centrais`, `selecao-arrasto`, `ctrl-reto`. Com 4 builders
+  rodando Playwright ao mesmo tempo a máquina satura; o cache do vite por porta (`b02b8f4`) já tirou a
+  tela branca, o resto é CPU.
+
+### D. Dívidas de decisão — precisam do usuário
+
+- As cinco decisões do automático listadas em "Estado atual".
+- **Grade do mapa novo** (`NEW_MAP_SHOW_GRID = false` contra `task-jornada-ferramentas-mudas`).
+- **Jornada do acervo não testemunha item→arquivo** (disco falso devolve a mesma foto).
+- **10 achados `SEM_REFUTACAO`** da varredura de 18/09 nunca auditados.
+- **vite órfão no PID 36740** na porta 1420: enquanto viver, Playwright só roda em worktree.
 
 ## Critério de pronto
-Para os 3 mapas, `cd client && npx playwright test -c playwright.recreate.config.ts` com a melhor
-configuração: IoU ≥ 0,97, ilhas e buracos iguais ao objetivo, cor por pixel perto de 100% dos pixels
-com tinta e inspeção lado a lado sem diferença visível. Gate normal verde: `npm run typecheck`
-exit 0, `npm run test` 0 falhas, `cd client && npx playwright test` 0 falhas.
+
+Por entrega: a régua dela VERDE **no commit juntado em `auto/acervo`** (não só no branch), `tipos-src`,
+`tipos-e2e`, `unidade`, `jornadas-intactas` e `particao` VERDES, as réguas vizinhas de risco VERDES, e
+todos os arquivos mudados dentro de `client/src/`. Feature que mexe no que o jogador recebe
+(`fogFilter`, `hostSession`, `protocol`) passa por `revisor` na dimensão segurança antes do merge.
+O goal fecha com 15 features do grupo provadas assim e nenhum defeito conhecido aberto.
 
 ## Evidência
-- Instalador (14/09/2026): build release exit 0, "Finished 2 bundles" (setup.exe 1,7 MB, msi 2,3 MB).
-  E2E no exe RELEASE (sem Vite) via CDP 9222, script `scratchpad/e2e-release.mjs`: mapa criado pela
-  UI + "Adicionar token", sala `MUTSN7` com 4 URLs de LAN, `GET /player` 200 do asset embutido,
-  jogador em "Aguardando o mestre", token atribuído, jogador com `data-tokens-count=1`, erros de
-  página app `[]` e jogador `[]`, exit 0.
-- GitHub (14/09/2026): `gh repo create` criou https://github.com/GedasioSaga/labirinto-vtt (PUBLIC,
-  branch padrão `main`). Commit `8d635af` (125 arquivos) na `feat/menu-inicial`; `master` local
-  renomeada para `main` e avançada por fast-forward; push de `main`, `feat/menu-inicial` e da tag
-  anotada `v0.1.0`. Release https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.1.0 com
-  `Labirinto_0.1.0_x64-setup.exe` (1.739.131 bytes) e `Labirinto_0.1.0_x64_en-US.msi`
-  (2.383.872 bytes), ambos `uploaded`. Árvore remota sem `Objetivo/`, `Tentativa/`, `.genesis/`.
-- Gate em 14/09/2026: typecheck exit 0; vitest `83 arquivos, 1451 passed`; playwright normal
-  `113 passed` (rodado depois de ligar botão e render fiel no editor).
-- Tentativa principal atual (`Tentativa/mapaN.json`): mapa1 cor 98,17% IoU 0,9949 buracos 16/17
-  ilhas 14/14 · mapa2 cor 95,02% IoU 0,9928 buracos 8/8 ilhas 1/1 · Mapa3 cor 95,51% IoU 0,9957
-  buracos 16/16 ilhas 4/4.
-- Variante n-torres: Mapa3 95,78%, mas mapa2 voltou a 6/8 buracos — não promovida.
-- Título da moldura ajustado (`gap-title`, fonte escolhida: negrito 15 px Segoe UI): mapa1 98,17% → 98,32%.
-- NEGATIVO — contorno do chão ajustado ao centro do traço (`lib/refineFloor.ts`, variantes
-  `refine-grid`/`refine-rooks`): 97,3% / 93,0% / 93,9% e Mapa3 com ilhas 1/4. A simplificação de
-  0,8 px necessária para segmentos ajustáveis perde detalhe do contorno orgânico. Opção fica
-  desligada (`RECREATE_REFINE_FLOOR`).
-- Afinamento Zhang-Suen das linhas (`RECREATE_THIN=1`): com detecção por peso o Mapa3 passa a ter
-  ilhas 4/4 (graças também à correção da ligação por cima de fundo), mas cor 94,99% contra 95,51% da
-  detecção por cinza; no automático a calibração continua escolhendo cinza. Sem ganho.
-- Viés medido na borda errada (melhor variante `gap-title`): mapa1/mapa2 tentativa mais escura
-  (média R −16), Mapa3 mais clara (R +31). Implementado: calibração por erro absoluto médio
-  (`RECREATE_CALIB_METRIC=error`) e opacidade do traço calibrada (`RECREATE_CALIB_ALPHA=1`) —
-  variantes `err` e `err-alpha` rodadas: sem ganho (98,31/95,02/95,37% e 98,31/95,02/95,41%, contra
-  98,32/95,02/95,51% da `gap-title`). O viés da borda é local (geometria do contorno), não global
-  (largura/opacidade). Platô desta abordagem: próximo salto exige geometria do contorno por trecho.
-- Melhor configuração (`gap-title`, grade) PROMOVIDA a tentativa principal em `Tentativa/`:
-  mapa1 98,32% IoU 0,9959 buracos 16/17 ilhas 14/14 · mapa2 95,02% IoU 0,9928 buracos 8/8 ilhas 1/1
-  · Mapa3 95,51% IoU 0,9957 buracos 16/16 ilhas 4/4.
-- Composição dos erros restantes (principal): borda do chão 3643/2835/4608 px, linha cinza
-  298/1028/3393 px, título da moldura 474 px (mapa1).
-- Ganho por etapa medido: pixel duro 96,9/91,7/92,2% → largura medida por mapa 98,2/95,0/94,1% →
-  calibração por render + detalhes escuros + pontilhado 98,2/95,0/95,5%.
+
+- **Commits juntados desta sessão** (`git log --first-parent d7ab205..5faf6cd`): 17 merges, de `9905eb4`
+  (pino de viagem) a `aac82f1` (recado por cena), mais 4 consertos diretos (`87d89b0`, `b02b8f4`,
+  `d32fbf1`, `40a3aea`).
+- **Réguas seladas**: 75 jornadas em `JORNADAS_DO_CRITERIO`, `jornadas-intactas` VERDE em `5faf6cd`.
+- **Portão barato em `5faf6cd`**: `tipos-src`, `unidade`, `jornadas-intactas`, `particao` VERDES.
+- **Provas no commit juntado** (rodadas num worktree destacado): `painel-do-grupo` 5, `modos-do-pino` 5,
+  `viagem-do-jogador` 6, `entrada-jogador` 5, `cenas-com-gente` 5, `caixa-de-pedidos` 4,
+  `reunir-o-grupo` 5, `chamado-de-fundo` 5, `seguir-jogador` 5, `encruzilhada` 5,
+  `recado-por-cena` 5, `chegada-oculta` 5,
+  `pinos-ponto-de-interesse` 4, `marcador-com-icone` 2, `girar-sala` 7, `medir-na-tela-do-jogador` 6,
+  `subtrair-abre-buraco` 4, `borracha-diz-o-que-nao-apaga` 3, as 4 réguas de defeito de `00a3cf8`,
+  `jornadas-e2e` VERDE.
+- **Revisões de segurança**: Entrega 3 (4 achados, corrigidos em `7d30053` com teste e mutação) e G8
+  (2 achados, corrigidos em `40a3aea`; mutantes mortos: sem o teto 1 teste, com o spread 5 testes).
+- **Bisect da escada** (`escada-legivel` sozinha em 6 junções): verde em 5, vermelha só em `c7f6da9` sob
+  carga — instabilidade, não regressão.
+- **Não verificado**: nada desta sessão foi aberto no exe desktop nem jogado em LAN;
+  G10/G12/G13/G14/G15 não juntadas.
+- **Incidentes registrados**: `git worktree remove --force` em worktree com junction apaga parte do
+  `node_modules` compartilhado — não usar; o modo plano aberto no meio do trabalho parou um builder
+  (a Entrega 3) e foi preciso retomá-lo.

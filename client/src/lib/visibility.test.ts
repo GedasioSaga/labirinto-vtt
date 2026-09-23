@@ -8,6 +8,17 @@ function wall(id: string, x1: number, y1: number, x2: number, y2: number, extra:
   return { id, x1, y1, x2, y2, blocksLight: true, blocksMove: true, door: null, ...extra }
 }
 
+describe('visionSegments e portas', () => {
+  it('porta aberta não barra a visão; fechada e trancada (mesmo com open: true) barram', () => {
+    const map = createEmptyMap('m', 'M', 10, 10, 50)
+    const aberta = wall('aberta', 0, 0, 10, 0, { door: { open: true, locked: false, kind: 'normal' } })
+    const fechada = wall('fechada', 0, 10, 10, 10, { door: { open: false, locked: false, kind: 'normal' } })
+    const trancada = wall('trancada', 0, 20, 10, 20, { door: { open: true, locked: true, kind: 'normal' } })
+    const segments = visionSegments({ ...map, walls: [aberta, fechada, trancada], floor: [] })
+    expect(segments.map((s) => s.y1).sort()).toEqual([10, 20])
+  })
+})
+
 describe('computeVisibility', () => {
   it('sem obstáculo: aproxima o círculo de alcance', () => {
     const poly = computeVisibility({ x: 0, y: 0 }, [], 100)

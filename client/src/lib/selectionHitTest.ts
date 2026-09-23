@@ -1,8 +1,11 @@
-import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData } from '../types/map'
+import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData, LayerId } from '../types/map'
 import type { Selection } from '../types/tools'
 import { findTokenAt } from '../pixi/tokenInteraction'
 import { findPropAt } from '../pixi/propInteraction'
-import { visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps } from './layers'
+import {
+  visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps,
+  isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
+} from './layers'
 
 export interface Point {
   x: number
@@ -36,14 +39,26 @@ export function findWallAt(walls: Wall[], point: Point, tolerance = WALL_HIT_TOL
 
 const STAIR_HIT_TOLERANCE = 8 // mesma tolerância de WALL_HIT_TOLERANCE — lance tem espessura de interação equivalente à de uma parede
 
-/** Acerta se `point` está perto de QUALQUER segmento do lance (hoje só 1,
- *  shape 'straight' — 'l'/'double' terão mais de um segmento quando a
- *  ferramenta de criação deles existir, e este loop já cobre isso de graça). */
+/**
+ * Acerta se `point` está perto de QUALQUER segmento do lance (hoje só 1,
+ * shape 'straight' — 'l'/'double' terão mais de um segmento quando a
+ * ferramenta de criação deles existir, e este loop já cobre isso de graça).
+ *
+ * O alcance é o MAIOR entre `tolerance` e meia largura do degrau: o lance é
+ * desenhado como uma faixa de `stepWidth` de largura (`pixi/drawStairs.ts`),
+ * e clicar dentro do que está desenhado tem de selecionar. Com o alcance fixo
+ * de 8 px, uma escada de 64 px de largura só respondia numa tira central de
+ * 16 px — o passeio cego de 16/09/2026 mediu 0 de 4 tentativas de selecionar
+ * uma escada clicando em cima dela. A ordem de prioridade não muda: escada
+ * continua sendo testada DEPOIS de parede (não rouba clique de parede) e
+ * ANTES de região, em `findSelectableAt`.
+ */
 export function findStairAt(stairs: Stair[], point: Point, tolerance = STAIR_HIT_TOLERANCE): Stair | null {
   for (let i = stairs.length - 1; i >= 0; i -= 1) {
     const stair = stairs[i]
+    const reach = Math.max(tolerance, stair.stepWidth / 2)
     for (const segment of stair.segments) {
-      if (distanceToSegment(point, { x: segment.x1, y: segment.y1 }, { x: segment.x2, y: segment.y2 }) <= tolerance) {
+      if (distanceToSegment(point, { x: segment.x1, y: segment.y1 }, { x: segment.x2, y: segment.y2 }) <= reach) {
         return stair
       }
     }
@@ -116,7 +131,11 @@ export function findDrawingAt(drawings: Drawing[], point: Point, tolerance = DRA
 
     const reach = tolerance + drawing.width / 2
 
-    if (drawing.kind === 'freehand' || drawing.kind === 'curve') {
+    if (drawing.kind === 'freehand' || drawing.kind === 'curve' || drawing.kind === 'path') {
+      // O Caminho entra aqui pela MESMA conta dos outros traços abertos, e o
+      // `reach` (metade da espessura + tolerância) faz o clique valer em
+      // qualquer ponto da faixa, não só na linha do meio: uma trilha de uma
+      // célula de largura tem de ser clicável onde ela é pintada.
       if (drawing.points.length >= 2 && distanceToPolyline(point, drawing.points) <= reach) return drawing
     } else if (drawing.kind === 'line') {
       if (distanceToSegment(point, { x: drawing.x1, y: drawing.y1 }, { x: drawing.x2, y: drawing.y2 }) <= reach) return drawing
@@ -304,4 +323,74 @@ export function findSelectableAt(map: MapData, point: Point): SelectableHit | nu
   if (region) return { kind: 'region', id: region.id, draggable: false }
 
   return null
+}
+
+/**
+ * A camada de um item já ACERTADO por `findSelectableAt` — a mesma derivação
+ * de `lib/layers.ts`, nunca uma segunda. `null` quando o id não está mais no
+ * mapa (o hit veio de um snapshot anterior) e para 'floor', que tem a camada
+ * própria de `lib/floorTool.ts` (FLOOR_LAYER) e nunca sai de
+ * `findSelectableAt` — o chão é testado à parte, depois desta cadeia.
+ */
+function layerOfHit(map: MapData, hit: Selection): LayerId | null {
+  switch (hit.kind) {
+    case 'token': {
+      const token = map.tokens.find((item) => item.id === hit.id)
+      return token ? tokenLayer(token) : null
+    }
+    case 'prop': {
+      const prop = map.props.find((item) => item.id === hit.id)
+      return prop ? propLayer(prop) : null
+    }
+    case 'light': {
+      const light = map.lights.find((item) => item.id === hit.id)
+      return light ? lightLayer(light) : null
+    }
+    case 'drawing': {
+      const drawing = map.drawings.find((item) => item.id === hit.id)
+      return drawing ? drawingLayer(drawing) : null
+    }
+    case 'wall': {
+      const wall = map.walls.find((item) => item.id === hit.id)
+      return wall ? wallLayer(wall) : null
+    }
+    case 'stair': {
+      const stair = map.stairs.find((item) => item.id === hit.id)
+      return stair ? stairLayer(stair) : null
+    }
+    case 'region': {
+      const region = map.regions.find((item) => item.id === hit.id)
+      return region ? regionLayer(region) : null
+    }
+    case 'floor':
+      return null
+  }
+}
+
+/**
+ * "O gesto esbarra numa camada TRAVADA neste ponto?" — devolve a camada que
+ * barra, ou `null` quando o caminho está livre.
+ *
+ * Camada travada significa "o gesto NÃO PASSA por aqui", não "este item não é
+ * selecionável". A diferença não é acadêmica: filtrar o item travado do array
+ * ANTES do hit-test deixa a cadeia de prioridade seguir em frente e acertar o
+ * que está EMBAIXO dele — quem travou a camada Tokens para não esbarrar num
+ * token arrastava a SALA inteira por baixo dele, sem aviso nenhum (jornada
+ * `e2e/task-jornada-camada-travada.spec.ts`). Travar virava um jeito novo de
+ * estragar o mapa.
+ *
+ * Por isso o teste roda sobre o mapa CRU: a mesma cadeia de prioridade de
+ * `findSelectableAt` decide quem está por cima no ponto, e só então se
+ * pergunta se a camada DESSE item está travada. Item em camada OCULTA não
+ * barra nada — `findSelectableAt` já o descarta, e o que não se vê não pode
+ * segurar o gesto. Trava por ITEM (`Lockable.locked`) também não entra aqui:
+ * é outro eixo, com outra regra (item travado é clicável de propósito, para
+ * chegar ao botão que o destrava em ItemTransformControls).
+ */
+export function findLockedLayerAt(map: MapData, point: Point): LayerId | null {
+  if (map.lockedLayers.length === 0) return null
+  const hit = findSelectableAt(map, point)
+  if (!hit) return null
+  const layer = layerOfHit(map, hit)
+  return layer !== null && isLayerLocked(map.lockedLayers, layer) ? layer : null
 }

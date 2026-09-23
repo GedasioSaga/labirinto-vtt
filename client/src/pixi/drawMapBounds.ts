@@ -29,6 +29,7 @@
 import type { Graphics } from 'pixi.js'
 import type { Viewport } from './grid'
 import { STROKE_WEIGHT } from './constants'
+import { alignToPixel, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
 
 /** Cor neutra, sem uso em nenhuma outra camada do canvas — não é
  *  `SELECTION_COLOR` (amarelo, "isto está selecionado") nem se aproxima do
@@ -149,13 +150,22 @@ function drawOutsideShade(graphics: Graphics, bounds: MapBoundsRect, viewport: V
  * de mundo já é recomputado ali a cada redraw; reusar o mesmo valor evita
  * uma segunda fonte de verdade pro "o que está visível agora").
  */
-export function drawMapBounds(graphics: Graphics, map: MapBoundsSize, viewport: Viewport): void {
+export function drawMapBounds(graphics: Graphics, map: MapBoundsSize, viewport: Viewport, pixel?: PixelGrid): void {
   graphics.clear()
   const bounds = mapBoundsRect(map)
   if (!bounds) return
 
   drawOutsideShade(graphics, bounds, viewport)
 
-  graphics.rect(bounds.minX, bounds.minY, bounds.maxX - bounds.minX, bounds.maxY - bounds.minY)
-  graphics.stroke({ width: MAP_BOUNDS_STROKE_WIDTH, color: MAP_BOUNDS_STROKE_COLOR, alpha: MAP_BOUNDS_STROKE_ALPHA })
+  // Com `pixel`: 1 px de tela no pixel físico inteiro (sem ele o contorno de
+  // 1 px de mundo caía entre dois pixels e saía como 2 px cinza).
+  const align = (value: number) => (pixel ? alignToPixel(value, pixel) : value)
+  const minX = align(bounds.minX)
+  const minY = align(bounds.minY)
+  graphics.rect(minX, minY, align(bounds.maxX) - minX, align(bounds.maxY) - minY)
+  graphics.stroke({
+    width: pixel ? strokeWidthInWorld(pixel) : MAP_BOUNDS_STROKE_WIDTH,
+    color: MAP_BOUNDS_STROKE_COLOR,
+    alpha: MAP_BOUNDS_STROKE_ALPHA,
+  })
 }

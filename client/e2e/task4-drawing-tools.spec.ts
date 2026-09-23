@@ -82,8 +82,8 @@ test('2b. ferramenta Luz: arrasto longo cria luz com raio arrastado (maior que o
   if (!box) throw new Error('canvas sem bounding box')
   await selectTool(page, 'Luz')
 
-  // grid=64 (ver resetMap) * LIGHT_RADIUS_IN_CELLS=8 = raio padrão de 512 (buildLightAt).
-  const defaultRadius = 512
+  // grid=64 (ver resetMap) * LIGHT_RADIUS_IN_CELLS=4 = raio padrão de 256 (buildLightAt).
+  const defaultRadius = 256
   const dragDistance = 700
   const center = { x: box.x + 400, y: box.y + 400 }
   await page.mouse.move(center.x, center.y)
@@ -104,7 +104,7 @@ test('2c. ferramenta Luz: arrasto curto cria luz com raio menor que o padrão', 
   if (!box) throw new Error('canvas sem bounding box')
   await selectTool(page, 'Luz')
 
-  const defaultRadius = 512
+  const defaultRadius = 256
   const dragDistance = 100
   const center = { x: box.x + 400, y: box.y + 400 }
   await page.mouse.move(center.x, center.y)
@@ -133,7 +133,7 @@ test('2d. ferramenta Luz: clique simples com "Travar na grade" ativo ainda usa r
   })
   await selectTool(page, 'Luz')
 
-  const defaultRadius = 512
+  const defaultRadius = 256
   // 300 não é múltiplo de 64 (grid do resetMap) — garante offset de snap real.
   await page.mouse.click(box.x + 300, box.y + 300)
 

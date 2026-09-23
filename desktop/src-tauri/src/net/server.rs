@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 use std::future::Future;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::Duration;
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::time::{Duration, Instant as StdInstant};
 
 use axum::extract::ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{ConnectInfo, Path, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
-use axum::response::{IntoResponse, Redirect, Response};
+use axum::http::{Method, Uri};
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use serde::Serialize;
@@ -38,8 +39,21 @@ const OUTBOX_CAPACITY: usize = 256;
 const MAX_NAME_UTF16_UNITS: usize = 32;
 /// Código de fechamento WebSocket 1008 (policy violation).
 const CLOSE_POLICY: u16 = 1008;
-/// Página usada quando o asset resolver não tem o build (dev com `devUrl`).
-pub const DEV_PLAYER_URL: &str = "http://localhost:1420/player.html";
+/// Raiz do Vite em `tauri dev` (o mesmo `devUrl` de `tauri.conf.json`).
+pub const DEV_ORIGIN: &str = "http://localhost:1420";
+/// Variável que troca a raiz do Vite: a porta muda por árvore de trabalho
+/// (`client/porta.js`) e o teste precisa apontar para um Vite de mentira.
+pub const DEV_URL_ENV: &str = "LAB_DEV_URL";
+/// Página do jogador dentro do Vite.
+pub const DEV_PLAYER_PATH: &str = "/player.html";
+/// Resposta quando o Vite não está no ar e o build também não foi embutido.
+const DEV_OFFLINE: &str = "A página do jogador não está disponível: rode o app com `npm run tauri:dev` (Vite no ar) ou gere o build com `npm run build`.";
+/// Joins com código errado, por IP efetivo, antes de bloquear.
+pub const MAX_BAD_CODES: u32 = 5;
+/// Duração do bloqueio e janela em que as falhas se acumulam.
+pub const BAD_CODE_BLOCK: Duration = Duration::from_secs(60);
+/// Cabeçalho em que a Cloudflare manda o IP real do visitante.
+const CF_CONNECTING_IP: &str = "cf-connecting-ip";
 
 pub type ClientId = u64;
 
@@ -80,6 +94,59 @@ pub struct Room {
     pending_by_ip: Arc<Mutex<HashMap<IpAddr, usize>>>,
     players: Arc<Semaphore>,
     shutdown_tx: watch::Sender<bool>,
+    /// Nome público do Quick Tunnel ativo (ex.: `abc-def.trycloudflare.com`).
+    tunnel_host: Mutex<Option<String>>,
+    bad_codes: Mutex<BadCodeLimiter>,
+}
+
+/// Conta joins com código errado por IP. `MAX_BAD_CODES` falhas dentro de
+/// `BAD_CODE_BLOCK` bloqueiam o IP por `BAD_CODE_BLOCK`. O tempo entra por
+/// parâmetro para os testes não dependerem de relógio.
+#[derive(Debug, Default)]
+pub struct BadCodeLimiter {
+    entries: HashMap<IpAddr, BadCodeEntry>,
+}
+
+#[derive(Debug)]
+struct BadCodeEntry {
+    failures: u32,
+    last_failure: StdInstant,
+    blocked_until: Option<StdInstant>,
+}
+
+impl BadCodeEntry {
+    fn expired(&self, now: StdInstant) -> bool {
+        let block_over = self.blocked_until.is_none_or(|until| until <= now);
+        block_over && now.saturating_duration_since(self.last_failure) >= BAD_CODE_BLOCK
+    }
+}
+
+impl BadCodeLimiter {
+    pub fn is_blocked(&self, ip: IpAddr, now: StdInstant) -> bool {
+        self.entries.get(&ip).and_then(|e| e.blocked_until).is_some_and(|until| until > now)
+    }
+
+    pub fn record_failure(&mut self, ip: IpAddr, now: StdInstant) {
+        // Limpa quem já não conta nem está bloqueado: o mapa só guarda IPs que
+        // erraram no último minuto.
+        self.entries.retain(|_, e| !e.expired(now));
+        let entry =
+            self.entries.entry(ip).or_insert(BadCodeEntry { failures: 0, last_failure: now, blocked_until: None });
+        if entry.blocked_until.is_some_and(|until| until <= now) {
+            entry.blocked_until = None;
+            entry.failures = 0;
+        }
+        entry.failures = entry.failures.saturating_add(1); // contador que para no teto
+        entry.last_failure = now;
+        if entry.failures >= MAX_BAD_CODES {
+            entry.blocked_until = Some(now + BAD_CODE_BLOCK);
+            entry.failures = 0;
+        }
+    }
+
+    pub fn tracked_ips(&self) -> usize {
+        self.entries.len()
+    }
 }
 
 /// Vaga de conexão sem `join`: segura a vaga global e a contagem do IP até o
@@ -117,7 +184,7 @@ impl Drop for PendingSlot {
 
 /// Poison só acontece se um panic ocorreu com o lock; os mapas continuam
 /// consistentes (operações são inserts/removes atômicos), então seguimos.
-fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
@@ -140,11 +207,34 @@ impl Room {
             pending_by_ip: Arc::new(Mutex::new(HashMap::new())),
             players: Arc::new(Semaphore::new(MAX_PLAYERS)),
             shutdown_tx,
+            tunnel_host: Mutex::new(None),
+            bad_codes: Mutex::new(BadCodeLimiter::default()),
         })
     }
 
     pub fn code(&self) -> &str {
         &self.code
+    }
+
+    /// Passa a aceitar conexões vindas do túnel com este nome público.
+    pub fn set_tunnel_host(&self, host: String) {
+        *lock(&self.tunnel_host) = Some(host);
+    }
+
+    pub fn clear_tunnel_host(&self) {
+        *lock(&self.tunnel_host) = None;
+    }
+
+    pub fn tunnel_host(&self) -> Option<String> {
+        lock(&self.tunnel_host).clone()
+    }
+
+    fn is_blocked(&self, ip: IpAddr) -> bool {
+        lock(&self.bad_codes).is_blocked(ip, StdInstant::now())
+    }
+
+    fn record_bad_code(&self, ip: IpAddr) {
+        lock(&self.bad_codes).record_failure(ip, StdInstant::now());
     }
 
     pub fn send(&self, client_id: ClientId, msg: &Value) -> Result<(), SendError> {
@@ -234,6 +324,7 @@ pub fn router(room: Arc<Room>) -> Router {
         .route("/player", get(player_page))
         .route("/assets/{*path}", get(asset_file))
         .route("/media/{id}", get(media_stub))
+        .fallback(dev_fallback)
         .with_state(room)
 }
 
@@ -256,10 +347,15 @@ async fn ws_handler(
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Response {
-    if !origin_matches_host(&headers) {
+    let tunnel_host = room.tunnel_host();
+    if !origin_allowed(&headers, peer, tunnel_host.as_deref()) {
         return StatusCode::FORBIDDEN.into_response();
     }
-    let Some(slot) = PendingSlot::acquire(&room, peer.ip()) else {
+    let ip = limit_key(effective_client_ip(peer, &headers, tunnel_host.as_deref()));
+    if room.is_blocked(ip) {
+        return StatusCode::TOO_MANY_REQUESTS.into_response();
+    }
+    let Some(slot) = PendingSlot::acquire(&room, ip) else {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     };
     ws.max_message_size(MAX_MESSAGE_BYTES)
@@ -280,6 +376,64 @@ pub fn origin_matches_host(headers: &HeaderMap) -> bool {
     origin_authority.eq_ignore_ascii_case(host) && host_is_literal(host)
 }
 
+/// Regra do LAN (`origin_matches_host`) ou, com túnel ativo, conexão que o
+/// `cloudflared` repassa pelo loopback com `Host` e `Origin` do nome público.
+/// O nome é aleatório e só existe enquanto o túnel vive; um site de terceiros
+/// não o controla, então a proteção contra DNS rebinding continua valendo.
+pub fn origin_allowed(headers: &HeaderMap, peer: SocketAddr, tunnel_host: Option<&str>) -> bool {
+    if origin_matches_host(headers) {
+        return true;
+    }
+    let (Some(tunnel), Some(origin)) = (tunnel_host, header_str(headers, header::ORIGIN)) else {
+        return false;
+    };
+    let origin_ok = origin.strip_prefix("https://").is_some_and(|authority| authority.eq_ignore_ascii_case(tunnel));
+    peer.ip().is_loopback() && host_is_tunnel(headers, tunnel) && origin_ok
+}
+
+/// IP usado para limites por aparelho. Só confia em `Cf-Connecting-Ip` quando a
+/// conexão veio do `cloudflared` (loopback) com o `Host` do túnel; de qualquer
+/// outro lugar o cabeçalho é forjável e é ignorado.
+pub fn effective_client_ip(peer: SocketAddr, headers: &HeaderMap, tunnel_host: Option<&str>) -> IpAddr {
+    let via_tunnel = peer.ip().is_loopback() && tunnel_host.is_some_and(|tunnel| host_is_tunnel(headers, tunnel));
+    if !via_tunnel {
+        return peer.ip();
+    }
+    headers
+        .get(CF_CONNECTING_IP)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.trim().parse::<IpAddr>().ok())
+        .unwrap_or_else(|| peer.ip())
+}
+
+/// Chave dos limites por aparelho (código errado e pendentes). IPv4 como veio;
+/// IPv6 pelo prefixo /64, porque um provedor entrega o /64 inteiro a um cliente
+/// e trocar de endereço dentro dele é de graça. IPv4-mapeado vira o IPv4.
+pub fn limit_key(ip: IpAddr) -> IpAddr {
+    match ip {
+        IpAddr::V4(_) => ip,
+        IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
+            Some(v4) => IpAddr::V4(v4),
+            None => {
+                let [a, b, c, d, ..] = v6.segments();
+                IpAddr::V6(Ipv6Addr::new(a, b, c, d, 0, 0, 0, 0))
+            }
+        },
+    }
+}
+
+fn host_is_tunnel(headers: &HeaderMap, tunnel: &str) -> bool {
+    header_str(headers, header::HOST).is_some_and(|host| host_without_port(host).eq_ignore_ascii_case(tunnel))
+}
+
+/// `nome:443` vira `nome`; sem sufixo numérico, devolve como veio.
+fn host_without_port(host: &str) -> &str {
+    match host.rsplit_once(':') {
+        Some((name, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => name,
+        _ => host,
+    }
+}
+
 fn header_str(headers: &HeaderMap, name: header::HeaderName) -> Option<&str> {
     headers.get(name).and_then(|v| v.to_str().ok())
 }
@@ -294,7 +448,7 @@ fn host_is_literal(host: &str) -> bool {
 
 async fn handle_socket(room: Arc<Room>, mut socket: WebSocket, slot: PendingSlot) {
     let mut shutdown_rx = room.shutdown_tx.subscribe();
-    let Some((client_id, name, join_msg)) = await_join(&room, &mut socket).await else {
+    let Some((client_id, name, join_msg)) = await_join(&room, &mut socket, slot.ip).await else {
         return;
     };
     // Só um `join` válido ocupa vaga de jogador; a vaga pendente é liberada aqui.
@@ -357,7 +511,7 @@ async fn handle_socket(room: Arc<Room>, mut socket: WebSocket, slot: PendingSlot
 
 /// Espera a primeira mensagem, que precisa ser `{"type":"join","code","name"}`
 /// com o código da sala. Qualquer outra coisa recebe `error` e fecha.
-async fn await_join(room: &Room, socket: &mut WebSocket) -> Option<(ClientId, String, Value)> {
+async fn await_join(room: &Room, socket: &mut WebSocket, ip: IpAddr) -> Option<(ClientId, String, Value)> {
     let first = tokio::time::timeout(JOIN_TIMEOUT, socket.recv()).await;
     let text = match first {
         Ok(Some(Ok(Message::Text(text)))) => text,
@@ -376,6 +530,8 @@ async fn await_join(room: &Room, socket: &mut WebSocket) -> Option<(ClientId, St
         return reject(socket, "bad_join").await;
     };
     if !code.trim().eq_ignore_ascii_case(&room.code) {
+        // Conta antes de responder: quando o cliente vê o erro, o bloqueio já vale.
+        room.record_bad_code(ip);
         return reject(socket, "bad_code").await;
     }
     let Some(name) = sanitize_name(name) else {
@@ -441,10 +597,158 @@ async fn player_page(State(room): State<Arc<Room>>) -> Response {
     match (room.assets)("player.html") {
         Some(asset) => asset_response(asset),
         // Em `tauri dev` com `devUrl`, o resolver só acha o build se `client/dist`
-        // existir. Sem ele, manda para o Vite — que só é alcançável na própria
-        // máquina do mestre (ver HANDOFF: teste no celular exige `vite build`).
-        None => Redirect::temporary(DEV_PLAYER_URL).into_response(),
+        // existia na hora de compilar. Sem ele, a página vem do Vite — mas
+        // SERVIDA por esta sala, nunca por redirecionamento.
+        //
+        // Redirecionar para `localhost:1420` mudava a origem da página: o
+        // `location.host` do jogador virava o do Vite, o `socketUrl()` apontava
+        // para `ws://localhost:1420/ws`, e o Vite aceita o TCP e nunca responde
+        // ao upgrade. O socket ficava pendurado para sempre — sem `open`, sem
+        // `close` — e a tela do jogador acusava "A sala X não respondeu" depois
+        // de 8 segundos, culpando a sala por um erro que era de endereço.
+        // Também quebrava o celular, que não resolve `localhost` do mestre.
+        None => dev_proxy(DEV_PLAYER_PATH).await,
     }
+}
+
+/// Raiz do Vite a usar agora: `LAB_DEV_URL` quando existe, senão `DEV_ORIGIN`.
+/// Lido a cada chamada, não guardado: o teste troca a raiz entre casos, e o
+/// custo de uma leitura de ambiente some ao lado de uma ida ao Vite.
+///
+/// Só loopback. O conteúdo buscado aqui é servido NA ORIGEM DA SALA, a mesma de
+/// `/ws`: uma raiz apontada para fora da máquina daria a um terceiro um script
+/// rodando com a origem da sala.
+fn dev_origin() -> String {
+    std::env::var(DEV_URL_ENV).ok().filter(|raiz| dev_origin_loopback(raiz)).unwrap_or_else(|| DEV_ORIGIN.to_owned())
+}
+
+fn dev_origin_loopback(raiz: &str) -> bool {
+    let Some(autoridade) = raiz.strip_prefix("http://") else {
+        return false;
+    };
+    let host = host_without_port(autoridade).trim_start_matches('[').trim_end_matches(']');
+    host.eq_ignore_ascii_case("localhost") || host.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback())
+}
+
+/// Cliente reaproveitado do proxy de desenvolvimento. `no_proxy`: o Vite é
+/// loopback e um proxy de sistema configurado na máquina não pode entrar no
+/// meio.
+fn dev_client() -> Option<&'static reqwest::Client> {
+    static CLIENT: OnceLock<Option<reqwest::Client>> = OnceLock::new();
+    CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .no_proxy()
+                // Prazo obrigatório: `reqwest` não põe nenhum sozinho, e outro
+                // processo na porta do Vite que aceite o TCP sem responder
+                // deixaria `/player` pendurado — o MESMO modo de falha que esta
+                // mudança existe para matar.
+                .connect_timeout(Duration::from_secs(2))
+                .timeout(Duration::from_secs(10))
+                .build()
+                .ok()
+        })
+        .as_ref()
+}
+
+/// Busca `path` no Vite e devolve como se a sala tivesse servido — mesma
+/// origem, então `/ws` existe e o teste de `Origin` passa. Só em build de
+/// desenvolvimento; em release o front está embutido e caminho desconhecido é
+/// 404 como antes.
+async fn dev_proxy(path: &str) -> Response {
+    if !cfg!(debug_assertions) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let Some(client) = dev_client() else {
+        return (StatusCode::BAD_GATEWAY, DEV_OFFLINE).into_response();
+    };
+    let Ok(upstream) = client.get(format!("{}{path}", dev_origin())).send().await else {
+        return (StatusCode::BAD_GATEWAY, DEV_OFFLINE).into_response();
+    };
+    let status = StatusCode::from_u16(upstream.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let mime = upstream
+        .headers()
+        .get(header::CONTENT_TYPE.as_str())
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| HeaderValue::from_str(value).ok())
+        .unwrap_or(HeaderValue::from_static("application/octet-stream"));
+    let Ok(bytes) = upstream.bytes().await else {
+        return (StatusCode::BAD_GATEWAY, DEV_OFFLINE).into_response();
+    };
+    (
+        status,
+        [
+            (header::CONTENT_TYPE, mime),
+            // Mesmo `nosniff` de `asset_response`: o tipo vem do Vite, e o
+            // navegador não pode adivinhar outro em cima dele.
+            (header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")),
+            (header::CACHE_CONTROL, HeaderValue::from_static("no-cache")),
+        ],
+        bytes,
+    )
+        .into_response()
+}
+
+/// O que o proxy de dev aceita buscar. O Vite serve o projeto INTEIRO na porta
+/// dele, e a porta dele é loopback; este proxy é a LAN. Sem esta lista, abrir
+/// a sala em `tauri dev` daria a qualquer pessoa da rede leitura do repositório
+/// do mestre por `/@fs/<caminho absoluto>`. A lista é só o que a página do
+/// jogador pede de verdade.
+const DEV_PREFIXOS: [&str; 7] = ["/player.html", "/src/", "/node_modules/", "/@vite/", "/@react-refresh", "/@id/", "/favicon."];
+
+/// `/@fs/<caminho absoluto>` é a porta do Vite para o disco inteiro, e o
+/// próprio cliente dele precisa de uma: `@vite/client` importa
+/// `/@fs/<projeto>/node_modules/vite/dist/client/env.mjs`. Só essa passa —
+/// dependência instalada, código público, dentro do projeto.
+fn dev_fs_permitido(path: &str) -> bool {
+    path.starts_with("/@fs/") && path.contains("/node_modules/")
+}
+
+/// Decide pelo CAMINHO, nunca pela linha inteira da requisição.
+///
+/// Duas armadilhas, as duas medidas contra o Vite real numa revisão de
+/// segurança desta mudança, as duas respondendo 200 com arquivo do repositório
+/// antes deste conserto:
+///
+/// 1. `?` — julgar `path_and_query` deixava a QUERY satisfazer a regra:
+///    `/@fs/<projeto>/HANDOFF.md?x=/node_modules/` contém `/node_modules/` sem
+///    que o arquivo pedido tenha nada a ver com isso.
+/// 2. `%` — `Uri` não decodifica nada, então `..` escrito como `%2e%2e`
+///    atravessava intacto: `/src/%2e%2e/porta.js` saía do que a página precisa.
+///    Nenhum caminho que a página do jogador pede traz `%`, então o sinal de
+///    porcentagem é recusado inteiro em vez de decodificado — regra que não tem
+///    como errar a decodificação.
+fn dev_path_permitido(path: &str) -> bool {
+    if path.contains("..") || path.contains('\\') || path.contains('%') {
+        return false;
+    }
+    dev_fs_permitido(path) || DEV_PREFIXOS.iter().any(|prefixo| path.starts_with(prefixo))
+}
+
+/// Caminho que nenhuma rota atendeu. Em dev, a página do jogador vinda do Vite
+/// pede `/src/...`, `/@vite/client` e `/@react-refresh`: tudo isso passa por
+/// aqui. Em release, 404.
+async fn dev_fallback(State(room): State<Arc<Room>>, method: Method, headers: HeaderMap, uri: Uri) -> Response {
+    // Só leitura: o Vite de dev não tem nada que a sala precise escrever.
+    if method != Method::GET && method != Method::HEAD {
+        return StatusCode::METHOD_NOT_ALLOWED.into_response();
+    }
+    // O túnel público aponta para ESTA porta (`net/tunnel.rs`). Sem este freio,
+    // "Tornar pública" em `tauri dev` levaria o projeto do mestre para a
+    // internet junto com a sala. Fora do túnel, exigir `Host` literal é a mesma
+    // defesa contra DNS rebinding que `/ws` já tem.
+    let host_literal = header_str(&headers, header::HOST).is_some_and(host_is_literal);
+    let pelo_tunel = room.tunnel_host().is_some_and(|tunnel| host_is_tunnel(&headers, &tunnel));
+    if !host_literal || pelo_tunel {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    if !dev_path_permitido(uri.path()) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    // A query segue para o Vite (`?v=`, `?t=` são o cache dele), mas NÃO decide
+    // nada: quem decide é o caminho, conferido acima.
+    let alvo = uri.path_and_query().map_or_else(|| uri.path().to_owned(), |pq| pq.as_str().to_owned());
+    dev_proxy(&alvo).await
 }
 
 async fn asset_file(State(room): State<Arc<Room>>, Path(path): Path<String>) -> Response {
@@ -505,6 +809,117 @@ mod tests {
         assert!(!origin_matches_host(&headers(None, "192.168.0.5:7777")));
         // DNS rebinding: Origin == Host, mas Host é um nome.
         assert!(!origin_matches_host(&headers(Some("http://evil.com:7777"), "evil.com:7777")));
+    }
+
+    const TUNNEL: &str = "calm-river-42.trycloudflare.com";
+
+    fn loopback() -> SocketAddr {
+        SocketAddr::from(([127, 0, 0, 1], 50_000))
+    }
+
+    fn lan_peer() -> SocketAddr {
+        SocketAddr::from(([192, 168, 0, 9], 50_000))
+    }
+
+    fn with_cf_ip(mut h: HeaderMap, ip: &str) -> HeaderMap {
+        h.insert(CF_CONNECTING_IP, HeaderValue::from_str(ip).unwrap_or(HeaderValue::from_static("x")));
+        h
+    }
+
+    #[test]
+    fn origin_do_tunel_exige_loopback_e_nome_ativo() {
+        let tunnel = headers(Some("https://calm-river-42.trycloudflare.com"), TUNNEL);
+        assert!(origin_allowed(&tunnel, loopback(), Some(TUNNEL)));
+        // Host com porta e maiúsculas continuam sendo o mesmo nome.
+        let upper = headers(Some("https://CALM-river-42.trycloudflare.com"), "Calm-River-42.trycloudflare.com:443");
+        assert!(origin_allowed(&upper, loopback(), Some(TUNNEL)));
+        // Peer fora do loopback: alguém na LAN forjando o Host.
+        assert!(!origin_allowed(&tunnel, lan_peer(), Some(TUNNEL)));
+        // Sem túnel ativo.
+        assert!(!origin_allowed(&tunnel, loopback(), None));
+        // Outro nome, mesmo que também seja do trycloudflare.
+        let other = headers(Some("https://evil-1.trycloudflare.com"), "evil-1.trycloudflare.com");
+        assert!(!origin_allowed(&other, loopback(), Some(TUNNEL)));
+        // Host certo, Origin de outro site ou sem https.
+        assert!(!origin_allowed(&headers(Some("https://evil.com"), TUNNEL), loopback(), Some(TUNNEL)));
+        assert!(!origin_allowed(&headers(Some("http://calm-river-42.trycloudflare.com"), TUNNEL), loopback(), Some(TUNNEL)));
+        assert!(!origin_allowed(&headers(None, TUNNEL), loopback(), Some(TUNNEL)));
+        // LAN continua como antes, com ou sem túnel.
+        let lan = headers(Some("http://192.168.0.5:7777"), "192.168.0.5:7777");
+        assert!(origin_allowed(&lan, lan_peer(), Some(TUNNEL)));
+        assert!(origin_allowed(&lan, lan_peer(), None));
+    }
+
+    #[test]
+    fn ip_efetivo_so_confia_no_cloudflare_via_tunel() {
+        let real: IpAddr = "203.0.113.7".parse().unwrap_or(IpAddr::from([0, 0, 0, 0]));
+        let tunnel = with_cf_ip(headers(Some("https://calm-river-42.trycloudflare.com"), TUNNEL), "203.0.113.7");
+        assert_eq!(effective_client_ip(loopback(), &tunnel, Some(TUNNEL)), real);
+        // Peer da LAN mandando o cabeçalho: ignorado.
+        assert_eq!(effective_client_ip(lan_peer(), &tunnel, Some(TUNNEL)), lan_peer().ip());
+        // Loopback com Host diferente do túnel: ignorado.
+        let lan_host = with_cf_ip(headers(Some("http://127.0.0.1:7777"), "127.0.0.1:7777"), "203.0.113.7");
+        assert_eq!(effective_client_ip(loopback(), &lan_host, Some(TUNNEL)), loopback().ip());
+        // Sem túnel ativo: ignorado.
+        assert_eq!(effective_client_ip(loopback(), &tunnel, None), loopback().ip());
+        // Valor inválido ou ausente: cai no IP do socket.
+        let junk = with_cf_ip(headers(None, TUNNEL), "not-an-ip");
+        assert_eq!(effective_client_ip(loopback(), &junk, Some(TUNNEL)), loopback().ip());
+        assert_eq!(effective_client_ip(loopback(), &headers(None, TUNNEL), Some(TUNNEL)), loopback().ip());
+    }
+
+    fn ip(raw: &str) -> IpAddr {
+        raw.parse().unwrap_or(IpAddr::from([0, 0, 0, 0]))
+    }
+
+    #[test]
+    fn chave_de_limite_agrupa_ipv6_por_64() {
+        // IPv4 fica como está.
+        assert_eq!(limit_key(ip("203.0.113.7")), ip("203.0.113.7"));
+        assert_ne!(limit_key(ip("203.0.113.7")), limit_key(ip("203.0.113.8")));
+        // IPv6: mesmo /64 vira a mesma chave, com os 4 segmentos baixos zerados.
+        assert_eq!(limit_key(ip("2001:db8:1:2:aaaa:bbbb:cccc:dddd")), ip("2001:db8:1:2::"));
+        assert_eq!(limit_key(ip("2001:db8:1:2::1")), limit_key(ip("2001:db8:1:2:ffff:ffff:ffff:ffff")));
+        // /64 vizinho é outra chave.
+        assert_ne!(limit_key(ip("2001:db8:1:2::1")), limit_key(ip("2001:db8:1:3::1")));
+        // IPv4-mapeado vira o IPv4 (não o /64 ::ffff:0:0, que juntaria todo mundo).
+        assert_eq!(limit_key(ip("::ffff:203.0.113.9")), ip("203.0.113.9"));
+        assert_ne!(limit_key(ip("::ffff:203.0.113.9")), limit_key(ip("::ffff:203.0.113.10")));
+        // Bordas: não especificado e loopback continuam distinguíveis.
+        assert_eq!(limit_key(ip("::")), ip("::"));
+        assert_eq!(limit_key(ip("::1")), ip("::"));
+        assert_eq!(limit_key(ip("127.0.0.1")), ip("127.0.0.1"));
+    }
+
+    #[test]
+    fn limitador_bloqueia_na_quinta_falha_e_expira() {
+        let ip = IpAddr::from([10, 0, 0, 1]);
+        let other = IpAddr::from([10, 0, 0, 2]);
+        let t0 = StdInstant::now();
+        let mut limiter = BadCodeLimiter::default();
+        for i in 0..(MAX_BAD_CODES - 1) {
+            limiter.record_failure(ip, t0 + Duration::from_secs(u64::from(i)));
+            assert!(!limiter.is_blocked(ip, t0 + Duration::from_secs(u64::from(i))));
+        }
+        let t5 = t0 + Duration::from_secs(10);
+        limiter.record_failure(ip, t5);
+        assert!(limiter.is_blocked(ip, t5));
+        assert!(!limiter.is_blocked(other, t5));
+        assert!(limiter.is_blocked(ip, t5 + BAD_CODE_BLOCK - Duration::from_millis(1)));
+        assert!(!limiter.is_blocked(ip, t5 + BAD_CODE_BLOCK));
+
+        // Falhas espaçadas além da janela não acumulam.
+        let mut spaced = BadCodeLimiter::default();
+        for i in 0..(MAX_BAD_CODES * 2) {
+            let at = t0 + (BAD_CODE_BLOCK + Duration::from_secs(1)) * i;
+            spaced.record_failure(ip, at);
+            assert!(!spaced.is_blocked(ip, at));
+        }
+
+        // Entradas vencidas são removidas na próxima falha registrada.
+        let later = t5 + BAD_CODE_BLOCK * 3;
+        limiter.record_failure(other, later);
+        assert_eq!(limiter.tracked_ips(), 1);
     }
 
     #[test]

@@ -10,12 +10,58 @@ import { create } from 'zustand'
  * `dismiss`; toda a lógica de fila/tempo mora aqui.
  */
 
-export type ToastKind = 'info' | 'error'
+/**
+ * `info` e `error` RELATAM um fato ("Mapa salvo", "não deu para abrir o
+ * arquivo") e somem sozinhos. `instrucao` ENSINA: a frase pede uma ação da
+ * pessoa para o gesto poder acontecer, e ela precisa da frase na tela
+ * ENQUANTO cumpre — ler, achar o botão, abrir o seletor do sistema, procurar
+ * o arquivo. Esse não tem prazo: quem apaga é ela, pelo "Dispensar aviso".
+ *
+ * A fronteira, e por que ela não é "todo erro fica", estão em
+ * `lib/erroQueEnsina.ts`.
+ */
+export type ToastKind = 'info' | 'error' | 'instrucao'
+
+/** Botão de um aviso. Clicar roda `run` e dispensa o aviso. */
+export interface ToastAction {
+  label: string
+  run: () => void
+  /**
+   * A ação que o "Deixar todos" da caixa roda por este aviso
+   * (`components/caixaDeAvisos.ts`). Marcada, e não "a primeira": a ordem
+   * dos botões é de desenho, e trocar a ordem não pode trocar o que o lote faz.
+   */
+  emLote?: boolean
+}
 
 export interface ToastMessage {
   id: string
   kind: ToastKind
   text: string
+  /**
+   * Botões do aviso, na ordem. Ausente = só o "Dispensar aviso". É o que faz
+   * um aviso virar pergunta ("Grog quer passar…": Deixar ir / Não).
+   */
+  actions?: ToastAction[]
+  /**
+   * O que o × ("Dispensar aviso") faz além de tirar o aviso da tela. Aviso
+   * que pergunta não pode sumir sem resposta: quem espera do outro lado
+   * ficaria esperando para sempre.
+   */
+  onDismiss?: () => void
+  /**
+   * Nome do grupo do aviso ("Pedidos"). Com dois ou mais avisos do mesmo
+   * grupo na tela, eles viram UMA caixa "Pedidos (N)" em vez de uma pilha de
+   * avisos soltos (`components/caixaDeAvisos.ts`). Ausente = aviso de sempre.
+   */
+  grupo?: string
+}
+
+/** Extras de `push`: botões, o que o × faz e o grupo. */
+export interface ToastExtras {
+  actions?: ToastAction[]
+  onDismiss?: () => void
+  grupo?: string
 }
 
 interface ToastState {
@@ -24,17 +70,32 @@ interface ToastState {
    * Empilha um aviso e agenda a auto-dispensa. Devolve o `id` gerado — quem
    * chama pode ignorar, ou guardar para dispensar cedo (não usado hoje, mas
    * mantém a action simétrica com `dismiss`).
+   *
+   * `durationMs: null` (o padrão de `instrucao`) não agenda timer nenhum: o
+   * aviso fica até alguém chamar `dismiss`. Passar `null` num `info` é
+   * legítimo e faz a mesma coisa — o `kind` escolhe o padrão, não a regra.
    */
-  push: (kind: ToastKind, text: string, durationMs?: number) => string
+  push: (kind: ToastKind, text: string, durationMs?: number | null, extras?: ToastExtras) => string
   /** Dispensa por `id`, na mão (botão) ou pelo próprio timer de `push`. Idempotente: `id` que já não está na fila é um no-op silencioso. */
   dismiss: (id: string) => void
 }
 
-/** Info some sozinho rápido; erro fica mais tempo porque normalmente pede
- *  atenção (nome de arquivo, o que fazer a seguir). */
-const DEFAULT_DURATION_MS: Record<ToastKind, number> = {
+/**
+ * Info some sozinho rápido; erro fica mais tempo porque normalmente pede
+ * atenção (nome de arquivo, o que falhou).
+ *
+ * `instrucao: null` é o conserto de 21/09/2026 (jornada
+ * `e2e/task-jornada-salvar-sem-foto-avisa.spec.ts`): o aviso de "este token
+ * ainda não tem foto — escolha uma imagem" se apagava aos 7 s, no meio da
+ * leitura, e não sobrava lugar nenhum na tela para reencontrá-lo. Prazo maior
+ * não resolve — qualquer número seria o app apostando em quanto tempo a
+ * pessoa leva para achar um arquivo na pasta dela. Sem prazo, quem decide que
+ * já leu é ela.
+ */
+const DEFAULT_DURATION_MS: Record<ToastKind, number | null> = {
   info: 4000,
   error: 7000,
+  instrucao: null,
 }
 
 /**
@@ -49,15 +110,22 @@ const timers = new Map<string, ReturnType<typeof setTimeout>>()
 export const useToastStore = create<ToastState>()((set, get) => ({
   toasts: [],
 
-  push: (kind, text, durationMs = DEFAULT_DURATION_MS[kind]) => {
+  push: (kind, text, durationMs = DEFAULT_DURATION_MS[kind], extras = {}) => {
     const id = crypto.randomUUID()
-    set((state) => ({ toasts: [...state.toasts, { id, kind, text }] }))
-    timers.set(
-      id,
-      setTimeout(() => {
-        get().dismiss(id)
-      }, durationMs),
-    )
+    // Os extras só entram quando existem: o aviso simples continua exatamente `{ id, kind, text }`.
+    const toast: ToastMessage = { id, kind, text }
+    if (extras.actions !== undefined && extras.actions.length > 0) toast.actions = extras.actions
+    if (extras.onDismiss !== undefined) toast.onDismiss = extras.onDismiss
+    if (extras.grupo !== undefined) toast.grupo = extras.grupo
+    set((state) => ({ toasts: [...state.toasts, toast] }))
+    if (durationMs !== null) {
+      timers.set(
+        id,
+        setTimeout(() => {
+          get().dismiss(id)
+        }, durationMs),
+      )
+    }
     return id
   },
 

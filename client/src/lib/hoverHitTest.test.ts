@@ -4,6 +4,7 @@ import { createEmptyMap, addWall, addToken, addProp, addRegion, addRoom, addDraw
 import type { Drawing, Region, Token, Wall } from '../types/map'
 import type { AreaSelection } from './areaSelection'
 import { EMPTY_AREA_SELECTION } from './areaSelection'
+import { ROOM_ROTATE_HANDLE } from './roomRotation'
 
 const baseMap = createEmptyMap('m1', 'Mapa', 1000, 1000, 50)
 
@@ -186,6 +187,50 @@ describe('resolveHoverHit — vertex (ponto de controle da entidade já selecion
       worldPoint: { x: 0, y: 0 },
     })
     expect(result).toEqual({ kind: 'vertex', corner: null, target: null })
+  })
+})
+
+// GIRAR SALA: a bolinha acima da Sala selecionada troca o cursor pela seta de
+// girar — o mesmo teste do pointerdown, então o cursor nunca promete um giro
+// que o clique não faria.
+describe('resolveHoverHit — alça de girar sala', () => {
+  const sala = buildSquareRegion('r1', { room: { shape: 'rect', name: 'Sala' } })
+  // Quadrado 0..100: a bolinha fica acima do meio do topo (x 50, y 0).
+  const bolinha = { x: 50, y: -ROOM_ROTATE_HANDLE.offsetPx }
+  const pairar = (region: Region, worldPoint: { x: number; y: number }, cameraScale?: number) =>
+    resolveHoverHit({
+      map: addRegion(baseMap, region),
+      selection: { kind: 'region', id: region.id },
+      areaSelection: null,
+      activeTool: 'select',
+      worldPoint,
+      cameraScale,
+    })
+
+  it('pairar na bolinha da Sala selecionada: rotate', () => {
+    expect(pairar(sala, bolinha)).toEqual({ kind: 'rotate', corner: null, target: null })
+  })
+
+  it('a alça tem tamanho de TELA: com zoom 2 ela fica na metade da distância em px de mundo', () => {
+    expect(pairar(sala, { x: 50, y: -ROOM_ROTATE_HANDLE.offsetPx / 2 }, 2)).toEqual({ kind: 'rotate', corner: null, target: null })
+    expect(pairar(sala, bolinha, 2).kind).not.toBe('rotate')
+  })
+
+  it('Sala travada não tem alça, então não tem cursor de girar', () => {
+    expect(pairar({ ...sala, locked: true }, bolinha).kind).not.toBe('rotate')
+  })
+
+  it('região comum não é Sala e não gira', () => {
+    expect(pairar(buildSquareRegion('r1'), bolinha).kind).not.toBe('rotate')
+  })
+
+  it('Sala retangular girada torta: o canto não promete redimensionar (a conta a desmontaria)', () => {
+    const torta: Region = {
+      ...sala,
+      points: [{ x: 50, y: -20.71 }, { x: 120.71, y: 50 }, { x: 50, y: 120.71 }, { x: -20.71, y: 50 }],
+      room: { shape: 'rect', name: 'Sala', rotation: 45 },
+    }
+    expect(pairar(torta, { x: 120.71, y: 50 }).kind).not.toBe('resize-corner')
   })
 })
 

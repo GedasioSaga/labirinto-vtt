@@ -6,6 +6,8 @@ import {
   moveAreaSelection,
   isAreaSelectionEmpty,
   EMPTY_AREA_SELECTION,
+  classifyMarqueeGesture,
+  marqueeHintPlacement,
 } from './areaSelection'
 import type { Wall, Region, Light, Token, Prop, Stair, Drawing, LayerId } from '../types/map'
 import {
@@ -245,5 +247,92 @@ describe('areaSelectionBounds', () => {
 
     const bounds = areaSelectionBounds(map, { walls: [], regions: [], lights: ['l1'], tokens: ['t1'], props: [], stairs: [], drawings: [] })
     expect(bounds).toMatchObject({ minX: -25, minY: -25 }) // token: raio 25 (grid 50/2 * size 1), centrado em (0,0)
+  })
+})
+
+describe('classifyMarqueeGesture', () => {
+  it('gesto quase parado é clique, não arrasto — é assim que clicar no vazio larga a seleção', () => {
+    expect(classifyMarqueeGesture({ x1: 100, y1: 100, x2: 101, y2: 100.5 }, 1, false)).toBe('click')
+  })
+
+  it('pointerdown e pointerup no MESMO ponto é clique', () => {
+    expect(classifyMarqueeGesture({ x1: 100, y1: 100, x2: 100, y2: 100 }, 1, false)).toBe('click')
+  })
+
+  it('arrasto de verdade sem Shift SUBSTITUI a seleção', () => {
+    expect(classifyMarqueeGesture({ x1: 0, y1: 0, x2: 200, y2: 150 }, 1, false)).toBe('replace')
+  })
+
+  it('arrasto de verdade com Shift SOMA à seleção', () => {
+    expect(classifyMarqueeGesture({ x1: 0, y1: 0, x2: 200, y2: 150 }, 1, true)).toBe('add')
+  })
+
+  it('o limiar é de TELA: com zoom em 25%, 8 px de mundo ainda são 2 px de dedo — clique', () => {
+    expect(classifyMarqueeGesture({ x1: 0, y1: 0, x2: 8, y2: 0 }, 0.25, false)).toBe('click')
+    // ...e os mesmos 8 px de mundo com zoom 1 já são arrasto.
+    expect(classifyMarqueeGesture({ x1: 0, y1: 0, x2: 8, y2: 0 }, 1, false)).toBe('replace')
+  })
+
+  it('arrasto da direita pra esquerda (modo interseção) também é arrasto', () => {
+    expect(classifyMarqueeGesture({ x1: 300, y1: 300, x2: 100, y2: 100 }, 1, false)).toBe('replace')
+  })
+
+  it('escala de câmera inválida não trava o gesto: cai em 1', () => {
+    expect(classifyMarqueeGesture({ x1: 0, y1: 0, x2: 200, y2: 0 }, 0, false)).toBe('replace')
+    expect(classifyMarqueeGesture({ x1: 0, y1: 0, x2: 200, y2: 0 }, Number.NaN, false)).toBe('replace')
+  })
+})
+
+describe('marqueeHintPlacement', () => {
+  const LABEL = { width: 200, height: 16 }
+
+  it('retângulo grande: a dica encosta no canto ONDE O GESTO COMEÇOU, com folga', () => {
+    const placement = marqueeHintPlacement({ x1: 100, y1: 100, x2: 600, y2: 400 }, 1, LABEL)
+    expect(placement).toEqual({ visible: true, x: 110, y: 110 })
+  })
+
+  it('arrasto pra cima e pra esquerda: a dica vai pro canto de baixo/direita, que é onde o gesto começou', () => {
+    const placement = marqueeHintPlacement({ x1: 600, y1: 400, x2: 100, y2: 100 }, 1, LABEL)
+    expect(placement).toEqual({ visible: true, x: 600 - 10 - 200, y: 400 - 10 - 16 })
+  })
+
+  it('retângulo estreito demais pro texto: dica escondida em vez de vazar pra fora', () => {
+    expect(marqueeHintPlacement({ x1: 0, y1: 0, x2: 150, y2: 300 }, 1, LABEL).visible).toBe(false)
+  })
+
+  it('retângulo baixo demais pro texto: dica escondida', () => {
+    expect(marqueeHintPlacement({ x1: 0, y1: 0, x2: 500, y2: 30 }, 1, LABEL).visible).toBe(false)
+  })
+
+  it('com zoom afastado o texto ocupa MAIS mundo, então cabe em menos retângulos', () => {
+    const rect = { x1: 0, y1: 0, x2: 260, y2: 60 }
+    expect(marqueeHintPlacement(rect, 1, LABEL).visible).toBe(true)
+    expect(marqueeHintPlacement(rect, 0.5, LABEL).visible).toBe(false)
+  })
+
+  it('com zoom afastado a folga também cresce em mundo, pra continuar 10 px de tela', () => {
+    const placement = marqueeHintPlacement({ x1: 0, y1: 0, x2: 2000, y2: 2000 }, 0.5, LABEL)
+    expect(placement).toEqual({ visible: true, x: 20, y: 20 })
+  })
+
+  it('escala inválida cai em 1 em vez de devolver NaN', () => {
+    expect(marqueeHintPlacement({ x1: 0, y1: 0, x2: 600, y2: 400 }, 0, LABEL)).toEqual({ visible: true, x: 10, y: 10 })
+  })
+
+  it('texto ainda não medido (0x0, fonte carregando) não vira NaN nem dica fora da caixa', () => {
+    expect(marqueeHintPlacement({ x1: 0, y1: 0, x2: 600, y2: 400 }, 1, { width: 0, height: 0 })).toEqual({
+      visible: true,
+      x: 10,
+      y: 10,
+    })
+    // Caixa menor que a folga mínima: escondida, e com coordenada finita.
+    const minusculo = marqueeHintPlacement({ x1: 5, y1: 5, x2: 5, y2: 5 }, 1, { width: 0, height: 0 })
+    expect(minusculo).toEqual({ visible: false, x: 5, y: 5 })
+  })
+
+  it('retângulo de área zero não quebra nenhuma das duas decisões', () => {
+    const degenerado = { x1: 42, y1: 42, x2: 42, y2: 42 }
+    expect(classifyMarqueeGesture(degenerado, 1, false)).toBe('click')
+    expect(marqueeHintPlacement(degenerado, 1, LABEL).visible).toBe(false)
   })
 })

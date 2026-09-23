@@ -14,7 +14,7 @@ import { traceMinimapImage } from '../src/lib/traceMinimap'
 import { estimateFloorStrokeWidth, estimateLineWidth } from '../src/lib/estimateStroke'
 import { calibrateLineStyle, calibrateStroke, insetPieces, isCalibratableLine, type StrokeCalibration } from '../src/lib/calibrateMinimap'
 import { maskTopology, type MaskTopology } from '../src/lib/maskTopology'
-import { DEFAULT_FLOOR_STYLE } from '../src/lib/mapFile'
+import { LEGACY_FLOOR_STYLE } from '../src/lib/mapFile'
 import { loadPixels } from './compareMasks'
 
 /**
@@ -106,7 +106,8 @@ const RASTER_SAMPLES = 4
 function rasterStyle(variant: RecreateVariant) {
   return {
     background: [0, 0, 0] as [number, number, number],
-    floor: hexToRgb(DEFAULT_FLOOR_STYLE.fillColor),
+    // Verde dos minimapas de referência (#006b00), não o chão de mapa novo.
+    floor: hexToRgb(LEGACY_FLOOR_STYLE.fillColor),
     stroke: variant.strokeColor ? hexToRgb(variant.strokeColor) : null,
     strokeAlpha: variant.strokeAlpha,
     lineAlpha: variant.lineAlpha,

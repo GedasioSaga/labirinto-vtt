@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cloneWall, cloneLight, cloneRegion, cloneToken, cloneProp, cloneStair, cloneDrawing, cloneEntity } from './entityClone'
+import { cloneWall, cloneLight, cloneRegion, cloneToken, cloneProp, cloneStair, cloneDrawing, cloneEntity, cloneLinkedWalls } from './entityClone'
 import type { Wall, Light, Region, Token, Prop, Stair, Drawing } from '../types/map'
 
 const OFFSET = { dx: 10, dy: 20 }
@@ -96,6 +96,30 @@ describe('cloneRegion', () => {
     const clone = cloneRegion(withData, OFFSET)
     expect(clone.data).toEqual(withData.data)
     expect(clone.data).not.toBe(withData.data)
+  })
+
+  it('Sala sem nome continua sem nome no clone (sem "(cópia)" solto no chão)', () => {
+    const unnamed: Region = { ...base, room: { shape: 'rect', name: '' } }
+    expect(cloneRegion(unnamed, OFFSET).room?.name).toBe('')
+  })
+})
+
+describe('cloneLinkedWalls', () => {
+  const walls: Wall[] = [
+    { id: 'a', x1: 0, y1: 0, x2: 100, y2: 0, blocksLight: true, blocksMove: true, door: null, regionId: 'r1', regionEdgeIndex: 0 },
+    { id: 'b', x1: 100, y1: 0, x2: 100, y2: 100, blocksLight: true, blocksMove: true, door: { open: true, locked: false, kind: 'double' }, regionId: 'r1', regionEdgeIndex: 1 },
+    { id: 'solta', x1: 0, y1: 50, x2: 50, y2: 50, blocksLight: true, blocksMove: true, door: null },
+    { id: 'outra', x1: 0, y1: 0, x2: 10, y2: 0, blocksLight: true, blocksMove: true, door: null, regionId: 'r2', regionEdgeIndex: 0 },
+  ]
+
+  it('copia só as paredes da Sala de origem, vinculadas à Sala nova na mesma aresta, com offset e porta sem aliasing', () => {
+    const clones = cloneLinkedWalls(walls, 'r1', 'r9', OFFSET)
+    expect(clones).toHaveLength(2)
+    expect(clones.every((w) => w.regionId === 'r9' && !['a', 'b'].includes(w.id))).toBe(true)
+    expect(clones.map((w) => w.regionEdgeIndex)).toEqual([0, 1])
+    expect(clones[0]).toMatchObject({ x1: 10, y1: 20, x2: 110, y2: 20 })
+    expect(clones[1].door).toEqual(walls[1].door)
+    expect(clones[1].door).not.toBe(walls[1].door)
   })
 })
 

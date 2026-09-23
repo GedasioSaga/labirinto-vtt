@@ -50,3 +50,34 @@ export function resolveWheel(evt: WheelInput): WheelResult {
 
   return { kind: 'pan', dx, dy }
 }
+
+/**
+ * Convenção do EDITOR DE MAPA — é esta que `PixiCanvas` usa. `resolveWheel`
+ * acima continua sendo o decodificador CRU (normaliza `deltaMode` e resolve os
+ * modificadores); esta função decide, em cima dele, o que o gesto SIGNIFICA no
+ * mapa.
+ *
+ * Roda pura APROXIMA e AFASTA, ancorado no cursor — é o que a referência do
+ * nicho faz (Dungeon Scrawl, medido em 16/09/2026) e é o reflexo que a pessoa
+ * traz de mapa, foto e PDF. Com roda = pan (o que valia aqui até agora), dois
+ * usuários do passeio cego de 16/09/2026 rolaram a roda, o mapa fugiu da tela
+ * e um deles achou que tinha quebrado o desenho.
+ *
+ * Os desvios continuam existindo, pelos mesmos motivos de antes:
+ *  - Ctrl+roda: zoom (é também o que o navegador emite na pinça de trackpad,
+ *    então a pinça cai de graça no mesmo caminho);
+ *  - Shift+roda: pan horizontal explícito;
+ *  - dispositivo que manda `deltaX` PRÓPRIO (trackpad rolando na diagonal):
+ *    pan nos dois eixos — ali o gesto é mesmo de rolagem, não de girar roda.
+ *
+ * Preço assumido: rolagem vertical de dois dedos no trackpad (deltaX zero)
+ * passa a dar zoom, como na referência. Quem quiser pan sem modificador tem
+ * Espaço+arrastar e o botão do meio, os dois já valendo em qualquer ferramenta.
+ */
+export function resolveMapWheel(evt: WheelInput): WheelResult {
+  const gesture = resolveWheel(evt)
+  if (gesture.kind === 'zoom') return gesture
+  if (evt.shiftKey) return gesture
+  if (gesture.dx !== 0) return gesture
+  return { kind: 'zoom', deltaY: gesture.dy }
+}

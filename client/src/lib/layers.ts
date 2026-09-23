@@ -9,7 +9,7 @@
  * 'grid' não é camada: MapData.showGrid já é o toggle da grade — ver o
  * comentário em types/map.ts junto de LayerId.
  */
-import type { Drawing, Light, MapData, Prop, Region, Stair, Token, Wall } from '../types/map'
+import type { Drawing, Light, MapData, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
 import type { LayerId } from '../types/map'
 import { canInteract, type Lockable } from './itemTransform'
 
@@ -53,6 +53,11 @@ export function tokenLayer(_token: Token): LayerId {
 }
 
 export function drawingLayer(_drawing: Drawing): LayerId {
+  return 'anotacoes'
+}
+
+/** Pino de ponto de interesse é anotação do mestre por cima da planta. */
+export function pinLayer(_pin: Pin): LayerId {
   return 'anotacoes'
 }
 
@@ -138,6 +143,10 @@ export function visibleProps(props: Prop[], hiddenLayers: readonly LayerId[]): P
   return filterByLayer(props, propLayer, hiddenLayers)
 }
 
+export function visiblePins(pins: Pin[], hiddenLayers: readonly LayerId[]): Pin[] {
+  return filterByLayer(pins, pinLayer, hiddenLayers)
+}
+
 /** Quantas entidades cada camada tem hoje — usado pelo LayersPanel pra mostrar
  *  a contagem ao lado do nome (ex.: "Paredes (3)"). Conta TODAS as entidades,
  *  visíveis ou não — a contagem não deve mudar quando o usuário oculta a
@@ -167,5 +176,6 @@ export function countEntitiesByLayer(map: MapData): Record<LayerId, number> {
   for (const token of map.tokens) counts[tokenLayer(token)] += 1
   for (const drawing of map.drawings) counts[drawingLayer(drawing)] += 1
   for (const prop of map.props) counts[propLayer(prop)] += 1
+  for (const pin of map.pins) counts[pinLayer(pin)] += 1
   return counts
 }

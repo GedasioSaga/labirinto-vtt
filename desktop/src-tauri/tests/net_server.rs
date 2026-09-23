@@ -233,6 +233,114 @@ async fn player_serve_asset_e_media_e_stub() {
     assert!(http_get(addr, "/media/abc").await.starts_with("HTTP/1.1 404"));
 }
 
+const TUNNEL: &str = "calm-river-42.trycloudflare.com";
+
+/// Upgrade como o `cloudflared` repassa: TCP do loopback, `Host`/`Origin` do
+/// nome público e, opcionalmente, o IP real em `Cf-Connecting-Ip`.
+async fn connect_via_tunnel(addr: SocketAddr, cf_ip: Option<&str>) -> Result<Ws, tokio_tungstenite::tungstenite::Error> {
+    let mut req = format!("ws://{addr}/ws").into_client_request().unwrap();
+    let headers = req.headers_mut();
+    headers.insert("Host", HeaderValue::from_static(TUNNEL));
+    headers.insert("Origin", HeaderValue::from_str(&format!("https://{TUNNEL}")).unwrap());
+    if let Some(ip) = cf_ip {
+        headers.insert("Cf-Connecting-Ip", HeaderValue::from_str(ip).unwrap());
+    }
+    let stream = TcpStream::connect(addr).await.unwrap();
+    tokio_tungstenite::client_async(req, MaybeTlsStream::Plain(stream)).await.map(|(ws, _)| ws)
+}
+
+fn http_status(err: tokio_tungstenite::tungstenite::Error) -> u16 {
+    match err {
+        tokio_tungstenite::tungstenite::Error::Http(resp) => resp.status().as_u16(),
+        other => panic!("esperava resposta HTTP, veio {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn upgrade_do_tunel_so_e_aceito_com_tunnel_host_definido() {
+    let (addr, room, sink) = start_server().await;
+
+    let err = connect_via_tunnel(addr, None).await.expect_err("sem túnel ativo deveria ser 403");
+    assert_eq!(http_status(err), 403);
+
+    room.set_tunnel_host(TUNNEL.to_owned());
+    assert_eq!(room.tunnel_host().as_deref(), Some(TUNNEL));
+    let mut ws = connect_via_tunnel(addr, Some("203.0.113.7")).await.expect("túnel ativo deveria aceitar");
+    ws.send(Message::text(json!({"type":"join","code":CODE,"name":"Remoto"}).to_string())).await.unwrap();
+    let deadline = tokio::time::Instant::now() + WAIT;
+    while sink.peers.lock().unwrap().is_empty() {
+        assert!(tokio::time::Instant::now() < deadline, "join pelo túnel não chegou ao mestre");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    // Encerrado o túnel, o mesmo nome volta a ser recusado.
+    room.clear_tunnel_host();
+    assert_eq!(http_status(connect_via_tunnel(addr, None).await.expect_err("deveria voltar a 403")), 403);
+}
+
+#[tokio::test]
+async fn cinco_codigos_errados_bloqueiam_o_ip_com_429() {
+    let (addr, room, _sink) = start_server().await;
+    let origin = format!("http://{addr}");
+
+    for _ in 0..server::MAX_BAD_CODES {
+        let mut ws = connect(addr, &origin).await.expect("ainda não deveria bloquear");
+        ws.send(Message::text(json!({"type":"join","code":"ZZZZZZ","name":"Ana"}).to_string())).await.unwrap();
+        let reply: Value = serde_json::from_str(&next_text(&mut ws).await.unwrap()).unwrap();
+        assert_eq!(reply["reason"], "bad_code");
+        assert_closed(&mut ws).await;
+    }
+    assert_eq!(http_status(connect(addr, &origin).await.expect_err("sexta tentativa deveria ser 429")), 429);
+
+    // O bloqueio é por IP efetivo: pelo túnel, outro visitante real ainda entra.
+    room.set_tunnel_host(TUNNEL.to_owned());
+    assert!(connect_via_tunnel(addr, Some("203.0.113.8")).await.is_ok(), "outro IP real foi bloqueado");
+    // Pelo túnel sem Cf-Connecting-Ip, o IP é o loopback já bloqueado.
+    assert_eq!(http_status(connect_via_tunnel(addr, None).await.expect_err("loopback bloqueado")), 429);
+}
+
+#[tokio::test]
+async fn pendentes_pelo_tunel_contam_pelo_ip_real() {
+    let (addr, room, _sink) = start_server().await;
+    room.set_tunnel_host(TUNNEL.to_owned());
+
+    // Visitantes diferentes chegam todos do loopback do cloudflared: se a conta
+    // fosse por peer.ip(), o 5º já levaria 503.
+    let mut open = Vec::new();
+    for i in 1..=(server::MAX_PENDING_PER_IP + 1) {
+        let ip = format!("203.0.113.{i}");
+        let ws = connect_via_tunnel(addr, Some(&ip)).await.unwrap_or_else(|e| panic!("visitante {ip} barrado: {e:?}"));
+        open.push(ws);
+    }
+    // O mesmo IP real completa a própria cota; a próxima conexão dele é 503.
+    for _ in 1..server::MAX_PENDING_PER_IP {
+        open.push(connect_via_tunnel(addr, Some("203.0.113.1")).await.expect("ainda dentro da cota do IP"));
+    }
+    let err = connect_via_tunnel(addr, Some("203.0.113.1")).await.expect_err("acima da cota do IP deveria ser 503");
+    assert_eq!(http_status(err), 503);
+}
+
+#[tokio::test]
+async fn codigos_errados_do_mesmo_64_ipv6_bloqueiam_juntos() {
+    let (addr, room, _sink) = start_server().await;
+    room.set_tunnel_host(TUNNEL.to_owned());
+
+    // Cada tentativa sai de um endereço diferente do mesmo /64.
+    for i in 1..=server::MAX_BAD_CODES {
+        let ip = format!("2001:db8:1:2::{i:x}");
+        let mut ws = connect_via_tunnel(addr, Some(&ip)).await.unwrap_or_else(|e| panic!("{ip} bloqueado cedo: {e:?}"));
+        ws.send(Message::text(json!({"type":"join","code":"ZZZZZZ","name":"Ana"}).to_string())).await.unwrap();
+        let reply: Value = serde_json::from_str(&next_text(&mut ws).await.unwrap()).unwrap();
+        assert_eq!(reply["reason"], "bad_code");
+        assert_closed(&mut ws).await;
+    }
+    let err = connect_via_tunnel(addr, Some("2001:db8:1:2:dead:beef:0:1"))
+        .await
+        .expect_err("outro endereço do mesmo /64 deveria estar bloqueado");
+    assert_eq!(http_status(err), 429);
+    assert!(connect_via_tunnel(addr, Some("2001:db8:1:3::1")).await.is_ok(), "/64 vizinho foi bloqueado");
+}
+
 async fn http_get(addr: SocketAddr, path: &str) -> String {
     let mut tcp = TcpStream::connect(addr).await.unwrap();
     let raw = format!("GET {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n");

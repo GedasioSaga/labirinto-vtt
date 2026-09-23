@@ -1,5 +1,17 @@
-import type { RegionPoint } from '../types/map'
+import type { RegionPoint, RoomMeta } from '../types/map'
 import type { Point } from '../pixi/world'
+
+/**
+ * TETO DE CONSTRUÇÃO ligado (`RoomMeta.roof`), lido em UM lugar só.
+ *
+ * `=== true` era estrito demais: arquivo de mapa editado à mão com
+ * `"roof": 1` ou `"roof": "sim"` virava "sem teto" e o app entregava o
+ * interior do prédio em silêncio. A regra deste recurso inteiro é a mesma —
+ * na dúvida, FECHE —, então qualquer valor verdadeiro conta como teto.
+ */
+export function roomHasRoof(room: RoomMeta | undefined): boolean {
+  return room !== undefined && !!room.roof
+}
 
 /**
  * Índice de canto num polígono de Sala retangular (4 vértices, mesma ordem
@@ -19,10 +31,29 @@ export type RoomCorner = 0 | 1 | 2 | 3
  */
 export const MIN_ROOM_DIMENSION = 1
 
-/** Tolerância de clique/arrasto sobre a alça de canto de Sala, em px de
- *  mundo — mesma ordem de grandeza de `LIGHT_RADIUS_HANDLE_TOLERANCE`
- *  (`pixi/drawEditHandles.ts`). */
-export const ROOM_CORNER_HIT_TOLERANCE = 10
+/**
+ * Tolerância de clique/arrasto sobre a alça de canto de Sala, em px de mundo.
+ *
+ * Era 10 px. O passeio cego de 16/09/2026 mediu o custo disso: errar a alça
+ * por 14 px na diagonal (≈20 px de distância — um tremor de mão normal sobre
+ * um quadradinho de 7 px de lado, `HANDLE_VISUAL_RADIUS = 3.5` em
+ * `pixi/drawRoomHandles.ts`) não fazia "nada": DESSELECIONAVA a sala e
+ * arrastava a vista inteira, sem aviso nenhum. Errar por pouco é o caso
+ * normal, e o castigo era perder o trabalho de vista.
+ *
+ * 24 px cobre esse erro com folga e continua muito menor que meia sala. O
+ * limite de ambiguidade não é este número e sim `cornerHitTolerance` abaixo:
+ * em sala pequena a tolerância encolhe sozinha, para dois cantos vizinhos
+ * nunca disputarem o mesmo ponto.
+ */
+export const ROOM_CORNER_HIT_TOLERANCE = 24
+
+/**
+ * Fração do MENOR lado da sala que uma alça de canto pode alcançar. Com 1/3,
+ * as duas alças de um mesmo lado nunca se sobrepõem (1/3 + 1/3 < 1) — numa
+ * sala de 30 px de lado a alça vale 10 px, não 24.
+ */
+const CORNER_TOLERANCE_MAX_SIDE_RATIO = 1 / 3
 
 /**
  * Afasta `value` de `anchor` por pelo menos `min`, preservando de que lado de
@@ -85,8 +116,11 @@ export function resizeRoomDimensions(points: RegionPoint[], width: number, heigh
 
 /** Reconstrói os 4 vértices (topo-esq, topo-dir, baixo-dir, baixo-esq) a
  *  partir de dois cantos quaisquer da diagonal — mesma convenção de
- *  `buildRoomFromDraft` (`lib/drawingFactory.ts`). */
-function rectFromCorners(a: RegionPoint, b: RegionPoint): RegionPoint[] {
+ *  `buildRoomFromDraft` (`lib/drawingFactory.ts`). Exportada porque o arrasto
+ *  de criação da Região retangular (`pixi/PixiCanvas.tsx`) precisa da MESMA
+ *  ordem de vértices que a Sala usa, e reescrever a ordem lá seria a segunda
+ *  fonte da verdade sobre "qual canto é o `points[0]`". */
+export function rectFromCorners(a: RegionPoint, b: RegionPoint): RegionPoint[] {
   const minX = Math.min(a.x, b.x)
   const maxX = Math.max(a.x, b.x)
   const minY = Math.min(a.y, b.y)
@@ -98,6 +132,60 @@ function rectFromCorners(a: RegionPoint, b: RegionPoint): RegionPoint[] {
     { x: maxX, y: maxY },
     { x: minX, y: maxY },
   ]
+}
+
+/**
+ * Folga, em px de mundo, para "este lado está na horizontal (ou na vertical)".
+ * Um milésimo de px: invisível, e largo o bastante para o ruído de conta que
+ * um giro de ida e volta deixa (`lib/roomRotation.ts`).
+ */
+const FOLGA_DE_ALINHAMENTO = 1e-3
+
+/**
+ * Sala retangular RETA: lados na horizontal e na vertical — em pé ou deitada
+ * (0°, 90°, 180°, −90°). Só ela tem alça de canto e largura/altura, porque as
+ * duas reconstroem o retângulo a partir de dois cantos opostos alinhados à
+ * tela (`rectFromCorners`): numa sala torta isso a DESMONTARIA, trocando-a por
+ * outro retângulo, reto, no lugar dela. Torta, esses controles somem
+ * (`pixi/drawEditHandles.ts`, `components/RoomControls.tsx`) e voltam quando
+ * ela é girada de novo a um múltiplo de 90°.
+ */
+export function isAxisAlignedRect(points: readonly RegionPoint[]): boolean {
+  if (points.length !== 4) return false
+  const horizontal: boolean[] = []
+  for (let i = 0; i < 4; i += 1) {
+    const a = points[i]
+    const b = points[(i + 1) % 4]
+    const deitado = Math.abs(a.y - b.y) <= FOLGA_DE_ALINHAMENTO
+    const emPe = Math.abs(a.x - b.x) <= FOLGA_DE_ALINHAMENTO
+    // Os dois (lado de comprimento zero) ou nenhum (lado torto): não é retângulo reto.
+    if (deitado === emPe) return false
+    horizontal.push(deitado)
+  }
+  return horizontal[0] !== horizontal[1] && horizontal[0] === horizontal[2] && horizontal[1] === horizontal[3]
+}
+
+/**
+ * Quantas casas a ordem dos vértices andou em relação à convenção de
+ * `RoomCorner` (0 = canto de cima à esquerda, sentido horário). Girar 90° uma
+ * sala em pé deixa o vértice 0 no lugar do canto de cima à DIREITA: a sala
+ * continua reta, mas o arrasto de canto e a largura/altura (que contam com
+ * `points[0]` em cima à esquerda) puxariam o canto errado — e, pior,
+ * `rectFromCorners` devolve a ordem padrão, o que trocaria as paredes de lado.
+ * `null` = não é retângulo reto, ou a volta é anti-horária (arquivo feito à
+ * mão): não há o que acertar com uma rotação de índices.
+ */
+export function rectCornerShift(points: readonly RegionPoint[]): number | null {
+  if (!isAxisAlignedRect(points)) return null
+  let shift = 0
+  for (let i = 1; i < 4; i += 1) {
+    if (points[i].x + points[i].y < points[shift].x + points[shift].y) shift = i
+  }
+  const topLeft = points[shift]
+  const next = points[(shift + 1) % 4]
+  // Sentido horário na tela: do canto de cima à esquerda, o seguinte fica à DIREITA, na mesma altura.
+  const clockwise = Math.abs(next.y - topLeft.y) <= FOLGA_DE_ALINHAMENTO && next.x > topLeft.x
+  return clockwise ? shift : null
 }
 
 /** Largura/altura atuais de uma Sala retangular, derivadas dos 4 vértices —
@@ -120,9 +208,33 @@ export function roomDimensions(points: RegionPoint[]): { width: number; height: 
  */
 export function findRoomCornerAt(points: RegionPoint[], point: Point, tolerance = ROOM_CORNER_HIT_TOLERANCE): RoomCorner | null {
   if (points.length !== 4) return null
+
+  const reach = cornerHitTolerance(points, tolerance)
+  // O canto MAIS PRÓXIMO, não o primeiro dentro do raio: com tolerância
+  // generosa dois cantos vizinhos podem cobrir o mesmo ponto, e "o primeiro
+  // da lista" faria a sala esticar pelo lado oposto ao que a mão apontou.
+  let best: RoomCorner | null = null
+  let bestDistance = Infinity
   for (let i = 0; i < 4; i += 1) {
     const corner = points[i]
-    if (Math.hypot(point.x - corner.x, point.y - corner.y) <= tolerance) return i as RoomCorner
+    const distance = Math.hypot(point.x - corner.x, point.y - corner.y)
+    if (distance <= reach && distance < bestDistance) {
+      bestDistance = distance
+      // `i as RoomCorner`: o laço vai de 0 a 3 sobre um array de 4 vértices
+      // (garantido pelo `points.length !== 4` acima) — a aritmética prova o
+      // intervalo, o TS não infere literal de índice de `for`. Mesmo cast que
+      // a versão anterior desta função já usava, pela mesma razão.
+      best = i as RoomCorner
+    }
   }
-  return null
+  return best
+}
+
+/** Tolerância efetiva: a pedida, encolhida em sala pequena para que duas alças
+ *  do mesmo lado nunca se sobreponham (ver `CORNER_TOLERANCE_MAX_SIDE_RATIO`). */
+function cornerHitTolerance(points: RegionPoint[], tolerance: number): number {
+  const { width, height } = roomDimensions(points)
+  const smallestSide = Math.min(width, height)
+  if (smallestSide <= 0) return tolerance
+  return Math.min(tolerance, smallestSide * CORNER_TOLERANCE_MAX_SIDE_RATIO)
 }
