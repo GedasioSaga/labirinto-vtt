@@ -1,4 +1,7 @@
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Toast } from '../components/Toast'
 import { createEmptyMap } from '../lib/mapFactory'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, Token, Wall } from '../types/map'
@@ -94,6 +97,15 @@ describe('hostBridge: porta trancada vira pedido na caixa', () => {
     expect(m.pedidos()).toHaveLength(1)
     expect(linha?.text).toBe('Ana tenta forçar a porta em Mansão')
     expect(linha?.actions?.map((a) => a.label)).toEqual(['Destrancar e abrir', 'Não'])
+  })
+
+  it('o mestre, noutra cena, vê "Pedidos (1)" com a linha da Ana: o pedido da porta abre a caixa sozinho', async () => {
+    const m = await mesa()
+    m.pedir('force')
+    const html = renderToStaticMarkup(createElement(Toast, { toasts: useToastStore.getState().toasts, onDismiss: () => {} }))
+    expect(html).toContain('aria-label="Pedidos (1)"')
+    expect(html).toMatch(/<h2[^>]*>Pedidos \(1\)<\/h2>/)
+    expect(html).toContain('Ana tenta forçar a porta em Mansão')
   })
 
   it('porta na cena aberta no editor (ou mapa solto): a linha não repete o nome da cena', () => {

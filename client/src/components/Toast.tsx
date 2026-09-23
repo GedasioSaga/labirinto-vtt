@@ -36,7 +36,8 @@ interface ToastProps {
  * some sem resposta.
  *
  * Avisos de mesmo `grupo` (os pedidos de passagem), dois ou mais, viram UMA
- * caixa — ver `CaixaDeAvisos` e a regra em `caixaDeAvisos.ts`.
+ * caixa — ver `CaixaDeAvisos` e a regra em `caixaDeAvisos.ts`. O pedido da
+ * porta trancada (`sempreEmCaixa`) abre a caixa mesmo sozinho: "Pedidos (1)".
  */
 export function Toast({ toasts, onDismiss }: ToastProps) {
   if (toasts.length === 0) return null
@@ -123,6 +124,9 @@ function CaixaDeAvisos({ grupo, toasts, onDismiss }: CaixaDeAvisosProps) {
   const caixaRef = useRef<HTMLElement>(null)
   const devolverFoco = useRef(false)
   const titulo = tituloDaCaixa(grupo, toasts.length)
+  // Caixa de uma linha só (o pedido da porta, `sempreEmCaixa`): "Deixar todos"
+  // repetiria o botão da linha, e a resposta esperada volta a ser de latão.
+  const variasLinhas = toasts.length > 1
 
   useLayoutEffect(() => {
     if (!devolverFoco.current) return
@@ -154,7 +158,7 @@ function CaixaDeAvisos({ grupo, toasts, onDismiss }: CaixaDeAvisosProps) {
                     type="button"
                     // Na linha, o botão de latão é o "Deixar todos" da caixa;
                     // aqui a resposta esperada só ganha o contorno cheio.
-                    className={index === 0 ? 'lb-btn' : 'lb-btn lb-btn--ghost'}
+                    className={index !== 0 ? 'lb-btn lb-btn--ghost' : variasLinhas ? 'lb-btn' : 'lb-btn lb-btn--primary'}
                     onClick={() => {
                       lembrarFoco()
                       onDismiss(toast.id)
@@ -169,9 +173,11 @@ function CaixaDeAvisos({ grupo, toasts, onDismiss }: CaixaDeAvisosProps) {
           </li>
         ))}
       </ul>
-      <button type="button" className="lb-btn lb-btn--primary lb-toastcaixa__all" onClick={() => deixarTodos(toasts, onDismiss)}>
-        Deixar todos
-      </button>
+      {variasLinhas && (
+        <button type="button" className="lb-btn lb-btn--primary lb-toastcaixa__all" onClick={() => deixarTodos(toasts, onDismiss)}>
+          Deixar todos
+        </button>
+      )}
     </section>
   )
 }

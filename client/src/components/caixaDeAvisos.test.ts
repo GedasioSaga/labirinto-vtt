@@ -51,6 +51,14 @@ describe('agruparAvisos', () => {
     expect(formato(agruparAvisos([pedido('p1', 'Ana'), outro('o1'), pedido('p2', 'Bruno'), outro('o2')]))).toEqual(['Pedidos[p1,p2]', 'Outros[o1,o2]'])
   })
 
+  it('pedido marcado "sempreEmCaixa" (a porta trancada) já vira a caixa sozinho, e puxa um pedido de passagem para ela', () => {
+    const porta: ToastMessage = { ...pedido('d1', 'Ana'), text: 'Ana tenta forçar a porta', sempreEmCaixa: true }
+    expect(formato(agruparAvisos([aviso('a1', 'Bruno entrou'), porta]))).toEqual(['Pedidos[d1]', 'a1'])
+    expect(formato(agruparAvisos([pedido('p1', 'Bruno'), porta]))).toEqual(['Pedidos[p1,d1]'])
+    // Respondida a porta, o pedido de passagem que sobrou volta a ser o aviso de hoje.
+    expect(formato(agruparAvisos([pedido('p1', 'Bruno')]))).toEqual(['p1'])
+  })
+
   it('o título é o nome acessível "Pedidos (N)"', () => {
     expect(tituloDaCaixa('Pedidos', 3)).toBe('Pedidos (3)')
   })
@@ -97,8 +105,11 @@ describe('toastStore: o grupo chega ao aviso', () => {
     const store = useToastStore.getState()
     store.push('instrucao', 'Ana quer passar', null, { grupo: 'Pedidos' })
     store.push('info', 'Mapa salvo', null)
-    const [comGrupo, simples] = useToastStore.getState().toasts
+    store.push('instrucao', 'Ana tenta forçar a porta', null, { grupo: 'Pedidos', sempreEmCaixa: true })
+    const [comGrupo, simples, porta] = useToastStore.getState().toasts
     expect(comGrupo?.grupo).toBe('Pedidos')
+    expect(comGrupo?.sempreEmCaixa).toBeUndefined()
+    expect(porta?.sempreEmCaixa).toBe(true)
     expect(simples === undefined ? [] : Object.keys(simples).sort()).toEqual(['id', 'kind', 'text'])
   })
 })

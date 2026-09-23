@@ -466,6 +466,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       ],
       onDismiss: () => answerDoor(request.requestId, false),
       grupo: 'Pedidos',
+      // Sozinho já abre a caixa "Pedidos (1)": o mestre, noutra cena, lê que
+      // alguém espera — o pedido de passagem sozinho segue o aviso de hoje.
+      sempreEmCaixa: true,
     })
     doorToasts.set(request.requestId, toastId)
   }
