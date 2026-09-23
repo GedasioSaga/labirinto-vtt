@@ -5,7 +5,7 @@ import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
-import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
+import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, freeSeatNear, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
 import { visibleTokens } from '../lib/layers'
 import { companionSpots, companionsNear, type Companion } from '../lib/travelTogether'
@@ -400,6 +400,15 @@ export interface HostSession {
    * sai como `by: 'gather'`.
    */
   sendPlayer(playerId: string, toSceneId: string, pinId: string | null, source: HostMapSource, gatherAt?: { x: number; y: number }): HostResult
+  /**
+   * "Desfazer" do diário de viagens: devolve a ficha `tokenId` do jogador à
+   * cena `back.sceneId`, na casa (`back.x`, `back.y`) de onde ela saiu. Mesmo
+   * par do "Mandar para…" (`applyTransfer` + `scene.changed` `by: 'master'`,
+   * só ao dono). Nada: jogador desconhecido ou esperando, ficha que não é
+   * dele ou que não está na cena em que ele está, cena de volta sumida ou a
+   * mesma cena.
+   */
+  returnPlayer(playerId: string, tokenId: string, back: { sceneId: string; x: number; y: number }, source: HostMapSource): HostResult
   /**
    * Raio de visão só deste jogador (limitado à faixa); `null` volta ao global.
    * Não envia: o integrador faz o broadcast. Jogador desconhecido ou raio não finito é ignorado.
@@ -1359,6 +1368,37 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         outbound: record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by } }],
         applyTransfer: {
           tokenId: token.id,
+          playerId,
+          playerName: record.name,
+          fromSceneId: from.sceneId,
+          toSceneId: to.sceneId,
+          toSceneName: to.name,
+          x: spot.x,
+          y: spot.y,
+        },
+      }
+    },
+
+    returnPlayer(playerId, tokenId, back, source) {
+      const record = players.get(playerId)
+      if (record === undefined || statusOf(playerId) !== 'playing' || !(ownership[playerId] ?? []).includes(tokenId)) return { outbound: [] }
+      const world = toWorld(source)
+      const from = sceneFor(playerId, world)
+      if (from === null || from.sceneId === null || from.sceneId === back.sceneId) return { outbound: [] }
+      // A ficha tem de estar AGORA na cena dele: se saiu por outro caminho, o "Desfazer" é de uma viagem velha.
+      const token = from.map.tokens.find((t) => t.id === tokenId)
+      if (token === undefined) return { outbound: [] }
+      const to = allScenes(world).find((scene) => scene.sceneId === back.sceneId)
+      if (to === undefined || to.sceneId === null) return { outbound: [] }
+      // Alguém parou na casa dela enquanto isso: volta ao lado, sem empilhar (a de baixo sumia).
+      const spot = freeSeatNear(to.map, { x: back.x, y: back.y }, token.size, tokenId)
+      currentScene.set(playerId, sceneKey(to))
+      // O pedido que ele tinha na cena de antes perde o sentido: o pino ficou lá.
+      pendingTravels.delete(playerId)
+      return {
+        outbound: record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by: 'master' } }],
+        applyTransfer: {
+          tokenId,
           playerId,
           playerName: record.name,
           fromSceneId: from.sceneId,
