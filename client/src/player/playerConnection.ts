@@ -1,6 +1,19 @@
 import type { MapData, RegionPoint, Token } from '../types/map'
 import { decodeExploration, type Exploration } from '../lib/exploration'
-import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PinTravelRequestMessage, type PlayerMessage } from '../net/protocol'
+import {
+  DOOR_REQUEST_REJECTIONS,
+  NAME_MAX_LENGTH,
+  NAME_MIN_LENGTH,
+  isDoorRequestHow,
+  type DoorRequestAnswer,
+  type DoorRequestHow,
+  type DoorRequestRejection,
+  type DoorToggleRejection,
+  type JoinMessage,
+  type PinTravelRejection,
+  type PinTravelRequestMessage,
+  type PlayerMessage,
+} from '../net/protocol'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
@@ -30,8 +43,15 @@ export interface PlayerState {
   signals?: SignalMark[]
   /** Rastro do laser do mestre; some sozinho `LASER_TRAIL_MS` depois da última mensagem com o laser desligado. */
   laser?: LaserTrail
-  /** Recusa do mestre ao pedido de porta (trancada, longe, não visível); some sozinho. `id` novo repete o aviso. */
-  doorNotice?: { id: number; reason: DoorToggleRejection }
+  /**
+   * Recusa do mestre ao pedido de porta (trancada, longe, não visível). `id`
+   * novo repete o aviso. Longe e não visível somem sozinhos; "Trancada" fica
+   * até o jogador escolher (Bater, Forçar, Usar chave) ou fechar, e guarda
+   * `wallId` para o pedido saber de que porta é.
+   */
+  doorNotice?: DoorNotice
+  /** O pedido da porta trancada: enviado, a resposta do mestre ou a recusa do host. Some sozinho. */
+  doorRequest?: { id: number; phase: DoorRequestPhase }
   /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
   travel?: TravelNotice
   /**
@@ -58,6 +78,16 @@ export interface PlayerState {
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
   error?: string
 }
+
+/** O aviso da recusa do toque na porta; `wallId` é a porta tocada. */
+export interface DoorNotice {
+  id: number
+  reason: DoorToggleRejection
+  wallId: string
+}
+
+/** `sent`: saiu para o mestre; `opened`/`denied`: a resposta dele; o resto: o host nem levou ao mestre. */
+export type DoorRequestPhase = 'sent' | DoorRequestAnswer | DoorRequestRejection
 
 /**
  * Onde está o pedido de passagem pelo pino de viagem. `waiting` fica até o
@@ -110,6 +140,14 @@ export interface PlayerConnection {
   /** Pede ao mestre para abrir/fechar a porta. `false` se não está jogando ou o socket não está aberto. */
   toggleDoor(wallId: string): boolean
   /**
+   * Pede ao mestre para passar pela porta trancada `wallId` — Bater, Forçar ou
+   * Usar chave. Troca o "Trancada" por "Pedido enviado". `false` se não está
+   * jogando, o pedido é malformado ou o socket não está aberto.
+   */
+  requestDoor(wallId: string, how: DoorRequestHow): boolean
+  /** Fecha o aviso da porta (o × do "Trancada"). */
+  dismissDoorNotice(): void
+  /**
    * Nome novo do PRÓPRIO token: aplica na hora e envia. `false` quando o token
    * não é dele, não está no mapa, o nome não cabe ou o socket não está aberto.
    */
@@ -136,8 +174,10 @@ export interface PlayerConnection {
 
 export const RESUME_STORAGE_KEY = 'labirinto.resume'
 export const PING_INTERVAL_MS = 15_000
-/** Quanto tempo o aviso da porta ("Trancada") fica na tela. */
+/** Quanto tempo o aviso da porta ("Chegue mais perto") fica na tela. O "Trancada" fica até o jogador escolher. */
 export const DOOR_NOTICE_TTL_MS = 2500
+/** Quanto tempo o aviso do pedido da porta ("Pedido enviado", "O mestre abriu") fica na tela. */
+export const DOOR_REQUEST_NOTICE_TTL_MS = 4000
 /** Quanto tempo a recusa do mestre ("não deixou passar agora") fica na tela. Mais que a porta. */
 export const TRAVEL_NOTICE_TTL_MS = 4000
 /**
@@ -295,13 +335,25 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     doorNoticeTimer = null
   }
 
-  function showDoorNotice(reason: DoorToggleRejection): void {
+  /** Recusa do toque. Um aviso de porta por vez (o do pedido sai): os dois ocupam o mesmo lugar da tela. */
+  function showDoorNotice(reason: DoorToggleRejection, wallId: string): void {
     clearDoorNotice()
-    setState({ doorNotice: { id: nextNoticeId++, reason } })
+    setState({ doorNotice: { id: nextNoticeId++, reason, wallId }, doorRequest: undefined })
+    // "Trancada" não some sozinho: dele saem os botões do pedido, e o jogador precisa de tempo para escolher.
+    if (reason === 'locked') return
     doorNoticeTimer = setTimeout(() => {
       doorNoticeTimer = null
       setState({ doorNotice: undefined })
     }, DOOR_NOTICE_TTL_MS)
+  }
+
+  function showDoorRequest(phase: DoorRequestPhase): void {
+    clearDoorNotice()
+    setState({ doorRequest: { id: nextNoticeId++, phase }, doorNotice: undefined })
+    doorNoticeTimer = setTimeout(() => {
+      doorNoticeTimer = null
+      setState({ doorRequest: undefined })
+    }, DOOR_REQUEST_NOTICE_TTL_MS)
   }
 
   let travelTimer: ReturnType<typeof setTimeout> | null = null
@@ -467,7 +519,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined })
+        setState({
+          status: 'waiting',
+          map: undefined,
+          vision: undefined,
+          explored: undefined,
+          ownTokens: undefined,
+          concealed: undefined,
+          signals: undefined,
+          laser: undefined,
+          doorNotice: undefined,
+          doorRequest: undefined,
+          travel: undefined,
+        })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -479,7 +543,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSignalTimers()
         clearLaserTimer()
         clearDoorNotice()
-        setState({ signals: undefined, laser: undefined, doorNotice: undefined })
+        // A porta tocada ficou na cena de antes: o "Trancada" e os botões dele perdem o sentido.
+        setState({ signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -547,7 +612,23 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (state.status !== 'playing') return
         const { reason } = data
         if (reason !== 'locked' && reason !== 'far' && reason !== 'not_visible') return
-        showDoorNotice(reason)
+        if (typeof data.wallId !== 'string' || data.wallId.length === 0) return
+        showDoorNotice(reason, data.wallId)
+        return
+      }
+      case 'door.request.rejected': {
+        if (state.status !== 'playing') return
+        const { reason } = data
+        const known = DOOR_REQUEST_REJECTIONS.find((r) => r === reason)
+        if (known === undefined) return
+        showDoorRequest(known)
+        return
+      }
+      case 'door.request.answer': {
+        if (state.status !== 'playing') return
+        const { answer } = data
+        if (answer !== 'opened' && answer !== 'denied') return
+        showDoorRequest(answer)
         return
       }
       case 'snapshot':
@@ -585,7 +666,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         clearTravelTimer()
-        setState({ status: 'closed', doorNotice: undefined, travel: undefined })
+        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, travel: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -678,6 +759,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     toggleDoor(wallId) {
       if (state.status !== 'playing' || wallId.length === 0) return false
       return send({ type: 'door.toggle', wallId })
+    },
+
+    requestDoor(wallId, how) {
+      if (state.status !== 'playing' || wallId.length === 0 || !isDoorRequestHow(how)) return false
+      if (!send({ type: 'door.request', wallId, how })) return false
+      showDoorRequest('sent')
+      return true
+    },
+
+    dismissDoorNotice() {
+      if (state.doorNotice === undefined) return
+      clearDoorNotice()
+      setState({ doorNotice: undefined })
     },
 
     requestTravel(pinId, exitId) {

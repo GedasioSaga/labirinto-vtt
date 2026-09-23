@@ -60,6 +60,10 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * `scene.note.onlyYou` é o RECADO PARA UM JOGADOR SÓ (linha dele no Grupo):
  * a mesma mensagem, que o host manda a uma conexão só, com a marca para a
  * tela dizer "Só para você". Aditivo: jogador antigo mostra como recado comum.
+ *
+ * O PEDIDO DA PORTA TRANCADA também é aditivo: `door.request` (jogador ->
+ * mestre) e, na volta, `door.request.rejected` e `door.request.answer`. Mestre
+ * antigo responde `error invalid_message`; jogador antigo ignora as duas.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -144,10 +148,39 @@ export interface PinTravelRequestMessage {
   exitId?: string
 }
 
-export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage | DoorToggleMessage | TokenEditMessage | PinTravelRequestMessage
+/** Como o jogador tenta passar pela porta trancada: Bater, Forçar ou Usar chave. */
+export type DoorRequestHow = 'knock' | 'force' | 'key'
+
+const DOOR_REQUEST_HOWS: readonly DoorRequestHow[] = ['knock', 'force', 'key']
+
+/**
+ * PORTA TRANCADA VIRA PEDIDO: o jogador tocou a porta, leu "Trancada" e pede
+ * ao mestre do jeito que escolheu. O host valida (porta visível, trancada,
+ * token perto) e leva ao mestre; a resposta volta em `door.request.answer`.
+ * Aditiva pelo mesmo critério de `door.toggle`.
+ */
+export interface DoorRequestMessage {
+  type: 'door.request'
+  wallId: string
+  how: DoorRequestHow
+}
+
+export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage | DoorToggleMessage | DoorRequestMessage | TokenEditMessage | PinTravelRequestMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
+
+/**
+ * Por que o host não levou o pedido da porta trancada ao mestre. `pending`: um
+ * pedido de porta dele já espera; `not_locked`: a porta abre com o toque.
+ * Porta inexistente ou no escuro respondem o mesmo `not_visible` do toque.
+ */
+export type DoorRequestRejection = 'pending' | 'far' | 'not_visible' | 'not_locked'
+
+export const DOOR_REQUEST_REJECTIONS: readonly DoorRequestRejection[] = ['pending', 'far', 'not_visible', 'not_locked']
+
+/** A resposta do mestre ao pedido da porta. Sem id de porta nem de cena: quem pediu já sabe qual foi. */
+export type DoorRequestAnswer = 'opened' | 'denied'
 
 /**
  * Por que o host recusou o pedido de passagem SEM levar ao mestre. Genérico de
@@ -215,6 +248,8 @@ export type HostMessage =
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejectionReason }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
+  | { type: 'door.request.rejected'; wallId: string; reason: DoorRequestRejection }
+  | { type: 'door.request.answer'; answer: DoorRequestAnswer }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
   | { type: 'pin.travel.denied' }
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
@@ -273,6 +308,17 @@ function parseTravelRequest(obj: Record<string, unknown>): PinTravelRequestMessa
   if (exitId === undefined) return { type: 'pin.travel.request', pinId }
   if (!isBoundedString(exitId, 1, REQ_ID_MAX_LENGTH)) return null
   return { type: 'pin.travel.request', pinId, exitId }
+}
+
+export function isDoorRequestHow(value: unknown): value is DoorRequestHow {
+  return DOOR_REQUEST_HOWS.some((how) => how === value)
+}
+
+/** Pedido da porta trancada: id de porta curto e um dos três jeitos; qualquer outra coisa recusa a mensagem. */
+function parseDoorRequest(obj: Record<string, unknown>): DoorRequestMessage | null {
+  const { wallId, how } = obj
+  if (!isBoundedString(wallId, 1, REQ_ID_MAX_LENGTH) || !isDoorRequestHow(how)) return null
+  return { type: 'door.request', wallId, how }
 }
 
 /**
@@ -393,6 +439,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
     case 'door.toggle':
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
+    case 'door.request':
+      return parseDoorRequest(value)
     case 'token.edit':
       return parseTokenEdit(value)
     case 'pin.travel.request':

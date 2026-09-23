@@ -1,4 +1,4 @@
-import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
+import type { DoorState, MapData, Pin, RegionPoint, Token, Wall } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
@@ -11,7 +11,11 @@ import { visibleTokens } from '../lib/layers'
 import { companionSpots, companionsNear, type Companion } from '../lib/travelTogether'
 import {
   parsePlayerMessage,
+  type DoorRequestHow,
+  type DoorRequestMessage,
+  type DoorRequestRejection,
   type DoorToggleMessage,
+  type DoorToggleRejection,
   type HostMessage,
   type JoinMessage,
   type LaserMessage,
@@ -107,6 +111,21 @@ export interface AppliedDoor {
   wallId: string
   open: boolean
   sceneId?: string
+  /** O mestre disse "Destrancar e abrir" ao pedido da porta trancada: tira o cadeado antes de abrir. */
+  unlock?: true
+}
+
+/**
+ * Pedido da porta trancada, já validado, à espera do mestre. É o que a linha
+ * da caixa de Pedidos mostra; nada disto vai ao jogador.
+ */
+export interface DoorRequest {
+  requestId: string
+  playerId: string
+  playerName: string
+  how: DoorRequestHow
+  /** Nome da cena (o que o mestre lê), só quando a porta está numa cena de FUNDO. */
+  sceneName?: string
 }
 
 /**
@@ -174,6 +193,8 @@ export interface HostResult {
   signal?: HostSignal
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
   travelRequest?: TravelRequest
+  /** Pedido da porta trancada válido: o integrador pergunta ao mestre. */
+  doorRequest?: DoorRequest
   /**
    * O mestre deixou ir, ou o pino é livre (aí vem de `handleMessage`): o
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
@@ -326,6 +347,17 @@ export interface HostSession {
    */
   approveTravelTogether(requestId: string, source: HostMapSource): HostResult[]
   /**
+   * "Destrancar e abrir" do pedido da porta trancada: `applyDoor` (com
+   * `unlock`) na cena onde a porta está — mesmo de fundo — e
+   * `door.request.answer opened` ao jogador. Não exige mais o token perto: é
+   * decisão do mestre. Pedido que já não existe, ou porta que sumiu, não faz nada.
+   */
+  approveDoorRequest(requestId: string, source: HostMapSource): HostResult
+  /** "Não": `door.request.answer denied` ao jogador. Pedido que já não existe não faz nada. */
+  denyDoorRequest(requestId: string): HostResult
+  /** O pedido da porta ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
+  isDoorRequestPending(requestId: string): boolean
+  /**
    * "Mandar para…" do painel Grupo: o MESTRE leva o jogador, sem pedido, para
    * `toSceneId` — no pino de viagem `pinId` daquela cena ou, com `null`, no
    * centro dela. Devolve o mesmo par da aprovação (`applyTransfer` +
@@ -379,6 +411,14 @@ interface PendingTravel {
   /** O destino do aviso que o mestre leu. Religou a saída depois? A aprovação não vale. */
   toSceneId: string
   partnerId: string
+}
+
+/** Pedido da porta trancada à espera do mestre. Um por jogador. `mapId`: a `sceneKey` da cena da porta. */
+interface PendingDoor {
+  requestId: string
+  playerId: string
+  wallId: string
+  mapId: string
 }
 
 /** Pedido que passou em tudo: de onde, para onde, por qual pino e com qual token. */
@@ -443,6 +483,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastSignalAt = new Map<string, number>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
   const lastDoorToggleAt = new Map<string, number>()
+  // Por playerId: o pedido da porta trancada que espera o mestre (no máximo um).
+  const pendingDoors = new Map<string, PendingDoor>()
+  // Por playerId: o mesmo limite do toque, para o pedido da porta trancada.
+  const lastDoorRequestAt = new Map<string, number>()
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
   const lastTokenPhotoAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
@@ -731,6 +775,32 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * do jogador; porta inexistente ou invisível responde o mesmo
    * `not_visible`, para não dizer o que existe no escuro.
    */
+  /**
+   * A porta `wallId` do mapa do MESTRE (com o cadeado real), só se o jogador a
+   * vê AGORA — lembrada não conta, senão abriria porta do outro lado do mapa.
+   * `near`: algum token dele, no recorte dele (respeita camada oculta e token
+   * escondido pelo mestre), encosta nela. `null` = inexistente ou no escuro.
+   */
+  const doorSeenBy = (playerId: string, map: MapData, wallId: string): { wall: Wall; door: DoorState; near: boolean } | null => {
+    const wall = map.walls.find((w) => w.id === wallId)
+    if (wall === undefined || wall.door === null) return null
+    const memory = memoryFor(playerId, map)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    if (!view.visibleDoorIds.includes(wall.id)) return null
+    const owned = new Set(ownership[playerId] ?? [])
+    const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
+    return { wall, door: wall.door, near }
+  }
+
+  /** Limite de 1 pedido de porta por `DOOR_TOGGLE_MIN_INTERVAL_MS`: `false` = o excesso morre em silêncio. */
+  const withinDoorLimit = (limits: Map<string, number>, playerId: string): boolean => {
+    const at = now()
+    const last = limits.get(playerId)
+    if (last !== undefined && at - last < DOOR_TOGGLE_MIN_INTERVAL_MS) return false
+    limits.set(playerId, at)
+    return true
+  }
+
   function handleDoorToggle(clientId: string, msg: DoorToggleMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
@@ -739,29 +809,53 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Cena pausada morre em silêncio: o aviso fixo da pausa já diz por quê, e
     // não gasta o intervalo da porta de quem vai tentar de novo depois.
     if (scene === null || inPausedScene(scene)) return { outbound: [] }
-    const map = scene.map
-    const at = now()
-    const last = lastDoorToggleAt.get(playerId)
-    if (last !== undefined && at - last < DOOR_TOGGLE_MIN_INTERVAL_MS) return { outbound: [] }
-    lastDoorToggleAt.set(playerId, at)
+    if (!withinDoorLimit(lastDoorToggleAt, playerId)) return { outbound: [] }
 
-    const reject = (reason: 'locked' | 'far' | 'not_visible'): HostResult =>
-      reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
+    const reject = (reason: DoorToggleRejection): HostResult => reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
 
-    const wall = map.walls.find((w) => w.id === msg.wallId)
-    if (wall === undefined || wall.door === null) return reject('not_visible')
-    const memory = memoryFor(playerId, map)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
-    if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
-    // Trancada antes de longe: a cor da porta já diz que está trancada, e "Trancada" é a informação útil.
-    if (wall.door.locked) return reject('locked')
-    const owned = new Set(ownership[playerId] ?? [])
-    // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
-    const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
-    if (!near) return reject('far')
+    const seen = doorSeenBy(playerId, scene.map, msg.wallId)
+    if (seen === null) return reject('not_visible')
+    // Trancada antes de longe: "Trancada" é a informação útil, e é dela que sai o pedido ao mestre.
+    if (seen.door.locked) return reject('locked')
+    if (!seen.near) return reject('far')
 
-    return { outbound: [], applyDoor: { wallId: wall.id, open: !wall.door.open, ...backgroundSceneId(scene, world) } }
+    return { outbound: [], applyDoor: { wallId: seen.wall.id, open: !seen.door.open, ...backgroundSceneId(scene, world) } }
   }
+
+  /**
+   * PORTA TRANCADA VIRA PEDIDO. Autoridade no molde de `handleDoorToggle`: a
+   * porta existe, está VISÍVEL para ele agora, está TRANCADA e um token dele
+   * encosta nela. Um pedido de porta por jogador: enquanto um espera o
+   * mestre, os toques seguintes respondem `pending` e não viram outra linha.
+   * O nome da cena vai só no `doorRequest`, que o mestre lê.
+   */
+  function handleDoorRequest(clientId: string, msg: DoorRequestMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    // Cena pausada: o pedido morre em silêncio, como o toque na porta.
+    if (scene === null || inPausedScene(scene)) return { outbound: [] }
+    if (!withinDoorLimit(lastDoorRequestAt, playerId)) return { outbound: [] }
+
+    const reject = (reason: DoorRequestRejection): HostResult => reply(clientId, { type: 'door.request.rejected', wallId: msg.wallId, reason })
+
+    if (pendingDoors.has(playerId)) return reject('pending')
+    const seen = doorSeenBy(playerId, scene.map, msg.wallId)
+    if (seen === null) return reject('not_visible')
+    if (!seen.door.locked) return reject('not_locked')
+    if (!seen.near) return reject('far')
+
+    const requestId = randomId()
+    pendingDoors.set(playerId, { requestId, playerId, wallId: seen.wall.id, mapId: sceneKey(scene) })
+    const request: DoorRequest = { requestId, playerId, playerName: record.name, how: msg.how }
+    // Cena de fundo: o mestre lê onde é, porque está olhando outra.
+    if (backgroundSceneId(scene, world).sceneId !== undefined) request.sceneName = scene.name
+    return { outbound: [], doorRequest: request }
+  }
+
+  const findPendingDoor = (requestId: string): PendingDoor | undefined => [...pendingDoors.values()].find((pending) => pending.requestId === requestId)
 
   /**
    * Jogador troca o nome e a foto do PRÓPRIO token. A autoridade é aqui: o
@@ -977,6 +1071,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleSignal(clientId, msg, world)
         case 'door.toggle':
           return handleDoorToggle(clientId, msg, world)
+        case 'door.request':
+          return handleDoorRequest(clientId, msg, world)
         case 'token.edit':
           return handleTokenEdit(clientId, msg, world)
         case 'pin.travel.request':
@@ -1065,6 +1161,34 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return results
     },
 
+    approveDoorRequest(requestId, source) {
+      const pending = findPendingDoor(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingDoors.delete(pending.playerId)
+      const clientId = players.get(pending.playerId)?.clientId ?? null
+      const world = toWorld(source)
+      // A cena da PORTA, não a do jogador agora nem a aberta no editor.
+      const scene = allScenes(world).find((s) => sceneKey(s) === pending.mapId)
+      const door = scene?.map.walls.find((w) => w.id === pending.wallId)?.door ?? null
+      if (scene === undefined || door === null) return { outbound: [] }
+      return {
+        outbound: clientId === null ? [] : [{ clientId, msg: { type: 'door.request.answer', answer: 'opened' } }],
+        applyDoor: { wallId: pending.wallId, open: true, unlock: true, ...backgroundSceneId(scene, world) },
+      }
+    },
+
+    denyDoorRequest(requestId) {
+      const pending = findPendingDoor(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingDoors.delete(pending.playerId)
+      const clientId = players.get(pending.playerId)?.clientId ?? null // null = saiu: não há a quem avisar
+      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'door.request.answer', answer: 'denied' })
+    },
+
+    isDoorRequestPending(requestId) {
+      return findPendingDoor(requestId) !== undefined
+    },
+
     sendPlayer(playerId, toSceneId, pinId, source, gatherAt) {
       const record = players.get(playerId)
       if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
@@ -1132,6 +1256,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // O pedido pendente morre com a conexão: quem voltar não tem mais o
       // "Aguardando o mestre…" na tela, e o aviso do mestre fica inofensivo.
       pendingTravels.delete(playerId)
+      // Mesmo para a porta: "Destrancar e abrir" depois da queda não abre nada.
+      pendingDoors.delete(playerId)
     },
 
     kick(clientId) {
@@ -1146,6 +1272,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       forgetTravelsOf(playerId)
       lastSignalAt.delete(playerId)
       lastDoorToggleAt.delete(playerId)
+      pendingDoors.delete(playerId)
+      lastDoorRequestAt.delete(playerId)
       lastTokenPhotoAt.delete(playerId)
       visionOverrides.delete(playerId)
       pendingNotes.delete(playerId)

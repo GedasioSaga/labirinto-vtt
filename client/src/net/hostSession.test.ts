@@ -591,12 +591,13 @@ describe('hostSession', () => {
       const away = snapshotTo(s.broadcast(at(100, { open: true, locked: true, kind: 'normal' })), 'c1').msg
       expect(doorOf(away)).toEqual(closed)
       expect(JSON.stringify(away)).not.toContain('"open":true')
-      // De volta perto da porta: o estado real aparece.
+      // De volta perto da porta: o estado real aparece — aberta, e sem o
+      // cadeado, que nunca vai ao jogador (porta trancada vira pedido).
       const back = snapshotTo(s.broadcast(at(420, { open: true, locked: true, kind: 'normal' })), 'c1').msg
-      expect(doorOf(back)).toEqual({ open: true, locked: true, kind: 'normal' })
-      // Longe de novo com a porta fechada pelo mestre: fica a lembrança "aberta e trancada".
+      expect(doorOf(back)).toEqual({ open: true, locked: false, kind: 'normal' })
+      // Longe de novo com a porta fechada pelo mestre: fica a lembrança "aberta".
       const awayAgain = snapshotTo(s.broadcast(at(100, closed)), 'c1').msg
-      expect(doorOf(awayAgain)).toEqual({ open: true, locked: true, kind: 'normal' })
+      expect(doorOf(awayAgain)).toEqual({ open: true, locked: false, kind: 'normal' })
     })
   })
 
