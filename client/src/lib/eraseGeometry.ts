@@ -259,6 +259,25 @@ function eraseFromPolylineDrawing(drawing: Drawing & { kind: 'freehand' | 'curve
   }))
 }
 
+/**
+ * Caminho: traço aberto como freehand/curve — apagar o meio da trilha deixa
+ * os dois pedaços de pé, em vez de sumir com o caminho inteiro. Função
+ * própria, e não um `case` a mais em `eraseFromPolylineDrawing`, porque
+ * `path` não tem `cap`: a faixa nasce e morre redonda, e espalhar um
+ * `'cap' in drawing` lá dentro custaria mais do que estas seis linhas.
+ */
+function eraseFromPathDrawing(drawing: Drawing & { kind: 'path' }, center: Point, radius: number): Drawing[] {
+  if (!circleOverlapsPolyline(center, radius, drawing.points)) return [drawing]
+
+  return clipPolylineByCircle(drawing.points, center, radius).map((chain) => ({
+    id: crypto.randomUUID(),
+    kind: 'path' as const,
+    points: toDrawingPoints(chain),
+    color: drawing.color,
+    width: drawing.width,
+  }))
+}
+
 function eraseFromLineDrawing(drawing: Drawing & { kind: 'line' }, center: Point, radius: number): Drawing[] {
   const a = { x: drawing.x1, y: drawing.y1 }
   const b = { x: drawing.x2, y: drawing.y2 }
@@ -304,6 +323,9 @@ export function eraseFromDrawing(drawing: Drawing, center: Point, radius: number
     case 'curve':
       return eraseFromPolylineDrawing(drawing, center, radius)
 
+    case 'path':
+      return eraseFromPathDrawing(drawing, center, radius)
+
     case 'line':
       return eraseFromLineDrawing(drawing, center, radius)
 
@@ -341,7 +363,7 @@ export function eraseFromDrawing(drawing: Drawing, center: Point, radius: number
     }
 
     default: {
-      // Exaustividade: se um 9º kind nascer em types/map.ts sem passar por
+      // Exaustividade: se um 10º kind nascer em types/map.ts sem passar por
       // aqui, o `tsc` acusa (`drawing` deixa de ser `never`) em vez de
       // silenciar a borracha nesse kind novo.
       const exhaustive: never = drawing

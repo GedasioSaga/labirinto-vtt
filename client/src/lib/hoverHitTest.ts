@@ -38,7 +38,8 @@ import type { Selection, SelectionKind, DrawingTool } from '../types/tools'
 import type { Point } from '../pixi/world'
 import type { HoverKind, ResizeCorner } from '../pixi/cursorPolicy'
 import { findBoxCornerAt, drawingBoundingBox, tokenBoundingBox, propBoundingBox } from './objectTransform'
-import { findRoomCornerAt } from './roomOps'
+import { findRoomCornerAt, isAxisAlignedRect } from './roomOps'
+import { isOnRoomRotateHandle, roomRotationOf } from './roomRotation'
 import { findCurveControlPointAt, findSelectableAt } from './selectionHitTest'
 import { findLightRadiusHandleAt } from '../pixi/drawEditHandles'
 import { areaSelectionBounds, type AreaSelection } from './areaSelection'
@@ -50,6 +51,8 @@ export interface HoverHitInput {
   areaSelection: AreaSelection | null
   activeTool: DrawingTool
   worldPoint: Point
+  /** Zoom da câmera: a alça de girar sala tem tamanho fixo na TELA. Ausente = 1. */
+  cameraScale?: number
 }
 
 /** Entidade que um clique agora selecionaria — só presente quando `kind ===
@@ -140,8 +143,14 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
     if (editRegionId !== null) {
       const region = map.regions.find((r) => r.id === editRegionId)
       if (region) {
+        // Alça de girar: mesma condição do pointerdown (`pixi/roomRotateGesture.ts`)
+        // — Sala destravada. Travada não tem alça, então não tem cursor de girar.
+        if (region.room && canInteract(region) && isOnRoomRotateHandle(region.points, roomRotationOf(region.room), worldPoint, input.cameraScale ?? 1)) {
+          return { kind: 'rotate', corner: null, target: null }
+        }
         if (region.room?.shape === 'rect') {
-          const corner = findRoomCornerAt(region.points, worldPoint)
+          // Torta não tem alça de canto (ver `isAxisAlignedRect`), e também não cai no vértice solto abaixo.
+          const corner = isAxisAlignedRect(region.points) ? findRoomCornerAt(region.points, worldPoint) : null
           if (corner !== null) return { kind: 'resize-corner', corner, target: null }
         } else if (findCurveControlPointAt(region.points, worldPoint) !== null) {
           return { kind: 'vertex', corner: null, target: null }

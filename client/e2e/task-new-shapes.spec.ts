@@ -6,6 +6,7 @@
 // só o default de 0.5.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 import type { Drawing } from '../src/types/map'
 
 const CUSTOM_FILL_ALPHA = 0.35
@@ -38,8 +39,9 @@ async function setFillPreference(page: Page, filled: boolean, fillAlpha: number)
   )
 }
 
+// As três formas moram no botão Desenho: `pickTool` abre a setinha e escolhe o rádio.
 async function selectTool(page: Page, label: 'Retângulo' | 'Elipse' | 'Polígono') {
-  await page.getByRole('button', { name: label, exact: true }).click()
+  await pickTool(page, label)
 }
 
 test.beforeEach(async ({ page }) => {

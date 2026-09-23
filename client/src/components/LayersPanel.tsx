@@ -1,8 +1,8 @@
-import { Fragment } from 'react'
-import type { LayerId, Prop } from '../types/map'
+import type { ReactNode } from 'react'
+import type { LayerId } from '../types/map'
 import { LAYER_IDS } from '../types/map'
-import { LAYER_LABELS, PROP_LAYER_OPTIONS, propLayer } from '../lib/layers'
-import { Toggle } from './Toggle'
+import { LAYER_LABELS } from '../lib/layers'
+import { EyeIcon, EyeOffIcon, LockIcon, UnlockIcon } from './icons'
 
 export interface LayersPanelProps {
   hiddenLayers: LayerId[]
@@ -16,76 +16,58 @@ export interface LayersPanelProps {
   counts: Record<LayerId, number>
   onToggleLayer: (id: LayerId) => void
   onToggleLock: (id: LayerId) => void
-  /** Prop atualmente selecionado (mesmo contrato de
-   *  PropertiesPanelProps.selectedProp) — habilita o seletor "camada deste
-   *  objeto" abaixo da lista. `null` quando a seleção não é um Prop: Prop é o
-   *  ÚNICO tipo com override de camada (ver Prop.layer, types/map.ts), então
-   *  o seletor não faz sentido pra nenhum outro `kind`. */
-  selectedProp: Prop | null
-  onSetPropLayer: (id: string, layer: Prop['layer']) => void
+  /** Linha de acesso rápido acima da lista (hoje: Mostrar grade / Grudar). */
+  quickToggles?: ReactNode
 }
 
 /**
- * Lista as 9 camadas do mapa com um interruptor de visibilidade e um de
- * trava cada, mais — quando a seleção atual é um Prop — o seletor "Objetos |
- * Decoração" que expõe mapStore.setPropLayer (capacidade que existe desde a
- * Fase 1 e nunca teve caminho de UI). Puramente apresentação: quem decide o
- * que é "camada oculta"/"camada travada"/"camada do Prop" é MapData (via
- * mapStore); este componente só lê e emite o pedido.
+ * Lista compacta das 9 camadas: uma linha por camada com nome, contagem e dois
+ * botões de ícone. Os dois usam `aria-pressed` para o estado FORA do padrão
+ * (oculta / travada), assim o destaque visual de `lb-iconbtn[aria-pressed]`
+ * só aparece no que o usuário mexeu; o nome acessível descreve a ação do
+ * próximo clique ("Ocultar Paredes" ↔ "Mostrar Paredes").
+ *
+ * Só apresentação: quem decide o que é camada oculta/travada é MapData (via
+ * mapStore); este componente lê e emite o pedido. O título e o abre/fecha
+ * ficam com quem envolve (`CollapsibleSection` em PropertiesPanel).
  */
-export function LayersPanel({
-  hiddenLayers,
-  lockedLayers,
-  counts,
-  onToggleLayer,
-  onToggleLock,
-  selectedProp,
-  onSetPropLayer,
-}: LayersPanelProps) {
+export function LayersPanel({ hiddenLayers, lockedLayers, counts, onToggleLayer, onToggleLock, quickToggles }: LayersPanelProps) {
   return (
     <>
-      <section className="lb-section">
-        <h2 className="lb-eyebrow">Camadas</h2>
-        {LAYER_IDS.map((id) => (
-          <Fragment key={id}>
-            <Toggle
-              label={`${LAYER_LABELS[id]} (${counts[id]})`}
-              checked={!hiddenLayers.includes(id)}
-              onChange={() => onToggleLayer(id)}
-            />
-            <Toggle
-              label={`Travar ${LAYER_LABELS[id]}`}
-              checked={lockedLayers.includes(id)}
-              onChange={() => onToggleLock(id)}
-            />
-          </Fragment>
-        ))}
-      </section>
-      {selectedProp && (
-        <section className="lb-section">
-          <h2 className="lb-eyebrow">Camada do objeto selecionado</h2>
-          <div className="lb-field">
-            <div className="lb-seg" role="radiogroup" aria-label="Camada do objeto selecionado">
-              {PROP_LAYER_OPTIONS.map((option) => {
-                const active = propLayer(selectedProp) === option
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    className="lb-seg__option"
-                    disabled={active}
-                    onClick={() => onSetPropLayer(selectedProp.id, option)}
-                  >
-                    {LAYER_LABELS[option]}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-      )}
+      {quickToggles}
+      <ul className="lb-layers" aria-label="Camadas do mapa">
+        {LAYER_IDS.map((id) => {
+          const label = LAYER_LABELS[id]
+          const hidden = hiddenLayers.includes(id)
+          const locked = lockedLayers.includes(id)
+          return (
+            <li key={id} className="lb-layers__row" data-hidden={hidden || undefined}>
+              <span className="lb-layers__name">{label}</span>
+              <span className="lb-num lb-layers__count">{counts[id]}</span>
+              <button
+                type="button"
+                className="lb-iconbtn lb-iconbtn--sm"
+                aria-pressed={hidden}
+                aria-label={hidden ? `Mostrar ${label}` : `Ocultar ${label}`}
+                title={hidden ? `Mostrar ${label}` : `Ocultar ${label}`}
+                onClick={() => onToggleLayer(id)}
+              >
+                {hidden ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
+              </button>
+              <button
+                type="button"
+                className="lb-iconbtn lb-iconbtn--sm"
+                aria-pressed={locked}
+                aria-label={locked ? `Destravar ${label}` : `Travar ${label}`}
+                title={locked ? `Destravar ${label}` : `Travar ${label}`}
+                onClick={() => onToggleLock(id)}
+              >
+                {locked ? <LockIcon size={16} /> : <UnlockIcon size={16} />}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
     </>
   )
 }

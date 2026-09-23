@@ -12,6 +12,8 @@
 // baixo, depois do I/O) e verificamos que a UI reage de verdade ao novo estado.
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { installTauriFsStub } from './helpers/tauriFsStub'
+import { pickTool } from './helpers/tools'
 import type { Wall, Prop, Drawing, Region } from '../src/types/map'
 
 type MapSnapshot = {
@@ -48,8 +50,9 @@ async function resetMap(page: Page) {
   })
 }
 
+// Curva mora no botão Desenho: `pickTool` abre a setinha e escolhe o rádio.
 async function selectTool(page: Page, label: 'Selecionar' | 'Curva') {
-  await page.getByRole('button', { name: label, exact: true }).click()
+  await pickTool(page, label)
 }
 
 test.beforeEach(async ({ page }) => {
@@ -104,30 +107,79 @@ test('2. porta: virar parede em porta e alternar aberta/fechada reflete no store
   expect(await getSelection(page)).toEqual({ kind: 'wall', id: 'wallDoor' })
 
   await page.getByRole('button', { name: 'Virar porta', exact: true }).click()
+  // "Virar porta" cria porta de tamanho padrão (32 px) no MEIO da parede,
+  // partindo-a em 3 pedaços — antes o lado inteiro virava porta (bug P10).
   let { walls } = await getMapSnapshot(page)
-  let wall = walls.find((w) => w.id === 'wallDoor')
-  expect(wall?.door).not.toBeNull()
-  expect(wall?.door?.open).toBe(false)
+  expect(walls.filter((w) => w.id === 'wallDoor')).toHaveLength(0)
+  let door = walls.find((w) => w.door !== null)
+  expect(door?.door?.open).toBe(false)
+  expect(Math.hypot(door!.x2 - door!.x1, door!.y2 - door!.y1)).toBeCloseTo(32, 6)
+  expect(Math.min(door!.x1, door!.x2)).toBeCloseTo(509, 6)
+  // A porta nova fica selecionada: o painel segue mostrando Aberta/Trancada.
+  expect(await getSelection(page)).toEqual({ kind: 'wall', id: door!.id })
 
   // O checkbox real fica visualmente coberto pelo track decorativo do Toggle (span
   // com o desenho do interruptor) — force:true clica direto no input, igual o usuário
   // clicando em cima do interruptor visual faria.
-  await page.getByRole('checkbox', { name: 'Fechada' }).click({ force: true })
+  // Rótulo fixo "Aberta" (nomeia o estado LIGADO); porta nova começa desmarcada.
+  const aberta = page.getByRole('checkbox', { name: 'Aberta', exact: true })
+  await expect(aberta).not.toBeChecked()
+  await aberta.click({ force: true })
   ;({ walls } = await getMapSnapshot(page))
-  wall = walls.find((w) => w.id === 'wallDoor')
-  expect(wall?.door?.open).toBe(true)
+  const doorId = door!.id
+  door = walls.find((w) => w.id === doorId)
+  expect(door?.door?.open).toBe(true)
+  await expect(aberta).toBeChecked()
+
+  // Aberta + Trancada não existe: trancar fecha, e abrir de novo destranca.
+  const trancada = page.getByRole('checkbox', { name: 'Trancada', exact: true })
+  await trancada.click({ force: true })
+  ;({ walls } = await getMapSnapshot(page))
+  expect(walls.find((w) => w.id === doorId)?.door).toMatchObject({ open: false, locked: true })
+  await aberta.click({ force: true })
+  ;({ walls } = await getMapSnapshot(page))
+  expect(walls.find((w) => w.id === doorId)?.door).toMatchObject({ open: true, locked: false })
 })
 
-test('3. link de cenário: digitar no campo atualiza map.scenarioLink', async ({ page }) => {
+test('3. link de cenário: campo escondido da janela, mas o dado ainda é salvo e reaberto', async ({ page }) => {
   const link = 'https://exemplo.com/cenario-1'
-  // Escopado pela seção "Link de cenário" (não getByRole('textbox') cru):
-  // a Fase 1 (grid/snap) acrescentou um input type="color" em GridControls
-  // ("Cor da grade"), sempre visível — Chromium também computa role
-  // "textbox" pra ele, então o locator sem escopo virou ambíguo.
-  await page.locator('section').filter({ hasText: 'Link de cenário' }).getByRole('textbox').fill(link)
+  // FEATURES.scenarioLink=false tira o campo da janela "Configurações do mapa"
+  // (plano D12). O dado continua passando por App.tsx e pelo arquivo: grava
+  // pela store, salva com Ctrl+S no disco de mentira e reabre de lá.
+  await installTauriFsStub(page)
+  await enterEditor(page)
+  await resetMap(page)
 
-  const { scenarioLink } = await getMapSnapshot(page)
-  expect(scenarioLink).toBe(link)
+  await page.getByRole('button', { name: 'Configurações do mapa' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Configurações do mapa' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('Link de cenário')).toHaveCount(0)
+  await expect(dialog.getByLabel('Endereço do cenário')).toHaveCount(0)
+  await dialog.getByRole('button', { name: 'Fechar' }).click()
+  await expect(dialog).toHaveCount(0)
+
+  await page.evaluate(async (value) => {
+    ;(await import('/src/stores/mapStore.ts')).useMapStore.getState().setScenarioLink(value)
+  }, link)
+  expect((await getMapSnapshot(page)).scenarioLink).toBe(link)
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  await page.keyboard.press('Control+s')
+  await expect(page.getByRole('status').filter({ hasText: 'Mapa salvo' })).toBeVisible()
+
+  const reopened = await page.evaluate(async () => {
+    const files = (window as unknown as { __fakeFs: Record<string, string> }).__fakeFs
+    const path = Object.keys(files).find((p) => p.endsWith('.json') && files[p].includes('map_e2e_task5'))
+    if (!path) throw new Error('Ctrl+S não gravou o map.json no disco de mentira')
+    const { loadMapFromDisk } = await import('/src/lib/mapFileIO.ts')
+    const mod = await import('/src/stores/mapStore.ts')
+    const mapFactory = await import('/src/lib/mapFactory.ts')
+    mod.useMapStore.getState().loadMap(mapFactory.createEmptyMap('map_outro', 'Outro', 5, 5, 64))
+    const map = await loadMapFromDisk(path)
+    mod.useMapStore.getState().loadMap(map)
+    return mod.useMapStore.getState().map.scenarioLink
+  })
+  expect(reopened).toBe(link)
 })
 
 test('4. curva: arrasto cria Bézier e arrastar um ponto de controle move só ele', async ({ page }) => {

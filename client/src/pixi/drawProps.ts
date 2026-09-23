@@ -1,7 +1,7 @@
 import { Container, Sprite, Graphics, Assets, Texture } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { Prop } from '../types/map'
-import { SELECTION_COLOR } from './constants'
+import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { useToastStore } from '../stores/toastStore'
 
@@ -11,6 +11,35 @@ import { useToastStore } from '../stores/toastStore'
  * `pixi/tokensRenderer.ts` — não extraída pra lib compartilhada: só 2 usos
  * no projeto inteiro, abaixo do "regra do três" da convenção do projeto.
  */
+/** Objeto "Oculto no editor": fantasma bem transparente, mas ainda clicável (igual ao token). */
+const HIDDEN_PROP_GHOST_ALPHA = 0.3
+const GHOST_DASH_LENGTH = 8
+const GHOST_OUTLINE_WIDTH = 2
+const GHOST_OUTLINE_COLOR = 0xffffff
+
+/** Contorno tracejado de retângulo: traço e vão de `GHOST_DASH_LENGTH` em cada lado. */
+function strokeDashedRect(graphics: Graphics, x: number, y: number, width: number, height: number): void {
+  const corners = [
+    [x, y],
+    [x + width, y],
+    [x + width, y + height],
+    [x, y + height],
+  ]
+  for (let i = 0; i < corners.length; i++) {
+    const [ax, ay] = corners[i]
+    const [bx, by] = corners[(i + 1) % corners.length]
+    const sideLength = Math.hypot(bx - ax, by - ay)
+    if (sideLength === 0) continue
+    const ux = (bx - ax) / sideLength
+    const uy = (by - ay) / sideLength
+    for (let t = 0; t < sideLength; t += GHOST_DASH_LENGTH * 2) {
+      const end = Math.min(t + GHOST_DASH_LENGTH, sideLength)
+      graphics.moveTo(ax + ux * t, ay + uy * t).lineTo(ax + ux * end, ay + uy * end)
+    }
+  }
+  graphics.stroke({ width: GHOST_OUTLINE_WIDTH, color: GHOST_OUTLINE_COLOR })
+}
+
 function fileBaseName(path: string): string {
   const normalized = path.replace(/\\/g, '/')
   const idx = normalized.lastIndexOf('/')
@@ -97,15 +126,19 @@ export function createPropsRenderer(): PropsRenderer {
       // do prop, não do canto. `undefined` → 0 radiano: aparência idêntica à
       // de hoje (types/map.ts documenta Prop.rotation undefined === 0).
       sprite.rotation = rotationToRadians(prop.rotation)
-      // hidden === "não renderiza no editor" (organização de cena do
-      // mestre) — não existe segunda tela/modo jogador neste app, ver
-      // comentário de Prop.hidden em types/map.ts.
-      sprite.visible = !isHidden(prop)
+      // hidden === "Oculto no editor" (organização de cena do mestre). Antes
+      // o objeto sumia e não havia como clicar nele para desfazer; agora fica
+      // como fantasma (alpha baixo + contorno tracejado), clicável — mesma
+      // regra dos tokens (tokensRenderer.ts).
+      const ghost = isHidden(prop)
+      sprite.visible = true
+      sprite.alpha = ghost ? HIDDEN_PROP_GHOST_ALPHA : prop.secret ? SECRET_ITEM_ALPHA : 1
 
-      if (prop.id === selectedPropId && sprite.visible) {
-        highlightGraphics
-          .rect(prop.x - prop.width / 2, prop.y - prop.height / 2, prop.width, prop.height)
-          .stroke({ width: 3, color: SELECTION_COLOR })
+      const left = prop.x - prop.width / 2
+      const top = prop.y - prop.height / 2
+      if (ghost) strokeDashedRect(highlightGraphics, left, top, prop.width, prop.height)
+      if (prop.id === selectedPropId) {
+        highlightGraphics.rect(left, top, prop.width, prop.height).stroke({ width: 3, color: SELECTION_COLOR })
       }
     }
   }

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gauntlet loop v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f5f5f5;
+    --paper-2: #ffffff;
+    --ink: #2d3142;
+    --muted: #4f5d75;
+    --soft: #7a8399;
+    --rule: rgba(45, 49, 66, 0.12);
+    --accent: #eb6c36;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 3rem 2rem 4rem;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Geist', system-ui, sans-serif;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+  .eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 0.5rem;
+  }
+  h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.75rem;
+    font-weight: 400;
+    margin: 0 0 0.5rem;
+  }
+  .sub { color: var(--muted); font-size: 0.875rem; margin: 0 0 2rem; max-width: 72ch; }
+  svg { width: 100%; height: auto; display: block; }
+  footer {
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--rule);
+    font-family: 'Geist Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--soft);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Labirinto · protocolo de execução</p>
+  <h1>Gauntlet loop v2 — como uma rodada anda</h1>
+  <p class="sub">A bar é declarada antes de existir artefato; a auditoria de portão roda antes da primeira peça; cada peça constrói isolada; e quem encerra é a comparação cega em duas ordens, nunca uma contagem de rodadas.</p>
+
+  <svg viewBox="0 0 1240 680" role="img" aria-labelledby="gauntlet-v2-title gauntlet-v2-desc">
+    <title id="gauntlet-v2-title">Gauntlet loop v2</title>
+    <desc id="gauntlet-v2-desc">Fluxo do protocolo: bar declarada, auditoria do portão, jornadas vermelhas escritas antes do build, builders em árvores isoladas, portão de validade, dois critics cegos com ordem invertida, ledger e as saídas possíveis, com a volta do gap único para o builder.</desc>
+
+    <defs>
+      <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+      </marker>
+      <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+      </marker>
+      <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/>
+      </marker>
+    </defs>
+
+    <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+    <!-- ARROWS (desenhadas antes das caixas) -->
+    <!-- 1 -> 2 -->
+    <line x1="260" y1="132" x2="352" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+    <!-- 2 -> 3 -->
+    <line x1="560" y1="132" x2="652" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+    <!-- 3 -> 4 -->
+    <line x1="860" y1="132" x2="952" y2="132" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+    <!-- 4 -> 5 -->
+    <line x1="1060" y1="168" x2="1060" y2="272" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+    <!-- 5 -> 4 (vermelho volta ao builder) -->
+    <line x1="1104" y1="280" x2="1104" y2="176" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+    <!-- 5 -> 6 -->
+    <line x1="960" y1="316" x2="868" y2="316" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+    <!-- 6 -> 7 -->
+    <line x1="660" y1="316" x2="568" y2="316" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+    <!-- 6 -> 8 -->
+    <line x1="760" y1="352" x2="760" y2="456" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+    <!-- 6 -> 4 (gap único volta ao builder) -->
+    <path d="M 700 280 L 700 224 Q 700 216 708 216 L 992 216 Q 1000 216 1000 208 L 1000 176"
+          fill="none" stroke="#eb6c36" stroke-width="1" marker-end="url(#arrow-accent)"/>
+
+    <!-- ARROW LABELS -->
+    <rect x="288" y="112" width="44" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="310" y="121" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">DECLARA</text>
+
+    <rect x="588" y="112" width="44" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="610" y="121" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">AUDITA</text>
+
+    <rect x="884" y="112" width="52" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="910" y="121" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">CONTRATO</text>
+
+    <rect x="1000" y="212" width="48" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="1024" y="221" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ESCREVE</text>
+
+    <rect x="1112" y="212" width="56" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="1140" y="221" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">VERMELHO</text>
+
+    <rect x="888" y="296" width="44" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="910" y="305" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">VÁLIDO</text>
+
+    <rect x="584" y="296" width="52" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="610" y="305" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">REGISTRA</text>
+
+    <rect x="772" y="396" width="60" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="802" y="405" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">CONCORDAM</text>
+
+    <rect x="812" y="192" width="60" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="842" y="201" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">GAP ÚNICO</text>
+
+    <!-- NODES -->
+    <!-- 1 BAR -->
+    <rect x="60" y="96" width="200" height="72" rx="6" fill="#f5f5f5"/>
+    <rect x="60" y="96" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="68" y="102" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="82" y="111" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">1</text>
+    <text x="160" y="136" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Bar declarada</text>
+    <text x="160" y="152" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">bar · artefato · invariantes</text>
+
+    <!-- 2 FASE 0 (focal) -->
+    <rect x="360" y="96" width="200" height="72" rx="6" fill="#f5f5f5"/>
+    <rect x="360" y="96" width="200" height="72" rx="6" fill="rgba(235,108,54,0.10)" stroke="#eb6c36" stroke-width="1"/>
+    <rect x="368" y="102" width="28" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+    <text x="382" y="111" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">2</text>
+    <text x="460" y="136" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Fase 0 — portão auditado</text>
+    <text x="460" y="152" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">o portão mente verde?</text>
+
+    <!-- 3 JORNADAS -->
+    <rect x="660" y="96" width="200" height="72" rx="6" fill="#f5f5f5"/>
+    <rect x="660" y="96" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="668" y="102" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="682" y="111" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">3</text>
+    <text x="760" y="136" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Jornada vermelha</text>
+    <text x="760" y="152" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">testador · selada por hash</text>
+
+    <!-- 4 BUILDERS -->
+    <rect x="960" y="96" width="200" height="72" rx="6" fill="#f5f5f5"/>
+    <rect x="960" y="96" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="968" y="102" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="982" y="111" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">4</text>
+    <text x="1060" y="136" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Builder por peça</text>
+    <text x="1060" y="152" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">uma árvore isolada cada</text>
+
+    <!-- 5 PORTAO -->
+    <rect x="960" y="280" width="200" height="72" rx="6" fill="#f5f5f5"/>
+    <rect x="960" y="280" width="200" height="72" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+    <rect x="968" y="286" width="28" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.40)" stroke-width="0.8"/>
+    <text x="982" y="295" fill="rgba(79,93,117,0.9)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">5</text>
+    <text x="1060" y="320" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Portão de validade</text>
+    <text x="1060" y="336" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">tipos · testes · jornada</text>
+
+    <!-- 6 CRITICS (focal) -->
+    <rect x="660" y="280" width="200" height="72" rx="6" fill="#f5f5f5"/>
+    <rect x="660" y="280" width="200" height="72" rx="6" fill="rgba(235,108,54,0.10)" stroke="#eb6c36" stroke-width="1"/>
+    <rect x="668" y="286" width="28" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+    <text x="682" y="295" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">6</text>
+    <text x="760" y="320" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Dois critics cegos</text>
+    <text x="760" y="336" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">ordem A/B invertida</text>
+
+    <!-- 7 LEDGER -->
+    <rect x="360" y="280" width="200" height="72" rx="6" fill="#f5f5f5"/>
+    <rect x="360" y="280" width="200" height="72" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+    <rect x="368" y="286" width="28" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.40)" stroke-width="0.8"/>
+    <text x="382" y="295" fill="rgba(79,93,117,0.9)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">7</text>
+    <text x="460" y="320" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Ledger da rodada</text>
+    <text x="460" y="336" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">jsonl · critic nunca vê</text>
+
+    <!-- 8 SAIDAS -->
+    <rect x="660" y="464" width="200" height="72" rx="6" fill="#f5f5f5"/>
+    <rect x="660" y="464" width="200" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="668" y="470" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+    <text x="682" y="479" fill="rgba(45,49,66,0.8)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">8</text>
+    <text x="760" y="504" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Saída, nunca por contagem</text>
+    <text x="760" y="520" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">vence · seca · teto · bloqueado</text>
+
+    <!-- LEGEND -->
+    <line x1="60" y1="584" x2="1180" y2="584" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+    <text x="60" y="600" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+
+    <rect x="60" y="616" width="20" height="12" rx="2" fill="rgba(235,108,54,0.10)" stroke="#eb6c36" stroke-width="1"/>
+    <text x="88" y="626" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">o que a versão nova acrescentou</text>
+
+    <rect x="400" y="616" width="20" height="12" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+    <text x="428" y="626" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">medida ou registro, não julgamento</text>
+
+    <line x1="760" y1="622" x2="800" y2="622" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4"/>
+    <text x="808" y="626" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">volta com vermelho no endereço</text>
+  </svg>
+
+  <footer>Labirinto · 17/09/2026 · protocolo gauntlet-loop v2</footer>
+</div>
+</body>
+</html>

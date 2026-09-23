@@ -122,6 +122,31 @@ export function RegionIcon(props: IconProps) {
  * (fiadas de tijolo) e de `RegionIcon` (polígono irregular): aqui é retângulo
  * fechado, com um gap na aresta de baixo indicando a porta.
  */
+/** Zona oculta: retângulo tracejado com um olho riscado no meio. */
+export function ConcealZoneIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 4h3M10.5 4h3M17 4h3v3M20 10.5v3M20 17v3h-3M13.5 20h-3M7 20H4v-3M4 13.5v-3M4 7V4" />
+      <path d="M7.5 12s1.8-3 4.5-3 4.5 3 4.5 3-1.8 3-4.5 3-4.5-3-4.5-3z" />
+      <path d="M8 16l8-8" />
+    </Icon>
+  )
+}
+
+/**
+ * Pino de ponto de interesse: a gota cravada no mapa, com o miolo vazado —
+ * o glifo ("!" ou "?") é escolha do pino, não do ícone da barra, então aqui
+ * fica só a forma que identifica a ferramenta.
+ */
+export function PinIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 21s6-6.2 6-10.5A6 6 0 006 10.5C6 14.8 12 21 12 21z" />
+      <circle cx="12" cy="10.3" r="2.2" />
+    </Icon>
+  )
+}
+
 export function RoomIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -160,6 +185,22 @@ export function RegularPolygonIcon(props: IconProps) {
 }
 
 /**
+ * Sala de formato livre: contorno IRREGULAR (como `RegionIcon`) mas com um vão
+ * de porta numa das arestas (como `RoomIcon`) — as duas metades da leitura que
+ * a ferramenta precisa passar de relance, "o formato é seu" e "é sala, tem
+ * parede e aceita porta". Sem o vão, ficaria igual à Região; sem a
+ * irregularidade, igual à Sala retangular.
+ */
+export function RoomFreeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M7.5 19.5L4.5 7L12.5 3.5L19.5 8.5L17 18" />
+      <path d="M17 18l-3 1.1" />
+    </Icon>
+  )
+}
+
+/**
  * Chão por peças — contorno irregular com um furo redondo: as duas operações
  * da ferramenta (somar forma, subtrair buraco) num ícone só. Distingue de
  * `RegionIcon` (contorno sem furo) e `DungeonMapIcon` (quadrado de mapa).
@@ -169,6 +210,21 @@ export function FloorIcon(props: IconProps) {
     <Icon {...props}>
       <path d="M4.5 9L9 4.5h10.5v10L15 19.5H4.5z" />
       <circle cx="12" cy="12" r="2.5" />
+    </Icon>
+  )
+}
+
+/**
+ * Trilha que serpenteia entre duas margens — as duas bordas paralelas dizem
+ * "faixa por onde se anda", e não "risco de caneta" (que é o `LineIcon`).
+ * Mesma família de contorno das demais: viewBox 24, sem fill.
+ */
+export function PathIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M7 20c0-5 6-5 6-9s-4-4-4-7" />
+      <path d="M15 20c0-6 4-6 4-10" />
+      <path d="M4.5 20h15" />
     </Icon>
   )
 }
@@ -396,6 +452,65 @@ export function SettingsIcon(props: IconProps) {
     <Icon {...props}>
       <path d="M21 12L18.28 14.6L18.36 18.36L14.6 18.28L12 21L9.4 18.28L5.64 18.36L5.72 14.6L3 12L5.72 9.4L5.64 5.64L9.4 5.72L12 3L14.6 5.72L18.36 5.64L18.28 9.4Z" />
       <circle cx="12" cy="12" r="3.4" />
+    </Icon>
+  )
+}
+
+/** Olho aberto: amêndoa + pupila `r 3` (acima do limite de miolo fechado). */
+export function EyeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2.5 12C4.6 7.8 8 5.5 12 5.5S19.4 7.8 21.5 12C19.4 16.2 16 18.5 12 18.5S4.6 16.2 2.5 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </Icon>
+  )
+}
+
+/** Olho riscado: mesma amêndoa do `EyeIcon` cortada por uma diagonal. */
+export function EyeOffIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2.5 12C4.6 7.8 8 5.5 12 5.5S19.4 7.8 21.5 12C19.4 16.2 16 18.5 12 18.5S4.6 16.2 2.5 12Z" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M4 4l16 16" />
+    </Icon>
+  )
+}
+
+/** Cadeado fechado: corpo + arco inteiro encaixado nos dois lados. */
+export function LockIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="5" y="10.5" width="14" height="10" rx="1.5" />
+      <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+    </Icon>
+  )
+}
+
+/** Cadeado aberto: mesmo corpo, arco solto do lado direito. */
+export function UnlockIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="5" y="10.5" width="14" height="10" rx="1.5" />
+      <path d="M8 10.5V7.5a4 4 0 0 1 7.6-1.7" />
+    </Icon>
+  )
+}
+
+/** Divisa para baixo — cabeçalho de seção recolhível (o CSS gira quando fechada). */
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6 9l6 6 6-6" />
+    </Icon>
+  )
+}
+
+/** X de fechar janela — duas diagonais do mesmo comprimento da divisa acima. */
+export function CloseIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6 6l12 12M18 6L6 18" />
     </Icon>
   )
 }

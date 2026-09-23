@@ -6,6 +6,10 @@ const mkdirMock = vi.fn(async () => undefined)
 const existsMock = vi.fn(async () => false)
 const openMock = vi.fn(async () => null as string | string[] | null)
 const invokeMock = vi.fn(async () => undefined)
+// Padrão `true`: os testes de importação existentes descrevem o comportamento
+// DENTRO do aplicativo. O caso do navegador é ligado explicitamente onde
+// interessa, com `isTauriMock.mockReturnValue(false)`.
+const isTauriMock = vi.fn(() => true)
 const computeResampleDimensionsMock = vi.fn(() => ({ width: 100, height: 50, needsResample: false }))
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
@@ -21,6 +25,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: invokeMock,
+  isTauri: isTauriMock,
 }))
 
 vi.mock('@tauri-apps/api/path', () => ({
@@ -32,7 +37,17 @@ vi.mock('./imageResample', () => ({
   computeResampleDimensions: computeResampleDimensionsMock,
 }))
 
-const { pickBackgroundImage, importBackgroundImage, importPropImage, importTokenImage, MAX_BACKGROUND_SIDE, MAX_PROP_SIDE } = await import('./imageImport')
+const {
+  pickImageFile,
+  pickBackgroundImage,
+  importBackgroundImage,
+  importPropImage,
+  importTokenImage,
+  ImagePickerUnavailableError,
+  IMAGE_PICKER_UNAVAILABLE_MESSAGE,
+  MAX_BACKGROUND_SIDE,
+  MAX_PROP_SIDE,
+} = await import('./imageImport')
 
 // jsdom não implementa createImageBitmap nem canvas 2D de verdade — mocka os dois.
 const createImageBitmapMock = vi.fn(async () => ({ width: 200, height: 100, close: vi.fn() }) as unknown as ImageBitmap)
@@ -57,6 +72,7 @@ beforeEach(() => {
   existsMock.mockResolvedValue(false)
   openMock.mockResolvedValue(null)
   computeResampleDimensionsMock.mockReturnValue({ width: 100, height: 50, needsResample: false })
+  isTauriMock.mockReturnValue(true)
   toBlobImpl = (callback) => callback(new Blob(['webp-bytes']))
   ctxImpl = { drawImage: vi.fn() }
   vi.stubGlobal('createImageBitmap', createImageBitmapMock)
@@ -98,6 +114,38 @@ describe('pickBackgroundImage', () => {
     const path = await pickBackgroundImage()
 
     expect(path).toBeNull()
+  })
+})
+
+describe('pickImageFile fora do aplicativo', () => {
+  it('lança ImagePickerUnavailableError em vez de chamar o diálogo do Tauri', async () => {
+    isTauriMock.mockReturnValue(false)
+
+    await expect(pickImageFile()).rejects.toThrow(ImagePickerUnavailableError)
+    // O ponto do guarda: `open()` nunca é alcançado, então não há como estourar
+    // "Cannot read properties of undefined (reading 'invoke')".
+    expect(openMock).not.toHaveBeenCalled()
+  })
+
+  it('leva a mesma falha para pickBackgroundImage (o caminho do fundo passa por aqui)', async () => {
+    isTauriMock.mockReturnValue(false)
+
+    await expect(pickBackgroundImage()).rejects.toThrow(ImagePickerUnavailableError)
+    expect(openMock).not.toHaveBeenCalled()
+  })
+
+  it('a mensagem fala de falha em português, e não de detalhe técnico', () => {
+    expect(IMAGE_PICKER_UNAVAILABLE_MESSAGE).toMatch(/s[óo] funciona|n[ãa]o tem acesso|instalad/i)
+    expect(IMAGE_PICKER_UNAVAILABLE_MESSAGE).not.toMatch(/undefined|invoke|__TAURI/i)
+    expect(new ImagePickerUnavailableError().message).toBe(IMAGE_PICKER_UNAVAILABLE_MESSAGE)
+  })
+
+  it('dentro do aplicativo o guarda não atrapalha: o diálogo é chamado normalmente', async () => {
+    isTauriMock.mockReturnValue(true)
+    openMock.mockResolvedValue('C:\\imgs\\foto.png')
+
+    await expect(pickImageFile()).resolves.toBe('C:\\imgs\\foto.png')
+    expect(openMock).toHaveBeenCalledTimes(1)
   })
 })
 

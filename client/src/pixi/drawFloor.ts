@@ -7,6 +7,8 @@ export interface FloorRenderer {
   draw: (graphics: Graphics, floor: FloorPiece[], style: FloorStyle, selectedPieceId?: string | null) => void
   /** Contorno da peça selecionada, isolada das outras; `null` limpa. */
   drawSelection: (graphics: Graphics, piece: FloorPiece | null, step?: number) => void
+  /** Polígonos do último `draw` (cache por referência): a hachura e a máscara do piso reusam sem recalcular. */
+  polygons: () => FloorPolygon[]
 }
 
 /** Prévia do arrasto com amostragem fixa: fluidez vale mais que o detalhe de 1 px aqui. */
@@ -24,14 +26,41 @@ function flatten(ring: RegionPoint[]): number[] {
   return out
 }
 
-/** Preenche cada anel externo e recorta os buracos dele; contorno opcional por cima. */
-export function paintFloor(graphics: Graphics, polygons: FloorPolygon[], style: FloorStyle): void {
-  graphics.clear()
-  const fill = new Color(style.fillColor).toNumber()
+/**
+ * Uma cor de caminho já resolvida em polígonos. Ver `buildColorLayers`: o
+ * contorno do chão continua sendo UM só (o da união de todas as peças), e isto
+ * aqui é só a pintura por dentro dele.
+ */
+export interface FloorColorLayer {
+  color: string
+  polygons: FloorPolygon[]
+}
+
+function fillPolygons(graphics: Graphics, polygons: FloorPolygon[], color: string): void {
+  const fill = new Color(color).toNumber()
   for (const polygon of polygons) {
     graphics.poly(flatten(polygon.outer), true).fill({ color: fill })
     for (const hole of polygon.holes) graphics.poly(flatten(hole), true).cut()
   }
+}
+
+/**
+ * Preenche cada anel externo e recorta os buracos dele; os caminhos com cor
+ * própria por cima, e o contorno opcional por último.
+ *
+ * A ordem importa: a cor do caminho entra ANTES do contorno para não comer
+ * metade da linha de parede onde os dois encostam — a parede é uma só e fica
+ * por cima de tudo.
+ */
+export function paintFloor(
+  graphics: Graphics,
+  polygons: FloorPolygon[],
+  style: FloorStyle,
+  colorLayers: readonly FloorColorLayer[] = [],
+): void {
+  graphics.clear()
+  fillPolygons(graphics, polygons, style.fillColor)
+  for (const layer of colorLayers) fillPolygons(graphics, layer.polygons, layer.color)
   if (style.strokeColor && style.strokeWidth > 0) {
     const stroke = new Color(style.strokeColor).toNumber()
     for (const polygon of polygons) {
@@ -40,6 +69,31 @@ export function paintFloor(graphics: Graphics, polygons: FloorPolygon[], style: 
       }
     }
   }
+}
+
+/**
+ * Polígonos de cada peça que tem cor própria (`FloorPiece.fillColor`), na ordem
+ * da lista — peça mais nova pinta por cima da mais velha, igual ao motor do
+ * chão.
+ *
+ * Cada peça é contornada SOZINHA, e não junto com as vizinhas, de propósito: o
+ * chão inteiro já foi pintado e contornado uma vez, e o que falta é só a mancha
+ * de cor por dentro. Contornar junto devolveria a costura entre um caminho e o
+ * chão ao lado dele.
+ *
+ * As peças 'subtract' que vêm DEPOIS entram no cálculo: um buraco aberto em
+ * cima do caminho tem de abrir na cor dele também, senão a borracha deixaria a
+ * cor flutuando sobre o vazio.
+ */
+export function buildColorLayers(floor: FloorPiece[], step: number | undefined): FloorColorLayer[] {
+  const layers: FloorColorLayer[] = []
+  for (let i = 0; i < floor.length; i += 1) {
+    const piece = floor[i]
+    if (piece.hidden || piece.op !== 'add' || piece.fillColor === undefined) continue
+    const buracosDepois = floor.slice(i + 1).filter((p) => p.op === 'subtract' && !p.hidden)
+    layers.push({ color: piece.fillColor, polygons: buildFloorOutline([piece, ...buracosDepois], { step }) })
+  }
+  return layers
 }
 
 /**
@@ -79,6 +133,7 @@ export function createFloorRenderer(): FloorRenderer {
   let lastFloor: FloorPiece[] | null = null
   let lastStep: number | undefined
   let polygons: FloorPolygon[] = []
+  let colorLayers: FloorColorLayer[] = []
 
   // Mesmo cache por referência para o destaque: redrawShapes roda a cada
   // mudança de seleção/forma, não só quando a peça selecionada muda.
@@ -89,10 +144,11 @@ export function createFloorRenderer(): FloorRenderer {
   function draw(graphics: Graphics, floor: FloorPiece[], style: FloorStyle): void {
     if (floor !== lastFloor || style.sampleStep !== lastStep) {
       polygons = buildFloorOutline(floor, { step: style.sampleStep })
+      colorLayers = buildColorLayers(floor, style.sampleStep)
       lastFloor = floor
       lastStep = style.sampleStep
     }
-    paintFloor(graphics, polygons, style)
+    paintFloor(graphics, polygons, style, colorLayers)
   }
 
   function drawSelection(graphics: Graphics, piece: FloorPiece | null, step?: number): void {
@@ -110,5 +166,36 @@ export function createFloorRenderer(): FloorRenderer {
     strokeRings(graphics, selectedPolygons, STROKE_WEIGHT.medium, 1)
   }
 
-  return { draw, drawSelection }
+  return { draw, drawSelection, polygons: () => polygons }
+}
+
+/**
+ * Prévia ao vivo do pincel de blocos: as células já tocadas, pintadas uma a
+ * uma.
+ *
+ * NÃO passa pelo contorno por campo de distância (`buildFloorOutline`) como as
+ * outras prévias deste arquivo, de propósito: ele roda a cada pointermove, e
+ * célula quadrada não precisa de marching squares para ser desenhada. O que a
+ * pessoa vê é o mesmo — quadrado cheio, borda na grade —, e o gesto continua
+ * fluido enquanto ela arrasta por dezenas de células.
+ */
+export function drawBlocosDraft(
+  graphics: Graphics,
+  blocos: readonly { col: number; row: number }[],
+  cell: number,
+  fillColor: string,
+  apagando: boolean,
+): void {
+  graphics.clear()
+  const fill = apagando ? SUBTRACT_DRAFT_COLOR : new Color(fillColor).toNumber()
+  for (const bloco of blocos) {
+    graphics.rect(bloco.col * cell, bloco.row * cell, cell, cell).fill({ color: fill, alpha: DRAFT_ALPHA })
+  }
+  // Uma borda por célula ficaria com costura; o contorno do traço é o conjunto
+  // dos quadrados, e o realce fraco em cima basta para ele se ler como prévia.
+  for (const bloco of blocos) {
+    graphics
+      .rect(bloco.col * cell, bloco.row * cell, cell, cell)
+      .stroke({ width: STROKE_WEIGHT.thin, color: SELECTION_COLOR, alpha: 0.35 })
+  }
 }

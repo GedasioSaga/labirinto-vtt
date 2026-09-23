@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { Graphics } from 'pixi.js'
-import { drawDoors } from './drawDoors'
+import { DOOR_COLOR, DOOR_LENGTH_RATIO, DOOR_LOCKED_COLOR, DOOR_OPEN_OUTLINE_SCREEN_PX, DOOR_THICKNESS_SCREEN_PX, drawDoors } from './drawDoors'
 import { drawWalls } from './drawWalls'
-import type { Wall } from '../types/map'
+import { SELECTION_COLOR } from './constants'
+import type { DoorState, Wall } from '../types/map'
 
 function baseWall(overrides: Partial<Wall> = {}): Wall {
   return {
@@ -18,104 +19,143 @@ function baseWall(overrides: Partial<Wall> = {}): Wall {
   }
 }
 
-/** Instruções de topo (`fill`/`stroke`) de fato empilhadas — mesmo padrão de drawRegions.test.ts. */
+function doorWall(door: Partial<DoorState>, overrides: Partial<Wall> = {}): Wall {
+  return baseWall({ door: { open: false, locked: false, kind: 'normal', ...door }, ...overrides })
+}
+
 function strokeInstructions(g: Graphics) {
   return g.context.instructions.filter((instruction) => instruction.action === 'stroke')
 }
 
-/** Conta `moveTo` dentro do path de UMA instrução de stroke — cada `moveTo` inicia
- *  um subtraço novo (ombreira, folha ou barra de portão), então contar quantos
- *  existem prova quantos elementos o kind desenhou, sem depender de coordenada exata. */
-function moveToCount(instruction: ReturnType<typeof strokeInstructions>[number]): number {
-  if (instruction.action !== 'stroke') return 0
-  return instruction.data.path.instructions.filter((i) => i.action === 'moveTo').length
+function fillInstructions(g: Graphics) {
+  return g.context.instructions.filter((instruction) => instruction.action === 'fill')
 }
 
-describe('drawDoors + drawWalls — distinguibilidade visual (risco nº 6 do plano)', () => {
-  it('parede COM porta produz traço na camada de portas; parede SEM porta não produz nada', () => {
+/** Pontos do primeiro `poly` do path de uma instrução (fill ou stroke). */
+function polyPoints(instruction: ReturnType<Graphics['context']['instructions']['filter']>[number]): { x: number; y: number }[] {
+  if (instruction.action !== 'fill' && instruction.action !== 'stroke') throw new Error('instrução sem path')
+  const poly = instruction.data.path.instructions.find((i) => i.action === 'poly')
+  const flat = (poly?.data[0] ?? []) as number[]
+  const points: { x: number; y: number }[] = []
+  for (let i = 0; i < flat.length; i += 2) points.push({ x: flat[i], y: flat[i + 1] })
+  return points
+}
+
+function extent(points: { x: number; y: number }[]) {
+  const xs = points.map((p) => p.x)
+  const ys = points.map((p) => p.y)
+  return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys), cx: (Math.max(...xs) + Math.min(...xs)) / 2, cy: (Math.max(...ys) + Math.min(...ys)) / 2 }
+}
+
+describe('drawDoors + drawWalls — distinguibilidade visual', () => {
+  it('parede COM porta desenha o retângulo na camada de portas; parede SEM porta não produz nada', () => {
     const wallsGraphics = new Graphics()
     const doorsGraphics = new Graphics()
-    const walls: Wall[] = [
-      baseWall({ id: 'solid', door: null }),
-      baseWall({ id: 'withDoor', x1: 100, y1: 0, x2: 140, y2: 0, door: { open: false, locked: false, kind: 'normal' } }),
-    ]
+    const walls: Wall[] = [baseWall({ id: 'solid' }), doorWall({}, { id: 'withDoor', x1: 100, y1: 0, x2: 140, y2: 0 })]
 
     drawWalls(wallsGraphics, walls, null)
     drawDoors(doorsGraphics, walls, null)
 
-    // drawWalls não distingue mais (mesma espessura/cor pra ambas, ver comentário
-    // do arquivo) — a prova de distinguibilidade tem que vir da combinação com
-    // drawDoors, não de drawWalls sozinho.
-    expect(strokeInstructions(wallsGraphics)).toHaveLength(2)
-
-    // drawDoors ignora a parede sem porta e desenha algo pra a com porta —
-    // é isso que mantém as duas visualmente diferentes na composição final.
-    expect(strokeInstructions(doorsGraphics)).toHaveLength(1)
+    // A parede com porta não vira linha (o vão é da porta): só a sólida tem stroke.
+    expect(strokeInstructions(wallsGraphics)).toHaveLength(1)
+    expect(fillInstructions(doorsGraphics)).toHaveLength(1)
   })
 
   it('parede sem porta: drawDoors não desenha nada (graphics fica limpo)', () => {
-    const doorsGraphics = new Graphics()
-    drawDoors(doorsGraphics, [baseWall({ door: null })], null)
-    expect(strokeInstructions(doorsGraphics)).toHaveLength(0)
+    const g = new Graphics()
+    drawDoors(g, [baseWall()], null)
+    expect(g.context.instructions).toHaveLength(0)
   })
 })
 
-describe('drawDoors — kind muda a geometria desenhada', () => {
-  it('normal: 2 ombreiras + 1 folha = 3 moveTo', () => {
+describe('drawDoors — retângulo chapado no vão (minimapa RE, 15/09/2026)', () => {
+  it('fechada: 1 retângulo preenchido laranja, 60% do vão, 5 px de tela de espessura, centrado', () => {
     const g = new Graphics()
-    drawDoors(g, [baseWall({ door: { open: false, locked: false, kind: 'normal' } })], null)
-    const [stroke] = strokeInstructions(g)
-    expect(moveToCount(stroke)).toBe(3)
+    drawDoors(g, [doorWall({}, { x1: 100, y1: 200, x2: 200, y2: 200 })], null)
+    const fills = fillInstructions(g)
+    expect(fills).toHaveLength(1)
+    expect(strokeInstructions(g)).toHaveLength(0)
+    expect((fills[0].data.style as { color: number }).color).toBe(DOOR_COLOR)
+    const box = extent(polyPoints(fills[0]))
+    expect(box.w).toBeCloseTo(100 * DOOR_LENGTH_RATIO, 9)
+    expect(box.h).toBeCloseTo(DOOR_THICKNESS_SCREEN_PX, 9)
+    // Centro alinhado ao meio do pixel físico (5 px é ímpar): no máximo meio pixel do meio do vão.
+    expect(Math.abs(box.cx - 150)).toBeLessThanOrEqual(0.5)
+    expect(Math.abs(box.cy - 200)).toBeLessThanOrEqual(0.5)
   })
 
-  it('double: 2 ombreiras + 2 folhas = 4 moveTo', () => {
+  it('trancada: preenchida em vermelho', () => {
     const g = new Graphics()
-    drawDoors(g, [baseWall({ door: { open: false, locked: false, kind: 'double' } })], null)
-    const [stroke] = strokeInstructions(g)
-    expect(moveToCount(stroke)).toBe(4)
+    drawDoors(g, [doorWall({ locked: true })], null)
+    const fills = fillInstructions(g)
+    expect(fills).toHaveLength(1)
+    expect((fills[0].data.style as { color: number }).color).toBe(DOOR_LOCKED_COLOR)
   })
 
-  it('gate: 2 ombreiras + N barras (N > 1 folha) — mais moveTo que normal/double no mesmo vão', () => {
+  it('aberta: só contorno laranja de 1,5 px de tela, sem preenchimento, dentro da mesma caixa', () => {
     const g = new Graphics()
-    drawDoors(g, [baseWall({ door: { open: false, locked: false, kind: 'gate' } })], null)
+    drawDoors(g, [doorWall({ open: true })], null)
+    expect(fillInstructions(g)).toHaveLength(0)
     const [stroke] = strokeInstructions(g)
-    expect(moveToCount(stroke)).toBeGreaterThan(4)
+    expect(stroke.data.style.color).toBe(DOOR_COLOR)
+    expect(stroke.data.style.width).toBeCloseTo(2 / 1, 9) // 1,5 px de tela arredonda para 2 px físicos a resolução 1
+    const box = extent(polyPoints(stroke))
+    expect(box.h + stroke.data.style.width).toBeCloseTo(DOOR_THICKNESS_SCREEN_PX, 9)
+    expect(DOOR_OPEN_OUTLINE_SCREEN_PX).toBe(1.5)
   })
 
-  it('open muda o ponto final da folha em relação a fechada (folha gira, não fica reta sobre o vão)', () => {
-    const gClosed = new Graphics()
-    const gOpen = new Graphics()
-    drawDoors(gClosed, [baseWall({ door: { open: false, locked: false, kind: 'normal' } })], null)
-    drawDoors(gOpen, [baseWall({ door: { open: true, locked: false, kind: 'normal' } })], null)
+  it('todos os tipos (normal, dupla, portão) desenham o mesmo retângulo', () => {
+    const shapes = (['normal', 'double', 'gate'] as const).map((kind) => {
+      const g = new Graphics()
+      drawDoors(g, [doorWall({ kind })], null)
+      return polyPoints(fillInstructions(g)[0])
+    })
+    expect(shapes[1]).toEqual(shapes[0])
+    expect(shapes[2]).toEqual(shapes[0])
+  })
 
-    const closedLeaf = strokeInstructions(gClosed)[0].data.path.instructions.filter((i) => i.action === 'lineTo')
-    const openLeaf = strokeInstructions(gOpen)[0].data.path.instructions.filter((i) => i.action === 'lineTo')
+  it('espessura fixa na TELA: a 300% o retângulo tem 5/3 de mundo; o comprimento segue o vão', () => {
+    const g = new Graphics()
+    drawDoors(g, [doorWall({})], null, 3)
+    const box = extent(polyPoints(fillInstructions(g)[0]))
+    expect(box.h * 3).toBeCloseTo(DOOR_THICKNESS_SCREEN_PX, 9)
+    expect(box.w).toBeCloseTo(40 * DOOR_LENGTH_RATIO, 9)
+  })
 
-    // Último lineTo de cada um é o fim da folha (os dois primeiros são as ombreiras).
-    const closedEnd = closedLeaf.at(-1)
-    const openEnd = openLeaf.at(-1)
-    expect(closedEnd).toBeDefined()
-    expect(openEnd).toBeDefined()
-    expect(closedEnd).not.toEqual(openEnd)
+  it('porta vertical: o retângulo gira com a parede', () => {
+    const g = new Graphics()
+    drawDoors(g, [doorWall({}, { x1: 0, y1: 0, x2: 0, y2: 40 })], null)
+    const box = extent(polyPoints(fillInstructions(g)[0]))
+    expect(box.h).toBeCloseTo(40 * DOOR_LENGTH_RATIO, 9)
+    expect(box.w).toBeCloseTo(DOOR_THICKNESS_SCREEN_PX, 9)
   })
 })
 
-describe('drawDoors — cor por locked/seleção', () => {
-  it('trancada usa cor diferente de destrancada', () => {
-    const gLocked = new Graphics()
-    const gUnlocked = new Graphics()
-    drawDoors(gLocked, [baseWall({ door: { open: false, locked: true, kind: 'normal' } })], null)
-    drawDoors(gUnlocked, [baseWall({ door: { open: false, locked: false, kind: 'normal' } })], null)
-
-    const lockedColor = strokeInstructions(gLocked)[0].data.style.color
-    const unlockedColor = strokeInstructions(gUnlocked)[0].data.style.color
-    expect(lockedColor).not.toBe(unlockedColor)
+describe('drawDoors — seleção', () => {
+  it('porta trancada selecionada: moldura SELECTION_COLOR por baixo, e o vermelho continua por cima', () => {
+    const g = new Graphics()
+    drawDoors(g, [doorWall({ locked: true }, { id: 'sel' })], 'sel')
+    const [first, second] = g.context.instructions
+    expect(first.action).toBe('stroke')
+    expect((first.data.style as { color: number }).color).toBe(SELECTION_COLOR)
+    expect(second.action).toBe('fill')
+    expect((second.data.style as { color: number }).color).toBe(DOOR_LOCKED_COLOR)
+    // Nada da porta real é pintado de amarelo.
+    expect(fillInstructions(g).map((f) => (f.data.style as { color: number }).color)).toEqual([DOOR_LOCKED_COLOR])
   })
 
-  it('parede selecionada usa SELECTION_COLOR mesmo se trancada', () => {
-    const g = new Graphics()
-    drawDoors(g, [baseWall({ id: 'sel', door: { open: false, locked: true, kind: 'normal' } })], 'sel')
-    const color = strokeInstructions(g)[0].data.style.color
-    expect(color).toBe(0xffdd55)
+  it('moldura fica POR FORA do retângulo e tem 2 px de tela em qualquer zoom', () => {
+    for (const scale of [1, 0.5]) {
+      const g = new Graphics()
+      drawDoors(g, [doorWall({}, { id: 'sel' })], 'sel', scale)
+      const [outline] = strokeInstructions(g)
+      const door = extent(polyPoints(fillInstructions(g)[0]))
+      const ring = extent(polyPoints(outline))
+      const width = outline.data.style.width
+      expect(width * scale).toBeCloseTo(2, 9)
+      // Borda interna da moldura = borda do retângulo: centro do traço a meia largura para fora.
+      expect(ring.h - width).toBeCloseTo(door.h, 9)
+      expect(ring.w - width).toBeCloseTo(door.w, 9)
+    }
   })
 })

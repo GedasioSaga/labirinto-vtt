@@ -22,6 +22,8 @@
  */
 .lb-actionbar {
   flex-wrap: wrap;
+  /* Âncora do menu de imagem de fundo, que abre para cima com a largura da barra. */
+  position: relative;
 }
 
 /* Traço vertical fino separando o grupo de histórico (desfazer/refazer) do
@@ -42,4 +44,58 @@
 .lb-actionbar .lb-iconbtn:disabled {
   opacity: 0.35;
   cursor: default;
+}
+
+/* Botão de imagem com o menu aberto: mesmo destaque da setinha de variantes. */
+.lb-actionbar .lb-iconbtn[aria-expanded='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+}
+
+/* Menu de imagem de fundo. Abre para CIMA porque a barra fica no pé da coluna,
+   e ocupa a largura da barra (264px) em vez de ancorar no botão: ancorado no
+   botão, que fica no meio da barra, ele sairia pela direita da coluna. */
+/* Duas classes: o main.css carrega depois deste arquivo, e o `background`
+   de .lb-panel venceria o de .lb-actionbar-menu com a mesma especificidade. */
+.lb-panel.lb-actionbar-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--lb-space-2);
+  /* Opaco: o menu abre por cima do painel de propriedades, e o fundo
+     translúcido de .lb-panel deixava os textos do painel vazarem entre os itens. */
+  background: var(--lb-color-stone-solid);
+}
+
+.lb-actionbar-menu__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  padding: 6px var(--lb-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-actionbar-menu__item:hover,
+.lb-actionbar-menu__item:focus-visible {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-actionbar-menu__desc {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
 }

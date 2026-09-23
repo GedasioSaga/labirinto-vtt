@@ -1,4 +1,5 @@
 import type { FloorPiece, MapData, RegionPoint } from '../types/map'
+import { isDoorPassable } from './collision'
 import { buildFloorOutline } from './floorContour'
 import { simplifyRing } from './refineFloor'
 
@@ -190,10 +191,10 @@ function floorSegments(floor: FloorPiece[]): Segment[] {
   return segments
 }
 
-/** Obstáculos de visão: paredes que bloqueiam luz (porta aberta não bloqueia) + borda do chão. */
+/** Obstáculos de visão: paredes que bloqueiam luz (porta aberta e destrancada não bloqueia) + borda do chão. */
 export function visionSegments(map: MapData): Segment[] {
   const walls = map.walls
-    .filter((w) => w.blocksLight && !w.door?.open)
+    .filter((w) => w.blocksLight && !isDoorPassable(w.door))
     .map((w) => ({ x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2 }))
   return [...walls, ...floorSegments(map.floor)]
 }

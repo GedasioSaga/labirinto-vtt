@@ -10,7 +10,13 @@ export interface WallDoorControlsProps {
   onToggleLocked: () => void
 }
 
-/** Vira a parede selecionada em porta (ou de volta em parede sólida), e alterna aberta/fechada e trancada. */
+/**
+ * Vira a parede selecionada em porta (ou de volta em parede sólida), e alterna aberta e trancada.
+ *
+ * Rótulos fixos (auditoria 14/09): antes o toggle trocava o próprio texto
+ * com o estado ("Fechada" desligado, "Aberta" ligado) e não dava para saber o
+ * que ligar significava. O rótulo nomeia o estado LIGADO; o switch mostra se está.
+ */
 export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLocked }: WallDoorControlsProps) {
   return (
     <section className="lb-section">
@@ -20,8 +26,8 @@ export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLoc
       </button>
       {door !== null && (
         <div className="lb-field">
-          <Toggle label={door.open ? 'Aberta' : 'Fechada'} checked={door.open} onChange={onToggleOpen} />
-          <Toggle label={door.locked ? 'Trancada' : 'Destrancada'} checked={door.locked} onChange={onToggleLocked} />
+          <Toggle label="Aberta" checked={door.open} onChange={onToggleOpen} />
+          <Toggle label="Trancada" checked={door.locked} onChange={onToggleLocked} />
         </div>
       )}
     </section>

@@ -1,5 +1,6 @@
 import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, StairSegment, FloorPiece, FloorShape } from '../types/map'
 import type { SelectionKind } from '../types/tools'
+import { moveBlocos } from './floorBlocks'
 
 /**
  * FRENTE A (ONDA 3, item 13 do PLANO-REFINAMENTO.md) — clonagem PURA por
@@ -48,16 +49,15 @@ function offsetPoints(points: readonly RegionPoint[], offset: Offset): RegionPoi
  * Clona uma Parede. `regionId`/`regionEdgeIndex` NÃO são copiados —
  * DECISÃO: soltar o vínculo, nunca mantê-lo.
  *
- * Por quê: `types/map.ts` documenta a invariante de `Wall.regionId` — "para
- * um dado `regionId`, o conjunto de `regionEdgeIndex` em uso é um
- * SUBCONJUNTO de `0..n-1`, nunca presumido completo" (isto é, cada aresta da
- * Região tem NO MÁXIMO uma parede vinculada). Se o clone herdasse
- * `regionId`+`regionEdgeIndex`, duas paredes passariam a reivindicar a
- * MESMA aresta da mesma Região — `syncWallsToRegionPoint`
- * (`lib/roomLink.ts`, usado por `updateRegionPoint`/`moveRegion` em
- * `mapFactory.ts`) atualiza QUALQUER parede cujo `regionEdgeIndex` bata,
- * então mover a Região passaria a mover as duas juntas, e a cópia deixaria
- * de ser uma entidade independente — o oposto do que "duplicar" promete.
+ * Por quê: `types/map.ts` documenta a invariante de `Wall.regionId` — uma
+ * aresta pode ter vários pedaços colineares, cada um cobrindo um TRECHO dela
+ * (a porta parte a parede sem soltar o vínculo). Uma cópia solta de uma
+ * parede vinculada, se herdasse `regionId`+`regionEdgeIndex`, viraria um
+ * pedaço SOBREPOSTO ao original na mesma aresta: `syncLinkedWallsToPoints`
+ * e `translateLinkedWalls` (`lib/roomLink.ts`, usados por
+ * `updateRegionPoint`/`moveRegion` em `mapFactory.ts`) moveriam as duas juntas
+ * com a Sala, e a cópia deixaria de ser uma entidade independente — o oposto
+ * do que "duplicar" promete.
  * Clonar a Região INTEIRA (com suas paredes) é uma operação diferente,
  * fora do escopo de "clonar uma Wall" — cabe ao integrador decidir se
  * duplicar uma Sala duplica as 4 paredes junto, compondo `cloneRegion` +
@@ -106,7 +106,8 @@ export function cloneLight(light: Light, offset: Offset): Light {
 const ROOM_CLONE_SUFFIX = ' (cópia)'
 
 function duplicateRoomName(name: string): string {
-  return `${name}${ROOM_CLONE_SUFFIX}`
+  // Sala sem nome continua sem nome: "(cópia)" solto no meio do chão parecia rótulo quebrado.
+  return name.trim() === '' ? name : `${name}${ROOM_CLONE_SUFFIX}`
 }
 
 export function cloneRegion(region: Region, offset: Offset): Region {
@@ -117,6 +118,62 @@ export function cloneRegion(region: Region, offset: Offset): Region {
     data: { ...region.data },
     ...(region.room ? { room: { ...region.room, name: duplicateRoomName(region.room.name) } } : {}),
   }
+}
+
+/**
+ * Paredes de uma Sala duplicada: cada parede vinculada a `sourceRegionId` vira
+ * cópia vinculada a `targetRegionId`, na MESMA aresta (`regionEdgeIndex`), com
+ * porta copiada. Sem isto a cópia da Sala saía só com o chão (bug visto em
+ * 15/09/2026: "a cópia não tem as linhas brancas"). Não fere a invariante de
+ * `cloneWall` (uma parede por aresta): as cópias apontam para a Região NOVA.
+ */
+export function cloneLinkedWalls(walls: readonly Wall[], sourceRegionId: string, targetRegionId: string, offset: Offset): Wall[] {
+  return walls
+    .filter((wall) => wall.regionId === sourceRegionId)
+    .map((wall) => ({ ...cloneWall(wall, offset), regionId: targetRegionId, regionEdgeIndex: wall.regionEdgeIndex }))
+}
+
+/**
+ * Sub-salas de uma Sala duplicada: cada descendente de `sourceRegionId` vira
+ * cópia com id novo, `parentId` apontando para a cópia da mãe e paredes
+ * vinculadas copiadas (`cloneLinkedWalls`). Mantém a ordem do array (a mãe
+ * vem antes das filhas). As de dentro mantêm o nome: só a sala copiada ganha
+ * "(cópia)".
+ */
+export function cloneRoomDescendants(
+  regions: readonly Region[],
+  walls: readonly Wall[],
+  sourceRegionId: string,
+  targetRegionId: string,
+  offset: Offset,
+): { regions: Region[]; walls: Wall[] } {
+  // Id novo de cada descendente, em ondas (filha, neta…); para em ciclo.
+  const idMap = new Map<string, string>([[sourceRegionId, targetRegionId]])
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const r of regions) {
+      if (idMap.has(r.id) || r.parentId === undefined || !idMap.has(r.parentId)) continue
+      idMap.set(r.id, crypto.randomUUID())
+      grew = true
+    }
+  }
+  const outRegions: Region[] = []
+  const outWalls: Wall[] = []
+  for (const r of regions) {
+    const copyId = idMap.get(r.id)
+    if (r.id === sourceRegionId || copyId === undefined || r.parentId === undefined) continue
+    outRegions.push({
+      ...r,
+      id: copyId,
+      parentId: idMap.get(r.parentId),
+      points: offsetPoints(r.points, offset),
+      data: { ...r.data },
+      ...(r.room ? { room: { ...r.room } } : {}),
+    })
+    outWalls.push(...cloneLinkedWalls(walls, r.id, copyId, offset))
+  }
+  return { regions: outRegions, walls: outWalls }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -197,6 +254,7 @@ export function cloneDrawing(drawing: Drawing, offset: Offset): Drawing {
     case 'ellipse':
       return { ...drawing, id, cx: drawing.cx + offset.dx, cy: drawing.cy + offset.dy }
     case 'polygon':
+    case 'path':
       return { ...drawing, id, points: offsetPoints(drawing.points, offset) }
     default:
       return assertNeverDrawingKind(drawing)
@@ -215,7 +273,11 @@ export function cloneFloorPiece(piece: FloorPiece, offset: Offset): FloorPiece {
       ? { ...shape, points: shape.points.map((p) => ({ x: p.x + offset.dx, y: p.y + offset.dy, width: p.width })) }
       : shape.kind === 'poly'
         ? { ...shape, points: offsetPoints(shape.points, offset) }
-        : { ...shape, cx: shape.cx + offset.dx, cy: shape.cy + offset.dy }
+        : // Blocos: a cópia também anda em célula inteira, e `cells` vira lista
+          // nova (mesmo cuidado nº2 do cabeçalho).
+          shape.kind === 'blocos'
+          ? moveBlocos({ ...shape, cells: shape.cells.map((c) => ({ col: c.col, row: c.row })) }, offset.dx, offset.dy)
+          : { ...shape, cx: shape.cx + offset.dx, cy: shape.cy + offset.dy }
   const { noise } = piece.modifiers
   return {
     ...piece,

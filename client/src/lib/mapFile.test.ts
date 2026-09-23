@@ -14,6 +14,113 @@ describe('serializeMap/deserializeMap', () => {
     expect(restored).toEqual(map)
   })
 
+  it('A5: mapa sem concealZones abre com [] e zona salva volta igual', () => {
+    expect(deserializeMap('{"id": "sem-zona"}').concealZones).toEqual([])
+    const zone = { id: 'z1', name: 'Cripta', revealed: false, points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }] }
+    const map = { ...createEmptyMap('map_z', 'Z', 5, 5, 64), concealZones: [zone] }
+    expect(deserializeMap(serializeMap(map)).concealZones).toEqual([zone])
+  })
+
+  it('mapa salvo antes dos pinos abre com [] e pino salvo volta igual', () => {
+    expect(deserializeMap('{"id": "sem-pino"}').pins).toEqual([])
+    const pin = { id: 'p1', x: 120, y: 80, kind: 'interrogacao' as const, description: 'O que tem atrás?', image: null }
+    const map = { ...createEmptyMap('map_p', 'P', 5, 5, 64), pins: [pin] }
+    expect(deserializeMap(serializeMap(map)).pins).toEqual([pin])
+  })
+
+  it('pino gravado torto (sem kind, sem descrição, imagem que não é texto) abre mudo em vez de derrubar o mapa', () => {
+    const json = '{"id": "torto", "pins": [{"id": "p1", "x": 10, "y": 20, "image": 7}]}'
+    expect(deserializeMap(json).pins).toEqual([{ id: 'p1', x: 10, y: 20, kind: 'exclamacao', description: '', image: null }])
+  })
+
+  it('pino com ícone faz ida e volta, e pino salvo ANTES do campo abre sem ícone (a cara de hoje)', () => {
+    const comIcone = { id: 'p1', x: 120, y: 80, kind: 'exclamacao' as const, icon: 'bau' as const, description: '', image: null }
+    const map = { ...createEmptyMap('map_i', 'I', 5, 5, 64), pins: [comIcone] }
+    expect(deserializeMap(serializeMap(map)).pins).toEqual([comIcone])
+    // O mapa gravado antes desta mudança: nenhum `icon` no arquivo.
+    const antigo = '{"id": "antigo", "pins": [{"id": "p1", "x": 10, "y": 20, "kind": "interrogacao", "description": "", "image": null}]}'
+    expect(deserializeMap(antigo).pins[0].icon).toBeUndefined()
+  })
+
+  it('pino de viagem: mapa salvo antes do campo abre igual — sem destino, e regravar não inventa campo', () => {
+    // O mapa gravado antes desta mudança: nenhum `destino` no arquivo.
+    const antigo =
+      '{"id": "antigo", "pins": [' +
+      '{"id": "p1", "x": 10, "y": 20, "kind": "exclamacao", "description": "Estátua", "image": null},' +
+      '{"id": "p2", "x": 30, "y": 40, "kind": "interrogacao", "description": "", "image": null}]}'
+    const pins = deserializeMap(antigo).pins
+    expect(pins).toEqual([
+      { id: 'p1', x: 10, y: 20, kind: 'exclamacao', description: 'Estátua', image: null },
+      { id: 'p2', x: 30, y: 40, kind: 'interrogacao', description: '', image: null },
+    ])
+    // Ausente continua ausente: `null` em todo pino antigo seria campo que o arquivo não tinha.
+    expect(pins.map((p) => p.destino)).toEqual([undefined, undefined])
+    expect(serializeMap(deserializeMap(antigo))).not.toContain('destino')
+  })
+
+  it('pino de viagem ligado faz ida e volta; destino torto volta "sem destino" e o tipo continua viagem', () => {
+    const viagem = {
+      id: 'a',
+      x: 64,
+      y: 64,
+      kind: 'viagem' as const,
+      description: 'Escada que desce',
+      image: null,
+      destino: { sceneId: 'scene_cripta', pinId: 'b' },
+    }
+    const map = { ...createEmptyMap('map_v', 'V', 5, 5, 64), pins: [viagem] }
+    expect(deserializeMap(serializeMap(map)).pins).toEqual([viagem])
+
+    const torto =
+      '{"id": "torto", "pins": [' +
+      '{"id": "a", "x": 1, "y": 2, "kind": "viagem", "description": "", "image": null, "destino": "Cripta"},' +
+      '{"id": "c", "x": 1, "y": 2, "kind": "viagem", "description": "", "image": null, "destino": {"sceneId": "", "pinId": "b"}}]}'
+    expect(deserializeMap(torto).pins.map((p) => [p.kind, p.destino])).toEqual([
+      ['viagem', null],
+      ['viagem', null],
+    ])
+  })
+
+  it('passagem do pino de viagem: os três modos voltam do disco; valor inválido vira ausente; pino antigo não ganha o campo', () => {
+    const pinos = (['pede', 'livre', 'trancada'] as const).map((passagem, i) => ({
+      id: `p${i}`,
+      x: 64,
+      y: 64,
+      kind: 'viagem' as const,
+      description: '',
+      image: null,
+      passagem,
+    }))
+    const map = { ...createEmptyMap('map_p', 'P', 5, 5, 64), pins: pinos }
+    expect(deserializeMap(serializeMap(map)).pins.map((p) => p.passagem)).toEqual(['pede', 'livre', 'trancada'])
+
+    // Arquivo editado à mão ou de versão futura: nenhum desses vira "livre".
+    const torto =
+      '{"id": "torto", "pins": [' +
+      '{"id": "a", "x": 1, "y": 2, "kind": "viagem", "description": "", "image": null, "passagem": "aberta"},' +
+      '{"id": "b", "x": 1, "y": 2, "kind": "viagem", "description": "", "image": null, "passagem": 1},' +
+      '{"id": "c", "x": 1, "y": 2, "kind": "viagem", "description": "", "image": null, "passagem": null},' +
+      '{"id": "d", "x": 1, "y": 2, "kind": "viagem", "description": "", "image": null, "passagem": "LIVRE"}]}'
+    expect(deserializeMap(torto).pins.map((p) => p.passagem)).toEqual([undefined, undefined, undefined, undefined])
+
+    const antigo = '{"id": "antigo", "pins": [{"id": "a", "x": 1, "y": 2, "kind": "viagem", "description": "", "image": null}]}'
+    expect(deserializeMap(antigo).pins[0].passagem).toBeUndefined()
+    expect(serializeMap(deserializeMap(antigo))).not.toContain('passagem')
+  })
+
+  it('ícone desconhecido abre como pino sem ícone em vez de derrubar o desenho do mapa', () => {
+    const json = '{"id": "futuro", "pins": [{"id": "p1", "x": 10, "y": 20, "icon": "dragao", "description": "", "image": null}]}'
+    const pin = deserializeMap(json).pins[0]
+    expect(pin.icon).toBeUndefined()
+    expect(pin.kind).toBe('exclamacao')
+  })
+
+  it('scenarioLink faz ida e volta (campo escondido da janela, mas o dado continua gravado)', () => {
+    const link = 'https://exemplo.com/cenario-1'
+    const map = { ...createEmptyMap('map_link', 'Link', 5, 5, 64), scenarioLink: link }
+    expect(deserializeMap(serializeMap(map)).scenarioLink).toBe(link)
+  })
+
   it('rejeita JSON malformado com mensagem clara', () => {
     expect(() => deserializeMap('{ isso não é json')).toThrow()
   })

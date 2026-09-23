@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { readyToolVariants, TOOL_VARIANTS, type ToolVariantGroup } from './toolVariants'
+import { DRAWING_SHAPE_GROUP, drawingClusterGroups, readyToolVariants, TOOL_VARIANTS, type ToolVariantGroup } from './toolVariants'
+import { TOOL_SHORTCUTS } from './keymap'
+import { DRAWING_TOOLS } from '../components/labels'
 import type { DrawingTool } from '../types/tools'
 
 /** Toda ferramenta com variante — pronta ou não — precisa existir em
  *  `types/tools.ts` (DrawingTool), senão o catálogo referencia uma
  *  ferramenta que não existe mais na barra. */
 const ALL_TOOLS: DrawingTool[] = [
-  'select', 'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon',
+  'select', 'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree',
   'stair', 'token', 'prop', 'brush', 'line', 'circle', 'ellipse', 'rect', 'polygon',
   'curve', 'text', 'measure', 'eraser', 'floor',
 ]
@@ -60,7 +62,7 @@ describe('TOOL_VARIANTS', () => {
     const validKeys: ToolVariantGroup['storeKey'][] = [
       'doorKind', 'wallKind', 'regionFillPattern', 'polygonSides',
       'stairSizePreset', 'drawTexture', 'eraseMode',
-      'floorShapeKind', 'floorOp', 'floorPolygonSides',
+      'floorShapeKind', 'floorOp', 'floorPolygonSides', 'floorBrushSize',
     ]
     for (const entry of readyToolVariants()) {
       for (const group of entry.groups) {
@@ -121,7 +123,7 @@ describe('TOOL_VARIANTS', () => {
     }
   })
 
-  it('line está marcada como indisponível (fundir line/curve exige tocar TOOL_GROUPS, fora de escopo)', () => {
+  it('line está marcada como indisponível (Linha/Curva é escolha de Forma no botão Desenho, sem eixo próprio)', () => {
     const entry = TOOL_VARIANTS.line
     expect(entry?.available).toBe(false)
   })
@@ -151,5 +153,39 @@ describe('TOOL_VARIANTS', () => {
     if (!entry || !entry.available) throw new Error('eraser deveria estar disponível (Fase 5)')
     expect(entry.groups).toHaveLength(1)
     expect(entry.groups[0].options.map((o) => o.value)).toEqual(['objeto', 'parte'])
+  })
+})
+
+describe('DRAWING_SHAPE_GROUP e drawingClusterGroups (botão Desenho)', () => {
+  it('Forma tem as 7 opções na ordem do usuário, o mesmo conjunto de DRAWING_TOOLS', () => {
+    expect(DRAWING_SHAPE_GROUP.label).toBe('Forma')
+    expect(DRAWING_SHAPE_GROUP.options.map((o) => o.value)).toEqual(['brush', 'line', 'curve', 'circle', 'ellipse', 'rect', 'polygon'])
+    expect(new Set(DRAWING_SHAPE_GROUP.options.map((o) => o.value))).toEqual(new Set(DRAWING_TOOLS))
+  })
+
+  it('a descrição termina com a letra do atalho', () => {
+    for (const option of DRAWING_SHAPE_GROUP.options) {
+      expect(option.description.endsWith(`(${TOOL_SHORTCUTS[option.value]})`), option.id).toBe(true)
+    }
+  })
+
+  it("drawingClusterGroups('brush') tem Forma + Textura do traço; ('line') tem só Forma", () => {
+    expect(drawingClusterGroups('brush').map((g) => g.label)).toEqual(['Forma', 'Textura do traço'])
+    expect(drawingClusterGroups('line').map((g) => g.label)).toEqual(['Forma'])
+  })
+
+  it('toda opção dos grupos do botão Desenho tem id, label, description e value não-vazios', () => {
+    for (const shape of DRAWING_TOOLS) {
+      for (const group of drawingClusterGroups(shape)) {
+        expect(group.options.length).toBeGreaterThanOrEqual(2)
+        for (const option of group.options) {
+          expect(option.id.length).toBeGreaterThan(0)
+          expect(option.label.length).toBeGreaterThan(0)
+          expect(option.description.length).toBeGreaterThan(0)
+          expect(option.value).not.toBeUndefined()
+          expect(option.value).not.toBeNull()
+        }
+      }
+    }
   })
 })

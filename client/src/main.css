@@ -66,9 +66,11 @@ body {
 .lb-eyebrow {
   margin: 0;
   font-family: var(--lb-font-utility);
-  font-size: var(--lb-font-size-xs);
+  /* 11,5 px com tracking moderado: a 10,5 px e 0,14em as letras se separavam
+     e o rótulo borrava em DPR 1 (medido 15/09/2026). */
+  font-size: var(--lb-font-size-sm);
   font-weight: var(--lb-font-weight-semibold);
-  letter-spacing: var(--lb-font-tracking-wider);
+  letter-spacing: var(--lb-font-tracking-wide);
   text-transform: uppercase;
   color: var(--lb-color-parchment-faint);
 }
@@ -350,6 +352,44 @@ body {
   color: var(--lb-color-parchment-faint);
 }
 
+/* Descrição do ponto de interesse: o mestre escreve um parágrafo, não uma
+   linha, então o campo precisa de altura e de quebra — o resto da moldura
+   (borda, fundo, foco) continua sendo `.lb-input`. */
+.lb-textarea {
+  min-height: 84px;
+  padding: var(--lb-space-2) var(--lb-space-3);
+  line-height: 1.45;
+  resize: vertical;
+}
+
+/* "!" e "?" dentro do segmented control do tipo de pino: a mesma pastilha de
+   latão que o pino tem no mapa e no cartão do jogador. */
+.lb-pin-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-brass);
+  color: var(--lb-color-ink);
+  font-weight: var(--lb-font-weight-bold);
+}
+
+/* Pino de viagem: o negativo da pastilha, como no mapa — cabeça escura, aro e
+   passagem em latão. Opacidade cheia: é a identidade do tipo, não um ícone de
+   ênfase que desbota quando a opção não está marcada. */
+.lb-pin-glyph--viagem {
+  flex: none;
+  background: var(--lb-color-ink);
+  box-shadow: inset 0 0 0 1.5px var(--lb-color-brass);
+  color: var(--lb-color-brass);
+}
+
+.lb-seg__option .lb-pin-glyph--viagem svg {
+  opacity: 1;
+}
+
 .lb-input[type='number'] {
   font-family: var(--lb-font-utility);
   font-variant-numeric: tabular-nums;
@@ -380,6 +420,29 @@ body {
 
 .lb-inputgroup .lb-input {
   padding-right: var(--lb-space-8);
+}
+
+/* Rotação da sala: o campo em graus divide a linha com os botões −90°/+90°.
+   Os botões ganham a altura do campo (38 px, não os 34 do .lb-btn) para a
+   linha ler como UM controle, e o número vem na fonte dos valores numéricos,
+   a mesma do campo ao lado. */
+.lb-rotation {
+  display: flex;
+  gap: var(--lb-space-2);
+}
+
+.lb-rotation__value {
+  flex: 1;
+  min-width: 0;
+}
+
+.lb-rotation__step {
+  flex: none;
+  min-height: 38px;
+  padding: 0 var(--lb-space-3);
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--lb-font-tracking-wide);
 }
 
 /* --------------------------------------------------------- switch (checkbox) */
@@ -479,6 +542,34 @@ body {
   background: var(--lb-color-stone-sunken);
 }
 
+/* Mesma pastilha do segmented, em GRADE. Existe para a escolha de ícone do
+   ponto de interesse: seis opções numa fila só dariam 36 px por coluna na
+   largura do rail (264 px) e o rótulo "Armadilha" não caberia em lugar nenhum.
+   Em três colunas cada alvo passa de 70 px, acima do mínimo para o dedo.
+   `minmax(0, 1fr)` e não `1fr`: sem isso o rótulo mais longo empurra a coluna
+   e a grade deixa de ser regular. */
+.lb-seg--grid {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Mesma pastilha do segmented, em LINHAS: o tipo do pino tem três opções, e
+   três colunas na largura do rail dariam 60 px a cada rótulo — "Interrogação"
+   mede 68. A marca vai à esquerda, na altura do texto, como numa legenda de mapa. */
+.lb-seg--rows {
+  grid-auto-flow: row;
+}
+
+.lb-seg--rows .lb-seg__option {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: var(--lb-space-3);
+  min-height: 34px;
+  padding: var(--lb-space-1) var(--lb-space-2);
+  font-size: var(--lb-font-size-md);
+  text-align: left;
+}
+
 .lb-seg__option {
   display: flex;
   flex-direction: column;
@@ -520,6 +611,14 @@ body {
 }
 
 .lb-seg__option[aria-checked='true'] svg {
+  opacity: 1;
+}
+
+/* Amostra de cor da ficha: opacidade cheia SEMPRE. O glifo de ícone acima
+   desbota a 0.8 quando não está marcado, o que ali é só ênfase; aqui
+   desbotaria a própria informação — a amostra tem de mostrar a tinta que sai
+   no mapa, e não uma versão lavada dela. */
+.lb-seg__option .lb-token-color__chip {
   opacity: 1;
 }
 
@@ -700,7 +799,7 @@ body {
   max-width: 100%;
 }
 
-/* Cada grupo de TOOL_GROUPS (components/labels.ts) vira uma dessas — largura
+/* Cada grupo de TOOLBAR_SLOTS (components/labels.ts) vira uma dessas — largura
    mínima intacta (`flex-wrap: nowrap` interno, nunca quebra NO MEIO de um
    grupo) e é o próprio grupo que migra pra linha seguinte quando a barra
    (acima) não tem mais espaço na linha atual. */
@@ -837,16 +936,78 @@ body {
   display: block;
 }
 
+/* O popover é uma FILEIRA de colunas (uma só, na maioria das ferramentas), e
+   o orçamento de altura é o que sobra da janela abaixo do topo dele. Quem mede
+   o topo é `ToolVariantMenu.tsx`, que entrega o número em
+   `--lb-toolvariant-topo`; o respiro até a borda de baixo é o mesmo
+   `--lb-layout-edge-gap` dos outros painéis flutuantes.
+
+   O piso de 160px é para janela curta demais (ou barra que quebrou em duas
+   fileiras): abaixo disso o menu vira uma fresta que não mostra opção nenhuma,
+   e é melhor ele rolar um pouco do que sumir. É o único px solto aqui de
+   propósito — não é medida de desenho, é o ponto onde o controle deixa de ser
+   usável.
+
+   `overflow-y` vem de `.lb-scroll` (a rolagem da casa, com a mesma barra fina
+   dos painéis). `overscroll-behavior: contain` é o que segura a roda do mouse
+   dentro do menu: sem ele, chegar ao fim da lista faz a rolagem vazar para o
+   que estiver atrás. */
 .lb-toolvariant-menu {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   z-index: 20;
   display: flex;
-  flex-direction: column;
-  gap: var(--lb-space-2);
+  /* `stretch` (o padrão do flex, escrito aqui porque é decisão e não descuido):
+     as colunas ficam todas com a altura da mais alta, e é isso que faz a
+     divisória de pé correr de ponta a ponta. Com `flex-start` ela parava na
+     altura da coluna mais curta e parecia risco inacabado. O conteúdo continua
+     alinhado no topo — quem empilha é o `flex-direction: column` da coluna. */
+  align-items: stretch;
+  gap: var(--lb-space-3);
   min-width: 170px;
   padding: var(--lb-space-2);
+  max-height: max(160px, calc(100vh - var(--lb-toolvariant-topo, 0px) - var(--lb-layout-edge-gap)));
+  overscroll-behavior: contain;
+}
+
+/* Abre para a esquerda quando abrir para a direita passaria da janela — o
+   mesmo cuidado da borda de baixo, no outro eixo. */
+.lb-toolvariant-menu--direita {
+  left: auto;
+  right: 0;
+}
+
+/* Uma coluna. Em menu de coluna única é ela que dá ao popover a largura de
+   sempre: 152px de conteúdo + o padding e a borda fecham os 170px de antes.
+   Não encolhe (`0 0`), senão a caixa flutuante — que se dimensiona pelo
+   conteúdo — colapsaria na largura da maior palavra. */
+.lb-toolvariant-menu__coluna {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  /* Exceção consciente ao `border-box` global: aqui a base do flex precisa ser
+     a largura do TEXTO, não a da caixa. Com `border-box`, o padding e a linha
+     divisória da segunda coluna comiam 13px dela, e as duas colunas do menu de
+     Chão saíam com larguras diferentes — "Retângulo" com 186px de texto e
+     "Dodecágono" com 173px, no mesmo menu. */
+  box-sizing: content-box;
+  flex: 0 0 var(--lb-toolvariant-coluna, 152px);
+  min-width: 0;
+}
+
+/* Duas colunas. A coluna fica mais larga de propósito: a 152px a descrição de
+   "Pincel de blocos" quebrava em cinco linhas, e era daí que vinha a altura do
+   menu de Chão — 1110px num app de 800. A 186px a mesma frase cabe em três, e
+   a linha de texto continua bem abaixo dos 65 caracteres de leitura confortável.
+   A divisória é a mesma linha fina que separa dois grupos, só que de pé. */
+.lb-toolvariant-menu--multi {
+  --lb-toolvariant-coluna: 186px;
+}
+
+.lb-toolvariant-menu--multi .lb-toolvariant-menu__coluna + .lb-toolvariant-menu__coluna {
+  padding-left: var(--lb-space-3);
+  border-left: 1px solid var(--lb-color-line);
 }
 
 .lb-toolvariant-menu__group + .lb-toolvariant-menu__group {
@@ -891,6 +1052,25 @@ body {
 .lb-toolvariant-menu__option-desc {
   font-size: var(--lb-font-size-xs);
   color: var(--lb-color-parchment-faint);
+}
+
+/* Opção com ícone (grupo Forma do botão Desenho): ícone à esquerda, rótulo e
+   descrição empilhados à direita. */
+.lb-toolvariant-menu__option--icon {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-toolvariant-menu__option-icon {
+  display: inline-flex;
+  flex: none;
+}
+
+.lb-toolvariant-menu__option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 /* ------------------------------------------------------------------ inspetor */
@@ -969,6 +1149,172 @@ body {
   gap: var(--lb-space-3);
 }
 
+/* Seção recolhível (CollapsibleSection): o cabeçalho é um botão com a mesma
+   legenda de .lb-eyebrow; fechada, a seção fica só com a linha do título. */
+.lb-collapsible__heading {
+  margin: 0;
+}
+
+.lb-collapsible__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  width: 100%;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-faint);
+  cursor: pointer;
+  text-align: left;
+}
+
+.lb-collapsible__toggle:hover .lb-eyebrow,
+.lb-collapsible__toggle:hover .lb-collapsible__chevron {
+  color: var(--lb-color-parchment);
+}
+
+.lb-collapsible__chevron {
+  display: inline-flex;
+  color: var(--lb-color-parchment-faint);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-collapsible__toggle[aria-expanded='false'] .lb-collapsible__chevron {
+  transform: rotate(-90deg);
+}
+
+.lb-collapsible__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+}
+
+/* O `display: flex` acima vence o `display: none` que o navegador dá a
+   [hidden]: sem esta regra a seção "fechada" girava o chevron e continuava
+   mostrando o corpo inteiro. */
+.lb-collapsible__body[hidden] {
+  display: none;
+}
+
+/* Acesso rápido da grade dentro de Camadas: interruptores mais baixos que o
+   padrão para caber acima da lista sem empurrá-la para fora da dobra. */
+.lb-quick-toggles {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--lb-space-2);
+  border-bottom: 1px solid var(--lb-color-line);
+}
+
+.lb-quick-toggles .lb-switch {
+  min-height: 26px;
+  font-size: var(--lb-font-size-sm);
+}
+
+/* Camadas compacta (LayersPanel): nome · contagem · olho · cadeado. */
+.lb-layers {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-layers__row {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 30px;
+}
+
+.lb-layers__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment);
+}
+
+/* Mesmo tamanho do nome: com tamanhos diferentes, centralizar a linha deixava
+   a linha de base do número acima da do nome. */
+.lb-layers__count {
+  font-size: var(--lb-font-size-md);
+}
+
+/* Camada oculta: nome e contagem esmaecidos; os botões seguem legíveis para
+   o usuário achar onde mostrar de novo. */
+.lb-layers__row[data-hidden] .lb-layers__name,
+.lb-layers__row[data-hidden] .lb-layers__count {
+  opacity: 0.45;
+}
+
+.lb-iconbtn--sm {
+  width: 28px;
+  height: 28px;
+}
+
+/* Linha de explicação abaixo de um campo (modo de medição, link de cenário). */
+.lb-field__hint {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Engrenagem do cabeçalho do inspetor: empurrada para a direita do nome. */
+.lb-inspector__settings {
+  flex: none;
+  margin-left: auto;
+}
+
+/* Janela "Configurações do mapa" (MapSettingsDialog). O fundo escurece pouco:
+   "Alinhar grade à imagem" desenha a prévia no canvas e o usuário precisa
+   enxergar a imagem atrás da janela. */
+.lb-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: var(--lb-space-6);
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.lb-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(480px, 100%);
+  max-height: calc(100vh - 2 * var(--lb-space-6));
+  min-height: 0;
+}
+
+.lb-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-3) var(--lb-space-3) var(--lb-space-3) var(--lb-space-4);
+  border-bottom: 1px solid var(--lb-color-line);
+}
+
+.lb-dialog__title {
+  margin: 0;
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-lg);
+  font-weight: var(--lb-font-weight-regular);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment);
+}
+
+.lb-dialog__body {
+  overflow-y: auto;
+  min-height: 0;
+}
+
 /* F4 N3 — resumo da ferramenta "Selecionar área" (AreaSelectionControls). */
 .lb-area-selection__summary {
   margin: 0 0 var(--lb-space-2);
@@ -989,6 +1335,54 @@ body {
   overflow-wrap: anywhere;
 }
 
+.lb-room__code {
+  font-size: 2rem;
+  letter-spacing: 0.2em;
+}
+
+.lb-room__public {
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+/* Link público: texto selecionável e quebrável — o usuário copia daqui. */
+.lb-room__link {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-brass);
+  user-select: text;
+  -webkit-user-select: text;
+  overflow-wrap: anywhere;
+}
+
+.lb-room__warning,
+.lb-room__error,
+.lb-room__hint {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  flex: none;
+}
+
+.lb-room__warning {
+  color: var(--lb-color-parchment);
+}
+
+.lb-room__error {
+  color: var(--lb-color-ember);
+}
+
+.lb-room__hint {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border-left: 2px solid var(--lb-color-line-strong);
+  color: var(--lb-color-parchment-dim);
+}
+
 .lb-room__urls {
   margin: 0;
   padding-left: var(--lb-space-4);
@@ -1002,6 +1396,196 @@ body {
   height: auto;
   align-self: center;
   flex: none;
+}
+
+/* Grupo (aba Jogo): uma linha por jogador, no poço afundado da sala. A cor
+   fica SÓ na bolinha — é a cor da ficha no mapa; nada mais na linha disputa
+   com ela (nem verde de "online": o status é texto). */
+.lb-party {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  flex: none;
+}
+
+.lb-party__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-party__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-party__who {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+.lb-party__dot {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--lb-color-line-strong);
+  background: transparent;
+}
+
+.lb-party__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment);
+}
+
+.lb-party__presence {
+  margin-left: auto;
+  flex: none;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-party__presence--on {
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-party__where {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  overflow-wrap: anywhere;
+}
+
+/* Alvo de toque: o .lb-btn já tem 34 px de altura; aqui as duas ações dividem a linha. */
+.lb-party__actions {
+  display: flex;
+  gap: var(--lb-space-2);
+}
+
+.lb-party__actions > .lb-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+}
+
+.lb-party__send {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-party__send .lb-party__actions {
+  justify-content: flex-end;
+}
+
+.lb-party__send .lb-party__actions > .lb-btn {
+  flex: none;
+  min-height: 34px;
+}
+
+/* "Reunir o grupo aqui" (painel do pino): a lista de quem vem, no mesmo poço
+   do "Mandar para…". Cada linha é o RÓTULO inteiro — clicar no nome marca,
+   como clicar no quadrado — com a bolinha da ficha entre os dois. */
+.lb-gather__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-gather__item {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 30px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.lb-gather__check {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--lb-color-brass);
+  cursor: pointer;
+}
+
+/* Abas Mapa | Sala no topo do rail (só no Tauri). Visual do segmented. */
+.lb-railtabs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1);
+  flex: none;
+}
+
+.lb-railtabs__tab {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-md);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-medium);
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-railtabs__tab:hover {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-railtabs__tab[aria-selected='true'] {
+  background: var(--lb-color-brass-soft);
+  border-color: rgba(224, 164, 74, 0.28);
+  color: var(--lb-color-brass);
+}
+
+.lb-railtabs__panel {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.lb-railtabs__panel[hidden] {
+  display: none;
+}
+
+/* Aba Sala: o painel ocupa toda a altura entre as abas e a ActionBar. */
+.lb-railtabs__panel--fill {
+  flex: 1 1 auto;
+}
+
+.lb-railtabs__panel--fill > .lb-room {
+  flex: 1 1 auto;
+  max-height: none;
 }
 
 .lb-actionbar {
@@ -1524,4 +2108,493 @@ body {
   padding: var(--lb-space-6) 0;
   color: var(--lb-color-parchment-faint);
   text-align: center;
+}
+
+/* ── ACERVO DE TOKENS ──────────────────────────────────────────────────────
+   Estante de NPCs prontos no rail (components/TokenLibraryPanel.tsx). A linha
+   segue o desenho de .lb-maplist__item — foto, nome que se clica, e o apagar
+   discreto na ponta —, mas a linha INTEIRA não é um botão só: a miniatura fica
+   fora do botão de propósito, para o leitor de tela anunciar "Foto de Goblin" e
+   "Colocar Goblin no mapa" como duas coisas, que é o que elas são. */
+.lb-acervo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-acervo__item {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid);
+}
+
+.lb-acervo__item:hover {
+  border-color: var(--lb-color-brass);
+}
+
+/* Redonda como a peça fica no mapa: a miniatura é a promessa do que vai entrar. */
+.lb-acervo__foto {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--lb-radius-full);
+  border: 1px solid var(--lb-color-line-strong);
+  object-fit: cover;
+}
+
+.lb-acervo__foto--vazia {
+  background: var(--lb-color-stone-raised);
+}
+
+/* O nome é o alvo grande do clique; ocupa a sobra da linha. */
+.lb-acervo__nome {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lb-acervo__nome:hover {
+  color: var(--lb-color-brass);
+}
+
+/* O nome também se ARRASTA até o mapa: sem isto o gesto selecionaria o texto
+   do rail no caminho, e no toque a página rolaria em vez de levar a peça. */
+.lb-acervo__nome {
+  user-select: none;
+  touch-action: none;
+}
+
+/* Fantasma do arrasto: a mesma linha da estante, levantada, seguindo o
+   ponteiro. `pointer-events: none` é funcional — o soltar pergunta ao
+   navegador o que está SOB o ponteiro, e o fantasma não pode ser a resposta. */
+.lb-acervo__fantasma {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-brass);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md);
+  box-shadow: var(--lb-shadow-md);
+  opacity: 0.92;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.lb-acervo__apagar {
+  flex: none;
+  padding: 0 var(--lb-space-2);
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lb-acervo__apagar:hover {
+  color: var(--lb-color-ember);
+}
+
+/* A pergunta ocupa a linha inteira: os dois botões precisam caber lado a lado
+   na coluna estreita do rail, e o nome do item continua visível acima deles. */
+.lb-acervo__confirma {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+  flex: none;
+}
+
+.lb-acervo__vazio,
+.lb-acervo__aviso {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-acervo__aviso {
+  color: var(--lb-color-ember);
+}
+
+/* Cenas da aventura (aba Mapa): mesma linha de cartão do acervo, com a cena
+   aberta marcada pela borda de latão — o destaque que o leitor de tela lê é
+   o `aria-current` do botão. */
+.lb-cenas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0 0 var(--lb-space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.lb-cenas__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid);
+}
+
+.lb-cenas__item--ativa {
+  border-color: var(--lb-color-brass);
+}
+
+.lb-cenas__nome {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lb-cenas__nome[aria-current='true'] {
+  color: var(--lb-color-brass);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lb-cenas__nome:hover:not(:disabled) {
+  color: var(--lb-color-brass);
+}
+
+.lb-cenas__nome:disabled {
+  color: var(--lb-color-parchment-faint);
+  cursor: not-allowed;
+}
+
+.lb-cenas__conta {
+  flex: none;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* Quem está na cena: linha própria dentro do item (o item quebra linha). */
+.lb-cenas__gente {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  align-items: center;
+  gap: var(--lb-space-1);
+}
+
+/* Mesma bolinha do painel Grupo, com contorno claro: a cor da ficha pode ser escura no fundo escuro. */
+.lb-cenas__pessoa {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--lb-color-parchment-faint);
+}
+
+.lb-cenas__pedidos {
+  flex: none;
+  margin-left: auto;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-brass);
+  border-radius: var(--lb-radius-md);
+  color: var(--lb-color-brass);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-cenas__renomear {
+  flex: none;
+  padding: 0 var(--lb-space-1);
+  border: 0;
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lb-cenas__renomear:hover {
+  color: var(--lb-color-brass);
+}
+
+.lb-cenas__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin-top: var(--lb-space-2);
+}
+
+.lb-cenas__acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--lb-space-2);
+}
+
+/* "Recado" na linha da cena: texto curto e linha fina, como o resto do minimapa. */
+.lb-cenas__recado-btn {
+  flex: none;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+
+.lb-cenas__recado-btn:hover:not(:disabled),
+.lb-cenas__recado-btn[aria-expanded='true'] {
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass);
+}
+
+.lb-cenas__recado-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* O campo do recado ocupa a linha inteira do item, abaixo do nome e de quem está lá. */
+.lb-cenas__recado {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+  gap: var(--lb-space-2);
+}
+
+.lb-cenas__recado-campo {
+  resize: vertical;
+  min-height: 4.5em;
+  font-family: inherit;
+}
+
+.lb-cenas__recado-conta {
+  margin-right: auto;
+  align-self: center;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-cenas__recado-aviso {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* Destino do pino de viagem (PinTravelControls): um poço rebaixado logo abaixo
+   do tipo, com a régua da esquerda dizendo o estado sem precisar ler — latão
+   quando a passagem leva a algum lugar, apagada quando não. É a mesma troca
+   que o ícone faz no mapa. */
+.lb-travel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-left: 2px solid var(--lb-color-parchment-faint);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-travel--ligado {
+  border-left-color: var(--lb-color-brass);
+}
+
+.lb-travel p {
+  margin: 0;
+}
+
+.lb-travel__status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: var(--lb-radius-sm);
+}
+
+.lb-travel__title {
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-medium);
+  color: var(--lb-color-parchment);
+  overflow-wrap: anywhere;
+}
+
+/* "Mão única" (botão de alternar): pressionado ganha o latão do botão de
+   ferramenta ativo — o mesmo "ligado" que a barra já ensina. */
+.lb-travel .lb-btn[aria-pressed='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+  border-color: rgba(224, 164, 74, 0.28);
+}
+
+/* Chegada oculta: régua tracejada, a cabeça vazada do mapa dita no poço. */
+.lb-travel--chegada {
+  border-left-style: dashed;
+  border-left-color: var(--lb-color-brass);
+}
+
+.lb-travel--sem-destino .lb-travel__title {
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-travel__scene {
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lb-travel__detail {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  overflow-wrap: anywhere;
+}
+
+.lb-travel__hint {
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-travel__row {
+  display: flex;
+  gap: var(--lb-space-2);
+}
+
+/* ENCRUZILHADA: uma saída por bloco, separadas por um fio. A régua de cada
+   uma repete a do poço em miniatura: latão ligada, apagada sem destino. */
+.lb-travel__exits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-travel__exit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding-left: var(--lb-space-2);
+  border-left: 2px solid var(--lb-color-parchment-faint);
+}
+
+.lb-travel__exit--ligado {
+  border-left-color: var(--lb-color-brass);
+}
+
+.lb-travel__exit + .lb-travel__exit {
+  padding-top: var(--lb-space-3);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+/* Ações secundárias numa linha só, menores que a principal ("Ir para …"):
+   em duas metades iguais "Trocar destino" quebrava em duas linhas ao lado de
+   "Desligar" (medido na largura do rail, 21/09/2026). */
+.lb-travel__row > .lb-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+}
+
+.lb-travel__chevron {
+  display: inline-flex;
+  color: var(--lb-color-parchment-faint);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+[aria-expanded='false'] > .lb-travel__chevron {
+  transform: rotate(-90deg);
+}
+
+/* Aberto, o gatilho fica marcado como a opção escolhida do segmented: é dele
+   que sai a escolha embaixo. */
+.lb-travel .lb-btn[aria-expanded='true'] {
+  border-color: color-mix(in srgb, var(--lb-color-brass) 28%, transparent);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+}
+
+.lb-travel .lb-btn[aria-expanded='true'] .lb-travel__chevron {
+  color: var(--lb-color-brass);
+}
+
+.lb-travel__row--end {
+  justify-content: flex-end;
+}
+
+.lb-travel__row--end > .lb-btn {
+  flex: none;
+}
+
+/* A escolha abre no próprio poço, separada do estado por um fio: o que está
+   decidido fica em cima, o que está sendo escolhido fica embaixo. */
+.lb-travel__picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding-top: var(--lb-space-3);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-travel__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-travel__option {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+/* Nome da cena ou do pino inteiro no botão (é o nome acessível dele); o que
+   não cabe na largura do rail vira reticência só na tela. */
+.lb-travel__choice {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-travel__note {
+  flex: none;
+  max-width: 50%;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+  text-align: right;
 }

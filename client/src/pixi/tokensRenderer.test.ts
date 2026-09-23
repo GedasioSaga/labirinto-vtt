@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Container, Graphics, Sprite, Text } from 'pixi.js'
 import { createTokensRenderer } from './tokensRenderer'
+import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from './constants'
 import type { Token } from '../types/map'
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -22,6 +23,10 @@ function buildToken(overrides: Partial<Token> = {}): Token {
 
 const GRID = 64
 
+/** 1x1 px transparente: forma válida de foto embutida, pequena o bastante para o teste. */
+const FOTO_EMBUTIDA =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+
 /** Único filho de `wrapper` que representa o visual do token (Sprite ou
  *  Graphics do círculo) — ring/label também são Graphics/Text, então
  *  distinguir exige olhar o índice 0, que é sempre o visual (ver
@@ -29,6 +34,33 @@ const GRID = 64
 function visualOf(wrapper: Container): Container['children'][number] {
   return wrapper.children[0]
 }
+
+describe('createTokensRenderer — nome com tamanho mínimo na tela', () => {
+  function labelOf(container: Container): Text {
+    const label = (container.children[0] as Container).children.find((c): c is Text => c instanceof Text)
+    if (!label) throw new Error('rótulo ausente')
+    return label
+  }
+
+  it('a 50% o nome de 12 px de mundo vira 11 px de tela; abaixo de 30% some; a 100% volta a escala 1', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+    renderer.draw(container, [buildToken()], GRID, null, 0.5)
+    const label = labelOf(container)
+    expect(12 * 0.5 * label.scale.x).toBeCloseTo(11, 6)
+    expect(label.visible).toBe(true)
+
+    renderer.setCameraScale(0.2)
+    expect(label.visible).toBe(false)
+
+    renderer.draw(container, [buildToken()], GRID)
+    expect(label.visible).toBe(false)
+
+    renderer.setCameraScale(1)
+    expect(label.visible).toBe(true)
+    expect(label.scale.x).toBe(1)
+  })
+})
 
 describe('createTokensRenderer — ciclo de vida (risco nº 3 do plano)', () => {
   it('instanciar, desenhar, destruir e reinstanciar duas vezes: children.length sempre bate com tokens.length', () => {
@@ -140,7 +172,10 @@ describe('createTokensRenderer — token com imagem (image !== null)', () => {
     expect(visual).toBeInstanceOf(Sprite)
   })
 
-  it('sprite.width/height cobrem o diâmetro inteiro da célula (gridSize * size)', () => {
+  it('a foto fica DENTRO da moldura: o lado do sprite é o diâmetro menos a moldura dos dois lados', () => {
+    // Mudou de propósito (pedido do usuário, 17/09/2026): antes o sprite
+    // ocupava a célula inteira e a foto vazava para os cantos do quadrado.
+    // Agora ela é recortada no círculo de raio `raio - TOKEN_FRAME_WIDTH`.
     const token = buildToken({ image: 'C:\\imgs\\heroi.png', size: 2 })
     const container = new Container()
     const renderer = createTokensRenderer()
@@ -148,8 +183,58 @@ describe('createTokensRenderer — token com imagem (image !== null)', () => {
     renderer.draw(container, [token], GRID, null)
 
     const sprite = visualOf(container.children[0]) as Sprite
-    expect(sprite.width).toBe(GRID * 2)
-    expect(sprite.height).toBe(GRID * 2)
+    const ladoEsperado = GRID * 2 - TOKEN_FRAME_WIDTH * 2
+    expect(sprite.width).toBe(ladoEsperado)
+    expect(sprite.height).toBe(ladoEsperado)
+  })
+
+  it('o sprite tem máscara circular: a foto sai RECORTADA no círculo, não no quadrado', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+
+    renderer.draw(container, [buildToken({ image: 'C:\\imgs\\heroi.png' })], GRID, null)
+
+    const sprite = visualOf(container.children[0]) as Sprite
+    const mask = sprite.mask
+    expect(mask).toBeInstanceOf(Graphics)
+    const desenho = mask as Graphics
+    // Preenchimento de verdade, e do tamanho do círculo interno: sem isto a
+    // máscara existiria sem recortar nada.
+    expect(desenho.context.instructions.filter((i) => i.action === 'fill')).toHaveLength(1)
+    expect(desenho.getLocalBounds().width).toBeCloseTo(GRID - TOKEN_FRAME_WIDTH * 2, 6)
+  })
+
+  it('a moldura aparece mesmo SEM seleção — foi a queixa: anel só existia no token selecionado', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+
+    renderer.draw(container, [buildToken({ image: 'C:\\imgs\\heroi.png' })], GRID, null)
+
+    const ring = container.children[0].children[1] as Graphics
+    const strokes = ring.context.instructions.filter((i) => i.action === 'stroke')
+    expect(strokes).toHaveLength(1)
+    expect((strokes[0]?.data as { style?: { color?: number } })?.style?.color).toBe(TOKEN_FRAME_COLOR)
+  })
+
+  it('CONTROLE: token SEM foto não ganha moldura no anel (senão o teste acima passaria por acidente)', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+
+    renderer.draw(container, [buildToken({ image: null })], GRID, null)
+
+    const ring = container.children[0].children[1] as Graphics
+    expect(ring.context.instructions.filter((i) => i.action === 'stroke')).toHaveLength(0)
+  })
+
+  it('a foto embutida do jogador (data URL) desenha sprite igual, sem passar pelo convertFileSrc do Tauri', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+
+    // `image: null` com a foto só em `imageData` é a forma que o host grava
+    // quando o JOGADOR escolhe a foto na tela dele.
+    renderer.draw(container, [buildToken({ image: null, imageData: FOTO_EMBUTIDA })], GRID, null)
+
+    expect(visualOf(container.children[0])).toBeInstanceOf(Sprite)
   })
 
   it('trocar de imagem para null no redraw substitui o Sprite pelo círculo genérico (sem restos do sprite antigo)', () => {
@@ -178,5 +263,36 @@ describe('createTokensRenderer — token com imagem (image !== null)', () => {
 
     expect(container.children.length).toBe(1)
     expect(visualOf(container.children[0])).toBeInstanceOf(Sprite)
+  })
+})
+
+describe('createTokensRenderer — token "Oculto no editor" vira fantasma', () => {
+  /** Anel é o filho 1 do wrapper: [visual, ring, label] (ver ensureGraphics). */
+  function ringOf(wrapper: Container): Graphics {
+    return wrapper.children[1] as Graphics
+  }
+
+  it('continua visível (clicável), bem transparente e com contorno no anel', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+
+    renderer.draw(container, [buildToken({ hidden: true })], GRID, null)
+
+    const wrapper = container.children[0]
+    expect(wrapper.visible).toBe(true)
+    expect(wrapper.alpha).toBeLessThan(0.5)
+    expect(ringOf(wrapper).getLocalBounds().width).toBeGreaterThan(0)
+  })
+
+  it('token normal não ganha contorno, e desocultar tira o fantasma', () => {
+    const container = new Container()
+    const renderer = createTokensRenderer()
+
+    renderer.draw(container, [buildToken({ hidden: true })], GRID, null)
+    renderer.draw(container, [buildToken({ hidden: false })], GRID, null)
+
+    const wrapper = container.children[0]
+    expect(wrapper.alpha).toBe(1)
+    expect(ringOf(wrapper).getLocalBounds().width).toBe(0)
   })
 })
