@@ -2403,6 +2403,66 @@ body {
   font-size: var(--lb-font-size-sm);
 }
 
+/* "Quem recebe": uma marca por jogador e os atalhos por sala, em linhas que quebram. */
+.lb-cenas__quem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-1) var(--lb-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.lb-cenas__quem > legend {
+  flex-basis: 100%;
+  padding: 0;
+  margin-bottom: var(--lb-space-1);
+}
+
+.lb-cenas__escolha {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+
+.lb-cenas__escolha > input {
+  margin: 0;
+  accent-color: var(--lb-color-brass);
+}
+
+.lb-cenas__escolha > input:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+.lb-cenas__atalho {
+  flex: none;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+
+.lb-cenas__atalho:hover,
+.lb-cenas__atalho:focus-visible {
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass);
+}
+
+.lb-cenas__recado-vazio {
+  margin: 0;
+  color: var(--lb-color-brass);
+  font-size: var(--lb-font-size-sm);
+}
+
 .lb-cenas__recado-aviso {
   flex-basis: 100%;
   margin: 0;

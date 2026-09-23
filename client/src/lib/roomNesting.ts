@@ -113,6 +113,17 @@ export function findContainingRoom(regions: readonly Region[], points: readonly 
   return best
 }
 
+/**
+ * As Salas onde o ponto está, da mais interna para a de fora (quarto, depois a
+ * casa). É o "Quem está em: <sala>" do recado do mestre. Só Sala (`room`)
+ * conta; ponto fora de toda sala = lista vazia.
+ */
+export function roomsAt(regions: readonly Region[], point: RegionPoint): Region[] {
+  const innermost = findContainingRoom(regions, [point])
+  if (innermost === null) return []
+  return [innermost, ...ancestorsOf(regions, innermost.id).filter((r) => r.room !== undefined)]
+}
+
 /** Índice logo depois da última sala da subárvore de `parentId` (fim do array se a mãe não existe). */
 export function insertIndexAfterSubtree(regions: readonly Region[], parentId: string): number {
   const ids = subtreeIds(regions, parentId)

@@ -1,6 +1,7 @@
 import type { HostScene, HostWorld, PlayerInfo } from '../net/hostSession'
 import type { Token } from '../types/map'
 import { pinSummary } from './pins'
+import { roomsAt } from './roomNesting'
 import { tokenFillColor } from './tokenColor'
 
 /**
@@ -120,6 +121,32 @@ export interface ScenePerson {
   name: string
   /** `#rrggbb`, a mesma cor da linha do Grupo e do disco no mapa. */
   color: string
+  /**
+   * As Salas onde a ficha dele está, da mais interna para a de fora: os
+   * atalhos "Quem está em: <sala>" do recado. Ausente = montado sem o mundo.
+   * Só o mestre lê: nunca vai pela rede.
+   */
+  rooms?: SceneRoom[]
+}
+
+/** Uma Sala do mapa da cena, pelo nome que o mestre deu. */
+export interface SceneRoom {
+  id: string
+  name: string
+}
+
+/** Sala sem nome ainda vira atalho: o mestre precisa conseguir escolher quem está lá. */
+export const UNNAMED_ROOM_LABEL = 'Sala sem nome'
+
+/** As Salas da ficha do membro, no mapa da cena dele. */
+function roomsOfMember(member: PartyMember, world: HostWorld): SceneRoom[] {
+  const scene = allScenes(world).find((s) => s.sceneId === member.sceneId)
+  if (scene === undefined || member.token === null) return []
+  return roomsAt(scene.map.regions, member.token).map((region) => {
+    // `roomsAt` só devolve Sala; o `?? ''` é para o tipo, que não sabe disso.
+    const name = (region.room?.name ?? '').trim()
+    return { id: region.id, name: name === '' ? UNNAMED_ROOM_LABEL : name }
+  })
 }
 
 /** O que a linha de UMA cena da lista Cenas mostra além do nome. */
@@ -139,8 +166,10 @@ export interface ScenePeople {
  * sessão não dá cena a ninguém, e a lista fica sem bolinha e sem selo.
  * A bolinha pede a ficha na cena (é dela que vem a cor); o pedido não — quem
  * pede já está em cena, e o selo não pode sumir por falta de cor.
+ *
+ * Com `world`, cada bolinha leva as Salas onde a ficha está (`rooms`).
  */
-export function peopleByScene(members: PartyMember[]): Map<string, ScenePeople> {
+export function peopleByScene(members: PartyMember[], world?: HostWorld): Map<string, ScenePeople> {
   const byScene = new Map<string, ScenePeople>()
   for (const member of members) {
     if (!member.connected || member.sceneId === null) continue
@@ -149,7 +178,11 @@ export function peopleByScene(members: PartyMember[]): Map<string, ScenePeople> 
       entry = { people: [], pendingRequests: 0 }
       byScene.set(member.sceneId, entry)
     }
-    if (member.token !== null) entry.people.push({ playerId: member.playerId, name: member.name, color: member.token.color })
+    if (member.token !== null) {
+      const person: ScenePerson = { playerId: member.playerId, name: member.name, color: member.token.color }
+      if (world !== undefined) person.rooms = roomsOfMember(member, world)
+      entry.people.push(person)
+    }
     if (member.travelPending) entry.pendingRequests += 1
   }
   return byScene
