@@ -404,17 +404,39 @@
 
 /* ==================================================== painel sobre o canvas */
 
+/*
+ * Barra e painel dividem a mesma geometria. A barra ("Painel" e "Minha ficha")
+ * mora no canto de cima à esquerda, em QUALQUER largura; o painel aberto é um
+ * cartão que a abraça — ela vira o cabeçalho dele. Recolhido, o cartão some e
+ * a barra fica exatamente onde estava: o botão que traz o painel de volta não
+ * pula, e o mapa inteiro fica livre.
+ */
+.pp-bar,
+.pp-panel {
+  /* Do cartão até a borda da janela. */
+  --pp-edge: 12px;
+  /* Respiro dentro do cartão. */
+  --pp-pad: 12px;
+  /* Altura dos botões da barra: alvo de dedo, o mesmo do "Medir" e do zoom. */
+  --pp-bar-h: 44px;
+  /* Barra e primeiro título do painel. */
+  --pp-bar-gap: 14px;
+}
+
 .pp-panel {
   position: fixed;
-  top: 12px;
-  left: 12px;
+  top: var(--pp-edge);
+  left: var(--pp-edge);
   z-index: 10;
-  width: 248px;
-  max-height: calc(100% - 24px);
-  overflow-y: auto;
-  padding: 12px;
-  display: grid;
-  gap: 14px;
+  box-sizing: border-box;
+  /* A mesma caixa de 274 px de antes (248 de conteúdo): o que as outras telas
+     medem em volta do painel continua valendo. */
+  width: calc(248px + 2 * var(--pp-pad) + 2px);
+  max-height: calc(100% - 2 * var(--pp-edge));
+  display: flex;
+  flex-direction: column;
+  /* O cabeçalho é o lugar da barra, que é `fixed` e fica por cima dele. */
+  padding-top: calc(var(--pp-pad) + var(--pp-bar-h) + var(--pp-bar-gap));
   font-family: var(--lb-font-sans, system-ui, sans-serif);
   font-size: 14px;
   line-height: 1.4;
@@ -423,10 +445,54 @@
   border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
   border-radius: var(--lb-radius-lg, 10px);
   box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  transform-origin: top left;
+  animation: pp-panel-in var(--lb-motion-base, 170ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
 }
 
-.pp-toggle {
+/* Recolhido: fora da tela e da árvore de acessibilidade. O `display` do cartão venceria o do atributo sozinho. */
+.pp-panel[hidden] {
   display: none;
+}
+
+/* Só o miolo rola: numa janela baixa (notebook de 768 px) o conteúdo desce
+   por baixo do cabeçalho, e nunca passa por trás da barra. */
+.pp-panel__body {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 14px;
+  padding: 0 var(--pp-pad) var(--pp-pad);
+}
+
+/* Abre desdobrando da barra: curto, de cima para baixo. Fechar é na hora —
+   quem recolhe quer o mapa, não uma animação. */
+@keyframes pp-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.pp-bar {
+  position: fixed;
+  top: calc(var(--pp-edge) + 1px + var(--pp-pad));
+  left: calc(var(--pp-edge) + 1px + var(--pp-pad));
+  z-index: 11;
+  display: flex;
+  gap: 6px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 14px;
+  line-height: 1.4;
+  /* O vão entre os botões continua sendo mapa: arrastar ali arrasta o mapa. */
+  pointer-events: none;
+}
+
+.pp-bar > button {
+  pointer-events: auto;
 }
 
 /* Aviso curto da porta ("Trancada"): sobe do rodapé, no meio da tela, e some sozinho. */
@@ -493,8 +559,7 @@
 }
 
 .pp-character,
-.pp-button,
-.pp-toggle {
+.pp-button {
   font: inherit;
   color: inherit;
   cursor: pointer;
@@ -530,8 +595,7 @@
   box-shadow: 0 0 0 2px #ffffff;
 }
 
-.pp-button,
-.pp-toggle {
+.pp-button {
   padding: 8px 10px;
   background: var(--lb-color-stone-raised, #232328);
   border: 1px solid var(--lb-color-brass, #e0a44a);
@@ -539,9 +603,73 @@
   font-weight: 600;
 }
 
-.pp-button:hover:not(:disabled),
-.pp-toggle:hover {
+.pp-button:hover:not(:disabled) {
   background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+}
+
+/*
+ * Os dois botões da barra: a mesma pele dos botões do painel (pedra com filete
+ * de latão), mas OPACOS — recolhido o painel, eles ficam direto sobre o mapa, e
+ * o latão translúcido do pairar deixaria o chão aparecer por dentro do botão.
+ */
+.pp-toggle,
+.pp-mine {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--pp-bar-h);
+  margin: 0;
+  padding: 0 10px;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--lb-color-brass-bright, #f3ba66);
+  background-color: var(--lb-color-stone-raised, #232328);
+  border: 1px solid var(--lb-color-brass, #e0a44a);
+  border-radius: var(--lb-radius-md, 9px);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    box-shadow var(--lb-motion-base, 170ms) var(--lb-motion-ease, ease);
+}
+
+/* Recolhido o painel, a barra flutua sozinha sobre o mapa e ganha a sombra dos painéis. */
+.pp-bar--alone > button {
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+}
+
+/* Pairar só onde existe ponteiro que paira: no celular o hover grudava depois do toque. */
+@media (hover: hover) {
+  .pp-toggle:hover,
+  .pp-mine:hover {
+    background-image: linear-gradient(var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14)), var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14)));
+  }
+}
+
+/* O dedo pegou: afunda NA HORA (sem transição na ida) e volta em 110 ms. */
+.pp-toggle:active,
+.pp-mine:active {
+  transform: scale(0.97);
+  background-color: var(--lb-color-stone-sunken, #141417);
+  transition-duration: 0ms;
+}
+
+/* A seta diz para onde o painel vai: para baixo abre, para cima recolhe. */
+.pp-toggle__chevron {
+  flex: none;
+  transition: transform var(--lb-motion-base, 170ms) var(--lb-motion-ease, ease);
+}
+
+.pp-toggle[aria-expanded='true'] .pp-toggle__chevron {
+  transform: rotate(180deg);
+}
+
+.pp-mine__icon {
+  flex: none;
 }
 
 .pp-button:disabled {
@@ -672,30 +800,34 @@
   color: var(--lb-color-danger, #e07a5f);
 }
 
-/* Foco por teclado visível em tudo que é interativo no painel (anel de latão do editor). */
+/* Foco por teclado visível em tudo que é interativo no painel e na barra (anel de latão do editor). */
 .pp-panel :focus-visible,
-.pp-toggle:focus-visible {
+.pp-bar :focus-visible {
   outline: 2px solid var(--lb-color-brass, #e0a44a);
   outline-offset: 2px;
 }
 
+/* Celular: o painel é gaveta (começa fechada, `PlayerPanel`) e usa quase a largura toda. */
 @media (max-width: 699px) {
-  .pp-toggle {
-    display: block;
-    position: fixed;
-    top: 12px;
-    left: 12px;
-    z-index: 11;
-  }
-
   .pp-panel {
-    top: 56px;
-    width: min(280px, calc(100% - 24px));
-    max-height: calc(100% - 68px);
+    width: min(calc(280px + 2 * var(--pp-pad) + 2px), calc(100% - 2 * var(--pp-edge)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-panel {
+    animation: none;
   }
 
-  .pp-panel:not(.is-open) {
-    display: none;
+  .pp-toggle,
+  .pp-mine,
+  .pp-toggle__chevron {
+    transition: none;
+  }
+
+  .pp-toggle:active,
+  .pp-mine:active {
+    transform: none;
   }
 }
 
