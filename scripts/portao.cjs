@@ -2538,6 +2538,7 @@ function devolverVaga(vaga) {
 
 function devolverTodasAsVagas() {
   for (const v of Array.from(VAGAS_EM_MAOS)) devolverVaga(v)
+  for (const s of Array.from(SENHAS_EM_MAOS)) rasgarSenha(s)
 }
 
 const SINAIS_DAS_VAGAS = [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]].map(([sinal, codigo]) => ({
@@ -2567,10 +2568,80 @@ function sinaisDasVagas(ligar) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// FILA — ordem de chegada entre quem espera vaga.
+//
+// MEDIDO em 23/09/2026: com o passo por spec, um processo devolve a vaga e
+// pede a próxima no MESMO instante, enquanto quem espera só olha a cada 2 s.
+// Resultado: `jornadas-entregues` ficou 25 min sem vaga, perdendo toda corrida
+// para quem acabava de devolver. Aqui quem espera tira uma senha (arquivo com
+// o instante de chegada no nome) e só pode ocupar vaga livre quando a posição
+// dela na fila é menor que o número de vagas livres. Quem devolve e pede de
+// novo tira senha nova — vai para o FIM da fila.
+// ---------------------------------------------------------------------------
+const FILA = path.join(VAGAS, 'fila')
+const SENHAS_EM_MAOS = new Set()
+let senhaSeq = 0
+
+function tirarSenha(passo) {
+  fs.mkdirSync(FILA, { recursive: true })
+  senhaSeq += 1
+  const nome = String(Date.now()).padStart(15, '0') + '-' + process.pid + '-' + senhaSeq + '.senha'
+  const caminho = path.join(FILA, nome)
+  fs.writeFileSync(caminho, JSON.stringify({ pid: process.pid, raiz: RAIZ, passo: passo.id }), 'utf8')
+  SENHAS_EM_MAOS.add(caminho)
+  return caminho
+}
+
+function rasgarSenha(caminho) {
+  if (!caminho) return
+  SENHAS_EM_MAOS.delete(caminho)
+  try {
+    fs.unlinkSync(caminho)
+  } catch (e) {}
+}
+
+/** As senhas VIVAS, em ordem de chegada. Senha de processo morto é rasgada no caminho. */
+function senhasVivas() {
+  let nomes = []
+  try {
+    nomes = fs.readdirSync(FILA).filter((n) => /^\d{15}-\d+-\d+\.senha$/.test(n))
+  } catch (e) {
+    return []
+  }
+  const vivas = []
+  for (const nome of nomes.sort()) {
+    const pid = Number(nome.split('-')[1])
+    if (pid === process.pid || pidVivo(pid)) vivas.push(path.join(FILA, nome))
+    else rasgarSenha(path.join(FILA, nome))
+  }
+  return vivas
+}
+
+/**
+ * A vez de uma senha, separada do disco para ter autoteste: com `livres`
+ * vagas livres, as `livres` primeiras senhas da fila podem ocupá-las.
+ */
+function minhaVez(fila, minha, livres) {
+  const posicao = fila.indexOf(minha)
+  return posicao !== -1 && posicao < livres
+}
+
+/** Quantas das vagas 1..n estão livres agora (órfãs já retomadas). */
+function vagasLivres(n) {
+  let livres = 0
+  for (let k = 1; k <= n; k++) {
+    const caminho = path.join(VAGAS, 'vaga-' + k + '.lock')
+    if (!fs.existsSync(caminho) || retomarSeOrfa(caminho)) livres += 1
+  }
+  return livres
+}
+
 /**
  * Bloqueia até existir vaga (ou devolve `null` com `PORTAO_VAGAS=0`). A espera
  * dorme em `Atomics.wait` — CPU zero — e reclama a cada 30 s dizendo quem
- * ocupa. O tempo esperado volta em `esperouMs`, fora do tempo do passo.
+ * ocupa. O tempo esperado volta em `esperouMs`, fora do tempo do passo. A ordem
+ * entre quem espera é a de chegada (ver FILA).
  */
 function pegarVaga(passo) {
   const n = quantasVagas(process.env)
@@ -2580,8 +2651,18 @@ function pegarVaga(passo) {
   const t0 = Date.now()
   let ultimoAviso = t0
   const sono = new Int32Array(new SharedArrayBuffer(4))
+  const senha = tirarSenha(passo)
+  try {
+    return esperarNaFila(passo, n, senha, t0, ultimoAviso, sono)
+  } finally {
+    rasgarSenha(senha)
+  }
+}
+
+function esperarNaFila(passo, n, senha, t0, ultimoAviso, sono) {
   for (;;) {
-    for (let k = 1; k <= n; k++) {
+    const naVez = minhaVez(senhasVivas(), senha, vagasLivres(n))
+    for (let k = 1; naVez && k <= n; k++) {
       const caminho = path.join(VAGAS, 'vaga-' + k + '.lock')
       for (let tentativa = 0; tentativa < 2; tentativa++) {
         const dono = { pid: process.pid, desde: new Date().toISOString(), raiz: RAIZ, passo: passo.id }
@@ -2601,9 +2682,10 @@ function pegarVaga(passo) {
     if (Date.now() - ultimoAviso >= VAGA_AVISO_MS) {
       ultimoAviso = Date.now()
       const quem = ocupantes()
+      const fila = senhasVivas()
       escreverNaTela(
         'aguardando vaga de ' + rotuloDaVaga(passo) + ': ' + quem.length + ' de ' + n + ' (quem: ' + (quem.join('; ') || '?') + ') — ' +
-          passo.id + ', há ' + Math.round((ultimoAviso - t0) / 1000) + ' s\n',
+          passo.id + ', há ' + Math.round((ultimoAviso - t0) / 1000) + ' s, ' + (fila.indexOf(senha) + 1) + 'º de ' + fila.length + ' na fila\n',
       )
     }
     Atomics.wait(sono, 0, 0, VAGA_POLLING_MS)
@@ -5360,6 +5442,13 @@ async function rodarAutoteste() {
       guardaFalsoVerde('g34-unidade', PASSO_DE_UNIDADE_DE_PROVA, 0, NOTA_DE_REPRISE + relatorioDeUnidade(10, PISO_DE_TESTES_DE_UNIDADE)),
       true,
     ],
+    // g37 — fila de vagas por ordem de chegada (quem devolve e pede de novo vai para o fim).
+    ['g37 aprova o primeiro da fila com 1 vaga livre', minhaVez(['a', 'b', 'c'], 'a', 1) ? ok('g37-fila', 'vez') : reprova('g37-fila', 'sem vez'), true],
+    ['g37 reprova o segundo da fila com 1 vaga livre', minhaVez(['a', 'b', 'c'], 'b', 1) ? ok('g37-fila', 'furou a fila') : reprova('g37-fila', 'espera'), false],
+    ['g37 aprova o segundo da fila com 2 vagas livres', minhaVez(['a', 'b', 'c'], 'b', 2) ? ok('g37-fila', 'vez') : reprova('g37-fila', 'sem vez'), true],
+    ['g37 reprova quem acabou de devolver (senha nova, no fim)', minhaVez(['a', 'b', 'volta'], 'volta', 1) ? ok('g37-fila', 'furou a fila') : reprova('g37-fila', 'espera'), false],
+    ['g37 reprova senha fora da fila', minhaVez(['a'], 'x', 3) ? ok('g37-fila', 'vez sem senha') : reprova('g37-fila', 'sem senha'), false],
+    ['g37 reprova sem vaga livre', minhaVez(['a'], 'a', 0) ? ok('g37-fila', 'vez sem vaga') : reprova('g37-fila', 'espera'), false],
     // g36 — jornadas por spec: agregado, causa nomeada e reprise só de timeout.
     ...(() => {
       const dois = { id: 'jornadas-x', titulo: 'x', specs: ['e2e/a.spec.ts', 'e2e/b.spec.ts'] }
