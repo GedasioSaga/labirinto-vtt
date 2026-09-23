@@ -326,6 +326,17 @@ export interface Pin extends PlayerSecret {
    */
   saidas?: PinExit[]
   /**
+   * Só do pino de viagem: é a CHEGADA OCULTA de uma ligação de MÃO ÚNICA
+   * (alçapão, teleporte, porta que fecha atrás). O mestre marca "Mão única"
+   * no pino de ORIGEM e é o par, aqui, que ganha a marca. A ligação continua
+   * gravada nos dois lados (a mão dupla segue sabendo quem é o par), mas o
+   * jogador nunca recebe este pino (`lib/fogFilter.ts`), o host recusa pedido
+   * de viagem por ele (`net/hostSession.ts`) e o painel diz "Só chegada".
+   * Ausente = o par de sempre, visível e de mão dupla — sem migração. O disco
+   * só aceita `true` (`lib/mapFile.ts`).
+   */
+  soChegada?: true
+  /**
    * SÓ NO RECORTE DO JOGADOR, e só quando o pino tem mais de uma saída: o id e
    * o rótulo de cada uma, na ordem (a principal primeiro). O mestre nunca grava
    * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.

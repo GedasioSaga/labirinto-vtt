@@ -1,6 +1,6 @@
 import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import type { PinTravel, TravelPinOption, TravelSceneOption } from '../lib/pinTravel'
-import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH } from '../lib/pinTravel'
+import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, isArrivalOnly, travelExitsOf } from '../lib/pinTravel'
 import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
 import type { PinPassage } from '../types/map'
 import { ChevronDownIcon } from './icons'
@@ -36,6 +36,14 @@ export interface PinTravelControlsProps {
   /** Como o jogador passa por ESTE pino (o par tem o seu). Vale para todas as saídas. */
   passage: PinPassage
   onPassageChange: (passage: PinPassage) => void
+  /** MÃO ÚNICA da saída `exitId`: marca (ou desmarca) o par dela como chegada oculta. */
+  onOneWayChange: (exitId: string, on: boolean) => void
+  /**
+   * ESTE pino é a chegada oculta de uma mão única: o painel diz "Só chegada"
+   * e não oferece "Leva a…", passagem nem saída nova — ele não leva a lugar
+   * nenhum. Quem desfaz é o "Mão única" do pino de origem.
+   */
+  arrivalOnly: boolean
 }
 
 /**
@@ -51,6 +59,7 @@ const CENAS_ID = 'lb-pin-travel-scenes'
 const PINOS_ID = 'lb-pin-travel-pins'
 const PASSAGEM_ID = 'lb-pin-travel-passage'
 const NOME_ID = 'lb-pin-travel-exit-name'
+const MAO_UNICA_ID = 'lb-pin-travel-one-way'
 
 /** A chave do gatilho que abriu a escolha: o id da saída, ou esta para "+ Outra saída". */
 const GATILHO_NOVA = '+nova'
@@ -109,7 +118,20 @@ function TituloDoDestino({ travel }: { travel: PinTravel }) {
  * entre as opções; depois de ligar, desligar ou atravessar, o foco vai para a
  * frase do destino, que é o que mudou (e o leitor de tela a lê: `aria-live`).
  */
-export function PinTravelControls({ exits, scenes, pinsIn, onLinkNew, onLinkExisting, onUnlink, onRename, onGo, passage, onPassageChange }: PinTravelControlsProps) {
+export function PinTravelControls({
+  exits,
+  scenes,
+  pinsIn,
+  onLinkNew,
+  onLinkExisting,
+  onUnlink,
+  onRename,
+  onGo,
+  passage,
+  onPassageChange,
+  onOneWayChange,
+  arrivalOnly,
+}: PinTravelControlsProps) {
   const [escolha, setEscolha] = useState<Escolha>(null)
   /** Quem abriu a escolha: é para ele que o foco volta ao fechar. */
   const gatilhoRef = useRef<HTMLButtonElement | null>(null)
@@ -203,6 +225,10 @@ export function PinTravelControls({ exits, scenes, pinsIn, onLinkNew, onLinkExis
     )
   }
 
+  // Antes de todo o resto: a chegada oculta não tem destino para escolher.
+  // Os hooks acima rodam igual (a ordem deles não pode mudar entre renders).
+  if (arrivalOnly) return <SoChegada origem={principal?.travel ?? null} />
+
   return (
     <div className={`lb-travel lb-travel--${estado}`} role="group" aria-label="Destino da viagem" onKeyDown={aoTeclar}>
       {!encruzilhada && principal !== undefined && (
@@ -225,6 +251,9 @@ export function PinTravelControls({ exits, scenes, pinsIn, onLinkNew, onLinkExis
                 Desligar
               </button>
             </div>
+          )}
+          {principal.travel.status === 'ligado' && (
+            <MaoUnica id={`${MAO_UNICA_ID}-0`} travel={principal.travel} onChange={(on) => onOneWayChange(principal.id, on)} />
           )}
           {principal.travel.status === 'ligado' && !aberta && <p className="lb-travel__hint">No mapa, um clique no pino com Selecionar também leva.</p>}
         </>
@@ -266,6 +295,9 @@ export function PinTravelControls({ exits, scenes, pinsIn, onLinkNew, onLinkExis
                     Desligar
                   </button>
                 </div>
+                {exit.travel.status === 'ligado' && (
+                  <MaoUnica id={`${MAO_UNICA_ID}-${index}`} travel={exit.travel} onChange={(on) => onOneWayChange(exit.id, on)} />
+                )}
               </li>
             ))}
           </ul>
@@ -342,6 +374,71 @@ export function PinTravelControls({ exits, scenes, pinsIn, onLinkNew, onLinkExis
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+type Ligada = Extract<PinTravel, { status: 'ligado' }>
+
+interface MaoUnicaProps {
+  id: string
+  travel: Ligada
+  onChange: (on: boolean) => void
+}
+
+/**
+ * "Mão única" de UMA saída ligada: botão de alternar (`aria-pressed`), e não
+ * o `Toggle` da casa — o checkbox dele é um input de 1 px sem ponteiro, e o
+ * alvo do clique precisa ser o próprio controle. O estado mora no PAR (a
+ * marca de chegada oculta), então o botão lê o par e nunca guarda cópia.
+ *
+ * Par que é encruzilhada não pode virar chegada oculta: esconder o pino dele
+ * esconderia do jogador também as outras saídas. O botão fica desabilitado,
+ * com o motivo dito embaixo.
+ */
+function MaoUnica({ id, travel, onChange }: MaoUnicaProps) {
+  const marcada = isArrivalOnly(travel.partner)
+  const parComSaidas = !marcada && travelExitsOf(travel.partner).length > 1
+  const efeito = `${id}-efeito`
+  return (
+    <>
+      <button
+        type="button"
+        className="lb-btn lb-btn--ghost lb-btn--block"
+        aria-pressed={marcada}
+        aria-describedby={efeito}
+        disabled={parComSaidas}
+        onClick={() => onChange(!marcada)}
+      >
+        Mão única
+      </button>
+      <p id={efeito} className="lb-travel__hint">
+        {parComSaidas
+          ? `O pino de ${travel.sceneName} tem outras saídas: não dá para escondê-lo.`
+          : marcada
+            ? `Não volta: o jogador chega em ${travel.sceneName} e não vê o pino de chegada.`
+            : 'Marque para a passagem não voltar (alçapão, teleporte).'}
+      </p>
+    </>
+  )
+}
+
+/**
+ * O painel da CHEGADA OCULTA: o que ela é e de onde vem, sem nada para
+ * escolher. Desfazer é pelo pino de origem — é lá que a mão única mora para
+ * o mestre, que marcou pensando na passagem, não na chegada.
+ */
+function SoChegada({ origem }: { origem: PinTravel | null }) {
+  const deOnde = origem !== null && origem.status === 'ligado' ? origem.sceneName : null
+  return (
+    <div className="lb-travel lb-travel--chegada" role="group" aria-label="Destino da viagem">
+      <p id={STATUS_ID} className="lb-travel__status" tabIndex={-1} aria-live="polite">
+        <span className="lb-travel__title">Só chegada</span>
+        <span className="lb-travel__detail">
+          {deOnde === null ? 'Mão única: não leva de volta.' : `Mão única vinda de ${deOnde}: não leva de volta.`}
+        </span>
+      </p>
+      <p className="lb-travel__hint">O jogador não vê este pino. Para desfazer, desmarque “Mão única” no pino de origem.</p>
     </div>
   )
 }

@@ -113,6 +113,11 @@ export interface HostBridge {
    * `gatherAt`: "Reunir o grupo aqui" — chega nessa casa, com o aviso de reunião.
    */
   sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: { x: number; y: number }): boolean
+  /**
+   * Recado do mestre a quem está na cena `sceneId`. Devolve quantos jogadores
+   * receberam (0 = ninguém lá), ou `null` com a sala fechada.
+   */
+  sceneNote(sceneId: string, text: string): number | null
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -682,6 +687,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       broadcastNow()
       notifyPlayersIfChanged()
       return true
+    },
+
+    sceneNote(sceneId, text) {
+      if (session === null) return null
+      const result = session.sceneNote(sceneId, text, world())
+      void dispatch(result)
+      return result.outbound.length
     },
 
     assignToken(playerId, tokenId) {

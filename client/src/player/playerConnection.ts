@@ -5,7 +5,7 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
-import { parseLaserMessage } from '../net/protocol'
+import { parseLaserMessage, parseSceneNote } from '../net/protocol'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -34,6 +34,12 @@ export interface PlayerState {
   doorNotice?: { id: number; reason: DoorToggleRejection }
   /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
   travel?: TravelNotice
+  /**
+   * Recado do mestre para a cena do jogador. Fica até ele fechar
+   * (`dismissNote`); um recado novo toma o lugar do aberto. É texto puro: a
+   * tela o mostra como texto, nunca como HTML.
+   */
+  note?: { id: string; text: string }
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -108,6 +114,8 @@ export interface PlayerConnection {
    * ausente, o pedido sai sem ele e vale a saída principal, como sempre.
    */
   requestTravel(pinId: string, exitId?: string): boolean
+  /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). */
+  dismissNote(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -474,6 +482,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         showTravelAnswer({ id: nextNoticeId++, phase: 'rejected', reason })
         return
       }
+      case 'scene.note': {
+        // O host só manda a quem joga; fora do jogo não há tela de cartão.
+        if (state.status !== 'playing') return
+        const note = parseSceneNote(data)
+        if (note === null) return
+        setState({ note: { id: note.id, text: note.text } })
+        return
+      }
       case 'laser': {
         // Laser sem mapa na tela não tem onde aparecer.
         if (state.status !== 'playing') return
@@ -667,6 +683,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return true
     },
 
+    dismissNote() {
+      if (state.note !== undefined) setState({ note: undefined })
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -682,7 +702,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined })
       open()
     },
     close: detach,

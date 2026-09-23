@@ -52,6 +52,7 @@ import { PropertiesPanel } from './components/PropertiesPanel'
 import { ActionBar } from './components/ActionBar'
 import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
+import { isArrivalOnly } from './lib/pinTravel'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -1263,6 +1264,12 @@ function App() {
       // par da outra cena fica como está.
       passage: passageOf(pin),
       onPassageChange: (passagem: PinPassage) => useMapStore.getState().updatePin(pin.id, { passagem }),
+      // Mão única mora no PAR (cena de fundo): marcar e desmarcar vão pela
+      // aventura, fora do desfazer desta cena.
+      onOneWayChange: (exitId: string, on: boolean) => {
+        useAdventureStore.getState().setPinOneWay(pin.id, exitId, on)
+      },
+      arrivalOnly: isArrivalOnly(pin),
     }
   }
 
@@ -1664,6 +1671,8 @@ function App() {
                 onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
                 // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
                 people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
+                // Recado por cena só com a sala aberta: sem sala não há quem leia.
+                onNote={room === null ? undefined : (sceneId, text) => hostBridgeRef.current?.sceneNote(sceneId, text) ?? null}
               />
             }
             mapName={map.name}

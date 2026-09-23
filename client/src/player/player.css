@@ -962,3 +962,86 @@
     animation: none;
   }
 }
+
+/*
+ * Recado do mestre: no ALTO e no MEIO, longe do painel (esquerda) e do cartão
+ * de pino (direita). Linguagem de minimapa: fundo escuro chapado, linha fina
+ * clara, sem textura. Não tem véu: o mapa continua inteiro à vista.
+ */
+.pp-note {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 25;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(420px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  padding: 12px 14px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, #131317);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  animation: pp-note-in 160ms ease-out;
+}
+
+@keyframes pp-note-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-note {
+    animation: none;
+  }
+}
+
+.pp-note__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+/* `pre-wrap`: a quebra de linha que o mestre digitou chega igual; `anywhere` segura palavra gigante. */
+.pp-note__text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pp-note__close {
+  align-self: flex-end;
+  padding: 6px 16px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pp-note__close:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pp-note__close:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}

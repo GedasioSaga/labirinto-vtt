@@ -57,7 +57,10 @@ import type { MapData, Token } from '../src/types/map'
 // Disco apertado nesta máquina: sem trace e sem vídeo. O screenshot de falha fica.
 test.use({ trace: 'off', video: 'off' })
 
-const CODIGO = 'RECADO'
+// Código da sala que não é palavra da interface: 'RECADO' casava, pelo
+// getByText sem distinguir maiúscula, com o botão "Recado" da lista Cenas
+// (achado do builder da G11 em 22/09).
+const CODIGO = 'RCD042'
 const J1 = 'Ana'
 const J2 = 'Bruno'
 const AVENTURA = 'Aventura do Vale'

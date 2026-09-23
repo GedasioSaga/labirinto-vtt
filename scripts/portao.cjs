@@ -494,6 +494,12 @@ const JORNADAS_DO_CRITERIO = [
   // 22/09/2026, grupo espalhado G12 — pausa por cena: quem está na cena
   // pausada não anda e lê o aviso; as outras cenas seguem.
   'e2e/task-jornada-pausa-por-cena.spec.ts',
+  // 22/09/2026, grupo espalhado G13 — companheiros na tela do jogador: aqui,
+  // em outro lugar ou fora, nunca o nome da cena.
+  'e2e/task-jornada-companheiros-do-jogador.spec.ts',
+  // 22/09/2026, grupo espalhado G14 — visão geral: miniaturas de todas as
+  // cenas com as fichas em cima; clicar abre a cena.
+  'e2e/task-jornada-visao-geral-das-cenas.spec.ts',
   'e2e/task-jornada-quadrados-ao-arrastar-token.spec.ts',
   'e2e/task-jornada-cor-do-token.spec.ts',
   'e2e/task-jornada-tamanho-do-token-em-quadrados.spec.ts',
