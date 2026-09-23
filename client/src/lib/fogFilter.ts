@@ -6,6 +6,7 @@ import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
+import { withoutAttachment } from './lightAttachment'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
@@ -635,6 +636,12 @@ export function filterMapForPlayer(
     return [{ ...w, door: seenDoors?.get(w.id) ?? unseenDoor(door) }]
   }
 
+  // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
+  const tokens = layerTokens
+    .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
+    .map(sanitizeTokenPhoto)
+  const sentTokenIds = new Set(tokens.map((t) => t.id))
+
   const filtered: MapData = {
     ...map,
     // O nome do mapa é o nome da CENA (a aventura cria a cena com
@@ -646,17 +653,16 @@ export function filterMapForPlayer(
     ownerId: null,
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
-    // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
-    tokens: layerTokens
-      .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
-      .map(sanitizeTokenPhoto),
+    tokens,
     markers: map.markers.filter((m) => !inRoomHiddenFromPlayer({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
     lines: map.lines.filter((l) => !l.points.some(inRoomHiddenFromPlayer) && !l.points.some(inConcealZone) && isShapeKnown(l.points)),
     // Tocha acesa dentro do prédio de teto fechado não sai: o halo dela
     // desenharia o interior na tela do jogador que está lá fora.
-    lights: visibleLights(map.lights, hiddenLayers).filter(
-      (l) => !l.hidden && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }),
-    ),
+    // Tocha presa na ficha: o vínculo só vai se a ficha também vai; senão o
+    // id de ficha que a névoa, a zona oculta ou o mestre escondem sairia pela rede.
+    lights: visibleLights(map.lights, hiddenLayers)
+      .filter((l) => !l.hidden && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }))
+      .map((l) => (l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l))),
     stairs: visibleStairs(map.stairs, hiddenLayers).filter((s) => {
       const first = s.segments[0]
       if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inRoomHiddenFromPlayer)) return false

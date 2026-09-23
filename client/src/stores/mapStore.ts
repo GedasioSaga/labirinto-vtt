@@ -443,6 +443,8 @@ interface MapStoreState {
   addLight: (light: Light) => void
   removeLight: (id: string) => void
   updateLight: (id: string, patch: Partial<Light>) => void
+  /** Tocha presa na ficha: prende a luz em `tokenId` ou solta (`null`). Com histórico. */
+  setLightAttachment: (id: string, tokenId: string | null) => void
   /**
    * Variante "live" de updateLight, restrita ao raio: aplica no `map` SEM
    * empurrar pra `past` — pensada pro pointermove do arrasto da alça de raio
@@ -1148,6 +1150,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       ...map,
       lights: map.lights.map((l) => (l.id === id ? { ...l, ...patch } : l)),
     })),
+    setLightAttachment: (id, tokenId) => withHistory((map) => mapFactory.setLightAttachment(map, id, tokenId)),
     updateLightRadiusLive: (id, radius) => set((state) => ({
       map: {
         ...state.map,
