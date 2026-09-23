@@ -30,12 +30,17 @@ function webpFalso(fator: number) {
 
 describe('teto de envio da foto', () => {
   it('a pior token.edit possível (tokenId no teto + foto no teto de envio) cabe com folga no limite do servidor', () => {
-    const pior = JSON.stringify({
-      type: 'token.edit',
-      tokenId: 'x'.repeat(REQ_ID_MAX_LENGTH),
-      image: `data:image/webp;base64,${'A'.repeat(TOKEN_PHOTO_SEND_MAX_CHARS - 'data:image/webp;base64,'.length)}`,
-    })
-    expect(new TextEncoder().encode(pior).length).toBeLessThanOrEqual(PLAYER_MESSAGE_MAX_BYTES * FOLGA)
+    const fotoNoTeto = `data:image/webp;base64,${'A'.repeat(TOKEN_PHOTO_SEND_MAX_CHARS - 'data:image/webp;base64,'.length)}`
+    const pior = JSON.stringify({ type: 'token.edit', tokenId: 'x'.repeat(REQ_ID_MAX_LENGTH), image: fotoNoTeto })
+    const bytes = new TextEncoder().encode(pior).length
+
+    // Controle positivo: a foto medida é mesmo a maior que o cliente deixa sair
+    // (no teto exato e aceita), e a mensagem a carrega inteira — sem isso o teto
+    // abaixo aprovaria uma mensagem vazia.
+    expect(fotoNoTeto.length).toBe(TOKEN_PHOTO_SEND_MAX_CHARS)
+    expect(fitsTokenPhotoSend(fotoNoTeto)).toBe(true)
+    expect(bytes).toBeGreaterThan(TOKEN_PHOTO_SEND_MAX_CHARS + REQ_ID_MAX_LENGTH)
+    expect(bytes).toBeLessThanOrEqual(PLAYER_MESSAGE_MAX_BYTES * FOLGA)
   })
 
   it('o limite do servidor espelhado no cliente é o de desktop/src-tauri/src/net/server.rs (64 KiB)', () => {
