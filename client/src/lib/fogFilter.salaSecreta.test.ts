@@ -128,15 +128,64 @@ describe('sala secreta: a porta na borda chega como parede inteira', () => {
     expect(view.visibleDoorIds).toContain('estante')
   })
 
-  it('parede da sala secreta que NÃO está na borda de sala do jogador continua sem sair (sala solta no meio do nada)', () => {
+  it('parede da sala secreta que não encosta em parede nenhuma do jogador continua sem sair (sala solta no meio do nada)', () => {
+    const base = mansao()
     const solta: MapData = {
-      ...mansao(),
+      ...base,
+      walls: base.walls.filter((w) => w.regionId === 'r-secreto'),
       regions: [sala('r-secreto', 'Quarto Secreto', 900, 100, 1150, 450, { secret: true })],
     }
     const view = filterMapForPlayer(solta, 'p1', ownership, RADIUS)
-    const ids = view.map.walls.map((w) => w.id)
-    expect(ids).not.toContain('estante')
-    expect(ids).not.toContain('sec-n')
+    expect(view.map.walls).toEqual([])
+  })
+})
+
+/**
+ * Corredor feito com a ferramenta de parede: as paredes soltas em volta da
+ * lanterna NÃO têm Sala. A borda da área visível é a mesma, e a estante que tapa
+ * o buraco na parede leste tem de chegar como parede — senão sobra o vão.
+ */
+function corredor(porta: DoorState = trancada, fichas: Token[] = [ficha('lanterna', 825, 275)]): MapData {
+  const base = mansao({ porta, fichas })
+  return {
+    ...base,
+    walls: base.walls.map((w) => (w.regionId === 'r-bib' ? parede(w.id, w.x1, w.y1, w.x2, w.y2, { wallKind: 'interior' }) : w)),
+    regions: base.regions.filter((r) => r.id === 'r-secreto'),
+  }
+}
+
+describe('sala secreta: borda de corredor sem Sala', () => {
+  it('a visão para na estante: nenhum ponto do anel entra no Quarto Secreto', () => {
+    const [anel] = filterMapForPlayer(corredor(), 'p1', ownership, RADIUS).vision
+    expect(pointInRing({ x: 1000, y: 275 }, anel)).toBe(false)
+    expect(Math.max(...anel.map((p) => p.x))).toBeLessThanOrEqual(ESTANTE_X + 0.5)
+  })
+
+  it('a estante sai como parede comum, sem porta e sem vínculo, tapando o buraco 250-300', () => {
+    const view = filterMapForPlayer(corredor(), 'p1', ownership, RADIUS)
+    const naEstante = view.map.walls.filter((w) => w.x1 === ESTANTE_X && w.x2 === ESTANTE_X && Math.min(w.y1, w.y2) <= 250 && Math.max(w.y1, w.y2) >= 300)
+    expect(naEstante).toHaveLength(1)
+    const [disfarce] = naEstante
+    expect(disfarce.door).toBeNull()
+    expect(disfarce.blocksLight).toBe(true)
+    expect(disfarce.regionId).toBeUndefined()
+    expect(disfarce.wallKind).toBe('interior')
+    expect(disfarce.thickness).toBeUndefined()
+    expect(view.visibleDoorIds).not.toContain('estante')
+  })
+
+  it('SEGURANÇA: parede secreta que só continua a do corredor de UM lado não sai (seria o contorno do quarto)', () => {
+    const json = JSON.stringify(filterMapForPlayer(corredor(), 'p1', ownership, RADIUS).map)
+    expect(json).not.toContain('r-secreto')
+    expect(json).not.toContain('Quarto Secreto')
+    for (const id of ['sec-n', 'sec-l', 'sec-s']) expect(json).not.toContain(`"${id}"`)
+  })
+
+  it('SEGURANÇA: com a estante ABERTA, a visão não entra e quem está lá dentro não sai', () => {
+    const aberta: DoorState = { open: true, locked: false, kind: 'normal' }
+    const view = filterMapForPlayer(corredor(aberta, [ficha('lanterna', 825, 275), ficha('guarda', 1000, 275)]), 'p1', ownership, RADIUS)
+    expect(JSON.stringify(view.map)).not.toContain('guarda')
+    expect(pointInRing({ x: 1000, y: 275 }, view.vision[0])).toBe(false)
   })
 })
 

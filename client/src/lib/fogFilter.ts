@@ -426,13 +426,20 @@ function uncoveredSpans(wall: Wall, covers: readonly Wall[]): [SpanEnd, SpanEnd]
  * pontas da porta. Um trecho descoberto herda a cara e o vínculo da parede que
  * o continua, para ninguém distinguir onde um termina e o outro começa.
  *
- * Parede da sala secreta que NÃO está na borda de sala do jogador continua
- * sumindo inteira, como sempre: sala secreta solta no meio de um salão não
- * pode virar um bloco de paredes sem porta.
+ * A borda não depende de Sala: corredor feito com a ferramenta de parede, sem
+ * região, tem a mesma estante tapando o mesmo buraco. Fora do contorno de sala
+ * do jogador, sai o trecho descoberto que TAPA UM BURACO numa parede reta que
+ * o jogador recebe — as DUAS pontas continuam, na mesma reta, uma parede fixa
+ * não secreta (`plugsGapInLine`).
+ *
+ * Trecho que continua a parede do jogador de um lado só (o norte do Quarto
+ * Secreto seguindo o norte do corredor) não sai: seria um toco desenhando o
+ * contorno da sala. Sala secreta solta no meio de um salão, sem encostar em
+ * nada, continua sumindo inteira: não pode virar um bloco de paredes sem porta.
  */
 function disguisedSecretBorderWalls(walls: readonly Wall[], secretIds: ReadonlySet<string>, playerRegions: readonly Region[]): Map<Wall, Wall[]> {
   const out = new Map<Wall, Wall[]>()
-  if (secretIds.size === 0 || playerRegions.length === 0) return out
+  if (secretIds.size === 0) return out
   const isSecret = (w: Wall): boolean => w.regionId !== undefined && secretIds.has(w.regionId)
   const playerRegionIds = new Set(playerRegions.map((r) => r.id))
   // Parede que o jogador recebe e que segura a visão sempre: porta não conta
@@ -443,17 +450,31 @@ function disguisedSecretBorderWalls(walls: readonly Wall[], secretIds: ReadonlyS
   for (const w of walls) {
     if (!isSecret(w)) continue
     const samples = wallLineSamples(w)
-    if (!playerRegions.some((r) => samples.every((p) => pointOnPolygonBorder(p, r.points)))) continue
+    const onPlayerRoomBorder = playerRegions.some((r) => samples.every((p) => pointOnPolygonBorder(p, r.points)))
+    const spans = uncoveredSpans(w, fixed).map(([from, to]): WallLine => ({ x1: from.p.x, y1: from.p.y, x2: to.p.x, y2: to.p.y }))
+    const kept = onPlayerRoomBorder ? spans : spans.filter((line) => plugsGapInLine(line, fixed))
+    if (!onPlayerRoomBorder && kept.length === 0) continue
     out.set(
       w,
-      uncoveredSpans(w, fixed).map(([from, to], i) => {
-        const line: WallLine = { x1: from.p.x, y1: from.p.y, x2: to.p.x, y2: to.p.y }
+      kept.map((line, i) => {
         const look = looksFirst.find((o) => continuesInLine(line, o))
-        return plainWallFor(i === 0 ? w.id : `${w.id}-${i}`, from.p, to.p, look, playerRegionIds)
+        return plainWallFor(i === 0 ? w.id : `${w.id}-${i}`, { x: line.x1, y: line.y1 }, { x: line.x2, y: line.y2 }, look, playerRegionIds)
       }),
     )
   }
   return out
+}
+
+/** Cada uma das duas pontas de `line` é ponta de alguma parede de `fixed` na mesma reta: o trecho tapa um buraco nela. */
+function plugsGapInLine(line: WallLine, fixed: readonly Wall[]): boolean {
+  const inLine = fixed.filter((o) => onSameLine(line, o))
+  const isEndOf = (p: RegionPoint, o: WallLine): boolean =>
+    Math.hypot(o.x1 - p.x, o.y1 - p.y) <= NESTING_TOLERANCE || Math.hypot(o.x2 - p.x, o.y2 - p.y) <= NESTING_TOLERANCE
+  const ends = [
+    { x: line.x1, y: line.y1 },
+    { x: line.x2, y: line.y2 },
+  ]
+  return ends.every((p) => inLine.some((o) => isEndOf(p, o)))
 }
 
 /** Pontas e meio de cada lance da escada. */
