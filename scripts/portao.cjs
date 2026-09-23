@@ -2648,10 +2648,10 @@ function tetoDoPlaywrightMs(env) {
   return (Number.isFinite(n) && n > 0 ? n : TETO_PLAYWRIGHT_PADRAO_MIN) * 60 * 1000
 }
 
-function linhaDeTeto(tetoMs, rotulo) {
+function linhaDeTeto(tetoMs, rotulo, variavel) {
   const min = Math.round((tetoMs / 60000) * 100) / 100
   return (rotulo || 'Playwright') + ' passou do teto de ' + min + ' min (travado?) — a árvore de processos foi morta e o passo NÃO mediu nada; ' +
-    'não é falha de teste. Teto em PORTAO_TETO_PLAYWRIGHT_MIN.'
+    'não é falha de teste. Teto em ' + (variavel || 'PORTAO_TETO_PLAYWRIGHT_MIN') + '.'
 }
 
 function matarArvore(pid) {
@@ -2780,6 +2780,8 @@ function jornada(id, titulo, arquivos, extras) {
     // caminhos de dentro de `args` (que tem config, repeat-each e reporter no
     // meio) é o tipo de leitura que erra em silêncio.
     specs: (arquivos || []).slice(),
+    // Guardado para `rodarPorSpec` montar a invocação de cada spec com os mesmos extras.
+    extras: (extras || []).slice(),
     ruina: [
       /\b\d+ skipped\b/,
       /\b\d+ flaky\b/,
@@ -2957,28 +2959,47 @@ const PLANO = [
   },
   jornada('estilo-minimapa', 'Invariante 1 medida em pixel (chão chapado, parede clara e fina, sem grade)', [JORNADA_ESTILO]),
   jornada('jornada-vista-movel', 'Invariante 4: a vista continua móvel por botão do meio e por Espaço+arrastar', [JORNADA_VISTA_MOVEL]),
-  jornada(
-    'jornadas-e2e',
-    'jornadas já entregues, com ponteiro real, mais a regressão dos menus e dos TRÊS ALVOS que esta rodada reestrutura',
-    JORNADAS_E2E.concat(JORNADAS_REGRESSAO_MENUS, JORNADAS_REGRESSAO_DOS_ALVOS),
+  // UMA invocação do Playwright POR SPEC nos três passos de regressão (ver
+  // `rodarPorSpec`). MEDIDO em 23/09/2026: `jornadas-entregues` numa invocação
+  // só bateu no teto de 45 min duas vezes sob carga, e o placar que sobrava
+  // não dizia qual spec travou nem por quê. Por spec, cada um tem vaga, teto
+  // (PORTAO_TETO_SPEC_MIN, 20) e reprise de timeout próprios, e o vermelho
+  // nomeia o spec e a causa. O que os passos PROVAM não muda: a mesma lista de
+  // specs, o mesmo detector de falso-verde em cada um, o mesmo recibo — e a
+  // config não tem `fullyParallel`, então os testes de um arquivo já rodavam
+  // em série num worker só; o que se perde é só o paralelismo ENTRE arquivos,
+  // que é justamente a carga que derrubava a máquina.
+  Object.assign(
+    jornada(
+      'jornadas-e2e',
+      'jornadas já entregues, com ponteiro real, mais a regressão dos menus e dos TRÊS ALVOS que esta rodada reestrutura',
+      JORNADAS_E2E.concat(JORNADAS_REGRESSAO_MENUS, JORNADAS_REGRESSAO_DOS_ALVOS),
+    ),
+    { porSpec: true },
   ),
   // REGRESSÃO. Roda em toda volta e tem de sair verde em toda volta. A lista é
   // DERIVADA do grupo, não digitada: antes era a bar inteira, e por isso este
   // passo nascia vermelho por causa do critério — nenhum builder conseguia
   // passar num passo que não dependia dele.
-  jornada(
-    'jornadas-da-bar',
-    'REGRESSÃO: os gestos que a bar deste run já tinha verdes (luz, token com foto, pincel e balde, sala livre, pinos)',
-    JORNADAS_DE_REGRESSAO_DA_BAR.filter((j) => !JORNADAS_DISPENSADAS[j]),
+  Object.assign(
+    jornada(
+      'jornadas-da-bar',
+      'REGRESSÃO: os gestos que a bar deste run já tinha verdes (luz, token com foto, pincel e balde, sala livre, pinos)',
+      JORNADAS_DE_REGRESSAO_DA_BAR.filter((j) => !JORNADAS_DISPENSADAS[j]),
+    ),
+    { porSpec: true },
   ),
   // REGRESSÃO das features ENTREGUES (ver `JORNADAS_ENTREGUES`). Passo próprio,
   // e não somado ao `jornadas-da-bar`, para o recibo e o vermelho dizerem de
   // qual lado veio: gesto antigo da bar ou feature entregue nesta leva.
-  jornada(
-    'jornadas-entregues',
-    'REGRESSÃO: as ' + JORNADAS_ENTREGUES.filter((j) => !JORNADAS_DISPENSADAS[j]).length +
-      ' jornadas de features já entregues e provadas no commit juntado',
-    JORNADAS_ENTREGUES.filter((j) => !JORNADAS_DISPENSADAS[j]),
+  Object.assign(
+    jornada(
+      'jornadas-entregues',
+      'REGRESSÃO: as ' + JORNADAS_ENTREGUES.filter((j) => !JORNADAS_DISPENSADAS[j]).length +
+        ' jornadas de features já entregues e provadas no commit juntado',
+      JORNADAS_ENTREGUES.filter((j) => !JORNADAS_DISPENSADAS[j]),
+    ),
+    { porSpec: true },
   ),
   {
     id: 'regressao-em-dia',
@@ -3863,6 +3884,7 @@ function vereditoDeDiscoParaCargo(passo, livreGb, quente, ms) {
  * falso-verde lê.
  */
 async function rodarPasso(passo) {
+  if (passo.porSpec) return rodarPorSpec(passo)
   // Barreira barata antes da fila: veredito que não depende de rodar nada.
   const barreira = passo.previo ? passo.previo() : null
   if (barreira) {
@@ -3876,7 +3898,7 @@ async function rodarPasso(passo) {
       // Ainda DENTRO da vaga: a reprise não volta para a fila.
       const primeira = r
       r = await rodarPassoNaVaga(passo)
-      r.saida = NOTA_DE_REPRISE + r.saida
+      r.saida = (passo.notaDeReprise || NOTA_DE_REPRISE) + r.saida
       // O fim da primeira vai para o relatório JSON (diagnóstico), nunca para a `saida` julgada.
       r.reprise = { primeiraMs: primeira.ms, primeiraCodigo: primeira.codigo, primeiraCauda: String(primeira.saida).slice(-3000) }
       r.ms += primeira.ms
@@ -3889,6 +3911,115 @@ async function rodarPasso(passo) {
   } finally {
     devolverVaga(vaga)
   }
+}
+
+// ---------------------------------------------------------------------------
+// PASSO DE JORNADAS POR SPEC — uma invocação do Playwright por arquivo.
+// ---------------------------------------------------------------------------
+const TETO_SPEC_PADRAO_MIN = 20
+
+function tetoDoSpecMs(env) {
+  const n = Number(env.PORTAO_TETO_SPEC_MIN)
+  return (Number.isFinite(n) && n > 0 ? n : TETO_SPEC_PADRAO_MIN) * 60 * 1000
+}
+
+/**
+ * Reprise de TIMEOUT de um spec: o teste inteiro estourou o tempo dele, o vite
+ * não subiu a tempo, ou o spec bateu no teto (ver `repriseNoTeto`). É a forma
+ * que a carga da máquina tem (medido em 22-23/09/2026: jornadas verdes
+ * sozinhas estourando 30 s/90 s com 8+ lanes). Timeout de UMA asserção
+ * (`expect(...).toBeVisible: Timeout 5000ms exceeded`) NÃO entra: é a cara
+ * normal de uma régua vermelha de verdade, e reprisá-la seria retry disfarçado.
+ */
+const REPRISE_DE_TIMEOUT_DE_SPEC = [/Test timeout of \d+ms exceeded/, /Timed out waiting \d+ms from config\.webServer/]
+const NOTA_DE_REPRISE_DE_SPEC =
+  'reprise: a primeira execução deste spec estourou tempo (teste inteiro, subida do vite ou teto do spec); ' +
+  'rodou de novo UMA vez e só vale esta segunda, julgada inteira.\n'
+
+/** O passo de UM spec, derivado do passo de jornadas: mesmas ruínas, mesma prova positiva, vaga e teto próprios. */
+function passoDoSpec(passo, spec, tetoMs) {
+  const nome = path.basename(spec).replace(/\.spec\.ts$/, '')
+  return Object.assign(jornada(passo.id + '--' + nome, passo.id + ': ' + spec, [spec], passo.extras), {
+    spec,
+    tetoMs,
+    reprise: REPRISE_DE_TIMEOUT_DE_SPEC,
+    repriseNoTeto: true,
+    notaDeReprise: NOTA_DE_REPRISE_DE_SPEC,
+  })
+}
+
+/** A causa de um spec vermelho, em palavras: teto × teste falhou × falso-verde. */
+function causaDoSpec(r) {
+  if (r.teto) return 'teto do spec estourado'
+  if (r.falsoVerde) return 'falso-verde (' + (r.ruina || []).join(', ') + ')'
+  const falhas = /\b(\d+) failed\b/.exec(String(r.saida || ''))
+  return 'teste falhou' + (falhas ? ' (' + falhas[1] + ' failed)' : r.ruina && r.ruina.length ? ' (' + r.ruina.join(', ') + ')' : ' (exit ' + r.codigo + ')')
+}
+
+function linhaDoSpec(r) {
+  const passou = /\b(\d+) passed\b/.exec(String(r.saida || ''))
+  return (
+    (r.ok ? 'VERDE   ' : 'VERMELHO') + ' ' + r.spec + ' — ' +
+    (r.ok ? (passou ? passou[1] + ' passed' : 'verde') : causaDoSpec(r)) +
+    ', ' + Math.round(r.ms / 1000) + ' s' +
+    (typeof r.esperaVagaMs === 'number' ? ', esperou vaga ' + Math.round(r.esperaVagaMs / 1000) + ' s' : '') +
+    (r.reprise ? ', REPRISADO (1ª: exit ' + r.reprise.primeiraCodigo + ')' : '')
+  )
+}
+
+/**
+ * O veredito do passo a partir dos vereditos por spec. Função pura, para ter
+ * autoteste: todo spec declarado tem de ter resultado (spec sem resultado é
+ * vermelho, nomeado), e o passo só é verde se todos forem.
+ */
+function agregarPorSpec(passo, porSpec) {
+  const rodados = new Set(porSpec.map((r) => r.spec))
+  const semResultado = (passo.specs || []).filter((s) => !rodados.has(s))
+  const vermelhos = porSpec.filter((r) => !r.ok)
+  const ok = porSpec.length > 0 && vermelhos.length === 0 && semResultado.length === 0
+  const soma = (campo) => porSpec.reduce((t, r) => t + (Number(r[campo]) || 0), 0)
+  const saida =
+    'PLACAR POR SPEC — ' + (porSpec.length - vermelhos.length) + ' de ' + (passo.specs || []).length + ' verdes:\n' +
+    porSpec.map(linhaDoSpec).join('\n') + '\n' +
+    (semResultado.length > 0 ? 'SEM RESULTADO (não rodaram): ' + semResultado.join(', ') + '\n' : '') +
+    vermelhos.map((r) => '\n--- ' + r.spec + ' — ' + causaDoSpec(r) + ' ---\n' + String(r.saida || '').slice(-3000)).join('\n')
+  return {
+    id: passo.id,
+    titulo: passo.titulo,
+    codigo: ok ? 0 : 1,
+    ms: soma('ms'),
+    ok,
+    falsoVerde: porSpec.some((r) => r.falsoVerde),
+    ruina: vermelhos.map((r) => r.spec + ': ' + causaDoSpec(r)).concat(semResultado.map((s) => s + ': sem resultado')),
+    saida,
+    esperaVagaMs: soma('esperaVagaMs'),
+    porSpec: porSpec.map((r) => ({
+      spec: r.spec,
+      ok: r.ok,
+      causa: r.ok ? null : causaDoSpec(r),
+      ms: r.ms,
+      esperaVagaMs: r.esperaVagaMs,
+      teto: Boolean(r.teto),
+      reprise: r.reprise || null,
+    })),
+  }
+}
+
+/**
+ * Roda os specs do passo UM A UM, cada um pegando e devolvendo a sua vaga (em
+ * série: um passo não ocupa mais de uma vaga da máquina). Cada spec que termina
+ * sai impresso na hora — o passo inteiro leva dezenas de minutos.
+ */
+async function rodarPorSpec(passo) {
+  const tetoMs = tetoDoSpecMs(process.env)
+  const porSpec = []
+  for (const spec of passo.specs || []) {
+    const r = await rodarPasso(passoDoSpec(passo, spec, tetoMs))
+    r.spec = spec
+    porSpec.push(r)
+    escreverNaTela('  ' + passo.id + ' ' + porSpec.length + '/' + passo.specs.length + ': ' + linhaDoSpec(r) + '\n')
+  }
+  return agregarPorSpec(passo, porSpec)
 }
 
 /**
@@ -3909,7 +4040,10 @@ const NOTA_DE_REPRISE =
  * cura rodando de novo o mesmo tamanho de trabalho na mesma máquina.
  */
 function precisaDeReprise(passo, resultado) {
-  if (!passo.reprise || !resultado || resultado.ok || resultado.teto) return false
+  if (!passo.reprise || !resultado || resultado.ok) return false
+  // Teto só reprisa onde o teto é por SPEC (`repriseNoTeto`): 20 min de um
+  // arquivo travado custam uma segunda chance; 45 min de suíte inteira, não.
+  if (resultado.teto) return Boolean(passo.repriseNoTeto)
   return passo.reprise.some((re) => re.test(String(resultado.saida || '')))
 }
 
@@ -3990,7 +4124,12 @@ async function rodarPassoNaVaga(passo) {
     // Passo que sobe o Playwright roda com TETO (ver `rodarComTeto`); o resto
     // continua no `spawnSync` de sempre.
     const r = precisaDeVaga(passo)
-      ? await rodarComTeto(passo.exe, argsComLimiteGlobal(passo, tetoDoPlaywrightMs(process.env)), opcoes, tetoDoPlaywrightMs(process.env))
+      ? await rodarComTeto(
+          passo.exe,
+          argsComLimiteGlobal(passo, passo.tetoMs || tetoDoPlaywrightMs(process.env)),
+          opcoes,
+          passo.tetoMs || tetoDoPlaywrightMs(process.env),
+        )
       : spawnSync(passo.exe, passo.args, opcoes)
     codigo = r.status === null ? 1 : r.status
     saida = aviso + String(r.stdout || '') + String(r.stderr || '')
@@ -4004,7 +4143,7 @@ async function rodarPassoNaVaga(passo) {
       // do teto é o órfão deste passo.
       const orfaos = passo.artefatos ? matarQuemOcupaAPorta(PORTA_DAS_JORNADAS) : []
       saida =
-        linhaDeTeto(r.tetoMs, rotuloDaVaga(passo)) + '\n' +
+        linhaDeTeto(r.tetoMs, rotuloDaVaga(passo), passo.tetoMs ? 'PORTAO_TETO_SPEC_MIN' : null) + '\n' +
         (orfaos.length > 0 ? 'órfão(s) na porta ' + PORTA_DAS_JORNADAS + ' morto(s) também: PID ' + orfaos.join(', ') + '\n' : '') +
         saida
     }
@@ -5221,6 +5360,65 @@ async function rodarAutoteste() {
       guardaFalsoVerde('g34-unidade', PASSO_DE_UNIDADE_DE_PROVA, 0, NOTA_DE_REPRISE + relatorioDeUnidade(10, PISO_DE_TESTES_DE_UNIDADE)),
       true,
     ],
+    // g36 — jornadas por spec: agregado, causa nomeada e reprise só de timeout.
+    ...(() => {
+      const dois = { id: 'jornadas-x', titulo: 'x', specs: ['e2e/a.spec.ts', 'e2e/b.spec.ts'] }
+      const verde = (spec) => ({ spec, ok: true, codigo: 0, ms: 1000, saida: '  3 passed (1s)' })
+      const agregado = (nome, subs, esperado, precisa) => {
+        const r = agregarPorSpec(dois, subs)
+        const temTudo = (precisa || []).every((p) => r.saida.indexOf(p) !== -1 || r.ruina.join(' ').indexOf(p) !== -1)
+        return [
+          nome,
+          r.ok === esperado && temTudo
+            ? (esperado ? ok('g36-por-spec', r.saida.split('\n')[0]) : reprova('g36-por-spec', r.ruina.join('; ')))
+            : esperado
+              ? reprova('g36-por-spec', 'ok=' + r.ok + ', faltou nomear ' + JSON.stringify(precisa))
+              : ok('g36-por-spec', 'ok=' + r.ok + ', faltou nomear ' + JSON.stringify(precisa)),
+          esperado,
+        ]
+      }
+      const passoSpec = passoDoSpec(Object.assign(jornada('jornadas-x', 'x', ['e2e/a.spec.ts']), { porSpec: true }), 'e2e/a.spec.ts', 60000)
+      const reprisa = (nome, resultado, esperado) => [
+        nome,
+        precisaDeReprise(passoSpec, resultado) ? ok('g36-reprise-de-spec', 'reprisa') : reprova('g36-reprise-de-spec', 'não reprisa'),
+        esperado,
+      ]
+      return [
+        agregado('g36 aprova todos os specs verdes', [verde('e2e/a.spec.ts'), verde('e2e/b.spec.ts')], true),
+        agregado(
+          'g36 reprova spec que falhou, nomeando spec e causa',
+          [verde('e2e/a.spec.ts'), { spec: 'e2e/b.spec.ts', ok: false, codigo: 1, ms: 1, saida: '  2 failed\n  1 passed', ruina: [] }],
+          false,
+          ['e2e/b.spec.ts', 'teste falhou (2 failed)'],
+        ),
+        agregado(
+          'g36 reprova spec que estourou o teto, nomeando a causa',
+          [verde('e2e/a.spec.ts'), { spec: 'e2e/b.spec.ts', ok: false, teto: true, codigo: 1, ms: 1, saida: 'x', ruina: [] }],
+          false,
+          ['e2e/b.spec.ts', 'teto do spec estourado'],
+        ),
+        agregado('g36 reprova spec declarado sem resultado', [verde('e2e/a.spec.ts')], false, ['e2e/b.spec.ts', 'sem resultado']),
+        agregado('g36 reprova passo sem spec nenhum rodado', [], false, []),
+        reprisa('g36 aprova reprise de teste que estourou o tempo', { ok: false, saida: 'Test timeout of 30000ms exceeded.' }, true),
+        reprisa('g36 aprova reprise de spec no teto', { ok: false, teto: true, saida: '' }, true),
+        reprisa('g36 aprova reprise de vite que não subiu', { ok: false, saida: 'Error: Timed out waiting 120000ms from config.webServer.' }, true),
+        reprisa(
+          'g36 reprova reprise de asserção vermelha (timeout de expect não é timeout de teste)',
+          { ok: false, saida: 'Error: expect(locator).toBeVisible() failed\nTimeout: 5000ms\n  1 failed' },
+          false,
+        ),
+        [
+          'g36 aprova os três passos de regressão por spec, com os specs de sempre',
+          ['jornadas-e2e', 'jornadas-da-bar', 'jornadas-entregues'].every((id) => {
+            const p = PLANO.find((x) => x.id === id)
+            return p && p.porSpec && (p.specs || []).length > 0 && p.args.slice(-p.specs.length).join() === p.specs.join()
+          })
+            ? ok('g36-por-spec', 'jornadas-e2e, jornadas-da-bar e jornadas-entregues com porSpec')
+            : reprova('g36-por-spec', 'algum passo de regressão sem porSpec ou com lista divergente'),
+          true,
+        ],
+      ]
+    })(),
     // g32 — vagas de Playwright: o juízo de órfã e o "0 desliga".
     ['g32 reprova vaga de pid morto (tem de ser retomada)', vagaPresa(julgarVaga({ pid: 4242, desde: new Date().toISOString() }, Date.now(), 0, () => false)), false],
     [
