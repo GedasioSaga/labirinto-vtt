@@ -140,6 +140,14 @@ describe('TokenHealthControls — ficha com vida', () => {
     expect(interruptor('Jogadores veem a barra')?.checked).toBe(true)
   })
 
+  it('o checkbox de "Jogadores veem a barra" mora dentro do trilho: o clique da régua no controle cai nele', () => {
+    montar(vida(6, 10))
+    const chave = interruptor('Jogadores veem a barra')
+    // Fora do trilho ele era um ponto de 1 px sob o texto, e a régua morria em
+    // "<span>Jogadores veem a barra</span> intercepts pointer events".
+    expect(chave?.closest('.lb-switch__track'), 'o checkbox deveria ficar dentro do interruptor desenhado').not.toBeNull()
+  })
+
   it('a frase sob o interruptor diz quem vê: só o mestre, ou a mesa sem os números', () => {
     montar(vida(6, 10))
     const chave = interruptor('Jogadores veem a barra')
