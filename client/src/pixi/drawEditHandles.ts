@@ -1,12 +1,19 @@
 import type { Graphics } from 'pixi.js'
-import type { MapData, RegionPoint, Drawing } from '../types/map'
+import type { MapData, RegionPoint, Drawing, Region } from '../types/map'
 import type { Selection, DrawingTool } from '../types/tools'
 import type { Point } from './world'
 import { regionEdgeMidpoints } from '../lib/roomLink'
+import { isAxisAlignedRect } from '../lib/roomOps'
+import { roomRotateHandle, roomRotationOf } from '../lib/roomRotation'
+import { isLocked } from '../lib/itemTransform'
 import { drawRoomHandles } from './drawRoomHandles'
 import { drawingBoundingBox, tokenBoundingBox, propBoundingBox } from '../lib/objectTransform'
 import { drawBoxResizeHandles } from './drawResizeHandles'
-import { SELECTION_COLOR, STROKE_WEIGHT, HANDLE_VISUAL_RADIUS, HANDLE_MIDPOINT_RADIUS } from './constants'
+import { alignToPixel, pixelGrid, strokeWidthInWorld } from './pixelAlign'
+import { selectionOutlineWidth } from './drawWalls'
+import {
+  SELECTION_COLOR, STROKE_WEIGHT, HANDLE_VISUAL_RADIUS, HANDLE_MIDPOINT_RADIUS, CORNER_HANDLE_KEYLINE_COLOR,
+} from './constants'
 
 /** Tolerância de clique/arrasto sobre a alça de raio da Luz, em px de mundo —
  *  mesma ordem de grandeza de VERTEX_MAGNET_TOLERANCE (12) usada pros outros
@@ -103,10 +110,67 @@ function drawRegionHandles(graphics: Graphics, points: RegionPoint[]): void {
  */
 function drawRegionOrRoomHandles(graphics: Graphics, region: { points: RegionPoint[]; room?: { shape: 'rect' | 'polygon' } }): void {
   if (region.room?.shape === 'rect') {
-    drawRoomHandles(graphics, region.points)
+    // Torta (girada fora de 0/90/180/−90°): sem chip de canto. Puxar um canto
+    // reconstruiria um retângulo reto no lugar dela (`isAxisAlignedRect`); os
+    // chips voltam quando ela é girada de novo a um múltiplo de 90°.
+    if (isAxisAlignedRect(region.points)) drawRoomHandles(graphics, region.points)
   } else {
     drawRegionHandles(graphics, region.points)
   }
+}
+
+/** O que o desenho das alças precisa saber da câmera e do gesto em curso — nada disso mora no mapa. */
+export interface EditHandlesView {
+  /** Zoom: a alça de girar tem tamanho fixo na TELA. Ausente = 1. */
+  cameraScale?: number
+  /** Resolução do renderer, para o traço fino da alça cair inteiro num pixel físico. Ausente = 1. */
+  rendererResolution?: number
+  /** A sala está sendo girada agora: a alça aparece acesa, "pega". */
+  rotating?: boolean
+}
+
+/**
+ * A alça de GIRAR SALA: bolinha acima do topo da sala, ligada a ele por um
+ * traço fino. Linguagem do minimapa — linha clara e fina sobre fundo escuro: a
+ * cabeça é o escuro das alças (`CORNER_HANDLE_KEYLINE_COLOR`) com um aro fino
+ * amarelo, o negativo do chip de canto. É a única coisa redonda e oca do
+ * canvas, então não se confunde com o vértice (bolinha amarela cheia) nem com
+ * o canto (quadrado amarelo). Pega, durante o arrasto, a cabeça acende inteira.
+ *
+ * Sem animação de entrada, pelo mesmo motivo do chip de canto: o "dá para
+ * pegar aqui" precisa estar na tela no mesmo quadro da seleção.
+ *
+ * Tamanho fixo na TELA em qualquer zoom, como o contorno de seleção. Sala
+ * travada não tem alça — o gesto não existe, e controle que não faz nada é
+ * pior que nenhum (o mesmo `canInteract` do pointerdown).
+ */
+function drawRoomRotateHandle(graphics: Graphics, region: Region, view: EditHandlesView): void {
+  if (!region.room || isLocked(region)) return
+  const scale = view.cameraScale ?? 1
+  const handle = roomRotateHandle(region.points, roomRotationOf(region.room), scale)
+  if (!handle) return
+  let { base, knob } = handle
+  // Traço fino nítido: com a sala reta o traço fica em pé (ou deitado) e,
+  // centrado no meio do pixel físico, pinta 1 coluna forte em vez de 2 meio
+  // apagadas (`pixi/pixelAlign.ts`). Torta, o traço é diagonal e o
+  // antisserrilhado é inevitável.
+  const grid = pixelGrid(scale, view.rendererResolution ?? 1, STROKE_WEIGHT.hairline)
+  if (handle.up.x === 0) {
+    const x = alignToPixel(knob.x, grid)
+    base = { x, y: base.y }
+    knob = { x, y: knob.y }
+  } else if (handle.up.y === 0) {
+    const y = alignToPixel(knob.y, grid)
+    base = { x: base.x, y }
+    knob = { x: knob.x, y }
+  }
+  graphics.moveTo(base.x, base.y).lineTo(knob.x, knob.y).stroke({ width: strokeWidthInWorld(grid), color: SELECTION_COLOR })
+  // O aro tem o peso do contorno de seleção (2 px de tela): a alça é parte da
+  // seleção. Com 1,5 px ela sumia ao lado dos chips de canto (medido na tela).
+  graphics
+    .circle(knob.x, knob.y, handle.radius)
+    .fill({ color: view.rotating ? SELECTION_COLOR : CORNER_HANDLE_KEYLINE_COLOR })
+    .stroke({ width: selectionOutlineWidth(scale), color: SELECTION_COLOR })
 }
 
 /**
@@ -130,14 +194,27 @@ function drawRegionOrRoomHandles(graphics: Graphics, region: { points: RegionPoi
  * Frente B, Onda 3 (item 18): `circle` (Drawing) ganhou a alça de raio
  * redonda (`drawLightRadiusHandle`, a mesma da Luz) — era o único Drawing
  * sem handle nenhum, o que parecia bug.
+ *
+ * Girar sala: toda Sala (qualquer forma) ganha a alça de girar acima dela
+ * (`drawRoomRotateHandle`), selecionada por si ou pela parede. `view` traz o
+ * zoom, porque essa alça tem tamanho fixo na tela; sem `view`, zoom 1.
  */
-export function drawEditHandles(graphics: Graphics, map: MapData, selection: Selection | null, activeTool: DrawingTool): void {
+export function drawEditHandles(
+  graphics: Graphics,
+  map: MapData,
+  selection: Selection | null,
+  activeTool: DrawingTool,
+  view: EditHandlesView = {},
+): void {
   graphics.clear()
   if (activeTool !== 'select' || !selection) return
 
   if (selection.kind === 'region') {
     const region = map.regions.find((r) => r.id === selection.id)
-    if (region) drawRegionOrRoomHandles(graphics, region)
+    if (region) {
+      drawRegionOrRoomHandles(graphics, region)
+      drawRoomRotateHandle(graphics, region, view)
+    }
     return
   }
 
@@ -147,7 +224,10 @@ export function drawEditHandles(graphics: Graphics, map: MapData, selection: Sel
 
     if (wall.regionId !== undefined) {
       const region = map.regions.find((r) => r.id === wall.regionId)
-      if (region) drawRegionOrRoomHandles(graphics, region)
+      if (region) {
+        drawRegionOrRoomHandles(graphics, region)
+        drawRoomRotateHandle(graphics, region, view)
+      }
       return
     }
 

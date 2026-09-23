@@ -1,5 +1,4 @@
 import type { StairDirection } from '../types/map'
-import { Toggle } from './Toggle'
 import { stairSizePresetForStepWidth, stairStepWidthForPreset, type StairSizePreset } from '../lib/stairs'
 
 export interface StairControlsProps {
@@ -18,10 +17,52 @@ const MIN_STEP_WIDTH = 1
 
 const PRESET_ORDER: StairSizePreset[] = ['small', 'medium', 'large']
 
+const DIRECTION_ORDER: StairDirection[] = ['up', 'down']
+
+const DIRECTION_LABELS: Record<StairDirection, string> = {
+  up: 'Sobe',
+  down: 'Desce',
+}
+
 const PRESET_LABELS: Record<StairSizePreset, string> = {
   small: 'Pequena',
   medium: 'Média',
   large: 'Grande',
+}
+
+/** Degraus da miniatura: base no lance, e o traço engorda e clareia rumo ao topo. */
+const ART_TREADS = [
+  { base: 2, width: 0.9, opacity: 0.55 },
+  { base: 6, width: 1.2, opacity: 0.66 },
+  { base: 10, width: 1.5, opacity: 0.78 },
+  { base: 14, width: 1.8, opacity: 0.89 },
+  { base: 18, width: 2.1, opacity: 1 },
+]
+
+/**
+ * Miniatura do lance como o mapa desenha (`pixi/drawStairs.ts`): duas vigas
+ * finas, degraus em galão apontando ladeira acima, engordando e clareando rumo
+ * ao topo. "Sobe" aponta para a ponta do arrasto, "Desce" para o começo — o
+ * mesmo desenho espelhado, que é justamente o que o mestre precisa reconhecer
+ * no mapa sem abrir painel nenhum.
+ *
+ * Esquemática de propósito: a miniatura sempre deita na horizontal, enquanto o
+ * lance no mapa segue o arrasto (pode estar na vertical ou na diagonal). O que
+ * ela ensina é a leitura — o degrau aponta para o alto —, não a orientação
+ * daquela escada. Mesmo padrão de `GridShapePicker`: o controle mostra o que
+ * controla.
+ */
+function StairDirectionArt({ direction }: { direction: StairDirection }) {
+  return (
+    <svg width="34" height="26" viewBox="0 0 26 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <g transform={direction === 'up' ? undefined : 'translate(26 0) scale(-1 1)'} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 6H23M2 18H23" strokeWidth="0.8" opacity="0.85" />
+        {ART_TREADS.map(({ base, width, opacity }) => (
+          <path key={base} d={`M${base} 6L${base + 4.5} 12L${base} 18`} strokeWidth={width} opacity={opacity} />
+        ))}
+      </g>
+    </svg>
+  )
 }
 
 /**
@@ -48,11 +89,27 @@ export function StairControls({ direction, onDirectionChange, stepWidth, onStepW
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Escada</h2>
-      <Toggle
-        label="Sobe (desmarcado = desce)"
-        checked={direction === 'up'}
-        onChange={(checked) => onDirectionChange(checked ? 'up' : 'down')}
-      />
+      {/* Segmento Sobe | Desce (auditoria 14/09): o toggle "Sobe (desmarcado =
+          desce)" pedia para ler a regra antes de clicar. A miniatura (17/09) é
+          o desenho que vai para o mapa: a escolha e o resultado na mesma tela. */}
+      <div className="lb-field">
+        <span className="lb-label">Sentido</span>
+        <div className="lb-seg" role="radiogroup" aria-label="Sentido da escada">
+          {DIRECTION_ORDER.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={direction === option}
+              className="lb-seg__option"
+              onClick={() => onDirectionChange(option)}
+            >
+              <StairDirectionArt direction={option} />
+              {DIRECTION_LABELS[option]}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="lb-field">
         <span className="lb-label">Tamanho</span>

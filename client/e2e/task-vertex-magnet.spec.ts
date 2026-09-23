@@ -6,6 +6,7 @@
 // usuário: linha/parede curta desconectada perto de uma região, sem tocar nela de verdade).
 import { test, expect, type Page } from '@playwright/test'
 import { enterEditor } from './helpers/enterEditor'
+import { pickTool } from './helpers/tools'
 import type { Wall, Drawing, Region } from '../src/types/map'
 
 async function getWalls(page: Page): Promise<Wall[]> {
@@ -53,8 +54,9 @@ async function resetMapWithRegion(page: Page) {
   }, region)
 }
 
+// Linha mora no botão Desenho: `pickTool` abre a setinha e escolhe o rádio.
 async function selectTool(page: Page, label: 'Parede' | 'Linha') {
-  await page.getByRole('button', { name: label, exact: true }).click()
+  await pickTool(page, label)
 }
 
 test.beforeEach(async ({ page }) => {

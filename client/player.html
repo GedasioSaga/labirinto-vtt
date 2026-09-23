@@ -3,10 +3,234 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#121214" />
+    <!-- Sem esta linha o navegador pede `/favicon.ico`, leva 404 e deixa a aba
+         com o ícone branco de página sem dono — a primeira coisa que o jogador
+         vê do produto é a aba. O arquivo vive em `client/public/`. -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>Labirinto — Jogador</title>
+
+    <!--
+      POR QUE O TEMA COMEÇA AQUI, EMBUTIDO, E NÃO NO CSS DO APP.
+
+      Em `npm run dev` o Vite serve `src/player/player.css` como MÓDULO
+      JavaScript (Content-Type: text/javascript) e injeta a folha por script.
+      Com o JavaScript desligado nenhuma regra daquele arquivo chega ao
+      navegador, e um `<link href="/src/player/player.css">` é recusado pelo
+      MIME. Medido em 17/09/2026: a página do jogador abria BRANCA, luminância
+      média 255, que é como ela chegava no celular do amigo com o script
+      bloqueado, com a rede caindo ou com o bundle quebrado.
+
+      Então o escuro da casa nasce deste <style>, que não depende de nada: nem
+      de rede, nem de script, nem de ordem de carga. Os valores aparecem como
+      FALLBACK de `var(--lb-*, ...)` — o mesmo padrão do resto do cliente: com
+      o JavaScript vivo, `theme.ts` define os tokens e manda; sem ele, o
+      fallback segura a tela. Nada aqui declara `--lb-*`, para não existir uma
+      segunda cópia dos valores competindo com `theme.ts`.
+    -->
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      html,
+      body {
+        background: var(--lb-color-ink, #121214);
+      }
+
+      body {
+        margin: 0;
+        color: var(--lb-color-parchment, #eceae4);
+        font-family: var(
+          --lb-font-sans,
+          'Segoe UI Variable Text',
+          'Segoe UI',
+          system-ui,
+          -apple-system,
+          'Inter',
+          'Roboto',
+          'Helvetica Neue',
+          Arial,
+          sans-serif
+        );
+        line-height: 1.45;
+        -webkit-text-size-adjust: 100%;
+      }
+
+      /*
+        Tela estática: marca no alto, recado embaixo e o meio da tela vazio —
+        a mesma respiração da tela inicial do editor (`.lb-start` em main.css).
+        Cobre o `#root` (fixa e opaca) para nunca aparecerem as duas ao mesmo
+        tempo enquanto o módulo do app não montou.
+      */
+      .lb-static {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        overflow: auto;
+        /*
+          A marca no alto e o recado embaixo, com a faixa vazia entre os dois.
+          A faixa é de propósito: esta é uma tela onde não há o que fazer além
+          de ler, e apertar as duas peças no meio faria parecer que a página
+          carregou pela metade. A jornada mede o meio exato da tela (640, 400
+          em 1280x800) e ele cai nessa faixa — se um dia isto virar centralizado,
+          a prova de "nunca uma folha branca" passa a depender de onde uma letra
+          calhou de cair.
+        */
+        padding: 30vh 24px calc(12vh + env(safe-area-inset-bottom, 0px));
+        background: var(--lb-color-ink, #121214);
+      }
+
+      .lb-static__brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .lb-static__mark {
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        border-radius: var(--lb-radius-lg, 14px);
+        background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+        border: 1px solid rgba(224, 164, 74, 0.24);
+        color: var(--lb-color-brass, #e0a44a);
+      }
+
+      .lb-static__name {
+        margin: 0;
+        font-family: var(--lb-font-display, 'Sitka Banner', Constantia, Georgia, 'Times New Roman', serif);
+        font-size: 30px;
+        font-weight: 400;
+        letter-spacing: -0.01em;
+        line-height: 1.2;
+      }
+
+      .lb-static__card {
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 520px;
+        padding: 26px 28px;
+        background: var(--lb-color-stone-solid, #1a1a1e);
+        border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+        border-radius: var(--lb-radius-xl, 20px);
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+      }
+
+      .lb-static__title {
+        margin: 0 0 10px;
+        font-family: var(--lb-font-display, 'Sitka Banner', Constantia, Georgia, 'Times New Roman', serif);
+        font-size: 21px;
+        font-weight: 400;
+        line-height: 1.25;
+      }
+
+      .lb-static__text {
+        margin: 0;
+        max-width: 58ch;
+        font-size: 15px;
+        color: var(--lb-color-parchment-dim, #a2a09a);
+      }
+
+      .lb-static__text + .lb-static__text {
+        margin-top: 12px;
+      }
+    </style>
+
+    <!--
+      Sem script a mesa não abre, então "Abrindo a mesa" viraria promessa falsa:
+      o navegador troca a tela de abertura pelo recado do <noscript> no <body>.
+      `<noscript>` dentro do <head> só pode conter link/style/meta — é o lugar
+      previsto na especificação para exatamente esta troca.
+    -->
+    <noscript>
+      <style>
+        #lb-boot {
+          display: none;
+        }
+      </style>
+    </noscript>
   </head>
   <body>
     <div id="root"></div>
+
+    <!--
+      PRIMEIRA TELA, antes de o módulo do app rodar (3G do celular, bundle
+      grande, extensão lenta). `main.tsx` a remove no primeiro efeito, depois
+      da primeira pintura do app — por isso ela é opaca e fica por cima.
+      O segundo parágrafo vale também no caso ruim: se o módulo morrer no
+      caminho, esta tela fica, e ela mesma diz o que fazer.
+    -->
+    <div id="lb-boot" class="lb-static">
+      <div class="lb-static__brand">
+        <span class="lb-static__mark" aria-hidden="true">
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="square"
+            stroke-linejoin="miter"
+            focusable="false"
+          >
+            <path d="M12 21H3V3h18v18h-6V7H7v10h4" />
+          </svg>
+        </span>
+        <span class="lb-static__name">Labirinto</span>
+      </div>
+      <div class="lb-static__card">
+        <p class="lb-static__title">Abrindo a mesa</p>
+        <p class="lb-static__text">
+          Em um instante aparecem os campos para você entrar com o código da sala e o seu nome.
+        </p>
+        <p class="lb-static__text">Se esta tela ficar parada, recarregue a página.</p>
+      </div>
+    </div>
+
+    <noscript>
+      <div class="lb-static">
+        <div class="lb-static__brand">
+          <span class="lb-static__mark" aria-hidden="true">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="square"
+              stroke-linejoin="miter"
+              focusable="false"
+            >
+              <path d="M12 21H3V3h18v18h-6V7H7v10h4" />
+            </svg>
+          </span>
+          <span class="lb-static__name">Labirinto</span>
+        </div>
+        <div class="lb-static__card">
+          <h1 class="lb-static__title">Ative o JavaScript para entrar na mesa</h1>
+          <p class="lb-static__text">
+            O mapa da mesa é desenhado aqui dentro do seu navegador, e para isso esta página precisa de JavaScript. Agora
+            ele está desligado ou bloqueado.
+          </p>
+          <p class="lb-static__text">
+            Ative o JavaScript nas configurações do navegador — ou libere este site na extensão que o bloqueia — e
+            recarregue a página. O código da sala e o seu nome continuam valendo.
+          </p>
+        </div>
+      </div>
+    </noscript>
+
     <script type="module" src="/src/player/main.tsx"></script>
   </body>
 </html>

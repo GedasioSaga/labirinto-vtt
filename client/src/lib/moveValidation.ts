@@ -1,5 +1,6 @@
-import type { MapData } from '../types/map'
-import { resolveTokenMove } from './collision'
+import type { MapData, Wall } from '../types/map'
+import type { Point } from '../pixi/world'
+import { DEFAULT_DOOR_SLACK, findTokenPath, moveCrossesWall } from './collision'
 import { compileFloor } from './floorSdf'
 
 /**
@@ -69,10 +70,86 @@ export function validateTokenMove(
 
   const from = { x: token.x, y: token.y }
   const to = { x: request.x, y: request.y }
-  const resolved = resolveTokenMove(from, to, map.walls)
-  if (resolved !== to) return { ok: false, reason: 'wall' }
+  // Pode ter 2 trechos: entrar em diagonal por porta aberta passa pelo vão (lib/collision.ts).
+  const path = findTokenPath(from, to, map.walls, map.grid)
+  if (path === null) return { ok: false, reason: 'wall' }
 
-  if (!pathStaysOnFloor(map, from.x, from.y, to.x, to.y)) return { ok: false, reason: 'outside_floor' }
+  for (let i = 1; i < path.length; i += 1) {
+    const a = path[i - 1]
+    const b = path[i]
+    if (a === undefined || b === undefined) continue
+    if (!pathStaysOnFloor(map, a.x, a.y, b.x, b.y)) return { ok: false, reason: 'outside_floor' }
+  }
 
   return { ok: true, x: to.x, y: to.y }
+}
+
+/**
+ * Por que o traço do token não passou. Nomes separados de `TokenMoveRejection`
+ * de propósito: aquele é o veredito do HOST sobre o pedido de um jogador
+ * (posse, trava, fora do mapa); este descreve só o OBSTÁCULO no caminho, que é
+ * o que a tela do mestre precisa contar.
+ */
+export type BlockedMoveReason = 'wall' | 'door_closed' | 'door_locked'
+
+export interface BlockedMove {
+  reason: BlockedMoveReason
+  /** Parede que barrou — quando é porta, o PEDAÇO que virou porta (é ele que tem `door`). */
+  wallId: string
+  /**
+   * Só em `door_closed`: abrir ESTA porta libera o traço inteiro (nada mais
+   * barra). `false` quando outra parede continuaria segurando — aí abrir a
+   * porta não adiantaria nada e não se mexe nela.
+   */
+  opensPath: boolean
+}
+
+/**
+ * Quem barrou o traço reto de `from` a `to`, e por quê. `null` quando o
+ * movimento passa (direto ou pelo vão de uma porta aberta), exatamente pelo
+ * mesmo critério de `resolveTokenMove` — as duas respondem a partir de
+ * `findTokenPath`, então nunca divergem sobre "passou ou não".
+ *
+ * Existe porque `resolveTokenMove` devolve só um Ponto: "voltou pra origem"
+ * não diz QUAL parede segurou nem se era porta, e era isso que fazia a recusa
+ * chegar muda na tela (jornada "não consigo entrar na casa").
+ *
+ * Ordem de preferência quando várias paredes cruzam o traço: porta fechada,
+ * depois porta trancada, depois parede sólida. É a ordem do que o mestre pode
+ * RESOLVER — uma porta no caminho é a explicação útil, mesmo que a parede
+ * sólida ao lado também cruze.
+ */
+export function describeBlockedMove(
+  from: Point,
+  to: Point,
+  walls: readonly Wall[],
+  doorSlack: number = DEFAULT_DOOR_SLACK,
+): BlockedMove | null {
+  if (findTokenPath(from, to, walls, doorSlack) !== null) return null
+
+  // `moveCrossesWall` já ignora parede que não bloqueia e porta passável:
+  // o que sobra aqui é exatamente quem barrou.
+  const crossing = walls.filter((wall) => moveCrossesWall(from, to, wall))
+
+  const closed = crossing.find((wall) => wall.door !== null && !wall.door.locked)
+  if (closed !== undefined) {
+    const opened = walls.map((wall) =>
+      wall.id === closed.id && wall.door !== null ? { ...wall, door: { ...wall.door, open: true } } : wall,
+    )
+    return {
+      reason: 'door_closed',
+      wallId: closed.id,
+      opensPath: findTokenPath(from, to, opened, doorSlack) !== null,
+    }
+  }
+
+  const locked = crossing.find((wall) => wall.door !== null)
+  if (locked !== undefined) return { reason: 'door_locked', wallId: locked.id, opensPath: false }
+
+  const solid = crossing.at(0)
+  // Sem cruzamento e sem trajeto: não acontece hoje (findTokenPath só devolve
+  // null depois que o traço reto cruzou alguma coisa), mas o chamador recebe
+  // "passou" em vez de um wallId inventado se um dia acontecer.
+  if (solid === undefined) return null
+  return { reason: 'wall', wallId: solid.id, opensPath: false }
 }

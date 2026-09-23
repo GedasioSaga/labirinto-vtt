@@ -63,9 +63,9 @@ describe('dimensionLabel', () => {
 
   it('precisão e unidade diferentes (metros, 1 casa decimal) refletem no rótulo', () => {
     const scaleM: MapScale = { unitsPerCell: 1.5, unit: 'm', precision: 1 }
-    // 100px = 2 células = 3 m; 50px = 1 célula = 1.5 m
+    // 100px = 2 células = 3 m; 50px = 1 célula = 1,5 m (vírgula decimal, passo 3 F1)
     const draft: DimensionDraft = { tool: 'rect', start: { x: 0, y: 0 }, end: { x: 100, y: 50 } }
-    expect(dimensionLabel(draft, GRID_SIZE, 'square', scaleM)).toBe('3.0 m × 1.5 m')
+    expect(dimensionLabel(draft, GRID_SIZE, 'square', scaleM)).toBe('3,0 m × 1,5 m')
   })
 
   // Caso 2 da regra 5 (campo opcional ausente): esta função não tem nenhum

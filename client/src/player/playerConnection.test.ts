@@ -1,7 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createExploration, encodeExploration, isPointExplored, markRings } from '../lib/exploration'
 import { createEmptyMap, addToken } from '../lib/mapFactory'
 import type { MapData } from '../types/map'
-import { createPlayerConnection, PING_INTERVAL_MS, RESUME_STORAGE_KEY } from './playerConnection'
+import { NAME_MAX_LENGTH } from '../net/protocol'
+import { SIGNAL_TTL_MS } from '../lib/signals'
+import { LASER_MAX_POINTS_PER_MESSAGE, LASER_TRAIL_MS } from '../lib/laser'
+import {
+  ARRIVAL_NOTICE_TTL_MS,
+  createPlayerConnection,
+  DOOR_NOTICE_TTL_MS,
+  FREE_PASSAGE_BEAT_MS,
+  GATHERED_NOTICE_TTL_MS,
+  MOVED_NOTICE_TTL_MS,
+  PING_INTERVAL_MS,
+  RESUME_STORAGE_KEY,
+  TRAVEL_NOTICE_TTL_MS,
+} from './playerConnection'
 import type { SocketLike, StorageLike } from './playerConnection'
 
 class FakeSocket implements SocketLike {
@@ -104,6 +118,28 @@ describe('createPlayerConnection', () => {
     expect(connection.getState().status).toBe('waiting')
   })
 
+  it('room.closed: status closed, esquece o resume e a queda do socket logo depois NÃO vira connection_lost', () => {
+    const storage = memoryStorage()
+    const { connection, socket } = setup(storage)
+    socket.open()
+    socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok' })
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'room.closed' })
+    expect(connection.getState().status).toBe('closed')
+    expect(storage.data.has(RESUME_STORAGE_KEY)).toBe(false)
+    socket.drop()
+    expect(connection.getState()).toMatchObject({ status: 'closed', error: undefined })
+  })
+
+  it('queda de rede real (sem room.closed) continua sendo error connection_lost', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok' })
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.drop()
+    expect(connection.getState()).toMatchObject({ status: 'error', error: 'connection_lost' })
+  })
+
   it('lobby.waiting muda status para waiting', () => {
     const { connection, socket } = setup()
     socket.open()
@@ -126,12 +162,58 @@ describe('createPlayerConnection', () => {
     expect(connection.getState().map?.tokens[0]).toMatchObject({ x: 20, y: 30 })
   })
 
+  it('A5: concealed do snapshot vai para o estado; malformado descarta a mensagem; ausente vira []', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    const concealed = [[{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }]]
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(1, 1), vision: [], concealed })
+    expect(connection.getState().concealed).toEqual(concealed)
+    socket.receive({ type: 'snapshot', rev: 2, map: mapWithToken(2, 2), vision: [], concealed: [[{ x: 'a', y: 0 }]] })
+    expect(connection.getState().rev).toBe(1)
+    socket.receive({ type: 'snapshot', rev: 3, map: mapWithToken(3, 3), vision: [] })
+    expect(connection.getState().concealed).toEqual([])
+  })
+
   it('snapshot malformado é ignorado', () => {
     const { connection, socket } = setup()
     socket.open()
     socket.receive({ type: 'snapshot', rev: 1, map: { tokens: 'x' }, vision: [] })
     socket.rawReceive('não é json')
     expect(connection.getState().status).toBe('connecting')
+  })
+
+  it('guarda explored decodificado e ownTokens; lobby.waiting e reconnect limpam', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    const exp = createExploration({ width: 400, height: 400, grid: 40 })
+    markRings(exp, [[{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }]])
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [], explored: encodeExploration(exp), ownTokens: ['t1'] })
+    const state = connection.getState()
+    expect(state.ownTokens).toEqual(['t1'])
+    expect(state.explored).toMatchObject({ cell: 10, cols: 40, rows: 40 })
+    expect(state.explored && isPointExplored(state.explored, { x: 50, y: 50 })).toBe(true)
+
+    socket.receive({ type: 'lobby.waiting' })
+    expect(connection.getState()).toMatchObject({ explored: undefined, ownTokens: undefined })
+
+    socket.receive({ type: 'snapshot', rev: 2, map: mapWithToken(10, 10), vision: [], explored: encodeExploration(exp), ownTokens: ['t1'] })
+    connection.reconnect()
+    expect(connection.getState()).toMatchObject({ explored: undefined, ownTokens: undefined })
+  })
+
+  it.each([
+    ['explored com bits corrompidos', { explored: { cell: 10, cols: 40, rows: 40, bits: '***' }, ownTokens: [] }],
+    ['explored acima do teto', { explored: { cell: 1, cols: 2000, rows: 2000, bits: '' }, ownTokens: [] }],
+    ['explored não objeto', { explored: 'x', ownTokens: [] }],
+    ['ownTokens com número', { explored: undefined, ownTokens: ['t1', 7] }],
+    ['ownTokens não array', { ownTokens: 't1' }],
+  ])('snapshot com %s é descartado inteiro', (_label, extra) => {
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'delta', rev: 2, map: mapWithToken(40, 40), vision: [], ...extra })
+    expect(connection.getState()).toMatchObject({ rev: 1, ownTokens: [] })
+    expect(connection.getState().map?.tokens[0]).toMatchObject({ x: 10, y: 10 })
   })
 
   it('requestMove é otimista e rejected desfaz para a posição anterior', () => {
@@ -231,5 +313,276 @@ describe('createPlayerConnection', () => {
     socket.drop()
     vi.advanceTimersByTime(PING_INTERVAL_MS * 2)
     expect(socket.sent.filter((m) => field(m, 'type') === 'ping')).toHaveLength(2)
+  })
+
+  it('sendSignal só envia jogando e com socket aberto, com o ponto arredondado', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    expect(connection.sendSignal(10, 10)).toBe(false)
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    expect(connection.sendSignal(120.4, 80.6)).toBe(true)
+    expect(socket.sent.at(-1)).toEqual({ type: 'signal', x: 120, y: 81 })
+    expect(connection.sendSignal(Number.NaN, 1)).toBe(false)
+    socket.drop()
+    expect(connection.sendSignal(1, 1)).toBe(false)
+  })
+
+  it('toggleDoor só envia jogando e com socket aberto', () => {
+    const { connection, socket } = setup()
+    socket.open()
+    expect(connection.toggleDoor('w1')).toBe(false)
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    expect(connection.toggleDoor('w1')).toBe(true)
+    expect(socket.sent.at(-1)).toEqual({ type: 'door.toggle', wallId: 'w1' })
+    expect(connection.toggleDoor('')).toBe(false)
+    socket.drop()
+    expect(connection.toggleDoor('w1')).toBe(false)
+  })
+
+  it('recusa de porta vira aviso que some sozinho; motivo desconhecido ou fora do jogo é descartado', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'door.toggle.rejected', wallId: 'w1', reason: 'locked' })
+    expect(connection.getState().doorNotice).toBeUndefined()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'door.toggle.rejected', wallId: 'w1', reason: 'inventado' })
+    expect(connection.getState().doorNotice).toBeUndefined()
+    socket.receive({ type: 'door.toggle.rejected', wallId: 'w1', reason: 'locked' })
+    expect(connection.getState().doorNotice).toMatchObject({ reason: 'locked' })
+    // Aviso novo substitui o anterior e reinicia o tempo (id diferente).
+    const first = connection.getState().doorNotice?.id
+    socket.receive({ type: 'door.toggle.rejected', wallId: 'w1', reason: 'far' })
+    expect(connection.getState().doorNotice?.id).not.toBe(first)
+    vi.advanceTimersByTime(DOOR_NOTICE_TTL_MS - 1)
+    expect(connection.getState().doorNotice).toMatchObject({ reason: 'far' })
+    vi.advanceTimersByTime(1)
+    expect(connection.getState().doorNotice).toBeUndefined()
+  })
+
+  it('signal recebido entra no estado com nome e cor e some em 3 s; malformado ou fora do jogo é descartado', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'signal', x: 5, y: 5, from: 'Bia', color: '#64b5f6' })
+    expect(connection.getState().signals).toBeUndefined()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'signal', x: 5, y: 6, from: 'Bia', color: '#64b5f6' })
+    expect(connection.getState().signals).toEqual([expect.objectContaining({ x: 5, y: 6, name: 'Bia', color: '#64b5f6' })])
+    const malformed = [
+      { type: 'signal', x: '5', y: 6, from: 'Bia', color: '#64b5f6' },
+      { type: 'signal', x: 5, y: 6, from: 7, color: '#64b5f6' },
+      { type: 'signal', x: 5, y: 6, from: 'x'.repeat(NAME_MAX_LENGTH + 1), color: '#64b5f6' },
+      { type: 'signal', x: 5, y: 6, from: 'Bia', color: 'red; background:url(x)' },
+    ]
+    for (const message of malformed) socket.receive(message)
+    expect(connection.getState().signals).toHaveLength(1)
+    vi.advanceTimersByTime(SIGNAL_TTL_MS - 1)
+    expect(connection.getState().signals).toHaveLength(1)
+    vi.advanceTimersByTime(1)
+    expect(connection.getState().signals).toEqual([])
+  })
+
+  it('lobby.waiting e reconnect limpam sinais e timers', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'signal', x: 5, y: 6, from: 'Bia', color: '#64b5f6' })
+    socket.receive({ type: 'lobby.waiting' })
+    expect(connection.getState().signals).toBeUndefined()
+    expect(vi.getTimerCount()).toBe(1) // só o ping
+
+    socket.receive({ type: 'snapshot', rev: 2, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'signal', x: 5, y: 6, from: 'Bia', color: '#64b5f6' })
+    connection.reconnect()
+    expect(connection.getState().signals).toBeUndefined()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('laser acende o rastro; off deixa sumir em LASER_TRAIL_MS; malformado ou fora do jogo é descartado', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'laser', points: [{ x: 1, y: 2 }] })
+    expect(connection.getState().laser).toBeUndefined()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'laser', points: [{ x: 1, y: 2 }, { x: 3, y: 4 }] })
+    expect(connection.getState().laser).toEqual({ on: true, points: [expect.objectContaining({ x: 1, y: 2 }), expect.objectContaining({ x: 3, y: 4 })] })
+
+    const malformed = [
+      { type: 'laser', points: [] },
+      { type: 'laser', points: [{ x: '5', y: 6 }] },
+      { type: 'laser', points: 'x' },
+      { type: 'laser', off: 'sim' },
+      { type: 'laser', points: Array.from({ length: LASER_MAX_POINTS_PER_MESSAGE + 1 }, () => ({ x: 1, y: 1 })) },
+    ]
+    for (const message of malformed) socket.receive(message)
+    expect(connection.getState().laser?.points).toHaveLength(2)
+
+    socket.receive({ type: 'laser', off: true })
+    expect(connection.getState().laser).toEqual({ on: false, points: [expect.objectContaining({ x: 1, y: 2 }), expect.objectContaining({ x: 3, y: 4 })] })
+    vi.advanceTimersByTime(LASER_TRAIL_MS - 1)
+    expect(connection.getState().laser).toBeDefined()
+    vi.advanceTimersByTime(1)
+    expect(connection.getState().laser).toBeUndefined()
+    // Off sem rastro na tela não cria estado.
+    socket.receive({ type: 'laser', off: true })
+    expect(connection.getState().laser).toBeUndefined()
+  })
+
+  it('laser ligado e parado guarda só a ponta; lobby.waiting e reconnect limpam rastro e timer', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'laser', points: [{ x: 1, y: 2 }, { x: 3, y: 4 }] })
+    vi.advanceTimersByTime(LASER_TRAIL_MS)
+    expect(connection.getState().laser).toEqual({ on: true, points: [expect.objectContaining({ x: 3, y: 4 })] })
+
+    socket.receive({ type: 'lobby.waiting' })
+    expect(connection.getState().laser).toBeUndefined()
+    expect(vi.getTimerCount()).toBe(1) // só o ping
+
+    socket.receive({ type: 'snapshot', rev: 2, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'laser', points: [{ x: 1, y: 2 }] })
+    connection.reconnect()
+    expect(connection.getState().laser).toBeUndefined()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+})
+
+describe('playerConnection: pedido de passagem', () => {
+  function jogando() {
+    const t = setup()
+    t.socket.open()
+    t.socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(100, 100), vision: [], ownTokens: ['t1'], concealed: [] })
+    return t
+  }
+
+  it('pedir manda só o id do pino e fica "esperando"; um segundo pedido não sai enquanto espera', () => {
+    const { connection, socket } = jogando()
+    expect(connection.requestTravel('escada')).toBe(true)
+    expect(socket.sent.at(-1)).toEqual({ type: 'pin.travel.request', pinId: 'escada' })
+    expect(connection.getState().travel?.phase).toBe('waiting')
+    const enviados = socket.sent.length
+    expect(connection.requestTravel('escada')).toBe(false)
+    expect(socket.sent.length).toBe(enviados)
+  })
+
+  it('scene.changed: "chegou", e o movimento ainda sem resposta NÃO é reaplicado no mapa novo', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    connection.requestTravel('escada')
+    // Movimento no mapa de antes, sem resposta do mestre.
+    connection.requestMove('t1', 300, 300)
+    socket.receive({ type: 'scene.changed' })
+    expect(connection.getState().travel?.phase).toBe('arrived')
+    // O mapa novo traz o token no pino par: o (300, 300) do mapa antigo não vale aqui.
+    socket.receive({ type: 'snapshot', rev: 2, map: { ...mapWithToken(40, 60), id: 'm2' }, vision: [], ownTokens: ['t1'], concealed: [] })
+    const token = connection.getState().map?.tokens.find((t) => t.id === 't1')
+    expect([token?.x, token?.y]).toEqual([40, 60])
+    // Mais que a recusa: a caixa de pedidos põe vários jogadores na cena nova de uma vez.
+    vi.advanceTimersByTime(TRAVEL_NOTICE_TTL_MS)
+    expect(connection.getState().travel?.phase).toBe('arrived')
+    vi.advanceTimersByTime(ARRIVAL_NOTICE_TTL_MS - TRAVEL_NOTICE_TTL_MS)
+    expect(connection.getState().travel).toBeUndefined()
+  })
+
+  it('"Você chegou" sai quando o jogador mexe a própria ficha', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'scene.changed' })
+    socket.receive({ type: 'snapshot', rev: 2, map: mapWithToken(100, 100), vision: [], ownTokens: ['t1'], concealed: [] })
+    expect(connection.getState().travel?.phase).toBe('arrived')
+    expect(connection.requestMove('t1', 60, 70)).toBe(true)
+    expect(connection.getState().travel).toBeUndefined()
+  })
+
+  it('scene.changed do mestre (Mandar para…): "levado", não "chegou", fica além da recusa e sai no teto', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'scene.changed', by: 'master' })
+    expect(connection.getState().travel?.phase).toBe('moved')
+    vi.advanceTimersByTime(TRAVEL_NOTICE_TTL_MS)
+    expect(connection.getState().travel?.phase).toBe('moved')
+    vi.advanceTimersByTime(MOVED_NOTICE_TTL_MS - TRAVEL_NOTICE_TTL_MS)
+    expect(connection.getState().travel).toBeUndefined()
+  })
+
+  it('scene.changed da reunião: "reunido", espera o jogador e sai quando ele mexe a ficha', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'scene.changed', by: 'gather' })
+    expect(connection.getState().travel?.phase).toBe('gathered')
+    vi.advanceTimersByTime(GATHERED_NOTICE_TTL_MS - 1)
+    expect(connection.getState().travel?.phase).toBe('gathered')
+    socket.receive({ type: 'snapshot', rev: 2, map: mapWithToken(100, 100), vision: [], ownTokens: ['t1'], concealed: [] })
+    expect(connection.requestMove('t1', 60, 70)).toBe(true)
+    expect(connection.getState().travel).toBeUndefined()
+  })
+
+  it('o aviso da reunião some sozinho depois do teto, sem o jogador mexer', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'scene.changed', by: 'gather' })
+    vi.advanceTimersByTime(GATHERED_NOTICE_TTL_MS)
+    expect(connection.getState().travel).toBeUndefined()
+  })
+
+  it('"Não" do mestre e recusa do host viram aviso que some; motivo desconhecido é ignorado', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    connection.requestTravel('escada')
+    socket.receive({ type: 'pin.travel.denied' })
+    expect(connection.getState().travel?.phase).toBe('denied')
+    vi.advanceTimersByTime(TRAVEL_NOTICE_TTL_MS)
+    expect(connection.getState().travel).toBeUndefined()
+    socket.receive({ type: 'pin.travel.rejected', reason: 'o-mapa-secreto' })
+    expect(connection.getState().travel).toBeUndefined()
+    socket.receive({ type: 'pin.travel.rejected', reason: 'too_soon' })
+    expect(connection.getState().travel).toMatchObject({ phase: 'rejected', reason: 'too_soon' })
+  })
+
+  describe('pino livre', () => {
+    function comPinoLivre() {
+      const t = setup()
+      t.socket.open()
+      const livre = { id: 'escada', x: 50, y: 50, kind: 'viagem' as const, description: '', image: null, passagem: 'livre' as const }
+      t.socket.receive({ type: 'snapshot', rev: 1, map: { ...mapWithToken(100, 100), pins: [livre] }, vision: [], ownTokens: ['t1'], concealed: [] })
+      return t
+    }
+
+    it('"Passando…" na hora, e o pedido sai depois da batida — não no mesmo toque', () => {
+      vi.useFakeTimers()
+      const { connection, socket } = comPinoLivre()
+      const antes = socket.sent.length
+      expect(connection.requestTravel('escada')).toBe(true)
+      expect(connection.getState().travel).toMatchObject({ phase: 'waiting', direct: true })
+      expect(socket.sent.length).toBe(antes)
+      // Durante a batida, um segundo toque não empilha outro pedido.
+      expect(connection.requestTravel('escada')).toBe(false)
+      vi.advanceTimersByTime(FREE_PASSAGE_BEAT_MS)
+      expect(socket.sent.slice(antes)).toEqual([{ type: 'pin.travel.request', pinId: 'escada' }])
+    })
+
+    it('pino sem modo (mapa antigo) continua pedindo na hora, com "esperando o mestre"', () => {
+      const { connection, socket } = jogando()
+      connection.requestTravel('escada')
+      expect(socket.sent.at(-1)).toEqual({ type: 'pin.travel.request', pinId: 'escada' })
+      expect(connection.getState().travel).toMatchObject({ phase: 'waiting', direct: false })
+    })
+
+    it('reconectar na batida cancela o pedido: nada sai pelo socket novo', () => {
+      vi.useFakeTimers()
+      const t = comPinoLivre()
+      t.connection.requestTravel('escada')
+      t.connection.reconnect()
+      // O socket novo abre dentro da batida: se o timer sobrevivesse, o pedido sairia por ele.
+      t.sockets[1]?.open()
+      vi.advanceTimersByTime(FREE_PASSAGE_BEAT_MS)
+      const todos = t.sockets.flatMap((s) => s.sent)
+      expect(todos).not.toContainEqual({ type: 'pin.travel.request', pinId: 'escada' })
+    })
   })
 })

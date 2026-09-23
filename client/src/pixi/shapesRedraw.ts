@@ -1,55 +1,57 @@
-import type { Container, Graphics } from 'pixi.js'
-import type { FloorPiece, MapData, MapFrame } from '../types/map'
+import type { MapData } from '../types/map'
 import type { DrawingTool } from '../types/tools'
-import { selectionSingle, selectionToAreaSelection, type SelectionSet } from '../lib/selectionModel'
-import { visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings } from '../lib/layers'
-import { areaSelectionBounds } from '../lib/areaSelection'
-import type { FloorRenderer } from './drawFloor'
-import { resolveHighlightedRegionId, type RegionsRenderer } from './drawRegions'
-import type { TextLabelsRenderer } from './drawTextLabels'
-import { drawWalls } from './drawWalls'
-import { drawDoors } from './drawDoors'
-import { drawStairs } from './drawStairs'
-import { drawLights } from './drawLights'
-import { drawDrawings } from './drawDrawings'
-import { drawMapLines, drawMapMarkers } from './drawMapLines'
-import { drawEditHandles } from './drawEditHandles'
-import { drawAreaSelectionOutline } from './drawSelectionMarquee'
+import { selectionSingle, type SelectionSet } from '../lib/selectionModel'
+import { resolveHighlightedRegionId } from './drawRegions'
 
-/** Referência estável: camada oculta não força recalcular o contorno a cada redraw. */
-const EMPTY_FLOOR: FloorPiece[] = []
+/**
+ * Camadas vetoriais do mapa no editor, NA ORDEM de pintura do PixiCanvas.
+ * `gridMask` vem depois de `floor` porque lê os polígonos que o chão acabou
+ * de montar (`floorRenderer.polygons()`).
+ */
+export const SHAPES_LAYERS = [
+  'floor',
+  'gridMask',
+  'floorSelection',
+  'mapLines',
+  'mapFrame',
+  'regions',
+  'drawings',
+  'roomNames',
+  'walls',
+  'stairs',
+  'lights',
+  'concealZones',
+  'pins',
+  'textLabels',
+  'handles',
+  'areaOutline',
+] as const
 
-/** Onde cada camada vetorial do mapa é desenhada (criados uma vez no `setup()` do PixiCanvas). */
-export interface ShapesTargets {
-  floor: Graphics
-  floorSelection: Graphics
-  mapLines: Graphics
-  regions: Container
-  walls: Graphics
-  doors: Graphics
-  stairs: Graphics
-  lights: Graphics
-  drawings: Graphics
-  textLabels: Container
-  handles: Graphics
-  areaOutline: Graphics
+export type ShapesLayer = (typeof SHAPES_LAYERS)[number]
+
+/** Camadas que criam ou mexem em `Text`: pintar uma delas pede sincronizar a resolução dos textos. */
+const TEXT_LAYERS: ReadonlySet<ShapesLayer> = new Set<ShapesLayer>(['mapFrame', 'roomNames', 'concealZones', 'pins', 'textLabels'])
+
+export function paintedTextLayer(painted: readonly ShapesLayer[]): boolean {
+  return painted.some((layer) => TEXT_LAYERS.has(layer))
 }
 
-/** Renderers com cache próprio e os passos do render fiel que continuam vivendo no PixiCanvas. */
-export interface ShapesRenderers {
-  floor: FloorRenderer
-  regions: RegionsRenderer
-  textLabels: TextLabelsRenderer
-  redrawMapRaster: (map: MapData) => void
-  clearMapRaster: () => void
-  redrawMapFrame: (frame: MapFrame | null) => void
-}
-
-/** Recorte do estado da store que as camadas vetoriais leem. */
+/** Tudo de que as camadas vetoriais dependem, lido da store e da câmera no momento do redesenho. */
 export interface ShapesSnapshot {
   map: MapData
   selection: SelectionSet
   activeTool: DrawingTool
+  selectedConcealZoneId: string | null
+  selectedPinId: string | null
+  /**
+   * Referências da aventura que decidem se um pino de viagem está ligado (o
+   * par mora em OUTRA cena): `[cache, adventure, activeSceneId]`.
+   */
+  travel: readonly unknown[]
+  cameraScale: number
+  rendererResolution: number
+  /** Sala sendo girada pela alça: a alça de girar aparece acesa. */
+  rotatingRoom: boolean
 }
 
 /**
@@ -68,113 +70,95 @@ export function createChangeGate(): (deps: readonly unknown[]) => boolean {
 }
 
 /**
- * Redesenho das camadas vetoriais do mapa (chão, traços, salas, paredes,
- * portas, escadas, luzes, desenhos, textos, alças e contorno do grupo).
- *
- * Redesenho PARCIAL: cada camada só repinta quando uma das entradas DELA
- * muda. Antes, qualquer mudança (arrastar 1 sala, selecionar, desfazer)
- * repintava o mapa inteiro a cada pointermove — medido na torre: quadro p95
- * de 1,27 s arrastando sala, 1,45 s para selecionar. O id selecionado entra
- * como texto (tipo + id), não como objeto: cada clique cria um conjunto de
- * seleção novo mesmo quando o item é o mesmo.
+ * Do que cada camada depende. Só entra a escala da câmera onde ela muda a
+ * pintura: traço fino em px de tela (paredes, portas, escadas), marcador da
+ * luz, alças e o contorno de seleção — este último só existe com algo
+ * selecionado, então sala e desenho só dependem da escala quando há um deles
+ * selecionado. Nomes de sala e fichas seguem o zoom por `setCameraScale`, sem
+ * repintar.
  */
-export function createShapesRedrawer(targets: ShapesTargets, renderers: ShapesRenderers): (snapshot: ShapesSnapshot) => void {
-  const gates = {
-    floor: createChangeGate(),
-    floorSelection: createChangeGate(),
-    mapLines: createChangeGate(),
-    regions: createChangeGate(),
-    walls: createChangeGate(),
-    stairs: createChangeGate(),
-    lights: createChangeGate(),
-    drawings: createChangeGate(),
-    handles: createChangeGate(),
-    areaOutline: createChangeGate(),
+export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): readonly unknown[] {
+  const { map, selection, cameraScale, rendererResolution } = snapshot
+  const hidden = map.hiddenLayers
+  const single = selectionSingle(selection)
+  const selectedId = (kind: string): string | null => (single !== null && single.kind === kind ? single.id : null)
+  const rasterMode = map.floorStyle.renderMode === 'raster'
+  const floorHidden = hidden.includes('salas')
+
+  switch (layer) {
+    case 'floor':
+      return rasterMode
+        ? ['raster', map.floor, map.lines, map.markers, map.floorStyle, hidden, map.width, map.height, map.grid]
+        : ['vetor', floorHidden, floorHidden ? null : map.floor, map.floorStyle]
+    case 'gridMask':
+      // Lê os polígonos do chão, que o `floorStyle` também molda (amostragem).
+      return [rasterMode, hidden, map.regions, map.walls, rasterMode || floorHidden ? null : map.floor, map.floorStyle]
+    case 'floorSelection': {
+      const floorId = selectedId('floor')
+      const piece = floorId !== null && !floorHidden ? (map.floor.find((p) => p.id === floorId) ?? null) : null
+      return [piece, map.floorStyle.sampleStep]
+    }
+    case 'mapLines':
+      return [rasterMode, hidden.includes('paredes'), hidden.includes('portas'), map.lines, map.markers]
+    case 'mapFrame':
+      return [map.frame]
+    case 'regions': {
+      const highlighted = resolveHighlightedRegionId(map.walls, single)
+      return [map.regions, hidden, highlighted, highlighted === null ? null : cameraScale]
+    }
+    case 'drawings': {
+      const drawingId = selectedId('drawing')
+      return [map.drawings, hidden, drawingId, drawingId === null ? null : cameraScale]
+    }
+    case 'roomNames':
+      return [map.regions, hidden, map.grid]
+    case 'walls':
+      return [map.walls, hidden, selectedId('wall'), selectedId('region'), cameraScale, rendererResolution]
+    case 'stairs':
+      return [map.stairs, hidden, selectedId('stair'), cameraScale, rendererResolution]
+    case 'lights':
+      // Paredes e chão barram a luz (`visionSegments`): mudou um deles, o recorte muda.
+      return [map.lights, hidden, selectedId('light'), cameraScale, map.walls, map.floor]
+    case 'concealZones':
+      return [map.concealZones, map.grid, snapshot.selectedConcealZoneId]
+    case 'pins':
+      return [map.pins, hidden, snapshot.selectedPinId, ...snapshot.travel]
+    case 'textLabels':
+      return [map.drawings, hidden, selectedId('drawing')]
+    case 'handles':
+      // Alças só existem com UM item selecionado na ferramenta Selecionar; o
+      // item pode estar em qualquer lista do mapa, então elas seguem o mapa.
+      return snapshot.activeTool === 'select' && single !== null
+        ? ['alças', single.kind, single.id, map, cameraScale, rendererResolution, snapshot.rotatingRoom]
+        : ['sem alças']
+    case 'areaOutline':
+      return selection.length > 1 ? ['grupo', selection, map] : ['sem grupo']
   }
+}
 
-  return ({ map, selection, activeTool }) => {
-    const single = selectionSingle(selection)
-    const selectedId = (kind: string): string | null => (single?.kind === kind ? single.id : null)
-    const hidden = map.hiddenLayers
-    const rasterMode = map.floorStyle.renderMode === 'raster'
+/**
+ * Redesenho PARCIAL das camadas vetoriais: cada camada só repinta quando uma
+ * das entradas DELA muda. Antes, arrastar uma sala repintava o mapa inteiro a
+ * cada pointermove, selecionar e desfazer também, e cada passo de zoom refazia
+ * paredes, salas, escadas e luzes (medido na torre).
+ *
+ * `only` pede um subconjunto (quem só mexeu nas alças, por exemplo) — pelo
+ * MESMO portão, então uma pintura avulsa nunca deixa o redesenho inteiro com
+ * uma memória velha. Devolve as camadas pintadas, na ordem.
+ */
+export function createShapesRedrawer(
+  paint: Readonly<Record<ShapesLayer, () => void>>,
+): (snapshot: ShapesSnapshot, only?: readonly ShapesLayer[]) => ShapesLayer[] {
+  const gates = new Map<ShapesLayer, (deps: readonly unknown[]) => boolean>(SHAPES_LAYERS.map((layer) => [layer, createChangeGate()]))
 
-    if (rasterMode) {
-      if (gates.floor([true, map.floor, map.lines, map.markers, map.floorStyle, hidden, map.width, map.height, map.grid])) {
-        targets.floor.clear()
-        renderers.redrawMapRaster(map)
-      }
-    } else {
-      const floorSource = hidden.includes('salas') ? EMPTY_FLOOR : map.floor
-      if (gates.floor([false, floorSource, map.floorStyle])) {
-        renderers.clearMapRaster()
-        renderers.floor.draw(targets.floor, floorSource, map.floorStyle)
-      }
+  return (snapshot, only) => {
+    const painted: ShapesLayer[] = []
+    for (const layer of only ?? SHAPES_LAYERS) {
+      const gate = gates.get(layer)
+      if (gate === undefined || !gate(shapesLayerDeps(layer, snapshot))) continue
+      paint[layer]()
+      painted.push(layer)
     }
-
-    const floorId = selectedId('floor')
-    const selectedPiece = floorId !== null && !hidden.includes('salas') ? map.floor.find((p) => p.id === floorId) ?? null : null
-    if (gates.floorSelection([selectedPiece, map.floorStyle.sampleStep])) {
-      renderers.floor.drawSelection(targets.floorSelection, selectedPiece, map.floorStyle.sampleStep)
-    }
-
-    const showLines = !rasterMode && !hidden.includes('paredes')
-    const showMarkers = !rasterMode && !hidden.includes('portas')
-    if (gates.mapLines([showLines, showMarkers, map.lines, map.markers])) {
-      targets.mapLines.clear()
-      if (showLines) drawMapLines(targets.mapLines, map.lines)
-      if (showMarkers) drawMapMarkers(targets.mapLines, map.markers)
-    }
-
-    // Já memoizada por referência de `map.frame` no PixiCanvas.
-    renderers.redrawMapFrame(map.frame)
-
-    // Além do portão da camada, o renderer de salas pula cada sala cuja
-    // referência e destaque não mudaram — arrastar uma sala repinta só ela.
-    const highlightedRegionId = resolveHighlightedRegionId(map.walls, single)
-    if (gates.regions([map.regions, hidden, highlightedRegionId])) {
-      renderers.regions.draw(targets.regions, visibleRegions(map.regions, hidden), highlightedRegionId)
-    }
-
-    const wallId = selectedId('wall')
-    if (gates.walls([map.walls, hidden, wallId])) {
-      const walls = visibleWalls(map.walls, hidden)
-      drawWalls(targets.walls, walls, wallId)
-      drawDoors(targets.doors, walls, wallId)
-    }
-
-    const stairId = selectedId('stair')
-    if (gates.stairs([map.stairs, hidden, stairId])) {
-      drawStairs(targets.stairs, visibleStairs(map.stairs, hidden), stairId)
-    }
-
-    const lightId = selectedId('light')
-    if (gates.lights([map.lights, hidden, lightId])) {
-      drawLights(targets.lights, visibleLights(map.lights, hidden), lightId)
-    }
-
-    const drawingId = selectedId('drawing')
-    if (gates.drawings([map.drawings, hidden, drawingId])) {
-      const drawings = visibleDrawings(map.drawings, hidden)
-      drawDrawings(targets.drawings, drawings, drawingId)
-      renderers.textLabels.draw(targets.textLabels, drawings, drawingId)
-    }
-
-    // Alças só existem com 1 item selecionado na ferramenta Selecionar; sem
-    // isso, mudança no mapa não mexe nelas. Com seleção, dependem das listas
-    // onde `drawEditHandles` procura o item.
-    const handlesDeps: readonly unknown[] =
-      activeTool === 'select' && single
-        ? [activeTool, single.kind, single.id, map.walls, map.regions, map.drawings, map.tokens, map.props, map.lights, map.grid]
-        : [activeTool, null, null]
-    if (gates.handles(handlesDeps)) {
-      drawEditHandles(targets.handles, map, single, activeTool)
-    }
-
-    // Contorno do grupo (2+ itens): a caixa depende de quase todas as listas,
-    // então acompanha o mapa inteiro — mas só quando há grupo.
-    const isGroup = selection.length > 1
-    if (gates.areaOutline(isGroup ? [selection, map] : [null])) {
-      drawAreaSelectionOutline(targets.areaOutline, isGroup ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null)
-    }
+    return painted
   }
 }

@@ -9,7 +9,12 @@ import {
   buildRoomFromDraft,
   isValidRegularPolygonDraft,
   buildRegularPolygonRoomFromDraft,
+  normalizeDraftPolygonPoints,
+  isValidFreeRoomDraft,
+  buildFreeRoomFromPoints,
   DEFAULT_ROOM_NAME,
+  nextDefaultRoomName,
+  syncRoomNameSequence,
   isValidFreehandDraft,
   buildFreehandDrawing,
   isValidLineDraft,
@@ -23,6 +28,7 @@ import {
   isValidTextDraft,
   buildTextDrawing,
 } from './drawingFactory'
+import { ROOM_CIRCLE_SIDES } from './roomCircle'
 
 describe('isValidWallDraft', () => {
   it('mesmo ponto de início e fim é inválido (clique sem arrastar)', () => {
@@ -51,21 +57,25 @@ describe('buildWallFromDraft', () => {
 })
 
 describe('buildLightAt', () => {
-  it('cria luz com raio proporcional ao grid e defaults de tocha', () => {
+  it('cria luz com raio de 4 células (luz plena da tocha, 20 ft) e defaults de tocha', () => {
     const light = buildLightAt('l1', { x: 32, y: 32 }, 64)
     expect(light).toEqual({
       id: 'l1',
       x: 32,
       y: 32,
-      radius: 512,
+      radius: 256,
       color: '#ffaa33',
       intensity: 0.8,
     })
   })
 
-  it('raio escala com o tamanho do grid', () => {
-    const light = buildLightAt('l2', { x: 0, y: 0 }, 32)
-    expect(light.radius).toBe(256)
+  it('raio escala com o tamanho do grid (4 × grid)', () => {
+    expect(buildLightAt('l2', { x: 0, y: 0 }, 32).radius).toBe(128)
+    expect(buildLightAt('l3', { x: 0, y: 0 }, 128).radius).toBe(512)
+  })
+
+  it('arrasto (radiusOverride) ignora o padrão de 4 células', () => {
+    expect(buildLightAt('l4', { x: 0, y: 0 }, 64, 700).radius).toBe(700)
   })
 })
 
@@ -179,9 +189,10 @@ describe('buildRoomFromDraft', () => {
   // D1 (ROADMAP.md): esta é a asserção que fecha a dívida — sem ela, a região
   // criada aqui fica indistinguível de uma Região comum e RoomControls nunca
   // aparece na prática (a mesma regressão que motivou a tarefa).
-  it('seta region.room com shape "rect" e nome padrão "Sala"', () => {
+  it('seta region.room com shape "rect" e nome padrão numerado ("Sala 1")', () => {
+    syncRoomNameSequence([])
     const { region } = buildRoomFromDraft('r1', wallIds, { x: 0, y: 0 }, { x: 100, y: 100 })
-    expect(region.room).toEqual({ shape: 'rect', name: DEFAULT_ROOM_NAME })
+    expect(region.room).toEqual({ shape: 'rect', name: `${DEFAULT_ROOM_NAME} 1` })
   })
 
   it('aceita nome customizado', () => {
@@ -277,9 +288,10 @@ describe('buildRegularPolygonRoomFromDraft', () => {
   // 'polygon' — é essa distinção que faz o PixiCanvas manter o arrasto de
   // vértice/ponto médio livre (em vez de resize por canto) pra Sala
   // Circular/Polígono Regular.
-  it('seta region.room com shape "polygon" e nome padrão "Sala"', () => {
+  it('seta region.room com shape "polygon" e nome padrão numerado ("Sala 1")', () => {
+    syncRoomNameSequence([])
     const { region } = buildRegularPolygonRoomFromDraft('r5', ['w0', 'w1', 'w2'], { x: 0, y: 0 }, { x: 10, y: 0 }, 3)
-    expect(region.room).toEqual({ shape: 'polygon', name: DEFAULT_ROOM_NAME })
+    expect(region.room).toEqual({ shape: 'polygon', name: `${DEFAULT_ROOM_NAME} 1` })
   })
 
   it('aceita nome customizado', () => {
@@ -287,6 +299,191 @@ describe('buildRegularPolygonRoomFromDraft', () => {
       'r6', ['w0', 'w1', 'w2'], { x: 0, y: 0 }, { x: 10, y: 0 }, 3, '#3a7ad0', 'solid', 'Torre Circular',
     )
     expect(region.room).toEqual({ shape: 'polygon', name: 'Torre Circular' })
+  })
+})
+
+/*
+ * A "Sala Circular" é este mesmo polígono regular com a contagem de lados de
+ * lib/roomCircle.ts. O passeio cego de 17/09/2026 mediu o contorno oscilando
+ * 1,00% do raio com os 24 lados de então — os lados retos apareciam no topo, na
+ * base e nas laterais. O teste abaixo mede a MESMA coisa na geometria que a
+ * fábrica produz, sem depender de foto: a distância do centro até o meio de
+ * cada aresta contra a distância até o vértice.
+ */
+describe('Sala Circular é redonda com ROOM_CIRCLE_SIDES', () => {
+  const RAIO = 280
+  /** Mesmo limiar da jornada task-jornada-sala-de-verdade.spec.ts. */
+  const LIMIAR_CIRCULO = 0.006
+
+  it('o contorno oscila bem abaixo do limiar de 0,6% do raio', () => {
+    const wallIds = Array.from({ length: ROOM_CIRCLE_SIDES }, (_, i) => `w${i}`)
+    const { region, walls } = buildRegularPolygonRoomFromDraft(
+      'circ', wallIds, { x: 0, y: 0 }, { x: RAIO, y: 0 }, ROOM_CIRCLE_SIDES,
+    )
+    expect(region.points).toHaveLength(ROOM_CIRCLE_SIDES)
+    expect(walls).toHaveLength(ROOM_CIRCLE_SIDES)
+
+    let menor = Infinity
+    let maior = 0
+    for (let i = 0; i < region.points.length; i++) {
+      const a = region.points[i]
+      const b = region.points[(i + 1) % region.points.length]
+      for (const p of [a, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }]) {
+        const d = Math.hypot(p.x, p.y)
+        if (d < menor) menor = d
+        if (d > maior) maior = d
+      }
+    }
+    const variacao = (maior - menor) / RAIO
+    expect(maior).toBeCloseTo(RAIO, 6)
+    expect(variacao).toBeLessThan(LIMIAR_CIRCULO)
+    // Com folga de verdade, não raspando: o limiar da jornada ainda precisa
+    // reprovar um polígono facetado de 12 lados, medido pela mesma régua.
+    expect(variacao).toBeLessThan(LIMIAR_CIRCULO / 2)
+  })
+})
+
+/*
+ * Dor medida no passeio cego de 17/09/2026: três salas desenhadas em seguida
+ * mostravam três rótulos IDÊNTICOS na tela (0 pixel de diferença entre os
+ * recortes). É esta sequência que faz a segunda sala se chamar "Sala 2".
+ */
+describe('nome padrão numerado da Sala', () => {
+  const wallIds: [string, string, string, string] = ['w0', 'w1', 'w2', 'w3']
+  const draw = (id: string) => buildRoomFromDraft(id, wallIds, { x: 0, y: 0 }, { x: 100, y: 100 }).region.room?.name
+
+  it('salas criadas em seguida recebem nomes diferentes', () => {
+    syncRoomNameSequence([])
+    const nomes = [draw('r1'), draw('r2'), draw('r3')]
+    expect(nomes).toEqual(['Sala 1', 'Sala 2', 'Sala 3'])
+    expect(new Set(nomes).size).toBe(3)
+  })
+
+  it('as três ferramentas de Sala dividem a mesma sequência (nada de "Sala 1" repetido)', () => {
+    syncRoomNameSequence([])
+    const retangular = draw('r1')
+    const circular = buildRegularPolygonRoomFromDraft('r2', ['w0', 'w1', 'w2'], { x: 0, y: 0 }, { x: 10, y: 0 }, 3).region.room?.name
+    expect(retangular).toBe('Sala 1')
+    expect(circular).toBe('Sala 2')
+  })
+
+  it('nome explícito não consome a sequência', () => {
+    syncRoomNameSequence([])
+    buildRoomFromDraft('r1', wallIds, { x: 0, y: 0 }, { x: 100, y: 100 }, '#3a7ad0', 'solid', 'Cripta')
+    expect(draw('r2')).toBe('Sala 1')
+  })
+
+  it('syncRoomNameSequence pula os números já usados no mapa aberto', () => {
+    syncRoomNameSequence(['Sala 1', 'Cripta', 'Sala 7', 'Sala 2'])
+    expect(draw('r1')).toBe('Sala 8')
+  })
+
+  it('syncRoomNameSequence ignora nome fora do padrão e não volta atrás por causa deles', () => {
+    syncRoomNameSequence(['Sala', 'Sala 01', 'Sala 1.0', 'Sala dois', 'Sala 3', 'Salão 9'])
+    expect(draw('r1')).toBe('Sala 4')
+  })
+
+  it('lista vazia zera a sequência', () => {
+    nextDefaultRoomName()
+    nextDefaultRoomName()
+    syncRoomNameSequence([])
+    expect(nextDefaultRoomName()).toBe('Sala 1')
+  })
+})
+
+describe('normalizeDraftPolygonPoints', () => {
+  it('descarta canto clicado duas vezes no mesmo lugar (o duplo clique que fecha)', () => {
+    const pontos = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+      { x: 100, y: 100 },
+    ]
+    expect(normalizeDraftPolygonPoints(pontos)).toEqual([
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+    ])
+  })
+
+  it('descarta o último canto em cima do primeiro (o fechamento é implícito)', () => {
+    const pontos = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+      { x: 0, y: 0 },
+    ]
+    expect(normalizeDraftPolygonPoints(pontos)).toEqual([
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+    ])
+  })
+
+  it('polígono sem repetição passa intacto, e lista vazia continua vazia', () => {
+    const pontos = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 50, y: 80 },
+    ]
+    expect(normalizeDraftPolygonPoints(pontos)).toEqual(pontos)
+    expect(normalizeDraftPolygonPoints([])).toEqual([])
+  })
+})
+
+describe('isValidFreeRoomDraft', () => {
+  it('menos de 3 cantos não é polígono', () => {
+    expect(isValidFreeRoomDraft([])).toBe(false)
+    expect(isValidFreeRoomDraft([{ x: 0, y: 0 }, { x: 10, y: 0 }])).toBe(false)
+  })
+
+  it('3 cantos já é polígono', () => {
+    expect(isValidFreeRoomDraft([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 9 }])).toBe(true)
+  })
+})
+
+describe('buildFreeRoomFromPoints (Sala de formato livre)', () => {
+  // Pentágono irregular, nenhuma aresta horizontal nem vertical pura: é a
+  // forma que a Sala retangular e o Polígono Regular NÃO conseguem produzir.
+  const CANTOS: Point[] = [
+    { x: 384, y: 192 },
+    { x: 704, y: 224 },
+    { x: 768, y: 448 },
+    { x: 512, y: 544 },
+    { x: 320, y: 384 },
+  ]
+  const IDS = ['w0', 'w1', 'w2', 'w3', 'w4']
+
+  it('é Sala (shape polygon) com uma parede por aresta, inclusive a que fecha o contorno', () => {
+    const { region, walls } = buildFreeRoomFromPoints('r_livre', IDS, CANTOS, '#a8776a', 'solid', 'Cripta torta')
+
+    expect(region.room).toEqual({ shape: 'polygon', name: 'Cripta torta' })
+    expect(region.points).toEqual(CANTOS)
+    expect(walls).toHaveLength(CANTOS.length)
+
+    walls.forEach((wall, i) => {
+      const de = CANTOS[i]
+      const para = CANTOS[(i + 1) % CANTOS.length]
+      expect([wall.x1, wall.y1, wall.x2, wall.y2]).toEqual([de.x, de.y, para.x, para.y])
+      // O vínculo de que porta e arrasto de vértice dependem (lib/roomLink.ts).
+      expect(wall.regionId).toBe('r_livre')
+      expect(wall.regionEdgeIndex).toBe(i)
+      expect(wall.blocksMove).toBe(true)
+      expect(wall.blocksLight).toBe(true)
+      expect(wall.door).toBeNull()
+    })
+    // A ÚLTIMA aresta é a que fecha: do último canto de volta ao primeiro.
+    expect([walls[4].x2, walls[4].y2]).toEqual([CANTOS[0].x, CANTOS[0].y])
+  })
+
+  it('sem nenhum argumento opcional: cor, padrão e nome caem no default, e continua Sala', () => {
+    const { region, walls } = buildFreeRoomFromPoints('r_sem_opcional', IDS, CANTOS)
+
+    expect(region.room?.shape).toBe('polygon')
+    expect(region.room?.name.startsWith(DEFAULT_ROOM_NAME)).toBe(true)
+    expect(region.fillPattern).toBe('solid')
+    expect(typeof region.fillColor).toBe('string')
+    expect(walls).toHaveLength(CANTOS.length)
   })
 })
 

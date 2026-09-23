@@ -134,6 +134,8 @@ function makeMap(overrides: Partial<MapData> = {}): MapData {
     floorStyle: { fillColor: '#006b00', strokeColor: null, strokeWidth: 1 },
     lines: [],
     markers: [],
+    concealZones: [],
+    pins: [],
     frame: null,
     fog: { mode: 'none', revealed: [] },
     hiddenLayers: [],
@@ -392,7 +394,7 @@ describe('listSavedMaps', () => {
     expect(readTextFileMock).not.toHaveBeenCalled()
   })
 
-  it('map.json corrompido não derruba a lista inteira — a entrada só é omitida', async () => {
+  it('map.json corrompido não derruba a lista inteira — a entrada aparece marcada como danificada', async () => {
     existsMock.mockImplementation(
       async (path: string) =>
         path === MAPS_DIR || path === `${MAPS_DIR}\\map_bom\\map.json` || path === `${MAPS_DIR}\\map_ruim\\map.json`,
@@ -405,8 +407,21 @@ describe('listSavedMaps', () => {
 
     const maps = await listSavedMaps()
 
+    // A entrada quebrada NÃO some da lista: sumir fazia o mapa parecer apagado
+    // para quem abria a tela. Ela aparece por último, com o caminho e o nome
+    // avisando, para a pessoa poder achar (ou apagar) o arquivo.
     expect(maps).toEqual([
       { path: `${MAPS_DIR}\\map_bom\\map.json`, id: 'map_bom', name: 'Torre', width: 30, height: 20, grid: 64, mtimeMs: Date.parse('2026-01-01T00:00:00.000Z') },
+      {
+        path: `${MAPS_DIR}\\map_ruim\\map.json`,
+        id: 'map_ruim',
+        name: 'map_ruim (arquivo danificado)',
+        width: 0,
+        height: 0,
+        grid: 0,
+        mtimeMs: Date.parse('2026-01-01T00:00:00.000Z'),
+        damaged: true,
+      },
     ])
   })
 })

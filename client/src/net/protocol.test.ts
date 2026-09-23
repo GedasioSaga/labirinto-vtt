@@ -1,5 +1,42 @@
 import { describe, expect, it } from 'vitest'
-import { PROTOCOL_VERSION, parsePlayerMessage } from './protocol'
+import { createExploration, decodeExploration, encodeExploration, markRings } from '../lib/exploration'
+import { createEmptyMap } from '../lib/mapFactory'
+import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
+import { PROTOCOL_VERSION, parseLaserMessage, parsePlayerMessage, type HostMessage } from './protocol'
+
+describe('parseLaserMessage', () => {
+  it('aceita off e lote de pontos finitos, copiando só x e y', () => {
+    expect(parseLaserMessage({ type: 'laser', off: true })).toEqual({ type: 'laser', off: true })
+    expect(parseLaserMessage({ type: 'laser', points: [{ x: 1.5, y: -2, cor: '<img>' }] })).toEqual({ type: 'laser', points: [{ x: 1.5, y: -2 }] })
+    const full = Array.from({ length: LASER_MAX_POINTS_PER_MESSAGE }, (_, i) => ({ x: i, y: i }))
+    expect(parseLaserMessage({ type: 'laser', points: full })).toEqual({ type: 'laser', points: full })
+  })
+
+  it('descarta lote vazio, grande demais, ponto não finito ou malformado e outro tipo', () => {
+    const tooMany = Array.from({ length: LASER_MAX_POINTS_PER_MESSAGE + 1 }, () => ({ x: 1, y: 1 }))
+    const invalid: unknown[] = [
+      null,
+      'laser',
+      { type: 'laser' },
+      { type: 'laser', off: 'true' },
+      { type: 'laser', off: false },
+      { type: 'laser', points: [] },
+      { type: 'laser', points: tooMany },
+      { type: 'laser', points: 'x' },
+      { type: 'laser', points: [{ x: '1', y: 2 }] },
+      { type: 'laser', points: [{ x: 1 }] },
+      { type: 'laser', points: [{ x: 1, y: Number.NaN }] },
+      { type: 'laser', points: [{ x: 1, y: 2 }, null] },
+      { type: 'laser', points: [[1, 2]] },
+      { type: 'signal', points: [{ x: 1, y: 2 }] },
+    ]
+    for (const value of invalid) expect(parseLaserMessage(value)).toBeNull()
+  })
+
+  it('jogador não consegue mandar laser: o parser do mestre descarta', () => {
+    expect(parsePlayerMessage({ type: 'laser', points: [{ x: 1, y: 2 }] })).toBeNull()
+  })
+})
 
 describe('parsePlayerMessage', () => {
   it('expõe a versão 1 do protocolo', () => {
@@ -29,6 +66,24 @@ describe('parsePlayerMessage', () => {
       y: -2.5,
     })
     expect(parsePlayerMessage('{"type":"ping"}')).toEqual({ type: 'ping' })
+  })
+
+  it('aceita signal com x e y finitos e descarta o resto', () => {
+    expect(parsePlayerMessage({ type: 'signal', x: 12.5, y: 0, from: 'intruso', color: '#000000' })).toEqual({ type: 'signal', x: 12.5, y: 0 })
+    expect(parsePlayerMessage('{"type":"signal","x":1,"y":2}')).toEqual({ type: 'signal', x: 1, y: 2 })
+    expect(parsePlayerMessage({ type: 'signal', x: '1', y: 2 })).toBeNull()
+    expect(parsePlayerMessage({ type: 'signal', x: 1 })).toBeNull()
+    expect(parsePlayerMessage({ type: 'signal', x: Number.NaN, y: 2 })).toBeNull()
+    expect(parsePlayerMessage({ type: 'signal', x: 1, y: Number.POSITIVE_INFINITY })).toBeNull()
+  })
+
+  it('aceita door.toggle com wallId e descarta o resto', () => {
+    expect(parsePlayerMessage({ type: 'door.toggle', wallId: 'w1', extra: 'x' })).toEqual({ type: 'door.toggle', wallId: 'w1' })
+    expect(parsePlayerMessage('{"type":"door.toggle","wallId":"w1"}')).toEqual({ type: 'door.toggle', wallId: 'w1' })
+    expect(parsePlayerMessage({ type: 'door.toggle' })).toBeNull()
+    expect(parsePlayerMessage({ type: 'door.toggle', wallId: '' })).toBeNull()
+    expect(parsePlayerMessage({ type: 'door.toggle', wallId: 7 })).toBeNull()
+    expect(parsePlayerMessage({ type: 'door.toggle', wallId: 'w'.repeat(65) })).toBeNull()
   })
 
   it('descarta campos desconhecidos', () => {
@@ -68,6 +123,25 @@ describe('parsePlayerMessage', () => {
 
   it('token.move com coordenada finita gigante passa no parser (quem recusa é a validação do mapa)', () => {
     expect(parsePlayerMessage({ type: 'token.move', reqId: 'r', tokenId: 't', x: 1.7e308, y: -1e20 })).not.toBeNull()
+  })
+
+  it('snapshot carrega explored e ownTokens que atravessam o JSON sem perda', () => {
+    const exp = createExploration({ width: 400, height: 400, grid: 40 })
+    markRings(exp, [[{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }]])
+    const msg: HostMessage = {
+      type: 'snapshot',
+      rev: 1,
+      map: createEmptyMap('m', 'M', 400, 400, 40),
+      vision: [],
+      explored: encodeExploration(exp),
+      ownTokens: ['t1'],
+      concealed: [],
+    }
+    const back: unknown = JSON.parse(JSON.stringify(msg))
+    expect(back).toMatchObject({ ownTokens: ['t1'], explored: { cell: 10, cols: 40, rows: 40 } })
+    const explored = decodeExploration(Reflect.get(back as object, 'explored'))
+    expect(Array.from(explored?.bits ?? [])).toEqual(Array.from(exp.bits))
+    expect(PROTOCOL_VERSION).toBe(1)
   })
 
   it('aceita name com exatamente 32 chars e reqId com 64', () => {

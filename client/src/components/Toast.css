@@ -35,6 +35,21 @@
   pointer-events: auto;
 }
 
+.lb-toast__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+/* Botões do aviso que pergunta: lado a lado, embaixo do texto. */
+.lb-toast__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+}
+
 .lb-toast__text {
   flex: 1;
   font-size: var(--lb-font-size-sm);
@@ -50,13 +65,26 @@
   color: var(--lb-color-parchment);
 }
 
+/* Instrução: o aviso que ESPERA a pessoa (stores/toastStore.ts, sem prazo).
+   Cor de latão, e não de brasa: não é uma falha do sistema, é uma tarefa dela
+   — o mesmo acento que os botões de ação do app já usam. O fundo tingido
+   separa à distância o cartão que vai ficar dos que vão sumir, para a pilha
+   não parecer uma fila de erros. */
+.lb-toast--instrucao {
+  border-color: var(--lb-color-brass);
+  background-image: linear-gradient(var(--lb-color-brass-soft), var(--lb-color-brass-soft));
+}
+
 .lb-toast__dismiss {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  /* 24px é o alvo mínimo de ponteiro. Era 20 e o × ficava menor que a polpa
+     do dedo/precisão do mouse — num aviso que só sai no clique, errar o alvo
+     é ficar preso com o cartão na tela. */
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: none;
   border-radius: var(--lb-radius-sm);
@@ -68,6 +96,18 @@
   transition: color var(--lb-motion-fast) var(--lb-motion-ease), background var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
+/* No aviso que fica, o botão é a ÚNICA saída — então ele é desenhado, e não
+   insinuado: contorno visível e texto em cheio, sem depender de a pessoa
+   passar o mouse por cima para descobrir que ali dá para clicar. */
+.lb-toast--instrucao .lb-toast__dismiss {
+  border: 1px solid var(--lb-color-brass);
+  color: var(--lb-color-parchment);
+}
+
+.lb-toast--instrucao .lb-toast__dismiss:hover {
+  background: var(--lb-color-brass-soft);
+}
+
 .lb-toast__dismiss:hover {
   color: var(--lb-color-parchment);
   background: var(--lb-color-stone-hover);
@@ -75,4 +115,47 @@
 
 .lb-toast__dismiss:focus-visible {
   box-shadow: var(--lb-shadow-focus);
+}
+
+/* Caixa de pedidos (caixaDeAvisos.ts): dois ou mais pedidos de passagem numa
+   caixa só, "Pedidos (N)". Mesma chrome e mesmo latão do aviso que espera,
+   para ler como "os avisos de antes, juntos", e não como painel novo. Coluna:
+   título, linhas, e o "Deixar todos" embaixo. */
+.lb-toastcaixa {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.lb-toastcaixa__title {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment);
+}
+
+/* Mesa de até 7 jogadores: a lista rola antes de a caixa cobrir o canvas. */
+.lb-toastcaixa__rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 50vh;
+}
+
+/* Filete entre linhas, e não cartão por linha: são itens de UMA caixa. */
+.lb-toastcaixa__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) 0;
+}
+
+.lb-toastcaixa__row + .lb-toastcaixa__row {
+  border-top: 1px solid var(--lb-color-line-divider);
+}
+
+.lb-toastcaixa__all {
+  align-self: stretch;
 }

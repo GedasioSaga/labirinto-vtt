@@ -20,6 +20,8 @@ import {
   removeToken,
   setTokenPosition,
   setTokenImage,
+  renameToken,
+  nextTokenName,
   addProp,
   removeProp,
   setPropPosition,
@@ -57,6 +59,10 @@ import {
   moveDrawing,
   resizeDrawingCornerLive,
   resizePropCornerLive,
+  buildPin,
+  addPin,
+  updatePin,
+  setPinPosition,
 } from './mapFactory'
 import type { MapData, Wall, Light, Region, Token, Prop, Drawing, Stair } from '../types/map'
 import { buildRoomFromDraft } from './drawingFactory'
@@ -76,8 +82,8 @@ describe('createEmptyMap', () => {
       height: 20,
       grid: 64,
       gridShape: 'square',
-      showGrid: true,
-      gridSettings: { color: '#4a4a4a', opacity: 1, lineWidth: 1, lineStyle: 'solid' },
+      showGrid: false,
+      gridSettings: { color: '#000000', opacity: 0.25, lineWidth: 1, lineStyle: 'solid' },
       background: { type: 'color', src: '#2b2b2b' },
       walls: [],
       lights: [],
@@ -87,18 +93,26 @@ describe('createEmptyMap', () => {
       stairs: [],
       drawings: [],
       floor: [],
-      floorStyle: { fillColor: '#006b00', strokeColor: null, strokeWidth: 1 },
+      floorStyle: { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 },
       lines: [],
       markers: [],
+      concealZones: [],
+      pins: [],
       frame: null,
       fog: { mode: 'none', revealed: [] },
       hiddenLayers: [],
       lockedLayers: [],
-      scale: { unitsPerCell: 5, unit: 'ft', precision: 0 },
+      scale: { unitsPerCell: 1.5, unit: 'm', precision: 1 },
       measurementMode: 'chessboard',
       ownerId: null,
       scenarioLink: null,
     })
+  })
+
+  it('floorStyle de cada mapa novo é cópia, não a constante compartilhada', () => {
+    const a = createEmptyMap('a', 'A', 10, 10, 64)
+    const b = createEmptyMap('b', 'B', 10, 10, 64)
+    expect(a.floorStyle).not.toBe(b.floorStyle)
   })
 })
 
@@ -336,10 +350,11 @@ describe('addDoorOnWall', () => {
 
     const next = addDoorOnWall(map, 'wLinked', { x: 32, y: 0 }, 16, 'normal')
 
+    // Os pedaços mantêm o vínculo: mover/apagar/duplicar a Sala leva a porta junto.
     expect(next.walls).toHaveLength(3)
     for (const piece of next.walls) {
-      expect(piece.regionId).toBeUndefined()
-      expect(piece.regionEdgeIndex).toBeUndefined()
+      expect(piece.regionId).toBe('r1')
+      expect(piece.regionEdgeIndex).toBe(2)
     }
   })
 
@@ -807,6 +822,35 @@ describe('setTokenImage', () => {
   })
 })
 
+describe('renameToken / nextTokenName', () => {
+  it('renameToken troca só o nome do token alvo', () => {
+    const map = addToken(addToken(createEmptyMap('m', 'x', 10, 10, 64), token), { ...token, id: 't2' })
+
+    const next = renameToken(map, 't1', 'Ana')
+
+    expect(next.tokens.find((t) => t.id === 't1')).toEqual({ ...token, name: 'Ana' })
+    expect(next.tokens.find((t) => t.id === 't2')?.name).toBe('Herói')
+  })
+
+  it('renameToken com id inexistente devolve o mapa pela mesma referência', () => {
+    const map = addToken(createEmptyMap('m', 'x', 10, 10, 64), token)
+    expect(renameToken(map, 'nao-existe', 'Ana')).toBe(map)
+  })
+
+  it('nextTokenName: sem tokens sugere "Token 1"; depois, o menor número livre', () => {
+    expect(nextTokenName([])).toBe('Token 1')
+    expect(nextTokenName([{ name: 'Token 1' }, { name: 'Token 2' }])).toBe('Token 3')
+    expect(nextTokenName([{ name: 'Token 2' }])).toBe('Token 1')
+  })
+
+  it('nextTokenName ignora nomes fora do padrão e nunca repete um nome já usado', () => {
+    const tokens = [{ name: 'Token' }, { name: 'Herói' }, { name: 'Token 1' }, { name: 'Token 1b' }]
+    const suggestion = nextTokenName(tokens)
+    expect(suggestion).toBe('Token 2')
+    expect(tokens.map((t) => t.name)).not.toContain(suggestion)
+  })
+})
+
 describe('setPropLayer', () => {
   const prop: Prop = { id: 'p1', src: '/tmp/tree.png', x: 0, y: 0, width: 64, height: 64, linkedMapPath: null }
 
@@ -902,7 +946,8 @@ describe('setGridSettings', () => {
 
     const next = setGridSettings(map, { color: '#ff0000' })
 
-    expect(next.gridSettings).toEqual({ color: '#ff0000', opacity: 1, lineWidth: 1, lineStyle: 'solid' })
+    // opacity/lineWidth/lineStyle = padrões do mapa novo (createEmptyMap), intactos
+    expect(next.gridSettings).toEqual({ color: '#ff0000', opacity: 0.25, lineWidth: 1, lineStyle: 'solid' })
   })
 
   it('não muda nenhum outro campo do map', () => {
@@ -1021,6 +1066,18 @@ describe('setDoorLocked', () => {
 
     expect(setDoorLocked(map, 'wSolid', true)).toBe(map)
   })
+
+  it('trancar uma porta aberta fecha a porta (aberta+trancada não existe)', () => {
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), { ...doorWall, door: { open: true, locked: false, kind: 'normal' } })
+
+    expect(setDoorLocked(map, 'wDoor', true).walls[0].door).toEqual({ open: false, locked: true, kind: 'normal' })
+  })
+
+  it('setWallDoor abrindo uma trancada destranca (o mestre ligou "Aberta")', () => {
+    const map = addWall(createEmptyMap('m', 'x', 10, 10, 64), { ...doorWall, door: { open: false, locked: true, kind: 'normal' } })
+
+    expect(setWallDoor(map, 'wDoor', { open: true, locked: true, kind: 'normal' }).walls[0].door).toEqual({ open: true, locked: false, kind: 'normal' })
+  })
 })
 
 describe('Stair (F2): addStair/removeStair/moveStair/updateStairPoint/setStairDirection', () => {
@@ -1132,5 +1189,75 @@ describe('MapScale/MeasurementMode (F2)', () => {
   it('setMeasurementMode troca o modo', () => {
     const map = createEmptyMap('m', 'x', 10, 10, 64)
     expect(setMeasurementMode(map, 'euclidean').measurementMode).toBe('euclidean')
+  })
+})
+
+describe('Pino: mover e travar', () => {
+  function mapaComPino(): MapData {
+    return addPin(createEmptyMap('m', 'x', 10, 10, 64), buildPin('p1', { x: 100, y: 200 }, 'exclamacao'))
+  }
+
+  it('setPinPosition leva o pino para o ponto novo, sem snap', () => {
+    const next = setPinPosition(mapaComPino(), 'p1', 133, 271)
+    expect(next.pins[0]).toMatchObject({ id: 'p1', x: 133, y: 271 })
+  })
+
+  // O arrasto chama isto dezenas de vezes por gesto: sem a mesma referência de
+  // volta, cada pointermove parado acordaria um render inteiro do Pixi.
+  it('setPinPosition com a MESMA posição devolve o map pela mesma referência', () => {
+    const map = mapaComPino()
+    expect(setPinPosition(map, 'p1', 100, 200)).toBe(map)
+  })
+
+  it('setPinPosition com id inexistente devolve o map pela mesma referência', () => {
+    const map = mapaComPino()
+    expect(setPinPosition(map, 'nao-existe', 10, 10)).toBe(map)
+  })
+
+  it('updatePin liga e desliga a trava do pino', () => {
+    const travado = updatePin(mapaComPino(), 'p1', { locked: true })
+    expect(travado.pins[0].locked).toBe(true)
+    expect(updatePin(travado, 'p1', { locked: false }).pins[0].locked).toBe(false)
+  })
+
+  // `undefined` === false é o contrato do schema: destravar um pino que nunca
+  // foi travado não é mudança, e não pode empurrar uma entrada de undo vazia.
+  it('updatePin com locked: false num pino sem o campo devolve o map pela mesma referência', () => {
+    const map = mapaComPino()
+    expect(map.pins[0].locked).toBeUndefined()
+    expect(updatePin(map, 'p1', { locked: false })).toBe(map)
+  })
+
+  // O campo do ícone é OPCIONAL: quem não escolher continua cravando o pino de
+  // hoje, e é isso que faz mapa salvo antes desta mudança abrir igual.
+  it('buildPin sem ícone não grava o campo: o pino nasce com a cara de hoje', () => {
+    const pin = buildPin('p1', { x: 10, y: 20 }, 'exclamacao')
+    expect(pin.icon).toBeUndefined()
+    expect(Object.prototype.hasOwnProperty.call(pin, 'icon')).toBe(false)
+  })
+
+  it('buildPin com ícone grava o ícone escolhido', () => {
+    expect(buildPin('p1', { x: 10, y: 20 }, 'exclamacao', 'bau').icon).toBe('bau')
+  })
+
+  it('updatePin troca o ícone do pino e depois tira', () => {
+    const comBau = updatePin(mapaComPino(), 'p1', { icon: 'bau' })
+    expect(comBau.pins[0].icon).toBe('bau')
+    const comArmadilha = updatePin(comBau, 'p1', { icon: 'armadilha' })
+    expect(comArmadilha.pins[0].icon).toBe('armadilha')
+    expect(updatePin(comArmadilha, 'p1', { icon: undefined }).pins[0].icon).toBeUndefined()
+  })
+
+  // Mesma regra de `locked`: tirar o que nunca existiu não é mudança e não
+  // pode empurrar uma entrada de undo vazia.
+  it('updatePin tirando o ícone de um pino que nunca teve devolve o map pela mesma referência', () => {
+    const map = mapaComPino()
+    expect(map.pins[0].icon).toBeUndefined()
+    expect(updatePin(map, 'p1', { icon: undefined })).toBe(map)
+  })
+
+  it('updatePin com o MESMO ícone devolve o map pela mesma referência', () => {
+    const comBau = updatePin(mapaComPino(), 'p1', { icon: 'bau' })
+    expect(updatePin(comBau, 'p1', { icon: 'bau' })).toBe(comBau)
   })
 })

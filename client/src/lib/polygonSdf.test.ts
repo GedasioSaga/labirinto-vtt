@@ -39,5 +39,8 @@ describe('createPolygonDistance', () => {
       }
     }
     expect(exactNearBorder).toBeGreaterThan(100)
-  })
+    // ~14 mil pontos contra a força bruta de 300 arestas: leva ~1 s na máquina
+    // parada e passou de 7 s com quatro builders rodando Playwright ao mesmo
+    // tempo (22/09). O teto padrão de 5 s reprovava a suíte inteira por carga.
+  }, 30_000)
 })

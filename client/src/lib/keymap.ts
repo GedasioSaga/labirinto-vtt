@@ -1,4 +1,5 @@
 import type { DrawingTool } from '../types/tools'
+import { FEATURES, type FeatureFlags } from './features'
 
 /**
  * Mapa de teclado — itens 5 e 7 do `docs/PLANO-REFINAMENTO.md` (Onda 1,
@@ -26,6 +27,15 @@ export interface ShortcutEvent {
   shiftKey: boolean
   altKey: boolean
   targetTagName: string
+  /** `type` do INPUT focado, em minúsculas (`'checkbox'`, `'text'`…); ignorado
+   *  nas outras tags. Ausente num INPUT = campo de texto, o lado seguro: na
+   *  dúvida a letra continua sendo letra. */
+  targetInputType?: string
+  /** O alvo é `contenteditable` — digita como um campo, mesmo sem ser INPUT. */
+  targetContentEditable?: boolean
+  /** Há rascunho ponto a ponto aberto (Região, Área poligonal, Chão corredor).
+   *  Com ele, Ctrl+Z e Backspace tiram o último ponto do rascunho. */
+  hasPointDraft?: boolean
 }
 
 export type Action =
@@ -45,6 +55,11 @@ export type Action =
   | { kind: 'deleteSelected' }
   | { kind: 'undo' }
   | { kind: 'redo' }
+  /** Tira o último ponto do rascunho aberto; sem ponto sobrando, cancela o rascunho. */
+  | { kind: 'undoDraftPoint' }
+  /** `?` — alterna o pino selecionado entre "!" e "?". Sem pino selecionado,
+   *  quem executa não faz nada: a tecla fica livre para outro papel. */
+  | { kind: 'togglePinType' }
 
 /**
  * Tabela ferramenta → letra, para o integrador mostrar no `data-tip` de cada
@@ -70,6 +85,16 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   room: 'N',
   roomCircle: 'J',
   roomPolygon: 'Q',
+  // Sala livre NASCEU SEM ATALHO, e isso é decisão de integração, não esquecimento:
+  // ela e o Pino foram construídos em árvores separadas no mesmo dia e as duas
+  // escolheram 'Y', a última letra livre (F é "enquadrar tudo" e Z fica reservada
+  // ao Ctrl+Z, para quem erra o Ctrl não trocar de ferramenta sem querer). Duas
+  // ferramentas na mesma letra fazem o índice letra→ferramenta perder uma delas
+  // em silêncio. O Pino ficou com Y por ser anotação avulsa, usada no meio do
+  // desenho; a Sala livre é a quarta forma da família Sala e o caminho natural
+  // dela é o botão, ao lado de Sala, Sala Circular e Polígono Regular.
+  // String vazia = sem letra; `buildToolByLetter` pula.
+  roomFree: '',
   stair: 'S',
   token: 'K',
   prop: 'B',
@@ -86,16 +111,48 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   // Chão: nenhuma letra mnemônica sobrou (C/H/A ocupadas); I é livre e
   // X/Y/Z seguem sem atalho de propósito (keymap.test.ts).
   floor: 'I',
+  // Zona oculta: todas as letras mnemônicas já estavam ocupadas; X ("área
+  // riscada") era uma das livres. Z segue sem atalho.
+  concealZone: 'X',
+  // Pino (ponto de interesse): P é do Pincel e I do Chão; Y era a única letra
+  // livre além de Z.
+  pin: 'Y',
+  // Caminho nasce SEM letra, pelo mesmo motivo da Sala livre acima: quando ele
+  // chegou não sobrava nenhuma (C/H/A/I/P/X/Y ocupadas; F é "enquadrar tudo" e
+  // Z fica reservada ao Ctrl+Z). String vazia = `buildToolByLetter` pula, e a
+  // ferramenta fica alcançável pelo botão da barra, ao lado do Chão.
+  path: '',
 }
 
-const TOOL_BY_LETTER = new Map<string, DrawingTool>()
-for (const tool of Object.keys(TOOL_SHORTCUTS) as DrawingTool[]) {
-  // `Object.keys` devolve `string[]` na lib padrão do TS — limitação
-  // conhecida da própria assinatura, não imprecisão nossa: `TOOL_SHORTCUTS`
-  // é `Record<DrawingTool, string>` EXAUSTIVO (comentário acima), então toda
-  // chave que sai daqui é garantidamente uma `DrawingTool` de verdade.
-  TOOL_BY_LETTER.set(TOOL_SHORTCUTS[tool].toLowerCase(), tool)
+/** Ferramentas escondidas por flag: a letra delas fica na tabela, mas não aciona nada. */
+export function hiddenTools(flags: Readonly<FeatureFlags> = FEATURES): ReadonlySet<DrawingTool> {
+  const hidden = new Set<DrawingTool>()
+  if (!flags.tokenTool) hidden.add('token')
+  return hidden
 }
+
+/**
+ * Índice letra → ferramenta, pulando as escondidas. `TOOL_SHORTCUTS` segue
+ * exaustivo; religar a ferramenta é trocar a flag, sem mexer na tabela.
+ */
+export function buildToolByLetter(hidden: ReadonlySet<DrawingTool>): Map<string, DrawingTool> {
+  const byLetter = new Map<string, DrawingTool>()
+  for (const tool of Object.keys(TOOL_SHORTCUTS) as DrawingTool[]) {
+    // `Object.keys` devolve `string[]` na lib padrão do TS — limitação
+    // conhecida da própria assinatura, não imprecisão nossa: `TOOL_SHORTCUTS`
+    // é `Record<DrawingTool, string>` EXAUSTIVO (comentário acima), então toda
+    // chave que sai daqui é garantidamente uma `DrawingTool` de verdade.
+    if (hidden.has(tool)) continue
+    const letra = TOOL_SHORTCUTS[tool]
+    // Ferramenta sem letra (string vazia) fica fora do índice: só a barra a
+    // alcança. Sem esta guarda, todas elas colidiriam na chave ''.
+    if (letra.length === 0) continue
+    byLetter.set(letra.toLowerCase(), tool)
+  }
+  return byLetter
+}
+
+const TOOL_BY_LETTER = buildToolByLetter(hiddenTools())
 
 type ArrowKey = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
 
@@ -112,8 +169,40 @@ function isArrowKey(key: string): key is ArrowKey {
   return key === 'ArrowUp' || key === 'ArrowDown' || key === 'ArrowLeft' || key === 'ArrowRight'
 }
 
-function isEditableTarget(tagName: string): boolean {
-  return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT'
+/**
+ * Tipos de INPUT que NÃO recebem digitação: marcar, escolher, arrastar,
+ * apertar. Com o foco num deles a letra não tem onde cair, então ela volta a
+ * ser atalho (achado 10 do passeio de 20/09/2026: clicar no interruptor
+ * "Mostrar grade" matava o W até alguém clicar no mapa).
+ *
+ * É lista do que NÃO digita, e não do que digita, de propósito: tipo
+ * desconhecido ou futuro (e o `type` ausente, que o HTML trata como `text`)
+ * continua sendo campo de texto — errar para esse lado só custa um atalho,
+ * errar para o outro troca de ferramenta no meio de um nome.
+ */
+const INPUT_QUE_NAO_DIGITA: ReadonlySet<string> = new Set([
+  'checkbox',
+  'radio',
+  'range',
+  'button',
+  'submit',
+  'reset',
+  'color',
+  'file',
+  'image',
+])
+
+/**
+ * O foco está num lugar onde a tecla vira TEXTO? Campo de texto (INPUT de
+ * digitar, TEXTAREA), lista suspensa (SELECT, que salta pela inicial) e
+ * `contenteditable`. Interruptor, rádio, controle deslizante e botão não.
+ */
+export function isEditableTarget(tagName: string, inputType?: string, contentEditable = false): boolean {
+  if (contentEditable) return true
+  if (tagName === 'TEXTAREA' || tagName === 'SELECT') return true
+  if (tagName !== 'INPUT') return false
+  if (inputType === undefined) return true
+  return !INPUT_QUE_NAO_DIGITA.has(inputType.toLowerCase())
 }
 
 /**
@@ -132,7 +221,7 @@ function isEditableTarget(tagName: string): boolean {
  */
 export function resolveShortcut(evt: ShortcutEvent): Action | null {
   if (evt.key === 'Escape') return { kind: 'cancel' }
-  if (isEditableTarget(evt.targetTagName)) return null
+  if (isEditableTarget(evt.targetTagName, evt.targetInputType, evt.targetContentEditable)) return null
 
   const ctrlOrCmd = evt.ctrlKey || evt.metaKey
   const key = evt.key
@@ -140,7 +229,9 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
 
   if (ctrlOrCmd) {
     if (lower === 'z' && evt.shiftKey) return { kind: 'redo' }
-    if (lower === 'z') return { kind: 'undo' }
+    // Com rascunho aberto o último ponto é o "último passo" do mestre;
+    // desfazer o mapa aqui apagava a Sala anterior e deixava o rascunho vivo.
+    if (lower === 'z') return evt.hasPointDraft ? { kind: 'undoDraftPoint' } : { kind: 'undo' }
     if (lower === 'y') return { kind: 'redo' }
     if (lower === 'd') return { kind: 'duplicate' }
     if (lower === 's') return { kind: 'save' }
@@ -150,6 +241,7 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
     return null
   }
 
+  if (key === 'Backspace' && evt.hasPointDraft) return { kind: 'undoDraftPoint' }
   if (key === 'Delete' || key === 'Backspace') return { kind: 'deleteSelected' }
 
   if (isArrowKey(key)) {
@@ -167,6 +259,12 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
   // `F`=enquadrar). Shift e Alt já têm significado próprio nas setas acima;
   // exigir ausência dos dois aqui evita, por exemplo, Shift+V competir no
   // futuro com um atalho de Shift+letra que venha a existir.
+  //
+  // `?` é a exceção, e vem ANTES da trava: ele só existe com Shift (Shift+/
+  // no teclado americano e no ABNT2), então a trava o engolia sempre. Lê
+  // `key`, não a tecla física, para valer em qualquer layout. Alt fica de
+  // fora pelo mesmo motivo das letras.
+  if (key === '?' && !evt.altKey) return { kind: 'togglePinType' }
   if (evt.shiftKey || evt.altKey) return null
 
   if (lower === 'f') return { kind: 'fitAll' }

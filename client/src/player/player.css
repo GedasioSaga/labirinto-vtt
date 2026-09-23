@@ -1,0 +1,1047 @@
+/*
+ * Página do jogador — folha única do lado JavaScript.
+ *
+ * Dois blocos, sem colisão entre eles:
+ *   `.pe-*`  telas de TEXTO (entrar, esperar, conectar, erro do desenho);
+ *   `.pp-*`  painel sobre o canvas, durante o jogo.
+ *
+ * Cores das custom properties `--lb-*` de `theme.ts` (injetadas por
+ * `player/main.tsx`), as mesmas do editor: pedra escura, pergaminho, latão.
+ * Os fallbacks de cada `var()` repetem o mesmo valor e só entram se o tema
+ * ainda não tiver sido injetado.
+ *
+ * As regras `.pe-*` moraram numa string dentro de `main.tsx` até 17/09/2026.
+ * Vieram para cá porque dobraram de tamanho: 400 linhas de CSS dentro de um
+ * template literal não têm destaque de sintaxe, nem formatação, nem busca.
+ *
+ * O que NÃO está aqui: o fundo escuro da página. Em `npm run dev` o Vite serve
+ * este arquivo como módulo JavaScript, então nada daqui chega ao navegador com
+ * o script desligado. `player.html` traz a casca escura embutida, e é lá que
+ * `html`, `body` e a tela sem JavaScript moram.
+ */
+
+/* ========================================================== telas de texto */
+
+/*
+ * A tela inteira, e não um cartão solto no meio do nada.
+ *
+ * Três camadas, todas em CSS, nenhuma dependendo de imagem ou de rede:
+ *   1. a pedra do fundo (`--lb-color-ink`);
+ *   2. o halo do lampião caindo do alto — o mesmo `.lb-start::after` da tela
+ *      inicial do editor, aqui em tela cheia porque não há preview ao lado;
+ *   3. a grade do mapa, apagando nas bordas (`.lb-start::before` do editor).
+ * Mais a ficha acesa lá embaixo: é o mesmo azul que marca o SEU token dentro
+ * do jogo (`OWN_TOKEN_COLOR`, #3b82f6), uma promessa do que essa pessoa vai
+ * ser daqui a um minuto.
+ */
+.pe-page {
+  position: relative;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  color: var(--lb-color-parchment, #eceae4);
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  line-height: 1.45;
+  background-color: var(--lb-color-ink, #121214);
+  background-image:
+    radial-gradient(ellipse 900px 620px at 50% 4%, rgba(224, 164, 74, 0.18) 0%, rgba(224, 164, 74, 0) 68%),
+    radial-gradient(circle 170px at 30% 74%, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0) 72%);
+  background-repeat: no-repeat;
+}
+
+/* Grade do mapa. `--lb-color-line` é 8% de branco: some nas bordas pela
+   máscara e nunca compete com o cartão. */
+.pe-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--lb-color-line, rgba(255, 255, 255, 0.08)) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lb-color-line, rgba(255, 255, 255, 0.08)) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.55;
+  -webkit-mask-image: radial-gradient(ellipse 78% 62% at 50% 36%, #000 0%, transparent 100%);
+  mask-image: radial-gradient(ellipse 78% 62% at 50% 36%, #000 0%, transparent 100%);
+  pointer-events: none;
+}
+
+/* A ficha acesa sobre a grade. Fora da coluna do cartão de propósito: é
+   atmosfera, não conteúdo, e no celular o cartão passa por cima dela. */
+.pe-page::after {
+  content: '';
+  position: absolute;
+  left: 30%;
+  top: 74%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: #3b82f6;
+  box-shadow:
+    0 0 0 3px rgba(59, 130, 246, 0.3),
+    0 0 26px 10px rgba(59, 130, 246, 0.28);
+  pointer-events: none;
+}
+
+.pe-card {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 400px;
+  display: grid;
+  gap: 20px;
+  padding: 26px 28px 28px;
+  background: var(--lb-color-stone-solid, #1a1a1e);
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-xl, 20px);
+  box-shadow:
+    var(--lb-shadow-lg, 0 18px 44px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.34)),
+    var(--lb-shadow-bevel, inset 0 1px 0 rgba(255, 255, 255, 0.07));
+}
+
+.pe-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pe-brand__mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--lb-radius-md, 9px);
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+  border: 1px solid rgba(224, 164, 74, 0.24);
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+.pe-title {
+  margin: 0;
+  font-family: var(--lb-font-display, Georgia, serif);
+  font-size: 27px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.pe-form {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+}
+
+.pe-field {
+  display: grid;
+  gap: 6px;
+}
+
+.pe-label {
+  font-size: 14px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pe-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  font-family: inherit;
+  /* Abaixo de 16px o iOS dá zoom sozinho ao focar e joga o resto da tela para fora. */
+  font-size: 18px;
+  color: var(--lb-color-parchment, #eceae4);
+  caret-color: var(--lb-color-brass, #e0a44a);
+  background: var(--lb-color-stone-raised, #232328);
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-md, 9px);
+  transition:
+    border-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+.pe-input::placeholder {
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+.pe-input:hover:not(:focus) {
+  border-color: var(--lb-color-line-divider, rgba(255, 255, 255, 0.26));
+}
+
+/*
+ * O código é o herói da tela: é o único dado que vem de fora da cabeça do
+ * jogador, ditado em voz alta na mesa. Fonte condensada, corpo grande e
+ * entreletra larga fazem cada caractere ser conferido um a um. O `text-indent`
+ * devolve a folga que a entreletra deixa depois da última letra — sem ele o
+ * texto centrado fica visivelmente à esquerda.
+ */
+.pe-input--code {
+  font-family: var(--lb-font-utility, 'Bahnschrift', 'DIN Alternate', system-ui, sans-serif);
+  font-size: 30px;
+  line-height: 1.1;
+  padding: 12px;
+  text-align: center;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+}
+
+.pe-input:focus {
+  border-color: var(--lb-color-brass, #e0a44a);
+  background: var(--lb-color-stone-hover, #2c2c33);
+}
+
+.pe-input:focus-visible,
+.pe-btn:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+.pe-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+/* A frase logo abaixo da marca: é o que a tela tem a dizer antes dos rótulos.
+   Maior que `.pe-hint` de propósito — no tamanho de dica ela virava legenda
+   do wordmark e ninguém lia. */
+.pe-lead {
+  margin: 0;
+  font-size: 15px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pe-notice {
+  margin: 0;
+  font-size: 16px;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.pe-notice--error {
+  color: var(--lb-color-ember, #e2645a);
+}
+
+.pe-btn {
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: 12px 16px;
+  font-family: inherit;
+  font-size: 17px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone-raised, #232328);
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-md, 9px);
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    border-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+.pe-btn--primary {
+  min-height: 52px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--lb-color-brass-contrast, #1c1608);
+  background: var(--lb-color-brass, #e0a44a);
+  border-color: transparent;
+}
+
+.pe-btn:hover:not(:disabled) {
+  background: var(--lb-color-stone-hover, #2c2c33);
+}
+
+.pe-btn--primary:hover:not(:disabled) {
+  background: var(--lb-color-brass-bright, #f3ba66);
+}
+
+.pe-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/*
+ * Desabilitado não é "latão apagado": 45% de opacidade sobre o latão dá um
+ * ocre sujo que ainda parece clicável, e o jogador bate nele sem entender.
+ * Vira superfície neutra — e o latão voltando de uma vez, em 110ms, é o
+ * retorno de que o formulário fechou e dá para entrar.
+ */
+.pe-btn--primary:disabled {
+  opacity: 1;
+  /* `parchment-dim`, e não `parchment-faint`: sobre `stone-raised` o apagado dá
+     4,18:1 e o rótulo do botão mais importante da tela não pode ficar abaixo de
+     4,5:1. Um degrau abaixo do texto normal já basta para ler como inativo. */
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  background: var(--lb-color-stone-raised, #232328);
+  border-color: var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+}
+
+/* Afundar 2% no toque é o retorno que diz "o dedo pegou" antes de a rede
+   responder; num botão largo 3% já vira salto, por isso 0.98 e não 0.97. */
+.pe-btn:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+.pe-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.pe-id {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  align-items: baseline;
+}
+
+.pe-id dt {
+  font-size: 13px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pe-id dd {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.pe-code {
+  font-family: var(--lb-font-utility, monospace);
+  letter-spacing: 0.22em;
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+.pe-live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+/* A frase que responde "e agora?" é a maior da tela; o resto é apoio. */
+.pe-waiting {
+  margin: 0;
+  font-size: 18px;
+}
+
+.pe-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--lb-color-brass, #e0a44a);
+  animation: pe-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pe-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* O que conferir quando a sala não responde. Lista, e não passos numerados:
+   são três coisas independentes, qualquer uma delas explica o silêncio. */
+.pe-checklist {
+  margin: 0;
+  padding: 0 0 0 18px;
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pe-checklist li::marker {
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+/*
+ * Único movimento não pedido pelo usuário nestas telas: a explicação que entra
+ * quando a espera vira falha. Anima porque é a troca que ele PRECISA notar
+ * numa tela que estava parada — 180ms, ease-out, uma vez por tentativa.
+ */
+.pe-explain {
+  display: grid;
+  gap: 12px;
+  animation: pe-rise 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes pe-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pe-dot,
+  .pe-explain {
+    animation: none;
+  }
+
+  .pe-btn,
+  .pe-input {
+    transition: none;
+  }
+}
+
+/* ==================================================== painel sobre o canvas */
+
+.pp-panel {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  width: 248px;
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  padding: 12px;
+  display: grid;
+  gap: 14px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-lg, 10px);
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+}
+
+.pp-toggle {
+  display: none;
+}
+
+/* Aviso curto da porta ("Trancada"): sobe do rodapé, no meio da tela, e some sozinho. */
+.pp-notice {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  margin: 0;
+  padding: 8px 14px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 14px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  animation: pp-notice-in 160ms ease-out;
+}
+
+@keyframes pp-notice-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-notice {
+    animation: none;
+  }
+}
+
+.pp-section {
+  display: grid;
+  gap: 8px;
+}
+
+.pp-heading {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-empty {
+  margin: 0;
+  color: var(--lb-color-parchment-faint, #6d6c68);
+}
+
+.pp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.pp-character,
+.pp-button,
+.pp-toggle {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--lb-radius-md, 6px);
+}
+
+.pp-character {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.pp-character:hover {
+  background: var(--lb-color-stone-hover, #2c2c33);
+}
+
+.pp-character__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
+.pp-button,
+.pp-toggle {
+  padding: 8px 10px;
+  background: var(--lb-color-stone-raised, #232328);
+  border: 1px solid var(--lb-color-brass, #e0a44a);
+  color: var(--lb-color-brass-bright, #f3ba66);
+  font-weight: 600;
+}
+
+.pp-button:hover:not(:disabled),
+.pp-toggle:hover {
+  background: var(--lb-color-brass-soft, rgba(224, 164, 74, 0.14));
+}
+
+.pp-button:disabled {
+  cursor: not-allowed;
+  border-color: var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  color: var(--lb-color-parchment-faint, #6d6c68);
+}
+
+/* "Medir" mantém o nome ao ligar (é um interruptor): o estado aparece no
+   preenchimento, e o alvo tem 44 px porque no celular ele é tocado com o dedo. */
+.pp-button--toggle {
+  min-height: 44px;
+}
+
+.pp-button--toggle[aria-pressed='true'] {
+  background: var(--lb-color-brass, #e0a44a);
+  color: var(--lb-color-stone, #131317);
+}
+
+.pp-button--toggle[aria-pressed='true']:hover {
+  background: var(--lb-color-brass-bright, #f3ba66);
+}
+
+/* Rótulo da régua do jogador: segue a ponta da medida (posição escrita pelo
+   gesto, em transform). Por cima do mapa e abaixo do painel; não pega toque,
+   senão o dedo que passa por cima dele interromperia o arrasto. */
+.pp-measure-label {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  pointer-events: none;
+  padding: 2px 8px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-md, 6px);
+}
+
+.pp-measure-label[hidden] {
+  display: none;
+}
+
+.pp-field {
+  display: grid;
+  gap: 4px;
+}
+
+.pp-field__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pp-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass-bright, #f3ba66);
+}
+
+.pp-range {
+  width: 100%;
+  accent-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.pp-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--lb-color-brass, #e0a44a);
+}
+
+/* "Meu personagem": nome e foto do próprio token, trocados pelo jogador. */
+.pp-label {
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font: inherit;
+  color: inherit;
+  background: var(--lb-color-stone-deep, rgba(0, 0, 0, 0.35));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-sm, 6px);
+}
+
+.pp-input:hover {
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+/* O seletor de arquivo do navegador não se estiliza por dentro; só o botão dele. */
+.pp-file {
+  width: 100%;
+  font: inherit;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-file::file-selector-button {
+  margin-right: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: var(--lb-color-stone-deep, rgba(0, 0, 0, 0.35));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: var(--lb-radius-sm, 6px);
+}
+
+.pp-file::file-selector-button:hover {
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-error {
+  margin: 0;
+  color: var(--lb-color-danger, #e07a5f);
+}
+
+/* Foco por teclado visível em tudo que é interativo no painel (anel de latão do editor). */
+.pp-panel :focus-visible,
+.pp-toggle:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+@media (max-width: 699px) {
+  .pp-toggle {
+    display: block;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 11;
+  }
+
+  .pp-panel {
+    top: 56px;
+    width: min(280px, calc(100% - 24px));
+    max-height: calc(100% - 68px);
+  }
+
+  .pp-panel:not(.is-open) {
+    display: none;
+  }
+}
+
+/* ============================================ cartão do ponto de interesse */
+
+/*
+ * O toque no pino abre um cartão sobre o mapa. O fundo cobre a tela inteira
+ * só na PINTURA: escurece o mapa para o olho ir ao texto, mas deixa o toque e
+ * a leitura passarem (`pointer-events: none`). O "tocar fora" é ouvido na
+ * janela (`PlayerPinCard`), que segura o toque de fechar antes do canvas.
+ * Tapar o mapa com uma caixa invisível escondia do jogador o lugar onde ele
+ * está justamente quando o cartão diz "Está trancada".
+ */
+.pp-pincard__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  display: flex;
+  /* Encostado no ALTO e à DIREITA (pedido do usuário em 18/09/2026: "ao invés
+     de aparecer no meio da tela, aparece do lado direito"). O cartão fala de um
+     ponto que está no mapa, e o mapa continua à vista: centralizado, ele tapava
+     justamente a região onde o jogador acabou de tocar. */
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 24px;
+  /* Véu assimétrico, não chapado: escurecer a tela inteira a 0,62 anulava o
+     ganho de encostar o cartão à direita — o mapa sumia do mesmo jeito. O
+     escuro se concentra atrás do cartão, e a metade esquerda (onde está o pino
+     que o jogador acabou de tocar) continua legível. Clique continua pegando: é
+     a mesma caixa de sempre, só com outra pintura. */
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.28) 50%, rgba(0, 0, 0, 0.62) 100%);
+  animation: pp-pincard-fade 140ms ease-out;
+}
+
+/* Imagem em cima, texto embaixo — a ordem do pedido, e a mesma no DOM. */
+.pp-pincard {
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  /* "Um pequeno lugar" no lado direito, não meia tela: 420 px cabe a descrição
+     sem o cartão invadir o centro do mapa numa janela de 1280 px. */
+  width: min(420px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, #131317);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  animation: pp-pincard-in 160ms ease-out;
+}
+
+/*
+ * Tela estreita (celular em pé): encostar o cartão à direita numa janela de
+ * 400 px deixaria uma tira ilegível ao lado de uma faixa de mapa que também não
+ * serve para nada. Aí ele volta a ocupar a largura inteira, com respiro menor
+ * para sobrar texto, e o véu volta a ser chapado — não há "outro lado da tela"
+ * para preservar. Depois de `.pp-pincard` de propósito: mesma especificidade,
+ * quem vem por último ganha.
+ */
+@media (max-width: 699px) {
+  .pp-pincard__backdrop {
+    padding: 16px 12px;
+    background: rgba(0, 0, 0, 0.62);
+  }
+
+  .pp-pincard {
+    width: 100%;
+  }
+}
+
+/*
+ * Altura fixa com `object-fit: contain`: a área da imagem não pula de tamanho
+ * conforme a foto que o mestre escolheu, e nenhuma foto sai cortada.
+ */
+.pp-pincard__image {
+  display: block;
+  width: 100%;
+  height: 190px;
+  object-fit: contain;
+  background: #0d0d11;
+  border-radius: 14px 14px 0 0;
+}
+
+.pp-pincard__body {
+  display: flex;
+  gap: 10px;
+  padding: 14px 16px 4px;
+}
+
+/* O mesmo "!" ou "?" do pino no mapa: liga o cartão ao que foi tocado. */
+.pp-pincard__glyph {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1b1208;
+  background: #f2c14e;
+  border-radius: 999px;
+}
+
+/* Pino de viagem: o negativo do marcador, como no mapa (`pixi/drawPins.ts`) —
+   cabeça escura, aro e passagem no latão. */
+.pp-pincard__glyph--viagem {
+  color: #f2c14e;
+  background: #1b1208;
+  box-shadow: inset 0 0 0 2px #f2c14e;
+}
+
+.pp-pincard__text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.pp-pincard__close {
+  align-self: flex-end;
+  margin: 10px 12px 12px;
+  padding: 8px 18px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pp-pincard__close:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/*
+ * Pedido de passagem (pino de viagem). O botão de pedir é a ação do cartão:
+ * latão, como o botão principal do resto da tela do jogador. Chapado e sem
+ * enfeite — a mesma linguagem de minimapa do resto (fundo escuro, linha fina).
+ */
+.pp-pincard__travel {
+  align-self: stretch;
+  margin: 10px 12px 0;
+  padding: 10px 18px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lb-color-brass-contrast, #1c1608);
+  background: var(--lb-color-brass, #e0a44a);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pp-pincard__travel:hover:not(:disabled) {
+  background: var(--lb-color-brass-bright, #f3ba66);
+}
+
+/* Pedido já enviado: o botão continua ali dizendo o que aconteceu, sem convidar outro toque. */
+.pp-pincard__travel:disabled {
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  background: transparent;
+  border-color: var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  cursor: default;
+}
+
+.pp-pincard__travel:focus-visible,
+.pp-pincard__close:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+.pp-pincard__confirm {
+  display: grid;
+  gap: 8px;
+  margin: 10px 12px 0;
+  padding: 12px;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 10px;
+}
+
+.pp-pincard__question {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+/* Passagem trancada: frase, não botão — não há o que tocar. A mesma moldura
+   de linha fina da pergunta, para ler como estado da porta e não como erro. */
+.pp-pincard__locked {
+  margin: 10px 12px 0;
+  padding: 10px 12px;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 10px;
+}
+
+.pp-pincard__choices {
+  display: flex;
+  gap: 8px;
+}
+
+/* ENCRUZILHADA: uma saída por botão, empilhadas, cada uma com o rótulo que o
+   mestre escreveu. Mesma pílula do pedido simples; a lista só tira o marcador. */
+.pp-pincard__exits {
+  display: grid;
+  gap: 8px;
+  margin: 10px 12px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-pincard__exits .pp-pincard__travel {
+  width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+
+.pp-pincard__choices .pp-pincard__travel {
+  flex: 1;
+  margin: 0;
+}
+
+.pp-pincard__close--inline {
+  align-self: auto;
+  margin: 0;
+}
+
+/* Aviso da viagem: acima do aviso da porta, para os dois nunca se cobrirem. */
+.pp-notice--travel {
+  bottom: 68px;
+}
+
+@keyframes pp-pincard-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pp-pincard-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-pincard__backdrop,
+  .pp-pincard {
+    animation: none;
+  }
+}
+
+/*
+ * Recado do mestre: no ALTO e no MEIO, longe do painel (esquerda) e do cartão
+ * de pino (direita). Linguagem de minimapa: fundo escuro chapado, linha fina
+ * clara, sem textura. Não tem véu: o mapa continua inteiro à vista.
+ */
+.pp-note {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 25;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(420px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  padding: 12px 14px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, #131317);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  animation: pp-note-in 160ms ease-out;
+}
+
+@keyframes pp-note-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-note {
+    animation: none;
+  }
+}
+
+.pp-note__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+/* `pre-wrap`: a quebra de linha que o mestre digitou chega igual; `anywhere` segura palavra gigante. */
+.pp-note__text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pp-note__close {
+  align-self: flex-end;
+  padding: 6px 16px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pp-note__close:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pp-note__close:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}

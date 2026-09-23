@@ -1,3 +1,4 @@
+use tauri::Manager;
 use tauri_plugin_fs::FsExt;
 
 pub mod net;
@@ -22,7 +23,7 @@ fn grant_fs_access(app: tauri::AppHandle, path: String) -> Result<(), String> {
 #[allow(clippy::expect_used)]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(net::commands::NetState::default())
@@ -31,8 +32,16 @@ pub fn run() {
             net::commands::net_start_room,
             net::commands::net_stop_room,
             net::commands::net_send,
-            net::commands::net_kick
+            net::commands::net_kick,
+            net::commands::net_start_tunnel,
+            net::commands::net_stop_tunnel
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+    app.run(|handle, event| {
+        // Nenhum `cloudflared` pode sobreviver ao app.
+        if let tauri::RunEvent::Exit = event {
+            handle.state::<net::commands::NetState>().kill_tunnel_now();
+        }
+    });
 }

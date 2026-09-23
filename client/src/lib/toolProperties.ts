@@ -39,16 +39,27 @@ export type PropertyGroupId =
   | 'stairControls'
   | 'stairSize'
   | 'room'
-  | 'grid'
-  | 'mapScale'
-  | 'gridAlign'
+  /** Camadas (e o acesso rápido da grade). Grade, Medição, Alinhar grade e
+   *  Link de cenário deixaram de ser grupos do painel: são configuração do
+   *  mapa inteiro e vão para a janela "Configurações do mapa". */
   | 'layers'
-  | 'scenarioLink'
   | 'selection'
   /** Chão por peças: controles da peça selecionada (FloorPieceControls). */
   | 'floorPiece'
-  /** Chão por peças: estilo do chão do mapa + "Chão a partir da imagem" (FloorStyleControls). */
+  /** Chão por peças: estilo do chão do mapa (FloorStyleControls). */
   | 'floorStyle'
+  /** A5 — "Oculto para jogadores" de Região/Escada/Desenho selecionado
+   *  (Token e Objeto têm o toggle dentro de `itemTransform`). */
+  | 'playerVisibility'
+  /** A5 — Nome, "Revelar para jogadores" e excluir da zona oculta aberta. */
+  | 'concealZone'
+  /** Tipo (! / ?), descrição e imagem do ponto de interesse. */
+  | 'pin'
+  /** Cor e largura do PRÓXIMO caminho (ferramenta "Caminho"), escolhidas
+   *  ANTES do primeiro ponto — é o que separa um caminho de terra de um de
+   *  pedra. Não é dual como `regionStyle`: caminho JÁ traçado se edita pelo
+   *  `drawingStyle` do desenho selecionado, que já cobre cor e espessura. */
+  | 'pathStyle'
 
 /** Todos os IDs, na mesma ordem do type acima — usado pelo teste pra
  *  conferir exaustão sem precisar listar os valores de novo lá. */
@@ -56,8 +67,8 @@ export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'drawingStyle', 'lineCap', 'fill', 'regionStyle', 'polygonSides', 'textLabel',
   'wallStyle', 'wallDoor', 'doorKind', 'portal', 'itemTransform', 'tokenImage',
   'lightControls', 'stairControls', 'stairSize', 'room',
-  'grid', 'mapScale', 'gridAlign', 'layers', 'scenarioLink', 'selection',
-  'floorPiece', 'floorStyle',
+  'layers', 'selection',
+  'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone', 'pin', 'pathStyle',
 ]
 
 /**
@@ -96,6 +107,10 @@ export interface ToolPropertiesSelection {
   drawingKind?: Exclude<Drawing['kind'], 'text'> | null
   /** Espelha `selectedFloorPiece !== null` (peça de chão selecionada). */
   floorPiece?: boolean
+  /** A5 — zona oculta aberta no painel (`selectedConcealZoneId` existente no mapa). */
+  concealZone?: boolean
+  /** Ponto de interesse aberto no painel (`selectedPinId` existente no mapa). */
+  pin?: boolean
 }
 
 /**
@@ -131,20 +146,52 @@ const FILL_KINDS: ReadonlySet<Exclude<Drawing['kind'], 'text'>> = new Set(['circ
 const EMPTY_SELECTION: ToolPropertiesSelection = {}
 
 /**
+ * Ferramentas cuja PRÓPRIA seção de propriedade já imprime, letra por letra, o
+ * nome que o botão delas tem na barra: `wall` → `WallStyleControls` ("Parede"),
+ * `region` → `RegionStyleControls` ("Região"). Nessas duas o painel já se
+ * apresenta sozinho — repetir o nome viraria dois títulos idênticos colados.
+ *
+ * O resto da barra NÃO tem essa sorte: `room`/`roomCircle`/`roomPolygon`
+ * reaproveitam a mesma `RegionStyleControls`, então com Sala ativa o primeiro
+ * título do painel é "REGIÃO", que é o nome de OUTRA ferramenta da barra — o
+ * usuário lê e acha que apertou o botão errado (passeio cego, jornada
+ * `task-jornada-painel-com-nome-certo.spec.ts`). Escada/Peça/Luz são piores
+ * ainda: abrem em "SELEÇÃO DE ÁREA", que não fala da ferramenta nenhuma.
+ */
+const TOOLS_NAMED_BY_THEIR_OWN_SECTION: ReadonlySet<DrawingTool> = new Set<DrawingTool>(['wall', 'region'])
+
+/**
+ * Qual ferramenta o painel precisa NOMEAR no próprio topo, antes de qualquer
+ * seção — `null` quando não precisa de nenhum título extra. Puro: só decide
+ * QUEM é nomeado; o texto visível sai de `TOOL_LABELS`
+ * (`components/labels.ts`, a mesma fonte do rótulo do botão da barra — é o
+ * chamador quem traduz, porque `lib/` não depende de `components/`).
+ *
+ * Duas exceções, as duas por "o painel já diz isso":
+ * - `hasSelection` — com algo selecionado o painel é do ITEM selecionado
+ *   (Sala/Token/Parede… já abrem com o nome do item no topo), não da
+ *   ferramenta que por acaso está armada.
+ * - `select` e as de `TOOLS_NAMED_BY_THEIR_OWN_SECTION` — Selecionar não cria
+ *   nada (o painel ali é do mapa), e Parede/Região já são o título da própria
+ *   seção.
+ */
+export function panelHeadingTool(activeTool: DrawingTool, hasSelection: boolean): DrawingTool | null {
+  if (hasSelection) return null
+  if (activeTool === 'select') return null
+  if (TOOLS_NAMED_BY_THEIR_OWN_SECTION.has(activeTool)) return null
+  return activeTool
+}
+
+/**
  * Decide quais seções aparecem para `activeTool` + o que está selecionado.
  * Pura: mesma entrada sempre devolve o mesmo `Set`, sem ler DOM/store/React.
  *
- * Grupos "sempre visíveis" hoje (Grade/Medição/Alinhar grade/Camadas/
- * Cenário) passam a aparecer só num "momento de mapa" — ferramenta Selecionar
+ * Camadas (e Chão) aparecem só num "momento de mapa" — ferramenta Selecionar
  * ativa OU já existe alguma seleção — nunca enquanto uma ferramenta de
- * DESENHO está ativa sem nada selecionado, que é exatamente quando elas hoje
- * empurram "Medição" pra fora da tela (DOSSIE-FEEDBACK-F4.md). Verificado
- * contra os specs e2e existentes: nenhum interage com essas 5 seções fora de
- * `activeTool==='select'` — todos chamam `setActiveTool('select')` antes
- * (`rg "Grudar|Alinhar grade|Cenário" client/e2e`); os toggles de snap que
- * ficam DENTRO de `GridControls` são acionados nos testes direto pela store
- * (`setSnapTarget`), nunca clicando no controle, então gatear a seção não
- * quebra esses specs. `selection` (SelectionControls) fica de fora dessa
+ * DESENHO está ativa sem nada selecionado, que é quando empurravam as seções
+ * da ferramenta pra fora da tela (DOSSIE-FEEDBACK-F4.md). Grade, Medição,
+ * Alinhar grade e Link de cenário não são mais grupos daqui: são
+ * configuração do mapa e saem do painel. `selection` (SelectionControls) fica de fora dessa
  * regra: tem o botão "Adicionar token", que não depende de haver seleção —
  * escondê-la removeria a única forma de adicionar token pelo painel.
  */
@@ -164,14 +211,19 @@ export function relevantPropertyGroups(
     stair = false,
     drawingKind = null,
     floorPiece = false,
+    concealZone = false,
+    pin = false,
   } = selection
 
   const groups = new Set<PropertyGroupId>()
   const toolDrawingKind = DRAWING_TOOL_KIND[activeTool] ?? null
 
-  // Estilo de desenho (cor/espessura/preenchimento/fonte do PRÓXIMO desenho)
-  // — mesma condição de `showDrawingStyle`, PropertiesPanel.tsx:108-109.
-  if (DRAWING_STYLE_TOOLS.has(activeTool) || (activeTool === 'text' && !textLabel)) {
+  // Estilo de desenho: cor/espessura/preenchimento/fonte do PRÓXIMO desenho
+  // (ferramenta de desenho ou Texto sem rótulo selecionado) OU cor/espessura
+  // de um desenho não-texto JÁ SELECIONADO — auditoria 14/09: retângulo,
+  // linha e pincel desenhados não tinham Cor nem Espessura no painel. Quem
+  // renderiza (App.tsx) escolhe a fonte: desenho selecionado primeiro.
+  if (DRAWING_STYLE_TOOLS.has(activeTool) || (activeTool === 'text' && !textLabel) || drawingKind !== null) {
     groups.add('drawingStyle')
   }
 
@@ -194,8 +246,15 @@ export function relevantPropertyGroups(
     activeTool === 'room' ||
     activeTool === 'roomCircle' ||
     activeTool === 'roomPolygon' ||
+    activeTool === 'roomFree' ||
     region
   if (showRegionGroup) groups.add('regionStyle')
+
+  // Travar a Região/Sala SELECIONADA — pedido de 18/09/2026 ("eu fui clicar
+  // em um coisa e eu acabei movendo a ilha"). Diferente de `regionStyle`
+  // acima, NÃO é dual: não existe "travar a próxima região", só a que está
+  // selecionada — por isso `region`, não `showRegionGroup`.
+  if (region) groups.add('itemTransform')
 
   // Tirar o fundo — NOVO (F4-N2). Dois casos, doc no relatório do F4-0:
   // (a) Região/Sala — schema `Region.filled` é novo, NÃO tinha UI nenhuma,
@@ -255,6 +314,21 @@ export function relevantPropertyGroups(
 
   if (floorPiece) groups.add('floorPiece')
 
+  // A5 — texto conta como desenho: também pode ser "Oculto para jogadores".
+  // O pino entra pelo mesmo motivo: o recorte já sabe escondê-lo do jogador,
+  // e sem esta linha o toggle não teria onde aparecer.
+  if (region || stair || textLabel || drawingKind !== null || pin) groups.add('playerVisibility')
+  if (concealZone) groups.add('concealZone')
+  // Pino: com a ferramenta na mão aparece só o tipo do PRÓXIMO pino; com um
+  // pino aberto no painel, o tipo dele mais descrição e imagem.
+  if (activeTool === 'pin' || pin) groups.add('pin')
+
+  // Caminho: com a ferramenta na mão, a cor e a largura do PRÓXIMO caminho.
+  // Sem `drawingKind === 'path'` de propósito — o caminho já traçado e
+  // selecionado cai em `drawingStyle` (cor + espessura do desenho
+  // selecionado), e duplicar aqui poria dois seletores de cor na mesma tela.
+  if (activeTool === 'path') groups.add('pathStyle')
+
   const hasAnySelection =
     wall || prop || token || textLabel || region || light || stair || drawingKind !== null || floorPiece
   const isMapWideMoment = activeTool === 'select' || hasAnySelection
@@ -263,15 +337,7 @@ export function relevantPropertyGroups(
   // de mapa e também com a ferramenta Chão ativa, que é quem mais precisa dele.
   if (isMapWideMoment || activeTool === 'floor') groups.add('floorStyle')
 
-  if (isMapWideMoment) {
-    groups.add('grid')
-    groups.add('gridAlign')
-    groups.add('layers')
-    groups.add('scenarioLink')
-  }
-  // Medição também entra com a ferramenta Medir ativa — é literalmente a
-  // configuração (escala/modo de medição) que essa ferramenta consome.
-  if (isMapWideMoment || activeTool === 'measure') groups.add('mapScale')
+  if (isMapWideMoment) groups.add('layers')
 
   // Sempre — ver docstring da função ("Adicionar token" independe de seleção).
   groups.add('selection')

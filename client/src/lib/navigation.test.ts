@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { SCREEN_PARENT, parentScreen } from './navigation'
+import { SCREEN_PARENT, createMapScreen, parentScreen } from './navigation'
+import { FEATURES } from './features'
 import type { Screen } from '../types/screen'
 
 describe('parentScreen', () => {
@@ -11,8 +12,17 @@ describe('parentScreen', () => {
     expect(parentScreen('map-type')).toBe('menu')
   })
 
-  it('new-dungeon volta para map-type', () => {
-    expect(parentScreen('new-dungeon')).toBe('map-type')
+  it('new-dungeon volta para menu com as flags padrão (seletor de tipo escondido)', () => {
+    expect(parentScreen('new-dungeon')).toBe('menu')
+  })
+
+  it('new-dungeon volta para map-type com otherMapTypes ligado', () => {
+    expect(parentScreen('new-dungeon', { ...FEATURES, otherMapTypes: true })).toBe('map-type')
+  })
+
+  it('Criar Mapas abre o formulário direto com as flags padrão, e o seletor com a flag ligada', () => {
+    expect(createMapScreen()).toBe('new-dungeon')
+    expect(createMapScreen({ ...FEATURES, otherMapTypes: true })).toBe('map-type')
   })
 
   it('load-map volta para menu', () => {
