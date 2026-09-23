@@ -54,7 +54,10 @@ describe('imageExportScale', () => {
 
   it('mapa grande encolhe até o maior lado caber no limite', () => {
     const scale = imageExportScale(8000, 3000)
-    expect(8000 * scale).toBeCloseTo(IMAGE_EXPORT_MAX_SIDE_PX)
+    // Igualdade exata como controle positivo: o maior lado (8000) é quem manda, não o menor.
+    expect(scale).toBe(IMAGE_EXPORT_MAX_SIDE_PX / 8000)
+    expect(Math.round(8000 * scale)).toBe(IMAGE_EXPORT_MAX_SIDE_PX)
+    expect(scale).toBeGreaterThan(0)
     expect(scale).toBeLessThan(1)
   })
 
