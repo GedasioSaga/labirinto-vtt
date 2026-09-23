@@ -2731,7 +2731,7 @@ function precisaDeVaga(passo) {
 
 /** Nome do que ocupa a vaga, para as linhas de espera e de teto. */
 function rotuloDaVaga(passo) {
-  return passo.vaga === 'vitest' ? 'vitest' : 'Playwright'
+  return typeof passo.vaga === 'string' ? passo.vaga : 'Playwright'
 }
 
 // ---------------------------------------------------------------------------
@@ -2918,6 +2918,9 @@ const PLANO = [
     args: [TSC, '--noEmit', '-p', path.join(CLIENTE, 'tsconfig.json')],
     cwd: CLIENTE,
     ruina: [/error TS\d+/],
+    // 23/09/2026: o tsc do projeto inteiro come ~1,5 GB e um núcleo por minutos; com
+    // muitas árvores construindo ao mesmo tempo ele entra na mesma fila de vagas.
+    vaga: 'tsc',
   },
   {
     id: 'tipos-e2e',
@@ -2926,6 +2929,7 @@ const PLANO = [
     args: [TSC, '--noEmit', '-p', path.join(CLIENTE, 'tsconfig.e2e.json')],
     cwd: CLIENTE,
     ruina: [/error TS\d+/],
+    vaga: 'tsc',
   },
   {
     id: 'unidade',
