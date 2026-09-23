@@ -21,7 +21,8 @@ import { turnTokenIdOn } from './lib/initiative'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
-import type { PlayerInfo } from './net/hostSession'
+import { tableSceneKey, type PlayerInfo } from './net/hostSession'
+import { tableScreenUrl } from './lib/tableScreen'
 import { RoomPanel } from './components/RoomPanel'
 import { partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
@@ -408,6 +409,11 @@ function App() {
   // Multiplayer em LAN: ponte do mestre criada sob demanda (só dentro do Tauri, ver RoomPanel abaixo).
   const [room, setRoom] = useState<RoomInfo | null>(null)
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
+  // Tela da mesa: a cena que a TV mostra (`tableSceneKey`) e quantas TVs estão conectadas.
+  const [tableScene, setTableScene] = useState<string | null>(null)
+  const [tableScreens, setTableScreens] = useState(0)
+  // A chave do link da TV, gerada pela sala: sem ela o código sozinho não vira tela.
+  const [tableKey, setTableKey] = useState<string | null>(null)
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
   // INICIATIVA (aba Jogo): valores por cena e a vez. Estado da mesa, fora do arquivo do mapa.
@@ -494,6 +500,7 @@ function App() {
         onTunnelChange: setTunnel,
         // A vez vai no snapshot, recortada por jogador (`turnForPlayer`): ficha que ele não vê não vira vez.
         getTurn: () => useInitiativeStore.getState().turn,
+        onTableScreensChange: setTableScreens,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
         // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
         // outro mapa): vira o aviso "chamou em", com "Ir lá" (`net/chamadoDeFundo.ts`).
@@ -534,7 +541,9 @@ function App() {
   )
   const handleStartRoom = async () => {
     try {
-      setRoom(await hostBridge().start())
+      const bridge = hostBridge()
+      setRoom(await bridge.start())
+      setTableKey(bridge.tableKey())
     } catch {
       // A ponte já mostrou o toast com o motivo; o painel continua com a sala fechada.
     }
@@ -543,6 +552,9 @@ function App() {
     await hostBridgeRef.current?.stop()
     setRoom(null)
     setRoomPlayers([])
+    // Sala nova nasce sem cena na TV: a sessão de agora morreu com a escolha.
+    setTableScene(null)
+    setTableKey(null)
     useSignalStore.getState().clear()
     useLaserStore.getState().setToggled(false)
   }
@@ -610,6 +622,16 @@ function App() {
             onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}
             laserOn={laserToggled}
             onToggleLaser={() => useLaserStore.getState().setToggled(!useLaserStore.getState().toggled)}
+            table={{
+              url: room === null || room.urls[0] === undefined || tableKey === null ? null : tableScreenUrl(room.urls[0], room.code, tableKey),
+              scenes: [world.open, ...world.background].map((scene) => ({ key: tableSceneKey(scene), name: scene.name })),
+              sceneKey: tableScene,
+              screens: tableScreens,
+              onSceneChange: (key) => {
+                setTableScene(key)
+                hostBridgeRef.current?.setTableScene(key)
+              },
+            }}
           />
         }
       />

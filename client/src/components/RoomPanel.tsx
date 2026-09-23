@@ -2,6 +2,7 @@ import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type PlayerIn
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
 import { InitiativeSection, type InitiativeSectionProps } from './InitiativeSection'
+import { TableScreenSection, type TableScreenSectionProps } from './TableScreenSection'
 
 export interface RoomPanelToken {
   id: string
@@ -36,6 +37,8 @@ export interface RoomPanelProps {
   /** Botão "Laser" ligado: arma o laser (independe de segurar L); o traço sai clicando no mapa. */
   laserOn?: boolean
   onToggleLaser?(): void
+  /** Seção "Tela da mesa" (link da TV e a cena que ela mostra). Ausente = sem a seção. */
+  table?: TableScreenSectionProps
 }
 
 export const PLAN_HINT = 'Revelar planta mostra paredes, salas e portas, sem os tokens. Zonas ocultas continuam escondidas.'
@@ -197,6 +200,7 @@ export function RoomPanel({
   onHidePlan,
   laserOn = false,
   onToggleLaser,
+  table,
 }: RoomPanelProps) {
   const waitingCount = players.filter((player) => player.status === 'waiting' && player.connected).length
   return (
@@ -237,6 +241,8 @@ export function RoomPanel({
               <p className="lb-label">{LASER_HINT}</p>
             </div>
           )}
+
+          {table !== undefined && <TableScreenSection {...table} />}
 
           <TunnelSection tunnel={tunnel} onStartTunnel={onStartTunnel} onStopTunnel={onStopTunnel} />
 

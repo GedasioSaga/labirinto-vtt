@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { ConcealZone, MapData, Token, TokenWatch, Wall } from '../types/map'
-import { filterMapForPlayer } from './fogFilter'
+import { filterMapForGroup, filterMapForPlayer } from './fogFilter'
 import { createEmptyMap } from './mapFactory'
 
 function ficha(id: string, x: number, y: number, extra: Partial<Token> = {}): Token {
@@ -114,6 +114,42 @@ describe('filterMapForPlayer — olhos do guarda', () => {
   it('vigia posta na ficha do PRÓPRIO jogador também não sai para ele', () => {
     const out = filterMapForPlayer(mesa([ficha('heroi', 200, 200, { vigia: LESTE })]), 'p1', DONOS, RAIO)
     expect(out.map.tokens.map((t) => t.id)).toEqual(['heroi'])
+    expect(JSON.stringify(out)).not.toContain('vigia')
+  })
+})
+
+/**
+ * TELA DA MESA: o recorte de GRUPO (`filterMapForGroup`) só conhece as fichas
+ * do próprio grupo. A marca é medida contra as fichas de TODOS os jogadores,
+ * que chegam de fora (`watchTargets`); o cone nunca sai, igual ao jogador.
+ */
+describe('filterMapForGroup — olhos do guarda na tela da mesa', () => {
+  it('guarda que o grupo vê olhando para ele: "!" e sem o cone', () => {
+    const mapa = mesa([ficha('heroi', 200, 200), ficha('sentinela', 300, 200, { vigia: OESTE })])
+    const out = filterMapForGroup(mapa, [{ tokenIds: ['heroi'], visionRadius: RAIO }], undefined, undefined, new Set(['heroi', 'ladra']))
+    expect(guardaNo(out.map)?.alerta).toBe('!')
+    const texto = JSON.stringify(out)
+    expect(texto).not.toContain('vigia')
+    expect(texto).not.toContain('direcao')
+    expect(texto).not.toContain('abertura')
+    expect(texto).not.toContain('alcance')
+  })
+
+  it('o guarda viu a ficha de um jogador FORA do grupo: a marca vem, quem ele viu não', () => {
+    // Raio 400: o herói (x=100) vê o guarda (x=400) mas não a ladra (x=600), que não é do grupo.
+    const mapa = mesa([ficha('heroi', 100, 200), ficha('sentinela', 400, 200, { vigia: LESTE }), ficha('ladra', 600, 200)])
+    const out = filterMapForGroup(mapa, [{ tokenIds: ['heroi'], visionRadius: 400 }], undefined, undefined, new Set(['heroi', 'ladra']))
+    expect(guardaNo(out.map)?.alerta).toBe('?')
+    expect(out.map.tokens.map((t) => t.id).sort()).toEqual(['heroi', 'sentinela'])
+    expect(JSON.stringify(out)).not.toContain('ladra')
+  })
+
+  it('sem quem vigiar passado de fora, vale o grupo: guarda olhando para quem não é jogador fica sem marca', () => {
+    const mapa = mesa([ficha('heroi', 100, 200), ficha('sentinela', 400, 200, { vigia: LESTE }), ficha('ladra', 600, 200)])
+    const out = filterMapForGroup(mapa, [{ tokenIds: ['heroi'], visionRadius: 400 }])
+    const guarda = guardaNo(out.map)
+    expect(guarda).toBeDefined()
+    expect(guarda !== undefined && 'alerta' in guarda).toBe(false)
     expect(JSON.stringify(out)).not.toContain('vigia')
   })
 })

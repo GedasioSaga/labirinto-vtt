@@ -18,7 +18,7 @@ import {
   type PlayerInfo,
   type TravelRequest,
 } from './hostSession'
-import type { DoorRequestHow, LaserMessage } from './protocol'
+import type { DoorRequestHow, HostErrorReason, LaserMessage } from './protocol'
 import { guardSightingNotices } from './guardNotices'
 import type { TurnRef } from '../lib/initiative'
 
@@ -100,6 +100,8 @@ export interface HostBridgeDeps {
   onSignal?: (signal: HostSignal) => void
   /** INICIATIVA: de quem é a vez no mestre. O jogador só recebe o recorte (`turnForPlayer`). */
   getTurn?: () => TurnRef | null
+  /** TELA DA MESA: quantas telas estão conectadas mudou (entrou, caiu, sala fechou). */
+  onTableScreensChange?: (screens: number) => void
   now?: () => number
 }
 
@@ -140,9 +142,25 @@ export interface HostBridge {
   sceneNote(sceneId: string, text: string): number | null
   /** A vez mudou (começar, próxima, encerrar): snapshot na hora, para o "sua vez" não esperar outra edição. */
   notifyTurnChanged(): void
+  /**
+   * TELA DA MESA: a cena que a TV mostra (`tableSceneKey`), ou `null` para ela
+   * esperar. Snapshot imediato. Sala fechada: nada.
+   */
+  setTableScene(key: string | null): void
+  /** TELA DA MESA: a chave do link da TV desta sala; `null` com a sala fechada. */
+  tableKey(): string | null
 }
 
 export const BROADCAST_THROTTLE_MS = 50
+
+/**
+ * Erros no `join` que derrubam a conexão depois de responder. O Rust só solta
+ * a vaga de jogador (`MAX_PLAYERS`) quando o socket fecha: a TV recusada por
+ * `table_full` ou sem a chave certa seguraria a vaga enquanto a página ficasse
+ * aberta, mandando ping. `bad_code` fica de fora: o jogador corrige o código.
+ */
+const KICK_ON_JOIN_ERROR: ReadonlySet<HostErrorReason> = new Set<HostErrorReason>(['invalid_message', 'table_full', 'bad_table_key'])
+
 /**
  * O aviso de jogador novo fica mais tempo que um info comum (4 s): o mestre
  * costuma estar desenhando no mapa, de olho no canvas e não no rail, e perder
@@ -256,6 +274,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let pendingBroadcast: ReturnType<typeof setTimeout> | null = null
   let pendingStart: Promise<RoomInfo> | null = null
   let lastPlayersKey = '[]'
+  let lastTableScreens = 0
   let tunnelState: TunnelState = TUNNEL_IDLE
   let lastTunnelKey = JSON.stringify(TUNNEL_IDLE)
   let pendingTunnel: Promise<void> | null = null
@@ -367,6 +386,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   const notifyPlayersIfChanged = () => {
+    const screens = session?.tableScreens() ?? 0
+    if (screens !== lastTableScreens) {
+      lastTableScreens = screens
+      deps.onTableScreensChange?.(screens)
+    }
     const list = session?.listPlayers(world()) ?? []
     const key = JSON.stringify(list)
     if (key === lastPlayersKey) return
@@ -446,6 +470,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (lastBadCodeToastAt !== null && at - lastBadCodeToastAt < BAD_CODE_TOAST_INTERVAL_MS) return
     lastBadCodeToastAt = at
     useToastStore.getState().push('info', `Alguém tentou entrar com o código errado. O código desta sala é ${code}.`, PLAYER_JOINED_TOAST_MS)
+  }
+
+  /** A TV entrou: sem cena escolhida ela fica esperando, e o aviso diz onde escolher. */
+  const announceTable = () => {
+    const text =
+      session?.tableScene() === null
+        ? 'A tela da mesa conectou. Escolha a cena dela na aba Jogo.'
+        : 'A tela da mesa conectou.'
+    useToastStore.getState().push('info', text, PLAYER_JOINED_TOAST_MS)
   }
 
   const announceJoin = (clientId: string) => {
@@ -658,11 +691,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
     if (clientId === null) return
-    const wasJoined = session.listPlayers().some((p) => p.clientId === clientId)
+    // Tela da mesa conta como "já entrou": o lixo que ela mandasse depois não a derruba como join recusado.
+    const wasTable = session.isTable(clientId)
+    const wasJoined = wasTable || session.listPlayers().some((p) => p.clientId === clientId)
     const result = session.handleMessage(clientId, event.payload.msg, world())
-    const rejectedJoin = !wasJoined && result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'invalid_message')
+    const rejectedJoin = !wasJoined && result.outbound.some((o) => o.msg.type === 'error' && KICK_ON_JOIN_ERROR.has(o.msg.reason))
     if (rejectedJoin) {
-      // Conexão que nem entrou manda lixo: responde e libera a vaga no Rust.
+      // Conexão que nem entrou manda lixo, ou é TV recusada: responde e libera a vaga no Rust.
       void sendThenKick(result, clientId)
       return
     }
@@ -712,6 +747,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     notifyPlayersIfChanged()
     if (wasJoined) return
     if (result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'bad_code')) announceBadCode()
+    else if (session.isTable(clientId)) announceTable()
     else announceJoin(clientId)
   }
 
@@ -851,6 +887,16 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.sceneNote(sceneId, text, world())
       void dispatch(result)
       return result.outbound.length
+    },
+
+    setTableScene(key) {
+      if (session === null) return
+      session.setTableScene(key)
+      broadcastNow()
+    },
+
+    tableKey() {
+      return session?.tableKey() ?? null
     },
 
     assignToken(playerId, tokenId) {

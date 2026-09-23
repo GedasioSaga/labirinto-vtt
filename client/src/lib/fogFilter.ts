@@ -447,10 +447,53 @@ export function filterMapForPlayer(
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
 ): PlayerMapView {
+  // Jogador sem entrada de posse não tem token nem visão. A marca do guarda
+  // (?, !) mede as fichas de TODOS os jogadores, não só as dele.
+  return filterMapForGroup(map, [{ tokenIds: ownership[playerId] ?? [], visionRadius }], explored, seenDoors, allPlayerTokens(ownership))
+}
+
+/** OLHOS DO GUARDA: as fichas de todos os jogadores da sala — quem a marca do guarda considera. */
+export function allPlayerTokens(ownership: Readonly<Record<string, readonly string[]>>): ReadonlySet<string> {
+  return new Set(Object.values(ownership).flat())
+}
+
+/** Um membro do grupo que a tela da mesa acompanha: as fichas dele e o raio de visão DELE. */
+export interface GroupViewer {
+  tokenIds: readonly string[]
+  visionRadius: number
+}
+
+/**
+ * TELA DA MESA — o recorte de um GRUPO: a união do que as fichas de cada
+ * membro enxergam, cada uma com o raio do próprio jogador (o raio maior do
+ * grupo nunca vale para os outros). As fichas do grupo fazem o papel da ficha
+ * própria do jogador: saem sempre, abrem teto de prédio e enxergam. Todo o
+ * resto — névoa, zona oculta, sala secreta, teto, nome da cena, metadado do
+ * mestre — é exatamente a regra de `filterMapForPlayer`, que é este mesmo
+ * recorte com um grupo de um.
+ *
+ * `watchTargets`: as fichas que a marca do guarda (?, !) considera — as de
+ * TODOS os jogadores (`allPlayerTokens`), porque o guarda que o grupo vê pode
+ * ter visto quem não é do grupo. Sem ele, só as fichas do grupo contam.
+ */
+export function filterMapForGroup(
+  map: MapData,
+  viewers: readonly GroupViewer[],
+  explored?: Exploration,
+  seenDoors?: ReadonlyMap<string, DoorState>,
+  watchTargets?: ReadonlySet<string>,
+): PlayerMapView {
   const hiddenLayers = map.hiddenLayers
-  const owned = new Set(ownership[playerId] ?? []) // jogador sem entrada de posse não tem token nem visão
+  // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
+  const radiusByToken = new Map<string, number>()
+  for (const viewer of viewers) {
+    for (const id of viewer.tokenIds) if (!radiusByToken.has(id)) radiusByToken.set(id, viewer.visionRadius)
+  }
+  const owned: ReadonlySet<string> = new Set(radiusByToken.keys())
   const layerTokens = visibleTokens(map.tokens, hiddenLayers)
   const ownTokens = layerTokens.filter((t) => owned.has(t.id) && !t.hidden)
+  // `ownTokens` só tem id que está em `radiusByToken`; o 0 nunca é usado.
+  const radiusOf = (token: Token): number => radiusByToken.get(token.id) ?? 0
 
   // Zona oculta ativa: ponto dentro dela não conta como visível nem explorado.
   // A visão continua passando (a zona esconde conteúdo, não é parede).
@@ -619,7 +662,7 @@ export function filterMapForPlayer(
    * deixaria o jogador ver através dela fora da zona. Colisão não usa isto.
    */
   const authoritySegments = ownTokens.length > 0 ? visionSegments(map) : []
-  const authorityVision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, authoritySegments, visionRadius))
+  const authorityVision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, authoritySegments, radiusOf(t)))
   const rings = boxRings(authorityVision)
   const playerWalls = map.walls.filter(
     (w) =>
@@ -630,7 +673,7 @@ export function filterMapForPlayer(
   let vision = authorityVision
   if (ownTokens.length > 0 && (playerWalls.length !== map.walls.length || hiddenFloorIds.size > 0)) {
     const playerSegments = visionSegments({ ...map, walls: playerWalls, floor: floorWithout(map.floor, hiddenFloorIds) })
-    vision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, playerSegments, visionRadius))
+    vision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, playerSegments, radiusOf(t)))
   }
 
   const isVisible = (point: RegionPoint): boolean => !inConcealZone(point) && inAnyRing(rings, point)
@@ -691,13 +734,13 @@ export function filterMapForPlayer(
   )
   /**
    * OLHOS DO GUARDA. A marca (?, !) é medida no mapa INTEIRO, contra as fichas
-   * de TODOS os jogadores — o guarda que o jogador vê pode ter visto um colega
-   * que ele não vê. Mas só a marca sai, e só na ficha do guarda que já está no
-   * recorte: quem foi visto, e o cone (`vigia`), ficam no mestre
+   * de `watchTargets` (todos os jogadores) — o guarda que o jogador vê pode ter
+   * visto um colega que ele não vê. Mas só a marca sai, e só na ficha do guarda
+   * que já está no recorte: quem foi visto, e o cone (`vigia`), ficam no mestre
    * (`tokenWatchForPlayer`). Sem guarda no recorte, nada é calculado.
    */
   const alerts = playerTokens.some((t) => tokenWatchOf(t) !== null)
-    ? guardAlerts(map, new Set(Object.values(ownership).flat()), ownTokens.length > 0 ? authoritySegments : undefined)
+    ? guardAlerts(map, watchTargets ?? owned, ownTokens.length > 0 ? authoritySegments : undefined)
     : new Map<string, WatchAlert>()
 
   const filtered: MapData = {
