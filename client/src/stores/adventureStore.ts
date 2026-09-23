@@ -7,6 +7,7 @@ import { ADVENTURE_VERSION, baseName, cleanSceneName, newSceneId, sceneFileFor, 
 import {
   addExit,
   arrivalPoint,
+  arrivalSpot,
   isArrivalOnly,
   linkBack,
   pinFocusPoint,
@@ -28,6 +29,7 @@ import {
 } from '../lib/pinTravel'
 import { mapDirFor, saveAdventureToDisk, scenePath, type OpenedMapFile } from '../lib/mapFileIO'
 import { dirname } from '@tauri-apps/api/path'
+import { removeSelectionItem, selectionHas, type SelectionItem } from '../lib/selectionModel'
 import { useMapStore } from './mapStore'
 import { useSessionStore } from './sessionStore'
 
@@ -63,6 +65,16 @@ export type SceneSlot =
  * a `camera`, ou enquadrar o conteúdo quando `null`. Um objeto novo por troca
  * — o canvas reage à identidade, como ao contador do reset de zoom.
  */
+/** O que `carryToken` levou: o bastante para o aviso "Zumbi foi para Térreo" e o "Ir lá" dele. */
+export interface CarriedToken {
+  tokenName: string
+  sceneId: string
+  sceneName: string
+  /** Onde a ficha assentou na cena de destino. */
+  x: number
+  y: number
+}
+
 export interface CameraRequest {
   camera: Camera | null
   /**
@@ -170,6 +182,14 @@ interface AdventureState {
    * token que já não está lá, mesma cena).
    */
   transferToken: (tokenId: string, fromSceneId: string, toSceneId: string, x: number, y: number) => boolean
+  /**
+   * "Levar para…" da ficha SEM DONO (NPC, monstro): leva o token `tokenId` da
+   * cena aberta para `toSceneId`, na ponta do pino de viagem `pinId` (`null` =
+   * centro livre da cena). A mesma ficha, com id, nome, cor e foto, pela
+   * travessia de `transferToken` — fora do desfazer. `null` quando não deu
+   * (mapa solto, cena fora do ar, pino ou ficha que sumiu, mesma cena).
+   */
+  carryToken: (tokenId: string, toSceneId: string, pinId: string | null) => CarriedToken | null
   /** Há cena de fundo ou lista de cenas esperando gravação? (A cena aberta é o `useSessionStore` que diz.) */
   hasPendingScenes: () => boolean
   /** Grava a aventura inteira e devolve o caminho da cena aberta. */
@@ -603,6 +623,27 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // travessia não é um passo do mestre para o Ctrl+Z desfazer.
     if (openScene !== null) useMapStore.setState({ map: openScene.map, past: openScene.past, future: openScene.future })
     return true
+  },
+
+  carryToken: (tokenId, toSceneId, pinId) => {
+    const { adventure, activeSceneId, cache } = get()
+    if (adventure === null || activeSceneId === null) return null
+    const entry = adventure.scenes.find((scene) => scene.id === toSceneId)
+    const slot = cache[toSceneId]
+    if (entry === undefined || slot === undefined || slot.status !== 'ok') return null
+    const token = useMapStore.getState().map.tokens.find((t) => t.id === tokenId)
+    if (token === undefined) return null
+    const pin = pinId === null ? null : slot.map.pins.find((p) => p.id === pinId && p.kind === 'viagem')
+    // Pino que sumiu entre abrir o painel e confirmar: não chega em outro lugar calado.
+    if (pin === undefined) return null
+    // O mesmo assento de quem atravessa pelo "Mandar para…" (`hostSession.sendPlayer`).
+    const spot = pin === null ? arrivalPoint(slot.map) : arrivalSpot(slot.map, pin, token.size)
+    if (!get().transferToken(tokenId, activeSceneId, toSceneId, spot.x, spot.y)) return null
+    // A ficha já não está no mapa aberto: a seleção não pode apontar para ela.
+    const item: SelectionItem = { kind: 'token', id: tokenId }
+    const { selection, setSelection } = useMapStore.getState()
+    if (selectionHas(selection, item)) setSelection(removeSelectionItem(selection, item))
+    return { tokenName: token.name, sceneId: toSceneId, sceneName: entry.name, x: spot.x, y: spot.y }
   },
 
   hasPendingScenes: () => {

@@ -24,6 +24,8 @@ import { TokenNameControls, type TokenNameControlsProps } from './TokenNameContr
 import { TokenColorControls, type TokenColorControlsProps } from './TokenColorControls'
 import { TokenSizeControls, type TokenSizeControlsProps } from './TokenSizeControls'
 import { TokenNpcControls, type TokenNpcControlsProps } from './TokenNpcControls'
+import { TokenCarryControls } from './TokenCarryControls'
+import type { TokenCarryWiring } from '../lib/party'
 import { selectedTokenSize } from '../lib/tokenSize'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
@@ -113,6 +115,11 @@ interface PropertiesPanelProps {
   tokenSize: Omit<TokenSizeControlsProps, 'size'>
   /** Marca de NPC — tira a ficha dos botões "Atribuir" de um clique do painel da sala. */
   tokenNpc: Omit<TokenNpcControlsProps, 'npc'>
+  /**
+   * "Levar para…" da ficha sem dono (NPC, monstro) para outra cena. Ausente =
+   * sem o controle (quem monta o painel sem aventura).
+   */
+  tokenCarry?: TokenCarryWiring
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -192,6 +199,7 @@ export function PropertiesPanel({
   tokenColor,
   tokenSize,
   tokenNpc,
+  tokenCarry,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -424,6 +432,16 @@ export function PropertiesPanel({
             {/* `tokenPhotoRef`: foto escolhida pelo JOGADOR vive em `imageData` — sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
             <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
             <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
+            {/* `key`: outra ficha selecionada reabre fechado, sem a escolha da anterior. */}
+            {tokenCarry !== undefined && (
+              <TokenCarryControls
+                key={selectedToken.id}
+                tokenName={selectedToken.name}
+                destinations={tokenCarry.destinations}
+                owned={tokenCarry.ownedTokenIds.has(selectedToken.id)}
+                onCarry={(sceneId, pinId) => tokenCarry.onCarry(selectedToken.id, sceneId, pinId)}
+              />
+            )}
           </ToolPropertiesSection>
         )}
         {selectedToken && (

@@ -47,6 +47,7 @@ import { ScenesSection } from './components/ScenesSection'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
 import { goToMapObject } from './stores/mapObjectNavigation'
+import { ligacaoLevarFicha } from './stores/levarFicha'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
 import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
@@ -1933,6 +1934,7 @@ function App() {
               // `updateToken` passa por `withHistory`: marcar errado se desfaz com Ctrl+Z.
               onNpcChange: (npc) => selectedToken && marcarFichaNpc(selectedToken.id, npc),
             }}
+            tokenCarry={ligacaoLevarFicha(roomPanelWorld(), roomPlayers)}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
