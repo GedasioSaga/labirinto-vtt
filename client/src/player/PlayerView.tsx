@@ -9,7 +9,7 @@ import { countExploredCells, forEachExploredRun } from '../lib/exploration'
 import type { Exploration } from '../lib/exploration'
 import { computeAlignedGridLines } from '../lib/gridAlign'
 import { roomHasRoof } from '../lib/roomOps'
-import { visibleDrawings, visibleLights, visibleRegions, visibleStairs } from '../lib/layers'
+import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs } from '../lib/layers'
 import { visionSegments } from '../lib/visibility'
 import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
 import { findPinAt } from '../lib/pins'
@@ -34,6 +34,7 @@ import { createRegionsRenderer } from '../pixi/drawRegions'
 import { createLightsRenderer } from '../pixi/drawLights'
 import { drawDrawings } from '../pixi/drawDrawings'
 import { drawStairs } from '../pixi/drawStairs'
+import { drawPropSilhouettes } from '../pixi/drawPropSilhouettes'
 import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
 import { screenLabelSizing } from '../pixi/screenLabel'
@@ -403,6 +404,14 @@ interface Scene {
   lastDrawingsKey: string | null
   /** Escadas dependem do zoom e da resolução (linha central alinhada ao pixel). */
   lastStairsKey: string | null
+  /**
+   * Móveis e objetos como SILHUETA chapada (`pixi/drawPropSilhouettes.ts`): o
+   * recorte do mestre só manda a geometria do objeto que o jogador enxerga
+   * agora. O contorno tem espessura em px de tela: a chave inclui zoom e resolução.
+   */
+  props: Graphics
+  lastPropsKey: string | null
+  propsCount: number
   walls: Graphics
   /** Portas do mesmo renderer do editor (drawDoors.ts): trancada continua visível. */
   doors: Graphics
@@ -762,6 +771,18 @@ export function PlayerView({
     drawStairs(scene.stairs, stairs, null, scale, res)
   }
 
+  /** Cada objeto na visão vira um retângulo chapado com o tamanho e a rotação do mestre. */
+  function redrawPropsLayer(scene: Scene): void {
+    const currentMap = latestRef.current.map
+    const props = visibleProps(currentMap.props, currentMap.hiddenLayers)
+    const { scale } = scene.camera
+    const res = scene.app.renderer.resolution
+    const key = JSON.stringify([props, scale, res])
+    if (key === scene.lastPropsKey) return
+    scene.lastPropsKey = key
+    scene.propsCount = drawPropSilhouettes(scene.props, props, scale, res)
+  }
+
   /** Mesmo desenho do editor (linha clara fina, porta retângulo), em px de tela. */
   function redrawWallsLayer(scene: Scene): void {
     const walls = visibleWalls(latestRef.current.map)
@@ -858,6 +879,7 @@ export function PlayerView({
   /** Só o zoom (ou a resolução) mudou: nada de chão ou névoa. */
   function redrawZoomLayers(scene: Scene): void {
     redrawGridLayer(scene)
+    redrawPropsLayer(scene)
     redrawStairsLayer(scene)
     redrawWallsLayer(scene)
     redrawDoorHints(scene)
@@ -894,6 +916,7 @@ export function PlayerView({
       scene.lastDrawingsKey = drawingsKey
       drawDrawings(scene.drawings, drawings)
     }
+    redrawPropsLayer(scene)
     redrawStairsLayer(scene)
 
     redrawWallsLayer(scene)
@@ -998,6 +1021,7 @@ export function PlayerView({
       el.dataset.exploredCells = String(scene.exploredCells)
       el.dataset.concealedCount = String(scene.concealedCount)
       el.dataset.pinsCount = String(pins.length)
+      el.dataset.propsCount = String(scene.propsCount)
       el.dataset.ownTokens = own.join(',')
     }
 
@@ -1080,6 +1104,7 @@ export function PlayerView({
       const mapLines = new Graphics()
       const regions = new Container()
       const drawings = new Graphics()
+      const props = new Graphics()
       const stairs = new Graphics()
       const walls = new Graphics()
       const doorHints = new Graphics()
@@ -1108,6 +1133,11 @@ export function PlayerView({
         gridMask,
         grid,
         drawings,
+        // Móveis sobre o chão e ABAIXO de escada, parede e porta — ao contrário
+        // do editor, que põe a imagem do objeto por cima. Lá a imagem tem fundo
+        // transparente; aqui a silhueta é o retângulo inteiro e, por cima, apagaria
+        // o traço do cômodo onde o móvel encosta (cama, armário, estante).
+        props,
         stairs,
         walls,
         doorHints,
@@ -1162,6 +1192,9 @@ export function PlayerView({
         stairs,
         lastDrawingsKey: null,
         lastStairsKey: null,
+        props,
+        lastPropsKey: null,
+        propsCount: 0,
         walls,
         doors,
         doorHints,
