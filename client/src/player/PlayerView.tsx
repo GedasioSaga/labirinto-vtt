@@ -88,6 +88,11 @@ interface PlayerViewProps {
   onPinOpen?: (pinId: string) => void
   /** Rastro do laser do mestre; o ticker esmaece cada ponto pela idade. */
   laser?: LaserTrail
+  /**
+   * Espelho do "Ver tela" do mestre: ocupa o elemento pai (e não a janela) e
+   * só mostra — nenhum gesto chega ao mapa, então nada anda na tela do jogador.
+   */
+  mirror?: boolean
 }
 
 const RASTER_SAMPLES = 4
@@ -564,6 +569,7 @@ export function PlayerView({
   onDoorToggle,
   onPinOpen,
   laser,
+  mirror = false,
 }: PlayerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
@@ -1266,7 +1272,14 @@ export function PlayerView({
 
   return (
     <>
-      <div ref={containerRef} style={{ position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed ? 'crosshair' : undefined }} />
+      <div
+        ref={containerRef}
+        style={
+          mirror
+            ? { position: 'absolute', inset: 0, pointerEvents: 'none' }
+            : { position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed ? 'crosshair' : undefined }
+        }
+      />
       {/* Rótulo da régua: escrito pelo gesto direto no DOM (syncMeasure), sem re-render do React por passo do dedo.
           `aria-live` educado: com o grude na grade o texto só muda a cada quadrado, não a cada pixel. */}
       <div ref={measureLabelRef} className="pp-measure-label" aria-live="polite" aria-atomic="true" hidden />

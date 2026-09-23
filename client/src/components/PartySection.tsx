@@ -13,10 +13,22 @@ export interface PartySectionProps {
   followingId?: string | null
   /** "Seguir": liga neste jogador (e desliga o anterior) ou desliga se já era ele. Sem ele, não há botão. */
   onToggleFollow?(member: PartyMember): void
+  /** De quem é a tela aberta no espelho agora; `null` = nenhuma. */
+  mirroringId?: string | null
+  /** "Ver tela": abre (ou fecha, se já é a dele) o espelho da tela do jogador. Sem ele, não há botão. */
+  onToggleMirror?(member: PartyMember): void
 }
 
 /** Nome FIXO do botão: o estado vai em `aria-pressed`, e o leitor de tela lê "Seguir, pressionado". */
 export const FOLLOW_LABEL = 'Seguir'
+
+/** Texto visível do botão de espelhar; o nome acessível leva o nome do jogador (`mirrorLabel`). */
+export const MIRROR_LABEL = 'Ver tela'
+
+/** Começa pelo texto visível: quem comanda por voz diz "Ver tela" e acha o botão. */
+export function mirrorLabel(name: string): string {
+  return `${MIRROR_LABEL} de ${name}`
+}
 
 /** Valor do `<select>` de chegada que quer dizer "centro da cena" (id de pino nunca é vazio). */
 const CENTER = ''
@@ -136,7 +148,7 @@ function SendForm({ member, destinations, onSend, onClose }: SendFormProps) {
  * levar alguém ("Mandar para…"). A bolinha é a cor do disco da ficha: é a
  * mesma peça que o mestre procura no mapa.
  */
-export function PartySection({ members, destinations, onGoTo, onSend, followingId = null, onToggleFollow }: PartySectionProps) {
+export function PartySection({ members, destinations, onGoTo, onSend, followingId = null, onToggleFollow, mirroringId = null, onToggleMirror }: PartySectionProps) {
   const headingId = useId()
   const formId = useId()
   const [sendingId, setSendingId] = useState<string | null>(null)
@@ -190,6 +202,19 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
                       onClick={() => onToggleFollow(member)}
                     >
                       {FOLLOW_LABEL}
+                    </button>
+                  )}
+                  {/* Desconectado não tem tela: o botão abriria um espelho vazio. */}
+                  {onToggleMirror !== undefined && member.connected && (
+                    <button
+                      type="button"
+                      className="lb-btn"
+                      aria-label={mirrorLabel(member.name)}
+                      aria-expanded={member.playerId === mirroringId}
+                      aria-haspopup="dialog"
+                      onClick={() => onToggleMirror(member)}
+                    >
+                      {MIRROR_LABEL}
                     </button>
                   )}
                   {targets.length > 0 && (

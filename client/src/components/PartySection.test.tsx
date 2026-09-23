@@ -4,7 +4,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { partyDestinations, partyMembers, PARTY_CENTER_LABEL } from '../lib/party'
 import type { HostWorld, PlayerInfo } from '../net/hostSession'
 import type { MapData, Pin, Token } from '../types/map'
-import { FOLLOW_LABEL, PartySection, SEND_TO_LABEL, sendDestinationsFor } from './PartySection'
+import { FOLLOW_LABEL, MIRROR_LABEL, mirrorLabel, PartySection, SEND_TO_LABEL, sendDestinationsFor } from './PartySection'
 
 function ficha(id: string, color: string | undefined, x = 100, y = 100): Token {
   return { id, characterId: null, name: `ficha-${id}`, x, y, size: 1, image: null, color }
@@ -102,5 +102,18 @@ describe('PartySection', () => {
     ])
     // Sem o callback (quem monta o painel sem câmera), não há botão.
     expect(html).not.toContain(`>${FOLLOW_LABEL}<`)
+  })
+
+  it('"Ver tela" na linha de quem está conectado e tem ficha, com o nome do jogador no nome acessível', () => {
+    const espelhando = renderToStaticMarkup(
+      <PartySection members={partyMembers(JOGADORES, mundo())} destinations={partyDestinations(mundo())} onGoTo={vi.fn()} onSend={vi.fn(() => true)} mirroringId="ana" onToggleMirror={vi.fn()} />,
+    )
+    expect(mirrorLabel('Ana')).toBe('Ver tela de Ana')
+    const botoes = [...espelhando.matchAll(/<button[^>]*aria-label="([^"]+)"[^>]*aria-expanded="(true|false)"[^>]*>([^<]*)<\/button>/g)].map((m) => [m[1], m[2], m[3]])
+    // Bruno está fora (sem tela para ver) e Carla não tem ficha: só a linha de Ana.
+    expect(botoes).toEqual([['Ver tela de Ana', 'true', MIRROR_LABEL]])
+    expect(espelhando).toContain('aria-haspopup="dialog"')
+    // Sem o callback, não há botão.
+    expect(html).not.toContain(`>${MIRROR_LABEL}<`)
   })
 })

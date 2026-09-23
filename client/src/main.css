@@ -1468,9 +1468,11 @@ body {
   overflow-wrap: anywhere;
 }
 
-/* Alvo de toque: o .lb-btn já tem 34 px de altura; aqui as duas ações dividem a linha. */
+/* Alvo de toque: o .lb-btn já tem 34 px de altura; aqui as ações dividem a linha
+   e, com "Ver tela", quebram para a segunda em vez de espremer o rótulo. */
 .lb-party__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--lb-space-2);
 }
 
@@ -1499,6 +1501,62 @@ body {
 .lb-party__send .lb-party__actions > .lb-btn {
   flex: none;
   min-height: 34px;
+}
+
+/* Espelho da tela do jogador ("Ver tela" do Grupo). Não-modal e sem fundo
+   escurecido: o mestre compara o espelho com o editor, lado a lado. Canto
+   inferior direito, longe do rail; o canvas dentro tem altura fixa para o
+   PlayerView enquadrar a cena inteira como faz na tela do jogador. */
+.lb-mirror {
+  position: fixed;
+  right: var(--lb-space-4);
+  bottom: var(--lb-space-4);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  width: min(720px, calc(100vw - 2 * var(--lb-space-4)));
+  padding: var(--lb-space-3);
+  animation: lb-mirror-in var(--lb-motion-base) var(--lb-motion-ease);
+}
+
+@keyframes lb-mirror-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+.lb-mirror__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+}
+
+.lb-mirror__title {
+  margin: 0;
+  font-size: var(--lb-font-size-lg);
+  font-weight: var(--lb-font-weight-semibold);
+  color: var(--lb-color-parchment);
+}
+
+.lb-mirror__screen,
+.lb-mirror__empty {
+  position: relative;
+  height: min(420px, 55vh);
+  border-radius: var(--lb-radius-md);
+  overflow: hidden;
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-mirror__empty {
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: var(--lb-space-4);
+  text-align: center;
+  color: var(--lb-color-parchment-dim);
 }
 
 /* "Reunir o grupo aqui" (painel do pino): a lista de quem vem, no mesmo poço
