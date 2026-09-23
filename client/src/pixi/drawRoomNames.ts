@@ -144,12 +144,47 @@ function boundsOfPoints(points: readonly RegionPoint[]): Box | null {
   return { minX, minY, maxX, maxY }
 }
 
+/** Filhas de cada sala, pela chave `parentId` da filha. */
+type ChildRoomIndex = ReadonlyMap<string, readonly Region[]>
+
+const NO_CHILDREN: readonly Region[] = []
+
+/**
+ * Índice das filhas, montado UMA vez por cena e reaproveitado. Varrer a cena
+ * inteira para cada sala nomeada custava N² por redesenho — na cidade-torre
+ * (2.828 salas) era a maior parte do custo de selecionar, arrastar e trocar de
+ * cena.
+ *
+ * A chave do cache é a IDENTIDADE do array: o estado do mapa é imutável
+ * (zustand; nenhum código faz push/splice em `regions` nem reescreve
+ * `parentId`/`points` no lugar), então mudou a sala, mudou o array, e o índice
+ * é refeito. Redesenho que não mexeu nas salas (seleção, zoom) reusa o mesmo.
+ * WeakMap: cena velha some da memória junto com o array.
+ */
+const childIndexCache = new WeakMap<readonly Region[], ChildRoomIndex>()
+
+function childRoomIndex(regions: readonly Region[]): ChildRoomIndex {
+  const cached = childIndexCache.get(regions)
+  if (cached) return cached
+  const index = new Map<string, Region[]>()
+  for (const region of regions) {
+    const parentId = region.parentId
+    if (parentId === undefined || region.points.length < 3) continue
+    const siblings = index.get(parentId)
+    if (siblings) siblings.push(region)
+    else index.set(parentId, [region])
+  }
+  childIndexCache.set(regions, index)
+  return index
+}
+
 /** Salas desenhadas DENTRO desta: a hierarquia já existe no dado
  *  (`Region.parentId`, escrita por lib/roomNesting.ts ao criar a sala), então
  *  não há por que redescobri-la por geometria. Neta não entra na conta: ela
- *  está dentro de uma filha, que já é obstáculo. */
-export function childRoomsOf(regions: readonly Region[], parentId: string): Region[] {
-  return regions.filter((r) => r.parentId === parentId && r.points.length >= 3)
+ *  está dentro de uma filha, que já é obstáculo. Polígono com menos de 3
+ *  pontos não esconde nada e fica de fora. */
+export function childRoomsOf(regions: readonly Region[], parentId: string): readonly Region[] {
+  return childRoomIndex(regions).get(parentId) ?? NO_CHILDREN
 }
 
 /** Quantos passos a busca dá em cada eixo da caixa da sala. 16 passos = 17×17
