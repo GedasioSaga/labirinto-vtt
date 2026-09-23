@@ -428,6 +428,13 @@ export interface TokenHealth {
   shownToPlayers: boolean
 }
 
+/**
+ * Condição de mesa marcada NA FICHA pelo mestre. Lista curta e fechada de
+ * propósito — é o que se marca no meio da luta com um clique, não um campo
+ * livre. Rótulos, pastilhas e a ordem moram em `lib/tokenConditions.ts`.
+ */
+export type TokenCondition = 'envenenado' | 'caido' | 'dormindo' | 'atordoado' | 'invisivel'
+
 export interface Token extends PlayerSecret {
   id: string
   characterId: string | null
@@ -464,6 +471,19 @@ export interface Token extends PlayerSecret {
    *  ATRAVESSA para o jogador: não é caminho de disco do mestre, é aparência
    *  da peça, e a mesa inteira precisa enxergar a mesma separação. */
   color?: string | null
+  /**
+   * Condições marcadas pelo mestre (envenenado, caído...), desenhadas como
+   * pastilhas em cima da ficha no editor e na tela de quem joga.
+   * Ausente é nenhuma condição — sem linha de migração, mesmo padrão de
+   * `color`/`rotation`: mapa salvo antes deste campo abre idêntico, e
+   * desmarcar a última apaga o campo em vez de gravar `[]`.
+   *
+   * O mapa do disco chega CRU (`lib/mapFile.ts`), então quem lê passa por
+   * `tokenConditionsOf`, que joga fora o que não é da lista. ATRAVESSA para o
+   * jogador junto com a ficha — e só quando a ficha atravessa
+   * (`lib/fogFilter.ts`), com os ids da lista e nada mais.
+   */
+  conditions?: TokenCondition[]
   /** Token não pode ser movido/editado. `undefined` === false (comportamento
    *  idêntico ao de hoje) — sem linha de migração. */
   locked?: boolean

@@ -584,6 +584,33 @@ body {
   text-align: left;
 }
 
+/* Mesma pastilha em DUAS colunas, marca à esquerda do nome como numa legenda
+   de mapa: as condições da ficha. Pela métrica da fonte (estimativa, não
+   medida na tela), em três colunas o texto de cada opção teria ≈63 px e
+   "Envenenado" mede ≈62 — encostaria na borda. Em duas sobram ≈68 px depois
+   da marca, no mesmo corpo de letra das outras pastilhas. */
+.lb-seg--pairs {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.lb-seg--pairs .lb-seg__option {
+  flex-direction: row;
+  justify-content: flex-start;
+  min-height: 34px;
+  padding: var(--lb-space-1) var(--lb-space-2);
+  text-align: left;
+  /* Liga/desliga responde à pressão na hora e volta sozinho (< 150 ms). */
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-seg--pairs .lb-seg__option:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
 .lb-seg__option {
   display: flex;
   flex-direction: column;
@@ -613,7 +640,10 @@ body {
   cursor: not-allowed;
 }
 
-.lb-seg__option[aria-checked='true'] {
+/* Marcado vale igual para a escolha única (rádio, `aria-checked`) e para o
+   liga/desliga de várias ao mesmo tempo (condições da ficha, `aria-pressed`). */
+.lb-seg__option[aria-checked='true'],
+.lb-seg__option[aria-pressed='true'] {
   background: var(--lb-color-brass-soft);
   border-color: rgba(224, 164, 74, 0.28);
   color: var(--lb-color-brass);
@@ -624,7 +654,8 @@ body {
   opacity: 0.8;
 }
 
-.lb-seg__option[aria-checked='true'] svg {
+.lb-seg__option[aria-checked='true'] svg,
+.lb-seg__option[aria-pressed='true'] svg {
   opacity: 1;
 }
 
@@ -654,6 +685,15 @@ body {
   font-family: var(--lb-font-utility);
   font-size: var(--lb-font-size-lg);
   color: var(--lb-color-parchment-faint);
+}
+
+/* Pastilha de condição: opacidade cheia pelo mesmo motivo da amostra de cor —
+   é a marca exata que sai em cima da ficha, e quem diz "marcada" é o fundo de
+   latão do botão, não uma pastilha desbotada. `flex: none`: o nome ao lado
+   nunca espreme a marca. */
+.lb-seg__option .lb-token-condition__badge {
+  flex: none;
+  opacity: 1;
 }
 
 /* ------------------------------------------------------------ cor / espessura */

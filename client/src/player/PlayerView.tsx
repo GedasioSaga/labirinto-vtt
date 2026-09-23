@@ -41,6 +41,8 @@ import { readTokenHealth } from '../lib/tokenHealth'
 import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from '../pixi/drawTokenHealth'
 import { fitPhotoSprite, textureFromDataUrl } from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
+import { tokenConditionsOf } from '../lib/tokenConditions'
+import { CONDITION_MARKS_LABEL, drawTokenConditions } from '../pixi/drawTokenConditions'
 import { createRoomNamesRenderer } from '../pixi/drawRoomNames'
 import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
 import { isDegenerateRegion } from '../pixi/shapes'
@@ -210,6 +212,8 @@ interface TokenView {
    *  Só chega vida que o mestre deixou os jogadores verem (`lib/fogFilter.ts`). */
   bar: Graphics
   label: Text
+  /** Marcas de condição que o mestre pôs na ficha (mesmo desenho do editor, `pixi/drawTokenConditions.ts`). */
+  marks: Graphics
   key: string
   /** Referência já carregada em `photo`: sem isto, todo snapshot recarregaria a mesma foto. */
   loadedPhoto: string | null
@@ -224,9 +228,10 @@ function tokenRadius(token: Token, grid: number): number {
 /**
  * Atualiza no lugar: nunca destrói `Text`, que em Pixi 8.20 quebra em
  * TexturePool.returnTexture. Só a GEOMETRIA (círculo chapado ou moldura +
- * máscara da foto); a textura chega depois e é assunto de `syncTokenPhoto`.
+ * máscara da foto, e as marcas de condição); a textura chega depois e é
+ * assunto de `syncTokenPhoto`. Exportada para o teste da condição na ficha.
  */
-function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean): void {
+export function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean): void {
   const radius = tokenRadius(token, grid)
   // A cor que o MESTRE deu à ficha vale aqui também: a separação entre aliado
   // e inimigo não serve de nada se só o mestre a enxerga. Sem cor escolhida,
@@ -257,6 +262,9 @@ function paintTokenView(view: TokenView, token: Token, grid: number, own: boolea
   // Barra de vida: a mesma do mestre, e o nome desce para baixo dela.
   const health = readTokenHealth(token.health)
   drawTokenHealthBar(view.bar, radius, health)
+  // A condição que o mestre marcou chega junto com a ficha (o recorte de
+  // lib/fogFilter.ts só deixa passar ficha que este jogador pode ver).
+  drawTokenConditions(view.marks, tokenConditionsOf(token), radius, grid)
   view.label.text = token.name
   view.label.position.set(0, tokenLabelTop(radius, health !== null))
 }
@@ -288,7 +296,8 @@ function syncTokenPhoto(view: TokenView, token: Token, grid: number): void {
     })
 }
 
-function createTokenView(token: Token, grid: number, own: boolean): TokenView {
+/** Exportada para o teste da condição na ficha (`PlayerView.condicoes.test.ts`). */
+export function createTokenView(token: Token, grid: number, own: boolean): TokenView {
   const wrapper = new Container()
   const body = new Graphics()
   const photo = new Sprite(Texture.EMPTY)
@@ -300,10 +309,13 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
   label.anchor.set(0.5, 0)
   const bar = new Graphics()
   bar.label = HEALTH_BAR_LABEL
-  wrapper.addChild(photoMask, photo, body, bar, label)
+  // Por último: a marca de condição fica por cima do disco e da foto.
+  const marks = new Graphics()
+  marks.label = CONDITION_MARKS_LABEL
+  wrapper.addChild(photoMask, photo, body, bar, label, marks)
   wrapper.eventMode = 'static'
   wrapper.cursor = 'grab'
-  const view: TokenView = { wrapper, body, photo, photoMask, bar, label, key: tokenViewKey(token, grid, own), loadedPhoto: null, loadSeq: 0 }
+  const view: TokenView = { wrapper, body, photo, photoMask, bar, label, marks, key: tokenViewKey(token, grid, own), loadedPhoto: null, loadSeq: 0 }
   paintTokenView(view, token, grid, own)
   return view
 }
@@ -321,13 +333,15 @@ function sizeTokenLabel(label: Text, cameraScale: number, showNames: boolean): v
  * caracteres e entraria nesta chave a cada quadro — a troca de uma foto por
  * outra é tratada em `syncTokenPhoto`, que compara a referência uma vez só.
  */
-function tokenViewKey(token: Token, grid: number, own: boolean): string {
+export function tokenViewKey(token: Token, grid: number, own: boolean): string {
   // `token.color` entra na chave: sem isto, o mestre troca a cor e a tela do
   // jogador continua com a tinta velha até o token mudar de nome ou tamanho.
   // A vida também: a barra do jogador acompanha cada golpe que o mestre anota.
   const health = readTokenHealth(token.health)
   const healthKey = health === null ? null : [health.current, health.max]
-  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey])
+  // As condições entram pelo mesmo motivo — já limpas, para lixo no campo não
+  // mandar repintar nada.
+  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey, tokenConditionsOf(token)])
 }
 
 interface Scene {

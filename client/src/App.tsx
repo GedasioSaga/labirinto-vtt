@@ -1897,6 +1897,11 @@ function App() {
               // Ctrl+Z. `null` tira a barra da ficha.
               onHealthChange: (health) => selectedToken && updateToken(selectedToken.id, { health }),
             }}
+            tokenCondition={{
+              // Alterna sobre o estado ATUAL da ficha no store (não sobre a
+              // cópia desta renderização) e passa pelo histórico: Ctrl+Z desfaz.
+              onToggleCondition: (condition) => selectedToken && useMapStore.getState().toggleTokenCondition(selectedToken.id, condition),
+            }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
