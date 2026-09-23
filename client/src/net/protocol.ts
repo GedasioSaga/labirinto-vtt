@@ -56,6 +56,13 @@ export const REQ_ID_MAX_LENGTH = 64
 export const RESUME_TOKEN_MAX_LENGTH = 128
 /** Teto do recado por cena, em unidades UTF-16 (o `maxLength` do campo do mestre conta igual). */
 export const NOTE_MAX_LENGTH = 500
+/**
+ * Maior mensagem, em BYTES, que o servidor da mesa aceita de um jogador —
+ * espelho de `MAX_MESSAGE_BYTES` em desktop/src-tauri/src/net/server.rs. Acima
+ * disso o servidor fecha o socket: o jogador cai da mesa. O cliente do jogador
+ * nunca envia nada maior (player/playerConnection.ts).
+ */
+export const PLAYER_MESSAGE_MAX_BYTES = 64 * 1024
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 

@@ -1,7 +1,7 @@
 import type { MapData, RegionPoint, Token } from '../types/map'
 import { decodeExploration, type Exploration } from '../lib/exploration'
-import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PinTravelRequestMessage, type PlayerMessage } from '../net/protocol'
-import { isTokenPhotoData } from '../lib/tokenPhoto'
+import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, PLAYER_MESSAGE_MAX_BYTES, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PinTravelRequestMessage, type PlayerMessage } from '../net/protocol'
+import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
@@ -103,7 +103,8 @@ export interface PlayerConnection {
   setOwnTokenName(tokenId: string, name: string): boolean
   /**
    * Foto nova do PRÓPRIO token (referência auto-contida). Mesmas recusas de
-   * `setOwnTokenName`, mais a forma da foto.
+   * `setOwnTokenName`, mais a forma da foto e o tamanho acima do teto de envio
+   * (`TOKEN_PHOTO_SEND_MAX_CHARS`) — foto que derrubaria o jogador nem sai.
    */
   setOwnTokenPhoto(tokenId: string, image: string): boolean
   /**
@@ -155,6 +156,8 @@ export const MOVED_NOTICE_TTL_MS = 60_000
  */
 export const GATHERED_NOTICE_TTL_MS = 60_000
 const SOCKET_OPEN = 1
+/** Mede o tamanho em bytes do que vai pelo socket (o servidor conta bytes, não caracteres). */
+const utf8 = new TextEncoder()
 const CONNECTION_LOST = 'connection_lost'
 
 interface PendingMove {
@@ -347,7 +350,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   function send(message: PlayerMessage): boolean {
     if (!socket || socket.readyState !== SOCKET_OPEN) return false
-    socket.send(JSON.stringify(message))
+    const texto = JSON.stringify(message)
+    // O servidor fecha o socket de quem manda acima do teto: melhor a mensagem
+    // não sair (quem chamou recebe `false`) do que o jogador cair da mesa.
+    // `length * 3` é teto de bytes em UTF-8; só as grandes pagam o encode.
+    if (texto.length * 3 > PLAYER_MESSAGE_MAX_BYTES && utf8.encode(texto).length > PLAYER_MESSAGE_MAX_BYTES) return false
+    socket.send(texto)
     return true
   }
 
@@ -694,7 +702,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
 
     setOwnTokenPhoto(tokenId, image) {
-      if (!isTokenPhotoData(image)) return false
+      // Forma certa E tamanho que o servidor aceita: acima do teto de envio a
+      // foto nem sai — o jogador fica na mesa com a foto de antes.
+      if (!fitsTokenPhotoSend(image)) return false
       // `image: null` junto: o caminho do disco do mestre (quando havia um)
       // deixa de valer para este token — a foto agora é a que o jogador
       // escolheu, e é a embutida que viaja. Mesma forma que o host vai gravar.
