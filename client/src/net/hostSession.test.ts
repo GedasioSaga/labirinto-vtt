@@ -1054,7 +1054,8 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
     const r = t.s.approveTravel(pedido.requestId, t.w)
     // Ao dono, só o aviso — sem nome de cena. O mapa novo vem no broadcast.
     expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'scene.changed' } }])
-    // Chega no par (1000, 250), assentado no centro da célula como o snap de token.
+    // Chega junto do par (1000, 250), na casa livre mais perto que não cobre a
+    // cabeça do pino, assentado no centro da célula como o snap de token.
     expect(r.applyTransfer).toEqual({
       tokenId: 'heroi',
       playerId: t.ana.playerId,
@@ -1062,12 +1063,12 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
       fromSceneId: CENA_A,
       toSceneId: CENA_B,
       toSceneName: NOME_B,
-      x: 1025,
+      x: 975,
       y: 275,
     })
 
     // O integrador aplicou: o herói agora mora na Cripta.
-    const depois = mundo({ heroi: { cena: 'B', x: 1025, y: 275 } })
+    const depois = mundo({ heroi: { cena: 'B', x: 975, y: 275 } })
     const b = t.s.broadcast(depois)
     const daAna = snapshotDe(b, 'c1')
     expect(daAna.map.id).toBe('mapa-cripta')
@@ -1165,12 +1166,12 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
         fromSceneId: CENA_A,
         toSceneId: CENA_B,
         toSceneName: NOME_B,
-        x: 1025,
+        x: 975,
         y: 275,
       })
       // Nada ficou esperando: um próximo pedido não é recusado como 'pending'.
       t.advance(TRAVEL_REQUEST_MIN_INTERVAL_MS)
-      const naCripta = mundo({ heroi: { cena: 'B', x: 1025, y: 275 } })
+      const naCripta = mundo({ heroi: { cena: 'B', x: 975, y: 275 } })
       t.s.broadcast(naCripta)
       expect(recusa(t.pedir('escada-b', naCripta))).toBeNull()
       // A cena dela já é a Cripta.

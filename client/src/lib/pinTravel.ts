@@ -1,5 +1,6 @@
 import type { MapData, Pin, PinDestination, PinExit, PinExitLabel } from '../types/map'
-import { PIN_HEAD_RADIUS, PIN_HEIGHT, pinSummary } from './pins'
+import { gatherSpots, seatIsTaken } from './gatherParty'
+import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS, PIN_HEIGHT, pinSummary } from './pins'
 import { seatTokenCenter } from './tokenSize'
 import { snapPointForTarget } from '../pixi/tokenInteraction'
 
@@ -391,19 +392,58 @@ export function arrivalPoint(map: MapData): { x: number; y: number } {
 }
 
 /**
- * Onde o token de quem ATRAVESSA assenta na cena de destino: na ponta do pino
- * par, grudado no centro da célula como o snap de token do editor
- * (`snapPointForTarget` + `seatTokenCenter`, o mesmo par de `applySnap`), e
- * puxado para dentro do mapa — pino arrastado até a borda não pode largar a
- * ficha fora do mundo, onde nenhum movimento a traria de volta.
+ * A casa do próprio pino par: a ponta grudada no centro da célula como o snap
+ * de token do editor (`snapPointForTarget` + `seatTokenCenter`, o mesmo par de
+ * `applySnap`), e puxada para dentro do mapa — pino arrastado até a borda não
+ * pode largar a ficha fora do mundo, onde nenhum movimento a traria de volta.
  */
-export function arrivalSpot(map: MapData, partner: Pin, tokenCells: number): { x: number; y: number } {
+function pinSeat(map: MapData, partner: Pin, tokenCells: number): { x: number; y: number } {
   const raw = { x: partner.x, y: partner.y }
   const snapped = snapPointForTarget('token', map.gridShape, raw.x, raw.y, map.grid)
   const seated = map.gridShape === 'square' ? seatTokenCenter(raw, snapped, map.grid, tokenCells) : snapped
   const largura = map.width * map.grid
   const altura = map.height * map.grid
   return { x: Math.min(largura, Math.max(0, seated.x)), y: Math.min(altura, Math.max(0, seated.y)) }
+}
+
+/**
+ * O mapa como a procura de casa livre o enxerga: só com as fichas que algum
+ * jogador pode receber. Ficha secreta ou escondida pelo mestre não ocupa casa
+ * — se ocupasse, a chegada desviaria dela e o jogador descobriria que há algo
+ * ali. O preço é a do mestre ficar por baixo, e só ele a vê.
+ */
+function withPlayerVisibleTokens(map: MapData): MapData {
+  return { ...map, tokens: map.tokens.filter((t) => t.secret !== true && t.hidden !== true) }
+}
+
+/**
+ * Onde o token de quem ATRAVESSA assenta na cena de destino: na casa livre
+ * mais perto do pino par — a mesma procura do "Reunir o grupo aqui"
+ * (`gatherSpots`): fora da casa do pino, sem cruzar parede, sem encostar em
+ * outra ficha e sem cobrir a cabeça do pino, que continua tocável. Assim quem
+ * passa pelo mesmo pino chega em casas vizinhas, e não empilhado (a ficha de
+ * baixo sumia e o dono não a arrastava). `arrivingTokenId` é a própria ficha,
+ * que não conta como obstáculo para si. Sem casa livre em volta (pino cercado),
+ * cai na casa do pino, como antes: chegar empilhado é melhor que não chegar.
+ */
+export function arrivalSpot(map: MapData, partner: Pin, tokenCells: number, arrivingTokenId?: string): { x: number; y: number } {
+  const moving = new Set(arrivingTokenId === undefined ? [] : [arrivingTokenId])
+  const head = { x: partner.x, y: partner.y - PIN_HEAD_OFFSET, radius: PIN_HEAD_RADIUS }
+  const [free] = gatherSpots(withPlayerVisibleTokens(map), partner, [tokenCells], moving, [head])
+  return free ?? pinSeat(map, partner, tokenCells)
+}
+
+/**
+ * "Mandar para…" sem pino: o centro da cena (`arrivalPoint`) quando está
+ * livre; ocupado, a casa livre mais perto dele, pela mesma procura.
+ */
+export function arrivalSpotWithoutPin(map: MapData, tokenCells: number, arrivingTokenId?: string): { x: number; y: number } {
+  const center = arrivalPoint(map)
+  const moving = new Set(arrivingTokenId === undefined ? [] : [arrivingTokenId])
+  const visible = withPlayerVisibleTokens(map)
+  if (!seatIsTaken(visible, center, tokenCells, moving)) return center
+  const [free] = gatherSpots(visible, center, [tokenCells], moving)
+  return free ?? center
 }
 
 /** O ponto que a câmera centraliza ao chegar por um pino: o meio do desenho, não a ponta cravada. */
