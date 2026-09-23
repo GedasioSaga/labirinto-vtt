@@ -124,6 +124,59 @@ describe('hostSession: laser do jogador', () => {
     expect(t.s.handleMessage('c1', { type: 'laser', off: true }, t.mundo).outbound).toEqual([])
   })
 
+  /** O mesmo mundo com as fichas redistribuídas: `salao` e `cripta` dizem quem está em cada cena agora. */
+  const redistribuido = (mundo: HostWorld, salao: Token[], cripta: Token[]): HostWorld => ({
+    open: { ...mundo.open, map: { ...mundo.open.map, tokens: salao } },
+    background: mundo.background.map((cena) => ({ ...cena, map: { ...cena.map, tokens: cripta } })),
+  })
+
+  it('segurança: quem recebeu pontos e trocou de cena no meio do gesto não recebe o off', () => {
+    const t = mesa()
+    const lote = t.s.handleMessage('c1', { type: 'laser', points: [{ x: 120, y: 300 }] }, t.mundo)
+    expect(para(lote, 'c3')).toHaveLength(1)
+    // Caio (ficha `adaga`) desce para a Cripta antes de Ana soltar.
+    const depois = redistribuido(t.mundo, [ficha('lanterna', 100, 100, COR_ANA)], [ficha('machado', 200, 100), ficha('adaga', 300, 100)])
+    const fim = t.s.handleMessage('c1', { type: 'laser', off: true }, depois)
+    expect(para(fim, 'c3')).toEqual([])
+    expect(JSON.stringify(fim.outbound)).not.toContain('Ana')
+    // O mestre continua sabendo que o gesto acabou.
+    expect(fim.playerLaser).toMatchObject({ update: { off: true } })
+  })
+
+  it('segurança: quem aponta e viaja no meio do gesto não manda o off a quem ficou na cena antiga', () => {
+    const t = mesa()
+    t.s.handleMessage('c1', { type: 'laser', points: [{ x: 120, y: 300 }] }, t.mundo)
+    // Ana (ficha `lanterna`) viaja para a Cripta; Caio fica no Salão.
+    const depois = redistribuido(t.mundo, [ficha('adaga', 300, 100)], [ficha('machado', 200, 100), ficha('lanterna', 100, 100, COR_ANA)])
+    const fim = t.s.handleMessage('c1', { type: 'laser', off: true }, depois)
+    expect(fim.outbound).toEqual([])
+  })
+
+  it('segurança: off perdido na viagem não leva a lista antiga para o gesto da cena nova', () => {
+    const t = mesa()
+    t.s.handleMessage('c1', { type: 'laser', points: [{ x: 120, y: 300 }] }, t.mundo)
+    // O off do gesto do Salão não chega; Ana já aponta na Cripta, para Bruno.
+    const depois = redistribuido(t.mundo, [ficha('adaga', 300, 100)], [ficha('machado', 200, 100), ficha('lanterna', 100, 100, COR_ANA)])
+    const lote = t.s.handleMessage('c1', { type: 'laser', points: [{ x: 120, y: 300 }] }, depois)
+    expect(para(lote, 'c2')).toHaveLength(1)
+    const fim = t.s.handleMessage('c1', { type: 'laser', off: true }, depois)
+    expect(fim.outbound).toEqual([{ clientId: 'c2', msg: { type: 'laser', off: true, from: 'Ana', color: COR_ANA } }])
+  })
+
+  it('segurança: off perdido não passa ao gesto seguinte na mesma cena quem nada viu dele', () => {
+    const t = mesa()
+    t.s.handleMessage('c1', { type: 'laser', points: [{ x: 120, y: 300 }] }, t.mundo)
+    // Off do Salão perdido; Ana vai à Cripta, aponta lá, e volta ao Salão.
+    const naCripta = redistribuido(t.mundo, [ficha('adaga', 300, 100)], [ficha('machado', 200, 100), ficha('lanterna', 100, 100, COR_ANA)])
+    t.s.handleMessage('c1', { type: 'laser', points: [{ x: 120, y: 300 }] }, naCripta)
+    t.advance(PLAYER_LASER_WINDOW_MS)
+    // De volta ao Salão, ela aponta: Caio vê. Bruno, que só viu o gesto da Cripta, está lá.
+    const lote = t.s.handleMessage('c1', { type: 'laser', points: [{ x: 120, y: 300 }] }, t.mundo)
+    expect(para(lote, 'c3')).toHaveLength(1)
+    const fim = t.s.handleMessage('c1', { type: 'laser', off: true }, t.mundo)
+    expect(fim.outbound).toEqual([{ clientId: 'c3', msg: { type: 'laser', off: true, from: 'Ana', color: COR_ANA } }])
+  })
+
   it('de quem não entrou devolve not_joined; de quem aguarda ou fora do mapa morre em silêncio', () => {
     const t = mesa()
     expect(t.s.handleMessage('cx', { type: 'laser', points: [{ x: 1, y: 1 }] }, t.mundo).outbound).toEqual([{ clientId: 'cx', msg: { type: 'error', reason: 'not_joined' } }])

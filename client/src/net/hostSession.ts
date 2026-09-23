@@ -424,9 +424,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastDoorToggleAt = new Map<string, number>()
   // Por playerId: janela corrente do teto de lotes de laser (PLAYER_LASER_MAX_PER_WINDOW).
   const laserWindows = new Map<string, { start: number; count: number }>()
-  // Por playerId: conexões que receberam algum ponto do gesto em curso. O
-  // `off` vai só a elas — a quem nada viu, nem o aviso de que o gesto acabou.
-  const laserRecipients = new Map<string, Set<string>>()
+  // Por playerId: conexões que receberam algum ponto do gesto em curso, e a
+  // cena (`sceneKey`) onde o gesto acontece. O `off` vai só a elas — a quem
+  // nada viu, nem o aviso de que o gesto acabou. Lote vindo de outra cena
+  // (off perdido na viagem) recomeça a lista: ela nunca atravessa cena.
+  const laserRecipients = new Map<string, { scene: string; clients: Set<string> }>()
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
   const lastTokenPhotoAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
@@ -665,14 +667,26 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return signalColor(playerId)
   }
 
-  /** Fim do gesto: `off` só a quem recebeu algum ponto dele, e o mestre sempre. */
+  /**
+   * Fim do gesto: `off` só a quem recebeu algum ponto dele E ainda joga na
+   * mesma cena de quem aponta, e o mestre sempre. Quem trocou de cena no meio
+   * do gesto (ou quem aponta viajou) não recebe: o `off` leva nome e cor, e
+   * quem está em outra cena não recebe nada pelo socket. A ponta que ficou na
+   * tela dele se apaga sozinha (REMOTE_LASER_IDLE_MS).
+   */
   function endPlayerLaser(playerId: string, record: PlayerRecord, world: HostWorld): HostResult {
     const scene = sceneFor(playerId, world)
     const color = scene === null ? signalColor(playerId) : laserColorOf(playerId, scene.map)
     const outbound: Outbound[] = []
-    for (const otherClient of laserRecipients.get(playerId) ?? []) {
-      // Quem caiu no meio do gesto não tem mais socket para o aviso.
-      if (byClient.has(otherClient)) outbound.push({ clientId: otherClient, msg: { type: 'laser', off: true, from: record.name, color } })
+    const gesture = laserRecipients.get(playerId)
+    if (scene !== null && gesture !== undefined && gesture.scene === sceneKey(scene)) {
+      for (const otherClient of gesture.clients) {
+        // Quem caiu no meio do gesto não tem mais socket para o aviso.
+        const otherId = byClient.get(otherClient)
+        if (otherId === undefined || statusOf(otherId) !== 'playing') continue
+        if (sceneFor(otherId, world) !== scene) continue
+        outbound.push({ clientId: otherClient, msg: { type: 'laser', off: true, from: record.name, color } })
+      }
     }
     laserRecipients.delete(playerId)
     return { outbound, playerLaser: { playerId, name: record.name, color, update: { off: true }, onOpenScene: scene === world.open } }
@@ -709,7 +723,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const blocked = playerBlockedRings(map)
     const shareable = inside.filter((p) => !blocked.some((ring) => ring.length >= 3 && pointInRing(p, ring)))
     const outbound: Outbound[] = []
+    const here = sceneKey(scene)
     let recipients = laserRecipients.get(playerId)
+    // Lista de outra cena = gesto antigo cujo `off` se perdeu: não vale aqui.
+    if (recipients !== undefined && recipients.scene !== here) {
+      laserRecipients.delete(playerId)
+      recipients = undefined
+    }
     for (const [otherClient, otherId] of byClient) {
       if (otherId === playerId || statusOf(otherId) !== 'playing') continue
       // Outra cena: o ponto é deste mapa, e nem o nome de quem aponta vai para lá.
@@ -718,10 +738,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (visible.length === 0) continue
       outbound.push({ clientId: otherClient, msg: { type: 'laser', points: visible, from: record.name, color } })
       if (recipients === undefined) {
-        recipients = new Set()
+        recipients = { scene: here, clients: new Set() }
         laserRecipients.set(playerId, recipients)
       }
-      recipients.add(otherClient)
+      recipients.clients.add(otherClient)
     }
     return { outbound, playerLaser: { playerId, name: record.name, color, update: { points: inside }, onOpenScene: scene === world.open } }
   }
