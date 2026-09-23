@@ -19,7 +19,7 @@ import {
   type PlayerNoteDelivery,
   type TravelRequest,
 } from './hostSession'
-import { CALL_REASON_LABELS, NOTE_MAX_LENGTH, type DoorRequestHow, type LaserMessage } from './protocol'
+import { CALL_REASON_LABELS, NOTE_MAX_LENGTH, parsePlayerMessage, type DoorRequestHow, type LaserMessage } from './protocol'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -204,6 +204,15 @@ export const DROP_ANNOUNCE_DELAY_MS = 3_000
  * varredura e a `DROP_ANNOUNCE_DELAY_MS`, "Gina caiu" sai em até 10 s.
  */
 export const HOST_STALE_AFTER_MS = 6_000
+/**
+ * O mesmo prazo para a conexão cuja aba avisou que está em segundo plano
+ * (`ping` com `away: true`). Com a aba oculta há mais de 5 min o Chrome e o
+ * Edge alinham os timers a 1 minuto: o ping de 2 s vira um por minuto, e com
+ * 6 s de prazo o jogador que foi ler a ficha num PDF cairia e voltaria em
+ * ciclo. Dois minutos e meio cobrem um despertar de minuto perdido; a aba
+ * congelada de vez (economia de energia) ainda é dada como caída, uma vez só.
+ */
+export const HOST_AWAY_STALE_AFTER_MS = 150_000
 /** De quanto em quanto tempo o host confere quem ficou mudo. */
 export const LIVENESS_SWEEP_MS = 1_000
 const DEFAULT_VISION_RADIUS = 700
@@ -319,6 +328,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const dropToasts = new Map<string, string>()
   /** Hora (relógio do mestre) da última mensagem de cada conexão: `clientId` -> ms. Nunca sai pela rede. */
   const lastHeard = new Map<string, number>()
+  /** Conexões cuja aba está em segundo plano (último ping com `away: true`). Nunca sai pela rede. */
+  const awayClients = new Set<string>()
   let livenessTimer: ReturnType<typeof setInterval> | null = null
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
@@ -805,6 +816,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (clientId === null) return
     // Qualquer mensagem é prova de vida, não só o ping.
     lastHeard.set(clientId, now())
+    // Só o ping diz em que plano está a aba; qualquer outra mensagem vem de quem está olhando.
+    const parsed = parsePlayerMessage(event.payload.msg)
+    if (parsed?.type === 'ping' && parsed.away === true) awayClients.add(clientId)
+    else awayClients.delete(clientId)
     const before = session.listPlayers()
     const wasJoined = before.some((p) => p.clientId === clientId)
     const result = session.handleMessage(clientId, event.payload.msg, world())
@@ -866,6 +881,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const dropClient = (clientId: string, at?: number) => {
     if (session === null) return
     lastHeard.delete(clientId)
+    awayClients.delete(clientId)
     // Conexão que nunca entrou (código errado) — ou que a varredura já deu
     // como caída — não acha jogador: não há quem avisar de novo.
     const dropped = session.listPlayers().find((p) => p.clientId === clientId)
@@ -885,7 +901,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
   /**
    * Quem está na sala e passou de `HOST_STALE_AFTER_MS` sem mandar nada caiu,
-   * mesmo sem o `close` chegar (Wi-Fi que some sem FIN). O socket zumbi é
+   * mesmo sem o `close` chegar (Wi-Fi que some sem FIN); a aba em segundo
+   * plano tem `HOST_AWAY_STALE_AFTER_MS`. O socket zumbi é
    * derrubado no Rust: se ele ressuscitar, o cliente vê o `close` e volta pelo
    * resume, em vez de falar com uma sala que já não o conhece.
    */
@@ -901,7 +918,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         lastHeard.set(clientId, at)
         continue
       }
-      if (at - heard < HOST_STALE_AFTER_MS) continue
+      const deadline = awayClients.has(clientId) ? HOST_AWAY_STALE_AFTER_MS : HOST_STALE_AFTER_MS
+      if (at - heard < deadline) continue
       dropClient(clientId, heard)
       deps.invoke('net_kick', { clientId }).catch(() => {
         // Já fechada no Rust (o `close` chegou junto): era o que se queria.
@@ -913,6 +931,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (livenessTimer !== null) clearInterval(livenessTimer)
     livenessTimer = null
     lastHeard.clear()
+    awayClients.clear()
   }
 
   const removeListeners = () => {

@@ -3,7 +3,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { useToastStore } from '../stores/toastStore'
 import type { Token } from '../types/map'
 import type { PlayerInfo } from './hostSession'
-import { createHostBridge, DROP_ANNOUNCE_DELAY_MS, HOST_STALE_AFTER_MS, LIVENESS_SWEEP_MS } from './hostBridge'
+import { createHostBridge, DROP_ANNOUNCE_DELAY_MS, HOST_AWAY_STALE_AFTER_MS, HOST_STALE_AFTER_MS, LIVENESS_SWEEP_MS } from './hostBridge'
 import { PING_INTERVAL_MS } from '../player/playerConnection'
 
 /**
@@ -73,6 +73,8 @@ async function mesa() {
     cai,
     volta,
     ping: (clientId: string) => emit('net:message', { clientId, msg: { type: 'ping' } }),
+    /** Ping da aba em segundo plano. */
+    pingAway: (clientId: string) => emit('net:message', { clientId, msg: { type: 'ping', away: true } }),
     avanca: (ms: number) => {
       relogio += ms
       vi.advanceTimersByTime(ms)
@@ -229,5 +231,67 @@ describe('hostBridge: varredura de quem sumiu sem fechar', () => {
     m.avanca(HOST_STALE_AFTER_MS * 5)
     expect(m.invoke.mock.calls).toEqual([])
     expect(m.textos().filter((t) => t.includes('caiu') || t.includes('caíram'))).toEqual([])
+  })
+})
+
+/**
+ * ABA EM SEGUNDO PLANO: com a aba oculta há mais de 5 min, o Chrome e o Edge
+ * rodam o timer do ping 1 vez por minuto (intensive wake-up throttling; ter
+ * WebSocket aberto não isenta). O ping chega marcado com `away: true`, e o
+ * host espera `HOST_AWAY_STALE_AFTER_MS` em vez de 6 s — senão o jogador que
+ * foi ler a ficha num PDF cairia e voltaria a cada minuto.
+ */
+describe('hostBridge: aba do jogador em segundo plano', () => {
+  const MINUTO = 60_000
+  /** Bruno e Ana à vista (ping a cada 2 s); Gina com a aba oculta, ping marcado de minuto em minuto. */
+  const passaComGinaOculta = (m: Awaited<ReturnType<typeof mesa>>, total: number) => {
+    for (let t = 0; t < total; t += 1_000) {
+      m.avanca(1_000)
+      if ((t + 1_000) % PING_INTERVAL_MS === 0) {
+        m.ping('c2')
+        m.ping('c3')
+      }
+      if ((t + 1_000) % MINUTO === 0) m.pingAway('c1')
+    }
+  }
+
+  it('ping de minuto em minuto com a aba oculta: 10 min na sala, sem "Gina caiu" e sem kick', async () => {
+    const m = await mesa()
+    m.pingAway('c1')
+    passaComGinaOculta(m, 10 * MINUTO)
+    expect(m.players().find((p) => p.name === 'Gina')).toMatchObject({ connected: true })
+    expect(m.players().every((p) => p.connected)).toBe(true)
+    expect(m.textos().filter((t) => t.includes('Gina'))).toEqual([])
+    expect(m.invoke.mock.calls.some((call) => call[0] === 'net_kick')).toBe(false)
+  })
+
+  it('o prazo da aba oculta cobre um despertar de minuto perdido, e só vale para quem avisou', () => {
+    expect(HOST_AWAY_STALE_AFTER_MS).toBeGreaterThanOrEqual(2 * MINUTO)
+    expect(HOST_AWAY_STALE_AFTER_MS).toBeLessThanOrEqual(3 * MINUTO)
+    expect(HOST_STALE_AFTER_MS).toBe(6_000)
+  })
+
+  it('a aba voltou à vista (ping comum): o prazo curto volta a valer', async () => {
+    const m = await mesa()
+    m.pingAway('c1')
+    m.avancaComPing(30_000, 'c2', 'c3')
+    expect(m.players().find((p) => p.name === 'Gina')).toMatchObject({ connected: true })
+    m.ping('c1')
+    const ultimoSinal = m.agora()
+    m.avancaComPing(10_000, 'c2', 'c3')
+    expect(m.players().find((p) => p.name === 'Gina')).toMatchObject({ connected: false, disconnectedAt: ultimoSinal })
+    expect(m.textos()).toContain('Gina caiu')
+    expect(m.invoke.mock.calls).toContainEqual(['net_kick', { clientId: 'c1' }])
+  })
+
+  it('aba oculta que parou de vez (congelada): cai depois do prazo longo, com um aviso só', async () => {
+    const m = await mesa()
+    m.pingAway('c1')
+    const ultimoSinal = m.agora()
+    m.avancaComPing(HOST_AWAY_STALE_AFTER_MS - 2_000, 'c2', 'c3')
+    expect(m.players().find((p) => p.name === 'Gina')).toMatchObject({ connected: true })
+    m.avancaComPing(2_000 + LIVENESS_SWEEP_MS + DROP_ANNOUNCE_DELAY_MS, 'c2', 'c3')
+    expect(m.players().find((p) => p.name === 'Gina')).toMatchObject({ connected: false, disconnectedAt: ultimoSinal })
+    expect(m.textos().filter((t) => t.includes('Gina'))).toEqual(['Gina caiu'])
   })
 })

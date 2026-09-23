@@ -164,6 +164,11 @@ export interface PlayerConnectionOptions {
   name: string
   createSocket: (url: string) => SocketLike
   storage: StorageLike | null
+  /**
+   * A aba está em segundo plano agora? (No navegador, `document.visibilityState
+   * === 'hidden'`.) Ausente = sempre à vista.
+   */
+  isHidden?: () => boolean
 }
 
 export interface PlayerConnection {
@@ -239,6 +244,14 @@ export const PING_INTERVAL_MS = 2_000
  * do host (6 s), para o jogador já estar voltando quando o mestre souber.
  */
 export const SILENCE_DEAD_AFTER_MS = 5_000
+/**
+ * A tela acendeu e o host está mudo há mais que `SILENCE_DEAD_AFTER_MS`: um
+ * ping sai na hora e, sem resposta nisto, a volta começa sem esperar a espera
+ * crescente. Não derruba direto porque o silêncio pode ser só do timer da aba
+ * oculta (Chrome e Edge rodam o ping 1 vez por minuto depois de 5 min em
+ * segundo plano) com a conexão viva; na LAN o pong volta em milissegundos.
+ */
+export const WAKE_PROBE_MS = 800
 /** Quanto tempo o aviso da porta ("Chegue mais perto") fica na tela. O "Trancada" fica até o jogador escolher. */
 export const DOOR_NOTICE_TTL_MS = 2500
 /** Quanto tempo o aviso do pedido da porta ("Pedido enviado", "O mestre abriu") fica na tela. */
@@ -391,8 +404,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   let state: PlayerState = { status: 'connecting', rev: -1 }
   let socket: SocketLike | null = null
   let pingTimer: ReturnType<typeof setInterval> | null = null
+  const isHidden = options.isHidden ?? (() => false)
   /** Quando chegou a última mensagem do host no socket atual (relógio do aparelho). */
   let lastHeardAt = 0
+  /**
+   * Desde quando a aba está de novo à vista e o silêncio volta a contar. O que
+   * se passou com a aba oculta não prova nada: o timer do ping estava preso.
+   */
+  let watchingSince = 0
+  /** Confirmação de vida depois de a tela acender (`WAKE_PROBE_MS`). */
+  let wakeProbeTimer: ReturnType<typeof setTimeout> | null = null
   let nextReqId = 1
   const signalTimers = new Map<string, ReturnType<typeof setTimeout>>()
   let nextSignalId = 1
@@ -614,9 +635,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return true
   }
 
+  function clearWakeProbe(): void {
+    if (wakeProbeTimer !== null) clearTimeout(wakeProbeTimer)
+    wakeProbeTimer = null
+  }
+
   function stopPing(): void {
     if (pingTimer !== null) clearInterval(pingTimer)
     pingTimer = null
+    clearWakeProbe()
+  }
+
+  /** O ping diz ao host se a aba está em segundo plano, para ele esperar mais. */
+  function sendPing(): void {
+    send(isHidden() ? { type: 'ping', away: true } : { type: 'ping' })
   }
 
   /**
@@ -624,15 +656,32 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
    * `welcome` quem decide quanto esperar é a tela (o prazo do aperto de mão).
    */
   function hostSilent(): boolean {
-    return socket !== null && state.playerId !== undefined && Date.now() - lastHeardAt >= SILENCE_DEAD_AFTER_MS
+    const since = Math.max(lastHeardAt, watchingSince)
+    return socket !== null && state.playerId !== undefined && Date.now() - since >= SILENCE_DEAD_AFTER_MS
   }
 
   function pingOrGiveUp(): void {
-    if (hostSilent()) {
+    // Aba oculta: o timer pode estar rodando de minuto em minuto, e o silêncio
+    // medido assim é do timer, não do host. Quem decide é o `wake`, à vista.
+    if (!isHidden() && hostSilent()) {
       dropSocket()
       return
     }
-    send({ type: 'ping' })
+    sendPing()
+  }
+
+  /** A tela acendeu com o host mudo: ping agora e, sem resposta em `WAKE_PROBE_MS`, volta já. */
+  function probeAfterWake(): void {
+    watchingSince = Date.now()
+    sendPing()
+    clearWakeProbe()
+    const probed = socket
+    wakeProbeTimer = setTimeout(() => {
+      wakeProbeTimer = null
+      if (socket !== probed || lastHeardAt >= watchingSince) return
+      dropSocket()
+      attemptNow()
+    }, WAKE_PROBE_MS)
   }
 
   /** Depois de kicked/closed/error a queda é esperada: o mestre derrubou de propósito. */
@@ -984,6 +1033,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (socket !== current) return
       // Qualquer mensagem do host é prova de vida, não só o pong.
       lastHeardAt = Date.now()
+      clearWakeProbe()
       handleMessage(event.data)
     }
     current.onerror = () => {
@@ -1136,15 +1186,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         return
       }
       if (sessionOver() || socket === null) return
-      // A tela ficou apagada e os timers nem rodaram: o socket pode estar morto
-      // sem saber. Mudo há mais que o prazo = morto, e a volta tenta NA HORA —
+      // A tela ficou apagada e os timers nem rodaram (ou rodaram de minuto em
+      // minuto): o socket pode estar morto sem saber, ou vivo. Mudo há mais que
+      // o prazo = confirma com um ping curto, e sem resposta a volta tenta já —
       // a pessoa está olhando. Senão, um ping agora confirma mais cedo.
       if (hostSilent()) {
-        dropSocket()
-        attemptNow()
+        probeAfterWake()
         return
       }
-      send({ type: 'ping' })
+      sendPing()
     },
     retryNow() {
       if (state.reconnecting === undefined) return

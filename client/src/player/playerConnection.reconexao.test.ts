@@ -8,6 +8,7 @@ import {
   RECONNECT_MAX_DELAY_MS,
   reconnectDelayMs,
   SILENCE_DEAD_AFTER_MS,
+  WAKE_PROBE_MS,
 } from './playerConnection'
 import type { SocketLike, StorageLike } from './playerConnection'
 
@@ -59,14 +60,15 @@ function mapWithToken(x: number, y: number): MapData {
   return addToken(createEmptyMap('m1', 'Mapa', 10, 10, 50), { id: 't1', characterId: null, name: 'Gina', x, y, size: 1, image: null })
 }
 
-/** Gina entrou, recebeu a ficha e está jogando no socket 0. */
-function jogando() {
+/** Gina entrou, recebeu a ficha e está jogando no socket 0. `isHidden`: a aba está em segundo plano? */
+function jogando(isHidden?: () => boolean) {
   const sockets: FakeSocket[] = []
   const connection = createPlayerConnection({
     url: 'ws://host/ws',
     code: 'ABC123',
     name: 'Gina',
     storage: memoryStorage(),
+    isHidden,
     createSocket: () => {
       const socket = new FakeSocket()
       sockets.push(socket)
@@ -306,15 +308,21 @@ describe('playerConnection: socket mudo conta como queda', () => {
     expect(pings(first)).toBeGreaterThan(10)
   })
 
-  it('a tela acendeu depois de muito tempo muda (visibilitychange): reconecta NA HORA', () => {
+  it('a tela acendeu depois de muito tempo muda (visibilitychange) e o host não responde: reconecta sem a espera crescente', () => {
     const { connection, sockets, first } = jogando()
     // Celular bloqueado: os timers da aba nem rodaram; o relógio andou 60 s.
     vi.setSystemTime(Date.now() + 60_000)
     connection.wake()
+    // Primeiro confirma: o silêncio pode ser só do timer preso da aba.
+    expect(first.sent.at(-1)).toEqual({ type: 'ping' })
+    expect(first.closed).toBe(false)
+    vi.advanceTimersByTime(WAKE_PROBE_MS)
     expect(first.closed).toBe(true)
     expect(connection.getState().reconnecting).toBeDefined()
     // Não espera o 1 s da primeira tentativa: a pessoa está olhando.
     expect(sockets).toHaveLength(2)
+    expect(WAKE_PROBE_MS).toBeGreaterThan(0)
+    expect(WAKE_PROBE_MS).toBeLessThan(reconnectDelayMs(1))
   })
 
   it('a tela acendeu com a conexão viva: só um ping na hora, sem derrubar nada', () => {
@@ -356,5 +364,76 @@ describe('playerConnection: socket mudo conta como queda', () => {
     vi.advanceTimersByTime(SILENCE_DEAD_AFTER_MS * 3)
     expect(connection.getState().status).toBe('connecting')
     expect(sockets).toHaveLength(1)
+  })
+})
+
+/**
+ * ABA EM SEGUNDO PLANO NO DESKTOP: com a aba oculta há mais de 5 min, o Chrome
+ * e o Edge rodam o `setInterval` do ping 1 vez por minuto (WebSocket aberto
+ * não isenta). O pong só vem em resposta ao ping, então a cada tick o host
+ * parece mudo há ~60 s — sem cuidado, o cliente se derrubava sozinho a cada
+ * minuto. Aqui o tick "de minuto em minuto" é simulado: o relógio anda 58 s
+ * sem timer nenhum rodar, e o intervalo do ping dispara uma vez.
+ */
+describe('playerConnection: aba em segundo plano com o timer estrangulado', () => {
+  const MINUTO = 60_000
+  const ultimoPing = (socket: FakeSocket) => socket.sent.filter((m) => JSON.stringify(m).includes('"ping"')).at(-1)
+
+  /** Um tick do ping depois de um minuto parado; o host responde se `pong`. */
+  const tickDeMinuto = (socket: FakeSocket, pong: boolean) => {
+    vi.setSystemTime(Date.now() + MINUTO - PING_INTERVAL_MS)
+    vi.advanceTimersByTime(PING_INTERVAL_MS)
+    if (pong) socket.receive({ type: 'pong' })
+  }
+
+  it('10 min oculta, ping de minuto em minuto: não se derruba, e o ping avisa o host (away)', () => {
+    const { connection, sockets, first } = jogando(() => true)
+    for (let i = 0; i < 10; i++) tickDeMinuto(first, true)
+    expect(first.closed).toBe(false)
+    expect(sockets).toHaveLength(1)
+    expect(connection.getState().reconnecting).toBeUndefined()
+    expect(ultimoPing(first)).toEqual({ type: 'ping', away: true })
+    expect(first.sent.filter((m) => JSON.stringify(m) === '{"type":"ping","away":true}').length).toBeGreaterThanOrEqual(10)
+  })
+
+  it('oculta, o silêncio do host não derruba: a decisão fica para quando a tela acender', () => {
+    const { connection, sockets, first } = jogando(() => true)
+    for (let i = 0; i < 3; i++) tickDeMinuto(first, false)
+    expect(first.closed).toBe(false)
+    expect(sockets).toHaveLength(1)
+    expect(connection.getState().reconnecting).toBeUndefined()
+  })
+
+  it('volta à vista no meio do minuto com a conexão viva: um ping comum, e nada cai depois', () => {
+    let oculta = true
+    const { connection, sockets, first } = jogando(() => oculta)
+    for (let i = 0; i < 6; i++) tickDeMinuto(first, true)
+    // Voltou à aba 40 s depois do último pong.
+    vi.setSystemTime(Date.now() + 40_000)
+    oculta = false
+    connection.wake()
+    expect(ultimoPing(first)).toEqual({ type: 'ping' })
+    first.receive({ type: 'pong' })
+    // Os ticks seguintes (à vista, de 2 em 2 s) com o host respondendo.
+    for (let t = 0; t < 10_000; t += PING_INTERVAL_MS) {
+      vi.advanceTimersByTime(PING_INTERVAL_MS)
+      first.receive({ type: 'pong' })
+    }
+    expect(first.closed).toBe(false)
+    expect(sockets).toHaveLength(1)
+    expect(connection.getState().reconnecting).toBeUndefined()
+  })
+
+  it('volta à vista e o host de fato sumiu: a volta começa em WAKE_PROBE_MS', () => {
+    let oculta = true
+    const { connection, sockets, first } = jogando(() => oculta)
+    for (let i = 0; i < 3; i++) tickDeMinuto(first, false)
+    oculta = false
+    connection.wake()
+    expect(first.closed).toBe(false)
+    vi.advanceTimersByTime(WAKE_PROBE_MS)
+    expect(first.closed).toBe(true)
+    expect(connection.getState().reconnecting).toBeDefined()
+    expect(sockets).toHaveLength(2)
   })
 })

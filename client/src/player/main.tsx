@@ -846,6 +846,7 @@ function PlayerApp() {
           if (registered !== null) setHostName(registered)
         }),
       storage: sessionStorageOrNull(),
+      isHidden: () => document.visibilityState === 'hidden',
     })
     setSession({ connection, code, typedName: name })
   }

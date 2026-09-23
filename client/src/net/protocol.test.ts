@@ -90,6 +90,12 @@ describe('parsePlayerMessage', () => {
     expect(parsePlayerMessage({ type: 'ping', extra: 1 })).toEqual({ type: 'ping' })
   })
 
+  it('ping da aba em segundo plano leva away: true; qualquer outro valor vira o ping comum', () => {
+    expect(parsePlayerMessage('{"type":"ping","away":true}')).toEqual({ type: 'ping', away: true })
+    expect(parsePlayerMessage({ type: 'ping', away: 'sim' })).toEqual({ type: 'ping' })
+    expect(parsePlayerMessage({ type: 'ping', away: false })).toEqual({ type: 'ping' })
+  })
+
   it.each([
     ['null', null],
     ['número', 42],
