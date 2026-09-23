@@ -123,7 +123,7 @@ const ARTEFATOS = path.join(SAIDA, 'artefatos')
  */
 const RECIBOS = path.join(SAIDA, 'recibos')
 /** Os passos cuja ausência é regressão sem medida, e não recorte legítimo. */
-const PASSOS_DE_REGRESSAO = ['jornadas-e2e', 'jornadas-da-bar']
+const PASSOS_DE_REGRESSAO = ['jornadas-e2e', 'jornadas-da-bar', 'jornadas-entregues']
 /**
  * UM diretório de build do cargo para TODAS as árvores, em vez de um por peça.
  *
@@ -372,65 +372,17 @@ const JORNADAS_DE_REGRESSAO_DA_BAR = [
   'e2e/task-jornada-pinos-ponto-de-interesse.spec.ts',
 ]
 /**
- * CRITÉRIO: as três do passeio de usuário de 18/09/2026. Entram na bar para
- * ganharem o selo e a auditoria arquivo a arquivo da FASE 0 — sem isso,
- * `jornadas-intactas` não as protege e um builder poderia afrouxar a própria
- * régua sem o portão piscar.
- *
- * Nascem VERMELHAS de propósito: são o critério de conserto, não regressão. É
- * exatamente por isso que elas NÃO podem estar no mesmo grupo da regressão —
- * ver `GRUPOS_DA_BAR`.
+ * ENTREGUES: jornadas de features JÁ ENTREGUES e provadas verdes no commit
+ * juntado (HANDOFF.md, "Provas no commit juntado"). Moram aqui, e não no
+ * critério, porque o critério só roda na PROVA: enquanto estavam lá, a volta
+ * comum saía verde sem medir nenhuma delas — achado CONFIRMADO da varredura de
+ * 23/09/2026. Aqui são REGRESSÃO: passo `jornadas-entregues`, volta comum,
+ * recibo em `regressao-em-dia`. Jornada que sair vermelha por defeito real volta
+ * para o critério com a nota do motivo — regressão é promessa de verde.
  */
-const JORNADAS_DO_CRITERIO = [
-  'e2e/task-jornada-camada-travada.spec.ts',
-  'e2e/task-jornada-poligono-termina.spec.ts',
-  'e2e/task-jornada-menu-cabe-na-janela.spec.ts',
-  // A quarta jornada da noite de 18/09: a ferramenta Escada muda.
-  'e2e/task-jornada-escada-fala.spec.ts',
-  // 18/09/2026, manhã, nas palavras do usuário: "o pino, eu consigo colocar,
-  // não consigo tirar". Delete e Backspace não alcançavam o pino.
-  'e2e/task-jornada-pino-apaga-com-delete.spec.ts',
-  // 18/09/2026, tarde: teto de construção. O jogador vê o prédio fechado e
-  // nada do interior; o teto abre quando o token dele entra e fecha quando sai.
-  'e2e/task-jornada-teto-de-construcao.spec.ts',
-  // 18/09/2026, noite, nas palavras do usuário: "eu queria que eu pudesse
-  // salvar Tokens pre prontos, tipos tokens de npcs e afins para colocar para
-  // os jogadores". O acervo é GLOBAL do app: sobrevive ao outro mapa e ao
-  // reinício, e é isso que a jornada mede (disco falso que atravessa o reload).
-  'e2e/task-jornada-acervo-de-tokens.spec.ts',
-  // -------------------------------------------------------------------------
-  // 20/09/2026, noite — as jornadas DESTA rodada.
-  //
-  // Elas já estavam COMMITADAS no repositório (4b9a9de e 41c3a7a) e fora desta
-  // lista, e uma omissão só produziu três falso-verdes ao mesmo tempo:
-  //   - `--so=jornadas-do-criterio` saía exit 0 julgando o critério de 18/09,
-  //     com as oito desta noite vermelhas e fora de qualquer linha de comando;
-  //   - o SELO não as cobria (`JORNADAS_SELADAS` deriva desta lista), então um
-  //     builder podia afrouxar a própria régua sem o portão piscar;
-  //   - a FASE 0 imprimia PORTÃO ÍNTEGRO sem ter auditado nenhuma delas
-  //     (`TODAS_JORNADAS_E2E` também deriva daqui).
-  // Estes oito nomes são o conserto de hoje; `guardaJornadaNovaSemComando`
-  // (g27) é o que impede a omissão de voltar a passar em silêncio.
-  //
-  // Os cinco pedidos da noite:
-  'e2e/task-jornada-caminho-com-cor-propria.spec.ts',
-  'e2e/task-jornada-etiqueta-pilula.spec.ts',
-  'e2e/task-jornada-linha-pontilhada.spec.ts',
+const JORNADAS_ENTREGUES = [
+  // 20/09/2026 — o marcador com ícone, dos cinco pedidos da noite.
   'e2e/task-jornada-marcador-com-icone.spec.ts',
-  'e2e/task-jornada-saida-sem-parede.spec.ts',
-  // As três do acervo, escritas depois do passeio de usuário: trocar a foto do
-  // token não troca o que aparece na tela, o aviso de escolher imagem some
-  // sozinho aos 7 segundos, e apagar item com o arquivo travado engole a falha
-  // num catch mudo (o app diz que apagou e a foto fica no disco).
-  // 21/09/2026, manhã — os três achados do passeio de usuário que têm convenção
-  // demonstrada em produto público. Dois deles foram RE-MIRADOS pelo testador
-  // depois de medir: o duplo clique FECHA a forma hoje (o defeito é a janela fixa
-  // de 500 ms do Chromium, que ignora o duplo clique mais lento do Windows), e a
-  // alça de seleção EXISTE, mas é um quadrado de 7 px na mesma cor do contorno.
-  // 21/09/2026, manhã — as três primeiras da fila de features candidatas
-  // (docs/features-candidatas-2026-09-21.md): o que a mesa faz no olhômetro
-  // hoje (quantos quadrados o token andou) e o que o painel não deixa dizer
-  // (cor e tamanho da ficha).
   // 21/09/2026 — pino de viagem e várias cenas na mesma sessão, entrega 1
   // (plano aprovado em ~/.claude/plans/immutable-inventing-acorn.md): várias
   // cenas numa aventura, trocando com um clique e sobrevivendo a reabrir.
@@ -488,6 +440,70 @@ const JORNADAS_DO_CRITERIO = [
   // 22/09/2026, grupo espalhado G11 — recado do mestre só para quem está numa
   // cena, texto puro, nada para as outras cenas.
   'e2e/task-jornada-recado-por-cena.spec.ts',
+]
+/**
+ * CRITÉRIO: as três do passeio de usuário de 18/09/2026. Entram na bar para
+ * ganharem o selo e a auditoria arquivo a arquivo da FASE 0 — sem isso,
+ * `jornadas-intactas` não as protege e um builder poderia afrouxar a própria
+ * régua sem o portão piscar.
+ *
+ * Nascem VERMELHAS de propósito: são o critério de conserto, não regressão. É
+ * exatamente por isso que elas NÃO podem estar no mesmo grupo da regressão —
+ * ver `GRUPOS_DA_BAR`.
+ */
+const JORNADAS_DO_CRITERIO = [
+  'e2e/task-jornada-camada-travada.spec.ts',
+  'e2e/task-jornada-poligono-termina.spec.ts',
+  'e2e/task-jornada-menu-cabe-na-janela.spec.ts',
+  // A quarta jornada da noite de 18/09: a ferramenta Escada muda.
+  'e2e/task-jornada-escada-fala.spec.ts',
+  // 18/09/2026, manhã, nas palavras do usuário: "o pino, eu consigo colocar,
+  // não consigo tirar". Delete e Backspace não alcançavam o pino.
+  'e2e/task-jornada-pino-apaga-com-delete.spec.ts',
+  // 18/09/2026, tarde: teto de construção. O jogador vê o prédio fechado e
+  // nada do interior; o teto abre quando o token dele entra e fecha quando sai.
+  'e2e/task-jornada-teto-de-construcao.spec.ts',
+  // 18/09/2026, noite, nas palavras do usuário: "eu queria que eu pudesse
+  // salvar Tokens pre prontos, tipos tokens de npcs e afins para colocar para
+  // os jogadores". O acervo é GLOBAL do app: sobrevive ao outro mapa e ao
+  // reinício, e é isso que a jornada mede (disco falso que atravessa o reload).
+  'e2e/task-jornada-acervo-de-tokens.spec.ts',
+  // -------------------------------------------------------------------------
+  // 20/09/2026, noite — as jornadas DESTA rodada.
+  //
+  // Elas já estavam COMMITADAS no repositório (4b9a9de e 41c3a7a) e fora desta
+  // lista, e uma omissão só produziu três falso-verdes ao mesmo tempo:
+  //   - `--so=jornadas-do-criterio` saía exit 0 julgando o critério de 18/09,
+  //     com as oito desta noite vermelhas e fora de qualquer linha de comando;
+  //   - o SELO não as cobria (`JORNADAS_SELADAS` deriva desta lista), então um
+  //     builder podia afrouxar a própria régua sem o portão piscar;
+  //   - a FASE 0 imprimia PORTÃO ÍNTEGRO sem ter auditado nenhuma delas
+  //     (`TODAS_JORNADAS_E2E` também deriva daqui).
+  // Estes oito nomes são o conserto de hoje; `guardaJornadaNovaSemComando`
+  // (g27) é o que impede a omissão de voltar a passar em silêncio.
+  //
+  // Os cinco pedidos da noite:
+  'e2e/task-jornada-caminho-com-cor-propria.spec.ts',
+  'e2e/task-jornada-etiqueta-pilula.spec.ts',
+  'e2e/task-jornada-linha-pontilhada.spec.ts',
+  // (marcador-com-icone foi para `JORNADAS_ENTREGUES` em 23/09/2026.)
+  'e2e/task-jornada-saida-sem-parede.spec.ts',
+  // As três do acervo, escritas depois do passeio de usuário: trocar a foto do
+  // token não troca o que aparece na tela, o aviso de escolher imagem some
+  // sozinho aos 7 segundos, e apagar item com o arquivo travado engole a falha
+  // num catch mudo (o app diz que apagou e a foto fica no disco).
+  // 21/09/2026, manhã — os três achados do passeio de usuário que têm convenção
+  // demonstrada em produto público. Dois deles foram RE-MIRADOS pelo testador
+  // depois de medir: o duplo clique FECHA a forma hoje (o defeito é a janela fixa
+  // de 500 ms do Chromium, que ignora o duplo clique mais lento do Windows), e a
+  // alça de seleção EXISTE, mas é um quadrado de 7 px na mesma cor do contorno.
+  // 21/09/2026, manhã — as três primeiras da fila de features candidatas
+  // (docs/features-candidatas-2026-09-21.md): o que a mesa faz no olhômetro
+  // hoje (quantos quadrados o token andou) e o que o painel não deixa dizer
+  // (cor e tamanho da ficha).
+  // (23/09/2026: as entregues daqui — várias cenas, pino de viagem, viagem do
+  // jogador, girar sala, medir na tela do jogador, os defeitos de 20/09, G1-G9 e
+  // G11 — foram para `JORNADAS_ENTREGUES`, que roda na volta comum.)
   // 22/09/2026, grupo espalhado G10 — viajar junto: no aviso do pedido, levar
   // também quem está a até 2 casas de quem pediu.
   'e2e/task-jornada-viajar-junto.spec.ts',
@@ -524,7 +540,7 @@ const JORNADAS_DO_CRITERIO = [
  * auditoria arquivo a arquivo da FASE 0 percorre. Concatenar os dois grupos
  * mantém a ordem byte a byte da lista anterior — o selo não se mexe.
  */
-const JORNADAS_DA_BAR = JORNADAS_DE_REGRESSAO_DA_BAR.concat(JORNADAS_DO_CRITERIO)
+const JORNADAS_DA_BAR = JORNADAS_DE_REGRESSAO_DA_BAR.concat(JORNADAS_ENTREGUES, JORNADAS_DO_CRITERIO)
 /**
  * O PORTÃO ESTÁ DIVIDIDO EM DOIS DE PROPÓSITO, e a divisão mora aqui.
  *
@@ -545,6 +561,7 @@ const JORNADAS_DA_BAR = JORNADAS_DE_REGRESSAO_DA_BAR.concat(JORNADAS_DO_CRITERIO
  */
 const GRUPOS_DA_BAR = [
   { id: 'regressao', titulo: 'regressão (tem de estar verde em TODA volta)', jornadas: JORNADAS_DE_REGRESSAO_DA_BAR },
+  { id: 'entregues', titulo: 'features entregues (regressão: verde em TODA volta)', jornadas: JORNADAS_ENTREGUES },
   { id: 'criterio', titulo: 'critério desta rodada (vermelho até a peça consertar; roda na volta da PROVA)', jornadas: JORNADAS_DO_CRITERIO },
 ]
 /**
@@ -2195,6 +2212,11 @@ function guardaAlvosComRegressao(plano, specs) {
 
 const TSC = path.join(RAIZ, 'node_modules', 'typescript', 'bin', 'tsc')
 const VITEST = path.join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs')
+/** Teto de forks do vitest no passo `unidade` (`PORTAO_VITEST_WORKERS`, padrão 4). */
+const WORKERS_DO_VITEST = (() => {
+  const n = Math.floor(Number(process.env.PORTAO_VITEST_WORKERS))
+  return Number.isFinite(n) && n > 0 ? n : 4
+})()
 const PLAYWRIGHT = path.join(RAIZ, 'node_modules', '@playwright', 'test', 'cli.js')
 
 // ---------------------------------------------------------------------------
@@ -2343,7 +2365,7 @@ function retomarSeOrfa(caminho) {
     fs.unlinkSync(lixo)
   } catch (e) {}
   const quem = lida.dono ? (lida.dono.raiz || '?') + '/' + (lida.dono.passo || '?') : 'dono desconhecido'
-  escreverNaTela('vaga de Playwright retomada: ' + path.basename(caminho) + ' (' + juizo.motivo + '; era de ' + quem + ')\n')
+  escreverNaTela('vaga de máquina retomada: ' + path.basename(caminho) + ' (' + juizo.motivo + '; era de ' + quem + ')\n')
   return juizo
 }
 
@@ -2373,7 +2395,7 @@ function devolverVaga(vaga) {
     } catch (e) {}
   }
   escreverNaTela(
-    'vaga de Playwright ' + vaga.k + ' de ' + vaga.n + ' devolvida em ' + new Date().toISOString() + ' — ' + vaga.dono.passo + '\n',
+    'vaga de ' + vaga.rotulo + ' ' + vaga.k + ' de ' + vaga.n + ' devolvida em ' + new Date().toISOString() + ' — ' + vaga.dono.passo + '\n',
   )
 }
 
@@ -2427,11 +2449,11 @@ function pegarVaga(passo) {
       for (let tentativa = 0; tentativa < 2; tentativa++) {
         const dono = { pid: process.pid, desde: new Date().toISOString(), raiz: RAIZ, passo: passo.id }
         if (tentarCriarVaga(caminho, dono)) {
-          const vaga = { caminho, k, n, dono, bruto: JSON.stringify(dono), esperouMs: Date.now() - t0 }
+          const vaga = { caminho, k, n, dono, rotulo: rotuloDaVaga(passo), bruto: JSON.stringify(dono), esperouMs: Date.now() - t0 }
           VAGAS_EM_MAOS.add(vaga)
           sinaisDasVagas(true)
           escreverNaTela(
-            'vaga de Playwright ' + k + ' de ' + n + ' pega em ' + dono.desde + ' — ' + passo.id +
+            'vaga de ' + vaga.rotulo + ' ' + k + ' de ' + n + ' pega em ' + dono.desde + ' — ' + passo.id +
               ' (esperou vaga ' + (vaga.esperouMs / 1000).toFixed(1) + ' s)\n',
           )
           return vaga
@@ -2443,7 +2465,7 @@ function pegarVaga(passo) {
       ultimoAviso = Date.now()
       const quem = ocupantes()
       escreverNaTela(
-        'aguardando vaga de Playwright: ' + quem.length + ' de ' + n + ' (quem: ' + (quem.join('; ') || '?') + ') — ' +
+        'aguardando vaga de ' + rotuloDaVaga(passo) + ': ' + quem.length + ' de ' + n + ' (quem: ' + (quem.join('; ') || '?') + ') — ' +
           passo.id + ', há ' + Math.round((ultimoAviso - t0) / 1000) + ' s\n',
       )
     }
@@ -2456,9 +2478,18 @@ function vagaPresa(juizo) {
   return juizo.orfa ? reprova('g32-vagas', 'órfã: ' + juizo.motivo) : ok('g32-vagas', 'presa: ' + juizo.motivo)
 }
 
-/** Passo que sobe o Playwright: jornada (suíte) ou sonda que abre o chromium. */
+/**
+ * Passo PESADO de CPU: jornada (suíte do Playwright), sonda que abre o
+ * chromium, ou a suíte do vitest (`vaga: 'vitest'`). Todos na MESMA fila — ver
+ * o passo `unidade` para o porquê.
+ */
 function precisaDeVaga(passo) {
   return Boolean(passo.artefatos || passo.vaga)
+}
+
+/** Nome do que ocupa a vaga, para as linhas de espera e de teto. */
+function rotuloDaVaga(passo) {
+  return passo.vaga === 'vitest' ? 'vitest' : 'Playwright'
 }
 
 // ---------------------------------------------------------------------------
@@ -2480,9 +2511,9 @@ function tetoDoPlaywrightMs(env) {
   return (Number.isFinite(n) && n > 0 ? n : TETO_PLAYWRIGHT_PADRAO_MIN) * 60 * 1000
 }
 
-function linhaDeTeto(tetoMs) {
+function linhaDeTeto(tetoMs, rotulo) {
   const min = Math.round((tetoMs / 60000) * 100) / 100
-  return 'Playwright passou do teto de ' + min + ' min (travado?) — a árvore de processos foi morta e o passo NÃO mediu nada; ' +
+  return (rotulo || 'Playwright') + ' passou do teto de ' + min + ' min (travado?) — a árvore de processos foi morta e o passo NÃO mediu nada; ' +
     'não é falha de teste. Teto em PORTAO_TETO_PLAYWRIGHT_MIN.'
 }
 
@@ -2617,10 +2648,27 @@ const PLANO = [
   },
   {
     id: 'unidade',
-    titulo: 'vitest (suíte inteira)',
+    titulo: 'vitest (suíte inteira, até ' + WORKERS_DO_VITEST + ' workers)',
     exe: process.execPath,
-    args: [VITEST, 'run', '--reporter=default'],
+    // MEDIDO em 23/09/2026 com ~9 lanes ao mesmo tempo: o vitest sobe um fork
+    // por CPU (19) em cada lane, e a lane de defeitos saiu BLOQUEADA com 84
+    // "Failed to start forks worker ... Timeout waiting for worker to respond",
+    // 2 "Test timed out in 5000ms" em RoomControls.test.tsx e só 105 dos 189
+    // arquivos rodados. Teto de workers (`--maxWorkers`; o vitest 4.1 não tem
+    // mais `--minWorkers`) + vaga de máquina.
+    args: [VITEST, 'run', '--reporter=default', '--maxWorkers=' + WORKERS_DO_VITEST],
     cwd: CLIENTE,
+    // A MESMA fila das jornadas, e não uma `PORTAO_VAGAS_UNIDADE` própria: o que
+    // se disputa é CPU, e ela é uma só. Com filas separadas, 3 suítes de
+    // Playwright (4 workers + vite + chromium cada) e 3 de vitest (4 forks
+    // cada) rodariam juntas — o dobro do que a fila das jornadas foi medida
+    // para aguentar. Uma fila só mantém o teto de carga que o número de vagas
+    // promete; o custo é o vitest (1-3 min) esperar atrás de uma jornada.
+    vaga: 'vitest',
+    // Reprise: ruína de INFRAESTRUTURA do runner (worker que não subiu) roda o
+    // passo de novo UMA vez, e só vale a segunda — ver `precisaDeReprise`. O
+    // `piso` continua valendo na segunda: 105 de 189 arquivos nunca sai verde.
+    reprise: [/Failed to start forks worker/, /Timeout waiting for worker/],
     // `\d+ skipped` e não `skipped`: "todo" é palavra comum em português e o
     // repositório é em português — um nome de teste derrubaria o portão à toa.
     ruina: [/\d+ skipped\b/i, /\d+ todo\b/i, /\bFAIL\b/, /No test files found/],
@@ -2747,9 +2795,18 @@ const PLANO = [
     'REGRESSÃO: os gestos que a bar deste run já tinha verdes (luz, token com foto, pincel e balde, sala livre, pinos)',
     JORNADAS_DE_REGRESSAO_DA_BAR.filter((j) => !JORNADAS_DISPENSADAS[j]),
   ),
+  // REGRESSÃO das features ENTREGUES (ver `JORNADAS_ENTREGUES`). Passo próprio,
+  // e não somado ao `jornadas-da-bar`, para o recibo e o vermelho dizerem de
+  // qual lado veio: gesto antigo da bar ou feature entregue nesta leva.
+  jornada(
+    'jornadas-entregues',
+    'REGRESSÃO: as ' + JORNADAS_ENTREGUES.filter((j) => !JORNADAS_DISPENSADAS[j]).length +
+      ' jornadas de features já entregues e provadas no commit juntado',
+    JORNADAS_ENTREGUES.filter((j) => !JORNADAS_DISPENSADAS[j]),
+  ),
   {
     id: 'regressao-em-dia',
-    titulo: 'os dois passos de regressão rodaram VERDES nesta árvore, neste estado (recibo, não promessa)',
+    titulo: 'os ' + PASSOS_DE_REGRESSAO.length + ' passos de regressão rodaram VERDES nesta árvore, neste estado (recibo, não promessa)',
     sonda: sondarRegressaoEmDia,
   },
   // PROVA. As três jornadas do critério desta rodada. Nascem VERMELHAS: só
@@ -3624,7 +3681,16 @@ function vereditoDeDiscoParaCargo(passo, livreGb, quente, ms) {
 async function rodarPasso(passo) {
   const vaga = precisaDeVaga(passo) ? pegarVaga(passo) : null
   try {
-    const r = await rodarPassoNaVaga(passo)
+    let r = await rodarPassoNaVaga(passo)
+    if (precisaDeReprise(passo, r)) {
+      // Ainda DENTRO da vaga: a reprise não volta para a fila.
+      const primeira = r
+      r = await rodarPassoNaVaga(passo)
+      r.saida = NOTA_DE_REPRISE + r.saida
+      // O fim da primeira vai para o relatório JSON (diagnóstico), nunca para a `saida` julgada.
+      r.reprise = { primeiraMs: primeira.ms, primeiraCodigo: primeira.codigo, primeiraCauda: String(primeira.saida).slice(-3000) }
+      r.ms += primeira.ms
+    }
     if (vaga) {
       r.esperaVagaMs = vaga.esperouMs
       r.vaga = vaga.k + '/' + vaga.n
@@ -3633,6 +3699,28 @@ async function rodarPasso(passo) {
   } finally {
     devolverVaga(vaga)
   }
+}
+
+/**
+ * A nota que abre a saída de um passo reprisado. Escrita para NÃO casar com
+ * ruína nenhuma (nada de `FAIL`, `skipped`, `failed`): quem decide o verde é a
+ * saída da SEGUNDA execução, inteira, com o `piso` de arquivos e de testes.
+ */
+const NOTA_DE_REPRISE =
+  'reprise: a primeira execução caiu por infraestrutura do runner (worker que não subiu sob carga); ' +
+  'rodou de novo UMA vez e só vale esta segunda, julgada inteira.\n'
+
+/**
+ * Reprisar só quando: o passo declara `reprise`, a primeira execução NÃO saiu
+ * verde, e a saída dela tem a marca de infraestrutura do runner. Vermelho de
+ * teste de verdade não ganha segunda chance. Nem passo que ESTOUROU o teto:
+ * MEDIDO em 23/09/2026, o `unidade` bateu 45 min sob carga, a saída dele tinha a
+ * marca de worker, e a reprise segurou a vaga por mais 45 min — carga não se
+ * cura rodando de novo o mesmo tamanho de trabalho na mesma máquina.
+ */
+function precisaDeReprise(passo, resultado) {
+  if (!passo.reprise || !resultado || resultado.ok || resultado.teto) return false
+  return passo.reprise.some((re) => re.test(String(resultado.saida || '')))
 }
 
 /** Sufixo das linhas VERDE/VERMELHO: a espera por vaga, fora do tempo do passo. */
@@ -3644,6 +3732,7 @@ async function rodarPassoNaVaga(passo) {
   const t0 = Date.now()
   let codigo
   let saida
+  let estourouTeto = false
   if (passo.sonda) {
     const r = await passo.sonda()
     codigo = r.codigo
@@ -3717,7 +3806,8 @@ async function rodarPassoNaVaga(passo) {
     saida = aviso + String(r.stdout || '') + String(r.stderr || '')
     if (r.estourou) {
       codigo = 1
-      saida = linhaDeTeto(r.tetoMs) + '\n' + saida
+      estourouTeto = true
+      saida = linhaDeTeto(r.tetoMs, rotuloDaVaga(passo)) + '\n' + saida
     }
     // DISCO CHEIO tem nome, e o nome não é o da peça.
     //
@@ -3747,6 +3837,7 @@ async function rodarPassoNaVaga(passo) {
     falsoVerde: veredito.falsoVerde,
     ruina: veredito.ruina,
     saida,
+    teto: estourouTeto,
   }
 }
 
@@ -4834,6 +4925,52 @@ async function rodarAutoteste() {
     ],
     ['g24 aprova suíte do mesmo tamanho', guardaEscalaDaUnidade(['src/a.test.ts'], ['src/a.test.ts'], { ref: 'base' }), true],
     ['g24 aprova suíte que cresceu', guardaEscalaDaUnidade(['src/a.test.ts', 'src/b.test.ts'], ['src/a.test.ts'], { ref: 'base' }), true],
+    // g34 — `unidade` sob carga: vaga, teto de workers e reprise SÓ por infraestrutura do runner.
+    [
+      'g34 aprova unidade na fila de máquina com teto de workers',
+      passoUnidadeReal.vaga === 'vitest' && (passoUnidadeReal.args || []).some((a) => /^--maxWorkers=\d+$/.test(String(a)))
+        ? ok('g34-unidade', 'vaga ' + passoUnidadeReal.vaga + ', ' + passoUnidadeReal.args.filter((a) => /maxWorkers/.test(a)).join(' '))
+        : reprova('g34-unidade', 'unidade sem vaga ou sem --maxWorkers'),
+      true,
+    ],
+    [
+      'g34 aprova reprise quando o worker do vitest não subiu',
+      precisaDeReprise(passoUnidadeReal, { ok: false, saida: 'Error: [vitest-pool]: Failed to start forks worker for test files a.test.ts' })
+        ? ok('g34-unidade', 'reprisa')
+        : reprova('g34-unidade', 'não reprisou'),
+      true,
+    ],
+    [
+      'g34 reprova reprise de vermelho de TESTE (sem marca de runner)',
+      precisaDeReprise(passoUnidadeReal, { ok: false, saida: ' FAIL  src/a.test.ts > mede\nAssertionError: expected 1 to be 2' })
+        ? ok('g34-unidade', 'reprisou vermelho de teste')
+        : reprova('g34-unidade', 'não reprisa'),
+      false,
+    ],
+    [
+      'g34 reprova reprise de passo que estourou o teto (mesmo com a marca de worker)',
+      precisaDeReprise(passoUnidadeReal, { ok: false, teto: true, saida: 'Timeout waiting for worker to respond' })
+        ? ok('g34-unidade', 'reprisou teto')
+        : reprova('g34-unidade', 'não reprisa'),
+      false,
+    ],
+    [
+      'g34 reprova reprise de passo que já saiu verde',
+      precisaDeReprise(passoUnidadeReal, { ok: true, saida: 'Timeout waiting for worker to respond' })
+        ? ok('g34-unidade', 'reprisou verde')
+        : reprova('g34-unidade', 'não reprisa'),
+      false,
+    ],
+    [
+      'g34 reprova reprise que só rodou parte dos arquivos (105 de 189 nunca é verde)',
+      guardaFalsoVerde('g34-unidade', PASSO_DE_UNIDADE_DE_PROVA, 0, NOTA_DE_REPRISE + relatorioDeUnidade(5, PISO_DE_TESTES_DE_UNIDADE)),
+      false,
+    ],
+    [
+      'g34 aprova reprise inteira (a nota não é ruína)',
+      guardaFalsoVerde('g34-unidade', PASSO_DE_UNIDADE_DE_PROVA, 0, NOTA_DE_REPRISE + relatorioDeUnidade(10, PISO_DE_TESTES_DE_UNIDADE)),
+      true,
+    ],
     // g32 — vagas de Playwright: o juízo de órfã e o "0 desliga".
     ['g32 reprova vaga de pid morto (tem de ser retomada)', vagaPresa(julgarVaga({ pid: 4242, desde: new Date().toISOString() }, Date.now(), 0, () => false)), false],
     [
