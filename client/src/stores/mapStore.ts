@@ -725,8 +725,24 @@ interface MapStoreState {
    * resultado final do arrasto. Não faz nada se `before` for igual (mesma
    * referência) ao `map` atual, ou seja, o gesto não mudou nada de verdade
    * (ex.: clique sem arrasto real).
+   *
+   * Se um jogador mudou o mapa durante o gesto (`applyPlayerChange`), essas
+   * mudanças são reaplicadas em `before` antes de ir pra `past` — desfazer o
+   * arrasto do mestre não pode devolver a ficha do jogador. Gesto em que só o
+   * jogador mexeu não vira passo de desfazer.
    */
   commitDragHistory: (before: MapData) => void
+  /**
+   * Mudança feita por um JOGADOR na cena aberta (chega pela ponte do host,
+   * `net/playerChanges.ts`, já validada). Não cria passo de desfazer: o Ctrl+Z
+   * do mestre desfaz só o que o mestre fez. `transform` também é reaplicado em
+   * cada snapshot de `past`/`future` — o snapshot é o mapa inteiro, e sem isso
+   * desfazer uma parede do mestre devolveria a ficha do jogador para onde
+   * estava antes. `transform` precisa ser pura, valer para qualquer versão do
+   * mapa (ex.: "ficha t1 vai para (x, y)") e devolver o próprio mapa quando
+   * não muda nada.
+   */
+  applyPlayerChange: (transform: (map: MapData) => MapData) => void
   updateLinePoint: (drawingId: string, endpoint: 0 | 1, x: number, y: number) => void
   moveDrawing: (drawingId: string, dx: number, dy: number) => void
   /**
@@ -927,6 +943,49 @@ function isValidDrawingWidth(width: number): boolean {
   return Number.isFinite(width) && width >= MIN_DRAWING_WIDTH
 }
 
+type MapTransform = (map: MapData) => MapData
+
+/**
+ * Mudanças do jogador em ordem de chegada (`applyPlayerChange`), numeradas —
+ * `commitDragHistory` reaplica em `before` as que chegaram depois do começo do
+ * gesto. O cap só limita memória: um gesto do mestre não dura 200 movimentos.
+ */
+const PLAYER_LOG_CAP = 200
+let playerSeq = 0
+let playerLog: { seq: number; transform: MapTransform }[] = []
+/** Quantas mudanças do jogador já estavam no mapa da última vez que ele virou o `map` atual. */
+const playerSeqOfMap = new WeakMap<MapData, number>()
+/**
+ * Mapa que nasceu só de mudanças do jogador → o último mapa do MESTRE de onde
+ * ele veio. Guarda a base, não o pai imediato: uma cadeia pai→pai prenderia na
+ * memória todo movimento de jogador de uma sessão em que o mestre fica parado.
+ */
+const masterBaseOfMap = new WeakMap<MapData, MapData>()
+
+/** `before` com as mudanças do jogador que chegaram depois dele. */
+function withLaterPlayerChanges(before: MapData): MapData {
+  const since = playerSeqOfMap.get(before) ?? playerSeq
+  return playerLog.reduce((map, entry) => (entry.seq > since ? entry.transform(map) : map), before)
+}
+
+/** `map` saiu de `before` só por mudanças do jogador (ou é o próprio `before`)? */
+function changedOnlyByPlayer(map: MapData, before: MapData): boolean {
+  if (map === before) return true
+  const base = masterBaseOfMap.get(map)
+  return base !== undefined && base === (masterBaseOfMap.get(before) ?? before)
+}
+
+/**
+ * Edição contínua no mesmo campo de texto (rótulo, nome de sala, nome de
+ * ficha) vira UM passo de desfazer: a chave diz qual campo, e `map` é o mapa
+ * que a última letra produziu. Qualquer outra mudança do mestre no meio troca
+ * o `map` atual e encerra a edição; trocar a seleção, desfazer e refazer também.
+ */
+interface TypingEdit {
+  key: string
+  map: MapData
+}
+
 export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, get) => {
   /**
    * Toda action que muda conteúdo do mapa (não estado de UI/ferramenta como
@@ -937,11 +996,23 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
    * referência antiga em `past` já basta como snapshot, sem precisar de
    * `structuredClone`. `pushPast` (acima) poda a entrada mais antiga quando
    * `past` estoura `HISTORY_CAP`.
+   *
+   * `typingKey` (só campos de texto): letra seguinte no mesmo campo, sem outra
+   * mudança do mestre no meio, atualiza o mapa sem empurrar passo novo — ver
+   * `TypingEdit`.
    */
-  const withHistory = (updater: (map: MapData) => MapData) => {
+  let typingEdit: TypingEdit | null = null
+  const withHistory = (updater: (map: MapData) => MapData, typingKey?: string) => {
     const prevMap = get().map
+    const nextMap = updater(prevMap)
+    const continuesTyping = typingKey !== undefined && typingEdit !== null && typingEdit.key === typingKey && typingEdit.map === prevMap
+    typingEdit = typingKey === undefined ? null : { key: typingKey, map: nextMap }
+    if (continuesTyping) {
+      set({ map: nextMap, future: [] })
+      return
+    }
     set((state) => ({
-      map: updater(prevMap),
+      map: nextMap,
       past: pushPast(state.past, prevMap),
       future: [],
     }))
@@ -996,8 +1067,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     regionStrokeJoin: 'miter',
     setCamera: (camera) => set({ camera }),
     // Selecionar algo no mapa fecha a zona oculta do painel; limpar a seleção não.
-    setSelection: (selection) =>
-      set(isSelectionEmpty(selection) ? { selection } : { selection, selectedConcealZoneId: null, selectedPinId: null }),
+    setSelection: (selection) => {
+      // Outro alvo selecionado: a próxima letra já é outra edição, outro passo.
+      typingEdit = null
+      set(isSelectionEmpty(selection) ? { selection } : { selection, selectedConcealZoneId: null, selectedPinId: null })
+    },
     removeSelected: () => {
       const { selection } = get()
       if (isSelectionEmpty(selection)) return
@@ -1266,7 +1340,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (next !== map) withHistory(() => next)
     },
     setTokenImage: (id, image, imageData = null) => withHistory((map) => mapFactory.setTokenImage(map, id, image, imageData)),
-    renameToken: (id, name) => withHistory((map) => mapFactory.renameToken(map, id, name)),
+    renameToken: (id, name) => withHistory((map) => mapFactory.renameToken(map, id, name), `token-name:${id}`),
     updateToken: (id, patch) => withHistory((map) => ({
       ...map,
       tokens: map.tokens.map((t) => (t.id === id ? { ...t, ...patch } : t)),
@@ -1341,7 +1415,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       mapFactory.updateStairPoint(map, stairId, segmentIndex, endpoint, x, y),
     ),
     setStairDirection: (id, direction) => withHistory((map) => mapFactory.setStairDirection(map, id, direction)),
-    setRoomName: (id, name) => withHistory((map) => mapFactory.setRoomName(map, id, name)),
+    setRoomName: (id, name) => withHistory((map) => mapFactory.setRoomName(map, id, name), `room-name:${id}`),
     setRoomLabelOffsetLive: (id, offset) => set((state) => ({ map: mapFactory.setRoomLabelOffset(state.map, id, offset) })),
     // As fábricas abaixo devolvem o mesmo `map` quando nada muda: sem entrada de histórico vazia.
     setRoomNameHiddenFromPlayers: (id, hidden) => {
@@ -1449,7 +1523,22 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       },
     })),
     moveCurveLive: (drawingId, dx, dy) => set((state) => ({ map: mapFactory.moveCurve(state.map, drawingId, dx, dy) })),
-    commitDragHistory: (before) => set((state) => (state.map === before ? {} : { past: pushPast(state.past, before), future: [] })),
+    commitDragHistory: (before) => set((state) =>
+      changedOnlyByPlayer(state.map, before) ? {} : { past: pushPast(state.past, withLaterPlayerChanges(before)), future: [] },
+    ),
+    applyPlayerChange: (transform) => {
+      const prevMap = get().map
+      const nextMap = transform(prevMap)
+      if (nextMap === prevMap) return
+      playerSeq += 1
+      playerLog.push({ seq: playerSeq, transform })
+      if (playerLog.length > PLAYER_LOG_CAP) playerLog = playerLog.slice(playerLog.length - PLAYER_LOG_CAP)
+      playerSeqOfMap.set(nextMap, playerSeq)
+      masterBaseOfMap.set(nextMap, masterBaseOfMap.get(prevMap) ?? prevMap)
+      // A letra seguinte do mestre continua o mesmo passo, agora sobre o mapa com a mudança do jogador.
+      if (typingEdit !== null && typingEdit.map === prevMap) typingEdit = { key: typingEdit.key, map: nextMap }
+      set((state) => ({ map: nextMap, past: state.past.map(transform), future: state.future.map(transform) }))
+    },
     updateLinePoint: (drawingId, endpoint, x, y) => {
       const before = get().map
       const after = mapFactory.updateLinePoint(before, drawingId, endpoint, x, y)
@@ -1495,12 +1584,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const after = reparentRooms(moved, movedRoomIds(moved, selection), map)
       withHistory(() => after)
     },
-    updateTextLabel: (id, patch) => withHistory((map) => ({
-      ...map,
-      drawings: map.drawings.map((d) =>
-        d.id === id && d.kind === 'text' ? { ...d, ...patch } : d,
-      ),
-    })),
+    updateTextLabel: (id, patch) => withHistory(
+      (map) => ({
+        ...map,
+        drawings: map.drawings.map((d) =>
+          d.id === id && d.kind === 'text' ? { ...d, ...patch } : d,
+        ),
+      }),
+      // Só digitar agrupa; cor e tamanho continuam um passo por mudança.
+      patch.text !== undefined && patch.color === undefined && patch.fontSize === undefined ? `text:${id}` : undefined,
+    ),
     setTextFontFamily: (id, fontFamily) => withHistory((map) => ({
       ...map,
       drawings: map.drawings.map((d) =>
@@ -1553,10 +1646,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       ...map,
       drawings: map.drawings.map((d) => (d.id === id ? convertCurveToLine(d) : d)),
     })),
-    loadMap: (map) => set({ map, selection: EMPTY_SELECTION, selectedConcealZoneId: null, selectedPinId: null, past: [], future: [] }),
+    loadMap: (map) => {
+      typingEdit = null
+      set({ map, selection: EMPTY_SELECTION, selectedConcealZoneId: null, selectedPinId: null, past: [], future: [] })
+    },
     undo: () => {
       const { past, map } = get()
       if (past.length === 0) return
+      typingEdit = null
       const previous = past[past.length - 1]
       set((state) => ({
         map: previous,
@@ -1567,6 +1664,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     redo: () => {
       const { future, map } = get()
       if (future.length === 0) return
+      typingEdit = null
       const next = future[future.length - 1]
       set((state) => ({
         map: next,
@@ -1576,3 +1674,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     },
   }
 }))
+
+// Todo mapa que vira o atual guarda quantas mudanças do jogador ele já tem — é
+// o ponto de partida de `withLaterPlayerChanges` quando ele for o `before` de
+// um gesto. Sempre sobrescreve: um snapshot que volta pelo Ctrl+Z, ou uma cena
+// que volta ao editor, já traz tudo o que o jogador fez até agora (as mudanças
+// dele passaram por `past`/`future`), e o número antigo faria o gesto seguinte
+// reaplicar mudanças velhas — até de outra cena.
+playerSeqOfMap.set(useMapStore.getState().map, playerSeq)
+useMapStore.subscribe((state) => state.map, (map) => {
+  playerSeqOfMap.set(map, playerSeq)
+})

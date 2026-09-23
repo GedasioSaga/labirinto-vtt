@@ -11,6 +11,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } from './net/hostBridge'
+import { hostPlayerChanges } from './net/playerChanges'
 import { useSignalStore } from './stores/signalStore'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { useFollowStore } from './stores/followStore'
@@ -411,45 +412,10 @@ function App() {
         getMap: () => useMapStore.getState().map,
         // Cada jogador vê a cena do token dele: a sessão precisa da aventura inteira, não só da cena aberta.
         getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map),
-        // Movimento já validado pela sessão (dono, paredes, borda do chão). Jogador numa
-        // cena de fundo mexe nela sem passar pelo desfazer da cena aberta.
-        applyMove: (tokenId, x, y, sceneId) => {
-          if (sceneId === undefined) useMapStore.getState().setTokenPosition(tokenId, x, y)
-          else useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.setTokenPosition(m, tokenId, x, y))
-        },
-        // Porta aberta/fechada pelo jogador, já validada pela sessão (visível, destrancada, token perto).
-        applyDoor: (wallId, open, sceneId) => {
-          if (sceneId !== undefined) {
-            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => {
-              const wall = m.walls.find((w) => w.id === wallId)
-              // Mesma recusa defensiva da cena aberta, logo abaixo.
-              if (!wall?.door || (open && wall.door.locked)) return m
-              return mapFactory.setWallDoor(m, wallId, { ...wall.door, open })
-            })
-            return
-          }
-          const store = useMapStore.getState()
-          const wall = store.map.walls.find((w) => w.id === wallId)
-          // Trancada só o mestre abre: recusa defensiva se o mapa mudou entre a validação e aqui.
-          if (!wall?.door || (open && wall.door.locked)) return
-          store.setWallDoor(wallId, { ...wall.door, open })
-        },
-        // Nome/foto que o jogador trocou no próprio token, já validados pela
-        // sessão (o token é dele, a foto é auto-contida). `image` chega como
-        // referência embutida: ela vira a cópia que viaja, e o caminho do
-        // disco do mestre (se havia um) deixa de valer para este token.
-        applyTokenEdit: ({ tokenId, name, image, sceneId }) => {
-          if (sceneId !== undefined) {
-            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => {
-              const renamed = name === undefined ? m : mapFactory.renameToken(m, tokenId, name)
-              return image === undefined ? renamed : mapFactory.setTokenImage(renamed, tokenId, null, image)
-            })
-            return
-          }
-          const store = useMapStore.getState()
-          if (name !== undefined) store.renameToken(tokenId, name)
-          if (image !== undefined) store.setTokenImage(tokenId, null, image)
-        },
+        // Movimento, porta e nome/foto da ficha que o JOGADOR mudou, já validados
+        // pela sessão: entram no mapa sem virar passo do Ctrl+Z do mestre (ver
+        // `net/playerChanges.ts`), na cena aberta ou numa de fundo.
+        ...hostPlayerChanges,
         // "Deixar ir": o token troca de cena fora do desfazer das duas (ver `transferToken`).
         applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y }) =>
           useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y),

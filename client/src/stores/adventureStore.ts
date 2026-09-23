@@ -126,6 +126,13 @@ interface AdventureState {
   /** Muda uma cena de FUNDO sem passar pelo desfazer da cena aberta. */
   updateBackgroundScene: (sceneId: string, updater: (map: MapData) => MapData) => void
   /**
+   * Mudança de um JOGADOR numa cena de FUNDO. Além do mapa, `transform` entra
+   * em todo passo do desfazer guardado dela: quando o mestre abrir a cena, o
+   * Ctrl+Z não pode devolver a ficha (ou a porta) do jogador ao estado de
+   * antes. Mesmo contrato de `useMapStore.applyPlayerChange` para `transform`.
+   */
+  applyPlayerChangeToBackgroundScene: (sceneId: string, transform: (map: MapData) => MapData) => void
+  /**
    * Liga o pino de viagem `pinId` (da cena aberta) a um pino de chegada NOVO,
    * que nasce no centro de `sceneId`. A volta é gravada pelo guardião da mão
    * dupla (ver `syncTravelLinks`). Devolve o id da chegada, ou `null` se não
@@ -447,6 +454,17 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const map = updater(slot.map)
     if (map === slot.map) return
     set({ cache: { ...cache, [sceneId]: { ...slot, map } }, dirty: { ...dirty, [sceneId]: true } })
+  },
+
+  applyPlayerChangeToBackgroundScene: (sceneId, transform) => {
+    const { cache, dirty } = get()
+    const slot = cache[sceneId]
+    if (slot === undefined || slot.status !== 'ok') return
+    const map = transform(slot.map)
+    if (map === slot.map) return
+    const past = slot.past.map(transform)
+    const future = slot.future.map(transform)
+    set({ cache: { ...cache, [sceneId]: { ...slot, map, past, future } }, dirty: { ...dirty, [sceneId]: true } })
   },
 
   linkPinToNewArrival: (pinId, sceneId, exitId = SAIDA_PRINCIPAL) => {
