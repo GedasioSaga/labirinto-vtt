@@ -17,7 +17,11 @@ class FakeSocket implements SocketLike {
   onclose: ((event: CloseEvent) => void) | null = null
   onerror: ((event: Event) => void) | null = null
   send(data: string): void {
-    this.sent.push(JSON.parse(data))
+    const message = JSON.parse(data) as { type?: unknown }
+    this.sent.push(message)
+    // Host vivo responde ao ping: sem isso, a espera longa dos avisos passaria
+    // do prazo de silêncio e a conexão cairia no meio do teste.
+    if (message.type === 'ping') this.receive({ type: 'pong' })
   }
   close(): void {}
   open(): void {
