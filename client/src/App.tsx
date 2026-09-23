@@ -1873,6 +1873,8 @@ function App() {
             selectedToken={selectedToken}
             tokenName={{
               onNameChange: (name) => selectedToken && useMapStore.getState().renameToken(selectedToken.id, name),
+              // Com histórico (`updateToken`): trocar o nome que a mesa lê se desfaz com Ctrl+Z.
+              onPublicNameChange: (publicName) => selectedToken && updateToken(selectedToken.id, { publicName }),
             }}
             tokenImage={{
               onChangeImage: () => selectedToken && handleChangeTokenImage(selectedToken.id),

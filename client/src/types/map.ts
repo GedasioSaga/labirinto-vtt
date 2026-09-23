@@ -441,6 +441,15 @@ export interface Token extends PlayerSecret {
    *  ATRAVESSA para o jogador: não é caminho de disco do mestre, é aparência
    *  da peça, e a mesa inteira precisa enxergar a mesma separação. */
   color?: string | null
+  /** "Nome para os jogadores" — o que a mesa lê embaixo da ficha no lugar de
+   *  `name`, que é o nome de TRABALHO do mestre ("Capataz traidor").
+   *  `undefined` = "O mesmo" (mapa salvo antes deste campo abre idêntico, sem
+   *  linha de migração); texto = "Outro" (pode ser `''` enquanto o mestre não
+   *  digitou: a ficha sai sem rótulo, nunca com o nome de trabalho); `null` =
+   *  "Nenhum" (sem rótulo). O DONO da ficha sempre recebe `name`. NÃO viaja
+   *  para jogador nenhum: o recorte troca o nome e apaga este campo
+   *  (`lib/tokenPublicName.ts`, `lib/fogFilter.ts`). */
+  publicName?: string | null
   /** Token não pode ser movido/editado. `undefined` === false (comportamento
    *  idêntico ao de hoje) — sem linha de migração. */
   locked?: boolean

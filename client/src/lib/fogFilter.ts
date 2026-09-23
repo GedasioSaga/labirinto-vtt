@@ -1,5 +1,6 @@
 import type { DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
 import { isTokenPhotoData } from './tokenPhoto'
+import { tokenAsSeenByPlayer } from './tokenPublicName'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
@@ -647,9 +648,10 @@ export function filterMapForPlayer(
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
     // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
+    // Nome: o dono lê o real; os outros, o "Nome para os jogadores" (o de trabalho do mestre não sai).
     tokens: layerTokens
       .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
-      .map(sanitizeTokenPhoto),
+      .map((t) => sanitizeTokenPhoto(tokenAsSeenByPlayer(t, owned.has(t.id)))),
     markers: map.markers.filter((m) => !inRoomHiddenFromPlayer({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
     lines: map.lines.filter((l) => !l.points.some(inRoomHiddenFromPlayer) && !l.points.some(inConcealZone) && isShapeKnown(l.points)),
     // Tocha acesa dentro do prédio de teto fechado não sai: o halo dela
