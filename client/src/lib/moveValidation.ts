@@ -17,8 +17,19 @@ export interface TokenMoveRequest {
   y: number
 }
 
-/** `occupied`: a cena liga "Fichas ocupam espaço" e o destino cai sobre outra ficha ('Lugar ocupado'). */
-export type TokenMoveRejection = 'unknown_token' | 'not_owner' | 'locked' | 'outside_map' | 'wall' | 'outside_floor' | 'occupied'
+/**
+ * `occupied`: a cena liga "Fichas ocupam espaço" e o destino cai sobre outra ficha ('Lugar ocupado').
+ * `not_your_turn`: a cena tem iniciativa e a ficha pedida não é a da vez.
+ */
+export type TokenMoveRejection =
+  | 'unknown_token'
+  | 'not_owner'
+  | 'locked'
+  | 'not_your_turn'
+  | 'outside_map'
+  | 'wall'
+  | 'outside_floor'
+  | 'occupied'
 
 export type TokenMoveResult = { ok: true; x: number; y: number } | { ok: false; reason: TokenMoveRejection }
 
@@ -31,6 +42,12 @@ export interface TokenMoveOptions {
    * pode recusar, porque a recusa diria que há alguém ali. Ausente = todas.
    */
   occupants?: readonly Token[]
+  /**
+   * INICIATIVA: id da ficha da vez NESTE mapa. Com valor, o jogador só move
+   * essa ficha; ausente ou `null` = sem iniciativa aqui, todo mundo move. O
+   * host (mestre) nunca espera a vez.
+   */
+  turnTokenId?: string | null
 }
 
 /** Fração da célula entre amostras do trajeto: garante corredor de 1/4 de célula detectado. */
@@ -73,6 +90,8 @@ export function validateTokenMove(
     const owned = ownership[request.playerId] ?? [] // jogador sem entrada no mapa de posse não possui nada
     if (!owned.includes(token.id)) return { ok: false, reason: 'not_owner' }
     if (token.locked) return { ok: false, reason: 'locked' }
+    const turn = options.turnTokenId ?? null // ausente = sem iniciativa nesta cena
+    if (turn !== null && turn !== token.id) return { ok: false, reason: 'not_your_turn' }
   }
 
   if (!isInsideMap(map, request.x, request.y)) return { ok: false, reason: 'outside_map' }

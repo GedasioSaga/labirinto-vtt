@@ -1,7 +1,8 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
+import { filterMapForPlayer, playerBlockedRings, turnForPlayer } from '../lib/fogFilter'
+import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokensOccupy } from '../lib/movementRules'
 import { tokenReachesDoor } from '../lib/doorReach'
@@ -241,6 +242,11 @@ export interface HostSessionOptions {
   visionRadius: number
   now?: () => number
   randomId?: () => string
+  /**
+   * INICIATIVA: de quem é a vez no mestre, lida a cada snapshot. Ausente =
+   * ninguém. O jogador só recebe o recorte disto (`turnForPlayer`).
+   */
+  getTurn?: () => TurnRef | null
 }
 
 export interface HostSession {
@@ -504,7 +510,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
-    return { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
+    const snapshot: HostMessage = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
+    // A vez sai pelo MESMO recorte do mapa: ficha que não foi ao jogador não vira vez nele.
+    const turn = turnForPlayer(view.map, options.getTurn?.() ?? null)
+    if (turn !== null) snapshot.turn = turn
+    return snapshot
   }
 
   const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
@@ -575,8 +585,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     // Sem cena (aventura aberta, ficha em lugar nenhum): não há onde mover.
     if (scene === null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'unknown_token' })
+    // INICIATIVA: vez nesta cena prende quem não é da vez, inclusive na vez de
+    // ficha que o jogador não vê. A recusa só diz "não é a sua vez", nunca de quem é.
+    // Vez de ficha que saiu da cena (apagada, viajou) não prende ninguém (`turnTokenIdOn`).
+    const turnTokenId = turnTokenIdOn(options.getTurn?.() ?? null, scene.map)
     const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, {
       occupants: occupantsSeenBy(playerId, scene.map),
+      turnTokenId,
     })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     return {

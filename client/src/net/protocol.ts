@@ -46,6 +46,10 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
  * nunca o id nem o nome da cena — quem recebe já está lá.
+ *
+ * `turn` no snapshot (INICIATIVA) é aditivo pelo mesmo critério: o id da ficha
+ * da vez, e só quando ela está no recorte do jogador. Jogador antigo ignora o
+ * campo; mestre antigo não o envia e ninguém fica na vez.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -161,8 +165,10 @@ export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
   | { type: 'welcome'; playerId: string; resumeToken: string; name: string }
   | { type: 'lobby.waiting' }
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
+  // `turn`: id da ficha da vez (iniciativa), só quando ela está em `map.tokens`
+  // deste recorte (`turnForPlayer`). Ausente = ninguém que o jogador vê.
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }

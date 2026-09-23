@@ -1,6 +1,6 @@
 import type { MapData, RegionPoint, Token } from '../types/map'
 import { decodeExploration, type Exploration } from '../lib/exploration'
-import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PinTravelRequestMessage, type PlayerMessage } from '../net/protocol'
+import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, REQ_ID_MAX_LENGTH, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PinTravelRequestMessage, type PlayerMessage } from '../net/protocol'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
@@ -26,6 +26,12 @@ export interface PlayerState {
   ownTokens?: string[]
   /** Polígonos das zonas ocultas ativas: o jogador pinta preto por cima. */
   concealed?: RegionPoint[][]
+  /**
+   * INICIATIVA: id da ficha da vez, sempre uma ficha de `map.tokens`. Ausente
+   * = ninguém que este jogador enxerga está na vez (o mestre só manda o que
+   * está no recorte dele).
+   */
+  turn?: string
   /** Sinais recebidos ainda vivos (somem sozinhos depois de `SIGNAL_TTL_MS`). */
   signals?: SignalMark[]
   /** Rastro do laser do mestre; some sozinho `LASER_TRAIL_MS` depois da última mensagem com o laser desligado. */
@@ -37,6 +43,12 @@ export interface PlayerState {
    * hoje só 'occupied' ("Lugar ocupado"). Some sozinho; `id` novo repete o aviso.
    */
   moveNotice?: { id: number; reason: 'occupied' }
+  /**
+   * INICIATIVA: o mestre recusou o arrasto porque não é a vez desta ficha
+   * ("Espere sua vez"); some sozinho. `id` novo repete o aviso. Não diz de quem
+   * é a vez: isso só vem em `turn`, e só quando o jogador vê a ficha.
+   */
+  turnNotice?: { id: number }
   /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
   travel?: TravelNotice
   /**
@@ -197,6 +209,11 @@ function isStringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
+/** Id de ficha como o protocolo aceita (mesmo teto de `tokenId` em `net/protocol.ts`). */
+function isBoundedId(value: unknown): value is string {
+  return typeof value === 'string' && value.length >= 1 && value.length <= REQ_ID_MAX_LENGTH
+}
+
 /**
  * Checagem estrutural rasa do mapa: vem do mestre (fonte confiável), então só
  * garante os campos que o render e o move otimista tocam — não revalida o
@@ -314,6 +331,23 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }, MOVE_NOTICE_TTL_MS)
   }
 
+  let turnNoticeTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearTurnNotice(): void {
+    if (turnNoticeTimer !== null) clearTimeout(turnNoticeTimer)
+    turnNoticeTimer = null
+  }
+
+  /** "Espere sua vez": mesmo tempo de tela do aviso da porta. */
+  function showTurnNotice(): void {
+    clearTurnNotice()
+    setState({ turnNotice: { id: nextNoticeId++ } })
+    turnNoticeTimer = setTimeout(() => {
+      turnNoticeTimer = null
+      setState({ turnNotice: undefined })
+    }, DOOR_NOTICE_TTL_MS)
+  }
+
   let travelTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearTravelTimer(): void {
@@ -395,6 +429,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     explored: Exploration | undefined,
     ownTokens: string[],
     concealed: RegionPoint[][],
+    turn: string | undefined,
   ): void {
     if (rev <= state.rev) return
     let next = map
@@ -409,21 +444,25 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       move.prevY = token.y
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined })
+    // Vez de ficha que não veio no mapa não tem o que destacar: vale como ninguém.
+    const turnOnMap = turn !== undefined && next.tokens.some((t) => t.id === turn) ? turn : undefined
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, turn: turnOnMap, error: undefined })
   }
 
-  function handleRejected(reqId: string): void {
+  /** Desfaz o movimento recusado. `false` = pedido desconhecido (já resolvido, ou de antes de trocar de cena). */
+  function handleRejected(reqId: string): boolean {
     const move = pending.get(reqId)
-    if (!move) return
+    if (!move) return false
     const newer = hasNewerPending(reqId, move.tokenId)
     pending.delete(reqId)
     if (newer) {
       // Um movimento mais novo do mesmo token parte desta posição: herda o "anterior".
       newer.prevX = move.prevX
       newer.prevY = move.prevY
-      return
+      return true
     }
     if (state.map) setState({ map: withTokenAt(state.map, move.tokenId, move.prevX, move.prevY) })
+    return true
   }
 
   function handleAccepted(reqId: string, x: number, y: number): void {
@@ -477,8 +516,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         clearMoveNotice()
+        clearTurnNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -491,7 +531,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         clearMoveNotice()
-        setState({ signals: undefined, laser: undefined, doorNotice: undefined, moveNotice: undefined })
+        clearTurnNotice()
+        setState({ signals: undefined, laser: undefined, doorNotice: undefined, moveNotice: undefined, turnNotice: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -561,7 +602,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         }
         if (data.ownTokens !== undefined && !isStringList(data.ownTokens)) return
         if (data.concealed !== undefined && !isVision(data.concealed)) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [])
+        if (data.turn !== undefined && !isBoundedId(data.turn)) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn)
         return
       }
       case 'token.move.accepted':
@@ -570,10 +612,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         return
       case 'token.move.rejected':
         if (typeof data.reqId !== 'string') return
-        handleRejected(data.reqId)
-        // A ficha já voltou; 'occupied' é a recusa que o jogador precisa LER
-        // (não é parede visível na tela). Motivo desconhecido só volta a ficha.
+        // A ficha já voltou; 'occupied' e 'not_your_turn' são as recusas que o
+        // jogador precisa LER (não são parede visível na tela). Motivo
+        // desconhecido ou ausente ainda desfaz o movimento; só não vira aviso.
+        const undone = handleRejected(data.reqId)
         if (data.reason === 'occupied' && state.status === 'playing') showMoveNotice('occupied')
+        if (undone && data.reason === 'not_your_turn') showTurnNotice()
         return
       case 'kicked':
         writeResume(storage, null)
@@ -586,8 +630,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         clearMoveNotice()
+        clearTurnNotice()
         clearTravelTimer()
-        setState({ status: 'closed', doorNotice: undefined, moveNotice: undefined, travel: undefined })
+        setState({ status: 'closed', doorNotice: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -642,6 +687,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearLaserTimer()
     clearDoorNotice()
     clearMoveNotice()
+    clearTurnNotice()
     clearTravelTimer()
     const current = socket
     socket = null
@@ -732,7 +778,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined })
       open()
     },
     close: detach,
