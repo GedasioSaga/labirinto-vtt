@@ -253,6 +253,9 @@ export function PlayerPanel({
                   <li key={member.playerId} className={`pp-member pp-member--${member.where}`}>
                     <span className="pp-member__dot" aria-hidden="true" />
                     <span className="pp-member__name">{member.name}</span>
+                    {/* Espaço de texto entre nome e estado: o flex o ignora no
+                        desenho (o `gap` separa), mas quem lê o texto — leitor
+                        de tela, busca, cópia — recebe "Bruno aqui", não "Brunoaqui". */}{' '}
                     <span className="pp-member__where">{PARTY_WHERE_LABEL[member.where]}</span>
                   </li>
                 ))}
