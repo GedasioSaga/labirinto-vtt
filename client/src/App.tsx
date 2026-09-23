@@ -62,6 +62,7 @@ import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
 import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
+import { isSingleGroup, NO_GROUPS } from './lib/itemGroups'
 import { traceFloorPieces } from './lib/traceImage'
 import { loadImagePixels } from './lib/imagePixels'
 import { traceMapDetails } from './lib/traceDetails'
@@ -259,6 +260,8 @@ function App() {
   const setGridShapeAction = useMapStore((state) => state.setGridShape)
   const selection = useMapStore((state) => state.selection)
   const setSelection = useMapStore((state) => state.setSelection)
+  // Agrupar objetos (Ctrl+G): só os grupos do mapa aberto.
+  const mapGroups = useMapStore((state) => state.itemGroups[state.map.id] ?? NO_GROUPS)
   const removeSelected = useMapStore((state) => state.removeSelected)
   // Onda 3, item 20 (Frente D) — histórico deixa de ser invisível: botões
   // de desfazer/refazer na ActionBar, desabilitados com past/future vazio.
@@ -1738,6 +1741,9 @@ function App() {
             areaSelection={{
               selection: selection.length > 1 ? selectionToAreaSelection(selection) : null,
               onClear: () => setSelection(EMPTY_SELECTION),
+              grouped: isSingleGroup(mapGroups, selection),
+              onGroup: () => useMapStore.getState().groupSelected(),
+              onUngroup: () => useMapStore.getState().ungroupSelected(),
             }}
             drawingStyle={selectedDrawing && selectedDrawing.kind !== 'text' ? {
               // Desenho já selecionado: o painel edita ELE, não a preferência do próximo.

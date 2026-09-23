@@ -35,7 +35,7 @@ import { ToolPropertiesSection } from './ToolPropertiesSection'
 import { LineCapControls, type LineCapControlsProps } from './LineCapControls'
 import { LineShapeControls, type LineShapeControlsProps } from './LineShapeControls'
 import { FillControls, type FillControlsProps } from './FillControls'
-import { AreaSelectionControls } from './AreaSelectionControls'
+import { AreaSelectionControls, type AreaSelectionControlsProps } from './AreaSelectionControls'
 import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceControls'
 import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleControls'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
@@ -48,7 +48,6 @@ import { roomRotationOf } from '../lib/roomRotation'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
 import { panelHeadingTool, type PropertyGroupId } from '../lib/toolProperties'
 import { TOOL_LABELS } from './labels'
-import type { AreaSelection } from '../lib/areaSelection'
 import type { ReactNode } from 'react'
 
 interface PropertiesPanelProps {
@@ -77,7 +76,7 @@ interface PropertiesPanelProps {
   /** F4 — N2 "tirar o fundo" (Região/Sala e forma preenchível selecionada). */
   fill: FillControlsProps
   /** F4 — N3 "ferramenta de seleção de área". */
-  areaSelection: { selection: AreaSelection | null; onClear: () => void }
+  areaSelection: AreaSelectionControlsProps
   drawingStyle: DrawingStyleControlsProps
   /** Cor e largura do PRÓXIMO caminho (ferramenta "Caminho"). */
   pathStyle: PathStyleControlsProps
@@ -438,7 +437,7 @@ export function PropertiesPanel({
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="selection" groups={groups}>
-          <AreaSelectionControls selection={areaSelection.selection} onClear={areaSelection.onClear} />
+          <AreaSelectionControls {...areaSelection} />
           <SelectionControls {...selection} />
         </ToolPropertiesSection>
         {/* Cenas da aventura: depois do bloco da ferramenta e do objeto, junto das

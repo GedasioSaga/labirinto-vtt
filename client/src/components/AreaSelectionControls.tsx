@@ -12,6 +12,12 @@ export interface AreaSelectionControlsProps {
   /** Limpa a seleção de área e o contorno desenhado — mesmo `onClick` serviria
    *  pra tecla Esc, se o chamador quiser ligar as duas coisas na mesma action. */
   onClear: () => void
+  /** A seleção é exatamente um grupo (Ctrl+G) já feito. */
+  grouped?: boolean
+  /** Junta a seleção num grupo — o mesmo que Ctrl+G. Sem ele, sem botão. */
+  onGroup?: () => void
+  /** Desfaz o grupo — o mesmo que Ctrl+Shift+G. Sem ele, sem botão. */
+  onUngroup?: () => void
 }
 
 const AREA_CATEGORY_LABELS: ReadonlyArray<{ key: keyof AreaSelection; singular: string; plural: string }> = [
@@ -32,7 +38,7 @@ const AREA_CATEGORY_LABELS: ReadonlyArray<{ key: keyof AreaSelection; singular: 
  * inalcançável/inverificável já aconteceu 3× nesta app) — e um botão pra
  * limpar sem precisar arrastar um marquee vazio em cima de nada.
  */
-export function AreaSelectionControls({ selection, onClear }: AreaSelectionControlsProps) {
+export function AreaSelectionControls({ selection, onClear, grouped = false, onGroup, onUngroup }: AreaSelectionControlsProps) {
   if (!selection || isAreaSelectionEmpty(selection)) return null
 
   const total = AREA_CATEGORY_LABELS.reduce((sum, { key }) => sum + selection[key].length, 0)
@@ -43,11 +49,22 @@ export function AreaSelectionControls({ selection, onClear }: AreaSelectionContr
 
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">Seleção de área</h2>
+      <h2 className="lb-eyebrow">{grouped ? 'Grupo' : 'Seleção de área'}</h2>
       <p className="lb-area-selection__summary">
         {total} {total === 1 ? 'item selecionado' : 'itens selecionados'}: {parts.join(', ')}. Arraste para mover o
         grupo inteiro.
       </p>
+      {/* O atalho vai escrito no botão: atalho invisível é atalho inexistente. */}
+      {grouped && onUngroup && (
+        <button type="button" className="lb-btn lb-btn--block" onClick={onUngroup}>
+          Desagrupar (Ctrl+Shift+G)
+        </button>
+      )}
+      {!grouped && onGroup && total > 1 && (
+        <button type="button" className="lb-btn lb-btn--block" onClick={onGroup}>
+          Agrupar (Ctrl+G)
+        </button>
+      )}
       <button type="button" className="lb-btn lb-btn--block" onClick={onClear}>
         Limpar seleção de área
       </button>
