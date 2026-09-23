@@ -18,8 +18,18 @@ function segurarCenas(): void {
   })
 }
 
+/** Portão das escritas: fechado, a gravação fica parada no meio até `soltarEscrita()`. */
+let portaoEscrita: Promise<void> = Promise.resolve()
+let abrirPortaoEscrita: () => void = () => undefined
+function segurarEscrita(): void {
+  portaoEscrita = new Promise<void>((resolve) => {
+    abrirPortaoEscrita = resolve
+  })
+}
+
 vi.mock('@tauri-apps/plugin-fs', () => ({
   writeTextFile: vi.fn(async (path: string, data: string) => {
+    await portaoEscrita
     arquivos.set(path, data)
   }),
   rename: vi.fn(async (from: string, to: string) => {
@@ -99,6 +109,7 @@ function lista(): ReturnType<typeof sceneList> {
 beforeEach(() => {
   arquivos.clear()
   portao = Promise.resolve()
+  portaoEscrita = Promise.resolve()
   useAdventureStore.getState().reset()
 })
 
@@ -163,6 +174,59 @@ describe('abrir aventura: a cena pedida primeiro, as outras chegando', () => {
     expect(useAdventureStore.getState().adventure).toBeNull()
     expect(useAdventureStore.getState().cache).toEqual({})
     expect(useMapStore.getState().map.name).toBe('Casebre')
+  })
+
+  it('gravar enquanto o par do pino ainda chega: a volta desligada continua pendente depois da gravação', async () => {
+    gravarAventura()
+    segurarCenas()
+    const pronto = useAdventureStore.getState().open(await openMapFileFirst(`${PASTA}/map.json`))
+    useAdventureStore.getState().unlinkPin('ida')
+
+    // A gravação para no meio; a Cripta chega (com a volta desligada) nesse intervalo.
+    segurarEscrita()
+    const gravando = useAdventureStore.getState().flush()
+    abrirPortao()
+    await pronto
+    expect(useAdventureStore.getState().dirty.s_cripta).toBe(true)
+    abrirPortaoEscrita()
+    await gravando
+
+    // A Cripta não foi para o disco nesta gravação: continua a gravar.
+    expect(arquivos.get(`${PASTA}/scenes/s_cripta/map.json`)).toContain('"s_vale"')
+    expect(useAdventureStore.getState().dirty.s_cripta).toBe(true)
+    expect(hasUnsavedWork()).toBe(true)
+
+    // A próxima gravação leva a volta desligada ao disco.
+    await useAdventureStore.getState().flush()
+    expect(arquivos.get(`${PASTA}/scenes/s_cripta/map.json`)).not.toContain('"s_vale"')
+    expect(hasUnsavedWork()).toBe(false)
+  })
+
+  it('gravar enquanto chega uma cena com portal antigo: a cena nova e a lista continuam a gravar', async () => {
+    gravarAventura()
+    const destino = 'C:/appdata/maps/map_poco/map.json'
+    arquivos.set(destino, serializeMap(mapa('map_poco', 'Poço')))
+    arquivos.set(
+      `${PASTA}/scenes/s_torre/map.json`,
+      serializeMap(mapa('map_torre', 'Torre', { props: [{ id: 'alcapao', src: 'C:/imgs/escada.png', x: 64, y: 64, width: 64, height: 64, linkedMapPath: destino }] })),
+    )
+    segurarCenas()
+    const pronto = useAdventureStore.getState().open(await openMapFileFirst(`${PASTA}/map.json`))
+
+    segurarEscrita()
+    const gravando = useAdventureStore.getState().flush()
+    abrirPortao()
+    await pronto
+    abrirPortaoEscrita()
+    await gravando
+
+    const state = useAdventureStore.getState()
+    const poco = state.adventure?.scenes.find((c) => c.name === 'Poço')
+    expect(poco).toBeDefined()
+    expect(state.dirty.s_torre).toBe(true)
+    expect(state.dirty[poco?.id ?? '']).toBe(true)
+    expect(state.structureDirty).toBe(true)
+    expect(hasUnsavedWork()).toBe(true)
   })
 
   it('cena que não abriu continua indisponível (e não "carregando") depois que as outras chegam', async () => {

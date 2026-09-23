@@ -535,6 +535,14 @@ export interface OpenedMapFile {
   changedSceneIds: string[]
   /** A lista de cenas mudou ao abrir (portal antigo virou cena): o `adventure.json` precisa ser regravado. */
   adventureChanged: boolean
+  /**
+   * Destinos de portal antigo que esta abertura já trouxe como cena: o caminho
+   * de ORIGEM e a cena nova. A cena nova mora em `scenes/<id>/map.json`, então
+   * sem isto a passada das cenas de fundo (`loadPendingScenes`) não reconhece
+   * o mesmo destino e cria outra cena igual; e é por aqui que o teto
+   * `MAX_MIGRATED_SCENES` vale para a abertura inteira, não por passada.
+   */
+  legacySources: { path: string; sceneId: string }[]
 }
 
 /** Teto de cenas que a conversão de portais antigos cria de uma vez: corrente de andares, não labirinto infinito. */
@@ -618,7 +626,7 @@ export async function openMapFileFirst(path: string): Promise<OpenedMapFile> {
   const map = await loadMapFromDisk(path)
   const found = await findAdventureFor(path)
   if (found === null) {
-    return convertLegacyPortals({ path, map, adventure: null, adventureDir: null, activeSceneId: null, scenes: [], changedSceneIds: [], adventureChanged: false })
+    return convertLegacyPortals({ path, map, adventure: null, adventureDir: null, activeSceneId: null, scenes: [], changedSceneIds: [], adventureChanged: false, legacySources: [] })
   }
   const scenes = found.adventure.scenes.map((entry): SceneLoad => (entry.id === found.sceneId ? { entry, status: 'ok', map } : { entry, status: 'pendente' }))
   return convertLegacyPortals({
@@ -630,6 +638,7 @@ export async function openMapFileFirst(path: string): Promise<OpenedMapFile> {
     scenes,
     changedSceneIds: [],
     adventureChanged: false,
+    legacySources: [],
   })
 }
 
@@ -723,8 +732,12 @@ async function convertLegacyPortals(opened: OpenedMapFile): Promise<OpenedMapFil
       // Caminho inválido não casa com destino nenhum.
     }
   }
+  // O destino que uma passada anterior já trouxe casa pelo caminho de ORIGEM,
+  // que o `file` da cena nova (`scenes/<id>/map.json`) não guarda.
+  for (const source of opened.legacySources) sceneByPath.set(pathKey(source.path), source.sceneId)
 
   const changed = new Set(opened.changedSceneIds)
+  const sources = [...opened.legacySources]
   let added = 0
   for (let i = 0; i < loads.length; i += 1) {
     const load = loads[i]
@@ -735,12 +748,13 @@ async function convertLegacyPortals(opened: OpenedMapFile): Promise<OpenedMapFil
         resolved.push(target)
         continue
       }
-      if (added >= MAX_MIGRATED_SCENES) continue
+      if (sources.length >= MAX_MIGRATED_SCENES) continue
       try {
         const destination = await loadMapFromDisk(target)
         const id = newSceneId()
         loads.push({ entry: { id, name: destination.name, file: sceneFileFor(id) }, status: 'ok', map: destination })
         sceneByPath.set(pathKey(target), id)
+        sources.push({ path: target, sceneId: id })
         changed.add(id)
         added += 1
         resolved.push(target)
@@ -771,6 +785,7 @@ async function convertLegacyPortals(opened: OpenedMapFile): Promise<OpenedMapFil
     scenes: loads,
     changedSceneIds: [...changed],
     adventureChanged: added > 0 || opened.adventure === null,
+    legacySources: sources,
   }
 }
 

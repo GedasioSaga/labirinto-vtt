@@ -173,6 +173,37 @@ describe('loadPendingScenes: as outras cenas, em segundo plano', () => {
     expect(completo.map).toBe(primeiro.map)
   })
 
+  it('portal antigo na cena aberta E numa cena de fundo para o mesmo destino: uma cena só', async () => {
+    gravarTorre()
+    const destino = 'C:/appdata/maps/map_poco/map.json'
+    arquivos.set(destino, serializeMap(mapa('map_poco', 'Poço')))
+    arquivos.set(`${PASTA}/map.json`, serializeMap(mapa('map_andar_0', 'Andar 0', { props: [portal('escada', destino)] })))
+    arquivos.set(`${PASTA}/scenes/andar_2/map.json`, serializeMap(mapa('map_andar_2', 'Andar 2', { props: [portal('alcapao', destino)] })))
+
+    const aberto = await mapFileIO.openMapFile(`${PASTA}/map.json`)
+
+    const pocos = aberto.scenes.filter((s) => s.status === 'ok' && s.map.name === 'Poço')
+    expect(pocos).toHaveLength(1)
+    expect(aberto.adventure?.scenes).toHaveLength(TOTAL_DE_CENAS + 1)
+    const andar2 = aberto.scenes.find((s) => s.entry.id === 'andar_2')
+    expect(andar2?.status === 'ok' ? andar2.map.props[0].linkedMapPath : 'sem mapa').toBeNull()
+    expect([...aberto.changedSceneIds].sort()).toEqual(['andar_0', 'andar_2', pocos[0].entry.id].sort())
+  })
+
+  it('o teto de cenas convertidas vale para a abertura inteira, não por passada', async () => {
+    gravarTorre()
+    const destinos = Array.from({ length: 40 }, (_, i) => `C:/appdata/maps/map_d${i}/map.json`)
+    destinos.forEach((destino, i) => arquivos.set(destino, serializeMap(mapa(`map_d${i}`, `Destino ${i}`))))
+    // Metade dos portais na cena aberta (1ª passada), metade numa cena de fundo (2ª).
+    const portais = destinos.map((destino, i) => portal(`p${i}`, destino))
+    arquivos.set(`${PASTA}/map.json`, serializeMap(mapa('map_andar_0', 'Andar 0', { props: portais.slice(0, 20) })))
+    arquivos.set(`${PASTA}/scenes/andar_2/map.json`, serializeMap(mapa('map_andar_2', 'Andar 2', { props: portais.slice(20) })))
+
+    const aberto = await mapFileIO.openMapFile(`${PASTA}/map.json`)
+
+    expect(aberto.scenes.length - TOTAL_DE_CENAS).toBe(32)
+  })
+
   it('sem cena pendente, devolve o mesmo objeto sem ler nada', async () => {
     arquivos.set('C:/appdata/maps/map_x/map.json', serializeMap(mapa('map_x', 'Casebre')))
     const primeiro = await mapFileIO.openMapFileFirst('C:/appdata/maps/map_x/map.json')

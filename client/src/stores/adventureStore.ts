@@ -697,23 +697,40 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
 
     const live = useMapStore.getState().map
     const writes: { file: string; map: MapData }[] = []
+    /** Cena -> mapa que foi para o disco nesta gravação. */
+    const written = new Map<string, MapData>()
     let activeFile: string | null = null
     for (const entry of adventure.scenes) {
       if (entry.id === activeSceneId) {
         activeFile = entry.file
         writes.push({ file: entry.file, map: live })
+        written.set(entry.id, live)
         continue
       }
       const slot = state.cache[entry.id]
-      if (slot !== undefined && slot.status === 'ok' && state.dirty[entry.id] === true) writes.push({ file: entry.file, map: slot.map })
+      if (slot !== undefined && slot.status === 'ok' && state.dirty[entry.id] === true) {
+        writes.push({ file: entry.file, map: slot.map })
+        written.set(entry.id, slot.map)
+      }
     }
     if (activeFile === null) throw new Error('A cena aberta não está na lista da aventura.')
 
     await saveAdventureToDisk(dir, adventure, writes)
     // Só o que foi escrito sai de "pendente": mudança feita enquanto o disco
     // gravava continua pendente na próxima conta (o mapa vivo é comparado de
-    // novo pelo `markSaved` abaixo, que ancora no mapa que acabou de ir).
-    set({ dir, rootPath: null, rootMapId: null, dirty: {}, structureDirty: false })
+    // novo pelo `markSaved` abaixo, que ancora no mapa que acabou de ir). Isso
+    // inclui a cena de fundo que chegou do disco durante a gravação com mudança
+    // esperando por ela, e a cena nova do portal antigo que chegou junto.
+    const after = get()
+    const stillDirty: Record<string, true> = {}
+    for (const id of Object.keys(after.dirty)) {
+      const slot = after.cache[id]
+      const changedSinceWrite = slot !== undefined && slot.status === 'ok' && slot.map !== written.get(id)
+      if (!written.has(id) || changedSinceWrite) stillDirty[id] = true
+    }
+    // A lista gravada é a de antes do `await`: se ela mudou, a nova ainda não foi.
+    const structureDirty = after.adventure !== adventure && after.structureDirty
+    set({ dir, rootPath: null, rootMapId: null, dirty: stillDirty, structureDirty })
     if (useMapStore.getState().map === live) useSessionStore.getState().markSaved()
     return scenePath(dir, activeFile)
   },
