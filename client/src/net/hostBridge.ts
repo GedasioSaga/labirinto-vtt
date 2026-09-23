@@ -91,6 +91,8 @@ export interface HostBridge {
   unassignToken(playerId: string, tokenId: string): void
   kick(clientId: string): Promise<void>
   players(): PlayerInfo[]
+  /** Jogadores com conexão viva agora (0 com a sala fechada): quem cai se o mestre fechar o app. */
+  connectedPlayerCount(): number
   room(): RoomInfo | null
   /** Nunca rejeita: falha vira estado `error` + toast. */
   startTunnel(): Promise<void>
@@ -689,6 +691,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
     players() {
       return session?.listPlayers(world()) ?? []
+    },
+
+    connectedPlayerCount() {
+      if (session === null) return 0
+      return session.listPlayers(world()).filter((player) => player.connected).length
     },
 
     room() {

@@ -23,6 +23,7 @@ import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
+import { criarPedidoDeFechar } from './lib/avisoAoFechar'
 import type { Bounds, Camera } from './pixi/world'
 import { MainMenu } from './screens/MainMenu'
 import { MapTypePicker } from './screens/MapTypePicker'
@@ -124,6 +125,12 @@ function pararDeOuvir(unlisten: (() => void) | undefined): void {
     // Ponte de eventos ausente ou pela metade: nada a fazer e nada a dizer.
   }
 }
+
+/**
+ * Timeout de segurança do aviso ao fechar: se o diálogo nativo nunca resolver,
+ * fecha mesmo assim — travar a janela do usuário é pior que perguntar de novo.
+ */
+const CLOSE_DIALOG_MAX_WAIT_MS = 10_000
 
 /** Aviso de sucesso de Salvar (botão, Ctrl+S) e de sair por Início. */
 const MAP_SAVED_TEXT = 'Mapa salvo'
@@ -733,7 +740,8 @@ function App() {
 
   /**
    * Avisa antes de fechar a janela (X, Alt+F4, taskbar) se houver edição não
-   * salva — item 11 (Frente D), com UM desvio deliberado do CONTRATO da
+   * salva ou jogador conectado na sala (`lib/avisoAoFechar.ts`) — item 11
+   * (Frente D), com UM desvio deliberado do CONTRATO da
    * frente (ver relatório do integrador): `getCurrentWindow()` lê
    * `window.__TAURI_INTERNALS__.metadata` de forma SÍNCRONA e lança
    * `TypeError` fora do webview real — e este app roda a suíte inteira de
@@ -750,18 +758,20 @@ function App() {
     let unlisten: (() => void) | undefined
     let cancelled = false
     getCurrentWindow()
-      .onCloseRequested(async (event) => {
-        if (!hasUnsavedWork()) return
-        event.preventDefault()
-        // Timeout de segurança: se o diálogo nativo nunca resolver (ou
-        // `ask` falhar), fecha mesmo assim — travar a janela do usuário é
-        // pior que perguntar de novo na próxima tentativa.
-        const confirmed = await Promise.race([
-          ask('Há alterações não salvas neste mapa. Fechar mesmo assim?', { title: 'Labirinto', kind: 'warning' }).catch(() => true),
-          new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 10_000)),
-        ])
-        if (confirmed) await getCurrentWindow().destroy()
-      })
+      .onCloseRequested(
+        // Pergunta com edição não salva OU com jogador conectado: fechar o app
+        // derruba a sala, e com o mapa salvo o X levava os 7 sem perguntar.
+        // Sem ponte (sala nunca aberta), ninguém está na sala.
+        criarPedidoDeFechar({
+          estado: () => ({
+            alteracoesNaoSalvas: hasUnsavedWork(),
+            jogadoresNaSala: hostBridgeRef.current?.connectedPlayerCount() ?? 0,
+          }),
+          perguntar: (texto) => ask(texto, { title: 'Labirinto', kind: 'warning' }),
+          fechar: () => getCurrentWindow().destroy(),
+          esperaMaximaMs: CLOSE_DIALOG_MAX_WAIT_MS,
+        }),
+      )
       .then((fn) => {
         if (cancelled) pararDeOuvir(fn)
         else unlisten = fn
