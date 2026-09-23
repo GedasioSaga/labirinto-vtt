@@ -47,10 +47,71 @@ function salaOculta(id: string, x1: number, y1: number, x2: number, y2: number):
 describe('fogFilter: porta secreta', () => {
   it('SEGURANÇA: sai como parede comum, fora de visibleDoorIds, sem o campo secret', () => {
     const view = filterMapForPlayer(corredor(porta()), 'p', { p: ['t'] }, 400)
-    const pn = view.map.walls.find((w) => w.id === 'pn')
-    expect(pn).toEqual({ id: 'pn', x1: 450, y1: 500, x2: 500, y2: 500, blocksLight: true, blocksMove: true, door: null })
+    expect(view.map.walls.every((w) => w.door === null && w.blocksLight && w.blocksMove)).toBe(true)
     expect(view.visibleDoorIds).toEqual([])
     expect(JSON.stringify(view.map)).not.toContain('secret')
+  })
+
+  it('SEGURANÇA: a parede chega INTEIRA, sem a quebra que marcaria as pontas da porta nem o id dela', () => {
+    const view = filterMapForPlayer(corredor(porta()), 'p', { p: ['t'] }, 400)
+    // O pedaço de 50 px entre 'n1' e 'n2' denunciava a porta na rede. Agora é
+    // uma parede só, com o id da vizinha de onde a reta começa.
+    expect(view.map.walls).toEqual([{ id: 'n1', x1: 0, y1: 500, x2: 1000, y2: 500, blocksLight: true, blocksMove: true, door: null }])
+    expect(JSON.stringify(view.map)).not.toContain('"pn"')
+  })
+
+  it('SEGURANÇA: a junção guarda a cara da parede e segue a reta de onde ela começa', () => {
+    const cara: Partial<Wall> = { wallKind: 'interior', thickness: 'thin', lineStyle: 'straight' }
+    const map: MapData = {
+      ...corredor(porta()),
+      // Os pedaços fora de ordem na lista e a reta de trás para a frente: quem dá o id é a ponta de onde a reta começa.
+      walls: [
+        parede('b', 500, 500, 0, 500, { ...cara }),
+        parede('segredo', 1000, 500, 500, 500, { ...cara, door: porta() }),
+        parede('solta', 0, 800, 1000, 800),
+      ],
+    }
+    const view = filterMapForPlayer(map, 'p', { p: ['t'] }, 400)
+    expect(view.map.walls).toEqual([
+      { id: 'b', x1: 1000, y1: 500, x2: 0, y2: 500, blocksLight: true, blocksMove: true, door: null, ...cara },
+      { id: 'solta', x1: 0, y1: 800, x2: 1000, y2: 800, blocksLight: true, blocksMove: true, door: null },
+    ])
+  })
+
+  it('SEGURANÇA: duas portas secretas na mesma parede somem numa parede só', () => {
+    const map: MapData = {
+      ...corredor(porta()),
+      walls: [
+        parede('a', 0, 500, 200, 500),
+        parede('s1', 200, 500, 250, 500, { door: porta() }),
+        parede('meio', 250, 500, 700, 500),
+        parede('s2', 700, 500, 750, 500, { door: porta({ open: true }) }),
+        parede('c', 750, 500, 1000, 500),
+      ],
+    }
+    const view = filterMapForPlayer(map, 'p', { p: ['t'] }, 400)
+    expect(view.map.walls).toEqual([{ id: 'a', x1: 0, y1: 500, x2: 1000, y2: 500, blocksLight: true, blocksMove: true, door: null }])
+  })
+
+  it('vizinha de outra cara não é engolida: a quebra ali já existia no mapa do mestre', () => {
+    const map: MapData = {
+      ...corredor(porta()),
+      walls: [
+        parede('n1', 0, 500, 450, 500),
+        parede('pn', 450, 500, 500, 500, { door: porta() }),
+        parede('grossa', 500, 500, 1000, 500, { thickness: 'thick' }),
+      ],
+    }
+    const view = filterMapForPlayer(map, 'p', { p: ['t'] }, 400)
+    expect(view.map.walls).toEqual([
+      { id: 'n1', x1: 0, y1: 500, x2: 500, y2: 500, blocksLight: true, blocksMove: true, door: null },
+      { id: 'grossa', x1: 500, y1: 500, x2: 1000, y2: 500, blocksLight: true, blocksMove: true, door: null, thickness: 'thick' },
+    ])
+  })
+
+  it('porta revelada volta a chegar partida, com a porta no meio', () => {
+    const view = filterMapForPlayer(corredor({ open: false, locked: false, kind: 'normal' }), 'p', { p: ['t'] }, 400)
+    expect(view.map.walls.map((w) => w.id)).toEqual(['n1', 'pn', 'n2'])
   })
 
   it('SEGURANÇA: aberta e secreta, a visão não passa pelo vão', () => {

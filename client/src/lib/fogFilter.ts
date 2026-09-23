@@ -394,6 +394,108 @@ function secretDoorAsWall(wall: Wall): Wall {
   return { ...wall, blocksLight: true, blocksMove: true, door: null }
 }
 
+/** Campos de posição e nome da parede; o resto é a cara e o vínculo dela. */
+const WALL_GEOMETRY_KEYS: ReadonlySet<string> = new Set(['id', 'x1', 'y1', 'x2', 'y2'])
+
+/** Mesma cara e mesmo vínculo: todo campo fora de id e pontas é igual (inclusive ausente dos dois lados). */
+function sameWallLook(a: Wall, b: Wall): boolean {
+  const lookA = new Map<string, unknown>(Object.entries(a))
+  const lookB = new Map<string, unknown>(Object.entries(b))
+  for (const key of new Set([...lookA.keys(), ...lookB.keys()])) {
+    if (!WALL_GEOMETRY_KEYS.has(key) && !Object.is(lookA.get(key), lookB.get(key))) return false
+  }
+  return true
+}
+
+/** Alguma ponta de `a` é ponta de `b` (tolerância `NESTING_TOLERANCE`). */
+function sharesEnd(a: WallLine, b: WallLine): boolean {
+  const aEnds = [
+    { x: a.x1, y: a.y1 },
+    { x: a.x2, y: a.y2 },
+  ]
+  const bEnds = [
+    { x: b.x1, y: b.y1 },
+    { x: b.x2, y: b.y2 },
+  ]
+  return aEnds.some((p) => bEnds.some((q) => Math.hypot(p.x - q.x, p.y - q.y) <= NESTING_TOLERANCE))
+}
+
+/**
+ * A porta secreta e as paredes encostadas nela, na mesma reta e com a mesma
+ * cara, de ponta em ponta — outra porta secreta no caminho entra junto e a
+ * corrente segue por ela.
+ */
+function seamChain(seam: Wall, walls: readonly Wall[]): Wall[] {
+  const chain = [seam]
+  // O for...of do Array enxerga o que é empurrado durante a volta: é a busca em largura.
+  for (const current of chain) {
+    for (const other of walls) {
+      if (other.door !== null || chain.includes(other)) continue
+      if (sharesEnd(current, other) && onSameLine(seam, other) && sameWallLook(seam, other)) chain.push(other)
+    }
+  }
+  return chain
+}
+
+/**
+ * Uma parede só no lugar da corrente, no sentido da porta (que é o da parede de
+ * onde `addDoorOnWall` a cortou: a junção devolve a parede original). O id é o
+ * da parede comum de onde a reta começa; só porta secreta na corrente, o da
+ * primeira.
+ */
+function joinChain(seam: Wall, chain: readonly Wall[], seamIds: ReadonlySet<string>): Wall {
+  const dx = seam.x2 - seam.x1
+  const dy = seam.y2 - seam.y1
+  const along = (p: RegionPoint): number => (p.x - seam.x1) * dx + (p.y - seam.y1) * dy
+  const ends = chain.flatMap((w) => [
+    { p: { x: w.x1, y: w.y1 }, w },
+    { p: { x: w.x2, y: w.y2 }, w },
+  ])
+  let start = ends[0] ?? { p: { x: seam.x1, y: seam.y1 }, w: seam }
+  let end = start
+  for (const e of ends) {
+    if (along(e.p) < along(start.p)) start = e
+    if (along(e.p) > along(end.p)) end = e
+  }
+  const plain = ends.filter((e) => !seamIds.has(e.w.id)).sort((a, b) => along(a.p) - along(b.p))
+  const owner = plain[0]?.w ?? seam
+  return { ...owner, x1: start.p.x, y1: start.p.y, x2: end.p.x, y2: end.p.y }
+}
+
+/**
+ * PORTA SECRETA SEM COSTURA NA REDE. `addDoorOnWall` parte a parede em
+ * antes/porta/depois; com a porta virada parede (`secretDoorAsWall`) o jogador
+ * receberia 3 pedaços na mesma reta, o do meio com o id da porta e o
+ * comprimento exato de uma porta — a mesma pista que
+ * `disguisedSecretBorderWalls` evita na sala secreta ("as quebras na rede
+ * marcam as pontas da porta"). Na tela não aparece (`drawWalls` encadeia os
+ * pedaços), mas quem inspeciona o WebSocket acharia a passagem.
+ *
+ * Roda no pacote FINAL, depois de névoa, zona, teto e sala secreta: só junta o
+ * que de fato sai, então nenhuma regra de esconder é contornada por uma parede
+ * mais comprida. Vizinha de outra cara (espessura, tipo, sala) não entra: a
+ * quebra ali já existia no mapa do mestre antes de qualquer porta.
+ */
+function mergeSecretDoorSeams(walls: Wall[], seamIds: ReadonlySet<string>): Wall[] {
+  if (seamIds.size === 0 || !walls.some((w) => seamIds.has(w.id))) return walls
+  // Parede da corrente → a junção (na posição da primeira da lista) ou `null` (absorvida).
+  const replaced = new Map<Wall, Wall | null>()
+  for (const seam of walls) {
+    if (!seamIds.has(seam.id) || replaced.has(seam)) continue
+    const chain = seamChain(seam, walls)
+    if (chain.length < 2) continue
+    const joined = joinChain(seam, chain, seamIds)
+    const first = walls.find((w) => chain.includes(w)) ?? seam
+    for (const w of chain) replaced.set(w, w === first ? joined : null)
+  }
+  if (replaced.size === 0) return walls
+  return walls.flatMap((w) => {
+    const r = replaced.get(w)
+    if (r === undefined) return [w]
+    return r === null ? [] : [r]
+  })
+}
+
 /** As duas pontas de `other` estão na reta de `wall` (tolerância `NESTING_TOLERANCE`). */
 function onSameLine(wall: WallLine, other: WallLine): boolean {
   const len = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1)
@@ -810,7 +912,8 @@ export function filterMapForPlayer(
    * as regras de parede daqui para baixo — inclusive sumir junto com a sala
    * secreta a que pertence, porque o `regionId` fica.
    */
-  const withSecretDoorsAsWalls = map.walls.some((w) => w.door?.secret === true) ? map.walls.map(secretDoorAsWall) : map.walls
+  const secretDoorIds = new Set(map.walls.filter((w) => w.door?.secret === true).map((w) => w.id))
+  const withSecretDoorsAsWalls = secretDoorIds.size > 0 ? map.walls.map(secretDoorAsWall) : map.walls
   const disguised = disguisedSecretBorderWalls(withSecretDoorsAsWalls, secretRoomIds, playerRegions)
   /**
    * As paredes como o jogador as conhece: a da sala secreta na borda já
@@ -1213,14 +1316,18 @@ export function filterMapForPlayer(
         return { ...r, room: { ...r.room, name: nameHidden ? '' : r.room.name, roof: roofClosed ? true : undefined } }
       }),
     // `knownWalls` antes da camada: a estante disfarçada é PAREDE, e segue a
-    // camada Paredes (com Portas escondida ela não pode virar vão).
-    walls: visibleWalls(knownWalls, hiddenLayers).flatMap((w) => {
-      if (w.hidden) return []
-      if (w.regionId !== undefined && secretRoomIds.has(w.regionId)) return []
-      if (isUnderClosedRoof(w)) return []
-      if (w.door !== null) return doorWallForPlayer(w, w.door)
-      return wallForPlayer(w)
-    }),
+    // camada Paredes (com Portas escondida ela não pode virar vão). A porta
+    // secreta que sobra sai emendada nas vizinhas (`mergeSecretDoorSeams`).
+    walls: mergeSecretDoorSeams(
+      visibleWalls(knownWalls, hiddenLayers).flatMap((w) => {
+        if (w.hidden) return []
+        if (w.regionId !== undefined && secretRoomIds.has(w.regionId)) return []
+        if (isUnderClosedRoof(w)) return []
+        if (w.door !== null) return doorWallForPlayer(w, w.door)
+        return wallForPlayer(w)
+      }),
+      secretDoorIds,
+    ),
     floor: playerFloor,
     // Pino de ponto de interesse: anotação estática, então vale o explorado
     // (mesma regra de linha/marcador). `image` só atravessa em data URL — se
