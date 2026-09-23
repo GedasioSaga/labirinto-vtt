@@ -8,6 +8,16 @@ import { enterEditor } from './helpers/enterEditor'
 import { pickTool } from './helpers/tools'
 import type { Wall, Drawing } from '../src/types/map'
 
+/**
+ * Teto próprio dos testes 2 e 6, SOMADO ao do teste (nunca no lugar dele):
+ * são os únicos que repetem o gesto 4 e 5 vezes (cada volta = reset + escolher
+ * ferramenta + arrasto com Ctrl + leitura). Com a máquina carregada
+ * (22/09/2026, reporter de passos, 1 worker) o corpo do 6 mediu ~25 s, colado
+ * nos 30 s do teste. Nenhuma asserção muda (o gap de ângulo continua < 0,01°):
+ * é tempo para os MESMOS gestos, não tolerância na prova.
+ */
+const TETO_EXTRA_DO_GESTO_REPETIDO_MS = 30_000
+
 // Distância (em graus) do ângulo do segmento (dx,dy) até o múltiplo de
 // `stepDegrees` mais próximo — 0 significa "caiu exatamente num múltiplo".
 // Tolerância pequena só pra ponto flutuante (mapa com snap de grade desligado
@@ -86,7 +96,8 @@ test('1. parede sem Ctrl: arrasto diagonal fica em ângulo livre (x e y diferent
   expect(walls[0].y1).not.toBe(walls[0].y2)
 })
 
-test('2. parede com Ctrl: varios angulos de arrasto brutos diferentes sempre travam num multiplo exato de 45 graus', async ({ page }) => {
+test('2. parede com Ctrl: varios angulos de arrasto brutos diferentes sempre travam num multiplo exato de 45 graus', async ({ page }, testInfo) => {
+  testInfo.setTimeout(testInfo.timeout + TETO_EXTRA_DO_GESTO_REPETIDO_MS)
   const box = await page.locator('canvas').boundingBox()
   if (!box) throw new Error('canvas sem bounding box')
   await selectTool(page, 'Parede')
@@ -177,7 +188,8 @@ test('5. linha com Ctrl: arrasto diagonal trava num multiplo exato de 45 graus',
   expect(gap).toBeLessThan(0.01)
 })
 
-test('6. parede com Ctrl + grade HEXAGONAL + snap de grade LIGADO: segmento final continua num multiplo exato de 45 graus (gap #4 da revisão T2)', async ({ page }) => {
+test('6. parede com Ctrl + grade HEXAGONAL + snap de grade LIGADO: segmento final continua num multiplo exato de 45 graus (gap #4 da revisão T2)', async ({ page }, testInfo) => {
+  testInfo.setTimeout(testInfo.timeout + TETO_EXTRA_DO_GESTO_REPETIDO_MS)
   const box = await page.locator('canvas').boundingBox()
   if (!box) throw new Error('canvas sem bounding box')
 
