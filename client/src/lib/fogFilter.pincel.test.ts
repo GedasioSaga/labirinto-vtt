@@ -3,7 +3,12 @@ import { createEmptyMap } from './mapFactory'
 import { filterMapForPlayer } from './fogFilter'
 import { pointInRing } from './floorContour'
 import { paintRevealBrush } from './concealBrush'
-import type { ConcealZone, MapData, RegionPoint, Token } from '../types/map'
+import { pieceDistance } from './floorSdf'
+import type { ConcealZone, MapData, Region, RegionPoint, Token, Wall } from '../types/map'
+
+function parede(id: string, x1: number, y1: number, x2: number, y2: number): Wall {
+  return { id, x1, y1, x2, y2, blocksLight: true, blocksMove: true, door: null }
+}
 
 /**
  * PINCEL DE REVELAR no recorte do jogador: só o pedaço pintado da zona oculta
@@ -125,9 +130,93 @@ describe('fogFilter + pincel de revelar', () => {
     const view = filterMapForPlayer(pintado(cenaComChao()), 'ana', DONO, RAIO_VISAO)
     for (const x of [640, 700, 900]) expect(naVisao(view.vision, { x, y: 451 }), `x=${x}`).toBe(true)
     for (const p of [{ x: 760, y: 150 }, { x: 900, y: 250 }, { x: 600, y: 180 }]) expect(naVisao(view.vision, p), `(${p.x},${p.y})`).toBe(false)
-    // O chão de dentro da zona continua sem sair: o corredor aparece pelo buraco, não pelo polígono do chão.
-    expect(view.map.floor.map((f) => f.id)).toEqual(['chao-oeste'])
     expect(view.map.tokens.map((t) => t.id).sort()).toEqual(['tok-lanterna', 'tok-sentinela'])
+  })
+
+  it('o corredor pintado mostra o CHÃO que existe ali — só nas células pintadas, nunca a peça inteira da zona', () => {
+    const view = filterMapForPlayer(pintado(cenaComChao()), 'ana', DONO, RAIO_VISAO)
+    const recorte = view.map.floor.find((f) => f.id !== 'chao-oeste')
+    expect(recorte, 'peça de chão sob o corredor pintado').toBeDefined()
+    if (recorte === undefined) return
+    // Chão sob o corredor: o jogador vê o corredor, não o fundo cinza.
+    for (const x of [540, 640, 700, 900]) expect(pieceDistance(recorte, x, 451), `x=${x}`).toBeLessThanOrEqual(0)
+    // SEGURANÇA: o resto do chão da zona NÃO sai (nem a forma da peça, nem as células fora do traço).
+    for (const p of [{ x: 760, y: 150 }, { x: 900, y: 250 }, { x: 600, y: 180 }, { x: 700, y: 520 }])
+      expect(pieceDistance(recorte, p.x, p.y), `(${p.x},${p.y})`).toBeGreaterThan(0)
+    expect(recorte.shape.kind).toBe('blocos')
+    expect(JSON.stringify(view.map.floor)).not.toContain('"cx":745')
+  })
+
+  it('paredes do corredor pintado saem SÓ no trecho pintado; o trecho escondido não vai no fio', () => {
+    const base = pintado(cenaComChao())
+    const comParedes: MapData = {
+      ...base,
+      walls: [
+        // Dentro da zona, com a ponta oeste fora do traço (x=520 não foi pintado).
+        parede('parede-norte', 520, 430, 700, 430),
+        // Atravessa o corredor de cima a baixo: só o meio está pintado.
+        parede('parede-cruzada', 800, 100, 800, 560),
+      ],
+    }
+    const view = filterMapForPlayer(comParedes, 'ana', DONO, RAIO_VISAO)
+    const noCorredor = (p: RegionPoint): boolean => p.y >= 420 && p.y <= 480 && p.x >= 530 && p.x <= 970
+    const pontas = view.map.walls.flatMap((w) => [
+      { x: w.x1, y: w.y1 },
+      { x: w.x2, y: w.y2 },
+    ])
+    expect(view.map.walls.length).toBeGreaterThanOrEqual(2)
+    for (const p of pontas) expect(noCorredor(p), `(${p.x},${p.y})`).toBe(true)
+    // Cobre o corredor: a parede norte vai até x=700, a cruzada atravessa a faixa pintada.
+    const norte = view.map.walls.filter((w) => w.y1 === 430 && w.y2 === 430)
+    expect(Math.max(...norte.map((w) => Math.max(w.x1, w.x2)))).toBeGreaterThanOrEqual(695)
+    const cruzada = view.map.walls.filter((w) => w.x1 === 800 && w.x2 === 800)
+    expect(cruzada.length).toBe(1)
+    // Células pintadas em x=800 vão de y=430 a y=470.
+    expect(Math.abs(cruzada[0].y2 - cruzada[0].y1)).toBeGreaterThanOrEqual(30)
+  })
+
+  it('SEGURANÇA: o pincel não abre a sala "Oculta para jogadores" — ficha, prop e luz dela não saem', () => {
+    const cofre: Region = {
+      id: 'sala-cofre',
+      points: [
+        { x: 750, y: 400 },
+        { x: 900, y: 400 },
+        { x: 900, y: 550 },
+        { x: 750, y: 550 },
+      ],
+      tag: '',
+      fillColor: '#123',
+      fillPattern: 'solid',
+      data: {},
+      room: { shape: 'rect', name: 'Cofre' },
+      secret: true,
+    }
+    const base = cena()
+    const mapa: MapData = {
+      ...base,
+      regions: [cofre],
+      tokens: [ficha('tok-lanterna', 'Lanterna', 420, 300), ficha('tok-guarda', 'GuardaDoCofre', 800, 450), ficha('tok-vigia', 'Vigia', 650, 450)],
+      props: [{ id: 'bau-do-cofre', src: '', x: 820, y: 470, width: 40, height: 40, linkedMapPath: null }],
+      lights: [{ id: 'tocha-do-cofre', x: 850, y: 440, radius: 80, color: '#ffaa00', intensity: 1 }],
+    }
+    const antes = filterMapForPlayer(mapa, 'ana', DONO, RAIO_VISAO)
+    expect(antes.map.tokens.map((t) => t.id)).toEqual(['tok-lanterna'])
+
+    const view = filterMapForPlayer(pintado(mapa), 'ana', DONO, RAIO_VISAO)
+    // O pincel continua revelando o corredor fora do cofre.
+    expect(view.map.tokens.map((t) => t.id).sort()).toEqual(['tok-lanterna', 'tok-vigia'])
+    const fio = JSON.stringify(view)
+    for (const segredo of ['GuardaDoCofre', 'tok-guarda', 'bau-do-cofre', 'tocha-do-cofre', 'Cofre', 'sala-cofre']) expect(fio).not.toContain(segredo)
+    // O interior do cofre continua preto.
+    expect(preto(view.concealed, { x: 800, y: 451 })).toBe(true)
+    expect(preto(view.concealed, { x: 650, y: 451 })).toBe(false)
+
+    // Visão curta: o que o jogador vê ali é só o que o pincel mostra — e o pincel não mostra o cofre.
+    const curta = filterMapForPlayer(pintado(mapa), 'ana', DONO, 150)
+    expect(curta.map.tokens.map((t) => t.id).sort()).toEqual(['tok-lanterna', 'tok-vigia'])
+    expect(naVisao(curta.vision, { x: 650, y: 451 })).toBe(true)
+    expect(naVisao(curta.vision, { x: 800, y: 451 })).toBe(false)
+    expect(JSON.stringify(curta)).not.toContain('GuardaDoCofre')
   })
 
   it('o que a zona bloqueia na memória continua sendo a zona inteira (o pincel não vira explorado)', () => {
