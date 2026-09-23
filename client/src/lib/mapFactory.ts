@@ -633,16 +633,21 @@ export function setTokenPosition(map: MapData, tokenId: string, x: number, y: nu
 /**
  * Prende a luz na ficha (`tokenId`) ou solta (`null`). Ficha ou luz
  * inexistente devolve o mapa intocado.
+ *
+ * Prender põe a luz no CENTRO da ficha: a tocha vai na mão de quem a carrega.
+ * Presa com o afastamento que tinha, uma luz a 6 casas seguia a ficha como
+ * satélite e, andando para a borda da vista, o halo sumia atrás do painel do
+ * editor enquanto a ficha seguia à vista. Soltar deixa a luz onde está (no
+ * lugar da ficha); o ponto de antes volta pelo desfazer.
  */
 export function setLightAttachment(map: MapData, lightId: string, tokenId: string | null): MapData {
   if (!map.lights.some((l) => l.id === lightId)) return map
-  if (tokenId !== null && !map.tokens.some((t) => t.id === tokenId)) return map
+  if (tokenId === null) return { ...map, lights: map.lights.map((l) => (l.id === lightId ? withoutAttachment(l) : l)) }
+  const carrier = map.tokens.find((t) => t.id === tokenId)
+  if (carrier === undefined) return map
   return {
     ...map,
-    lights: map.lights.map((l) => {
-      if (l.id !== lightId) return l
-      return tokenId === null ? withoutAttachment(l) : { ...l, attachedTokenId: tokenId }
-    }),
+    lights: map.lights.map((l) => (l.id === lightId ? { ...l, x: carrier.x, y: carrier.y, attachedTokenId: tokenId } : l)),
   }
 }
 

@@ -57,6 +57,24 @@ describe('tocha presa na ficha', () => {
     expect(andou.lights.find((l) => l.id === 'tocha')).toMatchObject({ x: 425, y: 325 })
   })
 
+  it('prender põe a luz no centro da ficha: a tocha vai na mão de quem a carrega', () => {
+    // Luz solta a 300 px da ficha (a geometria da régua e2e). Presa com o
+    // afastamento, a 3 casas de passo ela saía da área livre do editor e o
+    // halo ficava atrás do painel; na mão da ficha, anda por onde a ficha anda.
+    const antes: MapData = { ...cena(), lights: [light('tocha', 425, 325), light('solta', 900, 500)] }
+    const presa = setLightAttachment(antes, 'tocha', 'lanterna')
+    expect(presa.lights.find((l) => l.id === 'tocha')).toEqual(light('tocha', 725, 325, { attachedTokenId: 'lanterna' }))
+    expect(presa.lights.find((l) => l.id === 'solta')).toEqual(light('solta', 900, 500))
+    const andou = setTokenPosition(presa, 'lanterna', 575, 325)
+    expect(andou.lights.find((l) => l.id === 'tocha')).toMatchObject({ x: 575, y: 325, attachedTokenId: 'lanterna' })
+  })
+
+  it('soltar deixa a luz onde está (no lugar da ficha), sem voltar para o ponto de antes de prender', () => {
+    const antes: MapData = { ...cena(), lights: [light('tocha', 425, 325)] }
+    const soltou = setLightAttachment(setLightAttachment(antes, 'tocha', 'lanterna'), 'tocha', null)
+    expect(soltou.lights).toEqual([light('tocha', 725, 325)])
+  })
+
   it('prender numa ficha que não existe não prende', () => {
     const antes = cena()
     expect(setLightAttachment(antes, 'solta', 'fantasma')).toBe(antes)

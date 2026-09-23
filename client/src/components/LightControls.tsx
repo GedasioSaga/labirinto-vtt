@@ -25,8 +25,9 @@ const FICHA_SEM_NOME = 'Ficha sem nome'
  * diretamente sobre o círculo da luz no canvas, mesmo padrão de "editar no
  * lugar" usado por vértice de Parede/Região/Curva.
  *
- * "Prender na ficha" faz da luz uma tocha: a ficha escolhida a carrega, com o
- * afastamento que ela tinha, quando o mestre ou o jogador a movem.
+ * "Prender na ficha" faz da luz uma tocha: ela vai para o centro da ficha
+ * escolhida (`mapFactory.setLightAttachment`) e anda com ela quando o mestre
+ * ou o jogador a movem.
  */
 export function LightControls({
   color,
