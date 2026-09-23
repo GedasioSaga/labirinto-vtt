@@ -325,6 +325,7 @@ function App() {
   const toggleLayerLock = useMapStore((state) => state.toggleLayerLock)
   const setPropLayer = useMapStore((state) => state.setPropLayer)
   const updateLight = useMapStore((state) => state.updateLight)
+  const setLightAttachment = useMapStore((state) => state.setLightAttachment)
   const setTokenImage = useMapStore((state) => state.setTokenImage)
   const updateToken = useMapStore((state) => state.updateToken)
   const updateProp = useMapStore((state) => state.updateProp)
@@ -2058,6 +2059,9 @@ function App() {
                 liveSliderChange(`light-intensity-${selectedLight.id}`, () =>
                   useMapStore.getState().updateLightIntensityLive(selectedLight.id, intensity),
                 ),
+              tokens: map.tokens.map((t) => ({ id: t.id, name: t.name })),
+              onAttach: (tokenId) => selectedLight && setLightAttachment(selectedLight.id, tokenId),
+              onDetach: () => selectedLight && setLightAttachment(selectedLight.id, null),
             }}
             selectedStair={selectedStair}
             stairControls={{

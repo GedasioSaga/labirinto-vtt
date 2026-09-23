@@ -123,7 +123,7 @@ interface PropertiesPanelProps {
     'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof'
   >
   selectedLight: Light | null
-  lightControls: Omit<LightControlsProps, 'color' | 'intensity'>
+  lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId'>
   selectedStair: Stair | null
   stairControls: Omit<StairControlsProps, 'direction'>
   polygonSides: PolygonSidesControlsProps
@@ -436,7 +436,12 @@ export function PropertiesPanel({
         )}
         {selectedLight && (
           <ToolPropertiesSection group="lightControls" groups={groups}>
-            <LightControls color={selectedLight.color} intensity={selectedLight.intensity} {...lightControls} />
+            <LightControls
+              color={selectedLight.color}
+              intensity={selectedLight.intensity}
+              attachedTokenId={selectedLight.attachedTokenId ?? null}
+              {...lightControls}
+            />
           </ToolPropertiesSection>
         )}
         {selectedStair && (
