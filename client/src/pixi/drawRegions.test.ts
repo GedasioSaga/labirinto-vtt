@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Container, Graphics, type StrokeInstruction } from 'pixi.js'
 import {
   computeHatchSegments,
@@ -222,6 +222,59 @@ describe('createRegionsRenderer', () => {
 
     renderer.draw(container, withoutFirst, null)
     expect(container.children.length).toBe(withoutFirst.length)
+  })
+
+  it('redesenho parcial: só repinta a região que mudou de referência ou de destaque', () => {
+    const regions = buildContiguousGridRegions(3, 1)
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+    renderer.draw(container, regions, null)
+    const byId = new Map(container.children.map((child) => [child.label, child]))
+    const clears = regions.map((region) => {
+      const child = byId.get(region.id)
+      if (!(child instanceof Graphics)) throw new Error(`sem Graphics para ${region.id}`)
+      return vi.spyOn(child, 'clear')
+    })
+
+    const moved = regions.map((r, i) => (i === 1 ? { ...r, points: r.points.map((p) => ({ x: p.x + 5, y: p.y })) } : r))
+    renderer.draw(container, moved, null)
+    expect(clears.map((spy) => spy.mock.calls.length)).toEqual([0, 1, 0])
+
+    renderer.draw(container, moved, regions[2].id)
+    expect(clears.map((spy) => spy.mock.calls.length)).toEqual([0, 1, 1])
+    // A região repintada continua com exatamente 1 fill (nada acumulou).
+    const repainted = byId.get(regions[1].id)
+    expect(repainted instanceof Graphics && countFillInstructions(repainted)).toBe(1)
+  })
+
+  it('zoom: só a sala selecionada repinta, e o contorno dela acompanha a escala da câmera', () => {
+    const regions = buildContiguousGridRegions(3, 1)
+    const container = new Container()
+    const renderer = createRegionsRenderer()
+    const selectedId = regions[0].id
+    renderer.draw(container, regions, selectedId, 1)
+    const byId = new Map(container.children.map((child) => [child.label, child]))
+    const graphicsOf = (id: string): Graphics => {
+      const child = byId.get(id)
+      if (!(child instanceof Graphics)) throw new Error(`sem Graphics para ${id}`)
+      return child
+    }
+    const outlineWidth = (g: Graphics): number => {
+      const first = g.context.instructions.find((instruction) => instruction.action === 'stroke')
+      return first !== undefined && first.action === 'stroke' ? first.data.style.width : NaN
+    }
+    const widthAtScale1 = outlineWidth(graphicsOf(selectedId))
+    const clears = regions.map((region) => vi.spyOn(graphicsOf(region.id), 'clear'))
+
+    renderer.draw(container, regions, selectedId, 2)
+    expect(clears.map((spy) => spy.mock.calls.length)).toEqual([1, 0, 0])
+    // 2 px de TELA a 200% = metade da largura de mundo: o cache não pode congelar a espessura.
+    expect(outlineWidth(graphicsOf(selectedId))).toBeLessThan(widthAtScale1)
+
+    // Sem seleção, a escala não entra em nenhuma pintura: zoom não repinta sala nenhuma.
+    renderer.draw(container, regions, null, 2)
+    renderer.draw(container, regions, null, 4)
+    expect(clears.map((spy) => spy.mock.calls.length)).toEqual([2, 0, 0])
   })
 
   it('mantém apenas 1 fill acumulado por Graphics mesmo com hachura (isolamento entre regiões)', () => {
