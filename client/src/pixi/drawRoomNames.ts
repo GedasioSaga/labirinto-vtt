@@ -305,10 +305,27 @@ function measuredTextWidth(textObj: Text): number | null {
   }
 }
 
-/** Cache de Text e da plaquinha por id, fechado por closure (instanciar uma vez
- * por mount). NUNCA destrói Text durante a sessão: Text destruído antes de
- * renderizar derruba o Pixi 8.20 em TexturePool.returnTexture (ver PlayerView.tsx).
- * Região que some ou perde o nome só fica invisível; tudo morre no app.destroy. */
+/**
+ * Cache de Text e da plaquinha por id, fechado por closure (instanciar uma vez
+ * por mount).
+ *
+ * Região que some do `draw` — trocou de cena, perdeu o nome, foi apagada —
+ * tem o Text e a plaquinha DESTRUÍDOS, não só escondidos. Escondendo, cada cena
+ * visitada deixava os seus objetos (e a textura rasterizada de cada nome) vivos
+ * até fechar o app: 60 MB viravam 197 MB em 5 trocas na torre (HANDOFF.md).
+ *
+ * Por que isto não cai no crash de `TexturePool.returnTexture` que fez o resto
+ * do projeto nunca destruir Text (PlayerView.tsx, drawPins.ts): o objeto sai do
+ * container ANTES do destroy. No Pixi 8.20, tirar o filho zera o
+ * `parentRenderGroup` dele e marca `structureDidChange` no grupo
+ * (RenderGroup.removeChild); com isso (1) o `unload` que o destroy emite não
+ * tem grupo onde se reenfileirar (ViewContainer.unload → onViewUpdate) e (2)
+ * uma atualização que já estava na fila é descartada sem ser processada
+ * (RenderGroupSystem._updateRenderGroups → clearList). A textura do nome volta
+ * ao pool pela contagem de referência do CanvasTextPipe (onTextUnload) — o
+ * mesmo caminho de um Text que o GC do Pixi descarrega. O que esvaziava o pool
+ * GLOBAL era `app.destroy(true)` com Text de outro app vivo; não é mais usado.
+ */
 export function createRoomNamesRenderer(): RoomNamesRenderer {
   const cache = new Map<string, Text>()
   const plateCache = new Map<string, Graphics>()
@@ -333,6 +350,25 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
     }
   }
 
+  /** Destrói o Text e a plaquinha de toda sala fora de `keep`: tira do
+   *  container e só então destrói (ver o cabeçalho sobre o pool de texturas). */
+  function forgetRoomsOutside(keep: ReadonlySet<string>): void {
+    for (const [id, textObj] of cache) {
+      if (keep.has(id)) continue
+      textObj.removeFromParent()
+      textObj.destroy()
+      cache.delete(id)
+      styledKey.delete(id)
+    }
+    for (const [id, plate] of plateCache) {
+      if (keep.has(id)) continue
+      plate.removeFromParent()
+      plate.destroy()
+      plateCache.delete(id)
+      plateKey.delete(id)
+    }
+  }
+
   function setCameraScale(cameraScale: number): void {
     lastCameraScale = cameraScale
     for (const id of namedIds) applySizing(id, lastFontSize)
@@ -342,12 +378,7 @@ export function createRoomNamesRenderer(): RoomNamesRenderer {
     if (cameraScale !== undefined) lastCameraScale = cameraScale
     const named = regions.filter((r) => r.room !== undefined && r.room.name.trim() !== '')
     namedIds = new Set(named.map((r) => r.id))
-    for (const [id, textObj] of cache) {
-      if (!namedIds.has(id)) textObj.visible = false
-    }
-    for (const [id, plate] of plateCache) {
-      if (!namedIds.has(id)) plate.visible = false
-    }
+    forgetRoomsOutside(namedIds)
 
     const fontSize = roomLabelFontSize(grid)
     lastFontSize = fontSize
