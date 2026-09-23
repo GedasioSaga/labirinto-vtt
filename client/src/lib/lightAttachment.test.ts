@@ -3,6 +3,7 @@ import type { Light, MapData, Token } from '../types/map'
 import { moveAreaSelection } from './areaSelection'
 import { moveTokenCarryingLights } from './lightAttachment'
 import { createEmptyMap, removeToken, setLightAttachment, setTokenPosition } from './mapFactory'
+import { findSelectableAt, lightsOnToken } from './selectionHitTest'
 
 function token(id: string, x: number, y: number): Token {
   return { id, characterId: null, name: `nome-${id}`, x, y, size: 1, image: null }
@@ -94,5 +95,29 @@ describe('tocha presa na ficha', () => {
     const ambas = moveAreaSelection(cena(), { ...vazia, tokens: ['lanterna'], lights: ['tocha'] }, -150, 0)
     expect(ambas.lights.find((l) => l.id === 'tocha')).toMatchObject({ x: 275, y: 325 })
     expect(ambas.lights.find((l) => l.id === 'solta')).toMatchObject({ x: 900, y: 500 })
+  })
+})
+
+describe('tocha presa na ficha — a luz continua alcançável depois de desmarcada', () => {
+  it('prender deixa a tocha sob a ficha: o clique nesse ponto pega a ficha, nunca a luz', () => {
+    const presa = setLightAttachment(cena(), 'solta', 'outra')
+    expect(findSelectableAt(presa, { x: 100, y: 100 })).toEqual({ kind: 'token', id: 'outra', draggable: true })
+  })
+
+  it('o painel da ficha lista a luz presa nela, e a solta que ficou embaixo depois de "Soltar"', () => {
+    const presa = setLightAttachment(cena(), 'solta', 'outra')
+    expect(lightsOnToken(presa, 'outra')).toEqual([{ id: 'solta', attached: true }])
+    // A tocha presa com afastamento (300 px) também é da Lanterna: é ela que a carrega.
+    expect(lightsOnToken(presa, 'lanterna')).toEqual([{ id: 'tocha', attached: true }])
+    const soltou = setLightAttachment(presa, 'solta', null)
+    expect(lightsOnToken(soltou, 'outra')).toEqual([{ id: 'solta', attached: false }])
+  })
+
+  it('luz longe da ficha, luz em camada oculta e ficha inexistente não entram', () => {
+    const antes = cena()
+    expect(lightsOnToken(antes, 'outra')).toEqual([])
+    expect(lightsOnToken(antes, 'nao-existe')).toEqual([])
+    const escondida: MapData = { ...setLightAttachment(antes, 'solta', 'outra'), hiddenLayers: ['iluminacao'] }
+    expect(lightsOnToken(escondida, 'outra')).toEqual([])
   })
 })

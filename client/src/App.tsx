@@ -63,6 +63,7 @@ import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
 import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
+import { lightsOnToken } from './lib/selectionHitTest'
 import { traceFloorPieces } from './lib/traceImage'
 import { loadImagePixels } from './lib/imagePixels'
 import { traceMapDetails } from './lib/traceDetails'
@@ -1912,6 +1913,11 @@ function App() {
               // mexe em x/y — a ficha cresce em volta de onde já está, e é o
               // próximo arrasto que a assenta na grade (`seatTokenCenter`).
               onSizeChange: (size) => selectedToken && updateToken(selectedToken.id, { size }),
+            }}
+            tokenLights={{
+              lights: selectedToken ? lightsOnToken(map, selectedToken.id) : [],
+              onSelectLight: (lightId) => setSelection(selectionOfItem({ kind: 'light', id: lightId })),
+              onDetach: (lightId) => setLightAttachment(lightId, null),
             }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),

@@ -610,20 +610,41 @@ describe('filterMapForPlayer — tocha presa na ficha', () => {
     expect(out.lights).toEqual([{ id: 'tocha', x: 250, y: 200, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'heroi' }])
   })
 
-  it('luz visível presa numa ficha que o jogador NÃO vê chega sem o vínculo: nem o id da ficha escondida vaza', () => {
+  it('luz visível presa numa ficha que a NÉVOA esconde chega sem o vínculo: nem o id da ficha vaza', () => {
     const map = twoRooms({
-      tokens: [token('heroi', 200, 200), token('espiao', 800, 200), token('fantasma', 220, 200, { hidden: true })],
-      lights: [
-        { id: 'tocha-do-espiao', x: 450, y: 200, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'espiao' },
-        { id: 'tocha-do-fantasma', x: 230, y: 230, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'fantasma' },
-      ],
+      tokens: [token('heroi', 200, 200), token('espiao', 800, 200)],
+      lights: [{ id: 'tocha-do-espiao', x: 450, y: 200, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'espiao' }],
     })
     const { map: out } = filterMapForPlayer(map, 'p1', ownership, RADIUS)
-    expect(out.lights.map((l) => l.id).sort()).toEqual(['tocha-do-espiao', 'tocha-do-fantasma'])
-    for (const l of out.lights) expect('attachedTokenId' in l).toBe(false)
+    expect(out.lights).toEqual([{ id: 'tocha-do-espiao', x: 450, y: 200, radius: 80, color: '#f00', intensity: 1 }])
+    expect(JSON.stringify(out)).not.toContain('"espiao"')
+  })
+
+  it('SEGURANÇA: tocha presa numa ficha que o MESTRE esconde (oculta ou secreta) não sai: seria a posição do NPC', () => {
+    // As tochas ficam no centro de cada ficha, em plena vista do herói.
+    const escondidas = [
+      token('fantasma', 230, 230, { hidden: true }),
+      token('assassino', 260, 230, { secret: true }),
+    ]
+    const tochas = [
+      { id: 'tocha-do-fantasma', x: 230, y: 230, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'fantasma' },
+      { id: 'tocha-do-assassino', x: 260, y: 230, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'assassino' },
+      { id: 'tocha-do-aliado', x: 300, y: 250, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'aliado' },
+    ]
+    const map = twoRooms({ tokens: [token('heroi', 200, 200), token('aliado', 300, 250), ...escondidas], lights: tochas })
+    const { map: out } = filterMapForPlayer(map, 'p1', ownership, RADIUS)
+    expect(out.lights.map((l) => l.id)).toEqual(['tocha-do-aliado'])
     const json = JSON.stringify(out)
-    expect(json).not.toContain('"espiao"')
-    expect(json).not.toContain('"fantasma"')
+    for (const vazado of ['fantasma', 'assassino', '"x":230', '"x":260']) expect(json).not.toContain(vazado)
+  })
+
+  it('a tocha presa na PRÓPRIA ficha secreta do jogador chega com o vínculo: é ele quem a carrega', () => {
+    const map = twoRooms({
+      tokens: [token('heroi', 200, 200, { secret: true })],
+      lights: [{ id: 'tocha', x: 200, y: 200, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'heroi' }],
+    })
+    const { map: out } = filterMapForPlayer(map, 'p1', ownership, RADIUS)
+    expect(out.lights).toEqual([{ id: 'tocha', x: 200, y: 200, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'heroi' }])
   })
 
   it('tocha presa na própria ficha mas fora da visão continua fora do que é enviado', () => {

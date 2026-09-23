@@ -1113,6 +1113,13 @@ export function filterMapForPlayer(
     .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
     .map((t) => sanitizeTokenPhoto(tokenAsSeenByPlayer(t, owned.has(t.id))))
   const sentTokenIds = new Set(tokens.map((t) => t.id))
+  // Ficha que o MESTRE esconde deste jogador (oculta, secreta ou na camada
+  // Fichas escondida). A tocha presa nela fica no centro dela e anda com ela:
+  // enviar a luz, mesmo sem o vínculo, entregaria a posição e o trajeto do NPC.
+  const layerTokenIds = new Set(layerTokens.map((t) => t.id))
+  const masterHiddenTokenIds = new Set(
+    map.tokens.filter((t) => !sentTokenIds.has(t.id) && (t.hidden || t.secret || !layerTokenIds.has(t.id))).map((t) => t.id),
+  )
 
   const filtered: MapData = {
     ...map,
@@ -1132,8 +1139,10 @@ export function filterMapForPlayer(
     // desenharia o interior na tela do jogador que está lá fora.
     // Tocha presa na ficha: o vínculo só vai se a ficha também vai; senão o
     // id de ficha que a névoa, a zona oculta ou o mestre escondem sairia pela rede.
+    // Presa numa ficha que o mestre esconde, a luz nem sai (`masterHiddenTokenIds`).
     lights: visibleLights(map.lights, hiddenLayers)
       .filter((l) => !l.hidden && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }))
+      .filter((l) => l.attachedTokenId === undefined || !masterHiddenTokenIds.has(l.attachedTokenId))
       .map((l) => (l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l))),
     stairs: visibleStairs(map.stairs, hiddenLayers).filter((s) => {
       const first = s.segments[0]
