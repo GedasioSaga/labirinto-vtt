@@ -359,10 +359,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function handleCallState(data: Record<string, unknown>): void {
     if (state.status !== 'playing') return
     if (data.state === 'waiting' && isCallReason(data.reason)) {
+      // O "waiting" só confirma a mão acesa aqui; mesmo `id`, nada reanima na tela.
+      // Mão já baixada: é a confirmação atrasada de um chamado que o mestre
+      // apagou no `call.lower` — reacender deixaria "Esperando o mestre" para
+      // sempre, sem linha nenhuma na fila do mestre.
+      if (state.call?.phase !== 'waiting') return
       clearCallTimer()
-      // Mesmo `id` se a mão já estava acesa: a confirmação não reanima nada na tela.
-      const id = state.call?.phase === 'waiting' ? state.call.id : nextNoticeId++
-      setState({ call: { id, phase: 'waiting', reason: data.reason } })
+      setState({ call: { id: state.call.id, phase: 'waiting', reason: data.reason } })
       return
     }
     if (data.state === 'seen' || data.state === 'too_soon') showCallAnswer(data.state)

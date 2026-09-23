@@ -120,6 +120,26 @@ describe('mão levantada no cliente do jogador', () => {
     expect(chamadosEnviados(socket)).toEqual([{ type: 'call.raise', reason: 'sair' }, { type: 'call.lower' }])
   })
 
+  it('"esperando" atrasado depois de baixar a mão não reacende a mão', () => {
+    // Chamar e baixar antes de o "waiting" do mestre chegar (RTT do túnel):
+    // o mestre já apagou o chamado no lower, então a mão tem de ficar apagada.
+    const { connection, socket } = jogando()
+    connection.raiseHand('agir')
+    connection.lowerHand()
+    socket.receive({ type: 'call.state', state: 'waiting', reason: 'agir' })
+    expect(connection.getState().call).toBeUndefined()
+    // E a mão continua livre para um chamado novo.
+    expect(connection.raiseHand('ajuda')).toBe(true)
+  })
+
+  it('"esperando" confirma a mão acesa sem trocar o id', () => {
+    const { connection, socket } = jogando()
+    connection.raiseHand('agir')
+    const antes = connection.getState().call
+    socket.receive({ type: 'call.state', state: 'waiting', reason: 'agir' })
+    expect(connection.getState().call).toEqual(antes)
+  })
+
   it('fora do jogo não chama', () => {
     const { connection, socket } = jogando()
     socket.receive({ type: 'lobby.waiting' })

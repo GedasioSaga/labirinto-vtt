@@ -101,4 +101,74 @@ describe('Toast: responder dentro do aviso', () => {
     act(() => botoes().filter((b) => b.textContent === 'Responder')[1]?.click())
     expect(container.querySelector<HTMLInputElement>('input[type="text"]')?.getAttribute('aria-label')).toBe('Resposta para Carla: Pergunta')
   })
+
+  function campoPara(texto: string): HTMLInputElement | null {
+    return container.querySelector<HTMLInputElement>(`input[aria-label="Resposta para ${texto}"]`)
+  }
+
+  it('chamado novo chegando enquanto o mestre escreve: aviso vira caixa e a resposta continua lá, com o foco', () => {
+    const duda = chamado('t1', 'Duda: Quero agir', vi.fn())
+    render([duda], vi.fn())
+    act(() => botoes().find((b) => b.textContent === 'Responder')?.click())
+    const campo = campoPara('Duda: Quero agir')
+    if (campo === null) throw new Error('sem campo')
+    digita(campo, 'Pode abrir o')
+    // A Carla chama: a pilha passa de 1 para 2 linhas e vira a caixa "Chamados (2)".
+    render([duda, chamado('t2', 'Carla: Pergunta', vi.fn())], vi.fn())
+    expect(container.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe('Chamados (2)')
+    const depois = campoPara('Duda: Quero agir')
+    expect(depois?.value).toBe('Pode abrir o')
+    expect(document.activeElement).toBe(depois)
+    // Só a linha da Duda está respondendo; a da Carla segue com o botão.
+    expect(campoPara('Carla: Pergunta')).toBeNull()
+  })
+
+  it('chamado saindo enquanto o mestre escreve: caixa vira aviso solto e a resposta continua, e ainda envia', () => {
+    const enviar = vi.fn()
+    const onDismiss = vi.fn()
+    const carla = chamado('t2', 'Carla: Pergunta', enviar)
+    render([chamado('t1', 'Duda: Quero agir', vi.fn()), carla], onDismiss)
+    act(() => botoes().filter((b) => b.textContent === 'Responder')[1]?.click())
+    const campo = campoPara('Carla: Pergunta')
+    if (campo === null) throw new Error('sem campo')
+    digita(campo, 'Sim, com a corda.')
+    // A Duda baixa a mão: a caixa volta a ser o aviso solto da Carla.
+    render([carla], onDismiss)
+    expect(container.querySelector('[role="region"]')).toBeNull()
+    const depois = campoPara('Carla: Pergunta')
+    expect(depois?.value).toBe('Sim, com a corda.')
+    expect(document.activeElement).toBe(depois)
+    act(() => depois?.form?.requestSubmit())
+    expect(enviar).toHaveBeenCalledWith('Sim, com a corda.')
+    expect(onDismiss).toHaveBeenCalledWith('t2')
+  })
+
+  it('resposta aberta sem o foco nela: a troca mantém o rascunho e não rouba o foco', () => {
+    const duda = chamado('t1', 'Duda: Quero agir', vi.fn())
+    render([duda], vi.fn())
+    act(() => botoes().find((b) => b.textContent === 'Responder')?.click())
+    const campo = campoPara('Duda: Quero agir')
+    if (campo === null) throw new Error('sem campo')
+    digita(campo, 'Espera')
+    // O mestre volta para o mapa (fora da pilha de avisos) antes de a Carla chamar.
+    const fora = document.createElement('button')
+    document.body.appendChild(fora)
+    act(() => fora.focus())
+    render([duda, chamado('t2', 'Carla: Pergunta', vi.fn())], vi.fn())
+    expect(campoPara('Duda: Quero agir')?.value).toBe('Espera')
+    expect(document.activeElement).toBe(fora)
+    fora.remove()
+  })
+
+  it('Cancelar esquece o rascunho: a troca seguinte não reabre o campo', () => {
+    const duda = chamado('t1', 'Duda: Quero agir', vi.fn())
+    render([duda], vi.fn())
+    act(() => botoes().find((b) => b.textContent === 'Responder')?.click())
+    const campo = campoPara('Duda: Quero agir')
+    if (campo === null) throw new Error('sem campo')
+    digita(campo, 'rascunho')
+    act(() => botoes().find((b) => b.textContent === 'Cancelar')?.click())
+    render([duda, chamado('t2', 'Carla: Pergunta', vi.fn())], vi.fn())
+    expect(container.querySelector('input[type="text"]')).toBeNull()
+  })
 })

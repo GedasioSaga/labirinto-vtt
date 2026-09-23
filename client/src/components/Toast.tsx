@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { ToastMessage, ToastResposta } from '../stores/toastStore'
 import { agruparAvisos, deixarTodos, temRespostaEmLote, tituloDaCaixa } from './caixaDeAvisos'
@@ -40,20 +40,50 @@ interface ToastProps {
  * caixa — ver `CaixaDeAvisos` e a regra em `caixaDeAvisos.ts`.
  */
 export function Toast({ toasts, onDismiss }: ToastProps) {
+  // Mora aqui, e não na linha: a linha é desmontada quando a pilha troca de forma.
+  const [respostasEmCurso] = useState(() => new Map<string, RespostaEmCurso>())
+
+  // Aviso que saiu da pilha (respondido, apagado pelo mestre ou pelo jogador) leva junto o rascunho.
+  useEffect(() => {
+    const presentes = new Set(toasts.map((toast) => toast.id))
+    for (const id of respostasEmCurso.keys()) if (!presentes.has(id)) respostasEmCurso.delete(id)
+  }, [toasts, respostasEmCurso])
+
   if (toasts.length === 0) return null
 
   return (
-    <div className="lb-toaststack">
-      {agruparAvisos(toasts).map((item) =>
-        item.tipo === 'aviso' ? (
-          <AvisoSolto key={item.toast.id} toast={item.toast} onDismiss={onDismiss} />
-        ) : (
-          <CaixaDeAvisos key={`grupo:${item.grupo}`} grupo={item.grupo} toasts={item.toasts} onDismiss={onDismiss} />
-        ),
-      )}
-    </div>
+    <RespostasEmCurso.Provider value={respostasEmCurso}>
+      <div className="lb-toaststack">
+        {agruparAvisos(toasts).map((item) =>
+          item.tipo === 'aviso' ? (
+            <AvisoSolto key={item.toast.id} toast={item.toast} onDismiss={onDismiss} />
+          ) : (
+            <CaixaDeAvisos key={`grupo:${item.grupo}`} grupo={item.grupo} toasts={item.toasts} onDismiss={onDismiss} />
+          ),
+        )}
+      </div>
+    </RespostasEmCurso.Provider>
   )
 }
+
+/**
+ * A resposta que o mestre está escrevendo num aviso, guardada pelo `id` do
+ * aviso. Um chamado sozinho é aviso solto; dois ou mais viram a caixa — e a
+ * troca desmonta a linha inteira (outro componente, outra chave). Sem isto o
+ * campo aberto fechava, o texto se perdia e o foco caía no `body` a cada
+ * chamado que chegava ou saía enquanto o mestre escrevia.
+ */
+interface RespostaEmCurso {
+  rascunho: string
+  /** O campo tinha o foco quando a linha saiu da tela: a linha nova o devolve. */
+  focado: boolean
+}
+
+/**
+ * Valor padrão só para `RespostaNoAviso` fora de um `Toast`, o que não
+ * acontece: o `Toast` sempre fornece o mapa dele.
+ */
+const RespostasEmCurso = createContext(new Map<string, RespostaEmCurso>())
 
 interface AvisoSoltoProps {
   toast: ToastMessage
@@ -181,12 +211,14 @@ function BotoesDoAviso({ toast, classeDoPrimeiro, onResponder }: BotoesDoAvisoPr
           {action.label}
         </button>
       ))}
-      {toast.resposta !== undefined && <RespostaNoAviso texto={toast.text} resposta={toast.resposta} onEnviada={onResponder} />}
+      {toast.resposta !== undefined && <RespostaNoAviso id={toast.id} texto={toast.text} resposta={toast.resposta} onEnviada={onResponder} />}
     </div>
   )
 }
 
 interface RespostaNoAvisoProps {
+  /** O `id` do aviso: chave da resposta em curso, que sobrevive à linha. */
+  id: string
   /** O texto do aviso: entra no nome do campo ("Resposta para Carla: Pergunta"). */
   texto: string
   resposta: ToastResposta
@@ -197,40 +229,69 @@ interface RespostaNoAvisoProps {
  * "Responder" dentro do aviso: o botão abre um campo na própria linha, com o
  * foco nele. Enter (ou "Enviar") manda e tira o aviso; Esc (ou "Cancelar")
  * fecha só o campo e devolve o foco ao botão — o aviso continua esperando.
+ *
+ * Campo aberto e texto vivem também em `RespostasEmCurso`: quando a pilha
+ * troca de forma (aviso solto ↔ caixa) esta linha é desmontada e a nova
+ * recomeça dali — aberta, com o rascunho, e com o foco se ele estava no campo.
  */
-function RespostaNoAviso({ texto, resposta, onEnviada }: RespostaNoAvisoProps) {
-  const [aberta, setAberta] = useState(false)
-  const [rascunho, setRascunho] = useState('')
+function RespostaNoAviso({ id, texto, resposta, onEnviada }: RespostaNoAvisoProps) {
+  const memoria = useContext(RespostasEmCurso)
+  const [aberta, setAberta] = useState(() => memoria.has(id))
+  const [rascunho, setRascunho] = useState(() => memoria.get(id)?.rascunho ?? '')
   const botaoRef = useRef<HTMLButtonElement>(null)
   const campoRef = useRef<HTMLInputElement>(null)
-  const devolverFoco = useRef(false)
+  /** Para onde vai o foco no próximo abrir/fechar. */
+  const focoPendente = useRef<'campo' | 'botao' | null>(null)
 
   useLayoutEffect(() => {
-    if (aberta) {
-      campoRef.current?.focus()
-      return
-    }
-    if (!devolverFoco.current) return
-    devolverFoco.current = false
-    botaoRef.current?.focus()
+    const alvo = focoPendente.current
+    focoPendente.current = null
+    if (alvo === 'campo') campoRef.current?.focus()
+    else if (alvo === 'botao') botaoRef.current?.focus()
   }, [aberta])
 
+  // Na saída da linha o DOM ainda está montado: dá para saber se o foco estava
+  // no campo. A linha nova lê isso ao montar — no commit, depois da saída da
+  // antiga; no render ainda não daria, a antiga não tinha saído.
+  useLayoutEffect(() => {
+    const campo = campoRef
+    if (memoria.get(id)?.focado === true) campo.current?.focus()
+    return () => {
+      const emCurso = memoria.get(id)
+      if (emCurso === undefined) return
+      memoria.set(id, { ...emCurso, focado: campo.current !== null && campo.current === document.activeElement })
+    }
+  }, [memoria, id])
+
+  const abrir = () => {
+    memoria.set(id, { rascunho, focado: false })
+    focoPendente.current = 'campo'
+    setAberta(true)
+  }
+
   const fechar = () => {
-    devolverFoco.current = true
+    memoria.delete(id)
+    focoPendente.current = 'botao'
     setAberta(false)
+  }
+
+  const escrever = (valor: string) => {
+    memoria.set(id, { rascunho: valor, focado: false })
+    setRascunho(valor)
   }
 
   const enviar = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const limpo = rascunho.trim()
     if (limpo === '') return
+    memoria.delete(id)
     onEnviada()
     resposta.enviar(limpo)
   }
 
   if (!aberta) {
     return (
-      <button ref={botaoRef} type="button" className="lb-btn lb-btn--ghost" onClick={() => setAberta(true)}>
+      <button ref={botaoRef} type="button" className="lb-btn lb-btn--ghost" onClick={abrir}>
         {resposta.rotulo}
       </button>
     )
@@ -245,7 +306,7 @@ function RespostaNoAviso({ texto, resposta, onEnviada }: RespostaNoAvisoProps) {
         aria-label={`Resposta para ${texto}`}
         value={rascunho}
         maxLength={resposta.maxLength}
-        onChange={(event) => setRascunho(event.target.value)}
+        onChange={(event) => escrever(event.target.value)}
         onKeyDown={(event) => {
           if (event.key !== 'Escape') return
           // O Escape é deste campo: não fecha mais nada da tela junto.
