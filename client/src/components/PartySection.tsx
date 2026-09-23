@@ -44,6 +44,24 @@ export function playerNoteFeedbackText(name: string, delivery: PlayerNoteDeliver
   return 'Não deu para enviar: a sala não está aberta.'
 }
 
+/** O "fora há 0:10" anda de segundo em segundo no primeiro minuto. */
+const OFFLINE_TICK_MS = 1_000
+
+/**
+ * Relógio do "fora há…": só anda enquanto alguém está fora, e só re-renderiza
+ * esta seção — o resto do painel não sabe que ele existe.
+ */
+function useOfflineClock(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!active) return
+    setNow(Date.now())
+    const timer = setInterval(() => setNow(Date.now()), OFFLINE_TICK_MS)
+    return () => clearInterval(timer)
+  }, [active])
+  return now
+}
+
 /** As cenas para onde ESTE jogador pode ir: todas menos a dele. */
 export function sendDestinationsFor(member: PartyMember, destinations: PartyDestination[]): PartyDestination[] {
   return destinations.filter((destination) => destination.sceneId !== member.sceneId)
@@ -166,6 +184,7 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
   /** Quem abriu o envio ou o recado: o foco volta para ele ao fechar. */
   const openerRef = useRef<HTMLElement | null>(null)
   const sending = members.find((member) => member.playerId === sendingId)
+  const now = useOfflineClock(members.some((member) => member.offlineSince !== undefined))
 
   useEffect(() => {
     if (noteFeedback === null) return
@@ -218,7 +237,7 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
                 />
                 {/* Os espaços são do texto: sem eles o leitor de tela lê "Anaonline". */}
                 <strong className="lb-party__name">{member.name}</strong>{' '}
-                <span className={`lb-party__presence${member.connected ? ' lb-party__presence--on' : ''}`}>{partyPresenceLabel(member)}</span>
+                <span className={`lb-party__presence${member.connected ? ' lb-party__presence--on' : ''}`}>{partyPresenceLabel(member, now)}</span>
               </div>{' '}
               <span className="lb-party__where">{member.token === null ? 'sem ficha no mapa' : (member.sceneName ?? 'no mapa aberto')}</span>
               {(member.token !== null || onNote !== undefined) && (

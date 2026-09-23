@@ -244,6 +244,11 @@ export interface PlayerInfo {
    * resto do tempo: é o que põe o selo "pedido" na cena dele, na lista Cenas.
    */
   travelPending?: true
+  /**
+   * Quando a conexão dele caiu (relógio do mestre). Só enquanto está fora: é o
+   * "fora há 0:10" do Grupo. Dado do painel do mestre — nunca vai pela rede.
+   */
+  disconnectedAt?: number
 }
 
 /** O que foi feito do recado para um jogador: saiu agora, ficou guardado para a volta dele, ou nada (`null`). */
@@ -307,7 +312,11 @@ export interface HostSession {
   assignToken(playerId: string, tokenId: string): HostResult
   /** Devolve `lobby.waiting` se o jogador ficou sem token. */
   unassignToken(playerId: string, tokenId: string): HostResult
-  disconnect(clientId: string): void
+  /**
+   * A conexão caiu. `at` = quando se ouviu dela por último (a varredura de
+   * conexão muda sabe que ela sumiu ANTES de notar); ausente, agora.
+   */
+  disconnect(clientId: string, at?: number): void
   kick(clientId: string): HostResult
   /**
    * `room.closed` para todo jogador conectado (jogando ou aguardando). O
@@ -517,6 +526,8 @@ interface PlayerRecord {
   resumeToken: string
   clientId: string | null
   joinedAt: number
+  /** Quando caiu; `null` enquanto conectado. */
+  disconnectedAt: number | null
 }
 
 export function createHostSession(options: HostSessionOptions): HostSession {
@@ -746,10 +757,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       resumeToken: randomId(),
       clientId: null,
       joinedAt: now(),
+      disconnectedAt: null,
     }
     // Reassumir derruba o vínculo com a conexão antiga, se ainda existir.
     if (record.clientId !== null) byClient.delete(record.clientId)
     record.clientId = clientId
+    record.disconnectedAt = null
     record.name = uniqueName(msg.name, record.playerId)
     players.set(record.playerId, record)
     byClient.set(clientId, record.playerId)
@@ -1178,7 +1191,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         case 'token.move':
           return handleMove(clientId, msg, world)
         case 'ping':
-          return { outbound: [] }
+          // Só quem está na sala ouve o pong: a conexão dada como caída fica
+          // sem resposta, e o cliente dela nota o silêncio e volta pelo resume.
+          return byClient.has(clientId) ? reply(clientId, { type: 'pong' }) : { outbound: [] }
         case 'signal':
           return handleSignal(clientId, msg, world)
         case 'door.toggle':
@@ -1431,13 +1446,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return { outbound: waitingIfLostLast(playerId, current.length > 0) }
     },
 
-    disconnect(clientId) {
+    disconnect(clientId, at) {
       const playerId = byClient.get(clientId)
       if (playerId === undefined) return
       byClient.delete(clientId)
       pausedSent.delete(clientId)
       const record = players.get(playerId)
-      if (record !== undefined) record.clientId = null // mantém o registro para permitir resume
+      if (record !== undefined) {
+        record.clientId = null // mantém o registro para permitir resume
+        // Nunca no futuro: o "fora há" não pode começar negativo.
+        record.disconnectedAt = at === undefined ? now() : Math.min(at, now())
+      }
       // O pedido pendente morre com a conexão: quem voltar não tem mais o
       // "Aguardando o mestre…" na tela, e o aviso do mestre fica inofensivo.
       pendingTravels.delete(playerId)
@@ -1603,6 +1622,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           // O selo da lista Cenas nasce e morre com o pedido: aprovar, recusar
           // e cair a conexão já tiram o jogador de `pendingTravels`.
           if (pendingTravels.has(p.playerId)) info.travelPending = true
+          if (p.disconnectedAt !== null) info.disconnectedAt = p.disconnectedAt
           if (withScenes && info.status === 'playing') {
             const scene = sceneFor(p.playerId, world)
             // Sem cena, o painel o mostra aguardando: é o que a tela dele diz, e

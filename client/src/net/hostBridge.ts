@@ -19,7 +19,7 @@ import {
   type PlayerNoteDelivery,
   type TravelRequest,
 } from './hostSession'
-import { CALL_REASON_LABELS, NOTE_MAX_LENGTH, type DoorRequestHow, type LaserMessage } from './protocol'
+import { CALL_REASON_LABELS, NOTE_MAX_LENGTH, parsePlayerMessage, type DoorRequestHow, type LaserMessage } from './protocol'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -189,6 +189,32 @@ export function doorRequestLine(request: DoorRequest): string {
   return `${request.playerName} ${DOOR_REQUEST_VERB[request.how]}${where}`
 }
 
+/**
+ * "Gina caiu" espera isto antes de sair. Wi-Fi que pisca volta antes (o
+ * celular reconecta sozinho em ~1 s) e não vira aviso nenhum; quedas dentro
+ * da mesma janela — o roteador que reinicia leva a mesa inteira — viram UM
+ * aviso só.
+ */
+export const DROP_ANNOUNCE_DELAY_MS = 3_000
+/**
+ * Conexão sem NENHUMA mensagem há isto conta como caída. O Wi-Fi do celular
+ * que some sem FIN deixa o socket "aberto" para o Rust por minutos; o cliente
+ * manda `ping` a cada 2 s (`PING_INTERVAL_MS` do jogador), então seis segundos
+ * são três pings perdidos — Wi-Fi ruim não vira queda falsa. Somado à
+ * varredura e a `DROP_ANNOUNCE_DELAY_MS`, "Gina caiu" sai em até 10 s.
+ */
+export const HOST_STALE_AFTER_MS = 6_000
+/**
+ * O mesmo prazo para a conexão cuja aba avisou que está em segundo plano
+ * (`ping` com `away: true`). Com a aba oculta há mais de 5 min o Chrome e o
+ * Edge alinham os timers a 1 minuto: o ping de 2 s vira um por minuto, e com
+ * 6 s de prazo o jogador que foi ler a ficha num PDF cairia e voltaria em
+ * ciclo. Dois minutos e meio cobrem um despertar de minuto perdido; a aba
+ * congelada de vez (economia de energia) ainda é dada como caída, uma vez só.
+ */
+export const HOST_AWAY_STALE_AFTER_MS = 150_000
+/** De quanto em quanto tempo o host confere quem ficou mudo. */
+export const LIVENESS_SWEEP_MS = 1_000
 const DEFAULT_VISION_RADIUS = 700
 /** Id de conexão do Rust (hoje um contador decimal); o padrão aceita folga sem abrir para lixo. */
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
@@ -247,6 +273,14 @@ function parseTunnelEvent(value: unknown): TunnelEvent | null {
   }
 }
 
+/** "Gina caiu" / "Gina e Bruno caíram" / "Gina, Bruno e Ana caíram". */
+function dropText(names: string[]): string {
+  const last = names.at(-1)
+  if (last === undefined) return ''
+  if (names.length === 1) return `${last} caiu`
+  return `${names.slice(0, -1).join(', ')} e ${last} caíram`
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -287,6 +321,16 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   /** Diário de viagens desta sala, a mais nova em cima. Nunca sai pelo `net_send`. */
   let travelLog: TravelLogEntry[] = []
   let travelSeq = 0
+  /** Quedas ainda não avisadas, na ordem em que aconteceram: `playerId` -> nome. */
+  const pendingDrops = new Map<string, string>()
+  let dropTimer: ReturnType<typeof setTimeout> | null = null
+  /** Aviso "caiu" na tela de cada jogador já avisado: `playerId` -> id do toast. */
+  const dropToasts = new Map<string, string>()
+  /** Hora (relógio do mestre) da última mensagem de cada conexão: `clientId` -> ms. Nunca sai pela rede. */
+  const lastHeard = new Map<string, number>()
+  /** Conexões cuja aba está em segundo plano (último ping com `away: true`). Nunca sai pela rede. */
+  const awayClients = new Set<string>()
+  let livenessTimer: ReturnType<typeof setInterval> | null = null
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
@@ -476,14 +520,66 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     useToastStore.getState().push('info', `Alguém tentou entrar com o código errado. O código desta sala é ${code}.`, PLAYER_JOINED_TOAST_MS)
   }
 
-  const announceJoin = (clientId: string) => {
+  const announceJoin = (clientId: string, offlineBefore: ReadonlySet<string>) => {
     const player = session?.listPlayers().find((p) => p.clientId === clientId)
     if (player === undefined) return
+    if (offlineBefore.has(player.playerId)) {
+      announceReturn(player.playerId, player.name)
+      return
+    }
     const text =
       player.status === 'waiting'
         ? `${player.name} entrou e está sem personagem. Abra a aba Jogo para atribuir um.`
         : `${player.name} voltou para a sala.`
     useToastStore.getState().push('info', text, PLAYER_JOINED_TOAST_MS)
+  }
+
+  const cancelDropTimer = () => {
+    if (dropTimer !== null) clearTimeout(dropTimer)
+    dropTimer = null
+  }
+
+  /**
+   * A conexão de alguém caiu: o mestre fica sabendo sem ir conferir o Grupo,
+   * mas só depois de `DROP_ANNOUNCE_DELAY_MS` — o Wi-Fi que pisca volta antes
+   * e não vira aviso, e quem cai junto sai num aviso só.
+   */
+  const scheduleDropAnnounce = (playerId: string, name: string) => {
+    pendingDrops.set(playerId, name)
+    if (dropTimer === null) dropTimer = setTimeout(flushDrops, DROP_ANNOUNCE_DELAY_MS)
+  }
+
+  const flushDrops = () => {
+    dropTimer = null
+    const dropped = [...pendingDrops]
+    pendingDrops.clear()
+    if (session === null || dropped.length === 0) return
+    const toastId = useToastStore.getState().push('info', dropText(dropped.map(([, name]) => name)), PLAYER_JOINED_TOAST_MS)
+    for (const [playerId] of dropped) dropToasts.set(playerId, toastId)
+  }
+
+  /**
+   * Voltou pelo resume. Antes do aviso de queda: silêncio, o mestre nem soube.
+   * Depois: "Gina voltou", e o "Gina caiu" dela sai da tela (o de um grupo
+   * fica enquanto alguém dele ainda está fora).
+   */
+  const announceReturn = (playerId: string, name: string) => {
+    if (pendingDrops.delete(playerId)) {
+      if (pendingDrops.size === 0) cancelDropTimer()
+      return
+    }
+    const dropToast = dropToasts.get(playerId)
+    if (dropToast !== undefined) {
+      dropToasts.delete(playerId)
+      if (![...dropToasts.values()].includes(dropToast)) useToastStore.getState().dismiss(dropToast)
+    }
+    useToastStore.getState().push('info', `${name} voltou`, PLAYER_JOINED_TOAST_MS)
+  }
+
+  const resetDrops = () => {
+    cancelDropTimer()
+    pendingDrops.clear()
+    dropToasts.clear()
   }
 
   /**
@@ -718,7 +814,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
     if (clientId === null) return
-    const wasJoined = session.listPlayers().some((p) => p.clientId === clientId)
+    // Qualquer mensagem é prova de vida, não só o ping.
+    lastHeard.set(clientId, now())
+    // Só o ping diz em que plano está a aba; qualquer outra mensagem vem de quem está olhando.
+    const parsed = parsePlayerMessage(event.payload.msg)
+    if (parsed?.type === 'ping' && parsed.away === true) awayClients.add(clientId)
+    else awayClients.delete(clientId)
+    const before = session.listPlayers()
+    const wasJoined = before.some((p) => p.clientId === clientId)
     const result = session.handleMessage(clientId, event.payload.msg, world())
     const rejectedJoin = !wasJoined && result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'invalid_message')
     if (rejectedJoin) {
@@ -768,17 +871,67 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     notifyPlayersIfChanged()
     if (wasJoined) return
     if (result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'bad_code')) announceBadCode()
-    else announceJoin(clientId)
+    else announceJoin(clientId, new Set(before.filter((p) => !p.connected).map((p) => p.playerId)))
+  }
+
+  /**
+   * A conexão `clientId` caiu — pelo `close` do Rust ou pela varredura de quem
+   * ficou mudo. `at`: quando se ouviu dela por último (ausente = agora).
+   */
+  const dropClient = (clientId: string, at?: number) => {
+    if (session === null) return
+    lastHeard.delete(clientId)
+    awayClients.delete(clientId)
+    // Conexão que nunca entrou (código errado) — ou que a varredura já deu
+    // como caída — não acha jogador: não há quem avisar de novo.
+    const dropped = session.listPlayers().find((p) => p.clientId === clientId)
+    session.disconnect(clientId, at)
+    if (dropped !== undefined) scheduleDropAnnounce(dropped.playerId, dropped.name)
+    pruneTravelToasts()
+    pruneCallToasts()
+    notifyPlayersIfChanged()
   }
 
   const onPeer = (event: { payload: unknown }) => {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
     if (clientId === null || event.payload.event !== 'disconnected') return
-    session.disconnect(clientId)
-    pruneTravelToasts()
-    pruneCallToasts()
-    notifyPlayersIfChanged()
+    dropClient(clientId)
+  }
+
+  /**
+   * Quem está na sala e passou de `HOST_STALE_AFTER_MS` sem mandar nada caiu,
+   * mesmo sem o `close` chegar (Wi-Fi que some sem FIN); a aba em segundo
+   * plano tem `HOST_AWAY_STALE_AFTER_MS`. O socket zumbi é
+   * derrubado no Rust: se ele ressuscitar, o cliente vê o `close` e volta pelo
+   * resume, em vez de falar com uma sala que já não o conhece.
+   */
+  const sweepSilent = () => {
+    if (session === null) return
+    const at = now()
+    for (const player of session.listPlayers()) {
+      const clientId = player.clientId
+      if (clientId === null) continue
+      const heard = lastHeard.get(clientId)
+      if (heard === undefined) {
+        // Entrou por um caminho que não passou por `onMessage`: o prazo começa agora.
+        lastHeard.set(clientId, at)
+        continue
+      }
+      const deadline = awayClients.has(clientId) ? HOST_AWAY_STALE_AFTER_MS : HOST_STALE_AFTER_MS
+      if (at - heard < deadline) continue
+      dropClient(clientId, heard)
+      deps.invoke('net_kick', { clientId }).catch(() => {
+        // Já fechada no Rust (o `close` chegou junto): era o que se queria.
+      })
+    }
+  }
+
+  const stopLivenessSweep = () => {
+    if (livenessTimer !== null) clearInterval(livenessTimer)
+    livenessTimer = null
+    lastHeard.clear()
+    awayClients.clear()
   }
 
   const removeListeners = () => {
@@ -800,11 +953,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         await deps.listen('net:peer', onPeer),
         await deps.listen('net:tunnel', onTunnel),
       ]
+      stopLivenessSweep()
+      livenessTimer = setInterval(sweepSilent, LIVENESS_SWEEP_MS)
       currentRoom = room
       notifyPlayersIfChanged()
       return room
     } catch (error) {
       removeListeners()
+      stopLivenessSweep()
       session = null
       reportError('Não foi possível abrir a sala', error)
       throw error
@@ -840,10 +996,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // não "O mestre encerrou a sala".
       if (session) await dispatch(session.closeRoom())
       removeListeners()
+      stopLivenessSweep()
       session = null
       pruneTravelToasts()
       pruneCallToasts()
       setTravelLog([])
+      // Sala fechada: quem "caiu" agora é o fim da sala, não uma queda.
+      resetDrops()
       currentRoom = null
       // O Rust derruba o túnel junto com a sala.
       resetTunnel()

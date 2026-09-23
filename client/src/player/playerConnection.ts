@@ -89,6 +89,22 @@ export interface PlayerState {
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
   error?: string
+  /**
+   * A conexão caiu depois de entrar na sala e o cliente está tentando voltar
+   * sozinho. O `status` e o mapa ficam como estavam (a tela esmaece); some
+   * quando o mestre aceita a volta (`welcome`).
+   */
+  reconnecting?: ReconnectInfo
+}
+
+/** Como vai a volta automática depois de uma queda. */
+export interface ReconnectInfo {
+  /** Quando a conexão caiu (relógio do aparelho, ms). */
+  since: number
+  /** Tentativas feitas desde a queda. */
+  attempt: number
+  /** Já passou `MANUAL_RECONNECT_AFTER_MS`: a tela oferece "Reconectar". */
+  manual: boolean
 }
 
 /** O aviso da recusa do toque na porta; `wallId` é a porta tocada. */
@@ -148,6 +164,11 @@ export interface PlayerConnectionOptions {
   name: string
   createSocket: (url: string) => SocketLike
   storage: StorageLike | null
+  /**
+   * A aba está em segundo plano agora? (No navegador, `document.visibilityState
+   * === 'hidden'`.) Ausente = sempre à vista.
+   */
+  isHidden?: () => boolean
 }
 
 export interface PlayerConnection {
@@ -198,11 +219,39 @@ export interface PlayerConnection {
   lowerHand(): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
+  /**
+   * A tela acendeu ou a rede voltou: se está reconectando e nenhuma tentativa
+   * está no ar, tenta AGORA em vez de esperar a espera crescente.
+   */
+  wake(): void
+  /** "Reconectar" da tela de queda: tenta agora, largando a tentativa no ar se houver. */
+  retryNow(): void
   close(): void
 }
 
 export const RESUME_STORAGE_KEY = 'labirinto.resume'
-export const PING_INTERVAL_MS = 15_000
+/**
+ * O `ping` sai a cada 2 s e o host responde `pong`. Era 15 s, só para manter o
+ * túnel acordado; agora é também a prova de vida dos dois lados, e precisa
+ * caber no aceite "Grupo mostra 'Gina caiu' em 0:10" (ver `HOST_STALE_AFTER_MS`
+ * do hostBridge). Numa mesa de 7 são 3,5 mensagens minúsculas por segundo.
+ */
+export const PING_INTERVAL_MS = 2_000
+/**
+ * Sem NADA do host há isto (nem pong, nem snapshot), o socket conta como morto
+ * mesmo sem `close`: o Wi-Fi que some sem FIN deixa o navegador achando que
+ * está tudo aberto por minutos. Dois pings e meio de folga; e abaixo do prazo
+ * do host (6 s), para o jogador já estar voltando quando o mestre souber.
+ */
+export const SILENCE_DEAD_AFTER_MS = 5_000
+/**
+ * A tela acendeu e o host está mudo há mais que `SILENCE_DEAD_AFTER_MS`: um
+ * ping sai na hora e, sem resposta nisto, a volta começa sem esperar a espera
+ * crescente. Não derruba direto porque o silêncio pode ser só do timer da aba
+ * oculta (Chrome e Edge rodam o ping 1 vez por minuto depois de 5 min em
+ * segundo plano) com a conexão viva; na LAN o pong volta em milissegundos.
+ */
+export const WAKE_PROBE_MS = 800
 /** Quanto tempo o aviso da porta ("Chegue mais perto") fica na tela. O "Trancada" fica até o jogador escolher. */
 export const DOOR_NOTICE_TTL_MS = 2500
 /** Quanto tempo o aviso do pedido da porta ("Pedido enviado", "O mestre abriu") fica na tela. */
@@ -238,8 +287,29 @@ export const MOVED_NOTICE_TTL_MS = 60_000
  * ele mexe a própria ficha (aí já viu onde está) ou depois de um minuto.
  */
 export const GATHERED_NOTICE_TTL_MS = 60_000
+/**
+ * Espera da reconexão automática: dobra a cada tentativa que falha, de 1 s
+ * até este teto. Trinta segundos é o mais longo que um celular esperaria sem
+ * a pessoa achar que o app desistiu — e a rede que volta (`online`) ou a tela
+ * que acende (`visibilitychange`) cortam a espera pelo `wake`.
+ */
+export const RECONNECT_MAX_DELAY_MS = 30_000
+const RECONNECT_FIRST_DELAY_MS = 1_000
+/** Depois disto fora, a tela oferece "Reconectar" (as tentativas sozinhas continuam). */
+export const MANUAL_RECONNECT_AFTER_MS = 30_000
+/**
+ * Tentativa que nem abre nem fecha (Wi-Fi trocando de rede, rota que some)
+ * é abandonada depois disto: sem o prazo, ela prenderia a reconexão para sempre.
+ */
+export const RECONNECT_ATTEMPT_TIMEOUT_MS = 8_000
 const SOCKET_OPEN = 1
 const CONNECTION_LOST = 'connection_lost'
+
+/** Espera antes da tentativa `attempt` (1 = a primeira depois da queda). */
+export function reconnectDelayMs(attempt: number): number {
+  const exponent = Math.max(0, attempt - 1)
+  return Math.min(RECONNECT_MAX_DELAY_MS, RECONNECT_FIRST_DELAY_MS * 2 ** exponent)
+}
 
 interface PendingMove {
   tokenId: string
@@ -334,6 +404,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   let state: PlayerState = { status: 'connecting', rev: -1 }
   let socket: SocketLike | null = null
   let pingTimer: ReturnType<typeof setInterval> | null = null
+  const isHidden = options.isHidden ?? (() => false)
+  /** Quando chegou a última mensagem do host no socket atual (relógio do aparelho). */
+  let lastHeardAt = 0
+  /**
+   * Desde quando a aba está de novo à vista e o silêncio volta a contar. O que
+   * se passou com a aba oculta não prova nada: o timer do ping estava preso.
+   */
+  let watchingSince = 0
+  /** Confirmação de vida depois de a tela acender (`WAKE_PROBE_MS`). */
+  let wakeProbeTimer: ReturnType<typeof setTimeout> | null = null
   let nextReqId = 1
   const signalTimers = new Map<string, ReturnType<typeof setTimeout>>()
   let nextSignalId = 1
@@ -474,15 +554,170 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     for (const listener of listeners) listener()
   }
 
+  /** Próxima tentativa agendada, virada do "Reconectar" e prazo da tentativa no ar. */
+  let retryTimer: ReturnType<typeof setTimeout> | null = null
+  let manualTimer: ReturnType<typeof setTimeout> | null = null
+  let attemptTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearAttemptTimer(): void {
+    if (attemptTimer !== null) clearTimeout(attemptTimer)
+    attemptTimer = null
+  }
+
+  function clearReconnectTimers(): void {
+    if (retryTimer !== null) clearTimeout(retryTimer)
+    if (manualTimer !== null) clearTimeout(manualTimer)
+    retryTimer = null
+    manualTimer = null
+    clearAttemptTimer()
+  }
+
+  /**
+   * Caiu depois de entrar: o mapa fica, a tela esmaece, e o cliente tenta
+   * voltar sozinho. `rev` volta a -1 porque o host responde a volta com o
+   * snapshot do rev ATUAL dele — igual ao último que chegou, se ninguém mexeu
+   * em nada — e esse snapshot precisa valer.
+   */
+  function beginReconnect(): void {
+    pending.clear()
+    // O host esquece o pedido de passagem de quem cai: "Aguardando o mestre…" mentiria.
+    const travelWaiting = state.travel?.phase === 'waiting'
+    if (travelWaiting) clearTravelTimer()
+    setState({ rev: -1, reconnecting: { since: Date.now(), attempt: 0, manual: false }, ...(travelWaiting ? { travel: undefined } : {}) })
+    manualTimer = setTimeout(() => {
+      manualTimer = null
+      const info = state.reconnecting
+      if (info !== undefined) setState({ reconnecting: { ...info, manual: true } })
+    }, MANUAL_RECONNECT_AFTER_MS)
+    scheduleAttempt()
+  }
+
+  function scheduleAttempt(): void {
+    const info = state.reconnecting
+    if (info === undefined) return
+    if (retryTimer !== null) clearTimeout(retryTimer)
+    retryTimer = setTimeout(() => {
+      retryTimer = null
+      attemptNow()
+    }, reconnectDelayMs(info.attempt + 1))
+  }
+
+  function attemptNow(): void {
+    const info = state.reconnecting
+    if (info === undefined) return
+    if (retryTimer !== null) clearTimeout(retryTimer)
+    retryTimer = null
+    setState({ reconnecting: { ...info, attempt: info.attempt + 1 } })
+    open()
+    const current = socket
+    clearAttemptTimer()
+    // O prazo vale até o `welcome`: socket que abre e ninguém responde também prende.
+    attemptTimer = setTimeout(() => {
+      attemptTimer = null
+      if (socket !== current) return
+      abandonAttempt()
+      scheduleAttempt()
+    }, RECONNECT_ATTEMPT_TIMEOUT_MS)
+  }
+
+  /** Larga a tentativa no ar sem que o `close` dela conte como queda nova. */
+  function abandonAttempt(): void {
+    clearAttemptTimer()
+    stopPing()
+    const current = socket
+    socket = null
+    current?.close()
+  }
+
   function send(message: PlayerMessage): boolean {
     if (!socket || socket.readyState !== SOCKET_OPEN) return false
     socket.send(JSON.stringify(message))
     return true
   }
 
+  function clearWakeProbe(): void {
+    if (wakeProbeTimer !== null) clearTimeout(wakeProbeTimer)
+    wakeProbeTimer = null
+  }
+
   function stopPing(): void {
     if (pingTimer !== null) clearInterval(pingTimer)
     pingTimer = null
+    clearWakeProbe()
+  }
+
+  /** O ping diz ao host se a aba está em segundo plano, para ele esperar mais. */
+  function sendPing(): void {
+    send(isHidden() ? { type: 'ping', away: true } : { type: 'ping' })
+  }
+
+  /**
+   * O host sumiu sem fechar? Só conta depois de entrar na sala: antes do
+   * `welcome` quem decide quanto esperar é a tela (o prazo do aperto de mão).
+   */
+  function hostSilent(): boolean {
+    const since = Math.max(lastHeardAt, watchingSince)
+    return socket !== null && state.playerId !== undefined && Date.now() - since >= SILENCE_DEAD_AFTER_MS
+  }
+
+  function pingOrGiveUp(): void {
+    // Aba oculta: o timer pode estar rodando de minuto em minuto, e o silêncio
+    // medido assim é do timer, não do host. Quem decide é o `wake`, à vista.
+    if (!isHidden() && hostSilent()) {
+      dropSocket()
+      return
+    }
+    sendPing()
+  }
+
+  /** A tela acendeu com o host mudo: ping agora e, sem resposta em `WAKE_PROBE_MS`, volta já. */
+  function probeAfterWake(): void {
+    watchingSince = Date.now()
+    sendPing()
+    clearWakeProbe()
+    const probed = socket
+    wakeProbeTimer = setTimeout(() => {
+      wakeProbeTimer = null
+      if (socket !== probed || lastHeardAt >= watchingSince) return
+      dropSocket()
+      attemptNow()
+    }, WAKE_PROBE_MS)
+  }
+
+  /** Depois de kicked/closed/error a queda é esperada: o mestre derrubou de propósito. */
+  function sessionOver(): boolean {
+    return state.status === 'kicked' || state.status === 'closed' || state.status === 'error'
+  }
+
+  /** O socket atual morreu (com ou sem `close`): volta sozinho, ou explica na tela. */
+  function handleSocketLost(): void {
+    if (sessionOver()) return
+    if (state.reconnecting !== undefined) {
+      // A tentativa falhou (a rede ainda não voltou): a próxima espera mais.
+      clearAttemptTimer()
+      scheduleAttempt()
+      return
+    }
+    // Já estava na sala: Wi-Fi que pisca ou tela bloqueada. Volta sozinho.
+    if (state.playerId !== undefined) {
+      beginReconnect()
+      return
+    }
+    // Nunca entrou (endereço errado, sala que não existe): a tela explica.
+    setState({ status: 'error', error: CONNECTION_LOST })
+  }
+
+  /**
+   * Larga o socket que o navegador ainda acha aberto (Wi-Fi que sumiu sem FIN,
+   * host que já nos deu como caídos) e segue como se o `close` tivesse chegado.
+   * O `close` real, se vier, acha outro socket no lugar e é ignorado.
+   */
+  function dropSocket(): void {
+    const current = socket
+    socket = null
+    stopPing()
+    current?.close()
+    handleSocketLost()
   }
 
   function hasNewerPending(reqId: string, tokenId: string): PendingMove | null {
@@ -576,7 +811,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'welcome':
         if (typeof data.playerId !== 'string' || typeof data.resumeToken !== 'string') return
         writeResume(storage, { code, token: data.resumeToken })
-        setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting' })
+        // O mestre aceitou (de novo): fim da volta automática, se havia uma.
+        clearReconnectTimers()
+        setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting', reconnecting: undefined })
         return
       case 'lobby.waiting':
         clearSignalTimers()
@@ -735,7 +972,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         return
       case 'kicked':
         writeResume(storage, null)
-        setState({ status: 'kicked' })
+        clearReconnectTimers()
+        setState({ status: 'kicked', reconnecting: undefined })
         return
       case 'room.closed':
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
@@ -745,20 +983,31 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearTravelTimer()
         clearCallTimer()
-        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined })
+        clearReconnectTimers()
+        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
         // O transporte pode avisar a expulsão como erro: mesmo efeito de `kicked`.
         if (reason === 'kicked') {
           writeResume(storage, null)
-          setState({ status: 'kicked' })
+          clearReconnectTimers()
+          setState({ status: 'kicked', reconnecting: undefined })
           return
         }
         // Mensagem inválida durante o jogo não derruba a sessão.
         if (reason === 'invalid_message' && state.status === 'playing') return
+        // Já estava na sala e o host não a conhece mais: ele a deu como caída
+        // (a varredura de conexão muda) e este socket é um zumbi. Volta pelo
+        // resume, como numa queda — não é caso de tela de erro.
+        if (reason === 'not_joined' && state.playerId !== undefined) {
+          dropSocket()
+          return
+        }
         if (reason === 'bad_code') writeResume(storage, null)
-        setState({ status: 'error', error: reason })
+        // Erro do mestre na volta (a sala acabou): não há para onde tentar de novo.
+        clearReconnectTimers()
+        setState({ status: 'error', error: reason, reconnecting: undefined })
         return
       }
       default:
@@ -774,12 +1023,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (socket !== current) return
       const resume = readResume(storage, code)
       const join: JoinMessage = resume ? { type: 'join', code, name, resume } : { type: 'join', code, name }
+      // O prazo do silêncio conta a partir de agora, não da conexão anterior.
+      lastHeardAt = Date.now()
       send(join)
       stopPing()
-      pingTimer = setInterval(() => send({ type: 'ping' }), PING_INTERVAL_MS)
+      pingTimer = setInterval(pingOrGiveUp, PING_INTERVAL_MS)
     }
     current.onmessage = (event) => {
-      if (socket === current) handleMessage(event.data)
+      if (socket !== current) return
+      // Qualquer mensagem do host é prova de vida, não só o pong.
+      lastHeardAt = Date.now()
+      clearWakeProbe()
+      handleMessage(event.data)
     }
     current.onerror = () => {
       // O browser sempre dispara `close` depois; o tratamento fica lá.
@@ -788,13 +1043,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (socket !== current) return
       socket = null
       stopPing()
-      // Depois de kicked/closed a queda é esperada: o mestre derrubou de propósito.
-      if (state.status === 'kicked' || state.status === 'closed' || state.status === 'error') return
-      setState({ status: 'error', error: CONNECTION_LOST })
+      handleSocketLost()
     }
   }
 
   function detach(): void {
+    clearReconnectTimers()
     stopPing()
     clearSignalTimers()
     clearLaserTimer()
@@ -922,8 +1176,30 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, paused: undefined, call: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, paused: undefined, call: undefined, reconnecting: undefined })
       open()
+    },
+    wake() {
+      if (state.reconnecting !== undefined) {
+        // Tentativa no ar tem o prazo dela; duas de uma vez só brigariam pelo socket.
+        if (socket === null) attemptNow()
+        return
+      }
+      if (sessionOver() || socket === null) return
+      // A tela ficou apagada e os timers nem rodaram (ou rodaram de minuto em
+      // minuto): o socket pode estar morto sem saber, ou vivo. Mudo há mais que
+      // o prazo = confirma com um ping curto, e sem resposta a volta tenta já —
+      // a pessoa está olhando. Senão, um ping agora confirma mais cedo.
+      if (hostSilent()) {
+        probeAfterWake()
+        return
+      }
+      sendPing()
+    },
+    retryNow() {
+      if (state.reconnecting === undefined) return
+      abandonAttempt()
+      attemptNow()
     },
     close: detach,
   }

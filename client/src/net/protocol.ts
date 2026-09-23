@@ -114,6 +114,13 @@ export interface TokenMoveMessage {
 
 export interface PingMessage {
   type: 'ping'
+  /**
+   * A aba do jogador está em segundo plano. Com a aba oculta há mais de 5 min
+   * o Chrome e o Edge só deixam o timer rodar 1 vez por minuto, então o ping
+   * chega de minuto em minuto: o host usa um prazo de silêncio mais longo
+   * (`HOST_AWAY_STALE_AFTER_MS`) até um ping sem a marca chegar.
+   */
+  away?: true
 }
 
 /** Sinal (ping de mapa) do jogador. Não confundir com `ping`, que é o heartbeat. */
@@ -321,6 +328,9 @@ export type HostMessage =
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
+  // Resposta ao `ping` de quem está na sala: só "estou aqui", sem nada dentro.
+  // É o que deixa o jogador notar a conexão morta que nunca fecha.
+  | { type: 'pong' }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -491,7 +501,7 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'token.move':
       return parseTokenMove(value)
     case 'ping':
-      return { type: 'ping' }
+      return value.away === true ? { type: 'ping', away: true } : { type: 'ping' }
     case 'signal':
       return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
     case 'door.toggle':

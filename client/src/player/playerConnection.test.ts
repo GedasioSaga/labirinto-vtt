@@ -131,13 +131,17 @@ describe('createPlayerConnection', () => {
     expect(connection.getState()).toMatchObject({ status: 'closed', error: undefined })
   })
 
-  it('queda de rede real (sem room.closed) continua sendo error connection_lost', () => {
+  it('queda de rede real (sem room.closed) não é fim de sessão: o cliente tenta voltar sozinho', () => {
+    // Era `error connection_lost` com botão; a reconexão automática
+    // (playerConnection.reconexao.test.ts) trocou isso por "reconectando".
     const { connection, socket } = setup()
     socket.open()
     socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok' })
     socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
     socket.drop()
-    expect(connection.getState()).toMatchObject({ status: 'error', error: 'connection_lost' })
+    expect(connection.getState()).toMatchObject({ status: 'playing', error: undefined })
+    expect(connection.getState().reconnecting).toBeDefined()
+    connection.close()
   })
 
   it('lobby.waiting muda status para waiting', () => {
