@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { ChevronDownIcon } from './icons'
 
 export interface CollapsibleSectionProps {
@@ -14,6 +14,14 @@ export interface CollapsibleSectionProps {
   persist?: boolean
   /** Nível do título: 3 quando a seção mora dentro de um bloco que já tem h2. Default 2. */
   headingLevel?: 2 | 3
+  /** `true` só monta o conteúdo com a seção aberta: fechada, ele nem existe no
+   *  DOM. Para listas longas (Objetos do mapa), que fechadas não custam nada e
+   *  não repetem na página os nomes que o resto da tela já mostra. Default `false`. */
+  lazy?: boolean
+  /** Muda de valor para ABRIR a seção de fora — um atalho de teclado, no molde
+   *  do contador de `resetZoomRequest`. O valor da montagem não abre nada, e
+   *  fechar à mão continua valendo até o próximo pedido. */
+  openRequest?: number
   children: ReactNode
 }
 
@@ -52,12 +60,23 @@ export function CollapsibleSection({
   defaultOpen,
   persist = true,
   headingLevel = 2,
+  lazy = false,
+  openRequest,
   children,
 }: CollapsibleSectionProps) {
   const [storedOpen, setStoredOpen] = useState<boolean | null>(() => (persist ? readStoredOpen(id) : null))
   const open = storedOpen ?? defaultOpen
   const bodyId = `${useId()}-body`
   const Heading = headingLevel === 3 ? 'h3' : 'h2'
+  /** Último pedido de abrir já atendido; o da montagem conta como atendido. */
+  const seenOpenRequest = useRef(openRequest)
+
+  useEffect(() => {
+    if (openRequest === seenOpenRequest.current) return
+    seenOpenRequest.current = openRequest
+    setStoredOpen(true)
+    if (persist) writeStoredOpen(id, true)
+  }, [openRequest, id, persist])
 
   const toggle = () => {
     const next = !open
@@ -82,7 +101,7 @@ export function CollapsibleSection({
         </button>
       </Heading>
       <div id={bodyId} className="lb-collapsible__body" hidden={!open}>
-        {children}
+        {lazy && !open ? null : children}
       </div>
     </section>
   )

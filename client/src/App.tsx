@@ -42,6 +42,9 @@ import {
   useAdventureStore,
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
+import { MapObjectsSection } from './components/MapObjectsSection'
+import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
+import { goToMapObject } from './stores/mapObjectNavigation'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
 import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, IMAGEM_SUMIU_DO_ACERVO, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
@@ -402,6 +405,8 @@ function App() {
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
+  /** Muda a cada Ctrl+K: "Objetos do mapa" abre com o cursor na busca (MapObjectsSection). */
+  const [objectSearchRequest, setObjectSearchRequest] = useState(0)
   const hostBridgeRef = useRef<HostBridge | null>(null)
   const hostBridge = (): HostBridge => {
     if (!hostBridgeRef.current) {
@@ -783,6 +788,8 @@ function App() {
   // Pino aberto no painel. Some sozinho se o Ctrl+Z tirar o pino do mapa.
   const selectedPinId = useMapStore((state) => state.selectedPinId)
   const selectedPin = map.pins.find((p) => p.id === selectedPinId) ?? null
+  // "Objetos do mapa": a linha do objeto selecionado fica marcada na lista.
+  const currentMapObjectKey = currentObjectKey(map, selection, selectedPinId)
   const pinKind = useMapStore((state) => state.pinKind)
   const pinIcon = useMapStore((state) => state.pinIcon)
   // A5 — "Oculto para jogadores" do item selecionado que não é Token/Objeto.
@@ -1499,6 +1506,32 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [screen, handleSave, handleOpen])
 
+  // Ctrl+K — "Objetos do mapa" com o cursor na busca, de qualquer ponto do
+  // editor: volta à aba Mapa, abre a seção e foca o campo. Num campo de texto
+  // a tecla fica com o campo (`isFindObjectShortcut`).
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (screen !== 'editor') return
+      const target = event.target instanceof HTMLElement ? event.target : null
+      const pressed = isFindObjectShortcut({
+        key: event.key,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+        targetTagName: target?.tagName ?? '',
+        targetInputType: target instanceof HTMLInputElement ? target.type : undefined,
+        targetContentEditable: target?.isContentEditable ?? false,
+      })
+      if (!pressed) return
+      event.preventDefault()
+      setRailTab('map')
+      setObjectSearchRequest((request) => request + 1)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [screen])
+
   const handleCreate = (newMap: MapData) => {
     useAdventureStore.getState().reset()
     loadMap(newMap)
@@ -1674,6 +1707,9 @@ function App() {
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
                 onNote={room === null ? undefined : (sceneId, text) => hostBridgeRef.current?.sceneNote(sceneId, text) ?? null}
               />
+            }
+            objects={
+              <MapObjectsSection map={map} currentKey={currentMapObjectKey} onGoTo={goToMapObject} searchRequest={objectSearchRequest} />
             }
             mapName={map.name}
             mapWidth={map.width}

@@ -145,6 +145,15 @@ describe('câmera por cena', () => {
     expect(useAdventureStore.getState().cameraRequest).toEqual({ camera: { x: 10, y: 20, scale: 0.5 } })
   })
 
+  it('"Ir até lá" na cena aberta leva o ponto e a caixa do objeto: o canvas afasta se ela não couber', () => {
+    const caixa = { minX: 1500, minY: 200, maxX: 1850, maxY: 600 }
+    expect(useAdventureStore.getState().goToPoint(null, { x: 1675, y: 400 }, caixa)).toBe(true)
+    expect(useAdventureStore.getState().cameraRequest).toEqual({ camera: null, focus: { x: 1675, y: 400 }, fit: caixa })
+    // Sem caixa, o "Ir lá" de sempre: só o ponto, no zoom de agora.
+    useAdventureStore.getState().goToPoint(null, { x: 10, y: 20 })
+    expect(useAdventureStore.getState().cameraRequest).toStrictEqual({ camera: null, focus: { x: 10, y: 20 } })
+  })
+
   it('cena aberta do disco (depois de reiniciar) não herda câmera: pede enquadrar', () => {
     const vale = createEmptyMap('map_vale', 'Vale', 30, 20, 64)
     const cripta = createEmptyMap('map_cripta', 'Cripta', 30, 20, 64)

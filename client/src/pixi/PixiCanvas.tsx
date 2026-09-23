@@ -11,7 +11,7 @@ import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
 import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
-import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, freeAreaCenter, type Bounds, type Camera, type Point } from './world'
+import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, freeArea, freeAreaCenter, revealScale, type Bounds, type Camera, type Point } from './world'
 import { resolveCursor, type HoverKind, type ResizeCorner } from './cursorPolicy'
 import { resolveMapWheel } from './wheelGesture'
 import { resolveShortcut, type ShortcutEvent } from '../lib/keymap'
@@ -434,9 +434,10 @@ interface PixiCanvasProps {
    * na abertura do mapa. Cada troca é um objeto novo — a ponte reage à
    * identidade, no molde de `resetZoomRequest`, sem remontar o canvas.
    * `focus` (chegada por pino de viagem) põe esse ponto do mundo no centro da
-   * tela, no zoom de `camera` ou no de agora.
+   * tela, no zoom de `camera` ou no de agora. `fit` (o "Ir até lá" da lista
+   * Objetos do mapa) é a caixa do objeto: o zoom só diminui se ela não couber.
    */
-  cameraRequest?: { camera: Camera | null; focus?: Point } | null
+  cameraRequest?: { camera: Camera | null; focus?: Point; fit?: Bounds } | null
   /**
    * Painéis flutuantes sobre o canvas (rail, barra de ferramentas), em px
    * relativos ao canvas, lidos na hora do `focus`: o ponto vai ao centro da
@@ -566,7 +567,7 @@ export function PixiCanvas({
 
   // Mesma ponte, para a câmera de cada cena. Pedido que chega antes do
   // `setup()` terminar é descartado: a montagem já enquadra o mapa aberto.
-  const cameraRequestRef = useRef<((request: { camera: Camera | null; focus?: Point }) => void) | null>(null)
+  const cameraRequestRef = useRef<((request: { camera: Camera | null; focus?: Point; fit?: Bounds }) => void) | null>(null)
   useEffect(() => {
     if (cameraRequest !== null) cameraRequestRef.current?.(cameraRequest)
   }, [cameraRequest])
@@ -816,10 +817,16 @@ export function PixiCanvas({
       // vista pela primeira vez (cena vazia mantém a câmera, ver acima).
       // Chegada por pino de viagem: o pino par no centro da tela, no zoom que
       // a cena tinha (ou no de agora) — o mestre vê de cara por onde entrou.
-      cameraRequestRef.current = ({ camera: requested, focus }) => {
+      // "Ir até lá" (lista Objetos do mapa): com `fit`, afasta só o bastante
+      // para a caixa do objeto caber na parte que os painéis deixam livre.
+      cameraRequestRef.current = ({ camera: requested, focus, fit }) => {
         if (focus !== undefined) {
-          const scale = requested?.scale ?? camera.scale
-          const center = freeAreaCenter({ width: app.screen.width, height: app.screen.height }, focusObstaclesRef.current?.() ?? [])
+          const viewport = { width: app.screen.width, height: app.screen.height }
+          const obstacles = focusObstaclesRef.current?.() ?? []
+          const base = requested?.scale ?? camera.scale
+          const area = freeArea(viewport, obstacles)
+          const scale = fit === undefined ? base : revealScale(base, fit, { width: area.maxX - area.minX, height: area.maxY - area.minY }, FIT_MARGIN)
+          const center = freeAreaCenter(viewport, obstacles)
           applyCamera({ scale, x: center.x - focus.x * scale, y: center.y - focus.y * scale }, 'pedido')
           return
         }
