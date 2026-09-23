@@ -62,6 +62,27 @@ interface Seated {
   size: number
 }
 
+/** Um círculo que nenhuma ficha assentada pode cobrir (ex.: a cabeça do pino, para ele continuar tocável). */
+export interface KeepClear {
+  x: number
+  y: number
+  radius: number
+}
+
+/** As fichas do mapa que ocupam casa, menos as de `movingTokenIds` (vão sair do lugar). */
+function seatedTokens(map: MapData, movingTokenIds: ReadonlySet<string>): Seated[] {
+  return map.tokens.filter((t: Token) => !movingTokenIds.has(t.id)).map((t) => ({ point: { x: t.x, y: t.y }, size: tokenSizeInSquares(t) }))
+}
+
+function overlapsSeated(taken: readonly Seated[], p: Point, size: number, grid: number): boolean {
+  return taken.some((other) => Math.hypot(other.point.x - p.x, other.point.y - p.y) < ((size + other.size) / 2) * grid * OVERLAP_FACTOR)
+}
+
+/** `true` = uma ficha de `size` casas em `p` encostaria numa ficha do mapa (fora as de `movingTokenIds`). */
+export function seatIsTaken(map: MapData, p: Point, size: number, movingTokenIds: ReadonlySet<string> = new Set()): boolean {
+  return overlapsSeated(seatedTokens(map, movingTokenIds), p, size, map.grid)
+}
+
 /**
  * As casas livres em volta de `pin`, uma para cada tamanho de ficha em
  * `sizes` (na mesma ordem). `null` = não coube até `GATHER_MAX_RING`.
@@ -76,13 +97,20 @@ interface Seated {
  * - nenhuma parede corta a própria casa;
  * - nenhuma outra ficha a ocupa — nem as que já estão no mapa (menos as de
  *   `movingTokenIds`, que vão sair do lugar), nem as já assentadas nesta
- *   mesma reunião.
+ *   mesma reunião;
+ * - a ficha não cobre nenhum círculo de `keepClear`.
  *
  * O centro segue o assentamento de ficha do editor (`snapPointForTarget` +
  * `seatTokenCenter`, o mesmo par de `arrivalSpot`): ficha de 2 casas senta na
  * linha da grade, de 1 e 3 no meio da casa.
  */
-export function gatherSpots(map: MapData, pin: Point, sizes: readonly number[], movingTokenIds: ReadonlySet<string> = new Set()): (Point | null)[] {
+export function gatherSpots(
+  map: MapData,
+  pin: Point,
+  sizes: readonly number[],
+  movingTokenIds: ReadonlySet<string> = new Set(),
+  keepClear: readonly KeepClear[] = [],
+): (Point | null)[] {
   const grid = map.grid
   const width = map.width * grid
   const height = map.height * grid
@@ -110,14 +138,13 @@ export function gatherSpots(map: MapData, pin: Point, sizes: readonly number[], 
     return blocking.every((wall) => distanceToSegment(p, wall) >= grid / 2 - WALL_INSIDE_EPSILON)
   }
 
-  const taken: Seated[] = map.tokens.filter((t: Token) => !movingTokenIds.has(t.id)).map((t) => ({ point: { x: t.x, y: t.y }, size: tokenSizeInSquares(t) }))
-  const overlaps = (p: Point, size: number): boolean =>
-    taken.some((other) => Math.hypot(other.point.x - p.x, other.point.y - p.y) < ((size + other.size) / 2) * grid * OVERLAP_FACTOR)
+  const taken = seatedTokens(map, movingTokenIds)
+  const coversKeepClear = (p: Point, size: number): boolean => keepClear.some((c) => Math.hypot(c.x - p.x, c.y - p.y) < (size * grid) / 2 + c.radius)
 
   return sizes.map((size) => {
     for (const cell of cells) {
       const seat = map.gridShape === 'square' ? seatTokenCenter(cell, cell, grid, size) : cell
-      if (!reachable(seat) || overlaps(seat, size)) continue
+      if (!reachable(seat) || overlapsSeated(taken, seat, size, grid) || coversKeepClear(seat, size)) continue
       taken.push({ point: seat, size })
       return seat
     }

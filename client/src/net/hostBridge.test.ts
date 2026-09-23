@@ -775,7 +775,8 @@ describe('hostBridge: pedido de passagem pelo pino de viagem', () => {
     const { t, aviso, applyTransfer, onGoToScene } = await pedido()
     const antes = t.sent().length
     aviso.actions?.[0]?.run()
-    expect(applyTransfer).toHaveBeenCalledWith(expect.objectContaining({ tokenId: 'heroi', fromSceneId: 'cena-a', toSceneId: 'cena-b', x: 1025, y: 275 }))
+    // Casa livre ao lado do par, não a casa dele (chegada-em-casa-livre).
+    expect(applyTransfer).toHaveBeenCalledWith(expect.objectContaining({ tokenId: 'heroi', fromSceneId: 'cena-a', toSceneId: 'cena-b', x: 975, y: 275 }))
     const depois = t.sent().slice(antes)
     expect(depois[0]).toEqual({ clientId: 'c1', msg: { type: 'scene.changed' } })
     expect(depois[1]).toMatchObject({ clientId: 'c1', msg: { type: 'snapshot', map: { id: 'mapa-b' } } })
@@ -784,7 +785,7 @@ describe('hostBridge: pedido de passagem pelo pino de viagem', () => {
     const chegada = toasts.find((toast) => toast.text === 'Ana entrou em Cripta')
     expect(chegada?.actions?.map((action) => action.label)).toEqual(['Ir lá'])
     chegada?.actions?.[0]?.run()
-    expect(onGoToScene).toHaveBeenCalledWith('cena-b', 1025, 275)
+    expect(onGoToScene).toHaveBeenCalledWith('cena-b', 975, 275)
     expect(t.bridge.players()[0]?.sceneName).toBe('Cripta')
   })
 

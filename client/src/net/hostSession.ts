@@ -5,7 +5,7 @@ import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
-import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
+import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
 import {
   parsePlayerMessage,
@@ -790,7 +790,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * integrador mover a ficha. Vale para o "Deixar ir" e para o pino livre.
    */
   function transferResult(playerId: string, clientId: string, playerName: string, travel: ValidTravel): HostResult {
-    const spot = arrivalSpot(travel.to.map, travel.partner, travel.token.size)
+    // Casa livre junto do par: quem passou antes pelo mesmo pino já está no
+    // mapa (o integrador aplica cada passagem antes da próxima), então o
+    // "Deixar todos" e o pino livre põem cada um numa casa.
+    const spot = arrivalSpot(travel.to.map, travel.partner, travel.token.size, travel.token.id)
     // A cena dele passa a ser a de destino a partir daqui: é ela que o
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
@@ -899,7 +902,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const pin = gatherAt !== undefined || pinId === null ? null : to.map.pins.find((p) => p.id === pinId && p.kind === 'viagem')
       // Pino que sumiu entre abrir o painel e confirmar: não chega em outro lugar calado.
       if (pin === undefined) return { outbound: [] }
-      const spot = gatherAt ?? (pin === null ? arrivalPoint(to.map) : arrivalSpot(to.map, pin, token.size))
+      const spot = gatherAt ?? (pin === null ? arrivalSpotWithoutPin(to.map, token.size, token.id) : arrivalSpot(to.map, pin, token.size, token.id))
       currentScene.set(playerId, sceneKey(to))
       // O pedido que ele tinha na cena de antes perde o sentido: o pino ficou lá.
       pendingTravels.delete(playerId)

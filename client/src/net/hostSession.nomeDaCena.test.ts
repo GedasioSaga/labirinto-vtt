@@ -76,7 +76,8 @@ describe('sendPlayer (o mestre leva o jogador sem pedido)', () => {
     const { s, playerId } = mesaCom(mundo)
     const r = s.sendPlayer(playerId, 's-b', 'escada', mundo)
     expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'scene.changed', by: 'master' } }])
-    expect(r.applyTransfer).toEqual({ tokenId: 'heroi', playerId, playerName: 'Ana', fromSceneId: 's-a', toSceneId: 's-b', toSceneName: 'Cripta', x: 725, y: 225 })
+    // Casa livre ao lado da escada (700, 200), não a casa dela: a cabeça do pino fica tocável.
+    expect(r.applyTransfer).toEqual({ tokenId: 'heroi', playerId, playerName: 'Ana', fromSceneId: 's-a', toSceneId: 's-b', toSceneName: 'Cripta', x: 675, y: 225 })
   })
 
   it('recusa: cena que não existe, a própria cena, pino que não é de viagem da cena de destino, jogador desconhecido', () => {
