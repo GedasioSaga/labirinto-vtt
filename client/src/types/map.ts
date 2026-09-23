@@ -156,6 +156,12 @@ export interface Light {
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
    *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
   hidden?: boolean
+  /** Tocha presa na ficha: id da ficha que carrega esta luz. Prender põe a
+   *  luz no centro da ficha; quando a ficha anda (mestre no editor ou jogador
+   *  na tela dele), a luz anda o MESMO deslocamento. `undefined` === solta
+   *  (comportamento de antes) — sem linha de migração. Para o jogador, só
+   *  chega se ele vê a ficha (`lib/fogFilter.ts`). */
+  attachedTokenId?: string
 }
 
 export interface RegionPoint {

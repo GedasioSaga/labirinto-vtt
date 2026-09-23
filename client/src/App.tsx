@@ -63,6 +63,7 @@ import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
 import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
+import { lightsOnToken } from './lib/selectionHitTest'
 import { traceFloorPieces } from './lib/traceImage'
 import { loadImagePixels } from './lib/imagePixels'
 import { traceMapDetails } from './lib/traceDetails'
@@ -325,6 +326,7 @@ function App() {
   const toggleLayerLock = useMapStore((state) => state.toggleLayerLock)
   const setPropLayer = useMapStore((state) => state.setPropLayer)
   const updateLight = useMapStore((state) => state.updateLight)
+  const setLightAttachment = useMapStore((state) => state.setLightAttachment)
   const setTokenImage = useMapStore((state) => state.setTokenImage)
   const updateToken = useMapStore((state) => state.updateToken)
   const updateProp = useMapStore((state) => state.updateProp)
@@ -1912,6 +1914,11 @@ function App() {
               // próximo arrasto que a assenta na grade (`seatTokenCenter`).
               onSizeChange: (size) => selectedToken && updateToken(selectedToken.id, { size }),
             }}
+            tokenLights={{
+              lights: selectedToken ? lightsOnToken(map, selectedToken.id) : [],
+              onSelectLight: (lightId) => setSelection(selectionOfItem({ kind: 'light', id: lightId })),
+              onDetach: (lightId) => setLightAttachment(lightId, null),
+            }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
@@ -2058,6 +2065,9 @@ function App() {
                 liveSliderChange(`light-intensity-${selectedLight.id}`, () =>
                   useMapStore.getState().updateLightIntensityLive(selectedLight.id, intensity),
                 ),
+              tokens: map.tokens.map((t) => ({ id: t.id, name: t.name })),
+              onAttach: (tokenId) => selectedLight && setLightAttachment(selectedLight.id, tokenId),
+              onDetach: () => selectedLight && setLightAttachment(selectedLight.id, null),
             }}
             selectedStair={selectedStair}
             stairControls={{

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { countExploredCells, decodeExploration, isPointExplored } from '../lib/exploration'
-import { createEmptyMap } from '../lib/mapFactory'
+import { createEmptyMap, setTokenPosition } from '../lib/mapFactory'
 import type { MapData, Pin, Region, Token, Wall } from '../types/map'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import {
@@ -291,6 +291,33 @@ describe('hostSession', () => {
     const r = s.handleMessage('c1', { type: 'token.move', reqId: 'r2', tokenId: 'heroi', x: 240, y: 200 }, map)
     expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'token.move.accepted', reqId: 'r2', x: 240, y: 200 } }])
     expect(r.applyMove).toEqual({ tokenId: 'heroi', x: 240, y: 200 })
+  })
+
+  it('tocha presa: o jogador move a própria ficha e o próximo snapshot traz a luz junto; o vínculo alheio não vaza', () => {
+    const s = newSession()
+    const map: MapData = {
+      ...twoRooms(),
+      lights: [
+        { id: 'tocha', x: 250, y: 200, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'heroi' },
+        { id: 'tocha-do-ladino', x: 450, y: 200, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'ladino' },
+      ],
+    }
+    const p1 = welcomeOf(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, map).outbound)
+    const p2 = welcomeOf(s.handleMessage('c2', { type: 'join', code: CODE, name: 'Bia' }, map).outbound)
+    s.assignToken(p1.playerId, 'heroi')
+    s.assignToken(p2.playerId, 'ladino')
+    const r = s.handleMessage('c1', { type: 'token.move', reqId: 'r9', tokenId: 'heroi', x: 240, y: 260 }, map)
+    if (r.applyMove === undefined) throw new Error('esperava applyMove')
+    // O integrador aplica o movimento com o mesmo setTokenPosition do editor.
+    const moved = setTokenPosition(map, r.applyMove.tokenId, r.applyMove.x, r.applyMove.y)
+
+    const toC1 = s.broadcast(moved).outbound.find((o) => o.clientId === 'c1')?.msg
+    if (toC1?.type !== 'snapshot') throw new Error('esperava snapshot para c1')
+    expect(toC1.map.lights.find((l) => l.id === 'tocha')).toEqual({ id: 'tocha', x: 290, y: 260, radius: 80, color: '#f00', intensity: 1, attachedTokenId: 'heroi' })
+    const alheia = toC1.map.lights.find((l) => l.id === 'tocha-do-ladino')
+    expect(alheia).toMatchObject({ x: 450, y: 200 })
+    expect(alheia !== undefined && 'attachedTokenId' in alheia).toBe(false)
+    expect(JSON.stringify(toC1)).not.toContain('"ladino"')
   })
 
   it('move atravessando parede é rejeitado com wall', () => {

@@ -1,4 +1,5 @@
 import type { MapData, RegionPoint, Token } from '../types/map'
+import { moveTokenCarryingLights } from '../lib/lightAttachment'
 import { decodeExploration, type Exploration } from '../lib/exploration'
 import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PinTravelRequestMessage, type PlayerMessage } from '../net/protocol'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
@@ -235,8 +236,9 @@ function writeResume(storage: StorageLike | null, value: StoredResume | null): v
   }
 }
 
+/** Mesma regra do mestre: a tocha presa na ficha anda junto (`lib/lightAttachment.ts`). */
 function withTokenAt(map: MapData, tokenId: string, x: number, y: number): MapData {
-  return { ...map, tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : t)) }
+  return moveTokenCarryingLights(map, tokenId, x, y)
 }
 
 function withTokenPatch(map: MapData, tokenId: string, patch: Partial<Token>): MapData {

@@ -25,6 +25,7 @@ import { TokenColorControls, type TokenColorControlsProps } from './TokenColorCo
 import { TokenSizeControls, type TokenSizeControlsProps } from './TokenSizeControls'
 import { selectedTokenSize } from '../lib/tokenSize'
 import { LightControls, type LightControlsProps } from './LightControls'
+import { TokenLightsControls, type TokenLightsControlsProps } from './TokenLightsControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
@@ -107,6 +108,9 @@ interface PropertiesPanelProps {
   /** Tamanho da ficha em QUADRADOS da grade — para o dragão não ficar do
    *  tamanho do rato. */
   tokenSize: Omit<TokenSizeControlsProps, 'size'>
+  /** Tocha presa (ou luz solta sob a ficha): o clique no mapa pega a ficha,
+   *  então o caminho para a luz é pelo painel da ficha. */
+  tokenLights: TokenLightsControlsProps
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -123,7 +127,7 @@ interface PropertiesPanelProps {
     'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof'
   >
   selectedLight: Light | null
-  lightControls: Omit<LightControlsProps, 'color' | 'intensity'>
+  lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId'>
   selectedStair: Stair | null
   stairControls: Omit<StairControlsProps, 'direction'>
   polygonSides: PolygonSidesControlsProps
@@ -185,6 +189,7 @@ export function PropertiesPanel({
   tokenImage,
   tokenColor,
   tokenSize,
+  tokenLights,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -420,6 +425,7 @@ export function PropertiesPanel({
             <TokenColorControls color={selectedTokenColor(selectedToken)} {...tokenColor} />
             {/* `tokenPhotoRef`: foto escolhida pelo JOGADOR vive em `imageData` — sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
             <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
+            <TokenLightsControls {...tokenLights} />
           </ToolPropertiesSection>
         )}
         {selectedToken && (
@@ -436,7 +442,12 @@ export function PropertiesPanel({
         )}
         {selectedLight && (
           <ToolPropertiesSection group="lightControls" groups={groups}>
-            <LightControls color={selectedLight.color} intensity={selectedLight.intensity} {...lightControls} />
+            <LightControls
+              color={selectedLight.color}
+              intensity={selectedLight.intensity}
+              attachedTokenId={selectedLight.attachedTokenId ?? null}
+              {...lightControls}
+            />
           </ToolPropertiesSection>
         )}
         {selectedStair && (

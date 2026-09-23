@@ -18,6 +18,7 @@ import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
+import { moveTokenCarryingLights, withoutAttachment } from './lightAttachment'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -614,14 +615,39 @@ export function addToken(map: MapData, token: Token): MapData {
   return { ...map, tokens: [...map.tokens, token] }
 }
 
+/** Apagar a ficha solta a tocha que ela carregava: a luz fica onde está. */
 export function removeToken(map: MapData, tokenId: string): MapData {
-  return { ...map, tokens: map.tokens.filter((t) => t.id !== tokenId) }
-}
-
-export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
+  const carried = map.lights.some((l) => l.attachedTokenId === tokenId)
   return {
     ...map,
-    tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : t)),
+    tokens: map.tokens.filter((t) => t.id !== tokenId),
+    lights: carried ? map.lights.map((l) => (l.attachedTokenId === tokenId ? withoutAttachment(l) : l)) : map.lights,
+  }
+}
+
+/** Move a ficha; luz presa nela (tocha) vai junto — ver `lib/lightAttachment.ts`. */
+export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
+  return moveTokenCarryingLights(map, tokenId, x, y)
+}
+
+/**
+ * Prende a luz na ficha (`tokenId`) ou solta (`null`). Ficha ou luz
+ * inexistente devolve o mapa intocado.
+ *
+ * Prender põe a luz no CENTRO da ficha: a tocha vai na mão de quem a carrega.
+ * Presa com o afastamento que tinha, uma luz a 6 casas seguia a ficha como
+ * satélite e, andando para a borda da vista, o halo sumia atrás do painel do
+ * editor enquanto a ficha seguia à vista. Soltar deixa a luz onde está (no
+ * lugar da ficha); o ponto de antes volta pelo desfazer.
+ */
+export function setLightAttachment(map: MapData, lightId: string, tokenId: string | null): MapData {
+  if (!map.lights.some((l) => l.id === lightId)) return map
+  if (tokenId === null) return { ...map, lights: map.lights.map((l) => (l.id === lightId ? withoutAttachment(l) : l)) }
+  const carrier = map.tokens.find((t) => t.id === tokenId)
+  if (carrier === undefined) return map
+  return {
+    ...map,
+    lights: map.lights.map((l) => (l.id === lightId ? { ...l, x: carrier.x, y: carrier.y, attachedTokenId: tokenId } : l)),
   }
 }
 
