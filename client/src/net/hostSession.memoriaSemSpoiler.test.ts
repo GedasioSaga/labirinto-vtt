@@ -82,18 +82,29 @@ function mesa() {
   return { s, playerId: joined.playerId }
 }
 
-/** Ana viu a sala de cima, andou para longe, e o mestre mexeu na sala. */
+/** Um passo ao lado de LONGE: a sala de cima continua fora da visão. */
+const LONGE_AO_LADO = { x: LONGE.x - 40, y: LONGE.y }
+
+/**
+ * Ana viu a sala de cima, andou para longe, e o mestre mexeu na sala. O
+ * broadcast só manda o que mudou: a mudança que ela não vê não gera snapshot
+ * (`enviado`). `snap` é o que chega quando ela dá um passo, ainda longe — o
+ * recorte feito DEPOIS da mudança.
+ */
 function anaLongeDepoisDaMudanca() {
   const t = mesa()
   // Vê a sala de cima (vira explorada) e anda para o canto de baixo.
   t.s.broadcast(antes(PERTO))
   t.s.broadcast(antes(LONGE))
-  return { ...t, snap: snapshotOf(t.s.broadcast(depois(LONGE)).outbound) }
+  const enviado = t.s.broadcast(depois(LONGE)).outbound.filter((o) => o.clientId === 'c1')
+  return { ...t, enviado, snap: snapshotOf(t.s.broadcast(depois(LONGE_AO_LADO)).outbound) }
 }
 
 describe('hostSession: memória do explorado sem spoiler', () => {
   it('o que o mestre criou longe do jogador não chega pela rede', () => {
-    const { snap } = anaLongeDepoisDaMudanca()
+    const { snap, enviado } = anaLongeDepoisDaMudanca()
+    // Nem um snapshot sai: um `rev` novo com a mesma tela já diria que algo mudou.
+    expect(enviado).toEqual([])
     const json = JSON.stringify(snap.map)
     expect(json).not.toContain('parede-nova')
     expect(json).not.toContain('pino-novo')

@@ -295,7 +295,11 @@ export interface HostSession {
    * mestre encerrou a sala" e não "A conexão caiu". Não mexe no estado.
    */
   closeRoom(): HostResult
-  /** Snapshot para todo jogador conectado e jogando, cada um da cena ONDE ELE ESTÁ. */
+  /**
+   * Snapshot para todo jogador conectado e jogando, cada um da cena ONDE ELE
+   * ESTÁ — mas só para quem a tela mudou desde o último que recebeu. `rev`
+   * sobe a cada chamada, mande ou não.
+   */
   broadcast(source: HostMapSource): HostResult
   /**
    * Laser do mestre para todo jogador conectado e jogando (quem aguarda não
@@ -409,6 +413,52 @@ interface PlayerRecord {
   joinedAt: number
 }
 
+/**
+ * A última tela que uma CONEXÃO recebeu, e de quais entradas ela saiu. É o que
+ * deixa o broadcast mandar só o que mudou: o mapa da cena (referência — o
+ * `mapStore` e o cache da aventura trocam o objeto a cada edição, nunca o
+ * alteram no lugar), o raio, a posse e a memória do jogador.
+ */
+interface SentView {
+  playerId: string
+  /** Mapa da cena de onde a tela saiu; `null` = a espera (sem cena). */
+  map: MapData | null
+  radius: number
+  ownershipRev: number
+  memory: PlayerMemory | undefined
+  /** A tela sem o `rev`: duas iguais aqui são a mesma coisa na tela do jogador. */
+  wire: string
+  /**
+   * O último recálculo, com estas MESMAS entradas, repetiu a tela e deixou a
+   * memória como estava: recalcular de novo daria o mesmo, e o recorte pode
+   * ser pulado. O primeiro recálculo depois de uma mudança nunca é estável — a
+   * marcação do explorado pode mostrar mais no seguinte.
+   */
+  stable: boolean
+}
+
+/** O que sai na tela do jogador, sem o `rev` (que muda a cada broadcast). */
+function wireOf(msg: HostMessage): string {
+  if (msg.type !== 'snapshot') return msg.type
+  return JSON.stringify([msg.map, msg.vision, msg.explored, msg.ownTokens, msg.concealed])
+}
+
+/** Mesmas entradas, item a item (a planta lembrada guarda o objeto do mapa, não cópia). */
+function samePlan(a: PlanMemory, b: PlanMemory): boolean {
+  const keys = ['walls', 'floor', 'regions', 'drawings', 'markers', 'lines', 'stairs', 'pins'] as const // chaves de PlanMemory, conferidas pelo tsc
+  return keys.every((key) => {
+    const left: ReadonlyMap<string, unknown> = a[key]
+    const right: ReadonlyMap<string, unknown> = b[key]
+    if (left.size !== right.size) return false
+    for (const [id, item] of left) if (right.get(id) !== item) return false
+    return true
+  })
+}
+
+function doorsKey(doors: ReadonlyMap<string, DoorState>): string {
+  return JSON.stringify([...doors])
+}
+
 export function createHostSession(options: HostSessionOptions): HostSession {
   const now = options.now ?? Date.now
   const randomId = options.randomId ?? (() => crypto.randomUUID())
@@ -447,6 +497,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastTokenPhotoAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
   const visionOverrides = new Map<string, number>()
+  // Por clientId: a última tela que a conexão recebeu (ver `SentView`).
+  const sentViews = new Map<string, SentView>()
+  // Sobe a cada troca de posse: ela entra no recorte de todo jogador.
+  let ownershipRev = 0
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -560,12 +614,58 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
   }
 
-  const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
+  /**
+   * A tela deste jogador para esta conexão, lembrando o que foi. `null` = a
+   * conexão já tem exatamente esta tela: nada a mandar. Entradas iguais às do
+   * último recálculo estável nem recortam de novo — é o jogador parado numa
+   * cena onde nada mudou enquanto o mestre arrasta um NPC em outra.
+   *
+   * O que NÃO sai também protege a névoa: um snapshot de `rev` novo e tela
+   * igual diria ao jogador que algo se mexeu onde ele não vê.
+   */
+  const viewIfChanged = (clientId: string, playerId: string, world: HostWorld): HostMessage | null => {
+    const scene = sceneFor(playerId, world)
+    const map = scene === null ? null : scene.map
+    const radius = radiusFor(playerId)
+    const before = map === null ? undefined : existingMemory(playerId, map)
+    const last = sentViews.get(clientId)
+    const sameInputs =
+      last !== undefined &&
+      last.playerId === playerId &&
+      last.map === map &&
+      last.radius === radius &&
+      last.ownershipRev === ownershipRev &&
+      last.memory === before
+    if (sameInputs && last.stable) return null
+    const planBefore = before === undefined ? null : before.plan
+    const doorsBefore = before === undefined ? null : doorsKey(before.doors)
+    const msg: HostMessage = map === null ? { type: 'lobby.waiting' } : snapshotFor(playerId, map)
+    const after = map === null ? undefined : existingMemory(playerId, map)
+    const wire = wireOf(msg)
+    const repeated = last !== undefined && last.wire === wire
+    const memorySettled =
+      after === before && (after === undefined || (planBefore !== null && samePlan(planBefore, after.plan) && doorsKey(after.doors) === doorsBefore))
+    sentViews.set(clientId, { playerId, map, radius, ownershipRev, memory: after, wire, stable: sameInputs && repeated && memorySettled })
+    return repeated ? null : msg
+  }
+
+  /**
+   * A conexão deste jogador recebeu (ou vai receber) algo que muda a tela fora
+   * do broadcast — espera, troca de cena, planta apagada — ou a memória dele
+   * mudou por fora do recorte. O próximo broadcast manda a tela inteira.
+   */
+  const forgetSentView = (playerId: string): void => {
+    for (const [clientId, sent] of sentViews) if (sent.playerId === playerId) sentViews.delete(clientId)
+  }
+
+  const reply =(clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
 
   /** Jogador que jogava e ficou sem token volta ao lobby; desconectado recebe o estado no resume. */
   const waitingIfLostLast = (playerId: string, wasPlaying: boolean): Outbound[] => {
     const clientId = players.get(playerId)?.clientId ?? null // registro ausente = jogador expulso: não há a quem avisar
     if (!wasPlaying || statusOf(playerId) === 'playing' || clientId === null) return []
+    // A tela dele vira a espera: quando a ficha voltar, a cena sai inteira de novo.
+    forgetSentView(playerId)
     return [{ clientId, msg: { type: 'lobby.waiting' } }]
   }
 
@@ -604,6 +704,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // `name` é o nome já passado por `uniqueName`: é assim que o jogador
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
     const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken, name: record.name }
+    // Conexão nova começa sem tela: o que a antiga recebeu não vale para ela.
+    forgetSentView(record.playerId)
     const next: HostMessage = statusOf(record.playerId) === 'playing' ? viewFor(record.playerId, world) : { type: 'lobby.waiting' }
     return { outbound: [{ clientId, msg: welcome }, { clientId, msg: next }] }
   }
@@ -948,6 +1050,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A cena dele passa a ser a de destino a partir daqui: é ela que o
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
+    forgetSentView(playerId)
     return {
       outbound: [{ clientId, msg: { type: 'scene.changed' } }],
       applyTransfer: {
@@ -1057,6 +1160,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (pin === undefined) return { outbound: [] }
       const spot = gatherAt ?? (pin === null ? arrivalPoint(to.map) : arrivalSpot(to.map, pin, token.size))
       currentScene.set(playerId, sceneKey(to))
+      forgetSentView(playerId)
       // O pedido que ele tinha na cena de antes perde o sentido: o pino ficou lá.
       pendingTravels.delete(playerId)
       const by = gatherAt === undefined ? 'master' : 'gather'
@@ -1076,6 +1180,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     },
 
     assignToken(playerId, tokenId) {
+      ownershipRev += 1
       const outbound: Outbound[] = []
       // Um token tem no máximo um dono: tira de quem tinha antes.
       for (const [owner, tokens] of Object.entries(ownership)) {
@@ -1092,6 +1197,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     unassignToken(playerId, tokenId) {
       const current = ownership[playerId]
       if (current === undefined) return { outbound: [] }
+      ownershipRev += 1
       ownership[playerId] = current.filter((t) => t !== tokenId)
       return { outbound: waitingIfLostLast(playerId, current.length > 0) }
     },
@@ -1100,6 +1206,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const playerId = byClient.get(clientId)
       if (playerId === undefined) return
       byClient.delete(clientId)
+      sentViews.delete(clientId)
       const record = players.get(playerId)
       if (record !== undefined) record.clientId = null // mantém o registro para permitir resume
       // O pedido pendente morre com a conexão: quem voltar não tem mais o
@@ -1115,6 +1222,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       byClient.delete(clientId)
       players.delete(playerId) // invalida o resumeToken
       delete ownership[playerId]
+      ownershipRev += 1
+      forgetSentView(playerId)
       memories.delete(playerId)
       currentScene.delete(playerId)
       forgetTravelsOf(playerId)
@@ -1152,6 +1261,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const map = scene.map
       const memory = memoryFor(playerId, map)
       markAll(memory.exp, playerBlockedRings(map))
+      // A memória muda no lugar (mesmo objeto): sem isto, o broadcast a acharia igual.
+      forgetSentView(playerId)
       // Revelar é mostrar a planta de AGORA: a memória passa a ser o presente,
       // menos o que está sob zona, sala secreta ou teto (lá o explorado também
       // não foi marcado): desfeito o esconderijo depois, nada disso volta como lembrado.
@@ -1160,6 +1271,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     hidePlan(playerId, source) {
       // Apagar a memória: o próximo snapshot recria vazia (explorado, portas e visão).
+      forgetSentView(playerId)
       if (source === undefined) {
         memories.delete(playerId)
         return
@@ -1176,7 +1288,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (statusOf(playerId) !== 'playing') continue
         // Cada um a SUA cena: quem ficou no Salão nunca recebe nada da Cripta.
         // Quem não está em cena nenhuma recebe a espera, e não a cena do editor.
-        outbound.push({ clientId, msg: viewFor(playerId, world) })
+        // Só para quem a tela mudou: o passo de um não reenvia o mapa aos outros.
+        const msg = viewIfChanged(clientId, playerId, world)
+        if (msg !== null) outbound.push({ clientId, msg })
       }
       return { outbound }
     },
