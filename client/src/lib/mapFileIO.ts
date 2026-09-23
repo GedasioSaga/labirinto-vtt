@@ -34,7 +34,8 @@ const TEMP_WRITE_SUFFIX = '.tmp'
  * `null` = ainda não perguntado; `false` também é gravado aqui quando o
  * `rename` existe mas o runtime recusa (permissão `fs:allow-rename` ausente
  * na capability do app) — daí em diante vale o plano B, em vez de deixar o
- * usuário sem conseguir salvar.
+ * usuário sem conseguir salvar. Recusa passageira (arquivo em uso) usa o plano
+ * B só naquela gravação; ver `isPermanentRenameRefusal`.
  */
 let renameUsable: boolean | null = null
 
@@ -55,6 +56,43 @@ async function removeQuietly(path: string): Promise<void> {
     await remove(path)
   } catch {
     // A sobra some na próxima gravação bem-sucedida no mesmo caminho.
+  }
+}
+
+/**
+ * A recusa do `rename` é da ACL do Tauri (permissão ausente na capability)?
+ * Só essa é permanente — o texto vem de `tauri/src/ipc/authority.rs`
+ * ("fs.rename not allowed. Permissions associated with this command: ...").
+ * Arquivo em uso por antivírus ou OneDrive (os error 32/5 no Windows) passa
+ * sozinho: desligar a gravação atômica pela sessão inteira por causa dele
+ * deixaria todo salvamento seguinte truncando o arquivo no lugar.
+ */
+function isPermanentRenameRefusal(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /\bnot allowed\b/.test(message)
+}
+
+/** O que havia no caminho antes do plano B escrever por cima. */
+interface PreviousFile {
+  /** `true` também quando não deu para saber — na dúvida, nunca apagar. */
+  existed: boolean
+  /** Conteúdo para devolver se a escrita falhar; `null` = nada a devolver. */
+  content: string | null
+}
+
+async function snapshotBeforeWrite(path: string): Promise<PreviousFile> {
+  let existed: boolean
+  try {
+    existed = await exists(path)
+  } catch {
+    return { existed: true, content: null }
+  }
+  if (!existed) return { existed: false, content: null }
+  try {
+    const content = await readTextFile(path)
+    return { existed: true, content: content.length > 0 ? content : null }
+  } catch {
+    return { existed: true, content: null }
   }
 }
 
@@ -94,21 +132,25 @@ export async function writeTextFileSafely(path: string, data: string): Promise<v
     try {
       await rename(tempPath, path)
       return
-    } catch {
-      renameUsable = false
+    } catch (error) {
+      if (isPermanentRenameRefusal(error)) renameUsable = false
       await removeQuietly(tempPath)
     }
   }
 
-  const previous = await readIfExists(path)
+  const previous = await snapshotBeforeWrite(path)
   try {
     await writeTextFile(path, data)
   } catch (error) {
-    if (previous !== null) {
+    if (previous.content !== null) {
       // Devolver o conteúdo anterior é o que separa "não consegui salvar" de
       // "perdi o mapa que já estava salvo". Se nem isso der, o erro original
       // é o que interessa ao usuário — por isso o `catch` mudo só aqui.
-      await writeTextFile(path, previous).catch(() => undefined)
+      await writeTextFile(path, previous.content).catch(() => undefined)
+    } else if (!previous.existed) {
+      // Arquivo novo: o pedaço escrito apareceria na lista como mapa
+      // danificado de um mapa que nunca chegou a ser salvo.
+      await removeQuietly(path)
     }
     throw error
   }
