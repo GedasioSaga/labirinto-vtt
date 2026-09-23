@@ -316,6 +316,73 @@ function wallSamples(wall: Wall): RegionPoint[] {
   return [{ x: wall.x1, y: wall.y1 }, wallMidpoint(wall), { x: wall.x2, y: wall.y2 }]
 }
 
+/** Frações do comprimento amostradas por `wallLineSamples`. */
+const WALL_LINE_FRACTIONS = [0, 0.25, 0.5, 0.75, 1]
+
+/** Pontas, quartos e meio da parede: bastam para dizer que ela corre SOBRE um contorno, e não só o cruza. */
+function wallLineSamples(wall: Wall): RegionPoint[] {
+  return WALL_LINE_FRACTIONS.map((t) => ({ x: wall.x1 + (wall.x2 - wall.x1) * t, y: wall.y1 + (wall.y2 - wall.y1) * t }))
+}
+
+/** `other` continua `wall` na mesma reta: encosta numa ponta dela e as duas pontas dele estão na reta dela. */
+function continuesInLine(wall: Wall, other: Wall): boolean {
+  const len = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1)
+  if (len === 0) return false
+  const ends = [
+    { x: other.x1, y: other.y1 },
+    { x: other.x2, y: other.y2 },
+  ]
+  const own = [
+    { x: wall.x1, y: wall.y1 },
+    { x: wall.x2, y: wall.y2 },
+  ]
+  const touches = ends.some((q) => own.some((p) => Math.hypot(p.x - q.x, p.y - q.y) <= NESTING_TOLERANCE))
+  const offLine = (q: RegionPoint): number => Math.abs((wall.x2 - wall.x1) * (q.y - wall.y1) - (wall.y2 - wall.y1) * (q.x - wall.x1)) / len
+  return touches && ends.every((q) => offLine(q) <= NESTING_TOLERANCE)
+}
+
+/**
+ * A parede que o jogador recebe no lugar de uma parede (ou porta) de sala
+ * secreta: LISTA DO QUE VAI, montada aqui. Sem porta, sem `regionId` (diria
+ * que existe uma sala ali) e com a CARA da parede vizinha na mesma reta — nunca
+ * a da parede secreta, cuja espessura diferente já seria a pista. Sem vizinha,
+ * a aparência padrão.
+ */
+function plainWallFor(wall: Wall, look: Wall | undefined): Wall {
+  const plain: Wall = { id: wall.id, x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2, blocksLight: true, blocksMove: true, door: null }
+  if (look?.wallKind !== undefined) plain.wallKind = look.wallKind
+  if (look?.thickness !== undefined) plain.thickness = look.thickness
+  if (look?.lineStyle !== undefined) plain.lineStyle = look.lineStyle
+  return plain
+}
+
+/**
+ * SALA SECRETA NA BORDA — parede ou porta de sala secreta que corre SOBRE o
+ * contorno de uma sala que o jogador tem (a estante da Biblioteca, porta do
+ * Quarto Secreto) é, para o jogador, a parede daquela sala. Tirá-la do recorte
+ * (o que se fazia antes) deixava um VÃO: a visão atravessava e desenhava o
+ * interior da sala secreta, e a parede chegava com um buraco — exatamente a
+ * pista que o oculto promete não dar. Chave: a parede original; valor: a
+ * parede comum que a substitui (`plainWallFor`).
+ *
+ * Parede da sala secreta que NÃO está na borda de sala do jogador continua
+ * sumindo inteira, como sempre: sala secreta solta no meio de um salão não
+ * pode virar um bloco de paredes sem porta.
+ */
+function disguisedSecretBorderWalls(walls: readonly Wall[], secretIds: ReadonlySet<string>, playerRegions: readonly Region[]): Map<Wall, Wall> {
+  const out = new Map<Wall, Wall>()
+  if (secretIds.size === 0 || playerRegions.length === 0) return out
+  const isSecret = (w: Wall): boolean => w.regionId !== undefined && secretIds.has(w.regionId)
+  for (const w of walls) {
+    if (!isSecret(w)) continue
+    const samples = wallLineSamples(w)
+    if (!playerRegions.some((r) => samples.every((p) => pointOnPolygonBorder(p, r.points)))) continue
+    const look = walls.find((o) => o !== w && !isSecret(o) && o.door === null && continuesInLine(w, o))
+    out.set(w, plainWallFor(w, look))
+  }
+  return out
+}
+
 /** Pontas e meio de cada lance da escada. */
 function stairSamples(stair: MapData['stairs'][number]): RegionPoint[] {
   return stair.segments.flatMap((s) => [{ x: s.x1, y: s.y1 }, { x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2 }, { x: s.x2, y: s.y2 }])
@@ -427,6 +494,18 @@ export function filterMapForPlayer(
   const secretRoomIds = new Set([...secretRooms.flatMap((r) => [...subtreeIds(map.regions, r.id)]), ...hiddenByAncestorIds])
   const secretRoomRings = boxRings(secretRooms.map((r) => r.points))
   const inSecretRoom = (point: RegionPoint): boolean => secretRoomRings.length > 0 && inAnyRing(secretRoomRings, point)
+  // Sala do jogador = toda região que não some por ser secreta ou oculta. Não
+  // passa por `hiddenLayers`: com a camada Salas escondida a Biblioteca não sai,
+  // mas a parede dela continua saindo — e o vão também saía.
+  const playerRegions = map.regions.filter((r) => !r.hidden && !r.secret && !secretRoomIds.has(r.id) && isUsablePolygon(r.points))
+  const disguised = disguisedSecretBorderWalls(map.walls, secretRoomIds, playerRegions)
+  /**
+   * As paredes como o jogador as conhece: a da sala secreta na borda já
+   * trocada pela parede comum. Vale para as DUAS visões (abaixo) e para o
+   * pacote: com a estante aberta e a sala ainda secreta, nem a autoridade olha
+   * para dentro — senão o que está lá sairia no pacote.
+   */
+  const knownWalls = disguised.size === 0 ? map.walls : map.walls.map((w) => disguised.get(w) ?? w)
 
   /**
    * TETO DE CONSTRUÇÃO. Sala com `room.roof` esconde o INTERIOR com o mesmo
@@ -575,17 +654,17 @@ export function filterMapForPlayer(
    * névoa. Parede que só cruza a borda da zona continua na enviada: tirá-la
    * deixaria o jogador ver através dela fora da zona. Colisão não usa isto.
    */
-  const authoritySegments = ownTokens.length > 0 ? visionSegments(map) : []
+  const authoritySegments = ownTokens.length > 0 ? visionSegments(knownWalls === map.walls ? map : { ...map, walls: knownWalls }) : []
   const authorityVision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, authoritySegments, visionRadius))
   const rings = boxRings(authorityVision)
-  const playerWalls = map.walls.filter(
+  const playerWalls = knownWalls.filter(
     (w) =>
       !(w.regionId !== undefined && secretRoomIds.has(w.regionId)) &&
       !isUnderClosedRoof(w) &&
       !(zones.length > 0 && wallSamples(w).every(inConcealZone)),
   )
   let vision = authorityVision
-  if (ownTokens.length > 0 && (playerWalls.length !== map.walls.length || hiddenFloorIds.size > 0)) {
+  if (ownTokens.length > 0 && (playerWalls.length !== knownWalls.length || hiddenFloorIds.size > 0)) {
     const playerSegments = visionSegments({ ...map, walls: playerWalls, floor: floorWithout(map.floor, hiddenFloorIds) })
     vision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, playerSegments, visionRadius))
   }
@@ -700,7 +779,9 @@ export function filterMapForPlayer(
         // aberto o campo some e a Sala volta a desenhar como sempre desenhou.
         return { ...r, room: { ...r.room, name: nameHidden ? '' : r.room.name, roof: roofClosed ? true : undefined } }
       }),
-    walls: visibleWalls(map.walls, hiddenLayers).flatMap((w) => {
+    // `knownWalls` antes da camada: a estante disfarçada é PAREDE, e segue a
+    // camada Paredes (com Portas escondida ela não pode virar vão).
+    walls: visibleWalls(knownWalls, hiddenLayers).flatMap((w) => {
       if (w.hidden) return []
       if (w.regionId !== undefined && secretRoomIds.has(w.regionId)) return []
       if (isUnderClosedRoof(w)) return []
