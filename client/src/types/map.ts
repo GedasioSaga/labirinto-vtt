@@ -444,7 +444,9 @@ export interface Token extends PlayerSecret {
   imageData?: string | null
   /** Rotação em graus, sentido horário. `undefined` === 0 (aparência
    *  idêntica à de hoje) — sem linha de migração, mesmo padrão de wallKind
-   *  (Wall, acima). */
+   *  (Wall, acima). EXCEÇÃO na tela do jogador: o campo PRESENTE (0
+   *  inclusive, "para cima") é a FRENTE da ficha e desenha o bico; ausente =
+   *  ficha sem frente (`player/facingMarker.ts`). Nunca trocar 0 por ausente. */
   rotation?: number
   /** Cor do disco da ficha, em `#rrggbb` — é o que separa aliado de inimigo
    *  no meio da luta. `undefined`/`null` === a cor de fábrica
