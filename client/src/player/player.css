@@ -465,6 +465,62 @@
   }
 }
 
+/* Conexão voltando sozinha: o mapa fica embaixo, esmaecido, e o véu segura o toque. */
+.pp-reconnecting {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+  animation: pp-reconnecting-in 200ms ease-out;
+}
+
+.pp-reconnecting__card {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  max-width: 320px;
+  padding: 16px 20px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  text-align: center;
+}
+
+.pp-reconnecting__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 16px;
+}
+
+.pp-reconnecting__hint {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+@keyframes pp-reconnecting-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-reconnecting {
+    animation: none;
+  }
+}
+
 .pp-section {
   display: grid;
   gap: 8px;

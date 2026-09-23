@@ -9,6 +9,7 @@ import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
+import { ReconnectingOverlay } from './ReconnectingOverlay'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
@@ -517,6 +518,21 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
     return () => clearTimeout(timer)
   }, [connecting, attempt])
 
+  // A rede voltou ou a tela acendeu (celular desbloqueado): se a conexão
+  // caiu, tenta já — sem esperar a espera crescente da reconexão automática.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') connection.wake()
+    }
+    const onOnline = () => connection.wake()
+    window.addEventListener('online', onOnline)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [connection])
+
   // Escape apaga a medida e desliga o modo. Só escuta com o modo ligado, e
   // nunca dentro de campo de texto (lá o Escape é da edição).
   useEffect(() => {
@@ -550,6 +566,9 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const closePin = useCallback(() => setOpenPinId(null), [])
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
+
+  // Queda com volta automática: a tela de baixo fica (esmaecida), o véu por cima.
+  const reconnecting = state.reconnecting && <ReconnectingOverlay info={state.reconnecting} onRetry={() => connection.retryNow()} />
 
   if (state.status === 'playing' && state.map && state.vision) {
     return (
@@ -630,6 +649,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             {DOOR_NOTICE_TEXT[state.doorNotice.reason]}
           </p>
         )}
+        {reconnecting}
       </PlayerErrorBoundary>
     )
   }
@@ -637,15 +657,18 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   // `playing` sem mapa é o intervalo entre o resume e o primeiro snapshot: mesma espera.
   if (state.status === 'waiting' || state.status === 'playing') {
     return (
-      <WaitingScreen
-        code={code}
-        typedName={typedName}
-        hostName={hostName}
-        // Trocar de nome NÃO esquece o resume: o mestre reaproveita o mesmo
-        // registro e só troca o nome, sem virar um segundo jogador na lista.
-        onRename={() => onLeave({ text: 'Escolha outro nome e entre de novo.', tone: 'info' })}
-        onLeave={onQuit}
-      />
+      <>
+        {reconnecting}
+        <WaitingScreen
+          code={code}
+          typedName={typedName}
+          hostName={hostName}
+          // Trocar de nome NÃO esquece o resume: o mestre reaproveita o mesmo
+          // registro e só troca o nome, sem virar um segundo jogador na lista.
+          onRename={() => onLeave({ text: 'Escolha outro nome e entre de novo.', tone: 'info' })}
+          onLeave={onQuit}
+        />
+      </>
     )
   }
 

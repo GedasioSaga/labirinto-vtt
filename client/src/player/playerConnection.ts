@@ -44,6 +44,22 @@ export interface PlayerState {
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
   error?: string
+  /**
+   * A conexão caiu depois de entrar na sala e o cliente está tentando voltar
+   * sozinho. O `status` e o mapa ficam como estavam (a tela esmaece); some
+   * quando o mestre aceita a volta (`welcome`).
+   */
+  reconnecting?: ReconnectInfo
+}
+
+/** Como vai a volta automática depois de uma queda. */
+export interface ReconnectInfo {
+  /** Quando a conexão caiu (relógio do aparelho, ms). */
+  since: number
+  /** Tentativas feitas desde a queda. */
+  attempt: number
+  /** Já passou `MANUAL_RECONNECT_AFTER_MS`: a tela oferece "Reconectar". */
+  manual: boolean
 }
 
 /**
@@ -118,6 +134,13 @@ export interface PlayerConnection {
   dismissNote(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
+  /**
+   * A tela acendeu ou a rede voltou: se está reconectando e nenhuma tentativa
+   * está no ar, tenta AGORA em vez de esperar a espera crescente.
+   */
+  wake(): void
+  /** "Reconectar" da tela de queda: tenta agora, largando a tentativa no ar se houver. */
+  retryNow(): void
   close(): void
 }
 
@@ -154,8 +177,29 @@ export const MOVED_NOTICE_TTL_MS = 60_000
  * ele mexe a própria ficha (aí já viu onde está) ou depois de um minuto.
  */
 export const GATHERED_NOTICE_TTL_MS = 60_000
+/**
+ * Espera da reconexão automática: dobra a cada tentativa que falha, de 1 s
+ * até este teto. Trinta segundos é o mais longo que um celular esperaria sem
+ * a pessoa achar que o app desistiu — e a rede que volta (`online`) ou a tela
+ * que acende (`visibilitychange`) cortam a espera pelo `wake`.
+ */
+export const RECONNECT_MAX_DELAY_MS = 30_000
+const RECONNECT_FIRST_DELAY_MS = 1_000
+/** Depois disto fora, a tela oferece "Reconectar" (as tentativas sozinhas continuam). */
+export const MANUAL_RECONNECT_AFTER_MS = 30_000
+/**
+ * Tentativa que nem abre nem fecha (Wi-Fi trocando de rede, rota que some)
+ * é abandonada depois disto: sem o prazo, ela prenderia a reconexão para sempre.
+ */
+export const RECONNECT_ATTEMPT_TIMEOUT_MS = 8_000
 const SOCKET_OPEN = 1
 const CONNECTION_LOST = 'connection_lost'
+
+/** Espera antes da tentativa `attempt` (1 = a primeira depois da queda). */
+export function reconnectDelayMs(attempt: number): number {
+  const exponent = Math.max(0, attempt - 1)
+  return Math.min(RECONNECT_MAX_DELAY_MS, RECONNECT_FIRST_DELAY_MS * 2 ** exponent)
+}
 
 interface PendingMove {
   tokenId: string
@@ -345,6 +389,81 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     for (const listener of listeners) listener()
   }
 
+  /** Próxima tentativa agendada, virada do "Reconectar" e prazo da tentativa no ar. */
+  let retryTimer: ReturnType<typeof setTimeout> | null = null
+  let manualTimer: ReturnType<typeof setTimeout> | null = null
+  let attemptTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearAttemptTimer(): void {
+    if (attemptTimer !== null) clearTimeout(attemptTimer)
+    attemptTimer = null
+  }
+
+  function clearReconnectTimers(): void {
+    if (retryTimer !== null) clearTimeout(retryTimer)
+    if (manualTimer !== null) clearTimeout(manualTimer)
+    retryTimer = null
+    manualTimer = null
+    clearAttemptTimer()
+  }
+
+  /**
+   * Caiu depois de entrar: o mapa fica, a tela esmaece, e o cliente tenta
+   * voltar sozinho. `rev` volta a -1 porque o host responde a volta com o
+   * snapshot do rev ATUAL dele — igual ao último que chegou, se ninguém mexeu
+   * em nada — e esse snapshot precisa valer.
+   */
+  function beginReconnect(): void {
+    pending.clear()
+    // O host esquece o pedido de passagem de quem cai: "Aguardando o mestre…" mentiria.
+    const travelWaiting = state.travel?.phase === 'waiting'
+    if (travelWaiting) clearTravelTimer()
+    setState({ rev: -1, reconnecting: { since: Date.now(), attempt: 0, manual: false }, ...(travelWaiting ? { travel: undefined } : {}) })
+    manualTimer = setTimeout(() => {
+      manualTimer = null
+      const info = state.reconnecting
+      if (info !== undefined) setState({ reconnecting: { ...info, manual: true } })
+    }, MANUAL_RECONNECT_AFTER_MS)
+    scheduleAttempt()
+  }
+
+  function scheduleAttempt(): void {
+    const info = state.reconnecting
+    if (info === undefined) return
+    if (retryTimer !== null) clearTimeout(retryTimer)
+    retryTimer = setTimeout(() => {
+      retryTimer = null
+      attemptNow()
+    }, reconnectDelayMs(info.attempt + 1))
+  }
+
+  function attemptNow(): void {
+    const info = state.reconnecting
+    if (info === undefined) return
+    if (retryTimer !== null) clearTimeout(retryTimer)
+    retryTimer = null
+    setState({ reconnecting: { ...info, attempt: info.attempt + 1 } })
+    open()
+    const current = socket
+    clearAttemptTimer()
+    // O prazo vale até o `welcome`: socket que abre e ninguém responde também prende.
+    attemptTimer = setTimeout(() => {
+      attemptTimer = null
+      if (socket !== current) return
+      abandonAttempt()
+      scheduleAttempt()
+    }, RECONNECT_ATTEMPT_TIMEOUT_MS)
+  }
+
+  /** Larga a tentativa no ar sem que o `close` dela conte como queda nova. */
+  function abandonAttempt(): void {
+    clearAttemptTimer()
+    stopPing()
+    const current = socket
+    socket = null
+    current?.close()
+  }
+
   function send(message: PlayerMessage): boolean {
     if (!socket || socket.readyState !== SOCKET_OPEN) return false
     socket.send(JSON.stringify(message))
@@ -447,7 +566,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'welcome':
         if (typeof data.playerId !== 'string' || typeof data.resumeToken !== 'string') return
         writeResume(storage, { code, token: data.resumeToken })
-        setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting' })
+        // O mestre aceitou (de novo): fim da volta automática, se havia uma.
+        clearReconnectTimers()
+        setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting', reconnecting: undefined })
         return
       case 'lobby.waiting':
         clearSignalTimers()
@@ -549,7 +670,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         return
       case 'kicked':
         writeResume(storage, null)
-        setState({ status: 'kicked' })
+        clearReconnectTimers()
+        setState({ status: 'kicked', reconnecting: undefined })
         return
       case 'room.closed':
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
@@ -558,20 +680,24 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         clearTravelTimer()
-        setState({ status: 'closed', doorNotice: undefined, travel: undefined })
+        clearReconnectTimers()
+        setState({ status: 'closed', doorNotice: undefined, travel: undefined, reconnecting: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
         // O transporte pode avisar a expulsão como erro: mesmo efeito de `kicked`.
         if (reason === 'kicked') {
           writeResume(storage, null)
-          setState({ status: 'kicked' })
+          clearReconnectTimers()
+          setState({ status: 'kicked', reconnecting: undefined })
           return
         }
         // Mensagem inválida durante o jogo não derruba a sessão.
         if (reason === 'invalid_message' && state.status === 'playing') return
         if (reason === 'bad_code') writeResume(storage, null)
-        setState({ status: 'error', error: reason })
+        // Erro do mestre na volta (a sala acabou): não há para onde tentar de novo.
+        clearReconnectTimers()
+        setState({ status: 'error', error: reason, reconnecting: undefined })
         return
       }
       default:
@@ -603,11 +729,24 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       stopPing()
       // Depois de kicked/closed a queda é esperada: o mestre derrubou de propósito.
       if (state.status === 'kicked' || state.status === 'closed' || state.status === 'error') return
+      if (state.reconnecting !== undefined) {
+        // A tentativa falhou (a rede ainda não voltou): a próxima espera mais.
+        clearAttemptTimer()
+        scheduleAttempt()
+        return
+      }
+      // Já estava na sala: Wi-Fi que pisca ou tela bloqueada. Volta sozinho.
+      if (state.playerId !== undefined) {
+        beginReconnect()
+        return
+      }
+      // Nunca entrou (endereço errado, sala que não existe): a tela explica.
       setState({ status: 'error', error: CONNECTION_LOST })
     }
   }
 
   function detach(): void {
+    clearReconnectTimers()
     stopPing()
     clearSignalTimers()
     clearLaserTimer()
@@ -702,8 +841,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, reconnecting: undefined })
       open()
+    },
+    wake() {
+      // Tentativa no ar tem o prazo dela; duas de uma vez só brigariam pelo socket.
+      if (state.reconnecting === undefined || socket !== null) return
+      attemptNow()
+    },
+    retryNow() {
+      if (state.reconnecting === undefined) return
+      abandonAttempt()
+      attemptNow()
     },
     close: detach,
   }

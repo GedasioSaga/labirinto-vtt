@@ -23,6 +23,8 @@ export interface PartyMember {
   playerId: string
   name: string
   connected: boolean
+  /** Quando a conexão dele caiu (relógio do mestre). Ausente enquanto está online, ou sem esse registro. */
+  offlineSince?: number
   /** Cena da aventura onde ele está; `null` no mapa solto ou sem ficha em cena. */
   sceneId: string | null
   sceneName: string | null
@@ -76,7 +78,7 @@ function tokenOf(player: PlayerInfo, world: HostWorld): Token | null {
 export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMember[] {
   return players.map((player) => {
     const token = player.status === 'playing' ? tokenOf(player, world) : null
-    return {
+    const member: PartyMember = {
       playerId: player.playerId,
       name: player.name,
       connected: player.connected,
@@ -85,6 +87,8 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
       token: token === null ? null : { id: token.id, color: cssColor(tokenFillColor(token)), x: token.x, y: token.y },
       travelPending: player.travelPending === true,
     }
+    if (!player.connected && player.disconnectedAt !== undefined) member.offlineSince = player.disconnectedAt
+    return member
   })
 }
 
@@ -109,9 +113,30 @@ export function partyDestinations(world: HostWorld): PartyDestination[] {
   return destinations
 }
 
-/** Status da linha em uma palavra: é o que o mestre lê de relance. */
-export function partyPresenceLabel(member: PartyMember): string {
-  return member.connected ? 'online' : 'fora'
+const SECOND_MS = 1_000
+const MINUTE_MS = 60 * SECOND_MS
+const HOUR_MS = 60 * MINUTE_MS
+
+/**
+ * Há quanto tempo, curto: "0:10" no primeiro minuto (o mestre acompanha se
+ * a pessoa volta já), depois "2 min" e "1 h" — segundos deixam de importar.
+ */
+export function offlineForLabel(elapsedMs: number): string {
+  const ms = Math.max(0, elapsedMs)
+  if (ms < MINUTE_MS) return `0:${String(Math.floor(ms / SECOND_MS)).padStart(2, '0')}`
+  if (ms < HOUR_MS) return `${Math.floor(ms / MINUTE_MS)} min`
+  return `${Math.floor(ms / HOUR_MS)} h`
+}
+
+/**
+ * Status da linha em poucas palavras: é o que o mestre lê de relance. Quem
+ * caiu diz há quanto tempo ("fora há 0:10"), para o mestre saber se espera ou
+ * segue a cena. `now` é o relógio do mestre, o mesmo que marcou a queda.
+ */
+export function partyPresenceLabel(member: PartyMember, now: number = Date.now()): string {
+  if (member.connected) return 'online'
+  if (member.offlineSince === undefined) return 'fora'
+  return `fora há ${offlineForLabel(now - member.offlineSince)}`
 }
 
 /** Uma bolinha da lista Cenas: quem está na cena, na cor da ficha dele. */

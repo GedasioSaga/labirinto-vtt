@@ -134,6 +134,13 @@ export const PLAYER_JOINED_TOAST_MS = 10_000
  * segura quem varre a porta de fora sem transformar o rail num paredão.
  */
 export const BAD_CODE_TOAST_INTERVAL_MS = 60_000
+/**
+ * "Gina caiu" espera isto antes de sair. Wi-Fi que pisca volta antes (o
+ * celular reconecta sozinho em ~1 s) e não vira aviso nenhum; quedas dentro
+ * da mesma janela — o roteador que reinicia leva a mesa inteira — viram UM
+ * aviso só.
+ */
+export const DROP_ANNOUNCE_DELAY_MS = 3_000
 const DEFAULT_VISION_RADIUS = 700
 /** Id de conexão do Rust (hoje um contador decimal); o padrão aceita folga sem abrir para lixo. */
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
@@ -192,6 +199,14 @@ function parseTunnelEvent(value: unknown): TunnelEvent | null {
   }
 }
 
+/** "Gina caiu" / "Gina e Bruno caíram" / "Gina, Bruno e Ana caíram". */
+function dropText(names: string[]): string {
+  const last = names.at(-1)
+  if (last === undefined) return ''
+  if (names.length === 1) return `${last} caiu`
+  return `${names.slice(0, -1).join(', ')} e ${last} caíram`
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -225,6 +240,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const travelToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
+  /** Quedas ainda não avisadas, na ordem em que aconteceram: `playerId` -> nome. */
+  const pendingDrops = new Map<string, string>()
+  let dropTimer: ReturnType<typeof setTimeout> | null = null
+  /** Aviso "caiu" na tela de cada jogador já avisado: `playerId` -> id do toast. */
+  const dropToasts = new Map<string, string>()
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
@@ -381,14 +401,66 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     useToastStore.getState().push('info', `Alguém tentou entrar com o código errado. O código desta sala é ${code}.`, PLAYER_JOINED_TOAST_MS)
   }
 
-  const announceJoin = (clientId: string) => {
+  const announceJoin = (clientId: string, offlineBefore: ReadonlySet<string>) => {
     const player = session?.listPlayers().find((p) => p.clientId === clientId)
     if (player === undefined) return
+    if (offlineBefore.has(player.playerId)) {
+      announceReturn(player.playerId, player.name)
+      return
+    }
     const text =
       player.status === 'waiting'
         ? `${player.name} entrou e está sem personagem. Abra a aba Jogo para atribuir um.`
         : `${player.name} voltou para a sala.`
     useToastStore.getState().push('info', text, PLAYER_JOINED_TOAST_MS)
+  }
+
+  const cancelDropTimer = () => {
+    if (dropTimer !== null) clearTimeout(dropTimer)
+    dropTimer = null
+  }
+
+  /**
+   * A conexão de alguém caiu: o mestre fica sabendo sem ir conferir o Grupo,
+   * mas só depois de `DROP_ANNOUNCE_DELAY_MS` — o Wi-Fi que pisca volta antes
+   * e não vira aviso, e quem cai junto sai num aviso só.
+   */
+  const scheduleDropAnnounce = (playerId: string, name: string) => {
+    pendingDrops.set(playerId, name)
+    if (dropTimer === null) dropTimer = setTimeout(flushDrops, DROP_ANNOUNCE_DELAY_MS)
+  }
+
+  const flushDrops = () => {
+    dropTimer = null
+    const dropped = [...pendingDrops]
+    pendingDrops.clear()
+    if (session === null || dropped.length === 0) return
+    const toastId = useToastStore.getState().push('info', dropText(dropped.map(([, name]) => name)), PLAYER_JOINED_TOAST_MS)
+    for (const [playerId] of dropped) dropToasts.set(playerId, toastId)
+  }
+
+  /**
+   * Voltou pelo resume. Antes do aviso de queda: silêncio, o mestre nem soube.
+   * Depois: "Gina voltou", e o "Gina caiu" dela sai da tela (o de um grupo
+   * fica enquanto alguém dele ainda está fora).
+   */
+  const announceReturn = (playerId: string, name: string) => {
+    if (pendingDrops.delete(playerId)) {
+      if (pendingDrops.size === 0) cancelDropTimer()
+      return
+    }
+    const dropToast = dropToasts.get(playerId)
+    if (dropToast !== undefined) {
+      dropToasts.delete(playerId)
+      if (![...dropToasts.values()].includes(dropToast)) useToastStore.getState().dismiss(dropToast)
+    }
+    useToastStore.getState().push('info', `${name} voltou`, PLAYER_JOINED_TOAST_MS)
+  }
+
+  const resetDrops = () => {
+    cancelDropTimer()
+    pendingDrops.clear()
+    dropToasts.clear()
   }
 
   /**
@@ -490,7 +562,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
     if (clientId === null) return
-    const wasJoined = session.listPlayers().some((p) => p.clientId === clientId)
+    const before = session.listPlayers()
+    const wasJoined = before.some((p) => p.clientId === clientId)
     const result = session.handleMessage(clientId, event.payload.msg, world())
     const rejectedJoin = !wasJoined && result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'invalid_message')
     if (rejectedJoin) {
@@ -532,14 +605,17 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     notifyPlayersIfChanged()
     if (wasJoined) return
     if (result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'bad_code')) announceBadCode()
-    else announceJoin(clientId)
+    else announceJoin(clientId, new Set(before.filter((p) => !p.connected).map((p) => p.playerId)))
   }
 
   const onPeer = (event: { payload: unknown }) => {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
     if (clientId === null || event.payload.event !== 'disconnected') return
+    // Conexão que nunca entrou (código errado) não acha jogador: não há quem avisar.
+    const dropped = session.listPlayers().find((p) => p.clientId === clientId)
     session.disconnect(clientId)
+    if (dropped !== undefined) scheduleDropAnnounce(dropped.playerId, dropped.name)
     pruneTravelToasts()
     notifyPlayersIfChanged()
   }
@@ -603,6 +679,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       removeListeners()
       session = null
       pruneTravelToasts()
+      // Sala fechada: quem "caiu" agora é o fim da sala, não uma queda.
+      resetDrops()
       currentRoom = null
       // O Rust derruba o túnel junto com a sala.
       resetTunnel()
