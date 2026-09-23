@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { MapData, Prop, Region, Token, Wall } from '../types/map'
+import type { DoorState, MapData, Prop, Region, Token, Wall } from '../types/map'
 import { filterMapForPlayer } from './fogFilter'
 import { createEmptyMap } from './mapFactory'
 
@@ -161,6 +161,127 @@ describe('filterMapForPlayer — objetos como silhueta', () => {
     it('a Ana entra, o teto abre e a silhueta chega', () => {
       const { map: out } = filterMapForPlayer(mapaComTeto({ x: 250, y: 300 }), 'ana', POSSE, RAIO)
       expect(out.props).toEqual([SILHUETA_DA_CAMA])
+    })
+
+    it('carroça com o centro no pátio e a frente 20 px dentro do prédio fechado não sai; encostada por fora, sai', () => {
+      // A Ana está no pátio, ao sul do quarto (a parede sul é y = 400).
+      const carroca = (y: number): Prop => ({ id: 'carroca', src: CAMINHO_DA_IMAGEM, x: 250, y, width: 60, height: 60, linkedMapPath: null })
+      const noPatio = (y: number): MapData => ({ ...mapaComTeto({ x: 250, y: 600 }), props: [carroca(y)] })
+
+      // y 380..440: o centro está fora, mas a frente entra no prédio.
+      const { map: atravessada } = filterMapForPlayer(noPatio(410), 'ana', POSSE, RAIO)
+      expect(atravessada.props).toEqual([])
+      expect(JSON.stringify(atravessada)).not.toContain('carroca')
+
+      // y 400..460: rente à parede, do lado de fora. É do pátio, e a Ana a vê.
+      const { map: encostada } = filterMapForPlayer(noPatio(430), 'ana', POSSE, RAIO)
+      expect(encostada.props).toEqual([{ id: 'carroca', x: 250, y: 430, width: 60, height: 60, src: '', linkedMapPath: null }])
+    })
+  })
+
+  describe('sala "Oculta para jogadores" (sala secreta)', () => {
+    /**
+     * O cofre do prefeito: sala secreta (300..600 x 100..400) com as 6 paredes
+     * ligadas a ela e a porta ABERTA no meio da parede oeste (y 220..280). A
+     * Ana está no corredor, em (150, 250), de frente para a porta: pela porta
+     * aberta a lanterna dela alcança o baú, em (450, 250).
+     *
+     * O recorte já tira do pacote a sala, as paredes e o chão dela. O que
+     * sobrasse do cofre seria pintado no VAZIO — um retângulo solto dizendo
+     * que ali existe um cômodo, e o que tem dentro dele.
+     */
+    const COFRE = 'sala-secreta'
+    const PORTA_ABERTA: DoorState = { open: true, locked: false, kind: 'normal' }
+
+    function paredeDoCofre(id: string, x1: number, y1: number, x2: number, y2: number, door: DoorState | null = null): Wall {
+      return { ...parede(id, x1, y1, x2, y2), door, regionId: COFRE }
+    }
+
+    const PAREDES_DO_COFRE: Wall[] = [
+      paredeDoCofre('cofre-norte', 300, 100, 600, 100),
+      paredeDoCofre('cofre-leste', 600, 100, 600, 400),
+      paredeDoCofre('cofre-sul', 600, 400, 300, 400),
+      paredeDoCofre('cofre-oeste-1', 300, 100, 300, 220),
+      paredeDoCofre('cofre-porta', 300, 220, 300, 280, PORTA_ABERTA),
+      paredeDoCofre('cofre-oeste-2', 300, 280, 300, 400),
+    ]
+
+    function cofre(secreta: boolean): Region {
+      return {
+        id: COFRE,
+        points: [
+          { x: 300, y: 100 },
+          { x: 600, y: 100 },
+          { x: 600, y: 400 },
+          { x: 300, y: 400 },
+        ],
+        tag: '',
+        fillColor: '#654',
+        fillPattern: 'solid',
+        data: {},
+        room: { shape: 'rect', name: 'Cofre do prefeito' },
+        secret: secreta,
+      }
+    }
+
+    /** Objeto como o mestre o tem, com a imagem no disco dele. */
+    function objeto(id: string, x: number, y: number, width: number, height: number, rotation?: number): Prop {
+      return { id, src: CAMINHO_DA_IMAGEM, x, y, width, height, linkedMapPath: null, ...(rotation === undefined ? {} : { rotation }) }
+    }
+
+    /** O mesmo objeto como o jogador o recebe: a geometria, sem a imagem. */
+    function silhueta(prop: Prop): Prop {
+      return { ...prop, src: '' }
+    }
+
+    const BAU = objeto('bau-do-cofre', 450, 250, 60, 40)
+
+    function mapaDoCofre(props: Prop[], opcoes: { secreta?: boolean; paredes?: Wall[] } = {}): MapData {
+      return {
+        ...createEmptyMap('m-cofre', 'Prefeitura', 25, 25, 40),
+        walls: opcoes.paredes ?? PAREDES_DO_COFRE,
+        regions: [cofre(opcoes.secreta ?? true)],
+        tokens: [ficha('ficha-ana', 150, 250)],
+        props,
+      }
+    }
+
+    function propsDaAna(map: MapData): Prop[] {
+      return filterMapForPlayer(map, 'ana', POSSE, RAIO).map.props
+    }
+
+    it('sem o segredo, a Ana enxerga o baú pela porta aberta: o cenário mede o que diz medir', () => {
+      expect(propsDaAna(mapaDoCofre([BAU], { secreta: false }))).toEqual([silhueta(BAU)])
+    })
+
+    it('com o segredo, o baú não sai no pacote, embora a lanterna da Ana alcance lá dentro', () => {
+      const { map: out } = filterMapForPlayer(mapaDoCofre([BAU]), 'ana', POSSE, RAIO)
+      expect(out.props).toEqual([])
+      expect(JSON.stringify(out)).not.toContain('bau-do-cofre')
+    })
+
+    it('sem parede nenhuma, o segredo continua levando o baú junto', () => {
+      expect(propsDaAna(mapaDoCofre([BAU], { paredes: [] }))).toEqual([])
+    })
+
+    it('armário com o centro no corredor e a ponta dentro do cofre não sai: a silhueta pintaria a ponta no vazio', () => {
+      // x 220..320: o centro fica 30 px antes da porta, e 20 px do armário passam para dentro.
+      const armario = objeto('armario', 270, 250, 100, 40)
+      expect(propsDaAna(mapaDoCofre([armario], { secreta: false }))).toEqual([silhueta(armario)])
+      expect(propsDaAna(mapaDoCofre([armario]))).toEqual([])
+    })
+
+    it('a rotação conta: o banco em pé ao lado da porta sai; o mesmo banco atravessado nela, não', () => {
+      const emPe = objeto('banco', 270, 250, 120, 20, 90) // x 260..280: não chega à parede do cofre
+      const atravessado = objeto('banco', 270, 250, 120, 20, 0) // x 210..330: 30 px dentro do cofre
+      expect(propsDaAna(mapaDoCofre([emPe]))).toEqual([silhueta(emPe)])
+      expect(propsDaAna(mapaDoCofre([atravessado]))).toEqual([])
+    })
+
+    it('a estante rente à parede do cofre, do lado de fora, continua na tela: a borda da sala não conta como dentro', () => {
+      // A estante que esconde a passagem: x 270..300, encostada na parede oeste do cofre.
+      const estante = objeto('estante', 285, 160, 30, 60)
+      expect(propsDaAna(mapaDoCofre([estante]))).toEqual([silhueta(estante)])
     })
   })
 })

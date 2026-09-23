@@ -124,6 +124,8 @@ describe('drawPropSilhouettes — móvel do mestre como silhueta chapada na tela
     // A névoa do explorado é preto com opacidade 1 − brilho (PlayerView.redrawFog).
     const opacidadeDaNevoa = 1 - DEFAULT_PLAYER_SETTINGS.exploredBrightness
     expect(PROP_SILHOUETTE_FILL_ALPHA).toBeLessThan(opacidadeDaNevoa)
+    // E visível: com opacidade zero o teto acima passaria, e o móvel sumiria do chão.
+    expect(PROP_SILHOUETTE_FILL_ALPHA).toBeGreaterThan(0)
   })
 
   it('tela de alta densidade: o contorno tem 1 px de tela, não 1 px físico', () => {
@@ -138,10 +140,13 @@ describe('drawPropSilhouettes — móvel do mestre como silhueta chapada na tela
     const g = new Graphics()
     const escala = 1.5
     const resolucao = 1.25
-    drawPropSilhouettes(g, [objeto({ x: 250.3, y: 180.7 })], escala, resolucao)
+    // O objeto foi pintado: sem isto, nada desenhado passaria no laço abaixo sem medir borda nenhuma.
+    expect(drawPropSilhouettes(g, [objeto({ x: 250.3, y: 180.7 })], escala, resolucao)).toBe(1)
 
+    const pontos = polyPoints(fills(g)[0])
+    expect(pontos).toHaveLength(4)
     const pxPorMundo = escala * resolucao
-    for (const p of polyPoints(fills(g)[0])) {
+    for (const p of pontos) {
       // Traço de 1 px físico centrado no MEIO do pixel: coordenada física = inteiro + 0,5.
       const fx = p.x * pxPorMundo - 0.5
       const fy = p.y * pxPorMundo - 0.5

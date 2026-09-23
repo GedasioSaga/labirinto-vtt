@@ -139,4 +139,32 @@ describe('hostSession — objetos como silhueta no pacote do jogador', () => {
 
     expect(snapshotPara(s.broadcast(comTeto({ x: 250, y: 300 })), 'c1').map.props).toEqual([SILHUETA_DA_CAMA])
   })
+
+  it('sala secreta: o baú do cofre sai do pacote da Ana, mesmo com a porta aberta deixando a lanterna dela alcançá-lo', () => {
+    // Cofre (300..600 x 100..400) com as paredes ligadas a ele e a porta aberta a oeste; a Ana no corredor, de frente para ela.
+    const doCofre = (id: string, x1: number, y1: number, x2: number, y2: number): Wall => ({ ...parede(id, x1, y1, x2, y2), regionId: 'sala-secreta' })
+    const bau: Prop = { id: 'bau-do-cofre', src: CAMINHO_DA_IMAGEM, x: 450, y: 250, width: 60, height: 40, linkedMapPath: null }
+    const cofre = (secret: boolean): MapData => ({
+      ...createEmptyMap('m-cofre', 'Prefeitura', 25, 25, 40),
+      walls: [
+        doCofre('cofre-norte', 300, 100, 600, 100),
+        doCofre('cofre-leste', 600, 100, 600, 400),
+        doCofre('cofre-sul', 600, 400, 300, 400),
+        doCofre('cofre-oeste-1', 300, 100, 300, 220),
+        { ...doCofre('cofre-porta', 300, 220, 300, 280), door: { open: true, locked: false, kind: 'normal' } },
+        doCofre('cofre-oeste-2', 300, 280, 300, 400),
+      ],
+      regions: [{ ...quarto(), id: 'sala-secreta', points: [{ x: 300, y: 100 }, { x: 600, y: 100 }, { x: 600, y: 400 }, { x: 300, y: 400 }], room: { shape: 'rect', name: 'Cofre' }, secret }],
+      tokens: [ficha('ficha-ana', 150, 250), ficha('ficha-bruno', 800, 900)],
+      props: [bau],
+    })
+    const s = mesa(cofre(false))
+
+    // Sem o segredo, a porta aberta mostra o baú: o cenário mede o que diz medir.
+    expect(snapshotPara(s.broadcast(cofre(false)), 'c1').map.props).toEqual([{ ...bau, src: '' }])
+
+    const secreta = snapshotPara(s.broadcast(cofre(true)), 'c1').map
+    expect(secreta.props).toEqual([])
+    expect(JSON.stringify(secreta)).not.toContain('bau-do-cofre')
+  })
 })

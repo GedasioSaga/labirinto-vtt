@@ -9,6 +9,7 @@ import { exitLabelsOf, isArrivalOnly } from './pinTravel'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
+import { rotatePointAround, rotationTrig } from './roomRotation'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -319,6 +320,36 @@ function wallSamples(wall: Wall): RegionPoint[] {
 /** Pontas e meio de cada lance da escada. */
 function stairSamples(stair: MapData['stairs'][number]): RegionPoint[] {
   return stair.segments.flatMap((s) => [{ x: s.x1, y: s.y1 }, { x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2 }, { x: s.x2, y: s.y2 }])
+}
+
+/**
+ * Amostras da SILHUETA do objeto, o retângulo que a tela do jogador pinta
+ * (`pixi/drawPropSilhouettes.ts`): o centro e os quatro cantos girados em
+ * volta dele, puxados para dentro como os de um desenho retângulo
+ * (`interiorSamples`).
+ *
+ * Desde que o jogador vê a silhueta, o objeto deixou de ser um ponto: o
+ * armário com o centro no corredor e a ponta dentro da sala secreta pintava a
+ * ponta no vazio onde a sala não existe para ele. O recuo dos cantos é o que
+ * deixa a estante ENCOSTADA por fora na parede dessa sala (a que esconde a
+ * passagem) continuar na tela de quem está no cômodo dela: sem ele, o canto em
+ * cima da parede oeste cairia DENTRO pelo `pointInRing`.
+ *
+ * O centro exato entra além do centróide dos cantos: com largura não-finita
+ * (arquivo estragado) os cantos viram NaN, e é ele que sobra para decidir.
+ */
+function propSamplePoints(prop: MapData['props'][number]): RegionPoint[] {
+  const center = { x: prop.x, y: prop.y }
+  const trig = rotationTrig(prop.rotation ?? 0)
+  const hw = prop.width / 2
+  const hh = prop.height / 2
+  const corners = [
+    { x: prop.x - hw, y: prop.y - hh },
+    { x: prop.x + hw, y: prop.y - hh },
+    { x: prop.x + hw, y: prop.y + hh },
+    { x: prop.x - hw, y: prop.y + hh },
+  ].map((corner) => rotatePointAround(corner, center, trig))
+  return [center, ...interiorSamples(corners)]
 }
 
 /** Desenho de traço (sem área): basta uma ponta escondida para não sair. */
@@ -662,8 +693,11 @@ export function filterMapForPlayer(
       if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inRoomHiddenFromPlayer)) return false
       return isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
     }),
+    // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto
+    // fechado leva junto o objeto com qualquer amostra dela lá dentro
+    // (`propSamplePoints`), como já leva escada, desenho e linha.
     props: visibleProps(map.props, hiddenLayers)
-      .filter((p) => !p.hidden && !p.secret && !inClosedRoof({ x: p.x, y: p.y }) && isVisible({ x: p.x, y: p.y }))
+      .filter((p) => !p.hidden && !p.secret && !propSamplePoints(p).some(inRoomHiddenFromPlayer) && isVisible({ x: p.x, y: p.y }))
       .map(propForPlayer),
     drawings: visibleDrawings(map.drawings, hiddenLayers).filter((d) => {
       if (d.secret) return false
