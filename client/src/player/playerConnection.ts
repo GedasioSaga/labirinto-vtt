@@ -16,7 +16,7 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { parseLaserMessage, parseRoomText, parseSceneNote } from '../net/protocol'
+import { NOTEBOOK_MAX_NOTES, parseLaserMessage, parseNotebook, parseRoomText, parseSceneNote, type NoteEntry } from '../net/protocol'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
 
@@ -63,6 +63,14 @@ export interface PlayerState {
    * que ele pode ver ('' quando oculto). Texto puro, como o recado.
    */
   roomText?: { id: string; title: string; text: string }
+  /**
+   * CADERNO: todo recado que chegou, do mais antigo ao mais novo (até
+   * `NOTEBOOK_MAX_NOTES`). Fechar o cartão não tira daqui; o `notes.book` do
+   * host, na entrada ou na volta, substitui a lista inteira.
+   */
+  notebook?: NoteEntry[]
+  /** Ids de recados que chegaram e o jogador ainda não viu (nem no cartão fechado, nem no Caderno). */
+  unreadNotes?: string[]
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -145,8 +153,10 @@ export interface PlayerConnection {
   laserMove(x: number, y: number): boolean
   /** Soltou o laser: manda o que faltava e o `off`, só se algo saiu desde o último. */
   laserOff(): void
-  /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). */
+  /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). Quem fechou leu: aquele recado deixa de ser novo. */
   dismissNote(): void
+  /** O jogador abriu o Caderno: nenhum recado é novo mais. */
+  markNotebookRead(): void
   /**
    * Reabre o texto da Sala `regionId` (toque no rótulo). Só abre texto que já
    * chegou no mapa do jogador; `false` quando a Sala não tem texto para ele.
@@ -278,6 +288,14 @@ function writeResume(storage: StorageLike | null, value: StoredResume | null): v
   } catch {
     // Storage indisponível: resume só não sobrevive ao reload.
   }
+}
+
+/**
+ * Há recado que o jogador não viu? O que está no cartão aberto não conta: ele
+ * está lendo. É o que acende o ponto no Painel e na aba Caderno.
+ */
+export function hasUnreadNotes(state: PlayerState): boolean {
+  return (state.unreadNotes ?? []).some((id) => id !== state.note?.id)
 }
 
 function withTokenAt(map: MapData, tokenId: string, x: number, y: number): MapData {
@@ -606,7 +624,28 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (state.status !== 'playing') return
         const note = parseSceneNote(data)
         if (note === null) return
-        setState({ note: { id: note.id, text: note.text } })
+        const book = state.notebook ?? []
+        // Já guardado (o host reenvia o último recado da cena na volta): reabre o cartão, sem repetir nem virar "novo".
+        if (book.some((entry) => entry.id === note.id)) {
+          setState({ note: { id: note.id, text: note.text } })
+          return
+        }
+        // Mestre antigo não manda a hora: vale a da chegada.
+        const entry: NoteEntry = { id: note.id, text: note.text, at: note.at ?? Date.now() }
+        setState({
+          note: { id: note.id, text: note.text },
+          notebook: [...book, entry].slice(-NOTEBOOK_MAX_NOTES),
+          unreadNotes: [...(state.unreadNotes ?? []), note.id].slice(-NOTEBOOK_MAX_NOTES),
+        })
+        return
+      }
+      case 'notes.book': {
+        // Vale também aguardando: o caderno é do jogador, não da cena.
+        const book = parseNotebook(data)
+        if (book === null) return
+        // Recado que o host já tinha é história, não novidade: só o que ainda estava por ler e continua na lista segue novo.
+        const kept = new Set(book.notes.map((entry) => entry.id))
+        setState({ notebook: book.notes, unreadNotes: (state.unreadNotes ?? []).filter((id) => kept.has(id)) })
         return
       }
       case 'room.text': {
@@ -850,7 +889,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
 
     dismissNote() {
-      if (state.note !== undefined) setState({ note: undefined })
+      const open = state.note
+      if (open === undefined) return
+      setState({ note: undefined, unreadNotes: (state.unreadNotes ?? []).filter((id) => id !== open.id) })
+    },
+
+    markNotebookRead() {
+      if ((state.unreadNotes ?? []).length > 0) setState({ unreadNotes: undefined })
     },
 
     openRoomText(regionId) {
@@ -881,7 +926,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined })
       open()
     },
     close: detach,

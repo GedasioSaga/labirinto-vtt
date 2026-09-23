@@ -21,7 +21,7 @@ import {
   type TokenEditMessage,
   type TokenMoveMessage,
 } from './protocol'
-import { clampNoteText } from './protocol'
+import { clampNoteText, NOTEBOOK_MAX_NOTES, type NoteEntry } from './protocol'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -266,6 +266,13 @@ export const TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS = 1500
  */
 export const MAX_SCENE_MEMORIES_PER_PLAYER = 8
 
+/**
+ * Quantas cenas guardam o "último recado". O `sceneId` vem da tela do mestre
+ * (confiável), mas memória de host não cresce sem limite: passou, esquece a
+ * cena que recebeu recado há mais tempo.
+ */
+export const MAX_SCENE_NOTES = 100
+
 export interface HostSessionOptions {
   code: string
   visionRadius: number
@@ -298,8 +305,12 @@ export interface HostSession {
   /**
    * RECADO POR CENA: `scene.note` só para quem joga e está AGORA na cena
    * `sceneId` (`sceneFor`). O texto sai cortado no teto (`NOTE_MAX_LENGTH`);
-   * vazio não sai. Quem entra ou reconecta depois não recebe recado antigo:
-   * nada fica guardado. `outbound.length` é quantos receberam.
+   * vazio não sai. `outbound.length` é quantos receberam AGORA.
+   *
+   * CADERNO: o recado vira o último da cena e entra no caderno de cada um que
+   * recebeu. Quem entra ou volta à sala recebe o caderno dele (`notes.book`)
+   * e o último recado da cena onde está; quem chega à cena depois (viagem,
+   * ficha nova) recebe o último recado dela no broadcast, se ainda não o tem.
    */
   sceneNote(sceneId: string, text: string, source: HostMapSource): HostResult
   /**
@@ -437,6 +448,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // em que ele já entrou. Sobrevive a reconexão e a "Esconder planta" (o cartão
   // não repete); só o kick apaga.
   const enteredRooms = new Map<string, Map<string, Set<string>>>()
+  // Por sceneId da aventura: o último recado mandado para a cena. É o que
+  // quem chega ou volta recebe. Na ordem do último recado (a primeira sai no teto).
+  const lastNoteByScene = new Map<string, NoteEntry>()
+  // Por playerId: o caderno, só com recados que ESTE jogador recebeu, do mais
+  // antigo ao mais novo. Sobrevive a disconnect/resume; só o kick apaga.
+  const notebooks = new Map<string, NoteEntry[]>()
+  // Por playerId: a cena (sceneId, ou `null` sem cena) em que o último recado
+  // de chegada já foi avaliado. Mudou, é chegada: vale o último recado de lá.
+  const noteSceneOf = new Map<string, string | null>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -507,10 +527,22 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return found
   }
 
-  /** O que o jogador vê agora: o recorte da cena dele, ou a espera quando ele não está em cena nenhuma. */
-  const viewFor = (playerId: string, world: HostWorld): HostMessage[] => {
+  /**
+   * O que o jogador vê agora: o recorte da cena dele (ou a espera quando ele
+   * não está em cena nenhuma), os cartões de texto de Sala que vêm com ele e,
+   * no fim, o último recado da cena quando isto é uma CHEGADA a ela.
+   * `arrived: 'always'` é a entrada/volta à sala: o recado vem mesmo que ele
+   * já o tenha (o cartão reaparece).
+   */
+  const viewFor = (playerId: string, world: HostWorld, arrived: 'on_change' | 'always'): HostMessage[] => {
     const scene = sceneFor(playerId, world)
-    return scene === null ? [{ type: 'lobby.waiting' }] : snapshotFor(playerId, scene.map)
+    if (scene === null) {
+      noteSceneOf.set(playerId, null)
+      return [{ type: 'lobby.waiting' }]
+    }
+    const view = snapshotFor(playerId, scene.map)
+    const note = arrivalNote(playerId, scene.sceneId, arrived)
+    return note === null ? view : [...view, noteMessage(note)]
   }
 
   /**
@@ -539,6 +571,36 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (room?.textoAoEntrar !== undefined) cards.push({ type: 'room.text', id, title: room.name, text: room.textoAoEntrar })
     }
     return cards
+  }
+
+  const noteMessage = (note: NoteEntry): HostMessage => ({ type: 'scene.note', id: note.id, text: note.text, at: note.at })
+
+  /** Põe o recado no caderno do jogador (sem repetir id); passou do teto, sai o mais antigo. */
+  const rememberNote = (playerId: string, note: NoteEntry): void => {
+    const book = notebooks.get(playerId) ?? []
+    if (book.some((entry) => entry.id === note.id)) return
+    notebooks.set(playerId, [...book, note].slice(-NOTEBOOK_MAX_NOTES))
+  }
+
+  /**
+   * O último recado da cena `sceneId` para quem acaba de chegar a ela, já
+   * anotado no caderno dele. Só a cena ONDE ELE ESTÁ (quem chama já passou por
+   * `sceneFor`): recado de outra cena nunca sai daqui. Na mesma cena de antes,
+   * ou com o recado já no caderno (voltou a uma cena que já leu), `null` —
+   * salvo `'always'`, a entrada na sala.
+   */
+  const arrivalNote = (playerId: string, sceneId: string | null, arrived: 'on_change' | 'always'): NoteEntry | null => {
+    const changed = !noteSceneOf.has(playerId) || noteSceneOf.get(playerId) !== sceneId
+    noteSceneOf.set(playerId, sceneId)
+    if (sceneId === null) return null
+    const note = lastNoteByScene.get(sceneId)
+    if (note === undefined) return null
+    if (arrived === 'on_change') {
+      if (!changed) return null
+      if ((notebooks.get(playerId) ?? []).some((entry) => entry.id === note.id)) return null
+    }
+    rememberNote(playerId, note)
+    return note
   }
 
   /** `sceneId` para os "Applied": só quando a cena é de fundo (a aberta é o `mapStore`). */
@@ -626,8 +688,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // `name` é o nome já passado por `uniqueName`: é assim que o jogador
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
     const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken, name: record.name }
-    const next: HostMessage[] = statusOf(record.playerId) === 'playing' ? viewFor(record.playerId, world) : [{ type: 'lobby.waiting' }]
-    return { outbound: [{ clientId, msg: welcome }, ...next.map((msg) => ({ clientId, msg }))] }
+    const waiting: HostMessage[] = [{ type: 'lobby.waiting' }]
+    // `next`: o snapshot (ou a espera); `cards`: os cartões que vêm atrás dele (texto da Sala, recado da cena).
+    const [next, ...cards] = statusOf(record.playerId) === 'playing' ? viewFor(record.playerId, world, 'always') : waiting
+    const outbound: Outbound[] = [{ clientId, msg: welcome }]
+    if (next !== undefined) outbound.push({ clientId, msg: next })
+    // O caderno vem antes do cartão: o cliente já tem o recado guardado quando o cartão reabre.
+    const book = notebooks.get(record.playerId) ?? []
+    if (book.length > 0) outbound.push({ clientId, msg: { type: 'notes.book', notes: book.map((entry) => ({ ...entry })) } })
+    for (const msg of cards) outbound.push({ clientId, msg })
+    return { outbound }
   }
 
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
@@ -1137,6 +1207,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       lastTokenPhotoAt.delete(playerId)
       visionOverrides.delete(playerId)
       enteredRooms.delete(playerId)
+      notebooks.delete(playerId)
+      noteSceneOf.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },
 
@@ -1184,7 +1256,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (statusOf(playerId) !== 'playing') continue
         // Cada um a SUA cena: quem ficou no Salão nunca recebe nada da Cripta.
         // Quem não está em cena nenhuma recebe a espera, e não a cena do editor.
-        for (const msg of viewFor(playerId, world)) outbound.push({ clientId, msg })
+        // Chegou a uma cena com recado (viagem, ficha nova): o recado vem logo atrás do mapa.
+        for (const msg of viewFor(playerId, world, 'on_change')) outbound.push({ clientId, msg })
       }
       return { outbound }
     },
@@ -1207,14 +1280,24 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const world = toWorld(source)
       // Um id por recado, igual para todos da cena: o jogador troca o cartão
       // aberto pelo recado novo, e o mesmo recado não duplica.
-      const id = randomId()
+      const note: NoteEntry = { id: randomId(), text: clamped, at: now() }
+      // Guardado mesmo sem ninguém lá agora: quem chegar depois recebe.
+      lastNoteByScene.delete(sceneId)
+      lastNoteByScene.set(sceneId, note)
+      for (const oldest of lastNoteByScene.keys()) {
+        if (lastNoteByScene.size <= MAX_SCENE_NOTES) break
+        lastNoteByScene.delete(oldest)
+      }
       const outbound: Outbound[] = []
       for (const [clientId, playerId] of byClient) {
         if (statusOf(playerId) !== 'playing') continue
         // A cena de CADA jogador, não a aberta no editor: o mestre pode estar
         // olhando a Cripta e mandar recado para o Salão.
         if (sceneFor(playerId, world)?.sceneId !== sceneId) continue
-        outbound.push({ clientId, msg: { type: 'scene.note', id, text: clamped } })
+        rememberNote(playerId, note)
+        // Já recebeu aqui: o broadcast seguinte não repete como "chegada".
+        noteSceneOf.set(playerId, sceneId)
+        outbound.push({ clientId, msg: noteMessage(note) })
       }
       return { outbound }
     },

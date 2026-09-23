@@ -50,7 +50,8 @@ describe('sceneNote (recado por cena)', () => {
   it('vai só a quem está na cena do recado, e não a quem está em outra', () => {
     const s = mesa()
     const r = s.sceneNote('s-salao', 'A porta range ao longe.', mundo)
-    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'scene.note', id: expect.any(String), text: 'A porta range ao longe.' } }])
+    // `at`: a hora do mestre (o relógio da mesa de teste marca 0), para o caderno do jogador.
+    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'scene.note', id: expect.any(String), text: 'A porta range ao longe.', at: 0 } }])
     expect(para(r, 'c2')).not.toContain('A porta range')
 
     // Cena de FUNDO (não aberta no editor) também chega, e só a quem está lá.
@@ -86,12 +87,13 @@ describe('sceneNote (recado por cena)', () => {
     expect(s.sceneNote('s-salao', '   ', mundo)).toEqual({ outbound: [] })
   })
 
-  it('quem aguarda (sem ficha) e quem caiu não recebem; quem volta depois não recebe o recado antigo', () => {
+  it('quem aguarda (sem ficha) e quem caiu não recebem na hora; quem entra sem ficha nem depois', () => {
     const s = mesa()
     entra(s, 'c3', 'Caio')
     s.disconnect('c1')
     expect(s.sceneNote('s-salao', 'antes da volta', mundo)).toEqual({ outbound: [] })
-    // Nada fica guardado: nem a entrada de alguém nem o broadcast seguinte trazem o recado.
+    // Guardado para quem VOLTA à cena (hostSession.caderno.test.ts), mas quem
+    // entra sem ficha não está no Salão, e o broadcast não acorda quem caiu.
     const entrada = s.handleMessage('c4', { type: 'join', code: CODE, name: 'Dora' }, mundo)
     expect(JSON.stringify(entrada.outbound)).not.toContain('antes da volta')
     expect(JSON.stringify(s.broadcast(mundo).outbound)).not.toContain('antes da volta')

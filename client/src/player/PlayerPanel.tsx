@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
-import type { ChangeEvent, FormEvent, MouseEvent, RefObject } from 'react'
+import type { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react'
 import type { StorageLike } from './playerConnection'
-import { NAME_MAX_LENGTH } from '../net/protocol'
+import { NAME_MAX_LENGTH, type NoteEntry } from '../net/protocol'
+import { PlayerNotebook } from './PlayerNotebook'
 
 // Painel do jogador: meus personagens, ajustes de visão e centralizar a câmera.
 // Fica sobre o canvas (não ao lado) para o enquadramento do mapa não depender
@@ -43,6 +44,13 @@ export interface PlayerCharacter {
   id: string
   name: string
 }
+
+type PanelTab = 'jogo' | 'caderno'
+
+const PANEL_TABS: { id: PanelTab; label: string }[] = [
+  { id: 'jogo', label: 'Jogo' },
+  { id: 'caderno', label: 'Caderno' },
+]
 
 function clampBrightness(value: number): number {
   return Math.min(EXPLORED_BRIGHTNESS_MAX, Math.max(EXPLORED_BRIGHTNESS_MIN, value))
@@ -107,6 +115,12 @@ interface PlayerPanelProps {
   /** O painel e a barra de cima: a câmera mede o que eles cobrem para centrar a ficha no que sobra. */
   panelRef?: RefObject<HTMLElement | null>
   barRef?: RefObject<HTMLDivElement | null>
+  /** Recados guardados, do mais antigo ao mais novo (a aba mostra o mais novo em cima). */
+  notebook: NoteEntry[]
+  /** Há recado que o jogador não viu: acende o ponto no "Painel" e na aba Caderno. */
+  notebookUnread: boolean
+  /** O Caderno ficou à vista: tudo nele conta como lido. */
+  onReadNotebook: () => void
 }
 
 export function PlayerPanel({
@@ -125,6 +139,9 @@ export function PlayerPanel({
   onChangeTokenPhoto,
   panelRef,
   barRef,
+  notebook,
+  notebookUnread,
+  onReadNotebook,
 }: PlayerPanelProps) {
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
   // Um estado por forma: a coluna do notebook nasce aberta e a gaveta do
@@ -134,6 +151,8 @@ export function PlayerPanel({
   const [columnOpen, setColumnOpen] = useState(true)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const open = drawerScreen ? drawerOpen : columnOpen
+  const [tab, setTab] = useState<PanelTab>('jogo')
+  const tabButtons = useRef<Partial<Record<PanelTab, HTMLButtonElement | null>>>({})
   const panelId = useId()
   const brightnessId = useId()
   const nameFieldId = useId()
@@ -189,6 +208,32 @@ export function PlayerPanel({
     return () => window.removeEventListener('keydown', onKey)
     // `closeDrawer` só lê estes dois estados e refs estáveis.
   }, [drawerScreen, drawerOpen])
+
+  // Caderno à vista = lido: aba Caderno com o painel aberto (coluna ou gaveta;
+  // recolhido, o painel some nas duas formas). Recado que chega com o Caderno aberto já nasce lido.
+  useEffect(() => {
+    if (tab !== 'caderno' || !notebookUnread || !open) return
+    onReadNotebook()
+  }, [tab, notebookUnread, open, onReadNotebook])
+
+  function selectTab(next: PanelTab) {
+    setTab(next)
+    tabButtons.current[next]?.focus()
+  }
+
+  // Setas trocam de aba (e o foco vai junto); Home e End vão às pontas. A fileira é uma parada só do Tab.
+  function onTabKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const index = PANEL_TABS.findIndex((item) => item.id === tab)
+    let next: number | null = null
+    if (event.key === 'ArrowRight') next = (index + 1) % PANEL_TABS.length
+    else if (event.key === 'ArrowLeft') next = (index - 1 + PANEL_TABS.length) % PANEL_TABS.length
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = PANEL_TABS.length - 1
+    const target = next === null ? undefined : PANEL_TABS[next]
+    if (target === undefined) return
+    event.preventDefault()
+    selectTab(target.id)
+  }
 
   function focusToken(tokenId: string) {
     onFocusToken(tokenId)
@@ -285,6 +330,7 @@ export function PlayerPanel({
             <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           Painel
+          {notebookUnread && <UnreadDot />}
         </button>
         {first !== undefined && (
           <button type="button" className="pp-mine" onClick={() => focusToken(first.id)}>
@@ -299,113 +345,158 @@ export function PlayerPanel({
       </div>
       <aside id={panelId} ref={asideRef} className="pp-panel" hidden={!open} aria-label="Painel do jogador">
         <div className="pp-panel__body">
-          <section className="pp-section" aria-labelledby={`${panelId}-chars`}>
-            <h2 id={`${panelId}-chars`} className="pp-heading">
-              Meus personagens
-            </h2>
-            {characters.length === 0 ? (
-              <p className="pp-empty">Nenhum personagem seu no mapa.</p>
-            ) : (
-              <ul className="pp-list">
-                {characters.map((character) => (
-                  <li key={character.id}>
-                    <button
-                      type="button"
-                      className="pp-character"
-                      aria-label={`Centralizar em ${character.name}`}
-                      onClick={() => focusToken(character.id)}
-                    >
-                      <span className="pp-dot" style={{ background: characterColor }} aria-hidden="true" />
-                      <span className="pp-character__name">{character.name}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <button type="button" className="pp-button" disabled={first === undefined} onClick={() => first && focusToken(first.id)}>
-              Centralizar no meu personagem
-            </button>
-            <button type="button" className="pp-button" aria-pressed={signalArmed} onClick={toggleSignal}>
-              {signalArmed ? 'Toque no mapa…' : 'Sinalizar'}
-            </button>
-            <p className="pp-empty">No PC: Alt+clique ou segure o clique parado.</p>
-            <button type="button" className="pp-button pp-button--toggle" aria-pressed={measureArmed} onClick={toggleMeasure}>
-              Medir
-            </button>
-            {measureArmed && <p className="pp-empty">Arraste no mapa para medir. Esc sai.</p>}
-            <button type="button" className="pp-button pp-button--toggle" aria-pressed={laserArmed} onClick={toggleLaser}>
-              Laser
-            </button>
-            {laserArmed && <p className="pp-empty">Segure e arraste no mapa para apontar. Quem está na sua cena vê. Esc sai.</p>}
-          </section>
+          <div className="pp-tabs" role="tablist" aria-label="Painel do jogador" onKeyDown={onTabKeyDown}>
+            {PANEL_TABS.map((item) => (
+              <button
+                key={item.id}
+                ref={(el) => {
+                  tabButtons.current[item.id] = el
+                }}
+                type="button"
+                role="tab"
+                id={`${panelId}-tab-${item.id}`}
+                className="pp-tab"
+                aria-selected={tab === item.id}
+                aria-controls={`${panelId}-panel-${item.id}`}
+                tabIndex={tab === item.id ? 0 : -1}
+                onClick={() => setTab(item.id)}
+              >
+                {item.label}
+                {item.id === 'caderno' && notebookUnread && <UnreadDot />}
+              </button>
+            ))}
+          </div>
 
-          {first !== undefined && (
-            <section className="pp-section" aria-labelledby={`${panelId}-me`}>
-              <h2 id={`${panelId}-me`} className="pp-heading">
-                Meu personagem
+          {/* A aba de jogo fica montada mesmo escondida: o rascunho do nome não se perde ao trocar de aba. */}
+          <div role="tabpanel" id={`${panelId}-panel-jogo`} aria-labelledby={`${panelId}-tab-jogo`} className="pp-tabpanel" hidden={tab !== 'jogo'}>
+            <section className="pp-section" aria-labelledby={`${panelId}-chars`}>
+              <h2 id={`${panelId}-chars`} className="pp-heading">
+                Meus personagens
               </h2>
-              <form className="pp-field" onSubmit={submitName}>
-                <label className="pp-label" htmlFor={nameFieldId}>
-                  Nome
-                </label>
-                {/* Enter aplica; sair do campo também, para quem clica fora sem apertar nada. */}
-                <input
-                  id={nameFieldId}
-                  className="pp-input"
-                  type="text"
-                  value={nameDraft}
-                  maxLength={NAME_MAX_LENGTH}
-                  onChange={(event) => setNameDraft(event.target.value)}
-                  onBlur={applyName}
-                />
-              </form>
-              <div className="pp-field">
-                <label className="pp-label" htmlFor={photoFieldId}>
-                  Foto
-                </label>
-                <input id={photoFieldId} className="pp-file" type="file" accept="image/*" onChange={chooseTokenPhoto} />
-              </div>
-              {photoBusy && <p className="pp-empty">Preparando a foto…</p>}
-              {photoError !== null && (
-                <p className="pp-error" role="alert">
-                  {photoError}
-                </p>
+              {characters.length === 0 ? (
+                <p className="pp-empty">Nenhum personagem seu no mapa.</p>
+              ) : (
+                <ul className="pp-list">
+                  {characters.map((character) => (
+                    <li key={character.id}>
+                      <button
+                        type="button"
+                        className="pp-character"
+                        aria-label={`Centralizar em ${character.name}`}
+                        onClick={() => focusToken(character.id)}
+                      >
+                        <span className="pp-dot" style={{ background: characterColor }} aria-hidden="true" />
+                        <span className="pp-character__name">{character.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
+              <button type="button" className="pp-button" disabled={first === undefined} onClick={() => first && focusToken(first.id)}>
+                Centralizar no meu personagem
+              </button>
+              <button type="button" className="pp-button" aria-pressed={signalArmed} onClick={toggleSignal}>
+                {signalArmed ? 'Toque no mapa…' : 'Sinalizar'}
+              </button>
+              <p className="pp-empty">No PC: Alt+clique ou segure o clique parado.</p>
+              <button type="button" className="pp-button pp-button--toggle" aria-pressed={measureArmed} onClick={toggleMeasure}>
+                Medir
+              </button>
+              {measureArmed && <p className="pp-empty">Arraste no mapa para medir. Esc sai.</p>}
+              <button type="button" className="pp-button pp-button--toggle" aria-pressed={laserArmed} onClick={toggleLaser}>
+                Laser
+              </button>
+              {laserArmed && <p className="pp-empty">Segure e arraste no mapa para apontar. Quem está na sua cena vê. Esc sai.</p>}
             </section>
-          )}
 
-          <section className="pp-section" aria-labelledby={`${panelId}-vision`}>
-            <h2 id={`${panelId}-vision`} className="pp-heading">
-              Visão
-            </h2>
-            <div className="pp-field">
-              <label htmlFor={brightnessId} className="pp-field__row">
-                <span>Brilho do explorado</span>
-                {/* span, não <output>: <output> tem papel implícito "status" e se confundiria com as mensagens de conexão da página. */}
-                <span className="pp-value">{Math.round(settings.exploredBrightness * 100)}%</span>
+            {first !== undefined && (
+              <section className="pp-section" aria-labelledby={`${panelId}-me`}>
+                <h2 id={`${panelId}-me`} className="pp-heading">
+                  Meu personagem
+                </h2>
+                <form className="pp-field" onSubmit={submitName}>
+                  <label className="pp-label" htmlFor={nameFieldId}>
+                    Nome
+                  </label>
+                  {/* Enter aplica; sair do campo também, para quem clica fora sem apertar nada. */}
+                  <input
+                    id={nameFieldId}
+                    className="pp-input"
+                    type="text"
+                    value={nameDraft}
+                    maxLength={NAME_MAX_LENGTH}
+                    onChange={(event) => setNameDraft(event.target.value)}
+                    onBlur={applyName}
+                  />
+                </form>
+                <div className="pp-field">
+                  <label className="pp-label" htmlFor={photoFieldId}>
+                    Foto
+                  </label>
+                  <input id={photoFieldId} className="pp-file" type="file" accept="image/*" onChange={chooseTokenPhoto} />
+                </div>
+                {photoBusy && <p className="pp-empty">Preparando a foto…</p>}
+                {photoError !== null && (
+                  <p className="pp-error" role="alert">
+                    {photoError}
+                  </p>
+                )}
+              </section>
+            )}
+
+            <section className="pp-section" aria-labelledby={`${panelId}-vision`}>
+              <h2 id={`${panelId}-vision`} className="pp-heading">
+                Visão
+              </h2>
+              <div className="pp-field">
+                <label htmlFor={brightnessId} className="pp-field__row">
+                  <span>Brilho do explorado</span>
+                  {/* span, não <output>: <output> tem papel implícito "status" e se confundiria com as mensagens de conexão da página. */}
+                  <span className="pp-value">{Math.round(settings.exploredBrightness * 100)}%</span>
+                </label>
+                <input
+                  id={brightnessId}
+                  className="pp-range"
+                  type="range"
+                  min={EXPLORED_BRIGHTNESS_MIN}
+                  max={EXPLORED_BRIGHTNESS_MAX}
+                  step={EXPLORED_BRIGHTNESS_STEP}
+                  value={settings.exploredBrightness}
+                  onChange={changeBrightness}
+                />
+              </div>
+              <label className="pp-check">
+                <input type="checkbox" checked={settings.showGrid} onChange={(e) => onSettingsChange({ ...settings, showGrid: e.target.checked })} />
+                <span>Grade</span>
               </label>
-              <input
-                id={brightnessId}
-                className="pp-range"
-                type="range"
-                min={EXPLORED_BRIGHTNESS_MIN}
-                max={EXPLORED_BRIGHTNESS_MAX}
-                step={EXPLORED_BRIGHTNESS_STEP}
-                value={settings.exploredBrightness}
-                onChange={changeBrightness}
-              />
-            </div>
-            <label className="pp-check">
-              <input type="checkbox" checked={settings.showGrid} onChange={(e) => onSettingsChange({ ...settings, showGrid: e.target.checked })} />
-              <span>Grade</span>
-            </label>
-            <label className="pp-check">
-              <input type="checkbox" checked={settings.showNames} onChange={(e) => onSettingsChange({ ...settings, showNames: e.target.checked })} />
-              <span>Nomes</span>
-            </label>
-          </section>
+              <label className="pp-check">
+                <input type="checkbox" checked={settings.showNames} onChange={(e) => onSettingsChange({ ...settings, showNames: e.target.checked })} />
+                <span>Nomes</span>
+              </label>
+            </section>
+          </div>
+
+          <div
+            role="tabpanel"
+            id={`${panelId}-panel-caderno`}
+            aria-labelledby={`${panelId}-tab-caderno`}
+            className="pp-tabpanel"
+            hidden={tab !== 'caderno'}
+          >
+            {/* Só montado à vista: fora da aba, o texto dos recados não fica no documento. */}
+            {tab === 'caderno' && <PlayerNotebook notes={notebook} />}
+          </div>
         </div>
       </aside>
     </>
+  )
+}
+
+/** Ponto de "recado novo". O texto escondido dá o aviso a quem usa leitor de tela. */
+function UnreadDot() {
+  return (
+    <span className="pp-unread">
+      <span className="pp-visually-hidden"> (recado novo)</span>
+    </span>
   )
 }

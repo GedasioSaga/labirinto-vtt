@@ -40,6 +40,9 @@ describe('PlayerPanel: botão Laser', () => {
           onToggleLaser={onToggleLaser}
           onRenameToken={() => {}}
           onChangeTokenPhoto={async () => {}}
+          notebook={[]}
+          notebookUnread={false}
+          onReadNotebook={() => {}}
         />,
       ),
     )

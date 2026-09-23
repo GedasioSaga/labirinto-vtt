@@ -9,6 +9,8 @@ export interface PlayerNoteCardProps {
    * mesmo cartão com o nome da Sala aqui.
    */
   title?: string
+  /** Linha pequena abaixo do texto. O recado diz que fica no Caderno; o texto da Sala não tem. */
+  hint?: string
   onClose(): void
   /**
    * Escape fecha o cartão. Desligado enquanto outro cartão (o do pino) está
@@ -25,7 +27,7 @@ export interface PlayerNoteCardProps {
  * O texto entra como filho de texto do React (nunca `innerHTML`): o React
  * escapa `<` e `>`, e o recado "<b>x</b>" aparece com os sinais na tela.
  */
-export function PlayerNoteCard({ text, title = 'Recado do mestre', onClose, escapeCloses = true }: PlayerNoteCardProps) {
+export function PlayerNoteCard({ text, title = 'Recado do mestre', hint, onClose, escapeCloses = true }: PlayerNoteCardProps) {
   const titleId = useId()
 
   useEffect(() => {
@@ -47,6 +49,7 @@ export function PlayerNoteCard({ text, title = 'Recado do mestre', onClose, esca
         {title}
       </h2>
       <p className="pp-note__text">{text}</p>
+      {hint !== undefined && <p className="pp-note__hint">{hint}</p>}
       <button type="button" className="pp-note__close" onClick={onClose}>
         Fechar
       </button>
