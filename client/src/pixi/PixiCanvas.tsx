@@ -28,13 +28,9 @@ import { drawTriGrid } from './drawTriGrid'
 import { computeAlignedGridLines, type GridAlignResult } from '../lib/gridAlign'
 import { drawGridAlignOverlay } from './drawGridAlignOverlay'
 import { isHidden, canInteract } from '../lib/itemTransform'
-import { drawWalls } from './drawWalls'
-import { drawDoors } from './drawDoors'
-import { drawStairs } from './drawStairs'
-import { drawLights } from './drawLights'
-import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
+import { createRegionsRenderer } from './drawRegions'
 import { createFloorRenderer, drawFloorDraft } from './drawFloor'
-import { drawMapLines, drawMapMarkers } from './drawMapLines'
+import { createChangeGate, createShapesRedrawer } from './shapesRedraw'
 import { drawMapFrame } from './drawMapFrame'
 import { layoutMapFrame } from '../lib/mapFrame'
 import { hexToRgb, rasterizeMinimap } from '../lib/minimapRaster'
@@ -42,11 +38,9 @@ import { compileFloor } from '../lib/floorSdf'
 
 /** Subamostras por eixo do render fiel: 4×4 é o que reproduz o antisserrilhado dos mapas de referência. */
 const MINIMAP_RASTER_SAMPLES = 4
-import type { FloorPiece, MapFrame } from '../types/map'
+import type { MapFrame } from '../types/map'
 import { buildCorridorShape, buildFloorPiece, buildFloorShapeFromDrag, clampFloorPolygonSides, findFloorPieceAt } from '../lib/floorTool'
 
-/** Referência estável: camada oculta não força recalcular o contorno a cada redraw. */
-const EMPTY_FLOOR: FloorPiece[] = []
 // Onda 3, item 21 (Frente E) — moldura do mapa (contorno + sombra fora dela).
 import { drawMapBounds } from './drawMapBounds'
 import { createTokensRenderer } from './tokensRenderer'
@@ -100,8 +94,7 @@ import { pickImageFile, importPropImage } from '../lib/imageImport'
 import { mapDirFor } from '../lib/mapFileIO'
 import { findSelectableAt, findCurveControlPointAt, findWallAt, findNearestExistingVertex, type SelectableHit } from '../lib/selectionHitTest'
 import type { SelectionKind } from '../types/tools'
-import { drawDrawings } from './drawDrawings'
-import { drawEditHandles, findLightRadiusHandleAt, circleDrawingRadiusHandle } from './drawEditHandles'
+import { findLightRadiusHandleAt, circleDrawingRadiusHandle } from './drawEditHandles'
 import { regionEdgeMidpoints } from '../lib/roomLink'
 import { computeAlignment, mapBoundsCandidates } from '../lib/alignmentGuides'
 import { drawGuides } from './drawGuides'
@@ -110,7 +103,7 @@ import { drawGuides } from './drawGuides'
 // clonagem dentro da store — ver mapStore.ts).
 import { cloneEntity, type CloneableEntity } from '../lib/entityClone'
 import {
-  visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps,
+  visibleWalls, visibleTokens, visibleProps,
   canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
 } from '../lib/layers'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
@@ -122,7 +115,7 @@ import { measureDistance } from '../lib/measurement'
 import { findBoxCornerAt, drawingBoundingBox, tokenBoundingBox, propBoundingBox, resizeTokenSize, type Corner } from '../lib/objectTransform'
 // N3 "ferramenta de seleção de área" — geometria pura de marquee + mover grupo.
 import { selectEntitiesInArea, areaSelectionBounds, isAreaSelectionEmpty, type AreaRect } from '../lib/areaSelection'
-import { drawSelectionMarquee, drawAreaSelectionOutline } from './drawSelectionMarquee'
+import { drawSelectionMarquee } from './drawSelectionMarquee'
 // Onda 4, item 24 — modelo canônico de seleção (lib/selectionModel.ts).
 // `useMapStore.getState().selection` agora é um SelectionSet (conjunto);
 // estes helpers convertem na borda pros consumidores que só entendem "um
@@ -429,59 +422,26 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         drawGridAlignOverlay(gridAlignOverlayGraphics, computeAlignedGridLines(draft.cellSize, draft.offset, viewport), viewport)
       }
 
+      // Redesenho parcial (pixi/shapesRedraw.ts): cada camada vetorial só
+      // repinta quando uma entrada DELA muda — arrastar uma sala repinta a
+      // sala e as paredes/portas, selecionar repinta o destaque e as alças.
+      // `shapesRedrawer` é criado mais abaixo, depois dos renderers de que
+      // depende; o primeiro `redrawShapes()` só roda depois disso.
       const redrawShapes = () => {
         const { map, selection, activeTool } = useMapStore.getState()
-        // Onda 4, item 24 — `selection` é um SelectionSet agora; o destaque
-        // POR ENTIDADE (drawWalls/drawDoors/etc., 1 highlight cada) só faz
-        // sentido pro caso de 1 item — `single` é essa borda. Grupo (2+
-        // itens, Shift+clique ou marquee mesclado) ganha o contorno de
-        // bounding-box abaixo, reaproveitando drawAreaSelectionOutline (N3),
-        // em vez de destacar item a item (exigiria mudar drawWalls.ts e os
-        // outros 6 renderers de forma, fora da minha lista de arquivos).
-        const single = selectionSingle(selection)
-        // Onda 3, item 22 (bug — Frente E): antes só `selection.kind ===
-        // 'region'` pintava a Sala com SELECTION_COLOR; clicar na PAREDE-dona
-        // (selection.kind === 'wall' com wall.regionId apontando pra cá)
-        // deixava a sala sem confirmar visualmente a seleção. Ver
-        // `resolveHighlightedRegionId` (drawRegions.ts) para os dois casos.
-        // Chão por peças fica na camada 'salas', junto das Regiões.
-        const rasterMode = map.floorStyle.renderMode === 'raster'
-        if (rasterMode) {
-          floorGraphics.clear()
-          redrawMapRaster(map)
-        } else {
-          clearMapRaster()
-          floorRenderer.draw(floorGraphics, map.hiddenLayers.includes('salas') ? EMPTY_FLOOR : map.floor, map.floorStyle)
-        }
-        floorRenderer.drawSelection(
-          floorSelectionGraphics,
-          single?.kind === 'floor' && !map.hiddenLayers.includes('salas') ? map.floor.find((p) => p.id === single.id) ?? null : null,
-          map.floorStyle.sampleStep,
-        )
-        mapLinesGraphics.clear()
-        if (!rasterMode && !map.hiddenLayers.includes('paredes')) drawMapLines(mapLinesGraphics, map.lines)
-        if (!rasterMode && !map.hiddenLayers.includes('portas')) drawMapMarkers(mapLinesGraphics, map.markers)
-        redrawMapFrame(map.frame)
-        regionsRenderer.draw(regionsContainer, visibleRegions(map.regions, map.hiddenLayers), resolveHighlightedRegionId(map.walls, single))
-        drawWalls(wallsGraphics, visibleWalls(map.walls, map.hiddenLayers), single?.kind === 'wall' ? single.id : null)
-        drawDoors(doorsGraphics, visibleWalls(map.walls, map.hiddenLayers), single?.kind === 'wall' ? single.id : null)
-        drawStairs(stairsGraphics, visibleStairs(map.stairs, map.hiddenLayers), single?.kind === 'stair' ? single.id : null)
-        drawLights(lightsGraphics, visibleLights(map.lights, map.hiddenLayers), single?.kind === 'light' ? single.id : null)
-        drawDrawings(drawingsGraphics, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
-        textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
-        drawEditHandles(handlesGraphics, map, single, activeTool)
-        // N3 (agora genérico, não só marquee): contorno do GRUPO — só com 2+
-        // itens (1 item já tem o próprio destaque acima; 0 não desenha nada).
-        drawAreaSelectionOutline(
-          areaSelectionOutlineGraphics,
-          selection.length > 1 ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null,
-        )
+        shapesRedrawer({ map, selection, activeTool })
       }
 
+      // Selecionar uma parede não muda nenhuma ficha: a assinatura de tokens
+      // dispara em toda troca de seleção, o portão só deixa passar quando a
+      // lista, a camada, a grade ou a ficha em destaque mudam.
+      const tokensGate = createChangeGate()
       const redrawTokens = () => {
         const { map, selection } = useMapStore.getState()
         const single = selectionSingle(selection)
-        tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null)
+        const selectedTokenId = single?.kind === 'token' ? single.id : null
+        if (!tokensGate([map.tokens, map.hiddenLayers, map.grid, selectedTokenId])) return
+        tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, selectedTokenId)
       }
 
       const propsRenderer = createPropsRenderer()
@@ -569,14 +529,35 @@ export function PixiCanvas({ gridAlignPreview = null, onBackgroundImageSizeChang
         drawn.position.set(frame.x - layout.content.x, frame.y - layout.content.y)
         mapFrameContainer.addChild(drawn)
       }
+      const shapesRedrawer = createShapesRedrawer(
+        {
+          floor: floorGraphics,
+          floorSelection: floorSelectionGraphics,
+          mapLines: mapLinesGraphics,
+          regions: regionsContainer,
+          walls: wallsGraphics,
+          doors: doorsGraphics,
+          stairs: stairsGraphics,
+          lights: lightsGraphics,
+          drawings: drawingsGraphics,
+          textLabels: textLabelsContainer,
+          handles: handlesGraphics,
+          areaOutline: areaSelectionOutlineGraphics,
+        },
+        { floor: floorRenderer, regions: regionsRenderer, textLabels: textLabelsRenderer, redrawMapRaster, clearMapRaster, redrawMapFrame },
+      )
       const tokensRenderer = createTokensRenderer()
       // Onda 2, item 16 (Frente C) — número ao vivo durante o arrasto de forma.
       const dimensionLabelRenderer = createDimensionLabelRenderer()
 
+      // Mesmo portão das fichas (ver `redrawTokens`).
+      const propsGate = createChangeGate()
       const redrawProps = () => {
         const { map, selection } = useMapStore.getState()
         const single = selectionSingle(selection)
-        propsRenderer.draw(propsContainer, visibleProps(map.props, map.hiddenLayers), single?.kind === 'prop' ? single.id : null)
+        const selectedPropId = single?.kind === 'prop' ? single.id : null
+        if (!propsGate([map.props, map.hiddenLayers, selectedPropId])) return
+        propsRenderer.draw(propsContainer, visibleProps(map.props, map.hiddenLayers), selectedPropId)
       }
 
       let backgroundLoadToken = 0

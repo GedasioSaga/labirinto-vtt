@@ -181,6 +181,11 @@ export interface RegionsRenderer {
  */
 export function createRegionsRenderer(): RegionsRenderer {
   const cache = new Map<string, Graphics>()
+  // Redesenho parcial: o que cada Graphics pintou da última vez. A store é
+  // imutável (mapFactory.moveRegion só recria a sala movida), então mesma
+  // referência + mesmo destaque = pintura idêntica — arrastar 1 sala num mapa
+  // de milhares repinta só ela, não todas.
+  const painted = new Map<string, { region: Region; selected: boolean }>()
 
   function draw(container: Container, regions: Region[], selectedRegionId: string | null = null): void {
     const visibleRegions = regions.filter((region) => !isDegenerateRegion(region.points))
@@ -191,10 +196,16 @@ export function createRegionsRenderer(): RegionsRenderer {
         container.removeChild(g)
         g.destroy()
         cache.delete(id)
+        painted.delete(id)
       }
     }
 
     for (const region of visibleRegions) {
+      const isSelected = region.id === selectedRegionId
+      const last = painted.get(region.id)
+      if (last && last.region === region && last.selected === isSelected) continue
+      painted.set(region.id, { region, selected: isSelected })
+
       let g = cache.get(region.id)
       if (!g) {
         g = new Graphics()
@@ -210,7 +221,6 @@ export function createRegionsRenderer(): RegionsRenderer {
         g.lineTo(point.x, point.y)
       }
       g.closePath()
-      const isSelected = region.id === selectedRegionId
       const color = isSelected ? SELECTION_COLOR : new Color(region.fillColor).toNumber()
       // Pedido N2 do usuário ("tirar o fundo" de Região/Sala) — `Region.filled`
       // já existe no schema e a store já tem `setRegionFilled`/`FillControls`
