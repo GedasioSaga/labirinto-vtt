@@ -297,11 +297,20 @@ export interface CluePeersMessage {
   names: string[]
 }
 
+/**
+ * Por que a pista não saiu, quando o motivo não conta nada sobre onde o colega
+ * está: `too_soon` = outra pista saiu há menos de 1 s (o colega está na cena;
+ * é só tocar de novo). Ausente = "não chegou", sem dizer por quê.
+ */
+export type ClueShowRefusal = 'too_soon'
+
 /** A pista chegou (`ok`) ou não ao colega `to` — ele saiu da cena, da sala, ou a pista não era de quem pediu. */
 export interface ClueShowResultMessage {
   type: 'clue.show.result'
   to: string
   ok: boolean
+  /** Só em `ok: false`, e só com motivo que não revela a cena. Mestre antigo não manda. */
+  reason?: ClueShowRefusal
 }
 
 export type ClueHostMessage = ClueAddedMessage | CluebookMessage | ClueShownMessage | CluePeersMessage | ClueShowResultMessage
@@ -536,9 +545,10 @@ export function parseClueMessage(value: unknown): ClueHostMessage | null {
       return { type: 'clue.peers', names: parsed }
     }
     case 'clue.show.result': {
-      const { to, ok } = value
-      if (!isRoomName(to) || typeof ok !== 'boolean') return null
-      return { type: 'clue.show.result', to, ok }
+      const { to, ok, reason } = value
+      if (!isRoomName(to) || typeof ok !== 'boolean' || (reason !== undefined && typeof reason !== 'string')) return null
+      // Motivo que este jogador não conhece (mestre mais novo) vira a recusa comum.
+      return !ok && reason === 'too_soon' ? { type: 'clue.show.result', to, ok, reason } : { type: 'clue.show.result', to, ok }
     }
     default:
       return null

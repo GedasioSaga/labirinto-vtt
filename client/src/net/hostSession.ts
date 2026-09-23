@@ -1153,7 +1153,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (target === undefined || target.clientId === null) return refused
     const at = now()
     const last = lastClueShowAt.get(playerId)
-    if (last !== undefined && at - last < CLUE_SHOW_MIN_INTERVAL_MS) return refused
+    // Só chega aqui quem está na cena: o "espere" não conta nada que a lista de colegas já não conte.
+    if (last !== undefined && at - last < CLUE_SHOW_MIN_INTERVAL_MS) {
+      return reply(clientId, { type: 'clue.show.result', to: msg.to, ok: false, reason: 'too_soon' })
+    }
     lastClueShowAt.set(playerId, at)
     const { title, text, image } = shown.entry
     const clue = rememberClue(target.playerId, shown.source, { title, text, image }, sender.name)

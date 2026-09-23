@@ -58,6 +58,8 @@ export interface PlayerClueCardProps {
 function resultText(result: ClueShow): string {
   if (result.phase === 'sending') return `Mostrando para ${result.to}…`
   if (result.phase === 'ok') return `Mostrado para ${result.to}.`
+  // O mestre segura um instante entre duas pistas mostradas; o colega continua aqui.
+  if (result.phase === 'too_soon') return `Espere um instante e toque em ${result.to} de novo.`
   // Sem dizer para onde foi: o host só conta que não chegou.
   return `Não deu para mostrar para ${result.to}: não está mais nesta cena.`
 }

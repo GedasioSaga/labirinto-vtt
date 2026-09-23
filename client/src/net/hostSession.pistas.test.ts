@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Pin, Region, Token } from '../types/map'
 import type { HostMessage } from './protocol'
-import { createHostSession, type HostResult, type HostScene, type HostWorld } from './hostSession'
+import { CLUE_SHOW_MIN_INTERVAL_MS, createHostSession, type HostResult, type HostScene, type HostWorld } from './hostSession'
 
 const CODE = 'AB12CD'
 const FOTO = 'data:image/png;base64,QklMSEVURQ=='
@@ -226,6 +226,41 @@ describe('Minhas pistas — "Mostrar para…"', () => {
     const r = s.handleMessage('c-gabi', { type: 'clue.show', clueId: lida.id, to: 'Bruno' }, world)
     expect(msgsPara(r, 'c-bruno')).toEqual([])
     expect(msgsPara(r, 'c-gabi')).toEqual([{ type: 'clue.show.result', to: 'Bruno', ok: false }])
+  })
+
+  it('dois colegas em menos de 1 s: a segunda volta como "espere", não como "saiu da cena", e passa depois do intervalo', () => {
+    let agora = AGORA
+    const base = casa()
+    // Bia também na Casa Velha, ao lado de Gabi e Ana; Bruno segue no Porão.
+    const world: HostWorld = { open: { ...base, map: { ...base.map, tokens: [...base.map.tokens, ficha('bia', 250, 100)] } }, background: [porao()] }
+    let n = 0
+    const s = createHostSession({ code: CODE, visionRadius: 700, now: () => agora, randomId: () => `id-${(n += 1)}` })
+    const gabi = entra(s, 'c-gabi', 'Gabi', world)
+    const ana = entra(s, 'c-ana', 'Ana', world)
+    const bia = entra(s, 'c-bia', 'Bia', world)
+    const bruno = entra(s, 'c-bruno', 'Bruno', world)
+    s.assignToken(gabi.playerId, 'gabi')
+    s.assignToken(ana.playerId, 'ana')
+    s.assignToken(bia.playerId, 'bia')
+    s.assignToken(bruno.playerId, 'bruno')
+    s.broadcast(world)
+    const lida = pistaLida(s.handleMessage('c-gabi', { type: 'clue.read', pinId: 'bilhete' }, world), 'c-gabi')
+    expect(msgsPara(s.handleMessage('c-gabi', { type: 'clue.show', clueId: lida.id, to: 'Ana' }, world), 'c-gabi')).toEqual([
+      { type: 'clue.show.result', to: 'Ana', ok: true },
+    ])
+
+    agora = AGORA + CLUE_SHOW_MIN_INTERVAL_MS / 2
+    const cedo = s.handleMessage('c-gabi', { type: 'clue.show', clueId: lida.id, to: 'Bia' }, world)
+    expect(msgsPara(cedo, 'c-bia')).toEqual([])
+    expect(msgsPara(cedo, 'c-gabi')).toEqual([{ type: 'clue.show.result', to: 'Bia', ok: false, reason: 'too_soon' }])
+    // Quem está em outra cena continua sendo só "não chegou": o "espere" nunca diz que Bruno está na cena.
+    const outraCena = s.handleMessage('c-gabi', { type: 'clue.show', clueId: lida.id, to: 'Bruno' }, world)
+    expect(msgsPara(outraCena, 'c-gabi')).toEqual([{ type: 'clue.show.result', to: 'Bruno', ok: false }])
+
+    agora = AGORA + CLUE_SHOW_MIN_INTERVAL_MS
+    const depois = s.handleMessage('c-gabi', { type: 'clue.show', clueId: lida.id, to: 'Bia' }, world)
+    expect(msgsPara(depois, 'c-gabi')).toEqual([{ type: 'clue.show.result', to: 'Bia', ok: true }])
+    expect(msgsPara(depois, 'c-bia').map((m) => m.type)).toEqual(['clue.shown'])
   })
 
   it('pista que não é dela, ou para si mesma, não sai', () => {

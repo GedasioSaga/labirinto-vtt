@@ -117,6 +117,23 @@ describe('PlayerClueCard', () => {
     expect(container.querySelector('[role="status"]')?.textContent).toBe('Não deu para mostrar para Ana: não está mais nesta cena.')
   })
 
+  it('o host pediu para esperar: diz "espere" (Bruno continua na cena) e o nome segue tocável', () => {
+    act(() =>
+      root.render(
+        <PlayerClueCard
+          clue={BILHETE}
+          title="Bilhete"
+          onClose={() => {}}
+          share={compartilhar({ peers: { phase: 'ready', names: ['Ana', 'Bruno'] }, result: { to: 'Bruno', phase: 'too_soon' } })}
+        />,
+      ),
+    )
+    const status = container.querySelector('[role="status"]')?.textContent
+    expect(status).toBe('Espere um instante e toque em Bruno de novo.')
+    expect(status).not.toContain('não está mais nesta cena')
+    expect(botao('Bruno').disabled).toBe(false)
+  })
+
   it('enviando: os nomes ficam desligados até a resposta', () => {
     act(() =>
       root.render(

@@ -110,7 +110,8 @@ export type CluePeers = { phase: 'loading' } | { phase: 'ready'; names: string[]
 
 export interface ClueShow {
   to: string
-  phase: 'sending' | 'ok' | 'failed'
+  /** `too_soon`: o mestre pediu um instante entre duas pistas mostradas; o colega segue na cena. */
+  phase: 'sending' | 'ok' | 'failed' | 'too_soon'
 }
 
 /** Põe a pista no fim do caderno; a mesma (mesmo id) sai de onde estava. Passou do teto, sai a mais antiga. */
@@ -631,7 +632,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         return
       case 'clue.show.result':
         if (state.clueShow?.phase !== 'sending' || state.clueShow.to !== msg.to) return
-        setState({ clueShow: { to: msg.to, phase: msg.ok ? 'ok' : 'failed' } })
+        setState({ clueShow: { to: msg.to, phase: msg.ok ? 'ok' : msg.reason === 'too_soon' ? 'too_soon' : 'failed' } })
         return
     }
   }

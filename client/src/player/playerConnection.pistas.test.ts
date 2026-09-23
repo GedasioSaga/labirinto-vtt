@@ -153,6 +153,28 @@ describe('playerConnection: Minhas pistas', () => {
     expect(connection.getState().clueShow).toBeUndefined()
   })
 
+  it('o host pediu para esperar (too_soon): o resultado diz isso, e não que o colega saiu', () => {
+    expect(parseClueMessage({ type: 'clue.show.result', to: 'Bruno', ok: false, reason: 'too_soon' })).toEqual({
+      type: 'clue.show.result',
+      to: 'Bruno',
+      ok: false,
+      reason: 'too_soon',
+    })
+    // Motivo que este jogador não conhece (mestre mais novo) vira a recusa comum, sem travar em "Mostrando…".
+    expect(parseClueMessage({ type: 'clue.show.result', to: 'Bruno', ok: false, reason: 'outro' })).toEqual({ type: 'clue.show.result', to: 'Bruno', ok: false })
+    expect(parseClueMessage({ type: 'clue.show.result', to: 'Bruno', ok: false, reason: 7 })).toBeNull()
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'clue.added', clue: BILHETE })
+    connection.showClue('c1', 'Ana')
+    socket.receive({ type: 'clue.show.result', to: 'Ana', ok: true })
+    expect(connection.showClue('c1', 'Bruno')).toBe(true)
+    socket.receive({ type: 'clue.show.result', to: 'Bruno', ok: false, reason: 'too_soon' })
+    expect(connection.getState().clueShow).toEqual({ to: 'Bruno', phase: 'too_soon' })
+    connection.showClue('c1', 'Bruno')
+    socket.receive({ type: 'clue.show.result', to: 'Bruno', ok: false })
+    expect(connection.getState().clueShow).toEqual({ to: 'Bruno', phase: 'failed' })
+  })
+
   it('pista com foto em caminho de disco não entra no caderno', () => {
     const { connection, socket } = jogando()
     socket.receive({ type: 'clue.added', clue: { ...BILHETE, image: 'file:///C:/mestre/mapa.png' } })
