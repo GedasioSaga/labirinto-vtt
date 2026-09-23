@@ -294,6 +294,15 @@ export interface HostSession {
    */
   sendPlayer(playerId: string, toSceneId: string, pinId: string | null, source: HostMapSource, gatherAt?: { x: number; y: number }): HostResult
   /**
+   * "Desfazer" do diário de viagens: devolve a ficha `tokenId` do jogador à
+   * cena `back.sceneId`, na casa (`back.x`, `back.y`) de onde ela saiu. Mesmo
+   * par do "Mandar para…" (`applyTransfer` + `scene.changed` `by: 'master'`,
+   * só ao dono). Nada: jogador desconhecido ou esperando, ficha que não é
+   * dele ou que não está na cena em que ele está, cena de volta sumida ou a
+   * mesma cena.
+   */
+  returnPlayer(playerId: string, tokenId: string, back: { sceneId: string; x: number; y: number }, source: HostMapSource): HostResult
+  /**
    * Raio de visão só deste jogador (limitado à faixa); `null` volta ao global.
    * Não envia: o integrador faz o broadcast. Jogador desconhecido ou raio não finito é ignorado.
    */
@@ -915,6 +924,34 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           toSceneName: to.name,
           x: spot.x,
           y: spot.y,
+        },
+      }
+    },
+
+    returnPlayer(playerId, tokenId, back, source) {
+      const record = players.get(playerId)
+      if (record === undefined || statusOf(playerId) !== 'playing' || !(ownership[playerId] ?? []).includes(tokenId)) return { outbound: [] }
+      const world = toWorld(source)
+      const from = sceneFor(playerId, world)
+      if (from === null || from.sceneId === null || from.sceneId === back.sceneId) return { outbound: [] }
+      // A ficha tem de estar AGORA na cena dele: se saiu por outro caminho, o "Desfazer" é de uma viagem velha.
+      if (!from.map.tokens.some((t) => t.id === tokenId)) return { outbound: [] }
+      const to = allScenes(world).find((scene) => scene.sceneId === back.sceneId)
+      if (to === undefined || to.sceneId === null) return { outbound: [] }
+      currentScene.set(playerId, sceneKey(to))
+      // O pedido que ele tinha na cena de antes perde o sentido: o pino ficou lá.
+      pendingTravels.delete(playerId)
+      return {
+        outbound: record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by: 'master' } }],
+        applyTransfer: {
+          tokenId,
+          playerId,
+          playerName: record.name,
+          fromSceneId: from.sceneId,
+          toSceneId: to.sceneId,
+          toSceneName: to.name,
+          x: back.x,
+          y: back.y,
         },
       }
     },

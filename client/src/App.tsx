@@ -20,6 +20,7 @@ import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
+import type { TravelLogEntry } from './lib/travelLog'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -400,6 +401,8 @@ function App() {
   // Multiplayer em LAN: ponte do mestre criada sob demanda (só dentro do Tauri, ver RoomPanel abaixo).
   const [room, setRoom] = useState<RoomInfo | null>(null)
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
+  // G15 — diário de viagens da sala (só do mestre; a ponte avisa a cada viagem e "Desfazer").
+  const [travelLog, setTravelLog] = useState<TravelLogEntry[]>([])
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
   const hostBridgeRef = useRef<HostBridge | null>(null)
@@ -459,6 +462,7 @@ function App() {
           useAdventureStore.getState().goToPoint(sceneId, { x, y })
         },
         onPlayersChange: setRoomPlayers,
+        onTravelLogChange: setTravelLog,
         onTunnelChange: setTunnel,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
         // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
@@ -510,6 +514,14 @@ function App() {
    * viajou. Só é montado com a aba Jogo existindo (Tauri).
    */
   const roomPanelWorld = () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map)
+  /** "Desfazer" do diário: a ponte devolve a ficha; o aviso confirma para onde, já que a linha some. */
+  const undoTravel = (entryId: string): boolean => {
+    const entry = travelLog.find((e) => e.id === entryId)
+    const bridge = hostBridgeRef.current
+    if (entry === undefined || bridge === null || !bridge.undoTravel(entryId)) return false
+    useToastStore.getState().push('info', `Viagem desfeita: ${entry.tokenName} voltou para ${entry.fromSceneName}`)
+    return true
+  }
   /** Fora do Tauri o rail segue só com o inspetor; no app ganha as abas Mapa | Jogo. */
   const withRoomTabs = (mapPanel: ReactNode): ReactNode => {
     if (!isTauri()) return mapPanel
@@ -537,6 +549,8 @@ function App() {
               followingId,
               onToggleFollow: (member) => useFollowStore.getState().toggle(member.playerId),
             }}
+            // Mapa solto não tem para onde viajar: o diário só aparece com aventura aberta.
+            travelLog={adventure === null ? undefined : { entries: travelLog, onUndo: undoTravel }}
             tunnel={tunnel}
             onStart={() => void handleStartRoom()}
             onStop={() => void handleStopRoom()}

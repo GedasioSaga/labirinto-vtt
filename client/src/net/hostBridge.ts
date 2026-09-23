@@ -3,6 +3,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, RegionPoint } from '../types/map'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
+import { addTravel, travelLogEntry, undoableTravelIds, withoutTravel, type TravelLogEntry } from '../lib/travelLog'
 import {
   createHostSession,
   singleSceneWorld,
@@ -77,6 +78,11 @@ export interface HostBridgeDeps {
   onGoToScene?: (sceneId: string, x: number, y: number) => void
   visionRadius?: number
   onPlayersChange?: (players: PlayerInfo[]) => void
+  /**
+   * Diário de viagens (G15), a mais nova em cima: muda a cada ficha que troca
+   * de cena, a cada "Desfazer" e ao abrir/fechar a sala. Só do mestre.
+   */
+  onTravelLogChange?: (log: TravelLogEntry[]) => void
   onTunnelChange?: (state: TunnelState) => void
   /** Sinal aceito de um jogador (já validado e dentro do limite por segundo). */
   onSignal?: (signal: HostSignal) => void
@@ -118,6 +124,13 @@ export interface HostBridge {
    * receberam (0 = ninguém lá), ou `null` com a sala fechada.
    */
   sceneNote(sceneId: string, text: string): number | null
+  /**
+   * "Desfazer" do diário: devolve a ficha da viagem `entryId` à cena e à casa
+   * de onde saiu, e tira a linha do diário. Só vale para a ÚLTIMA viagem do
+   * jogador; `false` quando não deu (sala fechada, viagem velha, a ficha já
+   * saiu da cena de destino, a cena de volta sumiu) — nada muda.
+   */
+  undoTravel(entryId: string): boolean
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -225,9 +238,30 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const travelToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
+  /** Diário de viagens desta sala, a mais nova em cima. Nunca sai pelo `net_send`. */
+  let travelLog: TravelLogEntry[] = []
+  let travelSeq = 0
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
+
+  const setTravelLog = (next: TravelLogEntry[]) => {
+    if (next === travelLog || (next.length === 0 && travelLog.length === 0)) return
+    travelLog = next
+    deps.onTravelLogChange?.(travelLog)
+  }
+
+  /**
+   * Move a ficha pela store e, se moveu, anota a viagem. A linha é lida do
+   * mundo ANTES de mover: depois, a casa de partida já não está lá.
+   */
+  const moveAndLog = (transfer: AppliedTransfer): boolean => {
+    travelSeq += 1
+    const entry = travelLogEntry(transfer, world(), now(), `viagem-${travelSeq}`)
+    const moved = deps.applyTransfer?.(transfer) ?? false
+    if (moved && entry !== null) setTravelLog(addTravel(travelLog, entry))
+    return moved
+  }
 
   const sendLaser = (message: LaserMessage) => {
     if (session === null) return
@@ -431,7 +465,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * store ANTES de mandar o `scene.changed`, e só avisa a chegada se moveu.
    */
   const completeTransfer = (result: HostResult, transfer: AppliedTransfer) => {
-    const moved = deps.applyTransfer?.(transfer) ?? false
+    const moved = moveAndLog(transfer)
     if (!moved) {
       // O "Você chegou" não pode sair: a ficha não saiu do lugar.
       void dispatch({ outbound: result.outbound.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })) })
@@ -556,6 +590,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now })
       // Sala nova, código novo: o aviso da sala anterior não pode segurar o primeiro desta.
       lastBadCodeToastAt = null
+      // O diário é desta sala: os jogadores da anterior já não estão aqui para desfazer.
+      setTravelLog([])
       unlisteners = [
         await deps.listen('net:message', onMessage),
         await deps.listen('net:peer', onPeer),
@@ -603,6 +639,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       removeListeners()
       session = null
       pruneTravelToasts()
+      setTravelLog([])
       currentRoom = null
       // O Rust derruba o túnel junto com a sala.
       resetTunnel()
@@ -644,7 +681,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const transfer = result.applyTransfer
       // Mesmo caminho do "Deixar ir" (`answerTravel`): a ficha muda de cena
       // antes do `scene.changed` sair, e o snapshot da cena nova vem atrás.
-      const moved = transfer !== undefined && (deps.applyTransfer?.(transfer) ?? false)
+      const moved = transfer !== undefined && moveAndLog(transfer)
       // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
       pruneTravelToasts()
       if (!moved) {
@@ -652,6 +689,29 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         notifyPlayersIfChanged()
         return false
       }
+      void dispatch(result)
+      broadcastNow()
+      notifyPlayersIfChanged()
+      return true
+    },
+
+    undoTravel(entryId) {
+      if (session === null) return false
+      const entry = travelLog.find((e) => e.id === entryId)
+      if (entry === undefined || !undoableTravelIds(travelLog).has(entryId)) return false
+      const back = { sceneId: entry.fromSceneId, x: entry.fromX, y: entry.fromY }
+      const result = session.returnPlayer(entry.playerId, entry.tokenId, back, world())
+      const transfer = result.applyTransfer
+      // A volta é a correção de um engano, não viagem nova: não entra no diário.
+      const moved = transfer !== undefined && (deps.applyTransfer?.(transfer) ?? false)
+      // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
+      pruneTravelToasts()
+      if (!moved) {
+        notifyPlayersIfChanged()
+        return false
+      }
+      setTravelLog(withoutTravel(travelLog, entryId))
+      // Mesma ordem do "Mandar para…": ficha movida, `scene.changed`, e o snapshot da cena de volta.
       void dispatch(result)
       broadcastNow()
       notifyPlayersIfChanged()

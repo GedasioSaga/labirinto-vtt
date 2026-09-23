@@ -1501,6 +1501,44 @@ body {
   min-height: 34px;
 }
 
+/* Diário de viagens (G15), abaixo do Grupo: mesmo poço, linha mais baixa —
+   é leitura corrida; a hora em algarismos de largura fixa alinha a coluna. */
+.lb-travel-log__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-travel-log__row {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 34px;
+}
+
+.lb-travel-log__line {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+  overflow-wrap: anywhere;
+}
+
+.lb-travel-log__time {
+  color: var(--lb-color-parchment-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-travel-log__row > .lb-btn {
+  flex: none;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+}
+
 /* "Reunir o grupo aqui" (painel do pino): a lista de quem vem, no mesmo poço
    do "Mandar para…". Cada linha é o RÓTULO inteiro — clicar no nome marca,
    como clicar no quadrado — com a bolinha da ficha entre os dois. */
