@@ -580,6 +580,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             setSignalArmed(false)
           }}
           onLongPress={(x, y, screenX, screenY) => {
+            // O mestre vê o ponto já no gesto (e o jogador, o eco). Os colegas
+            // só se ele escolher Sinalizar: Espiar e Revistar ficam discretos.
+            connection.sendSignal(x, y, 'master')
             // A câmera arrasta além da borda: fora do mapa não há o que procurar.
             if (map !== undefined && isPointInsideMap(map, x, y)) setPointMenu({ x, y, screenX, screenY, sceneEpoch: state.sceneEpoch })
           }}
@@ -648,6 +651,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           <PointActionMenu
             screenX={openPointMenu.screenX}
             screenY={openPointMenu.screenY}
+            onSignal={() => {
+              // O mesmo ponto do gesto: o host estende aos colegas o sinal que só o mestre viu.
+              connection.sendSignal(openPointMenu.x, openPointMenu.y)
+              setPointMenu(null)
+            }}
             onChoose={(action) => {
               connection.sendPointAction(action, openPointMenu.x, openPointMenu.y)
               setPointMenu(null)

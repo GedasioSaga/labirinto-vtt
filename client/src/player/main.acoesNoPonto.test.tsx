@@ -111,6 +111,7 @@ describe('sessão do jogador: ações no ponto', () => {
   const menu = () => container.querySelector('[role="menu"]')
   const aviso = () => container.querySelector('.pp-notice--point')?.textContent ?? null
   const pedidos = () => socket.sent.filter((m) => JSON.stringify(m).includes('"point.action"'))
+  const sinais = () => socket.sent.filter((m) => JSON.stringify(m).includes('"type":"signal"'))
 
   function escolher(label: string) {
     const item = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((b) => b.textContent === label)
@@ -128,6 +129,28 @@ describe('sessão do jogador: ações no ponto', () => {
     expect(aviso()).toBe('Procurar: esperando o mestre')
     act(() => socket.receive({ type: 'point.action.answer', action: 'procurar', answer: 'nothing' }))
     expect(aviso()).toBe('Você não encontrou nada')
+  })
+
+  // O gesto avisa só o mestre; o ponto piscar para os colegas é o "Sinalizar"
+  // do menu. Sem isso, Espiar e Revistar nunca seriam discretos.
+  it('toque longo manda o sinal só ao mestre; Espiar não pisca nada para os colegas', () => {
+    tocarLongo(120, 130, 200, 150)
+    expect(sinais()).toEqual([{ type: 'signal', x: 120, y: 130, audience: 'master' }])
+    escolher('Espiar')
+    expect(pedidos()).toEqual([{ type: 'point.action', action: 'espiar', x: 120, y: 130 }])
+    expect(sinais()).toEqual([{ type: 'signal', x: 120, y: 130, audience: 'master' }])
+  })
+
+  it('Sinalizar no menu manda o sinal para todos no mesmo ponto, fecha o menu e não vira pedido', () => {
+    tocarLongo(120.4, 129.6, 200, 150)
+    escolher('Sinalizar')
+    expect(sinais()).toEqual([
+      { type: 'signal', x: 120, y: 130, audience: 'master' },
+      { type: 'signal', x: 120, y: 130 },
+    ])
+    expect(menu()).toBeNull()
+    expect(pedidos()).toEqual([])
+    expect(aviso()).toBeNull()
   })
 
   it('toque longo fora do mapa (câmera arrastada até a borda escura) não abre o menu', () => {

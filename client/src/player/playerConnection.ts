@@ -13,6 +13,7 @@ import {
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type PlayerMessage,
+  type SignalAudience,
 } from '../net/protocol'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
@@ -167,8 +168,11 @@ export interface PlayerConnection {
   subscribe(listener: () => void): () => void
   /** Move otimista: aplica local e envia. `false` se o token não existe ou o socket não está aberto. */
   requestMove(tokenId: string, x: number, y: number): boolean
-  /** Sinal no ponto (px de mundo). `false` se não está jogando ou o socket não está aberto. */
-  sendSignal(x: number, y: number): boolean
+  /**
+   * Sinal no ponto (px de mundo). `audience: 'master'` só o mestre vê (o do
+   * toque longo). `false` se não está jogando ou o socket não está aberto.
+   */
+  sendSignal(x: number, y: number, audience?: SignalAudience): boolean
   /** Pede ao mestre para abrir/fechar a porta. `false` se não está jogando ou o socket não está aberto. */
   toggleDoor(wallId: string): boolean
   /**
@@ -888,9 +892,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       setState({ map: withTokenAt(map, tokenId, x, y) })
       return true
     },
-    sendSignal(x, y) {
+    sendSignal(x, y, audience) {
       if (state.status !== 'playing' || !Number.isFinite(x) || !Number.isFinite(y)) return false
-      return send({ type: 'signal', x: Math.round(x), y: Math.round(y) })
+      const point = { x: Math.round(x), y: Math.round(y) }
+      return send(audience === undefined ? { type: 'signal', ...point } : { type: 'signal', ...point, audience })
     },
     toggleDoor(wallId) {
       if (state.status !== 'playing' || wallId.length === 0) return false

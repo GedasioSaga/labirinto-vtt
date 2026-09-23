@@ -79,9 +79,10 @@ interface PlayerViewProps {
   signalArmed?: boolean
   onSignal?: (x: number, y: number) => void
   /**
-   * AÇÕES NO PONTO: o toque longo acabou de virar sinal em (`x`, `y`) de mundo,
-   * com o dedo em (`screenX`, `screenY`) de tela. Quem monta abre ali o menu
-   * Procurar/Escutar/Espiar/Revistar. O sinal sai igual, com ou sem isto.
+   * AÇÕES NO PONTO: o toque longo venceu em (`x`, `y`) de mundo, com o dedo em
+   * (`screenX`, `screenY`) de tela. Quem monta abre ali o menu
+   * Sinalizar/Procurar/Escutar/Espiar/Revistar e decide o sinal: com isto, o
+   * toque longo NÃO chama `onSignal`; sem isto, chama (o sinal de sempre).
    */
   onLongPress?: (x: number, y: number, screenX: number, screenY: number) => void
   /** Qualquer toque no mapa: o menu do toque longo anterior fecha. */
@@ -1113,7 +1114,7 @@ export function PlayerView({
           longPress = null
           // Virou sinal: o gesto não continua como arrasto de câmera.
           if (scene.drag?.kind === 'pan') scene.drag = null
-          // Sinal e, no mesmo ponto, o menu Procurar/Escutar/... (ações no ponto).
+          // Com as ações no ponto, o menu Sinalizar/Procurar/...; sem elas, o sinal.
           fireLongPress(scene.world.toLocal({ x, y }), { x, y }, latestRef.current)
         }, SIGNAL_LONG_PRESS_MS)
         longPress = { timer, x, y }

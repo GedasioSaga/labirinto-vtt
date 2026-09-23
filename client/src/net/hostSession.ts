@@ -575,8 +575,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: o último pedido de passagem, de qualquer pino. Sobrevive ao
   // disconnect; só o kick apaga.
   const lastTravelRequestByPlayer = new Map<string, number>()
-  // Por playerId: reconectar não zera o limite de 1 sinal por segundo.
-  const lastSignalAt = new Map<string, number>()
+  // Por playerId: reconectar não zera o limite de 1 sinal por segundo. Guarda
+  // também o ponto e se os colegas já receberam, para o "Sinalizar" do menu
+  // estender aos colegas o sinal que o toque longo mandou só ao mestre.
+  const lastSignal = new Map<string, { at: number; x: number; y: number; relayed: boolean }>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
   const lastDoorToggleAt = new Map<string, number>()
   // Por playerId: o pedido da porta trancada que espera o mestre (no máximo um).
@@ -833,9 +835,34 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * O repasse do sinal aos colegas: só quem joga na mesma cena e já conhece o
+   * ponto, e nunca ponto em zona oculta ativa ou sala secreta — senão o sinal
+   * diria que existe algo naquele lugar.
+   */
+  function relaySignalToColleagues(playerId: string, scene: HostScene, message: HostMessage, point: RegionPoint, world: HostWorld): Outbound[] {
+    const map = scene.map
+    // Sala secreta vale como zona oculta: repassar o sinal diria aos outros que ali existe algo.
+    if (playerBlockedRings(map).some((ring) => ring.length >= 3 && pointInRing(point, ring))) return []
+    const outbound: Outbound[] = []
+    for (const [otherClient, otherId] of byClient) {
+      if (otherId === playerId || statusOf(otherId) !== 'playing') continue
+      // Quem está em outra cena não recebe: o ponto é deste mapa, e a
+      // memória antiga dele desta cena diria que o sinal é para lá.
+      if (sceneFor(otherId, world) !== scene) continue
+      if (knowsPoint(otherId, map, point)) outbound.push({ clientId: otherClient, msg: message })
+    }
+    return outbound
+  }
+
+  /**
    * O mestre sempre recebe o sinal (campo `signal`) e quem sinalizou recebe o
-   * eco. Outro jogador só recebe se já conhece o ponto e o ponto está fora de
-   * zona oculta ativa: senão o sinal diria que existe algo naquele lugar.
+   * eco. Os colegas recebem pela regra de `relaySignalToColleagues`, menos no
+   * sinal `audience: 'master'` (o do toque longo, antes do menu).
+   *
+   * "Sinalizar" no menu logo depois do toque longo repete o MESMO ponto dentro
+   * do intervalo mínimo: em vez de ser descartado, estende o sinal discreto aos
+   * colegas, uma vez, sem novo ping nem bipe no mestre (ele já recebeu).
+   *
    * Sinal fora do mapa, de quem não joga ou antes do intervalo mínimo é
    * descartado em silêncio (não é mensagem malformada).
    */
@@ -848,26 +875,22 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (scene === null) return { outbound: [] }
     const map = scene.map
     if (msg.x < 0 || msg.y < 0 || msg.x > map.width * map.grid || msg.y > map.height * map.grid) return { outbound: [] }
-    const at = now()
-    const last = lastSignalAt.get(playerId)
-    if (last !== undefined && at - last < SIGNAL_MIN_INTERVAL_MS) return { outbound: [] }
-    lastSignalAt.set(playerId, at)
-
     const point = { x: msg.x, y: msg.y }
     const color = signalColor(playerId)
     const message: HostMessage = { type: 'signal', x: msg.x, y: msg.y, from: record.name, color }
-    const outbound: Outbound[] = [{ clientId, msg: message }]
-    // Sala secreta vale como zona oculta: repassar o sinal diria aos outros que ali existe algo.
-    const inBlockedArea = playerBlockedRings(map).some((ring) => ring.length >= 3 && pointInRing(point, ring))
-    if (!inBlockedArea) {
-      for (const [otherClient, otherId] of byClient) {
-        if (otherId === playerId || statusOf(otherId) !== 'playing') continue
-        // Quem está em outra cena não recebe: o ponto é deste mapa, e a
-        // memória antiga dele desta cena diria que o sinal é para lá.
-        if (sceneFor(otherId, world) !== scene) continue
-        if (knowsPoint(otherId, map, point)) outbound.push({ clientId: otherClient, msg: message })
-      }
+    const toColleagues = msg.audience !== 'master'
+    const at = now()
+    const last = lastSignal.get(playerId)
+    if (last !== undefined && at - last.at < SIGNAL_MIN_INTERVAL_MS) {
+      const extendsLast = toColleagues && !last.relayed && last.x === msg.x && last.y === msg.y
+      if (!extendsLast) return { outbound: [] }
+      last.relayed = true
+      return { outbound: relaySignalToColleagues(playerId, scene, message, point, world) }
     }
+    lastSignal.set(playerId, { at, x: msg.x, y: msg.y, relayed: toColleagues })
+
+    const outbound: Outbound[] = [{ clientId, msg: message }]
+    if (toColleagues) outbound.push(...relaySignalToColleagues(playerId, scene, message, point, world))
     const signal: HostSignal = { playerId, name: record.name, color, x: msg.x, y: msg.y }
     // Mesma regra de `backgroundSceneId`: a cena aberta e o mapa solto não levam o campo.
     if (scene !== world.open && scene.sceneId !== null) signal.background = { sceneId: scene.sceneId, name: scene.name }
@@ -1534,7 +1557,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       currentScene.delete(playerId)
       forgetTravelsOf(playerId)
       forgetPointActionsOf(playerId)
-      lastSignalAt.delete(playerId)
+      lastSignal.delete(playerId)
       lastDoorToggleAt.delete(playerId)
       pendingDoors.delete(playerId)
       lastDoorRequestAt.delete(playerId)

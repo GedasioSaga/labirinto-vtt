@@ -121,11 +121,20 @@ export interface PingMessage {
   type: 'ping'
 }
 
+/**
+ * Quem vê o sinal além de quem sinalizou. `master`: só o mestre — é o sinal
+ * que sai com o toque longo, antes de o jogador escolher no menu (Espiar e
+ * Revistar ficam discretos para os colegas). Sem o campo: também os colegas
+ * da cena que conhecem o ponto (o sinal de sempre, e o "Sinalizar" do menu).
+ */
+export type SignalAudience = 'master'
+
 /** Sinal (ping de mapa) do jogador. Não confundir com `ping`, que é o heartbeat. */
 export interface SignalMessage {
   type: 'signal'
   x: number
   y: number
+  audience?: SignalAudience
 }
 
 /**
@@ -378,6 +387,19 @@ function parseTokenMove(obj: Record<string, unknown>): TokenMoveMessage | null {
 }
 
 /**
+ * Sinal. `audience` é opcional; presente, só vale `master` — qualquer outra
+ * coisa recusa a mensagem, em vez de cair calada no sinal para todos (o
+ * jogador pediu discrição e o ponto piscaria para os colegas).
+ */
+function parseSignal(obj: Record<string, unknown>): SignalMessage | null {
+  const { x, y, audience } = obj
+  if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null
+  if (audience === undefined) return { type: 'signal', x, y }
+  if (audience !== 'master') return null
+  return { type: 'signal', x, y, audience }
+}
+
+/**
  * Pedido de passagem. `exitId` é opcional; presente, tem de ser texto curto —
  * qualquer outra coisa recusa a mensagem inteira, em vez de cair calada na
  * saída principal (o jogador escolheu uma porta e iria por outra).
@@ -538,7 +560,7 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'ping':
       return { type: 'ping' }
     case 'signal':
-      return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
+      return parseSignal(value)
     case 'door.toggle':
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
     case 'door.request':

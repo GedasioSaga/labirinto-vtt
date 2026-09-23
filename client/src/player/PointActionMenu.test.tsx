@@ -19,9 +19,9 @@ describe('PointActionMenu (toque longo no mapa)', () => {
     container.remove()
   })
 
-  function render(onChoose = vi.fn(), onClose = vi.fn()) {
-    act(() => root.render(<PointActionMenu screenX={200} screenY={150} onChoose={onChoose} onClose={onClose} />))
-    return { onChoose, onClose }
+  function render(onChoose = vi.fn(), onClose = vi.fn(), onSignal = vi.fn()) {
+    act(() => root.render(<PointActionMenu screenX={200} screenY={150} onSignal={onSignal} onChoose={onChoose} onClose={onClose} />))
+    return { onChoose, onClose, onSignal }
   }
 
   function itens(): HTMLButtonElement[] {
@@ -34,20 +34,30 @@ describe('PointActionMenu (toque longo no mapa)', () => {
     })
   }
 
-  it('abre um menu com Procurar, Escutar, Espiar e Revistar, com o foco no primeiro', () => {
+  it('abre um menu com Sinalizar, Procurar, Escutar, Espiar e Revistar, com o foco no primeiro', () => {
     render()
     const menu = container.querySelector('[role="menu"]')
     expect(menu?.getAttribute('aria-label')).toBe('Ações no ponto')
-    expect(itens().map((b) => b.textContent)).toEqual(['Procurar', 'Escutar', 'Espiar', 'Revistar'])
+    expect(itens().map((b) => b.textContent)).toEqual(['Sinalizar', 'Procurar', 'Escutar', 'Espiar', 'Revistar'])
     expect(document.activeElement).toBe(itens()[0])
   })
 
-  it('escolher Procurar devolve a ação', () => {
-    const { onChoose } = render()
-    act(() => itens()[0]?.click())
+  it('escolher Procurar devolve a ação, sem sinalizar', () => {
+    const { onChoose, onSignal } = render()
+    act(() => itens()[1]?.click())
     expect(onChoose).toHaveBeenCalledWith('procurar')
-    act(() => itens()[3]?.click())
+    act(() => itens()[4]?.click())
     expect(onChoose).toHaveBeenLastCalledWith('revistar')
+    expect(onSignal).not.toHaveBeenCalled()
+  })
+
+  it('Sinalizar é escolha do menu: chama onSignal e não vira pedido', () => {
+    const { onChoose, onSignal } = render()
+    const sinalizar = itens().find((b) => b.textContent === 'Sinalizar')
+    expect(sinalizar).toBeDefined()
+    act(() => sinalizar?.click())
+    expect(onSignal).toHaveBeenCalledTimes(1)
+    expect(onChoose).not.toHaveBeenCalled()
   })
 
   it('setas andam entre os itens (com volta), e Escape fecha', () => {
@@ -56,11 +66,11 @@ describe('PointActionMenu (toque longo no mapa)', () => {
     expect(document.activeElement).toBe(itens()[1])
     tecla('ArrowUp')
     tecla('ArrowUp')
-    expect(document.activeElement).toBe(itens()[3])
+    expect(document.activeElement).toBe(itens()[4])
     tecla('Home')
     expect(document.activeElement).toBe(itens()[0])
     tecla('End')
-    expect(document.activeElement).toBe(itens()[3])
+    expect(document.activeElement).toBe(itens()[4])
     tecla('Escape')
     expect(onClose).toHaveBeenCalledTimes(1)
   })
@@ -75,7 +85,7 @@ describe('PointActionMenu (toque longo no mapa)', () => {
   it('perto da borda direita e de baixo, vira para o outro lado do ponto (ainda sem cobri-lo)', () => {
     const x = window.innerWidth - 20
     const y = window.innerHeight - 20
-    act(() => root.render(<PointActionMenu screenX={x} screenY={y} onChoose={vi.fn()} onClose={vi.fn()} />))
+    act(() => root.render(<PointActionMenu screenX={x} screenY={y} onSignal={vi.fn()} onChoose={vi.fn()} onClose={vi.fn()} />))
     const menu = container.querySelector<HTMLElement>('[role="menu"]')
     // Virou encostado no ponto, do outro lado: o canto fica a exatos OFFSET px do dedo.
     expect(Number.parseFloat(menu?.style.left ?? '')).toBe(x - POINT_MENU_OFFSET_PX - POINT_MENU_WIDTH_PX)
