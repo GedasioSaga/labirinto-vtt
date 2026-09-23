@@ -129,6 +129,17 @@ const PAPEIS_DA_CAIXA = ['dialog', 'alertdialog', 'region', 'group', 'alert', 's
 const escapar = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 /** A frase do pedido de um jogador: "<jogador> quer passar por <pino> → <cena>". */
 const frasePedido = (jogador: string): RegExp => new RegExp(`${jogador}[^]*quer passar[^]*${escapar(ESCADA_A)}[^]*${escapar(CENA_B)}`)
+/**
+ * A MESMA frase, mas inteira num elemento só, do começo ao fim: é o texto da
+ * linha, não um contêiner cujo texto junta vários filhos. A frouxa acima
+ * (`[^]*`) casava o bloco em que "Bruno" aparecia ANTES de uma frase de outro
+ * jogador — quem decidia qual linha era "a do Bruno" era a ordem do DOM.
+ * A frouxa fica só nas contagens de "tem de sumir" (achar mais é mais rigoroso).
+ */
+const frasePedidoExata = (jogador: string): RegExp =>
+  new RegExp(`^\\s*${escapar(jogador)} quer passar por ${escapar(ESCADA_A)} → ${escapar(CENA_B)}\\s*$`)
+/** Uma frase de pedido inteira num elemento só, de QUALQUER jogador que não seja `jogador`. */
+const fraseDeOutroPedido = (jogador: string): RegExp => new RegExp(`^\\s*(?!${escapar(jogador)} )\\S[^]*quer passar`)
 const QUALQUER_PEDIDO = /quer passar/
 const tituloDaCaixa = (n: number | null): RegExp => (n === null ? /^\s*Pedidos \(\d+\)\s*$/ : new RegExp(`^\\s*Pedidos \\(${n}\\)\\s*$`))
 
@@ -510,7 +521,7 @@ async function pedirParaPassar(j: Jogador): Promise<void> {
 async function tresPedem(mestre: Page, jogadores: readonly Jogador[]): Promise<void> {
   for (const j of jogadores) await pedirParaPassar(j)
   for (const j of jogadores) {
-    await expect(mestre.getByText(frasePedido(j.nome)).first(), `o mestre deveria ler "${j.nome} quer passar por ${ESCADA_A} → ${CENA_B}"`).toBeVisible({ timeout: ESPERA })
+    await expect(mestre.getByText(frasePedidoExata(j.nome)).first(),`o mestre deveria ler "${j.nome} quer passar por ${ESCADA_A} → ${CENA_B}"`).toBeVisible({ timeout: ESPERA })
   }
 }
 
@@ -534,7 +545,13 @@ function caixaDePedidos(mestre: Page, n: number | null): Locator {
   return porNome.or(porTitulo).last()
 }
 
-/** A linha de um jogador dentro de `onde`: o menor bloco com a frase dele e um "Deixar ir". */
+/**
+ * A LINHA de um jogador dentro de `onde`: o bloco que tem, num elemento só, a
+ * frase inteira dele ("<jogador> quer passar por <pino> → <cena>"), um
+ * "Deixar ir", e NENHUMA frase de pedido de outro jogador. Ler dentro da linha,
+ * e não num contêiner que junta o texto de várias linhas, é o que prova que o
+ * "Não" clicado na linha do Bruno é o do pedido do Bruno.
+ */
 function linhaDe(onde: Page | Locator, jogador: string): Locator {
   // O `has` é procurado DENTRO de cada candidato. Vindo de `onde` quando
   // `onde` é a caixa, o seletor começava pela caixa e exigia uma caixa dentro
@@ -543,7 +560,8 @@ function linhaDe(onde: Page | Locator, jogador: string): Locator {
   const pagina: Page = 'goto' in onde ? onde : onde.page()
   return onde
     .locator('div, li, section, aside, [role]')
-    .filter({ hasText: frasePedido(jogador) })
+    .filter({ has: pagina.getByText(frasePedidoExata(jogador)) })
+    .filter({ hasNot: pagina.getByText(fraseDeOutroPedido(jogador)) })
     .filter({ has: pagina.getByRole('button', { name: DEIXAR_IR, exact: true }) })
     .last()
 }
@@ -633,7 +651,10 @@ test('3. "Não" na linha de Bruno: Bruno lê a recusa, a caixa cai para "Pedidos
 })
 
 test('4. "Deixar todos": Ana e Carla chegam na Cripta, Bruno (recusado antes) fica no Salão e a caixa some', async ({ browser, page, baseURL }) => {
-  test.setTimeout(180_000)
+  // Quatro páginas, três pedidos, uma recusa e dois cartões de chegada: medido em 22/09/2026 com a
+  // máquina a 100% de CPU, este caso passou dos 180 s duas vezes com as chegadas já na tela
+  // (tempo, não defeito). Mesmo teto da jornada 1 do acervo; nenhuma asserção mudou.
+  test.setTimeout(300_000)
   const { ana, bruno, carla } = await mesaDeTres(browser, page, baseURL ?? '')
   await tresPedem(page, [ana, bruno, carla])
   const caixa = await caixaComLinhas(page, [ANA, BRUNO, CARLA])
