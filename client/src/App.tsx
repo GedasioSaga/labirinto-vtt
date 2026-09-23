@@ -14,6 +14,7 @@ import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } fr
 import { useSignalStore } from './stores/signalStore'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { useFollowStore } from './stores/followStore'
+import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeStore'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
@@ -118,6 +119,8 @@ function pararDeOuvir(unlisten: (() => void) | undefined): void {
 
 /** Aviso de sucesso de Salvar (botão, Ctrl+S) e de sair por Início. */
 const MAP_SAVED_TEXT = 'Mapa salvo'
+/** Cena sem nenhum valor de iniciativa: referência estável, sem render novo à toa. */
+const NO_INITIATIVE_VALUES: Readonly<Record<string, number>> = {}
 
 /** Toda peça nova nasce ocupando uma célula; o painel muda o tamanho depois. */
 const NEW_TOKEN_SIZE = 1
@@ -402,6 +405,9 @@ function App() {
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
+  // INICIATIVA (aba Jogo): valores por cena e a vez. Estado da mesa, fora do arquivo do mapa.
+  const initiativeValues = useInitiativeStore((state) => state.values)
+  const initiativeTurn = useInitiativeStore((state) => state.turn)
   const hostBridgeRef = useRef<HostBridge | null>(null)
   const hostBridge = (): HostBridge => {
     if (!hostBridgeRef.current) {
@@ -460,6 +466,8 @@ function App() {
         },
         onPlayersChange: setRoomPlayers,
         onTunnelChange: setTunnel,
+        // A vez vai no snapshot, recortada por jogador (`turnForPlayer`): ficha que ele não vê não vira vez.
+        getTurn: () => useInitiativeStore.getState().turn,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
         // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
         // outro mapa): vira o aviso "chamou em", com "Ir lá" (`net/chamadoDeFundo.ts`).
@@ -475,6 +483,14 @@ function App() {
     return hostBridgeRef.current
   }
   useEffect(() => useMapStore.subscribe((state) => state.map, () => hostBridgeRef.current?.notifyMapChanged()), [])
+  // A vez andou: os jogadores sabem na hora (o "Sua vez" não espera outra edição do mapa).
+  useEffect(
+    () =>
+      useInitiativeStore.subscribe((state, previous) => {
+        if (state.turn !== previous.turn) hostBridgeRef.current?.notifyTurnChanged()
+      }),
+    [],
+  )
   const laserToggled = useLaserStore((state) => state.toggled)
   // B2 — o `off` sai no fim do traço: soltar o botão, sair da janela ou desarmar (L e botão Laser).
   useEffect(
@@ -536,6 +552,15 @@ function App() {
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
               followingId,
               onToggleFollow: (member) => useFollowStore.getState().toggle(member.playerId),
+            }}
+            initiative={{
+              tokens: map.tokens.map((token) => ({ id: token.id, name: token.name })),
+              values: initiativeValues[map.id] ?? NO_INITIATIVE_VALUES,
+              turnTokenId: initiativeTurn !== null && initiativeTurn.mapId === map.id ? initiativeTurn.tokenId : null,
+              onValueChange: (tokenId, value) => useInitiativeStore.getState().setValue(map.id, tokenId, value),
+              onStart: () => startTurn(map.id, map.tokens),
+              onNext: () => advanceTurn(map.id, map.tokens),
+              onStop: () => useInitiativeStore.getState().stop(),
             }}
             tunnel={tunnel}
             onStart={() => void handleStartRoom()}

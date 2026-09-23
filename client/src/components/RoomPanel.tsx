@@ -1,6 +1,7 @@
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type PlayerInfo } from '../net/hostSession'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
+import { InitiativeSection, type InitiativeSectionProps } from './InitiativeSection'
 
 export interface RoomPanelToken {
   id: string
@@ -19,6 +20,8 @@ export interface RoomPanelProps {
   knownTokens?: RoomPanelToken[]
   /** Seção "Grupo" (uma linha por jogador, "Ir lá" e "Mandar para…"). Ausente = sem a seção. */
   party?: PartySectionProps
+  /** Seção "Iniciativa" (ordem e vez). Ausente = sem a seção. Aparece com a sala aberta ou fechada. */
+  initiative?: InitiativeSectionProps
   tunnel: TunnelState
   onStart(): void
   onStop(): void
@@ -180,6 +183,7 @@ export function RoomPanel({
   tokens,
   knownTokens,
   party,
+  initiative,
   tunnel,
   onStart,
   onStop,
@@ -205,6 +209,8 @@ export function RoomPanel({
             Abrir sala
           </button>
           <FirewallHint />
+          {/* Combate sem jogador na rede também tem ordem: a seção não espera a sala. */}
+          {initiative !== undefined && <InitiativeSection {...initiative} />}
         </>
       ) : (
         <>
@@ -219,6 +225,9 @@ export function RoomPanel({
 
           {/* O grupo vem antes do resto: é o que o mestre consulta a cada cena, o resto é de montar a sala. */}
           {party !== undefined && party.members.length > 0 && <PartySection {...party} />}
+
+          {/* Iniciativa logo depois do Grupo: no combate é o que o mestre toca a cada vez. */}
+          {initiative !== undefined && <InitiativeSection {...initiative} />}
 
           {onToggleLaser !== undefined && (
             <div className="lb-field">

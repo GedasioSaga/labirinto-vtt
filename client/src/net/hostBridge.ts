@@ -16,6 +16,7 @@ import {
   type TravelRequest,
 } from './hostSession'
 import type { LaserMessage } from './protocol'
+import type { TurnRef } from '../lib/initiative'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -80,6 +81,8 @@ export interface HostBridgeDeps {
   onTunnelChange?: (state: TunnelState) => void
   /** Sinal aceito de um jogador (já validado e dentro do limite por segundo). */
   onSignal?: (signal: HostSignal) => void
+  /** INICIATIVA: de quem é a vez no mestre. O jogador só recebe o recorte (`turnForPlayer`). */
+  getTurn?: () => TurnRef | null
   now?: () => number
 }
 
@@ -118,6 +121,8 @@ export interface HostBridge {
    * receberam (0 = ninguém lá), ou `null` com a sala fechada.
    */
   sceneNote(sceneId: string, text: string): number | null
+  /** A vez mudou (começar, próxima, encerrar): snapshot na hora, para o "sua vez" não esperar outra edição. */
+  notifyTurnChanged(): void
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -553,7 +558,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     try {
       const room = parseRoomInfo(await deps.invoke('net_start_room'))
       if (room === null) throw new Error('resposta inválida de net_start_room')
-      session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now })
+      session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now, getTurn: deps.getTurn })
       // Sala nova, código novo: o aviso da sala anterior não pode segurar o primeiro desta.
       lastBadCodeToastAt = null
       unlisteners = [
@@ -616,6 +621,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
     notifyMapChanged() {
       scheduleBroadcast()
+    },
+
+    notifyTurnChanged() {
+      // Um snapshot que já estava na fila sai agora, com a vez nova dentro.
+      cancelPendingBroadcast()
+      broadcastNow()
     },
 
     setVisionRadius(playerId, radius) {

@@ -118,3 +118,14 @@ export const SECRET_ITEM_ALPHA = 0.5
 export const TOKEN_FRAME_COLOR = 0xe0a44a
 /** Espessura da moldura, em px de mundo: a foto é recortada no raio do token MENOS isto. */
 export const TOKEN_FRAME_WIDTH = 4
+
+/**
+ * INICIATIVA — o anel da ficha da VEZ, no mapa do mestre e na tela do jogador.
+ * Linha fina clara, SOLTA do disco (o vão diz "isto é marca, não é a ficha"):
+ * a mesma língua da parede do minimapa, sem brigar com o amarelo da seleção
+ * (`SELECTION_COLOR`), que continua dizendo "selecionado". Px de mundo.
+ */
+export const TURN_RING_COLOR = 0xffffff
+export const TURN_RING_WIDTH = 3
+/** Vão entre a borda da ficha e o anel da vez. */
+export const TURN_RING_GAP = 5

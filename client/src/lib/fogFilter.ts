@@ -1,5 +1,6 @@
 import type { DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
 import { isTokenPhotoData } from './tokenPhoto'
+import type { TurnRef } from './initiative'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
@@ -732,6 +733,18 @@ export function filterMapForPlayer(
 /** O host vê o mapa inteiro, inclusive itens ocultos. */
 export function filterMapForHost(map: MapData): MapData {
   return map
+}
+
+/**
+ * INICIATIVA — de quem é a vez, como o jogador pode saber: o id da ficha da
+ * vez SÓ quando ela está no recorte que ele já recebe (`view`, a saída de
+ * `filterMapForPlayer`) e a vez é deste mapa. Ficha secreta, oculta, atrás da
+ * parede, fora da visão ou de outra cena não está no recorte: `null`, e o
+ * campo nem sai — "é a vez de alguém que você não vê" já diria que há alguém.
+ */
+export function turnForPlayer(view: MapData, turn: TurnRef | null): string | null {
+  if (turn === null || turn.mapId !== view.id) return null
+  return view.tokens.some((t) => t.id === turn.tokenId) ? turn.tokenId : null
 }
 
 /**
