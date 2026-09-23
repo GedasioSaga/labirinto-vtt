@@ -140,6 +140,15 @@ describe('Dar a… no cliente do jogador', () => {
     expect(notice && itemNoticeText(notice)).toBe('Chegue mais perto para dar')
   })
 
+  it('o snapshot traz as fichas de colegas; ausente vira lista vazia; malformado descarta a mensagem', () => {
+    const { connection, socket } = jogando()
+    expect(connection.getState().partyTokens).toEqual([])
+    socket.receive({ type: 'snapshot', rev: 2, map: mapa(), vision: [], ownTokens: ['diego'], concealed: [], partyTokens: ['bruno'] })
+    expect(connection.getState().partyTokens).toEqual(['bruno'])
+    socket.receive({ type: 'snapshot', rev: 3, map: mapa(), vision: [], ownTokens: ['diego'], concealed: [], partyTokens: [7] })
+    expect(connection.getState().rev).toBe(2)
+  })
+
   it('item que não está na mochila dele não sai', () => {
     const { connection, socket } = jogando()
     expect(connection.giveItem('inventado', 'bruno')).toBe(false)

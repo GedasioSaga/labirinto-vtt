@@ -259,4 +259,18 @@ describe('Dar a um colega encostado', () => {
       expect(r.outbound).toEqual([{ clientId, msg: { type: 'item.give.rejected', reason: 'unavailable' } }])
     }
   })
+
+  it('o snapshot diz quais fichas vistas são de COLEGAS: NPC do mestre e a própria ficha ficam de fora', () => {
+    const t = mesa(mansao([], [token('diego', 180, 200), token('bruno', 240, 200), token('zumbi', 180, 240), token('carla', 600, 200)]))
+    const envio = t.s.broadcast(t.world)
+    expect(snapshotFor(envio, 'c1').partyTokens).toEqual(['bruno', 'carla'])
+    expect(snapshotFor(envio, 'c2').partyTokens).toEqual(['diego', 'carla'])
+  })
+
+  it('SEGURANÇA: ficha de colega que ele não vê não entra na lista', () => {
+    const t = mesa(mansao([], [token('diego', 180, 200), token('bruno', 240, 200), token('carla', 600, 200, { hidden: true })]))
+    const doDiego = snapshotFor(t.s.broadcast(t.world), 'c1')
+    expect(doDiego.partyTokens).toEqual(['bruno'])
+    expect(JSON.stringify(doDiego)).not.toContain('carla')
+  })
 })

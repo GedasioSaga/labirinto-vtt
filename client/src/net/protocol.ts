@@ -55,6 +55,9 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * (jogador -> mestre) e, na volta, `pin.take.rejected`, `pin.take.answer` e
  * `item.give.rejected`. A mochila viaja no token do PRÓPRIO jogador, no
  * snapshot (`Token.mochila`); a de outro nunca sai (`lib/fogFilter.ts`).
+ * `snapshot.partyTokens` também é aditivo: quais das fichas que o jogador já
+ * recebeu são de colegas. Jogador antigo ignora; host antigo não manda, e o
+ * "Dar a…" fica sem colega (em vez de oferecer quem o host recusaria).
  */
 export const PROTOCOL_VERSION = 1
 
@@ -240,8 +243,9 @@ export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
   | { type: 'welcome'; playerId: string; resumeToken: string; name: string }
   | { type: 'lobby.waiting' }
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
+  // `partyTokens` (ITEM PEGÁVEL): das fichas que ele recebeu, as de OUTROS jogadores — o "Dar a…" não oferece NPC.
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; partyTokens?: string[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; partyTokens?: string[] }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }

@@ -6,6 +6,7 @@ import {
   applyItemChange,
   carriedItemsOf,
   cleanItemName,
+  giveTargets,
   itemOfPin,
   readCarriedItems,
   readPinItem,
@@ -126,5 +127,20 @@ describe('cleanItemName', () => {
   it('apara e corta no teto', () => {
     expect(cleanItemName('  Chave  ')).toBe('Chave')
     expect(cleanItemName('y'.repeat(ITEM_NAME_MAX_LENGTH + 1))).toHaveLength(ITEM_NAME_MAX_LENGTH)
+  })
+})
+
+describe('giveTargets: o "Dar a…" do jogador só oferece colega que pode receber', () => {
+  it('ficha encostada de NPC/monstro do mestre não aparece; a de colega encostado sim', () => {
+    const map = { ...mapa(), tokens: [token('diego', 180, 200), token('bruno', 230, 200), token('zumbi', 180, 250), token('carla', 600, 600)] }
+    expect(giveTargets(map, ['diego'], ['bruno', 'carla'])).toEqual([{ tokenId: 'bruno', name: 'bruno' }])
+  })
+
+  it('sem a lista de colegas (host antigo): ninguém, em vez de oferecer quem o host recusaria', () => {
+    expect(giveTargets(mapa(), ['diego'], [])).toEqual([])
+  })
+
+  it('a própria ficha nunca é colega, mesmo marcada como tal', () => {
+    expect(giveTargets(mapa(), ['diego', 'bruno'], ['bruno'])).toEqual([])
   })
 })

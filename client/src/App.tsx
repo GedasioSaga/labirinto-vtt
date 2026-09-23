@@ -19,7 +19,7 @@ import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
-import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
+import { partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -32,6 +32,7 @@ import { OptionsScreen } from './screens/OptionsScreen'
 import { useMapStore } from './stores/mapStore'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
+  applyItemsInScene,
   hasUnsavedWork,
   hostWorldOf,
   pinExitsTravelOf,
@@ -56,7 +57,6 @@ import { isArrivalOnly } from './lib/pinTravel'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
-import { applyItemChange } from './lib/items'
 import { countEntitiesByLayer } from './lib/layers'
 import { findTokenSpawn, tokenRadiusFor, wallClearanceForScale } from './lib/tokenPlacement'
 import { roomDimensions } from './lib/roomOps'
@@ -450,17 +450,11 @@ function App() {
           if (wall?.door) store.setWallDoor(wallId, { ...wall.door, open: true, locked: false })
         },
         // ITEM PEGÁVEL: o pino pego sai e as mochilas mudam, já validados pela
-        // sessão. Na cena aberta vale para TODO passo do desfazer (como a
-        // travessia do `transferToken`): um Ctrl+Z do mestre não devolve a
-        // chave ao chão com ela ainda na mochila de alguém.
+        // sessão. Vale para TODO passo do desfazer da cena, aberta ou de fundo
+        // (`applyItemsInScene`): um Ctrl+Z do mestre não devolve a chave ao
+        // chão com ela ainda na mochila de alguém.
         applyItems: (change) => {
-          const aplicar = (m: MapData): MapData => applyItemChange(m, change)
-          if (change.sceneId !== undefined) {
-            useAdventureStore.getState().updateBackgroundScene(change.sceneId, aplicar)
-            return
-          }
-          const { map, past, future } = useMapStore.getState()
-          useMapStore.setState({ map: aplicar(map), past: past.map(aplicar), future: future.map(aplicar) })
+          applyItemsInScene(change)
         },
         // Nome/foto que o jogador trocou no próprio token, já validados pela
         // sessão (o token é dele, a foto é auto-contida). `image` chega como
@@ -562,6 +556,15 @@ function App() {
                 if (member.token !== null) useAdventureStore.getState().goToPoint(member.sceneId, { x: member.token.x, y: member.token.y })
               },
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
+              // ITEM PEGÁVEL: tirar, devolver ao chão ou dar, gravado na cena
+              // da ficha (fora do desfazer, em todo passo dele). A cena de
+              // fundo não passa pelo `useMapStore`: o snapshot sai por aqui.
+              onItem: (action) => {
+                const change = partyItemChange(world, action, crypto.randomUUID())
+                if (change === null || !applyItemsInScene(change)) return false
+                hostBridgeRef.current?.notifyMapChanged()
+                return true
+              },
               followingId,
               onToggleFollow: (member) => useFollowStore.getState().toggle(member.playerId),
             }}

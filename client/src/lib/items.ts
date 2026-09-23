@@ -91,18 +91,68 @@ export interface BackpackUpdate {
 
 /**
  * O que muda no mapa quando um item troca de lugar: o pino pego sai
- * (`removePinId`) e cada ficha envolvida recebe a mochila nova INTEIRA — o
- * host já calculou, e o integrador só grava.
+ * (`removePinId`), o item devolvido ao chão vira pino (`addPin`) e cada ficha
+ * envolvida recebe a mochila nova INTEIRA — quem decidiu já calculou, e o
+ * integrador só grava.
  */
 export interface ItemChange {
   removePinId?: string
+  addPin?: Pin
   mochilas: BackpackUpdate[]
+}
+
+/** "Tirar" do mestre: o item sai da mochila da ficha e some (a chave usada). `null` = a ficha não o tem. */
+export function removeItemChange(token: Token, itemId: string): ItemChange | null {
+  const mochila = carriedItemsOf(token)
+  if (!mochila.some((item) => item.id === itemId)) return null
+  return { mochilas: [{ tokenId: token.id, mochila: mochila.filter((item) => item.id !== itemId) }] }
+}
+
+/**
+ * "Devolver ao chão" do mestre: o item sai da mochila e volta a ser pino
+ * pegável ("!") onde a ficha está, pedindo ao mestre de novo. O pino usa o id
+ * do item (o do pino de onde ele saiu); se já há um pino com esse id no mapa,
+ * usa `freshPinId` — nunca sobrescreve outro pino.
+ */
+export function dropItemChange(map: MapData, token: Token, itemId: string, freshPinId: string): ItemChange | null {
+  const item = carriedItemsOf(token).find((carried) => carried.id === itemId)
+  const removed = removeItemChange(token, itemId)
+  if (item === undefined || removed === null) return null
+  const pinId = map.pins.some((pin) => pin.id === item.id) ? freshPinId : item.id
+  const addPin: Pin = { id: pinId, x: token.x, y: token.y, kind: 'exclamacao', description: '', image: null, item: { nome: item.nome } }
+  return { ...removed, addPin }
+}
+
+/** "Dar" do mestre: um item NOVO, com o nome aparado, no fim da mochila da ficha. `null` = nome vazio. */
+export function giveNewItemChange(token: Token, nome: string, itemId: string): ItemChange | null {
+  const clean = cleanItemName(nome)
+  if (clean === '') return null
+  return { mochilas: [{ tokenId: token.id, mochila: [...carriedItemsOf(token), { id: itemId, nome: clean }] }] }
+}
+
+/** Uma ficha a quem o jogador pode dar um item. */
+export interface GiveTarget {
+  tokenId: string
+  name: string
+}
+
+/**
+ * O "Dar a…" do jogador: só as fichas de COLEGAS (`partyTokenIds`, que o host
+ * manda no snapshot) encostadas numa ficha dele. NPC e monstro do mestre não
+ * entram — o host recusaria, e a opção nunca funcionaria.
+ */
+export function giveTargets(map: MapData, ownTokenIds: readonly string[], partyTokenIds: readonly string[]): GiveTarget[] {
+  const mine = map.tokens.filter((t) => ownTokenIds.includes(t.id))
+  return map.tokens
+    .filter((t) => !ownTokenIds.includes(t.id) && partyTokenIds.includes(t.id) && mine.some((m) => tokensTouch(m, t, map.grid)))
+    .map((t) => ({ tokenId: t.id, name: t.name }))
 }
 
 /**
  * Aplica a mudança num mapa. Mochila vazia some do token (ausente === vazia,
  * o mapa gravado continua igual ao de antes do campo). Pino ou ficha que não
- * existem mais não mudam nada — e nada mudando devolve o MESMO mapa.
+ * existem mais não mudam nada, pino devolvido que já está lá não duplica — e
+ * nada mudando devolve o MESMO mapa.
  */
 export function applyItemChange(map: MapData, change: ItemChange): MapData {
   const byToken = new Map(change.mochilas.map((update) => [update.tokenId, update.mochila]))
@@ -117,10 +167,13 @@ export function applyItemChange(map: MapData, change: ItemChange): MapData {
   })
   const removePinId = change.removePinId
   const pinGone = removePinId !== undefined && map.pins.some((p) => p.id === removePinId)
-  if (!tokensChanged && !pinGone) return map
+  const addPin = change.addPin
+  const pinBack = addPin !== undefined && !map.pins.some((p) => p.id === addPin.id)
+  if (!tokensChanged && !pinGone && !pinBack) return map
+  const keptPins = pinGone ? map.pins.filter((p) => p.id !== removePinId) : map.pins
   return {
     ...map,
     tokens: tokensChanged ? tokens : map.tokens,
-    pins: pinGone ? map.pins.filter((p) => p.id !== removePinId) : map.pins,
+    pins: pinBack ? [...keptPins, addPin] : keptPins,
   }
 }

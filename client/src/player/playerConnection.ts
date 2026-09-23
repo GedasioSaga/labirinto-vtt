@@ -42,6 +42,8 @@ export interface PlayerState {
   explored?: Exploration
   /** Ids dos tokens do próprio jogador presentes no mapa recebido. */
   ownTokens?: string[]
+  /** Ids dos tokens de COLEGAS (outros jogadores) no mapa recebido: o "Dar a…" só oferece estes. */
+  partyTokens?: string[]
   /** Polígonos das zonas ocultas ativas: o jogador pinta preto por cima. */
   concealed?: RegionPoint[][]
   /** Sinais recebidos ainda vivos (somem sozinhos depois de `SIGNAL_TTL_MS`). */
@@ -473,6 +475,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     explored: Exploration | undefined,
     ownTokens: string[],
     concealed: RegionPoint[][],
+    partyTokens: string[],
   ): void {
     if (rev <= state.rev) return
     let next = map
@@ -487,7 +490,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       move.prevY = token.y
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, error: undefined })
   }
 
   function handleRejected(reqId: string): void {
@@ -563,6 +566,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           vision: undefined,
           explored: undefined,
           ownTokens: undefined,
+          partyTokens: undefined,
           concealed: undefined,
           signals: undefined,
           laser: undefined,
@@ -695,7 +699,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         }
         if (data.ownTokens !== undefined && !isStringList(data.ownTokens)) return
         if (data.concealed !== undefined && !isVision(data.concealed)) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [])
+        if (data.partyTokens !== undefined && !isStringList(data.partyTokens)) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.partyTokens ?? [])
         return
       }
       case 'token.move.accepted':
@@ -894,7 +899,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, item: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, item: undefined })
       open()
     },
     close: detach,

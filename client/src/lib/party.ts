@@ -1,6 +1,6 @@
-import type { HostScene, HostWorld, PlayerInfo } from '../net/hostSession'
+import type { AppliedItems, HostScene, HostWorld, PlayerInfo } from '../net/hostSession'
 import type { CarriedItem, Token } from '../types/map'
-import { carriedItemsOf } from './items'
+import { carriedItemsOf, dropItemChange, giveNewItemChange, removeItemChange, type ItemChange } from './items'
 import { pinSummary } from './pins'
 import { tokenFillColor } from './tokenColor'
 
@@ -32,8 +32,18 @@ export interface PartyMember {
   /** Um pedido de passagem dele espera o mestre agora. */
   travelPending: boolean
   /** O que as fichas dele carregam, em qualquer cena aberta (ITEM PEGÁVEL). */
-  mochila: CarriedItem[]
+  mochila: PartyItem[]
 }
+
+/** Um item da mochila no Grupo: com a ficha e a cena onde ele está, para o mestre agir nele. */
+export interface PartyItem extends CarriedItem {
+  tokenId: string
+  /** Cena da ficha; `null` no mapa solto. */
+  sceneId: string | null
+}
+
+/** O que o mestre faz com a mochila no Grupo: tirar um item, devolvê-lo ao chão, ou dar um novo. */
+export type PartyItemAction = { kind: 'tirar'; item: PartyItem } | { kind: 'devolver'; item: PartyItem } | { kind: 'dar'; member: PartyMember; nome: string }
 
 /** Um ponto de chegada do "Mandar para…": um pino de viagem da cena de destino. */
 export interface PartyArrival {
@@ -80,17 +90,44 @@ function tokenOf(player: PlayerInfo, world: HostWorld): Token | null {
  * cenas que o host serve — a ficha que ficou noutra cena continua com o que
  * pegou. Cada ficha conta uma vez, mesmo que apareça em duas cenas.
  */
-function backpackOf(player: PlayerInfo, world: HostWorld): CarriedItem[] {
+function backpackOf(player: PlayerInfo, world: HostWorld): PartyItem[] {
   const seen = new Set<string>()
-  const items: CarriedItem[] = []
+  const items: PartyItem[] = []
   for (const scene of allScenes(world)) {
     for (const token of scene.map.tokens) {
       if (!player.tokenIds.includes(token.id) || seen.has(token.id)) continue
       seen.add(token.id)
-      items.push(...carriedItemsOf(token))
+      items.push(...carriedItemsOf(token).map((item) => ({ ...item, tokenId: token.id, sceneId: scene.sceneId })))
     }
   }
   return items
+}
+
+/** A cena de um id do Grupo: `null` é o mapa solto, que só existe como a cena aberta. */
+function sceneById(world: HostWorld, sceneId: string | null): HostScene | undefined {
+  if (sceneId === null) return world.open.sceneId === null ? world.open : undefined
+  return allScenes(world).find((scene) => scene.sceneId === sceneId)
+}
+
+/**
+ * A mudança que uma ação de mochila do mestre grava, já na cena certa: sem
+ * `sceneId` quando é a cena aberta (o editor grava), com ele quando é de
+ * fundo. `null` quando não há o que fazer — a ficha saiu da cena, o item já
+ * não está com ela, o nome dado é vazio. `freshId`: id para o item novo do
+ * "Dar", ou para o pino devolvido quando o id do item já é de outro pino.
+ */
+export function partyItemChange(world: HostWorld, action: PartyItemAction, freshId: string): AppliedItems | null {
+  const sceneId = action.kind === 'dar' ? action.member.sceneId : action.item.sceneId
+  const tokenId = action.kind === 'dar' ? action.member.token?.id : action.item.tokenId
+  const scene = sceneById(world, sceneId)
+  const token = tokenId === undefined ? undefined : scene?.map.tokens.find((t) => t.id === tokenId)
+  if (scene === undefined || token === undefined) return null
+  let change: ItemChange | null
+  if (action.kind === 'dar') change = giveNewItemChange(token, action.nome, freshId)
+  else if (action.kind === 'tirar') change = removeItemChange(token, action.item.id)
+  else change = dropItemChange(scene.map, token, action.item.id, freshId)
+  if (change === null) return null
+  return scene === world.open || scene.sceneId === null ? change : { ...change, sceneId: scene.sceneId }
 }
 
 /** As linhas do Grupo, na ordem de chegada que a ponte já dá. */

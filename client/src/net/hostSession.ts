@@ -571,6 +571,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return scene === null ? { type: 'lobby.waiting' } : snapshotFor(playerId, scene.map)
   }
 
+  /** A ficha é de OUTRO jogador (não do mestre, não dele): colega a quem se pode dar um item. */
+  const isOtherPlayersToken = (playerId: string, tokenId: string): boolean =>
+    Object.entries(ownership).some(([owner, ids]) => owner !== playerId && ids.includes(tokenId))
+
   /** `sceneId` para os "Applied": só quando a cena é de fundo (a aberta é o `mapStore`). */
   const backgroundSceneId = (scene: HostScene, world: HostWorld): { sceneId?: string } =>
     scene === world.open || scene.sceneId === null ? {} : { sceneId: scene.sceneId }
@@ -603,7 +607,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
-    return { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
+    // Só fichas que ele JÁ recebe: a lista não conta quem está no escuro.
+    const partyTokens = view.map.tokens.filter((t) => isOtherPlayersToken(playerId, t.id)).map((t) => t.id)
+    return { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed, partyTokens }
   }
 
   const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
@@ -885,7 +891,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const masterToken = (id: string): Token | undefined => map.tokens.find((t) => t.id === id)
     const giverSeen = view.map.tokens.find((t) => owned.has(t.id) && carriedItemsOf(masterToken(t.id) ?? t).some((item) => item.id === msg.itemId))
     const targetSeen = view.map.tokens.find((t) => t.id === msg.toTokenId && !owned.has(t.id))
-    const targetIsPlayer = Object.entries(ownership).some(([owner, ids]) => owner !== playerId && ids.includes(msg.toTokenId))
+    const targetIsPlayer = isOtherPlayersToken(playerId, msg.toTokenId)
     const giver = giverSeen === undefined ? undefined : masterToken(giverSeen.id)
     const target = targetSeen === undefined ? undefined : masterToken(targetSeen.id)
     const item = giver === undefined ? undefined : carriedItemsOf(giver).find((i) => i.id === msg.itemId)

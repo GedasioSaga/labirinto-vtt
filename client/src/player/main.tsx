@@ -16,7 +16,7 @@ import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import type { SignalMark } from '../lib/signals'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
-import { carriedItemsOf, tokensTouch } from '../lib/items'
+import { carriedItemsOf, giveTargets } from '../lib/items'
 import { itemNoticeText } from './itemNotice'
 import './player.css'
 
@@ -534,18 +534,16 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
       return token ? [{ id, name: token.name }] : []
     })
   }, [map, ownTokens])
-  // ITEM PEGÁVEL: "Comigo" é a mochila das fichas dele; "Dar a…" oferece as
-  // fichas de outros encostadas numa delas (o host confere se são de jogador).
+  const partyTokens = state.partyTokens ?? NO_TOKENS
+  // ITEM PEGÁVEL: "Comigo" é a mochila das fichas dele; "Dar a…" oferece só
+  // fichas de COLEGAS encostadas numa delas — NPC do mestre o host recusaria.
   const backpack = useMemo(() => {
     if (!map) return { items: [], colleagues: [] }
-    const mine = map.tokens.filter((t) => ownTokens.includes(t.id))
     return {
-      items: mine.flatMap(carriedItemsOf),
-      colleagues: map.tokens
-        .filter((t) => !ownTokens.includes(t.id) && mine.some((m) => tokensTouch(m, t, map.grid)))
-        .map((t) => ({ tokenId: t.id, name: t.name })),
+      items: map.tokens.filter((t) => ownTokens.includes(t.id)).flatMap(carriedItemsOf),
+      colleagues: giveTargets(map, ownTokens, partyTokens),
     }
-  }, [map, ownTokens])
+  }, [map, ownTokens, partyTokens])
 
   function changeSettings(next: PlayerViewSettings) {
     setSettings(next)
