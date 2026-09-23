@@ -44,8 +44,8 @@ import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
 import { isDegenerateRegion } from '../pixi/shapes'
 import { createSignalsRenderer } from '../pixi/drawSignals'
 import { SIGNAL_LONG_PRESS_MS, SIGNAL_LONG_PRESS_TOLERANCE_PX, type SignalMark } from '../lib/signals'
-import { createLaserRenderer } from '../pixi/drawLaser'
-import type { LaserTrail } from '../lib/laser'
+import { createLaserPool, createLaserRenderer } from '../pixi/drawLaser'
+import { appendLaserPoints, pruneLaserTrail, type LaserTrail, type RemoteLaser } from '../lib/laser'
 import type { PlayerViewSettings } from './PlayerPanel'
 import {
   MEASURE_OFF,
@@ -89,6 +89,19 @@ interface PlayerViewProps {
   onPinOpen?: (pinId: string) => void
   /** Rastro do laser do mestre; o ticker esmaece cada ponto pela idade. */
   laser?: LaserTrail
+  /**
+   * Botão "Laser" ligado: segurar e arrastar no mapa aponta (em vez de mover
+   * a câmera). O rastro aparece aqui na hora e sai por `onLaserMove`.
+   */
+  laserArmed?: boolean
+  /** Cor do próprio laser (`#rrggbb`): a da ficha, a mesma que os outros veem. */
+  ownLaserColor?: string
+  /** Ponto do próprio laser, em px de mundo. */
+  onLaserMove?: (x: number, y: number) => void
+  /** Soltou (ou desligou o modo no meio): fim do gesto. */
+  onLaserEnd?: () => void
+  /** Lasers dos outros jogadores da cena. */
+  playerLasers?: readonly RemoteLaser[]
 }
 
 const RASTER_SAMPLES = 4
@@ -106,6 +119,7 @@ const MAP_BACKGROUND_RGB: Rgb = [0x2b, 0x2b, 0x2b]
 /** Fora do retângulo do mapa: mais escuro que o fundo, para a borda do mapa ler. */
 const OUTSIDE_BACKGROUND = 0x111111
 export const OWN_TOKEN_COLOR = 0x3b82f6
+export const OWN_TOKEN_CSS = `#${OWN_TOKEN_COLOR.toString(16).padStart(6, '0')}`
 const OTHER_TOKEN_COLOR = 0x9ca3af
 const TOKEN_OUTLINE = 0xffffff
 const LABEL_FONT_SIZE = 12
@@ -133,6 +147,8 @@ type Drag =
   | { kind: 'token'; tokenId: string; offsetX: number; offsetY: number; x: number; y: number }
   // Régua do jogador: o ponto vive em `scene.measure`, aqui só se marca que o gesto é dela.
   | { kind: 'measure' }
+  // Laser do jogador: o rastro vive em `scene.ownLaser`.
+  | { kind: 'laser' }
 
 function safeRgb(hex: string | null, fallback: Rgb): Rgb {
   return hex && HEX_COLOR.test(hex) ? hexToRgb(hex) : fallback
@@ -411,12 +427,21 @@ interface Scene {
   measure: PlayerMeasureState
   /** Última medida desenhada (pontos de tela + rótulo); igual = nada a repintar. */
   lastMeasureKey: string | null
+  /**
+   * Rastro do PRÓPRIO laser, desenhado na hora (sem esperar a volta pela
+   * rede). Mora aqui pela mesma razão da régua: muda a cada passo do dedo.
+   */
+  ownLaser: LaserTrail
   /** Resolução dos Text do mundo acompanhando o zoom (pixi/textResolution.ts). */
   textResolution: ReturnType<typeof createDebouncedTask>
 }
 
 /** Referência estável para o padrão da prop: sem sinais, nada muda entre renders. */
 const NO_SIGNALS: readonly SignalMark[] = []
+const NO_PLAYER_LASERS: readonly RemoteLaser[] = []
+const NO_OWN_LASER: LaserTrail = { points: [], on: false }
+/** Rótulo da ponta do próprio laser: o nome de quem aponta é o dos outros, o seu é "Você". */
+const OWN_LASER_LABEL = 'Você'
 
 function applyCamera(scene: Scene): void {
   const res = scene.app.renderer.resolution
@@ -572,12 +597,38 @@ export function PlayerView({
   onDoorToggle,
   onPinOpen,
   laser,
+  laserArmed = false,
+  ownLaserColor = OWN_TOKEN_CSS,
+  onLaserMove,
+  onLaserEnd,
+  playerLasers = NO_PLAYER_LASERS,
 }: PlayerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
-  const latestRef = useRef({ map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser })
-  latestRef.current = { map, vision, explored, concealed, ownTokens, settings, onMove, signals, signalArmed, onSignal, measureArmed, onDoorToggle, onPinOpen, laser }
+  const latest = {
+    map,
+    vision,
+    explored,
+    concealed,
+    ownTokens,
+    settings,
+    onMove,
+    signals,
+    signalArmed,
+    onSignal,
+    measureArmed,
+    onDoorToggle,
+    onPinOpen,
+    laser,
+    laserArmed,
+    ownLaserColor,
+    onLaserMove,
+    onLaserEnd,
+    playerLasers,
+  }
+  const latestRef = useRef(latest)
+  latestRef.current = latest
 
   /**
    * Pinta a régua (linha no canvas + rótulo no DOM) a partir de `scene.measure`.
@@ -872,6 +923,8 @@ export function PlayerView({
       // Mapa novo (viagem): a medida era em pontos do mapa de antes e mentiria aqui. O modo continua ligado.
       scene.measure = withMeasureArmed(MEASURE_OFF, scene.measure.armed)
       syncMeasure(scene)
+      // O próprio rastro também era do mapa de antes.
+      scene.ownLaser = { points: [], on: scene.ownLaser.on }
       const bounds = { minX: 0, minY: 0, maxX: worldWidth, maxY: worldHeight }
       scene.camera = fitCamera(bounds, { width: scene.app.screen.width, height: scene.app.screen.height }, FIT_MARGIN)
       applyCamera(scene)
@@ -880,10 +933,18 @@ export function PlayerView({
     scene.textResolution.flush()
   }
 
+  /** Fim do gesto do laser (soltou, ou desligou o modo no meio): a ponta apaga e o rastro esmaece sozinho. */
+  function endOwnLaser(scene: Scene): void {
+    if (scene.drag?.kind === 'laser') scene.drag = null
+    scene.ownLaser = { points: pruneLaserTrail(scene.ownLaser.points, Date.now()), on: false }
+    latestRef.current.onLaserEnd?.()
+  }
+
   function startTokenDrag(scene: Scene, tokenId: string, event: FederatedPointerEvent): void {
     // Alt+clique ou modo Sinalizar sobre um token: deixa o evento subir para o palco sinalizar.
     // Modo Medir também: medir a partir da própria ficha é o caso mais comum, e ela não pode andar.
-    if (event.altKey || latestRef.current.signalArmed || latestRef.current.measureArmed) return
+    // Modo Laser também: apontar a partir da própria ficha não pode arrastá-la.
+    if (event.altKey || latestRef.current.signalArmed || latestRef.current.measureArmed || latestRef.current.laserArmed) return
     event.stopPropagation()
     const view = scene.tokenViews.get(tokenId)?.wrapper
     if (!view) return
@@ -1049,6 +1110,7 @@ export function PlayerView({
         measureLayer,
         measure: withMeasureArmed(MEASURE_OFF, latestRef.current.measureArmed),
         lastMeasureKey: null,
+        ownLaser: NO_OWN_LASER,
         // Texto rasterizado a 1x e esticado pelo zoom sai mole: resolução em degraus.
         textResolution: createDebouncedTask(() => {
           if (destroyed) return
@@ -1083,6 +1145,33 @@ export function PlayerView({
         laserDrawn = drawn
       }
       app.ticker.add(tickLaser)
+
+      // Laser dos JOGADORES: o dos outros da cena (um rastro por jogador) e o próprio, desenhado na hora.
+      const playerLaserPool = createLaserPool()
+      const ownLaserRenderer = createLaserRenderer({ color: latestRef.current.ownLaserColor, label: OWN_LASER_LABEL })
+      let playerLasersDrawn = 0
+      el.dataset.playerLasersDrawn = '0'
+      const tickPlayerLasers = () => {
+        const others = latestRef.current.playerLasers
+        const own = scene.ownLaser
+        if (others.length === 0 && own.points.length === 0 && playerLasersDrawn === 0) return
+        const now = Date.now()
+        ownLaserRenderer.restyle({ color: latestRef.current.ownLaserColor, label: OWN_LASER_LABEL })
+        const drawn = playerLaserPool.draw(laserLayer, others, scene.camera, now) + ownLaserRenderer.draw(laserLayer, own, scene.camera, now)
+        if (drawn !== playerLasersDrawn) el.dataset.playerLasersDrawn = String(drawn)
+        playerLasersDrawn = drawn
+        // Próprio rastro todo apagado e sem gesto: esvazia para o ticker voltar a pular o quadro.
+        if (!own.on && own.points.length > 0 && pruneLaserTrail(own.points, now).length === 0) scene.ownLaser = NO_OWN_LASER
+      }
+      app.ticker.add(tickPlayerLasers)
+
+      /** Ponto do próprio laser: entra no rastro local e sai pelo socket. */
+      const pointOwnLaser = (screenX: number, screenY: number) => {
+        const point = scene.world.toLocal({ x: screenX, y: screenY })
+        const now = Date.now()
+        scene.ownLaser = { points: appendLaserPoints(pruneLaserTrail(scene.ownLaser.points, now), [{ x: point.x, y: point.y }], now), on: true }
+        latestRef.current.onLaserMove?.(point.x, point.y)
+      }
 
       // Zoom e arrasto de câmera mudam a posição de tela da régua sem mudar a medida.
       const tickMeasure = () => syncMeasure(scene)
@@ -1120,6 +1209,13 @@ export function PlayerView({
           applyMeasureEvent(scene, { type: 'press', at: measurePointFromScreen(scene.camera, { x, y }, latestRef.current.map, event.altKey) })
           return
         }
+        if (latestRef.current.laserArmed) {
+          // Com o modo Laser, apertar e arrastar aponta: nem câmera, nem sinal, nem cartão de pino.
+          cancelLongPress()
+          scene.drag = { kind: 'laser' }
+          pointOwnLaser(x, y)
+          return
+        }
         if (event.altKey || latestRef.current.signalArmed) {
           sendSignalAt(x, y)
           return
@@ -1146,7 +1242,7 @@ export function PlayerView({
         const drag = scene.drag
         if (!drag) {
           // Mouse parado sobre porta: cursor de mão (no celular não existe hover).
-          if (latestRef.current.measureArmed) {
+          if (latestRef.current.measureArmed || latestRef.current.laserArmed) {
             app.stage.cursor = 'crosshair'
             return
           }
@@ -1158,6 +1254,10 @@ export function PlayerView({
         }
         if (drag.kind === 'measure') {
           applyMeasureEvent(scene, { type: 'move', at: measurePointFromScreen(scene.camera, event.global, latestRef.current.map, event.altKey) })
+          return
+        }
+        if (drag.kind === 'laser') {
+          pointOwnLaser(event.global.x, event.global.y)
           return
         }
         if (drag.kind === 'pan') {
@@ -1179,6 +1279,10 @@ export function PlayerView({
         if (drag?.kind === 'measure') {
           // Solta: a medida fica na tela até o próximo toque ou Escape.
           applyMeasureEvent(scene, { type: 'release' })
+          return
+        }
+        if (drag?.kind === 'laser') {
+          endOwnLaser(scene)
           return
         }
         if (drag?.kind === 'pan') {
@@ -1235,6 +1339,7 @@ export function PlayerView({
         cancelLongPress()
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickLaser)
+        app.ticker.remove(tickPlayerLasers)
         app.ticker.remove(tickMeasure)
         app.ticker.remove(tickTokenGlides)
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
@@ -1300,9 +1405,16 @@ export function PlayerView({
     syncMeasure(scene)
   }, [measureArmed])
 
+  useEffect(() => {
+    // Desligou (botão de novo ou Escape) com o dedo ainda apertado: o gesto termina ali.
+    const scene = sceneRef.current
+    if (!scene || laserArmed || scene.drag?.kind !== 'laser') return
+    endOwnLaser(scene)
+  }, [laserArmed])
+
   return (
     <>
-      <div ref={containerRef} style={{ position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed ? 'crosshair' : undefined }} />
+      <div ref={containerRef} style={{ position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed || laserArmed ? 'crosshair' : undefined }} />
       {/* Rótulo da régua: escrito pelo gesto direto no DOM (syncMeasure), sem re-render do React por passo do dedo.
           `aria-live` educado: com o grude na grade o texto só muda a cada quadrado, não a cada pixel. */}
       <div ref={measureLabelRef} className="pp-measure-label" aria-live="polite" aria-atomic="true" hidden />

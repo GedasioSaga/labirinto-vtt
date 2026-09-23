@@ -78,8 +78,9 @@ import { drawMapBounds } from './drawMapBounds'
 import { createTokensRenderer } from './tokensRenderer'
 import { createSignalsRenderer } from './drawSignals'
 import { useSignalStore } from '../stores/signalStore'
-import { createLaserRenderer } from './drawLaser'
+import { createLaserPool, createLaserRenderer } from './drawLaser'
 import { isLaserArmed, useLaserStore } from '../stores/laserStore'
+import { usePlayerLaserStore } from '../stores/playerLaserStore'
 import { createLaserGesture } from './laserGesture'
 import { LASER_KEY_TAP_MS, isLaserKey } from '../lib/laser'
 import { createMeasurementIndicatorRenderer } from './drawMeasurementIndicator'
@@ -857,6 +858,21 @@ export function PixiCanvas({
         if (drawn === 0 && !state.drawing) useLaserStore.setState({ trail: [] })
       }
       app.ticker.add(tickLaser)
+
+      // Laser dos JOGADORES da cena aberta: um rastro por jogador, na cor da ficha dele.
+      const playerLaserPool = createLaserPool()
+      let playerLasersDrawn = 0
+      el.dataset.playerLasersDrawn = '0'
+      const tickPlayerLasers = () => {
+        const { lasers, prune } = usePlayerLaserStore.getState()
+        if (lasers.length === 0 && playerLasersDrawn === 0) return
+        const now = Date.now()
+        const drawn = playerLaserPool.draw(laserLayer, lasers, camera, now)
+        if (drawn !== playerLasersDrawn) el.dataset.playerLasersDrawn = String(drawn)
+        playerLasersDrawn = drawn
+        if (drawn === 0) prune(now)
+      }
+      app.ticker.add(tickPlayerLasers)
       /** Último ponto do ponteiro sobre o canvas (px de mundo); `null` com o ponteiro fora dele. */
       let laserPointer: Point | null = null
       /** L apertado há menos de `LASER_KEY_TAP_MS`, ainda sem decidir entre atalho da Linha e laser. */
@@ -5467,6 +5483,7 @@ export function PixiCanvas({
       return () => {
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickLaser)
+        app.ticker.remove(tickPlayerLasers)
         unsubscribeLaserCursor()
         laserGesture.cancel()
         releaseLaserKey(false)
