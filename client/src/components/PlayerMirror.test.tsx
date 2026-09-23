@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { createExploration, encodeExploration } from '../lib/exploration'
 import type { PlayerScreen } from '../net/playerScreens'
+import { theme } from '../theme'
 import { PlayerMirror, mirrorTitle } from './PlayerMirror'
 
 function telaNaCripta(): PlayerScreen {
@@ -44,5 +45,48 @@ describe('PlayerMirror: a tela do jogador dentro do app do mestre', () => {
     const html = renderToStaticMarkup(<PlayerMirror playerName="Bruno" screen={null} onClose={vi.fn()} />)
     expect(html).toContain('Bruno está sem tela agora')
     expect(html).not.toContain('lb-mirror__screen')
+  })
+})
+
+/**
+ * O main.css cru, lido do disco: o vitest esvazia todo CSS importado (até com
+ * `?raw`). O projeto não tem @types/node, então o módulo chega sem tipo pelo
+ * especificador em variável e é conferido aqui antes do uso.
+ */
+async function lerMainCss(): Promise<string> {
+  const especificador = 'node:fs/promises'
+  const fs: unknown = await import(/* @vite-ignore */ especificador)
+  if (typeof fs !== 'object' || fs === null || !('readFile' in fs) || typeof fs.readFile !== 'function') {
+    throw new Error('node:fs/promises sem readFile')
+  }
+  // Relativo à raiz do vitest (client/): no jsdom o import.meta.url não é file://.
+  const texto: unknown = await fs.readFile('src/main.css', 'utf8')
+  if (typeof texto !== 'string') throw new Error('main.css não veio como texto')
+  return texto
+}
+
+/** Corpo da regra `seletor { ... }` do main.css (só a primeira, a que define o bloco). */
+function regraCss(css: string, seletor: string): string {
+  const abertura = `\n${seletor} {`
+  const inicio = css.indexOf(abertura)
+  if (inicio < 0) throw new Error(`main.css deveria ter a regra ${seletor}`)
+  return css.slice(inicio + abertura.length, css.indexOf('}', inicio))
+}
+
+describe('PlayerMirror: o retângulo do espelho só mostra a tela do jogador', () => {
+  // O espelho flutua sobre o editor. Canto arredondado ou fundo translúcido
+  // deixam o chão do EDITOR aparecer dentro do retângulo do espelho, e o mestre
+  // confunde o que vaza por trás com o que o jogador vê.
+  it('o dialog não herda o painel flutuante (canto arredondado e vidro fosco)', () => {
+    const html = renderToStaticMarkup(<PlayerMirror playerName="Bruno" screen={telaNaCripta()} onClose={vi.fn()} />)
+    expect(/<div class="([^"]*)" role="dialog"/.exec(html)?.[1]).toBe('lb-mirror')
+  })
+
+  it('a moldura é opaca e de canto reto: nenhum pixel do editor atravessa', async () => {
+    const regra = regraCss(await lerMainCss(), '.lb-mirror')
+    expect(regra).toMatch(/\n\s*border-radius:\s*0;/)
+    expect(regra).toMatch(/\n\s*background:\s*var\(--lb-color-stone-solid\);/)
+    expect(theme.color.stoneSolid).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(regra).not.toMatch(/backdrop-filter/)
   })
 })

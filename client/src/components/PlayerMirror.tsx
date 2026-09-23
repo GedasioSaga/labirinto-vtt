@@ -77,7 +77,7 @@ export function PlayerMirror({ playerName, screen, onClose }: PlayerMirrorProps)
   }
 
   return (
-    <div className="lb-mirror lb-panel" role="dialog" aria-modal="false" aria-labelledby={titleId} onKeyDown={onKeyDown}>
+    <div className="lb-mirror" role="dialog" aria-modal="false" aria-labelledby={titleId} onKeyDown={onKeyDown}>
       <div className="lb-mirror__head">
         <h2 id={titleId} className="lb-mirror__title">
           {mirrorTitle(playerName)}
