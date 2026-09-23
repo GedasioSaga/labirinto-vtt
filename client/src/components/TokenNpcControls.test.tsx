@@ -5,6 +5,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { pecaDoAcervo } from '../lib/tokenLibrary'
 import type { TunnelState } from '../net/hostBridge'
 import type { HostWorld, PlayerInfo } from '../net/hostSession'
+import { colocarPecaDoAcervo } from '../stores/criarToken'
 import { useMapStore } from '../stores/mapStore'
 import type { Token } from '../types/map'
 import { RoomPanel, roomPanelTokensOf } from './RoomPanel'
@@ -30,11 +31,6 @@ const GINA = jogador({ clientId: 'c7', playerId: 'p7', name: 'Gina' })
 
 function ficha(id: string, name: string): Token {
   return { id, characterId: null, name, x: 0, y: 0, size: 1, image: null }
-}
-
-/** A mesma forma que `criarToken` (App.tsx) grava ao trazer do acervo. */
-function fichaDoAcervo(id: string, nome: string): Token {
-  return { characterId: null, name: nome, x: 0, y: 0, ...pecaDoAcervo({ tamanho: 1 }, id, { image: null, imageData: null }) }
 }
 
 const FICHAS_COM_DONO = JOGANDO.flatMap((j) => j.tokenIds).map((id) => ficha(id, id.slice(4)))
@@ -111,7 +107,10 @@ describe('marca de NPC gravada pelo app', () => {
   })
 
   it('Mordomo trazido do acervo para a Cozinha não vira botão: o card da Gina oferece só "Biblioteca · Atribuir Livro"', () => {
-    renderSala(mundo([...FICHAS_COM_DONO, fichaDoAcervo('tok-mordomo', 'Mordomo')]))
+    // Pelo mesmo `colocarPecaDoAcervo` que `handlePlaceFromLibrary` (App.tsx) chama.
+    useMapStore.setState({ map: { ...createEmptyMap('m1', 'Casa', 20, 20, 50), tokens: FICHAS_COM_DONO }, selection: [], past: [], future: [] })
+    expect(colocarPecaDoAcervo({ nome: 'Mordomo', tamanho: 1 }, 'tok-mordomo', { image: null, imageData: null }, { x: 300, y: 300 }, null)).toBe('tok-mordomo')
+    renderSala(mundo(useMapStore.getState().map.tokens))
     expect(botoesDaGina()).toEqual(['Biblioteca · Atribuir Livro'])
   })
 

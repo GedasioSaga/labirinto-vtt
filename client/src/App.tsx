@@ -23,7 +23,7 @@ import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { viewportCenterWorld, type Bounds, type Camera } from './pixi/world'
+import type { Bounds, Camera } from './pixi/world'
 import { MainMenu } from './screens/MainMenu'
 import { MapTypePicker } from './screens/MapTypePicker'
 import { NewDungeonMap } from './screens/NewDungeonMap'
@@ -48,7 +48,8 @@ import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
 import { goToMapObject } from './stores/mapObjectNavigation'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
-import { apagarDoAcervo, fotoSobrouNoDisco, pecaDoAcervo, salvarNoAcervo, trazerDoAcervo, IMAGEM_SUMIU_DO_ACERVO, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
+import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
+import { colocarPecaDoAcervo, criarToken, marcarFichaNpc, type TamanhoDaVista } from './stores/criarToken'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
@@ -65,11 +66,10 @@ import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
 import { countEntitiesByLayer } from './lib/layers'
-import { findTokenSpawn, tokenRadiusFor, wallClearanceForScale } from './lib/tokenPlacement'
 import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
-import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
+import { EMPTY_SELECTION, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
 import { isSingleGroup, NO_GROUPS } from './lib/itemGroups'
 import { traceFloorPieces } from './lib/traceImage'
 import { loadImagePixels } from './lib/imagePixels'
@@ -127,11 +127,6 @@ function pararDeOuvir(unlisten: (() => void) | undefined): void {
 
 /** Aviso de sucesso de Salvar (botão, Ctrl+S) e de sair por Início. */
 const MAP_SAVED_TEXT = 'Mapa salvo'
-
-/** Toda peça nova nasce ocupando uma célula; o painel muda o tamanho depois. */
-const NEW_TOKEN_SIZE = 1
-/** Diz por que nenhuma peça apareceu, com o que fazer a seguir — silêncio aqui é o defeito que esta mudança conserta. */
-const NO_TOKEN_SPOT_TEXT = 'Sem lugar livre para a peça aqui: as paredes em volta não deixam espaço. Mova a vista para um trecho vazio e tente de novo.'
 
 /** Entrada do aviso de trabalho não salvo: ease-out curto, nunca de escala zero. */
 const UNSAVED_DIALOG_ENTER_MS = 160
@@ -255,7 +250,6 @@ function App() {
   const [screen, setScreen] = useState<Screen>('menu')
   const showGrid = useMapStore((state) => state.map.showGrid)
   const setShowGrid = useMapStore((state) => state.setShowGrid)
-  const addToken = useMapStore((state) => state.addToken)
   const map = useMapStore((state) => state.map)
   const loadMap = useMapStore((state) => state.loadMap)
   const setBackground = useMapStore((state) => state.setBackground)
@@ -652,6 +646,11 @@ function App() {
       const r = el.getBoundingClientRect()
       return [{ minX: r.left - base.left, minY: r.top - base.top, maxX: r.right - base.left, maxY: r.bottom - base.top }]
     })
+  }
+  /** Tamanho do canvas agora, para a peça nova nascer no centro da vista; `null` antes de ele montar. */
+  const vistaDoCanvas = (): TamanhoDaVista | null => {
+    const host = canvasHostRef.current
+    return host === null ? null : { width: host.clientWidth, height: host.clientHeight }
   }
 
   /**
@@ -1116,13 +1115,8 @@ function App() {
       return
     }
 
-    if (criarToken(item.nome, { at, ...pecaDoAcervo(item, tokenId, { image, imageData }) }) === null) return
-    if (image === null && imageData === null) {
-      // A peça entra assim mesmo, com o nome certo e o círculo genérico: o
-      // arquivo sumiu da pasta do acervo, e não colocar a peça seria punir a
-      // pessoa por um problema do disco.
-      useToastStore.getState().push('error', IMAGEM_SUMIU_DO_ACERVO)
-    }
+    // Nasce com a marca de NPC e, sem foto, com o aviso — `stores/criarToken.ts`.
+    colocarPecaDoAcervo(item, tokenId, { image, imageData }, at, vistaDoCanvas())
   }
 
   /**
@@ -1320,71 +1314,10 @@ function App() {
     if (failed.length > 0) useToastStore.getState().push('error', `Não deu para trazer: ${failed.join(', ')}. A cena ou a ficha mudou; tente de novo.`)
   }
 
-  /**
-   * Token nasce no centro da área visível do canvas (câmera da store, que o
-   * PixiCanvas mantém em dia a cada pan/zoom) e já selecionado, para o painel
-   * mostrar o Nome dele. Sem o container montado cai em (0,0), como antes.
-   * `at` (ferramenta Token, clique no mapa) troca o centro pelo ponto clicado.
-   *
-   * O ponto pedido é só o PEDIDO: `findTokenSpawn` (lib/tokenPlacement.ts)
-   * empurra a peça para o lugar livre mais perto quando o disco cairia em
-   * cima da linha de uma parede — antes disto, com a vista enquadrada numa
-   * parede, a peça nascia atravessada nela e o app não dizia nada. Vale
-   * também para o clique da ferramenta Token: o usuário aponta mais ou menos,
-   * o app assenta a peça onde ela cabe. Sem lugar livre por perto ele não
-   * cria peça nenhuma e FALA por quê (toast), em vez de largar na parede.
-   *
-   * Lê mapa e câmera de `getState()` e não da closure de render: este handler
-   * também vai como prop para dentro do PixiCanvas, e lá o valor capturado
-   * pode ser de um render anterior — mesmo motivo de a câmera já ser lida
-   * assim antes desta mudança.
-   */
-  const criarToken = (
-    name: string,
-    opts: { at?: { x: number; y: number }; size?: number; id?: string; image?: string | null; imageData?: string | null; npc?: boolean } = {},
-  ): string | null => {
-    const host = canvasHostRef.current
-    const { map: currentMap, camera } = useMapStore.getState()
-    const size = opts.size ?? NEW_TOKEN_SIZE
-    const requested = opts.at ?? (host ? viewportCenterWorld(camera, host.clientWidth, host.clientHeight) : { x: 0, y: 0 })
-    const spot = findTokenSpawn(requested, currentMap.walls, {
-      // O raio acompanha o TAMANHO da peça: o NPC de 2 células vindo do acervo
-      // precisa de mais espaço livre que o disco de uma célula, e medir pelo
-      // tamanho fixo o assentaria encostado na parede.
-      radius: tokenRadiusFor(currentMap.grid, size),
-      clearance: wallClearanceForScale(camera.scale),
-    })
-    if (spot === null) {
-      useToastStore.getState().push('error', NO_TOKEN_SPOT_TEXT)
-      return null
-    }
-    // A foto entra JUNTO com a peça, num `addToken` só: criar a peça e depois
-    // chamar `setTokenImage` empilhava DUAS entradas de desfazer para um clique
-    // (o primeiro Ctrl+Z tirava só a foto), e a segunda, chegando depois da
-    // cópia do arquivo, ainda podia rodar sobre um mapa que já não tinha esse
-    // token — um no-op silencioso que mesmo assim zerava o Refazer.
-    const id = opts.id ?? crypto.randomUUID()
-    addToken({
-      id,
-      characterId: null,
-      name,
-      x: spot.x,
-      y: spot.y,
-      size,
-      image: opts.image ?? null,
-      imageData: opts.imageData ?? null,
-      // Só grava a marca quando ela vale: ficha comum continua sem o campo,
-      // igual ao mapa salvo antes dele existir.
-      ...(opts.npc === true ? { npc: true } : {}),
-    })
-    useMapStore.getState().setSelection(selectionOfItem({ kind: 'token', id }))
-    return id
-  }
-
   /** Assinatura que a barra de ações e o clique da ferramenta Token já usam:
-   *  cria e esquece. Quem precisa do `id` (o acervo) chama `criarToken`. */
+   *  cria e esquece. Onde a peça nasce e por quê: `stores/criarToken.ts`. */
   const handleAddToken = (name: string, at?: { x: number; y: number }) => {
-    criarToken(name, { at })
+    criarToken(name, { at }, vistaDoCanvas())
   }
 
   const handleSave = async () => {
@@ -1988,7 +1921,7 @@ function App() {
             }}
             tokenNpc={{
               // `updateToken` passa por `withHistory`: marcar errado se desfaz com Ctrl+Z.
-              onNpcChange: (npc) => selectedToken && updateToken(selectedToken.id, { npc }),
+              onNpcChange: (npc) => selectedToken && marcarFichaNpc(selectedToken.id, npc),
             }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
