@@ -80,6 +80,8 @@ export type GestureMode =
   | 'dragging-room-label'
   // A5 — arrasto de criação da Zona oculta.
   | 'drawing-conceal-zone'
+  // Pincel de revelar: arrasto que revela (ou esconde) um pedaço da zona oculta.
+  | 'painting-reveal-brush'
   // Girar sala pela alça (bolinha acima da sala selecionada).
   | 'rotating-room'
 
@@ -207,6 +209,7 @@ const CREATION_TOOLS = new Set<DrawingTool>([
   'floor',
   'path',
   'concealZone',
+  'revealBrush',
 ])
 
 function resizeCursorForCorner(corner: ResizeCorner | null): string {
@@ -314,6 +317,8 @@ export function resolveCursor(input: ResolveCursorInput): string {
     // e trocar o cursor no meio do arrasto seria dizer que a ferramenta mudou).
     case 'painting-floor-blocks':
     case 'drawing-conceal-zone':
+    // Pincel de revelar: mesma mira do começo ao fim, revelando ou escondendo.
+    case 'painting-reveal-brush':
     case 'area-marquee-drag':
       return CURSOR_CROSSHAIR
 

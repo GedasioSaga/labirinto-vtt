@@ -299,6 +299,10 @@ function App() {
   const setDoorKind = useMapStore((state) => state.setDoorKind)
   const doorMode = useMapStore((state) => state.doorMode)
   const setDoorMode = useMapStore((state) => state.setDoorMode)
+  const revealBrushMode = useMapStore((state) => state.revealBrushMode)
+  const setRevealBrushMode = useMapStore((state) => state.setRevealBrushMode)
+  const revealBrushWidth = useMapStore((state) => state.revealBrushWidth)
+  const setRevealBrushWidth = useMapStore((state) => state.setRevealBrushWidth)
   const setWallDoorKind = useMapStore((state) => state.setWallDoorKind)
   const wallKind = useMapStore((state) => state.wallKind)
   const setWallKind = useMapStore((state) => state.setWallKind)
@@ -1960,6 +1964,12 @@ function App() {
                 onDelete: () => useMapStore.getState().removeConcealZone(selectedConcealZone.id),
               }
             }
+            concealBrush={{
+              mode: revealBrushMode,
+              onModeChange: setRevealBrushMode,
+              width: revealBrushWidth,
+              onWidthChange: setRevealBrushWidth,
+            }}
             pin={{
               kind: selectedPin?.kind ?? pinKind,
               // Com um pino aberto, o controle edita ESSE pino; sem nenhum, ele

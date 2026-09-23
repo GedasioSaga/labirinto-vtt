@@ -51,16 +51,18 @@ describe('resolveShortcut — letras de ferramenta', () => {
     ['pin', 'Y'],
   ]
 
-  it('TOOL_SHORTCUTS cobre exatamente as 25 ferramentas esperadas, sem duplicar letra', () => {
-    // Do laço saem TRÊS: token, que continua na tabela mesmo escondida;
+  it('TOOL_SHORTCUTS cobre exatamente as 26 ferramentas esperadas, sem duplicar letra', () => {
+    // Do laço saem QUATRO: token, que continua na tabela mesmo escondida;
     // roomFree, que ficou SEM letra na integração de 17/09/2026 — ela e o Pino
     // escolheram 'Y' em árvores separadas, e duas ferramentas na mesma letra
-    // fariam o índice perder uma em silêncio; e Caminho, que chegou quando já
-    // não sobrava letra nenhuma (F é "enquadrar tudo", Z fica com o Ctrl+Z).
-    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 3)
+    // fariam o índice perder uma em silêncio; e Caminho e Pincel de revelar,
+    // que chegaram quando já não sobrava letra nenhuma (F é "enquadrar tudo",
+    // Z fica com o Ctrl+Z).
+    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 4)
     expect(TOOL_SHORTCUTS.token).toBe('K')
     expect(TOOL_SHORTCUTS.roomFree).toBe('')
     expect(TOOL_SHORTCUTS.path).toBe('')
+    expect(TOOL_SHORTCUTS.revealBrush).toBe('')
     const letters = Object.values(TOOL_SHORTCUTS).filter((l) => l.length > 0)
     expect(new Set(letters).size).toBe(letters.length)
   })

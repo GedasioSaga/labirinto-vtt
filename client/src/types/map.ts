@@ -355,6 +355,16 @@ export interface ConcealZone {
   name: string
   /** `true` = revelada: deixa de esconder, mas continua no mapa do mestre. */
   revealed: boolean
+  /**
+   * PINCEL DE REVELAR — pedaços da zona que o mestre pintou para os jogadores
+   * verem, sem revelar a zona inteira. Cada entrada é a célula `"col,row"` de
+   * `REVEAL_BRUSH_CELL` px de mundo (`lib/concealBrush.ts`) cujo centro está
+   * dentro da zona. Ausente = nada pintado (a zona de sempre) —
+   * sem linha de migração: quem lê é `unveiledCellsOf`, que trata ausência e
+   * lixo vindo do disco como "nada revelado". Nunca sai para o jogador: o recorte
+   * (`lib/fogFilter.ts`) manda só o preto que sobra e o pedaço à vista.
+   */
+  unveiledCells?: string[]
 }
 
 export interface Region extends PlayerSecret {

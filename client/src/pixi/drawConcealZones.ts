@@ -1,6 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js'
 import type { ConcealZone } from '../types/map'
 import { concealZoneLabel } from '../lib/concealZones'
+import { concealedPieces, unveiledCellsOf } from '../lib/concealBrush'
 import { computeHatchSegments } from './drawRegions'
 import { roomLabelAnchor, roomLabelFontSize } from './drawRoomNames'
 import { SELECTION_COLOR } from './constants'
@@ -48,14 +49,23 @@ export function createConcealZonesRenderer(): ConcealZonesRenderer {
     const fontSize = roomLabelFontSize(grid)
     for (const zone of drawable) {
       const selected = zone.id === selectedId
+      // Pincel de revelar: o pedaço pintado sai do escurecido, igual ao buraco
+      // que o jogador recebe no preto (`lib/fogFilter.ts`). Hachura só na zona
+      // sem pedaço revelado: riscada por cima de faixas finas, ela esconderia
+      // justamente o corredor que o mestre acabou de abrir.
+      const unveiled = zone.revealed ? 0 : unveiledCellsOf(zone).size
+      if (!zone.revealed) {
+        const pieces = unveiled > 0 ? concealedPieces(zone.points, unveiledCellsOf(zone)) : [zone.points]
+        for (const piece of pieces) graphics.poly(piece, true)
+        if (pieces.length > 0) graphics.fill({ color: ZONE_COLOR, alpha: ACTIVE_FILL_ALPHA })
+      }
       graphics.poly(zone.points, true)
-      if (!zone.revealed) graphics.fill({ color: ZONE_COLOR, alpha: ACTIVE_FILL_ALPHA })
       graphics.stroke({
         width: selected ? SELECTED_OUTLINE_WIDTH : OUTLINE_WIDTH,
         color: selected ? SELECTION_COLOR : OUTLINE_COLOR,
         alpha: zone.revealed && !selected ? REVEALED_ALPHA : 1,
       })
-      if (!zone.revealed) {
+      if (!zone.revealed && unveiled === 0) {
         const segments = computeHatchSegments(zone.points)
         for (const s of segments) graphics.moveTo(s.x1, s.y1).lineTo(s.x2, s.y2)
         if (segments.length > 0) graphics.stroke({ width: HATCH_WIDTH, color: HATCH_COLOR, alpha: HATCH_ALPHA })

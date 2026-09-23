@@ -40,6 +40,7 @@ import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceCo
 import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleControls'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
 import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZoneControls'
+import { ConcealBrushControls, type ConcealBrushControlsProps } from './ConcealBrushControls'
 import { PinControls, type PinControlsProps } from './PinControls'
 import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
 import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
@@ -135,6 +136,8 @@ interface PropertiesPanelProps {
   playerSecret: PlayerSecretControlsProps | null
   /** A5 — zona oculta aberta no painel; `null` = nenhuma. */
   concealZone: ConcealZoneControlsProps | null
+  /** Pincel de revelar: "Revelar | Esconder" e a largura do próximo traço. */
+  concealBrush: ConcealBrushControlsProps
   /** Ponto de interesse: tipo do próximo pino, ou o pino aberto no painel. */
   pin: PinControlsProps
   /** Ícone do ponto de interesse — mesmo par de estados de `pin`. */
@@ -199,6 +202,7 @@ export function PropertiesPanel({
   floorStyle,
   playerSecret,
   concealZone,
+  concealBrush,
   pin,
   pinIcon,
   pinSelected,
@@ -275,6 +279,9 @@ export function PropertiesPanel({
             <ConcealZoneControls {...concealZone} />
           </ToolPropertiesSection>
         )}
+        <ToolPropertiesSection group="revealBrush" groups={groups}>
+          <ConcealBrushControls {...concealBrush} />
+        </ToolPropertiesSection>
         {/* Perto do topo pelo mesmo motivo da Sala: descrição e imagem são o
             que o mestre quer mexer logo depois de cravar o pino. */}
         <ToolPropertiesSection group="pin" groups={groups}>
