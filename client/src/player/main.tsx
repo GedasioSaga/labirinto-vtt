@@ -33,13 +33,6 @@ const NO_TOKENS: string[] = []
 const NO_SIGNALS: SignalMark[] = []
 const OWN_TOKEN_CSS = `#${OWN_TOKEN_COLOR.toString(16).padStart(6, '0')}`
 
-/** Recusa do mestre ao toque na porta, em uma linha curta. */
-const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
-  locked: 'Trancada',
-  far: 'Chegue mais perto da porta',
-  not_visible: 'Você não vê essa porta daqui',
-}
-
 /** Recusa de movimento que o jogador precisa ler (a ficha já voltou sozinha). Não diz QUEM está lá. */
 const MOVE_NOTICE_TEXT: Record<'occupied', string> = {
   occupied: 'Lugar ocupado',
