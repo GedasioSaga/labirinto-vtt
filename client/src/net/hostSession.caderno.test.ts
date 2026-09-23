@@ -207,9 +207,10 @@ describe('caderno de recados (host)', () => {
 
     const r = s.broadcast(comCela(true))
     const gabi = msgsPara(r, 'c-gabi')
-    expect(gabi.map((m) => m.type)).toEqual(['snapshot', 'room.text', 'scene.note'])
+    // `clue.added`: o texto da Sala lido também vai para "Minhas pistas".
+    expect(gabi.map((m) => m.type)).toEqual(['snapshot', 'room.text', 'clue.added', 'scene.note'])
     expect(gabi[1]).toEqual({ type: 'room.text', id: 'cela', title: 'Cela', text: 'Palha úmida no chão.' })
-    expect(gabi[2]).toEqual({ type: 'scene.note', id: expect.any(String), text: RECADO, at: VINTE_E_MEIA })
+    expect(gabi[3]).toEqual({ type: 'scene.note', id: expect.any(String), text: RECADO, at: VINTE_E_MEIA })
     expect(textoPara(r, 'c-gabi')).not.toContain(NOTA)
     expect(textoPara(r, 'c-diego')).not.toContain(RECADO)
     expect(textoPara(r, 'c-diego')).not.toContain('Palha')
@@ -222,7 +223,8 @@ describe('caderno de recados (host)', () => {
     s.sceneNote('s-prisao', RECADO, w)
     s.disconnect('c-gabi')
     const volta = msgsPara(entra(s, 'c-gabi-2', 'Gabi', w, gabi.resume).r, 'c-gabi-2')
-    expect(volta.map((m) => m.type)).toEqual(['welcome', 'snapshot', 'notes.book', 'scene.note'])
+    // `clues.book`: a pista da Cela, lida na primeira entrada, volta junto com o caderno.
+    expect(volta.map((m) => m.type)).toEqual(['welcome', 'snapshot', 'notes.book', 'clues.book', 'scene.note'])
   })
 
   it('mestre tira a ficha de Bruno, manda recado à Prisão e devolve a ficha lá: o recado chega e entra no caderno', () => {

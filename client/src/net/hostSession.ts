@@ -1,7 +1,8 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { filterMapForPlayer, playerBlockedRings, type PlayerMapView } from '../lib/fogFilter'
+import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
+import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
@@ -10,6 +11,9 @@ import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTrave
 import { passageOf, pinSummary } from '../lib/pins'
 import {
   parsePlayerMessage,
+  type ClueEntry,
+  type ClueReadMessage,
+  type ClueShowMessage,
   type DoorToggleMessage,
   type HostMessage,
   type JoinMessage,
@@ -245,6 +249,13 @@ export const DOOR_TOGGLE_MIN_INTERVAL_MS = 250
 export const TOKEN_PHOTO_MIN_INTERVAL_MS = 500
 
 /**
+ * "Mostrar para…": uma pista mostrada por jogador nesta janela. Só conta o que
+ * CHEGOU a alguém — é isso que abre um cartão na tela do colega, e um jogador
+ * hostil em laço não pode enterrar a tela dele em cartões.
+ */
+export const CLUE_SHOW_MIN_INTERVAL_MS = 1000
+
+/**
  * Um pedido de passagem pelo MESMO pino, do mesmo jogador, nesta janela. O
  * mestre recusou e o jogador insiste no toque: sem o intervalo, cada toque
  * seria um aviso novo empilhado na tela do mestre. Por jogador e por pino, e
@@ -463,6 +474,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: a cena (sceneId, ou `null` sem cena) em que o último recado
   // de chegada já foi avaliado. Mudou, é chegada: vale o último recado de lá.
   const noteSceneOf = new Map<string, string | null>()
+  // MINHAS PISTAS — por playerId: o caderno de pistas, da mais antiga à mais
+  // nova. `source` (pino ou Sala + mapa) é a chave de "já tenho esta" e NUNCA
+  // sai pela rede: o jogador só vê o `id` que o host inventou. Sobrevive a
+  // disconnect/resume; só o kick apaga.
+  const cluebooks = new Map<string, { source: string; entry: ClueEntry }[]>()
+  // Por playerId: os pinos do ÚLTIMO recorte mandado (já passados pelo
+  // `pinForPlayer`) e o mapa de onde vieram. É o que o jogador está vendo: só
+  // pino daqui vira pista.
+  const seenPins = new Map<string, { mapId: string; pins: Pin[] }>()
+  // Por playerId: quando a última pista mostrada chegou a um colega.
+  const lastClueShowAt = new Map<string, number>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -545,6 +567,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     if (scene === null) {
       noteSceneOf.set(playerId, null)
+      // Sem cena, sem mapa na tela: nenhum pino dele vale como "visto agora".
+      seenPins.delete(playerId)
       return [{ type: 'lobby.waiting' }]
     }
     const view = snapshotFor(playerId, scene.map)
@@ -575,9 +599,28 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (entered.has(id)) continue
       entered.add(id)
       const room = view.map.regions.find((r) => r.id === id)?.room
-      if (room?.textoAoEntrar !== undefined) cards.push({ type: 'room.text', id, title: room.name, text: room.textoAoEntrar })
+      if (room?.textoAoEntrar === undefined) continue
+      cards.push({ type: 'room.text', id, title: room.name, text: room.textoAoEntrar })
+      // MINHAS PISTAS: o texto lido entra no caderno — do RECORTE, como o cartão.
+      const clue = roomClueForPlayer(room.name, room.textoAoEntrar)
+      if (clue !== null) cards.push({ type: 'clue.added', clue: rememberClue(playerId, `sala|${mapId}|${id}`, clue) })
     }
     return cards
+  }
+
+  /**
+   * Guarda a pista no caderno do jogador e devolve a entrada que vai para a
+   * rede. A mesma `source` de novo (releu o pino, entrou de novo na Sala)
+   * atualiza o texto, mantém o id e sobe para o fim; passou do teto, sai a
+   * mais antiga. `from`: o colega que mostrou.
+   */
+  const rememberClue = (playerId: string, source: string, content: PlayerClueContent, from?: string): ClueEntry => {
+    const book = cluebooks.get(playerId) ?? []
+    const previous = book.find((item) => item.source === source)
+    const base: ClueEntry = { id: previous?.entry.id ?? randomId(), title: content.title, text: content.text, image: content.image, at: now() }
+    const entry: ClueEntry = from === undefined ? base : { ...base, from }
+    cluebooks.set(playerId, [...book.filter((item) => item.source !== source), { source, entry }].slice(-CLUEBOOK_MAX_CLUES))
+    return { ...entry }
   }
 
   const noteMessage = (note: NoteEntry): HostMessage => ({ type: 'scene.note', id: note.id, text: note.text, at: note.at })
@@ -654,6 +697,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // dentro depois que ele sai.
     forgetInside(exp, view.roofs)
     memory.vision = view.vision
+    seenPins.set(playerId, { mapId: map.id, pins: view.map.pins })
     const seenNow = new Set(view.visibleDoorIds)
     for (const w of view.map.walls) {
       if (w.door !== null && seenNow.has(w.id)) memory.doors.set(w.id, { ...w.door })
@@ -720,6 +764,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // O caderno vem antes do cartão: o cliente já tem o recado guardado quando o cartão reabre.
     const book = notebooks.get(record.playerId) ?? []
     if (book.length > 0) outbound.push({ clientId, msg: { type: 'notes.book', notes: book.map((entry) => ({ ...entry })) } })
+    // MINHAS PISTAS: é o que faz a pista sobreviver a recarregar a página. Só a entrada, nunca a `source`.
+    const clues = cluebooks.get(record.playerId) ?? []
+    if (clues.length > 0) outbound.push({ clientId, msg: { type: 'clues.book', clues: clues.map((item) => ({ ...item.entry })) } })
     for (const msg of cards) outbound.push({ clientId, msg })
     return { outbound }
   }
@@ -1069,6 +1116,78 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
   }
 
+  /**
+   * MINHAS PISTAS — o jogador abriu o cartão do pino. Só vale pino do ÚLTIMO
+   * recorte mandado a ele, da cena onde ele está AGORA, e que o mestre não
+   * escondeu desde então: pino secreto, oculto, no escuro, em zona oculta ou de
+   * outra cena não está nesse recorte e morre em silêncio (responder "não
+   * existe" diria que o id existe em algum lugar). A pista sai do recorte,
+   * nunca do mapa do mestre.
+   */
+  function handleClueRead(clientId: string, msg: ClueReadMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    const seen = seenPins.get(playerId)
+    if (scene === null || seen === undefined || seen.mapId !== scene.map.id) return { outbound: [] }
+    const pin = seen.pins.find((p) => p.id === msg.pinId)
+    const stillThere = scene.map.pins.some((p) => p.id === msg.pinId && p.hidden !== true && p.secret !== true)
+    if (pin === undefined || !stillThere) return { outbound: [] }
+    const content = pinClueForPlayer(pin)
+    if (content === null) return { outbound: [] }
+    return reply(clientId, { type: 'clue.added', clue: rememberClue(playerId, `pino|${scene.map.id}|${pin.id}`, content) })
+  }
+
+  /** Quem joga, está conectado e na MESMA cena que `playerId` agora. Ele mesmo fica de fora. */
+  const peersOf = (playerId: string, world: HostWorld): PlayerRecord[] => {
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return []
+    return [...players.values()].filter(
+      (other) => other.playerId !== playerId && other.clientId !== null && statusOf(other.playerId) === 'playing' && sceneFor(other.playerId, world) === scene,
+    )
+  }
+
+  /** "Mostrar para…": os nomes de quem está na cena com ele. Quem está em outra cena não entra, nem pelo nome. */
+  function handleCluePeers(clientId: string, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const names = statusOf(playerId) === 'playing' ? peersOf(playerId, world).map((other) => other.name) : []
+    return reply(clientId, { type: 'clue.peers', names: names.sort((a, b) => a.localeCompare(b)) })
+  }
+
+  /**
+   * Mostra a pista `clueId` (do caderno de quem pede) ao colega `to`, que tem de
+   * estar na mesma cena agora. A pista entra no caderno dele com `from`, pela
+   * mesma `source` (se ele mesmo ler o pino depois, não duplica). Qualquer
+   * recusa volta como `ok: false`, sem dizer onde o colega está.
+   */
+  function handleClueShow(clientId: string, msg: ClueShowMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const refused = reply(clientId, { type: 'clue.show.result', to: msg.to, ok: false })
+    const sender = players.get(playerId)
+    const shown = (cluebooks.get(playerId) ?? []).find((item) => item.entry.id === msg.clueId)
+    if (sender === undefined || shown === undefined || statusOf(playerId) !== 'playing') return refused
+    const target = peersOf(playerId, world).find((other) => other.name === msg.to)
+    if (target === undefined || target.clientId === null) return refused
+    const at = now()
+    const last = lastClueShowAt.get(playerId)
+    // Só chega aqui quem está na cena: o "espere" não conta nada que a lista de colegas já não conte.
+    if (last !== undefined && at - last < CLUE_SHOW_MIN_INTERVAL_MS) {
+      return reply(clientId, { type: 'clue.show.result', to: msg.to, ok: false, reason: 'too_soon' })
+    }
+    lastClueShowAt.set(playerId, at)
+    const { title, text, image } = shown.entry
+    const clue = rememberClue(target.playerId, shown.source, { title, text, image }, sender.name)
+    return {
+      outbound: [
+        { clientId: target.clientId, msg: { type: 'clue.shown', from: sender.name, clue } },
+        { clientId, msg: { type: 'clue.show.result', to: msg.to, ok: true } },
+      ],
+    }
+  }
+
   const findPendingTravel = (requestId: string): PendingTravel | undefined =>
     [...pendingTravels.values()].find((pending) => pending.requestId === requestId)
 
@@ -1107,6 +1226,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleTravelRequest(clientId, msg, world)
         case 'laser':
           return handlePlayerLaser(clientId, msg, world)
+        case 'clue.read':
+          return handleClueRead(clientId, msg, world)
+        case 'clue.peers':
+          return handleCluePeers(clientId, world)
+        case 'clue.show':
+          return handleClueShow(clientId, msg, world)
       }
     },
 
@@ -1233,6 +1358,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       enteredRooms.delete(playerId)
       notebooks.delete(playerId)
       noteSceneOf.delete(playerId)
+      cluebooks.delete(playerId)
+      seenPins.delete(playerId)
+      lastClueShowAt.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },
 

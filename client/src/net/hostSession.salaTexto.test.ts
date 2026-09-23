@@ -78,10 +78,10 @@ describe('texto da sala ao entrar', () => {
     expect(cartoes(r, 'c-bruno')).toEqual([])
   })
 
-  it('o cartão chega DEPOIS do snapshot (o mapa já tem a sala quando o cartão abre)', () => {
+  it('o cartão chega DEPOIS do snapshot (o mapa já tem a sala quando o cartão abre); a pista dele vem logo atrás', () => {
     const map = mapa(LA_FORA)
     const tipos = para(mesa(map).broadcast(map), 'c-carla').map((m) => m.type)
-    expect(tipos).toEqual(['snapshot', 'room.text'])
+    expect(tipos).toEqual(['snapshot', 'room.text', 'clue.added'])
   })
 
   it('sai e volta: não repete', () => {

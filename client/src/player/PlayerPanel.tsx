@@ -1,8 +1,13 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react'
 import type { StorageLike } from './playerConnection'
-import { NAME_MAX_LENGTH, type NoteEntry } from '../net/protocol'
+import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { PlayerNotebook } from './PlayerNotebook'
+import { PlayerClueList } from './PlayerClues'
+
+/** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
+const NO_CLUES: readonly ClueEntry[] = []
+const IGNORE_CLUE = (): void => {}
 
 // Painel do jogador: meus personagens, ajustes de visão e centralizar a câmera.
 // Fica sobre o canvas (não ao lado) para o enquadramento do mapa não depender
@@ -121,6 +126,10 @@ interface PlayerPanelProps {
   notebookUnread: boolean
   /** O Caderno ficou à vista: tudo nele conta como lido. */
   onReadNotebook: () => void
+  /** MINHAS PISTAS, da mais antiga à mais nova (a lista mostra a mais nova em cima). */
+  clues?: readonly ClueEntry[]
+  /** Tocou numa pista do Caderno: reabre o cartão dela. */
+  onOpenClue?: (clueId: string) => void
 }
 
 export function PlayerPanel({
@@ -142,6 +151,8 @@ export function PlayerPanel({
   notebook,
   notebookUnread,
   onReadNotebook,
+  clues = NO_CLUES,
+  onOpenClue = IGNORE_CLUE,
 }: PlayerPanelProps) {
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
   // Um estado por forma: a coluna do notebook nasce aberta e a gaveta do
@@ -484,7 +495,22 @@ export function PlayerPanel({
             hidden={tab !== 'caderno'}
           >
             {/* Só montado à vista: fora da aba, o texto dos recados não fica no documento. */}
-            {tab === 'caderno' && <PlayerNotebook notes={notebook} />}
+            {tab === 'caderno' && (
+              <>
+                <section className="pp-section" aria-labelledby={`${panelId}-clues`}>
+                  <h2 id={`${panelId}-clues`} className="pp-heading">
+                    Minhas pistas
+                  </h2>
+                  <PlayerClueList clues={clues} onOpen={onOpenClue} />
+                </section>
+                <section className="pp-section" aria-labelledby={`${panelId}-notes`}>
+                  <h2 id={`${panelId}-notes`} className="pp-heading">
+                    Recados
+                  </h2>
+                  <PlayerNotebook notes={notebook} />
+                </section>
+              </>
+            )}
           </div>
         </div>
       </aside>
