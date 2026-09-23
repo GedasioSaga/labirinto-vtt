@@ -71,6 +71,10 @@ export type Action =
   /** `?` sem pino para alternar — abre a tela de atalhos, com o que cada letra
    *  e cada combinação faz (`components/ShortcutsDialog.tsx`). */
   | { kind: 'showShortcuts' }
+  /** Ctrl+G — junta a seleção de vários num grupo (`lib/itemGroups.ts`). */
+  | { kind: 'group' }
+  /** Ctrl+Shift+G — desfaz o grupo de quem está selecionado. */
+  | { kind: 'ungroup' }
 
 /**
  * Tabela ferramenta → letra, para o integrador mostrar no `data-tip` de cada
@@ -251,6 +255,9 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
     if (lower === 's') return { kind: 'save' }
     if (lower === 'o') return { kind: 'open' }
     if (lower === 'a') return { kind: 'selectAll' }
+    // Mesmo par de Figma/Excalidraw/PowerPoint. Com Shift o navegador manda
+    // `G` maiúsculo — `lower` já cobre os dois.
+    if (lower === 'g') return evt.shiftKey ? { kind: 'ungroup' } : { kind: 'group' }
     if (key === '0') return { kind: 'zoomReset' }
     return null
   }

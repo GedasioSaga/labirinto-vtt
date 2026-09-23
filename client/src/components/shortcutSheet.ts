@@ -54,6 +54,8 @@ export const DOCUMENTED_ACTIONS: Record<Action['kind'], true> = {
   copy: true,
   cut: true,
   paste: true,
+  group: true,
+  ungroup: true,
   save: true,
   open: true,
   zoomReset: true,
@@ -122,6 +124,9 @@ const EDIT_GROUP: ShortcutGroup = {
     { what: 'Recortar a seleção', combo: { keys: ['Ctrl', 'X'] }, action: { kind: 'cut' } },
     // Cola perto do cursor, também em outra cena ou outro mapa (`stores/mapClipboard.ts`).
     { what: 'Colar perto do cursor', combo: { keys: ['Ctrl', 'V'] }, action: { kind: 'paste' } },
+    // Grupo se move e se seleciona como um item só (`lib/itemGroups.ts`).
+    { what: 'Agrupar a seleção', combo: { keys: ['Ctrl', 'G'] }, action: { kind: 'group' } },
+    { what: 'Desfazer o grupo', combo: { keys: ['Ctrl', 'Shift', 'G'] }, action: { kind: 'ungroup' } },
     { what: 'Selecionar tudo', combo: { keys: ['Ctrl', 'A'] }, action: { kind: 'selectAll' } },
     { what: 'Apagar a seleção', combo: { keys: ['Delete'] }, action: { kind: 'deleteSelected' } },
     { what: 'Mover a seleção 1 quadrado', combo: { keys: ['Setas'] }, action: { kind: 'nudge', dx: 1, dy: 0, fine: false } },

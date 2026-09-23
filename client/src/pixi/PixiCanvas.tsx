@@ -192,8 +192,10 @@ import { drawSelectionMarquee, drawAreaSelectionOutline, createMarqueeHintRender
 // fora da minha lista, CONTRATO diz "nenhuma mudança de assinatura").
 import {
   EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionFromItems, toggleSelectionItem,
-  selectionToAreaSelection, selectionFromAreaSelection, isSelectionEmpty,
+  selectionToAreaSelection, selectionFromAreaSelection, isSelectionEmpty, selectionHas,
+  type SelectionItem, type SelectionSet,
 } from '../lib/selectionModel'
+import { expandToGroup, NO_GROUPS } from '../lib/itemGroups'
 
 // Fase 5, N1 "borracha: apagar parte" — raio do círculo de corte, como fração
 // do grid do mapa (não px fixo: assim escala com mapas de grid diferente,
@@ -2031,6 +2033,20 @@ export function PixiCanvas({
       })
 
       /**
+       * Agrupar objetos (Ctrl+G): o que um clique em `item` seleciona — o grupo
+       * inteiro ou só ele. Membro alcançável é o que o Ctrl+A pegaria (camada
+       * visível e destravada, item não travado, token não oculto): membro
+       * apagado ou travado fica onde está, como fica no laço. Sem grupo no
+       * mapa, nem varre o mapa.
+       */
+      const selectionOnClick = (map: MapData, item: SelectionItem): SelectionSet => {
+        const groups = useMapStore.getState().itemGroups[map.id] ?? NO_GROUPS
+        if (groups.length === 0) return selectionOfItem(item)
+        const reachable = selectionFromAreaSelection(selectEntitiesInArea(hitTestMap(map), SELECT_ALL_RECT))
+        return expandToGroup(groups, item, (member) => selectionHas(reachable, member))
+      }
+
+      /**
        * "O círculo da borracha encostou no CONTORNO desta Região/Sala?" — as
        * `n` arestas de `region.points`, cada uma testada como o segmento que
        * é. Diferente de `eraseDecisionForRegion` (lib/eraseGeometry.ts), que
@@ -3466,6 +3482,22 @@ export function PixiCanvas({
           lastPoint = { x: event.global.x, y: event.global.y }
           updateCursor()
           return
+        }
+        // Agrupar objetos (Ctrl+G): um clique num membro pega o grupo inteiro,
+        // e o mesmo gesto já arrasta todos juntos — o arrasto da seleção de
+        // vários logo acima, só que sem precisar laçar de novo. Alt+arrastar
+        // segue duplicando só o item (Onda 3, item 13).
+        if (hit && !event.altKey) {
+          const grupo = selectionOnClick(map, { kind: hit.kind, id: hit.id })
+          if (grupo.length > 1) {
+            setSelection(grupo)
+            mode = 'dragging-area-selection'
+            areaSelectionDragBefore = map
+            areaSelectionDragLastPoint = worldPoint
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
+            return
+          }
         }
         if (hit) {
           // Seleciona SEMPRE, mesmo travado — é como o usuário alcança o
@@ -5318,6 +5350,8 @@ export function PixiCanvas({
           if (runClipboardShortcut(action.kind, alvo)) event.preventDefault()
           return
         }
+        // Ctrl+G / Ctrl+Shift+G são "achar próximo/anterior" do navegador.
+        if (action.kind === 'group' || action.kind === 'ungroup') event.preventDefault()
         runShortcut(action)
       }
 
@@ -5436,6 +5470,14 @@ export function PixiCanvas({
             setSelection(selectionFromAreaSelection(selectEntitiesInArea(hitTestMap(map), SELECT_ALL_RECT)))
             break
           }
+          // Agrupar objetos: o store guarda o grupo e avisa o que fez; o clique
+          // que pega o grupo inteiro fica no pointerdown (`selectionOnClick`).
+          case 'group':
+            useMapStore.getState().groupSelected()
+            break
+          case 'ungroup':
+            useMapStore.getState().ungroupSelected()
+            break
           // save/open/undo/redo têm handler próprio em App.tsx, com o MESMO
           // mapeamento de tecla — tratar aqui de novo disparava a ação DUAS
           // vezes por tecla.

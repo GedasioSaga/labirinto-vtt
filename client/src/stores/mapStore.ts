@@ -32,6 +32,7 @@ import { describeBlockedMove } from '../lib/moveValidation'
 import { DEFAULT_PATH_WIDTH_CELLS, DEFAULT_TEXT_FONT_FAMILY, clampPathWidthCells, convertLineToCurve, convertCurveToLine } from '../lib/drawingFactory'
 import { moveAreaSelection, areaSelectionBounds, type AreaBounds } from '../lib/areaSelection'
 import { pieceBounds } from '../lib/floorSdf'
+import { groupItems, NO_GROUPS, ungroupItems, type ItemGroups } from '../lib/itemGroups'
 import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, TOOL_CLUSTERS } from '../components/labels'
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
@@ -401,6 +402,18 @@ interface MapStoreState {
    *  Shift+clique (`toggleSelectionItem`) ou limpar (`EMPTY_SELECTION`),
    *  sempre decididos no CHAMADOR (pixi/PixiCanvas.tsx); o store só grava. */
   setSelection: (selection: SelectionSet) => void
+  /**
+   * Grupos do editor (Ctrl+G), por id de mapa — cada cena guarda os seus.
+   * Fora de `MapData` de propósito: grupo é gesto do mestre, não conteúdo do
+   * mapa, então não vai para o jogador, não entra no arquivo e não ocupa
+   * Ctrl+Z. Mapa sem grupo não tem chave (ausência = nenhum grupo).
+   */
+  itemGroups: Readonly<Record<string, ItemGroups>>
+  /** Junta a seleção atual num grupo do mapa aberto. `false` = menos de 2
+   *  itens, nada mudou. */
+  groupSelected: () => boolean
+  /** Desfaz o grupo de quem está selecionado. `false` = nenhum grupo tocado. */
+  ungroupSelected: () => boolean
   /** Onda 4, item 24 — apaga TODOS os itens do conjunto (não só um), numa
    *  única entrada de histórico. Sem efeito se a seleção estiver vazia. */
   removeSelected: () => void
@@ -860,6 +873,11 @@ interface MapStoreState {
 
 const initialMap = mapFactory.createEmptyMap('map_local', 'Mapa sem título', 30, 20, 64)
 
+export const GROUP_CREATED_TEXT = 'Grupo criado: um clique em qualquer parte pega tudo. Ctrl+Shift+G desfaz'
+export const GROUP_NEEDS_TWO_TEXT = 'Selecione 2 ou mais itens para agrupar'
+export const GROUP_UNDONE_TEXT = 'Grupo desfeito'
+export const UNGROUP_NOTHING_TEXT = 'Nada do que está selecionado faz parte de um grupo'
+
 /**
  * Comprimento padrão (px de mundo) do vão que a ferramenta "Porta" abre ao
  * clicar em cima de uma parede, por `DoorKind` — antes desta fase era um
@@ -1127,6 +1145,33 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     // Selecionar algo no mapa fecha a zona oculta do painel; limpar a seleção não.
     setSelection: (selection) =>
       set(isSelectionEmpty(selection) ? { selection } : { selection, selectedConcealZoneId: null, selectedPinId: null }),
+    itemGroups: {},
+    groupSelected: () => {
+      const { map, selection, itemGroups } = get()
+      const antes = itemGroups[map.id] ?? NO_GROUPS
+      const depois = groupItems(antes, selection, `grupo_${crypto.randomUUID()}`)
+      // Os avisos não dizem "N itens": o painel já conta, e repetir a contagem
+      // num aviso que fica 4 s na tela a faria sobreviver à seleção que descreve.
+      if (depois === antes) {
+        useToastStore.getState().push('info', GROUP_NEEDS_TWO_TEXT)
+        return false
+      }
+      set({ itemGroups: { ...itemGroups, [map.id]: depois } })
+      useToastStore.getState().push('info', GROUP_CREATED_TEXT)
+      return true
+    },
+    ungroupSelected: () => {
+      const { map, selection, itemGroups } = get()
+      const antes = itemGroups[map.id] ?? NO_GROUPS
+      const depois = ungroupItems(antes, selection)
+      if (depois === antes) {
+        useToastStore.getState().push('info', UNGROUP_NOTHING_TEXT)
+        return false
+      }
+      set({ itemGroups: { ...itemGroups, [map.id]: depois } })
+      useToastStore.getState().push('info', GROUP_UNDONE_TEXT)
+      return true
+    },
     removeSelected: () => {
       const { selection } = get()
       if (isSelectionEmpty(selection)) return

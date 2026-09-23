@@ -290,3 +290,26 @@ describe('resolveShortcut — nudge por seta', () => {
     })
   })
 })
+
+describe('resolveShortcut — agrupar objetos (Ctrl+G / Ctrl+Shift+G)', () => {
+  it('Ctrl+G agrupa a seleção', () => {
+    expect(resolveShortcut(evt({ key: 'g', ctrlKey: true }))).toEqual({ kind: 'group' })
+  })
+
+  it('Cmd+G (Mac) agrupa igual', () => {
+    expect(resolveShortcut(evt({ key: 'g', metaKey: true }))).toEqual({ kind: 'group' })
+  })
+
+  it('Ctrl+Shift+G desagrupa (com Shift o navegador manda a letra maiúscula)', () => {
+    expect(resolveShortcut(evt({ key: 'G', ctrlKey: true, shiftKey: true }))).toEqual({ kind: 'ungroup' })
+  })
+
+  it('G sem Ctrl continua sendo a ferramenta Região', () => {
+    expect(resolveShortcut(evt({ key: 'g' }))).toEqual({ kind: 'selectTool', tool: 'region' })
+  })
+
+  it('com o foco num campo de texto, Ctrl+G não é nosso', () => {
+    expect(resolveShortcut(evt({ key: 'g', ctrlKey: true, targetTagName: 'INPUT' }))).toBeNull()
+    expect(resolveShortcut(evt({ key: 'G', ctrlKey: true, shiftKey: true, targetTagName: 'TEXTAREA' }))).toBeNull()
+  })
+})
