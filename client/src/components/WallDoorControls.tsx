@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import type { DoorState } from '../types/map'
 import { Toggle } from './Toggle'
 
@@ -8,6 +9,10 @@ export interface WallDoorControlsProps {
   /** `DoorState.locked` existe no schema desde sempre e nunca teve UI (grep:
    *  só tipo e teste) — este é o primeiro leitor/escritor com interface. */
   onToggleLocked: () => void
+  /** Liga/desliga `DoorState.secret`: para o jogador a porta vira parede comum. */
+  onToggleSecret: () => void
+  /** "Revelar passagem": tira o segredo da porta e o oculto da sala ligada, num clique. */
+  onRevealPassage: () => void
 }
 
 /**
@@ -16,8 +21,14 @@ export interface WallDoorControlsProps {
  * Rótulos fixos (auditoria 14/09): antes o toggle trocava o próprio texto
  * com o estado ("Fechada" desligado, "Aberta" ligado) e não dava para saber o
  * que ligar significava. O rótulo nomeia o estado LIGADO; o switch mostra se está.
+ *
+ * PORTA SECRETA: "Secreta" esconde a porta dos jogadores (chega a eles como
+ * parede); com ela ligada aparece "Revelar passagem", o gesto de mesa de
+ * mostrar a passagem — desliga o segredo da porta e da sala do outro lado.
  */
-export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLocked }: WallDoorControlsProps) {
+export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLocked, onToggleSecret, onRevealPassage }: WallDoorControlsProps) {
+  const secret = door?.secret === true
+  const secretHintId = `${useId()}-secreta`
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Porta</h2>
@@ -28,6 +39,15 @@ export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLoc
         <div className="lb-field">
           <Toggle label="Aberta" checked={door.open} onChange={onToggleOpen} />
           <Toggle label="Trancada" checked={door.locked} onChange={onToggleLocked} />
+          <Toggle label="Secreta" checked={secret} onChange={onToggleSecret} describedBy={secretHintId} />
+          <p id={secretHintId} className="lb-field__hint">
+            {secret ? 'Os jogadores veem só a parede.' : 'Para os jogadores, vira parede até você revelar.'}
+          </p>
+          {secret && (
+            <button type="button" className="lb-btn lb-btn--block" onClick={onRevealPassage}>
+              Revelar passagem
+            </button>
+          )}
         </div>
       )}
     </section>

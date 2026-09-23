@@ -382,6 +382,18 @@ function plainWallFor(id: string, from: RegionPoint, to: RegionPoint, look: Wall
   return plain
 }
 
+/**
+ * Porta secreta (`DoorState.secret`) como o jogador a conhece: parede comum
+ * que bloqueia luz e passo, sem porta — então sem estado, sem o campo e sem
+ * halo nem toque na tela dele. A cara e o vínculo são os do próprio pedaço,
+ * que `addDoorOnWall` copiou da parede de onde a porta foi cortada. Outra
+ * parede passa pela mesma referência.
+ */
+function secretDoorAsWall(wall: Wall): Wall {
+  if (wall.door?.secret !== true) return wall
+  return { ...wall, blocksLight: true, blocksMove: true, door: null }
+}
+
 /** As duas pontas de `other` estão na reta de `wall` (tolerância `NESTING_TOLERANCE`). */
 function onSameLine(wall: WallLine, other: WallLine): boolean {
   const len = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1)
@@ -791,14 +803,22 @@ export function filterMapForPlayer(
   // passa por `hiddenLayers`: com a camada Salas escondida a Biblioteca não sai,
   // mas a parede dela continua saindo — e o vão também saía.
   const playerRegions = map.regions.filter((r) => !r.hidden && !r.secret && !secretRoomIds.has(r.id) && isUsablePolygon(r.points))
-  const disguised = disguisedSecretBorderWalls(map.walls, secretRoomIds, playerRegions)
+  /**
+   * PORTA SECRETA vira parede comum ANTES de qualquer outra regra: segura a
+   * visão da autoridade (nada do outro lado entra no pacote, nem com ela
+   * aberta), nunca entra em `visibleDoorIds` (o host recusa o toque) e segue
+   * as regras de parede daqui para baixo — inclusive sumir junto com a sala
+   * secreta a que pertence, porque o `regionId` fica.
+   */
+  const withSecretDoorsAsWalls = map.walls.some((w) => w.door?.secret === true) ? map.walls.map(secretDoorAsWall) : map.walls
+  const disguised = disguisedSecretBorderWalls(withSecretDoorsAsWalls, secretRoomIds, playerRegions)
   /**
    * As paredes como o jogador as conhece: a da sala secreta na borda já
    * trocada pela parede comum. Vale para as DUAS visões (abaixo) e para o
    * pacote: com a estante aberta e a sala ainda secreta, nem a autoridade olha
    * para dentro — senão o que está lá sairia no pacote.
    */
-  const knownWalls = disguised.size === 0 ? map.walls : map.walls.flatMap((w) => disguised.get(w) ?? [w])
+  const knownWalls = disguised.size === 0 ? withSecretDoorsAsWalls : withSecretDoorsAsWalls.flatMap((w) => disguised.get(w) ?? [w])
 
   /**
    * TETO DE CONSTRUÇÃO. Sala com `room.roof` esconde o INTERIOR com o mesmo

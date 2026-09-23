@@ -139,6 +139,16 @@ export interface DoorState {
   /** OBRIGATÓRIO. Porta de mapa antigo migra para 'normal' (mesma
    *  aparência de hoje). Ver mapFile.ts. */
   kind: DoorKind
+  /**
+   * PORTA SECRETA — parece parede até o mestre revelar. Para o jogador ela sai
+   * como parede comum, sem porta e sem este campo (`lib/fogFilter.ts`): sem
+   * halo, sem toque, e a visão e o movimento não passam nem com ela aberta
+   * (`lib/collision.ts`). O mestre a vê tracejada (`pixi/drawDoors.ts`);
+   * "Revelar passagem" tira o campo desta porta e o oculto da sala ligada
+   * (`mapFactory.revealSecretPassage`). `undefined` === porta comum, sem linha
+   * de migração; do disco só `true` volta (`lib/mapFile.ts`).
+   */
+  secret?: boolean
 }
 
 export interface Light {
