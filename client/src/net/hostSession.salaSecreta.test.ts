@@ -80,7 +80,8 @@ describe('hostSession: sala secreta não vaza pela rede', () => {
     expect(json).not.toContain('"sec-n"')
     const estante = snap.map.walls.find((w) => w.id === 'estante')
     expect(estante?.door).toBeNull()
-    expect(estante?.regionId).toBeUndefined()
+    // Vínculo da Biblioteca, como as paredes vizinhas: nada que a distinga delas.
+    expect(estante?.regionId).toBe('r-bib')
     // A visão não passa pela estante: nenhum vértice do anel além da parede leste.
     expect(Math.max(...snap.vision.flat().map((p) => p.x))).toBeLessThanOrEqual(900.5)
   })

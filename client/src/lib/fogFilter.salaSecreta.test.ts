@@ -58,11 +58,11 @@ function mansao({ secreta = true, porta = trancada, espessura, fichas = [ficha('
   return {
     ...createEmptyMap('map_estante', 'Mansao', 1200, 600, 50),
     walls: [
-      parede('bib-n', 500, 100, 900, 100, bib),
-      parede('bib-l1', 900, 100, 900, 250, bib),
-      parede('bib-l2', 900, 300, 900, 450, bib),
-      parede('bib-s', 900, 450, 500, 450, bib),
-      parede('bib-o', 500, 450, 500, 100, bib),
+      parede('bib-n', 500, 100, 900, 100, { ...bib, regionEdgeIndex: 0 }),
+      parede('bib-l1', 900, 100, 900, 250, { ...bib, regionEdgeIndex: 1 }),
+      parede('bib-l2', 900, 300, 900, 450, { ...bib, regionEdgeIndex: 1 }),
+      parede('bib-s', 900, 450, 500, 450, { ...bib, regionEdgeIndex: 2 }),
+      parede('bib-o', 500, 450, 500, 100, { ...bib, regionEdgeIndex: 3 }),
       parede('estante', ESTANTE_X, 250, ESTANTE_X, 300, { ...sec, door: porta }),
       parede('sec-n', 900, 100, 1150, 100, sec),
       parede('sec-l', 1150, 100, 1150, 450, sec),
@@ -83,7 +83,7 @@ describe('sala secreta: a porta na borda chega como parede inteira', () => {
     expect(Math.max(...anel.map((p) => p.x))).toBeLessThanOrEqual(ESTANTE_X + 0.5)
   })
 
-  it('a estante sai como parede comum no lugar do vão: sem porta, sem vínculo, com a aparência da parede do lado', () => {
+  it('a estante sai como parede comum no lugar do vão: sem porta, com a aparência e o vínculo da parede do lado', () => {
     const { map } = filterMapForPlayer(mansao({ espessura: 'thin' }), 'p1', ownership, RADIUS)
     const naEstante = map.walls.filter((w) => w.x1 === ESTANTE_X && w.x2 === ESTANTE_X && Math.min(w.y1, w.y2) <= 250 && Math.max(w.y1, w.y2) >= 300)
     expect(naEstante).toHaveLength(1)
@@ -91,8 +91,10 @@ describe('sala secreta: a porta na borda chega como parede inteira', () => {
     expect(disfarce.door).toBeNull()
     expect(disfarce.blocksLight).toBe(true)
     expect(disfarce.blocksMove).toBe(true)
-    expect(disfarce.regionId).toBeUndefined()
-    expect(disfarce.regionEdgeIndex).toBeUndefined()
+    // Vínculo da Biblioteca (que o jogador já conhece), igual ao de bib-l1 e
+    // bib-l2: sem ele, o trecho de 50 px sem sala na borda seria a porta.
+    expect(disfarce.regionId).toBe('r-bib')
+    expect(disfarce.regionEdgeIndex).toBe(1)
     // Mesma cara da parede leste da Biblioteca, nunca a da sala secreta.
     expect(disfarce.wallKind).toBe('interior')
     expect(disfarce.thickness).toBe('thin')
@@ -135,5 +137,80 @@ describe('sala secreta: a porta na borda chega como parede inteira', () => {
     const ids = view.map.walls.map((w) => w.id)
     expect(ids).not.toContain('estante')
     expect(ids).not.toContain('sec-n')
+  })
+})
+
+/**
+ * Caso MAIS COMUM (mapFactory: cada Sala tem a própria parede na aresta
+ * comum): a Biblioteca tem a parede leste INTEIRA e a porta trancada está na
+ * parede do Quarto Secreto, partida em 3 pedaços. O que o jogador recebe em
+ * x = 900 tem de ser idêntico a uma Biblioteca sem sala nenhuma ao lado.
+ */
+function mansaoComum(fichas: Token[] = [ficha('lanterna', 825, 275)]): MapData {
+  const bib: Partial<Wall> = { regionId: 'r-bib', wallKind: 'interior' }
+  const sec: Partial<Wall> = { regionId: 'r-secreto', wallKind: 'interior' }
+  return {
+    ...createEmptyMap('map_estante', 'Mansao', 1200, 600, 50),
+    walls: [
+      parede('bib-n', 500, 100, 900, 100, { ...bib, regionEdgeIndex: 0 }),
+      parede('bib-e', 900, 100, 900, 450, { ...bib, regionEdgeIndex: 1 }),
+      parede('bib-s', 900, 450, 500, 450, { ...bib, regionEdgeIndex: 2 }),
+      parede('bib-o', 500, 450, 500, 100, { ...bib, regionEdgeIndex: 3 }),
+      parede('sec-wa', 900, 450, 900, 300, { ...sec, regionEdgeIndex: 3 }),
+      parede('estante', 900, 300, 900, 250, { ...sec, regionEdgeIndex: 3, door: trancada }),
+      parede('sec-wb', 900, 250, 900, 100, { ...sec, regionEdgeIndex: 3 }),
+      parede('sec-n', 900, 100, 1150, 100, { ...sec, regionEdgeIndex: 0 }),
+      parede('sec-l', 1150, 100, 1150, 450, { ...sec, regionEdgeIndex: 1 }),
+      parede('sec-s', 1150, 450, 900, 450, { ...sec, regionEdgeIndex: 2 }),
+    ],
+    regions: [sala('r-bib', 'Biblioteca', 500, 100, 900, 450), sala('r-secreto', 'Quarto Secreto', 900, 100, 1150, 450, { secret: true })],
+    tokens: fichas,
+  }
+}
+
+describe('sala secreta: pedaço secreto já coberto pela parede da sala do jogador', () => {
+  it('SEGURANÇA: em x = 900 sai só a parede leste da Biblioteca, sem pedaço sobreposto nem quebra na altura da porta', () => {
+    const { map } = filterMapForPlayer(mansaoComum(), 'p1', ownership, RADIUS)
+    const emX900 = map.walls.filter((w) => w.x1 === ESTANTE_X && w.x2 === ESTANTE_X)
+    expect(emX900.map((w) => w.id)).toEqual(['bib-e'])
+    const pontas = map.walls.flatMap((w) => [w.y1, w.y2])
+    expect(pontas).not.toContain(250)
+    expect(pontas).not.toContain(300)
+    const json = JSON.stringify(map)
+    for (const id of ['sec-wa', 'estante', 'sec-wb']) expect(json).not.toContain(`"${id}"`)
+  })
+
+  it('a parede da Biblioteca segura a visão sozinha, mesmo com a estante aberta e alguém lá dentro', () => {
+    const base = mansaoComum([ficha('lanterna', 825, 275), ficha('guarda', 1000, 275)])
+    const aberta: MapData = { ...base, walls: base.walls.map((w) => (w.id === 'estante' ? { ...w, door: { open: true, locked: false, kind: 'normal' } } : w)) }
+    const view = filterMapForPlayer(aberta, 'p1', ownership, RADIUS)
+    expect(pointInRing({ x: 1000, y: 275 }, view.vision[0])).toBe(false)
+    expect(Math.max(...view.vision[0].map((p) => p.x))).toBeLessThanOrEqual(ESTANTE_X + 0.5)
+    expect(JSON.stringify(view.map)).not.toContain('guarda')
+  })
+
+  it('pedaço secreto coberto só em parte sai APARADO no trecho descoberto, com a cara e o vínculo da Biblioteca', () => {
+    // Biblioteca com a parede leste partida (vão em 250-300) e o Quarto Secreto
+    // com uma parede só, inteira, de 100 a 450: sai só o trecho 250-300.
+    const base = mansao()
+    const map: MapData = {
+      ...base,
+      walls: [
+        ...base.walls.filter((w) => w.id !== 'estante'),
+        parede('sec-w', 900, 450, 900, 100, { regionId: 'r-secreto', regionEdgeIndex: 3, wallKind: 'exterior', thickness: 'thick' }),
+      ],
+    }
+    const view = filterMapForPlayer(map, 'p1', ownership, RADIUS)
+    const emX900 = view.map.walls.filter((w) => w.x1 === ESTANTE_X && w.x2 === ESTANTE_X)
+    const disfarce = emX900.filter((w) => w.id !== 'bib-l1' && w.id !== 'bib-l2')
+    expect(disfarce).toHaveLength(1)
+    const [trecho] = disfarce
+    expect([Math.min(trecho.y1, trecho.y2), Math.max(trecho.y1, trecho.y2)]).toEqual([250, 300])
+    expect(trecho.regionId).toBe('r-bib')
+    expect(trecho.regionEdgeIndex).toBe(1)
+    expect(trecho.wallKind).toBe('interior')
+    expect(trecho.thickness).toBeUndefined()
+    expect(JSON.stringify(view.map)).not.toContain('r-secreto')
+    expect(Math.max(...view.vision[0].map((p) => p.x))).toBeLessThanOrEqual(ESTANTE_X + 0.5)
   })
 })
