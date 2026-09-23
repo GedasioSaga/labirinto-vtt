@@ -36,6 +36,10 @@ export interface ShortcutEvent {
   /** Há rascunho ponto a ponto aberto (Região, Área poligonal, Chão corredor).
    *  Com ele, Ctrl+Z e Backspace tiram o último ponto do rascunho. */
   hasPointDraft?: boolean
+  /** Há um pino selecionado que o `?` sabe alternar entre "!" e "?" — quem
+   *  confere é o canvas (o id ainda existe no mapa e o tipo tem troca). Sem
+   *  ele, o `?` abre a tela de atalhos em vez de sumir sem efeito. */
+  canTogglePinType?: boolean
 }
 
 export type Action =
@@ -62,9 +66,11 @@ export type Action =
   | { kind: 'redo' }
   /** Tira o último ponto do rascunho aberto; sem ponto sobrando, cancela o rascunho. */
   | { kind: 'undoDraftPoint' }
-  /** `?` — alterna o pino selecionado entre "!" e "?". Sem pino selecionado,
-   *  quem executa não faz nada: a tecla fica livre para outro papel. */
+  /** `?` com pino selecionado — alterna o pino entre "!" e "?". */
   | { kind: 'togglePinType' }
+  /** `?` sem pino para alternar — abre a tela de atalhos, com o que cada letra
+   *  e cada combinação faz (`components/ShortcutsDialog.tsx`). */
+  | { kind: 'showShortcuts' }
 
 /**
  * Tabela ferramenta → letra, para o integrador mostrar no `data-tip` de cada
@@ -272,7 +278,10 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
   // no teclado americano e no ABNT2), então a trava o engolia sempre. Lê
   // `key`, não a tecla física, para valer em qualquer layout. Alt fica de
   // fora pelo mesmo motivo das letras.
-  if (key === '?' && !evt.altKey) return { kind: 'togglePinType' }
+  //
+  // Duas leituras, a do pino primeiro: com um pino que ele sabe trocar, o `?`
+  // é do pino; sem, abre a tela de atalhos — antes a tecla sumia sem efeito.
+  if (key === '?' && !evt.altKey) return evt.canTogglePinType ? { kind: 'togglePinType' } : { kind: 'showShortcuts' }
   if (evt.shiftKey || evt.altKey) return null
 
   if (lower === 'f') return { kind: 'fitAll' }

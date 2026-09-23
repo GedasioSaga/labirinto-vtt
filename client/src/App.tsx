@@ -51,6 +51,7 @@ import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { ActionBar } from './components/ActionBar'
+import { ShortcutsDialog } from './components/ShortcutsDialog'
 import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
@@ -614,6 +615,8 @@ function App() {
    * MUDANÇA (mesmo padrão que `gridAlignPreview` já usa como ponte).
    */
   const [resetZoomRequest, setResetZoomRequest] = useState(0)
+  /** Tela de atalhos: abre pela tecla `?` no mapa (PixiCanvas) ou pelo botão da barra de ações. */
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   /** Container do canvas: o tamanho dele é a "tela" usada para achar o centro visível ao adicionar token. */
   const canvasHostRef = useRef<HTMLDivElement | null>(null)
   /** Barra de ferramentas e rail: flutuam sobre o canvas e tapam o que está embaixo. */
@@ -1636,6 +1639,7 @@ function App() {
             setRailTab('map')
           }}
           onPlaceToken={handleAddToken}
+          onShowShortcuts={() => setShortcutsOpen(true)}
         />
       </div>
 
@@ -2071,10 +2075,13 @@ function App() {
           onFloorFromBackground={() => void handleFloorFromBackground()}
           onDetailsFromBackground={() => void handleDetailsFromBackground()}
           onRecreateMinimapFromBackground={() => void handleMinimapFromBackground()}
+          onShowShortcuts={() => setShortcutsOpen(true)}
+          shortcutsOpen={shortcutsOpen}
         />
       </div>
 
       <ZoomHud scale={cameraScale} onReset={() => setResetZoomRequest((n) => n + 1)} />
+      {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
     </div>
   )
 }
