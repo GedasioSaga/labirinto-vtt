@@ -99,7 +99,7 @@ interface PropertiesPanelProps {
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Objeto selecionado. */
   propTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedToken: Token | null
-  tokenName: Omit<TokenNameControlsProps, 'name'>
+  tokenName: Omit<TokenNameControlsProps, 'name' | 'publicName'>
   tokenImage: Omit<TokenImageControlsProps, 'image'>
   /** Cor da ficha selecionada — separa aliado de inimigo no meio da luta. */
   tokenColor: Omit<TokenColorControlsProps, 'color'>
@@ -402,7 +402,7 @@ export function PropertiesPanel({
         )}
         {selectedToken && (
           <ToolPropertiesSection group="tokenImage" groups={groups}>
-            <TokenNameControls name={selectedToken.name} {...tokenName} />
+            <TokenNameControls key={selectedToken.id} name={selectedToken.name} publicName={selectedToken.publicName} {...tokenName} />
             {/* Logo depois do nome: quem acabou de criar "Dragão" quer dizer
                 em seguida que ele é grande — e o tamanho manda no que a peça
                 cobre na grade, então vem antes da aparência (cor, foto). */}
