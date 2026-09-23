@@ -1051,6 +1051,84 @@ function guardaTetoSemControle(arquivo, texto) {
   return ok('g4-teto-sem-controle', arquivo + ': todo teto tem controle positivo')
 }
 
+/** Índice do `}` que fecha o `{` em `abre`, pulando texto entre aspas; -1 se não fecha. */
+function fimDoBloco(texto, abre) {
+  let nivel = 0
+  for (let i = abre; i < texto.length; i++) {
+    const c = texto[i]
+    if (c === '/' && (texto[i + 1] === '/' || texto[i + 1] === '*')) {
+      const fecha = texto[i + 1] === '/' ? texto.indexOf('\n', i) : texto.indexOf('*/', i + 2) + 1
+      if (fecha <= 0) return -1
+      i = fecha
+      continue
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      const fecha = texto.indexOf(c, i + 1)
+      if (fecha < 0) return -1
+      i = fecha
+      continue
+    }
+    if (c === '{') nivel++
+    else if (c === '}' && --nivel === 0) return i
+  }
+  return -1
+}
+
+/**
+ * g5, terceira forma (22/09/2026, régua das cenas com gente): o evento Tauri
+ * pode chegar aos ouvintes SEM passar por `__emitTauri` — basta uma função de
+ * outro nome chamar o handler com `{ event, id, payload }`. Era por aí que a
+ * queda de socket (`__labSocketCaiu`) entrava invisível à contagem de emits.
+ * Todo despacho direto aos ouvintes é achado pela FORMA do objeto e julgado:
+ * dentro de `__emitTauri` já é coberto pela contagem acima; fora dele, só vale
+ * o repasse da queda de socket — `net:peer` com `{ clientId, event:
+ * 'disconnected' }` literal, jornada com socket roteado de verdade, e TODA
+ * chamada da função dentro de um `.on('close', …)` (a página do jogador fechou
+ * de fato). Qualquer outro despacho é evento de transporte inventado.
+ */
+function despachosForaDoEmit(texto, socketRepassado) {
+  const donos = []
+  const definicao = /\.(\w+)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{/g
+  let m
+  while ((m = definicao.exec(texto)) !== null) {
+    const abre = m.index + m[0].length - 1
+    donos.push({ nome: m[1], de: abre, ate: fimDoBloco(texto, abre) })
+  }
+  const fechamentos = []
+  const aoFechar = /\.on\(\s*['"]close['"]\s*,[^{]*\{/g
+  while ((m = aoFechar.exec(texto)) !== null) {
+    const abre = m.index + m[0].length - 1
+    fechamentos.push({ de: abre, ate: fimDoBloco(texto, abre) })
+  }
+  const temChave = (corpo, chave) => new RegExp('(^|,)\\s*' + chave + '\\s*(:|,|$)').test(corpo)
+  const desvios = []
+  const despacho = /\(\s*\{([^{}]*)\}\s*\)/g
+  while ((m = despacho.exec(texto)) !== null) {
+    const corpo = m[1]
+    if (!temChave(corpo, 'event') || !temChave(corpo, 'payload')) continue
+    const dono = donos.filter((d) => d.de < m.index && m.index < d.ate).pop()
+    if (dono && dono.nome === '__emitTauri') continue
+    const nome = dono ? dono.nome : '(sem função)'
+    const corpoDoDono = dono ? texto.slice(dono.de, dono.ate) : ''
+    const eventoEhQueda =
+      /^\s*event\s*:\s*['"]net:peer['"]/.test(corpo) &&
+      (/const\s+payload\s*=\s*\{\s*clientId\s*,\s*event\s*:\s*['"]disconnected['"]\s*\}/.test(corpoDoDono) ||
+        /payload\s*:\s*\{\s*clientId\s*,\s*event\s*:\s*['"]disconnected['"]\s*\}/.test(corpo))
+    const chamadas = []
+    if (dono) {
+      const chamada = new RegExp('\\b' + nome + '\\s*\\(', 'g')
+      let c
+      while ((c = chamada.exec(texto)) !== null) chamadas.push(c.index)
+    }
+    const todaChamadaAoFechar =
+      chamadas.length > 0 && chamadas.every((em) => fechamentos.some((f) => f.de < em && em < f.ate))
+    if (!(socketRepassado && eventoEhQueda && todaChamadaAoFechar)) {
+      desvios.push(nome + ' (evento despachado aos ouvintes por fora de __emitTauri, e não é a queda real de socket)')
+    }
+  }
+  return desvios
+}
+
 /**
  * Uma jornada que fabrica a resposta do transporte dentro do próprio navegador
  * não prova transporte nenhum: ela prova que o `switch` do stub responde. O
@@ -1090,6 +1168,7 @@ function guardaTransporteFalsificado(arquivo, texto) {
   if (/case\s+'net_(start_room|send|kick|stop_room)'/.test(texto) && !jogadorNoSocketReal) {
     marcas.push("stub de invoke 'net_*'")
   }
+  for (const desvio of despachosForaDoEmit(texto, mestreEhOAppComSocketRepassado)) marcas.push(desvio)
   if (marcas.length > 0) {
     return reprova(
       'g5-transporte-falsificado',
@@ -3933,6 +4012,15 @@ async function rodarAutoteste() {
       return {}
     }
   }
+  // Fixture mínima da g5: o par socket roteado + app mestre com repasse de net:message.
+  const G5_BASE =
+    "await page.routeWebSocket((u) => true, (ws) => { ws.onMessage((t) => mestre.evaluate(() => w.__emitTauri('net:message', { clientId: c, msg: JSON.parse(t) }))) })\n" +
+    "await mestre.exposeFunction('__labParaJogador', () => {})\nawait page.goto('/player.html')\n" +
+    'alvo.__emitTauri = (event, payload) => { for (const [id, o] of ouvintes) if (o.event === event) o.handler({ event, id, payload }) }\n'
+  const G5_QUEDA =
+    "alvo.__labSocketCaiu = (clientId) => {\n  const payload = { clientId, event: 'disconnected' }\n" +
+    "  for (const [id, o] of ouvintes) if (o.event === 'net:peer') o.handler({ event: 'net:peer', id, payload })\n}\n"
+  const G5_AO_FECHAR = "page.on('close', () => {\n  fila.then(() => mestre.evaluate((c) => w.__labSocketCaiu(c), 'j1'))\n})\n"
   const casos = [
     ['g1 reprova include só de src', guardaCoberturaDeTipos([{ include: ['src'] }]), false],
     ['g1 aprova src + e2e + config', guardaCoberturaDeTipos([{ include: ['src'] }, { include: ['e2e', 'playwright.config.ts'] }]), true],
@@ -3947,6 +4035,23 @@ async function rodarAutoteste() {
     ['g5 reprova stub de transporte', guardaTransporteFalsificado('x', "await page.evaluate(() => alvo.__emitTauri('net:peer', {}))"), false],
     ['g5 reprova switch net_start_room', guardaTransporteFalsificado('x', "case 'net_start_room':"), false],
     ['g5 aprova jornada sem stub', guardaTransporteFalsificado('x', 'await page.mouse.down()'), true],
+    ['g5 aprova a queda real de socket repassada', guardaTransporteFalsificado('x', G5_BASE + G5_QUEDA + G5_AO_FECHAR), true],
+    [
+      'g5 reprova clone de __emitTauri com outro nome',
+      guardaTransporteFalsificado('x', G5_BASE + "alvo.__outro = (e, p) => { for (const [id, o] of ouvintes) o.handler({ event: e, id, payload: p }) }\n__outro('net:peer', {})"),
+      false,
+    ],
+    [
+      'g5 reprova queda de socket chamada fora do close',
+      guardaTransporteFalsificado('x', G5_BASE + G5_QUEDA + G5_AO_FECHAR + "await mestre.evaluate((c) => w.__labSocketCaiu(c), 'j1')\n"),
+      false,
+    ],
+    [
+      'g5 reprova net:peer connected inventado com o nome da queda',
+      guardaTransporteFalsificado('x', G5_BASE + G5_QUEDA.replace("'disconnected'", "'connected'") + G5_AO_FECHAR),
+      false,
+    ],
+    ['g5 reprova a queda sem socket roteado', guardaTransporteFalsificado('x', G5_QUEDA + G5_AO_FECHAR), false],
     ['g6 reprova sem medida de longtask', guardaInvariante6TemComando({ 'a.spec.ts': 'expect(1).toBe(1)' }), false],
     ['g6 aprova com medida', guardaInvariante6TemComando({ 'a.spec.ts': 'longtask_max_ms deve ficar abaixo de 200' }), true],
     ['g7 reprova plano sem cargo', guardaPlanoCobreArtefato([{ id: 'tipos-src' }, { id: 'transporte-vivo' }, { id: 'jornadas-e2e' }]), false],

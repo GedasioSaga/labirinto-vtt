@@ -1,9 +1,9 @@
 {
-  "selado_em": "2026-09-22T11:01:54.567Z",
+  "selado_em": "2026-09-23T05:45:31.752Z",
   "jornadas": {
     "e2e/task-jornada-parede-grossa.spec.ts": "527e40bd7728c8b27e9334e40ce45223816eef2f88b14351545951c57af89314",
-    "e2e/task-jornada-selecao-arrasto.spec.ts": "0e9113e9b71bfac3ce19108908c4421e680919e8f07c99638a75f94c4b0b4062",
-    "e2e/task-jornada-escada-legivel.spec.ts": "396ca2e53e088a24c9346595d16a821e820f988cfca0f2169f52b090075aba6c",
+    "e2e/task-jornada-selecao-arrasto.spec.ts": "5ad4a75ac2171428049d33b8e0a70b52dea42ec7a31d1bea9b60b019b0bb0b1a",
+    "e2e/task-jornada-escada-legivel.spec.ts": "6bee36862b48ca1ea47fe75dd1cd9c4d935a27a563b2d6a3462035ca4a37a2e8",
     "e2e/task-jornada-entrada-jogador.spec.ts": "f3bc99bfb7ee5db2ae183bc538d5b61dfaa1d4ce436ba66b0f6f4eb0a052e63f",
     "e2e/task-jornada-nao-perder-trabalho.spec.ts": "9e7562f7491c781f8d90b6f5165fc859b8ab43b4bc575c02d1b72f51e0936b74",
     "e2e/task-jornada-gestos-centrais.spec.ts": "bd60928d3873cb6782f16013c35045958efbc5aaa894e1fe1b7e3379ee8f3d3e",
@@ -15,7 +15,7 @@
     "e2e/task-jornada-ferramentas-mudas.spec.ts": "98af08cab09cbcc79cf15a2fed16755f02cedd41ef87ad6be2a6d93a2243a1b3",
     "e2e/task-jornada-luz-que-para-na-parede.spec.ts": "a1c6516ccc46cf539095a4d48fffd36ea889176165f203c655e58cd81b896bf2",
     "e2e/task-jornada-token-com-foto.spec.ts": "2e5702ab8365d61bebfff39a40d0faebd7dd9cee2b0cf447a0f2bc1a1f648b00",
-    "e2e/task-jornada-pincel-balde-caminhos.spec.ts": "8160220c7e44a2086613fc5c614456b3447acd4c6f399e85d296dc55d8f3a487",
+    "e2e/task-jornada-pincel-balde-caminhos.spec.ts": "425b7709f2324244dd5c5cf5d0e0d640b56426a62c957d0dc94bd86f2eff0a10",
     "e2e/task-jornada-sala-livre.spec.ts": "1eaa6c5aa8288e7491886f720fdaec218fa224a1c88c9be2eccf95e9cbab52e9",
     "e2e/task-jornada-pinos-ponto-de-interesse.spec.ts": "e93630c7287c59338602598d595a33e15bc0da18dea3b17abb4bad4b6cf1e946",
     "e2e/task-jornada-camada-travada.spec.ts": "acbac029eea15434469c08a40c6e1319b19a001d7112c5c3d25af8dab386662f",
@@ -24,7 +24,7 @@
     "e2e/task-jornada-escada-fala.spec.ts": "15bac83064c3b6cd2054e860c582bf8815e713dda6f428bfcbdd55a0b868291e",
     "e2e/task-jornada-pino-apaga-com-delete.spec.ts": "db7eb15fb038c3b373dfacce9adb21d19c64d4f5e580ded4f801cec83c857f17",
     "e2e/task-jornada-teto-de-construcao.spec.ts": "625c709236200a87ceeed94dbf4f8fe0e653bb24b2e1c7a8e4515e9a924b79d5",
-    "e2e/task-jornada-acervo-de-tokens.spec.ts": "3801cd383bffade9a3fe3e243e3fc3acc440060f88ae7e9d621d0e44ad75878d",
+    "e2e/task-jornada-acervo-de-tokens.spec.ts": "15714742d9b76067ba1f3256be8fc23495561187226b8f966be43e2094980735",
     "e2e/task-jornada-caminho-com-cor-propria.spec.ts": "5a12b5a4d3d5a4606b0a46f6418473cc6ff271502f6220093158ef0afb41de0a",
     "e2e/task-jornada-etiqueta-pilula.spec.ts": "36061466e983e47347ba2f80c738b2dca16e924c131f2b27aaacc6a7522b1743",
     "e2e/task-jornada-linha-pontilhada.spec.ts": "836aeeaf57b1cae3b1931f0e10fe8f1838126cdfde90e040db56e6462e8752ec",
@@ -44,7 +44,7 @@
     "e2e/task-jornada-atalho-com-foco-no-painel.spec.ts": "18e97e7c10cc7a736b822770a9eb19b566d5e771ebd517ad75ddf9e4bb74bc0a",
     "e2e/task-jornada-acervo-recebe-token.spec.ts": "f84d9dfd2455f43db407820d3aeb9aeb537f43dc8db74ec0cb84875bc6557c55",
     "e2e/task-jornada-cenas-com-gente.spec.ts": "c0d2627b2e00b16c00d3cc5e2606d13638da4194467e110678320a62f5914c0a",
-    "e2e/task-jornada-caixa-de-pedidos.spec.ts": "dd27050e9340ffc6e517b7c90e16ab111f2816bab729b64b7a2ccabd5738ffab",
+    "e2e/task-jornada-caixa-de-pedidos.spec.ts": "53cf284d8b4c1db8fb2789b5f64f122924b31c49c82029acc934d0686f72983a",
     "e2e/task-jornada-reunir-o-grupo.spec.ts": "4db610a08785ba87114dc21d815ea58ff1d092e7f07e66124be8455482335de7",
     "e2e/task-jornada-chamado-de-fundo.spec.ts": "a2f48eacf4e81268f5035a0b3c999318bb7b58c12a9dc14707aba4733c852532",
     "e2e/task-jornada-seguir-jogador.spec.ts": "0a39b72d4cbe5ed18e7a435013b7b9f45c1515f6952049ad72e1647c31b837b4",
@@ -74,7 +74,7 @@
     "e2e/task-layers-visibility.spec.ts": "26cf226c43d694867c27567c9db1974edc8c2471daa82e79e47aadf5f5f429ee",
     "e2e/task-background-convert-menu.spec.ts": "71833f0a2732a120b136cf470dd5bd510c685e70c6c294b0188c63f390c1ac84",
     "e2e/task-drawing-tools.spec.ts": "3b291cfd7dba749e8699ed78fdaef938b4db0ca3440d68e62c905b2a4c3519b7",
-    "e2e/task-ctrl-reto.spec.ts": "ae5165f73264340ba07b15dfcae94789ca2add5bd089c01ef572b32b02d373d0",
+    "e2e/task-ctrl-reto.spec.ts": "b63ea090d1837b8ffddfade765f3506563b2a048c3650c97d6af74f5f1ec0d51",
     "e2e/task-jornada-barra-honesta.spec.ts": "89d66a3ec6c32182f419dc31dfd93a3cbe3c7e66e21d4de7f13d1d401ad6277f"
   },
   "base_do_run": {

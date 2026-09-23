@@ -1,8 +1,40 @@
-import type { Page } from '@playwright/test'
+import { test, type Page, type TestInfo } from '@playwright/test'
 
 /** Mensagem que o Playwright devolve quando o Chromium descarta a promise do evaluate. */
 const PROMISE_COLLECTED = 'Resulting promise was garbage collected'
 const WARMUP_ATTEMPTS = 3
+
+/**
+ * TETO PRÓPRIO para ABRIR o editor, fora do orçamento do gesto.
+ *
+ * POR QUE EXISTE. O editor é servido pelo vite de desenvolvimento, SEM bundle:
+ * o `goto('/')` baixa e compila centenas de módulos, e o primeiro `import()`
+ * do aquecimento puxa mais uma leva. Com a máquina carregada (outras lanes
+ * rodando Playwright ao mesmo tempo, CPU em 100%) isso custou, medido em
+ * 22/09/2026 por passo (reporter de passos, 22 testes de 6 specs, 1 worker):
+ * `Navigate` de 1,5 s a 30,4 s, `Evaluate` do aquecimento até 22,4 s, e o
+ * beforeEach inteiro de 2,9 s a 41,5 s. Esse custo caía DENTRO dos 30 s do
+ * teste (beforeEach conta no teto do teste), então jornada com gesto de 15 s
+ * estourava tempo sem nada de errado no gesto: 9 de 22 vermelhos por timeout,
+ * todos verdes sozinhos.
+ *
+ * O QUE ELE NÃO AFROUXA. Enquanto o editor abre, o relógio do teste ganha
+ * `TETO_PARA_ABRIR_O_EDITOR_MS` a mais; assim que o canvas monta, o teto volta
+ * a ser o do teste MAIS o tempo que a abertura gastou de verdade. O gesto e as
+ * asserções continuam com o mesmo orçamento que tinham com a máquina ociosa, e
+ * nenhuma asserção de tela mudou. Abertura que passa do teto próprio continua
+ * vermelha (editor que não abre em 90 s é defeito, não carga).
+ */
+const TETO_PARA_ABRIR_O_EDITOR_MS = 90_000
+
+/** O `TestInfo` do teste que está rodando, ou `null` fora de teste (global setup, script). */
+function testeRodando(): TestInfo | null {
+  try {
+    return test.info()
+  } catch {
+    return null
+  }
+}
 
 /**
  * Navega da raiz até o editor pelo caminho do menu inicial: menu →
@@ -16,12 +48,21 @@ const WARMUP_ATTEMPTS = 3
  * 19 specs que abriam o editor assim quebravam sem este helper.
  */
 export async function enterEditor(page: Page): Promise<void> {
+  const info = testeRodando()
+  // `timeout` 0 = sem teto (modo debug): nada a somar.
+  const tetoDoTeste = info && info.timeout > 0 ? info.timeout : 0
+  const inicio = Date.now()
+  if (info && tetoDoTeste > 0) info.setTimeout(tetoDoTeste + TETO_PARA_ABRIR_O_EDITOR_MS)
+
   await page.goto('/')
   await page.getByRole('button', { name: 'Criar Mapas' }).click()
   // exact: o cartão "Criar Mapas" do menu também casaria com "Criar mapa" por substring.
   await page.getByRole('button', { name: 'Criar mapa', exact: true }).click()
   await page.waitForSelector('canvas')
   await warmUpStoreImports(page)
+
+  // Devolve só o que a abertura gastou: o resto do teste roda no teto de sempre.
+  if (info && tetoDoTeste > 0) info.setTimeout(tetoDoTeste + (Date.now() - inicio))
 }
 
 /**

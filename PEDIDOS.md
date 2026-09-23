@@ -676,3 +676,13 @@ canhões, fábricas e canos, torre administrativa e o pico).
 Lane própria: `torre-11-andares` (worktree `C:/dev/labirinto-torre`, branch `auto/torre-11-andares`).
 Gera de verdade uma aventura de 11+ andares no formato do app, abre no app, mede, põe 7 fichas em 7
 andares e joga em rodadas com o mestre; cada rodada enriquece o mundo e vira feature/defeito.
+
+### Simulação de 7 jogadores (22/09/2026, noite) — resultado
+
+10 mesas simuladas (8 cenários lidos no código + 2 jogadas de verdade no app com 7 páginas de jogador):
+vila com casas e quartos, mansão de dois andares, cidade portuária, capital com distritos, viagem entre
+cidades, invasão de castelo, investigação numa hospedaria e sessão longa com quedas. 159 achados brutos
+viraram **70 itens** (9 descartados por já existirem) + **15 faltantes** apontados pelo crítico.
+Lista completa, com objetivo, aceite e arquivos por item: `docs/backlog-simulacao-7-jogadores-2026-09-22.md`.
+Os 37 itens de prioridade 5 e 4 estão virando réguas vermelhas (`auto/reguas-lote-a`) e depois lanes de
+gauntlet.
