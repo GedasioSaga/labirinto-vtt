@@ -446,10 +446,42 @@ export function filterMapForPlayer(
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
 ): PlayerMapView {
+  // Jogador sem entrada de posse não tem token nem visão.
+  return filterMapForGroup(map, [{ tokenIds: ownership[playerId] ?? [], visionRadius }], explored, seenDoors)
+}
+
+/** Um membro do grupo que a tela da mesa acompanha: as fichas dele e o raio de visão DELE. */
+export interface GroupViewer {
+  tokenIds: readonly string[]
+  visionRadius: number
+}
+
+/**
+ * TELA DA MESA — o recorte de um GRUPO: a união do que as fichas de cada
+ * membro enxergam, cada uma com o raio do próprio jogador (o raio maior do
+ * grupo nunca vale para os outros). As fichas do grupo fazem o papel da ficha
+ * própria do jogador: saem sempre, abrem teto de prédio e enxergam. Todo o
+ * resto — névoa, zona oculta, sala secreta, teto, nome da cena, metadado do
+ * mestre — é exatamente a regra de `filterMapForPlayer`, que é este mesmo
+ * recorte com um grupo de um.
+ */
+export function filterMapForGroup(
+  map: MapData,
+  viewers: readonly GroupViewer[],
+  explored?: Exploration,
+  seenDoors?: ReadonlyMap<string, DoorState>,
+): PlayerMapView {
   const hiddenLayers = map.hiddenLayers
-  const owned = new Set(ownership[playerId] ?? []) // jogador sem entrada de posse não tem token nem visão
+  // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
+  const radiusByToken = new Map<string, number>()
+  for (const viewer of viewers) {
+    for (const id of viewer.tokenIds) if (!radiusByToken.has(id)) radiusByToken.set(id, viewer.visionRadius)
+  }
+  const owned: ReadonlySet<string> = new Set(radiusByToken.keys())
   const layerTokens = visibleTokens(map.tokens, hiddenLayers)
   const ownTokens = layerTokens.filter((t) => owned.has(t.id) && !t.hidden)
+  // `ownTokens` só tem id que está em `radiusByToken`; o 0 nunca é usado.
+  const radiusOf = (token: Token): number => radiusByToken.get(token.id) ?? 0
 
   // Zona oculta ativa: ponto dentro dela não conta como visível nem explorado.
   // A visão continua passando (a zona esconde conteúdo, não é parede).
@@ -618,7 +650,7 @@ export function filterMapForPlayer(
    * deixaria o jogador ver através dela fora da zona. Colisão não usa isto.
    */
   const authoritySegments = ownTokens.length > 0 ? visionSegments(map) : []
-  const authorityVision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, authoritySegments, visionRadius))
+  const authorityVision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, authoritySegments, radiusOf(t)))
   const rings = boxRings(authorityVision)
   const playerWalls = map.walls.filter(
     (w) =>
@@ -629,7 +661,7 @@ export function filterMapForPlayer(
   let vision = authorityVision
   if (ownTokens.length > 0 && (playerWalls.length !== map.walls.length || hiddenFloorIds.size > 0)) {
     const playerSegments = visionSegments({ ...map, walls: playerWalls, floor: floorWithout(map.floor, hiddenFloorIds) })
-    vision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, playerSegments, visionRadius))
+    vision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, playerSegments, radiusOf(t)))
   }
 
   const isVisible = (point: RegionPoint): boolean => !inConcealZone(point) && inAnyRing(rings, point)
