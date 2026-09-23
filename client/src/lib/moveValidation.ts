@@ -16,12 +16,18 @@ export interface TokenMoveRequest {
   y: number
 }
 
-export type TokenMoveRejection = 'unknown_token' | 'not_owner' | 'locked' | 'outside_map' | 'wall' | 'outside_floor'
+export type TokenMoveRejection = 'unknown_token' | 'not_owner' | 'locked' | 'not_your_turn' | 'outside_map' | 'wall' | 'outside_floor'
 
 export type TokenMoveResult = { ok: true; x: number; y: number } | { ok: false; reason: TokenMoveRejection }
 
 export interface TokenMoveOptions {
   isHost?: boolean
+  /**
+   * INICIATIVA: id da ficha da vez NESTE mapa. Com valor, o jogador só move
+   * essa ficha; ausente ou `null` = sem iniciativa aqui, todo mundo move. O
+   * host (mestre) nunca espera a vez.
+   */
+  turnTokenId?: string | null
 }
 
 /** Fração da célula entre amostras do trajeto: garante corredor de 1/4 de célula detectado. */
@@ -64,6 +70,8 @@ export function validateTokenMove(
     const owned = ownership[request.playerId] ?? [] // jogador sem entrada no mapa de posse não possui nada
     if (!owned.includes(token.id)) return { ok: false, reason: 'not_owner' }
     if (token.locked) return { ok: false, reason: 'locked' }
+    const turn = options.turnTokenId ?? null // ausente = sem iniciativa nesta cena
+    if (turn !== null && turn !== token.id) return { ok: false, reason: 'not_your_turn' }
   }
 
   if (!isInsideMap(map, request.x, request.y)) return { ok: false, reason: 'outside_map' }

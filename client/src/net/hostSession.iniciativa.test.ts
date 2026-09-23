@@ -72,6 +72,114 @@ describe('iniciativa no snapshot do jogador', () => {
   })
 })
 
+/**
+ * Sala com Ana (herói) e Bruno (ladino, atrás da parede); a vez é lida a cada
+ * chamada, como no mestre: `vez.atual` muda sem recriar a sessão.
+ */
+function sala(dono: { ladino: boolean } = { ladino: true }) {
+  const vez: { atual: TurnRef | null } = { atual: null }
+  const map = ponte()
+  const s = createHostSession({ code: CODE, visionRadius: 700, now: () => 0, getTurn: () => vez.atual })
+  const entrar = (clientId: string, name: string, tokenId: string | null): void => {
+    const welcome = s.handleMessage(clientId, { type: 'join', code: CODE, name }, map).outbound[0]?.msg
+    if (welcome?.type !== 'welcome') throw new Error('esperava welcome')
+    if (tokenId !== null) s.assignToken(welcome.playerId, tokenId)
+  }
+  entrar('c1', 'Ana', 'heroi')
+  entrar('c2', 'Bruno', dono.ladino ? 'ladino' : null)
+  const mover = (clientId: string, tokenId: string, x: number, y: number) =>
+    s.handleMessage(clientId, { type: 'token.move', reqId: 'r1', tokenId, x, y }, map)
+  const snapshotDe = (clientId: string): Extract<HostMessage, { type: 'snapshot' }> => {
+    const msg = s.broadcast(map).outbound.find((o) => o.clientId === clientId)?.msg
+    if (msg?.type !== 'snapshot') throw new Error('esperava snapshot')
+    return msg
+  }
+  return { vez, mover, snapshotDe }
+}
+
+describe('só quem está na vez move', () => {
+  it('na vez de outra ficha desta cena, o movimento volta com not_your_turn e nada se aplica', () => {
+    const { vez, mover } = sala()
+    vez.atual = { mapId: 'mapa-ponte', tokenId: 'goblin' }
+    const r = mover('c1', 'heroi', 240, 200)
+    expect(r.applyMove).toBeUndefined()
+    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'token.move.rejected', reqId: 'r1', reason: 'not_your_turn' } }])
+  })
+
+  it('na vez da própria ficha o movimento é aceito; a do outro jogador continua presa', () => {
+    const { vez, mover } = sala()
+    vez.atual = { mapId: 'mapa-ponte', tokenId: 'heroi' }
+    const ana = mover('c1', 'heroi', 240, 200)
+    expect(ana.applyMove).toMatchObject({ tokenId: 'heroi' })
+    const bruno = mover('c2', 'ladino', 840, 200)
+    expect(bruno.applyMove).toBeUndefined()
+    expect(bruno.outbound[0]?.msg).toMatchObject({ type: 'token.move.rejected', reason: 'not_your_turn' })
+  })
+
+  it('sem iniciativa, ou com a vez em OUTRA cena, todo mundo move como antes', () => {
+    const { vez, mover } = sala()
+    expect(mover('c1', 'heroi', 240, 200).applyMove).toMatchObject({ tokenId: 'heroi' })
+    vez.atual = { mapId: 'mapa-cripta', tokenId: 'goblin' }
+    expect(mover('c1', 'heroi', 260, 200).applyMove).toMatchObject({ tokenId: 'heroi' })
+  })
+
+  it('na vez de ficha que ele NÃO vê, recusa igual: a resposta não diz de quem é a vez', () => {
+    const { vez, mover } = sala()
+    for (const tokenId of ['vulto', 'ladino']) {
+      vez.atual = { mapId: 'mapa-ponte', tokenId }
+      const r = mover('c1', 'heroi', 240, 200)
+      expect(r.applyMove).toBeUndefined()
+      expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'token.move.rejected', reqId: 'r1', reason: 'not_your_turn' } }])
+    }
+  })
+
+  it('ficha que não é dele continua recusada como not_owner, mesmo na vez dela', () => {
+    const { vez, mover } = sala()
+    vez.atual = { mapId: 'mapa-ponte', tokenId: 'goblin' }
+    expect(mover('c1', 'goblin', 340, 200).outbound[0]?.msg).toMatchObject({ type: 'token.move.rejected', reason: 'not_owner' })
+  })
+})
+
+/**
+ * SEGURANÇA: a vez de quem o jogador NÃO vê não pode deixar rastro nenhum no
+ * snapshot. "Vez do mestre" ou "vez de outro jogador" contaria que existe um
+ * combatente escondido na ordem, e que ele está agindo agora — exatamente o que
+ * o mestre esconde. O snapshot sai IGUAL ao de "ninguém na vez".
+ */
+describe('vez de quem o jogador não vê', () => {
+  /** O fio sem o `rev`, que avança a cada broadcast e não diz nada sobre a vez. */
+  const semRev = (msg: Extract<HostMessage, { type: 'snapshot' }>) => ({ ...msg, rev: 0 })
+
+  it('ficha SECRETA na vez: o snapshot é idêntico ao de ninguém na vez', () => {
+    const { vez, snapshotDe } = sala()
+    const ninguem = semRev(snapshotDe('c1'))
+    vez.atual = { mapId: 'mapa-ponte', tokenId: 'vulto' }
+    const msg = snapshotDe('c1')
+    expect(semRev(msg)).toEqual(ninguem)
+    expect(JSON.stringify(msg)).not.toContain('vulto')
+  })
+
+  it('ficha fora da visão na vez, com dono ou sem dono: idêntico ao de ninguém na vez', () => {
+    for (const ladino of [true, false]) {
+      const { vez, snapshotDe } = sala({ ladino })
+      const ninguem = semRev(snapshotDe('c1'))
+      vez.atual = { mapId: 'mapa-ponte', tokenId: 'ladino' }
+      expect(semRev(snapshotDe('c1'))).toEqual(ninguem)
+    }
+  })
+
+  it('o snapshot não ganha campo novo de vez escondida (só "turn", e só à vista)', () => {
+    const { vez, snapshotDe } = sala()
+    const campos = Object.keys(snapshotDe('c1')).sort()
+    for (const tokenId of ['vulto', 'ladino']) {
+      vez.atual = { mapId: 'mapa-ponte', tokenId }
+      expect(Object.keys(snapshotDe('c1')).sort()).toEqual(campos)
+    }
+    vez.atual = { mapId: 'mapa-ponte', tokenId: 'goblin' }
+    expect(Object.keys(snapshotDe('c1')).sort()).toEqual([...campos, 'turn'].sort())
+  })
+})
+
 describe('turnForPlayer (recorte)', () => {
   const recorte = { ...ponte(), tokens: [ficha('heroi', 200, 200), ficha('goblin', 320, 200)] }
 

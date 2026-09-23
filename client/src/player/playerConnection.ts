@@ -38,6 +38,12 @@ export interface PlayerState {
   laser?: LaserTrail
   /** Recusa do mestre ao pedido de porta (trancada, longe, não visível); some sozinho. `id` novo repete o aviso. */
   doorNotice?: { id: number; reason: DoorToggleRejection }
+  /**
+   * INICIATIVA: o mestre recusou o arrasto porque não é a vez desta ficha
+   * ("Espere sua vez"); some sozinho. `id` novo repete o aviso. Não diz de quem
+   * é a vez: isso só vem em `turn`, e só quando o jogador vê a ficha.
+   */
+  turnNotice?: { id: number }
   /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
   travel?: TravelNotice
   /**
@@ -302,6 +308,23 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }, DOOR_NOTICE_TTL_MS)
   }
 
+  let turnNoticeTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearTurnNotice(): void {
+    if (turnNoticeTimer !== null) clearTimeout(turnNoticeTimer)
+    turnNoticeTimer = null
+  }
+
+  /** "Espere sua vez": mesmo tempo de tela do aviso da porta. */
+  function showTurnNotice(): void {
+    clearTurnNotice()
+    setState({ turnNotice: { id: nextNoticeId++ } })
+    turnNoticeTimer = setTimeout(() => {
+      turnNoticeTimer = null
+      setState({ turnNotice: undefined })
+    }, DOOR_NOTICE_TTL_MS)
+  }
+
   let travelTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearTravelTimer(): void {
@@ -403,18 +426,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, turn: turnOnMap, error: undefined })
   }
 
-  function handleRejected(reqId: string): void {
+  /** Desfaz o movimento recusado. `false` = pedido desconhecido (já resolvido, ou de antes de trocar de cena). */
+  function handleRejected(reqId: string): boolean {
     const move = pending.get(reqId)
-    if (!move) return
+    if (!move) return false
     const newer = hasNewerPending(reqId, move.tokenId)
     pending.delete(reqId)
     if (newer) {
       // Um movimento mais novo do mesmo token parte desta posição: herda o "anterior".
       newer.prevX = move.prevX
       newer.prevY = move.prevY
-      return
+      return true
     }
     if (state.map) setState({ map: withTokenAt(state.map, move.tokenId, move.prevX, move.prevY) })
+    return true
   }
 
   function handleAccepted(reqId: string, x: number, y: number): void {
@@ -467,8 +492,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSignalTimers()
         clearLaserTimer()
         clearDoorNotice()
+        clearTurnNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, turnNotice: undefined, travel: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -480,7 +506,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSignalTimers()
         clearLaserTimer()
         clearDoorNotice()
-        setState({ signals: undefined, laser: undefined, doorNotice: undefined })
+        clearTurnNotice()
+        setState({ signals: undefined, laser: undefined, doorNotice: undefined, turnNotice: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -560,7 +587,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         return
       case 'token.move.rejected':
         if (typeof data.reqId !== 'string') return
-        handleRejected(data.reqId)
+        // Motivo desconhecido ou ausente ainda desfaz o movimento; só não vira aviso.
+        if (handleRejected(data.reqId) && data.reason === 'not_your_turn') showTurnNotice()
         return
       case 'kicked':
         writeResume(storage, null)
@@ -572,8 +600,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSignalTimers()
         clearLaserTimer()
         clearDoorNotice()
+        clearTurnNotice()
         clearTravelTimer()
-        setState({ status: 'closed', doorNotice: undefined, travel: undefined })
+        setState({ status: 'closed', doorNotice: undefined, turnNotice: undefined, travel: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -627,6 +656,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearSignalTimers()
     clearLaserTimer()
     clearDoorNotice()
+    clearTurnNotice()
     clearTravelTimer()
     const current = socket
     socket = null
@@ -717,7 +747,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined })
       open()
     },
     close: detach,

@@ -571,7 +571,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     // Sem cena (aventura aberta, ficha em lugar nenhum): não há onde mover.
     if (scene === null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'unknown_token' })
-    const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership)
+    // INICIATIVA: vez nesta cena prende quem não é da vez, inclusive na vez de
+    // ficha que o jogador não vê. A recusa só diz "não é a sua vez", nunca de quem é.
+    const turn = options.getTurn?.() ?? null
+    const turnTokenId = turn !== null && turn.mapId === scene.map.id ? turn.tokenId : null
+    const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, { turnTokenId })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     return {
       outbound: [{ clientId, msg: { type: 'token.move.accepted', reqId: msg.reqId, x: result.x, y: result.y } }],

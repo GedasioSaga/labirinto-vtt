@@ -493,6 +493,12 @@
   display: none;
 }
 
+/* Vez de outra ficha à vista: informa, sem o latão que chama o dono. */
+.pp-turn--other {
+  font-weight: 500;
+  border-color: rgba(236, 234, 228, 0.28);
+}
+
 @keyframes pp-turn-in {
   from {
     opacity: 0;

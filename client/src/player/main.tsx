@@ -9,7 +9,7 @@ import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
-import { PlayerTurnBanner } from './PlayerTurnBanner'
+import { PlayerTurnBanner, TurnWaitNotice } from './PlayerTurnBanner'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
@@ -602,7 +602,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             connection.setOwnTokenPhoto(tokenId, await buildTokenPhotoData(file))
           }}
         />
-        <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} />
+        <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}
@@ -633,6 +633,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             {DOOR_NOTICE_TEXT[state.doorNotice.reason]}
           </p>
         )}
+        <TurnWaitNotice notice={state.turnNotice} />
       </PlayerErrorBoundary>
     )
   }
