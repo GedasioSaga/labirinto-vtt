@@ -23,7 +23,7 @@ import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
-import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
+import { partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -36,6 +36,7 @@ import { OptionsScreen } from './screens/OptionsScreen'
 import { useMapStore } from './stores/mapStore'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
+  applyItemsInScene,
   hasUnsavedWork,
   hostWorldOf,
   pinExitsTravelOf,
@@ -444,6 +445,27 @@ function App() {
           if (!wall?.door || (open && wall.door.locked)) return
           store.setWallDoor(wallId, { ...wall.door, open })
         },
+        // "Destrancar e abrir" do mestre ao pedido da porta trancada: tira o
+        // cadeado e abre, na cena da porta (de fundo quando o jogador está lá).
+        unlockAndOpenDoor: (wallId, sceneId) => {
+          if (sceneId !== undefined) {
+            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => {
+              const wall = m.walls.find((w) => w.id === wallId)
+              return wall?.door ? mapFactory.setWallDoor(m, wallId, { ...wall.door, open: true, locked: false }) : m
+            })
+            return
+          }
+          const store = useMapStore.getState()
+          const wall = store.map.walls.find((w) => w.id === wallId)
+          if (wall?.door) store.setWallDoor(wallId, { ...wall.door, open: true, locked: false })
+        },
+        // ITEM PEGÁVEL: o pino pego sai e as mochilas mudam, já validados pela
+        // sessão. Vale para TODO passo do desfazer da cena, aberta ou de fundo
+        // (`applyItemsInScene`): um Ctrl+Z do mestre não devolve a chave ao
+        // chão com ela ainda na mochila de alguém.
+        applyItems: (change) => {
+          applyItemsInScene(change)
+        },
         // Nome/foto que o jogador trocou no próprio token, já validados pela
         // sessão (o token é dele, a foto é auto-contida). `image` chega como
         // referência embutida: ela vira a cópia que viaja, e o caminho do
@@ -554,6 +576,15 @@ function App() {
                 if (member.token !== null) useAdventureStore.getState().goToPoint(member.sceneId, { x: member.token.x, y: member.token.y })
               },
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
+              // ITEM PEGÁVEL: tirar, devolver ao chão ou dar, gravado na cena
+              // da ficha (fora do desfazer, em todo passo dele). A cena de
+              // fundo não passa pelo `useMapStore`: o snapshot sai por aqui.
+              onItem: (action) => {
+                const change = partyItemChange(world, action, crypto.randomUUID())
+                if (change === null || !applyItemsInScene(change)) return false
+                hostBridgeRef.current?.notifyMapChanged()
+                return true
+              },
               followingId,
               onToggleFollow: (member) => useFollowStore.getState().toggle(member.playerId),
             }}
@@ -2101,6 +2132,14 @@ function App() {
               onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
               onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),
               onDelete: () => selectedPin && useMapStore.getState().removePin(selectedPin.id),
+              // ITEM PEGÁVEL: só com um pino "!"/"?" aberto (a passagem não vai para a mochila).
+              item:
+                selectedPin && selectedPin.kind !== 'viagem'
+                  ? {
+                      value: selectedPin.item ?? null,
+                      onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
+                    }
+                  : null,
             }}
             pinIcon={{
               // Mesma ligação dupla do tipo logo acima: com um pino aberto, o
