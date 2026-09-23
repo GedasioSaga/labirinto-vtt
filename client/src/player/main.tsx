@@ -15,6 +15,8 @@ import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import type { SignalMark } from '../lib/signals'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
+import { tableCodeFromSearch } from '../lib/tableScreen'
+import { TableApp } from './TableScreen'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -842,8 +844,6 @@ function PlayerApp() {
 
 const root = document.getElementById('root')
 if (!root) throw new Error('player.html sem #root')
-createRoot(root).render(
-  <StrictMode>
-    <PlayerApp />
-  </StrictMode>,
-)
+// `?mesa` no endereço = TELA DA MESA (TV, projetor): espectador sem ficha, ver `TableScreen.tsx`.
+const tableCode = tableCodeFromSearch(location.search)
+createRoot(root).render(<StrictMode>{tableCode === null ? <PlayerApp /> : <TableApp initialCode={tableCode} />}</StrictMode>)

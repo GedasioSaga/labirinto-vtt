@@ -448,6 +448,24 @@ export function forgetInside(exp: Exploration, rings: readonly (readonly RegionP
 }
 
 /**
+ * TELA DA MESA — junta em `target` o que `source` lembra: célula marcada em
+ * qualquer uma fica marcada, e cada contorno lembrado entra pela mesma regra de
+ * `rememberRing` (teto de vértices, sem repetir anel já coberto). Os contornos
+ * de `source` já passaram pelo veto de área proibida quando foram guardados.
+ * Grades diferentes (outro mapa, ou o mesmo redimensionado) não se juntam.
+ */
+export function mergeExploration(target: Exploration, source: Exploration): void {
+  if (target.cell !== source.cell || target.cols !== source.cols || target.rows !== source.rows) return
+  for (let i = 0; i < target.bits.length; i += 1) target.bits[i] |= source.bits[i]
+  for (const ring of source.rings) {
+    if (target.ringVertices + ring.points.length > MAX_MEMORY_VERTICES) continue
+    if (target.rings.some((stored) => sameRing(stored, ring) || ringCovers(stored, ring))) continue
+    target.rings.push(ring)
+    target.ringVertices += ring.points.length
+  }
+}
+
+/**
  * "Revelar planta" do mestre: marca o mapa inteiro, menos as células que tocam
  * zona oculta ativa (mesma regra de `markRings`, senão a planta escondida
  * vazaria pela memória).

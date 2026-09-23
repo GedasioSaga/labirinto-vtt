@@ -85,7 +85,16 @@ export interface PlayerConnectionOptions {
   name: string
   createSocket: (url: string) => SocketLike
   storage: StorageLike | null
+  /**
+   * `table` = TELA DA MESA (TV, projetor): entra com `role: 'table'`, sem
+   * resume, e só olha — o cliente nunca manda nada além do `join` e do `ping`.
+   * Ausente = jogador, como sempre.
+   */
+  role?: 'table'
 }
+
+/** Nome que a tela da mesa manda no `join`: o servidor do app exige um nome, e o mestre nunca o lista. */
+export const TABLE_SCREEN_NAME = 'Tela da mesa'
 
 export interface PlayerConnection {
   getState(): PlayerState
@@ -244,7 +253,11 @@ function withTokenPatch(map: MapData, tokenId: string, patch: Partial<Token>): M
 }
 
 export function createPlayerConnection(options: PlayerConnectionOptions): PlayerConnection {
-  const { url, code, name, createSocket, storage } = options
+  const { url, code, name, createSocket } = options
+  const isTable = options.role === 'table'
+  // A tela da mesa não tem sessão de jogador para retomar: sem storage, ela
+  // nunca lê o resume de quem jogava nesta aba nem grava um por cima dele.
+  const storage = isTable ? null : options.storage
   const listeners = new Set<() => void>()
   const pending = new Map<string, PendingMove>()
   let state: PlayerState = { status: 'connecting', rev: -1 }
@@ -346,6 +359,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   function send(message: PlayerMessage): boolean {
+    // Tela da mesa só olha: nenhum pedido sai dela, nem se o mestre errar e der uma ficha a ela.
+    if (isTable && message.type !== 'join' && message.type !== 'ping') return false
     if (!socket || socket.readyState !== SOCKET_OPEN) return false
     socket.send(JSON.stringify(message))
     return true
@@ -445,6 +460,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (!isRecord(data)) return
     switch (data.type) {
       case 'welcome':
+        // Só mestre antigo (que não conhece a tela da mesa) manda `welcome` a
+        // ela: a tela não vira jogador por isso, e a espera vem logo atrás.
+        if (isTable) return
         if (typeof data.playerId !== 'string' || typeof data.resumeToken !== 'string') return
         writeResume(storage, { code, token: data.resumeToken })
         setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting' })
@@ -586,7 +604,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     current.onopen = () => {
       if (socket !== current) return
       const resume = readResume(storage, code)
-      const join: JoinMessage = resume ? { type: 'join', code, name, resume } : { type: 'join', code, name }
+      const join: JoinMessage = isTable ? { type: 'join', code, name, role: 'table' } : resume ? { type: 'join', code, name, resume } : { type: 'join', code, name }
       send(join)
       stopPing()
       pingTimer = setInterval(() => send({ type: 'ping' }), PING_INTERVAL_MS)
@@ -654,7 +672,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
 
     requestTravel(pinId, exitId) {
-      if (state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
+      // O pino livre agenda o envio (e o aviso "Passando…") antes de chamar `send`: a tela da mesa sai aqui.
+      if (isTable || state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
       const pin = state.map?.pins.find((p) => p.id === pinId)
       const direct = pin !== undefined && passageOf(pin) === 'livre'
       // Sem saída escolhida, a mensagem sai idêntica à de antes: o mestre

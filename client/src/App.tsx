@@ -17,7 +17,8 @@ import { useFollowStore } from './stores/followStore'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
-import type { PlayerInfo } from './net/hostSession'
+import { tableSceneKey, type PlayerInfo } from './net/hostSession'
+import { tableScreenUrl } from './lib/tableScreen'
 import { RoomPanel } from './components/RoomPanel'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
@@ -400,6 +401,9 @@ function App() {
   // Multiplayer em LAN: ponte do mestre criada sob demanda (só dentro do Tauri, ver RoomPanel abaixo).
   const [room, setRoom] = useState<RoomInfo | null>(null)
   const [roomPlayers, setRoomPlayers] = useState<PlayerInfo[]>([])
+  // Tela da mesa: a cena que a TV mostra (`tableSceneKey`) e quantas TVs estão conectadas.
+  const [tableScene, setTableScene] = useState<string | null>(null)
+  const [tableScreens, setTableScreens] = useState(0)
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
   const hostBridgeRef = useRef<HostBridge | null>(null)
@@ -460,6 +464,7 @@ function App() {
         },
         onPlayersChange: setRoomPlayers,
         onTunnelChange: setTunnel,
+        onTableScreensChange: setTableScreens,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
         // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
         // outro mapa): vira o aviso "chamou em", com "Ir lá" (`net/chamadoDeFundo.ts`).
@@ -501,6 +506,8 @@ function App() {
     await hostBridgeRef.current?.stop()
     setRoom(null)
     setRoomPlayers([])
+    // Sala nova nasce sem cena na TV: a sessão de agora morreu com a escolha.
+    setTableScene(null)
     useSignalStore.getState().clear()
     useLaserStore.getState().setToggled(false)
   }
@@ -550,6 +557,16 @@ function App() {
             onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}
             laserOn={laserToggled}
             onToggleLaser={() => useLaserStore.getState().setToggled(!useLaserStore.getState().toggled)}
+            table={{
+              url: room === null || room.urls[0] === undefined ? null : tableScreenUrl(room.urls[0], room.code),
+              scenes: [world.open, ...world.background].map((scene) => ({ key: tableSceneKey(scene), name: scene.name })),
+              sceneKey: tableScene,
+              screens: tableScreens,
+              onSceneChange: (key) => {
+                setTableScene(key)
+                hostBridgeRef.current?.setTableScene(key)
+              },
+            }}
           />
         }
       />

@@ -65,6 +65,14 @@ export interface JoinMessage {
   code: string
   name: string
   resume?: string
+  /**
+   * TELA DA MESA: a página de espectador (TV, projetor) entra pelo MESMO
+   * `join` — o servidor do app só aceita `join` como primeira mensagem — com
+   * `role: 'table'`. Ela não é jogador: não tem ficha, não retoma sessão
+   * (`resume` junto recusa a mensagem) e só recebe a cena que o mestre escolhe.
+   * Aditivo: mestre antigo ignora o campo e a trata como jogador sem ficha.
+   */
+  role?: 'table'
 }
 
 export interface TokenMoveMessage {
@@ -155,7 +163,8 @@ export interface SceneNoteMessage {
   text: string
 }
 
-export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
+/** `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`). */
+export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined' | 'table_full'
 
 export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
@@ -193,12 +202,17 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
-  const { code, name, resume } = obj
+  const { code, name, resume, role } = obj
   if (typeof code !== 'string' || !JOIN_CODE_PATTERN.test(code)) return null
   if (typeof name !== 'string') return null
   const trimmed = name.trim()
   // `length` conta unidades UTF-16 (emoji = 2): é o limite que o jogador vê no input.
   if (trimmed.length < NAME_MIN_LENGTH || trimmed.length > NAME_MAX_LENGTH) return null
+  if (role !== undefined) {
+    // Tela da mesa nunca retoma sessão de jogador: com `resume` junto, a mensagem cai inteira.
+    if (role !== 'table' || resume !== undefined) return null
+    return { type: 'join', code, name: trimmed, role }
+  }
   if (resume === undefined) return { type: 'join', code, name: trimmed }
   if (!isBoundedString(resume, 1, RESUME_TOKEN_MAX_LENGTH)) return null
   return { type: 'join', code, name: trimmed, resume }

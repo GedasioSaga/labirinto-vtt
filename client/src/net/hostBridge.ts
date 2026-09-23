@@ -80,6 +80,8 @@ export interface HostBridgeDeps {
   onTunnelChange?: (state: TunnelState) => void
   /** Sinal aceito de um jogador (já validado e dentro do limite por segundo). */
   onSignal?: (signal: HostSignal) => void
+  /** TELA DA MESA: quantas telas estão conectadas mudou (entrou, caiu, sala fechou). */
+  onTableScreensChange?: (screens: number) => void
   now?: () => number
 }
 
@@ -118,6 +120,11 @@ export interface HostBridge {
    * receberam (0 = ninguém lá), ou `null` com a sala fechada.
    */
   sceneNote(sceneId: string, text: string): number | null
+  /**
+   * TELA DA MESA: a cena que a TV mostra (`tableSceneKey`), ou `null` para ela
+   * esperar. Snapshot imediato. Sala fechada: nada.
+   */
+  setTableScene(key: string | null): void
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -210,6 +217,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let pendingBroadcast: ReturnType<typeof setTimeout> | null = null
   let pendingStart: Promise<RoomInfo> | null = null
   let lastPlayersKey = '[]'
+  let lastTableScreens = 0
   let tunnelState: TunnelState = TUNNEL_IDLE
   let lastTunnelKey = JSON.stringify(TUNNEL_IDLE)
   let pendingTunnel: Promise<void> | null = null
@@ -315,6 +323,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   const notifyPlayersIfChanged = () => {
+    const screens = session?.tableScreens() ?? 0
+    if (screens !== lastTableScreens) {
+      lastTableScreens = screens
+      deps.onTableScreensChange?.(screens)
+    }
     const list = session?.listPlayers(world()) ?? []
     const key = JSON.stringify(list)
     if (key === lastPlayersKey) return
@@ -379,6 +392,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (lastBadCodeToastAt !== null && at - lastBadCodeToastAt < BAD_CODE_TOAST_INTERVAL_MS) return
     lastBadCodeToastAt = at
     useToastStore.getState().push('info', `Alguém tentou entrar com o código errado. O código desta sala é ${code}.`, PLAYER_JOINED_TOAST_MS)
+  }
+
+  /** A TV entrou: sem cena escolhida ela fica esperando, e o aviso diz onde escolher. */
+  const announceTable = () => {
+    const text =
+      session?.tableScene() === null
+        ? 'A tela da mesa conectou. Escolha a cena dela na aba Jogo.'
+        : 'A tela da mesa conectou.'
+    useToastStore.getState().push('info', text, PLAYER_JOINED_TOAST_MS)
   }
 
   const announceJoin = (clientId: string) => {
@@ -490,7 +512,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
     if (clientId === null) return
-    const wasJoined = session.listPlayers().some((p) => p.clientId === clientId)
+    // Tela da mesa conta como "já entrou": o lixo que ela mandasse depois não a derruba como join recusado.
+    const wasTable = session.isTable(clientId)
+    const wasJoined = wasTable || session.listPlayers().some((p) => p.clientId === clientId)
     const result = session.handleMessage(clientId, event.payload.msg, world())
     const rejectedJoin = !wasJoined && result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'invalid_message')
     if (rejectedJoin) {
@@ -532,6 +556,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     notifyPlayersIfChanged()
     if (wasJoined) return
     if (result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'bad_code')) announceBadCode()
+    else if (session.isTable(clientId)) announceTable()
     else announceJoin(clientId)
   }
 
@@ -663,6 +688,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.sceneNote(sceneId, text, world())
       void dispatch(result)
       return result.outbound.length
+    },
+
+    setTableScene(key) {
+      if (session === null) return
+      session.setTableScene(key)
+      broadcastNow()
     },
 
     assignToken(playerId, tokenId) {
