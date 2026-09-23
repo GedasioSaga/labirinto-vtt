@@ -554,6 +554,21 @@ function sanitizeTokenPhoto(token: Token): Token {
   return { ...token, image, imageData }
 }
 
+/**
+ * "QUEM VÊ" de cada pino, por id: os jogadores escolhidos pelo mestre. Pino
+ * AUSENTE do mapa = "Todos" (o pino de sempre); presente com o conjunto vazio =
+ * "Só estes" sem ninguém marcado, e ninguém recebe. A lista vive na sessão do
+ * host (`net/hostSession.ts`), não no arquivo do mapa: id de jogador só existe
+ * enquanto a sala está aberta.
+ */
+export type PinAudiences = ReadonlyMap<string, ReadonlySet<string>>
+
+/** O pino chega a este jogador pela lista de quem vê? Sem lista, sim. */
+function pinReachesPlayer(audiences: PinAudiences | undefined, pinId: string, playerId: string): boolean {
+  const chosen = audiences?.get(pinId)
+  return chosen === undefined || chosen.has(playerId)
+}
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
@@ -567,6 +582,7 @@ function unseenDoor(door: DoorState): DoorState {
  * `seenDoors`: último estado visto de cada porta (somente leitura). Porta
  * explorada fora da visão sai com esse estado, nunca com o atual: senão o
  * jogador longe veria o mestre abrir ou destrancar a porta.
+ * `pinAudiences`: quem vê cada pino (`PinAudiences`); ausente = todo pino é de todos.
  */
 export function filterMapForPlayer(
   map: MapData,
@@ -575,6 +591,7 @@ export function filterMapForPlayer(
   visionRadius: number,
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
+  pinAudiences?: PinAudiences,
 ): PlayerMapView {
   const hiddenLayers = map.hiddenLayers
   const owned = new Set(ownership[playerId] ?? []) // jogador sem entrada de posse não tem token nem visão
@@ -1000,9 +1017,13 @@ export function filterMapForPlayer(
     // CHEGADA OCULTA (mão única) sai ANTES de qualquer outra regra: não é
     // questão de névoa nem de explorado — o jogador nunca recebe o pino, nem o
     // id dele, estando ou não em cima dele. Ver `isArrivalOnly`.
+    // "QUEM VÊ" também sai antes da névoa: quem não foi escolhido não recebe o
+    // pino nem o id dele, mesmo em cima dele — e o host recusa passagem por um
+    // pino que o jogador não recebeu (`validTravel` usa este mesmo recorte).
     pins: (map.pins ?? [])
       .filter((p) => {
         if (isArrivalOnly(p)) return false
+        if (!pinReachesPlayer(pinAudiences, p.id, playerId)) return false
         if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return false
         const point = { x: p.x, y: p.y }
         return !inRoomHiddenFromPlayer(point) && isPointKnown(point)

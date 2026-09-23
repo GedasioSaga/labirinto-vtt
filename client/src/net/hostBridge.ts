@@ -78,6 +78,8 @@ export interface HostBridgeDeps {
   onGoToScene?: (sceneId: string, x: number, y: number) => void
   visionRadius?: number
   onPlayersChange?: (players: PlayerInfo[]) => void
+  /** "Quem vê" de cada pino com lista (`pinId` -> jogadores); pino de "Todos" não aparece. Sala fechada = `{}`. */
+  onPinAudiencesChange?: (audiences: Record<string, string[]>) => void
   onTunnelChange?: (state: TunnelState) => void
   /** Sinal aceito de um jogador (já validado e dentro do limite por segundo). */
   onSignal?: (signal: HostSignal) => void
@@ -103,6 +105,11 @@ export interface HostBridge {
   laserOff(): void
   /** Raio de visão só deste jogador (`null` = global). Vem de um slider: o snapshot sai pelo throttle do mapa. */
   setVisionRadius(playerId: string, radius: number | null): void
+  /**
+   * "Quem vê" do pino: só `playerIds` o recebem; `null` = Todos. Snapshot na
+   * hora — o jogador marcado vê o pino sem recarregar, e o desmarcado o perde.
+   */
+  setPinAudience(pinId: string, playerIds: readonly string[] | null): void
   /** "Revelar planta": snapshot imediato com a planta inteira explorada (fora de zona oculta ativa). */
   revealPlan(playerId: string): void
   /** "Esconder de novo": snapshot imediato com exploração e portas lembradas zeradas. */
@@ -220,6 +227,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let pendingBroadcast: ReturnType<typeof setTimeout> | null = null
   let pendingStart: Promise<RoomInfo> | null = null
   let lastPlayersKey = '[]'
+  let lastPinAudiencesKey = '{}'
   let tunnelState: TunnelState = TUNNEL_IDLE
   let lastTunnelKey = JSON.stringify(TUNNEL_IDLE)
   let pendingTunnel: Promise<void> | null = null
@@ -336,6 +344,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (key === lastPlayersKey) return
     lastPlayersKey = key
     deps.onPlayersChange?.(list)
+  }
+
+  const notifyPinAudiencesIfChanged = () => {
+    const audiences = session?.pinAudiences() ?? {}
+    const key = JSON.stringify(audiences)
+    if (key === lastPinAudiencesKey) return
+    lastPinAudiencesKey = key
+    deps.onPinAudiencesChange?.(audiences)
   }
 
   /** Envia tudo; a promise nunca rejeita — falha vira toast, nunca silêncio. */
@@ -638,6 +654,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // O Rust derruba o túnel junto com a sala.
       resetTunnel()
       notifyPlayersIfChanged()
+      notifyPinAudiencesIfChanged()
       try {
         await deps.invoke('net_stop_room')
       } catch (error) {
@@ -655,6 +672,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Arrastar o slider dispara dezenas de onChange: um snapshot por janela basta.
       scheduleBroadcast()
       notifyPlayersIfChanged()
+    },
+
+    setPinAudience(pinId, playerIds) {
+      if (session === null) return
+      session.setPinAudience(pinId, playerIds)
+      broadcastNow()
+      notifyPinAudiencesIfChanged()
     },
 
     revealPlan(playerId) {
@@ -715,6 +739,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.kick(clientId)
       pruneTravelToasts()
       notifyPlayersIfChanged()
+      notifyPinAudiencesIfChanged()
       await sendThenKick(result, clientId)
       // O `kicked` já apagou a tela; sem ele (jogador já fora da sessão) apaga aqui.
       forgetScreen(clientId)
