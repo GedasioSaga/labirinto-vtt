@@ -38,6 +38,19 @@ const COR_DO_CAMINHO_B = '#d94f3a'
 const PAINT_MS = 250
 const PAUSA_ANTES_DE_SOLTAR_MS = 120
 const PASSOS_DO_ARRASTO = 14
+/**
+ * Teto próprio de cada teste, SOMADO ao do teste (nunca no lugar dele). Toda
+ * pincelada é um gesto de 14 passos de ponteiro, e cada leitura de cor é uma
+ * foto. Com a máquina carregada (22/09/2026, CPU em 100% com outras lanes,
+ * reporter de passos, 4 workers como o portão roda) cada `Mouse move` custou
+ * até 2,7 s, cada `Mouse up` até 5,1 s e cada `Fill` de cor até 5,1 s: o corpo
+ * dos testes 1 e 2 (uma ou duas pinceladas) passou dos 30 s do teste, e o do 4
+ * (três pinceladas + duas seleções + duas cores) passou de 50 s. O 3 e o 4
+ * ganham o dobro. Nenhuma asserção muda: é tempo para o MESMO gesto e as
+ * MESMAS fotos, não tolerância na prova.
+ */
+const TETO_EXTRA_DO_GESTO_MS = 30_000
+const TETO_EXTRA_DO_GESTO_LONGO_MS = 60_000
 /** Quanto o arrasto passa longe do centro da célula — ver cabeçalho, teste 1. */
 const DESVIO_DO_CENTRO = 18
 
@@ -50,19 +63,40 @@ interface Ponto {
 /** Referências de cor sólida, uma por cor — o mesmo encoder do screenshot. */
 const referencias = new Map<string, Foto>()
 
+/**
+ * UMA aba de referência por worker, reaproveitada para todas as cores.
+ *
+ * Antes cada cor nova abria e fechava uma aba (`context().newPage()` + `goto`
+ * de `data:`): uma aba nova é um processo de renderização novo, e com a
+ * máquina carregada isso mediu até 7,4 s no `Create page` e 8,9 s no
+ * `Navigate` — duas a quatro vezes por teste (fundo, chão, caminho A e B),
+ * dentro do orçamento do teste. Agora a aba nasce uma vez, fora do contexto
+ * do teste (vive com o navegador do worker), e cada cor é só um
+ * `setContent`. A foto continua saindo do MESMO encoder de screenshot do
+ * mesmo navegador; e se um dia os bytes não baterem, os controles positivos
+ * de cada teste (`corNaTela(..., COR_DO_FUNDO)` num ponto vazio) ficam
+ * vermelhos — erro de referência não vira verde.
+ */
+let abaDeReferencia: Page | null = null
+
+async function abaDeReferenciaDoWorker(page: Page): Promise<Page> {
+  if (abaDeReferencia && !abaDeReferencia.isClosed()) return abaDeReferencia
+  const navegador = page.context().browser()
+  // Sem navegador (contexto persistente), fica no contexto do teste e fecha com ele.
+  const aba = navegador ? await navegador.newPage() : await page.context().newPage()
+  await aba.setViewportSize({ width: 200, height: 200 })
+  abaDeReferencia = aba
+  return aba
+}
+
 async function referenciaDeCor(page: Page, hex: string): Promise<Foto> {
   const guardada = referencias.get(hex)
   if (guardada) return guardada
-  const outra = await page.context().newPage()
-  try {
-    await outra.setViewportSize({ width: 200, height: 200 })
-    await outra.goto(`data:text/html,<body style="margin:0;background:%23${hex.slice(1)}">`)
-    const foto = await outra.screenshot({ clip: { x: 100, y: 100, width: 1, height: 1 } })
-    referencias.set(hex, foto)
-    return foto
-  } finally {
-    await outra.close()
-  }
+  const aba = await abaDeReferenciaDoWorker(page)
+  await aba.setContent(`<body style="margin:0;background:${hex}"></body>`)
+  const foto = await aba.screenshot({ clip: { x: 100, y: 100, width: 1, height: 1 } })
+  referencias.set(hex, foto)
+  return foto
 }
 
 /** Ponto de tela para a coordenada de mundo, com o canvas medido AGORA: abrir a
@@ -195,6 +229,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('1. arrastar com o pincel pinta uma fita de blocos presa à grade, e fora do traço não nasce chão', async ({ page }, testInfo) => {
+  testInfo.setTimeout(testInfo.timeout + TETO_EXTRA_DO_GESTO_MS)
   await pegarOPincelDeBlocos(page, 1)
 
   // O arrasto passa FORA do centro da linha 5 — é isso que separa "preso à
@@ -217,6 +252,7 @@ test('1. arrastar com o pincel pinta uma fita de blocos presa à grade, e fora d
 })
 
 test('2. botão DIREITO no mesmo traço apaga o chão que o esquerdo pintou', async ({ page }, testInfo) => {
+  testInfo.setTimeout(testInfo.timeout + TETO_EXTRA_DO_GESTO_MS)
   await pegarOPincelDeBlocos(page, 1)
   const y = centro(0, 5).y
   await pintar(page, { x: centro(6, 5).x, y }, { x: centro(10, 5).x, y })
@@ -236,6 +272,7 @@ test('2. botão DIREITO no mesmo traço apaga o chão que o esquerdo pintou', as
 })
 
 test('3. balde clicado dentro de uma área fechada enche a área inteira e não vaza para fora', async ({ page }, testInfo) => {
+  testInfo.setTimeout(testInfo.timeout + TETO_EXTRA_DO_GESTO_LONGO_MS)
   await pegarOPincelDeBlocos(page, 1)
   // Anel fechado: colunas 6..11, linhas 4..9. O miolo (7..10 x 5..8) fica vazio.
   await pintar(page, centro(6, 4), centro(11, 4))
@@ -263,6 +300,7 @@ test('3. balde clicado dentro de uma área fechada enche a área inteira e não 
 })
 
 test('4. dois caminhos com cores diferentes no mesmo mapa aparecem cada um com a SUA cor, e o chão continua com a dele', async ({ page }, testInfo) => {
+  testInfo.setTimeout(testInfo.timeout + TETO_EXTRA_DO_GESTO_LONGO_MS)
   // Chão de verdade primeiro: pincel de 3 blocos, uma passada só.
   await pegarOPincelDeBlocos(page, 3)
   await pintar(page, centro(6, 5), centro(11, 5))
