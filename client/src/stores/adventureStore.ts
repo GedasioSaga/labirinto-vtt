@@ -26,7 +26,7 @@ import {
   type TravelScene,
   type TravelSceneOption,
 } from '../lib/pinTravel'
-import { mapDirFor, saveAdventureToDisk, scenePath, type OpenedMapFile } from '../lib/mapFileIO'
+import { loadPendingScenes, mapDirFor, saveAdventureToDisk, scenePath, type OpenedMapFile, type SceneLoad } from '../lib/mapFileIO'
 import { dirname } from '@tauri-apps/api/path'
 import { useMapStore } from './mapStore'
 import { useSessionStore } from './sessionStore'
@@ -57,6 +57,19 @@ import { useSessionStore } from './sessionStore'
 export type SceneSlot =
   | { status: 'ok'; map: MapData; past: MapData[]; future: MapData[]; camera: Camera | null }
   | { status: 'indisponivel'; reason: string }
+  | SceneLoadingSlot
+
+/**
+ * Cena que ainda está vindo do disco (abrir aventura mostra a cena pedida
+ * antes de ler as outras). Não abre nem recebe ligação nova; a mudança que
+ * `updateBackgroundScene` pedir nela espera em `pending`, na ordem, e é
+ * aplicada quando o mapa chega — a volta de um pino desligado nesse
+ * meio-tempo não se perde.
+ */
+export interface SceneLoadingSlot {
+  status: 'carregando'
+  pending: ((map: MapData) => MapData)[]
+}
 
 /**
  * O que o canvas deve fazer com a câmera depois de uma troca de cena: voltar
@@ -80,6 +93,8 @@ export interface SceneListItem {
   /** `null` quando a cena não abriu (arquivo sumido): não há mapa para contar. */
   tokenCount: number | null
   available: boolean
+  /** A cena ainda está vindo do disco: indisponível só por enquanto. Ausente = não está carregando. */
+  loading?: boolean
   active: boolean
   /** Mapa solto não tem nome de cena para trocar: o nome dele é o do arquivo. */
   renamable: boolean
@@ -107,8 +122,13 @@ interface AdventureState {
 
   /** Mapa novo ou solto: esquece qualquer aventura anterior. */
   reset: () => void
-  /** Assume o que `openMapFile` leu e põe a cena pedida no editor. */
-  open: (opened: OpenedMapFile) => void
+  /**
+   * Assume o que `openMapFileFirst` leu e põe a cena pedida no editor NA HORA.
+   * As cenas `pendente` entram como "carregando" e são lidas em segundo plano;
+   * a promessa resolve quando todas chegaram (ou não abriram) e nunca rejeita.
+   * Abrir outro mapa antes disso descarta o que ainda chegar desta.
+   */
+  open: (opened: OpenedMapFile) => Promise<void>
   /** Cria a cena, já aberta. `loosePath` é o arquivo do mapa solto, quando a aventura nasce agora. */
   createScene: (name: string, loosePath: string | null) => string
   renameScene: (sceneId: string, name: string) => void
@@ -192,6 +212,7 @@ export function sceneList(state: Pick<AdventureState, 'adventure' | 'activeScene
     const slot = state.cache[entry.id]
     const base = { id: entry.id, name: entry.name, active, renamable: true }
     if (active) return { ...base, tokenCount: liveMap.tokens.length, available: true }
+    if (slot !== undefined && slot.status === 'carregando') return { ...base, tokenCount: null, available: false, loading: true }
     if (slot === undefined || slot.status !== 'ok') return { ...base, tokenCount: null, available: false }
     return { ...base, tokenCount: slot.map.tokens.length, available: true }
   })
@@ -263,7 +284,8 @@ export function travelSceneOptions(state: SceneState): TravelSceneOption[] {
     .filter((entry) => entry.id !== state.activeSceneId)
     .map((entry) => {
       const slot = state.cache[entry.id]
-      return { id: entry.id, name: entry.name, available: slot !== undefined && slot.status === 'ok' }
+      const option: TravelSceneOption = { id: entry.id, name: entry.name, available: slot !== undefined && slot.status === 'ok' }
+      return slot !== undefined && slot.status === 'carregando' ? { ...option, loading: true } : option
     })
 }
 
@@ -337,22 +359,88 @@ function showInEditor(map: MapData, past: MapData[], future: MapData[]): void {
   useSessionStore.getState().markSaved()
 }
 
+/**
+ * Conta as aberturas (`open`, `reset`). Cenas que chegam do disco depois de
+ * outro mapa ter sido aberto são de uma aventura que já saiu do editor: a
+ * chegada confere o número e, se mudou, descarta.
+ */
+let openGeneration = 0
+
+/** O slot de cache de uma cena de fundo recém-aberta. */
+function slotFor(load: SceneLoad): SceneSlot {
+  if (load.status === 'ok') return { status: 'ok', map: load.map, past: [], future: [], camera: null }
+  if (load.status === 'indisponivel') return { status: 'indisponivel', reason: load.reason }
+  return { status: 'carregando', pending: [] }
+}
+
+/** Toda cena ainda "carregando" vira indisponível, com `reason`. */
+function failLoadingSlots(cache: Record<string, SceneSlot>, reason: string): Record<string, SceneSlot> {
+  const next: Record<string, SceneSlot> = { ...cache }
+  for (const [id, slot] of Object.entries(cache)) {
+    if (slot.status === 'carregando') next[id] = { status: 'indisponivel', reason }
+  }
+  return next
+}
+
+/**
+ * As cenas de fundo chegaram (`loadPendingScenes`): cada slot "carregando"
+ * recebe o mapa com as mudanças que esperavam por ele, na ordem. Só slot que
+ * ainda está "carregando" é tocado — a cena aberta e as que já estavam no
+ * cache são as do editor, não as do disco. Cena nova da conversão do portal
+ * antigo entra no fim da lista, pendente de gravação.
+ */
+function arrivedScenes(state: AdventureState, full: OpenedMapFile): Partial<AdventureState> {
+  if (state.adventure === null) return {}
+  const cache: Record<string, SceneSlot> = { ...state.cache }
+  const dirty: Record<string, true> = { ...state.dirty }
+  const converted = new Set(full.changedSceneIds)
+  const known = new Set(state.adventure.scenes.map((entry) => entry.id))
+  const added: SceneEntry[] = []
+  for (const load of full.scenes) {
+    const id = load.entry.id
+    if (!known.has(id)) {
+      if (load.status !== 'ok') continue
+      added.push(load.entry)
+      cache[id] = slotFor(load)
+      dirty[id] = true
+      continue
+    }
+    const slot = cache[id]
+    if (slot === undefined || slot.status !== 'carregando') continue
+    if (load.status !== 'ok') {
+      cache[id] = slotFor(load)
+      continue
+    }
+    const map = slot.pending.reduce((current, updater) => updater(current), load.map)
+    cache[id] = { status: 'ok', map, past: [], future: [], camera: null }
+    if (map !== load.map || converted.has(id)) dirty[id] = true
+  }
+  const settled = failLoadingSlots(cache, 'a cena não chegou do disco')
+  if (added.length === 0) return { cache: settled, dirty }
+  return { cache: settled, dirty, adventure: { ...state.adventure, scenes: [...state.adventure.scenes, ...added] }, structureDirty: true }
+}
+
 export const useAdventureStore = create<AdventureState>()((set, get) => ({
   ...EMPTY,
 
-  reset: () => set({ ...EMPTY }),
+  reset: () => {
+    // O que ainda chegar da aventura anterior não é deste mapa.
+    openGeneration += 1
+    set({ ...EMPTY })
+  },
 
   open: (opened) => {
+    openGeneration += 1
+    const generation = openGeneration
     if (opened.adventure === null || opened.activeSceneId === null) {
       set({ ...EMPTY })
       showInEditor(opened.map, [], [])
-      return
+      return Promise.resolve()
     }
     const cache: Record<string, SceneSlot> = {}
     for (const load of opened.scenes) {
       if (load.entry.id === opened.activeSceneId) continue
-      cache[load.entry.id] =
-        load.status === 'ok' ? { status: 'ok', map: load.map, past: [], future: [], camera: null } : { status: 'indisponivel', reason: load.reason }
+      cache[load.entry.id] = slotFor(load)
     }
     const dirty: Record<string, true> = {}
     for (const id of opened.changedSceneIds) dirty[id] = true
@@ -366,6 +454,15 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       structureDirty: opened.adventureChanged,
     })
     showInEditor(opened.map, [], [])
+    if (!opened.scenes.some((load) => load.status === 'pendente')) return Promise.resolve()
+    return loadPendingScenes(opened).then(
+      (full) => {
+        if (generation === openGeneration) set(arrivedScenes(get(), full))
+      },
+      (error: unknown) => {
+        if (generation === openGeneration) set({ cache: failLoadingSlots(get().cache, error instanceof Error ? error.message : String(error)) })
+      },
+    )
   },
 
   createScene: (name, loosePath) => {
@@ -443,6 +540,11 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
   updateBackgroundScene: (sceneId, updater) => {
     const { cache, dirty } = get()
     const slot = cache[sceneId]
+    if (slot !== undefined && slot.status === 'carregando') {
+      // Ainda vindo do disco: a mudança espera o mapa chegar (`arrivedScenes`).
+      set({ cache: { ...cache, [sceneId]: { status: 'carregando', pending: [...slot.pending, updater] } } })
+      return
+    }
     if (slot === undefined || slot.status !== 'ok') return
     const map = updater(slot.map)
     if (map === slot.map) return
@@ -575,8 +677,10 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
   },
 
   hasPendingScenes: () => {
-    const { adventure, dirty, structureDirty } = get()
-    return adventure !== null && (structureDirty || Object.keys(dirty).length > 0)
+    const { adventure, cache, dirty, structureDirty } = get()
+    // Mudança esperando uma cena que ainda está vindo do disco também é trabalho não salvo.
+    const waiting = Object.values(cache).some((slot) => slot.status === 'carregando' && slot.pending.length > 0)
+    return adventure !== null && (structureDirty || waiting || Object.keys(dirty).length > 0)
   },
 
   flush: async () => {
@@ -656,6 +760,20 @@ function syncTravelLinks(after: MapData, before: MapData): void {
     if (change.after !== null && change.after.sceneId !== activeSceneId) {
       const novo = change.after
       const slot = useAdventureStore.getState().cache[novo.sceneId]
+      if (slot !== undefined && slot.status === 'carregando') {
+        // O par ainda vem do disco: a volta é gravada quando ele chega. Quem
+        // ele trazia antes só se sabe então — o desligamento desse vai numa
+        // microtarefa, depois que a chegada (`arrivedScenes`) entrar no store.
+        useAdventureStore.getState().updateBackgroundScene(novo.sceneId, (chegou) => {
+          const ligado = linkBack(chegou, novo.pinId, daqui)
+          const antigo = ligado.displaced
+          if (antigo !== null && antigo.sceneId !== activeSceneId) {
+            queueMicrotask(() => useAdventureStore.getState().updateBackgroundScene(antigo.sceneId, (outro) => unlinkBack(outro, antigo.pinId, novo)))
+          }
+          return ligado.map
+        })
+        continue
+      }
       if (slot === undefined || slot.status !== 'ok') continue
       const { map, displaced } = linkBack(slot.map, novo.pinId, daqui)
       useAdventureStore.getState().updateBackgroundScene(novo.sceneId, () => map)

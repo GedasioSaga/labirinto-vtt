@@ -509,10 +509,15 @@ export async function saveMapToPath(map: MapData, path: string): Promise<void> {
 // Aventura: várias cenas numa pasta (`lib/adventure.ts`)
 // ───────────────────────────────────────────────────────────────────────────
 
-/** Uma cena lida do disco: o mapa, ou o motivo de não estar disponível. */
+/**
+ * Uma cena da aventura: o mapa, o motivo de não estar disponível, ou
+ * `pendente` — ainda não lida do disco (`openMapFileFirst` deixa as cenas de
+ * fundo assim; `loadPendingScenes` as lê).
+ */
 export type SceneLoad =
   | { entry: SceneEntry; status: 'ok'; map: MapData }
   | { entry: SceneEntry; status: 'indisponivel'; reason: string }
+  | { entry: SceneEntry; status: 'pendente' }
 
 /** O que abrir um `map.json` devolve: o mapa pedido e, se ele é cena de uma aventura, a aventura inteira. */
 export interface OpenedMapFile {
@@ -524,7 +529,7 @@ export interface OpenedMapFile {
   adventure: Adventure | null
   adventureDir: string | null
   activeSceneId: string | null
-  /** Todas as cenas da aventura, a aberta inclusive; vazio para mapa solto. */
+  /** Todas as cenas da aventura, a aberta inclusive, na ordem da lista; vazio para mapa solto. */
   scenes: SceneLoad[]
   /** Cenas cujo conteúdo em memória já não é o do disco (portal antigo convertido). */
   changedSceneIds: string[]
@@ -534,6 +539,14 @@ export interface OpenedMapFile {
 
 /** Teto de cenas que a conversão de portais antigos cria de uma vez: corrente de andares, não labirinto infinito. */
 const MAX_MIGRATED_SCENES = 32
+
+/**
+ * Quantas cenas de fundo são lidas do disco ao mesmo tempo. Uma por vez, a
+ * aventura de 99 cenas somava 99 idas e voltas ao disco; todas de uma vez
+ * dispararia 99 leituras na ponte do Tauri e 99 mapas inteiros em memória
+ * esperando o parse no mesmo instante. Oito deixa o disco ocupado sem isso.
+ */
+export const SCENE_READ_CONCURRENCY = 8
 
 /**
  * Caminho absoluto da cena, conferido contra a pasta da aventura. `file` vem
@@ -595,21 +608,19 @@ async function findAdventureFor(mapPath: string): Promise<{ adventure: Adventure
 }
 
 /**
- * Abre um `map.json`: o mapa pedido e, quando ele é cena de uma aventura,
- * todas as outras cenas (as que sumiram do disco voltam como "indisponível",
- * sem derrubar a abertura). Por último converte o portal antigo
- * (`convertLegacyPortals`).
+ * Abre um `map.json` SEM esperar as outras cenas: lê o mapa pedido e, se ele é
+ * cena de uma aventura, só o `adventure.json` — as outras cenas voltam
+ * `pendente`, na ordem da lista, para `loadPendingScenes` ler depois. A
+ * conversão do portal antigo (`convertLegacyPortals`) já corre sobre o que foi
+ * lido; a das cenas de fundo corre quando elas chegam.
  */
-export async function openMapFile(path: string): Promise<OpenedMapFile> {
+export async function openMapFileFirst(path: string): Promise<OpenedMapFile> {
   const map = await loadMapFromDisk(path)
   const found = await findAdventureFor(path)
   if (found === null) {
     return convertLegacyPortals({ path, map, adventure: null, adventureDir: null, activeSceneId: null, scenes: [], changedSceneIds: [], adventureChanged: false })
   }
-  const scenes: SceneLoad[] = []
-  for (const entry of found.adventure.scenes) {
-    scenes.push(entry.id === found.sceneId ? { entry, status: 'ok', map } : await loadScene(found.dir, entry))
-  }
+  const scenes = found.adventure.scenes.map((entry): SceneLoad => (entry.id === found.sceneId ? { entry, status: 'ok', map } : { entry, status: 'pendente' }))
   return convertLegacyPortals({
     path,
     map,
@@ -620,6 +631,65 @@ export async function openMapFile(path: string): Promise<OpenedMapFile> {
     changedSceneIds: [],
     adventureChanged: false,
   })
+}
+
+/** `worker` sobre cada item, no máximo `limit` de cada vez; o resultado na ordem de `items`. */
+async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let next = 0
+  const lane = async (): Promise<void> => {
+    while (next < items.length) {
+      const index = next
+      next += 1
+      results[index] = await worker(items[index])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane))
+  return results
+}
+
+/**
+ * Lê as cenas `pendente` de `opened` (várias ao mesmo tempo, até
+ * `SCENE_READ_CONCURRENCY`) e converte o portal antigo que houver NELAS. A
+ * cena aberta e as que já tinham chegado ficam como estavam — é o mapa que já
+ * está no editor. Sem cena pendente, devolve o próprio `opened`. Nunca rejeita
+ * por causa de uma cena: a que não abre volta "indisponível" (`loadScene`).
+ */
+export async function loadPendingScenes(opened: OpenedMapFile): Promise<OpenedMapFile> {
+  const dir = opened.adventureDir
+  if (dir === null || !opened.scenes.some((load) => load.status === 'pendente')) return opened
+
+  const fresh = await mapWithConcurrency(opened.scenes, SCENE_READ_CONCURRENCY, (load) =>
+    load.status === 'pendente' ? loadScene(dir, load.entry) : Promise.resolve(null),
+  )
+  // Só as recém-lidas passam pela conversão: as outras entram como `pendente`
+  // (que a conversão pula) e voltam intactas logo abaixo.
+  const kept = new Map<string, SceneLoad>()
+  const toConvert = opened.scenes.map((load, index): SceneLoad => {
+    const read = fresh[index]
+    if (read !== null) return read
+    kept.set(load.entry.id, load)
+    return { entry: load.entry, status: 'pendente' }
+  })
+  const converted = await convertLegacyPortals({ ...opened, scenes: toConvert })
+  return {
+    ...converted,
+    // A cena aberta não muda por causa do que chegou depois.
+    map: opened.map,
+    activeSceneId: opened.activeSceneId,
+    scenes: converted.scenes.map((load) => kept.get(load.entry.id) ?? load),
+    adventureChanged: opened.adventureChanged || converted.adventureChanged,
+  }
+}
+
+/**
+ * Abre um `map.json` com TODAS as cenas já lidas: `openMapFileFirst` e depois
+ * `loadPendingScenes` (as que sumiram do disco voltam como "indisponível", sem
+ * derrubar a abertura). O editor usa as duas metades separadas, para mostrar
+ * a cena pedida antes de ler as outras.
+ */
+export async function openMapFile(path: string): Promise<OpenedMapFile> {
+  return loadPendingScenes(await openMapFileFirst(path))
 }
 
 /** Chave de comparação de caminho: barra e maiúscula não contam (Windows). */

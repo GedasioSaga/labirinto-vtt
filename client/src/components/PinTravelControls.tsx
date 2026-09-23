@@ -352,7 +352,7 @@ export function PinTravelControls({
                     >
                       {scene.name}
                     </button>
-                    {!scene.available && <span className="lb-travel__note">não abriu</span>}
+                    {!scene.available && <span className="lb-travel__note">{scene.loading === true ? 'carregando…' : 'não abriu'}</span>}
                   </li>
                 ))}
               </ul>

@@ -417,6 +417,8 @@ export interface TravelSceneOption {
   name: string
   /** `false` = o arquivo da cena não abriu: aparece, desabilitada, com o motivo. */
   available: boolean
+  /** A cena ainda está vindo do disco: desabilitada só por enquanto. Ausente = não está carregando. */
+  loading?: boolean
 }
 
 /** Um pino de viagem da cena escolhida, para ligar a um que já existe. */
