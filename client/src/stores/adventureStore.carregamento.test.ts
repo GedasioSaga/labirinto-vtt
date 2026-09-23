@@ -59,7 +59,7 @@ vi.mock('@tauri-apps/api/path', () => ({
   dirname: vi.fn(async (path: string) => path.slice(0, path.lastIndexOf('/'))),
 }))
 
-const { useAdventureStore, sceneList, hasUnsavedWork, subscribeToTravelLinks } = await import('./adventureStore')
+const { useAdventureStore, sceneList, hasUnsavedWork, subscribeToTravelLinks, subscribeToServedScenes, hostWorldOf, pinTravelOf } = await import('./adventureStore')
 const { useMapStore } = await import('./mapStore')
 const { subscribeToDirtyFlag } = await import('./sessionStore')
 const { openMapFileFirst } = await import('../lib/mapFileIO')
@@ -238,5 +238,76 @@ describe('abrir aventura: a cena pedida primeiro, as outras chegando', () => {
     const torre = lista().find((c) => c.name === 'Torre')
     expect(torre?.available).toBe(false)
     expect(torre?.loading === true).toBe(false)
+  })
+})
+
+describe('abrir aventura com a sala aberta: quem está numa cena de fundo não fica esperando', () => {
+  it('a chegada das cenas de fundo avisa quem serve os jogadores, já com elas no mundo', async () => {
+    gravarAventura()
+    segurarCenas()
+    /** As cenas de fundo que o host serviria no momento de cada aviso. */
+    const servidas: string[][] = []
+    const parar = subscribeToServedScenes(() => {
+      const world = hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map)
+      servidas.push(world.background.map((scene) => scene.name))
+    })
+    try {
+      const pronto = useAdventureStore.getState().open(await openMapFileFirst(`${PASTA}/map.json`))
+      const antesDeChegar = servidas.length
+
+      abrirPortao()
+      await pronto
+
+      // Depois do open (com as cenas ainda "carregando"), chegou pelo menos um
+      // aviso novo, e nele a Cripta e a Torre já estão no mundo servido.
+      expect(servidas.length).toBeGreaterThan(antesDeChegar)
+      expect(servidas.at(-1)).toEqual(['Cripta', 'Torre'])
+    } finally {
+      parar()
+    }
+  })
+
+  it('mexer só no mapa aberto não é aviso de cenas servidas (esse vai pelo mapa vivo)', async () => {
+    gravarAventura()
+    await useAdventureStore.getState().open(await openMapFileFirst(`${PASTA}/map.json`))
+    let avisos = 0
+    const parar = subscribeToServedScenes(() => {
+      avisos += 1
+    })
+    try {
+      useMapStore.getState().setTokenPosition('inexistente', 1, 1)
+      useAdventureStore.getState().updateBackgroundScene('s_cripta', (m) => ({ ...m, name: 'Cripta velha' }))
+      expect(avisos).toBe(0)
+    } finally {
+      parar()
+    }
+  })
+})
+
+describe('pino de viagem cujo destino ainda está carregando', () => {
+  it('diz que a cena está carregando, e não que ela não abriu', async () => {
+    gravarAventura()
+    segurarCenas()
+    const pronto = useAdventureStore.getState().open(await openMapFileFirst(`${PASTA}/map.json`))
+    const live = useMapStore.getState().map
+    const ida = live.pins.find((p) => p.id === 'ida')
+    if (ida === undefined) throw new Error('o Vale gravado tem o pino ida')
+
+    expect(pinTravelOf(useAdventureStore.getState(), live, ida)).toEqual({ status: 'indisponivel', sceneId: 's_cripta', sceneName: 'Cripta', loading: true })
+
+    abrirPortao()
+    await pronto
+    expect(pinTravelOf(useAdventureStore.getState(), useMapStore.getState().map, ida).status).toBe('ligado')
+  })
+
+  it('cena que não abriu continua "indisponível" sem "carregando"', async () => {
+    gravarAventura()
+    arquivos.delete(`${PASTA}/scenes/s_cripta/map.json`)
+    await useAdventureStore.getState().open(await openMapFileFirst(`${PASTA}/map.json`))
+    const live = useMapStore.getState().map
+    const ida = live.pins.find((p) => p.id === 'ida')
+    if (ida === undefined) throw new Error('o Vale gravado tem o pino ida')
+
+    expect(pinTravelOf(useAdventureStore.getState(), live, ida)).toStrictEqual({ status: 'indisponivel', sceneId: 's_cripta', sceneName: 'Cripta' })
   })
 })

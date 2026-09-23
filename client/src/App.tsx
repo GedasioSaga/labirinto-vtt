@@ -37,6 +37,7 @@ import {
   pinExitsTravelOf,
   pinTravelOptions,
   sceneList,
+  subscribeToServedScenes,
   subscribeToTravelLinks,
   travelSceneOptions,
   useAdventureStore,
@@ -475,6 +476,8 @@ function App() {
     return hostBridgeRef.current
   }
   useEffect(() => useMapStore.subscribe((state) => state.map, () => hostBridgeRef.current?.notifyMapChanged()), [])
+  // Cena de fundo que chega do disco depois de abrir a aventura: quem está nela sai da espera.
+  useEffect(() => subscribeToServedScenes(() => hostBridgeRef.current?.notifyMapChanged()), [])
   const laserToggled = useLaserStore((state) => state.toggled)
   // B2 — o `off` sai no fim do traço: soltar o botão, sair da janela ou desarmar (L e botão Laser).
   useEffect(

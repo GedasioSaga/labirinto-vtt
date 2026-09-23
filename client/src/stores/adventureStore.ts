@@ -230,6 +230,7 @@ function sceneLookup(state: SceneState, liveMap: MapData): (sceneId: string) => 
     if (entry === undefined) return null
     if (sceneId === state.activeSceneId) return { name: entry.name, map: liveMap }
     const slot = state.cache[sceneId]
+    if (slot !== undefined && slot.status === 'carregando') return { name: entry.name, map: null, loading: true }
     return { name: entry.name, map: slot !== undefined && slot.status === 'ok' ? slot.map : null }
   }
 }
@@ -312,6 +313,31 @@ export function hostWorldOf(state: SceneState, liveMap: MapData): HostWorld {
     if (slot !== undefined && slot.status === 'ok') background.push({ sceneId: entry.id, name: entry.name, map: slot.map })
   }
   return { open: { sceneId: state.activeSceneId, name: openName, map: liveMap }, background }
+}
+
+/** As cenas de fundo que `hostWorldOf` serve (só slot 'ok') mudaram de conjunto? */
+function servedScenesChanged(before: Record<string, SceneSlot>, after: Record<string, SceneSlot>): boolean {
+  const served = (cache: Record<string, SceneSlot>) => Object.keys(cache).filter((id) => cache[id]?.status === 'ok')
+  const antes = new Set(served(before))
+  const depois = served(after)
+  return depois.length !== antes.size || depois.some((id) => !antes.has(id))
+}
+
+/**
+ * Avisa `onChange` quando entra ou sai cena de fundo do mundo que o host
+ * serve — as que chegam do disco depois de abrir a aventura (`open` mostra a
+ * cena pedida antes de ler as outras), a criada, a trocada. O broadcast do
+ * `open` sai com elas ainda "carregando" (fora do mundo, e o jogador que está
+ * nelas vê "Aguardando o mestre"); sem este aviso ninguém reenviaria quando
+ * elas chegassem. Mudança DENTRO de uma cena já servida não avisa: essa vai
+ * pelo mapa vivo ou pela própria sessão, como antes.
+ *
+ * Liga-se UMA VEZ, na raiz do app, junto da ponte do host. Devolve o cancelamento.
+ */
+export function subscribeToServedScenes(onChange: () => void): () => void {
+  return useAdventureStore.subscribe((state, previous) => {
+    if (state.cache !== previous.cache && servedScenesChanged(previous.cache, state.cache)) onChange()
+  })
 }
 
 /** Um mapa com o desfazer dele: a cena aberta (no `useMapStore`) ou uma de fundo (no cache). */
