@@ -1,5 +1,5 @@
 import type { GridShape, MapScale, MeasurementMode } from '../types/map'
-import { MEASUREMENT_MODE_LABELS, measurementModesForShape } from '../lib/measurement'
+import { MAX_MEASUREMENT_PRECISION, MEASUREMENT_MODE_LABELS, measurementModesForShape } from '../lib/measurement'
 
 export interface MapScaleControlsProps {
   scale: MapScale
@@ -71,7 +71,7 @@ export function MapScaleControls({
           className="lb-input"
           type="number"
           min={0}
-          max={3}
+          max={MAX_MEASUREMENT_PRECISION}
           step={1}
           value={scale.precision}
           onChange={(event) => onScaleChange({ precision: Number(event.target.value) })}

@@ -139,9 +139,24 @@ export function measureCells(
   return measureSquareCells(start, end, gridSize, mode)
 }
 
+/** Teto de casas decimais do rótulo — o mesmo `max` do campo "Casas decimais"
+ *  (MapScaleControls.tsx). Além de ~15 casas o float já é ruído, e acima de
+ *  100 `toFixed` lança RangeError a cada pointermove da régua. */
+export const MAX_MEASUREMENT_PRECISION = 3
+
+/**
+ * `MapScale.precision` vem de campo numérico livre (dá pra digitar 500) e de
+ * mapa salvo em disco (mapFile.ts repassa `parsed.scale` cru, então o campo
+ * pode faltar). Normaliza para inteiro em 0..MAX_MEASUREMENT_PRECISION;
+ * ausente/NaN/Infinity viram 0, o padrão de mapa novo (mapFactory.ts).
+ */
+function sanitizePrecision(precision: number): number {
+  if (!Number.isFinite(precision)) return 0
+  return Math.min(MAX_MEASUREMENT_PRECISION, Math.max(0, Math.round(precision)))
+}
+
 function roundToPrecision(value: number, precision: number): number {
-  const safePrecision = Math.max(0, precision)
-  const factor = 10 ** safePrecision
+  const factor = 10 ** precision
   return Math.round(value * factor) / factor
 }
 
@@ -172,8 +187,8 @@ export function measureDistance(
   scale: MapScale,
 ): MeasurementResult {
   const cells = measureCells(start, end, gridSize, gridShape, mode)
-  const units = roundToPrecision(cells * scale.unitsPerCell, scale.precision)
-  const safePrecision = Math.max(0, scale.precision)
+  const safePrecision = sanitizePrecision(scale.precision)
+  const units = roundToPrecision(cells * scale.unitsPerCell, safePrecision)
   const label = `${units.toFixed(safePrecision)} ${scale.unit}`.trim()
   return { cells, units, label }
 }
