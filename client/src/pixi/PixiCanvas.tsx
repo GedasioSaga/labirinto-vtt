@@ -466,6 +466,11 @@ interface PixiCanvasProps {
    * ao hostBridge, que faz o throttle.
    */
   onLaserMove?: (x: number, y: number) => void
+  /**
+   * `?` sem pino para alternar: o App abre a tela de atalhos
+   * (`components/ShortcutsDialog.tsx`). Com pino, o `?` continua sendo dele.
+   */
+  onShowShortcuts?: () => void
 }
 
 /**
@@ -490,6 +495,7 @@ export function PixiCanvas({
   onLaserMove,
   onTravelPin,
   focusObstacles,
+  onShowShortcuts,
 }: PixiCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const onLaserMoveRef = useRef(onLaserMove)
@@ -515,6 +521,11 @@ export function PixiCanvas({
   useEffect(() => {
     onPlaceTokenRef.current = onPlaceToken
   }, [onPlaceToken])
+
+  const onShowShortcutsRef = useRef(onShowShortcuts)
+  useEffect(() => {
+    onShowShortcutsRef.current = onShowShortcuts
+  }, [onShowShortcuts])
 
   const [nameEditor, setNameEditor] = useState<NameEditorState | null>(null)
   // Enter e Esc desmontam o campo, e o navegador pode disparar blur depois;
@@ -5172,6 +5183,20 @@ export function PixiCanvas({
         useMapStore.getState().moveSelectionBy(dx * scale, dy * scale)
       }
 
+      /**
+       * O pino que o `?` alterna AGORA: o selecionado, se ainda existe no mapa
+       * (o `undo` deixa o id velho para trás, ver `deleteSelected` abaixo) e se
+       * o tipo dele tem troca (o de viagem não tem, `pinKindAfterShortcut`).
+       * Sem ele o `?` abre a tela de atalhos em vez de sumir sem efeito.
+       */
+      const pinoDoAtalho = () => {
+        const { map: mapaAtual, selectedPinId: pinoId } = useMapStore.getState()
+        const pino = pinoId === null ? undefined : mapaAtual.pins.find((p) => p.id === pinoId)
+        if (pino === undefined) return null
+        const proximo = pinKindAfterShortcut(pino.kind)
+        return proximo === null ? null : { id: pino.id, proximo }
+      }
+
       const onKeyDown = (event: KeyboardEvent) => {
         // No meio do giro da sala, Esc devolve a sala ao ângulo do começo — e
         // só isso: o botão ainda está apertado, então largar a seleção aqui
@@ -5276,6 +5301,7 @@ export function PixiCanvas({
           shiftKey: event.shiftKey,
           altKey: event.altKey,
           ...alvoDoAtalho(event.target),
+          canTogglePinType: pinoDoAtalho() !== null,
         })
         if (action === null) return
         // Sem isto o navegador também seleciona o texto da interface (laranja).
@@ -5363,19 +5389,19 @@ export function PixiCanvas({
             useMapStore.getState().setActiveTool(action.tool)
             break
           // `?` (achado 11 do passeio de 20/09/2026): alterna "!"/"?" do pino
-          // SELECIONADO. Sem pino — ou com id velho, que o `undo` deixa para
-          // trás (ver `deleteSelected` acima) — a tecla não faz nada e fica
-          // livre para outro papel sem o pino. O `destino: null` é o mesmo do
-          // painel (`App.tsx`, `onKindChange`): tipo que não é viagem não leva
-          // destino.
+          // SELECIONADO — o mapa de teclas só manda isto quando `pinoDoAtalho`
+          // achou um, e é ele de novo que diz qual pino e para que tipo. O
+          // `destino: null` é o mesmo do painel (`App.tsx`, `onKindChange`):
+          // tipo que não é viagem não leva destino.
           case 'togglePinType': {
-            const { map: mapaAtual, selectedPinId: pinoId, updatePin } = useMapStore.getState()
-            const pino = pinoId === null ? undefined : mapaAtual.pins.find((p) => p.id === pinoId)
-            if (pino === undefined) break
-            const proximo = pinKindAfterShortcut(pino.kind)
-            if (proximo !== null) updatePin(pino.id, { kind: proximo, destino: null })
+            const pino = pinoDoAtalho()
+            if (pino !== null) useMapStore.getState().updatePin(pino.id, { kind: pino.proximo, destino: null })
             break
           }
+          // `?` sem pino para alternar: a tela de atalhos, que mora no App.
+          case 'showShortcuts':
+            onShowShortcutsRef.current?.()
+            break
           case 'nudge':
             nudgeSelected(action.dx, action.dy, action.fine)
             break
@@ -5416,6 +5442,11 @@ export function PixiCanvas({
       // rascunho continuava na tela.
       const onDraftKeyDown = (event: KeyboardEvent) => {
         if (!hasPointDraft()) return
+        // Janela modal aberta por cima (a tela de atalhos abre com `?` no meio
+        // de um traço, justo quando a pessoa quer saber como fechá-lo): a tecla
+        // é da janela. Sem isto, Backspace lá dentro tirava um ponto do traço
+        // atrás dela, sem ninguém ver.
+        if (event.target instanceof Element && event.target.closest('[aria-modal="true"]') !== null) return
         const action = resolveShortcut({
           key: event.key,
           ctrlKey: event.ctrlKey,

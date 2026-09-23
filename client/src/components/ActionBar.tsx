@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement } from 'react'
-import { BackIcon, ExportIcon, FolderIcon, HomeIcon, ImageIcon, ImportIcon, RedoIcon, SaveIcon, UndoIcon } from './icons'
+import { BackIcon, ExportIcon, FolderIcon, HomeIcon, ImageIcon, ImportIcon, KeyboardIcon, RedoIcon, SaveIcon, UndoIcon } from './icons'
 import './ActionBar.css'
 
 export interface ActionBarProps {
@@ -34,6 +34,13 @@ export interface ActionBarProps {
   onDetailsFromBackground: () => void
   /** Pipeline completo (chão + linhas + portas + calibração) com render fiel ligado. */
   onRecreateMinimapFromBackground: () => void
+  /**
+   * Tela de atalhos (a mesma da tecla `?`). Opcional no padrão de `onUndo`:
+   * sem quem a abra, o botão não aparece — controle sem efeito não entra.
+   */
+  onShowShortcuts?: () => void
+  /** A tela de atalhos está aberta: o botão diz isso em `aria-expanded`. */
+  shortcutsOpen?: boolean
 }
 
 interface ActionBarAction {
@@ -41,6 +48,8 @@ interface ActionBarAction {
   icon: ReactElement
   onClick: () => void
   disabled?: boolean
+  /** O botão abre uma janela: anuncia isso (`aria-haspopup`) e diz se ela está aberta. */
+  dialog?: { open: boolean }
 }
 
 interface BackgroundMenuItem {
@@ -51,6 +60,8 @@ interface BackgroundMenuItem {
 
 const IMPORT_BACKGROUND_LABEL = 'Importar imagem de fundo'
 const BACKGROUND_MENU_LABEL = 'Imagem de fundo e conversão'
+/** A tecla no rótulo, como em "Desfazer (Ctrl+Z)": o balão ensina o caminho curto. */
+const SHORTCUTS_LABEL = 'Atalhos do teclado (?)'
 
 function ActionButton({ action }: { action: ActionBarAction }) {
   return (
@@ -59,6 +70,8 @@ function ActionButton({ action }: { action: ActionBarAction }) {
       className="lb-iconbtn lb-tip lb-tip--up"
       aria-label={action.label}
       data-tip={action.label}
+      aria-haspopup={action.dialog ? 'dialog' : undefined}
+      aria-expanded={action.dialog?.open}
       onClick={action.onClick}
       disabled={action.disabled}
     >
@@ -101,6 +114,18 @@ export function ActionBar(props: ActionBarProps) {
     { label: 'Exportar mapa (pasta)', icon: <ExportIcon />, onClick: props.onExportFolder },
     { label: 'Importar mapa (pasta)', icon: <ImportIcon />, onClick: props.onImportFolder },
     { label: 'Início', icon: <HomeIcon />, onClick: props.onGoHome },
+    // Ajuda por último, como o "?" no fim de uma barra. Cabe na segunda linha
+    // que a barra já quebra (ActionBar.css), sem aumentar a altura dela.
+    ...(props.onShowShortcuts
+      ? [
+          {
+            label: SHORTCUTS_LABEL,
+            icon: <KeyboardIcon />,
+            onClick: props.onShowShortcuts,
+            dialog: { open: props.shortcutsOpen ?? false },
+          },
+        ]
+      : []),
   ]
 
   const menuItems: BackgroundMenuItem[] = [

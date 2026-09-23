@@ -625,3 +625,19 @@ export function RedoIcon(props: IconProps) {
     </Icon>
   )
 }
+
+/**
+ * Teclado — botão da tela de atalhos (ActionBar). Moldura mais larga que alta
+ * com duas fileiras de teclas curtas e a barra de espaço. Distingue de
+ * `ImageIcon` (moldura parecida, com montanha e sol por dentro) pelas teclas
+ * em grade. Cada tecla é um traço curto de ponta redonda — o mesmo traço do resto
+ * da família, sem `fill` e sem círculo pequeno que feche o miolo.
+ */
+export function KeyboardIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2.5" y="6" width="19" height="12" rx="2" />
+      <path d="M6.25 9.5h1M9.75 9.5h1M13.25 9.5h1M16.75 9.5h1M6.25 12.25h1M9.75 12.25h1M13.25 12.25h1M16.75 12.25h1M8.5 15h7" />
+    </Icon>
+  )
+}

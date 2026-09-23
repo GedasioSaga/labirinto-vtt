@@ -60,13 +60,19 @@ describe('resolveShortcut — foco num interruptor do painel', () => {
 })
 
 describe('resolveShortcut — a regra do ?', () => {
-  it('? (Shift+/) pede a troca do tipo do pino', () => {
-    expect(resolveShortcut(evt({ key: '?', shiftKey: true }))).toEqual({ kind: 'togglePinType' })
+  // Sem pino selecionado o ? abre a tela de atalhos (keymap.telaDeAtalhos.test.ts);
+  // aqui o pino está selecionado, e o ? é dele.
+  it('? (Shift+/) com o pino selecionado pede a troca do tipo do pino', () => {
+    expect(resolveShortcut(evt({ key: '?', shiftKey: true, canTogglePinType: true }))).toEqual({ kind: 'togglePinType' })
   })
 
   it('? com o foco num botão do painel (o título, um rádio) também vale', () => {
-    expect(resolveShortcut(evt({ key: '?', shiftKey: true, targetTagName: 'BUTTON' }))).toEqual({ kind: 'togglePinType' })
-    expect(resolveShortcut(evt({ key: '?', shiftKey: true, targetTagName: 'H2' }))).toEqual({ kind: 'togglePinType' })
+    expect(resolveShortcut(evt({ key: '?', shiftKey: true, targetTagName: 'BUTTON', canTogglePinType: true }))).toEqual({
+      kind: 'togglePinType',
+    })
+    expect(resolveShortcut(evt({ key: '?', shiftKey: true, targetTagName: 'H2', canTogglePinType: true }))).toEqual({
+      kind: 'togglePinType',
+    })
   })
 
   it('? dentro de campo de texto (a descrição do pino) é texto', () => {
