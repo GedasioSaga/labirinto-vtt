@@ -78,6 +78,11 @@ export default defineConfig({
     // `LAB_REUSA_SERVIDOR=1` volta ao reaproveitamento, quando alguém quiser a
     // suíte mais rápida sabendo do risco.
     reuseExistingServer: process.env.LAB_REUSA_SERVIDOR === '1',
-    timeout: 30_000,
+    // Só o tempo de SUBIR o vite (não o de teste, que segue em 30 s lá em
+    // cima). Medido em 23/09/2026 com 8+ árvores rodando o portão: vite com
+    // `cacheDir` frio (porta nova = cache novo, ver vite.config.ts) passou de
+    // 30 s para otimizar dependências, e três jornadas saíram vermelhas com
+    // "Timed out waiting 30000ms from config.webServer" sem rodar teste algum.
+    timeout: 120_000,
   },
 })

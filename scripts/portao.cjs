@@ -77,7 +77,7 @@ const os = require('os')
 const http = require('http')
 const net = require('net')
 const crypto = require('crypto')
-const { spawnSync } = require('child_process')
+const { spawn, spawnSync } = require('child_process')
 const { pathToFileURL } = require('url')
 
 const RAIZ = path.resolve(__dirname, '..')
@@ -2118,6 +2118,364 @@ const TSC = path.join(RAIZ, 'node_modules', 'typescript', 'bin', 'tsc')
 const VITEST = path.join(RAIZ, 'node_modules', 'vitest', 'vitest.mjs')
 const PLAYWRIGHT = path.join(RAIZ, 'node_modules', '@playwright', 'test', 'cli.js')
 
+// ---------------------------------------------------------------------------
+// VAGAS DE PLAYWRIGHT — na MÁQUINA inteira, não por árvore.
+//
+// MEDIDO em 22/09/2026, 23h: 8+ lanes, cada uma na sua árvore, cada uma
+// chamando este portão. Cada suíte do Playwright sobe `workers: 4` com Pixi em
+// WebGL por software: 11 vites, ~100 processos node, e jornadas que passam
+// sozinhas (escada-legivel, selecao-arrasto, pincel-balde,
+// luz-que-para-na-parede) estourando 30 s/90 s de timeout. Vermelho de CARGA,
+// não de defeito — e ele travava o juízo de todas as lanes.
+//
+// Aqui cada execução do Playwright pega uma vaga antes de rodar e devolve
+// depois. As vagas são arquivos `vaga-<k>.lock` em %TEMP%, criados com `wx`
+// (criar-se-não-existe é atômico no sistema de arquivos), então duas árvores
+// diferentes enxergam o MESMO semáforo sem combinar nada. Workers, timeouts e
+// jornadas não mudam: muda só quantas suítes disputam a CPU ao mesmo tempo.
+//
+// `PORTAO_VAGAS=0` desliga (comportamento antigo). Ausente ou inválido: 3.
+// ---------------------------------------------------------------------------
+const VAGAS = path.join(SAIDA, 'vagas')
+const VAGAS_PADRAO = 3
+/** Vaga mais velha que isto é de processo que sumiu sem devolver (nenhuma suíte dura 3 h). */
+const VAGA_ORFA_MS = 3 * 60 * 60 * 1000
+/** Arquivo de vaga ilegível só conta como órfão depois disto — antes pode ser só a escrita em andamento. */
+const VAGA_ILEGIVEL_MS = 10 * 1000
+const VAGA_POLLING_MS = 2000
+const VAGA_AVISO_MS = 30 * 1000
+/** Vagas nas mãos deste processo, para o `exit`/sinal devolverem mesmo sem `finally`. */
+const VAGAS_EM_MAOS = new Set()
+let vagasComSaidaRegistrada = false
+
+function quantasVagas(env) {
+  const bruto = env.PORTAO_VAGAS
+  if (bruto === undefined || String(bruto).trim() === '') return VAGAS_PADRAO
+  const n = Number(bruto)
+  // `Number(x) || 3` transformaria o 0 em 3 — e 0 é justamente o "desliga".
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : VAGAS_PADRAO
+}
+
+function pidVivo(pid) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (e) {
+    // EPERM: o processo existe, só não é nosso. Só ESRCH prova que morreu.
+    return !(e && e.code === 'ESRCH')
+  }
+}
+
+/**
+ * O juízo de uma vaga, separado do disco para ter autoteste: vaga de pid morto
+ * ou mais velha que 3 h é órfã e pode ser retomada; vaga ilegível só depois de
+ * `VAGA_ILEGIVEL_MS` (antes disso o dono pode estar no meio da escrita).
+ */
+function julgarVaga(dono, agoraMs, idadeDoArquivoMs, vivo) {
+  if (!dono || !Number.isFinite(Number(dono.pid))) {
+    return idadeDoArquivoMs > VAGA_ILEGIVEL_MS
+      ? { orfa: true, motivo: 'arquivo de vaga ilegível há ' + Math.round(idadeDoArquivoMs / 1000) + ' s' }
+      : { orfa: false, motivo: 'arquivo de vaga sendo escrito' }
+  }
+  if (!vivo(Number(dono.pid))) return { orfa: true, motivo: 'pid ' + dono.pid + ' morto' }
+  const desde = Date.parse(dono.desde)
+  const idade = Number.isFinite(desde) ? agoraMs - desde : idadeDoArquivoMs
+  if (idade > VAGA_ORFA_MS) return { orfa: true, motivo: 'vaga com ' + Math.round(idade / 60000) + ' min (teto ' + VAGA_ORFA_MS / 60000 + ' min)' }
+  return { orfa: false, motivo: 'pid ' + dono.pid + ' vivo' }
+}
+
+function lerVaga(caminho) {
+  let bruto
+  let idade
+  try {
+    idade = Date.now() - fs.statSync(caminho).mtimeMs
+    bruto = fs.readFileSync(caminho, 'utf8')
+  } catch (e) {
+    return null // sumiu entre o readdir e a leitura: foi devolvida
+  }
+  try {
+    return { bruto, idade, dono: JSON.parse(bruto) }
+  } catch (e) {
+    return { bruto, idade, dono: null }
+  }
+}
+
+function escreverNaTela(texto) {
+  // `fs.writeSync` porque a espera bloqueia o laço de eventos (Atomics.wait) e
+  // um `process.stdout.write` em TTY do Windows só sairia depois dela.
+  try {
+    fs.writeSync(1, texto)
+  } catch (e) {
+    // Sem terminal para escrever não é motivo para largar a vaga.
+  }
+}
+
+function tentarCriarVaga(caminho, dono) {
+  let fd
+  try {
+    fd = fs.openSync(caminho, 'wx')
+  } catch (e) {
+    if (e && e.code === 'EEXIST') return false
+    throw e
+  }
+  try {
+    fs.writeSync(fd, JSON.stringify(dono))
+  } finally {
+    fs.closeSync(fd)
+  }
+  return true
+}
+
+/**
+ * Retoma a vaga se ela for órfã. Renomeia antes de apagar e confere que o que
+ * foi renomeado é a MESMA órfã que foi julgada: se outro processo a retomou e
+ * criou a dele no intervalo, a dele volta para o lugar em vez de sumir.
+ */
+function retomarSeOrfa(caminho) {
+  const lida = lerVaga(caminho)
+  if (!lida) return null
+  const juizo = julgarVaga(lida.dono, Date.now(), lida.idade, pidVivo)
+  if (!juizo.orfa) return null
+  const lixo = caminho + '.orfa-' + process.pid + '-' + Date.now()
+  try {
+    fs.renameSync(caminho, lixo)
+  } catch (e) {
+    return null // outro processo chegou primeiro
+  }
+  let conferido = null
+  try {
+    conferido = fs.readFileSync(lixo, 'utf8')
+  } catch (e) {
+    conferido = null
+  }
+  if (conferido !== lida.bruto) {
+    try {
+      fs.copyFileSync(lixo, caminho, fs.constants.COPYFILE_EXCL)
+    } catch (e) {
+      // Alguém já ocupou o lugar; o dono da vaga renomeada a verá sumida e só
+      // deixa de devolvê-la — nada é apagado de terceiro.
+    }
+    try {
+      fs.unlinkSync(lixo)
+    } catch (e) {}
+    return null
+  }
+  try {
+    fs.unlinkSync(lixo)
+  } catch (e) {}
+  const quem = lida.dono ? (lida.dono.raiz || '?') + '/' + (lida.dono.passo || '?') : 'dono desconhecido'
+  escreverNaTela('vaga de Playwright retomada: ' + path.basename(caminho) + ' (' + juizo.motivo + '; era de ' + quem + ')\n')
+  return juizo
+}
+
+function ocupantes() {
+  let nomes = []
+  try {
+    nomes = fs.readdirSync(VAGAS).filter((n) => /^vaga-\d+\.lock$/.test(n))
+  } catch (e) {
+    return []
+  }
+  return nomes
+    .map((n) => lerVaga(path.join(VAGAS, n)))
+    .filter(Boolean)
+    .map((l) => (l.dono ? (l.dono.raiz || '?') + '/' + (l.dono.passo || '?') + ' pid ' + l.dono.pid : '(escrevendo)'))
+}
+
+function devolverVaga(vaga) {
+  if (!vaga || !VAGAS_EM_MAOS.has(vaga)) return
+  VAGAS_EM_MAOS.delete(vaga)
+  if (VAGAS_EM_MAOS.size === 0) sinaisDasVagas(false)
+  // Só apaga se o arquivo ainda for DESTE dono: uma vaga retomada como órfã
+  // (3 h) pode já ser de outro processo.
+  const lida = lerVaga(vaga.caminho)
+  if (lida && lida.bruto === vaga.bruto) {
+    try {
+      fs.unlinkSync(vaga.caminho)
+    } catch (e) {}
+  }
+  escreverNaTela(
+    'vaga de Playwright ' + vaga.k + ' de ' + vaga.n + ' devolvida em ' + new Date().toISOString() + ' — ' + vaga.dono.passo + '\n',
+  )
+}
+
+function devolverTodasAsVagas() {
+  for (const v of Array.from(VAGAS_EM_MAOS)) devolverVaga(v)
+}
+
+const SINAIS_DAS_VAGAS = [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]].map(([sinal, codigo]) => ({
+  sinal,
+  ouvinte: () => {
+    devolverTodasAsVagas()
+    process.exit(codigo)
+  },
+}))
+
+function registrarSaidaDasVagas() {
+  if (vagasComSaidaRegistrada) return
+  vagasComSaidaRegistrada = true
+  process.on('exit', devolverTodasAsVagas)
+}
+
+/**
+ * Os ouvintes de sinal só existem ENQUANTO há vaga na mão. Ouvinte de SIGINT
+ * troca o Ctrl+C nativo (que mata na hora) por um callback de JS — e durante a
+ * espera o `Atomics.wait` nunca devolve o laço, então um ouvinte ali deixaria
+ * o Ctrl+C sem efeito. Esperando, sem vaga, o Ctrl+C mata como sempre matou.
+ */
+function sinaisDasVagas(ligar) {
+  for (const s of SINAIS_DAS_VAGAS) {
+    process.removeListener(s.sinal, s.ouvinte)
+    if (ligar) process.on(s.sinal, s.ouvinte)
+  }
+}
+
+/**
+ * Bloqueia até existir vaga (ou devolve `null` com `PORTAO_VAGAS=0`). A espera
+ * dorme em `Atomics.wait` — CPU zero — e reclama a cada 30 s dizendo quem
+ * ocupa. O tempo esperado volta em `esperouMs`, fora do tempo do passo.
+ */
+function pegarVaga(passo) {
+  const n = quantasVagas(process.env)
+  if (n === 0) return null
+  fs.mkdirSync(VAGAS, { recursive: true })
+  registrarSaidaDasVagas()
+  const t0 = Date.now()
+  let ultimoAviso = t0
+  const sono = new Int32Array(new SharedArrayBuffer(4))
+  for (;;) {
+    for (let k = 1; k <= n; k++) {
+      const caminho = path.join(VAGAS, 'vaga-' + k + '.lock')
+      for (let tentativa = 0; tentativa < 2; tentativa++) {
+        const dono = { pid: process.pid, desde: new Date().toISOString(), raiz: RAIZ, passo: passo.id }
+        if (tentarCriarVaga(caminho, dono)) {
+          const vaga = { caminho, k, n, dono, bruto: JSON.stringify(dono), esperouMs: Date.now() - t0 }
+          VAGAS_EM_MAOS.add(vaga)
+          sinaisDasVagas(true)
+          escreverNaTela(
+            'vaga de Playwright ' + k + ' de ' + n + ' pega em ' + dono.desde + ' — ' + passo.id +
+              ' (esperou vaga ' + (vaga.esperouMs / 1000).toFixed(1) + ' s)\n',
+          )
+          return vaga
+        }
+        if (tentativa === 0 && !retomarSeOrfa(caminho)) break
+      }
+    }
+    if (Date.now() - ultimoAviso >= VAGA_AVISO_MS) {
+      ultimoAviso = Date.now()
+      const quem = ocupantes()
+      escreverNaTela(
+        'aguardando vaga de Playwright: ' + quem.length + ' de ' + n + ' (quem: ' + (quem.join('; ') || '?') + ') — ' +
+          passo.id + ', há ' + Math.round((ultimoAviso - t0) / 1000) + ' s\n',
+      )
+    }
+    Atomics.wait(sono, 0, 0, VAGA_POLLING_MS)
+  }
+}
+
+/** Forma de guarda (`ok`/`detalhe`) do `julgarVaga`: APROVA = a vaga fica com o dono. */
+function vagaPresa(juizo) {
+  return juizo.orfa ? reprova('g32-vagas', 'órfã: ' + juizo.motivo) : ok('g32-vagas', 'presa: ' + juizo.motivo)
+}
+
+/** Passo que sobe o Playwright: jornada (suíte) ou sonda que abre o chromium. */
+function precisaDeVaga(passo) {
+  return Boolean(passo.artefatos || passo.vaga)
+}
+
+// ---------------------------------------------------------------------------
+// TETO DO PLAYWRIGHT — processo travado não segura vaga por 3 h.
+//
+// MEDIDO em 23/09/2026 na fumaça das vagas: duas vezes o Playwright ficou vivo
+// e parado (CPU 2 s em 15 min) depois que o vite dele subiu tarde e ficou
+// órfão na porta. Sem teto, o `spawnSync` esperava para sempre e a vaga só
+// voltava pelo teto de órfã (3 h) — a máquina inteira perdia uma vaga.
+// Estourou: a ÁRVORE do processo morre (taskkill /F /T), o passo sai VERMELHO
+// com a linha de teto na frente e a vaga volta pelo `finally` de `rodarPasso`.
+// ---------------------------------------------------------------------------
+const TETO_PLAYWRIGHT_PADRAO_MIN = 45
+/** Depois do `exit`, quanto esperar os pipes fecharem antes de desistir deles. */
+const ESPERA_DE_PIPE_MS = 15 * 1000
+
+function tetoDoPlaywrightMs(env) {
+  const n = Number(env.PORTAO_TETO_PLAYWRIGHT_MIN)
+  return (Number.isFinite(n) && n > 0 ? n : TETO_PLAYWRIGHT_PADRAO_MIN) * 60 * 1000
+}
+
+function linhaDeTeto(tetoMs) {
+  const min = Math.round((tetoMs / 60000) * 100) / 100
+  return 'Playwright passou do teto de ' + min + ' min (travado?) — a árvore de processos foi morta e o passo NÃO mediu nada; ' +
+    'não é falha de teste. Teto em PORTAO_TETO_PLAYWRIGHT_MIN.'
+}
+
+function matarArvore(pid) {
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/F', '/T', '/PID', String(pid)], { encoding: 'utf8', windowsHide: true, timeout: 30000 })
+    return
+  }
+  try {
+    process.kill(pid, 'SIGKILL')
+  } catch (e) {}
+}
+
+/**
+ * O `spawnSync` do passo, com teto. Devolve a mesma forma (`status`, `stdout`,
+ * `stderr`, `error`) mais `estourou` e `tetoMs`. Assíncrono porque só assim dá
+ * para matar a ÁRVORE enquanto o pai ainda vive: o `timeout` do `spawnSync`
+ * mata só o filho direto, e no Windows os netos (vite, chromium) ficam.
+ */
+function rodarComTeto(exe, args, opcoes, tetoMs) {
+  return new Promise((resolve) => {
+    const saidas = { stdout: '', stderr: '' }
+    let estourou = false
+    let status = null
+    let erro = null
+    let terminou = false
+    let filho
+    const fim = () => {
+      if (terminou) return
+      terminou = true
+      clearTimeout(relogio)
+      clearTimeout(desistenciaDoPipe)
+      resolve({ status, stdout: saidas.stdout, stderr: saidas.stderr, error: erro, estourou, tetoMs })
+    }
+    let desistenciaDoPipe = null
+    let relogio = null
+    try {
+      filho = spawn(exe, args, { cwd: opcoes.cwd, env: opcoes.env, shell: opcoes.shell, windowsHide: true })
+    } catch (e) {
+      erro = e
+      fim()
+      return
+    }
+    for (const nome of ['stdout', 'stderr']) {
+      filho[nome].setEncoding('utf8')
+      filho[nome].on('data', (pedaco) => {
+        // Mesmo teto de memória do `spawnSync` (maxBuffer): guarda o FIM, que é onde mora o resumo.
+        saidas[nome] = (saidas[nome] + pedaco).slice(-opcoes.maxBuffer)
+      })
+    }
+    relogio = setTimeout(() => {
+      estourou = true
+      matarArvore(filho.pid)
+    }, tetoMs)
+    filho.on('error', (e) => {
+      erro = e
+      fim()
+    })
+    filho.on('exit', (codigo) => {
+      status = estourou ? null : codigo
+      clearTimeout(relogio)
+      // Neto fora da árvore segurando o pipe não pode prender o passo de novo.
+      desistenciaDoPipe = setTimeout(() => {
+        filho.stdout.destroy()
+        filho.stderr.destroy()
+        fim()
+      }, ESPERA_DE_PIPE_MS)
+    })
+    filho.on('close', fim)
+  })
+}
+
 /**
  * Um passo de jornada. Todos iguais no que importa: exit code real, detector de
  * falso-verde, `--repeat-each` vindo de `PORTAO_REPETICOES` e pasta de
@@ -2270,6 +2628,8 @@ const PLANO = [
     id: 'servidor-limpo',
     titulo: 'editor sem módulo duplicado por HMR (senão toda afirmação por store é sobre a store errada)',
     sonda: sondarServidorLimpo,
+    // Abre um chromium do Playwright: entra na fila das vagas como as jornadas.
+    vaga: true,
   },
   {
     id: 'particao',
@@ -3176,7 +3536,32 @@ function vereditoDeDiscoParaCargo(passo, livreGb, quente, ms) {
   }
 }
 
+/**
+ * Todo passo passa por aqui. Passo que sobe o Playwright pega vaga ANTES (ver
+ * `pegarVaga`) e a devolve no `finally`; o tempo de espera vai para
+ * `esperaVagaMs`, separado de `ms`, e nunca entra na `saida` que o detector de
+ * falso-verde lê.
+ */
 async function rodarPasso(passo) {
+  const vaga = precisaDeVaga(passo) ? pegarVaga(passo) : null
+  try {
+    const r = await rodarPassoNaVaga(passo)
+    if (vaga) {
+      r.esperaVagaMs = vaga.esperouMs
+      r.vaga = vaga.k + '/' + vaga.n
+    }
+    return r
+  } finally {
+    devolverVaga(vaga)
+  }
+}
+
+/** Sufixo das linhas VERDE/VERMELHO: a espera por vaga, fora do tempo do passo. */
+function notaDeVaga(r) {
+  return typeof r.esperaVagaMs === 'number' ? ' [esperou vaga ' + (r.esperaVagaMs / 1000).toFixed(1) + ' s]' : ''
+}
+
+async function rodarPassoNaVaga(passo) {
   const t0 = Date.now()
   let codigo
   let saida
@@ -3237,15 +3622,24 @@ async function rodarPasso(passo) {
         aviso = 'nota: esperei ' + porta.esperou + ' ms a porta ' + PORTA_DAS_JORNADAS + ' ser liberada pelo passo anterior.\n'
       }
     }
-    const r = spawnSync(passo.exe, passo.args, {
+    const opcoes = {
       cwd: passo.cwd,
       encoding: 'utf8',
       shell: Boolean(passo.shell),
       env: ambiente,
       maxBuffer: 64 * 1024 * 1024,
-    })
+    }
+    // Passo que sobe o Playwright roda com TETO (ver `rodarComTeto`); o resto
+    // continua no `spawnSync` de sempre.
+    const r = precisaDeVaga(passo)
+      ? await rodarComTeto(passo.exe, passo.args, opcoes, tetoDoPlaywrightMs(process.env))
+      : spawnSync(passo.exe, passo.args, opcoes)
     codigo = r.status === null ? 1 : r.status
     saida = aviso + String(r.stdout || '') + String(r.stderr || '')
+    if (r.estourou) {
+      codigo = 1
+      saida = linhaDeTeto(r.tetoMs) + '\n' + saida
+    }
     // DISCO CHEIO tem nome, e o nome não é o da peça.
     //
     // MEDIDO em 21/09/2026: `rust-test` saiu VERDE (144 s) e, cinco minutos
@@ -4335,6 +4729,30 @@ async function rodarAutoteste() {
     ],
     ['g24 aprova suíte do mesmo tamanho', guardaEscalaDaUnidade(['src/a.test.ts'], ['src/a.test.ts'], { ref: 'base' }), true],
     ['g24 aprova suíte que cresceu', guardaEscalaDaUnidade(['src/a.test.ts', 'src/b.test.ts'], ['src/a.test.ts'], { ref: 'base' }), true],
+    // g32 — vagas de Playwright: o juízo de órfã e o "0 desliga".
+    ['g32 reprova vaga de pid morto (tem de ser retomada)', vagaPresa(julgarVaga({ pid: 4242, desde: new Date().toISOString() }, Date.now(), 0, () => false)), false],
+    [
+      'g32 reprova vaga de 3 h + 1 min (tem de ser retomada)',
+      vagaPresa(julgarVaga({ pid: 4242, desde: new Date(Date.now() - VAGA_ORFA_MS - 60000).toISOString() }, Date.now(), 0, () => true)),
+      false,
+    ],
+    ['g32 reprova vaga ilegível e velha (tem de ser retomada)', vagaPresa(julgarVaga(null, Date.now(), VAGA_ILEGIVEL_MS + 1000, () => true)), false],
+    ['g32 aprova vaga de pid vivo e recente (fica com o dono)', vagaPresa(julgarVaga({ pid: 4242, desde: new Date().toISOString() }, Date.now(), 0, () => true)), true],
+    ['g32 aprova vaga ilegível recente (dono no meio da escrita)', vagaPresa(julgarVaga(null, Date.now(), 100, () => true)), true],
+    ['g32 aprova PORTAO_VAGAS=0 como desligado (não vira 3)', quantasVagas({ PORTAO_VAGAS: '0' }) === 0 ? ok('g32-vagas', '0') : reprova('g32-vagas', 'veio ' + quantasVagas({ PORTAO_VAGAS: '0' })), true],
+    ['g32 aprova padrão 3 sem PORTAO_VAGAS', quantasVagas({}) === 3 ? ok('g32-vagas', '3') : reprova('g32-vagas', 'veio ' + quantasVagas({})), true],
+    // A linha de espera não é ruína: ela nem entra na saída julgada, e se
+    // entrasse o detector ainda a leria como texto neutro.
+    [
+      'g32 aprova relatório com a linha de espera por vaga',
+      guardaFalsoVerde(
+        'g32-vagas',
+        jornada('prova-vaga', 'x', ['e2e/a.spec.ts']),
+        0,
+        'aguardando vaga de Playwright: 3 de 3 (quem: C:/dev/x/jornadas-e2e pid 1)\n  3 passed (10.0s)',
+      ),
+      true,
+    ],
   ]
   const sinteticos = casos.map(([nome, resultado, esperado]) => ({
     id: nome,
@@ -4342,7 +4760,49 @@ async function rodarAutoteste() {
     detalhe: 'esperado ' + (esperado ? 'APROVA' : 'REPROVA') + ', veio ' + (resultado.ok ? 'APROVA' : 'REPROVA') + ' — ' + resultado.detalhe,
   }))
   // O único caso que NÃO é sintético: uma porta de verdade, ocupada de verdade.
-  return sinteticos.concat(await casosDePortaOcupada())
+  return sinteticos.concat(await casosDePortaOcupada()).concat(await casosDeTetoDoPlaywright())
+}
+
+/**
+ * O teto do Playwright exercitado DE VERDADE (g33): um node que abre um NETO e
+ * fica parado, como o Playwright travado da fumaça de 23/09/2026. Com teto de
+ * 1,5 s, `rodarComTeto` tem de estourar, matar pai E neto, e o veredito tem de
+ * sair vermelho com a linha de teto — não como falso-verde nem como ruína de
+ * teste. Controle negativo: processo rápido sob o teto sai com o exit dele.
+ */
+async function casosDeTetoDoPlaywright() {
+  const caso = (id, passou, detalhe) => ({ id, ok: passou, detalhe })
+  const travado =
+    "const c=require('child_process').spawn(process.execPath,['-e','setTimeout(()=>{},60000)'],{stdio:'ignore'});" +
+    "process.stdout.write('neto='+c.pid);setTimeout(()=>{},60000)"
+  const opcoes = { cwd: RAIZ, env: process.env, shell: false, maxBuffer: 64 * 1024 * 1024 }
+  const t0 = Date.now()
+  const r = await rodarComTeto(process.execPath, ['-e', travado], opcoes, 1500)
+  const levou = Date.now() - t0
+  const neto = Number((/neto=(\d+)/.exec(r.stdout) || [])[1])
+  await new Promise((pronto) => setTimeout(pronto, 500))
+  const netoVivo = Number.isFinite(neto) && neto > 0 ? pidVivo(neto) : true
+  const passo = jornada('autoteste-teto', 'passo de jornada travado', ['e2e/nao-roda.spec.ts'])
+  const saida = linhaDeTeto(r.tetoMs) + '\n' + r.stdout
+  const veredito = julgarSaida(passo, 1, saida)
+  const rapido = await rodarComTeto(process.execPath, ['-e', "process.stdout.write('ok')"], opcoes, 60000)
+  return [
+    caso(
+      'g33 teto estoura processo travado e mata a árvore (pai e neto)',
+      r.estourou === true && neto > 0 && !netoVivo && levou < 20000,
+      'estourou=' + r.estourou + ', neto ' + (neto || '?') + (netoVivo ? ' VIVO' : ' morto') + ', ' + levou + ' ms',
+    ),
+    caso(
+      'g33 teto estourado sai VERMELHO com a linha de teto, sem falso-verde',
+      !veredito.ok && !veredito.falsoVerde && /^Playwright passou do teto de 0\.03 min \(travado\?\)/.test(saida),
+      'ok=' + veredito.ok + ', falsoVerde=' + veredito.falsoVerde + ', primeira linha: ' + saida.split('\n')[0].slice(0, 60),
+    ),
+    caso(
+      'g33 processo rápido sob o teto sai com o próprio exit (controle negativo)',
+      rapido.estourou === false && rapido.status === 0 && rapido.stdout === 'ok',
+      'estourou=' + rapido.estourou + ', status=' + rapido.status + ', stdout=' + JSON.stringify(rapido.stdout),
+    ),
+  ]
 }
 
 /**
@@ -4585,7 +5045,7 @@ async function principal() {
     process.stdout.write(r.saida + '\n')
     process.stdout.write(
       (r.ok ? 'VERDE  ' : 'VERMELHO') +
-        ' ' + r.id + ' (' + r.ms + ' ms, exit ' + r.codigo + ')' +
+        ' ' + r.id + ' (' + r.ms + ' ms, exit ' + r.codigo + ')' + notaDeVaga(r) +
         (r.falsoVerde ? ' FALSO-VERDE: saiu 0 com ' + r.ruina.join(', ') : '') +
         ' — ' + r.titulo + '\n',
     )
@@ -4644,7 +5104,7 @@ async function principal() {
     escreverRecibo(passo, r)
     resultados.push(r)
     process.stdout.write(
-      (r.ok ? 'VERDE  ' : 'VERMELHO') + ' ' + r.id + ' (' + r.ms + ' ms, exit ' + r.codigo + ')' + (r.falsoVerde ? ' FALSO-VERDE: saiu 0 com ' + r.ruina.join(', ') : '') + ' — ' + r.titulo + '\n',
+      (r.ok ? 'VERDE  ' : 'VERMELHO') + ' ' + r.id + ' (' + r.ms + ' ms, exit ' + r.codigo + ')' + notaDeVaga(r) + (r.falsoVerde ? ' FALSO-VERDE: saiu 0 com ' + r.ruina.join(', ') : '') + ' — ' + r.titulo + '\n',
     )
   }
 
