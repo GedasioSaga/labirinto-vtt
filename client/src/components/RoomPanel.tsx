@@ -1,3 +1,4 @@
+import { useEffect, useId, useRef, useState } from 'react'
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type PlayerInfo } from '../net/hostSession'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
@@ -23,7 +24,13 @@ export interface RoomPanelProps {
   /** "Diário de viagens" (G15), logo abaixo do Grupo. Ausente = sem a seção (mapa solto: não há viagem). */
   travelLog?: TravelLogSectionProps
   tunnel: TunnelState
-  onStart(): void
+  /**
+   * Retomar a mesa: quem tem ficha guardada ("Ana e Bruno"). Com isto, "Abrir
+   * sala" pergunta "Retomar a mesa?" antes de abrir. Ausente ou `null` = abre direto.
+   */
+  savedTableNames?: string | null
+  /** `resume`: "Retomar a mesa" (`true`) ou a sala de hoje (`false`). */
+  onStart(resume: boolean): void
   onStop(): void
   onStartTunnel(): void
   onStopTunnel(): void
@@ -181,6 +188,70 @@ function TunnelSection({ tunnel, onStartTunnel, onStopTunnel }: Pick<RoomPanelPr
   )
 }
 
+/**
+ * "Abrir sala". Com mesa guardada, o botão vira a pergunta "Retomar a mesa?"
+ * no próprio painel: Retomar devolve as fichas pelo nome, "Mesa nova" é a sala
+ * de hoje, "Voltar" desiste sem abrir nada.
+ */
+function OpenRoom({ savedTableNames, onStart }: Pick<RoomPanelProps, 'savedTableNames' | 'onStart'>) {
+  const [asking, setAsking] = useState(false)
+  const resumeRef = useRef<HTMLButtonElement>(null)
+  const openRef = useRef<HTMLButtonElement>(null)
+  /** "Voltar" devolve o foco ao "Abrir sala"; a primeira montagem não rouba foco de ninguém. */
+  const backRef = useRef(false)
+  const titleId = useId()
+  useEffect(() => {
+    // O foco segue a pergunta: quem abriu pelo teclado responde sem caçar o botão.
+    if (asking) resumeRef.current?.focus()
+    else if (backRef.current) {
+      backRef.current = false
+      openRef.current?.focus()
+    }
+  }, [asking])
+
+  if (!asking || savedTableNames === undefined || savedTableNames === null) {
+    return (
+      <button
+        ref={openRef}
+        type="button"
+        className="lb-btn lb-btn--primary lb-btn--block"
+        onClick={() => {
+          if (savedTableNames === undefined || savedTableNames === null) onStart(false)
+          else setAsking(true)
+        }}
+      >
+        Abrir sala
+      </button>
+    )
+  }
+  const answer = (resume: boolean) => {
+    setAsking(false)
+    onStart(resume)
+  }
+  return (
+    <div className="lb-field" role="group" aria-labelledby={titleId}>
+      <strong id={titleId}>Retomar a mesa?</strong>
+      <p className="lb-label">Quem voltar com o mesmo nome reencontra a própria ficha: {savedTableNames}.</p>
+      <button ref={resumeRef} type="button" className="lb-btn lb-btn--primary lb-btn--block" onClick={() => answer(true)}>
+        Retomar a mesa
+      </button>
+      <button type="button" className="lb-btn lb-btn--block" onClick={() => answer(false)}>
+        Mesa nova
+      </button>
+      <button
+        type="button"
+        className="lb-btn lb-btn--ghost lb-btn--block"
+        onClick={() => {
+          backRef.current = true
+          setAsking(false)
+        }}
+      >
+        Voltar
+      </button>
+    </div>
+  )
+}
+
 export function RoomPanel({
   room,
   players,
@@ -189,6 +260,7 @@ export function RoomPanel({
   party,
   travelLog,
   tunnel,
+  savedTableNames,
   onStart,
   onStop,
   onStartTunnel,
@@ -211,9 +283,7 @@ export function RoomPanel({
 
       {room === null ? (
         <>
-          <button type="button" className="lb-btn lb-btn--primary lb-btn--block" onClick={onStart}>
-            Abrir sala
-          </button>
+          <OpenRoom savedTableNames={savedTableNames} onStart={onStart} />
           <FirewallHint />
         </>
       ) : (

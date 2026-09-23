@@ -8,6 +8,7 @@ import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, freeSeatNear, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
 import { visibleTokens } from '../lib/layers'
+import type { SavedSeat } from '../lib/savedTable'
 import { companionSpots, companionsNear, type Companion } from '../lib/travelTogether'
 import {
   MAX_PENDING_POINT_ACTIONS_PER_PLAYER,
@@ -269,6 +270,8 @@ export interface HostResult {
    * do envio.
    */
   replacedClientId?: string
+  /** Quem entrou reencontrou a ficha da mesa guardada: o integrador avisa o mestre, com "Desfazer". */
+  reclaimed?: ReclaimedSeat
 }
 
 /**
@@ -279,6 +282,13 @@ export interface ReturnCandidate {
   playerId: string
   previousId: string
   name: string
+}
+
+/** Fichas devolvidas pelo nome ao entrar (retomar a mesa). Só do mestre: nunca vai pela rede. */
+export interface ReclaimedSeat {
+  playerId: string
+  name: string
+  tokenIds: string[]
 }
 
 export interface PlayerInfo {
@@ -365,6 +375,12 @@ export interface HostSessionOptions {
   visionRadius: number
   now?: () => number
   randomId?: () => string
+  /**
+   * Retomar a mesa: os assentos guardados. Quem entra (sem resume) com o nome
+   * de um deles — sem maiúsculas nem espaços — reencontra as fichas, o raio e
+   * a cena; cada assento vale uma vez. Ausente = a sala de hoje.
+   */
+  restoreSeats?: readonly SavedSeat[]
 }
 
 export interface HostSession {
@@ -548,6 +564,17 @@ export interface HostSession {
   replyCall(callId: string, text: string): HostResult
   /** A cena e a ficha de quem chamou, para o "Ir lá". `null` sem chamado ou sem ficha em cena. */
   callTarget(callId: string, source: HostMapSource): CallTarget | null
+  /**
+   * "Desfazer" do aviso de ficha devolvida: tira as fichas que o assento deu
+   * (as que o mestre deu depois ficam), volta o raio ao padrão e devolve o
+   * assento para quem chegar depois com o nome. Sem devolução em aberto, nada.
+   */
+  undoReclaim(playerId: string): HostResult
+  /**
+   * A mesa a gravar: quem está com ficha agora e os assentos de quem ainda não
+   * voltou (menos as fichas que já têm outro dono). Só do mestre.
+   */
+  savedSeats(): SavedSeat[]
   readonly rev: number
 }
 
@@ -683,6 +710,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const pendingPointActions = new Map<string, { playerId: string; action: PointActionKind }>()
   // Por playerId: último pedido de ação no ponto aceito pelo intervalo mínimo.
   const lastPointActionAt = new Map<string, number>()
+  // Retomar a mesa: assentos guardados que ninguém reclamou ainda, e o assento
+  // que cada jogador reclamou (por playerId), para o "Desfazer" do mestre.
+  const pendingSeats: SavedSeat[] = (options.restoreSeats ?? []).map((seat) => ({ ...seat, tokenIds: [...seat.tokenIds] }))
+  const claimedSeats = new Map<string, { seat: SavedSeat; given: string[] }>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -845,6 +876,41 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return `${wanted} (${n})`
   }
 
+  const clampRadius = (radius: number): number => Math.min(VISION_RADIUS_MAX, Math.max(VISION_RADIUS_MIN, radius))
+
+  /** Fichas que já têm dono, fora `playerId`. */
+  const tokensOwnedByOthers = (playerId: string): Set<string> => {
+    const taken = new Set<string>()
+    for (const [owner, tokens] of Object.entries(ownership)) {
+      if (owner !== playerId) for (const tokenId of tokens) taken.add(tokenId)
+    }
+    return taken
+  }
+
+  /**
+   * Retomar a mesa: quem entra (sem resume) com o nome de um assento guardado
+   * reencontra as fichas dele — só as que ainda existem em alguma cena e não
+   * têm outro dono —, o raio e a cena. Sem nenhuma ficha que sobre, o assento
+   * continua esperando e a pessoa entra sem personagem, como hoje.
+   */
+  const reclaimSeat = (record: PlayerRecord, world: HostWorld): ReclaimedSeat | undefined => {
+    const wanted = normalizeName(record.name)
+    const index = pendingSeats.findIndex((seat) => normalizeName(seat.name) === wanted)
+    if (index < 0) return undefined
+    const seat = pendingSeats[index]
+    const inWorld = new Set(allScenes(world).flatMap((scene) => scene.map.tokens.map((token) => token.id)))
+    const taken = tokensOwnedByOthers(record.playerId)
+    const given = seat.tokenIds.filter((tokenId) => inWorld.has(tokenId) && !taken.has(tokenId))
+    if (given.length === 0) return undefined
+    pendingSeats.splice(index, 1)
+    claimedSeats.set(record.playerId, { seat, given })
+    ownership[record.playerId] = [...new Set([...(ownership[record.playerId] ?? []), ...given])]
+    if (seat.visionRadius !== null) visionOverrides.set(record.playerId, clampRadius(seat.visionRadius))
+    // Só desempate: `sceneFor` ignora a chave se ele não tiver ficha naquela cena.
+    if (seat.sceneKey !== null) currentScene.set(record.playerId, seat.sceneKey)
+    return { playerId: record.playerId, name: record.name, tokenIds: given }
+  }
+
   function handleJoin(clientId: string, msg: JoinMessage, world: HostWorld): HostResult {
     if (byClient.has(clientId)) return reply(clientId, { type: 'error', reason: 'already_joined' })
     if (msg.code !== options.code) return reply(clientId, { type: 'error', reason: 'bad_code' })
@@ -883,6 +949,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (previous === record.playerId) pendingReturns.delete(candidate)
     }
     if (lookalike !== undefined) pendingReturns.set(record.playerId, lookalike.playerId)
+    // Antes do `next`: quem reencontra a ficha já entra jogando, sem passar pela espera.
+    // Com uma "Ana" fora nesta sessão, quem entra vira "Ana (2)" e não casa
+    // com o assento: a decisão fica com o "Ana voltou?" do mestre.
+    const reclaimed = resumed === undefined ? reclaimSeat(record, world) : undefined
 
     // `name` é o nome já passado por `uniqueName`: é assim que o jogador
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
@@ -899,6 +969,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       ],
       ...(replaced === null ? {} : { replacedClientId: replaced }),
       ...(lookalike === undefined ? {} : { returnCandidate: { playerId: record.playerId, previousId: lookalike.playerId, name: lookalike.name } }),
+      ...(reclaimed === undefined ? {} : { reclaimed }),
     }
   }
 
@@ -919,6 +990,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     pendingNotes.delete(playerId)
     openCalls.delete(playerId)
     lastCallAt.delete(playerId)
+    // Esquecido não tem mais o que desfazer. O assento não volta: quem foi
+    // expulso entraria de novo com o mesmo nome e levaria a ficha.
+    claimedSeats.delete(playerId)
     pendingReturns.delete(playerId)
     for (const [candidate, previous] of pendingReturns) {
       if (previous === playerId) pendingReturns.delete(candidate)
@@ -1796,7 +1870,40 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return
       }
       if (!Number.isFinite(radius)) return
-      visionOverrides.set(playerId, Math.min(VISION_RADIUS_MAX, Math.max(VISION_RADIUS_MIN, radius)))
+      visionOverrides.set(playerId, clampRadius(radius))
+    },
+
+    undoReclaim(playerId) {
+      const claim = claimedSeats.get(playerId)
+      if (claim === undefined) return { outbound: [] }
+      claimedSeats.delete(playerId)
+      // O assento volta a esperar: a Ana de verdade, chegando depois, ainda o reencontra.
+      pendingSeats.push(claim.seat)
+      const current = ownership[playerId] ?? []
+      ownership[playerId] = current.filter((tokenId) => !claim.given.includes(tokenId))
+      visionOverrides.delete(playerId)
+      return { outbound: waitingIfLostLast(playerId, current.length > 0) }
+    },
+
+    savedSeats() {
+      const seats: SavedSeat[] = []
+      const owned = new Set<string>()
+      const seated = new Set<string>()
+      for (const p of [...players.values()].sort((a, b) => a.joinedAt - b.joinedAt)) {
+        const tokenIds = ownership[p.playerId] ?? []
+        // Sem ficha não há o que devolver: não ocupa assento.
+        if (tokenIds.length === 0) continue
+        for (const tokenId of tokenIds) owned.add(tokenId)
+        seated.add(normalizeName(p.name))
+        seats.push({ name: p.name, tokenIds: [...tokenIds], visionRadius: visionOverrides.get(p.playerId) ?? null, sceneKey: currentScene.get(p.playerId) ?? null })
+      }
+      // Quem ainda não voltou continua na mesa, menos as fichas que o mestre já deu a outro.
+      for (const seat of pendingSeats) {
+        if (seated.has(normalizeName(seat.name))) continue
+        const tokenIds = seat.tokenIds.filter((tokenId) => !owned.has(tokenId))
+        if (tokenIds.length > 0) seats.push({ ...seat, tokenIds })
+      }
+      return seats
     },
 
     revealPlan(playerId, source) {
