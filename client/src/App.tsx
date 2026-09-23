@@ -2034,6 +2034,11 @@ function App() {
               // cópia desta renderização) e passa pelo histórico: Ctrl+Z desfaz.
               onToggleCondition: (condition) => selectedToken && useMapStore.getState().toggleTokenCondition(selectedToken.id, condition),
             }}
+            tokenWatch={{
+              // Mesmo caminho da cor e do tamanho: cada escolha é um Ctrl+Z.
+              // `null` desliga a vigia e a ficha volta a ser comum.
+              onWatchChange: (vigia) => selectedToken && updateToken(selectedToken.id, { vigia }),
+            }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),

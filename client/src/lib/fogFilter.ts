@@ -1,7 +1,8 @@
-import type { DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall, WatchAlert } from '../types/map'
 import { isTokenPhotoData } from './tokenPhoto'
 import { healthForPlayer } from './tokenHealth'
 import { tokenConditionsForPlayer } from './tokenConditions'
+import { guardAlerts, tokenWatchForPlayer, tokenWatchOf } from './npcWatch'
 import type { TurnRef } from './initiative'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing } from './floorContour'
@@ -684,6 +685,21 @@ export function filterMapForPlayer(
     return [{ ...w, door: remembered === undefined ? unseenDoor(door) : withoutLock(remembered) }]
   }
 
+  // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
+  const playerTokens = layerTokens.filter(
+    (t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))),
+  )
+  /**
+   * OLHOS DO GUARDA. A marca (?, !) é medida no mapa INTEIRO, contra as fichas
+   * de TODOS os jogadores — o guarda que o jogador vê pode ter visto um colega
+   * que ele não vê. Mas só a marca sai, e só na ficha do guarda que já está no
+   * recorte: quem foi visto, e o cone (`vigia`), ficam no mestre
+   * (`tokenWatchForPlayer`). Sem guarda no recorte, nada é calculado.
+   */
+  const alerts = playerTokens.some((t) => tokenWatchOf(t) !== null)
+    ? guardAlerts(map, new Set(Object.values(ownership).flat()), ownTokens.length > 0 ? authoritySegments : undefined)
+    : new Map<string, WatchAlert>()
+
   const filtered: MapData = {
     ...map,
     // O nome do mapa é o nome da CENA (a aventura cria a cena com
@@ -695,13 +711,12 @@ export function filterMapForPlayer(
     ownerId: null,
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
-    // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
     // MOCHILA: só a da PRÓPRIA ficha sai. O que o colega carrega é dele e do
     // mestre — ver a ficha dele no mapa não conta o que tem no bolso.
-    tokens: layerTokens
-      .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
+    tokens: playerTokens
       .map((t) => tokenForPlayer(owned.has(t.id) ? t : withoutBackpack(t)))
-      .map(tokenHealthForPlayer),
+      .map(tokenHealthForPlayer)
+      .map((t) => tokenWatchForPlayer(t, alerts.get(t.id) ?? null)),
     markers: map.markers.filter((m) => !inRoomHiddenFromPlayer({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
     lines: map.lines.filter((l) => !l.points.some(inRoomHiddenFromPlayer) && !l.points.some(inConcealZone) && isShapeKnown(l.points)),
     // Tocha acesa dentro do prédio de teto fechado não sai: o halo dela

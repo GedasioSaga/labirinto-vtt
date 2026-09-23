@@ -43,6 +43,8 @@ import { fitPhotoSprite, textureFromDataUrl } from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
 import { tokenConditionsOf } from '../lib/tokenConditions'
 import { CONDITION_MARKS_LABEL, drawTokenConditions } from '../pixi/drawTokenConditions'
+import { watchAlertOf } from '../lib/npcWatch'
+import { WATCH_ALERT_LABEL, drawWatchAlert } from '../pixi/drawNpcWatch'
 import { createRoomNamesRenderer } from '../pixi/drawRoomNames'
 import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
 import { isDegenerateRegion } from '../pixi/shapes'
@@ -231,6 +233,8 @@ interface TokenView {
   label: Text
   /** Marcas de condição que o mestre pôs na ficha (mesmo desenho do editor, `pixi/drawTokenConditions.ts`). */
   marks: Graphics
+  /** Balão do guarda (?, !) — só chega a marca, nunca o cone (`lib/fogFilter.ts`). */
+  alert: Graphics
   key: string
   /** Referência já carregada em `photo`: sem isto, todo snapshot recarregaria a mesma foto. */
   loadedPhoto: string | null
@@ -284,6 +288,8 @@ export function paintTokenView(view: TokenView, token: Token, grid: number, own:
   // A condição que o mestre marcou chega junto com a ficha (o recorte de
   // lib/fogFilter.ts só deixa passar ficha que este jogador pode ver).
   drawTokenConditions(view.marks, tokenConditionsOf(token), radius, grid)
+  // OLHOS DO GUARDA: a marca que o recorte pôs no guarda que este jogador vê.
+  drawWatchAlert(view.alert, watchAlertOf(token), radius)
   view.label.text = token.name
   view.label.position.set(0, tokenLabelTop(radius, health !== null))
 }
@@ -331,10 +337,12 @@ export function createTokenView(token: Token, grid: number, own: boolean, turn =
   // Por último: a marca de condição fica por cima do disco e da foto.
   const marks = new Graphics()
   marks.label = CONDITION_MARKS_LABEL
-  wrapper.addChild(photoMask, photo, body, bar, label, marks)
+  const alert = new Graphics()
+  alert.label = WATCH_ALERT_LABEL
+  wrapper.addChild(photoMask, photo, body, bar, label, marks, alert)
   wrapper.eventMode = 'static'
   wrapper.cursor = 'grab'
-  const view: TokenView = { wrapper, body, photo, photoMask, bar, label, marks, key: tokenViewKey(token, grid, own, turn), loadedPhoto: null, loadSeq: 0 }
+  const view: TokenView = { wrapper, body, photo, photoMask, bar, label, marks, alert, key: tokenViewKey(token, grid, own, turn), loadedPhoto: null, loadSeq: 0 }
   paintTokenView(view, token, grid, own, turn)
   return view
 }
@@ -361,7 +369,8 @@ export function tokenViewKey(token: Token, grid: number, own: boolean, turn = fa
   // As condições entram pelo mesmo motivo — já limpas, para lixo no campo não
   // mandar repintar nada. `turn` também: a vez andar repinta só as duas fichas
   // que ganham/perdem o anel.
-  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey, tokenConditionsOf(token), turn])
+  // A marca do guarda também: sem ela o "!" ficaria na tela depois de ele perder o jogador de vista.
+  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey, tokenConditionsOf(token), turn, watchAlertOf(token)])
 }
 
 interface Scene {

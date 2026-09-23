@@ -558,7 +558,7 @@ interface MapStoreState {
    * `health` (barra de vida) entra pelo mesmo caminho: cada número confirmado
    * no painel é um Ctrl+Z, e `null` tira a barra da ficha.
    */
-  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size' | 'health'>>) => void
+  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size' | 'health' | 'vigia'>>) => void
   /**
    * CONDIÇÃO NA FICHA: marca a condição se ela não está na ficha, desmarca se
    * está (`lib/tokenConditions.ts`) — o clique do painel. Com histórico, mesmo

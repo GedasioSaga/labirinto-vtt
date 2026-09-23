@@ -29,6 +29,8 @@ import { selectedTokenSize } from '../lib/tokenSize'
 import { readTokenHealth } from '../lib/tokenHealth'
 import { TokenConditionControls, type TokenConditionControlsProps } from './TokenConditionControls'
 import { tokenConditionsOf } from '../lib/tokenConditions'
+import { TokenWatchControls, type TokenWatchControlsProps } from './TokenWatchControls'
+import { readTokenWatch } from '../lib/npcWatch'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
@@ -117,6 +119,8 @@ interface PropertiesPanelProps {
   tokenHealth: Omit<TokenHealthControlsProps, 'health'>
   /** Condições da ficha selecionada (envenenado, caído...) — marcadas no meio da luta. */
   tokenCondition: Omit<TokenConditionControlsProps, 'conditions'>
+  /** OLHOS DO GUARDA: liga a vigia da ficha de NPC e diz como ela olha. */
+  tokenWatch: Omit<TokenWatchControlsProps, 'watch'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -196,6 +200,7 @@ export function PropertiesPanel({
   tokenSize,
   tokenHealth,
   tokenCondition,
+  tokenWatch,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -431,6 +436,9 @@ export function PropertiesPanel({
                 foto): a condição é o controle de MESA, mexido a cada rodada, e
                 fica à vista sem rolar. Cor e foto são de preparação. */}
             <TokenConditionControls conditions={tokenConditionsOf(selectedToken)} {...tokenCondition} />
+            {/* Vigia logo depois da condição: também é controle de MESA (o
+                guarda vira para a porta no meio da cena), não de preparação. */}
+            <TokenWatchControls watch={readTokenWatch(selectedToken.vigia)} {...tokenWatch} />
             {/* Antes da imagem: a cor é o caminho de um clique, a foto é o de
                 abrir o disco. Quem só quer separar aliado de inimigo não
                 precisa passar pelo controle caro para chegar no barato. */}
