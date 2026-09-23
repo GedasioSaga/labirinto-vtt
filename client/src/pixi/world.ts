@@ -44,6 +44,63 @@ export function panBy(camera: Camera, dx: number, dy: number): Camera {
   return { ...camera, x: camera.x + dx, y: camera.y + dy }
 }
 
+/**
+ * Câmera com a escala `scale` (dentro dos limites) que mantém parado na tela o
+ * ponto do mundo que está sob `pointer`. É o `zoomAt` com alvo em escala, não
+ * em passo de roda: os botões + e − do jogador sabem a escala que querem.
+ */
+export function zoomToScale(camera: Camera, pointer: Point, scale: number): Camera {
+  const next = clampScale(scale)
+  const worldX = (pointer.x - camera.x) / camera.scale
+  const worldY = (pointer.y - camera.y) / camera.scale
+  return { scale: next, x: pointer.x - worldX * next, y: pointer.y - worldY * next }
+}
+
+/**
+ * Começo de uma pinça de dois dedos: o ponto do MUNDO sob o meio dos dedos, a
+ * escala e a distância entre eles naquele instante. Tudo o que a pinça faz
+ * depois é relativo a isto, e não ao quadro anterior — não acumula erro.
+ */
+export interface PinchStart {
+  anchor: Point
+  scale: number
+  distance: number
+}
+
+/**
+ * Distância mínima entre os dedos, em px de tela. Dois dedos que encostam no
+ * mesmo pixel dariam distância 0 e uma divisão por zero (zoom infinito).
+ */
+const MIN_PINCH_DISTANCE = 1
+
+function pinchGeometry(a: Point, b: Point): { middle: Point; distance: number } {
+  return {
+    middle: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    distance: Math.max(Math.hypot(b.x - a.x, b.y - a.y), MIN_PINCH_DISTANCE),
+  }
+}
+
+export function pinchStart(camera: Camera, a: Point, b: Point): PinchStart {
+  const { middle, distance } = pinchGeometry(a, b)
+  return {
+    anchor: { x: (middle.x - camera.x) / camera.scale, y: (middle.y - camera.y) / camera.scale },
+    scale: camera.scale,
+    distance,
+  }
+}
+
+/**
+ * Câmera da pinça com os dedos em `a` e `b`: a escala segue a razão entre a
+ * distância dos dedos agora e no começo, e o ponto do mundo que estava sob o
+ * meio deles continua sob o meio — que pode ter andado, então os dois dedos
+ * juntos também arrastam o mapa, como em qualquer mapa de celular.
+ */
+export function pinchCamera(start: PinchStart, a: Point, b: Point): Camera {
+  const { middle, distance } = pinchGeometry(a, b)
+  const scale = clampScale(start.scale * (distance / start.distance))
+  return { scale, x: middle.x - start.anchor.x * scale, y: middle.y - start.anchor.y * scale }
+}
+
 // Trava o segmento start->end no múltiplo de `stepDegrees` mais próximo do
 // ângulo livre atual (default 45: produz 0/45/90/135/180/225/270/315).
 // Calcula o ângulo livre via atan2(dy,dx), arredonda pro múltiplo mais
