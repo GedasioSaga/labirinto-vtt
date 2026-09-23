@@ -747,7 +747,15 @@ export function filterMapForPlayer(
     return authorityVision.some((ring) => ringReachesInto(ring, room, (p) => !inConcealZone(p) && !inSecretRoom(p)))
   }
   const comodoRooms = boxRooms(comodoCandidates)
-  const knownComodos = comodoRooms.filter((room) => seenRooms?.has(room.id) === true || seesInto(room))
+  /**
+   * Zona oculta ativa sobre o interior INTEIRO: a lembrança (`seenRooms`) não
+   * vence a zona — mesma régua da Sala comum, que só sai com alguma amostra do
+   * interior conhecida FORA da zona. Com a zona revelada, a lembrança volta.
+   */
+  const hasOpenInterior = (room: BoxedRoom): boolean => outsideZones(interiorSamples(room.points, room.points)).length > 0
+  const knownComodos = comodoRooms.filter(
+    (room) => hasOpenInterior(room) && (seenRooms?.has(room.id) === true || seesInto(room)),
+  )
   const knownComodoIds = new Set(knownComodos.map((room) => room.id))
   const unseenComodos = comodoRooms.filter((room) => !knownComodoIds.has(room.id))
   const unseenComodoIds = new Set(unseenComodos.map((room) => room.id))

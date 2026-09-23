@@ -178,6 +178,37 @@ describe('filterMapForPlayer — cômodo lembrado', () => {
     expect(JSON.stringify(view.map)).not.toContain('descricao-cama')
   })
 
+  it('SEGURANÇA: zona oculta ativa cobrindo o cômodo lembrado inteiro leva o polígono junto, como numa Sala comum', () => {
+    const zona = (revealed: boolean) => ({
+      id: 'zona-do-quarto',
+      name: 'nome-da-zona',
+      revealed,
+      points: [
+        { x: 90, y: 390 },
+        { x: 410, y: 390 },
+        { x: 410, y: 710 },
+        { x: 90, y: 710 },
+      ],
+    })
+    const lembrado = new Set(['quarto'])
+    // A régua: a mesma planta com Sala comum não manda o quarto escondido.
+    const comum = filterMapForPlayer(casa({ modo: 'nenhum', extra: { concealZones: [zona(false)] } }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, lembrado)
+    expect(ids(comum.map.regions)).toEqual(['sala'])
+
+    const view = filterMapForPlayer(casa({ extra: { concealZones: [zona(false)] } }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, lembrado)
+    expect(ids(view.map.regions)).toEqual(['sala'])
+    const json = JSON.stringify(view.map)
+    expect(json).not.toContain('"quarto"')
+    expect(json).not.toContain('{"x":100,"y":700}')
+    // Nem vira "lembrado de novo" enquanto a zona esconde: o quem chama só soma.
+    expect(view.rememberedRooms.map((r) => r.id)).toEqual(['sala'])
+
+    // O mestre revela a zona: a lembrança antiga volta, com o polígono inteiro.
+    const revelada = filterMapForPlayer(casa({ extra: { concealZones: [zona(true)] } }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, lembrado)
+    expect(ids(revelada.map.regions)).toEqual(['quarto', 'sala'])
+    expect(revelada.map.regions.find((r) => r.id === 'quarto')?.points).toEqual(QUARTO)
+  })
+
   it('SEGURANÇA: cômodo lembrado DENTRO de prédio de teto fechado não vaza nada para quem está fora', () => {
     const predio: Region = {
       id: 'predio',
