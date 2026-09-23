@@ -648,8 +648,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   /** Jogador que jogava e ficou sem token volta ao lobby; desconectado recebe o estado no resume. */
   const waitingIfLostLast = (playerId: string, wasPlaying: boolean): Outbound[] => {
+    if (statusOf(playerId) === 'playing') return []
+    // Sem ficha, ele sai da cena: a ficha devolvida (mesmo na cena de antes) é
+    // CHEGADA, e o recado mandado enquanto ele aguardava vem no broadcast seguinte.
+    noteSceneOf.delete(playerId)
     const clientId = players.get(playerId)?.clientId ?? null // registro ausente = jogador expulso: não há a quem avisar
-    if (!wasPlaying || statusOf(playerId) === 'playing' || clientId === null) return []
+    if (!wasPlaying || clientId === null) return []
     return [{ clientId, msg: { type: 'lobby.waiting' } }]
   }
 

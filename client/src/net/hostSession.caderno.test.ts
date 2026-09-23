@@ -225,6 +225,43 @@ describe('caderno de recados (host)', () => {
     expect(volta.map((m) => m.type)).toEqual(['welcome', 'snapshot', 'notes.book', 'scene.note'])
   })
 
+  it('mestre tira a ficha de Bruno, manda recado à Prisão e devolve a ficha lá: o recado chega e entra no caderno', () => {
+    const { s, bruno } = mesa()
+    s.unassignToken(bruno.playerId, 'bruno')
+    s.broadcast(mundo())
+    // Aguardando: fica de fora do recado na hora.
+    expect(s.sceneNote('s-prisao', RECADO, mundo())).toEqual({ outbound: [] })
+    s.assignToken(bruno.playerId, 'bruno')
+    const volta = msgsPara(s.broadcast(mundo()), 'c-bruno')
+    expect(volta.map((m) => m.type)).toEqual(['snapshot', 'scene.note'])
+    expect(volta[1]).toEqual({ type: 'scene.note', id: expect.any(String), text: RECADO, at: VINTE_E_MEIA })
+    // E ficou no caderno: cai e volta, o `notes.book` traz o recado.
+    s.disconnect('c-bruno')
+    const livro = msgsPara(entra(s, 'c-bruno-2', 'Bruno', mundo(), bruno.resume).r, 'c-bruno-2').find((m) => m.type === 'notes.book')
+    expect(livro).toEqual({ type: 'notes.book', notes: [{ id: expect.any(String), text: RECADO, at: VINTE_E_MEIA }] })
+  })
+
+  it('ficha de Bruno passa a Gabi e volta a ele na mesma cena: o recado mandado no meio chega a Bruno', () => {
+    const { s, bruno, gabi } = mesa()
+    s.assignToken(gabi.playerId, 'bruno')
+    s.unassignToken(gabi.playerId, 'gabi')
+    s.broadcast(mundo())
+    s.sceneNote('s-prisao', RECADO, mundo())
+    s.assignToken(bruno.playerId, 'bruno')
+    const volta = msgsPara(s.broadcast(mundo()), 'c-bruno')
+    expect(volta.map((m) => m.type)).toEqual(['snapshot', 'scene.note'])
+  })
+
+  it('Bruno fora do ar perde a ficha e a recebe de volta: ao voltar à sala o recado vem, e o broadcast seguinte não repete', () => {
+    const { s, bruno } = mesa()
+    s.disconnect('c-bruno')
+    s.unassignToken(bruno.playerId, 'bruno')
+    s.sceneNote('s-prisao', RECADO, mundo())
+    s.assignToken(bruno.playerId, 'bruno')
+    expect(textoPara(entra(s, 'c-bruno-2', 'Bruno', mundo(), bruno.resume).r, 'c-bruno-2')).toContain(RECADO)
+    expect(msgsPara(s.broadcast(mundo()), 'c-bruno-2').map((m) => m.type)).toEqual(['snapshot'])
+  })
+
   it('quem entra sem ficha (aguardando) não recebe recado de cena nenhuma', () => {
     const { s } = mesa()
     s.sceneNote('s-prisao', RECADO, mundo())
