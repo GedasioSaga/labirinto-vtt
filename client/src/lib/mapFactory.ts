@@ -1490,6 +1490,22 @@ export function setRoomRoof(map: MapData, id: string, roof: boolean): MapData {
   }
 }
 
+/** TEXTO DA SALA — "Ao entrar, o jogador lê" e "Nota do mestre" (`RoomMeta`).
+ * Mesmo contrato de `setRoomRoof`: região comum, id inexistente ou nada
+ * diferente devolve o mesmo `map`, sem entrada de histórico vazia. */
+export function setRoomTexts(map: MapData, id: string, patch: Partial<Pick<RoomMeta, 'textoAoEntrar' | 'notaDoMestre'>>): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room) return map
+  const room = region.room
+  const changed =
+    ('textoAoEntrar' in patch && patch.textoAoEntrar !== room.textoAoEntrar) || ('notaDoMestre' in patch && patch.notaDoMestre !== room.notaDoMestre)
+  if (!changed) return map
+  return {
+    ...map,
+    regions: map.regions.map((r) => (r.id === id && r.room ? { ...r, room: { ...r.room, ...patch } } : r)),
+  }
+}
+
 /** Entidades que aceitam "Oculto para jogadores" (`PlayerSecret` em types/map.ts). */
 export type SecretKind = 'token' | 'region' | 'prop' | 'stair' | 'drawing' | 'pin'
 

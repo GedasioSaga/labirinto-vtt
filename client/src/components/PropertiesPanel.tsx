@@ -126,7 +126,7 @@ interface PropertiesPanelProps {
   regionStyle: RegionStyleControlsProps
   room: Omit<
     RoomControlsProps,
-    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof'
+    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof' | 'textoAoEntrar' | 'notaDoMestre'
   >
   selectedLight: Light | null
   lightControls: Omit<LightControlsProps, 'color' | 'intensity'>
@@ -276,6 +276,8 @@ export function PropertiesPanel({
               locked={!!selectedRegion.locked}
               nameHiddenFromPlayers={!!selectedRegion.room.nameHiddenFromPlayers}
               roof={!!selectedRegion.room.roof}
+              textoAoEntrar={selectedRegion.room.textoAoEntrar ?? ''}
+              notaDoMestre={selectedRegion.room.notaDoMestre ?? ''}
               {...room}
             />
           </ToolPropertiesSection>

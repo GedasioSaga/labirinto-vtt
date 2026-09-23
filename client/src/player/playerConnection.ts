@@ -2,7 +2,7 @@ import type { MapData, RegionPoint, Token } from '../types/map'
 import { decodeExploration, type Exploration } from '../lib/exploration'
 import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, PLAYER_MESSAGE_MAX_BYTES, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PinTravelRequestMessage, type PlayerMessage } from '../net/protocol'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
-import { passageOf } from '../lib/pins'
+import { isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import {
   LASER_MAX_POINTS_PER_MESSAGE,
@@ -16,7 +16,10 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { parseLaserMessage, parseSceneNote } from '../net/protocol'
+import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
+import type { TokenMoveRejection } from '../lib/moveValidation'
+import { hasEnterText } from '../lib/roomText'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -45,6 +48,8 @@ export interface PlayerState {
   playerLasers?: RemoteLaser[]
   /** Recusa do mestre ao pedido de porta (trancada, longe, não visível); some sozinho. `id` novo repete o aviso. */
   doorNotice?: { id: number; reason: DoorToggleRejection }
+  /** Recusa do mestre ao movimento (parede, fora do chão, ficha alheia); some sozinha. Mesmo contador de `id` da porta. */
+  moveNotice?: { id: number; reason: TokenMoveRejection }
   /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
   travel?: TravelNotice
   /**
@@ -53,6 +58,32 @@ export interface PlayerState {
    * tela o mostra como texto, nunca como HTML.
    */
   note?: { id: string; text: string }
+  /**
+   * TEXTO DA SALA aberto: chega na primeira entrada (`room.text`) ou quando o
+   * jogador toca o rótulo (`openRoomText`). `id` é o da Sala; `title`, o nome
+   * que ele pode ver ('' quando oculto). Texto puro, como o recado.
+   */
+  roomText?: { id: string; title: string; text: string }
+  /**
+   * CADERNO: todo recado que chegou, do mais antigo ao mais novo (até
+   * `NOTEBOOK_MAX_NOTES`). Fechar o cartão não tira daqui; o `notes.book` do
+   * host, na entrada ou na volta, substitui a lista inteira.
+   */
+  notebook?: NoteEntry[]
+  /** Ids de recados que chegaram e o jogador ainda não viu (nem no cartão fechado, nem no Caderno). */
+  unreadNotes?: string[]
+  /**
+   * MINHAS PISTAS: os cartões lidos e os que colegas mostraram, da mais antiga
+   * à mais nova (até `CLUEBOOK_MAX_CLUES`). Só entra o que o HOST confirmou
+   * (`clue.added`, `clue.shown`); o `clues.book` da entrada substitui tudo.
+   */
+  clues?: ClueEntry[]
+  /** Pista que um colega acabou de mostrar: o cartão "Gabi mostrou: Bilhete". `id` novo reabre. */
+  shownClue?: { id: number; from: string; clue: ClueEntry }
+  /** "Mostrar para…": esperando a lista, ou os colegas da mesma cena. */
+  cluePeers?: CluePeers
+  /** "Mostrar para…": o último envio e a resposta do host. */
+  clueShow?: ClueShow
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -74,6 +105,19 @@ export type TravelNotice =
   | { id: number; phase: 'gathered' }
   | { id: number; phase: 'denied' }
   | { id: number; phase: 'rejected'; reason: PinTravelRejection }
+
+export type CluePeers = { phase: 'loading' } | { phase: 'ready'; names: string[] }
+
+export interface ClueShow {
+  to: string
+  /** `too_soon`: o mestre pediu um instante entre duas pistas mostradas; o colega segue na cena. */
+  phase: 'sending' | 'ok' | 'failed' | 'too_soon'
+}
+
+/** Põe a pista no fim do caderno; a mesma (mesmo id) sai de onde estava. Passou do teto, sai a mais antiga. */
+function withClue(book: readonly ClueEntry[], clue: ClueEntry): ClueEntry[] {
+  return [...book.filter((entry) => entry.id !== clue.id), clue].slice(-CLUEBOOK_MAX_CLUES)
+}
 
 /** Subconjunto do WebSocket do browser que este cliente usa. */
 export interface SocketLike {
@@ -136,8 +180,31 @@ export interface PlayerConnection {
   laserMove(x: number, y: number): boolean
   /** Soltou o laser: manda o que faltava e o `off`, só se algo saiu desde o último. */
   laserOff(): void
-  /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). */
+  /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). Quem fechou leu: aquele recado deixa de ser novo. */
   dismissNote(): void
+  /** O jogador abriu o Caderno: nenhum recado é novo mais. */
+  markNotebookRead(): void
+  /**
+   * Reabre o texto da Sala `regionId` (toque no rótulo). Só abre texto que já
+   * chegou no mapa do jogador; `false` quando a Sala não tem texto para ele.
+   */
+  openRoomText(regionId: string): boolean
+  /** Fecha o texto da Sala aberto. */
+  dismissRoomText(): void
+  /**
+   * MINHAS PISTAS: o jogador abriu o cartão do pino `pinId` — pede ao host
+   * para guardar. `false` (e nada sai) quando não joga, o pino não está no
+   * mapa dele ou o cartão não tem texto nem foto.
+   */
+  readClue(pinId: string): boolean
+  /** "Mostrar para…": pede ao host quem está na mesma cena. */
+  askCluePeers(): boolean
+  /** Mostra a pista `clueId` (do caderno dele) ao colega `to`. `false` se a pista não é dele ou o socket caiu. */
+  showClue(clueId: string, to: string): boolean
+  /** O cartão da pista fechou: a lista de colegas e o resultado do envio perdem o sentido. */
+  resetClueShare(): void
+  /** Fecha o cartão da pista que um colega mostrou (a pista continua no caderno). */
+  dismissShownClue(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -147,6 +214,13 @@ export const RESUME_STORAGE_KEY = 'labirinto.resume'
 export const PING_INTERVAL_MS = 15_000
 /** Quanto tempo o aviso da porta ("Trancada") fica na tela. */
 export const DOOR_NOTICE_TTL_MS = 2500
+/** Quanto tempo a recusa do movimento ("Parede no caminho") fica na tela: 2-3 s, como a da porta. */
+export const MOVE_NOTICE_TTL_MS = 2500
+const MOVE_REJECTIONS: readonly TokenMoveRejection[] = ['unknown_token', 'not_owner', 'locked', 'outside_map', 'wall', 'outside_floor']
+
+function isMoveRejection(value: unknown): value is TokenMoveRejection {
+  return MOVE_REJECTIONS.some((reason) => reason === value)
+}
 /** Quanto tempo a recusa do mestre ("não deixou passar agora") fica na tela. Mais que a porta. */
 export const TRAVEL_NOTICE_TTL_MS = 4000
 /**
@@ -259,6 +333,14 @@ function writeResume(storage: StorageLike | null, value: StoredResume | null): v
   }
 }
 
+/**
+ * Há recado que o jogador não viu? O que está no cartão aberto não conta: ele
+ * está lendo. É o que acende o ponto no Painel e na aba Caderno.
+ */
+export function hasUnreadNotes(state: PlayerState): boolean {
+  return (state.unreadNotes ?? []).some((id) => id !== state.note?.id)
+}
+
 function withTokenAt(map: MapData, tokenId: string, x: number, y: number): MapData {
   return { ...map, tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : t)) }
 }
@@ -313,6 +395,22 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       doorNoticeTimer = null
       setState({ doorNotice: undefined })
     }, DOOR_NOTICE_TTL_MS)
+  }
+
+  let moveNoticeTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearMoveNotice(): void {
+    if (moveNoticeTimer !== null) clearTimeout(moveNoticeTimer)
+    moveNoticeTimer = null
+  }
+
+  function showMoveNotice(reason: TokenMoveRejection): void {
+    clearMoveNotice()
+    setState({ moveNotice: { id: nextNoticeId++, reason } })
+    moveNoticeTimer = setTimeout(() => {
+      moveNoticeTimer = null
+      setState({ moveNotice: undefined })
+    }, MOVE_NOTICE_TTL_MS)
   }
 
   let travelTimer: ReturnType<typeof setTimeout> | null = null
@@ -468,11 +566,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined })
   }
 
-  function handleRejected(reqId: string): void {
+  function handleRejected(reqId: string, reason: unknown): void {
     const move = pending.get(reqId)
     if (!move) return
     const newer = hasNewerPending(reqId, move.tokenId)
     pending.delete(reqId)
+    // Motivo que esta versão não conhece: desfaz igual, só não inventa frase.
+    if (isMoveRejection(reason)) showMoveNotice(reason)
     if (newer) {
       // Um movimento mais novo do mesmo token parte desta posição: herda o "anterior".
       newer.prevX = move.prevX
@@ -513,6 +613,38 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return true
   }
 
+  /**
+   * MINHAS PISTAS. O caderno vale também aguardando (é do jogador, não da
+   * cena); cartão de colega, lista e resultado só com o mapa na tela.
+   */
+  function handleClueMessage(data: unknown): void {
+    const msg = parseClueMessage(data)
+    if (msg === null) return
+    switch (msg.type) {
+      case 'clues.book':
+        setState({ clues: msg.clues })
+        return
+      case 'clue.added':
+        setState({ clues: withClue(state.clues ?? [], msg.clue) })
+        return
+      case 'clue.shown': {
+        // A pista fica no caderno de qualquer jeito; o cartão só abre com o mapa na tela.
+        const clues = withClue(state.clues ?? [], msg.clue)
+        setState(state.status === 'playing' ? { clues, shownClue: { id: nextNoticeId++, from: msg.from, clue: msg.clue } } : { clues })
+        return
+      }
+      case 'clue.peers':
+        // Só quem pediu espera a lista: resposta atrasada de um cartão já fechado não reabre nada.
+        if (state.cluePeers?.phase !== 'loading') return
+        setState({ cluePeers: { phase: 'ready', names: msg.names } })
+        return
+      case 'clue.show.result':
+        if (state.clueShow?.phase !== 'sending' || state.clueShow.to !== msg.to) return
+        setState({ clueShow: { to: msg.to, phase: msg.ok ? 'ok' : msg.reason === 'too_soon' ? 'too_soon' : 'failed' } })
+        return
+    }
+  }
+
   function handleMessage(raw: unknown): void {
     if (typeof raw !== 'string') return
     let data: unknown
@@ -534,8 +666,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearPlayerLasers()
         resetOwnLaser()
         clearDoorNotice()
+        clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, travel: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -549,7 +682,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearPlayerLasers()
         resetOwnLaser()
         clearDoorNotice()
-        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined })
+        clearMoveNotice()
+        // A lista de "Mostrar para…" era de quem estava na cena de antes.
+        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, cluePeers: undefined, clueShow: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -570,7 +705,43 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (state.status !== 'playing') return
         const note = parseSceneNote(data)
         if (note === null) return
-        setState({ note: { id: note.id, text: note.text } })
+        const book = state.notebook ?? []
+        // Já guardado (o host reenvia o último recado da cena na volta): reabre o cartão, sem repetir nem virar "novo".
+        if (book.some((entry) => entry.id === note.id)) {
+          setState({ note: { id: note.id, text: note.text } })
+          return
+        }
+        // Mestre antigo não manda a hora: vale a da chegada.
+        const entry: NoteEntry = { id: note.id, text: note.text, at: note.at ?? Date.now() }
+        setState({
+          note: { id: note.id, text: note.text },
+          notebook: [...book, entry].slice(-NOTEBOOK_MAX_NOTES),
+          unreadNotes: [...(state.unreadNotes ?? []), note.id].slice(-NOTEBOOK_MAX_NOTES),
+        })
+        return
+      }
+      case 'notes.book': {
+        // Vale também aguardando: o caderno é do jogador, não da cena.
+        const book = parseNotebook(data)
+        if (book === null) return
+        // Recado que o host já tinha é história, não novidade: só o que ainda estava por ler e continua na lista segue novo.
+        const kept = new Set(book.notes.map((entry) => entry.id))
+        setState({ notebook: book.notes, unreadNotes: (state.unreadNotes ?? []).filter((id) => kept.has(id)) })
+        return
+      }
+      case 'clue.added':
+      case 'clues.book':
+      case 'clue.shown':
+      case 'clue.peers':
+      case 'clue.show.result':
+        handleClueMessage(data)
+        return
+      case 'room.text': {
+        // Mesma regra do recado: só quem joga tem tela de cartão.
+        if (state.status !== 'playing') return
+        const roomText = parseRoomText(data)
+        if (roomText === null) return
+        setState({ roomText: { id: roomText.id, title: roomText.title, text: roomText.text } })
         return
       }
       case 'laser': {
@@ -635,7 +806,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         return
       case 'token.move.rejected':
         if (typeof data.reqId !== 'string') return
-        handleRejected(data.reqId)
+        handleRejected(data.reqId, data.reason)
         return
       case 'kicked':
         writeResume(storage, null)
@@ -649,8 +820,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearPlayerLasers()
         resetOwnLaser()
         clearDoorNotice()
+        clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, travel: undefined })
+        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -706,6 +878,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearPlayerLasers()
     resetOwnLaser()
     clearDoorNotice()
+    clearMoveNotice()
     clearTravelTimer()
     const current = socket
     socket = null
@@ -804,7 +977,55 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
 
     dismissNote() {
-      if (state.note !== undefined) setState({ note: undefined })
+      const open = state.note
+      if (open === undefined) return
+      setState({ note: undefined, unreadNotes: (state.unreadNotes ?? []).filter((id) => id !== open.id) })
+    },
+
+    markNotebookRead() {
+      if ((state.unreadNotes ?? []).length > 0) setState({ unreadNotes: undefined })
+    },
+
+    openRoomText(regionId) {
+      // Só o que JÁ chegou no mapa: o host manda o texto a quem entrou na Sala.
+      const room = state.map?.regions.find((r) => r.id === regionId)?.room
+      const text = room?.textoAoEntrar
+      if (room === undefined || text === undefined || !hasEnterText(room)) return false
+      setState({ roomText: { id: regionId, title: room.name, text } })
+      return true
+    },
+
+    dismissRoomText() {
+      if (state.roomText !== undefined) setState({ roomText: undefined })
+    },
+
+    readClue(pinId) {
+      if (state.status !== 'playing') return false
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      // Cartão vazio ("O mestre ainda não escreveu nada") não é pista: nem pede.
+      if (pin === undefined || (pin.description.trim() === '' && !isPlayerSafePinImage(pin.image))) return false
+      return send({ type: 'clue.read', pinId })
+    },
+
+    askCluePeers() {
+      if (state.status !== 'playing' || !send({ type: 'clue.peers' })) return false
+      setState({ cluePeers: { phase: 'loading' }, clueShow: undefined })
+      return true
+    },
+
+    showClue(clueId, to) {
+      if (state.status !== 'playing' || !(state.clues ?? []).some((entry) => entry.id === clueId)) return false
+      if (!send({ type: 'clue.show', clueId, to })) return false
+      setState({ clueShow: { to, phase: 'sending' } })
+      return true
+    },
+
+    resetClueShare() {
+      if (state.cluePeers !== undefined || state.clueShow !== undefined) setState({ cluePeers: undefined, clueShow: undefined })
+    },
+
+    dismissShownClue() {
+      if (state.shownClue !== undefined) setState({ shownClue: undefined })
     },
 
     setOwnTokenName(tokenId, name) {
@@ -824,7 +1045,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, travel: undefined, note: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
       open()
     },
     close: detach,

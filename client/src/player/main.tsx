@@ -1,14 +1,19 @@
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type DoorToggleRejection } from '../net/protocol'
+import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
+import { latestActionNotice } from './moveNotice'
 import { themeCss } from '../theme'
-import { createPlayerConnection, RESUME_STORAGE_KEY } from './playerConnection'
+import { createPlayerConnection, hasUnreadNotes, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNotice } from './playerConnection'
 import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
+import { PlayerClueCard } from './PlayerClues'
+import { coverBounds } from './playerCamera'
+import { PlayerZoomControls } from './PlayerZoomControls'
+import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
@@ -31,13 +36,10 @@ document.head.prepend(themeStyle)
 const NO_TOKENS: string[] = []
 const NO_SIGNALS: SignalMark[] = []
 const NO_PLAYER_LASERS: RemoteLaser[] = []
-
-/** Recusa do mestre ao toque na porta, em uma linha curta. */
-const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
-  locked: 'Trancada',
-  far: 'Chegue mais perto da porta',
-  not_visible: 'Você não vê essa porta daqui',
-}
+const NO_NOTES: NoteEntry[] = []
+const NO_CLUES: ClueEntry[] = []
+/** Fechar o recado não perde nada: quem fecha sabe onde reler. */
+const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
 
 /**
  * O pedido de passagem, em uma linha. Nunca diz para onde o pino leva: o
@@ -499,6 +501,14 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const [laserArmed, setLaserArmed] = useState(false)
   /** Pino aberto no cartão; `null` = cartão fechado. */
   const [openPinId, setOpenPinId] = useState<string | null>(null)
+  /** Pista do Caderno aberta no cartão (MINHAS PISTAS); `null` = fechado. */
+  const [openClueId, setOpenClueId] = useState<string | null>(null)
+  /** Último toque nos botões + e − (o `PlayerView` aplica o degrau) e o que eles ainda podem fazer. */
+  const [zoomStep, setZoomStep] = useState<ZoomStepRequest>(NO_ZOOM_STEP)
+  const [zoomLimits, setZoomLimits] = useState<ZoomLimits>({ canZoomIn: true, canZoomOut: true })
+  const requestZoomStep = useCallback((direction: ZoomDirection, animate: boolean) => {
+    setZoomStep((current) => ({ direction, animate, seq: current.seq + 1 }))
+  }, [])
   /** Cada "Reconectar" conta uma tentativa nova e reinicia o prazo do aperto de mão. */
   const [attempt, setAttempt] = useState(0)
   const [handshakeOverdue, setHandshakeOverdue] = useState(false)
@@ -565,8 +575,34 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const closePin = useCallback(() => setOpenPinId(null), [])
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
+  const closeRoomText = useCallback(() => connection.dismissRoomText(), [connection])
+  // Estável: o painel marca o Caderno como lido num efeito que depende dela.
+  const readNotebook = useCallback(() => connection.markNotebookRead(), [connection])
+  // MINHAS PISTAS: abrir o cartão do pino é ler — o host guarda a pista no Caderno.
+  const openPinCard = useCallback(
+    (pinId: string) => {
+      setOpenPinId(pinId)
+      connection.readClue(pinId)
+    },
+    [connection],
+  )
+  const openClue = openClueId === null ? null : (state.clues ?? []).find((clue) => clue.id === openClueId) ?? null
+  // Estável pelo mesmo motivo dos outros cartões: o Escape e o "tocar fora" religam quando `onClose` muda.
+  const closeClue = useCallback(() => {
+    setOpenClueId(null)
+    connection.resetClueShare()
+  }, [connection])
+  const closeShownClue = useCallback(() => connection.dismissShownClue(), [connection])
+  const askCluePeers = useCallback(() => connection.askCluePeers(), [connection])
+  /** Painel e barra do jogador: a câmera lê, na hora, o que eles cobrem do mapa. */
+  const panelRef = useRef<HTMLElement | null>(null)
+  const barRef = useRef<HTMLDivElement | null>(null)
+  const mapObstacles = useCallback(() => coverBounds(panelRef.current, barRef.current), [])
 
   if (state.status === 'playing' && state.map && state.vision) {
+    const actionNotice = latestActionNotice(state.doorNotice, state.moveNotice)
+    // Cartão de pista na tela: o Escape é dele, e um toque não pode fechar também o recado.
+    const clueCardOpen = openClue !== null || (state.shownClue !== undefined && openPin === null)
     return (
       <PlayerErrorBoundary onReconnect={() => connection.reconnect()}>
         <PlayerView
@@ -594,9 +630,15 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           onLaserEnd={() => connection.laserOff()}
           playerLasers={state.playerLasers ?? NO_PLAYER_LASERS}
           onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
-          onPinOpen={setOpenPinId}
+          onPinOpen={openPinCard}
+          onRoomOpen={(regionId) => connection.openRoomText(regionId)}
+          focusObstacles={mapObstacles}
+          zoomStep={zoomStep}
+          onZoomLimitsChange={setZoomLimits}
         />
         <PlayerPanel
+          panelRef={panelRef}
+          barRef={barRef}
           characters={characters}
           characterColor={OWN_TOKEN_CSS}
           settings={settings}
@@ -627,7 +669,18 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             // quem escolhe que paga o custo, e o que viaja já cabe no teto.
             connection.setOwnTokenPhoto(tokenId, await buildTokenPhotoData(file))
           }}
+          notebook={state.notebook ?? NO_NOTES}
+          notebookUnread={hasUnreadNotes(state)}
+          onReadNotebook={readNotebook}
+          clues={state.clues ?? NO_CLUES}
+          onOpenClue={(clueId) => {
+            // Outra pista aberta: a lista de colegas e o resultado eram dela.
+            connection.resetClueShare()
+            setOpenClueId(clueId)
+          }}
         />
+        {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
+        <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}
@@ -643,19 +696,59 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             }}
           />
         )}
+        {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".
+            Some sozinha se sair do caderno (o `clues.book` da volta não a tem). */}
+        {openClue && (
+          <PlayerClueCard
+            key={openClue.id}
+            clue={openClue}
+            title={openClue.title}
+            onClose={closeClue}
+            escapeCloses={openPin === null}
+            share={{
+              peers: state.cluePeers,
+              result: state.clueShow,
+              onAskPeers: askCluePeers,
+              onShow: (name) => connection.showClue(openClue.id, name),
+            }}
+          />
+        )}
+        {/* O que um colega mostrou: espera a pista aberta fechar, um cartão por vez no mesmo lugar. */}
+        {state.shownClue && !openClue && openPin === null && (
+          <PlayerClueCard
+            key={state.shownClue.id}
+            clue={state.shownClue.clue}
+            title={`${state.shownClue.from} mostrou: ${state.shownClue.clue.title}`}
+            onClose={closeShownClue}
+            escapeCloses={openPin === null}
+            arrivedUnasked
+          />
+        )}
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
-          <PlayerNoteCard key={state.note.id} text={state.note.text} onClose={closeNote} escapeCloses={openPin === null} />
+          <PlayerNoteCard key={state.note.id} text={state.note.text} hint={NOTE_KEPT_HINT} onClose={closeNote} escapeCloses={openPin === null && !clueCardOpen} />
+        )}
+        {/* TEXTO DA SALA: o mesmo cartão, com o nome da Sala no alto. Um
+            cartão de cada vez no mesmo lugar: com recado aberto, o texto da
+            sala espera o recado fechar em vez de ficar por baixo dele. */}
+        {state.roomText && !state.note && (
+          <PlayerNoteCard
+            key={state.roomText.id}
+            title={state.roomText.title || 'Ao entrar'}
+            text={state.roomText.text}
+            onClose={closeRoomText}
+            escapeCloses={openPin === null && !clueCardOpen}
+          />
         )}
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}
           </p>
         )}
-        {state.doorNotice && (
+        {actionNotice && (
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
-          <p key={state.doorNotice.id} className="pp-notice" role="status" aria-live="polite">
-            {DOOR_NOTICE_TEXT[state.doorNotice.reason]}
+          <p key={actionNotice.id} className="pp-notice" role="status" aria-live="polite">
+            {actionNotice.text}
           </p>
         )}
       </PlayerErrorBoundary>

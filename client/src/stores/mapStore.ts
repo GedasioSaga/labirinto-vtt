@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
@@ -660,6 +660,8 @@ interface MapStoreState {
   setRoomNameHiddenFromPlayers: (id: string, hidden: boolean) => void
   /** TETO DE CONSTRUÇÃO — liga/desliga `RoomMeta.roof` da Sala, com histórico. */
   setRoomRoof: (id: string, roof: boolean) => void
+  /** TEXTO DA SALA — "Ao entrar, o jogador lê" / "Nota do mestre". Com histórico, como `setRoomName`. */
+  setRoomTexts: (id: string, patch: Partial<Pick<RoomMeta, 'textoAoEntrar' | 'notaDoMestre'>>) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
@@ -1611,6 +1613,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRoomRoof: (id, roof) => {
       if (mapFactory.setRoomRoof(get().map, id, roof) === get().map) return
       withHistory((map) => mapFactory.setRoomRoof(map, id, roof))
+    },
+    setRoomTexts: (id, patch) => {
+      if (mapFactory.setRoomTexts(get().map, id, patch) === get().map) return
+      withHistory((map) => mapFactory.setRoomTexts(map, id, patch))
     },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return

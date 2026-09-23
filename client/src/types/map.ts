@@ -201,6 +201,20 @@ export interface RoomMeta {
    *  `undefined` === false (sem teto, comportamento idêntico ao de hoje) —
    *  sem linha de migração: a Sala de todo mapa já salvo continua aberta. */
   roof?: boolean
+  /**
+   * TEXTO DA SALA — "Ao entrar, o jogador lê". Na PRIMEIRA vez que a ficha de
+   * um jogador entra na Sala, só ele recebe o cartão (`room.text`,
+   * `net/hostSession.ts`); depois, tocar no rótulo reabre. Só atravessa no
+   * recorte (`lib/fogFilter.ts`) de quem está ou já esteve dentro — nunca no de
+   * quem está fora. Sala secreta, sob teto fechado ou em zona oculta não dispara.
+   * `undefined` === sem texto, sem migração.
+   */
+  textoAoEntrar?: string
+  /**
+   * "Nota do mestre": lembrete só dele sobre o cômodo. NUNCA sai no recorte do
+   * jogador (`lib/fogFilter.ts`). `undefined` === sem nota, sem migração.
+   */
+  notaDoMestre?: string
 }
 
 /**
@@ -430,7 +444,9 @@ export interface Token extends PlayerSecret {
   imageData?: string | null
   /** Rotação em graus, sentido horário. `undefined` === 0 (aparência
    *  idêntica à de hoje) — sem linha de migração, mesmo padrão de wallKind
-   *  (Wall, acima). */
+   *  (Wall, acima). EXCEÇÃO na tela do jogador: o campo PRESENTE (0
+   *  inclusive, "para cima") é a FRENTE da ficha e desenha o bico; ausente =
+   *  ficha sem frente (`player/facingMarker.ts`). Nunca trocar 0 por ausente. */
   rotation?: number
   /** Cor do disco da ficha, em `#rrggbb` — é o que separa aliado de inimigo
    *  no meio da luta. `undefined`/`null` === a cor de fábrica

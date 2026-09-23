@@ -5,10 +5,13 @@ import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
+import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
+import { rotatePointAround, rotationTrig } from './roomRotation'
+import { clampRoomText, hasEnterText } from './roomText'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -52,6 +55,14 @@ export interface PlayerMapView {
    * jogador o interior que ele percorreu enquanto o teto estava aberto.
    */
   roofs: RegionPoint[][]
+  /**
+   * TEXTO DA SALA — ids das Salas COM texto de entrada em que uma ficha do
+   * jogador está agora, estritamente dentro, e que ele pode ler (a Sala saiu
+   * no recorte, fora de teto fechado e de zona oculta, e a ficha não está em
+   * zona oculta nem em sala secreta). O chamador compara com as que ele já
+   * visitou para mandar o cartão só na primeira entrada. Não sai pela rede.
+   */
+  occupiedRooms: string[]
 }
 
 /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
@@ -321,6 +332,36 @@ function stairSamples(stair: MapData['stairs'][number]): RegionPoint[] {
   return stair.segments.flatMap((s) => [{ x: s.x1, y: s.y1 }, { x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2 }, { x: s.x2, y: s.y2 }])
 }
 
+/**
+ * Amostras da SILHUETA do objeto, o retângulo que a tela do jogador pinta
+ * (`pixi/drawPropSilhouettes.ts`): o centro e os quatro cantos girados em
+ * volta dele, puxados para dentro como os de um desenho retângulo
+ * (`interiorSamples`).
+ *
+ * Desde que o jogador vê a silhueta, o objeto deixou de ser um ponto: o
+ * armário com o centro no corredor e a ponta dentro da sala secreta pintava a
+ * ponta no vazio onde a sala não existe para ele. O recuo dos cantos é o que
+ * deixa a estante ENCOSTADA por fora na parede dessa sala (a que esconde a
+ * passagem) continuar na tela de quem está no cômodo dela: sem ele, o canto em
+ * cima da parede oeste cairia DENTRO pelo `pointInRing`.
+ *
+ * O centro exato entra além do centróide dos cantos: com largura não-finita
+ * (arquivo estragado) os cantos viram NaN, e é ele que sobra para decidir.
+ */
+function propSamplePoints(prop: MapData['props'][number]): RegionPoint[] {
+  const center = { x: prop.x, y: prop.y }
+  const trig = rotationTrig(prop.rotation ?? 0)
+  const hw = prop.width / 2
+  const hh = prop.height / 2
+  const corners = [
+    { x: prop.x - hw, y: prop.y - hh },
+    { x: prop.x + hw, y: prop.y - hh },
+    { x: prop.x + hw, y: prop.y + hh },
+    { x: prop.x - hw, y: prop.y + hh },
+  ].map((corner) => rotatePointAround(corner, center, trig))
+  return [center, ...interiorSamples(corners)]
+}
+
 /** Desenho de traço (sem área): basta uma ponta escondida para não sair. */
 function isStrokeDrawing(drawing: Drawing): boolean {
   return drawing.kind === 'line' || drawing.kind === 'freehand' || drawing.kind === 'curve'
@@ -403,6 +444,9 @@ function unseenDoor(door: DoorState): DoorState {
  * `seenDoors`: último estado visto de cada porta (somente leitura). Porta
  * explorada fora da visão sai com esse estado, nunca com o atual: senão o
  * jogador longe veria o mestre abrir ou destrancar a porta.
+ * `enteredRooms`: Salas deste mapa em que o jogador JÁ entrou (texto da sala).
+ * O texto de entrada dela continua no recorte depois que ele sai, para tocar
+ * no rótulo e reler; de Sala onde ele nunca entrou o texto não sai.
  */
 export function filterMapForPlayer(
   map: MapData,
@@ -411,6 +455,7 @@ export function filterMapForPlayer(
   visionRadius: number,
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
+  enteredRooms?: ReadonlySet<string>,
 ): PlayerMapView {
   const hiddenLayers = map.hiddenLayers
   const owned = new Set(ownership[playerId] ?? []) // jogador sem entrada de posse não tem token nem visão
@@ -643,6 +688,16 @@ export function filterMapForPlayer(
     return [{ ...w, door: seenDoors?.get(w.id) ?? unseenDoor(door) }]
   }
 
+  /** Preenchida no recorte das regiões abaixo: só entra Sala que saiu no pacote. */
+  const occupiedRooms: string[] = []
+  /**
+   * A ficha está DENTRO da Sala para o texto de entrada: estritamente dentro
+   * (em cima do muro ainda é fora, mesma regra do teto) e num ponto que o
+   * jogador pode saber — nem zona oculta, nem sala secreta.
+   */
+  const isStrictlyInsideReadableRoom = (points: readonly RegionPoint[], p: RegionPoint): boolean =>
+    pointInPolygonInclusive(p, points) && !pointOnPolygonBorder(p, points) && !inConcealZone(p) && !inSecretRoom(p)
+
   const filtered: MapData = {
     ...map,
     // O nome do mapa é o nome da CENA (a aventura cria a cena com
@@ -671,9 +726,12 @@ export function filterMapForPlayer(
       if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inRoomHiddenFromPlayer)) return false
       return isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
     }),
+    // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto
+    // fechado leva junto o objeto com qualquer amostra dela lá dentro
+    // (`propSamplePoints`), como já leva escada, desenho e linha.
     props: visibleProps(map.props, hiddenLayers)
-      .filter((p) => !p.hidden && !p.secret && !inClosedRoof({ x: p.x, y: p.y }) && isVisible({ x: p.x, y: p.y }))
-      .map((p) => ({ ...p, src: '', linkedMapPath: null })),
+      .filter((p) => !p.hidden && !p.secret && !propSamplePoints(p).some(inRoomHiddenFromPlayer) && isVisible({ x: p.x, y: p.y }))
+      .map(propForPlayer),
     drawings: visibleDrawings(map.drawings, hiddenLayers).filter((d) => {
       if (d.secret) return false
       const samples = drawingSamplePoints(d)
@@ -699,15 +757,32 @@ export function filterMapForPlayer(
         if (r.room === undefined) return r
         const roofClosed = closedRoofIds.has(r.id)
         // Sala com a maioria do interior dentro de zona ativa: o nome é do que a zona esconde.
+        const inZone = zones.length > 0 && mostly(interiorSamples(r.points, r.points), inConcealZone)
         // Teto fechado esconde o nome junto: o rótulo é desenhado DENTRO do
         // polígono e é anotação do mestre sobre o que tem lá dentro.
-        const nameHidden =
-          r.room.nameHiddenFromPlayers || roofClosed || (zones.length > 0 && mostly(interiorSamples(r.points, r.points), inConcealZone))
-        if (!nameHidden && !roofClosed && r.room.roof === undefined) return r
+        const nameHidden = r.room.nameHiddenFromPlayers || roofClosed || inZone
+        const hasTexts = r.room.textoAoEntrar !== undefined || r.room.notaDoMestre !== undefined
+        if (!nameHidden && !roofClosed && r.room.roof === undefined && !hasTexts) return r
+        // TEXTO DA SALA: a nota do mestre NUNCA sai. O texto de entrada só sai
+        // para quem está dentro agora ou já esteve (`enteredRooms`), e nunca de
+        // Sala sob teto fechado ou em zona oculta — o texto fala do que tem lá dentro.
+        const { textoAoEntrar, notaDoMestre: _nota, ...room } = r.room
+        const readable = !roofClosed && !inZone && hasEnterText(r.room)
+        const occupied = readable && ownTokens.some((t) => isStrictlyInsideReadableRoom(r.points, { x: t.x, y: t.y }))
+        if (occupied) occupiedRooms.push(r.id)
+        const showText = readable && textoAoEntrar !== undefined && (occupied || enteredRooms?.has(r.id) === true)
         // `roof` atravessa SÓ quando o teto está fechado PARA ESTE JOGADOR: é o
         // sinal de "pinte a silhueta" (`player/PlayerView.tsx`). Com o teto
         // aberto o campo some e a Sala volta a desenhar como sempre desenhou.
-        return { ...r, room: { ...r.room, name: nameHidden ? '' : r.room.name, roof: roofClosed ? true : undefined } }
+        return {
+          ...r,
+          room: {
+            ...room,
+            name: nameHidden ? '' : r.room.name,
+            roof: roofClosed ? true : undefined,
+            ...(showText ? { textoAoEntrar: clampRoomText(textoAoEntrar) } : {}),
+          },
+        }
       }),
     walls: visibleWalls(map.walls, hiddenLayers).flatMap((w) => {
       if (w.hidden) return []
@@ -735,7 +810,7 @@ export function filterMapForPlayer(
     // Metadado do mestre: nome e estado das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
-  return { map: filtered, vision, visibleDoorIds, concealed, blocked, roofs }
+  return { map: filtered, vision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms }
 }
 
 /** O host vê o mapa inteiro, inclusive itens ocultos. */
@@ -777,5 +852,73 @@ function pinForPlayer(pin: Pin): Pin {
   // campo: o cartão dele é o de sempre, e o recorte também.
   const escolhas = exitLabelsOf(pin)
   if (escolhas.length > 1) forPlayer.escolhas = escolhas
+  return forPlayer
+}
+
+/**
+ * MINHAS PISTAS — o que do cartão vai para o caderno do jogador: título, texto
+ * e foto. LISTA DO QUE VAI, como `pinForPlayer`: nada de posição (a pista
+ * sobrevive a sair da sala, e a posição diria onde o pino está depois que a
+ * névoa o esconde), nada de id do pino, de cena ou de destino.
+ */
+export interface PlayerClueContent {
+  title: string
+  text: string
+  image: string | null
+}
+
+/**
+ * A pista de um pino. Passa SEMPRE por `pinForPlayer` antes, mesmo que quem
+ * chama já tenha o recorte: foto em caminho de disco vira `null` aqui também.
+ * Cartão sem texto nem foto não é pista (`null`).
+ *
+ * Quem chama responde por o jogador PODER ver o pino agora: o host só aceita
+ * pino que saiu no último recorte da cena onde o jogador está.
+ */
+export function pinClueForPlayer(pin: Pin): PlayerClueContent | null {
+  const safe = pinForPlayer(pin)
+  const text = clampClueText(safe.description.trim())
+  if (text === '' && safe.image === null) return null
+  return { title: clueTitleFrom(text, CLUE_TITLE_ONLY_IMAGE), text, image: safe.image }
+}
+
+/**
+ * A pista de um texto de Sala. `title` é o nome da Sala COMO O JOGADOR O VÊ
+ * (vazio quando oculto; aí a primeira linha do texto nomeia a pista). A nota
+ * do mestre nunca passa por aqui: quem chama lê a Sala do recorte.
+ */
+export function roomClueForPlayer(title: string, text: string): PlayerClueContent | null {
+  const clamped = clampClueText(text.trim())
+  if (clamped === '') return null
+  return { title: clueTitleFrom(title, clueTitleFrom(clamped, CLUE_TITLE_ONLY_IMAGE)), text: clamped, image: null }
+}
+
+/**
+ * O objeto (cama, baú, mesa) como o jogador pode recebê-lo: a SILHUETA e mais
+ * nada. A tela dele pinta o retângulo chapado no lugar do móvel, com o tamanho
+ * e a rotação que o mestre deu (`pixi/drawPropSilhouettes.ts`).
+ *
+ * LISTA DO QUE VAI, no molde de `pinForPlayer`: a versão anterior copiava o
+ * objeto inteiro e só apagava a imagem, e com isso a trava de edição do mestre
+ * (`locked`) e qualquer campo que o arquivo trouxesse sem o app conhecer
+ * chegavam ao jogador. Ficam de fora:
+ * - `src`: caminho no disco do mestre — o jogador não tem a imagem;
+ * - `linkedMapPath`: diria que existe outro mapa ligado ao objeto;
+ * - `locked`, `hidden`, `secret`: estado de edição do mestre (o que está
+ *   oculto nem chega aqui: o filtro acima já tirou).
+ * `layer` vai porque a tela do jogador também filtra por camada (`visibleProps`).
+ */
+function propForPlayer(prop: MapData['props'][number]): MapData['props'][number] {
+  const forPlayer: MapData['props'][number] = {
+    id: prop.id,
+    x: prop.x,
+    y: prop.y,
+    width: prop.width,
+    height: prop.height,
+    src: '',
+    linkedMapPath: null,
+  }
+  if (prop.rotation !== undefined) forPlayer.rotation = prop.rotation
+  if (prop.layer !== undefined) forPlayer.layer = prop.layer
   return forPlayer
 }

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import type { RoomMeta } from '../types/map'
 import { MIN_ROOM_DIMENSION } from '../lib/roomOps'
 import { ROTATION_SHIFT_STEP } from '../lib/roomRotation'
+import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { Toggle } from './Toggle'
 
 /** Passo dos botões do painel: deitar ou pôr em pé, o giro que mais se faz num mapa de masmorra. */
@@ -32,6 +33,13 @@ export interface RoomControlsProps {
    *  interruptor com o nome negado sem motivo. Ausente omite o toggle. */
   roof?: boolean
   onRoofChange?: (roof: boolean) => void
+  /** TEXTO DA SALA — `RoomMeta.textoAoEntrar` ("Ao entrar, o jogador lê").
+   *  Sem `onTextoAoEntrarChange` o campo não aparece. */
+  textoAoEntrar?: string
+  onTextoAoEntrarChange?: (text: string) => void
+  /** `RoomMeta.notaDoMestre` — nunca sai para o jogador. Sem `onNotaDoMestreChange` o campo não aparece. */
+  notaDoMestre?: string
+  onNotaDoMestreChange?: (text: string) => void
   /** 'polygon' (Sala Circular/Polígono Regular) esconde os campos de
    *  largura/altura — resize numérico só vale pra 'rect' (ver
    *  RoomMeta.shape em types/map.ts e lib/roomOps.ts). O nome continua
@@ -221,6 +229,10 @@ export function RoomControls({
   onNameHiddenFromPlayersChange,
   roof,
   onRoofChange,
+  textoAoEntrar,
+  onTextoAoEntrarChange,
+  notaDoMestre,
+  onNotaDoMestreChange,
   shape,
   axisAligned,
   width,
@@ -234,7 +246,12 @@ export function RoomControls({
   parentName,
   onCreateRoomInside,
 }: RoomControlsProps) {
-  const roofHintId = `${useId()}-roof-hint`
+  const baseId = useId()
+  const roofHintId = `${baseId}-roof-hint`
+  const enterTextId = `${baseId}-texto-ao-entrar`
+  const enterHintId = `${baseId}-texto-ao-entrar-hint`
+  const noteId = `${baseId}-nota-do-mestre`
+  const noteHintId = `${baseId}-nota-do-mestre-hint`
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Sala</h2>
@@ -267,6 +284,46 @@ export function RoomControls({
             De fora o jogador vê só a silhueta do prédio; ele entra e o teto abre. Você continua vendo tudo.
           </p>
         </>
+      )}
+
+      {onTextoAoEntrarChange !== undefined && (
+        <div className="lb-field">
+          <label className="lb-label" htmlFor={enterTextId}>
+            Ao entrar, o jogador lê
+          </label>
+          <textarea
+            id={enterTextId}
+            className="lb-input lb-textarea"
+            rows={3}
+            maxLength={ROOM_TEXT_MAX_LENGTH}
+            value={textoAoEntrar ?? ''}
+            aria-describedby={enterHintId}
+            onChange={(event) => onTextoAoEntrarChange(event.target.value)}
+          />
+          <p className="lb-field__hint" id={enterHintId}>
+            Aparece só para quem entra, na primeira vez. Tocar no nome da sala mostra de novo.
+          </p>
+        </div>
+      )}
+
+      {onNotaDoMestreChange !== undefined && (
+        <div className="lb-field">
+          <label className="lb-label" htmlFor={noteId}>
+            Nota do mestre
+          </label>
+          <textarea
+            id={noteId}
+            className="lb-input lb-textarea"
+            rows={3}
+            maxLength={ROOM_TEXT_MAX_LENGTH}
+            value={notaDoMestre ?? ''}
+            aria-describedby={noteHintId}
+            onChange={(event) => onNotaDoMestreChange(event.target.value)}
+          />
+          <p className="lb-field__hint" id={noteHintId}>
+            Só você lê. Nunca vai para a tela dos jogadores.
+          </p>
+        </div>
       )}
 
       {shape === 'rect' && axisAligned && (
