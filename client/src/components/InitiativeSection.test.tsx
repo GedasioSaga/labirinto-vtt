@@ -107,10 +107,13 @@ describe('InitiativeSection (aba Jogo)', () => {
     expect(lista?.tagName).toBe('OL')
     const itens = Array.from(lista?.querySelectorAll('li') ?? []).map((li) => li.textContent ?? '')
     expect(itens).toHaveLength(3)
+    // Valor como palavra isolada (igual à régua): "Machado17" não tem fronteira entre o nome e o valor.
     expect(itens[0]).toContain('Machado')
-    expect(itens[0]).toContain('17')
+    expect(itens[0]).toMatch(/\b17\b/)
     expect(itens[1]).toContain('Lanterna')
+    expect(itens[1]).toMatch(/\b12\b/)
     expect(itens[2]).toContain('Goblin')
+    expect(itens[2]).toMatch(/\b5\b/)
     expect(itens.join(' ')).not.toContain('Vulto')
   })
 

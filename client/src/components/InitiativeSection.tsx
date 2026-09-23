@@ -124,6 +124,8 @@ export function InitiativeSection({ tokens, values, turnTokenId, onValueChange, 
                 return (
                   <li key={entry.id} className={current ? 'lb-initiative__entry is-current' : 'lb-initiative__entry'} aria-current={current ? 'true' : undefined}>
                     <span className="lb-initiative__name">{entry.name}</span>
+                    {/* Espaço no texto da entrada: sem ele leitor de tela e busca leem "Machado17". Em flex ele não ocupa lugar. */}
+                    {' '}
                     <span className="lb-num">{entry.value}</span>
                   </li>
                 )
