@@ -25,7 +25,7 @@ import { TokenColorControls, type TokenColorControlsProps } from './TokenColorCo
 import { TokenSizeControls, type TokenSizeControlsProps } from './TokenSizeControls'
 import { TokenNpcControls, type TokenNpcControlsProps } from './TokenNpcControls'
 import { TokenCarryControls } from './TokenCarryControls'
-import type { PartyDestination } from '../lib/party'
+import type { TokenCarryWiring } from '../lib/party'
 import { selectedTokenSize } from '../lib/tokenSize'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
@@ -119,13 +119,7 @@ interface PropertiesPanelProps {
    * "Levar para…" da ficha sem dono (NPC, monstro) para outra cena. Ausente =
    * sem o controle (quem monta o painel sem aventura).
    */
-  tokenCarry?: {
-    /** As cenas que abriram, menos a aberta. */
-    destinations: PartyDestination[]
-    /** Fichas com dono na sala: essas vão pelo "Mandar para…" do Grupo. */
-    ownedTokenIds: ReadonlySet<string>
-    onCarry(tokenId: string, sceneId: string, pinId: string | null): boolean
-  }
+  tokenCarry?: TokenCarryWiring
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
