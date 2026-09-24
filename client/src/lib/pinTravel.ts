@@ -263,6 +263,38 @@ export function resolvePinTravel(
   return { status: 'ligado', sceneId: destino.sceneId, sceneName: scene.name, partner }
 }
 
+/**
+ * PASSAGEM SÓ DE IDA: por pino (id), as saídas (ids) cujo par é a chegada
+ * oculta. Pino sem saída só de ida não entra. É o que o recorte do jogador
+ * usa para marcar `semVolta` / `soIda` — só os ids DESTA cena, nada da outra.
+ */
+export type OneWayExits = ReadonlyMap<string, ReadonlySet<string>>
+
+/**
+ * As saídas só de ida dos pinos de `map`, a cena `hereSceneId`. Só conta a
+ * ligação que `resolvePinTravel` dá como ligada (o par existe e aponta de
+ * volta) e cujo par é `isArrivalOnly`. Cena de destino que não abriu fica de
+ * fora: sem certeza, o cartão não promete nada.
+ */
+export function oneWayExitsOf(
+  map: MapData,
+  hereSceneId: string | null,
+  sceneById: (sceneId: string) => TravelScene | null,
+): OneWayExits {
+  const found = new Map<string, Set<string>>()
+  if (hereSceneId === null) return found
+  for (const pin of map.pins) {
+    for (const saida of travelExitsOf(pin)) {
+      const travel = resolvePinTravel(pin, hereSceneId, sceneById, saida.id)
+      if (travel.status !== 'ligado' || !isArrivalOnly(travel.partner)) continue
+      const exits = found.get(pin.id) ?? new Set<string>()
+      exits.add(saida.id)
+      found.set(pin.id, exits)
+    }
+  }
+  return found
+}
+
 /** Um pino da cena aberta cuja ligação mudou entre dois estados do mapa. */
 export interface TravelLinkChange {
   pinId: string

@@ -26,6 +26,11 @@ interface PlayerPinCardProps {
 /** O que o cartão diz da passagem fechada, depois do motivo (ou do "Está trancada"). */
 const FECHADA_SEM_PASSAR = 'Não dá para passar por aqui agora.'
 
+/** Etiqueta da passagem cujo par é a chegada oculta (mão única). */
+const ETIQUETA_SO_IDA = 'Só ida'
+/** O que a pergunta de confirmação acrescenta numa passagem só de ida. */
+const AVISO_SO_IDA = 'Não dá para voltar por este caminho.'
+
 /**
  * Cenário sem foto. Fica como `<img>` de verdade, e não como um `<div>` vazio,
  * porque a área de imagem é parte do que o cartão promete: o jogador precisa
@@ -84,6 +89,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
   const askRef = useRef<HTMLButtonElement | null>(null)
+  const cancelRef = useRef<HTMLButtonElement | null>(null)
   /**
    * Pergunta "Pedir ao mestre…?" na tela, no lugar do botão de pedir. Numa
    * encruzilhada guarda a saída escolhida; `saida: null` = o pino de uma saída.
@@ -92,12 +98,15 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   /** A última saída escolhida: cancelar a pergunta devolve o foco ao botão DELA. */
   const [ultimaSaida, setUltimaSaida] = useState<string | null>(null)
   /** Para onde o foco volta depois de abrir ou fechar a pergunta; `null` = não mexe. */
-  const [focusTarget, setFocusTarget] = useState<'confirm' | 'ask' | null>(null)
+  const [focusTarget, setFocusTarget] = useState<'confirm' | 'cancel' | 'ask' | null>(null)
 
   useEffect(() => {
     // Quem chegou pelo teclado segue com o foco: abrir a pergunta o leva ao
-    // "Pedir"; cancelar o devolve ao botão que a abriu.
+    // "Pedir"; cancelar o devolve ao botão que a abriu. Passagem SÓ DE IDA não
+    // tem desfazer, então a pergunta começa no botão seguro, o "Cancelar":
+    // um Enter a mais não derruba o jogador num lugar de onde não volta.
     if (focusTarget === 'confirm') confirmRef.current?.focus()
+    if (focusTarget === 'cancel') cancelRef.current?.focus()
     if (focusTarget === 'ask') askRef.current?.focus()
   }, [focusTarget, confirming])
 
@@ -151,17 +160,22 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // saída só (ou sem o campo), o cartão é o de sempre.
   const escolhas = viagem ? (pin.escolhas ?? []) : []
   const encruzilhada = escolhas.length > 1
+  // SÓ IDA: o par é a chegada oculta. No pino de uma saída vem em `semVolta`;
+  // numa encruzilhada, por saída (`soIda`). O destino continua sem aparecer.
+  const semVolta = viagem && !encruzilhada && pin.semVolta === true
+  const saidaSoIda = (saida: PinExitLabel | null): boolean => (saida === null ? semVolta : saida.soIda === true)
   const perguntar = (saida: PinExitLabel | null) => {
     setConfirming({ saida })
     if (saida !== null) setUltimaSaida(saida.id)
-    setFocusTarget('confirm')
+    setFocusTarget(saidaSoIda(saida) ? 'cancel' : 'confirm')
   }
-  const pergunta =
+  const perguntaBase =
     confirming === null || confirming.saida === null
       ? textos.pergunta
       : passagem === 'livre'
         ? `Passar por ${confirming.saida.rotulo}?`
         : `Pedir ao mestre para passar por ${confirming.saida.rotulo}?`
+  const pergunta = confirming !== null && saidaSoIda(confirming.saida) ? `${perguntaBase} ${AVISO_SO_IDA}` : perguntaBase
 
   return (
     <div className="pp-pincard__backdrop">
@@ -185,6 +199,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
             {descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao}
           </p>
         </div>
+        {semVolta && <span className="pp-pincard__oneway pp-pincard__oneway--card">{ETIQUETA_SO_IDA}</span>}
         {trancada && (
           <p className="pp-pincard__locked">
             {motivo === null ? (
@@ -239,6 +254,12 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
                     onClick={() => perguntar(saida)}
                   >
                     {saida.rotulo}
+                    {saida.soIda === true && (
+                      <>
+                        {' '}
+                        <span className="pp-pincard__oneway">{ETIQUETA_SO_IDA}</span>
+                      </>
+                    )}
                   </button>
                 </li>
               ))}
@@ -268,6 +289,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
                 {textos.confirmar}
               </button>
               <button
+                ref={cancelRef}
                 type="button"
                 className="pp-pincard__close pp-pincard__close--inline"
                 onClick={() => {

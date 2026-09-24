@@ -1037,6 +1037,25 @@
   color: var(--lb-color-parchment, #eceae4);
 }
 
+/* "Só ida": a passagem não tem volta. Etiqueta chapada de linha fina, na cor
+   do texto em volta (clara no cartão, escura dentro do botão de latão) — diz
+   como a porta é, sem virar alerta. */
+.pp-pincard__oneway {
+  display: inline-block;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+}
+
+.pp-pincard__oneway--card {
+  align-self: flex-start;
+  margin: 6px 16px 0 52px;
+}
+
 /* "Me avise quando der": botão de alternar, secundário ao texto — linha fina,
    sem fundo. Ligado, a borda e o texto vão ao latão (o estado não é só cor:
    a frase de baixo diz "Você recebe um aviso"). */

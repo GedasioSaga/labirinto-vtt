@@ -268,6 +268,14 @@ export interface PinDestination {
 export interface PinExitLabel {
   id: string
   rotulo: string
+  /**
+   * SÓ NO RECORTE DO JOGADOR: o par desta saída é a chegada oculta (mão
+   * única) — o cartão marca "Só ida". Quem monta é o host (`lib/fogFilter.ts`);
+   * o mestre nunca grava. Ausente = a saída de sempre, com volta.
+   * Ausência documentada, sem linha de migração: `escolhas` inteiro (e o
+   * `soIda` de cada saída junto) já volta ausente do disco (`lib/mapFile.ts`).
+   */
+  soIda?: true
 }
 
 /**
@@ -395,6 +403,15 @@ export interface Pin extends PlayerSecret {
    * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.
    */
   escolhas?: PinExitLabel[]
+  /**
+   * SÓ NO RECORTE DO JOGADOR, e só no pino de UMA saída: o par dela é a
+   * chegada oculta (`soChegada`), então não há volta por aqui. O cartão mostra
+   * "Só ida" e a pergunta avisa antes de o jogador cair. É um booleano e nada
+   * mais: o destino continua fora do recorte. Quem monta é o host, que enxerga
+   * a outra cena (`oneWayExitsOf` em `lib/pinTravel.ts`); o mestre nunca grava.
+   * Numa encruzilhada o aviso vai por saída, em `escolhas[].soIda`.
+   */
+  semVolta?: true
 }
 
 /**

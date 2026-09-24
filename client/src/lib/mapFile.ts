@@ -239,6 +239,9 @@ function deserializeMapFields(json: string): MapData {
       // sempre, visível. O `...p` acima copiaria o valor cru, por isso a linha.
       soChegada: p.soChegada === true ? true : undefined,
       escolhas: undefined,
+      // SÓ IDA: `semVolta` é só do recorte do jogador, como `escolhas` (que
+      // leva o `soIda` de cada saída e já sai inteiro na linha de cima).
+      semVolta: undefined,
     })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
