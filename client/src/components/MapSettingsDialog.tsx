@@ -7,6 +7,7 @@ import { MapScaleControls, type MapScaleControlsProps } from './MapScaleControls
 import { ScenarioLinkControls, type ScenarioLinkControlsProps } from './ScenarioLinkControls'
 import { MovementControls, type MovementControlsProps } from './MovementControls'
 import { ArrivalTextControls, type ArrivalTextControlsProps } from './ArrivalTextControls'
+import { SceneFloorControls, type SceneFloorControlsProps } from './SceneFloorControls'
 import { FEATURES } from '../lib/features'
 
 export interface MapSettingsProps {
@@ -18,6 +19,8 @@ export interface MapSettingsProps {
   movement?: MovementControlsProps
   /** Texto de chegada da cena; ausente, a seção não aparece. */
   arrivalText?: ArrivalTextControlsProps
+  /** MAPA POR ANDARES: prédio e rótulo do andar da cena; ausente, a seção não aparece. */
+  sceneFloor?: SceneFloorControlsProps
 }
 
 export interface MapSettingsDialogProps extends MapSettingsProps {
@@ -53,6 +56,7 @@ export function MapSettingsDialog({
   scenarioLink,
   movement,
   arrivalText,
+  sceneFloor,
   showScenarioLink = FEATURES.scenarioLink,
 }: MapSettingsDialogProps & ScenarioLinkVisibility) {
   const titleId = useId()
@@ -135,6 +139,7 @@ export function MapSettingsDialog({
           {/* Logo depois da Medição: o passo máximo conta com a mesma régua. */}
           {movement && <MovementControls {...movement} />}
           {arrivalText && <ArrivalTextControls {...arrivalText} />}
+          {sceneFloor && <SceneFloorControls {...sceneFloor} />}
           {showScenarioLink && <ScenarioLinkControls {...scenarioLink} />}
         </div>
       </div>

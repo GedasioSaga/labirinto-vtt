@@ -781,7 +781,15 @@ export function filterMapForGroup(
   // TEXTO DE CHEGADA: fica aqui também. No snapshot, quem já está na cena o
   // receberia de novo a cada broadcast (e a tela da mesa o mostraria a todos);
   // ele viaja só no `scene.changed` de quem chega (`net/hostSession.ts`).
-  const { hazards: _masterHazards, gatilhos: _masterTriggers, textoChegada: _arrivalText, ...mapWithoutHazards } = map
+  // MAPA POR ANDARES: o nome do prédio é do mestre; o rótulo do andar viaja à
+  // parte (`snapshot.andares`), só quando o host decide que ele vale.
+  const {
+    hazards: _masterHazards,
+    gatilhos: _masterTriggers,
+    textoChegada: _arrivalText,
+    andar: _masterFloor,
+    ...mapWithoutHazards
+  } = map
 
   // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
   const playerTokens = layerTokens.filter(
@@ -984,6 +992,26 @@ function filterWorldMapForGroup(
   const others = view.map.tokens.filter((t) => !memberIds.has(t.id))
   const tokens = caravanSent ? [caravanTokenFor(members, at), ...others] : others
   return { ...view, map: { ...view.map, worldMap: true, tokens } }
+}
+
+/** MAPA POR ANDARES: o que o jogador guarda de um andar onde NÃO está agora. */
+export interface FloorMemoryView {
+  map: MapData
+  /** Zonas ocultas ativas do andar (só a geometria), para pintar preto por cima. */
+  concealed: RegionPoint[][]
+}
+
+/**
+ * MAPA POR ANDARES — o recorte de um andar onde o jogador já esteve e não está
+ * agora: o mesmo recorte de sempre com um grupo VAZIO. Sem ninguém olhando, não
+ * há visão; sobra só a planta estática que `explored` e `seenDoors` (a memória
+ * DELE, somente leitura) já conhecem. Toda ficha — dele, de colega, do mestre —
+ * fica de fora: ficha exige visão, e ninguém dele está lá. Teto de prédio fica
+ * fechado, zona oculta e sala secreta continuam escondidas.
+ */
+export function filterFloorMemory(map: MapData, explored: Exploration, seenDoors: ReadonlyMap<string, DoorState>): FloorMemoryView {
+  const view = filterMapForGroup(map, [], explored, seenDoors)
+  return { map: view.map, concealed: view.concealed }
 }
 
 /** O host vê o mapa inteiro, inclusive itens ocultos. */

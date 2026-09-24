@@ -41,6 +41,24 @@ describe('recorte do jogador: o texto de chegada não sai', () => {
     expect(JSON.stringify(view)).not.toContain(TEXTO)
   })
 
+  it('cena que é andar de prédio E tem texto: nenhum dos dois campos do mestre sai', () => {
+    // União com MAPA POR ANDARES: os dois tiram campo no MESMO destructure do
+    // recorte; resolver a junção pegando um lado só vazaria o outro.
+    const predio = 'Delegacia de Raccoon'
+    const mapa: MapData = { ...cripta(false), andar: { predio, rotulo: '2F' } }
+    for (const view of [
+      filterMapForPlayer(mapa, 'p1', { p1: ['heroi'] }, 700),
+      filterMapForGroup(mapa, [{ tokenIds: ['heroi'], visionRadius: 700 }]),
+    ]) {
+      expect(view.map.id).toBe('m-cripta')
+      expect('textoChegada' in view.map).toBe(false)
+      expect('andar' in view.map).toBe(false)
+      const json = JSON.stringify(view)
+      expect(json).not.toContain(TEXTO)
+      expect(json).not.toContain(predio)
+    }
+  })
+
   it('mapa-mundi (caravana): mesma regra', () => {
     const view = filterMapForPlayer(cripta(true), 'p1', { p1: ['heroi'] }, 700)
     expect(view.map.worldMap).toBe(true)

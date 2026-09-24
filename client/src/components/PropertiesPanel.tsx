@@ -14,6 +14,7 @@ import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls
 import type { ScenarioLinkControlsProps } from './ScenarioLinkControls'
 import type { MovementControlsProps } from './MovementControls'
 import type { ArrivalTextControlsProps } from './ArrivalTextControls'
+import type { SceneFloorControlsProps } from './SceneFloorControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
 import { RegionJoinField, RegionSmoothButton, RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
@@ -103,6 +104,8 @@ interface PropertiesPanelProps {
   movement?: MovementControlsProps
   /** "Texto de chegada" na janela Configurações do mapa; ausente, a seção não aparece. */
   arrivalText?: ArrivalTextControlsProps
+  /** MAPA POR ANDARES: "Andar do prédio" na janela Configurações do mapa; ausente, a seção não aparece. */
+  sceneFloor?: SceneFloorControlsProps
   selectedWall: Wall | null
   wallDoor: Omit<WallDoorControlsProps, 'door'>
   doorKind: DoorKindControlsProps
@@ -197,6 +200,7 @@ export function PropertiesPanel({
   scenarioLink,
   movement,
   arrivalText,
+  sceneFloor,
   selectedWall,
   wallDoor,
   doorKind,
@@ -267,7 +271,7 @@ export function PropertiesPanel({
             {mapName} · {mapWidth}×{mapHeight} · {mapGrid}px
           </span>
         </span>
-        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} scenarioLink={scenarioLink} movement={movement} arrivalText={arrivalText} />
+        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} scenarioLink={scenarioLink} movement={movement} sceneFloor={sceneFloor} arrivalText={arrivalText} />
       </header>
 
       <div className="lb-inspector__body lb-scroll">

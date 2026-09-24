@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, TokenCondition, MovementRules, HazardKind, AreaTriggerKind,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
@@ -753,6 +753,8 @@ interface MapStoreState {
   setWorldMap: (worldMap: boolean) => void
   /** TEXTO DE CHEGADA da cena aberta (`lib/arrivalText.ts`); vazio tira. Com desfazer; o mesmo texto não vira passo. */
   setArrivalText: (text: string) => void
+  /** MAPA POR ANDARES: de que prédio a cena é andar, e o rótulo da aba do jogador. `undefined` = cena comum. Com desfazer. */
+  setSceneFloor: (andar: SceneFloor | undefined) => void
   setScenarioLink: (value: string | null) => void
   setPropLinkedPath: (id: string, path: string | null) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
@@ -1518,6 +1520,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (setArrivalTextOnMap(get().map, text) === get().map) return
       withHistory((map) => setArrivalTextOnMap(map, text))
     },
+    setSceneFloor: (andar) => withHistory((map) => mapFactory.setSceneFloor(map, andar)),
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({
       ...map,
