@@ -49,6 +49,12 @@ export interface ToastResposta {
   rotulo: string
   maxLength: number
   enviar: (texto: string) => void
+  /**
+   * Respostas prontas mostradas com o campo aberto (os motivos recentes do
+   * "Não, porque…"): tocar numa envia ela. Função, e não lista, porque o
+   * aviso nasce antes das respostas dadas enquanto ele espera. Ausente = nenhuma.
+   */
+  recentes?: () => readonly string[]
 }
 
 export interface ToastMessage {

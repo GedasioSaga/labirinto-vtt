@@ -43,6 +43,8 @@ import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type
  * vem logo depois). Nenhuma delas carrega nome nem id de cena: o jogador só
  * descobre para onde foi pelo mapa que chega depois da aprovação. Mestre
  * antigo responde `error invalid_message`; jogador antigo ignora as três.
+ * O `text` opcional do `pin.travel.denied` é o motivo que o MESTRE escreveu
+ * para quem pediu ("Não, porque…"): vai só a ele e não é do mapa.
  *
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
@@ -98,6 +100,8 @@ export const CALL_REASON_LABELS: Record<CallReason, string> = {
 }
 /** Teto do texto curto do chamado, em unidades UTF-16 (o `maxLength` do campo conta igual). */
 export const CALL_TEXT_MAX_LENGTH = 140
+/** Teto do motivo do "Não, porque…" do pedido de passagem, em unidades UTF-16 (o `maxLength` do campo conta igual). */
+export const TRAVEL_DENY_TEXT_MAX_LENGTH = 80
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
@@ -341,7 +345,9 @@ export type HostMessage =
   | { type: 'door.request.rejected'; wallId: string; reason: DoorRequestRejection }
   | { type: 'door.request.answer'; answer: DoorRequestAnswer }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
-  | { type: 'pin.travel.denied' }
+  // `text`: o motivo curto do "Não, porque…" (até `TRAVEL_DENY_TEXT_MAX_LENGTH`).
+  // Aditivo: jogador antigo ignora o campo e lê o "não deixou" de sempre.
+  | { type: 'pin.travel.denied'; text?: string }
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
   // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um
@@ -468,10 +474,29 @@ function parseTokenEdit(obj: Record<string, unknown>): TokenEditMessage | null {
  * meio (surrogate alto sozinho) viraria um losango de erro na tela do jogador.
  */
 export function clampNoteText(text: string): string {
-  if (text.length <= NOTE_MAX_LENGTH) return text
-  const cut = text.slice(0, NOTE_MAX_LENGTH)
+  return clampText(text, NOTE_MAX_LENGTH)
+}
+
+/** O motivo do "Não, porque…" cortado no teto dele, pela mesma regra do recado. */
+export function clampTravelDenyText(text: string): string {
+  return clampText(text, TRAVEL_DENY_TEXT_MAX_LENGTH)
+}
+
+function clampText(text: string, max: number): string {
+  if (text.length <= max) return text
+  const cut = text.slice(0, max)
   const last = cut.charCodeAt(cut.length - 1)
   return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut
+}
+
+/**
+ * O motivo do `pin.travel.denied` que o jogador recebe: texto de 1 a
+ * `TRAVEL_DENY_TEXT_MAX_LENGTH`. Qualquer outra coisa vale "sem motivo" — a
+ * recusa continua valendo, só a frase não chega: o jogador precisa saber que
+ * não passou mesmo que o motivo venha estragado.
+ */
+export function parseTravelDenyText(value: unknown): string | undefined {
+  return isBoundedString(value, 1, TRAVEL_DENY_TEXT_MAX_LENGTH) ? value : undefined
 }
 
 /**
