@@ -1,4 +1,26 @@
 import type { MapData, Pin, PinPassage, Stair, StairDirection } from '../types/map'
+import type { TravelSceneOption } from './pinTravel'
+
+/**
+ * O "Leva a…" da escada no painel do mestre: para qual andar (cena da
+ * aventura) ela leva e como o jogador passa. Quem monta é
+ * `stairTravelPanel` (`stores/adventureStore.ts`); quem desenha é
+ * `components/StairControls.tsx`.
+ */
+export interface StairTravelProps {
+  /** As outras cenas da aventura (`travelSceneOptions`). */
+  scenes: readonly TravelSceneOption[]
+  /** A cena para onde a escada leva hoje; `null` = não leva a lugar nenhum. */
+  linkedSceneId: string | null
+  /** Modo do pino da escada (só vale com a escada ligada). */
+  passage: PinPassage
+  /** Liga a escada a `sceneId` com o modo `passage`: nasce lá a escada par. */
+  onLink: (sceneId: string, passage: PinPassage) => void
+  /** "Nenhum outro andar". */
+  onUnlink: () => void
+  /** Troca o modo da escada já ligada. */
+  onPassageChange: (passage: PinPassage) => void
+}
 
 /**
  * ESCADA QUE LEVA A OUTRO ANDAR — as regras puras, sem store, sem DOM, sem Pixi.

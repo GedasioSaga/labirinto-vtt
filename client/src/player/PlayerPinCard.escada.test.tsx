@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Pin } from '../types/map'
+import type { Pin, Stair } from '../types/map'
 import { PlayerPinCard } from './PlayerPinCard'
 
 /**
@@ -10,6 +10,8 @@ import { PlayerPinCard } from './PlayerPinCard'
  */
 
 const PINO: Pin = { id: 'pino-da-escada', x: 0, y: 0, kind: 'viagem', description: '', image: null, passagem: 'livre', escadaId: 'escada' }
+const SOBE: Stair = { id: 'escada', shape: 'straight', direction: 'up', segments: [{ x1: 0, y1: 0, x2: 0, y2: -80 }], stepWidth: 40 }
+const DESCE: Stair = { ...SOBE, direction: 'down' }
 
 describe('PlayerPinCard: escada', () => {
   let container: HTMLDivElement
@@ -35,7 +37,7 @@ describe('PlayerPinCard: escada', () => {
 
   it('escada que sobe: lê "Subir", passa com "Passar" e confirma', () => {
     const onRequestTravel = vi.fn()
-    act(() => root.render(<PlayerPinCard pin={PINO} stairDirection="up" onClose={() => {}} onRequestTravel={onRequestTravel} />))
+    act(() => root.render(<PlayerPinCard pin={PINO} stairs={[SOBE]} onClose={() => {}} onRequestTravel={onRequestTravel} />))
     const dialogo = container.querySelector('[role="dialog"]')
     expect(dialogo?.getAttribute('aria-label')).toBe('Subir')
     expect(container.querySelector('.pp-pincard__text')?.textContent).toBe('Subir')
@@ -49,14 +51,20 @@ describe('PlayerPinCard: escada', () => {
   })
 
   it('escada que desce, pedindo ao mestre: lê "Descer" e "Pedir para descer"', () => {
-    act(() => root.render(<PlayerPinCard pin={{ ...PINO, passagem: 'pede' }} stairDirection="down" onClose={() => {}} onRequestTravel={() => {}} />))
+    act(() => root.render(<PlayerPinCard pin={{ ...PINO, passagem: 'pede' }} stairs={[DESCE]} onClose={() => {}} onRequestTravel={() => {}} />))
     expect(container.querySelector('.pp-pincard__text')?.textContent).toBe('Descer')
     expect(botao('Pedir para descer').disabled).toBe(false)
   })
 
   it('escada trancada: lê o sentido e que não dá para passar, sem botão de passar', () => {
-    act(() => root.render(<PlayerPinCard pin={{ ...PINO, passagem: 'trancada' }} stairDirection="up" onClose={() => {}} onRequestTravel={() => {}} />))
+    act(() => root.render(<PlayerPinCard pin={{ ...PINO, passagem: 'trancada' }} stairs={[SOBE]} onClose={() => {}} onRequestTravel={() => {}} />))
     expect(container.querySelector('.pp-pincard__locked')?.textContent).toBe('Está trancada. Não dá para passar por aqui agora.')
     expect(Array.from(container.querySelectorAll('button')).map((b) => b.textContent)).toEqual(['Fechar'])
+  })
+
+  it('pino de escada cuja escada não veio no recorte: o cartão de passagem de sempre, sem "Subir"', () => {
+    act(() => root.render(<PlayerPinCard pin={PINO} stairs={[]} onClose={() => {}} onRequestTravel={() => {}} />))
+    expect(container.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Passagem')
+    expect(container.textContent).not.toContain('Subir')
   })
 })

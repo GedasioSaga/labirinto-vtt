@@ -33,6 +33,7 @@ const { useMapStore } = await import('./mapStore')
 const { useSessionStore } = await import('./sessionStore')
 const { createEmptyMap } = await import('../lib/mapFactory')
 const { visiblePins } = await import('../lib/layers')
+const { filterMapForPlayer } = await import('../lib/fogFilter')
 
 // O guardião da mão dupla, ligado como o App liga.
 subscribeToTravelLinks()
@@ -132,10 +133,85 @@ describe('escada: Leva a… outro andar', () => {
     expect(pinoDaEscada(mapaDoFundo(m.andar1), parId).destino ?? null).toBeNull()
   })
 
+  it('duplicar o andar: a escada copiada sai solta, sem pino órfão da escada antiga', () => {
+    const m = montar()
+    useAdventureStore.getState().linkStairToFloor('escada-terreo', m.andar1, 'livre')
+    const copiaId = useAdventureStore.getState().duplicateScene(m.terreo)
+    if (copiaId === null) throw new Error('não duplicou')
+    const copia = mapaDoFundo(copiaId)
+    expect(copia.stairs).toHaveLength(1)
+    const escadaCopiada = copia.stairs[0]
+    expect(escadaCopiada.id).not.toBe('escada-terreo')
+    // Nenhum pino de escada sobra na cópia: nem com o id da escada antiga (órfão), nem solto sem destino.
+    expect(copia.pins.filter((p) => p.escadaId !== undefined)).toEqual([])
+    expect(copia.pins).toEqual([])
+    // O original continua ligado.
+    expect(stairTravelOf(useAdventureStore.getState(), useMapStore.getState().map, ESCADA).status).toBe('ligado')
+  })
+
   it('não liga para a própria cena, nem escada que não existe', () => {
     const m = montar()
     expect(useAdventureStore.getState().linkStairToFloor('escada-terreo', m.terreo, 'livre')).toBeNull()
     expect(useAdventureStore.getState().linkStairToFloor('nao-existe', m.andar1, 'livre')).toBeNull()
     expect(useMapStore.getState().map.pins).toEqual([])
+  })
+})
+
+/**
+ * O que o jogador que está no 1º andar recebe da escada de lá: com a ligação
+ * viva, o pino dela; depois que a de baixo deixa de levar lá (desligada,
+ * apagada ou religada a outro andar), a escada continua desenhada, mas o pino
+ * morto não sai — tocar nela não pode abrir "Descer por aqui?" para o host recusar.
+ */
+describe('escada: o outro andar nunca leva o jogador a lugar nenhum', () => {
+  const POSSE = { p1: ['bruno'] }
+  const RAIO = 300
+
+  function recorteDeCima(andar1: string, parId: string): MapData {
+    const cima = mapaDoFundo(andar1)
+    const pino = pinoDaEscada(cima, parId)
+    const bruno = { id: 'bruno', characterId: null, name: 'Bruno', x: pino.x, y: pino.y, size: 1, image: null }
+    return filterMapForPlayer({ ...cima, tokens: [bruno] }, 'p1', POSSE, RAIO).map
+  }
+
+  function ligado(): { m: { terreo: string; andar1: string }; parId: string } {
+    const m = montar()
+    const parId = useAdventureStore.getState().linkStairToFloor('escada-terreo', m.andar1, 'livre')
+    if (parId === null) throw new Error('não ligou')
+    // Piso: com a ligação viva, o jogador lá em cima recebe o pino da escada.
+    expect(recorteDeCima(m.andar1, parId).pins.map((p) => p.escadaId)).toEqual([parId])
+    return { m, parId }
+  }
+
+  it('"Nenhum outro andar" embaixo: a escada de cima sai, o pino dela não', () => {
+    const { m, parId } = ligado()
+    useAdventureStore.getState().unlinkStair('escada-terreo')
+    const view = recorteDeCima(m.andar1, parId)
+    expect(view.stairs.map((s) => s.id)).toEqual([parId])
+    expect(view.pins).toEqual([])
+  })
+
+  it('apagar a escada de baixo: o pino de cima não sai', () => {
+    const { m, parId } = ligado()
+    useMapStore.getState().removeStair('escada-terreo')
+    expect(recorteDeCima(m.andar1, parId).pins).toEqual([])
+  })
+
+  it('religar a escada de baixo a outro andar: o pino do andar antigo não sai', () => {
+    const { m, parId } = ligado()
+    const porao = useAdventureStore.getState().createScene('Porão', null)
+    useAdventureStore.getState().switchScene(m.terreo)
+    const novoPar = useAdventureStore.getState().linkStairToFloor('escada-terreo', porao, 'livre')
+    expect(novoPar).not.toBeNull()
+    expect(stairTravelOf(useAdventureStore.getState(), useMapStore.getState().map, ESCADA).status).toBe('ligado')
+    expect(recorteDeCima(m.andar1, parId).pins).toEqual([])
+  })
+
+  it('desfazer o "Nenhum outro andar" religa, e o jogador de cima volta a receber o pino', () => {
+    const { m, parId } = ligado()
+    useAdventureStore.getState().unlinkStair('escada-terreo')
+    expect(recorteDeCima(m.andar1, parId).pins).toEqual([])
+    useMapStore.getState().undo()
+    expect(recorteDeCima(m.andar1, parId).pins.map((p) => p.escadaId)).toEqual([parId])
   })
 })

@@ -40,7 +40,7 @@ describe('StairControls: Leva a…', () => {
     container.remove()
   })
 
-  function render(t: StairTravelProps | undefined): void {
+  function render(t: StairTravelProps | null): void {
     act(() =>
       root.render(<StairControls direction="up" onDirectionChange={() => {}} stepWidth={64} onStepWidthChange={() => {}} grid={64} travel={t} />),
     )
@@ -101,7 +101,7 @@ describe('StairControls: Leva a…', () => {
   })
 
   it('sem aventura (mapa solto): a seção "Leva a" não aparece', () => {
-    render(undefined)
+    render(null)
     expect(container.querySelector('#lb-stair-leva-a')).toBeNull()
     expect(container.querySelector('[aria-label="Sentido da escada"]')).not.toBeNull()
   })

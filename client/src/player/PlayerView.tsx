@@ -12,8 +12,7 @@ import { roomHasRoof } from '../lib/roomOps'
 import { visibleDrawings, visibleLights, visibleRegions, visibleStairs } from '../lib/layers'
 import { visionSegments } from '../lib/visibility'
 import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
-import { findPinAt } from '../lib/pins'
-import { findStairPinAt } from '../lib/selectionHitTest'
+import { findPlayerPinAt } from '../lib/selectionHitTest'
 import { visiblePins } from '../lib/layers'
 import { createPinsRenderer } from '../pixi/drawPins'
 import { fitCamera, panBy, zoomAt } from '../pixi/world'
@@ -718,13 +717,10 @@ export function PlayerView({
   function pinAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
     const map = latestRef.current.map
     const point = scene.world.toLocal({ x: screenX, y: screenY })
-    const tolerance = DOOR_TAP_TOLERANCE_PX / scene.camera.scale
-    const pin = findPinAt(visiblePins(map.pins ?? [], map.hiddenLayers), point, tolerance)
-    if (pin !== null) return pin.id
-    // Escada que leva a outro andar: o toque no lance abre o pino invisível
-    // dela ("Subir"/"Descer"). Escada sem ligação não tem pino no recorte.
-    const stairPin = findStairPinAt({ stairs: map.stairs, pins: map.pins ?? [], hiddenLayers: map.hiddenLayers }, point, tolerance)
-    return stairPin === null ? null : stairPin.id
+    // O pino à vista ou, no lance de uma escada que leva a outro andar, o pino
+    // invisível dela ("Subir"/"Descer"). Escada sem ligação não tem pino no recorte.
+    const pin = findPlayerPinAt({ stairs: map.stairs, pins: map.pins ?? [], hiddenLayers: map.hiddenLayers }, point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
+    return pin === null ? null : pin.id
   }
 
   /** Só o zoom (ou a resolução) mudou: nada de chão ou névoa. */

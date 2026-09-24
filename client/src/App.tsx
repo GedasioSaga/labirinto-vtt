@@ -40,7 +40,7 @@ import {
   sceneDeletionInfo,
   sceneList,
   sceneMaps,
-  stairTravelOf,
+  stairTravelPanel,
   subscribeToTravelLinks,
   travelSceneOptions,
   useAdventureStore,
@@ -63,9 +63,7 @@ import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
 import { saveMapImage } from './lib/mapImageSave'
-import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Stair, Token, Wall } from './types/map'
-import type { StairTravelProps } from './components/StairControls'
-import { stairPinOf } from './lib/stairTravel'
+import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
 import type { Screen } from './types/screen'
@@ -1290,27 +1288,6 @@ function App() {
   }
 
   /**
-   * "Leva a…" da escada selecionada. Só numa aventura: no mapa solto não há
-   * outro andar, e a seção não aparece. A ligação vive no `adventureStore`.
-   */
-  const stairTravelPanel = (stair: Stair): StairTravelProps | undefined => {
-    if (adventure === null) return undefined
-    const scenes = { adventure, activeSceneId, cache: sceneCache }
-    const travel = stairTravelOf(scenes, map, stair)
-    const pin = stairPinOf(map, stair.id)
-    return {
-      scenes: travelSceneOptions(scenes),
-      linkedSceneId: travel.status === 'sem-destino' ? null : travel.sceneId,
-      passage: pin === undefined ? 'pede' : passageOf(pin),
-      onLink: (sceneId, passagem) => {
-        useAdventureStore.getState().linkStairToFloor(stair.id, sceneId, passagem)
-      },
-      onUnlink: () => useAdventureStore.getState().unlinkStair(stair.id),
-      onPassageChange: (passagem) => useAdventureStore.getState().setStairPassage(stair.id, passagem),
-    }
-  }
-
-  /**
    * O destino do pino de viagem aberto no painel: o que ele diz ("Leva a
    * Cripta", "Sem destino") e o que o "Leva a…" oferece. A ligação vive no
    * `adventureStore` — o painel só lê e pede.
@@ -2126,7 +2103,8 @@ function App() {
               stepWidth: selectedStair?.stepWidth ?? map.grid,
               onStepWidthChange: (stepWidth) => selectedStair && setStairStepWidthForStair(selectedStair.id, stepWidth),
               grid: map.grid,
-              travel: selectedStair === null ? undefined : stairTravelPanel(selectedStair),
+              // "Leva a…": `null` sem escada selecionada ou fora de uma aventura (a seção some).
+              travel: selectedStair === null ? null : stairTravelPanel({ adventure, activeSceneId, cache: sceneCache }, map, selectedStair),
             }}
             polygonSides={{
               sides: polygonSides,

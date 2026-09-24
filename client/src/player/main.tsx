@@ -545,9 +545,6 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   }
 
   const openPin = openPinId === null ? null : (map?.pins ?? []).find((p) => p.id === openPinId) ?? null
-  // Pino de escada: o cartão fala o sentido dela. A escada vem no mesmo recorte
-  // que o pino (`lib/fogFilter.ts` só manda um com o outro).
-  const openPinStair = openPin?.escadaId === undefined ? undefined : (map?.stairs ?? []).find((s) => s.id === openPin.escadaId)
   // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
   // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
   const closePin = useCallback(() => setOpenPinId(null), [])
@@ -609,7 +606,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         {openPin && (
           <PlayerPinCard
             pin={openPin}
-            stairDirection={openPinStair?.direction}
+            stairs={state.map.stairs}
             onClose={closePin}
             travelWaiting={state.travel?.phase === 'waiting'}
             onRequestTravel={(exitId) => {

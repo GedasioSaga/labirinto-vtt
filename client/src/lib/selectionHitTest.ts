@@ -3,9 +3,10 @@ import type { Selection } from '../types/tools'
 import { findTokenAt } from '../pixi/tokenInteraction'
 import { findPropAt } from '../pixi/propInteraction'
 import {
-  visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps,
+  visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
   isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
 } from './layers'
+import { findPinAt } from './pins'
 
 export interface Point {
   x: number
@@ -78,6 +79,16 @@ export function findStairPinAt(map: Pick<MapData, 'stairs' | 'pins' | 'hiddenLay
   const stair = findStairAt(linked, point, tolerance)
   if (stair === null) return null
   return map.pins.find((p) => p.escadaId === stair.id) ?? null
+}
+
+/**
+ * O que o toque do JOGADOR abre no mapa do recorte: o pino que se desenha ali
+ * (ele fica por cima) ou, no lance de uma escada que leva a outro andar, o pino
+ * invisível dela. É a única chamada do `PlayerView` para "tocou em quê?" — a
+ * escada não depende de alguém lembrar de perguntar por ela à parte.
+ */
+export function findPlayerPinAt(map: Pick<MapData, 'stairs' | 'pins' | 'hiddenLayers'>, point: Point, tolerance: number): Pin | null {
+  return findPinAt(visiblePins(map.pins, map.hiddenLayers), point, tolerance) ?? findStairPinAt(map, point, tolerance)
 }
 
 export function findLightAt(lights: Light[], point: Point, handleRadius = LIGHT_HIT_RADIUS): Light | null {

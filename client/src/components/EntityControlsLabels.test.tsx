@@ -92,7 +92,7 @@ describe('WallDoorControls — rótulos fixos', () => {
 describe('StairControls — sentido como segmento Sobe | Desce', () => {
   it('marca o sentido atual e troca ao clicar', () => {
     const onDirectionChange = vi.fn()
-    render(<StairControls direction="up" onDirectionChange={onDirectionChange} stepWidth={32} onStepWidthChange={vi.fn()} grid={64} />)
+    render(<StairControls direction="up" onDirectionChange={onDirectionChange} stepWidth={32} onStepWidthChange={vi.fn()} grid={64} travel={null} />)
     const group = container.querySelector('[role="radiogroup"][aria-label="Sentido da escada"]')
     expect(group).not.toBeNull()
     const up = buttonByText('Sobe')

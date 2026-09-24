@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { MapData, Pin, PinDestination, PinPassage, Stair, Token } from '../types/map'
-import { buildPartnerStair, buildStairPin, stairPinOf } from '../lib/stairTravel'
+import { buildPartnerStair, buildStairPin, stairPinOf, type StairTravelProps } from '../lib/stairTravel'
+import { passageOf } from '../lib/pins'
 import { singleSceneWorld, type HostScene, type HostWorld } from '../net/hostSession'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
@@ -386,6 +387,30 @@ export function pinTravelOf(state: SceneState, liveMap: MapData, pin: Pin): PinT
 export function stairTravelOf(state: SceneState, liveMap: MapData, stair: Stair): PinTravel {
   const pin = stairPinOf(liveMap, stair.id)
   return pin === undefined ? { status: 'sem-destino' } : pinTravelOf(state, liveMap, pin)
+}
+
+/**
+ * O "Leva a…" da escada `stair` da cena aberta, pronto para o painel dela
+ * (`components/StairControls.tsx`): as outras cenas, para onde leva hoje e o
+ * modo, com as ações ligadas a esta store. `null` fora de uma aventura: no
+ * mapa solto não há outro andar, e a seção não aparece.
+ */
+export function stairTravelPanel(state: SceneState, liveMap: MapData, stair: Stair): StairTravelProps | null {
+  if (state.adventure === null) return null
+  const travel = stairTravelOf(state, liveMap, stair)
+  const pin = stairPinOf(liveMap, stair.id)
+  return {
+    scenes: travelSceneOptions(state),
+    // O pino que o guardião desligou (o par de lá foi desligado ou apagado) é
+    // "sem destino": não leva a lugar nenhum, e o painel diz isso.
+    linkedSceneId: travel.status === 'sem-destino' ? null : travel.sceneId,
+    passage: pin === undefined ? 'pede' : passageOf(pin),
+    onLink: (sceneId, passagem) => {
+      useAdventureStore.getState().linkStairToFloor(stair.id, sceneId, passagem)
+    },
+    onUnlink: () => useAdventureStore.getState().unlinkStair(stair.id),
+    onPassageChange: (passagem) => useAdventureStore.getState().setStairPassage(stair.id, passagem),
+  }
 }
 
 /** Uma saída do pino aberto no painel: o id, o nome que o mestre deu e para onde ela leva. */

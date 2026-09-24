@@ -5,7 +5,7 @@ import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
-import { exitLabelsOf, isArrivalOnly } from './pinTravel'
+import { exitLabelsOf, isArrivalOnly, travelExitsOf } from './pinTravel'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
@@ -734,7 +734,12 @@ export function filterMapForPlayer(
       .filter((p) => {
         if (isArrivalOnly(p)) return false
         // Pino de escada: a escada manda (ver `playerStairIds`); o segredo do próprio pino também.
-        if (p.escadaId !== undefined) return playerStairIds.has(p.escadaId) && !p.hidden && !p.secret
+        // E só a escada que LEVA a algum lugar: o par que o guardião desligou (a de baixo foi
+        // desligada, apagada ou religada a outro andar) fica sem destino e não sai — senão o
+        // toque abriria "Descer por aqui?" para o host recusar. A escada continua desenhada.
+        if (p.escadaId !== undefined) {
+          return playerStairIds.has(p.escadaId) && !p.hidden && !p.secret && travelExitsOf(p).length > 0
+        }
         if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return false
         const point = { x: p.x, y: p.y }
         return !inRoomHiddenFromPlayer(point) && isPointKnown(point)

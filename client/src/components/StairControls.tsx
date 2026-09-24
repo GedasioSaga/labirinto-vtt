@@ -2,27 +2,9 @@ import { useState } from 'react'
 import type { PinPassage, StairDirection } from '../types/map'
 import { stairSizePresetForStepWidth, stairStepWidthForPreset, type StairSizePreset } from '../lib/stairs'
 import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
-import type { TravelSceneOption } from '../lib/pinTravel'
+import type { StairTravelProps } from '../lib/stairTravel'
 
-/**
- * "Leva a…" da escada: para qual andar (cena da aventura) ela leva e como o
- * jogador passa. A ligação mora no pino invisível da escada
- * (`lib/stairTravel.ts`) — o painel só lê e pede ao `adventureStore`.
- */
-export interface StairTravelProps {
-  /** As outras cenas da aventura (`travelSceneOptions`). */
-  scenes: readonly TravelSceneOption[]
-  /** A cena para onde a escada leva hoje; `null` = não leva a lugar nenhum. */
-  linkedSceneId: string | null
-  /** Modo do pino da escada (só vale com a escada ligada). */
-  passage: PinPassage
-  /** Liga a escada a `sceneId` com o modo `passage`: nasce lá a escada par. */
-  onLink: (sceneId: string, passage: PinPassage) => void
-  /** "Nenhum outro andar". */
-  onUnlink: () => void
-  /** Troca o modo da escada já ligada. */
-  onPassageChange: (passage: PinPassage) => void
-}
+export type { StairTravelProps }
 
 export interface StairControlsProps {
   direction: StairDirection
@@ -34,8 +16,12 @@ export interface StairControlsProps {
    *  célula (ver STAIR_SIZE_PRESET_RATIO em lib/stairs.ts). Não editável
    *  aqui: é propriedade do mapa, não da escada. */
   grid: number
-  /** Só numa aventura (há outro andar para onde ir). Ausente = mapa solto: a seção não aparece. */
-  travel?: StairTravelProps
+  /**
+   * "Leva a…" (`stairTravelPanel`). `null` = mapa solto, sem outro andar: a
+   * seção não aparece. OBRIGATÓRIO de propósito: quem monta o painel da escada
+   * não pode esquecer a ligação e sumir com a seção sem o compilador ver.
+   */
+  travel: StairTravelProps | null
 }
 
 const MIN_STEP_WIDTH = 1
@@ -92,24 +78,6 @@ function StairDirectionArt({ direction }: { direction: StairDirection }) {
   )
 }
 
-/**
- * Sentido de subida e largura do lance (`stepWidth`) da escada SELECIONADA.
- *
- * `stepWidth` ganhou controle nesta rodada (F4, N1 "escada pequena média
- * grande") — a rodada anterior (F2) omitia de propósito, ver
- * docs/PLANO-FASES.md §3. Dois jeitos de editar o mesmo valor: 3 presets
- * P/M/G (múltiplos de `grid`, critério em lib/stairs.ts) para o caso comum,
- * mais um campo numérico fino para quem quiser um valor entre eles — mesmo
- * padrão de dois controles pro mesmo eixo que `PolygonSidesControls` (slider)
- * versus a setinha de variantes (presets curados) usa para `polygonSides`.
- *
- * Ao contrário de WallStyleControls, não existe (ainda) uma preferência
- * "próxima escada" para `stepWidth` aqui dentro — este componente só edita a
- * entidade JÁ SELECIONADA: `selectedStair.stepWidth`/`(w) =>
- * setStairStepWidth(selectedStair.id, w)`. A preferência de sessão para a
- * PRÓXIMA escada (mesma classe de `wallKind`/`polygonSides`) é o que a
- * setinha de variantes da Toolbar edita — ver CONTRATO do agente.
- */
 /**
  * "Leva a…" da escada. Escolher o andar LIGA na hora: nasce lá a escada par
  * ("Desce" para quem sobe), e nenhum pino aparece em nenhuma das duas cenas.
@@ -169,6 +137,24 @@ function StairTravelSection({ scenes, linkedSceneId, passage, onLink, onUnlink, 
   )
 }
 
+/**
+ * Sentido de subida e largura do lance (`stepWidth`) da escada SELECIONADA.
+ *
+ * `stepWidth` ganhou controle nesta rodada (F4, N1 "escada pequena média
+ * grande") — a rodada anterior (F2) omitia de propósito, ver
+ * docs/PLANO-FASES.md §3. Dois jeitos de editar o mesmo valor: 3 presets
+ * P/M/G (múltiplos de `grid`, critério em lib/stairs.ts) para o caso comum,
+ * mais um campo numérico fino para quem quiser um valor entre eles — mesmo
+ * padrão de dois controles pro mesmo eixo que `PolygonSidesControls` (slider)
+ * versus a setinha de variantes (presets curados) usa para `polygonSides`.
+ *
+ * Ao contrário de WallStyleControls, não existe (ainda) uma preferência
+ * "próxima escada" para `stepWidth` aqui dentro — este componente só edita a
+ * entidade JÁ SELECIONADA: `selectedStair.stepWidth`/`(w) =>
+ * setStairStepWidth(selectedStair.id, w)`. A preferência de sessão para a
+ * PRÓXIMA escada (mesma classe de `wallKind`/`polygonSides`) é o que a
+ * setinha de variantes da Toolbar edita — ver CONTRATO do agente.
+ */
 export function StairControls({ direction, onDirectionChange, stepWidth, onStepWidthChange, grid, travel }: StairControlsProps) {
   const activePreset = stairSizePresetForStepWidth(stepWidth, grid)
 
@@ -240,7 +226,7 @@ export function StairControls({ direction, onDirectionChange, stepWidth, onStepW
         />
       </div>
 
-      {travel !== undefined && <StairTravelSection {...travel} />}
+      {travel !== null && <StairTravelSection {...travel} />}
     </section>
   )
 }

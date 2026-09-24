@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Pin, PinExitLabel, StairDirection } from '../types/map'
+import type { Pin, PinExitLabel, Stair, StairDirection } from '../types/map'
 import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { stairTravelLabel } from '../lib/stairTravel'
 import { PinTravelArt } from '../components/PinSymbolArt'
@@ -16,11 +16,13 @@ interface PlayerPinCardProps {
   /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
   travelWaiting?: boolean
   /**
-   * O pino é a passagem de uma ESCADA que leva a outro andar, e este é o
-   * sentido dela. O cartão vira "Subir"/"Descer": sem imagem, sem descrição
-   * de ponto de interesse e — como todo cartão — sem o nome do andar.
+   * As escadas do recorte. OBRIGATÓRIO: quando o pino é a passagem de uma
+   * ESCADA que leva a outro andar (`Pin.escadaId`), o cartão acha a escada
+   * aqui e vira "Subir"/"Descer" — sem imagem, sem descrição de ponto de
+   * interesse e, como todo cartão, sem o nome do andar. Ser obrigatório é o
+   * que impede quem abre o cartão de esquecer a escada.
    */
-  stairDirection?: StairDirection
+  stairs: readonly Stair[]
 }
 
 /**
@@ -87,7 +89,7 @@ function textosDaEscada(direction: StairDirection, livre: boolean): TextosDaPass
  * vendo onde está. O toque de fechar que cai no mapa para ali, antes do canvas:
  * fechar o cartão não arrasta o mapa nem abre outro pino.
  */
-export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, stairDirection }: PlayerPinCardProps) {
+export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, stairs }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
@@ -150,9 +152,12 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const passagem = passageOf(pin)
   const trancada = viagem && passagem === 'trancada'
   const podePedir = viagem && !trancada && onRequestTravel !== undefined
-  const escada = viagem && stairDirection !== undefined ? stairTravelLabel(stairDirection) : null
+  // Escada: o sentido vem da escada do recorte (`lib/fogFilter.ts` só manda o pino junto com ela).
+  const stairDirection: StairDirection | undefined =
+    viagem && pin.escadaId !== undefined ? stairs.find((s) => s.id === pin.escadaId)?.direction : undefined
+  const escada = stairDirection !== undefined ? stairTravelLabel(stairDirection) : null
   const textos =
-    viagem && stairDirection !== undefined
+    stairDirection !== undefined
       ? textosDaEscada(stairDirection, passagem === 'livre')
       : passagem === 'livre'
         ? TEXTOS_LIVRE
