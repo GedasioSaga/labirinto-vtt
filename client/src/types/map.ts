@@ -486,6 +486,26 @@ export interface TokenHealth {
  */
 export type TokenCondition = 'envenenado' | 'caido' | 'dormindo' | 'atordoado' | 'invisivel'
 
+/**
+ * OLHOS DO GUARDA — o campo de visão de uma ficha de NPC. É do MESTRE: nunca
+ * atravessa para o jogador (`lib/fogFilter.ts`). Regras de leitura, do cone e
+ * da marca de alerta em `lib/npcWatch.ts`.
+ */
+export interface TokenWatch {
+  /** Para onde o guarda olha, em graus no sentido horário da tela, 0 = leste (mesma convenção de `rotation`). */
+  direcao: number
+  /** Abertura do olhar em graus, de 15 a 360 (360 = vê em volta). */
+  abertura: number
+  /** Até onde ele enxerga, em quadrados da grade. */
+  alcance: number
+}
+
+/**
+ * Marca de alerta do guarda que o JOGADOR recebe: "?" desconfia (viu alguém
+ * na borda do olhar), "!" viu. Montada pelo recorte, nunca gravada no mapa.
+ */
+export type WatchAlert = '?' | '!'
+
 export interface Token extends PlayerSecret {
   id: string
   characterId: string | null
@@ -535,6 +555,18 @@ export interface Token extends PlayerSecret {
    * (`lib/fogFilter.ts`), com os ids da lista e nada mais.
    */
   conditions?: TokenCondition[]
+  /**
+   * OLHOS DO GUARDA: a ficha é um NPC que vigia (`lib/npcWatch.ts`). Ausente
+   * ou `null` = ficha comum, sem linha de migração. O mapa do disco chega
+   * CRU: quem lê passa por `readTokenWatch`. NÃO atravessa para o jogador.
+   */
+  vigia?: TokenWatch | null
+  /**
+   * Só no RECORTE do jogador: a marca do guarda que ele enxerga
+   * (`tokenWatchForPlayer`). O que estiver gravado aqui no mapa do mestre é
+   * jogado fora pelo recorte.
+   */
+  alerta?: WatchAlert
   /** Token não pode ser movido/editado. `undefined` === false (comportamento
    *  idêntico ao de hoje) — sem linha de migração. */
   locked?: boolean

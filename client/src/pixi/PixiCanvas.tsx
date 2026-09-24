@@ -137,6 +137,7 @@ import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { drawHazardAreas } from './drawHazards'
 import { hazardAreas } from '../lib/hazards'
+import { drawWatchCones } from './drawNpcWatch'
 import { createPinsRenderer } from './drawPins'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { findPinAt, pinKindAfterShortcut } from '../lib/pins'
@@ -647,6 +648,9 @@ export function PixiCanvas({
       // Container, não Graphics: cada luz tem o halo em um objeto próprio para
       // receber a máscara do recorte por parede (drawLights.ts).
       const lightsContainer = new Container()
+      // OLHOS DO GUARDA: o cone de cada NPC vigia, embaixo das fichas para não
+      // cobrir quem está dentro dele. Só o mestre desenha isto.
+      const watchConesGraphics = new Graphics()
       const tokensContainer = new Container()
       // A5 — zonas ocultas por cima do conteúdo: o mestre precisa ver o que cobre.
       const concealZonesContainer = new Container()
@@ -696,6 +700,7 @@ export function PixiCanvas({
         textLabelsContainer,
         propsContainer,
         lightsContainer,
+        watchConesGraphics,
         tokensContainer,
         concealZonesContainer,
         pinsContainer,
@@ -1160,6 +1165,8 @@ export function PixiCanvas({
         redrawWallsAndDoors()
         redrawStairs()
         redrawLights()
+        // Parede nova ou porta aberta muda o que o guarda enxerga.
+        drawWatchCones(watchConesGraphics, map)
         concealZonesRenderer.draw(concealZonesContainer, map.concealZones, map.grid, useMapStore.getState().selectedConcealZoneId)
         redrawPins()
         textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
@@ -1180,6 +1187,8 @@ export function PixiCanvas({
         // A vez da iniciativa só acende NESTA cena: a de outra cena é outra ficha.
         const turnTokenId = turnTokenIdOn(useInitiativeStore.getState().turn, map)
         tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null, camera.scale, turnTokenId)
+        // O cone acompanha o guarda no arrasto e a direção escolhida no painel.
+        drawWatchCones(watchConesGraphics, map)
         // As alças do token acompanham o token: `moveTokenLive` (arrasto) e
         // `moveSelectionBy` (setas) só acordam ESTE redraw, nunca o de formas.
         redrawEditHandles()

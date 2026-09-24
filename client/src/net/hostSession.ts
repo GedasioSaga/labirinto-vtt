@@ -2,7 +2,7 @@ import type { DoorState, HazardKind, MapData, Pin, RegionPoint, Token, Wall } fr
 import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { alarmForPlayer, filterMapForGroup, filterMapForPlayer, playerBlockedRings, turnForPlayer, type GroupViewer, type SceneAlarm } from '../lib/fogFilter'
+import { alarmForPlayer, allPlayerTokens, filterMapForGroup, filterMapForPlayer, playerBlockedRings, turnForPlayer, type GroupViewer, type SceneAlarm } from '../lib/fogFilter'
 import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokensOccupy } from '../lib/movementRules'
@@ -793,7 +793,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         viewers.push({ tokenIds: ownership[playerId] ?? [], visionRadius: radiusFor(playerId) })
       }
     }
-    const view = filterMapForGroup(map, viewers, merged, doors)
+    // A marca do guarda (?, !) conta a ficha de qualquer jogador, não só a de quem está no grupo da TV —
+    // desde que a própria TV a receba (o recorte descarta a da névoa, secreta, em zona oculta ou sob teto).
+    const view = filterMapForGroup(map, viewers, merged, doors, allPlayerTokens(ownership))
     // Mesmas regras de `snapshotFor`: a visão de agora entra na memória que
     // viaja, fora de zona oculta e sala secreta, e o interior de prédio de teto
     // fechado para o grupo sai dela.

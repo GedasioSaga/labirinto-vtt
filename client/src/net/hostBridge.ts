@@ -20,6 +20,7 @@ import {
   type TravelRequest,
 } from './hostSession'
 import type { DoorRequestHow, HostErrorReason, LaserMessage } from './protocol'
+import { guardSightingNotices } from './guardNotices'
 import type { TurnRef } from '../lib/initiative'
 import { hazardEntryLine } from '../lib/hazards'
 
@@ -186,6 +187,11 @@ export const PLAYER_JOINED_TOAST_MS = 10_000
  * segura quem varre a porta de fora sem transformar o rail num paredão.
  */
 export const BAD_CODE_TOAST_INTERVAL_MS = 60_000
+/**
+ * "Guarda viu Ana" fica o dobro de um info comum: é o gancho da cena
+ * furtiva, e o mestre precisa de tempo para largar o que desenha e narrar.
+ */
+export const GUARD_SIGHTING_TOAST_MS = 8_000
 /** A linha do pedido da porta na caixa do mestre: o que o jogador tenta, depois do nome dele. */
 const DOOR_REQUEST_VERB: Record<DoorRequestHow, string> = {
   knock: 'bate na porta',
@@ -301,6 +307,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const itemToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
+  /** OLHOS DO GUARDA: pares (cena, guarda, ficha) no olhar no último snapshot — aviso só na entrada. */
+  let guardSeen: ReadonlySet<string> = new Set()
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
@@ -421,11 +429,26 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
   }
 
+  /**
+   * OLHOS DO GUARDA: a ficha de um jogador ENTROU no olhar de um guarda desde
+   * o último snapshot — "Guarda viu Ana". Só o mestre lê; o jogador recebe a
+   * marca (?, !) pelo recorte (`lib/fogFilter.ts`). Grupo próprio: vários
+   * guardas de uma vez viram uma caixa, sem soterrar os pedidos.
+   */
+  const announceGuardSightings = (current: HostWorld) => {
+    if (session === null) return
+    const notices = guardSightingNotices(current, session.listPlayers(current), guardSeen)
+    guardSeen = notices.seen
+    for (const line of notices.lines) useToastStore.getState().push('info', line, GUARD_SIGHTING_TOAST_MS, { grupo: 'Vigias' })
+  }
+
   const broadcastNow = () => {
     if (session === null) return
-    const result = session.broadcast(world())
+    const current = world()
+    const result = session.broadcast(current)
     void dispatch(result)
     announceHazardEntries(result.hazardEntries ?? [])
+    announceGuardSightings(current)
   }
 
   /**
@@ -821,6 +844,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session) await dispatch(session.closeRoom())
       removeListeners()
       session = null
+      // Sala nova começa sem ninguém no olhar: quem já estava lá avisa de novo.
+      guardSeen = new Set()
       pruneTravelToasts()
       currentRoom = null
       // O Rust derruba o túnel junto com a sala.
