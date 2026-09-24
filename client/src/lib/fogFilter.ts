@@ -1,7 +1,8 @@
-import type { DoorState, Drawing, FloorPiece, HazardKind, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { DoorState, Drawing, FloorPiece, HazardKind, MapData, Pin, Region, RegionPoint, Token, Wall, WatchAlert } from '../types/map'
 import { isTokenPhotoData } from './tokenPhoto'
 import { healthForPlayer } from './tokenHealth'
 import { tokenConditionsForPlayer } from './tokenConditions'
+import { guardAlerts, tokenWatchForPlayer, tokenWatchOf } from './npcWatch'
 import type { TurnRef } from './initiative'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing } from './floorContour'
@@ -461,8 +462,14 @@ export function filterMapForPlayer(
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
 ): PlayerMapView {
-  // Jogador sem entrada de posse não tem token nem visão.
-  return filterMapForGroup(map, [{ tokenIds: ownership[playerId] ?? [], visionRadius }], explored, seenDoors)
+  // Jogador sem entrada de posse não tem token nem visão. A marca do guarda
+  // (?, !) mede as fichas de TODOS os jogadores que ele recebe, não só as dele.
+  return filterMapForGroup(map, [{ tokenIds: ownership[playerId] ?? [], visionRadius }], explored, seenDoors, allPlayerTokens(ownership))
+}
+
+/** OLHOS DO GUARDA: as fichas de todos os jogadores da sala — quem a marca do guarda considera. */
+export function allPlayerTokens(ownership: Readonly<Record<string, readonly string[]>>): ReadonlySet<string> {
+  return new Set(Object.values(ownership).flat())
 }
 
 /** Um membro do grupo que a tela da mesa acompanha: as fichas dele e o raio de visão DELE. */
@@ -479,12 +486,19 @@ export interface GroupViewer {
  * resto — névoa, zona oculta, sala secreta, teto, nome da cena, metadado do
  * mestre — é exatamente a regra de `filterMapForPlayer`, que é este mesmo
  * recorte com um grupo de um.
+ *
+ * `watchTargets`: as fichas que a marca do guarda (?, !) considera — as de
+ * TODOS os jogadores (`allPlayerTokens`), porque o guarda que o grupo vê pode
+ * ter visto quem não é do grupo. Sem ele, só as fichas do grupo contam. Em
+ * qualquer caso, só as que o recorte entrega (nada na névoa, secreto, em zona
+ * oculta ou sob teto fechado).
  */
 export function filterMapForGroup(
   map: MapData,
   viewers: readonly GroupViewer[],
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
+  watchTargets?: ReadonlySet<string>,
 ): PlayerMapView {
   const hiddenLayers = map.hiddenLayers
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
@@ -752,6 +766,27 @@ export function filterMapForGroup(
   // jogador não está) NUNCA vai no mapa do recorte. O que ele pode ver sai
   // separado, em `hazards`, montado mais abaixo.
   const { hazards: _masterHazards, ...mapWithoutHazards } = map
+
+  // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
+  const playerTokens = layerTokens.filter(
+    (t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))),
+  )
+  /**
+   * OLHOS DO GUARDA. A marca (?, !) conta só as fichas de jogador (`watchTargets`,
+   * ou as do próprio grupo) que ESTE recorte entrega: colega na névoa, "Oculto
+   * para jogadores", em zona oculta ou sob teto fechado não acende marca — a
+   * marca contaria que há alguém ali, e é exatamente isso que a névoa e o mestre
+   * esconderam. Só a marca sai, e só na ficha do guarda que já está no recorte:
+   * quem foi visto, e o cone (`vigia`), ficam no mestre (`tokenWatchForPlayer`).
+   * Sem guarda no recorte, nada é calculado.
+   */
+  const watchable = watchTargets ?? owned
+  const seenTargets = new Set(playerTokens.filter((t) => watchable.has(t.id)).map((t) => t.id))
+  const alerts =
+    seenTargets.size > 0 && playerTokens.some((t) => tokenWatchOf(t) !== null)
+      ? guardAlerts(map, seenTargets, ownTokens.length > 0 ? authoritySegments : undefined)
+      : new Map<string, WatchAlert>()
+
   const filtered: MapData = {
     ...mapWithoutHazards,
     // O nome do mapa é o nome da CENA (a aventura cria a cena com
@@ -763,13 +798,12 @@ export function filterMapForGroup(
     ownerId: null,
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
-    // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
     // MOCHILA: só a da PRÓPRIA ficha sai. O que o colega carrega é dele e do
     // mestre — ver a ficha dele no mapa não conta o que tem no bolso.
-    tokens: layerTokens
-      .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
+    tokens: playerTokens
       .map((t) => tokenForPlayer(owned.has(t.id) ? t : withoutBackpack(t)))
-      .map(tokenHealthForPlayer),
+      .map(tokenHealthForPlayer)
+      .map((t) => tokenWatchForPlayer(t, alerts.get(t.id) ?? null)),
     markers: map.markers.filter((m) => !inRoomHiddenFromPlayer({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
     lines: map.lines.filter((l) => !l.points.some(inRoomHiddenFromPlayer) && !l.points.some(inConcealZone) && isShapeKnown(l.points)),
     // Tocha acesa dentro do prédio de teto fechado não sai: o halo dela
