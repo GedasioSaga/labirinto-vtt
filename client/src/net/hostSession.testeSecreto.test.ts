@@ -42,6 +42,8 @@ function mesa() {
   s.assignToken(ana.playerId, 'lanterna')
   s.assignToken(bruno.playerId, 'machado')
   s.assignToken(caio.playerId, 'arco')
+  // Como o hostBridge: dar ficha é seguido do broadcast, e cada um sai da espera com o mapa na tela.
+  s.broadcast(mundo)
   return { s, ana, bruno, caio }
 }
 
@@ -181,5 +183,84 @@ describe('secretCheck (teste secreto)', () => {
     // Sai o mais antigo: o último pedido continua lá.
     expect(lista.at(-1)?.label).toBe(`Teste ${MAX_SECRET_CHECKS + 4}`)
     expect(lista.some((check) => check.id === id)).toBe(false)
+  })
+
+  it('quem perde a ficha e ganha de novo, sem recarregar, recebe o pedido que ainda não respondeu', () => {
+    const { s, ana } = mesa()
+    const id = idDo(s.secretCheck('Percepção', [ana.playerId]))
+    // O mestre tira a única ficha dela: o cliente apaga o cartão no lobby.waiting.
+    expect(s.unassignToken(ana.playerId, 'lanterna').outbound).toEqual([{ clientId: 'c1', msg: { type: 'lobby.waiting' } }])
+    expect(para(s.broadcast(mundo), 'c1')).toBe('[]')
+    // Devolve: o broadcast seguinte leva o mapa e, DEPOIS dele, o pedido.
+    s.assignToken(ana.playerId, 'lanterna')
+    const volta = s.broadcast(mundo).outbound.filter((o) => o.clientId === 'c1')
+    expect(volta.map((o) => o.msg.type)).toEqual(['snapshot', 'secret.check'])
+    expect(volta[1]).toEqual({ clientId: 'c1', msg: { type: 'secret.check', id, label: 'Percepção' } })
+    // Uma vez só: o broadcast seguinte é só o mapa.
+    expect(s.broadcast(mundo).outbound.filter((o) => o.clientId === 'c1').map((o) => o.msg.type)).toEqual(['snapshot'])
+  })
+
+  it('a ficha passada a outro jogador e devolvida traz o pedido de volta só para quem foi pedido e não respondeu', () => {
+    const { s, ana, bruno, caio } = mesa()
+    const id = idDo(s.secretCheck('Percepção', [ana.playerId, bruno.playerId]))
+    s.handleMessage('c2', { type: 'secret.check.answer', id, result: 7 }, mundo)
+    // A lanterna vai para o Caio (Ana aguarda) e volta para a Ana.
+    expect(s.assignToken(caio.playerId, 'lanterna').outbound).toEqual([{ clientId: 'c1', msg: { type: 'lobby.waiting' } }])
+    s.broadcast(mundo)
+    s.assignToken(ana.playerId, 'lanterna')
+    const r = s.broadcast(mundo)
+    expect(r.outbound.filter((o) => o.msg.type === 'secret.check')).toEqual([{ clientId: 'c1', msg: { type: 'secret.check', id, label: 'Percepção' } }])
+    // Bruno perde e ganha a ficha, mas já respondeu; Caio nunca foi pedido.
+    s.unassignToken(bruno.playerId, 'machado')
+    s.unassignToken(caio.playerId, 'arco')
+    s.broadcast(mundo)
+    s.assignToken(bruno.playerId, 'machado')
+    s.assignToken(caio.playerId, 'arco')
+    const depois = s.broadcast(mundo)
+    expect(depois.outbound.map((o) => o.msg.type)).toEqual(['snapshot', 'snapshot', 'snapshot'])
+    // Encerrado enquanto ela aguardava: a volta não traz o pedido.
+    s.unassignToken(ana.playerId, 'lanterna')
+    s.closeSecretCheck(id)
+    s.assignToken(ana.playerId, 'lanterna')
+    expect(para(s.broadcast(mundo), 'c1')).not.toContain('secret.check')
+  })
+
+  it('no teto, sai primeiro o teste encerrado ou já respondido por todos; o aberto de outra pessoa fica e a resposta dela conta', () => {
+    const { s, ana, bruno } = mesa()
+    const idAna = idDo(s.secretCheck('Percepção', [ana.playerId]))
+    const idsBruno: string[] = []
+    for (let i = 0; i < MAX_SECRET_CHECKS - 1; i += 1) idsBruno.push(idDo(s.secretCheck(`Teste ${i}`, [bruno.playerId])))
+    const respondido = idsBruno[0] ?? ''
+    const encerrado = idsBruno[1] ?? ''
+    s.handleMessage('c2', { type: 'secret.check.answer', id: respondido, result: 3 }, mundo)
+    s.closeSecretCheck(encerrado)
+    // Dois testes a mais: saem o respondido e o encerrado, nessa ordem de idade.
+    const extra1 = s.secretCheck('Extra 1', [bruno.playerId])
+    const extra2 = s.secretCheck('Extra 2', [bruno.playerId])
+    expect(extra1.outbound.map((o) => o.msg.type)).toEqual(['secret.check'])
+    expect(extra2.outbound.map((o) => o.msg.type)).toEqual(['secret.check'])
+    const ids = s.secretChecks().map((check) => check.id)
+    expect(ids.length).toBe(MAX_SECRET_CHECKS)
+    expect(ids).toContain(idAna)
+    expect(ids).not.toContain(respondido)
+    expect(ids).not.toContain(encerrado)
+    // A Ana responde o teste dela, o mais antigo: o resultado chega ao mestre.
+    const resposta = s.handleMessage('c1', { type: 'secret.check.answer', id: idAna, result: 15 }, mundo)
+    expect(resposta.secretCheckAnswer).toEqual({ checkId: idAna, playerId: ana.playerId, playerName: 'Ana', label: 'Percepção', result: 15 })
+  })
+
+  it('no teto com todos abertos e pendentes, o mais antigo sai e quem ainda devia a resposta recebe o encerramento', () => {
+    const { s, ana, bruno } = mesa()
+    const idAna = idDo(s.secretCheck('Percepção', [ana.playerId]))
+    for (let i = 0; i < MAX_SECRET_CHECKS - 1; i += 1) s.secretCheck(`Teste ${i}`, [bruno.playerId])
+    // O 21º teste: o da Ana é apagado, e ela recebe o fechamento no mesmo lote.
+    const r = s.secretCheck('Teste 20', [bruno.playerId])
+    const novo = idDo(r)
+    expect(r.outbound).toEqual([
+      { clientId: 'c1', msg: { type: 'secret.check.closed', id: idAna } },
+      { clientId: 'c2', msg: { type: 'secret.check', id: novo, label: 'Teste 20' } },
+    ])
+    expect(s.secretChecks().some((check) => check.id === idAna)).toBe(false)
+    expect(s.secretChecks().length).toBe(MAX_SECRET_CHECKS)
   })
 })

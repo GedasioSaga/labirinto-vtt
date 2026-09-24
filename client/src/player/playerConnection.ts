@@ -530,7 +530,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTravelTimer()
         clearNoiseTimer()
         clearSecretCheckNotice()
-        // O teste secreto sai junto: sem mapa não há cartão; o host manda de novo se ele voltar a jogar pela reconexão.
+        // O teste secreto sai junto: sem mapa não há cartão; o host manda de novo, logo depois do próximo mapa, o que ele ainda não respondeu.
         setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, glimpses: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined })
         return
       case 'scene.changed':
