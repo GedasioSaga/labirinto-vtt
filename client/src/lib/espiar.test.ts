@@ -114,6 +114,29 @@ describe('espiadaPeloPino: o recorte do outro lado', () => {
     }
   })
 
+  it('SEGURANÇA — parede e porta atrás do muro, dentro do raio, NÃO saem; sem o muro, saem', () => {
+    // O recorte comum manda a planta inteira da cena: só o corte pelo que o olho
+    // vê impede que a planta escondida atrás do muro vá pela rede.
+    const { map, par } = cripta()
+    // Atrás do muro de x = 560 (relativo: x = 60), inteiras dentro do raio de 150.
+    const paredeAtras = parede('parede-atras', 620, 440, 620, 560) // relativo (120, −60)..(120, 60)
+    const portaAtras = parede('porta-atras', 590, 420, 610, 420, { door: { open: true, locked: false, kind: 'normal' } }) // relativo (90, −80)..(110, −80)
+    const comMuro: MapData = { ...map, walls: [...map.walls, paredeAtras, portaAtras] }
+
+    const espiada = espiadaPeloPino(comMuro, par, 3)
+    // Só o muro de perto e a porta de baixo — igual ao cenário sem as peças escondidas.
+    expect(espiada.walls.length).toBe(1)
+    expect(espiada.walls[0]?.x1).toBe(60)
+    expect(espiada.walls.some((w) => w.x1 === 120 || w.x2 === 120)).toBe(false)
+    expect(espiada.doors).toEqual([{ x1: -80, y1: 80, x2: -20, y2: 80, open: false }])
+
+    // Controle: sem o muro de perto, as duas aparecem — é o muro que as tira.
+    const semMuro: MapData = { ...comMuro, walls: comMuro.walls.filter((w) => w.id !== 'muro-perto') }
+    const aberta = espiadaPeloPino(semMuro, par, 3)
+    expect(aberta.walls).toContainEqual(expect.objectContaining({ x1: 120, x2: 120 }))
+    expect(aberta.doors).toContainEqual({ x1: 90, y1: -80, x2: 110, y2: -80, open: true })
+  })
+
   it('a porta à vista sai com o estado dela; a zona oculta sai só como geometria para pintar de preto', () => {
     const { map, par } = cripta()
     const espiada = espiadaPeloPino(map, par, 3)
