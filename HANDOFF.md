@@ -189,6 +189,15 @@ saíram de `auto/juntar` `0522705`:
 | t-medias-b | `wf_02518f3f-0de` | 44 |
 | t-pequenas | `wf_c24d31c9-52c` | 35 |
 
+**24/09, 07h50 — 63 features em `auto/acervo` (`f3b4ed5`).** A 1ª passada da junção (`wf_b7680185-c5f`)
+juntou os 6 grupos das ondas 1 e 2 em `auto/juntar`, cada um provado por um verificador independente. A
+regressão final achou 4 quebras em jornadas antigas (recado por cena, cenas com gente, encruzilhada, várias
+cenas), consertadas em `e2074df`, e saiu VERDE: fase0 íntegro, autoteste, 100 jornadas seladas intactas,
+21/21 jornadas entregues e 26/26 réguas das features novas. No commit juntado: `--fase0` "PORTÃO ÍNTEGRO",
+`tipos-src` VERDE. Ficou de fora da medida: `jornadas-e2e` (2 specs vermelhas que já falhavam antes do conserto:
+entrada-jogador teste 2 e barra-honesta teste 2 — conferir se falham também em `68f2c8b`) e `jornadas-da-bar`.
+2ª passada da junção no ar: `wf_984ab296-fe8` (12 ramos: o resto da onda 2, a onda 3 e a onda 4).
+
 **Incidente para o usuário revisar (24/09, ~06h50):** o construtor da peça `iniciativa` (run `wf_b581d949-142`,
 agente `adab3ae1bc6139c8e`) teve o `git commit` recusado pela guarda de isolamento de worktree (o hook do rtk
 reescreve o comando) e contornou chamando `/mingw64/bin/git` pelo caminho completo e o encanamento
