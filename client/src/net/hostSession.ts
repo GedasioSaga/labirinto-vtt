@@ -1174,13 +1174,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * está ligado em mão dupla a um par que existe numa cena aberta, e o
    * jogador tem token nesta cena. O token que viaja é o dele mais perto do
    * pino — ou, com `chosen` (ESCOLHER FICHAS NO PINO), as fichas escolhidas,
-   * cada uma DELE, no recorte dele e junto do pino (`travelCandidates`).
+   * cada uma DELE, no recorte dele e junto do pino (`travelCandidates`; no
+   * "Deixar ir", com `pendingDistance`, a folga do pedido — `withinReach`).
    * Qualquer falha é `null`: quem chama responde o mesmo motivo genérico para
    * todas — inclusive `exitId` que não é saída DESTE pino (inventado, ou de
    * outro pino) e ficha escondida pelo mestre: o jogador não descobre que ela
    * existe.
    */
-  function validTravel(playerId: string, pinId: string, exitId: string, world: HostWorld, chosen?: readonly string[]): ValidTravel | null {
+  function validTravel(
+    playerId: string,
+    pinId: string,
+    exitId: string,
+    world: HostWorld,
+    chosen?: readonly string[],
+    pendingDistance?: number,
+  ): ValidTravel | null {
     const from = sceneFor(playerId, world)
     if (from === null || from.sceneId === null) return null
     const fromSceneId = from.sceneId
@@ -1210,7 +1218,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const owned = new Set(ownership[playerId] ?? [])
     // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
     const mine = view.map.tokens.filter((t) => owned.has(t.id))
-    const going = travelingTokens(mine, pin, from.map.grid, chosen)
+    const reach = pendingDistance === undefined ? undefined : pendingDistance + TRAVEL_CANCEL_SLACK_CELLS * from.map.grid
+    const going = travelingTokens(mine, pin, from.map.grid, chosen, reach)
     if (going === null) return null
     const [token, ...companions] = going
     return { from: { ...from, sceneId: fromSceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner, token, companions }
@@ -1219,18 +1228,35 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /**
    * Quem passa, a primeira sendo a que chega no pino par. Sem `chosen`: a
    * ficha mais perto, só ela. Com `chosen`: todas as escolhidas, desde que
-   * cada uma esteja no grupo do pino — uma fora dele (de outro, escondida,
-   * longe, inventada) derruba o pedido inteiro, em vez de levar só parte.
+   * cada uma esteja no grupo do pino (no "Deixar ir", com `reach`: a até
+   * `reach` px dele) — uma fora (de outro, escondida, longe, inventada)
+   * derruba o pedido inteiro, em vez de levar só parte.
    */
-  function travelingTokens(mine: Token[], pin: Pin, grid: number, chosen: readonly string[] | undefined): [Token, ...Token[]] | null {
+  function travelingTokens(mine: Token[], pin: Pin, grid: number, chosen: readonly string[] | undefined, reach: number | undefined): [Token, ...Token[]] | null {
     const candidates = travelCandidates(mine, pin, grid)
     const first = candidates[0]
     if (first === undefined) return null
     if (chosen === undefined) return [first]
-    const going = candidates.filter((t) => chosen.includes(t.id))
+    const going = reach === undefined ? candidates.filter((t) => chosen.includes(t.id)) : withinReach(mine, pin, chosen, reach)
     const lead = going[0]
     if (lead === undefined || going.length !== chosen.length) return null
     return [lead, ...going.slice(1)]
+  }
+
+  /**
+   * No "Deixar ir" de um pedido com fichas escolhidas: as escolhidas que ainda
+   * estão a até `reach` px do pino, da mais perto para a mais longe. `reach` é
+   * a MESMA conta do `travelLeftBehind` (distância do pedido + folga), e não o
+   * grupo do `travelCandidates`: o grupo é medido da ficha mais perto, e uma
+   * que ficou de fora (ou a escolhida da frente) chegar mais perto do pino o
+   * encolheria — o pedido que não caiu seria recusado sem o jogador ter feito
+   * nada de errado. Pedido que não caiu, passa.
+   */
+  function withinReach(mine: Token[], pin: Pin, chosen: readonly string[], reach: number): Token[] {
+    const distanceOf = (t: Token): number => Math.hypot(t.x - pin.x, t.y - pin.y)
+    return mine
+      .filter((t) => chosen.includes(t.id) && distanceOf(t) <= reach)
+      .sort((a, b) => distanceOf(a) - distanceOf(b))
   }
 
   function handleTravelRequest(clientId: string, msg: PinTravelRequestMessage, world: HostWorld): HostResult {
@@ -1496,7 +1522,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const world = toWorld(source)
       // As MESMAS fichas do pedido: uma escolhida que o mestre escondeu, ou que
       // saiu do grupo do pino, derruba a passagem inteira.
-      const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world, pending.tokenIds)
+      const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world, pending.tokenIds, pending.distance)
       // O mestre deixou ir para o lugar que o aviso DIZIA. Se a saída foi
       // religada depois (Torre no lugar da Cripta), ou desligada e outra subiu
       // no lugar dela, o consentimento não cobre o destino novo: recusa, e o

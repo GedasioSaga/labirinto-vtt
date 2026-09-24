@@ -198,6 +198,48 @@ describe('hostSession: escolher quais fichas passam pelo pino', () => {
     expect(enzoAnda.outbound).toContainEqual({ clientId: 'c1', msg: { type: 'pin.travel.cancelled', reason: 'far' } })
   })
 
+  it('a ficha que ficou de fora chega mais perto do pino: o pedido segue e o "Deixar ir" leva a escolhida', () => {
+    const t = mesa()
+    // Rufo a 30 px, Enzo a 125 px: no grupo (30 + 2 casas = 130 px).
+    t.pos.enzo = { x: 175, y: 200 }
+    const pedido = t.pedir(['enzo']).travelRequest
+    if (pedido === undefined) throw new Error('o pedido deveria valer')
+    // Rufo não vai e encosta no pino: o grupo contado a partir dele encolheria para 105 px.
+    const rufoAnda = t.s.handleMessage('c1', { type: 'token.move', reqId: 'r1', tokenId: 'rufo', x: 300, y: 205 }, t.w())
+    expect(rufoAnda.travelCancelled).toBeUndefined()
+    t.pos.rufo = { x: 300, y: 205 }
+    expect(t.s.isTravelPending(pedido.requestId)).toBe(true)
+    const r = t.s.approveTravel(pedido.requestId, t.w())
+    expect(r.applyTransfer).toMatchObject({ tokenId: 'enzo', fromSceneId: PORAO, toSceneId: BEIRAL })
+    expect(r.applyTransfer?.companions).toBeUndefined()
+    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'scene.changed' } }])
+  })
+
+  it('a escolhida da frente chega mais perto do pino: o pedido segue e as duas passam', () => {
+    const t = mesa()
+    t.pos.enzo = { x: 175, y: 200 }
+    const pedido = t.pedir(['enzo', 'rufo']).travelRequest
+    if (pedido === undefined) throw new Error('o pedido deveria valer')
+    const rufoAnda = t.s.handleMessage('c1', { type: 'token.move', reqId: 'r1', tokenId: 'rufo', x: 300, y: 205 }, t.w())
+    expect(rufoAnda.travelCancelled).toBeUndefined()
+    t.pos.rufo = { x: 300, y: 205 }
+    const r = t.s.approveTravel(pedido.requestId, t.w())
+    expect(r.applyTransfer).toMatchObject({ tokenId: 'rufo', toSceneId: BEIRAL })
+    expect(r.applyTransfer?.companions?.map((c) => c.tokenId)).toEqual(['enzo'])
+  })
+
+  it('o "Deixar ir" recusa quando a escolhida está além da folga do pedido (o mestre a arrastou para longe)', () => {
+    const t = mesa()
+    t.pos.enzo = { x: 175, y: 200 }
+    const pedido = t.pedir(['enzo']).travelRequest
+    if (pedido === undefined) throw new Error('o pedido deveria valer')
+    // O mestre move sem passar pelo handleMove: 125 px + 2 casas = 225 px; a 250 px, passou.
+    t.pos.enzo = { x: 50, y: 200 }
+    const r = t.s.approveTravel(pedido.requestId, t.w())
+    expect(r.applyTransfer).toBeUndefined()
+    expect(r.outbound).toEqual(RECUSA)
+  })
+
   it('lista fora da forma é mensagem inválida: vazia, repetida, com não-texto, grande demais ou texto solto', () => {
     const t = mesa()
     const grande = Array.from({ length: PIN_TRAVEL_MAX_TOKENS + 1 }, (_, i) => `f${i}`)
