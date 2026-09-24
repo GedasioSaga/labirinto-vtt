@@ -7,7 +7,7 @@ import { createPlayerConnection, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNotice } from './playerConnection'
 import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
-import { PlayerPinCard } from './PlayerPinCard'
+import { OpenPinCard } from './OpenPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
@@ -550,13 +550,6 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const closePin = useCallback(() => setOpenPinId(null), [])
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
-  // Abriu o cartão com o texto: o painel Pistas do mestre acende "leu".
-  const readPin = useCallback(
-    (pinId: string) => {
-      connection.markPinRead(pinId)
-    },
-    [connection],
-  )
 
   if (state.status === 'playing' && state.map && state.vision) {
     return (
@@ -610,19 +603,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}
-        {openPin && (
-          <PlayerPinCard
-            pin={openPin}
-            onClose={closePin}
-            onRead={readPin}
-            travelWaiting={state.travel?.phase === 'waiting'}
-            onRequestTravel={(exitId) => {
-              // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
-              // e o mapa volta inteiro à vista enquanto o mestre decide.
-              if (connection.requestTravel(openPin.id, exitId)) setOpenPinId(null)
-            }}
-          />
-        )}
+        {/* Lê a pista e pede a passagem pela conexão (`OpenPinCard`). */}
+        {openPin && <OpenPinCard pin={openPin} connection={connection} travelWaiting={state.travel?.phase === 'waiting'} onClose={closePin} />}
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
           <PlayerNoteCard key={state.note.id} text={state.note.text} onClose={closeNote} escapeCloses={openPin === null} />

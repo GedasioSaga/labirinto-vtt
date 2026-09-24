@@ -18,8 +18,8 @@ import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PinClueState, PlayerInfo } from './net/hostSession'
-import { clueRows, toggledAudience } from './lib/clues'
 import { RoomPanel } from './components/RoomPanel'
+import { hostCluesProps } from './components/CluesSection'
 import { LivePlayerMirror } from './components/PlayerMirror'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
@@ -578,23 +578,15 @@ function App() {
               mirroringId: mirrorId,
               onToggleMirror: (member) => setMirrorId((current) => (current === member.playerId ? null : member.playerId)),
             }}
-            clues={{
-              rows: clueRows(world, members, pinClues, pinAudiences),
-              onCenter: (row) => {
-                // Centrar num pino é o mestre escolhendo a vista: desliga o seguir, como o "Ir lá".
-                useFollowStore.getState().stop()
-                useAdventureStore.getState().goToPoint(row.sceneId, { x: row.x, y: row.y })
-              },
-              onToggle: (pinId, playerId) =>
-                hostBridgeRef.current?.setPinAudience(
-                  pinId,
-                  toggledAudience(
-                    pinAudiences[pinId] ?? null,
-                    members.map((member) => member.playerId),
-                    playerId,
-                  ),
-                ),
-            }}
+            clues={hostCluesProps({
+              world,
+              members,
+              clues: pinClues,
+              audiences: pinAudiences,
+              stopFollow: () => useFollowStore.getState().stop(),
+              goToPoint: (sceneId, point) => useAdventureStore.getState().goToPoint(sceneId, point),
+              setPinAudience: (pinId, playerIds) => hostBridgeRef.current?.setPinAudience(pinId, playerIds),
+            })}
             tunnel={tunnel}
             onStart={() => void handleStartRoom()}
             onStop={() => void handleStopRoom()}

@@ -1,5 +1,7 @@
 import { useId } from 'react'
-import { clueDotLabel, cluesHeading, type ClueDot, type ClueRow } from '../lib/clues'
+import { clueDotLabel, clueRows, cluesHeading, toggledAudience, type ClueDot, type ClueRow } from '../lib/clues'
+import type { PartyMember } from '../lib/party'
+import type { HostWorld, PinClueState } from '../net/hostSession'
 
 export interface CluesSectionProps {
   /** `lib/clues.ts` `clueRows`: uma linha por pino "!"/"?" das cenas abertas. */
@@ -11,6 +13,42 @@ export interface CluesSectionProps {
 }
 
 export const CLUES_EMPTY_TEXT = 'Nenhum pino ! ou ? nas cenas abertas.'
+
+/** O que o App entrega ao painel: o mundo servido, a sala e as três ações do host. */
+export interface HostCluesWiring {
+  world: HostWorld
+  members: readonly PartyMember[]
+  /** Quem recebeu e quem leu cada pino, como a sessão contou. */
+  clues: Readonly<Record<string, PinClueState>>
+  /** "Quem vê" de cada pino; pino ausente = Todos. */
+  audiences: Readonly<Record<string, readonly string[]>>
+  /** Desliga o "seguir" do editor. */
+  stopFollow(): void
+  goToPoint(sceneId: string | null, point: { x: number; y: number }): void
+  setPinAudience(pinId: string, playerIds: readonly string[] | null): void
+}
+
+/**
+ * A ligação do painel Pistas no App, fora do App para ser testada: as linhas
+ * vêm de `clueRows`, a linha centra o pino e a bolinha manda o "Quem vê" novo.
+ */
+export function hostCluesProps(wiring: HostCluesWiring): CluesSectionProps {
+  const { world, members, clues, audiences } = wiring
+  return {
+    rows: clueRows(world, members, clues, audiences),
+    onCenter: (row) => {
+      // Centrar num pino é o mestre escolhendo a vista: desliga o seguir, como
+      // o "Ir lá". Antes do centrar, senão o seguir puxa a vista de volta.
+      wiring.stopFollow()
+      wiring.goToPoint(row.sceneId, { x: row.x, y: row.y })
+    },
+    onToggle: (pinId, playerId) => {
+      // Pino sem "Quem vê" é de Todos: `null` é o caso do domínio, não um tapa-buraco.
+      const current = audiences[pinId] ?? null
+      wiring.setPinAudience(pinId, toggledAudience(current, members.map((member) => member.playerId), playerId))
+    },
+  }
+}
 
 /** A dica da bolinha diz o que o clique FAZ; o nome acessível diz o estado. */
 function dotActionText(dot: ClueDot): string {

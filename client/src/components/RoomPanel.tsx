@@ -22,8 +22,12 @@ export interface RoomPanelProps {
   knownTokens?: RoomPanelToken[]
   /** Seção "Grupo" (uma linha por jogador, "Ir lá" e "Mandar para…"). Ausente = sem a seção. */
   party?: PartySectionProps
-  /** Seção "Pistas" (quem recebeu e quem leu cada pino "!"/"?"). Ausente = sem a seção. */
-  clues?: CluesSectionProps
+  /**
+   * Seção "Pistas" (quem recebeu e quem leu cada pino "!"/"?"), com a sala aberta
+   * e alguém nela. Obrigatória de propósito: esquecer de ligá-la no App vira erro
+   * de tipo, e não um painel que some da tela em silêncio.
+   */
+  clues: CluesSectionProps
   tunnel: TunnelState
   onStart(): void
   onStop(): void
@@ -265,7 +269,7 @@ export function RoomPanel({
           {/* O grupo vem antes do resto: é o que o mestre consulta a cada cena, o resto é de montar a sala. */}
           {party !== undefined && party.members.length > 0 && <PartySection {...party} />}
           {/* Pistas logo depois do Grupo: as bolinhas são as mesmas pessoas, na mesma ordem e cor. */}
-          {clues !== undefined && players.length > 0 && <CluesSection {...clues} />}
+          {players.length > 0 && <CluesSection {...clues} />}
 
           {onToggleLaser !== undefined && (
             <div className="lb-field">
