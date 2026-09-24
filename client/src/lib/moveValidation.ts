@@ -3,7 +3,7 @@ import type { Point } from '../pixi/world'
 import { DEFAULT_DOOR_SLACK, findTokenPath, moveCrossesWall } from './collision'
 import { pointInRing } from './floorContour'
 import { compileFloor, type CompiledFloor } from './floorSdf'
-import { playerBlockedRings } from './fogFilter'
+import { playerHiddenRings } from './fogFilter'
 
 /**
  * Validação autoritativa de movimento de token (modo jogador). O servidor/host
@@ -64,26 +64,41 @@ interface FloorHit {
   distance: number
 }
 
-/** Primeiro ponto de chão na direção (dx, dy) a partir de `from`, andando pelo campo de distância. */
-function marchToFloor(map: MapData, compiled: CompiledFloor, from: Point, dx: number, dy: number): FloorHit | null {
+/**
+ * Primeiro ponto de chão PERMITIDO na direção (dx, dy) a partir de `from`,
+ * andando pelo campo de distância. Chão que `allowed` recusa (escondido do
+ * jogador) não encerra a marcha: ela o atravessa, porque o chão livre logo
+ * atrás dele continua sendo o mais próximo naquela direção.
+ */
+function marchToFloor(
+  map: MapData,
+  compiled: CompiledFloor,
+  from: Point,
+  dx: number,
+  dy: number,
+  allowed: (point: Point) => boolean,
+): FloorHit | null {
   const step = sampleStep(map)
   // Lipschitz ≥ 1 por construção; a guarda só impede divisão que pule chão se um dia vier 0 ou NaN.
   const lipschitz = compiled.lipschitz >= 1 ? compiled.lipschitz : 1
+  const inset = map.grid * RESCUE_INSET_CELLS
   let t = 0
   for (let i = 0; i < MAX_RESCUE_SAMPLES_PER_DIRECTION; i += 1) {
     const x = from.x + dx * t
     const y = from.y + dy * t
     if (!isInsideMap(map, x, y)) return null
     const d = compiled.sample(x, y)
-    if (d <= 0) {
-      // Entra um pouco além da borda, se ali ainda for chão (sala mais fina que a folga fica na borda mesmo).
-      const inset = map.grid * RESCUE_INSET_CELLS
+    if (d <= 0 && allowed({ x, y })) {
+      // Entra um pouco além da borda, se ali ainda for chão permitido (sala mais fina que a folga fica na borda mesmo).
       const ix = x + dx * inset
       const iy = y + dy * inset
-      if (isInsideMap(map, ix, iy) && compiled.sample(ix, iy) <= 0) return { x: ix, y: iy, distance: t + inset }
+      if (isInsideMap(map, ix, iy) && compiled.sample(ix, iy) <= 0 && allowed({ x: ix, y: iy })) {
+        return { x: ix, y: iy, distance: t + inset }
+      }
       return { x, y, distance: t }
     }
-    // `d / lipschitz` nunca pula chão (a distância não cai mais rápido que isso); `step` garante avanço.
+    // Fora do chão, `d / lipschitz` nunca pula chão (a distância não cai mais rápido que isso);
+    // dentro de chão escondido `d` é ≤ 0 e `step` atravessa amostra por amostra.
     t += Math.max(d / lipschitz, step)
   }
   return null
@@ -91,22 +106,25 @@ function marchToFloor(map: MapData, compiled: CompiledFloor, from: Point, dx: nu
 
 /**
  * Chão mais próximo que a ficha em `from` (fora do chão) alcança: sem
- * atravessar parede, e fora de zona oculta, sala secreta e sala de teto que
- * não contêm a própria ficha. O ponto volta para o jogador (é onde a ficha
- * dele passa a estar); um ponto de chão escondido diria que ali existe chão.
+ * atravessar parede, e fora de zona oculta e sala secreta que não contêm a
+ * própria ficha. O ponto volta para o jogador (é onde a ficha dele passa a
+ * estar); um ponto de chão escondido diria que ali existe chão.
+ *
+ * Sala com teto é destino permitido, como no movimento normal
+ * (`validateTokenMove` não consulta teto): é entrando que o teto abre.
  */
 function findNearestFloor(map: MapData, compiled: CompiledFloor, from: Point): Point | null {
-  const blocked = playerBlockedRings(map).filter((ring) => ring.length >= 3 && !pointInRing(from, ring))
+  const hidden = playerHiddenRings(map).filter((ring) => ring.length >= 3 && !pointInRing(from, ring))
+  const allowed = (point: Point): boolean => !hidden.some((ring) => pointInRing(point, ring))
   const hits: FloorHit[] = []
   for (let i = 0; i < RESCUE_DIRECTIONS; i += 1) {
     const angle = (i / RESCUE_DIRECTIONS) * 2 * Math.PI
-    const hit = marchToFloor(map, compiled, from, Math.cos(angle), Math.sin(angle))
+    const hit = marchToFloor(map, compiled, from, Math.cos(angle), Math.sin(angle), allowed)
     if (hit !== null) hits.push(hit)
   }
   hits.sort((a, b) => a.distance - b.distance)
   for (const hit of hits) {
     const point = { x: hit.x, y: hit.y }
-    if (blocked.some((ring) => pointInRing(point, ring))) continue
     if (findTokenPath(from, point, map.walls, map.grid) === null) continue
     return point
   }

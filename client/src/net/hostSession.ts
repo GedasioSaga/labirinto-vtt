@@ -822,7 +822,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership)
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     // `landing` só leva o motivo; o ponto já passou pelo recorte em `validateTokenMove`
-    // (chão em zona oculta, sala secreta ou teto fechado nunca vira destino).
+    // (chão em zona oculta ou sala secreta nunca vira destino; sala com teto vira,
+    // como no movimento normal, e o teto abre porque a ficha entrou).
     const landing = result.landing === undefined ? {} : { landing: result.landing }
     const accepted: HostMessage = { type: 'token.move.accepted', reqId: msg.reqId, x: result.x, y: result.y, ...landing }
     return {

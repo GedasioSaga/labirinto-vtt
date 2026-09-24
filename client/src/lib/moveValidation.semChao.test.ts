@@ -3,12 +3,13 @@
  * Antes, todo trajeto partia de um ponto fora do chão e era recusado com
  * `outside_floor` para sempre: a ficha ficava presa. Agora o primeiro arrasto
  * leva a ficha ao chão mais próximo que ela alcança — sem atravessar parede e
- * sem cair em zona oculta, sala secreta ou sala de teto fechado (o jogador
- * não pode descobrir por ali que existe chão escondido) — e o resultado diz
- * que foi isso que aconteceu, para a tela do jogador explicar.
+ * sem cair em zona oculta ou sala secreta (o jogador não pode descobrir por ali
+ * que existe chão escondido), mas podendo entrar em sala com teto, como o
+ * movimento normal pode — e o resultado diz que foi isso que aconteceu, para a
+ * tela do jogador explicar.
  */
 import { describe, expect, it } from 'vitest'
-import type { ConcealZone, FloorPiece, MapData, Token, Wall } from '../types/map'
+import type { ConcealZone, FloorPiece, MapData, Region, Token, Wall } from '../types/map'
 import { compileFloor } from './floorSdf'
 import { createEmptyMap } from './mapFactory'
 import { validateTokenMove } from './moveValidation'
@@ -139,6 +140,49 @@ describe('ficha sem chão debaixo dela', () => {
     expect(r.ok).toBe(true)
     if (!r.ok) return
     expect(r.x).toBeGreaterThanOrEqual(450)
+  })
+
+  it('chão escondido no caminho não esconde o chão livre logo atrás dele', () => {
+    // Sala 'a' (x 150..250) dentro da zona oculta cobre todo o ângulo até a sala 'b' (x 300..400):
+    // cada raio que chega em 'b' passa antes pelo chão escondido de 'a'.
+    const map = mapa(ficha('heroi', 100, 500), {
+      floor: [chao('a', 200, 500, 100, 100), chao('b', 350, 500, 100, 100)],
+      concealZones: [zona('z', 140, 440, 260, 560)],
+    })
+    const r = mover(map, 110, 500)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.landing).toBe('nearest_floor')
+    expect(noChao(map, r.x, r.y)).toBe(true)
+    expect(r.x).toBeGreaterThanOrEqual(300)
+    expect(r.x > 140 && r.x < 260 && r.y > 440 && r.y < 560).toBe(false)
+  })
+
+  it('sala com teto é destino permitido, como no movimento normal (entrar é o que abre o teto)', () => {
+    // Corredor sem chão entre duas salas com teto; o mestre apagou o chão debaixo da ficha.
+    const salaComTeto = (id: string, minX: number, maxX: number): Region => ({
+      id,
+      tag: '',
+      fillColor: '#445566',
+      fillPattern: 'solid',
+      data: {},
+      room: { shape: 'rect', name: id, roof: true },
+      points: [
+        { x: minX, y: 440 },
+        { x: maxX, y: 440 },
+        { x: maxX, y: 560 },
+        { x: minX, y: 560 },
+      ],
+    })
+    const map = mapa(ficha('heroi', 300, 500), {
+      floor: [chao('a', 200, 500, 100, 100), chao('b', 400, 500, 100, 100)],
+      regions: [salaComTeto('A', 140, 260), salaComTeto('B', 340, 460)],
+    })
+    const r = mover(map, 310, 500)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.landing).toBe('nearest_floor')
+    expect(noChao(map, r.x, r.y)).toBe(true)
   })
 
   it('ficha que já está dentro da zona oculta pode ser resgatada para o chão dela', () => {

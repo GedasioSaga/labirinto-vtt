@@ -103,10 +103,19 @@ function roofRoomsOf(regions: readonly Region[]): Region[] {
  */
 export function playerBlockedRings(map: MapData): RegionPoint[][] {
   return [
-    ...activeConcealRings(map),
-    ...secretRoomsOf(map).map((r) => r.points),
+    ...playerHiddenRings(map),
     ...roofRoomsOf(map.regions).filter((r) => isUsablePolygon(r.points)).map((r) => r.points),
   ]
+}
+
+/**
+ * Áreas que o mestre ESCONDE do jogador: zonas ocultas ativas e salas
+ * secretas. Sem o teto de propósito: sala com teto é lugar onde a ficha pode
+ * entrar andando (é entrando que o teto abre), e quem decide para onde a ficha
+ * vai (`lib/moveValidation.ts`) precisa tratá-la como o movimento normal trata.
+ */
+export function playerHiddenRings(map: MapData): RegionPoint[][] {
+  return [...activeConcealRings(map), ...secretRoomsOf(map).map((r) => r.points)]
 }
 
 /**
