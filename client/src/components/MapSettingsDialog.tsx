@@ -5,6 +5,7 @@ import { GridControls, type GridControlsProps } from './GridControls'
 import { GridAlignControls, type GridAlignControlsProps } from './GridAlignControls'
 import { MapScaleControls, type MapScaleControlsProps } from './MapScaleControls'
 import { ScenarioLinkControls, type ScenarioLinkControlsProps } from './ScenarioLinkControls'
+import { MovementControls, type MovementControlsProps } from './MovementControls'
 import { FEATURES } from '../lib/features'
 
 export interface MapSettingsProps {
@@ -12,6 +13,8 @@ export interface MapSettingsProps {
   gridAlign: GridAlignControlsProps
   mapScale: MapScaleControlsProps
   scenarioLink: ScenarioLinkControlsProps
+  /** Passo máximo e ocupação da cena; ausente, a seção não aparece. */
+  movement?: MovementControlsProps
 }
 
 export interface MapSettingsDialogProps extends MapSettingsProps {
@@ -45,6 +48,7 @@ export function MapSettingsDialog({
   gridAlign,
   mapScale,
   scenarioLink,
+  movement,
   showScenarioLink = FEATURES.scenarioLink,
 }: MapSettingsDialogProps & ScenarioLinkVisibility) {
   const titleId = useId()
@@ -124,6 +128,8 @@ export function MapSettingsDialog({
             </section>
           )}
           <MapScaleControls {...mapScale} />
+          {/* Logo depois da Medição: o passo máximo conta com a mesma régua. */}
+          {movement && <MovementControls {...movement} />}
           {showScenarioLink && <ScenarioLinkControls {...scenarioLink} />}
         </div>
       </div>

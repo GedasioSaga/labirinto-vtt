@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { MapData, Pin, PinDestination, Token } from '../types/map'
-import { singleSceneWorld, type HostScene, type HostWorld } from '../net/hostSession'
+import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
+import { applyItemChange } from '../lib/items'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
 import {
@@ -956,4 +957,34 @@ function syncTravelLinks(after: MapData, before: MapData): void {
       }
     }
   }
+}
+
+/**
+ * ITEM PEGÁVEL: grava a troca de lugar de um item (pino que sai ou volta,
+ * mochilas novas) na cena `change.sceneId` — a aberta no editor quando
+ * ausente ou quando é a própria cena aberta (o mestre pode ter trocado de
+ * cena entre a decisão e aqui).
+ *
+ * Vale para TODO passo do desfazer da cena, aberta OU de fundo, como a
+ * travessia do `transferToken`: gravar só o mapa atual deixaria o `past` com a
+ * chave no chão, e um Ctrl+Z do mestre depois a devolveria ao mapa ainda na
+ * mochila de alguém (duplica) ou a tiraria da mochila (some). Também não é um
+ * passo do desfazer: não foi uma edição do mapa. `false` quando a cena não
+ * está disponível.
+ */
+export function applyItemsInScene(change: AppliedItems): boolean {
+  const aplicar = (map: MapData): MapData => applyItemChange(map, change)
+  const { activeSceneId, cache, dirty } = useAdventureStore.getState()
+  if (change.sceneId === undefined || change.sceneId === activeSceneId) {
+    const { map, past, future } = useMapStore.getState()
+    useMapStore.setState({ map: aplicar(map), past: past.map(aplicar), future: future.map(aplicar) })
+    return true
+  }
+  const slot = cache[change.sceneId]
+  if (slot === undefined || slot.status !== 'ok') return false
+  useAdventureStore.setState({
+    cache: { ...cache, [change.sceneId]: { ...slot, map: aplicar(slot.map), past: slot.past.map(aplicar), future: slot.future.map(aplicar) } },
+    dirty: { ...dirty, [change.sceneId]: true },
+  })
+  return true
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Pin, PinExitLabel } from '../types/map'
 import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
+import { itemOfPin } from '../lib/items'
 import { PinTravelArt } from '../components/PinSymbolArt'
 
 interface PlayerPinCardProps {
@@ -14,6 +15,10 @@ interface PlayerPinCardProps {
   onRequestTravel?: (exitId?: string) => void
   /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
   travelWaiting?: boolean
+  /** ITEM PEGÁVEL: "Pegar" o item do pino. Ausente = o cartão não oferece pegar. */
+  onTakeItem?: () => void
+  /** Já há um "Pegar" esperando o mestre: o botão fica desligado. */
+  takeWaiting?: boolean
 }
 
 /**
@@ -69,7 +74,7 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
  * vendo onde está. O toque de fechar que cai no mapa para ali, antes do canvas:
  * fechar o cartão não arrasta o mapa nem abre outro pino.
  */
-export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false }: PlayerPinCardProps) {
+export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, onTakeItem, takeWaiting = false }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
@@ -138,6 +143,8 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // saída só (ou sem o campo), o cartão é o de sempre.
   const escolhas = viagem ? (pin.escolhas ?? []) : []
   const encruzilhada = escolhas.length > 1
+  // ITEM PEGÁVEL: o nome vem no recorte, numa cópia limpa (`lib/fogFilter.ts`).
+  const item = itemOfPin(pin)
   const perguntar = (saida: PinExitLabel | null) => {
     setConfirming({ saida })
     if (saida !== null) setUltimaSaida(saida.id)
@@ -172,6 +179,18 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
             {descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao}
           </p>
         </div>
+        {item !== null && (
+          // Pegar não pede confirmação: no modo "pede" o mestre ainda decide, e
+          // no livre o item só troca do chão para a mochila — "Dar a…" desfaz.
+          <div className="pp-pincard__item">
+            <p className="pp-pincard__question">{item.nome}</p>
+            {onTakeItem !== undefined && (
+              <button type="button" className="pp-pincard__travel" disabled={takeWaiting} onClick={onTakeItem}>
+                {takeWaiting ? 'Pedido enviado ao mestre' : 'Pegar'}
+              </button>
+            )}
+          </div>
+        )}
         {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
         {podePedir && confirming === null && !encruzilhada && (
           <button

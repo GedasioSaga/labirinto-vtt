@@ -1,7 +1,7 @@
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type DoorToggleRejection } from '../net/protocol'
+import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH } from '../net/protocol'
 import { themeCss } from '../theme'
 import { createPlayerConnection, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNotice } from './playerConnection'
@@ -9,12 +9,15 @@ import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
+import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
 import type { SignalMark } from '../lib/signals'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
+import { carriedItemsOf, giveTargets } from '../lib/items'
+import { itemNoticeText } from './itemNotice'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -30,11 +33,9 @@ const NO_TOKENS: string[] = []
 const NO_SIGNALS: SignalMark[] = []
 const OWN_TOKEN_CSS = `#${OWN_TOKEN_COLOR.toString(16).padStart(6, '0')}`
 
-/** Recusa do mestre ao toque na porta, em uma linha curta. */
-const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
-  locked: 'Trancada',
-  far: 'Chegue mais perto da porta',
-  not_visible: 'Você não vê essa porta daqui',
+/** Recusa de movimento que o jogador precisa ler (a ficha já voltou sozinha). Não diz QUEM está lá. */
+const MOVE_NOTICE_TEXT: Record<'occupied', string> = {
+  occupied: 'Lugar ocupado',
 }
 
 /**
@@ -538,6 +539,16 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
       return token ? [{ id, name: token.name }] : []
     })
   }, [map, ownTokens])
+  const partyTokens = state.partyTokens ?? NO_TOKENS
+  // ITEM PEGÁVEL: "Comigo" é a mochila das fichas dele; "Dar a…" oferece só
+  // fichas de COLEGAS encostadas numa delas — NPC do mestre o host recusaria.
+  const backpack = useMemo(() => {
+    if (!map) return { items: [], colleagues: [] }
+    return {
+      items: map.tokens.filter((t) => ownTokens.includes(t.id)).flatMap(carriedItemsOf),
+      colleagues: giveTargets(map, ownTokens, partyTokens),
+    }
+  }, [map, ownTokens, partyTokens])
 
   function changeSettings(next: PlayerViewSettings) {
     setSettings(next)
@@ -599,6 +610,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             // quem escolhe que paga o custo, e o que viaja já cabe no teto.
             connection.setOwnTokenPhoto(tokenId, await buildTokenPhotoData(file))
           }}
+          backpack={{ ...backpack, onGive: (itemId, toTokenId) => void connection.giveItem(itemId, toTokenId) }}
         />
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
@@ -613,7 +625,17 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
               // e o mapa volta inteiro à vista enquanto o mestre decide.
               if (connection.requestTravel(openPin.id, exitId)) setOpenPinId(null)
             }}
+            takeWaiting={state.item?.phase === 'sent' && !state.item.direct}
+            onTakeItem={() => {
+              // Mesma regra do pedido de passagem: enviado, o cartão sai e a espera fica no aviso.
+              if (connection.takePin(openPin.id)) setOpenPinId(null)
+            }}
           />
+        )}
+        {state.item && (
+          <p key={state.item.id} className="pp-notice" role="status" aria-live="polite">
+            {itemNoticeText(state.item)}
+          </p>
         )}
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
@@ -626,8 +648,22 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         )}
         {state.doorNotice && (
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
-          <p key={state.doorNotice.id} className="pp-notice" role="status" aria-live="polite">
-            {DOOR_NOTICE_TEXT[state.doorNotice.reason]}
+          <PlayerDoorNotice
+            key={state.doorNotice.id}
+            notice={state.doorNotice}
+            onRequest={(wallId, how) => connection.requestDoor(wallId, how)}
+            onClose={() => connection.dismissDoorNotice()}
+          />
+        )}
+        {state.doorRequest && (
+          <p key={state.doorRequest.id} className="pp-notice" role="status" aria-live="polite">
+            {doorRequestText(state.doorRequest.phase)}
+          </p>
+        )}
+        {state.moveNotice && (
+          // Mesmo aviso curto da porta; `key` no id reinicia a entrada a cada tentativa.
+          <p key={state.moveNotice.id} className="pp-notice" role="status" aria-live="polite">
+            {MOVE_NOTICE_TEXT[state.moveNotice.reason]}
           </p>
         )}
       </PlayerErrorBoundary>
