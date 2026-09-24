@@ -324,6 +324,14 @@ export interface Pin extends PlayerSecret {
   icon?: PinIcon
   /** O que o jogador lê no cartão. Vazio = o mestre ainda não escreveu nada. */
   description: string
+  /**
+   * "Nota do mestre" (só eu leio): o lembrete dele sobre o pino — a
+   * combinação do cofre, o que o NPC esconde. NUNCA sai no recorte do jogador
+   * (`pinForPlayer` em `lib/fogFilter.ts` é lista do que vai, e ela não está
+   * lá), nem na pista que o cartão vira. Ausente = sem nota — mapa gravado
+   * antes deste campo abre igual. O disco só aceita texto (`lib/mapFile.ts`).
+   */
+  notaDoMestre?: string
   image: string | null
   /** Pino não pode ser movido/editado. `undefined` === false — sem migração. */
   locked?: boolean

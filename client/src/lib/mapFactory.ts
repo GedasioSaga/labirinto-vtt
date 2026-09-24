@@ -1618,13 +1618,13 @@ export function addPin(map: MapData, pin: Pin): MapData {
 }
 
 /**
- * Tipo, símbolo, descrição, imagem, trava e destino (pino de viagem) do pino.
+ * Tipo, símbolo, descrição, nota do mestre, imagem, trava e destino (pino de viagem) do pino.
  * Id inexistente ou nada mudando devolve o mesmo `map`.
  */
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1638,6 +1638,9 @@ export function updatePin(
     // de um pino que nunca teve não pode empurrar entrada vazia no histórico.
     next.icon === pin.icon &&
     next.description === pin.description &&
+    // Nota do mestre é opcional: `undefined` === '' (sem nota). Apagar a nota
+    // de um pino que nunca teve não empurra entrada vazia no histórico.
+    (next.notaDoMestre ?? '') === (pin.notaDoMestre ?? '') &&
     next.image === pin.image &&
     !!next.locked === !!pin.locked &&
     // Mesma regra: desligar um pino que nunca foi ligado não é mudança.
