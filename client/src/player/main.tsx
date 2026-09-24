@@ -24,6 +24,8 @@ import { leverNoticeText } from './leverNotice'
 import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
+import { floorShown, PlayerFloorTabs } from './PlayerFloorTabs'
+import type { RegionPoint } from '../types/map'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -37,6 +39,10 @@ document.head.prepend(themeStyle)
 /** Referência estável: um `[]` novo a cada render redesenharia o canvas sem motivo. */
 const NO_TOKENS: string[] = []
 const NO_SIGNALS: SignalMark[] = []
+/** MAPA POR ANDARES: outro andar não tem visão agora — só a memória. */
+const NO_VISION: RegionPoint[][] = []
+/** Outro andar é só para olhar: arrastar ficha lá não pede nada ao mestre. */
+const IGNORE_MOVE = (): void => {}
 const OWN_TOKEN_CSS = `#${OWN_TOKEN_COLOR.toString(16).padStart(6, '0')}`
 
 /** Recusa de movimento que o jogador precisa ler (a ficha já voltou sozinha). Não diz QUEM está lá. */
@@ -502,6 +508,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const [measureArmed, setMeasureArmed] = useState(false)
   /** Pino aberto no cartão; `null` = cartão fechado. */
   const [openPinId, setOpenPinId] = useState<string | null>(null)
+  /** MAPA POR ANDARES: a aba escolhida; `null` = o andar onde ele está (o mapa ao vivo). */
+  const [floorTab, setFloorTab] = useState<string | null>(null)
+  const currentFloor = state.andares?.atual
+  // Mudou de andar (ou saiu do prédio): a tela volta ao mapa ao vivo, onde a ficha dele está.
+  useEffect(() => setFloorTab(null), [currentFloor])
   /** Cada "Reconectar" conta uma tentativa nova e reinicia o prazo do aperto de mão. */
   const [attempt, setAttempt] = useState(0)
   const [handshakeOverdue, setHandshakeOverdue] = useState(false)
@@ -569,33 +580,51 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
 
   if (state.status === 'playing' && state.map && state.vision) {
+    // Outro andar: a memória dele de lá, sem visão, sem ficha e sem toque que peça algo ao mestre.
+    const otherFloor = floorTab === null ? null : floorShown(state.andares, floorTab)
     return (
       <PlayerErrorBoundary onReconnect={() => connection.reconnect()}>
-        <PlayerView
-          map={state.map}
-          vision={state.vision}
-          explored={state.explored}
-          concealed={state.concealed}
-          hazards={state.hazards}
-          gatilhos={state.gatilhos}
-          ownTokens={ownTokens}
-          turnTokenId={state.turn ?? null}
-          settings={settings}
-          focusTokenId={focus.tokenId}
-          focusSeq={focus.seq}
-          onMove={(id, x, y) => connection.requestMove(id, x, y)}
-          signals={state.signals ?? NO_SIGNALS}
-          laser={state.laser}
-          signalArmed={signalArmed}
-          onSignal={(x, y) => {
-            connection.sendSignal(x, y)
-            // Modo de um toque: sinalizou, desliga.
-            setSignalArmed(false)
-          }}
-          measureArmed={measureArmed}
-          onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
-          onPinOpen={setOpenPinId}
-        />
+        {otherFloor !== null ? (
+          <PlayerView
+            map={otherFloor.map}
+            vision={NO_VISION}
+            explored={otherFloor.explored}
+            concealed={otherFloor.concealed}
+            ownTokens={NO_TOKENS}
+            settings={settings}
+            focusTokenId={null}
+            focusSeq={focus.seq}
+            onMove={IGNORE_MOVE}
+            measureArmed={measureArmed}
+          />
+        ) : (
+          <PlayerView
+            map={state.map}
+            vision={state.vision}
+            explored={state.explored}
+            concealed={state.concealed}
+            hazards={state.hazards}
+            gatilhos={state.gatilhos}
+            ownTokens={ownTokens}
+            turnTokenId={state.turn ?? null}
+            settings={settings}
+            focusTokenId={focus.tokenId}
+            focusSeq={focus.seq}
+            onMove={(id, x, y) => connection.requestMove(id, x, y)}
+            signals={state.signals ?? NO_SIGNALS}
+            laser={state.laser}
+            signalArmed={signalArmed}
+            onSignal={(x, y) => {
+              connection.sendSignal(x, y)
+              // Modo de um toque: sinalizou, desliga.
+              setSignalArmed(false)
+            }}
+            measureArmed={measureArmed}
+            onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
+            onPinOpen={setOpenPinId}
+          />
+        )}
+        {state.andares && <PlayerFloorTabs andares={state.andares} selected={floorTab ?? state.andares.atual} onSelect={setFloorTab} />}
         <PlayerPanel
           characters={characters}
           characterColor={OWN_TOKEN_CSS}

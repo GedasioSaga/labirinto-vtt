@@ -1026,4 +1026,19 @@ export interface MapData {
    * linha de migração (mesmo padrão de `movement`/`hazards`).
    */
   worldMap?: true
+  /**
+   * MAPA POR ANDARES: esta cena é um andar de um prédio. Cenas com o mesmo
+   * `predio` são andares do mesmo prédio, e o jogador ganha uma aba por andar
+   * onde já esteve (`lib/buildingFloors.ts`). Ausente = cena comum, sem linha
+   * de migração. NUNCA sai dentro do mapa do jogador: o rótulo viaja à parte.
+   */
+  andar?: SceneFloor
+}
+
+/** MAPA POR ANDARES: de que prédio a cena é andar, e o rótulo curto que o jogador lê na aba. */
+export interface SceneFloor {
+  /** Nome do prédio, do mestre: junta as cenas. Nunca vai ao jogador. */
+  predio: string
+  /** Rótulo da aba (1F, 2F, B1): até 4 letras e dígitos maiúsculos (`cleanFloorLabel`). */
+  rotulo: string
 }

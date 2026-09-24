@@ -1,7 +1,7 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules,
+  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
@@ -1722,5 +1722,13 @@ export function setWorldMap(map: MapData, worldMap: boolean): MapData {
   if (worldMap) return map.worldMap === true ? map : { ...map, worldMap: true }
   if (map.worldMap === undefined) return map
   const { worldMap: _comum, ...rest } = map
+  return rest
+}
+
+/** MAPA POR ANDARES (`lib/buildingFloors.ts`): `undefined` tira o campo, e a cena volta a ser comum. */
+export function setSceneFloor(map: MapData, andar: SceneFloor | undefined): MapData {
+  if (andar !== undefined) return { ...map, andar }
+  if (map.andar === undefined) return map
+  const { andar: _comum, ...rest } = map
   return rest
 }
