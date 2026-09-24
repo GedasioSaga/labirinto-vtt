@@ -151,6 +151,19 @@ interface AdventureState {
   open: (opened: OpenedMapFile) => void
   /** Cria a cena, já aberta. `loosePath` é o arquivo do mapa solto, quando a aventura nasce agora. */
   createScene: (name: string, loosePath: string | null) => string
+  /**
+   * "+ Cena nova…" do "Leva a…": cria a cena `name` (na pasta da cena aberta),
+   * o pino de chegada no centro dela, e liga a saída `exitId` do pino `pinId`
+   * a ele — como `linkPinToNewArrival`, `null` = uma saída nova. NÃO troca a
+   * cena aberta. `loosePath` como em `createScene`. `null` quando o pino não é
+   * um pino de viagem que leva (sumiu, é de outro tipo, é chegada oculta).
+   */
+  createSceneForPin: (
+    pinId: string,
+    name: string,
+    loosePath: string | null,
+    exitId?: string | null,
+  ) => { sceneId: string; arrivalId: string } | null
   renameScene: (sceneId: string, name: string) => void
   /**
    * "Duplicar" do menu da cena: a cópia entra LOGO ABAIXO da original, na
@@ -566,6 +579,46 @@ function showInEditor(map: MapData, past: MapData[], future: MapData[]): void {
   useSessionStore.getState().markSaved()
 }
 
+/**
+ * Uma cena VAZIA a mais na aventura (do tamanho e da grade de `live`), sem
+ * abri-la. No mapa solto a aventura nasce aqui, com ele como primeira cena.
+ * `besideOpen`: a cena nova entra na pasta da cena aberta; senão, no primeiro
+ * nível. Devolve o id e o que gravar no estado.
+ */
+function withEmptyScene(
+  state: AdventureState,
+  live: MapData,
+  name: string,
+  loosePath: string | null,
+  besideOpen: boolean,
+): { id: string; patch: Partial<AdventureState> } {
+  let adventure = state.adventure
+  let activeSceneId = state.activeSceneId
+  const born = adventure === null || activeSceneId === null
+  if (adventure === null || activeSceneId === null) {
+    const root: SceneEntry = { id: newSceneId(), name: live.name, file: loosePath ? baseName(loosePath) : 'map.json' }
+    adventure = { version: ADVENTURE_VERSION, id: `adv_${crypto.randomUUID()}`, name: live.name, startSceneId: root.id, scenes: [root] }
+    activeSceneId = root.id
+  }
+  const id = newSceneId()
+  const sceneName = cleanSceneName(name)
+  const map = mapFactory.createEmptyMap(`map_${crypto.randomUUID()}`, sceneName, live.width, live.height, live.grid)
+  const openId = activeSceneId
+  const parentId = besideOpen ? adventure.scenes.find((entry) => entry.id === openId)?.parentId : undefined
+  const entry: SceneEntry = { id, name: sceneName, file: sceneFileFor(id), ...(parentId === undefined ? {} : { parentId }) }
+  return {
+    id,
+    patch: {
+      adventure: { ...adventure, scenes: [...adventure.scenes, entry] },
+      activeSceneId,
+      ...(born ? { rootPath: loosePath, rootMapId: live.id, dir: null } : {}),
+      cache: { ...state.cache, [id]: { status: 'ok', map, past: [], future: [], camera: null } },
+      dirty: { ...state.dirty, [id]: true },
+      structureDirty: true,
+    },
+  }
+}
+
 export const useAdventureStore = create<AdventureState>()((set, get) => ({
   ...EMPTY,
 
@@ -598,29 +651,21 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
   },
 
   createScene: (name, loosePath) => {
-    const live = useMapStore.getState().map
-    const state = get()
-    let adventure = state.adventure
-    let activeSceneId = state.activeSceneId
-    const born = adventure === null || activeSceneId === null
-    if (adventure === null || activeSceneId === null) {
-      const root: SceneEntry = { id: newSceneId(), name: live.name, file: loosePath ? baseName(loosePath) : 'map.json' }
-      adventure = { version: ADVENTURE_VERSION, id: `adv_${crypto.randomUUID()}`, name: live.name, startSceneId: root.id, scenes: [root] }
-      activeSceneId = root.id
-    }
-    const id = newSceneId()
-    const sceneName = cleanSceneName(name)
-    const map = mapFactory.createEmptyMap(`map_${crypto.randomUUID()}`, sceneName, live.width, live.height, live.grid)
-    set({
-      adventure: { ...adventure, scenes: [...adventure.scenes, { id, name: sceneName, file: sceneFileFor(id) }] },
-      activeSceneId,
-      ...(born ? { rootPath: loosePath, rootMapId: live.id, dir: null } : {}),
-      cache: { ...state.cache, [id]: { status: 'ok', map, past: [], future: [], camera: null } },
-      dirty: { ...state.dirty, [id]: true },
-      structureDirty: true,
-    })
+    const { id, patch } = withEmptyScene(get(), useMapStore.getState().map, name, loosePath, false)
+    set(patch)
     get().switchScene(id)
     return id
+  },
+
+  createSceneForPin: (pinId, name, loosePath, exitId = SAIDA_PRINCIPAL) => {
+    const pin = useMapStore.getState().map.pins.find((p) => p.id === pinId)
+    // A chegada oculta não leva a lugar nenhum: não ganha destino, nem cena.
+    if (pin === undefined || pin.kind !== 'viagem' || isArrivalOnly(pin)) return null
+    const { id, patch } = withEmptyScene(get(), useMapStore.getState().map, name, loosePath, true)
+    set(patch)
+    // Sem `switchScene`: o mestre continua onde estava, com o pino no painel.
+    const arrivalId = get().linkPinToNewArrival(pinId, id, exitId)
+    return arrivalId === null ? null : { sceneId: id, arrivalId }
   },
 
   renameScene: (sceneId, name) => {
