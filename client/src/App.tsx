@@ -571,7 +571,7 @@ function App() {
             tokens={roomPanelTokensOf(world)}
             party={{
               members: partyMembers(roomPlayers, world),
-              destinations: partyDestinations(world),
+              destinations: partyDestinations(world, adventure?.scenes),
               onGoTo: (member) => {
                 // "Ir lá" em OUTRO jogador é o mestre escolhendo a vista: desliga o seguir.
                 if (member.playerId !== followingId) useFollowStore.getState().stop()

@@ -1,5 +1,6 @@
 import type { AppliedItems, HostScene, HostWorld, PlayerInfo } from '../net/hostSession'
 import type { CarriedItem, Token } from '../types/map'
+import { sceneTrail, type SceneEntry } from './adventure'
 import { carriedItemsOf, dropItemChange, giveNewItemChange, removeItemChange, type ItemChange } from './items'
 import { pinSummary } from './pins'
 import { tokenFillColor } from './tokenColor'
@@ -56,6 +57,12 @@ export interface PartyDestination {
   sceneId: string
   name: string
   arrivals: PartyArrival[]
+  /**
+   * CENAS EM PASTAS: os nomes das cenas de fora, da mais de fora para a mais
+   * de dentro — o caminho em cinza da busca. Ausente ou vazio = primeiro
+   * nível. Só a lista do mestre lê: nunca vai para o jogador.
+   */
+  trail?: readonly string[]
 }
 
 /** Nome da chegada que ninguém pode confundir com um pino. */
@@ -151,9 +158,10 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
  * As cenas do "Mandar para…": só aventura (mapa solto não tem para onde
  * mandar) e só as que abriram — o mundo do host já deixa de fora a cena cujo
  * arquivo falhou. As chegadas são os pinos de VIAGEM de cada uma, com o nome
- * que o mestre lê no painel do pino.
+ * que o mestre lê no painel do pino. `sceneList` é a lista da aventura: dela
+ * sai o caminho de cada cena (`trail`); sem ela, todas ficam sem caminho.
  */
-export function partyDestinations(world: HostWorld): PartyDestination[] {
+export function partyDestinations(world: HostWorld, sceneList: readonly SceneEntry[] = []): PartyDestination[] {
   const destinations: PartyDestination[] = []
   for (const scene of allScenes(world)) {
     if (scene.sceneId === null) continue
@@ -163,7 +171,8 @@ export function partyDestinations(world: HostWorld): PartyDestination[] {
         const description = pin.description.trim()
         return { pinId: pin.id, label: description === '' ? pinSummary(pin) : description }
       })
-    destinations.push({ sceneId: scene.sceneId, name: scene.name, arrivals })
+    const trail = sceneTrail(sceneList, scene.sceneId)
+    destinations.push({ sceneId: scene.sceneId, name: scene.name, arrivals, ...(trail.length > 0 ? { trail } : {}) })
   }
   return destinations
 }

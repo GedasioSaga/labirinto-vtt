@@ -18,7 +18,6 @@ import {
   sceneTrail,
   sceneTree,
   shiftSceneAmongSiblings,
-  SCENE_TRAIL_SEPARATOR,
   type Adventure,
   type SceneEntry,
 } from '../lib/adventure'
@@ -454,9 +453,10 @@ function exitPatchFor(pin: Pin, exitId: string | null, destino: PinDestination):
 
 /**
  * As cenas para onde um pino da cena aberta pode levar: todas as outras. A
- * cena de dentro de outra leva o caminho no nome ("Porto Cinza › Taverna"):
- * duas "Taverna" em cidades diferentes não se confundem na escolha. É lista
- * do mestre; o nome que o jogador nunca recebe continua sem caminho.
+ * cena de dentro de outra leva o caminho ao lado do nome (`trail`; numa
+ * linha só, `travelSceneLabel`: "Porto Cinza › Taverna"): duas "Taverna" em
+ * cidades diferentes não se confundem na escolha. É lista do mestre; o nome
+ * que o jogador nunca recebe continua sem caminho.
  */
 export function travelSceneOptions(state: SceneState): TravelSceneOption[] {
   const adventure = state.adventure
@@ -465,8 +465,7 @@ export function travelSceneOptions(state: SceneState): TravelSceneOption[] {
     .filter((entry) => entry.id !== state.activeSceneId)
     .map((entry) => {
       const slot = state.cache[entry.id]
-      const name = [...sceneTrail(adventure.scenes, entry.id), entry.name].join(SCENE_TRAIL_SEPARATOR)
-      return { id: entry.id, name, available: slot !== undefined && slot.status === 'ok' }
+      return { id: entry.id, name: entry.name, trail: sceneTrail(adventure.scenes, entry.id), available: slot !== undefined && slot.status === 'ok' }
     })
 }
 

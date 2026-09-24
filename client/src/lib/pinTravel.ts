@@ -1,5 +1,6 @@
 import type { MapData, Pin, PinDestination, PinExit, PinExitLabel } from '../types/map'
 import { PIN_HEAD_RADIUS, PIN_HEIGHT, pinSummary } from './pins'
+import { SCENE_TRAIL_SEPARATOR } from './adventure'
 import { seatTokenCenter } from './tokenSize'
 import { snapPointForTarget } from '../pixi/tokenInteraction'
 
@@ -447,9 +448,17 @@ export function pinFocusPoint(pin: Pin): { x: number; y: number } {
 /** Uma cena na lista "Leva a…". */
 export interface TravelSceneOption {
   id: string
+  /** O nome da cena, sem o caminho. */
   name: string
   /** `false` = o arquivo da cena não abriu: aparece, desabilitada, com o motivo. */
   available: boolean
+  /** As cenas de fora, da mais de fora para a mais de dentro; ausente ou vazio = primeiro nível. */
+  trail?: readonly string[]
+}
+
+/** O nome com o caminho, numa linha só: "Porto Cinza › Taverna". Duas Tavernas não se confundem. */
+export function travelSceneLabel(scene: Pick<TravelSceneOption, 'name' | 'trail'>): string {
+  return [...(scene.trail ?? []), scene.name].join(SCENE_TRAIL_SEPARATOR)
 }
 
 /** Um pino de viagem da cena escolhida, para ligar a um que já existe. */

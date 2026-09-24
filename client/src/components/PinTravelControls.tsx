@@ -1,10 +1,12 @@
 import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import type { PinTravel, TravelPinOption, TravelSceneOption } from '../lib/pinTravel'
-import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, isArrivalOnly, travelExitsOf } from '../lib/pinTravel'
+import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, isArrivalOnly, travelExitsOf, travelSceneLabel } from '../lib/pinTravel'
 import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
+import { SCENE_FILTER_MIN, sceneSearchSummary, sceneSearchWords, searchScenes } from '../lib/sceneSearch'
 import type { PinPassage } from '../types/map'
 import { ChevronDownIcon } from './icons'
 import { DoorKeyField } from './WallDoorControls'
+import { SceneChoice, SceneSearchField } from './SceneSearch'
 
 /** Uma saída do pino, como o painel a mostra. */
 export interface PinTravelExitView {
@@ -64,10 +66,12 @@ type Escolha = { passo: 'cena'; saida: string | null } | { passo: 'pino'; sceneI
 const STATUS_ID = 'lb-pin-travel-status'
 const SELETOR_ID = 'lb-pin-travel-picker'
 const CENAS_ID = 'lb-pin-travel-scenes'
+const CENAS_LISTA_ID = 'lb-pin-travel-scene-list'
 const PINOS_ID = 'lb-pin-travel-pins'
 const PASSAGEM_ID = 'lb-pin-travel-passage'
 const NOME_ID = 'lb-pin-travel-exit-name'
 const MAO_UNICA_ID = 'lb-pin-travel-one-way'
+const BUSCA_ID = 'lb-pin-travel-search'
 
 /** A chave do gatilho que abriu a escolha: o id da saída, ou esta para "+ Outra saída". */
 const GATILHO_NOVA = '+nova'
@@ -125,6 +129,11 @@ function TituloDoDestino({ travel }: { travel: PinTravel }) {
  * Teclado: Esc fecha a escolha e devolve o foco a quem a abriu; as setas andam
  * entre as opções; depois de ligar, desligar ou atravessar, o foco vai para a
  * frase do destino, que é o que mudou (e o leitor de tela a lê: `aria-live`).
+ *
+ * BUSCA: com muitas cenas (`SCENE_FILTER_MIN`), a escolha abre com o foco num
+ * campo de busca; cada cena mostra o caminho em cinza embaixo do nome. Enter
+ * no campo vai direto para a chegada da primeira achada que abre; a seta desce
+ * do campo para as achadas; Esc com texto só limpa a busca.
  */
 export function PinTravelControls({
   exits,
@@ -143,6 +152,8 @@ export function PinTravelControls({
   arrivalOnly,
 }: PinTravelControlsProps) {
   const [escolha, setEscolha] = useState<Escolha>(null)
+  const [busca, setBusca] = useState('')
+  const buscaRef = useRef<HTMLInputElement | null>(null)
   /** Quem abriu a escolha: é para ele que o foco volta ao fechar. */
   const gatilhoRef = useRef<HTMLButtonElement | null>(null)
   const seletorRef = useRef<HTMLDivElement | null>(null)
@@ -154,6 +165,11 @@ export function PinTravelControls({
   const aberta = escolha !== null
   const encruzilhada = exits.length > 1
   const principal = exits[0]
+  const mostraBusca = scenes.length >= SCENE_FILTER_MIN
+  const buscando = mostraBusca && sceneSearchWords(busca).length > 0
+  const achadas = buscando ? searchScenes(scenes, busca) : scenes
+  /** A cena que o Enter do campo escolhe: a primeira achada que abriu. Só com busca digitada. */
+  const alvoDoEnter = buscando ? achadas.find((scene) => scene.available) : undefined
   const algumaLigada = exits.some((exit) => exit.travel.status === 'ligado')
   // A régua do poço: acesa se alguma saída leva a algum lugar.
   const estado = algumaLigada ? 'ligado' : (principal?.travel.status ?? 'sem-destino')
@@ -164,7 +180,9 @@ export function PinTravelControls({
   const abrir = (saida: string | null, gatilho: HTMLButtonElement) => {
     gatilhoRef.current = gatilho
     setEscolha({ passo: 'cena', saida })
-    focarDepois(() => opcoes()[0])
+    setBusca('')
+    // Com busca, o foco nasce nela: digitar já filtra. Sem ela, na primeira cena.
+    focarDepois(() => buscaRef.current ?? opcoes()[0])
   }
   const fechar = () => {
     setEscolha(null)
@@ -180,7 +198,14 @@ export function PinTravelControls({
     if (escolha === null) return
     setEscolha({ passo: 'cena', saida: escolha.saida })
     const cena = cenaEscolhidaRef.current
-    focarDepois(() => (cena === null ? null : seletorRef.current?.querySelector<HTMLButtonElement>(`[data-cena="${CSS.escape(cena)}"]`)) ?? opcoes()[0])
+    focarDepois(
+      () => (cena === null ? null : seletorRef.current?.querySelector<HTMLButtonElement>(`[data-cena="${CSS.escape(cena)}"]`)) ?? buscaRef.current ?? opcoes()[0],
+    )
+  }
+  const aoTeclarNaBusca = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter') return
+    event.preventDefault()
+    if (alvoDoEnter !== undefined) escolherCena(alvoDoEnter.id)
   }
   /** Depois de mudar a ligação, o foco vai para o que mudou: a frase do destino. */
   const concluir = (acao: () => void) => {
@@ -196,7 +221,11 @@ export function PinTravelControls({
     if (event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
-      fechar()
+      // O primeiro Esc só limpa a busca; com ela vazia, o Esc fecha a escolha.
+      if (escolha.passo === 'cena' && busca !== '') {
+        setBusca('')
+        buscaRef.current?.focus()
+      } else fechar()
       return
     }
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
@@ -354,18 +383,33 @@ export function PinTravelControls({
               <p className="lb-label" id={CENAS_ID}>
                 {escolha.saida === null ? 'A outra saída leva a qual cena?' : 'Para qual cena?'}
               </p>
-              <ul className="lb-travel__options" aria-labelledby={CENAS_ID}>
-                {scenes.map((scene) => (
+              {mostraBusca && (
+                <>
+                  <SceneSearchField
+                    id={BUSCA_ID}
+                    label="Buscar cena"
+                    value={busca}
+                    inputRef={buscaRef}
+                    controls={CENAS_LISTA_ID}
+                    onChange={setBusca}
+                    onKeyDown={aoTeclarNaBusca}
+                  />
+                  <p className="lb-cenas__resumo" role="status">
+                    {buscando ? sceneSearchSummary(achadas.length, busca) : ''}
+                  </p>
+                </>
+              )}
+              <ul id={CENAS_LISTA_ID} className="lb-travel__options" aria-labelledby={CENAS_ID}>
+                {achadas.map((scene) => (
                   <li key={scene.id} className="lb-travel__option">
-                    <button
-                      type="button"
-                      className="lb-btn lb-travel__choice"
-                      data-cena={scene.id}
+                    <SceneChoice
+                      name={scene.name}
+                      trail={scene.trail}
+                      dataCena={scene.id}
                       disabled={!scene.available}
-                      onClick={() => escolherCena(scene.id)}
-                    >
-                      {scene.name}
-                    </button>
+                      enterTarget={scene.id === alvoDoEnter?.id}
+                      onChoose={() => escolherCena(scene.id)}
+                    />
                     {!scene.available && <span className="lb-travel__note">não abriu</span>}
                   </li>
                 ))}
@@ -378,7 +422,7 @@ export function PinTravelControls({
             </>
           ) : (
             <PassoDoPino
-              sceneName={scenes.find((scene) => scene.id === escolha.sceneId)?.name ?? ''}
+              sceneName={sceneLabelOf(scenes, escolha.sceneId)}
               pins={pinsIn(escolha.sceneId)}
               onCreate={() => concluir(() => onLinkNew(escolha.sceneId, escolha.saida))}
               onPick={(pinId) => concluir(() => onLinkExisting(escolha.sceneId, pinId, escolha.saida))}
@@ -390,6 +434,12 @@ export function PinTravelControls({
       )}
     </div>
   )
+}
+
+/** O nome com caminho da cena `sceneId`, para o título do passo da chegada; vazio se ela saiu da lista. */
+function sceneLabelOf(scenes: readonly TravelSceneOption[], sceneId: string): string {
+  const scene = scenes.find((candidate) => candidate.id === sceneId)
+  return scene === undefined ? '' : travelSceneLabel(scene)
 }
 
 type Ligada = Extract<PinTravel, { status: 'ligado' }>

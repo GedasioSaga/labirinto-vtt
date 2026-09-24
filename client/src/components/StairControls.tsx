@@ -3,6 +3,7 @@ import type { PinPassage, StairDirection } from '../types/map'
 import { stairSizePresetForStepWidth, stairStepWidthForPreset, type StairSizePreset } from '../lib/stairs'
 import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
 import type { StairTravelProps } from '../lib/stairTravel'
+import { travelSceneLabel } from '../lib/pinTravel'
 
 export type { StairTravelProps }
 
@@ -110,7 +111,7 @@ function StairTravelSection({ scenes, linkedSceneId, passage, onLink, onUnlink, 
           <option value="">Nenhum outro andar</option>
           {scenes.map((scene) => (
             <option key={scene.id} value={scene.id} disabled={!scene.available}>
-              {scene.available ? scene.name : `${scene.name} (não abriu)`}
+              {scene.available ? travelSceneLabel(scene) : `${travelSceneLabel(scene)} (não abriu)`}
             </option>
           ))}
         </select>

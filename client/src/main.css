@@ -1913,6 +1913,14 @@ body {
   justify-content: flex-end;
 }
 
+/* As cenas achadas pela busca do envio: uma busca curta ("a") não empurra a
+   Chegada e o "Mandar" para fora do painel — a lista rola, e a seta leva o
+   foco (e a rolagem) junto. */
+.lb-party__send .lb-travel__options {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
 .lb-party__send .lb-party__actions > .lb-btn {
   flex: none;
   min-height: 34px;
@@ -3736,4 +3744,35 @@ html.lb-arrastando-cena * {
   font-size: var(--lb-font-size-sm);
   color: var(--lb-color-parchment-faint);
   text-align: right;
+}
+
+/* Cena de dentro de outra nos seletores de destino: o nome em cima e o
+   caminho em cinza embaixo, como no "Filtrar cenas" — é o nome que o mestre
+   procura, então é o caminho que vira reticência quando não cabe. */
+.lb-travel__choice--caminho {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  padding-block: var(--lb-space-1);
+}
+
+.lb-travel__choice-nome,
+.lb-travel__caminho {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-travel__caminho {
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-regular);
+}
+
+/* Com busca digitada, a cena que o Enter do campo escolhe: o resultado ativo,
+   um degrau acima dos outros botões e com a borda mais firme. */
+.lb-travel__choice[data-enter='true'] {
+  background: var(--lb-color-stone-hover);
+  border-color: var(--lb-color-line-strong);
 }
