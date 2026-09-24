@@ -14,6 +14,8 @@ import { PlayerClueCard } from './PlayerClues'
 import { coverBounds } from './playerCamera'
 import { PlayerZoomControls } from './PlayerZoomControls'
 import { PlayerSceneName } from './PlayerSceneName'
+import { PlayerScreenAwake } from './PlayerScreenAwake'
+import { useScreenWakeLock } from './screenWakeLock'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
@@ -585,6 +587,9 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const [attempt, setAttempt] = useState(0)
   const [handshakeOverdue, setHandshakeOverdue] = useState(false)
   const connecting = state.status === 'connecting'
+  // TELA NÃO APAGA: dentro da sala (esperando o mestre ou jogando) o celular
+  // não apaga a tela; expulso, sala encerrada, erro ou fora da sessão, solta.
+  const screenAwake = useScreenWakeLock(state.status === 'waiting' || state.status === 'playing')
 
   /**
    * "Conectando…" não tinha prazo, e essa era a tela mais cruel do app: o
@@ -816,6 +821,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         />
         {/* "Onde estou": só com nome público na cena; não é controle, fica fora da ordem do Tab. */}
         <PlayerSceneName name={state.sceneName} />
+        <PlayerScreenAwake active={screenAwake} />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         {pointMenu && (
@@ -916,15 +922,18 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   // `playing` sem mapa é o intervalo entre o resume e o primeiro snapshot: mesma espera.
   if (state.status === 'waiting' || state.status === 'playing') {
     return (
-      <WaitingScreen
-        code={code}
-        typedName={typedName}
-        hostName={hostName}
-        // Trocar de nome NÃO esquece o resume: o mestre reaproveita o mesmo
-        // registro e só troca o nome, sem virar um segundo jogador na lista.
-        onRename={() => onLeave({ text: 'Escolha outro nome e entre de novo.', tone: 'info' })}
-        onLeave={onQuit}
-      />
+      <>
+        <WaitingScreen
+          code={code}
+          typedName={typedName}
+          hostName={hostName}
+          // Trocar de nome NÃO esquece o resume: o mestre reaproveita o mesmo
+          // registro e só troca o nome, sem virar um segundo jogador na lista.
+          onRename={() => onLeave({ text: 'Escolha outro nome e entre de novo.', tone: 'info' })}
+          onLeave={onQuit}
+        />
+        <PlayerScreenAwake active={screenAwake} />
+      </>
     )
   }
 
