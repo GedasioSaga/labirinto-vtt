@@ -892,9 +892,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * reencontra as fichas dele — só as que ainda existem em alguma cena e não
    * têm outro dono —, o raio e a cena. Sem nenhuma ficha que sobre, o assento
    * continua esperando e a pessoa entra sem personagem, como hoje.
+   *
+   * `typedName` é o nome DIGITADO, antes do `uniqueName`: depois de um
+   * "Desfazer", quem pegou o assento por engano continua na sala com o nome,
+   * e a Ana de verdade entra "Ana (2)" — o assento continua sendo dela.
    */
-  const reclaimSeat = (record: PlayerRecord, world: HostWorld): ReclaimedSeat | undefined => {
-    const wanted = normalizeName(record.name)
+  const reclaimSeat = (record: PlayerRecord, typedName: string, world: HostWorld): ReclaimedSeat | undefined => {
+    const wanted = normalizeName(typedName)
     const index = pendingSeats.findIndex((seat) => normalizeName(seat.name) === wanted)
     if (index < 0) return undefined
     const seat = pendingSeats[index]
@@ -949,11 +953,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const [candidate, previous] of pendingReturns) {
       if (previous === record.playerId) pendingReturns.delete(candidate)
     }
-    if (lookalike !== undefined) pendingReturns.set(record.playerId, lookalike.playerId)
     // Antes do `next`: quem reencontra a ficha já entra jogando, sem passar pela espera.
-    // Com uma "Ana" fora nesta sessão, quem entra vira "Ana (2)" e não casa
-    // com o assento: a decisão fica com o "Ana voltou?" do mestre.
-    const reclaimed = resumed === undefined ? reclaimSeat(record, world) : undefined
+    const reclaimed = resumed === undefined ? reclaimSeat(record, msg.name, world) : undefined
+    // Quem reencontrou o assento da mesa guardada já é a Ana daquela mesa: a
+    // "Ana" que está fora nesta sessão é outra pessoa (o mestre desfez a
+    // retomada dela), e juntar as duas pelo "Ana voltou?" daria a ficha da Ana
+    // a quem o mestre acabou de dizer que não é ela.
+    const returnOf = reclaimed === undefined ? lookalike : undefined
+    if (returnOf !== undefined) pendingReturns.set(record.playerId, returnOf.playerId)
 
     // `name` é o nome já passado por `uniqueName`: é assim que o jogador
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
@@ -969,7 +976,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         ...replacedOut,
       ],
       ...(replaced === null ? {} : { replacedClientId: replaced }),
-      ...(lookalike === undefined ? {} : { returnCandidate: { playerId: record.playerId, previousId: lookalike.playerId, name: lookalike.name } }),
+      ...(returnOf === undefined ? {} : { returnCandidate: { playerId: record.playerId, previousId: returnOf.playerId, name: returnOf.name } }),
       ...(reclaimed === undefined ? {} : { reclaimed }),
     }
   }
@@ -1895,8 +1902,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // Sem ficha não há o que devolver: não ocupa assento.
         if (tokenIds.length === 0) continue
         for (const tokenId of tokenIds) owned.add(tokenId)
-        seated.add(normalizeName(p.name))
-        seats.push({ name: p.name, tokenIds: [...tokenIds], visionRadius: visionOverrides.get(p.playerId) ?? null, sceneKey: currentScene.get(p.playerId) ?? null })
+        // Quem retomou grava com o nome do assento, não com o "Ana (2)" que a
+        // sala lhe deu: na próxima retomada, digitar "Ana" ainda o reencontra.
+        const name = claimedSeats.get(p.playerId)?.seat.name ?? p.name
+        seated.add(normalizeName(name))
+        seats.push({ name, tokenIds: [...tokenIds], visionRadius: visionOverrides.get(p.playerId) ?? null, sceneKey: currentScene.get(p.playerId) ?? null })
       }
       // Quem ainda não voltou continua na mesa, menos as fichas que o mestre já deu a outro.
       for (const seat of pendingSeats) {

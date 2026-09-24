@@ -125,6 +125,22 @@ describe('hostSession: retomar a mesa pelo nome', () => {
     expect(verdadeira.result.reclaimed?.tokenIds).toEqual(['lirio'])
   })
 
+  it('Desfazer com quem pegou por engano ainda na sala: a Ana de verdade entra "Ana (2)" e reencontra Lírio', () => {
+    const { s, entra } = mesa()
+    const falsa = entra('c1', 'ana')
+    s.undoReclaim(falsa.playerId)
+    // A falsa continua na sala com o nome "ana": a de verdade é renomeada, mas o assento é dela.
+    const verdadeira = entra('c2', 'Ana')
+    expect(verdadeira.result.reclaimed).toEqual({ playerId: verdadeira.playerId, name: 'Ana', tokenIds: ['lirio'] })
+    expect(verdadeira.result.outbound.map((o) => o.msg.type)).toContain('snapshot')
+    expect(s.listPlayers(mundo).map((p) => [p.name, p.status, p.tokenIds, p.visionRadius])).toEqual([
+      ['ana', 'waiting', [], 700],
+      ['Ana (2)', 'playing', ['lirio'], 350],
+    ])
+    // A mesa gravada guarda o assento com o nome de antes: na próxima retomada, "Ana" ainda o reencontra.
+    expect(s.savedSeats()).toEqual(ASSENTOS)
+  })
+
   it('Desfazer só tira as fichas devolvidas: a que o mestre deu depois fica', () => {
     const { s, entra } = mesa()
     const ana = entra('c1', 'Ana')
