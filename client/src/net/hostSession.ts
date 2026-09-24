@@ -1,9 +1,17 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token, TokenContract } from '../types/map'
 import { contractFromTerms, isContractDue, type LoanTerms } from '../lib/tokenLoan'
 import { tokenAsSeenByPlayer } from '../lib/tokenPublicName'
-import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
+import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
+import {
+  filterMapForPlayer,
+  pinClueForPlayer,
+  playerBlockedRings,
+  playerEyeTokens,
+  roomClueForPlayer,
+  type PlayerClueContent,
+  type PlayerMapView,
+} from '../lib/fogFilter'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { validateTokenMove } from '../lib/moveValidation'
 import { confrontoParaJogador, fichaDaVez } from '../lib/confronto'
@@ -304,6 +312,9 @@ export const TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS = 1500
  */
 export const MAX_SCENE_MEMORIES_PER_PLAYER = 8
 
+/** MEMÓRIA POR FICHA: o mesmo teto, contado por ficha. */
+export const MAX_SCENE_MEMORIES_PER_TOKEN = MAX_SCENE_MEMORIES_PER_PLAYER
+
 /**
  * Quantas cenas guardam o "último recado". O `sceneId` vem da tela do mestre
  * (confiável), mas memória de host não cresce sem limite: passou, esquece a
@@ -445,13 +456,58 @@ interface ValidTravel {
   token: Token
 }
 
-/** O que um jogador lembra de um mapa: células exploradas e último estado visto de cada porta. */
-interface PlayerMemory {
+/**
+ * O que uma FICHA lembra de um mapa (MEMÓRIA POR FICHA): células exploradas e
+ * último estado visto de cada porta. `doorSeen` guarda quando (ordem do host,
+ * `memorySeq`) cada porta foi vista: ao somar memórias, vale a vista mais nova.
+ */
+interface SceneMemory {
   key: string
   exp: Exploration
   doors: Map<string, DoorState>
+  doorSeen: Map<string, number>
+}
+
+/** O que um jogador lembra de um mapa: a memória de cena e a visão do último snapshot. */
+interface PlayerMemory extends SceneMemory {
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
+}
+
+/**
+ * Põe `memory` como a cena mais recente de `byScene` e esquece as mais
+ * antigas acima de `max`.
+ */
+function touchScene<T>(byScene: Map<string, T>, mapId: string, memory: T, max: number): void {
+  // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
+  byScene.delete(mapId)
+  byScene.set(mapId, memory)
+  for (const oldest of byScene.keys()) {
+    if (byScene.size <= max) break
+    byScene.delete(oldest)
+  }
+}
+
+/** Grava a porta vista agora, no instante `seq`. */
+function rememberDoor(memory: SceneMemory, doorId: string, door: DoorState, seq: number): void {
+  memory.doors.set(doorId, { ...door })
+  memory.doorSeen.set(doorId, seq)
+}
+
+/**
+ * MEMÓRIA POR FICHA — soma em `target` o que `source` lembra: células (menos
+ * as que tocam `forbidden`) e portas, cada porta com a vista mais nova das
+ * duas. O estado lembrado de uma porta não põe a porta no pacote: quem decide
+ * se ela sai é o recorte (célula explorada ao lado, fora de zona e de sala
+ * secreta), igual à porta que o jogador lembra por si.
+ */
+function inheritMemory(target: SceneMemory, source: SceneMemory, forbidden: readonly RegionPoint[][]): void {
+  mergeExploration(target.exp, source.exp, forbidden)
+  for (const [doorId, door] of source.doors) {
+    const seenAt = source.doorSeen.get(doorId) ?? 0
+    if ((target.doorSeen.get(doorId) ?? -1) >= seenAt) continue
+    rememberDoor(target, doorId, door, seenAt)
+  }
 }
 
 /** Chave de comparação do nome: sem maiúsculas e sem espaços. */
@@ -482,6 +538,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // a primeira é a menos recente, a que sai quando passa do teto.
   // `doors`: último estado de cada porta que o jogador VIU (por id da parede).
   const memories = new Map<string, Map<string, PlayerMemory>>()
+  // MEMÓRIA POR FICHA — por id da ficha, uma memória por cena (mesma ordem e
+  // mesmo teto de `memories`): o que a ficha viu enquanto era olho de algum
+  // jogador. Quem passa a segurar a ficha soma isto à própria memória. O kick
+  // NÃO apaga: é o que o próximo jogador herda.
+  const tokenMemories = new Map<string, Map<string, SceneMemory>>()
+  // Relógio das portas lembradas: sobe a cada snapshot (ver `SceneMemory.doorSeen`).
+  let memorySeq = 0
   // Por playerId: a cena em que o jogador foi visto por último. Desempata
   // quando ele tem token em mais de uma cena — sem isto, o mestre trocar a
   // cena do editor mudaria a cena do jogador junto.
@@ -653,22 +716,70 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       byScene = new Map()
       memories.set(playerId, byScene)
     }
-    const found = existingMemory(playerId, map)
-    // MapData.width/height estão em células; o explorado mede px de mundo (mesma unidade da visão).
-    const memory: PlayerMemory = found ?? {
-      key: memoryKey(map),
-      exp: createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }),
-      doors: new Map(),
-      vision: [],
-    }
-    // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
-    byScene.delete(map.id)
-    byScene.set(map.id, memory)
-    for (const oldest of byScene.keys()) {
-      if (byScene.size <= MAX_SCENE_MEMORIES_PER_PLAYER) break
-      byScene.delete(oldest)
-    }
+    const memory: PlayerMemory = existingMemory(playerId, map) ?? { ...emptySceneMemory(map), vision: [] }
+    touchScene(byScene, map.id, memory, MAX_SCENE_MEMORIES_PER_PLAYER)
     return memory
+  }
+
+  /** Memória vazia de um mapa. */
+  const emptySceneMemory = (map: MapData): SceneMemory => ({
+    key: memoryKey(map),
+    // MapData.width/height estão em células; o explorado mede px de mundo (mesma unidade da visão).
+    exp: createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }),
+    doors: new Map(),
+    doorSeen: new Map(),
+  })
+
+  /** MEMÓRIA POR FICHA: o que a ficha já lembra deste mapa, sem criar (mapa redimensionado é outro). */
+  const existingTokenMemory = (tokenId: string, map: MapData): SceneMemory | undefined => {
+    const memory = tokenMemories.get(tokenId)?.get(map.id)
+    return memory !== undefined && memory.key === memoryKey(map) ? memory : undefined
+  }
+
+  /** MEMÓRIA POR FICHA: a memória da ficha neste mapa, criada vazia se preciso, como a mais recente. */
+  const tokenMemoryFor = (tokenId: string, map: MapData): SceneMemory => {
+    let byScene = tokenMemories.get(tokenId)
+    if (byScene === undefined) {
+      byScene = new Map()
+      tokenMemories.set(tokenId, byScene)
+    }
+    const memory = existingTokenMemory(tokenId, map) ?? emptySceneMemory(map)
+    touchScene(byScene, map.id, memory, MAX_SCENE_MEMORIES_PER_TOKEN)
+    return memory
+  }
+
+  /**
+   * MEMÓRIA POR FICHA — antes do recorte, o jogador soma à memória dele o que
+   * cada ficha que é OLHO dele neste mapa já viu. Ajudante sem visão, ficha
+   * escondida e ficha de outra cena não entram. Célula que hoje é área
+   * proibida (zona oculta, sala secreta, teto) não passa.
+   */
+  const inheritFromTokens = (playerId: string, map: MapData, memory: PlayerMemory): void => {
+    let forbidden: RegionPoint[][] | null = null
+    for (const t of playerEyeTokens(map, playerId, ownership, loansFor(playerId))) {
+      const source = existingTokenMemory(t.id, map)
+      if (source === undefined) continue
+      forbidden ??= playerBlockedRings(map)
+      inheritMemory(memory, source, forbidden)
+    }
+  }
+
+  /**
+   * MEMÓRIA POR FICHA — depois do recorte, cada ficha que é olho do jogador
+   * grava o anel DELA (nunca o das outras fichas do mesmo dono) com as mesmas
+   * regras da memória do jogador: nada em área proibida, nada dentro de teto
+   * fechado.
+   */
+  const recordTokenMemories = (map: MapData, view: PlayerMapView, doorsById: ReadonlyMap<string, DoorState>, seq: number): void => {
+    for (const eye of view.eyes) {
+      const memory = tokenMemoryFor(eye.tokenId, map)
+      markRings(memory.exp, [eye.vision], view.blocked)
+      forgetInside(memory.exp, view.roofs)
+      for (const doorId of eye.doorIds) {
+        const door = doorsById.get(doorId)
+        if (door !== undefined) rememberDoor(memory, doorId, door, seq)
+      }
+    }
   }
 
   const ownsTokenIn = (playerId: string, scene: HostScene): boolean => {
@@ -812,6 +923,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const snapshotFor = (playerId: string, map: MapData): HostMessage[] => {
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
+    inheritFromTokens(playerId, map, memory)
     const entered = enteredRooms.get(playerId)?.get(map.id)
     const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered, loansFor(playerId))
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
@@ -828,9 +940,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     memory.vision = view.vision
     seenPins.set(playerId, { mapId: map.id, pins: view.map.pins })
     const seenNow = new Set(view.visibleDoorIds)
+    const seq = (memorySeq += 1)
+    const doorsSeen = new Map<string, DoorState>()
     for (const w of view.map.walls) {
-      if (w.door !== null && seenNow.has(w.id)) memory.doors.set(w.id, { ...w.door })
+      if (w.door === null || !seenNow.has(w.id)) continue
+      doorsSeen.set(w.id, w.door)
+      rememberDoor(memory, w.id, w.door, seq)
     }
+    recordTokenMemories(map, view, doorsSeen, seq)
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
     // CONFRONTO: a faixa sai montada com as fichas QUE ESTE RECORTE MANDOU —
@@ -1616,12 +1733,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     hidePlan(playerId, source) {
       // Apagar a memória: o próximo snapshot recria vazia (explorado, portas e visão).
+      // MEMÓRIA POR FICHA: a das fichas dele também, senão a ficha devolveria
+      // a planta no snapshot seguinte.
+      const owned = ownership[playerId] ?? []
       if (source === undefined) {
         memories.delete(playerId)
+        for (const tokenId of owned) tokenMemories.delete(tokenId)
         return
       }
       const scene = sceneFor(playerId, toWorld(source))
-      if (scene !== null) memories.get(playerId)?.delete(scene.map.id)
+      if (scene === null) return
+      memories.get(playerId)?.delete(scene.map.id)
+      for (const tokenId of owned) tokenMemories.get(tokenId)?.delete(scene.map.id)
     },
 
     broadcast(source) {
