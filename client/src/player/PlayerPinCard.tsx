@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Pin, PinExitLabel } from '../types/map'
-import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
-import { PinTravelArt } from '../components/PinSymbolArt'
+import { PIN_GLYPH, PIN_ICON_LABELS, isPinIcon, isPlayerSafePinImage, passageOf } from '../lib/pins'
+import { PinSymbolArt, PinTravelArt } from '../components/PinSymbolArt'
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -16,21 +16,33 @@ interface PlayerPinCardProps {
   travelWaiting?: boolean
 }
 
+/** Nome da cabeça do pino para quem não vê o desenho: o que ela mostra no mapa. */
+function nomeDaCabeca(pin: Pin): string {
+  if (pin.kind === 'viagem') return 'passagem'
+  if (isPinIcon(pin.icon)) return PIN_ICON_LABELS[pin.icon].toLocaleLowerCase('pt-BR')
+  return pin.kind === 'interrogacao' ? 'interrogação' : 'exclamação'
+}
+
 /**
- * Cenário sem foto. Fica como `<img>` de verdade, e não como um `<div>` vazio,
- * porque a área de imagem é parte do que o cartão promete: o jogador precisa
- * ver que ali CABE uma imagem e que o mestre não pôs nenhuma — um buraco sem
- * explicação leria como falha de carregamento.
+ * A CABEÇA DO PINO, igual à do mapa (`pixi/drawPins.ts`): a passagem no pino de
+ * viagem (nunca o símbolo escolhido), o símbolo que o mestre escolheu, ou o
+ * "!"/"?" de sempre. Liga o que se lê ao que acabou de ser tocado — e, no
+ * cartão sem foto, é ela a imagem do cartão. Tem nome para o leitor de tela:
+ * o símbolo diz algo ("baú", "armadilha") que o rótulo do cartão não diz.
  */
-const IMAGEM_AUSENTE =
-  'data:image/svg+xml;utf8,' +
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">' +
-      '<rect width="320" height="180" fill="%23191a20"/>' +
-      '<path d="M96 122l38-44 26 30 18-20 46 34z" fill="none" stroke="%235d6070" stroke-width="3" stroke-linejoin="round"/>' +
-      '<circle cx="118" cy="66" r="9" fill="none" stroke="%235d6070" stroke-width="3"/>' +
-      '</svg>',
+function CabecaDoPino({ pin }: { pin: Pin }) {
+  const viagem = pin.kind === 'viagem'
+  const simbolo = !viagem && isPinIcon(pin.icon) ? pin.icon : null
+  return (
+    <span
+      className={viagem ? 'pp-pincard__glyph pp-pincard__glyph--viagem' : 'pp-pincard__glyph'}
+      role="img"
+      aria-label={`Símbolo do pino: ${nomeDaCabeca(pin)}`}
+    >
+      {viagem ? <PinTravelArt size={16} /> : simbolo !== null ? <PinSymbolArt icon={simbolo} size={16} /> : PIN_GLYPH[pin.kind]}
+    </span>
   )
+}
 
 /** O que o cartão diz em cada passo da passagem, por modo do pino. */
 interface TextosDaPassagem {
@@ -62,6 +74,12 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
  * Imagem EM CIMA, texto EMBAIXO — nesta ordem no DOM, sem `order` de flex ou
  * posicionamento que desmanche a ordem de leitura: quem enxerga e quem ouve
  * recebem a mesma sequência.
+ *
+ * SEM IMAGEM, CARTÃO COMPACTO (simulação de 7 jogadores, cenário vila*): a
+ * área de 190 px reservada para a foto que o mestre não pôs abria como um
+ * retângulo escuro, lido como imagem quebrada, e empurrava o texto para baixo.
+ * Sem foto, o cartão é só a cabeça do pino, o texto e os botões — a cabeça
+ * sobe para o lugar da imagem (`player.css`, `.pp-pincard--compacto`).
  *
  * Fecha por Escape, pelo botão e por tocar fora. O "fora" é ouvido na janela,
  * na fase de captura, e não por um fundo que cobre a tela: o véu continua
@@ -154,20 +172,14 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
     <div className="pp-pincard__backdrop">
       <div
         ref={cardRef}
-        className="pp-pincard"
+        className={foto === null ? 'pp-pincard pp-pincard--compacto' : 'pp-pincard'}
         role="dialog"
         aria-modal="true"
         aria-label={viagem ? 'Passagem' : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`}
       >
-        <img
-          className="pp-pincard__image"
-          src={foto === null ? IMAGEM_AUSENTE : foto}
-          alt={foto === null ? 'Este ponto de interesse ainda não tem imagem' : 'Imagem deixada pelo mestre neste ponto de interesse'}
-        />
+        {foto !== null && <img className="pp-pincard__image" src={foto} alt="Imagem deixada pelo mestre neste ponto de interesse" />}
         <div className="pp-pincard__body">
-          <span className={viagem ? 'pp-pincard__glyph pp-pincard__glyph--viagem' : 'pp-pincard__glyph'} aria-hidden="true">
-            {viagem ? <PinTravelArt size={16} /> : PIN_GLYPH[pin.kind]}
-          </span>
+          <CabecaDoPino pin={pin} />
           <p className="pp-pincard__text">
             {descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao}
           </p>

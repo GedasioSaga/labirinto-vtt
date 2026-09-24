@@ -293,8 +293,9 @@ export type PinIcon = 'bau' | 'armadilha' | 'chave' | 'perigo' | 'escada' | 'agu
  * `image` guarda a imagem EM DATA URL (`data:image/...;base64,...`), nunca um
  * caminho do disco — é a única forma de o cartão chegar ao jogador sem abrir o
  * computador do mestre (o recorte de `lib/fogFilter.ts` recusa qualquer valor
- * que não comece em `data:image/`). `null` = cartão sem foto, que o jogador vê
- * como área vazia rotulada.
+ * que não comece em `data:image/`). `null` = cartão sem foto: o jogador vê o
+ * cartão compacto, só com a cabeça do pino, o texto e os botões
+ * (`player/PlayerPinCard.tsx`).
  */
 export interface Pin extends PlayerSecret {
   id: string
