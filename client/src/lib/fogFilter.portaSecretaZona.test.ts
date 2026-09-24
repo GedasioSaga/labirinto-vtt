@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ConcealZone, DoorState, MapData, Wall } from '../types/map'
 import { filterMapForPlayer } from './fogFilter'
+import { pointInRing } from './floorContour'
 import { createEmptyMap } from './mapFactory'
 
 /**
@@ -91,6 +92,66 @@ describe('porta secreta: o jogador recebe o mesmo que receberia da parede lisa',
     expect(secreta.map.walls).toEqual(lisa.map.walls)
     expect(secreta.vision).toEqual(lisa.vision)
     expect(marcaPontaDaPorta(secreta.vision)).toBe(false)
+  })
+
+  it('SEGURANÇA: zona SEM pincel no meio da parede (pontas e meio fora dela) não deixa sair o trecho de dentro', () => {
+    // A emenda deixa a parede comprida (x 0..1000) e as 3 amostras de antes
+    // (x 0, 500, 1000) ficavam fora da zona (x 600..800): a parede saía inteira,
+    // atravessando a zona. A parede longe da zona segue saindo inteira.
+    const zona: ConcealZone = {
+      id: 'z',
+      name: 'Ala',
+      revealed: false,
+      points: [
+        { x: 600, y: 400 },
+        { x: 800, y: 400 },
+        { x: 800, y: 600 },
+        { x: 600, y: 600 },
+      ],
+    }
+    const longe = parede('w-longe', 0, 800, 400, 800)
+    const mapa = (walls: Wall[]): MapData => ({ ...corredor([...walls, longe], [zona]), tokens: [{ id: 't', characterId: null, name: 'Gabi', x: 300, y: 540, size: 1, image: null }] })
+    const secreta = doJogador(mapa([parede('n1', 0, 500, 680, 500), parede('pn', 680, 500, 730, 500, { door: SECRETA }), parede('n2', 730, 500, 1000, 500)]))
+    const lisa = doJogador(mapa([parede('n1', 0, 500, 1000, 500)]))
+    const comum = doJogador(mapa([parede('n1', 0, 500, 680, 500), parede('pn', 680, 500, 730, 500, { door: { open: false, locked: false, kind: 'normal' } }), parede('n2', 730, 500, 1000, 500)]))
+    expect(secreta.map.walls.map((w) => w.id)).toEqual(['w-longe'])
+    expect(lisa.map.walls.map((w) => w.id)).toEqual(['w-longe'])
+    expect(comum.map.walls.map((w) => w.id)).toEqual(['w-longe'])
+    expect(secreta.map.walls).toEqual(lisa.map.walls)
+    expect(secreta.vision).toEqual(lisa.vision)
+    expect(JSON.stringify(secreta.map)).not.toContain('pn')
+  })
+
+  it('SEGURANÇA: parede com as 3 amostras na zona mas trecho fora dela continua segurando a visão enviada', () => {
+    // Zona em pente: três dentes (x 0..100, 450..550, 900..1000) presos por
+    // uma faixa em y 600..700. Pontas e meio da parede caem nos dentes; x 250
+    // não. Tirar a parede da visão enviada deixava o jogador "ver" através
+    // dela FORA da zona, onde a autoridade não vê.
+    const pente: ConcealZone = {
+      id: 'pente',
+      name: 'Pente',
+      revealed: false,
+      points: [
+        { x: 0, y: 400 },
+        { x: 100, y: 400 },
+        { x: 100, y: 600 },
+        { x: 450, y: 600 },
+        { x: 450, y: 400 },
+        { x: 550, y: 400 },
+        { x: 550, y: 600 },
+        { x: 900, y: 600 },
+        { x: 900, y: 400 },
+        { x: 1000, y: 400 },
+        { x: 1000, y: 700 },
+        { x: 0, y: 700 },
+      ],
+    }
+    const mapa: MapData = { ...corredor([parede('n1', 10, 500, 990, 500)], [pente]), tokens: [{ id: 't', characterId: null, name: 'Gabi', x: 250, y: 540, size: 1, image: null }] }
+    const view = doJogador(mapa)
+    const alemDaParede = { x: 250, y: 450 }
+    const aquem = { x: 250, y: 560 }
+    expect(view.vision.some((anel) => anel.length >= 3 && pointInRing(aquem, anel))).toBe(true)
+    expect(view.vision.some((anel) => anel.length >= 3 && pointInRing(alemDaParede, anel))).toBe(false)
   })
 
   it('porta revelada volta a chegar partida, com as pontas dela', () => {

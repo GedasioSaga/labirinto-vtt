@@ -847,6 +847,18 @@ function wallRunsWhere(wall: Wall, shown: (p: RegionPoint) => boolean): Wall[] {
   return runs
 }
 
+/**
+ * Pontos ao longo da parede a cada `BRUSH_WALL_STEP`, pontas inclusas — a
+ * mesma malha de `wallRunsWhere`. `null` = coordenada não-finita ou parede
+ * enorme: quem pergunta escolhe o lado de esconder.
+ */
+function wallStepSamples(wall: Wall): RegionPoint[] | null {
+  const steps = Math.ceil(Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1) / BRUSH_WALL_STEP)
+  if (!Number.isFinite(steps) || steps > BRUSH_WALL_MAX_STEPS) return null
+  const n = Math.max(1, steps)
+  return Array.from({ length: n + 1 }, (_, i) => ({ x: wall.x1 + ((wall.x2 - wall.x1) * i) / n, y: wall.y1 + ((wall.y2 - wall.y1) * i) / n }))
+}
+
 /** Contorno de uma forma: vértices em ordem; `closed` fecha o último no primeiro e a forma tem interior. */
 interface ShapeOutline {
   points: RegionPoint[]
@@ -1198,6 +1210,28 @@ export function filterMapForPlayer(
   /** Escondido pela zona: fora do pedaço pintado, ou pintado mas dentro da sala que esconde (`brushedRoom`). */
   const hiddenByZone = (point: RegionPoint): boolean => inConcealZone(point) || brushedRoom(point)
   const inBrushReveal = (point: RegionPoint): boolean => brushed && inZoneRing(point) && !hiddenByZone(point)
+  /** A caixa da parede encosta na caixa de alguma zona: fora disso nenhum ponto dela está numa zona. */
+  const nearZone = (w: Wall): boolean =>
+    zones.some((z) => Math.max(w.x1, w.x2) >= z.minX && Math.min(w.x1, w.x2) <= z.maxX && Math.max(w.y1, w.y2) >= z.minY && Math.min(w.y1, w.y2) <= z.maxY)
+  /**
+   * ZONA AO LONGO DA PAREDE, a cada passo do pincel (`wallStepSamples`), e
+   * não só nas pontas e no meio (`wallSamples`). Com 3 amostras, a zona que
+   * cobre só o trecho entre elas passava despercebida: a parede saía inteira
+   * atravessando a zona — e toda parede com porta secreta dentro de zona
+   * (emendada em `mergeSecretDoorSeams`, logo comprida) caía nesse caso.
+   * Parede enorme perto de zona conta como tocando: erra para o lado de esconder.
+   */
+  const touchesZone = (w: Wall): boolean => {
+    if (!nearZone(w)) return false
+    const samples = wallStepSamples(w)
+    return samples === null || samples.some(inZoneRing)
+  }
+  /**
+   * Parede INTEIRA dentro de zona, ao longo dela (mesma malha de `touchesZone`).
+   * Com 3 amostras, a parede com pontas e meio na zona mas um trecho fora dela
+   * contava como inteira dentro. Parede enorme cai nas 3 amostras de antes.
+   */
+  const insideZone = (w: Wall): boolean => nearZone(w) && (wallStepSamples(w) ?? wallSamples(w)).every(inZoneRing)
   const outsideZones = (points: readonly RegionPoint[]): readonly RegionPoint[] =>
     zones.length === 0 ? points : points.filter((p) => !hiddenByZone(p))
 
@@ -1407,7 +1441,7 @@ export function filterMapForPlayer(
   const pinReaders: PinReader[] = ownTokens.map((t, i) => ({ x: t.x, y: t.y, sight: boxRings(authorityByToken[i]) }))
   /** Parede de zona oculta: sai inteira fora da zona, só no pedaço pintado dentro dela. */
   const zoneCutWall = (w: Wall): Wall[] => {
-    if (zones.length === 0 || !wallSamples(w).every(inZoneRing)) return [w]
+    if (zones.length === 0 || !insideZone(w)) return [w]
     return brushed ? wallRunsWhere(w, inBrushReveal) : []
   }
   const isSecretRoomWall = (w: Wall): boolean => w.regionId !== undefined && secretRoomIds.has(w.regionId)
@@ -1568,14 +1602,14 @@ export function filterMapForPlayer(
   })
 
   /**
-   * Parede sem porta com amostra DENTRO da zona: sai só o trecho no pedaço
-   * pintado (`wallRunsWhere`). O teste é `inZoneRing`, não `inConcealZone`: as
-   * 3 amostras não dizem o que há entre elas, então amostra pintada não vale
-   * como "sem trecho escondido" — senão uma parede com o meio pintado e as
-   * pontas fora da zona saía inteira, com o trecho escondido junto.
+   * Parede sem porta com algum trecho DENTRO da zona (`touchesZone`, amostrada
+   * ao longo dela): sai só o trecho no pedaço pintado (`wallRunsWhere`). O
+   * teste é `inZoneRing`, não `inConcealZone`: amostra pintada não vale como
+   * "sem trecho escondido" — senão uma parede com o meio pintado e as pontas
+   * fora da zona saía inteira, com o trecho escondido junto.
    */
   const wallForPlayer = (w: Wall): Wall[] => {
-    if (!wallSamples(w).some(inZoneRing)) return [w]
+    if (!touchesZone(w)) return [w]
     return shownCells.length > 0 ? wallRunsWhere(w, inBrushReveal) : []
   }
 
