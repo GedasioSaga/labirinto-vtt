@@ -137,6 +137,40 @@ describe('espiadaPeloPino: o recorte do outro lado', () => {
     expect(aberta.doors).toContainEqual({ x1: 90, y1: -80, x2: 110, y2: -80, open: true })
   })
 
+  it('SEGURANÇA — prédio de teto fechado atrás do muro, dentro do raio, NÃO sai; sem o muro, sai o contorno', () => {
+    // `view.roofs` do recorte comum traz TODO teto fechado do mapa, sem olhar a
+    // névoa (lá ele só serve ao `forgetInside`). Na espiada ele vai pela rede:
+    // só pode sair o teto cuja silhueta o olho alcança.
+    const { map, par } = cripta()
+    const predio: MapData['regions'][number] = {
+      id: 'predio',
+      tag: '',
+      fillColor: '#123',
+      fillPattern: 'solid',
+      data: {},
+      room: { shape: 'rect', name: 'nome-predio', roof: true },
+      // Atrás do muro de x = 560, inteiro dentro do raio de 150: relativo (100, −40)..(140, 40).
+      points: [
+        { x: 600, y: 460 },
+        { x: 640, y: 460 },
+        { x: 640, y: 540 },
+        { x: 600, y: 540 },
+      ],
+    }
+    const comMuro: MapData = { ...map, regions: [predio] }
+    expect(espiadaPeloPino(comMuro, par, 3).roofs).toEqual([])
+
+    // Controle: sem o muro, o olho alcança o prédio e o contorno sai, relativo ao par.
+    const semMuro: MapData = { ...comMuro, walls: comMuro.walls.filter((w) => w.id !== 'muro-perto') }
+    const aberta = espiadaPeloPino(semMuro, par, 3)
+    expect(aberta.roofs.length).toBe(1)
+    const [teto] = aberta.roofs
+    if (teto === undefined) throw new Error('esperava o teto do prédio')
+    for (const canto of [{ x: 100, y: -40 }, { x: 140, y: -40 }, { x: 140, y: 40 }, { x: 100, y: 40 }]) {
+      expect(teto).toContainEqual(canto)
+    }
+  })
+
   it('a porta à vista sai com o estado dela; a zona oculta sai só como geometria para pintar de preto', () => {
     const { map, par } = cripta()
     const espiada = espiadaPeloPino(map, par, 3)

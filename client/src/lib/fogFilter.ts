@@ -1595,7 +1595,12 @@ export function espiadaPeloPino(map: MapData, par: Pin, casas: number): Espiada 
     doors,
     tokens,
     concealed: cutRings(view.concealed),
-    roofs: cutRings(view.roofs),
+    // NUNCA `view.roofs`: aquele traz todo teto fechado do mapa, sem olhar a
+    // névoa — no recorte comum ele não vai pela rede, só alimenta o
+    // `forgetInside`. A silhueta que o jogador pode ver é a da Sala que saiu em
+    // `view.map.regions` (contorno conhecido, `room.roof` só com teto fechado
+    // para este olho) — a mesma regra que pinta o teto em `player/PlayerView.tsx`.
+    roofs: cutRings(view.map.regions.filter((r) => roomHasRoof(r.room) && r.points.length >= 3).map((r) => r.points)),
   }
 }
 
