@@ -92,6 +92,19 @@ export function passageOf(pin: Pin): PinPassage {
   return isPinPassage(pin.passagem) ? pin.passagem : 'pede'
 }
 
+/** "Ler só de perto": menor e maior número de casas que o painel e o disco aceitam. */
+export const PIN_LER_DE_PERTO_MIN = 1
+export const PIN_LER_DE_PERTO_MAX = 20
+
+/**
+ * Guarda de leitura de `Pin.lerDePerto`: só inteiro de casas dentro da faixa.
+ * Zero, negativo, fração, texto ou número gigante (arquivo editado à mão) não
+ * vale — o chamador trata como ausente, o pino de sempre.
+ */
+export function isPinReadDistance(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= PIN_LER_DE_PERTO_MIN && value <= PIN_LER_DE_PERTO_MAX
+}
+
 /** Ponto do desenho do símbolo, no quadrado normalizado -1..1 com a origem no centro da cabeça. */
 export interface PinSymbolPoint {
   x: number

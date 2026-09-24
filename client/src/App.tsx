@@ -2032,6 +2032,13 @@ function App() {
               // pino de mapa salvo antes desta fase chega sem o campo.
               locked: !!selectedPin?.locked,
               onLockedChange: (locked) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { locked }),
+              // Opcionais no schema: ausente = pino de sempre. Desligar grava
+              // AUSENTE (`undefined`), nunca `false`, que o disco não guarda.
+              marco: selectedPin?.marco === true,
+              onMarcoChange: (marco) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { marco: marco ? true : undefined }),
+              lerDePerto: selectedPin?.lerDePerto ?? null,
+              onLerDePertoChange: (casas) =>
+                selectedPin && useMapStore.getState().updatePin(selectedPin.id, { lerDePerto: casas ?? undefined }),
               image: selectedPin?.image ?? null,
               onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
               onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),

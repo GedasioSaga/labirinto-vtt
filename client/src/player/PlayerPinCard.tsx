@@ -120,9 +120,25 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   }, [onClose])
 
   const descricao = pin.description.trim()
+  // Pino "só de perto" com a ficha longe: o host não mandou texto nem imagem
+  // (`lib/fogFilter.ts`). O cartão diz o que fazer, em vez de fingir que o
+  // mestre não escreveu nada. Chegando perto, o próximo pacote traz o texto e
+  // este cartão, se estiver aberto, troca sozinho.
+  const longe = pin.longe === true
   // Só data URL vira foto: se um caminho de disco escapasse até aqui, o
   // `<img>` tentaria abrir o computador do mestre pelo navegador do jogador.
   const foto = isPlayerSafePinImage(pin.image) ? pin.image : null
+  const textoDoCartao = longe
+    ? 'Chegue mais perto para ler.'
+    : descricao === ''
+      ? 'O mestre ainda não escreveu nada sobre este ponto.'
+      : descricao
+  const altDaImagem =
+    foto !== null
+      ? 'Imagem deixada pelo mestre neste ponto de interesse'
+      : longe
+        ? 'Chegue mais perto para ver a imagem'
+        : 'Este ponto de interesse ainda não tem imagem'
   // Pino de viagem: o cartão é o de sempre (imagem e descrição do mestre), com
   // a passagem no lugar do glifo — a mesma cabeça que o jogador vê no mapa.
   // O nome da cena de destino nunca chega aqui (`lib/fogFilter.ts`).
@@ -162,15 +178,13 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
         <img
           className="pp-pincard__image"
           src={foto === null ? IMAGEM_AUSENTE : foto}
-          alt={foto === null ? 'Este ponto de interesse ainda não tem imagem' : 'Imagem deixada pelo mestre neste ponto de interesse'}
+          alt={altDaImagem}
         />
         <div className="pp-pincard__body">
           <span className={viagem ? 'pp-pincard__glyph pp-pincard__glyph--viagem' : 'pp-pincard__glyph'} aria-hidden="true">
             {viagem ? <PinTravelArt size={16} /> : PIN_GLYPH[pin.kind]}
           </span>
-          <p className="pp-pincard__text">
-            {descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao}
-          </p>
+          <p className="pp-pincard__text">{textoDoCartao}</p>
         </div>
         {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
         {podePedir && confirming === null && !encruzilhada && (
