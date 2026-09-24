@@ -1,4 +1,4 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { ConcealZone, DoorState, Drawing, FloorPiece, Light, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, REVEAL_BRUSH_CELL, unveiledCellsOf } from './concealBrush'
 import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer } from './tokenPublicName'
@@ -9,7 +9,8 @@ import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleSt
 import { isPinReadDistance, isPlayerSafePinImage } from './pins'
 import { exitLabelsOf, isArrivalOnly, unreadExitLabels } from './pinTravel'
 import { withoutAttachment } from './lightAttachment'
-import { computeVisibility, visionSegments } from './visibility'
+import { computeVisibility, visionSegments, type Segment } from './visibility'
+import { darkVision, type Darkness } from './darkness'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
 
@@ -1122,6 +1123,76 @@ export function filterMapForPlayer(
   )
 
   /**
+   * PINCEL DE REVELAR — o preto de cada zona ativa sai sem os buracos que o
+   * mestre pintou (`inBrushReveal`: o pedaço pintado é mostrado a todos da
+   * cena). Célula que outra zona ativa ainda esconde fica preta, e célula
+   * sobre sala secreta ou teto fechado também (ver `inBrushReveal`). Sem
+   * célula pintada, o preto é a zona inteira, como sempre.
+   */
+  const unveiledShown = zones.map((zone) =>
+    [...zone.unveiled].filter((key) => {
+      const center = cellCenter(key)
+      return center !== null && pointInRing(center, zone.ring) && !inConcealZone(center) && !inRoomHiddenFromPlayer(center)
+    }),
+  )
+  const shownCells = [...new Set(unveiledShown.flat())]
+  const concealed = zones.flatMap((zone, i) => concealedPieces(zone.ring, unveiledShown[i]))
+
+  /**
+   * CENA ESCURA e SALA ESCURA (`lib/darkness.ts`). `null` = nada escuro para
+   * este jogador: a visão sai exatamente como antes da feature.
+   *
+   * O escuro recorta a VISÃO, e a visão também sai pela rede (`vision`). Por
+   * isso só entra aqui o que o jogador pode saber:
+   * - sala escura que ele não recebe (camada Salas escondida, secreta, oculta,
+   *   dentro de sala secreta, engolida por teto fechado) NÃO escurece nada — senão o corte na visão
+   *   desenharia o formato dela;
+   * - sala escura que toca zona oculta continua escura, e o preto da zona
+   *   (`concealed`, que o jogador já recebe) entra junto como véu (`veils`):
+   *   o corte segue a borda da zona, nunca o trecho da sala que ela cobre.
+   *   Descartar a sala inteira (a versão anterior) acendia a sala toda, e o
+   *   que estava no escuro dela saía no pacote;
+   * - luz que o jogador não recebe não ilumina: a da camada escondida, a
+   *   oculta, a de dentro de sala secreta, teto fechado ou zona, e a tocha presa
+   *   numa ficha que o mestre esconde (o claro andando entregaria o NPC).
+   */
+  const darknessForPlayer = (): Darkness | null => {
+    const darkRooms = visibleRegions(map.regions, hiddenLayers).filter(
+      (r) =>
+        r.room?.dark === true &&
+        !r.hidden &&
+        !r.secret &&
+        !secretRoomIds.has(r.id) &&
+        !underRoofIds.has(r.id) &&
+        isUsablePolygon(r.points) &&
+        !swallowedByClosedRoof(r),
+    )
+    if (map.dark !== true && darkRooms.length === 0) return null
+    const darkBoxes = boxRings(darkRooms.map((r) => r.points))
+    const veils = boxRings(concealed).filter((v) =>
+      darkBoxes.some((d) => v.maxX >= d.minX && v.minX <= d.maxX && v.maxY >= d.minY && v.minY <= d.maxY),
+    )
+    const layerTokenById = new Map(layerTokens.map((t) => [t.id, t]))
+    const knownTokenIds = new Set(map.tokens.map((t) => t.id))
+    const carriedByHidden = (l: Light): boolean => {
+      if (l.attachedTokenId === undefined || !knownTokenIds.has(l.attachedTokenId)) return false
+      const carrier = layerTokenById.get(l.attachedTokenId)
+      return carrier === undefined || carrier.hidden === true || (!owned.has(carrier.id) && secretFromPlayer(carrier))
+    }
+    const lights = visibleLights(map.lights, hiddenLayers).filter((l) => {
+      const at = { x: l.x, y: l.y }
+      return !l.hidden && Number.isFinite(l.radius) && l.radius > 0 && !inRoomHiddenFromPlayer(at) && !hiddenByZone(at) && !carriedByHidden(l)
+    })
+    return {
+      sceneDark: map.dark === true,
+      rooms: darkRooms.map((r) => r.points),
+      veils: veils.map((v) => v.ring),
+      lights: lights.map((l) => ({ x: l.x, y: l.y, radius: l.radius })),
+      cell: map.grid,
+    }
+  }
+
+  /**
    * Duas visões. A da autoridade (todas as paredes, chão inteiro) decide o que
    * sai do mapa. A enviada (`vision`) é montada sem o que o jogador não pode
    * saber: paredes da sala secreta, paredes/portas inteiras dentro de zona
@@ -1135,11 +1206,23 @@ export function filterMapForPlayer(
    * deixava de contar como escondida, a parede entrava inteira e as pontas
    * escondidas saíam no fio — com a sombra delas desenhada fora da zona.
    */
+  const darkness = darknessForPlayer()
+  /**
+   * Anéis de visão de cada ficha (mesmo índice de `ownTokens`). Sem escuro é
+   * um anel por ficha, como sempre; com escuro, vários (`darkVision`). As DUAS
+   * visões abaixo passam por aqui, então o escuro corta o que sai no pacote e
+   * o desenho da visão enviada do mesmo jeito.
+   */
+  const visionByToken = (segments: Segment[]): RegionPoint[][][] =>
+    ownTokens.map((t) =>
+      darkness === null ? [computeVisibility({ x: t.x, y: t.y }, segments, visionRadius)] : darkVision({ x: t.x, y: t.y }, segments, visionRadius, darkness),
+    )
   const authoritySegments = ownTokens.length > 0 ? visionSegments(knownWalls === map.walls ? map : { ...map, walls: knownWalls }) : []
-  const authorityVision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, authoritySegments, visionRadius))
+  const authorityByToken = visionByToken(authoritySegments)
+  const authorityVision = authorityByToken.flat()
   const rings = boxRings(authorityVision)
-  // Anel por ficha (mesmo índice de `ownTokens`), para "ler só de perto".
-  const pinReaders: PinReader[] = ownTokens.map((t, i) => ({ x: t.x, y: t.y, sight: boxRings(authorityVision.slice(i, i + 1)) }))
+  // Anéis por ficha, para "ler só de perto".
+  const pinReaders: PinReader[] = ownTokens.map((t, i) => ({ x: t.x, y: t.y, sight: boxRings(authorityByToken[i]) }))
   // `knownWalls` (e não `map.walls`): a porta/estante da sala secreta chega ao
   // jogador disfarçada de parede, e a sombra dela precisa sair igual.
   const playerWalls = knownWalls.flatMap((w): Wall[] => {
@@ -1152,7 +1235,7 @@ export function filterMapForPlayer(
   let vision = authorityVision
   if (ownTokens.length > 0 && (wallsChanged || hiddenFloorIds.size > 0)) {
     const playerSegments = visionSegments({ ...map, walls: playerWalls, floor: floorWithout(map.floor, hiddenFloorIds) })
-    vision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, playerSegments, visionRadius))
+    vision = visionByToken(playerSegments).flat()
   }
 
   const isVisible = (point: RegionPoint): boolean => !hiddenByZone(point) && (inAnyRing(rings, point) || inBrushReveal(point))
@@ -1224,21 +1307,6 @@ export function filterMapForPlayer(
   }
 
   /**
-   * PINCEL DE REVELAR — o preto de cada zona ativa sai sem os buracos que o
-   * mestre pintou (`inBrushReveal`: o pedaço pintado é mostrado a todos da
-   * cena). Célula que outra zona ativa ainda esconde fica preta, e célula
-   * sobre sala secreta ou teto fechado também (ver `inBrushReveal`). Sem
-   * célula pintada, o preto é a zona inteira, como sempre.
-   */
-  const unveiledShown = zones.map((zone) =>
-    [...zone.unveiled].filter((key) => {
-      const center = cellCenter(key)
-      return center !== null && pointInRing(center, zone.ring) && !inConcealZone(center) && !inRoomHiddenFromPlayer(center)
-    }),
-  )
-  const shownCells = [...new Set(unveiledShown.flat())]
-
-  /**
    * Chão que o jogador recebe. Peça escondida (`hiddenFloorIds`) continua sem
    * sair, mas o pedaço dela sob o corredor pintado sai recortado nas células
    * pintadas (`floorInCells`): sem isso o corredor revelado aparecia como uma
@@ -1292,6 +1360,8 @@ export function filterMapForPlayer(
     // "Visão nesta cena" é regra do mestre: o jogador recebe o círculo já
     // cortado (`vision`), nunca o número que o desenhou.
     visionCells: undefined,
+    // "Cena escura" também: o escuro já vem aplicado na visão e no que sai.
+    dark: undefined,
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
     tokens,
@@ -1348,11 +1418,12 @@ export function filterMapForPlayer(
         // polígono e é anotação do mestre sobre o que tem lá dentro.
         const nameHidden =
           r.room.nameHiddenFromPlayers || roofClosed || (zones.length > 0 && mostly(interiorSamples(r.points, r.points), inConcealZone))
-        if (!nameHidden && !roofClosed && r.room.roof === undefined) return r
+        if (!nameHidden && !roofClosed && r.room.roof === undefined && r.room.dark === undefined) return r
         // `roof` atravessa SÓ quando o teto está fechado PARA ESTE JOGADOR: é o
         // sinal de "pinte a silhueta" (`player/PlayerView.tsx`). Com o teto
         // aberto o campo some e a Sala volta a desenhar como sempre desenhou.
-        return { ...r, room: { ...r.room, name: nameHidden ? '' : r.room.name, roof: roofClosed ? true : undefined } }
+        // "Sala escura" é regra do mestre: o jogador recebe a visão já cortada, nunca o campo.
+        return { ...r, room: { ...r.room, name: nameHidden ? '' : r.room.name, roof: roofClosed ? true : undefined, dark: undefined } }
       }),
     // `knownWalls` antes da camada: a estante disfarçada é PAREDE, e segue a
     // camada Paredes (com Portas escondida ela não pode virar vão). A porta
@@ -1403,7 +1474,6 @@ export function filterMapForPlayer(
     concealZones: [],
   }
 
-  const concealed = zones.flatMap((zone, i) => concealedPieces(zone.ring, unveiledShown[i]))
   /**
    * O mesmo pedaço entra na VISÃO enviada. Sem isto o buraco no preto
    * mostraria névoa: a visão enviada é calculada sem o chão escondido da zona
