@@ -59,7 +59,7 @@ describe('telas da alavanca', () => {
 
   it('cartão: a alavanca se chama Alavanca e "Puxar a alavanca" manda o pedido', () => {
     const onPull = vi.fn()
-    act(() => root.render(<PlayerPinCard pin={ALAVANCA} onClose={vi.fn()} onPullLever={onPull} />))
+    act(() => root.render(<PlayerPinCard pin={ALAVANCA} stairs={[]} onClose={vi.fn()} onPullLever={onPull} />))
     expect(container.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Alavanca')
     expect(container.textContent).toContain('Uma alavanca enferrujada.')
     act(() => botao('Puxar a alavanca').click())
@@ -68,7 +68,7 @@ describe('telas da alavanca', () => {
 
   it('cartão: pino que não é alavanca não oferece puxar, mesmo com o callback', () => {
     const marco: Pin = { ...ALAVANCA, kind: 'exclamacao' }
-    act(() => root.render(<PlayerPinCard pin={marco} onClose={vi.fn()} onPullLever={vi.fn()} />))
+    act(() => root.render(<PlayerPinCard pin={marco} stairs={[]} onClose={vi.fn()} onPullLever={vi.fn()} />))
     expect(botoes().map((b) => b.textContent)).not.toContain('Puxar a alavanca')
   })
 

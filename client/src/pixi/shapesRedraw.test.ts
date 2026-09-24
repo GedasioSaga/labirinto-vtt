@@ -57,11 +57,13 @@ function setup() {
     regions: spy('regions'),
     drawings: spy('drawings'),
     hazards: spy('hazards'),
+    areaTriggers: spy('areaTriggers'),
     roomNames: spy('roomNames'),
     walls: spy('walls'),
     stairs: spy('stairs'),
     lights: spy('lights'),
     watchCones: spy('watchCones'),
+    patrolRoutes: spy('patrolRoutes'),
     concealZones: spy('concealZones'),
     pins: spy('pins'),
     textLabels: spy('textLabels'),
@@ -256,6 +258,41 @@ describe('createShapesRedrawer', () => {
     expect(redraw(snapshot(andou))).toEqual(['watchCones'])
     // A sala do fogo se move: o perigo segue a sala, e a parede nova corta o cone.
     expect(redraw(snapshot(moveRegion(andou, 'r1', 10, 0)))).toEqual(['gridMask', 'regions', 'hazards', 'roomNames', 'walls', 'lights', 'watchCones'])
+  })
+
+  it('gatilho de área e rota de patrulha (grupo mundo, onda 3) entram no redesenho parcial: repintam só quando o que é deles muda', () => {
+    const { redraw, take } = setup()
+    const npc: Token = {
+      id: 'n1',
+      characterId: null,
+      name: 'Sentinela',
+      x: 50,
+      y: 50,
+      size: 1,
+      image: null,
+      patrulha: { pontos: [{ x: 50, y: 50 }, { x: 250, y: 50 }], atual: 0 },
+    }
+    const map: MapData = { ...buildMap(), tokens: [npc], gatilhos: [{ id: 'g1', kind: 'armadilha', regionId: 'r1', revealed: false }] }
+    // Primeira pintura: as duas camadas novas pintam junto com as outras.
+    expect(redraw(snapshot(map))).toEqual([...SHAPES_LAYERS])
+    take()
+    expect(redraw(snapshot(map))).toEqual([])
+    // Mudou a rota da ficha: só a rota (fichas não são camada vetorial).
+    const rotaNova = { ...map, tokens: [{ ...npc, patrulha: { pontos: npc.patrulha?.pontos ?? [], atual: 1 } }] }
+    expect(redraw(snapshot(rotaNova))).toEqual(['patrolRoutes'])
+    // A sala do gatilho se move: o gatilho segue a sala.
+    expect(redraw(snapshot(moveRegion(rotaNova, 'r1', 10, 0)))).toEqual(['gridMask', 'regions', 'areaTriggers', 'roomNames', 'walls', 'lights'])
+  })
+
+  it('sem gatilho nem patrulha no mapa, mexer em sala e ficha não repinta as camadas deles', () => {
+    const { redraw, take } = setup()
+    const map = buildMap()
+    redraw(snapshot(map))
+    take()
+    const painted = redraw(snapshot(moveRegion(map, 'r1', 10, 0)))
+    expect(painted).not.toContain('areaTriggers')
+    expect(painted).not.toContain('patrolRoutes')
+    expect(painted).toContain('regions')
   })
 
   it('camada de texto pintada pede a sincronização da resolução dos Text', () => {

@@ -41,6 +41,7 @@ const RESTO: MapSettingsProps = {
     gridShape: 'square',
   },
   scenarioLink: { scenarioLink: null, onScenarioLinkChange: vi.fn() },
+  mapSize: { width: 10, height: 10, onApply: vi.fn() },
 }
 
 /** O pedaço do editor que importa aqui: a engrenagem do painel ligada à cena aberta. */

@@ -101,6 +101,9 @@ export function propsDoPainel(ficha: Token, extra: Partial<PainelProps> = {}): P
     tokenHealth: { onHealthChange: nada },
     tokenCondition: { onToggleCondition: nada },
     tokenWatch: { onWatchChange: nada },
+    // Grupo mundo (onda 3): rota de patrulha e "Vai junto de" (levar ficha junto), sem rota nem vínculo.
+    tokenPatrol: { onPatrolOp: nada },
+    tokenCarry: { carrier: null, carried: [], candidates: [], onCarry: nada, onRelease: nada },
     // A mesma ligação de App.tsx (`tokenNpc`).
     tokenNpc: { onNpcChange: nada },
     tokenLights: { lights: [], onSelectLight: nada, onDetach: nada },
