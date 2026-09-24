@@ -89,6 +89,16 @@ import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } fro
  * da cena dele, só em ponto que ele já conhece e fora de zona oculta. Nunca a
  * cena, nunca marca de quem está em outra cena. Mestre antigo responde
  * `error invalid_message`; jogador antigo ignora a lista.
+ *
+ * LUGARES é aditivo pelo mesmo critério: `snapshot.place` (e `delta.place`) é
+ * um id que o HOST inventa para a memória DESTE jogador na cena onde ele está
+ * — nunca o id nem o nome da cena: é um contador de cada jogador, então o mesmo
+ * id em dois jogadores não diz que eles estiveram no mesmo lugar —, e
+ * `places` são os ids das memórias que o host ainda guarda dele, da visitada
+ * há mais tempo à de agora. Com isso a tela dele guarda o desenho de cada
+ * lugar por onde passou (só o que já recebeu) e solta o que o mestre mandou
+ * esquecer ("Esconder planta"). Jogador antigo ignora os dois; mestre antigo
+ * não os manda e a aba Lugares fica só com os pontos da cena.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -351,8 +361,9 @@ export type HostMessage =
   | { type: 'lobby.waiting' }
   // `sceneName`: o NOME PARA OS JOGADORES da cena onde ele está ("Onde estou").
   // Ausente = a cena não tem nome público (ou mapa solto, ou mestre antigo).
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; sceneName?: string }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; sceneName?: string }
+  // `place`/`places`: LUGARES, ids do host para as memórias dele (ver o topo).
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; sceneName?: string; place?: string; places?: string[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; sceneName?: string; place?: string; places?: string[] }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
@@ -661,6 +672,43 @@ export function parseDestinationsMessage(value: unknown): DestinationsMessage | 
     parsed.push(mark)
   }
   return { type: 'destinations', marks: parsed }
+}
+
+/**
+ * Teto da lista `places`: bem acima do que o host guarda por jogador (8), bem
+ * abaixo de um host hostil inflando a memória da tela.
+ */
+export const PLACES_MAX = 32
+
+/** Os campos de LUGARES de um snapshot, já conferidos. */
+export interface SnapshotPlaces {
+  place?: string
+  places?: string[]
+}
+
+/**
+ * Valida `place` e `places` do snapshot que o jogador recebe. Ausentes valem
+ * (mestre antigo); presentes e tortos — id que não é texto curto, lista acima
+ * do teto ou com item torto — devolvem `null`, e quem chama descarta a
+ * mensagem inteira, como faz com os outros campos aditivos.
+ */
+export function parseSnapshotPlaces(value: Record<string, unknown>): SnapshotPlaces | null {
+  const { place, places } = value
+  const parsed: SnapshotPlaces = {}
+  if (place !== undefined) {
+    if (!isBoundedString(place, 1, REQ_ID_MAX_LENGTH)) return null
+    parsed.place = place
+  }
+  if (places !== undefined) {
+    if (!Array.isArray(places) || places.length > PLACES_MAX) return null
+    const ids: string[] = []
+    for (const id of places) {
+      if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+      ids.push(id)
+    }
+    parsed.places = ids
+  }
+  return parsed
 }
 
 function parseDestination(value: Record<string, unknown>): DestinationMessage | null {

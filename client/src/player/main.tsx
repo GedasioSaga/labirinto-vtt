@@ -25,6 +25,8 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { findKnownPath } from '../lib/knownPath'
 import { PlayerPointMenu } from './PlayerPointMenu'
+import type { Pin, RegionPoint } from '../types/map'
+import { loadPlaceNames, savePlaceName, type VisitedPlace } from './playerPlaces'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -42,6 +44,8 @@ const NO_DESTINATIONS: DestinationMark[] = []
 const NO_PLAYER_LASERS: RemoteLaser[] = []
 const NO_NOTES: NoteEntry[] = []
 const NO_CLUES: ClueEntry[] = []
+const NO_PINS: Pin[] = []
+const NO_PLACES: VisitedPlace[] = []
 /** Fechar o recado não perde nada: quem fecha sabe onde reler. */
 const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
 
@@ -508,7 +512,24 @@ const HANDSHAKE_DEADLINE_MS = 8_000
 function Session({ connection, code, typedName, hostName, onLeave, onQuit }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(localStorageOrNull()))
-  const [focus, setFocus] = useState<{ tokenId: string | null; seq: number }>({ tokenId: null, seq: 0 })
+  /** Pedido de câmera: a ficha (`tokenId`) ou, sem ficha, um ponto conhecido da aba Lugares. */
+  const [focus, setFocus] = useState<{ tokenId: string | null; point: RegionPoint | null; seq: number }>({ tokenId: null, point: null, seq: 0 })
+  /** LUGARES: os nomes que o jogador deu, por lugar. Só nesta tela (nunca vão ao mestre). */
+  const [placeNames, setPlaceNames] = useState<Record<string, string>>({})
+  const playerId = state.playerId
+  useEffect(() => {
+    // Por jogador: o id de lugar é um contador do host, e outra sala recomeçaria do "l1".
+    setPlaceNames(playerId === undefined ? {} : loadPlaceNames(localStorageOrNull(), playerId))
+  }, [playerId])
+  const renamePlace = useCallback(
+    (placeId: string, name: string) => {
+      if (playerId === undefined) return
+      const storage = localStorageOrNull()
+      savePlaceName(storage, playerId, placeId, name)
+      setPlaceNames(loadPlaceNames(storage, playerId))
+    },
+    [playerId],
+  )
   const [signalArmed, setSignalArmed] = useState(false)
   /** "Marcar destino" ligado: o próximo toque no mapa põe a marca "vamos para cá". */
   const [destinationArmed, setDestinationArmed] = useState(false)
@@ -663,6 +684,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           ownTokens={ownTokens}
           settings={settings}
           focusTokenId={focus.tokenId}
+          focusPoint={focus.point}
           focusSeq={focus.seq}
           onMove={(id, x, y) => connection.requestMove(id, x, y)}
           signals={state.signals ?? NO_SIGNALS}
@@ -705,7 +727,13 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           characterColor={OWN_TOKEN_CSS}
           settings={settings}
           onSettingsChange={changeSettings}
-          onFocusToken={(tokenId) => setFocus((current) => ({ tokenId, seq: current.seq + 1 }))}
+          onFocusToken={(tokenId) => setFocus((current) => ({ tokenId, point: null, seq: current.seq + 1 }))}
+          onFocusPoint={(point) => setFocus((current) => ({ tokenId: null, point, seq: current.seq + 1 }))}
+          pins={state.map.pins ?? NO_PINS}
+          places={state.places ?? NO_PLACES}
+          currentPlace={state.place}
+          placeNames={placeNames}
+          onRenamePlace={renamePlace}
           signalArmed={signalArmed}
           onToggleSignal={() => {
             // Sinalizar, Medir e Laser disputam o mesmo toque no mapa: ligar um desliga os outros.

@@ -97,6 +97,11 @@ interface PlayerViewProps {
   /** Token a centralizar. `focusSeq` muda a cada pedido, para repetir o mesmo token. */
   focusTokenId: string | null
   focusSeq: number
+  /**
+   * Ponto a centralizar (px de mundo) quando não há token: o "Pontos
+   * conhecidos" da aba Lugares. Vale o mesmo `focusSeq`; com `focusTokenId`, o token manda.
+   */
+  focusPoint?: RegionPoint | null
   onMove: (tokenId: string, x: number, y: number) => void
   /** Sinais recebidos do mestre (inclui o eco dos próprios). */
   signals?: readonly SignalMark[]
@@ -788,6 +793,7 @@ export function PlayerView({
   settings,
   focusTokenId,
   focusSeq,
+  focusPoint = null,
   onMove,
   signals = NO_SIGNALS,
   signalArmed = false,
@@ -1887,7 +1893,15 @@ export function PlayerView({
 
   useEffect(() => {
     const scene = sceneRef.current
-    if (!scene || focusTokenId === null) return
+    if (!scene) return
+    if (focusTokenId === null) {
+      // Ponto conhecido (pino): mesma conta do "Centralizar", sem pulso — não é a ficha.
+      if (focusPoint === null) return
+      const viewport = { width: scene.app.screen.width, height: scene.app.screen.height }
+      const scale = scene.zoomAnimation?.to ?? scene.camera.scale
+      setCameraFromApp(scene, centeredCamera(scale, focusPoint, viewport, readObstacles()))
+      return
+    }
     const token = latestRef.current.map.tokens.find((t) => t.id === focusTokenId)
     if (!token) return
     // "Minha ficha" e "Centralizar": no meio do que o painel deixa livre, no
