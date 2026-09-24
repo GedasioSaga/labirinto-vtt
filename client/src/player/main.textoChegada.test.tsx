@@ -11,7 +11,7 @@ import { RESUME_STORAGE_KEY } from './playerConnection'
  * depois que o jogador fecha o cartão. O canvas (Pixi) não roda em jsdom e
  * não entra no que está sendo provado: só ele é trocado.
  */
-vi.mock('./PlayerView', () => ({ OWN_TOKEN_COLOR: 0x3b82f6, PlayerView: () => null }))
+vi.mock('./PlayerView', () => ({ OWN_TOKEN_COLOR: 0x3b82f6, OWN_TOKEN_CSS: '#3b82f6', PlayerView: () => null }))
 
 /** O WebSocket do navegador, do lado do jogador: o teste faz o papel do mestre. */
 class FakeWebSocket {
