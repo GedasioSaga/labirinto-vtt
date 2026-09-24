@@ -114,12 +114,57 @@ describe('porta secreta: o jogador recebe o mesmo que receberia da parede lisa',
     const secreta = doJogador(mapa([parede('n1', 0, 500, 680, 500), parede('pn', 680, 500, 730, 500, { door: SECRETA }), parede('n2', 730, 500, 1000, 500)]))
     const lisa = doJogador(mapa([parede('n1', 0, 500, 1000, 500)]))
     const comum = doJogador(mapa([parede('n1', 0, 500, 680, 500), parede('pn', 680, 500, 730, 500, { door: { open: false, locked: false, kind: 'normal' } }), parede('n2', 730, 500, 1000, 500)]))
-    expect(secreta.map.walls.map((w) => w.id)).toEqual(['w-longe'])
-    expect(lisa.map.walls.map((w) => w.id)).toEqual(['w-longe'])
-    expect(comum.map.walls.map((w) => w.id)).toEqual(['w-longe'])
+    // Sai só o que fica FORA da zona (x 0..600 e 800..1000), nunca o trecho de dentro.
+    expect(secreta.map.walls.map((w) => w.id)).toEqual(['n1~pincel0', 'n1~pincel1', 'w-longe'])
+    expect(lisa.map.walls.map((w) => w.id)).toEqual(['n1~pincel0', 'n1~pincel1', 'w-longe'])
+    expect(comum.map.walls.map((w) => w.id)).toEqual(['n1~pincel0', 'n2~pincel0', 'w-longe'])
+    for (const view of [secreta, lisa, comum]) {
+      expect(view.map.walls.filter((w) => w.y1 === 500).every((w) => Math.max(w.x1, w.x2) <= 600 || Math.min(w.x1, w.x2) >= 800)).toBe(true)
+    }
     expect(secreta.map.walls).toEqual(lisa.map.walls)
     expect(secreta.vision).toEqual(lisa.vision)
     expect(JSON.stringify(secreta.map)).not.toContain('pn')
+  })
+
+  it('parede lisa que só atravessa a zona sai nos trechos de fora dela, sem e com pincel', () => {
+    // Regressão: recortar só no pintado apagava também o trecho de FORA da zona,
+    // e a parede sumia para o jogador enquanto seguia segurando a visão.
+    const zona = (unveiledCells?: string[]): ConcealZone => ({
+      id: 'z',
+      name: 'Ala',
+      revealed: false,
+      points: [
+        { x: 600, y: 400 },
+        { x: 800, y: 400 },
+        { x: 800, y: 600 },
+        { x: 600, y: 600 },
+      ],
+      ...(unveiledCells === undefined ? {} : { unveiledCells }),
+    })
+    const mapa = (z: ConcealZone): MapData => ({ ...corredor([parede('n1', 0, 500, 1000, 500)], [z]), tokens: [{ id: 't', characterId: null, name: 'Gabi', x: 300, y: 540, size: 1, image: null }] })
+    const trechos = (z: ConcealZone) => doJogador(mapa(z)).map.walls.map((w) => ({ x1: w.x1, x2: w.x2, y: w.y1 }))
+
+    // Sem pincel: os dois trechos de fora, colados na borda da zona (um passo de 2,5 px no máximo).
+    const semPincel = trechos(zona())
+    expect(semPincel).toHaveLength(2)
+    expect(semPincel[0].x1).toBe(0)
+    expect(semPincel[0].x2).toBeGreaterThanOrEqual(597.5)
+    expect(semPincel[0].x2).toBeLessThanOrEqual(600)
+    expect(semPincel[1].x1).toBeGreaterThanOrEqual(800)
+    expect(semPincel[1].x1).toBeLessThanOrEqual(802.5)
+    expect(semPincel[1].x2).toBe(1000)
+    expect(semPincel.every((t) => t.y === 500)).toBe(true)
+
+    // Pincel nas colunas 65..69 (x 650..700): sai também o pintado, e o resto de dentro não.
+    const cells: string[] = []
+    for (let col = 65; col <= 69; col += 1) for (const row of [49, 50]) cells.push(`${col},${row}`)
+    const comPincel = trechos(zona(cells))
+    expect(comPincel).toHaveLength(3)
+    expect(comPincel[0].x1).toBe(0)
+    expect(comPincel[2].x2).toBe(1000)
+    expect(comPincel[1].x1).toBeGreaterThanOrEqual(650)
+    expect(comPincel[1].x2).toBeLessThanOrEqual(700)
+    expect(comPincel[1].x2 - comPincel[1].x1).toBeGreaterThan(40)
   })
 
   it('SEGURANÇA: parede com as 3 amostras na zona mas trecho fora dela continua segurando a visão enviada', () => {

@@ -580,7 +580,7 @@ describe('filterMapForPlayer — revisão de segurança da visibilidade', () => 
     expect(out.regions.map((r) => r.room?.name)).toEqual([''])
   })
 
-  it('SEGURANÇA: parede sem porta, desenho de traço e linha com uma ponta dentro de zona ativa não saem', () => {
+  it('SEGURANÇA: desenho de traço e linha com uma ponta dentro de zona ativa não saem; parede sem porta sai só no trecho de fora', () => {
     const map = twoRooms({
       concealZones: [activeZone],
       walls: [wall('divisoria', 500, 0, 500, 1000), wall('parede-borda', 300, 280, 450, 280)],
@@ -590,9 +590,17 @@ describe('filterMapForPlayer — revisão de segurança da visibilidade', () => 
       ],
       lines: [{ id: 'trilha-borda', points: [{ x: 300, y: 235 }, { x: 450, y: 235 }], closed: false, dotted: false, color: '#000', width: 2 }],
     })
-    const json = JSON.stringify(filterMapForPlayer(map, 'p1', ownership, RADIUS).map)
-    for (const id of ['parede-borda', 'traco-borda', 'mao-borda', 'trilha-borda']) expect(json).not.toContain(id)
+    const out = filterMapForPlayer(map, 'p1', ownership, RADIUS).map
+    const json = JSON.stringify(out)
+    for (const id of ['traco-borda', 'mao-borda', 'trilha-borda']) expect(json).not.toContain(id)
     expect(json).toContain('divisoria')
+    // A parede é recortada: o trecho de dentro da zona (x 300..360) não sai; o de fora (360..450) sai,
+    // senão ela seguia na visão como parede invisível.
+    const borda = out.walls.filter((w) => w.id.startsWith('parede-borda'))
+    expect(borda).toHaveLength(1)
+    expect(Math.min(borda[0].x1, borda[0].x2)).toBeGreaterThanOrEqual(360)
+    expect(Math.min(borda[0].x1, borda[0].x2)).toBeLessThanOrEqual(362.5)
+    expect(Math.max(borda[0].x1, borda[0].x2)).toBe(450)
   })
 })
 

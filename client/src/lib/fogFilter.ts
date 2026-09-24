@@ -1603,14 +1603,18 @@ export function filterMapForPlayer(
 
   /**
    * Parede sem porta com algum trecho DENTRO da zona (`touchesZone`, amostrada
-   * ao longo dela): sai só o trecho no pedaço pintado (`wallRunsWhere`). O
-   * teste é `inZoneRing`, não `inConcealZone`: amostra pintada não vale como
-   * "sem trecho escondido" — senão uma parede com o meio pintado e as pontas
-   * fora da zona saía inteira, com o trecho escondido junto.
+   * ao longo dela): sai recortada nos trechos que a zona NÃO esconde — fora
+   * dela, ou no pedaço pintado (`wallRunsWhere` com `!hiddenByZone`). Mesma
+   * regra de `zoneCutWall`: inteira fora da zona, só no pintado dentro dela.
+   * Recortar só no pintado (`inBrushReveal`, que exige `inZoneRing`) apagava
+   * também o trecho de FORA da zona: a parede lisa que só atravessa a zona
+   * sumia inteira para o jogador, mas seguia na visão como parede invisível.
+   * Amostra pintada não vale como "sem trecho escondido" para sair inteira:
+   * o recorte é amostra a amostra, então o trecho escondido nunca vai junto.
    */
   const wallForPlayer = (w: Wall): Wall[] => {
     if (!touchesZone(w)) return [w]
-    return shownCells.length > 0 ? wallRunsWhere(w, inBrushReveal) : []
+    return wallRunsWhere(w, (p) => !hiddenByZone(p))
   }
 
   // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
