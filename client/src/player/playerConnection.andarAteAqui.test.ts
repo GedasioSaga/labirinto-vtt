@@ -136,6 +136,47 @@ describe('requestWalk: andar até aqui em trechos validados pelo host', () => {
     expect(socket.moves()).toHaveLength(1)
   })
 
+  it('o mestre move a ficha no meio do caminho (mesma cena): a caminhada para e a ficha fica onde o mestre pôs', () => {
+    const { connection, socket } = jogando()
+    connection.requestWalk('enzo', CAMINHO)
+    aceita(socket, 0)
+    socket.receive({ type: 'snapshot', rev: 2, map: { ...createEmptyMap('capital', '', 20, 12, 50), tokens: [{ ...ENZO, x: 100, y: 500 }] }, vision: [], ownTokens: ['enzo'], concealed: [] })
+    vi.advanceTimersByTime(WALK_LEG_PAUSE_MS * 3)
+    expect(socket.moves().map(({ x, y }) => ({ x, y }))).toEqual([{ x: 350, y: 120 }])
+    expect(connection.getState().map?.tokens[0]).toMatchObject({ x: 100, y: 500 })
+  })
+
+  it('o mestre tira a ficha do mapa no meio do caminho: a caminhada para', () => {
+    const { connection, socket } = jogando()
+    connection.requestWalk('enzo', CAMINHO)
+    aceita(socket, 0)
+    socket.receive({ type: 'snapshot', rev: 2, map: { ...createEmptyMap('capital', '', 20, 12, 50), tokens: [] }, vision: [], ownTokens: ['enzo'], concealed: [] })
+    vi.advanceTimersByTime(WALK_LEG_PAUSE_MS * 3)
+    expect(socket.moves()).toHaveLength(1)
+  })
+
+  it('snapshot da mesma cena com a ficha na esquina aceita (outra coisa mudou): a caminhada segue', () => {
+    const { connection, socket } = jogando()
+    connection.requestWalk('enzo', CAMINHO)
+    aceita(socket, 0)
+    socket.receive({ type: 'snapshot', rev: 2, map: { ...createEmptyMap('capital', '', 20, 12, 50), tokens: [{ ...ENZO, x: 350, y: 120 }] }, vision: [], ownTokens: ['enzo'], concealed: [] })
+    vi.advanceTimersByTime(WALK_LEG_PAUSE_MS)
+    expect(socket.moves().map(({ x, y }) => ({ x, y }))).toEqual([
+      { x: 350, y: 120 },
+      { x: 650, y: 120 },
+    ])
+  })
+
+  it('snapshot com o trecho ainda sem resposta mostra a ficha no ponto de partida: não é o mestre, a caminhada segue', () => {
+    const { connection, socket } = jogando()
+    connection.requestWalk('enzo', CAMINHO)
+    socket.receive({ type: 'snapshot', rev: 2, map: { ...createEmptyMap('capital', '', 20, 12, 50), tokens: [ENZO] }, vision: [], ownTokens: ['enzo'], concealed: [] })
+    aceita(socket, 0)
+    vi.advanceTimersByTime(WALK_LEG_PAUSE_MS)
+    expect(socket.moves()).toHaveLength(2)
+    expect(socket.moves()[1]).toMatchObject({ x: 650, y: 120 })
+  })
+
   it('caminho vazio, ficha que não está no mapa ou ponto inválido: nada sai', () => {
     const { connection, socket } = jogando()
     expect(connection.requestWalk('enzo', [])).toBe(false)

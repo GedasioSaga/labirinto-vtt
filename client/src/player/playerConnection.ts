@@ -284,6 +284,8 @@ interface Walk {
   /** Trecho enviado e ainda sem resposta; `null` entre trechos. */
   reqId: string | null
   timer: ReturnType<typeof setTimeout> | null
+  /** Última esquina que o host aceitou; `null` até o primeiro aceite. */
+  at: { x: number; y: number } | null
 }
 
 interface PendingMove {
@@ -611,14 +613,27 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   /** O host aceitou o trecho: o próximo sai depois de a ficha deslizar até a esquina. */
-  function continueWalk(reqId: string): void {
+  function continueWalk(reqId: string, x: number, y: number): void {
     const current = walk
     if (current === null || current.reqId !== reqId) return
     current.reqId = null
+    current.at = { x, y }
     current.timer = setTimeout(() => {
       current.timer = null
       if (walk === current) stepWalk()
     }, WALK_LEG_PAUSE_MS)
+  }
+
+  /**
+   * Entre trechos, a ficha que anda saiu da última esquina aceita (ou sumiu do
+   * mapa)? Foi o mestre: seguir puxaria a ficha de volta e desfaria a ação dele.
+   * Com trecho em voo não dá para saber (o snapshot pode ser de antes do trecho).
+   */
+  function walkMovedByOthers(map: MapData): boolean {
+    if (walk === null || walk.reqId !== null || walk.at === null) return false
+    const { tokenId, at } = walk
+    const token = map.tokens.find((t) => t.id === tokenId)
+    return token === undefined || token.x !== at.x || token.y !== at.y
   }
 
   function hasNewerPending(reqId: string, tokenId: string): PendingMove | null {
@@ -642,6 +657,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (rev <= state.rev) return
     // Outra cena: o resto do caminho era do mapa de antes.
     if (state.map !== undefined && state.map.id !== map.id) stopWalk()
+    else if (walkMovedByOthers(map)) stopWalk()
     let next = map
     // Reaplica, em ordem, só os movimentos ainda não confirmados pelo mestre.
     for (const [reqId, move] of pending) {
@@ -681,7 +697,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (!move) return
     const newer = hasNewerPending(reqId, move.tokenId)
     pending.delete(reqId)
-    continueWalk(reqId)
+    continueWalk(reqId, x, y)
     if (newer) {
       newer.prevX = x
       newer.prevY = y
@@ -1002,7 +1018,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.status !== 'playing' || legs.length === 0) return false
       if (!legs.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) return false
       if (!state.map?.tokens.some((t) => t.id === tokenId)) return false
-      walk = { tokenId, legs: legs.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })), reqId: null, timer: null }
+      walk = { tokenId, legs: legs.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })), reqId: null, timer: null, at: null }
       stepWalk()
       return walk !== null
     },
