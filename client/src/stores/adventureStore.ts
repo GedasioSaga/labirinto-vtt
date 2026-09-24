@@ -4,6 +4,7 @@ import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } f
 import { applyItemChange } from '../lib/items'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
+import { moverNaCena, planejarRotina, type CenaDaRotina } from '../lib/rotinaDoNpc'
 import {
   ADVENTURE_VERSION,
   baseName,
@@ -24,6 +25,7 @@ import {
   type AmarraDeEstado,
   type ResumoDaTroca,
 } from '../lib/estadoDoMundo'
+import { comCabineEm, comChamada, comParada, novaCabine, proximaChamada, semFila, type ChamadaAceita } from '../lib/cabine'
 import {
   addExit,
   arrivalPoint,
@@ -240,8 +242,11 @@ interface AdventureState {
    * Mudança de MESA: fora do Ctrl+Z do mestre nas duas pontas. Devolve quantos
    * elementos mudaram e em quantas cenas; `null` quando o estado não existe ou
    * o valor não é dele (nada muda).
+   * ROTINA DO NPC: é também o APITO — cada ficha com posto em `valor` vai para
+   * ele, dentro da cena ou para outra (`transferToken`), também fora do Ctrl+Z.
+   * `fixas`: fichas que um jogador segura; ficam onde estão.
    */
-  trocarEstadoDoMundo: (estadoId: string, valor: string) => ResumoDaTroca | null
+  trocarEstadoDoMundo: (estadoId: string, valor: string, fixas?: ReadonlySet<string>) => ResumoDaTroca | null
   /**
    * ESTADO DO MUNDO: "Depende do estado" de um elemento da cena ABERTA (o
    * painel de propriedades só mostra ela). Grava a regra e já põe o elemento
@@ -249,6 +254,37 @@ interface AdventureState {
    * (com histórico). Estado que não existe na aventura: só grava a regra.
    */
   amarrarAoEstado: (amarra: AmarraDeEstado) => void
+  /**
+   * CABINE DE TRANSPORTE: cria a cabine `nome` com o pino de viagem `pinId` da
+   * cena ABERTA como primeira parada, e a cabine nele. Devolve o id, ou `null`
+   * no mapa solto, sem nome ou com pino que não é de viagem. Muda só a
+   * aventura (pede Salvar), fora do Ctrl+Z da cena.
+   */
+  criarCabine: (nome: string, pinId: string) => string | null
+  /**
+   * CABINE DE TRANSPORTE: o pino `pinId` da cena aberta passa a ser parada de
+   * `cabineId` (`null` = de nenhuma). `false` quando nada muda.
+   */
+  definirParadaDeCabine: (pinId: string, cabineId: string | null) => boolean
+  /**
+   * CABINE DE TRANSPORTE: a cabine passa a estar em `parada` (uma das dela):
+   * "Trazer a cabine para cá" do mestre e a viagem de quem passou (`applyCabine`
+   * da ponte). `false` quando não dá ou ela já está lá.
+   */
+  moverCabine: (cabineId: string, parada: PinDestination) => boolean
+  /**
+   * CABINE DE TRANSPORTE: a chamada que o host aceitou entra no fim da fila
+   * (`chamadaDeCabine` da ponte). `false` quando não entra: a parada já está
+   * na fila, a cabine já está lá, a cabine ou a parada não existem.
+   */
+  chamarCabine: (chamada: ChamadaAceita) => boolean
+  /**
+   * CABINE DE TRANSPORTE: "Atender a próxima chamada" — a cabine vai à parada
+   * da primeira chamada da fila, que sai dela. `false` com a fila vazia.
+   */
+  atenderChamada: (cabineId: string) => boolean
+  /** CABINE DE TRANSPORTE: "Limpar a fila". `false` quando não havia chamada. */
+  limparFilaDaCabine: (cabineId: string) => boolean
   /** Há cena de fundo ou lista de cenas esperando gravação? (A cena aberta é o `useSessionStore` que diz.) */
   hasPendingScenes: () => boolean
   /**
@@ -410,7 +446,16 @@ export function hostWorldOf(state: SceneState, liveMap: MapData): HostWorld {
     const slot = state.cache[entry.id]
     if (slot !== undefined && slot.status === 'ok') background.push({ sceneId: entry.id, name: entry.name, map: slot.map })
   }
-  return { open: { sceneId: state.activeSceneId, name: openName, map: liveMap }, background }
+  const open: HostScene = { sceneId: state.activeSceneId, name: openName, map: liveMap }
+  // CABINE DE TRANSPORTE: aventura sem cabine serve o mundo de sempre, sem a chave.
+  const cabines = state.adventure.cabines
+  return cabines === undefined ? { open, background } : { open, background, cabines }
+}
+
+/** A cena aberta (mapa vivo) e as de fundo que abriram, cada uma com o id dela na aventura. */
+function cenasCarregadas(activeSceneId: string, live: MapData, cache: Record<string, SceneSlot>): CenaDaRotina[] {
+  const fundo = Object.entries(cache).flatMap(([sceneId, slot]) => (slot.status === 'ok' ? [{ sceneId, map: slot.map }] : []))
+  return [{ sceneId: activeSceneId, map: live }, ...fundo]
 }
 
 /** Um mapa com o desfazer dele: a cena aberta (no `useMapStore`) ou uma de fundo (no cache). */
@@ -600,18 +645,34 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return estado.id
   },
 
-  trocarEstadoDoMundo: (estadoId, valor) => {
-    const { adventure, cache } = get()
-    if (adventure === null) return null
+  trocarEstadoDoMundo: (estadoId, valor, fixas) => {
+    const { adventure, activeSceneId, cache } = get()
+    // Aventura aberta sempre tem cena aberta (`open`, `createScene`): sem ela não há onde tocar.
+    if (adventure === null || activeSceneId === null) return null
     const estados = comValorAtual(adventure.estados ?? [], estadoId, valor)
     if (estados === null) return null
-    // Conta ANTES de aplicar: depois, cada elemento já está no efeito e a conta daria zero.
-    const mapas = [useMapStore.getState().map, ...Object.values(cache).flatMap((slot) => (slot.status === 'ok' ? [slot.map] : []))]
-    const porCena = mapas.map((map) => contarMudancas(map, estadoId, valor))
-    const resumo: ResumoDaTroca = { elementos: porCena.reduce((soma, n) => soma + n, 0), cenas: porCena.filter((n) => n > 0).length }
-    const transform = (map: MapData) => aplicarEstadoNoMapa(map, estadoId, valor)
+    // Conta e planeja ANTES de aplicar: depois, cada elemento já está no efeito e a conta daria zero.
+    const cenas = cenasCarregadas(activeSceneId, useMapStore.getState().map, cache)
+    const movimentos = planejarRotina(cenas, estadoId, valor, fixas)
+    const mexidas = new Set(movimentos.flatMap((m) => [m.de, m.para]))
+    const porCena = cenas.map((cena) => contarMudancas(cena.map, estadoId, valor))
+    const cenasMudadas = cenas.filter((cena, i) => porCena[i] > 0 || mexidas.has(cena.sceneId)).length
+    const resumo: ResumoDaTroca = {
+      elementos: porCena.reduce((soma, n) => soma + n, 0),
+      cenas: cenasMudadas,
+      ...(movimentos.length === 0 ? {} : { fichas: movimentos.length }),
+    }
+    // Id de ficha é único na aventura: o mesmo `transform` serve a toda cena.
+    const transform = (map: MapData) => moverNaCena(aplicarEstadoNoMapa(map, estadoId, valor), movimentos)
     useMapStore.getState().applyPlayerChange(transform)
     for (const sceneId of Object.keys(cache)) get().applyPlayerChangeToBackgroundScene(sceneId, transform)
+    for (const m of movimentos) {
+      if (m.de === m.para || !get().transferToken(m.tokenId, m.de, m.para, m.x, m.y) || m.de !== activeSceneId) continue
+      // Saiu da cena aberta: a seleção não pode apontar para ela (o mesmo cuidado de `carryToken`).
+      const item: SelectionItem = { kind: 'token', id: m.tokenId }
+      const { selection, setSelection } = useMapStore.getState()
+      if (selectionHas(selection, item)) setSelection(removeSelectionItem(selection, item))
+    }
     set({ adventure: { ...adventure, estados }, structureDirty: true })
     return resumo
   },
@@ -620,6 +681,64 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const estadoId = amarra.regra?.estadoId
     const estado = estadoId === undefined ? undefined : get().adventure?.estados?.find((e) => e.id === estadoId)
     useMapStore.getState().amarrarAoEstado(amarra, estado === undefined ? null : estado.atual)
+  },
+
+  criarCabine: (nome, pinId) => {
+    const { adventure, activeSceneId } = get()
+    if (adventure === null || activeSceneId === null) return null
+    const pin = useMapStore.getState().map.pins.find((p) => p.id === pinId)
+    if (pin === undefined || pin.kind !== 'viagem') return null
+    const parada = { sceneId: activeSceneId, pinId }
+    const cabine = novaCabine(nome, parada)
+    if (cabine === null) return null
+    // O pino que já era parada de outra cabine sai dela: uma parada, uma cabine.
+    const antes = adventure.cabines ?? []
+    const semEla = comParada(antes, parada, null) ?? antes
+    set({ adventure: { ...adventure, cabines: [...semEla, cabine] }, structureDirty: true })
+    return cabine.id
+  },
+
+  definirParadaDeCabine: (pinId, cabineId) => {
+    const { adventure, activeSceneId } = get()
+    if (adventure === null || activeSceneId === null) return false
+    const cabines = comParada(adventure.cabines ?? [], { sceneId: activeSceneId, pinId }, cabineId)
+    if (cabines === null) return false
+    set({ adventure: { ...adventure, cabines }, structureDirty: true })
+    return true
+  },
+
+  moverCabine: (cabineId, parada) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const cabines = comCabineEm(adventure.cabines ?? [], cabineId, parada)
+    if (cabines === null) return false
+    set({ adventure: { ...adventure, cabines }, structureDirty: true })
+    return true
+  },
+
+  chamarCabine: ({ cabineId, chamada }) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const cabines = comChamada(adventure.cabines ?? [], cabineId, chamada)
+    if (cabines === null) return false
+    set({ adventure: { ...adventure, cabines }, structureDirty: true })
+    return true
+  },
+
+  atenderChamada: (cabineId) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const proxima = proximaChamada(adventure.cabines ?? [], cabineId)
+    return proxima === null ? false : get().moverCabine(cabineId, proxima.parada)
+  },
+
+  limparFilaDaCabine: (cabineId) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const cabines = semFila(adventure.cabines ?? [], cabineId)
+    if (cabines === null) return false
+    set({ adventure: { ...adventure, cabines }, structureDirty: true })
+    return true
   },
 
   linkPinToNewArrival: (pinId, sceneId, exitId = SAIDA_PRINCIPAL) => {

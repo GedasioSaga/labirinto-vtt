@@ -7,6 +7,7 @@ import { formatNoteTime, PlayerNotebook } from './PlayerNotebook'
 import type { TokenContract } from '../types/map'
 import { loanLabel } from '../lib/tokenLoan'
 import { PlayerClueList } from './PlayerClues'
+import { PlayerLetterForm, type PlayerLetterFormProps } from './PlayerLetterForm'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
 const NO_CLUES: readonly ClueEntry[] = []
@@ -146,6 +147,8 @@ interface PlayerPanelProps {
    * de afirmar que ele está sozinho.
    */
   party?: PartyMember[]
+  /** CORREIO: o formulário "Bilhete". Ausente (tela antiga, teste) = a seção não aparece. */
+  letter?: PlayerLetterFormProps
 }
 
 export function PlayerPanel({
@@ -171,6 +174,7 @@ export function PlayerPanel({
   onOpenClue = IGNORE_CLUE,
   backpack,
   party,
+  letter,
 }: PlayerPanelProps) {
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
   // Um estado por forma: a coluna do notebook nasce aberta e a gaveta do
@@ -501,6 +505,15 @@ export function PlayerPanel({
                     {photoError}
                   </p>
                 )}
+              </section>
+            )}
+
+            {letter !== undefined && (
+              <section className="pp-section" aria-labelledby={`${panelId}-letter`}>
+                <h2 id={`${panelId}-letter`} className="pp-heading">
+                  Bilhete
+                </h2>
+                <PlayerLetterForm {...letter} />
               </section>
             )}
 

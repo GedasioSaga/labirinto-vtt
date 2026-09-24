@@ -331,6 +331,14 @@ export interface PinExit extends PinExitLabel {
 export type PinPassage = 'pede' | 'livre' | 'trancada'
 
 /**
+ * CABINE DE TRANSPORTE, como a PARADA a diz ao jogador: a cabine está `aqui`;
+ * está aqui mas `ocupada` (alguém embarcou e espera o mestre); não está e
+ * esta parada já a `chamada`; ou está `longe` — nunca qual cabine é, em que
+ * parada ela está nem quem está dentro. A cabine mora na aventura (`lib/cabine.ts`).
+ */
+export type CabineNaParada = 'aqui' | 'ocupada' | 'longe' | 'chamada'
+
+/**
  * Símbolo desenhado DENTRO da cabeça do pino, no lugar do glifo. Os seis que o
  * usuário pediu: o mestre crava "aqui tem um baú" e "aqui tem uma armadilha" e
  * enxerga a diferença no mapa, sem abrir os dois para lembrar qual é qual.
@@ -438,6 +446,14 @@ export interface Pin extends PlayerSecret {
    * do nome e de saber se pede ao mestre), sempre numa cópia limpa.
    */
   item?: PinItem
+  /**
+   * SÓ NO RECORTE DO JOGADOR, e só no pino de viagem que é parada de uma
+   * cabine (elevador, cesto): se a cabine está nele. O mestre nunca grava este
+   * campo (a cabine mora na aventura); o host o monta a cada envio
+   * (`comCabineParaJogador`, `lib/fogFilter.ts`) e `lib/mapFile.ts` o apaga
+   * de um arquivo que o traga.
+   */
+  cabine?: CabineNaParada
   /**
    * ESTADO DO MUNDO — a `passagem` do pino obedece a um estado da aventura.
    * Trocar o valor grava o efeito em `passagem`. NUNCA sai no recorte do
@@ -692,6 +708,28 @@ export interface Token extends PlayerSecret {
    *  na ficha emprestada que vai a quem a segura (`lib/fogFilter.ts`) e
    *  `deserializeMap` o descarta se um arquivo trouxer. */
   contrato?: TokenContract
+  /** ROTINA DO NPC: onde a ficha fica em cada valor de um ESTADO DO MUNDO
+   *  ("Apito: Aurora, Meio, Brasa"). Trocar o estado leva a ficha ao posto,
+   *  inclusive para outra cena (`lib/rotinaDoNpc.ts`). Do mestre: NÃO atravessa
+   *  para jogador nenhum, nem para quem segura a ficha (`lib/fogFilter.ts`).
+   *  `undefined` = sem rotina — mapa salvo antes deste campo abre igual. */
+  rotina?: RotinaDoNpc
+}
+
+/** A rotina de uma ficha (`Token.rotina`): um posto por valor do estado, no máximo. */
+export interface RotinaDoNpc {
+  /** O estado do mundo que manda nesta rotina (`Adventure.estados`). */
+  estadoId: string
+  /** Valor sem posto = a ficha fica onde está quando o estado vira para ele. */
+  postos: PostoDaRotina[]
+}
+
+/** Onde a ficha vai quando o estado vira para `valor`: cena da aventura e ponto em px de mundo. */
+export interface PostoDaRotina {
+  valor: string
+  sceneId: string
+  x: number
+  y: number
 }
 
 /** O acordo do ajudante contratado (`Token.contrato`). */
@@ -728,7 +766,17 @@ export interface Prop extends PlayerSecret {
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
    *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
   hidden?: boolean
+  /** MOBÍLIA DESENHADA: o objeto é um móvel do catálogo (`lib/mobilia.ts`),
+   *  sem imagem (`src: ''`), desenhado como silhueta chapada com o glifo do
+   *  tipo por cima, no editor e na tela do jogador. `undefined` = objeto
+   *  comum de imagem (comportamento de sempre) — sem linha de migração; tipo
+   *  fora do catálogo vindo do disco some na leitura (`deserializeMap`).
+   *  Vai ao jogador junto do móvel que ele enxerga: o tipo É o desenho. */
+  mobilia?: TipoMobilia
 }
+
+/** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */
+export type TipoMobilia = 'catre' | 'mesa' | 'bau'
 
 export interface DrawingPoint {
   x: number
@@ -1081,6 +1129,28 @@ export interface MapData {
    * a faixa (`PlayerConfronto`) montada com as fichas que ele pode ver.
    */
   confronto?: Confronto
+  /**
+   * PERIGO QUE SE ALASTRA (`lib/perigo.ts`): fogo ou água presos a Salas, que o
+   * mestre faz avançar pelas portas abertas. `undefined` = sem perigo — mapa
+   * salvo antes deste campo abre igual. O jogador recebe só as salas tomadas
+   * que ele vê agora, um item por tipo, sem o id do mestre (`lib/fogFilter.ts`).
+   */
+  perigos?: Perigo[]
+}
+
+export type TipoDePerigo = 'fogo' | 'agua'
+
+/**
+ * Um perigo que se alastra sala a sala. `salas`: ids das Salas (`Region`)
+ * tomadas agora. `cinzas`: só no fogo, as Salas que já queimaram — não queimam
+ * de novo. O id é do mestre e nunca sai para o jogador.
+ */
+export interface Perigo {
+  id: string
+  tipo: TipoDePerigo
+  salas: string[]
+  /** `undefined` === nenhuma sala em cinza (água, ou fogo que ainda não avançou): sem linha de migração — quem confere o campo é `perigosFromFile`. */
+  cinzas?: string[]
 }
 
 /**

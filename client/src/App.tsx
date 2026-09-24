@@ -61,6 +61,11 @@ import {
 import { ScenesSection } from './components/ScenesSection'
 import { WorldStateSection } from './components/WorldStateSection'
 import { EstadoDaLuz, EstadoDaPorta, EstadoDaZona, EstadoDoPino } from './components/DependeDoEstadoControls'
+import { PinCabineControls } from './components/PinCabineControls'
+import { ocupantesDasCabines } from './lib/cabine'
+import { UNNAMED_SCENE } from './lib/adventure'
+import { PerigoDaSalaControls } from './components/PerigoDaSalaControls'
+import { RotinaDaFichaControls } from './components/RotinaDaFichaControls'
 import { amarradosPorEstado, type AmarraDeEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
@@ -88,6 +93,7 @@ import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
 import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
+import { porMobiliaNaSala } from './stores/mobiliaNaSala'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
 import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
@@ -531,6 +537,12 @@ function App() {
         // "Deixar ir": o token troca de cena fora do desfazer das duas (ver `transferToken`).
         applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y }) =>
           useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y),
+        // CABINE DE TRANSPORTE: quem passou pela parada levou a cabine junto.
+        applyCabine: ({ cabineId, parada }) => {
+          useAdventureStore.getState().moverCabine(cabineId, parada)
+        },
+        // CABINE DE TRANSPORTE: um jogador chamou a cabine — a chamada entra na fila da aventura.
+        applyChamadaDeCabine: (chamada) => useAdventureStore.getState().chamarCabine(chamada),
         // "Ir lá" do aviso de chegada: o editor vai à cena, com a ficha no centro
         // (mesmo caminho do "Ir lá" do painel Grupo, que também serve à cena já aberta).
         onGoToScene: (sceneId, x, y) => {
@@ -596,7 +608,11 @@ function App() {
   useEffect(
     () =>
       useAdventureStore.subscribe((state, previous) => {
-        if (state.adventure?.estados !== previous.adventure?.estados) hostBridgeRef.current?.notifyMapChanged()
+        // CABINE DE TRANSPORTE: a cabine andou (mestre ou viagem) — quem está
+        // numa parada dela lê "aqui/longe" de novo.
+        if (state.adventure?.estados !== previous.adventure?.estados || state.adventure?.cabines !== previous.adventure?.cabines) {
+          hostBridgeRef.current?.notifyMapChanged()
+        }
       }),
     [],
   )
@@ -2042,7 +2058,10 @@ function App() {
                   // Conta só quando há estado: sem estado, nenhuma passada pelas cenas.
                   amarrados={(adventure.estados ?? []).length === 0 ? new Map() : amarradosPorEstado(sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map).values())}
                   onCriar={(nome, valores) => useAdventureStore.getState().criarEstadoDoMundo(nome, valores)}
-                  onTrocar={(estadoId, valor) => useAdventureStore.getState().trocarEstadoDoMundo(estadoId, valor)}
+                  // ROTINA DO NPC: a troca é também o apito. Ficha na mão de um jogador (a dele ou o ajudante) não é arrancada.
+                  onTrocar={(estadoId, valor) =>
+                    useAdventureStore.getState().trocarEstadoDoMundo(estadoId, valor, new Set(roomPlayers.flatMap((player) => player.tokenIds)))
+                  }
                 />
               )
             }
@@ -2053,10 +2072,36 @@ function App() {
                 <EstadoDaPorta wall={selectedWall} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
               )
             }
-            // Só o pino de VIAGEM tem passagem para o estado mudar.
+            // Só o pino de VIAGEM tem passagem para o estado mudar — e só ele
+            // pode ser parada de cabine (elevador, cesto), que mora na aventura.
             estadoDoPino={
               adventure === null || selectedPin?.kind !== 'viagem' ? undefined : (
-                <EstadoDoPino pin={selectedPin} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+                <>
+                  <EstadoDoPino pin={selectedPin} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+                  {activeSceneId !== null && (
+                    <PinCabineControls
+                      cabines={adventure.cabines ?? []}
+                      parada={{ sceneId: activeSceneId, pinId: selectedPin.id }}
+                      nomeDaCena={(sceneId) => adventure.scenes.find((entry) => entry.id === sceneId)?.name ?? UNNAMED_SCENE}
+                      onCriar={(nome) => {
+                        useAdventureStore.getState().criarCabine(nome, selectedPin.id)
+                      }}
+                      onEscolher={(cabineId) => {
+                        useAdventureStore.getState().definirParadaDeCabine(selectedPin.id, cabineId)
+                      }}
+                      onTrazer={(cabineId) => {
+                        useAdventureStore.getState().moverCabine(cabineId, { sceneId: activeSceneId, pinId: selectedPin.id })
+                      }}
+                      onAtender={(cabineId) => {
+                        useAdventureStore.getState().atenderChamada(cabineId)
+                      }}
+                      onLimparFila={(cabineId) => {
+                        useAdventureStore.getState().limparFilaDaCabine(cabineId)
+                      }}
+                      ocupantes={ocupantesDasCabines(roomPlayers)}
+                    />
+                  )}
+                </>
               )
             }
             estadoDaZona={
@@ -2064,9 +2109,32 @@ function App() {
                 <EstadoDaZona zone={selectedConcealZone} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
               )
             }
+            perigoDaSala={
+              selectedRegion?.room === undefined ? undefined : (
+                <PerigoDaSalaControls
+                  map={map}
+                  salaId={selectedRegion.id}
+                  onPor={(tipo) => useMapStore.getState().porPerigoNaSala(selectedRegion.id, tipo)}
+                  onAvancar={(perigoId) => useMapStore.getState().avancarPerigo(perigoId)}
+                  onApagar={(perigoId) => useMapStore.getState().apagarPerigo(perigoId)}
+                />
+              )
+            }
             estadoDaLuz={
               adventure === null || selectedLight === null ? undefined : (
                 <EstadoDaLuz light={selectedLight} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+              )
+            }
+            // ROTINA DO NPC: o posto da ficha em cada valor do estado; gravar entra no Ctrl+Z.
+            rotinaDaFicha={
+              adventure === null || activeSceneId === null || selectedToken === null ? undefined : (
+                <RotinaDaFichaControls
+                  token={selectedToken}
+                  estados={adventure.estados ?? []}
+                  cenas={adventure.scenes}
+                  cenaAberta={activeSceneId}
+                  onChange={(rotina) => useMapStore.getState().setTokenRotina(selectedToken.id, rotina)}
+                />
               )
             }
             objects={
@@ -2395,6 +2463,8 @@ function App() {
                       },
                     }
                   : undefined,
+              // MOBÍLIA DESENHADA: móvel no centro da sala, no giro dela, selecionado.
+              onAddMobilia: porMobiliaNaSala(selectedRegion),
             }}
             playerSecret={
               secretTarget && {

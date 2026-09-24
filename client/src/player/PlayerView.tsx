@@ -33,6 +33,7 @@ import { drawWalls } from '../pixi/drawWalls'
 import { drawDoors } from '../pixi/drawDoors'
 import { drawMapLines, drawMapMarkers } from '../pixi/drawMapLines'
 import { createRegionsRenderer } from '../pixi/drawRegions'
+import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
 import { drawDrawings } from '../pixi/drawDrawings'
 import { drawStairs } from '../pixi/drawStairs'
@@ -564,6 +565,9 @@ interface Scene {
   floorRenderer: ReturnType<typeof createFloorRenderer>
   regions: Container
   regionsRenderer: ReturnType<typeof createRegionsRenderer>
+  /** PERIGO QUE SE ALASTRA: fogo, água e cinza das salas que o jogador vê agora. */
+  perigos: Graphics
+  lastPerigosKey: string | null
   drawings: Graphics
   stairs: Graphics
   lastDrawingsKey: string | null
@@ -1209,6 +1213,12 @@ export function PlayerView({
 
     const regions = visibleRegions(currentMap.regions, hidden)
     scene.regionsRenderer.draw(scene.regions, regions)
+    // Sem perigo à vista a chave é vazia: não serializa as salas a cada quadro à toa.
+    const perigosKey = currentMap.perigos === undefined ? '' : JSON.stringify([currentMap.perigos, regions.map((r) => [r.id, r.points])])
+    if (perigosKey !== scene.lastPerigosKey) {
+      scene.lastPerigosKey = perigosKey
+      drawPerigos(scene.perigos, regions, currentMap.perigos ?? [])
+    }
 
     const drawings = visibleDrawings(currentMap.drawings, hidden)
     const drawingsKey = JSON.stringify(drawings)
@@ -1428,6 +1438,7 @@ export function PlayerView({
       const floor = new Graphics()
       const mapLines = new Graphics()
       const regions = new Container()
+      const perigos = new Graphics()
       const drawings = new Graphics()
       const props = new Graphics()
       const stairs = new Graphics()
@@ -1458,6 +1469,8 @@ export function PlayerView({
         floor,
         mapLines,
         regions,
+        // PERIGO QUE SE ALASTRA: sobre o chão da sala, sob a névoa (a sala tomada só chega à vista).
+        perigos,
         gridMask,
         grid,
         drawings,
@@ -1524,6 +1537,8 @@ export function PlayerView({
         floorRenderer: createFloorRenderer(),
         regions,
         regionsRenderer: createRegionsRenderer(),
+        perigos,
+        lastPerigosKey: null,
         drawings,
         stairs,
         lastDrawingsKey: null,

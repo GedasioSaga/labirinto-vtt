@@ -4,7 +4,9 @@ import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind,
+  TipoDePerigo, RotinaDoNpc,
 } from '../types/map'
+import * as perigo from '../lib/perigo'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
 import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
@@ -16,6 +18,7 @@ import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/f
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
 import { amarrarAoEstado as amarrarNoMapa, type AmarraDeEstado } from '../lib/estadoDoMundo'
+import { comRotina } from '../lib/rotinaDoNpc'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
 // pixi/PixiCanvas.tsx).
@@ -620,6 +623,12 @@ interface MapStoreState {
    * estado ATUAL da ficha, nunca sobre uma cópia velha da renderização.
    */
   toggleTokenCondition: (id: string, condition: TokenCondition) => void
+  /**
+   * ROTINA DO NPC gravada pelo painel da ficha (`components/RotinaDaFichaControls.tsx`).
+   * Edição do mestre: com histórico, o Ctrl+Z desfaz. `undefined` tira a chave
+   * (a ficha grava como a de antes do campo existir).
+   */
+  setTokenRotina: (id: string, rotina: RotinaDoNpc | undefined) => void
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
@@ -705,6 +714,11 @@ interface MapStoreState {
   setRoomHazard: (roomId: string, kind: HazardKind | null) => void
   /** ZONA DE PERIGO — "Avançar um passo" pelas portas abertas. Com histórico; nada muda = nada grava. */
   advanceHazard: (hazardId: string) => void
+  /** PERIGO QUE SE ALASTRA — fogo ou água novos presos à Sala (`lib/perigo.ts`). Com histórico. */
+  porPerigoNaSala: (salaId: string, tipo: TipoDePerigo) => void
+  /** Um passo do perigo pelas portas abertas. Com histórico: apertou sem querer, Ctrl+Z desfaz. */
+  avancarPerigo: (perigoId: string) => void
+  apagarPerigo: (perigoId: string) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
@@ -1602,6 +1616,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const next = toggleConditionOnMap(get().map, id, condition)
       if (next !== get().map) withHistory(() => next)
     },
+    setTokenRotina: (id, rotina) => withHistory((map) => ({
+      ...map,
+      tokens: map.tokens.map((t) => (t.id === id ? comRotina(t, rotina) : t)),
+    })),
     addProp: (prop) => withHistory((map) => mapFactory.addProp(map, prop)),
     removeProp: (id) => withHistory((map) => mapFactory.removeProp(map, id)),
     moveProp: (id, x, y) => withHistory((map) => mapFactory.setPropPosition(map, id, x, y)),
@@ -1703,6 +1721,19 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     advanceHazard: (hazardId) => {
       if (advanceHazardOnMap(get().map, hazardId) === get().map) return
       withHistory((map) => advanceHazardOnMap(map, hazardId))
+    },
+    porPerigoNaSala: (salaId, tipo) => {
+      const id = `perigo_${crypto.randomUUID()}`
+      if (perigo.porPerigoNaSala(get().map, salaId, tipo, id) === get().map) return
+      withHistory((map) => perigo.porPerigoNaSala(map, salaId, tipo, id))
+    },
+    avancarPerigo: (perigoId) => {
+      if (perigo.avancarPerigo(get().map, perigoId) === get().map) return
+      withHistory((map) => perigo.avancarPerigo(map, perigoId))
+    },
+    apagarPerigo: (perigoId) => {
+      if (perigo.apagarPerigo(get().map, perigoId) === get().map) return
+      withHistory((map) => perigo.apagarPerigo(map, perigoId))
     },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return

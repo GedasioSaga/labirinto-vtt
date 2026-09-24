@@ -37,6 +37,7 @@ import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
 import { readContract } from '../lib/tokenLoan'
+import { letterTitle, type LetterVia } from '../lib/correio'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -645,6 +646,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   }, [connection])
   const closeShownClue = useCallback(() => connection.dismissShownClue(), [connection])
   const askCluePeers = useCallback(() => connection.askCluePeers(), [connection])
+  // CORREIO: o formulário "Bilhete" do Painel.
+  const askLetterPeers = useCallback(() => {
+    connection.askLetterPeers()
+  }, [connection])
+  const sendLetter = useCallback((to: string, via: LetterVia, text: string) => connection.sendLetter(to, via, text), [connection])
   /** Painel e barra do jogador: a câmera lê, na hora, o que eles cobrem do mapa. */
   const panelRef = useRef<HTMLElement | null>(null)
   const barRef = useRef<HTMLDivElement | null>(null)
@@ -750,6 +756,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             setOpenClueId(clueId)
           }}
           backpack={{ ...backpack, onGive: (itemId, toTokenId) => void connection.giveItem(itemId, toTokenId) }}
+          letter={{ peers: state.letterPeers, status: state.letterSend, onAskPeers: askLetterPeers, onSend: sendLetter }}
         />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
@@ -774,6 +781,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               // Mesma regra do pedido de passagem: enviado, o cartão sai e a espera fica no aviso.
               if (connection.takePin(openPin.id)) setOpenPinId(null)
             }}
+            // CABINE DE TRANSPORTE: o cartão fica aberto — ele diz que a cabine foi chamada.
+            onChamarCabine={() => connection.callCabine(openPin.id)}
           />
         )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".
@@ -815,8 +824,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         )}
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
+          // CORREIO: o bilhete de um colega diz de quem é e por onde veio, no lugar de "Recado do mestre".
           <PlayerNoteCard
             key={state.note.id}
+            title={state.note.from !== undefined && state.note.via !== undefined ? letterTitle(state.note.from, state.note.via) : undefined}
             text={state.note.text}
             hint={NOTE_KEPT_HINT}
             onClose={closeNote}

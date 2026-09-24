@@ -8,7 +8,10 @@ import { readMovementRules } from './movementRules'
 import { readCarriedItems, readPinItem } from './items'
 import { readHazards } from './hazards'
 import { withoutContract } from './tokenLoan'
+import { fichaComRotinaDoArquivo } from './rotinaDoNpc'
 import { confrontoFromFile } from './confronto'
+import { perigosFromFile } from './perigo'
+import { propMobiliaFromFile } from './mobilia'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -171,9 +174,12 @@ function deserializeMapFields(json: string): MapData {
   // CONFRONTO é campo NOVO e OPCIONAL: ausente continua ausente (mapa velho
   // abre sem confronto e sem ganhar chave), torto some (`confrontoFromFile`).
   const confronto = confrontoFromFile(parsed.confronto)
+  // PERIGO QUE SE ALASTRA: mesma regra — ausente continua ausente, torto some (`perigosFromFile`).
+  const perigos = perigosFromFile(parsed.perigos)
 
   return {
     ...(confronto === undefined ? {} : { confronto }),
+    ...(perigos === undefined ? {} : { perigos }),
     id: parsed.id,
     name: typeof parsed.name === 'string' ? parsed.name : 'Mapa sem título',
     width: positiveNumberOr(parsed.width, 30),
@@ -215,16 +221,18 @@ function deserializeMapFields(json: string): MapData {
     // — texto e null ficam, valor torto some e a ficha volta a "O mesmo".
     // `contrato` (ajudante contratado) é campo de FIO: o acordo mora na sessão
     // do host. Arquivo que o traga (editado à mão) perde o campo na leitura.
+    // `rotina` (ROTINA DO NPC): rotina torta some e a ficha volta a ser a de sempre; ausente continua ausente.
     tokens: entityList(parsed.tokens).map((t) => {
-      const lido = withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null }))
+      const lido = fichaComRotinaDoArquivo(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null })))
       if (!('mochila' in t)) return lido
       const mochila = readCarriedItems(t.mochila)
       if (mochila !== undefined) return { ...lido, mochila }
       const { mochila: _descartada, ...semMochila } = lido
       return semMochila
     }),
-    // inalterado fora o que já existia — Prop.layer ausente fica undefined
-    props: entityList(parsed.props).map((p) => ({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
+    // Prop.layer ausente fica undefined. MOBÍLIA: `mobilia` ausente continua
+    // ausente; tipo fora do catálogo some e o objeto fica (`propMobiliaFromFile`).
+    props: entityList(parsed.props).map((p) => propMobiliaFromFile({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
     stairs: entityList(parsed.stairs),
     // MUDA de cru para .map(): PONTO DE MAIOR RISCO DE TODA A MIGRAÇÃO.
     // 0.5/0 é o alpha que drawDrawings.ts:50 já aplicava (filled ? 0.5 : 0);
@@ -286,6 +294,9 @@ function deserializeMapFields(json: string): MapData {
       // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
       // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).
       item: readPinItem(p.item),
+      // CABINE DE TRANSPORTE: `cabine` é só do recorte do jogador (a cabine mora
+      // na aventura). Arquivo editado à mão que o traga não o põe no mapa do mestre.
+      cabine: undefined,
       // ESTADO DO MUNDO: regra torta volta AUSENTE (o pino de sempre); o `...p` copiaria o valor cru.
       porEstado: regraDePinoDoArquivo(p.porEstado),
     })),

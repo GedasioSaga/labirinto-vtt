@@ -4,10 +4,12 @@ import { contractFromTerms, isContractDue, type LoanTerms } from '../lib/tokenLo
 import { tokenAsSeenByPlayer } from '../lib/tokenPublicName'
 import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, resizeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
+import { cabineAposViagem, cabineDaParada, cabineNaParada, type CabineDeTransporte, type ChamadaAceita, type MovimentoDeCabine } from '../lib/cabine'
 import {
   alarmForPlayer,
   allPlayerTokens,
   filterMapForGroup,
+  comCabineParaJogador,
   filterMapForPlayer,
   memoryBlockedRings,
   pinClueForPlayer,
@@ -30,7 +32,7 @@ import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { passageOf, pinSummary } from '../lib/pins'
 import { carriedItemsOf, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { selectedTokenColor } from '../lib/tokenColor'
-import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, freeSeatNear, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
+import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, freeSeatNear, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, sameDestination, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { visibleTokens } from '../lib/layers'
 import type { SavedSceneMemory, SavedSeat, SavedSeatExploration } from '../lib/savedTable'
 import { companionSpots, companionsNear, type Companion } from '../lib/travelTogether'
@@ -46,6 +48,7 @@ import { gatherSpots } from '../lib/gatherParty'
 import { tokenSizeInSquares } from '../lib/tokenSize'
 import {
   parsePlayerMessage,
+  type CabineCallMessage,
   type ClueEntry,
   type ClueReadMessage,
   type ClueShowMessage,
@@ -65,6 +68,7 @@ import {
   type PinTakeRejection,
   type PartyMember,
   type PartyWhere,
+  type LetterSendMessage,
   type PlayerMessage,
   type PinTravelRejection,
   type PinTravelRequestMessage,
@@ -83,6 +87,7 @@ import {
   TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS,
   type NoteEntry,
 } from './protocol'
+import { LETTER_PENDING_MAX_PER_PLAYER, LETTER_SEND_MIN_INTERVAL_MS, type LetterVia } from '../lib/correio'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -113,6 +118,12 @@ export interface HostScene {
 export interface HostWorld {
   open: HostScene
   background: HostScene[]
+  /**
+   * CABINE DE TRANSPORTE: as cabines da aventura (`Adventure.cabines`).
+   * Ausente = mapa solto ou aventura sem cabine — todo pino de viagem é o de
+   * sempre. Nunca vai ao jogador: dela sai só o "aqui/longe" da parada.
+   */
+  cabines?: readonly CabineDeTransporte[]
 }
 
 /** De onde a sessão lê o mapa: um `MapData` (mapa solto, o de sempre) ou o mundo da aventura. */
@@ -245,6 +256,26 @@ export interface TravelRequest {
   pinLabel: string
   toSceneId: string
   toSceneName: string
+  /**
+   * CABINE DE TRANSPORTE: o pedido saiu de uma parada com a cabine ali — quem
+   * pede EMBARCOU e é o ocupante até o mestre responder. O nome da cabine,
+   * para o aviso dizer "(na cabine Espinha)". Ausente = pino sem cabine.
+   */
+  cabine?: string
+}
+
+/**
+ * CABINE DE TRANSPORTE: chamada aceita, para o integrador pôr na fila da
+ * aventura (`chamadaDeCabine` do resultado) e avisar o mestre: quem chamou,
+ * qual cabine e em que cena. Nada disto vai ao jogador.
+ */
+export interface ChamadaParaMestre extends ChamadaAceita {
+  /** Nome do jogador na sala. */
+  jogador: string
+  /** Nome da cabine ("Espinha"). */
+  cabine: string
+  /** Nome da cena da parada que chamou. */
+  cena: string
 }
 
 /**
@@ -354,6 +385,19 @@ export interface PointActionRequest {
   background: boolean
 }
 
+/**
+ * CORREIO: bilhete que espera o mestre (o carteiro). É o que o aviso dele
+ * mostra — quem, para quem, por onde e o texto inteiro. Nada disto vai a
+ * jogador nenhum enquanto o mestre não entregar.
+ */
+export interface LetterRequest {
+  letterId: string
+  fromName: string
+  toName: string
+  via: LetterVia
+  text: string
+}
+
 export interface HostResult {
   outbound: Outbound[]
   /** Chamado NOVO na fila: o integrador mostra a linha e toca o bipe. Repetição do mesmo chamado não vem. */
@@ -373,11 +417,25 @@ export interface HostResult {
   itemRequest?: ItemRequest
   /** Item pego (pino livre ou "Deixar") ou dado: o integrador grava na cena. */
   applyItems?: AppliedItems
+  /** CORREIO: bilhete aceito, à espera do mestre. O integrador pergunta "Entregar" ou "Interceptar". */
+  letter?: LetterRequest
   /**
    * O mestre deixou ir, ou o pino é livre (aí vem de `handleMessage`): o
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
    */
   applyTransfer?: AppliedTransfer
+  /**
+   * CABINE DE TRANSPORTE: quem passou levou a cabine para a chegada. Vem só
+   * junto de `applyTransfer`, e o integrador grava DEPOIS de a ficha mudar de
+   * cena (sem viagem, a cabine não anda). Nunca vai ao jogador.
+   */
+  applyCabine?: MovimentoDeCabine
+  /**
+   * CABINE DE TRANSPORTE: "Chamar a cabine" que valeu. O integrador põe na
+   * fila (pode recusar: a parada já estava nela) e avisa o mestre. Nunca vai
+   * ao jogador — ele lê "chamada" na parada no próximo recorte.
+   */
+  chamadaDeCabine?: ChamadaParaMestre
   /** ZONA DE PERIGO: fichas de jogador que entraram num perigo neste broadcast. O integrador avisa o mestre. */
   hazardEntries?: HazardEntryNotice[]
   /**
@@ -454,6 +512,12 @@ export interface PlayerInfo {
    */
   storedTokenNames?: string[]
   /**
+   * CABINE DE TRANSPORTE: o id da cabine em que ele embarcou (pedido pendente
+   * de uma parada com a cabine ali). É o OCUPANTE que o painel do pino mostra
+   * ao mestre. Ausente = não está em cabine nenhuma.
+   */
+  naCabine?: string
+  /**
    * AJUDANTE CONTRATADO: o acordo de cada ficha EMPRESTADA a ele (id da ficha
    * → acordo). Ausente = nenhum empréstimo. As fichas continuam em `tokenIds`.
    */
@@ -508,6 +572,14 @@ export { TRAVEL_REQUEST_MIN_INTERVAL_MS, TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS }
  * volta pela vila já apagava o começo).
  */
 export const MAX_SCENE_MEMORIES_PER_PLAYER = 32
+
+/**
+ * CABINE DE TRANSPORTE: um "Chamar a cabine" por jogador nesta janela, de
+ * qualquer parada. Cada chamada que vale vira um aviso na tela do mestre:
+ * sem o limite, tocar de novo e de novo empilharia avisos (a fila já barra
+ * a mesma parada, mas não quem troca de parada a cada toque).
+ */
+export const CABINE_CALL_MIN_INTERVAL_MS = 1000
 
 /**
  * Um chamado NOVO por jogador nesta janela. Com a mão levantada ele já não
@@ -725,6 +797,18 @@ export interface HostSession {
   /** A ação no ponto ainda espera o mestre? `false` depois de respondida ou com o jogador expulso. */
   isPointActionPending(requestId: string): boolean
   /**
+   * CORREIO — "Entregar": o bilhete entra no caderno do destinatário e, se ele
+   * joga agora, abre como cartão (`scene.note` com `from` e `via`); se aguarda
+   * sem ficha, vai o caderno inteiro (`notes.book`) com o bilhete em `unread`;
+   * fora do ar, espera no caderno a volta dele, e o caderno da volta o marca
+   * em `unread`. Bilhete que já não espera o mestre: nada.
+   */
+  deliverLetter(letterId: string): HostResult
+  /** CORREIO — "Interceptar": o bilhete some sem chegar a ninguém, e o remetente não fica sabendo. */
+  interceptLetter(letterId: string): HostResult
+  /** O bilhete ainda espera o mestre? `false` depois de entregue, interceptado, ou com o destinatário expulso. */
+  isLetterPending(letterId: string): boolean
+  /**
    * "Mandar para…" do painel Grupo: o MESTRE leva o jogador, sem pedido, para
    * `toSceneId` — no pino de viagem `pinId` daquela cena ou, com `null`, no
    * centro dela. Devolve o mesmo par da aprovação (`applyTransfer` +
@@ -846,6 +930,12 @@ interface OpenCall {
   seq: number
 }
 
+/** CORREIO: bilhete à espera do mestre, com os ids dos dois jogadores (o nome pode repetir depois de sair). */
+interface PendingLetter extends LetterRequest {
+  fromPlayerId: string
+  toPlayerId: string
+}
+
 /** Pedido de passagem à espera do mestre. Um por jogador. */
 interface PendingTravel {
   requestId: string
@@ -856,6 +946,12 @@ interface PendingTravel {
   /** O destino do aviso que o mestre leu. Religou a saída depois? A aprovação não vale. */
   toSceneId: string
   partnerId: string
+  /**
+   * CABINE DE TRANSPORTE: o pedido saiu de uma parada com a cabine ali — a
+   * cabine e a parada onde ele embarcou. Enquanto a cabine continuar nessa
+   * parada, ele é o OCUPANTE e ninguém mais passa por ela.
+   */
+  embarque?: MovimentoDeCabine
 }
 
 /** Pedido da porta trancada à espera do mestre. Um por jogador. `mapId`: a `sceneKey` da cena da porta. */
@@ -882,6 +978,8 @@ interface ValidTravel {
   pin: Pin
   partner: Pin
   token: Token
+  /** CABINE DE TRANSPORTE: para onde a cabine vai com esta viagem; `null` = nenhuma anda. */
+  cabine: MovimentoDeCabine | null
 }
 
 /**
@@ -1068,6 +1166,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastItemGiveAt = new Map<string, number>()
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
   const lastTokenPhotoAt = new Map<string, number>()
+  // CABINE DE TRANSPORTE — por playerId: o último "Chamar a cabine". Só o kick apaga.
+  const lastCabineCallAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
   const visionOverrides = new Map<string, number>()
   // TEXTO DA SALA — por playerId, por mapa (`MapData.id`): as Salas com texto
@@ -1156,6 +1256,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // mais que a posse que descreve. Invariante: só existe enquanto
   // `ownership[playerId]` tem a ficha (`loansFor` confere de novo).
   const loans = new Map<string, { playerId: string; contrato: TokenContract }>()
+  // CORREIO — por id do bilhete: os que esperam o mestre, na ordem de chegada.
+  // Só memória da sessão: fechar a sala perde o que estava no correio.
+  const pendingLetters = new Map<string, PendingLetter>()
+  // Por playerId: quando o último bilhete dele chegou ao mestre. Só o kick apaga.
+  const lastLetterAt = new Map<string, number>()
+  // Por playerId: ids (do caderno) dos bilhetes entregues com ele fora do ar. Saem
+  // como `unread` no caderno da volta, uma vez: sem isso o bilhete chegava mudo.
+  const unseenLetters = new Map<string, Set<string>>()
   let rev = 0
   // ZONA DE PERIGO: em que zona estava cada ficha de JOGADOR no último
   // broadcast, por cena (chave `sceneKey`). É daqui que sai "entrou agora".
@@ -1424,7 +1532,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       seenPins.delete(playerId)
       return [{ type: 'lobby.waiting' }]
     }
-    const view = snapshotFor(playerId, scene.map, world)
+    const view = snapshotFor(playerId, scene, world)
     const note = arrivalNote(playerId, scene.sceneId, arrived)
     return note === null ? view : [...view, noteMessage(note)]
   }
@@ -1476,7 +1584,25 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { ...entry }
   }
 
-  const noteMessage = (note: NoteEntry): HostMessage => ({ type: 'scene.note', id: note.id, text: note.text, at: note.at })
+  const noteMessage = (note: NoteEntry): HostMessage => {
+    const { id, text, at, from, via } = note
+    // Bilhete leva quem escreveu e por onde; o recado do mestre sai como sempre saiu.
+    return from === undefined || via === undefined ? { type: 'scene.note', id, text, at } : { type: 'scene.note', id, text, at, from, via }
+  }
+
+  /** O caderno inteiro, em cópia; `unread` só quando há bilhete que chegou sem o jogador ver. */
+  const notebookMessage = (book: NoteEntry[], unread: string[]): HostMessage => {
+    const notes = book.map((entry) => ({ ...entry }))
+    return unread.length === 0 ? { type: 'notes.book', notes } : { type: 'notes.book', notes, unread }
+  }
+
+  /** CORREIO: os bilhetes entregues com o jogador fora do ar que ainda estão no caderno. Tira da lista: avisa uma vez. */
+  const takeUnseenLetters = (playerId: string, book: NoteEntry[]): string[] => {
+    const unseen = unseenLetters.get(playerId)
+    if (unseen === undefined) return []
+    unseenLetters.delete(playerId)
+    return book.filter((entry) => unseen.has(entry.id)).map((entry) => entry.id)
+  }
 
   /** Põe o recado no caderno do jogador (sem repetir id); passou do teto, sai o mais antigo. */
   const rememberNote = (playerId: string, note: NoteEntry): void => {
@@ -1561,12 +1687,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * jogador acabou de entrar pela primeira vez: o mapa dele já tem a Sala
    * quando o cartão abre.
    */
-  const snapshotFor = (playerId: string, map: MapData, world: HostWorld): HostMessage[] => {
+  const snapshotFor = (playerId: string, scene: HostScene, world: HostWorld): HostMessage[] => {
+    const map = scene.map
     const memory = memoryFor(playerId, map, world)
     const exp = memory.exp
     inheritFromTokens(playerId, map, memory)
     const entered = enteredRooms.get(playerId)?.get(map.id)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered, loansFor(playerId))
+    const cut = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered, loansFor(playerId))
+    // CABINE DE TRANSPORTE: só as paradas que o recorte JÁ mandou ganham o
+    // "aqui/longe" — nada da cabine além disso, nada de parada escondida.
+    const view: PlayerMapView = { ...cut, map: { ...cut.map, pins: comCabineParaJogador(cut.map.pins, scene.sceneId, world.cabines, ocupadasPorOutros(playerId, world)) } }
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -1887,7 +2017,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (next !== undefined) outbound.push({ clientId, msg: next })
     // O caderno vem antes do cartão: o cliente já tem o recado guardado quando o cartão reabre.
     const book = notebooks.get(playerId) ?? []
-    if (book.length > 0) outbound.push({ clientId, msg: { type: 'notes.book', notes: book.map((entry) => ({ ...entry })) } })
+    if (book.length > 0) outbound.push({ clientId, msg: notebookMessage(book, takeUnseenLetters(playerId, book)) })
     // MINHAS PISTAS: é o que faz a pista sobreviver a recarregar a página. Só a entrada, nunca a `source`.
     const clues = cluebooks.get(playerId) ?? []
     if (clues.length > 0) outbound.push({ clientId, msg: { type: 'clues.book', clues: clues.map((item) => ({ ...item.entry })) } })
@@ -1976,6 +2106,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     pendingDoors.delete(playerId)
     lastDoorRequestAt.delete(playerId)
     lastTokenPhotoAt.delete(playerId)
+    lastCabineCallAt.delete(playerId)
     visionOverrides.delete(playerId)
     pendingNotes.delete(playerId)
     openCalls.delete(playerId)
@@ -1991,6 +2122,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     cluebooks.delete(playerId)
     seenPins.delete(playerId)
     lastClueShowAt.delete(playerId)
+    // O bilhete PARA o esquecido não tem mais a quem chegar; o que ele mandou segue com o mestre.
+    for (const [letterId, letter] of [...pendingLetters]) if (letter.toPlayerId === playerId) pendingLetters.delete(letterId)
+    lastLetterAt.delete(playerId)
+    unseenLetters.delete(playerId)
     for (const chosen of pinAudiences.values()) chosen.delete(playerId)
     // Esquecido não tem mais o que desfazer. O assento não volta: quem foi
     // expulso entraria de novo com o mesmo nome e levaria a ficha.
@@ -2534,6 +2669,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Chegada oculta (mão única) não leva de volta. O recorte já não a manda,
     // mas a recusa não depende da névoa: mesmo `null`, mesmo motivo genérico.
     if (isArrivalOnly(pin)) return null
+    // CABINE DE TRANSPORTE: parada sem a cabine (longe ou só chamada) não leva
+    // ninguém, nem a parada com a cabine OCUPADA por outro jogador (uma cabine,
+    // um embarque). Mesmo `null`, e também aqui (não só no cartão): o "Deixar
+    // ir" de um pedido feito com a cabine ali recusa se ela saiu antes da resposta.
+    const naParada = cabineNaParada(world.cabines, fromSceneId, pin.id, ocupadasPorOutros(playerId, world))
+    if (naParada !== null && naParada !== 'aqui') return null
     const scenes = allScenes(world)
     const lookup = (sceneId: string): TravelScene | null => {
       const scene = scenes.find((s) => s.sceneId === sceneId)
@@ -2558,7 +2699,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
     }
     if (token === null) return null
-    return { from: { ...from, sceneId: fromSceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner, token }
+    const cabine = cabineAposViagem(world.cabines, { sceneId: fromSceneId, pinId: pin.id }, { sceneId: to.sceneId, pinId: travel.partner.id })
+    return { from: { ...from, sceneId: fromSceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner, token, cabine }
   }
 
   function handleTravelRequest(clientId: string, msg: PinTravelRequestMessage, world: HostWorld): HostResult {
@@ -2596,8 +2738,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // ele só lê o aviso de chegada que o integrador mostra com a transferência.
     if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel)
     const requestId = randomId()
+    // CABINE DE TRANSPORTE: `validTravel` já garantiu a cabine AQUI (e livre).
+    // Quem pede embarca: é o ocupante até o mestre responder.
+    const parada = { sceneId: travel.from.sceneId, pinId: travel.pin.id }
+    const cabine = cabineDaParada(world.cabines, parada.sceneId, parada.pinId)
+    const embarque = cabine === null ? {} : { embarque: { cabineId: cabine.id, parada } }
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
-    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
+    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id, ...embarque })
     const description = travel.pin.description.trim()
     // Encruzilhada: o mestre lê a SAÍDA ("Escada da torre → Torre Alta"), o
     // mesmo rótulo que a jogadora tocou; pino de uma saída continua nomeado
@@ -2613,6 +2760,72 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         pinLabel: saida !== undefined ? saida.rotulo : description === '' ? pinSummary(travel.pin) : description,
         toSceneId: travel.to.sceneId,
         toSceneName: travel.to.name,
+        ...(cabine === null ? {} : { cabine: cabine.nome }),
+      },
+    }
+  }
+
+  /**
+   * CABINE DE TRANSPORTE — as cabines em que OUTRO jogador embarcou: um pedido
+   * pendente que saiu da parada onde a cabine ainda está. Para `playerId`, a
+   * parada dessas cabines diz "ocupada" e não leva. O próprio embarque não
+   * conta (ele é quem está dentro). A cabine que saiu da parada do embarque (o
+   * mestre a levou) não está mais ocupada: o "Deixar ir" dele recusaria.
+   */
+  function ocupadasPorOutros(playerId: string, world: HostWorld): Set<string> {
+    const ocupadas = new Set<string>()
+    if (world.cabines === undefined || world.cabines.length === 0) return ocupadas
+    for (const pending of pendingTravels.values()) {
+      if (pending.playerId === playerId || pending.embarque === undefined) continue
+      const { cabineId, parada } = pending.embarque
+      const cabine = world.cabines.find((c) => c.id === cabineId)
+      if (cabine !== undefined && sameDestination(cabine.atual, parada)) ocupadas.add(cabineId)
+    }
+    return ocupadas
+  }
+
+  /**
+   * CABINE DE TRANSPORTE — "Chamar a cabine". Vale só pela parada de uma
+   * cabine, na cena do jogador, VISÍVEL para ele agora (a mesma regra da névoa
+   * do recorte: id adivinhado não chama nada), não trancada, sem a cabine ali
+   * e que ainda não chamou; e o jogador precisa ter ficha na cena (é ela que
+   * entra na fila). Qualquer falha morre em silêncio, como o sinal: o jogador
+   * não descobre por que, e o recorte continua dizendo "longe".
+   */
+  function handleCabineCall(clientId: string, msg: CabineCallMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const at = now()
+    const last = lastCabineCallAt.get(playerId)
+    if (last !== undefined && at - last < CABINE_CALL_MIN_INTERVAL_MS) return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null || scene.sceneId === null) return { outbound: [] }
+    const pin = scene.map.pins.find((p) => p.id === msg.pinId)
+    const cabine = pin === undefined || pin.kind !== 'viagem' ? null : cabineDaParada(world.cabines, scene.sceneId, pin.id)
+    if (pin === undefined || cabine === null || passageOf(pin) === 'trancada') return { outbound: [] }
+    // O limite conta a partir daqui: só pino que existe e é parada gasta a vez.
+    lastCabineCallAt.set(playerId, at)
+    if (cabineNaParada(world.cabines, scene.sceneId, pin.id) !== 'longe') return { outbound: [] }
+    const memory = memoryFor(playerId, scene.map)
+    const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId))
+    if (!view.map.pins.some((p) => p.id === pin.id)) return { outbound: [] }
+    const owned = new Set(ownership[playerId] ?? [])
+    let token: Token | null = null
+    for (const t of view.map.tokens) {
+      if (!owned.has(t.id)) continue
+      if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
+    }
+    if (token === null) return { outbound: [] }
+    return {
+      outbound: [],
+      chamadaDeCabine: {
+        cabineId: cabine.id,
+        chamada: { parada: { sceneId: scene.sceneId, pinId: pin.id }, tokenId: token.id, nome: token.name },
+        jogador: record.name,
+        cabine: cabine.nome,
+        cena: scene.name,
       },
     }
   }
@@ -2643,6 +2856,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         y: spot.y,
         ...(companions.length > 0 ? { companions } : {}),
       },
+      ...(travel.cabine === null ? {} : { applyCabine: travel.cabine }),
     }
   }
 
@@ -2738,6 +2952,48 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         { clientId, msg: { type: 'clue.show.result', to: msg.to, ok: true } },
       ],
     }
+  }
+
+  /**
+   * CORREIO — a quem posso escrever: todo mundo na sala menos ele, só pelo
+   * nome (quem joga em outra cena, quem aguarda e quem caiu também: o bilhete
+   * espera no caderno). Quem aguarda sem ficha não tem personagem que escreva.
+   */
+  function handleLetterPeers(clientId: string): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const names = statusOf(playerId) === 'playing' ? [...players.values()].filter((other) => other.playerId !== playerId).map((other) => other.name) : []
+    return reply(clientId, { type: 'letter.peers', names: names.sort((a, b) => a.localeCompare(b)) })
+  }
+
+  /**
+   * CORREIO — o bilhete vai ao MESTRE, não ao colega: sai daqui como
+   * `letter` do resultado, e o remetente só lê que saiu. Recusa (para si,
+   * nome que não está na sala, remetente sem ficha) volta como `ok: false`
+   * sem motivo; os tetos de intervalo e de pendentes dizem o motivo, que não
+   * conta nada de ninguém.
+   */
+  function handleLetterSend(clientId: string, msg: LetterSendMessage): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const sender = players.get(playerId)
+    const target = [...players.values()].find((other) => other.name === msg.to && other.playerId !== playerId)
+    if (sender === undefined || target === undefined || statusOf(playerId) !== 'playing') {
+      return reply(clientId, { type: 'letter.send.result', to: msg.to, ok: false })
+    }
+    const at = now()
+    const last = lastLetterAt.get(playerId)
+    if (last !== undefined && at - last < LETTER_SEND_MIN_INTERVAL_MS) {
+      return reply(clientId, { type: 'letter.send.result', to: msg.to, ok: false, reason: 'too_soon' })
+    }
+    const waiting = [...pendingLetters.values()].filter((letter) => letter.fromPlayerId === playerId).length
+    if (waiting >= LETTER_PENDING_MAX_PER_PLAYER) {
+      return reply(clientId, { type: 'letter.send.result', to: msg.to, ok: false, reason: 'full' })
+    }
+    lastLetterAt.set(playerId, at)
+    const letter: LetterRequest = { letterId: randomId(), fromName: sender.name, toName: target.name, via: msg.via, text: msg.text }
+    pendingLetters.set(letter.letterId, { ...letter, fromPlayerId: playerId, toPlayerId: target.playerId })
+    return { ...reply(clientId, { type: 'letter.send.result', to: msg.to, ok: true }), letter }
   }
 
   const findPendingTravel = (requestId: string): PendingTravel | undefined =>
@@ -2849,6 +3105,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleTokenEdit(clientId, msg, world)
       case 'pin.travel.request':
         return handleTravelRequest(clientId, msg, world)
+      case 'cabine.call':
+        return handleCabineCall(clientId, msg, world)
       case 'laser':
         return handlePlayerLaser(clientId, msg, world)
       case 'clue.read':
@@ -2867,6 +3125,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleCallLower(clientId)
       case 'point.action':
         return handlePointAction(clientId, msg, world)
+      case 'letter.peers':
+        return handleLetterPeers(clientId)
+      case 'letter.send':
+        return handleLetterSend(clientId, msg)
     }
   }
 
@@ -3078,6 +3340,36 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     isDoorRequestPending(requestId) {
       return findPendingDoor(requestId) !== undefined
+    },
+
+    deliverLetter(letterId) {
+      const letter = pendingLetters.get(letterId)
+      if (letter === undefined) return { outbound: [] }
+      pendingLetters.delete(letterId)
+      const record = players.get(letter.toPlayerId)
+      if (record === undefined) return { outbound: [] }
+      // Só o que o destinatário pode ler: nome de quem escreveu, meio, texto e hora. Nada de cena.
+      const note: NoteEntry = { id: randomId(), text: letter.text, at: now(), from: letter.fromName, via: letter.via }
+      rememberNote(letter.toPlayerId, note)
+      if (record.clientId === null) {
+        // Fora do ar: o caderno da volta marca o bilhete como não lido.
+        const unseen = unseenLetters.get(letter.toPlayerId) ?? new Set<string>()
+        unseen.add(note.id)
+        unseenLetters.set(letter.toPlayerId, unseen)
+        return { outbound: [] }
+      }
+      if (statusOf(letter.toPlayerId) === 'playing') return reply(record.clientId, noteMessage(note))
+      // Aguardando não tem cartão na tela; o caderno vale também aguardando, e acende o não lido.
+      return reply(record.clientId, notebookMessage(notebooks.get(letter.toPlayerId) ?? [], [note.id]))
+    },
+
+    interceptLetter(letterId) {
+      pendingLetters.delete(letterId)
+      return { outbound: [] }
+    },
+
+    isLetterPending(letterId) {
+      return pendingLetters.has(letterId)
     },
 
     sendPlayer(playerId, toSceneId, pinId, source, gatherAt) {
@@ -3541,7 +3833,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           }
           // O selo da lista Cenas nasce e morre com o pedido: aprovar, recusar
           // e cair a conexão já tiram o jogador de `pendingTravels`.
-          if (pendingTravels.has(p.playerId)) info.travelPending = true
+          const pending = pendingTravels.get(p.playerId)
+          if (pending !== undefined) info.travelPending = true
+          // CABINE DE TRANSPORTE: o ocupante é quem embarcou E ainda tem a cabine
+          // na parada do embarque (o mestre pode tê-la levado; sem o mundo, vale o embarque).
+          const embarque = pending?.embarque
+          if (embarque !== undefined) {
+            const cabine = world?.cabines?.find((c) => c.id === embarque.cabineId)
+            if (world === null || (cabine !== undefined && sameDestination(cabine.atual, embarque.parada))) info.naCabine = embarque.cabineId
+          }
           if (p.disconnectedAt !== null) info.disconnectedAt = p.disconnectedAt
           const lent = loansFor(p.playerId)
           if (lent.size > 0) info.loans = Object.fromEntries([...lent].map(([tokenId, contrato]) => [tokenId, { ...contrato }]))

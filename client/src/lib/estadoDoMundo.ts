@@ -38,7 +38,10 @@ export interface EstadoDoMundo {
 /** Quanto uma troca mudou, para o aviso do painel. */
 export interface ResumoDaTroca {
   elementos: number
+  /** Cenas em que algo mudou: elemento, ficha que andou, saiu ou chegou. */
   cenas: number
+  /** ROTINA DO NPC: fichas que foram ao posto (`lib/rotinaDoNpc.ts`). Ausente = nenhuma andou. */
+  fichas?: number
 }
 
 const EFEITOS_NA_PORTA: readonly EfeitoNaPorta[] = ['aberta', 'fechada', 'trancada']

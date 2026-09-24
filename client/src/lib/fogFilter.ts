@@ -14,6 +14,7 @@ import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleSt
 import { isPlayerSafePinImage } from './pins'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
+import { cabineNaParada, type CabineDeTransporte } from './cabine'
 import { withoutAttachment } from './lightAttachment'
 import { itemOfPin } from './items'
 import { computeVisibility, visionSegments } from './visibility'
@@ -22,6 +23,7 @@ import { roomHasRoof } from './roomOps'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
 import { hazardRooms, hazardsOf, visionRadiusAt, type PlayerHazard } from './hazards'
+import { perigosParaJogador } from './perigo'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -931,11 +933,16 @@ function sanitizeTokenPhoto(token: Token): Token {
   return { ...token, image, imageData }
 }
 
-/** A marca de NPC é organização do mestre: a ficha sai para o jogador sem ela. */
-function withoutNpcMark(token: Token): Token {
-  if (token.npc === undefined) return token
+/**
+ * A marca de NPC e a ROTINA DO NPC (`Token.rotina`: o posto de cada turno, com
+ * a cena de cada posto) são do mestre: a ficha sai para o jogador sem elas —
+ * também para quem a segura como ajudante.
+ */
+function withoutMasterMarks(token: Token): Token {
+  if (token.npc === undefined && !('rotina' in token)) return token
   const copy = { ...token }
   delete copy.npc
+  delete copy.rotina
   return copy
 }
 
@@ -1558,7 +1565,7 @@ export function filterMapForGroup(
       const own = owned.has(t.id)
       const contrato = loanOf(t.id)
       // Emprestada: o jogador lê o nome que a MESA lê. O de trabalho é do mestre.
-      const seen = withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(withoutContract(own ? t : withoutBackpack(t)), own && contrato === undefined)))
+      const seen = withoutMasterMarks(tokenForPlayer(tokenAsSeenByPlayer(withoutContract(own ? t : withoutBackpack(t)), own && contrato === undefined)))
       return contrato === undefined || playerId === undefined ? seen : { ...seen, contrato: { ...contrato } }
     })
     .map(tokenHealthForPlayer)
@@ -1575,7 +1582,9 @@ export function filterMapForGroup(
   // CONFRONTO: o campo do mestre NUNCA sai no mapa (tem a fila inteira, com a
   // ficha escondida, e o turno). O jogador recebe a faixa à parte, montada
   // pelo host com as fichas deste recorte (`confrontoParaJogador`).
-  const { confronto: _confrontoDoMestre, ...mapSemConfronto } = mapWithoutHazards
+  // PERIGO QUE SE ALASTRA: a lista do mestre também fica (id, salas fora da
+  // visão); o jogador recebe a dele, montada abaixo (`perigosParaJogador`).
+  const { confronto: _confrontoDoMestre, perigos: perigosDoMestre, ...mapSemConfronto } = mapWithoutHazards
   const filtered: MapData = {
     ...mapSemConfronto,
     // O nome do mapa é o nome da CENA (a aventura cria a cena com
@@ -1703,6 +1712,19 @@ export function filterMapForGroup(
     concealZones: [],
   }
 
+  /**
+   * PERIGO QUE SE ALASTRA — só a Sala que saiu no recorte E que o jogador vê
+   * AGORA (regra de visível, não de explorado: o fogo muda a cada avanço, e a
+   * memória viraria espionagem). Teto fechado nunca: o interior não é dele.
+   */
+  const salasVistasAgora = new Set(
+    filtered.regions
+      .filter((r) => !closedRoofIds.has(r.id) && isShapeVisible(openSamples(interiorSamples(r.points, r.points), { points: r.points, closed: true })))
+      .map((r) => r.id),
+  )
+  const perigos = perigosDoMestre === undefined ? [] : perigosParaJogador(perigosDoMestre, salasVistasAgora)
+  const recorte: MapData = perigos.length > 0 ? { ...filtered, perigos } : filtered
+
   const concealed = zones.flatMap((zone, i) => concealedPieces(zone.ring, unveiledShown[i]))
   /**
    * O mesmo pedaço entra na VISÃO enviada. Sem isto o buraco no preto
@@ -1751,7 +1773,7 @@ export function filterMapForGroup(
     }
   }
   const eyes = ownTokens.map((t, i) => ({ tokenId: t.id, vision: vision[i], doorIds: eyeDoorIds[i] }))
-  return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms, hazards, hazardsHere, eyes }
+  return { map: recorte, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms, hazards, hazardsHere, eyes }
 }
 
 /**
@@ -1858,6 +1880,30 @@ function pinForPlayer(pin: Pin): Pin {
 }
 
 /**
+ * CABINE DE TRANSPORTE — a parada diz ao jogador se a cabine está nela.
+ * Recebe os pinos que o recorte JÁ mandou (`filterMapForPlayer`): parada que a
+ * névoa, a zona oculta, o "Quem vê" ou o segredo esconderam não está na lista,
+ * e não ganha nada. Do que a cabine é, sai só `cabine` (`aqui`, `ocupada`,
+ * `chamada`, `longe`) — nunca o id, o nome, as outras paradas, onde ela está
+ * (a cena de lá diria que a outra cena existe), quem chamou nem quem está
+ * dentro. `sceneId` é a cena do jogador na aventura (`null` no mapa solto, que
+ * não tem cabine). `ocupadas`: as cabines em que OUTRO jogador embarcou.
+ */
+export function comCabineParaJogador(
+  pins: readonly Pin[],
+  sceneId: string | null,
+  cabines: readonly CabineDeTransporte[] | undefined,
+  ocupadas: ReadonlySet<string> = new Set(),
+): Pin[] {
+  if (cabines === undefined || cabines.length === 0 || sceneId === null) return [...pins]
+  return pins.map((pin) => {
+    if (pin.kind !== 'viagem') return pin
+    const cabine = cabineNaParada(cabines, sceneId, pin.id, ocupadas)
+    return cabine === null ? pin : { ...pin, cabine }
+  })
+}
+
+/**
  * MINHAS PISTAS — o que do cartão vai para o caderno do jogador: título, texto
  * e foto. LISTA DO QUE VAI, como `pinForPlayer`: nada de posição (a pista
  * sobrevive a sair da sala, e a posição diria onde o pino está depois que a
@@ -1922,5 +1968,9 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
   }
   if (prop.rotation !== undefined) forPlayer.rotation = prop.rotation
   if (prop.layer !== undefined) forPlayer.layer = prop.layer
+  // MOBÍLIA DESENHADA: o tipo é o desenho que a tela do jogador pinta por cima
+  // da silhueta. Só chega aqui o móvel que ele enxerga (o filtro acima tirou o
+  // resto), então o tipo não diz nada que a silhueta na tela já não diga.
+  if (prop.mobilia !== undefined) forPlayer.mobilia = prop.mobilia
   return forPlayer
 }

@@ -55,6 +55,7 @@ function setup() {
     mapLines: spy('mapLines'),
     mapFrame: spy('mapFrame'),
     regions: spy('regions'),
+    perigos: spy('perigos'),
     drawings: spy('drawings'),
     hazards: spy('hazards'),
     roomNames: spy('roomNames'),
@@ -116,6 +117,18 @@ describe('createShapesRedrawer', () => {
     redraw(snapshot(moved))
     // Luz entra porque a parede da sala barra a luz: o recorte muda de verdade.
     expect(take()).toEqual(['gridMask', 'regions', 'roomNames', 'walls', 'lights'])
+  })
+
+  it('PERIGO: com fogo no mapa, avançar repinta só o perigo, e arrastar a sala leva o fogo junto', () => {
+    const { redraw, take } = setup()
+    const map: MapData = { ...buildMap(), perigos: [{ id: 'f', tipo: 'fogo', salas: ['r1'] }] }
+    redraw(snapshot(map))
+    take()
+    const avancou: MapData = { ...map, perigos: [{ id: 'f', tipo: 'fogo', salas: ['r2'], cinzas: ['r1'] }] }
+    redraw(snapshot(avancou))
+    expect(take()).toEqual(['perigos'])
+    redraw(snapshot(moveRegion(avancou, 'r1', 10, 0)))
+    expect(take()).toEqual(['gridMask', 'regions', 'perigos', 'roomNames', 'walls', 'lights'])
   })
 
   it('arrastar a sala selecionada acrescenta só as alças', () => {

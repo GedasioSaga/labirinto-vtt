@@ -48,6 +48,7 @@ import {
   parseCallReply,
   parseClueMessage,
   parseLaserMessage,
+  parseLetterMessage,
   parseNotebook,
   parsePartyUpdate,
   parsePointActionReply,
@@ -68,6 +69,7 @@ import type { TokenMoveRejection } from '../lib/moveValidation'
 import { parsePlayerConfronto, type PlayerConfronto } from '../lib/confronto'
 import { hasEnterText } from '../lib/roomText'
 import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
+import { LETTER_TEXT_MAX_LENGTH, type LetterVia } from '../lib/correio'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -145,7 +147,7 @@ export interface PlayerState {
    * tela o mostra como texto, nunca como HTML. `onlyYou`: o mestre mandou só
    * para este jogador (a tela diz "Só para você").
    */
-  note?: { id: string; text: string; onlyYou?: true }
+  note?: OpenNote
   /**
    * PAUSA POR CENA: o mestre pausou a cena deste jogador (está com outro
    * grupo). Enquanto `true`, a tela mostra o aviso fixo; quem manda é o host,
@@ -203,6 +205,10 @@ export interface PlayerState {
    * Texto puro, como o recado.
    */
   alarm?: { id: string; text: string }
+  /** CORREIO: esperando a lista de colegas da sala, ou os nomes. */
+  letterPeers?: LetterPeers
+  /** CORREIO: o último bilhete mandado e a resposta do host (chegou ao mestre ou não). */
+  letterSend?: LetterSend
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -253,6 +259,29 @@ export type TravelNotice =
   | { id: number; phase: 'rejected'; reason: PinTravelRejection }
 
 export type CluePeers = { phase: 'loading' } | { phase: 'ready'; names: string[] }
+
+/**
+ * Recado aberto no cartão. `from` e `via` só no bilhete de um colega (CORREIO):
+ * o cartão diz de quem é. Ausentes = recado do mestre. `onlyYou`: o mestre
+ * mandou só para este jogador (a tela diz "Só para você").
+ */
+export interface OpenNote {
+  id: string
+  text: string
+  from?: string
+  via?: LetterVia
+  onlyYou?: true
+}
+
+/** CORREIO: a quem o jogador pode escrever. Mesma forma da lista de "Mostrar para…". */
+export type LetterPeers = CluePeers
+
+export interface LetterSend {
+  to: string
+  via: LetterVia
+  /** `ok` = chegou ao MESTRE (entregar é com ele); `too_soon` e `full`, os motivos que o host conta. */
+  phase: 'sending' | 'ok' | 'failed' | 'too_soon' | 'full'
+}
 
 export interface ClueShow {
   to: string
@@ -371,6 +400,12 @@ export interface PlayerConnection {
    */
   requestTravel(pinId: string, exitId?: string): boolean
   /**
+   * CABINE DE TRANSPORTE: "Chamar a cabine" pela parada `pinId`. Sem resposta:
+   * a parada diz "chamada" no próximo recorte. `false` se não está jogando ou
+   * o socket não está aberto.
+   */
+  callCabine(pinId: string): boolean
+  /**
    * Ponteiro do LASER do jogador em px de mundo. Sai em lotes: o primeiro
    * ponto na hora, os seguintes juntos a cada `LASER_SEND_INTERVAL_MS`.
    * `false` se não está jogando ou o socket não está aberto.
@@ -428,6 +463,14 @@ export interface PlayerConnection {
   raiseHand(reason: CallReason, text?: string): boolean
   /** Baixa a mão antes de o mestre ver. `false` se ela não estava levantada ou o socket não está aberto. */
   lowerHand(): boolean
+  /** CORREIO: pede ao host a quem escrever. `false` se não está jogando ou o socket caiu. */
+  askLetterPeers(): boolean
+  /**
+   * CORREIO: manda o bilhete (texto aparado) ao colega `to` pelo meio `via`.
+   * Vai ao mestre, que entrega ou não. `false` (e nada sai) fora do jogo, com
+   * texto vazio ou acima de `LETTER_TEXT_MAX_LENGTH`, ou com o socket caído.
+   */
+  sendLetter(to: string, via: LetterVia, text: string): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   /**
@@ -1314,6 +1357,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }
   }
 
+  /** CORREIO: só quem pediu espera a resposta; a atrasada de um pedido que já acabou não muda nada. */
+  function handleLetterMessage(data: unknown): void {
+    const msg = parseLetterMessage(data)
+    if (msg === null) return
+    if (msg.type === 'letter.peers') {
+      if (state.letterPeers?.phase === 'loading') setState({ letterPeers: { phase: 'ready', names: msg.names } })
+      return
+    }
+    const sending = state.letterSend
+    if (sending?.phase !== 'sending' || sending.to !== msg.to) return
+    setState({ letterSend: { ...sending, phase: msg.ok ? 'ok' : (msg.reason ?? 'failed') } })
+  }
+
   function handleMessage(raw: unknown): void {
     if (typeof raw !== 'string') return
     let data: unknown
@@ -1378,6 +1434,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           call: undefined,
           pointNotice: undefined,
           confronto: undefined,
+          letterPeers: undefined,
+          letterSend: undefined,
         })
         return
       case 'scene.changed':
@@ -1422,18 +1480,21 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (state.status !== 'playing') return
         const note = parseSceneNote(data)
         if (note === null) return
-        // Recado só para ele leva a marca: a tela diz "Só para você".
-        const shown = note.onlyYou === true ? { id: note.id, text: note.text, onlyYou: true as const } : { id: note.id, text: note.text }
         const book = state.notebook ?? []
+        // CORREIO: o bilhete de um colega leva quem escreveu e por onde; recado do mestre, só id e texto.
+        const sender = note.from !== undefined && note.via !== undefined ? { from: note.from, via: note.via } : {}
+        // Recado só para ele leva a marca: a tela diz "Só para você".
+        const onlyYou = note.onlyYou === true ? { onlyYou: true as const } : {}
+        const open: OpenNote = { id: note.id, text: note.text, ...sender, ...onlyYou }
         // Já guardado (o host reenvia o último recado da cena na volta): reabre o cartão, sem repetir nem virar "novo".
         if (book.some((entry) => entry.id === note.id)) {
-          setState({ note: shown })
+          setState({ note: open })
           return
         }
         // Mestre antigo não manda a hora: vale a da chegada.
-        const entry: NoteEntry = { id: note.id, text: note.text, at: note.at ?? Date.now() }
+        const entry: NoteEntry = { id: note.id, text: note.text, at: note.at ?? Date.now(), ...sender }
         setState({
-          note: shown,
+          note: open,
           notebook: [...book, entry].slice(-NOTEBOOK_MAX_NOTES),
           unreadNotes: [...(state.unreadNotes ?? []), note.id].slice(-NOTEBOOK_MAX_NOTES),
         })
@@ -1445,7 +1506,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (book === null) return
         // Recado que o host já tinha é história, não novidade: só o que ainda estava por ler e continua na lista segue novo.
         const kept = new Set(book.notes.map((entry) => entry.id))
-        setState({ notebook: book.notes, unreadNotes: (state.unreadNotes ?? []).filter((id) => kept.has(id)) })
+        const stillUnread = (state.unreadNotes ?? []).filter((id) => kept.has(id))
+        // CORREIO: o bilhete que chegou com o jogador fora do ar (ou aguardando) vem marcado, e acende o ponto.
+        const arrivedUnseen = (book.unread ?? []).filter((id) => !stillUnread.includes(id))
+        setState({ notebook: book.notes, unreadNotes: [...stillUnread, ...arrivedUnseen].slice(-NOTEBOOK_MAX_NOTES) })
         return
       }
       case 'clue.added':
@@ -1454,6 +1518,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'clue.peers':
       case 'clue.show.result':
         handleClueMessage(data)
+        return
+      case 'letter.peers':
+      case 'letter.send.result':
+        handleLetterMessage(data)
         return
       case 'room.text': {
         // Mesma regra do recado: só quem joga tem tela de cartão.
@@ -1825,6 +1893,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       setState({ doorNotice: undefined })
     },
 
+    callCabine(pinId) {
+      if (state.status !== 'playing' || pinId.length === 0) return false
+      return send({ type: 'cabine.call', pinId })
+    },
+
     requestTravel(pinId, exitId) {
       // O pino livre agenda o envio (e o aviso "Passando…") antes de chamar `send`: a tela da mesa sai aqui.
       if (isTable || state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
@@ -1973,6 +2046,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return true
     },
 
+    askLetterPeers() {
+      if (state.status !== 'playing' || !send({ type: 'letter.peers' })) return false
+      setState({ letterPeers: { phase: 'loading' } })
+      return true
+    },
+
+    sendLetter(to, via, text) {
+      const limpo = text.trim()
+      if (state.status !== 'playing' || to.length === 0 || limpo.length === 0 || limpo.length > LETTER_TEXT_MAX_LENGTH) return false
+      if (!send({ type: 'letter.send', to, via, text: limpo })) return false
+      setState({ letterSend: { to, via, phase: 'sending' } })
+      return true
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -1990,7 +2077,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, letterPeers: undefined, letterSend: undefined })
       open()
     },
     wake() {

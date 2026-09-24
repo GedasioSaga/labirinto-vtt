@@ -1008,6 +1008,37 @@
   color: var(--lb-color-danger, #e07a5f);
 }
 
+/* CORREIO: o formulário do bilhete, com o mesmo campo e o mesmo botão do "Meu personagem". */
+.pp-letter {
+  display: grid;
+  gap: 8px;
+}
+
+.pp-letter__via {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pp-letter__via legend {
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 0;
+}
+
+.pp-letter__text {
+  resize: vertical;
+  min-height: 4.5em;
+}
+
+.pp-letter__actions {
+  display: flex;
+  gap: 8px;
+}
+
 /* Foco por teclado visível em tudo que é interativo no painel e na barra (anel de latão do editor). */
 .pp-panel :focus-visible,
 .pp-bar :focus-visible {

@@ -17,6 +17,7 @@ export const SHAPES_LAYERS = [
   'mapLines',
   'mapFrame',
   'regions',
+  'perigos',
   'drawings',
   'hazards',
   'roomNames',
@@ -110,6 +111,10 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       const highlighted = resolveHighlightedRegionId(map.walls, single)
       return [map.regions, hidden, highlighted, highlighted === null ? null : cameraScale]
     }
+    case 'perigos':
+      // Desenha por cima do polígono da sala: mover a sala move o fogo junto.
+      // Sem perigo no mapa, arrastar sala não acorda esta camada.
+      return map.perigos === undefined ? ['sem perigo'] : [map.perigos, map.regions, hidden]
     case 'drawings': {
       const drawingId = selectedId('drawing')
       return [map.drawings, hidden, drawingId, drawingId === null ? null : cameraScale]

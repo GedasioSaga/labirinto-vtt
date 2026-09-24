@@ -1,6 +1,7 @@
 import type { Graphics } from 'pixi.js'
 import type { Prop } from '../types/map'
 import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
+import { tracosDoGlifo } from '../lib/mobilia'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
 
@@ -40,8 +41,8 @@ export const PROP_SILHOUETTE_EDGE_ALPHA = 0.5
 /** Espessura do contorno em px de TELA, a mesma em qualquer zoom (como a parede). */
 export const PROP_SILHOUETTE_EDGE_SCREEN_PX = 1
 
-/** O que a silhueta usa do objeto: a geometria, nunca a imagem. */
-export type PropSilhouette = Pick<Prop, 'x' | 'y' | 'width' | 'height' | 'rotation'>
+/** O que a silhueta usa do objeto: a geometria e o tipo de móvel, nunca a imagem. */
+export type PropSilhouette = Pick<Prop, 'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia'>
 
 /** Posição e tamanho finitos, tamanho positivo: o resto não tem o que pintar. */
 function hasDrawableGeometry(prop: PropSilhouette): boolean {
@@ -85,8 +86,27 @@ function silhouetteCorners(prop: PropSilhouette, grid: PixelGrid): number[] {
 }
 
 /**
+ * MOBÍLIA DESENHADA: os traços do glifo do móvel (`lib/mobilia.ts`), girados
+ * com o objeto, num traço só no mesmo fio fino e claro do contorno — o glifo
+ * nunca pesa mais que a borda do próprio móvel. Objeto comum não tem glifo.
+ */
+function strokeFurnitureGlyph(graphics: Graphics, prop: PropSilhouette, edgeWidth: number): void {
+  if (prop.mobilia === undefined) return
+  const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height)
+  if (segments.length === 0) return
+  const trig = rotationTrig(prop.rotation ?? 0)
+  const center = { x: prop.x, y: prop.y }
+  for (const segment of segments) {
+    const start = rotatePointAround({ x: prop.x + segment.x1, y: prop.y + segment.y1 }, center, trig)
+    const end = rotatePointAround({ x: prop.x + segment.x2, y: prop.y + segment.y2 }, center, trig)
+    graphics.moveTo(start.x, start.y).lineTo(end.x, end.y)
+  }
+  graphics.stroke({ width: edgeWidth, color: PROP_SILHOUETTE_EDGE_COLOR, alpha: PROP_SILHOUETTE_EDGE_ALPHA, cap: 'butt' })
+}
+
+/**
  * Pinta a silhueta de cada objeto em `graphics` (limpa antes) e devolve quantas
- * pintou. Objeto sem geometria desenhável (tamanho zero, número não finito de
+ * pintou. Móvel da mobília desenhada ganha o glifo por cima. Objeto sem geometria desenhável (tamanho zero, número não finito de
  * um arquivo estragado) fica de fora em vez de virar borrão ou derrubar o quadro.
  */
 export function drawPropSilhouettes(
@@ -105,6 +125,7 @@ export function drawPropSilhouettes(
       .poly(silhouetteCorners(prop, grid), true)
       .fill({ color: PROP_SILHOUETTE_FILL_COLOR, alpha: PROP_SILHOUETTE_FILL_ALPHA })
       .stroke({ width: edgeWidth, color: PROP_SILHOUETTE_EDGE_COLOR, alpha: PROP_SILHOUETTE_EDGE_ALPHA, join: 'miter' })
+    strokeFurnitureGlyph(graphics, prop, edgeWidth)
     drawn += 1
   }
   return drawn
