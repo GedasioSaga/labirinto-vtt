@@ -11,6 +11,13 @@ export interface PinControlsProps {
   /** `null` = nenhum pino selecionado: só o tipo do próximo aparece. */
   description: string | null
   onDescriptionChange: (description: string) => void
+  /**
+   * `Pin.notaDoMestre` — "só eu leio", nunca sai para o jogador. `null` ou
+   * ausente com `description` presente = pino sem nota. Sem
+   * `onNotaDoMestreChange` o campo não aparece (mesmo molde de `RoomControls`).
+   */
+  notaDoMestre?: string | null
+  onNotaDoMestreChange?: (notaDoMestre: string) => void
   /** Pino travado não se move no arrasto — continua clicável para destravar aqui. */
   locked: boolean
   onLockedChange: (locked: boolean) => void
@@ -71,6 +78,8 @@ export function PinControls({
   onKindChange,
   description,
   onDescriptionChange,
+  notaDoMestre = null,
+  onNotaDoMestreChange,
   locked,
   onLockedChange,
   image,
@@ -108,9 +117,13 @@ export function PinControls({
       {travel !== null && <PinTravelControlsFor travel={travel} />}
       {description !== null && (
         <>
+          {/* Dois textos, lado a lado: o que vai para o cartão do jogador e o
+              lembrete que fica aqui. O primeiro rótulo segue começando por
+              "Descrição" (é o nome que a mesa já conhece); o da nota não repete
+              a palavra, para os dois nunca se confundirem. */}
           <div className="lb-field">
             <label className="lb-label" htmlFor="lb-pin-description">
-              Descrição
+              Descrição · o jogador lê
             </label>
             <textarea
               id="lb-pin-description"
@@ -120,6 +133,24 @@ export function PinControls({
               onChange={(event) => onDescriptionChange(event.target.value)}
             />
           </div>
+          {onNotaDoMestreChange !== undefined && (
+            <div className="lb-field">
+              <label className="lb-label" htmlFor="lb-pin-nota-do-mestre">
+                Nota do mestre · só eu leio
+              </label>
+              <textarea
+                id="lb-pin-nota-do-mestre"
+                className="lb-input lb-textarea"
+                rows={3}
+                value={notaDoMestre ?? ''}
+                aria-describedby="lb-pin-nota-do-mestre-dica"
+                onChange={(event) => onNotaDoMestreChange(event.target.value)}
+              />
+              <p className="lb-field__hint" id="lb-pin-nota-do-mestre-dica">
+                Nunca vai para a tela dos jogadores, nem quando o pino é revelado.
+              </p>
+            </div>
+          )}
           {/* Mesmo rótulo de `ItemTransformControls` ("Travado"), porque é a
               mesma promessa: o item fica onde está quando alguém esbarra nele
               arrastando. O pino não usa aquele componente porque não tem

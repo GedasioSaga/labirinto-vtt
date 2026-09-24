@@ -212,6 +212,10 @@ function deserializeMapFields(json: string): MapData {
       kind: isPinKind(p.kind) ? p.kind : 'exclamacao',
       icon: isPinIcon(p.icon) ? p.icon : undefined,
       description: typeof p.description === 'string' ? p.description : '',
+      // NOTA DO MESTRE: campo NOVO e OPCIONAL. Só texto volta; o resto
+      // (número, objeto, arquivo editado à mão) volta AUSENTE, sem inventar
+      // chave em mapa antigo. O `...p` acima copiaria o valor cru.
+      notaDoMestre: typeof p.notaDoMestre === 'string' ? p.notaDoMestre : undefined,
       image: typeof p.image === 'string' ? p.image : null,
       destino: p.destino === undefined ? undefined : readPinDestination(p.destino),
       // `passagem` é campo NOVO e OPCIONAL do pino de viagem: ausente é "pede
