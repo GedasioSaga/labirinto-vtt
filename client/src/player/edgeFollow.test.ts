@@ -94,6 +94,33 @@ describe('edgeScrollCamera — um quadro de rolagem', () => {
   })
 })
 
+describe('a faixa da borda começa onde o painel termina (a mesma área livre do recentrar)', () => {
+  // Coluna do painel à esquerda, como no notebook (12..286 px): mais alta que larga, come a esquerda.
+  const PAINEL: Bounds = { minX: 12, minY: 12, maxX: 286, maxY: 588 }
+
+  it('dedo logo à direita do painel: rola para revelar a esquerda; sem painel, o mesmo ponto é miolo', () => {
+    const v = edgeScrollVelocity({ x: PAINEL.maxX + 14, y: 300 }, TELA, [PAINEL])
+    expect(v.y).toBe(0)
+    expect(v.x).toBeGreaterThan(0)
+    expect(edgeScrollVelocity({ x: PAINEL.maxX + 14, y: 300 }, TELA)).toEqual({ x: 0, y: 0 })
+    // Exatamente no começo da faixa livre ainda é parado.
+    expect(edgeScrollVelocity({ x: PAINEL.maxX + EDGE_SCROLL_ZONE_PX, y: 300 }, TELA, [PAINEL])).toEqual({ x: 0, y: 0 })
+  })
+
+  it('dedo por baixo do painel: a velocidade é a máxima, como encostado na borda', () => {
+    expect(edgeScrollVelocity({ x: 150, y: 300 }, TELA, [PAINEL])).toEqual({ x: EDGE_SCROLL_MAX_SPEED, y: 0 })
+  })
+
+  it('a beira do mapa para no começo da faixa livre, e não na borda do canvas', () => {
+    // A borda esquerda do mapa (mundo x = 0) está em tela x = câmera.x; faltam 30 px para ela chegar ao começo da faixa.
+    const inicioDaFaixa = PAINEL.maxX + EDGE_SCROLL_ZONE_PX
+    const perto: Camera = { x: inicioDaFaixa - 30, y: MEIO.y, scale: 1 }
+    const next = edgeScrollCamera(perto, { x: 150, y: 300 }, TELA, MAPA, 1000, [PAINEL])
+    expect(next).toEqual({ scale: 1, x: inicioDaFaixa, y: MEIO.y })
+    expect(edgeScrollCamera({ ...perto, x: inicioDaFaixa }, { x: 150, y: 300 }, TELA, MAPA, 1000, [PAINEL])).toBeNull()
+  })
+})
+
 describe('recenterTarget — soltou a ficha perto da borda', () => {
   const disco = (x: number, y: number) => ({ x, y, radius: 20 })
 

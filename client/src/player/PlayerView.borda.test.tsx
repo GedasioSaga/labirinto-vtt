@@ -258,9 +258,91 @@ describe('PlayerView — a ficha na borda rola o mapa, e a câmera recentra quem
     expect(y).toBe(ANA.y)
   })
 
-  it('soltou a ficha perto da borda: a câmera recentra nela em 200 ms, suave, e para lá', async () => {
+  /** O aparelho: `dedo` = tela de toque (`pointer: coarse`), onde "Câmera segue minha ficha" nasce ligado. */
+  function aparelho(tipo: 'dedo' | 'mouse'): void {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: tipo === 'dedo' && query === '(pointer: coarse)',
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }))
+  }
+
+  /** Arrasta a Ana até 30 px da borda direita e solta; devolve a câmera logo depois de soltar e onde a ficha ficou. */
+  function soltaPertoDaBorda(onMove: ReturnType<typeof vi.fn>): { x0: number; y0: number; solta: Ponto } {
+    const borda = { x: tela.largura - 30, y: CENTRO.y }
+    encostarNaFicha(naTela(ANA))
+    arrastar({ x: CENTRO.x + 100, y: CENTRO.y })
+    arrastar(borda)
+    const x0 = mundo().x
+    const y0 = mundo().y
+    soltar(borda)
+    expect(onMove).toHaveBeenCalledTimes(1)
+    const [, x, y] = onMove.mock.calls[0]
+    return { x0, y0, solta: { x, y } }
+  }
+
+  it('no celular, sem ajuste salvo ("Câmera segue minha ficha" nasce ligado): soltar perto da borda recentra', async () => {
+    aparelho('dedo')
     const onMove = vi.fn()
     await montaAproximado({ ...base(salao()), onMove })
+    const escala = mundo().scale.x
+    const { x0, solta } = soltaPertoDaBorda(onMove)
+    quadros(1, RECENTER_MS)
+    expect(distancia(naTela(solta), CENTRO)).toBeLessThan(1)
+    expect(mundo().x).not.toBe(x0)
+    expect(mundo().scale.x).toBe(escala)
+  })
+
+  it('no notebook, sem ajuste salvo ("Câmera segue minha ficha" nasce desligado): soltar perto da borda não mexe a câmera', async () => {
+    aparelho('mouse')
+    const onMove = vi.fn()
+    await montaAproximado({ ...base(salao()), onMove })
+    const { x0, y0 } = soltaPertoDaBorda(onMove)
+    quadros(20)
+    expect(mundo().x).toBe(x0)
+    expect(mundo().y).toBe(y0)
+  })
+
+  it('"Câmera segue minha ficha" desligado no Painel vale até no celular: soltar perto da borda não mexe a câmera', async () => {
+    aparelho('dedo')
+    const onMove = vi.fn()
+    await montaAproximado({ ...base(salao()), settings: { ...DEFAULT_PLAYER_SETTINGS, followOwnToken: false }, onMove })
+    const { x0, y0 } = soltaPertoDaBorda(onMove)
+    quadros(20)
+    expect(mundo().x).toBe(x0)
+    expect(mundo().y).toBe(y0)
+  })
+
+  it('com o painel aberto na esquerda, a faixa começa onde ele termina: a ficha logo à direita dele rola o mapa', async () => {
+    // A coluna do painel no notebook: 12..286 px da janela (player.css, .pp-panel).
+    const painel = { minX: 12, minY: 12, maxX: 286, maxY: tela.altura - 12 }
+    const onMove = vi.fn()
+    await montaAproximado({ ...base(salao()), focusObstacles: () => [painel], onMove })
+    const x0 = mundo().x
+    const y0 = mundo().y
+    // Há mapa escondido à esquerda do começo da faixa livre: há o que rolar.
+    expect(naTela({ x: 0, y: 0 }).x).toBeLessThan(painel.maxX + 48)
+    const ana = naTela(ANA)
+    expect(ana.x).toBeGreaterThan(painel.maxX + 60)
+
+    // 10 px à direita do painel: dentro da faixa livre, mas a 296 px da borda do canvas.
+    const alvo = { x: painel.maxX + 10, y: ana.y }
+    encostarNaFicha(ana)
+    arrastar({ x: ana.x - 40, y: ana.y })
+    arrastar(alvo)
+    quadros(10)
+
+    // A câmera andou para a direita (revela a esquerda), só no eixo x, e a ficha segue sob o dedo.
+    expect(mundo().x).toBeGreaterThan(x0 + 20)
+    expect(mundo().y).toBe(y0)
+    expect(distancia(naTela(fichaDaAna().position), alvo)).toBeLessThan(1)
+    expect(onMove).not.toHaveBeenCalled()
+  })
+
+  it('soltou a ficha perto da borda com "Câmera segue minha ficha" ligado: a câmera recentra nela em 200 ms, suave, e para lá', async () => {
+    const onMove = vi.fn()
+    await montaAproximado({ ...base(salao()), settings: { ...DEFAULT_PLAYER_SETTINGS, followOwnToken: true }, onMove })
     const escala = mundo().scale.x
     const borda = { x: tela.largura - 30, y: CENTRO.y }
     encostarNaFicha(naTela(ANA))

@@ -40,32 +40,43 @@ function depthInZone(distanceToEdge: number): number {
   return Math.min(1, Math.max(0, (EDGE_SCROLL_ZONE_PX - distanceToEdge) / EDGE_SCROLL_ZONE_PX))
 }
 
+/** Velocidade com o dedo em `pointer`, medida a partir das bordas de `area` (px do canvas). */
+function velocityInArea(pointer: Point, area: Bounds): Point {
+  const x = depthInZone(pointer.x - area.minX) - depthInZone(area.maxX - pointer.x)
+  const y = depthInZone(pointer.y - area.minY) - depthInZone(area.maxY - pointer.y)
+  return { x: x * EDGE_SCROLL_MAX_SPEED, y: y * EDGE_SCROLL_MAX_SPEED }
+}
+
 /**
  * Velocidade da câmera (px de tela por segundo) com o dedo que arrasta a
  * ficha em `pointer`. Perto da direita, `x` negativo: o mundo anda para a
  * esquerda e revela o que está à direita. Tela menor que duas faixas: as duas
  * bordas puxam, e ganha a mais perto.
+ *
+ * A borda é a da área que o painel deixa livre (`obstacles`, px do canvas —
+ * a mesma conta do recentrar): no notebook a coluna do painel cobre a
+ * esquerda, e para quem olha o mapa começa onde ela termina. Dedo por baixo
+ * do painel conta como encostado na borda.
  */
-export function edgeScrollVelocity(pointer: Point, viewport: Viewport): Point {
-  const x = depthInZone(pointer.x) - depthInZone(viewport.width - pointer.x)
-  const y = depthInZone(pointer.y) - depthInZone(viewport.height - pointer.y)
-  return { x: x * EDGE_SCROLL_MAX_SPEED, y: y * EDGE_SCROLL_MAX_SPEED }
+export function edgeScrollVelocity(pointer: Point, viewport: Viewport, obstacles: readonly Bounds[] = []): Point {
+  return velocityInArea(pointer, freeArea(viewport, [...obstacles]))
 }
 
 /**
  * Um eixo da rolagem, parado na beira do mapa: a borda do mapa encosta no
- * começo da faixa e não passa, e a ficha na beira fica fora da faixa. Quando
- * a beira já está aquém disso (o mapa inteiro cabe, ou o jogador rolou além),
- * a rolagem naquele sentido não anda — e nunca puxa a câmera de volta.
+ * começo da faixa (da área livre) e não passa, e a ficha na beira fica fora
+ * da faixa. Quando a beira já está aquém disso (o mapa inteiro cabe, ou o
+ * jogador rolou além), a rolagem naquele sentido não anda — e nunca puxa a
+ * câmera de volta.
  */
-function scrollAxis(position: number, velocity: number, seconds: number, mapMin: number, mapMax: number, size: number, scale: number): number {
+function scrollAxis(position: number, velocity: number, seconds: number, mapMin: number, mapMax: number, areaMin: number, areaMax: number, scale: number): number {
   const next = position + velocity * seconds
   if (velocity < 0) {
-    const limit = size - EDGE_SCROLL_ZONE_PX - mapMax * scale
+    const limit = areaMax - EDGE_SCROLL_ZONE_PX - mapMax * scale
     return Math.max(next, Math.min(position, limit))
   }
   if (velocity > 0) {
-    const limit = EDGE_SCROLL_ZONE_PX - mapMin * scale
+    const limit = areaMin + EDGE_SCROLL_ZONE_PX - mapMin * scale
     return Math.min(next, Math.max(position, limit))
   }
   return position
@@ -73,15 +84,24 @@ function scrollAxis(position: number, velocity: number, seconds: number, mapMin:
 
 /**
  * A câmera depois de um quadro de `elapsedMs` com o dedo em `pointer`.
- * `map` é o retângulo do mapa em px de mundo. `null` = nada a mover (dedo
- * longe da borda, beira do mapa, quadro sem tempo).
+ * `map` é o retângulo do mapa em px de mundo; `obstacles`, o que cobre o
+ * canvas (ver `edgeScrollVelocity`). `null` = nada a mover (dedo longe da
+ * borda, beira do mapa, quadro sem tempo).
  */
-export function edgeScrollCamera(camera: Camera, pointer: Point, viewport: Viewport, map: Bounds, elapsedMs: number): Camera | null {
+export function edgeScrollCamera(
+  camera: Camera,
+  pointer: Point,
+  viewport: Viewport,
+  map: Bounds,
+  elapsedMs: number,
+  obstacles: readonly Bounds[] = [],
+): Camera | null {
   const seconds = Math.min(Math.max(elapsedMs, 0), EDGE_SCROLL_MAX_FRAME_MS) / 1000
   if (seconds === 0) return null
-  const velocity = edgeScrollVelocity(pointer, viewport)
-  const x = scrollAxis(camera.x, velocity.x, seconds, map.minX, map.maxX, viewport.width, camera.scale)
-  const y = scrollAxis(camera.y, velocity.y, seconds, map.minY, map.maxY, viewport.height, camera.scale)
+  const area = freeArea(viewport, [...obstacles])
+  const velocity = velocityInArea(pointer, area)
+  const x = scrollAxis(camera.x, velocity.x, seconds, map.minX, map.maxX, area.minX, area.maxX, camera.scale)
+  const y = scrollAxis(camera.y, velocity.y, seconds, map.minY, map.maxY, area.minY, area.maxY, camera.scale)
   if (x === camera.x && y === camera.y) return null
   return { scale: camera.scale, x, y }
 }

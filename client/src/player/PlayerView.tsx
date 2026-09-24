@@ -52,7 +52,7 @@ import { createSignalsRenderer } from '../pixi/drawSignals'
 import { SIGNAL_LONG_PRESS_MS, SIGNAL_LONG_PRESS_TOLERANCE_PX, type SignalMark } from '../lib/signals'
 import { createLaserPool, createLaserRenderer } from '../pixi/drawLaser'
 import { appendLaserPoints, pruneLaserTrail, type LaserTrail, type RemoteLaser } from '../lib/laser'
-import type { PlayerViewSettings } from './PlayerPanel'
+import { followsOwnToken, type PlayerViewSettings } from './PlayerPanel'
 import {
   MEASURE_OFF,
   measurePointFromScreen,
@@ -1295,7 +1295,8 @@ export function PlayerView({
   }
 
   /**
-   * Soltou a própria ficha perto da borda, ou debaixo do painel: a câmera vai
+   * Soltou a própria ficha perto da borda, ou debaixo do painel, com "Câmera
+   * segue minha ficha" ligado (ver `followsOwnToken`): a câmera vai
    * até ela em `RECENTER_MS`, e de uma vez para quem pediu ao sistema menos
    * movimento. No miolo da tela a câmera fica onde está.
    */
@@ -1570,7 +1571,8 @@ export function PlayerView({
         const current = latestRef.current.map
         const mapBounds = { minX: 0, minY: 0, maxX: current.width * current.grid, maxY: current.height * current.grid }
         const viewport = { width: app.screen.width, height: app.screen.height }
-        const next = edgeScrollCamera(scene.camera, { x: drag.screenX, y: drag.screenY }, viewport, mapBounds, elapsed)
+        // A borda é a da área que o painel deixa livre, a mesma do recentrar ao soltar.
+        const next = edgeScrollCamera(scene.camera, { x: drag.screenX, y: drag.screenY }, viewport, mapBounds, elapsed, readObstacles())
         if (next === null) return
         // A borda assume a câmera: o degrau do + para onde está.
         scene.zoomAnimation = null
@@ -1885,7 +1887,8 @@ export function PlayerView({
           return
         }
         latestRef.current.onMove(drag.tokenId, x, y)
-        recenterOnDrop(scene, { x, y, radius: tokenRadius(token, latestRef.current.map.grid) })
+        // "Câmera segue minha ficha" (Painel): desligado, a câmera fica onde o jogador a deixou.
+        if (followsOwnToken(latestRef.current.settings)) recenterOnDrop(scene, { x, y, radius: tokenRadius(token, latestRef.current.map.grid) })
       }
 
       /**
