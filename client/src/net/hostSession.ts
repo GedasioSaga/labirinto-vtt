@@ -1,7 +1,7 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
+import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, sceneNameForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
@@ -42,10 +42,13 @@ import { clampNoteText, NOTEBOOK_MAX_NOTES, type NoteEntry } from './protocol'
 /**
  * Uma cena que o host serve. `sceneId` é o id da cena na aventura (`null` =
  * mapa solto). `name` é o nome que o MESTRE lê: nunca vai ao jogador.
+ * `publicName` é o NOME PARA OS JOGADORES, opcional: vai só a quem está nesta
+ * cena, pelo `sceneNameForPlayer` (`lib/fogFilter.ts`).
  */
 export interface HostScene {
   sceneId: string | null
   name: string
+  publicName?: string
   map: MapData
 }
 
@@ -564,7 +567,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       seenPins.delete(playerId)
       return [{ type: 'lobby.waiting' }]
     }
-    const view = snapshotFor(playerId, scene.map)
+    const view = snapshotFor(playerId, scene.map, sceneNameForPlayer(scene))
     const note = arrivalNote(playerId, scene.sceneId, arrived)
     return note === null ? view : [...view, noteMessage(note)]
   }
@@ -659,8 +662,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * Devolve o snapshot e, DEPOIS dele, o cartão de texto de cada Sala em que o
    * jogador acabou de entrar pela primeira vez: o mapa dele já tem a Sala
    * quando o cartão abre.
+   *
+   * `sceneName`: o nome público da cena DELE, já recortado por
+   * `sceneNameForPlayer`; `undefined` = o snapshot sai sem o campo.
    */
-  const snapshotFor = (playerId: string, map: MapData): HostMessage[] => {
+  const snapshotFor = (playerId: string, map: MapData, sceneName: string | undefined): HostMessage[] => {
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
     const entered = enteredRooms.get(playerId)?.get(map.id)
@@ -684,7 +690,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
-    const snapshot: HostMessage = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
+    // Sem nome público o campo nem existe: `sceneName: undefined` no JSON sumiria, mas no objeto não.
+    const where = sceneName === undefined ? {} : { sceneName }
+    const snapshot: HostMessage = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed, ...where }
     return [snapshot, ...roomTextCardsFor(playerId, map.id, view)]
   }
 

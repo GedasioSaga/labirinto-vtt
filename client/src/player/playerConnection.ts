@@ -20,6 +20,7 @@ import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseNotebook,
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
+import { SCENE_PUBLIC_NAME_MAX_LENGTH } from '../lib/adventure'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -84,6 +85,11 @@ export interface PlayerState {
   cluePeers?: CluePeers
   /** "Mostrar para…": o último envio e a resposta do host. */
   clueShow?: ClueShow
+  /**
+   * "ONDE ESTOU": o nome para os jogadores da cena onde ele está, do último
+   * snapshot. Ausente = a cena não tem nome público, e o selo não aparece.
+   */
+  sceneName?: string
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -283,6 +289,11 @@ function isVision(value: unknown): value is RegionPoint[][] {
 
 function isStringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
+}
+
+/** Nome de cena que o selo pode mostrar: texto não vazio, no teto do mestre. */
+function isSceneName(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= SCENE_PUBLIC_NAME_MAX_LENGTH
 }
 
 /**
@@ -541,6 +552,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     explored: Exploration | undefined,
     ownTokens: string[],
     concealed: RegionPoint[][],
+    sceneName: string | undefined,
   ): void {
     if (rev <= state.rev) return
     let next = map
@@ -555,7 +567,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       move.prevY = token.y
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined })
+    // `sceneName` entra SEMPRE, inclusive `undefined`: snapshot sem nome apaga o selo da cena anterior.
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, sceneName, error: undefined })
   }
 
   function handleRejected(reqId: string, reason: unknown): void {
@@ -660,7 +673,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, sceneName: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -789,7 +802,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         }
         if (data.ownTokens !== undefined && !isStringList(data.ownTokens)) return
         if (data.concealed !== undefined && !isVision(data.concealed)) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [])
+        // O host nunca manda nome vazio (sem nome público o campo nem vem): vazio é forma errada.
+        if (data.sceneName !== undefined && !isSceneName(data.sceneName)) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.sceneName)
         return
       }
       case 'token.move.accepted':
@@ -1035,7 +1050,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, sceneName: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
       open()
     },
     close: detach,
