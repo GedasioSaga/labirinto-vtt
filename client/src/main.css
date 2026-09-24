@@ -2476,6 +2476,25 @@ body {
   font-size: var(--lb-font-size-sm);
 }
 
+/* Planta da cena ("Planta conhecida por todos" e "Revelar planta para…"): a
+   linha inteira do item, como o recado; as caixas usam o poço do "Reunir". */
+.lb-cenas__planta {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+  gap: var(--lb-space-2);
+}
+
+.lb-cenas__planta-quem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
 /* Destino do pino de viagem (PinTravelControls): um poço rebaixado logo abaixo
    do tipo, com a régua da esquerda dizendo o estado sem precisar ler — latão
    quando a passagem leva a algum lugar, apagada quando não. É a mesma troca

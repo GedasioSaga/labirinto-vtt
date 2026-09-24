@@ -83,6 +83,8 @@ export interface SceneListItem {
   active: boolean
   /** Mapa solto não tem nome de cena para trocar: o nome dele é o do arquivo. */
   renamable: boolean
+  /** `true` = "Planta conhecida por todos" ligada nesta cena. Ausente = desligada (e mapa solto). */
+  planKnownByAll?: boolean
 }
 
 interface AdventureState {
@@ -112,6 +114,8 @@ interface AdventureState {
   /** Cria a cena, já aberta. `loosePath` é o arquivo do mapa solto, quando a aventura nasce agora. */
   createScene: (name: string, loosePath: string | null) => string
   renameScene: (sceneId: string, name: string) => void
+  /** Liga/desliga "Planta conhecida por todos" na cena. Grava com a aventura, como o nome. */
+  setScenePlanKnown: (sceneId: string, known: boolean) => void
   /**
    * Troca a cena aberta. `false` quando não há o que trocar (mesma cena, cena
    * indisponível). `focus` centraliza a câmera nesse ponto da cena que entra.
@@ -187,10 +191,10 @@ export function sceneList(state: Pick<AdventureState, 'adventure' | 'activeScene
   if (state.adventure === null) {
     return [{ id: '', name: liveMap.name, tokenCount: liveMap.tokens.length, available: true, active: true, renamable: false }]
   }
-  return state.adventure.scenes.map((entry) => {
+  return state.adventure.scenes.map((entry): SceneListItem => {
     const active = entry.id === state.activeSceneId
     const slot = state.cache[entry.id]
-    const base = { id: entry.id, name: entry.name, active, renamable: true }
+    const base = { id: entry.id, name: entry.name, active, renamable: true, ...(entry.planKnownByAll === true ? { planKnownByAll: true } : {}) }
     if (active) return { ...base, tokenCount: liveMap.tokens.length, available: true }
     if (slot === undefined || slot.status !== 'ok') return { ...base, tokenCount: null, available: false }
     return { ...base, tokenCount: slot.map.tokens.length, available: true }
@@ -281,15 +285,20 @@ export function hostWorldOf(state: SceneState, liveMap: MapData): HostWorld {
   if (state.adventure === null || state.activeSceneId === null) return singleSceneWorld(liveMap)
   const background: HostScene[] = []
   let openName = liveMap.name
+  let openPlanKnown = false
+  // A flag só entra quando ligada: cena de sempre continua o mesmo objeto de antes.
+  const planOf = (on: boolean): { planKnownByAll?: boolean } => (on ? { planKnownByAll: true } : {})
   for (const entry of state.adventure.scenes) {
+    const planKnownByAll = entry.planKnownByAll === true
     if (entry.id === state.activeSceneId) {
       openName = entry.name
+      openPlanKnown = planKnownByAll
       continue
     }
     const slot = state.cache[entry.id]
-    if (slot !== undefined && slot.status === 'ok') background.push({ sceneId: entry.id, name: entry.name, map: slot.map })
+    if (slot !== undefined && slot.status === 'ok') background.push({ sceneId: entry.id, name: entry.name, map: slot.map, ...planOf(planKnownByAll) })
   }
-  return { open: { sceneId: state.activeSceneId, name: openName, map: liveMap }, background }
+  return { open: { sceneId: state.activeSceneId, name: openName, map: liveMap, ...planOf(openPlanKnown) }, background }
 }
 
 /** Um mapa com o desfazer dele: a cena aberta (no `useMapStore`) ou uma de fundo (no cache). */
@@ -400,6 +409,23 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const sceneName = cleanSceneName(name)
     set({
       adventure: { ...adventure, scenes: adventure.scenes.map((entry) => (entry.id === sceneId ? { ...entry, name: sceneName } : entry)) },
+      structureDirty: true,
+    })
+  },
+
+  setScenePlanKnown: (sceneId, known) => {
+    const { adventure } = get()
+    if (adventure === null || !adventure.scenes.some((entry) => entry.id === sceneId)) return
+    set({
+      adventure: {
+        ...adventure,
+        scenes: adventure.scenes.map((entry): SceneEntry => {
+          if (entry.id !== sceneId) return entry
+          // Desligada, a entrada volta sem o campo: o arquivo fica igual ao de antes.
+          const plain = { id: entry.id, name: entry.name, file: entry.file }
+          return known ? { ...plain, planKnownByAll: true } : plain
+        }),
+      },
       structureDirty: true,
     })
   },

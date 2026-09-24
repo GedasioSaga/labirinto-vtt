@@ -18,6 +18,13 @@ export interface SceneEntry {
   name: string
   /** Caminho do `map.json` da cena, relativo à pasta da aventura, sempre com `/`. */
   file: string
+  /**
+   * "Planta conhecida por todos": todo jogador que chega à cena recebe a
+   * planta (sem interior de teto nem zona oculta). Ausente = desligada — cena
+   * de aventura antiga abre igual, sem migração. Fica no `adventure.json`, e
+   * não no `map.json`, porque o mapa é o que vai (recortado) ao jogador.
+   */
+  planKnownByAll?: true
 }
 
 export interface Adventure {
@@ -76,10 +83,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function sceneEntryOrNull(value: unknown): SceneEntry | null {
   if (!isRecord(value)) return null
-  const { id, name, file } = value
+  const { id, name, file, planKnownByAll } = value
   if (typeof id !== 'string' || id.length === 0) return null
   if (typeof file !== 'string') return null
-  return { id, name: typeof name === 'string' ? name : UNNAMED_SCENE, file }
+  const entry: SceneEntry = { id, name: typeof name === 'string' ? name : UNNAMED_SCENE, file }
+  // Só `true` liga: qualquer outra coisa vinda do disco é desligada.
+  if (planKnownByAll === true) entry.planKnownByAll = true
+  return entry
 }
 
 /**
