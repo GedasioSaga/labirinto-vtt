@@ -1160,8 +1160,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const owned = new Set(ownership[playerId] ?? [])
     // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
     const mine = view.map.tokens.filter((t) => owned.has(t.id))
+    // AJUDANTE CONTRATADO: quem atravessa é o personagem do jogador, mesmo com
+    // o ajudante mais perto do pino — senão o personagem fica para trás e a
+    // cena do jogador vira a do ajudante. Só com o ajudante na mão é ele que vai.
+    const loaned = loansFor(playerId)
+    const own = mine.filter((t) => !loaned.has(t.id))
+    const candidates = own.length > 0 ? own : mine
     let token: Token | null = null
-    for (const t of mine) {
+    for (const t of candidates) {
       if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
     }
     if (token === null) return null
