@@ -15,7 +15,7 @@ import { FLOOR_LAYER, clampFloorPolygonSides, type FloorShapeKind } from '../lib
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
-import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa } from '../lib/abrirVao'
+import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
 // pixi/PixiCanvas.tsx).
@@ -38,7 +38,7 @@ import { moveAreaSelection, areaSelectionBounds, type AreaBounds } from '../lib/
 import { pieceBounds } from '../lib/floorSdf'
 import { groupItems, NO_GROUPS, ungroupItems, type ItemGroups } from '../lib/itemGroups'
 import { alignableUnitCount, alignSelectionItems, distributeSelectionItems, type AlignEdge, type DistributeAxis } from '../lib/alignDistribute'
-import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, SALA_SECRETA_SEGURA_O_VAO_TEXT, TOOL_CLUSTERS } from '../components/labels'
+import { BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, PAREDE_TRAVADA_SEGURA_O_VAO_TEXT, SALA_SECRETA_SEGURA_O_VAO_TEXT, TOOL_CLUSTERS } from '../components/labels'
 import { useToastStore } from './toastStore'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { wallLayer, regionLayer, lightLayer, tokenLayer, drawingLayer, propLayer, stairLayer } from '../lib/layers'
@@ -1231,6 +1231,18 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     }))
   }
 
+  /** Resultado de "Abrir vão aqui"/"Desabar parede" (`lib/abrirVao`). Parede
+   *  travada no trecho recusa o gesto: nada muda, nada entra no histórico (um
+   *  Ctrl+Z vazio desfaria "nada"), e o mestre ouve o porquê. */
+  const aplicarCorteNaParede = (corte: CorteNaParede) => {
+    if (corte.travadaNoCaminho) {
+      useToastStore.getState().push('info', PAREDE_TRAVADA_SEGURA_O_VAO_TEXT)
+      return
+    }
+    withHistory(() => corte.map)
+    if (corte.salaSecretaPoupada) useToastStore.getState().push('info', SALA_SECRETA_SEGURA_O_VAO_TEXT)
+  }
+
   return {
     map: initialMap,
     past: [],
@@ -1647,23 +1659,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       mapFactory.addOpeningOnWall(map, wallId, point, map.grid),
     ),
     abrirVaoAqui: (wallId, point) => {
-      let salaSecretaPoupada = false
-      withHistory((map) => {
-        const corte = abrirVaoDosDoisLados(map, wallId, point, map.grid)
-        salaSecretaPoupada = corte.salaSecretaPoupada
-        return corte.map
-      })
-      if (salaSecretaPoupada) useToastStore.getState().push('info', SALA_SECRETA_SEGURA_O_VAO_TEXT)
+      const map = get().map
+      aplicarCorteNaParede(abrirVaoDosDoisLados(map, wallId, point, map.grid))
     },
-    desabarParede: (wallId) => {
-      let salaSecretaPoupada = false
-      withHistory((map) => {
-        const corte = desabarParedeNoMapa(map, wallId)
-        salaSecretaPoupada = corte.salaSecretaPoupada
-        return corte.map
-      })
-      if (salaSecretaPoupada) useToastStore.getState().push('info', SALA_SECRETA_SEGURA_O_VAO_TEXT)
-    },
+    desabarParede: (wallId) => aplicarCorteNaParede(desabarParedeNoMapa(get().map, wallId)),
     setWallDoorKind: (wallId, kind) => withHistory((map) =>
       mapFactory.setWallDoorKind(map, wallId, kind, DOOR_LENGTH_BY_KIND[kind]),
     ),

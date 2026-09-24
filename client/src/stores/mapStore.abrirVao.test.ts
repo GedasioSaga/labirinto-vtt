@@ -4,7 +4,7 @@ import { buildRoomFromDraft } from '../lib/drawingFactory'
 import type { MapData, Wall } from '../types/map'
 import { useMapStore } from './mapStore'
 import { useToastStore } from './toastStore'
-import { SALA_SECRETA_SEGURA_O_VAO_TEXT } from '../components/labels'
+import { PAREDE_TRAVADA_SEGURA_O_VAO_TEXT, SALA_SECRETA_SEGURA_O_VAO_TEXT } from '../components/labels'
 
 /**
  * As ações do menu da parede (WallGestureMenu, clique direito no mapa):
@@ -67,6 +67,18 @@ describe('mapStore: abrirVaoAqui e desabarParede', () => {
     expect(walls.some((w) => w.id === 'a1')).toBe(false)
     expect(walls.some((w) => w.id === 'o3')).toBe(true)
     expect(useToastStore.getState().toasts.map((t) => t.text)).toEqual([SALA_SECRETA_SEGURA_O_VAO_TEXT])
+  })
+
+  it('parede travada do outro lado: nada é cortado, nada entra no histórico, e o mestre é avisado', () => {
+    useToastStore.setState({ toasts: [] })
+    const map = useMapStore.getState().map
+    const travado = { ...map, walls: map.walls.map((w) => (w.id === 'a1' ? { ...w, locked: true } : w)) }
+    useMapStore.setState({ map: travado })
+    useMapStore.getState().abrirVaoAqui('o3', { x: 512, y: 160 })
+    useMapStore.getState().desabarParede('o3')
+    expect(useMapStore.getState().map).toBe(travado)
+    expect(useMapStore.getState().past).toHaveLength(0)
+    expect(useToastStore.getState().toasts.map((t) => t.text)).toEqual([PAREDE_TRAVADA_SEGURA_O_VAO_TEXT, PAREDE_TRAVADA_SEGURA_O_VAO_TEXT])
   })
 
   it('divisa comum não avisa nada', () => {

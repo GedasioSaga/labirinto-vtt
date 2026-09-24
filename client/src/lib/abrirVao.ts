@@ -111,11 +111,15 @@ function salasEscondidasIds(map: MapData): Set<string> {
   return ids
 }
 
-/** O que o corte fez. `salaSecretaPoupada`: a parede da sala secreta ficou de pé (ver `cortarNaLinha`). */
+/** O que o corte fez. `salaSecretaPoupada`: a parede da sala secreta ficou de pé (ver `cortarNaLinha`).
+ *  `travadaNoCaminho`: o gesto foi RECUSADO inteiro — alguma parede do trecho está travada. */
 export interface CorteNaParede {
   map: MapData
   salaSecretaPoupada: boolean
+  travadaNoCaminho: boolean
 }
+
+const NADA_MUDOU: Omit<CorteNaParede, 'map'> = { salaSecretaPoupada: false, travadaNoCaminho: false }
 
 /**
  * Corta `[de, ate]` das paredes da linha; `map` pela mesma referência se nada mudou.
@@ -126,6 +130,12 @@ export interface CorteNaParede {
  * sem ela, o vão aberto dos dois lados deixaria a visão entrar e entregaria o
  * que há lá dentro antes de o mestre revelar a sala. Só quando TODA parede do
  * trecho é de sala escondida (o mestre mexendo dentro do segredo) ela cai.
+ *
+ * PAREDE TRAVADA NO TRECHO: o gesto inteiro é recusado (`map` pela mesma
+ * referência, `travadaNoCaminho`). Trava — da parede ou da camada — quer dizer
+ * "não muda por gesto nenhum", do lado clicado ou do outro. Cortar só o lado
+ * destravado também não serve: abriria um vão na tela que a parede travada
+ * por baixo continua barrando no jogo.
  */
 function cortarNaLinha(map: MapData, eixo: Eixo, de: number, ate: number): CorteNaParede {
   const escondidas = salasEscondidasIds(map)
@@ -136,10 +146,13 @@ function cortarNaLinha(map: MapData, eixo: Eixo, de: number, ate: number): Corte
   })
   const temLadoVisivel = cortes.some((c) => !ehEscondida(c.parede))
   const valem = temLadoVisivel ? cortes.filter((c) => !ehEscondida(c.parede)) : cortes
+  if (valem.some((c) => !canInteractInLayer(c.parede, wallLayer(c.parede), map.lockedLayers))) {
+    return { map, salaSecretaPoupada: false, travadaNoCaminho: true }
+  }
   const salaSecretaPoupada = valem.length < cortes.length
-  if (valem.length === 0) return { map, salaSecretaPoupada }
+  if (valem.length === 0) return { map, salaSecretaPoupada, travadaNoCaminho: false }
   const trocas = new Map(valem.map((c) => [c.parede.id, c.sobras]))
-  return { map: { ...map, walls: map.walls.flatMap((w) => trocas.get(w.id) ?? [w]) }, salaSecretaPoupada }
+  return { map: { ...map, walls: map.walls.flatMap((w) => trocas.get(w.id) ?? [w]) }, salaSecretaPoupada, travadaNoCaminho: false }
 }
 
 /**
@@ -149,9 +162,9 @@ function cortarNaLinha(map: MapData, eixo: Eixo, de: number, ate: number): Corte
  */
 export function abrirVaoDosDoisLados(map: MapData, wallId: string, ponto: { x: number; y: number }, comprimento: number): CorteNaParede {
   const parede = map.walls.find((w) => w.id === wallId)
-  if (!parede) return { map, salaSecretaPoupada: false }
+  if (!parede) return { map, ...NADA_MUDOU }
   const eixo = eixoDa(parede)
-  if (eixo === null) return { map, salaSecretaPoupada: false }
+  if (eixo === null) return { map, ...NADA_MUDOU }
   const centro = Math.max(0, Math.min(eixo.comprimento, aoLongo(eixo, ponto)))
   const metade = comprimento / 2
   return cortarNaLinha(map, eixo, centro - metade, centro + metade)
@@ -175,8 +188,8 @@ export function paredeDoGesto(map: MapData, ponto: { x: number; y: number }, tol
  */
 export function desabarParede(map: MapData, wallId: string): CorteNaParede {
   const parede = map.walls.find((w) => w.id === wallId)
-  if (!parede) return { map, salaSecretaPoupada: false }
+  if (!parede) return { map, ...NADA_MUDOU }
   const eixo = eixoDa(parede)
-  if (eixo === null) return { map, salaSecretaPoupada: false }
+  if (eixo === null) return { map, ...NADA_MUDOU }
   return cortarNaLinha(map, eixo, 0, eixo.comprimento)
 }

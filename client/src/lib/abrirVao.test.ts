@@ -98,7 +98,7 @@ describe('abrirVaoDosDoisLados — um clique abre a passagem entre dois prédios
 
   it('parede inexistente devolve o MESMO mapa', () => {
     const map = doisPredios()
-    expect(abrirVaoDosDoisLados(map, 'nao-existe', { x: 0, y: 0 }, GRADE)).toEqual({ map, salaSecretaPoupada: false })
+    expect(abrirVaoDosDoisLados(map, 'nao-existe', { x: 0, y: 0 }, GRADE)).toEqual({ map, salaSecretaPoupada: false, travadaNoCaminho: false })
     expect(abrirVaoDosDoisLados(map, 'nao-existe', { x: 0, y: 0 }, GRADE).map).toBe(map)
   })
 })
@@ -153,6 +153,58 @@ describe('desabarParede — a parede cai inteira, dos dois lados', () => {
     const map = doisPredios()
     expect(desabarParede(map, 'nao-existe').map).toBe(map)
     expect(desabarParede(map, 'nao-existe').salaSecretaPoupada).toBe(false)
+  })
+})
+
+describe('parede TRAVADA do outro lado — trava vale para o gesto inteiro', () => {
+  function comArmazemTravado(): MapData {
+    const map = doisPredios()
+    return { ...map, walls: map.walls.map((w) => (w.id === 'a1' ? { ...w, locked: true } : w)) }
+  }
+
+  it('o clique direito na divisa pega a Oficina (a parede destravada da linha)', () => {
+    const map = comArmazemTravado()
+    expect(paredeDoGesto(map, { x: 512, y: 160 }, 8)?.id).toBe('o3')
+    expect(map.walls.find((w) => w.id === 'a1')?.locked).toBe(true)
+  })
+
+  it('abrir o vão pela Oficina recusa: a parede travada do Armazém não perde trecho', () => {
+    const antes = comArmazemTravado()
+    const corte = abrirVaoDosDoisLados(antes, 'o3', { x: 512, y: 160 }, GRADE)
+    expect(corte.travadaNoCaminho).toBe(true)
+    expect(corte.salaSecretaPoupada).toBe(false)
+    expect(corte.map).toBe(antes)
+    expect(divisa(corte.map).map((w) => w.id).sort()).toEqual(['a1', 'o3'])
+    expect(passa(corte.map, DENTRO_DA_OFICINA, DENTRO_DO_ARMAZEM)).toBe(false)
+  })
+
+  it('desabar pela Oficina recusa: a parede travada do Armazém fica inteira', () => {
+    const antes = comArmazemTravado()
+    const corte = desabarParede(antes, 'o3')
+    expect(corte.travadaNoCaminho).toBe(true)
+    expect(corte.map).toBe(antes)
+    expect(corte.map.walls.find((w) => w.id === 'a1')).toEqual(antes.walls.find((w) => w.id === 'a1'))
+  })
+
+  it('camada de paredes travada: nem a parede clicada, nem a do outro lado, mudam', () => {
+    const antes = { ...doisPredios(), lockedLayers: ['paredes' as const] }
+    const corte = desabarParede(antes, 'o3')
+    expect(corte.travadaNoCaminho).toBe(true)
+    expect(corte.map).toBe(antes)
+  })
+
+  it('parede travada na mesma linha mas FORA do trecho não impede o vão', () => {
+    const longe: Wall = { id: 'longe', x1: 512, y1: 900, x2: 512, y2: 1100, blocksLight: true, blocksMove: true, door: null, locked: true }
+    const antes = { ...doisPredios(), walls: [...doisPredios().walls, longe] }
+    const corte = abrirVaoDosDoisLados(antes, 'a1', { x: 512, y: 160 }, GRADE)
+    expect(corte.travadaNoCaminho).toBe(false)
+    expect(corte.map.walls.find((w) => w.id === 'longe')).toBe(longe)
+    expect(passa(corte.map, DENTRO_DO_ARMAZEM, DENTRO_DA_OFICINA)).toBe(true)
+  })
+
+  it('divisa sem trava não é recusada', () => {
+    expect(abrirVaoDosDoisLados(doisPredios(), 'o3', { x: 512, y: 160 }, GRADE).travadaNoCaminho).toBe(false)
+    expect(desabarParede(doisPredios(), 'o3').travadaNoCaminho).toBe(false)
   })
 })
 
