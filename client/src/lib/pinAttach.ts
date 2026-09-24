@@ -24,6 +24,23 @@ export function carryAttachedPins(map: MapData, tokenId: string, dx: number, dy:
 }
 
 /**
+ * Leva os pinos presos a cada ficha de `ids` pelo passo REAL dela: de onde
+ * estava em `before` até onde está em `map`. É o caso da ficha LEVADA
+ * (`lib/carry.ts`): ela não anda o delta de quem a leva quando a parede a
+ * barra, então o pino dela anda o que ela andou — zero, se ficou.
+ */
+export function carryPinsByTokenSteps(map: MapData, before: readonly Token[], ids: ReadonlySet<string>): MapData {
+  let next = map
+  for (const antes of before) {
+    if (!ids.has(antes.id)) continue
+    const agora = map.tokens.find((t) => t.id === antes.id)
+    // Ficha que sumiu no caminho não tem passo a dar ao pino.
+    if (agora !== undefined) next = carryAttachedPins(next, antes.id, agora.x - antes.x, agora.y - antes.y)
+  }
+  return next
+}
+
+/**
  * Leitura do disco: só texto não vazio vale. O resto (número, objeto, texto
  * vazio de arquivo editado à mão) volta AUSENTE — o pino abre parado, que é o
  * de sempre, em vez de acompanhar uma ficha que não existe.

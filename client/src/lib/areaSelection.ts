@@ -24,7 +24,7 @@ import { canInteract } from './itemTransform'
 import { isDegenerateRegion } from '../pixi/shapes'
 import { moveWall, moveRegion, moveStair } from './mapFactory'
 import { ancestorsOf, subtreeIds } from './roomNesting'
-import { carryAttachedPins } from './pinAttach'
+import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import { carrierIdOf, followStep } from './carry'
 
 // ─────────────────────────────────────────────────────────────
@@ -595,13 +595,18 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
       const carrierId = carrierIdOf(t)
       return carrierId !== null && movedIds.has(carrierId) && !movedIds.has(t.id)
     }
+    const tokensBefore = next.tokens
+    const followerIds = new Set(tokensBefore.filter(follows).map((t) => t.id))
     next = {
       ...next,
-      tokens: next.tokens.map((t) => (movedIds.has(t.id) ? { ...t, x: t.x + dx, y: t.y + dy } : follows(t) ? followStep(map, t, dx, dy) : t)),
+      tokens: tokensBefore.map((t) => (movedIds.has(t.id) ? { ...t, x: t.x + dx, y: t.y + dy } : follows(t) ? followStep(map, t, dx, dy) : t)),
     }
     // Pino PRESO a uma ficha que andou anda junto. O pino não entra na seleção
-    // em área, então não há risco de somar o delta duas vezes.
+    // em área, então não há risco de somar o delta duas vezes. A ficha levada
+    // não está em `movedIds` (`follows` a exclui), então o pino dela anda uma
+    // vez só, pelo passo real dela.
     for (const tokenId of movedTokenIds) next = carryAttachedPins(next, tokenId, dx, dy)
+    next = carryPinsByTokenSteps(next, tokensBefore, followerIds)
   }
 
   if (selection.props.length > 0) {

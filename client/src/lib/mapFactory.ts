@@ -18,7 +18,7 @@ import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
-import { carryAttachedPins } from './pinAttach'
+import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import { carrierIdOf, followStep } from './carry'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
@@ -640,7 +640,10 @@ export function setTokenPosition(map: MapData, tokenId: string, x: number, y: nu
     ...map,
     tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : follows(t) ? followStep(map, t, dx, dy) : t)),
   }
-  return moving === undefined ? moved : carryAttachedPins(moved, tokenId, dx, dy)
+  if (moving === undefined) return moved
+  // O pino preso à ficha LEVADA anda o passo real dela (zero se a parede a barrou).
+  const followerIds = new Set(map.tokens.filter(follows).map((t) => t.id))
+  return carryPinsByTokenSteps(carryAttachedPins(moved, tokenId, dx, dy), map.tokens, followerIds)
 }
 
 /** Renomeia só o token alvo. Id inexistente devolve o mapa pela mesma referência. */
