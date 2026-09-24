@@ -1,4 +1,5 @@
-import type { RegionPoint, Token } from '../types/map'
+import type { RegionPoint, Token, Wall } from '../types/map'
+import { distanceToWall, findDoorAt } from '../lib/doorReach'
 import type { TokenAction, TokenActionRejection } from '../lib/tokenActions'
 
 /**
@@ -26,6 +27,30 @@ export function findOtherTokenAt(tokens: readonly Token[], ownTokens: readonly s
     if (Math.hypot(point.x - token.x, point.y - token.y) <= tokenRadius(token, grid) + tolerance) return token
   }
   return null
+}
+
+/**
+ * Ficha alheia que o TOQUE CURTO abre, já decidida contra a porta sob o mesmo
+ * dedo. O toque curto é o único jeito de o jogador alternar uma porta, e o
+ * alvo engordado da ficha (raio + folga) cobre a porta inteira quando a
+ * ficha está na casa ao lado. Com porta dentro da folga, a ficha só ganha se
+ * o dedo está DENTRO do disco dela e mais perto do centro dela que da linha
+ * da porta; senão, o toque é da porta (`null` aqui).
+ */
+export function findTappedOtherToken(
+  tokens: readonly Token[],
+  ownTokens: readonly string[],
+  walls: readonly Wall[],
+  point: RegionPoint,
+  grid: number,
+  tolerance: number,
+): Token | null {
+  const token = findOtherTokenAt(tokens, ownTokens, point, grid, tolerance)
+  if (token === null) return null
+  const door = findDoorAt(walls, point, tolerance)
+  if (door === null) return token
+  const toCenter = Math.hypot(point.x - token.x, point.y - token.y)
+  return toCenter < tokenRadius(token, grid) && toCenter < distanceToWall(point, door) ? token : null
 }
 
 /** O nome no cartão: o que o jogador vê. O mestre escondeu o nome ("Nome para os jogadores" vazio)? "Alguém". */

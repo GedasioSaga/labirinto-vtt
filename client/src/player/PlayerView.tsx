@@ -64,7 +64,7 @@ import {
 import { drawPlayerMeasure } from './drawPlayerMeasure'
 import { createTokenGlides, stepGlides, syncGlide, type TokenGlides } from './tokenGlide'
 import { applyTokenTouch, prepareTokenLayer } from './tokenTouch'
-import { findOtherTokenAt } from './tokenCard'
+import { findTappedOtherToken } from './tokenCard'
 import {
   NO_TOUCH,
   NO_ZOOM_STEP,
@@ -1016,13 +1016,15 @@ export function PlayerView({
   /**
    * Ficha ALHEIA sob o ponto da TELA, com a mesma folga de dedo do pino. Só
    * quando alguém ouve o toque: no espelho do mestre ("Ver tela") não há
-   * cartão, e a ficha não pode virar alvo de cursor à toa.
+   * cartão, e a ficha não pode virar alvo de cursor à toa. Porta sob o mesmo
+   * dedo: a ficha só ganha no miolo dela (`findTappedOtherToken`) — senão a
+   * porta ao lado de um NPC nunca mais abria pelo toque.
    */
   function otherTokenAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
     const { map, ownTokens: own, onTokenOpen: open } = latestRef.current
     if (open === undefined) return null
     const point = scene.world.toLocal({ x: screenX, y: screenY })
-    const token = findOtherTokenAt(map.tokens, own, point, map.grid, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
+    const token = findTappedOtherToken(map.tokens, own, visibleWalls(map), point, map.grid, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
     return token === null ? null : token.id
   }
 
@@ -1718,7 +1720,8 @@ export function PlayerView({
             latestRef.current.onPinOpen?.(pinId)
             return
           }
-          // A ficha é desenhada por cima da porta e do nome da Sala: vem antes deles.
+          // A ficha é desenhada por cima da porta e do nome da Sala: vem antes
+          // deles — mas com porta sob o dedo, só o miolo da ficha abre o cartão.
           const tokenId = otherTokenAtScreen(scene, drag.startX, drag.startY)
           if (tokenId !== null) {
             latestRef.current.onTokenOpen?.(tokenId)
