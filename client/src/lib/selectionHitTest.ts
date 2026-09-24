@@ -1,4 +1,4 @@
-import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData, LayerId } from '../types/map'
+import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData, LayerId, Pin } from '../types/map'
 import type { Selection } from '../types/tools'
 import { findTokenAt } from '../pixi/tokenInteraction'
 import { findPropAt } from '../pixi/propInteraction'
@@ -64,6 +64,20 @@ export function findStairAt(stairs: Stair[], point: Point, tolerance = STAIR_HIT
     }
   }
   return null
+}
+
+/**
+ * Toque do JOGADOR numa escada que leva a outro andar: o pino invisível dela
+ * (`Pin.escadaId`, `lib/stairTravel.ts`), ou `null` se ali não tem escada ou a
+ * escada não leva a lugar nenhum. O lance inteiro responde, com a mesma folga
+ * de `findStairAt` — a escada é o alvo, não um ponto escondido na boca dela.
+ * Só olha escada em camada visível: a que o jogador não enxerga não se toca.
+ */
+export function findStairPinAt(map: Pick<MapData, 'stairs' | 'pins' | 'hiddenLayers'>, point: Point, tolerance = STAIR_HIT_TOLERANCE): Pin | null {
+  const linked = visibleStairs(map.stairs, map.hiddenLayers).filter((stair) => map.pins.some((p) => p.escadaId === stair.id))
+  const stair = findStairAt(linked, point, tolerance)
+  if (stair === null) return null
+  return map.pins.find((p) => p.escadaId === stair.id) ?? null
 }
 
 export function findLightAt(lights: Light[], point: Point, handleRadius = LIGHT_HIT_RADIUS): Light | null {

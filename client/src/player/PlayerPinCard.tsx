@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Pin, PinExitLabel } from '../types/map'
+import type { Pin, PinExitLabel, StairDirection } from '../types/map'
 import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
+import { stairTravelLabel } from '../lib/stairTravel'
 import { PinTravelArt } from '../components/PinSymbolArt'
 
 interface PlayerPinCardProps {
@@ -14,6 +15,12 @@ interface PlayerPinCardProps {
   onRequestTravel?: (exitId?: string) => void
   /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
   travelWaiting?: boolean
+  /**
+   * O pino é a passagem de uma ESCADA que leva a outro andar, e este é o
+   * sentido dela. O cartão vira "Subir"/"Descer": sem imagem, sem descrição
+   * de ponto de interesse e — como todo cartão — sem o nome do andar.
+   */
+  stairDirection?: StairDirection
 }
 
 /**
@@ -56,6 +63,17 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
 }
 
 /**
+ * Escada: o cartão fala o sentido ("Subir", "Descer") em vez de "passar por
+ * aqui". Livre continua "Passar" no botão — é o mesmo gesto da porta livre.
+ */
+function textosDaEscada(direction: StairDirection, livre: boolean): TextosDaPassagem {
+  const verbo = stairTravelLabel(direction)
+  const minusculo = verbo.toLowerCase()
+  if (livre) return { ...TEXTOS_LIVRE, pergunta: `${verbo} por aqui?` }
+  return { ...TEXTOS_PEDE, botao: `Pedir para ${minusculo}`, pergunta: `Pedir ao mestre para ${minusculo}?` }
+}
+
+/**
  * O cartão do ponto de interesse, do jeito que o usuário descreveu: "abrir a
  * imagem de um cenário ou um item e embaixo a descrição".
  *
@@ -69,7 +87,7 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
  * vendo onde está. O toque de fechar que cai no mapa para ali, antes do canvas:
  * fechar o cartão não arrasta o mapa nem abre outro pino.
  */
-export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false }: PlayerPinCardProps) {
+export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, stairDirection }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
@@ -132,7 +150,13 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const passagem = passageOf(pin)
   const trancada = viagem && passagem === 'trancada'
   const podePedir = viagem && !trancada && onRequestTravel !== undefined
-  const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
+  const escada = viagem && stairDirection !== undefined ? stairTravelLabel(stairDirection) : null
+  const textos =
+    viagem && stairDirection !== undefined
+      ? textosDaEscada(stairDirection, passagem === 'livre')
+      : passagem === 'livre'
+        ? TEXTOS_LIVRE
+        : TEXTOS_PEDE
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
   // saída só (ou sem o campo), o cartão é o de sempre.
@@ -157,19 +181,23 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
         className="pp-pincard"
         role="dialog"
         aria-modal="true"
-        aria-label={viagem ? 'Passagem' : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`}
+        aria-label={escada ?? (viagem ? 'Passagem' : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`)}
       >
-        <img
-          className="pp-pincard__image"
-          src={foto === null ? IMAGEM_AUSENTE : foto}
-          alt={foto === null ? 'Este ponto de interesse ainda não tem imagem' : 'Imagem deixada pelo mestre neste ponto de interesse'}
-        />
+        {escada === null && (
+          <img
+            className="pp-pincard__image"
+            src={foto === null ? IMAGEM_AUSENTE : foto}
+            alt={foto === null ? 'Este ponto de interesse ainda não tem imagem' : 'Imagem deixada pelo mestre neste ponto de interesse'}
+          />
+        )}
         <div className="pp-pincard__body">
           <span className={viagem ? 'pp-pincard__glyph pp-pincard__glyph--viagem' : 'pp-pincard__glyph'} aria-hidden="true">
             {viagem ? <PinTravelArt size={16} /> : PIN_GLYPH[pin.kind]}
           </span>
+          {/* Escada: só o sentido. O pino dela não tem texto do mestre, e "o
+              mestre ainda não escreveu nada" leria como ponto de interesse vazio. */}
           <p className="pp-pincard__text">
-            {descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao}
+            {escada ?? (descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao)}
           </p>
         </div>
         {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}

@@ -192,6 +192,10 @@ function deserializeMapFields(json: string): MapData {
       // (`false`, texto, número, arquivo editado à mão) volta AUSENTE — o par de
       // sempre, visível. O `...p` acima copiaria o valor cru, por isso a linha.
       soChegada: p.soChegada === true ? true : undefined,
+      // ESCADA QUE LEVA A OUTRO ANDAR: `escadaId` é campo NOVO e OPCIONAL. Só
+      // texto não vazio vale; o resto volta AUSENTE — o pino de sempre, que se
+      // desenha. O `...p` acima copiaria o valor cru.
+      escadaId: typeof p.escadaId === 'string' && p.escadaId !== '' ? p.escadaId : undefined,
       escolhas: undefined,
     })),
     frame: parsed.frame ?? null,

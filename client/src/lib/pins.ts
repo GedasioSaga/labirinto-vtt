@@ -355,7 +355,8 @@ export function pinSummary(pin: Pin): string {
   if (description !== '') return description
   // O pino de viagem desenha a passagem, nunca o símbolo escolhido: nomeá-lo
   // pelo símbolo diria "Baú" de um pino que no mapa é uma porta.
-  if (pin.kind === 'viagem') return 'Pino de viagem'
+  // O de uma escada nem se desenha: no pedido que chega ao mestre, ele é a escada.
+  if (pin.kind === 'viagem') return typeof pin.escadaId === 'string' && pin.escadaId !== '' ? 'Escada' : 'Pino de viagem'
   if (isPinIcon(pin.icon)) return `Ponto de interesse — ${PIN_ICON_LABELS[pin.icon]}`
   return `Ponto de interesse ${PIN_GLYPH[pin.kind]}`
 }
