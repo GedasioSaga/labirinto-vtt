@@ -5,9 +5,9 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import type { Espiada } from '../lib/espiar'
+import { ESPIADA_MAX_FICHAS, type Espiada } from '../lib/espiar'
 import type { MapData, Pin } from '../types/map'
-import { createPlayerConnection, PEEK_NOTICE_TTL_MS, type SocketLike } from './playerConnection'
+import { createPlayerConnection, PEEK_NOTICE_TTL_MS, PEEK_WAIT_TIMEOUT_MS, type SocketLike } from './playerConnection'
 
 class FakeSocket implements SocketLike {
   readyState = 0
@@ -75,7 +75,7 @@ function jogando() {
   socket.receive({ type: 'snapshot', rev: 1, map: MAPA, vision: [], ownTokens: [], concealed: [] })
   if (connection.getState().status !== 'playing') throw new Error('esperava jogando')
   socket.sent = []
-  return { connection, socket }
+  return { connection, socket, sockets }
 }
 
 describe('playerConnection: espiar pela passagem', () => {
@@ -155,4 +155,54 @@ describe('playerConnection: espiar pela passagem', () => {
     socket.receive({ type: 'lobby.waiting' })
     expect(connection.getState().peek).toBeUndefined()
   })
+
+  it('recorte ilegível (acima dos tetos) para o pedido em curso: sai do "Olhando…" com aviso, e dá para pedir de novo', () => {
+    const { connection, socket } = jogando()
+    connection.peek('grade')
+    const multidao = Array.from({ length: ESPIADA_MAX_FICHAS + 1 }, () => ({ x: 0, y: 0, size: 1, color: '#ffffff' }))
+    socket.receive({ type: 'pin.peek.view', pinId: 'grade', durationMs: 4000, view: { ...VISTA, tokens: multidao } })
+    expect(connection.getState().peek).toMatchObject({ phase: 'rejected', pinId: 'grade', reason: 'failed' })
+    vi.advanceTimersByTime(PEEK_NOTICE_TTL_MS)
+    expect(connection.getState().peek).toBeUndefined()
+    expect(connection.peek('grade')).toBe(true)
+  })
+
+  it('sem resposta do host: o "Olhando…" desiste sozinho no tempo-limite', () => {
+    const { connection } = jogando()
+    connection.peek('grade')
+    vi.advanceTimersByTime(PEEK_WAIT_TIMEOUT_MS - 1)
+    expect(connection.getState().peek?.phase).toBe('waiting')
+    vi.advanceTimersByTime(1)
+    expect(connection.getState().peek).toMatchObject({ phase: 'rejected', pinId: 'grade', reason: 'failed' })
+    expect(connection.peek('grade')).toBe(true)
+  })
+
+  it('reconectar com a espiada esperando ou na tela limpa a espiada: nada fica preso nem volta sem fim', () => {
+    const { connection, socket, sockets } = jogando()
+    connection.peek('grade')
+    connection.reconnect()
+    expect(connection.getState().peek).toBeUndefined()
+
+    const novo = voltar(connection, sockets)
+    expect(novo).not.toBe(socket)
+    // A resposta ao pedido de antes ia para a conexão velha: pedir de novo precisa valer.
+    expect(connection.peek('grade')).toBe(true)
+    novo.receive({ type: 'pin.peek.view', pinId: 'grade', durationMs: 4000, view: VISTA })
+    expect(connection.getState().peek?.phase).toBe('showing')
+    connection.reconnect()
+    expect(connection.getState().peek).toBeUndefined()
+    voltar(connection, sockets)
+    expect(connection.getState().peek).toBeUndefined()
+  })
 })
+
+/** Termina a reconexão: o socket mais novo abre e o host devolve a sessão. */
+function voltar(connection: ReturnType<typeof jogando>['connection'], sockets: readonly FakeSocket[]): FakeSocket {
+  const socket = sockets[sockets.length - 1]
+  if (socket === undefined) throw new Error('socket não criado')
+  socket.open()
+  socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Ana' })
+  socket.receive({ type: 'snapshot', rev: 1, map: MAPA, vision: [], ownTokens: [], concealed: [] })
+  if (connection.getState().status !== 'playing') throw new Error('esperava jogando de novo')
+  return socket
+}

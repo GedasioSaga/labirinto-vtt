@@ -2,7 +2,7 @@ import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { espiadaPeloPino, filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, waitingTokensForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
-import { ESPIAR_ALCANCE_CASAS, ESPIAR_DURACAO_MS, ESPIAR_INTERVALO_MIN_MS, isDaVista } from '../lib/espiar'
+import { ESPIAR_ALCANCE_CASAS, ESPIAR_DURACAO_MS, ESPIAR_INTERVALO_MIN_MS, espiadaCabe, isDaVista } from '../lib/espiar'
 import { MS_POR_MINUTO, type FimDaEspera, type MinhaEspera } from '../lib/encontroMarcado'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { validateTokenMove } from '../lib/moveValidation'
@@ -1439,9 +1439,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const to = scenes.find((s) => s.sceneId === travel.sceneId)
     if (to === undefined || to.sceneId === null) return reject('unavailable')
 
+    // Recorte acima do que o jogador aceita (pincel muito picado, parede demais)
+    // seria jogado fora lá, com o mestre avisado de uma espiada que não houve.
+    const espiada = espiadaPeloPino(to.map, travel.partner, pin.daVista)
+    if (!espiadaCabe(espiada)) return reject('unavailable')
+
     const description = pin.description.trim()
     return {
-      outbound: [{ clientId, msg: { type: 'pin.peek.view', pinId: pin.id, durationMs: ESPIAR_DURACAO_MS, view: espiadaPeloPino(to.map, travel.partner, pin.daVista) } }],
+      outbound: [{ clientId, msg: { type: 'pin.peek.view', pinId: pin.id, durationMs: ESPIAR_DURACAO_MS, view: espiada } }],
       peek: {
         playerId,
         playerName: record.name,

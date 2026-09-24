@@ -156,7 +156,13 @@ export type TravelNotice =
 export type PeekState =
   | { id: number; phase: 'waiting'; pinId: string }
   | { id: number; phase: 'showing'; pinId: string; view: Espiada; durationMs: number }
-  | { id: number; phase: 'rejected'; pinId: string; reason: PinPeekRejection }
+  | { id: number; phase: 'rejected'; pinId: string; reason: PeekFailure }
+
+/**
+ * Por que a espiada não apareceu: a recusa do host, ou `failed` — a resposta
+ * chegou ilegível ou não chegou a tempo (`PEEK_WAIT_TIMEOUT_MS`).
+ */
+export type PeekFailure = PinPeekRejection | 'failed'
 
 export type CluePeers = { phase: 'loading' } | { phase: 'ready'; names: string[] }
 
@@ -351,6 +357,11 @@ export const TOKEN_ACTION_NOTICE_TTL_MS = 5000
 export const WAIT_ENDED_NOTICE_TTL_MS = 60_000
 /** Quanto tempo a recusa do espiar ("Não dá para espiar daqui") fica na tela: curta, como a da porta. */
 export const PEEK_NOTICE_TTL_MS = 2500
+/**
+ * Quanto o "Olhando…" espera a resposta do host. Na LAN ela vem em milissegundos;
+ * passado isto, o pedido se perdeu e o botão volta, em vez de travar até trocar de cena.
+ */
+export const PEEK_WAIT_TIMEOUT_MS = 8000
 const SOCKET_OPEN = 1
 /** Mede o tamanho em bytes do que vai pelo socket (o servidor conta bytes, não caracteres). */
 const utf8 = new TextEncoder()
@@ -529,25 +540,39 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     peekTimer = null
   }
 
-  /** Mostra o recorte ou a recusa e agenda a saída. Só a espiada que ESTE jogador pediu, pelo mesmo pino. */
-  function handlePeekMessage(data: unknown): void {
-    const msg = parsePeekHostMessage(data)
-    const waiting = state.peek
-    if (msg === null || state.status !== 'playing' || waiting?.phase !== 'waiting' || waiting.pinId !== msg.pinId) return
+  /** Põe `next` na tela e agenda a saída dele em `ms`. */
+  function showPeek(next: PeekState, ms: number): void {
     clearPeekTimer()
-    const id = nextNoticeId++
-    const next: PeekState =
-      msg.type === 'pin.peek.view'
-        ? { id, phase: 'showing', pinId: msg.pinId, view: msg.view, durationMs: msg.durationMs }
-        : { id, phase: 'rejected', pinId: msg.pinId, reason: msg.reason }
     setState({ peek: next })
-    peekTimer = setTimeout(
-      () => {
-        peekTimer = null
-        if (state.peek?.id === id) setState({ peek: undefined })
-      },
-      msg.type === 'pin.peek.view' ? msg.durationMs : PEEK_NOTICE_TTL_MS,
-    )
+    peekTimer = setTimeout(() => {
+      peekTimer = null
+      if (state.peek?.id === next.id) setState({ peek: undefined })
+    }, ms)
+  }
+
+  /** O "Olhando…" não termina bem: aviso curto e o botão de volta. */
+  function failPeek(pinId: string): void {
+    showPeek({ id: nextNoticeId++, phase: 'rejected', pinId, reason: 'failed' }, PEEK_NOTICE_TTL_MS)
+  }
+
+  /** Mostra o recorte ou a recusa e agenda a saída. Só a espiada que ESTE jogador pediu, pelo mesmo pino. */
+  function handlePeekMessage(data: Record<string, unknown>): void {
+    const waiting = state.peek
+    if (state.status !== 'playing' || waiting?.phase !== 'waiting') return
+    const msg = parsePeekHostMessage(data)
+    if (msg === null) {
+      // Resposta ao pedido em curso, mas ilegível (recorte acima dos tetos,
+      // forma errada): não fica "Olhando…" para sempre.
+      if (data.pinId === waiting.pinId) failPeek(waiting.pinId)
+      return
+    }
+    if (waiting.pinId !== msg.pinId) return
+    const id = nextNoticeId++
+    if (msg.type === 'pin.peek.view') {
+      showPeek({ id, phase: 'showing', pinId: msg.pinId, view: msg.view, durationMs: msg.durationMs }, msg.durationMs)
+      return
+    }
+    showPeek({ id, phase: 'rejected', pinId: msg.pinId, reason: msg.reason }, PEEK_NOTICE_TTL_MS)
   }
 
   let travelTimer: ReturnType<typeof setTimeout> | null = null
@@ -1213,7 +1238,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (pin === undefined || pin.kind !== 'viagem' || !isDaVista(pin.daVista)) return false
       if (!send({ type: 'pin.peek', pinId })) return false
       clearPeekTimer()
-      setState({ peek: { id: nextNoticeId++, phase: 'waiting', pinId } })
+      const id = nextNoticeId++
+      setState({ peek: { id, phase: 'waiting', pinId } })
+      // Sem resposta a tempo (o pedido ou a resposta se perdeu): o botão volta.
+      peekTimer = setTimeout(() => {
+        peekTimer = null
+        if (state.peek?.id === id && state.peek.phase === 'waiting') failPeek(pinId)
+      }, PEEK_WAIT_TIMEOUT_MS)
       return true
     },
 
@@ -1367,7 +1398,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, peek: undefined })
       open()
     },
     close: detach,

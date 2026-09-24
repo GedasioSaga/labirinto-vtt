@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { decodeExploration, isPointExplored } from '../lib/exploration'
-import { ESPIAR_INTERVALO_MIN_MS } from '../lib/espiar'
+import { ESPIADA_MAX_FICHAS, ESPIAR_INTERVALO_MIN_MS } from '../lib/espiar'
 import type { MapData, Pin, Token } from '../types/map'
 import { createHostSession, type HostResult, type HostWorld } from './hostSession'
 import type { HostMessage } from './protocol'
@@ -193,6 +193,20 @@ describe('hostSession: espiar pela passagem', () => {
     expect(r.peek).toBeUndefined()
     t.advance(ESPIAR_INTERVALO_MIN_MS)
     expect(t.espiar('grade').outbound[0]?.msg.type).toBe('pin.peek.view')
+  })
+
+  it('recorte acima do que o jogador aceita: recusa genérica, sem recorte e sem aviso ao mestre', () => {
+    const w = mundo()
+    const [cripta] = w.background
+    if (cripta === undefined) throw new Error('mundo sem cripta')
+    // Uma multidão à vista em volta da boca do poço: mais fichas do que o jogador aceita.
+    const multidao = Array.from({ length: ESPIADA_MAX_FICHAS + 6 }, (_, i) => ficha(`m${i}`, 1460 + (i % 10) * 10, 360 + Math.floor(i / 10) * 10))
+    const cheio: HostWorld = { ...w, background: [{ ...cripta, map: { ...cripta.map, tokens: [...cripta.map.tokens, ...multidao] } }] }
+    const t = mesa(cheio)
+    const r = t.espiar('grade')
+    expect(recusa(r)).toBe('unavailable')
+    expect(r.peek).toBeUndefined()
+    expect(JSON.stringify(r.outbound)).not.toContain('view')
   })
 
   it('quem não tem ficha não espia; conexão que nem entrou recebe not_joined', () => {

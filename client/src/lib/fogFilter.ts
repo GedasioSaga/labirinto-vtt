@@ -15,7 +15,7 @@ import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygon
 import { roomHasRoof } from './roomOps'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
-import { clampDaVista, clipSegmentToCircle, isDaVista, type Espiada, type EspiadaParede } from './espiar'
+import { clampDaVista, clipRingToCircle, clipSegmentToCircle, isDaVista, type Espiada, type EspiadaParede } from './espiar'
 import { selectedTokenColor, TOKEN_COLOR_DEFAULT } from './tokenColor'
 
 /**
@@ -1527,11 +1527,6 @@ function wallRunsSeen(seg: EspiadaParede, seen: (p: RegionPoint) => boolean, ste
   return runs
 }
 
-/** Anel cuja caixa cruza a caixa do círculo do recorte. */
-function ringNearCircle(ring: readonly RegionPoint[], raio: number): boolean {
-  const box = boxOf(ring)
-  return box !== null && box.maxX >= -raio && box.minX <= raio && box.maxY >= -raio && box.minY <= raio
-}
 
 /**
  * ESPIAR PELA PASSAGEM — o recorte do outro lado, visto de cima do pino `par`
@@ -1555,12 +1550,17 @@ export function espiadaPeloPino(map: MapData, par: Pin, casas: number): Espiada 
   const view = filterMapForPlayer({ ...map, tokens: [...map.tokens, olho] }, OLHO_DONO, { [OLHO_DONO]: [OLHO_ID] }, raio)
   const rel = (p: RegionPoint): RegionPoint => ({ x: p.x - par.x, y: p.y - par.y })
   const inCircle = (p: RegionPoint) => Math.hypot(p.x, p.y) <= raio + ESPIADA_BORDA_PX
+  // Todo anel sai CORTADO no círculo — o que vai pela rede, e não só o desenho.
+  const cutRings = (rings: readonly RegionPoint[][]): RegionPoint[][] =>
+    rings.flatMap((ring) => {
+      const cut = clipRingToCircle(ring.map(rel), raio)
+      return cut === null ? [] : [cut]
+    })
 
-  // O primeiro anel é o do olho (um por ficha dona, e só ele é dono). Os
-  // outros são as células que o pincel do mestre revelou, no MAPA INTEIRO:
-  // só entra a que cabe no círculo.
-  const [olhar, ...pincel] = view.vision.map((ring) => ring.map(rel))
-  const vision = [...(olhar === undefined ? [] : [olhar]), ...pincel.filter((ring) => ring.every(inCircle))]
+  // Sem suposição de ordem: o anel do olho (que só existe se a camada de
+  // fichas de lá estiver à vista) já cabe no raio, e as células que o pincel
+  // do mestre revelou, no MAPA INTEIRO, passam pelo mesmo corte.
+  const vision = cutRings(view.vision)
   const seen = (p: RegionPoint) => vision.some((ring) => inOrOnRing(p, ring, ESPIADA_BORDA_PX))
   const step = grid / ESPIADA_PASSOS_POR_CASA
 
@@ -1594,8 +1594,8 @@ export function espiadaPeloPino(map: MapData, par: Pin, casas: number): Espiada 
     walls,
     doors,
     tokens,
-    concealed: view.concealed.map((ring) => ring.map(rel)).filter((ring) => ringNearCircle(ring, raio)),
-    roofs: view.roofs.map((ring) => ring.map(rel)).filter((ring) => ringNearCircle(ring, raio)),
+    concealed: cutRings(view.concealed),
+    roofs: cutRings(view.roofs),
   }
 }
 

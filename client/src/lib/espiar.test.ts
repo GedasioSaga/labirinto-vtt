@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from './mapFactory'
 import { deserializeMap, serializeMap } from './mapFile'
 import { espiadaPeloPino, filterMapForPlayer } from './fogFilter'
-import { DA_VISTA_MAX_CASAS, ESPIADA_MAX_FICHAS, isDaVista, parseEspiada, type Espiada } from './espiar'
+import { DA_VISTA_MAX_CASAS, ESPIADA_MAX_FICHAS, espiadaCabe, isDaVista, parseEspiada, type Espiada } from './espiar'
 import type { MapData, Pin, Token, Wall } from '../types/map'
 
 /**
@@ -119,7 +119,70 @@ describe('espiadaPeloPino: o recorte do outro lado', () => {
     const espiada = espiadaPeloPino(map, par, 3)
     expect(espiada.doors).toEqual([{ x1: -80, y1: 80, x2: -20, y2: 80, open: false }])
     expect(espiada.concealed.length).toBe(1)
-    expect(espiada.concealed[0]).toContainEqual({ x: -150, y: -150 })
+    // O canto da zona dentro do raio vai como está; o de fora (−150,−150) fica no corte.
+    expect(espiada.concealed[0]).toContainEqual({ x: -50, y: -50 })
+    expect(espiada.concealed[0]).not.toContainEqual({ x: -150, y: -150 })
+  })
+
+  it('SEGURANÇA — zona oculta sai cortada no círculo: nenhum ponto dela passa do raio', () => {
+    const { map, par } = cripta()
+    const espiada = espiadaPeloPino(map, par, 3)
+    expect(espiada.concealed.length).toBe(1)
+    for (const p of espiada.concealed.flat()) expect(Math.hypot(p.x, p.y)).toBeLessThanOrEqual(3 * GRID + 1)
+  })
+
+  it('zona com faixa pincelada perto do par: o recorte cabe no que o jogador aceita', () => {
+    // Faixa vertical revelada pelo pincel: colunas 53..56 (x 530..570), linhas 40..59 (y 400..600).
+    const cells: string[] = []
+    for (let row = 40; row < 60; row += 1) for (let col = 53; col < 57; col += 1) cells.push(`${col},${row}`)
+    const par = pino('par', PAR.x, PAR.y)
+    const map: MapData = {
+      ...createEmptyMap('m', 'Cripta', 40, 20, GRID),
+      pins: [par],
+      concealZones: [
+        {
+          id: 'z',
+          name: 'Z',
+          revealed: false,
+          points: [
+            { x: 300, y: 300 },
+            { x: 800, y: 300 },
+            { x: 800, y: 700 },
+            { x: 300, y: 700 },
+          ],
+          unveiledCells: cells,
+        },
+      ],
+    }
+    const espiada = espiadaPeloPino(map, par, 3)
+    expect(espiada.concealed.length).toBeGreaterThan(0)
+    expect(espiadaCabe(espiada)).toBe(true)
+    expect(parseEspiada(JSON.parse(JSON.stringify(espiada)) as unknown)).toEqual(espiada)
+  })
+
+  it('SEGURANÇA — camada de fichas oculta lá: o pincel revelado longe do par não entra no recorte', () => {
+    // Zona longe do par (x 1500..1700), com um trecho revelado pelo pincel.
+    const cells: string[] = []
+    for (let row = 15; row < 20; row += 1) for (let col = 155; col < 160; col += 1) cells.push(`${col},${row}`)
+    const par = pino('par', PAR.x, PAR.y)
+    const zonaLonge = {
+      id: 'z-longe',
+      name: 'Longe',
+      revealed: false,
+      points: [
+        { x: 1500, y: 100 },
+        { x: 1700, y: 100 },
+        { x: 1700, y: 300 },
+        { x: 1500, y: 300 },
+      ],
+      unveiledCells: cells,
+    }
+    const base: MapData = { ...createEmptyMap('m', 'Cripta', 40, 20, GRID), pins: [par], concealZones: [zonaLonge] }
+    // Controle: o recorte do jogador de lá leva esse trecho na visão.
+    expect(filterMapForPlayer({ ...base, hiddenLayers: ['tokens'] }, 'p1', {}, 700).vision.length).toBeGreaterThan(0)
+    const espiada = espiadaPeloPino({ ...base, hiddenLayers: ['tokens'] }, par, 3)
+    expect(espiada.vision).toEqual([])
+    expect(espiada.concealed).toEqual([])
   })
 
   it('raio maior alcança a ficha de 5,6 casas; o teto de casas vale', () => {

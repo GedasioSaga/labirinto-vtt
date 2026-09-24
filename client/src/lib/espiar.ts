@@ -35,9 +35,19 @@ export const ESPIAR_INTERVALO_MIN_MS = ESPIAR_DURACAO_MS
  */
 export const ESPIAR_ALCANCE_CASAS = 1
 
-/** Tetos do que o jogador aceita num recorte: bem acima do que 6 casas desenham, abaixo de um host hostil enchendo a tela. */
-export const ESPIADA_MAX_ANEIS = 32
+/**
+ * Tetos do que o jogador aceita num recorte, abaixo de um host hostil enchendo
+ * a tela. O host confere os MESMOS tetos antes de mandar (`espiadaCabe`): o que
+ * passaria daqui ele recusa, em vez de mandar um recorte que o jogador jogaria fora.
+ *
+ * Anéis por lista: o pincel de revelar corta em faixas de 10 px, uma por linha
+ * de células — 6 casas de raio numa grade de 50 são 60 linhas, e cada linha
+ * com buraco vira duas ou três peças. 32 não cabia nem uma faixa pincelada.
+ */
+export const ESPIADA_MAX_ANEIS = 256
 export const ESPIADA_MAX_PONTOS_POR_ANEL = 4096
+/** Pontos somando visão, zonas ocultas e tetos: o que segura a lista de anéis maior. */
+export const ESPIADA_MAX_PONTOS = 32_768
 export const ESPIADA_MAX_PAREDES = 512
 export const ESPIADA_MAX_PORTAS = 128
 export const ESPIADA_MAX_FICHAS = 64
@@ -107,6 +117,83 @@ export function clipSegmentToCircle(seg: EspiadaParede, r: number): EspiadaPared
   const t1 = Math.min(1, (-b + raiz) / (2 * a))
   if (t0 >= t1) return null
   return { x1: seg.x1 + t0 * dx, y1: seg.y1 + t0 * dy, x2: seg.x1 + t1 * dx, y2: seg.y1 + t1 * dy }
+}
+
+/**
+ * Lados do polígono que faz as vezes do círculo no corte de anel. Ele é
+ * CIRCUNSCRITO (cada lado tangente ao círculo): nada de dentro do raio se perde,
+ * e o que sobra para fora é a flecha do lado — r·(1/cos(π/64) − 1), 0,4 px com
+ * 6 casas numa grade de 50.
+ */
+const LADOS_DO_CORTE = 64
+/** Peça de área menor que isto (px²) é resto do corte, não forma: não vai. */
+const AREA_MINIMA_DO_CORTE = 0.5
+
+/** Área (sem sinal) pela fórmula do cadarço. */
+function areaOf(ring: readonly RegionPoint[]): number {
+  let twice = 0
+  ring.forEach((a, i) => {
+    const b = ring[(i + 1) % ring.length]
+    if (b !== undefined) twice += a.x * b.y - b.x * a.y
+  })
+  return Math.abs(twice) / 2
+}
+
+/** Sutherland–Hodgman contra um semiplano: fica o que tem `p·n ≤ r`. */
+function clipRingToHalfPlane(ring: readonly RegionPoint[], nx: number, ny: number, r: number): RegionPoint[] {
+  const out: RegionPoint[] = []
+  const side = (p: RegionPoint) => p.x * nx + p.y * ny - r
+  ring.forEach((cur, i) => {
+    const prev = ring[(i + ring.length - 1) % ring.length]
+    if (prev === undefined) return
+    const sCur = side(cur)
+    const sPrev = side(prev)
+    if ((sCur <= 0) !== (sPrev <= 0)) {
+      const t = sPrev / (sPrev - sCur)
+      out.push({ x: prev.x + t * (cur.x - prev.x), y: prev.y + t * (cur.y - prev.y) })
+    }
+    if (sCur <= 0) out.push({ x: cur.x, y: cur.y })
+  })
+  return out
+}
+
+/**
+ * O pedaço do anel dentro do círculo de raio `r` centrado em (0,0), ou `null`
+ * quando não sobra forma. Anel côncavo sai num polígono só (pode ter lado
+ * colado na borda do corte): serve para PINTAR, que é o que o recorte faz.
+ */
+export function clipRingToCircle(ring: readonly RegionPoint[], r: number): RegionPoint[] | null {
+  let clipped: RegionPoint[] = [...ring]
+  for (let k = 0; k < LADOS_DO_CORTE && clipped.length >= 3; k += 1) {
+    const angle = (2 * Math.PI * k) / LADOS_DO_CORTE
+    clipped = clipRingToHalfPlane(clipped, Math.cos(angle), Math.sin(angle), r / Math.cos(Math.PI / LADOS_DO_CORTE))
+  }
+  return clipped.length >= 3 && areaOf(clipped) >= AREA_MINIMA_DO_CORTE ? clipped : null
+}
+
+function ringsCabem(rings: readonly (readonly RegionPoint[])[]): boolean {
+  return rings.length <= ESPIADA_MAX_ANEIS && rings.every((ring) => ring.length <= ESPIADA_MAX_PONTOS_POR_ANEL)
+}
+
+function totalDePontos(...lists: readonly (readonly (readonly RegionPoint[])[])[]): number {
+  return lists.reduce((sum, rings) => sum + rings.reduce((n, ring) => n + ring.length, 0), 0)
+}
+
+/**
+ * O recorte cabe nos tetos que o jogador aceita (`parseEspiada`)? O host
+ * confere antes de mandar: recorte grande demais vira recusa, nunca uma
+ * mensagem que o jogador descarta calado.
+ */
+export function espiadaCabe(e: Espiada): boolean {
+  return (
+    ringsCabem(e.vision) &&
+    ringsCabem(e.concealed) &&
+    ringsCabem(e.roofs) &&
+    totalDePontos(e.vision, e.concealed, e.roofs) <= ESPIADA_MAX_PONTOS &&
+    e.walls.length <= ESPIADA_MAX_PAREDES &&
+    e.doors.length <= ESPIADA_MAX_PORTAS &&
+    e.tokens.length <= ESPIADA_MAX_FICHAS
+  )
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -184,5 +271,6 @@ export function parseEspiada(value: unknown): Espiada | null {
   const doors = parseList(value.doors, ESPIADA_MAX_PORTAS, parseDoor)
   const tokens = parseList(value.tokens, ESPIADA_MAX_FICHAS, parseToken)
   if (vision === null || concealed === null || roofs === null || walls === null || doors === null || tokens === null) return null
+  if (totalDePontos(vision, concealed, roofs) > ESPIADA_MAX_PONTOS) return null
   return { raio, grid, vision, walls, doors, tokens, concealed, roofs }
 }

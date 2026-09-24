@@ -771,7 +771,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         )}
         {state.peek?.phase === 'rejected' && (
           <p key={state.peek.id} className="pp-notice" role="status" aria-live="polite">
-            {state.peek.reason === 'too_soon' ? 'Espere um instante para espiar de novo.' : 'Não dá para espiar daqui. Encoste a ficha na passagem.'}
+            {state.peek.reason === 'too_soon'
+              ? 'Espere um instante para espiar de novo.'
+              : state.peek.reason === 'failed'
+                ? 'Não deu para ver o outro lado. Tente de novo.'
+                : 'Não dá para espiar daqui. Encoste a ficha na passagem.'}
           </p>
         )}
         {/* AGIR SOBRE UMA FICHA: o cartão da ficha alheia. Enviado, ele sai: a
