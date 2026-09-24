@@ -1,4 +1,4 @@
-import type { Token, Wall } from '../types/map'
+import type { DoorSide, Token, Wall } from '../types/map'
 
 /**
  * Alcance e acerto de porta — compartilhado pelo host (validar o pedido do
@@ -35,6 +35,29 @@ export function tokenReachesDoor(token: Pick<Token, 'x' | 'y' | 'size'>, wall: W
   if (wall.door === null) return false
   const reach = tokenRadiusOf(token, grid) + grid * DOOR_REACH_CELLS
   return distanceToWall({ x: token.x, y: token.y }, wall) <= reach
+}
+
+/**
+ * De que lado da parede está o ponto (`DoorSide`, relativo ao sentido
+ * (x1,y1)->(x2,y2)); `null` em cima da linha dela. Produto vetorial: positivo
+ * é a direita de quem anda pela parede na tela, onde y cresce para baixo.
+ */
+export function sideOfWall(point: ReachPoint, wall: Pick<Wall, 'x1' | 'y1' | 'x2' | 'y2'>): DoorSide | null {
+  const cross = (wall.x2 - wall.x1) * (point.y - wall.y1) - (wall.y2 - wall.y1) * (point.x - wall.x1)
+  if (cross > 0) return 'right'
+  if (cross < 0) return 'left'
+  return null
+}
+
+/**
+ * PORTA DE UM LADO: quem está em `point` pode abrir a porta? Porta sem
+ * `opensFrom` abre dos dois lados; em cima da linha (no vão) não há lado errado.
+ */
+export function doorOpensFrom(wall: Wall, point: ReachPoint): boolean {
+  const from = wall.door?.opensFrom
+  if (from === undefined) return true
+  const side = sideOfWall(point, wall)
+  return side === null || side === from
 }
 
 /** Porta mais próxima do ponto dentro de `tolerance` (px de mundo), ou `null`. */

@@ -56,7 +56,7 @@ import { Toolbar } from './components/Toolbar'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import type { RevealToControlsProps } from './components/PlayerSecretControls'
 import { ActionBar } from './components/ActionBar'
-import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
+import type { DoorKind, DoorSide, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
 import type { Screen } from './types/screen'
@@ -302,6 +302,7 @@ function App() {
   const setWallDoor = useMapStore((state) => state.setWallDoor)
   const setDoorLocked = useMapStore((state) => state.setDoorLocked)
   const setDoorSecret = useMapStore((state) => state.setDoorSecret)
+  const setDoorOpensFrom = useMapStore((state) => state.setDoorOpensFrom)
   const revealSecretPassage = useMapStore((state) => state.revealSecretPassage)
   const turnWallIntoDoor = useMapStore((state) => state.turnWallIntoDoor)
   const doorKind = useMapStore((state) => state.doorKind)
@@ -1017,6 +1018,11 @@ function App() {
   const handleRevealPassage = () => {
     if (!selectedWall) return
     revealSecretPassage(selectedWall.id)
+  }
+
+  const handleOpensFromChange = (side: DoorSide | null) => {
+    if (!selectedWall || !selectedWall.door) return
+    setDoorOpensFrom(selectedWall.id, side)
   }
 
   /**
@@ -1945,6 +1951,7 @@ function App() {
               onToggleLocked: handleToggleLocked,
               onToggleSecret: handleToggleSecret,
               onRevealPassage: handleRevealPassage,
+              onOpensFromChange: handleOpensFromChange,
             }}
             doorKind={{
               kind: selectedWall?.door ? selectedWall.door.kind : doorKind,

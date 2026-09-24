@@ -381,6 +381,14 @@ describe('createPlayerConnection', () => {
     expect(connection.getState().doorNotice).toBeUndefined()
   })
 
+  it("porta de um lado: a recusa 'wrong_side' vira aviso", () => {
+    const { connection, socket } = setup()
+    socket.open()
+    socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
+    socket.receive({ type: 'door.toggle.rejected', wallId: 'w1', reason: 'wrong_side' })
+    expect(connection.getState().doorNotice).toMatchObject({ reason: 'wrong_side' })
+  })
+
   it('signal recebido entra no estado com nome e cor e some em 3 s; malformado ou fora do jogo é descartado', () => {
     vi.useFakeTimers()
     const { connection, socket } = setup()

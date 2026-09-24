@@ -103,11 +103,16 @@ function roomDarkFromFile(region: Region): Region {
  * Porta lida do disco. `kind` virou obrigatório (porta antiga migra para
  * 'normal'). `secret` (porta secreta) é campo NOVO: só `true` volta; qualquer
  * outro valor sai do objeto, e a porta abre como porta comum — como sempre foi.
+ * `opensFrom` (porta de um lado) é campo NOVO pelo mesmo critério: só
+ * 'left'/'right' voltam; qualquer outro valor sai, e a porta abre dos dois lados.
  */
 function doorFromFile(door: DoorState): DoorState {
-  const { secret, ...rest } = door
+  const { secret, opensFrom, ...rest } = door
+  // `door` vem de JSON.parse: o tipo declarado não garante o valor, por isso a checagem de runtime.
+  const side: unknown = opensFrom
   const withKind: DoorState = { ...rest, kind: rest.kind ?? 'normal' }
-  return secret === true ? { ...withKind, secret: true } : withKind
+  const withSecret: DoorState = secret === true ? { ...withKind, secret: true } : withKind
+  return side === 'left' || side === 'right' ? { ...withSecret, opensFrom: side } : withSecret
 }
 
 function deserializeMapFields(json: string): MapData {

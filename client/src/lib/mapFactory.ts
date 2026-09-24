@@ -1,5 +1,5 @@
 import type {
-  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
+  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
   ConcealZone, Pin, PinIcon, PinKind, RoomMeta,
 } from '../types/map'
@@ -1083,6 +1083,19 @@ export function setDoorSecret(map: MapData, wallId: string, secret: boolean): Ma
   if (!wall || !wall.door) return map
   const { secret: _anterior, ...plain } = wall.door
   const door: DoorState = secret ? { ...plain, open: false, secret: true } : plain
+  return { ...map, walls: map.walls.map((w) => (w.id === wallId ? { ...w, door } : w)) }
+}
+
+/**
+ * PORTA DE UM LADO: 'left'/'right' liga `DoorState.opensFrom` (só abre de
+ * lá); `null` tira o campo (abre dos dois lados, `undefined` === como sempre).
+ * O resto da porta não muda. Parede inexistente ou sem porta: mesma referência.
+ */
+export function setDoorOpensFrom(map: MapData, wallId: string, side: DoorSide | null): MapData {
+  const wall = map.walls.find((w) => w.id === wallId)
+  if (!wall || !wall.door) return map
+  const { opensFrom: _anterior, ...plain } = wall.door
+  const door: DoorState = side === null ? plain : { ...plain, opensFrom: side }
   return { ...map, walls: map.walls.map((w) => (w.id === wallId ? { ...w, door } : w)) }
 }
 

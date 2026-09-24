@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type {
-  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
+  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind,
 } from '../types/map'
@@ -618,6 +618,8 @@ interface MapStoreState {
   setDoorLocked: (wallId: string, locked: boolean) => void
   /** Liga/desliga `DoorState.secret` (porta secreta; ligar fecha). Com histórico. */
   setDoorSecret: (wallId: string, secret: boolean) => void
+  /** Porta de um lado: 'left'/'right' só abre de lá, `null` dos dois (mapFactory.setDoorOpensFrom). Com histórico. */
+  setDoorOpensFrom: (wallId: string, side: DoorSide | null) => void
   /** "Revelar passagem": tira o segredo da porta e o oculto da sala ligada
    *  (mapFactory.revealSecretPassage). Um passo de histórico só. */
   revealSecretPassage: (wallId: string) => void
@@ -1357,6 +1359,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     ),
     setDoorLocked: (wallId, locked) => withHistory((map) => mapFactory.setDoorLocked(map, wallId, locked)),
     setDoorSecret: (wallId, secret) => withHistory((map) => mapFactory.setDoorSecret(map, wallId, secret)),
+    setDoorOpensFrom: (wallId, side) => withHistory((map) => mapFactory.setDoorOpensFrom(map, wallId, side)),
     revealSecretPassage: (wallId) => withHistory((map) => mapFactory.revealSecretPassage(map, wallId)),
     turnWallIntoDoor: (wallId) => {
       const { map, doorKind } = get()

@@ -154,8 +154,12 @@ export type PlayerMessage =
   | PinTravelRequestMessage
   | PinReadMessage
 
-/** Por que o host recusou o pedido de porta do jogador. */
-export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
+/**
+ * Por que o host recusou o pedido de porta do jogador. `wrong_side` (porta de
+ * um lado, `DoorState.opensFrom`) é aditivo: jogador antigo descarta o motivo
+ * desconhecido e só não vê o aviso; a porta não abre do mesmo jeito.
+ */
+export type DoorToggleRejection = 'locked' | 'far' | 'not_visible' | 'wrong_side'
 
 /**
  * Por que o host recusou o pedido de passagem SEM levar ao mestre. Genérico de

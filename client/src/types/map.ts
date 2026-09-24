@@ -149,7 +149,24 @@ export interface DoorState {
    * de migração; do disco só `true` volta (`lib/mapFile.ts`).
    */
   secret?: boolean
+  /**
+   * PORTA DE UM LADO — só o jogador com a ficha DESTE lado da parede abre a
+   * porta; do outro lado o host recusa com `wrong_side` ("Não abre deste
+   * lado"). Fechar vale dos dois lados: a regra é para abrir. O lado é
+   * relativo ao sentido da parede, `lib/doorReach.ts:sideOfWall`. Regra do
+   * mestre: nunca chega ao jogador (`lib/fogFilter.ts`), e o editor mostra uma
+   * seta no lado que abre (`pixi/drawDoors.ts`). `undefined` === abre dos dois
+   * lados (mapa salvo antes), sem linha de migração; do disco só
+   * 'left'/'right' voltam (`lib/mapFile.ts`).
+   */
+  opensFrom?: DoorSide
 }
+
+/**
+ * Lado de uma parede para quem anda de (x1,y1) até (x2,y2) na tela (y cresce
+ * para baixo): 'right' é a mão direita de quem anda, 'left' a esquerda.
+ */
+export type DoorSide = 'left' | 'right'
 
 export interface Light {
   id: string
