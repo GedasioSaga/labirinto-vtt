@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Pin, PinExitLabel } from '../types/map'
 import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { PinTravelArt } from '../components/PinSymbolArt'
+import { unreadExitLabels } from '../lib/pinTravel'
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -151,8 +152,11 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
-  // saída só (ou sem o campo), o cartão é o de sempre.
-  const escolhas = viagem ? (pin.escolhas ?? []) : []
+  // saída só (ou sem o campo), o cartão é o de sempre. Longe de uma placa "só
+  // de perto", o recorte já manda "Saída N"; o cartão repete a regra para que
+  // nenhum nome escrito na placa apareça ao lado de "Chegue mais perto".
+  const recebidas = viagem ? (pin.escolhas ?? []) : []
+  const escolhas = longe ? unreadExitLabels(recebidas) : recebidas
   const encruzilhada = escolhas.length > 1
   const perguntar = (saida: PinExitLabel | null) => {
     setConfirming({ saida })

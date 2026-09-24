@@ -45,6 +45,24 @@ describe('PlayerPinCard: pino só de perto', () => {
     expect(texto()).toBe('Encontrem-me no cais')
   })
 
+  it('placa de encruzilhada longe: um botão por saída, pela posição, sem o nome escrito na placa', () => {
+    const placa: Pin = {
+      ...LONGE,
+      id: 'placa',
+      kind: 'viagem',
+      escolhas: [
+        { id: 'principal', rotulo: 'Cripta do Rei Morto' },
+        { id: 'porto', rotulo: 'Porto' },
+      ],
+    }
+    act(() => root.render(<PlayerPinCard pin={placa} onClose={() => {}} onRequestTravel={() => {}} />))
+    const botoes = Array.from(container.querySelectorAll('.pp-pincard__exits button')).map((b) => b.textContent)
+    expect(botoes).toEqual(['Saída 1', 'Saída 2'])
+    expect(texto()).toBe('Chegue mais perto para ler.')
+    expect(container.textContent).not.toContain('Cripta do Rei Morto')
+    expect(container.textContent).not.toContain('Porto')
+  })
+
   it('controle: pino comum sem texto continua dizendo que o mestre não escreveu', () => {
     render({ ...LONGE, longe: undefined })
     expect(texto()).toBe('O mestre ainda não escreveu nada sobre este ponto.')

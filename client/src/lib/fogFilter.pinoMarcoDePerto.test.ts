@@ -25,6 +25,19 @@ const FOTO_DA_CARTA = 'data:image/png;base64,Q0FSVEE='
 const TEMPLO: Pin = { id: 'templo', x: 1500, y: 1500, kind: 'exclamacao', description: TEXTO_DO_TEMPLO, image: null, marco: true }
 const POCO: Pin = { id: 'poco', x: 1500, y: 1400, kind: 'interrogacao', description: 'Poço seco', image: null }
 const CARTA: Pin = { id: 'carta', x: 400, y: 200, kind: 'interrogacao', description: TEXTO_DA_CARTA, image: FOTO_DA_CARTA, lerDePerto: 1 }
+/** Placa de ENCRUZILHADA lida a 1 casa: duas saídas com nome. */
+const PLACA: Pin = {
+  id: 'placa',
+  x: 800,
+  y: 200,
+  kind: 'viagem',
+  description: 'Placa de madeira',
+  image: null,
+  lerDePerto: 1,
+  destino: { sceneId: 'cena-cripta', pinId: 'par-cripta' },
+  rotulo: 'Cripta do Rei Morto',
+  saidas: [{ id: 'porto', rotulo: 'Porto', destino: { sceneId: 'cena-porto', pinId: 'par-porto' } }],
+}
 
 /** Muro do pátio do Templo, entre o pino comum e o marco. */
 const MURO_DO_TEMPLO: Wall = { id: 'muro-templo', x1: 1400, y1: 1450, x2: 1600, y2: 1450, blocksLight: true, blocksMove: true, door: null }
@@ -163,6 +176,31 @@ describe('fogFilter: pino que só se lê de perto', () => {
     const inscricao: Pin = { ...TEMPLO, lerDePerto: 1 }
     const templo = pinoNoRecorte(cidade(200, 200, [inscricao]), 'templo')
     expect(templo).toMatchObject({ id: 'templo', description: '', longe: true })
+  })
+
+  it('placa de encruzilhada só de perto, Ana longe: as saídas chegam pelo id, sem o nome de nenhuma', () => {
+    const map = cidade(200, 200, [PLACA])
+    const explorado = createExploration(map)
+    markAll(explorado)
+    const view = recorte(map, explorado)
+    const placa = view.map.pins.find((p) => p.id === 'placa')
+    expect(placa?.longe).toBe(true)
+    // Os ids continuam: é com eles que o pedido de passagem volta ao host.
+    expect(placa?.escolhas).toEqual([
+      { id: 'principal', rotulo: 'Saída 1' },
+      { id: 'porto', rotulo: 'Saída 2' },
+    ])
+    expect(JSON.stringify(view)).not.toContain('Cripta do Rei Morto')
+    expect(JSON.stringify(view)).not.toContain('Porto')
+  })
+
+  it('placa de encruzilhada só de perto, Ana ao lado: lê o nome de cada saída', () => {
+    const placa = pinoNoRecorte(cidade(PLACA.x - CASA, PLACA.y, [PLACA]), 'placa')
+    expect(placa && 'longe' in placa).toBe(false)
+    expect(placa?.escolhas).toEqual([
+      { id: 'principal', rotulo: 'Cripta do Rei Morto' },
+      { id: 'porto', rotulo: 'Porto' },
+    ])
   })
 
   it('controle: pino sem "só de perto" continua saindo com o texto como sempre', () => {

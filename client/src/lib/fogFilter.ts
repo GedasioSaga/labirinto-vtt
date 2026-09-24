@@ -7,7 +7,7 @@ import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPinReadDistance, isPlayerSafePinImage } from './pins'
-import { exitLabelsOf, isArrivalOnly } from './pinTravel'
+import { exitLabelsOf, isArrivalOnly, unreadExitLabels } from './pinTravel'
 import { withoutAttachment } from './lightAttachment'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
@@ -1309,8 +1309,10 @@ function pinForPlayer(pin: Pin, readable: boolean): Pin {
   if (pin.passagem !== undefined) forPlayer.passagem = pin.passagem
   // ENCRUZILHADA: o jogador recebe `escolhas`, montado AQUI (nunca copiado do
   // mestre): por saída, só o id e o rótulo. Pino de uma saída não ganha o
-  // campo: o cartão dele é o de sempre, e o recorte também.
+  // campo: o cartão dele é o de sempre, e o recorte também. Placa "só de
+  // perto" com a ficha longe: o rótulo é texto da placa e não sai — cada saída
+  // vai só com o id e "Saída N", e o jogador ainda consegue pedir a passagem.
   const escolhas = exitLabelsOf(pin)
-  if (escolhas.length > 1) forPlayer.escolhas = escolhas
+  if (escolhas.length > 1) forPlayer.escolhas = readable ? escolhas : unreadExitLabels(escolhas)
   return forPlayer
 }
