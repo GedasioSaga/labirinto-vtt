@@ -1704,3 +1704,11 @@ export function setMovementRules(map: MapData, movement: MovementRules | undefin
   }
   return { ...map, movement }
 }
+
+/** MAPA-MUNDI (`lib/caravan.ts`): desligar tira o campo, e a cena volta a ser comum, igual a mapa antigo. */
+export function setWorldMap(map: MapData, worldMap: boolean): MapData {
+  if (worldMap) return map.worldMap === true ? map : { ...map, worldMap: true }
+  if (map.worldMap === undefined) return map
+  const { worldMap: _comum, ...rest } = map
+  return rest
+}
