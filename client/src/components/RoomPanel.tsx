@@ -1,5 +1,8 @@
-import { useRef, useState } from 'react'
-import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type HostWorld, type PlayerInfo } from '../net/hostSession'
+import { Fragment, useEffect, useRef, useState, type FormEvent } from 'react'
+import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type HostWorld, type LoanTerms, type PlayerInfo } from '../net/hostSession'
+import { LOAN_TASK_MAX_LENGTH } from '../lib/tokenLoan'
+import { formatNoteTime } from '../player/PlayerNotebook'
+import type { TokenContract } from '../types/map'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
 import { ConfrontoControls, type ConfrontoControlsProps } from './ConfrontoControls'
@@ -33,6 +36,8 @@ export interface RoomPanelProps {
   onStopTunnel(): void
   onAssign(playerId: string, tokenId: string): void
   onUnassign(playerId: string, tokenId: string): void
+  /** AJUDANTE CONTRATADO: "Emprestar como ajudante…" no card. Ausente = sem o botão. */
+  onLend?(playerId: string, tokenId: string, terms: LoanTerms): void
   onKick(clientId: string): void
   onVisionRadiusChange(playerId: string, radius: number): void
   onRevealPlan(playerId: string): void
@@ -154,6 +159,30 @@ export const QUICK_ASSIGN_MAX = 6
 /** Nome acessível do botão de um clique; é por ele que o mestre e o teste acham o token. */
 export function quickAssignLabel(token: RoomPanelToken): string {
   return `${scenePrefix(token)}Atribuir ${token.name}`
+}
+
+/**
+ * Candidatas a ajudante: só ficha SEM dono (emprestar a de outro jogador
+ * derrubaria quem joga com ela), NPC primeiro — é o caso de quase sempre.
+ */
+export function lendableTokens(tokens: RoomPanelToken[], owners: ReadonlyMap<string, string>): RoomPanelToken[] {
+  return tokens.filter((token) => !owners.has(token.id)).sort((a, b) => (a.npc === true ? 0 : 1) - (b.npc === true ? 0 : 1) || sceneRank(a) - sceneRank(b))
+}
+
+/** Prazos do empréstimo. `null` = "Até eu tirar"; o resto em minutos do relógio do mestre. */
+export const LOAN_DURATIONS: readonly { value: string; label: string; minutos: number | null }[] = [
+  { value: '15', label: '15 minutos', minutos: 15 },
+  { value: '30', label: '30 minutos', minutos: 30 },
+  { value: '60', label: '1 hora', minutos: 60 },
+  { value: '120', label: '2 horas', minutos: 120 },
+  { value: 'manual', label: 'Até eu tirar', minutos: null },
+]
+const LOAN_DURATION_DEFAULT = '30'
+
+/** "Tiziu — ajudante até 21:30 · levar o recado": o que o mestre lê no card de quem segura a ficha. */
+export function loanBadge(name: string, contrato: TokenContract): string {
+  const prazo = contrato.ate === null ? 'até eu tirar' : `até ${formatNoteTime(contrato.ate)}`
+  return `${name} — ajudante ${prazo}${contrato.tarefa === '' ? '' : ` · ${contrato.tarefa}`}`
 }
 
 /** Nome da ficha para o botão "Remover …"; o id só quando ela não existe em cena nenhuma. */
@@ -347,6 +376,131 @@ function AssignControls({ player, tokens, owners, onAssign }: AssignControlsProp
   )
 }
 
+interface LoanControlsProps {
+  player: PlayerInfo
+  tokens: RoomPanelToken[]
+  owners: ReadonlyMap<string, string>
+  onLend(playerId: string, tokenId: string, terms: LoanTerms): void
+}
+
+/**
+ * AJUDANTE CONTRATADO: emprestar uma ficha livre ao jogador com tarefa, prazo
+ * e "vê com os olhos dele" (desligado: o ajudante anda, mas não é olho do
+ * jogador). O formulário abre no próprio card e fecha ao emprestar, no
+ * Cancelar e no Esc, devolvendo o foco ao botão que o abriu.
+ */
+function LoanControls({ player, tokens, owners, onLend }: LoanControlsProps) {
+  const [open, setOpen] = useState(false)
+  const [tokenId, setTokenId] = useState('')
+  const [tarefa, setTarefa] = useState('')
+  const [prazo, setPrazo] = useState(LOAN_DURATION_DEFAULT)
+  const [visao, setVisao] = useState(false)
+  const openerRef = useRef<HTMLButtonElement>(null)
+  const candidates = lendableTokens(tokens, owners)
+  // A escolhida pode ter ganhado dono enquanto o mestre digitava: cai na primeira livre.
+  const chosen = candidates.find((token) => token.id === tokenId) ?? candidates[0]
+  const idBase = `lb-room-loan-${player.playerId}`
+
+  // O botão que abriu só volta à árvore no render seguinte: o foco vai para ele depois.
+  const restoreFocus = useRef(false)
+  useEffect(() => {
+    if (open || !restoreFocus.current) return
+    restoreFocus.current = false
+    openerRef.current?.focus()
+  }, [open])
+
+  const close = () => {
+    restoreFocus.current = true
+    setOpen(false)
+  }
+  const reset = () => {
+    setTokenId('')
+    setTarefa('')
+    setPrazo(LOAN_DURATION_DEFAULT)
+    setVisao(false)
+  }
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (chosen === undefined) return
+    const minutos = LOAN_DURATIONS.find((d) => d.value === prazo)?.minutos ?? null
+    onLend(player.playerId, chosen.id, { tarefa: tarefa.trim(), minutos, visao })
+    reset()
+    close()
+  }
+
+  if (!open) {
+    return (
+      <button ref={openerRef} type="button" className="lb-btn lb-btn--ghost" aria-expanded={false} onClick={() => setOpen(true)}>
+        Emprestar como ajudante…
+      </button>
+    )
+  }
+  return (
+    <form
+      className="lb-room__confirm"
+      aria-label={`Emprestar ajudante a ${player.name}`}
+      onSubmit={submit}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        // Esc é deste formulário: não chega aos atalhos do editor.
+        event.stopPropagation()
+        close()
+      }}
+    >
+      {candidates.length === 0 ? (
+        <p className="lb-label">Nenhuma ficha livre para emprestar.</p>
+      ) : (
+        <>
+          <label className="lb-label" htmlFor={`${idBase}-token`}>
+            Ficha do ajudante
+          </label>
+          <select id={`${idBase}-token`} className="lb-input" autoFocus value={chosen?.id ?? ''} onChange={(event) => setTokenId(event.target.value)}>
+            {candidates.map((token) => (
+              <option key={token.id} value={token.id}>
+                {assignOptionLabel(token)}
+              </option>
+            ))}
+          </select>
+          <label className="lb-label" htmlFor={`${idBase}-task`}>
+            Tarefa
+          </label>
+          <input
+            id={`${idBase}-task`}
+            className="lb-input"
+            type="text"
+            maxLength={LOAN_TASK_MAX_LENGTH}
+            placeholder="vigiar a porta, levar o recado…"
+            value={tarefa}
+            onChange={(event) => setTarefa(event.target.value)}
+          />
+          <label className="lb-label" htmlFor={`${idBase}-term`}>
+            Prazo
+          </label>
+          <select id={`${idBase}-term`} className="lb-input" value={prazo} onChange={(event) => setPrazo(event.target.value)}>
+            {LOAN_DURATIONS.map((d) => (
+              <option key={d.value} value={d.value}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+          <div className="lb-section__row">
+            <input id={`${idBase}-eyes`} type="checkbox" checked={visao} onChange={(event) => setVisao(event.target.checked)} />
+            <label className="lb-label" htmlFor={`${idBase}-eyes`}>
+              Vê com os olhos dele
+            </label>
+          </div>
+          <button type="submit" className="lb-btn lb-btn--primary">
+            Emprestar
+          </button>
+        </>
+      )}
+      <button type="button" className="lb-btn lb-btn--ghost" onClick={close}>
+        Cancelar
+      </button>
+    </form>
+  )
+}
+
 export function RoomPanel({
   room,
   players,
@@ -360,6 +514,7 @@ export function RoomPanel({
   onStopTunnel,
   onAssign,
   onUnassign,
+  onLend,
   onKick,
   onVisionRadiusChange,
   onRevealPlan,
@@ -437,12 +592,19 @@ export function RoomPanel({
                   {/* Com aventura, o grupo pode estar espalhado: o mestre lê onde cada um está. */}
                   {player.sceneName !== undefined && ` · em ${player.sceneName}`}
                 </span>
-                {player.tokenIds.map((tokenId) => (
-                  <button key={tokenId} type="button" className="lb-btn lb-btn--ghost" onClick={() => onUnassign(player.playerId, tokenId)}>
-                    Remover {tokenName(tokens, tokenId)}
-                  </button>
-                ))}
+                {player.tokenIds.map((tokenId) => {
+                  const contrato = player.loans?.[tokenId]
+                  return (
+                    <Fragment key={tokenId}>
+                      {contrato !== undefined && <span className="lb-label">{loanBadge(tokenName(tokens, tokenId), contrato)}</span>}
+                      <button type="button" className="lb-btn lb-btn--ghost" onClick={() => onUnassign(player.playerId, tokenId)}>
+                        Remover {tokenName(tokens, tokenId)}
+                      </button>
+                    </Fragment>
+                  )
+                })}
                 <AssignControls player={player} tokens={tokens} owners={owners} onAssign={onAssign} />
+                {onLend !== undefined && <LoanControls player={player} tokens={tokens} owners={owners} onLend={onLend} />}
                 <div className="lb-section__row">
                   <label className="lb-label" htmlFor={radiusId}>
                     Raio de visão

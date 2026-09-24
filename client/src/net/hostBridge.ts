@@ -13,6 +13,7 @@ import {
   type HostSession,
   type HostSignal,
   type HostWorld,
+  type LoanTerms,
   type PlayerInfo,
   type TravelRequest,
 } from './hostSession'
@@ -95,6 +96,8 @@ export interface HostBridge {
   notifyMapChanged(): void
   assignToken(playerId: string, tokenId: string): void
   unassignToken(playerId: string, tokenId: string): void
+  /** AJUDANTE CONTRATADO: empresta e arma o despertador do prazo (a ficha volta sozinha). */
+  lendToken(playerId: string, tokenId: string, terms: LoanTerms): void
   kick(clientId: string): Promise<void>
   players(): PlayerInfo[]
   /** Jogadores com conexão viva agora (0 com a sala fechada): quem cai se o mestre fechar o app. */
@@ -220,6 +223,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let currentRoom: RoomInfo | null = null
   let unlisteners: UnlistenFn[] = []
   let pendingBroadcast: ReturnType<typeof setTimeout> | null = null
+  /** Despertador do prazo do ajudante contratado mais próximo (`armLoanTimer`). */
+  let loanTimer: ReturnType<typeof setTimeout> | null = null
   let pendingStart: Promise<RoomInfo> | null = null
   let lastPlayersKey = '[]'
   let lastPinAudiencesKey = '{}'
@@ -398,6 +403,30 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     pendingBroadcast = null
   }
 
+  const clearLoanTimer = () => {
+    if (loanTimer === null) return
+    clearTimeout(loanTimer)
+    loanTimer = null
+  }
+
+  /**
+   * AJUDANTE CONTRATADO: despertador no fim de acordo mais próximo. O
+   * broadcast devolve ao mestre o que venceu (`expireDue` da sessão) e manda
+   * o recado; sem isto a ficha só voltaria quando alguém mexesse na mesa.
+   */
+  const armLoanTimer = () => {
+    clearLoanTimer()
+    const next = session?.nextLoanDeadline() ?? null
+    if (next === null) return
+    const clock = deps.now ?? Date.now
+    loanTimer = setTimeout(() => {
+      loanTimer = null
+      broadcastNow()
+      notifyPlayersIfChanged()
+      armLoanTimer()
+    }, Math.max(0, next - clock()))
+  }
+
   /**
    * Alguém chegou: o mestre precisa saber SEM ir conferir o painel Jogo, que
    * costuma estar na aba inativa enquanto ele desenha. Só para conexão que
@@ -454,11 +483,25 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
+   * Move a ficha de quem viaja e, SÓ se ela foi, cada ajudante emprestado que
+   * atravessa junto (`companions`), pela mesma travessia da store. O ajudante
+   * que não der para mover (sumiu da cena) fica onde estava: a viagem do dono
+   * não desanda por causa dele. Devolve se a ficha PRINCIPAL mudou de cena.
+   */
+  const moveAcross = (transfer: AppliedTransfer): boolean => {
+    const apply = deps.applyTransfer
+    if (apply === undefined || !apply(transfer)) return false
+    const { companions = [], ...trip } = transfer
+    for (const companion of companions) apply({ ...trip, tokenId: companion.tokenId, x: companion.x, y: companion.y })
+    return true
+  }
+
+  /**
    * A ficha troca de cena: "Deixar ir" do mestre ou pino livre. Move pela
    * store ANTES de mandar o `scene.changed`, e só avisa a chegada se moveu.
    */
   const completeTransfer = (result: HostResult, transfer: AppliedTransfer) => {
-    const moved = deps.applyTransfer?.(transfer) ?? false
+    const moved = moveAcross(transfer)
     if (!moved) {
       // O "Você chegou" não pode sair: a ficha não saiu do lugar.
       void dispatch({ outbound: result.outbound.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })) })
@@ -624,6 +667,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       }
       // Snapshot pendente sai antes: não pode chegar ao jogador depois do aviso.
       cancelPendingBroadcast()
+      // Sala fechada leva os empréstimos junto (a sessão morre): nada de despertador órfão.
+      clearLoanTimer()
       resetLaser()
       // Avisa antes de derrubar: sem `room.closed` o jogador veria queda de rede,
       // não "O mestre encerrou a sala".
@@ -682,7 +727,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const transfer = result.applyTransfer
       // Mesmo caminho do "Deixar ir" (`answerTravel`): a ficha muda de cena
       // antes do `scene.changed` sair, e o snapshot da cena nova vem atrás.
-      const moved = transfer !== undefined && (deps.applyTransfer?.(transfer) ?? false)
+      const moved = transfer !== undefined && moveAcross(transfer)
       // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
       pruneTravelToasts()
       if (!moved) {
@@ -708,6 +753,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       void dispatch(session.assignToken(playerId, tokenId))
       broadcastNow()
       notifyPlayersIfChanged()
+      // Atribuir por cima de um empréstimo desfaz o acordo: o despertador muda junto.
+      armLoanTimer()
     },
 
     unassignToken(playerId, tokenId) {
@@ -715,11 +762,22 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       void dispatch(session.unassignToken(playerId, tokenId))
       broadcastNow()
       notifyPlayersIfChanged()
+      armLoanTimer()
+    },
+
+    lendToken(playerId, tokenId, terms) {
+      if (session === null) return
+      void dispatch(session.lendToken(playerId, tokenId, terms))
+      broadcastNow()
+      notifyPlayersIfChanged()
+      armLoanTimer()
     },
 
     async kick(clientId) {
       if (session === null) return
       const result = session.kick(clientId)
+      // O expulso devolve o ajudante: o prazo dele não acorda mais ninguém.
+      armLoanTimer()
       pruneTravelToasts()
       notifyPlayersIfChanged()
       notifyPinAudiencesIfChanged()
