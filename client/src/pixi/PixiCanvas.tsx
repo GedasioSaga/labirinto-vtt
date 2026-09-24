@@ -7,7 +7,7 @@ import type { MapData, Pin, Region, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
 import { mapaDoPiso } from '../lib/pisos'
-import { baldeNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
+import { baldeNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
 import { runClipboardShortcut } from '../stores/mapClipboard'
 import { pinTravelOf, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
@@ -21,7 +21,7 @@ import { resolveMapWheel } from './wheelGesture'
 import { resolveShortcut, type ShortcutEvent } from '../lib/keymap'
 import { ROOM_CIRCLE_SIDES } from '../lib/roomCircle'
 // Onda 2, item 15 (Frente B) — hit-test + desenho do anel de hover.
-import { resolveHoverHit, type HoverHit, type HoverTarget } from '../lib/hoverHitTest'
+import type { HoverHit, HoverTarget } from '../lib/hoverHitTest'
 import { drawHover } from './drawHover'
 // Onda 2, item 16 (Frente C) — número ao vivo durante o arrasto de forma.
 import { dimensionLabel, type DimensionDraft } from '../lib/dimensionText'
@@ -149,7 +149,7 @@ import { subscribeToPropsRedraw } from '../stores/propsSubscription'
 import { pickImageFile, importPropImage } from '../lib/imageImport'
 import { mapDirFor } from '../lib/mapFileIO'
 import {
-  findSelectableAt, findCurveControlPointAt, findWallAt, findNearestExistingVertex, findLockedLayerAt,
+  findSelectableAt, findCurveControlPointAt, findWallAt, findNearestExistingVertex,
   type SelectableHit,
 } from '../lib/selectionHitTest'
 import type { SelectionKind } from '../types/tools'
@@ -3023,19 +3023,23 @@ export function PixiCanvas({
       // usado por `drawHover` pra desenhar o anel). Este wrapper só junta o
       // estado da store com o `worldPoint` do gesto.
       const resolveHoverAtIdle = (worldPoint: Point): HoverHit => {
-        const { map, selection, activeTool: tool } = useMapStore.getState()
+        const { map, pisoAtivo, selection, activeTool: tool } = useMapStore.getState()
         // Onda 4, item 24 — `resolveHoverHit` (fora da minha lista) só
         // entende "um item" (alça de resize/vértice) e "grupo por campo
         // plural" (bbox do grupo pra cursor de arrastar-tudo); os dois vêm
         // do mesmo `selection` agora, convertidos na borda.
-        return resolveHoverHit({
-          map,
-          selection: selectionSingle(selection),
-          areaSelection: selection.length > 1 ? selectionToAreaSelection(selection) : null,
-          activeTool: tool,
-          worldPoint,
-          cameraScale: camera.scale,
-        })
+        // Só o piso em edição: o item de outro piso não se vê e o clique não o pega.
+        return hoverNoPiso(
+          {
+            map,
+            selection: selectionSingle(selection),
+            areaSelection: selection.length > 1 ? selectionToAreaSelection(selection) : null,
+            activeTool: tool,
+            worldPoint,
+            cameraScale: camera.scale,
+          },
+          pisoAtivo,
+        )
       }
 
       const unsubscribeActiveTool = useMapStore.subscribe((state) => state.activeTool, () => {
@@ -3738,8 +3742,8 @@ export function PixiCanvas({
         // Quem travava a camada Tokens justamente para não esbarrar num token
         // arrastava a SALA inteira por baixo dele: luz, escada e rótulo iam
         // junto, sem aviso nenhum (jornada e2e/task-jornada-camada-travada).
-        // `findLockedLayerAt` pergunta, no mapa CRU, quem está por cima neste
-        // ponto; se a camada desse item estiver travada, o gesto para aqui:
+        // `findLockedLayerAt` pergunta, no mapa CRU do piso em edição, quem
+        // está por cima neste ponto (item de outro piso não se vê e não barra); se a camada desse item estiver travada, o gesto para aqui:
         // `mode` fica 'idle' (nenhum branch de pointermove reage), a seleção
         // de antes continua de pé e o aviso diz POR QUE nada aconteceu.
         //
@@ -3747,7 +3751,7 @@ export function PixiCanvas({
         // vértice de sala e arrasto de grupo, acima, trabalham sobre itens JÁ
         // selecionados — e travar uma camada remove os itens dela da seleção
         // (mapStore.toggleLayerLock), então nenhum deles alcança item travado.
-        const lockedLayer = findLockedLayerAt(map, worldPoint)
+        const lockedLayer = camadaTravadaNoPiso(map, useMapStore.getState().pisoAtivo, worldPoint)
         if (lockedLayer !== null) {
           mode = 'idle'
           useToastStore.getState().push('info', `A camada ${LAYER_LABELS[lockedLayer]} está travada`)
@@ -4687,7 +4691,7 @@ export function PixiCanvas({
           updateCursor()
           // Onda 2, item 15 (Frente B) — anel de hover, mesmo custo marginal
           // ~0 do resolveHoverHit (ver docstring do módulo).
-          drawHover(hoverGraphics, useMapStore.getState().map, hoverTarget)
+          drawHover(hoverGraphics, doPisoEmEdicao(useMapStore.getState().map), hoverTarget)
           // Corredor em construção não tem `mode` (cliques soltos), então a
           // prévia até o cursor mora aqui, no pointermove ocioso.
           if (corridorDraftPoints.length > 0 && useMapStore.getState().activeTool === 'floor') {

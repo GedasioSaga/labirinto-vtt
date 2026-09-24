@@ -1,12 +1,16 @@
+import { Graphics } from 'pixi.js'
 import { describe, expect, it } from 'vitest'
-import type { FloorPiece, MapData, Region, Wall } from '../types/map'
+import { drawHover } from '../pixi/drawHover'
+import type { FloorPiece, MapData, Region, Token, Wall } from '../types/map'
 import { selectEntitiesInArea } from './areaSelection'
 import { buildBlocosShape, centroDoBloco, type Bloco } from './floorBlocks'
 import { compileFloor } from './floorSdf'
 import { baldeNoPonto, buildFloorPiece, findFloorPieceAt } from './floorTool'
+import { resolveHoverHit, type HoverHitInput, type HoverTarget } from './hoverHitTest'
 import { createEmptyMap } from './mapFactory'
-import { apagarBlocosNoPiso, baldeNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from './pisoEmEdicao'
+import { apagarBlocosNoPiso, baldeNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from './pisoEmEdicao'
 import { mapaDoPiso, pisoDe } from './pisos'
+import { findLockedLayerAt } from './selectionHitTest'
 
 /**
  * PISOS NA MESMA CENA — cenário do revisor: a Biblioteca do 1º piso ocupa o
@@ -189,5 +193,91 @@ describe('apagarBlocosNoPiso — a borracha fura só o chão do piso em edição
     // A peça b-bib inteira apagada sai; as do térreo não andam de posição.
     expect(depois.floor.map((p) => p.id)).toEqual(['a-terreo', 'c-terreo', 'd-bib'])
     expect(depois.floor[1]).toBe(map.floor[2])
+  })
+})
+
+/** Ficha no centro da torre (500,500): em cima do Hall e da Biblioteca. */
+function ficha(id: string, extra: Partial<Token> = {}): Token {
+  return { id, characterId: null, name: id, x: 500, y: 500, size: 1, image: null, ...extra }
+}
+
+const MEIO = { x: 500, y: 500 }
+
+/** O guarda fica no térreo; o mestre edita a torre com a ferramenta Selecionar. */
+function torreComGuarda(extra: Partial<MapData> = {}): MapData {
+  return { ...torre(), tokens: [ficha('guarda')], ...extra }
+}
+
+const hoverEm = (map: MapData): HoverHitInput => ({ map, selection: null, areaSelection: null, activeTool: 'select', worldPoint: MEIO })
+
+/** Instruções de contorno de fato empilhadas no Graphics (mesmo padrão de drawHover.test.ts). */
+const contornos = (g: Graphics) => g.context.instructions.filter((instrucao) => instrucao.action === 'stroke')
+
+describe('hoverNoPiso — o hover só aponta o que está no piso em edição', () => {
+  it('no 1º piso, sobre o guarda do térreo, o hover aponta a Biblioteca, não o guarda', () => {
+    const map = torreComGuarda()
+    // O defeito: sobre o mapa inteiro, o hover prometia o guarda invisível.
+    expect(resolveHoverHit(hoverEm(map)).target).toEqual({ kind: 'token', id: 'guarda' })
+
+    const hover = hoverNoPiso(hoverEm(map), 1)
+    expect(hover.kind).toBe('selectable')
+    expect(hover.target).toEqual({ kind: 'region', id: 'biblioteca' })
+  })
+
+  it('no térreo, o mesmo ponto aponta o guarda', () => {
+    expect(hoverNoPiso(hoverEm(torreComGuarda()), 0).target).toEqual({ kind: 'token', id: 'guarda' })
+  })
+
+  it('ficha do 1º piso no mesmo lugar: cada piso aponta a sua', () => {
+    const map = torreComGuarda({ tokens: [ficha('guarda'), ficha('arqueiro', { piso: 1 })] })
+    expect(hoverNoPiso(hoverEm(map), 1).target).toEqual({ kind: 'token', id: 'arqueiro' })
+    expect(hoverNoPiso(hoverEm(map), 0).target).toEqual({ kind: 'token', id: 'guarda' })
+  })
+
+  it('piso vazio no ponto: nada clicável, cursor comum', () => {
+    const map: MapData = { ...createEmptyMap('m', 'M', 25, 25, CELL), tokens: [ficha('guarda')] }
+    expect(hoverNoPiso(hoverEm(map), 1)).toEqual({ kind: 'none', corner: null, target: null })
+  })
+
+  it('o anel de hover desenhado a partir do piso em edição não desenha o guarda do térreo', () => {
+    const map = torreComGuarda()
+    const alvo: HoverTarget = { kind: 'token', id: 'guarda' }
+    const inteiro = new Graphics()
+    drawHover(inteiro, map, alvo)
+    // O defeito: o mapa inteiro tem o guarda e desenhava o anel dele.
+    expect(contornos(inteiro)).toHaveLength(1)
+
+    const doPiso = new Graphics()
+    drawHover(doPiso, mapaDoPiso(map, 1), alvo)
+    expect(contornos(doPiso)).toHaveLength(0)
+    const bib = new Graphics()
+    drawHover(bib, mapaDoPiso(map, 1), { kind: 'region', id: 'biblioteca' })
+    expect(contornos(bib)).toHaveLength(1)
+  })
+})
+
+describe('camadaTravadaNoPiso — só o item do piso em edição barra o gesto', () => {
+  it('no 1º piso, Fichas travada e o guarda do térreo embaixo: o clique não é barrado', () => {
+    const map = torreComGuarda({ lockedLayers: ['tokens'] })
+    // O defeito: sobre o mapa inteiro, o guarda invisível barrava o clique.
+    expect(findLockedLayerAt(map, MEIO)).toBe('tokens')
+
+    expect(camadaTravadaNoPiso(map, 1, MEIO)).toBeNull()
+  })
+
+  it('no térreo, o guarda em camada travada continua barrando', () => {
+    expect(camadaTravadaNoPiso(torreComGuarda({ lockedLayers: ['tokens'] }), 0, MEIO)).toBe('tokens')
+  })
+
+  it('ficha do 1º piso em camada travada barra no 1º piso', () => {
+    const map = torreComGuarda({ tokens: [ficha('arqueiro', { piso: 1 })], lockedLayers: ['tokens'] })
+    expect(camadaTravadaNoPiso(map, 1, MEIO)).toBe('tokens')
+    expect(camadaTravadaNoPiso(map, 0, MEIO)).toBeNull()
+  })
+
+  it('sem camada travada: nada barra, em piso nenhum', () => {
+    const map = torreComGuarda()
+    expect(camadaTravadaNoPiso(map, 0, MEIO)).toBeNull()
+    expect(camadaTravadaNoPiso(map, 1, MEIO)).toBeNull()
   })
 })

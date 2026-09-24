@@ -1,9 +1,10 @@
-import type { FloorPiece, MapData } from '../types/map'
+import type { FloorPiece, LayerId, MapData } from '../types/map'
 import { selectEntitiesInArea, type AreaRect } from './areaSelection'
 import type { Bloco } from './floorBlocks'
 import { apagarBlocosDoChao, baldeNoPonto, findFloorPieceAt } from './floorTool'
+import { resolveHoverHit, type HoverHit, type HoverHitInput } from './hoverHitTest'
 import { comPiso, mapaDoPiso, pisoDe } from './pisos'
-import type { Point } from './selectionHitTest'
+import { findLockedLayerAt, type Point } from './selectionHitTest'
 import { selectionFromAreaSelection, type SelectionSet } from './selectionModel'
 
 /**
@@ -16,6 +17,24 @@ import { selectionFromAreaSelection, type SelectionSet } from './selectionModel'
 /** Laço (arrasto no vazio com Selecionar): só o que está no piso em edição. */
 export function selecaoDoLacoNoPiso(map: MapData, piso: number, rect: AreaRect): SelectionSet {
   return selectionFromAreaSelection(selectEntitiesInArea(mapaDoPiso(map, piso), rect))
+}
+
+/**
+ * Hover ocioso (anel e cursor "clicável"): só o que está no piso em edição.
+ * O item de outro piso no mesmo lugar não aparece na tela e o clique
+ * (`clickSelectMap`) não o pega — o hover não pode prometer esse clique.
+ */
+export function hoverNoPiso(input: HoverHitInput, piso: number): HoverHit {
+  return resolveHoverHit({ ...input, map: mapaDoPiso(input.map, piso) })
+}
+
+/**
+ * Camada travada sob o ponto, olhando só o piso em edição: o item de cima que
+ * barra o gesto tem de ser um que o mestre vê. Uma ficha do térreo em camada
+ * travada não impede de pegar a parede do 1º piso no mesmo lugar.
+ */
+export function camadaTravadaNoPiso(map: MapData, piso: number, point: Point): LayerId | null {
+  return findLockedLayerAt(mapaDoPiso(map, piso), point)
 }
 
 /** Balde: a área fechada e o "já tem chão" são os do piso em edição. */
