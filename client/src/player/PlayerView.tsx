@@ -11,13 +11,12 @@ import { computeAlignedGridLines } from '../lib/gridAlign'
 import { roomHasRoof } from '../lib/roomOps'
 import { visibleDrawings, visibleLights, visibleRegions, visibleStairs } from '../lib/layers'
 import { visionSegments } from '../lib/visibility'
-import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
-import { findPinAt } from '../lib/pins'
+import { tokenReachesDoor } from '../lib/doorReach'
 import { visiblePins } from '../lib/layers'
 import { createPinsRenderer } from '../pixi/drawPins'
 import { panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
-import type { Camera } from '../pixi/world'
+import type { Camera, Point } from '../pixi/world'
 import { drawGrid } from '../pixi/drawGrid'
 import { currentRendererResolution, watchDevicePixelRatio } from '../pixi/rendererResolution'
 import { drawHexGrid } from '../pixi/drawHexGrid'
@@ -59,6 +58,8 @@ import {
 } from './playerMeasure'
 import { drawPlayerMeasure } from './drawPlayerMeasure'
 import { arrivalCamera } from './arrivalCamera'
+import { resolveTokenRelease } from './tokenRelease'
+import { findTapTarget, holdBecomesSignal, type TapTarget } from './tapTarget'
 
 interface PlayerViewProps {
   map: MapData
@@ -139,7 +140,8 @@ const ROOF_EDGE_WIDTH = 3
 type Drag =
   // `startX`/`startY`: onde o gesto começou — se ele terminar sem andar, é um toque (porta), não um arrasto de câmera.
   | { kind: 'pan'; lastX: number; lastY: number; startX: number; startY: number }
-  | { kind: 'token'; tokenId: string; offsetX: number; offsetY: number; x: number; y: number }
+  // `screenStart`/`screenLast`: o dedo em px de TELA — soltar sem andar em cima de um pino é toque no pino, não arrasto.
+  | { kind: 'token'; tokenId: string; offsetX: number; offsetY: number; x: number; y: number; screenStart: Point; screenLast: Point }
   // Régua do jogador: o ponto vive em `scene.measure`, aqui só se marca que o gesto é dela.
   | { kind: 'measure' }
   // Laser do jogador: o rastro vive em `scene.ownLaser`.
@@ -759,18 +761,17 @@ export function PlayerView({
     if (el) el.dataset.doorHints = String(doors.length)
   }
 
-  /** Porta sob o ponto da TELA, dentro da tolerância do toque; `null` se não tem porta ali. */
-  function doorAtScreen(scene: Scene, screenX: number, screenY: number): Wall | null {
+  /** Pino ou porta sob o ponto da TELA, dentro da folga do dedo; `map` se é chão. Só o que o jogador vê. */
+  function tapTargetAtScreen(scene: Scene, screenX: number, screenY: number): TapTarget {
+    const map = latestRef.current.map
     const point = scene.world.toLocal({ x: screenX, y: screenY })
-    return findDoorAt(visibleWalls(latestRef.current.map), point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
+    return findTapTarget(visiblePins(map.pins ?? [], map.hiddenLayers), visibleWalls(map), point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
   }
 
   /** Pino sob o ponto da TELA, com a mesma folga de dedo da porta. */
   function pinAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
-    const map = latestRef.current.map
-    const point = scene.world.toLocal({ x: screenX, y: screenY })
-    const pin = findPinAt(visiblePins(map.pins ?? [], map.hiddenLayers), point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
-    return pin === null ? null : pin.id
+    const target = tapTargetAtScreen(scene, screenX, screenY)
+    return target.kind === 'pin' ? target.pinId : null
   }
 
   /** Só o zoom (ou a resolução) mudou: nada de chão ou névoa. */
@@ -928,7 +929,17 @@ export function PlayerView({
     const view = scene.tokenViews.get(tokenId)?.wrapper
     if (!view) return
     const world = scene.world.toLocal(event.global)
-    scene.drag = { kind: 'token', tokenId, offsetX: view.x - world.x, offsetY: view.y - world.y, x: view.x, y: view.y }
+    const screen = { x: event.global.x, y: event.global.y }
+    scene.drag = {
+      kind: 'token',
+      tokenId,
+      offsetX: view.x - world.x,
+      offsetY: view.y - world.y,
+      x: view.x,
+      y: view.y,
+      screenStart: screen,
+      screenLast: screen,
+    }
   }
 
   useEffect(() => {
@@ -1188,11 +1199,12 @@ export function PlayerView({
         }
         scene.drag = { kind: 'pan', lastX: x, lastY: y, startX: x, startY: y }
         cancelLongPress()
-        // Dedo em cima de um PINO não arma o sinal. O pino é um controle: quem
-        // aperta ali quer ler o cartão, e demorar meio segundo para soltar não
-        // muda a intenção — sem esta guarda, a mesma pressão virava ping de
-        // mapa e o cartão nunca abria (medido no toque lento).
-        if (pinAtScreen(scene, x, y) !== null) return
+        // Dedo em cima de um PINO ou de uma PORTA não arma o sinal. São
+        // controles: quem aperta ali quer ler o cartão ou abrir a porta, e
+        // demorar meio segundo para soltar (tela engasgada) não muda a
+        // intenção — sem esta guarda, a mesma pressão virava ping de mapa e o
+        // cartão ou a porta nunca respondia (medido no toque lento).
+        if (!holdBecomesSignal(tapTargetAtScreen(scene, x, y))) return
         const timer = setTimeout(() => {
           longPress = null
           // Virou sinal: o gesto não continua como arrasto de câmera.
@@ -1213,8 +1225,7 @@ export function PlayerView({
             return
           }
           const overTappable =
-            !latestRef.current.signalArmed &&
-            (pinAtScreen(scene, event.global.x, event.global.y) !== null || doorAtScreen(scene, event.global.x, event.global.y) !== null)
+            !latestRef.current.signalArmed && tapTargetAtScreen(scene, event.global.x, event.global.y).kind !== 'map'
           app.stage.cursor = overTappable ? 'pointer' : 'default'
           return
         }
@@ -1236,6 +1247,7 @@ export function PlayerView({
         const world = scene.world.toLocal(event.global)
         drag.x = world.x + drag.offsetX
         drag.y = world.y + drag.offsetY
+        drag.screenLast = { x: event.global.x, y: event.global.y }
         scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
       })
       const endDrag = () => {
@@ -1257,24 +1269,26 @@ export function PlayerView({
           // sinal de mapa lá em cima e nem chega aqui — abrir o cartão é o
           // toque RÁPIDO, não o demorado.
           if (Math.hypot(drag.lastX - drag.startX, drag.lastY - drag.startY) > SIGNAL_LONG_PRESS_TOLERANCE_PX) return
-          const pinId = pinAtScreen(scene, drag.startX, drag.startY)
-          if (pinId !== null) {
-            latestRef.current.onPinOpen?.(pinId)
-            return
-          }
-          const door = doorAtScreen(scene, drag.startX, drag.startY)
-          if (door !== null) latestRef.current.onDoorToggle?.(door.id)
+          const target = tapTargetAtScreen(scene, drag.startX, drag.startY)
+          if (target.kind === 'pin') latestRef.current.onPinOpen?.(target.pinId)
+          else if (target.kind === 'door') latestRef.current.onDoorToggle?.(target.doorId)
           return
         }
         if (drag?.kind !== 'token') return
-        const token = latestRef.current.map.tokens.find((t) => t.id === drag.tokenId)
-        const x = Math.round(drag.x)
-        const y = Math.round(drag.y)
-        if (!token || (token.x === x && token.y === y)) {
-          scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(token?.x ?? drag.x, token?.y ?? drag.y)
+        const token = latestRef.current.map.tokens.find((t) => t.id === drag.tokenId) ?? null
+        const release = resolveTokenRelease(
+          { startScreen: drag.screenStart, endScreen: drag.screenLast, drop: { x: drag.x, y: drag.y } },
+          token,
+          pinAtScreen(scene, drag.screenStart.x, drag.screenStart.y),
+          SIGNAL_LONG_PRESS_TOLERANCE_PX,
+        )
+        if (release.kind === 'move') {
+          latestRef.current.onMove(drag.tokenId, release.x, release.y)
           return
         }
-        latestRef.current.onMove(drag.tokenId, x, y)
+        // Toque, ou arrasto que não mudou nada: a ficha volta para onde o mapa diz.
+        scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(token?.x ?? drag.x, token?.y ?? drag.y)
+        if (release.kind === 'openPin') latestRef.current.onPinOpen?.(release.pinId)
       }
       app.stage.on('pointerup', endDrag)
       app.stage.on('pointerupoutside', endDrag)
