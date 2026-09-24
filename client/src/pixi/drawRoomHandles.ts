@@ -50,8 +50,8 @@ export function cornerHandleRadius(width: number, height: number): number {
  * na tela no MESMO quadro em que a seleção acontece. Animar a entrada da alça
  * atrasaria justamente a informação que faltava.
  */
-export function drawCornerHandle(graphics: Graphics, x: number, y: number, radius: number): void {
-  const fora = radius + CORNER_HANDLE_KEYLINE_WIDTH
+export function drawCornerHandle(graphics: Graphics, x: number, y: number, radius: number, keyline = CORNER_HANDLE_KEYLINE_WIDTH): void {
+  const fora = radius + keyline
   graphics.rect(x - fora, y - fora, fora * 2, fora * 2).fill({ color: CORNER_HANDLE_KEYLINE_COLOR })
   graphics.rect(x - radius, y - radius, radius * 2, radius * 2).fill({ color: SELECTION_COLOR })
 }
@@ -77,12 +77,42 @@ export function drawCornerHandle(graphics: Graphics, x: number, y: number, radiu
  * neste branch quando `room.shape === 'rect'`, mas a guarda aqui evita alça
  * torta se algum dia isso divergir.
  */
-export function drawRoomHandles(graphics: Graphics, points: RegionPoint[]): void {
+export function drawRoomHandles(graphics: Graphics, points: RegionPoint[], cameraScale = 1): void {
   if (points.length !== 4) return
   const xs = points.map((point) => point.x)
   const ys = points.map((point) => point.y)
-  const radius = cornerHandleRadius(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))
-  for (const point of points) {
-    drawCornerHandle(graphics, point.x, point.y, radius)
+  drawCornerHandlesOnScreen(graphics, points, Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), cameraScale)
+}
+
+/**
+ * Os chips de um objeto de `width` x `height` (px de mundo), com tamanho fixo
+ * na TELA em qualquer zoom — como o contorno de seleção e a alça de girar.
+ * A regra de `cornerHandleRadius` (teto, piso e 1/6 do menor lado) é aplicada
+ * ao objeto COMO ELE APARECE na tela, e o resultado volta para px de mundo
+ * dividindo pelo zoom. Sem isso, a 0,25 o chip virava um pontinho de 2 px e a
+ * 4 um bloco de 32 px por cima da sala.
+ */
+export function drawCornerHandlesOnScreen(
+  graphics: Graphics,
+  corners: readonly RegionPoint[],
+  width: number,
+  height: number,
+  cameraScale: number,
+): void {
+  const { radius, keyline } = cornerHandleExtent(width, height, cameraScale)
+  for (const corner of corners) {
+    drawCornerHandle(graphics, corner.x, corner.y, radius, keyline)
+  }
+}
+
+/** Tamanho do chip de canto em px de MUNDO, no zoom dado: `radius` é o meio-lado
+ *  do amarelo, `keyline` a faixa escura em volta. É a mesma conta do desenho
+ *  (`drawCornerHandlesOnScreen`) e do hit-test (`lib/handleHitArea.ts`): o que
+ *  aparece na tela é exatamente o que pega o clique. Zoom inválido vale 1. */
+export function cornerHandleExtent(width: number, height: number, cameraScale: number): { radius: number; keyline: number } {
+  const scale = Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1
+  return {
+    radius: cornerHandleRadius(width * scale, height * scale) / scale,
+    keyline: CORNER_HANDLE_KEYLINE_WIDTH / scale,
   }
 }
