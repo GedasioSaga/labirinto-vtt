@@ -147,6 +147,8 @@ export function propsDoPainel(ficha: Token, extra: Partial<PainelProps> = {}): P
     pinIcon: { icon: null, onIconChange: nada },
     pinSelected: false,
     tokenLibrary: { itens: [], aviso: null, onPlace: nada, onDropOnMap: () => false, onDelete: nada },
+    // Grupo mundo: sem Sala selecionada, sem gatilho de área a mostrar.
+    areaTrigger: null,
     ...extra,
   }
 }
