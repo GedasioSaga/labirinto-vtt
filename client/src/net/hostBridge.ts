@@ -395,8 +395,22 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
   }
 
+  const cancelPendingBroadcast = () => {
+    if (pendingBroadcast === null) return
+    clearTimeout(pendingBroadcast)
+    pendingBroadcast = null
+  }
+
+  /**
+   * O envio imediato leva o mundo de AGORA, que já contém toda mudança que
+   * agendou o broadcast pendente: o agendado seria a mesma cena de novo. Sem
+   * cancelar, cada passo de jogador (applyMove → assinatura do mapa →
+   * `notifyMapChanged`) saía duas vezes — com 7 na mesa, 14 recortes da névoa
+   * e 14 envios por passo na thread do mestre.
+   */
   const broadcastNow = () => {
     if (session === null) return
+    cancelPendingBroadcast()
     void dispatch(session.broadcast(world()))
   }
 
@@ -406,12 +420,6 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       pendingBroadcast = null
       broadcastNow()
     }, BROADCAST_THROTTLE_MS)
-  }
-
-  const cancelPendingBroadcast = () => {
-    if (pendingBroadcast === null) return
-    clearTimeout(pendingBroadcast)
-    pendingBroadcast = null
   }
 
   /**
