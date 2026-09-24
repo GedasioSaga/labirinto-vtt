@@ -255,4 +255,41 @@ describe('filterMapForPlayer — cômodo lembrado', () => {
     expect(view.rememberedRooms).toEqual([])
     expect(view.unseenInsideRemembered).toEqual([])
   })
+  it('SEGURANÇA: porta solta dentro de sala secreta, dentro de cômodo lembrado, não vai para o jogador', () => {
+    const segredo: Region = {
+      id: 'segredo',
+      points: [
+        { x: 300, y: 600 },
+        { x: 390, y: 600 },
+        { x: 390, y: 690 },
+        { x: 300, y: 690 },
+      ],
+      tag: '',
+      fillColor: '#321',
+      fillPattern: 'solid',
+      data: {},
+      secret: true,
+      room: { shape: 'rect', name: 'nome-segredo' },
+    }
+    // Porta sem regionId: não é parede vinculada à sala, só mora dentro dela.
+    const divisoria = porta('divisoria-porta-secreta', 320, 645, 370, 645, false)
+    const planta = (modo: Modo): MapData => {
+      const map = casa({ modo, bruno: { x: 900, y: 900 } })
+      return { ...map, regions: [...map.regions, segredo], walls: [...map.walls, divisoria] }
+    }
+    const lembrado = new Set(['quarto'])
+    // A régua: com Sala comum a porta da sala secreta nunca saiu.
+    const comum = filterMapForPlayer(planta('nenhum'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, lembrado)
+    expect(ids(comum.map.walls)).toContain('quarto-s')
+    expect(ids(comum.map.walls)).not.toContain('divisoria-porta-secreta')
+
+    const view = filterMapForPlayer(planta('comodo'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, lembrado)
+    // O quarto lembrado continua chegando, com a porta dele...
+    expect(ids(view.map.regions)).toEqual(['quarto'])
+    expect(ids(view.map.walls)).toContain('porta-quarto')
+    // ...mas nada da sala secreta: nem a porta, nem o nome.
+    const json = JSON.stringify(view.map)
+    expect(json).not.toContain('divisoria-porta-secreta')
+    expect(json).not.toContain('nome-segredo')
+  })
 })

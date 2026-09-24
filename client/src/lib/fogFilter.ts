@@ -808,8 +808,13 @@ export function filterMapForPlayer(
     }
     // Porta de cômodo lembrado sai mesmo sem célula explorada ao lado (o
     // cômodo acabou de ser visto): com o estado LEMBRADO, nunca o atual.
+    // A lembrança do cômodo não vence sala secreta nem teto fechado lá dentro
+    // (`inHiddenPlace`): porta solta, sem `regionId`, com o meio na sala
+    // escondida é dela — a amostra do lado que cai no cômodo não a leva junto.
     const probe = (explored?.cell ?? map.grid) * DOOR_EXPLORED_PROBE_CELLS
-    if (!doorSamples(w, probe).some((p) => isPointExploredOpen(p) || inKnownComodo(p))) return []
+    const remembered = !inHiddenPlace(wallMidpoint(w))
+    const known = (p: RegionPoint): boolean => isPointExploredOpen(p) || (remembered && !inHiddenPlace(p) && inKnownComodo(p))
+    if (!doorSamples(w, probe).some(known)) return []
     return [{ ...w, door: seenDoors?.get(w.id) ?? unseenDoor(door) }]
   }
 
