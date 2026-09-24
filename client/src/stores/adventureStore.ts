@@ -399,10 +399,30 @@ function withoutToken(history: SceneHistory, tokenId: string): SceneHistory {
   return { map: drop(history.map), past: history.past.map(drop), future: history.future.map(drop) }
 }
 
-function withToken(history: SceneHistory, token: Token): SceneHistory {
-  const put = (map: MapData): MapData =>
-    map.tokens.some((t) => t.id === token.id) ? { ...map, tokens: map.tokens.map((t) => (t.id === token.id ? token : t)) } : mapFactory.addToken(map, token)
-  return { map: put(history.map), past: history.past.map(put), future: history.future.map(put) }
+/** A ficha `fromId` passa a se chamar `toId`, e a tocha presa nela vai junto. */
+function renameToken(map: MapData, fromId: string, toId: string): MapData {
+  return {
+    ...map,
+    tokens: map.tokens.map((t) => (t.id === fromId ? { ...t, id: toId } : t)),
+    lights: map.lights.map((l) => (l.attachedTokenId === fromId ? { ...l, attachedTokenId: toId } : l)),
+  }
+}
+
+/*
+ * FICHA COM ID REPETIDO. Duas cenas podem ter uma ficha de mesmo id (cena
+ * copiada, mapa importado duas vezes). Quem chega não substitui quem já
+ * estava: a de DESTINO ganha id novo, em todo passo do histórico dela (senão
+ * um Ctrl+Z traria de volta a ficha com o id repetido). A que viaja guarda o
+ * id porque é por ele que a sessão sabe de qual jogador ela é, e o que chamou
+ * a travessia (`carryToken`, "Deixar ir", "Reunir o grupo") segue apontando
+ * para ela.
+ */
+function withToken(history: SceneHistory, token: Token): { history: SceneHistory; residentId: string | null } {
+  const steps = [history.map, ...history.past, ...history.future]
+  const clash = steps.some((map) => map.tokens.some((t) => t.id === token.id))
+  const residentId = clash ? crypto.randomUUID() : null
+  const put = (map: MapData): MapData => mapFactory.addToken(residentId === null ? map : renameToken(map, token.id, residentId), token)
+  return { history: { map: put(history.map), past: history.past.map(put), future: history.future.map(put) }, residentId }
 }
 
 /**
@@ -658,7 +678,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (from === null || to === null || token === undefined) return false
 
     const leaving = withoutToken(from, tokenId)
-    const arriving = withToken(to, { ...token, x, y })
+    const { history: arriving, residentId } = withToken(to, { ...token, x, y })
     const nextCache: Record<string, SceneSlot> = { ...cache }
     const nextDirty: Record<string, true> = { ...dirty }
     let openScene: SceneHistory | null = null
@@ -679,6 +699,13 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // A cena aberta troca mapa E histórico juntos, sem `withHistory`: a
     // travessia não é um passo do mestre para o Ctrl+Z desfazer.
     if (openScene !== null) useMapStore.setState({ map: openScene.map, past: openScene.past, future: openScene.future })
+    // A ficha que já estava na cena aberta trocou de id: a seleção dela vai junto.
+    if (residentId !== null && toSceneId === activeSceneId) {
+      const renamed = useMapStore
+        .getState()
+        .selection.map((item) => (item.kind === 'token' && item.id === tokenId ? { ...item, id: residentId } : item))
+      useMapStore.setState({ selection: renamed })
+    }
     return true
   },
 
