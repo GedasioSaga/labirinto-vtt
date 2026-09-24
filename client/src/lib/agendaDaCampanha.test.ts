@@ -4,11 +4,13 @@
  * e o `adventure.json` antigo, sem agenda, continua abrindo igual.
  */
 import { describe, expect, it } from 'vitest'
+import { ALARM_MAX_LENGTH } from '../net/protocol'
 import { parseAdventure, serializeAdventure, type Adventure } from './adventure'
 import {
   adicionarEvento,
   avisoDoEvento,
   compararMomentos,
+  criarEfeitoAlarme,
   formatarMomento,
   jaPassou,
   levarAgendaA,
@@ -108,6 +110,54 @@ describe('marcar e remover evento', () => {
     const base = agendaCom(agora, [GEMEOS])
     expect(removerEvento(base, 'ev-gemeos').eventos).toEqual([])
     expect(removerEvento(base, 'sumiu')).toBe(base)
+  })
+})
+
+describe('efeito alarme: o evento que dispara soa o alarme nas cenas marcadas', () => {
+  const agora = { dia: 3, apito: 'brasa' } as const
+  const SINO = { tipo: 'alarme', cenas: ['salao', 'porao'], texto: 'O sino da torre tocou!' } as const
+
+  it('criarEfeitoAlarme limpa o texto e as cenas; sem texto ou sem cena não há alarme', () => {
+    expect(criarEfeitoAlarme(['salao', 'porao', 'salao', ''], '  O sino da torre tocou!  ')).toEqual({
+      tipo: 'alarme',
+      cenas: ['salao', 'porao'],
+      texto: 'O sino da torre tocou!',
+    })
+    expect(criarEfeitoAlarme([], 'O sino')).toBeNull()
+    expect(criarEfeitoAlarme(['salao'], '   ')).toBeNull()
+    expect(criarEfeitoAlarme(['salao'], 'x'.repeat(ALARM_MAX_LENGTH + 30))?.texto).toHaveLength(ALARM_MAX_LENGTH)
+  })
+
+  it('marca o evento com o alarme junto; alarme inválido recusa o evento inteiro', () => {
+    const marcada = adicionarEvento(agendaCom(agora, []), 'Disparo dos Gêmeos', { dia: 7, apito: 'meio' }, { tipo: 'alarme', cenas: ['salao', 'porao'], texto: 'O sino da torre tocou!' })
+    expect(marcada?.eventos[0].efeito).toEqual(SINO)
+    expect(adicionarEvento(agendaCom(agora, []), 'Sem cena', { dia: 7, apito: 'meio' }, { tipo: 'alarme', cenas: [], texto: 'O sino' })).toBeNull()
+  })
+
+  it('o disparado leva o alarme; antes da hora ele não sai de levarAgendaA', () => {
+    const comAlarme: EventoDaAgenda = { ...GEMEOS, efeito: { tipo: 'alarme', cenas: ['salao', 'porao'], texto: 'O sino da torre tocou!' } }
+    const aurora = levarAgendaA(agendaCom({ dia: 6, apito: 'sombra' }, [comAlarme]), { dia: 7, apito: 'aurora' })
+    expect(aurora.disparados).toEqual([])
+    const meio = levarAgendaA(aurora.agenda, { dia: 7, apito: 'meio' })
+    expect(meio.disparados.map((e) => e.efeito)).toEqual([SINO])
+  })
+
+  it('o alarme vai e volta do disco; alarme malformado sai e o evento fica, só de aviso', () => {
+    const lida = lerAgenda({
+      agora: { dia: 2, apito: 'aurora' },
+      eventos: [
+        { ...GEMEOS, efeito: SINO },
+        { id: 'ev-2', titulo: 'Sino quebrado', quando: { dia: 8, apito: 'meio' }, efeito: { tipo: 'alarme', cenas: 'salao', texto: 'x' } },
+        { id: 'ev-3', titulo: 'Efeito que não existe', quando: { dia: 9, apito: 'meio' }, efeito: { tipo: 'terremoto' } },
+      ],
+    })
+    expect(lida?.eventos.map((e) => [e.titulo, e.efeito])).toEqual([
+      ['Disparo dos Gêmeos', SINO],
+      ['Sino quebrado', undefined],
+      ['Efeito que não existe', undefined],
+    ])
+    // Sem chave `efeito: undefined` sobrando: o evento sem alarme grava igual ao antigo.
+    expect(lida?.eventos.filter((e) => 'efeito' in e).map((e) => e.id)).toEqual(['ev-gemeos'])
   })
 })
 

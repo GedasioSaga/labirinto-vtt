@@ -6,8 +6,12 @@
  * Mora na aventura (`Adventure.agenda`), nunca no `MapData`: o host só serve
  * mapas de cena ao jogador, então nem o título, nem o momento marcado, nem a
  * hora da mesa chegam a ele. Quem dispara é o mestre, avançando a hora; o
- * disparo vira aviso na Caixa dele (`components/AgendaSection.tsx`).
+ * disparo vira aviso na Caixa dele (`components/AgendaSection.tsx`) e, se o
+ * evento tem alarme, soa o alarme nas cenas marcadas — só então o texto do
+ * alarme sai da janela do mestre.
  */
+
+import { clampAlarmText } from '../net/protocol'
 
 /** Os quatro apitos do dia, na ordem em que soam. */
 export type Apito = 'aurora' | 'meio' | 'brasa' | 'sombra'
@@ -22,6 +26,22 @@ export interface MomentoDaMesa {
   apito: Apito
 }
 
+/**
+ * O alarme que o evento soa quando dispara (`hostBridge.sceneAlarm`): o texto
+ * vai à tela de quem está nas `cenas` SÓ no disparo — antes disso ele mora na
+ * aventura, que o host nunca serve ao jogador. As cenas não vão a ninguém.
+ */
+export interface EfeitoAlarme {
+  tipo: 'alarme'
+  /** Ids das cenas da aventura, sem repetição, na ordem da lista. */
+  cenas: string[]
+  /** Já limpo e no teto do alarme (`ALARM_MAX_LENGTH`). */
+  texto: string
+}
+
+/** O que o evento faz além de avisar o mestre. Estado do mundo entra aqui quando existir na base. */
+export type EfeitoDoEvento = EfeitoAlarme
+
 export interface EventoDaAgenda {
   /** Estável: é o que remover cita. */
   id: string
@@ -30,6 +50,8 @@ export interface EventoDaAgenda {
   quando: MomentoDaMesa
   /** Já disparou: não dispara de novo. Ausente = ainda por vir. */
   disparado?: true
+  /** Ausente = o evento só avisa o mestre na Caixa. */
+  efeito?: EfeitoDoEvento
 }
 
 export interface AgendaDaCampanha {
@@ -98,15 +120,38 @@ export function avisoDoEvento(evento: EventoDaAgenda): string {
 }
 
 /**
- * A agenda com um evento novo no fim. `null` quando não dá: título vazio, dia
- * fora de 1..DIA_MAXIMO, ou momento que já passou (ele nunca dispararia na
- * hora — só no próximo avanço, fora de hora).
+ * O alarme do evento, limpo: cenas sem vazio nem repetição, texto aparado e
+ * cortado no teto do alarme. `null` sem cena ou sem texto — o host recusaria.
  */
-export function adicionarEvento(agenda: AgendaDaCampanha, titulo: string, quando: MomentoDaMesa): AgendaDaCampanha | null {
+export function criarEfeitoAlarme(cenas: readonly string[], texto: string): EfeitoAlarme | null {
+  const unicas = [...new Set(cenas.filter((cena) => cena.length > 0))]
+  const limpo = clampAlarmText(texto.trim())
+  if (unicas.length === 0 || limpo.length === 0) return null
+  return { tipo: 'alarme', cenas: unicas, texto: limpo }
+}
+
+function efeitoOuNull(raw: unknown): EfeitoDoEvento | null {
+  if (!isRecord(raw) || raw.tipo !== 'alarme') return null
+  const { cenas, texto } = raw
+  if (!Array.isArray(cenas) || typeof texto !== 'string') return null
+  const ids = cenas.filter((cena): cena is string => typeof cena === 'string')
+  // Uma cena que não é texto estraga a lista inteira: soar em parte das cenas seria pior que não soar.
+  if (ids.length !== cenas.length) return null
+  return criarEfeitoAlarme(ids, texto)
+}
+
+/**
+ * A agenda com um evento novo no fim. `null` quando não dá: título vazio, dia
+ * fora de 1..DIA_MAXIMO, momento que já passou (ele nunca dispararia na
+ * hora — só no próximo avanço, fora de hora), ou `efeito` que não soaria.
+ */
+export function adicionarEvento(agenda: AgendaDaCampanha, titulo: string, quando: MomentoDaMesa, efeito?: EfeitoDoEvento): AgendaDaCampanha | null {
   const limpo = titulo.trim().slice(0, TITULO_MAX)
   if (limpo.length === 0 || !isDiaValido(quando.dia) || jaPassou(agenda.agora, quando)) return null
+  const efeitoLimpo = efeito === undefined ? undefined : efeitoOuNull(efeito)
+  if (efeitoLimpo === null) return null
   const evento: EventoDaAgenda = { id: `ev_${crypto.randomUUID()}`, titulo: limpo, quando: { dia: quando.dia, apito: quando.apito } }
-  return { ...agenda, eventos: [...agenda.eventos, evento] }
+  return { ...agenda, eventos: [...agenda.eventos, efeitoLimpo === undefined ? evento : { ...evento, efeito: efeitoLimpo }] }
 }
 
 /** A agenda sem o evento `id`, ou a MESMA agenda quando ele não está lá. */
@@ -147,13 +192,16 @@ function momentoOuNull(raw: unknown): MomentoDaMesa | null {
 
 function eventoOuNull(raw: unknown): EventoDaAgenda | null {
   if (!isRecord(raw)) return null
-  const { id, titulo, quando, disparado } = raw
+  const { id, titulo, quando, disparado, efeito } = raw
   if (typeof id !== 'string' || id.length === 0) return null
   if (typeof titulo !== 'string' || titulo.trim().length === 0) return null
   const momento = momentoOuNull(quando)
   if (momento === null) return null
-  const evento: EventoDaAgenda = { id, titulo: titulo.trim().slice(0, TITULO_MAX), quando: momento }
-  return disparado === true ? { ...evento, disparado: true } : evento
+  const base: EventoDaAgenda = { id, titulo: titulo.trim().slice(0, TITULO_MAX), quando: momento }
+  const comDisparo: EventoDaAgenda = disparado === true ? { ...base, disparado: true } : base
+  // Efeito malformado sai sozinho: o evento continua avisando o mestre.
+  const efeitoLido = efeitoOuNull(efeito)
+  return efeitoLido === null ? comDisparo : { ...comDisparo, efeito: efeitoLido }
 }
 
 /**

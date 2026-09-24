@@ -1817,6 +1817,20 @@ function App() {
     )
   }
 
+  // Alarme para várias cenas, só com a sala aberta: a seção Cenas soa pelo
+  // formulário e a Agenda soa quando um evento com alarme dispara.
+  const soarAlarme =
+    room === null
+      ? undefined
+      : (sceneIds: string[], text: string): number | null => {
+          const bridge = hostBridgeRef.current
+          if (bridge === null) return null
+          const sent = bridge.sceneAlarm(sceneIds, text)
+          setSceneAlarm(bridge.activeAlarm())
+          return sent
+        }
+  const scenesPanel = sceneList({ adventure, activeSceneId, cache: sceneCache }, map)
+
   return (
     <div className="lb-editor">
       {/* Os avisos vêm PRIMEIRO no DOM, antes do trilho. A posição na tela é do
@@ -1877,7 +1891,7 @@ function App() {
             scenes={
               <>
                 <ScenesSection
-                  scenes={sceneList({ adventure, activeSceneId, cache: sceneCache }, map)}
+                  scenes={scenesPanel}
                   onSelect={handleSelectScene}
                   onCreate={handleCreateScene}
                   onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
@@ -1892,17 +1906,7 @@ function App() {
                   adventureId={adventure?.id ?? null}
                   // Alarme para várias cenas, também só com a sala aberta.
                   alarm={room === null ? null : sceneAlarm}
-                  onAlarm={
-                    room === null
-                      ? undefined
-                      : (sceneIds, text) => {
-                          const bridge = hostBridgeRef.current
-                          if (bridge === null) return null
-                          const sent = bridge.sceneAlarm(sceneIds, text)
-                          setSceneAlarm(bridge.activeAlarm())
-                          return sent
-                        }
-                  }
+                  onAlarm={soarAlarme}
                   onEndAlarm={
                     room === null
                       ? undefined
@@ -1912,9 +1916,14 @@ function App() {
                         }
                   }
                 />
-                {/* Agenda da campanha: mora na aventura, então só aparece com ela; o jogador não recebe nada daqui. */}
+                {/* Agenda da campanha: mora na aventura, então só aparece com ela; ao jogador só vai o alarme de um evento, no disparo. */}
                 {adventure !== null && (
-                  <AgendaSection agenda={adventure.agenda} onChange={(agenda) => useAdventureStore.getState().setAgenda(agenda)} />
+                  <AgendaSection
+                    agenda={adventure.agenda}
+                    onChange={(agenda) => useAdventureStore.getState().setAgenda(agenda)}
+                    cenas={scenesPanel}
+                    onAlarm={soarAlarme}
+                  />
                 )}
               </>
             }
