@@ -3,6 +3,7 @@ import { HAZARD_NOTICE_TTL_MS, isHazardKind, parsePlayerHazards, type PlayerHaza
 import { parsePlayerAreaTriggers, type PlayerAreaTrigger } from '../lib/areaTriggers'
 import { decodeExploration, type Exploration } from '../lib/exploration'
 import { cleanFloorLabel } from '../lib/buildingFloors'
+import { readPlayerClock, type PlayerClock } from '../lib/campaignClock'
 import {
   DOOR_REQUEST_REJECTIONS,
   ITEM_GIVE_REJECTIONS,
@@ -74,6 +75,8 @@ export interface PlayerState {
   gatilhos?: PlayerAreaTrigger[]
   /** MAPA POR ANDARES: o andar dele e os outros que ele já conhece. Ausente = sem abas. */
   andares?: PlayerFloors
+  /** RELÓGIO DA CAMPANHA: o período do dia e se a cena dele está escura. Ausente = mestre sem relógio. */
+  relogio?: PlayerClock
   /**
    * INICIATIVA: id da ficha da vez, sempre uma ficha de `map.tokens`. Ausente
    * = ninguém que este jogador enxerga está na vez (o mestre só manda o que
@@ -678,6 +681,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     hazards: PlayerHazard[],
     gatilhos: PlayerAreaTrigger[],
     andares: PlayerFloors | undefined,
+    relogio: PlayerClock | undefined,
   ): void {
     if (rev <= state.rev) return
     let next = map
@@ -694,7 +698,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }
     // Vez de ficha que não veio no mapa não tem o que destacar: vale como ninguém.
     const turnOnMap = turn !== undefined && next.tokens.some((t) => t.id === turn) ? turn : undefined
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, hazards, gatilhos, andares, turn: turnOnMap, error: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, hazards, gatilhos, andares, relogio, turn: turnOnMap, error: undefined })
   }
 
   /** Desfaz o movimento recusado. `false` = pedido desconhecido (já resolvido, ou de antes de trocar de cena). */
@@ -788,6 +792,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           hazardNotice: undefined,
           gatilhos: undefined,
           andares: undefined,
+          relogio: undefined,
           turn: undefined,
           signals: undefined,
           laser: undefined,
@@ -963,7 +968,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // MAPA POR ANDARES: ausente = sem abas; malformado derruba a mensagem.
         const andares = data.andares === undefined ? undefined : parseFloors(data.andares)
         if (andares === null) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, gatilhos, andares)
+        // RELÓGIO DA CAMPANHA: ausente = sem relógio; malformado derruba a mensagem.
+        const relogio = data.relogio === undefined ? undefined : readPlayerClock(data.relogio)
+        if (relogio === null) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, gatilhos, andares, relogio)
         return
       }
       case 'hazard.entered': {
@@ -1190,7 +1198,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined, lever: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, relogio: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined, lever: undefined })
       open()
     },
     close: detach,

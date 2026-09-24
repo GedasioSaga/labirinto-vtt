@@ -3,7 +3,8 @@ import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazar
 import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { alarmForPlayer, allPlayerTokens, filterFloorMemory, filterMapForGroup, filterMapForPlayer, playerBlockedRings, turnForPlayer, type GroupViewer, type SceneAlarm } from '../lib/fogFilter'
+import { alarmForPlayer, allPlayerTokens, clockForPlayer, filterFloorMemory, filterMapForGroup, filterMapForPlayer, playerBlockedRings, turnForPlayer, type GroupViewer, type SceneAlarm } from '../lib/fogFilter'
+import { visionRadiusAtHour } from '../lib/campaignClock'
 import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
 import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
 import { validateTokenMove } from '../lib/moveValidation'
@@ -387,6 +388,12 @@ export interface HostSessionOptions {
    * ninguém. O jogador só recebe o recorte disto (`turnForPlayer`).
    */
   getTurn?: () => TurnRef | null
+  /**
+   * RELÓGIO DA CAMPANHA: a hora do dia no mestre (0 a 23), lida a cada
+   * snapshot. Ausente ou `null` = sem relógio. O jogador só recebe o recorte
+   * disto (`clockForPlayer`); a cena externa à noite encolhe a visão dele.
+   */
+  getClock?: () => number | null
   /** Chave da tela da mesa (teste). Ausente = um UUID novo por sala, fora de `randomId`. */
   tableKey?: string
 }
@@ -672,6 +679,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   const radiusFor =(playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
 
+  /** A hora do relógio da campanha agora; `null` = o mestre não tem relógio. */
+  const clockHour = (): number | null => options.getClock?.() ?? null
+
+  /**
+   * RELÓGIO DA CAMPANHA: o raio do jogador NESTA cena, agora. À noite, numa
+   * cena externa, cai — e é este raio que todo recorte usa (snapshot, porta,
+   * item, alavanca, tela da mesa), então o que ficou no escuro não viaja nem
+   * pode ser tocado. O painel do mestre continua mostrando o raio de base.
+   */
+  const radiusIn = (playerId: string, map: MapData): number => {
+    const hour = clockHour()
+    return hour === null ? radiusFor(playerId) : visionRadiusAtHour(radiusFor(playerId), hour, map)
+  }
+
   /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
   const statusOf = (playerId: string): PlayerStatus => ((ownership[playerId]?.length ?? 0) > 0 ? 'playing' : 'waiting')
 
@@ -790,7 +811,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const snapshotFor = (playerId: string, map: MapData, andares: FloorsWire | undefined): HostMessage => {
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusIn(playerId, map), exp, memory.doors)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -823,6 +844,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (view.gatilhos.length > 0) snapshot.gatilhos = view.gatilhos
     // MAPA POR ANDARES: o campo só existe quando há outro andar conhecido.
     if (andares !== undefined) snapshot.andares = andares
+    // RELÓGIO DA CAMPANHA: o período e, desta cena, se está escuro. Sem relógio, o campo nem sai.
+    const relogio = clockForPlayer(clockHour(), map)
+    if (relogio !== null) snapshot.relogio = relogio
     return snapshot
   }
 
@@ -909,7 +933,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
       // Só quem está NESTA cena enxerga por ela; a ficha dele em outra cena não conta.
       if (statusOf(playerId) === 'playing' && sceneFor(playerId, world) === scene) {
-        viewers.push({ tokenIds: ownership[playerId] ?? [], visionRadius: radiusFor(playerId) })
+        viewers.push({ tokenIds: ownership[playerId] ?? [], visionRadius: radiusIn(playerId, map) })
       }
     }
     // A marca do guarda (?, !) conta a ficha de qualquer jogador, não só a de quem está no grupo da TV —
@@ -976,7 +1000,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    */
   const seesHazardAround = (playerId: string, map: MapData, token: Token, kind: HazardKind): boolean => {
     const memory = existingMemory(playerId, map)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory?.exp, memory?.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusIn(playerId, map), memory?.exp, memory?.doors)
     return view.hazardsHere.some((h) => h.tokenId === token.id && h.kind === kind)
   }
 
@@ -1059,7 +1083,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const occupantsSeenBy = (playerId: string, map: MapData): readonly Token[] | undefined => {
     if (!tokensOccupy(map)) return undefined
     const memory = existingMemory(playerId, map)
-    return filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory?.exp, memory?.doors).map.tokens
+    return filterMapForPlayer(map, playerId, ownership, radiusIn(playerId, map), memory?.exp, memory?.doors).map.tokens
   }
 
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
@@ -1154,7 +1178,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const wall = map.walls.find((w) => w.id === wallId)
     if (wall === undefined || wall.door === null) return null
     const memory = memoryFor(playerId, map)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusIn(playerId, map), memory.exp, memory.doors)
     if (!view.visibleDoorIds.includes(wall.id)) return null
     const owned = new Set(ownership[playerId] ?? [])
     const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
@@ -1235,7 +1259,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const item = pin === undefined ? null : itemOfPin(pin)
     if (pin === undefined || item === null) return 'unavailable'
     const memory = memoryFor(playerId, map)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusIn(playerId, map), memory.exp, memory.doors)
     if (!view.map.pins.some((p) => p.id === pinId)) return 'unavailable'
     const owned = new Set(ownership[playerId] ?? [])
     const reaching = view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))
@@ -1302,7 +1326,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = map.pins.find((p) => p.id === msg.pinId)
     if (pin === undefined || pin.kind !== 'alavanca') return reject('unavailable')
     const memory = memoryFor(playerId, map)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusIn(playerId, map), memory.exp, memory.doors)
     if (!view.map.pins.some((p) => p.id === pin.id)) return reject('unavailable')
     const owned = new Set(ownership[playerId] ?? [])
     if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return reject('far')
@@ -1333,7 +1357,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const map = scene.map
     const owned = new Set(ownership[playerId] ?? [])
     const memory = memoryFor(playerId, map)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusIn(playerId, map), memory.exp, memory.doors)
     const masterToken = (id: string): Token | undefined => map.tokens.find((t) => t.id === id)
     const giverSeen = view.map.tokens.find((t) => owned.has(t.id) && carriedItemsOf(masterToken(t.id) ?? t).some((item) => item.id === msg.itemId))
     const targetSeen = view.map.tokens.find((t) => t.id === msg.toTokenId && !owned.has(t.id))
@@ -1405,7 +1429,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map)
-    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(from.map, playerId, ownership, radiusIn(playerId, from.map), memory.exp, memory.doors)
     if (!view.map.pins.some((p) => p.id === pinId)) return null
     // Trancada: ninguém passa. Cai no mesmo `null` de todo o resto, então o
     // jogador lê o motivo genérico de sempre e nada chega ao mestre. Estar aqui,

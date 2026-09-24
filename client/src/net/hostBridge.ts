@@ -114,6 +114,8 @@ export interface HostBridgeDeps {
   onSignal?: (signal: HostSignal) => void
   /** INICIATIVA: de quem é a vez no mestre. O jogador só recebe o recorte (`turnForPlayer`). */
   getTurn?: () => TurnRef | null
+  /** RELÓGIO DA CAMPANHA: a hora do dia no mestre. O jogador só recebe o recorte (`clockForPlayer`). */
+  getClock?: () => number | null
   /** TELA DA MESA: quantas telas estão conectadas mudou (entrou, caiu, sala fechou). */
   onTableScreensChange?: (screens: number) => void
   now?: () => number
@@ -177,6 +179,8 @@ export interface HostBridge {
   activeAlarm(): { id: string; text: string; sceneIds: string[] } | null
   /** A vez mudou (começar, próxima, encerrar): snapshot na hora, para o "sua vez" não esperar outra edição. */
   notifyTurnChanged(): void
+  /** O relógio da campanha andou: snapshot na hora, com o período (e a visão da noite) novos. */
+  notifyClockChanged(): void
   /**
    * TELA DA MESA: a cena que a TV mostra (`tableSceneKey`), ou `null` para ela
    * esperar. Snapshot imediato. Sala fechada: nada.
@@ -895,7 +899,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     try {
       const room = parseRoomInfo(await deps.invoke('net_start_room'))
       if (room === null) throw new Error('resposta inválida de net_start_room')
-      session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now, getTurn: deps.getTurn })
+      session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now, getTurn: deps.getTurn, getClock: deps.getClock })
       // Sala nova, código novo: o aviso da sala anterior não pode segurar o primeiro desta.
       lastBadCodeToastAt = null
       unlisteners = [
@@ -970,6 +974,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
     notifyTurnChanged() {
       // Um snapshot que já estava na fila sai agora, com a vez nova dentro.
+      cancelPendingBroadcast()
+      broadcastNow()
+    },
+
+    notifyClockChanged() {
+      // Mesmo caminho da vez: o período e o raio da noite saem no snapshot de agora.
       cancelPendingBroadcast()
       broadcastNow()
     },

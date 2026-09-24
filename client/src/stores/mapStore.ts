@@ -22,6 +22,7 @@ import { ancestorsOf, descendantsOf, subtreeIds } from '../lib/roomNesting'
 import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
 import { pullLever } from '../lib/lever'
+import { setOutdoor as setOutdoorOnMap } from '../lib/campaignClock'
 import { applyPatrolOp, type PatrolOp } from '../lib/npcPatrol'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
 import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
@@ -750,6 +751,8 @@ interface MapStoreState {
   setMovementRules: (movement: MovementRules | undefined) => void
   /** MAPA-MUNDI: o grupo anda como uma caravana só, que o mestre move (`lib/caravan.ts`). Com desfazer. */
   setWorldMap: (worldMap: boolean) => void
+  /** RELÓGIO DA CAMPANHA: a cena aberta é externa e escurece à noite (`lib/campaignClock.ts`). Com desfazer. */
+  setOutdoor: (outdoor: boolean) => void
   /** MAPA POR ANDARES: de que prédio a cena é andar, e o rótulo da aba do jogador. `undefined` = cena comum. Com desfazer. */
   setSceneFloor: (andar: SceneFloor | undefined) => void
   setScenarioLink: (value: string | null) => void
@@ -1512,6 +1515,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setMeasurementMode: (mode) => withHistory((map) => mapFactory.setMeasurementMode(map, mode)),
     setMovementRules: (movement) => withHistory((map) => mapFactory.setMovementRules(map, movement)),
     setWorldMap: (worldMap) => withHistory((map) => mapFactory.setWorldMap(map, worldMap)),
+    setOutdoor: (outdoor) => withHistory((map) => setOutdoorOnMap(map, outdoor)),
     setSceneFloor: (andar) => withHistory((map) => mapFactory.setSceneFloor(map, andar)),
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({

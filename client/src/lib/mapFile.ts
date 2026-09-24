@@ -250,6 +250,8 @@ function deserializeMapFields(json: string): MapData {
     // MAPA-MUNDI: campo NOVO e OPCIONAL. Só `true` vale; o resto (arquivo
     // editado à mão) abre como cena comum, sem o campo.
     ...(parsed.worldMap === true ? { worldMap: true } : {}),
+    // RELÓGIO DA CAMPANHA: campo NOVO e OPCIONAL, mesmo padrão de `worldMap`.
+    ...(parsed.externa === true ? { externa: true } : {}),
     // MAPA POR ANDARES: campo NOVO e OPCIONAL. Forma torta abre como cena comum — ver `readSceneFloor`.
     ...sceneFloorField(parsed.andar),
   }
