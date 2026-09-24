@@ -175,10 +175,75 @@ export interface GatherCandidate {
   name: string
   /** Cor da ficha (`#rrggbb`), a mesma bolinha do painel Grupo. */
   color: string
+  /** Cena onde a ficha está (`null` = mapa solto): é por ela que a lista agrupa. */
+  sceneId: string | null
+  /** Nome da cena, que o MESTRE lê no grupo ("PC - Cais (3)"). Nunca vai ao jogador. */
+  sceneLabel: string
+  /**
+   * Já está no pino: na cena dele, a até `GATHER_MAX_RING` casas. Vem no
+   * grupo "Já aqui", por último e desmarcado — o caso comum é trazer quem
+   * está longe, e quem já está em volta do pino não precisa andar.
+   */
+  alreadyHere: boolean
 }
 
-export function gatherCandidates(members: readonly PartyMember[]): GatherCandidate[] {
-  return members.flatMap((member) => (member.token === null ? [] : [{ playerId: member.playerId, name: member.name, color: member.token.color }]))
+/** Rótulo de quem tem ficha numa cena que o mundo do host não abriu (arquivo falhou): ainda aparece, sem nome. */
+const UNKNOWN_SCENE_LABEL = 'Outra cena'
+
+/** A lista em ordem de chegada; `pin` é o pino da cena ABERTA, o que decide quem "já está aqui". */
+export function gatherCandidates(members: readonly PartyMember[], world: HostWorld, pin: Point): GatherCandidate[] {
+  const grid = world.open.map.grid
+  return members.flatMap((member) => {
+    if (member.token === null) return []
+    const scene = sceneOf(member, world)
+    // Casas inteiras (Chebyshev), como os anéis de `gatherSpots`: ficha de 2 casas senta na linha da grade, o arredondamento a põe no anel certo.
+    const ring = Math.round(Math.max(Math.abs(member.token.x - pin.x), Math.abs(member.token.y - pin.y)) / grid)
+    return [
+      {
+        playerId: member.playerId,
+        name: member.name,
+        color: member.token.color,
+        sceneId: scene === undefined ? member.sceneId : scene.sceneId,
+        sceneLabel: scene?.name ?? member.sceneName ?? UNKNOWN_SCENE_LABEL,
+        alreadyHere: scene === world.open && ring <= GATHER_MAX_RING,
+      },
+    ]
+  })
+}
+
+/** O grupo de quem já está no pino: sempre o último da lista. */
+export const GATHER_HERE_LABEL = 'Já aqui'
+
+/** Um bloco da lista: uma cena (ou "Já aqui"), com a caixa que marca todos de uma vez. */
+export interface GatherGroup {
+  key: string
+  /** "PC - Cais (3)": nome da cena e quantos jogadores há nela. */
+  label: string
+  alreadyHere: boolean
+  candidates: GatherCandidate[]
+}
+
+/**
+ * Agrupa a lista por cena, na ordem em que cada cena aparece pela primeira vez
+ * (a ordem de chegada da ponte), com "Já aqui" por último. Dentro do grupo, a
+ * ordem de chegada também.
+ */
+export function gatherGroups(candidates: readonly GatherCandidate[]): GatherGroup[] {
+  const byKey = new Map<string, { name: string; alreadyHere: boolean; candidates: GatherCandidate[] }>()
+  for (const candidate of candidates) {
+    // Prefixos diferentes: uma cena de id "aqui" não se mistura com o grupo "Já aqui".
+    const key = candidate.alreadyHere ? 'aqui' : `cena:${candidate.sceneId ?? ''}`
+    const group = byKey.get(key)
+    if (group !== undefined) group.candidates.push(candidate)
+    else byKey.set(key, { name: candidate.alreadyHere ? GATHER_HERE_LABEL : candidate.sceneLabel, alreadyHere: candidate.alreadyHere, candidates: [candidate] })
+  }
+  const groups = [...byKey].map(([key, group]) => ({
+    key,
+    label: `${group.name} (${group.candidates.length})`,
+    alreadyHere: group.alreadyHere,
+    candidates: group.candidates,
+  }))
+  return [...groups.filter((g) => !g.alreadyHere), ...groups.filter((g) => g.alreadyHere)]
 }
 
 function sceneOf(member: PartyMember, world: HostWorld): HostScene | undefined {
