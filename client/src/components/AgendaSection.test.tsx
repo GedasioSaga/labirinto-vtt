@@ -139,6 +139,48 @@ describe('AgendaSection', () => {
     expect(textosNaCaixa()).toEqual([])
   })
 
+  describe('momento padrão do formulário acompanha a hora da mesa', () => {
+    function momentoDoForm(): [string, string] {
+      return [campo('Dia').value, campo('Apito').value]
+    }
+
+    it('"Próximo dia" leva o padrão junto: não acusa "já passou" sem o mestre digitar nada', () => {
+      render({ agora: { dia: 1, apito: 'aurora' }, eventos: [] })
+      expect(momentoDoForm()).toEqual(['1', 'meio'])
+
+      clica('Próximo dia')
+      expect(container.textContent).toContain('Agora: dia 2, Aurora')
+      expect(momentoDoForm()).toEqual(['2', 'meio'])
+      expect(container.textContent).not.toContain('Esse momento já passou')
+
+      preenche('Evento', 'Disparo dos Gêmeos')
+      expect(botao('Marcar').disabled).toBe(false)
+    })
+
+    it('na Sombra o padrão é a Aurora do dia seguinte, não a do mesmo dia', () => {
+      render({ agora: { dia: 6, apito: 'sombra' }, eventos: [] })
+      expect(momentoDoForm()).toEqual(['7', 'aurora'])
+      expect(container.textContent).not.toContain('Esse momento já passou')
+    })
+
+    it('o que o mestre escolheu fica escolhido quando a hora anda, e o título digitado não se perde', () => {
+      render({ agora: { dia: 1, apito: 'aurora' }, eventos: [] })
+      preenche('Evento', 'Disparo dos Gêmeos')
+      preenche('Dia', '7')
+      clica('Próximo apito')
+      expect(container.textContent).toContain('Agora: dia 1, Meio')
+      // Mexeu no dia: o momento inteiro (dia e apito) passa a ser dele.
+      expect(momentoDoForm()).toEqual(['7', 'meio'])
+      expect(campo('Evento').value).toBe('Disparo dos Gêmeos')
+
+      // Depois de marcar, o formulário volta a seguir a hora da mesa.
+      clica('Marcar')
+      expect(agenda.eventos.map((e) => e.quando)).toEqual([{ dia: 7, apito: 'meio' }])
+      clica('Próximo dia')
+      expect(momentoDoForm()).toEqual(['2', 'meio'])
+    })
+  })
+
   describe('efeito alarme', () => {
     const SINO = { tipo: 'alarme' as const, cenas: ['salao', 'porao'], texto: 'O sino da torre tocou!' }
     const CENAS: SceneListItem[] = [

@@ -122,12 +122,26 @@ function AlarmeDoEvento({ baseId, cenas, texto, escolhidas, onTexto, onEscolher 
   )
 }
 
-/** "Novo evento": título, dia e apito, e o alarme opcional. Momento que já passou não deixa marcar. */
+/** O que o mestre escolheu nos campos Dia e Apito (o dia fica em texto enquanto ele digita). */
+interface MomentoEscolhido {
+  dia: string
+  apito: Apito
+}
+
+/**
+ * "Novo evento": título, dia e apito, e o alarme opcional. Momento que já passou não deixa marcar.
+ * Enquanto o mestre não mexe em Dia nem Apito, o momento acompanha a hora da mesa (o apito seguinte
+ * a agora); mexeu em um dos dois, o momento inteiro fica com ele até marcar.
+ */
 function EventoForm({ agora, cenas, onMarcar }: EventoFormProps) {
   const baseId = useId()
   const [titulo, setTitulo] = useState('')
-  const [dia, setDia] = useState(String(agora.dia))
-  const [apito, setApito] = useState<Apito>(proximoApito(agora).apito)
+  const [escolhido, setEscolhido] = useState<MomentoEscolhido | null>(null)
+  const padrao = proximoApito(agora)
+  const dia = escolhido?.dia ?? String(padrao.dia)
+  const apito = escolhido?.apito ?? padrao.apito
+  const setDia = (novo: string) => setEscolhido({ dia: novo, apito })
+  const setApito = (novo: Apito) => setEscolhido({ dia, apito: novo })
   const [comAlarme, setComAlarme] = useState(false)
   const [textoAlarme, setTextoAlarme] = useState('')
   const [escolhidas, setEscolhidas] = useState<ReadonlySet<string>>(new Set())
@@ -152,6 +166,7 @@ function EventoForm({ agora, cenas, onMarcar }: EventoFormProps) {
     event.preventDefault()
     if (!pronto || efeito === null || !onMarcar(titulo, { dia: diaNumero, apito }, efeito)) return
     setTitulo('')
+    setEscolhido(null)
     setComAlarme(false)
     setTextoAlarme('')
     setEscolhidas(new Set())
