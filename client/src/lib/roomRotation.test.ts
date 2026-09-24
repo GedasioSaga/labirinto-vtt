@@ -9,6 +9,7 @@ import {
   roomRotationOf,
   rotatePointAround,
   rotationDelta,
+  rotationPivot,
   rotationTrig,
   snapRoomRotation,
   withoutRotationNoise,
@@ -161,6 +162,48 @@ describe('roomRotateHandle — onde a alça mora', () => {
     expect(isOnRoomRotateHandle(EM_PE, 0, { x: knob.x + ROOM_ROTATE_HANDLE.hitRadiusPx + 1, y: knob.y }, 1)).toBe(false)
     // O alvo não encosta no topo da sala: clicar no topo continua sendo clicar na sala.
     expect(isOnRoomRotateHandle(EM_PE, 0, { x: 640, y: 256 }, 1)).toBe(false)
+  })
+})
+
+describe('rotationPivot — quarto de volta numa sala na grade gira em volta de um ponto da grade', () => {
+  /** 3 x 4 quadrados de 64 px: o centro (672, 384) fica a meio quadrado da grade depois de 90°. */
+  const TRES_POR_QUATRO = [
+    { x: 576, y: 256 },
+    { x: 768, y: 256 },
+    { x: 768, y: 512 },
+    { x: 576, y: 512 },
+  ]
+  const naGrade = (v: number): boolean => Number.isInteger(v / 64)
+
+  it('+90° e −90°: o pivô é outro ponto (meia casa do centro) e todo canto girado cai na grade', () => {
+    for (const giro of [90, -90]) {
+      const pivo = rotationPivot(TRES_POR_QUATRO, 0, giro, 64)
+      expect(pivo).not.toEqual(roomCentroid(TRES_POR_QUATRO))
+      const girados = TRES_POR_QUATRO.map((p) => rotatePointAround(p, pivo, rotationTrig(giro)))
+      for (const p of girados) expect(naGrade(p.x) && naGrade(p.y), `${giro}°: canto ${p.x},${p.y} fora da grade`).toBe(true)
+    }
+    expect(rotationPivot(TRES_POR_QUATRO, 0, 90, 64)).toEqual({ x: 672, y: 352 })
+    expect(rotationPivot(TRES_POR_QUATRO, 0, -90, 64)).toEqual({ x: 672, y: 416 })
+  })
+
+  it('180°: o centro de um retângulo na grade já serve — o pivô não muda', () => {
+    expect(rotationPivot(TRES_POR_QUATRO, 0, 180, 64)).toEqual({ x: 672, y: 384 })
+  })
+
+  it('ângulo livre continua girando em volta do centro, mesmo na sala da grade', () => {
+    for (const giro of [30, -45, 15, 135]) expect(rotationPivot(TRES_POR_QUATRO, 0, giro, 64)).toEqual({ x: 672, y: 384 })
+  })
+
+  it('sala par (2 x 6) já gira na grade em volta do centro: nada muda', () => {
+    expect(rotationPivot(EM_PE, 0, 90, 64)).toEqual({ x: 640, y: 448 })
+  })
+
+  it('sala fora da grade, grade inválida ou sala vazia: o centro, como antes', () => {
+    const torta = [{ x: 0, y: 0 }, { x: 190, y: 0 }, { x: 190, y: 256 }, { x: 0, y: 256 }]
+    expect(rotationPivot(torta, 0, 90, 64)).toEqual({ x: 95, y: 128 })
+    expect(rotationPivot(TRES_POR_QUATRO, 0, 90, 0)).toEqual({ x: 672, y: 384 })
+    expect(rotationPivot(TRES_POR_QUATRO, 0, 90, Number.NaN)).toEqual({ x: 672, y: 384 })
+    expect(rotationPivot([], 0, 90, 64)).toEqual({ x: 0, y: 0 })
   })
 })
 

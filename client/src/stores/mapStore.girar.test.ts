@@ -5,6 +5,7 @@ import * as mapFactory from '../lib/mapFactory'
 import { buildRoomFromDraft } from '../lib/drawingFactory'
 import { placeNewRoom } from '../lib/roomNesting'
 import { EMPTY_SELECTION } from '../lib/selectionModel'
+import { roomCentroid, roomRotationOf } from '../lib/roomRotation'
 
 /**
  * GIRAR SALA, lado do HISTÓRICO e da sala de fora. Um giro é UMA decisão do
@@ -14,6 +15,12 @@ import { EMPTY_SELECTION } from '../lib/selectionModel'
 
 function salaEmPe(): MapData {
   const { region, walls } = buildRoomFromDraft('sala', ['w0', 'w1', 'w2', 'w3'], { x: 576, y: 256 }, { x: 704, y: 640 })
+  return mapFactory.addRoom(mapFactory.createEmptyMap('m', 'M', 30, 20, 64), region, walls)
+}
+
+/** 3 x 4 quadrados de 64 px: girada 90° em volta do centro, fica a meia casa da grade. */
+function salaTresPorQuatro(): MapData {
+  const { region, walls } = buildRoomFromDraft('sala', ['w0', 'w1', 'w2', 'w3'], { x: 576, y: 256 }, { x: 768, y: 512 })
   return mapFactory.addRoom(mapFactory.createEmptyMap('m', 'M', 30, 20, 64), region, walls)
 }
 
@@ -99,6 +106,72 @@ describe('mapStore — girar sala pela alça (arrasto)', () => {
     expect(useMapStore.getState().past).toHaveLength(1)
     useMapStore.getState().undo()
     expect(useMapStore.getState().map).toBe(antes)
+  })
+
+  it('sala 3 x 4 arrastada até 90° (Shift, de 15 em 15) solta na grade, no mesmo lugar do botão +90°', () => {
+    const { region, walls } = buildRoomFromDraft('sala', ['w0', 'w1', 'w2', 'w3'], { x: 576, y: 256 }, { x: 768, y: 512 })
+    const tresPorQuatro = mapFactory.addRoom(mapFactory.createEmptyMap('m', 'M', 30, 20, 64), region, walls)
+    carregar(tresPorQuatro)
+    useMapStore.getState().rotateRoom('sala', 90)
+    const peloBotao = sala().points
+    carregar(tresPorQuatro)
+    for (let i = 0; i < 6; i += 1) useMapStore.getState().rotateRoomLive('sala', 15)
+    useMapStore.getState().finishRoomRotationLive(tresPorQuatro, 'sala')
+    useMapStore.getState().commitDragHistory(tresPorQuatro)
+    expect(sala().room?.rotation).toBe(90)
+    expect(sala().points).toEqual(peloBotao)
+    for (const p of sala().points) expect(Number.isInteger(p.x / 64) && Number.isInteger(p.y / 64), `canto ${p.x},${p.y} fora da grade`).toBe(true)
+    for (const w of useMapStore.getState().map.walls) {
+      expect([w.x1, w.y1, w.x2, w.y2].every((v) => Number.isInteger(v / 64)), `parede ${w.id} fora da grade`).toBe(true)
+    }
+    expect(useMapStore.getState().past).toHaveLength(1)
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map).toBe(tresPorQuatro)
+  })
+
+  it('sala 3 x 4 que dá 90° num quadro só (Shift pulando para o múltiplo de 90) solta no mesmo lugar do botão +90°', () => {
+    const tresPorQuatro = salaTresPorQuatro()
+    carregar(tresPorQuatro)
+    useMapStore.getState().rotateRoom('sala', 90)
+    const peloBotao = sala().points
+    carregar(tresPorQuatro)
+    useMapStore.getState().rotateRoomLive('sala', 90)
+    useMapStore.getState().finishRoomRotationLive(tresPorQuatro, 'sala')
+    useMapStore.getState().commitDragHistory(tresPorQuatro)
+    expect(peloBotao).toEqual([
+      { x: 512, y: 256 },
+      { x: 768, y: 256 },
+      { x: 768, y: 448 },
+      { x: 512, y: 448 },
+    ])
+    expect(sala().points).toEqual(peloBotao)
+    expect(useMapStore.getState().past).toHaveLength(1)
+  })
+
+  it('Esc depois de arrastar a sala 3 x 4 até 90° gira de volta ao ponto de partida exato, sem histórico', () => {
+    const tresPorQuatro = salaTresPorQuatro()
+    carregar(tresPorQuatro)
+    for (let i = 0; i < 6; i += 1) useMapStore.getState().rotateRoomLive('sala', 15)
+    // O que o cancel() do gesto faz: gira de volta a diferença, ao vivo.
+    useMapStore.getState().rotateRoomLive('sala', -90)
+    expect(roomRotationOf(sala().room)).toBe(0)
+    expect(sala().points).toEqual([
+      { x: 576, y: 256 },
+      { x: 768, y: 256 },
+      { x: 768, y: 512 },
+      { x: 576, y: 512 },
+    ])
+    expect(useMapStore.getState().map.walls).toEqual(tresPorQuatro.walls)
+    expect(useMapStore.getState().past).toHaveLength(0)
+  })
+
+  it('ao vivo o centro da sala 3 x 4 não anda, nem no passo de 90° exatos (o pivô da grade é só do botão)', () => {
+    carregar(salaTresPorQuatro())
+    const centro = roomCentroid(sala().points)
+    useMapStore.getState().rotateRoomLive('sala', 90)
+    expect(roomCentroid(sala().points)).toEqual(centro)
+    useMapStore.getState().rotateRoomLive('sala', -90)
+    expect(roomCentroid(sala().points)).toEqual(centro)
   })
 
   it('a ficha que o jogador anda no meio do arrasto (rede) não é apagada pelo quadro seguinte', () => {

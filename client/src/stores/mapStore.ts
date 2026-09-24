@@ -1476,9 +1476,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (!region?.room || !Number.isFinite(degrees)) return
       get().rotateRoom(id, rotationDelta(roomRotationOf(region.room), degrees))
     },
-    rotateRoomLive: (id, degrees) => set((state) => ({ map: mapFactory.rotateRegion(state.map, id, degrees) })),
+    // Cada quadro em volta do centro: o Esc gira de volta e o soltar põe na grade contando com isso.
+    rotateRoomLive: (id, degrees) => set((state) => ({ map: mapFactory.rotateRegion(state.map, id, degrees, 'centro') })),
     finishRoomRotationLive: (before, id) => set((state) => {
-      const map = settleRoomRotation(state.map, id, before)
+      // Na grade antes da sala de fora: `reparentRooms` precisa ver a sala onde ela fica.
+      const map = settleRoomRotation(mapFactory.alignQuarterTurnToGrid(state.map, id, before), id, before)
       return map === state.map ? {} : { map }
     }),
     resizeDrawingCornerLive: (drawingId, corner, x, y, modifiers) => set((state) => ({
