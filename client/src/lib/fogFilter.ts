@@ -69,6 +69,20 @@ export interface PlayerMapView {
    * visitou para mandar o cartão só na primeira entrada. Não sai pela rede.
    */
   occupiedRooms: string[]
+  /**
+   * MEMÓRIA POR FICHA — a visão de CADA ficha que é olho do jogador (a mesma
+   * enviada, sem o pedaço do pincel) e as portas que o anel dela vê. O host
+   * grava isso na memória da ficha (`net/hostSession.ts`). Não sai pela rede:
+   * juntas, elas dizem qual ficha viu o quê.
+   */
+  eyes: PlayerEye[]
+}
+
+/** O que uma ficha vê agora: anel de visão e portas dentro dele. */
+export interface PlayerEye {
+  tokenId: string
+  vision: RegionPoint[]
+  doorIds: string[]
 }
 
 /** Zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
@@ -913,6 +927,23 @@ function unseenDoor(door: DoorState): DoorState {
 }
 
 /**
+ * As fichas que são OLHOS do jogador neste mapa: dele, na camada visível, não
+ * escondidas pelo mestre e sem acordo de ajudante "sem visão". É daqui que sai
+ * a visão do recorte e é também quem pode entregar memória ao jogador
+ * (MEMÓRIA POR FICHA, `net/hostSession.ts`): ficha que não é olho não herda
+ * nem grava mapa.
+ */
+export function playerEyeTokens(
+  map: MapData,
+  playerId: string,
+  ownership: Record<string, string[]>,
+  loans?: ReadonlyMap<string, TokenContract>,
+): Token[] {
+  const owned = new Set(ownership[playerId] ?? [])
+  return visibleTokens(map.tokens, map.hiddenLayers).filter((t) => owned.has(t.id) && !t.hidden && loans?.get(t.id)?.visao !== false)
+}
+
+/**
  * `explored`: memória do jogador ANTES desta visão (quem marca é o chamador).
  * Só a planta estática (regiões, desenhos e textos, escadas, portas, linhas,
  * marcadores) entra por estar explorada; token, prop e luz mudam de lugar e
@@ -947,7 +978,7 @@ export function filterMapForPlayer(
   const loanOf = (tokenId: string): TokenContract | undefined => (owned.has(tokenId) ? loans?.get(tokenId) : undefined)
   const layerTokens = visibleTokens(map.tokens, hiddenLayers)
   // `ownTokens`: as fichas que são OLHOS do jogador. O ajudante sem visão fica de fora.
-  const ownTokens = layerTokens.filter((t) => owned.has(t.id) && !t.hidden && loanOf(t.id)?.visao !== false)
+  const ownTokens = playerEyeTokens(map, playerId, ownership, loans)
 
   // Zona oculta ativa: ponto dentro dela não conta como visível nem explorado.
   // A visão continua passando (a zona esconde conteúdo, não é parede).
@@ -1250,12 +1281,20 @@ export function filterMapForPlayer(
   }
 
   const visibleDoorIds: string[] = []
+  // MEMÓRIA POR FICHA: a porta entra na lista da ficha cujo anel a vê (o
+  // pincel do mestre não conta — ele mostra, não vira memória).
+  const eyeRings = authorityVision.map((ring) => boxRings([ring]))
+  const eyeDoorIds: string[][] = ownTokens.map(() => [])
   /** Porta dentro da visão sai com o estado real; explorada fora dela, com o lembrado; senão não sai. */
   const doorWallForPlayer = (w: Wall, door: DoorState): Wall[] => {
     // Porta com o meio escondido não sai nem pelas amostras dos lados.
     if (inConcealZone(wallMidpoint(w))) return []
-    if (doorSamples(w, DOOR_VISION_PROBE).some(isVisible)) {
+    const samples = doorSamples(w, DOOR_VISION_PROBE)
+    if (samples.some(isVisible)) {
       visibleDoorIds.push(w.id)
+      eyeRings.forEach((boxed, i) => {
+        if (samples.some((p) => !hiddenByZone(p) && inAnyRing(boxed, p))) eyeDoorIds[i].push(w.id)
+      })
       return [w]
     }
     if (explored === undefined) return []
@@ -1482,7 +1521,8 @@ export function filterMapForPlayer(
    */
   const sightRects = cellRunRects(new Set(shownCells))
   const sentVision = sightRects.length > 0 ? [...vision, ...sightRects] : vision
-  return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms }
+  const eyes = ownTokens.map((t, i) => ({ tokenId: t.id, vision: vision[i], doorIds: eyeDoorIds[i] }))
+  return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms, eyes }
 }
 
 /**

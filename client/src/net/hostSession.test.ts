@@ -461,12 +461,15 @@ describe('hostSession', () => {
       expect(isPointExplored(explored, { x: 150, y: 200 })).toBe(true)
     })
 
-    it('kick zera: o jogador que volta começa sem memória', () => {
+    it('kick zera: o jogador que volta (com outra ficha) começa sem memória', () => {
       const s = smallSession()
       joinPlaying(s, 'c1', mapAt(200, 200))
       s.broadcast(mapAt(200, 200))
       s.kick('c1')
-      joinPlaying(s, 'c2', mapAt(200, 800))
+      // MEMÓRIA POR FICHA: a do herói é do herói e fica (hostSession.memoriaPorFicha.test.ts);
+      // o que o kick zera é a do JOGADOR, então ele volta com a ficha que nunca viu a sala.
+      const again = welcomeOf(s.handleMessage('c2', { type: 'join', code: CODE, name: 'Ana' }, mapAt(200, 800)).outbound)
+      s.assignToken(again.playerId, 'ladino')
       const { explored, msg } = snapshotTo(s.broadcast(mapAt(200, 800)), 'c2')
       expect(isPointExplored(explored, { x: 200, y: 200 })).toBe(false)
       expect(msg.map.regions).toEqual([])
