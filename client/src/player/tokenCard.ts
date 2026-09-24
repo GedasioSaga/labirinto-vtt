@@ -37,10 +37,13 @@ export function tokenCardName(token: Token): string {
 /**
  * Onde está o pedido de ação: esperando o mestre, ou a resposta. `waiting`
  * fica até a resposta; as outras somem sozinhas. `targetName` é o nome que o
- * JOGADOR viu no cartão — o host nunca manda o nome de volta.
+ * JOGADOR viu no cartão — o host nunca manda o nome de volta. `reply`: o que o
+ * mestre escreveu só para ele (o que o NPC responde); com ele, a resposta vira
+ * cartão e fica até o jogador fechar.
  */
 export type TokenActionNotice =
-  | { id: number; phase: 'waiting' | 'accepted' | 'refused'; action: TokenAction; targetName: string }
+  | { id: number; phase: 'waiting'; action: TokenAction; targetName: string }
+  | { id: number; phase: 'accepted' | 'refused'; action: TokenAction; targetName: string; reply?: string }
   | { id: number; phase: 'rejected'; reason: TokenActionRejection; action: TokenAction; targetName: string }
 
 /** A ação dita com a ficha, como frase: "Falar com Severa", "Empurrar Severa". */
@@ -65,7 +68,12 @@ const REJECTION_TEXT: Record<TokenActionRejection, string> = {
   too_soon: 'Espere um instante antes de pedir de novo.',
 }
 
-/** O aviso de baixo da tela para cada fase do pedido. */
+/** O texto do mestre, quando a resposta trouxe um; `null` = só o aviso curto. */
+export function tokenActionReply(notice: TokenActionNotice): string | null {
+  return (notice.phase === 'accepted' || notice.phase === 'refused') && notice.reply !== undefined ? notice.reply : null
+}
+
+/** O aviso de baixo da tela para cada fase do pedido (e o título do cartão da resposta em texto). */
 export function tokenActionNoticeText(notice: TokenActionNotice): string {
   const phrase = tokenActionPhrase(notice.action, notice.targetName)
   switch (notice.phase) {

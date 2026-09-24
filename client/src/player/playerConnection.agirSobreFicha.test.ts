@@ -5,6 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { TOKEN_ACTION_REPLY_MAX_LENGTH } from '../lib/tokenActions'
 import { parseTokenActionHostMessage } from '../net/protocol'
 import type { Token } from '../types/map'
 import { createPlayerConnection, TOKEN_ACTION_NOTICE_TTL_MS, type SocketLike } from './playerConnection'
@@ -68,6 +69,22 @@ describe('parseTokenActionHostMessage', () => {
     expect(parseTokenActionHostMessage({ type: 'token.action.answer', reqId: 'a1', accepted: 'sim' })).toBeNull()
     expect(parseTokenActionHostMessage({ type: 'token.action.answer', accepted: true })).toBeNull()
   })
+
+  it('a resposta em texto do mestre vem aparada; fora de forma ou acima do teto cai, e o veredito fica', () => {
+    expect(parseTokenActionHostMessage({ type: 'token.action.answer', reqId: 'a1', accepted: true, reply: '  Subiu ontem.  ' })).toEqual({
+      type: 'token.action.answer',
+      reqId: 'a1',
+      accepted: true,
+      reply: 'Subiu ontem.',
+    })
+    expect(parseTokenActionHostMessage({ type: 'token.action.answer', reqId: 'a1', accepted: false, reply: 42 })).toEqual({ type: 'token.action.answer', reqId: 'a1', accepted: false })
+    expect(parseTokenActionHostMessage({ type: 'token.action.answer', reqId: 'a1', accepted: true, reply: 'x'.repeat(TOKEN_ACTION_REPLY_MAX_LENGTH + 1) })).toEqual({
+      type: 'token.action.answer',
+      reqId: 'a1',
+      accepted: true,
+    })
+    expect(parseTokenActionHostMessage({ type: 'token.action.answer', reqId: 'a1', accepted: true, reply: '   ' })).toEqual({ type: 'token.action.answer', reqId: 'a1', accepted: true })
+  })
 })
 
 describe('pedido de ação sobre ficha no cliente', () => {
@@ -125,6 +142,33 @@ describe('pedido de ação sobre ficha no cliente', () => {
     const reqId2 = typeof second === 'object' && second !== null && 'reqId' in second ? second.reqId : null
     socket.receive({ type: 'token.action.rejected', reqId: reqId2, reason: 'unavailable' })
     expect(connection.getState().tokenAction).toMatchObject({ phase: 'rejected', reason: 'unavailable', action: 'empurrar' })
+  })
+
+  it('com o texto do mestre, a resposta fica na tela até o jogador fechar', () => {
+    const { connection, socket } = jogando()
+    connection.requestTokenAction('severa', 'falar', 'Você viu o Lemos?')
+    const pedido = socket.sent[0]
+    const reqId = typeof pedido === 'object' && pedido !== null && 'reqId' in pedido ? pedido.reqId : null
+    socket.receive({ type: 'token.action.answer', reqId, accepted: true, reply: 'Ela aponta a torre: "Subiu ontem."' })
+    expect(connection.getState().tokenAction).toEqual({
+      id: expect.any(Number),
+      phase: 'accepted',
+      action: 'falar',
+      targetName: 'Mulher de capuz',
+      reply: 'Ela aponta a torre: "Subiu ontem."',
+    })
+    // Texto se lê no tempo de quem lê: o prazo do aviso curto não o apaga.
+    vi.advanceTimersByTime(TOKEN_ACTION_NOTICE_TTL_MS * 10)
+    expect(connection.getState().tokenAction?.phase).toBe('accepted')
+    connection.dismissTokenAction()
+    expect(connection.getState().tokenAction).toBeUndefined()
+  })
+
+  it('fechar não apaga a espera: o pedido ainda aguardando o mestre continua na tela', () => {
+    const { connection } = jogando()
+    connection.requestTokenAction('severa', 'empurrar')
+    connection.dismissTokenAction()
+    expect(connection.getState().tokenAction?.phase).toBe('waiting')
   })
 
   it('voltar à espera do lobby apaga o pedido da tela', () => {

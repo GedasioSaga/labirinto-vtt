@@ -6,7 +6,7 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
-import { isTokenAction, isTokenActionRejection, TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
+import { isTokenAction, isTokenActionRejection, TOKEN_ACTION_REPLY_MAX_LENGTH, TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -80,9 +80,10 @@ import { isTokenAction, isTokenActionRejection, TOKEN_ACTION_TEXT_MAX_LENGTH, ty
  * AGIR SOBRE UMA FICHA é aditivo pelo mesmo critério: `token.action` (jogador
  * -> mestre) e, na volta e só a quem pediu, `token.action.rejected` (o host
  * recusou antes de perguntar ao mestre) e `token.action.answer` (o mestre
- * aceitou ou recusou). A volta leva só o `reqId` do jogador: nunca nome de
- * ficha, de cena ou posição. Mestre antigo responde `error invalid_message`;
- * jogador antigo ignora as duas.
+ * aceitou ou recusou, com o texto opcional que ele escreveu só para aquele
+ * jogador em `reply`). A volta leva só o `reqId` do jogador e esse texto:
+ * nunca nome de ficha, de cena ou posição. Mestre antigo responde
+ * `error invalid_message`; jogador antigo ignora as duas (e o `reply`).
  */
 export const PROTOCOL_VERSION = 1
 
@@ -346,13 +347,15 @@ export interface ClueShowResultMessage {
 export type ClueHostMessage = ClueAddedMessage | CluebookMessage | ClueShownMessage | CluePeersMessage | ClueShowResultMessage
 
 /**
- * AGIR SOBRE UMA FICHA, na volta. Só `reqId` e o veredito: nem o nome da ficha
+ * AGIR SOBRE UMA FICHA, na volta. Só `reqId`, o veredito e, no `answer`, o
+ * texto que o mestre escreveu para ESTE jogador (`reply`, até
+ * `TOKEN_ACTION_REPLY_MAX_LENGTH`; ausente = sem texto): nem o nome da ficha
  * (o jogador já sabe qual tocou, pelo nome que ELE vê), nem a cena, nem o que o
  * mestre chama aquela ficha. Vai só a quem pediu.
  */
 export type TokenActionHostMessage =
   | { type: 'token.action.rejected'; reqId: string; reason: TokenActionRejection }
-  | { type: 'token.action.answer'; reqId: string; accepted: boolean }
+  | { type: 'token.action.answer'; reqId: string; accepted: boolean; reply?: string }
 
 export type HostErrorReason ='bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
@@ -616,13 +619,17 @@ function parseTokenActionRequest(obj: Record<string, unknown>): TokenActionReque
  * Valida a volta do pedido de ação que o jogador recebe. Devolve cópia só com
  * os campos conhecidos: nome, cena ou posição que viessem juntos ficam para
  * trás. Motivo de recusa que esta versão não conhece vira `unavailable`.
+ * O `reply` sai aparado; fora de forma, só espaço ou acima do teto, ele cai
+ * sozinho e o veredito fica: sem o veredito o jogador esperaria para sempre.
  */
 export function parseTokenActionHostMessage(value: unknown): TokenActionHostMessage | null {
   if (!isRecord(value)) return null
-  const { reqId } = value
+  const { reqId, reply } = value
   if (!isBoundedString(reqId, 1, REQ_ID_MAX_LENGTH)) return null
   if (value.type === 'token.action.answer') {
-    return typeof value.accepted === 'boolean' ? { type: 'token.action.answer', reqId, accepted: value.accepted } : null
+    if (typeof value.accepted !== 'boolean') return null
+    const said = isBoundedString(reply, 1, TOKEN_ACTION_REPLY_MAX_LENGTH) ? reply.trim() : ''
+    return said === '' ? { type: 'token.action.answer', reqId, accepted: value.accepted } : { type: 'token.action.answer', reqId, accepted: value.accepted, reply: said }
   }
   if (value.type === 'token.action.rejected') {
     const reason = isTokenActionRejection(value.reason) ? value.reason : 'unavailable'

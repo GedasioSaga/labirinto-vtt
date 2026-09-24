@@ -217,6 +217,11 @@ export interface PlayerConnection {
    * texto passa do teto, já há um pedido esperando ou o socket não está aberto.
    */
   requestTokenAction(tokenId: string, action: TokenAction, text?: string): boolean
+  /**
+   * Fecha a resposta do mestre ao pedido de ação (o cartão com o texto dele).
+   * O pedido que ainda espera o mestre não se fecha: ele some com a resposta.
+   */
+  dismissTokenAction(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -474,6 +479,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (msg === null || waiting === undefined || waiting.phase !== 'waiting' || msg.reqId !== pendingActionReqId) return
     clearTokenAction()
     const base = { id: nextNoticeId++, action: waiting.action, targetName: waiting.targetName }
+    if (msg.type === 'token.action.answer' && msg.reply !== undefined) {
+      // Com o texto do mestre, a resposta se lê no tempo de quem lê: fica até ele fechar (`dismissTokenAction`).
+      setState({ tokenAction: { ...base, phase: msg.accepted ? 'accepted' : 'refused', reply: msg.reply } })
+      return
+    }
     const notice: TokenActionNotice =
       msg.type === 'token.action.answer' ? { ...base, phase: msg.accepted ? 'accepted' : 'refused' } : { ...base, phase: 'rejected', reason: msg.reason }
     setState({ tokenAction: notice })
@@ -1096,6 +1106,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // O nome que ELE viu no cartão: é com ele que o aviso fala, e o host nunca manda nome de volta.
       setState({ tokenAction: { id: nextNoticeId++, phase: 'waiting', action, targetName: tokenCardName(token) } })
       return true
+    },
+
+    dismissTokenAction() {
+      const notice = state.tokenAction
+      if (notice === undefined || notice.phase === 'waiting') return
+      clearTokenAction()
+      setState({ tokenAction: undefined })
     },
 
     setOwnTokenName(tokenId, name) {

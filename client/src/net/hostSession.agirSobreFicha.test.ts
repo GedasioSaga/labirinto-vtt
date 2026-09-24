@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { TOKEN_ACTION_REPLY_MAX_LENGTH } from '../lib/tokenActions'
 import type { MapData, Token, Wall } from '../types/map'
 import { createHostSession, TOKEN_ACTION_MIN_INTERVAL_MS, type HostResult, type HostScene, type HostWorld } from './hostSession'
 
@@ -126,6 +127,28 @@ describe('hostSession: agir sobre uma ficha', () => {
     // Respondido, sai da fila: responder de novo não manda nada.
     expect(s.isTokenActionPending(pedido.requestId)).toBe(false)
     expect(s.answerTokenAction(pedido.requestId, false)).toEqual({ outbound: [] })
+  })
+
+  it('a resposta em TEXTO do mestre ("o que Severa diz") vai só a quem pediu, aparada e no teto', () => {
+    const { s, relogio } = mesa()
+    const pedido = pede(s, 'c1', 'severa', { action: 'falar', text: 'Você viu o Lemos?' }).actionRequest
+    if (pedido === undefined) throw new Error('esperava pedido')
+    const r = s.answerTokenAction(pedido.requestId, true, '  Ela aponta a torre: "Subiu ontem."  ')
+    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'token.action.answer', reqId: 'r-severa', accepted: true, reply: 'Ela aponta a torre: "Subiu ontem."' } }])
+    expect(textoPara(r, 'c2')).toBe('[]')
+
+    // Recusar também leva o texto ("Ela te ignora"); acima do teto, corta no teto.
+    relogio.t += TOKEN_ACTION_MIN_INTERVAL_MS
+    const outro = pede(s, 'c1', 'severa').actionRequest
+    if (outro === undefined) throw new Error('esperava pedido')
+    const longa = s.answerTokenAction(outro.requestId, false, 'y'.repeat(TOKEN_ACTION_REPLY_MAX_LENGTH + 40))
+    expect(longa.outbound).toEqual([{ clientId: 'c1', msg: { type: 'token.action.answer', reqId: 'r-severa', accepted: false, reply: 'y'.repeat(TOKEN_ACTION_REPLY_MAX_LENGTH) } }])
+
+    // Só espaço vale como sem texto: o campo nem vai.
+    relogio.t += TOKEN_ACTION_MIN_INTERVAL_MS
+    const terceiro = pede(s, 'c1', 'severa').actionRequest
+    if (terceiro === undefined) throw new Error('esperava pedido')
+    expect(s.answerTokenAction(terceiro.requestId, true, '   ').outbound).toEqual([{ clientId: 'c1', msg: { type: 'token.action.answer', reqId: 'r-severa', accepted: true } }])
   })
 
   it('"Recusar" chega como accepted: false, também só a quem pediu', () => {

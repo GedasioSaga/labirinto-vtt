@@ -10,7 +10,7 @@ import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerTokenCard } from './PlayerTokenCard'
-import { tokenActionNoticeText } from './tokenCard'
+import { tokenActionNoticeText, tokenActionReply } from './tokenCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
 import { PlayerClueCard } from './PlayerClues'
 import { coverBounds } from './playerCamera'
@@ -580,6 +580,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
   const closeRoomText = useCallback(() => connection.dismissRoomText(), [connection])
+  const closeActionReply = useCallback(() => connection.dismissTokenAction(), [connection])
   // Estável: o painel marca o Caderno como lido num efeito que depende dela.
   const readNotebook = useCallback(() => connection.markNotebookRead(), [connection])
   // MINHAS PISTAS: abrir o cartão do pino é ler — o host guarda a pista no Caderno.
@@ -621,6 +622,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
     const clueCardOpen = openClue !== null || (state.shownClue !== undefined && openPin === null)
     // Cartão do pino ou da ficha aberto: o Escape é dele, e não fecha junto os cartões de baixo.
     const noCardOnTop = openPin === null && openToken === null
+    // Resposta do mestre com texto: vira cartão, no lugar do aviso curto.
+    const actionReply = state.tokenAction === undefined ? null : tokenActionReply(state.tokenAction)
     return (
       <PlayerErrorBoundary onReconnect={() => connection.reconnect()}>
         <PlayerView
@@ -760,10 +763,22 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
           <PlayerNoteCard key={state.note.id} text={state.note.text} hint={NOTE_KEPT_HINT} onClose={closeNote} escapeCloses={noCardOnTop && !clueCardOpen} />
         )}
+        {/* AGIR SOBRE UMA FICHA: a resposta do mestre em TEXTO (o que o NPC
+            responde), só a quem pediu. O mesmo cartão do recado, e a mesma
+            fila: espera o recado fechar, e o texto da sala espera por ela. */}
+        {actionReply !== null && state.tokenAction && !state.note && (
+          <PlayerNoteCard
+            key={state.tokenAction.id}
+            title={tokenActionNoticeText(state.tokenAction)}
+            text={actionReply}
+            onClose={closeActionReply}
+            escapeCloses={noCardOnTop && !clueCardOpen}
+          />
+        )}
         {/* TEXTO DA SALA: o mesmo cartão, com o nome da Sala no alto. Um
             cartão de cada vez no mesmo lugar: com recado aberto, o texto da
             sala espera o recado fechar em vez de ficar por baixo dele. */}
-        {state.roomText && !state.note && (
+        {state.roomText && !state.note && actionReply === null && (
           <PlayerNoteCard
             key={state.roomText.id}
             title={state.roomText.title || 'Ao entrar'}
@@ -777,7 +792,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             {travelNoticeText(state.travel)}
           </p>
         )}
-        {state.tokenAction && (
+        {state.tokenAction && actionReply === null && (
           <p key={state.tokenAction.id} className="pp-notice pp-notice--action" role="status" aria-live="polite">
             {tokenActionNoticeText(state.tokenAction)}
           </p>

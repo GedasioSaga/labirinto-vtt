@@ -17,7 +17,7 @@ import {
   type TokenActionRequest,
   type TravelRequest,
 } from './hostSession'
-import { distanceLabel, TOKEN_ACTION_LABELS } from '../lib/tokenActions'
+import { distanceLabel, TOKEN_ACTION_LABELS, TOKEN_ACTION_REPLY_MAX_LENGTH } from '../lib/tokenActions'
 import type { LaserMessage } from './protocol'
 import { createPlayerScreens, type PlayerScreen } from './playerScreens'
 
@@ -444,12 +444,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
   }
 
-  const answerAction = (requestId: string, accepted: boolean) => {
+  const answerAction = (requestId: string, accepted: boolean, reply = '') => {
     const toastId = actionToasts.get(requestId)
     actionToasts.delete(requestId)
     if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
     if (session === null) return
-    void dispatch(session.answerTokenAction(requestId, accepted))
+    void dispatch(session.answerTokenAction(requestId, accepted, reply))
   }
 
   /**
@@ -457,6 +457,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * espera o mestre como o pedido de passagem — o jogador olha "Aguardando…".
    * O × vale "Recusar". Sem "emLote": o "Deixar todos" da caixa é da passagem,
    * e aceitar de uma vez "Empurrar", "Agarrar" e "Oferecer" não é uma decisão só.
+   * O campo "Resposta só para Ana" leva junto o que o NPC responde: o texto
+   * vai só a quem pediu, e não à cena (o recado de cena chega a todos).
    */
   const askAction = (request: TokenActionRequest) => {
     const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
@@ -464,11 +466,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const text = `${request.playerName} → ${request.targetName}${where}: ${TOKEN_ACTION_LABELS[request.action]} (${distanceLabel(request.distanceCells)})${said}`
     const toastId = useToastStore.getState().push('instrucao', text, null, {
       actions: [
-        { label: 'Aceitar', run: () => answerAction(request.requestId, true) },
-        { label: 'Recusar', run: () => answerAction(request.requestId, false) },
+        { label: 'Aceitar', run: (resposta) => answerAction(request.requestId, true, resposta) },
+        { label: 'Recusar', run: (resposta) => answerAction(request.requestId, false, resposta) },
       ],
       onDismiss: () => answerAction(request.requestId, false),
       grupo: 'Pedidos',
+      resposta: { rotulo: `Resposta só para ${request.playerName} (opcional)`, maxLength: TOKEN_ACTION_REPLY_MAX_LENGTH },
     })
     actionToasts.set(request.requestId, toastId)
   }

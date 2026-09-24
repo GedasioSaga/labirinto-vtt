@@ -33,6 +33,24 @@ export const TOKEN_ACTIONS_NEED_TEXT: ReadonlySet<TokenAction> = new Set<TokenAc
 /** Teto do texto do pedido, em unidades UTF-16 (o `maxLength` do campo conta igual). */
 export const TOKEN_ACTION_TEXT_MAX_LENGTH = 120
 
+/**
+ * Teto da RESPOSTA do mestre ("o que Severa diz"), em unidades UTF-16: cabe
+ * uma fala de NPC, não um capítulo. O campo do aviso e o parser contam igual.
+ */
+export const TOKEN_ACTION_REPLY_MAX_LENGTH = 280
+
+/**
+ * A resposta do mestre aparada e cortada no teto. Não deixa meia letra no fim
+ * (emoji partido ao meio vira losango de erro na tela do jogador). `''` = sem resposta.
+ */
+export function clampTokenActionReply(text: string): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= TOKEN_ACTION_REPLY_MAX_LENGTH) return trimmed
+  const cut = trimmed.slice(0, TOKEN_ACTION_REPLY_MAX_LENGTH)
+  const last = cut.charCodeAt(cut.length - 1)
+  return (last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut).trimEnd()
+}
+
 export function isTokenAction(value: unknown): value is TokenAction {
   return TOKEN_ACTIONS.some((action) => action === value)
 }

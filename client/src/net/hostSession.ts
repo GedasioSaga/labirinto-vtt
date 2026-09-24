@@ -26,7 +26,7 @@ import {
   type TokenEditMessage,
   type TokenMoveMessage,
 } from './protocol'
-import { distanceInCells, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
+import { clampTokenActionReply, distanceInCells, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
 import { clampNoteText, NOTEBOOK_MAX_NOTES, type NoteEntry } from './protocol'
 
 /**
@@ -367,11 +367,13 @@ export interface HostSession {
   /** O pedido ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isTravelPending(requestId: string): boolean
   /**
-   * AGIR SOBRE UMA FICHA: o mestre aceitou ou recusou. Devolve
+   * AGIR SOBRE UMA FICHA: o mestre aceitou ou recusou, e `reply` é o que ele
+   * escreveu para AQUELE jogador (o que o NPC responde; aparado e cortado em
+   * `TOKEN_ACTION_REPLY_MAX_LENGTH`; vazio = sem texto). Devolve
    * `token.action.answer` só a quem pediu, com o `reqId` dele. Pedido que já
    * não existe (respondido, jogador caiu ou saiu) não manda nada.
    */
-  answerTokenAction(requestId: string, accepted: boolean): HostResult
+  answerTokenAction(requestId: string, accepted: boolean, reply?: string): HostResult
   /** O pedido de ação ainda espera o mestre? */
   isTokenActionPending(requestId: string): boolean
   /**
@@ -1345,12 +1347,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
     },
 
-    answerTokenAction(requestId, accepted) {
+    answerTokenAction(requestId, accepted, text = '') {
       const pending = findPendingTokenAction(requestId)
       if (pending === undefined) return { outbound: [] }
       pendingTokenActions.delete(pending.playerId)
       const clientId = players.get(pending.playerId)?.clientId ?? null // null = saiu: não há a quem responder
-      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'token.action.answer', reqId: pending.reqId, accepted })
+      if (clientId === null) return { outbound: [] }
+      const said = clampTokenActionReply(text)
+      const answer: HostMessage =
+        said === '' ? { type: 'token.action.answer', reqId: pending.reqId, accepted } : { type: 'token.action.answer', reqId: pending.reqId, accepted, reply: said }
+      return reply(clientId, answer)
     },
 
     isTokenActionPending(requestId) {
