@@ -4,6 +4,7 @@ import { VISION_FACTOR_MAX, VISION_FACTOR_MIN, VISION_FACTOR_STEP, formatVisionF
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
 import { CluesSection, type CluesSectionProps } from './CluesSection'
+import { NOISE_RANGE_OPTIONS } from '../lib/noise'
 
 export interface RoomPanelToken {
   id: string
@@ -50,7 +51,20 @@ export interface RoomPanelProps {
   /** Botão "Laser" ligado: arma o laser (independe de segurar L); o traço sai clicando no mapa. */
   laserOn?: boolean
   onToggleLaser?(): void
+  /** "Ruído": arma o ruído (o próximo clique no mapa o dispara) e escolhe o alcance. Ausente = sem o controle. */
+  noise?: NoiseControlProps
 }
+
+export interface NoiseControlProps {
+  armed: boolean
+  /** Alcance em casas (um de `NOISE_RANGE_OPTIONS`). */
+  rangeCells: number
+  onToggle(): void
+  onRangeChange(cells: number): void
+}
+
+export const NOISE_BUTTON_LABEL = 'Ruído'
+export const NOISE_HINT = 'Ligado, clique no mapa onde algo fez barulho. Quem estiver perto ouve só a direção, nunca o lugar nem o que foi.'
 
 export const PLAN_HINT = 'Revelar planta mostra paredes, salas e portas, sem os tokens. Zonas ocultas continuam escondidas.'
 export const GROUP_VIEW_LABEL = 'Dar o que o grupo viu'
@@ -207,6 +221,29 @@ function TunnelSection({ tunnel, onStartTunnel, onStopTunnel }: Pick<RoomPanelPr
   )
 }
 
+/** Botão "Ruído" (arma o próximo clique no mapa) e a lista do alcance. */
+function NoiseControl({ armed, rangeCells, onToggle, onRangeChange }: NoiseControlProps) {
+  const rangeId = 'lb-room-noise-range'
+  return (
+    <div className="lb-field">
+      <button type="button" className={armed ? 'lb-btn lb-btn--primary lb-btn--block' : 'lb-btn lb-btn--block'} aria-pressed={armed} onClick={onToggle}>
+        {NOISE_BUTTON_LABEL}
+      </button>
+      <label className="lb-label" htmlFor={rangeId}>
+        Alcance do ruído
+      </label>
+      <select id={rangeId} className="lb-input" value={String(rangeCells)} onChange={(event) => onRangeChange(Number(event.target.value))}>
+        {NOISE_RANGE_OPTIONS.map((option) => (
+          <option key={option.cells} value={String(option.cells)}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <p className="lb-label">{NOISE_HINT}</p>
+    </div>
+  )
+}
+
 export function RoomPanel({
   room,
   players,
@@ -229,6 +266,7 @@ export function RoomPanel({
   onGiveGroupView,
   laserOn = false,
   onToggleLaser,
+  noise,
 }: RoomPanelProps) {
   const waitingCount = players.filter((player) => player.status === 'waiting' && player.connected).length
   /** Aviso do último "Dar o que o grupo viu", no card de quem recebeu. */
@@ -279,6 +317,8 @@ export function RoomPanel({
               <p className="lb-label">{LASER_HINT}</p>
             </div>
           )}
+
+          {noise !== undefined && <NoiseControl {...noise} />}
 
           <TunnelSection tunnel={tunnel} onStartTunnel={onStartTunnel} onStopTunnel={onStopTunnel} />
 

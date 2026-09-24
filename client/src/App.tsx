@@ -13,6 +13,9 @@ import { listen } from '@tauri-apps/api/event'
 import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } from './net/hostBridge'
 import { useSignalStore } from './stores/signalStore'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
+import { useNoiseStore } from './stores/noiseStore'
+import { noiseFeedbackText } from './lib/noise'
+import { isEditableTarget } from './lib/keymap'
 import { useFollowStore } from './stores/followStore'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
@@ -503,6 +506,20 @@ function App() {
   }
   useEffect(() => useMapStore.subscribe((state) => state.map, () => hostBridgeRef.current?.notifyMapChanged()), [])
   const laserToggled = useLaserStore((state) => state.toggled)
+  const noiseArmed = useNoiseStore((state) => state.armed)
+  const noiseRangeCells = useNoiseStore((state) => state.rangeCells)
+  // Ruído armado: Escape desarma sem disparar (fora de campo de texto, onde o Escape é da edição).
+  useEffect(() => {
+    if (!noiseArmed) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      const alvo = event.target
+      if (alvo instanceof HTMLElement && isEditableTarget(alvo.tagName, alvo instanceof HTMLInputElement ? alvo.type : undefined, alvo.isContentEditable)) return
+      useNoiseStore.getState().setArmed(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [noiseArmed])
   // B2 — o `off` sai no fim do traço: soltar o botão, sair da janela ou desarmar (L e botão Laser).
   useEffect(
     () =>
@@ -530,6 +547,7 @@ function App() {
     setRoomPlayers([])
     useSignalStore.getState().clear()
     useLaserStore.getState().setToggled(false)
+    useNoiseStore.getState().setArmed(false)
   }
   /**
    * O mundo que o host serve (cena aberta + as de fundo), para o painel Jogo:
@@ -607,7 +625,20 @@ function App() {
             onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}
             onGiveGroupView={(playerId) => hostBridgeRef.current?.giveGroupView(playerId) ?? null}
             laserOn={laserToggled}
-            onToggleLaser={() => useLaserStore.getState().setToggled(!useLaserStore.getState().toggled)}
+            onToggleLaser={() => {
+              // Laser e Ruído disputam o mesmo clique no mapa: ligar um desliga o outro.
+              useNoiseStore.getState().setArmed(false)
+              useLaserStore.getState().setToggled(!useLaserStore.getState().toggled)
+            }}
+            noise={{
+              armed: noiseArmed,
+              rangeCells: noiseRangeCells,
+              onToggle: () => {
+                useLaserStore.getState().setToggled(false)
+                useNoiseStore.getState().setArmed(!useNoiseStore.getState().armed)
+              },
+              onRangeChange: (cells) => useNoiseStore.getState().setRangeCells(cells),
+            }}
           />
         }
       />
@@ -1709,6 +1740,11 @@ function App() {
           focusObstacles={canvasObstacles}
           onTravelPin={handleTravelPin}
           onLaserMove={(x, y) => hostBridgeRef.current?.laserMove(x, y)}
+          onNoise={(x, y) => {
+            // Sala fechada devolve `null`: o aviso diz por que o ruído não saiu.
+            const heard = hostBridgeRef.current?.noise(x, y, useNoiseStore.getState().rangeCells) ?? null
+            useToastStore.getState().push('info', noiseFeedbackText(heard))
+          }}
           onRoomCreated={() => {
             // O nome é pedido sobre a própria Sala (PixiCanvas); a aba Mapa só
             // mostra o resto da Sala recém-criada, sem tirar o foco do canvas.

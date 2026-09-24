@@ -1,7 +1,8 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExplored, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
+import { filterMapForPlayer, noiseCueForPlayer, playerBlockedRings } from '../lib/fogFilter'
+import { clampNoiseRangeCells } from '../lib/noise'
 import { validateTokenMove } from '../lib/moveValidation'
 import { doorOpensFrom, tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
@@ -322,6 +323,14 @@ export interface HostSession {
    * nada fica guardado. `outbound.length` é quantos receberam.
    */
   sceneNote(sceneId: string, text: string, source: HostMapSource): HostResult
+  /**
+   * RUÍDO NO MAPA: o mestre fez um ruído em (`x`, `y`) da cena ABERTA no
+   * editor (é o mapa em que ele clicou). Quem joga nessa cena e tem ficha a
+   * até `rangeCells` casas (preso na faixa de `lib/noise.ts`) recebe `noise`
+   * só com a DIREÇÃO, pelo recorte de `noiseCueForPlayer`. Nada fica guardado:
+   * quem entra depois não ouve. `outbound.length` é quantos ouviram.
+   */
+  noise(x: number, y: number, rangeCells: number, source: HostMapSource): HostResult
   /**
    * "Deixar ir": revalida o pedido contra o mundo de AGORA (o token pode ter
    * andado, o pino sumido) e devolve `applyTransfer` + `scene.changed` ao
@@ -1412,6 +1421,25 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // olhando a Cripta e mandar recado para o Salão.
         if (sceneFor(playerId, world)?.sceneId !== sceneId) continue
         outbound.push({ clientId, msg: { type: 'scene.note', id, text: clamped } })
+      }
+      return { outbound }
+    },
+
+    noise(x, y, rangeCells, source) {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return { outbound: [] }
+      const world = toWorld(source)
+      const scene = world.open
+      const rangePx = clampNoiseRangeCells(rangeCells) * scene.map.grid
+      const id = randomId()
+      const outbound: Outbound[] = []
+      for (const [clientId, playerId] of byClient) {
+        if (statusOf(playerId) !== 'playing') continue
+        // A cena DELE, não a do editor: quem está na Cripta não ouve o Salão,
+        // mesmo com a ficha na mesma coordenada.
+        if (sceneFor(playerId, world) !== scene) continue
+        const dir = noiseCueForPlayer(scene.map, playerId, ownership, { x, y }, rangePx)
+        if (dir === null) continue
+        outbound.push({ clientId, msg: { type: 'noise', id, dir } })
       }
       return { outbound }
     },

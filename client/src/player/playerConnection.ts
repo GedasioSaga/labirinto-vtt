@@ -6,7 +6,8 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
-import { parseLaserMessage, parseSceneNote } from '../net/protocol'
+import { parseLaserMessage, parseNoiseMessage, parseSceneNote } from '../net/protocol'
+import { NOISE_CUE_TTL_MS, type NoiseDirection } from '../lib/noise'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -43,6 +44,11 @@ export interface PlayerState {
    * tela o mostra como texto, nunca como HTML.
    */
   note?: { id: string; text: string }
+  /**
+   * Ruído que o jogador ouviu: só a direção, vista da ficha dele. Some sozinho
+   * depois de `NOISE_CUE_TTL_MS`; um ruído novo toma o lugar e renova o prazo.
+   */
+  noise?: { id: string; dir: NoiseDirection }
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -329,6 +335,23 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return notice.phase === 'arrived' ? ARRIVAL_NOTICE_TTL_MS : TRAVEL_NOTICE_TTL_MS
   }
 
+  let noiseTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearNoiseTimer(): void {
+    if (noiseTimer !== null) clearTimeout(noiseTimer)
+    noiseTimer = null
+  }
+
+  /** Mostra o ruído e agenda a saída. O prazo é do ruído mais novo: o de antes não apaga este. */
+  function showNoise(id: string, dir: NoiseDirection): void {
+    clearNoiseTimer()
+    setState({ noise: { id, dir } })
+    noiseTimer = setTimeout(() => {
+      noiseTimer = null
+      setState({ noise: undefined })
+    }, NOISE_CUE_TTL_MS)
+  }
+
   let laserTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearLaserTimer(): void {
@@ -467,7 +490,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, glimpses: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined })
+        clearNoiseTimer()
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, glimpses: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, noise: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -479,7 +503,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSignalTimers()
         clearLaserTimer()
         clearDoorNotice()
-        setState({ signals: undefined, laser: undefined, doorNotice: undefined })
+        // O ruído era da cena de antes: a direção dele não vale no mapa novo.
+        clearNoiseTimer()
+        setState({ signals: undefined, laser: undefined, doorNotice: undefined, noise: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -501,6 +527,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const note = parseSceneNote(data)
         if (note === null) return
         setState({ note: { id: note.id, text: note.text } })
+        return
+      }
+      case 'noise': {
+        // Sem mapa na tela não há de onde ouvir.
+        if (state.status !== 'playing') return
+        const noise = parseNoiseMessage(data)
+        if (noise === null) return
+        showNoise(noise.id, noise.dir)
         return
       }
       case 'laser': {
@@ -572,7 +606,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         clearTravelTimer()
-        setState({ status: 'closed', doorNotice: undefined, travel: undefined })
+        clearNoiseTimer()
+        setState({ status: 'closed', doorNotice: undefined, travel: undefined, noise: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -627,6 +662,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearLaserTimer()
     clearDoorNotice()
     clearTravelTimer()
+    clearNoiseTimer()
     const current = socket
     socket = null
     current?.close()
@@ -727,7 +763,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, glimpses: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, glimpses: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, noise: undefined })
       open()
     },
     close: detach,

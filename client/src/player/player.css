@@ -1081,3 +1081,101 @@
   outline: 2px solid var(--lb-color-brass, #e0a44a);
   outline-offset: 2px;
 }
+
+/*
+ * Ruído no mapa: seta na BORDA da tela, do lado de onde veio, com o texto
+ * curto ao lado. Nada aqui recebe toque (o jogador pode estar arrastando a
+ * ficha) e nada aponta um ponto do mapa: só a direção. Linguagem de minimapa:
+ * pílula escura chapada, linha fina clara, seta de latão sem textura.
+ */
+.pp-noise {
+  position: fixed;
+  inset: 0;
+  z-index: 26;
+  pointer-events: none;
+  /* Entrada e saída; os atrasos vêm do componente, amarrados ao prazo do aviso. */
+  animation:
+    pp-noise-in 160ms ease-out both,
+    pp-noise-out 500ms ease-in forwards;
+}
+
+.pp-noise__cue {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 32px);
+}
+
+.pp-noise__cue[data-dir='n'] { top: 12px; left: 50%; transform: translateX(-50%); flex-direction: column; }
+.pp-noise__cue[data-dir='s'] { bottom: 12px; left: 50%; transform: translateX(-50%); flex-direction: column-reverse; }
+.pp-noise__cue[data-dir='e'] { right: 12px; top: 50%; transform: translateY(-50%); flex-direction: row-reverse; }
+.pp-noise__cue[data-dir='w'] { left: 12px; top: 50%; transform: translateY(-50%); }
+.pp-noise__cue[data-dir='ne'] { top: 12px; right: 12px; flex-direction: row-reverse; }
+.pp-noise__cue[data-dir='nw'] { top: 12px; left: 12px; }
+.pp-noise__cue[data-dir='se'] { bottom: 12px; right: 12px; flex-direction: row-reverse; }
+.pp-noise__cue[data-dir='sw'] { bottom: 12px; left: 12px; }
+.pp-noise__cue[data-dir='around'] { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+
+.pp-noise__arrow {
+  display: inline-flex;
+  flex: none;
+}
+
+.pp-noise__arrow svg {
+  fill: var(--lb-color-brass, #e0a44a);
+  stroke: var(--lb-color-parchment, #eceae4);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  animation: pp-noise-pulse 700ms ease-in-out 2;
+}
+
+.pp-noise__text {
+  padding: 6px 12px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 14px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  white-space: nowrap;
+}
+
+@keyframes pp-noise-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pp-noise-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* A seta "respira" duas vezes na chegada: chama o olho para a borda sem piscar sem parar. */
+@keyframes pp-noise-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-noise {
+    animation: none;
+  }
+  .pp-noise__arrow svg {
+    animation: none;
+  }
+}

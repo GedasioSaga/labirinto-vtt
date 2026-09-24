@@ -159,6 +159,12 @@ export interface HostBridge {
    */
   sceneNote(sceneId: string, text: string): number | null
   /**
+   * RUÍDO NO MAPA em (`x`, `y`) da cena aberta, com alcance em casas. Sai só a
+   * direção, só para quem está perto. Devolve quantos ouviram (0 = ninguém
+   * perto), ou `null` com a sala fechada.
+   */
+  noise(x: number, y: number, rangeCells: number): number | null
+  /**
    * "Ver tela" do painel Grupo: o último recorte que SAIU pelo fio para este
    * jogador (a cena dele, com a névoa e a zona oculta já aplicadas), a espera
    * (`waiting`) ou `null` quando ele não tem tela (caiu, saiu, sala fechada).
@@ -834,6 +840,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     sceneNote(sceneId, text) {
       if (session === null) return null
       const result = session.sceneNote(sceneId, text, world())
+      void dispatch(result)
+      return result.outbound.length
+    },
+
+    noise(x, y, rangeCells) {
+      if (session === null) return null
+      const result = session.noise(x, y, rangeCells, world())
       void dispatch(result)
       return result.outbound.length
     },
