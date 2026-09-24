@@ -465,6 +465,57 @@
   }
 }
 
+/* "Trancada" com os três pedidos ao mestre: a mesma pílula, com botões em linha. */
+.pp-notice--door {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 6px 6px 14px;
+  max-width: calc(100vw - 32px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.pp-notice__text {
+  margin-right: 4px;
+}
+
+.pp-notice__action,
+.pp-notice__close {
+  min-height: 32px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pp-notice__close {
+  min-width: 32px;
+  padding: 4px 8px;
+  border-color: transparent;
+}
+
+.pp-notice__action:hover,
+.pp-notice__close:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* CHAVE ABRE PORTA: "Usar <chave>" é a ação que resolve sem esperar o mestre. */
+.pp-notice__action--primary {
+  border-color: var(--lb-color-brass, #e0a44a);
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-notice__action:focus-visible,
+.pp-notice__close:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
 .pp-section {
   display: grid;
   gap: 8px;

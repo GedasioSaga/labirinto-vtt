@@ -126,6 +126,7 @@ describe('planGather e applyGatherPlan', () => {
     sceneId,
     sceneName: null,
     travelPending: false,
+    mochila: [],
     token: { id: token.id, color: '#3cff00', x: token.x, y: token.y },
   })
   const ana = membro('p1', 'Ana', 'salao', lanterna)

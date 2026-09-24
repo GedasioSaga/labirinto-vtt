@@ -7,6 +7,8 @@ import { useToastStore, type ToastKind } from './stores/toastStore'
 import { ensinaOQueFazer } from './lib/erroQueEnsina'
 import { motivoDaFalhaDeArquivo, temPonteDoApp } from './lib/foraDoApp'
 import { useSessionStore, subscribeToDirtyFlag } from './stores/sessionStore'
+import { restoreRecoveryCopy, startRecoveryAutosave, type RecoveryAutosave } from './stores/recoveryAutosave'
+import { clearRecoveryCopy, formatRecoveryTime, readRecoveryCopy, writeRecoveryCopy, type RecoveryCopy } from './lib/recoveryCopy'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -19,7 +21,7 @@ import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
-import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
+import { partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -33,6 +35,7 @@ import { OptionsScreen } from './screens/OptionsScreen'
 import { selectAlignableUnitCount, useMapStore } from './stores/mapStore'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
+  applyItemsInScene,
   hasUnsavedWork,
   hostWorldOf,
   pinExitsTravelOf,
@@ -69,6 +72,7 @@ import { isArrivalOnly } from './lib/pinTravel'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
+import { readDoorKey, setDoorKey } from './lib/doorKey'
 import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
@@ -347,6 +351,7 @@ function App() {
   const resizeRoomDimensions = useMapStore((state) => state.resizeRoomDimensions)
   const setMapScale = useMapStore((state) => state.setMapScale)
   const setMeasurementMode = useMapStore((state) => state.setMeasurementMode)
+  const setMovementRules = useMapStore((state) => state.setMovementRules)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
   const setTextFontFamily = useMapStore((state) => state.setTextFontFamily)
@@ -453,6 +458,27 @@ function App() {
           if (!wall?.door || (open && wall.door.locked)) return
           store.setWallDoor(wallId, { ...wall.door, open })
         },
+        // "Destrancar e abrir" do mestre ao pedido da porta trancada: tira o
+        // cadeado e abre, na cena da porta (de fundo quando o jogador está lá).
+        unlockAndOpenDoor: (wallId, sceneId) => {
+          if (sceneId !== undefined) {
+            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => {
+              const wall = m.walls.find((w) => w.id === wallId)
+              return wall?.door ? mapFactory.setWallDoor(m, wallId, { ...wall.door, open: true, locked: false }) : m
+            })
+            return
+          }
+          const store = useMapStore.getState()
+          const wall = store.map.walls.find((w) => w.id === wallId)
+          if (wall?.door) store.setWallDoor(wallId, { ...wall.door, open: true, locked: false })
+        },
+        // ITEM PEGÁVEL: o pino pego sai e as mochilas mudam, já validados pela
+        // sessão. Vale para TODO passo do desfazer da cena, aberta ou de fundo
+        // (`applyItemsInScene`): um Ctrl+Z do mestre não devolve a chave ao
+        // chão com ela ainda na mochila de alguém.
+        applyItems: (change) => {
+          applyItemsInScene(change)
+        },
         // Nome/foto que o jogador trocou no próprio token, já validados pela
         // sessão (o token é dele, a foto é auto-contida). `image` chega como
         // referência embutida: ela vira a cópia que viaja, e o caminho do
@@ -552,6 +578,15 @@ function App() {
                 if (member.token !== null) useAdventureStore.getState().goToPoint(member.sceneId, { x: member.token.x, y: member.token.y })
               },
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
+              // ITEM PEGÁVEL: tirar, devolver ao chão ou dar, gravado na cena
+              // da ficha (fora do desfazer, em todo passo dele). A cena de
+              // fundo não passa pelo `useMapStore`: o snapshot sai por aqui.
+              onItem: (action) => {
+                const change = partyItemChange(world, action, crypto.randomUUID())
+                if (change === null || !applyItemsInScene(change)) return false
+                hostBridgeRef.current?.notifyMapChanged()
+                return true
+              },
               followingId,
               onToggleFollow: (member) => useFollowStore.getState().toggle(member.playerId),
             }}
@@ -593,6 +628,17 @@ function App() {
    * arquivo da cena aberta, e quem grava é `useAdventureStore.flush`.
    */
   const [currentMapPath, setCurrentMapPath] = useState<string | null>(null)
+  /** O salvamento automático lê a origem na hora da cópia, fora do render. */
+  const currentMapPathRef = useRef<string | null>(null)
+  /**
+   * Cópia de recuperação deixada por uma abertura anterior que fechou sem
+   * salvar — vira a oferta "Recuperar" no menu inicial. Só vale até o mestre
+   * entrar no editor: dali em diante o salvamento automático desta abertura
+   * pode gravar por cima dela.
+   */
+  const [recoveryCopy, setRecoveryCopy] = useState<RecoveryCopy | null>(null)
+  const recoveryOfferExpiredRef = useRef(false)
+  const recoveryAutosaveRef = useRef<RecoveryAutosave | null>(null)
   /**
    * Troca de mapa que está esperando o mestre responder sobre o trabalho não
    * salvo. `run` é a abertura que já ia acontecer (seletor de arquivo ou
@@ -740,6 +786,47 @@ function App() {
   // Pino de viagem: toda mudança de ligação na cena aberta (ligar, desligar,
   // apagar, Ctrl+Z) é espelhada no par da outra cena.
   useEffect(() => subscribeToTravelLinks(), [])
+
+  useEffect(() => {
+    currentMapPathRef.current = currentMapPath
+  }, [currentMapPath])
+
+  /**
+   * Salvamento automático com recuperação: ao abrir, procura a cópia de
+   * recuperação de uma abertura anterior (oferta no menu); enquanto o mestre
+   * edita, guarda a cópia sozinho. Só no app (Tauri) — no `vite` puro dos
+   * testes e2e sem a ponte não existe disco, mesmo guard do efeito abaixo.
+   * Ler a cópia é melhor esforço: sem cópia legível não há o que oferecer, e
+   * um erro ali não pode virar aviso na tela inicial.
+   */
+  useEffect(() => {
+    if (!isTauri()) return
+    let cancelled = false
+    readRecoveryCopy()
+      .then((copy) => {
+        if (!cancelled && !recoveryOfferExpiredRef.current) setRecoveryCopy(copy)
+      })
+      .catch(() => undefined)
+    const autosave = startRecoveryAutosave({
+      storage: { write: writeRecoveryCopy, clear: clearRecoveryCopy },
+      getLooseMapPath: () => currentMapPathRef.current,
+      onError: (err) => reportFileError('guardar a cópia de recuperação', err),
+    })
+    recoveryAutosaveRef.current = autosave
+    return () => {
+      cancelled = true
+      autosave.stop()
+      recoveryAutosaveRef.current = null
+    }
+  }, [])
+
+  // Entrou no editor (mapa novo, aberto ou recuperado): a oferta do menu
+  // deixa de valer, porque o salvamento automático desta abertura assume a cópia.
+  useEffect(() => {
+    if (screen !== 'editor') return
+    recoveryOfferExpiredRef.current = true
+    setRecoveryCopy(null)
+  }, [screen])
 
   /**
    * Avisa antes de fechar a janela (X, Alt+F4, taskbar) se houver edição não
@@ -978,6 +1065,12 @@ function App() {
   const handleToggleLocked = () => {
     if (!selectedWall || !selectedWall.door) return
     setDoorLocked(selectedWall.id, !selectedWall.door.locked)
+  }
+
+  /** CHAVE ABRE PORTA: "Abre com" da porta selecionada, com histórico (Ctrl+Z desfaz). "" tira a chave. */
+  const handleDoorKeyChange = (nome: string) => {
+    if (!selectedWall || !selectedWall.door) return
+    setWallDoor(selectedWall.id, setDoorKey(selectedWall.door, nome))
   }
 
   /**
@@ -1315,6 +1408,9 @@ function App() {
       // par da outra cena fica como está.
       passage: passageOf(pin),
       onPassageChange: (passagem: PinPassage) => useMapStore.getState().updatePin(pin.id, { passagem }),
+      // CHAVE ABRE PORTA: "Abre com" do pino trancado, com desfazer; "" tira a chave.
+      keyName: pin.abreCom ?? '',
+      onKeyChange: (nome: string) => useMapStore.getState().updatePin(pin.id, { abreCom: readDoorKey(nome) }),
       // Mão única mora no PAR (cena de fundo): marcar e desmarcar vão pela
       // aventura, fora do desfazer desta cena.
       onOneWayChange: (exitId: string, on: boolean) => {
@@ -1529,6 +1625,17 @@ function App() {
     setScreen('editor')
   }
 
+  /**
+   * "Recuperar" do menu (`restoreRecoveryCopy`): o trabalho não salvo volta
+   * ao editor como NÃO salvo, apontado para o arquivo de onde veio, e a cópia
+   * passa a ser desta abertura — Salvar a apaga.
+   */
+  const handleRecover = async (copy: RecoveryCopy) => {
+    setCurrentMapPath(await restoreRecoveryCopy(copy, openMapFile))
+    recoveryAutosaveRef.current?.adoptExistingCopy()
+    setScreen('editor')
+  }
+
   const handleImportBackground = async () => {
     try {
       const sourcePath = await pickBackgroundImage()
@@ -1613,6 +1720,14 @@ function App() {
           onCreate={() => setScreen(createMapScreen())}
           onLoad={() => setScreen('load-map')}
           onOptions={() => setScreen('options')}
+          recovery={
+            recoveryCopy && {
+              mapName: recoveryCopy.map.name,
+              savedAtLabel: formatRecoveryTime(recoveryCopy.savedAtMs, Date.now()),
+              onRecover: () => void handleRecover(recoveryCopy),
+              onDismiss: () => setRecoveryCopy(null),
+            }
+          }
         />
         {toastStack}
       </>
@@ -1875,6 +1990,7 @@ function App() {
               onMeasurementModeChange: setMeasurementMode,
               gridShape,
             }}
+            movement={{ movement: map.movement, onMovementChange: setMovementRules }}
             gridAlign={{
               backgroundFilename:
                 map.background.type === 'image' && map.background.src
@@ -1921,6 +2037,7 @@ function App() {
               onToggleDoor: handleToggleDoor,
               onToggleOpen: handleToggleOpen,
               onToggleLocked: handleToggleLocked,
+              onKeyChange: handleDoorKeyChange,
             }}
             doorKind={{
               kind: selectedWall?.door ? selectedWall.door.kind : doorKind,
@@ -1969,6 +2086,16 @@ function App() {
               onNpcChange: (npc) => selectedToken && marcarFichaNpc(selectedToken.id, npc),
             }}
             tokenCarry={ligacaoLevarFicha(roomPanelWorld(), roomPlayers)}
+            tokenHealth={{
+              // Mesmo caminho da cor e do tamanho: cada número confirmado é um
+              // Ctrl+Z. `null` tira a barra da ficha.
+              onHealthChange: (health) => selectedToken && updateToken(selectedToken.id, { health }),
+            }}
+            tokenCondition={{
+              // Alterna sobre o estado ATUAL da ficha no store (não sobre a
+              // cópia desta renderização) e passa pelo histórico: Ctrl+Z desfaz.
+              onToggleCondition: (condition) => selectedToken && useMapStore.getState().toggleTokenCondition(selectedToken.id, condition),
+            }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
@@ -2067,6 +2194,14 @@ function App() {
               onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
               onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),
               onDelete: () => selectedPin && useMapStore.getState().removePin(selectedPin.id),
+              // ITEM PEGÁVEL: só com um pino "!"/"?" aberto (a passagem não vai para a mochila).
+              item:
+                selectedPin && selectedPin.kind !== 'viagem'
+                  ? {
+                      value: selectedPin.item ?? null,
+                      onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
+                    }
+                  : null,
             }}
             pinIcon={{
               // Mesma ligação dupla do tipo logo acima: com um pino aberto, o

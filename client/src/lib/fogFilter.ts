@@ -1,11 +1,15 @@
 import type { DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
 import { isTokenPhotoData } from './tokenPhoto'
+import { healthForPlayer } from './tokenHealth'
+import { tokenConditionsForPlayer } from './tokenConditions'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
 import { exitLabelsOf, isArrivalOnly, travelExitsOf } from './pinTravel'
+import { itemOfPin, tokenReachesPin } from './items'
+import { keyForPin } from './doorKey'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
@@ -390,9 +394,52 @@ function withoutNpcMark(token: Token): Token {
   return copy
 }
 
+/**
+ * Barra de vida como o jogador pode recebê-la (`healthForPlayer`): a que o
+ * mestre deixou só para si SOME do token — o campo inteiro, não só os
+ * números —, e a que os jogadores veem vai como proporção. Vale também para o
+ * token do próprio jogador: quem decide a barra é o mestre, ficha por ficha.
+ */
+function tokenHealthForPlayer(token: Token): Token {
+  if (token.health === undefined) return token
+  const health = healthForPlayer(token.health)
+  const copy: Token = { ...token }
+  if (health === null) delete copy.health
+  else copy.health = health
+  return copy
+}
+
+/**
+ * A ficha como o jogador pode recebê-la: a foto só auto-contida
+ * (`sanitizeTokenPhoto`) e a CONDIÇÃO só com os ids da lista
+ * (`tokenConditionsForPlayer`) — texto que o mestre ou o arquivo enfiar no
+ * campo não sai da máquina dele. Quem decide SE a ficha vai é o filtro de
+ * `filterMapForPlayer`; a condição só atravessa junto com ela.
+ */
+function tokenForPlayer(token: Token): Token {
+  return tokenConditionsForPlayer(sanitizeTokenPhoto(token))
+}
+
+/** A ficha sem a mochila: é como o jogador recebe a ficha de outro. Sem mochila, o mesmo objeto. */
+function withoutBackpack(token: Token): Token {
+  if (!('mochila' in token)) return token
+  const { mochila: _dele, ...semMochila } = token
+  return semMochila
+}
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
+}
+
+/**
+ * A porta como o jogador a vê: aberta ou fechada, nunca trancada — e sem o
+ * "Abre com" (CHAVE ABRE PORTA): o jogador nunca descobre que portas uma chave
+ * abre. Quem tem a chave só lê o nome dela na recusa do toque (`hostSession`).
+ */
+function withoutLock(door: DoorState): DoorState {
+  const { abreCom: _chave, ...semChave } = door
+  return { ...semChave, locked: false }
 }
 
 /**
@@ -629,18 +676,25 @@ export function filterMapForPlayer(
     isShapeVisible(points) || (explored !== undefined && isShapeExplored(explored, outsideZones(points)))
 
   const visibleDoorIds: string[] = []
-  /** Porta dentro da visão sai com o estado real; explorada fora dela, com o lembrado; senão não sai. */
+  /**
+   * Porta dentro da visão sai com o estado real; explorada fora dela, com o
+   * lembrado; senão não sai. O CADEADO nunca sai: a porta trancada chega como
+   * porta fechada comum, e o jogador só descobre que está trancada tentando
+   * abrir (a recusa `locked` do host). A lembrança (`seenDoors`) é gravada a
+   * partir deste recorte, então também nasce sem cadeado.
+   */
   const doorWallForPlayer = (w: Wall, door: DoorState): Wall[] => {
     // Porta com o meio escondido não sai nem pelas amostras dos lados.
     if (inConcealZone(wallMidpoint(w))) return []
     if (doorSamples(w, DOOR_VISION_PROBE).some(isVisible)) {
       visibleDoorIds.push(w.id)
-      return [w]
+      return [{ ...w, door: withoutLock(door) }]
     }
     if (explored === undefined) return []
     const probe = explored.cell * DOOR_EXPLORED_PROBE_CELLS
     if (!doorSamples(w, probe).some(isPointExploredOpen)) return []
-    return [{ ...w, door: seenDoors?.get(w.id) ?? unseenDoor(door) }]
+    const remembered = seenDoors?.get(w.id)
+    return [{ ...w, door: remembered === undefined ? unseenDoor(door) : withoutLock(remembered) }]
   }
 
   const playerStairs = visibleStairs(map.stairs, hiddenLayers).filter((s) => {
@@ -665,9 +719,12 @@ export function filterMapForPlayer(
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
     // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
+    // MOCHILA: só a da PRÓPRIA ficha sai. O que o colega carrega é dele e do
+    // mestre — ver a ficha dele no mapa não conta o que tem no bolso.
     tokens: layerTokens
       .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
-      .map(sanitizeTokenPhoto)
+      .map((t) => tokenForPlayer(owned.has(t.id) ? t : withoutBackpack(t)))
+      .map(tokenHealthForPlayer)
       .map(withoutNpcMark),
     markers: map.markers.filter((m) => !inRoomHiddenFromPlayer({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
     lines: map.lines.filter((l) => !l.points.some(inRoomHiddenFromPlayer) && !l.points.some(inConcealZone) && isShapeKnown(l.points)),
@@ -744,7 +801,7 @@ export function filterMapForPlayer(
         const point = { x: p.x, y: p.y }
         return !inRoomHiddenFromPlayer(point) && isPointKnown(point)
       })
-      .map(pinForPlayer),
+      .map((p) => pinForPlayer(p, ownTokens, map.grid)),
     // Metadado do mestre: nome e estado das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
@@ -765,8 +822,12 @@ export function filterMapForHost(map: MapData): MapData {
  * - `passagem` VAI, de propósito: o cartão do jogador precisa saber se oferece
  *   "Passar", "Pedir para passar" ou "Está trancada". O modo diz como a porta
  *   se comporta, não para onde ela leva.
+ * - `abreCom` NUNCA (CHAVE ABRE PORTA): o jogador não descobre que pinos uma
+ *   chave abre. Em troca, `chave` — o nome do item que ELE já carrega — sai só
+ *   no pino trancado que uma ficha dele, encostada, abre (`ownTokens`: as
+ *   fichas dele, com a mochila do mapa do mestre).
  */
-function pinForPlayer(pin: Pin): Pin {
+function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
   // arquivo trouxer e o app não conhece (versão futura, edição à mão) não
   // chega ao jogador por descuido (revisão de segurança, 22/09). `destino`,
@@ -793,5 +854,11 @@ function pinForPlayer(pin: Pin): Pin {
   // campo: o cartão dele é o de sempre, e o recorte também.
   const escolhas = exitLabelsOf(pin)
   if (escolhas.length > 1) forPlayer.escolhas = escolhas
+  // ITEM PEGÁVEL: o cartão precisa do nome e de saber se pede ao mestre.
+  // Cópia limpa (`itemOfPin`), nunca o objeto do mestre.
+  const item = itemOfPin(pin)
+  if (item !== null) forPlayer.item = item
+  const key = keyForPin(pin, ownTokens.filter((t) => tokenReachesPin(t, pin, grid)))
+  if (key !== null) forPlayer.chave = key.item.nome
   return forPlayer
 }

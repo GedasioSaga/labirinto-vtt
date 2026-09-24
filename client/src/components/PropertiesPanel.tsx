@@ -12,6 +12,7 @@ import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
 import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
 import type { ScenarioLinkControlsProps } from './ScenarioLinkControls'
+import type { MovementControlsProps } from './MovementControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
 import { RegionJoinField, RegionSmoothButton, RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
@@ -26,7 +27,11 @@ import { TokenSizeControls, type TokenSizeControlsProps } from './TokenSizeContr
 import { TokenNpcControls, type TokenNpcControlsProps } from './TokenNpcControls'
 import { TokenCarryControls } from './TokenCarryControls'
 import type { TokenCarryWiring } from '../lib/party'
+import { TokenHealthControls, type TokenHealthControlsProps } from './TokenHealthControls'
 import { selectedTokenSize } from '../lib/tokenSize'
+import { readTokenHealth } from '../lib/tokenHealth'
+import { TokenConditionControls, type TokenConditionControlsProps } from './TokenConditionControls'
+import { tokenConditionsOf } from '../lib/tokenConditions'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
@@ -94,6 +99,8 @@ interface PropertiesPanelProps {
   layers: LayersPanelProps
   selection: SelectionControlsProps
   scenarioLink: ScenarioLinkControlsProps
+  /** "Movimento dos jogadores" na janela Configurações do mapa; ausente, a seção não aparece. */
+  movement?: MovementControlsProps
   selectedWall: Wall | null
   wallDoor: Omit<WallDoorControlsProps, 'door'>
   doorKind: DoorKindControlsProps
@@ -120,6 +127,10 @@ interface PropertiesPanelProps {
    * sem o controle (quem monta o painel sem aventura).
    */
   tokenCarry?: TokenCarryWiring
+  /** Vida da ficha selecionada — a barra fina sob ela no mapa. */
+  tokenHealth: Omit<TokenHealthControlsProps, 'health'>
+  /** Condições da ficha selecionada (envenenado, caído...) — marcadas no meio da luta. */
+  tokenCondition: Omit<TokenConditionControlsProps, 'conditions'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -185,6 +196,7 @@ export function PropertiesPanel({
   layers,
   selection,
   scenarioLink,
+  movement,
   selectedWall,
   wallDoor,
   doorKind,
@@ -200,6 +212,8 @@ export function PropertiesPanel({
   tokenSize,
   tokenNpc,
   tokenCarry,
+  tokenHealth,
+  tokenCondition,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -252,7 +266,7 @@ export function PropertiesPanel({
             {mapName} · {mapWidth}×{mapHeight} · {mapGrid}px
           </span>
         </span>
-        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} scenarioLink={scenarioLink} />
+        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} scenarioLink={scenarioLink} movement={movement} />
       </header>
 
       <div className="lb-inspector__body lb-scroll">
@@ -421,10 +435,20 @@ export function PropertiesPanel({
         {selectedToken && (
           <ToolPropertiesSection group="tokenImage" groups={groups}>
             <TokenNameControls name={selectedToken.name} {...tokenName} />
-            {/* Logo depois do nome: quem acabou de criar "Dragão" quer dizer
-                em seguida que ele é grande — e o tamanho manda no que a peça
-                cobre na grade, então vem antes da aparência (cor, foto). */}
+            {/* Vida logo abaixo do nome: é o campo que o mestre mexe a cada
+                golpe no meio da luta, e não pode morar embaixo da dobra.
+                `key` pela ficha: número digitado e não confirmado vai para a
+                ficha DO CAMPO, não para a que o clique no mapa acabou de
+                escolher (ver `HealthField`). */}
+            <TokenHealthControls key={selectedToken.id} health={readTokenHealth(selectedToken.health)} {...tokenHealth} />
+            {/* Logo depois do nome e da vida: quem acabou de criar "Dragão"
+                quer dizer em seguida que ele é grande — e o tamanho manda no
+                que a peça cobre na grade, então vem antes da aparência (cor, foto). */}
             <TokenSizeControls size={selectedTokenSize(selectedToken)} {...tokenSize} />
+            {/* Entre quem a ficha é (nome, tamanho) e como ela se parece (cor,
+                foto): a condição é o controle de MESA, mexido a cada rodada, e
+                fica à vista sem rolar. Cor e foto são de preparação. */}
+            <TokenConditionControls conditions={tokenConditionsOf(selectedToken)} {...tokenCondition} />
             {/* Antes da imagem: a cor é o caminho de um clique, a foto é o de
                 abrir o disco. Quem só quer separar aliado de inimigo não
                 precisa passar pelo controle caro para chegar no barato. */}

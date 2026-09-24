@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import type { DoorState } from '../types/map'
+import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
 import { Toggle } from './Toggle'
 
 export interface WallDoorControlsProps {
@@ -8,6 +10,52 @@ export interface WallDoorControlsProps {
   /** `DoorState.locked` existe no schema desde sempre e nunca teve UI (grep:
    *  só tipo e teste) — este é o primeiro leitor/escritor com interface. */
   onToggleLocked: () => void
+  /**
+   * CHAVE ABRE PORTA: o nome do item que abre a porta trancada ("" tira).
+   * Chega só ao sair do campo ou no Enter. Sem ele, o campo não aparece.
+   */
+  onKeyChange?: (nome: string) => void
+}
+
+/**
+ * "Abre com": o item da mochila que destranca a porta (ou o pino de viagem
+ * trancado, `PinTravelControls`) sem pedir ao mestre. O nome só vale ao sair
+ * do campo (ou Enter): cada letra não vira um passo do desfazer — o mesmo
+ * molde do nome do item pegável no pino.
+ */
+export function DoorKeyField({
+  value,
+  onChange,
+  placeholder = 'Nome do item (vazio: só o mestre abre)',
+}: {
+  value: string
+  onChange: (nome: string) => void
+  placeholder?: string
+}) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  const commit = () => {
+    if (draft.trim() === value) return
+    onChange(draft)
+  }
+  return (
+    <label className="lb-field">
+      <span className="lb-label">Abre com</span>
+      <input
+        className="lb-input"
+        type="text"
+        aria-label="Abre com"
+        placeholder={placeholder}
+        value={draft}
+        maxLength={ITEM_NAME_MAX_LENGTH}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit()
+        }}
+      />
+    </label>
+  )
 }
 
 /**
@@ -17,7 +65,7 @@ export interface WallDoorControlsProps {
  * com o estado ("Fechada" desligado, "Aberta" ligado) e não dava para saber o
  * que ligar significava. O rótulo nomeia o estado LIGADO; o switch mostra se está.
  */
-export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLocked }: WallDoorControlsProps) {
+export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLocked, onKeyChange }: WallDoorControlsProps) {
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Porta</h2>
@@ -30,6 +78,7 @@ export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLoc
           <Toggle label="Trancada" checked={door.locked} onChange={onToggleLocked} />
         </div>
       )}
+      {door !== null && door.locked && onKeyChange !== undefined && <DoorKeyField value={door.abreCom ?? ''} onChange={onKeyChange} />}
     </section>
   )
 }

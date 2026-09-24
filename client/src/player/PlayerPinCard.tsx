@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Pin, PinExitLabel, Stair, StairDirection } from '../types/map'
 import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
+import { itemOfPin } from '../lib/items'
 import { stairTravelLabel } from '../lib/stairTravel'
 import { PinTravelArt } from '../components/PinSymbolArt'
 
@@ -15,6 +16,10 @@ interface PlayerPinCardProps {
   onRequestTravel?: (exitId?: string) => void
   /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
   travelWaiting?: boolean
+  /** ITEM PEGÁVEL: "Pegar" o item do pino. Ausente = o cartão não oferece pegar. */
+  onTakeItem?: () => void
+  /** Já há um "Pegar" esperando o mestre: o botão fica desligado. */
+  takeWaiting?: boolean
   /**
    * As escadas do recorte. OBRIGATÓRIO: quando o pino é a passagem de uma
    * ESCADA que leva a outro andar (`Pin.escadaId`), o cartão acha a escada
@@ -65,6 +70,22 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
 }
 
 /**
+ * CHAVE ABRE PORTA: o pino trancado que a chave da mochila abre. O cartão diz
+ * o nome do item que o jogador já carrega — nunca o que o pino pede — e passa
+ * sem falar em mestre, como o livre. Na ESCADA trancada a pergunta fala o
+ * sentido ("Usar Chave e subir?"), e nunca o nome do andar.
+ */
+function textosDaChave(chave: string, direction: StairDirection | undefined): TextosDaPassagem {
+  const destino = direction === undefined ? 'passar por aqui' : stairTravelLabel(direction).toLowerCase()
+  return {
+    botao: `Usar ${chave}`,
+    esperando: 'Passando…',
+    pergunta: `Usar ${chave} e ${destino}?`,
+    confirmar: 'Usar',
+  }
+}
+
+/**
  * Escada: o cartão fala o sentido ("Subir", "Descer") em vez de "passar por
  * aqui". Livre continua "Passar" no botão — é o mesmo gesto da porta livre.
  */
@@ -89,7 +110,15 @@ function textosDaEscada(direction: StairDirection, livre: boolean): TextosDaPass
  * vendo onde está. O toque de fechar que cai no mapa para ali, antes do canvas:
  * fechar o cartão não arrasta o mapa nem abre outro pino.
  */
-export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, stairs }: PlayerPinCardProps) {
+export function PlayerPinCard({
+  pin,
+  onClose,
+  onRequestTravel,
+  travelWaiting = false,
+  onTakeItem,
+  takeWaiting = false,
+  stairs,
+}: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
@@ -151,22 +180,32 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
   const passagem = passageOf(pin)
   const trancada = viagem && passagem === 'trancada'
-  const podePedir = viagem && !trancada && onRequestTravel !== undefined
+  // CHAVE ABRE PORTA: o host só manda `chave` a quem encosta no pino com o
+  // item. O mapa chega da rede sem conferência campo a campo: só texto vale.
+  const chave = trancada && typeof pin.chave === 'string' && pin.chave !== '' ? pin.chave : null
+  const podePedir = viagem && (!trancada || chave !== null) && onRequestTravel !== undefined
   // Escada: o sentido vem da escada do recorte (`lib/fogFilter.ts` só manda o pino junto com ela).
   const stairDirection: StairDirection | undefined =
     viagem && pin.escadaId !== undefined ? stairs.find((s) => s.id === pin.escadaId)?.direction : undefined
   const escada = stairDirection !== undefined ? stairTravelLabel(stairDirection) : null
+  // A chave vence o modo: escada trancada com a chave na mochila também vira
+  // "Usar <chave>" — o host deixa passar (`hostSession`), então o cartão não
+  // pode esconder o gesto. Sem chave, a escada trancada lê "Está trancada".
   const textos =
-    stairDirection !== undefined
-      ? textosDaEscada(stairDirection, passagem === 'livre')
-      : passagem === 'livre'
-        ? TEXTOS_LIVRE
-        : TEXTOS_PEDE
+    chave !== null
+      ? textosDaChave(chave, stairDirection)
+      : stairDirection !== undefined
+        ? textosDaEscada(stairDirection, passagem === 'livre')
+        : passagem === 'livre'
+          ? TEXTOS_LIVRE
+          : TEXTOS_PEDE
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
   // saída só (ou sem o campo), o cartão é o de sempre.
   const escolhas = viagem ? (pin.escolhas ?? []) : []
   const encruzilhada = escolhas.length > 1
+  // ITEM PEGÁVEL: o nome vem no recorte, numa cópia limpa (`lib/fogFilter.ts`).
+  const item = itemOfPin(pin)
   const perguntar = (saida: PinExitLabel | null) => {
     setConfirming({ saida })
     if (saida !== null) setUltimaSaida(saida.id)
@@ -175,9 +214,11 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const pergunta =
     confirming === null || confirming.saida === null
       ? textos.pergunta
-      : passagem === 'livre'
-        ? `Passar por ${confirming.saida.rotulo}?`
-        : `Pedir ao mestre para passar por ${confirming.saida.rotulo}?`
+      : chave !== null
+        ? `Usar ${chave} e passar por ${confirming.saida.rotulo}?`
+        : passagem === 'livre'
+          ? `Passar por ${confirming.saida.rotulo}?`
+          : `Pedir ao mestre para passar por ${confirming.saida.rotulo}?`
 
   return (
     <div className="pp-pincard__backdrop">
@@ -205,7 +246,19 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
             {escada ?? (descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao)}
           </p>
         </div>
-        {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
+        {item !== null && (
+          // Pegar não pede confirmação: no modo "pede" o mestre ainda decide, e
+          // no livre o item só troca do chão para a mochila — "Dar a…" desfaz.
+          <div className="pp-pincard__item">
+            <p className="pp-pincard__question">{item.nome}</p>
+            {onTakeItem !== undefined && (
+              <button type="button" className="pp-pincard__travel" disabled={takeWaiting} onClick={onTakeItem}>
+                {takeWaiting ? 'Pedido enviado ao mestre' : 'Pegar'}
+              </button>
+            )}
+          </div>
+        )}
+        {trancada && chave === null && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}

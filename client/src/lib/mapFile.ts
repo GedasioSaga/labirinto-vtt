@@ -1,7 +1,10 @@
-import type { FloorStyle, MapData, Region } from '../types/map'
+import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
+import { readDoorKey } from './doorKey'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
+import { readMovementRules } from './movementRules'
+import { readCarriedItems, readPinItem } from './items'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -49,6 +52,18 @@ function entityList<T>(value: T[] | undefined): T[] {
   return value.filter((item) => item !== null && typeof item === 'object')
 }
 
+/**
+ * CHAVE ABRE PORTA: o "Abre com" é campo NOVO e OPCIONAL. Ausente continua
+ * ausente (o round-trip do mapa antigo não ganha campo); o que não é texto sai
+ * — a porta continua trancada, só deixa de abrir com item.
+ */
+function doorFromFile(door: DoorState): DoorState {
+  if (!('abreCom' in door)) return door
+  const abreCom = readDoorKey(door.abreCom)
+  const { abreCom: _cru, ...semChave } = door
+  return abreCom === undefined ? semChave : { ...semChave, abreCom }
+}
+
 /** Lista de valores simples (ids de camada): só a forma de lista é garantida. */
 function plainList<T>(value: T[] | undefined): T[] {
   return Array.isArray(value) ? value : []
@@ -85,6 +100,12 @@ function roomRotationFromFile(region: Region): Region {
   return { ...region, room: semAngulo }
 }
 
+/** `movement` só entra no mapa quando o arquivo traz regra válida: mapa de antes não ganha campo. */
+function movementField(raw: unknown): Pick<MapData, 'movement'> {
+  const movement = readMovementRules(raw)
+  return movement === undefined ? {} : { movement }
+}
+
 function deserializeMapFields(json: string): MapData {
   let parsed: Partial<MapData>
   try {
@@ -117,7 +138,7 @@ function deserializeMapFields(json: string): MapData {
     // wallKind ausente fica undefined de propósito (=== 'exterior').
     walls: entityList(parsed.walls).map((w) => ({
       ...w,
-      door: w.door ? { ...w.door, kind: w.door.kind ?? 'normal' } : null,
+      door: w.door ? doorFromFile({ ...w.door, kind: w.door.kind ?? 'normal' }) : null,
     })),
     lights: entityList(parsed.lights),
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
@@ -132,7 +153,17 @@ function deserializeMapFields(json: string): MapData {
     // salvo antes do campo existir abre igual, e escrever `?? null` quebraria a
     // promessa que mapFile.test.ts cobra — round-trip que preserva o mapa
     // EXATAMENTE, sem inventar campo que o arquivo não tinha.
-    tokens: entityList(parsed.tokens).map((t) => ({ ...t, image: t.image ?? null })),
+    // MOCHILA (item pegável) é campo NOVO e OPCIONAL: ausente continua
+    // ausente (mochila vazia). Item fora da forma sai; lista que sobra vazia
+    // some — o `...t` copiaria o valor cru, por isso a linha.
+    tokens: entityList(parsed.tokens).map((t) => {
+      const lido = { ...t, image: t.image ?? null }
+      if (!('mochila' in t)) return lido
+      const mochila = readCarriedItems(t.mochila)
+      if (mochila !== undefined) return { ...lido, mochila }
+      const { mochila: _descartada, ...semMochila } = lido
+      return semMochila
+    }),
     // inalterado fora o que já existia — Prop.layer ausente fica undefined
     props: entityList(parsed.props).map((p) => ({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
     stairs: entityList(parsed.stairs),
@@ -197,6 +228,14 @@ function deserializeMapFields(json: string): MapData {
       // desenha. O `...p` acima copiaria o valor cru.
       escadaId: typeof p.escadaId === 'string' && p.escadaId !== '' ? p.escadaId : undefined,
       escolhas: undefined,
+      // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
+      // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).
+      item: readPinItem(p.item),
+      // CHAVE ABRE PORTA no pino trancado: campo NOVO e OPCIONAL, com a mesma
+      // leitura do "Abre com" da porta. `chave` é só do recorte do jogador:
+      // arquivo que o traga não o põe no mapa do mestre.
+      abreCom: p.abreCom === undefined ? undefined : readDoorKey(p.abreCom),
+      chave: undefined,
     })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
@@ -211,5 +250,8 @@ function deserializeMapFields(json: string): MapData {
       parsed.measurementMode ?? ((parsed.gridShape ?? 'square') === 'hex' ? 'hex' : 'chessboard'),
     ownerId: parsed.ownerId ?? null,
     scenarioLink: parsed.scenarioLink ?? null,
+    // MOVIMENTO CONTADO: campo NOVO e OPCIONAL. Mapa de antes (ou com lixo
+    // editado à mão) abre livre e sem o campo — ver `readMovementRules`.
+    ...movementField(parsed.movement),
   }
 }

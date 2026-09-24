@@ -6,16 +6,21 @@ import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/las
 import {
   createHostSession,
   singleSceneWorld,
+  type AppliedItems,
   type AppliedTokenEdit,
+  type DoorKeyUse,
+  type DoorRequest,
+  type ItemRequest,
   type AppliedTransfer,
   type HostResult,
   type HostSession,
   type HostSignal,
   type HostWorld,
+  type PinKeyUse,
   type PlayerInfo,
   type TravelRequest,
 } from './hostSession'
-import type { LaserMessage } from './protocol'
+import type { DoorRequestHow, LaserMessage } from './protocol'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -60,6 +65,19 @@ export interface HostBridgeDeps {
   applyMove: (tokenId: string, x: number, y: number, sceneId?: string) => void
   /** Porta que o jogador abriu/fechou, já validada pela sessão (visível, destrancada, token perto). `sceneId` como em `applyMove`. */
   applyDoor: (wallId: string, open: boolean, sceneId?: string) => void
+  /**
+   * "Destrancar e abrir" do pedido da porta trancada: tirar o cadeado e abrir
+   * a porta `wallId` (na cena de fundo `sceneId`, quando vier). Sem este
+   * retorno, o pedido nem chega ao mestre — ninguém saberia atender — e o
+   * jogador lê "O mestre disse não".
+   */
+  unlockAndOpenDoor?: (wallId: string, sceneId?: string) => void
+  /**
+   * ITEM PEGÁVEL: gravar a troca de lugar do item (pino que sai, mochilas
+   * novas) na cena `change.sceneId` — a aberta quando ausente. Sem este
+   * retorno, "Pegar" nem chega ao mestre e o jogador lê "O mestre disse não".
+   */
+  applyItems?: (change: AppliedItems) => void
   /**
    * Nome/foto novos do token do jogador, já validados pela sessão (o token é
    * dele e a foto é auto-contida). Opcional como `onSignal`: quem monta a
@@ -136,6 +154,37 @@ export const PLAYER_JOINED_TOAST_MS = 10_000
  * segura quem varre a porta de fora sem transformar o rail num paredão.
  */
 export const BAD_CODE_TOAST_INTERVAL_MS = 60_000
+/** A linha do pedido da porta na caixa do mestre: o que o jogador tenta, depois do nome dele. */
+const DOOR_REQUEST_VERB: Record<DoorRequestHow, string> = {
+  knock: 'bate na porta',
+  force: 'tenta forçar a porta',
+  key: 'tenta usar uma chave na porta',
+}
+
+/** "Diego quer pegar Chave do Escudo", mais " em Mansão" quando o item está numa cena de fundo. */
+export function itemRequestLine(request: ItemRequest): string {
+  const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
+  return `${request.playerName} quer pegar ${request.itemName}${where}`
+}
+
+/** "Ana tenta forçar a porta", mais " em Mansão" quando a porta está numa cena de fundo. */
+export function doorRequestLine(request: DoorRequest): string {
+  const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
+  return `${request.playerName} ${DOOR_REQUEST_VERB[request.how]}${where}`
+}
+
+/** "Diego abriu uma porta com Chave do Escudo", mais " em Mansão" quando a porta está numa cena de fundo. */
+export function doorKeyLine(used: DoorKeyUse): string {
+  const where = used.sceneName === undefined ? '' : ` em ${used.sceneName}`
+  return `${used.playerName} abriu uma porta com ${used.itemName}${where}`
+}
+
+/** "Diego abriu Portão do cemitério com Chave do Escudo", mais " em Mansão" quando o pino está numa cena de fundo. */
+export function pinKeyLine(used: PinKeyUse): string {
+  const where = used.sceneName === undefined ? '' : ` em ${used.sceneName}`
+  return `${used.playerName} abriu ${used.pinLabel} com ${used.itemName}${where}`
+}
+
 const DEFAULT_VISION_RADIUS = 700
 /** Id de conexão do Rust (hoje um contador decimal); o padrão aceita folga sem abrir para lixo. */
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
@@ -225,6 +274,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let laserSent = false
   /** Aviso do mestre de cada pedido de passagem ainda na tela: `requestId` -> id do toast. */
   const travelToasts = new Map<string, string>()
+  /** Linha de cada pedido de porta trancada ainda na tela: `requestId` -> id do toast. */
+  const doorToasts = new Map<string, string>()
+  /** Linha de cada pedido de item ainda na tela: `requestId` -> id do toast. */
+  const itemToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
 
@@ -404,6 +457,107 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       travelToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    // Mesma regra para a porta: "Destrancar e abrir" de quem saiu não abre nada.
+    for (const [requestId, toastId] of doorToasts) {
+      if (session !== null && session.isDoorRequestPending(requestId)) continue
+      doorToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
+    // E para o item: "Deixar" de quem saiu não entrega nada.
+    for (const [requestId, toastId] of itemToasts) {
+      if (session !== null && session.isItemRequestPending(requestId)) continue
+      itemToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
+  /**
+   * Item que troca de lugar: grava pela store (a cena de fundo quando é lá)
+   * ANTES de mandar o "está com você", e o snapshot sai na hora — o pino
+   * some para todos que o viam. Sem quem grave, a resposta vira "disse não":
+   * "está com você" com a mochila vazia seria mentira.
+   */
+  const completeItems = (result: HostResult, change: AppliedItems) => {
+    if (deps.applyItems === undefined) {
+      void dispatch({ outbound: result.outbound.map(({ clientId }) => ({ clientId, msg: { type: 'pin.take.answer', answer: 'denied' } })) })
+      return
+    }
+    deps.applyItems(change)
+    void dispatch(result)
+    broadcastNow()
+  }
+
+  /** Resposta ao pedido de item: "Deixar" revalida na sessão e grava; "Não" avisa o jogador. */
+  const answerItem = (requestId: string, allow: boolean) => {
+    const toastId = itemToasts.get(requestId)
+    itemToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    if (!allow) {
+      void dispatch(session.denyItemRequest(requestId))
+      return
+    }
+    const result = session.approveItemRequest(requestId, world())
+    if (result.applyItems === undefined) void dispatch(result)
+    else completeItems(result, result.applyItems)
+  }
+
+  /**
+   * "Pegar": uma linha no grupo "Pedidos", a mesma caixa da porta e da
+   * passagem. Espera o mestre (o × vale "Não"); "Deixar todos" responde
+   * "Deixar" (`emLote`). Sozinho já abre a caixa, como o pedido da porta.
+   */
+  const askItem = (request: ItemRequest) => {
+    const toastId = useToastStore.getState().push('instrucao', itemRequestLine(request), null, {
+      actions: [
+        { label: 'Deixar', run: () => answerItem(request.requestId, true), emLote: true },
+        { label: 'Não', run: () => answerItem(request.requestId, false) },
+      ],
+      onDismiss: () => answerItem(request.requestId, false),
+      grupo: 'Pedidos',
+      sempreEmCaixa: true,
+    })
+    itemToasts.set(request.requestId, toastId)
+  }
+
+  /**
+   * Resposta ao pedido da porta trancada. "Destrancar e abrir" tira o cadeado
+   * e abre pela store (a cena de fundo quando a porta está lá), manda "O
+   * mestre abriu" e o snapshot na hora: a porta abre para quem a vê.
+   */
+  const answerDoor = (requestId: string, allow: boolean) => {
+    const toastId = doorToasts.get(requestId)
+    doorToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    if (!allow) {
+      void dispatch(session.denyDoorRequest(requestId))
+      return
+    }
+    const result = session.approveDoorRequest(requestId, world())
+    if (result.applyDoor !== undefined) deps.unlockAndOpenDoor?.(result.applyDoor.wallId, result.applyDoor.sceneId)
+    void dispatch(result)
+    broadcastNow()
+  }
+
+  /**
+   * Pedido da porta trancada: uma linha no grupo "Pedidos", a mesma caixa dos
+   * pedidos de passagem. Espera o mestre como eles (o × vale "Não"), e o
+   * "Deixar todos" da caixa responde "Destrancar e abrir" (`emLote`).
+   */
+  const askDoor = (request: DoorRequest) => {
+    const toastId = useToastStore.getState().push('instrucao', doorRequestLine(request), null, {
+      actions: [
+        { label: 'Destrancar e abrir', run: () => answerDoor(request.requestId, true), emLote: true },
+        { label: 'Não', run: () => answerDoor(request.requestId, false) },
+      ],
+      onDismiss: () => answerDoor(request.requestId, false),
+      grupo: 'Pedidos',
+      // Sozinho já abre a caixa "Pedidos (1)": o mestre, noutra cena, lê que
+      // alguém espera — o pedido de passagem sozinho segue o aviso de hoje.
+      sempreEmCaixa: true,
+    })
+    doorToasts.set(request.requestId, toastId)
   }
 
   const answerTravel = (requestId: string, allow: boolean) => {
@@ -447,6 +601,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     broadcastNow()
     notifyPlayersIfChanged()
     announceArrival(transfer)
+    // CHAVE ABRE PORTA no pino trancado: só depois de a ficha mudar de cena —
+    // se não moveu, ninguém abriu nada.
+    if (result.pinKeyUsed !== undefined) useToastStore.getState().push('info', pinKeyLine(result.pinKeyUsed))
   }
 
   /**
@@ -504,6 +661,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // só pode sair DEPOIS de a ficha mudar de cena, então quem despacha é a
     // mesma conclusão do "Deixar ir".
     if (result.applyTransfer !== undefined) completeTransfer(result, result.applyTransfer)
+    // Item livre ou "Dar a…": grava antes de responder, pelo mesmo motivo.
+    else if (result.applyItems !== undefined) completeItems(result, result.applyItems)
     else void dispatch(result)
     if (result.signal !== undefined) deps.onSignal?.(result.signal)
     if (result.applyMove !== undefined) {
@@ -515,16 +674,31 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
     if (result.applyDoor !== undefined) {
       // Todos veem a porta nova: o mestre pela store, os jogadores pelo snapshot imediato.
-      const { wallId, open, sceneId } = result.applyDoor
-      if (sceneId === undefined) deps.applyDoor(wallId, open)
+      const { wallId, open, sceneId, unlock } = result.applyDoor
+      // CHAVE ABRE PORTA: a chave da mochila tira o cadeado antes de abrir,
+      // pelo mesmo caminho do "Destrancar e abrir" do mestre.
+      if (unlock === true) deps.unlockAndOpenDoor?.(wallId, sceneId)
+      else if (sceneId === undefined) deps.applyDoor(wallId, open)
       else deps.applyDoor(wallId, open, sceneId)
       broadcastNow()
     }
+    // Sem quem destranque, a porta não abriu: o aviso não pode dizer que abriu.
+    if (result.doorKeyUsed !== undefined && deps.unlockAndOpenDoor !== undefined) useToastStore.getState().push('info', doorKeyLine(result.doorKeyUsed))
     if (result.travelRequest !== undefined) {
       if (deps.applyTransfer === undefined) {
         // Integrador sem transferência: ninguém do lado do mestre saberia atender.
         void dispatch(session.denyTravel(result.travelRequest.requestId))
       } else askTravel(result.travelRequest)
+    }
+    if (result.doorRequest !== undefined) {
+      // Integrador sem quem destranque: a pergunta não teria resposta que abrisse a porta.
+      if (deps.unlockAndOpenDoor === undefined) void dispatch(session.denyDoorRequest(result.doorRequest.requestId))
+      else askDoor(result.doorRequest)
+    }
+    if (result.itemRequest !== undefined) {
+      // Integrador sem quem grave a mochila: "Deixar" não teria como entregar.
+      if (deps.applyItems === undefined) void dispatch(session.denyItemRequest(result.itemRequest.requestId))
+      else askItem(result.itemRequest)
     }
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.

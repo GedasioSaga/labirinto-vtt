@@ -97,6 +97,8 @@ export function propsDoPainel(ficha: Token, extra: Partial<PainelProps> = {}): P
     tokenSize: { onSizeChange: nada },
     // A mesma ligação de App.tsx (`tokenNpc`).
     tokenNpc: { onNpcChange: nada },
+    tokenHealth: { onHealthChange: nada },
+    tokenCondition: { onToggleCondition: nada },
     tokenTransform: { onLockedChange: nada },
     selectedTextLabel: null,
     textLabel: { onTextChange: nada, onColorChange: nada, onFontSizeChange: nada, onFontFamilyChange: nada },

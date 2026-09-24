@@ -1,7 +1,7 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone, Pin, PinIcon, PinKind, RoomMeta,
+  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
@@ -1556,11 +1556,14 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'abreCom'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
   const next = { ...pin, ...patch }
+  // ITEM PEGÁVEL: ligar, renomear ou trocar "pega sem pedir" é mudança;
+  // desligar um item que nunca existiu não é.
+  const sameItem = next.item?.nome === pin.item?.nome && next.item?.livre === pin.item?.livre
   // `locked` por veracidade, não por igualdade estrita: `undefined` === false é
   // o contrato de compatibilidade do schema (types/map.ts), e `false !== undefined`
   // faria destravar um pino nunca travado empurrar uma entrada de undo vazia.
@@ -1579,7 +1582,10 @@ export function updatePin(
     sameExits(next, pin) &&
     // E aqui também: `undefined` === 'pede'. Escolher "Pede ao mestre" num
     // pino que nunca teve modo não empurra entrada vazia no histórico.
-    passageOf(next) === passageOf(pin)
+    passageOf(next) === passageOf(pin) &&
+    sameItem &&
+    // CHAVE ABRE PORTA: `undefined` === sem chave; apagar um campo vazio não é mudança.
+    next.abreCom === pin.abreCom
   ) {
     return map
   }
@@ -1696,4 +1702,13 @@ export function setMapScale(map: MapData, scale: MapScale): MapData {
 
 export function setMeasurementMode(map: MapData, measurementMode: MeasurementMode): MapData {
   return { ...map, measurementMode }
+}
+
+/** Regras de movimento da cena. `undefined` tira o campo: a cena volta a ser livre, igual a mapa antigo. */
+export function setMovementRules(map: MapData, movement: MovementRules | undefined): MapData {
+  if (movement === undefined) {
+    const { movement: _livre, ...rest } = map
+    return rest
+  }
+  return { ...map, movement }
 }

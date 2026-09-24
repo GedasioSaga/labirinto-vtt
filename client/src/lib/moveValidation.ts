@@ -1,7 +1,8 @@
-import type { MapData, Wall } from '../types/map'
+import type { MapData, Token, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { DEFAULT_DOOR_SLACK, findTokenPath, moveCrossesWall } from './collision'
 import { compileFloor } from './floorSdf'
+import { clampToMaxStep, findOccupant, tokensOccupy } from './movementRules'
 
 /**
  * Validação autoritativa de movimento de token (modo jogador). O servidor/host
@@ -16,12 +17,20 @@ export interface TokenMoveRequest {
   y: number
 }
 
-export type TokenMoveRejection = 'unknown_token' | 'not_owner' | 'locked' | 'outside_map' | 'wall' | 'outside_floor'
+/** `occupied`: a cena liga "Fichas ocupam espaço" e o destino cai sobre outra ficha ('Lugar ocupado'). */
+export type TokenMoveRejection = 'unknown_token' | 'not_owner' | 'locked' | 'outside_map' | 'wall' | 'outside_floor' | 'occupied'
 
 export type TokenMoveResult = { ok: true; x: number; y: number } | { ok: false; reason: TokenMoveRejection }
 
 export interface TokenMoveOptions {
+  /** Mestre: sem passo máximo e sem ocupação. */
   isHost?: boolean
+  /**
+   * Fichas que contam para "Fichas ocupam espaço". O host passa só as que o
+   * JOGADOR enxerga (o recorte dele): ficha oculta, secreta ou na névoa não
+   * pode recusar, porque a recusa diria que há alguém ali. Ausente = todas.
+   */
+  occupants?: readonly Token[]
 }
 
 /** Fração da célula entre amostras do trajeto: garante corredor de 1/4 de célula detectado. */
@@ -69,7 +78,10 @@ export function validateTokenMove(
   if (!isInsideMap(map, request.x, request.y)) return { ok: false, reason: 'outside_map' }
 
   const from = { x: token.x, y: token.y }
-  const to = { x: request.x, y: request.y }
+  // Passo máximo da cena: o jogador anda até o último ponto do alcance, na
+  // direção que pediu. Parede e chão são checados no trecho que ele anda DE
+  // FATO — obstáculo além do alcance não recusa um passo que nem chega lá.
+  const to = options.isHost ? { x: request.x, y: request.y } : clampToMaxStep(map, from, { x: request.x, y: request.y })
   // Pode ter 2 trechos: entrar em diagonal por porta aberta passa pelo vão (lib/collision.ts).
   const path = findTokenPath(from, to, map.walls, map.grid)
   if (path === null) return { ok: false, reason: 'wall' }
@@ -79,6 +91,12 @@ export function validateTokenMove(
     const b = path[i]
     if (a === undefined || b === undefined) continue
     if (!pathStaysOnFloor(map, a.x, a.y, b.x, b.y)) return { ok: false, reason: 'outside_floor' }
+  }
+
+  // Por último: "Lugar ocupado" só depois de saber que o caminho existe, senão
+  // a recusa diria que há alguém atrás de uma parede.
+  if (!options.isHost && tokensOccupy(map) && findOccupant(options.occupants ?? map.tokens, token.id, to, map.grid) !== undefined) {
+    return { ok: false, reason: 'occupied' }
   }
 
   return { ok: true, x: to.x, y: to.y }
