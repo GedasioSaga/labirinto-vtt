@@ -149,20 +149,18 @@ describe('parsePlayerMessage', () => {
     expect(parsePlayerMessage({ type: 'token.move', reqId: 'r'.repeat(64), tokenId: 't', x: 0, y: 0 })).not.toBeNull()
   })
 
-  it('join com patch: true passa adiante; outro valor recusa a mensagem inteira', () => {
-    expect(parsePlayerMessage({ type: 'join', code: 'AB12CD', name: 'Ana', patch: true })).toEqual({ type: 'join', code: 'AB12CD', name: 'Ana', patch: true })
+  it('o aviso de patch não mora no join: campo patch no join cai fora como qualquer campo a mais', () => {
+    expect(parsePlayerMessage({ type: 'join', code: 'AB12CD', name: 'Ana', patch: true })).toEqual({ type: 'join', code: 'AB12CD', name: 'Ana' })
     expect(parsePlayerMessage({ type: 'join', code: 'AB12CD', name: 'Ana', resume: 'tok', patch: true })).toEqual({
       type: 'join',
       code: 'AB12CD',
       name: 'Ana',
       resume: 'tok',
-      patch: true,
     })
-    expect(parsePlayerMessage({ type: 'join', code: 'AB12CD', name: 'Ana', patch: 'sim' })).toBeNull()
-    expect(parsePlayerMessage({ type: 'join', code: 'AB12CD', name: 'Ana', patch: false })).toBeNull()
   })
 
-  it('view.resync só com o tipo; campos a mais caem fora', () => {
+  it('view.patches e view.resync só com o tipo; campos a mais caem fora', () => {
+    expect(parsePlayerMessage({ type: 'view.patches', lixo: 1 })).toEqual({ type: 'view.patches' })
     expect(parsePlayerMessage({ type: 'view.resync', lixo: 1 })).toEqual({ type: 'view.resync' })
   })
 })

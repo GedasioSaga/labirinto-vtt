@@ -94,7 +94,7 @@ describe('createPlayerConnection', () => {
     const { connection, socket } = setup()
     expect(connection.getState().status).toBe('connecting')
     socket.open()
-    expect(socket.sent).toEqual([{ type: 'join', code: 'ABC123', name: 'Ana', patch: true }])
+    expect(socket.sent).toEqual([{ type: 'join', code: 'ABC123', name: 'Ana' }, { type: 'view.patches' }])
   })
 
   it('guarda resumeToken no welcome e o reenvia no próximo join da mesma sala', () => {
@@ -107,14 +107,14 @@ describe('createPlayerConnection', () => {
 
     const second = setup(storage)
     second.socket.open()
-    expect(second.socket.sent[0]).toEqual({ type: 'join', code: 'ABC123', name: 'Ana', resume: 'tok', patch: true })
+    expect(second.socket.sent[0]).toEqual({ type: 'join', code: 'ABC123', name: 'Ana', resume: 'tok' })
   })
 
   it('funciona sem storage (join sem resume)', () => {
     const { connection, socket } = setup(null)
     socket.open()
     socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok' })
-    expect(socket.sent[0]).toEqual({ type: 'join', code: 'ABC123', name: 'Ana', patch: true })
+    expect(socket.sent[0]).toEqual({ type: 'join', code: 'ABC123', name: 'Ana' })
     expect(connection.getState().status).toBe('waiting')
   })
 
@@ -261,7 +261,8 @@ describe('createPlayerConnection', () => {
     expect(connection.requestMove('t1', 1, 1)).toBe(false)
     socket.receive({ type: 'snapshot', rev: 1, map: mapWithToken(10, 10), vision: [] })
     expect(connection.requestMove('nope', 1, 1)).toBe(false)
-    expect(socket.sent).toHaveLength(1)
+    // Só o que sai ao abrir: join e o aviso view.patches.
+    expect(socket.sent).toEqual([{ type: 'join', code: 'ABC123', name: 'Ana' }, { type: 'view.patches' }])
   })
 
   it('kicked muda status e limpa o resume', () => {

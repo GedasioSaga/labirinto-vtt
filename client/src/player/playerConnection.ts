@@ -758,9 +758,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     current.onopen = () => {
       if (socket !== current) return
       const resume = readResume(storage, code)
-      // `patch: true`: este jogador aplica só o que mudou (`net/viewPatch.ts`).
-      const join: JoinMessage = resume ? { type: 'join', code, name, resume, patch: true } : { type: 'join', code, name, patch: true }
+      const join: JoinMessage = resume ? { type: 'join', code, name, resume } : { type: 'join', code, name }
       send(join)
+      // Este jogador aplica só o que mudou (`net/viewPatch.ts`). Vai depois do
+      // `join`, na mesma conexão: o host só aceita o aviso de quem já entrou.
+      send({ type: 'view.patches' })
       stopPing()
       pingTimer = setInterval(() => send({ type: 'ping' }), PING_INTERVAL_MS)
     }

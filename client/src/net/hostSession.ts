@@ -275,11 +275,24 @@ export const TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS = 1500
  */
 export const MAX_SCENE_MEMORIES_PER_PLAYER = 8
 
+/**
+ * Tamanho (caracteres do JSON) da tela INTEIRA a partir do qual a conexão
+ * passa a receber `patch`. Abaixo disso a tela inteira é barata (uma sala com
+ * duas fichas sem foto fica em ~5 mil) e o snapshot não tem o risco do patch
+ * que não encaixa; o que pesa de verdade é a foto das fichas e a planta de uma
+ * cena grande, e isso passa daqui folgado. Medida na última tela inteira que a
+ * conexão recebeu: o patch não mede nada, então o passo não custa um
+ * `JSON.stringify` do mapa.
+ */
+export const PATCH_MIN_SNAPSHOT_LENGTH = 16_384
+
 export interface HostSessionOptions {
   code: string
   visionRadius: number
   now?: () => number
   randomId?: () => string
+  /** Só para teste: troca `PATCH_MIN_SNAPSHOT_LENGTH` (0 = todo mapa recebe patch). */
+  patchMinSnapshotLength?: number
 }
 
 export interface HostSession {
@@ -438,6 +451,12 @@ interface SentView {
   /** `rev` da última tela que a conexão recebeu: a `base` do próximo `patch`. */
   rev: number
   /**
+   * Caracteres do JSON da última tela INTEIRA que a conexão recebeu (0 = não
+   * medida: espera, ou conexão que não aplica `patch`). Decide se vale
+   * mandar `patch` (`PATCH_MIN_SNAPSHOT_LENGTH`).
+   */
+  snapshotLength: number
+  /**
    * O último recálculo, com estas MESMAS entradas, repetiu a tela e deixou a
    * memória como estava: recalcular de novo daria o mesmo, e o recorte pode
    * ser pulado. O primeiro recálculo depois de uma mudança nunca é estável — a
@@ -509,8 +528,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const visionOverrides = new Map<string, number>()
   // Por clientId: a última tela que a conexão recebeu (ver `SentView`).
   const sentViews = new Map<string, SentView>()
-  // Por clientId: conexões que disseram no `join` que sabem aplicar `patch`.
+  // Por clientId: conexões que disseram (`view.patches`) que sabem aplicar `patch`.
   const patchClients = new Set<string>()
+  const patchMinSnapshotLength = options.patchMinSnapshotLength ?? PATCH_MIN_SNAPSHOT_LENGTH
   // Por playerId: limite do `view.resync` (VIEW_RESYNC_MIN_INTERVAL_MS).
   const lastResyncAt = new Map<string, number>()
   // Sobe a cada troca de posse: ela entra no recorte de todo jogador.
@@ -637,10 +657,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * O que NÃO sai também protege a névoa: um snapshot de `rev` novo e tela
    * igual diria ao jogador que algo se mexeu onde ele não vê.
    *
-   * Quem sabe aplicar (`patchClients`) e já tem uma tela recebe só o que
-   * mudou nela (`patch`): o passo de um jogador vira as coordenadas de uma
-   * ficha, e não o mapa com a foto de todas. Quem não sabe, ou está saindo da
-   * espera, recebe o snapshot inteiro.
+   * Quem sabe aplicar (`patchClients`) e já tem uma tela grande
+   * (`PATCH_MIN_SNAPSHOT_LENGTH`) recebe só o que mudou nela (`patch`): o
+   * passo de um jogador vira as coordenadas de uma ficha, e não o mapa com a
+   * foto de todas. Quem não sabe, está saindo da espera ou tem tela pequena
+   * recebe o snapshot inteiro.
    *
    * `force`: manda mesmo com a tela igual — a do jogador pode não ser a que o
    * host mandou (ele aplicou algo otimista que o host recusou calado). O
@@ -670,8 +691,30 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       after === before && (after === undefined || (planBefore !== null && samePlan(planBefore, after.plan) && doorsKey(after.doors) === doorsBefore))
     // Nada saiu: a conexão continua com a tela (e o `rev`) de antes.
     const sentRev = out === null && last !== undefined ? last.rev : rev
-    sentViews.set(clientId, { playerId, map, radius, ownershipRev, memory: after, view, rev: sentRev, stable: sameInputs && out === null && memorySettled })
+    const snapshotLength = snapshotLengthAfter(clientId, last, out)
+    sentViews.set(clientId, {
+      playerId,
+      map,
+      radius,
+      ownershipRev,
+      memory: after,
+      view,
+      rev: sentRev,
+      snapshotLength,
+      stable: sameInputs && out === null && memorySettled,
+    })
     return out
+  }
+
+  /**
+   * Tamanho da tela inteira que a conexão tem depois de `out`. Só o snapshot
+   * mede (e só para quem aplica `patch`, o único que usa a medida); patch e
+   * nada mantêm a medida da tela inteira de onde partiram.
+   */
+  const snapshotLengthAfter = (clientId: string, last: SentView | undefined, out: HostMessage | null): number => {
+    if (out === null || out.type === 'patch') return last === undefined ? 0 : last.snapshotLength
+    if (out.type !== 'snapshot' || !patchClients.has(clientId)) return 0
+    return JSON.stringify(out).length
   }
 
   /** O que sai para a conexão, dada a última tela dela (`last`) e a de agora. `null` = nada. */
@@ -690,7 +733,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Campo que sumiu do mapa não cabe num patch: vai inteiro.
     if (patch === null) return snapshot
     if (isEmptyViewPatch(patch) && !force) return null
-    return patchClients.has(clientId) ? { type: 'patch', rev, base: last.rev, ...patch } : snapshot
+    // Tela pequena vai inteira mesmo para quem aplica patch (PATCH_MIN_SNAPSHOT_LENGTH).
+    const wantsPatch = patchClients.has(clientId) && last.snapshotLength >= patchMinSnapshotLength
+    return wantsPatch ? { type: 'patch', rev, base: last.rev, ...patch } : snapshot
   }
 
   /**
@@ -753,8 +798,6 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       byClient.delete(record.clientId)
       patchClients.delete(record.clientId)
     }
-    if (msg.patch === true) patchClients.add(clientId)
-    else patchClients.delete(clientId)
     record.clientId = clientId
     record.name = uniqueName(msg.name, record.playerId)
     players.set(record.playerId, record)
@@ -1176,6 +1219,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return { outbound: [] }
         case 'view.resync':
           return handleResync(clientId, world)
+        case 'view.patches':
+          // Antes do join (ou depois de um join recusado) morre calado: um
+          // `not_joined` aqui chegaria depois do `bad_code` e o apagaria na tela.
+          if (byClient.has(clientId)) patchClients.add(clientId)
+          return { outbound: [] }
         case 'signal':
           return handleSignal(clientId, msg, world)
         case 'door.toggle':

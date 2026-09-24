@@ -54,14 +54,17 @@ import type { ViewPatch } from './viewPatch'
  * jogador ignora durante o jogo.
  *
  * SÓ O QUE MUDOU (`patch`, mestre -> jogador) é aditivo e COMBINADO: o jogador
- * que sabe aplicar diz no `join` (`patch: true`), e só ele recebe. O `patch`
- * leva só o que mudou desde a última tela que AQUELA conexão recebeu
- * (`net/viewPatch.ts`), com `base` = o `rev` dela. O jogador cuja tela não é
- * a `base` (mensagem perdida na fila) descarta o patch e pede a tela inteira
- * com `view.resync` (jogador -> mestre), no máximo um por
- * `VIEW_RESYNC_MIN_INTERVAL_MS`. Jogador antigo não manda `patch: true` e
- * segue recebendo `snapshot`; mestre antigo ignora o campo do `join` e
- * responde `error invalid_message` ao `view.resync`.
+ * que sabe aplicar diz logo depois do `join`, em mensagem própria
+ * (`view.patches`) — o `join` fica com a forma de sempre —, e só ele recebe,
+ * e só quando a tela inteira dele é grande (`PATCH_MIN_SNAPSHOT_LENGTH`, em
+ * `net/hostSession.ts`). O `patch` leva só o que mudou desde a última tela
+ * que AQUELA conexão recebeu (`net/viewPatch.ts`), com `base` = o `rev` dela.
+ * O jogador cuja tela não é a `base` (mensagem perdida na fila) descarta o
+ * patch e pede a tela inteira com `view.resync` (jogador -> mestre), no
+ * máximo um por `VIEW_RESYNC_MIN_INTERVAL_MS`. Jogador antigo não manda
+ * `view.patches` e segue recebendo `snapshot`; mestre antigo responde
+ * `error invalid_message` ao `view.patches` e ao `view.resync`, que o jogador
+ * ignora durante o jogo.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -95,8 +98,11 @@ export interface JoinMessage {
   code: string
   name: string
   resume?: string
-  /** O jogador sabe aplicar `patch` (ver o topo do arquivo). Ausente = só `snapshot`. */
-  patch?: true
+}
+
+/** O jogador sabe aplicar `patch` (ver o topo do arquivo). Sem ela, só `snapshot`. */
+export interface ViewPatchesMessage {
+  type: 'view.patches'
 }
 
 /** A tela do jogador não é a `base` do `patch` que chegou: ele pede a inteira. */
@@ -184,6 +190,7 @@ export type PlayerMessage =
   | PinTravelRequestMessage
   | PlayerLaserMessage
   | ViewResyncMessage
+  | ViewPatchesMessage
 
 /**
  * Por que o host recusou o pedido de porta do jogador. `blocked`: fechar com
@@ -261,18 +268,15 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
-  const { code, name, resume, patch } = obj
+  const { code, name, resume } = obj
   if (typeof code !== 'string' || !JOIN_CODE_PATTERN.test(code)) return null
   if (typeof name !== 'string') return null
   const trimmed = name.trim()
   // `length` conta unidades UTF-16 (emoji = 2): é o limite que o jogador vê no input.
   if (trimmed.length < NAME_MIN_LENGTH || trimmed.length > NAME_MAX_LENGTH) return null
-  // Presente, só `true`: outro valor é mensagem malformada, não "sem patch".
-  if (patch !== undefined && patch !== true) return null
-  const join: JoinMessage = patch === true ? { type: 'join', code, name: trimmed, patch } : { type: 'join', code, name: trimmed }
-  if (resume === undefined) return join
+  if (resume === undefined) return { type: 'join', code, name: trimmed }
   if (!isBoundedString(resume, 1, RESUME_TOKEN_MAX_LENGTH)) return null
-  return { ...join, resume }
+  return { type: 'join', code, name: trimmed, resume }
 }
 
 function parseTokenMove(obj: Record<string, unknown>): TokenMoveMessage | null {
@@ -410,6 +414,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return { type: 'ping' }
     case 'view.resync':
       return { type: 'view.resync' }
+    case 'view.patches':
+      return { type: 'view.patches' }
     case 'signal':
       return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
     case 'door.toggle':

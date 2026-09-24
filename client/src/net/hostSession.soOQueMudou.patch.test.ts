@@ -1,7 +1,7 @@
 /**
  * SÓ O QUE MUDOU, de verdade. Filtrar QUEM recebe não bastava: com os 7
  * jogadores na mesma sala, cada passo ainda reenviava aos 7 o mapa inteiro com
- * a foto de todas as fichas. Agora quem diz no `join` que sabe aplicar recebe
+ * a foto de todas as fichas. Agora quem avisa (`view.patches`) que sabe aplicar recebe
  * o `patch` com a diferença da última tela dele (`net/viewPatch.ts`).
  *
  * E a edição otimista: o jogador aplica a foto nova na hora e conta com o
@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Token, Wall } from '../types/map'
-import { createHostSession, type HostResult, type HostSession, type HostWorld } from './hostSession'
+import { createHostSession, PATCH_MIN_SNAPSHOT_LENGTH, type HostResult, type HostSession, type HostWorld } from './hostSession'
 import type { HostMessage } from './protocol'
 import { applyMapPatch, type PlayerViewContent } from './viewPatch'
 
@@ -44,15 +44,20 @@ function mundo(salao: MapData, cripta: MapData): HostWorld {
   }
 }
 
-function novaSessao(now: () => number = () => 0): HostSession {
+/**
+ * `patchMinSnapshotLength: 0`: aqui o assunto é o patch em si, em mapas
+ * pequenos; o limite de tamanho tem o próprio describe, com o valor real.
+ */
+function novaSessao(now: () => number = () => 0, patchMinSnapshotLength = 0): HostSession {
   let n = 0
-  return createHostSession({ code: CODE, visionRadius: RAIO, now, randomId: () => `id-${(n += 1)}` })
+  return createHostSession({ code: CODE, visionRadius: RAIO, now, randomId: () => `id-${(n += 1)}`, patchMinSnapshotLength })
 }
 
+/** Entra como o jogador de verdade: `join` e, se `patch`, o aviso `view.patches` logo depois. */
 function entra(s: HostSession, clientId: string, nome: string, source: MapData | HostWorld, patch: boolean): string {
-  const join = patch ? { type: 'join', code: CODE, name: nome, patch: true } : { type: 'join', code: CODE, name: nome }
-  const welcome = s.handleMessage(clientId, join, source).outbound[0]?.msg
+  const welcome = s.handleMessage(clientId, { type: 'join', code: CODE, name: nome }, source).outbound[0]?.msg
   if (welcome?.type !== 'welcome') throw new Error('esperava welcome')
+  if (patch) expect(s.handleMessage(clientId, { type: 'view.patches' }, source).outbound).toEqual([])
   return welcome.playerId
 }
 
@@ -169,7 +174,7 @@ describe('só o que mudou: quem sabe aplicar recebe patch', () => {
     expect(s.broadcast(salao(900, 540)).outbound).toEqual([])
   })
 
-  it('jogador que não disse patch no join continua recebendo o snapshot inteiro', () => {
+  it('jogador que não avisou view.patches continua recebendo o snapshot inteiro', () => {
     const s = novaSessao()
     const m = (x: number) => mapa('m', [ficha('ana', x, 100), ficha('bia', 300, 100)])
     s.assignToken(entra(s, 'c-ana', 'Ana', m(100), true), 'ana')
@@ -266,5 +271,51 @@ describe('edição otimista que o host recusa calado', () => {
     avanca(300)
     const volta = snapshotPara(mandaFoto(FOTO_B), 'c-ana')
     expect(volta.map.tokens.find((t) => t.id === 'ana')?.imageData).toBe(FOTO_A)
+  })
+})
+
+describe('tamanho: patch só compensa quando a tela inteira é grande', () => {
+  const pequeno = (x: number) => mapa('m', [ficha('ana', x, 100), ficha('bia', 300, 100)])
+  const comFoto = (x: number) => mapa('m', [{ ...ficha('ana', x, 100), imageData: FOTO }, ficha('bia', 300, 100)])
+
+  it('mapa pequeno: quem avisou view.patches recebe o snapshot inteiro a cada passo, igual a quem não avisou', () => {
+    const s = novaSessao(() => 0, PATCH_MIN_SNAPSHOT_LENGTH)
+    s.assignToken(entra(s, 'c-ana', 'Ana', pequeno(100), true), 'ana')
+    const primeiro = snapshotPara(s.broadcast(pequeno(100)), 'c-ana')
+    const tamanho = JSON.stringify(primeiro).length
+    expect(tamanho).toBeGreaterThan(0)
+    expect(tamanho).toBeLessThan(PATCH_MIN_SNAPSHOT_LENGTH)
+    for (const x of [140, 180]) {
+      const snap = snapshotPara(s.broadcast(pequeno(x)), 'c-ana')
+      expect(snap.map.tokens.find((t) => t.id === 'ana')?.x).toBe(x)
+    }
+  })
+
+  it('mapa com foto: a tela inteira passa do limite e o passo seguinte já é patch, sem a foto', () => {
+    const s = novaSessao(() => 0, PATCH_MIN_SNAPSHOT_LENGTH)
+    s.assignToken(entra(s, 'c-ana', 'Ana', comFoto(100), true), 'ana')
+    const primeiro = snapshotPara(s.broadcast(comFoto(100)), 'c-ana')
+    expect(JSON.stringify(primeiro).length).toBeGreaterThanOrEqual(PATCH_MIN_SNAPSHOT_LENGTH)
+    const patch = patchPara(s.broadcast(comFoto(140)), 'c-ana')
+    expect(patch.base).toBe(primeiro.rev)
+    expect(patch.map?.tokens?.change).toEqual([{ id: 'ana', set: { x: 140 } }])
+    expect(JSON.stringify(patch)).not.toContain('data:image')
+  })
+
+  it('mapa que cresce: a foto nova vai no snapshot inteiro (que mede a tela), e dali em diante é patch', () => {
+    const s = novaSessao(() => 0, PATCH_MIN_SNAPSHOT_LENGTH)
+    s.assignToken(entra(s, 'c-ana', 'Ana', pequeno(100), true), 'ana')
+    s.broadcast(pequeno(100))
+    const cresceu = snapshotPara(s.broadcast(comFoto(100)), 'c-ana')
+    expect(cresceu.map.tokens.find((t) => t.id === 'ana')?.imageData).toBe(FOTO)
+    expect(patchPara(s.broadcast(comFoto(140)), 'c-ana').map?.tokens?.change).toEqual([{ id: 'ana', set: { x: 140 } }])
+  })
+
+  it('view.patches antes do join morre calado e não liga o patch da conexão', () => {
+    const s = novaSessao()
+    expect(s.handleMessage('c-ana', { type: 'view.patches' }, comFoto(100)).outbound).toEqual([])
+    s.assignToken(entra(s, 'c-ana', 'Ana', comFoto(100), false), 'ana')
+    s.broadcast(comFoto(100))
+    expect(snapshotPara(s.broadcast(comFoto(140)), 'c-ana').map.tokens.find((t) => t.id === 'ana')?.x).toBe(140)
   })
 })
