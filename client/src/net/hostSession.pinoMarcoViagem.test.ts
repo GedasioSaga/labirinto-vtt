@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import type { MapData, Pin, PinPassage, Token } from '../types/map'
+import type { MapData, Pin, PinExit, PinPassage, Token } from '../types/map'
 import { createHostSession, type HostResult, type HostWorld } from './hostSession'
 import type { HostMessage } from './protocol'
 
@@ -20,7 +20,11 @@ function token(id: string, x: number, y: number): Token {
   return { id, characterId: null, name: `nome-${id}`, x, y, size: 1, image: null }
 }
 
-function templo(passagem: PinPassage): Pin {
+/** Segunda saída do Templo (encruzilhada): leva ao Altar, no mesmo interior. */
+const SAIDA_ALTAR: PinExit = { id: 'saida_altar', rotulo: 'Escada do altar', destino: { sceneId: INTERIOR, pinId: 'altar' } }
+
+/** `extra` muda o Templo (posição, saídas) sem mexer no resto do mundo. */
+function templo(passagem: PinPassage, extra: Partial<Pin> = {}): Pin {
   return {
     id: 'templo',
     x: 1500,
@@ -31,27 +35,31 @@ function templo(passagem: PinPassage): Pin {
     marco: true,
     passagem,
     destino: { sceneId: INTERIOR, pinId: 'nave' },
+    ...extra,
   }
 }
 
-function capital(anaX: number, anaY: number, passagem: PinPassage): MapData {
+function capital(anaX: number, anaY: number, passagem: PinPassage, extra: Partial<Pin> = {}): MapData {
   return {
     ...createEmptyMap('mapa-capital', 'Capital', 2000, 2000, 50),
     tokens: [token('ficha-ana', anaX, anaY)],
-    pins: [templo(passagem)],
+    pins: [templo(passagem, extra)],
   }
 }
 
 function interior(): MapData {
   return {
     ...createEmptyMap('mapa-templo', 'Templo', 1000, 1000, 50),
-    pins: [{ id: 'nave', x: 500, y: 500, kind: 'viagem', description: 'nave', image: null, destino: { sceneId: CAPITAL, pinId: 'templo' } }],
+    pins: [
+      { id: 'nave', x: 500, y: 500, kind: 'viagem', description: 'nave', image: null, destino: { sceneId: CAPITAL, pinId: 'templo' } },
+      { id: 'altar', x: 800, y: 500, kind: 'viagem', description: 'altar', image: null, destino: { sceneId: CAPITAL, pinId: 'templo' } },
+    ],
   }
 }
 
-function mundo(anaX: number, anaY: number, passagem: PinPassage): HostWorld {
+function mundo(anaX: number, anaY: number, passagem: PinPassage, extra: Partial<Pin> = {}): HostWorld {
   return {
-    open: { sceneId: CAPITAL, name: 'Capital', map: capital(anaX, anaY, passagem) },
+    open: { sceneId: CAPITAL, name: 'Capital', map: capital(anaX, anaY, passagem, extra) },
     background: [{ sceneId: INTERIOR, name: 'Templo', map: interior() }],
   }
 }
@@ -116,6 +124,59 @@ describe('hostSession: pino marco que também é de viagem', () => {
     const t = mesa(mundo(1450, 300, 'livre'))
     expect(pinosDa(t.snapshot).find((p) => p.id === 'templo')?.soMarco).toBeUndefined()
     const r = t.pedir()
+    expect(recusa(r)).toBeNull()
+    expect(r.applyTransfer).toMatchObject({ tokenId: 'ficha-ana', fromSceneId: CAPITAL, toSceneId: INTERIOR })
+  })
+})
+
+describe('hostSession: marco + viagem nas outras portas de entrada', () => {
+  it('encruzilhada: de longe, nenhuma saída do marco vale (nem a extra), livre ou pedindo', () => {
+    for (const passagem of ['livre', 'pede'] as const) {
+      const w = mundo(200, 200, passagem, { rotulo: 'Nave', saidas: [SAIDA_ALTAR] })
+      const t = mesa(w)
+      expect(pinosDa(t.snapshot).find((p) => p.id === 'templo')?.soMarco).toBe(true)
+      const r = t.s.handleMessage('c-ana', { type: 'pin.travel.request', pinId: 'templo', exitId: 'saida_altar' }, w)
+      expect(recusa(r)).toBe('unavailable')
+      expect(r.applyTransfer).toBeUndefined()
+      expect(r.travelRequest).toBeUndefined()
+    }
+  })
+
+  it('controle da encruzilhada: na porta do Templo, a saída extra leva ao Altar', () => {
+    const w = mundo(1450, 300, 'livre', { rotulo: 'Nave', saidas: [SAIDA_ALTAR] })
+    const t = mesa(w)
+    const r = t.s.handleMessage('c-ana', { type: 'pin.travel.request', pinId: 'templo', exitId: 'saida_altar' }, w)
+    expect(recusa(r)).toBeNull()
+    expect(r.applyTransfer).toMatchObject({ tokenId: 'ficha-ana', fromSceneId: CAPITAL, toSceneId: INTERIOR })
+  })
+
+  it('"Deixar ir": o mestre arrasta o Templo para a névoa nunca vista antes de aprovar, e a aprovação é recusada', () => {
+    const perto = mundo(1450, 300, 'pede')
+    const t = mesa(perto)
+    const pedido = t.pedir().travelRequest
+    if (pedido === undefined) throw new Error('o pedido de perto deveria chegar ao mestre')
+    // Mesmo mundo, Ana no mesmo lugar; só o marco foi para longe, onde ela nunca olhou.
+    const movido = mundo(1450, 300, 'pede', { x: 1500, y: 1800 })
+    expect(pinosDa(t.s.broadcast(movido)).find((p) => p.id === 'templo')?.soMarco).toBe(true)
+    const r = t.s.approveTravel(pedido.requestId, movido)
+    expect(r.applyTransfer).toBeUndefined()
+    expect(recusa(r)).toBe('unavailable')
+  })
+
+  it('controle do "Deixar ir": com o Templo no lugar, a mesma aprovação leva a Ana', () => {
+    const perto = mundo(1450, 300, 'pede')
+    const t = mesa(perto)
+    const pedido = t.pedir().travelRequest
+    if (pedido === undefined) throw new Error('o pedido de perto deveria chegar ao mestre')
+    expect(t.s.approveTravel(pedido.requestId, perto).applyTransfer).toMatchObject({ tokenId: 'ficha-ana', toSceneId: INTERIOR })
+  })
+
+  it('explorado continua valendo: Ana que esteve na porta e voltou ao cais passa pelo marco, como por todo pino', () => {
+    const t = mesa(mundo(1450, 300, 'livre'))
+    const cais = mundo(200, 200, 'livre')
+    // Longe agora, mas o Templo ficou no explorado dela: não é "só marco".
+    expect(pinosDa(t.s.broadcast(cais)).find((p) => p.id === 'templo')?.soMarco).toBeUndefined()
+    const r = t.s.handleMessage('c-ana', { type: 'pin.travel.request', pinId: 'templo' }, cais)
     expect(recusa(r)).toBeNull()
     expect(r.applyTransfer).toMatchObject({ tokenId: 'ficha-ana', fromSceneId: CAPITAL, toSceneId: INTERIOR })
   })
