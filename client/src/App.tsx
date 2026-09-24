@@ -21,7 +21,7 @@ import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
-import { atualizarEspera, cenaQueEsperaMais, cenasOcupadas, ehAtalhoDaCenaQueEspera, type EsperaPorCena } from './lib/cenaQueEspera'
+import { useCenaQueEspera } from './stores/useCenaQueEspera'
 import type { TravelLogEntry } from './lib/travelLog'
 import { withStoredTokens } from './lib/storedTokens'
 import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
@@ -678,48 +678,7 @@ function App() {
   // com gente que o editor NÃO mostra guarda desde quando espera; a lista
   // Cenas mostra 'há N min' e o Ctrl+J abre a que espera há mais tempo.
   const tableMembers = roomPlayers.length === 0 ? [] : partyMembers(roomPlayers, roomPanelWorld())
-  // Chave estável: o efeito só roda quando a ocupação muda de fato, não a cada render.
-  const occupiedKey = [...cenasOcupadas(tableMembers)].sort().join('\n')
-  const [waitingSince, setWaitingSince] = useState<EsperaPorCena>(() => new Map())
-  useEffect(() => {
-    const occupied = new Set(occupiedKey === '' ? [] : occupiedKey.split('\n'))
-    setWaitingSince((previous) => atualizarEspera(previous, occupied, activeSceneId, Date.now()))
-  }, [occupiedKey, activeSceneId])
-  // O atalho lê a mesa e o relógio DESTE render sem se re-registrar a cada um.
-  const openWaitingSceneRef = useRef<() => void>(() => {})
-  useEffect(() => {
-    openWaitingSceneRef.current = () => {
-      const target = cenaQueEsperaMais(waitingSince, tableMembers)
-      if (target === null) {
-        useToastStore.getState().push('info', 'Nenhuma cena esperando você')
-        return
-      }
-      // Abrir a cena é o que zera o relógio dela: o efeito acima a tira da espera.
-      useAdventureStore.getState().goToPoint(target.sceneId, { x: target.x, y: target.y })
-    }
-  })
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (screen !== 'editor') return
-      const target = event.target
-      const shortcut = {
-        key: event.key,
-        ctrlKey: event.ctrlKey,
-        metaKey: event.metaKey,
-        shiftKey: event.shiftKey,
-        altKey: event.altKey,
-        targetTagName: target instanceof HTMLElement ? target.tagName : '',
-        targetInputType: target instanceof HTMLInputElement ? target.type : undefined,
-        targetContentEditable: target instanceof HTMLElement && target.isContentEditable,
-      }
-      if (!ehAtalhoDaCenaQueEspera(shortcut)) return
-      // Ctrl+J no navegador abre os downloads: aqui a tecla é do mestre.
-      event.preventDefault()
-      openWaitingSceneRef.current()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [screen])
+  const waitingSince = useCenaQueEspera(tableMembers, activeSceneId, screen === 'editor')
   /**
    * Caminho de origem do mapa em edição. `null` enquanto o mapa é novo
    * (ainda não salvo); a partir daí toda escrita vai de volta para esse
