@@ -21,6 +21,135 @@ export interface ScenesSectionProps {
    * sala fechada: a linha fica sem o botão "Recado".
    */
   onNote?: (sceneId: string, text: string) => number | null
+  /**
+   * "Planta conhecida por todos" da cena. Ausente = a linha fica sem o botão
+   * de planta (a revelação para jogadores mora no mesmo painel).
+   */
+  onTogglePlanKnown?: (sceneId: string, known: boolean) => void
+  /** Jogadores da sala, na ordem do painel Grupo: as caixas do "Revelar planta para…". */
+  players?: readonly PlanPlayer[]
+  /**
+   * "Revelar planta para…": a planta de `sceneId` para estes jogadores, mesmo
+   * fora dela. Devolve quantos ganharam, ou `null` se não deu. Ausente = sala
+   * fechada: o painel fica só com a "Planta conhecida por todos".
+   */
+  onRevealPlanFor?: (sceneId: string, playerIds: string[]) => number | null
+}
+
+/** Um jogador na lista do "Revelar planta para…". */
+export interface PlanPlayer {
+  playerId: string
+  name: string
+}
+
+/** O aviso depois de "Revelar": para quantos, ou por que não deu. */
+export function planRevealFeedbackText(granted: number | null): string {
+  if (granted === null) return 'Não deu para revelar: a sala não está aberta.'
+  if (granted === 0) return 'Nenhum jogador recebeu: a cena ou os jogadores não estão mais na sala.'
+  return granted === 1 ? 'Planta revelada para 1 jogador' : `Planta revelada para ${granted} jogadores`
+}
+
+export const PLAN_KNOWN_HINT = 'Quem chegar vê paredes, salas e portas. Teto fechado e zona oculta continuam escondidos. Desligar não apaga o que já foi mostrado.'
+
+interface PlanPanelProps {
+  scene: SceneListItem
+  onTogglePlanKnown(known: boolean): void
+  players?: readonly PlanPlayer[]
+  onReveal?: (playerIds: string[]) => void
+  onClose(): void
+}
+
+/**
+ * A planta de uma cena, dentro da linha dela: "Planta conhecida por todos" e,
+ * com a sala aberta, "Revelar planta para…" com uma caixa por jogador. Vale
+ * mesmo em cena vazia: quem ganhou vê a planta quando chegar. Esc fecha.
+ */
+function PlanPanel({ scene, onTogglePlanKnown, players, onReveal, onClose }: PlanPanelProps) {
+  const knownId = useId()
+  const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set())
+  const knownRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    knownRef.current?.focus()
+  }, [])
+
+  const toggle = (playerId: string) => {
+    setChosen((previous) => {
+      const next = new Set(previous)
+      if (next.has(playerId)) next.delete(playerId)
+      else next.add(playerId)
+      return next
+    })
+  }
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Escape') return
+    // Esc fecha; não pode chegar ao canvas (Esc lá troca a ferramenta).
+    event.preventDefault()
+    event.stopPropagation()
+    onClose()
+  }
+
+  const reveal = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (onReveal === undefined || chosen.size === 0) return
+    // Na ordem da sala, não na ordem em que o mestre marcou.
+    onReveal((players ?? []).filter((p) => chosen.has(p.playerId)).map((p) => p.playerId))
+  }
+
+  return (
+    <div className="lb-cenas__planta" onKeyDown={onKeyDown}>
+      <label className="lb-gather__item" htmlFor={knownId}>
+        <input
+          id={knownId}
+          ref={knownRef}
+          type="checkbox"
+          className="lb-gather__check"
+          checked={scene.planKnownByAll === true}
+          onChange={(event) => onTogglePlanKnown(event.target.checked)}
+        />
+        Planta conhecida por todos
+      </label>
+      <p className="lb-label">{PLAN_KNOWN_HINT}</p>
+      {onReveal !== undefined && (
+        <form onSubmit={reveal}>
+          <fieldset className="lb-cenas__planta-quem">
+            <legend className="lb-label">Revelar planta para…</legend>
+            {players === undefined || players.length === 0 ? (
+              <p className="lb-label">Nenhum jogador na sala.</p>
+            ) : (
+              <>
+                {players.map((player) => (
+                  <label key={player.playerId} className="lb-gather__item">
+                    <input type="checkbox" className="lb-gather__check" checked={chosen.has(player.playerId)} onChange={() => toggle(player.playerId)} />
+                    {player.name}
+                  </label>
+                ))}
+                {chosen.size === 0 && <p className="lb-label">Marque ao menos um jogador.</p>}
+              </>
+            )}
+          </fieldset>
+          <div className="lb-cenas__acoes">
+            <button type="button" className="lb-btn lb-btn--ghost" onClick={onClose}>
+              Fechar
+            </button>
+            {players !== undefined && players.length > 0 && (
+              <button type="submit" className="lb-btn lb-btn--primary" disabled={chosen.size === 0}>
+                Revelar
+              </button>
+            )}
+          </div>
+        </form>
+      )}
+      {onReveal === undefined && (
+        <div className="lb-cenas__acoes">
+          <button type="button" className="lb-btn lb-btn--ghost" onClick={onClose}>
+            Fechar
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 /** Quanto tempo o aviso "Recado enviado…" fica na linha da cena. */
@@ -134,13 +263,15 @@ function SceneGente({ people }: { people: ScenePeople }) {
  * inteiro — trocar de cena é um clique —, e a contagem de tokens fica FORA
  * dele, para o nome acessível do botão ser só o nome da cena.
  */
-export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote }: ScenesSectionProps) {
+export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote, onTogglePlanKnown, players, onRevealPlanFor }: ScenesSectionProps) {
   const [editing, setEditing] = useState<Editing>(null)
   const [draft, setDraft] = useState('')
   /** Cena com o recado aberto; `null` = nenhum. */
   const [noting, setNoting] = useState<string | null>(null)
-  /** Aviso do último recado, na linha da cena dele; some sozinho. */
+  /** Aviso do último recado (ou da última revelação de planta), na linha da cena; some sozinho. */
   const [noteFeedback, setNoteFeedback] = useState<{ sceneId: string; text: string } | null>(null)
+  /** Cena com o painel de planta aberto; `null` = nenhum. */
+  const [planning, setPlanning] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   /** Quem abriu o campo: o foco volta para ele ao confirmar ou cancelar. */
   const openerRef = useRef<HTMLElement | null>(null)
@@ -160,6 +291,7 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
   const startEditing = (next: NonNullable<Editing>, initial: string) => {
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setNoting(null)
+    setPlanning(null)
     setDraft(initial)
     setEditing(next)
   }
@@ -167,8 +299,32 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
   const startNote = (sceneId: string) => {
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setEditing(null)
+    setPlanning(null)
     setNoteFeedback(null)
     setNoting(sceneId)
+  }
+
+  const startPlan = (sceneId: string) => {
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setEditing(null)
+    setNoting(null)
+    setNoteFeedback(null)
+    setPlanning(sceneId)
+  }
+
+  const closePlan = () => {
+    setPlanning(null)
+    const opener = openerRef.current
+    openerRef.current = null
+    requestAnimationFrame(() => {
+      if (opener?.isConnected) opener.focus()
+    })
+  }
+
+  const revealPlan = (sceneId: string, playerIds: string[]) => {
+    const granted = onRevealPlanFor?.(sceneId, playerIds) ?? null
+    setNoteFeedback({ sceneId, text: planRevealFeedbackText(granted) })
+    closePlan()
   }
 
   const sendNote = (sceneId: string, text: string) => {
@@ -259,9 +415,31 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
                   <span aria-hidden="true">✉</span>
                 </button>
               )}
+              {onTogglePlanKnown !== undefined && scene.id !== '' && (
+                <button
+                  type="button"
+                  className="lb-cenas__recado-btn"
+                  aria-label={`Planta de ${scene.name}`}
+                  aria-expanded={planning === scene.id}
+                  title={scene.planKnownByAll === true ? 'Planta: conhecida por todos' : 'Planta: quem conhece esta cena'}
+                  onClick={() => (planning === scene.id ? closePlan() : startPlan(scene.id))}
+                >
+                  {/* ▦ cheio quando a cena é conhecida por todos: o estado se lê sem abrir. */}
+                  <span aria-hidden="true">{scene.planKnownByAll === true ? '▦' : '▢'}</span>
+                </button>
+              )}
               {here !== undefined && (here.people.length > 0 || here.pendingRequests > 0) && <SceneGente people={here} />}
               {onNote !== undefined && noting === scene.id && (
                 <NoteForm sceneName={scene.name} onSend={(text) => sendNote(scene.id, text)} onCancel={closeNote} />
+              )}
+              {onTogglePlanKnown !== undefined && planning === scene.id && (
+                <PlanPanel
+                  scene={scene}
+                  onTogglePlanKnown={(known) => onTogglePlanKnown(scene.id, known)}
+                  players={players}
+                  onReveal={onRevealPlanFor === undefined ? undefined : (ids) => revealPlan(scene.id, ids)}
+                  onClose={closePlan}
+                />
               )}
               {noteFeedback?.sceneId === scene.id && (
                 <p className="lb-cenas__recado-aviso" role="status">

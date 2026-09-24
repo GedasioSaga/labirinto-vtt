@@ -115,6 +115,18 @@ export interface HostBridge {
   /** "Esconder de novo": snapshot imediato com exploração e portas lembradas zeradas. */
   hidePlan(playerId: string): void
   /**
+   * "Revelar planta para…" da lista Cenas: a planta de `sceneId` para estes
+   * jogadores, mesmo fora dela (aparece quando chegarem). Devolve quantos
+   * ganharam, ou `null` com a sala fechada. Snapshot na hora.
+   */
+  revealPlanFor(sceneId: string, playerIds: readonly string[]): number | null
+  /**
+   * "Dar o que o grupo viu": o jogador ganha o que os colegas viram na cena
+   * onde ele está. Devolve quantos colegas tinham visto algo lá (0 = nada a
+   * dar), ou `null` com a sala fechada. Snapshot na hora.
+   */
+  giveGroupView(playerId: string): number | null
+  /**
    * "Mandar para…" do painel Grupo: leva a ficha do jogador para `toSceneId`,
    * no pino `pinId` ou no centro (`null`), sem pedido. `false` quando não deu
    * (sala fechada, destino ou ficha sumiram): o painel avisa e fica aberto.
@@ -700,6 +712,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session === null) return
       session.hidePlan(playerId, world())
       broadcastNow()
+    },
+
+    revealPlanFor(sceneId, playerIds) {
+      if (session === null) return null
+      const granted = session.revealPlanFor(sceneId, playerIds, world())
+      if (granted > 0) broadcastNow()
+      return granted
+    },
+
+    giveGroupView(playerId) {
+      if (session === null) return null
+      const colleagues = session.giveGroupView(playerId, world())
+      if (colleagues > 0) broadcastNow()
+      return colleagues
     },
 
     sendPlayer(playerId, toSceneId, pinId, gatherAt) {

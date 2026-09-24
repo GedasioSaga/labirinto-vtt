@@ -1,5 +1,5 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
-import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
+import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExplored, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
@@ -41,6 +41,12 @@ export interface HostScene {
   sceneId: string | null
   name: string
   map: MapData
+  /**
+   * "Planta conhecida por todos": quem está nesta cena recebe a planta inteira
+   * como explorada (fora de zona oculta, sala secreta e teto), igual ao
+   * "Revelar planta". Ausente = não. Fica no mestre: nunca vai ao jogador.
+   */
+  planKnownByAll?: boolean
 }
 
 /**
@@ -312,6 +318,22 @@ export interface HostSession {
   /** Marca a planta inteira da cena onde o jogador está como explorada, fora de zona oculta ativa. Tokens seguem exigindo visão. */
   revealPlan(playerId: string, source: HostMapSource): void
   /**
+   * "Revelar planta para…": a planta da cena `sceneId` fica revelada para estes
+   * jogadores, estejam onde estiverem — quem está em outra cena não recebe nada
+   * agora; a planta aparece quando ele chega lá. Id que não é de jogador da
+   * sala é ignorado. Devolve quantos jogadores ganharam a planta (0 = cena que
+   * não existe ou ninguém válido). Não envia: o integrador faz o broadcast.
+   */
+  revealPlanFor(sceneId: string, playerIds: readonly string[], source: HostMapSource): number
+  /**
+   * "Dar o que o grupo viu": soma à memória do jogador, na cena ONDE ELE ESTÁ,
+   * o que cada colega VIU lá (a visão deles, não a planta que o mestre revelou
+   * a algum deles), fora do que zona oculta, sala secreta e teto escondem
+   * agora. Devolve quantos colegas tinham memória da cena (0 = nada a dar).
+   * Não envia: o integrador faz o broadcast.
+   */
+  giveGroupView(playerId: string, source: HostMapSource): number
+  /**
    * Zera exploração e portas lembradas do jogador; a visão atual volta a
    * marcar no próximo broadcast. Com `source`, só da cena onde ele está; sem,
    * de todas.
@@ -353,6 +375,14 @@ interface ValidTravel {
 interface PlayerMemory {
   key: string
   exp: Exploration
+  /**
+   * Só o que a VISÃO dele marcou (sem "Revelar planta" nem planta conhecida).
+   * É o que "Dar o que o grupo viu" repassa: a planta que o mestre revelou a
+   * um jogador não pode vazar para o colega por esse caminho.
+   */
+  seen: Exploration
+  /** A planta revelada (da cena ou por "Revelar planta para…") já foi marcada nesta memória. */
+  planMarked: boolean
   doors: Map<string, DoorState>
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
@@ -409,6 +439,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por pinId: quem vê o pino ("Só estes"). Ausente = Todos. O kick tira o
   // jogador de toda lista; o registro de quem só caiu fica (resume).
   const pinAudiences = new Map<string, Set<string>>()
+  // Por id de CENA da aventura: quem ganhou a planta pelo "Revelar planta
+  // para…". Vale até o jogador chegar lá (e depois); "Esconder de novo" e o
+  // kick tiram. Vive só nesta sessão, como o "Quem vê" dos pinos.
+  const planGrants = new Map<string, Set<string>>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -443,9 +477,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     const found = existingMemory(playerId, map)
     // MapData.width/height estão em células; o explorado mede px de mundo (mesma unidade da visão).
+    const size = { width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }
     const memory: PlayerMemory = found ?? {
       key: memoryKey(map),
-      exp: createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }),
+      exp: createExploration(size),
+      seen: createExploration(size),
+      planMarked: false,
       doors: new Map(),
       vision: [],
     }
@@ -489,7 +526,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /** O que o jogador vê agora: o recorte da cena dele, ou a espera quando ele não está em cena nenhuma. */
   const viewFor = (playerId: string, world: HostWorld): HostMessage => {
     const scene = sceneFor(playerId, world)
-    return scene === null ? { type: 'lobby.waiting' } : snapshotFor(playerId, scene.map)
+    return scene === null ? { type: 'lobby.waiting' } : snapshotFor(playerId, scene)
+  }
+
+  /** A planta desta cena está revelada para o jogador: pela cena inteira ou pelo "Revelar planta para…". */
+  const planRevealedFor = (playerId: string, scene: HostScene): boolean =>
+    scene.planKnownByAll === true || (scene.sceneId !== null && planGrants.get(scene.sceneId)?.has(playerId) === true)
+
+  /** Tira do jogador as revelações guardadas: de uma cena, ou de todas (`null`). */
+  const dropPlanGrants = (playerId: string, sceneId: string | null): void => {
+    for (const [grantScene, chosen] of planGrants) {
+      if (sceneId !== null && grantScene !== sceneId) continue
+      chosen.delete(playerId)
+      if (chosen.size === 0) planGrants.delete(grantScene)
+    }
   }
 
   /** `sceneId` para os "Applied": só quando a cena é de fundo (a aberta é o `mapStore`). */
@@ -502,13 +552,24 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * atual já entra por si); a marcação vem depois e segue junto para o jogador
    * desenhar a névoa.
    */
-  const snapshotFor = (playerId: string, map: MapData): HostMessage => {
+  const snapshotFor = (playerId: string, scene: HostScene): HostMessage => {
+    const map = scene.map
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
+    // Planta revelada (cena conhecida por todos, ou "Revelar planta para…"):
+    // marcada ANTES do recorte, para a planta sair já neste snapshot. Uma vez
+    // por memória: `markAll` varre o mapa inteiro e o snapshot sai a cada passo.
+    if (!memory.planMarked && planRevealedFor(playerId, scene)) {
+      markAll(exp, playerBlockedRings(map))
+      memory.planMarked = true
+    }
     const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
+    // O que ele VIU, à parte: é o que "Dar o que o grupo viu" repassa.
+    markRings(memory.seen, view.vision, view.blocked)
+    forgetInside(memory.seen, view.roofs)
     // TETO DE CONSTRUÇÃO: o teto não entra em `view.blocked` (o contorno do
     // prédio não é segredo, e o veto de lá joga fora o anel de visão inteiro,
     // apagando a memória do jogador longe do prédio). O veto do teto é só a
@@ -991,6 +1052,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       lastTokenPhotoAt.delete(playerId)
       visionOverrides.delete(playerId)
       for (const chosen of pinAudiences.values()) chosen.delete(playerId)
+      dropPlanGrants(playerId, null)
       return reply(clientId, { type: 'kicked' })
     },
 
@@ -1036,14 +1098,51 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       markAll(memoryFor(playerId, map).exp, playerBlockedRings(map))
     },
 
+    revealPlanFor(sceneId, playerIds, source) {
+      const scene = allScenes(toWorld(source)).find((s) => s.sceneId === sceneId)
+      if (scene === undefined) return 0
+      const valid = new Set(playerIds.filter((id) => players.has(id)))
+      if (valid.size === 0) return 0
+      const chosen = planGrants.get(sceneId) ?? new Set<string>()
+      planGrants.set(sceneId, chosen)
+      for (const id of valid) {
+        chosen.add(id)
+        // Memória que já existe desta cena volta a receber a planta no próximo
+        // snapshot: a marcação pode ter sido gasta antes, e a planta mudou desde então.
+        const memory = existingMemory(id, scene.map)
+        if (memory !== undefined) memory.planMarked = false
+      }
+      return valid.size
+    },
+
+    giveGroupView(playerId, source) {
+      if (!players.has(playerId)) return 0
+      const scene = sceneFor(playerId, toWorld(source))
+      if (scene === null) return 0
+      const blocked = playerBlockedRings(scene.map)
+      const target = memoryFor(playerId, scene.map)
+      let colleagues = 0
+      for (const other of players.keys()) {
+        if (other === playerId) continue
+        const memory = existingMemory(other, scene.map)
+        if (memory === undefined) continue
+        colleagues += 1
+        mergeExplored(target.exp, memory.seen, blocked)
+      }
+      return colleagues
+    },
+
     hidePlan(playerId, source) {
       // Apagar a memória: o próximo snapshot recria vazia (explorado, portas e visão).
       if (source === undefined) {
         memories.delete(playerId)
+        dropPlanGrants(playerId, null)
         return
       }
       const scene = sceneFor(playerId, toWorld(source))
-      if (scene !== null) memories.get(playerId)?.delete(scene.map.id)
+      if (scene === null) return
+      memories.get(playerId)?.delete(scene.map.id)
+      if (scene.sceneId !== null) dropPlanGrants(playerId, scene.sceneId)
     },
 
     broadcast(source) {
