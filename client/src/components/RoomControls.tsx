@@ -33,6 +33,11 @@ export interface RoomControlsProps {
    *  interruptor com o nome negado sem motivo. Ausente omite o toggle. */
   roof?: boolean
   onRoofChange?: (roof: boolean) => void
+  /** CÔMODO LEMBRADO — `RoomMeta.comodo`, toggle direto e desligado por
+   *  padrão, como o do teto logo acima. Ligar um desliga o outro (quem garante
+   *  é `lib/mapFactory.ts`). Sem `onComodoChange` o toggle não aparece. */
+  comodo?: boolean
+  onComodoChange?: (comodo: boolean) => void
   /** TEXTO DA SALA — `RoomMeta.textoAoEntrar` ("Ao entrar, o jogador lê").
    *  Sem `onTextoAoEntrarChange` o campo não aparece. */
   textoAoEntrar?: string
@@ -229,6 +234,8 @@ export function RoomControls({
   onNameHiddenFromPlayersChange,
   roof,
   onRoofChange,
+  comodo,
+  onComodoChange,
   textoAoEntrar,
   onTextoAoEntrarChange,
   notaDoMestre,
@@ -248,6 +255,7 @@ export function RoomControls({
 }: RoomControlsProps) {
   const baseId = useId()
   const roofHintId = `${baseId}-roof-hint`
+  const comodoHintId = `${baseId}-comodo-hint`
   const enterTextId = `${baseId}-texto-ao-entrar`
   const enterHintId = `${baseId}-texto-ao-entrar-hint`
   const noteId = `${baseId}-nota-do-mestre`
@@ -282,6 +290,16 @@ export function RoomControls({
           <Toggle label="Teto fechado para jogadores" checked={roof} onChange={onRoofChange} describedBy={roofHintId} />
           <p className="lb-field__hint" id={roofHintId}>
             De fora o jogador vê só a silhueta do prédio; ele entra e o teto abre. Você continua vendo tudo.
+          </p>
+        </>
+      )}
+
+      {onComodoChange !== undefined && (
+        <>
+          <Toggle label="Cômodo: aparece só depois de visto" checked={comodo === true} onChange={onComodoChange} describedBy={comodoHintId} />
+          <p className="lb-field__hint" id={comodoHintId}>
+            O jogador não vê este cômodo até entrar ou olhar pela porta. Depois ele fica lembrado, mais apagado, com os pinos de
+            dentro.
           </p>
         </>
       )}
