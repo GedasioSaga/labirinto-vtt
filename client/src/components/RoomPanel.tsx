@@ -358,14 +358,18 @@ interface ShareMapControlsProps {
 }
 
 /**
- * PASSAR O MAPA pelo mestre: lista com os outros jogadores no card de quem
- * joga. Escolher passa na hora (não tira nada de ninguém, então não pede
+ * PASSAR O MAPA pelo mestre: lista com quem joga NA MESMA cena de quem doa,
+ * no card dele (`sceneId` igual; sem aventura, os dois sem cena = o mesmo
+ * mapa). Quem está noutra cena não entra: o trecho não apareceria para ele
+ * agora. Escolher passa na hora (não tira nada de ninguém, então não pede
  * confirmação) e a lista volta ao "Escolher…"; a linha de status diz se passou.
  */
 function ShareMapControls({ player, players, onShareMap }: ShareMapControlsProps) {
   const [status, setStatus] = useState<string | null>(null)
   const selectId = `lb-room-share-${player.playerId}`
-  const others = players.filter((other) => other.playerId !== player.playerId)
+  const others = players.filter(
+    (other) => other.playerId !== player.playerId && other.status === 'playing' && other.sceneId === player.sceneId,
+  )
   if (player.status !== 'playing' || others.length === 0) return null
 
   const share = (toPlayerId: string) => {
@@ -374,7 +378,7 @@ function ShareMapControls({ player, players, onShareMap }: ShareMapControlsProps
     setStatus(
       onShareMap(player.playerId, toPlayerId)
         ? `Mapa de ${player.name} passado a ${target.name}.`
-        : `Nada passou: ${player.name} ainda não explorou a cena onde está.`,
+        : `Nada passou: ${player.name} ainda não explorou a cena onde está, ou ${target.name} saiu dela.`,
     )
   }
 

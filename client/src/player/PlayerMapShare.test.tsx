@@ -13,6 +13,7 @@ describe('PlayerMapShare', () => {
   let root: Root
   let onAskPeers: ReturnType<typeof vi.fn<() => void>>
   let onShare: ReturnType<typeof vi.fn<(name: string) => void>>
+  let onClose: ReturnType<typeof vi.fn<() => void>>
 
   beforeEach(() => {
     Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
@@ -21,6 +22,7 @@ describe('PlayerMapShare', () => {
     root = createRoot(container)
     onAskPeers = vi.fn<() => void>()
     onShare = vi.fn<(name: string) => void>()
+    onClose = vi.fn<() => void>()
   })
 
   afterEach(() => {
@@ -29,7 +31,7 @@ describe('PlayerMapShare', () => {
   })
 
   function render(props: Partial<PlayerMapShareProps> = {}): void {
-    act(() => root.render(<PlayerMapShare peers={undefined} result={undefined} onAskPeers={onAskPeers} onShare={onShare} {...props} />))
+    act(() => root.render(<PlayerMapShare peers={undefined} result={undefined} onAskPeers={onAskPeers} onShare={onShare} onClose={onClose} {...props} />))
   }
 
   function botoes(): string[] {
@@ -57,7 +59,7 @@ describe('PlayerMapShare', () => {
     render({ peers: { phase: 'ready', names: [] } })
     expect(status()).toBe('Ninguém mais está nesta cena agora.')
     // Ninguém agora: o botão continua ali para perguntar de novo quando alguém chegar.
-    expect(botoes()).toEqual(['Mostrar meu mapa a…'])
+    expect(botoes()).toEqual(['Mostrar meu mapa a…', 'Fechar'])
     act(() => container.querySelector('button')?.click())
     expect(onAskPeers).toHaveBeenCalledTimes(1)
   })
@@ -70,7 +72,7 @@ describe('PlayerMapShare', () => {
   it('com colegas: um botão por nome, dentro de uma lista rotulada; tocar mostra a ele', () => {
     render({ peers: { phase: 'ready', names: ['Bruno', 'Carla'] } })
     expect(container.querySelector('ul')?.getAttribute('aria-label')).toBe('Mostrar meu mapa a')
-    expect(botoes()).toEqual(['Mostrar meu mapa a…', 'Bruno', 'Carla'])
+    expect(botoes()).toEqual(['Mostrar meu mapa a…', 'Bruno', 'Carla', 'Fechar'])
     const bruno = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Bruno')
     if (bruno === undefined) throw new Error('sem Bruno')
     act(() => bruno.click())
@@ -87,6 +89,49 @@ describe('PlayerMapShare', () => {
     expect(status()).toBe('Espere um instante e toque em Bruno de novo.')
     render({ peers: { phase: 'ready', names: ['Bruno'] }, result: { to: 'Bruno', phase: 'failed' } })
     expect(status()).toBe('Não deu para mostrar a Bruno: não está mais nesta cena.')
+  })
+
+  it('aberta, a lista tem "Fechar": tocar fecha e o foco volta ao "Mostrar meu mapa a…"', () => {
+    render({ peers: { phase: 'ready', names: ['Bruno'] }, result: { to: 'Bruno', phase: 'ok' } })
+    const fechar = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Fechar')
+    if (fechar === undefined) throw new Error('sem Fechar')
+    act(() => fechar.click())
+    expect(onClose).toHaveBeenCalledTimes(1)
+    // O dono fecha: sem lista nem resultado, o foco fica no botão que a abre.
+    render()
+    expect(botoes()).toEqual(['Mostrar meu mapa a…'])
+    expect(document.activeElement?.textContent).toBe('Mostrar meu mapa a…')
+  })
+
+  it('Escape num nome da lista fecha, e não chega à gaveta (window)', () => {
+    const naJanela = vi.fn<() => void>()
+    const ouvir = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') naJanela()
+    }
+    window.addEventListener('keydown', ouvir)
+    try {
+      render({ peers: { phase: 'ready', names: ['Bruno'] } })
+      const bruno = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Bruno')
+      if (bruno === undefined) throw new Error('sem Bruno')
+      act(() => {
+        bruno.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      })
+      expect(onClose).toHaveBeenCalledTimes(1)
+      expect(naJanela).toHaveBeenCalledTimes(0)
+    } finally {
+      window.removeEventListener('keydown', ouvir)
+    }
+  })
+
+  it('"Ninguém na cena" ou só o resultado também fecham; fechada, não há "Fechar"; procurando, ele trava', () => {
+    render()
+    expect(botoes()).not.toContain('Fechar')
+    render({ peers: { phase: 'ready', names: [] } })
+    expect(botoes()).toEqual(['Mostrar meu mapa a…', 'Fechar'])
+    render({ result: { to: 'Bruno', phase: 'failed' } })
+    expect(botoes()).toEqual(['Mostrar meu mapa a…', 'Fechar'])
+    render({ peers: { phase: 'loading' } })
+    expect(Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Fechar')?.disabled).toBe(true)
   })
 
   it('o aviso de quem recebe diz quem mostrou, e nada de lugar', () => {

@@ -12,7 +12,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { decodeExploration, isPointExplored, type Exploration } from '../lib/exploration'
 import type { ConcealZone, MapData, Token, Wall } from '../types/map'
 import type { HostMessage } from './protocol'
-import { createHostSession, MAP_SHARE_MIN_INTERVAL_MS, type HostResult, type HostScene, type HostWorld } from './hostSession'
+import { createHostSession, MAP_SHARE_MIN_INTERVAL_MS, MAX_SCENE_MEMORIES_PER_PLAYER, type HostResult, type HostScene, type HostWorld } from './hostSession'
 
 const CODE = 'AB12CD'
 const AGORA = new Date(2026, 8, 24, 20, 0).getTime()
@@ -165,15 +165,49 @@ describe('Passar o mapa — pelo mestre', () => {
     expect(isPointExplored(exploradoDe(r, 'c-bruno'), { x: 180, y: 160 })).toBe(true)
   })
 
-  it('Davi, em outra cena, recebe só o aviso: nem nome, nem id, nem planta do Salão chegam agora', () => {
+  it('Davi, em outra cena, não recebe nada: nem aviso falso ("já aparece no seu"), nem nome, id ou planta do Salão', () => {
     const { s, world, ana, davi } = mesa()
     const r = s.shareMap(ana, davi, world)
-    expect(msgsPara(r, 'c-davi')).toEqual([{ type: 'map.shared', from: 'Ana' }])
+    // Nada passou: o aviso diria que o trecho já aparece, e na Cripta nada apareceria.
+    expect(r).toEqual({ outbound: [] })
+    expect(r.mapShared).toBeUndefined()
     const b = s.broadcast(world)
-    const json = JSON.stringify(msgsPara(b, 'c-davi')) + JSON.stringify(msgsPara(r, 'c-davi'))
-    for (const vazamento of ['Salao', 's-salao', 'm-salao', 'porta-1', 'ficha-ana']) expect(json).not.toContain(vazamento)
+    const json = JSON.stringify(msgsPara(b, 'c-davi'))
+    for (const vazamento of ['Salao', 's-salao', 'm-salao', 'porta-1', 'ficha-ana', 'map.shared']) expect(json).not.toContain(vazamento)
     // Ele continua recebendo a Cripta, onde a ficha dele está.
     expect(snapshotDe(b, 'c-davi').map.id).toBe('m-cripta')
+  })
+
+  it('Davi, com memória de 8 cenas, não perde a mais antiga por um mapa de uma cena onde nunca esteve', () => {
+    const { s, ana, davi } = mesa()
+    // Davi já explorou a Cripta (no primeiro snapshot, perto de x=100). Depois
+    // viaja por mais 7 cenas: são 8 memórias, o teto, e a Cripta é a mais antiga.
+    const corredores = Array.from({ length: MAX_SCENE_MEMORIES_PER_PLAYER - 1 }, (_, i) => {
+      const base = createEmptyMap(`m-corredor-${i}`, `Corredor ${i}`, 40, 10, 50)
+      return { sceneId: `s-corredor-${i}`, name: `Corredor ${i}`, map: base }
+    })
+    const criptaSemDavi = (): HostScene => {
+      const c = cripta()
+      return { ...c, map: { ...c.map, tokens: [] } }
+    }
+    corredores.forEach((_, onde) => {
+      const background = corredores.map((c, i) => (i === onde ? { ...c, map: { ...c.map, tokens: [ficha('davi', 1000, 250)] } } : c))
+      s.broadcast({ open: salao(), background: [criptaSemDavi(), ...background] })
+    })
+    const noUltimo = corredores.map((c, i) => (i === corredores.length - 1 ? { ...c, map: { ...c.map, tokens: [ficha('davi', 1000, 250)] } } : c))
+    s.shareMap(ana, davi, { open: salao(), background: [criptaSemDavi(), ...noUltimo] })
+
+    // De volta à Cripta, longe de onde começou: o que ele explorou lá continua dele.
+    const volta = cripta()
+    const deVolta = { ...volta, map: { ...volta.map, tokens: [ficha('davi', 1900, 250)] } }
+    const b = s.broadcast({ open: salao(), background: [deVolta, ...corredores] })
+    expect(snapshotDe(b, 'c-davi').map.id).toBe('m-cripta')
+    expect(isPointExplored(exploradoDe(b, 'c-davi'), { x: 100, y: 250 })).toBe(true)
+  })
+
+  it('Eva aguarda sem ficha: o mapa da Ana não passa a quem não está em cena nenhuma', () => {
+    const { s, world, ana, eva } = mesa()
+    expect(s.shareMap(ana, eva, world)).toEqual({ outbound: [] })
   })
 
   it('pedido sem sentido não faz nada: para si mesmo, jogador desconhecido, doador sem cena', () => {

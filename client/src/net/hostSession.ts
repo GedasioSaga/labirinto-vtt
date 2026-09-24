@@ -385,7 +385,8 @@ export interface HostSession {
    * secreta de agora não passam. Quem recebe ganha `map.shared` com o nome de
    * quem passou; o trecho vem no broadcast que o integrador faz depois.
    * Nada a passar (mesmo jogador, desconhecido, doador sem cena ou que ainda
-   * não explorou a dele): `{ outbound: [] }` sem `mapShared`.
+   * não explorou a dele, quem recebe fora da cena do doador ou aguardando):
+   * `{ outbound: [] }` sem `mapShared`.
    */
   shareMap(fromPlayerId: string, toPlayerId: string, source: HostMapSource): HostResult
   /**
@@ -1489,9 +1490,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const giver = players.get(fromPlayerId)
       const target = players.get(toPlayerId)
       if (giver === undefined || target === undefined || fromPlayerId === toPlayerId) return { outbound: [] }
+      const world = toWorld(source)
       // A cena ONDE O DOADOR ESTÁ: é dela que ele tem o mapa na cabeça agora.
-      const scene = sceneFor(fromPlayerId, toWorld(source))
-      if (scene === null || !giveMap(fromPlayerId, toPlayerId, scene.map)) return { outbound: [] }
+      const scene = sceneFor(fromPlayerId, world)
+      if (scene === null) return { outbound: [] }
+      // Só a quem joga NA MESMA cena: o aviso diz "já aparece no seu", e noutra
+      // cena não apareceria; a memória de uma cena onde ele nunca esteve ainda
+      // empurraria para fora a mais antiga que ele explorou (teto de memórias).
+      if (statusOf(toPlayerId) !== 'playing' || sceneFor(toPlayerId, world) !== scene) return { outbound: [] }
+      if (!giveMap(fromPlayerId, toPlayerId, scene.map)) return { outbound: [] }
       return {
         outbound: target.clientId === null ? [] : [{ clientId: target.clientId, msg: { type: 'map.shared', from: giver.name } }],
         mapShared: { fromPlayerId, toPlayerId },

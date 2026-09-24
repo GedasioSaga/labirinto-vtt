@@ -684,6 +684,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             result: state.mapShare,
             onAskPeers: () => connection.askMapPeers(),
             onShare: (name) => connection.shareMap(name),
+            onClose: () => connection.resetMapShare(),
           }}
         />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
