@@ -36,6 +36,12 @@ export interface PlayerMapView {
   /** Portas dentro da visão atual: saíram com o estado real e o chamador deve lembrá-lo. */
   visibleDoorIds: string[]
   /**
+   * Pinos do recorte dentro da visão ATUAL. O resto do recorte saiu só por
+   * explorado (névoa): estado vivo dele (a barra do jogador) não pode chegar,
+   * senão denuncia quem está lá. O chamador lembra o estado dos que estão aqui.
+   */
+  visiblePinIds: string[]
+  /**
    * Polígonos das zonas ocultas ativas (`revealed === false`). O jogador pinta
    * preto por cima e o chamador não marca explorado em célula que toque neles.
    * Só a geometria sai: nome e id da zona ficam no mestre. Zona com pedaço
@@ -1460,7 +1466,8 @@ export function filterMapForPlayer(
    */
   const sightRects = cellRunRects(new Set(shownCells))
   const sentVision = sightRects.length > 0 ? [...vision, ...sightRects] : vision
-  return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms }
+  const visiblePinIds = filtered.pins.filter((p) => isVisible({ x: p.x, y: p.y })).map((p) => p.id)
+  return { map: filtered, vision: sentVision, visibleDoorIds, visiblePinIds, concealed, blocked, roofs, occupiedRooms }
 }
 
 /** O host vê o mapa inteiro, inclusive itens ocultos. */
@@ -1593,14 +1600,23 @@ export interface TrancasDaCena {
  *   ficha escondida já saíram) ALCANÇA a porta do lado do ferrolho — o mesmo
  *   critério com que o host aceita tirá-lo ou abrir. Do outro lado a porta
  *   sai como sempre — a tentativa de abrir é que conta a ele que está trancada.
- * - Pino: `barradaDaqui` em pino que já saiu no recorte. A barra é desta cena;
- *   quem está na cena do outro lado recebe outro mapa e nunca a vê.
+ * - Pino: `barradaDaqui` em pino que já saiu no recorte, e como a porta: o
+ *   pino na visão AGORA (`visiblePinIds`) leva a barra de agora; o que saiu só
+ *   por explorado (névoa) leva a barra LEMBRADA (`barrasLembradas`, a última
+ *   vista por este jogador). Ao vivo na névoa, a marca surgindo ou sumindo
+ *   contava a quem está longe que alguém barrou ou chegou por ali. A barra é
+ *   desta cena; quem está na cena do outro lado recebe outro mapa e nunca a vê.
  *
  * Sem nenhuma marca a pôr, devolve o MESMO `view.map`.
  */
-export function marcarTrancasParaJogador(view: PlayerMapView, ownTokenIds: ReadonlySet<string>, trancas: TrancasDaCena): MapData {
+export function marcarTrancasParaJogador(
+  view: PlayerMapView,
+  ownTokenIds: ReadonlySet<string>,
+  trancas: TrancasDaCena,
+  barrasLembradas: ReadonlySet<string>,
+): MapData {
   const map = view.map
-  if (trancas.ferrolhos.size === 0 && trancas.pinosBarrados.size === 0) return map
+  if (trancas.ferrolhos.size === 0 && trancas.pinosBarrados.size === 0 && barrasLembradas.size === 0) return map
   const visiveis = new Set(view.visibleDoorIds)
   const fichas = map.tokens.filter((t) => ownTokenIds.has(t.id))
   let mudouParede = false
@@ -1615,11 +1631,13 @@ export function marcarTrancasParaJogador(view: PlayerMapView, ownTokenIds: Reado
     return { ...wall, door: marcada }
   })
   let mudouPino = false
+  const pinosAVista = new Set(view.visiblePinIds)
   const pins = map.pins.map((pin) => {
-    if (!trancas.pinosBarrados.has(pin.id)) return pin
+    const barrado = pinosAVista.has(pin.id) ? trancas.pinosBarrados.has(pin.id) : barrasLembradas.has(pin.id)
+    if (!barrado) return pin
     mudouPino = true
-    const barrado: Pin = { ...pin, barradaDaqui: true }
-    return barrado
+    const marcado: Pin = { ...pin, barradaDaqui: true }
+    return marcado
   })
   if (!mudouParede && !mudouPino) return map
   return { ...map, walls: mudouParede ? walls : map.walls, pins: mudouPino ? pins : map.pins }

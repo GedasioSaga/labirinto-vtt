@@ -564,6 +564,11 @@ interface PlayerMemory {
   key: string
   exp: Exploration
   doors: Map<string, DoorState>
+  /**
+   * Pinos que o jogador viu BARRADOS da última vez que os teve na visão. Na
+   * névoa o pino sai com esta barra, não a de agora (`marcarTrancasParaJogador`).
+   */
+  pinosBarrados: Set<string>
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
 }
@@ -745,6 +750,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       key: memoryKey(map),
       exp: createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }),
       doors: new Map(),
+      pinosBarrados: new Set(),
       vision: [],
     }
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
@@ -921,7 +927,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
     // JOGADOR TRANCA: a marca do ferrolho e da barra entra DEPOIS de lembrar as
     // portas (não vira memória) e só para quem está do lado da tranca.
-    const recorte = marcarTrancasParaJogador(view, new Set(ownTokens), trancasDe(map))
+    const trancas = trancasDe(map)
+    // A barra do pino à vista vira lembrança; o pino na névoa sai com a lembrada.
+    for (const pinId of view.visiblePinIds) {
+      if (trancas.pinosBarrados.has(pinId)) memory.pinosBarrados.add(pinId)
+      else memory.pinosBarrados.delete(pinId)
+    }
+    const recorte = marcarTrancasParaJogador(view, new Set(ownTokens), trancas, memory.pinosBarrados)
     const snapshot: HostMessage = { type: 'snapshot', rev, map: recorte, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
     return [snapshot, ...roomTextCardsFor(playerId, map.id, view)]
   }

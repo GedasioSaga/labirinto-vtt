@@ -38,7 +38,7 @@ function corredor(): MapData {
 function recorteDe(playerId: 'ana' | 'bruno', lado: 1 | -1) {
   const map = corredor()
   const view = filterMapForPlayer(map, playerId, OWNERSHIP, 700)
-  return marcarTrancasParaJogador(view, new Set(OWNERSHIP[playerId]), { ferrolhos: new Map([['porta', lado]]), pinosBarrados: new Set(['alcapao']) })
+  return marcarTrancasParaJogador(view, new Set(OWNERSHIP[playerId]), { ferrolhos: new Map([['porta', lado]]), pinosBarrados: new Set(['alcapao']) }, new Set())
 }
 
 const LADO_DA_ANA = ladoDaPorta(PORTA, { x: 450, y: 250 })
@@ -62,7 +62,7 @@ describe('marcarTrancasParaJogador', () => {
     const barrado = recorteDe('ana', LADO_DA_ANA).pins.find((p) => p.id === 'alcapao')
     expect(barrado?.barradaDaqui).toBe(true)
     const view = filterMapForPlayer(corredor(), 'ana', OWNERSHIP, 700)
-    const livre = marcarTrancasParaJogador(view, new Set(OWNERSHIP.ana), { ferrolhos: new Map(), pinosBarrados: new Set() })
+    const livre = marcarTrancasParaJogador(view, new Set(OWNERSHIP.ana), { ferrolhos: new Map(), pinosBarrados: new Set() }, new Set())
     expect(livre).toBe(view.map)
     expect(JSON.stringify(livre)).not.toContain('barrada')
   })
@@ -73,12 +73,12 @@ describe('marcarTrancasParaJogador', () => {
     const map: MapData = { ...corredor(), tokens: [ficha('ficha-ana', 200, 250), ficha('ficha-ana2', 550, 250), ficha('ficha-bruno', 900, 400)] }
     const donos = { ana: ['ficha-ana', 'ficha-ana2'], bruno: ['ficha-bruno'] }
     const view = filterMapForPlayer(map, 'ana', donos, 700)
-    const marcado = marcarTrancasParaJogador(view, new Set(donos.ana), { ferrolhos: new Map([['porta', LADO_DA_ANA]]), pinosBarrados: new Set() })
+    const marcado = marcarTrancasParaJogador(view, new Set(donos.ana), { ferrolhos: new Map([['porta', LADO_DA_ANA]]), pinosBarrados: new Set() }, new Set())
     expect(marcado.walls.find((w) => w.id === 'porta')?.door).toEqual({ open: false, locked: false, kind: 'normal' })
     // A ficha recuada volta a encostar do lado do ferrolho: aí sim a marca vem.
     const encostada: MapData = { ...map, tokens: [ficha('ficha-ana', 450, 250), ficha('ficha-ana2', 550, 250), ficha('ficha-bruno', 900, 400)] }
     const viewEncostada = filterMapForPlayer(encostada, 'ana', donos, 700)
-    const comMarca = marcarTrancasParaJogador(viewEncostada, new Set(donos.ana), { ferrolhos: new Map([['porta', LADO_DA_ANA]]), pinosBarrados: new Set() })
+    const comMarca = marcarTrancasParaJogador(viewEncostada, new Set(donos.ana), { ferrolhos: new Map([['porta', LADO_DA_ANA]]), pinosBarrados: new Set() }, new Set())
     expect(comMarca.walls.find((w) => w.id === 'porta')?.door?.ferrolhoDoMeuLado).toBe(true)
   })
 
@@ -86,7 +86,28 @@ describe('marcarTrancasParaJogador', () => {
     if (LADO_DA_ANA === null) throw new Error('a Ana tem lado')
     const map: MapData = { ...corredor(), walls: corredor().walls.map((w) => (w.id === 'porta' && w.door !== null ? { ...w, door: { ...w.door, open: true } } : w)) }
     const view = filterMapForPlayer(map, 'ana', OWNERSHIP, 700)
-    const marcado = marcarTrancasParaJogador(view, new Set(OWNERSHIP.ana), { ferrolhos: new Map([['porta', LADO_DA_ANA]]), pinosBarrados: new Set() })
+    const marcado = marcarTrancasParaJogador(view, new Set(OWNERSHIP.ana), { ferrolhos: new Map([['porta', LADO_DA_ANA]]), pinosBarrados: new Set() }, new Set())
     expect(marcado.walls.find((w) => w.id === 'porta')?.door).toEqual({ open: true, locked: false, kind: 'normal' })
+  })
+})
+
+describe('marcarTrancasParaJogador: pino fora da visão atual', () => {
+  const BARRA = { ferrolhos: new Map<string, 1 | -1>(), pinosBarrados: new Set(['alcapao']) }
+
+  it('o pino à vista entra em visiblePinIds e leva a barra de agora', () => {
+    const view = filterMapForPlayer(corredor(), 'ana', OWNERSHIP, 700)
+    expect(view.visiblePinIds).toEqual(['alcapao'])
+    expect(marcarTrancasParaJogador(view, new Set(OWNERSHIP.ana), BARRA, new Set()).pins.find((p) => p.id === 'alcapao')?.barradaDaqui).toBe(true)
+  })
+
+  it('SEGURANÇA: pino que saiu só por explorado (fora da visão) não ganha a barra ao vivo; sai com a lembrada', () => {
+    const visto = filterMapForPlayer(corredor(), 'ana', OWNERSHIP, 700)
+    const naNevoa = { ...visto, visiblePinIds: [] }
+    const semLembranca = marcarTrancasParaJogador(naNevoa, new Set(OWNERSHIP.ana), BARRA, new Set())
+    expect(semLembranca).toBe(naNevoa.map)
+    expect(JSON.stringify(semLembranca)).not.toContain('barrada')
+    // Lembrada barrada: continua barrada, mesmo com a barra já tirada agora.
+    const lembrada = marcarTrancasParaJogador(naNevoa, new Set(OWNERSHIP.ana), { ferrolhos: new Map(), pinosBarrados: new Set() }, new Set(['alcapao']))
+    expect(lembrada.pins.find((p) => p.id === 'alcapao')?.barradaDaqui).toBe(true)
   })
 })

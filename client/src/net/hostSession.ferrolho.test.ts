@@ -351,3 +351,71 @@ describe('hostSession: barrar a passagem por onde chegou', () => {
     expect(pinoNoRecorte(snapshotPara(s, 'c3', w), 'fundo')?.barradaDaqui).toBeUndefined()
   })
 })
+
+// ---------------------------------------------------------------------------
+// PASSAGEM NA NÉVOA: a barra de um pino que o jogador só lembra (explorado,
+// fora da visão) não pode mudar ao vivo. Senão Bruno, longe, vê a marca surgir
+// quando Ana barra escondida na névoa (e sumir quando alguém chega por ali).
+
+/** Uma cena só: Ana encostada no fundo do poço; Bruno em `brunoX`. Visão curta (300) para o pino cair na névoa. */
+function criptaCom(brunoX: number): HostWorld {
+  const cripta: MapData = {
+    ...createEmptyMap('mapa-cripta', 'Cripta Rubra', 40, 10, 50),
+    tokens: [ficha('ficha-ana', 'Heroina', 1050, 250), ficha('ficha-bruno', 'Guarda', brunoX, 250)],
+    pins: [viagem('fundo', 1000, 250, { sceneId: SALAO, pinId: 'alcapao' })],
+  }
+  const salao: MapData = { ...createEmptyMap('mapa-salao', 'Salão', 40, 10, 50), pins: [viagem('alcapao', 400, 200, { sceneId: CRIPTA, pinId: 'fundo' })] }
+  return { open: { sceneId: CRIPTA, name: 'Cripta Rubra', map: cripta }, background: [{ sceneId: SALAO, name: 'Salão', map: salao }] }
+}
+
+function mesaNaNevoa(w: HostWorld) {
+  let n = 0
+  let t = 1_000_000
+  const s = createHostSession({ code: CODE, visionRadius: 300, now: () => (t += 1000), randomId: () => `id-${(n += 1)}` })
+  const ana = welcome(s.handleMessage('c1', { type: 'join', code: CODE, name: 'Ana' }, w))
+  const bruno = welcome(s.handleMessage('c2', { type: 'join', code: CODE, name: 'Bruno' }, w))
+  s.assignToken(ana, 'ficha-ana')
+  s.assignToken(bruno, 'ficha-bruno')
+  return s
+}
+
+describe('hostSession: pino barrado na névoa sai com o estado lembrado', () => {
+  const PERTO = 900
+  const LONGE = 100
+
+  it('SEGURANÇA: Ana barra escondida na névoa de Bruno; o pino que ele só lembra não ganha a marca', () => {
+    const perto = criptaCom(PERTO)
+    const longe = criptaCom(LONGE)
+    const s = mesaNaNevoa(perto)
+    // Bruno passa perto (explora o pino, sem barra) e se afasta.
+    expect(pinoNoRecorte(snapshotPara(s, 'c2', perto), 'fundo')?.barradaDaqui).toBeUndefined()
+    const antes = snapshotPara(s, 'c2', longe)
+    expect(pinoNoRecorte(antes, 'fundo')).toEqual(expect.objectContaining({ id: 'fundo' }))
+    expect(antes.map.tokens.map((t) => t.id)).toEqual(['ficha-bruno'])
+    expect(s.handleMessage('c1', { type: 'pin.bar', pinId: 'fundo', on: true }, longe).trancaAviso?.acao).toBe('trancou')
+    expect(pinoNoRecorte(snapshotPara(s, 'c1', longe), 'fundo')?.barradaDaqui).toBe(true)
+    const depois = snapshotPara(s, 'c2', longe)
+    expect(pinoNoRecorte(depois, 'fundo')).toEqual(pinoNoRecorte(antes, 'fundo'))
+    expect(JSON.stringify(depois)).not.toContain('barrada')
+    // Voltando a ver o pino, a barra aparece: é o estado de agora.
+    expect(pinoNoRecorte(snapshotPara(s, 'c2', perto), 'fundo')?.barradaDaqui).toBe(true)
+  })
+
+  it('SEGURANÇA: Bruno viu a barra e se afastou; a barra tirada na névoa dele continua lembrada até ele voltar a ver', () => {
+    const perto = criptaCom(PERTO)
+    const longe = criptaCom(LONGE)
+    const s = mesaNaNevoa(perto)
+    snapshotPara(s, 'c2', perto)
+    expect(s.handleMessage('c1', { type: 'pin.bar', pinId: 'fundo', on: true }, perto).trancaAviso?.acao).toBe('trancou')
+    expect(pinoNoRecorte(snapshotPara(s, 'c2', perto), 'fundo')?.barradaDaqui).toBe(true)
+    expect(pinoNoRecorte(snapshotPara(s, 'c2', longe), 'fundo')?.barradaDaqui).toBe(true)
+    expect(s.handleMessage('c1', { type: 'pin.bar', pinId: 'fundo', on: false }, longe).trancaAviso?.acao).toBe('destrancou')
+    expect(pinoNoRecorte(snapshotPara(s, 'c1', longe), 'fundo')?.barradaDaqui).toBeUndefined()
+    // Na névoa de Bruno nada muda: ele segue com a barra que viu por último.
+    expect(pinoNoRecorte(snapshotPara(s, 'c2', longe), 'fundo')?.barradaDaqui).toBe(true)
+    // De volta à vista, o estado de agora: sem barra.
+    const deVolta = pinoNoRecorte(snapshotPara(s, 'c2', perto), 'fundo')
+    expect(deVolta).toEqual(expect.objectContaining({ id: 'fundo' }))
+    expect(deVolta?.barradaDaqui).toBeUndefined()
+  })
+})
