@@ -244,3 +244,87 @@ describe('sala retangular TORTA não se desmonta', () => {
     expect(resizeRoomCornerLive(torta, 'sala', 2, 900, 900)).toBe(torta)
   })
 })
+
+describe('rotateRegion — quarto de volta numa sala ímpar continua na grade', () => {
+  /** 3 x 4 quadrados de 64 px: girar em volta do centro a deixaria a meio quadrado da grade. */
+  function sala3x4(): MapData {
+    const { region, walls } = buildRoomFromDraft('sala', ['w0', 'w1', 'w2', 'w3'], { x: 576, y: 256 }, { x: 768, y: 512 })
+    return addRoom(createEmptyMap('m', 'M', 30, 20, 64), region, walls)
+  }
+
+  const naGrade = (v: number): boolean => Number.isInteger(v / 64)
+
+  /** Todo canto de sala e toda ponta de parede vinculada em múltiplo de 64. */
+  function tudoNaGrade(map: MapData): void {
+    for (const r of map.regions) {
+      for (const p of r.points) expect(naGrade(p.x) && naGrade(p.y), `canto ${p.x},${p.y} de ${r.id} fora da grade`).toBe(true)
+    }
+    for (const w of map.walls.filter((parede) => parede.regionId !== undefined)) {
+      expect([w.x1, w.y1, w.x2, w.y2].every(naGrade), `parede ${w.id} fora da grade`).toBe(true)
+    }
+  }
+
+  it('+90°, −90° e 180°: cantos e paredes na grade, largura e altura trocadas, sala reta', () => {
+    for (const giro of [90, -90, 180]) {
+      const map = rotateRegion(sala3x4(), 'sala', giro)
+      tudoNaGrade(map)
+      paredesNasArestas(map, 'sala')
+      expect(isAxisAlignedRect(sala(map).points)).toBe(true)
+      expect(roomDimensions(sala(map).points)).toEqual(giro === 180 ? { width: 192, height: 256 } : { width: 256, height: 192 })
+      expect(sala(map).room?.rotation).toBe(giro)
+    }
+  })
+
+  it('ida e volta exata: +90/−90, −90/+90, quatro de +90, quatro de −90 e dois de 180 devolvem o mapa de partida', () => {
+    const antes = sala3x4()
+    expect(rotateRegion(rotateRegion(antes, 'sala', 90), 'sala', -90)).toEqual(antes)
+    expect(rotateRegion(rotateRegion(antes, 'sala', -90), 'sala', 90)).toEqual(antes)
+    for (const giro of [90, -90]) {
+      let map = antes
+      for (let i = 0; i < 4; i += 1) {
+        map = rotateRegion(map, 'sala', giro)
+        tudoNaGrade(map)
+      }
+      expect(map).toEqual(antes)
+    }
+    expect(rotateRegion(rotateRegion(antes, 'sala', 180), 'sala', 180)).toEqual(antes)
+  })
+
+  it('a sala anda só meia casa em cada eixo: continua onde estava, não pula para longe', () => {
+    const antes = roomCentroid(sala(sala3x4()).points)
+    for (const giro of [90, -90]) {
+      const depois = roomCentroid(sala(rotateRegion(sala3x4(), 'sala', giro)).points)
+      expect(Math.abs(depois.x - antes.x)).toBe(32)
+      expect(Math.abs(depois.y - antes.y)).toBe(32)
+    }
+  })
+
+  it('ângulo livre segue girando em volta do centro: o centro não anda', () => {
+    const antes = roomCentroid(sala(sala3x4()).points)
+    const map = rotateRegion(sala3x4(), 'sala', 30)
+    const depois = roomCentroid(sala(map).points)
+    expect(sala(map).room?.rotation).toBe(30)
+    expect(depois.x).toBeCloseTo(antes.x, 9)
+    expect(depois.y).toBeCloseTo(antes.y, 9)
+  })
+
+  it("pivô 'centro' (o quadro do arrasto): o quarto de volta gira em volta do centro, e a volta é exata", () => {
+    const antes = sala3x4()
+    const centro = roomCentroid(sala(antes).points)
+    const girado = rotateRegion(antes, 'sala', 90, 'centro')
+    expect(roomCentroid(sala(girado).points)).toEqual(centro)
+    expect(sala(girado).points[0]).toEqual({ x: 800, y: 288 })
+    expect(rotateRegion(girado, 'sala', -90, 'centro')).toEqual(antes)
+  })
+
+  it('a sub-sala vai junto e também fica na grade', () => {
+    let map = createEmptyMap('m', 'M', 30, 20, 64)
+    const casa = buildRoomFromDraft('casa', ['c0', 'c1', 'c2', 'c3'], { x: 0, y: 0 }, { x: 192, y: 256 })
+    map = addRoom(map, casa.region, casa.walls)
+    const quarto = placeNewRoom(map.regions, map.walls, buildRoomFromDraft('quarto', ['q0', 'q1', 'q2', 'q3'], { x: 0, y: 0 }, { x: 64, y: 64 }), null)
+    map = addRoom(map, quarto.region, quarto.walls)
+    const girado = rotateRegion(map, 'casa', 90)
+    tudoNaGrade(girado)
+    expect(sala(girado, 'quarto').room?.rotation).toBe(90)
+  })
+})

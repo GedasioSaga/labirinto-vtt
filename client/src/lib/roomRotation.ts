@@ -162,6 +162,99 @@ export function rotateVector(vector: RegionPoint, trig: RotationTrig): RegionPoi
   }
 }
 
+/** Folga, em px, para dizer que dois cantos da sala estão a um número inteiro de casas um do outro. */
+const FOLGA_DA_GRADE = 1e-6
+/** Folga para dizer que dois pivôs candidatos estão à mesma distância do centro (em meias casas, ao quadrado). */
+const FOLGA_DO_EMPATE = 1e-9
+
+/** Um múltiplo inteiro de `passo`, a menos de ruído de conta? */
+function ehMultiplo(valor: number, passo: number): boolean {
+  return Math.abs(valor - Math.round(valor / passo) * passo) <= FOLGA_DA_GRADE
+}
+
+/**
+ * Onde o pivô pode ficar para o giro levar a grade nela mesma, em MEIAS casas
+ * contadas de um canto da sala. 180° leva o ponto p em 2·pivô − p: basta o
+ * pivô estar em meia casa. ±90° leva (x, y) em (pivô.x + pivô.y − y, …): as
+ * duas coordenadas do pivô precisam ser meia casa com a SOMA inteira — o
+ * tabuleiro de xadrez dos cantos e dos centros de casa.
+ */
+function pivoServe(a: number, b: number, giro: number): boolean {
+  return giro === 180 || (a + b) % 2 === 0
+}
+
+/**
+ * Para que lado desempatar o pivô, dado o ângulo em que a sala JÁ está.
+ *
+ * Numa sala de lados ímpar e par (3 x 4) o centro está à mesma distância de
+ * quatro pivôs possíveis, e qualquer um deixa a sala na grade — mas um lado
+ * fixo faria a sala andar meia casa na diagonal a cada +90° e nunca voltar.
+ * O lado preferido gira com a sala: +90° e depois −90° escolhem o mesmo
+ * pivô (volta exata), e quatro giros de +90° usam os quatro lados, então a
+ * meia casa de cada um se cancela e a sala fecha a volta onde começou.
+ */
+function ladoPreferido(anguloDaSala: number, giro: number): Ponto {
+  const base = { x: 0, y: 1 }
+  const angulo = giro === -90 ? 180 - anguloDaSala : -anguloDaSala
+  return rotateVector(base, rotationTrig(angulo))
+}
+
+/**
+ * O pivô do giro de `turn` graus numa sala que já está a `roomRotation` graus.
+ *
+ * Ângulo livre: o centróide de área, sempre (`roomCentroid` — ida e volta
+ * exata, o nome parado). Quarto de volta (±90°, 180°) numa sala com os cantos
+ * na grade (`grid` px, contada a partir do canto 0 da sala, então vale com a
+ * grade deslocada também): o ponto da grade mais perto do centróide em volta
+ * do qual o giro devolve cada canto à grade. Sem isto uma sala 3 x 4 girada
+ * 90° ficava a meia casa da grade nos dois eixos; com isto ela anda no máximo
+ * meia casa em cada eixo e fica na grade. Sala fora da grade, grade inválida
+ * ou sala vazia: o centróide, como antes.
+ */
+export function rotationPivot(points: readonly RegionPoint[], roomRotation: number, turn: number, grid: number): Ponto {
+  const centro = roomCentroid(points)
+  const giro = normalizeRotation(turn)
+  if (giro !== 90 && giro !== -90 && giro !== 180) return centro
+  if (!Number.isFinite(grid) || grid <= 0 || points.length === 0) return centro
+  const origem = points[0]
+  if (!points.every((p) => ehMultiplo(p.x - origem.x, grid) && ehMultiplo(p.y - origem.y, grid))) return centro
+
+  const meia = grid / 2
+  const alvo = { x: (centro.x - origem.x) / meia, y: (centro.y - origem.y) / meia }
+  const lado = ladoPreferido(roomRotation, giro)
+  const ladoAoLado = rotateVector(lado, rotationTrig(90))
+  let melhor: { a: number; b: number; distancia: number; frente: number; flanco: number } | null = null
+  // O mais perto está sempre a menos de uma meia casa de distância em cada eixo: ±1 em volta basta.
+  for (let a = Math.floor(alvo.x) - 1; a <= Math.ceil(alvo.x) + 1; a++) {
+    for (let b = Math.floor(alvo.y) - 1; b <= Math.ceil(alvo.y) + 1; b++) {
+      if (!pivoServe(a, b, giro)) continue
+      const v = { x: alvo.x - a, y: alvo.y - b }
+      const candidato = {
+        a,
+        b,
+        distancia: v.x * v.x + v.y * v.y,
+        frente: v.x * lado.x + v.y * lado.y,
+        flanco: v.x * ladoAoLado.x + v.y * ladoAoLado.y,
+      }
+      if (melhor === null || ganhaDe(candidato, melhor)) melhor = candidato
+    }
+  }
+  if (melhor === null) return centro
+  return { x: origem.x + melhor.a * meia, y: origem.y + melhor.b * meia }
+}
+
+/** Mais perto ganha; no empate, o do lado preferido; e, se ainda empatar, o do flanco. */
+function ganhaDe(
+  novo: { distancia: number; frente: number; flanco: number },
+  atual: { distancia: number; frente: number; flanco: number },
+): boolean {
+  if (novo.distancia < atual.distancia - FOLGA_DO_EMPATE) return true
+  if (novo.distancia > atual.distancia + FOLGA_DO_EMPATE) return false
+  if (novo.frente > atual.frente + FOLGA_DO_EMPATE) return true
+  if (novo.frente < atual.frente - FOLGA_DO_EMPATE) return false
+  return novo.flanco > atual.flanco + FOLGA_DO_EMPATE
+}
+
 /**
  * Direção de `point` vista do pivô, em graus. Com y para baixo, crescer é
  * andar no sentido horário — o mesmo sinal do giro, então a diferença entre

@@ -4,7 +4,7 @@ import { useMapStore } from '../stores/mapStore'
 import * as mapFactory from '../lib/mapFactory'
 import { buildRoomFromDraft } from '../lib/drawingFactory'
 import { EMPTY_SELECTION } from '../lib/selectionModel'
-import { ROOM_ROTATE_HANDLE } from '../lib/roomRotation'
+import { ROOM_ROTATE_HANDLE, roomRotationOf } from '../lib/roomRotation'
 import { createRoomRotateGesture } from './roomRotateGesture'
 
 /**
@@ -116,5 +116,55 @@ describe('alça de girar sala', () => {
     const gesto = createRoomRotateGesture()
     expect(gesto.begin('sala', ALCA, 2)).toBe(false)
     expect(gesto.begin('sala', { x: 640, y: 256 - ROOM_ROTATE_HANDLE.offsetPx / 2 }, 2)).toBe(true)
+  })
+})
+
+describe('alça de girar numa sala 3 x 4 (lado ímpar): o quarto de volta pelo arrasto fica na grade', () => {
+  const CENTRO_3X4 = { x: 672, y: 384 }
+  const ALCA_3X4 = { x: 672, y: 256 - ROOM_ROTATE_HANDLE.offsetPx }
+  const RAIO_3X4 = CENTRO_3X4.y - ALCA_3X4.y
+  const noArco3x4 = (graus: number) => {
+    const a = (graus * Math.PI) / 180
+    return { x: CENTRO_3X4.x + RAIO_3X4 * Math.sin(a), y: CENTRO_3X4.y - RAIO_3X4 * Math.cos(a) }
+  }
+  const CANTOS_DE_PARTIDA = [
+    { x: 576, y: 256 },
+    { x: 768, y: 256 },
+    { x: 768, y: 512 },
+    { x: 576, y: 512 },
+  ]
+  /** Onde o botão +90° põe a mesma sala. */
+  const PELO_BOTAO = [
+    { x: 512, y: 256 },
+    { x: 768, y: 256 },
+    { x: 768, y: 448 },
+    { x: 512, y: 448 },
+  ]
+  let antes: MapData
+
+  beforeEach(() => {
+    const { region, walls } = buildRoomFromDraft('sala', ['w0', 'w1', 'w2', 'w3'], { x: 576, y: 256 }, { x: 768, y: 512 })
+    antes = mapFactory.addRoom(mapFactory.createEmptyMap('m', 'M', 30, 20, 64), region, walls)
+    useMapStore.setState({ map: antes, selection: EMPTY_SELECTION, past: [], future: [] })
+  })
+
+  it('um pointermove só, com Shift, até 90°: solta onde o botão +90° poria, com UM Ctrl+Z', () => {
+    const gesto = createRoomRotateGesture()
+    expect(gesto.begin('sala', ALCA_3X4, 1)).toBe(true)
+    expect(gesto.move(noArco3x4(89), true)?.rotation).toBe(90)
+    expect(gesto.finish()).toBe(true)
+    expect(sala().points).toEqual(PELO_BOTAO)
+    expect(useMapStore.getState().past).toHaveLength(1)
+  })
+
+  it('Esc depois de chegar a 90° de 15 em 15: a sala volta exatamente aonde estava, sem histórico', () => {
+    const gesto = createRoomRotateGesture()
+    gesto.begin('sala', ALCA_3X4, 1)
+    for (let g = 15; g <= 90; g += 15) gesto.move(noArco3x4(g), true)
+    expect(sala().room?.rotation).toBe(90)
+    expect(gesto.cancel()).toBe(true)
+    expect(roomRotationOf(sala().room)).toBe(0)
+    expect(sala().points).toEqual(CANTOS_DE_PARTIDA)
+    expect(useMapStore.getState().past).toHaveLength(0)
   })
 })
