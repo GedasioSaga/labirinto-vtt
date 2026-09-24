@@ -1468,6 +1468,21 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* "destino marcado" + "Ver": a marca "vamos para cá" do jogador, uma linha abaixo de onde ele está. */
+.lb-party__destination {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-party__destination > .lb-btn {
+  flex: none;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+}
+
 /* Alvo de toque: o .lb-btn já tem 34 px de altura; aqui as duas ações dividem a linha. */
 .lb-party__actions {
   display: flex;

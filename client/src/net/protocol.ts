@@ -6,6 +6,7 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
+import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } from '../lib/signals'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -81,6 +82,13 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
  * quando o mestre escreveu um. Nunca o nome interno da cena, nunca o de outra
  * cena. Jogador antigo ignora o campo; mestre antigo não o manda e o selo não
  * aparece.
+ *
+ * A MARCA "VAMOS PARA CÁ" é aditiva pelo mesmo critério: `destination`
+ * (jogador -> mestre, um ponto ou `clear`) e `destinations` (mestre ->
+ * jogador), a lista INTEIRA de marcas que aquele jogador pode ver agora — só
+ * da cena dele, só em ponto que ele já conhece e fora de zona oculta. Nunca a
+ * cena, nunca marca de quem está em outra cena. Mestre antigo responde
+ * `error invalid_message`; jogador antigo ignora a lista.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -196,11 +204,25 @@ export interface ClueShowMessage {
   to: string
 }
 
+/**
+ * MARCA "VAMOS PARA CÁ": põe (ou move) a marca do jogador no ponto, em px de
+ * mundo da cena dele; `clear` tira. Sem nome nem cor: quem é e de que cor o
+ * host sabe pela conexão e pela ficha.
+ */
+export type DestinationMessage = { type: 'destination'; x: number; y: number } | { type: 'destination'; clear: true }
+
+/** As marcas que ESTE jogador pode ver agora, a lista inteira (vazia = nenhuma). */
+export interface DestinationsMessage {
+  type: 'destinations'
+  marks: DestinationMark[]
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
   | PingMessage
   | SignalMessage
+  | DestinationMessage
   | DoorToggleMessage
   | TokenEditMessage
   | PinTravelRequestMessage
@@ -334,6 +356,7 @@ export type HostMessage =
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
+  | DestinationsMessage
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
   | { type: 'pin.travel.denied' }
@@ -613,6 +636,39 @@ export function parseLaserMessage(value: unknown): LaserMessage | RelayedLaserMe
   return { ...body, from, color }
 }
 
+function parseDestinationMark(value: unknown): DestinationMark | null {
+  if (!isRecord(value)) return null
+  const { x, y, from, color, mine } = value
+  if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isRoomName(from) || typeof mine !== 'boolean') return null
+  // A cor vai direto para o desenho: só `#rrggbb`.
+  if (typeof color !== 'string' || !SIGNAL_COLOR_PATTERN.test(color)) return null
+  return { x, y, from, color, mine }
+}
+
+/**
+ * Valida a lista de marcas que o jogador recebe. Mesma regra das outras
+ * listas: acima do teto ou com uma marca torta, recusa inteira (não mostra
+ * lista pela metade). Devolve cópia só com os campos conhecidos.
+ */
+export function parseDestinationsMessage(value: unknown): DestinationsMessage | null {
+  if (!isRecord(value) || value.type !== 'destinations') return null
+  const { marks } = value
+  if (!Array.isArray(marks) || marks.length > MAX_DESTINATION_MARKS) return null
+  const parsed: DestinationMark[] = []
+  for (const item of marks) {
+    const mark = parseDestinationMark(item)
+    if (mark === null) return null
+    parsed.push(mark)
+  }
+  return { type: 'destinations', marks: parsed }
+}
+
+function parseDestination(value: Record<string, unknown>): DestinationMessage | null {
+  if (value.clear === true) return { type: 'destination', clear: true }
+  if (value.clear !== undefined) return null
+  return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'destination', x: value.x, y: value.y } : null
+}
+
 /**
  * Valida mensagem vinda do jogador. Aceita o objeto já desserializado ou a
  * string JSON crua do transporte. Devolve um objeto novo só com os campos
@@ -637,6 +693,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return { type: 'ping' }
     case 'signal':
       return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
+    case 'destination':
+      return parseDestination(value)
     case 'door.toggle':
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
     case 'token.edit':

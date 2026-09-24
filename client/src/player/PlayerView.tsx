@@ -46,8 +46,8 @@ import { createRoomNamesRenderer, findRoomLabelAt } from '../pixi/drawRoomNames'
 import { hasEnterText } from '../lib/roomText'
 import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
 import { isDegenerateRegion } from '../pixi/shapes'
-import { createSignalsRenderer } from '../pixi/drawSignals'
-import { SIGNAL_LONG_PRESS_MS, SIGNAL_LONG_PRESS_TOLERANCE_PX, type SignalMark } from '../lib/signals'
+import { createDestinationsRenderer, createSignalsRenderer } from '../pixi/drawSignals'
+import { SIGNAL_LONG_PRESS_MS, SIGNAL_LONG_PRESS_TOLERANCE_PX, type DestinationMark, type SignalMark } from '../lib/signals'
 import { createLaserPool, createLaserRenderer } from '../pixi/drawLaser'
 import { appendLaserPoints, pruneLaserTrail, type LaserTrail, type RemoteLaser } from '../lib/laser'
 import type { PlayerViewSettings } from './PlayerPanel'
@@ -102,6 +102,11 @@ interface PlayerViewProps {
   /** Botão "Sinalizar" ligado: o próximo toque no mapa vira sinal em vez de arrasto. */
   signalArmed?: boolean
   onSignal?: (x: number, y: number) => void
+  /** Marcas "vamos para cá" que o host deixou ver (a própria inclusa). Ficam até o host trocar a lista. */
+  destinations?: readonly DestinationMark[]
+  /** Botão "Marcar destino" ligado: o próximo toque no mapa põe a marca em vez de arrastar. */
+  destinationArmed?: boolean
+  onDestination?: (x: number, y: number) => void
   /**
    * Botão "Medir" ligado: arrastar no mapa mede a distância em vez de mover a
    * câmera. A medida é só desta tela — nada vai pelo socket.
@@ -558,6 +563,9 @@ interface Scene {
   /** Espaço de tela, acima do `world`: ondas e seta de borda com tamanho fixo. */
   signalsLayer: Container
   signalsRenderer: ReturnType<typeof createSignalsRenderer>
+  /** Bandeirinhas "vamos para cá", no mesmo espaço de tela dos sinais, abaixo das ondas. */
+  destinationsLayer: Container
+  destinationsRenderer: ReturnType<typeof createDestinationsRenderer>
   /**
    * Régua do jogador, em espaço de tela como os sinais. O estado mora aqui (e
    * não no React) de propósito: o arrasto atualiza a cada pointermove, e
@@ -582,6 +590,7 @@ interface Scene {
 
 /** Referência estável para o padrão da prop: sem sinais, nada muda entre renders. */
 const NO_SIGNALS: readonly SignalMark[] = []
+const NO_DESTINATIONS: readonly DestinationMark[] = []
 const NO_PLAYER_LASERS: readonly RemoteLaser[] = []
 const NO_OWN_LASER: LaserTrail = { points: [], on: false }
 /** Rótulo da ponta do próprio laser: o nome de quem aponta é o dos outros, o seu é "Você". */
@@ -774,6 +783,9 @@ export function PlayerView({
   signals = NO_SIGNALS,
   signalArmed = false,
   onSignal,
+  destinations = NO_DESTINATIONS,
+  destinationArmed = false,
+  onDestination,
   measureArmed = false,
   onDoorToggle,
   onPinOpen,
@@ -802,6 +814,9 @@ export function PlayerView({
     signals,
     signalArmed,
     onSignal,
+    destinations,
+    destinationArmed,
+    onDestination,
     measureArmed,
     onDoorToggle,
     onPinOpen,
@@ -1206,7 +1221,9 @@ export function PlayerView({
     // Alt+clique ou modo Sinalizar sobre um token: deixa o evento subir para o palco sinalizar.
     // Modo Medir também: medir a partir da própria ficha é o caso mais comum, e ela não pode andar.
     // Modo Laser também: apontar a partir da própria ficha não pode arrastá-la.
-    if (event.altKey || latestRef.current.signalArmed || latestRef.current.measureArmed || latestRef.current.laserArmed) return
+    // "Marcar destino" também: marcar onde a própria ficha está é marcar, não andar.
+    const current = latestRef.current
+    if (event.altKey || current.signalArmed || current.measureArmed || current.laserArmed || current.destinationArmed) return
     event.stopPropagation()
     // Outro gesto já em curso (o segundo dedo nem chega aqui: a captura do palco o fez pinça).
     if (scene.drag !== null) return
@@ -1309,6 +1326,9 @@ export function PlayerView({
       )
       const signalsLayer = new Container()
       signalsLayer.eventMode = 'none'
+      // Bandeirinhas "vamos para cá" dentro da camada dos sinais, nascida antes das ondas: ficam por baixo delas.
+      const destinationsLayer = new Container()
+      signalsLayer.addChild(destinationsLayer)
       // Laser do mestre acima dos sinais: é a mão de quem conduz a mesa.
       const laserLayer = new Container()
       laserLayer.eventMode = 'none'
@@ -1387,6 +1407,8 @@ export function PlayerView({
         zoomAnimation: null,
         signalsLayer,
         signalsRenderer: createSignalsRenderer(),
+        destinationsLayer,
+        destinationsRenderer: createDestinationsRenderer(),
         measureLayer,
         measure: withMeasureArmed(MEASURE_OFF, latestRef.current.measureArmed),
         lastMeasureKey: null,
@@ -1429,6 +1451,20 @@ export function PlayerView({
         signalsDrawn = drawn
       }
       app.ticker.add(tickSignals)
+
+      // Marcas "vamos para cá": sem animação, mas presas à tela (tamanho fixo,
+      // seta na borda), então acompanham a câmera quadro a quadro.
+      let destinationsDrawn = 0
+      const tickDestinations = () => {
+        const current = latestRef.current.destinations
+        if (current.length === 0 && destinationsDrawn === 0) return
+        const viewport = { width: app.screen.width, height: app.screen.height }
+        const drawn = scene.destinationsRenderer.draw(scene.destinationsLayer, current, scene.camera, viewport)
+        // Para o e2e: quantas bandeirinhas o renderer desenhou de fato.
+        if (drawn !== destinationsDrawn) el.dataset.destinationsDrawn = String(drawn)
+        destinationsDrawn = drawn
+      }
+      app.ticker.add(tickDestinations)
 
       const laserRenderer = createLaserRenderer()
       let laserDrawn = 0
@@ -1590,6 +1626,13 @@ export function PlayerView({
           pointOwnLaser(x, y)
           return
         }
+        if (latestRef.current.destinationArmed) {
+          // Com "Marcar destino", o toque põe a marca: nem câmera, nem sinal, nem cartão de pino.
+          cancelLongPress()
+          const point = scene.world.toLocal({ x, y })
+          latestRef.current.onDestination?.(point.x, point.y)
+          return
+        }
         if (event.altKey || latestRef.current.signalArmed) {
           sendSignalAt(x, y)
           return
@@ -1631,7 +1674,7 @@ export function PlayerView({
         const drag = scene.drag
         if (!drag) {
           // Mouse parado sobre porta: cursor de mão (no celular não existe hover).
-          if (latestRef.current.measureArmed || latestRef.current.laserArmed) {
+          if (latestRef.current.measureArmed || latestRef.current.laserArmed || latestRef.current.destinationArmed) {
             app.stage.cursor = 'crosshair'
             return
           }
@@ -1774,6 +1817,7 @@ export function PlayerView({
         cancelLongPress()
         app.ticker.remove(tickZoom)
         app.ticker.remove(tickSignals)
+        app.ticker.remove(tickDestinations)
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)
         app.ticker.remove(tickMeasure)
@@ -1869,7 +1913,7 @@ export function PlayerView({
 
   return (
     <>
-      <div ref={containerRef} style={{ position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed || laserArmed ? 'crosshair' : undefined }} />
+      <div ref={containerRef} style={{ position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed || laserArmed || destinationArmed ? 'crosshair' : undefined }} />
       {/* Rótulo da régua: escrito pelo gesto direto no DOM (syncMeasure), sem re-render do React por passo do dedo.
           `aria-live` educado: com o grude na grade o texto só muda a cada quadrado, não a cada pixel. */}
       <div ref={measureLabelRef} className="pp-measure-label" aria-live="polite" aria-atomic="true" hidden />

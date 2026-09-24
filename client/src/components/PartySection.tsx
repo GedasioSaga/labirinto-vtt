@@ -13,7 +13,13 @@ export interface PartySectionProps {
   followingId?: string | null
   /** "Seguir": liga neste jogador (e desliga o anterior) ou desliga se já era ele. Sem ele, não há botão. */
   onToggleFollow?(member: PartyMember): void
+  /** "Ver" da marca "vamos para cá": a câmera vai até a marca, na cena dele. Sem ele, não há botão. */
+  onViewDestination?(member: PartyMember): void
 }
+
+/** O que a linha diz quando o jogador pôs a marca "vamos para cá". */
+export const DESTINATION_MARKED_LABEL = 'destino marcado'
+export const VIEW_DESTINATION_LABEL = 'Ver'
 
 /** Nome FIXO do botão: o estado vai em `aria-pressed`, e o leitor de tela lê "Seguir, pressionado". */
 export const FOLLOW_LABEL = 'Seguir'
@@ -136,7 +142,7 @@ function SendForm({ member, destinations, onSend, onClose }: SendFormProps) {
  * levar alguém ("Mandar para…"). A bolinha é a cor do disco da ficha: é a
  * mesma peça que o mestre procura no mapa.
  */
-export function PartySection({ members, destinations, onGoTo, onSend, followingId = null, onToggleFollow }: PartySectionProps) {
+export function PartySection({ members, destinations, onGoTo, onSend, followingId = null, onToggleFollow, onViewDestination }: PartySectionProps) {
   const headingId = useId()
   const formId = useId()
   const [sendingId, setSendingId] = useState<string | null>(null)
@@ -176,6 +182,16 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
                 <span className={`lb-party__presence${member.connected ? ' lb-party__presence--on' : ''}`}>{partyPresenceLabel(member)}</span>
               </div>{' '}
               <span className="lb-party__where">{member.token === null ? 'sem ficha no mapa' : (member.sceneName ?? 'no mapa aberto')}</span>
+              {member.destination !== undefined && (
+                <div className="lb-party__destination">
+                  <span>{DESTINATION_MARKED_LABEL}</span>
+                  {onViewDestination !== undefined && (
+                    <button type="button" className="lb-btn" aria-label={`Ver o destino marcado por ${member.name}`} onClick={() => onViewDestination(member)}>
+                      {VIEW_DESTINATION_LABEL}
+                    </button>
+                  )}
+                </div>
+              )}
               {member.token !== null && (
                 <div className="lb-party__actions">
                   <button type="button" className="lb-btn" onClick={() => onGoTo(member)}>
