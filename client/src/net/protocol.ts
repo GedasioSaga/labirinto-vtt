@@ -1,4 +1,5 @@
-import type { MapData, RegionPoint } from '../types/map'
+import type { MapData, MarcaRumo, RegionPoint } from '../types/map'
+import { isMarcaRumo, MARCA_TEXTO_MAX, normalizarTextoDaMarca } from '../lib/marcas'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
@@ -96,6 +97,12 @@ import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
  * não). A resposta certa nunca viaja: o recorte leva `Pin.fechadura` (forma e,
  * nos volantes, casas), nunca `Pin.segredo`. Mestre antigo responde `error invalid_message`;
  * jogador antigo ignora o resultado.
+ *
+ * O BILHETE NO LUGAR é aditivo pelo mesmo critério: `mark.place` (jogador ->
+ * mestre, o ponto e o bilhete ou a seta) e `mark.place.result` (ficou ou não).
+ * A marca em si viaja no `map.marcas` do snapshot, já recortada pela névoa e
+ * sem autor nem hora. Mestre antigo responde `error invalid_message`; jogador
+ * antigo ignora o resultado e o campo novo do mapa.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -239,7 +246,18 @@ export interface PinAnswerMessage {
   tentativa: string
 }
 
+/**
+ * BILHETE NO LUGAR: o jogador crava um bilhete (`texto`) ou risca uma seta
+ * (`rumo`) no ponto (`x`, `y`) em px de mundo da cena onde está. Nada de autor
+ * nem de hora: quem é o host sabe pela conexão, e a hora é a do mestre. A
+ * volta é `mark.place.result`.
+ */
+export type MarkPlaceMessage =
+  | { type: 'mark.place'; x: number; y: number; tipo: 'bilhete'; texto: string }
+  | { type: 'mark.place'; x: number; y: number; tipo: 'seta'; rumo: MarcaRumo }
+
 export type PlayerMessage =
+  | MarkPlaceMessage
   | PinAnswerMessage
   | MapShareMessage
   | JoinMessage
@@ -278,6 +296,17 @@ export interface PinAnswerResultMessage {
   ok: boolean
   reason?: 'too_soon'
 }
+
+/**
+ * Por que a marca não ficou. Genérico de propósito: longe da ficha, fora do
+ * mapa, num ponto que o jogador não conhece ou numa zona oculta respondem
+ * todos `unavailable` — um motivo por caso diria o que existe ali. `full`: ele
+ * já deixou o teto de marcas nesta cena; `too_soon`: deixou outra há pouco.
+ */
+export type MarkPlaceRefusal = 'unavailable' | 'full' | 'too_soon'
+
+/** A resposta do host a `mark.place`: ficou (`ok`) ou não, com o motivo. */
+export type MarkPlaceResultMessage = { type: 'mark.place.result'; ok: true } | { type: 'mark.place.result'; ok: false; reason: MarkPlaceRefusal }
 
 // Mestre -> jogador
 /** Laser do mestre: lote de pontos (px de mundo) desde o último envio, ou `off` ao soltar. */
@@ -437,6 +466,7 @@ export type HostMessage =
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
   | { type: 'pin.travel.denied' }
   | PinAnswerResultMessage
+  | MarkPlaceResultMessage
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
   // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um
@@ -755,6 +785,37 @@ export function parseLaserMessage(value: unknown): LaserMessage | RelayedLaserMe
   return { ...body, from, color }
 }
 
+/** Bilhete maior que isto nem é normalizado: o teto é de 80 e ninguém digita 320 espaços. */
+const MARCA_TEXTO_BRUTO_MAX = MARCA_TEXTO_MAX * 4
+
+/**
+ * BILHETE NO LUGAR. Bilhete: o texto normalizado (`normalizarTextoDaMarca`)
+ * tem de ter de 1 a `MARCA_TEXTO_MAX` letras — acima do teto a mensagem cai
+ * inteira, em vez de gravar meio recado. Seta: um dos 8 rumos; texto que
+ * viesse junto é jogado fora. Autor, hora e o resto ficam para trás.
+ */
+function parseMarkPlace(obj: Record<string, unknown>): MarkPlaceMessage | null {
+  const { x, y, tipo, texto, rumo } = obj
+  if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null
+  if (tipo === 'seta') return isMarcaRumo(rumo) ? { type: 'mark.place', x, y, tipo, rumo } : null
+  if (tipo !== 'bilhete' || !isBoundedString(texto, 1, MARCA_TEXTO_BRUTO_MAX)) return null
+  const limpo = normalizarTextoDaMarca(texto)
+  if (limpo.length === 0 || limpo.length > MARCA_TEXTO_MAX) return null
+  return { type: 'mark.place', x, y, tipo, texto: limpo }
+}
+
+/**
+ * Valida o `mark.place.result` que o jogador recebe. Motivo que este jogador
+ * não conhece (mestre mais novo) vira a recusa comum, como na pista.
+ */
+export function parseMarkPlaceResult(value: unknown): MarkPlaceResultMessage | null {
+  if (!isRecord(value) || value.type !== 'mark.place.result' || typeof value.ok !== 'boolean') return null
+  if (value.ok) return { type: 'mark.place.result', ok: true }
+  const { reason } = value
+  const known: MarkPlaceRefusal = reason === 'full' || reason === 'too_soon' ? reason : 'unavailable'
+  return { type: 'mark.place.result', ok: false, reason: known }
+}
+
 /**
  * Valida mensagem vinda do jogador. Aceita o objeto já desserializado ou a
  * string JSON crua do transporte. Devolve um objeto novo só com os campos
@@ -801,6 +862,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.tentativa, 1, LOCK_ANSWER_MAX_LENGTH)
         ? { type: 'pin.answer', pinId: value.pinId, tentativa: value.tentativa }
         : null
+    case 'mark.place':
+      return parseMarkPlace(value)
     default:
       return null
   }

@@ -50,6 +50,7 @@ import {
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
 import { MapObjectsSection } from './components/MapObjectsSection'
+import { MarcasDaCena } from './components/MarcasDaCena'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
 import { goToMapObject } from './stores/mapObjectNavigation'
 import { ligacaoLevarFicha } from './stores/levarFicha'
@@ -1727,7 +1728,11 @@ function App() {
               />
             }
             objects={
-              <MapObjectsSection map={map} currentKey={currentMapObjectKey} onGoTo={goToMapObject} searchRequest={objectSearchRequest} />
+              <>
+                <MapObjectsSection map={map} currentKey={currentMapObjectKey} onGoTo={goToMapObject} searchRequest={objectSearchRequest} />
+                {/* BILHETE NO LUGAR: reler e apagar a marca de um jogador depois que o aviso some. */}
+                <MarcasDaCena marcas={map.marcas ?? []} onApagar={hostPlayerChanges.removeMark} />
+              </>
             }
             mapName={map.name}
             mapWidth={map.width}

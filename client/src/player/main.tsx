@@ -10,6 +10,7 @@ import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
+import { PlayerMarkCard } from './PlayerMarkCard'
 import { PlayerClueCard } from './PlayerClues'
 import { mapSharedNoticeText } from './PlayerMapShare'
 import { coverBounds } from './playerCamera'
@@ -504,6 +505,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const [openPinId, setOpenPinId] = useState<string | null>(null)
   /** Pista do Caderno aberta no cartão (MINHAS PISTAS); `null` = fechado. */
   const [openClueId, setOpenClueId] = useState<string | null>(null)
+  /** BILHETE NO LUGAR: bilhete aberto no cartão; `null` = fechado. */
+  const [openMarkId, setOpenMarkId] = useState<string | null>(null)
   /** Último toque nos botões + e − (o `PlayerView` aplica o degrau) e o que eles ainda podem fazer. */
   const [zoomStep, setZoomStep] = useState<ZoomStepRequest>(NO_ZOOM_STEP)
   const [zoomLimits, setZoomLimits] = useState<ZoomLimits>({ canZoomIn: true, canZoomOut: true })
@@ -598,6 +601,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
     connection.resetClueShare()
   }, [connection])
   const closeShownClue = useCallback(() => connection.dismissShownClue(), [connection])
+  const closeMark = useCallback(() => setOpenMarkId(null), [])
   const askCluePeers = useCallback(() => connection.askCluePeers(), [connection])
   /** Painel e barra do jogador: a câmera lê, na hora, o que eles cobrem do mapa. */
   const panelRef = useRef<HTMLElement | null>(null)
@@ -637,6 +641,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
           onPinOpen={openPinCard}
           onRoomOpen={(regionId) => connection.openRoomText(regionId)}
+          onMarkOpen={setOpenMarkId}
           focusObstacles={mapObstacles}
           zoomStep={zoomStep}
           onZoomLimitsChange={setZoomLimits}
@@ -689,6 +694,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             onAskPeers: () => connection.askMapPeers(),
             onShare: (name) => connection.shareMap(name),
             onClose: () => connection.resetMapShare(),
+          }}
+          markForm={{
+            result: state.markPlace,
+            onPlace: (intent) => connection.placeMark(intent),
+            onClose: () => connection.resetMarkPlace(),
           }}
         />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
@@ -764,6 +774,15 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             escapeCloses={openPin === null && !clueCardOpen}
           />
         )}
+        {/* BILHETE NO LUGAR: o bilhete tocado no mapa, no mesmo cartão do recado.
+            Espera recado e texto de Sala fecharem: um cartão de cada vez no mesmo lugar. */}
+        <PlayerMarkCard
+          marcas={state.map.marcas}
+          openMarkId={openMarkId}
+          aguardando={Boolean(state.note) || Boolean(state.roomText)}
+          onClose={closeMark}
+          escapeCloses={openPin === null && !clueCardOpen}
+        />
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}

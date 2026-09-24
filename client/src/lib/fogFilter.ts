@@ -11,6 +11,7 @@ import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
 import { publicLockOf } from './pinLock'
 import { withoutAttachment } from './lightAttachment'
+import { marcaParaJogador } from './marcas'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
@@ -939,6 +940,9 @@ function unseenDoor(door: DoorState): DoorState {
  * `enteredRooms`: Salas deste mapa em que o jogador JÁ entrou (texto da sala).
  * O texto de entrada dela continua no recorte depois que ele sai, para tocar
  * no rótulo e reler; de Sala onde ele nunca entrou o texto não sai.
+ * `seenMarks`: ids das marcas de jogador (bilhete no lugar) que ESTE jogador já
+ * viu. No explorado só sai marca daqui; marca nova sai só pela visão atual —
+ * senão o bilhete cravado no escuro lembrado entregaria onde o colega está agora.
  */
 export function filterMapForPlayer(
   map: MapData,
@@ -949,6 +953,7 @@ export function filterMapForPlayer(
   seenDoors?: ReadonlyMap<string, DoorState>,
   pinAudiences?: PinAudiences,
   enteredRooms?: ReadonlySet<string>,
+  seenMarks?: ReadonlySet<string>,
 ): PlayerMapView {
   const hiddenLayers = map.hiddenLayers
   const owned = new Set(ownership[playerId] ?? []) // jogador sem entrada de posse não tem token nem visão
@@ -1459,6 +1464,24 @@ export function filterMapForPlayer(
         return !inRoomHiddenFromPlayer(point) && isPointKnown(point)
       })
       .map(pinForPlayer),
+    // BILHETE NO LUGAR: quem passar ali depois vê. Sai na visão atual; no
+    // explorado, só a marca que ele JÁ VIU (`seenMarks`, como `seenDoors`) —
+    // a marca nasce no centro da ficha de quem a deixa, então marca nova no
+    // escuro lembrado seria a posição atual do colega, que a névoa esconde.
+    // Zona oculta ativa, sala secreta e teto fechado escondem a marca como
+    // escondem o chão. Sai SEMPRE pela lista do que vai (`marcaParaJogador`):
+    // autor e hora são do mestre. Mapa sem o campo continua sem o campo.
+    ...(map.marcas === undefined
+      ? {}
+      : {
+          marcas: map.marcas
+            .filter((m) => {
+              const point = { x: m.x, y: m.y }
+              if (inRoomHiddenFromPlayer(point)) return false
+              return isVisible(point) || (seenMarks?.has(m.id) === true && isPointExploredOpen(point))
+            })
+            .map(marcaParaJogador),
+        }),
     // Metadado do mestre: nome, estado e células do pincel das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }

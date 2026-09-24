@@ -5,6 +5,7 @@ import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol
 import { PlayerNotebook } from './PlayerNotebook'
 import { PlayerClueList } from './PlayerClues'
 import { PlayerMapShare, type PlayerMapShareProps } from './PlayerMapShare'
+import { PlayerMarkForm, type PlayerMarkFormProps } from './PlayerMarkForm'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
 const NO_CLUES: readonly ClueEntry[] = []
@@ -133,6 +134,8 @@ interface PlayerPanelProps {
   onOpenClue?: (clueId: string) => void
   /** "Mostrar meu mapa a…": ausente = a tela não oferece (teste, tela antiga). */
   mapShare?: PlayerMapShareProps
+  /** BILHETE NO LUGAR — "Deixar marca aqui…": ausente = a tela não oferece (teste, tela antiga). */
+  markForm?: PlayerMarkFormProps
 }
 
 export function PlayerPanel({
@@ -157,6 +160,7 @@ export function PlayerPanel({
   clues = NO_CLUES,
   onOpenClue = IGNORE_CLUE,
   mapShare,
+  markForm,
 }: PlayerPanelProps) {
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
   // Um estado por forma: a coluna do notebook nasce aberta e a gaveta do
@@ -423,6 +427,7 @@ export function PlayerPanel({
               </button>
               {laserArmed && <p className="pp-empty">Segure e arraste no mapa para apontar. Quem está na sua cena vê. Esc sai.</p>}
               {mapShare !== undefined && <PlayerMapShare {...mapShare} />}
+              {markForm !== undefined && <PlayerMarkForm {...markForm} />}
             </section>
 
             {first !== undefined && (

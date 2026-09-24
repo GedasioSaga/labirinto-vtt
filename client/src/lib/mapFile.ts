@@ -1,4 +1,5 @@
 import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
+import { lerMarcasDoArquivo } from './marcas'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { readPinLock } from './pinLock'
@@ -116,6 +117,12 @@ function roomTextsFromFile(region: Region): Region {
  * 'normal'). `secret` (porta secreta) é campo NOVO: só `true` volta; qualquer
  * outro valor sai do objeto, e a porta abre como porta comum — como sempre foi.
  */
+/** BILHETE NO LUGAR: `{ marcas }` só quando o arquivo trouxe o campo. */
+function marcasDoArquivo(value: unknown): Pick<MapData, 'marcas'> {
+  const marcas = lerMarcasDoArquivo(value)
+  return marcas === undefined ? {} : { marcas }
+}
+
 function doorFromFile(door: DoorState): DoorState {
   const { secret, ...rest } = door
   const withKind: DoorState = { ...rest, kind: rest.kind ?? 'normal' }
@@ -240,6 +247,10 @@ function deserializeMapFields(json: string): MapData {
       segredo: readPinLock(p.segredo),
       fechadura: undefined,
     })),
+    // BILHETE NO LUGAR: campo NOVO e OPCIONAL. Ausente continua ausente (sem a
+    // chave, nem `undefined`): o round-trip de mapa antigo sai idêntico. Marca
+    // torta cai sozinha e as boas ficam (`lerMarcasDoArquivo`).
+    ...marcasDoArquivo(parsed.marcas),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
     hiddenLayers: plainList(parsed.hiddenLayers),

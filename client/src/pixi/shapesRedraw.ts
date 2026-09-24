@@ -122,7 +122,8 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
     case 'concealZones':
       return [map.concealZones, map.grid, snapshot.selectedConcealZoneId]
     case 'pins':
-      return [map.pins, hidden, snapshot.selectedPinId, ...snapshot.travel]
+      // `map.marcas`: o bilhete que um jogador deixou é desenhado junto dos pinos.
+      return [map.pins, map.marcas, hidden, snapshot.selectedPinId, ...snapshot.travel]
     case 'textLabels':
       return [map.drawings, hidden, selectedId('drawing')]
     case 'handles':

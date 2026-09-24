@@ -1,4 +1,4 @@
-import type { MapData, RegionPoint, Token } from '../types/map'
+import type { MapData, MarcaRumo, RegionPoint, Token } from '../types/map'
 import { moveTokenCarryingLights } from '../lib/lightAttachment'
 import { decodeExploration, type Exploration } from '../lib/exploration'
 import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, PLAYER_MESSAGE_MAX_BYTES, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PinTravelRequestMessage, type PlayerMessage } from '../net/protocol'
@@ -17,7 +17,8 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { NOTEBOOK_MAX_NOTES, parseAbalo, parseClueMessage, parseLaserMessage, parseMapShareMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import { NOTEBOOK_MAX_NOTES, parseAbalo, parseClueMessage, parseLaserMessage, parseMapShareMessage, parseMarkPlaceResult, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type MarkPlaceRefusal, type NoteEntry } from '../net/protocol'
+import { MARCA_TEXTO_MAX, normalizarTextoDaMarca } from '../lib/marcas'
 import type { AbaloSeta } from '../lib/abalo'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
@@ -101,6 +102,8 @@ export interface PlayerState {
    * aviso. `from: null` = MAPA DE PAPEL: o próprio mestre deu Salas a ele.
    */
   mapShared?: { id: number; from: string | null }
+  /** BILHETE NO LUGAR: a última marca que ele tentou deixar e o que o host respondeu. */
+  markPlace?: MarkPlace
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -134,6 +137,18 @@ export type LockAnswerPhase = 'sending' | 'wrong' | 'too_soon' | 'open'
  * `pin.answer` e nunca responde: sem o teto, o "Conferindo…" ficaria para sempre.
  */
 export const LOCK_ANSWER_TIMEOUT_MS = 5000
+
+/**
+ * BILHETE NO LUGAR: onde está a última marca. `sending` espera o host;
+ * `refused` traz o motivo que ele deu (`MarkPlaceRefusal`).
+ */
+export type MarkPlace = { phase: 'sending' } | { phase: 'ok' } | { phase: 'refused'; reason: MarkPlaceRefusal }
+
+/** O que o jogador quer cravar: um bilhete com texto ou uma seta com rumo. */
+export type MarkPlaceIntent = { tipo: 'bilhete'; texto: string } | { tipo: 'seta'; rumo: MarcaRumo }
+
+/** Quanto a marca espera a resposta do host. Mestre antigo nunca responde: sem o teto, o "Deixando…" ficaria para sempre. */
+export const MARK_PLACE_TIMEOUT_MS = 5000
 
 export type CluePeers = { phase: 'loading' } | { phase: 'ready'; names: string[] }
 
@@ -215,6 +230,14 @@ export interface PlayerConnection {
   answerLock(pinId: string, tentativa: string): boolean
   /** O cartão fechou: a resposta da fechadura perde o sentido. */
   resetLockAnswer(): void
+  /**
+   * BILHETE NO LUGAR: crava a marca onde está a PRIMEIRA ficha dele no mapa.
+   * `false` (e nada sai) quando não joga, não tem ficha no mapa, o bilhete é
+   * vazio ou passa do teto, ou o socket caiu. Quem confere o lugar é o host.
+   */
+  placeMark(intent: MarkPlaceIntent): boolean
+  /** Fechou o "Deixar marca aqui…": o resultado perde o sentido. */
+  resetMarkPlace(): void
   /**
    * Ponteiro do LASER do jogador em px de mundo. Sai em lotes: o primeiro
    * ponto na hora, os seguintes juntos a cada `LASER_SEND_INTERVAL_MS`.
@@ -529,6 +552,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     lockTimer = null
   }
 
+  let markTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearMarkTimer(): void {
+    if (markTimer !== null) clearTimeout(markTimer)
+    markTimer = null
+  }
+
   let laserTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearLaserTimer(): void {
@@ -765,7 +795,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTravelTimer()
         clearMapSharedTimer()
         clearLockTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, lockAnswer: undefined })
+        clearMarkTimer()
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, lockAnswer: undefined, markPlace: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -781,8 +812,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearLockTimer()
-        // As listas de "Mostrar para…" e "Mostrar meu mapa a…" eram de quem estava na cena de antes; a fechadura também.
-        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, cluePeers: undefined, clueShow: undefined, mapPeers: undefined, mapShare: undefined, lockAnswer: undefined })
+        clearMarkTimer()
+        // As listas de "Mostrar para…" e "Mostrar meu mapa a…" eram de quem estava na cena de antes; a fechadura e a marca também.
+        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, cluePeers: undefined, clueShow: undefined, mapPeers: undefined, mapShare: undefined, lockAnswer: undefined, markPlace: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -806,6 +838,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLockTimer()
         const phase: LockAnswerPhase = data.ok ? 'open' : data.reason === 'too_soon' ? 'too_soon' : 'wrong'
         setState({ lockAnswer: { pinId: waiting.pinId, phase } })
+        return
+      }
+      case 'mark.place.result': {
+        // Só a resposta da marca que está no ar: resposta atrasada de um
+        // formulário já fechado não reabre nada.
+        if (state.markPlace?.phase !== 'sending') return
+        const result = parseMarkPlaceResult(data)
+        if (result === null) return
+        clearMarkTimer()
+        setState({ markPlace: result.ok ? { phase: 'ok' } : { phase: 'refused', reason: result.reason } })
         return
       }
       case 'scene.note': {
@@ -1104,6 +1146,37 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     resetLockAnswer() {
       clearLockTimer()
       if (state.lockAnswer !== undefined) setState({ lockAnswer: undefined })
+    },
+
+    placeMark(intent) {
+      if (state.status !== 'playing') return false
+      const owned = new Set(state.ownTokens ?? [])
+      const ficha = state.map?.tokens.find((t) => owned.has(t.id))
+      if (ficha === undefined) return false
+      const x = Math.round(ficha.x)
+      const y = Math.round(ficha.y)
+      let message: PlayerMessage
+      if (intent.tipo === 'seta') {
+        message = { type: 'mark.place', x, y, tipo: 'seta', rumo: intent.rumo }
+      } else {
+        const texto = normalizarTextoDaMarca(intent.texto)
+        if (texto.length === 0 || texto.length > MARCA_TEXTO_MAX) return false
+        message = { type: 'mark.place', x, y, tipo: 'bilhete', texto }
+      }
+      if (!send(message)) return false
+      clearMarkTimer()
+      setState({ markPlace: { phase: 'sending' } })
+      markTimer = setTimeout(() => {
+        markTimer = null
+        // Ninguém respondeu (mestre antigo, rede lenta): libera o "Deixar".
+        if (state.markPlace?.phase === 'sending') setState({ markPlace: undefined })
+      }, MARK_PLACE_TIMEOUT_MS)
+      return true
+    },
+
+    resetMarkPlace() {
+      clearMarkTimer()
+      if (state.markPlace !== undefined) setState({ markPlace: undefined })
     },
 
     laserMove(x, y) {
