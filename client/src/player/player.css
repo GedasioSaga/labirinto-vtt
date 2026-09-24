@@ -1481,6 +1481,95 @@
   color: var(--lb-color-brass, #e0a44a);
 }
 
+/*
+ * COLEÇÃO DE PISTAS: acima da lista, uma fileira de casas por coleção. Casa
+ * cheia = latão com o número (e botão quando a pista ainda está no caderno);
+ * vazia = só o contorno fino. 32 px de casa: alvo de dedo acima dos 24 da WCAG.
+ */
+.pp-colecoes {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.pp-colecao__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+
+.pp-colecao__nome {
+  overflow-wrap: anywhere;
+}
+
+.pp-colecao__conta {
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-colecao__casas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pp-colecao__casa {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+}
+
+.pp-colecao__casa--cheia {
+  color: #1a1a1a;
+  background: var(--lb-color-brass, #e0a44a);
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+button.pp-colecao__casa {
+  cursor: pointer;
+  transition: filter 120ms ease-out;
+}
+
+button.pp-colecao__casa:hover {
+  filter: brightness(1.12);
+}
+
+button.pp-colecao__casa:active {
+  filter: brightness(0.92);
+}
+
+button.pp-colecao__casa:focus-visible {
+  outline: 2px solid var(--lb-color-parchment, #eceae4);
+  outline-offset: 2px;
+}
+
+.pp-colecao__inteira {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--lb-color-brass, #e0a44a);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* O cartão da pista é o do pino (`.pp-pincard`): só o título e as linhas de estado são dele. */
 .pp-cluecard__title {
   margin: 14px 16px 0;

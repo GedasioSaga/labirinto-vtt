@@ -3,12 +3,14 @@ import type { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, Mouse
 import type { StorageLike } from './playerConnection'
 import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { PlayerNotebook } from './PlayerNotebook'
-import { PlayerClueList } from './PlayerClues'
+import { PlayerClueList, PlayerColecaoList } from './PlayerClues'
+import type { ColecaoProgresso } from '../lib/colecao'
 import { PlayerMapShare, type PlayerMapShareProps } from './PlayerMapShare'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
 const NO_CLUES: readonly ClueEntry[] = []
 const IGNORE_CLUE = (): void => {}
+const NO_COLECOES: readonly ColecaoProgresso[] = []
 
 // Painel do jogador: meus personagens, ajustes de visão e centralizar a câmera.
 // Fica sobre o canvas (não ao lado) para o enquadramento do mapa não depender
@@ -131,6 +133,8 @@ interface PlayerPanelProps {
   clues?: readonly ClueEntry[]
   /** Tocou numa pista do Caderno: reabre o cartão dela. */
   onOpenClue?: (clueId: string) => void
+  /** COLEÇÃO DE PISTAS: "Letreiro 5 de 12", acima da lista. Tocar numa peça reabre a pista dela (`onOpenClue`). */
+  colecoes?: readonly ColecaoProgresso[]
   /** "Mostrar meu mapa a…": ausente = a tela não oferece (teste, tela antiga). */
   mapShare?: PlayerMapShareProps
 }
@@ -156,6 +160,7 @@ export function PlayerPanel({
   onReadNotebook,
   clues = NO_CLUES,
   onOpenClue = IGNORE_CLUE,
+  colecoes = NO_COLECOES,
   mapShare,
 }: PlayerPanelProps) {
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
@@ -506,6 +511,7 @@ export function PlayerPanel({
                   <h2 id={`${panelId}-clues`} className="pp-heading">
                     Minhas pistas
                   </h2>
+                  <PlayerColecaoList colecoes={colecoes} clues={clues} onOpen={onOpenClue} />
                   <PlayerClueList clues={clues} onOpen={onOpenClue} />
                 </section>
                 <section className="pp-section" aria-labelledby={`${panelId}-notes`}>

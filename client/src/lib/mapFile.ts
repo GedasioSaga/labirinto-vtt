@@ -2,6 +2,7 @@ import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { readPinLock } from './pinLock'
+import { readPinColecao } from './colecao'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { tokenPublicNameFromFile } from './tokenPublicName'
 
@@ -239,6 +240,9 @@ function deserializeMapFields(json: string): MapData {
       // jogador, como `escolhas`: arquivo que a traga não a põe no mapa do mestre.
       segredo: readPinLock(p.segredo),
       fechadura: undefined,
+      // COLEÇÃO DE PISTAS: campo NOVO e OPCIONAL, conferido por `readPinColecao`
+      // — forma errada volta ausente (pino avulso) em vez de derrubar o mapa.
+      colecao: readPinColecao(p.colecao),
     })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },

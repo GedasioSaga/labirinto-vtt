@@ -19,6 +19,7 @@ import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
 import { sameLock } from './pinLock'
+import { sameColecao } from './colecao'
 import { moveTokenCarryingLights, withoutAttachment } from './lightAttachment'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
@@ -1625,7 +1626,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'segredo'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'segredo' | 'colecao'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1650,7 +1651,9 @@ export function updatePin(
     // pino que nunca teve modo não empurra entrada vazia no histórico.
     passageOf(next) === passageOf(pin) &&
     // Fechadura com segredo: gravar a mesma combinação de novo não é mudança.
-    sameLock(next.segredo, pin.segredo)
+    sameLock(next.segredo, pin.segredo) &&
+    // Coleção de pistas: gravar a mesma peça de novo não é mudança.
+    sameColecao(next.colecao, pin.colecao)
   ) {
     return map
   }

@@ -69,6 +69,7 @@ import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Regio
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
 import { lockDoorOptions } from './lib/pinLock'
+import { colecaoNomesDaCena } from './lib/colecao'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -2085,6 +2086,14 @@ function App() {
                     lock: selectedPin.segredo ?? null,
                     onChange: (segredo) => useMapStore.getState().updatePin(selectedPin.id, { segredo }),
                     doors: lockDoorOptions(map, selectedPin),
+                  }
+                : null,
+              // COLEÇÃO DE PISTAS: a peça e a frase inteira ficam neste mapa; o host manda ao jogador só o progresso dele.
+              colecao: selectedPin
+                ? {
+                    colecao: selectedPin.colecao ?? null,
+                    onChange: (colecao) => useMapStore.getState().updatePin(selectedPin.id, { colecao }),
+                    nomes: colecaoNomesDaCena(map.pins),
                   }
                 : null,
               image: selectedPin?.image ?? null,

@@ -1,6 +1,7 @@
 import type { PinKind } from '../types/map'
 import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER } from '../lib/pins'
 import { GatherControls, type GatherControlsProps } from './GatherControls'
+import { PinColecaoControls, type PinColecaoControlsProps } from './PinColecaoControls'
 import { PinLockControls, type PinLockControlsProps } from './PinLockControls'
 import { PinTravelArt } from './PinSymbolArt'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
@@ -36,6 +37,11 @@ export interface PinControlsProps {
    * nenhum pino aberto: não há fechadura para editar.
    */
   lock?: PinLockControlsProps | null
+  /**
+   * COLEÇÃO DE PISTAS do pino aberto no painel (qualquer tipo). `null` =
+   * nenhum pino aberto: não há peça para editar.
+   */
+  colecao?: PinColecaoControlsProps | null
 }
 
 /** A pastilha de cada tipo: a mesma cabeça que o pino tem no mapa. */
@@ -86,6 +92,7 @@ export function PinControls({
   travel = null,
   gather = null,
   lock = null,
+  colecao = null,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
   // As cenas onde mora um par que perde a volta se este pino sumir (uma por
@@ -134,6 +141,8 @@ export function PinControls({
           <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
           {/* O que o pino É para o jogador (tranca), antes da ação de mesa. */}
           {lock !== null && <PinLockControls {...lock} />}
+          {/* Também é o que o pino É para o jogador: uma peça de coleção. */}
+          {colecao !== null && <PinColecaoControls {...colecao} />}
           {/* Ação de MESA, não de edição do pino: fica logo depois do que o
               pino é, antes da imagem e do excluir. */}
           {gather !== null && <GatherControlsFor gather={gather} />}

@@ -4,6 +4,7 @@ import { pointInRing } from '../lib/floorContour'
 import { abaloSetaForPlayer, filterMapForPlayer, giftableRoomsOf, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
 import { faixaDoAbalo, type AbaloContagem, type AbaloFaixa, type AbaloOrigem, type AbaloTextos } from '../lib/abalo'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
+import { guardarPeca, pecaDoPino, progressoDasColecoes, type ColecoesDoJogador, type PecaDeColecao } from '../lib/colecao'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
@@ -608,7 +609,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // nova. `source` (pino ou Sala + mapa) é a chave de "já tenho esta" e NUNCA
   // sai pela rede: o jogador só vê o `id` que o host inventou. Sobrevive a
   // disconnect/resume; só o kick apaga.
-  const cluebooks = new Map<string, { source: string; entry: ClueEntry }[]>()
+  // `peca`: a peça de coleção que o pino era quando foi lido (vai junto se a
+  // pista for mostrada a um colega). Também nunca sai pela rede assim.
+  const cluebooks = new Map<string, { source: string; entry: ClueEntry; peca: PecaDeColecao | null }[]>()
+  // COLEÇÃO DE PISTAS — por playerId: as peças que ESTE jogador juntou, por
+  // coleção. Fica fora do caderno de pistas (que tem teto): a peça continua
+  // contada mesmo que a pista dela saia do caderno. Só o kick apaga.
+  const colecoesByPlayer = new Map<string, ColecoesDoJogador>()
   // Por playerId: os pinos do ÚLTIMO recorte mandado (já passados pelo
   // `pinForPlayer`) e o mapa de onde vieram. É o que o jogador está vendo: só
   // pino daqui vira pista.
@@ -774,13 +781,35 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * atualiza o texto, mantém o id e sobe para o fim; passou do teto, sai a
    * mais antiga. `from`: o colega que mostrou.
    */
-  const rememberClue = (playerId: string, source: string, content: PlayerClueContent, from?: string): ClueEntry => {
+  const rememberClue = (playerId: string, source: string, content: PlayerClueContent, from?: string, peca: PecaDeColecao | null = null): ClueEntry => {
     const book = cluebooks.get(playerId) ?? []
     const previous = book.find((item) => item.source === source)
     const base: ClueEntry = { id: previous?.entry.id ?? randomId(), title: content.title, text: content.text, image: content.image, at: now() }
     const entry: ClueEntry = from === undefined ? base : { ...base, from }
-    cluebooks.set(playerId, [...book.filter((item) => item.source !== source), { source, entry }].slice(-CLUEBOOK_MAX_CLUES))
+    cluebooks.set(playerId, [...book.filter((item) => item.source !== source), { source, entry, peca }].slice(-CLUEBOOK_MAX_CLUES))
     return { ...entry }
+  }
+
+  /** As coleções do jogador como vão para a rede; `null` sem nenhuma (não manda lista vazia). */
+  const colecoesMessage = (playerId: string): HostMessage | null => {
+    const colecoes = colecoesByPlayer.get(playerId)
+    if (colecoes === undefined || colecoes.size === 0) return null
+    return { type: 'colecoes', colecoes: progressoDasColecoes(colecoes) }
+  }
+
+  /**
+   * COLEÇÃO DE PISTAS: a peça `peca`, trazida pela pista `clueId`, entra nas
+   * coleções do jogador. Devolve a lista nova para mandar a ele, ou `null`
+   * quando nada mudou (releu a mesma peça) ou a pista não é peça.
+   */
+  const rememberPiece = (playerId: string, peca: PecaDeColecao | null, clueId: string): HostMessage | null => {
+    if (peca === null) return null
+    let colecoes = colecoesByPlayer.get(playerId)
+    if (colecoes === undefined) {
+      colecoes = new Map()
+      colecoesByPlayer.set(playerId, colecoes)
+    }
+    return guardarPeca(colecoes, peca, clueId) ? colecoesMessage(playerId) : null
   }
 
   const noteMessage = (note: NoteEntry): HostMessage => ({ type: 'scene.note', id: note.id, text: note.text, at: note.at })
@@ -914,6 +943,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // MINHAS PISTAS: é o que faz a pista sobreviver a recarregar a página. Só a entrada, nunca a `source`.
     const clues = cluebooks.get(record.playerId) ?? []
     if (clues.length > 0) outbound.push({ clientId, msg: { type: 'clues.book', clues: clues.map((item) => ({ ...item.entry })) } })
+    // COLEÇÃO DE PISTAS: depois do caderno, para a casa cheia já achar a pista que reabre.
+    const colecoes = colecoesMessage(record.playerId)
+    if (colecoes !== null) outbound.push({ clientId, msg: colecoes })
     for (const msg of cards) outbound.push({ clientId, msg })
     return { outbound }
   }
@@ -1324,11 +1356,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const seen = seenPins.get(playerId)
     if (scene === null || seen === undefined || seen.mapId !== scene.map.id) return { outbound: [] }
     const pin = seen.pins.find((p) => p.id === msg.pinId)
-    const stillThere = scene.map.pins.some((p) => p.id === msg.pinId && p.hidden !== true && p.secret !== true)
+    const masterPin = scene.map.pins.find((p) => p.id === msg.pinId)
+    const stillThere = masterPin !== undefined && masterPin.hidden !== true && masterPin.secret !== true
     if (pin === undefined || !stillThere) return { outbound: [] }
     const content = pinClueForPlayer(pin)
     if (content === null) return { outbound: [] }
-    return reply(clientId, { type: 'clue.added', clue: rememberClue(playerId, `pino|${scene.map.id}|${pin.id}`, content) })
+    // COLEÇÃO DE PISTAS: a peça sai do pino do MESTRE (o recorte não a leva),
+    // e só depois de o pino ter passado pelas mesmas barreiras da pista.
+    const peca = pecaDoPino(masterPin)
+    const clue = rememberClue(playerId, `pino|${scene.map.id}|${pin.id}`, content, undefined, peca)
+    const colecoes = rememberPiece(playerId, peca, clue.id)
+    const outbound: Outbound[] = [{ clientId, msg: { type: 'clue.added', clue } }]
+    if (colecoes !== null) outbound.push({ clientId, msg: colecoes })
+    return { outbound }
   }
 
   /** Quem joga, está conectado e na MESMA cena que `playerId` agora. Ele mesmo fica de fora. */
@@ -1371,13 +1411,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     lastClueShowAt.set(playerId, at)
     const { title, text, image } = shown.entry
-    const clue = rememberClue(target.playerId, shown.source, { title, text, image }, sender.name)
-    return {
-      outbound: [
-        { clientId: target.clientId, msg: { type: 'clue.shown', from: sender.name, clue } },
-        { clientId, msg: { type: 'clue.show.result', to: msg.to, ok: true } },
-      ],
-    }
+    const clue = rememberClue(target.playerId, shown.source, { title, text, image }, sender.name, shown.peca)
+    // COLEÇÃO DE PISTAS: peça mostrada é peça juntada — soma na coleção do colega.
+    const colecoes = rememberPiece(target.playerId, shown.peca, clue.id)
+    const outbound: Outbound[] = [{ clientId: target.clientId, msg: { type: 'clue.shown', from: sender.name, clue } }]
+    if (colecoes !== null) outbound.push({ clientId: target.clientId, msg: colecoes })
+    outbound.push({ clientId, msg: { type: 'clue.show.result', to: msg.to, ok: true } })
+    return { outbound }
   }
 
   /**
@@ -1603,6 +1643,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       notebooks.delete(playerId)
       noteSceneOf.delete(playerId)
       cluebooks.delete(playerId)
+      colecoesByPlayer.delete(playerId)
       seenPins.delete(playerId)
       lastClueShowAt.delete(playerId)
       lastMapShareAt.delete(playerId)
