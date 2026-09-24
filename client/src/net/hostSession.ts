@@ -1,7 +1,8 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
+import { abaloSetaForPlayer, filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
+import { faixaDoAbalo, type AbaloContagem, type AbaloFaixa, type AbaloOrigem, type AbaloTextos } from '../lib/abalo'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
@@ -209,6 +210,11 @@ export interface HostResult {
   mapShared?: { fromPlayerId: string; toPlayerId: string }
 }
 
+/** O que `abalo` devolve: as mensagens e quantos receberam em cada faixa. */
+export interface AbaloResult extends HostResult {
+  porFaixa: AbaloContagem
+}
+
 export interface PlayerInfo {
   clientId: string | null
   playerId: string
@@ -338,6 +344,16 @@ export interface HostSession {
    * ficha nova) recebe o último recado dela no broadcast, se ainda não o tem.
    */
   sceneNote(sceneId: string, text: string, source: HostMapSource): HostResult
+  /**
+   * ABALO POR DISTÂNCIA: a cada jogador que joga e está numa cena agora, o
+   * texto da FAIXA dele (`lib/abalo.ts`): `perto` na cena da origem, `andar`
+   * nas cenas de `vizinhas`, `longe` no resto. Faixa com texto vazio não manda
+   * nada a quem está nela. Quem está `perto` recebe `forte` e, com ponto de
+   * origem, a seta vista da própria ficha (`abaloSetaForPlayer`). O abalo entra
+   * no caderno de quem recebeu; não fica guardado para quem chega depois (é um
+   * instante, não um recado da cena). `porFaixa`: o aviso do mestre.
+   */
+  abalo(origem: AbaloOrigem, textos: AbaloTextos, vizinhas: readonly string[], source: HostMapSource): AbaloResult
   /**
    * "Deixar ir": revalida o pedido contra o mundo de AGORA (o token pode ter
    * andado, o pino sumido) e devolve `applyTransfer` + `scene.changed` ao
@@ -1567,6 +1583,41 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         outbound.push({ clientId, msg: noteMessage(note) })
       }
       return { outbound }
+    },
+
+    abalo(origem, textos, vizinhas, source) {
+      const world = toWorld(source)
+      const vizinhasSet = new Set(vizinhas)
+      const porFaixa: AbaloContagem = { perto: 0, andar: 0, longe: 0 }
+      // Um recado por FAIXA, igual para todos dela: nasce na primeira entrega, e faixa vazia nem ganha id.
+      const notas = new Map<AbaloFaixa, NoteEntry | null>()
+      const notaDa = (faixa: AbaloFaixa): NoteEntry | null => {
+        const pronta = notas.get(faixa)
+        if (pronta !== undefined) return pronta
+        const text = clampNoteText(textos[faixa])
+        const nota = text.trim().length === 0 ? null : { id: randomId(), text, at: now() }
+        notas.set(faixa, nota)
+        return nota
+      }
+      const ponto = origem.x !== undefined && origem.y !== undefined && Number.isFinite(origem.x) && Number.isFinite(origem.y) ? { x: origem.x, y: origem.y } : null
+      const outbound: Outbound[] = []
+      for (const [clientId, playerId] of byClient) {
+        if (statusOf(playerId) !== 'playing') continue
+        // A cena de CADA jogador (a da ficha dele); sem cena, ele aguarda e não ouve nada.
+        const scene = sceneFor(playerId, world)
+        if (scene === null) continue
+        const faixa = faixaDoAbalo(scene.sceneId, origem.sceneId, vizinhasSet)
+        const nota = notaDa(faixa)
+        if (nota === null) continue
+        rememberNote(playerId, nota)
+        porFaixa[faixa] += 1
+        const forte = faixa === 'perto'
+        // Só o rumo, visto da ficha que o recorte dele leva; o ponto nunca viaja.
+        const seta = forte && ponto !== null ? abaloSetaForPlayer(scene.map, playerId, ownership, ponto) : null
+        const msg: HostMessage = seta === null ? { type: 'abalo', id: nota.id, text: nota.text, at: nota.at, forte } : { type: 'abalo', id: nota.id, text: nota.text, at: nota.at, forte, seta }
+        outbound.push({ clientId, msg })
+      }
+      return { outbound, porFaixa }
     },
 
     listPlayers(source) {

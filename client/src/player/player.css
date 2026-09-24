@@ -1157,6 +1157,50 @@
   overflow-wrap: anywhere;
 }
 
+/* ABALO: de que lado veio. Seta grande e o rumo por extenso, na cor de destaque do cartão. */
+.pp-note__seta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-note__seta-glifo {
+  font-size: 22px;
+  line-height: 1;
+}
+
+/* ABALO na cena do jogador: o cartão sacode uma vez ao chegar (300 ms, como a vibração). */
+.pp-note--forte {
+  animation:
+    pp-note-in 160ms ease-out,
+    pp-note-abalo 300ms ease-in-out 160ms;
+}
+
+@keyframes pp-note-abalo {
+  0%,
+  100% {
+    transform: translate(-50%, 0);
+  }
+  25% {
+    transform: translate(calc(-50% - 4px), 0);
+  }
+  50% {
+    transform: translate(calc(-50% + 4px), 0);
+  }
+  75% {
+    transform: translate(calc(-50% - 2px), 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-note--forte {
+    animation: none;
+  }
+}
+
 /* Aviso de que o recado fica no Caderno: pequeno e apagado, para não competir com o recado. */
 .pp-note__hint {
   margin: 0;

@@ -17,7 +17,8 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseMapShareMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import { NOTEBOOK_MAX_NOTES, parseAbalo, parseClueMessage, parseLaserMessage, parseMapShareMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import type { AbaloSeta } from '../lib/abalo'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
@@ -57,8 +58,11 @@ export interface PlayerState {
    * Recado do mestre para a cena do jogador. Fica até ele fechar
    * (`dismissNote`); um recado novo toma o lugar do aberto. É texto puro: a
    * tela o mostra como texto, nunca como HTML.
+   *
+   * ABALO: o mesmo cartão. `seta` = de que lado veio (só na cena da origem);
+   * `forte` = o jogador está na cena da origem, e o aparelho vibra ao abrir.
    */
-  note?: { id: string; text: string }
+  note?: { id: string; text: string; seta?: AbaloSeta; forte?: true }
   /**
    * TEXTO DA SALA aberto: chega na primeira entrada (`room.text`) ou quando o
    * jogador toca o rótulo (`openRoomText`). `id` é o da Sala; `title`, o nome
@@ -772,6 +776,26 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           note: { id: note.id, text: note.text },
           notebook: [...book, entry].slice(-NOTEBOOK_MAX_NOTES),
           unreadNotes: [...(state.unreadNotes ?? []), note.id].slice(-NOTEBOOK_MAX_NOTES),
+        })
+        return
+      }
+      case 'abalo': {
+        // Mesma regra do recado: só quem joga tem tela de cartão.
+        if (state.status !== 'playing') return
+        const abalo = parseAbalo(data)
+        if (abalo === null) return
+        const card: NonNullable<PlayerState['note']> = { id: abalo.id, text: abalo.text }
+        if (abalo.seta !== undefined) card.seta = abalo.seta
+        if (abalo.forte) card.forte = true
+        const book = state.notebook ?? []
+        if (book.some((entry) => entry.id === abalo.id)) {
+          setState({ note: card })
+          return
+        }
+        setState({
+          note: card,
+          notebook: [...book, { id: abalo.id, text: abalo.text, at: abalo.at }].slice(-NOTEBOOK_MAX_NOTES),
+          unreadNotes: [...(state.unreadNotes ?? []), abalo.id].slice(-NOTEBOOK_MAX_NOTES),
         })
         return
       }

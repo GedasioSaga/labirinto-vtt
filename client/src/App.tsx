@@ -1705,6 +1705,8 @@ function App() {
                 people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
                 onNote={room === null ? undefined : (sceneId, text) => hostBridgeRef.current?.sceneNote(sceneId, text) ?? null}
+                // Abalo por distância: mesma regra do recado, um envio para a aventura inteira.
+                onQuake={room === null ? undefined : (origem, textos, vizinhas) => hostBridgeRef.current?.abalo(origem, textos, vizinhas) ?? null}
                 // Cenas em pastas: só a lista do mestre muda (pede Salvar); o jogador não recebe nada.
                 onMove={adventure === null ? undefined : (sceneId, parentId) => useAdventureStore.getState().moveScene(sceneId, parentId)}
                 adventureId={adventure?.id ?? null}

@@ -17,6 +17,7 @@ import {
   type TravelRequest,
 } from './hostSession'
 import type { LaserMessage } from './protocol'
+import type { AbaloContagem, AbaloOrigem, AbaloTextos } from '../lib/abalo'
 import { createPlayerScreens, type PlayerScreen } from './playerScreens'
 
 /**
@@ -137,6 +138,12 @@ export interface HostBridge {
    * receberam (0 = ninguém lá), ou `null` com a sala fechada.
    */
   sceneNote(sceneId: string, text: string): number | null
+  /**
+   * ABALO POR DISTÂNCIA: a cada jogador em cena, o texto da faixa dele
+   * (`hostSession.abalo`). Devolve quantos ouviram em cada faixa, ou `null` com
+   * a sala fechada.
+   */
+  abalo(origem: AbaloOrigem, textos: AbaloTextos, vizinhas: readonly string[]): AbaloContagem | null
   /**
    * "Ver tela" do painel Grupo: o último recorte que SAIU pelo fio para este
    * jogador (a cena dele, com a névoa e a zona oculta já aplicadas), a espera
@@ -719,6 +726,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.sceneNote(sceneId, text, world())
       void dispatch(result)
       return result.outbound.length
+    },
+
+    abalo(origem, textos, vizinhas) {
+      if (session === null) return null
+      const result = session.abalo(origem, textos, vizinhas, world())
+      void dispatch(result)
+      return result.porFaixa
     },
 
     assignToken(playerId, tokenId) {

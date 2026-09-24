@@ -15,6 +15,7 @@ import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygon
 import { roomHasRoof } from './roomOps'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
+import { setaDoAbalo, type AbaloSeta } from './abalo'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -1540,6 +1541,25 @@ export function roomClueForPlayer(title: string, text: string): PlayerClueConten
   const clamped = clampClueText(text.trim())
   if (clamped === '') return null
   return { title: clueTitleFrom(title, clueTitleFrom(clamped, CLUE_TITLE_ONLY_IMAGE)), text: clamped, image: null }
+}
+
+/**
+ * ABALO POR DISTÂNCIA — o que do ponto de origem vai ao jogador que está na
+ * cena dele: só o RUMO de 8 pontas (`lib/abalo.ts`), nunca o ponto. É visto da
+ * PRÓPRIA ficha do jogador, e só da ficha que o recorte dele leva (mesma
+ * camada e mesmo "escondido" de `filterMapForPlayer`): ficha que o mestre
+ * escondeu não dá seta, e a ficha de outro jogador nunca serve de referência.
+ * Até uma casa de distância, `aqui`. Sem ficha no recorte: `null` (sem seta).
+ *
+ * Quem chama responde por o jogador ESTAR na cena de `map` e por o mestre ter
+ * escolhido a origem: o abalo é um som que ele decidiu fazer ouvir, então a
+ * seta vale mesmo com a origem no escuro — é o rumo, e não o lugar.
+ */
+export function abaloSetaForPlayer(map: MapData, playerId: string, ownership: Record<string, string[]>, origem: RegionPoint): AbaloSeta | null {
+  const owned = new Set(ownership[playerId] ?? [])
+  const ficha = visibleTokens(map.tokens, map.hiddenLayers).find((t) => owned.has(t.id) && !t.hidden)
+  if (ficha === undefined) return null
+  return setaDoAbalo({ x: ficha.x, y: ficha.y }, origem, map.grid)
 }
 
 /**

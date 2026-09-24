@@ -20,6 +20,8 @@ import { normalizeForSearch } from '../lib/mapObjects'
 import { pendingRequestsLabel, type ScenePeople, type ScenePerson } from '../lib/party'
 import type { SceneListItem } from '../stores/adventureStore'
 import type { MapData } from '../types/map'
+import { cenasVizinhas, origensDaCena, type AbaloContagem, type AbaloOrigem, type AbaloTextos } from '../lib/abalo'
+import { AbaloForm } from './AbaloForm'
 
 export interface ScenesSectionProps {
   scenes: SceneListItem[]
@@ -44,6 +46,12 @@ export interface ScenesSectionProps {
    * sala fechada: a linha fica sem o botão "Recado".
    */
   onNote?: (sceneId: string, text: string) => number | null
+  /**
+   * ABALO POR DISTÂNCIA: um envio só, com a origem, o texto de cada faixa e as
+   * cenas vizinhas da origem (`cenasVizinhas`, pela árvore desta lista).
+   * Ausente = sala fechada: a linha fica sem o botão "Abalo".
+   */
+  onQuake?: AbaloEnvio
   /**
    * CENAS EM PASTAS: põe `sceneId` dentro de `parentId` (`null` = primeiro
    * nível). `false` = não deu. Ausente = mapa solto: sem arrastar e sem
@@ -74,6 +82,21 @@ export function noteFeedbackText(sent: number | null): string {
   if (sent === null) return 'Não deu para enviar: a sala não está aberta.'
   if (sent === 0) return 'Ninguém está nesta cena'
   return sent === 1 ? 'Recado enviado a 1 jogador' : `Recado enviado a ${sent} jogadores`
+}
+
+/** O envio do abalo: devolve quantos ouviram em cada faixa, ou `null` com a sala fechada. */
+export type AbaloEnvio = (origem: AbaloOrigem, textos: AbaloTextos, vizinhas: string[]) => AbaloContagem | null
+
+/** O aviso depois do abalo: quantos ouviram em cada faixa (faixa sem ninguém fica de fora). */
+export function abaloFeedbackText(porFaixa: AbaloContagem | null): string {
+  if (porFaixa === null) return 'Não deu para enviar: a sala não está aberta.'
+  const partes = [
+    porFaixa.perto > 0 ? `${porFaixa.perto} nesta cena` : '',
+    porFaixa.andar > 0 ? `${porFaixa.andar} nas vizinhas` : '',
+    porFaixa.longe > 0 ? `${porFaixa.longe} longe` : '',
+  ].filter((parte) => parte !== '')
+  if (partes.length === 0) return 'Ninguém ouviu: nenhum jogador nas faixas com texto'
+  return `Abalo: ${partes.join(', ')}`
 }
 
 interface NoteFormProps {
@@ -363,7 +386,7 @@ function insideCountLabel(count: number): string {
  * dentro, "Mover para…" na cena aberta, e "Filtrar cenas" com o caminho em
  * cinza. Tudo isso é da lista do mestre: o jogador não recebe nada.
  */
-export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote, maps, onMove, adventureId = null }: ScenesSectionProps) {
+export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote, onQuake, maps, onMove, adventureId = null }: ScenesSectionProps) {
   const [editing, setEditing] = useState<Editing>(null)
   const [draft, setDraft] = useState('')
   /** Janela "Visão geral das cenas" aberta. */
@@ -374,6 +397,8 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
   const canOverview = maps !== undefined && scenes.length > 1
   /** Cena com o recado aberto; `null` = nenhum. */
   const [noting, setNoting] = useState<string | null>(null)
+  /** Cena de origem com o "Abalo" aberto; `null` = nenhuma. O aviso sai no mesmo lugar do recado. */
+  const [quaking, setQuaking] = useState<string | null>(null)
   /** Aviso do último recado, na linha da cena dele; some sozinho. */
   const [noteFeedback, setNoteFeedback] = useState<{ sceneId: string; text: string } | null>(null)
   /** Cena com o "Mover para…" aberto; `null` = nenhuma. */
@@ -399,6 +424,11 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
     return index === undefined ? undefined : tree[index]
   }
   const nameOf = (sceneId: string) => rowOf(sceneId)?.entry.name ?? ''
+  /** As Salas e os pinos que o "Abalo" oferece como origem. Cena sem mapa aberto (ou sem `maps`): só "sem ponto". */
+  const originsOf = (sceneId: string) => {
+    const map = maps?.get(sceneId)
+    return map === undefined ? [] : origensDaCena(map)
+  }
   /** As cenas de fora, da mais de fora para a mais de dentro. */
   const ancestorIdsOf = (sceneId: string): string[] => {
     const chain: string[] = []
@@ -422,6 +452,7 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
   const toggleFolder = (folderId: string) => {
     if (!collapsed.has(folderId)) {
       if (noting !== null && isInside(noting, folderId)) setNoting(null)
+      if (quaking !== null && isInside(quaking, folderId)) setQuaking(null)
       if (moving !== null && isInside(moving, folderId)) setMoving(null)
     }
     toggle(folderId)
@@ -540,6 +571,7 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
   const startEditing = (next: NonNullable<Editing>, initial: string) => {
     rememberOpener()
     setNoting(null)
+    setQuaking(null)
     setMoving(null)
     setDraft(initial)
     setEditing(next)
@@ -549,14 +581,25 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
     rememberOpener()
     setEditing(null)
     setMoving(null)
+    setQuaking(null)
     setNoteFeedback(null)
     setNoting(sceneId)
+  }
+
+  const startQuake = (sceneId: string) => {
+    rememberOpener()
+    setEditing(null)
+    setMoving(null)
+    setNoting(null)
+    setNoteFeedback(null)
+    setQuaking(sceneId)
   }
 
   const startMove = (sceneId: string) => {
     rememberOpener()
     setEditing(null)
     setNoting(null)
+    setQuaking(null)
     setMoveFeedback(null)
     setMoving(sceneId)
   }
@@ -565,6 +608,18 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
     const sent = onNote?.(sceneId, text) ?? null
     setNoteFeedback({ sceneId, text: noteFeedbackText(sent) })
     closeNote()
+  }
+
+  /** Um envio só: as vizinhas saem da árvore desta lista (a mesma pasta, a de fora e as de dentro). */
+  const sendQuake = (sceneId: string, origem: AbaloOrigem, textos: AbaloTextos) => {
+    const porFaixa = onQuake?.(origem, textos, [...cenasVizinhas(scenes, sceneId)]) ?? null
+    setNoteFeedback({ sceneId, text: abaloFeedbackText(porFaixa) })
+    closeQuake()
+  }
+
+  const closeQuake = () => {
+    setQuaking(null)
+    refocusOpener()
   }
 
   const close = () => {
@@ -877,6 +932,20 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
                   <span aria-hidden="true">✉</span>
                 </button>
               )}
+              {/* ABALO: montado também com o formulário aberto, como o Recado — é para ele que o foco volta. */}
+              {onQuake !== undefined && scene.id !== '' && (
+                <button
+                  type="button"
+                  className="lb-cenas__recado-btn"
+                  aria-label={`Abalo a partir de ${scene.name}`}
+                  aria-expanded={quaking === scene.id}
+                  title="Abalo: um texto por distância para todas as cenas"
+                  disabled={!scene.available}
+                  onClick={() => (quaking === scene.id ? closeQuake() : startQuake(scene.id))}
+                >
+                  <span aria-hidden="true">≋</span>
+                </button>
+              )}
               {trail.length > 0 && (
                 <span id={pathId} className="lb-cenas__caminho">
                   {trail.join(SCENE_TRAIL_SEPARATOR)}
@@ -885,6 +954,15 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
               {here !== null && <SceneGente people={here} />}
               {onNote !== undefined && noting === scene.id && (
                 <NoteForm sceneName={scene.name} onSend={(text) => sendNote(scene.id, text)} onCancel={closeNote} />
+              )}
+              {onQuake !== undefined && quaking === scene.id && (
+                <AbaloForm
+                  sceneId={scene.id}
+                  sceneName={scene.name}
+                  origens={originsOf(scene.id)}
+                  onSend={(origem, textos) => sendQuake(scene.id, origem, textos)}
+                  onCancel={closeQuake}
+                />
               )}
               {onMove !== undefined && moving === scene.id && (
                 <MoveForm

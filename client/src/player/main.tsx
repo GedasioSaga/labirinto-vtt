@@ -734,7 +734,16 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         )}
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
-          <PlayerNoteCard key={state.note.id} text={state.note.text} hint={NOTE_KEPT_HINT} onClose={closeNote} escapeCloses={openPin === null && !clueCardOpen} />
+          // ABALO: o mesmo cartão, com a seta e a vibração de quem está na cena da origem.
+          <PlayerNoteCard
+            key={state.note.id}
+            text={state.note.text}
+            hint={NOTE_KEPT_HINT}
+            onClose={closeNote}
+            escapeCloses={openPin === null && !clueCardOpen}
+            seta={state.note.seta}
+            forte={state.note.forte === true}
+          />
         )}
         {/* TEXTO DA SALA: o mesmo cartão, com o nome da Sala no alto. Um
             cartão de cada vez no mesmo lugar: com recado aberto, o texto da
