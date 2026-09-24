@@ -32,6 +32,10 @@ import {
   parsePointActionReply,
   parseTravelDenyText,
   type PointActionReply,
+  isSeatClaimState,
+  parseSeatOptions,
+  type SeatClaimState,
+  type SeatOption,
 } from '../net/protocol'
 import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
 
@@ -96,6 +100,14 @@ export interface PlayerState {
   /** Ação no ponto: esperando o mestre, a resposta dele ou a recusa do host. */
   pointNotice?: PointNotice
   /**
+   * QUEM CHEGA ESCOLHE A FICHA: as fichas livres que o mestre oferece a quem
+   * está sem personagem (só id e nome). Ausente = nenhuma lista chegou; o host
+   * só reenvia quando muda, então a espera no lobby não a apaga.
+   */
+  seatOptions?: SeatOption[]
+  /** O pedido de ficha: enviado, esperando o mestre, ou a resposta. O mapa com a ficha o encerra. */
+  seatClaim?: SeatClaimNotice
+  /**
    * Sobe toda vez que o mapa em tela deixa de ser o da cena em que o jogador
    * estava: troca de cena (`scene.changed`) ou saída do jogo (lobby,
    * reconexão, queda, expulsão, sala fechada). O que a tela abriu sobre um
@@ -159,6 +171,18 @@ export type TravelNotice =
  * mora aqui: vira `note`, o mesmo cartão do recado.
  */
 export type CallNotice = { id: number; phase: 'waiting'; reason: CallReason } | { id: number; phase: 'seen' } | { id: number; phase: 'too_soon' }
+
+/**
+ * Onde está o pedido de ficha: `sent` (saiu, o host ainda não respondeu) ou o
+ * estado que o host mandou. `name` é o nome da ficha na hora do pedido: a
+ * lista pode mudar (ela sai quando outro a leva) e a tela ainda precisa dizer qual.
+ */
+export interface SeatClaimNotice {
+  id: number
+  phase: 'sent' | SeatClaimState
+  tokenId: string
+  name: string
+}
 
 /** Subconjunto do WebSocket do browser que este cliente usa. */
 export interface SocketLike {
@@ -245,6 +269,12 @@ export interface PlayerConnection {
   raiseHand(reason: CallReason, text?: string): boolean
   /** Baixa a mão antes de o mestre ver. `false` se ela não estava levantada ou o socket não está aberto. */
   lowerHand(): boolean
+  /**
+   * Sem personagem: pede ao mestre a ficha `tokenId` da lista `seatOptions`.
+   * `false` (nada sai) jogando, fora da lista, com um pedido já esperando ou
+   * com o socket fechado.
+   */
+  claimSeat(tokenId: string): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   /**
@@ -857,7 +887,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       move.prevY = token.y
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined })
+    // O mapa chegou: quem pedia ficha já tem uma, e o pedido termina aqui.
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined, seatClaim: undefined })
   }
 
   function handleRejected(reqId: string): void {
@@ -923,7 +954,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Outro playerId: o mestre disse "É ela" e a "Ana (2)" virou a Ana. O
         // host esqueceu os pedidos da "Ana (2)"; a espera deles mentiria para sempre.
         if (state.playerId !== undefined && state.playerId !== data.playerId) forgetWaitingRequests()
-        setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting', reconnecting: undefined })
+        // O pedido de ficha morre no host com a queda: a espera dele mentiria para sempre.
+        setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting', reconnecting: undefined, seatClaim: undefined })
         return
       case 'lobby.waiting':
         clearSignalTimers()
@@ -999,6 +1031,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const party = parsePartyUpdate(data)
         if (party === null) return
         setState({ party: party.members })
+        return
+      }
+      case 'seat.options': {
+        // Vale na espera; jogando, a lista fica guardada para uma volta à espera.
+        const options = parseSeatOptions(data)
+        if (options === null) return
+        setState({ seatOptions: options.tokens })
+        return
+      }
+      case 'seat.claim.state': {
+        // Só responde a um pedido que esta tela fez: sem pedido, nada a mostrar.
+        const claim = state.seatClaim
+        if (claim === undefined || state.status !== 'waiting' || !isSeatClaimState(data.state)) return
+        setState({ seatClaim: { ...claim, phase: data.state } })
         return
       }
       case 'call.state':
@@ -1315,6 +1361,17 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.call?.phase !== 'waiting') return false
       if (!send({ type: 'call.lower' })) return false
       setState({ call: undefined })
+      return true
+    },
+
+    claimSeat(tokenId) {
+      if (state.status !== 'waiting') return false
+      // Um pedido por vez: o mestre ainda não respondeu o anterior.
+      const phase = state.seatClaim?.phase
+      if (phase === 'sent' || phase === 'pending') return false
+      const option = (state.seatOptions ?? []).find((candidate) => candidate.tokenId === tokenId)
+      if (option === undefined || !send({ type: 'seat.claim', tokenId })) return false
+      setState({ seatClaim: { id: nextNoticeId++, phase: 'sent', tokenId, name: option.name } })
       return true
     },
 

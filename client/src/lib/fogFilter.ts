@@ -402,6 +402,44 @@ function sanitizeTokenPhoto(token: Token): Token {
   return { ...token, image, imageData }
 }
 
+/**
+ * A marca "Ficha de jogador" é do mestre (quem ele oferece a quem chega): no
+ * mapa do jogador ela diria quais fichas em volta dele estão sem dono.
+ */
+function withoutMasterMarks(token: Token): Token {
+  if (token.playerCharacter === undefined) return token
+  const { playerCharacter: _masterOnly, ...rest } = token
+  return rest
+}
+
+/** Uma ficha que quem chega sem personagem pode pedir: só o id e o nome. */
+export interface ClaimableToken {
+  tokenId: string
+  name: string
+}
+
+/**
+ * A LISTA DE FICHAS LIVRES de quem entra sem personagem. Vai a quem ainda não
+ * tem visão nenhuma, então não passa pelo recorte da névoa: entra só o que o
+ * MESTRE oferece — ficha marcada "Ficha de jogador" —, e nunca a que ele
+ * esconde (secreta, oculta no editor, em camada oculta) nem a que já é de
+ * alguém (`taken`: dono conectado ou não, assento guardado). Sai só id e nome:
+ * nem cena, nem posição. Em ordem de nome; ficha repetida entre cenas, uma vez.
+ */
+export function claimableTokensForPlayer(maps: readonly MapData[], taken: ReadonlySet<string>): ClaimableToken[] {
+  const seen = new Set<string>()
+  const out: ClaimableToken[] = []
+  for (const map of maps) {
+    for (const token of visibleTokens(map.tokens, map.hiddenLayers)) {
+      if (token.playerCharacter !== true || token.secret === true || token.hidden === true) continue
+      if (taken.has(token.id) || seen.has(token.id)) continue
+      seen.add(token.id)
+      out.push({ tokenId: token.id, name: token.name })
+    }
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR') || a.tokenId.localeCompare(b.tokenId))
+}
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
@@ -682,7 +720,7 @@ export function filterMapForPlayer(
     // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
     tokens: layerTokens
       .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
-      .map(sanitizeTokenPhoto),
+      .map((t) => sanitizeTokenPhoto(withoutMasterMarks(t))),
     markers: map.markers.filter((m) => !inRoomHiddenFromPlayer({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
     lines: map.lines.filter((l) => !l.points.some(inRoomHiddenFromPlayer) && !l.points.some(inConcealZone) && isShapeKnown(l.points)),
     // Tocha acesa dentro do prédio de teto fechado não sai: o halo dela

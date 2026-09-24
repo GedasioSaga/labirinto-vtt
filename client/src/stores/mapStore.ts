@@ -554,7 +554,7 @@ interface MapStoreState {
    * alça de canto continua em `updateTokenLive` (sem histórico por frame, uma
    * entrada só no `pointerup`) — são dois gestos, não dois campos.
    */
-  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size'>>) => void
+  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size' | 'playerCharacter'>>) => void
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
