@@ -22,6 +22,7 @@ import { RoomPanel } from './components/RoomPanel'
 import { LivePlayerMirror } from './components/PlayerMirror'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
+import { showPinNowCandidates } from './components/ShowPinNowControls'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { viewportCenterWorld, type Bounds, type Camera } from './pixi/world'
@@ -1334,6 +1335,19 @@ function App() {
   }
 
   /**
+   * "Mostrar agora a…" no painel do pino `pinId`: o cartão abre sozinho na
+   * tela do jogador. O mestre lê no aviso que saiu — ou que não deu, porque a
+   * lista pode ter ficado aberta enquanto ele saía da cena ou caía.
+   */
+  const handleShowPinNow = (pinId: string, playerId: string) => {
+    const bridge = hostBridgeRef.current
+    if (bridge === null) return
+    const name = bridge.players().find((p) => p.playerId === playerId)?.name ?? 'o jogador'
+    if (bridge.showPin(playerId, pinId) === true) useToastStore.getState().push('info', `Cartão aberto na tela de ${name}.`)
+    else useToastStore.getState().push('error', `Não deu para mostrar o cartão a ${name}: saiu desta cena ou perdeu a conexão.`)
+  }
+
+  /**
    * Token nasce no centro da área visível do canvas (câmera da store, que o
    * PixiCanvas mantém em dia a cada pan/zoom) e já selecionado, para o painel
    * mostrar o Nome dele. Sem o container montado cai em (0,0), como antes.
@@ -2059,6 +2073,16 @@ function App() {
                       pinId: selectedPin.id,
                       candidates: gatherCandidates(partyMembers(roomPlayers, roomPanelWorld())),
                       onGather: (playerIds) => handleGather(selectedPin.id, playerIds),
+                    }
+                  : null,
+              // "Mostrar agora a…": só com a sala aberta, e nunca em pino de
+              // viagem nem oculto para jogadores — esses o host não mostra.
+              showNow:
+                selectedPin && room !== null && selectedPin.kind !== 'viagem' && selectedPin.secret !== true
+                  ? {
+                      pinId: selectedPin.id,
+                      candidates: showPinNowCandidates(partyMembers(roomPlayers, roomPanelWorld()), roomPanelWorld().open.sceneId),
+                      onShow: (playerId) => handleShowPinNow(selectedPin.id, playerId),
                     }
                   : null,
               description: selectedPin?.description ?? null,

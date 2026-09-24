@@ -112,6 +112,13 @@ export interface HostBridge {
    * hora — o jogador marcado vê o pino sem recarregar, e o desmarcado o perde.
    */
   setPinAudience(pinId: string, playerIds: readonly string[] | null): void
+  /**
+   * "Mostrar agora a…": o cartão do pino abre sozinho na tela deste jogador.
+   * `true` = saiu; `false` = não deu (ele saiu da cena, caiu, o pino sumiu ou
+   * ficou oculto); `null` = sala fechada. Com "Só estes", ele entra na lista:
+   * snapshot na hora e o painel recebe a lista nova.
+   */
+  showPin(playerId: string, pinId: string): boolean | null
   /** "Revelar planta": snapshot imediato com a planta inteira explorada (fora de zona oculta ativa). */
   revealPlan(playerId: string): void
   /** "Esconder de novo": snapshot imediato com exploração e portas lembradas zeradas. */
@@ -712,6 +719,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       session.setPinAudience(pinId, playerIds)
       broadcastNow()
       notifyPinAudiencesIfChanged()
+    },
+
+    showPin(playerId, pinId) {
+      if (session === null) return null
+      const result = session.showPin(playerId, pinId, world())
+      if (result.outbound.length === 0) return false
+      // O mapa com a lista nova sai antes do cartão: o pino (se à vista) já
+      // está no mapa dela quando o cartão abre.
+      broadcastNow()
+      void dispatch(result)
+      notifyPinAudiencesIfChanged()
+      return true
     },
 
     revealPlan(playerId) {

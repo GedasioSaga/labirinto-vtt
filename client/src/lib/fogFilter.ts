@@ -1,4 +1,4 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { ConcealZone, DoorState, Drawing, FloorPiece, MapData, Pin, PinCard, Region, RegionPoint, Token, Wall } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, REVEAL_BRUSH_CELL, unveiledCellsOf } from './concealBrush'
 import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer } from './tokenPublicName'
@@ -1476,4 +1476,31 @@ function pinForPlayer(pin: Pin, readable: boolean, known: boolean): Pin {
   const escolhas = exitLabelsOf(pin)
   if (escolhas.length > 1) forPlayer.escolhas = readable ? escolhas : unreadExitLabels(escolhas)
   return forPlayer
+}
+
+/**
+ * "MOSTRAR AGORA A…": o cartão que o mestre abre na tela de um jogador. É o
+ * recorte do cartão, não do mapa: vai o texto INTEIRO e a imagem mesmo com o
+ * pino na névoa ou "só de perto" e a ficha longe — mostrar é o mestre
+ * entregando a pista de propósito. Por isso mesmo não vai a POSIÇÃO: o pino
+ * pode estar numa sala que o jogador nunca viu, e o cartão não diz onde.
+ *
+ * `null` (nada sai):
+ * - oculto para jogadores: o mestre escondeu, e o painel nem oferece mostrar;
+ * - pino de viagem (e a chegada oculta): o cartão de passagem é do mapa, e
+ *   mostrá-lo longe ofereceria passar por onde o jogador não está.
+ *
+ * LISTA DO QUE VAI, como em `pinForPlayer`: campo desconhecido não atravessa.
+ */
+export function pinCardForPlayer(pin: Pin): PinCard | null {
+  if (pin.secret === true || isArrivalOnly(pin)) return null
+  if (pin.kind === 'viagem') return null
+  const card: PinCard = {
+    id: pin.id,
+    kind: pin.kind,
+    description: pin.description,
+    image: isPlayerSafePinImage(pin.image) ? pin.image : null,
+  }
+  if (pin.icon !== undefined) card.icon = pin.icon
+  return card
 }

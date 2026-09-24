@@ -88,7 +88,7 @@ export function isPinPassage(value: unknown): value is PinPassage {
  * do campo fazia, e um valor desconhecido que escapasse até aqui também cai no
  * modo que pergunta — nunca num que deixa passar sem ninguém ver.
  */
-export function passageOf(pin: Pin): PinPassage {
+export function passageOf(pin: Pick<Pin, 'passagem'>): PinPassage {
   return isPinPassage(pin.passagem) ? pin.passagem : 'pede'
 }
 

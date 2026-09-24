@@ -4,6 +4,7 @@ import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER, PIN_LER_DE_PERTO_MAX, PIN_L
 import { GatherControls, type GatherControlsProps } from './GatherControls'
 import { PinTravelArt } from './PinSymbolArt'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
+import { ShowPinNowControls, type ShowPinNowControlsProps } from './ShowPinNowControls'
 import { Toggle } from './Toggle'
 
 export interface PinControlsProps {
@@ -37,6 +38,12 @@ export interface PinControlsProps {
    * quando o painel passa a mostrar outro pino.
    */
   gather?: (GatherControlsProps & { pinId: string }) | null
+  /**
+   * "Mostrar agora a…": abre o cartão deste pino na tela de um jogador. `null`
+   * = não se oferece (sem sala, pino de viagem ou oculto para jogadores).
+   * `pinId` fecha a lista quando o painel passa a mostrar outro pino.
+   */
+  showNow?: (ShowPinNowControlsProps & { pinId: string }) | null
 }
 
 /** A pastilha de cada tipo: a mesma cabeça que o pino tem no mapa. */
@@ -90,6 +97,7 @@ export function PinControls({
   onDelete,
   travel = null,
   gather = null,
+  showNow = null,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
   // As cenas onde mora um par que perde a volta se este pino sumir (uma por
@@ -146,6 +154,7 @@ export function PinControls({
           {/* Ação de MESA, não de edição do pino: fica logo depois do que o
               pino é, antes da imagem e do excluir. */}
           {gather !== null && <GatherControlsFor gather={gather} />}
+          {showNow !== null && <ShowPinNowControlsFor showNow={showNow} />}
           {/* Só o nome do arquivo, nunca o caminho inteiro: o cartão do jogador
               recebe a imagem embutida, e mostrar a pasta do mestre aqui só
               enche a coluna. Data URL não tem nome, então diz o que é. */}
@@ -240,4 +249,10 @@ function PinTravelControlsFor({ travel }: { travel: PinTravelControlsProps & { p
 function GatherControlsFor({ gather }: { gather: GatherControlsProps & { pinId: string } }) {
   const { pinId, ...props } = gather
   return <GatherControls key={pinId} {...props} />
+}
+
+/** A chave é o pino: a lista "Mostrar agora a…" aberta num pino não reaparece aberta em outro. */
+function ShowPinNowControlsFor({ showNow }: { showNow: ShowPinNowControlsProps & { pinId: string } }) {
+  const { pinId, ...props } = showNow
+  return <ShowPinNowControls key={pinId} {...props} />
 }

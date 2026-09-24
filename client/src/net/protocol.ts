@@ -1,7 +1,8 @@
-import type { MapData, RegionPoint } from '../types/map'
+import type { MapData, PinCard, RegionPoint } from '../types/map'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
+import { isPinIcon, isPlayerSafePinImage } from '../lib/pins'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 
 /**
@@ -46,6 +47,10 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
  * nunca o id nem o nome da cena — quem recebe já está lá.
+ *
+ * `pin.show` (mestre -> jogador) é o "MOSTRAR AGORA A…", aditivo pelo mesmo
+ * critério: jogador antigo ignora. Leva só o cartão (`PinCard`), nunca a
+ * posição do pino nem o destino, e só para o jogador escolhido.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -155,7 +160,13 @@ export interface SceneNoteMessage {
   text: string
 }
 
-export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
+/** "Mostrar agora a…": o cartão de um ponto de interesse, aberto sozinho na tela de quem recebe. */
+export interface PinShowMessage {
+  type: 'pin.show'
+  pin: PinCard
+}
+
+export type HostErrorReason ='bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
 export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
@@ -176,6 +187,7 @@ export type HostMessage =
   | { type: 'scene.changed'; by?: 'master' | 'gather' }
   | LaserMessage
   | SceneNoteMessage
+  | PinShowMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -274,6 +286,25 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
   return { type: 'scene.note', id, text }
+}
+
+/**
+ * Valida o `pin.show` que o jogador recebe. Devolve cópia só com os campos do
+ * cartão. Pino de viagem, tipo ou símbolo desconhecido e forma errada recusam
+ * a mensagem inteira; imagem em texto que não é data URL vira `null` — o
+ * `<img>` do jogador nunca recebe caminho do disco do mestre nem outro esquema.
+ */
+export function parsePinShow(value: unknown): PinShowMessage | null {
+  if (!isRecord(value) || value.type !== 'pin.show' || !isRecord(value.pin)) return null
+  const { id, kind, icon, description, image } = value.pin
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (kind !== 'exclamacao' && kind !== 'interrogacao') return null
+  if (typeof description !== 'string') return null
+  if (image !== null && typeof image !== 'string') return null
+  if (icon !== undefined && !isPinIcon(icon)) return null
+  const pin: PinCard = { id, kind, description, image: isPlayerSafePinImage(image) ? image : null }
+  if (icon !== undefined) pin.icon = icon
+  return { type: 'pin.show', pin }
 }
 
 /**

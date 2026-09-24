@@ -1,7 +1,7 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExplored, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
+import { filterMapForPlayer, pinCardForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
@@ -332,6 +332,16 @@ export interface HostSession {
   pinAudience(pinId: string): string[] | null
   /** Todas as listas, por pino, para o painel do mestre. Pino de "Todos" não aparece. */
   pinAudiences(): Record<string, string[]>
+  /**
+   * "MOSTRAR AGORA A…": o cartão do pino `pinId` (`pin.show`) só para este
+   * jogador, mesmo longe do pino. Só vale com ele conectado, jogando e na
+   * cena ONDE O PINO ESTÁ — pino de outra cena não sai, nem por id. Pino com
+   * "Só estes" ganha o jogador na lista (o pino passa a aparecer no mapa dele
+   * quando estiver à vista); pino de "Todos" continua de todos. Oculto e de
+   * viagem não viram cartão (`pinCardForPlayer`). Não envia snapshot: o
+   * integrador faz o broadcast. `outbound` vazio = nada saiu.
+   */
+  showPin(playerId: string, pinId: string, source: HostMapSource): HostResult
   /** Marca a planta inteira da cena onde o jogador está como explorada, fora de zona oculta ativa. Tokens seguem exigindo visão. */
   revealPlan(playerId: string, source: HostMapSource): void
   /**
@@ -1122,6 +1132,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const all: Record<string, string[]> = {}
       for (const pinId of pinAudiences.keys()) all[pinId] = audienceOf(pinId) ?? []
       return all
+    },
+
+    showPin(playerId, pinId, source) {
+      const clientId = players.get(playerId)?.clientId ?? null
+      if (clientId === null || statusOf(playerId) !== 'playing') return { outbound: [] }
+      // A cena DELE, não a aberta no editor: o id de um pino de outra cena não
+      // pode virar cartão (seria contar ao jogador o que há do outro lado).
+      const pin = sceneFor(playerId, toWorld(source))?.map.pins.find((p) => p.id === pinId)
+      if (pin === undefined) return { outbound: [] }
+      const card = pinCardForPlayer(pin)
+      if (card === null) return { outbound: [] }
+      pinAudiences.get(pinId)?.add(playerId)
+      return reply(clientId, { type: 'pin.show', pin: card })
     },
 
     revealPlan(playerId, source) {

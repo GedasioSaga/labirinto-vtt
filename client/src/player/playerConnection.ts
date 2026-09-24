@@ -1,4 +1,4 @@
-import type { MapData, RegionPoint, Token } from '../types/map'
+import type { MapData, PinCard, RegionPoint, Token } from '../types/map'
 import { moveTokenCarryingLights } from '../lib/lightAttachment'
 import { decodeExploration, type Exploration } from '../lib/exploration'
 import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PinTravelRequestMessage, type PlayerMessage } from '../net/protocol'
@@ -6,7 +6,7 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
-import { parseLaserMessage, parseSceneNote } from '../net/protocol'
+import { parseLaserMessage, parsePinShow, parseSceneNote } from '../net/protocol'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -41,6 +41,12 @@ export interface PlayerState {
    * tela o mostra como texto, nunca como HTML.
    */
   note?: { id: string; text: string }
+  /**
+   * "Mostrar agora a…": o cartão que o mestre abriu nesta tela. Fica até o
+   * jogador fechar (`dismissShownPin`); outro toma o lugar. `id` novo a cada
+   * `pin.show`, inclusive do mesmo pino: mostrado de novo, abre de novo.
+   */
+  shownPin?: { id: number; pin: PinCard }
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -117,6 +123,8 @@ export interface PlayerConnection {
   requestTravel(pinId: string, exitId?: string): boolean
   /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). */
   dismissNote(): void
+  /** Fecha o cartão que o mestre mostrou ("Fechar", Escape ou toque fora). */
+  dismissShownPin(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -456,7 +464,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, shownPin: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -468,7 +476,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSignalTimers()
         clearLaserTimer()
         clearDoorNotice()
-        setState({ signals: undefined, laser: undefined, doorNotice: undefined })
+        // O cartão que o mestre mostrou era da cena de antes: fecha junto.
+        setState({ signals: undefined, laser: undefined, doorNotice: undefined, shownPin: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -490,6 +499,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const note = parseSceneNote(data)
         if (note === null) return
         setState({ note: { id: note.id, text: note.text } })
+        return
+      }
+      case 'pin.show': {
+        // Mesma regra do recado: só quem joga tem tela de cartão.
+        if (state.status !== 'playing') return
+        const shown = parsePinShow(data)
+        if (shown === null) return
+        setState({ shownPin: { id: nextNoticeId++, pin: shown.pin } })
         return
       }
       case 'laser': {
@@ -689,6 +706,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.note !== undefined) setState({ note: undefined })
     },
 
+    dismissShownPin() {
+      if (state.shownPin !== undefined) setState({ shownPin: undefined })
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -704,7 +725,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, shownPin: undefined })
       open()
     },
     close: detach,

@@ -5,7 +5,11 @@ import { PinTravelArt } from '../components/PinSymbolArt'
 import { unreadExitLabels } from '../lib/pinTravel'
 
 interface PlayerPinCardProps {
-  pin: Pin
+  /**
+   * O pino do mapa, ou o cartão que o mestre mostrou ("Mostrar agora a…",
+   * `PinCard`), que chega sem posição: o cartão nunca usa onde o pino está.
+   */
+  pin: Omit<Pin, 'x' | 'y'>
   onClose: () => void
   /**
    * Pino de viagem: manda o pedido de passagem ao mestre (já confirmado aqui).
