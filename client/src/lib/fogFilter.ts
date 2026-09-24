@@ -209,9 +209,13 @@ interface GlimpseInput {
   /** As paredes como o jogador as conhece (porta secreta já virou parede). */
   walls: readonly Wall[]
   tokens: readonly Token[]
-  /** Anéis do olhar da autoridade de cada ficha, no mesmo índice de `tokens`. */
-  authorityVision: readonly (readonly RegionPoint[][])[]
-  visionRadius: number
+  /**
+   * Olhar da ficha de índice `index` (o de `tokens`) pela conta da autoridade,
+   * no escuro DESTE prédio: o cone nunca passa dele.
+   */
+  authorityFor: (roof: ClosedRoof, token: Token, index: number) => RegionPoint[][]
+  /** Olhar da ficha pela conta do jogador (`segments`), no mesmo escuro de `authorityFor`. */
+  sightFor: (roof: ClosedRoof, token: Token, segments: Segment[]) => RegionPoint[][]
   peekDoorIds: ReadonlySet<string> | undefined
   /** Obstáculos do olhar de quem está do lado de fora deste prédio. */
   segmentsFor: (roof: ClosedRoof) => Segment[]
@@ -242,11 +246,16 @@ function glimpsesThroughOpenings(input: GlimpseInput): Glimpse[] {
       const reach = tokenRadiusOf(token, grid) + grid * DOOR_REACH_CELLS
       if (!openings.some((w) => distanceToWall(token, w) <= reach)) continue
       if (segments === null) segments = input.segmentsFor(roof)
-      const sight = boxRings([computeVisibility({ x: token.x, y: token.y }, segments, input.visionRadius)])
-      const authority = boxRings(input.authorityVision.slice(i, i + 1).flat())
-      const first = sight[0]
-      if (first === undefined || authority.length === 0) continue
-      const box = { minX: Math.max(roof.minX, first.minX), minY: Math.max(roof.minY, first.minY), maxX: Math.min(roof.maxX, first.maxX), maxY: Math.min(roof.maxY, first.maxY) }
+      const sight = boxRings(input.sightFor(roof, token, segments))
+      const authority = boxRings(input.authorityFor(roof, token, i))
+      if (sight.length === 0 || authority.length === 0) continue
+      // No escuro o olhar são vários anéis: a caixa de busca cobre todos.
+      const box = {
+        minX: Math.max(roof.minX, Math.min(...sight.map((b) => b.minX))),
+        minY: Math.max(roof.minY, Math.min(...sight.map((b) => b.minY))),
+        maxX: Math.min(roof.maxX, Math.max(...sight.map((b) => b.maxX))),
+        maxY: Math.min(roof.maxY, Math.max(...sight.map((b) => b.maxY))),
+      }
       if (box.minX > box.maxX || box.minY > box.maxY) continue
       out.push({ roof, sight, authority, box })
     }
@@ -1309,17 +1318,12 @@ export function filterMapForPlayer(
    *   oculta, a de dentro de sala secreta, teto fechado ou zona, e a tocha presa
    *   numa ficha que o mestre esconde (o claro andando entregaria o NPC).
    */
-  const darknessForPlayer = (): Darkness | null => {
-    const darkRooms = visibleRegions(map.regions, hiddenLayers).filter(
-      (r) =>
-        r.room?.dark === true &&
-        !r.hidden &&
-        !r.secret &&
-        !secretRoomIds.has(r.id) &&
-        !underRoofIds.has(r.id) &&
-        isUsablePolygon(r.points) &&
-        !swallowedByClosedRoof(r),
-    )
+  const darkRoomsOnLayer = visibleRegions(map.regions, hiddenLayers).filter(
+    (r) => r.room?.dark === true && !r.hidden && !r.secret && !secretRoomIds.has(r.id) && isUsablePolygon(r.points),
+  )
+  const isInteriorRoom = (r: Region): boolean => underRoofIds.has(r.id) || swallowedByClosedRoof(r)
+  const openDarkRooms = darkRoomsOnLayer.filter((r) => !isInteriorRoom(r))
+  const darknessForPlayer = (darkRooms: readonly Region[]): Darkness | null => {
     if (map.dark !== true && darkRooms.length === 0) return null
     const darkBoxes = boxRings(darkRooms.map((r) => r.points))
     const veils = boxRings(concealed).filter((v) =>
@@ -1359,19 +1363,39 @@ export function filterMapForPlayer(
    * deixava de contar como escondida, a parede entrava inteira e as pontas
    * escondidas saíam no fio — com a sombra delas desenhada fora da zona.
    */
-  const darkness = darknessForPlayer()
+  const darkness = darknessForPlayer(openDarkRooms)
+  /** Olhar de UMA ficha em `origin`: um anel sem escuro; com escuro, vários (`darkVision`). */
+  const sightFrom = (origin: RegionPoint, segments: Segment[], dark: Darkness | null): RegionPoint[][] =>
+    dark === null ? [computeVisibility(origin, segments, visionRadius)] : darkVision(origin, segments, visionRadius, dark)
   /**
-   * Anéis de visão de cada ficha (mesmo índice de `ownTokens`). Sem escuro é
-   * um anel por ficha, como sempre; com escuro, vários (`darkVision`). As DUAS
+   * Anéis de visão de cada ficha (mesmo índice de `ownTokens`). As DUAS
    * visões abaixo passam por aqui, então o escuro corta o que sai no pacote e
    * o desenho da visão enviada do mesmo jeito.
    */
-  const visionByToken = (segments: Segment[]): RegionPoint[][][] =>
-    ownTokens.map((t) =>
-      darkness === null ? [computeVisibility({ x: t.x, y: t.y }, segments, visionRadius)] : darkVision({ x: t.x, y: t.y }, segments, visionRadius, darkness),
-    )
+  const visionByToken = (segments: Segment[]): RegionPoint[][][] => ownTokens.map((t) => sightFrom({ x: t.x, y: t.y }, segments, darkness))
   const authoritySegments = ownTokens.length > 0 ? visionSegments(knownWalls === map.walls ? map : { ...map, walls: knownWalls }, peekDoorIds) : []
   const authorityByToken = visionByToken(authoritySegments)
+  /**
+   * ESCURO DO CONE PELO VÃO: o de sempre mais as salas escuras de dentro DESTE
+   * prédio. Elas ficam fora de `darkness` de propósito (o jogador não recebe
+   * cômodo interior, e o corte na visão enviada desenharia o formato dele),
+   * mas a janela deixa olhar lá dentro — sem elas, o guarda no depósito escuro
+   * saía no pacote pelo cone. O corte aqui só vira as CÉLULAS do cone, que já
+   * são o que o jogador vê do interior. `null` = este prédio não tem cômodo
+   * escuro: o cone usa o olhar da autoridade já calculado.
+   */
+  const glimpseDarkness = new Map<ClosedRoof, Darkness | null>()
+  const glimpseDarknessOf = (roof: ClosedRoof): Darkness | null => {
+    const cached = glimpseDarkness.get(roof)
+    if (cached !== undefined) return cached
+    const subtree = subtreeIds(map.regions, roof.id)
+    const inside = darkRoomsOnLayer.filter(
+      (r) => isInteriorRoom(r) && r.id !== roof.id && (subtree.has(r.id) || mostly(interiorSamples(r.points, r.points), (p) => inRoof(roof, p))),
+    )
+    const dark = inside.length === 0 ? null : darknessForPlayer([...openDarkRooms, ...inside])
+    glimpseDarkness.set(roof, dark)
+    return dark
+  }
   const authorityVision = authorityByToken.flat()
   const rings = boxRings(authorityVision)
   // Anéis por ficha, para "ler só de perto".
@@ -1407,8 +1431,12 @@ export function filterMapForPlayer(
       roofs: closedRoofs,
       walls: knownWalls,
       tokens: ownTokens,
-      authorityVision: authorityByToken,
-      visionRadius,
+      // Prédio sem cômodo escuro reaproveita o olhar da autoridade já calculado.
+      authorityFor: (roof, token, i) => {
+        const dark = glimpseDarknessOf(roof)
+        return dark === null ? authorityByToken.slice(i, i + 1).flat() : sightFrom({ x: token.x, y: token.y }, authoritySegments, dark)
+      },
+      sightFor: (roof, token, segments) => sightFrom({ x: token.x, y: token.y }, segments, glimpseDarknessOf(roof) ?? darkness),
       peekDoorIds,
       // A conta do jogador vista de dentro deste prédio: as paredes que ele
       // recebe, mais a mobília DESTE prédio (que o cone vai mostrar) — nunca a
