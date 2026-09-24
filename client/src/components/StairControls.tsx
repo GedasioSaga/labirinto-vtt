@@ -1,5 +1,10 @@
-import type { StairDirection } from '../types/map'
+import { useState } from 'react'
+import type { PinPassage, StairDirection } from '../types/map'
 import { stairSizePresetForStepWidth, stairStepWidthForPreset, type StairSizePreset } from '../lib/stairs'
+import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
+import type { StairTravelProps } from '../lib/stairTravel'
+
+export type { StairTravelProps }
 
 export interface StairControlsProps {
   direction: StairDirection
@@ -11,9 +16,17 @@ export interface StairControlsProps {
    *  célula (ver STAIR_SIZE_PRESET_RATIO em lib/stairs.ts). Não editável
    *  aqui: é propriedade do mapa, não da escada. */
   grid: number
+  /**
+   * "Leva a…" (`stairTravelPanel`). `null` = mapa solto, sem outro andar: a
+   * seção não aparece. OBRIGATÓRIO de propósito: quem monta o painel da escada
+   * não pode esquecer a ligação e sumir com a seção sem o compilador ver.
+   */
+  travel: StairTravelProps | null
 }
 
 const MIN_STEP_WIDTH = 1
+
+const LEVA_A_ID = 'lb-stair-leva-a'
 
 const PRESET_ORDER: StairSizePreset[] = ['small', 'medium', 'large']
 
@@ -66,6 +79,65 @@ function StairDirectionArt({ direction }: { direction: StairDirection }) {
 }
 
 /**
+ * "Leva a…" da escada. Escolher o andar LIGA na hora: nasce lá a escada par
+ * ("Desce" para quem sobe), e nenhum pino aparece em nenhuma das duas cenas.
+ * O modo vem antes de ligar — a escada já nasce livre, se o mestre quiser —
+ * e, ligada, troca direto no pino dela, com desfazer.
+ */
+function StairTravelSection({ scenes, linkedSceneId, passage, onLink, onUnlink, onPassageChange }: StairTravelProps) {
+  // Sem ligação, o modo é só a escolha para a ligação que vem: não há pino
+  // onde gravar ainda. "Pede ao mestre" é o de sempre, como no pino de viagem.
+  const [pendingPassage, setPendingPassage] = useState<PinPassage>('pede')
+  const linked = linkedSceneId !== null
+  const currentPassage = linked ? passage : pendingPassage
+
+  return (
+    <>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={LEVA_A_ID}>
+          Leva a
+        </label>
+        <select
+          id={LEVA_A_ID}
+          className="lb-input"
+          value={linkedSceneId ?? ''}
+          onChange={(event) => {
+            const sceneId = event.target.value
+            if (sceneId === '') onUnlink()
+            else onLink(sceneId, currentPassage)
+          }}
+        >
+          <option value="">Nenhum outro andar</option>
+          {scenes.map((scene) => (
+            <option key={scene.id} value={scene.id} disabled={!scene.available}>
+              {scene.available ? scene.name : `${scene.name} (não abriu)`}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="lb-field">
+        <span className="lb-label">Passagem</span>
+        <div className="lb-seg" role="radiogroup" aria-label="Passagem da escada">
+          {PIN_PASSAGE_ORDER.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={currentPassage === option}
+              className="lb-seg__option"
+              onClick={() => (linked ? onPassageChange(option) : setPendingPassage(option))}
+            >
+              {PIN_PASSAGE_LABELS[option]}
+            </button>
+          ))}
+        </div>
+        {linked && <p className="lb-field__hint">O jogador toca a escada e lê “Subir” ou “Descer” — nunca o nome do andar.</p>}
+      </div>
+    </>
+  )
+}
+
+/**
  * Sentido de subida e largura do lance (`stepWidth`) da escada SELECIONADA.
  *
  * `stepWidth` ganhou controle nesta rodada (F4, N1 "escada pequena média
@@ -83,7 +155,7 @@ function StairDirectionArt({ direction }: { direction: StairDirection }) {
  * PRÓXIMA escada (mesma classe de `wallKind`/`polygonSides`) é o que a
  * setinha de variantes da Toolbar edita — ver CONTRATO do agente.
  */
-export function StairControls({ direction, onDirectionChange, stepWidth, onStepWidthChange, grid }: StairControlsProps) {
+export function StairControls({ direction, onDirectionChange, stepWidth, onStepWidthChange, grid, travel }: StairControlsProps) {
   const activePreset = stairSizePresetForStepWidth(stepWidth, grid)
 
   return (
@@ -153,6 +225,8 @@ export function StairControls({ direction, onDirectionChange, stepWidth, onStepW
           }}
         />
       </div>
+
+      {travel !== null && <StairTravelSection {...travel} />}
     </section>
   )
 }

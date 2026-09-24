@@ -43,7 +43,7 @@ describe('telas do item pegável', () => {
 
   it('cartão: o pino pegável diz o nome do item e "Pegar" manda o pedido', () => {
     const onTake = vi.fn()
-    act(() => root.render(<PlayerPinCard pin={CHAVE} onClose={vi.fn()} onTakeItem={onTake} />))
+    act(() => root.render(<PlayerPinCard pin={CHAVE} stairs={[]} onClose={vi.fn()} onTakeItem={onTake} />))
     expect(container.textContent).toContain('Chave do Escudo')
     act(() => botao('Pegar').click())
     expect(onTake).toHaveBeenCalledTimes(1)
@@ -51,7 +51,7 @@ describe('telas do item pegável', () => {
 
   it('cartão: pino que só se lê não tem "Pegar"', () => {
     const { item: _item, ...soLeitura } = CHAVE
-    act(() => root.render(<PlayerPinCard pin={soLeitura} onClose={vi.fn()} onTakeItem={vi.fn()} />))
+    act(() => root.render(<PlayerPinCard pin={soLeitura} stairs={[]} onClose={vi.fn()} onTakeItem={vi.fn()} />))
     expect([...container.querySelectorAll('button')].map((b) => b.textContent)).not.toContain('Pegar')
   })
 

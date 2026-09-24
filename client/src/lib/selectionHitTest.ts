@@ -1,11 +1,12 @@
-import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData, LayerId } from '../types/map'
+import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData, LayerId, Pin } from '../types/map'
 import type { Selection } from '../types/tools'
 import { findTokenAt } from '../pixi/tokenInteraction'
 import { findPropAt } from '../pixi/propInteraction'
 import {
-  visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps,
+  visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
   isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
 } from './layers'
+import { findPinAt } from './pins'
 
 export interface Point {
   x: number
@@ -64,6 +65,30 @@ export function findStairAt(stairs: Stair[], point: Point, tolerance = STAIR_HIT
     }
   }
   return null
+}
+
+/**
+ * Toque do JOGADOR numa escada que leva a outro andar: o pino invisível dela
+ * (`Pin.escadaId`, `lib/stairTravel.ts`), ou `null` se ali não tem escada ou a
+ * escada não leva a lugar nenhum. O lance inteiro responde, com a mesma folga
+ * de `findStairAt` — a escada é o alvo, não um ponto escondido na boca dela.
+ * Só olha escada em camada visível: a que o jogador não enxerga não se toca.
+ */
+export function findStairPinAt(map: Pick<MapData, 'stairs' | 'pins' | 'hiddenLayers'>, point: Point, tolerance = STAIR_HIT_TOLERANCE): Pin | null {
+  const linked = visibleStairs(map.stairs, map.hiddenLayers).filter((stair) => map.pins.some((p) => p.escadaId === stair.id))
+  const stair = findStairAt(linked, point, tolerance)
+  if (stair === null) return null
+  return map.pins.find((p) => p.escadaId === stair.id) ?? null
+}
+
+/**
+ * O que o toque do JOGADOR abre no mapa do recorte: o pino que se desenha ali
+ * (ele fica por cima) ou, no lance de uma escada que leva a outro andar, o pino
+ * invisível dela. É a única chamada do `PlayerView` para "tocou em quê?" — a
+ * escada não depende de alguém lembrar de perguntar por ela à parte.
+ */
+export function findPlayerPinAt(map: Pick<MapData, 'stairs' | 'pins' | 'hiddenLayers'>, point: Point, tolerance: number): Pin | null {
+  return findPinAt(visiblePins(map.pins, map.hiddenLayers), point, tolerance) ?? findStairPinAt(map, point, tolerance)
 }
 
 export function findLightAt(lights: Light[], point: Point, handleRadius = LIGHT_HIT_RADIUS): Light | null {

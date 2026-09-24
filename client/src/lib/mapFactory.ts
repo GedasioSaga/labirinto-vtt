@@ -18,6 +18,7 @@ import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
+import { seatStairPins, withoutStairPins } from './stairTravel'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -1386,12 +1387,14 @@ export function addStair(map: MapData, stair: Stair): MapData {
   return { ...map, stairs: [...map.stairs, stair] }
 }
 
+/** Apagar a escada apaga o pino dela (`lib/stairTravel.ts`); o guardião da mão dupla desliga o par do outro andar. */
 export function removeStair(map: MapData, stairId: string): MapData {
-  return { ...map, stairs: map.stairs.filter((s) => s.id !== stairId) }
+  return withoutStairPins({ ...map, stairs: map.stairs.filter((s) => s.id !== stairId) }, stairId)
 }
 
+/** Arrastar a escada leva a ligação: o pino dela anda junto (`seatStairPins`). */
 export function moveStair(map: MapData, stairId: string, dx: number, dy: number): MapData {
-  return {
+  const moved: MapData = {
     ...map,
     stairs: map.stairs.map((s) =>
       s.id === stairId
@@ -1399,10 +1402,11 @@ export function moveStair(map: MapData, stairId: string, dx: number, dy: number)
         : s,
     ),
   }
+  return seatStairPins(moved, [stairId])
 }
 
 export function updateStairPoint(map: MapData, stairId: string, segmentIndex: number, endpoint: 0 | 1, x: number, y: number): MapData {
-  return {
+  const edited: MapData = {
     ...map,
     stairs: map.stairs.map((s) => {
       if (s.id !== stairId) return s
@@ -1414,6 +1418,8 @@ export function updateStairPoint(map: MapData, stairId: string, segmentIndex: nu
       }
     }),
   }
+  // A boca da escada pode ter mudado de lugar: o pino dela vai junto.
+  return seatStairPins(edited, [stairId])
 }
 
 export function setStairDirection(map: MapData, stairId: string, direction: StairDirection): MapData {

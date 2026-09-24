@@ -361,6 +361,15 @@ export interface Pin extends PlayerSecret {
    */
   soChegada?: true
   /**
+   * Só do pino de viagem: o pino é a PASSAGEM de uma escada — o "Leva a…" da
+   * escada `escadaId` desta cena (`lib/stairTravel.ts`). Não se desenha nem
+   * entra em lista: o mestre vê a escada, o jogador toca a escada. Mora na
+   * boca dela e anda junto quando a escada é arrastada. Ao jogador SÓ vai
+   * junto com a escada (`lib/fogFilter.ts`): escada escondida, pino escondido.
+   * Ausente = o pino de sempre, sem migração.
+   */
+  escadaId?: string
+  /**
    * SÓ NO RECORTE DO JOGADOR, e só quando o pino tem mais de uma saída: o id e
    * o rótulo de cada uma, na ordem (a principal primeiro). O mestre nunca grava
    * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.

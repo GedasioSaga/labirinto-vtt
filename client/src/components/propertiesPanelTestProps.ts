@@ -109,7 +109,7 @@ export function propsDoPainel(ficha: Token, extra: Partial<PainelProps> = {}): P
     selectedLight: null,
     lightControls: { onColorChange: nada, onIntensityChange: nada },
     selectedStair: null,
-    stairControls: { onDirectionChange: nada, stepWidth: 1, onStepWidthChange: nada, grid: map.grid },
+    stairControls: { onDirectionChange: nada, stepWidth: 1, onStepWidthChange: nada, grid: map.grid, travel: null },
     polygonSides: { sides: 6, onSidesChange: nada },
     selectedFloorPiece: null,
     floorPieceControls: { index: 0, count: 0, grid: map.grid, onChange: nada, onReorder: nada, onRemove: nada },

@@ -1,5 +1,7 @@
 import { create } from 'zustand'
-import type { MapData, Pin, PinDestination, Token } from '../types/map'
+import type { MapData, Pin, PinDestination, PinPassage, Stair, Token } from '../types/map'
+import { buildPartnerStair, buildStairPin, stairPinOf, type StairTravelProps } from '../lib/stairTravel'
+import { passageOf } from '../lib/pins'
 import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
 import type { Bounds, Camera, Point } from '../pixi/world'
@@ -209,6 +211,19 @@ interface AdventureState {
    * sempre; `null` = uma saída NOVA ("+ Outra saída").
    */
   linkPinToNewArrival: (pinId: string, sceneId: string, exitId?: string | null) => string | null
+  /**
+   * ESCADA QUE LEVA A OUTRO ANDAR: a escada `stairId` (da cena aberta) passa a
+   * levar a `sceneId`. Nasce lá a escada PAR (mesmo desenho, sentido
+   * contrário), com o pino invisível dela; aqui a escada ganha o seu (ou
+   * religa o que já tinha), com o modo `passagem`. A volta é gravada pelo
+   * guardião da mão dupla, como no pino de viagem. Devolve o id da escada par,
+   * ou `null` se não deu (mesma cena, cena fora do ar, escada que sumiu).
+   */
+  linkStairToFloor: (stairId: string, sceneId: string, passagem: PinPassage) => string | null
+  /** "Nenhum outro andar": tira o pino da escada; o guardião desliga o par. Entra no desfazer. */
+  unlinkStair: (stairId: string) => void
+  /** Modo de passagem da escada `stairId` — do pino dela, com desfazer. Escada sem ligação: nada. */
+  setStairPassage: (stairId: string, passagem: PinPassage) => void
   /** Liga a saída `exitId` do pino `pinId` ao pino de viagem `partnerId`, que já existe em `sceneId`. */
   linkPinToExisting: (pinId: string, sceneId: string, partnerId: string, exitId?: string | null) => boolean
   /** Desliga a saída `exitId` (ausente = a principal) e, pelo guardião, o par dela. Entra no desfazer da cena aberta. */
@@ -367,6 +382,36 @@ function sceneLookup(state: SceneState, liveMap: MapData): (sceneId: string) => 
 /** Para onde o pino da cena aberta leva — o que o painel diz e o que o clique faz. */
 export function pinTravelOf(state: SceneState, liveMap: MapData, pin: Pin): PinTravel {
   return resolvePinTravel(pin, state.activeSceneId, sceneLookup(state, liveMap))
+}
+
+/** Para onde a escada da cena aberta leva — pelo pino invisível dela. Sem pino, "sem destino". */
+export function stairTravelOf(state: SceneState, liveMap: MapData, stair: Stair): PinTravel {
+  const pin = stairPinOf(liveMap, stair.id)
+  return pin === undefined ? { status: 'sem-destino' } : pinTravelOf(state, liveMap, pin)
+}
+
+/**
+ * O "Leva a…" da escada `stair` da cena aberta, pronto para o painel dela
+ * (`components/StairControls.tsx`): as outras cenas, para onde leva hoje e o
+ * modo, com as ações ligadas a esta store. `null` fora de uma aventura: no
+ * mapa solto não há outro andar, e a seção não aparece.
+ */
+export function stairTravelPanel(state: SceneState, liveMap: MapData, stair: Stair): StairTravelProps | null {
+  if (state.adventure === null) return null
+  const travel = stairTravelOf(state, liveMap, stair)
+  const pin = stairPinOf(liveMap, stair.id)
+  return {
+    scenes: travelSceneOptions(state),
+    // O pino que o guardião desligou (o par de lá foi desligado ou apagado) é
+    // "sem destino": não leva a lugar nenhum, e o painel diz isso.
+    linkedSceneId: travel.status === 'sem-destino' ? null : travel.sceneId,
+    passage: pin === undefined ? 'pede' : passageOf(pin),
+    onLink: (sceneId, passagem) => {
+      useAdventureStore.getState().linkStairToFloor(stair.id, sceneId, passagem)
+    },
+    onUnlink: () => useAdventureStore.getState().unlinkStair(stair.id),
+    onPassageChange: (passagem) => useAdventureStore.getState().setStairPassage(stair.id, passagem),
+  }
 }
 
 /** Uma saída do pino aberto no painel: o id, o nome que o mestre deu e para onde ela leva. */
@@ -733,6 +778,39 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     get().updateBackgroundScene(sceneId, (map) => mapFactory.addPin(map, arrival))
     useMapStore.getState().updatePin(pinId, exitPatchFor(pin, exitId, { sceneId, pinId: arrival.id }))
     return arrival.id
+  },
+
+  linkStairToFloor: (stairId, sceneId, passagem) => {
+    const { activeSceneId, cache } = get()
+    const live = useMapStore.getState().map
+    const stair = live.stairs.find((s) => s.id === stairId)
+    const slot = cache[sceneId]
+    if (stair === undefined || activeSceneId === null || sceneId === activeSceneId) return null
+    if (slot === undefined || slot.status !== 'ok') return null
+    // A escada par nasce com a boca no centro livre do outro andar, para o
+    // mestre achar e arrastar — o mesmo lugar da chegada de um pino novo.
+    const partnerStair = buildPartnerStair(crypto.randomUUID(), stair, arrivalPoint(slot.map))
+    const partnerPin = partnerStair === null ? null : buildStairPin(crypto.randomUUID(), partnerStair, passagem)
+    const ownPin = buildStairPin(crypto.randomUUID(), stair, passagem)
+    if (partnerStair === null || partnerPin === null || ownPin === null) return null
+    // O par nasce SEM destino: quem grava a volta é o guardião, quando a ida é
+    // gravada logo abaixo — o mesmo caminho de `linkPinToNewArrival`.
+    get().updateBackgroundScene(sceneId, (map) => mapFactory.addPin(mapFactory.addStair(map, partnerStair), partnerPin))
+    const destino: PinDestination = { sceneId, pinId: partnerPin.id }
+    const existing = stairPinOf(live, stairId)
+    if (existing === undefined) useMapStore.getState().addPin({ ...ownPin, destino })
+    else useMapStore.getState().updatePin(existing.id, { destino, passagem })
+    return partnerStair.id
+  },
+
+  unlinkStair: (stairId) => {
+    const pin = stairPinOf(useMapStore.getState().map, stairId)
+    if (pin !== undefined) useMapStore.getState().removePin(pin.id)
+  },
+
+  setStairPassage: (stairId, passagem) => {
+    const pin = stairPinOf(useMapStore.getState().map, stairId)
+    if (pin !== undefined) useMapStore.getState().updatePin(pin.id, { passagem })
   },
 
   linkPinToExisting: (pinId, sceneId, partnerId, exitId = SAIDA_PRINCIPAL) => {

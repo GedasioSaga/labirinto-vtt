@@ -1,6 +1,7 @@
 import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, StairSegment, FloorPiece, FloorShape, MapData, Pin } from '../types/map'
 import type { SelectionKind } from '../types/tools'
 import { moveBlocos } from './floorBlocks'
+import { isStairPin } from './stairTravel'
 
 /**
  * FRENTE A (ONDA 3, item 13 do PLANO-REFINAMENTO.md) — clonagem PURA por
@@ -411,7 +412,11 @@ export function cloneSceneMap(map: MapData, mapId: string, name: string, dropTok
     lines: map.lines.map((line) => ({ ...line, id: crypto.randomUUID(), points: line.points.map((p) => ({ x: p.x, y: p.y })) })),
     markers: map.markers.map((marker) => ({ ...marker, id: crypto.randomUUID() })),
     concealZones: map.concealZones.map((zone) => ({ ...zone, id: crypto.randomUUID(), points: offsetPoints(zone.points, NO_OFFSET) })),
-    pins: map.pins.map(cloneLoosePin),
+    // O pino de uma escada que leva a outro andar NÃO vem: solto, ele não leva a
+    // lugar nenhum, e com o `escadaId` da escada original (a cópia ganhou id
+    // novo) ficaria órfão — invisível ao mestre e impossível de apagar. A escada
+    // copiada sai como a escada de sempre; o "Leva a…" dela liga de novo.
+    pins: map.pins.filter((pin) => !isStairPin(pin)).map(cloneLoosePin),
     frame: map.frame ? { ...map.frame } : null,
     fog: { mode: map.fog.mode, revealed: [...map.fog.revealed] },
     hiddenLayers: [...map.hiddenLayers],
