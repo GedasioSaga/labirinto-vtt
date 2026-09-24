@@ -37,6 +37,23 @@ export function tokenReachesDoor(token: Pick<Token, 'x' | 'y' | 'size'>, wall: W
   return distanceToWall({ x: token.x, y: token.y }, wall) <= reach
 }
 
+/**
+ * Folga além da borda do token, em células, para pedir ou passar por um pino
+ * de viagem: a mesma da porta — a passagem é atravessada de perto, não de
+ * onde se avista o pino.
+ */
+export const PIN_REACH_CELLS = DOOR_REACH_CELLS
+
+/**
+ * A ficha está encostada no pino: a ponta dele (`x`, `y`) até
+ * `PIN_REACH_CELLS` célula da borda do token. Usado pelo host (pedido e
+ * "Deixar ir") e pelo cartão do jogador (botão aceso ou "Chegue mais perto").
+ */
+export function tokenReachesPin(token: Pick<Token, 'x' | 'y' | 'size'>, pin: ReachPoint, grid: number): boolean {
+  const reach = tokenRadiusOf(token, grid) + grid * PIN_REACH_CELLS
+  return Math.hypot(token.x - pin.x, token.y - pin.y) <= reach
+}
+
 /** Porta mais próxima do ponto dentro de `tolerance` (px de mundo), ou `null`. */
 export function findDoorAt(walls: readonly Wall[], point: ReachPoint, tolerance: number): Wall | null {
   let best: Wall | null = null

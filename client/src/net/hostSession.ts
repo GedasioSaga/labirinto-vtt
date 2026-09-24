@@ -5,7 +5,7 @@ import { filterMapForPlayer, ownTokensInView, pinClueForPlayer, playerBlockedRin
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { visibleTokens } from '../lib/layers'
 import { validateTokenMove } from '../lib/moveValidation'
-import { tokenReachesDoor } from '../lib/doorReach'
+import { tokenReachesDoor, tokenReachesPin } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
@@ -295,15 +295,6 @@ export const TRAVEL_REQUEST_MIN_INTERVAL_MS = 3000
 export const TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS = 1500
 
 /**
- * DESISTIR DO PEDIDO: quantas casas a ficha pode se afastar do pino, além da
- * distância em que pediu, antes de o pedido cair sozinho. Conta da posição
- * do pedido (e não do pino) porque o pedido não exige estar colado nele:
- * quem pediu de 4 casas e dá um passo para trás continua esperando; quem
- * anda 3 casas para longe desistiu na prática.
- */
-export const TRAVEL_CANCEL_SLACK_CELLS = 2
-
-/**
  * Quantas cenas cada jogador lembra (exploração e portas vistas). Passou do
  * teto, esquece a cena visitada há mais tempo: memória de host não pode
  * crescer sem limite numa aventura longa.
@@ -435,8 +426,6 @@ interface PendingTravel {
   /** O destino do aviso que o mestre leu. Religou a saída depois? A aprovação não vale. */
   toSceneId: string
   partnerId: string
-  /** Distância (px) da ficha mais perto ao pino quando pediu: é dela que conta a folga de `TRAVEL_CANCEL_SLACK_CELLS`. */
-  distance: number
 }
 
 /** Pedido que passou em tudo: de onde, para onde, por qual pino e com qual token. */
@@ -447,6 +436,13 @@ interface ValidTravel {
   partner: Pin
   token: Token
 }
+
+/**
+ * Resposta de `validTravel`. `far`: o pino está no recorte do jogador, mas
+ * nenhuma ficha dele encosta; `unavailable`: qualquer outra falha, com o
+ * mesmo motivo genérico de sempre.
+ */
+type TravelCheck = { ok: true; travel: ValidTravel } | { ok: false; reason: 'far' | 'unavailable' }
 
 /** O que um jogador lembra de um mapa: células exploradas e último estado visto de cada porta. */
 interface PlayerMemory {
@@ -961,11 +957,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
-   * DESISTIR DO PEDIDO — o pedido cai sozinho quando a ficha anda para longe
-   * do pino: a ficha dele mais perto do pino (a que andou, já no lugar novo)
-   * ficou mais de `TRAVEL_CANCEL_SLACK_CELLS` casas além da distância em que
-   * pediu. Chegar mais perto nunca derruba. Pino que não está nesta cena (ou
-   * sumiu) não conta aqui: é a revalidação do "Deixar ir" que recusa.
+   * DESISTIR DO PEDIDO — o pedido cai sozinho quando nenhuma ficha dele (a que
+   * andou, já no lugar novo) alcança mais o pino (`tokenReachesPin`, a mesma
+   * conta do pedido e do "Deixar ir"): esperar o mestre seria esperar uma
+   * recusa. Andar em volta do pino sem sair do alcance não derruba. Pino que
+   * não está nesta cena (ou sumiu) não conta aqui: é a revalidação do
+   * "Deixar ir" que recusa.
    */
   function travelLeftBehind(playerId: string, scene: HostScene, movedTokenId: string, x: number, y: number): TravelCancelled | null {
     const pending = pendingTravels.get(playerId)
@@ -973,16 +970,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = scene.map.pins.find((p) => p.id === pending.pinId)
     if (pin === undefined) return null
     const owned = new Set(ownership[playerId] ?? [])
-    let nearest = Number.POSITIVE_INFINITY
     // Só as fichas que o jogador enxerga, igual ao pedido e ao "Deixar ir"
     // (filterMapForPlayer): ficha escondida pelo mestre não segura o pedido
     // nem vaza, por andar, que está perto do pino.
-    for (const t of visibleTokens(scene.map.tokens, scene.map.hiddenLayers)) {
-      if (!owned.has(t.id) || t.hidden === true) continue
-      const at = t.id === movedTokenId ? { x, y } : t
-      nearest = Math.min(nearest, Math.hypot(at.x - pin.x, at.y - pin.y))
-    }
-    if (nearest <= pending.distance + TRAVEL_CANCEL_SLACK_CELLS * scene.map.grid) return null
+    const stillReaches = visibleTokens(scene.map.tokens, scene.map.hiddenLayers).some((t) => {
+      if (!owned.has(t.id) || t.hidden === true) return false
+      const at = t.id === movedTokenId ? { ...t, x, y } : t
+      return tokenReachesPin(at, pin, scene.map.grid)
+    })
+    if (stillReaches) return null
     return dropPendingTravel(playerId, 'far')
   }
 
@@ -1225,46 +1221,58 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * sem isto, um id de pino adivinhado atravessaria o escuro), é de viagem e
    * está ligado em mão dupla a um par que existe numa cena aberta, e o
    * jogador tem token nesta cena. O token que viaja é o dele mais perto do
-   * pino. Qualquer falha é `null`: quem chama responde o mesmo motivo
+   * pino. Qualquer falha é `unavailable`: quem chama responde o mesmo motivo
    * genérico para todas — inclusive `exitId` que não é saída DESTE pino
    * (inventado, ou de outro pino): o jogador não descobre que ela existe.
+   *
+   * SÓ DE PERTO: a ficha precisa encostar no pino (`tokenReachesPin`, a mesma
+   * folga da porta). A distância é conferida logo depois do recorte e ANTES de
+   * olhar modo, saída ou destino: o `far` só sai para pino que o jogador já
+   * vê, e de longe todo pino responde igual — ligado, sem par ou trancado.
    */
-  function validTravel(playerId: string, pinId: string, exitId: string, world: HostWorld): ValidTravel | null {
+  function validTravel(playerId: string, pinId: string, exitId: string, world: HostWorld): TravelCheck {
+    const unavailable: TravelCheck = { ok: false, reason: 'unavailable' }
     const from = sceneFor(playerId, world)
-    if (from === null || from.sceneId === null) return null
+    if (from === null || from.sceneId === null) return unavailable
     const fromSceneId = from.sceneId
     const pin = from.map.pins.find((p) => p.id === pinId)
-    if (pin === undefined) return null
+    if (pin === undefined) return unavailable
     const memory = memoryFor(playerId, from.map)
     const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
-    if (!view.map.pins.some((p) => p.id === pinId)) return null
-    // Trancada: ninguém passa. Cai no mesmo `null` de todo o resto, então o
+    if (!view.map.pins.some((p) => p.id === pinId)) return unavailable
+    const owned = new Set(ownership[playerId] ?? [])
+    // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
+    const mine = view.map.tokens.filter((t) => owned.has(t.id))
+    if (mine.length === 0) return unavailable
+    // A mesma conta do cartão do jogador: vale QUALQUER ficha que alcança (o
+    // alcance cresce com o tamanho, então a de centro mais perto pode não
+    // alcançar enquanto uma maior, mais longe, alcança). Entre as que alcançam,
+    // atravessa a de centro mais perto.
+    let token: Token | null = null
+    for (const t of mine) {
+      if (!tokenReachesPin(t, pin, from.map.grid)) continue
+      if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
+    }
+    if (token === null) return { ok: false, reason: 'far' }
+    // Trancada: ninguém passa. Cai no mesmo `unavailable` de todo o resto, então o
     // jogador lê o motivo genérico de sempre e nada chega ao mestre. Estar aqui,
     // e não só no pedido, faz o "Deixar ir" de um pedido feito antes de trancar
     // recusar também.
-    if (passageOf(pin) === 'trancada') return null
+    if (passageOf(pin) === 'trancada') return unavailable
     // Chegada oculta (mão única) não leva de volta. O recorte já não a manda,
-    // mas a recusa não depende da névoa: mesmo `null`, mesmo motivo genérico.
-    if (isArrivalOnly(pin)) return null
+    // mas a recusa não depende da névoa: mesmo motivo genérico.
+    if (isArrivalOnly(pin)) return unavailable
     const scenes = allScenes(world)
     const lookup = (sceneId: string): TravelScene | null => {
       const scene = scenes.find((s) => s.sceneId === sceneId)
       return scene === undefined ? null : { name: scene.name, map: scene.map }
     }
-    if (travelExitOf(pin, exitId) === null) return null
+    if (travelExitOf(pin, exitId) === null) return unavailable
     const travel = resolvePinTravel(pin, fromSceneId, lookup, exitId)
-    if (travel.status !== 'ligado') return null
+    if (travel.status !== 'ligado') return unavailable
     const to = scenes.find((s) => s.sceneId === travel.sceneId)
-    if (to === undefined || to.sceneId === null) return null
-    const owned = new Set(ownership[playerId] ?? [])
-    // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
-    const mine = view.map.tokens.filter((t) => owned.has(t.id))
-    let token: Token | null = null
-    for (const t of mine) {
-      if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
-    }
-    if (token === null) return null
-    return { from: { ...from, sceneId: fromSceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner, token }
+    if (to === undefined || to.sceneId === null) return unavailable
+    return { ok: true, travel: { from: { ...from, sceneId: fromSceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner, token } }
   }
 
   function handleTravelRequest(clientId: string, msg: PinTravelRequestMessage, world: HostWorld): HostResult {
@@ -1292,16 +1300,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     lastTravelRequestAt.set(limitKey, at)
 
     const exitId = msg.exitId ?? SAIDA_PRINCIPAL
-    const travel = validTravel(playerId, msg.pinId, exitId, world)
-    if (travel === null) return reject('unavailable')
+    const check = validTravel(playerId, msg.pinId, exitId, world)
+    if (!check.ok) return reject(check.reason)
+    const { travel } = check
     // Livre: passou em tudo que o pedido passaria (névoa, token na cena, pino
     // ligado, limites, nenhum pendente) e vai direto, sem esperar o mestre —
     // ele só lê o aviso de chegada que o integrador mostra com a transferência.
     if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel)
     const requestId = randomId()
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
-    const distance = Math.hypot(travel.token.x - travel.pin.x, travel.token.y - travel.pin.y)
-    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id, distance })
+    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
     const description = travel.pin.description.trim()
     // Encruzilhada: o mestre lê a SAÍDA ("Escada da torre → Torre Alta"), o
     // mesmo rótulo que a jogadora tocou; pino de uma saída continua nomeado
@@ -1508,13 +1516,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // o token de quem não está olhando seria uma surpresa na volta.
       if (record === undefined || record.clientId === null || statusOf(pending.playerId) !== 'playing') return { outbound: [] }
       const world = toWorld(source)
-      const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world)
+      const check = validTravel(pending.playerId, pending.pinId, pending.exitId, world)
+      // A ficha saiu de perto do pino enquanto o mestre decidia: ninguém é
+      // levado de longe; o jogador lê que precisa chegar mais perto.
+      if (!check.ok) return reply(record.clientId, { type: 'pin.travel.rejected', reason: check.reason })
+      const { travel } = check
       // O mestre deixou ir para o lugar que o aviso DIZIA. Se a saída foi
       // religada depois (Torre no lugar da Cripta), ou desligada e outra subiu
       // no lugar dela, o consentimento não cobre o destino novo: recusa, e o
       // jogador pede de novo.
-      const sameDestination = travel !== null && travel.to.sceneId === pending.toSceneId && travel.partner.id === pending.partnerId
-      if (travel === null || !sameDestination) return reply(record.clientId, { type: 'pin.travel.rejected', reason: 'unavailable' })
+      const sameDestination = travel.to.sceneId === pending.toSceneId && travel.partner.id === pending.partnerId
+      if (!sameDestination) return reply(record.clientId, { type: 'pin.travel.rejected', reason: 'unavailable' })
       return transferResult(pending.playerId, record.clientId, record.name, travel)
     },
 

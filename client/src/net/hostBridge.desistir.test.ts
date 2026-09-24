@@ -14,7 +14,8 @@ import { createHostBridge } from './hostBridge'
 const ROOM = { code: 'AB12CD', urls: ['http://192.168.0.2:7777'], qrSvg: '<svg/>' }
 
 function mesa() {
-  const posicao = { x: 200, y: 200 }
+  // Ana e Bruno encostados na escada (300, 200): pino só atravessa de perto.
+  const posicao = { x: 350, y: 200 }
   const ficha = (id: string, name: string, x: number, y: number): Token => ({ id, characterId: null, name, x, y, size: 1, image: null })
   const escada = (id: string, x: number, y: number, description: string, sceneId: string, pinId: string): Pin => ({
     id,

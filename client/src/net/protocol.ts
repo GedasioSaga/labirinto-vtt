@@ -258,8 +258,11 @@ export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
  * jogador respondem todos `unavailable` — um motivo por caso diria ao jogador
  * o que existe do outro lado. `pending`: ele já tem um pedido esperando;
  * `too_soon`: pediu de novo pelo mesmo pino antes do intervalo mínimo.
+ * `far`: o pino está no recorte dele, mas nenhuma ficha dele encosta no pino
+ * (`lib/doorReach.ts`, `tokenReachesPin`). Só sai para pino que ele já vê, e
+ * antes de olhar o outro lado: não diz se o pino leva a algum lugar.
  */
-export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon'
+export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon' | 'far'
 
 /**
  * Por que o pedido de passagem saiu da espera sem resposta do mestre:

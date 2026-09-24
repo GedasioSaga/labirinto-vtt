@@ -895,18 +895,24 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
     heroi: { cena: 'A' | 'B'; x: number; y: number }
   }
 
-  /** O mundo que o host lê: o Salão aberto, a Cripta de fundo, o herói onde `m` diz. */
-  function mundo(m: Mundo = { heroi: { cena: 'A', x: 200, y: 200 } }): HostWorld {
+  /**
+   * O mundo que o host lê: o Salão aberto, a Cripta de fundo, o herói onde `m`
+   * diz. Por padrão ele está encostado na escada, na porta emparedada e no
+   * alçapão (pino só atravessa de perto): as recusas abaixo são pelo pino, não
+   * pela distância.
+   */
+  function mundo(m: Mundo = { heroi: { cena: 'A', x: 390, y: 200 } }): HostWorld {
     const heroi = token('heroi', m.heroi.x, m.heroi.y)
     const salao: MapData = {
       ...createEmptyMap('mapa-salao', 'Aventura', 40, 10, 50),
-      tokens: [...(m.heroi.cena === 'A' ? [heroi] : []), token('ladino', 300, 200)],
+      // A ficha da Bia também encosta na escada: ela pede pelo mesmo pino.
+      tokens: [...(m.heroi.cena === 'A' ? [heroi] : []), token('ladino', 450, 250)],
       pins: [
         viagem('escada-a', 400, 200, 'Escada que desce', { sceneId: CENA_B, pinId: 'escada-b' }),
         { id: 'estatua', x: 450, y: 200, kind: 'exclamacao', description: 'Estátua', image: null },
         viagem('sem-destino', 420, 250, 'Porta emparedada', null),
         viagem('orfa', 430, 150, 'Alçapão', { sceneId: CENA_B, pinId: 'nao-existe' }),
-        // Longe de todo mundo (1700 px do herói, raio 700): no escuro.
+        // Longe de todo mundo (1510 px do herói, raio 700): no escuro.
         viagem('escada-longe', 1900, 250, 'Poço', { sceneId: CENA_B, pinId: 'poco-b' }),
       ],
     }
@@ -1276,7 +1282,8 @@ describe('hostSession: revisão de segurança do pedido de passagem', () => {
   function mundo(heroi: 'A' | 'nenhuma', religado = false): HostWorld {
     const salao: MapData = {
       ...createEmptyMap('mapa-salao', 'Aventura', 40, 10, 50),
-      tokens: [...(heroi === 'A' ? [token('heroi', 200, 200)] : []), token('ladino', 300, 200)],
+      // O herói encostado na escada: pino só atravessa de perto.
+      tokens: [...(heroi === 'A' ? [token('heroi', 390, 200)] : []), token('ladino', 300, 200)],
       pins: [viagem('escada-a', 400, 200, 'Escada que desce', { sceneId: CENA_B, pinId: religado ? 'torre-b' : 'escada-b' })],
     }
     const cripta: MapData = {

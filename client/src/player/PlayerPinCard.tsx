@@ -14,7 +14,15 @@ interface PlayerPinCardProps {
   onRequestTravel?: (exitId?: string) => void
   /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
   travelWaiting?: boolean
+  /**
+   * Nenhuma ficha do jogador encosta no pino (`tokenReachesPin`, a regra do
+   * host). O cartão abre para leitura, mas a passagem fica apagada com
+   * "Chegue mais perto para passar" até a ficha chegar.
+   */
+  longe?: boolean
 }
+
+const TEXTO_LONGE = 'Chegue mais perto para passar'
 
 /**
  * Cenário sem foto. Fica como `<img>` de verdade, e não como um `<div>` vazio,
@@ -69,7 +77,7 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
  * vendo onde está. O toque de fechar que cai no mapa para ali, antes do canvas:
  * fechar o cartão não arrasta o mapa nem abre outro pino.
  */
-export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false }: PlayerPinCardProps) {
+export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, longe = false }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
@@ -178,11 +186,15 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
             ref={askRef}
             type="button"
             className="pp-pincard__travel"
-            disabled={travelWaiting}
+            disabled={travelWaiting || longe}
             onClick={() => perguntar(null)}
           >
-            {travelWaiting ? textos.esperando : textos.botao}
+            {travelWaiting ? textos.esperando : longe ? TEXTO_LONGE : textos.botao}
           </button>
+        )}
+        {/* Encruzilhada ou pergunta aberta: o botão não tem onde dizer, então a moldura de estado diz. */}
+        {podePedir && longe && !travelWaiting && (encruzilhada || confirming !== null) && (
+          <p className="pp-pincard__locked">{TEXTO_LONGE}</p>
         )}
         {podePedir && confirming === null && encruzilhada && (
           // Uma saída por botão, na ordem do mestre. Esperando o mestre, todas
@@ -197,7 +209,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
                     ref={saida.id === ultimaSaida || (ultimaSaida === null && index === 0) ? askRef : undefined}
                     type="button"
                     className="pp-pincard__travel"
-                    disabled={travelWaiting}
+                    disabled={travelWaiting || longe}
                     onClick={() => perguntar(saida)}
                   >
                     {saida.rotulo}
@@ -220,6 +232,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
                 ref={confirmRef}
                 type="button"
                 className="pp-pincard__travel"
+                disabled={longe}
                 onClick={() => {
                   const saida = confirming.saida
                   setConfirming(null)

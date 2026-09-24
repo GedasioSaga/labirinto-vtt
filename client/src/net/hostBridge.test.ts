@@ -762,7 +762,8 @@ describe('hostBridge: pedido de passagem pelo pino de viagem', () => {
       open: {
         sceneId: 'cena-a',
         name: 'Salão',
-        map: { ...createEmptyMap('mapa-a', 'A', 40, 10, 50), tokens: estado.naCripta ? [] : [heroi(200, 200)], pins: [escada('escada-a', 300, 200, 'Escada que desce', 'cena-b', 'escada-b')] },
+        // O herói encostado na escada: pino só atravessa de perto.
+        map: { ...createEmptyMap('mapa-a', 'A', 40, 10, 50), tokens: estado.naCripta ? [] : [heroi(250, 200)], pins: [escada('escada-a', 300, 200, 'Escada que desce', 'cena-b', 'escada-b')] },
       },
       background: [
         {
