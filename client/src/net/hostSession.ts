@@ -1,5 +1,5 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
-import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
+import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
@@ -18,6 +18,7 @@ import {
   type HostMessage,
   type JoinMessage,
   type LaserMessage,
+  type MapShareMessage,
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type PlayerLaserMessage,
@@ -200,6 +201,12 @@ export interface HostResult {
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
    */
   applyTransfer?: AppliedTransfer
+  /**
+   * PASSAR O MAPA: a memória de `toPlayerId` ganhou o que `fromPlayerId`
+   * explorou. O integrador faz o broadcast: é o snapshot seguinte que leva o
+   * trecho novo a quem recebeu.
+   */
+  mapShared?: { fromPlayerId: string; toPlayerId: string }
 }
 
 export interface PlayerInfo {
@@ -254,6 +261,13 @@ export const TOKEN_PHOTO_MIN_INTERVAL_MS = 500
  * hostil em laço não pode enterrar a tela dele em cartões.
  */
 export const CLUE_SHOW_MIN_INTERVAL_MS = 1000
+
+/**
+ * "Mostrar meu mapa a…": um mapa mostrado por jogador nesta janela. Cada um
+ * dispara um broadcast (o snapshot de quem recebe muda), e um jogador em laço
+ * não pode fazer o host remontar o recorte de todos sem parar.
+ */
+export const MAP_SHARE_MIN_INTERVAL_MS = 3000
 
 /**
  * Um pedido de passagem pelo MESMO pino, do mesmo jogador, nesta janela. O
@@ -364,6 +378,17 @@ export interface HostSession {
   pinAudiences(): Record<string, string[]>
   /** Marca a planta inteira da cena onde o jogador está como explorada, fora de zona oculta ativa. Tokens seguem exigindo visão. */
   revealPlan(playerId: string, source: HostMapSource): void
+  /**
+   * PASSAR O MAPA pelo mestre: o que `fromPlayerId` explorou na cena onde está
+   * agora (células, contornos e portas no estado que ELE viu) entra na memória
+   * de `toPlayerId` para aquela cena — e só na dele. Zona oculta ativa e sala
+   * secreta de agora não passam. Quem recebe ganha `map.shared` com o nome de
+   * quem passou; o trecho vem no broadcast que o integrador faz depois.
+   * Nada a passar (mesmo jogador, desconhecido, doador sem cena ou que ainda
+   * não explorou a dele, quem recebe fora da cena do doador ou aguardando):
+   * `{ outbound: [] }` sem `mapShared`.
+   */
+  shareMap(fromPlayerId: string, toPlayerId: string, source: HostMapSource): HostResult
   /**
    * Zera exploração e portas lembradas do jogador; a visão atual volta a
    * marcar no próximo broadcast. Com `source`, só da cena onde ele está; sem,
@@ -490,6 +515,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const seenPins = new Map<string, { mapId: string; pins: Pin[] }>()
   // Por playerId: quando a última pista mostrada chegou a um colega.
   const lastClueShowAt = new Map<string, number>()
+  // Por playerId: quando o último "Mostrar meu mapa a…" dele chegou a alguém.
+  const lastMapShareAt = new Map<string, number>()
   // Por pinId: quem vê o pino ("Só estes"). Ausente = Todos. O kick tira o
   // jogador de toda lista; o registro de quem só caiu fica (resume).
   const pinAudiences = new Map<string, Set<string>>()
@@ -1189,6 +1216,54 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
   }
 
+  /**
+   * PASSAR O MAPA: soma na memória de `toPlayerId` o que `fromPlayerId` guarda
+   * de `map`. Zona oculta ativa e sala secreta de AGORA barram (a memória do
+   * doador pode ser de antes de o mestre esconder). Portas: só as que quem
+   * recebe ainda não viu, no estado que o doador viu — nunca o atual do mapa.
+   * `false` quando o doador não guarda nada deste mapa.
+   */
+  const giveMap = (fromPlayerId: string, toPlayerId: string, map: MapData): boolean => {
+    const given = existingMemory(fromPlayerId, map)
+    if (given === undefined) return false
+    const memory = memoryFor(toPlayerId, map)
+    if (!mergeExploration(memory.exp, given.exp, playerBlockedRings(map))) return false
+    for (const [wallId, door] of given.doors) {
+      if (!memory.doors.has(wallId)) memory.doors.set(wallId, { ...door })
+    }
+    return true
+  }
+
+  /**
+   * "Mostrar meu mapa a…": o que o jogador explorou na cena onde está passa ao
+   * colega `to`, que tem de estar na MESMA cena agora. Qualquer recusa volta
+   * como `ok: false`, sem dizer onde o colega está (mesma regra da pista).
+   */
+  function handleMapShare(clientId: string, msg: MapShareMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const refused = reply(clientId, { type: 'map.share.result', to: msg.to, ok: false })
+    const sender = players.get(playerId)
+    if (sender === undefined || statusOf(playerId) !== 'playing') return refused
+    const scene = sceneFor(playerId, world)
+    const target = peersOf(playerId, world).find((other) => other.name === msg.to)
+    if (scene === null || target === undefined || target.clientId === null) return refused
+    const at = now()
+    const last = lastMapShareAt.get(playerId)
+    if (last !== undefined && at - last < MAP_SHARE_MIN_INTERVAL_MS) {
+      return reply(clientId, { type: 'map.share.result', to: msg.to, ok: false, reason: 'too_soon' })
+    }
+    if (!giveMap(playerId, target.playerId, scene.map)) return refused
+    lastMapShareAt.set(playerId, at)
+    return {
+      outbound: [
+        { clientId: target.clientId, msg: { type: 'map.shared', from: sender.name } },
+        { clientId, msg: { type: 'map.share.result', to: msg.to, ok: true } },
+      ],
+      mapShared: { fromPlayerId: playerId, toPlayerId: target.playerId },
+    }
+  }
+
   const findPendingTravel = (requestId: string): PendingTravel | undefined =>
     [...pendingTravels.values()].find((pending) => pending.requestId === requestId)
 
@@ -1233,6 +1308,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleCluePeers(clientId, world)
         case 'clue.show':
           return handleClueShow(clientId, msg, world)
+        case 'map.share':
+          return handleMapShare(clientId, msg, world)
       }
     },
 
@@ -1362,6 +1439,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       cluebooks.delete(playerId)
       seenPins.delete(playerId)
       lastClueShowAt.delete(playerId)
+      lastMapShareAt.delete(playerId)
       for (const chosen of pinAudiences.values()) chosen.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },
@@ -1406,6 +1484,25 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (scene === null) return
       const map = scene.map
       markAll(memoryFor(playerId, map).exp, playerBlockedRings(map))
+    },
+
+    shareMap(fromPlayerId, toPlayerId, source) {
+      const giver = players.get(fromPlayerId)
+      const target = players.get(toPlayerId)
+      if (giver === undefined || target === undefined || fromPlayerId === toPlayerId) return { outbound: [] }
+      const world = toWorld(source)
+      // A cena ONDE O DOADOR ESTÁ: é dela que ele tem o mapa na cabeça agora.
+      const scene = sceneFor(fromPlayerId, world)
+      if (scene === null) return { outbound: [] }
+      // Só a quem joga NA MESMA cena: o aviso diz "já aparece no seu", e noutra
+      // cena não apareceria; a memória de uma cena onde ele nunca esteve ainda
+      // empurraria para fora a mais antiga que ele explorou (teto de memórias).
+      if (statusOf(toPlayerId) !== 'playing' || sceneFor(toPlayerId, world) !== scene) return { outbound: [] }
+      if (!giveMap(fromPlayerId, toPlayerId, scene.map)) return { outbound: [] }
+      return {
+        outbound: target.clientId === null ? [] : [{ clientId: target.clientId, msg: { type: 'map.shared', from: giver.name } }],
+        mapShared: { fromPlayerId, toPlayerId },
+      }
     },
 
     hidePlan(playerId, source) {

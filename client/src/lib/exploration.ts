@@ -458,6 +458,26 @@ export function markAll(exp: Exploration, concealed: readonly RegionPoint[][] = 
 }
 
 /**
+ * PASSAR O MAPA: soma em `into` o que `from` explorou (células e contornos
+ * lembrados). É de mão única: `from` não muda.
+ *
+ * `concealed`: zonas ocultas ativas e salas secretas AGORA. A memória do
+ * colega pode ter sido marcada antes de o mestre esconder o lugar; célula que
+ * toca essas áreas e contorno que encosta nelas não passam — a mesma regra de
+ * `markRings`, senão a planta escondida viajaria pela memória de outro.
+ *
+ * Grade diferente (o mapa foi redimensionado entre uma memória e outra) não
+ * mistura: devolve `false` sem mexer em `into`.
+ */
+export function mergeExploration(into: Exploration, from: Exploration, concealed: readonly RegionPoint[][] = []): boolean {
+  if (into.cell !== from.cell || into.cols !== from.cols || into.rows !== from.rows) return false
+  const zones = zoneBoxes(concealed)
+  forEachExploredRun(from, (row, colStart, colEnd) => setRunOutsideZones(into, row, colStart, colEnd, zones))
+  for (const ring of from.rings) rememberRing(into, ring.points, zones)
+  return true
+}
+
+/**
  * Ponto já visto: célula marcada (interior, teste de um bit) ou dentro de
  * algum contorno lembrado (a faixa que o bitset conservador perde na borda).
  * Fora do retângulo do mapa é sempre falso, mesmo que um anel passe por lá.

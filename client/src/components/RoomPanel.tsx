@@ -34,12 +34,19 @@ export interface RoomPanelProps {
   onVisionRadiusChange(playerId: string, radius: number): void
   onRevealPlan(playerId: string): void
   onHidePlan(playerId: string): void
+  /**
+   * "Passar o mapa de Ana a…": o que `fromPlayerId` explorou na cena onde está
+   * passa a `toPlayerId`, e só a ele. `false` = nada passou (ele ainda não
+   * explorou a cena, ou a sala fechou). Ausente = o painel não oferece.
+   */
+  onShareMap?(fromPlayerId: string, toPlayerId: string): boolean
   /** Botão "Laser" ligado: arma o laser (independe de segurar L); o traço sai clicando no mapa. */
   laserOn?: boolean
   onToggleLaser?(): void
 }
 
 export const PLAN_HINT = 'Revelar planta mostra paredes, salas e portas, sem os tokens. Zonas ocultas continuam escondidas.'
+export const SHARE_MAP_HINT = 'Passa o que ele já explorou na cena onde está. Só quem recebe passa a conhecer; zonas ocultas continuam escondidas.'
 export const LASER_HINT ='Ligado (ou segurando L), clique e arraste com o botão esquerdo sobre o mapa. Todos os jogadores veem o laser.'
 export const FIREWALL_HINT = 'Se o celular não abrir o link, libere o app no Firewall do Windows (rede Privada)'
 export const TUNNEL_WARNING = 'Quem tiver o link e o código entra na sala. Encerre ao terminar o jogo.'
@@ -344,6 +351,67 @@ function AssignControls({ player, tokens, owners, onAssign }: AssignControlsProp
   )
 }
 
+interface ShareMapControlsProps {
+  player: PlayerInfo
+  players: PlayerInfo[]
+  onShareMap(fromPlayerId: string, toPlayerId: string): boolean
+}
+
+/**
+ * PASSAR O MAPA pelo mestre: lista com quem joga NA MESMA cena de quem doa,
+ * no card dele (`sceneId` igual; sem aventura, os dois sem cena = o mesmo
+ * mapa). Quem está noutra cena não entra: o trecho não apareceria para ele
+ * agora. Escolher passa na hora (não tira nada de ninguém, então não pede
+ * confirmação) e a lista volta ao "Escolher…"; a linha de status diz se passou.
+ */
+function ShareMapControls({ player, players, onShareMap }: ShareMapControlsProps) {
+  const [status, setStatus] = useState<string | null>(null)
+  const selectId = `lb-room-share-${player.playerId}`
+  const others = players.filter(
+    (other) => other.playerId !== player.playerId && other.status === 'playing' && other.sceneId === player.sceneId,
+  )
+  if (player.status !== 'playing' || others.length === 0) return null
+
+  const share = (toPlayerId: string) => {
+    const target = others.find((other) => other.playerId === toPlayerId)
+    if (target === undefined) return
+    setStatus(
+      onShareMap(player.playerId, toPlayerId)
+        ? `Mapa de ${player.name} passado a ${target.name}.`
+        : `Nada passou: ${player.name} ainda não explorou a cena onde está, ou ${target.name} saiu dela.`,
+    )
+  }
+
+  return (
+    <>
+      <label className="lb-label" htmlFor={selectId}>
+        Passar o mapa de {player.name} a
+      </label>
+      <select
+        id={selectId}
+        className="lb-input"
+        value=""
+        onChange={(event) => {
+          if (event.target.value !== '') share(event.target.value)
+        }}
+      >
+        <option value="">Escolher…</option>
+        {others.map((other) => (
+          <option key={other.playerId} value={other.playerId}>
+            {other.name}
+          </option>
+        ))}
+      </select>
+      {status !== null && (
+        <p className="lb-label" role="status">
+          {status}
+        </p>
+      )}
+      <p className="lb-label">{SHARE_MAP_HINT}</p>
+    </>
+  )
+}
+
 export function RoomPanel({
   room,
   players,
@@ -360,6 +428,7 @@ export function RoomPanel({
   onVisionRadiusChange,
   onRevealPlan,
   onHidePlan,
+  onShareMap,
   laserOn = false,
   onToggleLaser,
 }: RoomPanelProps) {
@@ -454,6 +523,7 @@ export function RoomPanel({
                   Esconder de novo
                 </button>
                 <p className="lb-label">{PLAN_HINT}</p>
+                {onShareMap !== undefined && <ShareMapControls player={player} players={players} onShareMap={onShareMap} />}
                 {clientId !== null && (
                   <button type="button" className="lb-btn lb-btn--danger" onClick={() => onKick(clientId)}>
                     Expulsar

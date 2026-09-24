@@ -549,6 +549,7 @@ function App() {
             onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
             onRevealPlan={(playerId) => hostBridgeRef.current?.revealPlan(playerId)}
             onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}
+            onShareMap={(fromPlayerId, toPlayerId) => hostBridgeRef.current?.shareMap(fromPlayerId, toPlayerId) ?? false}
             laserOn={laserToggled}
             onToggleLaser={() => useLaserStore.getState().setToggled(!useLaserStore.getState().toggled)}
           />

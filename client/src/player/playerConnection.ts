@@ -17,7 +17,7 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseMapShareMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
@@ -85,6 +85,12 @@ export interface PlayerState {
   cluePeers?: CluePeers
   /** "Mostrar para…": o último envio e a resposta do host. */
   clueShow?: ClueShow
+  /** "Mostrar meu mapa a…": esperando a lista, ou os colegas da mesma cena. */
+  mapPeers?: CluePeers
+  /** "Mostrar meu mapa a…": o último envio e a resposta do host. */
+  mapShare?: MapShare
+  /** Um colega (ou o mestre por ele) acabou de passar o mapa. `id` novo repete o aviso. */
+  mapShared?: { id: number; from: string }
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -114,6 +120,12 @@ export interface ClueShow {
   /** `too_soon`: o mestre pediu um instante entre duas pistas mostradas; o colega segue na cena. */
   phase: 'sending' | 'ok' | 'failed' | 'too_soon'
 }
+
+/** "Mostrar meu mapa a…": as mesmas fases do "Mostrar para…" da pista. */
+export type MapShare = ClueShow
+
+/** Quanto tempo o aviso "Ana mostrou o próprio mapa a você" fica na tela. */
+export const MAP_SHARED_NOTICE_TTL_MS = 5000
 
 /** Põe a pista no fim do caderno; a mesma (mesmo id) sai de onde estava. Passou do teto, sai a mais antiga. */
 function withClue(book: readonly ClueEntry[], clue: ClueEntry): ClueEntry[] {
@@ -204,6 +216,12 @@ export interface PlayerConnection {
   showClue(clueId: string, to: string): boolean
   /** O cartão da pista fechou: a lista de colegas e o resultado do envio perdem o sentido. */
   resetClueShare(): void
+  /** "Mostrar meu mapa a…": pede ao host quem está na mesma cena (a mesma pergunta das pistas). */
+  askMapPeers(): boolean
+  /** Mostra o que o jogador explorou nesta cena ao colega `to`. `false` se não joga ou o socket caiu. */
+  shareMap(to: string): boolean
+  /** Fechou o "Mostrar meu mapa a…": a lista e o resultado perdem o sentido. */
+  resetMapShare(): void
   /** Fecha o cartão da pista que um colega mostrou (a pista continua no caderno). */
   dismissShownClue(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
@@ -384,6 +402,35 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   let doorNoticeTimer: ReturnType<typeof setTimeout> | null = null
   let nextNoticeId = 1
+  let mapSharedTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearMapSharedTimer(): void {
+    if (mapSharedTimer !== null) clearTimeout(mapSharedTimer)
+    mapSharedTimer = null
+  }
+
+  /** "Ana mostrou o próprio mapa a você": fica alguns segundos e sai sozinho. */
+  function showMapShared(from: string): void {
+    clearMapSharedTimer()
+    setState({ mapShared: { id: nextNoticeId++, from } })
+    mapSharedTimer = setTimeout(() => {
+      mapSharedTimer = null
+      setState({ mapShared: undefined })
+    }, MAP_SHARED_NOTICE_TTL_MS)
+  }
+
+  /** PASSAR O MAPA: o aviso de quem recebe e a resposta do host a quem mostrou. */
+  function handleMapShareMessage(data: unknown): void {
+    const msg = parseMapShareMessage(data)
+    // Sem mapa na tela, não há onde ler o aviso nem a resposta.
+    if (msg === null || state.status !== 'playing') return
+    if (msg.type === 'map.shared') {
+      showMapShared(msg.from)
+      return
+    }
+    if (state.mapShare?.phase !== 'sending' || state.mapShare.to !== msg.to) return
+    setState({ mapShare: { to: msg.to, phase: msg.ok ? 'ok' : msg.reason === 'too_soon' ? 'too_soon' : 'failed' } })
+  }
 
   function clearDoorNotice(): void {
     if (doorNoticeTimer !== null) clearTimeout(doorNoticeTimer)
@@ -635,11 +682,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState(state.status === 'playing' ? { clues, shownClue: { id: nextNoticeId++, from: msg.from, clue: msg.clue } } : { clues })
         return
       }
-      case 'clue.peers':
+      case 'clue.peers': {
         // Só quem pediu espera a lista: resposta atrasada de um cartão já fechado não reabre nada.
-        if (state.cluePeers?.phase !== 'loading') return
-        setState({ cluePeers: { phase: 'ready', names: msg.names } })
+        // A mesma pergunta serve ao cartão da pista e ao "Mostrar meu mapa a…": cada um só se estava esperando.
+        const ready: CluePeers = { phase: 'ready', names: msg.names }
+        const patch: Partial<PlayerState> = {}
+        if (state.cluePeers?.phase === 'loading') patch.cluePeers = ready
+        if (state.mapPeers?.phase === 'loading') patch.mapPeers = ready
+        if (patch.cluePeers !== undefined || patch.mapPeers !== undefined) setState(patch)
         return
+      }
       case 'clue.show.result':
         if (state.clueShow?.phase !== 'sending' || state.clueShow.to !== msg.to) return
         setState({ clueShow: { to: msg.to, phase: msg.ok ? 'ok' : msg.reason === 'too_soon' ? 'too_soon' : 'failed' } })
@@ -670,7 +722,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+        clearMapSharedTimer()
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -685,8 +738,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         resetOwnLaser()
         clearDoorNotice()
         clearMoveNotice()
-        // A lista de "Mostrar para…" era de quem estava na cena de antes.
-        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, cluePeers: undefined, clueShow: undefined })
+        // As listas de "Mostrar para…" e "Mostrar meu mapa a…" eram de quem estava na cena de antes.
+        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, cluePeers: undefined, clueShow: undefined, mapPeers: undefined, mapShare: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -737,6 +790,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'clue.peers':
       case 'clue.show.result':
         handleClueMessage(data)
+        return
+      case 'map.shared':
+      case 'map.share.result':
+        handleMapShareMessage(data)
         return
       case 'room.text': {
         // Mesma regra do recado: só quem joga tem tela de cartão.
@@ -824,7 +881,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined })
+        clearMapSharedTimer()
+        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, mapShared: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -882,6 +940,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearDoorNotice()
     clearMoveNotice()
     clearTravelTimer()
+    clearMapSharedTimer()
     const current = socket
     socket = null
     current?.close()
@@ -1026,6 +1085,22 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.cluePeers !== undefined || state.clueShow !== undefined) setState({ cluePeers: undefined, clueShow: undefined })
     },
 
+    askMapPeers() {
+      if (state.status !== 'playing' || !send({ type: 'clue.peers' })) return false
+      setState({ mapPeers: { phase: 'loading' }, mapShare: undefined })
+      return true
+    },
+
+    shareMap(to) {
+      if (state.status !== 'playing' || !send({ type: 'map.share', to })) return false
+      setState({ mapShare: { to, phase: 'sending' } })
+      return true
+    },
+
+    resetMapShare() {
+      if (state.mapPeers !== undefined || state.mapShare !== undefined) setState({ mapPeers: undefined, mapShare: undefined })
+    },
+
     dismissShownClue() {
       if (state.shownClue !== undefined) setState({ shownClue: undefined })
     },
@@ -1047,7 +1122,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined })
       open()
     },
     close: detach,

@@ -75,6 +75,11 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
  * posição, o id do pino ou o nome/id da cena. Mestre antigo responde
  * `error invalid_message` (que o jogador ignora durante o jogo); jogador
  * antigo ignora as cinco.
+ *
+ * PASSAR O MAPA é aditivo pelo mesmo critério. Do jogador: `map.share` (o nome
+ * do colega da mesma cena; a lista vem do mesmo `clue.peers`). Do mestre:
+ * `map.shared` (quem passou) e `map.share.result`. O trecho explorado em si
+ * nunca viaja nestas mensagens: vai no `explored` do snapshot de quem recebeu.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -197,7 +202,18 @@ export interface ClueShowMessage {
   to: string
 }
 
+/**
+ * PASSAR O MAPA: "Mostrar meu mapa a…" o colega de nome `to`, que tem de estar
+ * na mesma cena agora. Só o nome viaja: o host passa o que ELE guarda da
+ * memória de quem pede, nunca um mapa que o jogador mandasse.
+ */
+export interface MapShareMessage {
+  type: 'map.share'
+  to: string
+}
+
 export type PlayerMessage =
+  | MapShareMessage
   | JoinMessage
   | TokenMoveMessage
   | PingMessage
@@ -322,6 +338,26 @@ export interface ClueShowResultMessage {
 
 export type ClueHostMessage = ClueAddedMessage | CluebookMessage | ClueShownMessage | CluePeersMessage | ClueShowResultMessage
 
+/**
+ * Um colega (ou o mestre por ele) passou o mapa: o trecho que `from` explorou
+ * já está na memória de quem recebe e vem no snapshot seguinte. Só o nome de
+ * quem passou — nem cena, nem posição.
+ */
+export interface MapSharedMessage {
+  type: 'map.shared'
+  from: string
+}
+
+/** O mapa chegou (`ok`) ou não ao colega `to`. `too_soon`: outro mapa saiu há pouco; o colega segue na cena. */
+export interface MapShareResultMessage {
+  type: 'map.share.result'
+  to: string
+  ok: boolean
+  reason?: 'too_soon'
+}
+
+export type MapShareHostMessage = MapSharedMessage | MapShareResultMessage
+
 export type HostErrorReason ='bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
 export type HostMessage =
@@ -347,6 +383,7 @@ export type HostMessage =
   | RoomTextMessage
   | NotebookMessage
   | ClueHostMessage
+  | MapShareHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -562,6 +599,23 @@ export function parseClueMessage(value: unknown): ClueHostMessage | null {
   }
 }
 
+/** PASSAR O MAPA: valida `map.shared` e `map.share.result` que o jogador recebe. Campo a mais sai. */
+export function parseMapShareMessage(value: unknown): MapShareHostMessage | null {
+  if (!isRecord(value)) return null
+  switch (value.type) {
+    case 'map.shared':
+      return isRoomName(value.from) ? { type: 'map.shared', from: value.from } : null
+    case 'map.share.result': {
+      const { to, ok, reason } = value
+      if (!isRoomName(to) || typeof ok !== 'boolean' || (reason !== undefined && typeof reason !== 'string')) return null
+      // Mesma regra da pista: motivo que este jogador não conhece vira a recusa comum.
+      return !ok && reason === 'too_soon' ? { type: 'map.share.result', to, ok, reason } : { type: 'map.share.result', to, ok }
+    }
+    default:
+      return null
+  }
+}
+
 /** Cor do laser repassado: `#rrggbb`, a forma que `Token.color` grava. */
 const LASER_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 
@@ -652,6 +706,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return { type: 'clue.peers' }
     case 'clue.show':
       return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
+    case 'map.share':
+      return isRoomName(value.to) ? { type: 'map.share', to: value.to } : null
     default:
       return null
   }
