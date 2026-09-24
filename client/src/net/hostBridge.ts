@@ -12,6 +12,7 @@ import {
   type HostSession,
   type HostSignal,
   type HostWorld,
+  type PinClueState,
   type PlayerInfo,
   type TravelRequest,
 } from './hostSession'
@@ -80,6 +81,12 @@ export interface HostBridgeDeps {
   onPlayersChange?: (players: PlayerInfo[]) => void
   /** "Quem vê" de cada pino com lista (`pinId` -> jogadores); pino de "Todos" não aparece. Sala fechada = `{}`. */
   onPinAudiencesChange?: (audiences: Record<string, string[]>) => void
+  /**
+   * PAINEL PISTAS: quem recebeu e quem leu cada pino (`pinId` -> estado). Sai a
+   * cada mudança, inclusive na hora em que o jogador abre o cartão. Sala
+   * fechada = `{}`.
+   */
+  onPinCluesChange?: (clues: Record<string, PinClueState>) => void
   /** "Revelar para…" de cada ficha/escada/zona revelada a alguém (`itemId` -> jogadores). Sala fechada = `{}`. */
   onSecretRevealsChange?: (reveals: Record<string, string[]>) => void
   onTunnelChange?: (state: TunnelState) => void
@@ -259,6 +266,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let pendingStart: Promise<RoomInfo> | null = null
   let lastPlayersKey = '[]'
   let lastPinAudiencesKey = '{}'
+  let lastPinCluesKey = '{}'
   let lastSecretRevealsKey = '{}'
   let tunnelState: TunnelState = TUNNEL_IDLE
   let lastTunnelKey = JSON.stringify(TUNNEL_IDLE)
@@ -386,6 +394,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     deps.onPinAudiencesChange?.(audiences)
   }
 
+  const notifyPinCluesIfChanged = () => {
+    const clues = session?.pinClues() ?? {}
+    const key = JSON.stringify(clues)
+    if (key === lastPinCluesKey) return
+    lastPinCluesKey = key
+    deps.onPinCluesChange?.(clues)
+  }
+
   const notifySecretRevealsIfChanged = () => {
     const reveals = session?.secretReveals() ?? {}
     const key = JSON.stringify(reveals)
@@ -402,6 +418,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (screens.record(clientId, msg)) screensChanged = true
     }
     if (screensChanged) notifyScreens()
+    // Todo recorte e toda leitura passam por aqui: o painel Pistas acompanha
+    // o que SAI (recebeu) e o que o jogador abriu (leu), sem esperar nada.
+    notifyPinCluesIfChanged()
     return Promise.all(
       result.outbound.map(({ clientId, msg }) =>
         deps.invoke('net_send', { clientId, msg }).catch((error: unknown) => reportError('Falha ao enviar para jogador', error)),
@@ -698,6 +717,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       resetTunnel()
       notifyPlayersIfChanged()
       notifyPinAudiencesIfChanged()
+      notifyPinCluesIfChanged()
       notifySecretRevealsIfChanged()
       try {
         await deps.invoke('net_stop_room')
@@ -812,6 +832,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       pruneTravelToasts()
       notifyPlayersIfChanged()
       notifyPinAudiencesIfChanged()
+      notifyPinCluesIfChanged()
       notifySecretRevealsIfChanged()
       await sendThenKick(result, clientId)
       // O `kicked` já apagou a tela; sem ele (jogador já fora da sessão) apaga aqui.

@@ -3,6 +3,7 @@ import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type PlayerIn
 import { VISION_FACTOR_MAX, VISION_FACTOR_MIN, VISION_FACTOR_STEP, formatVisionFactor } from '../lib/sceneVision'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
+import { CluesSection, type CluesSectionProps } from './CluesSection'
 
 export interface RoomPanelToken {
   id: string
@@ -21,6 +22,12 @@ export interface RoomPanelProps {
   knownTokens?: RoomPanelToken[]
   /** Seção "Grupo" (uma linha por jogador, "Ir lá" e "Mandar para…"). Ausente = sem a seção. */
   party?: PartySectionProps
+  /**
+   * Seção "Pistas" (quem recebeu e quem leu cada pino "!"/"?"), com a sala aberta
+   * e alguém nela. Obrigatória de propósito: esquecer de ligá-la no App vira erro
+   * de tipo, e não um painel que some da tela em silêncio.
+   */
+  clues: CluesSectionProps
   tunnel: TunnelState
   onStart(): void
   onStop(): void
@@ -206,6 +213,7 @@ export function RoomPanel({
   tokens,
   knownTokens,
   party,
+  clues,
   tunnel,
   onStart,
   onStop,
@@ -260,6 +268,8 @@ export function RoomPanel({
 
           {/* O grupo vem antes do resto: é o que o mestre consulta a cada cena, o resto é de montar a sala. */}
           {party !== undefined && party.members.length > 0 && <PartySection {...party} />}
+          {/* Pistas logo depois do Grupo: as bolinhas são as mesmas pessoas, na mesma ordem e cor. */}
+          {players.length > 0 && <CluesSection {...clues} />}
 
           {onToggleLaser !== undefined && (
             <div className="lb-field">
