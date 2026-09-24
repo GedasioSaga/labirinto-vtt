@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { filterMapForPlayer } from './fogFilter'
 import { createEmptyMap } from './mapFactory'
-import type { DoorState, MapData, Region, Wall } from '../types/map'
+import type { ConcealZone, DoorState, MapData, Region, Wall } from '../types/map'
 
 /**
  * Recorte do jogador com PORTA SECRETA (`DoorState.secret`): a porta sai como
@@ -41,6 +41,24 @@ function salaOculta(id: string, x1: number, y1: number, x2: number, y2: number):
     data: {},
     room: { shape: 'rect', name: 'Cofre' },
     secret: true,
+  }
+}
+
+/** Zona oculta na faixa y 400..600 com o pincel de revelar pintado nas colunas `col0..col1` (células de 10 px). */
+function zonaPintada(col0: number, col1: number, row0: number, row1: number): ConcealZone {
+  const unveiledCells: string[] = []
+  for (let col = col0; col <= col1; col += 1) for (let row = row0; row <= row1; row += 1) unveiledCells.push(`${col},${row}`)
+  return {
+    id: 'z',
+    name: 'Ala',
+    revealed: false,
+    points: [
+      { x: 0, y: 400 },
+      { x: 1000, y: 400 },
+      { x: 1000, y: 600 },
+      { x: 0, y: 600 },
+    ],
+    unveiledCells,
   }
 }
 
@@ -144,5 +162,34 @@ describe('fogFilter: porta secreta', () => {
     const view = filterMapForPlayer(map, 'p', { p: ['t'] }, 600)
     expect(view.map.walls).toEqual([])
     expect(view.visibleDoorIds).toEqual([])
+  })
+  it('SEGURANÇA: dentro de zona oculta com o pincel, a porta não chega como pedaço à parte nem com o id dela', () => {
+    const map: MapData = { ...corredor(porta()), concealZones: [zonaPintada(0, 99, 40, 59)] }
+    const view = filterMapForPlayer(map, 'p', { p: ['t'] }, 400)
+    // O recorte do pincel renomeia os pedaços ('<id>~pincel<n>'): a junção
+    // tem que reconhecer a porta pelo id de origem, senão o trecho de 50 px
+    // com o id da porta sai sozinho no pacote.
+    expect(view.map.walls).toHaveLength(1)
+    expect(view.map.walls[0]).toMatchObject({ id: 'n1~pincel0', x1: 0, y1: 500, y2: 500, door: null, blocksLight: true, blocksMove: true })
+    expect(view.map.walls[0]?.x2).toBeGreaterThan(990)
+    expect(JSON.stringify(view.map)).not.toContain('pn')
+  })
+
+  it('SEGURANÇA: pincel só em volta da porta também junta os pedaços numa parede só', () => {
+    const map: MapData = { ...corredor(porta()), concealZones: [zonaPintada(44, 50, 49, 50)] }
+    const view = filterMapForPlayer(map, 'p', { p: ['t'] }, 400)
+    expect(view.map.walls).toHaveLength(1)
+    const [w] = view.map.walls
+    expect(w?.id).toBe('n1~pincel0')
+    expect(w?.x1).toBeLessThan(450)
+    expect(w?.x2).toBeGreaterThan(500)
+    expect(JSON.stringify(view.map)).not.toContain('pn')
+  })
+
+  it('porta revelada na zona pintada continua porta, entre os pedaços do pincel', () => {
+    const map: MapData = { ...corredor({ open: false, locked: false, kind: 'normal' }), concealZones: [zonaPintada(0, 99, 40, 59)] }
+    const view = filterMapForPlayer(map, 'p', { p: ['t'] }, 400)
+    expect(view.map.walls.map((w) => w.id)).toEqual(['n1~pincel0', 'pn', 'n2~pincel0'])
+    expect(view.map.walls.find((w) => w.id === 'pn')?.door).toEqual({ open: false, locked: false, kind: 'normal' })
   })
 })

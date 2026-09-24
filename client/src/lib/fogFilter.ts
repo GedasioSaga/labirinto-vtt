@@ -437,6 +437,18 @@ function seamChain(seam: Wall, walls: readonly Wall[]): Wall[] {
   return chain
 }
 
+/** Sufixo que o recorte do pincel (`wallRunsWhere`) põe no id de cada trecho. */
+const BRUSH_RUN_SUFFIX = /~pincel\d+$/
+
+/**
+ * A parede é porta secreta, inteira ou trecho dela recortado pelo pincel de
+ * revelar (`<id>~pincel<n>`): o recorte troca o id, mas o trecho continua
+ * sendo a porta e tem que sumir na junção como ela.
+ */
+function isSecretDoorPiece(wall: Wall, seamIds: ReadonlySet<string>): boolean {
+  return seamIds.has(wall.id) || seamIds.has(wall.id.replace(BRUSH_RUN_SUFFIX, ''))
+}
+
 /**
  * Uma parede só no lugar da corrente, no sentido da porta (que é o da parede de
  * onde `addDoorOnWall` a cortou: a junção devolve a parede original). O id é o
@@ -457,7 +469,7 @@ function joinChain(seam: Wall, chain: readonly Wall[], seamIds: ReadonlySet<stri
     if (along(e.p) < along(start.p)) start = e
     if (along(e.p) > along(end.p)) end = e
   }
-  const plain = ends.filter((e) => !seamIds.has(e.w.id)).sort((a, b) => along(a.p) - along(b.p))
+  const plain = ends.filter((e) => !isSecretDoorPiece(e.w, seamIds)).sort((a, b) => along(a.p) - along(b.p))
   const owner = plain[0]?.w ?? seam
   return { ...owner, x1: start.p.x, y1: start.p.y, x2: end.p.x, y2: end.p.y }
 }
@@ -471,17 +483,17 @@ function joinChain(seam: Wall, chain: readonly Wall[], seamIds: ReadonlySet<stri
  * marcam as pontas da porta"). Na tela não aparece (`drawWalls` encadeia os
  * pedaços), mas quem inspeciona o WebSocket acharia a passagem.
  *
- * Roda no pacote FINAL, depois de névoa, zona, teto e sala secreta: só junta o
+ * Roda no pacote FINAL, depois de névoa, zona, pincel, teto e sala secreta: só junta o
  * que de fato sai, então nenhuma regra de esconder é contornada por uma parede
  * mais comprida. Vizinha de outra cara (espessura, tipo, sala) não entra: a
  * quebra ali já existia no mapa do mestre antes de qualquer porta.
  */
 function mergeSecretDoorSeams(walls: Wall[], seamIds: ReadonlySet<string>): Wall[] {
-  if (seamIds.size === 0 || !walls.some((w) => seamIds.has(w.id))) return walls
+  if (seamIds.size === 0 || !walls.some((w) => isSecretDoorPiece(w, seamIds))) return walls
   // Parede da corrente → a junção (na posição da primeira da lista) ou `null` (absorvida).
   const replaced = new Map<Wall, Wall | null>()
   for (const seam of walls) {
-    if (!seamIds.has(seam.id) || replaced.has(seam)) continue
+    if (!isSecretDoorPiece(seam, seamIds) || replaced.has(seam)) continue
     const chain = seamChain(seam, walls)
     if (chain.length < 2) continue
     const joined = joinChain(seam, chain, seamIds)
