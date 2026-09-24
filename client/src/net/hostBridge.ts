@@ -88,8 +88,12 @@ export interface HostBridgeDeps {
    * ele, a marca não fica e o mestre não é avisado.
    */
   applyMark?: (mark: AppliedMark) => void
-  /** "Apagar" do aviso da marca: tira a marca `markId` da cena (`sceneId` como em `applyMove`). */
-  removeMark?: (markId: string, sceneId?: string) => void
+  /**
+   * "Apagar" do aviso da marca: tira a marca `markId` da cena que a tem NA
+   * HORA do clique (o mestre pode ter trocado de cena desde o aviso). `false`
+   * quando ela já não estava em cena nenhuma.
+   */
+  removeMark?: (markId: string) => boolean
   /**
    * O mestre deixou o jogador passar: mover o token entre as cenas. `false`
    * quando não deu (cena sumiu, token sumiu) — o jogador recebe a recusa em
@@ -573,7 +577,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * ninguém fica esperando resposta do outro lado.
    */
   const tellMarkPlaced = (mark: AppliedMark) => {
-    const { marca, playerName, sceneName, sceneId } = mark
+    const { marca, playerName, sceneName } = mark
     const text =
       marca.tipo === 'bilhete'
         ? `${playerName} deixou um bilhete em ${sceneName}: “${marca.texto ?? ''}”`
@@ -585,9 +589,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         : [
             {
               label: 'Apagar',
+              // A cena é a que tem a marca no clique, não a de quando ela chegou.
               run: () => {
-                removeMark(marca.id, sceneId)
-                broadcastNow()
+                if (removeMark(marca.id)) broadcastNow()
+                else useToastStore.getState().push('info', marca.tipo === 'bilhete' ? 'Esse bilhete já não está no mapa' : 'Essa seta de giz já não está no mapa')
               },
             },
           ]

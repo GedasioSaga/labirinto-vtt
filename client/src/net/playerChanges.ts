@@ -76,6 +76,33 @@ function applyToScene(sceneId: string | undefined, transform: MapTransform): voi
   else useAdventureStore.getState().applyPlayerChangeToBackgroundScene(sceneId, transform)
 }
 
+const temMarca = (map: MapData, markId: string): boolean => (map.marcas ?? []).some((m) => m.id === markId)
+
+/**
+ * Onde a marca `markId` está AGORA, no formato de `applyToScene`: `undefined`
+ * na cena aberta, o id da cena de fundo, ou `null` se não está em cena
+ * nenhuma. Buscar na hora (e não guardar a cena de quando a marca chegou) é o
+ * que deixa o mestre trocar de cena entre o aviso e o "Apagar": a cena aberta
+ * vira de fundo, e a de fundo aberta sai do cache.
+ */
+function cenaComMarca(markId: string): string | undefined | null {
+  if (temMarca(useMapStore.getState().map, markId)) return undefined
+  const { activeSceneId, cache } = useAdventureStore.getState()
+  for (const [sceneId, slot] of Object.entries(cache)) {
+    // A cena aberta vive no editor; uma cópia dela no cache não é onde apagar.
+    if (sceneId !== activeSceneId && slot.status === 'ok' && temMarca(slot.map, markId)) return sceneId
+  }
+  return null
+}
+
+/** Tira a marca da cena que a tem hoje. `false` quando ela já não estava em cena nenhuma. */
+function removeMarkWhereItIs(markId: string): boolean {
+  const sceneId = cenaComMarca(markId)
+  if (sceneId === null) return false
+  applyToScene(sceneId, removeMark(markId))
+  return true
+}
+
 /** Os retornos da ponte do host (`createHostBridge`) para as mudanças do jogador. */
 export const hostPlayerChanges = {
   applyMove: (tokenId: string, x: number, y: number, sceneId?: string): void => applyToScene(sceneId, moveToken(tokenId, x, y)),
@@ -83,5 +110,5 @@ export const hostPlayerChanges = {
   applyTokenEdit: (edit: AppliedTokenEdit): void => applyToScene(edit.sceneId, editToken(edit)),
   applyLock: (lock: AppliedLock): void => applyToScene(lock.sceneId, openLock(lock.pinId)),
   applyMark: (mark: AppliedMark): void => applyToScene(mark.sceneId, placeMark(mark.marca)),
-  removeMark: (markId: string, sceneId?: string): void => applyToScene(sceneId, removeMark(markId)),
+  removeMark: removeMarkWhereItIs,
 }
