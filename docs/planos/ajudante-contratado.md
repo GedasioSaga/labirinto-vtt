@@ -56,10 +56,11 @@ em tudo. Três defeitos saem disso e o núcleo fecha os três:
 
 ## Fica para depois (pendências)
 
-- Ajudante atravessa o pino junto com o dono (hoje só a ficha mais perto do
-  pino viaja).
-- Ajudante em OUTRA cena na lista do jogador (hoje o painel só lista as fichas
-  do mapa aberto) e a cena do jogador quando só o ajudante está nela.
+- Ajudante emprestado JÁ em outra cena que não a do jogador (o mestre empresta
+  uma ficha de lá): a lista do jogador só mostra as fichas do mapa aberto.
+  Atravessar junto está feito: no pino, no "Levar para…" e no "Juntar o
+  grupo", todo ajudante emprestado que está na cena de partida vai junto
+  (`AppliedTransfer.companions`, `hostSession.companionsOf`).
 - Prazo ligado ao relógio do jogo ("até o apito", "até a Sombra") e ao turno
   do confronto; hoje o prazo é em minutos do relógio do mestre.
 - Coleira de distância, modo "só recebe ordem", "conta ao voltar" (relato),

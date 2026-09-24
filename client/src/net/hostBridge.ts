@@ -483,11 +483,25 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
+   * Move a ficha de quem viaja e, SÓ se ela foi, cada ajudante emprestado que
+   * atravessa junto (`companions`), pela mesma travessia da store. O ajudante
+   * que não der para mover (sumiu da cena) fica onde estava: a viagem do dono
+   * não desanda por causa dele. Devolve se a ficha PRINCIPAL mudou de cena.
+   */
+  const moveAcross = (transfer: AppliedTransfer): boolean => {
+    const apply = deps.applyTransfer
+    if (apply === undefined || !apply(transfer)) return false
+    const { companions = [], ...trip } = transfer
+    for (const companion of companions) apply({ ...trip, tokenId: companion.tokenId, x: companion.x, y: companion.y })
+    return true
+  }
+
+  /**
    * A ficha troca de cena: "Deixar ir" do mestre ou pino livre. Move pela
    * store ANTES de mandar o `scene.changed`, e só avisa a chegada se moveu.
    */
   const completeTransfer = (result: HostResult, transfer: AppliedTransfer) => {
-    const moved = deps.applyTransfer?.(transfer) ?? false
+    const moved = moveAcross(transfer)
     if (!moved) {
       // O "Você chegou" não pode sair: a ficha não saiu do lugar.
       void dispatch({ outbound: result.outbound.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })) })
@@ -713,7 +727,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const transfer = result.applyTransfer
       // Mesmo caminho do "Deixar ir" (`answerTravel`): a ficha muda de cena
       // antes do `scene.changed` sair, e o snapshot da cena nova vem atrás.
-      const moved = transfer !== undefined && (deps.applyTransfer?.(transfer) ?? false)
+      const moved = transfer !== undefined && moveAcross(transfer)
       // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
       pruneTravelToasts()
       if (!moved) {

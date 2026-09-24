@@ -12,6 +12,8 @@ import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
+import { gatherSpots } from '../lib/gatherParty'
+import { tokenSizeInSquares } from '../lib/tokenSize'
 import {
   parsePlayerMessage,
   type ClueEntry,
@@ -154,6 +156,20 @@ export interface AppliedTransfer {
   fromSceneId: string
   toSceneId: string
   toSceneName: string
+  x: number
+  y: number
+  /**
+   * AJUDANTE CONTRATADO: as fichas EMPRESTADAS a este jogador que estavam na
+   * mesma cena de partida e atravessam junto, cada uma já com a casa livre ao
+   * lado de quem viaja. Ausente = nenhum ajudante acompanha. O integrador move
+   * cada uma pela mesma travessia, depois da ficha principal.
+   */
+  companions?: TransferCompanion[]
+}
+
+/** Um ajudante que atravessa junto com o dono, e onde ele assenta na cena de destino. */
+export interface TransferCompanion {
+  tokenId: string
   x: number
   y: number
 }
@@ -1236,6 +1252,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A cena dele passa a ser a de destino a partir daqui: é ela que o
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
+    const companions = companionsOf(playerId, travel.from.map, travel.to.map, travel.token, spot)
     return {
       outbound: [{ clientId, msg: { type: 'scene.changed' } }],
       applyTransfer: {
@@ -1247,8 +1264,31 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         toSceneName: travel.to.name,
         x: spot.x,
         y: spot.y,
+        ...(companions.length > 0 ? { companions } : {}),
       },
     }
+  }
+
+  /**
+   * AJUDANTE CONTRATADO: "a ficha segue o jogador". Toda ficha EMPRESTADA a
+   * `playerId` que está na cena de partida (`fromMap`) atravessa junto com
+   * `traveler`, na casa livre mais perto de onde ele chega. Sem isto o
+   * ajudante ficaria na cena velha: ainda na posse dele, com o prazo correndo,
+   * mas fora da cena que o jogador vê — uma ficha que ele não pode mais mover.
+   * Não coube em volta (sala cheia, parede em tudo)? Assenta na casa de quem
+   * viaja: empilhado ainda é melhor que perdido em outra cena.
+   */
+  function companionsOf(playerId: string, fromMap: MapData, toMap: MapData, traveler: Token, spot: { x: number; y: number }): TransferCompanion[] {
+    const loaned = loansFor(playerId)
+    const following = fromMap.tokens.filter((t) => t.id !== traveler.id && loaned.has(t.id))
+    if (following.length === 0) return []
+    // A ficha principal ainda não está no destino: entra no cálculo já assentada, para ninguém cair em cima dela.
+    const withTraveler: MapData = { ...toMap, tokens: [...toMap.tokens, { ...traveler, x: spot.x, y: spot.y }] }
+    const seats = gatherSpots(withTraveler, spot, following.map((t) => tokenSizeInSquares(t)))
+    return following.map((t, index) => {
+      const seat = seats[index] ?? null
+      return { tokenId: t.id, x: seat === null ? spot.x : seat.x, y: seat === null ? spot.y : seat.y }
+    })
   }
 
   /**
@@ -1439,6 +1479,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // O pedido que ele tinha na cena de antes perde o sentido: o pino ficou lá.
       pendingTravels.delete(playerId)
       const by = gatherAt === undefined ? 'master' : 'gather'
+      // O ajudante emprestado vai junto, como no pino (`companionsOf`).
+      const companions = companionsOf(playerId, from.map, to.map, token, spot)
       return {
         outbound: record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by } }],
         applyTransfer: {
@@ -1450,6 +1492,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           toSceneName: to.name,
           x: spot.x,
           y: spot.y,
+          ...(companions.length > 0 ? { companions } : {}),
         },
       }
     },
