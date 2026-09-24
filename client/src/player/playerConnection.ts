@@ -23,6 +23,7 @@ import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
 import { TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction } from '../lib/tokenActions'
 import { tokenCardName, type TokenActionNotice } from './tokenCard'
+import { lembrarCena, type CenaLembrada } from './meuCaderno'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -98,6 +99,21 @@ export interface PlayerState {
   clueShow?: ClueShow
   /** AGIR SOBRE UMA FICHA: o pedido esperando o mestre, ou a resposta dele. */
   tokenAction?: TokenActionNotice
+  /**
+   * LEVAR O MAPA PARA CASA: as cenas por onde ele passou nesta conexão, na
+   * ordem da primeira chegada, com a última memória que o host mandou de cada
+   * uma (`meuCaderno.ts`). Só a planta e as fichas DELE; nada pedido ao host.
+   * O lobby e o fim da sala não apagam: é justamente ao fim que ele baixa.
+   */
+  knownScenes?: CenaLembrada[]
+  /**
+   * LEVAR O CADERNO PARA CASA depois de uma queda: o "Reconectar" zera
+   * `clues` e `notebook` (o `clues.book`/`notes.book` da volta é quem manda),
+   * mas se a sala não voltar — o mestre fechou o app — as pistas e os recados
+   * sumiriam do aparelho. Ficam aqui, só para o arquivo, até o primeiro
+   * snapshot da volta provar que a sala está viva de novo; a tela nunca os mostra.
+   */
+  keptNotebook?: { clues: ClueEntry[]; notes: NoteEntry[] }
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -639,7 +655,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     arrivalFromMapId = null
     const arrivalFocus = atalho ? { seq: (state.arrivalFocus?.seq ?? 0) + 1, tokenId: arrivedToken(next, ownTokens) } : state.arrivalFocus
     arrivalTokenId = null
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined, arrivalFocus })
+    const knownScenes = lembrarCena(state.knownScenes ?? [], { map: next, vision, explored, concealed, ownTokens })
+    // A sala está viva: as pistas e os recados voltam a vir do host, e o guardado da queda sai.
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined, arrivalFocus, knownScenes, keptNotebook: undefined })
   }
 
   /**
@@ -1168,7 +1186,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, tokenAction: undefined })
+      // Segundo "Reconectar" seguido: `clues` já está vazio, e o guardado da primeira queda continua valendo.
+      const keptNotebook = {
+        clues: state.clues ?? state.keptNotebook?.clues ?? [],
+        notes: state.notebook ?? state.keptNotebook?.notes ?? [],
+      }
+      setState({ keptNotebook, status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, tokenAction: undefined })
       open()
     },
     close: detach,

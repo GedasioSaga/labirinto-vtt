@@ -26,6 +26,7 @@ import type { SignalMark } from '../lib/signals'
 import type { RemoteLaser } from '../lib/laser'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
+import { baixarArquivoHtml, montarCaderno, nomeDoArquivoDoCaderno, type EntradaDoCaderno } from './meuCaderno'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -90,6 +91,24 @@ interface Notice {
 }
 
 const JOIN_NOTICE: Notice = { text: 'O código da sala vem do mestre.', tone: 'info' }
+
+/**
+ * O que vai para o arquivo. Pistas e recados: os da tela; depois de um
+ * "Reconectar" sem volta, os guardados na queda (`keptNotebook`).
+ */
+function notebookToTake(state: PlayerState): Pick<EntradaDoCaderno, 'cenas' | 'pistas' | 'recados'> {
+  return {
+    cenas: state.knownScenes ?? [],
+    pistas: state.clues ?? state.keptNotebook?.clues ?? [],
+    recados: state.notebook ?? state.keptNotebook?.notes ?? [],
+  }
+}
+
+/** Há o que levar para casa: alguma cena, pista ou recado. */
+function hasNotebookContent(state: PlayerState): boolean {
+  const { cenas, pistas, recados } = notebookToTake(state)
+  return cenas.length > 0 || pistas.length > 0 || recados.length > 0
+}
 
 function sessionStorageOrNull(): StorageLike | null {
   try {
@@ -589,6 +608,23 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const where = useMemo(() => (map ? whereAmI(map, ownTokens, focus.tokenId) : null), [map, ownTokens, focus.tokenId])
   const focusToken = useCallback((tokenId: string) => setFocus((current) => ({ tokenId, seq: current.seq + 1 })), [])
 
+  // LEVAR O MAPA PARA CASA: o arquivo sai do que já está neste aparelho (as
+  // cenas guardadas pela conexão, as pistas e os recados), sem pedir nada ao
+  // mestre — funciona também depois que ele encerra a sala, e depois que a
+  // conexão cai (o mestre fechou o app). O nome é o do personagem; sem ficha
+  // no mapa (sala encerrada), o que ele digitou ao entrar.
+  const firstCharacterName = characters[0]?.name
+  const downloadNotebook = useCallback((): string => {
+    const personagem = firstCharacterName ?? typedName
+    const geradoEm = new Date()
+    const fileName = nomeDoArquivoDoCaderno(personagem, geradoEm)
+    const html = montarCaderno({ ...notebookToTake(connection.getState()), personagem, geradoEm })
+    baixarArquivoHtml(html, fileName)
+    return fileName
+  }, [connection, firstCharacterName, typedName])
+  /** Telas de fim (sala encerrada, conexão caída, sala que não responde): o que o "Guardar meu caderno" disse por último. */
+  const [endDownload, setEndDownload] = useState<string | null>(null)
+
   function changeSettings(next: PlayerViewSettings) {
     setSettings(next)
     savePlayerSettings(localStorageOrNull(), next)
@@ -721,6 +757,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             connection.resetClueShare()
             setOpenClueId(clueId)
           }}
+          onDownloadNotebook={downloadNotebook}
         />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, faixa no alto à direita, zoom embaixo à direita). */}
         <PlayerWhereAmI where={where} showTokenName={ownTokens.length > 1} onFocus={focusToken} />
@@ -849,6 +886,33 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   /** O que a frase não cabe: explicação, prova de vida, lista do que conferir. */
   let detail: ReactNode = null
   const actions: ScreenAction[] = []
+  /**
+   * Fim de sessão sem volta garantida: a página some quando ele sair daqui, e
+   * é a última chance de levar o que conhece. Vale para a sala encerrada e
+   * também para a queda — o mestre fechar o app não manda `room.closed`, e é
+   * o fim de sessão mais comum. O aviso entra embaixo do que a tela já explica.
+   */
+  function offerNotebook(): void {
+    if (!hasNotebookContent(state)) return
+    actions.push({
+      label: 'Guardar meu caderno',
+      run: () => {
+        try {
+          setEndDownload(`Baixado: ${downloadNotebook()}`)
+        } catch (erro) {
+          setEndDownload(`Não deu para baixar: ${erro instanceof Error ? erro.message : 'erro desconhecido'}`)
+        }
+      },
+    })
+    if (endDownload !== null) {
+      detail = (
+        <>
+          {detail}
+          <p className="pe-hint">{endDownload}</p>
+        </>
+      )
+    }
+  }
   switch (state.status) {
     case 'connecting':
       if (handshakeOverdue) {
@@ -881,6 +945,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           },
         })
         actions.push({ label: 'Entrar em outra sala', run: () => onQuit() })
+        // "Reconectar" e a sala não voltou: as pistas e os recados estão só no guardado da queda.
+        offerNotebook()
       } else {
         message = 'Conectando…'
         detail = (
@@ -902,6 +968,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
       // Sem Reconectar: a sala não existe mais.
       message = 'O mestre encerrou a sala.'
       actions.push({ label: 'Voltar', primary: true, run: () => onLeave() })
+      offerNotebook()
       break
     case 'error': {
       const reason = state.error ?? 'unknown'
@@ -914,6 +981,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         // o jogador ficava preso na mensagem, sem caminho de volta. Esquece o
         // resume: retomar aquela sessão é justamente o que não funciona mais.
         actions.push({ label: 'Entrar em outra sala', run: () => onQuit() })
+        offerNotebook()
       } else {
         // Código errado volta ao formulário COM o que ele digitou: o nome estava certo.
         actions.push({
