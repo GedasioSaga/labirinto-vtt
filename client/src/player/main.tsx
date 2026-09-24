@@ -23,6 +23,8 @@ import type { SignalMark } from '../lib/signals'
 import type { RemoteLaser } from '../lib/laser'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
+import { findKnownPath } from '../lib/knownPath'
+import { PlayerPointMenu } from './PlayerPointMenu'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -481,6 +483,13 @@ interface ScreenAction {
   run: () => void
 }
 
+/** Menu do toque longo aberto: onde (px da janela), quem anda e os trechos até lá (`null` = não conhece o caminho). */
+interface PointMenuState {
+  at: { x: number; y: number }
+  tokenId: string
+  legs: { x: number; y: number }[] | null
+}
+
 /**
  * Prazo do aperto de mão. Passado ele, "Conectando…" vira explicação.
  *
@@ -504,6 +513,14 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const [openPinId, setOpenPinId] = useState<string | null>(null)
   /** Pista do Caderno aberta no cartão (MINHAS PISTAS); `null` = fechado. */
   const [openClueId, setOpenClueId] = useState<string | null>(null)
+  /** ANDAR ATÉ AQUI: o menu do toque longo; `null` = fechado. */
+  const [pointMenu, setPointMenu] = useState<PointMenuState | null>(null)
+  const closePointMenu = useCallback(() => setPointMenu(null), [])
+  // Outra cena: o ponto e o caminho do menu eram do mapa de antes.
+  const sceneMapId = state.map?.id
+  useEffect(() => {
+    setPointMenu(null)
+  }, [sceneMapId])
   /** Último toque nos botões + e − (o `PlayerView` aplica o degrau) e o que eles ainda podem fazer. */
   const [zoomStep, setZoomStep] = useState<ZoomStepRequest>(NO_ZOOM_STEP)
   const [zoomLimits, setZoomLimits] = useState<ZoomLimits>({ canZoomIn: true, canZoomOut: true })
@@ -602,6 +619,18 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
 
   if (state.status === 'playing' && state.map && state.vision) {
     const actionNotice = latestActionNotice(state.doorNotice, state.moveNotice)
+    const playingMap = state.map
+    const knownArea = { explored: state.explored, vision: state.vision, concealed: state.concealed ?? [] }
+    /**
+     * Segurou no chão: o menu do ponto abre com o caminho da própria ficha
+     * até lá, calculado SÓ com o que esta tela já conhece. Sem ficha própria
+     * nesta cena não há quem ande, e nada abre (o sinal já saiu).
+     */
+    const openPointMenu = (point: { x: number; y: number }, screen: { x: number; y: number }) => {
+      const walker = ownTokens.flatMap((id) => playingMap.tokens.filter((t) => t.id === id)).at(0)
+      if (walker === undefined) return
+      setPointMenu({ at: screen, tokenId: walker.id, legs: findKnownPath(playingMap, walker, point, knownArea) })
+    }
     // Cartão de pista na tela: o Escape é dele, e um toque não pode fechar também o recado.
     const clueCardOpen = openClue !== null || (state.shownClue !== undefined && openPin === null)
     return (
@@ -624,6 +653,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             // Modo de um toque: sinalizou, desliga.
             setSignalArmed(false)
           }}
+          onPointHold={openPointMenu}
           measureArmed={measureArmed}
           laserArmed={laserArmed}
           ownLaserColor={ownLaserColor}
@@ -684,6 +714,17 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         <PlayerSceneName name={state.sceneName} />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
+        {pointMenu && (
+          <PlayerPointMenu
+            at={pointMenu.at}
+            canWalk={pointMenu.legs !== null}
+            onWalk={() => {
+              // Cada trecho vai ao mestre como um movimento comum, validado lá; a recusa aparece no aviso de baixo.
+              if (pointMenu.legs !== null) connection.requestWalk(pointMenu.tokenId, pointMenu.legs)
+            }}
+            onClose={closePointMenu}
+          />
+        )}
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}

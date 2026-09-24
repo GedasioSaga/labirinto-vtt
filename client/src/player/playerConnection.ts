@@ -21,6 +21,7 @@ import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
 import { SCENE_PUBLIC_NAME_MAX_LENGTH } from '../lib/adventure'
+import { TOKEN_GLIDE_MS } from './tokenGlide'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -153,8 +154,20 @@ export interface PlayerConnectionOptions {
 export interface PlayerConnection {
   getState(): PlayerState
   subscribe(listener: () => void): () => void
-  /** Move otimista: aplica local e envia. `false` se o token não existe ou o socket não está aberto. */
+  /**
+   * Move otimista: aplica local e envia. `false` se o token não existe ou o
+   * socket não está aberto. Para a caminhada do "Andar até aqui", se houver.
+   */
   requestMove(tokenId: string, x: number, y: number): boolean
+  /**
+   * ANDAR ATÉ AQUI: `legs` são os fins de cada trecho reto (o último é o
+   * destino). Sai o primeiro trecho; cada seguinte sai depois que o host
+   * aceitou o anterior e a ficha deslizou até a esquina
+   * (`WALK_LEG_PAUSE_MS`). Recusa do host, arrasto da ficha ou troca de cena
+   * param a caminhada. `false` (e nada sai) sem trecho, com ponto inválido,
+   * token fora do mapa, fora de jogo ou socket fechado.
+   */
+  requestWalk(tokenId: string, legs: readonly { x: number; y: number }[]): boolean
   /** Sinal no ponto (px de mundo). `false` se não está jogando ou o socket não está aberto. */
   sendSignal(x: number, y: number): boolean
   /** Pede ao mestre para abrir/fechar a porta. `false` se não está jogando ou o socket não está aberto. */
@@ -257,6 +270,21 @@ export const MOVED_NOTICE_TTL_MS = 60_000
 export const GATHERED_NOTICE_TTL_MS = 60_000
 const SOCKET_OPEN = 1
 const CONNECTION_LOST = 'connection_lost'
+
+/**
+ * Pausa entre um trecho aceito e o próximo do "Andar até aqui": o tempo do
+ * deslize da ficha, para a esquina aparecer na tela antes da curva.
+ */
+export const WALK_LEG_PAUSE_MS = TOKEN_GLIDE_MS
+
+/** Caminhada em curso: os trechos que faltam e o pedido que espera o host. */
+interface Walk {
+  tokenId: string
+  legs: { x: number; y: number }[]
+  /** Trecho enviado e ainda sem resposta; `null` entre trechos. */
+  reqId: string | null
+  timer: ReturnType<typeof setTimeout> | null
+}
 
 interface PendingMove {
   tokenId: string
@@ -361,6 +389,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   const { url, code, name, createSocket, storage } = options
   const listeners = new Set<() => void>()
   const pending = new Map<string, PendingMove>()
+  let walk: Walk | null = null
   let state: PlayerState = { status: 'connecting', rev: -1 }
   let socket: SocketLike | null = null
   let pingTimer: ReturnType<typeof setInterval> | null = null
@@ -536,6 +565,62 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     pingTimer = null
   }
 
+  /**
+   * Move otimista: aplica local e envia. Devolve o `reqId` do pedido, ou
+   * `null` se o token não existe ou o socket não está aberto.
+   */
+  function sendMove(tokenId: string, x: number, y: number): string | null {
+    const map = state.map
+    const token = map?.tokens.find((t) => t.id === tokenId)
+    if (!map || !token) return null
+    const reqId = `m${nextReqId++}`
+    if (!send({ type: 'token.move', reqId, tokenId, x, y })) return null
+    pending.set(reqId, { tokenId, x, y, prevX: token.x, prevY: token.y })
+    // Mexeu a ficha depois de mudar de lugar (chegou, foi levado ou
+    // reunido): já viu onde está, o aviso sai.
+    const phase = state.travel?.phase
+    if (phase === 'gathered' || phase === 'arrived' || phase === 'moved') {
+      clearTravelTimer()
+      setState({ map: withTokenAt(map, tokenId, x, y), travel: undefined })
+      return reqId
+    }
+    setState({ map: withTokenAt(map, tokenId, x, y) })
+    return reqId
+  }
+
+  function stopWalk(): void {
+    if (walk !== null && walk.timer !== null) clearTimeout(walk.timer)
+    walk = null
+  }
+
+  /** Manda o próximo trecho da caminhada; sem trecho, ou sem jogo, ela acaba. */
+  function stepWalk(): void {
+    const current = walk
+    if (current === null) return
+    const next = current.legs.shift()
+    if (next === undefined || state.status !== 'playing') {
+      walk = null
+      return
+    }
+    const reqId = sendMove(current.tokenId, next.x, next.y)
+    if (reqId === null) {
+      walk = null
+      return
+    }
+    current.reqId = reqId
+  }
+
+  /** O host aceitou o trecho: o próximo sai depois de a ficha deslizar até a esquina. */
+  function continueWalk(reqId: string): void {
+    const current = walk
+    if (current === null || current.reqId !== reqId) return
+    current.reqId = null
+    current.timer = setTimeout(() => {
+      current.timer = null
+      if (walk === current) stepWalk()
+    }, WALK_LEG_PAUSE_MS)
+  }
+
   function hasNewerPending(reqId: string, tokenId: string): PendingMove | null {
     let seen = false
     for (const [id, move] of pending) {
@@ -555,6 +640,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     sceneName: string | undefined,
   ): void {
     if (rev <= state.rev) return
+    // Outra cena: o resto do caminho era do mapa de antes.
+    if (state.map !== undefined && state.map.id !== map.id) stopWalk()
     let next = map
     // Reaplica, em ordem, só os movimentos ainda não confirmados pelo mestre.
     for (const [reqId, move] of pending) {
@@ -574,6 +661,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function handleRejected(reqId: string, reason: unknown): void {
     const move = pending.get(reqId)
     if (!move) return
+    // Trecho recusado: a caminhada para na última esquina aceita.
+    if (walk?.reqId === reqId) stopWalk()
     const newer = hasNewerPending(reqId, move.tokenId)
     pending.delete(reqId)
     // Motivo que esta versão não conhece: desfaz igual, só não inventa frase.
@@ -592,6 +681,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (!move) return
     const newer = hasNewerPending(reqId, move.tokenId)
     pending.delete(reqId)
+    continueWalk(reqId)
     if (newer) {
       newer.prevX = x
       newer.prevY = y
@@ -682,6 +772,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // novo vem no snapshot logo atrás.
         if (state.status !== 'playing') return
         pending.clear()
+        stopWalk()
         clearSignalTimers()
         clearLaserTimer()
         clearPlayerLasers()
@@ -879,6 +970,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   function detach(): void {
+    stopWalk()
     stopPing()
     clearSignalTimers()
     clearLaserTimer()
@@ -901,22 +993,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return () => listeners.delete(listener)
     },
     requestMove(tokenId, x, y) {
-      const map = state.map
-      const token = map?.tokens.find((t) => t.id === tokenId)
-      if (!map || !token) return false
-      const reqId = `m${nextReqId++}`
-      if (!send({ type: 'token.move', reqId, tokenId, x, y })) return false
-      pending.set(reqId, { tokenId, x, y, prevX: token.x, prevY: token.y })
-      // Mexeu a ficha depois de mudar de lugar (chegou, foi levado ou
-      // reunido): já viu onde está, o aviso sai.
-      const phase = state.travel?.phase
-      if (phase === 'gathered' || phase === 'arrived' || phase === 'moved') {
-        clearTravelTimer()
-        setState({ map: withTokenAt(map, tokenId, x, y), travel: undefined })
-        return true
-      }
-      setState({ map: withTokenAt(map, tokenId, x, y) })
-      return true
+      // O dedo manda mais que o "Andar até aqui": arrastar a ficha para a caminhada.
+      stopWalk()
+      return sendMove(tokenId, x, y) !== null
+    },
+    requestWalk(tokenId, legs) {
+      stopWalk()
+      if (state.status !== 'playing' || legs.length === 0) return false
+      if (!legs.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) return false
+      if (!state.map?.tokens.some((t) => t.id === tokenId)) return false
+      walk = { tokenId, legs: legs.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })), reqId: null, timer: null }
+      stepWalk()
+      return walk !== null
     },
     sendSignal(x, y) {
       if (state.status !== 'playing' || !Number.isFinite(x) || !Number.isFinite(y)) return false

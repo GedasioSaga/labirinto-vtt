@@ -1508,3 +1508,97 @@
     transition: none;
   }
 }
+
+/*
+ * MENU DO TOQUE LONGO ("Andar até aqui"). Nasce acima do ponto segurado (o
+ * dedo não cobre), ou abaixo quando o ponto está no alto da tela. Abre do
+ * próprio ponto, rápido e com ease-out; sem animação com movimento reduzido.
+ */
+.pp-point-menu {
+  position: fixed;
+  z-index: 30;
+  transform: translate(-50%, -100%);
+  transform-origin: 50% 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 4px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, #131317);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  animation: pp-point-menu-in 140ms ease-out;
+}
+
+.pp-point-menu--below {
+  transform: translate(-50%, 0);
+  transform-origin: 50% 0;
+  animation-name: pp-point-menu-in-below;
+}
+
+@keyframes pp-point-menu-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -100%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%) scale(1);
+  }
+}
+
+@keyframes pp-point-menu-in-below {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+/* Alvo de dedo: 44 px de altura. */
+.pp-point-menu__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 44px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pp-point-menu__item:hover:not([aria-disabled='true']) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pp-point-menu__item:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+/* Indisponível: esmaecido no mesmo lugar, com o motivo embaixo. */
+.pp-point-menu__item[aria-disabled='true'] {
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  cursor: default;
+}
+
+.pp-point-menu__why {
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-point-menu {
+    animation: none;
+  }
+}

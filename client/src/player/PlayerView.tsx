@@ -103,6 +103,12 @@ interface PlayerViewProps {
   signalArmed?: boolean
   onSignal?: (x: number, y: number) => void
   /**
+   * Segurou parado no chão (o mesmo gesto do sinal, que continua saindo):
+   * `point` em px de mundo, `screen` em px da janela — onde o menu do ponto
+   * ("Andar até aqui") abre.
+   */
+  onPointHold?: (point: { x: number; y: number }, screen: { x: number; y: number }) => void
+  /**
    * Botão "Medir" ligado: arrastar no mapa mede a distância em vez de mover a
    * câmera. A medida é só desta tela — nada vai pelo socket.
    */
@@ -774,6 +780,7 @@ export function PlayerView({
   signals = NO_SIGNALS,
   signalArmed = false,
   onSignal,
+  onPointHold,
   measureArmed = false,
   onDoorToggle,
   onPinOpen,
@@ -802,6 +809,7 @@ export function PlayerView({
     signals,
     signalArmed,
     onSignal,
+    onPointHold,
     measureArmed,
     onDoorToggle,
     onPinOpen,
@@ -1606,6 +1614,10 @@ export function PlayerView({
           // Virou sinal: o gesto não continua como arrasto de câmera.
           if (scene.drag?.kind === 'pan') scene.drag = null
           sendSignalAt(x, y)
+          // E abre o menu do ponto ("Andar até aqui") onde o dedo está.
+          const rect = app.canvas.getBoundingClientRect()
+          const point = scene.world.toLocal({ x, y })
+          latestRef.current.onPointHold?.({ x: point.x, y: point.y }, { x: rect.left + x, y: rect.top + y })
         }, SIGNAL_LONG_PRESS_MS)
         longPress = { timer, pointerId, x, y }
       })
