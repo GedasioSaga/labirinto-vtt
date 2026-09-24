@@ -3,6 +3,7 @@ import type { CarriedItem, Token } from '../types/map'
 import { carriedItemsOf, dropItemChange, giveNewItemChange, removeItemChange, type ItemChange } from './items'
 import { pinSummary } from './pins'
 import { roomsAt } from './roomNesting'
+import type { DestinationMark } from './signals'
 import { tokenFillColor } from './tokenColor'
 
 /**
@@ -36,6 +37,8 @@ export interface PartyMember {
   travelPending: boolean
   /** O que as fichas dele carregam, em qualquer cena aberta (ITEM PEGÁVEL). */
   mochila: PartyItem[]
+  /** MARCA "VAMOS PARA CÁ" dele, em px de mundo da cena `sceneId`. Ausente = não marcou. */
+  destination?: { x: number; y: number }
 }
 
 /** Um item da mochila no Grupo: com a ficha e a cena onde ele está, para o mestre agir nele. */
@@ -148,8 +151,24 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
       mochila: backpackOf(player, world),
     }
     if (!player.connected && player.disconnectedAt !== undefined) member.offlineSince = player.disconnectedAt
+    if (player.destination !== undefined) member.destination = { x: player.destination.x, y: player.destination.y }
     return member
   })
+}
+
+/**
+ * As marcas "vamos para cá" que o canvas do MESTRE desenha: só as da cena
+ * aberta no editor (`openSceneId`; `null` = mapa solto). A de quem está em
+ * cena de fundo tem coordenadas de outro mapa — desenhada aqui, cairia num
+ * lugar que não existe; o mestre a acha pelo "Ver" do Grupo.
+ */
+export function masterDestinationMarks(players: PlayerInfo[], openSceneId: string | null): DestinationMark[] {
+  const marks: DestinationMark[] = []
+  for (const player of players) {
+    if (player.destination === undefined || (player.sceneId ?? null) !== openSceneId) continue
+    marks.push({ x: player.destination.x, y: player.destination.y, from: player.name, color: player.destination.color, mine: false })
+  }
+  return marks
 }
 
 /**

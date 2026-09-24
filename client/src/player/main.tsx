@@ -14,6 +14,9 @@ import { PlayerNoteCard } from './PlayerNoteCard'
 import { PlayerClueCard } from './PlayerClues'
 import { coverBounds } from './playerCamera'
 import { PlayerZoomControls } from './PlayerZoomControls'
+import { PlayerSceneName } from './PlayerSceneName'
+import { PlayerScreenAwake } from './PlayerScreenAwake'
+import { useScreenWakeLock } from './screenWakeLock'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { PlayerAlarmBanner } from './PlayerAlarmBanner'
 import { PlayerTurnBanner, TurnWaitNotice } from './PlayerTurnBanner'
@@ -26,7 +29,9 @@ import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
-import type { SignalMark } from '../lib/signals'
+import { DiceFeed } from '../components/DiceControls'
+import type { DiceRollEntry } from '../lib/dice'
+import type { DestinationMark, SignalMark } from '../lib/signals'
 import type { RemoteLaser } from '../lib/laser'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
@@ -35,6 +40,20 @@ import { itemNoticeText } from './itemNotice'
 import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
+import { findKnownPath } from '../lib/knownPath'
+import type { Pin } from '../types/map'
+import { loadPlaceNames, savePlaceName, withPlaceName, type VisitedPlace } from './playerPlaces'
+import { PersonalNoteDraft } from './PlayerPersonalNotes'
+import {
+  addPersonalNote,
+  loadPersonalNotes,
+  newPersonalNoteId,
+  notesOnMap,
+  removePersonalNote,
+  savePersonalNotes,
+  type PersonalNote,
+} from './personalNotes'
+import type { FocusPointRequest } from './PlayerView'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -48,9 +67,13 @@ document.head.prepend(themeStyle)
 /** Referência estável: um `[]` novo a cada render redesenharia o canvas sem motivo. */
 const NO_TOKENS: string[] = []
 const NO_SIGNALS: SignalMark[] = []
+const NO_DESTINATIONS: DestinationMark[] = []
 const NO_PLAYER_LASERS: RemoteLaser[] = []
 const NO_NOTES: NoteEntry[] = []
 const NO_CLUES: ClueEntry[] = []
+const NO_DICE_ROLLS: DiceRollEntry[] = []
+const NO_PINS: Pin[] = []
+const NO_PLACES: VisitedPlace[] = []
 /** Fechar o recado não perde nada: quem fecha sabe onde reler. */
 const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
 
@@ -496,6 +519,23 @@ interface ScreenAction {
 }
 
 /**
+ * Menu do toque longo aberto (AÇÕES NO PONTO, com o ANDAR ATÉ AQUI dentro):
+ * o ponto (`x`/`y`, px de mundo), onde o dedo estava (`screenX`/`screenY`,
+ * px da janela), a época da cena em que abriu (`sceneEpoch`) e quem anda
+ * (`tokenId`, a primeira ficha dele na cena; `null` = nenhuma, e o menu vem
+ * sem "Andar até aqui"). O caminho NÃO fica guardado aqui: sai de onde a
+ * ficha está a cada momento (`pointMenuLegs`).
+ */
+interface PointMenuState {
+  x: number
+  y: number
+  screenX: number
+  screenY: number
+  sceneEpoch: number
+  tokenId: string | null
+}
+
+/**
  * Prazo do aperto de mão. Passado ele, "Conectando…" vira explicação.
  *
  * Oito segundos: o handshake de uma sala na mesma rede fecha em milissegundos,
@@ -510,7 +550,26 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(localStorageOrNull()))
   const [focus, setFocus] = useState<{ tokenId: string | null; seq: number }>({ tokenId: null, seq: 0 })
+  /** LUGARES: os nomes que o jogador deu, por lugar. Só nesta tela (nunca vão ao mestre). */
+  const [placeNames, setPlaceNames] = useState<Record<string, string>>({})
+  const playerId = state.playerId
+  useEffect(() => {
+    // Por jogador: o id de lugar é um contador do host, e outra sala recomeçaria do "l1".
+    setPlaceNames(playerId === undefined ? {} : loadPlaceNames(localStorageOrNull(), playerId))
+  }, [playerId])
+  const renamePlace = useCallback(
+    (placeId: string, name: string) => {
+      if (playerId === undefined) return
+      // O estado manda na tela; o armazenamento é só persistência. Reler dele
+      // perderia o nome quando ele está cheio ou bloqueado.
+      setPlaceNames((names) => withPlaceName(names, placeId, name))
+      savePlaceName(localStorageOrNull(), playerId, placeId, name)
+    },
+    [playerId],
+  )
   const [signalArmed, setSignalArmed] = useState(false)
+  /** "Marcar destino" ligado: o próximo toque no mapa põe a marca "vamos para cá". */
+  const [destinationArmed, setDestinationArmed] = useState(false)
   /** Régua do jogador ligada. Só o liga/desliga mora aqui; a medida em si é do PlayerView (local ao gesto). */
   const [measureArmed, setMeasureArmed] = useState(false)
   /** Laser do jogador ligado. O rastro em si é do PlayerView (local ao gesto) e do socket. */
@@ -519,21 +578,71 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const [openPinId, setOpenPinId] = useState<string | null>(null)
   /** Pista do Caderno aberta no cartão (MINHAS PISTAS); `null` = fechado. */
   const [openClueId, setOpenClueId] = useState<string | null>(null)
+  /** Menu do toque longo (ações no ponto e "Andar até aqui"); `null` = fechado. */
+  const [pointMenu, setPointMenu] = useState<PointMenuState | null>(null)
+  const closePointMenu = useCallback(() => setPointMenu(null), [])
+  /**
+   * ANOTAÇÕES PESSOAIS de todas as cenas, lidas do aparelho ao entrar. Nunca
+   * vão pelo socket: nem o mestre nem os colegas sabem delas.
+   */
+  const [personalNotes, setPersonalNotes] = useState<readonly PersonalNote[]>(() => loadPersonalNotes(localStorageOrNull()))
+  /** "Anotar" ligado: o próximo toque no mapa marca onde vai a nota. */
+  const [noteArmed, setNoteArmed] = useState(false)
+  /** Ponto já tocado, esperando o texto no cartão; `null` = cartão fechado. */
+  const [noteDraft, setNoteDraft] = useState<{ mapId: string; x: number; y: number } | null>(null)
+  /**
+   * Pedido de câmera para um PONTO: uma nota de "Minhas notas" ou um ponto conhecido da aba Lugares.
+   * Um só estado para os dois: a PlayerView tem um `focusPoint` só, e o `seq` que cresce junto garante
+   * que o toque mais novo, de qualquer um dos dois, é o que move a câmera.
+   */
+  const [pointFocus, setPointFocus] = useState<FocusPointRequest | null>(null)
+  const focusOnPoint = useCallback((x: number, y: number) => {
+    setPointFocus((current) => ({ x, y, seq: (current?.seq ?? 0) + 1 }))
+  }, [])
+  const changePersonalNotes = useCallback((change: (notes: readonly PersonalNote[]) => readonly PersonalNote[]) => {
+    setPersonalNotes((current) => {
+      const next = change(current)
+      if (next !== current) savePersonalNotes(localStorageOrNull(), next)
+      return next
+    })
+  }, [])
+  const removeNote = useCallback((noteId: string) => changePersonalNotes((notes) => removePersonalNote(notes, noteId)), [changePersonalNotes])
+  const cancelNoteDraft = useCallback(() => setNoteDraft(null), [])
+  // Outra cena: o ponto e o caminho do menu eram do mapa de antes (e o ponto da nota por escrever também).
+  const sceneMapId = state.map?.id
+  useEffect(() => {
+    setPointMenu(null)
+    setNoteDraft(null)
+  }, [sceneMapId])
+  // Referência estável por cena: a camada do mapa não recebe lista nova a cada snapshot.
+  const sceneNotes = useMemo(() => (sceneMapId === undefined ? [] : notesOnMap(personalNotes, sceneMapId)), [personalNotes, sceneMapId])
+  /**
+   * Trechos até o ponto do menu a partir de onde a ficha ESTÁ agora, só com o
+   * que esta tela conhece; `null` = não conhece o caminho. Recalculados a cada
+   * mudança do mapa: a caminhada anterior segue com o menu aberto, e um
+   * caminho gravado na abertura sairia da esquina de antes — o host recusaria
+   * o primeiro trecho com 'wall'.
+   */
+  const pointMenuLegs = useMemo(() => {
+    const map = state.map
+    if (pointMenu === null || pointMenu.tokenId === null || map === undefined || state.vision === undefined) return null
+    const walker = map.tokens.find((t) => t.id === pointMenu.tokenId)
+    if (walker === undefined) return null
+    return findKnownPath(map, walker, { x: pointMenu.x, y: pointMenu.y }, { explored: state.explored, vision: state.vision, concealed: state.concealed ?? [] })
+  }, [pointMenu, state.map, state.explored, state.vision, state.concealed])
   /** Último toque nos botões + e − (o `PlayerView` aplica o degrau) e o que eles ainda podem fazer. */
   const [zoomStep, setZoomStep] = useState<ZoomStepRequest>(NO_ZOOM_STEP)
   const [zoomLimits, setZoomLimits] = useState<ZoomLimits>({ canZoomIn: true, canZoomOut: true })
   const requestZoomStep = useCallback((direction: ZoomDirection, animate: boolean) => {
     setZoomStep((current) => ({ direction, animate, seq: current.seq + 1 }))
   }, [])
-  /**
-   * Menu das ações no ponto, aberto pelo toque longo: o ponto (mundo), onde o
-   * dedo estava (tela) e a época da cena em que abriu (`sceneEpoch`).
-   */
-  const [pointMenu, setPointMenu] = useState<{ x: number; y: number; screenX: number; screenY: number; sceneEpoch: number } | null>(null)
   /** Cada "Reconectar" conta uma tentativa nova e reinicia o prazo do aperto de mão. */
   const [attempt, setAttempt] = useState(0)
   const [handshakeOverdue, setHandshakeOverdue] = useState(false)
   const connecting = state.status === 'connecting'
+  // TELA NÃO APAGA: dentro da sala (esperando o mestre ou jogando) o celular
+  // não apaga a tela; expulso, sala encerrada, erro ou fora da sessão, solta.
+  const screenAwake = useScreenWakeLock(state.status === 'waiting' || state.status === 'playing')
 
   /**
    * "Conectando…" não tinha prazo, e essa era a tela mais cruel do app: o
@@ -570,16 +679,18 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // Escape apaga a medida e desliga o modo. Só escuta com o modo ligado, e
   // nunca dentro de campo de texto (lá o Escape é da edição).
   useEffect(() => {
-    if (!measureArmed && !laserArmed) return
+    if (!measureArmed && !laserArmed && !destinationArmed && !noteArmed) return
     const onKey = (event: KeyboardEvent) => {
       if (!escapeDisarmsMeasure(event.key, event.target)) return
-      // Os dois modos não ficam ligados juntos: o Escape desliga o que estiver.
+      // Os modos não ficam ligados juntos: o Escape desliga o que estiver.
       setMeasureArmed(false)
       setLaserArmed(false)
+      setDestinationArmed(false)
+      setNoteArmed(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [measureArmed, laserArmed])
+  }, [measureArmed, laserArmed, destinationArmed, noteArmed])
 
   const ownTokens = state.ownTokens ?? NO_TOKENS
   const map = state.map
@@ -644,7 +755,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const panelRef = useRef<HTMLElement | null>(null)
   const barRef = useRef<HTMLDivElement | null>(null)
   const mapObstacles = useCallback(() => coverBounds(panelRef.current, barRef.current), [])
-  const closePointMenu = useCallback(() => setPointMenu(null), [])
   // Trocou a cena ou saiu do jogo desde o toque longo: o ponto do menu é de
   // outro mapa, e o menu fecha em vez de pedir no lugar errado.
   const openPointMenu = pointMenu !== null && pointMenu.sceneEpoch === state.sceneEpoch ? pointMenu : null
@@ -656,6 +766,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     const actionNotice = latestActionNotice(state.doorNotice, state.moveNotice)
     // O aviso mais novo é o do movimento (o `id` dos dois sai do mesmo contador).
     const moveNoticeShown = actionNotice !== null && state.moveNotice?.id === actionNotice.id
+    // ANDAR ATÉ AQUI: quem anda é a primeira ficha dele nesta cena. Sem nenhuma,
+    // não há quem ande, e o menu do toque longo vem sem o item.
+    const playingMap = state.map
+    const walkerId = ownTokens.flatMap((id) => playingMap.tokens.filter((t) => t.id === id)).at(0)?.id ?? null
     // Cartão de pista na tela: o Escape é dele, e um toque não pode fechar também o recado.
     const clueCardOpen = openClue !== null || (state.shownClue !== undefined && openPin === null)
     return (
@@ -685,9 +799,16 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             // só se ele escolher Sinalizar: Espiar e Revistar ficam discretos.
             connection.sendSignal(x, y, 'master')
             // A câmera arrasta além da borda: fora do mapa não há o que procurar.
-            if (map !== undefined && isPointInsideMap(map, x, y)) setPointMenu({ x, y, screenX, screenY, sceneEpoch: state.sceneEpoch })
+            if (map !== undefined && isPointInsideMap(map, x, y)) setPointMenu({ x, y, screenX, screenY, sceneEpoch: state.sceneEpoch, tokenId: walkerId })
           }}
           onMapPointerDown={closePointMenu}
+          destinations={state.destinations ?? NO_DESTINATIONS}
+          destinationArmed={destinationArmed}
+          onDestination={(x, y) => {
+            connection.markDestination(x, y)
+            // Modo de um toque, como o Sinalizar: marcou, desliga.
+            setDestinationArmed(false)
+          }}
           measureArmed={measureArmed}
           laserArmed={laserArmed}
           ownLaserColor={ownLaserColor}
@@ -698,6 +819,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           onPinOpen={openPinCard}
           onRoomOpen={(regionId) => connection.openRoomText(regionId)}
           focusObstacles={mapObstacles}
+          personalNotes={sceneNotes}
+          onNoteLongPress={removeNote}
+          noteArmed={noteArmed}
+          onNotePlace={(x, y) => {
+            // Modo de um toque, como o Marcar destino: marcou o ponto, desliga e pede o texto. Nada vai ao mestre.
+            setNoteArmed(false)
+            setNoteDraft({ mapId: playingMap.id, x, y })
+          }}
+          focusPoint={pointFocus}
           zoomStep={zoomStep}
           onZoomLimitsChange={setZoomLimits}
         />
@@ -709,26 +839,62 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           settings={settings}
           onSettingsChange={changeSettings}
           onFocusToken={(tokenId) => setFocus((current) => ({ tokenId, seq: current.seq + 1 }))}
+          onFocusPoint={(point) => focusOnPoint(point.x, point.y)}
+          pins={state.map.pins ?? NO_PINS}
+          places={state.places ?? NO_PLACES}
+          currentPlace={state.place}
+          placeNames={placeNames}
+          onRenamePlace={renamePlace}
           signalArmed={signalArmed}
           onToggleSignal={() => {
             // Sinalizar, Medir e Laser disputam o mesmo toque no mapa: ligar um desliga os outros.
             setSignalArmed((armed) => !armed)
             setMeasureArmed(false)
             setLaserArmed(false)
+            setDestinationArmed(false)
+            setNoteArmed(false)
           }}
           measureArmed={measureArmed}
           onToggleMeasure={() => {
             setMeasureArmed((armed) => !armed)
             setSignalArmed(false)
             setLaserArmed(false)
+            setDestinationArmed(false)
+            setNoteArmed(false)
           }}
           laserArmed={laserArmed}
           onToggleLaser={() => {
             setLaserArmed((armed) => !armed)
             setSignalArmed(false)
             setMeasureArmed(false)
+            setDestinationArmed(false)
+            setNoteArmed(false)
+          }}
+          destinationArmed={destinationArmed}
+          onToggleDestination={() => {
+            setDestinationArmed((armed) => !armed)
+            setSignalArmed(false)
+            setMeasureArmed(false)
+            setLaserArmed(false)
+            setNoteArmed(false)
           }}
           party={state.party}
+          noteArmed={noteArmed}
+          onToggleNote={() => {
+            setNoteArmed((armed) => !armed)
+            setSignalArmed(false)
+            setMeasureArmed(false)
+            setLaserArmed(false)
+            setDestinationArmed(false)
+          }}
+          personalNotes={sceneNotes}
+          onFocusNote={(noteId) => {
+            const note = sceneNotes.find((n) => n.id === noteId)
+            if (note !== undefined) focusOnPoint(note.x, note.y)
+          }}
+          onRemoveNote={removeNote}
+          hasDestination={(state.destinations ?? NO_DESTINATIONS).some((mark) => mark.mine)}
+          onClearDestination={() => connection.clearDestination()}
           onRenameToken={(tokenId, name) => connection.setOwnTokenName(tokenId, name)}
           onChangeTokenPhoto={async (tokenId, file) => {
             // A foto é reduzida AQUI, antes de sair da máquina do jogador: é
@@ -745,10 +911,26 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             setOpenClueId(clueId)
           }}
           backpack={{ ...backpack, onGive: (itemId, toTokenId) => void connection.giveItem(itemId, toTokenId) }}
+          onRollDice={(request) => connection.rollDice(request)}
         />
+        {/* DADO ROLADO NA SALA: as últimas rolagens da mesa, sobre o mapa, acima do zoom. Não é controle: fora da ordem do Tab. */}
+        <DiceFeed rolls={state.diceRolls ?? NO_DICE_ROLLS} className="pp-dice-feed" />
+        {/* "Onde estou": só com nome público na cena; não é controle, fica fora da ordem do Tab. */}
+        <PlayerSceneName name={state.sceneName} />
+        <PlayerScreenAwake active={screenAwake} />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
+        {noteDraft && (
+          <PersonalNoteDraft
+            onSave={(text) => {
+              const { mapId, x, y } = noteDraft
+              changePersonalNotes((notes) => addPersonalNote(notes, { id: newPersonalNoteId(), mapId, x, y, text }))
+              setNoteDraft(null)
+            }}
+            onCancel={cancelNoteDraft}
+          />
+        )}
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}
@@ -854,6 +1036,18 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               connection.sendPointAction(action, openPointMenu.x, openPointMenu.y)
               setPointMenu(null)
             }}
+            walk={
+              openPointMenu.tokenId === null
+                ? undefined
+                : {
+                    canWalk: pointMenuLegs !== null,
+                    onWalk: () => {
+                      // Cada trecho vai ao mestre como um movimento comum, validado lá; a recusa aparece no aviso de baixo.
+                      if (pointMenuLegs !== null && openPointMenu.tokenId !== null) connection.requestWalk(openPointMenu.tokenId, pointMenuLegs)
+                      setPointMenu(null)
+                    },
+                  }
+            }
             onClose={closePointMenu}
           />
         )}
@@ -909,6 +1103,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           onRename={() => onLeave({ text: 'Escolha outro nome e entre de novo.', tone: 'info' })}
           onLeave={onQuit}
         />
+        <PlayerScreenAwake active={screenAwake} />
       </>
     )
   }

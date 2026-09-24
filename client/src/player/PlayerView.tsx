@@ -21,6 +21,8 @@ import { fitCamera, panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import { arrivalCamera, centeredCamera, firstOwnToken } from './playerCamera'
+import { fireLongPress } from './playerLongPress'
+import { createPlayerCuller, type PlayerCuller } from './playerCulling'
 import { drawOwnerPulse, drawOwnerRing, ownerRingOuterPx } from './ownerMarker'
 import { drawGrid } from '../pixi/drawGrid'
 import { currentRendererResolution, watchDevicePixelRatio } from '../pixi/rendererResolution'
@@ -50,12 +52,12 @@ import { tokenConditionsOf } from '../lib/tokenConditions'
 import { CONDITION_MARKS_LABEL, drawTokenConditions } from '../pixi/drawTokenConditions'
 import { watchAlertOf } from '../lib/npcWatch'
 import { WATCH_ALERT_LABEL, drawWatchAlert } from '../pixi/drawNpcWatch'
-import { createRoomNamesRenderer, findRoomLabelAt } from '../pixi/drawRoomNames'
+import { createRoomNamesRenderer, findRoomLabelAt, tokenLabelObstacles, type LabelObstacle } from '../pixi/drawRoomNames'
 import { hasEnterText } from '../lib/roomText'
 import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
 import { isDegenerateRegion } from '../pixi/shapes'
-import { createSignalsRenderer } from '../pixi/drawSignals'
-import { SIGNAL_LONG_PRESS_MS, SIGNAL_LONG_PRESS_TOLERANCE_PX, type SignalMark } from '../lib/signals'
+import { createDestinationsRenderer, createSignalsRenderer } from '../pixi/drawSignals'
+import { SIGNAL_LONG_PRESS_MS, SIGNAL_LONG_PRESS_TOLERANCE_PX, type DestinationMark, type SignalMark } from '../lib/signals'
 import { createLaserPool, createLaserRenderer } from '../pixi/drawLaser'
 import { appendLaserPoints, pruneLaserTrail, type LaserTrail, type RemoteLaser } from '../lib/laser'
 import type { PlayerViewSettings } from './PlayerPanel'
@@ -70,7 +72,6 @@ import {
   type PlayerMeasureState,
 } from './playerMeasure'
 import { drawPlayerMeasure, drawPlayerTokenDrag } from './drawPlayerMeasure'
-import { fireLongPress } from './playerLongPress'
 import { createTokenGlides, stepGlides, syncGlide, type TokenGlides } from './tokenGlide'
 import { applyTokenTouch, prepareTokenLayer } from './tokenTouch'
 import {
@@ -94,6 +95,15 @@ import { drawFacingNib, facingLabelOffset, tokenFacing } from './facingMarker'
 import { createTokenTurns, stepTurns, syncTurn, type TokenTurns } from './tokenTurn'
 import { previewTokenDrag } from './playerTokenDrag'
 import { reachOutline } from '../lib/movementRules'
+import { personalNoteAtScreen, type PersonalNote } from './personalNotes'
+import { createPersonalNotesRenderer } from './drawPersonalNotes'
+
+/** Pedido de "leve a câmera até este ponto" (Minhas notas e os pontos conhecidos da aba Lugares). */
+export interface FocusPointRequest {
+  x: number
+  y: number
+  seq: number
+}
 
 interface PlayerViewProps {
   map: MapData
@@ -117,11 +127,17 @@ interface PlayerViewProps {
   /** Botão "Sinalizar" ligado: o próximo toque no mapa vira sinal em vez de arrasto. */
   signalArmed?: boolean
   onSignal?: (x: number, y: number) => void
+  /** Marcas "vamos para cá" que o host deixou ver (a própria inclusa). Ficam até o host trocar a lista. */
+  destinations?: readonly DestinationMark[]
+  /** Botão "Marcar destino" ligado: o próximo toque no mapa põe a marca em vez de arrastar. */
+  destinationArmed?: boolean
+  onDestination?: (x: number, y: number) => void
   /**
    * AÇÕES NO PONTO: o toque longo venceu em (`x`, `y`) de mundo, com o dedo em
-   * (`screenX`, `screenY`) de tela. Quem monta abre ali o menu
-   * Sinalizar/Procurar/Escutar/Espiar/Revistar e decide o sinal: com isto, o
-   * toque longo NÃO chama `onSignal`; sem isto, chama (o sinal de sempre).
+   * (`screenX`, `screenY`) de tela (px da janela). Quem monta abre ali o menu
+   * Sinalizar/Procurar/Escutar/Espiar/Revistar (e "Andar até aqui") e decide
+   * o sinal: com isto, o toque longo NÃO chama `onSignal`; sem isto, chama (o
+   * sinal de sempre). Um gesto, um menu.
    */
   onLongPress?: (x: number, y: number, screenX: number, screenY: number) => void
   /** Qualquer toque no mapa: o menu do toque longo anterior fecha. */
@@ -158,6 +174,18 @@ interface PlayerViewProps {
    * elas deixam livre, e nunca faz a ficha nascer debaixo delas.
    */
   focusObstacles?: () => Bounds[]
+  /**
+   * ANOTAÇÕES PESSOAIS desta cena (só deste aparelho): quadradinho com o
+   * texto, em tamanho fixo de tela. Toque longo em cima de uma chama
+   * `onNoteLongPress` (apagar) no lugar do sinal e do menu do ponto.
+   */
+  personalNotes?: readonly PersonalNote[]
+  onNoteLongPress?: (noteId: string) => void
+  /** Botão "Anotar" ligado: o próximo toque no mapa marca onde vai a nota, em vez de arrastar. */
+  noteArmed?: boolean
+  onNotePlace?: (x: number, y: number) => void
+  /** Ponto (px de mundo) a centralizar, como `focusTokenId`; `seq` novo = um pedido novo. */
+  focusPoint?: FocusPointRequest | null
   /** Degrau pedido pelos botões + e − (`PlayerZoomControls`): `seq` novo = um degrau, em volta do centro da tela. */
   zoomStep?: ZoomStepRequest
   /** Chegou ao zoom máximo ou mínimo, ou saiu dele: os botões mostram o que ainda dá para fazer. */
@@ -285,8 +313,11 @@ function rasterizeMap(map: MapData): Texture | null {
 
 /** Paredes visíveis ao jogador, respeitando as camadas ocultas do mestre (mesma regra do raster). */
 function visibleWalls(map: MapData): Wall[] {
-  const hidden = map.hiddenLayers
-  return map.walls.filter((w) => (w.door === null ? !hidden.includes('paredes') : !hidden.includes('portas')))
+  return wallsOnVisibleLayers(map.walls, map.hiddenLayers)
+}
+
+function wallsOnVisibleLayers(walls: readonly Wall[], hidden: MapData['hiddenLayers']): Wall[] {
+  return walls.filter((w) => (w.door === null ? !hidden.includes('paredes') : !hidden.includes('portas')))
 }
 
 /** Grade inteira do mapa: o viewport é o próprio retângulo do mapa, e a máscara (silhueta do piso) corta o resto.
@@ -341,6 +372,34 @@ interface TokenView {
 
 function tokenRadius(token: Token, grid: number): number {
   return Math.max((grid / 2) * token.size, 4)
+}
+
+/** Altura da linha do nome da ficha, em múltiplos da fonte: as letras e o contorno escuro em volta delas. */
+const TOKEN_LABEL_LINE_PER_FONT = 1.5
+
+/**
+ * O que cada ficha à vista ocupa no mapa — o disco e a faixa do nome embaixo
+ * dele —, para o nome da sala sair de baixo dela (`pixi/drawRoomNames.ts`). A
+ * faixa do nome vai de onde ele começa sem frente até onde termina com frente
+ * (o bico empurra o nome para baixo), medida no zoom 1: é a régua sem
+ * compensação de zoom que escolhe o lugar do nome, que assim não anda enquanto
+ * o jogador dá zoom. Desenho e toque usam esta mesma lista.
+ */
+function roomLabelObstacles(map: MapData): LabelObstacle[] {
+  return map.tokens.flatMap((token) => {
+    const radius = tokenRadius(token, map.grid)
+    // O mesmo topo do nome que `syncFacingNib` usa: abaixo da barra de vida quando ela existe.
+    const nameTop = tokenLabelTop(radius, readTokenHealth(token.health) !== null)
+    return tokenLabelObstacles({
+      x: token.x,
+      y: token.y,
+      radius,
+      name: token.name,
+      nameFontSize: LABEL_FONT_SIZE,
+      nameTop,
+      nameBottom: Math.max(facingLabelOffset(radius, 1, true), nameTop) + LABEL_FONT_SIZE * TOKEN_LABEL_LINE_PER_FONT,
+    })
+  })
 }
 
 /**
@@ -586,7 +645,17 @@ interface Scene {
   doorHintsCount: number
   /** Paredes e portas têm espessura em px de tela: a chave inclui zoom e resolução. */
   lastWallsKey: string | null
+  /** Paredes que CHEGARAM (camadas visíveis): o que os e2e contam. */
   wallsCount: number
+  /**
+   * CENA GRANDE NO CELULAR (`playerCulling.ts`): só vira desenho a planta perto
+   * da ficha e a que o jogador já viu; o resto está debaixo da névoa preta.
+   */
+  culler: PlayerCuller
+  /** Paredes que viraram traço no Pixi depois do recorte de desenho. */
+  wallsDrawn: number
+  /** Peças de chão que entraram no contorno depois do recorte de desenho. */
+  floorDrawn: number
   roomNames: Container
   roomNamesRenderer: ReturnType<typeof createRoomNamesRenderer>
   textLabels: Container
@@ -647,6 +716,9 @@ interface Scene {
   /** Espaço de tela, acima do `world`: ondas e seta de borda com tamanho fixo. */
   signalsLayer: Container
   signalsRenderer: ReturnType<typeof createSignalsRenderer>
+  /** Bandeirinhas "vamos para cá", no mesmo espaço de tela dos sinais, abaixo das ondas. */
+  destinationsLayer: Container
+  destinationsRenderer: ReturnType<typeof createDestinationsRenderer>
   /**
    * Régua do jogador, em espaço de tela como os sinais. O estado mora aqui (e
    * não no React) de propósito: o arrasto atualiza a cada pointermove, e
@@ -678,6 +750,8 @@ interface Scene {
 
 /** Referência estável para o padrão da prop: sem sinais, nada muda entre renders. */
 const NO_SIGNALS: readonly SignalMark[] = []
+const NO_DESTINATIONS: readonly DestinationMark[] = []
+const NO_PERSONAL_NOTES: readonly PersonalNote[] = []
 const NO_PLAYER_LASERS: readonly RemoteLaser[] = []
 const NO_OWN_LASER: LaserTrail = { points: [], on: false }
 /** Rótulo da ponta do próprio laser: o nome de quem aponta é o dos outros, o seu é "Você". */
@@ -894,6 +968,9 @@ export function PlayerView({
   onSignal,
   onLongPress,
   onMapPointerDown,
+  destinations = NO_DESTINATIONS,
+  destinationArmed = false,
+  onDestination,
   measureArmed = false,
   onDoorToggle,
   onPinOpen,
@@ -905,6 +982,11 @@ export function PlayerView({
   onLaserEnd,
   playerLasers = NO_PLAYER_LASERS,
   focusObstacles,
+  personalNotes = NO_PERSONAL_NOTES,
+  onNoteLongPress,
+  noteArmed = false,
+  onNotePlace,
+  focusPoint = null,
   zoomStep = NO_ZOOM_STEP,
   onZoomLimitsChange,
   mirror = false,
@@ -928,6 +1010,9 @@ export function PlayerView({
     onSignal,
     onLongPress,
     onMapPointerDown,
+    destinations,
+    destinationArmed,
+    onDestination,
     measureArmed,
     onDoorToggle,
     onPinOpen,
@@ -939,6 +1024,10 @@ export function PlayerView({
     onLaserEnd,
     playerLasers,
     focusObstacles,
+    personalNotes,
+    onNoteLongPress,
+    noteArmed,
+    onNotePlace,
     onZoomLimitsChange,
   }
   const latestRef = useRef(latest)
@@ -1082,13 +1171,17 @@ export function PlayerView({
 
   /** Mesmo desenho do editor (linha clara fina, porta retângulo), em px de tela. */
   function redrawWallsLayer(scene: Scene): void {
-    const walls = visibleWalls(latestRef.current.map)
+    const { map: currentMap, vision: currentVision, explored: currentExplored } = latestRef.current
+    // Só a planta perto da ficha e a já vista: o resto está debaixo do preto
+    // (`playerCulling.ts`). Mesma entrada devolve o mesmo recorte: o zoom não refaz.
+    const drawn = scene.culler.cull(currentMap, currentVision, currentExplored).walls
+    const walls = wallsOnVisibleLayers(drawn, currentMap.hiddenLayers)
     const { scale } = scene.camera
     const res = scene.app.renderer.resolution
     const key = JSON.stringify([walls, scale, res])
     if (key === scene.lastWallsKey) return
     scene.lastWallsKey = key
-    scene.wallsCount = walls.length
+    scene.wallsDrawn = walls.length
     drawWalls(scene.walls, walls, null, scale, res)
     drawDoors(scene.doors, walls, null, scale, res)
   }
@@ -1106,10 +1199,19 @@ export function PlayerView({
   function redrawLights(scene: Scene): void {
     const currentMap = latestRef.current.map
     const lights = visibleLights(currentMap.lights, currentMap.hiddenLayers)
+    // Sem luz não há sombra a recortar: nada de contornar o chão da cena
+    // inteira (numa cidade de milhares de salas, isso travava o celular).
+    if (lights.length === 0) {
+      const key = JSON.stringify([lights])
+      if (key === scene.lastLightsKey) return
+      scene.lastLightsKey = key
+      scene.lightsRenderer.draw(scene.lights, lights, { occluders: [], showMarkers: false })
+      return
+    }
     const walls = visibleWalls(currentMap)
-    // `lastFloorKey` já resume o chão (redrawFloor roda antes): evita um
-    // JSON.stringify do chão inteiro a cada snapshot só para esta camada.
-    const key = JSON.stringify([lights, walls, scene.lastFloorKey])
+    // A sombra usa o chão INTEIRO, não o recortado da tela (`lastFloorKey`
+    // muda a cada pedaço explorado e refaria o contorno da cena toda a cada passo).
+    const key = JSON.stringify([lights, walls, currentMap.floor])
     if (key === scene.lastLightsKey) return
     scene.lastLightsKey = key
     scene.lightsRenderer.draw(scene.lights, lights, {
@@ -1164,12 +1266,13 @@ export function PlayerView({
   /**
    * TEXTO DA SALA: Sala cujo NOME está sob o ponto da tela e cujo texto já
    * chegou ao jogador. A caixa do rótulo é medida com todas as Salas (o rótulo
-   * desvia das filhas); só depois se pergunta se aquela tem texto.
+   * desvia das filhas) e com as fichas (o rótulo sai de baixo delas), como no
+   * desenho; só depois se pergunta se aquela tem texto.
    */
   function roomTextAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
     const map = latestRef.current.map
     const point = scene.world.toLocal({ x: screenX, y: screenY })
-    const region = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), point, map.grid, scene.camera.scale)
+    const region = findRoomLabelAt(visibleRegions(map.regions, map.hiddenLayers), point, map.grid, scene.camera.scale, roomLabelObstacles(map))
     return region !== null && hasEnterText(region.room) ? region.id : null
   }
 
@@ -1205,7 +1308,16 @@ export function PlayerView({
     const worldHeight = currentMap.height * currentMap.grid
 
     redrawGridLayer(scene)
-    redrawFloor(scene, currentMap)
+    // Chão só da vizinhança conhecida: o contorno (caro) sai de dezenas de
+    // peças, não das milhares da cena. Ordem preservada (peça que apaga).
+    // Render fiel fica com o chão INTEIRO: ele rasteriza o mapa todo de uma
+    // vez, e recortar faria a chave do chão mudar a cada pedaço explorado —
+    // o mapa inteiro rasterizado de novo a cada passo.
+    const drawnFloor = isRasterMode(currentMap)
+      ? currentMap.floor
+      : scene.culler.cull(currentMap, currentVision, currentExplored).floor
+    scene.floorDrawn = drawnFloor.length
+    redrawFloor(scene, { ...currentMap, floor: drawnFloor })
 
     const regions = visibleRegions(currentMap.regions, hidden)
     scene.regionsRenderer.draw(scene.regions, regions)
@@ -1222,6 +1334,7 @@ export function PlayerView({
     redrawWallsLayer(scene)
     redrawDoorHints(scene)
     const walls = visibleWalls(currentMap)
+    scene.wallsCount = walls.length
     const wallsKey = JSON.stringify([walls, currentMap.grid])
     const raster = isRasterMode(currentMap)
     const floorPolygons = raster || hidden.includes('salas') ? [] : scene.floorRenderer.polygons()
@@ -1238,7 +1351,7 @@ export function PlayerView({
       scene.grid.visible = hasFloor
     }
 
-    scene.roomNamesRenderer.draw(scene.roomNames, regions, currentMap.grid, scene.camera.scale)
+    scene.roomNamesRenderer.draw(scene.roomNames, regions, currentMap.grid, scene.camera.scale, roomLabelObstacles(currentMap))
     scene.textLabelsRenderer.draw(scene.textLabels, drawings)
     scene.roomNames.visible = currentSettings.showNames
     scene.textLabels.visible = currentSettings.showNames
@@ -1323,6 +1436,8 @@ export function PlayerView({
     const el = containerRef.current
     if (el) {
       el.dataset.wallsCount = String(scene.wallsCount)
+      el.dataset.wallsDrawn = String(scene.wallsDrawn)
+      el.dataset.floorDrawn = String(scene.floorDrawn)
       el.dataset.tokensCount = String(currentMap.tokens.length)
       el.dataset.facingCount = String(facingCount)
       el.dataset.regionsCount = String(regions.filter((r) => !isDegenerateRegion(r.points)).length)
@@ -1370,7 +1485,9 @@ export function PlayerView({
     // Alt+clique ou modo Sinalizar sobre um token: deixa o evento subir para o palco sinalizar.
     // Modo Medir também: medir a partir da própria ficha é o caso mais comum, e ela não pode andar.
     // Modo Laser também: apontar a partir da própria ficha não pode arrastá-la.
-    if (event.altKey || latestRef.current.signalArmed || latestRef.current.measureArmed || latestRef.current.laserArmed) return
+    // "Marcar destino" também: marcar onde a própria ficha está é marcar, não andar. "Anotar", idem.
+    const current = latestRef.current
+    if (event.altKey || current.signalArmed || current.measureArmed || current.laserArmed || current.destinationArmed || current.noteArmed) return
     event.stopPropagation()
     // Outro gesto já em curso (o segundo dedo nem chega aqui: a captura do palco o fez pinça).
     if (scene.drag !== null) return
@@ -1492,6 +1609,9 @@ export function PlayerView({
       )
       const signalsLayer = new Container()
       signalsLayer.eventMode = 'none'
+      // Bandeirinhas "vamos para cá" dentro da camada dos sinais, nascida antes das ondas: ficam por baixo delas.
+      const destinationsLayer = new Container()
+      signalsLayer.addChild(destinationsLayer)
       // Laser do mestre acima dos sinais: é a mão de quem conduz a mesa.
       const laserLayer = new Container()
       laserLayer.eventMode = 'none'
@@ -1505,7 +1625,10 @@ export function PlayerView({
       // é só geometria da regra (quadrados a partir da ficha), não revela nada da névoa.
       const tokenDragLayer = new Graphics()
       tokenDragLayer.eventMode = 'none'
-      app.stage.addChild(world, pulseLayer, measureLayer, tokenDragLayer, signalsLayer, laserLayer)
+      // Anotações pessoais logo acima do mapa (e da névoa: a nota é de quem a pôs) e abaixo de régua e sinais.
+      const personalNotesLayer = new Container()
+      personalNotesLayer.eventMode = 'none'
+      app.stage.addChild(world, personalNotesLayer, pulseLayer, measureLayer, tokenDragLayer, signalsLayer, laserLayer)
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
@@ -1538,6 +1661,9 @@ export function PlayerView({
         doorHintsCount: 0,
         lastWallsKey: null,
         wallsCount: 0,
+        culler: createPlayerCuller(),
+        wallsDrawn: 0,
+        floorDrawn: 0,
         roomNames,
         roomNamesRenderer: createRoomNamesRenderer(),
         textLabels,
@@ -1579,6 +1705,8 @@ export function PlayerView({
         zoomAnimation: null,
         signalsLayer,
         signalsRenderer: createSignalsRenderer(),
+        destinationsLayer,
+        destinationsRenderer: createDestinationsRenderer(),
         measureLayer,
         measure: withMeasureArmed(MEASURE_OFF, latestRef.current.measureArmed),
         lastMeasureKey: null,
@@ -1623,6 +1751,34 @@ export function PlayerView({
         signalsDrawn = drawn
       }
       app.ticker.add(tickSignals)
+
+      // Marcas "vamos para cá": sem animação, mas presas à tela (tamanho fixo,
+      // seta na borda), então acompanham a câmera quadro a quadro.
+      let destinationsDrawn = 0
+      const tickDestinations = () => {
+        const current = latestRef.current.destinations
+        if (current.length === 0 && destinationsDrawn === 0) return
+        const viewport = { width: app.screen.width, height: app.screen.height }
+        const drawn = scene.destinationsRenderer.draw(scene.destinationsLayer, current, scene.camera, viewport)
+        // Para o e2e: quantas bandeirinhas o renderer desenhou de fato.
+        if (drawn !== destinationsDrawn) el.dataset.destinationsDrawn = String(drawn)
+        destinationsDrawn = drawn
+      }
+      app.ticker.add(tickDestinations)
+
+      // Anotações pessoais: paradas, mas presas à tela como as bandeirinhas, então acompanham a câmera.
+      const personalNotesRenderer = createPersonalNotesRenderer()
+      let personalNotesDrawn = 0
+      const tickPersonalNotes = () => {
+        const current = latestRef.current.personalNotes
+        if (current.length === 0 && personalNotesDrawn === 0) return
+        const viewport = { width: app.screen.width, height: app.screen.height }
+        const drawn = personalNotesRenderer.draw(personalNotesLayer, current, scene.camera, viewport)
+        // Para o e2e: quantas notas estão à vista de fato.
+        if (drawn !== personalNotesDrawn) el.dataset.personalNotesDrawn = String(drawn)
+        personalNotesDrawn = drawn
+      }
+      app.ticker.add(tickPersonalNotes)
 
       const laserRenderer = createLaserRenderer()
       let laserDrawn = 0
@@ -1788,6 +1944,20 @@ export function PlayerView({
           pointOwnLaser(x, y)
           return
         }
+        if (latestRef.current.destinationArmed) {
+          // Com "Marcar destino", o toque põe a marca: nem câmera, nem sinal, nem cartão de pino.
+          cancelLongPress()
+          const point = scene.world.toLocal({ x, y })
+          latestRef.current.onDestination?.(point.x, point.y)
+          return
+        }
+        if (latestRef.current.noteArmed) {
+          // Com "Anotar", o toque marca onde vai a nota: nem câmera, nem sinal, nem cartão de pino.
+          cancelLongPress()
+          const point = scene.world.toLocal({ x, y })
+          latestRef.current.onNotePlace?.(point.x, point.y)
+          return
+        }
         if (event.altKey || latestRef.current.signalArmed) {
           sendSignalAt(x, y)
           return
@@ -1803,8 +1973,16 @@ export function PlayerView({
           longPress = null
           // Virou sinal: o gesto não continua como arrasto de câmera.
           if (scene.drag?.kind === 'pan') scene.drag = null
-          // Com as ações no ponto, o menu Sinalizar/Procurar/...; sem elas, o sinal.
-          fireLongPress(scene.world.toLocal({ x, y }), { x, y }, latestRef.current)
+          // Segurou em cima da própria anotação: o gesto é dela (apagar), sem sinal e sem menu do ponto.
+          const note = personalNoteAtScreen(latestRef.current.personalNotes, { x, y }, scene.camera)
+          if (note !== null && latestRef.current.onNoteLongPress !== undefined) {
+            latestRef.current.onNoteLongPress(note)
+            return
+          }
+          // Com o menu do ponto montado, o gesto é dele (sinal e menu); sem ele, o sinal.
+          // A tela vai em px da janela: é onde o menu abre.
+          const rect = app.canvas.getBoundingClientRect()
+          fireLongPress(scene.world.toLocal({ x, y }), { x: rect.left + x, y: rect.top + y }, latestRef.current)
         }, SIGNAL_LONG_PRESS_MS)
         longPress = { timer, pointerId, x, y }
       })
@@ -1830,7 +2008,7 @@ export function PlayerView({
         const drag = scene.drag
         if (!drag) {
           // Mouse parado sobre porta: cursor de mão (no celular não existe hover).
-          if (latestRef.current.measureArmed || latestRef.current.laserArmed) {
+          if (latestRef.current.measureArmed || latestRef.current.laserArmed || latestRef.current.destinationArmed || latestRef.current.noteArmed) {
             app.stage.cursor = 'crosshair'
             return
           }
@@ -1980,6 +2158,8 @@ export function PlayerView({
         cancelLongPress()
         app.ticker.remove(tickZoom)
         app.ticker.remove(tickSignals)
+        app.ticker.remove(tickDestinations)
+        app.ticker.remove(tickPersonalNotes)
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)
         app.ticker.remove(tickMeasure)
@@ -2048,6 +2228,17 @@ export function PlayerView({
     // Só um pedido novo (focusSeq) move a câmera; snapshot com o token andando não.
   }, [focusSeq])
 
+  const focusPointSeq = focusPoint?.seq ?? null
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (!scene || focusPoint === null) return
+    // "Minhas notas": a nota no meio do que o painel deixa livre, no zoom de agora — o mesmo enquadramento de "Minha ficha".
+    const viewport = { width: scene.app.screen.width, height: scene.app.screen.height }
+    const scale = scene.zoomAnimation?.to ?? scene.camera.scale
+    setCameraFromApp(scene, centeredCamera(scale, focusPoint, viewport, readObstacles()))
+    // Só um pedido novo (seq) move a câmera; re-render com o mesmo pedido não.
+  }, [focusPointSeq])
+
   useEffect(() => {
     // Só um toque novo nos botões (`seq`) dá um degrau; remontar com o mesmo pedido, não.
     if (zoomStep.seq === handledZoomSeqRef.current) return
@@ -2080,7 +2271,7 @@ export function PlayerView({
         style={
           mirror
             ? { position: 'absolute', inset: 0, pointerEvents: 'none' }
-            : { position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed || laserArmed ? 'crosshair' : undefined }
+            : { position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed || laserArmed || destinationArmed || noteArmed ? 'crosshair' : undefined }
         }
       />
 

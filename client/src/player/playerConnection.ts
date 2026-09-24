@@ -28,7 +28,7 @@ import {
 import { carriedItemsOf, cleanItemName, itemOfPin } from '../lib/items'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 import { isPlayerSafePinImage, passageOf } from '../lib/pins'
-import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
+import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type DestinationMark, type SignalMark } from '../lib/signals'
 import {
   LASER_MAX_POINTS_PER_MESSAGE,
   LASER_SEND_INTERVAL_MS,
@@ -47,6 +47,8 @@ import {
   isCallReason,
   parseCallReply,
   parseClueMessage,
+  parseDestinationsMessage,
+  parseDiceRolled,
   parseLaserMessage,
   parseNotebook,
   parsePartyUpdate,
@@ -63,10 +65,15 @@ import {
   type PartyMember,
   type PointActionReply,
 } from '../net/protocol'
+import { DICE_FEED_MAX, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
 import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
+import { SCENE_PUBLIC_NAME_MAX_LENGTH } from '../lib/adventure'
+import { TOKEN_GLIDE_MS } from './tokenGlide'
+import { parseSnapshotPlaces, type SnapshotPlaces } from '../net/protocol'
+import { rememberPlace, type VisitedPlace } from './playerPlaces'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -104,6 +111,11 @@ export interface PlayerState {
   turn?: string
   /** Sinais recebidos ainda vivos (somem sozinhos depois de `SIGNAL_TTL_MS`). */
   signals?: SignalMark[]
+  /**
+   * Marcas "vamos para cá" que o host deixou este jogador ver (a própria vem
+   * com `mine`). Sem prazo: cada `destinations` do host troca a lista inteira.
+   */
+  destinations?: DestinationMark[]
   /** Rastro do laser do mestre; some sozinho `LASER_TRAIL_MS` depois da última mensagem com o laser desligado. */
   laser?: LaserTrail
   /** Lasers dos OUTROS jogadores da mesma cena, um por jogador, na cor da ficha dele. */
@@ -197,6 +209,26 @@ export interface PlayerState {
    * Texto puro, como o recado.
    */
   alarm?: { id: string; text: string }
+  /**
+   * "ONDE ESTOU": o nome para os jogadores da cena onde ele está, do último
+   * snapshot. Ausente = a cena não tem nome público, e o selo não aparece.
+   */
+  sceneName?: string
+  /**
+   * DADO ROLADO NA SALA: as rolagens da mesa que chegaram (a dele também só
+   * aparece quando o host devolve), da mais antiga à mais nova, até
+   * `DICE_FEED_MAX`. É do jogador, não da cena: trocar de cena não apaga.
+   */
+  diceRolls?: DiceRollEntry[]
+  /**
+   * LUGARES: os lugares por onde o jogador passou, na ordem da primeira visita,
+   * cada um com o desenho do último recorte que ele recebeu lá. É do jogador,
+   * não da cena: aguardar o mestre ou reconectar não apaga; só o que o host
+   * deixou de lembrar (`snapshot.places`) sai.
+   */
+  places?: VisitedPlace[]
+  /** Id do lugar onde ele está agora (`snapshot.place`); ausente fora de cena ou com mestre antigo. */
+  place?: string
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -328,13 +360,29 @@ export const TABLE_SCREEN_NAME = 'Tela da mesa'
 export interface PlayerConnection {
   getState(): PlayerState
   subscribe(listener: () => void): () => void
-  /** Move otimista: aplica local e envia. `false` se o token não existe ou o socket não está aberto. */
+  /**
+   * Move otimista: aplica local e envia. `false` se o token não existe ou o
+   * socket não está aberto. Para a caminhada do "Andar até aqui", se houver.
+   */
   requestMove(tokenId: string, x: number, y: number): boolean
+  /**
+   * ANDAR ATÉ AQUI: `legs` são os fins de cada trecho reto (o último é o
+   * destino). Sai o primeiro trecho; cada seguinte sai depois que o host
+   * aceitou o anterior e a ficha deslizou até a esquina
+   * (`WALK_LEG_PAUSE_MS`). Recusa do host, arrasto da ficha ou troca de cena
+   * param a caminhada. `false` (e nada sai) sem trecho, com ponto inválido,
+   * token fora do mapa, fora de jogo ou socket fechado.
+   */
+  requestWalk(tokenId: string, legs: readonly { x: number; y: number }[]): boolean
   /**
    * Sinal no ponto (px de mundo). `audience: 'master'` só o mestre vê (o do
    * toque longo). `false` se não está jogando ou o socket não está aberto.
    */
   sendSignal(x: number, y: number, audience?: SignalAudience): boolean
+  /** Põe (ou move) a marca "vamos para cá" no ponto (px de mundo). `false` se não está jogando ou o socket não está aberto. */
+  markDestination(x: number, y: number): boolean
+  /** "Tirar marca". `false` se não está jogando ou o socket não está aberto. */
+  clearDestination(): boolean
   /** Pede ao mestre para abrir/fechar a porta. `false` se não está jogando ou o socket não está aberto. */
   toggleDoor(wallId: string): boolean
   /**
@@ -422,6 +470,12 @@ export interface PlayerConnection {
   raiseHand(reason: CallReason, text?: string): boolean
   /** Baixa a mão antes de o mestre ver. `false` se ela não estava levantada ou o socket não está aberto. */
   lowerHand(): boolean
+  /**
+   * DADO ROLADO NA SALA: pede a rolagem ao host (quem rola é ele; o resultado
+   * volta em `diceRolls`, igual para a mesa). `false` (e nada sai) com pedido
+   * fora da faixa ou socket fechado.
+   */
+  rollDice(request: DiceRequest): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   /**
@@ -531,6 +585,23 @@ export function reconnectDelayMs(attempt: number): number {
   return Math.min(RECONNECT_MAX_DELAY_MS, RECONNECT_FIRST_DELAY_MS * 2 ** exponent)
 }
 
+/**
+ * Pausa entre um trecho aceito e o próximo do "Andar até aqui": o tempo do
+ * deslize da ficha, para a esquina aparecer na tela antes da curva.
+ */
+export const WALK_LEG_PAUSE_MS = TOKEN_GLIDE_MS
+
+/** Caminhada em curso: os trechos que faltam e o pedido que espera o host. */
+interface Walk {
+  tokenId: string
+  legs: { x: number; y: number }[]
+  /** Trecho enviado e ainda sem resposta; `null` entre trechos. */
+  reqId: string | null
+  timer: ReturnType<typeof setTimeout> | null
+  /** Última esquina que o host aceitou; `null` até o primeiro aceite. */
+  at: { x: number; y: number } | null
+}
+
 interface PendingMove {
   tokenId: string
   x: number
@@ -567,6 +638,11 @@ function isStringList(value: unknown): value is string[] {
 /** Id de ficha como o protocolo aceita (mesmo teto de `tokenId` em `net/protocol.ts`). */
 function isBoundedId(value: unknown): value is string {
   return typeof value === 'string' && value.length >= 1 && value.length <= REQ_ID_MAX_LENGTH
+}
+
+/** Nome de cena que o selo pode mostrar: texto não vazio, no teto do mestre. */
+function isSceneName(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= SCENE_PUBLIC_NAME_MAX_LENGTH
 }
 
 /**
@@ -639,6 +715,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   const storage = isTable ? null : options.storage
   const listeners = new Set<() => void>()
   const pending = new Map<string, PendingMove>()
+  let walk: Walk | null = null
   let state: PlayerState = { status: 'connecting', rev: -1, sceneEpoch: 0 }
   let socket: SocketLike | null = null
   let pingTimer: ReturnType<typeof setInterval> | null = null
@@ -1187,6 +1264,75 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     handleSocketLost()
   }
 
+  /**
+   * Move otimista: aplica local e envia. Devolve o `reqId` do pedido, ou
+   * `null` se o token não existe ou o socket não está aberto.
+   */
+  function sendMove(tokenId: string, x: number, y: number): string | null {
+    const map = state.map
+    const token = map?.tokens.find((t) => t.id === tokenId)
+    if (!map || !token) return null
+    const reqId = `m${nextReqId++}`
+    if (!send({ type: 'token.move', reqId, tokenId, x, y })) return null
+    pending.set(reqId, { tokenId, x, y, prevX: token.x, prevY: token.y })
+    // Mexeu a ficha depois de mudar de lugar (chegou, foi levado ou
+    // reunido): já viu onde está, o aviso sai.
+    const phase = state.travel?.phase
+    if (phase === 'gathered' || phase === 'arrived' || phase === 'moved') {
+      clearTravelTimer()
+      setState({ map: withTokenAt(map, tokenId, x, y), travel: undefined })
+      return reqId
+    }
+    setState({ map: withTokenAt(map, tokenId, x, y) })
+    return reqId
+  }
+
+  function stopWalk(): void {
+    if (walk !== null && walk.timer !== null) clearTimeout(walk.timer)
+    walk = null
+  }
+
+  /** Manda o próximo trecho da caminhada; sem trecho, ou sem jogo, ela acaba. */
+  function stepWalk(): void {
+    const current = walk
+    if (current === null) return
+    const next = current.legs.shift()
+    if (next === undefined || state.status !== 'playing') {
+      walk = null
+      return
+    }
+    const reqId = sendMove(current.tokenId, next.x, next.y)
+    if (reqId === null) {
+      walk = null
+      return
+    }
+    current.reqId = reqId
+  }
+
+  /** O host aceitou o trecho: o próximo sai depois de a ficha deslizar até a esquina. */
+  function continueWalk(reqId: string, x: number, y: number): void {
+    const current = walk
+    if (current === null || current.reqId !== reqId) return
+    current.reqId = null
+    current.at = { x, y }
+    current.timer = setTimeout(() => {
+      current.timer = null
+      if (walk === current) stepWalk()
+    }, WALK_LEG_PAUSE_MS)
+  }
+
+  /**
+   * Entre trechos, a ficha que anda saiu da última esquina aceita (ou sumiu do
+   * mapa)? Foi o mestre: seguir puxaria a ficha de volta e desfaria a ação dele.
+   * Com trecho em voo não dá para saber (o snapshot pode ser de antes do trecho).
+   */
+  function walkMovedByOthers(map: MapData): boolean {
+    if (walk === null || walk.reqId !== null || walk.at === null) return false
+    const { tokenId, at } = walk
+    const token = map.tokens.find((t) => t.id === tokenId)
+    return token === undefined || token.x !== at.x || token.y !== at.y
+  }
+
   function hasNewerPending(reqId: string, tokenId: string): PendingMove | null {
     let seen = false
     for (const [id, move] of pending) {
@@ -1206,8 +1352,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     turn: string | undefined,
     partyTokens: string[],
     hazards: PlayerHazard[],
+    sceneName: string | undefined,
+    where: SnapshotPlaces,
   ): void {
     if (rev <= state.rev) return
+    // Outra cena: o resto do caminho era do mapa de antes.
+    if (state.map !== undefined && state.map.id !== map.id) stopWalk()
+    else if (walkMovedByOthers(map)) stopWalk()
     let next = map
     // Reaplica, em ordem, só os movimentos ainda não confirmados pelo mestre.
     for (const [reqId, move] of pending) {
@@ -1222,13 +1373,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }
     // Vez de ficha que não veio no mapa não tem o que destacar: vale como ninguém.
     const turnOnMap = turn !== undefined && next.tokens.some((t) => t.id === turn) ? turn : undefined
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, hazards, turn: turnOnMap, error: undefined })
+    // LUGARES: o desenho sai do recorte do MESTRE (`map`), não do `next` com os
+    // movimentos otimistas — e nem leva ficha nenhuma (`placeSketch`).
+    const { place, places: remembered } = where
+    const places = place === undefined ? state.places : rememberPlace(state.places ?? [], place, map, explored, concealed, remembered)
+    // `sceneName` entra SEMPRE, inclusive `undefined`: snapshot sem nome apaga o selo da cena anterior.
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, hazards, turn: turnOnMap, sceneName, place, places, error: undefined })
   }
 
   /** Desfaz o movimento recusado. `false` = pedido desconhecido (já resolvido, ou de antes de trocar de cena). */
   function handleRejected(reqId: string, reason: unknown): boolean {
     const move = pending.get(reqId)
     if (!move) return false
+    // Trecho recusado: a caminhada para na última esquina aceita.
+    if (walk?.reqId === reqId) stopWalk()
     const newer = hasNewerPending(reqId, move.tokenId)
     pending.delete(reqId)
     // Motivo que esta versão não conhece: desfaz igual, só não inventa frase.
@@ -1248,6 +1406,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (!move) return
     const newer = hasNewerPending(reqId, move.tokenId)
     pending.delete(reqId)
+    continueWalk(reqId, x, y)
     if (newer) {
       newer.prevX = x
       newer.prevY = y
@@ -1353,6 +1512,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           ownTokens: undefined,
           partyTokens: undefined,
           concealed: undefined,
+          // Os lugares ficam (são do jogador); só "onde estou agora" sai.
+          sceneName: undefined,
+          place: undefined,
+          destinations: undefined,
           hazards: undefined,
           hazardNotice: undefined,
           turn: undefined,
@@ -1378,6 +1541,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // novo vem no snapshot logo atrás.
         if (state.status !== 'playing') return
         pending.clear()
+        stopWalk()
         clearSignalTimers()
         clearLaserTimer()
         clearPlayerLasers()
@@ -1446,6 +1610,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'clue.show.result':
         handleClueMessage(data)
         return
+      case 'dice.rolled': {
+        // Vale também aguardando, como o caderno: a rolagem é da mesa, não da cena.
+        const rolled = parseDiceRolled(data)
+        if (rolled === null) return
+        setState({ diceRolls: [...(state.diceRolls ?? []), rolled.roll].slice(-DICE_FEED_MAX) })
+        return
+      }
       case 'room.text': {
         // Mesma regra do recado: só quem joga tem tela de cartão.
         if (state.status !== 'playing') return
@@ -1540,6 +1711,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         )
         return
       }
+      case 'destinations': {
+        // Marca sem mapa na tela não tem onde aparecer; torta não entra (a cor vai direto ao desenho).
+        if (state.status !== 'playing') return
+        const parsed = parseDestinationsMessage(data)
+        if (parsed === null) return
+        setState({ destinations: parsed.marks })
+        return
+      }
       case 'door.toggle.rejected': {
         // Aviso sem mapa na tela não tem onde aparecer.
         if (state.status !== 'playing') return
@@ -1609,7 +1788,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // ZONA DE PERIGO: ausente = nenhum perigo à vista; malformado derruba a mensagem.
         const hazards = data.hazards === undefined ? [] : parsePlayerHazards(data.hazards)
         if (hazards === null) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards)
+        // O host nunca manda nome vazio (sem nome público o campo nem vem): vazio é forma errada.
+        if (data.sceneName !== undefined && !isSceneName(data.sceneName)) return
+        const where = parseSnapshotPlaces(data)
+        if (where === null) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, data.sceneName, where)
         return
       }
       case 'hazard.entered': {
@@ -1732,6 +1915,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   function detach(): void {
     clearReconnectTimers()
+    stopWalk()
     stopPing()
     clearSignalTimers()
     clearLaserTimer()
@@ -1759,27 +1943,31 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return () => listeners.delete(listener)
     },
     requestMove(tokenId, x, y) {
-      const map = state.map
-      const token = map?.tokens.find((t) => t.id === tokenId)
-      if (!map || !token) return false
-      const reqId = `m${nextReqId++}`
-      if (!send({ type: 'token.move', reqId, tokenId, x, y })) return false
-      pending.set(reqId, { tokenId, x, y, prevX: token.x, prevY: token.y })
-      // Mexeu a ficha depois de mudar de lugar (chegou, foi levado ou
-      // reunido): já viu onde está, o aviso sai.
-      const phase = state.travel?.phase
-      if (phase === 'gathered' || phase === 'arrived' || phase === 'moved') {
-        clearTravelTimer()
-        setState({ map: withTokenAt(map, tokenId, x, y), travel: undefined })
-        return true
-      }
-      setState({ map: withTokenAt(map, tokenId, x, y) })
-      return true
+      // O dedo manda mais que o "Andar até aqui": arrastar a ficha para a caminhada.
+      stopWalk()
+      return sendMove(tokenId, x, y) !== null
+    },
+    requestWalk(tokenId, legs) {
+      stopWalk()
+      if (state.status !== 'playing' || legs.length === 0) return false
+      if (!legs.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) return false
+      if (!state.map?.tokens.some((t) => t.id === tokenId)) return false
+      walk = { tokenId, legs: legs.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })), reqId: null, timer: null, at: null }
+      stepWalk()
+      return walk !== null
     },
     sendSignal(x, y, audience) {
       if (state.status !== 'playing' || !Number.isFinite(x) || !Number.isFinite(y)) return false
       const point = { x: Math.round(x), y: Math.round(y) }
       return send(audience === undefined ? { type: 'signal', ...point } : { type: 'signal', ...point, audience })
+    },
+    markDestination(x, y) {
+      if (state.status !== 'playing' || !Number.isFinite(x) || !Number.isFinite(y)) return false
+      return send({ type: 'destination', x: Math.round(x), y: Math.round(y) })
+    },
+    clearDestination() {
+      if (state.status !== 'playing') return false
+      return send({ type: 'destination', clear: true })
     },
     toggleDoor(wallId) {
       if (state.status !== 'playing' || wallId.length === 0) return false
@@ -1957,6 +2145,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return true
     },
 
+    rollDice(request) {
+      // O mesmo filtro do host: pedido fora da faixa nem sai (ele recusaria a mensagem inteira).
+      const valid = parseDiceRequest(request)
+      if (valid === null) return false
+      return send({ type: 'dice.roll', ...valid })
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -1974,7 +2169,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined })
+      // `places` fica: o host não reenvia o desenho dos lugares de antes, e o
+      // primeiro snapshot da volta solta o que ele não lembrar mais.
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined })
       open()
     },
     wake() {

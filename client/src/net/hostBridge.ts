@@ -25,6 +25,7 @@ import {
   type AppliedTransfer,
   type HazardEntryNotice,
   type HeldTokens,
+  type HostDiceRoll,
   type HostResult,
   type HostPlayerLaser,
   type HostSession,
@@ -52,6 +53,7 @@ import { createPlayerScreens, type PlayerScreen } from './playerScreens'
 import { guardSightingNotices } from './guardNotices'
 import type { TurnRef } from '../lib/initiative'
 import { hazardEntryLine } from '../lib/hazards'
+import type { DiceRequest } from '../lib/dice'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -172,6 +174,8 @@ export interface HostBridgeDeps {
   loadExploration?: () => SavedExploration | null
   /** Grava o mapa explorado pouco depois de mudar e ao fechar a sala. Ausente = nada é gravado. */
   saveExploration?: (exploration: SavedExploration) => void
+  /** DADO ROLADO NA SALA: toda rolagem da mesa (a de um jogador e a do mestre, a escondida marcada). */
+  onDiceRoll?: (roll: HostDiceRoll) => void
   now?: () => number
 }
 
@@ -290,6 +294,11 @@ export interface HostBridge {
    * fechada, jogador conectado (esse é o Expulsar) ou desconhecido.
    */
   dismissPlayer(playerId: string): boolean
+  /**
+   * DADO ROLADO NA SALA pelo mestre: o host rola; aberta, a mesa inteira
+   * recebe; `hidden`, só a tela do mestre (`onDiceRoll`). `null` com a sala fechada.
+   */
+  rollDice(request: DiceRequest, hidden: boolean): HostDiceRoll | null
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -1376,6 +1385,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // Mão baixada: a linha do chamado sai da caixa.
     pruneCallToasts()
     if (result.pointAction !== undefined) askPointAction(result.pointAction)
+    if (result.diceRoll !== undefined) deps.onDiceRoll?.(result.diceRoll)
     if (result.applyMove !== undefined) {
       const { tokenId, x, y, sceneId } = result.applyMove
       // Cena aberta: a mesma chamada de sempre, sem o quarto argumento.
@@ -1712,6 +1722,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.playerNote(playerId, text, world())
       void dispatch(result)
       return result.delivery
+    },
+
+    rollDice(request, hidden) {
+      if (session === null) return null
+      const result = session.masterRoll(request, hidden)
+      void dispatch(result)
+      // A tela do mestre mostra pelo mesmo caminho da rolagem de um jogador.
+      if (result.diceRoll !== undefined) deps.onDiceRoll?.(result.diceRoll)
+      return result.diceRoll ?? null
     },
 
     assignToken(playerId, tokenId) {

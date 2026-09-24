@@ -15,6 +15,7 @@ export const ADVENTURE_VERSION = 1
 
 export interface SceneEntry {
   id: string
+  /** Nome do MESTRE: nunca vai ao jogador. */
   name: string
   /** Caminho do `map.json` da cena, relativo à pasta da aventura, sempre com `/`. */
   file: string
@@ -24,6 +25,12 @@ export interface SceneEntry {
    * organiza a lista do mestre: nada disto vai para o jogador.
    */
   parentId?: string
+  /**
+   * NOME PARA OS JOGADORES ("1º andar"), opcional. Presente, é o selo "Onde
+   * estou" de quem está nesta cena; ausente, o jogador não recebe nome nenhum.
+   * Nunca fica vazio: vazio sai do objeto (`cleanPublicSceneName`).
+   */
+  publicName?: string
 }
 
 export interface Adventure {
@@ -49,6 +56,31 @@ export function newSceneId(): string {
 export function cleanSceneName(raw: string): string {
   const trimmed = raw.trim()
   return trimmed.length > 0 ? trimmed : UNNAMED_SCENE
+}
+
+/** Teto do nome para os jogadores, em unidades UTF-16 (o `maxLength` do campo do mestre conta igual). */
+export const SCENE_PUBLIC_NAME_MAX_LENGTH = 60
+
+/**
+ * O nome para os jogadores como ele é guardado e enviado: sem espaço nas
+ * pontas e cortado no teto sem deixar meia letra (um emoji partido viraria um
+ * losango de erro no selo). Vazio = a cena não tem nome para o jogador.
+ */
+export function cleanPublicSceneName(raw: string): string | undefined {
+  const trimmed = raw.trim()
+  if (trimmed.length === 0) return undefined
+  if (trimmed.length <= SCENE_PUBLIC_NAME_MAX_LENGTH) return trimmed
+  const cut = trimmed.slice(0, SCENE_PUBLIC_NAME_MAX_LENGTH)
+  const last = cut.charCodeAt(cut.length - 1)
+  const whole = last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut
+  return whole.trimEnd()
+}
+
+/** A entrada com o nome público trocado; `undefined` tira o campo (não guarda `publicName: ''`). */
+export function withPublicSceneName(entry: SceneEntry, raw: string): SceneEntry {
+  const { publicName: _old, ...rest } = entry
+  const publicName = cleanPublicSceneName(raw)
+  return publicName === undefined ? rest : { ...rest, publicName }
 }
 
 /**
@@ -82,15 +114,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function sceneEntryOrNull(value: unknown): SceneEntry | null {
   if (!isRecord(value)) return null
-  const { id, name, file, parentId } = value
+  const { id, name, file, parentId, publicName } = value
   if (typeof id !== 'string' || id.length === 0) return null
   if (typeof file !== 'string') return null
-  return withParent({ id, name: typeof name === 'string' ? name : UNNAMED_SCENE, file }, typeof parentId === 'string' && parentId.length > 0 ? parentId : null)
+  const entry: SceneEntry = { id, name: typeof name === 'string' ? name : UNNAMED_SCENE, file }
+  // Nome público de outro tipo (arquivo editado à mão) cai calado: a cena só fica sem ele.
+  const named = typeof publicName === 'string' ? withPublicSceneName(entry, publicName) : entry
+  return withParent(named, typeof parentId === 'string' && parentId.length > 0 ? parentId : null)
 }
 
-/** A mesma cena dentro de `parentId`; `null` tira o campo (primeiro nível grava como cena de aventura antiga). */
+/**
+ * A mesma cena dentro de `parentId`; `null` tira o campo (primeiro nível grava
+ * como cena de aventura antiga). O resto da entrada (o nome público) fica.
+ */
 function withParent(entry: SceneEntry, parentId: string | null): SceneEntry {
-  const bare: SceneEntry = { id: entry.id, name: entry.name, file: entry.file }
+  const { parentId: _old, ...bare } = entry
   return parentId === null ? bare : { ...bare, parentId }
 }
 

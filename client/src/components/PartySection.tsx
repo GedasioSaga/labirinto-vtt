@@ -32,9 +32,14 @@ export interface PartySectionProps {
    * fechada: a linha fica sem o botão.
    */
   onNote?(playerId: string, text: string): PlayerNoteDelivery
+  /** "Ver" da marca "vamos para cá": a câmera vai até a marca, na cena dele. Sem ele, não há botão. */
+  onViewDestination?(member: PartyMember): void
 }
 
 export const PARTY_ITEM_FAILED = 'Não deu: a ficha ou o item mudou. Tente de novo.'
+/** O que a linha diz quando o jogador pôs a marca "vamos para cá". */
+export const DESTINATION_MARKED_LABEL = 'destino marcado'
+export const VIEW_DESTINATION_LABEL = 'Ver'
 
 /** Nome FIXO do botão: o estado vai em `aria-pressed`, e o leitor de tela lê "Seguir, pressionado". */
 export const FOLLOW_LABEL = 'Seguir'
@@ -210,7 +215,7 @@ function BackpackList({ member, onItem }: BackpackListProps) {
  * levar alguém ("Mandar para…") — e o "Recado" que só aquele jogador lê. A
  * bolinha é a cor do disco da ficha: é a mesma peça que o mestre procura no mapa.
  */
-export function PartySection({ members, destinations, onGoTo, onSend, followingId = null, onToggleFollow, mirroringId = null, onToggleMirror, onItem, onNote }: PartySectionProps) {
+export function PartySection({ members, destinations, onGoTo, onSend, followingId = null, onToggleFollow, mirroringId = null, onToggleMirror, onItem, onNote, onViewDestination }: PartySectionProps) {
   const headingId = useId()
   const formId = useId()
   const giveFormId = useId()
@@ -296,6 +301,16 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
                     <BackpackList member={member} onItem={onItem} />
                   </>
                 ))}
+              {member.destination !== undefined && (
+                <div className="lb-party__destination">
+                  <span>{DESTINATION_MARKED_LABEL}</span>
+                  {onViewDestination !== undefined && (
+                    <button type="button" className="lb-btn" aria-label={`Ver o destino marcado por ${member.name}`} onClick={() => onViewDestination(member)}>
+                      {VIEW_DESTINATION_LABEL}
+                    </button>
+                  )}
+                </div>
+              )}
               {(member.token !== null || onNote !== undefined) && (
                 <div className="lb-party__actions">
                   {member.token !== null && (

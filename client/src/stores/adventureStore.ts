@@ -13,6 +13,7 @@ import {
   sceneFileFor,
   sceneTrail,
   SCENE_TRAIL_SEPARATOR,
+  withPublicSceneName,
   type Adventure,
   type SceneEntry,
 } from '../lib/adventure'
@@ -116,6 +117,13 @@ export interface SceneListItem {
   renamable: boolean
   /** CENAS EM PASTAS: a cena de fora desta. Ausente = primeiro nível (e sempre, no mapa solto). */
   parentId?: string
+  /** NOME PARA OS JOGADORES; ausente = a cena não tem (ou é o mapa solto). */
+  publicName?: string
+}
+
+/** `{ publicName }` só quando a cena tem um: o objeto não carrega `publicName: undefined`. */
+function publicNameOf(entry: SceneEntry): { publicName?: string } {
+  return entry.publicName === undefined ? {} : { publicName: entry.publicName }
 }
 
 interface AdventureState {
@@ -145,6 +153,8 @@ interface AdventureState {
   /** Cria a cena, já aberta. `loosePath` é o arquivo do mapa solto, quando a aventura nasce agora. */
   createScene: (name: string, loosePath: string | null) => string
   renameScene: (sceneId: string, name: string) => void
+  /** Nome para os jogadores da cena, limpo (`withPublicSceneName`); vazio apaga. */
+  setScenePublicName: (sceneId: string, publicName: string) => void
   /**
    * CENAS EM PASTAS: põe `sceneId` dentro de `parentId` (`null` = primeiro
    * nível), com o que estava dentro dela. Muda só a lista de cenas — pede
@@ -252,7 +262,7 @@ export function sceneList(state: Pick<AdventureState, 'adventure' | 'activeScene
     const active = entry.id === state.activeSceneId
     const slot = state.cache[entry.id]
     // `parentId` só na cena de dentro: a do primeiro nível fica como sempre foi.
-    const base = { id: entry.id, name: entry.name, active, renamable: true, ...(entry.parentId === undefined ? {} : { parentId: entry.parentId }) }
+    const base = { id: entry.id, name: entry.name, active, renamable: true, ...(entry.parentId === undefined ? {} : { parentId: entry.parentId }), ...publicNameOf(entry) }
     if (active) return { ...base, tokenCount: liveMap.tokens.length, available: true }
     if (slot === undefined || slot.status !== 'ok') return { ...base, tokenCount: null, available: false }
     return { ...base, tokenCount: slot.map.tokens.length, available: true }
@@ -372,16 +382,16 @@ export function pinTravelOptions(state: SceneState, liveMap: MapData, sceneId: s
 export function hostWorldOf(state: SceneState, liveMap: MapData): HostWorld {
   if (state.adventure === null || state.activeSceneId === null) return singleSceneWorld(liveMap)
   const background: HostScene[] = []
-  let openName = liveMap.name
+  let open: HostScene = { sceneId: state.activeSceneId, name: liveMap.name, map: liveMap }
   for (const entry of state.adventure.scenes) {
     if (entry.id === state.activeSceneId) {
-      openName = entry.name
+      open = { sceneId: entry.id, name: entry.name, ...publicNameOf(entry), map: liveMap }
       continue
     }
     const slot = state.cache[entry.id]
-    if (slot !== undefined && slot.status === 'ok') background.push({ sceneId: entry.id, name: entry.name, map: slot.map })
+    if (slot !== undefined && slot.status === 'ok') background.push({ sceneId: entry.id, name: entry.name, ...publicNameOf(entry), map: slot.map })
   }
-  return { open: { sceneId: state.activeSceneId, name: openName, map: liveMap }, background }
+  return { open, background }
 }
 
 /** Um mapa com o desfazer dele: a cena aberta (no `useMapStore`) ou uma de fundo (no cache). */
@@ -503,6 +513,20 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (scenes === null) return false
     set({ adventure: { ...adventure, scenes }, structureDirty: true })
     return true
+  },
+
+  setScenePublicName: (sceneId, publicName) => {
+    const { adventure } = get()
+    if (adventure === null) return
+    const current = adventure.scenes.find((entry) => entry.id === sceneId)
+    if (current === undefined) return
+    const next = withPublicSceneName(current, publicName)
+    // Mesmo nome de antes: nada a gravar (o "Renomear" manda os dois nomes sempre).
+    if (next.publicName === current.publicName) return
+    set({
+      adventure: { ...adventure, scenes: adventure.scenes.map((entry) => (entry.id === sceneId ? next : entry)) },
+      structureDirty: true,
+    })
   },
 
   switchScene: (sceneId, focus) => {

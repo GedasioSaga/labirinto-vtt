@@ -8,6 +8,8 @@ import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
+import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } from '../lib/signals'
+import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -127,6 +129,35 @@ import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type
  * `point.action` (jogador -> mestre) e, na volta, `point.action.answer` e
  * `point.action.rejected` são as AÇÕES NO PONTO, aditivas pelo mesmo critério.
  * A volta vai só a quem pediu e nunca leva sala, cena nem ponto.
+ * `snapshot.sceneName` (e `delta.sceneName`) é o "ONDE ESTOU", aditivo pelo
+ * mesmo critério: o NOME PARA OS JOGADORES da cena onde o jogador está, só
+ * quando o mestre escreveu um. Nunca o nome interno da cena, nunca o de outra
+ * cena. Jogador antigo ignora o campo; mestre antigo não o manda e o selo não
+ * aparece.
+ *
+ * A MARCA "VAMOS PARA CÁ" é aditiva pelo mesmo critério: `destination`
+ * (jogador -> mestre, um ponto ou `clear`) e `destinations` (mestre ->
+ * jogador), a lista INTEIRA de marcas que aquele jogador pode ver agora — só
+ * da cena dele, só em ponto que ele já conhece e fora de zona oculta. Nunca a
+ * cena, nunca marca de quem está em outra cena. Mestre antigo responde
+ * `error invalid_message`; jogador antigo ignora a lista.
+ *
+ * O DADO ROLADO NA SALA é aditivo pelo mesmo critério: `dice.roll` (jogador ->
+ * mestre) só PEDE quantidade, dado e modificador — quem rola é o host — e
+ * `dice.rolled` (mestre -> jogador) leva a rolagem pronta a toda a mesa. A
+ * rolagem escondida do mestre nunca vira `dice.rolled` (`diceRollForPlayer`,
+ * em `lib/fogFilter.ts`). Mestre antigo responde `error invalid_message`;
+ * jogador antigo ignora a rolagem.
+ *
+ * LUGARES é aditivo pelo mesmo critério: `snapshot.place` (e `delta.place`) é
+ * um id que o HOST inventa para a memória DESTE jogador na cena onde ele está
+ * — nunca o id nem o nome da cena: é um contador de cada jogador, então o mesmo
+ * id em dois jogadores não diz que eles estiveram no mesmo lugar —, e
+ * `places` são os ids das memórias que o host ainda guarda dele, da visitada
+ * há mais tempo à de agora. Com isso a tela dele guarda o desenho de cada
+ * lugar por onde passou (só o que já recebeu) e solta o que o mestre mandou
+ * esquecer ("Esconder planta"). Jogador antigo ignora os dois; mestre antigo
+ * não os manda e a aba Lugares fica só com os pontos da cena.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -372,11 +403,36 @@ export interface PointActionMessage {
   y: number
 }
 
+/**
+ * MARCA "VAMOS PARA CÁ": põe (ou move) a marca do jogador no ponto, em px de
+ * mundo da cena dele; `clear` tira. Sem nome nem cor: quem é e de que cor o
+ * host sabe pela conexão e pela ficha.
+ */
+export type DestinationMessage = { type: 'destination'; x: number; y: number } | { type: 'destination'; clear: true }
+
+/** As marcas que ESTE jogador pode ver agora, a lista inteira (vazia = nenhuma). */
+export interface DestinationsMessage {
+  type: 'destinations'
+  marks: DestinationMark[]
+}
+
+/** DADO ROLADO NA SALA: o pedido. Resultado e total quem põe é o host. */
+export interface DiceRollMessage extends DiceRequest {
+  type: 'dice.roll'
+}
+
+/** A rolagem pronta, para toda a mesa. Nunca a escondida do mestre. */
+export interface DiceRolledMessage {
+  type: 'dice.rolled'
+  roll: DiceRollEntry
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
   | PingMessage
   | SignalMessage
+  | DestinationMessage
   | DoorToggleMessage
   | DoorRequestMessage
   | TokenEditMessage
@@ -390,6 +446,7 @@ export type PlayerMessage =
   | CallRaiseMessage
   | CallLowerMessage
   | PointActionMessage
+  | DiceRollMessage
 
 /**
  * Por que o host não levou o "Pegar" ao mestre. `unavailable` junta pino
@@ -608,13 +665,17 @@ export type HostMessage =
   // deste recorte (`turnForPlayer`). Ausente = ninguém que o jogador vê.
   // `partyTokens` (ITEM PEGÁVEL): das fichas que ele recebeu, as de OUTROS jogadores — o "Dar a…" não oferece NPC.
   // `hazards` (ZONA DE PERIGO): só o que o jogador enxerga agora, e só quando há algum (`PlayerMapView.hazards`).
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[] }
+  // `sceneName`: o NOME PARA OS JOGADORES da cena onde ele está ("Onde estou").
+  // Ausente = a cena não tem nome público (ou mapa solto, ou mestre antigo).
+  // `place`/`places`: LUGARES, ids do host para as memórias dele (ver o topo).
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[] }
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
   | { type: 'hazard.entered'; kind: HazardKind }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejectionReason }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
+  | DestinationsMessage
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
   | { type: 'door.request.rejected'; wallId: string; reason: DoorRequestRejection }
   | { type: 'door.request.answer'; answer: DoorRequestAnswer }
@@ -648,6 +709,7 @@ export type HostMessage =
   // a resposta: nem o ponto, nem a sala, nem a cena que o mestre leu.
   | { type: 'point.action.answer'; action: PointActionKind; answer: PointActionAnswer }
   | { type: 'point.action.rejected'; reason: PointActionRejection }
+  | DiceRolledMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -1043,6 +1105,106 @@ export function parseLaserMessage(value: unknown): LaserMessage | RelayedLaserMe
   return { ...body, from, color }
 }
 
+function parseDestinationMark(value: unknown): DestinationMark | null {
+  if (!isRecord(value)) return null
+  const { x, y, from, color, mine } = value
+  if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isRoomName(from) || typeof mine !== 'boolean') return null
+  // A cor vai direto para o desenho: só `#rrggbb`.
+  if (typeof color !== 'string' || !SIGNAL_COLOR_PATTERN.test(color)) return null
+  return { x, y, from, color, mine }
+}
+
+/**
+ * Valida a lista de marcas que o jogador recebe. Mesma regra das outras
+ * listas: acima do teto ou com uma marca torta, recusa inteira (não mostra
+ * lista pela metade). Devolve cópia só com os campos conhecidos.
+ */
+export function parseDestinationsMessage(value: unknown): DestinationsMessage | null {
+  if (!isRecord(value) || value.type !== 'destinations') return null
+  const { marks } = value
+  if (!Array.isArray(marks) || marks.length > MAX_DESTINATION_MARKS) return null
+  const parsed: DestinationMark[] = []
+  for (const item of marks) {
+    const mark = parseDestinationMark(item)
+    if (mark === null) return null
+    parsed.push(mark)
+  }
+  return { type: 'destinations', marks: parsed }
+}
+
+/**
+ * Teto da lista `places`: bem acima do que o host guarda por jogador (8), bem
+ * abaixo de um host hostil inflando a memória da tela.
+ */
+export const PLACES_MAX = 32
+
+/** Os campos de LUGARES de um snapshot, já conferidos. */
+export interface SnapshotPlaces {
+  place?: string
+  places?: string[]
+}
+
+/**
+ * Valida `place` e `places` do snapshot que o jogador recebe. Ausentes valem
+ * (mestre antigo); presentes e tortos — id que não é texto curto, lista acima
+ * do teto ou com item torto — devolvem `null`, e quem chama descarta a
+ * mensagem inteira, como faz com os outros campos aditivos.
+ */
+export function parseSnapshotPlaces(value: Record<string, unknown>): SnapshotPlaces | null {
+  const { place, places } = value
+  const parsed: SnapshotPlaces = {}
+  if (place !== undefined) {
+    if (!isBoundedString(place, 1, REQ_ID_MAX_LENGTH)) return null
+    parsed.place = place
+  }
+  if (places !== undefined) {
+    if (!Array.isArray(places) || places.length > PLACES_MAX) return null
+    const ids: string[] = []
+    for (const id of places) {
+      if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+      ids.push(id)
+    }
+    parsed.places = ids
+  }
+  return parsed
+}
+
+function parseDestination(value: Record<string, unknown>): DestinationMessage | null {
+  if (value.clear === true) return { type: 'destination', clear: true }
+  if (value.clear !== undefined) return null
+  return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'destination', x: value.x, y: value.y } : null
+}
+
+function parseDiceRollEntry(value: unknown): DiceRollEntry | null {
+  if (!isRecord(value)) return null
+  const request = parseDiceRequest(value)
+  if (request === null) return null
+  const { id, from, master, results, total, at } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || !isRoomName(from) || !isNoteTime(at)) return null
+  if (master !== undefined && (master !== true || from !== MASTER_ROLLER_NAME)) return null
+  // Uma face por dado, cada uma de 1 a `sides`, e o total que elas dão: rolagem incoerente não vai à tela.
+  if (!Array.isArray(results) || results.length !== request.count) return null
+  const faces: number[] = []
+  for (const face of results) {
+    if (typeof face !== 'number' || !Number.isInteger(face) || face < 1 || face > request.sides) return null
+    faces.push(face)
+  }
+  if (typeof total !== 'number' || total !== faces.reduce((sum, face) => sum + face, request.modifier)) return null
+  const entry: DiceRollEntry = { id, from, ...request, results: faces, total, at }
+  return master === true ? { ...entry, master } : entry
+}
+
+/**
+ * Valida a rolagem que o jogador recebe. Forma errada, face fora do dado ou
+ * total que não bate recusam a mensagem inteira. Devolve cópia só com os
+ * campos conhecidos — marca de escondida, cena ou id de jogador ficam para trás.
+ */
+export function parseDiceRolled(value: unknown): DiceRolledMessage | null {
+  if (!isRecord(value) || value.type !== 'dice.rolled') return null
+  const roll = parseDiceRollEntry(value.roll)
+  return roll === null ? null : { type: 'dice.rolled', roll }
+}
+
 /**
  * Valida mensagem vinda do jogador. Aceita o objeto já desserializado ou a
  * string JSON crua do transporte. Devolve um objeto novo só com os campos
@@ -1067,6 +1229,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return value.away === true ? { type: 'ping', away: true } : { type: 'ping' }
     case 'signal':
       return parseSignal(value)
+    case 'destination':
+      return parseDestination(value)
     case 'door.toggle':
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
     case 'door.request':
@@ -1099,6 +1263,11 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isPointActionKind(value.action) && isFiniteNumber(value.x) && isFiniteNumber(value.y)
         ? { type: 'point.action', action: value.action, x: value.x, y: value.y }
         : null
+    case 'dice.roll': {
+      // Só o pedido: resultado, total e nome mandados pelo jogador são jogados fora.
+      const request = parseDiceRequest(value)
+      return request === null ? null : { type: 'dice.roll', ...request }
+    }
     default:
       return null
   }

@@ -16,7 +16,7 @@ import { ChevronDownIcon, CloseIcon, MoveIntoIcon, SearchIcon } from './icons'
 import { useSceneDrag, type SceneDrag } from './sceneDrag'
 import { SceneAlarmControls, type ActiveAlarmView } from './SceneAlarmControls'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
-import { sceneTree, SCENE_TRAIL_SEPARATOR, type SceneTreeRow } from '../lib/adventure'
+import { sceneTree, SCENE_PUBLIC_NAME_MAX_LENGTH, SCENE_TRAIL_SEPARATOR, type SceneTreeRow } from '../lib/adventure'
 import { normalizeForSearch } from '../lib/mapObjects'
 import { pendingRequestsLabel, type ScenePeople, type ScenePerson, type SceneRoom } from '../lib/party'
 import type { SceneListItem } from '../stores/adventureStore'
@@ -27,7 +27,8 @@ export interface ScenesSectionProps {
   /** Um clique troca a cena aberta. */
   onSelect: (sceneId: string) => void
   onCreate: (name: string) => void
-  onRename: (sceneId: string, name: string) => void
+  /** Renomear devolve os dois nomes: o do mestre e o NOME PARA OS JOGADORES (vazio = sem). */
+  onRename: (sceneId: string, name: string, publicName: string) => void
   /**
    * VISÃO GERAL DAS CENAS: o mapa de cada cena, pelo id da lista (`sceneMaps`).
    * Com duas cenas ou mais, a seção ganha o botão "Visão geral", que abre as
@@ -485,6 +486,8 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
   const overviewButtonRef = useRef<HTMLButtonElement | null>(null)
   // Com uma cena só (mapa solto) não há o que comparar: a vista dela já é o editor.
   const canOverview = maps !== undefined && scenes.length > 1
+  /** Nome para os jogadores no renomear; o criar não pergunta (a cena nasce sem). */
+  const [publicDraft, setPublicDraft] = useState('')
   /** Cena com o recado aberto; `null` = nenhum. */
   const [noting, setNoting] = useState<string | null>(null)
   /** Aviso do último recado, na linha da cena dele; some sozinho. */
@@ -650,11 +653,12 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
     })
   }
 
-  const startEditing = (next: NonNullable<Editing>, initial: string) => {
+  const startEditing = (next: NonNullable<Editing>, initial: string, initialPublic = '') => {
     rememberOpener()
     setNoting(null)
     setMoving(null)
     setDraft(initial)
+    setPublicDraft(initialPublic)
     setEditing(next)
   }
 
@@ -712,10 +716,11 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
     event.preventDefault()
     if (editing === null) return
     if (editing.kind === 'create') onCreate(draft)
-    else onRename(editing.sceneId, draft)
+    else onRename(editing.sceneId, draft, publicDraft)
     close()
   }
 
+  // Esc em QUALQUER dos dois campos fecha o formulário.
   const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== 'Escape') return
     // Esc fecha o campo sem criar nem renomear; não pode chegar ao canvas (Esc lá troca a ferramenta).
@@ -958,7 +963,7 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
                   className="lb-cenas__renomear"
                   aria-label={`Renomear ${scene.name}`}
                   title="Renomear"
-                  onClick={() => startEditing({ kind: 'rename', sceneId: scene.id }, scene.name)}
+                  onClick={() => startEditing({ kind: 'rename', sceneId: scene.id }, scene.name, scene.publicName)}
                 >
                   ✎
                 </button>
@@ -1012,6 +1017,12 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
                 <span id={pathId} className="lb-cenas__caminho">
                   {trail.join(SCENE_TRAIL_SEPARATOR)}
                 </span>
+              )}
+              {scene.publicName !== undefined && (
+                // O mestre vê, sem abrir o renomear, que nome o selo "Onde estou" mostra.
+                <p className="lb-cenas__publico" title='O selo "Onde estou" de quem está nesta cena'>
+                  Jogadores leem: {scene.publicName}
+                </p>
               )}
               {here !== null && <SceneGente people={here} />}
               {onNote !== undefined && noting === scene.id && (
@@ -1091,6 +1102,26 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
               onKeyDown={onInputKeyDown}
             />
           </div>
+          {editing.kind === 'rename' && (
+            <div className="lb-field">
+              <label className="lb-label" htmlFor="lb-cena-publico">
+                Nome para os jogadores (opcional)
+              </label>
+              <input
+                id="lb-cena-publico"
+                className="lb-input"
+                value={publicDraft}
+                maxLength={SCENE_PUBLIC_NAME_MAX_LENGTH}
+                placeholder="Ex.: 1º andar"
+                aria-describedby="lb-cena-publico-dica"
+                onChange={(event) => setPublicDraft(event.target.value)}
+                onKeyDown={onInputKeyDown}
+              />
+              <p id="lb-cena-publico-dica" className="lb-cenas__dica">
+                Aparece no canto da tela de quem está nesta cena. Vazio: os jogadores não veem nome nenhum.
+              </p>
+            </div>
+          )}
           <div className="lb-cenas__acoes">
             <button type="button" className="lb-btn lb-btn--ghost" onClick={close}>
               Cancelar

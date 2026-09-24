@@ -698,6 +698,8 @@ interface MapStoreState {
   setRoomNameHiddenFromPlayers: (id: string, hidden: boolean) => void
   /** TETO DE CONSTRUÇÃO — liga/desliga `RoomMeta.roof` da Sala, com histórico. */
   setRoomRoof: (id: string, roof: boolean) => void
+  /** CÔMODO LEMBRADO — liga/desliga `RoomMeta.comodo` da Sala, com histórico (ligar desliga o teto). */
+  setRoomComodo: (id: string, comodo: boolean) => void
   /** TEXTO DA SALA — "Ao entrar, o jogador lê" / "Nota do mestre". Com histórico, como `setRoomName`. */
   setRoomTexts: (id: string, patch: Partial<Pick<RoomMeta, 'textoAoEntrar' | 'notaDoMestre'>>) => void
   /** ZONA DE PERIGO — pinta a Sala com um perigo, troca ou limpa (`null`). Com histórico. */
@@ -1680,6 +1682,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRoomRoof: (id, roof) => {
       if (mapFactory.setRoomRoof(get().map, id, roof) === get().map) return
       withHistory((map) => mapFactory.setRoomRoof(map, id, roof))
+    },
+    setRoomComodo: (id, comodo) => {
+      if (mapFactory.setRoomComodo(get().map, id, comodo) === get().map) return
+      withHistory((map) => mapFactory.setRoomComodo(map, id, comodo))
     },
     setRoomTexts: (id, patch) => {
       if (mapFactory.setRoomTexts(get().map, id, patch) === get().map) return

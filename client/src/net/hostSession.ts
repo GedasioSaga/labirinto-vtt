@@ -2,13 +2,14 @@ import type { DoorState, HazardKind, MapData, Pin, RegionPoint, Token, Wall } fr
 import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, resizeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { alarmForPlayer, allPlayerTokens, filterMapForGroup, filterMapForPlayer, memoryBlockedRings, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, turnForPlayer, type GroupViewer, type PlayerClueContent, type PlayerMapView, type SceneAlarm } from '../lib/fogFilter'
+import { alarmForPlayer, allPlayerTokens, diceRollForPlayer, filterMapForGroup, filterMapForPlayer, memoryBlockedRings, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, sceneNameForPlayer, turnForPlayer, type GroupViewer, type PlayerClueContent, type PlayerMapView, type SceneAlarm } from '../lib/fogFilter'
+import { MASTER_ROLLER_NAME, rollDice, secureRollDie, type DiceRequest, type HostDiceRoll, type RollDie } from '../lib/dice'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokensOccupy } from '../lib/movementRules'
 import { tokenReachesDoor } from '../lib/doorReach'
-import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
+import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, signalColor, type DestinationMark } from '../lib/signals'
 import { passageOf, pinSummary } from '../lib/pins'
 import { carriedItemsOf, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { selectedTokenColor } from '../lib/tokenColor'
@@ -34,6 +35,8 @@ import {
   type DoorRequestHow,
   type DoorRequestMessage,
   type DoorRequestRejection,
+  type DestinationMessage,
+  type DiceRollMessage,
   type DoorToggleMessage,
   type DoorToggleRejection,
   type HostMessage,
@@ -78,10 +81,13 @@ import {
 /**
  * Uma cena que o host serve. `sceneId` é o id da cena na aventura (`null` =
  * mapa solto). `name` é o nome que o MESTRE lê: nunca vai ao jogador.
+ * `publicName` é o NOME PARA OS JOGADORES, opcional: vai só a quem está nesta
+ * cena, pelo `sceneNameForPlayer` (`lib/fogFilter.ts`).
  */
 export interface HostScene {
   sceneId: string | null
   name: string
+  publicName?: string
   map: MapData
 }
 
@@ -357,6 +363,8 @@ export interface HostResult {
   replacedClientId?: string
   /** Quem entrou reencontrou a ficha da mesa guardada: o integrador avisa o mestre, com "Desfazer". */
   reclaimed?: ReclaimedSeat
+  /** DADO ROLADO NA SALA: a rolagem que a tela do mestre mostra (a escondida dele, marcada). */
+  diceRoll?: HostDiceRoll
 }
 
 /**
@@ -387,6 +395,7 @@ export interface HazardEntryNotice {
 
 /** Por playerId, fichas fora do mapa que continuam sendo dele (o "Guardar ficha" da ponte). */
 export type HeldTokens = ReadonlyMap<string, readonly string[]>
+export type { HostDiceRoll }
 
 export interface PlayerInfo {
   clientId: string | null
@@ -417,6 +426,12 @@ export interface PlayerInfo {
    * delas. Dado do painel do mestre — nunca vai pela rede.
    */
   storedTokenNames?: string[]
+  /**
+   * MARCA "VAMOS PARA CÁ" dele, em px de mundo da cena `sceneId` (a dele), na
+   * cor da ficha. Ausente = não marcou, tirou, ou saiu da cena onde marcou.
+   * Só vem com `source` no `listPlayers`.
+   */
+  destination?: { x: number; y: number; color: string }
 }
 
 /** O que foi feito do recado para um jogador: saiu agora, ficou guardado para a volta dele, ou nada (`null`). */
@@ -482,6 +497,13 @@ export const CALL_MIN_INTERVAL_MS = 3000
  */
 export const MAX_SCENE_NOTES = 100
 
+/**
+ * Uma rolagem de dado por jogador nesta janela; o excesso morre em silêncio
+ * (igual ao sinal). Cada rolagem acende uma linha na tela de TODA a mesa: um
+ * jogador em laço não pode enterrar a lista dos outros.
+ */
+export const DICE_ROLL_MIN_INTERVAL_MS = 400
+
 export interface HostSessionOptions {
   code: string
   visionRadius: number
@@ -506,6 +528,8 @@ export interface HostSessionOptions {
    * recorte de sempre, cena a cena. Ausente = todos começam do zero.
    */
   restoreExploration?: readonly SavedSeatExploration[]
+  /** O dado do host. Ausente = o gerador do sistema (`secureRollDie`); o teste injeta faces fixas. */
+  rollDie?: RollDie
 }
 
 export interface HostSession {
@@ -598,6 +622,12 @@ export interface HostSession {
   endAlarm(source: HostMapSource): HostResult
   /** O alarme soando, para o painel do mestre; `null` = nenhum. */
   activeAlarm(): { id: string; text: string; sceneIds: string[] } | null
+  /**
+   * DADO ROLADO NA SALA pelo mestre: o host rola e devolve a rolagem em
+   * `diceRoll`. Aberta, `dice.rolled` vai a todo jogador conectado, como
+   * "Mestre"; `hidden`, não sai para ninguém — só a tela do mestre a mostra.
+   */
+  masterRoll(request: DiceRequest, hidden: boolean): HostResult
   /**
    * "Deixar ir": revalida o pedido contra o mundo de AGORA (o token pode ter
    * andado, o pino sumido) e devolve `applyTransfer` + `scene.changed` ao
@@ -843,6 +873,19 @@ interface PlayerMemory {
    * primeiro uso, o que o mestre escondeu desde então sai da memória.
    */
   restored: boolean
+  /**
+   * CÔMODO LEMBRADO — ids dos cômodos (`RoomMeta.comodo`) que o jogador já viu
+   * neste mapa. Mora junto do explorado de propósito: "Esconder planta" e o
+   * mapa redimensionado esquecem os dois de uma vez.
+   */
+  seenRooms: Set<string>
+  /**
+   * LUGARES: o id desta memória que vai ao jogador (`snapshot.place`). Nasce
+   * com a memória e morre com ela ("Esconder planta", teto de cenas, kick):
+   * memória nova é lugar novo. É um contador DO JOGADOR, nunca o id nem o nome
+   * da cena: o mesmo id em dois jogadores não diz que eles estão no mesmo lugar.
+   */
+  place: string
 }
 
 type MemoryDims = Pick<MapData, 'id' | 'width' | 'height' | 'grid'>
@@ -887,13 +930,14 @@ function savedSceneOf(memory: PlayerMemory): SavedSceneMemory {
  * A memória guardada de volta, ou `null` quando o fio está torto ou não tem o
  * tamanho que o mapa gravado daria hoje (bitset de outro tamanho leria células erradas).
  */
-function restoredMemoryOf(scene: SavedSceneMemory): PlayerMemory | null {
+function restoredMemoryOf(scene: SavedSceneMemory): Omit<PlayerMemory, 'place'> | null {
   const dims: MemoryDims = { id: scene.mapId, width: scene.width, height: scene.height, grid: scene.grid }
   const exp = decodeExploration(scene.explored)
   const blank = blankExploration(dims)
   if (exp === null || exp.cell !== blank.cell || exp.cols !== blank.cols || exp.rows !== blank.rows) return null
   const doors = new Map<string, DoorState>(scene.doors.map((door) => [door.wallId, { open: door.open, locked: door.locked, kind: door.kind }]))
-  return { key: memoryKey(dims), dims, exp, doors, doorsSeenAt: new Map(), vision: [], restored: true }
+  // Cômodo lembrado não é gravado na mesa: volta a ser lembrado quando for visto de novo.
+  return { key: memoryKey(dims), dims, exp, doors, doorsSeenAt: new Map(), vision: [], restored: true, seenRooms: new Set() }
 }
 
 interface PlayerRecord {
@@ -917,6 +961,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // a primeira é a menos recente, a que sai quando passa do teto.
   // `doors`: último estado de cada porta que o jogador VIU (por id da parede).
   const memories = new Map<string, Map<string, PlayerMemory>>()
+  // LUGARES — por playerId: quantas memórias de cena ele já teve. Dá o id da
+  // próxima (`PlayerMemory.place`) sem nunca repetir um que ele já viu. Um
+  // contador e não `randomId`: o id só precisa não dizer nada da cena, e o
+  // contador de UM jogador só conta o que ele mesmo visitou. Só o kick apaga.
+  const placeCounters = new Map<string, number>()
   // Por playerId: a cena em que o jogador foi visto por último. Desempata
   // quando ele tem token em mais de uma cena — sem isto, o mestre trocar a
   // cena do editor mudaria a cena do jogador junto.
@@ -935,6 +984,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastSignal = new Map<string, { at: number; x: number; y: number; relayed: boolean }>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
   const lastDoorToggleAt = new Map<string, number>()
+  // Por playerId: a última rolagem de dado (DICE_ROLL_MIN_INTERVAL_MS). Reconectar não zera.
+  const lastDiceRollAt = new Map<string, number>()
+  const rollDie = options.rollDie ?? secureRollDie
   // Por playerId: janela corrente do teto de lotes de laser (PLAYER_LASER_MAX_PER_WINDOW).
   const laserWindows = new Map<string, { start: number; count: number }>()
   // Por playerId: conexões que receberam algum ponto do gesto em curso, e a
@@ -1034,6 +1086,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // `exploration`: o que o assento trouxe, para o "Desfazer" devolvê-lo intacto;
   // `restoredMapIds`: as cenas cuja memória veio dele.
   const claimedSeats = new Map<string, { seat: SavedSeat; given: string[]; exploration: SavedSeatExploration | undefined; restoredMapIds: string[] }>()
+  // MARCA "VAMOS PARA CÁ" — por playerId: a marca dele e a cena (`sceneKey`)
+  // onde a pôs. Uma por jogador; fica até ele tirar, perder a ficha ou sair
+  // daquela cena (`pruneDestinations`). Sobrevive a disconnect; só o kick apaga.
+  const destinations = new Map<string, { scene: string; x: number; y: number }>()
+  // Por playerId: quando pôs a última marca (DESTINATION_MIN_INTERVAL_MS).
+  const lastDestinationAt = new Map<string, number>()
+  // Por playerId: a última lista de marcas mandada a ele (JSON). Só sai lista
+  // nova quando muda; ausente = nada mandado nesta conexão (vale lista vazia).
+  const sentDestinations = new Map<string, string>()
   let rev = 0
   // ZONA DE PERIGO: em que zona estava cada ficha de JOGADOR no último
   // broadcast, por cena (chave `sceneKey`). É daqui que sai "entrou agora".
@@ -1075,7 +1136,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // `dims` do mapa de agora: é com elas que a mesa grava e confere o fio na retomada.
       // `restored` passa adiante: a memória da mesa retomada ainda precisa da conferência abaixo.
       // A visão da planta velha não vale na nova: o próximo snapshot manda a de agora.
-      memory = { key, dims, exp: resizeExploration(stored.exp, worldSizeOf(dims)), doors: stored.doors, doorsSeenAt: stored.doorsSeenAt, vision: [], restored: stored.restored }
+      memory = { ...stored, key, dims, exp: resizeExploration(stored.exp, worldSizeOf(dims)), vision: [] }
       byScene.set(map.id, memory)
     }
     // Memória da mesa retomada: toda leitura passa por aqui, então é aqui que
@@ -1087,6 +1148,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     return memory
   }
+
+  const nextPlaceId = (playerId: string): string => {
+    const n = (placeCounters.get(playerId) ?? 0) + 1
+    placeCounters.set(playerId, n)
+    return `l${n}`
+  }
+
+  /** LUGARES: os ids das memórias que o jogador ainda tem, da usada há mais tempo à de agora. */
+  const rememberedPlaces = (playerId: string): string[] => [...(memories.get(playerId)?.values() ?? [])].map((memory) => memory.place)
 
   /**
    * Memória do jogador para este mapa. Cada cena tem a sua: ir à Cripta e
@@ -1103,7 +1173,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     const found = existingMemory(playerId, map)
     const dims = dimsOf(map)
-    const memory: PlayerMemory = found ?? { key: memoryKey(dims), dims, exp: blankExploration(dims), doors: new Map(), doorsSeenAt: new Map(), vision: [], restored: false }
+    const memory: PlayerMemory = found ?? {
+      key: memoryKey(dims),
+      dims,
+      exp: blankExploration(dims),
+      doors: new Map(),
+      doorsSeenAt: new Map(),
+      vision: [],
+      restored: false,
+      seenRooms: new Set(),
+      place: nextPlaceId(playerId),
+    }
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
     byScene.delete(map.id)
     byScene.set(map.id, memory)
@@ -1159,7 +1239,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       seenPins.delete(playerId)
       return [{ type: 'lobby.waiting' }]
     }
-    const view = snapshotFor(playerId, scene.map, world)
+    const view = snapshotFor(playerId, scene.map, world, sceneNameForPlayer(scene))
     const note = arrivalNote(playerId, scene.sceneId, arrived)
     return note === null ? view : [...view, noteMessage(note)]
   }
@@ -1295,15 +1375,31 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * Devolve o snapshot e, DEPOIS dele, o cartão de texto de cada Sala em que o
    * jogador acabou de entrar pela primeira vez: o mapa dele já tem a Sala
    * quando o cartão abre.
+   *
+   * `sceneName`: o nome público da cena DELE, já recortado por
+   * `sceneNameForPlayer`; `undefined` = o snapshot sai sem o campo.
    */
-  const snapshotFor = (playerId: string, map: MapData, world: HostWorld): HostMessage[] => {
+  const snapshotFor = (playerId: string, map: MapData, world: HostWorld, sceneName: string | undefined): HostMessage[] => {
     const memory = memoryFor(playerId, map, world)
     const exp = memory.exp
     const entered = enteredRooms.get(playerId)?.get(map.id)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered, memory.seenRooms)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
+    // CÔMODO LEMBRADO: o cômodo conhecido levanta a névoa INTEIRO (é o que o
+    // jogador vê mais apagado depois de sair), menos o que toca cômodo ainda
+    // não visto — a despensa dentro da sala lembrada continua escura. Remarca
+    // a cada snapshot, antes do `forgetInside` abaixo: o prédio de teto que
+    // fecha apaga o de dentro, e quem volta a entrar recebe os cômodos de volta.
+    // Sala dentro do cômodo também bloqueia (`roomsInside`): o prédio de teto
+    // (aberto ou fechado) — o contorno do pátio guardado cobriria a casa no
+    // meio dele, e o `forgetInside` abaixo só apaga célula — e a Sala comum
+    // aninhada (o quarto de porta trancada), que só vira explorada pela visão.
+    for (const room of view.rememberedRooms) {
+      memory.seenRooms.add(room.id)
+      markRings(exp, [room.points], [...view.blocked, ...view.unseenInsideRemembered, ...room.roomsInside])
+    }
     // TETO DE CONSTRUÇÃO: o teto não entra em `view.blocked` (o contorno do
     // prédio não é segredo, e o veto de lá joga fora o anel de visão inteiro,
     // apagando a memória do jogador longe do prédio). O veto do teto é só a
@@ -1324,7 +1420,23 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
     // Só fichas que ele JÁ recebe: a lista não conta quem está no escuro.
     const partyTokens = view.map.tokens.filter((t) => isOtherPlayersToken(playerId, t.id)).map((t) => t.id)
-    const snapshot: HostMessage = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed, partyTokens }
+    // Sem nome público o campo nem existe: `sceneName: undefined` no JSON sumiria, mas no objeto não.
+    const where = sceneName === undefined ? {} : { sceneName }
+    // LUGARES: o id desta memória e a lista das que ele ainda tem. Nada da cena
+    // vai junto — nem id, nem nome —, só o contador dele.
+    const snapshot: HostMessage = {
+      type: 'snapshot',
+      rev,
+      map: view.map,
+      vision: view.vision,
+      explored: encodeExploration(exp),
+      ownTokens,
+      concealed: view.concealed,
+      partyTokens,
+      ...where,
+      place: memory.place,
+      places: rememberedPlaces(playerId),
+    }
     // A vez sai pelo MESMO recorte do mapa: ficha que não foi ao jogador não vira vez nele.
     const turn = turnForPlayer(view.map, options.getTurn?.() ?? null)
     if (turn !== null) snapshot.turn = turn
@@ -1557,7 +1669,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const memory = restoredMemoryOf(scene)
       if (memory === null) continue
       byScene.delete(scene.mapId)
-      byScene.set(scene.mapId, memory)
+      byScene.set(scene.mapId, { ...memory, place: nextPlaceId(playerId) })
       restored.push(scene.mapId)
     }
     if (byScene.size > 0) memories.set(playerId, byScene)
@@ -1616,6 +1728,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const clues = cluebooks.get(playerId) ?? []
     if (clues.length > 0) outbound.push({ clientId, msg: { type: 'clues.book', clues: clues.map((item) => ({ ...item.entry })) } })
     for (const msg of cards) outbound.push({ clientId, msg })
+    // Conexão nova começa sem marca nenhuma na tela: a lista dele sai de novo, depois do mapa.
+    sentDestinations.delete(playerId)
+    pruneDestinations(world)
+    outbound.push(...destinationUpdateFor(clientId, playerId, world))
     // Quem volta de uma queda recebe o recado só para ele que o mestre mandou enquanto ele estava fora.
     outbound.push(...pendingNoteFor(clientId, playerId, next))
     // Depois do mapa: quem entra (ou volta) numa cena pausada já chega lendo o aviso.
@@ -1713,6 +1829,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     cluebooks.delete(playerId)
     seenPins.delete(playerId)
     lastClueShowAt.delete(playerId)
+    placeCounters.delete(playerId)
+    lastDiceRollAt.delete(playerId)
+    destinations.delete(playerId)
+    lastDestinationAt.delete(playerId)
+    sentDestinations.delete(playerId)
     for (const chosen of pinAudiences.values()) chosen.delete(playerId)
     // Esquecido não tem mais o que desfazer. O assento não volta: quem foi
     // expulso entraria de novo com o mesmo nome e levaria a ficha.
@@ -1833,7 +1954,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const map = scene.map
     if (msg.x < 0 || msg.y < 0 || msg.x > map.width * map.grid || msg.y > map.height * map.grid) return { outbound: [] }
     const point = { x: msg.x, y: msg.y }
-    const color = signalColor(playerId)
+    // A cor da FICHA (a do laser): é a peça que os outros procuram no mapa.
+    const color = laserColorOf(playerId, map)
     const message: HostMessage = { type: 'signal', x: msg.x, y: msg.y, from: record.name, color }
     const toColleagues = msg.audience !== 'master'
     const at = now()
@@ -1859,6 +1981,43 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { outbound, signal }
   }
 
+  /**
+   * DADO ROLADO NA SALA: quem recebe a rolagem é a MESA INTEIRA — todo jogador
+   * conectado, em qualquer cena, jogando ou aguardando a ficha. A rolagem não
+   * diz nada de onde ninguém está (`diceRollForPlayer` só deixa passar quem
+   * rolou, o dado e o resultado), então não há o que recortar por cena. A
+   * escondida do mestre o recorte devolve `null`, e ela não sai para ninguém.
+   */
+  const diceOutbound = (roll: HostDiceRoll): Outbound[] => {
+    const forPlayers = diceRollForPlayer(roll)
+    if (forPlayers === null) return []
+    // Um objeto por destinatário: quem despacha pode mexer num sem tocar o dos outros.
+    return [...byClient.keys()].map((clientId): Outbound => ({ clientId, msg: { type: 'dice.rolled', roll: { ...forPlayers, results: [...forPlayers.results] } } }))
+  }
+
+  const newDiceRoll = (request: DiceRequest, from: string): HostDiceRoll => {
+    const { results, total } = rollDice(request, rollDie)
+    return { id: randomId(), from, count: request.count, sides: request.sides, modifier: request.modifier, results, total, at: now() }
+  }
+
+  /**
+   * O jogador PEDE a rolagem; quem rola é o host. Rolagem de quem não entrou
+   * recusa; a de dentro do intervalo mínimo morre em silêncio (não é mensagem
+   * malformada, é dedo apressado ou laço).
+   */
+  function handleDiceRoll(clientId: string, msg: DiceRollMessage): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined) return { outbound: [] }
+    const at = now()
+    const last = lastDiceRollAt.get(playerId)
+    if (last !== undefined && at - last < DICE_ROLL_MIN_INTERVAL_MS) return { outbound: [] }
+    lastDiceRollAt.set(playerId, at)
+    const roll = newDiceRoll(msg, record.name)
+    return { outbound: diceOutbound(roll), diceRoll: roll }
+  }
+
   /** A cor do laser do jogador: a da ficha DELE nesta cena; ficha sem cor, a da paleta de sinais. */
   const laserColorOf = (playerId: string, map: MapData): string => {
     const owned = ownership[playerId] ?? []
@@ -1868,6 +2027,92 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (chosen !== null) return chosen
     }
     return signalColor(playerId)
+  }
+
+  /**
+   * Tira a marca de quem não está mais onde a pôs: perdeu a última ficha, ou
+   * a ficha dele está em outra cena. Uma marca "vamos para cá" de quem já foi
+   * embora mandaria o grupo a lugar nenhum — e diria onde ele esteve.
+   */
+  const pruneDestinations = (world: HostWorld): void => {
+    for (const [ownerId, mark] of destinations) {
+      const scene = statusOf(ownerId) === 'playing' ? sceneFor(ownerId, world) : null
+      if (scene === null || sceneKey(scene) !== mark.scene) destinations.delete(ownerId)
+    }
+  }
+
+  /**
+   * As marcas que `playerId` pode ver agora: só as da cena DELE; a própria
+   * sempre; a dos outros só em ponto que ele já conhece (visão do último
+   * snapshot ou explorado) e fora de zona oculta ativa e de sala secreta — a
+   * mesma regra do sinal, porque a marca diria que ali existe algo. Quem
+   * aguarda, ou não está em cena nenhuma, vê lista vazia.
+   */
+  const destinationsFor = (playerId: string, world: HostWorld): DestinationMark[] => {
+    if (statusOf(playerId) !== 'playing') return []
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return []
+    const key = sceneKey(scene)
+    const blocked = playerBlockedRings(scene.map)
+    const marks: DestinationMark[] = []
+    for (const [ownerId, mark] of destinations) {
+      if (mark.scene !== key) continue
+      const owner = players.get(ownerId)
+      if (owner === undefined) continue
+      const mine = ownerId === playerId
+      if (!mine) {
+        const point = { x: mark.x, y: mark.y }
+        if (blocked.some((ring) => ring.length >= 3 && pointInRing(point, ring))) continue
+        if (!knowsPoint(playerId, scene.map, point)) continue
+      }
+      marks.push({ x: mark.x, y: mark.y, from: owner.name, color: laserColorOf(ownerId, scene.map), mine })
+    }
+    return marks
+  }
+
+  /**
+   * A lista de marcas de cada jogador conectado, SÓ para quem a lista mudou
+   * desde a última mandada. Chamada depois dos snapshots: é a visão nova que
+   * decide o que cada um já conhece.
+   */
+  const destinationUpdates = (world: HostWorld): Outbound[] => {
+    pruneDestinations(world)
+    return [...byClient].flatMap(([clientId, playerId]) => destinationUpdateFor(clientId, playerId, world))
+  }
+
+  /** A lista de um jogador só, se mudou. Quem chama já passou por `pruneDestinations`. */
+  const destinationUpdateFor = (clientId: string, playerId: string, world: HostWorld): Outbound[] => {
+    const marks = destinationsFor(playerId, world)
+    const key = JSON.stringify(marks)
+    if (key === (sentDestinations.get(playerId) ?? '[]')) return []
+    sentDestinations.set(playerId, key)
+    return [{ clientId, msg: { type: 'destinations', marks } }]
+  }
+
+  /**
+   * MARCA "VAMOS PARA CÁ": põe, move ou tira a marca de quem manda, e devolve
+   * a lista nova a cada um cuja lista mudou. O mestre lê pelo `listPlayers`.
+   * Ponto fora do mapa, de quem não joga ou antes do intervalo mínimo morre
+   * em silêncio, como o sinal.
+   */
+  function handleDestination(clientId: string, msg: DestinationMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if ('clear' in msg) {
+      if (!destinations.delete(playerId)) return { outbound: [] }
+      return { outbound: destinationUpdates(world) }
+    }
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    const map = scene.map
+    if (msg.x < 0 || msg.y < 0 || msg.x > map.width * map.grid || msg.y > map.height * map.grid) return { outbound: [] }
+    const at = now()
+    const last = lastDestinationAt.get(playerId)
+    if (last !== undefined && at - last < DESTINATION_MIN_INTERVAL_MS) return { outbound: [] }
+    lastDestinationAt.set(playerId, at)
+    destinations.set(playerId, { scene: sceneKey(scene), x: msg.x, y: msg.y })
+    return { outbound: destinationUpdates(world) }
   }
 
   /**
@@ -2021,7 +2266,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const wall = map.walls.find((w) => w.id === wallId)
     if (wall === undefined || wall.door === null) return null
     const memory = memoryFor(playerId, map, world)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
     if (!view.visibleDoorIds.includes(wall.id)) return null
     const owned = new Set(ownership[playerId] ?? [])
     const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
@@ -2106,7 +2351,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (pin === undefined || item === null) return 'unavailable'
     const memory = memoryFor(playerId, map, world)
     // "Quem vê" entra no recorte: pino que não chega a este jogador não se pega.
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pinId)) return 'unavailable'
     const owned = new Set(ownership[playerId] ?? [])
     const reaching = view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))
@@ -2239,7 +2484,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map, world)
-    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pinId)) return null
     // Trancada: ninguém passa. Cai no mesmo `null` de todo o resto, então o
     // jogador lê o motivo genérico de sempre e nada chega ao mestre. Estar aqui,
@@ -2533,6 +2778,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return byClient.has(clientId) ? reply(clientId, { type: 'pong' }) : { outbound: [] }
         case 'signal':
           return handleSignal(clientId, msg, world)
+        case 'destination':
+          return handleDestination(clientId, msg, world)
         case 'door.toggle':
           return handleDoorToggle(clientId, msg, world)
         case 'door.request':
@@ -2559,6 +2806,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleCallLower(clientId)
         case 'point.action':
           return handlePointAction(clientId, msg, world)
+        case 'dice.roll':
+          return handleDiceRoll(clientId, msg)
       }
     },
 
@@ -2638,6 +2887,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     isPointActionPending(requestId) {
       return pendingPointActions.has(requestId)
+    },
+
+    masterRoll(request, hidden) {
+      const rolled = newDiceRoll(request, MASTER_ROLLER_NAME)
+      const roll: HostDiceRoll = hidden ? { ...rolled, master: true, hidden: true } : { ...rolled, master: true }
+      return { outbound: diceOutbound(roll), diceRoll: roll }
     },
 
     approveTravel(requestId, source) {
@@ -2870,6 +3125,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       openCalls.delete(playerId)
       // Quem provocou a pergunta "voltou?" e caiu antes da resposta: a pergunta morre.
       pendingReturns.delete(playerId)
+      // A marca DELE fica; a lista que a tela dele tinha, não (a volta recebe de novo).
+      sentDestinations.delete(playerId)
     },
 
     kick(clientId) {
@@ -3038,6 +3295,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
       // ALARME: quem chegou numa cena com alarme passa a ver; quem saiu de todas, o fim.
       outbound.push(...syncAlarms(world))
+      // Depois dos mapas: a visão nova decide que marca cada um já conhece, e
+      // quem mudou de cena perde as da cena de antes.
+      outbound.push(...destinationUpdates(world))
       // ZONA DE PERIGO: o aviso vai DEPOIS do snapshot — a tela já desenha o
       // perigo quando o texto aparece.
       const hazards = hazardEntriesIn(world)
@@ -3171,6 +3431,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const world = source === undefined ? null : toWorld(source)
       // Nome de cena só faz sentido com aventura: no mapa solto todo mundo está no mesmo lugar.
       const withScenes = world !== null && world.open.sceneId !== null
+      if (world !== null) pruneDestinations(world)
       return [...players.values()]
         .sort((a, b) => a.joinedAt - b.joinedAt)
         .map((p) => {
@@ -3197,6 +3458,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
               if (scene.sceneId !== null) info.sceneId = scene.sceneId
             }
           }
+          // O mestre vê toda marca: é ele quem conduz. Depois do prune, a marca está na cena do dono.
+          const mark = destinations.get(p.playerId)
+          const markScene = world === null || mark === undefined ? null : sceneFor(p.playerId, world)
+          if (mark !== undefined && markScene !== null) info.destination = { x: mark.x, y: mark.y, color: laserColorOf(p.playerId, markScene.map) }
           return info
         })
     },

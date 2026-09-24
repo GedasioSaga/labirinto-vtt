@@ -1659,6 +1659,21 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* "destino marcado" + "Ver": a marca "vamos para cá" do jogador, uma linha abaixo de onde ele está. */
+.lb-party__destination {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-party__destination > .lb-btn {
+  flex: none;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+}
+
 /* Alvo de toque: o .lb-btn já tem 34 px de altura; aqui as ações dividem a linha
    e, com "Ver tela", quebram para a segunda em vez de espremer o rótulo. */
 .lb-party__actions {
@@ -3470,6 +3485,25 @@ html.lb-arrastando-cena * {
 }
 
 .lb-alarme__onde {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* Nome para os jogadores: linha própria, apagada — é informação, não ação. */
+.lb-cenas__publico {
+  flex-basis: 100%;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* A dica embaixo do campo "Nome para os jogadores". */
+.lb-cenas__dica {
   margin: 0;
   color: var(--lb-color-parchment-faint);
   font-size: var(--lb-font-size-sm);

@@ -156,7 +156,7 @@ interface PropertiesPanelProps {
   regionStyle: RegionStyleControlsProps
   room: Omit<
     RoomControlsProps,
-    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof' | 'textoAoEntrar' | 'notaDoMestre'
+    'name' | 'shape' | 'axisAligned' | 'width' | 'height' | 'rotation' | 'locked' | 'nameHiddenFromPlayers' | 'roof' | 'comodo' | 'textoAoEntrar' | 'notaDoMestre'
   >
   selectedLight: Light | null
   lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId'>
@@ -323,6 +323,7 @@ export function PropertiesPanel({
               locked={!!selectedRegion.locked}
               nameHiddenFromPlayers={!!selectedRegion.room.nameHiddenFromPlayers}
               roof={!!selectedRegion.room.roof}
+              comodo={selectedRegion.room.comodo === true}
               textoAoEntrar={selectedRegion.room.textoAoEntrar ?? ''}
               notaDoMestre={selectedRegion.room.notaDoMestre ?? ''}
               {...room}

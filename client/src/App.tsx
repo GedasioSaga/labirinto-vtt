@@ -2,6 +2,8 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboard
 import { createPortal } from 'react-dom'
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { ZoomHud } from './components/ZoomHud'
+import { DiceDock } from './components/DiceDock'
+import { useDiceStore } from './stores/diceStore'
 import { Toast } from './components/Toast'
 import { useToastStore, type ToastKind } from './stores/toastStore'
 import { ensinaOQueFazer } from './lib/erroQueEnsina'
@@ -28,7 +30,8 @@ import { tableSceneKey, type PlayerInfo } from './net/hostSession'
 import { tableScreenUrl } from './lib/tableScreen'
 import { RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
 import { LivePlayerMirror } from './components/PlayerMirror'
-import { partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
+import { masterDestinationMarks, partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
+import { useDestinationStore } from './stores/destinationStore'
 import type { TravelLogEntry } from './lib/travelLog'
 import { withStoredTokens } from './lib/storedTokens'
 import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
@@ -573,6 +576,8 @@ function App() {
           }
           useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => (m.tokens.some((t) => t.id === token.id) ? m : mapFactory.addToken(m, token)))
         },
+        // Dado rolado na sala: toda rolagem da mesa (e a do mestre, escondida ou não) entra na lista dele.
+        onDiceRoll: (roll) => useDiceStore.getState().push(roll),
       })
     }
     return hostBridgeRef.current
@@ -586,7 +591,16 @@ function App() {
       }),
     [],
   )
+  // "Onde estou": o nome para os jogadores mora na aventura, não no mapa. Trocar só ele também reenvia o recorte.
+  useEffect(
+    () =>
+      useAdventureStore.subscribe((state, previous) => {
+        if (state.adventure !== previous.adventure) hostBridgeRef.current?.notifyMapChanged()
+      }),
+    [],
+  )
   const laserToggled = useLaserStore((state) => state.toggled)
+  const diceRolls = useDiceStore((state) => state.rolls)
   // B2 — o `off` sai no fim do traço: soltar o botão, sair da janela ou desarmar (L e botão Laser).
   useEffect(
     () =>
@@ -624,6 +638,7 @@ function App() {
     useSignalStore.getState().clear()
     usePlayerLaserStore.getState().clear()
     useLaserStore.getState().setToggled(false)
+    useDiceStore.getState().clear()
   }
   /**
    * O mundo que o host serve (cena aberta + as de fundo), para o painel Jogo:
@@ -690,6 +705,11 @@ function App() {
               onToggleMirror: (member) => setMirrorId((current) => (current === member.playerId ? null : member.playerId)),
               // Recado para um jogador só: sem sala não há quem leia.
               onNote: room === null ? undefined : (playerId, text) => hostBridgeRef.current?.playerNote(playerId, text) ?? null,
+              // "Ver" da marca "vamos para cá": a mesma ida do "Ir lá", até a marca e não até a ficha.
+              onViewDestination: (member) => {
+                if (member.playerId !== followingId) useFollowStore.getState().stop()
+                if (member.destination !== undefined) useAdventureStore.getState().goToPoint(member.sceneId, member.destination)
+              },
             }}
             initiative={{
               tokens: map.tokens.map((token) => ({ id: token.id, name: token.name })),
@@ -745,6 +765,11 @@ function App() {
   const canGoBackToScene = previousSceneId !== null && sceneCache[previousSceneId]?.status === 'ok'
   // G7 — "Seguir" na linha do Grupo: a câmera acompanha a ficha do jogador, inclusive de cena em cena.
   const followingId = useFollowStore((state) => state.playerId)
+  // Marcas "vamos para cá" no canvas do mestre: só as da cena aberta (as de fundo têm coordenadas de outro mapa).
+  const openSceneId = adventure === null ? null : activeSceneId
+  useEffect(() => {
+    useDestinationStore.getState().setMarks(masterDestinationMarks(roomPlayers, openSceneId))
+  }, [roomPlayers, openSceneId])
   useFollowPlayer(roomPlayers, () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
   // "Ver tela" do Grupo: de quem é o espelho aberto. Quem saiu da sala (expulso,
   // sala fechada) leva o espelho junto — voltar depois não o reabre sozinho.
@@ -1950,7 +1975,11 @@ function App() {
                 scenes={sceneList({ adventure, activeSceneId, cache: sceneCache }, map)}
                 onSelect={handleSelectScene}
                 onCreate={handleCreateScene}
-                onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
+                onRename={(sceneId, name, publicName) => {
+                  const adventureStore = useAdventureStore.getState()
+                  adventureStore.renameScene(sceneId, name)
+                  adventureStore.setScenePublicName(sceneId, publicName)
+                }}
                 // Visão geral: a cena aberta pelo mapa vivo, as de fundo pelo cache (fichas de jogador que andam aparecem na hora).
                 maps={sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map)}
                 // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
@@ -2296,6 +2325,7 @@ function App() {
               onNameHiddenFromPlayersChange: (hidden) =>
                 selectedRegion && useMapStore.getState().setRoomNameHiddenFromPlayers(selectedRegion.id, hidden),
               onRoofChange: (roof) => selectedRegion && useMapStore.getState().setRoomRoof(selectedRegion.id, roof),
+              onComodoChange: (comodo) => selectedRegion && useMapStore.getState().setRoomComodo(selectedRegion.id, comodo),
               onTextoAoEntrarChange: (textoAoEntrar) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { textoAoEntrar }),
               onNotaDoMestreChange: (notaDoMestre) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { notaDoMestre }),
               onWidthChange: (width) =>
@@ -2511,6 +2541,8 @@ function App() {
           />,
           document.body,
         )}
+      {/* Dado rolado na sala: só com a sala aberta — sem mesa, não há quem veja a rolagem. */}
+      {room !== null && <DiceDock rolls={diceRolls} onRoll={(request, hidden) => hostBridgeRef.current?.rollDice(request, hidden)} />}
     </div>
   )
 }
