@@ -270,3 +270,41 @@ describe('a ficha sai e volta: o jogador sai da espera', () => {
     expect(snap?.type === 'snapshot' ? snap.map.id : null).toBe('m-torre')
   })
 })
+
+describe('o envio que não chegou volta a sair', () => {
+  /** O mestre esconde o NPC 'guarda' no Salão: o chão explorado de Ana não muda. */
+  const escondeGuarda = (mundo: HostWorld): HostWorld =>
+    comCena(mundo, 'm-salao', (map) => ({ ...map, tokens: map.tokens.map((t) => (t.id === 'guarda' ? { ...t, hidden: true } : t)) }))
+
+  it('o snapshot de Ana se perdeu: o envio seguinte, sem mudança no Salão, refaz e reenvia só o dela', () => {
+    const mundo = mundoInicial()
+    const { s, ana } = mesa(mundo)
+    assenta(s, mundo)
+    const depois = escondeGuarda(mundo)
+    expect(comSnapshot(s.broadcast(depois))).toEqual(['c-ana'])
+    // A fila da conexão de Ana estava cheia: o snapshot não chegou.
+    s.sendFailed('c-ana')
+    filtro.mockClear()
+    const r = s.broadcast(depois)
+    expect(comSnapshot(r)).toEqual(['c-ana'])
+    expect(refiltrados()).toEqual([ana])
+    const snap = r.outbound.find((o) => o.clientId === 'c-ana' && o.msg.type === 'snapshot')?.msg
+    const ids = snap?.type === 'snapshot' ? snap.map.tokens.map((t) => t.id) : null
+    expect(ids).toContain('heroi')
+    expect(ids).not.toContain('guarda')
+    // Chegou: o envio seguinte, parado, volta a não repetir.
+    expect(comSnapshot(s.broadcast(depois))).toEqual([])
+  })
+
+  it('falha numa conexão que não é de jogador, ou que já caiu, não refaz ninguém', () => {
+    const mundo = mundoInicial()
+    const { s } = mesa(mundo)
+    assenta(s, mundo)
+    s.disconnect('c-bruno')
+    s.sendFailed('c-bruno')
+    s.sendFailed('c-ninguem')
+    filtro.mockClear()
+    expect(s.broadcast(mundo).outbound.length).toBe(0)
+    expect(filtro.mock.calls.length).toBe(0)
+  })
+})

@@ -331,6 +331,13 @@ export interface HostSession {
   /** Devolve `lobby.waiting` se o jogador ficou sem token. */
   unassignToken(playerId: string, tokenId: string): HostResult
   disconnect(clientId: string): void
+  /**
+   * Uma mensagem para `clientId` não saiu (ex.: fila da conexão cheia) e a
+   * conexão continua aberta. O recorte que o host conta como entregue a esse
+   * jogador pode não estar na tela dele: o próximo broadcast refaz e reenvia,
+   * mesmo sem a cena dele mudar. Conexão que não é de jogador: nada.
+   */
+  sendFailed(clientId: string): void
   kick(clientId: string): HostResult
   /**
    * `room.closed` para todo jogador conectado (jogando ou aguardando). O
@@ -570,7 +577,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // HOST RECALCULA SÓ A CENA QUE MUDOU — por playerId: com o que o último
   // recorte dele foi feito (`ViewInputs`). Ausente = o próximo broadcast
   // refaz. Raio e fichas entram na própria chave; quem mexe na memória dele
-  // (revelar, esconder, viagem, recusa de edição) apaga a entrada.
+  // (revelar, esconder, viagem, recusa de edição) apaga a entrada, e o envio
+  // que falhou para ele também (`sendFailed`).
   const lastViews = new Map<string, ViewInputs>()
   // Sobe quando muda algo que entra no recorte de TODOS ("Quem vê" dos pinos).
   let viewEpoch = 0
@@ -1581,6 +1589,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (current === undefined) return { outbound: [] }
       ownership[playerId] = current.filter((t) => t !== tokenId)
       return { outbound: waitingIfLostLast(playerId, current.length > 0) }
+    },
+
+    sendFailed(clientId) {
+      const playerId = byClient.get(clientId)
+      if (playerId !== undefined) lastViews.delete(playerId)
     },
 
     disconnect(clientId) {

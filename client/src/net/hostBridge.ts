@@ -358,9 +358,17 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (screens.record(clientId, msg)) screensChanged = true
     }
     if (screensChanged) notifyScreens()
+    // A sessão de AGORA: a falha chega depois, talvez com a sala já fechada ou reaberta.
+    const owner = session
     return Promise.all(
       result.outbound.map(({ clientId, msg }) =>
-        deps.invoke('net_send', { clientId, msg }).catch((error: unknown) => reportError('Falha ao enviar para jogador', error)),
+        deps.invoke('net_send', { clientId, msg }).catch((error: unknown) => {
+          // A conexão segue aberta mas a mensagem se perdeu: sem isto o host
+          // contaria o recorte como entregue e a tela do jogador ficaria velha
+          // até a cena DELE mudar.
+          if (owner !== null && owner === session) owner.sendFailed(clientId)
+          reportError('Falha ao enviar para jogador', error)
+        }),
       ),
     ).then(() => undefined)
   }
