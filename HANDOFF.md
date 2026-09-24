@@ -175,6 +175,28 @@ Rodando agora (todos com agentes Opus via `agentType`):
 | onda 2 mundo | `wf_b581d949-142` | 15 peças (+ vigia do NPC, zona de perigo, alarme em várias cenas, levar ficha junto) |
 | torre | `wf_c998d8d5-b3c` (retomada) | rodadas 1–7 do cache; refaz 7 (enriquecer), 8 e 9, depois Imaginar e Consolidar |
 
+### Noite de 23 para 24/09: onda 3 e o que o orquestrador faz a cada volta
+
+Lista única de 283 itens (torre + simulação + lista das 101), do maior ao mais simples:
+`docs/features-unicas-2026-09-24.md` (+ `.json`), `9d1d973`. As 165 NOVAS viraram a onda 3, em árvores que
+saíram de `auto/juntar` `0522705`:
+
+| grupo | run | peças |
+|---|---|---|
+| t-grandes | `wf_e3f23fdf-79d` | 10 (confronto por cena, ajudante contratado, estado do mundo, memória por ficha, pisos, cabine, correio, rotina de NPC, perigo que alastra, móveis) |
+| t-defeitos | `wf_4e9c3fdf-c65` | 20 |
+| t-medias-a | `wf_1111b7d7-bdc` | 45 |
+| t-medias-b | `wf_02518f3f-0de` | 44 |
+| t-pequenas | `wf_c24d31c9-52c` | 35 |
+
+Fora da onda 3: 9 itens do gerador da torre (`scratchpad/onda3-gerador-da-torre.txt`, vão para
+`auto/torre-11-andares`) e "teste de fluidez com GPU real" (mexe no portão).
+
+A cada volta: (1) junção verde → `git merge --no-ff auto/juntar` em `auto/acervo` e nova passada da junção com
+todos os `auto/int-*`; (2) grupo da onda 2 terminado → retomar a onda 3 com mais peças simultâneas
+(`resumeFromRunId`, o cache guarda o que terminou); (3) limite de uso estourado → esperar e retomar;
+(4) disco: remover worktrees de runs terminados (`scratchpad/limpar-worktrees.sh`; C: estava a 99%).
+
 A torre ganhou as rodadas 4 e 5 salvas em `auto/torre-11-andares` `c9d7f7e`; a rodada 6 (catástrofe) deu
 50 achados. Cópia para abrir no app: `C:\dev\torre-para-ver` (versão média; no app, Carregar Mapa →
 Procurar no disco → `scenes\a00-d01-galeria-mestra\map.json`).
