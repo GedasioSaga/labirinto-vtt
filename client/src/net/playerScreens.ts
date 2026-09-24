@@ -25,6 +25,8 @@ export type PlayerScreen =
       explored: ExploredWire
       ownTokens: string[]
       concealed: RegionPoint[][]
+      /** Cone pelo vão de prédio com teto, quando o recorte trouxe (`fogFilter.ts`). */
+      glimpses?: RegionPoint[][]
     }
 
 export interface PlayerScreens {
@@ -66,6 +68,7 @@ export function createPlayerScreens(): PlayerScreens {
             explored: msg.explored,
             ownTokens: msg.ownTokens,
             concealed: msg.concealed,
+            ...(msg.glimpses === undefined ? {} : { glimpses: msg.glimpses }),
           })
           return true
         }

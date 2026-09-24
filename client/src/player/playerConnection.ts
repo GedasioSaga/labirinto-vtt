@@ -27,6 +27,8 @@ export interface PlayerState {
   ownTokens?: string[]
   /** Polígonos das zonas ocultas ativas: o jogador pinta preto por cima. */
   concealed?: RegionPoint[][]
+  /** Cone pelo vão de prédio com teto: a tela abre o telhado só nestes retângulos. */
+  glimpses?: RegionPoint[][]
   /** Sinais recebidos ainda vivos (somem sozinhos depois de `SIGNAL_TTL_MS`). */
   signals?: SignalMark[]
   /** Rastro do laser do mestre; some sozinho `LASER_TRAIL_MS` depois da última mensagem com o laser desligado. */
@@ -97,6 +99,8 @@ export interface PlayerConnection {
   sendSignal(x: number, y: number): boolean
   /** Pede ao mestre para abrir/fechar a porta. `false` se não está jogando ou o socket não está aberto. */
   toggleDoor(wallId: string): boolean
+  /** "Espiar" pela porta fechada (`door.peek`). `false` se não está jogando, sem porta ou com o socket fechado. */
+  peekDoor(wallId: string): boolean
   /**
    * Nome novo do PRÓPRIO token: aplica na hora e envia. `false` quando o token
    * não é dele, não está no mapa, o nome não cabe ou o socket não está aberto.
@@ -380,6 +384,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     explored: Exploration | undefined,
     ownTokens: string[],
     concealed: RegionPoint[][],
+    glimpses: RegionPoint[][],
   ): void {
     if (rev <= state.rev) return
     let next = map
@@ -394,7 +399,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       move.prevY = token.y
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, glimpses, error: undefined })
   }
 
   function handleRejected(reqId: string): void {
@@ -462,7 +467,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearLaserTimer()
         clearDoorNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, glimpses: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -544,7 +549,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         }
         if (data.ownTokens !== undefined && !isStringList(data.ownTokens)) return
         if (data.concealed !== undefined && !isVision(data.concealed)) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [])
+        if (data.glimpses !== undefined && !isVision(data.glimpses)) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.glimpses ?? [])
         return
       }
       case 'token.move.accepted':
@@ -660,6 +666,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.status !== 'playing' || wallId.length === 0) return false
       return send({ type: 'door.toggle', wallId })
     },
+    peekDoor(wallId) {
+      if (state.status !== 'playing' || wallId.length === 0) return false
+      return send({ type: 'door.peek', wallId })
+    },
 
     requestTravel(pinId, exitId) {
       if (state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
@@ -717,7 +727,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, glimpses: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined })
       open()
     },
     close: detach,

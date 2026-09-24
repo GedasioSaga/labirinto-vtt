@@ -128,9 +128,22 @@ export interface Wall {
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
    *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
   hidden?: boolean
+  /**
+   * JANELA — deixa a VISÃO passar e continua barrando o PASSO (`blocksMove`
+   * vale como sempre). Desenhada como traço duplo fino (`pixi/drawWalls.ts`).
+   * Só vale em parede SEM porta: porta tem as regras dela. Numa construção com
+   * teto, quem está junto da janela recebe só o interior que o olhar alcança
+   * (`lib/fogFilter.ts`). `undefined` === parede comum, sem linha de migração
+   * (`lib/mapFile.ts` copia a parede inteira).
+   */
+  janela?: boolean
 }
 
-/** 3 tipos estruturais. Cada um muda só render + comprimento do vão. */
+/**
+ * 3 tipos estruturais. Cada um muda render + comprimento do vão; a GRADE
+ * ('gate') também deixa a visão passar fechada ou trancada — são barras, não
+ * tábuas (`lib/visibility.ts`). O passo ela barra como qualquer porta fechada.
+ */
 export type DoorKind = 'normal' | 'double' | 'gate'
 
 export interface DoorState {

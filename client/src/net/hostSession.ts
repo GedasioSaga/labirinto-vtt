@@ -10,6 +10,7 @@ import { passageOf, pinSummary } from '../lib/pins'
 import { VISION_FACTOR_DEFAULT, clampVisionFactor, playerVisionRadius, readSceneVisionCells } from '../lib/sceneVision'
 import {
   parsePlayerMessage,
+  type DoorPeekMessage,
   type DoorToggleMessage,
   type HostMessage,
   type JoinMessage,
@@ -170,10 +171,31 @@ export interface HostSignal {
   background?: { sceneId: string; name: string }
 }
 
+/**
+ * "Espiar" aceito: quem espiou e por qual porta. É o aviso do mestre; a porta
+ * NÃO muda. O cone vale `PEEK_DURATION_MS` e o integrador manda o snapshot na
+ * hora e de novo quando o prazo acaba (é aí que o cone fecha na tela).
+ */
+export interface HostPeek {
+  playerId: string
+  playerName: string
+  wallId: string
+}
+
+/** Quanto dura o olhar pela porta espiada, em ms. */
+export const PEEK_DURATION_MS = 5_000
+
+/** O aviso do mestre, em uma linha. */
+export function peekNoticeText(peek: HostPeek): string {
+  return `${peek.playerName} espiou`
+}
+
 export interface HostResult {
   outbound: Outbound[]
   applyMove?: AppliedMove
   applyDoor?: AppliedDoor
+  /** Espiar aceito: o integrador avisa o mestre e reenvia o snapshot agora e no fim do prazo. */
+  peek?: HostPeek
   applyTokenEdit?: AppliedTokenEdit
   signal?: HostSignal
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
@@ -485,6 +507,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastSignalAt = new Map<string, number>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
   const lastDoorToggleAt = new Map<string, number>()
+  // Por playerId: a porta que ele espia agora (uma só), na cena em que espiou,
+  // até quando. Vencida, some na próxima leitura; o kick apaga.
+  const peeks = new Map<string, { sceneKey: string; wallId: string; until: number }>()
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
   const lastTokenPhotoAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
@@ -641,7 +666,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       markAll(exp, playerBlockedRings(map))
       memory.planMarked = true
     }
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId, map), exp, memory.doors, pinAudiences, secretReveals)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId, map), exp, memory.doors, pinAudiences, secretReveals, peekingFor(playerId, scene))
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -668,7 +693,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
-    return { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
+    const snapshot: Extract<HostMessage, { type: 'snapshot' }> = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
+    // Campo aditivo: só vai quando há cone, e o snapshot de sempre sai idêntico.
+    return view.glimpses.length > 0 ? { ...snapshot, glimpses: view.glimpses } : snapshot
+  }
+
+  /** A porta que o jogador espia AGORA nesta cena, ou nada. Prazo vencido apaga o registro. */
+  const peekingFor = (playerId: string, scene: HostScene): ReadonlySet<string> | undefined => {
+    const peek = peeks.get(playerId)
+    if (peek === undefined) return undefined
+    if (now() >= peek.until) {
+      peeks.delete(playerId)
+      return undefined
+    }
+    return peek.sceneKey === sceneKey(scene) ? new Set([peek.wallId]) : undefined
   }
 
   const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
@@ -819,6 +857,44 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (!near) return reject('far')
 
     return { outbound: [], applyDoor: { wallId: wall.id, open: !wall.door.open, ...backgroundSceneId(scene, world) } }
+  }
+
+  /**
+   * "Espiar" pela porta FECHADA encostada no token do jogador. Mesma autoridade
+   * do `door.toggle` (e o mesmo limite por jogador): porta visível para ele
+   * agora e token perto. Trancada NÃO recusa — espiar pela fechadura é
+   * justamente o que se faz numa porta trancada. Porta aberta não tem o que
+   * espiar e não faz nada. Aceito, a visão DELE atravessa a porta por
+   * `PEEK_DURATION_MS` (`peekingFor`); a porta do mestre não muda.
+   */
+  function handleDoorPeek(clientId: string, msg: DoorPeekMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    const map = scene.map
+    const at = now()
+    const last = lastDoorToggleAt.get(playerId)
+    if (last !== undefined && at - last < DOOR_TOGGLE_MIN_INTERVAL_MS) return { outbound: [] }
+    lastDoorToggleAt.set(playerId, at)
+
+    const reject = (reason: 'far' | 'not_visible'): HostResult => reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
+    const wall = map.walls.find((w) => w.id === msg.wallId)
+    if (wall === undefined || wall.door === null) return reject('not_visible')
+    const memory = memoryFor(playerId, map)
+    // Sem o espiar de antes: a porta tem de estar à vista pela visão de sempre.
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId, map), memory.exp, memory.doors, pinAudiences, secretReveals)
+    // Porta secreta nunca entra aqui: para o jogador ela é parede (`lib/fogFilter.ts`).
+    if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
+    if (wall.door.open && !wall.door.locked) return { outbound: [] }
+    const owned = new Set(ownership[playerId] ?? [])
+    const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
+    if (!near) return reject('far')
+
+    peeks.set(playerId, { sceneKey: sceneKey(scene), wallId: wall.id, until: at + PEEK_DURATION_MS })
+    return { outbound: [], peek: { playerId, playerName: record.name, wallId: wall.id } }
   }
 
   /**
@@ -1026,6 +1102,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleSignal(clientId, msg, world)
         case 'door.toggle':
           return handleDoorToggle(clientId, msg, world)
+        case 'door.peek':
+          return handleDoorPeek(clientId, msg, world)
         case 'token.edit':
           return handleTokenEdit(clientId, msg, world)
         case 'pin.travel.request':
@@ -1149,6 +1227,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       forgetTravelsOf(playerId)
       lastSignalAt.delete(playerId)
       lastDoorToggleAt.delete(playerId)
+      peeks.delete(playerId)
       lastTokenPhotoAt.delete(playerId)
       visionOverrides.delete(playerId)
       visionFactors.delete(playerId)

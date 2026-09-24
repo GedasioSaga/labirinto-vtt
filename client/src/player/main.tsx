@@ -9,6 +9,7 @@ import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { OpenPinCard } from './OpenPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
+import { PeekDoorButton } from './PeekDoorButton'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
@@ -559,6 +560,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           vision={state.vision}
           explored={state.explored}
           concealed={state.concealed}
+          glimpses={state.glimpses}
           ownTokens={ownTokens}
           settings={settings}
           focusTokenId={focus.tokenId}
@@ -614,6 +616,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             {travelNoticeText(state.travel)}
           </p>
         )}
+        <PeekDoorButton map={state.map} ownTokens={ownTokens} onPeek={(wallId) => connection.peekDoor(wallId)} />
         {state.doorNotice && (
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
           <p key={state.doorNotice.id} className="pp-notice" role="status" aria-live="polite">

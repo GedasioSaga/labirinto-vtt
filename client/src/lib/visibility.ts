@@ -1,4 +1,4 @@
-import type { FloorPiece, MapData, RegionPoint } from '../types/map'
+import type { FloorPiece, MapData, RegionPoint, Wall } from '../types/map'
 import { isDoorPassable } from './collision'
 import { buildFloorOutline } from './floorContour'
 import { simplifyRing } from './refineFloor'
@@ -191,10 +191,28 @@ function floorSegments(floor: FloorPiece[]): Segment[] {
   return segments
 }
 
-/** Obstáculos de visão: paredes que bloqueiam luz (porta aberta e destrancada não bloqueia) + borda do chão. */
-export function visionSegments(map: MapData): Segment[] {
+/**
+ * A visão atravessa esta parede? Não bloqueia luz; porta aberta e destrancada;
+ * GRADE fechada ou trancada (barras, não tábuas); parede 'Janela' sem porta; ou
+ * porta que ESTE jogador está espiando (`peekDoorIds`, só com porta de verdade).
+ * Porta secreta nunca: ela é parede até o mestre revelar (`collision.ts`). O
+ * passo é outra conta — janela e grade continuam barrando a ficha.
+ */
+export function wallLetsSightThrough(wall: Wall, peekDoorIds?: ReadonlySet<string>): boolean {
+  if (!wall.blocksLight) return true
+  const door = wall.door
+  if (door === null) return wall.janela === true
+  if (door.secret === true) return false
+  return isDoorPassable(door) || door.kind === 'gate' || peekDoorIds?.has(wall.id) === true
+}
+
+/**
+ * Obstáculos de visão: paredes que a visão não atravessa (`wallLetsSightThrough`)
+ * + borda do chão. `peekDoorIds`: portas que o jogador desta conta está espiando.
+ */
+export function visionSegments(map: MapData, peekDoorIds?: ReadonlySet<string>): Segment[] {
   const walls = map.walls
-    .filter((w) => w.blocksLight && !isDoorPassable(w.door))
+    .filter((w) => !wallLetsSightThrough(w, peekDoorIds))
     .map((w) => ({ x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2 }))
   return [...walls, ...floorSegments(map.floor)]
 }

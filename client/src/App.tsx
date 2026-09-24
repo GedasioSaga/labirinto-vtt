@@ -321,6 +321,7 @@ function App() {
   const wallLineStyle = useMapStore((state) => state.wallLineStyle)
   const setWallLineStyle = useMapStore((state) => state.setWallLineStyle)
   const setWallLineStyleForWall = useMapStore((state) => state.setWallLineStyleForWall)
+  const setWallJanela = useMapStore((state) => state.setWallJanela)
   const regionStrokeWidth = useMapStore((state) => state.regionStrokeWidth)
   const setRegionStrokeWidth = useMapStore((state) => state.setRegionStrokeWidth)
   const regionStrokeJoin = useMapStore((state) => state.regionStrokeJoin)
@@ -1955,6 +1956,9 @@ function App() {
               onThicknessChange: handleWallThicknessChange,
               lineStyle: selectedWall ? selectedWall.lineStyle : wallLineStyle,
               onLineStyleChange: handleWallLineStyleChange,
+              // Janela só na parede selecionada e sem porta (`setWallJanela`).
+              janela: selectedWall?.janela === true,
+              onJanelaChange: selectedWall && selectedWall.door === null ? (on: boolean) => setWallJanela(selectedWall.id, on) : undefined,
             }}
             selectedProp={selectedProp}
             propTransform={{

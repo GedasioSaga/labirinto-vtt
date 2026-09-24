@@ -69,6 +69,13 @@ export interface WallStyleControlsProps {
    */
   lineStyle?: WallLineStyle
   onLineStyleChange?: (lineStyle: WallLineStyle) => void
+  /**
+   * JANELA — a visão atravessa, a ficha não (`Wall.janela`). Só existe para a
+   * parede JÁ SELECIONADA e sem porta: sem `onJanelaChange` o interruptor nem
+   * aparece (não há "próxima parede janela": janela se marca na parede certa).
+   */
+  janela?: boolean
+  onJanelaChange?: (janela: boolean) => void
 }
 
 /**
@@ -89,6 +96,8 @@ export function WallStyleControls({
   onWallKindChange,
   thickness,
   onThicknessChange,
+  janela,
+  onJanelaChange,
 }: WallStyleControlsProps) {
   // `lineStyle`/`onLineStyleChange` continuam no tipo (o chamador monta um
   // objeto só), mas quem desenha é `WallLineStyleField`, no Avançado.
@@ -106,6 +115,9 @@ export function WallStyleControls({
         checked={wallKind === 'interior'}
         onChange={(checked) => onWallKindChange(checked ? 'interior' : 'exterior')}
       />
+      {onJanelaChange && (
+        <Toggle label="Janela (vê, não passa)" checked={janela === true} onChange={onJanelaChange} />
+      )}
       <div className="lb-field">
         <span className="lb-label">Espessura</span>
         <div className="lb-seg" role="radiogroup" aria-label="Espessura da parede">
