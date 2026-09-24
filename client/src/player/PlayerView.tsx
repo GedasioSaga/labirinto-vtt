@@ -1048,10 +1048,19 @@ export function PlayerView({
   function redrawLights(scene: Scene): void {
     const currentMap = latestRef.current.map
     const lights = visibleLights(currentMap.lights, currentMap.hiddenLayers)
+    // Sem luz não há sombra a recortar: nada de contornar o chão da cena
+    // inteira (numa cidade de milhares de salas, isso travava o celular).
+    if (lights.length === 0) {
+      const key = JSON.stringify([lights])
+      if (key === scene.lastLightsKey) return
+      scene.lastLightsKey = key
+      scene.lightsRenderer.draw(scene.lights, lights, { occluders: [], showMarkers: false })
+      return
+    }
     const walls = visibleWalls(currentMap)
-    // `lastFloorKey` já resume o chão (redrawFloor roda antes): evita um
-    // JSON.stringify do chão inteiro a cada snapshot só para esta camada.
-    const key = JSON.stringify([lights, walls, scene.lastFloorKey])
+    // A sombra usa o chão INTEIRO, não o recortado da tela (`lastFloorKey`
+    // muda a cada pedaço explorado e refaria o contorno da cena toda a cada passo).
+    const key = JSON.stringify([lights, walls, currentMap.floor])
     if (key === scene.lastLightsKey) return
     scene.lastLightsKey = key
     scene.lightsRenderer.draw(scene.lights, lights, {
@@ -1148,7 +1157,12 @@ export function PlayerView({
     redrawGridLayer(scene)
     // Chão só da vizinhança conhecida: o contorno (caro) sai de dezenas de
     // peças, não das milhares da cena. Ordem preservada (peça que apaga).
-    const drawnFloor = scene.culler.cull(currentMap, currentVision, currentExplored).floor
+    // Render fiel fica com o chão INTEIRO: ele rasteriza o mapa todo de uma
+    // vez, e recortar faria a chave do chão mudar a cada pedaço explorado —
+    // o mapa inteiro rasterizado de novo a cada passo.
+    const drawnFloor = isRasterMode(currentMap)
+      ? currentMap.floor
+      : scene.culler.cull(currentMap, currentVision, currentExplored).floor
     scene.floorDrawn = drawnFloor.length
     redrawFloor(scene, { ...currentMap, floor: drawnFloor })
 

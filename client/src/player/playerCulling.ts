@@ -14,9 +14,13 @@
  *
  * Como o custo não cresce com a cena: o mapa é dividido em pedaços quadrados
  * (`ChunkLayout`) e cada item é guardado nos pedaços que a caixa dele toca.
- * O índice é montado uma vez por snapshot (e reaproveitado pela referência do
- * array a cada zoom); o recorte só abre os pedaços que o jogador conhece, então
- * examina os itens da vizinhança — nunca a lista inteira.
+ * O índice é montado quando a PLANTA muda, não a cada mensagem: todo snapshot
+ * ou delta traz arrays recém-parseados, então o recortador compara o conteúdo
+ * com a planta anterior e, igual, reaproveita o índice (`indexed: 0`). A
+ * comparação é uma varredura sem alocar índice, da mesma ordem do
+ * `JSON.parse` que trouxe a mensagem (e do `floorKey` da tela); montar de novo
+ * só quando o mestre mexe na planta. O recorte só abre os pedaços que o
+ * jogador conhece, então examina os itens da vizinhança — nunca a lista inteira.
  */
 import type { Exploration } from '../lib/exploration'
 import { pieceBounds } from '../lib/floorSdf'
@@ -64,11 +68,16 @@ interface ChunkIndex {
   always: number[]
 }
 
-/** O que a tela do jogador desenha da planta. `examined` = itens percorridos pelo recorte (a medida do custo). */
+/**
+ * O que a tela do jogador desenha da planta, com a medida do custo da chamada:
+ * `examined` = itens percorridos pelo recorte; `indexed` = itens inseridos no
+ * índice nesta chamada (0 quando a planta é a mesma da chamada anterior).
+ */
 export interface PlayerDrawSet {
   walls: Wall[]
   floor: FloorPiece[]
   examined: number
+  indexed: number
 }
 
 export interface PlayerCuller {
@@ -142,22 +151,44 @@ function wallBox(w: Wall): Box {
   return { minX: Math.min(w.x1, w.x2), minY: Math.min(w.y1, w.y2), maxX: Math.max(w.x1, w.x2), maxY: Math.max(w.y1, w.y2) }
 }
 
+/** Igualdade de valor JSON (a planta chega por JSON): sai no primeiro campo diferente. */
+function sameJsonValue(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+    for (let i = 0; i < a.length; i += 1) if (!sameJsonValue(a[i], b[i])) return false
+    return true
+  }
+  const keys = Object.keys(a)
+  if (keys.length !== Object.keys(b).length) return false
+  for (const k of keys) {
+    if (!Object.hasOwn(b, k) || !sameJsonValue(Reflect.get(a, k), Reflect.get(b, k))) return false
+  }
+  return true
+}
+
+/** Planta de um tipo (paredes ou chão) já indexada: o array canônico e o índice dele. */
+interface IndexedPlan<T> {
+  items: readonly T[]
+  index: ChunkIndex
+}
+
 /**
- * Índice cacheado pela referência do array: snapshot novo chega com array
- * novo; o zoom (mesmo snapshot) reaproveita.
+ * Índice da planta: reaproveitado quando o array é o mesmo (zoom) OU tem o
+ * mesmo conteúdo (snapshot/delta novo sem mudança na planta). Nesse caso volta
+ * o array ANTERIOR, canônico, para a memória de `cull` reconhecer a entrada.
  */
-function cachedIndex<T extends object>(
-  cache: WeakMap<readonly T[], ChunkIndex>,
+function reuseOrBuild<T>(
+  previous: IndexedPlan<T> | null,
   items: readonly T[],
   boundsOf: (item: T) => Box,
   layout: ChunkLayout,
-): ChunkIndex {
-  const key = layoutKeyOf(layout)
-  const hit = cache.get(items)
-  if (hit !== undefined && hit.layoutKey === key) return hit
-  const index = buildIndex(items, boundsOf, layout)
-  cache.set(items, index)
-  return index
+): { plan: IndexedPlan<T>; indexed: number } {
+  if (previous !== null && previous.index.layoutKey === layoutKeyOf(layout)) {
+    if (previous.items === items || sameJsonValue(previous.items, items)) return { plan: previous, indexed: 0 }
+  }
+  return { plan: { items, index: buildIndex(items, boundsOf, layout) }, indexed: items.length }
 }
 
 function addBox(layout: ChunkLayout, known: Set<number>, b: Box, pad: number): void {
@@ -258,13 +289,13 @@ function pick<T>(items: readonly T[], index: ChunkIndex, known: ReadonlySet<numb
 }
 
 /**
- * Um recortador por tela. Guarda o índice de cada array (pela referência) e o
+ * Um recortador por tela. Guarda o índice da última planta (paredes e chão) e o
  * último resultado: a mesma entrada devolve o MESMO objeto, então o zoom — que
  * redesenha as paredes a cada passo — não refaz nada.
  */
 export function createPlayerCuller(): PlayerCuller {
-  const wallIndexes = new WeakMap<readonly Wall[], ChunkIndex>()
-  const floorIndexes = new WeakMap<readonly FloorPiece[], ChunkIndex>()
+  let wallPlan: IndexedPlan<Wall> | null = null
+  let floorPlan: IndexedPlan<FloorPiece> | null = null
   let last: {
     walls: readonly Wall[]
     floor: readonly FloorPiece[]
@@ -291,10 +322,19 @@ export function createPlayerCuller(): PlayerCuller {
     ) {
       return last.result
     }
+    const wallsIndexed = reuseOrBuild(wallPlan, map.walls, wallBox, layout)
+    const floorIndexed = reuseOrBuild(floorPlan, map.floor, pieceBounds, layout)
+    wallPlan = wallsIndexed.plan
+    floorPlan = floorIndexed.plan
     const known = knownChunks(layout, positive(map.grid, 1), vision, explored)
-    const walls = pick(map.walls, cachedIndex(wallIndexes, map.walls, wallBox, layout), known)
-    const floor = pick(map.floor, cachedIndex(floorIndexes, map.floor, pieceBounds, layout), known)
-    const result: PlayerDrawSet = { walls: walls.items, floor: floor.items, examined: walls.examined + floor.examined }
+    const walls = pick(wallPlan.items, wallPlan.index, known)
+    const floor = pick(floorPlan.items, floorPlan.index, known)
+    const result: PlayerDrawSet = {
+      walls: walls.items,
+      floor: floor.items,
+      examined: walls.examined + floor.examined,
+      indexed: wallsIndexed.indexed + floorIndexed.indexed,
+    }
     last = { walls: map.walls, floor: map.floor, vision, explored, layoutKey, result }
     return result
   }

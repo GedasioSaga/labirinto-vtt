@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createExploration, markAll, markRings } from '../lib/exploration'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { FloorPiece, MapData, RegionPoint, Wall } from '../types/map'
-import { createPlayerCuller } from './playerCulling'
+import { createPlayerCuller, type PlayerDrawSet } from './playerCulling'
 
 /**
  * CENA GRANDE NO CELULAR. A cidade-torre tem cena com 2.828 salas; o jogador
@@ -79,20 +79,50 @@ describe('recorte de desenho do jogador — cena grande', () => {
     expect(set.walls.length).toBeGreaterThanOrEqual(4)
   })
 
-  it('o custo do recorte NÃO cresce com o tamanho da cena: 16 salas ou 3.600, mesma vizinhança, mesmo trabalho', () => {
+  it('a montagem do índice é contada: a primeira chegada da planta indexa a cena inteira', () => {
+    const grande = quarteirao(60)
+    const primeira = createPlayerCuller().cull(grande, [salaDoCanto()], undefined)
+    // 14.400 paredes + 3.600 peças de chão: a montagem cresce com a cena, e a medida diz isso.
+    expect(primeira.indexed).toBe(grande.walls.length + grande.floor.length)
+    expect(primeira.indexed).toBe(18_000)
+  })
+
+  it('o custo do recorte a cada snapshot NÃO cresce com o tamanho da cena: 16 salas ou 3.600, mesma vizinhança, mesmo trabalho', () => {
     const pequena = quarteirao(4)
     const grande = quarteirao(60)
     expect(grande.walls.length).toBe(14_400)
 
-    const naPequena = createPlayerCuller().cull(pequena, [salaDoCanto()], undefined)
-    const naGrande = createPlayerCuller().cull(grande, [salaDoCanto()], undefined)
+    /**
+     * Como na tela: a planta chegou uma vez, e cada snapshot/delta seguinte
+     * traz tudo recém-parseado (arrays e objetos novos, mesmo conteúdo) com a
+     * ficha em outro lugar. A chamada medida é a do snapshot seguinte.
+     */
+    function snapshotSeguinte(map: MapData): PlayerDrawSet {
+      const culler = createPlayerCuller()
+      culler.cull(map, [salaDoCanto()], undefined)
+      return culler.cull(structuredClone(map), [salaDoCanto(1, 0)], undefined)
+    }
+    const naPequena = snapshotSeguinte(pequena)
+    const naGrande = snapshotSeguinte(grande)
 
-    // O mesmo desenho, item por item, e o mesmo número de itens examinados:
-    // a cena ter 225x mais salas não muda o que o recorte percorre.
+    // Nada indexado de novo nas duas, o mesmo desenho item por item e o mesmo
+    // número de itens examinados: a cena ter 225x mais salas não muda o trabalho.
+    expect(naGrande.indexed).toBe(0)
+    expect(naPequena.indexed).toBe(0)
     expect(ids(naGrande.walls)).toEqual(ids(naPequena.walls))
     expect(ids(naGrande.floor)).toEqual(ids(naPequena.floor))
     expect(naGrande.examined).toBe(naPequena.examined)
     expect(naGrande.examined).toBeGreaterThan(0)
+  })
+
+  it('o mestre mexe na planta: o índice é remontado e a parede nova aparece', () => {
+    const map = quarteirao(20)
+    const culler = createPlayerCuller()
+    culler.cull(map, [salaDoCanto()], undefined)
+    const editado: MapData = { ...map, walls: [...map.walls, parede('nova', 10, 10, 100, 10)] }
+    const depois = culler.cull(editado, [salaDoCanto()], undefined)
+    expect(depois.indexed).toBe(editado.walls.length)
+    expect(ids(depois.walls)).toContain('nova')
   })
 
   it('o que o jogador já viu continua desenhado longe da ficha (explorado)', () => {
