@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from './mapFactory'
 import type { ConcealZone, MapData, Region, Token, Wall } from '../types/map'
 import { snapPointForTarget } from '../pixi/tokenInteraction'
+import { PIN_TRAVEL_MAX_TOKENS } from '../net/protocol'
 import { companionSpots, TRAVEL_GROUP_CELLS, travelCandidates, type TravelViewer } from './pinGroup'
 
 /**
@@ -33,6 +34,16 @@ describe('travelCandidates', () => {
     expect(travelCandidates([], { x: 0, y: 0 }, GRID)).toEqual([])
     const sozinha = ficha('so', 1900, 450)
     expect(travelCandidates([sozinha], { x: 0, y: 0 }, GRID)).toEqual([sozinha])
+  })
+
+  it('com mais fichas no grupo do que o pedido aceita, ficam as PIN_TRAVEL_MAX_TOKENS mais perto — o cartão nunca oferece uma lista que o host recusa', () => {
+    const pino = { x: 500, y: 200 }
+    // Todas no grupo: a mais perto a 10 px, a mais longe a 10 + 10 * 5 = 60 px (folga de 100 px).
+    const grupo = Array.from({ length: PIN_TRAVEL_MAX_TOKENS + 2 }, (_, i) => ficha(`f${i}`, pino.x - 10 - i * 5, pino.y))
+    const embaralhado = [...grupo].reverse()
+    const escolhidas = travelCandidates(embaralhado, pino, GRID).map((t) => t.id)
+    expect(escolhidas).toHaveLength(PIN_TRAVEL_MAX_TOKENS)
+    expect(escolhidas).toEqual(grupo.slice(0, PIN_TRAVEL_MAX_TOKENS).map((t) => t.id))
   })
 })
 

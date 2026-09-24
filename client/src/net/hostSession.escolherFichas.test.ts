@@ -9,6 +9,7 @@ import {
   type HostWorld,
 } from './hostSession'
 import { PIN_TRAVEL_MAX_TOKENS, type HostMessage } from './protocol'
+import { travelCandidates } from '../lib/pinGroup'
 
 /**
  * ESCOLHER FICHAS NO PINO — quem tem várias fichas perto do pino escolhe quais
@@ -269,6 +270,32 @@ describe('hostSession: escolher quais fichas passam pelo pino', () => {
     const r = t.s.approveTravel(pedido.requestId, t.w())
     expect(r.applyTransfer).toBeUndefined()
     expect(r.outbound).toEqual(RECUSA)
+  })
+
+  it('com mais fichas junto do pino do que o teto, o que o cartão oferece (todas marcadas) é um pedido que VALE — ninguém fica preso esperando', () => {
+    const t = mesa()
+    const w = t.w()
+    // Enzo ganha uma tropa colada no pino: com Enzo e Rufo, PIN_TRAVEL_MAX_TOKENS + 1 fichas no grupo.
+    const tropa = Array.from({ length: PIN_TRAVEL_MAX_TOKENS - 1 }, (_, i) => ficha(`tropa${i}`, `Tropa ${i}`, 300, 150 - i * 5))
+    const mundoTropa: HostWorld = { ...w, open: { ...w.open, map: { ...w.open.map, tokens: [...w.open.map.tokens, ...tropa] } } }
+    const enzoId = t.s.listPlayers().find((p) => p.name === 'Enzo')?.playerId
+    if (enzoId === undefined) throw new Error('faltou o Enzo')
+    for (const f of tropa) t.s.assignToken(enzoId, f.id)
+    const deleNoRecorte = mundoTropa.open.map.tokens.filter((f) => f.hidden !== true && f.id !== 'bia')
+    const pino = mundoTropa.open.map.pins.find((p) => p.id === 'escotilha')
+    if (pino === undefined) throw new Error('faltou a escotilha')
+    // Rufo, a mais perto, a 30 px: o grupo vai até 30 px + 2 casas = 130 px.
+    const noGrupo = deleNoRecorte.filter((f) => Math.hypot(f.x - pino.x, f.y - pino.y) <= 130)
+    expect(noGrupo).toHaveLength(PIN_TRAVEL_MAX_TOKENS + 1)
+    // O que o cartão do jogador oferece, todas marcadas de início.
+    const oferecidas = travelCandidates(deleNoRecorte, pino, GRID).map((f) => f.id)
+    const r = t.s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'escotilha', tokenIds: oferecidas }, mundoTropa)
+    expect(r.outbound).toEqual([])
+    const pedido = r.travelRequest
+    if (pedido === undefined) throw new Error('o pedido deveria valer')
+    expect(pedido.tokenNames).toHaveLength(PIN_TRAVEL_MAX_TOKENS)
+    const ida = t.s.approveTravel(pedido.requestId, mundoTropa)
+    expect(ida.applyTransfer?.companions).toHaveLength(PIN_TRAVEL_MAX_TOKENS - 1)
   })
 
   it('lista fora da forma é mensagem inválida: vazia, repetida, com não-texto, grande demais ou texto solto', () => {

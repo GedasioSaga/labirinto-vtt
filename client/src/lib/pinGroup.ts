@@ -2,6 +2,7 @@ import type { MapData, Token } from '../types/map'
 import { gatherSpots } from './gatherParty'
 import { filterMapForPlayer } from './fogFilter'
 import { tokenSizeInSquares } from './tokenSize'
+import { PIN_TRAVEL_MAX_TOKENS } from '../net/protocol'
 
 /**
  * ESCOLHER FICHAS NO PINO — compartilhado pelo host (validar a lista que o
@@ -35,6 +36,10 @@ export interface TravelViewer {
  * `TRAVEL_GROUP_CELLS` casas além dela, da mais perto para a mais longe (é a
  * ordem em que chegam do outro lado). `tokens` já tem de ser só as do jogador,
  * do recorte dele: ficha escondida pelo mestre não entra aqui.
+ *
+ * No máximo `PIN_TRAVEL_MAX_TOKENS`, as mais perto: o cartão marca todas de
+ * início, e uma lista maior que o teto do pedido seria recusada inteira como
+ * mensagem inválida — o jogador ficaria esperando um mestre que nunca responde.
  */
 export function travelCandidates<T extends Point>(tokens: readonly T[], pin: Point, grid: number): T[] {
   const withDistance = tokens.map((token) => ({ token, distance: Math.hypot(token.x - pin.x, token.y - pin.y) }))
@@ -42,7 +47,10 @@ export function travelCandidates<T extends Point>(tokens: readonly T[], pin: Poi
   const nearest = withDistance[0]
   if (nearest === undefined) return []
   const limit = nearest.distance + TRAVEL_GROUP_CELLS * grid
-  return withDistance.filter((entry) => entry.distance <= limit).map((entry) => entry.token)
+  return withDistance
+    .filter((entry) => entry.distance <= limit)
+    .slice(0, PIN_TRAVEL_MAX_TOKENS)
+    .map((entry) => entry.token)
 }
 
 /**
