@@ -563,6 +563,7 @@ function App() {
             onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
             onRevealPlan={(playerId) => hostBridgeRef.current?.revealPlan(playerId)}
             onHidePlan={(playerId) => hostBridgeRef.current?.hidePlan(playerId)}
+            onGiveGroupView={(playerId) => hostBridgeRef.current?.giveGroupView(playerId) ?? null}
             laserOn={laserToggled}
             onToggleLaser={() => useLaserStore.getState().setToggled(!useLaserStore.getState().toggled)}
           />
@@ -1705,6 +1706,14 @@ function App() {
                 people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
                 onNote={room === null ? undefined : (sceneId, text) => hostBridgeRef.current?.sceneNote(sceneId, text) ?? null}
+                // A flag grava com a aventura; o snapshot sai pelo throttle do mapa para quem já está lá.
+                onTogglePlanKnown={(sceneId, known) => {
+                  useAdventureStore.getState().setScenePlanKnown(sceneId, known)
+                  hostBridgeRef.current?.notifyMapChanged()
+                }}
+                players={roomPlayers.map((p) => ({ playerId: p.playerId, name: p.name }))}
+                // "Revelar planta para…" só com a sala aberta: sem sala não há para quem.
+                onRevealPlanFor={room === null ? undefined : (sceneId, playerIds) => hostBridgeRef.current?.revealPlanFor(sceneId, playerIds) ?? null}
               />
             }
             mapName={map.name}

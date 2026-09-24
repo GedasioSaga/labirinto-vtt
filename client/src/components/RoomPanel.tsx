@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type PlayerInfo } from '../net/hostSession'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
@@ -30,12 +31,28 @@ export interface RoomPanelProps {
   onVisionRadiusChange(playerId: string, radius: number): void
   onRevealPlan(playerId: string): void
   onHidePlan(playerId: string): void
+  /**
+   * "Dar o que o grupo viu": o jogador ganha o que os colegas viram na cena
+   * onde ele está. Devolve quantos colegas (0 = ninguém mais explorou), ou
+   * `null` se não deu. Ausente = o card fica sem o botão.
+   */
+  onGiveGroupView?(playerId: string): number | null
   /** Botão "Laser" ligado: arma o laser (independe de segurar L); o traço sai clicando no mapa. */
   laserOn?: boolean
   onToggleLaser?(): void
 }
 
 export const PLAN_HINT = 'Revelar planta mostra paredes, salas e portas, sem os tokens. Zonas ocultas continuam escondidas.'
+export const GROUP_VIEW_LABEL = 'Dar o que o grupo viu'
+/** Quanto tempo o aviso do "Dar o que o grupo viu" fica no card. */
+export const GROUP_VIEW_FEEDBACK_MS = 4000
+
+/** O aviso depois de "Dar o que o grupo viu": de quantos colegas veio, ou por que não veio nada. */
+export function groupViewFeedbackText(name: string, colleagues: number | null): string {
+  if (colleagues === null) return 'Não deu: a sala não está aberta.'
+  if (colleagues === 0) return `Ninguém mais explorou a cena de ${name}`
+  return colleagues === 1 ? `${name} recebeu o que 1 colega viu` : `${name} recebeu o que ${colleagues} colegas viram`
+}
 export const LASER_HINT ='Ligado (ou segurando L), clique e arraste com o botão esquerdo sobre o mapa. Todos os jogadores veem o laser.'
 export const FIREWALL_HINT = 'Se o celular não abrir o link, libere o app no Firewall do Windows (rede Privada)'
 export const TUNNEL_WARNING = 'Quem tiver o link e o código entra na sala. Encerre ao terminar o jogo.'
@@ -191,10 +208,24 @@ export function RoomPanel({
   onVisionRadiusChange,
   onRevealPlan,
   onHidePlan,
+  onGiveGroupView,
   laserOn = false,
   onToggleLaser,
 }: RoomPanelProps) {
   const waitingCount = players.filter((player) => player.status === 'waiting' && player.connected).length
+  /** Aviso do último "Dar o que o grupo viu", no card de quem recebeu. */
+  const [groupFeedback, setGroupFeedback] = useState<{ playerId: string; text: string } | null>(null)
+
+  useEffect(() => {
+    if (groupFeedback === null) return
+    const timer = setTimeout(() => setGroupFeedback(null), GROUP_VIEW_FEEDBACK_MS)
+    return () => clearTimeout(timer)
+  }, [groupFeedback])
+
+  const giveGroupView = (player: PlayerInfo) => {
+    const colleagues = onGiveGroupView?.(player.playerId) ?? null
+    setGroupFeedback({ playerId: player.playerId, text: groupViewFeedbackText(player.name, colleagues) })
+  }
   return (
     <section className="lb-panel lb-section lb-room lb-scroll">
       <h2 className="lb-eyebrow">Sala</h2>
@@ -321,6 +352,17 @@ export function RoomPanel({
                 <button type="button" className="lb-btn lb-btn--ghost" onClick={() => onHidePlan(player.playerId)}>
                   Esconder de novo
                 </button>
+                {/* Só quem joga tem cena: quem aguarda não tem onde receber o que o grupo viu. */}
+                {onGiveGroupView !== undefined && player.status === 'playing' && (
+                  <button type="button" className="lb-btn lb-btn--ghost" onClick={() => giveGroupView(player)}>
+                    {GROUP_VIEW_LABEL}
+                  </button>
+                )}
+                {groupFeedback?.playerId === player.playerId && (
+                  <p className="lb-label" role="status">
+                    {groupFeedback.text}
+                  </p>
+                )}
                 <p className="lb-label">{PLAN_HINT}</p>
                 {clientId !== null && (
                   <button type="button" className="lb-btn lb-btn--danger" onClick={() => onKick(clientId)}>
