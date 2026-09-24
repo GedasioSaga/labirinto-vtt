@@ -19,7 +19,7 @@ import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { LabyrinthMark } from '../components/icons'
-import type { SignalMark } from '../lib/signals'
+import type { DestinationMark, SignalMark } from '../lib/signals'
 import type { RemoteLaser } from '../lib/laser'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
@@ -36,6 +36,7 @@ document.head.prepend(themeStyle)
 /** Referência estável: um `[]` novo a cada render redesenharia o canvas sem motivo. */
 const NO_TOKENS: string[] = []
 const NO_SIGNALS: SignalMark[] = []
+const NO_DESTINATIONS: DestinationMark[] = []
 const NO_PLAYER_LASERS: RemoteLaser[] = []
 const NO_NOTES: NoteEntry[] = []
 const NO_CLUES: ClueEntry[] = []
@@ -496,6 +497,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(localStorageOrNull()))
   const [focus, setFocus] = useState<{ tokenId: string | null; seq: number }>({ tokenId: null, seq: 0 })
   const [signalArmed, setSignalArmed] = useState(false)
+  /** "Marcar destino" ligado: o próximo toque no mapa põe a marca "vamos para cá". */
+  const [destinationArmed, setDestinationArmed] = useState(false)
   /** Régua do jogador ligada. Só o liga/desliga mora aqui; a medida em si é do PlayerView (local ao gesto). */
   const [measureArmed, setMeasureArmed] = useState(false)
   /** Laser do jogador ligado. O rastro em si é do PlayerView (local ao gesto) e do socket. */
@@ -535,16 +538,17 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   // Escape apaga a medida e desliga o modo. Só escuta com o modo ligado, e
   // nunca dentro de campo de texto (lá o Escape é da edição).
   useEffect(() => {
-    if (!measureArmed && !laserArmed) return
+    if (!measureArmed && !laserArmed && !destinationArmed) return
     const onKey = (event: KeyboardEvent) => {
       if (!escapeDisarmsMeasure(event.key, event.target)) return
-      // Os dois modos não ficam ligados juntos: o Escape desliga o que estiver.
+      // Os modos não ficam ligados juntos: o Escape desliga o que estiver.
       setMeasureArmed(false)
       setLaserArmed(false)
+      setDestinationArmed(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [measureArmed, laserArmed])
+  }, [measureArmed, laserArmed, destinationArmed])
 
   const ownTokens = state.ownTokens ?? NO_TOKENS
   const map = state.map
@@ -624,6 +628,13 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             // Modo de um toque: sinalizou, desliga.
             setSignalArmed(false)
           }}
+          destinations={state.destinations ?? NO_DESTINATIONS}
+          destinationArmed={destinationArmed}
+          onDestination={(x, y) => {
+            connection.markDestination(x, y)
+            // Modo de um toque, como o Sinalizar: marcou, desliga.
+            setDestinationArmed(false)
+          }}
           measureArmed={measureArmed}
           laserArmed={laserArmed}
           ownLaserColor={ownLaserColor}
@@ -651,19 +662,31 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             setSignalArmed((armed) => !armed)
             setMeasureArmed(false)
             setLaserArmed(false)
+            setDestinationArmed(false)
           }}
           measureArmed={measureArmed}
           onToggleMeasure={() => {
             setMeasureArmed((armed) => !armed)
             setSignalArmed(false)
             setLaserArmed(false)
+            setDestinationArmed(false)
           }}
           laserArmed={laserArmed}
           onToggleLaser={() => {
             setLaserArmed((armed) => !armed)
             setSignalArmed(false)
             setMeasureArmed(false)
+            setDestinationArmed(false)
           }}
+          destinationArmed={destinationArmed}
+          onToggleDestination={() => {
+            setDestinationArmed((armed) => !armed)
+            setSignalArmed(false)
+            setMeasureArmed(false)
+            setLaserArmed(false)
+          }}
+          hasDestination={(state.destinations ?? NO_DESTINATIONS).some((mark) => mark.mine)}
+          onClearDestination={() => connection.clearDestination()}
           onRenameToken={(tokenId, name) => connection.setOwnTokenName(tokenId, name)}
           onChangeTokenPhoto={async (tokenId, file) => {
             // A foto é reduzida AQUI, antes de sair da máquina do jogador: é

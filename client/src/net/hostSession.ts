@@ -5,7 +5,7 @@ import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPl
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
-import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
+import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, signalColor, type DestinationMark } from '../lib/signals'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
@@ -14,6 +14,7 @@ import {
   type ClueEntry,
   type ClueReadMessage,
   type ClueShowMessage,
+  type DestinationMessage,
   type DoorToggleMessage,
   type HostMessage,
   type JoinMessage,
@@ -223,6 +224,12 @@ export interface PlayerInfo {
    * resto do tempo: é o que põe o selo "pedido" na cena dele, na lista Cenas.
    */
   travelPending?: true
+  /**
+   * MARCA "VAMOS PARA CÁ" dele, em px de mundo da cena `sceneId` (a dele), na
+   * cor da ficha. Ausente = não marcou, tirou, ou saiu da cena onde marcou.
+   * Só vem com `source` no `listPlayers`.
+   */
+  destination?: { x: number; y: number; color: string }
 }
 
 /** Faixa do "Raio de visão" por jogador, em px de mundo. */
@@ -482,6 +489,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const seenPins = new Map<string, { mapId: string; pins: Pin[] }>()
   // Por playerId: quando a última pista mostrada chegou a um colega.
   const lastClueShowAt = new Map<string, number>()
+  // MARCA "VAMOS PARA CÁ" — por playerId: a marca dele e a cena (`sceneKey`)
+  // onde a pôs. Uma por jogador; fica até ele tirar, perder a ficha ou sair
+  // daquela cena (`pruneDestinations`). Sobrevive a disconnect; só o kick apaga.
+  const destinations = new Map<string, { scene: string; x: number; y: number }>()
+  // Por playerId: quando pôs a última marca (DESTINATION_MIN_INTERVAL_MS).
+  const lastDestinationAt = new Map<string, number>()
+  // Por playerId: a última lista de marcas mandada a ele (JSON). Só sai lista
+  // nova quando muda; ausente = nada mandado nesta conexão (vale lista vazia).
+  const sentDestinations = new Map<string, string>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -756,6 +772,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const clues = cluebooks.get(record.playerId) ?? []
     if (clues.length > 0) outbound.push({ clientId, msg: { type: 'clues.book', clues: clues.map((item) => ({ ...item.entry })) } })
     for (const msg of cards) outbound.push({ clientId, msg })
+    // Conexão nova começa sem marca nenhuma na tela: a lista dele sai de novo, depois do mapa.
+    sentDestinations.delete(record.playerId)
+    pruneDestinations(world)
+    outbound.push(...destinationUpdateFor(clientId, record.playerId, world))
     return { outbound }
   }
 
@@ -803,7 +823,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     lastSignalAt.set(playerId, at)
 
     const point = { x: msg.x, y: msg.y }
-    const color = signalColor(playerId)
+    // A cor da FICHA (a do laser): é a peça que os outros procuram no mapa.
+    const color = laserColorOf(playerId, map)
     const message: HostMessage = { type: 'signal', x: msg.x, y: msg.y, from: record.name, color }
     const outbound: Outbound[] = [{ clientId, msg: message }]
     // Sala secreta vale como zona oculta: repassar o sinal diria aos outros que ali existe algo.
@@ -832,6 +853,92 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (chosen !== null) return chosen
     }
     return signalColor(playerId)
+  }
+
+  /**
+   * Tira a marca de quem não está mais onde a pôs: perdeu a última ficha, ou
+   * a ficha dele está em outra cena. Uma marca "vamos para cá" de quem já foi
+   * embora mandaria o grupo a lugar nenhum — e diria onde ele esteve.
+   */
+  const pruneDestinations = (world: HostWorld): void => {
+    for (const [ownerId, mark] of destinations) {
+      const scene = statusOf(ownerId) === 'playing' ? sceneFor(ownerId, world) : null
+      if (scene === null || sceneKey(scene) !== mark.scene) destinations.delete(ownerId)
+    }
+  }
+
+  /**
+   * As marcas que `playerId` pode ver agora: só as da cena DELE; a própria
+   * sempre; a dos outros só em ponto que ele já conhece (visão do último
+   * snapshot ou explorado) e fora de zona oculta ativa e de sala secreta — a
+   * mesma regra do sinal, porque a marca diria que ali existe algo. Quem
+   * aguarda, ou não está em cena nenhuma, vê lista vazia.
+   */
+  const destinationsFor = (playerId: string, world: HostWorld): DestinationMark[] => {
+    if (statusOf(playerId) !== 'playing') return []
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return []
+    const key = sceneKey(scene)
+    const blocked = playerBlockedRings(scene.map)
+    const marks: DestinationMark[] = []
+    for (const [ownerId, mark] of destinations) {
+      if (mark.scene !== key) continue
+      const owner = players.get(ownerId)
+      if (owner === undefined) continue
+      const mine = ownerId === playerId
+      if (!mine) {
+        const point = { x: mark.x, y: mark.y }
+        if (blocked.some((ring) => ring.length >= 3 && pointInRing(point, ring))) continue
+        if (!knowsPoint(playerId, scene.map, point)) continue
+      }
+      marks.push({ x: mark.x, y: mark.y, from: owner.name, color: laserColorOf(ownerId, scene.map), mine })
+    }
+    return marks
+  }
+
+  /**
+   * A lista de marcas de cada jogador conectado, SÓ para quem a lista mudou
+   * desde a última mandada. Chamada depois dos snapshots: é a visão nova que
+   * decide o que cada um já conhece.
+   */
+  const destinationUpdates = (world: HostWorld): Outbound[] => {
+    pruneDestinations(world)
+    return [...byClient].flatMap(([clientId, playerId]) => destinationUpdateFor(clientId, playerId, world))
+  }
+
+  /** A lista de um jogador só, se mudou. Quem chama já passou por `pruneDestinations`. */
+  const destinationUpdateFor = (clientId: string, playerId: string, world: HostWorld): Outbound[] => {
+    const marks = destinationsFor(playerId, world)
+    const key = JSON.stringify(marks)
+    if (key === (sentDestinations.get(playerId) ?? '[]')) return []
+    sentDestinations.set(playerId, key)
+    return [{ clientId, msg: { type: 'destinations', marks } }]
+  }
+
+  /**
+   * MARCA "VAMOS PARA CÁ": põe, move ou tira a marca de quem manda, e devolve
+   * a lista nova a cada um cuja lista mudou. O mestre lê pelo `listPlayers`.
+   * Ponto fora do mapa, de quem não joga ou antes do intervalo mínimo morre
+   * em silêncio, como o sinal.
+   */
+  function handleDestination(clientId: string, msg: DestinationMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if ('clear' in msg) {
+      if (!destinations.delete(playerId)) return { outbound: [] }
+      return { outbound: destinationUpdates(world) }
+    }
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    const map = scene.map
+    if (msg.x < 0 || msg.y < 0 || msg.x > map.width * map.grid || msg.y > map.height * map.grid) return { outbound: [] }
+    const at = now()
+    const last = lastDestinationAt.get(playerId)
+    if (last !== undefined && at - last < DESTINATION_MIN_INTERVAL_MS) return { outbound: [] }
+    lastDestinationAt.set(playerId, at)
+    destinations.set(playerId, { scene: sceneKey(scene), x: msg.x, y: msg.y })
+    return { outbound: destinationUpdates(world) }
   }
 
   /**
@@ -1206,6 +1313,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return { outbound: [] }
         case 'signal':
           return handleSignal(clientId, msg, world)
+        case 'destination':
+          return handleDestination(clientId, msg, world)
         case 'door.toggle':
           return handleDoorToggle(clientId, msg, world)
         case 'token.edit':
@@ -1326,6 +1435,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       pendingTravels.delete(playerId)
       // O gesto morre com a conexão; quem o via apaga a ponta sozinho (REMOTE_LASER_IDLE_MS).
       laserRecipients.delete(playerId)
+      // A marca DELE fica; a lista que a tela dele tinha, não (a volta recebe de novo).
+      sentDestinations.delete(playerId)
     },
 
     kick(clientId) {
@@ -1349,6 +1460,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       cluebooks.delete(playerId)
       seenPins.delete(playerId)
       lastClueShowAt.delete(playerId)
+      destinations.delete(playerId)
+      lastDestinationAt.delete(playerId)
+      sentDestinations.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },
 
@@ -1399,6 +1513,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // Chegou a uma cena com recado (viagem, ficha nova): o recado vem logo atrás do mapa.
         for (const msg of viewFor(playerId, world, 'on_change')) outbound.push({ clientId, msg })
       }
+      // Depois dos mapas: a visão nova decide que marca cada um já conhece, e
+      // quem mudou de cena perde as da cena de antes.
+      outbound.push(...destinationUpdates(world))
       return { outbound }
     },
 
@@ -1446,6 +1563,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const world = source === undefined ? null : toWorld(source)
       // Nome de cena só faz sentido com aventura: no mapa solto todo mundo está no mesmo lugar.
       const withScenes = world !== null && world.open.sceneId !== null
+      if (world !== null) pruneDestinations(world)
       return [...players.values()]
         .sort((a, b) => a.joinedAt - b.joinedAt)
         .map((p) => {
@@ -1471,6 +1589,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
               if (scene.sceneId !== null) info.sceneId = scene.sceneId
             }
           }
+          // O mestre vê toda marca: é ele quem conduz. Depois do prune, a marca está na cena do dono.
+          const mark = destinations.get(p.playerId)
+          const markScene = world === null || mark === undefined ? null : sceneFor(p.playerId, world)
+          if (mark !== undefined && markScene !== null) info.destination = { x: mark.x, y: mark.y, color: laserColorOf(p.playerId, markScene.map) }
           return info
         })
     },

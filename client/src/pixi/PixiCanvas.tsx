@@ -76,8 +76,9 @@ const OUTSIDE_FLOOR_GRID_ALPHA = 0.08
 // Onda 3, item 21 (Frente E) — moldura do mapa (contorno + sombra fora dela).
 import { drawMapBounds } from './drawMapBounds'
 import { createTokensRenderer } from './tokensRenderer'
-import { createSignalsRenderer } from './drawSignals'
+import { createDestinationsRenderer, createSignalsRenderer } from './drawSignals'
 import { useSignalStore } from '../stores/signalStore'
+import { useDestinationStore } from '../stores/destinationStore'
 import { createLaserPool, createLaserRenderer } from './drawLaser'
 import { isLaserArmed, useLaserStore } from '../stores/laserStore'
 import { usePlayerLaserStore } from '../stores/playerLaserStore'
@@ -839,6 +840,22 @@ export function PixiCanvas({
         signalsDrawn = drawn
       }
       app.ticker.add(tickSignals)
+
+      // Marcas "vamos para cá" dos jogadores da cena aberta: sem animação, mas
+      // presas à tela (tamanho fixo e seta na borda), então seguem a câmera a
+      // cada quadro. Abaixo dos sinais: a camada nasce antes das ondas.
+      const destinationsLayer = new Container()
+      signalsLayer.addChild(destinationsLayer)
+      const destinationsRenderer = createDestinationsRenderer()
+      let destinationsDrawn = 0
+      const tickDestinations = () => {
+        const { marks } = useDestinationStore.getState()
+        if (marks.length === 0 && destinationsDrawn === 0) return
+        const drawn = destinationsRenderer.draw(destinationsLayer, marks, camera, { width: app.screen.width, height: app.screen.height })
+        if (drawn !== destinationsDrawn) el.dataset.destinationsCount = String(drawn)
+        destinationsDrawn = drawn
+      }
+      app.ticker.add(tickDestinations)
 
       // B2 — laser do mestre: o próprio rastro em espaço de tela, acima dos sinais.
       const laserLayer = new Container()
@@ -5482,6 +5499,7 @@ export function PixiCanvas({
 
       return () => {
         app.ticker.remove(tickSignals)
+        app.ticker.remove(tickDestinations)
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)
         unsubscribeLaserCursor()

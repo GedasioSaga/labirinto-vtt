@@ -1,6 +1,6 @@
 import { Container, Graphics, Text } from 'pixi.js'
 import { DEFAULT_TEXT_FONT_FAMILY } from '../lib/drawingFactory'
-import { SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
+import { SIGNAL_TTL_MS, type DestinationMark, type SignalMark } from '../lib/signals'
 import type { Camera, Point, Viewport } from './world'
 
 /**
@@ -94,6 +94,92 @@ function paintSignal(view: SignalView, signal: SignalMark, place: SignalPlacemen
   label.position.set(place.x - cos * (LABEL_GAP + LABEL_FONT_SIZE), place.y - sin * (LABEL_GAP + LABEL_FONT_SIZE) + LABEL_FONT_SIZE / 2)
 }
 
+function createLabel(): Text {
+  const label = new Text({
+    text: '',
+    style: {
+      fontSize: LABEL_FONT_SIZE,
+      fontWeight: 'bold',
+      fill: 0xffffff,
+      stroke: { color: OUTLINE, width: 3 },
+      fontFamily: DEFAULT_TEXT_FONT_FAMILY,
+    },
+  })
+  label.anchor.set(0.5, 1)
+  return label
+}
+
+/** Mastro da bandeirinha "vamos para cá", em px de tela (tamanho fixo em qualquer zoom). */
+const FLAG_POLE_HEIGHT = 26
+const FLAG_WIDTH = 16
+const FLAG_HEIGHT = 11
+const FLAG_BASE_RADIUS = 3
+
+/** O que a bandeirinha diz: de quem é, ou "Meu destino" para a própria. */
+export function destinationLabel(mark: DestinationMark): string {
+  return mark.mine ? 'Meu destino' : `${mark.from}: vamos para cá`
+}
+
+/**
+ * Bandeirinha "vamos para cá": mastro fino claro, pano na cor da ficha e o
+ * nome em cima. Fora da tela, a mesma seta presa na borda do sinal (parada,
+ * sem pulso: a marca não pede atenção, só diz onde está).
+ */
+function paintDestination(view: SignalView, mark: DestinationMark, place: SignalPlacement): void {
+  const { graphics: g, label } = view
+  g.clear()
+  g.visible = true
+  label.visible = true
+  label.alpha = 1
+  const text = destinationLabel(mark)
+  if (label.text !== text) label.text = text
+  if (place.onScreen) {
+    const top = place.y - FLAG_POLE_HEIGHT
+    g.moveTo(place.x, place.y).lineTo(place.x, top).stroke({ color: 0xf2efe6, width: 2 })
+    g.poly([place.x, top, place.x + FLAG_WIDTH, top + FLAG_HEIGHT / 2, place.x, top + FLAG_HEIGHT], true)
+      .fill({ color: mark.color })
+      .stroke({ color: OUTLINE, width: 1.5 })
+    g.circle(place.x, place.y, FLAG_BASE_RADIUS).fill({ color: mark.color }).stroke({ color: OUTLINE, width: 1.5 })
+    label.position.set(place.x, top - LABEL_GAP)
+    return
+  }
+  const cos = Math.cos(place.angle)
+  const sin = Math.sin(place.angle)
+  const tipX = place.x + cos * ARROW_LENGTH
+  const tipY = place.y + sin * ARROW_LENGTH
+  g.poly([tipX, tipY, place.x - sin * ARROW_HALF_WIDTH, place.y + cos * ARROW_HALF_WIDTH, place.x + sin * ARROW_HALF_WIDTH, place.y - cos * ARROW_HALF_WIDTH], true)
+    .fill({ color: mark.color })
+    .stroke({ color: OUTLINE, width: 1.5 })
+  label.position.set(place.x - cos * (LABEL_GAP + LABEL_FONT_SIZE), place.y - sin * (LABEL_GAP + LABEL_FONT_SIZE) + LABEL_FONT_SIZE / 2)
+}
+
+/**
+ * As marcas "vamos para cá", no mesmo espaço de TELA dos sinais. Sem prazo:
+ * cada chamada desenha a lista inteira; a view de quem saiu da lista volta ao
+ * pool, escondida (mesma regra do pool de sinais). Devolve quantas desenhou.
+ */
+export function createDestinationsRenderer() {
+  const pool: SignalView[] = []
+  return {
+    draw(container: Container, marks: readonly DestinationMark[], camera: Camera, viewport: Viewport): number {
+      marks.forEach((mark, i) => {
+        let view = pool[i]
+        if (view === undefined) {
+          view = { graphics: new Graphics(), label: createLabel() }
+          container.addChild(view.graphics, view.label)
+          pool.push(view)
+        }
+        paintDestination(view, mark, placeSignal(mark, camera, viewport))
+      })
+      for (let i = marks.length; i < pool.length; i += 1) {
+        pool[i].graphics.visible = false
+        pool[i].label.visible = false
+      }
+      return marks.length
+    },
+  }
+}
+
 /**
  * Pool de views reaproveitadas por posição, nunca destruídas durante a sessão
  * (Text destruído antes do primeiro render derruba o Pixi 8.20, ver
@@ -110,18 +196,7 @@ export function createSignalsRenderer() {
         if (age < 0 || age >= SIGNAL_TTL_MS) continue
         let view = pool[used]
         if (view === undefined) {
-          const label = new Text({
-            text: '',
-            style: {
-              fontSize: LABEL_FONT_SIZE,
-              fontWeight: 'bold',
-              fill: 0xffffff,
-              stroke: { color: OUTLINE, width: 3 },
-              fontFamily: DEFAULT_TEXT_FONT_FAMILY,
-            },
-          })
-          label.anchor.set(0.5, 1)
-          view = { graphics: new Graphics(), label }
+          view = { graphics: new Graphics(), label: createLabel() }
           container.addChild(view.graphics, view.label)
           pool.push(view)
         }
