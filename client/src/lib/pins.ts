@@ -13,6 +13,47 @@ export const PIN_HEAD_RADIUS = 11
 export const PIN_HEAD_OFFSET = PIN_HEIGHT - PIN_HEAD_RADIUS
 
 /**
+ * Altura mínima do pino na TELA, em px. O pino é desenhado em px de mundo e,
+ * com a cena inteira na janela, virava um risco de 3 px que ninguém via (relato
+ * dos jogadores, torre-lote-5 #485 e #517). Abaixo do zoom em que ficaria menor
+ * que isto, ele cresce no mundo na razão inversa da câmera — a mesma ideia do
+ * nome da ficha (`screenLabel.ts`). 16 px deixa a cabeça com ~10 px de
+ * diâmetro e o limiar em ~47% de zoom: perto disso o pino já tem o tamanho de sempre.
+ */
+export const PIN_MIN_SCREEN_HEIGHT = 16
+
+/**
+ * Quantas vezes o pino cresce no mundo para não ficar abaixo de
+ * `PIN_MIN_SCREEN_HEIGHT` na tela: 1 (tamanho de mundo) de perto, maior que 1
+ * de longe. Escala inválida (zero, negativa, não finita) devolve 1 — o desenho
+ * e o toque seguem o pino de sempre em vez de estourar.
+ */
+export function pinSizeScale(cameraScale: number): number {
+  if (!Number.isFinite(cameraScale) || cameraScale <= 0) return 1
+  return Math.max(1, PIN_MIN_SCREEN_HEIGHT / (PIN_HEIGHT * cameraScale))
+}
+
+/**
+ * Teto da folga do toque, em raios da cabeça DESENHADA. A folga em px de tela
+ * existe para o dedo, mas sem teto ela vale mais que o próprio pino quando ele
+ * está pequeno: o toque ao lado abria um pino que não aparecia. Dois raios (um
+ * diâmetro de cabeça em volta do desenho) seguem generosos para o dedo.
+ */
+export const PIN_TAP_MAX_HEAD_RADII = 2
+
+/**
+ * Folga do toque no pino, em px de MUNDO, para passar a `findPinAt`: a folga
+ * pedida em px de tela, limitada a `PIN_TAP_MAX_HEAD_RADII` raios da cabeça como
+ * ela aparece na tela neste zoom (já com `pinSizeScale`). Escala inválida → 0:
+ * sem zoom conhecido não há como converter, e folga infinita abriria qualquer pino.
+ */
+export function pinTapTolerance(screenTolerancePx: number, cameraScale: number): number {
+  if (!Number.isFinite(cameraScale) || cameraScale <= 0) return 0
+  const headOnScreen = PIN_HEAD_RADIUS * pinSizeScale(cameraScale) * cameraScale
+  return Math.min(screenTolerancePx, headOnScreen * PIN_TAP_MAX_HEAD_RADII) / cameraScale
+}
+
+/**
  * Glifo de cada tipo — é o que distingue "!" de "?" na tela do jogador. O pino
  * de viagem não desenha glifo: a cabeça dele leva o símbolo de passagem
  * (`PIN_TRAVEL_SYMBOL`); a seta aqui só existe para quem precisa de texto.
@@ -359,17 +400,22 @@ export function isPlayerSafePinImage(image: string | null): image is string {
  * Pino sob o ponto do mundo, do desenhado por último para o primeiro (o de
  * cima ganha). A área de toque é a cabeça mais a haste: um retângulo alto e
  * estreito com a bola em cima, engordado por `tolerance` para o dedo — no
- * celular o alvo real é o dedo, não o desenho.
+ * celular o alvo real é o dedo, não o desenho. `sizeScale` é o mesmo fator do
+ * desenho (`pinSizeScale`): o alvo é o pino como ele APARECE, crescido no zoom
+ * afastado, e não o de tamanho de mundo.
  */
-export function findPinAt(pins: readonly Pin[], point: RegionPoint, tolerance = 0): Pin | null {
+export function findPinAt(pins: readonly Pin[], point: RegionPoint, tolerance = 0, sizeScale = 1): Pin | null {
+  const headRadius = PIN_HEAD_RADIUS * sizeScale
+  const headOffset = PIN_HEAD_OFFSET * sizeScale
+  const height = PIN_HEIGHT * sizeScale
   for (let i = pins.length - 1; i >= 0; i--) {
     const pin = pins[i]
     const dx = point.x - pin.x
     const dy = point.y - pin.y
     // Cabeça: círculo em torno do centro dela.
-    if (Math.hypot(dx, dy + PIN_HEAD_OFFSET) <= PIN_HEAD_RADIUS + tolerance) return pin
+    if (Math.hypot(dx, dy + headOffset) <= headRadius + tolerance) return pin
     // Haste: faixa vertical entre a ponta e a base da cabeça.
-    if (Math.abs(dx) <= PIN_HEAD_RADIUS / 2 + tolerance && dy <= tolerance && dy >= -PIN_HEIGHT - tolerance) return pin
+    if (Math.abs(dx) <= headRadius / 2 + tolerance && dy <= tolerance && dy >= -height - tolerance) return pin
   }
   return null
 }

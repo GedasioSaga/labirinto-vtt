@@ -18,7 +18,18 @@ export interface PinsRenderer {
    * do mestre sabe disso — o recorte do jogador nunca leva o destino
    * (`lib/fogFilter.ts`) —, então sem o conjunto todo pino de viagem sai aceso.
    */
-  draw: (container: Container, pins: readonly Pin[], selectedId: string | null, unlinkedIds?: ReadonlySet<string>) => void
+  /**
+   * `sizeScale`: quantas vezes o pino cresce no mundo para manter a altura
+   * mínima de tela no zoom afastado (`pinSizeScale` de `lib/pins.ts`). O toque
+   * tem de usar o MESMO fator em `findPinAt`, senão o alvo não é o desenho.
+   */
+  draw: (
+    container: Container,
+    pins: readonly Pin[],
+    selectedId: string | null,
+    unlinkedIds?: ReadonlySet<string>,
+    sizeScale?: number,
+  ) => void
 }
 
 /** Latão quente: o pino é chamariz, precisa saltar do chão marrom e do preto da névoa. */
@@ -74,10 +85,11 @@ const TRAVEL_LINE_UNLINKED = 0x8a8478
  * mais um `Text` por pino (ver o aviso de `TexturePool.returnTexture` no
  * cabeçalho deste arquivo).
  */
-function drawShape(graphics: Graphics, shape: PinSymbolShape, cx: number, cy: number, color: number): void {
-  const px = (n: number) => cx + n * SYMBOL_RADIUS
-  const py = (n: number) => cy + n * SYMBOL_RADIUS
-  const traco = { width: SYMBOL_WIDTH, color, cap: 'round', join: 'round' } as const
+function drawShape(graphics: Graphics, shape: PinSymbolShape, cx: number, cy: number, color: number, k: number): void {
+  const raio = SYMBOL_RADIUS * k
+  const px = (n: number) => cx + n * raio
+  const py = (n: number) => cy + n * raio
+  const traco = { width: SYMBOL_WIDTH * k, color, cap: 'round', join: 'round' } as const
 
   for (const stroke of shape.strokes) {
     const [primeiro, ...resto] = stroke.points
@@ -88,24 +100,24 @@ function drawShape(graphics: Graphics, shape: PinSymbolShape, cx: number, cy: nu
     graphics.stroke(traco)
   }
   for (const ring of shape.rings ?? []) {
-    graphics.circle(px(ring.x), py(ring.y), ring.r * SYMBOL_RADIUS).stroke(traco)
+    graphics.circle(px(ring.x), py(ring.y), ring.r * raio).stroke(traco)
   }
   for (const dot of shape.dots ?? []) {
-    graphics.circle(px(dot.x), py(dot.y), dot.r * SYMBOL_RADIUS).fill({ color })
+    graphics.circle(px(dot.x), py(dot.y), dot.r * raio).fill({ color })
   }
 }
 
 /** Cabeça do marcador ("!" e "?"): latão com contorno escuro e, se escolhido, o símbolo em traço escuro. */
-function drawMarkerHead(graphics: Graphics, pin: Pin, headY: number): void {
-  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS).fill({ color: PIN_FILL }).stroke({ width: PIN_OUTLINE_WIDTH, color: PIN_OUTLINE })
-  if (isPinIcon(pin.icon)) drawShape(graphics, PIN_SYMBOLS[pin.icon], pin.x, headY, GLYPH_COLOR)
+function drawMarkerHead(graphics: Graphics, pin: Pin, headY: number, k: number): void {
+  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS * k).fill({ color: PIN_FILL }).stroke({ width: PIN_OUTLINE_WIDTH * k, color: PIN_OUTLINE })
+  if (isPinIcon(pin.icon)) drawShape(graphics, PIN_SYMBOLS[pin.icon], pin.x, headY, GLYPH_COLOR, k)
 }
 
 /** Cabeça do pino de viagem: escura, com aro e passagem na linha clara — apagada quando não tem par. */
-function drawTravelHead(graphics: Graphics, pin: Pin, headY: number, unlinked: boolean): void {
+function drawTravelHead(graphics: Graphics, pin: Pin, headY: number, unlinked: boolean, k: number): void {
   const linha = unlinked ? TRAVEL_LINE_UNLINKED : TRAVEL_LINE
-  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS).fill({ color: TRAVEL_HEAD_FILL }).stroke({ width: PIN_OUTLINE_WIDTH, color: linha })
-  drawShape(graphics, PIN_TRAVEL_SYMBOL, pin.x, headY, linha)
+  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS * k).fill({ color: TRAVEL_HEAD_FILL }).stroke({ width: PIN_OUTLINE_WIDTH * k, color: linha })
+  drawShape(graphics, PIN_TRAVEL_SYMBOL, pin.x, headY, linha, k)
 }
 
 /** Traço do aro da chegada oculta: metade do contorno normal, fino como a parede do minimapa. */
@@ -119,18 +131,26 @@ const ARRIVAL_DOT_RADIUS = PIN_HEAD_RADIUS * 0.22
  * nem cor nova (estilo minimapa); a diferença lê pelo cheio que falta, e o
  * mestre sabe de relance que este pino não existe para o jogador.
  */
-function drawArrivalHead(graphics: Graphics, pin: Pin, headY: number): void {
-  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS).stroke({ width: ARRIVAL_RING_WIDTH, color: TRAVEL_LINE })
-  graphics.circle(pin.x, headY, ARRIVAL_DOT_RADIUS).fill({ color: TRAVEL_LINE })
+function drawArrivalHead(graphics: Graphics, pin: Pin, headY: number, k: number): void {
+  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS * k).stroke({ width: ARRIVAL_RING_WIDTH * k, color: TRAVEL_LINE })
+  graphics.circle(pin.x, headY, ARRIVAL_DOT_RADIUS * k).fill({ color: TRAVEL_LINE })
 }
 
 export function createPinsRenderer(): PinsRenderer {
   const graphics = new Graphics()
   const glyphs = new Map<string, Text>()
 
-  function draw(container: Container, pins: readonly Pin[], selectedId: string | null, unlinkedIds?: ReadonlySet<string>): void {
+  function draw(
+    container: Container,
+    pins: readonly Pin[],
+    selectedId: string | null,
+    unlinkedIds?: ReadonlySet<string>,
+    sizeScale = 1,
+  ): void {
     if (graphics.parent !== container) container.addChildAt(graphics, 0)
     graphics.clear()
+    // Fator inválido desenharia o pino com tamanho zero ou infinito: vale o de mundo.
+    const k = Number.isFinite(sizeScale) && sizeScale > 0 ? sizeScale : 1
 
     const ids = new Set(pins.map((p) => p.id))
     for (const [id, glyph] of glyphs) {
@@ -138,26 +158,26 @@ export function createPinsRenderer(): PinsRenderer {
     }
 
     for (const pin of pins) {
-      const headY = pin.y - PIN_HEAD_OFFSET
+      const headY = pin.y - PIN_HEAD_OFFSET * k
       if (pin.id === selectedId) {
         graphics
-          .circle(pin.x, headY, PIN_HEAD_RADIUS + SELECTED_RING_GAP)
-          .stroke({ width: SELECTED_RING_WIDTH, color: SELECTION_COLOR })
+          .circle(pin.x, headY, (PIN_HEAD_RADIUS + SELECTED_RING_GAP) * k)
+          .stroke({ width: SELECTED_RING_WIDTH * k, color: SELECTION_COLOR })
       }
       // Haste: da ponta cravada até o meio da cabeça, para a gota ler como uma peça só.
       graphics
         .moveTo(pin.x, pin.y)
-        .lineTo(pin.x, pin.y - PIN_HEIGHT + PIN_HEAD_RADIUS)
-        .stroke({ width: PIN_OUTLINE_WIDTH + 2, color: PIN_OUTLINE, cap: 'round' })
+        .lineTo(pin.x, pin.y - (PIN_HEIGHT - PIN_HEAD_RADIUS) * k)
+        .stroke({ width: (PIN_OUTLINE_WIDTH + 2) * k, color: PIN_OUTLINE, cap: 'round' })
 
       // Com símbolo (escolhido, ou a passagem do pino de viagem), é ELE que
       // ocupa a cabeça: o glifo sai de cena (invisível, nunca destruído) em
       // vez de dividir o espaço com o desenho.
       const viagem = pin.kind === 'viagem'
       const comSimbolo = viagem || isPinIcon(pin.icon)
-      if (viagem && pin.soChegada === true) drawArrivalHead(graphics, pin, headY)
-      else if (viagem) drawTravelHead(graphics, pin, headY, unlinkedIds?.has(pin.id) === true)
-      else drawMarkerHead(graphics, pin, headY)
+      if (viagem && pin.soChegada === true) drawArrivalHead(graphics, pin, headY, k)
+      else if (viagem) drawTravelHead(graphics, pin, headY, unlinkedIds?.has(pin.id) === true, k)
+      else drawMarkerHead(graphics, pin, headY, k)
 
       let glyph = glyphs.get(pin.id)
       if (!glyph) {
@@ -172,6 +192,7 @@ export function createPinsRenderer(): PinsRenderer {
       if (glyph.parent !== container) container.addChild(glyph)
       glyph.text = PIN_GLYPH[pin.kind]
       glyph.position.set(pin.x, headY)
+      glyph.scale.set(k)
       glyph.visible = !comSimbolo
     }
   }
