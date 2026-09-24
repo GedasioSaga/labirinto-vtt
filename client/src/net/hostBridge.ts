@@ -22,6 +22,7 @@ import {
   type AppliedTokenEdit,
   type DoorRequest,
   type AppliedTransfer,
+  type GatherArrival,
   type HeldTokens,
   type HostResult,
   type HostSession,
@@ -191,9 +192,10 @@ export interface HostBridge {
    * "Mandar para…" do painel Grupo: leva a ficha do jogador para `toSceneId`,
    * no pino `pinId` ou no centro (`null`), sem pedido. `false` quando não deu
    * (sala fechada, destino ou ficha sumiram): o painel avisa e fica aberto.
-   * `gatherAt`: "Reunir o grupo aqui" — chega nessa casa, com o aviso de reunião.
+   * `gatherAt`: "Reunir o grupo aqui" — chega nessa casa, com o aviso de
+   * reunião; a montaria e o familiar, nas casas que o plano deu a eles.
    */
-  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: { x: number; y: number }): boolean
+  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: GatherArrival): boolean
   /**
    * "Trazer" do painel Grupo: a ficha `tokenId` do jogador, que ficou em
    * outra cena, vem para o lado dele. Não é viagem: sem "Você chegou" e fora

@@ -209,6 +209,17 @@ export interface EntourageSeat {
   y: number
 }
 
+/**
+ * Onde o "Reunir o grupo aqui" põe a ficha do jogador, com as casas que o
+ * plano (`lib/gatherParty.ts`) já deu à montaria e ao familiar dele. Ausente
+ * `entourage` = só a ficha dele.
+ */
+export interface GatherArrival {
+  x: number
+  y: number
+  entourage?: readonly EntourageSeat[]
+}
+
 /** Sinal aceito de um jogador, para a UI do mestre desenhar. */
 export interface HostSignal {
   playerId: string
@@ -568,9 +579,10 @@ export interface HostSession {
    *
    * `gatherAt` é o "Reunir o grupo aqui": a ficha chega nessa casa (já
    * escolhida livre por `lib/gatherParty.ts`), `pinId` é ignorado e o aviso
-   * sai como `by: 'gather'`.
+   * sai como `by: 'gather'`. O séquito vem nas casas de `gatherAt.entourage`,
+   * mas só a ficha que é séquito de verdade (dele, no tabuleiro, a até 2 casas).
    */
-  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, source: HostMapSource, gatherAt?: { x: number; y: number }): HostResult
+  sendPlayer(playerId: string, toSceneId: string, pinId: string | null, source: HostMapSource, gatherAt?: GatherArrival): HostResult
   /**
    * "Desfazer" do diário de viagens: devolve a ficha `tokenId` do jogador à
    * cena `back.sceneId`, na casa (`back.x`, `back.y`) de onde ela saiu. Mesmo
@@ -1688,6 +1700,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return used
   }
 
+  /**
+   * O séquito da reunião, nas casas que o plano já escolheu. O plano vem do
+   * painel do mestre, montado antes: só passa a ficha que AINDA é séquito pela
+   * mesma regra do `withEntourage` — do dono, no tabuleiro, a até 2 casas de
+   * `lead` no mapa de partida. Ficha de outro jogador ou escondida não vai de carona.
+   */
+  function withPlannedEntourage(transfer: AppliedTransfer, from: MapData, lead: Token, planned: readonly EntourageSeat[]): void {
+    const owned = new Set(ownership[transfer.playerId] ?? [])
+    const near = new Set(entourageNear(lead, onBoardTokens(from).filter((t) => owned.has(t.id)), from.grid).map((t) => t.id))
+    const entourage = planned.filter((seat) => near.delete(seat.tokenId)).map((seat) => ({ tokenId: seat.tokenId, x: seat.x, y: seat.y }))
+    if (entourage.length > 0) transfer.entourage = entourage
+  }
+
   const findPendingTravel = (requestId: string): PendingTravel | undefined =>
     [...pendingTravels.values()].find((pending) => pending.requestId === requestId)
 
@@ -2033,10 +2058,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         x: spot.x,
         y: spot.y,
       }
-      // "Reunir o grupo aqui" já escolheu a casa de cada ficha do grupo inteiro
-      // (`lib/gatherParty.ts`): um séquito sentado agora tomaria a casa de quem
-      // vem depois. Só o "Mandar para…" leva montaria e familiar.
+      // "Reunir o grupo aqui" já escolheu a casa de cada ficha do grupo inteiro,
+      // séquito incluído (`lib/gatherParty.ts`): sentar o séquito agora tomaria
+      // a casa de quem vem depois, então as casas vêm do plano.
       if (gatherAt === undefined) withEntourage(applyTransfer, from.map, token, to.map, [])
+      else withPlannedEntourage(applyTransfer, from.map, token, gatherAt.entourage ?? [])
       return { outbound: record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by } }], applyTransfer }
     },
 

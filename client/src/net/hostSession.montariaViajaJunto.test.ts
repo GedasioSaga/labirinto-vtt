@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { applyGatherPlan, planGather } from '../lib/gatherParty'
 import { createEmptyMap } from '../lib/mapFactory'
+import { partyMembers } from '../lib/party'
 import type { Pin, Token } from '../types/map'
 import { createHostSession, type AppliedTransfer, type HostWorld } from './hostSession'
 import type { HostMessage } from './protocol'
@@ -200,6 +202,57 @@ describe('hostSession: montaria e familiar viajam com o dono', () => {
     const fichas = mapasDe(rede, 'c1').flatMap((m) => m.tokens.map((tok) => tok.id))
     expect(fichas).toContain('ponei')
     expect(fichas).not.toContain('coruja')
+  })
+})
+
+describe('hostSession: "Reunir o grupo aqui" leva montaria e familiar', () => {
+  /** O mestre abriu a Vila: é nela o pino da reunião, e Bruno está na Estrada. */
+  const naVila = (w: HostWorld): HostWorld => ({ open: w.background[0], background: [w.open] })
+
+  it('Bruno na Estrada com o pônei e a coruja; a reunião num pino da Vila traz os três, e o cão, a 3 casas, fica', () => {
+    const t = mesa()
+    const mundo = naVila(t.world())
+    const membros = partyMembers(t.s.listPlayers(mundo), mundo).filter((m) => m.name === 'Bruno')
+    const plano = planGather(membros, mundo, PONTE_B)
+    const falhou = applyGatherPlan(plano, {
+      sceneId: VILA,
+      bringFromOtherScene: (playerId, sceneId, at) => {
+        const r = t.s.sendPlayer(playerId, sceneId, null, naVila(t.world()), at)
+        t.aplica(r.applyTransfer)
+        return r.applyTransfer !== undefined
+      },
+      placeInScene: () => undefined,
+    })
+    expect(falhou).toEqual([])
+    expect([t.onde.bruno.cena, t.onde.ponei.cena, t.onde.coruja.cena, t.onde.cao.cena]).toEqual([VILA, VILA, VILA, ESTRADA])
+    const casas = ['bruno', 'ponei', 'coruja'].map((id) => chave(t.onde[id]))
+    expect(new Set(casas).size).toBe(3)
+    expect(casas).not.toContain(chave(PONTE_B))
+  })
+
+  it('a sessão só aceita do plano o séquito de verdade: ficha de outro jogador, longe demais ou escondida não vai de carona', () => {
+    const t = mesa()
+    t.patch.coruja = { hidden: true }
+    const mundo = naVila(t.world())
+    const at = {
+      ...casa(19, 5),
+      entourage: [
+        { tokenId: 'ponei', ...casa(18, 5) },
+        { tokenId: 'gato', ...casa(18, 4) },
+        { tokenId: 'cao', ...casa(18, 6) },
+        { tokenId: 'coruja', ...casa(19, 4) },
+      ],
+    }
+    const r = t.s.sendPlayer(t.ids.Bruno, VILA, null, mundo, at)
+    expect(r.applyTransfer).toMatchObject({ tokenId: 'bruno', toSceneId: VILA, x: at.x, y: at.y })
+    expect(r.applyTransfer?.entourage).toEqual([{ tokenId: 'ponei', ...casa(18, 5) }])
+  })
+
+  it('reunião sem séquito no plano: só a ficha dele vem, como antes', () => {
+    const t = mesa()
+    const r = t.s.sendPlayer(t.ids.Bruno, VILA, null, naVila(t.world()), casa(19, 5))
+    expect(r.applyTransfer).toMatchObject({ tokenId: 'bruno', toSceneId: VILA })
+    expect(r.applyTransfer?.entourage).toBeUndefined()
   })
 })
 

@@ -1,8 +1,10 @@
 import type { HostScene, HostWorld, PlayerInfo } from '../net/hostSession'
 import type { Token } from '../types/map'
+import { visibleTokens } from './layers'
 import { pinSummary } from './pins'
 import { roomsAt } from './roomNesting'
 import { tokenFillColor } from './tokenColor'
+import { entourageNear } from './travelTogether'
 
 /**
  * O PAINEL GRUPO (aba Jogo): uma linha por jogador, com a cor da ficha, onde
@@ -39,6 +41,12 @@ export interface PartyMember {
    * de aventura. Só o mestre lê: nunca vai pela rede.
    */
   awayTokens?: PartyAwayToken[]
+  /**
+   * MONTARIA E FAMILIAR: as outras fichas dele no tabuleiro, na cena de
+   * `token`, a até 2 casas dela (a regra de `entourageNear`). O "Reunir o
+   * grupo aqui" as leva junto. Ausente = nenhuma.
+   */
+  entourageIds?: string[]
 }
 
 /** Uma ficha do jogador que está em outra cena que não a dele. */
@@ -109,20 +117,33 @@ function cssColor(color: number): string {
  * com duas fichas em cenas diferentes, é a desta cena que o "Ir lá" procura.
  * Mapa solto: a cena aberta, que é a única.
  */
-function tokenOf(player: PlayerInfo, world: HostWorld): Token | null {
+function tokenOf(player: PlayerInfo, world: HostWorld): { token: Token; scene: HostScene } | null {
   const scene = player.sceneId === undefined ? (world.open.sceneId === null ? world.open : undefined) : allScenes(world).find((s) => s.sceneId === player.sceneId)
   if (scene === undefined) return null
   for (const id of player.tokenIds) {
     const token = scene.map.tokens.find((t) => t.id === id)
-    if (token !== undefined) return token
+    if (token !== undefined) return { token, scene }
   }
   return null
+}
+
+/**
+ * As outras fichas de `player` que andam com `lead`: as dele que estão no
+ * tabuleiro da mesma cena (fora camada oculta e o que o mestre escondeu, como
+ * na sessão) e a até 2 casas.
+ */
+function entourageOf(player: PlayerInfo, lead: Token, scene: HostScene): string[] {
+  const owned = new Set(player.tokenIds)
+  const map = scene.map
+  const own = visibleTokens(map.tokens, map.hiddenLayers).filter((t) => t.hidden !== true && owned.has(t.id))
+  return entourageNear(lead, own, map.grid).map((t) => t.id)
 }
 
 /** As linhas do Grupo, na ordem de chegada que a ponte já dá. */
 export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMember[] {
   return players.map((player) => {
-    const token = player.status === 'playing' ? tokenOf(player, world) : null
+    const found = player.status === 'playing' ? tokenOf(player, world) : null
+    const token = found === null ? null : found.token
     const member: PartyMember = {
       playerId: player.playerId,
       name: player.name,
@@ -135,6 +156,8 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
     if (!player.connected && player.disconnectedAt !== undefined) member.offlineSince = player.disconnectedAt
     const away = awayTokensOf(player, world)
     if (away.length > 0) member.awayTokens = away
+    const entourage = found === null ? [] : entourageOf(player, found.token, found.scene)
+    if (entourage.length > 0) member.entourageIds = entourage
     return member
   })
 }
