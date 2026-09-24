@@ -1,8 +1,8 @@
 import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import type { PinTravel, TravelPinOption, TravelSceneOption } from '../lib/pinTravel'
 import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, isArrivalOnly, travelExitsOf } from '../lib/pinTravel'
-import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
-import type { PinPassage } from '../types/map'
+import { PIN_BLOCK_REASON_LABELS, PIN_BLOCK_REASON_NONE_LABEL, PIN_BLOCK_REASON_ORDER, PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
+import type { PinBlockReason, PinPassage } from '../types/map'
 import { ChevronDownIcon } from './icons'
 
 /** Uma saída do pino, como o painel a mostra. */
@@ -36,6 +36,9 @@ export interface PinTravelControlsProps {
   /** Como o jogador passa por ESTE pino (o par tem o seu). Vale para todas as saídas. */
   passage: PinPassage
   onPassageChange: (passage: PinPassage) => void
+  /** Por que a passagem está trancada; `undefined` = "Trancada" (a chave). Só aparece no modo trancada. */
+  motivo: PinBlockReason | undefined
+  onMotivoChange: (motivo: PinBlockReason | undefined) => void
   /** MÃO ÚNICA da saída `exitId`: marca (ou desmarca) o par dela como chegada oculta. */
   onOneWayChange: (exitId: string, on: boolean) => void
   /**
@@ -58,6 +61,7 @@ const SELETOR_ID = 'lb-pin-travel-picker'
 const CENAS_ID = 'lb-pin-travel-scenes'
 const PINOS_ID = 'lb-pin-travel-pins'
 const PASSAGEM_ID = 'lb-pin-travel-passage'
+const MOTIVO_ID = 'lb-pin-travel-reason'
 const NOME_ID = 'lb-pin-travel-exit-name'
 const MAO_UNICA_ID = 'lb-pin-travel-one-way'
 
@@ -129,6 +133,8 @@ export function PinTravelControls({
   onGo,
   passage,
   onPassageChange,
+  motivo,
+  onMotivoChange,
   onOneWayChange,
   arrivalOnly,
 }: PinTravelControlsProps) {
@@ -332,6 +338,31 @@ export function PinTravelControls({
         ))}
       </div>
       <p className="lb-travel__hint">{EFEITO_DA_PASSAGEM[passage]}</p>
+
+      {/* MOTIVO DO BLOQUEIO: só com a passagem trancada. O jogador lê a
+          escolha no cartão ("Desabou") no lugar do "Está trancada"; nos
+          outros modos o motivo fica guardado e volta se o mestre trancar de novo. */}
+      {passage === 'trancada' && (
+        <>
+          <span className="lb-label" id={MOTIVO_ID}>
+            Por que está fechada
+          </span>
+          <div className="lb-seg lb-seg--rows" role="radiogroup" aria-labelledby={MOTIVO_ID}>
+            {[undefined, ...PIN_BLOCK_REASON_ORDER].map((option) => (
+              <button
+                key={option ?? 'trancada'}
+                type="button"
+                role="radio"
+                aria-checked={motivo === option}
+                className="lb-seg__option"
+                onClick={() => onMotivoChange(option)}
+              >
+                {option === undefined ? PIN_BLOCK_REASON_NONE_LABEL : PIN_BLOCK_REASON_LABELS[option]}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {escolha !== null && (
         <div id={SELETOR_ID} ref={seletorRef} className="lb-travel__picker">

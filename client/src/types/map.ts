@@ -292,6 +292,14 @@ export interface PinExit extends PinExitLabel {
 export type PinPassage = 'pede' | 'livre' | 'trancada'
 
 /**
+ * POR QUE a passagem trancada não deixa passar. A AUSÊNCIA é "Está trancada"
+ * (a chave, o de sempre); os outros dizem ao jogador que não é questão de
+ * achar a chave. Lista curta de propósito: texto livre do mestre seria mais
+ * um lugar para escapar o que ele não quer contar.
+ */
+export type PinBlockReason = 'desabou' | 'alagada' | 'em-chamas' | 'sem-energia'
+
+/**
  * Símbolo desenhado DENTRO da cabeça do pino, no lugar do glifo. Os seis que o
  * usuário pediu: o mestre crava "aqui tem um baú" e "aqui tem uma armadilha" e
  * enxerga a diferença no mapa, sem abrir os dois para lembrar qual é qual.
@@ -352,6 +360,13 @@ export interface Pin extends PlayerSecret {
    * passar" ou "Está trancada", e o modo não diz nada da outra cena.
    */
   passagem?: PinPassage
+  /**
+   * Só do pino de viagem trancado: o motivo ("Desabou", "Alagada"...).
+   * Ausente = "Está trancada", o de sempre — sem migração. Fica gravado se o
+   * mestre reabrir o pino (volta junto quando ele tranca de novo), mas só SAI
+   * no recorte do jogador enquanto a passagem é `trancada` (`lib/fogFilter.ts`).
+   */
+  motivo?: PinBlockReason
   /**
    * Só do pino de viagem com VÁRIAS saídas: como o mestre chama a saída
    * principal (a de `destino`) — "Porta da cripta". Ausente = sem nome; o

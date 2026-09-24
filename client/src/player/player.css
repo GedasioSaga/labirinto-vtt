@@ -1031,6 +1031,61 @@
   border-radius: 10px;
 }
 
+/* O motivo da passagem fechada ("Desabou") abre a frase, em claro: é o que mudou. */
+.pp-pincard__reason {
+  font-weight: 600;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+/* "Me avise quando der": botão de alternar, secundário ao texto — linha fina,
+   sem fundo. Ligado, a borda e o texto vão ao latão (o estado não é só cor:
+   a frase de baixo diz "Você recebe um aviso"). */
+.pp-pincard__watch {
+  align-self: stretch;
+  margin: 10px 12px 0;
+  padding: 10px 18px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 120ms ease-out, color 120ms ease-out, transform 100ms ease-out;
+}
+
+.pp-pincard__watch:hover {
+  border-color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
+.pp-pincard__watch:active {
+  transform: scale(0.98);
+}
+
+.pp-pincard__watch[aria-pressed='true'] {
+  color: var(--lb-color-brass, #e0a44a);
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-pincard__watch:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-pincard__watch {
+    transition: none;
+  }
+}
+
+.pp-pincard__watch-hint {
+  margin: 6px 12px 0;
+  font-size: 13px;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  text-align: center;
+}
+
 .pp-pincard__choices {
   display: flex;
   gap: 8px;
@@ -1066,6 +1121,11 @@
 /* Aviso da viagem: acima do aviso da porta, para os dois nunca se cobrirem. */
 .pp-notice--travel {
   bottom: 68px;
+}
+
+/* "A passagem que você marcou abriu": acima dos outros dois, sem cobrir nenhum. */
+.pp-notice--opened {
+  bottom: 112px;
 }
 
 @keyframes pp-pincard-fade {

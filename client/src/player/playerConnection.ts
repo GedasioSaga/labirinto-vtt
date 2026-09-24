@@ -54,6 +54,14 @@ export interface PlayerState {
   /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
   travel?: TravelNotice
   /**
+   * "Me avise quando der": ids dos pinos de viagem TRANCADOS desta cena que o
+   * jogador marcou. Mora só aqui (o host não sabe): é o snapshot que ele já
+   * recebe que diz quando a passagem abriu. Trocar de cena apaga a lista.
+   */
+  passageWatch?: string[]
+  /** Uma passagem marcada abriu; some sozinho. `id` novo repete o aviso. */
+  passageOpened?: { id: number }
+  /**
    * Recado do mestre para a cena do jogador. Fica até ele fechar
    * (`dismissNote`); um recado novo toma o lugar do aberto. É texto puro: a
    * tela o mostra como texto, nunca como HTML.
@@ -174,6 +182,12 @@ export interface PlayerConnection {
    */
   requestTravel(pinId: string, exitId?: string): boolean
   /**
+   * "Me avise quando der": liga (`on`) ou desliga o aviso de quando o pino de
+   * viagem `pinId`, hoje trancado, abrir. Nada sai pela rede. `false` quando
+   * não joga ou quando ligar não faz sentido (pino fora do mapa ou aberto).
+   */
+  watchPassage(pinId: string, on: boolean): boolean
+  /**
    * Ponteiro do LASER do jogador em px de mundo. Sai em lotes: o primeiro
    * ponto na hora, os seguintes juntos a cada `LASER_SEND_INTERVAL_MS`.
    * `false` se não está jogando ou o socket não está aberto.
@@ -224,6 +238,11 @@ function isMoveRejection(value: unknown): value is TokenMoveRejection {
 }
 /** Quanto tempo a recusa do mestre ("não deixou passar agora") fica na tela. Mais que a porta. */
 export const TRAVEL_NOTICE_TTL_MS = 4000
+/**
+ * "A passagem que você marcou abriu" espera mais que uma recusa: quem pediu o
+ * aviso estava fazendo outra coisa, e o aviso existe para chamar a atenção dele.
+ */
+export const PASSAGE_OPENED_NOTICE_TTL_MS = 12_000
 /**
  * "Você chegou" é mudança de lugar: sai quando o jogador mexe a própria ficha
  * (aí já viu onde está, mesma regra da reunião) ou depois deste teto. Era
@@ -415,6 +434,38 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }, MOVE_NOTICE_TTL_MS)
   }
 
+  let passageOpenedTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearPassageOpenedTimer(): void {
+    if (passageOpenedTimer !== null) clearTimeout(passageOpenedTimer)
+    passageOpenedTimer = null
+  }
+
+  /** O que era da cena de antes: as marcas de "me avise" e o aviso na tela. */
+  const NO_PASSAGE_WATCH: Pick<PlayerState, 'passageWatch' | 'passageOpened'> = { passageWatch: undefined, passageOpened: undefined }
+
+  /**
+   * Das passagens marcadas, as que o mapa novo traz ABERTAS: essas viram
+   * aviso e saem da lista. Pino que não veio (névoa, o mestre escondeu) fica
+   * marcado — ausência no recorte não diz que a porta abriu.
+   */
+  function passageWatchAfter(map: MapData): Partial<PlayerState> {
+    const watched = state.passageWatch ?? []
+    if (watched.length === 0) return {}
+    const opened = watched.filter((pinId) => {
+      const pin = map.pins.find((p) => p.id === pinId)
+      return pin !== undefined && passageOf(pin) !== 'trancada'
+    })
+    if (opened.length === 0) return {}
+    clearPassageOpenedTimer()
+    passageOpenedTimer = setTimeout(() => {
+      passageOpenedTimer = null
+      setState({ passageOpened: undefined })
+    }, PASSAGE_OPENED_NOTICE_TTL_MS)
+    const still = watched.filter((pinId) => !opened.includes(pinId))
+    return { passageWatch: still.length === 0 ? undefined : still, passageOpened: { id: nextNoticeId++ } }
+  }
+
   let travelTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearTravelTimer(): void {
@@ -565,7 +616,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       move.prevY = token.y
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined, ...passageWatchAfter(next) })
   }
 
   function handleRejected(reqId: string, reason: unknown): void {
@@ -670,7 +721,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+        clearPassageOpenedTimer()
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, ...NO_PASSAGE_WATCH })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -685,8 +737,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         resetOwnLaser()
         clearDoorNotice()
         clearMoveNotice()
-        // A lista de "Mostrar para…" era de quem estava na cena de antes.
-        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, cluePeers: undefined, clueShow: undefined })
+        clearPassageOpenedTimer()
+        // A lista de "Mostrar para…" era de quem estava na cena de antes; as
+        // marcas de "me avise" também (o id do pino era de lá).
+        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, cluePeers: undefined, clueShow: undefined, ...NO_PASSAGE_WATCH })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -824,7 +878,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined })
+        clearPassageOpenedTimer()
+        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, ...NO_PASSAGE_WATCH })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -882,6 +937,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearDoorNotice()
     clearMoveNotice()
     clearTravelTimer()
+    clearPassageOpenedTimer()
     const current = socket
     socket = null
     current?.close()
@@ -922,6 +978,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return send({ type: 'door.toggle', wallId })
     },
 
+    watchPassage(pinId, on) {
+      if (state.status !== 'playing') return false
+      const watched = state.passageWatch ?? []
+      if (!on) {
+        const kept = watched.filter((id) => id !== pinId)
+        setState({ passageWatch: kept.length === 0 ? undefined : kept })
+        return true
+      }
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      if (pin === undefined || pin.kind !== 'viagem' || passageOf(pin) !== 'trancada') return false
+      if (!watched.includes(pinId)) setState({ passageWatch: [...watched, pinId] })
+      return true
+    },
     requestTravel(pinId, exitId) {
       if (state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
       const pin = state.map?.pins.find((p) => p.id === pinId)
@@ -1047,7 +1116,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+      // As marcas de "me avise" saem: a volta pode cair em outra cena.
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, ...NO_PASSAGE_WATCH })
       open()
     },
     close: detach,

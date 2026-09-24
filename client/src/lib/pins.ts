@@ -1,4 +1,4 @@
-import type { Pin, PinIcon, PinKind, PinPassage, RegionPoint } from '../types/map'
+import type { Pin, PinBlockReason, PinIcon, PinKind, PinPassage, RegionPoint } from '../types/map'
 
 /**
  * Regras do pino de ponto de interesse, compartilhadas pelo editor (render e
@@ -90,6 +90,35 @@ export function isPinPassage(value: unknown): value is PinPassage {
  */
 export function passageOf(pin: Pin): PinPassage {
   return isPinPassage(pin.passagem) ? pin.passagem : 'pede'
+}
+
+/** Os motivos da passagem trancada, na ordem do painel do mestre (depois de "Trancada", que é a ausência). */
+export const PIN_BLOCK_REASON_ORDER: readonly PinBlockReason[] = ['desabou', 'alagada', 'em-chamas', 'sem-energia']
+
+/** O nome de cada motivo — o mesmo no painel do mestre e no cartão do jogador. */
+export const PIN_BLOCK_REASON_LABELS: Record<PinBlockReason, string> = {
+  desabou: 'Desabou',
+  alagada: 'Alagada',
+  'em-chamas': 'Em chamas',
+  'sem-energia': 'Sem energia',
+}
+
+/** Como a ausência de motivo se chama no painel: a passagem trancada de sempre. */
+export const PIN_BLOCK_REASON_NONE_LABEL = 'Trancada'
+
+/** Guarda de leitura: motivo desconhecido (arquivo editado à mão, host de versão futura) não vale. */
+export function isPinBlockReason(value: unknown): value is PinBlockReason {
+  return PIN_BLOCK_REASON_ORDER.some((reason) => reason === value)
+}
+
+/**
+ * O motivo que vale para o jogador: só do pino de viagem TRANCADO, e só um da
+ * lista. Motivo guardado num pino reaberto fica com o mestre — é o que ele
+ * preparou para depois, não o que a porta é agora.
+ */
+export function blockReasonOf(pin: Pin): PinBlockReason | null {
+  if (pin.kind !== 'viagem' || passageOf(pin) !== 'trancada') return null
+  return isPinBlockReason(pin.motivo) ? pin.motivo : null
 }
 
 /** Ponto do desenho do símbolo, no quadrado normalizado -1..1 com a origem no centro da cabeça. */

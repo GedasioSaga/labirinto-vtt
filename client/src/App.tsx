@@ -64,7 +64,7 @@ import { ShortcutsDialog } from './components/ShortcutsDialog'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
 import { saveMapImage } from './lib/mapImageSave'
-import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
+import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
 import type { Screen } from './types/screen'
@@ -1298,6 +1298,9 @@ function App() {
       // par da outra cena fica como está.
       passage: passageOf(pin),
       onPassageChange: (passagem: PinPassage) => useMapStore.getState().updatePin(pin.id, { passagem }),
+      // Motivo do bloqueio: do pino desta cena, com desfazer, como o modo.
+      motivo: pin.motivo,
+      onMotivoChange: (motivo: PinBlockReason | undefined) => useMapStore.getState().updatePin(pin.id, { motivo }),
       // Mão única mora no PAR (cena de fundo): marcar e desmarcar vão pela
       // aventura, fora do desfazer desta cena.
       onOneWayChange: (exitId: string, on: boolean) => {

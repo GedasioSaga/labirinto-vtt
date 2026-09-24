@@ -1624,7 +1624,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'notaDoMestre' | 'image' | 'locked' | 'destino' | 'passagem' | 'motivo' | 'rotulo' | 'saidas'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1650,7 +1650,10 @@ export function updatePin(
     sameExits(next, pin) &&
     // E aqui também: `undefined` === 'pede'. Escolher "Pede ao mestre" num
     // pino que nunca teve modo não empurra entrada vazia no histórico.
-    passageOf(next) === passageOf(pin)
+    passageOf(next) === passageOf(pin) &&
+    // Motivo do bloqueio: `undefined` é "Está trancada". Tirar o motivo de
+    // quem nunca teve não é mudança; trocar "Desabou" por "Alagada" é.
+    next.motivo === pin.motivo
   ) {
     return map
   }
