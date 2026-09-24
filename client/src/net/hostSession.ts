@@ -1,7 +1,7 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
+import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type CompanionMarks, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
@@ -681,6 +681,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     scene === world.open || scene.sceneId === null ? {} : { sceneId: scene.sceneId }
 
   /**
+   * MARCA DE COMPANHEIRO: nome e cor de sinal de cada jogador da mesa (a mesma
+   * cor do sinal dele). O recorte só a pendura em ficha que o jogador já recebe.
+   */
+  const companionMarks = (): CompanionMarks => new Map([...players.values()].map((p) => [p.playerId, { name: p.name, color: signalColor(p.playerId) }]))
+
+  /**
    * Nunca manda o mapa do host: sempre o recorte de `filterMapForPlayer`. O
    * filtro usa o explorado e as portas lembradas de antes desta visão (a visão
    * atual já entra por si); a marcação vem depois e segue junto para o jogador
@@ -698,7 +704,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // SÓ IDA: o host enxerga a outra cena e diz, por saída, se o par é a
     // chegada oculta. Ao jogador vai só o booleano (`pinForPlayer`).
     const oneWay = oneWayExitsOf(map, scene.sceneId, travelLookup(world))
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered, oneWay)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered, oneWay, companionMarks())
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)

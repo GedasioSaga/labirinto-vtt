@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
 import type { FederatedPointerEvent } from 'pixi.js'
-import type { MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { MapData, Pin, Region, RegionPoint, Token, TokenCompanion, Wall } from '../types/map'
 import { rasterizeMinimap, hexToRgb } from '../lib/minimapRaster'
 import type { Rgb } from '../lib/minimapRaster'
 import { compileFloor } from '../lib/floorSdf'
@@ -20,6 +20,7 @@ import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolu
 import type { Bounds, Camera } from '../pixi/world'
 import { arrivalCamera, centeredCamera, firstOwnToken } from './playerCamera'
 import { drawOwnerPulse, drawOwnerRing, ownerRingOuterPx } from './ownerMarker'
+import { companionLabelText, drawCompanionRing } from './companionMarker'
 import { drawGrid } from '../pixi/drawGrid'
 import { currentRendererResolution, watchDevicePixelRatio } from '../pixi/rendererResolution'
 import { drawHexGrid } from '../pixi/drawHexGrid'
@@ -280,6 +281,10 @@ interface TokenView {
   own: boolean
   /** Raio e zoom do aro desenhado por último; `null` = sem aro. */
   ringKey: string | null
+  /** Cor do aro de COMPANHEIRO (ficha de outro jogador, `companionMarker.ts`); `null` = NPC ou a própria ficha. */
+  companionColor: number | null
+  /** "Caio (jogador)" embaixo do nome do personagem; vazio e escondido fora da ficha de companheiro. */
+  companionLabel: Text
   /** Bico da frente (facingMarker.ts), acima do aro e abaixo do nome; vazio e escondido na ficha sem frente. */
   facingNib: Graphics
   /** Para onde a ficha olha, em radianos (`tokenFacing`); `null` = sem frente. O ângulo DESENHADO é `facingNib.rotation`. */
@@ -335,15 +340,36 @@ function paintTokenView(view: TokenView, token: Token, grid: number, own: boolea
   }
   // Só o texto: onde o nome fica depende do bico e do zoom (`syncFacingNib`).
   view.label.text = token.name
+  paintCompanion(view, own ? undefined : token.companion)
 }
 
-/** Aro de dono no zoom atual; só refaz quando raio, dono ou zoom mudam. */
+/**
+ * MARCA DE COMPANHEIRO: a ficha de outro jogador ganha o aro na cor dele e o
+ * nome dele embaixo do nome do personagem. Cor fora de `#rrggbb` fica sem aro
+ * (a etiqueta continua dizendo de quem é); `Text` nunca é destruído, só esvazia.
+ */
+function paintCompanion(view: TokenView, companion: TokenCompanion | undefined): void {
+  view.companionColor = companion === undefined ? null : parseHexColor(companion.color)
+  view.companionLabel.text = companion === undefined ? '' : companionLabelText(companion)
+  view.companionLabel.style.fill = view.companionColor ?? TOKEN_NAME_FILL_COLOR
+}
+
+/** Aro de dono (ou de companheiro) no zoom atual; só refaz quando raio, dono, cor ou zoom mudam. */
 function syncOwnerRing(view: TokenView, cameraScale: number): void {
-  const key = view.own ? `${view.radius}@${cameraScale}` : null
+  const key = view.own ? `${view.radius}@${cameraScale}` : view.companionColor !== null ? `${view.radius}@${cameraScale}@${view.companionColor}` : null
   if (key === view.ringKey) return
   view.ringKey = key
   if (key === null) view.ring.clear()
-  else drawOwnerRing(view.ring, view.radius, cameraScale)
+  else if (view.own) drawOwnerRing(view.ring, view.radius, cameraScale)
+  else if (view.companionColor !== null) drawCompanionRing(view.ring, view.radius, cameraScale, view.companionColor)
+}
+
+/** A etiqueta do companheiro segue o nome: mesmo tamanho, mesma visibilidade, logo abaixo dele. */
+function placeCompanionLabel(view: TokenView): void {
+  const { label, companionLabel } = view
+  companionLabel.visible = label.visible && companionLabel.text !== ''
+  companionLabel.scale.copyFrom(label.scale)
+  companionLabel.position.set(label.position.x, label.position.y + (label.text === '' ? 0 : label.height))
 }
 
 /**
@@ -428,7 +454,11 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
   facingNib.visible = false
   const label = new Text({ text: token.name, style: { fontSize: LABEL_FONT_SIZE, fill: TOKEN_NAME_FILL_COLOR, stroke: { color: TOKEN_NAME_OUTLINE_COLOR, width: 3 } } })
   label.anchor.set(0.5, 0)
-  wrapper.addChild(photoMask, photo, body, ring, facingNib, label)
+  // Depois do nome, de propósito: o primeiro `Text` da ficha continua sendo o nome do personagem.
+  const companionLabel = new Text({ text: '', style: { fontSize: LABEL_FONT_SIZE, fill: TOKEN_NAME_FILL_COLOR, stroke: { color: TOKEN_NAME_OUTLINE_COLOR, width: 3 } } })
+  companionLabel.anchor.set(0.5, 0)
+  companionLabel.visible = false
+  wrapper.addChild(photoMask, photo, body, ring, facingNib, label, companionLabel)
   applyTokenTouch(wrapper, own)
   const view: TokenView = {
     wrapper,
@@ -439,6 +469,8 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
     radius: tokenRadius(token, grid),
     own,
     ringKey: null,
+    companionColor: null,
+    companionLabel,
     facingNib,
     facing: null,
     facingKey: null,
@@ -467,7 +499,8 @@ function sizeTokenLabel(label: Text, cameraScale: number, showNames: boolean): v
 function tokenViewKey(token: Token, grid: number, own: boolean): string {
   // `token.color` entra na chave: sem isto, o mestre troca a cor e a tela do
   // jogador continua com a tinta velha até o token mudar de nome ou tamanho.
-  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null])
+  // A marca de companheiro também: a ficha que deixa de ser de jogador (ou passa a ser) repinta na hora.
+  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, token.companion ?? null])
 }
 
 interface Scene {
@@ -1058,6 +1091,7 @@ export function PlayerView({
       sizeTokenLabel(view.label, scene.camera.scale, showNames)
       syncOwnerRing(view, scene.camera.scale)
       syncFacingNib(view, scene.camera.scale)
+      placeCompanionLabel(view)
     }
   }
 
@@ -1148,6 +1182,7 @@ export function PlayerView({
     const draggedId = scene.drag?.kind === 'token' ? scene.drag.tokenId : null
     const now = performance.now()
     let facingCount = 0
+    let companionsCount = 0
     for (const token of currentMap.tokens) {
       const isOwn = ownSet.has(token.id)
       const key = tokenViewKey(token, currentMap.grid, isOwn)
@@ -1174,7 +1209,9 @@ export function PlayerView({
       sizeTokenLabel(view.label, scene.camera.scale, currentSettings.showNames)
       syncOwnerRing(view, scene.camera.scale)
       syncFacing(view, token, scene.tokenTurns, { shown: shownFacing, now, animate: sameScene && !reducedMotion, cameraScale: scene.camera.scale })
+      placeCompanionLabel(view)
       if (view.facing !== null) facingCount += 1
+      if (view.companionColor !== null || view.companionLabel.text !== '') companionsCount += 1
       view.wrapper.visible = true
       // A ficha sob o dedo é do arrasto (abaixo): não desliza atrás dele.
       const animate = sameScene && !reducedMotion && token.id !== draggedId
@@ -1193,6 +1230,7 @@ export function PlayerView({
       el.dataset.wallsCount = String(scene.wallsCount)
       el.dataset.tokensCount = String(currentMap.tokens.length)
       el.dataset.facingCount = String(facingCount)
+      el.dataset.companionsCount = String(companionsCount)
       el.dataset.regionsCount = String(regions.filter((r) => !isDegenerateRegion(r.points)).length)
       el.dataset.labelsCount = String(drawings.filter((d) => d.kind === 'text').length)
       el.dataset.exploredCells = String(scene.exploredCells)

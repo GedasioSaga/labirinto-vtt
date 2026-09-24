@@ -1,4 +1,4 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { ConcealZone, DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, TokenCompanion, Wall } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, REVEAL_BRUSH_CELL, unveiledCellsOf } from './concealBrush'
 import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer } from './tokenPublicName'
@@ -892,6 +892,39 @@ function withoutNpcMark(token: Token): Token {
 }
 
 /**
+ * MARCA DE COMPANHEIRO, por id de JOGADOR: nome e cor de sinal de quem está na
+ * mesa. Montada pelo host (`net/hostSession.ts`), que é quem conhece os nomes.
+ */
+export type CompanionMarks = ReadonlyMap<string, TokenCompanion>
+
+/**
+ * Por id de ficha, a marca do jogador dono dela — só fichas de OUTROS
+ * jogadores. Ficha que o próprio jogador também tem não entra: ela é dele.
+ */
+function companionsByToken(ownership: Record<string, string[]>, playerId: string, owned: ReadonlySet<string>, marks: CompanionMarks | undefined): Map<string, TokenCompanion> {
+  const byToken = new Map<string, TokenCompanion>()
+  if (marks === undefined) return byToken
+  for (const [ownerId, tokenIds] of Object.entries(ownership)) {
+    if (ownerId === playerId) continue
+    const mark = marks.get(ownerId)
+    if (mark === undefined) continue
+    for (const id of tokenIds) {
+      if (!owned.has(id) && !byToken.has(id)) byToken.set(id, { name: mark.name, color: mark.color })
+    }
+  }
+  return byToken
+}
+
+/** A ficha com a marca que o recorte decidiu, e só ela: `companion` vindo do mapa do mestre nunca passa. */
+function withCompanionMark(token: Token, mark: TokenCompanion | undefined): Token {
+  if (mark !== undefined) return { ...token, companion: mark }
+  if (token.companion === undefined) return token
+  const copy = { ...token }
+  delete copy.companion
+  return copy
+}
+
+/**
  * "QUEM VÊ" de cada pino, por id: os jogadores escolhidos pelo mestre. Pino
  * AUSENTE do mapa = "Todos" (o pino de sempre); presente com o conjunto vazio =
  * "Só estes" sem ninguém marcado, e ninguém recebe. A lista vive na sessão do
@@ -926,6 +959,9 @@ function unseenDoor(door: DoorState): DoorState {
  * `oneWayExits`: por pino, as saídas cujo par é a chegada oculta
  * (`oneWayExitsOf`, montado pelo host, que enxerga a outra cena). Ausente =
  * nenhuma passagem sai marcada "Só ida".
+ * `companions`: nome e cor de cada jogador da mesa (`CompanionMarks`). A ficha
+ * de outro jogador que SAI no recorte leva a marca dele; ausente = nenhuma
+ * ficha sai marcada.
  */
 export function filterMapForPlayer(
   map: MapData,
@@ -937,6 +973,7 @@ export function filterMapForPlayer(
   pinAudiences?: PinAudiences,
   enteredRooms?: ReadonlySet<string>,
   oneWayExits?: OneWayExits,
+  companions?: CompanionMarks,
 ): PlayerMapView {
   const hiddenLayers = map.hiddenLayers
   const owned = new Set(ownership[playerId] ?? []) // jogador sem entrada de posse não tem token nem visão
@@ -1311,9 +1348,11 @@ export function filterMapForPlayer(
 
   // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
   // Nome: o dono lê o real; os outros, o "Nome para os jogadores" (o de trabalho do mestre não sai).
+  // Marca de companheiro DEPOIS do filtro: ficha que não sai não leva o nome do dono a lugar nenhum.
+  const companionOf = companionsByToken(ownership, playerId, owned, companions)
   const tokens = layerTokens
     .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
-    .map((t) => withoutNpcMark(sanitizeTokenPhoto(tokenAsSeenByPlayer(t, owned.has(t.id)))))
+    .map((t) => withCompanionMark(withoutNpcMark(sanitizeTokenPhoto(tokenAsSeenByPlayer(t, owned.has(t.id)))), companionOf.get(t.id)))
   const sentTokenIds = new Set(tokens.map((t) => t.id))
   // Ficha que o MESTRE esconde deste jogador (oculta, secreta ou na camada
   // Fichas escondida). A tocha presa nela fica no centro dela e anda com ela:
