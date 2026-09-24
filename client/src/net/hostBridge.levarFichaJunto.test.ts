@@ -8,6 +8,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Pin, Token } from '../types/map'
 import { createHostBridge } from './hostBridge'
 import type { AppliedTransfer, HostWorld } from './hostSession'
+import { useToastStore } from '../stores/toastStore'
 
 const ROOM = { code: 'AB12CD', urls: ['http://192.168.0.2:7777/player'], qrSvg: '<svg/>' }
 const SALAO = 'cena-salao'
@@ -25,9 +26,13 @@ function mundo(): HostWorld {
   const salao: MapData = {
     ...createEmptyMap('mapa-salao', 'Salão', 40, 10, 50),
     tokens: [ficha('ana', 225, 225), ficha('ferido', 275, 225, { levadoPor: 'ana' })],
-    pins: [viagem('escada', 425, 225, { sceneId: CRIPTA, pinId: 'escada-b' })],
+    pins: [
+      viagem('escada', 425, 225, { sceneId: CRIPTA, pinId: 'escada-b' }),
+      // A porta que pede passagem ao mestre, do lado do ferido.
+      { ...viagem('porta', 325, 275, { sceneId: CRIPTA, pinId: 'porta-b' }), passagem: 'pede' },
+    ],
   }
-  const cripta: MapData = { ...createEmptyMap('mapa-cripta', 'Cripta', 40, 10, 50), pins: [viagem('escada-b', 1025, 275, { sceneId: SALAO, pinId: 'escada' })] }
+  const cripta: MapData = { ...createEmptyMap('mapa-cripta', 'Cripta', 40, 10, 50), pins: [viagem('escada-b', 1025, 275, { sceneId: SALAO, pinId: 'escada' }), viagem('porta-b', 1025, 375, { sceneId: SALAO, pinId: 'porta' })] }
   return { open: { sceneId: SALAO, name: 'Salão', map: salao }, background: [{ sceneId: CRIPTA, name: 'Cripta', map: cripta }] }
 }
 
@@ -88,5 +93,22 @@ describe('hostBridge e a ficha levada junto', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(t.sentTo('c1')).toContainEqual({ type: 'pin.travel.rejected', reason: 'unavailable' })
     expect(t.sentTo('c2').some((m) => typeof m === 'object' && m !== null && 'type' in m && (m.type === 'pin.travel.rejected' || m.type === 'scene.changed'))).toBe(false)
+  })
+
+  it('o ferido (Bia) pediu passagem e a Ana o levou pelo pino livre: o aviso do pedido dela sai da tela', async () => {
+    useToastStore.setState({ toasts: [] })
+    const applyTransfer = vi.fn((_t: AppliedTransfer) => true)
+    const t = setup(applyTransfer)
+    await t.bridge.start()
+    t.emit({ clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+    t.bridge.assignToken(t.playerId('c1'), 'ana')
+    t.emit({ clientId: 'c2', msg: { type: 'join', code: ROOM.code, name: 'Bia' } })
+    t.bridge.assignToken(t.playerId('c2'), 'ferido')
+    t.emit({ clientId: 'c2', msg: { type: 'pin.travel.request', pinId: 'porta' } })
+    const pedidoDaBia = () => useToastStore.getState().toasts.filter((toast) => toast.text.startsWith('Bia quer passar'))
+    expect(pedidoDaBia()).toHaveLength(1)
+    t.emit({ clientId: 'c1', msg: { type: 'pin.travel.request', pinId: 'escada' } })
+    expect(applyTransfer.mock.calls.map(([tr]) => tr.tokenId)).toEqual(['ana', 'ferido'])
+    expect(pedidoDaBia()).toEqual([])
   })
 })

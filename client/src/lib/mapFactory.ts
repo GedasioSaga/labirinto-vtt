@@ -18,7 +18,7 @@ import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
-import { carrierIdOf } from './carry'
+import { carrierIdOf, followStep } from './carry'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -623,7 +623,9 @@ export function removeToken(map: MapData, tokenId: string): MapData {
  * Põe o token em (`x`, `y`). LEVAR FICHA JUNTO: as fichas que ele leva
  * (`lib/carry.ts`) andam o MESMO deslocamento — é por aqui que passam o
  * arrasto do mestre, o movimento do jogador e o "Reunir o grupo" na mesma
- * cena, então o ferido acompanha em todos sem cada um lembrar dele.
+ * cena, então o ferido acompanha em todos sem cada um lembrar dele. Cada
+ * ficha levada tem o PRÓPRIO trajeto checado (`followStep`): parede no
+ * caminho dela a deixa para trás, mesmo que quem leva tenha passado.
  */
 export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
   const moving = map.tokens.find((t) => t.id === tokenId)
@@ -632,7 +634,7 @@ export function setTokenPosition(map: MapData, tokenId: string, x: number, y: nu
   const follows = (t: Token): boolean => (dx !== 0 || dy !== 0) && t.id !== tokenId && carrierIdOf(t) === tokenId
   return {
     ...map,
-    tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : follows(t) ? { ...t, x: t.x + dx, y: t.y + dy } : t)),
+    tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : follows(t) ? followStep(map, t, dx, dy) : t)),
   }
 }
 

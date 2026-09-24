@@ -664,6 +664,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const completeTransfer = (result: HostResult, transfer: AppliedTransfer) => {
     const moved = applyTransferAlong(transfer)
+    // LEVAR FICHA JUNTO: o pedido de passagem de quem foi levado morreu na
+    // sessão (`carriedAlong`); o aviso "Fulano quer passar por…" sai junto,
+    // senão o "Deixar ir" dele ficaria na tela sem fazer nada.
+    pruneTravelToasts()
     if (!moved) {
       // O "Você chegou" não pode sair: a ficha não saiu do lugar.
       // Só a quem PEDIU: o dono de uma ficha levada junto (`by: 'master'`) não pediu nada.

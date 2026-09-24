@@ -1,4 +1,5 @@
 import type { MapData, Token } from '../types/map'
+import { validateTokenMove } from './moveValidation'
 
 /**
  * LEVAR FICHA JUNTO — a parte pura: quem leva quem (`Token.levadoPor`), as
@@ -28,6 +29,21 @@ export function carrierOf(map: MapData, token: Token): Token | null {
 /** As fichas que `carrierId` leva neste mapa, na ordem do mapa. */
 export function carriedBy(map: MapData, carrierId: string): Token[] {
   return map.tokens.filter((t) => t.id !== carrierId && carrierIdOf(t) === carrierId)
+}
+
+/**
+ * O passo da ficha levada quando quem a leva anda (`dx`, `dy`) em `map` (o
+ * mapa ANTES do passo: as paredes e o lugar dela de onde ela sai). Anda o
+ * mesmo deslocamento SÓ se o trajeto DELA é livre — parede, porta fechada,
+ * fora do chão e fora do mapa barram, pela mesma regra do passo do jogador
+ * (`validateTokenMove`, sem posse, vez nem ocupação, que são do pedido e não
+ * do trajeto). Barrada, fica onde está e o vínculo continua: validar só o
+ * passo de quem leva deixava a ficha de OUTRO jogador atravessar parede e
+ * enxergar de dentro de uma sala que o grupo nunca alcançou.
+ */
+export function followStep(map: MapData, carried: Token, dx: number, dy: number): Token {
+  const verdict = validateTokenMove(map, { playerId: '', tokenId: carried.id, x: carried.x + dx, y: carried.y + dy }, {}, { isHost: true })
+  return verdict.ok ? { ...carried, x: verdict.x, y: verdict.y } : carried
 }
 
 /**

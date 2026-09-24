@@ -1,6 +1,7 @@
 import type { HostScene, HostWorld } from '../net/hostSession'
 import type { MapData, Token, Wall } from '../types/map'
 import { snapPointForTarget } from '../pixi/tokenInteraction'
+import { carrierIdOf } from './carry'
 import { findTokenPath } from './collision'
 import { compileFloor } from './floorSdf'
 import type { PartyMember } from './party'
@@ -192,7 +193,15 @@ export function planGather(members: readonly PartyMember[], world: HostWorld, pi
     }
     moves.push({ playerId: j.member.playerId, name: j.member.name, tokenId: j.token.id, travels: j.travels, x: spot.x, y: spot.y })
   })
-  return { moves, leftOut }
+  // LEVAR FICHA JUNTO: quem é levado viaja ANTES. Se viesse depois, a travessia
+  // de quem o leva já o teria trazido, a dele acharia o jogador na cena do
+  // pino (nada a fazer = "não deu") e ele não assentaria na casa planejada.
+  // Indo antes, sai da cena de quem leva, e ela viaja sem arrastá-lo.
+  const carriedFirst = (move: GatherMove): number => {
+    const token = joining.find((j) => j.token.id === move.tokenId)?.token
+    return move.travels && token !== undefined && carrierIdOf(token) !== null ? 0 : 1
+  }
+  return { moves: [...moves].sort((a, b) => carriedFirst(a) - carriedFirst(b)), leftOut }
 }
 
 /** O que a reunião precisa do mundo para acontecer. O App liga isto à ponte e à store; o teste, ao que quiser. */

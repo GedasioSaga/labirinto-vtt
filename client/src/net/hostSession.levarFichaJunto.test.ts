@@ -70,6 +70,17 @@ describe('hostSession: a Ana arrasta e o ferido vem junto', () => {
     expect(depois.tokens.find((t) => t.id === 'ferido')).toMatchObject({ x: 275, y: 125 })
   })
 
+  it('parede em cima do ferido: o passo dela vale, e aplicado ele NÃO atravessa a parede', () => {
+    const parede = { id: 'parede', x1: 250, y1: 200, x2: 400, y2: 200, blocksLight: true, blocksMove: true, door: null }
+    const w = mundo({}, { walls: [parede] })
+    const { s } = mesa(w)
+    const r = s.handleMessage('c1', { type: 'token.move', reqId: 'r1', tokenId: 'ana', x: 225, y: 125 }, w)
+    expect(r.applyMove).toEqual({ tokenId: 'ana', x: 225, y: 125 })
+    if (r.applyMove === undefined) throw new Error('o movimento deveria valer')
+    const depois = setTokenPosition(w.open.map, r.applyMove.tokenId, r.applyMove.x, r.applyMove.y)
+    expect(depois.tokens.find((t) => t.id === 'ferido')).toMatchObject({ x: 275, y: 225 })
+  })
+
   it('"Fichas ocupam espaço": o ferido que ela leva não barra o passo dela', () => {
     const w = mundo({}, { movement: { tokensOccupy: true } })
     const { s } = mesa(w)
