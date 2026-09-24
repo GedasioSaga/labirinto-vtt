@@ -1,6 +1,6 @@
 import type { HostWorld, PinClueState } from '../net/hostSession'
 import type { PartyMember } from './party'
-import { PIN_GLYPH, pinSummary } from './pins'
+import { PIN_GLYPH, pinMasterLabel } from './pins'
 
 /**
  * O PAINEL PISTAS (aba Jogo): antes do confronto, o mestre olha quem recebeu
@@ -27,7 +27,7 @@ export interface ClueRow {
   pinId: string
   /** "!" ou "?", o glifo que o mestre vê no mapa. */
   glyph: string
-  /** Como o editor nomeia o pino (`pinSummary`). */
+  /** Como o mestre nomeia o pino, igual à lista Pinos (`pinMasterLabel`): o nome só dele, ou o resumo. */
   label: string
   /** Cena do pino; `null` = mapa solto. É o que o "centrar" abre. */
   sceneId: string | null
@@ -63,7 +63,7 @@ export function clueRows(
       rows.push({
         pinId: pin.id,
         glyph: PIN_GLYPH[pin.kind],
-        label: pinSummary(pin),
+        label: pinMasterLabel(pin),
         sceneId: scene.sceneId,
         sceneName: scene.sceneId === null ? null : scene.name,
         x: pin.x,

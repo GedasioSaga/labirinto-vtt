@@ -3,6 +3,7 @@ import { createEmptyMap } from './mapFactory'
 import type { HostWorld } from '../net/hostSession'
 import type { PartyMember } from './party'
 import type { Pin } from '../types/map'
+import { pinMasterLabel } from './pins'
 import { clueDotLabel, clueRows, cluesHeading, toggledAudience } from './clues'
 
 /**
@@ -50,6 +51,14 @@ describe('clueRows: as linhas do painel Pistas', () => {
     expect(bilhete).toMatchObject({ pinId: 'bilhete', label: 'Bilhete', glyph: '?', sceneId: 'cena-andar', sceneName: 'Andar de cima', x: 450, y: 320 })
     // Sem descrição, o pino é nomeado como no resto do editor.
     expect(rows[2]?.label).toBe('Ponto de interesse !')
+  })
+
+  it('pino com nome só do mestre: a linha usa o mesmo nome da lista Pinos (pinMasterLabel), não a descrição', () => {
+    const nomeado: Pin = { ...pino('faca', 'exclamacao', 'Lâmina suja de sangue seco'), nome: '  Faca  ' }
+    const world: HostWorld = { open: { sceneId: 'cena-sala', name: 'Sala', map: { ...createEmptyMap('m', 'Sala', 10, 10, 50), pins: [nomeado, pino('bilhete', 'interrogacao', 'Bilhete')] } }, background: [] }
+    const rows = clueRows(world, MEMBROS, {}, {})
+    expect(rows.map((r) => r.label)).toEqual(['Faca', 'Bilhete'])
+    expect(rows[0]?.label).toBe(pinMasterLabel(nomeado))
   })
 
   it('bolinha por jogador: Gabi leu, Fábio recebeu, Ana nada; na ordem da sala, com a cor da ficha', () => {
