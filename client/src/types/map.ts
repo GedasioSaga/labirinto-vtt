@@ -285,11 +285,30 @@ export interface PinExit extends PinExitLabel {
  * espalhados por várias cenas, aprovar cada passagem vira gargalo do mestre:
  * - `pede`: o jogador pede e o mestre decide ("Deixar ir"). É o de sempre;
  * - `livre`: o jogador passa sozinho, e o mestre só lê que ele chegou;
- * - `trancada`: ninguém passa, e nenhum pedido chega ao mestre.
+ * - `trancada`: ninguém passa, e nenhum pedido chega ao mestre;
+ * - `passe`: crachá, catraca — a ficha com o passe (`Pin.passe`) passa
+ *   sozinha, e a sem passe gera o pedido "sem passe" ao mestre. Deixar uma
+ *   passar não muda o modo: a catraca continua fechada para as outras.
  * Cada pino do par tem o seu: a porta pode ser livre para ir e trancada para
  * voltar.
  */
-export type PinPassage = 'pede' | 'livre' | 'trancada'
+export type PinPassage = 'pede' | 'livre' | 'trancada' | 'passe'
+
+/**
+ * O que abre um pino no modo `passe`: um ITEM na mochila da ficha (pelo nome,
+ * sem ligar para maiúscula e acento — "Crachá") e/ou a MARCA do mestre, as
+ * fichas que ele deixou passar por id. Os dois ausentes = ninguém tem passe.
+ * NUNCA sai no recorte do jogador (`lib/fogFilter.ts`): diria o que abre a
+ * catraca e quem já pode passar.
+ */
+export interface PinPass {
+  /** Nome do item que abre. `undefined` === o passe não pede item. */
+  item?: string
+  /** Ids das fichas marcadas. `undefined` === nenhuma marcada — sem linha de
+   *  migração: quem lê do disco é `readPinPass` (`lib/pinPass.ts`), que
+   *  confere `item` e `fichas` juntos. */
+  fichas?: string[]
+}
 
 /**
  * Símbolo desenhado DENTRO da cabeça do pino, no lugar do glifo. Os seis que o
@@ -364,6 +383,13 @@ export interface Pin extends PlayerSecret {
    * passar" ou "Está trancada", e o modo não diz nada da outra cena.
    */
   passagem?: PinPassage
+  /**
+   * Só do pino de viagem no modo `passe`: o item e as fichas que passam sem
+   * pedir. Ausente = ninguém tem passe (todo pedido vai ao mestre como "sem
+   * passe"). Sem migração: mapa salvo antes do campo abre igual. Ao contrário
+   * de `passagem`, NUNCA sai no recorte do jogador.
+   */
+  passe?: PinPass
   /**
    * Só do pino de viagem com VÁRIAS saídas: como o mestre chama a saída
    * principal (a de `destino`) — "Porta da cripta". Ausente = sem nome; o

@@ -68,13 +68,18 @@ export function isPinIcon(value: unknown): value is PinIcon {
   return typeof value === 'string' && (PIN_ICON_ORDER as readonly string[]).includes(value)
 }
 
-/** Os três modos de passagem do pino de viagem, na ordem do painel do mestre. */
-export const PIN_PASSAGE_ORDER: readonly PinPassage[] = ['pede', 'livre', 'trancada']
+/**
+ * Os modos de passagem do pino de viagem, na ordem do painel do mestre: do
+ * mais aberto ao mais fechado, com o passe (livre para uns, pede para os
+ * outros) entre "Livre" e "Trancada".
+ */
+export const PIN_PASSAGE_ORDER: readonly PinPassage[] = ['pede', 'livre', 'passe', 'trancada']
 
 /** Nome de cada modo no painel do mestre. */
 export const PIN_PASSAGE_LABELS: Record<PinPassage, string> = {
   pede: 'Pede ao mestre',
   livre: 'Livre',
+  passe: 'Com passe',
   trancada: 'Trancada',
 }
 

@@ -5,6 +5,7 @@ import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { tokenPublicNameFromFile } from './tokenPublicName'
 import { readMovementRules } from './movementRules'
 import { readCarriedItems, readPinItem } from './items'
+import { readPinPass } from './pinPass'
 import { readHazards } from './hazards'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
@@ -238,6 +239,10 @@ function deserializeMapFields(json: string): MapData {
       // versão futura) volta AUSENTE, e não como "livre": na dúvida, a porta
       // pergunta ao mestre em vez de deixar o grupo passar sem ninguém ver.
       passagem: isPinPassage(p.passagem) ? p.passagem : undefined,
+      // PASSE: campo NOVO e OPCIONAL. Forma errada volta ausente — ninguém
+      // tem passe e o pedido vai ao mestre, nunca uma catraca aberta a todos.
+      // `item` e `fichas` (as marcas do mestre) são conferidos em `readPinPass`.
+      passe: readPinPass(p.passe),
       // ENCRUZILHADA: `rotulo` e `saidas` são campos NOVOS e OPCIONAIS. Mapa
       // de antes não tem nenhum dos dois e abre como sempre, com a saída de
       // `destino`. Saída extra fora da forma é descartada sozinha (ver

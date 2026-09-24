@@ -74,6 +74,7 @@ import { imageExportFileName, type ImageExportOptions, type MapImageExporter } f
 import { saveMapImage } from './lib/mapImageSave'
 import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
+import { passItemOf, passTokenOptions, withPassItem, withPassToken } from './lib/pinPass'
 import { isArrivalOnly } from './lib/pinTravel'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
@@ -1447,6 +1448,18 @@ function App() {
       // par da outra cena fica como está.
       passage: passageOf(pin),
       onPassageChange: (passagem: PinPassage) => useMapStore.getState().updatePin(pin.id, { passagem }),
+      // PASSE: item e marcas vivem no pino desta cena, com desfazer. Lidos de
+      // novo na store na hora do clique: o painel pode estar atrás de um desfazer.
+      passItem: passItemOf(pin.passe),
+      onPassItemChange: (item: string) => {
+        const atual = useMapStore.getState().map.pins.find((p) => p.id === pin.id)
+        if (atual !== undefined) useMapStore.getState().updatePin(pin.id, { passe: withPassItem(atual.passe, item) })
+      },
+      passTokens: passTokenOptions(map.tokens, pin.passe),
+      onPassTokenToggle: (tokenId: string, on: boolean) => {
+        const atual = useMapStore.getState().map.pins.find((p) => p.id === pin.id)
+        if (atual !== undefined) useMapStore.getState().updatePin(pin.id, { passe: withPassToken(atual.passe, tokenId, on) })
+      },
       // Mão única mora no PAR (cena de fundo): marcar e desmarcar vão pela
       // aventura, fora do desfazer desta cena.
       onOneWayChange: (exitId: string, on: boolean) => {
