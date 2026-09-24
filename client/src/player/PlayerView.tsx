@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
 import type { FederatedPointerEvent } from 'pixi.js'
-import type { MapData, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
 import { rasterizeMinimap, hexToRgb } from '../lib/minimapRaster'
 import type { Rgb } from '../lib/minimapRaster'
 import { compileFloor } from '../lib/floorSdf'
@@ -12,7 +12,7 @@ import { roomHasRoof } from '../lib/roomOps'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs } from '../lib/layers'
 import { visionSegments } from '../lib/visibility'
 import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
-import { findPinAt } from '../lib/pins'
+import { findPinAt, pinSizeScale, pinTapTolerance } from '../lib/pins'
 import { visiblePins } from '../lib/layers'
 import { createPinsRenderer } from '../pixi/drawPins'
 import { fitCamera, panBy, zoomAt } from '../pixi/world'
@@ -530,6 +530,8 @@ interface Scene {
   pins: Container
   pinsRenderer: ReturnType<typeof createPinsRenderer>
   lastPinsKey: string | null
+  /** Fator de tamanho mínimo com que os pinos foram pintados por último (`pinSizeScale`). */
+  pinsSizeScale: number
   /** Zonas ocultas: preto opaco acima da névoa e abaixo dos tokens. */
   concealed: Graphics
   lastConcealed: RegionPoint[][] | null
@@ -1000,12 +1002,34 @@ export function PlayerView({
     return findDoorAt(visibleWalls(latestRef.current.map), point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
   }
 
-  /** Pino sob o ponto da TELA, com a mesma folga de dedo da porta. */
+  /**
+   * Pino sob o ponto da TELA: o pino como está desenhado (crescido no zoom
+   * afastado, `pinSizeScale`), com a folga de dedo da porta limitada ao
+   * tamanho dele — de longe, um toque ao lado não abre pino que não aparece.
+   */
   function pinAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
     const map = latestRef.current.map
     const point = scene.world.toLocal({ x: screenX, y: screenY })
-    const pin = findPinAt(visiblePins(map.pins ?? [], map.hiddenLayers), point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
+    const scale = scene.camera.scale
+    const pin = findPinAt(visiblePins(map.pins ?? [], map.hiddenLayers), point, pinTapTolerance(DOOR_TAP_TOLERANCE_PX, scale), pinSizeScale(scale))
     return pin === null ? null : pin.id
+  }
+
+  /**
+   * Pinta os pinos no tamanho deste zoom. `pins` já vem do recorte do mestre
+   * (lib/fogFilter.ts) e das camadas ocultas: o que chega é o que se toca.
+   */
+  function paintPins(scene: Scene, pins: readonly Pin[]): void {
+    const sizeScale = pinSizeScale(scene.camera.scale)
+    scene.pinsSizeScale = sizeScale
+    scene.pinsRenderer.draw(scene.pins, pins, null, undefined, sizeScale)
+  }
+
+  /** Zoom: os pinos só repintam quando o fator de tamanho mínimo muda (de perto ele é sempre 1). */
+  function redrawPinsForZoom(scene: Scene): void {
+    if (pinSizeScale(scene.camera.scale) === scene.pinsSizeScale) return
+    const map = latestRef.current.map
+    paintPins(scene, visiblePins(map.pins ?? [], map.hiddenLayers))
   }
 
   /**
@@ -1027,6 +1051,7 @@ export function PlayerView({
     redrawStairsLayer(scene)
     redrawWallsLayer(scene)
     redrawDoorHints(scene)
+    redrawPinsForZoom(scene)
     scene.roomNamesRenderer.setCameraScale(scene.camera.scale)
     const { showNames } = latestRef.current.settings
     for (const view of scene.tokenViews.values()) {
@@ -1097,9 +1122,9 @@ export function PlayerView({
     // ver (lib/fogFilter.ts): o que chegou é o que ele pode tocar.
     const pins = visiblePins(currentMap.pins ?? [], hidden)
     const pinsKey = JSON.stringify(pins)
-    if (pinsKey !== scene.lastPinsKey) {
+    if (pinsKey !== scene.lastPinsKey || pinSizeScale(scene.camera.scale) !== scene.pinsSizeScale) {
       scene.lastPinsKey = pinsKey
-      scene.pinsRenderer.draw(scene.pins, pins, null)
+      paintPins(scene, pins)
     }
 
     // Reaproveita a view por id e NUNCA destrói `Text` durante a sessão: Text
@@ -1374,6 +1399,7 @@ export function PlayerView({
         pins,
         pinsRenderer: createPinsRenderer(),
         lastPinsKey: null,
+        pinsSizeScale: 1,
         concealed,
         lastConcealed: null,
         concealedCount: 0,

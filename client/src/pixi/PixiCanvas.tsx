@@ -140,7 +140,7 @@ import { createConcealZonesRenderer } from './drawConcealZones'
 import { createPinsRenderer } from './drawPins'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { revealBrushRadius, type RevealBrushMode } from '../lib/concealBrush'
-import { findPinAt, pinKindAfterShortcut } from '../lib/pins'
+import { findPinAt, pinKindAfterShortcut, pinSizeScale, pinTapTolerance } from '../lib/pins'
 import { buildConcealZoneFromDraft, buildPin, nextTokenName } from '../lib/mapFactory'
 import { SECRET_ITEM_ALPHA } from './constants'
 import { createTextLabelsRenderer } from './drawTextLabels'
@@ -1195,6 +1195,7 @@ export function PixiCanvas({
           visiblePins(map.pins, map.hiddenLayers).filter((pin) => !pin.hidden),
           selectedPinId,
           unlinkedTravelPinIds(useAdventureStore.getState(), map),
+          pinSizeScale(camera.scale),
         )
       }
 
@@ -2193,7 +2194,8 @@ export function PixiCanvas({
       const pinAt = (map: MapData, point: Point) => {
         if (isLayerLocked(map.lockedLayers, 'anotacoes')) return null
         const clickable = visiblePins(map.pins, map.hiddenLayers).filter((pin) => !pin.hidden)
-        return findPinAt(clickable, point, PIN_TAP_TOLERANCE_PX / camera.scale)
+        // O alvo é o pino como aparece: crescido no zoom afastado, com a folga limitada ao tamanho dele.
+        return findPinAt(clickable, point, pinTapTolerance(PIN_TAP_TOLERANCE_PX, camera.scale), pinSizeScale(camera.scale))
       }
 
       /**
