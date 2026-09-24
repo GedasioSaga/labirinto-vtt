@@ -268,6 +268,34 @@ describe('flush', () => {
     expect(arquivos.has(`C:/mesa/torre/${aventura.scenes[1].file}`)).toBe(true)
   })
 
+  it('ficha guardada ("Guardar ficha") sai do editor mas não do arquivo: cada uma na cena de onde saiu', async () => {
+    useMapStore.getState().addToken(token('escudo'))
+    const cripta = useAdventureStore.getState().createScene('Cripta', null)
+    const vale = useAdventureStore.getState().adventure?.scenes[0]?.id
+    if (vale === undefined) throw new Error('a aventura deveria ter nascido com o Vale')
+    useMapStore.getState().addToken(token('machado'))
+    const slotVale = useAdventureStore.getState().cache[vale]
+    const guardadoVale = slotVale?.status === 'ok' ? slotVale.map.tokens.find((t) => t.id === 'escudo') : undefined
+    const guardadoCripta = useMapStore.getState().map.tokens.find((t) => t.id === 'machado')
+    if (guardadoVale === undefined || guardadoCripta === undefined) throw new Error('as duas fichas deveriam estar no mapa')
+    // O mestre guarda as duas: saem do mapa (a do Vale, cena de fundo; a da Cripta, a aberta).
+    useAdventureStore.getState().updateBackgroundScene(vale, (m) => ({ ...m, tokens: m.tokens.filter((t) => t.id !== 'escudo') }))
+    useMapStore.getState().removeToken('machado')
+    const aberto = useMapStore.getState().map
+
+    const caminho = await useAdventureStore.getState().flush([
+      { token: guardadoVale, sceneId: vale },
+      { token: guardadoCripta, sceneId: cripta },
+    ])
+
+    expect(deserializeMap(arquivos.get('C:/appdata/maps/map_raiz/map.json') ?? '').tokens.map((t) => t.id)).toEqual(['escudo'])
+    expect(deserializeMap(arquivos.get(caminho) ?? '').tokens.map((t) => t.id)).toEqual(['machado'])
+    // O editor continua sem elas, e nada fica pendente: fechar a janela agora não perde ficha nenhuma.
+    expect(useMapStore.getState().map).toBe(aberto)
+    expect(useMapStore.getState().map.tokens).toEqual([])
+    expect(hasUnsavedWork()).toBe(false)
+  })
+
   it('renomear a cena grava o nome novo e vazio vira "Cena sem nome"', async () => {
     const cripta = useAdventureStore.getState().createScene('Cripta', null)
     useAdventureStore.getState().renameScene(cripta, '   ')

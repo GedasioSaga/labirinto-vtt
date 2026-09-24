@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { withStoredTokens } from '../lib/storedTokens'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, Token } from '../types/map'
 import type { PlayerInfo } from './hostSession'
@@ -79,6 +80,7 @@ async function mesa() {
   return {
     bridge,
     invoke,
+    emit,
     entra,
     cai,
     enviados,
@@ -176,6 +178,39 @@ describe('hostBridge: Guardar ficha e Dispensar', () => {
     const m = await mesa()
     expect(m.bridge.storeTokens(m.fabio.playerId)).toBe(false)
     expect(m.removeToken).not.toHaveBeenCalled()
+  })
+
+  it('"Guardar ficha" + Salvar: o arquivo leva o Escudo, mesmo com ele fora do mapa do editor', async () => {
+    const m = await mesa()
+    m.cai('c2')
+    m.bridge.storeTokens(m.fabio.playerId)
+    // A ponte entrega a cópia a quem grava; o mapa do editor segue sem o Escudo.
+    const guardadas = m.bridge.storedTokens()
+    expect(guardadas).toEqual([{ token: ficha('f-escudo', 'Escudo', 300), sceneId: null }])
+    expect(m.mapa().tokens.map((t) => t.id)).toEqual(['f-lirio'])
+    const noDisco = withStoredTokens(m.mapa(), guardadas)
+    expect(noDisco.tokens.map((t) => t.id)).toEqual(['f-lirio', 'f-escudo'])
+    // Cópia: mexer no que foi entregue não muda o que a ponte guarda.
+    guardadas.length = 0
+    expect(m.bridge.storedTokens()).toHaveLength(1)
+  })
+
+  it('ninguém guardado: nada a acrescentar ao arquivo', async () => {
+    const m = await mesa()
+    expect(m.bridge.storedTokens()).toEqual([])
+    expect(withStoredTokens(m.mapa(), m.bridge.storedTokens())).toBe(m.mapa())
+  })
+
+  it('"Dispensar" tira da Caixa o pedido de ação no ponto de quem saiu', async () => {
+    const m = await mesa()
+    m.emit('net:message', { clientId: 'c2', msg: { type: 'point.action', action: 'procurar', x: 300, y: 120 } })
+    expect(useToastStore.getState().toasts.some((t) => t.text.startsWith('Fábio quer'))).toBe(true)
+    m.cai('c2')
+    // A queda não tira a linha (o mestre ainda quer ler o pedido)…
+    expect(useToastStore.getState().toasts.some((t) => t.text.startsWith('Fábio quer'))).toBe(true)
+    // …o Dispensar tira: não há mais a quem responder.
+    expect(m.bridge.dismissPlayer(m.fabio.playerId)).toBe(true)
+    expect(useToastStore.getState().toasts.some((t) => t.text.startsWith('Fábio quer'))).toBe(false)
   })
 
   it('"Dispensar" tira o card; a ficha guardada volta ao mapa, sem dono', async () => {

@@ -22,6 +22,7 @@ import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import type { TravelLogEntry } from './lib/travelLog'
+import { withStoredTokens } from './lib/storedTokens'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -1262,17 +1263,21 @@ function App() {
    * `handleGoHome` e `saveAndOpen` — só o que acontece depois muda.
    */
   const persistMap = async (): Promise<string> => {
+    // "Guardar ficha" tira a ficha do mapa, não do arquivo: gravar sem ela e
+    // fechar a janela a apagaria para sempre (a cópia só vive na ponte da sala).
+    const stored = hostBridgeRef.current?.storedTokens() ?? []
     const adventureState = useAdventureStore.getState()
     if (adventureState.adventure !== null) {
-      const path = await adventureState.flush()
+      const path = await adventureState.flush(stored)
       setCurrentMapPath(path)
       return path
     }
+    const forDisk = withStoredTokens(map, stored)
     if (currentMapPath) {
-      await saveMapToPath(map, currentMapPath)
+      await saveMapToPath(forDisk, currentMapPath)
       return currentMapPath
     }
-    const path = await saveMapToAppData(map)
+    const path = await saveMapToAppData(forDisk)
     setCurrentMapPath(path)
     return path
   }

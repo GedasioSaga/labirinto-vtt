@@ -4,6 +4,7 @@ import { useToastStore } from '../stores/toastStore'
 import type { MapData, RegionPoint, Token } from '../types/map'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
 import { pointActionMasterText, type PointActionAnswer } from '../lib/pointActions'
+import type { StoredToken } from '../lib/storedTokens'
 import { addTravel, travelLogEntry, undoableTravelIds, withoutTravel, type TravelLogEntry } from '../lib/travelLog'
 import {
   createHostSession,
@@ -181,10 +182,17 @@ export interface HostBridge {
    * "Guardar ficha" do card de quem foi embora: as fichas dele saem do mapa
    * (param de ocupar o corredor) e voltam sozinhas, no mesmo lugar e de novo
    * dele, quando ele voltar. Dispensar ou fechar a sala também as devolve ao
-   * mapa, sem dono: guardar nunca apaga ficha. `false` com a sala fechada,
-   * jogador conectado ou desconhecido, ou nada a guardar.
+   * mapa, sem dono; e Salvar as grava no arquivo (ver `storedTokens`): guardar
+   * nunca apaga ficha. `false` com a sala fechada, jogador conectado ou
+   * desconhecido, ou nada a guardar.
    */
   storeTokens(playerId: string): boolean
+  /**
+   * Cópia das fichas guardadas agora, com a cena de onde cada uma saiu. Quem
+   * grava o mapa as põe de volta no arquivo (`withStoredTokens`): senão
+   * Guardar + Salvar + fechar a janela apagava a ficha, que só existia aqui.
+   */
+  storedTokens(): StoredToken[]
   /**
    * "Dispensar" do card de quem foi embora: o card sai. `false` com a sala
    * fechada, jogador conectado (esse é o Expulsar) ou desconhecido.
@@ -370,7 +378,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * cena de onde saíram (`null` = mapa solto): `playerId` -> fichas. Só do
    * mestre; nunca sai pelo `net_send`.
    */
-  const storedTokens = new Map<string, { token: Token; sceneId: string | null }[]>()
+  const storedTokens = new Map<string, StoredToken[]>()
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
@@ -1343,6 +1351,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return true
     },
 
+    storedTokens() {
+      return [...storedTokens.values()].flatMap((stored) => stored.map((entry) => ({ ...entry })))
+    },
+
     dismissPlayer(playerId) {
       if (session === null) return false
       const player = session.listPlayers().find((p) => p.playerId === playerId)
@@ -1351,6 +1363,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const restored = restoreStoredOf(playerId, false)
       session.dismissPlayer(playerId)
       if (restored.length > 0) useToastStore.getState().push('info', `De volta ao mapa, sem dono: ${restored.join(', ')}.`)
+      // A sessão esqueceu tudo dele, pedidos incluídos (a ação no ponto sobrevive à
+      // queda): a linha que sobrasse na Caixa seria um "Nada aqui" que não chega a ninguém.
+      pruneTravelToasts()
+      pruneCallToasts()
       pruneReturnToasts()
       broadcastNow()
       notifyPlayersIfChanged()
