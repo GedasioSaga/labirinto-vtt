@@ -738,3 +738,12 @@ Feito: cópia separada `C:/dev/labirinto-ver` (worktree solta em `03cc777`, o ú
 passada da junção: `auto/acervo` + os grupos jogador e editor), aberta com `npm run tauri:dev` na porta 1420
 (`LAB_PORTA=1420`, Rust reaproveitado do `target` da árvore principal). Os workflows não usam essa pasta. As
 grandes ainda não estão nela: entram quando a junção só das grandes (`wf_e1417c8d-d57`) sair verde.
+
+### 24/09/2026, 15h10 — link público fica carregando
+
+> "Cria um workflow rápido para resolver isso, link publico fican infinitamente carrendo e não abre."
+
+Em andamento: workflow `wf_933d952b-cd2`. Dois diagnósticos em paralelo (um reproduz ao vivo por um túnel
+próprio do cloudflared contra a sala aberta em `C:/dev/labirinto-ver`, outro rastreia o caminho no código),
+depois conserto com teste vermelho numa branch `auto/f2-link-publico` saída de `03cc777` e prova
+independente (cargo test, clippy, tipos, unidade). Verde ⇒ a cópia de teste passa para o commit do conserto.
