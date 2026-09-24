@@ -15,6 +15,7 @@ import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygon
 import { roomHasRoof } from './roomOps'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
+import { faceRangeCellsOrNull, isFaceInReach, tokenAsVulto } from './tokenVulto'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -1351,9 +1352,16 @@ export function filterMapForPlayer(
   // Marca de companheiro DEPOIS do filtro: ficha que não sai não leva o nome do dono a lugar nenhum.
   // Ficha disfarçada pelo mestre (outro nome ou nenhum) também não: a marca diria quem está por trás.
   const companionOf = companionsByToken(ownership, playerId, owned, companions)
+  // VULTO ("Rostos só de perto: N casas"): ficha alheia além de N casas de
+  // todas as fichas do jogador sai sem rosto — nem o nome (de trabalho,
+  // público ou do dono), nem foto, nem cor. Depois do filtro de névoa: o vulto
+  // só troca o rosto de quem já sai, nunca traz ninguém de volta.
+  const faceRange = faceRangeCellsOrNull(map.faceRangeCells)
+  const isFaceless = (t: Token): boolean => faceRange !== null && !owned.has(t.id) && !isFaceInReach(t, ownTokens, map, faceRange)
   const tokens = layerTokens
     .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
     .map((t) => {
+      if (isFaceless(t)) return tokenAsVulto(t)
       const mark = tokenPublicNameMode(t.publicName) === 'same' ? companionOf.get(t.id) : undefined
       return withCompanionMark(withoutNpcMark(sanitizeTokenPhoto(tokenAsSeenByPlayer(t, owned.has(t.id)))), mark)
     })

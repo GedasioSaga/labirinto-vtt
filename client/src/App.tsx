@@ -19,6 +19,7 @@ import { useFollowStore } from './stores/followStore'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { subscribeToPlayerWorldChanges } from './stores/playerWorldSubscription'
 import { playSignalSound } from './lib/signalSound'
+import { faceRangeCellsOrNull } from './lib/tokenVulto'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
@@ -357,6 +358,7 @@ function App() {
   const resizeRoomDimensions = useMapStore((state) => state.resizeRoomDimensions)
   const setMapScale = useMapStore((state) => state.setMapScale)
   const setMeasurementMode = useMapStore((state) => state.setMeasurementMode)
+  const setFaceRangeCells = useMapStore((state) => state.setFaceRangeCells)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
   const setTextFontFamily = useMapStore((state) => state.setTextFontFamily)
@@ -1857,6 +1859,10 @@ function App() {
               measurementMode: map.measurementMode,
               onMeasurementModeChange: setMeasurementMode,
               gridShape,
+            }}
+            faceRange={{
+              faceRangeCells: faceRangeCellsOrNull(map.faceRangeCells),
+              onFaceRangeCellsChange: setFaceRangeCells,
             }}
             gridAlign={{
               backgroundFilename:

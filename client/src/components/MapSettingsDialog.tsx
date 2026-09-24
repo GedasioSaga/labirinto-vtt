@@ -5,12 +5,15 @@ import { GridControls, type GridControlsProps } from './GridControls'
 import { GridAlignControls, type GridAlignControlsProps } from './GridAlignControls'
 import { MapScaleControls, type MapScaleControlsProps } from './MapScaleControls'
 import { ScenarioLinkControls, type ScenarioLinkControlsProps } from './ScenarioLinkControls'
+import { FaceRangeControls, type FaceRangeControlsProps } from './FaceRangeControls'
 import { FEATURES } from '../lib/features'
 
 export interface MapSettingsProps {
   grid: GridControlsProps
   gridAlign: GridAlignControlsProps
   mapScale: MapScaleControlsProps
+  /** "Rostos só de perto" da cena. Ausente, a seção não aparece (quem monta a janela sem mapa de sessão). */
+  faceRange?: FaceRangeControlsProps
   scenarioLink: ScenarioLinkControlsProps
 }
 
@@ -44,6 +47,7 @@ export function MapSettingsDialog({
   grid,
   gridAlign,
   mapScale,
+  faceRange,
   scenarioLink,
   showScenarioLink = FEATURES.scenarioLink,
 }: MapSettingsDialogProps & ScenarioLinkVisibility) {
@@ -124,6 +128,7 @@ export function MapSettingsDialog({
             </section>
           )}
           <MapScaleControls {...mapScale} />
+          {faceRange !== undefined && <FaceRangeControls {...faceRange} />}
           {showScenarioLink && <ScenarioLinkControls {...scenarioLink} />}
         </div>
       </div>

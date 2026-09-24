@@ -3,6 +3,7 @@ import { linkLooseWallsToRooms } from './roomLink'
 import { isPinBlockReason, isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { tokenPublicNameFromFile } from './tokenPublicName'
+import { faceRangeCellsOrNull } from './tokenVulto'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -254,6 +255,10 @@ function deserializeMapFields(json: string): MapData {
     // antigo sem gridShape salvo cairia em 'chessboard' por engano
     measurementMode:
       parsed.measurementMode ?? ((parsed.gridShape ?? 'square') === 'hex' ? 'hex' : 'chessboard'),
+    // "Rostos só de perto": campo NOVO e OPCIONAL. Só inteiro de 1 a 99 volta;
+    // o resto (texto, fração, arquivo editado à mão) volta AUSENTE — a cena de
+    // sempre, com o rosto de todo mundo à vista.
+    faceRangeCells: faceRangeCellsOrNull(parsed.faceRangeCells) ?? undefined,
     ownerId: parsed.ownerId ?? null,
     scenarioLink: parsed.scenarioLink ?? null,
   }
