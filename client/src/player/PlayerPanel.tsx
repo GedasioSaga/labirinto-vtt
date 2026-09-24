@@ -1,13 +1,16 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react'
 import type { StorageLike } from './playerConnection'
-import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
+import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry, type OwnTokenElsewhere } from '../net/protocol'
 import { PlayerNotebook } from './PlayerNotebook'
 import { PlayerClueList } from './PlayerClues'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
 const NO_CLUES: readonly ClueEntry[] = []
 const IGNORE_CLUE = (): void => {}
+/** Sem fichas em outra cena (mestre antigo, teste): a mesma lista vazia a cada render. */
+const NO_ELSEWHERE: readonly OwnTokenElsewhere[] = []
+const IGNORE_SWITCH = (): void => {}
 
 // Painel do jogador: meus personagens, ajustes de visão e centralizar a câmera.
 // Fica sobre o canvas (não ao lado) para o enquadramento do mapa não depender
@@ -130,6 +133,10 @@ interface PlayerPanelProps {
   clues?: readonly ClueEntry[]
   /** Tocou numa pista do Caderno: reabre o cartão dela. */
   onOpenClue?: (clueId: string) => void
+  /** MINHAS FICHAS EM OUTRAS CENAS: as fichas dele fora da cena na tela, com a Sala ('' = sem nome que ele leia). */
+  elsewhere?: readonly OwnTokenElsewhere[]
+  /** "Olhar por…": tocou numa ficha de fora; a cena da tela passa a ser a dela. */
+  onSwitchView?: (tokenId: string) => void
 }
 
 export function PlayerPanel({
@@ -153,6 +160,8 @@ export function PlayerPanel({
   onReadNotebook,
   clues = NO_CLUES,
   onOpenClue = IGNORE_CLUE,
+  elsewhere = NO_ELSEWHERE,
+  onSwitchView = IGNORE_SWITCH,
 }: PlayerPanelProps) {
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
   // Um estado por forma: a coluna do notebook nasce aberta e a gaveta do
@@ -249,6 +258,12 @@ export function PlayerPanel({
   function focusToken(tokenId: string) {
     onFocusToken(tokenId)
     // Na gaveta o painel cobre o mapa: fecha para mostrar onde a câmera foi.
+    closeDrawer()
+  }
+
+  function lookThrough(tokenId: string) {
+    onSwitchView(tokenId)
+    // Mesma razão do centralizar: a cena nova aparece no mapa que a gaveta cobre.
     closeDrawer()
   }
 
@@ -384,7 +399,7 @@ export function PlayerPanel({
               <h2 id={`${panelId}-chars`} className="pp-heading">
                 Meus personagens
               </h2>
-              {characters.length === 0 ? (
+              {characters.length === 0 && elsewhere.length === 0 ? (
                 <p className="pp-empty">Nenhum personagem seu no mapa.</p>
               ) : (
                 <ul className="pp-list">
@@ -398,6 +413,24 @@ export function PlayerPanel({
                       >
                         <span className="pp-dot" style={{ background: characterColor }} aria-hidden="true" />
                         <span className="pp-character__name">{character.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                  {/* Fichas dele em outra cena: tocar troca a cena da tela. Só a
+                      Sala, nunca a cena — o nome da cena é do mestre. */}
+                  {elsewhere.map((item) => (
+                    <li key={item.tokenId}>
+                      <button
+                        type="button"
+                        className="pp-character pp-character--away"
+                        aria-label={`Olhar por ${item.name}`}
+                        onClick={() => lookThrough(item.tokenId)}
+                      >
+                        <span className="pp-dot pp-dot--away" style={{ color: characterColor }} aria-hidden="true" />
+                        <span className="pp-character__text">
+                          <span className="pp-character__name">{item.name}</span>{' '}
+                          <span className="pp-character__where">{item.room === '' ? 'Em outro lugar' : `Em outro lugar · ${item.room}`}</span>
+                        </span>
                       </button>
                     </li>
                   ))}

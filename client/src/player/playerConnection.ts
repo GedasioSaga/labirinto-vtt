@@ -17,7 +17,20 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { AWAY_NOTES_MAX, NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseNotebook, parseNotesAway, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import {
+  AWAY_NOTES_MAX,
+  NOTEBOOK_MAX_NOTES,
+  parseClueMessage,
+  parseElsewhere,
+  parseLaserMessage,
+  parseNotebook,
+  parseNotesAway,
+  parseRoomText,
+  parseSceneNote,
+  type ClueEntry,
+  type NoteEntry,
+  type OwnTokenElsewhere,
+} from '../net/protocol'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
@@ -39,6 +52,12 @@ export interface PlayerState {
   explored?: Exploration
   /** Ids dos tokens do próprio jogador presentes no mapa recebido. */
   ownTokens?: string[]
+  /**
+   * MINHAS FICHAS EM OUTRAS CENAS: as fichas dele fora da cena na tela, com
+   * nome e Sala ('' = sem nome que ele possa ler). Nunca a cena. Cada
+   * snapshot substitui a lista; sem o campo, ela fica vazia.
+   */
+  elsewhere?: OwnTokenElsewhere[]
   /** Polígonos das zonas ocultas ativas: o jogador pinta preto por cima. */
   concealed?: RegionPoint[][]
   /** Sinais recebidos ainda vivos (somem sozinhos depois de `SIGNAL_TTL_MS`). */
@@ -227,6 +246,12 @@ export interface PlayerConnection {
   resetClueShare(): void
   /** Fecha o cartão da pista que um colega mostrou (a pista continua no caderno). */
   dismissShownClue(): void
+  /**
+   * MINHAS FICHAS EM OUTRAS CENAS — "Olhar por…": pede ao mestre para ver a
+   * cena da ficha `tokenId`. O mapa novo vem no snapshot da resposta. `false`
+   * (e nada sai) quando a ficha não está na lista de fora ou o socket caiu.
+   */
+  switchView(tokenId: string): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -580,6 +605,24 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return null
   }
 
+  /**
+   * A cena na tela vai trocar (o mestre deixou passar, ou o jogador vai olhar
+   * por outra ficha): tudo o que era dela perde o sentido — movimento ainda sem
+   * resposta (o `x`/`y` dele é do outro mapa e seria reaplicado em cima do
+   * novo), sinais, laser, avisos e a lista de "Mostrar para…", que era de quem
+   * estava na cena de antes.
+   */
+  function forgetSceneLocals(): void {
+    pending.clear()
+    clearSignalTimers()
+    clearLaserTimer()
+    clearPlayerLasers()
+    resetOwnLaser()
+    clearDoorNotice()
+    clearMoveNotice()
+    setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, cluePeers: undefined, clueShow: undefined })
+  }
+
   function applySnapshot(
     rev: number,
     map: MapData,
@@ -587,6 +630,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     explored: Exploration | undefined,
     ownTokens: string[],
     concealed: RegionPoint[][],
+    elsewhere: OwnTokenElsewhere[],
   ): void {
     if (rev <= state.rev) return
     let next = map
@@ -601,7 +645,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       move.prevY = token.y
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, elsewhere, error: undefined })
   }
 
   function handleRejected(reqId: string, reason: unknown): void {
@@ -706,7 +750,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, elsewhere: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -714,15 +758,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // mapa e seria reaplicado em cima do novo), sinais e laser. O mapa
         // novo vem no snapshot logo atrás.
         if (state.status !== 'playing') return
-        pending.clear()
-        clearSignalTimers()
-        clearLaserTimer()
-        clearPlayerLasers()
-        resetOwnLaser()
-        clearDoorNotice()
-        clearMoveNotice()
-        // A lista de "Mostrar para…" era de quem estava na cena de antes.
-        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, cluePeers: undefined, clueShow: undefined })
+        forgetSceneLocals()
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -856,7 +892,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         }
         if (data.ownTokens !== undefined && !isStringList(data.ownTokens)) return
         if (data.concealed !== undefined && !isVision(data.concealed)) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [])
+        let elsewhere: OwnTokenElsewhere[] = []
+        if (data.elsewhere !== undefined) {
+          const parsed = parseElsewhere(data.elsewhere)
+          if (parsed === null) return
+          elsewhere = parsed
+        }
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], elsewhere)
         return
       }
       case 'token.move.accepted':
@@ -1102,6 +1144,21 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.shownClue !== undefined) setState({ shownClue: undefined })
     },
 
+    switchView(tokenId) {
+      if (state.status !== 'playing' || !(state.elsewhere ?? []).some((item) => item.tokenId === tokenId)) return false
+      if (!send({ type: 'view.switch', tokenId })) return false
+      forgetSceneLocals()
+      // Pino livre ainda na pausa antes de sair: o pedido era de um pino da
+      // cena que ele largou e sairia já na nova. Desiste aqui. O pedido que
+      // espera o mestre fica: quem o derruba é o host, que avisa com
+      // `pin.travel.cancelled` e tira a linha da fila do mestre.
+      if (state.travel?.phase === 'waiting' && state.travel.direct) {
+        clearTravelTimer()
+        setState({ travel: undefined })
+      }
+      return true
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -1119,7 +1176,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, elsewhere: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
       open()
     },
     close: detach,
