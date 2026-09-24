@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type HostWorld, type PlayerInfo } from '../net/hostSession'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
+import { ConfrontoControls, type ConfrontoControlsProps } from './ConfrontoControls'
 
 export interface RoomPanelToken {
   id: string
@@ -23,6 +24,8 @@ export interface RoomPanelProps {
   tokens: RoomPanelToken[]
   /** Seção "Grupo" (uma linha por jogador, "Ir lá" e "Mandar para…"). Ausente = sem a seção. */
   party?: PartySectionProps
+  /** CONFRONTO da cena aberta no editor (vez e passo). Ausente = sem a seção. */
+  confronto?: ConfrontoControlsProps
   tunnel: TunnelState
   onStart(): void
   onStop(): void
@@ -349,6 +352,7 @@ export function RoomPanel({
   players,
   tokens,
   party,
+  confronto,
   tunnel,
   onStart,
   onStop,
@@ -389,6 +393,14 @@ export function RoomPanel({
 
           {/* O grupo vem antes do resto: é o que o mestre consulta a cada cena, o resto é de montar a sala. */}
           {party !== undefined && party.members.length > 0 && <PartySection {...party} />}
+
+          {/* CONFRONTO da cena aberta: ação de mesa, logo depois de quem está onde. */}
+          {confronto !== undefined && (
+            <div className="lb-field">
+              <h3 className="lb-eyebrow">Confronto</h3>
+              <ConfrontoControls {...confronto} />
+            </div>
+          )}
 
           {onToggleLaser !== undefined && (
             <div className="lb-field">

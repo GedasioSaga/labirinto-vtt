@@ -3,6 +3,7 @@ import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { tokenPublicNameFromFile } from './tokenPublicName'
+import { confrontoFromFile } from './confronto'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -133,7 +134,12 @@ function deserializeMapFields(json: string): MapData {
     throw new Error('map.json inválido: campo "id" ausente ou não é string')
   }
 
+  // CONFRONTO é campo NOVO e OPCIONAL: ausente continua ausente (mapa velho
+  // abre sem confronto e sem ganhar chave), torto some (`confrontoFromFile`).
+  const confronto = confrontoFromFile(parsed.confronto)
+
   return {
+    ...(confronto === undefined ? {} : { confronto }),
     id: parsed.id,
     name: typeof parsed.name === 'string' ? parsed.name : 'Mapa sem título',
     width: positiveNumberOr(parsed.width, 30),

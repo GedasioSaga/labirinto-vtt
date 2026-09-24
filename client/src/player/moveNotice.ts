@@ -19,6 +19,9 @@ const MOVE_NOTICE_TEXT: Record<TokenMoveRejection, string> = {
   locked: 'O mestre travou essa ficha',
   outside_map: 'Fora do mapa',
   unknown_token: 'Essa ficha não está mais aqui',
+  // CONFRONTO na cena (`lib/confronto.ts`).
+  not_your_turn: 'Espere sua vez',
+  too_far: 'Além do seu passo',
 }
 
 export function moveNoticeText(reason: TokenMoveRejection): string {

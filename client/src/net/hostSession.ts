@@ -4,6 +4,7 @@ import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { validateTokenMove } from '../lib/moveValidation'
+import { confrontoParaJogador, fichaDaVez } from '../lib/confronto'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { selectedTokenColor } from '../lib/tokenColor'
@@ -493,7 +494,27 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por pinId: quem vê o pino ("Só estes"). Ausente = Todos. O kick tira o
   // jogador de toda lista; o registro de quem só caiu fica (resume).
   const pinAudiences = new Map<string, Set<string>>()
+  // CONFRONTO — por mapa (`MapData.id`): casas que a ficha da vez já andou
+  // nesta vez. Preso ao `turno` e à ficha: "Próxima vez" muda o turno e o
+  // gasto velho deixa de valer sozinho. Mapa sem confronto no broadcast apaga
+  // a entrada (o mestre encerrou; recomeçar não herda o passo gasto).
+  const gastoDaVez = new Map<string, { turno: number; fichaId: string; casas: number }>()
   let rev = 0
+
+  /** Casas já andadas na vez atual do confronto de `map` (0 sem confronto ou em vez nova). */
+  const gastoNaVez = (map: MapData): number => {
+    const confronto = map.confronto
+    if (confronto === undefined) return 0
+    const gasto = gastoDaVez.get(map.id)
+    return gasto !== undefined && gasto.turno === confronto.turno && gasto.fichaId === fichaDaVez(confronto) ? gasto.casas : 0
+  }
+
+  /** Soma ao gasto da vez o movimento que o host acabou de aceitar. */
+  const gastarNaVez = (map: MapData, tokenId: string, casas: number): void => {
+    const confronto = map.confronto
+    if (confronto === undefined) return
+    gastoDaVez.set(map.id, { turno: confronto.turno, fichaId: tokenId, casas: gastoNaVez(map) + casas })
+  }
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
 
@@ -705,7 +726,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
-    const snapshot: HostMessage = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
+    // CONFRONTO: a faixa sai montada com as fichas QUE ESTE RECORTE MANDOU —
+    // nunca com a fila do mestre (ficha escondida fica de fora, e a vez dela vira `null`).
+    const confronto = confrontoParaJogador(map.confronto, [...sent], ownTokens, gastoNaVez(map))
+    const snapshot: HostMessage = {
+      type: 'snapshot',
+      rev,
+      map: view.map,
+      vision: view.vision,
+      explored: encodeExploration(exp),
+      ownTokens,
+      concealed: view.concealed,
+      ...(confronto === undefined ? {} : { confronto }),
+    }
     return [snapshot, ...roomTextCardsFor(playerId, map.id, view)]
   }
 
@@ -779,8 +812,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     // Sem cena (aventura aberta, ficha em lugar nenhum): não há onde mover.
     if (scene === null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'unknown_token' })
-    const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership)
+    // CONFRONTO: a vez e o passo são os da cena DELE — a de outra cena não pesa aqui.
+    const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, { gastoNaVez: gastoNaVez(scene.map) })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
+    if (result.casas !== undefined) gastarNaVez(scene.map, msg.tokenId, result.casas)
     return {
       outbound: [{ clientId, msg: { type: 'token.move.accepted', reqId: msg.reqId, x: result.x, y: result.y } }],
       applyMove: { tokenId: msg.tokenId, x: result.x, y: result.y, ...backgroundSceneId(scene, world) },
@@ -1421,6 +1456,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     broadcast(source) {
       const world = toWorld(source)
       rev += 1
+      // Confronto encerrado: o gasto daquela cena não pode passar para o próximo.
+      for (const scene of allScenes(world)) {
+        if (scene.map.confronto === undefined) gastoDaVez.delete(scene.map.id)
+      }
       const outbound: Outbound[] = []
       for (const [clientId, playerId] of byClient) {
         if (statusOf(playerId) !== 'playing') continue
