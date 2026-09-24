@@ -2805,7 +2805,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = scene.map.pins.find((p) => p.id === msg.pinId)
     const cabine = pin === undefined || pin.kind !== 'viagem' ? null : cabineDaParada(world.cabines, scene.sceneId, pin.id)
     if (pin === undefined || cabine === null || passageOf(pin) === 'trancada') return { outbound: [] }
-    const memory = memoryFor(playerId, scene.map)
+    const memory = memoryFor(playerId, scene.map, world)
     const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId))
     if (!view.map.pins.some((p) => p.id === pin.id)) return { outbound: [] }
     // O limite conta a partir daqui: só a parada que o jogador VÊ gasta a vez.
