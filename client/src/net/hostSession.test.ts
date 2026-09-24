@@ -456,10 +456,21 @@ describe('hostSession', () => {
       expect(msg.map.regions.map((reg) => reg.id)).toEqual(['sala-a'])
     })
 
+    // Redimensionar com a MESMA grade é o mesmo mapa aumentado: o explorado vai junto.
     it.each([
-      ['id', { id: 'outro' }],
       ['width', { width: 1200 }],
       ['height', { height: 1200 }],
+    ])('redimensionar (%s) com a mesma grade mantém o explorado no lugar', (_label, patch) => {
+      const s = smallSession()
+      joinPlaying(s, 'c1', mapAt(200, 200))
+      s.broadcast(mapAt(200, 200))
+      const { explored, msg } = snapshotTo(s.broadcast(mapAt(200, 800, patch)), 'c1')
+      expect(isPointExplored(explored, { x: 200, y: 200 })).toBe(true)
+      expect(msg.map.regions.map((reg) => reg.id)).toEqual(['sala-a'])
+    })
+
+    it.each([
+      ['id', { id: 'outro' }],
       ['grid', { grid: 50 }],
     ])('troca de mapa (%s) reinicia o explorado', (_label, patch) => {
       const s = smallSession()
