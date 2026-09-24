@@ -178,6 +178,34 @@ describe('hostSession: desistir do pedido de passagem', () => {
     expect(t.s.isTravelPending(requestId)).toBe(true)
   })
 
+  it('ficha própria que o mestre escondeu, parada no pino, não segura o pedido quando a ficha visível se afasta', () => {
+    // O familiar de Ana está em cima do alçapão, mas escondido: nem o pedido
+    // nem o "Deixar ir" o enxergam, então também não pode contar como "perto".
+    const familiar: Token = { ...token('familiar', ALCAPAO.x, ALCAPAO.y), hidden: true }
+    const w = mundo({ x: 200, y: 200 }, [familiar])
+    const t = mesa(w)
+    t.s.assignToken(t.ana.playerId, 'familiar')
+    const requestId = pedidoDe(t.pedir())
+    // O pedido saiu com a ficha visível, a 4 casas.
+    expect(t.s.isTravelPending(requestId)).toBe(true)
+    const r = t.mover(0, 200)
+    expect(r.applyMove).toMatchObject({ tokenId: 'heroi', x: 0, y: 200 })
+    expect(retirado(r)).toEqual({ type: 'pin.travel.cancelled', reason: 'far' })
+    expect(r.travelCancelled).toEqual({ requestId, playerId: t.ana.playerId, playerName: 'Ana', reason: 'far' })
+    expect(t.s.isTravelPending(requestId)).toBe(false)
+  })
+
+  it('segunda ficha própria visível perto do pino segura o pedido mesmo com a outra longe', () => {
+    const w = mundo({ x: 200, y: 200 }, [token('familiar', 350, 200)])
+    const t = mesa(w)
+    t.s.assignToken(t.ana.playerId, 'familiar')
+    const requestId = pedidoDe(t.pedir())
+    const r = t.mover(0, 200)
+    expect(retirado(r)).toBeUndefined()
+    expect(r.travelCancelled).toBeUndefined()
+    expect(t.s.isTravelPending(requestId)).toBe(true)
+  })
+
   it('a folga conta da posição do pedido: quem pediu colado no pino e anda 3 casas perde o pedido', () => {
     const w = mundo({ x: 350, y: 200 })
     const t = mesa(w)

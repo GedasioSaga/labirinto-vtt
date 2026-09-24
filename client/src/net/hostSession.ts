@@ -3,6 +3,7 @@ import { createExploration, encodeExploration, forgetInside, isPointExplored, ma
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
+import { visibleTokens } from '../lib/layers'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
@@ -830,8 +831,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (pin === undefined) return null
     const owned = new Set(ownership[playerId] ?? [])
     let nearest = Number.POSITIVE_INFINITY
-    for (const t of scene.map.tokens) {
-      if (!owned.has(t.id)) continue
+    // Só as fichas que o jogador enxerga, igual ao pedido e ao "Deixar ir"
+    // (filterMapForPlayer): ficha escondida pelo mestre não segura o pedido
+    // nem vaza, por andar, que está perto do pino.
+    for (const t of visibleTokens(scene.map.tokens, scene.map.hiddenLayers)) {
+      if (!owned.has(t.id) || t.hidden === true) continue
       const at = t.id === movedTokenId ? { x, y } : t
       nearest = Math.min(nearest, Math.hypot(at.x - pin.x, at.y - pin.y))
     }
