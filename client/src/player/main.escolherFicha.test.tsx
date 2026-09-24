@@ -11,6 +11,7 @@ import { createPlayerConnection, type PlayerConnection, type SocketLike } from '
 
 vi.mock('./PlayerView', () => ({
   OWN_TOKEN_COLOR: 0x3b82f6,
+  OWN_TOKEN_CSS: '#3b82f6',
   PlayerView: () => null,
 }))
 

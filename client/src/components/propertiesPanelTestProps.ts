@@ -106,6 +106,8 @@ export function propsDoPainel(ficha: Token, extra: Partial<PainelProps> = {}): P
     tokenCarry: { carrier: null, carried: [], candidates: [], onCarry: nada, onRelease: nada },
     // A mesma ligação de App.tsx (`tokenNpc`).
     tokenNpc: { onNpcChange: nada },
+    // Grupo rede: "Ficha de jogador" (quem chega escolhe a ficha).
+    tokenPlayerCharacter: { onPlayerCharacterChange: nada },
     tokenLights: { lights: [], onSelectLight: nada, onDetach: nada },
     tokenTransform: { onLockedChange: nada },
     selectedTextLabel: null,

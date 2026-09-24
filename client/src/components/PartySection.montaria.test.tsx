@@ -11,7 +11,8 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { awayTokenLabel, partyMembers } from '../lib/party'
 import type { HostWorld, PlayerInfo } from '../net/hostSession'
 import type { Token } from '../types/map'
-import { BRING_FAILED, PartySection } from './PartySection'
+import { BRING_FAILED } from './PartySection'
+import { RoomPanel, roomPanelTokensOf } from './RoomPanel'
 
 function ficha(id: string, name: string, x = 100, y = 100): Token {
   return { id, characterId: null, name, x, y, size: 1, image: null }
@@ -51,7 +52,8 @@ describe('lib/party: fichas do jogador em outra cena', () => {
   })
 })
 
-describe('PartySection: "Trazer"', () => {
+// O Grupo é a lista única da aba Jogo (RoomPanel): o aviso e o "Trazer" moram na linha do jogador.
+describe('Grupo (RoomPanel): "Trazer"', () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -69,7 +71,11 @@ describe('PartySection: "Trazer"', () => {
 
   const render = (onBring: (playerId: string, tokenId: string) => boolean) => {
     act(() => {
-      root.render(<PartySection members={partyMembers(JOGADORES, mundo())} destinations={[]} onGoTo={vi.fn()} onSend={vi.fn(() => true)} onBring={onBring} />)
+      const world = mundo()
+      const party = { members: partyMembers(JOGADORES, world), destinations: [], onGoTo: vi.fn(), onSend: vi.fn(() => true), onBring }
+      const noop = vi.fn()
+      const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onRevealPlan: noop, onHidePlan: noop }
+      root.render(<RoomPanel room={{ code: 'GRUPO1', urls: [], qrSvg: '<svg/>' }} players={JOGADORES} tokens={roomPanelTokensOf(world)} party={party} tunnel={{ kind: 'idle' }} {...handlers} />)
     })
   }
 

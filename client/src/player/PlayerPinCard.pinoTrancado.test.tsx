@@ -40,7 +40,7 @@ describe('PlayerPinCard: pino de viagem trancado', () => {
 
   it('trancado: diz que está trancado e oferece "Pedir ao mestre", que pergunta antes de mandar', () => {
     const onRequestTravel = vi.fn()
-    act(() => root.render(<PlayerPinCard pin={porta()} onClose={vi.fn()} onRequestTravel={onRequestTravel} />))
+    act(() => root.render(<PlayerPinCard pin={porta()} stairs={[]} onClose={vi.fn()} onRequestTravel={onRequestTravel} />))
     expect(container.textContent).toContain('Está trancada')
     expect(botoes()).toEqual(['Pedir ao mestre', 'Fechar'])
     act(() => botao('Pedir ao mestre').click())
@@ -53,14 +53,14 @@ describe('PlayerPinCard: pino de viagem trancado', () => {
   })
 
   it('esperando o mestre: o botão fica desligado e diz que o pedido foi', () => {
-    act(() => root.render(<PlayerPinCard pin={porta()} onClose={vi.fn()} onRequestTravel={vi.fn()} travelWaiting />))
+    act(() => root.render(<PlayerPinCard pin={porta()} stairs={[]} onClose={vi.fn()} onRequestTravel={vi.fn()} travelWaiting />))
     const esperando = botao('Pedido enviado ao mestre')
     expect(esperando.disabled).toBe(true)
   })
 
   it('mudo (o mestre não aceita tentativas): só a frase de trancada, nenhum botão de pedir', () => {
     const onRequestTravel = vi.fn()
-    act(() => root.render(<PlayerPinCard pin={porta({ mudo: true })} onClose={vi.fn()} onRequestTravel={onRequestTravel} />))
+    act(() => root.render(<PlayerPinCard pin={porta({ mudo: true })} stairs={[]} onClose={vi.fn()} onRequestTravel={onRequestTravel} />))
     expect(container.textContent).toContain('Está trancada. Não dá para passar por aqui agora.')
     expect(botoes()).toEqual(['Fechar'])
   })
@@ -71,7 +71,7 @@ describe('PlayerPinCard: pino de viagem trancado', () => {
       { id: 'principal', rotulo: 'Porta de aço' },
       { id: 'saida-2', rotulo: 'Duto de ar' },
     ]
-    act(() => root.render(<PlayerPinCard pin={porta({ escolhas })} onClose={vi.fn()} onRequestTravel={onRequestTravel} />))
+    act(() => root.render(<PlayerPinCard pin={porta({ escolhas })} stairs={[]} onClose={vi.fn()} onRequestTravel={onRequestTravel} />))
     expect(botoes()).toEqual(['Porta de aço', 'Duto de ar', 'Fechar'])
     act(() => botao('Duto de ar').click())
     expect(container.textContent).toContain('Pedir ao mestre para passar por Duto de ar?')

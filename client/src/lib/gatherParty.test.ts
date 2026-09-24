@@ -182,6 +182,7 @@ describe('gatherCandidates e gatherGroups: a lista agrupada por cena', () => {
     sceneId,
     sceneName: null,
     travelPending: false,
+    mochila: [],
     token: { id: `t-${name}`, color: '#3cff00', x: p.x, y: p.y },
   })
   // Ordem de chegada embaralhada de propósito: Hugo, colado no pino, chega primeiro.

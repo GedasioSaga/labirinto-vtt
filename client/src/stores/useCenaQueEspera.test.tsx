@@ -17,6 +17,7 @@ function membro(playerId: string, name: string, sceneId: string | null, x = 100,
     sceneName: null,
     token: sceneId === null ? null : { id: `ficha-${playerId}`, color: '#3cff00', x, y },
     travelPending: false,
+    mochila: [],
   }
 }
 

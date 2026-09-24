@@ -55,9 +55,10 @@ export interface PinTravelControlsProps {
   /**
    * Só vale com "Trancada": o jogador pode "Pedir ao mestre" (ligada, o
    * padrão) ou a passagem é muda (desligada) — nenhum pedido chega.
+   * Ausente = ligada. Sem `onAcceptsAttemptsChange`, o botão não aparece.
    */
-  acceptsAttempts: boolean
-  onAcceptsAttemptsChange: (on: boolean) => void
+  acceptsAttempts?: boolean
+  onAcceptsAttemptsChange?: (on: boolean) => void
   /** MÃO ÚNICA da saída `exitId`: marca (ou desmarca) o par dela como chegada oculta. */
   onOneWayChange: (exitId: string, on: boolean) => void
   /**
@@ -176,7 +177,7 @@ export function PinTravelControls({
   onPassageChange,
   keyName = '',
   onKeyChange,
-  acceptsAttempts,
+  acceptsAttempts = true,
   onAcceptsAttemptsChange,
   onOneWayChange,
   arrivalOnly,
@@ -436,7 +437,7 @@ export function PinTravelControls({
           </button>
         ))}
       </div>
-      {passage === 'trancada' && (
+      {passage === 'trancada' && onAcceptsAttemptsChange !== undefined && (
         // O mesmo botão de alternar da "Mão única" (`aria-pressed`), logo
         // abaixo do modo que ele qualifica.
         <button
