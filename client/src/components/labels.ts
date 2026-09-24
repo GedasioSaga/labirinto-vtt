@@ -203,6 +203,22 @@ export const BLOCKED_MOVE_TEXT: Record<BlockedMoveReason, string> = {
 export const DOOR_OPENED_BY_MOVE_TEXT = 'A porta estava fechada e abriu na passagem. Ctrl+Z desfaz.'
 
 /**
+ * "Abrir vão aqui" / "Desabar parede" na divisa com uma sala SECRETA: o lado de
+ * cá abre, a parede da sala secreta fica (é ela que guarda o segredo dos
+ * jogadores — `lib/abrirVao.ts`). O aviso diz por que não se passa e o que fazer.
+ */
+export const SALA_SECRETA_SEGURA_O_VAO_TEXT =
+  'Do outro lado há uma sala secreta: a parede dela continua de pé para os jogadores não verem lá dentro. Revele a sala e abra o vão de novo.'
+
+/**
+ * Toast do mesmo gesto quando uma parede do trecho — a clicada ou a do outro
+ * lado da divisa — está travada (ela ou a camada). Trava vale para o gesto
+ * inteiro: nada é cortado (`lib/abrirVao.ts`). O aviso diz por que e o que fazer.
+ */
+export const PAREDE_TRAVADA_SEGURA_O_VAO_TEXT =
+  'Uma parede nesse trecho está travada, deste lado ou do outro: nada foi aberto. Destrave a parede (ou a camada dela) e tente de novo.'
+
+/**
  * Clique parado com a Escada armada (relato de 18/09/2026). A Escada precisa de
  * um lance — dois pontos —, mas as duas vizinhas de barra (Porta e Luz) nascem
  * com UM clique, então o gesto errado é o gesto óbvio. Até aqui o clique parado
