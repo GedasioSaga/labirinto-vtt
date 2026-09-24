@@ -3271,6 +3271,126 @@ html.lb-arrastando-cena * {
   color: var(--lb-color-parchment-dim);
 }
 
+/* Locais (PlaceTreeSection): a árvore Distrito > Quarteirão > Prédio > Piso >
+   Cômodo. Linha densa como a de Objetos do mapa, mas de ALTURA FIXA (28px =
+   PLACE_ROW_HEIGHT): a lista é virtualizada, cada linha fica na posição
+   absoluta dela e só as da janela existem no DOM. */
+.lb-locais {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-locais__resumo {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-locais__arvore {
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 0 calc(var(--lb-space-2) * -1);
+  contain: strict;
+}
+
+.lb-locais__espaco {
+  position: relative;
+  width: 100%;
+}
+
+.lb-locais__item {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  box-sizing: border-box;
+  height: 28px;
+  padding-right: var(--lb-space-2);
+  border-radius: var(--lb-radius-sm);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md);
+  cursor: pointer;
+  user-select: none;
+}
+
+.lb-locais__item:hover {
+  background: var(--lb-color-stone-hover);
+}
+
+.lb-locais__item:active {
+  background: var(--lb-color-stone-sunken);
+}
+
+/* Anel por dentro: o `overflow` da janela cortaria o de fora. */
+.lb-locais__item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--lb-color-brass);
+}
+
+/* A sala selecionada no editor: o mesmo latão de Objetos do mapa. */
+.lb-locais__item[aria-selected='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass);
+}
+
+.lb-locais__seta,
+.lb-locais__recuo {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: var(--lb-space-1);
+}
+
+.lb-locais__seta {
+  border-radius: var(--lb-radius-sm);
+  color: var(--lb-color-parchment-faint);
+  transform: rotate(-90deg);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-locais__seta:hover {
+  color: var(--lb-color-parchment);
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-locais__seta[data-aberta='true'] {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-locais__seta {
+    transition: none;
+  }
+}
+
+.lb-locais__nome {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-locais__conta {
+  flex: none;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-locais__vazio {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+}
+
 /* ALARME PARA VÁRIAS CENAS (SceneAlarmControls), no fim da seção Cenas. */
 .lb-alarme {
   display: flex;
