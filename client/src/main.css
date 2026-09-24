@@ -1265,6 +1265,18 @@ body {
   color: var(--lb-color-parchment-dim);
 }
 
+/* Erro junto ao campo (tamanho do mapa): diz o que corrigir, sem apagar o que foi digitado. */
+.lb-field__error {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-ember);
+}
+
+.lb-input[aria-invalid='true'] {
+  border-color: var(--lb-color-ember);
+}
+
 /* Engrenagem do cabeçalho do inspetor: empurrada para a direita do nome. */
 .lb-inspector__settings {
   flex: none;

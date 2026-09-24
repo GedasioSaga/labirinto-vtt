@@ -30,6 +30,7 @@ import { StairControls, type StairControlsProps } from './StairControls'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
 import type { MapScaleControlsProps } from './MapScaleControls'
 import type { GridAlignControlsProps } from './GridAlignControls'
+import type { MapSizeControlsProps } from './MapSizeControls'
 import { ItemTransformControls, type ItemTransformControlsProps } from './ItemTransformControls'
 import { ToolPropertiesSection } from './ToolPropertiesSection'
 import { LineCapControls, type LineCapControlsProps } from './LineCapControls'
@@ -58,6 +59,8 @@ interface PropertiesPanelProps {
   mapWidth: number
   mapHeight: number
   mapGrid: number
+  /** Troca o tamanho do mapa em quadros ("Configurações do mapa > Tamanho do mapa"). */
+  onMapSizeApply: MapSizeControlsProps['onApply']
   activeTool: DrawingTool
   /** F4 (integrador I8) — N2 "painel contextual": saída de
    *  `relevantPropertyGroups` (lib/toolProperties.ts), computada em App.tsx a
@@ -155,6 +158,7 @@ export function PropertiesPanel({
   mapWidth,
   mapHeight,
   mapGrid,
+  onMapSizeApply,
   activeTool,
   groups,
   lineCap,
@@ -234,7 +238,13 @@ export function PropertiesPanel({
             {mapName} · {mapWidth}×{mapHeight} · {mapGrid}px
           </span>
         </span>
-        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} scenarioLink={scenarioLink} />
+        <MapSettingsButton
+          grid={grid}
+          gridAlign={gridAlign}
+          mapScale={mapScale}
+          scenarioLink={scenarioLink}
+          mapSize={{ width: mapWidth, height: mapHeight, onApply: onMapSizeApply }}
+        />
       </header>
 
       <div className="lb-inspector__body lb-scroll">

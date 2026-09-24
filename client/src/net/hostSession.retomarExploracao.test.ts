@@ -14,7 +14,7 @@ import { countExploredCells, decodeExploration, isPointExplored } from '../lib/e
 import { createEmptyMap } from '../lib/mapFactory'
 import type { SavedSeatExploration } from '../lib/savedTable'
 import type { MapData, Region, Token, Wall } from '../types/map'
-import { createHostSession, type HostWorld } from './hostSession'
+import { createHostSession, MAX_SCENE_MEMORIES_PER_PLAYER, type HostWorld } from './hostSession'
 import type { HostMessage } from './protocol'
 
 const CODE = 'AB12CD'
@@ -23,6 +23,8 @@ const OESTE = { x: 250, y: 250 }
 const LESTE = { x: 1250, y: 250 }
 /** Centro do Porão leste: explorado ontem, fora da visão de hoje (Carla está no oeste). */
 const CENTRO_LESTE = { x: 1250, y: 250 }
+/** Além da borda do Porão de ontem (30 quadrados de 50): só existe depois de o mestre aumentar o mapa. */
+const FAIXA_NOVA = { x: 1750, y: 250 }
 
 function ficha(id: string, x: number, y: number): Token {
   return { id, characterId: null, name: `ficha-${id}`, x, y, size: 1, image: null }
@@ -211,10 +213,25 @@ describe('hostSession: retomar a mesa com o mapa explorado de cada jogador', () 
     expect(s.savedExploration().find((seat) => seat.name === 'Carla')?.scenes.map((scene) => scene.mapId)).toEqual(['m-terreo', 'm-porao'])
   })
 
-  it('mapa redimensionado à noite é outro mapa: a memória velha não se aplica', () => {
+  it('mapa aumentado à noite com a mesma grade: o explorado de ontem acompanha, no mesmo lugar, e a faixa nova nasce preta', () => {
     const ontem = dia1()
     const { entra } = dia2(ontem)
     const snap = snapshotDe(entra('c1', 'Carla', mundo(porao(OESTE, OESTE, { largura: 40 }))).result.outbound, 'c1')
+    const exp = explorado(snap.explored)
+    expect(exp.cols * exp.cell).toBe(40 * 50)
+    expect(snap.map.regions.map((r) => r.id)).toContain('porao-leste')
+    expect(isPointExplored(exp, CENTRO_LESTE)).toBe(true)
+    expect(isPointExplored(exp, FAIXA_NOVA)).toBe(false)
+    expect(countExploredCells(exp)).toBe(countExploredCells(explorado(ontem.exploradoDeCarla)))
+    expect(snap.map.regions.map((r) => r.id)).not.toContain('sotao')
+  })
+
+  it('grade trocada à noite é outro mapa: a memória velha não se aplica', () => {
+    const ontem = dia1()
+    const { entra } = dia2(ontem)
+    // 40 quadrados de 40: o leste de ontem (x 1250) ainda cabe no mapa.
+    const outraGrade = { ...porao(OESTE, OESTE, { largura: 40 }), grid: 40 }
+    const snap = snapshotDe(entra('c1', 'Carla', mundo(outraGrade)).result.outbound, 'c1')
     expect(snap.map.regions.map((r) => r.id)).not.toContain('porao-leste')
     expect(isPointExplored(explorado(snap.explored), CENTRO_LESTE)).toBe(false)
   })
@@ -259,5 +276,61 @@ describe('hostSession: retomar a mesa com o mapa explorado de cada jogador', () 
   it('sem mesa guardada, nada de exploração a gravar antes de alguém jogar', () => {
     const s = createHostSession({ code: CODE, visionRadius: 700 })
     expect(s.savedExploration()).toEqual([])
+  })
+})
+
+describe('hostSession: a memória retomada segue as regras do explorado que não se perde', () => {
+  it('mapa aumentado E zona oculta posta à noite sobre o leste: a memória acompanha o tamanho, mas o escondido sai dela', () => {
+    const ontem = dia1()
+    const { entra } = dia2(ontem)
+    const zona = { id: 'z1', name: 'Segredo', revealed: false, points: sala('z', 'z', 1000, 0, 1500, 500).points }
+    const w = mundo(porao(OESTE, OESTE, { largura: 40, extra: { concealZones: [zona] } }))
+    const snap = snapshotDe(entra('c1', 'Carla', w).result.outbound, 'c1')
+    const exp = explorado(snap.explored)
+    expect(exp.cols * exp.cell).toBe(40 * 50)
+    expect(isPointExplored(exp, CENTRO_LESTE)).toBe(false)
+    expect(JSON.stringify(snap.map)).not.toContain('porao-leste')
+    // O oeste, que ninguém escondeu, continua lembrado na planta maior.
+    expect(isPointExplored(exp, OESTE)).toBe(true)
+    expect(snap.map.regions.map((r) => r.id)).toContain('porao-oeste')
+  })
+
+  it('aumentado no dia 2 e gravado de novo: no dia 3 o explorado volta na planta maior', () => {
+    const ontem = dia1()
+    const { s, entra } = dia2(ontem)
+    const maior = mundo(porao(OESTE, OESTE, { largura: 40 }))
+    entra('c1', 'Carla', maior)
+    const gravadoDia2 = { seats: s.savedSeats(), exploration: s.savedExploration(), exploradoDeCarla: ontem.exploradoDeCarla }
+    const cenaGravada = gravadoDia2.exploration.find((seat) => seat.name === 'Carla')?.scenes.find((scene) => scene.mapId === 'm-porao')
+    expect(cenaGravada?.width).toBe(40)
+    const dia3 = dia2(gravadoDia2)
+    const snap = snapshotDe(dia3.entra('c1', 'Carla', maior).result.outbound, 'c1')
+    const exp = explorado(snap.explored)
+    expect(isPointExplored(exp, CENTRO_LESTE)).toBe(true)
+    expect(isPointExplored(exp, FAIXA_NOVA)).toBe(false)
+    expect(countExploredCells(exp)).toBe(countExploredCells(explorado(ontem.exploradoDeCarla)))
+  })
+
+  it('mesa gravada com mais cenas que o teto: a cena onde está a ficha dela volta, mesmo sendo a mais antiga', () => {
+    const ontem = dia1()
+    const extras = MAX_SCENE_MEMORIES_PER_PLAYER + 1
+    const comMuitasCenas: SavedSeatExploration[] = ontem.exploration.map((seat) => {
+      if (seat.name !== 'Carla') return seat
+      const doPorao = seat.scenes[0]
+      if (doPorao === undefined) throw new Error('esperava a memória do Porão')
+      const outras = Array.from({ length: extras }, (_, i) => ({ ...doPorao, mapId: `m-viagem-${i}` }))
+      // O Porão, onde a ficha dela está, é a cena usada há mais tempo.
+      return { ...seat, scenes: [doPorao, ...outras] }
+    })
+    const { s, entra } = dia2(ontem, comMuitasCenas)
+    const snap = snapshotDe(entra('c1', 'Carla', mundo(porao(OESTE, OESTE))).result.outbound, 'c1')
+    expect(snap.map.id).toBe('m-porao')
+    expect(isPointExplored(explorado(snap.explored), CENTRO_LESTE)).toBe(true)
+    expect(snap.map.regions.map((r) => r.id)).toContain('porao-leste')
+    // O teto continua valendo: a viagem mais antiga saiu, o Porão ficou.
+    const cenas = s.savedExploration().find((seat) => seat.name === 'Carla')?.scenes.map((scene) => scene.mapId) ?? []
+    expect(cenas).toHaveLength(MAX_SCENE_MEMORIES_PER_PLAYER)
+    expect(cenas).toContain('m-porao')
+    expect(cenas).not.toContain('m-viagem-0')
   })
 })

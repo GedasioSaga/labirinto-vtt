@@ -1,5 +1,5 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token, Wall } from '../types/map'
-import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
+import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, resizeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, memoryBlockedRings, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
@@ -361,10 +361,12 @@ export const TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS = 1500
 
 /**
  * Quantas cenas cada jogador lembra (exploração e portas vistas). Passou do
- * teto, esquece a cena visitada há mais tempo: memória de host não pode
- * crescer sem limite numa aventura longa.
+ * teto, esquece a cena visitada há mais tempo — menos a cena onde ele ainda
+ * tem ficha, que nunca é esquecida: memória de host não pode crescer sem
+ * limite numa aventura longa, mas 8 cenas era pouco (uma viagem de ida e
+ * volta pela vila já apagava o começo).
  */
-export const MAX_SCENE_MEMORIES_PER_PLAYER = 8
+export const MAX_SCENE_MEMORIES_PER_PLAYER = 32
 
 /**
  * Um chamado NOVO por jogador nesta janela. Com a mão levantada ele já não
@@ -639,7 +641,10 @@ interface ValidTravel {
 /** O que um jogador lembra de um mapa: células exploradas e último estado visto de cada porta. */
 interface PlayerMemory {
   key: string
-  /** O mapa de quando a memória nasceu: é o que a mesa grava para retomar. */
+  /**
+   * O mapa a que o explorado corresponde: é o que a mesa grava para retomar.
+   * Com a mesma grade, redimensionar o mapa leva o explorado junto e troca isto.
+   */
   dims: MemoryDims
   exp: Exploration
   doors: Map<string, DoorState>
@@ -663,9 +668,18 @@ function memoryKey(map: MemoryDims): string {
   return `${map.id}|${map.width}|${map.height}|${map.grid}`
 }
 
-/** Explorado vazio do tamanho do mapa. MapData.width/height estão em células; o explorado mede px de mundo (mesma unidade da visão). */
+/** MapData.width/height estão em células; o explorado mede px de mundo (mesma unidade da visão). */
+function worldSizeOf(map: MemoryDims): { width: number; height: number; grid: number } {
+  return { width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }
+}
+
+function dimsOf(map: MapData): MemoryDims {
+  return { id: map.id, width: map.width, height: map.height, grid: map.grid }
+}
+
+/** Explorado vazio do tamanho do mapa. */
 function blankExploration(map: MemoryDims): Exploration {
-  return createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid })
+  return createExploration(worldSizeOf(map))
 }
 
 /** A memória como a mesa a grava: o fio do explorado e as portas vistas. */
@@ -789,10 +803,27 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
   const statusOf = (playerId: string): PlayerStatus => ((ownership[playerId]?.length ?? 0) > 0 ? 'playing' : 'waiting')
 
-  /** Memória que o jogador já tem deste mapa, sem criar. Mesmo id redimensionado não conta: é outro mapa. */
+  /**
+   * Memória que o jogador já tem deste mapa, sem criar. O mesmo id com outro
+   * tamanho e a MESMA grade é o mapa que o mestre aumentou (ou diminuiu): a
+   * memória acompanha, no mesmo lugar do mundo (`resizeExploration`), e fica
+   * na mesma posição da ordem de uso. Outra grade é outro mapa: não conta.
+   */
   const existingMemory = (playerId: string, map: MapData): PlayerMemory | undefined => {
-    const memory = memories.get(playerId)?.get(map.id)
-    if (memory === undefined || memory.key !== memoryKey(map)) return undefined
+    const byScene = memories.get(playerId)
+    const stored = byScene?.get(map.id)
+    if (byScene === undefined || stored === undefined) return undefined
+    const dims = dimsOf(map)
+    const key = memoryKey(dims)
+    let memory = stored
+    if (stored.key !== key) {
+      if (stored.dims.grid !== map.grid) return undefined
+      // `dims` do mapa de agora: é com elas que a mesa grava e confere o fio na retomada.
+      // `restored` passa adiante: a memória da mesa retomada ainda precisa da conferência abaixo.
+      // A visão da planta velha não vale na nova: o próximo snapshot manda a de agora.
+      memory = { key, dims, exp: resizeExploration(stored.exp, worldSizeOf(dims)), doors: stored.doors, vision: [], restored: stored.restored }
+      byScene.set(map.id, memory)
+    }
     // Memória da mesa retomada: toda leitura passa por aqui, então é aqui que
     // o que o mestre escondeu desde a gravação (zona oculta, sala secreta) sai
     // dela — antes de qualquer recorte ou teste de ponto usá-la.
@@ -806,23 +837,27 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /**
    * Memória do jogador para este mapa. Cada cena tem a sua: ir à Cripta e
    * voltar ao Salão devolve o Salão como ele o deixou. Mapa novo (ou mesmo id
-   * redimensionado) começa do zero; acima de `MAX_SCENE_MEMORIES_PER_PLAYER`
-   * cenas, a usada há mais tempo é esquecida.
+   * com outra grade) começa do zero; acima de `MAX_SCENE_MEMORIES_PER_PLAYER`
+   * cenas, a usada há mais tempo é esquecida — menos a cena onde o jogador
+   * tem ficha em `world`, que nunca sai (é para lá que ele volta).
    */
-  const memoryFor = (playerId: string, map: MapData): PlayerMemory => {
+  const memoryFor = (playerId: string, map: MapData, world: HostWorld): PlayerMemory => {
     let byScene = memories.get(playerId)
     if (byScene === undefined) {
       byScene = new Map()
       memories.set(playerId, byScene)
     }
     const found = existingMemory(playerId, map)
-    const dims: MemoryDims = { id: map.id, width: map.width, height: map.height, grid: map.grid }
+    const dims = dimsOf(map)
     const memory: PlayerMemory = found ?? { key: memoryKey(dims), dims, exp: blankExploration(dims), doors: new Map(), vision: [], restored: false }
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
     byScene.delete(map.id)
     byScene.set(map.id, memory)
+    if (byScene.size <= MAX_SCENE_MEMORIES_PER_PLAYER) return memory
+    const withOwnToken = new Set(allScenes(world).filter((scene) => ownsTokenIn(playerId, scene)).map(sceneKey))
     for (const oldest of byScene.keys()) {
       if (byScene.size <= MAX_SCENE_MEMORIES_PER_PLAYER) break
+      if (oldest === map.id || withOwnToken.has(oldest)) continue
       byScene.delete(oldest)
     }
     return memory
@@ -858,7 +893,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /** O que o jogador vê agora: o recorte da cena dele, ou a espera quando ele não está em cena nenhuma. */
   const viewFor = (playerId: string, world: HostWorld): HostMessage => {
     const scene = sceneFor(playerId, world)
-    return scene === null ? { type: 'lobby.waiting' } : snapshotFor(playerId, scene.map)
+    return scene === null ? { type: 'lobby.waiting' } : snapshotFor(playerId, scene.map, world)
   }
 
   /** A cena do jogador está pausada? Mapa solto (`sceneId` nulo) e jogador sem cena nunca estão. */
@@ -900,8 +935,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * atual já entra por si); a marcação vem depois e segue junto para o jogador
    * desenhar a névoa.
    */
-  const snapshotFor = (playerId: string, map: MapData): HostMessage => {
-    const memory = memoryFor(playerId, map)
+  const snapshotFor = (playerId: string, map: MapData, world: HostWorld): HostMessage => {
+    const memory = memoryFor(playerId, map, world)
     const exp = memory.exp
     const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
@@ -997,13 +1032,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /**
    * Retomar a mesa: devolve a `playerId` o mapa explorado de cada cena do
    * assento, na ordem gravada (da usada há mais tempo à mais recente), até o
-   * teto de cenas. Cena com fio torto fica de fora; as outras voltam. Devolve
-   * os ids das cenas restauradas.
+   * teto de cenas — mais as cenas de `withSeatTokens` (onde estão as fichas
+   * devolvidas), que nunca ficam de fora, como em `memoryFor`. Cena com fio
+   * torto fica de fora; as outras voltam. Devolve os ids das cenas restauradas.
    */
-  const restoreMemories = (playerId: string, exploration: SavedSeatExploration): string[] => {
+  const restoreMemories = (playerId: string, exploration: SavedSeatExploration, withSeatTokens: ReadonlySet<string>): string[] => {
     const byScene = memories.get(playerId) ?? new Map<string, PlayerMemory>()
     const restored: string[] = []
-    for (const scene of exploration.scenes.slice(-MAX_SCENE_MEMORIES_PER_PLAYER)) {
+    const firstNewest = exploration.scenes.length - MAX_SCENE_MEMORIES_PER_PLAYER
+    const kept = exploration.scenes.filter((scene, index) => index >= firstNewest || withSeatTokens.has(scene.mapId))
+    for (const scene of kept) {
       const memory = restoredMemoryOf(scene)
       if (memory === null) continue
       byScene.delete(scene.mapId)
@@ -1036,7 +1074,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     pendingSeats.splice(index, 1)
     const exploration = pendingExploration.get(wanted)
     pendingExploration.delete(wanted)
-    const restoredMapIds = exploration === undefined ? [] : restoreMemories(record.playerId, exploration)
+    const withSeatTokens = new Set(allScenes(world).filter((scene) => scene.map.tokens.some((token) => given.includes(token.id))).map(sceneKey))
+    const restoredMapIds = exploration === undefined ? [] : restoreMemories(record.playerId, exploration, withSeatTokens)
     claimedSeats.set(record.playerId, { seat, given, exploration, restoredMapIds })
     ownership[record.playerId] = [...new Set([...(ownership[record.playerId] ?? []), ...given])]
     if (seat.visionRadius !== null) visionOverrides.set(record.playerId, clampRadius(seat.visionRadius))
@@ -1321,10 +1360,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * `near`: algum token dele, no recorte dele (respeita camada oculta e token
    * escondido pelo mestre), encosta nela. `null` = inexistente ou no escuro.
    */
-  const doorSeenBy = (playerId: string, map: MapData, wallId: string): { wall: Wall; door: DoorState; near: boolean } | null => {
+  const doorSeenBy = (playerId: string, map: MapData, wallId: string, world: HostWorld): { wall: Wall; door: DoorState; near: boolean } | null => {
     const wall = map.walls.find((w) => w.id === wallId)
     if (wall === undefined || wall.door === null) return null
-    const memory = memoryFor(playerId, map)
+    const memory = memoryFor(playerId, map, world)
     const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
     if (!view.visibleDoorIds.includes(wall.id)) return null
     const owned = new Set(ownership[playerId] ?? [])
@@ -1353,7 +1392,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     const reject = (reason: DoorToggleRejection): HostResult => reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
 
-    const seen = doorSeenBy(playerId, scene.map, msg.wallId)
+    const seen = doorSeenBy(playerId, scene.map, msg.wallId, world)
     if (seen === null) return reject('not_visible')
     // Trancada antes de longe: "Trancada" é a informação útil, e é dela que sai o pedido ao mestre.
     if (seen.door.locked) return reject('locked')
@@ -1382,7 +1421,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const reject = (reason: DoorRequestRejection): HostResult => reply(clientId, { type: 'door.request.rejected', wallId: msg.wallId, reason })
 
     if (pendingDoors.has(playerId)) return reject('pending')
-    const seen = doorSeenBy(playerId, scene.map, msg.wallId)
+    const seen = doorSeenBy(playerId, scene.map, msg.wallId, world)
     if (seen === null) return reject('not_visible')
     if (!seen.door.locked) return reject('not_locked')
     if (!seen.near) return reject('far')
@@ -1441,7 +1480,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const fromSceneId = from.sceneId
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
-    const memory = memoryFor(playerId, from.map)
+    const memory = memoryFor(playerId, from.map, world)
     const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
     if (!view.map.pins.some((p) => p.id === pinId)) return null
     // Trancada: ninguém passa. Cai no mesmo `null` de todo o resto, então o
@@ -2055,10 +2094,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     revealPlan(playerId, source) {
       if (!players.has(playerId)) return
-      const scene = sceneFor(playerId, toWorld(source))
+      const world = toWorld(source)
+      const scene = sceneFor(playerId, world)
       if (scene === null) return
       const map = scene.map
-      markAll(memoryFor(playerId, map).exp, playerBlockedRings(map))
+      markAll(memoryFor(playerId, map, world).exp, playerBlockedRings(map))
     },
 
     hidePlan(playerId, source) {
