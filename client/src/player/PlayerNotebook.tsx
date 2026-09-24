@@ -1,4 +1,5 @@
 import type { NoteEntry } from '../net/protocol'
+import { letterTitle } from '../lib/correio'
 
 /** "20:30": hora e minuto no relógio de quem lê, com zero à esquerda. */
 export function formatNoteTime(at: number): string {
@@ -8,7 +9,8 @@ export function formatNoteTime(at: number): string {
 
 /**
  * CADERNO do jogador: os recados que ele recebeu, o mais novo em cima, cada
- * um como "20:30 · Mestre: texto". O texto entra como filho de texto do React
+ * um como "20:30 · Mestre: texto" — ou, no bilhete de um colega (CORREIO),
+ * "20:30 · Bilhete de Ana, pelo pombo: texto". O texto entra como filho de texto do React
  * (nunca `innerHTML`): HTML do mestre aparece literal.
  *
  * Meta e texto ficam no MESMO parágrafo de propósito: nenhum elemento do
@@ -23,7 +25,10 @@ export function PlayerNotebook({ notes }: { notes: NoteEntry[] }) {
     <ol className="pp-notebook">
       {[...notes].reverse().map((note) => (
         <li key={note.id} className="pp-notebook__item">
-          <span className="pp-notebook__meta">{formatNoteTime(note.at)} · Mestre:</span> {note.text}
+          <span className="pp-notebook__meta">
+            {formatNoteTime(note.at)} · {note.from !== undefined && note.via !== undefined ? letterTitle(note.from, note.via) : 'Mestre'}:
+          </span>{' '}
+          {note.text}
         </li>
       ))}
     </ol>
