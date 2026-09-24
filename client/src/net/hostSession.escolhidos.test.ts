@@ -31,14 +31,23 @@ function mesa() {
   let n = 0
   const s = createHostSession({ code: CODE, visionRadius: 700, now: () => 0, randomId: () => `id-${(n += 1)}` })
   const ids: Record<string, string> = {}
+  const resumes: Record<string, string> = {}
   for (const [i, nome] of ['ana', 'bruno', 'carla', 'duda', 'elisa'].entries()) {
     const r = s.handleMessage(`c-${nome}`, { type: 'join', code: CODE, name: nome }, mundo)
     const welcome = r.outbound[0]?.msg
     if (welcome?.type !== 'welcome') throw new Error(`esperava welcome no ${i}º`)
     ids[nome] = welcome.playerId
+    resumes[nome] = welcome.resumeToken
     s.assignToken(welcome.playerId, `t-${nome}`)
   }
-  return { s, ids }
+  return { s, ids, resumes }
+}
+
+/** `nome` cai e volta pelo resume, noutra conexão: tudo o que a sala manda na volta. */
+function voltaDe(s: ReturnType<typeof mesa>['s'], resumes: Record<string, string>, nome: string): string {
+  s.disconnect(`c-${nome}`)
+  const r = s.handleMessage(`c-${nome}-volta`, { type: 'join', code: CODE, name: nome, resume: resumes[nome] }, mundo)
+  return JSON.stringify(r.outbound.map((o) => o.msg))
 }
 
 function quem(r: HostResult): string[] {
@@ -81,5 +90,32 @@ describe('sceneNote para escolhidos', () => {
   it('sem a lista (o recado da cena inteira) continua indo a todos da cena', () => {
     const { s } = mesa()
     expect(quem(s.sceneNote('s-vila', 'todos', mundo))).toEqual(['c-ana', 'c-bruno', 'c-carla', 'c-duda'])
+  })
+
+  // Junção com o CADERNO (o último recado da cena vai a quem chega ou volta):
+  // o recado para escolhidos não pode virar o "último recado da cena".
+  it('quem volta à sala recebe o último recado da CENA, nunca o que foi só para outros', () => {
+    const { s, ids, resumes } = mesa()
+    s.sceneNote('s-vila', 'Todos ouvem o sino.', mundo)
+    s.sceneNote('s-vila', 'Só a Ana vê o bilhete.', mundo, [ids.ana])
+    const bruno = voltaDe(s, resumes, 'bruno')
+    expect(bruno).toContain('Todos ouvem o sino.')
+    expect(bruno).not.toContain('Só a Ana vê o bilhete.')
+    // A Ana, que recebeu, continua com ele no caderno dela.
+    expect(voltaDe(s, resumes, 'ana')).toContain('Só a Ana vê o bilhete.')
+  })
+
+  it('quem chega depois à cena não lê o recado que foi só para os marcados', () => {
+    const { s, ids } = mesa()
+    s.sceneNote('s-mina', 'Só a Elisa ouve o eco.', mundo, [ids.elisa])
+    // O Bruno ganha uma ficha na Mina e sai da Vila: é CHEGADA à Mina.
+    const mina: HostScene = { ...MINA, map: { ...MINA.map, tokens: [...MINA.map.tokens, ficha('t-bruno-mina', 300, 100)] } }
+    const vila: HostScene = { ...VILA, map: { ...VILA.map, tokens: VILA.map.tokens.filter((t) => t.id !== 't-bruno') } }
+    s.unassignToken(ids.bruno, 't-bruno')
+    s.assignToken(ids.bruno, 't-bruno-mina')
+    const chegada = s.broadcast({ open: vila, background: [mina] })
+    const doBruno = JSON.stringify(chegada.outbound.filter((o) => o.clientId === 'c-bruno').map((o) => o.msg))
+    expect(doBruno).toContain('snapshot')
+    expect(doBruno).not.toContain('Só a Elisa ouve o eco.')
   })
 })

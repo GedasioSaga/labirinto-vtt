@@ -3097,12 +3097,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // Um id por recado, igual para todos da cena: o jogador troca o cartão
       // aberto pelo recado novo, e o mesmo recado não duplica.
       const note: NoteEntry = { id: randomId(), text: clamped, at: now() }
-      // Guardado mesmo sem ninguém lá agora: quem chegar depois recebe.
-      lastNoteByScene.delete(sceneId)
-      lastNoteByScene.set(sceneId, note)
-      for (const oldest of lastNoteByScene.keys()) {
-        if (lastNoteByScene.size <= MAX_SCENE_NOTES) break
-        lastNoteByScene.delete(oldest)
+      // Guardado mesmo sem ninguém lá agora: quem chegar depois recebe. O
+      // recado para ESCOLHIDOS não: ele não é da cena, e quem chegasse ou
+      // voltasse depois leria o que o mestre mandou só a outros. Ele fica só
+      // no caderno de quem recebeu.
+      if (chosen === null) {
+        lastNoteByScene.delete(sceneId)
+        lastNoteByScene.set(sceneId, note)
+        for (const oldest of lastNoteByScene.keys()) {
+          if (lastNoteByScene.size <= MAX_SCENE_NOTES) break
+          lastNoteByScene.delete(oldest)
+        }
       }
       const outbound: Outbound[] = []
       for (const [clientId, playerId] of byClient) {
