@@ -58,6 +58,13 @@ export interface Darkness {
   sceneDark: boolean
   /** Polígonos das salas escuras que valem para este jogador. */
   rooms: RegionPoint[][]
+  /**
+   * O preto das zonas ocultas que encostam numa sala escura, na forma que o
+   * jogador já recebe (`concealed`). Numa cena clara contam como escuro E como
+   * borda: nenhuma semente nasce dentro delas e nenhum raio as atravessa, então
+   * o trecho da sala que a zona cobre nunca entra no desenho da visão.
+   */
+  veils: RegionPoint[][]
   lights: DarkLight[]
   /** Lado da casa, em px de mundo (`MapData.grid`). */
   cell: number
@@ -188,6 +195,7 @@ export function darkVision(origin: RegionPoint, segments: Segment[], visionRadiu
   const nearRadius = Math.min(visionRadius, darkness.cell * DARK_SIGHT_CELLS)
   const near = (): RegionPoint[] => tidy(computeVisibility(origin, segments, nearRadius))
   const rooms = darkness.rooms.filter((r) => r.length >= 3).map(boxed)
+  const veils = darkness.veils.filter((v) => v.length >= 3).map(boxed)
 
   if (darkness.sceneDark) {
     out.push(near())
@@ -202,8 +210,9 @@ export function darkVision(origin: RegionPoint, segments: Segment[], visionRadiu
     } else {
       out.push(near())
       const bounds = boxed(tidy(sight))
-      const walls = [...segments, ...roomsInSight.flatMap((r) => ringToSegments(r.ring)), ...ringToSegments(bounds.ring)]
-      const lit = (p: RegionPoint): boolean => clearlyInside(p, bounds) && roomsInSight.every((r) => clearlyOutside(p, r))
+      const dim = [...roomsInSight, ...veils.filter((v) => overlaps(v, sightBox))]
+      const walls = [...segments, ...dim.flatMap((r) => ringToSegments(r.ring)), ...ringToSegments(bounds.ring)]
+      const lit = (p: RegionPoint): boolean => clearlyInside(p, bounds) && dim.every((r) => clearlyOutside(p, r))
       const seeds = [origin, ...seedGrid(bounds, darkness.cell, origin)]
       out.push(...fillFromSeeds(seeds, lit, walls, visionRadius * 2))
     }
@@ -211,18 +220,26 @@ export function darkVision(origin: RegionPoint, segments: Segment[], visionRadiu
 
   // Numa cena clara, luz só importa onde encosta numa sala escura.
   const lights = darkness.sceneDark ? darkness.lights : darkness.lights.filter((l) => rooms.some((r) => overlaps(r, lightBox(l))))
-  if (lights.length > 0) out.push(...litRings(origin, segments, lights, darkness, rooms))
+  if (lights.length > 0) out.push(...litRings(origin, segments, lights, darkness, rooms, veils))
   return out.filter((ring) => ring.length >= 3)
 }
 
 /** O claro de cada luz que a ficha em `origin` vê, mesmo além do raio dela. */
-function litRings(origin: RegionPoint, segments: Segment[], lights: readonly DarkLight[], darkness: Darkness, rooms: readonly Boxed[]): RegionPoint[][] {
+function litRings(
+  origin: RegionPoint,
+  segments: Segment[],
+  lights: readonly DarkLight[],
+  darkness: Darkness,
+  rooms: readonly Boxed[],
+  veils: readonly Boxed[],
+): RegionPoint[][] {
   // Linha de visão SEM o raio da ficha: o que a luz acende se vê de longe.
   const reach = Math.max(...lights.map((l) => Math.hypot(l.x - origin.x, l.y - origin.y) + l.radius)) + darkness.cell
   const far = boxed(tidy(computeVisibility(origin, segments, reach)))
   if (far.ring.length < 3) return []
   const farWalls = ringToSegments(far.ring)
-  const roomWalls = darkness.sceneDark ? [] : rooms.flatMap((r) => ringToSegments(r.ring))
+  // Cena escura não usa a borda das salas, então o véu das zonas também não entra.
+  const roomWalls = darkness.sceneDark ? [] : [...rooms, ...veils].flatMap((r) => ringToSegments(r.ring))
   const out: RegionPoint[][] = []
   for (const light of lights) {
     if (!overlaps(lightBox(light), far)) continue
@@ -230,9 +247,11 @@ function litRings(origin: RegionPoint, segments: Segment[], lights: readonly Dar
     const litArea = boxed(tidy(computeVisibility(center, segments, light.radius)))
     if (litArea.ring.length < 3 || !overlaps(litArea, far)) continue
     const walls = [...segments, ...ringToSegments(litArea.ring), ...farWalls, ...roomWalls]
-    // Cena clara: o claro da luz só soma DENTRO da sala escura; fora dela a visão de sempre já decide.
+    // Cena clara: o claro da luz só soma DENTRO da sala escura e fora do véu; fora dela a visão de sempre já decide.
     const accepts = (p: RegionPoint): boolean =>
-      clearlyInside(p, litArea) && clearlyInside(p, far) && (darkness.sceneDark || rooms.some((r) => clearlyInside(p, r)))
+      clearlyInside(p, litArea) &&
+      clearlyInside(p, far) &&
+      (darkness.sceneDark || (rooms.some((r) => clearlyInside(p, r)) && veils.every((v) => clearlyOutside(p, v))))
     const seeds = [center, origin, ...seedGrid(litArea, Math.min(darkness.cell, light.radius / 2), center)]
     out.push(...fillFromSeeds(seeds, accepts, walls, light.radius * 2 + darkness.cell))
   }

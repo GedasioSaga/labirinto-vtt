@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Light, MapData, Prop, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { ConcealZone, Light, MapData, Prop, Region, RegionPoint, Token, Wall } from '../types/map'
 import { pointInRing } from './floorContour'
 import { filterMapForPlayer } from './fogFilter'
 import { createEmptyMap } from './mapFactory'
@@ -189,5 +189,94 @@ describe('sala escura numa cena clara', () => {
     const escura = filterMapForPlayer(map, 'p1', DUDA, RADIUS)
     expect(escura.vision).toEqual(filterMapForPlayer(clara, 'p1', DUDA, RADIUS).vision)
     expect(escura.vision.length).toBe(1)
+  })
+})
+
+function square(x1: number, y1: number, x2: number, y2: number): RegionPoint[] {
+  return [
+    { x: x1, y: y1 },
+    { x: x2, y: y1 },
+    { x: x2, y: y2 },
+    { x: x1, y: y2 },
+  ]
+}
+
+function zona(id: string, points: RegionPoint[], extra: Partial<ConcealZone> = {}): ConcealZone {
+  return { id, points, name: `zona-${id}`, revealed: false, ...extra }
+}
+
+function salaEscura(id: string, points: RegionPoint[]): Region {
+  return { id, points, tag: '', fillColor: '#223', fillPattern: 'solid', data: {}, room: { shape: 'rect', name: id, dark: true } }
+}
+
+const EDGE_STEPS = 50
+
+/**
+ * A BORDA da visão enviada passa estritamente por dentro do retângulo? Mede
+ * cada lado do anel em `EDGE_STEPS` pontos, não só os vértices: um lado reto
+ * pode atravessar a zona inteira sem nenhum vértice dentro dela.
+ */
+const borderCrosses = (vision: RegionPoint[][], x1: number, y1: number, x2: number, y2: number): boolean =>
+  vision.some((ring) =>
+    ring.some((a, i) => {
+      const b = ring[(i + 1) % ring.length]
+      for (let s = 0; s <= EDGE_STEPS; s += 1) {
+        const x = a.x + ((b.x - a.x) * s) / EDGE_STEPS
+        const y = a.y + ((b.y - a.y) * s) / EDGE_STEPS
+        if (x > x1 && x < x2 && y > y1 && y < y2) return true
+      }
+      return false
+    }),
+  )
+
+/**
+ * SALA ESCURA com ZONA OCULTA. A zona esconde um pedaço da sala; o resto da
+ * sala continua escuro. Porão 100..700 numa cena clara, Carla no canto
+ * (150,150), o rato no escuro do outro lado (600,150) e uma alcova oculta
+ * 350..450 no meio — em cima do centro da sala.
+ */
+function poraoComAlcova(alcova: ConcealZone): MapData {
+  return {
+    ...createEmptyMap('m-porao-alcova', 'Porão', 1000, 1000, 40),
+    regions: [salaEscura('porao', square(100, 100, 700, 700))],
+    concealZones: [alcova],
+    tokens: [token('carla', 150, 150), token('rato', 600, 150), token('no-pintado', 365, 365)],
+  }
+}
+
+describe('sala escura com zona oculta', () => {
+  it('uma alcova oculta no meio não acende a sala: o rato no escuro não sai', () => {
+    const view = filterMapForPlayer(poraoComAlcova(zona('alcova', square(350, 350, 450, 450))), 'p1', { p1: ['carla'] }, RADIUS)
+    expect(ids(view.map.tokens)).toEqual(['carla'])
+    expect(JSON.stringify(view.map)).not.toContain('rato')
+    expect(inVision(view.vision, { x: 150, y: 150 })).toBe(true)
+    expect(inVision(view.vision, { x: 600, y: 150 })).toBe(false)
+  })
+
+  it('pincel de revelar: o pedaço pintado aparece, e o resto da sala continua escuro', () => {
+    // Célula 36,36 = 360..370 (`REVEAL_BRUSH_CELL` 10): a alcova ainda esconde o centro da sala.
+    const alcova = zona('alcova', square(350, 350, 450, 450), { unveiledCells: ['36,36'] })
+    const view = filterMapForPlayer(poraoComAlcova(alcova), 'p1', { p1: ['carla'] }, RADIUS)
+    expect(ids(view.map.tokens)).toEqual(['carla', 'no-pintado'])
+    expect(JSON.stringify(view.map)).not.toContain('rato')
+    expect(inVision(view.vision, { x: 600, y: 150 })).toBe(false)
+  })
+
+  it('o corte da visão segue a borda da zona, nunca a parede da sala que a zona cobre', () => {
+    // Nicho oculto 600..800 x 450..650 cobre a parede leste do Quarto (x=700) nesse trecho.
+    // A lanterna acesa no quarto ilumina até a borda do nicho, e nenhum ponto da visão cai dentro dele.
+    const map: MapData = {
+      ...createEmptyMap('m-quarto-nicho', 'Casa', 1000, 1000, 40),
+      regions: [salaEscura('quarto', QUARTO)],
+      concealZones: [zona('nicho', square(600, 450, 800, 650))],
+      lights: [light('lanterna', 560, 560, 200)],
+      tokens: [token('duda', 550, 370), token('junto-da-lanterna', 570, 570), token('no-nicho', 690, 560)],
+    }
+    const view = filterMapForPlayer(map, 'p1', DUDA, RADIUS)
+    expect(ids(view.map.tokens)).toEqual(['duda', 'junto-da-lanterna'])
+    expect(inVision(view.vision, { x: 560, y: 560 })).toBe(true)
+    // Sem o véu, o claro da lanterna ia até a parede leste (x=700) e desenhava esse trecho dela dentro do nicho.
+    expect(inVision(view.vision, { x: 650, y: 560 })).toBe(false)
+    expect(borderCrosses(view.vision, 601, 451, 799, 649)).toBe(false)
   })
 })
