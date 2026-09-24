@@ -54,6 +54,7 @@ import { tokenBoundingBox, propBoundingBox } from '../lib/objectTransform'
 import { LIGHT_HIT_RADIUS, estimateTextWidth } from '../lib/selectionHitTest'
 import { STROKE_WEIGHT } from './constants'
 import { pieceBounds } from '../lib/floorSdf'
+import { stairSpiralCircle } from '../lib/stairs'
 
 /** Azul frio — ver docstring do módulo para a justificativa de não reusar
  *  `SELECTION_COLOR`. */
@@ -123,6 +124,8 @@ export function resolveHoverGeometry(map: MapData, target: HoverTarget): HoverGe
     case 'stair': {
       const stair = map.stairs.find((s) => s.id === target.id)
       if (!stair) return null
+      const circle = stairSpiralCircle(stair)
+      if (circle !== null) return { shape: 'circle', cx: circle.center.x, cy: circle.center.y, radius: circle.radius }
       return {
         shape: 'segments',
         segments: stair.segments.map((seg) => ({ a: { x: seg.x1, y: seg.y1 }, b: { x: seg.x2, y: seg.y2 } })),

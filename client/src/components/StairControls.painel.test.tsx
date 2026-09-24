@@ -73,7 +73,7 @@ describe('StairControls + stairTravelPanel: o "Leva a…" que o App monta', () =
     const stair = map.stairs.find((s) => s.id === ESCADA.id) ?? ESCADA
     const travel = stairTravelPanel(useAdventureStore.getState(), map, stair)
     act(() =>
-      root.render(<StairControls direction={stair.direction} onDirectionChange={() => {}} stepWidth={64} onStepWidthChange={() => {}} grid={64} travel={travel} />),
+      root.render(<StairControls direction={stair.direction} onDirectionChange={() => {}} shape={stair.shape} onShapeChange={() => {}} stepWidth={64} onStepWidthChange={() => {}} grid={64} travel={travel} />),
     )
   }
 

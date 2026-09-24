@@ -152,7 +152,7 @@ interface PropertiesPanelProps {
   selectedLight: Light | null
   lightControls: Omit<LightControlsProps, 'color' | 'intensity'>
   selectedStair: Stair | null
-  stairControls: Omit<StairControlsProps, 'direction'>
+  stairControls: Omit<StairControlsProps, 'direction' | 'shape'>
   polygonSides: PolygonSidesControlsProps
   /** Chão por peças — peça selecionada (`null` = nenhuma) e seus controles. */
   selectedFloorPiece: FloorPiece | null
@@ -492,7 +492,7 @@ export function PropertiesPanel({
         )}
         {selectedStair && (
           <ToolPropertiesSection group="stairControls" groups={groups}>
-            <StairControls direction={selectedStair.direction} {...stairControls} />
+            <StairControls direction={selectedStair.direction} shape={selectedStair.shape} {...stairControls} />
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="selection" groups={groups}>

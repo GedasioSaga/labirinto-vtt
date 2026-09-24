@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import type { PinPassage, StairDirection } from '../types/map'
+import type { PinPassage, StairDirection, StairShape } from '../types/map'
 import { stairSizePresetForStepWidth, stairStepWidthForPreset, type StairSizePreset } from '../lib/stairs'
 import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
-import type { StairTravelProps } from '../lib/stairTravel'
+import { floorSideOf, type StairTravelProps } from '../lib/stairTravel'
 import { travelSceneLabel } from '../lib/pinTravel'
 
 export type { StairTravelProps }
@@ -10,6 +10,9 @@ export type { StairTravelProps }
 export interface StairControlsProps {
   direction: StairDirection
   onDirectionChange: (direction: StairDirection) => void
+  /** Forma da escada SELECIONADA ("Reta" / "Espiral"). */
+  shape: StairShape
+  onShapeChange: (shape: StairShape) => void
   /** `stepWidth` (largura do lance, px de mundo) da escada SELECIONADA. */
   stepWidth: number
   onStepWidthChange: (stepWidth: number) => void
@@ -42,6 +45,14 @@ const PRESET_LABELS: Record<StairSizePreset, string> = {
   small: 'Pequena',
   medium: 'Média',
   large: 'Grande',
+}
+
+/** Só as formas que a UI produz: 'l' e 'double' existem no schema, mas ninguém as desenha ainda. */
+const SHAPE_ORDER = ['straight', 'spiral'] as const satisfies readonly StairShape[]
+
+const SHAPE_LABELS: Record<(typeof SHAPE_ORDER)[number], string> = {
+  straight: 'Reta',
+  spiral: 'Espiral',
 }
 
 /** Degraus da miniatura: base no lance, e o traço engorda e clareia rumo ao topo. */
@@ -85,7 +96,16 @@ function StairDirectionArt({ direction }: { direction: StairDirection }) {
  * O modo vem antes de ligar — a escada já nasce livre, se o mestre quiser —
  * e, ligada, troca direto no pino dela, com desfazer.
  */
-function StairTravelSection({ scenes, linkedSceneId, passage, onLink, onUnlink, onPassageChange }: StairTravelProps) {
+function StairTravelSection({
+  scenes,
+  linkedSceneId,
+  passage,
+  onLink,
+  onUnlink,
+  onPassageChange,
+  onCreateFloor,
+  direction,
+}: StairTravelProps & { direction: StairDirection }) {
   // Sem ligação, o modo é só a escolha para a ligação que vem: não há pino
   // onde gravar ainda. "Pede ao mestre" é o de sempre, como no pino de viagem.
   const [pendingPassage, setPendingPassage] = useState<PinPassage>('pede')
@@ -134,6 +154,16 @@ function StairTravelSection({ scenes, linkedSceneId, passage, onLink, onUnlink, 
         </div>
         {linked && <p className="lb-field__hint">O jogador toca a escada e lê “Subir” ou “Descer” — nunca o nome do andar.</p>}
       </div>
+      {/* Sem ligação ainda: o andar que falta nasce daqui, já ligado, com o
+          modo escolhido acima. Escada que sobe cria o de cima; que desce, o de baixo. */}
+      {!linked && (
+        <div className="lb-field">
+          <button type="button" className="lb-btn lb-btn--block" onClick={() => onCreateFloor(currentPassage)}>
+            Criar andar de {floorSideOf(direction)}
+          </button>
+          <p className="lb-field__hint">Copia a parede externa do prédio e põe a escada par no mesmo ponto.</p>
+        </div>
+      )}
     </>
   )
 }
@@ -156,7 +186,7 @@ function StairTravelSection({ scenes, linkedSceneId, passage, onLink, onUnlink, 
  * PRÓXIMA escada (mesma classe de `wallKind`/`polygonSides`) é o que a
  * setinha de variantes da Toolbar edita — ver CONTRATO do agente.
  */
-export function StairControls({ direction, onDirectionChange, stepWidth, onStepWidthChange, grid, travel }: StairControlsProps) {
+export function StairControls({ direction, onDirectionChange, shape, onShapeChange, stepWidth, onStepWidthChange, grid, travel }: StairControlsProps) {
   const activePreset = stairSizePresetForStepWidth(stepWidth, grid)
 
   return (
@@ -185,49 +215,73 @@ export function StairControls({ direction, onDirectionChange, stepWidth, onStepW
       </div>
 
       <div className="lb-field">
-        <span className="lb-label">Tamanho</span>
-        <div className="lb-seg" role="radiogroup" aria-label="Tamanho da escada">
-          {PRESET_ORDER.map((preset) => (
+        <span className="lb-label">Forma</span>
+        <div className="lb-seg" role="radiogroup" aria-label="Forma da escada">
+          {SHAPE_ORDER.map((option) => (
             <button
-              key={preset}
+              key={option}
               type="button"
               role="radio"
-              aria-checked={activePreset === preset}
+              aria-checked={shape === option}
               className="lb-seg__option"
-              onClick={() => onStepWidthChange(stairStepWidthForPreset(preset, grid))}
+              onClick={() => onShapeChange(option)}
             >
-              {PRESET_LABELS[preset]}
+              {SHAPE_LABELS[option]}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="lb-field">
-        <label className="lb-label" htmlFor="lb-stair-step-width">
-          Largura do lance (px)
-        </label>
-        <input
-          id="lb-stair-step-width"
-          className="lb-input"
-          type="number"
-          min={MIN_STEP_WIDTH}
-          step={1}
-          value={stepWidth}
-          onChange={(event) => {
-            // Campo apagado (digitando de novo) chega como '' -> Number('') é
-            // 0, não NaN, então cairia direto no clamp de MIN_STEP_WIDTH sem
-            // deixar o usuário passar por um estado intermediário vazio. Só
-            // dado realmente não-numérico (não deveria acontecer num
-            // type="number", mas o valor do evento sempre chega como string)
-            // é descartado em vez de gravar NaN na entidade.
-            const parsed = Number(event.target.value)
-            if (Number.isNaN(parsed)) return
-            onStepWidthChange(Math.max(MIN_STEP_WIDTH, parsed))
-          }}
-        />
-      </div>
+      {/* A espiral tem o tamanho do círculo (o arrasto é o diâmetro): a largura
+          do lance não muda nada nela, então o controle sai em vez de mentir. */}
+      {shape !== 'spiral' && (
+        <>
+          <div className="lb-field">
+            <span className="lb-label">Tamanho</span>
+            <div className="lb-seg" role="radiogroup" aria-label="Tamanho da escada">
+              {PRESET_ORDER.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  role="radio"
+                  aria-checked={activePreset === preset}
+                  className="lb-seg__option"
+                  onClick={() => onStepWidthChange(stairStepWidthForPreset(preset, grid))}
+                >
+                  {PRESET_LABELS[preset]}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      {travel !== null && <StairTravelSection {...travel} />}
+          <div className="lb-field">
+            <label className="lb-label" htmlFor="lb-stair-step-width">
+              Largura do lance (px)
+            </label>
+            <input
+              id="lb-stair-step-width"
+              className="lb-input"
+              type="number"
+              min={MIN_STEP_WIDTH}
+              step={1}
+              value={stepWidth}
+              onChange={(event) => {
+                // Campo apagado (digitando de novo) chega como '' -> Number('') é
+                // 0, não NaN, então cairia direto no clamp de MIN_STEP_WIDTH sem
+                // deixar o usuário passar por um estado intermediário vazio. Só
+                // dado realmente não-numérico (não deveria acontecer num
+                // type="number", mas o valor do evento sempre chega como string)
+                // é descartado em vez de gravar NaN na entidade.
+                const parsed = Number(event.target.value)
+                if (Number.isNaN(parsed)) return
+                onStepWidthChange(Math.max(MIN_STEP_WIDTH, parsed))
+              }}
+            />
+          </div>
+        </>
+      )}
+
+      {travel !== null && <StairTravelSection {...travel} direction={direction} />}
     </section>
   )
 }

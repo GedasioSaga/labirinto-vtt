@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
-  Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
+  Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, TokenCondition, MovementRules,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
@@ -667,6 +667,8 @@ interface MapStoreState {
   moveStair: (id: string, dx: number, dy: number) => void
   updateStairPoint: (stairId: string, segmentIndex: number, endpoint: 0 | 1, x: number, y: number) => void
   setStairDirection: (id: string, direction: StairDirection) => void
+  /** "Reta" / "Espiral" da escada selecionada, com desfazer. */
+  setStairShape: (id: string, shape: StairShape) => void
   setRoomName: (id: string, name: string) => void
   /** Arrasto do rótulo da Sala — SEM histórico, par de `commitDragHistory(before)`
    *  no pointerup, mesmo padrão de `resizeRoomCornerLive`. */
@@ -1552,6 +1554,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       mapFactory.updateStairPoint(map, stairId, segmentIndex, endpoint, x, y),
     ),
     setStairDirection: (id, direction) => withHistory((map) => mapFactory.setStairDirection(map, id, direction)),
+    setStairShape: (id, shape) => withHistory((map) => mapFactory.setStairShape(map, id, shape)),
     setRoomName: (id, name) => withHistory((map) => mapFactory.setRoomName(map, id, name)),
     setRoomLabelOffsetLive: (id, offset) => set((state) => ({ map: mapFactory.setRoomLabelOffset(state.map, id, offset) })),
     // As fábricas abaixo devolvem o mesmo `map` quando nada muda: sem entrada de histórico vazia.

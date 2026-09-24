@@ -1,6 +1,6 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
-  Stair, StairDirection, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
+  Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
   ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules,
 } from '../types/map'
 import type { Point } from '../pixi/world'
@@ -1424,6 +1424,13 @@ export function updateStairPoint(map: MapData, stairId: string, segmentIndex: nu
 
 export function setStairDirection(map: MapData, stairId: string, direction: StairDirection): MapData {
   return { ...map, stairs: map.stairs.map((s) => (s.id === stairId ? { ...s, direction } : s)) }
+}
+
+/** Troca a forma ("Reta" / "Espiral") de uma escada JÁ CRIADA — mesmo espelho
+ *  de `setStairDirection`. Os lances ficam onde estão: a espiral usa o
+ *  primeiro como diâmetro, então a boca (e o pino da escada) não sai do lugar. */
+export function setStairShape(map: MapData, stairId: string, shape: StairShape): MapData {
+  return { ...map, stairs: map.stairs.map((s) => (s.id === stairId ? { ...s, shape } : s)) }
 }
 
 /** Troca `stepWidth` (largura do lance) de uma escada JÁ CRIADA — mesmo
