@@ -172,6 +172,35 @@ describe('fogFilter: pino que só se lê de perto', () => {
     expect(JSON.stringify(view)).not.toContain(TEXTO_DA_CARTA)
   })
 
+  describe('jogador com duas fichas: a MESMA ficha precisa estar perto e enxergar', () => {
+    const POSSE_DUPLA = { ana: ['ficha-ana', 'ficha-cao'] }
+    const PAREDE_DA_MESA: Wall = { id: 'parede', x1: 375, y1: 100, x2: 375, y2: 300, blocksLight: true, blocksMove: true, door: null }
+    const duasFichas = (ana: { x: number; y: number }, cao: { x: number; y: number }, walls: Wall[]): MapData => ({
+      ...createEmptyMap('m', 'Cidade', 2000, 2000, CASA),
+      tokens: [
+        { id: 'ficha-ana', characterId: null, name: 'Ana', x: ana.x, y: ana.y, size: 1, image: null },
+        { id: 'ficha-cao', characterId: null, name: 'Cão', x: cao.x, y: cao.y, size: 1, image: null },
+      ],
+      pins: [CARTA],
+      walls,
+    })
+    const cartaDaAna = (map: MapData): Pin | undefined =>
+      filterMapForPlayer(map, 'ana', POSSE_DUPLA, RAIO).map.pins.find((p) => p.id === 'carta')
+
+    it('Ana a 1 casa atrás da parede e o cão a 5 casas enxergando: ninguém lê, o texto fica no host', () => {
+      const map = duasFichas({ x: 350, y: 200 }, { x: 650, y: 200 }, [PAREDE_DA_MESA])
+      const carta = cartaDaAna(map)
+      expect(carta).toMatchObject({ id: 'carta', description: '', image: null, longe: true })
+      expect(JSON.stringify(filterMapForPlayer(map, 'ana', POSSE_DUPLA, RAIO))).not.toContain(TEXTO_DA_CARTA)
+    })
+
+    it('o cão ao lado da carta, do lado aberto, lê mesmo com a Ana longe atrás da parede', () => {
+      const carta = cartaDaAna(duasFichas({ x: 100, y: 200 }, { x: 450, y: 200 }, [PAREDE_DA_MESA]))
+      expect(carta?.description).toBe(TEXTO_DA_CARTA)
+      expect(carta && 'longe' in carta).toBe(false)
+    })
+  })
+
   it('pino marco e só de perto: o Templo aparece de longe, a inscrição só de perto', () => {
     const inscricao: Pin = { ...TEMPLO, lerDePerto: 1 }
     const templo = pinoNoRecorte(cidade(200, 200, [inscricao]), 'templo')

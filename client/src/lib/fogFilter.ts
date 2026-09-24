@@ -1118,6 +1118,8 @@ export function filterMapForPlayer(
   const authoritySegments = ownTokens.length > 0 ? visionSegments(knownWalls === map.walls ? map : { ...map, walls: knownWalls }) : []
   const authorityVision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, authoritySegments, visionRadius))
   const rings = boxRings(authorityVision)
+  // Anel por ficha (mesmo índice de `ownTokens`), para "ler só de perto".
+  const pinReaders: PinReader[] = ownTokens.map((t, i) => ({ x: t.x, y: t.y, sight: boxRings(authorityVision.slice(i, i + 1)) }))
   // `knownWalls` (e não `map.walls`): a porta/estante da sala secreta chega ao
   // jogador disfarçada de parede, e a sombra dela precisa sair igual.
   const playerWalls = knownWalls.flatMap((w): Wall[] => {
@@ -1368,7 +1370,7 @@ export function filterMapForPlayer(
         if (p.marco === true) return !hiddenByZone(point)
         return isPointKnown(point)
       })
-      .map((p) => pinForPlayer(p, canReadPin(p, ownTokens, map.grid, isVisible))),
+      .map((p) => pinForPlayer(p, canReadPin(p, pinReaders, map.grid, hiddenByZone))),
     // Metadado do mestre: nome, estado e células do pincel das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
@@ -1399,20 +1401,31 @@ export function filterMapForHost(map: MapData): MapData {
  */
 const PIN_READ_SLACK_CELLS = 0.5
 
+/** Uma ficha do jogador com o anel de visão DELA (da autoridade, não o enviado). */
+interface PinReader {
+  readonly x: number
+  readonly y: number
+  readonly sight: readonly BoxedRing[]
+}
+
 /**
  * O jogador pode ler este pino agora? Pino sem `lerDePerto` (inclusive valor
- * fora da forma) lê de onde vier, como sempre. Com ele, precisa de uma ficha
- * própria a até N casas do pino E o pino à vista agora — explorado não basta
+ * fora da forma) lê de onde vier, como sempre. Com ele, precisa de UMA ficha
+ * própria que esteja a até N casas do pino E o enxergue agora pelo próprio
+ * anel (fora de zona oculta) — explorado não basta
  * (o "Revelar planta" marca tudo) e parede no meio não deixa ler. Grade
  * inválida nunca libera: na dúvida, o texto fica no host.
  */
-function canReadPin(pin: Pin, ownTokens: readonly Token[], grid: number, isVisible: (point: RegionPoint) => boolean): boolean {
+function canReadPin(pin: Pin, readers: readonly PinReader[], grid: number, hiddenByZone: (point: RegionPoint) => boolean): boolean {
   if (!isPinReadDistance(pin.lerDePerto)) return true
   if (!Number.isFinite(grid) || grid <= 0) return false
   const point = { x: pin.x, y: pin.y }
-  if (!isVisible(point)) return false
+  if (hiddenByZone(point)) return false
   const reach = (pin.lerDePerto + PIN_READ_SLACK_CELLS) * grid
-  return ownTokens.some((t) => Math.hypot(t.x - pin.x, t.y - pin.y) <= reach)
+  // A MESMA ficha: perto E enxergando pelo anel dela. Com o anel somado de
+  // todas, a ficha colada atrás da parede "leria" pelo olho do cão a 5 casas.
+  // O pincel da zona não conta: ele mostra a casa, não põe o olho da ficha lá.
+  return readers.some((r) => Math.hypot(r.x - pin.x, r.y - pin.y) <= reach && inAnyRing(r.sight, point))
 }
 
 /**
