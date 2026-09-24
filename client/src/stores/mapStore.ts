@@ -652,7 +652,7 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'marco' | 'lerDePerto'>>,
   ) => void
   /** Arrasto do pino — SEM histórico, par de `commitDragHistory(before)` no
    *  pointerup, mesmo padrão de `moveTokenLive`/`movePropLive`. */

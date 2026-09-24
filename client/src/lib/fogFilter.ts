@@ -6,8 +6,8 @@ import { isPointExplored, isShapeExplored, type Exploration } from './exploratio
 import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
-import { isPlayerSafePinImage } from './pins'
-import { exitLabelsOf, isArrivalOnly } from './pinTravel'
+import { isPinReadDistance, isPlayerSafePinImage } from './pins'
+import { exitLabelsOf, isArrivalOnly, unreadExitLabels } from './pinTravel'
 import { withoutAttachment } from './lightAttachment'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
@@ -1118,6 +1118,8 @@ export function filterMapForPlayer(
   const authoritySegments = ownTokens.length > 0 ? visionSegments(knownWalls === map.walls ? map : { ...map, walls: knownWalls }) : []
   const authorityVision = ownTokens.map((t) => computeVisibility({ x: t.x, y: t.y }, authoritySegments, visionRadius))
   const rings = boxRings(authorityVision)
+  // Anel por ficha (mesmo índice de `ownTokens`), para "ler só de perto".
+  const pinReaders: PinReader[] = ownTokens.map((t, i) => ({ x: t.x, y: t.y, sight: boxRings(authorityVision.slice(i, i + 1)) }))
   // `knownWalls` (e não `map.walls`): a porta/estante da sala secreta chega ao
   // jogador disfarçada de parede, e a sombra dela precisa sair igual.
   const playerWalls = knownWalls.flatMap((w): Wall[] => {
@@ -1351,15 +1353,27 @@ export function filterMapForPlayer(
     // "QUEM VÊ" também sai antes da névoa: quem não foi escolhido não recebe o
     // pino nem o id dele, mesmo em cima dele — e o host recusa passagem por um
     // pino que o jogador não recebeu (`validTravel` usa este mesmo recorte).
-    pins: (map.pins ?? [])
-      .filter((p) => {
-        if (isArrivalOnly(p)) return false
-        if (!pinReachesPlayer(pinAudiences, p.id, playerId)) return false
-        if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return false
-        const point = { x: p.x, y: p.y }
-        return !inRoomHiddenFromPlayer(point) && isPointKnown(point)
-      })
-      .map(pinForPlayer),
+    // MARCO ("todos veem") troca SÓ a pergunta da névoa: chega sem estar à
+    // vista nem explorado, e nada em volta vem junto. Tudo o que o mestre
+    // esconde (as regras acima, sala secreta, teto, zona oculta) continua valendo.
+    // LER SÓ DE PERTO: o texto e a imagem só vão com uma ficha a N casas
+    // enxergando o pino (`canReadPin`); longe, o pino sai marcado `longe` e
+    // vazio. É o que segura a carta até contra o "Revelar planta", que marca
+    // o mapa inteiro como explorado.
+    // Marco que chegou SÓ por ser marco (nem à vista, nem explorado) sai com
+    // `soMarco`: ver de longe não é estar lá, e a passagem por ele não vale
+    // (`validTravel` lê a marca neste mesmo recorte).
+    pins: (map.pins ?? []).flatMap((p) => {
+      if (isArrivalOnly(p)) return []
+      if (!pinReachesPlayer(pinAudiences, p.id, playerId)) return []
+      if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return []
+      const point = { x: p.x, y: p.y }
+      if (inRoomHiddenFromPlayer(point)) return []
+      const known = isPointKnown(point)
+      const reached = p.marco === true ? !hiddenByZone(point) : known
+      if (!reached) return []
+      return [pinForPlayer(p, canReadPin(p, pinReaders, map.grid, hiddenByZone), known)]
+    }),
     // Metadado do mestre: nome, estado e células do pincel das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
@@ -1385,6 +1399,39 @@ export function filterMapForHost(map: MapData): MapData {
 }
 
 /**
+ * Folga de meia casa no alcance de "ler a N casas": a ficha na casa vizinha em
+ * DIAGONAL (√2 ≈ 1,41 casa do pino) lê a 1 casa; a duas casas em linha reta, não.
+ */
+const PIN_READ_SLACK_CELLS = 0.5
+
+/** Uma ficha do jogador com o anel de visão DELA (da autoridade, não o enviado). */
+interface PinReader {
+  readonly x: number
+  readonly y: number
+  readonly sight: readonly BoxedRing[]
+}
+
+/**
+ * O jogador pode ler este pino agora? Pino sem `lerDePerto` (inclusive valor
+ * fora da forma) lê de onde vier, como sempre. Com ele, precisa de UMA ficha
+ * própria que esteja a até N casas do pino E o enxergue agora pelo próprio
+ * anel (fora de zona oculta) — explorado não basta
+ * (o "Revelar planta" marca tudo) e parede no meio não deixa ler. Grade
+ * inválida nunca libera: na dúvida, o texto fica no host.
+ */
+function canReadPin(pin: Pin, readers: readonly PinReader[], grid: number, hiddenByZone: (point: RegionPoint) => boolean): boolean {
+  if (!isPinReadDistance(pin.lerDePerto)) return true
+  if (!Number.isFinite(grid) || grid <= 0) return false
+  const point = { x: pin.x, y: pin.y }
+  if (hiddenByZone(point)) return false
+  const reach = (pin.lerDePerto + PIN_READ_SLACK_CELLS) * grid
+  // A MESMA ficha: perto E enxergando pelo anel dela. Com o anel somado de
+  // todas, a ficha colada atrás da parede "leria" pelo olho do cão a 5 casas.
+  // O pincel da zona não conta: ele mostra a casa, não põe o olho da ficha lá.
+  return readers.some((r) => Math.hypot(r.x - pin.x, r.y - pin.y) <= reach && inAnyRing(r.sight, point))
+}
+
+/**
  * O pino como o jogador pode recebê-lo. Sai SEMPRE numa cópia:
  * - `image` só em data URL (`isPlayerSafePinImage`) — nunca um caminho do
  *   disco do mestre;
@@ -1393,21 +1440,26 @@ export function filterMapForHost(map: MapData): MapData {
  * - `passagem` VAI, de propósito: o cartão do jogador precisa saber se oferece
  *   "Passar", "Pedir para passar" ou "Está trancada". O modo diz como a porta
  *   se comporta, não para onde ela leva.
+ * - `soMarco` quando `known` é falso: o pino só chegou por ser marco, e a
+ *   passagem por ele não vale daqui.
  */
-function pinForPlayer(pin: Pin): Pin {
+function pinForPlayer(pin: Pin, readable: boolean, known: boolean): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
   // arquivo trouxer e o app não conhece (versão futura, edição à mão) não
   // chega ao jogador por descuido (revisão de segurança, 22/09). `destino`,
   // `rotulo` e `saidas` ficam de fora — o destino de cada saída diria que a
-  // outra cena existe.
+  // outra cena existe. `marco` e `lerDePerto` também: são regra do host.
+  // Pino "só de perto" com a ficha longe sai vazio e marcado `longe`.
   const forPlayer: Pin = {
     id: pin.id,
     x: pin.x,
     y: pin.y,
     kind: pin.kind,
-    description: pin.description,
-    image: isPlayerSafePinImage(pin.image) ? pin.image : null,
+    description: readable ? pin.description : '',
+    image: readable && isPlayerSafePinImage(pin.image) ? pin.image : null,
   }
+  if (!readable) forPlayer.longe = true
+  if (!known) forPlayer.soMarco = true
   if (pin.icon !== undefined) forPlayer.icon = pin.icon
   if (pin.locked !== undefined) forPlayer.locked = pin.locked
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
@@ -1415,8 +1467,10 @@ function pinForPlayer(pin: Pin): Pin {
   if (pin.passagem !== undefined) forPlayer.passagem = pin.passagem
   // ENCRUZILHADA: o jogador recebe `escolhas`, montado AQUI (nunca copiado do
   // mestre): por saída, só o id e o rótulo. Pino de uma saída não ganha o
-  // campo: o cartão dele é o de sempre, e o recorte também.
+  // campo: o cartão dele é o de sempre, e o recorte também. Placa "só de
+  // perto" com a ficha longe: o rótulo é texto da placa e não sai — cada saída
+  // vai só com o id e "Saída N", e o jogador ainda consegue pedir a passagem.
   const escolhas = exitLabelsOf(pin)
-  if (escolhas.length > 1) forPlayer.escolhas = escolhas
+  if (escolhas.length > 1) forPlayer.escolhas = readable ? escolhas : unreadExitLabels(escolhas)
   return forPlayer
 }

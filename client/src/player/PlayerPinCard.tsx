@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Pin, PinExitLabel } from '../types/map'
 import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { PinTravelArt } from '../components/PinSymbolArt'
+import { unreadExitLabels } from '../lib/pinTravel'
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -120,9 +121,25 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   }, [onClose])
 
   const descricao = pin.description.trim()
+  // Pino "só de perto" com a ficha longe: o host não mandou texto nem imagem
+  // (`lib/fogFilter.ts`). O cartão diz o que fazer, em vez de fingir que o
+  // mestre não escreveu nada. Chegando perto, o próximo pacote traz o texto e
+  // este cartão, se estiver aberto, troca sozinho.
+  const longe = pin.longe === true
   // Só data URL vira foto: se um caminho de disco escapasse até aqui, o
   // `<img>` tentaria abrir o computador do mestre pelo navegador do jogador.
   const foto = isPlayerSafePinImage(pin.image) ? pin.image : null
+  const textoDoCartao = longe
+    ? 'Chegue mais perto para ler.'
+    : descricao === ''
+      ? 'O mestre ainda não escreveu nada sobre este ponto.'
+      : descricao
+  const altDaImagem =
+    foto !== null
+      ? 'Imagem deixada pelo mestre neste ponto de interesse'
+      : longe
+        ? 'Chegue mais perto para ver a imagem'
+        : 'Este ponto de interesse ainda não tem imagem'
   // Pino de viagem: o cartão é o de sempre (imagem e descrição do mestre), com
   // a passagem no lugar do glifo — a mesma cabeça que o jogador vê no mapa.
   // O nome da cena de destino nunca chega aqui (`lib/fogFilter.ts`).
@@ -131,12 +148,18 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
   const passagem = passageOf(pin)
   const trancada = viagem && passagem === 'trancada'
-  const podePedir = viagem && !trancada && onRequestTravel !== undefined
+  // MARCO visto de longe (`soMarco`): o jogador enxerga o Templo, mas nunca
+  // esteve lá — o host recusa a passagem, então o cartão nem oferece.
+  const naoChegou = viagem && !trancada && pin.soMarco === true
+  const podePedir = viagem && !trancada && !naoChegou && onRequestTravel !== undefined
   const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
-  // saída só (ou sem o campo), o cartão é o de sempre.
-  const escolhas = viagem ? (pin.escolhas ?? []) : []
+  // saída só (ou sem o campo), o cartão é o de sempre. Longe de uma placa "só
+  // de perto", o recorte já manda "Saída N"; o cartão repete a regra para que
+  // nenhum nome escrito na placa apareça ao lado de "Chegue mais perto".
+  const recebidas = viagem ? (pin.escolhas ?? []) : []
+  const escolhas = longe ? unreadExitLabels(recebidas) : recebidas
   const encruzilhada = escolhas.length > 1
   const perguntar = (saida: PinExitLabel | null) => {
     setConfirming({ saida })
@@ -162,17 +185,16 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
         <img
           className="pp-pincard__image"
           src={foto === null ? IMAGEM_AUSENTE : foto}
-          alt={foto === null ? 'Este ponto de interesse ainda não tem imagem' : 'Imagem deixada pelo mestre neste ponto de interesse'}
+          alt={altDaImagem}
         />
         <div className="pp-pincard__body">
           <span className={viagem ? 'pp-pincard__glyph pp-pincard__glyph--viagem' : 'pp-pincard__glyph'} aria-hidden="true">
             {viagem ? <PinTravelArt size={16} /> : PIN_GLYPH[pin.kind]}
           </span>
-          <p className="pp-pincard__text">
-            {descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao}
-          </p>
+          <p className="pp-pincard__text">{textoDoCartao}</p>
         </div>
         {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
+        {naoChegou && <p className="pp-pincard__locked">Dá para ver daqui, mas para passar é preciso chegar até lá.</p>}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}

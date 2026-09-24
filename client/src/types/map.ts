@@ -353,6 +353,37 @@ export interface Pin extends PlayerSecret {
    */
   soChegada?: true
   /**
+   * MARCO ("todos veem"): o pino chega ao jogador mesmo na névoa, sem ele ter
+   * visto ou explorado o lugar — o Templo que a cidade inteira conhece. Só o
+   * pino atravessa: o que está em volta continua preto. Não fura nada que o
+   * mestre esconde (oculto, zona oculta, sala secreta, teto, "Só estes").
+   * Ausente = o pino de sempre, que só aparece à vista ou explorado. O disco
+   * só aceita `true` (`lib/mapFile.ts`); o campo não vai ao jogador.
+   */
+  marco?: true
+  /**
+   * LER SÓ DE PERTO: a quantas casas uma ficha do jogador precisa estar (e
+   * enxergando o pino) para o texto e a imagem entrarem no pacote. Longe, o
+   * jogador recebe o pino com `longe` e sem descrição — nem o "Revelar planta"
+   * entrega o que está escrito (`lib/fogFilter.ts`). Inteiro de
+   * `PIN_LER_DE_PERTO_MIN` a `PIN_LER_DE_PERTO_MAX`; ausente = lê de onde vir o
+   * pino, como sempre. O campo não vai ao jogador.
+   */
+  lerDePerto?: number
+  /**
+   * SÓ NO RECORTE DO JOGADOR: o pino é "só de perto" e a ficha dele está
+   * longe, então a descrição e a imagem ficaram no host. O cartão diz "Chegue
+   * mais perto para ler". O mestre nunca grava este campo.
+   */
+  longe?: true
+  /**
+   * SÓ NO RECORTE DO JOGADOR: o pino chegou SÓ por ser marco — não está à
+   * vista nem explorado. Ver o Templo de longe não é estar lá: a passagem não
+   * vale daqui (o host recusa em `validTravel`) e o cartão não oferece o
+   * botão. O mestre nunca grava este campo.
+   */
+  soMarco?: true
+  /**
    * SÓ NO RECORTE DO JOGADOR, e só quando o pino tem mais de uma saída: o id e
    * o rótulo de cada uma, na ordem (a principal primeiro). O mestre nunca grava
    * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.

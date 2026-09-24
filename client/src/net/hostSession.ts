@@ -723,7 +723,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map)
     const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
-    if (!view.map.pins.some((p) => p.id === pinId)) return null
+    const seen = view.map.pins.find((p) => p.id === pinId)
+    if (seen === undefined) return null
+    // MARCO visto de longe: o pino chega ao jogador na névoa, mas ele nunca
+    // esteve lá. Sem isto, marco + viagem seria teletransporte de qualquer
+    // ponto do mapa (e, "livre", sem o mestre saber).
+    if (seen.soMarco === true) return null
     // Trancada: ninguém passa. Cai no mesmo `null` de todo o resto, então o
     // jogador lê o motivo genérico de sempre e nada chega ao mestre. Estar aqui,
     // e não só no pedido, faz o "Deixar ir" de um pedido feito antes de trancar

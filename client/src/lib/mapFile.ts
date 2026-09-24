@@ -1,6 +1,6 @@
 import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
-import { isPinIcon, isPinKind, isPinPassage } from './pins'
+import { isPinIcon, isPinKind, isPinPassage, isPinReadDistance } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { tokenPublicNameFromFile } from './tokenPublicName'
 
@@ -206,6 +206,14 @@ function deserializeMapFields(json: string): MapData {
       // (`false`, texto, número, arquivo editado à mão) volta AUSENTE — o par de
       // sempre, visível. O `...p` acima copiaria o valor cru, por isso a linha.
       soChegada: p.soChegada === true ? true : undefined,
+      // MARCO e LER SÓ DE PERTO: campos NOVOS e OPCIONAIS. Na dúvida, o pino
+      // de sempre: `marco` só com `true` (um valor torto não pode furar a
+      // névoa) e `lerDePerto` só com inteiro de casas na faixa do painel.
+      marco: p.marco === true ? true : undefined,
+      lerDePerto: isPinReadDistance(p.lerDePerto) ? p.lerDePerto : undefined,
+      // `longe` e `soMarco` são só do recorte do jogador, como `escolhas`.
+      longe: undefined,
+      soMarco: undefined,
       escolhas: undefined,
     })),
     frame: parsed.frame ?? null,

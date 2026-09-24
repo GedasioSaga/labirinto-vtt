@@ -1608,7 +1608,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'marco' | 'lerDePerto'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1624,6 +1624,10 @@ export function updatePin(
     next.description === pin.description &&
     next.image === pin.image &&
     !!next.locked === !!pin.locked &&
+    // Marco e "ler só de perto": opcionais também — desligar o que nunca foi
+    // ligado (`undefined` sobre ausente) não é mudança.
+    next.marco === pin.marco &&
+    next.lerDePerto === pin.lerDePerto &&
     // Mesma regra: desligar um pino que nunca foi ligado não é mudança.
     sameDestination(next.destino, pin.destino) &&
     // Encruzilhada: acrescentar, desligar ou renomear uma saída é mudança;
