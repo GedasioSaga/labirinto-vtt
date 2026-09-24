@@ -17,6 +17,7 @@ import {
   type HostWorld,
   type PinClueState,
   type PlayerInfo,
+  type SecretCheckState,
   type TravelRequest,
 } from './hostSession'
 import type { LaserMessage } from './protocol'
@@ -92,6 +93,8 @@ export interface HostBridgeDeps {
   onPinCluesChange?: (clues: Record<string, PinClueState>) => void
   /** "Revelar para…" de cada ficha/escada/zona revelada a alguém (`itemId` -> jogadores). Sala fechada = `{}`. */
   onSecretRevealsChange?: (reveals: Record<string, string[]>) => void
+  /** TESTES SECRETOS e as respostas, só para o painel do mestre. Sala fechada = `[]`. */
+  onSecretChecksChange?: (checks: SecretCheckState[]) => void
   onTunnelChange?: (state: TunnelState) => void
   /** Sinal aceito de um jogador (já validado e dentro do limite por segundo). */
   onSignal?: (signal: HostSignal) => void
@@ -164,6 +167,14 @@ export interface HostBridge {
    * perto), ou `null` com a sala fechada.
    */
   noise(x: number, y: number, rangeCells: number): number | null
+  /**
+   * TESTE SECRETO: pede o teste `label` a estes jogadores. Devolve quantos
+   * foram pedidos (0 = nenhum escolhido joga agora), ou `null` com a sala
+   * fechada. As respostas chegam por `onSecretChecksChange` e num aviso.
+   */
+  secretCheck(label: string, playerIds: readonly string[]): number | null
+  /** "Encerrar" o teste: quem não respondeu tem o cartão fechado. */
+  closeSecretCheck(checkId: string): void
   /**
    * "Ver tela" do painel Grupo: o último recorte que SAIU pelo fio para este
    * jogador (a cena dele, com a névoa e a zona oculta já aplicadas), a espera
@@ -259,6 +270,11 @@ function parseTunnelEvent(value: unknown): TunnelEvent | null {
   }
 }
 
+/** O aviso do mestre quando alguém responde ao teste secreto: quem, qual teste e o resultado. */
+export function secretCheckAnswerText(playerName: string, label: string, result: number): string {
+  return `${playerName} — ${label}: ${result}`
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -280,6 +296,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let lastPinAudiencesKey = '{}'
   let lastPinCluesKey = '{}'
   let lastSecretRevealsKey = '{}'
+  let lastSecretChecksKey = '[]'
   let tunnelState: TunnelState = TUNNEL_IDLE
   let lastTunnelKey = JSON.stringify(TUNNEL_IDLE)
   let pendingTunnel: Promise<void> | null = null
@@ -422,6 +439,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (key === lastSecretRevealsKey) return
     lastSecretRevealsKey = key
     deps.onSecretRevealsChange?.(reveals)
+  }
+
+  const notifySecretChecksIfChanged = () => {
+    const checks = session?.secretChecks() ?? []
+    const key = JSON.stringify(checks)
+    if (key === lastSecretChecksKey) return
+    lastSecretChecksKey = key
+    deps.onSecretChecksChange?.(checks)
   }
 
   /** Envia tudo; a promise nunca rejeita — falha vira toast, nunca silêncio. */
@@ -665,6 +690,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       deps.applyTokenEdit(result.applyTokenEdit)
       broadcastNow()
     }
+    if (result.secretCheckAnswer !== undefined) {
+      // Só na tela do mestre: o painel e o aviso. Não há `net_send` com o resultado.
+      const answer = result.secretCheckAnswer
+      useToastStore.getState().push('info', secretCheckAnswerText(answer.playerName, answer.label, answer.result), PLAYER_JOINED_TOAST_MS)
+      notifySecretChecksIfChanged()
+    }
     notifyPlayersIfChanged()
     if (wasJoined) return
     if (result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'bad_code')) announceBadCode()
@@ -751,6 +782,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyPinAudiencesIfChanged()
       notifyPinCluesIfChanged()
       notifySecretRevealsIfChanged()
+      notifySecretChecksIfChanged()
       try {
         await deps.invoke('net_stop_room')
       } catch (error) {
@@ -851,6 +883,22 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return result.outbound.length
     },
 
+    secretCheck(label, playerIds) {
+      if (session === null) return null
+      const result = session.secretCheck(label, playerIds)
+      void dispatch(result)
+      notifySecretChecksIfChanged()
+      const id = result.secretCheckId
+      // Pedidos, não envios: quem caiu entra na conta e recebe ao voltar.
+      return id === undefined ? 0 : (session.secretChecks().find((check) => check.id === id)?.asked.length ?? 0)
+    },
+
+    closeSecretCheck(checkId) {
+      if (session === null) return
+      void dispatch(session.closeSecretCheck(checkId))
+      notifySecretChecksIfChanged()
+    },
+
     assignToken(playerId, tokenId) {
       if (session === null) return
       void dispatch(session.assignToken(playerId, tokenId))
@@ -873,6 +921,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyPinAudiencesIfChanged()
       notifyPinCluesIfChanged()
       notifySecretRevealsIfChanged()
+      notifySecretChecksIfChanged()
       await sendThenKick(result, clientId)
       // O `kicked` já apagou a tela; sem ele (jogador já fora da sessão) apaga aqui.
       forgetScreen(clientId)

@@ -56,6 +56,13 @@ import { isNoiseDirection, type NoiseDirection } from '../lib/noise'
  * `noise` (mestre -> jogador) é o RUÍDO NO MAPA, aditivo pelo mesmo critério:
  * jogador antigo cai no `default` e ignora. Leva só um id e a DIREÇÃO já
  * arredondada (`lib/noise.ts`), nunca a posição do ruído nem o que o fez.
+ *
+ * O TESTE SECRETO é aditivo pelo mesmo critério: `secret.check` (mestre ->
+ * jogador escolhido) leva só um id e o nome do teste — nunca quem mais foi
+ * escolhido; `secret.check.closed` (o mestre encerrou) leva só o id; e
+ * `secret.check.answer` (jogador -> mestre) leva o id e o resultado, que o
+ * host guarda para o mestre e não repassa a ninguém. Jogador antigo ignora as
+ * duas primeiras; mestre antigo responde `error invalid_message` à terceira.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -66,6 +73,14 @@ export const REQ_ID_MAX_LENGTH = 64
 export const RESUME_TOKEN_MAX_LENGTH = 128
 /** Teto do recado por cena, em unidades UTF-16 (o `maxLength` do campo do mestre conta igual). */
 export const NOTE_MAX_LENGTH = 500
+/** Teto do nome do teste secreto ("Percepção"), em unidades UTF-16, como o recado. */
+export const SECRET_CHECK_LABEL_MAX_LENGTH = 40
+/**
+ * Faixa do resultado que o jogador manda: inteiro, com folga para modificador
+ * negativo e para sistema de dado percentual. Fora disso a mensagem cai.
+ */
+export const SECRET_CHECK_RESULT_MIN = -99
+export const SECRET_CHECK_RESULT_MAX = 999
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
@@ -162,6 +177,16 @@ export interface PinReadMessage {
   pinId: string
 }
 
+/**
+ * Resposta do jogador ao teste secreto `id`. Só o número: o host confere que
+ * o pedido foi mesmo para ele antes de contar.
+ */
+export interface SecretCheckAnswerMessage {
+  type: 'secret.check.answer'
+  id: string
+  result: number
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
@@ -172,6 +197,7 @@ export type PlayerMessage =
   | TokenEditMessage
   | PinTravelRequestMessage
   | PinReadMessage
+  | SecretCheckAnswerMessage
 
 /**
  * Por que o host recusou o pedido de porta do jogador. `wrong_side` (porta de
@@ -210,6 +236,19 @@ export interface NoiseMessage {
   dir: NoiseDirection
 }
 
+/** Pedido de teste secreto a este jogador. `label` é o nome que o mestre deu ("Percepção"). */
+export interface SecretCheckMessage {
+  type: 'secret.check'
+  id: string
+  label: string
+}
+
+/** O mestre encerrou o teste `id`: o cartão de quem não respondeu fecha. */
+export interface SecretCheckClosedMessage {
+  type: 'secret.check.closed'
+  id: string
+}
+
 export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
 export type HostMessage =
@@ -234,6 +273,8 @@ export type HostMessage =
   | LaserMessage
   | SceneNoteMessage
   | NoiseMessage
+  | SecretCheckMessage
+  | SecretCheckClosedMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -335,6 +376,41 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
 }
 
 /**
+ * Nome do teste secreto como sai para o jogador: aparado e cortado no teto,
+ * sem meia letra no fim (mesma regra do recado).
+ */
+export function clampSecretCheckLabel(label: string): string {
+  const trimmed = label.trim()
+  if (trimmed.length <= SECRET_CHECK_LABEL_MAX_LENGTH) return trimmed
+  const cut = trimmed.slice(0, SECRET_CHECK_LABEL_MAX_LENGTH)
+  const last = cut.charCodeAt(cut.length - 1)
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut
+}
+
+/** O resultado do teste secreto vale: inteiro dentro da faixa. */
+export function isSecretCheckResult(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= SECRET_CHECK_RESULT_MIN && value <= SECRET_CHECK_RESULT_MAX
+}
+
+/**
+ * Valida o `secret.check` que o jogador recebe. Devolve cópia só com `id` e
+ * `label`: campo a mais (uma lista de quem mais foi escolhido) não chega à tela.
+ */
+export function parseSecretCheck(value: unknown): SecretCheckMessage | null {
+  if (!isRecord(value) || value.type !== 'secret.check') return null
+  const { id, label } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(label, 1, SECRET_CHECK_LABEL_MAX_LENGTH)) return null
+  return { type: 'secret.check', id, label }
+}
+
+/** Valida o `secret.check.closed` que o jogador recebe. */
+export function parseSecretCheckClosed(value: unknown): SecretCheckClosedMessage | null {
+  if (!isRecord(value) || value.type !== 'secret.check.closed') return null
+  return isBoundedString(value.id, 1, REQ_ID_MAX_LENGTH) ? { type: 'secret.check.closed', id: value.id } : null
+}
+
+/**
  * Valida o `noise` que o jogador recebe. Devolve cópia só com `id` e `dir`:
  * campo a mais (uma posição, um nome) não chega ao estado da tela.
  */
@@ -398,6 +474,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTravelRequest(value)
     case 'pin.read':
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.read', pinId: value.pinId } : null
+    case 'secret.check.answer':
+      return isBoundedString(value.id, 1, REQ_ID_MAX_LENGTH) && isSecretCheckResult(value.result)
+        ? { type: 'secret.check.answer', id: value.id, result: value.result }
+        : null
     default:
       return null
   }

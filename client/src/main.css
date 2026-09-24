@@ -1503,6 +1503,64 @@ body {
   min-height: 34px;
 }
 
+/* Teste secreto (aba Jogo): nome do teste, quem faz, e as respostas embaixo,
+   o mais novo em cima. Só o mestre lê esta lista. */
+.lb-secret-check {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  flex: none;
+}
+
+.lb-secret-check__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0;
+}
+
+.lb-secret-check__error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--lb-color-ember);
+}
+
+.lb-secret-check .lb-input[aria-invalid='true'] {
+  border-color: var(--lb-color-ember);
+}
+
+.lb-secret-check__who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.lb-secret-check__option {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 28px;
+}
+
+.lb-secret-check__list,
+.lb-secret-check__answers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-secret-check__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
 /* Painel Pistas (aba Jogo): uma linha por pino "!"/"?" e uma bolinha por
    jogador. A bolinha pinta com `currentColor` (a cor da ficha vem no `color`
    inline): vazia = só o aro, recebeu = aro com miolo, leu = cheia. */
