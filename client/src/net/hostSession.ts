@@ -22,9 +22,11 @@ import {
   type PinTravelRequestMessage,
   type PlayerLaserMessage,
   type SignalMessage,
+  type TokenActionRequestMessage,
   type TokenEditMessage,
   type TokenMoveMessage,
 } from './protocol'
+import { distanceInCells, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
 import { clampNoteText, NOTEBOOK_MAX_NOTES, type NoteEntry } from './protocol'
 
 /**
@@ -137,6 +139,27 @@ export interface TravelRequest {
 }
 
 /**
+ * AGIR SOBRE UMA FICHA: pedido já validado, à espera do mestre. É o que a
+ * Caixa de Pedidos mostra. Nada disto vai ao jogador: a resposta leva só o
+ * `reqId` que ele mesmo mandou.
+ */
+export interface TokenActionRequest {
+  requestId: string
+  playerId: string
+  playerName: string
+  tokenId: string
+  /** Como o MESTRE chama a ficha (o nome dele, não o "Nome para os jogadores"). */
+  targetName: string
+  action: TokenAction
+  /** O texto do jogador, já aparado; ausente = sem texto. */
+  text?: string
+  /** Casas entre a ficha dele mais perto e o alvo. */
+  distanceCells: number
+  /** Só quando o pedido vem de uma cena de FUNDO: o nome que o mestre lê. */
+  sceneName?: string
+}
+
+/**
  * O mestre deixou ir: tirar `tokenId` da cena `fromSceneId` e pô-lo em
  * (`x`, `y`) da cena `toSceneId`, no pino par. Quem aplica é o integrador
  * (`adventureStore.transferToken`), fora do desfazer das duas cenas.
@@ -195,6 +218,8 @@ export interface HostResult {
   playerLaser?: HostPlayerLaser
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
   travelRequest?: TravelRequest
+  /** Pedido de ação sobre ficha válido: o integrador põe na Caixa de Pedidos. */
+  actionRequest?: TokenActionRequest
   /**
    * O mestre deixou ir, ou o pino é livre (aí vem de `handleMessage`): o
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
@@ -271,6 +296,13 @@ export const TRAVEL_REQUEST_MIN_INTERVAL_MS = 3000
 export const TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS = 1500
 
 /**
+ * Um pedido de ação sobre ficha por jogador nesta janela, de qualquer ficha.
+ * Conta a partir do último pedido, mesmo já respondido: o jogador que insiste
+ * no toque não enche a Caixa do mestre. Um pendente por vez já segura o resto.
+ */
+export const TOKEN_ACTION_MIN_INTERVAL_MS = 1500
+
+/**
  * Quantas cenas cada jogador lembra (exploração e portas vistas). Passou do
  * teto, esquece a cena visitada há mais tempo: memória de host não pode
  * crescer sem limite numa aventura longa.
@@ -335,6 +367,14 @@ export interface HostSession {
   /** O pedido ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isTravelPending(requestId: string): boolean
   /**
+   * AGIR SOBRE UMA FICHA: o mestre aceitou ou recusou. Devolve
+   * `token.action.answer` só a quem pediu, com o `reqId` dele. Pedido que já
+   * não existe (respondido, jogador caiu ou saiu) não manda nada.
+   */
+  answerTokenAction(requestId: string, accepted: boolean): HostResult
+  /** O pedido de ação ainda espera o mestre? */
+  isTokenActionPending(requestId: string): boolean
+  /**
    * "Mandar para…" do painel Grupo: o MESTRE leva o jogador, sem pedido, para
    * `toSceneId` — no pino de viagem `pinId` daquela cena ou, com `null`, no
    * centro dela. Devolve o mesmo par da aprovação (`applyTransfer` +
@@ -391,6 +431,13 @@ interface PendingTravel {
   /** O destino do aviso que o mestre leu. Religou a saída depois? A aprovação não vale. */
   toSceneId: string
   partnerId: string
+}
+
+/** Pedido de ação sobre ficha à espera do mestre. Um por jogador; `reqId` é o do jogador. */
+interface PendingTokenAction {
+  requestId: string
+  playerId: string
+  reqId: string
 }
 
 /** Pedido que passou em tudo: de onde, para onde, por qual pino e com qual token. */
@@ -493,6 +540,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por pinId: quem vê o pino ("Só estes"). Ausente = Todos. O kick tira o
   // jogador de toda lista; o registro de quem só caiu fica (resume).
   const pinAudiences = new Map<string, Set<string>>()
+  // AGIR SOBRE UMA FICHA — por playerId: o pedido que espera o mestre (no
+  // máximo um; morre com a conexão) e a hora do último pedido (sobrevive ao
+  // disconnect, como o limite do sinal; só o kick apaga).
+  const pendingTokenActions = new Map<string, PendingTokenAction>()
+  const lastTokenActionAt = new Map<string, number>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -1189,6 +1241,61 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
   }
 
+  /**
+   * AGIR SOBRE UMA FICHA. Autoridade é aqui, no molde do pedido de passagem:
+   * a ficha precisa estar no recorte que o jogador vê AGORA na cena dele
+   * (`filterMapForPlayer`: névoa, parede, zona oculta, ficha escondida pelo
+   * mestre, outra cena) e não ser dele, e ele precisa ter ficha nesta cena.
+   * Qualquer falha responde o mesmo `unavailable` — um id adivinhado não
+   * descobre o que existe no escuro. O limite de tempo vem ANTES da validação
+   * (o recorte é a parte cara) e conta todo toque, até o recusado.
+   */
+  function handleTokenAction(clientId: string, msg: TokenActionRequestMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const reject = (reason: TokenActionRejection): HostResult => reply(clientId, { type: 'token.action.rejected', reqId: msg.reqId, reason })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return reject('unavailable')
+    const at = now()
+    const last = lastTokenActionAt.get(playerId)
+    if (last !== undefined && at - last < TOKEN_ACTION_MIN_INTERVAL_MS) return reject('too_soon')
+    lastTokenActionAt.set(playerId, at)
+    if (pendingTokenActions.has(playerId)) return reject('pending')
+    const scene = sceneFor(playerId, world)
+    const owned = new Set(ownership[playerId] ?? [])
+    if (scene === null || owned.has(msg.tokenId)) return reject('unavailable')
+    const memory = memoryFor(playerId, scene.map)
+    const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    const seen = view.map.tokens.find((t) => t.id === msg.tokenId)
+    const target = scene.map.tokens.find((t) => t.id === msg.tokenId)
+    if (seen === undefined || target === undefined) return reject('unavailable')
+    let nearest: number | null = null
+    for (const t of view.map.tokens) {
+      if (!owned.has(t.id)) continue
+      const cells = distanceInCells(t, seen, scene.map.grid)
+      if (nearest === null || cells < nearest) nearest = cells
+    }
+    if (nearest === null) return reject('unavailable')
+    const requestId = randomId()
+    pendingTokenActions.set(playerId, { requestId, playerId, reqId: msg.reqId })
+    const request: TokenActionRequest = {
+      requestId,
+      playerId,
+      playerName: record.name,
+      tokenId: target.id,
+      targetName: target.name,
+      action: msg.action,
+      distanceCells: nearest,
+    }
+    if (msg.text !== undefined) request.text = msg.text
+    // Mesma regra de `backgroundSceneId`: a cena aberta e o mapa solto não levam o nome.
+    if (scene !== world.open && scene.sceneId !== null) request.sceneName = scene.name
+    return { outbound: [], actionRequest: request }
+  }
+
+  const findPendingTokenAction = (requestId: string): PendingTokenAction | undefined =>
+    [...pendingTokenActions.values()].find((pending) => pending.requestId === requestId)
+
   const findPendingTravel = (requestId: string): PendingTravel | undefined =>
     [...pendingTravels.values()].find((pending) => pending.requestId === requestId)
 
@@ -1233,7 +1340,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleCluePeers(clientId, world)
         case 'clue.show':
           return handleClueShow(clientId, msg, world)
+        case 'token.action':
+          return handleTokenAction(clientId, msg, world)
       }
+    },
+
+    answerTokenAction(requestId, accepted) {
+      const pending = findPendingTokenAction(requestId)
+      if (pending === undefined) return { outbound: [] }
+      pendingTokenActions.delete(pending.playerId)
+      const clientId = players.get(pending.playerId)?.clientId ?? null // null = saiu: não há a quem responder
+      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'token.action.answer', reqId: pending.reqId, accepted })
+    },
+
+    isTokenActionPending(requestId) {
+      return findPendingTokenAction(requestId) !== undefined
     },
 
     approveTravel(requestId, source) {
@@ -1337,6 +1458,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // O pedido pendente morre com a conexão: quem voltar não tem mais o
       // "Aguardando o mestre…" na tela, e o aviso do mestre fica inofensivo.
       pendingTravels.delete(playerId)
+      // Idem o pedido de ação: a tela de quem volta não tem mais o "Aguardando".
+      pendingTokenActions.delete(playerId)
       // O gesto morre com a conexão; quem o via apaga a ponta sozinho (REMOTE_LASER_IDLE_MS).
       laserRecipients.delete(playerId)
     },
@@ -1362,6 +1485,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       cluebooks.delete(playerId)
       seenPins.delete(playerId)
       lastClueShowAt.delete(playerId)
+      pendingTokenActions.delete(playerId)
+      lastTokenActionAt.delete(playerId)
       for (const chosen of pinAudiences.values()) chosen.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },

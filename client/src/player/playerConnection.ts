@@ -17,10 +17,12 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseNotebook, parseRoomText, parseSceneNote, parseTokenActionHostMessage, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
+import { TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction } from '../lib/tokenActions'
+import { tokenCardName, type TokenActionNotice } from './tokenCard'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -85,6 +87,8 @@ export interface PlayerState {
   cluePeers?: CluePeers
   /** "Mostrar para…": o último envio e a resposta do host. */
   clueShow?: ClueShow
+  /** AGIR SOBRE UMA FICHA: o pedido esperando o mestre, ou a resposta dele. */
+  tokenAction?: TokenActionNotice
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -206,6 +210,13 @@ export interface PlayerConnection {
   resetClueShare(): void
   /** Fecha o cartão da pista que um colega mostrou (a pista continua no caderno). */
   dismissShownClue(): void
+  /**
+   * AGIR SOBRE UMA FICHA: pede ao mestre `action` sobre a ficha ALHEIA
+   * `tokenId`, com o texto opcional (aparado; só espaço = sem texto). `false`
+   * (e nada sai) quando não joga, a ficha não está no mapa dele ou é dele, o
+   * texto passa do teto, já há um pedido esperando ou o socket não está aberto.
+   */
+  requestTokenAction(tokenId: string, action: TokenAction, text?: string): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -251,6 +262,8 @@ export const MOVED_NOTICE_TTL_MS = 60_000
  * ele mexe a própria ficha (aí já viu onde está) ou depois de um minuto.
  */
 export const GATHERED_NOTICE_TTL_MS = 60_000
+/** Quanto tempo a resposta do mestre ao pedido de ação ("O mestre aceitou: Empurrar Severa") fica na tela. */
+export const TOKEN_ACTION_NOTICE_TTL_MS = 5000
 const SOCKET_OPEN = 1
 /** Mede o tamanho em bytes do que vai pelo socket (o servidor conta bytes, não caracteres). */
 const utf8 = new TextEncoder()
@@ -439,6 +452,35 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (notice.phase === 'gathered') return GATHERED_NOTICE_TTL_MS
     if (notice.phase === 'moved') return MOVED_NOTICE_TTL_MS
     return notice.phase === 'arrived' ? ARRIVAL_NOTICE_TTL_MS : TRAVEL_NOTICE_TTL_MS
+  }
+
+  let tokenActionTimer: ReturnType<typeof setTimeout> | null = null
+  /** `reqId` do pedido de ação que espera o mestre; `null` = nenhum. Só a resposta com ele vale. */
+  let pendingActionReqId: string | null = null
+
+  function clearTokenAction(): void {
+    if (tokenActionTimer !== null) clearTimeout(tokenActionTimer)
+    tokenActionTimer = null
+    pendingActionReqId = null
+  }
+
+  /**
+   * A volta do pedido de ação. Só a do pedido que ESTÁ esperando: resposta
+   * atrasada de um pedido antigo, ou de outro `reqId`, não mexe na tela.
+   */
+  function handleTokenActionMessage(data: unknown): void {
+    const msg = parseTokenActionHostMessage(data)
+    const waiting = state.tokenAction
+    if (msg === null || waiting === undefined || waiting.phase !== 'waiting' || msg.reqId !== pendingActionReqId) return
+    clearTokenAction()
+    const base = { id: nextNoticeId++, action: waiting.action, targetName: waiting.targetName }
+    const notice: TokenActionNotice =
+      msg.type === 'token.action.answer' ? { ...base, phase: msg.accepted ? 'accepted' : 'refused' } : { ...base, phase: 'rejected', reason: msg.reason }
+    setState({ tokenAction: notice })
+    tokenActionTimer = setTimeout(() => {
+      tokenActionTimer = null
+      setState({ tokenAction: undefined })
+    }, TOKEN_ACTION_NOTICE_TTL_MS)
   }
 
   let laserTimer: ReturnType<typeof setTimeout> | null = null
@@ -670,7 +712,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+        clearTokenAction()
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, tokenAction: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -737,6 +780,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'clue.peers':
       case 'clue.show.result':
         handleClueMessage(data)
+        return
+      case 'token.action.answer':
+      case 'token.action.rejected':
+        // Sem mapa na tela não há pedido esperando (a espera do lobby já o apagou).
+        if (state.status === 'playing') handleTokenActionMessage(data)
         return
       case 'room.text': {
         // Mesma regra do recado: só quem joga tem tela de cartão.
@@ -824,7 +872,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined })
+        clearTokenAction()
+        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, tokenAction: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -882,6 +931,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearDoorNotice()
     clearMoveNotice()
     clearTravelTimer()
+    clearTokenAction()
     const current = socket
     socket = null
     current?.close()
@@ -1030,6 +1080,24 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.shownClue !== undefined) setState({ shownClue: undefined })
     },
 
+    requestTokenAction(tokenId, action, text) {
+      if (state.status !== 'playing' || state.tokenAction?.phase === 'waiting') return false
+      // A própria ficha se arrasta; o cartão de ação é só da alheia (o host recusaria igual).
+      if ((state.ownTokens ?? []).includes(tokenId)) return false
+      const token = state.map?.tokens.find((t) => t.id === tokenId)
+      if (token === undefined) return false
+      const said = (text ?? '').trim()
+      if (said.length > TOKEN_ACTION_TEXT_MAX_LENGTH) return false
+      const reqId = `a${nextReqId++}`
+      const message: PlayerMessage = said === '' ? { type: 'token.action', reqId, tokenId, action } : { type: 'token.action', reqId, tokenId, action, text: said }
+      if (!send(message)) return false
+      clearTokenAction()
+      pendingActionReqId = reqId
+      // O nome que ELE viu no cartão: é com ele que o aviso fala, e o host nunca manda nome de volta.
+      setState({ tokenAction: { id: nextNoticeId++, phase: 'waiting', action, targetName: tokenCardName(token) } })
+      return true
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -1047,7 +1115,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, tokenAction: undefined })
       open()
     },
     close: detach,

@@ -14,8 +14,10 @@ import {
   type HostSignal,
   type HostWorld,
   type PlayerInfo,
+  type TokenActionRequest,
   type TravelRequest,
 } from './hostSession'
+import { distanceLabel, TOKEN_ACTION_LABELS } from '../lib/tokenActions'
 import type { LaserMessage } from './protocol'
 import { createPlayerScreens, type PlayerScreen } from './playerScreens'
 
@@ -238,6 +240,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const travelToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
+  /** Aviso de cada pedido de ação sobre ficha ainda na Caixa: `requestId` -> id do toast. */
+  const actionToasts = new Map<string, string>()
   /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
   const screens = createPlayerScreens()
   const screenWatchers = new Set<() => void>()
@@ -431,6 +435,44 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
   }
 
+  /** Mesma faxina de `pruneTravelToasts`, para os pedidos de ação sobre ficha. */
+  const pruneActionToasts = () => {
+    for (const [requestId, toastId] of actionToasts) {
+      if (session !== null && session.isTokenActionPending(requestId)) continue
+      actionToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
+  const answerAction = (requestId: string, accepted: boolean) => {
+    const toastId = actionToasts.get(requestId)
+    actionToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    void dispatch(session.answerTokenAction(requestId, accepted))
+  }
+
+  /**
+   * AGIR SOBRE UMA FICHA: o pedido entra na Caixa de Pedidos ("Pedidos"), e
+   * espera o mestre como o pedido de passagem — o jogador olha "Aguardando…".
+   * O × vale "Recusar". Sem "emLote": o "Deixar todos" da caixa é da passagem,
+   * e aceitar de uma vez "Empurrar", "Agarrar" e "Oferecer" não é uma decisão só.
+   */
+  const askAction = (request: TokenActionRequest) => {
+    const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
+    const said = request.text === undefined ? '' : ` — "${request.text}"`
+    const text = `${request.playerName} → ${request.targetName}${where}: ${TOKEN_ACTION_LABELS[request.action]} (${distanceLabel(request.distanceCells)})${said}`
+    const toastId = useToastStore.getState().push('instrucao', text, null, {
+      actions: [
+        { label: 'Aceitar', run: () => answerAction(request.requestId, true) },
+        { label: 'Recusar', run: () => answerAction(request.requestId, false) },
+      ],
+      onDismiss: () => answerAction(request.requestId, false),
+      grupo: 'Pedidos',
+    })
+    actionToasts.set(request.requestId, toastId)
+  }
+
   const answerTravel = (requestId: string, allow: boolean) => {
     const toastId = travelToasts.get(requestId)
     travelToasts.delete(requestId)
@@ -555,6 +597,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         void dispatch(session.denyTravel(result.travelRequest.requestId))
       } else askTravel(result.travelRequest)
     }
+    if (result.actionRequest !== undefined) askAction(result.actionRequest)
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
       deps.applyTokenEdit(result.applyTokenEdit)
@@ -571,6 +614,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     session.disconnect(clientId)
     forgetScreen(clientId)
     pruneTravelToasts()
+    pruneActionToasts()
     notifyPlayersIfChanged()
   }
 
@@ -633,6 +677,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Quem aguardava sem tela não recebe `room.closed` com mapa: some junto.
       if (screens.clear()) notifyScreens()
       pruneTravelToasts()
+      pruneActionToasts()
       currentRoom = null
       // O Rust derruba o túnel junto com a sala.
       resetTunnel()
@@ -721,6 +766,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session === null) return
       const result = session.kick(clientId)
       pruneTravelToasts()
+      pruneActionToasts()
       notifyPlayersIfChanged()
       notifyPinAudiencesIfChanged()
       await sendThenKick(result, clientId)

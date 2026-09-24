@@ -9,6 +9,8 @@ import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNoti
 import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
+import { PlayerTokenCard } from './PlayerTokenCard'
+import { tokenActionNoticeText } from './tokenCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
 import { PlayerClueCard } from './PlayerClues'
 import { coverBounds } from './playerCamera'
@@ -503,6 +505,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const [openPinId, setOpenPinId] = useState<string | null>(null)
   /** Pista do Caderno aberta no cartão (MINHAS PISTAS); `null` = fechado. */
   const [openClueId, setOpenClueId] = useState<string | null>(null)
+  /** Ficha ALHEIA aberta no cartão de ações; `null` = fechado. */
+  const [openTokenId, setOpenTokenId] = useState<string | null>(null)
   /** Último toque nos botões + e − (o `PlayerView` aplica o degrau) e o que eles ainda podem fazer. */
   const [zoomStep, setZoomStep] = useState<ZoomStepRequest>(NO_ZOOM_STEP)
   const [zoomLimits, setZoomLimits] = useState<ZoomLimits>({ canZoomIn: true, canZoomOut: true })
@@ -581,11 +585,23 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   // MINHAS PISTAS: abrir o cartão do pino é ler — o host guarda a pista no Caderno.
   const openPinCard = useCallback(
     (pinId: string) => {
+      setOpenTokenId(null)
       setOpenPinId(pinId)
       connection.readClue(pinId)
     },
     [connection],
   )
+  // A ficha pode sumir do recorte (andou para o escuro, o mestre a escondeu)
+  // ou virar do jogador com o cartão aberto: aí o cartão fecha sozinho.
+  const openToken =
+    openTokenId === null || ownTokens.includes(openTokenId) ? null : (map?.tokens ?? []).find((t) => t.id === openTokenId) ?? null
+  // Estável pelo mesmo motivo do cartão do pino: o Escape e o "tocar fora" religam quando `onClose` muda.
+  const closeTokenCard = useCallback(() => setOpenTokenId(null), [])
+  const openTokenCard = useCallback((tokenId: string) => {
+    // Um cartão por vez no mesmo lugar: a ficha toma o lugar do pino aberto.
+    setOpenPinId(null)
+    setOpenTokenId(tokenId)
+  }, [])
   const openClue = openClueId === null ? null : (state.clues ?? []).find((clue) => clue.id === openClueId) ?? null
   // Estável pelo mesmo motivo dos outros cartões: o Escape e o "tocar fora" religam quando `onClose` muda.
   const closeClue = useCallback(() => {
@@ -603,6 +619,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
     const actionNotice = latestActionNotice(state.doorNotice, state.moveNotice)
     // Cartão de pista na tela: o Escape é dele, e um toque não pode fechar também o recado.
     const clueCardOpen = openClue !== null || (state.shownClue !== undefined && openPin === null)
+    // Cartão do pino ou da ficha aberto: o Escape é dele, e não fecha junto os cartões de baixo.
+    const noCardOnTop = openPin === null && openToken === null
     return (
       <PlayerErrorBoundary onReconnect={() => connection.reconnect()}>
         <PlayerView
@@ -631,6 +649,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           playerLasers={state.playerLasers ?? NO_PLAYER_LASERS}
           onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
           onPinOpen={openPinCard}
+          onTokenOpen={openTokenCard}
           onRoomOpen={(regionId) => connection.openRoomText(regionId)}
           focusObstacles={mapObstacles}
           zoomStep={zoomStep}
@@ -696,6 +715,19 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             }}
           />
         )}
+        {/* AGIR SOBRE UMA FICHA: o cartão da ficha alheia. Enviado, ele sai: a
+            espera e a resposta ficam no aviso de baixo, e o mapa volta à vista. */}
+        {openToken && (
+          <PlayerTokenCard
+            key={openToken.id}
+            token={openToken}
+            onClose={closeTokenCard}
+            waiting={state.tokenAction?.phase === 'waiting'}
+            onSend={(action, text) => {
+              if (connection.requestTokenAction(openToken.id, action, text)) setOpenTokenId(null)
+            }}
+          />
+        )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".
             Some sozinha se sair do caderno (o `clues.book` da volta não a tem). */}
         {openClue && (
@@ -704,7 +736,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             clue={openClue}
             title={openClue.title}
             onClose={closeClue}
-            escapeCloses={openPin === null}
+            escapeCloses={noCardOnTop}
             share={{
               peers: state.cluePeers,
               result: state.clueShow,
@@ -720,13 +752,13 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             clue={state.shownClue.clue}
             title={`${state.shownClue.from} mostrou: ${state.shownClue.clue.title}`}
             onClose={closeShownClue}
-            escapeCloses={openPin === null}
+            escapeCloses={noCardOnTop}
             arrivedUnasked
           />
         )}
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
-          <PlayerNoteCard key={state.note.id} text={state.note.text} hint={NOTE_KEPT_HINT} onClose={closeNote} escapeCloses={openPin === null && !clueCardOpen} />
+          <PlayerNoteCard key={state.note.id} text={state.note.text} hint={NOTE_KEPT_HINT} onClose={closeNote} escapeCloses={noCardOnTop && !clueCardOpen} />
         )}
         {/* TEXTO DA SALA: o mesmo cartão, com o nome da Sala no alto. Um
             cartão de cada vez no mesmo lugar: com recado aberto, o texto da
@@ -737,12 +769,17 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             title={state.roomText.title || 'Ao entrar'}
             text={state.roomText.text}
             onClose={closeRoomText}
-            escapeCloses={openPin === null && !clueCardOpen}
+            escapeCloses={noCardOnTop && !clueCardOpen}
           />
         )}
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}
+          </p>
+        )}
+        {state.tokenAction && (
+          <p key={state.tokenAction.id} className="pp-notice pp-notice--action" role="status" aria-live="polite">
+            {tokenActionNoticeText(state.tokenAction)}
           </p>
         )}
         {actionNotice && (
