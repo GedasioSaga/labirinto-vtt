@@ -9,12 +9,28 @@ interface PlayerPinCardProps {
   /**
    * Pino de viagem: manda o pedido de passagem ao mestre (já confirmado aqui).
    * Ausente = o cartão não oferece passar, só lê. `exitId` é a saída escolhida
-   * numa encruzilhada; no pino de uma saída ele não vem.
+   * numa encruzilhada; no pino de uma saída ele não vem. `tokenIds` são as
+   * fichas marcadas em "Quem passa?"; só vem quando o cartão perguntou.
    */
-  onRequestTravel?: (exitId?: string) => void
+  onRequestTravel?: (exitId?: string, tokenIds?: string[]) => void
   /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
   travelWaiting?: boolean
+  /**
+   * ESCOLHER FICHAS NO PINO: as fichas DO jogador junto do pino
+   * (`lib/pinGroup.ts`), da mais perto para a mais longe. Com duas ou mais, a
+   * pergunta de passar traz "Quem passa?"; com uma ou nenhuma, o cartão é o de
+   * sempre e o host leva a mais perto.
+   */
+  travelers?: readonly PinTraveler[]
 }
+
+/** Uma ficha do jogador que pode passar pelo pino: o id que vai no pedido e o nome da caixa. */
+export interface PinTraveler {
+  id: string
+  name: string
+}
+
+const SEM_FICHAS: readonly PinTraveler[] = []
 
 /**
  * Cenário sem foto. Fica como `<img>` de verdade, e não como um `<div>` vazio,
@@ -69,7 +85,7 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
  * vendo onde está. O toque de fechar que cai no mapa para ali, antes do canvas:
  * fechar o cartão não arrasta o mapa nem abre outro pino.
  */
-export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false }: PlayerPinCardProps) {
+export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, travelers = SEM_FICHAS }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
@@ -83,6 +99,12 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const [ultimaSaida, setUltimaSaida] = useState<string | null>(null)
   /** Para onde o foco volta depois de abrir ou fechar a pergunta; `null` = não mexe. */
   const [focusTarget, setFocusTarget] = useState<'confirm' | 'ask' | null>(null)
+  /**
+   * "Quem passa?": as fichas DESMARCADAS. Guardar as de fora (e não as de
+   * dentro) deixa marcada, de início, toda ficha que chega perto do pino
+   * enquanto a pergunta está aberta — a lista acompanha o mapa.
+   */
+  const [deFora, setDeFora] = useState<ReadonlySet<string>>(() => new Set())
 
   useEffect(() => {
     // Quem chegou pelo teclado segue com o foco: abrir a pergunta o leva ao
@@ -140,8 +162,21 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const encruzilhada = escolhas.length > 1
   const perguntar = (saida: PinExitLabel | null) => {
     setConfirming({ saida })
+    setDeFora(new Set())
     if (saida !== null) setUltimaSaida(saida.id)
     setFocusTarget('confirm')
+  }
+  // Duas ou mais fichas junto do pino: o jogador escolhe quais passam.
+  const escolherFichas = travelers.length > 1
+  const escolhidas = travelers.filter((t) => !deFora.has(t.id)).map((t) => t.id)
+  const nenhumaEscolhida = escolherFichas && escolhidas.length === 0
+  const alternarFicha = (id: string) => {
+    setDeFora((atual) => {
+      const proximo = new Set(atual)
+      if (proximo.has(id)) proximo.delete(id)
+      else proximo.add(id)
+      return proximo
+    })
   }
   const pergunta =
     confirming === null || confirming.saida === null
@@ -215,15 +250,36 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
             <p id={`pp-travel-ask-${pin.id}`} className="pp-pincard__question">
               {pergunta}
             </p>
+            {escolherFichas && (
+              // Caixas nativas dentro do rótulo: tocar no nome, no quadrado ou
+              // Espaço com o foco nele alternam o mesmo estado.
+              <fieldset className="pp-pincard__who">
+                <legend className="pp-pincard__who-title">Quem passa?</legend>
+                {travelers.map((ficha) => (
+                  <label key={ficha.id} className="pp-pincard__who-item">
+                    <input type="checkbox" checked={!deFora.has(ficha.id)} onChange={() => alternarFicha(ficha.id)} />
+                    {ficha.name}
+                  </label>
+                ))}
+                {nenhumaEscolhida && (
+                  <p role="status" className="pp-pincard__who-empty">
+                    Escolha ao menos uma ficha.
+                  </p>
+                )}
+              </fieldset>
+            )}
             <div className="pp-pincard__choices">
               <button
                 ref={confirmRef}
                 type="button"
                 className="pp-pincard__travel"
+                disabled={nenhumaEscolhida}
                 onClick={() => {
                   const saida = confirming.saida
                   setConfirming(null)
-                  if (saida === null) onRequestTravel()
+                  // Sem escolha no cartão, o pedido sai como sempre: o host leva a mais perto.
+                  if (escolherFichas) onRequestTravel(saida === null ? undefined : saida.id, escolhidas)
+                  else if (saida === null) onRequestTravel()
                   else onRequestTravel(saida.id)
                 }}
               >

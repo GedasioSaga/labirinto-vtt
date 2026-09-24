@@ -216,6 +216,24 @@ function reportError(context: string, error: unknown): void {
   useToastStore.getState().push('error', `${context}: ${errorText(error)}`)
 }
 
+/** "Rufo", "Rufo e Enzo", "Rufo, Enzo e Tito". */
+function listNames(names: readonly string[]): string {
+  if (names.length <= 1) return names.join('')
+  return `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`
+}
+
+/**
+ * A linha do pedido na Caixa. Com fichas escolhidas, o mestre lê QUAIS vão
+ * ("Enzo quer levar Rufo e Enzo por…"); sem escolha, ou quando a única
+ * escolhida tem o nome do jogador, a frase de sempre.
+ */
+function travelRequestText(request: TravelRequest): string {
+  const where = `${request.pinLabel} → ${request.toSceneName}`
+  const names = request.tokenNames
+  if (names === undefined || (names.length === 1 && names[0] === request.playerName)) return `${request.playerName} quer passar por ${where}`
+  return `${request.playerName} quer levar ${listNames(names)} por ${where}`
+}
+
 export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let session: HostSession | null = null
   let currentRoom: RoomInfo | null = null
@@ -460,6 +478,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const completeTransfer = (result: HostResult, transfer: AppliedTransfer) => {
     const moved = deps.applyTransfer?.(transfer) ?? false
+    // ESCOLHER FICHAS NO PINO: as companheiras vão depois da primeira, cada
+    // uma para a casa vizinha que a sessão escolheu. Uma que a store não
+    // mover (sumiu no meio) fica onde estava; a passagem da primeira vale.
+    if (moved) {
+      for (const companion of transfer.companions ?? []) deps.applyTransfer?.({ ...transfer, ...companion, companions: undefined })
+    }
     if (!moved) {
       // O "Você chegou" não pode sair: a ficha não saiu do lugar.
       void dispatch({ outbound: result.outbound.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })) })
@@ -503,7 +527,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * "Deixar ir" (`emLote`) de cada um — a mesma revalidação, pedido a pedido.
    */
   const askTravel = (request: TravelRequest) => {
-    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`, null, {
+    const toastId = useToastStore.getState().push('instrucao', travelRequestText(request), null, {
       actions: [
         { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
         { label: 'Não', run: () => answerTravel(request.requestId, false) },

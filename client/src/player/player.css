@@ -1058,6 +1058,53 @@
   gap: 8px;
 }
 
+/* ESCOLHER FICHAS NO PINO: "Quem passa?", uma caixa por ficha, empilhadas.
+   Sem moldura própria: a pergunta já está dentro da linha fina do confirmar. */
+.pp-pincard__who {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.pp-pincard__who-title {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
+/* Linha inteira tocável (nome e quadrado), com altura de dedo. */
+.pp-pincard__who-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.pp-pincard__who-item input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--lb-color-brass, #e0a44a);
+  cursor: pointer;
+}
+
+.pp-pincard__who-item input:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+.pp-pincard__who-empty {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
 /* ENCRUZILHADA: uma saída por botão, empilhadas, cada uma com o rótulo que o
    mestre escreveu. Mesma pílula do pedido simples; a lista só tira o marcador. */
 .pp-pincard__exits {

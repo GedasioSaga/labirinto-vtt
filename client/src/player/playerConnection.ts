@@ -202,8 +202,10 @@ export interface PlayerConnection {
    * não está jogando, se já há um pedido esperando ou se o socket não está aberto.
    * `exitId` é a saída escolhida numa encruzilhada (um id de `Pin.escolhas`);
    * ausente, o pedido sai sem ele e vale a saída principal, como sempre.
+   * `tokenIds` são as fichas escolhidas no "Quem passa?"; ausente, vai a mais
+   * perto do pino (o host decide). Lista vazia não é pedido: `false`.
    */
-  requestTravel(pinId: string, exitId?: string): boolean
+  requestTravel(pinId: string, exitId?: string, tokenIds?: readonly string[]): boolean
   /**
    * "Desistir": retira o pedido que espera o mestre. O aviso fica em
    * "desistindo" até o host confirmar (`pin.travel.cancelled`). `false` sem
@@ -1021,13 +1023,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return send({ type: 'door.toggle', wallId })
     },
 
-    requestTravel(pinId, exitId) {
+    requestTravel(pinId, exitId, tokenIds) {
       if (state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
+      if (tokenIds !== undefined && tokenIds.length === 0) return false
       const pin = state.map?.pins.find((p) => p.id === pinId)
       const direct = pin !== undefined && passageOf(pin) === 'livre'
-      // Sem saída escolhida, a mensagem sai idêntica à de antes: o mestre
-      // antigo, que não conhece `exitId`, continua entendendo o pedido.
-      const pedido: PinTravelRequestMessage = exitId === undefined ? { type: 'pin.travel.request', pinId } : { type: 'pin.travel.request', pinId, exitId }
+      // Sem saída nem fichas escolhidas, a mensagem sai idêntica à de antes: o
+      // mestre antigo, que não conhece `exitId`, continua entendendo o pedido.
+      const pedido: PinTravelRequestMessage = { type: 'pin.travel.request', pinId }
+      if (exitId !== undefined) pedido.exitId = exitId
+      if (tokenIds !== undefined) pedido.tokenIds = [...tokenIds]
       if (!direct) {
         if (!send(pedido)) return false
         clearTravelTimer()

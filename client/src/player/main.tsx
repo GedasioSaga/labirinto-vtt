@@ -8,7 +8,8 @@ import { createPlayerConnection, hasUnreadNotes, RESUME_STORAGE_KEY } from './pl
 import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNotice } from './playerConnection'
 import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
-import { PlayerPinCard } from './PlayerPinCard'
+import { PlayerPinCard, type PinTraveler } from './PlayerPinCard'
+import { travelCandidates } from '../lib/pinGroup'
 import { PlayerNoteCard } from './PlayerNoteCard'
 import { formatNoteTime } from './PlayerNotebook'
 import { PlayerClueCard } from './PlayerClues'
@@ -574,6 +575,15 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   }
 
   const openPin = openPinId === null ? null : (map?.pins ?? []).find((p) => p.id === openPinId) ?? null
+  // ESCOLHER FICHAS NO PINO: as fichas DELE junto do pino aberto, pela mesma
+  // conta que o host usa para aceitar a lista. Só do recorte que chegou: a
+  // ficha que o mestre escondeu nem está no mapa do jogador.
+  const openPinTravelers = useMemo((): PinTraveler[] => {
+    if (map === undefined || openPin === null || openPin.kind !== 'viagem') return []
+    const owned = new Set(ownTokens)
+    const mine = map.tokens.filter((t) => owned.has(t.id))
+    return travelCandidates(mine, openPin, map.grid).map((t) => ({ id: t.id, name: t.name }))
+  }, [map, openPin, ownTokens])
   // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
   // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
   const closePin = useCallback(() => setOpenPinId(null), [])
@@ -698,10 +708,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             pin={openPin}
             onClose={closePin}
             travelWaiting={state.travel?.phase === 'waiting'}
-            onRequestTravel={(exitId) => {
+            travelers={openPinTravelers}
+            onRequestTravel={(exitId, tokenIds) => {
               // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
               // e o mapa volta inteiro à vista enquanto o mestre decide.
-              if (connection.requestTravel(openPin.id, exitId)) setOpenPinId(null)
+              if (connection.requestTravel(openPin.id, exitId, tokenIds)) setOpenPinId(null)
             }}
           />
         )}
