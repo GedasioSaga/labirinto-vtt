@@ -72,6 +72,28 @@ describe('nome da ficha no mapa do jogador: tinta e contorno', () => {
     expect(distanciaDaRampa(TINTA, CONTORNO, rgbDeHex(hex))).toBeGreaterThan(TOLERANCIA_DA_REGUA + FOLGA_DE_ARREDONDAMENTO)
   })
 
+  // A régua do laser do jogador (e2e/task-jornada-laser-do-jogador.spec.ts)
+  // conta "chão de cena" por matiz: verde-água quando G e B passam de 1,8·R+8
+  // e ficam a menos de 30 um do outro; magenta, o mesmo com R e B sobre G. O
+  // contorno 0x000f28 (0,15,40) era verde-água puro: o nome 'Machado' punha
+  // 158 pixels "do Salão" na tela de quem estava na Cripta.
+  const verdeAgua = ([r, g, b]: Rgb) => g > r * 1.8 + 8 && b > r * 1.8 + 8 && Math.abs(g - b) < 30
+  const magenta = ([r, g, b]: Rgb) => r > g * 1.8 + 8 && b > g * 1.8 + 8 && Math.abs(r - b) < 30
+
+  it('controle: o contorno antigo 0x000f28 lia como chão verde-água (a regra morde)', () => {
+    expect(verdeAgua(rgbDeNumero(0x000f28))).toBe(true)
+  })
+
+  it('nenhum ponto da rampa tinta↔contorno lê como chão de cena (verde-água ou magenta)', () => {
+    const lidos: string[] = []
+    for (let passo = 0; passo <= PASSOS_DA_RAMPA; passo += 1) {
+      const t = passo / PASSOS_DA_RAMPA
+      const ponto = [0, 1, 2].map((c) => Math.round(CONTORNO[c] + t * (TINTA[c] - CONTORNO[c]))) as unknown as Rgb
+      if (verdeAgua(ponto) || magenta(ponto)) lidos.push(ponto.join(','))
+    }
+    expect(lidos).toEqual([])
+  })
+
   it('o contorno continua quase preto: contraste com a tinta acima de 18:1 (preto puro dá 21:1)', () => {
     expect(contraste(TINTA, CONTORNO)).toBeGreaterThan(18)
   })

@@ -131,9 +131,15 @@ export const TOKEN_NAME_FILL_COLOR = 0xffffff
  * do zoom no celular (teste 2), a 2,6x de zoom os nomes 'Barril', 'Ana' e
  * 'Caixa' davam 16 pixels "da cor do sinal" sem ninguém ter sinalizado.
  *
- * Quase preto no matiz do azul do dono (`OWN_TOKEN_COLOR` #3b82f6, 217°): a
- * rampa até o branco fica a mais de 26 por canal de toda cor de sinal, e o
- * contraste com a tinta segue em 19:1 (preto puro dá 21:1). Na tela lê como
- * preto; a regra está em `constants.nomeDaFicha.test.ts`.
+ * Quase preto puxado para o azul, com R e G em zero: a rampa até o branco fica
+ * a mais de 25 por canal de toda cor de sinal, e o contraste com a tinta segue
+ * em 20:1 (preto puro dá 21:1). Na tela lê como preto.
+ *
+ * POR QUE G É ZERO. O verde de 0x000f28 (0,15,40) fazia o contorno ler como
+ * chão verde-água, a cor que a régua do laser do jogador conta como "chão do
+ * Salão": o nome da ficha de quem estava em OUTRA cena virava chão do Salão.
+ * Com G = R, nenhum ponto da rampa tem G acima de R, e nenhuma régua de chão
+ * de cena por matiz (verde-água, magenta) o lê. As regras estão em
+ * `constants.nomeDaFicha.test.ts`.
  */
-export const TOKEN_NAME_OUTLINE_COLOR = 0x000f28
+export const TOKEN_NAME_OUTLINE_COLOR = 0x000030
