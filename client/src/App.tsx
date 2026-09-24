@@ -20,7 +20,7 @@ import { useFollowStore } from './stores/followStore'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
-import type { PinClueState, PlayerInfo } from './net/hostSession'
+import type { PinClueState, PlayerInfo, SecretCheckState } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
 import { hostCluesProps } from './components/CluesSection'
 import { LivePlayerMirror } from './components/PlayerMirror'
@@ -427,6 +427,8 @@ function App() {
   const [pinClues, setPinClues] = useState<Record<string, PinClueState>>({})
   // "Revelar para…" de ficha/escada/zona secreta. Mesma regra: o dono é a sessão do host.
   const [secretReveals, setSecretReveals] = useState<Record<string, string[]>>({})
+  // Testes secretos e as respostas: só o mestre vê. O dono é a sessão do host.
+  const [secretChecks, setSecretChecks] = useState<SecretCheckState[]>([])
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
   const hostBridgeRef = useRef<HostBridge | null>(null)
@@ -489,6 +491,7 @@ function App() {
         onPinAudiencesChange: setPinAudiences,
         onPinCluesChange: setPinClues,
         onSecretRevealsChange: setSecretReveals,
+        onSecretChecksChange: setSecretChecks,
         onTunnelChange: setTunnel,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
         // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
@@ -611,6 +614,12 @@ function App() {
               goToPoint: (sceneId, point) => useAdventureStore.getState().goToPoint(sceneId, point),
               setPinAudience: (pinId, playerIds) => hostBridgeRef.current?.setPinAudience(pinId, playerIds),
             })}
+            secretCheck={{
+              players: roomPlayers.map((player) => ({ playerId: player.playerId, name: player.name, playing: player.status === 'playing' })),
+              checks: secretChecks,
+              onAsk: (label, playerIds) => hostBridgeRef.current?.secretCheck(label, playerIds) ?? null,
+              onClose: (checkId) => hostBridgeRef.current?.closeSecretCheck(checkId),
+            }}
             tunnel={tunnel}
             onStart={() => void handleStartRoom()}
             onStop={() => void handleStopRoom()}

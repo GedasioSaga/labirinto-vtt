@@ -936,6 +936,11 @@
   bottom: 68px;
 }
 
+/* "Resultado enviado ao mestre": na altura do cartão do teste secreto que acabou de fechar. */
+.pp-notice--secret {
+  bottom: 168px;
+}
+
 /* "Espiar pela porta": pílula acima dos dois avisos, só com a ficha encostada
    numa porta fechada. Alvo de toque de 44 px; foco no latão, como o resto. */
 .pp-peek {
@@ -1080,6 +1085,58 @@
 .pp-note__close:focus-visible {
   outline: 2px solid var(--lb-color-brass, #e0a44a);
   outline-offset: 2px;
+}
+
+/*
+ * Teste secreto: o mesmo cartão do recado, mas embaixo (acima do "Espiar"),
+ * para os dois caberem na tela ao mesmo tempo sem um tapar o outro.
+ */
+.pp-note--secret {
+  top: auto;
+  bottom: 168px;
+}
+
+.pp-secret__form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pp-secret__label {
+  font-size: 14px;
+}
+
+.pp-secret__input {
+  width: 6em;
+  min-height: 36px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 16px;
+  color: var(--lb-color-parchment, #eceae4);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 6px;
+}
+
+.pp-secret__input:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 1px;
+}
+
+.pp-secret__hint {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.pp-secret__input[aria-invalid='true'] {
+  border-color: var(--lb-color-ember, #e2645a);
+}
+
+.pp-secret__error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--lb-color-ember, #e2645a);
 }
 
 /*

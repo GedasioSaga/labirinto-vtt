@@ -10,6 +10,7 @@ import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { OpenPinCard } from './OpenPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
+import { PlayerSecretCheckCard, SECRET_CHECK_NOTICE_TEXT } from './PlayerSecretCheckCard'
 import { PlayerNoiseCue } from './PlayerNoiseCue'
 import { PeekDoorButton } from './PeekDoorButton'
 import { escapeDisarmsMeasure } from './playerMeasure'
@@ -605,6 +606,16 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
           <PlayerNoteCard key={state.note.id} text={state.note.text} onClose={closeNote} escapeCloses={openPin === null} />
+        )}
+        {state.secretCheck && (
+          // `key` no id: pedido novo com outro aberto começa com o campo vazio.
+          <PlayerSecretCheckCard key={state.secretCheck.id} label={state.secretCheck.label} onAnswer={(result) => connection.answerSecretCheck(result)} />
+        )}
+        {state.secretCheckNotice && !state.secretCheck && (
+          // No lugar do cartão que acabou de fechar; um pedido novo toma o lugar do aviso.
+          <p key={state.secretCheckNotice.id} className="pp-notice pp-notice--secret" role="status" aria-live="polite">
+            {SECRET_CHECK_NOTICE_TEXT[state.secretCheckNotice.kind]}
+          </p>
         )}
         {state.noise && (
           // `key` no id: ruído novo remonta o aviso, e a entrada e o prazo da saída recomeçam.

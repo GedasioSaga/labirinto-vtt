@@ -20,11 +20,12 @@ import {
   type PinReadMessage,
   type PinTravelRejection,
   type PinTravelRequestMessage,
+  type SecretCheckAnswerMessage,
   type SignalMessage,
   type TokenEditMessage,
   type TokenMoveMessage,
 } from './protocol'
-import { clampNoteText } from './protocol'
+import { clampNoteText, clampSecretCheckLabel } from './protocol'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -207,7 +208,37 @@ export interface HostResult {
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
    */
   applyTransfer?: AppliedTransfer
+  /** `secretCheck` criou o teste: é o id dele (o mesmo que foi aos jogadores). */
+  secretCheckId?: string
+  /** Um jogador respondeu ao teste secreto: o integrador mostra ao MESTRE. Nada disto vai a jogador. */
+  secretCheckAnswer?: SecretCheckAnswer
 }
+
+/**
+ * Um TESTE SECRETO como o mestre o vê: o nome, quem foi pedido (ids, na
+ * ordem da sala) e o que cada um respondeu. `open` = o mestre ainda não
+ * encerrou. Nada disto sai inteiro para jogador: cada escolhido recebe só o
+ * id e o nome.
+ */
+export interface SecretCheckState {
+  id: string
+  label: string
+  asked: string[]
+  answers: Record<string, number>
+  open: boolean
+}
+
+/** A resposta que acabou de chegar, para o aviso do mestre. */
+export interface SecretCheckAnswer {
+  checkId: string
+  playerId: string
+  playerName: string
+  label: string
+  result: number
+}
+
+/** Quantos testes secretos o mestre guarda na lista; passou, sai o mais antigo. */
+export const MAX_SECRET_CHECKS = 20
 
 export interface PlayerInfo {
   clientId: string | null
@@ -331,6 +362,19 @@ export interface HostSession {
    * quem entra depois não ouve. `outbound.length` é quantos ouviram.
    */
   noise(x: number, y: number, rangeCells: number, source: HostMapSource): HostResult
+  /**
+   * TESTE SECRETO: `secret.check` (só id e nome do teste, aparado e cortado
+   * no teto) para os escolhidos que estão na sala e jogando, estejam em que
+   * cena estiverem. Quem não foi escolhido não recebe nada. Escolhido que
+   * caiu recebe o pedido ao voltar, enquanto não responder e o mestre não
+   * encerrar. Nome vazio ou ninguém válido: nada, e nenhum teste é criado.
+   * `secretCheckId` no resultado é o id do teste criado.
+   */
+  secretCheck(label: string, playerIds: readonly string[]): HostResult
+  /** Encerra o teste: `secret.check.closed` a quem foi pedido, está conectado e não respondeu. Resposta depois disso não conta. */
+  closeSecretCheck(checkId: string): HostResult
+  /** Os testes secretos, do mais antigo ao mais novo, para o painel do MESTRE. */
+  secretChecks(): SecretCheckState[]
   /**
    * "Deixar ir": revalida o pedido contra o mundo de AGORA (o token pode ter
    * andado, o pino sumido) e devolve `applyTransfer` + `scene.changed` ao
@@ -542,6 +586,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const pinReceived = new Map<string, Set<string>>()
   // Por pinId: quem abriu o cartão. Subconjunto de `pinReceived`.
   const pinRead = new Map<string, Set<string>>()
+  // Por id de teste secreto, na ordem em que o mestre pediu (a do Map). Até
+  // `MAX_SECRET_CHECKS`: o mais antigo sai. O kick tira o jogador.
+  const secretChecks = new Map<string, { label: string; asked: Set<string>; answers: Map<string, number>; open: boolean }>()
   let rev = 0
 
   /** Raio em px do jogador para cena SEM "Visão nesta cena": o do mestre ou o global (o de sempre). */
@@ -764,7 +811,35 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
     const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken, name: record.name }
     const next: HostMessage = statusOf(record.playerId) === 'playing' ? viewFor(record.playerId, world) : { type: 'lobby.waiting' }
-    return { outbound: [{ clientId, msg: welcome }, { clientId, msg: next }] }
+    const outbound: Outbound[] = [{ clientId, msg: welcome }, { clientId, msg: next }]
+    // Voltou com mapa na tela: o teste secreto que ainda espera a resposta
+    // DELE chega de novo (a aba recarregada perdeu o cartão). Só depois do
+    // mapa — fora do jogo o cartão não tem onde aparecer.
+    if (next.type === 'snapshot') {
+      for (const [id, check] of secretChecks) {
+        if (check.open && check.asked.has(record.playerId) && !check.answers.has(record.playerId)) {
+          outbound.push({ clientId, msg: { type: 'secret.check', id, label: check.label } })
+        }
+      }
+    }
+    return { outbound }
+  }
+
+  /**
+   * RESPOSTA AO TESTE SECRETO: só conta de quem foi pedido, com o teste
+   * aberto e na primeira vez. Id inventado, pedido de outro, repetida ou
+   * depois de encerrar morrem em silêncio — responder "recusado" só ensinaria
+   * que o teste existe. Nada volta a jogador nenhum: o resultado é do mestre.
+   */
+  function handleSecretCheckAnswer(clientId: string, msg: SecretCheckAnswerMessage): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const check = secretChecks.get(msg.id)
+    const record = players.get(playerId)
+    if (check === undefined || record === undefined || !check.open) return { outbound: [] }
+    if (!check.asked.has(playerId) || check.answers.has(playerId)) return { outbound: [] }
+    check.answers.set(playerId, msg.result)
+    return { outbound: [], secretCheckAnswer: { checkId: msg.id, playerId, playerName: record.name, label: check.label, result: msg.result } }
   }
 
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
@@ -1124,6 +1199,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleTravelRequest(clientId, msg, world)
         case 'pin.read':
           return handlePinRead(clientId, msg)
+        case 'secret.check.answer':
+          return handleSecretCheckAnswer(clientId, msg)
       }
     },
 
@@ -1255,6 +1332,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       for (const [itemId, chosen] of secretReveals) {
         chosen.delete(playerId)
         if (chosen.size === 0) secretReveals.delete(itemId)
+      }
+      for (const check of secretChecks.values()) {
+        check.asked.delete(playerId)
+        check.answers.delete(playerId)
       }
       dropPlanGrants(playerId, null)
       return reply(clientId, { type: 'kicked' })
@@ -1442,6 +1523,51 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         outbound.push({ clientId, msg: { type: 'noise', id, dir } })
       }
       return { outbound }
+    },
+
+    secretCheck(label, playerIds) {
+      const clamped = clampSecretCheckLabel(label)
+      if (clamped.length === 0) return { outbound: [] }
+      // Só quem está na sala e joga: quem aguarda não tem mapa onde o cartão apareça.
+      const asked = new Set(playerIds.filter((playerId) => players.has(playerId) && statusOf(playerId) === 'playing'))
+      if (asked.size === 0) return { outbound: [] }
+      const id = randomId()
+      secretChecks.set(id, { label: clamped, asked, answers: new Map(), open: true })
+      for (const oldest of secretChecks.keys()) {
+        if (secretChecks.size <= MAX_SECRET_CHECKS) break
+        secretChecks.delete(oldest)
+      }
+      const outbound: Outbound[] = []
+      // Um a um, pela lista do próprio teste: cada escolhido recebe só o id e
+      // o nome — nunca quem mais foi escolhido. Quem caiu recebe ao voltar.
+      for (const playerId of inRoomOrder(asked)) {
+        const clientId = players.get(playerId)?.clientId ?? null
+        if (clientId !== null) outbound.push({ clientId, msg: { type: 'secret.check', id, label: clamped } })
+      }
+      return { outbound, secretCheckId: id }
+    },
+
+    closeSecretCheck(checkId) {
+      const check = secretChecks.get(checkId)
+      if (check === undefined || !check.open) return { outbound: [] }
+      check.open = false
+      const outbound: Outbound[] = []
+      for (const playerId of inRoomOrder(check.asked)) {
+        if (check.answers.has(playerId)) continue
+        const clientId = players.get(playerId)?.clientId ?? null
+        if (clientId !== null) outbound.push({ clientId, msg: { type: 'secret.check.closed', id: checkId } })
+      }
+      return { outbound }
+    },
+
+    secretChecks() {
+      return [...secretChecks].map(([id, check]) => ({
+        id,
+        label: check.label,
+        asked: inRoomOrder(check.asked),
+        answers: Object.fromEntries(check.answers),
+        open: check.open,
+      }))
     },
 
     listPlayers(source) {

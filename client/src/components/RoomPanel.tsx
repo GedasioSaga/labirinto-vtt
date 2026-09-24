@@ -4,6 +4,7 @@ import { VISION_FACTOR_MAX, VISION_FACTOR_MIN, VISION_FACTOR_STEP, formatVisionF
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
 import { CluesSection, type CluesSectionProps } from './CluesSection'
+import { SecretCheckSection, type SecretCheckSectionProps } from './SecretCheckSection'
 import { NOISE_RANGE_OPTIONS } from '../lib/noise'
 
 export interface RoomPanelToken {
@@ -29,6 +30,8 @@ export interface RoomPanelProps {
    * de tipo, e não um painel que some da tela em silêncio.
    */
   clues: CluesSectionProps
+  /** Seção "Teste secreto" (pedir a escolhidos e ler as respostas). Ausente = sem a seção. */
+  secretCheck?: SecretCheckSectionProps
   tunnel: TunnelState
   onStart(): void
   onStop(): void
@@ -251,6 +254,7 @@ export function RoomPanel({
   knownTokens,
   party,
   clues,
+  secretCheck,
   tunnel,
   onStart,
   onStop,
@@ -308,6 +312,8 @@ export function RoomPanel({
           {party !== undefined && party.members.length > 0 && <PartySection {...party} />}
           {/* Pistas logo depois do Grupo: as bolinhas são as mesmas pessoas, na mesma ordem e cor. */}
           {players.length > 0 && <CluesSection {...clues} />}
+          {/* O teste secreto é de cena, como as pistas: fica perto do Grupo, não no fim da aba. */}
+          {players.length > 0 && secretCheck !== undefined && <SecretCheckSection {...secretCheck} />}
 
           {onToggleLaser !== undefined && (
             <div className="lb-field">
