@@ -1558,7 +1558,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'presoA'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'presoA' | 'portaLigada'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1587,6 +1587,8 @@ export function updatePin(
     passageOf(next) === passageOf(pin) &&
     // Preso à ficha: soltar um pino que nunca foi preso não é mudança.
     next.presoA === pin.presoA &&
+    // Alavanca: desligar uma alavanca que nunca foi ligada não é mudança.
+    next.portaLigada === pin.portaLigada &&
     sameItem
   ) {
     return map

@@ -20,6 +20,7 @@ import type { SignalMark } from '../lib/signals'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
 import { itemNoticeText } from './itemNotice'
+import { leverNoticeText } from './leverNotice'
 import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
@@ -668,7 +669,16 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
               // Mesma regra do pedido de passagem: enviado, o cartão sai e a espera fica no aviso.
               if (connection.takePin(openPin.id)) setOpenPinId(null)
             }}
+            onPullLever={() => {
+              // Puxou, o cartão sai: o mapa volta inteiro à vista para o jogador ver a porta mexer.
+              if (connection.pullLever(openPin.id)) setOpenPinId(null)
+            }}
           />
+        )}
+        {state.lever && (
+          <p key={state.lever.id} className="pp-notice" role="status" aria-live="polite">
+            {leverNoticeText(state.lever.phase)}
+          </p>
         )}
         {state.item && (
           <p key={state.item.id} className="pp-notice" role="status" aria-live="polite">

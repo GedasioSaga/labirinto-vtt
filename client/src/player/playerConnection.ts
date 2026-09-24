@@ -8,6 +8,7 @@ import {
   ITEM_GIVE_REJECTIONS,
   NAME_MAX_LENGTH,
   NAME_MIN_LENGTH,
+  PIN_LEVER_REJECTIONS,
   PIN_TAKE_REJECTIONS,
   REQ_ID_MAX_LENGTH,
   isDoorRequestHow,
@@ -17,6 +18,7 @@ import {
   type DoorToggleRejection,
   type ItemGiveRejection,
   type JoinMessage,
+  type PinLeverRejection,
   type PinTakeRejection,
   type PinTravelRejection,
   type PinTravelRequestMessage,
@@ -106,6 +108,8 @@ export interface PlayerState {
   travel?: TravelNotice
   /** ITEM PEGÁVEL: "Pegar" ou "Dar a…" — enviado, a resposta do mestre ou a recusa do host. Some sozinho. */
   item?: ItemNotice
+  /** ALAVANCA: a resposta ao "Puxar a alavanca". Some sozinha; `id` novo repete o aviso. */
+  lever?: { id: number; phase: LeverPhase }
   /**
    * Recado do mestre para a cena do jogador. Fica até ele fechar
    * (`dismissNote`); um recado novo toma o lugar do aberto. É texto puro: a
@@ -162,6 +166,9 @@ export type ItemNotice =
   | { id: number; phase: 'denied' }
   | { id: number; phase: 'rejected'; reason: PinTakeRejection }
   | { id: number; phase: 'give_rejected'; reason: ItemGiveRejection }
+
+/** A resposta do host ao "Puxar a alavanca": puxou, ou por que nada se moveu. */
+export type LeverPhase = 'pulled' | PinLeverRejection
 
 /** Subconjunto do WebSocket do browser que este cliente usa. */
 export interface SocketLike {
@@ -249,6 +256,11 @@ export interface PlayerConnection {
    * `toTokenId`. `false` se o item não está com ele ou o socket não está aberto.
    */
   giveItem(itemId: string, toTokenId: string): boolean
+  /**
+   * ALAVANCA: puxa a alavanca `pinId`. `false` se não está jogando, o pino não
+   * está no mapa dele ou não é alavanca, ou o socket não está aberto.
+   */
+  pullLever(pinId: string): boolean
   /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). */
   dismissNote(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
@@ -266,6 +278,8 @@ export const MOVE_NOTICE_TTL_MS = DOOR_NOTICE_TTL_MS
 export const DOOR_REQUEST_NOTICE_TTL_MS = 4000
 /** Quanto tempo o aviso do item ("está com você", "O mestre disse não") fica na tela. */
 export const ITEM_NOTICE_TTL_MS = 4000
+/** Quanto tempo o aviso da alavanca ("Você puxou a alavanca") fica na tela: recado curto, como o da porta. */
+export const LEVER_NOTICE_TTL_MS = DOOR_NOTICE_TTL_MS
 /** Quanto tempo a recusa do mestre ("não deixou passar agora") fica na tela. Mais que a porta. */
 export const TRAVEL_NOTICE_TTL_MS = 4000
 /**
@@ -585,6 +599,23 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }, ITEM_NOTICE_TTL_MS)
   }
 
+  let leverTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearLeverTimer(): void {
+    if (leverTimer !== null) clearTimeout(leverTimer)
+    leverTimer = null
+  }
+
+  /** Aviso da alavanca: aparece e some sozinho. */
+  function showLeverNotice(phase: LeverPhase): void {
+    clearLeverTimer()
+    setState({ lever: { id: nextNoticeId++, phase } })
+    leverTimer = setTimeout(() => {
+      leverTimer = null
+      setState({ lever: undefined })
+    }, LEVER_NOTICE_TTL_MS)
+  }
+
   let laserTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearLaserTimer(): void {
@@ -739,9 +770,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTurnNotice()
         clearTravelTimer()
         clearItemTimer()
+        clearLeverTimer()
         clearHazardNotice()
         setState({
           item: undefined,
+          lever: undefined,
           // Sem cena, nenhum alarme de cena vale; o host manda de novo se ele voltar a uma.
           alarm: undefined,
           status: 'waiting',
@@ -894,6 +927,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         showItemNotice({ id: nextNoticeId++, phase: 'give_rejected', reason })
         return
       }
+      case 'pin.lever.answer': {
+        if (state.status !== 'playing' || data.answer !== 'pulled') return
+        showLeverNotice('pulled')
+        return
+      }
+      case 'pin.lever.rejected': {
+        if (state.status !== 'playing') return
+        const reason = PIN_LEVER_REJECTIONS.find((r) => r === data.reason)
+        if (reason === undefined) return
+        showLeverNotice(reason)
+        return
+      }
       case 'snapshot':
       case 'delta': {
         if (!isFiniteNumber(data.rev) || !isMapShape(data.map) || !isVision(data.vision)) return
@@ -955,8 +1000,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTurnNotice()
         clearTravelTimer()
         clearItemTimer()
+        clearLeverTimer()
         clearHazardNotice()
-        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, hazardNotice: undefined })
+        setState({ status: 'closed', doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, lever: undefined, hazardNotice: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -1014,6 +1060,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearTurnNotice()
     clearTravelTimer()
     clearItemTimer()
+    clearLeverTimer()
     clearHazardNotice()
     const current = socket
     socket = null
@@ -1117,6 +1164,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return send({ type: 'item.give', itemId, toTokenId })
     },
 
+    pullLever(pinId) {
+      if (state.status !== 'playing' || pinId.length === 0) return false
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      if (pin?.kind !== 'alavanca') return false
+      return send({ type: 'pin.lever', pinId })
+    },
+
     dismissNote() {
       if (state.note !== undefined) setState({ note: undefined })
     },
@@ -1136,7 +1190,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined, lever: undefined })
       open()
     },
     close: detach,

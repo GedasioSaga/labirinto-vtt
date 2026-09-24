@@ -6,6 +6,7 @@ import { readPinAttachment } from './pinAttach'
 import { readMovementRules } from './movementRules'
 import { readCarriedItems, readPinItem } from './items'
 import { readHazards } from './hazards'
+import { readPinLeverDoor } from './lever'
 import { readAreaTriggers } from './areaTriggers'
 import { readSceneFloor } from './buildingFloors'
 
@@ -221,6 +222,9 @@ function deserializeMapFields(json: string): MapData {
       // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
       // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).
       item: readPinItem(p.item),
+      // ALAVANCA: campo NOVO e OPCIONAL. Só texto não vazio vale; o resto
+      // volta AUSENTE (alavanca solta, que não move nada) — ver `readPinLeverDoor`.
+      portaLigada: readPinLeverDoor(p.portaLigada),
     })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
