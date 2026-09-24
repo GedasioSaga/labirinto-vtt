@@ -84,6 +84,15 @@ import {
 } from './playerZoom'
 import { drawFacingNib, facingLabelOffset, tokenFacing } from './facingMarker'
 import { createTokenTurns, stepTurns, syncTurn, type TokenTurns } from './tokenTurn'
+import { personalNoteAtScreen, type PersonalNote } from './personalNotes'
+import { createPersonalNotesRenderer } from './drawPersonalNotes'
+
+/** Pedido de "leve a câmera até este ponto" (Minhas notas). */
+export interface FocusPointRequest {
+  x: number
+  y: number
+  seq: number
+}
 
 interface PlayerViewProps {
   map: MapData
@@ -148,6 +157,18 @@ interface PlayerViewProps {
    * elas deixam livre, e nunca faz a ficha nascer debaixo delas.
    */
   focusObstacles?: () => Bounds[]
+  /**
+   * ANOTAÇÕES PESSOAIS desta cena (só deste aparelho): quadradinho com o
+   * texto, em tamanho fixo de tela. Toque longo em cima de uma chama
+   * `onNoteLongPress` (apagar) no lugar do sinal e do menu do ponto.
+   */
+  personalNotes?: readonly PersonalNote[]
+  onNoteLongPress?: (noteId: string) => void
+  /** Botão "Anotar" ligado: o próximo toque no mapa marca onde vai a nota, em vez de arrastar. */
+  noteArmed?: boolean
+  onNotePlace?: (x: number, y: number) => void
+  /** Ponto (px de mundo) a centralizar, como `focusTokenId`; `seq` novo = um pedido novo. */
+  focusPoint?: FocusPointRequest | null
   /** Degrau pedido pelos botões + e − (`PlayerZoomControls`): `seq` novo = um degrau, em volta do centro da tela. */
   zoomStep?: ZoomStepRequest
   /** Chegou ao zoom máximo ou mínimo, ou saiu dele: os botões mostram o que ainda dá para fazer. */
@@ -600,6 +621,7 @@ interface Scene {
 /** Referência estável para o padrão da prop: sem sinais, nada muda entre renders. */
 const NO_SIGNALS: readonly SignalMark[] = []
 const NO_DESTINATIONS: readonly DestinationMark[] = []
+const NO_PERSONAL_NOTES: readonly PersonalNote[] = []
 const NO_PLAYER_LASERS: readonly RemoteLaser[] = []
 const NO_OWN_LASER: LaserTrail = { points: [], on: false }
 /** Rótulo da ponta do próprio laser: o nome de quem aponta é o dos outros, o seu é "Você". */
@@ -807,6 +829,11 @@ export function PlayerView({
   onLaserEnd,
   playerLasers = NO_PLAYER_LASERS,
   focusObstacles,
+  personalNotes = NO_PERSONAL_NOTES,
+  onNoteLongPress,
+  noteArmed = false,
+  onNotePlace,
+  focusPoint = null,
   zoomStep = NO_ZOOM_STEP,
   onZoomLimitsChange,
 }: PlayerViewProps) {
@@ -839,6 +866,10 @@ export function PlayerView({
     onLaserEnd,
     playerLasers,
     focusObstacles,
+    personalNotes,
+    onNoteLongPress,
+    noteArmed,
+    onNotePlace,
     onZoomLimitsChange,
   }
   const latestRef = useRef(latest)
@@ -1232,9 +1263,9 @@ export function PlayerView({
     // Alt+clique ou modo Sinalizar sobre um token: deixa o evento subir para o palco sinalizar.
     // Modo Medir também: medir a partir da própria ficha é o caso mais comum, e ela não pode andar.
     // Modo Laser também: apontar a partir da própria ficha não pode arrastá-la.
-    // "Marcar destino" também: marcar onde a própria ficha está é marcar, não andar.
+    // "Marcar destino" também: marcar onde a própria ficha está é marcar, não andar. "Anotar", idem.
     const current = latestRef.current
-    if (event.altKey || current.signalArmed || current.measureArmed || current.laserArmed || current.destinationArmed) return
+    if (event.altKey || current.signalArmed || current.measureArmed || current.laserArmed || current.destinationArmed || current.noteArmed) return
     event.stopPropagation()
     // Outro gesto já em curso (o segundo dedo nem chega aqui: a captura do palco o fez pinça).
     if (scene.drag !== null) return
@@ -1349,7 +1380,10 @@ export function PlayerView({
       // Pulso da própria ficha logo acima do mapa: some sob a régua e os sinais, que são ação em curso.
       const pulseLayer = new Graphics()
       pulseLayer.eventMode = 'none'
-      app.stage.addChild(world, pulseLayer, measureLayer, signalsLayer, laserLayer)
+      // Anotações pessoais logo acima do mapa (e da névoa: a nota é de quem a pôs) e abaixo de régua e sinais.
+      const personalNotesLayer = new Container()
+      personalNotesLayer.eventMode = 'none'
+      app.stage.addChild(world, personalNotesLayer, pulseLayer, measureLayer, signalsLayer, laserLayer)
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
@@ -1476,6 +1510,20 @@ export function PlayerView({
         destinationsDrawn = drawn
       }
       app.ticker.add(tickDestinations)
+
+      // Anotações pessoais: paradas, mas presas à tela como as bandeirinhas, então acompanham a câmera.
+      const personalNotesRenderer = createPersonalNotesRenderer()
+      let personalNotesDrawn = 0
+      const tickPersonalNotes = () => {
+        const current = latestRef.current.personalNotes
+        if (current.length === 0 && personalNotesDrawn === 0) return
+        const viewport = { width: app.screen.width, height: app.screen.height }
+        const drawn = personalNotesRenderer.draw(personalNotesLayer, current, scene.camera, viewport)
+        // Para o e2e: quantas notas estão à vista de fato.
+        if (drawn !== personalNotesDrawn) el.dataset.personalNotesDrawn = String(drawn)
+        personalNotesDrawn = drawn
+      }
+      app.ticker.add(tickPersonalNotes)
 
       const laserRenderer = createLaserRenderer()
       let laserDrawn = 0
@@ -1644,6 +1692,13 @@ export function PlayerView({
           latestRef.current.onDestination?.(point.x, point.y)
           return
         }
+        if (latestRef.current.noteArmed) {
+          // Com "Anotar", o toque marca onde vai a nota: nem câmera, nem sinal, nem cartão de pino.
+          cancelLongPress()
+          const point = scene.world.toLocal({ x, y })
+          latestRef.current.onNotePlace?.(point.x, point.y)
+          return
+        }
         if (event.altKey || latestRef.current.signalArmed) {
           sendSignalAt(x, y)
           return
@@ -1659,6 +1714,12 @@ export function PlayerView({
           longPress = null
           // Virou sinal: o gesto não continua como arrasto de câmera.
           if (scene.drag?.kind === 'pan') scene.drag = null
+          // Segurou em cima da própria anotação: o gesto é dela (apagar), sem sinal e sem menu do ponto.
+          const note = personalNoteAtScreen(latestRef.current.personalNotes, { x, y }, scene.camera)
+          if (note !== null && latestRef.current.onNoteLongPress !== undefined) {
+            latestRef.current.onNoteLongPress(note)
+            return
+          }
           // Com o menu do ponto montado, o gesto é dele (sinal e menu); sem ele, o sinal.
           // A tela vai em px da janela: é onde o menu abre.
           const rect = app.canvas.getBoundingClientRect()
@@ -1688,7 +1749,7 @@ export function PlayerView({
         const drag = scene.drag
         if (!drag) {
           // Mouse parado sobre porta: cursor de mão (no celular não existe hover).
-          if (latestRef.current.measureArmed || latestRef.current.laserArmed || latestRef.current.destinationArmed) {
+          if (latestRef.current.measureArmed || latestRef.current.laserArmed || latestRef.current.destinationArmed || latestRef.current.noteArmed) {
             app.stage.cursor = 'crosshair'
             return
           }
@@ -1832,6 +1893,7 @@ export function PlayerView({
         app.ticker.remove(tickZoom)
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickDestinations)
+        app.ticker.remove(tickPersonalNotes)
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)
         app.ticker.remove(tickMeasure)
@@ -1900,6 +1962,17 @@ export function PlayerView({
     // Só um pedido novo (focusSeq) move a câmera; snapshot com o token andando não.
   }, [focusSeq])
 
+  const focusPointSeq = focusPoint?.seq ?? null
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (!scene || focusPoint === null) return
+    // "Minhas notas": a nota no meio do que o painel deixa livre, no zoom de agora — o mesmo enquadramento de "Minha ficha".
+    const viewport = { width: scene.app.screen.width, height: scene.app.screen.height }
+    const scale = scene.zoomAnimation?.to ?? scene.camera.scale
+    setCameraFromApp(scene, centeredCamera(scale, focusPoint, viewport, readObstacles()))
+    // Só um pedido novo (seq) move a câmera; re-render com o mesmo pedido não.
+  }, [focusPointSeq])
+
   useEffect(() => {
     // Só um toque novo nos botões (`seq`) dá um degrau; remontar com o mesmo pedido, não.
     if (zoomStep.seq === handledZoomSeqRef.current) return
@@ -1927,7 +2000,7 @@ export function PlayerView({
 
   return (
     <>
-      <div ref={containerRef} style={{ position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed || laserArmed || destinationArmed ? 'crosshair' : undefined }} />
+      <div ref={containerRef} style={{ position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed || laserArmed || destinationArmed || noteArmed ? 'crosshair' : undefined }} />
       {/* Rótulo da régua: escrito pelo gesto direto no DOM (syncMeasure), sem re-render do React por passo do dedo.
           `aria-live` educado: com o grude na grade o texto só muda a cada quadrado, não a cada pixel. */}
       <div ref={measureLabelRef} className="pp-measure-label" aria-live="polite" aria-atomic="true" hidden />
