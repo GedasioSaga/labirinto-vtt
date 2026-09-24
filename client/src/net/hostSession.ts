@@ -361,6 +361,18 @@ export interface PlayerInfo {
   lentTo?: string[]
   /** Nomes dos donos das fichas que ele joga emprestadas. Ausente = nenhuma. Só do mestre. */
   borrowedFrom?: string[]
+  /**
+   * Ids das fichas que ele joga emprestadas (estão em `tokenIds`, mas são do
+   * dono). "Guardar ficha" não as leva: tirá-las do mapa tiraria a ficha do
+   * dono. Ausente = nenhuma. Só do mestre.
+   */
+  borrowedTokenIds?: string[]
+}
+
+/** As fichas do próprio jogador: as dele no mapa, sem as que ele joga emprestadas. */
+export function ownTokenIdsOf(player: Pick<PlayerInfo, 'tokenIds' | 'borrowedTokenIds'>): string[] {
+  const borrowed = player.borrowedTokenIds ?? []
+  return player.tokenIds.filter((tokenId) => !borrowed.includes(tokenId))
 }
 
 /** O que foi feito do recado para um jogador: saiu agora, ficou guardado para a volta dele, ou nada (`null`). */
@@ -2424,6 +2436,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           if (lentTo.length > 0) info.lentTo = lentTo
           const borrowedFrom = namesOf([...loans.values()].filter((loan) => loan.borrowerId === p.playerId).map((loan) => loan.ownerId))
           if (borrowedFrom.length > 0) info.borrowedFrom = borrowedFrom
+          const borrowedTokenIds = info.tokenIds.filter((tokenId) => loans.get(tokenId)?.borrowerId === p.playerId)
+          if (borrowedTokenIds.length > 0) info.borrowedTokenIds = borrowedTokenIds
           if (withScenes && info.status === 'playing') {
             const scene = sceneFor(p.playerId, world)
             // Sem cena, o painel o mostra aguardando: é o que a tela dele diz, e

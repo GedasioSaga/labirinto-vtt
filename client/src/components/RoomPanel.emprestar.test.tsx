@@ -130,4 +130,25 @@ describe('RoomPanel: emprestar a ficha de quem saiu', () => {
     expect(listaEmprestar('p-ana')).toBeNull()
     expect(botao('Guardar ficha')).toBeUndefined()
   })
+
+  it('quem joga a emprestada caiu: "Guardar ficha" só se tem ficha dele; a emprestada não conta', () => {
+    const onStoreTokens = vi.fn()
+    const carlaFora = { ...CARLA, clientId: null, connected: false }
+    render([{ ...ANA_FORA, lentTo: ['Carla'] }, { ...carlaFora, tokenIds: ['f-escudo', 'f-lirio'], borrowedFrom: ['Ana'], borrowedTokenIds: ['f-lirio'] }], {
+      onLendTokens: vi.fn(),
+      onEndLoans: vi.fn(),
+      onStoreTokens,
+    })
+    const guardar = botao('Guardar ficha')
+    if (guardar === undefined) throw new Error('esperava "Guardar ficha" no card da Carla (o Escudo é dela)')
+    act(() => guardar.click())
+    expect(onStoreTokens).toHaveBeenCalledWith('p-carla')
+    // Só com a emprestada: nada dela a guardar.
+    render([{ ...ANA_FORA, lentTo: ['Carla'] }, { ...carlaFora, tokenIds: ['f-lirio'], borrowedFrom: ['Ana'], borrowedTokenIds: ['f-lirio'] }], {
+      onLendTokens: vi.fn(),
+      onEndLoans: vi.fn(),
+      onStoreTokens: vi.fn(),
+    })
+    expect(botao('Guardar ficha')).toBeUndefined()
+  })
 })

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type PlayerInfo } from '../net/hostSession'
+import { ownTokenIdsOf, VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type PlayerInfo } from '../net/hostSession'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
 import { TravelLogSection, type TravelLogSectionProps } from './TravelLogSection'
@@ -479,8 +479,9 @@ export function RoomPanel({
                 {clientId === null && onLendTokens !== undefined && onEndLoans !== undefined && (
                   <LoanControls player={player} players={players} onLendTokens={onLendTokens} onEndLoans={onEndLoans} />
                 )}
-                {/* Emprestada, a ficha está em jogo com outro: guardar a tiraria do mapa debaixo dele. */}
-                {clientId === null && onStoreTokens !== undefined && player.tokenIds.length > 0 && player.lentTo === undefined && (
+                {/* Emprestada, a ficha está em jogo com outro: guardar a tiraria do mapa debaixo dele.
+                    E a que ele joga emprestada é do dono: só conta a dele. */}
+                {clientId === null && onStoreTokens !== undefined && ownTokenIdsOf(player).length > 0 && player.lentTo === undefined && (
                   <button type="button" className="lb-btn lb-btn--ghost" onClick={() => onStoreTokens(player.playerId)}>
                     Guardar ficha
                   </button>

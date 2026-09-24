@@ -92,7 +92,7 @@ describe('hostSession: emprestar a ficha de quem saiu', () => {
     const anaInfo = lista.find((p) => p.playerId === m.ana.playerId)
     const carlaInfo = lista.find((p) => p.playerId === m.carla.playerId)
     expect(anaInfo).toMatchObject({ tokenIds: ['lirio'], lentTo: ['Carla'] })
-    expect(carlaInfo).toMatchObject({ borrowedFrom: ['Ana'] })
+    expect(carlaInfo).toMatchObject({ borrowedFrom: ['Ana'], borrowedTokenIds: ['lirio'] })
     // A mesa gravada guarda o Lírio no assento da Ana, não no da Carla.
     const assentos = m.s.savedSeats()
     expect(assentos.find((seat) => seat.name === 'Ana')?.tokenIds).toEqual(['lirio'])
@@ -125,6 +125,7 @@ describe('hostSession: emprestar a ficha de quem saiu', () => {
     const lista = m.s.listPlayers(m.mundo())
     expect(lista.find((p) => p.playerId === m.ana.playerId)?.lentTo).toBeUndefined()
     expect(lista.find((p) => p.playerId === m.carla.playerId)?.borrowedFrom).toBeUndefined()
+    expect(lista.find((p) => p.playerId === m.carla.playerId)?.borrowedTokenIds).toBeUndefined()
   })
 
   it('quem jogava só com a ficha emprestada volta à espera quando o dono volta', () => {

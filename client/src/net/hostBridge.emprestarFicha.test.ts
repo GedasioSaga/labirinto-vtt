@@ -48,13 +48,14 @@ async function mesa() {
   entra('c1', 'Ana')
   entra('c3', 'Carla')
   const resumeDaAna = /"resumeToken":"([^"]+)"/.exec(JSON.stringify(enviados('c1').find((msg) => msg.type === 'welcome') ?? {}))?.[1]
+  const resumeDaCarla = /"resumeToken":"([^"]+)"/.exec(JSON.stringify(enviados('c3').find((msg) => msg.type === 'welcome') ?? {}))?.[1]
   const ana = bridge.players().find((p) => p.name === 'Ana')
   const carla = bridge.players().find((p) => p.name === 'Carla')
-  if (ana === undefined || carla === undefined || resumeDaAna === undefined) throw new Error('Ana e Carla deveriam ter entrado')
+  if (ana === undefined || carla === undefined || resumeDaAna === undefined || resumeDaCarla === undefined) throw new Error('Ana e Carla deveriam ter entrado')
   bridge.assignToken(ana.playerId, 'f-lirio')
   bridge.assignToken(carla.playerId, 'f-escudo')
   useToastStore.setState({ toasts: [] })
-  return { bridge, emit, entra, ultimoMapa, ana, carla, resumeDaAna }
+  return { bridge, emit, entra, ultimoMapa, ana, carla, resumeDaAna, resumeDaCarla }
 }
 
 beforeEach(() => {
@@ -98,5 +99,52 @@ describe('hostBridge: emprestar a ficha de quem saiu', () => {
     expect(m.bridge.lendTokens(m.ana.playerId, m.carla.playerId)).toBe(false)
     expect(m.ultimoMapa('c3')).toBe(antes)
     expect(useToastStore.getState().toasts.map((t) => t.kind)).toEqual(['error'])
+  })
+
+  it('quem joga a emprestada cai e o mestre guarda a ficha dele: só a dele sai do mapa; a da Ana fica com a Ana', async () => {
+    const m = await mesa()
+    m.emit('net:peer', { clientId: 'c1', event: 'disconnected' })
+    expect(m.bridge.lendTokens(m.ana.playerId, m.carla.playerId)).toBe(true)
+    m.emit('net:peer', { clientId: 'c3', event: 'disconnected' })
+    expect(m.bridge.storeTokens(m.carla.playerId)).toBe(true)
+    // Só o Escudo, que é da Carla: o Lírio é da Ana e segue no mapa, emprestado.
+    expect(m.bridge.storedTokens().map(({ token }) => token.id)).toEqual(['f-escudo'])
+    const carlaCard = m.bridge.players().find((p) => p.playerId === m.carla.playerId)
+    expect(carlaCard?.storedTokenNames).toEqual(['Escudo'])
+    expect(carlaCard?.borrowedFrom).toEqual(['Ana'])
+    // A Ana volta: o Lírio é dela, e a Carla não o leva mais.
+    m.entra('c9', 'Ana', m.resumeDaAna)
+    expect(m.ultimoMapa('c9')?.ownTokens).toEqual(['f-lirio'])
+    // A Carla volta: recupera o Escudo guardado, e o Lírio continua com a Ana.
+    m.entra('c8', 'Carla', m.resumeDaCarla)
+    expect(m.ultimoMapa('c8')?.ownTokens).toEqual(['f-escudo'])
+    expect(m.bridge.players().find((p) => p.playerId === m.ana.playerId)?.tokenIds).toEqual(['f-lirio'])
+  })
+
+  it('guardada a da Carla, se ela volta antes da Ana: segue jogando a emprestada, e a Ana ainda é dona', async () => {
+    const m = await mesa()
+    m.emit('net:peer', { clientId: 'c1', event: 'disconnected' })
+    m.bridge.lendTokens(m.ana.playerId, m.carla.playerId)
+    m.emit('net:peer', { clientId: 'c3', event: 'disconnected' })
+    expect(m.bridge.storeTokens(m.carla.playerId)).toBe(true)
+    m.entra('c8', 'Carla', m.resumeDaCarla)
+    expect(m.ultimoMapa('c8')?.ownTokens).toEqual(['f-lirio', 'f-escudo'])
+    expect(m.bridge.players().find((p) => p.playerId === m.ana.playerId)?.lentTo).toEqual(['Carla'])
+    // A Ana volta depois: o Lírio sai da Carla e fica com ela.
+    m.entra('c9', 'Ana', m.resumeDaAna)
+    expect(m.ultimoMapa('c9')?.ownTokens).toEqual(['f-lirio'])
+    expect(m.ultimoMapa('c8')?.ownTokens).toEqual(['f-escudo'])
+  })
+
+  it('quem só joga a emprestada cai: não há ficha dele a guardar', async () => {
+    const m = await mesa()
+    m.bridge.unassignToken(m.carla.playerId, 'f-escudo')
+    m.emit('net:peer', { clientId: 'c1', event: 'disconnected' })
+    expect(m.bridge.lendTokens(m.ana.playerId, m.carla.playerId)).toBe(true)
+    m.emit('net:peer', { clientId: 'c3', event: 'disconnected' })
+    expect(m.bridge.storeTokens(m.carla.playerId)).toBe(false)
+    expect(m.bridge.storedTokens()).toEqual([])
+    expect(m.bridge.players().find((p) => p.playerId === m.ana.playerId)?.tokenIds).toEqual(['f-lirio'])
+    expect(m.bridge.players().find((p) => p.playerId === m.ana.playerId)?.lentTo).toEqual(['Carla'])
   })
 })

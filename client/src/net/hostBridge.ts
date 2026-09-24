@@ -18,6 +18,7 @@ import {
 } from '../lib/savedTable'
 import {
   createHostSession,
+  ownTokenIdsOf,
   singleSceneWorld,
   type AppliedTokenEdit,
   type DoorRequest,
@@ -1538,7 +1539,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session === null || deps.removeToken === undefined || deps.restoreToken === undefined) return false
       const player = session.listPlayers().find((p) => p.playerId === playerId)
       // Emprestada, a ficha está em jogo com outro: guardar a tiraria do mapa debaixo dele.
-      if (player === undefined || player.connected || player.tokenIds.length === 0 || player.lentTo !== undefined) return false
+      if (player === undefined || player.connected || player.lentTo !== undefined) return false
+      // A emprestada fica: é do dono, e guardá-la no nome de quem a joga a tiraria do dono para sempre.
+      const own = ownTokenIdsOf(player)
+      if (own.length === 0) return false
       const current = world()
       const stored = [...(storedTokens.get(playerId) ?? [])]
       for (const scene of [current.open, ...current.background]) {
@@ -1546,7 +1550,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         const where = scene === current.open ? undefined : scene.sceneId
         if (where === null) continue
         for (const token of scene.map.tokens) {
-          if (!player.tokenIds.includes(token.id)) continue
+          if (!own.includes(token.id)) continue
           stored.push({ token, sceneId: scene.sceneId })
           // Sem dono enquanto guardada: a ficha não está em mapa nenhum. Ele está fora: não há a quem avisar.
           session.unassignToken(playerId, token.id)
