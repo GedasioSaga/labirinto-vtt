@@ -18,6 +18,7 @@ import {
   type TravelRequest,
 } from './hostSession'
 import { distanceLabel, TOKEN_ACTION_LABELS, TOKEN_ACTION_REPLY_MAX_LENGTH } from '../lib/tokenActions'
+import { linhaDoPedidoVivo } from '../lib/pedidoVivo'
 import type { LaserMessage } from './protocol'
 import { createPlayerScreens, type PlayerScreen } from './playerScreens'
 
@@ -251,6 +252,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
+  /** O mesmo relógio da sessão (que ganha `deps.now` também): a idade do pedido é a diferença entre os dois. */
+  const clock = deps.now ?? Date.now
 
   const sendLaser = (message: LaserMessage) => {
     if (session === null) return
@@ -476,6 +479,17 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     actionToasts.set(request.requestId, toastId)
   }
 
+  /**
+   * "há 3 min · agora a 20 casas do pino", lido do mundo de AGORA a cada
+   * chamada (a tela relê sozinha). `''` quando o pedido já não espera: a
+   * linha não inventa idade para pergunta respondida. Não envia nada.
+   */
+  const travelDetail = (requestId: string): string => {
+    const status = session === null ? null : session.travelRequestStatus(requestId, world())
+    if (status === null) return ''
+    return linhaDoPedidoVivo(clock() - status.requestedAt, status.distanceCells)
+  }
+
   const answerTravel = (requestId: string, allow: boolean) => {
     const toastId = travelToasts.get(requestId)
     travelToasts.delete(requestId)
@@ -563,6 +577,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * "Não": a pergunta nunca some sem resposta. Grupo "Pedidos": com dois ou
    * mais esperando, viram uma caixa só, e o "Deixar todos" dela roda o
    * "Deixar ir" (`emLote`) de cada um — a mesma revalidação, pedido a pedido.
+   *
+   * Embaixo da frase, a linha viva "há 3 min · agora a 20 casas do pino"
+   * (`travelDetail`): o mestre vê quem espera há mais tempo e se a ficha
+   * ainda está no pino antes de deixar ir.
    */
   const askTravel = (request: TravelRequest) => {
     const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`, null, {
@@ -572,6 +590,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       ],
       onDismiss: () => answerTravel(request.requestId, false),
       grupo: 'Pedidos',
+      detalhe: () => travelDetail(request.requestId),
     })
     travelToasts.set(request.requestId, toastId)
   }

@@ -71,14 +71,23 @@ export interface ToastMessage {
   grupo?: string
   /** Campo de texto que acompanha a resposta. Ausente = só os botões. */
   resposta?: ToastReplyField
+  /**
+   * Linha pequena embaixo do texto que muda sozinha enquanto o aviso espera
+   * ("há 3 min · agora a 20 casas do pino"): a tela relê de tempos em tempos
+   * (`DETALHE_RELEITURA_MS` em `Toast.tsx`). `''` = nada a mostrar agora.
+   * Função, e não texto: a idade anda com o relógio, sem ninguém empurrar
+   * aviso novo.
+   */
+  detalhe?: () => string
 }
 
-/** Extras de `push`: botões, o que o × faz, o grupo e o campo de resposta. */
+/** Extras de `push`: botões, o que o × faz, o grupo, o campo de resposta e a linha viva. */
 export interface ToastExtras {
   actions?: ToastAction[]
   onDismiss?: () => void
   grupo?: string
   resposta?: ToastReplyField
+  detalhe?: () => string
 }
 
 interface ToastState {
@@ -135,6 +144,7 @@ export const useToastStore = create<ToastState>()((set, get) => ({
     if (extras.onDismiss !== undefined) toast.onDismiss = extras.onDismiss
     if (extras.grupo !== undefined) toast.grupo = extras.grupo
     if (extras.resposta !== undefined) toast.resposta = extras.resposta
+    if (extras.detalhe !== undefined) toast.detalhe = extras.detalhe
     set((state) => ({ toasts: [...state.toasts, toast] }))
     if (durationMs !== null) {
       timers.set(

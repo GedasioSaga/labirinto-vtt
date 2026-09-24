@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { ToastMessage } from '../stores/toastStore'
 import { agruparAvisos, deixarTodos, tituloDaCaixa } from './caixaDeAvisos'
 import './Toast.css'
@@ -82,6 +82,7 @@ function AvisoSolto({ toast, onDismiss, rascunhos }: AvisoSoltoProps) {
     <div role={toast.kind === 'info' ? 'status' : 'alert'} className={`lb-panel lb-toast lb-toast--${toast.kind}`}>
       <div className="lb-toast__body">
         <span className="lb-toast__text">{toast.text}</span>
+        {toast.detalhe !== undefined && <DetalheVivo ler={toast.detalhe} />}
         <AcoesDoAviso
           toast={toast}
           rascunhos={rascunhos}
@@ -154,6 +155,7 @@ function CaixaDeAvisos({ grupo, toasts, onDismiss, rascunhos }: CaixaDeAvisosPro
         {toasts.map((toast) => (
           <li key={toast.id} className="lb-toastcaixa__row">
             <span className="lb-toast__text">{toast.text}</span>
+            {toast.detalhe !== undefined && <DetalheVivo ler={toast.detalhe} />}
             <AcoesDoAviso
               toast={toast}
               rascunhos={rascunhos}
@@ -172,6 +174,39 @@ function CaixaDeAvisos({ grupo, toasts, onDismiss, rascunhos }: CaixaDeAvisosPro
         Deixar todos
       </button>
     </section>
+  )
+}
+
+/**
+ * De quanto em quanto tempo a linha viva do aviso (`toast.detalhe`) se relê.
+ * Um segundo: a idade anda em minutos, mas a distância muda quando a ficha
+ * anda, e o mestre que olha a caixa enquanto o jogador caminha não pode ler
+ * uma distância velha.
+ */
+export const DETALHE_RELEITURA_MS = 1000
+
+/**
+ * A linha "há 3 min · agora a 20 casas do pino" de um pedido. Só ELA relê:
+ * o relógio é deste componente, e não da pilha, para o resto dos avisos (e o
+ * rascunho do campo de resposta) não renderizar a cada segundo. O estado
+ * guarda o último texto só para a React pular a renderização quando nada
+ * mudou; o que aparece é sempre a leitura de agora.
+ *
+ * `aria-live="off"`: o aviso de fora é `alert`, e uma linha que muda sozinha
+ * dentro dele seria lida em voz alta de novo a cada minuto.
+ */
+function DetalheVivo({ ler }: { ler: () => string }) {
+  const [, guardarLeitura] = useState('')
+  useEffect(() => {
+    const relogio = setInterval(() => guardarLeitura(ler()), DETALHE_RELEITURA_MS)
+    return () => clearInterval(relogio)
+  }, [ler])
+  const texto = ler()
+  if (texto === '') return null
+  return (
+    <span className="lb-toast__detalhe" aria-live="off">
+      {texto}
+    </span>
   )
 }
 

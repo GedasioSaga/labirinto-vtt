@@ -139,6 +139,21 @@ export interface TravelRequest {
 }
 
 /**
+ * Como está AGORA um pedido de passagem que espera o mestre: a linha "há 3
+ * min · agora a 20 casas do pino" da Caixa de Pedidos. Só o mestre lê.
+ */
+export interface TravelRequestStatus {
+  /** Quando o pedido chegou, no relógio da sessão (`now`). */
+  requestedAt: number
+  /**
+   * Casas entre a ficha dele mais perto e o pino, medidas agora. `null` = já
+   * não há ficha dele na cena do pedido (o mestre a levou, ou a tirou do mapa)
+   * ou o pino sumiu: a distância a um pino de outro mapa não diria nada.
+   */
+  distanceCells: number | null
+}
+
+/**
  * AGIR SOBRE UMA FICHA: pedido já validado, à espera do mestre. É o que a
  * Caixa de Pedidos mostra. Nada disto vai ao jogador: a resposta leva só o
  * `reqId` que ele mesmo mandou.
@@ -367,6 +382,11 @@ export interface HostSession {
   /** O pedido ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isTravelPending(requestId: string): boolean
   /**
+   * Idade e distância AGORA do pedido que espera (a Caixa de Pedidos relê a
+   * cada segundo). `null` quando ele já não espera. Não envia nada.
+   */
+  travelRequestStatus(requestId: string, source: HostMapSource): TravelRequestStatus | null
+  /**
    * AGIR SOBRE UMA FICHA: o mestre aceitou ou recusou, e `reply` é o que ele
    * escreveu para AQUELE jogador (o que o NPC responde; aparado e cortado em
    * `TOKEN_ACTION_REPLY_MAX_LENGTH`; vazio = sem texto). Devolve
@@ -433,6 +453,10 @@ interface PendingTravel {
   /** O destino do aviso que o mestre leu. Religou a saída depois? A aprovação não vale. */
   toSceneId: string
   partnerId: string
+  /** A cena onde o jogador pediu: é o pino DELA que a distância mede. */
+  fromSceneId: string
+  /** Quando o pedido chegou (`now`), para a idade na Caixa de Pedidos. */
+  requestedAt: number
 }
 
 /** Pedido de ação sobre ficha à espera do mestre. Um por jogador; `reqId` é o do jogador. */
@@ -1127,7 +1151,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel)
     const requestId = randomId()
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
-    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
+    pendingTravels.set(playerId, {
+      requestId,
+      playerId,
+      pinId: msg.pinId,
+      exitId,
+      toSceneId: travel.to.sceneId,
+      partnerId: travel.partner.id,
+      fromSceneId: travel.from.sceneId,
+      requestedAt: at,
+    })
     const description = travel.pin.description.trim()
     // Encruzilhada: o mestre lê a SAÍDA ("Escada da torre → Torre Alta"), o
     // mesmo rótulo que a jogadora tocou; pino de uma saída continua nomeado
@@ -1310,6 +1343,26 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const findPendingTravel = (requestId: string): PendingTravel | undefined =>
     [...pendingTravels.values()].find((pending) => pending.requestId === requestId)
 
+  /**
+   * Casas entre a ficha do jogador mais perto e o pino do pedido, no mapa de
+   * AGORA da cena onde ele pediu. Lê o mapa do mestre (não o recorte da
+   * névoa): quem lê é o mestre, que vê tudo. `null` sem ficha dele ou sem o
+   * pino nessa cena.
+   */
+  const distanceToPinNow = (pending: PendingTravel, world: HostWorld): number | null => {
+    const scene = allScenes(world).find((s) => s.sceneId === pending.fromSceneId)
+    const pin = scene?.map.pins.find((p) => p.id === pending.pinId)
+    if (scene === undefined || pin === undefined) return null
+    const owned = new Set(ownership[pending.playerId] ?? [])
+    let nearest: number | null = null
+    for (const t of scene.map.tokens) {
+      if (!owned.has(t.id)) continue
+      const cells = distanceInCells(t, pin, scene.map.grid)
+      if (nearest === null || cells < nearest) nearest = cells
+    }
+    return nearest
+  }
+
   /** Apaga o que só vale enquanto o jogador está na sala: pedido pendente e limites do pedido. */
   const forgetTravelsOf = (playerId: string): void => {
     pendingTravels.delete(playerId)
@@ -1405,6 +1458,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     isTravelPending(requestId) {
       return findPendingTravel(requestId) !== undefined
+    },
+
+    travelRequestStatus(requestId, source) {
+      const pending = findPendingTravel(requestId)
+      if (pending === undefined) return null
+      return { requestedAt: pending.requestedAt, distanceCells: distanceToPinNow(pending, toWorld(source)) }
     },
 
     sendPlayer(playerId, toSceneId, pinId, source, gatherAt) {
