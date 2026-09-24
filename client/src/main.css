@@ -1379,7 +1379,8 @@ body {
   color: var(--lb-color-parchment-dim);
 }
 
-/* Erro junto ao campo (tamanho do mapa): diz o que corrigir, sem apagar o que foi digitado. */
+/* Erro junto ao campo (tamanho do mapa, rótulo do andar do prédio): diz o que
+   corrigir, sem apagar o que foi digitado. Mesma letra da dica, em brasa. */
 .lb-field__error {
   margin: 0;
   font-size: var(--lb-font-size-sm);
@@ -1691,6 +1692,47 @@ body {
 
 /* Um poço só, com filete entre as linhas: sete caixas de borda própria eram
    sete cartões disputando o olho; a linha fina é o traço do minimapa. */
+/* RELÓGIO DA CAMPANHA: mesma coluna da Iniciativa, a hora grande e o período ao lado. */
+.lb-clock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  flex: none;
+}
+
+.lb-clock__now {
+  display: flex;
+  align-items: baseline;
+  gap: var(--lb-space-2);
+  margin: 0;
+}
+
+.lb-clock__hour {
+  font-size: 20px;
+  color: var(--lb-color-parchment);
+}
+
+.lb-clock__period {
+  color: var(--lb-color-parchment);
+  opacity: 0.8;
+}
+
+.lb-clock__actions {
+  display: flex;
+  gap: var(--lb-space-2);
+}
+
+.lb-clock__actions > .lb-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lb-clock__dark {
+  margin: 0;
+  color: var(--lb-color-parchment);
+  opacity: 0.8;
+}
+
 .lb-party__list {
   display: flex;
   flex-direction: column;

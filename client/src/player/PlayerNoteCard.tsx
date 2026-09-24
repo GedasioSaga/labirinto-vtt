@@ -1,12 +1,16 @@
 import { useEffect, useId } from 'react'
 import { isEditableTarget } from '../lib/keymap'
 
+/** Título do cartão do TEXTO DE CHEGADA DA CENA (o mesmo cartão do recado). */
+export const ARRIVAL_CARD_TITLE = 'Ao chegar'
+
 export interface PlayerNoteCardProps {
   /** O recado como o mestre escreveu. Vai para a tela como TEXTO: HTML aparece literal. */
   text: string
   /**
    * Cabeçalho do cartão. Ausente = "Recado do mestre". O TEXTO DA SALA usa o
-   * mesmo cartão com o nome da Sala aqui.
+   * mesmo cartão com o nome da Sala aqui, e o TEXTO DE CHEGADA com
+   * `ARRIVAL_CARD_TITLE`.
    */
   title?: string
   /** Linha pequena abaixo do texto. O recado diz que fica no Caderno; o texto da Sala não tem. */

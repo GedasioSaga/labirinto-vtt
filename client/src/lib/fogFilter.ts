@@ -4,7 +4,9 @@ import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer } from './tokenPublicName'
 import { healthForPlayer } from './tokenHealth'
 import { tokenConditionsForPlayer } from './tokenConditions'
+import { withoutCarrier } from './carry'
 import { guardAlerts, tokenWatchForPlayer, tokenWatchOf } from './npcWatch'
+import { tokenPatrolForPlayer } from './npcPatrol'
 import type { TurnRef } from './initiative'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing, signedArea } from './floorContour'
@@ -25,6 +27,9 @@ import { clampRoomText, hasEnterText } from './roomText'
 import { hazardRooms, hazardsOf, visionRadiusAt, type PlayerHazard } from './hazards'
 import { cleanPublicSceneName } from './adventure'
 import type { DiceRollEntry, HostDiceRoll } from './dice'
+import { caravanMembers, caravanPoint, caravanTokenFor, isWorldMap } from './caravan'
+import { triggersWithRegions, type PlayerAreaTrigger } from './areaTriggers'
+import { isDarkAt, periodOfHour, type PlayerClock } from './campaignClock'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -84,6 +89,13 @@ export interface PlayerMapView {
    * fogo" sem contar o tipo de um perigo escondido.
    */
   hazardsHere: { tokenId: string; kind: HazardKind }[]
+  /**
+   * GATILHO DE ÁREA — só o que o mestre REVELOU, e só na área que o jogador
+   * já conhece (a região saiu neste recorte): tipo e polígono. Anotação
+   * estática, então vale o explorado, como a própria região. Nunca o id do
+   * gatilho nem o da região; `map.gatilhos` do recorte não existe.
+   */
+  gatilhos: PlayerAreaTrigger[]
   /**
    * TEXTO DA SALA — ids das Salas COM texto de entrada em que uma ficha do
    * jogador está agora, estritamente dentro, e que ele pode ler (a Sala saiu
@@ -1053,9 +1065,13 @@ function tokenHealthForPlayer(token: Token): Token {
  * (`tokenConditionsForPlayer`) — texto que o mestre ou o arquivo enfiar no
  * campo não sai da máquina dele. Quem decide SE a ficha vai é o filtro de
  * `filterMapForPlayer`; a condição só atravessa junto com ela.
+ *
+ * LEVAR FICHA JUNTO: o vínculo (`levadoPor`) nunca sai. É arrumação do mestre,
+ * e o id de quem leva apontaria para uma ficha que o recorte pode ter
+ * escondido (colega na névoa, ficha secreta).
  */
 function tokenForPlayer(token: Token): Token {
-  return tokenConditionsForPlayer(sanitizeTokenPhoto(token))
+  return tokenConditionsForPlayer(sanitizeTokenPhoto(withoutCarrier(token)))
 }
 
 /** A ficha sem a mochila: é como o jogador recebe a ficha de outro. Sem mochila, o mesmo objeto. */
@@ -1164,6 +1180,7 @@ export function filterMapForGroup(
   watchTargets?: ReadonlySet<string>,
   { pinAudiences, enteredRooms, playerId, seenRooms }: PlayerOnlyView = {},
 ): PlayerMapView {
+  if (isWorldMap(map)) return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms })
   const hiddenLayers = map.hiddenLayers
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
   const radiusByToken = new Map<string, number>()
@@ -1693,7 +1710,23 @@ export function filterMapForGroup(
   // ZONA DE PERIGO: o objeto do mestre (ids de zona e de sala, perigo onde o
   // jogador não está) NUNCA vai no mapa do recorte. O que ele pode ver sai
   // separado, em `hazards`, montado mais abaixo.
-  const { hazards: _masterHazards, ...mapWithoutHazards } = map
+  // GATILHO DE ÁREA: mesma regra — o objeto do mestre fica aqui; o que foi
+  // revelado sai separado, em `gatilhos`.
+  // TEXTO DE CHEGADA: fica aqui também. No snapshot, quem já está na cena o
+  // receberia de novo a cada broadcast (e a tela da mesa o mostraria a todos);
+  // ele viaja só no `scene.changed` de quem chega (`net/hostSession.ts`).
+  // MAPA POR ANDARES: o nome do prédio é do mestre; o rótulo do andar viaja à
+  // parte (`snapshot.andares`), só quando o host decide que ele vale.
+  // RELÓGIO DA CAMPANHA: a marca "externa" também é do mestre; o jogador
+  // recebe só se a cena dele está escura, à parte (`clockForPlayer`).
+  const {
+    hazards: _masterHazards,
+    gatilhos: _masterTriggers,
+    textoChegada: _arrivalText,
+    andar: _masterFloor,
+    externa: _masterOutdoor,
+    ...mapWithoutHazards
+  } = map
 
   // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
   const playerTokens = layerTokens.filter(
@@ -1708,6 +1741,10 @@ export function filterMapForGroup(
    * quem foi visto, e o cone (`vigia`), ficam no mestre (`tokenWatchForPlayer`).
    * Sem guarda no recorte, nada é calculado.
    */
+  // Para o pino PRESO a uma ficha (ver `pins`, abaixo): as fichas da cena e as
+  // que este recorte entrega.
+  const mapTokenIds = new Set(map.tokens.map((t) => t.id))
+  const deliveredTokenIds = new Set(playerTokens.map((t) => t.id))
   const watchable = watchTargets ?? owned
   const seenTargets = new Set(playerTokens.filter((t) => watchable.has(t.id)).map((t) => t.id))
   const alerts =
@@ -1722,6 +1759,9 @@ export function filterMapForGroup(
     .map((t) => withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(owned.has(t.id) ? t : withoutBackpack(t), owned.has(t.id)))))
     .map(tokenHealthForPlayer)
     .map((t) => tokenWatchForPlayer(t, alerts.get(t.id) ?? null))
+    // ROTA DE PATRULHA: os pontos dizem por onde o NPC vai passar — é do
+    // mestre. O jogador vê o NPC andar só porque a ficha está na visão dele.
+    .map(tokenPatrolForPlayer)
   const sentTokenIds = new Set(tokens.map((t) => t.id))
   // Ficha que o MESTRE esconde deste jogador (oculta, secreta ou na camada
   // Fichas escondida). A tocha presa nela fica no centro dela e anda com ela:
@@ -1850,6 +1890,11 @@ export function filterMapForGroup(
     // "QUEM VÊ" também sai antes da névoa: quem não foi escolhido não recebe o
     // pino nem o id dele, mesmo em cima dele — e o host recusa passagem por um
     // pino que o jogador não recebeu (`validTravel` usa este mesmo recorte).
+    // PRESO À FICHA: o pino preso anda com a ficha, então conta onde ela está
+    // agora. Ele só sai quando a ficha dele sai neste recorte (a visão dela,
+    // não a memória do explorado) — senão o navio na névoa se revelaria pela
+    // prancha. Ficha que não está mais na cena deixa o pino parado, e aí
+    // vale a regra de sempre. `presoA` em si nunca sai (`pinForPlayer`).
     pins: (map.pins ?? [])
       .filter((p) => {
         if (isArrivalOnly(p)) return false
@@ -1862,6 +1907,7 @@ export function filterMapForGroup(
           return playerStairIds.has(p.escadaId) && !p.hidden && !p.secret && travelExitsOf(p).length > 0
         }
         if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return false
+        if (p.presoA !== undefined && mapTokenIds.has(p.presoA) && !deliveredTokenIds.has(p.presoA)) return false
         const point = { x: p.x, y: p.y }
         return !inHiddenPlace(point) && isPointKnown(point)
       })
@@ -1928,7 +1974,81 @@ export function filterMapForGroup(
   const unseenInsideRemembered = unseenComodos
     .filter((unseen) => interiorSamples(unseen.points, unseen.points).some((p) => knownComodos.some((room) => inRoomStrictly(room, p))))
     .map((room) => room.points)
-  return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms, hazards, hazardsHere, rememberedRooms, unseenInsideRemembered }
+
+  /**
+   * GATILHO DE ÁREA. Não revelado não sai de jeito nenhum. Revelado sai só
+   * com a MESMA exclusão do perigo (`hazardHiddenByMaster`: sala escondida pelo
+   * mestre ou de camada escondida, silhueta de teto fechado, sala tocada por
+   * zona oculta) e só se a região saiu neste recorte — o jogador já conhece a
+   * área, então a marca não conta nada do que a névoa esconde.
+   */
+  const gatilhos: PlayerAreaTrigger[] = triggersWithRegions(map)
+    .filter(({ trigger, region }) => trigger.revealed && sentRooms.has(region.id) && !hazardHiddenByMaster(region))
+    .map(({ trigger, region }) => ({ kind: trigger.kind, points: region.points.map((p) => ({ x: p.x, y: p.y })) }))
+  return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms, hazards, hazardsHere, gatilhos, rememberedRooms, unseenInsideRemembered }
+}
+
+/**
+ * CARAVANA NO MAPA-MUNDI (`lib/caravan.ts`). O grupo é UMA ficha só:
+ * - a visão sai do ponto da caravana (as fichas do grupo são postas nele antes
+ *   do recorte, então ficha esquecida longe dali não enxerga nada por conta própria);
+ * - todas as fichas de jogador que o recorte entregaria viram a caravana — a
+ *   própria inclusive. Nome, foto, vida, condições, mochila e id de cada uma
+ *   ficam no mestre; o jogador não arrasta nada aqui, quem move é o mestre.
+ * Todo o resto (névoa, zona oculta, sala secreta, nome da cena) é a regra de sempre.
+ */
+function filterWorldMapForGroup(
+  map: MapData,
+  viewers: readonly GroupViewer[],
+  explored?: Exploration,
+  seenDoors?: ReadonlyMap<string, DoorState>,
+  watchTargets?: ReadonlySet<string>,
+  only: PlayerOnlyView = {},
+): PlayerMapView {
+  const { worldMap: _worldMap, ...plain } = map
+  const party = watchTargets ?? new Set(viewers.flatMap((viewer) => viewer.tokenIds))
+  const members = caravanMembers(map, party)
+  const at = caravanPoint(members)
+  // `only` segue adiante: "QUEM VÊ" de cada pino e o resto do que é só deste
+  // jogador valem no mapa-mundi como em qualquer cena.
+  if (at === null) {
+    const view = filterMapForGroup(plain, viewers, explored, seenDoors, watchTargets, only)
+    return { ...view, map: { ...view.map, worldMap: true } }
+  }
+  const memberIds = new Set(members.map((t) => t.id))
+  const stacked: MapData = { ...plain, tokens: map.tokens.map((t) => (memberIds.has(t.id) ? { ...t, x: at.x, y: at.y } : t)) }
+  const view = filterMapForGroup(stacked, viewers, explored, seenDoors, watchTargets, only)
+  const caravanSent = view.map.tokens.some((t) => memberIds.has(t.id))
+  const others = view.map.tokens.filter((t) => !memberIds.has(t.id))
+  const tokens = caravanSent ? [caravanTokenFor(members, at), ...others] : others
+  return { ...view, map: { ...view.map, worldMap: true, tokens } }
+}
+
+/** MAPA POR ANDARES: o que o jogador guarda de um andar onde NÃO está agora. */
+export interface FloorMemoryView {
+  map: MapData
+  /** Zonas ocultas ativas do andar (só a geometria), para pintar preto por cima. */
+  concealed: RegionPoint[][]
+}
+
+/**
+ * MAPA POR ANDARES — o recorte de um andar onde o jogador já esteve e não está
+ * agora: o mesmo recorte de sempre com um grupo VAZIO. Sem ninguém olhando, não
+ * há visão; sobra só a planta estática que `explored` e `seenDoors` (a memória
+ * DELE, somente leitura) já conhecem. Toda ficha — dele, de colega, do mestre —
+ * fica de fora: ficha exige visão, e ninguém dele está lá. Teto de prédio fica
+ * fechado, zona oculta e sala secreta continuam escondidas. `only` leva o
+ * "QUEM VÊ" dos pinos (`pinAudiences` + `playerId`): pino escolhido só para
+ * outro jogador não sai nem pela memória do andar.
+ */
+export function filterFloorMemory(
+  map: MapData,
+  explored: Exploration,
+  seenDoors: ReadonlyMap<string, DoorState>,
+  only: PlayerOnlyView = {},
+): FloorMemoryView {
+  const view = filterMapForGroup(map, [], explored, seenDoors, undefined, only)
+  return { map: view.map, concealed: view.concealed }
 }
 
 /** O host vê o mapa inteiro, inclusive itens ocultos. */
@@ -1946,6 +2066,18 @@ export function filterMapForHost(map: MapData): MapData {
 export function turnForPlayer(view: MapData, turn: TurnRef | null): string | null {
   if (turn === null || turn.mapId !== view.id) return null
   return view.tokens.some((t) => t.id === turn.tokenId) ? turn.tokenId : null
+}
+
+/**
+ * RELÓGIO DA CAMPANHA como o jogador pode recebê-lo: o PERÍODO (manhã, tarde,
+ * noite), nunca a hora exata, e `escuro` só quando a cena DELE (`map`, a cena
+ * da ficha dele) é externa e é noite. Sem relógio no mestre: `null`, e o campo
+ * nem sai.
+ */
+export function clockForPlayer(hour: number | null, map: Pick<MapData, 'externa'>): PlayerClock | null {
+  if (hour === null) return null
+  const periodo = periodOfHour(hour)
+  return isDarkAt(hour, map) ? { periodo, escuro: true } : { periodo }
 }
 
 /** ALARME PARA VÁRIAS CENAS como o host o guarda: o texto e as cenas escolhidas pelo mestre. */
@@ -1979,6 +2111,12 @@ export function alarmForPlayer(alarm: SceneAlarm | null, sceneId: string | null)
  *   chave abre. Em troca, `chave` — o nome do item que ELE já carrega — sai só
  *   no pino trancado que uma ficha dele, encostada, abre (`ownTokens`: as
  *   fichas dele, com a mochila do mapa do mestre).
+ * - `presoA` NUNCA: o id da ficha que o pino acompanha é do mestre. O jogador
+ *   vê o pino andar (x/y já chegam no lugar novo), não a ligação.
+ * - `portaLigada` (alavanca) NUNCA: a porta ligada pode estar em outra sala,
+ *   atrás da névoa, e o id dela diria que ela existe. O jogador recebe o tipo
+ *   `alavanca` (o cartão oferece "Puxar") e vê a porta mexer só se ela estiver
+ *   no recorte dele.
  */
 function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o

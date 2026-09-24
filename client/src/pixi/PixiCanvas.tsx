@@ -143,7 +143,10 @@ import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { drawHazardAreas } from './drawHazards'
 import { hazardAreas } from '../lib/hazards'
+import { drawAreaTriggers } from './drawAreaTriggers'
+import { areaTriggerAreas } from '../lib/areaTriggers'
 import { drawWatchCones } from './drawNpcWatch'
+import { drawPatrolRoutes } from './drawNpcPatrol'
 import { createPinsRenderer } from './drawPins'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { revealBrushRadius, type RevealBrushMode } from '../lib/concealBrush'
@@ -698,12 +701,18 @@ export function PixiCanvas({
       // OLHOS DO GUARDA: o cone de cada NPC vigia, embaixo das fichas para não
       // cobrir quem está dentro dele. Só o mestre desenha isto.
       const watchConesGraphics = new Graphics()
+      // ROTA DE PATRULHA: a ronda de cada NPC, também embaixo das fichas e só do mestre.
+      const patrolRoutesGraphics = new Graphics()
+      patrolRoutesGraphics.eventMode = 'none'
       const tokensContainer = new Container()
       // A5 — zonas ocultas por cima do conteúdo: o mestre precisa ver o que cobre.
       const concealZonesContainer = new Container()
       // ZONA DE PERIGO: cor chapada sobre o chão e as salas, sob paredes e fichas.
       const hazardsGraphics = new Graphics()
       hazardsGraphics.eventMode = 'none'
+      // GATILHO DE ÁREA: o mestre vê toda área marcada, revelada ou não, na mesma altura do perigo.
+      const areaTriggersGraphics = new Graphics()
+      areaTriggersGraphics.eventMode = 'none'
       // Pinos acima das zonas ocultas: o pino é o chamariz da cena e o mestre
       // precisa achá-lo mesmo sobre uma área que ele mesmo escondeu.
       const pinsContainer = new Container()
@@ -737,6 +746,7 @@ export function PixiCanvas({
         gridGraphics,
         gridAlignOverlayGraphics,
         hazardsGraphics,
+        areaTriggersGraphics,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
@@ -748,6 +758,7 @@ export function PixiCanvas({
         propsContainer,
         lightsContainer,
         watchConesGraphics,
+        patrolRoutesGraphics,
         tokensContainer,
         concealZonesContainer,
         pinsContainer,
@@ -1304,6 +1315,11 @@ export function PixiCanvas({
           const { map } = sceneState()
           drawHazardAreas(hazardsGraphics, map.hiddenLayers.includes('salas') ? [] : hazardAreas(map))
         },
+        // GATILHO DE ÁREA: gatilho de região em camada escondida sai junto com ela.
+        areaTriggers: () => {
+          const { map } = sceneState()
+          drawAreaTriggers(areaTriggersGraphics, areaTriggerAreas({ gatilhos: map.gatilhos, regions: visibleRegions(map.regions, map.hiddenLayers) }))
+        },
         roomNames: () => {
           const { map } = sceneState()
           roomNamesRenderer.draw(roomNamesContainer, visibleRegions(map.regions, map.hiddenLayers), map.grid, camera.scale)
@@ -1313,6 +1329,8 @@ export function PixiCanvas({
         lights: paintLights,
         // OLHOS DO GUARDA: parede nova, porta aberta ou guarda andando mudam o cone.
         watchCones: () => drawWatchCones(watchConesGraphics, sceneState().map),
+        // ROTA DE PATRULHA: a rota muda junto com a ficha (marcar ponto, avançar patrulha).
+        patrolRoutes: () => drawPatrolRoutes(patrolRoutesGraphics, sceneState().map),
         concealZones: () => {
           const { map, selectedConcealZoneId } = sceneState()
           concealZonesRenderer.draw(concealZonesContainer, map.concealZones, map.grid, selectedConcealZoneId)
@@ -1352,9 +1370,10 @@ export function PixiCanvas({
         // A vez da iniciativa só acende NESTA cena: a de outra cena é outra ficha.
         const turnTokenId = turnTokenIdOn(useInitiativeStore.getState().turn, map)
         tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null, camera.scale, turnTokenId)
-        // O cone acompanha o guarda no arrasto e a direção escolhida no painel
-        // (pelo portão do redesenho: sem guarda ou sem ficha mudada, nada repinta).
-        redrawShapeLayers(['watchCones'])
+        // O cone acompanha o guarda no arrasto e a direção escolhida no painel, e
+        // a rota acompanha a patrulha (pelo portão do redesenho: sem guarda, sem
+        // patrulha ou sem ficha mudada, nada repinta).
+        redrawShapeLayers(['watchCones', 'patrolRoutes'])
         // As alças do token acompanham o token: `moveTokenLive` (arrasto) e
         // `moveSelectionBy` (setas) só acordam ESTE redraw, nunca o de formas.
         redrawEditHandles()

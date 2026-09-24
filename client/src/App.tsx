@@ -22,8 +22,11 @@ import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useFollowStore } from './stores/followStore'
 import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeStore'
+import { useClockStore } from './stores/clockStore'
 import { turnTokenIdOn } from './lib/initiative'
+import { carryRefsOf } from './lib/carry'
 import { useFollowPlayer } from './stores/useFollowPlayer'
+import { useArrivalTextSettings } from './stores/useArrivalTextSettings'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import { tableSceneKey, type PlayerInfo } from './net/hostSession'
@@ -45,8 +48,9 @@ import { MapTypePicker } from './screens/MapTypePicker'
 import { NewDungeonMap } from './screens/NewDungeonMap'
 import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
-import { selectAlignableUnitCount, useMapStore } from './stores/mapStore'
+import { mapChangeCause, selectAlignableUnitCount, useMapStore } from './stores/mapStore'
 import { roomHazardState } from './lib/hazards'
+import { areaTriggerOfRegion } from './lib/areaTriggers'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
   applyItemsInScene,
@@ -85,6 +89,8 @@ import { saveMapImage } from './lib/mapImageSave'
 import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
+import { pinAttachOptions } from './lib/pinAttach'
+import { leverDoorOptions, linkedDoorOf } from './lib/lever'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -414,6 +420,10 @@ function App() {
   const setMapScale = useMapStore((state) => state.setMapScale)
   const setMeasurementMode = useMapStore((state) => state.setMeasurementMode)
   const setMovementRules = useMapStore((state) => state.setMovementRules)
+  const setWorldMap = useMapStore((state) => state.setWorldMap)
+  const arrivalTextSettings = useArrivalTextSettings()
+  const setOutdoor = useMapStore((state) => state.setOutdoor)
+  const setSceneFloor = useMapStore((state) => state.setSceneFloor)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
   const setTextFontFamily = useMapStore((state) => state.setTextFontFamily)
@@ -504,6 +514,7 @@ function App() {
   // INICIATIVA (aba Jogo): valores por cena e a vez. Estado da mesa, fora do arquivo do mapa.
   const initiativeValues = useInitiativeStore((state) => state.values)
   const initiativeTurn = useInitiativeStore((state) => state.turn)
+  const clockHour = useClockStore((state) => state.hour)
   const hostBridgeRef = useRef<HostBridge | null>(null)
   // A mesa da sala aberta é da aventura em que ela abriu: trocar de aventura no
   // meio não pode gravar os donos desta sala na mesa da outra.
@@ -524,6 +535,17 @@ function App() {
         // pela sessão: entram no mapa sem virar passo do Ctrl+Z do mestre (ver
         // `net/playerChanges.ts`), na cena aberta ou numa de fundo.
         ...hostPlayerChanges,
+        // CARAVANA: quem acompanha a caravana anda SEM desfazer. O passo é o do
+        // arrasto do mestre; com histórico, o Ctrl+Z desfaria um seguidor por vez
+        // e o seguidor refeito apagaria o refazer.
+        applyCaravanMoves: (moves) => {
+          const open = moves.filter((move) => move.sceneId === undefined)
+          if (open.length > 0) useMapStore.getState().setTokenPositionsLive(open.map(({ tokenId, x, y }) => ({ id: tokenId, x, y })))
+          for (const { tokenId, x, y, sceneId } of moves) {
+            if (sceneId === undefined) continue
+            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.setTokenPosition(m, tokenId, x, y))
+          }
+        },
         // "Destrancar e abrir" do mestre ao pedido da porta trancada (passo do Ctrl+Z dele).
         unlockAndOpenDoor: unlockAndOpenDoorFromRequest,
         // ITEM PEGÁVEL: o pino pego sai e as mochilas mudam, já validados pela
@@ -549,6 +571,8 @@ function App() {
         onTunnelChange: setTunnel,
         // A vez vai no snapshot, recortada por jogador (`turnForPlayer`): ficha que ele não vê não vira vez.
         getTurn: () => useInitiativeStore.getState().turn,
+        // O relógio vai no snapshot recortado (`clockForPlayer`): só o período, nunca a hora.
+        getClock: () => useClockStore.getState().hour,
         onTableScreensChange: setTableScreens,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
         // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
@@ -588,7 +612,15 @@ function App() {
     }
     return hostBridgeRef.current
   }
-  useEffect(() => useMapStore.subscribe((state) => state.map, () => hostBridgeRef.current?.notifyMapChanged()), [])
+  // Desfazer/refazer avisa como tal: a caravana do mapa-mundi não o lê como arrasto.
+  useEffect(
+    () =>
+      useMapStore.subscribe((state, previous) => {
+        const cause = mapChangeCause(state, previous)
+        if (cause !== null) hostBridgeRef.current?.notifyMapChanged(cause)
+      }),
+    [],
+  )
   // A vez andou: os jogadores sabem na hora (o "Sua vez" não espera outra edição do mapa).
   useEffect(
     () =>
@@ -602,6 +634,14 @@ function App() {
     () =>
       useAdventureStore.subscribe((state, previous) => {
         if (state.adventure !== previous.adventure) hostBridgeRef.current?.notifyMapChanged()
+      }),
+    [],
+  )
+  // O relógio andou: o período e a visão da noite chegam na hora, sem esperar outra edição.
+  useEffect(
+    () =>
+      useClockStore.subscribe((state, previous) => {
+        if (state.hour !== previous.hour) hostBridgeRef.current?.notifyClockChanged()
       }),
     [],
   )
@@ -728,6 +768,13 @@ function App() {
             }}
             // Mapa solto não tem para onde viajar: o diário só aparece com aventura aberta.
             travelLog={adventure === null ? undefined : { entries: travelLog, onUndo: undoTravel }}
+            clock={{
+              hour: clockHour,
+              outdoor: map.externa === true,
+              onAdvanceHour: () => useClockStore.getState().advanceHour(),
+              onNextPeriod: () => useClockStore.getState().nextPeriod(),
+              onOutdoorChange: setOutdoor,
+            }}
             tunnel={tunnel}
             savedTableNames={savedTableNames()}
             onStart={(resume) => void handleStartRoom(resume)}
@@ -1050,6 +1097,8 @@ function App() {
   const selectedWall = singleSelection?.kind === 'wall' ? map.walls.find((w) => w.id === singleSelection.id) ?? null : null
   const selectedProp = singleSelection?.kind === 'prop' ? map.props.find((p) => p.id === singleSelection.id) ?? null : null
   const selectedToken = singleSelection?.kind === 'token' ? map.tokens.find((t) => t.id === singleSelection.id) ?? null : null
+  // LEVAR FICHA JUNTO: quem leva a ficha selecionada, quem ela leva e a quem pode ser presa (a mais perto primeiro).
+  const selectedTokenCarry = carryRefsOf(map, selectedToken)
   const selectedDrawing = singleSelection?.kind === 'drawing' ? map.drawings.find((d) => d.id === singleSelection.id) ?? null : null
   const selectedTextLabel = selectedDrawing && selectedDrawing.kind === 'text' ? selectedDrawing : null
   const selectedRegion = singleSelection?.kind === 'region' ? map.regions.find((r) => r.id === singleSelection.id) ?? null : null
@@ -1057,6 +1106,8 @@ function App() {
   const selectedRegionParent = selectedRegion?.parentId !== undefined ? map.regions.find((r) => r.id === selectedRegion.parentId) ?? null : null
   // ZONA DE PERIGO da Sala selecionada: o perigo dela e se "Avançar um passo" muda algo.
   const selectedRoomHazard = selectedRegion?.room ? roomHazardState(map, selectedRegion.id) : null
+  // GATILHO DE ÁREA da Região/Sala selecionada (`null` = sem gatilho).
+  const selectedRegionTrigger = selectedRegion ? areaTriggerOfRegion(map, selectedRegion.id) : null
   const selectedLight = singleSelection?.kind === 'light' ? map.lights.find((l) => l.id === singleSelection.id) ?? null : null
   const selectedStair = singleSelection?.kind === 'stair' ? map.stairs.find((s) => s.id === singleSelection.id) ?? null : null
   const selectedFloorIndex = singleSelection?.kind === 'floor' ? map.floor.findIndex((p) => p.id === singleSelection.id) : -1
@@ -1564,6 +1615,22 @@ function App() {
   const handleTravelPin = (pinId: string, exitId?: string) => {
     useFollowStore.getState().stop()
     useAdventureStore.getState().travelThroughPin(pinId, exitId)
+  }
+
+  /**
+   * ALAVANCA aberta no painel: a porta ligada, as portas desta cena e o
+   * "Acionar agora". Acionar entra no desfazer (é o mestre mexendo), e porta
+   * trancada não se move — o painel diz por quê em vez de um clique mudo.
+   */
+  const leverPanel = (pin: Pin) => {
+    const door = linkedDoorOf(map, pin)
+    return {
+      value: pin.portaLigada ?? null,
+      options: leverDoorOptions(map),
+      onChange: (wallId: string | null) => useMapStore.getState().updatePin(pin.id, { portaLigada: wallId ?? undefined }),
+      onPull: () => useMapStore.getState().pullLever(pin.id),
+      pullBlocked: door !== null && door.door.locked ? 'A porta ligada está trancada: a alavanca não a move.' : null,
+    }
   }
 
   /**
@@ -2223,7 +2290,9 @@ function App() {
               onMeasurementModeChange: setMeasurementMode,
               gridShape,
             }}
-            movement={{ movement: map.movement, onMovementChange: setMovementRules }}
+            movement={{ movement: map.movement, onMovementChange: setMovementRules, worldMap: map.worldMap === true, onWorldMapChange: setWorldMap }}
+            arrivalText={arrivalTextSettings}
+            sceneFloor={{ andar: map.andar, onChange: setSceneFloor }}
             gridAlign={{
               backgroundFilename:
                 map.background.type === 'image' && map.background.src
@@ -2337,7 +2406,7 @@ function App() {
               // `updateToken` passa por `withHistory`: marcar errado se desfaz com Ctrl+Z.
               onNpcChange: (npc) => selectedToken && marcarFichaNpc(selectedToken.id, npc),
             }}
-            tokenCarry={ligacaoLevarFicha(roomPanelWorld(), roomPlayers)}
+            tokenSceneCarry={ligacaoLevarFicha(roomPanelWorld(), roomPlayers)}
             tokenLights={{
               lights: selectedToken ? lightsOnToken(map, selectedToken.id) : [],
               onSelectLight: (lightId) => setSelection(selectionOfItem({ kind: 'light', id: lightId })),
@@ -2357,6 +2426,17 @@ function App() {
               // Mesmo caminho da cor e do tamanho: cada escolha é um Ctrl+Z.
               // `null` desliga a vigia e a ficha volta a ser comum.
               onWatchChange: (vigia) => selectedToken && updateToken(selectedToken.id, { vigia }),
+            }}
+            tokenPatrol={{
+              // Opera sobre a ficha ATUAL do store: o "marcar" grava onde ela
+              // está agora. Cada clique que muda o mapa é um Ctrl+Z.
+              onPatrolOp: (op) => selectedToken && useMapStore.getState().patrolAction(selectedToken.id, op),
+            }}
+            tokenCarry={{
+              ...selectedTokenCarry,
+              // Prender e soltar passam pelo histórico: Ctrl+Z desfaz.
+              onCarry: (carrierId) => selectedToken && useMapStore.getState().carryToken(selectedToken.id, carrierId),
+              onRelease: (carriedId) => useMapStore.getState().releaseCarriedToken(carriedId),
             }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
@@ -2446,6 +2526,15 @@ function App() {
                     : null,
               }
             }
+            areaTrigger={
+              selectedRegion && {
+                kind: selectedRegionTrigger?.kind ?? null,
+                revealed: selectedRegionTrigger?.revealed ?? false,
+                // Cada escolha é um Ctrl+Z (`mapStore.setRegionTrigger`).
+                onKindChange: (kind) => useMapStore.getState().setRegionTrigger(selectedRegion.id, kind),
+                onRevealedChange: (revealed) => useMapStore.getState().setRegionTriggerRevealed(selectedRegion.id, revealed),
+              }
+            }
             concealZone={
               selectedConcealZone && {
                 name: selectedConcealZone.name,
@@ -2469,7 +2558,16 @@ function App() {
               // do desfazer; o par da outra cena é desligado pelo adventureStore.
               onKindChange: (kind) =>
                 selectedPin
-                  ? useMapStore.getState().updatePin(selectedPin.id, kind === 'viagem' ? { kind } : { kind, destino: null })
+                  ? useMapStore
+                      .getState()
+                      // Deixar de ser de viagem também solta o pino da ficha: só a passagem anda com o navio.
+                      // Deixar de ser alavanca solta a porta ligada no mesmo passo do desfazer.
+                      .updatePin(
+                        selectedPin.id,
+                        kind === 'viagem'
+                          ? { kind, portaLigada: undefined }
+                          : { kind, destino: null, presoA: undefined, ...(kind === 'alavanca' ? {} : { portaLigada: undefined }) },
+                      )
                   : useMapStore.getState().setPinKind(kind),
               travel: selectedPin?.kind === 'viagem' ? pinTravelPanel(selectedPin) : null,
               // Só com a sala aberta: sem sala não há jogador para reunir.
@@ -2493,12 +2591,23 @@ function App() {
               onDelete: () => selectedPin && useMapStore.getState().removePin(selectedPin.id),
               // ITEM PEGÁVEL: só com um pino "!"/"?" aberto (a passagem não vai para a mochila).
               item:
-                selectedPin && selectedPin.kind !== 'viagem'
+                selectedPin && selectedPin.kind !== 'viagem' && selectedPin.kind !== 'alavanca'
                   ? {
                       value: selectedPin.item ?? null,
                       onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
                     }
                   : null,
+              // PRESO À FICHA: só o pino de viagem (a prancha do navio, a porta da carroça).
+              attachment:
+                selectedPin && selectedPin.kind === 'viagem'
+                  ? {
+                      value: selectedPin.presoA ?? null,
+                      options: pinAttachOptions(map.tokens),
+                      onChange: (tokenId) => useMapStore.getState().updatePin(selectedPin.id, { presoA: tokenId ?? undefined }),
+                    }
+                  : null,
+              // ALAVANCA: a porta que ela abre (desta cena, de qualquer sala) e o "Acionar agora" do mestre.
+              lever: selectedPin && selectedPin.kind === 'alavanca' ? leverPanel(selectedPin) : null,
             }}
             pinIcon={{
               // Mesma ligação dupla do tipo logo acima: com um pino aberto, o

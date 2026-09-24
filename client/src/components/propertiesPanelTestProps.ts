@@ -7,7 +7,7 @@ import type { PropertiesPanel } from './PropertiesPanel'
 /*
  * Só para teste: as props do `PropertiesPanel` como o App monta com a
  * ferramenta Selecionar e UMA ficha selecionada. Cada teste troca só a ligação
- * que prova (`tokenNpc`, `tokenCarry`) — a do App, não uma inventada.
+ * que prova (`tokenNpc`, `tokenSceneCarry`) — a do App, não uma inventada.
  */
 
 export type PainelProps = ComponentProps<typeof PropertiesPanel>

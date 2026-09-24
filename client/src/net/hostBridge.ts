@@ -19,14 +19,17 @@ import {
   createHostSession,
   singleSceneWorld,
   type AppliedItems,
+  type AppliedMove,
   type AppliedTokenEdit,
   type DoorKeyUse,
   type DoorRequest,
   type ItemRequest,
   type AppliedTransfer,
+  type CaravanStop,
   type HazardEntryNotice,
   type HeldTokens,
   type HostDiceRoll,
+  type AreaTriggerEntryNotice,
   type HostResult,
   type HostPlayerLaser,
   type HostSession,
@@ -34,6 +37,8 @@ import {
   type HostWorld,
   type MasterCall,
   type PinKeyUse,
+  type MapChangeCause,
+  type Outbound,
   type PlayerInfo,
   type PlayerNoteDelivery,
   type PointActionRequest,
@@ -56,6 +61,7 @@ import { guardSightingNotices } from './guardNotices'
 import type { TurnRef } from '../lib/initiative'
 import { hazardEntryLine } from '../lib/hazards'
 import type { DiceRequest } from '../lib/dice'
+import { areaTriggerEntryLine } from '../lib/areaTriggers'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -98,6 +104,13 @@ export interface HostBridgeDeps {
   getWorld?: () => HostWorld
   /** `sceneId`: cena de FUNDO onde o token está; ausente = a cena aberta no editor. */
   applyMove: (tokenId: string, x: number, y: number, sceneId?: string) => void
+  /**
+   * CARAVANA: fichas do grupo que acompanham a caravana, SEM passar pelo
+   * desfazer. Elas são consequência da edição que as disparou (o arrasto do
+   * mestre, que já tem o seu passo): com histórico, cada Ctrl+Z desfaria um
+   * seguidor só, e o seguidor refeito apagaria o refazer. Ausente = `applyMove`.
+   */
+  applyCaravanMoves?: (moves: readonly AppliedMove[]) => void
   /** Porta que o jogador abriu/fechou, já validada pela sessão (visível, destrancada, token perto). `sceneId` como em `applyMove`. */
   applyDoor: (wallId: string, open: boolean, sceneId?: string) => void
   /**
@@ -144,6 +157,8 @@ export interface HostBridgeDeps {
   onPlayerLaser?: (laser: HostPlayerLaser) => void
   /** INICIATIVA: de quem é a vez no mestre. O jogador só recebe o recorte (`turnForPlayer`). */
   getTurn?: () => TurnRef | null
+  /** RELÓGIO DA CAMPANHA: a hora do dia no mestre. O jogador só recebe o recorte (`clockForPlayer`). */
+  getClock?: () => number | null
   /** TELA DA MESA: quantas telas estão conectadas mudou (entrou, caiu, sala fechou). */
   onTableScreensChange?: (screens: number) => void
   /** Chamado NOVO de um jogador: o bipe. A linha na caixa "Chamados" a ponte já põe. */
@@ -189,7 +204,11 @@ export interface StartOptions {
 export interface HostBridge {
   start(options?: StartOptions): Promise<RoomInfo>
   stop(): Promise<void>
-  notifyMapChanged(): void
+  /**
+   * O mapa da cena aberta mudou. `'history'` = foi desfazer/refazer: a
+   * caravana não lê isso como arrasto (`HostSession.followCaravans`).
+   */
+  notifyMapChanged(cause?: MapChangeCause): void
   assignToken(playerId: string, tokenId: string): void
   unassignToken(playerId: string, tokenId: string): void
   kick(clientId: string): Promise<void>
@@ -223,6 +242,12 @@ export interface HostBridge {
    * `gatherAt`: "Reunir o grupo aqui" — chega nessa casa, com o aviso de reunião.
    */
   sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: { x: number; y: number }): boolean
+  /**
+   * CARAVANA: "Desembarcar" a caravana do mapa-mundi `sceneId` na cidade sob
+   * ela (o mesmo botão do aviso "A caravana chegou a…"). `false` quando
+   * ninguém chegou (sala fechada, caravana fora da cidade, cena sumiu).
+   */
+  disembarkCaravan(sceneId: string): boolean
   /**
    * Recado do mestre a quem está na cena `sceneId`. Devolve quantos jogadores
    * receberam (0 = ninguém lá), ou `null` com a sala fechada. `playerIds`:
@@ -284,6 +309,8 @@ export interface HostBridge {
   activeAlarm(): { id: string; text: string; sceneIds: string[] } | null
   /** A vez mudou (começar, próxima, encerrar): snapshot na hora, para o "sua vez" não esperar outra edição. */
   notifyTurnChanged(): void
+  /** O relógio da campanha andou: snapshot na hora, com o período (e a visão da noite) novos. */
+  notifyClockChanged(): void
   /**
    * TELA DA MESA: a cena que a TV mostra (`tableSceneKey`), ou `null` para ela
    * esperar. Snapshot imediato. Sala fechada: nada.
@@ -505,6 +532,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const notifyScreens = () => {
     for (const watcher of screenWatchers) watcher()
   }
+  /** CARAVANA: oferta "Desembarcar" na tela, por cena de mapa-mundi: o pino onde ela parou e o id do toast. */
+  const caravanToasts = new Map<string, { pinId: string; toastId: string }>()
   /** OLHOS DO GUARDA: pares (cena, guarda, ficha) no olhar no último snapshot — aviso só na entrada. */
   let guardSeen: ReadonlySet<string> = new Set()
   /** Linha de cada chamado aberto na caixa "Chamados": `callId` -> id do toast. */
@@ -552,7 +581,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const moveAndLog = (transfer: AppliedTransfer): boolean => {
     travelSeq += 1
     const entry = travelLogEntry(transfer, world(), now(), `viagem-${travelSeq}`)
-    const moved = deps.applyTransfer?.(transfer) ?? false
+    const moved = applyTransferAlong(transfer)
     if (moved && entry !== null) setTravelLog(addTravel(travelLog, entry))
     return moved
   }
@@ -767,6 +796,68 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     for (const line of notices.lines) useToastStore.getState().push('info', line, GUARD_SIGHTING_TOAST_MS, { grupo: 'Vigias' })
   }
 
+  /**
+   * CARAVANA NO MAPA-MUNDI: antes de cada snapshot, as fichas do grupo seguem a
+   * que o mestre arrastou (pela store, como o movimento do jogador), e a
+   * caravana parada numa cidade vira a oferta "Desembarcar". Mover pela store
+   * agenda outro broadcast, que já não acha nada a mover.
+   */
+  const followCaravans = (cause: MapChangeCause = 'edit') => {
+    if (session === null) return
+    const follow = session.followCaravans(world(), cause)
+    if (follow.moves.length > 0) applyCaravanMoves(follow.moves)
+    syncCaravanToasts(follow.stops)
+  }
+
+  const applyCaravanMoves = (moves: readonly AppliedMove[]) => {
+    if (deps.applyCaravanMoves !== undefined) {
+      deps.applyCaravanMoves(moves)
+      return
+    }
+    for (const { tokenId, x, y, sceneId } of moves) {
+      if (sceneId === undefined) deps.applyMove(tokenId, x, y)
+      else deps.applyMove(tokenId, x, y, sceneId)
+    }
+  }
+
+  /** Uma oferta por mapa-mundi: some quando a caravana sai da cidade, troca quando para em outra. */
+  const syncCaravanToasts = (stops: readonly CaravanStop[]) => {
+    const toasts = useToastStore.getState()
+    for (const [sceneId, shown] of [...caravanToasts]) {
+      if (stops.some((stop) => stop.sceneId === sceneId && stop.pinId === shown.pinId)) continue
+      toasts.dismiss(shown.toastId)
+      caravanToasts.delete(sceneId)
+    }
+    for (const stop of stops) {
+      if (caravanToasts.has(stop.sceneId)) continue
+      const toastId = toasts.push('instrucao', `A caravana chegou a ${stop.toSceneName}`, null, {
+        actions: [{ label: 'Desembarcar', run: () => disembark(stop.sceneId) }],
+      })
+      caravanToasts.set(stop.sceneId, { pinId: stop.pinId, toastId })
+    }
+  }
+
+  /** "Desembarcar": cada ficha vai para a cidade pela store, e só quem chegou recebe o `scene.changed`. */
+  const disembark = (sceneId: string): boolean => {
+    if (session === null) return false
+    const arrivals = session.disembarkCaravan(sceneId, world())
+    const shown = caravanToasts.get(sceneId)
+    if (shown !== undefined) useToastStore.getState().dismiss(shown.toastId)
+    caravanToasts.delete(sceneId)
+    const arrived = new Set<string>()
+    for (const arrival of arrivals) {
+      // Pela mesma porta da travessia: quem ela leva (`transfer.junto`) desce junto.
+      if (!applyTransferAlong(arrival.transfer)) continue
+      arrived.add(arrival.transfer.playerId)
+      announceArrival(arrival.transfer)
+    }
+    // Primeiro `scene.changed`, depois o snapshot da cidade (mesma ordem do "Deixar ir").
+    void dispatch({ outbound: arrivals.filter((a) => arrived.has(a.transfer.playerId)).flatMap((a) => a.outbound) })
+    broadcastNow()
+    notifyPlayersIfChanged()
+    return arrived.size > 0
+  }
+
   const cancelPendingBroadcast = () => {
     if (pendingBroadcast === null) return
     clearTimeout(pendingBroadcast)
@@ -782,17 +873,32 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const broadcastNow = () => {
     if (session === null) return
+    followCaravans()
     cancelPendingBroadcast()
     const current = world()
     const result = session.broadcast(current)
     void dispatch(result)
     announceHazardEntries(result.hazardEntries ?? [])
+    announceTriggerEntries(result.triggerEntries ?? [])
     announceGuardSightings(current)
     // O mestre pode ter apagado ou trocado uma ficha de cena pelo editor: é
     // mudança de mapa, que só passa por aqui.
     sendPartyIfChanged()
     // Cada snapshot marca o que cada jogador viu: o explorado da mesa muda.
     scheduleExplorationSave()
+  }
+
+  /**
+   * GATILHO DE ÁREA: "Armadilha: Ana entrou em Corredor". Grupo próprio, como
+   * o do guarda: várias entradas de uma vez viram uma caixa, sem soterrar os
+   * pedidos. Fica o tempo do aviso do guarda — é gancho de narração.
+   */
+  const announceTriggerEntries = (entries: readonly AreaTriggerEntryNotice[]) => {
+    for (const entry of entries) {
+      useToastStore
+        .getState()
+        .push('info', areaTriggerEntryLine(entry.playerName, entry.kind, entry.areaName, entry.sceneName), GUARD_SIGHTING_TOAST_MS, { grupo: 'Gatilhos' })
+    }
   }
 
   /**
@@ -1182,14 +1288,40 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
+   * LEVAR FICHA JUNTO: move a ficha de quem atravessa e, SÓ se ela passou, cada
+   * ficha que ela leva (`transfer.junto`), para a mesma cena. Ficha levada que
+   * não passou (sumiu entre a validação e aqui) não desfaz a de quem leva: ela
+   * chegou, e é isso que o aviso diz. `false` = a de quem leva não passou.
+   */
+  const applyTransferAlong = (transfer: AppliedTransfer): boolean => {
+    const apply = deps.applyTransfer
+    if (apply === undefined) return false
+    const { junto, ...alone } = transfer
+    if (!apply(alone)) return false
+    // Ausente é o caso comum (ninguém levado), não falha.
+    for (const carried of junto ?? []) apply({ ...alone, tokenId: carried.tokenId, x: carried.x, y: carried.y })
+    return true
+  }
+
+  /**
    * A ficha troca de cena: "Deixar ir" do mestre ou pino livre. Move pela
    * store ANTES de mandar o `scene.changed`, e só avisa a chegada se moveu.
    */
   const completeTransfer = (result: HostResult, transfer: AppliedTransfer) => {
+    // `moveAndLog` passa por `applyTransferAlong`: quem ela leva vai junto.
     const moved = moveAndLog(transfer)
+    // LEVAR FICHA JUNTO: o pedido de passagem de quem foi levado morreu na
+    // sessão (`carriedAlong`); o aviso "Fulano quer passar por…" sai junto,
+    // senão o "Deixar ir" dele ficaria na tela sem fazer nada.
+    pruneTravelToasts()
     if (!moved) {
       // O "Você chegou" não pode sair: a ficha não saiu do lugar.
-      void dispatch({ outbound: result.outbound.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })) })
+      // Só a quem PEDIU: o dono de uma ficha levada junto (`by: 'master'`) não pediu nada.
+      const askers = result.outbound.filter(({ msg }) => !(msg.type === 'scene.changed' && msg.by !== undefined))
+      // Quem foi levado e perdeu o pedido que esperava o mestre lê a recusa dele (`lostTravels`).
+      void dispatch({
+        outbound: [...askers.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } }) satisfies Outbound), ...(result.lostTravels ?? [])],
+      })
       // O pedido já saiu da sessão ao ser aprovado: o selo da lista Cenas não pode ficar.
       notifyPlayersIfChanged()
       return
@@ -1545,7 +1677,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         // Sem prazo: o mestre precisa do texto na tela enquanto repassa o código novo à mesa.
         useToastStore.getState().push('instrucao', roomCodeChangedText(saved.code, room.code))
       }
-      session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now, getTurn: deps.getTurn, restoreSeats, restoreExploration })
+      session = createHostSession({
+        code: room.code,
+        visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS,
+        now: deps.now,
+        getTurn: deps.getTurn,
+        getClock: deps.getClock,
+        restoreSeats,
+        restoreExploration,
+      })
       // O diário é desta sala: os jogadores da anterior já não estão aqui para desfazer.
       setTravelLog([])
       unlisteners = [
@@ -1612,6 +1752,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       setTravelLog([])
       // Sala fechada: quem "caiu" agora é o fim da sala, não uma queda.
       resetDrops()
+      // Sem sala, "Desembarcar" não teria a quem mandar.
+      syncCaravanToasts([])
       currentRoom = null
       // O Rust derruba o túnel junto com a sala.
       resetTunnel()
@@ -1624,12 +1766,22 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       }
     },
 
-    notifyMapChanged() {
+    notifyMapChanged(cause = 'edit') {
+      // Desfazer/refazer: a caravana se reconhece no retrato AGORA, antes que
+      // uma edição seguinte (no mesmo intervalo do broadcast) seja comparada
+      // com a memória de antes do Ctrl+Z.
+      if (cause === 'history') followCaravans('history')
       scheduleBroadcast()
     },
 
     notifyTurnChanged() {
       // Um snapshot que já estava na fila sai agora, com a vez nova dentro.
+      cancelPendingBroadcast()
+      broadcastNow()
+    },
+
+    notifyClockChanged() {
+      // Mesmo caminho da vez: o período e o raio da noite saem no snapshot de agora.
       cancelPendingBroadcast()
       broadcastNow()
     },
@@ -1671,6 +1823,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
       pruneTravelToasts()
       if (!moved) {
+        // Quem seria levado junto e perdeu o pedido que esperava o mestre lê a recusa dele.
+        if (result.lostTravels !== undefined) void dispatch({ outbound: result.lostTravels })
         // Mesmo sem mover, o pedido que ele tinha pode ter morrido: o selo acompanha.
         notifyPlayersIfChanged()
         return false
@@ -1702,6 +1856,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       broadcastNow()
       notifyPlayersIfChanged()
       return true
+    },
+
+    disembarkCaravan(sceneId) {
+      return disembark(sceneId)
     },
 
     sceneNote(sceneId, text, playerIds) {

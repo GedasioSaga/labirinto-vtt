@@ -3,7 +3,7 @@ import type { Pin, PinExitLabel, Stair, StairDirection } from '../types/map'
 import { PIN_GLYPH, PIN_ICON_LABELS, isPinIcon, isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { itemOfPin } from '../lib/items'
 import { stairTravelLabel } from '../lib/stairTravel'
-import { PinSymbolArt, PinTravelArt } from '../components/PinSymbolArt'
+import { PinLeverArt, PinSymbolArt, PinTravelArt } from '../components/PinSymbolArt'
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -20,6 +20,8 @@ interface PlayerPinCardProps {
   onTakeItem?: () => void
   /** Já há um "Pegar" esperando o mestre: o botão fica desligado. */
   takeWaiting?: boolean
+  /** ALAVANCA: "Puxar a alavanca". Ausente = o cartão só lê. Só vale no pino do tipo alavanca. */
+  onPullLever?: () => void
   /**
    * As escadas do recorte. OBRIGATÓRIO: quando o pino é a passagem de uma
    * ESCADA que leva a outro andar (`Pin.escadaId`), o cartão acha a escada
@@ -33,6 +35,7 @@ interface PlayerPinCardProps {
 /** Nome da cabeça do pino para quem não vê o desenho: o que ela mostra no mapa. */
 function nomeDaCabeca(pin: Pin): string {
   if (pin.kind === 'viagem') return 'passagem'
+  if (pin.kind === 'alavanca') return 'alavanca'
   if (isPinIcon(pin.icon)) return PIN_ICON_LABELS[pin.icon].toLocaleLowerCase('pt-BR')
   return pin.kind === 'interrogacao' ? 'interrogação' : 'exclamação'
 }
@@ -46,14 +49,16 @@ function nomeDaCabeca(pin: Pin): string {
  */
 function CabecaDoPino({ pin }: { pin: Pin }) {
   const viagem = pin.kind === 'viagem'
-  const simbolo = !viagem && isPinIcon(pin.icon) ? pin.icon : null
+  // A alavanca, como a passagem, desenha o próprio símbolo, nunca o escolhido.
+  const alavanca = pin.kind === 'alavanca'
+  const simbolo = !viagem && !alavanca && isPinIcon(pin.icon) ? pin.icon : null
   return (
     <span
       className={viagem ? 'pp-pincard__glyph pp-pincard__glyph--viagem' : 'pp-pincard__glyph'}
       role="img"
       aria-label={`Símbolo do pino: ${nomeDaCabeca(pin)}`}
     >
-      {viagem ? <PinTravelArt size={16} /> : simbolo !== null ? <PinSymbolArt icon={simbolo} size={16} /> : PIN_GLYPH[pin.kind]}
+      {viagem ? <PinTravelArt size={16} /> : alavanca ? <PinLeverArt size={16} /> : simbolo !== null ? <PinSymbolArt icon={simbolo} size={16} /> : PIN_GLYPH[pin.kind]}
     </span>
   )
 }
@@ -135,6 +140,7 @@ export function PlayerPinCard({
   travelWaiting = false,
   onTakeItem,
   takeWaiting = false,
+  onPullLever,
   stairs,
 }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
@@ -194,6 +200,9 @@ export function PlayerPinCard({
   // a passagem no lugar do glifo — a mesma cabeça que o jogador vê no mapa.
   // O nome da cena de destino nunca chega aqui (`lib/fogFilter.ts`).
   const viagem = pin.kind === 'viagem'
+  // ALAVANCA: qual porta ela move nunca chega aqui (`lib/fogFilter.ts`); o
+  // cartão só oferece puxar, e o que mudou o jogador vê no mapa.
+  const alavanca = pin.kind === 'alavanca'
   // O modo vem no recorte (o destino, não). Trancada não oferece botão nenhum:
   // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
   const passagem = passageOf(pin)
@@ -245,7 +254,7 @@ export function PlayerPinCard({
         className={foto === null ? 'pp-pincard pp-pincard--compacto' : 'pp-pincard'}
         role="dialog"
         aria-modal="true"
-        aria-label={escada ?? (viagem ? 'Passagem' : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`)}
+        aria-label={escada ?? (viagem ? 'Passagem' : alavanca ? 'Alavanca' : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`)}
       >
         {escada === null && foto !== null && <img className="pp-pincard__image" src={foto} alt="Imagem deixada pelo mestre neste ponto de interesse" />}
         <div className="pp-pincard__body">
@@ -267,6 +276,13 @@ export function PlayerPinCard({
               </button>
             )}
           </div>
+        )}
+        {alavanca && onPullLever !== undefined && (
+          // Sem confirmação, como o "Pegar": puxar de novo desfaz, e a porta
+          // que o jogador enxerga mostra na hora o que mudou.
+          <button type="button" className="pp-pincard__travel" onClick={onPullLever}>
+            Puxar a alavanca
+          </button>
         )}
         {trancada && chave === null && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
         {podePedir && confirming === null && !encruzilhada && (

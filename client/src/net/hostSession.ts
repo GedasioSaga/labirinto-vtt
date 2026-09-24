@@ -1,10 +1,13 @@
-import type { DoorState, HazardKind, MapData, Pin, RegionPoint, Token, Wall } from '../types/map'
+import type { AreaTriggerKind, DoorState, HazardKind, MapData, Pin, RegionPoint, Token, Wall } from '../types/map'
 import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazards'
+import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
 import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, resizeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { alarmForPlayer, allPlayerTokens, diceRollForPlayer, filterMapForGroup, filterMapForPlayer, memoryBlockedRings, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, sceneNameForPlayer, turnForPlayer, type GroupViewer, type PlayerClueContent, type PlayerMapView, type SceneAlarm } from '../lib/fogFilter'
+import { alarmForPlayer, allPlayerTokens, clockForPlayer, diceRollForPlayer, filterFloorMemory, filterMapForGroup, filterMapForPlayer, memoryBlockedRings, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, sceneNameForPlayer, turnForPlayer, type GroupViewer, type PlayerClueContent, type PlayerMapView, type SceneAlarm } from '../lib/fogFilter'
 import { MASTER_ROLLER_NAME, rollDice, secureRollDie, type DiceRequest, type HostDiceRoll, type RollDie } from '../lib/dice'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
+import { visionRadiusAtHour } from '../lib/campaignClock'
+import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
 import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokensOccupy } from '../lib/movementRules'
@@ -26,6 +29,9 @@ import {
   type PointActionAnswer,
   type PointActionKind,
 } from '../lib/pointActions'
+import { linkedDoorOf } from '../lib/lever'
+import { carriedBy, carrierIdOf } from '../lib/carry'
+import { companionArrivals, type CarriedArrival } from '../lib/carryArrival'
 import {
   parsePlayerMessage,
   type ClueEntry,
@@ -41,11 +47,15 @@ import {
   type DoorToggleMessage,
   type DoorToggleRejection,
   type DoorUseKeyMessage,
+  type FloorMemoryWire,
+  type FloorsWire,
   type HostMessage,
   type ItemGiveMessage,
   type ItemGiveRejection,
   type JoinMessage,
   type LaserMessage,
+  type PinLeverMessage,
+  type PinLeverRejection,
   type PinTakeMessage,
   type PinTakeRejection,
   type PartyMember,
@@ -67,6 +77,8 @@ import {
   TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS,
   type NoteEntry,
 } from './protocol'
+import { readArrivalText } from '../lib/arrivalText'
+import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -127,6 +139,24 @@ function sceneKey(scene: HostScene): string {
 
 function allScenes(world: HostWorld): HostScene[] {
   return [world.open, ...world.background]
+}
+
+/**
+ * O `scene.changed` de quem CHEGA à cena de mapa `to`. Leva o TEXTO DE CHEGADA
+ * dela (`lib/arrivalText.ts`) quando há: é o único caminho do texto até o
+ * jogador — o recorte nunca o manda — e só quem chega recebe este aviso.
+ */
+function sceneChangedFor(to: MapData, by?: 'master' | 'gather'): HostMessage {
+  const chegada = readArrivalText(to.textoChegada)
+  return { type: 'scene.changed', ...(by === undefined ? {} : { by }), ...(chegada === undefined ? {} : { chegada }) }
+}
+
+/** As cenas como a ligação de um pino de viagem as enxerga (`resolvePinTravel`). */
+function travelLookup(scenes: readonly HostScene[]): (sceneId: string) => TravelScene | null {
+  return (sceneId) => {
+    const scene = scenes.find((s) => s.sceneId === sceneId)
+    return scene === undefined ? null : { name: scene.name, map: scene.map }
+  }
 }
 
 /**
@@ -273,6 +303,44 @@ export interface AppliedTransfer {
   toSceneName: string
   x: number
   y: number
+  /**
+   * LEVAR FICHA JUNTO: as fichas que `tokenId` leva (`lib/carry.ts`) e onde
+   * cada uma assenta na cena de destino. O integrador as move DEPOIS da ficha
+   * de quem leva, e só se ela passou. Ausente = ninguém levado. Nada disto vai
+   * ao jogador.
+   */
+  junto?: CarriedArrival[]
+}
+
+/**
+ * CARAVANA: a caravana de um mapa-mundi está em cima de uma cidade (pino de
+ * viagem ligado). É a oferta "Desembarcar" do mestre; nada disto vai ao jogador.
+ */
+export interface CaravanStop {
+  /** A cena de mapa-mundi (id na aventura) e o nome que o mestre lê. */
+  sceneId: string
+  sceneName: string
+  pinId: string
+  toSceneId: string
+  toSceneName: string
+}
+
+/**
+ * Por que o mapa da cena aberta mudou: edição do mestre (ou jogada aplicada) ou
+ * desfazer/refazer, que só volta a um retrato antigo (`stores/mapStore.ts` → `mapChangeCause`).
+ */
+export type MapChangeCause = 'edit' | 'history'
+
+/** O que `followCaravans` pede ao integrador: fichas que acompanham a caravana, e onde ela parou. */
+export interface CaravanFollow {
+  moves: AppliedMove[]
+  stops: CaravanStop[]
+}
+
+/** Uma ficha da caravana que desembarca: a travessia e, na primeira ficha de cada jogador, o `scene.changed` dele. */
+export interface CaravanArrival {
+  transfer: AppliedTransfer
+  outbound: Outbound[]
 }
 
 /** Sinal aceito de um jogador, para a UI do mestre desenhar. */
@@ -380,8 +448,17 @@ export interface HostResult {
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
    */
   applyTransfer?: AppliedTransfer
+  /**
+   * LEVAR FICHA JUNTO: a recusa a quem tinha pedido de passagem esperando o
+   * mestre e perdeu o pedido por ser levado junto. O integrador só despacha
+   * se a ficha de quem leva NÃO passou; se passou, o `scene.changed` com
+   * `by` já é a resposta que ele lê.
+   */
+  lostTravels?: Outbound[]
   /** ZONA DE PERIGO: fichas de jogador que entraram num perigo neste broadcast. O integrador avisa o mestre. */
   hazardEntries?: HazardEntryNotice[]
+  /** GATILHO DE ÁREA: fichas de jogador que entraram numa área marcada neste broadcast. O integrador avisa o mestre. */
+  triggerEntries?: AreaTriggerEntryNotice[]
   /**
    * Alguém entrou SEM resume com o nome de quem está fora: o integrador
    * pergunta ao mestre "Ana voltou?". Dado do mestre — nunca vai pela rede.
@@ -414,6 +491,17 @@ export interface ReclaimedSeat {
   playerId: string
   name: string
   tokenIds: string[]
+}
+
+/** GATILHO DE ÁREA: a linha que o mestre lê — quem entrou em qual área, e onde. Nada disto vai ao jogador. */
+export interface AreaTriggerEntryNotice {
+  playerName: string
+  tokenName: string
+  kind: AreaTriggerKind
+  /** Nome da área (Sala ou Região) — `regionAreaName`. */
+  areaName: string
+  /** Nome da cena (o que o mestre lê), só quando ela não é a aberta no editor. */
+  sceneName?: string
 }
 
 /** ZONA DE PERIGO: a linha que o mestre lê — quem entrou em quê, e onde. Nada disto vai ao jogador. */
@@ -546,6 +634,12 @@ export interface HostSessionOptions {
    * ninguém. O jogador só recebe o recorte disto (`turnForPlayer`).
    */
   getTurn?: () => TurnRef | null
+  /**
+   * RELÓGIO DA CAMPANHA: a hora do dia no mestre (0 a 23), lida a cada
+   * snapshot. Ausente ou `null` = sem relógio. O jogador só recebe o recorte
+   * disto (`clockForPlayer`); a cena externa à noite encolhe a visão dele.
+   */
+  getClock?: () => number | null
   /** Chave da tela da mesa (teste). Ausente = um UUID novo por sala, fora de `randomId`. */
   tableKey?: string
   /**
@@ -747,6 +841,24 @@ export interface HostSession {
    * mesma cena.
    */
   returnPlayer(playerId: string, tokenId: string, back: { sceneId: string; x: number; y: number }, source: HostMapSource): HostResult
+  /**
+   * CARAVANA NO MAPA-MUNDI: em cada cena marcada como mapa-mundi, as fichas do
+   * grupo seguem a que o mestre arrastou (`caravanStep`) e ficam empilhadas no
+   * ponto da caravana. Devolve os movimentos a aplicar e as cidades onde uma
+   * caravana está parada agora. Não envia nada: o integrador aplica e faz o broadcast.
+   *
+   * `cause: 'history'` = a cena aberta acabou de voltar por desfazer/refazer:
+   * lá nada foi arrastado, e a caravana só se reconhece no retrato
+   * (`caravanRegroup`) em vez de seguir quem "saiu" do ponto dela.
+   */
+  followCaravans(source: HostMapSource, cause?: MapChangeCause): CaravanFollow
+  /**
+   * "Desembarcar": cada ficha da caravana da cena `sceneId` vai para a cidade
+   * sob ela, numa casa livre em volta do pino par. Cada jogador recebe um
+   * `scene.changed` (`by: 'master'`) e passa a ver a cidade com a própria
+   * ficha de volta. Sem caravana, sem cidade ou cena que não é mapa-mundi: `[]`.
+   */
+  disembarkCaravan(sceneId: string, source: HostMapSource): CaravanArrival[]
   /**
    * Raio de visão só deste jogador (limitado à faixa); `null` volta ao global.
    * Não envia: o integrador faz o broadcast. Jogador desconhecido ou raio não finito é ignorado.
@@ -1037,6 +1149,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: o mesmo limite do toque na porta, para "Pegar" e para "Dar a…".
   const lastItemTakeAt = new Map<string, number>()
   const lastItemGiveAt = new Map<string, number>()
+  // Por playerId: o mesmo limite do toque na porta, para puxar a alavanca.
+  const lastLeverAt = new Map<string, number>()
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
   const lastTokenPhotoAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
@@ -1134,11 +1248,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // broadcast, por cena (chave `sceneKey`). É daqui que sai "entrou agora".
   // Uma entrada por cena da aventura: não cresce além do número de cenas.
   const hazardSeen = new Map<string, Map<string, HazardEntry>>()
+  // GATILHO DE ÁREA: a leitura anterior de cada cena (chave `sceneKey`) — quem
+  // estava dentro de qual gatilho. Mesmo tamanho de `hazardSeen`.
+  const triggerSeen = new Map<string, AreaTriggerPresence>()
   // ALARME PARA VÁRIAS CENAS: o alarme soando (no máximo um) e, por conexão,
   // o id do alarme que aquela tela mostra agora. É por clientId de propósito:
   // quem reconecta chega com tela limpa e precisa receber de novo.
   let alarm: SceneAlarm | null = null
   const alarmShown = new Map<string, string>()
+  // CARAVANA: onde estava a caravana de cada mapa-mundi no último passo (chave
+  // `sceneKey`). É por ele que se sabe QUAL ficha o mestre arrastou. Uma
+  // entrada por cena com caravana: sai quando o grupo deixa a cena.
+  const caravanAt = new Map<string, CaravanMemory>()
 
   const radiusFor =(playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
 
@@ -1147,6 +1268,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const chosen = pinAudiences.get(pinId)
     if (chosen === undefined) return null
     return [...players.values()].sort((a, b) => a.joinedAt - b.joinedAt).flatMap((p) => (chosen.has(p.playerId) ? [p.playerId] : []))
+  }
+
+  /** A hora do relógio da campanha agora; `null` = o mestre não tem relógio. */
+  const clockHour = (): number | null => options.getClock?.() ?? null
+
+  /**
+   * RELÓGIO DA CAMPANHA: o raio do jogador NESTA cena, agora. À noite, numa
+   * cena externa, cai — e é este raio que todo recorte usa (snapshot, porta,
+   * item, alavanca, tela da mesa), então o que ficou no escuro não viaja nem
+   * pode ser tocado. O painel do mestre continua mostrando o raio de base.
+   */
+  const radiusIn = (playerId: string, map: MapData): number => {
+    const hour = clockHour()
+    return hour === null ? radiusFor(playerId) : visionRadiusAtHour(radiusFor(playerId), hour, map)
   }
 
   /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
@@ -1273,7 +1408,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       seenPins.delete(playerId)
       return [{ type: 'lobby.waiting' }]
     }
-    const view = snapshotFor(playerId, scene.map, world, sceneNameForPlayer(scene))
+    const view = snapshotFor(playerId, scene.map, world, sceneNameForPlayer(scene), floorsFor(playerId, scene, world))
     const note = arrivalNote(playerId, scene.sceneId, arrived)
     return note === null ? view : [...view, noteMessage(note)]
   }
@@ -1392,6 +1527,35 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return [...views.map((msg) => ({ clientId, msg })), ...pendingNoteFor(clientId, playerId, views[0])]
   }
 
+  /**
+   * MAPA POR ANDARES — o que vai em `snapshot.andares`: o rótulo do andar onde
+   * o jogador está e, de cada OUTRO andar do mesmo prédio que ele JÁ conhece
+   * (tem memória lá; `existingMemory` não cria nem mexe na ordem), a planta
+   * recortada pela memória dele, sem visão (`filterFloorMemory`). Andar onde ele
+   * nunca pisou não sai nem pelo rótulo. `undefined` = sem abas: cena comum, ou
+   * nenhum outro andar conhecido.
+   */
+  const floorsFor = (playerId: string, scene: HostScene, world: HostWorld): FloorsWire | undefined => {
+    const here = scene.map.andar
+    if (here === undefined) return undefined
+    const outros: FloorMemoryWire[] = []
+    for (const other of allScenes(world)) {
+      const floor = other.map.andar
+      if (floor === undefined || other.map.id === scene.map.id || !sameBuilding(here, floor)) continue
+      // Dois andares com o mesmo rótulo seriam duas abas iguais: vale o primeiro, e nunca o do andar dele.
+      if (floor.rotulo === here.rotulo || outros.some((o) => o.rotulo === floor.rotulo)) continue
+      const memory = existingMemory(playerId, other.map)
+      if (memory === undefined) continue
+      // "QUEM VÊ": pino escolhido só para outro jogador não sai nem pela memória do andar.
+      const view = filterFloorMemory(other.map, memory.exp, memory.doors, { pinAudiences, playerId, seenRooms: memory.seenRooms })
+      outros.push({ rotulo: floor.rotulo, map: view.map, explored: encodeExploration(memory.exp), concealed: view.concealed })
+    }
+    if (outros.length === 0) return undefined
+    const order = sortFloorLabels(outros.map((o) => o.rotulo))
+    outros.sort((a, b) => order.indexOf(a.rotulo) - order.indexOf(b.rotulo))
+    return { atual: here.rotulo, outros }
+  }
+
   /** A ficha é de OUTRO jogador (não do mestre, não dele): colega a quem se pode dar um item. */
   const isOtherPlayersToken = (playerId: string, tokenId: string): boolean =>
     Object.entries(ownership).some(([owner, ids]) => owner !== playerId && ids.includes(tokenId))
@@ -1413,11 +1577,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * `sceneName`: o nome público da cena DELE, já recortado por
    * `sceneNameForPlayer`; `undefined` = o snapshot sai sem o campo.
    */
-  const snapshotFor = (playerId: string, map: MapData, world: HostWorld, sceneName: string | undefined): HostMessage[] => {
+  const snapshotFor = (playerId: string, map: MapData, world: HostWorld, sceneName: string | undefined, andares: FloorsWire | undefined): HostMessage[] => {
     const memory = memoryFor(playerId, map, world)
     const exp = memory.exp
     const entered = enteredRooms.get(playerId)?.get(map.id)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered, memory.seenRooms)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusIn(playerId, map), exp, memory.doors, pinAudiences, entered, memory.seenRooms)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -1476,10 +1640,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (turn !== null) snapshot.turn = turn
     // ZONA DE PERIGO: só o que ele enxerga, e o campo só existe quando há algum.
     if (view.hazards.length > 0) snapshot.hazards = view.hazards
+    // GATILHO DE ÁREA: só o que o mestre revelou, mesma regra do campo.
+    if (view.gatilhos.length > 0) snapshot.gatilhos = view.gatilhos
+    // MAPA POR ANDARES: o campo só existe quando há outro andar conhecido.
+    if (andares !== undefined) snapshot.andares = andares
+    // RELÓGIO DA CAMPANHA: o período e, desta cena, se está escuro. Sem relógio, o campo nem sai.
+    const relogio = clockForPlayer(clockHour(), map)
+    if (relogio !== null) snapshot.relogio = relogio
     return [snapshot, ...roomTextCardsFor(playerId, map.id, view)]
   }
 
-  const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
+  const reply =(clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
 
   /** Jogador que jogava e ficou sem token volta ao lobby; desconectado recebe o estado no resume. */
   const waitingIfLostLast = (playerId: string, wasPlaying: boolean): Outbound[] => {
@@ -1566,7 +1737,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
       // Só quem está NESTA cena enxerga por ela; a ficha dele em outra cena não conta.
       if (statusOf(playerId) === 'playing' && sceneFor(playerId, world) === scene) {
-        viewers.push({ tokenIds: ownership[playerId] ?? [], visionRadius: radiusFor(playerId) })
+        viewers.push({ tokenIds: ownership[playerId] ?? [], visionRadius: radiusIn(playerId, map) })
       }
     }
     // A marca do guarda (?, !) conta a ficha de qualquer jogador, não só a de quem está no grupo da TV —
@@ -1580,7 +1751,43 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const snapshot: HostMessage = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(merged), ownTokens: [], concealed: view.concealed }
     // ZONA DE PERIGO: o que o GRUPO enxerga agora, mesma regra do jogador.
     if (view.hazards.length > 0) snapshot.hazards = view.hazards
+    // GATILHO DE ÁREA: o revelado, mesma regra do jogador.
+    if (view.gatilhos.length > 0) snapshot.gatilhos = view.gatilhos
     return snapshot
+  }
+
+  /**
+   * GATILHO DE ÁREA — quem ENTROU numa área marcada desde o último broadcast
+   * (`newAreaTriggerEntries`). Só ficha de JOGADOR conta. O aviso é SÓ do
+   * mestre: o jogador não recebe mensagem nenhuma — ele só vê a área depois
+   * que o mestre revela, e isso viaja no snapshot (`view.gatilhos`).
+   */
+  const triggerEntriesIn = (world: HostWorld): AreaTriggerEntryNotice[] => {
+    const entries: AreaTriggerEntryNotice[] = []
+    const ownerOf = new Map<string, string>()
+    for (const [playerId, ids] of Object.entries(ownership)) for (const id of ids) ownerOf.set(id, playerId)
+    const playerTokens = [...ownerOf.keys()]
+    for (const scene of allScenes(world)) {
+      const key = sceneKey(scene)
+      const presence = areaTriggerPresence(scene.map, playerTokens)
+      const before = triggerSeen.get(key)
+      triggerSeen.set(key, presence)
+      for (const entry of newAreaTriggerEntries(before, presence)) {
+        const playerId = ownerOf.get(entry.tokenId)
+        const record = playerId === undefined ? undefined : players.get(playerId)
+        const token = scene.map.tokens.find((t) => t.id === entry.tokenId)
+        const region = scene.map.regions.find((r) => r.id === entry.regionId)
+        if (record === undefined || token === undefined || region === undefined) continue
+        entries.push({
+          playerName: record.name,
+          tokenName: token.name,
+          kind: entry.kind,
+          areaName: regionAreaName(region),
+          ...(scene === world.open ? {} : { sceneName: scene.name }),
+        })
+      }
+    }
+    return entries
   }
 
   /**
@@ -1597,7 +1804,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    */
   const seesHazardAround = (playerId: string, map: MapData, token: Token, kind: HazardKind): boolean => {
     const memory = existingMemory(playerId, map)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory?.exp, memory?.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusIn(playerId, map), memory?.exp, memory?.doors)
     return view.hazardsHere.some((h) => h.tokenId === token.id && h.kind === kind)
   }
 
@@ -1857,6 +2064,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     pendingItems.delete(playerId)
     lastItemTakeAt.delete(playerId)
     lastItemGiveAt.delete(playerId)
+    lastLeverAt.delete(playerId)
     enteredRooms.delete(playerId)
     notebooks.delete(playerId)
     noteSceneOf.delete(playerId)
@@ -1912,7 +2120,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const occupantsSeenBy = (playerId: string, map: MapData): readonly Token[] | undefined => {
     if (!tokensOccupy(map)) return undefined
     const memory = existingMemory(playerId, map)
-    return filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory?.exp, memory?.doors).map.tokens
+    return filterMapForPlayer(map, playerId, ownership, radiusIn(playerId, map), memory?.exp, memory?.doors).map.tokens
   }
 
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
@@ -1924,12 +2132,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (scene === null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'unknown_token' })
     // Cena pausada: a mesma recusa de sempre, e a ficha volta ao lugar na tela dele.
     if (inPausedScene(scene)) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'paused' })
+    // MAPA-MUNDI: a caravana é do mestre. O jogador nem recebe a própria ficha
+    // aqui; um pedido com o id dela (guardado da cena de antes) é travado.
+    if (isWorldMap(scene.map)) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'locked' })
     // INICIATIVA: vez nesta cena prende quem não é da vez, inclusive na vez de
     // ficha que o jogador não vê. A recusa só diz "não é a sua vez", nunca de quem é.
     // Vez de ficha que saiu da cena (apagada, viajou) não prende ninguém (`turnTokenIdOn`).
     const turnTokenId = turnTokenIdOn(options.getTurn?.() ?? null, scene.map)
+    // LEVAR FICHA JUNTO: o ferido que ela leva sai do caminho junto com ela, então
+    // não ocupa a casa para onde ela vai. O vínculo vem do mapa do MESTRE: o
+    // recorte do jogador não o carrega.
+    const carriedIds = new Set(carriedBy(scene.map, msg.tokenId).map((t) => t.id))
+    const occupants = occupantsSeenBy(playerId, scene.map)?.filter((t) => !carriedIds.has(t.id))
     const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, {
-      occupants: occupantsSeenBy(playerId, scene.map),
+      occupants,
       turnTokenId,
     })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
@@ -2300,7 +2516,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const wall = map.walls.find((w) => w.id === wallId)
     if (wall === undefined || wall.door === null) return null
     const memory = memoryFor(playerId, map, world)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
     if (!view.visibleDoorIds.includes(wall.id)) return null
     const owned = new Set(ownership[playerId] ?? [])
     const nearIds = new Set(view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid)).map((t) => t.id))
@@ -2423,7 +2639,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (pin === undefined || item === null) return 'unavailable'
     const memory = memoryFor(playerId, map, world)
     // "Quem vê" entra no recorte: pino que não chega a este jogador não se pega.
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pinId)) return 'unavailable'
     const owned = new Set(ownership[playerId] ?? [])
     const reaching = view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))
@@ -2470,6 +2686,42 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const findPendingItem = (requestId: string): PendingItem | undefined => [...pendingItems.values()].find((pending) => pending.requestId === requestId)
 
   /**
+   * ALAVANCA. Autoridade no molde do "Pegar": o pino existe na cena dele, é
+   * alavanca, está no recorte dele (oculto, no escuro ou sob teto não vale) e
+   * uma ficha dele, no recorte dele, está ao alcance. A porta ligada NÃO
+   * precisa estar à vista — a alavanca existe justamente para mover a porta de
+   * outra sala. Ela só não move porta trancada (`stuck`), e a resposta nunca
+   * diz qual porta nem o estado dela: quem enxerga a porta vê pelo recorte.
+   */
+  function handlePinLever(clientId: string, msg: PinLeverMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    // Cena pausada: a alavanca mexe numa porta, então morre em silêncio como o toque na porta.
+    if (scene === null || inPausedScene(scene)) return { outbound: [] }
+    if (!withinDoorLimit(lastLeverAt, playerId)) return { outbound: [] }
+
+    const reject = (reason: PinLeverRejection): HostResult => reply(clientId, { type: 'pin.lever.rejected', reason })
+    const map = scene.map
+    const pin = map.pins.find((p) => p.id === msg.pinId)
+    if (pin === undefined || pin.kind !== 'alavanca') return reject('unavailable')
+    const memory = memoryFor(playerId, map, world)
+    // "Quem vê" entra no recorte: alavanca que não chega a este jogador não se puxa.
+    const view = filterMapForPlayer(map, playerId, ownership, radiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
+    if (!view.map.pins.some((p) => p.id === pin.id)) return reject('unavailable')
+    const owned = new Set(ownership[playerId] ?? [])
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return reject('far')
+    const door = linkedDoorOf(map, pin)
+    if (door === null || door.door.locked) return reject('stuck')
+
+    return {
+      outbound: [{ clientId, msg: { type: 'pin.lever.answer', answer: 'pulled' } }],
+      applyDoor: { wallId: door.id, open: !door.door.open, ...backgroundSceneId(scene, world) },
+    }
+  }
+
+  /**
    * "Dar a…": o item sai da mochila de uma ficha DELE e entra na de um COLEGA
    * (ficha de outro jogador) que ele vê agora e que está encostada. Ficha do
    * mestre (NPC), a própria, a que ele não vê e item que ele não tem
@@ -2487,7 +2739,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const map = scene.map
     const owned = new Set(ownership[playerId] ?? [])
     const memory = memoryFor(playerId, map, world)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusIn(playerId, map), memory.exp, memory.doors)
     const masterToken = (id: string): Token | undefined => map.tokens.find((t) => t.id === id)
     const giverSeen = view.map.tokens.find((t) => owned.has(t.id) && carriedItemsOf(masterToken(t.id) ?? t).some((item) => item.id === msg.itemId))
     const targetSeen = view.map.tokens.find((t) => t.id === msg.toTokenId && !owned.has(t.id))
@@ -2553,10 +2805,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const from = sceneFor(playerId, world)
     if (from === null || from.sceneId === null) return null
     const fromSceneId = from.sceneId
+    // MAPA-MUNDI: a caravana viaja inteira, e quem a leva é o mestre
+    // (`disembarkCaravan`). Um jogador sozinho não sai dela por um pino.
+    if (isWorldMap(from.map)) return null
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map, world)
-    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
+    const view = filterMapForPlayer(from.map, playerId, ownership, radiusIn(playerId, from.map), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pinId)) return null
     const owned = new Set(ownership[playerId] ?? [])
     // Trancada: ninguém passa. Cai no mesmo `null` de todo o resto, então o
@@ -2632,7 +2887,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Livre: passou em tudo que o pedido passaria (névoa, token na cena, pino
     // ligado, limites, nenhum pendente) e vai direto, sem esperar o mestre —
     // ele só lê o aviso de chegada que o integrador mostra com a transferência.
-    if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel)
+    if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel, world)
     // Encruzilhada: o mestre lê a SAÍDA ("Escada da torre → Torre Alta"), o
     // mesmo rótulo que a jogadora tocou; pino de uma saída continua nomeado
     // pela descrição, como sempre.
@@ -2646,7 +2901,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const used: PinKeyUse = { playerId, playerName: record.name, itemName: travel.key, pinLabel }
       // `travel.from` é cópia (sceneId garantido): a cena de fundo se reconhece pelo id, não pela identidade.
       if (travel.from.sceneId !== world.open.sceneId) used.sceneName = travel.from.name
-      return { ...transferResult(playerId, clientId, record.name, travel), pinKeyUsed: used }
+      return { ...transferResult(playerId, clientId, record.name, travel, world), pinKeyUsed: used }
     }
     const requestId = randomId()
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
@@ -2665,10 +2920,73 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * LEVAR FICHA JUNTO na travessia: as fichas que `carrierId` leva na cena de
+   * origem vão junto, assentadas em volta de `spot` (`companionArrivals`). O
+   * vínculo é lido do mapa do MESTRE (`from.map`), nunca do recorte do jogador,
+   * que não o carrega. Ficha levada que é de OUTRO jogador leva a cena dele
+   * junto: ele recebe o mesmo aviso de quem leva foi movido pelo mestre (`by`:
+   * 'master' no pino e no "Mandar para…", 'gather' na reunião), porque não
+   * foi ele quem pediu — e o pedido de passagem que ele tinha perde o pino.
+   * Só quando ele ESTAVA na cena de origem e não deixa ficha lá: dono de duas
+   * fichas que fica com a principal para trás continua onde está, mandando
+   * nela, com o pedido que tinha. Um aviso por dono, mesmo levando duas dele.
+   * Ninguém levado: `transfer` vazio, e o `applyTransfer` fica como sempre foi.
+   */
+  function carriedAlong(
+    carrierPlayerId: string,
+    carrierId: string,
+    from: HostScene,
+    to: HostScene,
+    spot: { x: number; y: number },
+    world: HostWorld,
+    by: 'master' | 'gather',
+  ): { transfer: Pick<AppliedTransfer, 'junto'>; outbound: Outbound[]; lost: Pick<HostResult, 'lostTravels'> } {
+    const carrier = from.map.tokens.find((t) => t.id === carrierId)
+    const carried = carriedBy(from.map, carrierId)
+    if (carrier === undefined || carried.length === 0) return { transfer: {}, outbound: [], lost: {} }
+    const carriedIds = new Set(carried.map((t) => t.id))
+    const moved = new Set<string>()
+    const outbound: Outbound[] = []
+    const lostTravels: Outbound[] = []
+    for (const token of carried) {
+      const owner = Object.entries(ownership).find(([, ids]) => ids.includes(token.id))?.[0]
+      if (owner === undefined || owner === carrierPlayerId || moved.has(owner) || statusOf(owner) !== 'playing') continue
+      if (!leavesWithCarried(owner, from, carriedIds, world)) continue
+      moved.add(owner)
+      currentScene.set(owner, sceneKey(to))
+      const hadPending = pendingTravels.delete(owner)
+      const clientId = players.get(owner)?.clientId ?? null // null = caiu: reconecta já na cena nova
+      if (clientId === null) continue
+      outbound.push({ clientId, msg: sceneChangedFor(to.map, by) })
+      // Se a ficha de quem leva não passar, o `scene.changed` não sai e o
+      // pedido que ele esperava já morreu: sem esta recusa ficaria
+      // "Aguardando o mestre" para sempre.
+      if (hadPending) lostTravels.push({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })
+    }
+    return {
+      transfer: { junto: companionArrivals(to.map, carrier, spot, carried) },
+      outbound,
+      lost: lostTravels.length === 0 ? {} : { lostTravels },
+    }
+  }
+
+  /**
+   * O dono de uma ficha levada sai da cena junto? Só se é nela que ele está
+   * AGORA (`sceneFor`, a mesma regra do broadcast) e se todas as fichas dele
+   * ali estão entre as levadas. Senão a cena dele não muda.
+   */
+  function leavesWithCarried(owner: string, from: HostScene, carriedIds: ReadonlySet<string>, world: HostWorld): boolean {
+    const here = sceneFor(owner, world)
+    if (here === null || sceneKey(here) !== sceneKey(from)) return false
+    const owned = ownership[owner] ?? []
+    return !from.map.tokens.some((t) => owned.includes(t.id) && !carriedIds.has(t.id))
+  }
+
+  /**
    * A passagem acontece: `scene.changed` ao dono e `applyTransfer` para o
    * integrador mover a ficha. Vale para o "Deixar ir" e para o pino livre.
    */
-  function transferResult(playerId: string, clientId: string, playerName: string, travel: ValidTravel): HostResult {
+  function transferResult(playerId: string, clientId: string, playerName: string, travel: ValidTravel, world: HostWorld): HostResult {
     // Casa livre junto do par: quem passou antes pelo mesmo pino já está no
     // mapa (o integrador aplica cada passagem antes da próxima), então o
     // "Deixar todos" e o pino livre põem cada um numa casa.
@@ -2676,9 +2994,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A cena dele passa a ser a de destino a partir daqui: é ela que o
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
+    const along = carriedAlong(playerId, travel.token.id, travel.from, travel.to, spot, world, 'master')
     return {
-      outbound: [{ clientId, msg: { type: 'scene.changed' } }],
+      outbound: [{ clientId, msg: sceneChangedFor(travel.to.map) }, ...along.outbound],
+      ...along.lost,
       applyTransfer: {
+        ...along.transfer,
         tokenId: travel.token.id,
         playerId,
         playerName,
@@ -2903,6 +3224,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handlePointAction(clientId, msg, world)
         case 'dice.roll':
           return handleDiceRoll(clientId, msg)
+        case 'pin.lever':
+          return handlePinLever(clientId, msg, world)
       }
     },
 
@@ -3006,7 +3329,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // jogador pede de novo.
       const sameDestination = travel !== null && travel.to.sceneId === pending.toSceneId && travel.partner.id === pending.partnerId
       if (travel === null || !sameDestination) return reply(record.clientId, { type: 'pin.travel.rejected', reason: 'unavailable' })
-      return transferResult(pending.playerId, record.clientId, record.name, travel)
+      return transferResult(pending.playerId, record.clientId, record.name, travel, world)
     },
 
     denyTravel(requestId, text) {
@@ -3128,9 +3451,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // O pedido que ele tinha na cena de antes perde o sentido: o pino ficou lá.
       pendingTravels.delete(playerId)
       const by = gatherAt === undefined ? 'master' : 'gather'
+      const along = carriedAlong(playerId, token.id, from, to, spot, world, by)
       return {
-        outbound: record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by } }],
+        outbound: [...(record.clientId === null ? [] : [{ clientId: record.clientId, msg: sceneChangedFor(to.map, by) } satisfies Outbound]), ...along.outbound],
+        ...along.lost,
         applyTransfer: {
+          ...along.transfer,
           tokenId: token.id,
           playerId,
           playerName: record.name,
@@ -3172,6 +3498,95 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           y: spot.y,
         },
       }
+    },
+
+    followCaravans(source, cause = 'edit') {
+      const world = toWorld(source)
+      const scenes = allScenes(world)
+      const party = allPlayerTokens(ownership)
+      const moves: AppliedMove[] = []
+      const stops: CaravanStop[] = []
+      const alive = new Set<string>()
+      for (const scene of scenes) {
+        if (!isWorldMap(scene.map)) continue
+        const key = sceneKey(scene)
+        const members = caravanMembers(scene.map, party)
+        // O desfazer só mexe na cena aberta: as de fundo seguem a regra de sempre.
+        const fromHistory = cause === 'history' && scene === world.open
+        const step = fromHistory ? caravanRegroup(members) : caravanStep(members, caravanAt.get(key) ?? null)
+        if (step === null) continue
+        alive.add(key)
+        caravanAt.set(key, step.memory)
+        for (const move of step.moves) moves.push({ ...move, ...backgroundSceneId(scene, world) })
+        // Mapa solto não tem cidade: pino de viagem só liga cenas de aventura.
+        if (scene.sceneId === null) continue
+        const city = caravanCity(scene.map, step.at, caravanSize(members), scene.sceneId, travelLookup(scenes))
+        if (city !== null) stops.push({ sceneId: scene.sceneId, sceneName: scene.name, pinId: city.pinId, toSceneId: city.toSceneId, toSceneName: city.toSceneName })
+      }
+      for (const key of [...caravanAt.keys()]) if (!alive.has(key)) caravanAt.delete(key)
+      return { moves, stops }
+    },
+
+    disembarkCaravan(sceneId, source) {
+      const world = toWorld(source)
+      const scenes = allScenes(world)
+      const from = scenes.find((scene) => scene.sceneId === sceneId)
+      if (from === undefined || from.sceneId === null || !isWorldMap(from.map)) return []
+      const fromSceneId = from.sceneId
+      const members = caravanMembers(from.map, allPlayerTokens(ownership))
+      const step = caravanStep(members, caravanAt.get(sceneKey(from)) ?? null)
+      if (step === null) return []
+      // LEVAR FICHA JUNTO: quem é levado por outra ficha da caravana desce
+      // DEPOIS dela — chegando antes, acharia a cidade sem quem o leva e a
+      // travessia soltaria o vínculo (`adventureStore.transferToken`).
+      const memberIds = new Set(members.map((t) => t.id))
+      const carriedByMember = (t: Token): number => {
+        const carrierId = carrierIdOf(t)
+        return carrierId !== null && memberIds.has(carrierId) ? 1 : 0
+      }
+      const landing = [...members].sort((a, b) => carriedByMember(a) - carriedByMember(b))
+      const city = caravanCity(from.map, step.at, caravanSize(members), fromSceneId, travelLookup(scenes))
+      const to = city === null ? undefined : scenes.find((scene) => scene.sceneId === city.toSceneId)
+      if (city === null || to === undefined || to.sceneId === null) return []
+      const toSceneId = to.sceneId
+      const ownerOf = new Map<string, string>()
+      for (const [playerId, ids] of Object.entries(ownership)) for (const id of ids) ownerOf.set(id, playerId)
+      const spots = landingSpots(to.map, city.partner, landing)
+      const told = new Set<string>()
+      const arrivals: CaravanArrival[] = []
+      landing.forEach((token, i) => {
+        const playerId = ownerOf.get(token.id)
+        const record = playerId === undefined ? undefined : players.get(playerId)
+        const spot = spots[i]
+        if (playerId === undefined || record === undefined || spot === undefined) return
+        // A cena dele passa a ser a cidade; o pedido que ele tinha ficou no mapa-mundi.
+        currentScene.set(playerId, sceneKey(to))
+        pendingTravels.delete(playerId)
+        const first = !told.has(playerId)
+        told.add(playerId)
+        // O "Desembarcar" é uma travessia de pino como as outras: a ficha que
+        // ela leva e que não é da caravana (o ferido, o NPC escoltado) desce
+        // junto. Ficando no mapa-mundi com o vínculo gravado, voltaria a ser
+        // puxada quando quem a leva voltasse para lá.
+        const companions = carriedBy(from.map, token.id).filter((t) => !memberIds.has(t.id))
+        const junto = companionArrivals(to.map, token, spot, companions)
+        arrivals.push({
+          transfer: {
+            tokenId: token.id,
+            playerId,
+            playerName: record.name,
+            fromSceneId,
+            toSceneId,
+            toSceneName: to.name,
+            x: spot.x,
+            y: spot.y,
+            ...(junto.length === 0 ? {} : { junto }),
+          },
+          outbound: first && record.clientId !== null ? [{ clientId: record.clientId, msg: sceneChangedFor(to.map, 'master') }] : [],
+        })
+      })
+      caravanAt.delete(sceneKey(from))
+      return arrivals
     },
 
     assignToken(playerId, tokenId) {
@@ -3397,7 +3812,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // perigo quando o texto aparece.
       const hazards = hazardEntriesIn(world)
       outbound.push(...hazards.outbound)
-      return hazards.entries.length === 0 ? { outbound } : { outbound, hazardEntries: hazards.entries }
+      // GATILHO DE ÁREA: nada vai para `outbound` — o aviso é só do mestre.
+      const triggerEntries = triggerEntriesIn(world)
+      return {
+        outbound,
+        ...(hazards.entries.length === 0 ? {} : { hazardEntries: hazards.entries }),
+        ...(triggerEntries.length === 0 ? {} : { triggerEntries }),
+      }
     },
 
     setTableScene(key) {

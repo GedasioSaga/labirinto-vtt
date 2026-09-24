@@ -11,6 +11,8 @@ import { computeAlignedGridLines } from '../lib/gridAlign'
 import { roomHasRoof } from '../lib/roomOps'
 import type { PlayerHazard } from '../lib/hazards'
 import { drawHazardAreas } from '../pixi/drawHazards'
+import type { PlayerAreaTrigger } from '../lib/areaTriggers'
+import { drawAreaTriggers } from '../pixi/drawAreaTriggers'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs } from '../lib/layers'
 import { visionSegments } from '../lib/visibility'
 import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
@@ -115,6 +117,8 @@ interface PlayerViewProps {
   concealed?: RegionPoint[][]
   /** ZONA DE PERIGO: salas tomadas que o jogador enxerga agora (o host já recortou). */
   hazards?: readonly PlayerHazard[]
+  /** GATILHO DE ÁREA: armadilhas/alarmes que o mestre revelou (o host já recortou). */
+  gatilhos?: readonly PlayerAreaTrigger[]
   ownTokens: string[]
   /** INICIATIVA: a ficha da vez (sempre uma de `map.tokens`), que ganha o anel da vez. */
   turnTokenId?: string | null
@@ -693,6 +697,10 @@ interface Scene {
   lastHazards: readonly PlayerHazard[] | null
   lastHazardsVision: RegionPoint[][] | null
   hazardsCount: number
+  /** GATILHO DE ÁREA revelado: marca da área sob a névoa, sem máscara de visão (é anotação estática). */
+  triggers: Graphics
+  lastTriggers: readonly PlayerAreaTrigger[] | null
+  triggersCount: number
   /** Zonas ocultas: preto opaco acima da névoa e abaixo dos tokens. */
   concealed: Graphics
   lastConcealed: RegionPoint[][] | null
@@ -873,6 +881,19 @@ function redrawHazards(scene: Scene, hazards: readonly PlayerHazard[], vision: R
 }
 
 /**
+ * GATILHO DE ÁREA na tela do jogador: só chega o que o mestre revelou numa
+ * área que o jogador já conhece. É anotação da planta (como a própria sala),
+ * então não é recortada pela visão — a névoa por cima escurece o que está
+ * fora do alcance da lanterna, igual ao chão.
+ */
+function redrawTriggers(scene: Scene, triggers: readonly PlayerAreaTrigger[]): void {
+  if (triggers === scene.lastTriggers) return
+  scene.lastTriggers = triggers
+  drawAreaTriggers(scene.triggers, triggers)
+  scene.triggersCount = triggers.filter((t) => t.points.length >= 3).length
+}
+
+/**
  * Preto opaco sobre cada zona oculta ativa. A visão continua passando por ela
  * (a zona esconde conteúdo, não bloqueia), então o recorte do mestre já veio
  * sem nada lá dentro; o preto só tira a planta de fundo (chão, parede de
@@ -960,6 +981,8 @@ function stepZoom(scene: Scene, direction: ZoomDirection, animate: boolean): voi
 const NO_CONCEALED: RegionPoint[][] = []
 /** Mesmo motivo, para a zona de perigo. */
 const NO_HAZARDS: readonly PlayerHazard[] = []
+/** Mesmo motivo, para o gatilho de área. */
+const NO_TRIGGERS: readonly PlayerAreaTrigger[] = []
 
 export function PlayerView({
   map,
@@ -967,6 +990,7 @@ export function PlayerView({
   explored,
   concealed = NO_CONCEALED,
   hazards = NO_HAZARDS,
+  gatilhos = NO_TRIGGERS,
   ownTokens,
   turnTokenId = null,
   settings,
@@ -1011,6 +1035,7 @@ export function PlayerView({
     explored,
     concealed,
     hazards,
+    gatilhos,
     ownTokens,
     turnTokenId,
     settings,
@@ -1312,6 +1337,7 @@ export function PlayerView({
       explored: currentExplored,
       concealed: currentConcealed,
       hazards: currentHazards,
+      gatilhos: currentTriggers,
       ownTokens: own,
       turnTokenId: currentTurn,
       settings: currentSettings,
@@ -1372,6 +1398,7 @@ export function PlayerView({
 
     redrawLights(scene)
     redrawHazards(scene, currentHazards, currentVision)
+    redrawTriggers(scene, currentTriggers)
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
     redrawConcealed(scene, currentConcealed)
     redrawRoofs(scene, regions)
@@ -1459,6 +1486,7 @@ export function PlayerView({
       el.dataset.exploredCells = String(scene.exploredCells)
       el.dataset.concealedCount = String(scene.concealedCount)
       el.dataset.hazardsCount = String(scene.hazardsCount)
+      el.dataset.triggersCount = String(scene.triggersCount)
       el.dataset.pinsCount = String(pins.length)
       el.dataset.propsCount = String(scene.propsCount)
       el.dataset.propLabelsCount = String(scene.propLooksCount.labels)
@@ -1575,6 +1603,7 @@ export function PlayerView({
       const hazards = new Graphics()
       const hazardsMask = new Graphics()
       hazards.mask = hazardsMask
+      const triggers = new Graphics()
       const fogUnknown = new Graphics()
       const knownMask = new Graphics()
       const fogDim = new Graphics()
@@ -1616,6 +1645,8 @@ export function PlayerView({
         // pela visão (`redrawHazards`): o jogador só vê o fogo onde enxerga.
         hazardsMask,
         hazards,
+        // Gatilho revelado: marca da planta, também ABAIXO da névoa.
+        triggers,
         fogUnknown,
         knownMask,
         fogDim,
@@ -1710,6 +1741,9 @@ export function PlayerView({
         lastHazards: null,
         lastHazardsVision: null,
         hazardsCount: 0,
+        triggers,
+        lastTriggers: null,
+        triggersCount: 0,
         concealed,
         lastConcealed: null,
         concealedCount: 0,
@@ -2220,7 +2254,7 @@ export function PlayerView({
   useEffect(() => {
     const scene = sceneRef.current
     if (scene) redraw(scene)
-  }, [map, vision, explored, concealed, hazards, ownTokens, turnTokenId, settings])
+  }, [map, vision, explored, concealed, hazards, gatilhos, ownTokens, turnTokenId, settings])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.

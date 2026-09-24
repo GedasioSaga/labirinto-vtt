@@ -16,6 +16,7 @@ import {
   type PartySectionProps,
 } from './PartySection'
 import { InitiativeSection, type InitiativeSectionProps } from './InitiativeSection'
+import { CampaignClockSection, type CampaignClockSectionProps } from './CampaignClockSection'
 import { TableScreenSection, type TableScreenSectionProps } from './TableScreenSection'
 import { TravelLogSection, type TravelLogSectionProps } from './TravelLogSection'
 
@@ -45,6 +46,8 @@ export interface RoomPanelProps {
   party?: PartySectionProps
   /** Seção "Iniciativa" (ordem e vez). Ausente = sem a seção. Aparece com a sala aberta ou fechada. */
   initiative?: InitiativeSectionProps
+  /** Seção "Relógio da campanha" (hora do dia e cena externa). Ausente = sem a seção. Aparece com a sala aberta ou fechada. */
+  clock?: CampaignClockSectionProps
   /** "Diário de viagens" (G15), logo abaixo do Grupo. Ausente = sem a seção (mapa solto: não há viagem). */
   travelLog?: TravelLogSectionProps
   tunnel: TunnelState
@@ -919,6 +922,7 @@ export function RoomPanel({
   tokens,
   party,
   initiative,
+  clock,
   travelLog,
   tunnel,
   savedTableNames,
@@ -947,6 +951,7 @@ export function RoomPanel({
         <FirewallHint />
         {/* Combate sem jogador na rede também tem ordem: a seção não espera a sala. */}
         {initiative !== undefined && <InitiativeSection {...initiative} />}
+        {clock !== undefined && <CampaignClockSection {...clock} />}
       </section>
     )
   }
@@ -988,6 +993,9 @@ export function RoomPanel({
 
       {/* Iniciativa logo depois do Grupo: no combate é o que o mestre toca a cada vez. */}
       {initiative !== undefined && <InitiativeSection {...initiative} />}
+
+      {/* O relógio depois da iniciativa: anda entre as cenas, não a cada vez. */}
+      {clock !== undefined && <CampaignClockSection {...clock} />}
 
       {travelLog !== undefined && <TravelLogSection {...travelLog} />}
 

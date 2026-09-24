@@ -10,7 +10,7 @@ import { travelNoticeText } from './travelNoticeText'
 import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
-import { PlayerNoteCard } from './PlayerNoteCard'
+import { ARRIVAL_CARD_TITLE, PlayerNoteCard } from './PlayerNoteCard'
 import { PlayerClueCard } from './PlayerClues'
 import { coverBounds } from './playerCamera'
 import { PlayerZoomControls } from './PlayerZoomControls'
@@ -20,6 +20,7 @@ import { useScreenWakeLock } from './screenWakeLock'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { PlayerAlarmBanner } from './PlayerAlarmBanner'
 import { PlayerTurnBanner, TurnWaitNotice } from './PlayerTurnBanner'
+import { PlayerClockBadge } from './PlayerClockBadge'
 import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
 import { PlayerCallButton } from './PlayerCallButton'
 import { ReconnectingOverlay } from './ReconnectingOverlay'
@@ -37,6 +38,7 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
 import { itemNoticeText } from './itemNotice'
+import { leverNoticeText } from './leverNotice'
 import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
@@ -54,6 +56,8 @@ import {
   type PersonalNote,
 } from './personalNotes'
 import type { FocusPointRequest } from './PlayerView'
+import { floorShown, PlayerFloorTabs } from './PlayerFloorTabs'
+import type { RegionPoint } from '../types/map'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -76,6 +80,10 @@ const NO_PINS: Pin[] = []
 const NO_PLACES: VisitedPlace[] = []
 /** Fechar o recado não perde nada: quem fecha sabe onde reler. */
 const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
+/** MAPA POR ANDARES: outro andar não tem visão agora — só a memória. */
+const NO_VISION: RegionPoint[][] = []
+/** Outro andar é só para olhar: arrastar ficha lá não pede nada ao mestre. */
+const IGNORE_MOVE = (): void => {}
 
 const REASON_TEXT: Record<string, string> = {
   bad_code: 'Código de sala incorreto. Confira com o mestre e tente de novo.',
@@ -636,6 +644,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const requestZoomStep = useCallback((direction: ZoomDirection, animate: boolean) => {
     setZoomStep((current) => ({ direction, animate, seq: current.seq + 1 }))
   }, [])
+  /** MAPA POR ANDARES: a aba escolhida; `null` = o andar onde ele está (o mapa ao vivo). */
+  const [floorTab, setFloorTab] = useState<string | null>(null)
+  const currentFloor = state.andares?.atual
+  // Mudou de andar (ou saiu do prédio): a tela volta ao mapa ao vivo, onde a ficha dele está.
+  useEffect(() => setFloorTab(null), [currentFloor])
   /** Cada "Reconectar" conta uma tentativa nova e reinicia o prazo do aperto de mão. */
   const [attempt, setAttempt] = useState(0)
   const [handshakeOverdue, setHandshakeOverdue] = useState(false)
@@ -761,6 +774,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
 
   // Queda com volta automática: a tela de baixo fica (esmaecida), o véu por cima.
   const reconnecting = state.reconnecting && <ReconnectingOverlay info={state.reconnecting} onRetry={() => connection.retryNow()} />
+  const closeArrival = useCallback(() => connection.dismissArrival(), [connection])
 
   if (state.status === 'playing' && state.map && state.vision) {
     const actionNotice = latestActionNotice(state.doorNotice, state.moveNotice)
@@ -772,65 +786,84 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     const walkerId = ownTokens.flatMap((id) => playingMap.tokens.filter((t) => t.id === id)).at(0)?.id ?? null
     // Cartão de pista na tela: o Escape é dele, e um toque não pode fechar também o recado.
     const clueCardOpen = openClue !== null || (state.shownClue !== undefined && openPin === null)
+    // Outro andar: a memória dele de lá, sem visão, sem ficha e sem toque que peça algo ao mestre.
+    const otherFloor = floorTab === null ? null : floorShown(state.andares, floorTab)
     return (
       <PlayerErrorBoundary onReconnect={() => connection.reconnect()}>
-        <PlayerView
-          map={state.map}
-          vision={state.vision}
-          explored={state.explored}
-          concealed={state.concealed}
-          hazards={state.hazards}
-          ownTokens={ownTokens}
-          turnTokenId={state.turn ?? null}
-          settings={settings}
-          focusTokenId={focus.tokenId}
-          focusSeq={focus.seq}
-          onMove={(id, x, y) => connection.requestMove(id, x, y)}
-          signals={state.signals ?? NO_SIGNALS}
-          laser={state.laser}
-          signalArmed={signalArmed}
-          onSignal={(x, y) => {
-            connection.sendSignal(x, y)
-            // Modo de um toque: sinalizou, desliga.
-            setSignalArmed(false)
-          }}
-          onLongPress={(x, y, screenX, screenY) => {
-            // O mestre vê o ponto já no gesto (e o jogador, o eco). Os colegas
-            // só se ele escolher Sinalizar: Espiar e Revistar ficam discretos.
-            connection.sendSignal(x, y, 'master')
-            // A câmera arrasta além da borda: fora do mapa não há o que procurar.
-            if (map !== undefined && isPointInsideMap(map, x, y)) setPointMenu({ x, y, screenX, screenY, sceneEpoch: state.sceneEpoch, tokenId: walkerId })
-          }}
-          onMapPointerDown={closePointMenu}
-          destinations={state.destinations ?? NO_DESTINATIONS}
-          destinationArmed={destinationArmed}
-          onDestination={(x, y) => {
-            connection.markDestination(x, y)
-            // Modo de um toque, como o Sinalizar: marcou, desliga.
-            setDestinationArmed(false)
-          }}
-          measureArmed={measureArmed}
-          laserArmed={laserArmed}
-          ownLaserColor={ownLaserColor}
-          onLaserMove={(x, y) => connection.laserMove(x, y)}
-          onLaserEnd={() => connection.laserOff()}
-          playerLasers={state.playerLasers ?? NO_PLAYER_LASERS}
-          onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
-          onPinOpen={openPinCard}
-          onRoomOpen={(regionId) => connection.openRoomText(regionId)}
-          focusObstacles={mapObstacles}
-          personalNotes={sceneNotes}
-          onNoteLongPress={removeNote}
-          noteArmed={noteArmed}
-          onNotePlace={(x, y) => {
-            // Modo de um toque, como o Marcar destino: marcou o ponto, desliga e pede o texto. Nada vai ao mestre.
-            setNoteArmed(false)
-            setNoteDraft({ mapId: playingMap.id, x, y })
-          }}
-          focusPoint={pointFocus}
-          zoomStep={zoomStep}
-          onZoomLimitsChange={setZoomLimits}
-        />
+        {otherFloor !== null ? (
+          <PlayerView
+            map={otherFloor.map}
+            vision={NO_VISION}
+            explored={otherFloor.explored}
+            concealed={otherFloor.concealed}
+            ownTokens={NO_TOKENS}
+            settings={settings}
+            focusTokenId={null}
+            focusSeq={focus.seq}
+            onMove={IGNORE_MOVE}
+            measureArmed={measureArmed}
+          />
+        ) : (
+          <PlayerView
+            map={state.map}
+            vision={state.vision}
+            explored={state.explored}
+            concealed={state.concealed}
+            hazards={state.hazards}
+            gatilhos={state.gatilhos}
+            ownTokens={ownTokens}
+            turnTokenId={state.turn ?? null}
+            settings={settings}
+            focusTokenId={focus.tokenId}
+            focusSeq={focus.seq}
+            onMove={(id, x, y) => connection.requestMove(id, x, y)}
+            signals={state.signals ?? NO_SIGNALS}
+            laser={state.laser}
+            signalArmed={signalArmed}
+            onSignal={(x, y) => {
+              connection.sendSignal(x, y)
+              // Modo de um toque: sinalizou, desliga.
+              setSignalArmed(false)
+            }}
+            onLongPress={(x, y, screenX, screenY) => {
+              // O mestre vê o ponto já no gesto (e o jogador, o eco). Os colegas
+              // só se ele escolher Sinalizar: Espiar e Revistar ficam discretos.
+              connection.sendSignal(x, y, 'master')
+              // A câmera arrasta além da borda: fora do mapa não há o que procurar.
+              if (map !== undefined && isPointInsideMap(map, x, y)) setPointMenu({ x, y, screenX, screenY, sceneEpoch: state.sceneEpoch, tokenId: walkerId })
+            }}
+            onMapPointerDown={closePointMenu}
+            destinations={state.destinations ?? NO_DESTINATIONS}
+            destinationArmed={destinationArmed}
+            onDestination={(x, y) => {
+              connection.markDestination(x, y)
+              // Modo de um toque, como o Sinalizar: marcou, desliga.
+              setDestinationArmed(false)
+            }}
+            measureArmed={measureArmed}
+            laserArmed={laserArmed}
+            ownLaserColor={ownLaserColor}
+            onLaserMove={(x, y) => connection.laserMove(x, y)}
+            onLaserEnd={() => connection.laserOff()}
+            playerLasers={state.playerLasers ?? NO_PLAYER_LASERS}
+            onDoorToggle={(wallId) => connection.toggleDoor(wallId)}
+            onPinOpen={openPinCard}
+            onRoomOpen={(regionId) => connection.openRoomText(regionId)}
+            focusObstacles={mapObstacles}
+            personalNotes={sceneNotes}
+            onNoteLongPress={removeNote}
+            noteArmed={noteArmed}
+            onNotePlace={(x, y) => {
+              // Modo de um toque, como o Marcar destino: marcou o ponto, desliga e pede o texto. Nada vai ao mestre.
+              setNoteArmed(false)
+              setNoteDraft({ mapId: playingMap.id, x, y })
+            }}
+            focusPoint={pointFocus}
+            zoomStep={zoomStep}
+            onZoomLimitsChange={setZoomLimits}
+          />
+        )}
+        {state.andares && <PlayerFloorTabs andares={state.andares} selected={floorTab ?? state.andares.atual} onSelect={setFloorTab} />}
         <PlayerPanel
           panelRef={panelRef}
           barRef={barRef}
@@ -931,6 +964,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onCancel={cancelNoteDraft}
           />
         )}
+        <PlayerClockBadge relogio={state.relogio} />
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}
@@ -949,6 +983,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onTakeItem={() => {
               // Mesma regra do pedido de passagem: enviado, o cartão sai e a espera fica no aviso.
               if (connection.takePin(openPin.id)) setOpenPinId(null)
+            }}
+            onPullLever={() => {
+              // Puxou, o cartão sai: o mapa volta inteiro à vista para o jogador ver a porta mexer.
+              if (connection.pullLever(openPin.id)) setOpenPinId(null)
             }}
           />
         )}
@@ -980,6 +1018,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             arrivedUnasked
           />
         )}
+        {state.lever && (
+          <p key={state.lever.id} className="pp-notice" role="status" aria-live="polite">
+            {leverNoticeText(state.lever.phase)}
+          </p>
+        )}
         {state.item && (
           <p key={state.item.id} className="pp-notice" role="status" aria-live="polite">
             {itemNoticeText(state.item)}
@@ -989,21 +1032,33 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           // `key` no id: alarme novo remonta a faixa (anima, anuncia e vibra de novo).
           <PlayerAlarmBanner key={state.alarm.id} text={state.alarm.text} vibrationTarget={typeof navigator === 'undefined' ? undefined : navigator} />
         )}
-        {state.note && (
-          // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
+        {state.arrival ? (
+          // TEXTO DE CHEGADA: o mesmo cartão, no mesmo lugar do recado. Os dois
+          // abertos se sobreporiam: o recado espera, guardado, até este fechar.
           <PlayerNoteCard
-            key={state.note.id}
-            text={state.note.text}
-            hint={NOTE_KEPT_HINT}
-            onClose={closeNote}
+            key={`chegada-${state.arrival.id}`}
+            title={ARRIVAL_CARD_TITLE}
+            text={state.arrival.text}
+            onClose={closeArrival}
             escapeCloses={openPin === null && !clueCardOpen}
-            onlyYou={state.note.onlyYou === true}
           />
+        ) : (
+          state.note && (
+            // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
+            <PlayerNoteCard
+              key={state.note.id}
+              text={state.note.text}
+              hint={NOTE_KEPT_HINT}
+              onClose={closeNote}
+              escapeCloses={openPin === null && !clueCardOpen}
+              onlyYou={state.note.onlyYou === true}
+            />
+          )
         )}
         {/* TEXTO DA SALA: o mesmo cartão, com o nome da Sala no alto. Um
             cartão de cada vez no mesmo lugar: com recado aberto, o texto da
             sala espera o recado fechar em vez de ficar por baixo dele. */}
-        {state.roomText && !state.note && (
+        {state.roomText && !state.note && !state.arrival && (
           <PlayerNoteCard
             key={state.roomText.id}
             title={state.roomText.title || 'Ao entrar'}

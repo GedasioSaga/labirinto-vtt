@@ -268,11 +268,12 @@ export interface PlayerSecret {
 }
 
 /**
- * "!" (aqui tem algo), "?" (investigue aqui) e o pino de VIAGEM: a passagem
- * que leva de uma cena da aventura para outra. O terceiro valor é aditivo —
- * pino gravado antes dele continua sendo "!" ou "?".
+ * "!" (aqui tem algo), "?" (investigue aqui), o pino de VIAGEM (a passagem
+ * que leva de uma cena da aventura para outra) e a ALAVANCA (abre ou fecha a
+ * porta ligada em `Pin.portaLigada`). Os dois últimos são aditivos — pino
+ * gravado antes deles continua sendo "!" ou "?".
  */
-export type PinKind = 'exclamacao' | 'interrogacao' | 'viagem'
+export type PinKind = 'exclamacao' | 'interrogacao' | 'viagem' | 'alavanca'
 
 /**
  * Para onde um pino de viagem leva: a cena de destino e o pino PAR dela, que é
@@ -421,6 +422,18 @@ export interface Pin extends PlayerSecret {
    */
   escadaId?: string
   /**
+   * PINO PRESO A UMA FICHA (navio, carroça, elevador): o id da ficha DESTA
+   * cena que o pino acompanha. Quando a ficha anda, o pino anda o mesmo tanto
+   * (`lib/pinAttach.ts`, chamado de `setTokenPosition` e `moveAreaSelection`),
+   * e a viagem por ele segue valendo, do lugar novo. Ausente = pino parado, o
+   * de sempre — sem migração. Ficha que saiu da cena deixa o pino onde está.
+   *
+   * NUNCA sai no recorte do jogador (`lib/fogFilter.ts`), e o pino preso só
+   * sai quando a ficha dele também sai: preso, o pino conta onde a ficha está,
+   * então segue a visão da ficha, não a memória do explorado.
+   */
+  presoA?: string
+  /**
    * SÓ NO RECORTE DO JOGADOR, e só quando o pino tem mais de uma saída: o id e
    * o rótulo de cada uma, na ordem (a principal primeiro). O mestre nunca grava
    * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.
@@ -446,6 +459,14 @@ export interface Pin extends PlayerSecret {
    * nunca grava este campo; `lib/fogFilter.ts` o monta, e só para quem tem.
    */
   chave?: string
+  /**
+   * Só da ALAVANCA: o id da parede-porta DESTE mapa que ela abre ou fecha —
+   * pode ser de outra sala (`lib/lever.ts`). Ausente = alavanca solta, que não
+   * move nada; porta apagada depois vale o mesmo. NUNCA sai no recorte do
+   * jogador (`lib/fogFilter.ts`): a porta pode estar atrás da névoa, e o id
+   * dela diria que ela existe. Sem migração: mapa antigo não tem alavanca.
+   */
+  portaLigada?: string
 }
 
 /**
@@ -493,6 +514,30 @@ export interface Hazard {
   kind: HazardKind
   /** Ids das salas tomadas, sem repetição, na ordem em que entraram. */
   roomIds: string[]
+}
+
+/**
+ * GATILHO DE ÁREA — o que a área marcada faz quando a ficha de um jogador
+ * entra nela. Lista curta e fechada; rótulos e cores em `lib/areaTriggers.ts`.
+ */
+export type AreaTriggerKind = 'armadilha' | 'alarme'
+
+/**
+ * Área (Região ou Sala) marcada pelo mestre como gatilho. Quando a ficha de um
+ * jogador ENTRA no polígono da região, o mestre recebe o aviso com o nome do
+ * jogador e o da área.
+ *
+ * O jogador NUNCA recebe este objeto: o recorte (`lib/fogFilter.ts`) manda só
+ * o tipo e o polígono do gatilho que o mestre REVELOU e cuja área o jogador já
+ * conhece (`PlayerMapView.gatilhos`) — nunca o id do gatilho nem o da região.
+ */
+export interface AreaTrigger {
+  id: string
+  kind: AreaTriggerKind
+  /** A região (Sala ou Área) cujo polígono é o gatilho. Uma região tem no máximo um. */
+  regionId: string
+  /** `true` = o mestre mostrou aos jogadores. Nasce `false`. */
+  revealed: boolean
 }
 
 export interface Region extends PlayerSecret {
@@ -593,6 +638,18 @@ export interface TokenWatch {
  */
 export type WatchAlert = '?' | '!'
 
+/**
+ * ROTA DE PATRULHA — os pontos por onde um NPC ronda. É do MESTRE: nunca
+ * atravessa para o jogador (`lib/fogFilter.ts`), que só vê a ficha andar
+ * quando ela está na visão dele. Regras em `lib/npcPatrol.ts`.
+ */
+export interface TokenPatrol {
+  /** Os pontos da rota, em px do mapa, na ordem em que o NPC anda. Do último volta ao primeiro. */
+  pontos: RegionPoint[]
+  /** Índice do ponto onde o NPC está (o último alcançado). "Avançar patrulha" vai ao seguinte. */
+  atual: number
+}
+
 export interface Token extends PlayerSecret {
   id: string
   characterId: string | null
@@ -665,6 +722,12 @@ export interface Token extends PlayerSecret {
    * jogado fora pelo recorte.
    */
   alerta?: WatchAlert
+  /**
+   * ROTA DE PATRULHA do NPC (`lib/npcPatrol.ts`). Ausente = ficha sem rota,
+   * sem linha de migração. O mapa do disco chega CRU: quem lê passa por
+   * `readTokenPatrol`. NÃO atravessa para o jogador.
+   */
+  patrulha?: TokenPatrol
   /** Token não pode ser movido/editado. `undefined` === false (comportamento
    *  idêntico ao de hoje) — sem linha de migração. */
   locked?: boolean
@@ -682,6 +745,14 @@ export interface Token extends PlayerSecret {
    *  viaja com a ficha. `undefined` === vazia, sem migração. O jogador só
    *  recebe a mochila da PRÓPRIA ficha (`lib/fogFilter.ts`). */
   mochila?: CarriedItem[]
+  /**
+   * LEVAR FICHA JUNTO: id da ficha que LEVA esta (o ferido carregado, o NPC
+   * escoltado). Ela anda junto no arrasto e atravessa o pino de viagem junto.
+   * Ausente/`null` = ficha solta, sem linha de migração. Quem leva não pode
+   * ser levado (sem cadeia). O mapa do disco chega CRU: quem lê passa por
+   * `lib/carry.ts`. NÃO atravessa para o jogador (`lib/fogFilter.ts`).
+   */
+  levadoPor?: string | null
 }
 
 export interface Prop extends PlayerSecret {
@@ -1068,4 +1139,46 @@ export interface MapData {
    * em `lib/hazards.ts` → `readHazards`. NUNCA sai no recorte do jogador.
    */
   hazards?: Hazard[]
+  /**
+   * GATILHOS DE ÁREA (armadilha, alarme). `undefined` === nenhum — sem linha
+   * de migração, mesmo padrão de `hazards`: o último gatilho apagado tira o
+   * campo. Leitura segura do disco em `lib/areaTriggers.ts` →
+   * `readAreaTriggers`. NUNCA sai no recorte do jogador.
+   */
+  gatilhos?: AreaTrigger[]
+  /**
+   * MAPA-MUNDI: nesta cena o grupo anda como UMA ficha só, a caravana, que o
+   * mestre move (`lib/caravan.ts`). Só `true` vale; ausente = cena comum, sem
+   * linha de migração (mesmo padrão de `movement`/`hazards`).
+   */
+  worldMap?: true
+  /**
+   * TEXTO DE CHEGADA DA CENA: o que quem chega lê uma vez, num cartão
+   * (`lib/arrivalText.ts`). Ausente = sem texto, sem linha de migração (mesmo
+   * padrão de `worldMap`). NUNCA sai no recorte do jogador: viaja só no
+   * `scene.changed` de quem chega.
+   */
+  textoChegada?: string
+  /**
+   * RELÓGIO DA CAMPANHA: cena ao ar livre, que escurece à noite (a visão dos
+   * jogadores cai — `lib/campaignClock.ts`). Só `true` vale; ausente = cena
+   * interna, sem linha de migração. NUNCA sai dentro do mapa do jogador: ele
+   * recebe só se está escuro, à parte (`clockForPlayer`).
+   */
+  externa?: true
+  /**
+   * MAPA POR ANDARES: esta cena é um andar de um prédio. Cenas com o mesmo
+   * `predio` são andares do mesmo prédio, e o jogador ganha uma aba por andar
+   * onde já esteve (`lib/buildingFloors.ts`). Ausente = cena comum, sem linha
+   * de migração. NUNCA sai dentro do mapa do jogador: o rótulo viaja à parte.
+   */
+  andar?: SceneFloor
+}
+
+/** MAPA POR ANDARES: de que prédio a cena é andar, e o rótulo curto que o jogador lê na aba. */
+export interface SceneFloor {
+  /** Nome do prédio, do mestre: junta as cenas. Nunca vai ao jogador. */
+  predio: string
+  /** Rótulo da aba (1F, 2F, B1): até 4 letras e dígitos maiúsculos (`cleanFloorLabel`). */
+  rotulo: string
 }

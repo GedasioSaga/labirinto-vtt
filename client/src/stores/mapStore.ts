@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
@@ -22,9 +22,15 @@ import { cloneEntity, cloneLinkedWalls, cloneRoomDescendants, type CloneableEnti
 import { ancestorsOf, descendantsOf, subtreeIds } from '../lib/roomNesting'
 import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
+import { pullLever } from '../lib/lever'
+import { setOutdoor as setOutdoorOnMap } from '../lib/campaignClock'
+import { applyPatrolOp, type PatrolOp } from '../lib/npcPatrol'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
+import { attachCarried, carrierIdOf, releaseCarried } from '../lib/carry'
 import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
 import { setSelectionSecret as setSelectionSecretOnMap } from '../lib/batchSecret'
+import { setRegionTrigger as setRegionTriggerOnMap, setRegionTriggerRevealed as setRegionTriggerRevealedOnMap } from '../lib/areaTriggers'
+import { setArrivalText as setArrivalTextOnMap } from '../lib/arrivalText'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
 const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon', 'roomFree'])
@@ -584,7 +590,22 @@ interface MapStoreState {
    * vazia (ou só de ids que não existem) não empurra histórico.
    */
   setTokenPositions: (positions: readonly { id: string; x: number; y: number }[]) => void
+  /**
+   * CARAVANA: as fichas que acompanham a caravana, SEM histórico. São
+   * consequência da edição que as moveu (o arrasto já tem o seu passo), e o
+   * Ctrl+Z desta volta ao retrato de antes com o grupo inteiro junto. Lista
+   * vazia (ou só de ids que não existem) não mexe no mapa.
+   */
+  setTokenPositionsLive: (positions: readonly { id: string; x: number; y: number }[]) => void
   moveToken: (id: string, targetX: number, targetY: number) => void
+  /**
+   * LEVAR FICHA JUNTO: prende `carriedId` a `carrierId` (`lib/carry.ts`), com
+   * histórico. Recusado pelas regras (a si mesma, cadeia): nada muda e o
+   * desfazer não ganha passo.
+   */
+  carryToken: (carriedId: string, carrierId: string) => void
+  /** Solta `carriedId` de quem o leva, com histórico. Sem vínculo: nada muda. */
+  releaseCarriedToken: (carriedId: string) => void
   /** `imageData`: cópia auto-contida que viaja até o jogador (ver lib/tokenPhoto.ts). Omitido = sem cópia. */
   setTokenImage: (id: string, image: string | null, imageData?: string | null) => void
   /** Campo Nome do painel do token — com histórico, mesmo padrão de `setRoomName`. */
@@ -620,6 +641,14 @@ interface MapStoreState {
    * estado ATUAL da ficha, nunca sobre uma cópia velha da renderização.
    */
   toggleTokenCondition: (id: string, condition: TokenCondition) => void
+  /**
+   * ROTA DE PATRULHA: marcar ponto, tirar o último, apagar a rota ou avançar o
+   * NPC um passo (`lib/npcPatrol.ts`). Mesmo contrato de `toggleTokenCondition`:
+   * opera sobre a ficha ATUAL do store (o "marcar" grava onde ela está agora),
+   * cada clique que muda o mapa é um Ctrl+Z, e o que não muda nada não gasta
+   * entrada de histórico.
+   */
+  patrolAction: (id: string, op: PatrolOp) => void
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
@@ -710,6 +739,10 @@ interface MapStoreState {
   setRoomHazard: (roomId: string, kind: HazardKind | null) => void
   /** ZONA DE PERIGO — "Avançar um passo" pelas portas abertas. Com histórico; nada muda = nada grava. */
   advanceHazard: (hazardId: string) => void
+  /** GATILHO DE ÁREA — marca a Região/Sala como armadilha/alarme, troca ou limpa (`null`). Com histórico. */
+  setRegionTrigger: (regionId: string, kind: AreaTriggerKind | null) => void
+  /** GATILHO DE ÁREA — "Mostrar aos jogadores". Com histórico; nada muda = nada grava. */
+  setRegionTriggerRevealed: (regionId: string, revealed: boolean) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** "Oculto para jogadores" EM LOTE: todos os itens da seleção que aceitam
@@ -726,8 +759,13 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'abreCom'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada'>>,
   ) => void
+  /**
+   * ALAVANCA: o mestre aciona pelo painel — a porta ligada abre ou fecha, com
+   * histórico. Porta trancada ou alavanca solta: nada, nem entrada no desfazer.
+   */
+  pullLever: (pinId: string) => void
   /** Arrasto do pino — SEM histórico, par de `commitDragHistory(before)` no
    *  pointerup, mesmo padrão de `moveTokenLive`/`movePropLive`. */
   movePinLive: (id: string, x: number, y: number) => void
@@ -798,6 +836,14 @@ interface MapStoreState {
   setMeasurementMode: (mode: MeasurementMode) => void
   /** Passo máximo e ocupação das fichas dos jogadores na cena aberta; `undefined` = livre. */
   setMovementRules: (movement: MovementRules | undefined) => void
+  /** MAPA-MUNDI: o grupo anda como uma caravana só, que o mestre move (`lib/caravan.ts`). Com desfazer. */
+  setWorldMap: (worldMap: boolean) => void
+  /** TEXTO DE CHEGADA da cena aberta (`lib/arrivalText.ts`); vazio tira. Com desfazer; o mesmo texto não vira passo. */
+  setArrivalText: (text: string) => void
+  /** RELÓGIO DA CAMPANHA: a cena aberta é externa e escurece à noite (`lib/campaignClock.ts`). Com desfazer. */
+  setOutdoor: (outdoor: boolean) => void
+  /** MAPA POR ANDARES: de que prédio a cena é andar, e o rótulo da aba do jogador. `undefined` = cena comum. Com desfazer. */
+  setSceneFloor: (andar: SceneFloor | undefined) => void
   setScenarioLink: (value: string | null) => void
   setPropLinkedPath: (id: string, path: string | null) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
@@ -1581,7 +1627,31 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const { map } = get()
       const present = positions.filter((p) => map.tokens.some((t) => t.id === p.id))
       if (present.length === 0) return
-      withHistory((m) => present.reduce((acc, p) => mapFactory.setTokenPosition(acc, p.id, p.x, p.y), m))
+      // LEVAR FICHA JUNTO: quem leva anda primeiro (e arrasta quem vai junto);
+      // ficha levada que TEM casa na lista assenta depois, na casa dela — senão
+      // o arrasto de quem leva a tiraria do lugar escolhido.
+      const isCarried = (id: string): boolean => {
+        const token = map.tokens.find((t) => t.id === id)
+        return token !== undefined && carrierIdOf(token) !== null
+      }
+      const ordered = [...present.filter((p) => !isCarried(p.id)), ...present.filter((p) => isCarried(p.id))]
+      withHistory((m) => ordered.reduce((acc, p) => mapFactory.setTokenPosition(acc, p.id, p.x, p.y), m))
+    },
+    carryToken: (carriedId, carrierId) => {
+      const { map } = get()
+      const next = attachCarried(map, carriedId, carrierId)
+      if (next !== map) withHistory(() => next)
+    },
+    releaseCarriedToken: (carriedId) => {
+      const { map } = get()
+      const next = releaseCarried(map, carriedId)
+      if (next !== map) withHistory(() => next)
+    },
+    setTokenPositionsLive: (positions) => {
+      const { map } = get()
+      const present = positions.filter((p) => map.tokens.some((t) => t.id === p.id))
+      if (present.length === 0) return
+      set({ map: present.reduce((acc, p) => mapFactory.setTokenPosition(acc, p.id, p.x, p.y), map) })
     },
     moveToken: (id, targetX, targetY) => {
       const { map } = get()
@@ -1601,6 +1671,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     })),
     toggleTokenCondition: (id, condition) => {
       const next = toggleConditionOnMap(get().map, id, condition)
+      if (next !== get().map) withHistory(() => next)
+    },
+    patrolAction: (id, op) => {
+      const next = applyPatrolOp(get().map, id, op)
       if (next !== get().map) withHistory(() => next)
     },
     addProp: (prop) => withHistory((map) => mapFactory.addProp(map, prop)),
@@ -1710,6 +1784,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (advanceHazardOnMap(get().map, hazardId) === get().map) return
       withHistory((map) => advanceHazardOnMap(map, hazardId))
     },
+    setRegionTrigger: (regionId, kind) => {
+      // Um id só para as duas chamadas: a conferência e a gravação criam o MESMO gatilho.
+      const id = crypto.randomUUID()
+      if (setRegionTriggerOnMap(get().map, regionId, kind, () => id) === get().map) return
+      withHistory((map) => setRegionTriggerOnMap(map, regionId, kind, () => id))
+    },
+    setRegionTriggerRevealed: (regionId, revealed) => {
+      if (setRegionTriggerRevealedOnMap(get().map, regionId, revealed) === get().map) return
+      withHistory((map) => setRegionTriggerRevealedOnMap(map, regionId, revealed))
+    },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return
       withHistory((map) => mapFactory.setItemSecret(map, kind, id, secret))
@@ -1727,6 +1811,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     updatePin: (id, patch) => {
       if (mapFactory.updatePin(get().map, id, patch) === get().map) return
       withHistory((map) => mapFactory.updatePin(map, id, patch))
+    },
+    pullLever: (pinId) => {
+      if (pullLever(get().map, pinId) === get().map) return
+      withHistory((map) => pullLever(map, pinId))
     },
     movePinLive: (id, x, y) => set((state) => ({ map: mapFactory.setPinPosition(state.map, id, x, y) })),
     removePin: (id) => {
@@ -1790,6 +1878,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setMapScale: (scale) => withHistory((map) => mapFactory.setMapScale(map, scale)),
     setMeasurementMode: (mode) => withHistory((map) => mapFactory.setMeasurementMode(map, mode)),
     setMovementRules: (movement) => withHistory((map) => mapFactory.setMovementRules(map, movement)),
+    setWorldMap: (worldMap) => withHistory((map) => mapFactory.setWorldMap(map, worldMap)),
+    setArrivalText: (text) => {
+      // O mesmo texto devolve o mesmo mapa: sem passo vazio no desfazer.
+      if (setArrivalTextOnMap(get().map, text) === get().map) return
+      withHistory((map) => setArrivalTextOnMap(map, text))
+    },
+    setOutdoor: (outdoor) => withHistory((map) => setOutdoorOnMap(map, outdoor)),
+    setSceneFloor: (andar) => withHistory((map) => mapFactory.setSceneFloor(map, andar)),
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({
       ...map,
@@ -2004,4 +2100,24 @@ useMapStore.subscribe((state) => state.map, (map) => {
  */
 export function selectAlignableUnitCount(state: Pick<MapStoreState, 'map' | 'selection'>): number {
   return alignableUnitCount(state.map, state.selection)
+}
+
+/** O pedaço da store que diz de onde veio o `map` atual. */
+interface MapHistoryView {
+  map: MapData
+  past: readonly MapData[]
+  future: readonly MapData[]
+}
+
+/**
+ * Por que o `map` mudou entre `previous` e `state`: `'history'` quando ele é
+ * o retrato do topo do desfazer (`undo`) ou do refazer (`redo`) de antes, e
+ * `'edit'` para toda outra mudança (as ações nunca reaproveitam um retrato
+ * guardado: sempre montam um mapa novo). `null` = o mapa não mudou.
+ */
+export function mapChangeCause(state: MapHistoryView, previous: MapHistoryView): 'edit' | 'history' | null {
+  if (state.map === previous.map) return null
+  const undone = previous.past[previous.past.length - 1]
+  const redone = previous.future[previous.future.length - 1]
+  return state.map === undone || state.map === redone ? 'history' : 'edit'
 }

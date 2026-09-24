@@ -27,11 +27,11 @@ export function cleanItemName(raw: string): string {
 }
 
 /**
- * O item do pino, quando ele é pegável: nome não vazio e pino que não é de
- * viagem (a passagem não vai para a mochila). `null` = pino que só se lê.
+ * O item do pino, quando ele é pegável: nome não vazio e pino "!"/"?" (a
+ * passagem e a alavanca não vão para a mochila). `null` = pino que só se lê.
  */
 export function itemOfPin(pin: Pin): PinItem | null {
-  if (pin.kind === 'viagem' || pin.item === undefined) return null
+  if (pin.kind === 'viagem' || pin.kind === 'alavanca' || pin.item === undefined) return null
   const nome = cleanItemName(pin.item.nome)
   if (nome === '') return null
   return pin.item.livre === true ? { nome, livre: true } : { nome }

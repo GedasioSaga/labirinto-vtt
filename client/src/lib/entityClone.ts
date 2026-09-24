@@ -2,6 +2,7 @@ import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, Sta
 import type { SelectionKind } from '../types/tools'
 import { moveBlocos } from './floorBlocks'
 import { isStairPin } from './stairTravel'
+import { withoutCarrier } from './carry'
 
 /**
  * FRENTE A (ONDA 3, item 13 do PLANO-REFINAMENTO.md) — clonagem PURA por
@@ -191,7 +192,9 @@ export function cloneRoomDescendants(
  * (`pixi/tokensRenderer.ts`), nunca escrita a partir do editor.
  */
 export function cloneToken(token: Token, offset: Offset): Token {
-  return { ...token, id: crypto.randomUUID(), x: token.x + offset.dx, y: token.y + offset.dy }
+  // A cópia nasce solta: dois feridos presos à mesma ficha seria um vínculo
+  // que o mestre não pediu (LEVAR FICHA JUNTO, `lib/carry.ts`).
+  return { ...withoutCarrier(token), id: crypto.randomUUID(), x: token.x + offset.dx, y: token.y + offset.dy }
 }
 
 // ─────────────────────────────────────────────────────────────

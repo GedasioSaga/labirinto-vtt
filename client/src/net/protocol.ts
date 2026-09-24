@@ -1,5 +1,7 @@
 import type { HazardKind, MapData, RegionPoint } from '../types/map'
 import type { PlayerHazard } from '../lib/hazards'
+import type { PlayerAreaTrigger } from '../lib/areaTriggers'
+import type { PlayerClock } from '../lib/campaignClock'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
@@ -162,8 +164,33 @@ import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEn
  * lugar por onde passou (só o que já recebeu) e solta o que o mestre mandou
  * esquecer ("Esconder planta"). Jogador antigo ignora os dois; mestre antigo
  * não os manda e a aba Lugares fica só com os pontos da cena.
+ *
+ * GATILHO DE ÁREA, aditivo pelo mesmo critério: `snapshot.gatilhos` (tipo e
+ * polígono de cada gatilho que o mestre REVELOU, na área que o jogador
+ * conhece). Entrar num gatilho NÃO manda nada ao jogador: o aviso é do mestre.
+ *
+ * MAPA POR ANDARES, aditivo pelo mesmo critério: `snapshot.andares` (o rótulo
+ * do andar dele e, de cada OUTRO andar do mesmo prédio onde ele já esteve, o
+ * rótulo, a planta recortada pela memória dele e o explorado). Nunca nome de
+ * cena nem de prédio. Jogador antigo ignora; mestre antigo não manda.
  */
 export const PROTOCOL_VERSION = 1
+
+/** MAPA POR ANDARES: um andar onde o jogador não está agora, como ele o lembra. */
+export interface FloorMemoryWire {
+  /** Rótulo da aba (1F, B1): sempre um `cleanFloorLabel`. */
+  rotulo: string
+  /** Recorte sem visão nenhuma (`filterFloorMemory`): planta conhecida, nenhuma ficha. */
+  map: MapData
+  explored: ExploredWire
+  concealed: RegionPoint[][]
+}
+
+/** MAPA POR ANDARES: o andar onde o jogador está e os outros que ele conhece. */
+export interface FloorsWire {
+  atual: string
+  outros: FloorMemoryWire[]
+}
 
 export const JOIN_CODE_LENGTH = 6
 export const NAME_MIN_LENGTH = 1
@@ -385,6 +412,17 @@ export interface DoorUseKeyMessage {
   wallId: string
 }
 
+/**
+ * ALAVANCA: o jogador puxa a alavanca `pinId`. Só o id do pino — qual porta
+ * ela move o jogador nem conhece (`lib/fogFilter.ts`). O host valida (pino
+ * visível, é alavanca, ficha encostada, porta ligada destrancada) e aplica.
+ * Aditiva pelo mesmo critério de `door.toggle`.
+ */
+export interface PinLeverMessage {
+  type: 'pin.lever'
+  pinId: string
+}
+
 /** O jogador dá o item `itemId` da própria mochila à ficha `toTokenId`, de um colega encostado. */
 export interface ItemGiveMessage {
   type: 'item.give'
@@ -462,6 +500,17 @@ export type PlayerMessage =
   | CallLowerMessage
   | PointActionMessage
   | DiceRollMessage
+  | PinLeverMessage
+
+/**
+ * Por que a alavanca não moveu nada. `unavailable` junta pino inexistente, no
+ * escuro, oculto e que não é alavanca. `stuck` junta porta ligada trancada,
+ * alavanca solta e porta apagada: um motivo por caso diria ao jogador o
+ * estado de uma porta que ele talvez nem veja.
+ */
+export type PinLeverRejection = 'unavailable' | 'far' | 'stuck'
+
+export const PIN_LEVER_REJECTIONS: readonly PinLeverRejection[] = ['unavailable', 'far', 'stuck']
 
 /**
  * Por que o host não levou o "Pegar" ao mestre. `unavailable` junta pino
@@ -683,8 +732,11 @@ export type HostMessage =
   // `sceneName`: o NOME PARA OS JOGADORES da cena onde ele está ("Onde estou").
   // Ausente = a cena não tem nome público (ou mapa solto, ou mestre antigo).
   // `place`/`places`: LUGARES, ids do host para as memórias dele (ver o topo).
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[] }
+  // `gatilhos` (GATILHO DE ÁREA): só o revelado pelo mestre, e só quando há algum (`PlayerMapView.gatilhos`).
+  // `andares` (MAPA POR ANDARES): só quando a cena dele é andar de um prédio e ele já esteve em outro andar dele.
+  // `relogio` (RELÓGIO DA CAMPANHA): só o período e, da cena dele, se está escuro — nunca a hora (`clockForPlayer`).
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock }
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
   | { type: 'hazard.entered'; kind: HazardKind }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
@@ -703,6 +755,10 @@ export type HostMessage =
   | { type: 'pin.take.answer'; answer: 'taken'; nome: string }
   | { type: 'pin.take.answer'; answer: 'denied' }
   | { type: 'item.give.rejected'; reason: ItemGiveRejection }
+  // ALAVANCA. `pulled` não diz qual porta nem se abriu ou fechou: a porta
+  // ligada pode estar fora da vista, e o jogador só vê o que o recorte mostra.
+  | { type: 'pin.lever.answer'; answer: 'pulled' }
+  | { type: 'pin.lever.rejected'; reason: PinLeverRejection }
   // `text`: o motivo curto do "Não, porque…" (até `TRAVEL_DENY_TEXT_MAX_LENGTH`).
   // Aditivo: jogador antigo ignora o campo e lê o "não deixou" de sempre.
   | { type: 'pin.travel.denied'; text?: string }
@@ -710,7 +766,10 @@ export type HostMessage =
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
   // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um
   // pino — o aviso diz que o GRUPO foi reunido, e continua sem dizer onde.
-  | { type: 'scene.changed'; by?: 'master' | 'gather' }
+  // `chegada` (TEXTO DE CHEGADA DA CENA): o texto que o mestre escreveu na cena
+  // de destino, só quando há. Vai SÓ a quem chega, uma vez — o snapshot nunca
+  // o leva (`lib/fogFilter.ts`). Aditivo: jogador antigo ignora o campo.
+  | { type: 'scene.changed'; by?: 'master' | 'gather'; chegada?: string }
   | LaserMessage
   | RelayedLaserMessage
   | SceneNoteMessage
@@ -1288,6 +1347,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       const request = parseDiceRequest(value)
       return request === null ? null : { type: 'dice.roll', ...request }
     }
+    case 'pin.lever':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.lever', pinId: value.pinId } : null
     default:
       return null
   }

@@ -5,9 +5,14 @@ import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { tokenPublicNameFromFile } from './tokenPublicName'
+import { readPinAttachment } from './pinAttach'
 import { readMovementRules } from './movementRules'
 import { readCarriedItems, readPinItem } from './items'
 import { readHazards } from './hazards'
+import { readPinLeverDoor } from './lever'
+import { readAreaTriggers } from './areaTriggers'
+import { readArrivalText } from './arrivalText'
+import { readSceneFloor } from './buildingFloors'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -287,6 +292,9 @@ function deserializeMapFields(json: string): MapData {
       // texto não vazio vale; o resto volta AUSENTE — o pino de sempre, que se
       // desenha. O `...p` acima copiaria o valor cru.
       escadaId: typeof p.escadaId === 'string' && p.escadaId !== '' ? p.escadaId : undefined,
+      // PRESO À FICHA: campo NOVO e OPCIONAL. Só texto não vazio vale; o resto
+      // volta AUSENTE (pino parado, o de sempre) — ver `readPinAttachment`.
+      presoA: readPinAttachment(p.presoA),
       escolhas: undefined,
       // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
       // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).
@@ -296,6 +304,9 @@ function deserializeMapFields(json: string): MapData {
       // arquivo que o traga não o põe no mapa do mestre.
       abreCom: p.abreCom === undefined ? undefined : readDoorKey(p.abreCom),
       chave: undefined,
+      // ALAVANCA: campo NOVO e OPCIONAL. Só texto não vazio vale; o resto
+      // volta AUSENTE (alavanca solta, que não move nada) — ver `readPinLeverDoor`.
+      portaLigada: readPinLeverDoor(p.portaLigada),
     })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
@@ -316,11 +327,41 @@ function deserializeMapFields(json: string): MapData {
     // ZONA DE PERIGO: campo NOVO e OPCIONAL, mesmo padrão de `movement`. Mapa
     // de antes (ou lixo editado à mão) abre sem o campo — ver `readHazards`.
     ...hazardsField(parsed.hazards),
+    // GATILHO DE ÁREA: campo NOVO e OPCIONAL, mesmo padrão de `hazards` — ver `readAreaTriggers`.
+    ...areaTriggersField(parsed.gatilhos),
+    // MAPA-MUNDI: campo NOVO e OPCIONAL. Só `true` vale; o resto (arquivo
+    // editado à mão) abre como cena comum, sem o campo.
+    ...(parsed.worldMap === true ? { worldMap: true } : {}),
+    // TEXTO DE CHEGADA: campo NOVO e OPCIONAL. Texto vazio ou o que não é
+    // texto (editado à mão) abre sem o campo — ver `readArrivalText`.
+    ...arrivalTextField(parsed.textoChegada),
+    // RELÓGIO DA CAMPANHA: campo NOVO e OPCIONAL, mesmo padrão de `worldMap`.
+    ...(parsed.externa === true ? { externa: true } : {}),
+    // MAPA POR ANDARES: campo NOVO e OPCIONAL. Forma torta abre como cena comum — ver `readSceneFloor`.
+    ...sceneFloorField(parsed.andar),
   }
+}
+
+/** `textoChegada` só entra no mapa quando o arquivo traz texto: mapa de antes não ganha campo. */
+function arrivalTextField(raw: unknown): Pick<MapData, 'textoChegada'> {
+  const textoChegada = readArrivalText(raw)
+  return textoChegada === undefined ? {} : { textoChegada }
+}
+
+/** `andar` só entra no mapa quando o arquivo traz prédio e rótulo válidos: mapa de antes não ganha campo. */
+function sceneFloorField(raw: unknown): Pick<MapData, 'andar'> {
+  const andar = readSceneFloor(raw)
+  return andar === undefined ? {} : { andar }
 }
 
 /** `hazards` só entra no mapa quando o arquivo traz zona válida: mapa de antes não ganha campo. */
 function hazardsField(raw: unknown): Pick<MapData, 'hazards'> {
   const hazards = readHazards(raw)
   return hazards === undefined ? {} : { hazards }
+}
+
+/** `gatilhos` só entra no mapa quando o arquivo traz gatilho válido: mapa de antes não ganha campo. */
+function areaTriggersField(raw: unknown): Pick<MapData, 'gatilhos'> {
+  const gatilhos = readAreaTriggers(raw)
+  return gatilhos === undefined ? {} : { gatilhos }
 }

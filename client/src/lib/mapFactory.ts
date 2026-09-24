@@ -1,7 +1,7 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules,
+  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
@@ -20,6 +20,8 @@ import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
 import { moveTokenCarryingLights, withoutAttachment } from './lightAttachment'
 import { seatStairPins, withoutStairPins } from './stairTravel'
+import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
+import { carrierIdOf, followStep } from './carry'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -626,9 +628,32 @@ export function removeToken(map: MapData, tokenId: string): MapData {
   }
 }
 
-/** Move a ficha; luz presa nela (tocha) vai junto — ver `lib/lightAttachment.ts`. */
+/**
+ * Posição da ficha. Todo caminho que move UMA ficha passa por aqui (arrasto,
+ * seta, pedido do jogador, cena de fundo, reunir o grupo), e por isso é aqui
+ * que a luz presa nela (tocha, `lib/lightAttachment.ts`) e o pino PRESO a ela
+ * (`lib/pinAttach.ts`) andam junto.
+ *
+ * LEVAR FICHA JUNTO: as fichas que ela leva (`lib/carry.ts`) andam o MESMO
+ * deslocamento, então o ferido acompanha em todos esses caminhos sem cada um
+ * lembrar dele. Cada ficha levada tem o PRÓPRIO trajeto checado
+ * (`followStep`): parede no caminho dela a deixa para trás, mesmo que quem
+ * leva tenha passado. Ficha inexistente: mapa intocado.
+ */
 export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
-  return moveTokenCarryingLights(map, tokenId, x, y)
+  const moving = map.tokens.find((t) => t.id === tokenId)
+  if (moving === undefined) return map
+  const dx = x - moving.x
+  const dy = y - moving.y
+  const follows = (t: Token): boolean => (dx !== 0 || dy !== 0) && t.id !== tokenId && carrierIdOf(t) === tokenId
+  const withLights = moveTokenCarryingLights(map, tokenId, x, y)
+  const moved: MapData = {
+    ...withLights,
+    tokens: withLights.tokens.map((t) => (follows(t) ? followStep(map, t, dx, dy) : t)),
+  }
+  // O pino preso à ficha LEVADA anda o passo real dela (zero se a parede a barrou).
+  const followerIds = new Set(map.tokens.filter(follows).map((t) => t.id))
+  return carryPinsByTokenSteps(carryAttachedPins(moved, tokenId, dx, dy), map.tokens, followerIds)
 }
 
 /**
@@ -1674,7 +1699,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'abreCom'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'abreCom' | 'presoA' | 'portaLigada'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1701,6 +1726,10 @@ export function updatePin(
     // E aqui também: `undefined` === 'pede'. Escolher "Pede ao mestre" num
     // pino que nunca teve modo não empurra entrada vazia no histórico.
     passageOf(next) === passageOf(pin) &&
+    // Preso à ficha: soltar um pino que nunca foi preso não é mudança.
+    next.presoA === pin.presoA &&
+    // Alavanca: desligar uma alavanca que nunca foi ligada não é mudança.
+    next.portaLigada === pin.portaLigada &&
     sameItem &&
     // CHAVE ABRE PORTA: `undefined` === sem chave; apagar um campo vazio não é mudança.
     next.abreCom === pin.abreCom
@@ -1829,4 +1858,20 @@ export function setMovementRules(map: MapData, movement: MovementRules | undefin
     return rest
   }
   return { ...map, movement }
+}
+
+/** MAPA-MUNDI (`lib/caravan.ts`): desligar tira o campo, e a cena volta a ser comum, igual a mapa antigo. */
+export function setWorldMap(map: MapData, worldMap: boolean): MapData {
+  if (worldMap) return map.worldMap === true ? map : { ...map, worldMap: true }
+  if (map.worldMap === undefined) return map
+  const { worldMap: _comum, ...rest } = map
+  return rest
+}
+
+/** MAPA POR ANDARES (`lib/buildingFloors.ts`): `undefined` tira o campo, e a cena volta a ser comum. */
+export function setSceneFloor(map: MapData, andar: SceneFloor | undefined): MapData {
+  if (andar !== undefined) return { ...map, andar }
+  if (map.andar === undefined) return map
+  const { andar: _comum, ...rest } = map
+  return rest
 }
