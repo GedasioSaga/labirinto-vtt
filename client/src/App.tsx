@@ -1963,6 +1963,7 @@ function App() {
               onNameHiddenFromPlayersChange: (hidden) =>
                 selectedRegion && useMapStore.getState().setRoomNameHiddenFromPlayers(selectedRegion.id, hidden),
               onRoofChange: (roof) => selectedRegion && useMapStore.getState().setRoomRoof(selectedRegion.id, roof),
+              onComodoChange: (comodo) => selectedRegion && useMapStore.getState().setRoomComodo(selectedRegion.id, comodo),
               onTextoAoEntrarChange: (textoAoEntrar) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { textoAoEntrar }),
               onNotaDoMestreChange: (notaDoMestre) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { notaDoMestre }),
               onWidthChange: (width) =>

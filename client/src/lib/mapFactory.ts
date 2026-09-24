@@ -1484,9 +1484,25 @@ export function setRoomNameHiddenFromPlayers(map: MapData, id: string, hidden: b
 export function setRoomRoof(map: MapData, id: string, roof: boolean): MapData {
   const region = map.regions.find((r) => r.id === id)
   if (!region || !region.room || !!region.room.roof === roof) return map
+  // Ligar o teto desliga o Cômodo (`setRoomComodo`): os dois nunca ficam juntos no painel.
+  const semComodo = roof && region.room.comodo !== undefined ? { comodo: false } : {}
   return {
     ...map,
-    regions: map.regions.map((r) => (r.id === id && r.room ? { ...r, room: { ...r.room, roof } } : r)),
+    regions: map.regions.map((r) => (r.id === id && r.room ? { ...r, room: { ...r.room, roof, ...semComodo } } : r)),
+  }
+}
+
+/** CÔMODO LEMBRADO — "Cômodo: aparece só depois de visto" (`RoomMeta.comodo`).
+ * Mesmo contrato de `setRoomRoof`: região comum, id inexistente ou valor igual
+ * devolve o mesmo `map`. Ligar desliga o teto, na MESMA entrada de histórico:
+ * um Ctrl+Z desfaz o clique inteiro. */
+export function setRoomComodo(map: MapData, id: string, comodo: boolean): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room || (region.room.comodo === true) === comodo) return map
+  const semTeto = comodo && region.room.roof !== undefined ? { roof: false } : {}
+  return {
+    ...map,
+    regions: map.regions.map((r) => (r.id === id && r.room ? { ...r, room: { ...r.room, comodo, ...semTeto } } : r)),
   }
 }
 
