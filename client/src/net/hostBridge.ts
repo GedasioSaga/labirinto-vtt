@@ -3,11 +3,13 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, RegionPoint } from '../types/map'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
+import type { ChamadaAceita, MovimentoDeCabine } from '../lib/cabine'
 import {
   createHostSession,
   singleSceneWorld,
   type AppliedTokenEdit,
   type AppliedTransfer,
+  type ChamadaParaMestre,
   type HostResult,
   type HostPlayerLaser,
   type HostSession,
@@ -78,6 +80,19 @@ export interface HostBridgeDeps {
    * mestre: ninguém saberia atender.
    */
   applyTransfer?: (transfer: AppliedTransfer) => boolean
+  /**
+   * CABINE DE TRANSPORTE: quem passou pela parada levou a cabine — gravar a
+   * posição nova na aventura. Só é chamado depois de `applyTransfer` mover a
+   * ficha. Ausente = a cabine fica onde estava (o mestre a traz pelo painel).
+   */
+  applyCabine?: (movimento: MovimentoDeCabine) => void
+  /**
+   * CABINE DE TRANSPORTE: um jogador chamou a cabine — pôr a chamada na fila
+   * da aventura. `false` quando não entrou (a parada já estava na fila, a
+   * cabine chegou lá): aí o mestre não é avisado de novo. Ausente = a
+   * chamada não chega a lugar nenhum (e o mestre não é avisado).
+   */
+  applyChamadaDeCabine?: (chamada: ChamadaAceita) => boolean
   /** "Ir lá" do aviso de chegada: abrir `sceneId` no editor com (`x`, `y`) no centro. */
   onGoToScene?: (sceneId: string, x: number, y: number) => void
   visionRadius?: number
@@ -247,6 +262,16 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const letterToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
+  /**
+   * CABINE DE TRANSPORTE: pedidos de quem embarcou numa cabine. Quando o
+   * pedido morre (Não, revalidação recusada, jogador saiu), a parada deixa de
+   * estar "ocupada": quem está nela precisa de um recorte novo.
+   */
+  const travelsComCabine = new Set<string>()
+  /** Libera a cabine do pedido `requestId`, se era de embarque: novo recorte para quem está na parada. */
+  const releaseCabine = (requestId: string) => {
+    if (travelsComCabine.delete(requestId)) scheduleBroadcast()
+  }
   /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
   const screens = createPlayerScreens()
   const screenWatchers = new Set<() => void>()
@@ -398,6 +423,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     pendingBroadcast = setTimeout(() => {
       pendingBroadcast = null
       broadcastNow()
+      // O mundo mudou (ex.: a cabine saiu da parada do embarque): a lista do
+      // mestre recalcula o que depende dele, como o ocupante da cabine.
+      notifyPlayersIfChanged()
     }, BROADCAST_THROTTLE_MS)
   }
 
@@ -461,6 +489,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session !== null && session.isTravelPending(requestId)) continue
       travelToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
+      releaseCabine(requestId)
     }
     // CORREIO: mesma regra para o bilhete cujo destinatário foi expulso, ou com a sala fechada.
     for (const [letterId, toastId] of letterToasts) {
@@ -504,6 +533,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const toastId = travelToasts.get(requestId)
     travelToasts.delete(requestId)
     if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    // Qualquer resposta tira o ocupante da cabine: "Não" e recusa a deixam na
+    // parada, livre; "Deixar ir" a leva (e o broadcast da chegada já sai).
+    releaseCabine(requestId)
     if (session === null) return
     if (!allow) {
       void dispatch(session.denyTravel(requestId))
@@ -549,6 +581,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyPlayersIfChanged()
       return
     }
+    // A cabine anda ANTES do broadcast: quem ficou na parada de partida já
+    // recebe "longe" no mesmo envio em que o viajante chega.
+    if (result.applyCabine !== undefined) deps.applyCabine?.(result.applyCabine)
     // Primeiro `scene.changed`, depois o snapshot da cena nova: a ordem dos
     // `net_send` é a ordem em que o jogador recebe.
     void dispatch(result)
@@ -585,7 +620,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * "Deixar ir" (`emLote`) de cada um — a mesma revalidação, pedido a pedido.
    */
   const askTravel = (request: TravelRequest) => {
-    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`, null, {
+    // CABINE DE TRANSPORTE: quem pede com a cabine ali embarcou — o aviso diz
+    // em qual cabine ele está, e a parada passa a dizer "ocupada" aos outros.
+    const naCabine = request.cabine === undefined ? '' : ` (na cabine ${request.cabine})`
+    if (request.cabine !== undefined) {
+      travelsComCabine.add(request.requestId)
+      scheduleBroadcast()
+    }
+    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}${naCabine}`, null, {
       actions: [
         { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
         { label: 'Não', run: () => answerTravel(request.requestId, false) },
@@ -594,6 +636,30 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       grupo: 'Pedidos',
     })
     travelToasts.set(request.requestId, toastId)
+  }
+
+  /**
+   * CABINE DE TRANSPORTE: "Chamar a cabine" que valeu. A chamada entra na fila
+   * pelo integrador; só se entrou, o mestre lê o aviso, que fica até ele
+   * dispensar (alguém está parado esperando), com "Mandar a cabine", que a
+   * leva até a parada — o mesmo caminho do "Trazer a cabine para cá" do
+   * painel, que atende a chamada. O recorte do "aqui" depois de mandar sai
+   * pela aventura que mudou (`notifyMapChanged` do App).
+   */
+  const announceCabineCall = (chamada: ChamadaParaMestre) => {
+    const { cabineId, chamada: pedido } = chamada
+    if (deps.applyChamadaDeCabine === undefined || !deps.applyChamadaDeCabine({ cabineId, chamada: pedido })) return
+    // Quem chamou lê "chamada" logo, mesmo com um integrador que não avisa a mudança.
+    scheduleBroadcast()
+    const mandar = deps.applyCabine
+    useToastStore
+      .getState()
+      .push(
+        'instrucao',
+        `${chamada.jogador} chamou a cabine ${chamada.cabine} em ${chamada.cena}`,
+        null,
+        mandar === undefined ? {} : { actions: [{ label: 'Mandar a cabine', run: () => mandar({ cabineId, parada: pedido.parada }) }] },
+      )
   }
 
   const onMessage = (event: { payload: unknown }) => {
@@ -638,6 +704,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         void dispatch(session.denyTravel(result.travelRequest.requestId))
       } else askTravel(result.travelRequest)
     }
+    if (result.chamadaDeCabine !== undefined) announceCabineCall(result.chamadaDeCabine)
     if (result.letter !== undefined) askLetter(result.letter)
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.

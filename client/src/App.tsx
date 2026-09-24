@@ -50,6 +50,9 @@ import {
 import { ScenesSection } from './components/ScenesSection'
 import { WorldStateSection } from './components/WorldStateSection'
 import { EstadoDaLuz, EstadoDaPorta, EstadoDaZona, EstadoDoPino } from './components/DependeDoEstadoControls'
+import { PinCabineControls } from './components/PinCabineControls'
+import { ocupantesDasCabines } from './lib/cabine'
+import { UNNAMED_SCENE } from './lib/adventure'
 import { amarradosPorEstado, type AmarraDeEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
@@ -452,6 +455,12 @@ function App() {
         // "Deixar ir": o token troca de cena fora do desfazer das duas (ver `transferToken`).
         applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y }) =>
           useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y),
+        // CABINE DE TRANSPORTE: quem passou pela parada levou a cabine junto.
+        applyCabine: ({ cabineId, parada }) => {
+          useAdventureStore.getState().moverCabine(cabineId, parada)
+        },
+        // CABINE DE TRANSPORTE: um jogador chamou a cabine — a chamada entra na fila da aventura.
+        applyChamadaDeCabine: (chamada) => useAdventureStore.getState().chamarCabine(chamada),
         // "Ir lá" do aviso de chegada: o editor vai à cena, com a ficha no centro
         // (mesmo caminho do "Ir lá" do painel Grupo, que também serve à cena já aberta).
         onGoToScene: (sceneId, x, y) => {
@@ -483,7 +492,11 @@ function App() {
   useEffect(
     () =>
       useAdventureStore.subscribe((state, previous) => {
-        if (state.adventure?.estados !== previous.adventure?.estados) hostBridgeRef.current?.notifyMapChanged()
+        // CABINE DE TRANSPORTE: a cabine andou (mestre ou viagem) — quem está
+        // numa parada dela lê "aqui/longe" de novo.
+        if (state.adventure?.estados !== previous.adventure?.estados || state.adventure?.cabines !== previous.adventure?.cabines) {
+          hostBridgeRef.current?.notifyMapChanged()
+        }
       }),
     [],
   )
@@ -1763,10 +1776,36 @@ function App() {
                 <EstadoDaPorta wall={selectedWall} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
               )
             }
-            // Só o pino de VIAGEM tem passagem para o estado mudar.
+            // Só o pino de VIAGEM tem passagem para o estado mudar — e só ele
+            // pode ser parada de cabine (elevador, cesto), que mora na aventura.
             estadoDoPino={
               adventure === null || selectedPin?.kind !== 'viagem' ? undefined : (
-                <EstadoDoPino pin={selectedPin} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+                <>
+                  <EstadoDoPino pin={selectedPin} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+                  {activeSceneId !== null && (
+                    <PinCabineControls
+                      cabines={adventure.cabines ?? []}
+                      parada={{ sceneId: activeSceneId, pinId: selectedPin.id }}
+                      nomeDaCena={(sceneId) => adventure.scenes.find((entry) => entry.id === sceneId)?.name ?? UNNAMED_SCENE}
+                      onCriar={(nome) => {
+                        useAdventureStore.getState().criarCabine(nome, selectedPin.id)
+                      }}
+                      onEscolher={(cabineId) => {
+                        useAdventureStore.getState().definirParadaDeCabine(selectedPin.id, cabineId)
+                      }}
+                      onTrazer={(cabineId) => {
+                        useAdventureStore.getState().moverCabine(cabineId, { sceneId: activeSceneId, pinId: selectedPin.id })
+                      }}
+                      onAtender={(cabineId) => {
+                        useAdventureStore.getState().atenderChamada(cabineId)
+                      }}
+                      onLimparFila={(cabineId) => {
+                        useAdventureStore.getState().limparFilaDaCabine(cabineId)
+                      }}
+                      ocupantes={ocupantesDasCabines(roomPlayers)}
+                    />
+                  )}
+                </>
               )
             }
             estadoDaZona={

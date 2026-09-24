@@ -708,6 +708,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
               // e o mapa volta inteiro à vista enquanto o mestre decide.
               if (connection.requestTravel(openPin.id, exitId)) setOpenPinId(null)
             }}
+            // CABINE DE TRANSPORTE: o cartão fica aberto — ele diz que a cabine foi chamada.
+            onChamarCabine={() => connection.callCabine(openPin.id)}
           />
         )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".
