@@ -14,6 +14,7 @@ import { CollapsibleSection } from './CollapsibleSection'
 import { SceneOverviewDialog, tokenCountLabel } from './SceneOverview'
 import { ChevronDownIcon, CloseIcon, MoveIntoIcon, SearchIcon } from './icons'
 import { useSceneDrag, type SceneDrag } from './sceneDrag'
+import { SceneAlarmControls, type ActiveAlarmView } from './SceneAlarmControls'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
 import { sceneTree, SCENE_TRAIL_SEPARATOR, type SceneTreeRow } from '../lib/adventure'
 import { normalizeForSearch } from '../lib/mapObjects'
@@ -52,6 +53,16 @@ export interface ScenesSectionProps {
   onMove?: (sceneId: string, parentId: string | null) => boolean
   /** A aventura aberta: as pastas recolhidas são lembradas por aventura, neste computador. */
   adventureId?: string | null
+  /**
+   * ALARME PARA VÁRIAS CENAS: soa `text` em todas as `sceneIds` de uma vez.
+   * Devolve quantos receberam agora, ou `null` se não deu. Ausente = sala
+   * fechada: a seção fica sem o "Alarme…".
+   */
+  onAlarm?: (sceneIds: string[], text: string) => number | null
+  /** Encerra o alarme soando. */
+  onEndAlarm?: () => void
+  /** O alarme soando; `null`/ausente = nenhum. */
+  alarm?: ActiveAlarmView | null
 }
 
 /** Quanto tempo o aviso "Recado enviado…" fica na linha da cena. */
@@ -363,7 +374,7 @@ function insideCountLabel(count: number): string {
  * dentro, "Mover para…" na cena aberta, e "Filtrar cenas" com o caminho em
  * cinza. Tudo isso é da lista do mestre: o jogador não recebe nada.
  */
-export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote, maps, onMove, adventureId = null }: ScenesSectionProps) {
+export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote, maps, onMove, adventureId = null, onAlarm, onEndAlarm, alarm }: ScenesSectionProps) {
   const [editing, setEditing] = useState<Editing>(null)
   const [draft, setDraft] = useState('')
   /** Janela "Visão geral das cenas" aberta. */
@@ -975,6 +986,9 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
           </div>,
           document.body,
         )}
+      {onAlarm !== undefined && onEndAlarm !== undefined && (
+        <SceneAlarmControls scenes={scenes} alarm={alarm ?? null} onAlarm={onAlarm} onEndAlarm={onEndAlarm} />
+      )}
     </CollapsibleSection>
   )
 }

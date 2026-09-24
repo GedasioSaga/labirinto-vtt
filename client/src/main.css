@@ -448,13 +448,12 @@ body {
 /* --------------------------------------------------------- switch (checkbox) */
 
 .lb-switch {
-  /* Containing block do .lb-switch__input (position: absolute) logo abaixo —
-     sem isso o input cai no containing block do documento inteiro, então seu
-     getBoundingClientRect fica fixo relativo à PÁGINA em vez de acompanhar o
-     scroll do painel (.lb-inspector__body.lb-scroll). Latente desde sempre;
-     só ficou visível na Fase 1, quando Grade+Camadas empurraram o primeiro
-     Toggle abaixo da dobra sem scroll — antes disso todo Toggle cabia no
-     recorte inicial visível e o bug nunca precisava de scroll pra aparecer. */
+  /* Posicionado desde a Fase 1, quando era o containing block do
+     .lb-switch__input: fora dele o input caía no containing block do
+     documento, e o getBoundingClientRect não acompanhava o scroll do painel
+     (.lb-inspector__body.lb-scroll). Hoje o input mora dentro do trilho, que
+     é o containing block dele; o rótulo segue posicionado para não mexer na
+     ordem de pintura do painel. */
   position: relative;
   display: flex;
   align-items: center;
@@ -467,16 +466,26 @@ body {
   user-select: none;
 }
 
+/* O checkbox de verdade, transparente e do tamanho do trilho, por cima do
+   desenho: o clique no interruptor cai no próprio input, que é onde o leitor
+   de tela e o teste de ponta a ponta miram o controle. Até 23/09/2026 era um
+   ponto de 1x1 px com pointer-events: none sob o texto do rótulo, e o clique
+   no controle batia no texto. width/height explícitos: checkbox é controle de
+   formulário e o inset sozinho não o estica. */
 .lb-switch__input {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
-  pointer-events: none;
+  opacity: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: inherit;
 }
 
 .lb-switch__track {
+  /* Containing block do .lb-switch__input. */
   position: relative;
   flex: none;
   width: 34px;
@@ -498,6 +507,9 @@ body {
   height: 14px;
   border-radius: var(--lb-radius-full);
   background: var(--lb-color-parchment-faint);
+  /* A bolinha vem depois do input e fica por cima dele; é só desenho, então o
+     clique a atravessa até o checkbox. */
+  pointer-events: none;
   transition:
     transform var(--lb-motion-base) var(--lb-motion-ease),
     background var(--lb-motion-base) var(--lb-motion-ease);
@@ -507,17 +519,19 @@ body {
   border-color: var(--lb-color-brass);
 }
 
-.lb-switch__input:checked + .lb-switch__track {
+/* O estado mora no input, filho do trilho: o trilho se pinta pelo :has().
+   Mesma especificidade do antigo "input + trilho", então a cascata não muda. */
+.lb-switch__track:has(> .lb-switch__input:checked) {
   background: var(--lb-color-brass);
   border-color: var(--lb-color-brass);
 }
 
-.lb-switch__input:checked + .lb-switch__track::after {
+.lb-switch__track:has(> .lb-switch__input:checked)::after {
   transform: translateX(14px);
   background: var(--lb-color-brass-contrast);
 }
 
-.lb-switch__input:focus-visible + .lb-switch__track {
+.lb-switch__track:has(> .lb-switch__input:focus-visible) {
   box-shadow: var(--lb-shadow-focus);
 }
 
@@ -525,7 +539,7 @@ body {
   cursor: not-allowed;
 }
 
-.lb-switch__input:disabled + .lb-switch__track {
+.lb-switch__track:has(> .lb-switch__input:disabled) {
   opacity: 0.5;
 }
 
@@ -570,6 +584,33 @@ body {
   text-align: left;
 }
 
+/* Mesma pastilha em DUAS colunas, marca à esquerda do nome como numa legenda
+   de mapa: as condições da ficha. Pela métrica da fonte (estimativa, não
+   medida na tela), em três colunas o texto de cada opção teria ≈63 px e
+   "Envenenado" mede ≈62 — encostaria na borda. Em duas sobram ≈68 px depois
+   da marca, no mesmo corpo de letra das outras pastilhas. */
+.lb-seg--pairs {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.lb-seg--pairs .lb-seg__option {
+  flex-direction: row;
+  justify-content: flex-start;
+  min-height: 34px;
+  padding: var(--lb-space-1) var(--lb-space-2);
+  text-align: left;
+  /* Liga/desliga responde à pressão na hora e volta sozinho (< 150 ms). */
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-seg--pairs .lb-seg__option:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
 .lb-seg__option {
   display: flex;
   flex-direction: column;
@@ -599,7 +640,10 @@ body {
   cursor: not-allowed;
 }
 
-.lb-seg__option[aria-checked='true'] {
+/* Marcado vale igual para a escolha única (rádio, `aria-checked`) e para o
+   liga/desliga de várias ao mesmo tempo (condições da ficha, `aria-pressed`). */
+.lb-seg__option[aria-checked='true'],
+.lb-seg__option[aria-pressed='true'] {
   background: var(--lb-color-brass-soft);
   border-color: rgba(224, 164, 74, 0.28);
   color: var(--lb-color-brass);
@@ -610,7 +654,8 @@ body {
   opacity: 0.8;
 }
 
-.lb-seg__option[aria-checked='true'] svg {
+.lb-seg__option[aria-checked='true'] svg,
+.lb-seg__option[aria-pressed='true'] svg {
   opacity: 1;
 }
 
@@ -619,6 +664,35 @@ body {
    desbotaria a própria informação — a amostra tem de mostrar a tinta que sai
    no mapa, e não uma versão lavada dela. */
 .lb-seg__option .lb-token-color__chip {
+  opacity: 1;
+}
+
+/* Vida da ficha: "Vida atual" e "Vida máxima" numa linha só, separadas por
+   "/", como se anota na ficha de papel (7/10). `minmax(0, 1fr)`: sem ele o
+   campo de número não encolhe abaixo da largura intrínseca e a linha vaza do
+   rail de 264 px. */
+.lb-health {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: var(--lb-space-2);
+}
+
+.lb-health__slash {
+  /* A altura do .lb-input (38 px, mesma conta do .lb-rotation__step): o traço
+     fica no meio do número, e não na linha do rótulo. */
+  line-height: 38px;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-lg);
+  color: var(--lb-color-parchment-faint);
+}
+
+/* Pastilha de condição: opacidade cheia pelo mesmo motivo da amostra de cor —
+   é a marca exata que sai em cima da ficha, e quem diz "marcada" é o fundo de
+   latão do botão, não uma pastilha desbotada. `flex: none`: o nome ao lado
+   nunca espreme a marca. */
+.lb-seg__option .lb-token-condition__badge {
+  flex: none;
   opacity: 1;
 }
 
@@ -1423,6 +1497,92 @@ body {
   flex: none;
 }
 
+/* INICIATIVA (aba Jogo): campos por ficha, a ordem e os botões da vez. */
+.lb-initiative {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  flex: none;
+}
+
+.lb-initiative__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
+.lb-initiative__field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  align-items: center;
+  column-gap: var(--lb-space-2);
+}
+
+.lb-initiative__token {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment);
+}
+
+.lb-initiative__input {
+  width: 100%;
+  text-align: right;
+}
+
+.lb-initiative__error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.lb-initiative__order {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-initiative__entry {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-1) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+/* A vez: borda clara, a mesma língua do anel da vez no mapa (pixi/constants.ts). */
+.lb-initiative__entry.is-current {
+  border-color: var(--lb-color-parchment);
+  box-shadow: inset 3px 0 0 var(--lb-color-parchment);
+}
+
+.lb-initiative__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment);
+}
+
+.lb-initiative__entry .lb-num {
+  margin-left: auto;
+}
+
+.lb-initiative__actions {
+  display: flex;
+  gap: var(--lb-space-2);
+}
+
+.lb-initiative__actions > .lb-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .lb-party__list {
   display: flex;
   flex-direction: column;
@@ -2055,6 +2215,53 @@ body {
 .lb-menucard__desc {
   font-size: var(--lb-font-size-sm);
   color: var(--lb-color-parchment-dim);
+}
+/* Oferta de recuperação no menu inicial (salvamento automático): aviso na
+   tela, não modal — os cartões abaixo continuam clicáveis. Borda latão porque
+   pede uma decisão do mestre. */
+.lb-recovery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-3) var(--lb-space-4);
+  margin-bottom: var(--lb-space-4);
+  padding: var(--lb-space-4);
+  border: 1px solid var(--lb-color-brass);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-brass-soft);
+}
+
+.lb-recovery__body {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
+.lb-recovery__title {
+  margin: 0;
+  font-size: var(--lb-font-size-lg);
+  font-weight: var(--lb-font-weight-semibold);
+  color: var(--lb-color-parchment);
+}
+
+.lb-recovery__text {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  overflow-wrap: anywhere;
+}
+
+.lb-recovery__text strong {
+  color: var(--lb-color-parchment);
+}
+
+.lb-recovery__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
 }
 
 /* Selo neutro de propósito (nunca latão): no vocabulário do arquivo, latão já
@@ -3062,6 +3269,59 @@ html.lb-arrastando-cena * {
   font-size: var(--lb-font-size-sm);
   line-height: var(--lb-font-leading-normal);
   color: var(--lb-color-parchment-dim);
+}
+
+/* ALARME PARA VÁRIAS CENAS (SceneAlarmControls), no fim da seção Cenas. */
+.lb-alarme {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin-top: var(--lb-space-2);
+}
+
+.lb-alarme__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-alarme__cenas {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+/* Enquanto soa: o mesmo poço da linha fina, com a régua da esquerda na cor de alerta. */
+.lb-alarme__ativo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-left: 2px solid var(--lb-color-ember);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-alarme__selo {
+  color: var(--lb-color-ember);
+  font-size: var(--lb-font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lb-alarme__texto {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lb-alarme__onde {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
 }
 
 /* Destino do pino de viagem (PinTravelControls): um poço rebaixado logo abaixo

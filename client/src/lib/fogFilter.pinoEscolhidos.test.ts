@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MapData, Pin } from '../types/map'
-import { filterMapForPlayer, type PinAudiences } from './fogFilter'
+import { filterMapForGroup, filterMapForPlayer, type PinAudiences } from './fogFilter'
 import { createEmptyMap } from './mapFactory'
 
 /**
@@ -71,5 +71,20 @@ describe('fogFilter: pino só para os escolhidos', () => {
     const secreto: MapData = { ...quarto(), pins: [{ ...FACA, secret: true }] }
     const audiences: PinAudiences = new Map([[ID_DA_FACA, new Set(['diego'])]])
     expect(filterMapForPlayer(secreto, 'diego', POSSE, RAIO, undefined, undefined, audiences).map.pins).toEqual([])
+  })
+
+  it('tela da mesa (grupo, sem jogador): o pino com lista NÃO sai, mesmo com o escolhido no grupo', () => {
+    // A TV é vista por todos na mesa: o pino só para Diego apareceria para Carla por ela.
+    const audiences: PinAudiences = new Map([[ID_DA_FACA, new Set(['diego'])]])
+    const grupo = [
+      { tokenIds: ['ficha-diego'], visionRadius: RAIO },
+      { tokenIds: ['ficha-carla'], visionRadius: RAIO },
+    ]
+    const tv = filterMapForGroup(quarto(), grupo, undefined, undefined, undefined, { pinAudiences: audiences })
+    expect(tv.map.pins.map((p) => p.id)).toEqual(['lareira'])
+    expect(JSON.stringify(tv)).not.toContain(ID_DA_FACA)
+    // Controle: sem lista nenhuma, a TV mostra os dois pinos.
+    const semLista = filterMapForGroup(quarto(), grupo, undefined, undefined, undefined, { pinAudiences: new Map() })
+    expect(semLista.map.pins.map((p) => p.id)).toEqual([ID_DA_FACA, 'lareira'])
   })
 })

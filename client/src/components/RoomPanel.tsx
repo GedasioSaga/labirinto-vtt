@@ -2,6 +2,8 @@ import { useRef, useState } from 'react'
 import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type HostWorld, type PlayerInfo } from '../net/hostSession'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { PartySection, type PartySectionProps } from './PartySection'
+import { InitiativeSection, type InitiativeSectionProps } from './InitiativeSection'
+import { TableScreenSection, type TableScreenSectionProps } from './TableScreenSection'
 
 export interface RoomPanelToken {
   id: string
@@ -23,6 +25,8 @@ export interface RoomPanelProps {
   tokens: RoomPanelToken[]
   /** Seção "Grupo" (uma linha por jogador, "Ir lá" e "Mandar para…"). Ausente = sem a seção. */
   party?: PartySectionProps
+  /** Seção "Iniciativa" (ordem e vez). Ausente = sem a seção. Aparece com a sala aberta ou fechada. */
+  initiative?: InitiativeSectionProps
   tunnel: TunnelState
   onStart(): void
   onStop(): void
@@ -37,6 +41,8 @@ export interface RoomPanelProps {
   /** Botão "Laser" ligado: arma o laser (independe de segurar L); o traço sai clicando no mapa. */
   laserOn?: boolean
   onToggleLaser?(): void
+  /** Seção "Tela da mesa" (link da TV e a cena que ela mostra). Ausente = sem a seção. */
+  table?: TableScreenSectionProps
 }
 
 export const PLAN_HINT = 'Revelar planta mostra paredes, salas e portas, sem os tokens. Zonas ocultas continuam escondidas.'
@@ -349,6 +355,7 @@ export function RoomPanel({
   players,
   tokens,
   party,
+  initiative,
   tunnel,
   onStart,
   onStop,
@@ -362,6 +369,7 @@ export function RoomPanel({
   onHidePlan,
   laserOn = false,
   onToggleLaser,
+  table,
 }: RoomPanelProps) {
   const waitingCount = players.filter((player) => player.status === 'waiting' && player.connected).length
   const owners = tokenOwners(players)
@@ -375,6 +383,8 @@ export function RoomPanel({
             Abrir sala
           </button>
           <FirewallHint />
+          {/* Combate sem jogador na rede também tem ordem: a seção não espera a sala. */}
+          {initiative !== undefined && <InitiativeSection {...initiative} />}
         </>
       ) : (
         <>
@@ -390,6 +400,9 @@ export function RoomPanel({
           {/* O grupo vem antes do resto: é o que o mestre consulta a cada cena, o resto é de montar a sala. */}
           {party !== undefined && party.members.length > 0 && <PartySection {...party} />}
 
+          {/* Iniciativa logo depois do Grupo: no combate é o que o mestre toca a cada vez. */}
+          {initiative !== undefined && <InitiativeSection {...initiative} />}
+
           {onToggleLaser !== undefined && (
             <div className="lb-field">
               <button type="button" className={laserOn ? 'lb-btn lb-btn--primary lb-btn--block' : 'lb-btn lb-btn--block'} aria-pressed={laserOn} onClick={onToggleLaser}>
@@ -398,6 +411,8 @@ export function RoomPanel({
               <p className="lb-label">{LASER_HINT}</p>
             </div>
           )}
+
+          {table !== undefined && <TableScreenSection {...table} />}
 
           <TunnelSection tunnel={tunnel} onStartTunnel={onStartTunnel} onStopTunnel={onStopTunnel} />
 

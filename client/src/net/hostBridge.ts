@@ -6,8 +6,12 @@ import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/las
 import {
   createHostSession,
   singleSceneWorld,
+  type AppliedItems,
   type AppliedTokenEdit,
+  type DoorRequest,
+  type ItemRequest,
   type AppliedTransfer,
+  type HazardEntryNotice,
   type HostResult,
   type HostPlayerLaser,
   type HostSession,
@@ -16,8 +20,11 @@ import {
   type PlayerInfo,
   type TravelRequest,
 } from './hostSession'
-import type { LaserMessage } from './protocol'
+import type { DoorRequestHow, HostErrorReason, LaserMessage } from './protocol'
 import { createPlayerScreens, type PlayerScreen } from './playerScreens'
+import { guardSightingNotices } from './guardNotices'
+import type { TurnRef } from '../lib/initiative'
+import { hazardEntryLine } from '../lib/hazards'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -63,6 +70,19 @@ export interface HostBridgeDeps {
   /** Porta que o jogador abriu/fechou, já validada pela sessão (visível, destrancada, token perto). `sceneId` como em `applyMove`. */
   applyDoor: (wallId: string, open: boolean, sceneId?: string) => void
   /**
+   * "Destrancar e abrir" do pedido da porta trancada: tirar o cadeado e abrir
+   * a porta `wallId` (na cena de fundo `sceneId`, quando vier). Sem este
+   * retorno, o pedido nem chega ao mestre — ninguém saberia atender — e o
+   * jogador lê "O mestre disse não".
+   */
+  unlockAndOpenDoor?: (wallId: string, sceneId?: string) => void
+  /**
+   * ITEM PEGÁVEL: gravar a troca de lugar do item (pino que sai, mochilas
+   * novas) na cena `change.sceneId` — a aberta quando ausente. Sem este
+   * retorno, "Pegar" nem chega ao mestre e o jogador lê "O mestre disse não".
+   */
+  applyItems?: (change: AppliedItems) => void
+  /**
    * Nome/foto novos do token do jogador, já validados pela sessão (o token é
    * dele e a foto é auto-contida). Opcional como `onSignal`: quem monta a
    * ponte sem este retorno simplesmente não oferece a edição ao jogador.
@@ -86,6 +106,10 @@ export interface HostBridgeDeps {
   onSignal?: (signal: HostSignal) => void
   /** Laser de um jogador (lote ou fim do gesto), já validado e dentro do limite. */
   onPlayerLaser?: (laser: HostPlayerLaser) => void
+  /** INICIATIVA: de quem é a vez no mestre. O jogador só recebe o recorte (`turnForPlayer`). */
+  getTurn?: () => TurnRef | null
+  /** TELA DA MESA: quantas telas estão conectadas mudou (entrou, caiu, sala fechou). */
+  onTableScreensChange?: (screens: number) => void
   now?: () => number
 }
 
@@ -140,15 +164,69 @@ export interface HostBridge {
   playerScreen(playerId: string): PlayerScreen | null
   /** Chama `listener` a cada tela de jogador que muda. Devolve o desligar. */
   watchPlayerScreens(listener: () => void): () => void
+  /**
+   * ALARME PARA VÁRIAS CENAS: soa `text` para quem está em qualquer das
+   * `sceneIds` (substitui o alarme que estiver soando). Devolve quantos
+   * jogadores receberam agora (0 = ninguém lá ainda; o alarme fica para quem
+   * chegar), ou `null` com a sala fechada ou texto/cenas inválidos.
+   */
+  sceneAlarm(sceneIds: readonly string[], text: string): number | null
+  /** Encerra o alarme: some da tela de quem o mostrava. Sala fechada: nada. */
+  endAlarm(): void
+  /** O alarme soando, para o painel; `null` sem alarme ou com a sala fechada. */
+  activeAlarm(): { id: string; text: string; sceneIds: string[] } | null
+  /** A vez mudou (começar, próxima, encerrar): snapshot na hora, para o "sua vez" não esperar outra edição. */
+  notifyTurnChanged(): void
+  /**
+   * TELA DA MESA: a cena que a TV mostra (`tableSceneKey`), ou `null` para ela
+   * esperar. Snapshot imediato. Sala fechada: nada.
+   */
+  setTableScene(key: string | null): void
+  /** TELA DA MESA: a chave do link da TV desta sala; `null` com a sala fechada. */
+  tableKey(): string | null
 }
 
 export const BROADCAST_THROTTLE_MS = 50
+
+/**
+ * Erros no `join` que derrubam a conexão depois de responder. O Rust só solta
+ * a vaga de jogador (`MAX_PLAYERS`) quando o socket fecha: a TV recusada por
+ * `table_full` ou sem a chave certa seguraria a vaga enquanto a página ficasse
+ * aberta, mandando ping. `bad_code` também: o código errado de verdade o Rust
+ * já barra antes; esta recusa é a defesa da sessão, e a vaga volta.
+ */
+const KICK_ON_JOIN_ERROR: ReadonlySet<HostErrorReason> = new Set<HostErrorReason>(['invalid_message', 'bad_code', 'table_full', 'bad_table_key'])
+
 /**
  * O aviso de jogador novo fica mais tempo que um info comum (4 s): o mestre
  * costuma estar desenhando no mapa, de olho no canvas e não no rail, e perder
  * este aviso é o jogador esperando sozinho numa tela parada.
  */
 export const PLAYER_JOINED_TOAST_MS = 10_000
+/**
+ * "Guarda viu Ana" fica o dobro de um info comum: é o gancho da cena
+ * furtiva, e o mestre precisa de tempo para largar o que desenha e narrar.
+ */
+export const GUARD_SIGHTING_TOAST_MS = 8_000
+/** A linha do pedido da porta na caixa do mestre: o que o jogador tenta, depois do nome dele. */
+const DOOR_REQUEST_VERB: Record<DoorRequestHow, string> = {
+  knock: 'bate na porta',
+  force: 'tenta forçar a porta',
+  key: 'tenta usar uma chave na porta',
+}
+
+/** "Diego quer pegar Chave do Escudo", mais " em Mansão" quando o item está numa cena de fundo. */
+export function itemRequestLine(request: ItemRequest): string {
+  const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
+  return `${request.playerName} quer pegar ${request.itemName}${where}`
+}
+
+/** "Ana tenta forçar a porta", mais " em Mansão" quando a porta está numa cena de fundo. */
+export function doorRequestLine(request: DoorRequest): string {
+  const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
+  return `${request.playerName} ${DOOR_REQUEST_VERB[request.how]}${where}`
+}
+
 const DEFAULT_VISION_RADIUS = 700
 /** Id de conexão do Rust (hoje um contador decimal); o padrão aceita folga sem abrir para lixo. */
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
@@ -223,6 +301,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let pendingStart: Promise<RoomInfo> | null = null
   let lastPlayersKey = '[]'
   let lastPinAudiencesKey = '{}'
+  let lastTableScreens = 0
   let tunnelState: TunnelState = TUNNEL_IDLE
   let lastTunnelKey = JSON.stringify(TUNNEL_IDLE)
   let pendingTunnel: Promise<void> | null = null
@@ -236,6 +315,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let laserSent = false
   /** Aviso do mestre de cada pedido de passagem ainda na tela: `requestId` -> id do toast. */
   const travelToasts = new Map<string, string>()
+  /** Linha de cada pedido de porta trancada ainda na tela: `requestId` -> id do toast. */
+  const doorToasts = new Map<string, string>()
+  /** Linha de cada pedido de item ainda na tela: `requestId` -> id do toast. */
+  const itemToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
   /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
@@ -244,6 +327,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const notifyScreens = () => {
     for (const watcher of screenWatchers) watcher()
   }
+  /** OLHOS DO GUARDA: pares (cena, guarda, ficha) no olhar no último snapshot — aviso só na entrada. */
+  let guardSeen: ReadonlySet<string> = new Set()
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
@@ -334,6 +419,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   const notifyPlayersIfChanged = () => {
+    const screens = session?.tableScreens() ?? 0
+    if (screens !== lastTableScreens) {
+      lastTableScreens = screens
+      deps.onTableScreensChange?.(screens)
+    }
     const list = session?.listPlayers(world()) ?? []
     const key = JSON.stringify(list)
     if (key === lastPlayersKey) return
@@ -379,9 +469,37 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
   }
 
+  /**
+   * OLHOS DO GUARDA: a ficha de um jogador ENTROU no olhar de um guarda desde
+   * o último snapshot — "Guarda viu Ana". Só o mestre lê; o jogador recebe a
+   * marca (?, !) pelo recorte (`lib/fogFilter.ts`). Grupo próprio: vários
+   * guardas de uma vez viram uma caixa, sem soterrar os pedidos.
+   */
+  const announceGuardSightings = (current: HostWorld) => {
+    if (session === null) return
+    const notices = guardSightingNotices(current, session.listPlayers(current), guardSeen)
+    guardSeen = notices.seen
+    for (const line of notices.lines) useToastStore.getState().push('info', line, GUARD_SIGHTING_TOAST_MS, { grupo: 'Vigias' })
+  }
+
   const broadcastNow = () => {
     if (session === null) return
-    void dispatch(session.broadcast(world()))
+    const current = world()
+    const result = session.broadcast(current)
+    void dispatch(result)
+    announceHazardEntries(result.hazardEntries ?? [])
+    announceGuardSightings(current)
+  }
+
+  /**
+   * ZONA DE PERIGO: "Ana entrou no fogo". O mestre está olhando o canvas e
+   * não a ficha dela — sem o aviso, o fogo avança e ninguém narra. Some
+   * sozinho: é informação, não pergunta.
+   */
+  const announceHazardEntries = (entries: readonly HazardEntryNotice[]) => {
+    for (const entry of entries) {
+      useToastStore.getState().push('info', hazardEntryLine(entry.playerName, entry.kind, entry.sceneName), PLAYER_JOINED_TOAST_MS)
+    }
   }
 
   const scheduleBroadcast = () => {
@@ -396,6 +514,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (pendingBroadcast === null) return
     clearTimeout(pendingBroadcast)
     pendingBroadcast = null
+  }
+
+  /** A TV entrou: sem cena escolhida ela fica esperando, e o aviso diz onde escolher. */
+  const announceTable = () => {
+    const text =
+      session?.tableScene() === null
+        ? 'A tela da mesa conectou. Escolha a cena dela na aba Jogo.'
+        : 'A tela da mesa conectou.'
+    useToastStore.getState().push('info', text, PLAYER_JOINED_TOAST_MS)
   }
 
   /**
@@ -429,6 +556,107 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       travelToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    // Mesma regra para a porta: "Destrancar e abrir" de quem saiu não abre nada.
+    for (const [requestId, toastId] of doorToasts) {
+      if (session !== null && session.isDoorRequestPending(requestId)) continue
+      doorToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
+    // E para o item: "Deixar" de quem saiu não entrega nada.
+    for (const [requestId, toastId] of itemToasts) {
+      if (session !== null && session.isItemRequestPending(requestId)) continue
+      itemToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
+  /**
+   * Item que troca de lugar: grava pela store (a cena de fundo quando é lá)
+   * ANTES de mandar o "está com você", e o snapshot sai na hora — o pino
+   * some para todos que o viam. Sem quem grave, a resposta vira "disse não":
+   * "está com você" com a mochila vazia seria mentira.
+   */
+  const completeItems = (result: HostResult, change: AppliedItems) => {
+    if (deps.applyItems === undefined) {
+      void dispatch({ outbound: result.outbound.map(({ clientId }) => ({ clientId, msg: { type: 'pin.take.answer', answer: 'denied' } })) })
+      return
+    }
+    deps.applyItems(change)
+    void dispatch(result)
+    broadcastNow()
+  }
+
+  /** Resposta ao pedido de item: "Deixar" revalida na sessão e grava; "Não" avisa o jogador. */
+  const answerItem = (requestId: string, allow: boolean) => {
+    const toastId = itemToasts.get(requestId)
+    itemToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    if (!allow) {
+      void dispatch(session.denyItemRequest(requestId))
+      return
+    }
+    const result = session.approveItemRequest(requestId, world())
+    if (result.applyItems === undefined) void dispatch(result)
+    else completeItems(result, result.applyItems)
+  }
+
+  /**
+   * "Pegar": uma linha no grupo "Pedidos", a mesma caixa da porta e da
+   * passagem. Espera o mestre (o × vale "Não"); "Deixar todos" responde
+   * "Deixar" (`emLote`). Sozinho já abre a caixa, como o pedido da porta.
+   */
+  const askItem = (request: ItemRequest) => {
+    const toastId = useToastStore.getState().push('instrucao', itemRequestLine(request), null, {
+      actions: [
+        { label: 'Deixar', run: () => answerItem(request.requestId, true), emLote: true },
+        { label: 'Não', run: () => answerItem(request.requestId, false) },
+      ],
+      onDismiss: () => answerItem(request.requestId, false),
+      grupo: 'Pedidos',
+      sempreEmCaixa: true,
+    })
+    itemToasts.set(request.requestId, toastId)
+  }
+
+  /**
+   * Resposta ao pedido da porta trancada. "Destrancar e abrir" tira o cadeado
+   * e abre pela store (a cena de fundo quando a porta está lá), manda "O
+   * mestre abriu" e o snapshot na hora: a porta abre para quem a vê.
+   */
+  const answerDoor = (requestId: string, allow: boolean) => {
+    const toastId = doorToasts.get(requestId)
+    doorToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    if (!allow) {
+      void dispatch(session.denyDoorRequest(requestId))
+      return
+    }
+    const result = session.approveDoorRequest(requestId, world())
+    if (result.applyDoor !== undefined) deps.unlockAndOpenDoor?.(result.applyDoor.wallId, result.applyDoor.sceneId)
+    void dispatch(result)
+    broadcastNow()
+  }
+
+  /**
+   * Pedido da porta trancada: uma linha no grupo "Pedidos", a mesma caixa dos
+   * pedidos de passagem. Espera o mestre como eles (o × vale "Não"), e o
+   * "Deixar todos" da caixa responde "Destrancar e abrir" (`emLote`).
+   */
+  const askDoor = (request: DoorRequest) => {
+    const toastId = useToastStore.getState().push('instrucao', doorRequestLine(request), null, {
+      actions: [
+        { label: 'Destrancar e abrir', run: () => answerDoor(request.requestId, true), emLote: true },
+        { label: 'Não', run: () => answerDoor(request.requestId, false) },
+      ],
+      onDismiss: () => answerDoor(request.requestId, false),
+      grupo: 'Pedidos',
+      // Sozinho já abre a caixa "Pedidos (1)": o mestre, noutra cena, lê que
+      // alguém espera — o pedido de passagem sozinho segue o aviso de hoje.
+      sempreEmCaixa: true,
+    })
+    doorToasts.set(request.requestId, toastId)
   }
 
   const answerTravel = (requestId: string, allow: boolean) => {
@@ -517,12 +745,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
     if (clientId === null) return
-    const wasJoined = session.listPlayers().some((p) => p.clientId === clientId)
+    // Tela da mesa conta como "já entrou": o lixo que ela mandasse depois não a derruba como join recusado.
+    const wasTable = session.isTable(clientId)
+    const wasJoined = wasTable || session.listPlayers().some((p) => p.clientId === clientId)
     const result = session.handleMessage(clientId, event.payload.msg, world())
-    const rejectedJoin =
-      !wasJoined && result.outbound.some((o) => o.msg.type === 'error' && (o.msg.reason === 'invalid_message' || o.msg.reason === 'bad_code'))
+    const rejectedJoin = !wasJoined && result.outbound.some((o) => o.msg.type === 'error' && KICK_ON_JOIN_ERROR.has(o.msg.reason))
     if (rejectedJoin) {
-      // Conexão que nem entrou manda lixo ou código que a sessão recusa: responde
+      // Conexão que nem entrou manda lixo, código que a sessão recusa ou é TV recusada: responde
       // e libera a vaga no Rust. O código errado de verdade o Rust já barra antes
       // de chegar aqui; esta recusa é a defesa da sessão, não o caminho comum.
       void sendThenKick(result, clientId)
@@ -532,6 +761,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // só pode sair DEPOIS de a ficha mudar de cena, então quem despacha é a
     // mesma conclusão do "Deixar ir".
     if (result.applyTransfer !== undefined) completeTransfer(result, result.applyTransfer)
+    // Item livre ou "Dar a…": grava antes de responder, pelo mesmo motivo.
+    else if (result.applyItems !== undefined) completeItems(result, result.applyItems)
     else void dispatch(result)
     if (result.signal !== undefined) deps.onSignal?.(result.signal)
     if (result.playerLaser !== undefined) deps.onPlayerLaser?.(result.playerLaser)
@@ -555,13 +786,25 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         void dispatch(session.denyTravel(result.travelRequest.requestId))
       } else askTravel(result.travelRequest)
     }
+    if (result.doorRequest !== undefined) {
+      // Integrador sem quem destranque: a pergunta não teria resposta que abrisse a porta.
+      if (deps.unlockAndOpenDoor === undefined) void dispatch(session.denyDoorRequest(result.doorRequest.requestId))
+      else askDoor(result.doorRequest)
+    }
+    if (result.itemRequest !== undefined) {
+      // Integrador sem quem grave a mochila: "Deixar" não teria como entregar.
+      if (deps.applyItems === undefined) void dispatch(session.denyItemRequest(result.itemRequest.requestId))
+      else askItem(result.itemRequest)
+    }
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
       deps.applyTokenEdit(result.applyTokenEdit)
       broadcastNow()
     }
     notifyPlayersIfChanged()
-    if (!wasJoined) announceJoin(clientId)
+    if (wasJoined) return
+    if (session.isTable(clientId)) announceTable()
+    else announceJoin(clientId)
   }
 
   const onPeer = (event: { payload: unknown }) => {
@@ -583,7 +826,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     try {
       const room = parseRoomInfo(await deps.invoke('net_start_room'))
       if (room === null) throw new Error('resposta inválida de net_start_room')
-      session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now })
+      session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now, getTurn: deps.getTurn })
       unlisteners = [
         await deps.listen('net:message', onMessage),
         await deps.listen('net:peer', onPeer),
@@ -632,6 +875,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       session = null
       // Quem aguardava sem tela não recebe `room.closed` com mapa: some junto.
       if (screens.clear()) notifyScreens()
+      // Sala nova começa sem ninguém no olhar: quem já estava lá avisa de novo.
+      guardSeen = new Set()
       pruneTravelToasts()
       currentRoom = null
       // O Rust derruba o túnel junto com a sala.
@@ -647,6 +892,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
     notifyMapChanged() {
       scheduleBroadcast()
+    },
+
+    notifyTurnChanged() {
+      // Um snapshot que já estava na fila sai agora, com a vez nova dentro.
+      cancelPendingBroadcast()
+      broadcastNow()
     },
 
     setVisionRadius(playerId, radius) {
@@ -701,6 +952,36 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.sceneNote(sceneId, text, world())
       void dispatch(result)
       return result.outbound.length
+    },
+
+    sceneAlarm(sceneIds, text) {
+      if (session === null) return null
+      const before = session.activeAlarm()?.id
+      const result = session.sceneAlarm(sceneIds, text, world())
+      // Recusado (texto vazio, nenhuma cena que exista): o alarme não mudou.
+      if (session.activeAlarm()?.id === before) return null
+      void dispatch(result)
+      // O resultado também leva o fim do alarme antigo a quem ficou fora: conta só quem recebeu o novo.
+      return result.outbound.filter((out) => out.msg.type === 'scene.alarm').length
+    },
+
+    endAlarm() {
+      if (session === null) return
+      void dispatch(session.endAlarm(world()))
+    },
+
+    activeAlarm() {
+      return session?.activeAlarm() ?? null
+    },
+
+    setTableScene(key) {
+      if (session === null) return
+      session.setTableScene(key)
+      broadcastNow()
+    },
+
+    tableKey() {
+      return session?.tableKey() ?? null
     },
 
     assignToken(playerId, tokenId) {

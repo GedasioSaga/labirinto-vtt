@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
@@ -22,6 +22,8 @@ import { cloneEntity, cloneLinkedWalls, cloneRoomDescendants, type CloneableEnti
 import { ancestorsOf, descendantsOf, subtreeIds } from '../lib/roomNesting'
 import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
+import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
+import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
 const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon', 'roomFree'])
@@ -598,8 +600,25 @@ interface MapStoreState {
    * `size` aqui é o número ESCOLHIDO no painel, em quadrados. O arrasto pela
    * alça de canto continua em `updateTokenLive` (sem histórico por frame, uma
    * entrada só no `pointerup`) — são dois gestos, não dois campos.
+   *
+   * `health` (barra de vida) entra pelo mesmo caminho: cada número confirmado
+   * no painel é um Ctrl+Z, e `null` tira a barra da ficha. `vigia` (olhos do
+   * guarda), `npc` (marca de NPC) e `publicName` ("Nome para os jogadores")
+   * também: são conteúdo do mapa, Ctrl+Z desfaz.
    */
-  updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size' | 'npc' | 'publicName'>>) => void
+  updateToken: (
+    id: string,
+    patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size' | 'health' | 'vigia' | 'npc' | 'publicName'>>,
+  ) => void
+  /**
+   * CONDIÇÃO NA FICHA: marca a condição se ela não está na ficha, desmarca se
+   * está (`lib/tokenConditions.ts`) — o clique do painel. Com histórico, mesmo
+   * motivo da cor: é conteúdo do mapa, Ctrl+Z desfaz. Ficha que não existe não
+   * gasta entrada de histórico. É ação própria, e não um `updateToken` com a
+   * lista montada no componente, para dois cliques seguidos alternarem sobre o
+   * estado ATUAL da ficha, nunca sobre uma cópia velha da renderização.
+   */
+  toggleTokenCondition: (id: string, condition: TokenCondition) => void
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
@@ -677,6 +696,10 @@ interface MapStoreState {
   setRoomRoof: (id: string, roof: boolean) => void
   /** TEXTO DA SALA — "Ao entrar, o jogador lê" / "Nota do mestre". Com histórico, como `setRoomName`. */
   setRoomTexts: (id: string, patch: Partial<Pick<RoomMeta, 'textoAoEntrar' | 'notaDoMestre'>>) => void
+  /** ZONA DE PERIGO — pinta a Sala com um perigo, troca ou limpa (`null`). Com histórico. */
+  setRoomHazard: (roomId: string, kind: HazardKind | null) => void
+  /** ZONA DE PERIGO — "Avançar um passo" pelas portas abertas. Com histórico; nada muda = nada grava. */
+  advanceHazard: (hazardId: string) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
@@ -689,7 +712,7 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item'>>,
   ) => void
   /** Arrasto do pino — SEM histórico, par de `commitDragHistory(before)` no
    *  pointerup, mesmo padrão de `moveTokenLive`/`movePropLive`. */
@@ -759,6 +782,8 @@ interface MapStoreState {
   updateTokenLive: (id: string, patch: Partial<Pick<Token, 'size'>>) => void
   setMapScale: (scale: MapScale) => void
   setMeasurementMode: (mode: MeasurementMode) => void
+  /** Passo máximo e ocupação das fichas dos jogadores na cena aberta; `undefined` = livre. */
+  setMovementRules: (movement: MovementRules | undefined) => void
   setScenarioLink: (value: string | null) => void
   setPropLinkedPath: (id: string, path: string | null) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
@@ -1560,6 +1585,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       ...map,
       tokens: map.tokens.map((t) => (t.id === id ? { ...t, ...patch } : t)),
     })),
+    toggleTokenCondition: (id, condition) => {
+      const next = toggleConditionOnMap(get().map, id, condition)
+      if (next !== get().map) withHistory(() => next)
+    },
     addProp: (prop) => withHistory((map) => mapFactory.addProp(map, prop)),
     removeProp: (id) => withHistory((map) => mapFactory.removeProp(map, id)),
     moveProp: (id, x, y) => withHistory((map) => mapFactory.setPropPosition(map, id, x, y)),
@@ -1647,6 +1676,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (mapFactory.setRoomTexts(get().map, id, patch) === get().map) return
       withHistory((map) => mapFactory.setRoomTexts(map, id, patch))
     },
+    setRoomHazard: (roomId, kind) => {
+      // Um id só para as duas chamadas: a conferência e a gravação criam a MESMA zona.
+      const id = crypto.randomUUID()
+      if (setRoomHazardOnMap(get().map, roomId, kind, () => id) === get().map) return
+      withHistory((map) => setRoomHazardOnMap(map, roomId, kind, () => id))
+    },
+    advanceHazard: (hazardId) => {
+      if (advanceHazardOnMap(get().map, hazardId) === get().map) return
+      withHistory((map) => advanceHazardOnMap(map, hazardId))
+    },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return
       withHistory((map) => mapFactory.setItemSecret(map, kind, id, secret))
@@ -1721,6 +1760,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     })),
     setMapScale: (scale) => withHistory((map) => mapFactory.setMapScale(map, scale)),
     setMeasurementMode: (mode) => withHistory((map) => mapFactory.setMeasurementMode(map, mode)),
+    setMovementRules: (movement) => withHistory((map) => mapFactory.setMovementRules(map, movement)),
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({
       ...map,

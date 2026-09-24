@@ -95,6 +95,10 @@ export function propsDoPainel(ficha: Token, extra: Partial<PainelProps> = {}): P
     tokenImage: { onChangeImage: nada, onClearImage: nada, onSaveToLibrary: nada },
     tokenColor: { onColorChange: nada },
     tokenSize: { onSizeChange: nada },
+    // Grupo mundo: vida, condição e vigia da ficha (as ligações de App.tsx).
+    tokenHealth: { onHealthChange: nada },
+    tokenCondition: { onToggleCondition: nada },
+    tokenWatch: { onWatchChange: nada },
     // A mesma ligação de App.tsx (`tokenNpc`).
     tokenNpc: { onNpcChange: nada },
     tokenLights: { lights: [], onSelectLight: nada, onDetach: nada },

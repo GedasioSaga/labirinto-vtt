@@ -55,13 +55,21 @@ export interface ToastMessage {
    * avisos soltos (`components/caixaDeAvisos.ts`). Ausente = aviso de sempre.
    */
   grupo?: string
+  /**
+   * Este aviso abre a caixa do `grupo` mesmo sozinho: "Pedidos (1)". É o
+   * pedido da porta trancada — o mestre pode estar noutra cena, e o título
+   * da caixa é o que diz a ele que alguém espera resposta. Ausente = a regra
+   * de sempre (caixa só a partir de dois).
+   */
+  sempreEmCaixa?: boolean
 }
 
-/** Extras de `push`: botões, o que o × faz e o grupo. */
+/** Extras de `push`: botões, o que o × faz, o grupo e se ele abre a caixa sozinho. */
 export interface ToastExtras {
   actions?: ToastAction[]
   onDismiss?: () => void
   grupo?: string
+  sempreEmCaixa?: boolean
 }
 
 interface ToastState {
@@ -117,6 +125,7 @@ export const useToastStore = create<ToastState>()((set, get) => ({
     if (extras.actions !== undefined && extras.actions.length > 0) toast.actions = extras.actions
     if (extras.onDismiss !== undefined) toast.onDismiss = extras.onDismiss
     if (extras.grupo !== undefined) toast.grupo = extras.grupo
+    if (extras.sempreEmCaixa === true) toast.sempreEmCaixa = true
     set((state) => ({ toasts: [...state.toasts, toast] }))
     if (durationMs !== null) {
       timers.set(

@@ -303,6 +303,26 @@ export type PinPassage = 'pede' | 'livre' | 'trancada'
 export type PinIcon = 'bau' | 'armadilha' | 'chave' | 'perigo' | 'escada' | 'agua'
 
 /**
+ * ITEM PEGÁVEL: o pino é uma coisa que o jogador pode pegar ("Chave do
+ * Escudo"). `nome` é o que vai para a mochila; `livre` pega sem pedir ao
+ * mestre. Ausente (e `livre` ausente) é o de sempre — pino que só se lê, e
+ * "pede ao mestre" —, sem migração: mapa salvo antes do campo abre igual.
+ */
+export interface PinItem {
+  nome: string
+  livre?: true
+}
+
+/**
+ * Um item na mochila da ficha. `id` é o id do pino de onde ele saiu — único
+ * no mapa, e a ficha que viaja entre cenas leva a mochila junto.
+ */
+export interface CarriedItem {
+  id: string
+  nome: string
+}
+
+/**
  * Ponto de interesse cravado pelo mestre. O jogador toca o pino no mapa e lê o
  * cartão: imagem em cima, descrição embaixo.
  *
@@ -372,6 +392,13 @@ export interface Pin extends PlayerSecret {
    * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.
    */
   escolhas?: PinExitLabel[]
+  /**
+   * ITEM PEGÁVEL (pino "!"/"?", nunca o de viagem): o que o jogador pega com
+   * "Pegar". Pego, o pino sai do mapa e o item vai à mochila da ficha dele.
+   * Ausente = pino que só se lê. Sai no recorte do jogador (o cartão precisa
+   * do nome e de saber se pede ao mestre), sempre numa cópia limpa.
+   */
+  item?: PinItem
 }
 
 /**
@@ -395,6 +422,30 @@ export interface ConcealZone {
    * (`lib/fogFilter.ts`) manda só o preto que sobra e o pedaço à vista.
    */
   unveiledCells?: string[]
+}
+
+/**
+ * ZONA DE PERIGO — o que toma a sala numa catástrofe. Lista curta e fechada:
+ * é o que o mestre marca no meio da cena, não campo livre. Rótulos, cores e a
+ * regra de cada um moram em `lib/hazards.ts`.
+ */
+export type HazardKind = 'fogo' | 'fumaca' | 'vapor' | 'agua'
+
+/**
+ * Zona de perigo pintada pelo mestre: um conjunto de SALAS (`Region` com
+ * `room`) tomadas pelo mesmo perigo. Avança um passo pelas portas ABERTAS
+ * (`lib/hazards.ts` → `advanceHazard`): cada sala do outro lado de uma porta
+ * aberta entra na zona.
+ *
+ * O jogador NUNCA recebe este objeto: o recorte (`lib/fogFilter.ts`) manda só
+ * o tipo e o polígono de cada sala tomada que ele enxerga agora
+ * (`PlayerMapView.hazards`), e nunca o id da zona nem o das salas.
+ */
+export interface Hazard {
+  id: string
+  kind: HazardKind
+  /** Ids das salas tomadas, sem repetição, na ordem em que entraram. */
+  roomIds: string[]
 }
 
 export interface Region extends PlayerSecret {
@@ -450,6 +501,51 @@ export interface Region extends PlayerSecret {
   hidden?: boolean
 }
 
+/**
+ * Vida da ficha — é o que desenha a barra fina SOB ela no mapa ("ninguém sabe
+ * quanto falta para o monstro cair sem o mestre narrar"). Regras de leitura,
+ * de gravação e do recorte do jogador em `lib/tokenHealth.ts`.
+ */
+export interface TokenHealth {
+  /** Pontos de vida agora, de 0 a `max`. */
+  current: number
+  /** Pontos de vida cheios, 1 ou mais. */
+  max: number
+  /**
+   * Os JOGADORES veem a barra desta ficha. `false` (o padrão) = só o mestre:
+   * a vida inteira fica fora do recorte do jogador (`lib/fogFilter.ts`). Com
+   * `true` o jogador recebe a PROPORÇÃO, nunca os pontos (`healthForPlayer`).
+   */
+  shownToPlayers: boolean
+}
+
+/**
+ * Condição de mesa marcada NA FICHA pelo mestre. Lista curta e fechada de
+ * propósito — é o que se marca no meio da luta com um clique, não um campo
+ * livre. Rótulos, pastilhas e a ordem moram em `lib/tokenConditions.ts`.
+ */
+export type TokenCondition = 'envenenado' | 'caido' | 'dormindo' | 'atordoado' | 'invisivel'
+
+/**
+ * OLHOS DO GUARDA — o campo de visão de uma ficha de NPC. É do MESTRE: nunca
+ * atravessa para o jogador (`lib/fogFilter.ts`). Regras de leitura, do cone e
+ * da marca de alerta em `lib/npcWatch.ts`.
+ */
+export interface TokenWatch {
+  /** Para onde o guarda olha, em graus no sentido horário da tela, 0 = leste (mesma convenção de `rotation`). */
+  direcao: number
+  /** Abertura do olhar em graus, de 15 a 360 (360 = vê em volta). */
+  abertura: number
+  /** Até onde ele enxerga, em quadrados da grade. */
+  alcance: number
+}
+
+/**
+ * Marca de alerta do guarda que o JOGADOR recebe: "?" desconfia (viu alguém
+ * na borda do olhar), "!" viu. Montada pelo recorte, nunca gravada no mapa.
+ */
+export type WatchAlert = '?' | '!'
+
 export interface Token extends PlayerSecret {
   id: string
   characterId: string | null
@@ -457,6 +553,11 @@ export interface Token extends PlayerSecret {
   x: number
   y: number
   size: number
+  /** `undefined`/`null` === ficha sem barra de vida (aparência idêntica à de
+   *  antes deste campo) — sem linha de migração, mesmo padrão de
+   *  `rotation`/`color`. Mapa do disco chega cru: quem lê passa por
+   *  `readTokenHealth` (`lib/tokenHealth.ts`). */
+  health?: TokenHealth | null
   /** Caminho absoluto da imagem importada (mesmo pipeline de Prop.src).
    *  null = círculo genérico, render idêntico ao de drawTokens.ts:10-18.
    *  NÃO viaja para o jogador: é caminho do disco do mestre (lib/fogFilter.ts). */
@@ -492,6 +593,31 @@ export interface Token extends PlayerSecret {
    *  para jogador nenhum: o recorte troca o nome e apaga este campo
    *  (`lib/tokenPublicName.ts`, `lib/fogFilter.ts`). */
   publicName?: string | null
+  /**
+   * Condições marcadas pelo mestre (envenenado, caído...), desenhadas como
+   * pastilhas em cima da ficha no editor e na tela de quem joga.
+   * Ausente é nenhuma condição — sem linha de migração, mesmo padrão de
+   * `color`/`rotation`: mapa salvo antes deste campo abre idêntico, e
+   * desmarcar a última apaga o campo em vez de gravar `[]`.
+   *
+   * O mapa do disco chega CRU (`lib/mapFile.ts`), então quem lê passa por
+   * `tokenConditionsOf`, que joga fora o que não é da lista. ATRAVESSA para o
+   * jogador junto com a ficha — e só quando a ficha atravessa
+   * (`lib/fogFilter.ts`), com os ids da lista e nada mais.
+   */
+  conditions?: TokenCondition[]
+  /**
+   * OLHOS DO GUARDA: a ficha é um NPC que vigia (`lib/npcWatch.ts`). Ausente
+   * ou `null` = ficha comum, sem linha de migração. O mapa do disco chega
+   * CRU: quem lê passa por `readTokenWatch`. NÃO atravessa para o jogador.
+   */
+  vigia?: TokenWatch | null
+  /**
+   * Só no RECORTE do jogador: a marca do guarda que ele enxerga
+   * (`tokenWatchForPlayer`). O que estiver gravado aqui no mapa do mestre é
+   * jogado fora pelo recorte.
+   */
+  alerta?: WatchAlert
   /** Token não pode ser movido/editado. `undefined` === false (comportamento
    *  idêntico ao de hoje) — sem linha de migração. */
   locked?: boolean
@@ -505,6 +631,10 @@ export interface Token extends PlayerSecret {
    *  do mestre: NÃO atravessa para o jogador (`lib/fogFilter.ts`).
    *  `undefined` === false — sem linha de migração. */
   npc?: boolean
+  /** MOCHILA: itens que a ficha carrega (ITEM PEGÁVEL). Gravada com a cena,
+   *  viaja com a ficha. `undefined` === vazia, sem migração. O jogador só
+   *  recebe a mochila da PRÓPRIA ficha (`lib/fogFilter.ts`). */
+  mochila?: CarriedItem[]
 }
 
 export interface Prop extends PlayerSecret {
@@ -807,6 +937,22 @@ export type MeasurementMode =
   | 'manhattan'
   | 'hex'
 
+/**
+ * Regras de movimento da CENA para as fichas dos jogadores (o mestre anda sem
+ * limite). Tudo opcional: mapa salvo antes deste campo abre com movimento
+ * livre, igual a sempre. Leitura segura (arquivo cru, snapshot) em
+ * `lib/movementRules.ts`. Atravessa para o jogador: é regra da mesa, não
+ * segredo — a tela dele precisa dela para parar a ficha no alcance.
+ */
+export interface MovementRules {
+  /** Passo máximo por movimento, em QUADRADOS da régua da cena. `undefined` === livre,
+   *  sem linha de migração: `readMovementRules` lê o objeto `movement` inteiro. */
+  maxStepCells?: number
+  /** `true`: uma ficha não pode parar em cima de outra ('Lugar ocupado').
+   *  `undefined` === desligado, sem linha de migração (mesma leitura acima). */
+  tokensOccupy?: boolean
+}
+
 export interface MapData {
   id: string
   name: string
@@ -851,4 +997,13 @@ export interface MapData {
   measurementMode: MeasurementMode
   ownerId: string | null
   scenarioLink: string | null
+  /** Passo máximo e ocupação das fichas dos jogadores. `undefined` = livre. */
+  movement?: MovementRules
+  /**
+   * ZONAS DE PERIGO (fogo, fumaça, vapor, água). `undefined` === nenhuma —
+   * sem linha de migração: mapa salvo antes do campo abre igual, e a última
+   * zona apagada tira o campo em vez de gravar `[]`. Leitura segura do disco
+   * em `lib/hazards.ts` → `readHazards`. NUNCA sai no recorte do jogador.
+   */
+  hazards?: Hazard[]
 }

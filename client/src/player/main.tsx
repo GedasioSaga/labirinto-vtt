@@ -14,6 +14,9 @@ import { PlayerClueCard } from './PlayerClues'
 import { coverBounds } from './playerCamera'
 import { PlayerZoomControls } from './PlayerZoomControls'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
+import { PlayerAlarmBanner } from './PlayerAlarmBanner'
+import { PlayerTurnBanner, TurnWaitNotice } from './PlayerTurnBanner'
+import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
@@ -22,6 +25,11 @@ import type { SignalMark } from '../lib/signals'
 import type { RemoteLaser } from '../lib/laser'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
+import { carriedItemsOf, giveTargets } from '../lib/items'
+import { itemNoticeText } from './itemNotice'
+import { hazardNoticeText } from '../lib/hazards'
+import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
+import { TableApp } from './TableScreen'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -555,6 +563,16 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
       return token ? [{ id, name: token.name }] : []
     })
   }, [map, ownTokens])
+  const partyTokens = state.partyTokens ?? NO_TOKENS
+  // ITEM PEGÁVEL: "Comigo" é a mochila das fichas dele; "Dar a…" oferece só
+  // fichas de COLEGAS encostadas numa delas — NPC do mestre o host recusaria.
+  const backpack = useMemo(() => {
+    if (!map) return { items: [], colleagues: [] }
+    return {
+      items: map.tokens.filter((t) => ownTokens.includes(t.id)).flatMap(carriedItemsOf),
+      colleagues: giveTargets(map, ownTokens, partyTokens),
+    }
+  }, [map, ownTokens, partyTokens])
 
   // A cor do próprio laser: a da ficha (a mesma que os outros veem, escolhida
   // pelo host); ficha sem cor, o azul "este é o seu" da tela do jogador.
@@ -601,6 +619,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
 
   if (state.status === 'playing' && state.map && state.vision) {
     const actionNotice = latestActionNotice(state.doorNotice, state.moveNotice)
+    // O aviso mais novo é o do movimento (o `id` dos dois sai do mesmo contador).
+    const moveNoticeShown = actionNotice !== null && state.moveNotice?.id === actionNotice.id
     // Cartão de pista na tela: o Escape é dele, e um toque não pode fechar também o recado.
     const clueCardOpen = openClue !== null || (state.shownClue !== undefined && openPin === null)
     return (
@@ -610,7 +630,9 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           vision={state.vision}
           explored={state.explored}
           concealed={state.concealed}
+          hazards={state.hazards}
           ownTokens={ownTokens}
+          turnTokenId={state.turn ?? null}
           settings={settings}
           focusTokenId={focus.tokenId}
           focusSeq={focus.seq}
@@ -678,9 +700,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             connection.resetClueShare()
             setOpenClueId(clueId)
           }}
+          backpack={{ ...backpack, onGive: (itemId, toTokenId) => void connection.giveItem(itemId, toTokenId) }}
         />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
+        <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}
@@ -693,6 +717,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
               // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
               // e o mapa volta inteiro à vista enquanto o mestre decide.
               if (connection.requestTravel(openPin.id, exitId)) setOpenPinId(null)
+            }}
+            takeWaiting={state.item?.phase === 'sent' && !state.item.direct}
+            onTakeItem={() => {
+              // Mesma regra do pedido de passagem: enviado, o cartão sai e a espera fica no aviso.
+              if (connection.takePin(openPin.id)) setOpenPinId(null)
             }}
           />
         )}
@@ -724,6 +753,15 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             arrivedUnasked
           />
         )}
+        {state.item && (
+          <p key={state.item.id} className="pp-notice" role="status" aria-live="polite">
+            {itemNoticeText(state.item)}
+          </p>
+        )}
+        {state.alarm && (
+          // `key` no id: alarme novo remonta a faixa (anima, anuncia e vibra de novo).
+          <PlayerAlarmBanner key={state.alarm.id} text={state.alarm.text} vibrationTarget={typeof navigator === 'undefined' ? undefined : navigator} />
+        )}
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
           <PlayerNoteCard key={state.note.id} text={state.note.text} hint={NOTE_KEPT_HINT} onClose={closeNote} escapeCloses={openPin === null && !clueCardOpen} />
@@ -745,10 +783,32 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             {travelNoticeText(state.travel)}
           </p>
         )}
-        {actionNotice && (
+        {/* Porta e movimento avisam no mesmo lugar: vale o mais novo (`latestActionNotice`).
+            A porta "Trancada" traz os botões do pedido (Bater, Forçar, Usar chave). */}
+        {state.doorNotice && !moveNoticeShown && (
+          <PlayerDoorNotice
+            key={state.doorNotice.id}
+            notice={state.doorNotice}
+            onRequest={(wallId, how) => connection.requestDoor(wallId, how)}
+            onClose={() => connection.dismissDoorNotice()}
+          />
+        )}
+        {state.doorRequest && (
+          <p key={state.doorRequest.id} className="pp-notice" role="status" aria-live="polite">
+            {doorRequestText(state.doorRequest.phase)}
+          </p>
+        )}
+        {actionNotice && moveNoticeShown && (
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
           <p key={actionNotice.id} className="pp-notice" role="status" aria-live="polite">
             {actionNotice.text}
+          </p>
+        )}
+        <TurnWaitNotice notice={state.turnNotice} />
+        {state.hazardNotice && (
+          // ZONA DE PERIGO: "Você entrou no fogo!". `key` no id reanuncia a cada entrada.
+          <p key={state.hazardNotice.id} className="pp-notice" role="alert">
+            {hazardNoticeText(state.hazardNotice.kind)}
           </p>
         )}
       </PlayerErrorBoundary>
@@ -963,8 +1023,6 @@ function PlayerApp() {
 
 const root = document.getElementById('root')
 if (!root) throw new Error('player.html sem #root')
-createRoot(root).render(
-  <StrictMode>
-    <PlayerApp />
-  </StrictMode>,
-)
+// `?mesa` no endereço = TELA DA MESA (TV, projetor): espectador sem ficha, ver `TableScreen.tsx`.
+const tableCode = tableCodeFromSearch(location.search)
+createRoot(root).render(<StrictMode>{tableCode === null ? <PlayerApp /> : <TableApp initialCode={tableCode} tableKey={tableKeyFromSearch(location.search)} />}</StrictMode>)

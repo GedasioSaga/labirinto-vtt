@@ -1,4 +1,5 @@
-import type { MapData, RegionPoint } from '../types/map'
+import type { HazardKind, MapData, RegionPoint } from '../types/map'
+import type { PlayerHazard } from '../lib/hazards'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
@@ -75,6 +76,31 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
  * posição, o id do pino ou o nome/id da cena. Mestre antigo responde
  * `error invalid_message` (que o jogador ignora durante o jogo); jogador
  * antigo ignora as cinco.
+ *
+ * `scene.alarm` e `scene.alarm.end` (mestre -> jogador) são o ALARME PARA
+ * VÁRIAS CENAS, aditivos pelo mesmo critério: jogador antigo ignora os dois.
+ * Levam o texto e um id; nunca as cenas escolhidas.
+ *
+ * `turn` no snapshot (INICIATIVA) é aditivo pelo mesmo critério: o id da ficha
+ * da vez, e só quando ela está no recorte do jogador. Jogador antigo ignora o
+ * campo; mestre antigo não o envia e ninguém fica na vez.
+ *
+ * O PEDIDO DA PORTA TRANCADA também é aditivo: `door.request` (jogador ->
+ * mestre) e, na volta, `door.request.rejected` e `door.request.answer`. Mestre
+ * antigo responde `error invalid_message`; jogador antigo ignora as duas.
+ *
+ * ITEM PEGÁVEL, aditivo pelo mesmo critério: `pin.take` e `item.give`
+ * (jogador -> mestre) e, na volta, `pin.take.rejected`, `pin.take.answer` e
+ * `item.give.rejected`. A mochila viaja no token do PRÓPRIO jogador, no
+ * snapshot (`Token.mochila`); a de outro nunca sai (`lib/fogFilter.ts`).
+ * `snapshot.partyTokens` também é aditivo: quais das fichas que o jogador já
+ * recebeu são de colegas. Jogador antigo ignora; host antigo não manda, e o
+ * "Dar a…" fica sem colega (em vez de oferecer quem o host recusaria).
+ *
+ * ZONA DE PERIGO, aditiva pelo mesmo critério: `snapshot.hazards` (tipo e
+ * polígono de cada sala tomada que o jogador enxerga) e `hazard.entered`
+ * (mestre -> jogador: a ficha dele entrou no perigo). Jogador antigo ignora os
+ * dois; mestre antigo não manda, e a tela fica sem perigo desenhado.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -83,6 +109,8 @@ export const NAME_MIN_LENGTH = 1
 export const NAME_MAX_LENGTH = 32
 export const REQ_ID_MAX_LENGTH = 64
 export const RESUME_TOKEN_MAX_LENGTH = 128
+/** Teto da chave da tela da mesa no `join` (a gerada pelo mestre é um UUID, 36). */
+export const TABLE_KEY_MAX_LENGTH = 128
 /** Teto do recado por cena, em unidades UTF-16 (o `maxLength` do campo do mestre conta igual). */
 export const NOTE_MAX_LENGTH = 500
 /**
@@ -94,6 +122,8 @@ export const NOTE_MAX_LENGTH = 500
 export const PLAYER_MESSAGE_MAX_BYTES = 64 * 1024
 /** Quantos recados o caderno de cada jogador guarda (no host e na tela dele). Passou, sai o mais antigo. */
 export const NOTEBOOK_MAX_NOTES = 50
+/** Teto do alarme, na mesma conta: é uma faixa urgente no alto da tela, não uma carta. */
+export const ALARM_MAX_LENGTH = 140
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
@@ -103,6 +133,20 @@ export interface JoinMessage {
   code: string
   name: string
   resume?: string
+  /**
+   * TELA DA MESA: a página de espectador (TV, projetor) entra pelo MESMO
+   * `join` — o servidor do app só aceita `join` como primeira mensagem — com
+   * `role: 'table'`. Ela não é jogador: não tem ficha, não retoma sessão
+   * (`resume` junto recusa a mensagem) e só recebe a cena que o mestre escolhe.
+   * Aditivo: mestre antigo ignora o campo e a trata como jogador sem ficha.
+   */
+  role?: 'table'
+  /**
+   * TELA DA MESA: a chave que o mestre gera por sala e põe SÓ no link da TV
+   * (aba Jogo). O código da sala todo jogador tem; sem esta chave, ninguém vira
+   * tela e recebe a cena que o mestre escolheu (que pode ser outra que a dele).
+   */
+  tableKey?: string
 }
 
 export interface TokenMoveMessage {
@@ -197,21 +241,84 @@ export interface ClueShowMessage {
   to: string
 }
 
+/** Como o jogador tenta passar pela porta trancada: Bater, Forçar ou Usar chave. */
+export type DoorRequestHow = 'knock' | 'force' | 'key'
+
+const DOOR_REQUEST_HOWS: readonly DoorRequestHow[] = ['knock', 'force', 'key']
+
+/**
+ * PORTA TRANCADA VIRA PEDIDO: o jogador tocou a porta, leu "Trancada" e pede
+ * ao mestre do jeito que escolheu. O host valida (porta visível, trancada,
+ * token perto) e leva ao mestre; a resposta volta em `door.request.answer`.
+ * Aditiva pelo mesmo critério de `door.toggle`.
+ */
+export interface DoorRequestMessage {
+  type: 'door.request'
+  wallId: string
+  how: DoorRequestHow
+}
+
+/**
+ * ITEM PEGÁVEL: o jogador pede para pegar o item do pino `pinId`. O host
+ * valida (pino visível, pegável, ficha encostada) e leva ao mestre — ou, no
+ * pino livre, entrega direto. A resposta volta em `pin.take.answer`.
+ */
+export interface PinTakeMessage {
+  type: 'pin.take'
+  pinId: string
+}
+
+/** O jogador dá o item `itemId` da própria mochila à ficha `toTokenId`, de um colega encostado. */
+export interface ItemGiveMessage {
+  type: 'item.give'
+  itemId: string
+  toTokenId: string
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
   | PingMessage
   | SignalMessage
   | DoorToggleMessage
+  | DoorRequestMessage
   | TokenEditMessage
   | PinTravelRequestMessage
+  | PinTakeMessage
+  | ItemGiveMessage
   | PlayerLaserMessage
   | ClueReadMessage
   | CluePeersRequestMessage
   | ClueShowMessage
 
+/**
+ * Por que o host não levou o "Pegar" ao mestre. `unavailable` junta pino
+ * inexistente, no escuro, oculto e que não é item — um motivo por caso diria
+ * o que existe no escuro. `pending`: um pedido de item dele já espera.
+ */
+export type PinTakeRejection = 'unavailable' | 'far' | 'pending'
+
+export const PIN_TAKE_REJECTIONS: readonly PinTakeRejection[] = ['unavailable', 'far', 'pending']
+
+/** Por que o "Dar a…" não valeu: colega longe, ou item/ficha que não servem. */
+export type ItemGiveRejection = 'unavailable' | 'far'
+
+export const ITEM_GIVE_REJECTIONS: readonly ItemGiveRejection[] = ['unavailable', 'far']
+
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
+
+/**
+ * Por que o host não levou o pedido da porta trancada ao mestre. `pending`: um
+ * pedido de porta dele já espera; `not_locked`: a porta abre com o toque.
+ * Porta inexistente ou no escuro respondem o mesmo `not_visible` do toque.
+ */
+export type DoorRequestRejection = 'pending' | 'far' | 'not_visible' | 'not_locked'
+
+export const DOOR_REQUEST_REJECTIONS: readonly DoorRequestRejection[] = ['pending', 'far', 'not_visible', 'not_locked']
+
+/** A resposta do mestre ao pedido da porta. Sem id de porta nem de cena: quem pediu já sabe qual foi. */
+export type DoorRequestAnswer = 'opened' | 'denied'
 
 /**
  * Por que o host recusou o pedido de passagem SEM levar ao mestre. Genérico de
@@ -322,19 +429,53 @@ export interface ClueShowResultMessage {
 
 export type ClueHostMessage = ClueAddedMessage | CluebookMessage | ClueShownMessage | CluePeersMessage | ClueShowResultMessage
 
-export type HostErrorReason ='bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
+/**
+ * ALARME PARA VÁRIAS CENAS: aviso urgente que fica na tela até o mestre
+ * encerrar. `id` novo = alarme novo (substitui o aberto). Nunca leva as cenas
+ * escolhidas: quem recebe já está numa delas, e a lista diria que as outras existem.
+ */
+export interface SceneAlarmMessage {
+  type: 'scene.alarm'
+  id: string
+  text: string
+}
+
+/** Fim do alarme `id`: o jogador tira o aviso SÓ se ainda for este (um fim atrasado não apaga o novo). */
+export interface SceneAlarmEndMessage {
+  type: 'scene.alarm.end'
+  id: string
+}
+
+/**
+ * `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`).
+ * `bad_table_key`: tela da mesa sem a chave do link da TV, ou com outra.
+ */
+export type HostErrorReason = 'bad_code' | 'invalid_message' | 'not_joined' | 'already_joined' | 'table_full' | 'bad_table_key'
 
 export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
   | { type: 'welcome'; playerId: string; resumeToken: string; name: string }
   | { type: 'lobby.waiting' }
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
+  // `turn`: id da ficha da vez (iniciativa), só quando ela está em `map.tokens`
+  // deste recorte (`turnForPlayer`). Ausente = ninguém que o jogador vê.
+  // `partyTokens` (ITEM PEGÁVEL): das fichas que ele recebeu, as de OUTROS jogadores — o "Dar a…" não oferece NPC.
+  // `hazards` (ZONA DE PERIGO): só o que o jogador enxerga agora, e só quando há algum (`PlayerMapView.hazards`).
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[] }
+  // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
+  | { type: 'hazard.entered'; kind: HazardKind }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
+  | { type: 'door.request.rejected'; wallId: string; reason: DoorRequestRejection }
+  | { type: 'door.request.answer'; answer: DoorRequestAnswer }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
+  // ITEM PEGÁVEL. `nome` só no `taken`: o jogador lê o que agora carrega.
+  | { type: 'pin.take.rejected'; reason: PinTakeRejection }
+  | { type: 'pin.take.answer'; answer: 'taken'; nome: string }
+  | { type: 'pin.take.answer'; answer: 'denied' }
+  | { type: 'item.give.rejected'; reason: ItemGiveRejection }
   | { type: 'pin.travel.denied' }
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
@@ -347,6 +488,8 @@ export type HostMessage =
   | RoomTextMessage
   | NotebookMessage
   | ClueHostMessage
+  | SceneAlarmMessage
+  | SceneAlarmEndMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -364,12 +507,20 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
-  const { code, name, resume } = obj
+  const { code, name, resume, role, tableKey } = obj
   if (typeof code !== 'string' || !JOIN_CODE_PATTERN.test(code)) return null
   if (typeof name !== 'string') return null
   const trimmed = name.trim()
   // `length` conta unidades UTF-16 (emoji = 2): é o limite que o jogador vê no input.
   if (trimmed.length < NAME_MIN_LENGTH || trimmed.length > NAME_MAX_LENGTH) return null
+  if (role !== undefined) {
+    // Tela da mesa nunca retoma sessão de jogador: com `resume` junto, a mensagem cai inteira.
+    if (role !== 'table' || resume !== undefined) return null
+    // Sem chave a mensagem passa: quem recusa é a sessão (`bad_table_key`), para a TV dizer o que falta.
+    if (tableKey === undefined) return { type: 'join', code, name: trimmed, role }
+    if (!isBoundedString(tableKey, 1, TABLE_KEY_MAX_LENGTH)) return null
+    return { type: 'join', code, name: trimmed, role, tableKey }
+  }
   if (resume === undefined) return { type: 'join', code, name: trimmed }
   if (!isBoundedString(resume, 1, RESUME_TOKEN_MAX_LENGTH)) return null
   return { type: 'join', code, name: trimmed, resume }
@@ -394,6 +545,17 @@ function parseTravelRequest(obj: Record<string, unknown>): PinTravelRequestMessa
   if (exitId === undefined) return { type: 'pin.travel.request', pinId }
   if (!isBoundedString(exitId, 1, REQ_ID_MAX_LENGTH)) return null
   return { type: 'pin.travel.request', pinId, exitId }
+}
+
+export function isDoorRequestHow(value: unknown): value is DoorRequestHow {
+  return DOOR_REQUEST_HOWS.some((how) => how === value)
+}
+
+/** Pedido da porta trancada: id de porta curto e um dos três jeitos; qualquer outra coisa recusa a mensagem. */
+function parseDoorRequest(obj: Record<string, unknown>): DoorRequestMessage | null {
+  const { wallId, how } = obj
+  if (!isBoundedString(wallId, 1, REQ_ID_MAX_LENGTH) || !isDoorRequestHow(how)) return null
+  return { type: 'door.request', wallId, how }
 }
 
 /**
@@ -427,10 +589,40 @@ function parseTokenEdit(obj: Record<string, unknown>): TokenEditMessage | null {
  * meio (surrogate alto sozinho) viraria um losango de erro na tela do jogador.
  */
 export function clampNoteText(text: string): string {
-  if (text.length <= NOTE_MAX_LENGTH) return text
-  const cut = text.slice(0, NOTE_MAX_LENGTH)
+  return clampTextTo(text, NOTE_MAX_LENGTH)
+}
+
+/** O mesmo corte do recado, no teto do alarme (`ALARM_MAX_LENGTH`). */
+export function clampAlarmText(text: string): string {
+  return clampTextTo(text, ALARM_MAX_LENGTH)
+}
+
+function clampTextTo(text: string, max: number): string {
+  if (text.length <= max) return text
+  const cut = text.slice(0, max)
   const last = cut.charCodeAt(cut.length - 1)
   return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut
+}
+
+/**
+ * Valida o `scene.alarm` que o jogador recebe, no molde do `scene.note`: forma
+ * errada, texto vazio ou acima do teto recusam a mensagem inteira. Devolve
+ * cópia só com os campos conhecidos.
+ */
+export function parseSceneAlarm(value: unknown): SceneAlarmMessage | null {
+  if (!isRecord(value) || value.type !== 'scene.alarm') return null
+  const { id, text } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(text, 1, ALARM_MAX_LENGTH)) return null
+  return { type: 'scene.alarm', id, text }
+}
+
+/** Valida o `scene.alarm.end`; `null` para qualquer outra forma. */
+export function parseSceneAlarmEnd(value: unknown): SceneAlarmEndMessage | null {
+  if (!isRecord(value) || value.type !== 'scene.alarm.end') return null
+  const { id } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  return { type: 'scene.alarm.end', id }
 }
 
 /**
@@ -638,6 +830,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
     case 'door.toggle':
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
+    case 'door.request':
+      return parseDoorRequest(value)
     case 'token.edit':
       return parseTokenEdit(value)
     case 'pin.travel.request':
@@ -652,6 +846,12 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return { type: 'clue.peers' }
     case 'clue.show':
       return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
+    case 'pin.take':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.take', pinId: value.pinId } : null
+    case 'item.give':
+      return isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.toTokenId, 1, REQ_ID_MAX_LENGTH)
+        ? { type: 'item.give', itemId: value.itemId, toTokenId: value.toTokenId }
+        : null
     default:
       return null
   }

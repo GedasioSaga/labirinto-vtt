@@ -4,6 +4,7 @@ import { MIN_ROOM_DIMENSION } from '../lib/roomOps'
 import { ROTATION_SHIFT_STEP } from '../lib/roomRotation'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { Toggle } from './Toggle'
+import { HazardControls, type HazardControlsProps } from './HazardControls'
 
 /** Passo dos botões do painel: deitar ou pôr em pé, o giro que mais se faz num mapa de masmorra. */
 const QUARTO_DE_VOLTA = 90
@@ -65,6 +66,8 @@ export interface RoomControlsProps {
   parentName?: string
   /** "Criar sala dentro": arma a ferramenta Sala com esta sala como mãe. Ausente omite o botão. */
   onCreateRoomInside?: () => void
+  /** ZONA DE PERIGO da sala (fogo, fumaça, vapor, água). Ausente omite o bloco. */
+  hazard?: HazardControlsProps
 }
 
 interface RoomRotationFieldProps {
@@ -245,6 +248,7 @@ export function RoomControls({
   locked,
   parentName,
   onCreateRoomInside,
+  hazard,
 }: RoomControlsProps) {
   const baseId = useId()
   const roofHintId = `${baseId}-roof-hint`
@@ -325,6 +329,8 @@ export function RoomControls({
           </p>
         </div>
       )}
+
+      {hazard !== undefined && <HazardControls {...hazard} />}
 
       {shape === 'rect' && axisAligned && (
         <>

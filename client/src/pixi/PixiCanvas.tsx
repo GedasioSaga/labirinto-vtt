@@ -12,6 +12,8 @@ import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
 import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
+import { advanceTurn, useInitiativeStore } from '../stores/initiativeStore'
+import { turnTokenIdOn } from '../lib/initiative'
 import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
 import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, freeArea, freeAreaCenter, revealScale, type Bounds, type Camera, type Point } from './world'
 import { resolveCursor, type HoverKind, type ResizeCorner } from './cursorPolicy'
@@ -137,6 +139,9 @@ import {
 } from '../lib/drawingFactory'
 import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
+import { drawHazardAreas } from './drawHazards'
+import { hazardAreas } from '../lib/hazards'
+import { drawWatchCones } from './drawNpcWatch'
 import { createPinsRenderer } from './drawPins'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { revealBrushRadius, type RevealBrushMode } from '../lib/concealBrush'
@@ -684,9 +689,15 @@ export function PixiCanvas({
       // Container, não Graphics: cada luz tem o halo em um objeto próprio para
       // receber a máscara do recorte por parede (drawLights.ts).
       const lightsContainer = new Container()
+      // OLHOS DO GUARDA: o cone de cada NPC vigia, embaixo das fichas para não
+      // cobrir quem está dentro dele. Só o mestre desenha isto.
+      const watchConesGraphics = new Graphics()
       const tokensContainer = new Container()
       // A5 — zonas ocultas por cima do conteúdo: o mestre precisa ver o que cobre.
       const concealZonesContainer = new Container()
+      // ZONA DE PERIGO: cor chapada sobre o chão e as salas, sob paredes e fichas.
+      const hazardsGraphics = new Graphics()
+      hazardsGraphics.eventMode = 'none'
       // Pinos acima das zonas ocultas: o pino é o chamariz da cena e o mestre
       // precisa achá-lo mesmo sobre uma área que ele mesmo escondeu.
       const pinsContainer = new Container()
@@ -719,6 +730,7 @@ export function PixiCanvas({
         gridOutsideGraphics,
         gridGraphics,
         gridAlignOverlayGraphics,
+        hazardsGraphics,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
@@ -729,6 +741,7 @@ export function PixiCanvas({
         textLabelsContainer,
         propsContainer,
         lightsContainer,
+        watchConesGraphics,
         tokensContainer,
         concealZonesContainer,
         pinsContainer,
@@ -1264,6 +1277,11 @@ export function PixiCanvas({
         mapFrame: () => redrawMapFrame(sceneState().map.frame),
         regions: paintRegions,
         drawings: paintDrawings,
+        // ZONA DE PERIGO: camada Salas escondida esconde a sala; o perigo dela vai junto.
+        hazards: () => {
+          const { map } = sceneState()
+          drawHazardAreas(hazardsGraphics, map.hiddenLayers.includes('salas') ? [] : hazardAreas(map))
+        },
         roomNames: () => {
           const { map } = sceneState()
           roomNamesRenderer.draw(roomNamesContainer, visibleRegions(map.regions, map.hiddenLayers), map.grid, camera.scale)
@@ -1271,6 +1289,8 @@ export function PixiCanvas({
         walls: paintWallsAndDoors,
         stairs: paintStairs,
         lights: paintLights,
+        // OLHOS DO GUARDA: parede nova, porta aberta ou guarda andando mudam o cone.
+        watchCones: () => drawWatchCones(watchConesGraphics, sceneState().map),
         concealZones: () => {
           const { map, selectedConcealZoneId } = sceneState()
           concealZonesRenderer.draw(concealZonesContainer, map.concealZones, map.grid, selectedConcealZoneId)
@@ -1307,7 +1327,12 @@ export function PixiCanvas({
       const redrawTokens = () => {
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
-        tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null, camera.scale)
+        // A vez da iniciativa só acende NESTA cena: a de outra cena é outra ficha.
+        const turnTokenId = turnTokenIdOn(useInitiativeStore.getState().turn, map)
+        tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null, camera.scale, turnTokenId)
+        // O cone acompanha o guarda no arrasto e a direção escolhida no painel
+        // (pelo portão do redesenho: sem guarda ou sem ficha mudada, nada repinta).
+        redrawShapeLayers(['watchCones'])
         // As alças do token acompanham o token: `moveTokenLive` (arrasto) e
         // `moveSelectionBy` (setas) só acordam ESTE redraw, nunca o de formas.
         redrawEditHandles()
@@ -1586,6 +1611,10 @@ export function PixiCanvas({
         }
       })
       const unsubscribeTokens = subscribeToTokensRedraw(redrawTokens)
+      // A vez andou (Começar, Próxima vez, Encerrar): o anel troca de ficha.
+      const unsubscribeTurn = useInitiativeStore.subscribe((state, previous) => {
+        if (state.turn !== previous.turn) redrawTokens()
+      })
       const unsubscribeProps = subscribeToPropsRedraw(redrawProps)
       const unsubscribeBackground = subscribeToBackgroundRedraw(() => {
         void redrawBackground()
@@ -5724,6 +5753,13 @@ export function PixiCanvas({
           case 'showShortcuts':
             onShowShortcutsRef.current?.()
             break
+          // Shift+N — a mesma "Próxima vez" do painel Iniciativa (aba Jogo),
+          // sem o mestre tirar o olho do mapa. Sem combate nesta cena, nada.
+          case 'nextTurn': {
+            const { map: mapaDaVez } = useMapStore.getState()
+            advanceTurn(mapaDaVez.id, mapaDaVez.tokens)
+            break
+          }
           case 'nudge':
             nudgeSelected(action.dx, action.dy, action.fine)
             break
@@ -5849,6 +5885,7 @@ export function PixiCanvas({
         unsubscribeShapes()
         unsubscribeTravelLinks()
         unsubscribeTokens()
+        unsubscribeTurn()
         unsubscribeProps()
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()

@@ -12,6 +12,7 @@ import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
 import { DoorModeControls, type DoorModeControlsProps } from './DoorModeControls'
 import type { ScenarioLinkControlsProps } from './ScenarioLinkControls'
+import type { MovementControlsProps } from './MovementControls'
 import { TextLabelControls, type TextLabelControlsProps } from './TextLabelControls'
 import { RegionJoinField, RegionSmoothButton, RegionStyleControls, type RegionStyleControlsProps } from './RegionStyleControls'
 import { AdvancedField, AdvancedSection } from './AdvancedSection'
@@ -26,7 +27,13 @@ import { TokenSizeControls, type TokenSizeControlsProps } from './TokenSizeContr
 import { TokenNpcControls, type TokenNpcControlsProps } from './TokenNpcControls'
 import { TokenCarryControls } from './TokenCarryControls'
 import type { TokenCarryWiring } from '../lib/party'
+import { TokenHealthControls, type TokenHealthControlsProps } from './TokenHealthControls'
 import { selectedTokenSize } from '../lib/tokenSize'
+import { readTokenHealth } from '../lib/tokenHealth'
+import { TokenConditionControls, type TokenConditionControlsProps } from './TokenConditionControls'
+import { tokenConditionsOf } from '../lib/tokenConditions'
+import { TokenWatchControls, type TokenWatchControlsProps } from './TokenWatchControls'
+import { readTokenWatch } from '../lib/npcWatch'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { TokenLightsControls, type TokenLightsControlsProps } from './TokenLightsControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
@@ -96,6 +103,8 @@ interface PropertiesPanelProps {
   layers: LayersPanelProps
   selection: SelectionControlsProps
   scenarioLink: ScenarioLinkControlsProps
+  /** "Movimento dos jogadores" na janela Configurações do mapa; ausente, a seção não aparece. */
+  movement?: MovementControlsProps
   selectedWall: Wall | null
   wallDoor: Omit<WallDoorControlsProps, 'door'>
   doorKind: DoorKindControlsProps
@@ -125,6 +134,12 @@ interface PropertiesPanelProps {
   /** Tocha presa (ou luz solta sob a ficha): o clique no mapa pega a ficha,
    *  então o caminho para a luz é pelo painel da ficha. */
   tokenLights: TokenLightsControlsProps
+  /** Vida da ficha selecionada — a barra fina sob ela no mapa. */
+  tokenHealth: Omit<TokenHealthControlsProps, 'health'>
+  /** Condições da ficha selecionada (envenenado, caído...) — marcadas no meio da luta. */
+  tokenCondition: Omit<TokenConditionControlsProps, 'conditions'>
+  /** OLHOS DO GUARDA: liga a vigia da ficha de NPC e diz como ela olha. */
+  tokenWatch: Omit<TokenWatchControlsProps, 'watch'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -192,6 +207,7 @@ export function PropertiesPanel({
   layers,
   selection,
   scenarioLink,
+  movement,
   selectedWall,
   wallDoor,
   doorKind,
@@ -208,6 +224,9 @@ export function PropertiesPanel({
   tokenNpc,
   tokenCarry,
   tokenLights,
+  tokenHealth,
+  tokenCondition,
+  tokenWatch,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -261,7 +280,7 @@ export function PropertiesPanel({
             {mapName} · {mapWidth}×{mapHeight} · {mapGrid}px
           </span>
         </span>
-        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} scenarioLink={scenarioLink} />
+        <MapSettingsButton grid={grid} gridAlign={gridAlign} mapScale={mapScale} scenarioLink={scenarioLink} movement={movement} />
       </header>
 
       <div className="lb-inspector__body lb-scroll">
@@ -435,10 +454,24 @@ export function PropertiesPanel({
         {selectedToken && (
           <ToolPropertiesSection group="tokenImage" groups={groups}>
             <TokenNameControls key={selectedToken.id} name={selectedToken.name} publicName={selectedToken.publicName} {...tokenName} />
-            {/* Logo depois do nome: quem acabou de criar "Dragão" quer dizer
-                em seguida que ele é grande — e o tamanho manda no que a peça
-                cobre na grade, então vem antes da aparência (cor, foto). */}
+            {/* Vida logo abaixo do nome: é o campo que o mestre mexe a cada
+                golpe no meio da luta, e não pode morar embaixo da dobra.
+                `key` pela ficha: número digitado e não confirmado vai para a
+                ficha DO CAMPO, não para a que o clique no mapa acabou de
+                escolher (ver `HealthField`). Prefixada: o nome acima já usa o
+                id puro, e chave repetida entre irmãos deixa o campo anterior. */}
+            <TokenHealthControls key={`vida-${selectedToken.id}`} health={readTokenHealth(selectedToken.health)} {...tokenHealth} />
+            {/* Logo depois do nome e da vida: quem acabou de criar "Dragão"
+                quer dizer em seguida que ele é grande — e o tamanho manda no
+                que a peça cobre na grade, então vem antes da aparência (cor, foto). */}
             <TokenSizeControls size={selectedTokenSize(selectedToken)} {...tokenSize} />
+            {/* Entre quem a ficha é (nome, tamanho) e como ela se parece (cor,
+                foto): a condição é o controle de MESA, mexido a cada rodada, e
+                fica à vista sem rolar. Cor e foto são de preparação. */}
+            <TokenConditionControls conditions={tokenConditionsOf(selectedToken)} {...tokenCondition} />
+            {/* Vigia logo depois da condição: também é controle de MESA (o
+                guarda vira para a porta no meio da cena), não de preparação. */}
+            <TokenWatchControls watch={readTokenWatch(selectedToken.vigia)} {...tokenWatch} />
             {/* Antes da imagem: a cor é o caminho de um clique, a foto é o de
                 abrir o disco. Quem só quer separar aliado de inimigo não
                 precisa passar pelo controle caro para chegar no barato. */}

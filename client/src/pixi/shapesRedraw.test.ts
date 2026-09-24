@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { Drawing, Light, MapData } from '../types/map'
+import type { Drawing, Light, MapData, Token } from '../types/map'
 import { createEmptyMap, moveRegion } from '../lib/mapFactory'
+import { setRoomHazard } from '../lib/hazards'
 import { buildRoomFromDraft } from '../lib/drawingFactory'
 import { EMPTY_SELECTION, selectionOfItem } from '../lib/selectionModel'
 import {
@@ -55,10 +56,12 @@ function setup() {
     mapFrame: spy('mapFrame'),
     regions: spy('regions'),
     drawings: spy('drawings'),
+    hazards: spy('hazards'),
     roomNames: spy('roomNames'),
     walls: spy('walls'),
     stairs: spy('stairs'),
     lights: spy('lights'),
+    watchCones: spy('watchCones'),
     concealZones: spy('concealZones'),
     pins: spy('pins'),
     textLabels: spy('textLabels'),
@@ -237,6 +240,22 @@ describe('createShapesRedrawer', () => {
     expect(redraw(snapshot(map))).toEqual([...SHAPES_LAYERS])
     take()
     expect(redraw(snapshot(map, { cameraScale: 2 }))).toEqual(['walls', 'stairs', 'lights'])
+  })
+
+  it('perigo e cone do guarda (grupo mundo) entram no redesenho parcial: repintam só quando o que é deles muda', () => {
+    const { redraw, take } = setup()
+    const guarda: Token = { id: 'g1', characterId: null, name: 'Guarda', x: 50, y: 50, size: 1, image: null, vigia: { direcao: 0, abertura: 90, alcance: 4 } }
+    const map: MapData = { ...setRoomHazard(buildMap(), 'r1', 'fogo', () => 'h1'), tokens: [guarda] }
+    expect(map.hazards?.length).toBe(1)
+    redraw(snapshot(map))
+    take()
+    // Sem mudança: nenhum dos dois repinta.
+    expect(redraw(snapshot(map))).toEqual([])
+    // O guarda anda: só o cone (fichas não são camada vetorial).
+    const andou = { ...map, tokens: [{ ...guarda, x: 60 }] }
+    expect(redraw(snapshot(andou))).toEqual(['watchCones'])
+    // A sala do fogo se move: o perigo segue a sala, e a parede nova corta o cone.
+    expect(redraw(snapshot(moveRegion(andou, 'r1', 10, 0)))).toEqual(['gridMask', 'regions', 'hazards', 'roomNames', 'walls', 'lights', 'watchCones'])
   })
 
   it('camada de texto pintada pede a sincronização da resolução dos Text', () => {

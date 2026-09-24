@@ -41,6 +41,18 @@ describe('validateTokenMove', () => {
     expect(validateTokenMove(map, { playerId: 'host', tokenId: 't1', x: 120, y: 100 }, {}, { isHost: true })).toEqual({ ok: true, x: 120, y: 100 })
   })
 
+  it('iniciativa na cena: só a ficha da vez move; posse e trava vêm antes; o host ignora a vez', () => {
+    const map = baseMap()
+    const vezDeT2 = { turnTokenId: 't2' }
+    expect(validateTokenMove(map, { playerId: 'p1', tokenId: 't1', x: 150, y: 120 }, ownership, vezDeT2)).toEqual({ ok: false, reason: 'not_your_turn' })
+    expect(validateTokenMove(map, { playerId: 'p2', tokenId: 't2', x: 320, y: 120 }, ownership, vezDeT2)).toEqual({ ok: true, x: 320, y: 120 })
+    expect(validateTokenMove(map, { playerId: 'p1', tokenId: 't2', x: 320, y: 120 }, ownership, vezDeT2)).toEqual({ ok: false, reason: 'not_owner' })
+    expect(validateTokenMove(map, { playerId: 'p1', tokenId: 't1', x: 150, y: 120 }, ownership, { turnTokenId: null })).toEqual({ ok: true, x: 150, y: 120 })
+    const travado = baseMap({ tokens: [token('t1', 100, 100, { locked: true })] })
+    expect(validateTokenMove(travado, { playerId: 'p1', tokenId: 't1', x: 120, y: 100 }, ownership, vezDeT2)).toEqual({ ok: false, reason: 'locked' })
+    expect(validateTokenMove(map, { playerId: 'host', tokenId: 't1', x: 150, y: 120 }, {}, { isHost: true, turnTokenId: 't2' })).toEqual({ ok: true, x: 150, y: 120 })
+  })
+
   it('parede no caminho => wall, inclusive para o host', () => {
     const map = baseMap({ walls: [wall('w', 200, 0, 200, 400)] })
     expect(validateTokenMove(map, { playerId: 'p1', tokenId: 't1', x: 250, y: 100 }, ownership)).toEqual({ ok: false, reason: 'wall' })

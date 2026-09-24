@@ -19,6 +19,11 @@ const MOVE_NOTICE_TEXT: Record<TokenMoveRejection, string> = {
   locked: 'O mestre travou essa ficha',
   outside_map: 'Fora do mapa',
   unknown_token: 'Essa ficha não está mais aqui',
+  // "Fichas ocupam espaço": não diz QUEM está lá.
+  occupied: 'Lugar ocupado',
+  // A vez tem aviso próprio (`turnNotice`, "Espere sua vez"); este texto só
+  // existe porque o registro cobre todo motivo.
+  not_your_turn: 'Espere sua vez',
 }
 
 export function moveNoticeText(reason: TokenMoveRejection): string {

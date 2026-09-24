@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
-import type { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react'
+import type { ChangeEvent, ComponentProps, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react'
 import type { StorageLike } from './playerConnection'
+import { PlayerBackpack } from './PlayerBackpack'
 import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { PlayerNotebook } from './PlayerNotebook'
 import { PlayerClueList } from './PlayerClues'
@@ -130,6 +131,8 @@ interface PlayerPanelProps {
   clues?: readonly ClueEntry[]
   /** Tocou numa pista do Caderno: reabre o cartão dela. */
   onOpenClue?: (clueId: string) => void
+  /** ITEM PEGÁVEL: a seção "Comigo". Ausente = o painel de sempre. */
+  backpack?: ComponentProps<typeof PlayerBackpack>
 }
 
 export function PlayerPanel({
@@ -153,6 +156,7 @@ export function PlayerPanel({
   onReadNotebook,
   clues = NO_CLUES,
   onOpenClue = IGNORE_CLUE,
+  backpack,
 }: PlayerPanelProps) {
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
   // Um estado por forma: a coluna do notebook nasce aberta e a gaveta do
@@ -419,6 +423,8 @@ export function PlayerPanel({
               </button>
               {laserArmed && <p className="pp-empty">Segure e arraste no mapa para apontar. Quem está na sua cena vê. Esc sai.</p>}
             </section>
+
+            {backpack !== undefined && <PlayerBackpack {...backpack} />}
 
             {first !== undefined && (
               <section className="pp-section" aria-labelledby={`${panelId}-me`}>

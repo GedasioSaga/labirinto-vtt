@@ -243,6 +243,13 @@ describe('filterMapForPlayer', () => {
       expect(remembered.get('porta-direita')).toEqual({ open: true, locked: false, kind: 'double' })
     })
 
+    it('SEGURANÇA: lembrança de porta trancada (gravada antes do corte do cadeado) sai sem o cadeado', () => {
+      const remembered = new Map([['porta-direita', { open: false, locked: true, kind: 'double' as const }]])
+      const out = filterMapForPlayer(mapWithRightRoomPlan(), 'p1', ownership, RADIUS, exploredRightRoom(), remembered).map
+      expect(out.walls.find((w) => w.id === 'porta-direita')?.door).toEqual({ open: false, locked: false, kind: 'double' })
+      expect(JSON.stringify(out)).not.toContain('"locked":true')
+    })
+
     it('camada oculta e item hidden continuam fora mesmo explorados', () => {
       const map = mapWithRightRoomPlan()
       const hidden: MapData = { ...map, regions: map.regions.map((r) => ({ ...r, hidden: true })), hiddenLayers: ['anotacoes'] }

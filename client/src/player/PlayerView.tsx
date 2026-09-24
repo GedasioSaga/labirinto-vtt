@@ -9,6 +9,8 @@ import { countExploredCells, forEachExploredRun } from '../lib/exploration'
 import type { Exploration } from '../lib/exploration'
 import { computeAlignedGridLines } from '../lib/gridAlign'
 import { roomHasRoof } from '../lib/roomOps'
+import type { PlayerHazard } from '../lib/hazards'
+import { drawHazardAreas } from '../pixi/drawHazards'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs } from '../lib/layers'
 import { visionSegments } from '../lib/visibility'
 import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
@@ -17,7 +19,7 @@ import { visiblePins } from '../lib/layers'
 import { createPinsRenderer } from '../pixi/drawPins'
 import { fitCamera, panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
-import type { Bounds, Camera } from '../pixi/world'
+import type { Bounds, Camera, Point } from '../pixi/world'
 import { arrivalCamera, centeredCamera, firstOwnToken } from './playerCamera'
 import { drawOwnerPulse, drawOwnerRing, ownerRingOuterPx } from './ownerMarker'
 import { drawGrid } from '../pixi/drawGrid'
@@ -38,10 +40,16 @@ import { drawPropSilhouettes } from '../pixi/drawPropSilhouettes'
 import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
 import { screenLabelSizing } from '../pixi/screenLabel'
-import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TOKEN_NAME_FILL_COLOR, TOKEN_NAME_OUTLINE_COLOR } from '../pixi/constants'
+import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TOKEN_NAME_FILL_COLOR, TOKEN_NAME_OUTLINE_COLOR, TURN_RING_COLOR, TURN_RING_GAP, TURN_RING_WIDTH } from '../pixi/constants'
 import { parseHexColor } from '../lib/tokenColor'
+import { readTokenHealth } from '../lib/tokenHealth'
+import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from '../pixi/drawTokenHealth'
 import { fitPhotoSprite, textureFromDataUrl } from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
+import { tokenConditionsOf } from '../lib/tokenConditions'
+import { CONDITION_MARKS_LABEL, drawTokenConditions } from '../pixi/drawTokenConditions'
+import { watchAlertOf } from '../lib/npcWatch'
+import { WATCH_ALERT_LABEL, drawWatchAlert } from '../pixi/drawNpcWatch'
 import { createRoomNamesRenderer, findRoomLabelAt } from '../pixi/drawRoomNames'
 import { hasEnterText } from '../lib/roomText'
 import { createTextLabelsRenderer } from '../pixi/drawTextLabels'
@@ -61,7 +69,7 @@ import {
   type PlayerMeasureEvent,
   type PlayerMeasureState,
 } from './playerMeasure'
-import { drawPlayerMeasure } from './drawPlayerMeasure'
+import { drawPlayerMeasure, drawPlayerTokenDrag } from './drawPlayerMeasure'
 import { createTokenGlides, stepGlides, syncGlide, type TokenGlides } from './tokenGlide'
 import { applyTokenTouch, prepareTokenLayer } from './tokenTouch'
 import {
@@ -83,6 +91,8 @@ import {
 } from './playerZoom'
 import { drawFacingNib, facingLabelOffset, tokenFacing } from './facingMarker'
 import { createTokenTurns, stepTurns, syncTurn, type TokenTurns } from './tokenTurn'
+import { previewTokenDrag } from './playerTokenDrag'
+import { reachOutline } from '../lib/movementRules'
 
 interface PlayerViewProps {
   map: MapData
@@ -91,7 +101,11 @@ interface PlayerViewProps {
   explored?: Exploration
   /** Zonas ocultas ativas do mestre: pintadas de preto por cima da planta. */
   concealed?: RegionPoint[][]
+  /** ZONA DE PERIGO: salas tomadas que o jogador enxerga agora (o host já recortou). */
+  hazards?: readonly PlayerHazard[]
   ownTokens: string[]
+  /** INICIATIVA: a ficha da vez (sempre uma de `map.tokens`), que ganha o anel da vez. */
+  turnTokenId?: string | null
   settings: PlayerViewSettings
   /** Token a centralizar. `focusSeq` muda a cada pedido, para repetir o mesmo token. */
   focusTokenId: string | null
@@ -164,8 +178,6 @@ export const OWN_TOKEN_CSS = `#${OWN_TOKEN_COLOR.toString(16).padStart(6, '0')}`
 const OTHER_TOKEN_COLOR = 0x9ca3af
 const TOKEN_OUTLINE = 0xffffff
 const LABEL_FONT_SIZE = 12
-/** Folga entre o disco e o nome da ficha SEM frente, em px de mundo (a com frente abre espaço para o bico). */
-const TOKEN_LABEL_GAP = 2
 const DEFAULT_FLOOR: Rgb = [200, 200, 200]
 /** Destaque da porta que o token alcança: sem ele ninguém descobre que dá para tocar na porta. */
 const DOOR_HINT_COLOR = 0xe8c170
@@ -190,7 +202,21 @@ type Drag =
   // `startX`/`startY`: onde o gesto começou — se ele terminar sem andar, é um toque (porta), não um arrasto de câmera.
   // `canTap` falso: o dedo que sobrou de uma pinça. Arrasta a câmera, mas soltá-lo não abre porta nem pino.
   | { kind: 'pan'; pointerId: number; lastX: number; lastY: number; startX: number; startY: number; canTap: boolean }
-  | { kind: 'token'; pointerId: number; tokenId: string; offsetX: number; offsetY: number; x: number; y: number }
+  // `origin`: onde a ficha estava ao começar (de onde se contam os quadrados);
+  // `reach`: contorno do alcance em px de mundo, calculado uma vez por gesto
+  // (`null` na cena sem passo máximo); `label`: "N quadrados" ou nada.
+  | {
+      kind: 'token'
+      pointerId: number
+      tokenId: string
+      offsetX: number
+      offsetY: number
+      x: number
+      y: number
+      origin: Point
+      reach: Point[] | null
+      label: string | null
+    }
   // Régua do jogador: o ponto vive em `scene.measure`, aqui só se marca que o gesto é dela.
   // `before`: a medida de antes do toque, que volta se o toque virar pinça.
   | { kind: 'measure'; pointerId: number; before: PlayerMeasureState }
@@ -286,7 +312,16 @@ interface TokenView {
   facing: number | null
   /** Raio, dono e zoom do bico desenhado por último; `null` = sem bico. */
   facingKey: string | null
+  /** Barra de vida sob o disco, o mesmo desenho do mestre (`pixi/drawTokenHealth.ts`).
+   *  Só chega vida que o mestre deixou os jogadores verem (`lib/fogFilter.ts`). */
+  bar: Graphics
+  /** Há barra de vida: o nome desce para baixo dela (`tokenLabelTop`), com ou sem bico. */
+  hasHealth: boolean
   label: Text
+  /** Marcas de condição que o mestre pôs na ficha (mesmo desenho do editor, `pixi/drawTokenConditions.ts`). */
+  marks: Graphics
+  /** Balão do guarda (?, !) — só chega a marca, nunca o cone (`lib/fogFilter.ts`). */
+  alert: Graphics
   key: string
   /** Referência já carregada em `photo`: sem isto, todo snapshot recarregaria a mesma foto. */
   loadedPhoto: string | null
@@ -301,9 +336,10 @@ function tokenRadius(token: Token, grid: number): number {
 /**
  * Atualiza no lugar: nunca destrói `Text`, que em Pixi 8.20 quebra em
  * TexturePool.returnTexture. Só a GEOMETRIA (círculo chapado ou moldura +
- * máscara da foto); a textura chega depois e é assunto de `syncTokenPhoto`.
+ * máscara da foto, e as marcas de condição); a textura chega depois e é
+ * assunto de `syncTokenPhoto`. Exportada para o teste da condição na ficha.
  */
-function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean): void {
+export function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean, turn = false): void {
   const radius = tokenRadius(token, grid)
   // A cor que o MESTRE deu à ficha vale aqui também: a separação entre aliado
   // e inimigo não serve de nada se só o mestre a enxerga. Sem cor escolhida,
@@ -333,7 +369,18 @@ function paintTokenView(view: TokenView, token: Token, grid: number, own: boolea
       .circle(0, 0, radius - TOKEN_FRAME_WIDTH / 2)
       .stroke({ width: TOKEN_FRAME_WIDTH, color: chosen ?? (own ? TOKEN_FRAME_COLOR : OTHER_TOKEN_COLOR) })
   }
-  // Só o texto: onde o nome fica depende do bico e do zoom (`syncFacingNib`).
+  // A ficha da vez: o mesmo anel solto do mapa do mestre (pixi/tokensRenderer.ts).
+  if (turn) view.body.circle(0, 0, radius + TURN_RING_GAP + TURN_RING_WIDTH / 2).stroke({ width: TURN_RING_WIDTH, color: TURN_RING_COLOR })
+  // Barra de vida: a mesma do mestre, e o nome desce para baixo dela.
+  const health = readTokenHealth(token.health)
+  drawTokenHealthBar(view.bar, radius, health)
+  // A condição que o mestre marcou chega junto com a ficha (o recorte de
+  // lib/fogFilter.ts só deixa passar ficha que este jogador pode ver).
+  drawTokenConditions(view.marks, tokenConditionsOf(token), radius, grid)
+  // OLHOS DO GUARDA: a marca que o recorte pôs no guarda que este jogador vê.
+  drawWatchAlert(view.alert, watchAlertOf(token), radius)
+  view.hasHealth = health !== null
+  // Só o texto: onde o nome fica depende do bico, da barra e do zoom (`syncFacingNib`).
   view.label.text = token.name
 }
 
@@ -356,7 +403,9 @@ function syncFacingNib(view: TokenView, cameraScale: number): void {
   // Com frente, o nome desce para fora do alcance do bico, em qualquer direção:
   // assim o bico virado para baixo nunca entra nas letras, e o nome não pula
   // quando o mestre vira a ficha.
-  view.label.position.set(0, faced ? facingLabelOffset(view.radius, cameraScale, view.own) : view.radius + TOKEN_LABEL_GAP)
+  // Com barra de vida, o nome fica abaixo dela também (`tokenLabelTop`).
+  const belowBar = tokenLabelTop(view.radius, view.hasHealth)
+  view.label.position.set(0, faced ? Math.max(facingLabelOffset(view.radius, cameraScale, view.own), belowBar) : belowBar)
   const key = faced ? `${view.radius}@${cameraScale}@${view.own}` : null
   if (key === view.facingKey) return
   view.facingKey = key
@@ -414,7 +463,8 @@ function syncTokenPhoto(view: TokenView, token: Token, grid: number): void {
     })
 }
 
-function createTokenView(token: Token, grid: number, own: boolean): TokenView {
+/** Exportada para o teste da condição na ficha (`PlayerView.condicoes.test.ts`). */
+export function createTokenView(token: Token, grid: number, own: boolean, turn = false): TokenView {
   const wrapper = new Container()
   const body = new Graphics()
   const photo = new Sprite(Texture.EMPTY)
@@ -428,7 +478,14 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
   facingNib.visible = false
   const label = new Text({ text: token.name, style: { fontSize: LABEL_FONT_SIZE, fill: TOKEN_NAME_FILL_COLOR, stroke: { color: TOKEN_NAME_OUTLINE_COLOR, width: 3 } } })
   label.anchor.set(0.5, 0)
-  wrapper.addChild(photoMask, photo, body, ring, facingNib, label)
+  const bar = new Graphics()
+  bar.label = HEALTH_BAR_LABEL
+  // Por último: a marca de condição fica por cima do disco e da foto.
+  const marks = new Graphics()
+  marks.label = CONDITION_MARKS_LABEL
+  const alert = new Graphics()
+  alert.label = WATCH_ALERT_LABEL
+  wrapper.addChild(photoMask, photo, body, ring, bar, facingNib, label, marks, alert)
   applyTokenTouch(wrapper, own)
   const view: TokenView = {
     wrapper,
@@ -442,12 +499,16 @@ function createTokenView(token: Token, grid: number, own: boolean): TokenView {
     facingNib,
     facing: null,
     facingKey: null,
+    bar,
+    hasHealth: false,
     label,
-    key: tokenViewKey(token, grid, own),
+    marks,
+    alert,
+    key: tokenViewKey(token, grid, own, turn),
     loadedPhoto: null,
     loadSeq: 0,
   }
-  paintTokenView(view, token, grid, own)
+  paintTokenView(view, token, grid, own, turn)
   return view
 }
 
@@ -464,10 +525,17 @@ function sizeTokenLabel(label: Text, cameraScale: number, showNames: boolean): v
  * caracteres e entraria nesta chave a cada quadro — a troca de uma foto por
  * outra é tratada em `syncTokenPhoto`, que compara a referência uma vez só.
  */
-function tokenViewKey(token: Token, grid: number, own: boolean): string {
+export function tokenViewKey(token: Token, grid: number, own: boolean, turn = false): string {
   // `token.color` entra na chave: sem isto, o mestre troca a cor e a tela do
   // jogador continua com a tinta velha até o token mudar de nome ou tamanho.
-  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null])
+  // A vida também: a barra do jogador acompanha cada golpe que o mestre anota.
+  const health = readTokenHealth(token.health)
+  const healthKey = health === null ? null : [health.current, health.max]
+  // As condições entram pelo mesmo motivo — já limpas, para lixo no campo não
+  // mandar repintar nada. `turn` também: a vez andar repinta só as duas fichas
+  // que ganham/perdem o anel.
+  // A marca do guarda também: sem ela o "!" ficaria na tela depois de ele perder o jogador de vista.
+  return JSON.stringify([token.name, token.size, grid, own, tokenPhotoRef(token) !== null, token.color ?? null, healthKey, tokenConditionsOf(token), turn, watchAlertOf(token)])
 }
 
 interface Scene {
@@ -530,6 +598,12 @@ interface Scene {
   pins: Container
   pinsRenderer: ReturnType<typeof createPinsRenderer>
   lastPinsKey: string | null
+  /** ZONA DE PERIGO: cor chapada sob a névoa, recortada pela visão atual (`hazardsMask`). */
+  hazards: Graphics
+  hazardsMask: Graphics
+  lastHazards: readonly PlayerHazard[] | null
+  lastHazardsVision: RegionPoint[][] | null
+  hazardsCount: number
   /** Zonas ocultas: preto opaco acima da névoa e abaixo dos tokens. */
   concealed: Graphics
   lastConcealed: RegionPoint[][] | null
@@ -577,6 +651,13 @@ interface Scene {
    * rede). Mora aqui pela mesma razão da régua: muda a cada passo do dedo.
    */
   ownLaser: LaserTrail
+  /**
+   * Arrasto da própria ficha: trajeto, contorno do alcance e "N quadrados".
+   * Camada própria (tela, como a régua), para o gesto nunca apagar a medida.
+   */
+  tokenDragLayer: Graphics
+  /** Último arrasto desenhado; igual = nada a repintar. */
+  lastTokenDragKey: string | null
   /** Resolução dos Text do mundo acompanhando o zoom (pixi/textResolution.ts). */
   textResolution: ReturnType<typeof createDebouncedTask>
   /** Pulso "você está aqui" (ownerMarker.ts), em espaço de TELA acima do mapa. */
@@ -680,6 +761,24 @@ function redrawFog(scene: Scene, map: MapData, vision: RegionPoint[][], explored
 }
 
 /**
+ * ZONA DE PERIGO na tela do jogador. O host só manda a sala tomada que ele
+ * enxerga agora; a máscara da visão ainda corta o desenho na borda do anel,
+ * para o perigo aparecer SÓ onde ele enxerga — a parte da sala fora do alcance
+ * da lanterna continua sem nada pintado.
+ */
+function redrawHazards(scene: Scene, hazards: readonly PlayerHazard[], vision: RegionPoint[][]): void {
+  if (hazards === scene.lastHazards && vision === scene.lastHazardsVision) return
+  scene.lastHazards = hazards
+  scene.lastHazardsVision = vision
+  drawHazardAreas(scene.hazards, hazards)
+  scene.hazardsMask.clear()
+  const rings = vision.filter((poly) => poly.length >= 3)
+  for (const ring of rings) scene.hazardsMask.poly(ring, true).fill({ color: 0xffffff })
+  scene.hazards.visible = hazards.length > 0 && rings.length > 0
+  scene.hazardsCount = scene.hazards.visible ? hazards.length : 0
+}
+
+/**
  * Preto opaco sobre cada zona oculta ativa. A visão continua passando por ela
  * (a zona esconde conteúdo, não bloqueia), então o recorte do mestre já veio
  * sem nada lá dentro; o preto só tira a planta de fundo (chão, parede de
@@ -765,13 +864,17 @@ function stepZoom(scene: Scene, direction: ZoomDirection, animate: boolean): voi
 
 /** Referência estável: sem zonas, o redesenho não repinta a camada a cada snapshot. */
 const NO_CONCEALED: RegionPoint[][] = []
+/** Mesmo motivo, para a zona de perigo. */
+const NO_HAZARDS: readonly PlayerHazard[] = []
 
 export function PlayerView({
   map,
   vision,
   explored,
   concealed = NO_CONCEALED,
+  hazards = NO_HAZARDS,
   ownTokens,
+  turnTokenId = null,
   settings,
   focusTokenId,
   focusSeq,
@@ -796,13 +899,16 @@ export function PlayerView({
 }: PlayerViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
+  const tokenDragLabelRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<Scene | null>(null)
   const latest = {
     map,
     vision,
     explored,
     concealed,
+    hazards,
     ownTokens,
+    turnTokenId,
     settings,
     onMove,
     signals,
@@ -876,13 +982,46 @@ export function PlayerView({
     if (key === scene.lastMeasureKey) return
     scene.lastMeasureKey = key
     drawPlayerMeasure(scene.measureLayer, start, end)
-    if (!label) return
+    if (label) showScreenLabel(scene, label, text, end)
+  }
+
+  /** Escreve o rótulo acima e à direita de `end` (pontos de tela), como o do mestre, preso dentro da tela. */
+  function showScreenLabel(scene: Scene, label: HTMLDivElement, text: string, end: Point): void {
     if (label.textContent !== text) label.textContent = text
     label.hidden = false
-    // Acima e à direita da ponta, como o rótulo do mestre, preso dentro da tela.
     const x = Math.min(Math.max(0, end.x + MEASURE_LABEL_OFFSET_PX), scene.app.screen.width - label.offsetWidth)
     const y = Math.min(Math.max(0, end.y - MEASURE_LABEL_OFFSET_PX - label.offsetHeight), scene.app.screen.height - label.offsetHeight)
     label.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
+  }
+
+  /**
+   * Pinta o arrasto da própria ficha: trajeto desde onde ela saiu, contorno do
+   * alcance (cena com passo máximo) e "N quadrados" junto ao dedo — o mesmo
+   * rótulo e o mesmo traço da régua Medir. Sem arrasto de ficha, apaga tudo.
+   * Chamada no gesto e no ticker (zoom pela roda no meio do arrasto).
+   */
+  function syncTokenDrag(scene: Scene): void {
+    const drag = scene.drag
+    const label = tokenDragLabelRef.current
+    if (drag?.kind !== 'token' || drag.label === null) {
+      if (scene.lastTokenDragKey === null) return
+      scene.lastTokenDragKey = null
+      scene.tokenDragLayer.clear()
+      if (label) {
+        label.textContent = ''
+        label.hidden = true
+      }
+      return
+    }
+    const start = measureWorldToScreen(scene.camera, drag.origin)
+    const end = measureWorldToScreen(scene.camera, { x: drag.x, y: drag.y })
+    // A câmera entra na chave: o contorno é refeito só quando a tela muda.
+    const key = JSON.stringify([start, end, drag.label, scene.camera.scale, drag.reach === null])
+    if (key === scene.lastTokenDragKey) return
+    scene.lastTokenDragKey = key
+    const reach = drag.reach?.map((p) => measureWorldToScreen(scene.camera, p)) ?? null
+    drawPlayerTokenDrag(scene.tokenDragLayer, start, end, reach)
+    if (label) showScreenLabel(scene, label, drag.label, end)
   }
 
   function applyMeasureEvent(scene: Scene, event: PlayerMeasureEvent): void {
@@ -1042,7 +1181,9 @@ export function PlayerView({
       vision: currentVision,
       explored: currentExplored,
       concealed: currentConcealed,
+      hazards: currentHazards,
       ownTokens: own,
+      turnTokenId: currentTurn,
       settings: currentSettings,
     } = latestRef.current
     const hidden = currentMap.hiddenLayers
@@ -1089,6 +1230,7 @@ export function PlayerView({
     scene.textLabels.visible = currentSettings.showNames
 
     redrawLights(scene)
+    redrawHazards(scene, currentHazards, currentVision)
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
     redrawConcealed(scene, currentConcealed)
     redrawRoofs(scene, regions)
@@ -1125,7 +1267,8 @@ export function PlayerView({
     let facingCount = 0
     for (const token of currentMap.tokens) {
       const isOwn = ownSet.has(token.id)
-      const key = tokenViewKey(token, currentMap.grid, isOwn)
+      const isTurn = token.id === currentTurn
+      const key = tokenViewKey(token, currentMap.grid, isOwn, isTurn)
       let view = scene.tokenViews.get(token.id)
       // Onde a ficha está desenhada agora; `null` = não estava na tela (nova, ou
       // voltando para a visão): aparece no lugar, sem vir de onde estava escondida.
@@ -1134,13 +1277,13 @@ export function PlayerView({
       const shownFacing = view?.wrapper.visible === true && view.facing !== null ? view.facingNib.rotation : null
       if (!view) {
         const tokenId = token.id
-        view = createTokenView(token, currentMap.grid, isOwn)
+        view = createTokenView(token, currentMap.grid, isOwn, isTurn)
         view.wrapper.on('pointerdown', (event: FederatedPointerEvent) => startTokenDrag(scene, tokenId, event))
         scene.tokens.addChild(view.wrapper)
         scene.tokenViews.set(tokenId, view)
       } else if (view.key !== key) {
         view.key = key
-        paintTokenView(view, token, currentMap.grid, isOwn)
+        paintTokenView(view, token, currentMap.grid, isOwn, isTurn)
       }
       // Fora do `if` de propósito: trocar uma foto por outra não muda a chave.
       syncTokenPhoto(view, token, currentMap.grid)
@@ -1172,6 +1315,7 @@ export function PlayerView({
       el.dataset.labelsCount = String(drawings.filter((d) => d.kind === 'text').length)
       el.dataset.exploredCells = String(scene.exploredCells)
       el.dataset.concealedCount = String(scene.concealedCount)
+      el.dataset.hazardsCount = String(scene.hazardsCount)
       el.dataset.pinsCount = String(pins.length)
       el.dataset.propsCount = String(scene.propsCount)
       el.dataset.ownTokens = own.join(',')
@@ -1221,7 +1365,19 @@ export function PlayerView({
     const world = scene.world.toLocal(event.global)
     // Pegou a ficha no meio de um deslize: ela para onde está e passa a seguir o dedo.
     scene.tokenGlides.delete(tokenId)
-    scene.drag = { kind: 'token', pointerId: event.pointerId, tokenId, offsetX: view.x - world.x, offsetY: view.y - world.y, x: view.x, y: view.y }
+    const origin = { x: view.x, y: view.y }
+    scene.drag = {
+      kind: 'token',
+      pointerId: event.pointerId,
+      tokenId,
+      offsetX: view.x - world.x,
+      offsetY: view.y - world.y,
+      x: view.x,
+      y: view.y,
+      origin,
+      reach: reachOutline(latestRef.current.map, origin),
+      label: null,
+    }
   }
 
   useEffect(() => {
@@ -1267,6 +1423,9 @@ export function PlayerView({
       const roomNames = new Container()
       const textLabels = new Container()
       const lights = new Container()
+      const hazards = new Graphics()
+      const hazardsMask = new Graphics()
+      hazards.mask = hazardsMask
       const fogUnknown = new Graphics()
       const knownMask = new Graphics()
       const fogDim = new Graphics()
@@ -1302,6 +1461,10 @@ export function PlayerView({
         // Luz acima da planta e ABAIXO da névoa: o que o jogador não vê segue
         // escuro mesmo com uma tocha acesa do outro lado.
         lights,
+        // Perigo acima da planta e da luz, ABAIXO da névoa, e ainda recortado
+        // pela visão (`redrawHazards`): o jogador só vê o fogo onde enxerga.
+        hazardsMask,
+        hazards,
         fogUnknown,
         knownMask,
         fogDim,
@@ -1324,7 +1487,11 @@ export function PlayerView({
       // Pulso da própria ficha logo acima do mapa: some sob a régua e os sinais, que são ação em curso.
       const pulseLayer = new Graphics()
       pulseLayer.eventMode = 'none'
-      app.stage.addChild(world, pulseLayer, measureLayer, signalsLayer, laserLayer)
+      // Arrasto da própria ficha: mesma altura da régua. O contorno do alcance
+      // é só geometria da regra (quadrados a partir da ficha), não revela nada da névoa.
+      const tokenDragLayer = new Graphics()
+      tokenDragLayer.eventMode = 'none'
+      app.stage.addChild(world, pulseLayer, measureLayer, tokenDragLayer, signalsLayer, laserLayer)
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
@@ -1374,6 +1541,11 @@ export function PlayerView({
         pins,
         pinsRenderer: createPinsRenderer(),
         lastPinsKey: null,
+        hazards,
+        hazardsMask,
+        lastHazards: null,
+        lastHazardsVision: null,
+        hazardsCount: 0,
         concealed,
         lastConcealed: null,
         concealedCount: 0,
@@ -1397,6 +1569,8 @@ export function PlayerView({
         measure: withMeasureArmed(MEASURE_OFF, latestRef.current.measureArmed),
         lastMeasureKey: null,
         ownLaser: NO_OWN_LASER,
+        tokenDragLayer,
+        lastTokenDragKey: null,
         // Texto rasterizado a 1x e esticado pelo zoom sai mole: resolução em degraus.
         textResolution: createDebouncedTask(() => {
           if (destroyed) return
@@ -1477,7 +1651,10 @@ export function PlayerView({
       }
 
       // Zoom e arrasto de câmera mudam a posição de tela da régua sem mudar a medida.
-      const tickMeasure = () => syncMeasure(scene)
+      const tickMeasure = () => {
+        syncMeasure(scene)
+        syncTokenDrag(scene)
+      }
       app.ticker.add(tickMeasure)
 
       // Leva cada ficha em deslize um passo adiante; parada, não custa nada.
@@ -1669,14 +1846,21 @@ export function PlayerView({
           return
         }
         const world = scene.world.toLocal(event.global)
-        drag.x = world.x + drag.offsetX
-        drag.y = world.y + drag.offsetY
+        // Passo máximo: a ficha para no último ponto do alcance e o dedo segue
+        // sozinho; o rótulo conta os quadrados até onde a FICHA está.
+        const preview = previewTokenDrag(latestRef.current.map, drag.origin, { x: world.x + drag.offsetX, y: world.y + drag.offsetY })
+        drag.x = preview.at.x
+        drag.y = preview.at.y
+        drag.label = preview.label
         scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
+        syncTokenDrag(scene)
       })
       const endDrag = () => {
         cancelLongPress()
         const drag = scene.drag
         scene.drag = null
+        // Soltou: trajeto, alcance e "N quadrados" somem junto com o gesto.
+        syncTokenDrag(scene)
         if (drag?.kind === 'measure') {
           // Solta: a medida fica na tela até o próximo toque ou Escape.
           applyMeasureEvent(scene, { type: 'release' })
@@ -1816,7 +2000,7 @@ export function PlayerView({
   useEffect(() => {
     const scene = sceneRef.current
     if (scene) redraw(scene)
-  }, [map, vision, explored, concealed, ownTokens, settings])
+  }, [map, vision, explored, concealed, hazards, ownTokens, turnTokenId, settings])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.
@@ -1887,6 +2071,9 @@ export function PlayerView({
       {/* Rótulo da régua: escrito pelo gesto direto no DOM (syncMeasure), sem re-render do React por passo do dedo.
           `aria-live` educado: com o grude na grade o texto só muda a cada quadrado, não a cada pixel. */}
       <div ref={measureLabelRef} className="pp-measure-label" aria-live="polite" aria-atomic="true" hidden />
+      {/* "N quadrados" do arrasto da própria ficha: mesmo rótulo do Medir, escrito por syncTokenDrag.
+          Sem `aria-live`: o arrasto da ficha não gruda na grade, e anunciar cada décimo de quadrado enfileiraria dezenas de falas. */}
+      <div ref={tokenDragLabelRef} className="pp-measure-label" data-testid="token-drag-label" hidden />
     </>
   )
 }

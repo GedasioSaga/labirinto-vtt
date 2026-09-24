@@ -68,6 +68,7 @@ export const DOCUMENTED_ACTIONS: Record<Action['kind'], true> = {
   undoDraftPoint: true,
   togglePinType: true,
   showShortcuts: true,
+  nextTurn: true,
 }
 
 /**
@@ -159,6 +160,8 @@ const VIEW_GROUP: ShortcutGroup = {
   rows: [
     { what: 'Enquadrar tudo', combo: { keys: ['F'] }, action: { kind: 'fitAll' } },
     { what: 'Zoom em 100%', combo: { keys: ['Ctrl', '0'] }, action: { kind: 'zoomReset' } },
+    // INICIATIVA: o mesmo "Próxima vez" da aba Jogo (`NEXT_TURN_SHORTCUT`).
+    { what: 'Passar a vez da iniciativa', combo: { keys: ['Shift', 'N'] }, action: { kind: 'nextTurn' } },
     // Os três abaixo são gestos do canvas, fora do mapa de teclas:
     // `resolveMapWheel` (roda = zoom), Espaço armando o pan e o L do laser.
     { what: 'Aproximar e afastar', combo: { keys: [], mouse: 'roda do mouse' } },

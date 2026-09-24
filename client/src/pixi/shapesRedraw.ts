@@ -2,6 +2,8 @@ import type { MapData } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { selectionSingle, type SelectionSet } from '../lib/selectionModel'
 import { resolveHighlightedRegionId } from './drawRegions'
+import { hazardsOf } from '../lib/hazards'
+import { tokenWatchOf } from '../lib/npcWatch'
 
 /**
  * Camadas vetoriais do mapa no editor, NA ORDEM de pintura do PixiCanvas.
@@ -16,10 +18,12 @@ export const SHAPES_LAYERS = [
   'mapFrame',
   'regions',
   'drawings',
+  'hazards',
   'roomNames',
   'walls',
   'stairs',
   'lights',
+  'watchCones',
   'concealZones',
   'pins',
   'textLabels',
@@ -110,6 +114,9 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       const drawingId = selectedId('drawing')
       return [map.drawings, hidden, drawingId, drawingId === null ? null : cameraScale]
     }
+    case 'hazards':
+      // ZONA DE PERIGO: a cor pinta a sala tomada. Sem perigo no mapa, nada a repintar.
+      return hazardsOf(map).length === 0 ? ['sem perigo'] : [map.hazards, map.regions, hidden]
     case 'roomNames':
       return [map.regions, hidden, map.grid]
     case 'walls':
@@ -119,6 +126,9 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
     case 'lights':
       // Paredes e chão barram a luz (`visionSegments`): mudou um deles, o recorte muda.
       return [map.lights, hidden, selectedId('light'), cameraScale, map.walls, map.floor]
+    case 'watchCones':
+      // OLHOS DO GUARDA: o cone segue o guarda (fichas) e é cortado por paredes e chão.
+      return map.tokens.some((t) => tokenWatchOf(t) !== null) ? [map.tokens, map.walls, map.floor, hidden, map.grid] : ['sem guarda']
     case 'concealZones':
       return [map.concealZones, map.grid, snapshot.selectedConcealZoneId]
     case 'pins':

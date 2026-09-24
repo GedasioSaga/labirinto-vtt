@@ -75,6 +75,15 @@ export type Action =
   | { kind: 'group' }
   /** Ctrl+Shift+G — desfaz o grupo de quem está selecionado. */
   | { kind: 'ungroup' }
+  /** Shift+N — passa a vez da iniciativa (o mesmo que o botão "Próxima vez"). */
+  | { kind: 'nextTurn' }
+
+/**
+ * Tecla do "Próxima vez" da iniciativa, no formato de `aria-keyshortcuts`
+ * (é assim que o botão anuncia o atalho). Todas as letras sem modificador já
+ * são ferramentas (N é a Sala); Shift+letra estava livre, e N é de "next".
+ */
+export const NEXT_TURN_SHORTCUT = 'Shift+N'
 
 /**
  * Tabela ferramenta → letra, para o integrador mostrar no `data-tip` de cada
@@ -293,6 +302,9 @@ export function resolveShortcut(evt: ShortcutEvent): Action | null {
   // Duas leituras, a do pino primeiro: com um pino que ele sabe trocar, o `?`
   // é do pino; sem, abre a tela de atalhos — antes a tecla sumia sem efeito.
   if (key === '?' && !evt.altKey) return evt.canTogglePinType ? { kind: 'togglePinType' } : { kind: 'showShortcuts' }
+  // Shift+N (`NEXT_TURN_SHORTCUT`): a próxima vez da iniciativa. Também antes
+  // da trava de Shift, pelo mesmo motivo do `?`.
+  if (evt.shiftKey && !evt.altKey && lower === 'n') return { kind: 'nextTurn' }
   if (evt.shiftKey || evt.altKey) return null
 
   if (lower === 'f') return { kind: 'fitAll' }

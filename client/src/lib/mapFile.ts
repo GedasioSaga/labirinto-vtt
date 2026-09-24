@@ -3,6 +3,9 @@ import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { tokenPublicNameFromFile } from './tokenPublicName'
+import { readMovementRules } from './movementRules'
+import { readCarriedItems, readPinItem } from './items'
+import { readHazards } from './hazards'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -121,6 +124,12 @@ function doorFromFile(door: DoorState): DoorState {
   return secret === true ? { ...withKind, secret: true } : withKind
 }
 
+/** `movement` só entra no mapa quando o arquivo traz regra válida: mapa de antes não ganha campo. */
+function movementField(raw: unknown): Pick<MapData, 'movement'> {
+  const movement = readMovementRules(raw)
+  return movement === undefined ? {} : { movement }
+}
+
 function deserializeMapFields(json: string): MapData {
   let parsed: Partial<MapData>
   try {
@@ -168,9 +177,19 @@ function deserializeMapFields(json: string): MapData {
     // salvo antes do campo existir abre igual, e escrever `?? null` quebraria a
     // promessa que mapFile.test.ts cobra — round-trip que preserva o mapa
     // EXATAMENTE, sem inventar campo que o arquivo não tinha.
+    // MOCHILA (item pegável) é campo NOVO e OPCIONAL: ausente continua
+    // ausente (mochila vazia). Item fora da forma sai; lista que sobra vazia
+    // some — o `...t` copiaria o valor cru, por isso a linha.
     // `publicName` ("Nome para os jogadores"): mesma mão única de `soChegada`
     // — texto e null ficam, valor torto some e a ficha volta a "O mesmo".
-    tokens: entityList(parsed.tokens).map((t) => tokenPublicNameFromFile({ ...t, image: t.image ?? null })),
+    tokens: entityList(parsed.tokens).map((t) => {
+      const lido = tokenPublicNameFromFile({ ...t, image: t.image ?? null })
+      if (!('mochila' in t)) return lido
+      const mochila = readCarriedItems(t.mochila)
+      if (mochila !== undefined) return { ...lido, mochila }
+      const { mochila: _descartada, ...semMochila } = lido
+      return semMochila
+    }),
     // inalterado fora o que já existia — Prop.layer ausente fica undefined
     props: entityList(parsed.props).map((p) => ({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
     stairs: entityList(parsed.stairs),
@@ -231,6 +250,9 @@ function deserializeMapFields(json: string): MapData {
       // sempre, visível. O `...p` acima copiaria o valor cru, por isso a linha.
       soChegada: p.soChegada === true ? true : undefined,
       escolhas: undefined,
+      // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
+      // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).
+      item: readPinItem(p.item),
     })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
@@ -245,5 +267,17 @@ function deserializeMapFields(json: string): MapData {
       parsed.measurementMode ?? ((parsed.gridShape ?? 'square') === 'hex' ? 'hex' : 'chessboard'),
     ownerId: parsed.ownerId ?? null,
     scenarioLink: parsed.scenarioLink ?? null,
+    // MOVIMENTO CONTADO: campo NOVO e OPCIONAL. Mapa de antes (ou com lixo
+    // editado à mão) abre livre e sem o campo — ver `readMovementRules`.
+    ...movementField(parsed.movement),
+    // ZONA DE PERIGO: campo NOVO e OPCIONAL, mesmo padrão de `movement`. Mapa
+    // de antes (ou lixo editado à mão) abre sem o campo — ver `readHazards`.
+    ...hazardsField(parsed.hazards),
   }
+}
+
+/** `hazards` só entra no mapa quando o arquivo traz zona válida: mapa de antes não ganha campo. */
+function hazardsField(raw: unknown): Pick<MapData, 'hazards'> {
+  const hazards = readHazards(raw)
+  return hazards === undefined ? {} : { hazards }
 }
