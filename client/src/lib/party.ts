@@ -1,8 +1,10 @@
 import type { HostScene, HostWorld, PlayerInfo } from '../net/hostSession'
 import type { Token } from '../types/map'
+import { visibleTokens } from './layers'
 import { pinSummary } from './pins'
 import { roomsAt } from './roomNesting'
 import { tokenFillColor } from './tokenColor'
+import { entourageNear } from './travelTogether'
 
 /**
  * O PAINEL GRUPO (aba Jogo): uma linha por jogador, com a cor da ficha, onde
@@ -33,6 +35,56 @@ export interface PartyMember {
   token: PartyToken | null
   /** Um pedido de passagem dele espera o mestre agora. */
   travelPending: boolean
+  /**
+   * Fichas dele que ficaram em OUTRA cena (a Faísca esquecida na Vila): o
+   * aviso da linha e o "Trazer". Ausente = nenhuma, ou ele não está em cena
+   * de aventura. Só o mestre lê: nunca vai pela rede.
+   */
+  awayTokens?: PartyAwayToken[]
+  /**
+   * MONTARIA E FAMILIAR: as outras fichas dele no tabuleiro, na cena de
+   * `token`, a até 2 casas dela (a regra de `entourageNear`). O "Reunir o
+   * grupo aqui" as leva junto. Ausente = nenhuma.
+   */
+  entourageIds?: string[]
+}
+
+/** Uma ficha do jogador que está em outra cena que não a dele. */
+export interface PartyAwayToken {
+  tokenId: string
+  /** O nome da ficha como o mestre deu; pode ser vazio (`awayTokenLabel` cuida). */
+  name: string
+  sceneId: string
+  sceneName: string
+}
+
+/** O nome com que o aviso chama a ficha: ficha sem nome não some do aviso. */
+export function awayTokenName(name: string): string {
+  const trimmed = name.trim()
+  return trimmed === '' ? 'Uma ficha' : trimmed
+}
+
+/** "Faísca ficou em outra cena": o aviso na linha do dono. */
+export function awayTokenLabel(name: string): string {
+  return `${awayTokenName(name)} ficou em outra cena`
+}
+
+/**
+ * As fichas de `player` que estão numa cena da aventura diferente da dele,
+ * na ordem em que o mestre as deu. Só com ele jogando numa cena de aventura:
+ * no mapa solto e na espera não há "outra cena".
+ */
+function awayTokensOf(player: PlayerInfo, world: HostWorld): PartyAwayToken[] {
+  if (player.status !== 'playing' || player.sceneId === undefined) return []
+  const away: PartyAwayToken[] = []
+  for (const tokenId of player.tokenIds) {
+    for (const scene of allScenes(world)) {
+      if (scene.sceneId === null || scene.sceneId === player.sceneId) continue
+      const token = scene.map.tokens.find((t) => t.id === tokenId)
+      if (token !== undefined) away.push({ tokenId, name: token.name, sceneId: scene.sceneId, sceneName: scene.name })
+    }
+  }
+  return away
 }
 
 /** Um ponto de chegada do "Mandar para…": um pino de viagem da cena de destino. */
@@ -65,20 +117,33 @@ function cssColor(color: number): string {
  * com duas fichas em cenas diferentes, é a desta cena que o "Ir lá" procura.
  * Mapa solto: a cena aberta, que é a única.
  */
-function tokenOf(player: PlayerInfo, world: HostWorld): Token | null {
+function tokenOf(player: PlayerInfo, world: HostWorld): { token: Token; scene: HostScene } | null {
   const scene = player.sceneId === undefined ? (world.open.sceneId === null ? world.open : undefined) : allScenes(world).find((s) => s.sceneId === player.sceneId)
   if (scene === undefined) return null
   for (const id of player.tokenIds) {
     const token = scene.map.tokens.find((t) => t.id === id)
-    if (token !== undefined) return token
+    if (token !== undefined) return { token, scene }
   }
   return null
+}
+
+/**
+ * As outras fichas de `player` que andam com `lead`: as dele que estão no
+ * tabuleiro da mesma cena (fora camada oculta e o que o mestre escondeu, como
+ * na sessão) e a até 2 casas.
+ */
+function entourageOf(player: PlayerInfo, lead: Token, scene: HostScene): string[] {
+  const owned = new Set(player.tokenIds)
+  const map = scene.map
+  const own = visibleTokens(map.tokens, map.hiddenLayers).filter((t) => t.hidden !== true && owned.has(t.id))
+  return entourageNear(lead, own, map.grid).map((t) => t.id)
 }
 
 /** As linhas do Grupo, na ordem de chegada que a ponte já dá. */
 export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMember[] {
   return players.map((player) => {
-    const token = player.status === 'playing' ? tokenOf(player, world) : null
+    const found = player.status === 'playing' ? tokenOf(player, world) : null
+    const token = found === null ? null : found.token
     const member: PartyMember = {
       playerId: player.playerId,
       name: player.name,
@@ -89,6 +154,10 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
       travelPending: player.travelPending === true,
     }
     if (!player.connected && player.disconnectedAt !== undefined) member.offlineSince = player.disconnectedAt
+    const away = awayTokensOf(player, world)
+    if (away.length > 0) member.awayTokens = away
+    const entourage = found === null ? [] : entourageOf(player, found.token, found.scene)
+    if (entourage.length > 0) member.entourageIds = entourage
     return member
   })
 }
