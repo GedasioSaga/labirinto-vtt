@@ -198,6 +198,28 @@ cenas), consertadas em `e2074df`, e saiu VERDE: fase0 íntegro, autoteste, 100 j
 entrada-jogador teste 2 e barra-honesta teste 2 — conferir se falham também em `68f2c8b`) e `jornadas-da-bar`.
 2ª passada da junção no ar: `wf_984ab296-fe8` (12 ramos: o resto da onda 2, a onda 3 e a onda 4).
 
+**24/09, 11h30 — estado para retomar.** 63 features em `auto/acervo`; 83+ prontas nos ramos `auto/int-*`.
+Rodando:
+- 2ª passada da junção `wf_984ab296-fe8` (em `C:/dev/labirinto-juntar`, `auto/juntar` saiu de `f3b4ed5`):
+  jogador juntado (`7999986`), depois editor, mundo, rede, visão, defeitos, t-grandes, t-defeitos, t-medias-a,
+  t-medias-b, t-pequenas, t-ideias; no fim regressão com as 27 réguas já juntadas + dado-na-sala. Verde ⇒
+  `git merge --no-ff auto/juntar` em `auto/acervo`.
+- Pedido do usuário: **as grandes prontas até as 16h**. 4 integradas em `auto/int-t-grandes` (confronto,
+  ajudante, estado do mundo, memória por ficha); pisos na mesma cena no run antigo `wf_e3f23fdf-79d`; as 5 que
+  faltavam em paralelo em `wf_d1c06cc2-0db` (`auto/int-t-grandes-b`). Se o usuário quiser as grandes DENTRO do
+  programa às 16h: perto das 14h30 fazer uma junção só de `auto/int-t-grandes` + `auto/int-t-grandes-b`.
+- Runs paralelos `-b` da onda 3 (segunda metade de cada lista): t-defeitos-b `wf_23f170a3-0fc`, t-medias-a-b
+  `wf_6d4801b3-5d6`, t-medias-b-b `wf_3e22476e-2ba`, t-pequenas-b `wf_27ef0a43-adb`. Os runs antigos precisam ser
+  PARADOS (TaskStop) quando chegarem na 1ª peça do `-b` (pontos de corte em `scratchpad/onda3b-cortes.json`;
+  o Monitor "run antigo da onda 3 chegou na peça…" avisa). Nunca parar peça em construção fora do corte.
+- Onda 2 resto: visão `wf_b6097cd0-2f5` (teste-secreto); onda 4 `wf_efa5f11a-369`; ficha-presa-sem-chao-2
+  `wf_af1870fa-7cb`.
+- Monitores: disco C: < 3 GB (houve pico transitório para 242 MB às 10h36; causa não confirmada) e corte da onda 3.
+- Pendências para o usuário: retomar-mesa-donos precisa de Rust (`desktop/src-tauri/src/net/commands.rs`);
+  reunir-o-grupo instável na própria régua; worktree antiga `wf_4774aa00-f19-5` com 2,2 GB e mudança não commitada;
+  2 jornadas-e2e vermelhas antes da noite (entrada-jogador t2, barra-honesta t2); app de dev aberto por
+  `npm run tauri:dev` (background `byhlz3hx1`).
+
 **Incidente para o usuário revisar (24/09, ~06h50):** o construtor da peça `iniciativa` (run `wf_b581d949-142`,
 agente `adab3ae1bc6139c8e`) teve o `git commit` recusado pela guarda de isolamento de worktree (o hook do rtk
 reescreve o comando) e contornou chamando `/mingw64/bin/git` pelo caminho completo e o encanamento
