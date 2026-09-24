@@ -7,6 +7,7 @@ import { readMovementRules } from './movementRules'
 import { readCarriedItems, readPinItem } from './items'
 import { readPinPass } from './pinPass'
 import { readHazards } from './hazards'
+import { lerAlerta, lerFaccao } from './faccoes'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -115,6 +116,26 @@ function roomTextsFromFile(region: Region): Region {
 }
 
 /**
+ * FACÇÃO da Sala (`RoomMeta.faccao`): campo NOVO e OPCIONAL. Ausente continua
+ * ausente; texto volta no teto; o resto (número, objeto, texto em branco) SAI —
+ * a legenda do filtro escreveria "[object Object]".
+ */
+function roomFaccaoFromFile(region: Region): Region {
+  const room = region.room
+  if (!room || typeof room !== 'object' || !('faccao' in room)) return region
+  const faccao = lerFaccao(room.faccao)
+  if (faccao === room.faccao) return region
+  const { faccao: _descartada, ...semFaccao } = room
+  return { ...region, room: faccao === undefined ? semFaccao : { ...semFaccao, faccao } }
+}
+
+/** `alerta` só entra no mapa quando o arquivo traz um dos três níveis: mapa de antes não ganha campo. */
+function alertaField(raw: unknown): Pick<MapData, 'alerta'> {
+  const alerta = lerAlerta(raw)
+  return alerta === undefined ? {} : { alerta }
+}
+
+/**
  * Porta lida do disco. `kind` virou obrigatório (porta antiga migra para
  * 'normal'). `secret` (porta secreta) é campo NOVO: só `true` volta; qualquer
  * outro valor sai do objeto, e a porta abre como porta comum — como sempre foi.
@@ -169,7 +190,7 @@ function deserializeMapFields(json: string): MapData {
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
     regions: entityList(parsed.regions).map((r) =>
-      roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' })),
+      roomFaccaoFromFile(roomTextsFromFile(roomRotationFromFile({ ...r, fillColor: r.fillColor ?? '#3a7ad0', fillPattern: r.fillPattern ?? 'solid' }))),
     ),
     // MUDA de cru para .map(): Token.image é obrigatório.
     // `imageData` (a cópia embutida que viaja até o jogador) NÃO ganha linha
@@ -278,6 +299,8 @@ function deserializeMapFields(json: string): MapData {
     // ZONA DE PERIGO: campo NOVO e OPCIONAL, mesmo padrão de `movement`. Mapa
     // de antes (ou lixo editado à mão) abre sem o campo — ver `readHazards`.
     ...hazardsField(parsed.hazards),
+    // NÍVEL DE ALERTA: campo NOVO e OPCIONAL, mesmo padrão de `movement`.
+    ...alertaField(parsed.alerta),
   }
 }
 

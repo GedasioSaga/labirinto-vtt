@@ -57,6 +57,7 @@ function setup() {
     regions: spy('regions'),
     drawings: spy('drawings'),
     hazards: spy('hazards'),
+    faccoes: spy('faccoes'),
     roomNames: spy('roomNames'),
     walls: spy('walls'),
     stairs: spy('stairs'),
@@ -256,6 +257,22 @@ describe('createShapesRedrawer', () => {
     expect(redraw(snapshot(andou))).toEqual(['watchCones'])
     // A sala do fogo se move: o perigo segue a sala, e a parede nova corta o cone.
     expect(redraw(snapshot(moveRegion(andou, 'r1', 10, 0)))).toEqual(['gridMask', 'regions', 'hazards', 'roomNames', 'walls', 'lights', 'watchCones'])
+  })
+
+  it('filtro "Quem manda aqui": desligado nunca repinta; ligar pinta, e com ele ligado a sala movida repinta a facção', () => {
+    const { redraw, take } = setup()
+    const map = buildMap()
+    redraw(snapshot(map))
+    take()
+    // Ligar o filtro pinta só a camada de facções.
+    expect(redraw(snapshot(map, { filtroFaccoes: true }))).toEqual(['faccoes'])
+    expect(redraw(snapshot(map, { filtroFaccoes: true }))).toEqual([])
+    // Com o filtro ligado, a sala que anda leva a cor junto.
+    const movido = moveRegion(map, 'r1', 10, 0)
+    expect(redraw(snapshot(movido, { filtroFaccoes: true }))).toContain('faccoes')
+    // Desligar apaga (uma pintura), e depois a sala anda sem repintar a facção.
+    expect(redraw(snapshot(movido))).toEqual(['faccoes'])
+    expect(redraw(snapshot(moveRegion(movido, 'r1', 10, 0)))).not.toContain('faccoes')
   })
 
   it('camada de texto pintada pede a sincronização da resolução dos Text', () => {

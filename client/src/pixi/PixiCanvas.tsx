@@ -140,6 +140,9 @@ import {
 import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { drawHazardAreas } from './drawHazards'
+import { drawFaccoes } from './drawFaccoes'
+import { pinturaDeFaccoes } from '../lib/faccoes'
+import { useTerritorioStore } from '../stores/territorioStore'
 import { hazardAreas } from '../lib/hazards'
 import { drawWatchCones } from './drawNpcWatch'
 import { createPinsRenderer } from './drawPins'
@@ -705,6 +708,9 @@ export function PixiCanvas({
       // ZONA DE PERIGO: cor chapada sobre o chão e as salas, sob paredes e fichas.
       const hazardsGraphics = new Graphics()
       hazardsGraphics.eventMode = 'none'
+      // FILTRO "QUEM MANDA AQUI": a cor da facção sobre o chão, sob paredes e fichas, como o perigo.
+      const faccoesGraphics = new Graphics()
+      faccoesGraphics.eventMode = 'none'
       // Pinos acima das zonas ocultas: o pino é o chamariz da cena e o mestre
       // precisa achá-lo mesmo sobre uma área que ele mesmo escondeu.
       const pinsContainer = new Container()
@@ -738,6 +744,7 @@ export function PixiCanvas({
         gridGraphics,
         gridAlignOverlayGraphics,
         hazardsGraphics,
+        faccoesGraphics,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
@@ -1262,6 +1269,7 @@ export function PixiCanvas({
           cameraScale: camera.scale,
           rendererResolution: app.renderer.resolution,
           rotatingRoom: roomRotateGesture.isActive(),
+          filtroFaccoes: useTerritorioStore.getState().filtroLigado,
         }
       }
 
@@ -1288,6 +1296,10 @@ export function PixiCanvas({
         hazards: () => {
           const { map } = sceneState()
           drawHazardAreas(hazardsGraphics, map.hiddenLayers.includes('salas') ? [] : hazardAreas(map))
+        },
+        faccoes: () => {
+          const { map } = sceneState()
+          drawFaccoes(faccoesGraphics, useTerritorioStore.getState().filtroLigado ? pinturaDeFaccoes(map) : [])
         },
         roomNames: () => {
           const { map } = sceneState()
@@ -1616,6 +1628,11 @@ export function PixiCanvas({
         if (state.cache !== previous.cache || state.adventure !== previous.adventure || state.activeSceneId !== previous.activeSceneId) {
           redrawPins()
         }
+      })
+      // FILTRO "QUEM MANDA AQUI": ligar ou desligar pinta a camada de facções
+      // pelo mesmo portão do redesenho parcial (só ela repinta).
+      const unsubscribeTerritorio = useTerritorioStore.subscribe((state, previous) => {
+        if (state.filtroLigado !== previous.filtroLigado) redrawShapes()
       })
       const unsubscribeTokens = subscribeToTokensRedraw(redrawTokens)
       // A vez andou (Começar, Próxima vez, Encerrar): o anel troca de ficha.
@@ -5895,6 +5912,7 @@ export function PixiCanvas({
         unsubscribeCameraScaleForWalls()
         unsubscribeShapes()
         unsubscribeTravelLinks()
+        unsubscribeTerritorio()
         unsubscribeTokens()
         unsubscribeTurn()
         unsubscribeProps()

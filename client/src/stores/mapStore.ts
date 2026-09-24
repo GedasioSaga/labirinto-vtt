@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, NivelAlerta,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
@@ -705,6 +705,10 @@ interface MapStoreState {
   setRoomRoof: (id: string, roof: boolean) => void
   /** TEXTO DA SALA — "Ao entrar, o jogador lê" / "Nota do mestre". Com histórico, como `setRoomName`. */
   setRoomTexts: (id: string, patch: Partial<Pick<RoomMeta, 'textoAoEntrar' | 'notaDoMestre'>>) => void
+  /** FACÇÃO — quem manda na Sala ou distrito (texto em branco tira). Com histórico, como `setRoomName`. */
+  setRoomFaccao: (id: string, faccao: string) => void
+  /** NÍVEL DE ALERTA da cena (calmo, atento, caçada). Com histórico; o mesmo nível não grava. */
+  setSceneAlerta: (nivel: NivelAlerta) => void
   /** ZONA DE PERIGO — pinta a Sala com um perigo, troca ou limpa (`null`). Com histórico. */
   setRoomHazard: (roomId: string, kind: HazardKind | null) => void
   /** ZONA DE PERIGO — "Avançar um passo" pelas portas abertas. Com histórico; nada muda = nada grava. */
@@ -1701,6 +1705,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRoomTexts: (id, patch) => {
       if (mapFactory.setRoomTexts(get().map, id, patch) === get().map) return
       withHistory((map) => mapFactory.setRoomTexts(map, id, patch))
+    },
+    setRoomFaccao: (id, faccao) => {
+      if (mapFactory.setRoomFaccao(get().map, id, faccao) === get().map) return
+      withHistory((map) => mapFactory.setRoomFaccao(map, id, faccao), `room-faccao:${id}`)
+    },
+    setSceneAlerta: (nivel) => {
+      if (mapFactory.setSceneAlerta(get().map, nivel) === get().map) return
+      withHistory((map) => mapFactory.setSceneAlerta(map, nivel))
     },
     setRoomHazard: (roomId, kind) => {
       // Um id só para as duas chamadas: a conferência e a gravação criam a MESMA zona.

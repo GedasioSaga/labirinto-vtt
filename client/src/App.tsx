@@ -18,6 +18,8 @@ import { useSignalStore } from './stores/signalStore'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useFollowStore } from './stores/followStore'
+import { useTerritorioStore } from './stores/territorioStore'
+import { alertaDaCena, coresDasFaccoes, corCss, faccaoHerdada } from './lib/faccoes'
 import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeStore'
 import { turnTokenIdOn } from './lib/initiative'
 import { useFollowPlayer } from './stores/useFollowPlayer'
@@ -667,6 +669,9 @@ function App() {
   // G7 — "Seguir" na linha do Grupo: a câmera acompanha a ficha do jogador, inclusive de cena em cena.
   const followingId = useFollowStore((state) => state.playerId)
   useFollowPlayer(roomPlayers, () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
+  // FACÇÃO E ALERTA: o filtro "Quem manda aqui" é da vista do mestre; a legenda sai das salas da cena aberta.
+  const filtroFaccoes = useTerritorioStore((state) => state.filtroLigado)
+  const legendaFaccoes = coresDasFaccoes(map.regions)
   // "Ver tela" do Grupo: de quem é o espelho aberto. Quem saiu da sala (expulso,
   // sala fechada) leva o espelho junto — voltar depois não o reabre sozinho.
   const [mirrorId, setMirrorId] = useState<string | null>(null)
@@ -2229,6 +2234,10 @@ function App() {
               onRoofChange: (roof) => selectedRegion && useMapStore.getState().setRoomRoof(selectedRegion.id, roof),
               onTextoAoEntrarChange: (textoAoEntrar) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { textoAoEntrar }),
               onNotaDoMestreChange: (notaDoMestre) => selectedRegion && useMapStore.getState().setRoomTexts(selectedRegion.id, { notaDoMestre }),
+              onFaccaoChange: (faccao) => selectedRegion && useMapStore.getState().setRoomFaccao(selectedRegion.id, faccao),
+              // Só a herdada vira dica: com facção própria o campo já diz quem manda.
+              faccaoHerdada: selectedRegion ? faccaoHerdada(map.regions, selectedRegion.id) : undefined,
+              faccoesConhecidas: legendaFaccoes.map((item) => item.faccao),
               onWidthChange: (width) =>
                 selectedRegion && resizeRoomDimensions(selectedRegion.id, width, roomDimensions(selectedRegion.points).height),
               onHeightChange: (height) =>
@@ -2348,6 +2357,13 @@ function App() {
               onPlace: (item) => void handlePlaceFromLibrary(item),
               onDropOnMap: handleDropFromLibrary,
               onDelete: (item) => void handleDeleteFromLibrary(item),
+            }}
+            territorio={{
+              filtroLigado: filtroFaccoes,
+              onFiltroChange: (ligado) => useTerritorioStore.getState().setFiltroLigado(ligado),
+              legenda: legendaFaccoes.map((item) => ({ faccao: item.faccao, cor: corCss(item.cor), salas: item.salas })),
+              alerta: alertaDaCena(map),
+              onAlertaChange: (nivel) => useMapStore.getState().setSceneAlerta(nivel),
             }}
             selectedLight={selectedLight}
             lightControls={{

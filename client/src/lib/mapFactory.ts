@@ -1,9 +1,10 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules,
+  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, NivelAlerta,
 } from '../types/map'
 import type { Point } from '../pixi/world'
+import { alertaDaCena, limitarFaccao } from './faccoes'
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
 import { simplifyPolygon, chaikinSmooth } from './regionSmoothing'
 import { edgesCoveredByParent, findContainingRoom, insertIndexAfterSubtree, pointOnPolygonBorder, subtreeIds } from './roomNesting'
@@ -1563,6 +1564,30 @@ export function setRoomTexts(map: MapData, id: string, patch: Partial<Pick<RoomM
     ...map,
     regions: map.regions.map((r) => (r.id === id && r.room ? { ...r, room: { ...r.room, ...patch } } : r)),
   }
+}
+
+/**
+ * FACÇÃO da Sala (`RoomMeta.faccao`). Guarda o que o mestre digitou, só no
+ * teto — aparar a cada tecla comeria o espaço entre "Guarda" e "Carmesim" no
+ * meio da digitação; quem lê apara (`lib/faccoes.ts`). Texto em branco tira o
+ * campo. Mesmo contrato de `setRoomTexts`: região comum, id inexistente ou
+ * nada diferente devolve o mesmo `map`.
+ */
+export function setRoomFaccao(map: MapData, id: string, texto: string): MapData {
+  const region = map.regions.find((r) => r.id === id)
+  if (!region || !region.room) return map
+  const faccao = texto.trim() === '' ? undefined : limitarFaccao(texto)
+  if (faccao === region.room.faccao) return map
+  const { faccao: _anterior, ...semFaccao } = region.room
+  const room: RoomMeta = faccao === undefined ? semFaccao : { ...semFaccao, faccao }
+  return { ...map, regions: map.regions.map((r) => (r.id === id ? { ...r, room } : r)) }
+}
+
+/** NÍVEL DE ALERTA da cena. Voltar a calmo tira o campo; o mesmo nível devolve o mesmo `map`. */
+export function setSceneAlerta(map: MapData, nivel: NivelAlerta): MapData {
+  if (nivel === alertaDaCena(map)) return map
+  const { alerta: _anterior, ...semAlerta } = map
+  return nivel === 'calmo' ? semAlerta : { ...semAlerta, alerta: nivel }
 }
 
 /** Entidades que aceitam "Oculto para jogadores" (`PlayerSecret` em types/map.ts). */
