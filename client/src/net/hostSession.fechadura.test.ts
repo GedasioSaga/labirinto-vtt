@@ -168,6 +168,49 @@ describe('hostSession: fechadura com segredo', () => {
     expect(t.s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'grade' }, aberta).travelRequest).toMatchObject({ toSceneId: CRIPTA })
   })
 
+  it('passagem "trancada" com segredo: acertar a combinação abre a passagem, como o cartão prometeu', () => {
+    const grade: Pin = {
+      id: 'grade',
+      x: 260,
+      y: 200,
+      kind: 'viagem',
+      description: 'Grade trancada com segredo',
+      image: null,
+      passagem: 'trancada',
+      destino: { sceneId: CRIPTA, pinId: 'volta' },
+      segredo: { resposta: '12', forma: 'teclado' },
+    }
+    const cripta: MapData = {
+      ...createEmptyMap('mapa-cripta', 'Cripta', 1000, 1000, 50),
+      pins: [{ id: 'volta', x: 500, y: 500, kind: 'viagem', description: '', image: null, destino: { sceneId: SALAO, pinId: 'grade' } }],
+    }
+    const fechada: HostWorld = { open: { sceneId: SALAO, name: 'Salão', map: salao([grade]) }, background: [{ sceneId: CRIPTA, name: 'Cripta', map: cripta }] }
+    const relogio = { t: 1_000_000 }
+    const t = mesa(fechada, relogio)
+    expect(t.s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'grade' }, fechada).outbound[0]?.msg).toEqual({ type: 'pin.travel.rejected', reason: 'unavailable' })
+
+    const abriu = t.tentar('12', 'grade', fechada)
+    expect(abriu.applyLock).toEqual({ pinId: 'grade' })
+    const aberta: HostWorld = { ...fechada, open: { ...fechada.open, map: openPinLock(fechada.open.map, 'grade') } }
+    // O recorte do jogador já não diz "trancada": o cartão oferece o pedido.
+    const snap = t.s.broadcast(aberta).outbound.find((o) => o.clientId === 'c1')?.msg
+    if (snap?.type !== 'snapshot' && snap?.type !== 'delta') throw new Error('esperava snapshot')
+    const noRecorte = snap.map.pins.find((p) => p.id === 'grade')
+    expect(noRecorte?.passagem).toBe('pede')
+    expect(noRecorte?.fechadura).toBeUndefined()
+    relogio.t += 10_000
+    expect(t.s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'grade' }, aberta).travelRequest).toMatchObject({ toSceneId: CRIPTA })
+  })
+
+  it('o snapshot de uma fechadura de teclado não leva o tamanho da senha', () => {
+    const map = salao([cofre({ segredo: { resposta: 'labirinto', forma: 'teclado' } })])
+    const t = mesa(map)
+    const snap = t.s.broadcast(map).outbound.find((o) => o.clientId === 'c1')?.msg
+    if (snap?.type !== 'snapshot' && snap?.type !== 'delta') throw new Error('esperava snapshot')
+    expect(snap.map.pins.find((p) => p.id === 'cofre')?.fechadura).toStrictEqual({ forma: 'teclado' })
+    expect(JSON.stringify(snap)).not.toContain('casas')
+  })
+
   it('na cena de fundo, o pino a abrir leva a cena junto', () => {
     const fundo = salao([cofre()])
     const mundo: HostWorld = { open: { sceneId: CRIPTA, name: 'Cripta', map: createEmptyMap('mapa-cripta', 'Cripta', 500, 500, 50) }, background: [{ sceneId: SALAO, name: 'Salão', map: fundo }] }

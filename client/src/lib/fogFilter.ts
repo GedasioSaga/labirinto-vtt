@@ -1519,7 +1519,7 @@ function pinForPlayer(pin: Pin): Pin {
   if (escolhas.length > 1) forPlayer.escolhas = escolhas
   // FECHADURA COM SEGREDO: `segredo` (resposta e porta ligada) nunca vai. O
   // jogador recebe `fechadura`, montada AQUI a partir do segredo — só a forma e
-  // as casas, e só enquanto ela está fechada. Uma `fechadura` que viesse no
+  // (nos volantes) as casas, e só enquanto ela está fechada. Uma `fechadura` que viesse no
   // mapa do mestre não é copiada.
   const fechadura = publicLockOf(pin)
   if (fechadura !== null) forPlayer.fechadura = fechadura

@@ -93,8 +93,8 @@ import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
  *
  * A FECHADURA COM SEGREDO é aditiva pelo mesmo critério: `pin.answer` (jogador
  * -> mestre, o id do pino e a tentativa) e `pin.answer.result` (só abriu ou
- * não). A resposta certa nunca viaja: o recorte leva `Pin.fechadura` (forma e
- * casas), nunca `Pin.segredo`. Mestre antigo responde `error invalid_message`;
+ * não). A resposta certa nunca viaja: o recorte leva `Pin.fechadura` (forma e,
+ * nos volantes, casas), nunca `Pin.segredo`. Mestre antigo responde `error invalid_message`;
  * jogador antigo ignora o resultado.
  */
 export const PROTOCOL_VERSION = 1

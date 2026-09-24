@@ -325,14 +325,12 @@ export interface PinLock {
 }
 
 /**
- * O que o JOGADOR sabe da fechadura fechada: a forma e quantas casas ela tem —
- * o que qualquer um vê olhando um cadeado de volantes. Nunca a resposta nem a
- * porta ligada. Montado por `lib/fogFilter.ts`; o mestre nunca grava.
+ * O que o JOGADOR sabe da fechadura fechada: a forma e, SÓ nos volantes,
+ * quantas casas ela tem — o que qualquer um vê olhando um cadeado de volantes.
+ * O teclado não mostra o tamanho da senha, então ele nem viaja. Nunca a
+ * resposta nem a porta ligada. Montado por `lib/fogFilter.ts`; o mestre nunca grava.
  */
-export interface PinLockPublic {
-  forma: PinLockForm
-  casas: number
-}
+export type PinLockPublic = { forma: 'teclado' } | { forma: 'volantes'; casas: number }
 
 /**
  * Ponto de interesse cravado pelo mestre. O jogador toca o pino no mapa e lê o
@@ -411,7 +409,7 @@ export interface Pin extends PlayerSecret {
    */
   segredo?: PinLock
   /**
-   * SÓ NO RECORTE DO JOGADOR, e só com a fechadura fechada: forma e casas.
+   * SÓ NO RECORTE DO JOGADOR, e só com a fechadura fechada: forma e, nos volantes, casas.
    * `lib/fogFilter.ts` o monta a partir de `segredo`; o mestre nunca o grava.
    */
   fechadura?: PinLockPublic

@@ -56,7 +56,14 @@ describe('publicLockOf', () => {
   })
 
   it('volantes com resposta que não é só número vira teclado (o volante só tem 0 a 9)', () => {
-    expect(publicLockOf(cofre({ segredo: { resposta: 'lua', forma: 'volantes' } }))).toEqual({ forma: 'teclado', casas: 3 })
+    expect(publicLockOf(cofre({ segredo: { resposta: 'lua', forma: 'volantes' } }))).toStrictEqual({ forma: 'teclado' })
+  })
+
+  it('teclado não conta o tamanho da senha: `casas` nem existe no que sai', () => {
+    const pub = publicLockOf(cofre({ segredo: { resposta: 'labirinto', forma: 'teclado' } }))
+    expect(pub).toStrictEqual({ forma: 'teclado' })
+    expect(pub !== null && 'casas' in pub).toBe(false)
+    expect(JSON.stringify(pub)).not.toContain('9')
   })
 
   it('fechadura aberta ou sem resposta não sai', () => {
@@ -122,6 +129,25 @@ describe('openPinLock', () => {
     const jaAberto = mapa([cofre({ segredo: { resposta: '12', forma: 'teclado', aberta: true } })])
     expect(openPinLock(jaAberto, 'cofre')).toBe(jaAberto)
     expect(openPinLock(semFechadura, 'nenhum')).toBe(semFechadura)
+  })
+
+  it('passagem trancada volta a "pede": a combinação era a chave da tranca', () => {
+    const grade = cofre({ kind: 'viagem', passagem: 'trancada', segredo: { resposta: '12', forma: 'teclado' } })
+    const antes = mapa([grade])
+    const depois = openPinLock(antes, 'cofre')
+    expect(depois.pins[0].passagem).toBe('pede')
+    expect(depois.pins[0].segredo?.aberta).toBe(true)
+    // Pura: o mapa de antes (passo do desfazer) continua trancado.
+    expect(antes.pins[0].passagem).toBe('trancada')
+  })
+
+  it('passagem livre (ou sem o campo) não muda ao abrir', () => {
+    const livre = mapa([cofre({ kind: 'viagem', passagem: 'livre', segredo: { resposta: '12', forma: 'teclado' } })])
+    expect(openPinLock(livre, 'cofre').pins[0].passagem).toBe('livre')
+    const semCampo = mapa([cofre({ kind: 'viagem', segredo: { resposta: '12', forma: 'teclado' } })])
+    const aberto = openPinLock(semCampo, 'cofre').pins[0]
+    expect(aberto.segredo?.aberta).toBe(true)
+    expect('passagem' in aberto).toBe(false)
   })
 
   it('porta ligada que sumiu do mapa não impede abrir o pino', () => {

@@ -4,7 +4,7 @@ import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
 
 interface PlayerLockPadProps {
   pinId: string
-  /** O que o jogador sabe da fechadura: forma e casas. A resposta nunca chega aqui. */
+  /** O que o jogador sabe da fechadura: a forma e, nos volantes, as casas. A resposta nunca chega aqui. */
   lock: PinLockPublic
   /** Tentativa no ar: "Tentar" fica desligado até o host responder. */
   sending: boolean
@@ -31,7 +31,8 @@ function girar(valor: number, passo: 1 | -1): number {
  */
 export function PlayerLockPad({ pinId, lock, sending, onTry }: PlayerLockPadProps) {
   const [texto, setTexto] = useState('')
-  const [volantes, setVolantes] = useState<number[]>(() => Array.from({ length: lock.casas }, () => 0))
+  // Teclado não tem casas (nem as recebe): a lista de volantes fica vazia.
+  const [volantes, setVolantes] = useState<number[]>(() => Array.from({ length: lock.forma === 'volantes' ? lock.casas : 0 }, () => 0))
   const inputId = `pp-lock-input-${pinId}`
   const tentativa = lock.forma === 'volantes' ? volantes.join('') : texto.trim()
   const podeTentar = onTry !== undefined && !sending && tentativa.length > 0

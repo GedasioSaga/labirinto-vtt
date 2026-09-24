@@ -6,7 +6,7 @@ import { deserializeMap, serializeMap } from './mapFile'
 
 /**
  * FECHADURA COM SEGREDO no recorte do jogador. A resposta mora só no host: o
- * jogador recebe a FORMA (teclado ou volantes) e o número de casas, e nada
+ * jogador recebe a FORMA (teclado ou volantes) e, nos volantes, o número de casas, e nada
  * mais — nem a resposta, nem a porta que ela destranca. Fechadura aberta não
  * manda nada (o cartão volta a ser o de sempre).
  */
@@ -54,6 +54,16 @@ describe('fogFilter: fechadura com segredo', () => {
     expect(rede).not.toContain(PORTA_LIGADA)
   })
 
+  it('teclado: o recorte leva só a forma, e o tamanho da senha não sai pela rede', () => {
+    const senha = cofre({ segredo: { resposta: 'labirinto', forma: 'teclado' } })
+    const view = filterMapForPlayer(mapaCom([senha]), 'p1', POSSE, RAIO)
+    expect(view.map.pins).toHaveLength(1)
+    expect(view.map.pins[0].fechadura).toStrictEqual({ forma: 'teclado' })
+    const rede = JSON.stringify(view)
+    expect(rede).not.toContain('casas')
+    expect(rede).not.toContain('labirinto')
+  })
+
   it('fechadura já aberta não manda nada: o cartão é o de sempre', () => {
     const view = filterMapForPlayer(mapaCom([cofre({ segredo: { resposta: RESPOSTA, forma: 'volantes', aberta: true } })]), 'p1', POSSE, RAIO)
     expect(view.map.pins).toHaveLength(1)
@@ -62,7 +72,7 @@ describe('fogFilter: fechadura com segredo', () => {
   })
 
   it('uma "fechadura" pública que venha no mapa do mestre não é copiada: o recorte a monta', () => {
-    const forjada = cofre({ segredo: undefined, fechadura: { forma: 'teclado', casas: 99 } })
+    const forjada = cofre({ segredo: undefined, fechadura: { forma: 'volantes', casas: 99 } })
     const view = filterMapForPlayer(mapaCom([forjada]), 'p1', POSSE, RAIO)
     expect(view.map.pins).toHaveLength(1)
     expect(view.map.pins[0].fechadura).toBeUndefined()
@@ -77,7 +87,7 @@ describe('fogFilter: fechadura com segredo', () => {
 
 describe('mapFile: fechadura com segredo', () => {
   it('o segredo vai e volta do disco; a forma pública do jogador nunca entra no mapa do mestre', () => {
-    const lido = deserializeMap(serializeMap(mapaCom([cofre({ fechadura: { forma: 'teclado', casas: 2 } })])))
+    const lido = deserializeMap(serializeMap(mapaCom([cofre({ fechadura: { forma: 'volantes', casas: 2 } })])))
     expect(lido.pins[0].segredo).toEqual({ resposta: RESPOSTA, forma: 'volantes', abrePorta: PORTA_LIGADA })
     expect(lido.pins[0].fechadura).toBeUndefined()
   })

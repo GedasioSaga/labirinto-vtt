@@ -146,8 +146,8 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // O modo vem no recorte (o destino, não). Trancada não oferece botão nenhum:
   // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
   const passagem = passageOf(pin)
-  // FECHADURA COM SEGREDO: vem no recorte só enquanto está fechada (forma e
-  // casas; a resposta mora no host). Fechada, a passagem também não abre: o
+  // FECHADURA COM SEGREDO: vem no recorte só enquanto está fechada (forma e,
+  // nos volantes, casas; a resposta mora no host). Fechada, a passagem também não abre: o
   // cartão oferece a combinação no lugar do "Pedir para passar".
   const fechadura = pin.fechadura
   const trancadaComSegredo = viagem && fechadura !== undefined
@@ -196,8 +196,8 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
         {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
         {trancadaComSegredo && <p className="pp-pincard__locked">Trancada com segredo. Acerte a combinação para passar.</p>}
         {fechadura !== undefined && (
-          // A chave é o pino e a forma: outro cadeado começa zerado.
-          <PlayerLockPad key={`${pin.id}|${fechadura.forma}|${fechadura.casas}`} pinId={pin.id} lock={fechadura} sending={lockPhase === 'sending'} onTry={onTryLock} />
+          // A chave é o pino, a forma e (nos volantes) as casas: outro cadeado começa zerado.
+          <PlayerLockPad key={`${pin.id}|${fechadura.forma}|${fechadura.forma === 'volantes' ? fechadura.casas : ''}`} pinId={pin.id} lock={fechadura} sending={lockPhase === 'sending'} onTry={onTryLock} />
         )}
         {lockPhase !== undefined && lockPhase !== 'sending' && (
           // Fora da fechadura: o "Abriu." fica depois que o snapshot novo tira a fechadura do pino.

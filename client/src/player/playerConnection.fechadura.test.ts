@@ -28,7 +28,7 @@ class FakeSocket implements SocketLike {
   }
 }
 
-const COFRE: Pin = { id: 'cofre', x: 10, y: 10, kind: 'exclamacao', description: 'Cofre', image: null, fechadura: { forma: 'teclado', casas: 4 } }
+const COFRE: Pin = { id: 'cofre', x: 10, y: 10, kind: 'exclamacao', description: 'Cofre', image: null, fechadura: { forma: 'teclado' } }
 const QUADRO: Pin = { id: 'quadro', x: 20, y: 10, kind: 'exclamacao', description: 'Quadro', image: null }
 
 function jogando() {

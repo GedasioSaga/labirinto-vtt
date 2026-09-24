@@ -56,7 +56,7 @@ describe('PlayerPinCard: fechadura com segredo', () => {
 
   it('teclado: digita a combinação e "Tentar" manda o que foi digitado', () => {
     const onTry = vi.fn()
-    render(pino({ fechadura: { forma: 'teclado', casas: 4 } }), onTry)
+    render(pino({ fechadura: { forma: 'teclado' } }), onTry)
     const input = container.querySelector<HTMLInputElement>('input#pp-lock-input-cofre')
     if (input === null) throw new Error('sem campo')
     // Rótulo de verdade, ligado ao campo.
@@ -68,7 +68,7 @@ describe('PlayerPinCard: fechadura com segredo', () => {
 
   it('teclado vazio não tenta', () => {
     const onTry = vi.fn()
-    render(pino({ fechadura: { forma: 'teclado', casas: 4 } }), onTry)
+    render(pino({ fechadura: { forma: 'teclado' } }), onTry)
     expect(botao('Tentar').disabled).toBe(true)
     expect(onTry).not.toHaveBeenCalled()
   })
@@ -87,22 +87,22 @@ describe('PlayerPinCard: fechadura com segredo', () => {
   })
 
   it('a resposta do host aparece como estado: "Não abre." e "Abriu."', () => {
-    render(pino({ fechadura: { forma: 'teclado', casas: 4 } }), () => {}, 'wrong')
+    render(pino({ fechadura: { forma: 'teclado' } }), () => {}, 'wrong')
     expect(container.querySelector('[role="status"]')?.textContent).toBe('Não abre.')
-    render(pino({ fechadura: { forma: 'teclado', casas: 4 } }), () => {}, 'too_soon')
+    render(pino({ fechadura: { forma: 'teclado' } }), () => {}, 'too_soon')
     expect(container.querySelector('[role="status"]')?.textContent).toBe('Espere um instante antes de tentar de novo.')
     render(pino(), () => {}, 'open')
     expect(container.querySelector('[role="status"]')?.textContent).toBe('Abriu.')
   })
 
   it('conferindo: o botão fica desligado até a resposta', () => {
-    render(pino({ fechadura: { forma: 'teclado', casas: 4 } }), () => {}, 'sending')
+    render(pino({ fechadura: { forma: 'teclado' } }), () => {}, 'sending')
     expect(botao('Conferindo…').disabled).toBe(true)
   })
 
   it('pino de viagem com fechadura fechada não oferece passar, só a fechadura', () => {
     const onTravel = vi.fn()
-    render(pino({ kind: 'viagem', fechadura: { forma: 'teclado', casas: 2 } }), () => {}, undefined, onTravel)
+    render(pino({ kind: 'viagem', fechadura: { forma: 'teclado' } }), () => {}, undefined, onTravel)
     expect(container.textContent).not.toContain('Pedir para passar')
     expect(container.textContent).toContain('Trancada com segredo')
     expect(container.querySelector('input#pp-lock-input-cofre')).not.toBeNull()

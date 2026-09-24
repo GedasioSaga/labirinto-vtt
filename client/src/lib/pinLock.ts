@@ -1,4 +1,4 @@
-import type { MapData, Pin, PinLock, PinLockForm, PinLockPublic } from '../types/map'
+import type { MapData, Pin, PinLock, PinLockForm, PinLockPublic, PinPassage } from '../types/map'
 
 /**
  * FECHADURA COM SEGREDO — o jogador digita ou gira a combinação no cartão do
@@ -47,17 +47,19 @@ export function lockAccepts(lock: PinLock, attempt: string): boolean {
 }
 
 /**
- * O que o jogador vê de uma fechadura FECHADA: a forma e quantas casas — o que
- * qualquer um enxerga olhando o cadeado. `null` = nada a mostrar (sem
- * fechadura, sem resposta ou já aberta). Volante com resposta que não é só
- * número vira teclado: o jogador não teria como girar a letra.
+ * O que o jogador vê de uma fechadura FECHADA: a forma e, nos volantes,
+ * quantas casas — o que qualquer um enxerga olhando o cadeado. O teclado não
+ * leva `casas`: o campo não mostra o tamanho da senha, e o número saindo pela
+ * rede contaria ao jogador o que o mestre escondeu. `null` = nada a mostrar
+ * (sem fechadura, sem resposta ou já aberta). Volante com resposta que não é
+ * só número vira teclado: o jogador não teria como girar a letra.
  */
 export function publicLockOf(pin: Pin): PinLockPublic | null {
   const lock = pin.segredo
   if (lock === undefined || !isLockClosed(pin)) return null
   const certa = normalizeLockAnswer(lock.resposta)
-  const forma: PinLockForm = lock.forma === 'volantes' && SO_NUMEROS.test(certa) ? 'volantes' : 'teclado'
-  return { forma, casas: certa.length }
+  if (lock.forma === 'volantes' && SO_NUMEROS.test(certa)) return { forma: 'volantes', casas: certa.length }
+  return { forma: 'teclado' }
 }
 
 /**
@@ -120,19 +122,28 @@ export function lockDoorOptions(map: MapData, pin: Pin): LockDoorOption[] {
   })
 }
 
+/** A passagem de um pino `trancada` depois que a combinação abriu: o jogador pede, o mestre decide. */
+const PASSAGEM_DEPOIS_DO_SEGREDO: PinPassage = 'pede'
+
 /**
  * Um jogador acertou: a fechadura do pino `pinId` fica aberta, e a porta
  * ligada (`abrePorta`) fica DESTRANCADA — fechada como estava: quem abre a
- * porta é o jogador, pelo toque de sempre. Transformação pura e reaplicável
- * (entra também nos passos do desfazer da cena); nada a mudar devolve o mesmo
- * `map`. Porta que sumiu do mapa não impede o pino de abrir.
+ * porta é o jogador, pelo toque de sempre. Pino com passagem `trancada` volta
+ * a `pede`: o cartão prometeu "acerte a combinação para passar", então a
+ * combinação é a chave da tranca também — e o mestre continua decidindo quem
+ * passa. Transformação pura e reaplicável (entra também nos passos do desfazer
+ * da cena); nada a mudar devolve o mesmo `map`. Porta que sumiu do mapa não
+ * impede o pino de abrir.
  */
 export function openPinLock(map: MapData, pinId: string): MapData {
   const pin = map.pins.find((p) => p.id === pinId)
   const lock = pin?.segredo
   if (pin === undefined || lock === undefined || lock.aberta === true) return map
   const aberta: PinLock = { ...lock, aberta: true }
-  const pins = map.pins.map((p) => (p.id === pinId ? { ...p, segredo: aberta } : p))
+  const pins = map.pins.map((p) => {
+    if (p.id !== pinId) return p
+    return p.passagem === 'trancada' ? { ...p, segredo: aberta, passagem: PASSAGEM_DEPOIS_DO_SEGREDO } : { ...p, segredo: aberta }
+  })
   const walls = map.walls.map((w) => (w.id === lock.abrePorta && w.door !== null && w.door.locked ? { ...w, door: { ...w.door, locked: false } } : w))
   return { ...map, pins, walls }
 }
