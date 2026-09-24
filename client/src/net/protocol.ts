@@ -46,6 +46,11 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
  * nunca o id nem o nome da cena — quem recebe já está lá.
+ *
+ * `pin.read` (jogador -> mestre) é a LEITURA DA PISTA, aditiva pelo mesmo
+ * critério: o jogador abriu o cartão do pino e o texto estava lá. Acende
+ * "leu" no painel Pistas do mestre. Não tem volta: nada sai para o jogador.
+ * Mestre antigo responde `error invalid_message`, que o jogador ignora.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -130,7 +135,24 @@ export interface PinTravelRequestMessage {
   exitId?: string
 }
 
-export type PlayerMessage = JoinMessage | TokenMoveMessage | PingMessage | SignalMessage | DoorToggleMessage | TokenEditMessage | PinTravelRequestMessage
+/**
+ * Jogador leu o cartão do pino `pinId` (abriu, com o texto já chegado). Só o
+ * id: o host confere que o pino saiu mesmo para ele antes de contar.
+ */
+export interface PinReadMessage {
+  type: 'pin.read'
+  pinId: string
+}
+
+export type PlayerMessage =
+  | JoinMessage
+  | TokenMoveMessage
+  | PingMessage
+  | SignalMessage
+  | DoorToggleMessage
+  | TokenEditMessage
+  | PinTravelRequestMessage
+  | PinReadMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -324,6 +346,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTokenEdit(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
+    case 'pin.read':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.read', pinId: value.pinId } : null
     default:
       return null
   }

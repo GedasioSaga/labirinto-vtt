@@ -14,6 +14,7 @@ import {
   type HostMessage,
   type JoinMessage,
   type LaserMessage,
+  type PinReadMessage,
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type SignalMessage,
@@ -214,6 +215,16 @@ export interface PlayerInfo {
   travelPending?: true
 }
 
+/**
+ * Uma linha do painel PISTAS do mestre: quem RECEBEU o pino (ele saiu, com o
+ * texto, no pacote do jogador) e quem o LEU (abriu o cartão, `pin.read`). Ids
+ * de jogador, na ordem da sala. `read` está sempre contido em `received`.
+ */
+export interface PinClueState {
+  received: string[]
+  read: string[]
+}
+
 /** Faixa do "Raio de visão" por jogador, em px de mundo. */
 export const VISION_RADIUS_MIN = 50
 export const VISION_RADIUS_MAX = 2000
@@ -333,6 +344,12 @@ export interface HostSession {
   /** Todas as listas, por pino, para o painel do mestre. Pino de "Todos" não aparece. */
   pinAudiences(): Record<string, string[]>
   /**
+   * PAINEL PISTAS: por pino, quem recebeu e quem leu. Recebeu é para sempre
+   * nesta sessão — esconder o pino depois não desfaz o que o jogador já leu
+   * na tela; só o kick apaga. Pino que ninguém recebeu não aparece.
+   */
+  pinClues(): Record<string, PinClueState>
+  /**
    * "Revelar para…" da ficha secreta, da escada secreta ou da zona oculta
    * `itemId`: só estes jogadores a recebem (`lib/fogFilter.ts`; a ficha ainda
    * exige visão). `null` ou lista vazia = segredo de todos de novo. Id que não é
@@ -417,6 +434,13 @@ interface PlayerMemory {
   vision: RegionPoint[][]
 }
 
+/** Põe `member` no conjunto de `key`, criando o conjunto na primeira vez. */
+function addToSet(sets: Map<string, Set<string>>, key: string, member: string): void {
+  const found = sets.get(key)
+  if (found === undefined) sets.set(key, new Set([member]))
+  else found.add(member)
+}
+
 /** Chave de comparação do nome: sem maiúsculas e sem espaços. */
 function normalizeName(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '')
@@ -477,6 +501,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // para…". Vale até o jogador chegar lá (e depois); "Esconder de novo" e o
   // kick tiram. Vive só nesta sessão, como o "Quem vê" dos pinos.
   const planGrants = new Map<string, Set<string>>()
+  // Por pinId: quem recebeu o pino COM o texto (painel Pistas). Só entra pino
+  // que saiu de verdade num recorte: o tamanho fica preso aos pinos reais, e o
+  // `pin.read` de um id inventado nunca vira chave aqui. O kick tira o jogador.
+  const pinReceived = new Map<string, Set<string>>()
+  // Por pinId: quem abriu o cartão. Subconjunto de `pinReceived`.
+  const pinRead = new Map<string, Set<string>>()
   let rev = 0
 
   /** Raio em px do jogador para cena SEM "Visão nesta cena": o do mestre ou o global (o de sempre). */
@@ -630,6 +660,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const seenNow = new Set(view.visibleDoorIds)
     for (const w of view.map.walls) {
       if (w.door !== null && seenNow.has(w.id)) memory.doors.set(w.id, { ...w.door })
+    }
+    // PAINEL PISTAS: o pino que sai aqui com o texto foi RECEBIDO. O "só de
+    // perto" visto de longe (`longe`) chega vazio: ainda não conta.
+    for (const pin of view.map.pins) {
+      if (pin.longe !== true) addToSet(pinReceived, pin.id, playerId)
     }
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
@@ -814,6 +849,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * LEITURA DA PISTA: só conta pino que o host já mandou COM o texto a este
+   * jogador (`pinReceived`). Id inventado, pino no escuro ou "só de perto"
+   * visto de longe morrem em silêncio — responder "recusado" só ensinaria
+   * quais ids existem. Nada volta ao jogador.
+   */
+  function handlePinRead(clientId: string, msg: PinReadMessage): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const receivedBy = pinReceived.get(msg.pinId)
+    if (receivedBy === undefined || !receivedBy.has(playerId)) return { outbound: [] }
+    addToSet(pinRead, msg.pinId, playerId)
+    return { outbound: [] }
+  }
+
+  /**
    * O pedido de passagem vale? Autoridade é aqui, no molde da porta
    * (`handleDoorToggle`): o pino existe NA CENA DO JOGADOR, está VISÍVEL para
    * ele agora (a mesma regra da névoa que decide mandar o pino no recorte —
@@ -980,6 +1030,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleTokenEdit(clientId, msg, world)
         case 'pin.travel.request':
           return handleTravelRequest(clientId, msg, world)
+        case 'pin.read':
+          return handlePinRead(clientId, msg)
       }
     },
 
@@ -1101,6 +1153,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       visionOverrides.delete(playerId)
       visionFactors.delete(playerId)
       for (const chosen of pinAudiences.values()) chosen.delete(playerId)
+      for (const sets of [pinReceived, pinRead]) {
+        for (const [pinId, who] of sets) {
+          who.delete(playerId)
+          if (who.size === 0) sets.delete(pinId)
+        }
+      }
       for (const [itemId, chosen] of secretReveals) {
         chosen.delete(playerId)
         if (chosen.size === 0) secretReveals.delete(itemId)
@@ -1150,6 +1208,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     pinAudiences() {
       const all: Record<string, string[]> = {}
       for (const pinId of pinAudiences.keys()) all[pinId] = audienceOf(pinId) ?? []
+      return all
+    },
+
+    pinClues() {
+      const all: Record<string, PinClueState> = {}
+      for (const [pinId, received] of pinReceived) {
+        all[pinId] = { received: inRoomOrder(received), read: inRoomOrder(pinRead.get(pinId) ?? new Set()) }
+      }
       return all
     },
 

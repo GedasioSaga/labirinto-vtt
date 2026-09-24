@@ -550,6 +550,13 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const closePin = useCallback(() => setOpenPinId(null), [])
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
+  // Abriu o cartão com o texto: o painel Pistas do mestre acende "leu".
+  const readPin = useCallback(
+    (pinId: string) => {
+      connection.markPinRead(pinId)
+    },
+    [connection],
+  )
 
   if (state.status === 'playing' && state.map && state.vision) {
     return (
@@ -607,6 +614,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           <PlayerPinCard
             pin={openPin}
             onClose={closePin}
+            onRead={readPin}
             travelWaiting={state.travel?.phase === 'waiting'}
             onRequestTravel={(exitId) => {
               // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
