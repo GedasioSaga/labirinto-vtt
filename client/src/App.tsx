@@ -19,6 +19,7 @@ import { useFollowStore } from './stores/followStore'
 import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeStore'
 import { turnTokenIdOn } from './lib/initiative'
 import { useFollowPlayer } from './stores/useFollowPlayer'
+import { useArrivalTextSettings } from './stores/useArrivalTextSettings'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import { tableSceneKey, type PlayerInfo } from './net/hostSession'
@@ -345,6 +346,7 @@ function App() {
   const setMeasurementMode = useMapStore((state) => state.setMeasurementMode)
   const setMovementRules = useMapStore((state) => state.setMovementRules)
   const setWorldMap = useMapStore((state) => state.setWorldMap)
+  const arrivalTextSettings = useArrivalTextSettings()
   const setSceneFloor = useMapStore((state) => state.setSceneFloor)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
@@ -2028,6 +2030,7 @@ function App() {
               gridShape,
             }}
             movement={{ movement: map.movement, onMovementChange: setMovementRules, worldMap: map.worldMap === true, onWorldMapChange: setWorldMap }}
+            arrivalText={arrivalTextSettings}
             sceneFloor={{ andar: map.andar, onChange: setSceneFloor }}
             gridAlign={{
               backgroundFilename:

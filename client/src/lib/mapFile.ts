@@ -8,6 +8,7 @@ import { readCarriedItems, readPinItem } from './items'
 import { readHazards } from './hazards'
 import { readPinLeverDoor } from './lever'
 import { readAreaTriggers } from './areaTriggers'
+import { readArrivalText } from './arrivalText'
 import { readSceneFloor } from './buildingFloors'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
@@ -250,9 +251,18 @@ function deserializeMapFields(json: string): MapData {
     // MAPA-MUNDI: campo NOVO e OPCIONAL. Só `true` vale; o resto (arquivo
     // editado à mão) abre como cena comum, sem o campo.
     ...(parsed.worldMap === true ? { worldMap: true } : {}),
+    // TEXTO DE CHEGADA: campo NOVO e OPCIONAL. Texto vazio ou o que não é
+    // texto (editado à mão) abre sem o campo — ver `readArrivalText`.
+    ...arrivalTextField(parsed.textoChegada),
     // MAPA POR ANDARES: campo NOVO e OPCIONAL. Forma torta abre como cena comum — ver `readSceneFloor`.
     ...sceneFloorField(parsed.andar),
   }
+}
+
+/** `textoChegada` só entra no mapa quando o arquivo traz texto: mapa de antes não ganha campo. */
+function arrivalTextField(raw: unknown): Pick<MapData, 'textoChegada'> {
+  const textoChegada = readArrivalText(raw)
+  return textoChegada === undefined ? {} : { textoChegada }
 }
 
 /** `andar` só entra no mapa quando o arquivo traz prédio e rótulo válidos: mapa de antes não ganha campo. */

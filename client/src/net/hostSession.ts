@@ -39,6 +39,7 @@ import {
   type TokenMoveMessage,
 } from './protocol'
 import { clampAlarmText, clampNoteText } from './protocol'
+import { readArrivalText } from '../lib/arrivalText'
 import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
 
 /**
@@ -97,6 +98,16 @@ function sceneKey(scene: HostScene): string {
 
 function allScenes(world: HostWorld): HostScene[] {
   return [world.open, ...world.background]
+}
+
+/**
+ * O `scene.changed` de quem CHEGA à cena de mapa `to`. Leva o TEXTO DE CHEGADA
+ * dela (`lib/arrivalText.ts`) quando há: é o único caminho do texto até o
+ * jogador — o recorte nunca o manda — e só quem chega recebe este aviso.
+ */
+function sceneChangedFor(to: MapData, by?: 'master' | 'gather'): HostMessage {
+  const chegada = readArrivalText(to.textoChegada)
+  return { type: 'scene.changed', ...(by === undefined ? {} : { by }), ...(chegada === undefined ? {} : { chegada }) }
 }
 
 /** As cenas como a ligação de um pino de viagem as enxerga (`resolvePinTravel`). */
@@ -1499,7 +1510,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
     return {
-      outbound: [{ clientId, msg: { type: 'scene.changed' } }],
+      outbound: [{ clientId, msg: sceneChangedFor(travel.to.map) }],
       applyTransfer: {
         tokenId: travel.token.id,
         playerId,
@@ -1677,7 +1688,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       pendingTravels.delete(playerId)
       const by = gatherAt === undefined ? 'master' : 'gather'
       return {
-        outbound: record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by } }],
+        outbound: record.clientId === null ? [] : [{ clientId: record.clientId, msg: sceneChangedFor(to.map, by) }],
         applyTransfer: {
           tokenId: token.id,
           playerId,
@@ -1748,7 +1759,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         told.add(playerId)
         arrivals.push({
           transfer: { tokenId: token.id, playerId, playerName: record.name, fromSceneId, toSceneId, toSceneName: to.name, x: spot.x, y: spot.y },
-          outbound: first && record.clientId !== null ? [{ clientId: record.clientId, msg: { type: 'scene.changed', by: 'master' } }] : [],
+          outbound: first && record.clientId !== null ? [{ clientId: record.clientId, msg: sceneChangedFor(to.map, 'master') }] : [],
         })
       })
       caravanAt.delete(sceneKey(from))

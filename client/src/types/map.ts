@@ -1027,6 +1027,13 @@ export interface MapData {
    */
   worldMap?: true
   /**
+   * TEXTO DE CHEGADA DA CENA: o que quem chega lê uma vez, num cartão
+   * (`lib/arrivalText.ts`). Ausente = sem texto, sem linha de migração (mesmo
+   * padrão de `worldMap`). NUNCA sai no recorte do jogador: viaja só no
+   * `scene.changed` de quem chega.
+   */
+  textoChegada?: string
+  /**
    * MAPA POR ANDARES: esta cena é um andar de um prédio. Cenas com o mesmo
    * `predio` são andares do mesmo prédio, e o jogador ganha uma aba por andar
    * onde já esteve (`lib/buildingFloors.ts`). Ausente = cena comum, sem linha

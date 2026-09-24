@@ -30,6 +30,7 @@ import { carriedItemsOf, cleanItemName, itemOfPin } from '../lib/items'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
 import { parseLaserMessage, parseSceneAlarm, parseSceneAlarmEnd, parseSceneNote } from '../net/protocol'
+import { parseArrivalText } from '../lib/arrivalText'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -116,6 +117,12 @@ export interface PlayerState {
    * tela o mostra como texto, nunca como HTML.
    */
   note?: { id: string; text: string }
+  /**
+   * TEXTO DE CHEGADA da cena onde o jogador acabou de chegar: vem uma vez, no
+   * `scene.changed`, e fica até ele fechar (`dismissArrival`). Chegar noutra
+   * cena (com ou sem texto) tira o da cena de antes. Texto puro, como o recado.
+   */
+  arrival?: { id: number; text: string }
   /**
    * ALARME do mestre para a cena do jogador (e outras junto). Diferente do
    * recado, o jogador NÃO fecha: some só com `scene.alarm.end` do mesmo id,
@@ -263,6 +270,8 @@ export interface PlayerConnection {
   pullLever(pinId: string): boolean
   /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). */
   dismissNote(): void
+  /** Fecha o cartão do texto de chegada. */
+  dismissArrival(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -777,6 +786,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           lever: undefined,
           // Sem cena, nenhum alarme de cena vale; o host manda de novo se ele voltar a uma.
           alarm: undefined,
+          // Idem o texto de chegada: é da cena que ele deixou.
+          arrival: undefined,
           status: 'waiting',
           map: undefined,
           vision: undefined,
@@ -813,6 +824,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearHazardNotice()
         // A porta tocada ficou na cena de antes: o "Trancada" e os botões dele perdem o sentido.
         setState({ signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, hazardNotice: undefined })
+        {
+          // TEXTO DE CHEGADA: o da cena nova, ou nenhum — o cartão da cena de
+          // antes não fica aberto por cima de outro lugar.
+          const chegada = parseArrivalText(data.chegada)
+          setState({ arrival: chegada === null ? undefined : { id: nextNoticeId++, text: chegada } })
+        }
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -1175,6 +1192,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.note !== undefined) setState({ note: undefined })
     },
 
+    dismissArrival() {
+      if (state.arrival !== undefined) setState({ arrival: undefined })
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -1190,7 +1211,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined, lever: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined })
       open()
     },
     close: detach,
