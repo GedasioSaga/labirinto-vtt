@@ -1273,9 +1273,12 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
       expect(r.applyTransfer).toBeUndefined()
     })
 
-    it('trancada: recusa com o motivo genérico, sem nada ao mestre e sem nome da outra cena', () => {
+    it('trancada muda: recusa com o motivo genérico, sem nada ao mestre e sem nome da outra cena', () => {
       const t = mesa()
-      const trancada = comPassagem(t.w, 'escada-a', 'trancada')
+      // Sem a marca `mudo`, o trancado aceita "Pedir ao mestre" (hostSession.pinoTrancado.test.ts).
+      const comPino = comPassagem(t.w, 'escada-a', 'trancada')
+      const pins = comPino.open.map.pins.map((p): Pin => (p.id === 'escada-a' ? { ...p, mudo: true } : p))
+      const trancada: HostWorld = { ...comPino, open: { ...comPino.open, map: { ...comPino.open.map, pins } } }
       const r = t.pedir('escada-a', trancada)
       expect(r).toEqual({ outbound: [{ clientId: 'c1', msg: { type: 'pin.travel.rejected', reason: 'unavailable' } }] })
       expect(JSON.stringify(r)).not.toContain(NOME_B)

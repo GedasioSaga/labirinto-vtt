@@ -1,4 +1,4 @@
-import type { DoorState, MapData, Pin, RegionPoint, Token, Wall } from '../types/map'
+import type { DoorState, MapData, Pin, PinPassage, RegionPoint, Token, Wall } from '../types/map'
 import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, resizeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, memoryBlockedRings, playerBlockedRings } from '../lib/fogFilter'
@@ -6,7 +6,7 @@ import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, freeSeatNear, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
-import { passageOf, pinSummary } from '../lib/pins'
+import { acceptsLockedRequest, passageOf, pinSummary } from '../lib/pins'
 import { visibleTokens } from '../lib/layers'
 import type { SavedSceneMemory, SavedSeat, SavedSeatExploration } from '../lib/savedTable'
 import { companionSpots, companionsNear, type Companion } from '../lib/travelTogether'
@@ -163,6 +163,21 @@ export interface TravelRequest {
   pinLabel: string
   toSceneId: string
   toSceneName: string
+  /**
+   * O pedido veio de um pino TRANCADO que aceita tentativas: o mestre responde
+   * "Liberar uma vez", "Passar para pede" ou "Não", e não "Deixar ir".
+   */
+  trancada?: true
+}
+
+/**
+ * "Passar para pede" do pedido pelo pino trancado: o integrador troca o modo
+ * do pino `pinId` (na cena de FUNDO `sceneId`; ausente = a cena aberta).
+ */
+export interface AppliedPinPassage {
+  pinId: string
+  passagem: PinPassage
+  sceneId?: string
 }
 
 /**
@@ -259,6 +274,8 @@ export interface HostResult {
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
    */
   applyTransfer?: AppliedTransfer
+  /** "Passar para pede": o integrador muda o modo do pino trancado por onde o jogador passou. */
+  applyPinPassage?: AppliedPinPassage
   /**
    * Alguém entrou SEM resume com o nome de quem está fora: o integrador
    * pergunta ao mestre "Ana voltou?". Dado do mestre — nunca vai pela rede.
@@ -474,6 +491,13 @@ export interface HostSession {
    */
   approveTravel(requestId: string, source: HostMapSource): HostResult
   /**
+   * "Passar para pede" do pedido pelo pino trancado: a mesma aprovação do
+   * `approveTravel` e, só se o jogador passou, `applyPinPassage` com o pino
+   * em "pede" — daí em diante cada passagem pergunta ao mestre. Pedido que não
+   * veio de pino trancado: só a aprovação, sem mudar modo nenhum.
+   */
+  approveLockedTravelAsAsk(requestId: string, source: HostMapSource): HostResult
+  /**
    * "Não": `pin.travel.denied` ao jogador. Pedido que já não existe não faz nada.
    * `text` ("Não, porque…"): o motivo vai junto, aparado e cortado no teto
    * (`TRAVEL_DENY_TEXT_MAX_LENGTH`), só para quem pediu; em branco = sem motivo.
@@ -629,6 +653,8 @@ interface PendingTravel {
   /** O destino do aviso que o mestre leu. Religou a saída depois? A aprovação não vale. */
   toSceneId: string
   partnerId: string
+  /** Veio de um pino trancado que aceita tentativas: a aprovação do mestre passa pelo cadeado. */
+  trancada?: true
 }
 
 /** Pedido da porta trancada à espera do mestre. Um por jogador. `mapId`: a `sceneKey` da cena da porta. */
@@ -1484,7 +1510,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * genérico para todas — inclusive `exitId` que não é saída DESTE pino
    * (inventado, ou de outro pino): o jogador não descobre que ela existe.
    */
-  function validTravel(playerId: string, pinId: string, exitId: string, world: HostWorld): ValidTravel | null {
+  function validTravel(playerId: string, pinId: string, exitId: string, world: HostWorld, passaCadeado = false): ValidTravel | null {
     const from = sceneFor(playerId, world)
     if (from === null || from.sceneId === null) return null
     const fromSceneId = from.sceneId
@@ -1493,11 +1519,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const memory = memoryFor(playerId, from.map, world)
     const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
     if (!view.map.pins.some((p) => p.id === pinId)) return null
-    // Trancada: ninguém passa. Cai no mesmo `null` de todo o resto, então o
-    // jogador lê o motivo genérico de sempre e nada chega ao mestre. Estar aqui,
-    // e não só no pedido, faz o "Deixar ir" de um pedido feito antes de trancar
-    // recusar também.
-    if (passageOf(pin) === 'trancada') return null
+    // Trancada: ninguém passa sozinho. Cai no mesmo `null` de todo o resto,
+    // então o jogador lê o motivo genérico de sempre e nada chega ao mestre.
+    // Estar aqui, e não só no pedido, faz o "Deixar ir" de um pedido feito
+    // antes de trancar recusar também. `passaCadeado`: o pedido É pelo pino
+    // trancado que aceita tentativas (ou a resposta do mestre a ele) — o
+    // cadeado é justamente o que o mestre vai decidir.
+    if (passageOf(pin) === 'trancada' && !passaCadeado) return null
     // Chegada oculta (mão única) não leva de volta. O recorte já não a manda,
     // mas a recusa não depende da névoa: mesmo `null`, mesmo motivo genérico.
     if (isArrivalOnly(pin)) return null
@@ -1543,14 +1571,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // SEGUNDO LIMITE, por pino, só para pino que EXISTE na cena do jogador:
     // o tamanho fica preso aos pinos de verdade, não ao que o cliente inventa.
     const scene = sceneFor(playerId, world)
-    if (scene === null || !scene.map.pins.some((p) => p.id === msg.pinId)) return reject('unavailable')
+    const pinHere = scene?.map.pins.find((p) => p.id === msg.pinId) // undefined = pino que não existe na cena dele
+    if (scene === null || pinHere === undefined) return reject('unavailable')
     const limitKey = `${playerId}|${sceneKey(scene)}|${msg.pinId}`
     const last = lastTravelRequestAt.get(limitKey)
     if (last !== undefined && at - last < TRAVEL_REQUEST_MIN_INTERVAL_MS) return reject('too_soon')
     lastTravelRequestAt.set(limitKey, at)
 
     const exitId = msg.exitId ?? SAIDA_PRINCIPAL
-    const travel = validTravel(playerId, msg.pinId, exitId, world)
+    // Pino trancado que aceita tentativas: o pedido passa por todas as outras
+    // regras (névoa, ligação, ficha na cena) e vai ao mestre marcado. Trancado
+    // MUDO segue recusado no `validTravel`, com o motivo genérico.
+    const trancada = acceptsLockedRequest(pinHere)
+    const travel = validTravel(playerId, msg.pinId, exitId, world, trancada)
     if (travel === null) return reject('unavailable')
     // Livre: passou em tudo que o pedido passaria (névoa, token na cena, pino
     // ligado, limites, nenhum pendente) e vai direto, sem esperar o mestre —
@@ -1558,24 +1591,26 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel)
     const requestId = randomId()
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
-    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
+    const pending: PendingTravel = { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id }
+    if (trancada) pending.trancada = true
+    pendingTravels.set(playerId, pending)
     const description = travel.pin.description.trim()
     // Encruzilhada: o mestre lê a SAÍDA ("Escada da torre → Torre Alta"), o
     // mesmo rótulo que a jogadora tocou; pino de uma saída continua nomeado
     // pela descrição, como sempre.
     const saidas = exitLabelsOf(travel.pin)
     const saida = saidas.length > 1 ? saidas.find((s) => s.id === exitId) : undefined
-    return {
-      outbound: [],
-      travelRequest: {
-        requestId,
-        playerId,
-        playerName: record.name,
-        pinLabel: saida !== undefined ? saida.rotulo : description === '' ? pinSummary(travel.pin) : description,
-        toSceneId: travel.to.sceneId,
-        toSceneName: travel.to.name,
-      },
+    // Pedido do mestre: nada disto vai ao jogador (`outbound` vazio).
+    const travelRequest: TravelRequest = {
+      requestId,
+      playerId,
+      playerName: record.name,
+      pinLabel: saida !== undefined ? saida.rotulo : description === '' ? pinSummary(travel.pin) : description,
+      toSceneId: travel.to.sceneId,
+      toSceneName: travel.to.name,
     }
+    if (trancada) travelRequest.trancada = true
+    return { outbound: [], travelRequest }
   }
 
   /**
@@ -1631,7 +1666,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * de agora. `null` quando o pedido em si não passa mais.
    */
   const companionsOf = (pending: PendingTravel, world: HostWorld): { travel: ValidTravel; near: Companion[] } | null => {
-    const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world)
+    const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world, pending.trancada === true)
     if (travel === null) return null
     const fromMap = travel.from.map
     // A mesma regra da ficha de quem pediu (`validTravel`, pelo recorte): ficha
@@ -1785,7 +1820,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // o token de quem não está olhando seria uma surpresa na volta.
       if (record === undefined || record.clientId === null || statusOf(pending.playerId) !== 'playing') return { outbound: [] }
       const world = toWorld(source)
-      const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world)
+      // Pedido pelo pino trancado: o "Liberar uma vez" do mestre passa pelo
+      // cadeado; o pedido comum de um pino trancado depois continua recusado.
+      const travel = validTravel(pending.playerId, pending.pinId, pending.exitId, world, pending.trancada === true)
       // O mestre deixou ir para o lugar que o aviso DIZIA. Se a saída foi
       // religada depois (Torre no lugar da Cripta), ou desligada e outra subiu
       // no lugar dela, o consentimento não cobre o destino novo: recusa, e o
@@ -1793,6 +1830,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const sameDestination = travel !== null && travel.to.sceneId === pending.toSceneId && travel.partner.id === pending.partnerId
       if (travel === null || !sameDestination) return reply(record.clientId, { type: 'pin.travel.rejected', reason: 'unavailable' })
       return transferResult(pending.playerId, record.clientId, record.name, travel)
+    },
+
+    approveLockedTravelAsAsk(requestId, source) {
+      const pending = findPendingTravel(requestId)
+      if (pending === undefined) return { outbound: [] }
+      // A cena do pino é a de quem pediu, lida ANTES da aprovação: passar
+      // muda a cena dele para a de destino.
+      const world = toWorld(source)
+      const from = pending.trancada === true ? sceneFor(pending.playerId, world) : null
+      const result = api.approveTravel(requestId, source)
+      if (from === null || from.sceneId === null || result.applyTransfer === undefined) return result
+      const passage: AppliedPinPassage = { pinId: pending.pinId, passagem: 'pede' }
+      if (from.sceneId !== world.open.sceneId) passage.sceneId = from.sceneId
+      return { ...result, applyPinPassage: passage }
     },
 
     denyTravel(requestId, text) {

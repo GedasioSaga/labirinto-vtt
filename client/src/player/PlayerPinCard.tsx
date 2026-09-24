@@ -47,6 +47,14 @@ const TEXTOS_PEDE: TextosDaPassagem = {
   confirmar: 'Pedir',
 }
 
+/** Trancada que aceita tentativas: não é "passar", é pedir que o mestre abra. */
+const TEXTOS_TRANCADA: TextosDaPassagem = {
+  botao: 'Pedir ao mestre',
+  esperando: 'Pedido enviado ao mestre',
+  pergunta: 'Pedir ao mestre para abrir a passagem?',
+  confirmar: 'Pedir',
+}
+
 /** Livre: ninguém é interrompido, então o cartão não fala em mestre. */
 const TEXTOS_LIVRE: TextosDaPassagem = {
   botao: 'Passar',
@@ -127,12 +135,14 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // a passagem no lugar do glifo — a mesma cabeça que o jogador vê no mapa.
   // O nome da cena de destino nunca chega aqui (`lib/fogFilter.ts`).
   const viagem = pin.kind === 'viagem'
-  // O modo vem no recorte (o destino, não). Trancada não oferece botão nenhum:
-  // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
+  // O modo vem no recorte (o destino, não). Trancada MUDA não oferece botão
+  // nenhum: um "Pedir" que o host sempre recusa só ensinaria o jogador a
+  // insistir. Trancada que aceita tentativas oferece "Pedir ao mestre".
   const passagem = passageOf(pin)
   const trancada = viagem && passagem === 'trancada'
-  const podePedir = viagem && !trancada && onRequestTravel !== undefined
-  const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
+  const muda = trancada && pin.mudo === true
+  const podePedir = viagem && !muda && onRequestTravel !== undefined
+  const textos = passagem === 'livre' ? TEXTOS_LIVRE : trancada ? TEXTOS_TRANCADA : TEXTOS_PEDE
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
   // saída só (ou sem o campo), o cartão é o de sempre.
@@ -172,7 +182,8 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
             {descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao}
           </p>
         </div>
-        {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
+        {muda && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
+        {trancada && !muda && <p className="pp-pincard__locked">Está trancada. Só o mestre pode abrir.</p>}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}
