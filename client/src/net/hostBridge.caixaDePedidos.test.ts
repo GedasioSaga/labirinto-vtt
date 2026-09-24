@@ -28,7 +28,8 @@ function mesa() {
     destino: { sceneId, pinId },
   })
   const noSalao = (): Token[] =>
-    [ficha('ficha-ana', 'Ana', 200, 200), ficha('ficha-bruno', 'Bruno', 250, 200)].filter(
+    // Os dois encostados na escada (300, 200): pino só atravessa de perto.
+    [ficha('ficha-ana', 'Ana', 350, 200), ficha('ficha-bruno', 'Bruno', 250, 200)].filter(
       (t) => !estado.naCripta.has(t.id) && !(t.id === 'ficha-bruno' && estado.semBruno),
     )
   const world = (): HostWorld => ({

@@ -11,7 +11,7 @@
 import { act } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import type { Pin } from '../types/map'
+import type { Pin, Token } from '../types/map'
 
 type PlayerViewProps = Parameters<(typeof import('./PlayerView'))['PlayerView']>[0]
 
@@ -101,7 +101,9 @@ beforeAll(async () => {
   act(() => mestre().abre())
   act(() => {
     mestre().manda({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Ana' })
-    mestre().manda({ type: 'snapshot', rev: 1, map: { ...createEmptyMap('m1', '', 10, 10, 50), pins: [PORTA] }, vision: [], ownTokens: [], concealed: [] })
+    // A ficha da Ana encostada na porta: de longe o cartão não deixa pedir.
+    const ficha: Token = { id: 'heroi', characterId: null, name: 'Ana', x: 150, y: 100, size: 1, image: null }
+    mestre().manda({ type: 'snapshot', rev: 1, map: { ...createEmptyMap('m1', '', 10, 10, 50), pins: [PORTA], tokens: [ficha] }, vision: [], ownTokens: ['heroi'], concealed: [] })
   })
 })
 

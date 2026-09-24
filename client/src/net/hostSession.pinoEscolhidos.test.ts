@@ -26,7 +26,8 @@ const FACA: Pin = { id: 'faca', x: 300, y: 200, kind: 'exclamacao', description:
 function salao(): MapData {
   return {
     ...createEmptyMap('mapa-salao', 'Salão', 40, 10, 50),
-    tokens: [token('ficha-diego', 200, 200), token('ficha-carla', 250, 200)],
+    // Diego encostado no alçapão: pino só atravessa de perto.
+    tokens: [token('ficha-diego', 350, 200), token('ficha-carla', 250, 200)],
     pins: [FACA, { id: 'alcapao', x: 400, y: 200, kind: 'viagem', description: 'Alçapão', image: null, destino: { sceneId: CRIPTA, pinId: 'fundo' }, passagem: 'livre' }],
   }
 }

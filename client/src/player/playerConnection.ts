@@ -770,7 +770,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'pin.travel.rejected': {
         if (state.status !== 'playing') return
         const { reason } = data
-        if (reason !== 'unavailable' && reason !== 'pending' && reason !== 'too_soon') return
+        if (reason !== 'unavailable' && reason !== 'pending' && reason !== 'too_soon' && reason !== 'far') return
         showTravelAnswer({ id: nextNoticeId++, phase: 'rejected', reason })
         return
       }

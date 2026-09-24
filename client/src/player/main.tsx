@@ -22,6 +22,7 @@ import { LabyrinthMark } from '../components/icons'
 import type { SignalMark } from '../lib/signals'
 import type { RemoteLaser } from '../lib/laser'
 import { selectedTokenColor } from '../lib/tokenColor'
+import { tokenReachesPin } from '../lib/doorReach'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import './player.css'
 
@@ -67,6 +68,7 @@ function travelNoticeText(notice: TravelNotice): string {
     case 'rejected':
       if (notice.reason === 'pending') return 'Seu pedido anterior ainda espera o mestre'
       if (notice.reason === 'too_soon') return 'Espere um pouco antes de pedir de novo'
+      if (notice.reason === 'far') return 'Chegue mais perto da passagem'
       return 'Não dá para passar por aqui agora'
   }
 }
@@ -574,6 +576,13 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   }
 
   const openPin = openPinId === null ? null : (map?.pins ?? []).find((p) => p.id === openPinId) ?? null
+  // SÓ DE PERTO: a mesma conta do host (`tokenReachesPin`). Recalculada a cada
+  // snapshot: quando a ficha encosta, o botão do cartão aberto acende sozinho.
+  const openPinFar = useMemo(() => {
+    if (!map || openPin === null) return false
+    const owned = new Set(ownTokens)
+    return !map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, openPin, map.grid))
+  }, [map, openPin, ownTokens])
   // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
   // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
   const closePin = useCallback(() => setOpenPinId(null), [])
@@ -698,6 +707,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             pin={openPin}
             onClose={closePin}
             travelWaiting={state.travel?.phase === 'waiting'}
+            longe={openPinFar}
             onRequestTravel={(exitId) => {
               // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
               // e o mapa volta inteiro à vista enquanto o mestre decide.
