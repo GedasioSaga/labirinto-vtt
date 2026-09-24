@@ -25,7 +25,7 @@ import { passageOf } from '../lib/pins'
 import { carriedItemsOf, cleanItemName, itemOfPin } from '../lib/items'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
 import { LASER_SEND_INTERVAL_MS, LASER_TRAIL_MS, appendLaserPoints, pruneLaserTrail, type LaserTrail } from '../lib/laser'
-import { parseLaserMessage, parseSceneNote } from '../net/protocol'
+import { parseLaserMessage, parseSceneAlarm, parseSceneAlarmEnd, parseSceneNote } from '../net/protocol'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -92,6 +92,13 @@ export interface PlayerState {
    * tela o mostra como texto, nunca como HTML.
    */
   note?: { id: string; text: string }
+  /**
+   * ALARME do mestre para a cena do jogador (e outras junto). Diferente do
+   * recado, o jogador NÃO fecha: some só com `scene.alarm.end` do mesmo id,
+   * com a volta à espera ou ao reconectar (o host manda de novo se ainda valer).
+   * Texto puro, como o recado.
+   */
+  alarm?: { id: string; text: string }
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -675,6 +682,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearHazardNotice()
         setState({
           item: undefined,
+          // Sem cena, nenhum alarme de cena vale; o host manda de novo se ele voltar a uma.
+          alarm: undefined,
           status: 'waiting',
           map: undefined,
           vision: undefined,
@@ -730,6 +739,21 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const note = parseSceneNote(data)
         if (note === null) return
         setState({ note: { id: note.id, text: note.text } })
+        return
+      }
+      case 'scene.alarm': {
+        // Mesma regra do recado: fora do jogo não há tela onde o alarme fique.
+        if (state.status !== 'playing') return
+        const alarm = parseSceneAlarm(data)
+        if (alarm === null) return
+        setState({ alarm: { id: alarm.id, text: alarm.text } })
+        return
+      }
+      case 'scene.alarm.end': {
+        const end = parseSceneAlarmEnd(data)
+        // Fim de OUTRO alarme (atrasado, já substituído): o aberto fica.
+        if (end === null || state.alarm?.id !== end.id) return
+        setState({ alarm: undefined })
         return
       }
       case 'laser': {
@@ -1044,7 +1068,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, item: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined })
       open()
     },
     close: detach,

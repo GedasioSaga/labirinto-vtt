@@ -2,7 +2,7 @@ import type { DoorState, HazardKind, MapData, Pin, RegionPoint, Token, Wall } fr
 import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { allPlayerTokens, filterMapForGroup, filterMapForPlayer, playerBlockedRings, turnForPlayer, type GroupViewer } from '../lib/fogFilter'
+import { alarmForPlayer, allPlayerTokens, filterMapForGroup, filterMapForPlayer, playerBlockedRings, turnForPlayer, type GroupViewer, type SceneAlarm } from '../lib/fogFilter'
 import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokensOccupy } from '../lib/movementRules'
@@ -33,7 +33,7 @@ import {
   type TokenEditMessage,
   type TokenMoveMessage,
 } from './protocol'
-import { clampNoteText } from './protocol'
+import { clampAlarmText, clampNoteText } from './protocol'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -370,6 +370,19 @@ export interface HostSession {
    */
   sceneNote(sceneId: string, text: string, source: HostMapSource): HostResult
   /**
+   * ALARME PARA VÁRIAS CENAS: `scene.alarm` a quem joga e está AGORA numa das
+   * `sceneIds` (`sceneFor`), com o texto cortado no teto (`ALARM_MAX_LENGTH`).
+   * Diferente do recado, o alarme FICA: substitui o que estiver soando, segue
+   * quem entra numa dessas cenas depois (viagem, reconexão) e sai de quem
+   * deixa todas elas, até `endAlarm`. Texto vazio ou nenhuma cena existente:
+   * nada muda e nada sai.
+   */
+  sceneAlarm(sceneIds: readonly string[], text: string, source: HostMapSource): HostResult
+  /** Encerra o alarme: `scene.alarm.end` só a quem o mostra agora. Sem alarme, nada sai. */
+  endAlarm(source: HostMapSource): HostResult
+  /** O alarme soando, para o painel do mestre; `null` = nenhum. */
+  activeAlarm(): { id: string; text: string; sceneIds: string[] } | null
+  /**
    * "Deixar ir": revalida o pedido contra o mundo de AGORA (o token pode ter
    * andado, o pino sumido) e devolve `applyTransfer` + `scene.changed` ao
    * dono. Pedido que já não existe (jogador saiu, já decidido) não faz nada.
@@ -573,8 +586,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // broadcast, por cena (chave `sceneKey`). É daqui que sai "entrou agora".
   // Uma entrada por cena da aventura: não cresce além do número de cenas.
   const hazardSeen = new Map<string, Map<string, HazardEntry>>()
+  // ALARME PARA VÁRIAS CENAS: o alarme soando (no máximo um) e, por conexão,
+  // o id do alarme que aquela tela mostra agora. É por clientId de propósito:
+  // quem reconecta chega com tela limpa e precisa receber de novo.
+  let alarm: SceneAlarm | null = null
+  const alarmShown = new Map<string, string>()
 
-  const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
+  const radiusFor =(playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
 
   /** Polígonos das zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
   const statusOf = (playerId: string): PlayerStatus => ((ownership[playerId]?.length ?? 0) > 0 ? 'playing' : 'waiting')
@@ -705,6 +723,35 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const clientId = players.get(playerId)?.clientId ?? null // registro ausente = jogador expulso: não há a quem avisar
     if (!wasPlaying || statusOf(playerId) === 'playing' || clientId === null) return []
     return [{ clientId, msg: { type: 'lobby.waiting' } }]
+  }
+
+  /**
+   * ALARME: leva cada tela ao alarme que ela deve mostrar AGORA. O que ela
+   * deve mostrar sai do recorte (`alarmForPlayer`, pela cena da ficha dele);
+   * só a diferença viaja — alarme novo para quem não o tem, fim para quem o
+   * tem e não deve mais. Quem nunca recebeu não recebe nem o fim: saber que
+   * houve um alarme já contaria o que se passa em outra cena. Tela da mesa
+   * fica de fora (não é jogador). Chamado depois do snapshot: o aviso chega
+   * com o mapa já na tela.
+   */
+  const syncAlarms = (world: HostWorld): Outbound[] => {
+    // Conexão que caiu ou foi trocada no resume não recebe mais nada.
+    for (const clientId of [...alarmShown.keys()]) if (!byClient.has(clientId)) alarmShown.delete(clientId)
+    const outbound: Outbound[] = []
+    for (const [clientId, playerId] of byClient) {
+      const scene = statusOf(playerId) === 'playing' ? sceneFor(playerId, world) : null
+      const wanted = alarmForPlayer(alarm, scene?.sceneId ?? null)
+      const shown = alarmShown.get(clientId)
+      if (wanted !== null) {
+        if (wanted.id === shown) continue
+        alarmShown.set(clientId, wanted.id)
+        outbound.push({ clientId, msg: { type: 'scene.alarm', id: wanted.id, text: wanted.text } })
+      } else if (shown !== undefined) {
+        alarmShown.delete(clientId)
+        outbound.push({ clientId, msg: { type: 'scene.alarm.end', id: shown } })
+      }
+    }
+    return outbound
   }
 
   /**
@@ -852,7 +899,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
     const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken, name: record.name }
     const next: HostMessage = statusOf(record.playerId) === 'playing' ? viewFor(record.playerId, world) : { type: 'lobby.waiting' }
-    return { outbound: [{ clientId, msg: welcome }, { clientId, msg: next }] }
+    // Quem volta (resume) para uma cena com alarme o recebe de novo, depois do mapa.
+    return { outbound: [{ clientId, msg: welcome }, { clientId, msg: next }, ...syncAlarms(world)] }
   }
 
   /**
@@ -1605,6 +1653,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         const msg = tableView(world)
         for (const clientId of tableClients) outbound.push({ clientId, msg })
       }
+      // ALARME: quem chegou numa cena com alarme passa a ver; quem saiu de todas, o fim.
+      outbound.push(...syncAlarms(world))
       // ZONA DE PERIGO: o aviso vai DEPOIS do snapshot — a tela já desenha o
       // perigo quando o texto aparece.
       const hazards = hazardEntriesIn(world)
@@ -1660,6 +1710,28 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         outbound.push({ clientId, msg: { type: 'scene.note', id, text: clamped } })
       }
       return { outbound }
+    },
+
+    sceneAlarm(sceneIds, text, source) {
+      const clamped = clampAlarmText(text)
+      if (clamped.trim().length === 0) return { outbound: [] }
+      const world = toWorld(source)
+      // Só cenas que existem neste mundo, sem repetição, na ordem que o mestre deu.
+      const known = new Set(allScenes(world).flatMap((scene) => (scene.sceneId === null ? [] : [scene.sceneId])))
+      const chosen = [...new Set(sceneIds)].filter((sceneId) => known.has(sceneId))
+      if (chosen.length === 0) return { outbound: [] }
+      alarm = { id: randomId(), text: clamped, sceneIds: chosen }
+      return { outbound: syncAlarms(world) }
+    },
+
+    endAlarm(source) {
+      if (alarm === null) return { outbound: [] }
+      alarm = null
+      return { outbound: syncAlarms(toWorld(source)) }
+    },
+
+    activeAlarm() {
+      return alarm === null ? null : { id: alarm.id, text: alarm.text, sceneIds: [...alarm.sceneIds] }
     },
 
     listPlayers(source) {

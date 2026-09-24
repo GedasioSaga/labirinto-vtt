@@ -50,6 +50,7 @@ import {
   useAdventureStore,
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
+import type { ActiveAlarmView } from './components/SceneAlarmControls'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
 import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, IMAGEM_SUMIU_DO_ACERVO, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
@@ -416,6 +417,8 @@ function App() {
   const [tableScreens, setTableScreens] = useState(0)
   // A chave do link da TV, gerada pela sala: sem ela o código sozinho não vira tela.
   const [tableKey, setTableKey] = useState<string | null>(null)
+  // ALARME PARA VÁRIAS CENAS: o que está soando, para a seção Cenas mostrar e encerrar.
+  const [sceneAlarm, setSceneAlarm] = useState<ActiveAlarmView | null>(null)
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
   // INICIATIVA (aba Jogo): valores por cena e a vez. Estado da mesa, fora do arquivo do mapa.
@@ -557,6 +560,8 @@ function App() {
     // Sala nova nasce sem cena na TV: a sessão de agora morreu com a escolha.
     setTableScene(null)
     setTableKey(null)
+    // O alarme morreu com a sessão: sala nova começa sem alarme.
+    setSceneAlarm(null)
     useSignalStore.getState().clear()
     useLaserStore.getState().setToggled(false)
   }
@@ -1832,6 +1837,27 @@ function App() {
                 people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
                 onNote={room === null ? undefined : (sceneId, text) => hostBridgeRef.current?.sceneNote(sceneId, text) ?? null}
+                // Alarme para várias cenas, também só com a sala aberta.
+                alarm={room === null ? null : sceneAlarm}
+                onAlarm={
+                  room === null
+                    ? undefined
+                    : (sceneIds, text) => {
+                        const bridge = hostBridgeRef.current
+                        if (bridge === null) return null
+                        const sent = bridge.sceneAlarm(sceneIds, text)
+                        setSceneAlarm(bridge.activeAlarm())
+                        return sent
+                      }
+                }
+                onEndAlarm={
+                  room === null
+                    ? undefined
+                    : () => {
+                        hostBridgeRef.current?.endAlarm()
+                        setSceneAlarm(null)
+                      }
+                }
               />
             }
             mapName={map.name}

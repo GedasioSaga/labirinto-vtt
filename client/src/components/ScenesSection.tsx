@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { CollapsibleSection } from './CollapsibleSection'
+import { SceneAlarmControls, type ActiveAlarmView } from './SceneAlarmControls'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
 import { pendingRequestsLabel, type ScenePeople } from '../lib/party'
 import type { SceneListItem } from '../stores/adventureStore'
@@ -21,6 +22,16 @@ export interface ScenesSectionProps {
    * sala fechada: a linha fica sem o botão "Recado".
    */
   onNote?: (sceneId: string, text: string) => number | null
+  /**
+   * ALARME PARA VÁRIAS CENAS: soa `text` em todas as `sceneIds` de uma vez.
+   * Devolve quantos receberam agora, ou `null` se não deu. Ausente = sala
+   * fechada: a seção fica sem o "Alarme…".
+   */
+  onAlarm?: (sceneIds: string[], text: string) => number | null
+  /** Encerra o alarme soando. */
+  onEndAlarm?: () => void
+  /** O alarme soando; `null`/ausente = nenhum. */
+  alarm?: ActiveAlarmView | null
 }
 
 /** Quanto tempo o aviso "Recado enviado…" fica na linha da cena. */
@@ -134,7 +145,7 @@ function SceneGente({ people }: { people: ScenePeople }) {
  * inteiro — trocar de cena é um clique —, e a contagem de tokens fica FORA
  * dele, para o nome acessível do botão ser só o nome da cena.
  */
-export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote }: ScenesSectionProps) {
+export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote, onAlarm, onEndAlarm, alarm }: ScenesSectionProps) {
   const [editing, setEditing] = useState<Editing>(null)
   const [draft, setDraft] = useState('')
   /** Cena com o recado aberto; `null` = nenhum. */
@@ -301,6 +312,9 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
             </button>
           </div>
         </form>
+      )}
+      {onAlarm !== undefined && onEndAlarm !== undefined && (
+        <SceneAlarmControls scenes={scenes} alarm={alarm ?? null} onAlarm={onAlarm} onEndAlarm={onEndAlarm} />
       )}
     </CollapsibleSection>
   )
