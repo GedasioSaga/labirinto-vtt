@@ -26,6 +26,7 @@ import { TokenSizeControls, type TokenSizeControlsProps } from './TokenSizeContr
 import { selectedTokenSize } from '../lib/tokenSize'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { TokenLightsControls, type TokenLightsControlsProps } from './TokenLightsControls'
+import { TokenSeenBy, type TokenSeenByProps } from './TokenSeenBy'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
 import { RoomControls, type RoomControlsProps } from './RoomControls'
@@ -111,6 +112,8 @@ interface PropertiesPanelProps {
   /** Tocha presa (ou luz solta sob a ficha): o clique no mapa pega a ficha,
    *  então o caminho para a luz é pelo painel da ficha. */
   tokenLights: TokenLightsControlsProps
+  /** "Visto por" da ficha sem dono (`HostBridge.tokenSeenBy`). Ausente = sala fechada. */
+  tokenSeenBy?: Omit<TokenSeenByProps, 'tokenId'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -190,6 +193,7 @@ export function PropertiesPanel({
   tokenColor,
   tokenSize,
   tokenLights,
+  tokenSeenBy,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -414,6 +418,8 @@ export function PropertiesPanel({
         )}
         {selectedToken && (
           <ToolPropertiesSection group="tokenImage" groups={groups}>
+            {/* Primeiro: é a pergunta que o mestre faz em voz alta no meio da cena. */}
+            {tokenSeenBy && <TokenSeenBy tokenId={selectedToken.id} {...tokenSeenBy} />}
             <TokenNameControls key={selectedToken.id} name={selectedToken.name} publicName={selectedToken.publicName} {...tokenName} />
             {/* Logo depois do nome: quem acabou de criar "Dragão" quer dizer
                 em seguida que ele é grande — e o tamanho manda no que a peça
