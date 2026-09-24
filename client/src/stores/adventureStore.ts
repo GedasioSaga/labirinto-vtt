@@ -16,6 +16,7 @@ import {
   type Adventure,
   type SceneEntry,
 } from '../lib/adventure'
+import type { AgendaDaCampanha } from '../lib/agendaDaCampanha'
 import {
   addExit,
   arrivalPoint,
@@ -153,6 +154,12 @@ interface AdventureState {
    * existe) ou quando ela já estava lá.
    */
   moveScene: (sceneId: string, parentId: string | null) => boolean
+  /**
+   * AGENDA DA CAMPANHA: troca a agenda da aventura inteira (hora da mesa e
+   * eventos). Pede Salvar como o renomear, fora do desfazer da cena aberta.
+   * `false` no mapa solto: sem aventura não há onde guardar a agenda.
+   */
+  setAgenda: (agenda: AgendaDaCampanha) => boolean
   /**
    * Troca a cena aberta. `false` quando não há o que trocar (mesma cena, cena
    * indisponível). `focus` centraliza a câmera nesse ponto da cena que entra.
@@ -519,6 +526,13 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const scenes = nestScene(adventure.scenes, sceneId, parentId)
     if (scenes === null) return false
     set({ adventure: { ...adventure, scenes }, structureDirty: true })
+    return true
+  },
+
+  setAgenda: (agenda) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    set({ adventure: { ...adventure, agenda }, structureDirty: true })
     return true
   },
 

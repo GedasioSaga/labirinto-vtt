@@ -56,6 +56,7 @@ import {
   useAdventureStore,
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
+import { AgendaSection } from './components/AgendaSection'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { PlaceTreeSection } from './components/PlaceTreeSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
@@ -1821,6 +1822,20 @@ function App() {
     )
   }
 
+  // Alarme para várias cenas, só com a sala aberta: a seção Cenas soa pelo
+  // formulário e a Agenda soa quando um evento com alarme dispara.
+  const soarAlarme =
+    room === null
+      ? undefined
+      : (sceneIds: string[], text: string): number | null => {
+          const bridge = hostBridgeRef.current
+          if (bridge === null) return null
+          const sent = bridge.sceneAlarm(sceneIds, text)
+          setSceneAlarm(bridge.activeAlarm())
+          return sent
+        }
+  const scenesPanel = sceneList({ adventure, activeSceneId, cache: sceneCache }, map)
+
   return (
     <div className="lb-editor">
       {/* Os avisos vêm PRIMEIRO no DOM, antes do trilho. A posição na tela é do
@@ -1879,42 +1894,43 @@ function App() {
         {withRoomTabs(
           <PropertiesPanel
             scenes={
-              <ScenesSection
-                scenes={sceneList({ adventure, activeSceneId, cache: sceneCache }, map)}
-                onSelect={handleSelectScene}
-                onCreate={handleCreateScene}
-                onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
-                // Visão geral: a cena aberta pelo mapa vivo, as de fundo pelo cache (fichas de jogador que andam aparecem na hora).
-                maps={sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map)}
-                // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
-                people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
-                // Recado por cena só com a sala aberta: sem sala não há quem leia.
-                onNote={room === null ? undefined : (sceneId, text) => hostBridgeRef.current?.sceneNote(sceneId, text) ?? null}
-                // Cenas em pastas: só a lista do mestre muda (pede Salvar); o jogador não recebe nada.
-                onMove={adventure === null ? undefined : (sceneId, parentId) => useAdventureStore.getState().moveScene(sceneId, parentId)}
-                adventureId={adventure?.id ?? null}
-                // Alarme para várias cenas, também só com a sala aberta.
-                alarm={room === null ? null : sceneAlarm}
-                onAlarm={
-                  room === null
-                    ? undefined
-                    : (sceneIds, text) => {
-                        const bridge = hostBridgeRef.current
-                        if (bridge === null) return null
-                        const sent = bridge.sceneAlarm(sceneIds, text)
-                        setSceneAlarm(bridge.activeAlarm())
-                        return sent
-                      }
-                }
-                onEndAlarm={
-                  room === null
-                    ? undefined
-                    : () => {
-                        hostBridgeRef.current?.endAlarm()
-                        setSceneAlarm(null)
-                      }
-                }
-              />
+              <>
+                <ScenesSection
+                  scenes={scenesPanel}
+                  onSelect={handleSelectScene}
+                  onCreate={handleCreateScene}
+                  onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
+                  // Visão geral: a cena aberta pelo mapa vivo, as de fundo pelo cache (fichas de jogador que andam aparecem na hora).
+                  maps={sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map)}
+                  // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
+                  people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
+                  // Recado por cena só com a sala aberta: sem sala não há quem leia.
+                  onNote={room === null ? undefined : (sceneId, text) => hostBridgeRef.current?.sceneNote(sceneId, text) ?? null}
+                  // Cenas em pastas: só a lista do mestre muda (pede Salvar); o jogador não recebe nada.
+                  onMove={adventure === null ? undefined : (sceneId, parentId) => useAdventureStore.getState().moveScene(sceneId, parentId)}
+                  adventureId={adventure?.id ?? null}
+                  // Alarme para várias cenas, também só com a sala aberta.
+                  alarm={room === null ? null : sceneAlarm}
+                  onAlarm={soarAlarme}
+                  onEndAlarm={
+                    room === null
+                      ? undefined
+                      : () => {
+                          hostBridgeRef.current?.endAlarm()
+                          setSceneAlarm(null)
+                        }
+                  }
+                />
+                {/* Agenda da campanha: mora na aventura, então só aparece com ela; ao jogador só vai o alarme de um evento, no disparo. */}
+                {adventure !== null && (
+                  <AgendaSection
+                    agenda={adventure.agenda}
+                    onChange={(agenda) => useAdventureStore.getState().setAgenda(agenda)}
+                    cenas={scenesPanel}
+                    onAlarm={soarAlarme}
+                  />
+                )}
+              </>
             }
             objects={
               <>
