@@ -189,6 +189,11 @@ export function SceneAlarmControls({ scenes, alarm, onAlarm, onEndAlarm }: Scene
   }
 
   const names = alarm === null ? '' : scenes.filter((scene) => alarm.sceneIds.includes(scene.id)).map((scene) => scene.name).join(', ')
+  // Mapa solto (só a entrada de id '') ou nenhuma cena com arquivo: o formulário
+  // não teria o que escolher e o host recusaria. Some o "Alarme…", como o recado
+  // por cena some no mapa solto; um alarme já soando ainda pode ser encerrado.
+  const canAlarm = alarmableIds(scenes).length > 0
+  if (!canAlarm && alarm === null) return null
 
   return (
     <div className="lb-alarme">
@@ -202,24 +207,26 @@ export function SceneAlarmControls({ scenes, alarm, onAlarm, onEndAlarm }: Scene
           </button>
         </div>
       )}
-      <button
-        ref={openButtonRef}
-        type="button"
-        className="lb-btn lb-btn--block"
-        aria-expanded={open}
-        title="Aviso urgente para várias cenas: fica na tela dos jogadores até você encerrar"
-        onClick={() => {
-          if (open) {
-            close()
-            return
-          }
-          setFeedback(null)
-          setOpen(true)
-        }}
-      >
-        Alarme…
-      </button>
-      {open && <AlarmForm scenes={scenes} onSend={send} onCancel={close} />}
+      {canAlarm && (
+        <button
+          ref={openButtonRef}
+          type="button"
+          className="lb-btn lb-btn--block"
+          aria-expanded={open}
+          title="Aviso urgente para várias cenas: fica na tela dos jogadores até você encerrar"
+          onClick={() => {
+            if (open) {
+              close()
+              return
+            }
+            setFeedback(null)
+            setOpen(true)
+          }}
+        >
+          Alarme…
+        </button>
+      )}
+      {canAlarm && open && <AlarmForm scenes={scenes} onSend={send} onCancel={close} />}
       {feedback !== null && (
         <p className="lb-cenas__recado-aviso" role="status">
           {feedback}

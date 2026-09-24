@@ -69,6 +69,39 @@ describe('ScenesSection: "Alarme" para várias cenas', () => {
     expect(botao('Alarme…')).toBeUndefined()
   })
 
+  it('mapa solto (sem aventura) com a sala aberta: não há "Alarme" sem cena para escolher', () => {
+    // sceneList() devolve a entrada única de id '' quando não há aventura.
+    const solto: SceneListItem[] = [{ id: '', name: 'Mapa solto', active: true, available: true, renamable: false, tokenCount: 2 }]
+    act(() =>
+      root.render(<ScenesSection scenes={solto} onSelect={() => {}} onCreate={() => {}} onRename={() => {}} onAlarm={() => 1} onEndAlarm={() => {}} />),
+    )
+    expect(botao('Alarme…')).toBeUndefined()
+    expect(container.querySelector('.lb-alarme')).toBeNull()
+    // A seção continua lá: o resto dela não some junto.
+    expect(botao('+ Nova cena')?.textContent).toBe('+ Nova cena')
+  })
+
+  it('aventura sem nenhuma cena com arquivo: não há "Alarme", mas um alarme soando ainda se encerra', () => {
+    const semArquivo: SceneListItem[] = [{ id: 's-perdida', name: 'Sala Perdida', active: false, available: false, renamable: false, tokenCount: null }]
+    const onEndAlarm = vi.fn()
+    act(() =>
+      root.render(
+        <ScenesSection
+          scenes={semArquivo}
+          onSelect={() => {}}
+          onCreate={() => {}}
+          onRename={() => {}}
+          onAlarm={() => 1}
+          onEndAlarm={onEndAlarm}
+          alarm={{ text: 'Desabamento!', sceneIds: ['s-perdida'] }}
+        />,
+      ),
+    )
+    expect(botao('Alarme…')).toBeUndefined()
+    act(() => botao('Encerrar alarme')?.click())
+    expect(onEndAlarm).toHaveBeenCalledTimes(1)
+  })
+
   it('escolhe duas cenas, escreve e "Soar alarme" manda as duas de uma vez', () => {
     const onAlarm = vi.fn(() => 2)
     render({ onAlarm, onEndAlarm: () => {} })
