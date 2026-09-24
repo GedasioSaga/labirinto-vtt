@@ -99,9 +99,20 @@ export function drawCornerHandlesOnScreen(
   height: number,
   cameraScale: number,
 ): void {
-  const radius = cornerHandleRadius(width * cameraScale, height * cameraScale) / cameraScale
-  const keyline = CORNER_HANDLE_KEYLINE_WIDTH / cameraScale
+  const { radius, keyline } = cornerHandleExtent(width, height, cameraScale)
   for (const corner of corners) {
     drawCornerHandle(graphics, corner.x, corner.y, radius, keyline)
+  }
+}
+
+/** Tamanho do chip de canto em px de MUNDO, no zoom dado: `radius` é o meio-lado
+ *  do amarelo, `keyline` a faixa escura em volta. É a mesma conta do desenho
+ *  (`drawCornerHandlesOnScreen`) e do hit-test (`lib/handleHitArea.ts`): o que
+ *  aparece na tela é exatamente o que pega o clique. Zoom inválido vale 1. */
+export function cornerHandleExtent(width: number, height: number, cameraScale: number): { radius: number; keyline: number } {
+  const scale = Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1
+  return {
+    radius: cornerHandleRadius(width * scale, height * scale) / scale,
+    keyline: CORNER_HANDLE_KEYLINE_WIDTH / scale,
   }
 }

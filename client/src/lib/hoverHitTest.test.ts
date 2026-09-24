@@ -273,3 +273,38 @@ describe('resolveHoverHit — área selecionada (marquee)', () => {
     expect(result).toEqual({ kind: 'selectable', corner: null, target: { kind: 'token', id: 't1' } })
   })
 })
+
+// ALÇAS COM ZOOM: a alça tem tamanho fixo na TELA, e o hover tem de achar a
+// alça onde ela aparece — senão, com zoom abaixo de 1, o cursor de arrastar
+// aparece em cima do quadradinho amarelo do canto.
+describe('resolveHoverHit — área das alças acompanha o zoom', () => {
+  const pairar = (map: typeof baseMap, selection: { kind: 'token' | 'region'; id: string }, worldPoint: { x: number; y: number }, cameraScale: number) =>
+    resolveHoverHit({ map, selection, areaSelection: null, activeTool: 'select', worldPoint, cameraScale })
+
+  // Token 25..75 (grade 50). A 0,25 o chip tem 22 px de mundo de meio-lado.
+  const comToken = addToken(baseMap, buildToken('t1'))
+  const tokenSel = { kind: 'token' as const, id: 't1' }
+
+  it('zoom 0,25: pairar a 4 px de tela do canto, dentro do chip, promete redimensionar', () => {
+    expect(pairar(comToken, tokenSel, { x: 41, y: 41 }, 0.25)).toEqual({ kind: 'resize-corner', corner: 0, target: null })
+  })
+
+  it('zoom 0,25: o centro do Token continua prometendo arrastar', () => {
+    expect(pairar(comToken, tokenSel, { x: 50, y: 50 }, 0.25)).toEqual({ kind: 'selectable', corner: null, target: null })
+  })
+
+  it('zoom 0,5: a ponta diagonal do chip promete redimensionar', () => {
+    expect(pairar(comToken, tokenSel, { x: 37, y: 37 }, 0.5)).toEqual({ kind: 'resize-corner', corner: 0, target: null })
+    expect(pairar(comToken, tokenSel, { x: 39, y: 39 }, 0.5).kind).toBe('selectable')
+  })
+
+  it('zoom 0,25: vértice de região comum pega dentro da bolinha (14 px de mundo)', () => {
+    const map = addRegion(baseMap, buildSquareRegion('r1'))
+    expect(pairar(map, { kind: 'region', id: 'r1' }, { x: 12, y: 0 }, 0.25)).toEqual({ kind: 'vertex', corner: null, target: null })
+  })
+
+  it('zoom 0,25: canto de Sala pega a 7 px de tela', () => {
+    const map = addRegion(baseMap, buildSquareRegion('r1', { room: { shape: 'rect', name: 'Sala' } }))
+    expect(pairar(map, { kind: 'region', id: 'r1' }, { x: 20, y: 20 }, 0.25)).toEqual({ kind: 'resize-corner', corner: 0, target: null })
+  })
+})
