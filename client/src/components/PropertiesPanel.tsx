@@ -446,10 +446,12 @@ export function PropertiesPanel({
             {/* `tokenPhotoRef`: foto escolhida pelo JOGADOR vive em `imageData` — sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
             <TokenImageControls image={tokenPhotoRef(selectedToken)} {...tokenImage} />
             <TokenNpcControls npc={selectedToken.npc === true} {...tokenNpc} />
-            {/* `key`: outra ficha selecionada reabre fechado, sem a escolha da anterior. */}
+            {/* `key`: outra ficha selecionada reabre fechado, sem a escolha da anterior.
+                Prefixada: o nome acima já usa o id puro, e chave repetida entre
+                irmãos deixa o campo Nome da ficha anterior no painel. */}
             {tokenCarry !== undefined && (
               <TokenCarryControls
-                key={selectedToken.id}
+                key={`levar-${selectedToken.id}`}
                 tokenName={selectedToken.name}
                 destinations={tokenCarry.destinations}
                 owned={tokenCarry.ownedTokenIds.has(selectedToken.id)}

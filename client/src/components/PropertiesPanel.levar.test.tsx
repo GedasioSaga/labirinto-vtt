@@ -184,6 +184,17 @@ describe('"Levar para…" no painel de propriedades', () => {
     expect(container.textContent).not.toContain(CARRY_OWNED_HINT)
   })
 
+  it('trocar de ficha com "Levar para…" no painel deixa UM campo Nome, o da ficha nova', () => {
+    // O nome (nome público) e o "Levar para…" reabrem por ficha com `key`; a
+    // mesma chave nos dois irmãos deixava o campo Nome da ficha anterior no painel.
+    montarAventura()
+    renderPainel('zumbi', [])
+    renderPainel('diego', [])
+    const nomes = Array.from(container.querySelectorAll<HTMLInputElement>('#lb-token-name')).map((campo) => campo.value)
+    expect(nomes).toEqual(['ficha-diego'])
+    expect(botao(CARRY_TO_LABEL)).toBeDefined()
+  })
+
   it('mapa solto (sem aventura): o painel da ficha abre sem "Levar para…"', () => {
     useAdventureStore.getState().reset()
     useMapStore.getState().loadMap(createEmptyMap('m-solto', 'Casa', 20, 20, 64))
