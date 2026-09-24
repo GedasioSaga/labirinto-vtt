@@ -18,6 +18,7 @@ import { roomHasRoof } from './roomOps'
 import { hazardRooms, hazardsOf, visionRadiusAt, type PlayerHazard } from './hazards'
 import { caravanMembers, caravanPoint, caravanTokenFor, isWorldMap } from './caravan'
 import { triggersWithRegions, type PlayerAreaTrigger } from './areaTriggers'
+import { isDarkAt, periodOfHour, type PlayerClock } from './campaignClock'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -783,11 +784,14 @@ export function filterMapForGroup(
   // ele viaja só no `scene.changed` de quem chega (`net/hostSession.ts`).
   // MAPA POR ANDARES: o nome do prédio é do mestre; o rótulo do andar viaja à
   // parte (`snapshot.andares`), só quando o host decide que ele vale.
+  // RELÓGIO DA CAMPANHA: a marca "externa" também é do mestre; o jogador
+  // recebe só se a cena dele está escura, à parte (`clockForPlayer`).
   const {
     hazards: _masterHazards,
     gatilhos: _masterTriggers,
     textoChegada: _arrivalText,
     andar: _masterFloor,
+    externa: _masterOutdoor,
     ...mapWithoutHazards
   } = map
 
@@ -1029,6 +1033,18 @@ export function filterMapForHost(map: MapData): MapData {
 export function turnForPlayer(view: MapData, turn: TurnRef | null): string | null {
   if (turn === null || turn.mapId !== view.id) return null
   return view.tokens.some((t) => t.id === turn.tokenId) ? turn.tokenId : null
+}
+
+/**
+ * RELÓGIO DA CAMPANHA como o jogador pode recebê-lo: o PERÍODO (manhã, tarde,
+ * noite), nunca a hora exata, e `escuro` só quando a cena DELE (`map`, a cena
+ * da ficha dele) é externa e é noite. Sem relógio no mestre: `null`, e o campo
+ * nem sai.
+ */
+export function clockForPlayer(hour: number | null, map: Pick<MapData, 'externa'>): PlayerClock | null {
+  if (hour === null) return null
+  const periodo = periodOfHour(hour)
+  return isDarkAt(hour, map) ? { periodo, escuro: true } : { periodo }
 }
 
 /** ALARME PARA VÁRIAS CENAS como o host o guarda: o texto e as cenas escolhidas pelo mestre. */

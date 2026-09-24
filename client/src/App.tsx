@@ -17,6 +17,7 @@ import { useSignalStore } from './stores/signalStore'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { useFollowStore } from './stores/followStore'
 import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeStore'
+import { useClockStore } from './stores/clockStore'
 import { turnTokenIdOn } from './lib/initiative'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { useArrivalTextSettings } from './stores/useArrivalTextSettings'
@@ -347,6 +348,7 @@ function App() {
   const setMovementRules = useMapStore((state) => state.setMovementRules)
   const setWorldMap = useMapStore((state) => state.setWorldMap)
   const arrivalTextSettings = useArrivalTextSettings()
+  const setOutdoor = useMapStore((state) => state.setOutdoor)
   const setSceneFloor = useMapStore((state) => state.setSceneFloor)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
@@ -430,6 +432,7 @@ function App() {
   // INICIATIVA (aba Jogo): valores por cena e a vez. Estado da mesa, fora do arquivo do mapa.
   const initiativeValues = useInitiativeStore((state) => state.values)
   const initiativeTurn = useInitiativeStore((state) => state.turn)
+  const clockHour = useClockStore((state) => state.hour)
   const hostBridgeRef = useRef<HostBridge | null>(null)
   const hostBridge = (): HostBridge => {
     if (!hostBridgeRef.current) {
@@ -522,6 +525,8 @@ function App() {
         onTunnelChange: setTunnel,
         // A vez vai no snapshot, recortada por jogador (`turnForPlayer`): ficha que ele não vê não vira vez.
         getTurn: () => useInitiativeStore.getState().turn,
+        // O relógio vai no snapshot recortado (`clockForPlayer`): só o período, nunca a hora.
+        getClock: () => useClockStore.getState().hour,
         onTableScreensChange: setTableScreens,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
         // G6 — sinal de cena de FUNDO não vira ping aqui (as coordenadas são de
@@ -551,6 +556,14 @@ function App() {
     () =>
       useInitiativeStore.subscribe((state, previous) => {
         if (state.turn !== previous.turn) hostBridgeRef.current?.notifyTurnChanged()
+      }),
+    [],
+  )
+  // O relógio andou: o período e a visão da noite chegam na hora, sem esperar outra edição.
+  useEffect(
+    () =>
+      useClockStore.subscribe((state, previous) => {
+        if (state.hour !== previous.hour) hostBridgeRef.current?.notifyClockChanged()
       }),
     [],
   )
@@ -640,6 +653,13 @@ function App() {
               onStart: () => startTurn(map.id, map.tokens),
               onNext: () => advanceTurn(map.id, map.tokens),
               onStop: () => useInitiativeStore.getState().stop(),
+            }}
+            clock={{
+              hour: clockHour,
+              outdoor: map.externa === true,
+              onAdvanceHour: () => useClockStore.getState().advanceHour(),
+              onNextPeriod: () => useClockStore.getState().nextPeriod(),
+              onOutdoorChange: setOutdoor,
             }}
             tunnel={tunnel}
             onStart={() => void handleStartRoom()}

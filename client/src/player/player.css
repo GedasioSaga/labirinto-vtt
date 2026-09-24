@@ -518,6 +518,35 @@
 }
 
 /*
+ * RELÓGIO DA CAMPANHA: a hora aproximada num selo pequeno no canto de baixo à
+ * direita, longe do painel, da vez, das abas de andar e dos avisos (centro).
+ * Não recebe toque: o mapa por baixo continua arrastável. "Pouca luz" troca o
+ * contorno por um azul frio e apagado, sem cor nova no mapa.
+ */
+.pp-clock {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 10;
+  margin: 0;
+  padding: 4px 12px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.pp-clock--escuro {
+  color: rgba(236, 234, 228, 0.78);
+  border-color: rgba(120, 150, 200, 0.55);
+}
+
+/*
  * MAPA POR ANDARES: abas 1F/2F/B1 no canto de cima à direita, longe do painel
  * (esquerda) e da faixa da vez (centro). Retângulos pequenos, como o seletor
  * de andar do minimapa: a aba do andar onde a ficha está leva a marca azul.

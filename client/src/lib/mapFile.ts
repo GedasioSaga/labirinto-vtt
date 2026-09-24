@@ -254,6 +254,8 @@ function deserializeMapFields(json: string): MapData {
     // TEXTO DE CHEGADA: campo NOVO e OPCIONAL. Texto vazio ou o que não é
     // texto (editado à mão) abre sem o campo — ver `readArrivalText`.
     ...arrivalTextField(parsed.textoChegada),
+    // RELÓGIO DA CAMPANHA: campo NOVO e OPCIONAL, mesmo padrão de `worldMap`.
+    ...(parsed.externa === true ? { externa: true } : {}),
     // MAPA POR ANDARES: campo NOVO e OPCIONAL. Forma torta abre como cena comum — ver `readSceneFloor`.
     ...sceneFloorField(parsed.andar),
   }

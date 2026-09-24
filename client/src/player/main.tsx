@@ -11,6 +11,7 @@ import { PlayerPinCard } from './PlayerPinCard'
 import { ARRIVAL_CARD_TITLE, PlayerNoteCard } from './PlayerNoteCard'
 import { PlayerAlarmBanner } from './PlayerAlarmBanner'
 import { PlayerTurnBanner, TurnWaitNotice } from './PlayerTurnBanner'
+import { PlayerClockBadge } from './PlayerClockBadge'
 import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
@@ -652,6 +653,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           backpack={{ ...backpack, onGive: (itemId, toTokenId) => void connection.giveItem(itemId, toTokenId) }}
         />
         <PlayerTurnBanner turn={state.turn} ownTokens={ownTokens} tokens={state.map.tokens} />
+        <PlayerClockBadge relogio={state.relogio} />
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha
             sozinho em vez de mostrar um texto que o jogador não pode mais ver. */}

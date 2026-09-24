@@ -1034,6 +1034,13 @@ export interface MapData {
    */
   textoChegada?: string
   /**
+   * RELÓGIO DA CAMPANHA: cena ao ar livre, que escurece à noite (a visão dos
+   * jogadores cai — `lib/campaignClock.ts`). Só `true` vale; ausente = cena
+   * interna, sem linha de migração. NUNCA sai dentro do mapa do jogador: ele
+   * recebe só se está escuro, à parte (`clockForPlayer`).
+   */
+  externa?: true
+  /**
    * MAPA POR ANDARES: esta cena é um andar de um prédio. Cenas com o mesmo
    * `predio` são andares do mesmo prédio, e o jogador ganha uma aba por andar
    * onde já esteve (`lib/buildingFloors.ts`). Ausente = cena comum, sem linha
