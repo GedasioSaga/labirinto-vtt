@@ -15,6 +15,8 @@ import { PlayerNoteCard } from './PlayerNoteCard'
 import { PlayerClueCard } from './PlayerClues'
 import { coverBounds } from './playerCamera'
 import { PlayerZoomControls } from './PlayerZoomControls'
+import { PlayerWhereAmI } from './PlayerWhereAmI'
+import { whereAmI } from './whereAmI'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
@@ -581,6 +583,12 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
     return (token === undefined ? null : selectedTokenColor(token)) ?? OWN_TOKEN_CSS
   }, [map, ownTokens])
 
+  // FAIXA "ONDE ESTOU": o caminho da Sala da ficha em foco, lido do mapa que
+  // já chegou (o recorte decide o que ela pode dizer). Recalcula a cada
+  // snapshot, não a cada quadro do arrasto: o arrasto é local ao `PlayerView`.
+  const where = useMemo(() => (map ? whereAmI(map, ownTokens, focus.tokenId) : null), [map, ownTokens, focus.tokenId])
+  const focusToken = useCallback((tokenId: string) => setFocus((current) => ({ tokenId, seq: current.seq + 1 })), [])
+
   function changeSettings(next: PlayerViewSettings) {
     setSettings(next)
     savePlayerSettings(localStorageOrNull(), next)
@@ -678,7 +686,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           characterColor={OWN_TOKEN_CSS}
           settings={settings}
           onSettingsChange={changeSettings}
-          onFocusToken={(tokenId) => setFocus((current) => ({ tokenId, seq: current.seq + 1 }))}
+          onFocusToken={focusToken}
           signalArmed={signalArmed}
           onToggleSignal={() => {
             // Sinalizar, Medir e Laser disputam o mesmo toque no mapa: ligar um desliga os outros.
@@ -714,7 +722,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             setOpenClueId(clueId)
           }}
         />
-        {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
+        {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, faixa no alto à direita, zoom embaixo à direita). */}
+        <PlayerWhereAmI where={where} showTokenName={ownTokens.length > 1} onFocus={focusToken} />
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token
             andou, o mestre escondeu): sem pino no mapa novo, o cartão fecha

@@ -1515,3 +1515,115 @@
     transition: none;
   }
 }
+
+/* =============================================== faixa "Onde estou" */
+
+/*
+ * FAIXA "ONDE ESTOU" (`PlayerWhereAmI`): prédio › piso › cômodo da Sala onde
+ * está a ficha. Selo fixo no ALTO à DIREITA — o alto à esquerda é da barra, o
+ * meio do alto é do recado, e embaixo moram os avisos e o zoom. Linguagem de
+ * minimapa: pedra chapada, filete claro fino, sem textura. Abaixo do painel
+ * (z 10) e dos cartões: é informação, nunca tapa o que o jogador abriu.
+ * O cômodo nunca encolhe; quem cede largura são as salas de fora (reticências).
+ */
+.pp-where {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 9;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(420px, calc(100% - 24px));
+  min-height: 36px;
+  margin: 0;
+  padding: 6px 12px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: left;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  background: var(--lb-color-stone, #131317);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  border-radius: 999px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+.pp-where__who {
+  flex: none;
+  padding-right: 6px;
+  margin-right: 2px;
+  font-weight: 600;
+  color: var(--lb-color-brass-bright, #f3ba66);
+  border-right: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+}
+
+/* As salas de fora encolhem com reticências; o separador e o cômodo não. */
+.pp-where__step {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pp-where__step--here {
+  flex: none;
+  max-width: 100%;
+  font-weight: 600;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.pp-where__step--outside {
+  font-weight: 400;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pp-where__sep {
+  flex: none;
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+@media (hover: hover) {
+  .pp-where:hover {
+    background-color: var(--lb-color-stone-raised, #232328);
+  }
+}
+
+/* O dedo pegou: afunda na hora e volta em 110 ms, como os botões da barra. */
+.pp-where:active {
+  transform: scale(0.97);
+  transition-duration: 0ms;
+}
+
+.pp-where:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+/* Celular: o alto à direita é estreito ao lado da barra; a faixa desce para
+   baixo dela e usa a largura toda. A gaveta do painel, aberta, passa por cima. */
+@media (max-width: 699px) {
+  .pp-where {
+    top: calc(12px + 1px + 12px + 44px + 8px);
+    left: 12px;
+    right: auto;
+    max-width: calc(100% - 24px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-where {
+    transition: none;
+  }
+
+  .pp-where:active {
+    transform: none;
+  }
+}
