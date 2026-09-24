@@ -32,14 +32,15 @@ describe('RoomPanel', () => {
     expect(closed).not.toContain('>Laser<')
   })
 
-  it('B3: card do jogador tem slider de raio com o valor efetivo, Revelar planta e Esconder de novo', () => {
+  it('B3: quem aguarda tem o raio de visão à vista com o valor efetivo; planta e dica só no "Mais"', () => {
     const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={[player({ visionRadius: 350 })]} tokens={TOKENS} tunnel={IDLE} {...handlers} />)
     expect(html).toMatch(/<label class="lb-label" for="lb-room-vision-p1">Raio de visão<\/label>/)
     expect(html).toContain('350 px')
     expect(html).toMatch(/<input id="lb-room-vision-p1" class="lb-range" type="range" min="50" max="2000" step="50" value="350"\/>/)
-    expect(html).toContain('>Revelar planta</button>')
-    expect(html).toContain('>Esconder de novo</button>')
-    expect(html).toContain(PLAN_HINT)
+    // Revelar planta, Esconder de novo e a dica abrem no "Mais" (RoomPanel.compacta.test.tsx): fechado, nada disso.
+    expect(html).toMatch(/<button[^>]*aria-label="Mais de Ana"[^>]*aria-expanded="false"/)
+    expect(html).not.toContain('>Revelar planta</button>')
+    expect(html).not.toContain(PLAN_HINT)
   })
 
   it('"Remover …" dá o nome da ficha que está numa cena de FUNDO (quem viajou), não o id', () => {
@@ -89,16 +90,18 @@ describe('RoomPanel', () => {
     expect(html).toContain(FIREWALL_HINT)
   })
 
-  it('com sala mostra código, URLs, QR e jogadores; desconectado não tem Expulsar', () => {
+  it('com sala mostra código, URLs, QR e jogadores; Expulsar só dentro do "Mais"', () => {
     const players = [player(), player({ playerId: 'p2', clientId: null, name: 'Bia', connected: false, tokenIds: ['t2'] })]
     const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={players} tokens={TOKENS} tunnel={IDLE} {...handlers} />)
     expect(html).toContain('Fechar sala')
     expect(html).toContain('AB12CD')
     expect(html).toContain('http://10.0.0.2:7777')
     expect(html).toContain('alt="QR da sala"')
-    expect(html).toContain('Bia — aguardando · desconectado')
-    expect(html).toContain('Remover Ladino')
-    expect(html.match(/Expulsar/g)).toHaveLength(1)
+    // "Bia — aguardando · desconectado": o nome à vista, o status inteiro para o leitor de tela.
+    expect(html).toMatch(/>Bia<\/strong><span class="lb-sr-only"> — aguardando · desconectado<\/span>/)
+    expect(html).toContain('aria-label="Remover Ladino"')
+    // Quem caiu (Bia) não tem Expulsar nem com o "Mais" aberto: RoomPanel.compacta.test.tsx.
+    expect(html).not.toMatch(/>Expulsar<\/button>/)
   })
 
   it('idle: botão Tornar pública habilitado e dica do firewall rotulada como rede local', () => {

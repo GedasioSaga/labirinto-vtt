@@ -123,7 +123,7 @@ export interface TokenCarryWiring {
 }
 
 /** Status da linha em uma palavra: é o que o mestre lê de relance. */
-export function partyPresenceLabel(member: PartyMember): string {
+export function partyPresenceLabel(member: Pick<PartyMember, 'connected'>): string {
   return member.connected ? 'online' : 'fora'
 }
 

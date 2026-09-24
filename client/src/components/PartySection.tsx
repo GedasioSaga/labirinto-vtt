@@ -1,5 +1,5 @@
-import { useId, useRef, useState } from 'react'
-import { partyPresenceLabel, type PartyDestination, type PartyMember } from '../lib/party'
+import { useRef, useState } from 'react'
+import type { PartyDestination, PartyMember } from '../lib/party'
 import { SceneSendForm } from './SceneSendForm'
 
 export interface PartySectionProps {
@@ -30,20 +30,14 @@ export function sendDestinationsFor(member: PartyMember, destinations: PartyDest
 }
 
 /**
- * "Grupo", no alto da aba Jogo: onde está cada jogador, de relance, e as duas
- * ações de quem conduz uma mesa espalhada — ir ver ("Ir lá") e trazer ou
- * levar alguém ("Mandar para…"). A bolinha é a cor do disco da ficha: é a
- * mesma peça que o mestre procura no mapa.
+ * O "Mandar para…" do Grupo: um formulário por vez, e o foco volta ao botão
+ * que o abriu ao mandar ou cancelar (quem abriu pode ter saído da lista).
  */
-export function PartySection({ members, destinations, onGoTo, onSend, followingId = null, onToggleFollow }: PartySectionProps) {
-  const headingId = useId()
-  const formId = useId()
+export function usePartySend() {
   const [sendingId, setSendingId] = useState<string | null>(null)
-  /** Quem abriu o envio: o foco volta para ele ao mandar ou cancelar. */
   const openerRef = useRef<HTMLElement | null>(null)
-  const sending = members.find((member) => member.playerId === sendingId)
 
-  const closeSend = () => {
+  const close = () => {
     setSendingId(null)
     const opener = openerRef.current
     openerRef.current = null
@@ -52,84 +46,88 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
     })
   }
 
+  const toggle = (playerId: string, opener: HTMLElement) => {
+    if (sendingId === playerId) {
+      close()
+      return
+    }
+    openerRef.current = opener
+    setSendingId(playerId)
+  }
+
+  return { sendingId, toggle, close }
+}
+
+interface PartyActionsProps {
+  member: PartyMember
+  party: PartySectionProps
+  sendOpen: boolean
+  sendFormId: string
+  onToggleSend(opener: HTMLElement): void
+}
+
+/**
+ * As ações de mesa de uma linha do Grupo: ir ver ("Ir lá"), a câmera
+ * acompanhar ("Seguir") e trazer ou levar o jogador ("Mandar para…"). São
+ * as que o mestre usa a cada cena: ficam sempre à vista, nunca no "Mais".
+ */
+export function PartyActions({ member, party, sendOpen, sendFormId, onToggleSend }: PartyActionsProps) {
+  const { onGoTo, onToggleFollow, followingId = null } = party
+  const targets = sendDestinationsFor(member, party.destinations)
+  const following = member.playerId === followingId
   return (
-    <section className="lb-party" aria-labelledby={headingId}>
-      <h3 id={headingId} className="lb-eyebrow">
-        Grupo
-      </h3>
-      <ul className="lb-party__list">
-        {members.map((member) => {
-          const targets = member.token === null ? [] : sendDestinationsFor(member, destinations)
-          const open = member.playerId === sendingId
-          return (
-            <li key={member.playerId} className="lb-party__item">
-              <div className="lb-party__who">
-                {/* Sem ficha, sem cor: a bolinha vazia diz "não está no mapa". */}
-                <span
-                  className="lb-party__dot"
-                  aria-hidden="true"
-                  style={member.token === null ? undefined : { background: member.token.color }}
-                />
-                {/* Os espaços são do texto: sem eles o leitor de tela lê "Anaonline". */}
-                <strong className="lb-party__name">{member.name}</strong>{' '}
-                <span className={`lb-party__presence${member.connected ? ' lb-party__presence--on' : ''}`}>{partyPresenceLabel(member)}</span>
-              </div>{' '}
-              <span className="lb-party__where">{member.token === null ? 'sem ficha no mapa' : (member.sceneName ?? 'no mapa aberto')}</span>
-              {member.token !== null && (
-                <div className="lb-party__actions">
-                  <button type="button" className="lb-btn" onClick={() => onGoTo(member)}>
-                    Ir lá
-                  </button>
-                  {onToggleFollow !== undefined && (
-                    // Ligado ganha o destaque do "Laser" da mesma aba: um botão de modo, não uma ação de uma vez.
-                    <button
-                      type="button"
-                      className={member.playerId === followingId ? 'lb-btn lb-btn--primary' : 'lb-btn'}
-                      aria-pressed={member.playerId === followingId}
-                      onClick={() => onToggleFollow(member)}
-                    >
-                      {FOLLOW_LABEL}
-                    </button>
-                  )}
-                  {targets.length > 0 && (
-                    <button
-                      type="button"
-                      className="lb-btn"
-                      aria-expanded={open}
-                      aria-controls={open ? formId : undefined}
-                      onClick={(event) => {
-                        if (open) {
-                          closeSend()
-                          return
-                        }
-                        openerRef.current = event.currentTarget
-                        setSendingId(member.playerId)
-                      }}
-                    >
-                      {SEND_TO_LABEL}
-                    </button>
-                  )}
-                </div>
-              )}
-            </li>
-          )
-        })}
-      </ul>
-      {sending !== undefined && sending.token !== null && (
-        <div id={formId}>
-          {/* `key`: trocar de jogador reabre o formulário do zero, sem a escolha do anterior. */}
-          <SceneSendForm
-            key={sending.playerId}
-            title={`Mandar ${sending.name} para…`}
-            ariaLabel={`Mandar ${sending.name} para outra cena`}
-            submitLabel="Mandar"
-            failedText={PARTY_SEND_FAILED}
-            destinations={sendDestinationsFor(sending, destinations)}
-            onSend={(sceneId, pinId) => onSend(sending.playerId, sceneId, pinId)}
-            onClose={closeSend}
-          />
-        </div>
+    <div className="lb-player__actions">
+      <button type="button" className="lb-btn lb-btn--compact" onClick={() => onGoTo(member)}>
+        Ir lá
+      </button>
+      {onToggleFollow !== undefined && (
+        // Ligado ganha o destaque do "Laser" da mesma aba: um botão de modo, não uma ação de uma vez.
+        <button
+          type="button"
+          className={following ? 'lb-btn lb-btn--compact lb-btn--primary' : 'lb-btn lb-btn--compact'}
+          aria-pressed={following}
+          onClick={() => onToggleFollow(member)}
+        >
+          {FOLLOW_LABEL}
+        </button>
       )}
-    </section>
+      {targets.length > 0 && (
+        <button
+          type="button"
+          className="lb-btn lb-btn--compact"
+          aria-expanded={sendOpen}
+          aria-controls={sendOpen ? sendFormId : undefined}
+          onClick={(event) => onToggleSend(event.currentTarget)}
+        >
+          {SEND_TO_LABEL}
+        </button>
+      )}
+    </div>
+  )
+}
+
+interface PartySendFormProps {
+  member: PartyMember
+  party: PartySectionProps
+  formId: string
+  onClose(): void
+}
+
+/** O formulário do "Mandar para…" de um jogador, logo abaixo da lista do Grupo. */
+export function PartySendForm({ member, party, formId, onClose }: PartySendFormProps) {
+  return (
+    <div id={formId}>
+      {/* `key`: trocar de jogador reabre o formulário do zero, sem a escolha do anterior. */}
+      <SceneSendForm
+        key={member.playerId}
+        title={`Mandar ${member.name} para…`}
+        ariaLabel={`Mandar ${member.name} para outra cena`}
+        submitLabel="Mandar"
+        failedText={PARTY_SEND_FAILED}
+        destinations={sendDestinationsFor(member, party.destinations)}
+        onSend={(sceneId, pinId) => party.onSend(member.playerId, sceneId, pinId)}
+        onClose={onClose}
+      />
+    </div>
   )
 }
