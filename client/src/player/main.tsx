@@ -29,6 +29,8 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { findKnownPath } from '../lib/knownPath'
 import { PlayerPointMenu } from './PlayerPointMenu'
+import type { Pin } from '../types/map'
+import { loadPlaceNames, savePlaceName, withPlaceName, type VisitedPlace } from './playerPlaces'
 import { PersonalNoteDraft } from './PlayerPersonalNotes'
 import {
   addPersonalNote,
@@ -58,6 +60,8 @@ const NO_PLAYER_LASERS: RemoteLaser[] = []
 const NO_NOTES: NoteEntry[] = []
 const NO_CLUES: ClueEntry[] = []
 const NO_DICE_ROLLS: DiceRollEntry[] = []
+const NO_PINS: Pin[] = []
+const NO_PLACES: VisitedPlace[] = []
 /** Fechar o recado não perde nada: quem fecha sabe onde reler. */
 const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
 
@@ -525,6 +529,23 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(localStorageOrNull()))
   const [focus, setFocus] = useState<{ tokenId: string | null; seq: number }>({ tokenId: null, seq: 0 })
+  /** LUGARES: os nomes que o jogador deu, por lugar. Só nesta tela (nunca vão ao mestre). */
+  const [placeNames, setPlaceNames] = useState<Record<string, string>>({})
+  const playerId = state.playerId
+  useEffect(() => {
+    // Por jogador: o id de lugar é um contador do host, e outra sala recomeçaria do "l1".
+    setPlaceNames(playerId === undefined ? {} : loadPlaceNames(localStorageOrNull(), playerId))
+  }, [playerId])
+  const renamePlace = useCallback(
+    (placeId: string, name: string) => {
+      if (playerId === undefined) return
+      // O estado manda na tela; o armazenamento é só persistência. Reler dele
+      // perderia o nome quando ele está cheio ou bloqueado.
+      setPlaceNames((names) => withPlaceName(names, placeId, name))
+      savePlaceName(localStorageOrNull(), playerId, placeId, name)
+    },
+    [playerId],
+  )
   const [signalArmed, setSignalArmed] = useState(false)
   /** "Marcar destino" ligado: o próximo toque no mapa põe a marca "vamos para cá". */
   const [destinationArmed, setDestinationArmed] = useState(false)
@@ -548,7 +569,15 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const [noteArmed, setNoteArmed] = useState(false)
   /** Ponto já tocado, esperando o texto no cartão; `null` = cartão fechado. */
   const [noteDraft, setNoteDraft] = useState<{ mapId: string; x: number; y: number } | null>(null)
-  const [noteFocus, setNoteFocus] = useState<FocusPointRequest | null>(null)
+  /**
+   * Pedido de câmera para um PONTO: uma nota de "Minhas notas" ou um ponto conhecido da aba Lugares.
+   * Um só estado para os dois: a PlayerView tem um `focusPoint` só, e o `seq` que cresce junto garante
+   * que o toque mais novo, de qualquer um dos dois, é o que move a câmera.
+   */
+  const [pointFocus, setPointFocus] = useState<FocusPointRequest | null>(null)
+  const focusOnPoint = useCallback((x: number, y: number) => {
+    setPointFocus((current) => ({ x, y, seq: (current?.seq ?? 0) + 1 }))
+  }, [])
   const changePersonalNotes = useCallback((change: (notes: readonly PersonalNote[]) => readonly PersonalNote[]) => {
     setPersonalNotes((current) => {
       const next = change(current)
@@ -745,7 +774,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             setNoteArmed(false)
             setNoteDraft({ mapId: playingMap.id, x, y })
           }}
-          focusPoint={noteFocus}
+          focusPoint={pointFocus}
           zoomStep={zoomStep}
           onZoomLimitsChange={setZoomLimits}
         />
@@ -757,6 +786,12 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           settings={settings}
           onSettingsChange={changeSettings}
           onFocusToken={(tokenId) => setFocus((current) => ({ tokenId, seq: current.seq + 1 }))}
+          onFocusPoint={(point) => focusOnPoint(point.x, point.y)}
+          pins={state.map.pins ?? NO_PINS}
+          places={state.places ?? NO_PLACES}
+          currentPlace={state.place}
+          placeNames={placeNames}
+          onRenamePlace={renamePlace}
           signalArmed={signalArmed}
           onToggleSignal={() => {
             // Sinalizar, Medir e Laser disputam o mesmo toque no mapa: ligar um desliga os outros.
@@ -801,7 +836,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           personalNotes={sceneNotes}
           onFocusNote={(noteId) => {
             const note = sceneNotes.find((n) => n.id === noteId)
-            if (note !== undefined) setNoteFocus((current) => ({ x: note.x, y: note.y, seq: (current?.seq ?? 0) + 1 }))
+            if (note !== undefined) focusOnPoint(note.x, note.y)
           }}
           onRemoveNote={removeNote}
           hasDestination={(state.destinations ?? NO_DESTINATIONS).some((mark) => mark.mine)}

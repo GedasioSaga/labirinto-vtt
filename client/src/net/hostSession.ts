@@ -429,6 +429,13 @@ interface PlayerMemory {
   doors: Map<string, DoorState>
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
+  /**
+   * LUGARES: o id desta memória que vai ao jogador (`snapshot.place`). Nasce
+   * com a memória e morre com ela ("Esconder planta", teto de cenas, kick):
+   * memória nova é lugar novo. É um contador DO JOGADOR, nunca o id nem o nome
+   * da cena: o mesmo id em dois jogadores não diz que eles estão no mesmo lugar.
+   */
+  place: string
 }
 
 /** Chave de comparação do nome: sem maiúsculas e sem espaços. */
@@ -459,6 +466,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // a primeira é a menos recente, a que sai quando passa do teto.
   // `doors`: último estado de cada porta que o jogador VIU (por id da parede).
   const memories = new Map<string, Map<string, PlayerMemory>>()
+  // LUGARES — por playerId: quantas memórias de cena ele já teve. Dá o id da
+  // próxima (`PlayerMemory.place`) sem nunca repetir um que ele já viu. Um
+  // contador e não `randomId`: o id só precisa não dizer nada da cena, e o
+  // contador de UM jogador só conta o que ele mesmo visitou. Só o kick apaga.
+  const placeCounters = new Map<string, number>()
   // Por playerId: a cena em que o jogador foi visto por último. Desempata
   // quando ele tem token em mais de uma cena — sem isto, o mestre trocar a
   // cena do editor mudaria a cena do jogador junto.
@@ -535,6 +547,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return memory !== undefined && memory.key === memoryKey(map) ? memory : undefined
   }
 
+  const nextPlaceId = (playerId: string): string => {
+    const n = (placeCounters.get(playerId) ?? 0) + 1
+    placeCounters.set(playerId, n)
+    return `l${n}`
+  }
+
+  /** LUGARES: os ids das memórias que o jogador ainda tem, da usada há mais tempo à de agora. */
+  const rememberedPlaces = (playerId: string): string[] => [...(memories.get(playerId)?.values() ?? [])].map((memory) => memory.place)
+
   /**
    * Memória do jogador para este mapa. Cada cena tem a sua: ir à Cripta e
    * voltar ao Salão devolve o Salão como ele o deixou. Mapa novo (ou mesmo id
@@ -554,6 +575,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       exp: createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }),
       doors: new Map(),
       vision: [],
+      place: nextPlaceId(playerId),
     }
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
     byScene.delete(map.id)
@@ -732,7 +754,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
     // Sem nome público o campo nem existe: `sceneName: undefined` no JSON sumiria, mas no objeto não.
     const where = sceneName === undefined ? {} : { sceneName }
-    const snapshot: HostMessage = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed, ...where }
+    // LUGARES: o id desta memória e a lista das que ele ainda tem. Nada da cena
+    // vai junto — nem id, nem nome —, só o contador dele.
+    const snapshot: HostMessage = {
+      type: 'snapshot',
+      rev,
+      map: view.map,
+      vision: view.vision,
+      explored: encodeExploration(exp),
+      ownTokens,
+      concealed: view.concealed,
+      ...where,
+      place: memory.place,
+      places: rememberedPlaces(playerId),
+    }
     return [snapshot, ...roomTextCardsFor(playerId, map.id, view)]
   }
 
@@ -1515,6 +1550,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       players.delete(playerId) // invalida o resumeToken
       delete ownership[playerId]
       memories.delete(playerId)
+      placeCounters.delete(playerId)
       currentScene.delete(playerId)
       forgetTravelsOf(playerId)
       lastSignalAt.delete(playerId)

@@ -23,6 +23,8 @@ import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
 import { SCENE_PUBLIC_NAME_MAX_LENGTH } from '../lib/adventure'
 import { TOKEN_GLIDE_MS } from './tokenGlide'
+import { parseSnapshotPlaces, type SnapshotPlaces } from '../net/protocol'
+import { rememberPlace, type VisitedPlace } from './playerPlaces'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -103,6 +105,15 @@ export interface PlayerState {
    * `DICE_FEED_MAX`. É do jogador, não da cena: trocar de cena não apaga.
    */
   diceRolls?: DiceRollEntry[]
+  /**
+   * LUGARES: os lugares por onde o jogador passou, na ordem da primeira visita,
+   * cada um com o desenho do último recorte que ele recebeu lá. É do jogador,
+   * não da cena: aguardar o mestre ou reconectar não apaga; só o que o host
+   * deixou de lembrar (`snapshot.places`) sai.
+   */
+  places?: VisitedPlace[]
+  /** Id do lugar onde ele está agora (`snapshot.place`); ausente fora de cena ou com mestre antigo. */
+  place?: string
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -675,6 +686,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     ownTokens: string[],
     concealed: RegionPoint[][],
     sceneName: string | undefined,
+    where: SnapshotPlaces,
   ): void {
     if (rev <= state.rev) return
     // Outra cena: o resto do caminho era do mapa de antes.
@@ -692,8 +704,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       move.prevY = token.y
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
+    // LUGARES: o desenho sai do recorte do MESTRE (`map`), não do `next` com os
+    // movimentos otimistas — e nem leva ficha nenhuma (`placeSketch`).
+    const { place, places: remembered } = where
+    const places = place === undefined ? state.places : rememberPlace(state.places ?? [], place, map, explored, concealed, remembered)
     // `sceneName` entra SEMPRE, inclusive `undefined`: snapshot sem nome apaga o selo da cena anterior.
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, sceneName, error: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, sceneName, place, places, error: undefined })
   }
 
   function handleRejected(reqId: string, reason: unknown): void {
@@ -801,7 +817,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, sceneName: undefined, signals: undefined, destinations: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+        // Os lugares ficam (são do jogador); só "onde estou agora" sai.
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, sceneName: undefined, place: undefined, signals: undefined, destinations: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -948,7 +965,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (data.concealed !== undefined && !isVision(data.concealed)) return
         // O host nunca manda nome vazio (sem nome público o campo nem vem): vazio é forma errada.
         if (data.sceneName !== undefined && !isSceneName(data.sceneName)) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.sceneName)
+        const where = parseSnapshotPlaces(data)
+        if (where === null) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.sceneName, where)
         return
       }
       case 'token.move.accepted':
@@ -1206,7 +1225,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, sceneName: undefined, signals: undefined, destinations: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+      // `places` fica: o host não reenvia o desenho dos lugares de antes, e o
+      // primeiro snapshot da volta solta o que ele não lembrar mais.
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, sceneName: undefined, place: undefined, signals: undefined, destinations: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
       open()
     },
     close: detach,
