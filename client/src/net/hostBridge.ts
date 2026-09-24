@@ -20,6 +20,7 @@ import {
   type HostSignal,
   type HostWorld,
   type MapChangeCause,
+  type Outbound,
   type PlayerInfo,
   type TravelRequest,
 } from './hostSession'
@@ -788,7 +789,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // O "Você chegou" não pode sair: a ficha não saiu do lugar.
       // Só a quem PEDIU: o dono de uma ficha levada junto (`by: 'master'`) não pediu nada.
       const askers = result.outbound.filter(({ msg }) => !(msg.type === 'scene.changed' && msg.by !== undefined))
-      void dispatch({ outbound: askers.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })) })
+      // Quem foi levado e perdeu o pedido que esperava o mestre lê a recusa dele (`lostTravels`).
+      void dispatch({
+        outbound: [...askers.map(({ clientId }) => ({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } }) satisfies Outbound), ...(result.lostTravels ?? [])],
+      })
       // O pedido já saiu da sessão ao ser aprovado: o selo da lista Cenas não pode ficar.
       notifyPlayersIfChanged()
       return
@@ -1037,6 +1041,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
       pruneTravelToasts()
       if (!moved) {
+        // Quem seria levado junto e perdeu o pedido que esperava o mestre lê a recusa dele.
+        if (result.lostTravels !== undefined) void dispatch({ outbound: result.lostTravels })
         // Mesmo sem mover, o pedido que ele tinha pode ter morrido: o selo acompanha.
         notifyPlayersIfChanged()
         return false

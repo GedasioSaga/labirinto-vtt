@@ -314,6 +314,13 @@ export interface HostResult {
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
    */
   applyTransfer?: AppliedTransfer
+  /**
+   * LEVAR FICHA JUNTO: a recusa a quem tinha pedido de passagem esperando o
+   * mestre e perdeu o pedido por ser levado junto. O integrador só despacha
+   * se a ficha de quem leva NÃO passou; se passou, o `scene.changed` com
+   * `by` já é a resposta que ele lê.
+   */
+  lostTravels?: Outbound[]
   /** ZONA DE PERIGO: fichas de jogador que entraram num perigo neste broadcast. O integrador avisa o mestre. */
   hazardEntries?: HazardEntryNotice[]
   /** GATILHO DE ÁREA: fichas de jogador que entraram numa área marcada neste broadcast. O integrador avisa o mestre. */
@@ -1559,24 +1566,34 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     spot: { x: number; y: number },
     world: HostWorld,
     by: 'master' | 'gather',
-  ): { transfer: Pick<AppliedTransfer, 'junto'>; outbound: Outbound[] } {
+  ): { transfer: Pick<AppliedTransfer, 'junto'>; outbound: Outbound[]; lost: Pick<HostResult, 'lostTravels'> } {
     const carrier = from.map.tokens.find((t) => t.id === carrierId)
     const carried = carriedBy(from.map, carrierId)
-    if (carrier === undefined || carried.length === 0) return { transfer: {}, outbound: [] }
+    if (carrier === undefined || carried.length === 0) return { transfer: {}, outbound: [], lost: {} }
     const carriedIds = new Set(carried.map((t) => t.id))
     const moved = new Set<string>()
     const outbound: Outbound[] = []
+    const lostTravels: Outbound[] = []
     for (const token of carried) {
       const owner = Object.entries(ownership).find(([, ids]) => ids.includes(token.id))?.[0]
       if (owner === undefined || owner === carrierPlayerId || moved.has(owner) || statusOf(owner) !== 'playing') continue
       if (!leavesWithCarried(owner, from, carriedIds, world)) continue
       moved.add(owner)
       currentScene.set(owner, sceneKey(to))
-      pendingTravels.delete(owner)
+      const hadPending = pendingTravels.delete(owner)
       const clientId = players.get(owner)?.clientId ?? null // null = caiu: reconecta já na cena nova
-      if (clientId !== null) outbound.push({ clientId, msg: sceneChangedFor(to.map, by) })
+      if (clientId === null) continue
+      outbound.push({ clientId, msg: sceneChangedFor(to.map, by) })
+      // Se a ficha de quem leva não passar, o `scene.changed` não sai e o
+      // pedido que ele esperava já morreu: sem esta recusa ficaria
+      // "Aguardando o mestre" para sempre.
+      if (hadPending) lostTravels.push({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })
     }
-    return { transfer: { junto: companionArrivals(to.map, carrier, spot, carried) }, outbound }
+    return {
+      transfer: { junto: companionArrivals(to.map, carrier, spot, carried) },
+      outbound,
+      lost: lostTravels.length === 0 ? {} : { lostTravels },
+    }
   }
 
   /**
@@ -1603,6 +1620,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const along = carriedAlong(playerId, travel.token.id, travel.from, travel.to, spot, world, 'master')
     return {
       outbound: [{ clientId, msg: sceneChangedFor(travel.to.map) }, ...along.outbound],
+      ...along.lost,
       applyTransfer: {
         ...along.transfer,
         tokenId: travel.token.id,
@@ -1783,6 +1801,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const along = carriedAlong(playerId, token.id, from, to, spot, world, by)
       return {
         outbound: [...(record.clientId === null ? [] : [{ clientId: record.clientId, msg: sceneChangedFor(to.map, by) } satisfies Outbound]), ...along.outbound],
+        ...along.lost,
         applyTransfer: {
           ...along.transfer,
           tokenId: token.id,
