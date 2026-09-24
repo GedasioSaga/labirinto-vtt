@@ -33,6 +33,7 @@ const { useMapStore } = await import('./mapStore')
 const { useSessionStore } = await import('./sessionStore')
 const { createEmptyMap } = await import('../lib/mapFactory')
 const { passageOf } = await import('../lib/pins')
+const { subscribeToPlayerWorldChanges } = await import('./playerWorldSubscription')
 
 // O guardião da mão dupla, ligado como o App liga.
 subscribeToTravelLinks()
@@ -121,6 +122,32 @@ describe('trancar os dois lados', () => {
     useMapStore.getState().addPin(viagem('s'))
     expect(useAdventureStore.getState().setPassageBothSides('s', true)).toBe(false)
     expect(pinoAberto('s').passagem).toBeUndefined()
+  })
+
+  it('este lado já trancado e o par aberto: tranca o par e avisa os jogadores', () => {
+    const m = montar()
+    useMapStore.getState().updatePin('a', { passagem: 'trancada' })
+    expect(passageOf(pinoDoFundo(m.cripta, m.par))).toBe('pede')
+    // O App liga o envio aos jogadores nesta assinatura (`notifyMapChanged`).
+    const avisar = vi.fn()
+    const parar = subscribeToPlayerWorldChanges(avisar)
+    try {
+      expect(useAdventureStore.getState().setPassageBothSides('a', true)).toBe(true)
+    } finally {
+      parar()
+    }
+    expect(pinoAberto('a').passagem).toBe('trancada')
+    expect(pinoDoFundo(m.cripta, m.par).passagem).toBe('trancada')
+    expect(avisar).toHaveBeenCalled()
+  })
+
+  it('a assinatura dos jogadores para de avisar depois de desligada', () => {
+    const m = montar()
+    const avisar = vi.fn()
+    subscribeToPlayerWorldChanges(avisar)()
+    useAdventureStore.getState().setPassageBothSides('a', true)
+    expect(pinoDoFundo(m.cripta, m.par).passagem).toBe('trancada')
+    expect(avisar).not.toHaveBeenCalled()
   })
 
   it('pino que não existe: false', () => {
