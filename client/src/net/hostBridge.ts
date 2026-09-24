@@ -7,6 +7,8 @@ import {
   createHostSession,
   singleSceneWorld,
   type AppliedTokenEdit,
+  type AppliedLock,
+  type LockAttempt,
   type AppliedTransfer,
   type GiveMapOutcome,
   type HostResult,
@@ -70,6 +72,12 @@ export interface HostBridgeDeps {
    * ponte sem este retorno simplesmente não oferece a edição ao jogador.
    */
   applyTokenEdit?: (edit: AppliedTokenEdit) => void
+  /**
+   * FECHADURA COM SEGREDO: o jogador acertou a combinação (a sessão já
+   * conferiu). O integrador abre a fechadura e destranca a porta ligada.
+   * Opcional como `applyTokenEdit`.
+   */
+  applyLock?: (lock: AppliedLock) => void
   /**
    * O mestre deixou o jogador passar: mover o token entre as cenas. `false`
    * quando não deu (cena sumiu, token sumiu) — o jogador recebe a recusa em
@@ -535,6 +543,17 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     travelToasts.set(request.requestId, toastId)
   }
 
+  /**
+   * FECHADURA COM SEGREDO: o mestre lê cada tentativa conferida (quem, onde, o
+   * que tentou), sem que ela vire pedido — a combinação já respondeu sozinha.
+   */
+  const tellLockAttempt = (attempt: LockAttempt) => {
+    const text = attempt.ok
+      ? `${attempt.playerName} abriu a fechadura de ${attempt.pinLabel} com “${attempt.tentativa}”`
+      : `${attempt.playerName} tentou “${attempt.tentativa}” em ${attempt.pinLabel}: não abriu`
+    useToastStore.getState().push('info', text)
+  }
+
   const onMessage = (event: { payload: unknown }) => {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
@@ -584,6 +603,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       deps.applyTokenEdit(result.applyTokenEdit)
       broadcastNow()
     }
+    if (result.applyLock !== undefined && deps.applyLock !== undefined) {
+      // Mesma regra da porta: o cartão do jogador perde a fechadura no snapshot de agora.
+      deps.applyLock(result.applyLock)
+      broadcastNow()
+    }
+    if (result.lockAttempt !== undefined) tellLockAttempt(result.lockAttempt)
     notifyPlayersIfChanged()
     if (!wasJoined) announceJoin(clientId)
   }

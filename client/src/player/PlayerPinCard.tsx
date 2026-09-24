@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { Pin, PinExitLabel } from '../types/map'
 import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { PinTravelArt } from '../components/PinSymbolArt'
+import type { LockAnswerPhase } from './playerConnection'
+import { PlayerLockPad } from './PlayerLockPad'
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -14,6 +16,20 @@ interface PlayerPinCardProps {
   onRequestTravel?: (exitId?: string) => void
   /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
   travelWaiting?: boolean
+  /**
+   * FECHADURA COM SEGREDO: manda a tentativa ao host. Ausente = o cartão não
+   * oferece tentar (a fechadura aparece, mas sem "Tentar").
+   */
+  onTryLock?: (tentativa: string) => void
+  /** A resposta do host à última tentativa NESTE pino; ausente = nenhuma. */
+  lockPhase?: LockAnswerPhase
+}
+
+/** O que o cartão diz de cada resposta do host. */
+const TEXTO_DA_FECHADURA: Record<Exclude<LockAnswerPhase, 'sending'>, string> = {
+  wrong: 'Não abre.',
+  too_soon: 'Espere um instante antes de tentar de novo.',
+  open: 'Abriu.',
 }
 
 /**
@@ -69,7 +85,7 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
  * vendo onde está. O toque de fechar que cai no mapa para ali, antes do canvas:
  * fechar o cartão não arrasta o mapa nem abre outro pino.
  */
-export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false }: PlayerPinCardProps) {
+export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, onTryLock, lockPhase }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
@@ -130,8 +146,13 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // O modo vem no recorte (o destino, não). Trancada não oferece botão nenhum:
   // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
   const passagem = passageOf(pin)
-  const trancada = viagem && passagem === 'trancada'
-  const podePedir = viagem && !trancada && onRequestTravel !== undefined
+  // FECHADURA COM SEGREDO: vem no recorte só enquanto está fechada (forma e
+  // casas; a resposta mora no host). Fechada, a passagem também não abre: o
+  // cartão oferece a combinação no lugar do "Pedir para passar".
+  const fechadura = pin.fechadura
+  const trancadaComSegredo = viagem && fechadura !== undefined
+  const trancada = viagem && passagem === 'trancada' && !trancadaComSegredo
+  const podePedir = viagem && !trancada && !trancadaComSegredo && onRequestTravel !== undefined
   const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
@@ -173,6 +194,17 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
           </p>
         </div>
         {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
+        {trancadaComSegredo && <p className="pp-pincard__locked">Trancada com segredo. Acerte a combinação para passar.</p>}
+        {fechadura !== undefined && (
+          // A chave é o pino e a forma: outro cadeado começa zerado.
+          <PlayerLockPad key={`${pin.id}|${fechadura.forma}|${fechadura.casas}`} pinId={pin.id} lock={fechadura} sending={lockPhase === 'sending'} onTry={onTryLock} />
+        )}
+        {lockPhase !== undefined && lockPhase !== 'sending' && (
+          // Fora da fechadura: o "Abriu." fica depois que o snapshot novo tira a fechadura do pino.
+          <p className={lockPhase === 'open' ? 'pp-lock__status pp-lock__status--open' : 'pp-lock__status'} role="status">
+            {TEXTO_DA_FECHADURA[lockPhase]}
+          </p>
+        )}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}

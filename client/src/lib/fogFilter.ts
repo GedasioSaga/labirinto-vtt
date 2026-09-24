@@ -9,6 +9,7 @@ import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleSt
 import { isPlayerSafePinImage } from './pins'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
+import { publicLockOf } from './pinLock'
 import { withoutAttachment } from './lightAttachment'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
@@ -1516,6 +1517,12 @@ function pinForPlayer(pin: Pin): Pin {
   // campo: o cartão dele é o de sempre, e o recorte também.
   const escolhas = exitLabelsOf(pin)
   if (escolhas.length > 1) forPlayer.escolhas = escolhas
+  // FECHADURA COM SEGREDO: `segredo` (resposta e porta ligada) nunca vai. O
+  // jogador recebe `fechadura`, montada AQUI a partir do segredo — só a forma e
+  // as casas, e só enquanto ela está fechada. Uma `fechadura` que viesse no
+  // mapa do mestre não é copiada.
+  const fechadura = publicLockOf(pin)
+  if (fechadura !== null) forPlayer.fechadura = fechadura
   return forPlayer
 }
 

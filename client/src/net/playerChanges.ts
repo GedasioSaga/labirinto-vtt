@@ -2,7 +2,8 @@ import * as mapFactory from '../lib/mapFactory'
 import { useAdventureStore } from '../stores/adventureStore'
 import { useMapStore } from '../stores/mapStore'
 import type { MapData } from '../types/map'
-import type { AppliedTokenEdit } from './hostSession'
+import { openPinLock } from '../lib/pinLock'
+import type { AppliedLock, AppliedTokenEdit } from './hostSession'
 
 /**
  * O que o JOGADOR muda no mapa do mestre (movimento, porta, nome/foto da
@@ -50,6 +51,11 @@ function editToken({ tokenId, name, image }: AppliedTokenEdit): MapTransform {
   }
 }
 
+/** FECHADURA COM SEGREDO: o jogador acertou — abre o pino e destranca a porta ligada (`openPinLock`). */
+function openLock(pinId: string): MapTransform {
+  return (map) => openPinLock(map, pinId)
+}
+
 /** `sceneId` ausente = a cena aberta no editor; presente = uma cena de fundo. */
 function applyToScene(sceneId: string | undefined, transform: MapTransform): void {
   if (sceneId === undefined) useMapStore.getState().applyPlayerChange(transform)
@@ -61,4 +67,5 @@ export const hostPlayerChanges = {
   applyMove: (tokenId: string, x: number, y: number, sceneId?: string): void => applyToScene(sceneId, moveToken(tokenId, x, y)),
   applyDoor: (wallId: string, open: boolean, sceneId?: string): void => applyToScene(sceneId, setDoorOpen(wallId, open)),
   applyTokenEdit: (edit: AppliedTokenEdit): void => applyToScene(edit.sceneId, editToken(edit)),
+  applyLock: (lock: AppliedLock): void => applyToScene(lock.sceneId, openLock(lock.pinId)),
 }
