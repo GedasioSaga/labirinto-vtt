@@ -138,6 +138,7 @@ import { createConcealZonesRenderer } from './drawConcealZones'
 import { drawHazardAreas } from './drawHazards'
 import { hazardAreas } from '../lib/hazards'
 import { drawWatchCones } from './drawNpcWatch'
+import { drawPatrolRoutes } from './drawNpcPatrol'
 import { createPinsRenderer } from './drawPins'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { findPinAt, pinKindAfterShortcut } from '../lib/pins'
@@ -651,6 +652,9 @@ export function PixiCanvas({
       // OLHOS DO GUARDA: o cone de cada NPC vigia, embaixo das fichas para não
       // cobrir quem está dentro dele. Só o mestre desenha isto.
       const watchConesGraphics = new Graphics()
+      // ROTA DE PATRULHA: a ronda de cada NPC, também embaixo das fichas e só do mestre.
+      const patrolRoutesGraphics = new Graphics()
+      patrolRoutesGraphics.eventMode = 'none'
       const tokensContainer = new Container()
       // A5 — zonas ocultas por cima do conteúdo: o mestre precisa ver o que cobre.
       const concealZonesContainer = new Container()
@@ -701,6 +705,7 @@ export function PixiCanvas({
         propsContainer,
         lightsContainer,
         watchConesGraphics,
+        patrolRoutesGraphics,
         tokensContainer,
         concealZonesContainer,
         pinsContainer,
@@ -1167,6 +1172,7 @@ export function PixiCanvas({
         redrawLights()
         // Parede nova ou porta aberta muda o que o guarda enxerga.
         drawWatchCones(watchConesGraphics, map)
+        drawPatrolRoutes(patrolRoutesGraphics, map)
         concealZonesRenderer.draw(concealZonesContainer, map.concealZones, map.grid, useMapStore.getState().selectedConcealZoneId)
         redrawPins()
         textLabelsRenderer.draw(textLabelsContainer, visibleDrawings(map.drawings, map.hiddenLayers), single?.kind === 'drawing' ? single.id : null)
@@ -1189,6 +1195,8 @@ export function PixiCanvas({
         tokensRenderer.draw(tokensContainer, visibleTokens(map.tokens, map.hiddenLayers), map.grid, single?.kind === 'token' ? single.id : null, camera.scale, turnTokenId)
         // O cone acompanha o guarda no arrasto e a direção escolhida no painel.
         drawWatchCones(watchConesGraphics, map)
+        // A rota muda junto com a ficha (marcar ponto, avançar patrulha).
+        drawPatrolRoutes(patrolRoutesGraphics, map)
         // As alças do token acompanham o token: `moveTokenLive` (arrasto) e
         // `moveSelectionBy` (setas) só acordam ESTE redraw, nunca o de formas.
         redrawEditHandles()

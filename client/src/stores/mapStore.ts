@@ -21,6 +21,7 @@ import { cloneEntity, cloneLinkedWalls, cloneRoomDescendants, type CloneableEnti
 import { ancestorsOf, descendantsOf, subtreeIds } from '../lib/roomNesting'
 import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
+import { applyPatrolOp, type PatrolOp } from '../lib/npcPatrol'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
 import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
 
@@ -576,6 +577,14 @@ interface MapStoreState {
    * estado ATUAL da ficha, nunca sobre uma cópia velha da renderização.
    */
   toggleTokenCondition: (id: string, condition: TokenCondition) => void
+  /**
+   * ROTA DE PATRULHA: marcar ponto, tirar o último, apagar a rota ou avançar o
+   * NPC um passo (`lib/npcPatrol.ts`). Mesmo contrato de `toggleTokenCondition`:
+   * opera sobre a ficha ATUAL do store (o "marcar" grava onde ela está agora),
+   * cada clique que muda o mapa é um Ctrl+Z, e o que não muda nada não gasta
+   * entrada de histórico.
+   */
+  patrolAction: (id: string, op: PatrolOp) => void
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
@@ -1308,6 +1317,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     })),
     toggleTokenCondition: (id, condition) => {
       const next = toggleConditionOnMap(get().map, id, condition)
+      if (next !== get().map) withHistory(() => next)
+    },
+    patrolAction: (id, op) => {
+      const next = applyPatrolOp(get().map, id, op)
       if (next !== get().map) withHistory(() => next)
     },
     addProp: (prop) => withHistory((map) => mapFactory.addProp(map, prop)),

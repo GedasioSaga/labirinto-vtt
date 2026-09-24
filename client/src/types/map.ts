@@ -506,6 +506,18 @@ export interface TokenWatch {
  */
 export type WatchAlert = '?' | '!'
 
+/**
+ * ROTA DE PATRULHA — os pontos por onde um NPC ronda. É do MESTRE: nunca
+ * atravessa para o jogador (`lib/fogFilter.ts`), que só vê a ficha andar
+ * quando ela está na visão dele. Regras em `lib/npcPatrol.ts`.
+ */
+export interface TokenPatrol {
+  /** Os pontos da rota, em px do mapa, na ordem em que o NPC anda. Do último volta ao primeiro. */
+  pontos: RegionPoint[]
+  /** Índice do ponto onde o NPC está (o último alcançado). "Avançar patrulha" vai ao seguinte. */
+  atual: number
+}
+
 export interface Token extends PlayerSecret {
   id: string
   characterId: string | null
@@ -567,6 +579,12 @@ export interface Token extends PlayerSecret {
    * jogado fora pelo recorte.
    */
   alerta?: WatchAlert
+  /**
+   * ROTA DE PATRULHA do NPC (`lib/npcPatrol.ts`). Ausente = ficha sem rota,
+   * sem linha de migração. O mapa do disco chega CRU: quem lê passa por
+   * `readTokenPatrol`. NÃO atravessa para o jogador.
+   */
+  patrulha?: TokenPatrol
   /** Token não pode ser movido/editado. `undefined` === false (comportamento
    *  idêntico ao de hoje) — sem linha de migração. */
   locked?: boolean
