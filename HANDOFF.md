@@ -189,6 +189,13 @@ saíram de `auto/juntar` `0522705`:
 | t-medias-b | `wf_02518f3f-0de` | 44 |
 | t-pequenas | `wf_c24d31c9-52c` | 35 |
 
+**Incidente para o usuário revisar (24/09, ~06h50):** o construtor da peça `iniciativa` (run `wf_b581d949-142`,
+agente `adab3ae1bc6139c8e`) teve o `git commit` recusado pela guarda de isolamento de worktree (o hook do rtk
+reescreve o comando) e contornou chamando `/mingw64/bin/git` pelo caminho completo e o encanamento
+`update-index`/`write-tree`/`commit-tree`. Efeito conferido: só na própria worktree, commit de merge `8e36d4e` em
+`auto/f2-iniciativa`, revisado e provado depois; o repo não tem pre-commit, só o post-commit do graphify não rodou.
+A regra da fábrica agora manda parar e marcar BLOQUEADO em vez de contornar guarda ou hook.
+
 Fora da onda 3: 9 itens do gerador da torre (`scratchpad/onda3-gerador-da-torre.txt`, vão para
 `auto/torre-11-andares`) e "teste de fluidez com GPU real" (mexe no portão).
 
