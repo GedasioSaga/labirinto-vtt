@@ -2380,6 +2380,21 @@ body {
   font-size: var(--lb-font-size-sm);
 }
 
+/* 'há N min': a cena com gente que o mestre não está vendo. Âmbar (latão) a partir de 10 min. */
+.lb-cenas__espera {
+  flex: none;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-cenas__espera--longa {
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-brass);
+  border-radius: var(--lb-radius-md);
+  color: var(--lb-color-brass);
+}
+
 /* Quem está na cena: linha própria dentro do item (o item quebra linha). */
 .lb-cenas__gente {
   display: flex;

@@ -6,6 +6,7 @@ import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/las
 import { pointActionMasterText, type PointActionAnswer } from '../lib/pointActions'
 import type { StoredToken } from '../lib/storedTokens'
 import { addTravel, travelLogEntry, undoableTravelIds, withoutTravel, type TravelLogEntry } from '../lib/travelLog'
+import { createArrivalAnnouncer } from './avisoDeChegada'
 import {
   preferredRoomCode,
   reclaimText,
@@ -405,8 +406,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let travelDenyRecents: string[] = []
   /** Linha de cada pedido de porta trancada ainda na tela: `requestId` -> id do toast. */
   const doorToasts = new Map<string, string>()
-  /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
-  const arrivalToasts = new Map<string, string>()
+  /** "Fulano entrou em X": um cartão por cena de destino (`net/avisoDeChegada.ts`). */
+  const announceArrival = createArrivalAnnouncer(deps.onGoToScene)
   /** Linha de cada chamado aberto na caixa "Chamados": `callId` -> id do toast. */
   const callToasts = new Map<string, string>()
   /** Linha da Caixa de cada ação no ponto ainda sem resposta: `requestId` -> id do toast. */
@@ -996,26 +997,6 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     broadcastNow()
     notifyPlayersIfChanged()
     announceArrival(transfer)
-  }
-
-  /**
-   * "Fulano entrou em X", com "Ir lá". Fica até o mestre dispensar ou ir: é
-   * uma oferta de ação, e o mestre está de olho no canvas — um aviso que some
-   * sozinho em segundos se perdia no meio da cena (medido na jornada da
-   * viagem: o mestre ainda olhava os jogadores quando ele sumiu). Para não
-   * empilhar, a chegada nova de um jogador substitui a anterior DELE.
-   */
-  const announceArrival = (transfer: AppliedTransfer) => {
-    const previous = arrivalToasts.get(transfer.playerId)
-    if (previous !== undefined) useToastStore.getState().dismiss(previous)
-    const goTo = deps.onGoToScene
-    const toastId = useToastStore.getState().push(
-      'info',
-      `${transfer.playerName} entrou em ${transfer.toSceneName}`,
-      null,
-      goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: () => goTo(transfer.toSceneId, transfer.x, transfer.y) }] },
-    )
-    arrivalToasts.set(transfer.playerId, toastId)
   }
 
   /**

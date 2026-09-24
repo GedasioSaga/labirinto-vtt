@@ -21,6 +21,7 @@ import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
+import { useCenaQueEspera } from './stores/useCenaQueEspera'
 import type { TravelLogEntry } from './lib/travelLog'
 import { withStoredTokens } from './lib/storedTokens'
 import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
@@ -678,6 +679,11 @@ function App() {
   // G7 — "Seguir" na linha do Grupo: a câmera acompanha a ficha do jogador, inclusive de cena em cena.
   const followingId = useFollowStore((state) => state.playerId)
   useFollowPlayer(roomPlayers, () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
+  // atencao-do-mestre — a cena que espera (`lib/cenaQueEspera.ts`): cada cena
+  // com gente que o editor NÃO mostra guarda desde quando espera; a lista
+  // Cenas mostra 'há N min' e o Ctrl+J abre a que espera há mais tempo.
+  const tableMembers = roomPlayers.length === 0 ? [] : partyMembers(roomPlayers, roomPanelWorld())
+  const waitingSince = useCenaQueEspera(tableMembers, activeSceneId, screen === 'editor')
   /**
    * Caminho de origem do mapa em edição. `null` enquanto o mapa é novo
    * (ainda não salvo); a partir daí toda escrita vai de volta para esse
@@ -1788,6 +1794,8 @@ function App() {
                 onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
                 // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
                 people={scenePeople()}
+                // Há quanto tempo cada cena com gente espera o mestre ('há N min').
+                waitingSince={waitingSince}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
                 onNote={room === null ? undefined : (sceneId, text, playerIds) => hostBridgeRef.current?.sceneNote(sceneId, text, playerIds) ?? null}
                 // Pausa por cena também só com a sala aberta: sem sala não há grupo esperando.
