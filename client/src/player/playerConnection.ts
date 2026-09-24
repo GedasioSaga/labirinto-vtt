@@ -1148,6 +1148,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.status !== 'playing' || !(state.elsewhere ?? []).some((item) => item.tokenId === tokenId)) return false
       if (!send({ type: 'view.switch', tokenId })) return false
       forgetSceneLocals()
+      // Pino livre ainda na pausa antes de sair: o pedido era de um pino da
+      // cena que ele largou e sairia já na nova. Desiste aqui. O pedido que
+      // espera o mestre fica: quem o derruba é o host, que avisa com
+      // `pin.travel.cancelled` e tira a linha da fila do mestre.
+      if (state.travel?.phase === 'waiting' && state.travel.direct) {
+        clearTravelTimer()
+        setState({ travel: undefined })
+      }
       return true
     },
 

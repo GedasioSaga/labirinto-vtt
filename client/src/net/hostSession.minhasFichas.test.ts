@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import type { MapData, Region, RoomMeta, Token } from '../types/map'
+import type { MapData, Pin, Region, RoomMeta, Token } from '../types/map'
 import { createHostSession, type HostResult, type HostWorld } from './hostSession'
 import { parsePlayerMessage, type HostMessage } from './protocol'
 
@@ -63,9 +63,9 @@ function mundoPadrao(): HostWorld {
   }
 }
 
-function mesa(mundo: HostWorld) {
+function mesa(mundo: HostWorld, now: () => number = () => 0) {
   let n = 0
-  const s = createHostSession({ code: CODE, visionRadius: 700, now: () => 0, randomId: () => `id-${(n += 1)}` })
+  const s = createHostSession({ code: CODE, visionRadius: 700, now, randomId: () => `id-${(n += 1)}` })
   const entra = (clientId: string, name: string): string => {
     const welcome = s.handleMessage(clientId, { type: 'join', code: CODE, name }, mundo).outbound[0]?.msg
     if (welcome?.type !== 'welcome') throw new Error('esperava welcome')
@@ -196,5 +196,78 @@ describe('parsePlayerMessage view.switch', () => {
     expect(parsePlayerMessage({ type: 'view.switch', tokenId: '' })).toBeNull()
     expect(parsePlayerMessage({ type: 'view.switch', tokenId: 7 })).toBeNull()
     expect(parsePlayerMessage({ type: 'view.switch', tokenId: 'x'.repeat(65) })).toBeNull()
+  })
+})
+
+/*
+ * Pedido de passagem esperando o mestre e, no meio, "Olhar por…" outra ficha:
+ * o pedido era da cena de antes e cai na hora. Sem isso ele ficava na fila do
+ * mestre, travava todo pedido novo na cena nova ('pending') e o "Deixar ir"
+ * procurava o pino na cena errada.
+ */
+describe('view.switch com pedido de passagem esperando o mestre', () => {
+  function viagem(id: string, x: number, y: number, destino: Pin['destino']): Pin {
+    return { id, x, y, kind: 'viagem', description: `pino-${id}`, image: null, destino }
+  }
+
+  /** O mundo padrão com um par de escadas (pede aprovação) entre o Salão e a Cripta, perto das fichas de Ana. */
+  function mundoComEscada(): HostWorld {
+    const base = mundoPadrao()
+    const [cripta, torre] = base.background
+    if (cripta === undefined || torre === undefined) throw new Error('mundo sem cenas de fundo')
+    return {
+      open: { ...base.open, map: { ...base.open.map, pins: [viagem('escada-a', 150, 100, { sceneId: 's-b', pinId: 'escada-b' })] } },
+      background: [{ ...cripta, map: { ...cripta.map, pins: [viagem('escada-b', 300, 250, { sceneId: 's-a', pinId: 'escada-a' })] } }, torre],
+    }
+  }
+
+  it('o pedido cai: o jogador recebe pin.travel.cancelled antes do snapshot novo e o mestre tira a linha da fila', () => {
+    let relogio = 1_000_000
+    const mundo = mundoComEscada()
+    const { s, ana } = mesa(mundo, () => relogio)
+    s.broadcast(mundo)
+    const pedido = s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'escada-a' }, mundo).travelRequest
+    if (pedido === undefined) throw new Error('esperava o pedido ir ao mestre')
+    expect(s.isTravelPending(pedido.requestId)).toBe(true)
+
+    relogio += 10_000
+    const r = s.handleMessage('c1', { type: 'view.switch', tokenId: 'batedor' }, mundo)
+    expect(r.travelCancelled).toEqual({ requestId: pedido.requestId, playerId: ana, playerName: 'Ana', reason: 'player' })
+    expect(r.outbound.map((o) => o.msg.type)).toEqual(['pin.travel.cancelled', 'snapshot'])
+    expect(r.outbound[0]).toEqual({ clientId: 'c1', msg: { type: 'pin.travel.cancelled', reason: 'player' } })
+    expect(snapshotPara(r, 'c1')?.map.id).toBe('m-cripta')
+    expect(s.isTravelPending(pedido.requestId)).toBe(false)
+
+    // "Deixar ir" tardio: não há mais pedido, nada sai (nem o 'unavailable' de antes).
+    expect(s.approveTravel(pedido.requestId, mundo)).toEqual({ outbound: [] })
+
+    // Na Cripta, um pedido novo pela escada de lá vai ao mestre, sem 'pending'.
+    relogio += 10_000
+    const novo = s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'escada-b' }, mundo)
+    expect(novo.outbound).toEqual([])
+    expect(novo.travelRequest?.pinLabel).toBe('pino-escada-b')
+  })
+
+  it('sem pedido esperando, a troca não inventa cancelamento', () => {
+    const mundo = mundoComEscada()
+    const { s } = mesa(mundo)
+    s.broadcast(mundo)
+    const r = s.handleMessage('c1', { type: 'view.switch', tokenId: 'batedor' }, mundo)
+    expect(r.travelCancelled).toBeUndefined()
+    expect(r.outbound.map((o) => o.msg.type)).toEqual(['snapshot'])
+  })
+
+  it('o pedido de outro jogador não cai quando Ana troca de cena', () => {
+    let relogio = 1_000_000
+    const mundo = mundoComEscada()
+    const { s } = mesa(mundo, () => relogio)
+    s.broadcast(mundo)
+    // Bruno está na Cripta: a escada de lá fica a 600 px do 'rival', dentro do raio.
+    const deBruno = s.handleMessage('c2', { type: 'pin.travel.request', pinId: 'escada-b' }, mundo).travelRequest
+    if (deBruno === undefined) throw new Error('esperava o pedido de Bruno ir ao mestre')
+    relogio += 10_000
+    const r = s.handleMessage('c1', { type: 'view.switch', tokenId: 'batedor' }, mundo)
+    expect(r.travelCancelled).toBeUndefined()
+    expect(s.isTravelPending(deBruno.requestId)).toBe(true)
   })
 })

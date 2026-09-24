@@ -3,10 +3,10 @@
  * (`elsewhere`), o estado a guarda, e `switchView` pede ao mestre para olhar
  * por uma delas — só por ficha que está na lista.
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import type { MapData, Token } from '../types/map'
-import { createPlayerConnection, type SocketLike } from './playerConnection'
+import type { MapData, Pin, Token } from '../types/map'
+import { createPlayerConnection, FREE_PASSAGE_BEAT_MS, type SocketLike } from './playerConnection'
 
 class FakeSocket implements SocketLike {
   readyState = 0
@@ -70,5 +70,44 @@ describe('minhas fichas em outras cenas no jogador', () => {
     expect(socket.sent.length).toBe(antes)
     expect(conn.switchView('batedor')).toBe(true)
     expect(socket.sent.slice(antes)).toEqual([{ type: 'view.switch', tokenId: 'batedor' }])
+  })
+})
+
+describe('switchView com pedido de passagem no ar', () => {
+  const PEDE: Pin = { id: 'escada', x: 150, y: 100, kind: 'viagem', description: 'Escada', image: null, destino: { sceneId: 's-b', pinId: 'escada-b' } }
+  const LIVRE: Pin = { ...PEDE, id: 'portao', passagem: 'livre' }
+
+  function comPinos(): MapData {
+    return { ...mapa(), pins: [PEDE, LIVRE] }
+  }
+
+  it('esperando o mestre: o aviso de retirado do host troca o cartão, o snapshot novo não o apaga, e pedir de novo volta a valer', () => {
+    const { conn, socket } = jogando()
+    socket.receive({ type: 'snapshot', rev: 1, map: comPinos(), vision: [], ownTokens: ['heroi'], concealed: [], elsewhere: [BATEDOR] })
+    expect(conn.requestTravel('escada')).toBe(true)
+    expect(conn.getState().travel).toMatchObject({ phase: 'waiting', direct: false })
+    expect(conn.switchView('batedor')).toBe(true)
+    socket.receive({ type: 'pin.travel.cancelled', reason: 'player' })
+    socket.receive({ type: 'snapshot', rev: 2, map: comPinos(), vision: [], ownTokens: ['batedor'], concealed: [], elsewhere: [{ tokenId: 'heroi', name: 'Heroi', room: '' }] })
+    expect(conn.getState().travel).toMatchObject({ phase: 'cancelled', reason: 'player' })
+    expect(conn.requestTravel('escada')).toBe(true)
+    expect(conn.getState().travel).toMatchObject({ phase: 'waiting' })
+  })
+
+  it('pino livre na pausa antes de sair: trocar de cena desiste, o pedido nunca sai e o "Passando…" some', () => {
+    vi.useFakeTimers()
+    try {
+      const { conn, socket } = jogando()
+      socket.receive({ type: 'snapshot', rev: 1, map: comPinos(), vision: [], ownTokens: ['heroi'], concealed: [], elsewhere: [BATEDOR] })
+      expect(conn.requestTravel('portao')).toBe(true)
+      expect(conn.getState().travel).toMatchObject({ phase: 'waiting', direct: true })
+      const antes = socket.sent.length
+      expect(conn.switchView('batedor')).toBe(true)
+      vi.advanceTimersByTime(FREE_PASSAGE_BEAT_MS * 2)
+      expect(socket.sent.slice(antes)).toEqual([{ type: 'view.switch', tokenId: 'batedor' }])
+      expect(conn.getState().travel).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

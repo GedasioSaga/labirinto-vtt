@@ -1346,9 +1346,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const last = lastViewSwitchAt.get(playerId)
     if (last !== undefined && at - last < VIEW_SWITCH_MIN_INTERVAL_MS) return nothing
     lastViewSwitchAt.set(playerId, at)
+    // O pedido de passagem era da cena de antes: largá-la é desistir dele.
+    // Sem isso ele travaria todo pedido novo ('pending') e o "Deixar ir"
+    // procuraria o pino na cena nova. O aviso vem antes do snapshot novo.
+    const cancelled = dropPendingTravel(playerId, 'player')
     currentScene.set(playerId, sceneKey(target))
     rev += 1
-    return { outbound: viewFor(playerId, world, 'on_change').map((view) => ({ clientId, msg: view })) }
+    const outbound: Outbound[] = cancelled === null ? [] : [{ clientId, msg: { type: 'pin.travel.cancelled', reason: 'player' } }]
+    for (const view of viewFor(playerId, world, 'on_change')) outbound.push({ clientId, msg: view })
+    return cancelled === null ? { outbound } : { outbound, travelCancelled: cancelled }
   }
 
   const findPendingTravel = (requestId: string): PendingTravel | undefined =>
