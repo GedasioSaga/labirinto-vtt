@@ -1,0 +1,4086 @@
+{
+ "itens": [
+  {
+   "id": "mapa-lembrado-sem-spoiler",
+   "titulo": "Mapa lembrado mostra o que o jogador viu, não o estado atual",
+   "resumo": "Parede nova, desabamento ou sala mudada longe do jogador só aparece no mapa dele quando ele volta e vê; mudar o tamanho da cena não apaga a memória.",
+   "tipo": "defeito",
+   "tamanho": "G",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 13,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "revistar-procurar",
+   "titulo": "Revistar, procurar e escutar pedindo ao mestre",
+   "resumo": "O jogador toca num ponto, sala, pino ou na própria ficha e escolhe Revistar, Procurar, Escutar ou Esconder-se; o pedido chega ao mestre com o lugar e os segredos por perto.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 11,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:acoes-no-ponto",
+    "lista101:49"
+   ]
+  },
+  {
+   "id": "retomar-mesa-donos",
+   "titulo": "Retomar a campanha com cada um na própria ficha",
+   "resumo": "Ao reabrir a aventura, a sala tem o mesmo código e cada jogador que volta já está com a própria ficha, raio e névoa, com 'Continuar como Duda' de qualquer aparelho.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 5,
+   "status": "ONDA2",
+   "vozes": 10,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:retomar-mesa-donos",
+    "lista101:33"
+   ]
+  },
+  {
+   "id": "confronto-por-cena",
+   "titulo": "Confronto por cena: vez e passo limitado",
+   "resumo": "O mestre liga o confronto numa cena, com fila de vez e passo máximo; os jogadores dali veem de quem é a vez e as outras cenas seguem livres, cada uma com a própria vez.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 5,
+   "status": "NOVA",
+   "vozes": 9,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "revelar-para-escolhidos",
+   "titulo": "Revelar segredo só para quem descobriu",
+   "resumo": "O mestre revela porta, sala, zona ou ficha escondida a um ou mais jogadores escolhidos, e só eles passam a ver, mesmo depois de reconectar.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 5,
+   "status": "ONDA2",
+   "vozes": 8,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:revelar-ficha-e-zona-para-escolhidos",
+    "lista101:61"
+   ]
+  },
+  {
+   "id": "mandar-so-o-que-mudou",
+   "titulo": "Mandar só o que mudou, não o mapa inteiro",
+   "resumo": "Cada passo envia só a diferença (ficha moveu, porta abriu) e só para quem está na mesma cena.",
+   "tipo": "desempenho",
+   "tamanho": "G",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "escuro-e-apagao",
+   "titulo": "Escuro, penumbra e apagão por cena",
+   "resumo": "A cena ou sala fica em penumbra ou breu e o jogador só vê o que cai na luz acesa ou no lampião dele; o mestre apaga várias cenas de uma vez.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 4,
+   "status": "ONDA2",
+   "vozes": 12,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:cena-escura",
+    "lista101:74"
+   ]
+  },
+  {
+   "id": "relogio-da-mesa",
+   "titulo": "Relógio da mesa com turnos",
+   "resumo": "O mestre avança dia e turno (Aurora, Meio, Brasa, Sombra), todos veem a hora na tela e o jogador pode marcar 'espero aqui até…'.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 4,
+   "status": "ONDA2",
+   "vozes": 12,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "lista101:98"
+   ]
+  },
+  {
+   "id": "npc-anda-sozinho",
+   "titulo": "NPC que anda sozinho (ronda ou perseguição)",
+   "resumo": "O mestre grava uma rota ou manda o NPC seguir o rastro de alguém, e o host move o guarda sozinho no ritmo escolhido, pausável e em várias cenas.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 4,
+   "status": "ONDA2",
+   "vozes": 9,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "lista101:90"
+   ]
+  },
+  {
+   "id": "ajudante-contratado",
+   "titulo": "Ajudante contratado: NPC emprestado com prazo",
+   "resumo": "O mestre empresta um NPC ao jogador com tarefa e prazo; a ficha segue o jogador e volta sozinha ao mestre no fim do acordo.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 8,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "estado-do-mundo",
+   "titulo": "Estado do mundo que muda várias cenas de uma vez",
+   "resumo": "O mestre troca um estado nomeado (maré, giro, energia, posição da alavanca) e portas, pinos, luzes e zonas de várias cenas mudam juntas.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 7,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "memoria-por-ficha",
+   "titulo": "Memória do mapa presa à ficha, não à pessoa",
+   "resumo": "O que a ficha já viu vai junto quando ela passa para outro jogador, e quem chega no meio herda o mapa dela.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 6,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "chave-abre-porta",
+   "titulo": "Chave na ficha abre a porta certa",
+   "resumo": "Porta, pino ou gaveta ganham 'abre com'; quem carrega a chave e está perto vê 'Usar chave' e abre, até em outra cena.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 4,
+   "status": "ONDA2",
+   "vozes": 6,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:chave-abre-porta",
+    "lista101:65"
+   ]
+  },
+  {
+   "id": "comodo-lembrado",
+   "titulo": "Cômodo e prédio já visitados ficam lembrados",
+   "resumo": "Ao sair de uma casa de teto fechado, o jogador ainda vê apagado o interior que percorreu, com os pinos tocáveis.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 4,
+   "status": "ONDA2",
+   "vozes": 6,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:comodo-lembrado",
+    "lista101:45"
+   ]
+  },
+  {
+   "id": "zona-de-perigo",
+   "titulo": "Zona de perigo (fogo, fumaça, vapor, água)",
+   "resumo": "O mestre desenha uma área de perigo que o jogador vê e que avisa ao entrar, podendo avançar com um toque do mestre.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 6,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "visao-do-npc",
+   "titulo": "Visão do NPC avisa o mestre",
+   "resumo": "O NPC ganha raio e cone de visão e o mestre recebe 'Guarda viu Duda' quando um jogador entra na vista dele.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 5,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "pisos-na-mesma-cena",
+   "titulo": "Pisos dentro da mesma cena",
+   "resumo": "A cena tem pisos numerados, o jogador vê só o piso da própria ficha e a escada troca de piso sem trocar de cena.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 4,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "cabine-de-transporte",
+   "titulo": "Elevador, paternoster e cesto com cabine",
+   "resumo": "O transporte tem cabine com posição, ocupante e fila; cada parada mostra onde ela está e só se passa com a cabine ali.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 11,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "correio-de-bilhetes",
+   "titulo": "Correio entre jogadores com o mestre de carteiro",
+   "resumo": "O jogador escreve um bilhete a um colega por tubo, pombo ou cápsula, e o mestre entrega, atrasa, lê ou intercepta.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 11,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "rotina-do-npc",
+   "titulo": "Rotina do NPC por turno",
+   "resumo": "Cada NPC tem um lugar por turno, até em outra cena, e ao tocar o apito todos vão para o posto de uma vez.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 10,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "janela-e-grade",
+   "titulo": "Janela, grade e vidro: vê mas não passa",
+   "resumo": "Um tipo de parede ou abertura que deixa ver sem deixar passar, também em prédio de teto fechado.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 6,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:janela-grade-e-espiar",
+    "lista101:75"
+   ]
+  },
+  {
+   "id": "mochila-de-itens",
+   "titulo": "Pegar objeto e levar na mochila",
+   "resumo": "O item marcado 'pode pegar' some do mapa e vai para a ficha do jogador; o mestre dá, tira e devolve itens.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 4,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:item-pegavel",
+    "lista101:50"
+   ]
+  },
+  {
+   "id": "perigo-que-alastra",
+   "titulo": "Fogo e água que se alastram sala a sala",
+   "resumo": "O perigo preso a uma sala passa às vizinhas por porta aberta a cada avanço do mestre e deixa cinza para trás.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "iniciativa-e-vez",
+   "titulo": "Ordem de iniciativa e vez de mover",
+   "resumo": "O mestre monta a ordem de combate e só quem está na vez move, com a faixa 'Sua vez' na tela do jogador.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:iniciativa-e-vez",
+    "lista101:19"
+   ]
+  },
+  {
+   "id": "cenas-em-pastas",
+   "titulo": "Cenas em pastas com filtro",
+   "resumo": "O mestre organiza as cenas em árvore, recolhe pastas e filtra a lista pelo nome.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:cenas-em-pastas",
+    "lista101:56",
+    "lista101:extra-filtro-na-lista-cenas"
+   ]
+  },
+  {
+   "id": "mobilia-desenhada",
+   "titulo": "Móveis desenhados nos cômodos",
+   "resumo": "Catre, mesa e baú aparecem desenhados no estilo do minimapa e o gerador da torre os coloca.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "tela-da-mesa",
+   "titulo": "Tela da mesa para TV ou projetor",
+   "resumo": "Uma tela só para exibir na TV o que o grupo pode ver.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 2,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "lista101:87"
+   ]
+  },
+  {
+   "id": "caravana",
+   "titulo": "Ficha do grupo no mapa-mundi",
+   "resumo": "No mapa-mundi o grupo anda como uma ficha só de caravana.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "lista101:88"
+   ]
+  },
+  {
+   "id": "pino-preso-a-ficha",
+   "titulo": "Veículo leva o pino de viagem junto",
+   "resumo": "Navio, carroça ou elevador: o pino de viagem anda com a ficha do veículo.",
+   "tipo": "feature",
+   "tamanho": "G",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "lista101:89"
+   ]
+  },
+  {
+   "id": "porta-trancada-vira-pedido",
+   "titulo": "Porta trancada vira pedido ao mestre",
+   "resumo": "Tocar numa porta trancada oferece chave, gazua, forçar, bater ou escutar, e o pedido chega à Caixa do mestre com a sala e o método.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 12,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:porta-trancada-vira-pedido",
+    "lista101:30"
+   ]
+  },
+  {
+   "id": "caderno-de-pistas",
+   "titulo": "Caderno de pistas do jogador",
+   "resumo": "Cada cartão lido e revelação vai para uma aba com busca, que continua lá depois de reconectar ou em outro andar.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 12,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:caderno-pistas",
+    "lista101:43"
+   ]
+  },
+  {
+   "id": "exploracao-nao-some",
+   "titulo": "Mapa explorado não some",
+   "resumo": "O que o jogador explorou continua lá depois de passar por mais de 8 cenas ou de o mestre mudar o tamanho da cena.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "ONDA2",
+   "vozes": 10,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:exploracao-nao-se-perde",
+    "lista101:40"
+   ]
+  },
+  {
+   "id": "desistir-do-pedido",
+   "titulo": "Desistir de um pedido de passagem",
+   "resumo": "Quem espera o mestre ganha 'Desistir', o pedido cai sozinho se ele se afasta, e a linha some da Caixa.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "NOVA",
+   "vozes": 9,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "voltar-e-a-mesma-pessoa",
+   "titulo": "Voltar por outra aba ou aparelho sem virar 'Nome (2)'",
+   "resumo": "Quem reabre o link recupera identidade, fichas e mapa, em vez de deixar um fantasma.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 7,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:voltar-e-a-mesma-pessoa",
+    "lista101:32"
+   ]
+  },
+  {
+   "id": "reconexao-automatica",
+   "titulo": "Reconectar sozinho quando o celular volta do bolso",
+   "resumo": "O mapa fica esmaecido com 'Reconectando…' e volta sozinho sem perder o pedido; o mestre vê quem caiu.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 7,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:reconexao-automatica",
+    "lista101:31"
+   ]
+  },
+  {
+   "id": "pista-so-de-perto",
+   "titulo": "Pino que só se lê de perto",
+   "resumo": "O pino marcado 'só de perto' chega vazio com 'Chegue mais perto' até a ficha estar encostada; o pino marco aparece para todos.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 7,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:pino-marco-e-so-de-perto",
+    "lista101:64"
+   ]
+  },
+  {
+   "id": "nome-publico",
+   "titulo": "Nome à mesa separado do nome do mestre",
+   "resumo": "Ficha e sala mostram ao jogador um nome público ('Estivador', 'Vulto'), e a anotação do mestre nunca chega a ele.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 6,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:nome-publico-da-ficha",
+    "lista101:36"
+   ]
+  },
+  {
+   "id": "zoom-no-celular",
+   "titulo": "Zoom com pinça no celular",
+   "resumo": "O jogador aproxima e afasta com dois dedos ou com os botões + e −.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 4,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:zoom-no-celular",
+    "lista101:24"
+   ]
+  },
+  {
+   "id": "camera-na-propria-ficha",
+   "titulo": "Câmera abre na própria ficha",
+   "resumo": "Ao entrar ou viajar, a tela centraliza a ficha do jogador em zoom de leitura, com 'Minha ficha' sempre à mão e painel recolhível.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:mapa-livre-do-painel",
+    "lista101:25"
+   ]
+  },
+  {
+   "id": "texto-da-sala-ao-entrar",
+   "titulo": "Descrição da sala ao entrar",
+   "resumo": "Na primeira vez que entra num cômodo o jogador recebe o texto dele; a nota do mestre nunca é enviada.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:sala-texto-ao-entrar",
+    "lista101:28"
+   ]
+  },
+  {
+   "id": "sala-secreta-nao-vaza",
+   "titulo": "Porta de sala secreta não entrega o segredo",
+   "resumo": "A porta de uma sala ou zona secreta ainda não revelada chega ao jogador como parede inteira.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:sala-secreta-nao-vaza",
+    "lista101:38"
+   ]
+  },
+  {
+   "id": "atribuir-fichas-livres",
+   "titulo": "Atribuir fichas de todas as cenas, livres primeiro",
+   "resumo": "Os botões de atribuir listam fichas sem dono de qualquer cena, e tirar a ficha de alguém pede confirmação.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 3,
+   "toca_jogador": false,
+   "fontes": [
+    "torre",
+    "backlog:atribuir-livres-primeiro",
+    "lista101:22"
+   ]
+  },
+  {
+   "id": "retomar-exploracao",
+   "titulo": "Exploração salva ao fechar o app",
+   "resumo": "Ao reabrir a aventura, cada jogador volta com o mapa que já tinha explorado.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:retomar-mesa-exploracao",
+    "lista101:51"
+   ]
+  },
+  {
+   "id": "recado-para-um-jogador",
+   "titulo": "Recado privado do mestre a um jogador",
+   "resumo": "O mestre manda um recado pela linha do jogador no Grupo e só ele recebe.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:recado-para-um-jogador",
+    "lista101:27"
+   ]
+  },
+  {
+   "id": "zona-oculta-sem-buraco",
+   "titulo": "Zona oculta não denuncia o segredo",
+   "resumo": "A zona secreta aparece como chão comum, sem o buraco preto com o contorno exato do segredo.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "ONDA2",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:zona-oculta-sem-buraco",
+    "lista101:37"
+   ]
+  },
+  {
+   "id": "moveis-como-silhueta",
+   "titulo": "Móveis aparecem ao jogador como silhueta",
+   "resumo": "Cama, mesa e baú aparecem como silhuetas no lugar certo em vez de cômodo vazio.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:objetos-como-silhueta",
+    "lista101:26"
+   ]
+  },
+  {
+   "id": "pino-so-para-escolhidos",
+   "titulo": "Pista visível só para os escolhidos",
+   "resumo": "Cada pino tem 'Quem vê: Todos | Só estes' e só os marcados recebem a pista.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:pino-so-para-escolhidos",
+    "lista101:29"
+   ]
+  },
+  {
+   "id": "passar-mapa-a-colega",
+   "titulo": "Passar o mapa explorado a outro jogador",
+   "resumo": "O jogador (ou o mestre por ele) entrega a um colega o trecho que já explorou, e só esse colega passa a conhecê-lo.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 14,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "agir-sobre-ficha",
+   "titulo": "Cartão da ficha com ações (Falar, Oferecer, Empurrar…)",
+   "resumo": "Tocar numa ficha alheia abre o cartão dela com ações que viram pedido na Caixa do mestre, e a resposta chega só a quem pediu.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 8,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "abalo-por-distancia",
+   "titulo": "Estrondo com texto por distância e direção",
+   "resumo": "O mestre marca de onde veio o evento e cada jogador recebe o texto da sua distância, com seta e vibração para quem está perto.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 8,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "busca-do-mestre",
+   "titulo": "Buscar sala, pino ou ficha em todas as cenas",
+   "resumo": "Com Ctrl+K o mestre acha qualquer item das 99 cenas pelo nome, vê o caminho e vai lá ou manda a ficha para lá.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 8,
+   "toca_jogador": false,
+   "fontes": [
+    "torre",
+    "lista101:extra-torre-busca-de-local"
+   ]
+  },
+  {
+   "id": "condicoes-e-pv",
+   "titulo": "Condições e PV na ficha",
+   "resumo": "A ficha mostra barra de vida e etiquetas como ferida ou caída, visíveis ao dono e ao mestre.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 8,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:estado-na-ficha",
+    "lista101:18",
+    "lista101:15"
+   ]
+  },
+  {
+   "id": "recado-para-quem-esta-fora",
+   "titulo": "Recado guardado para quem estava fora",
+   "resumo": "O recado enviado com o jogador desconectado é entregue quando ele volta, num cartão 'Enquanto você esteve fora'.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 7,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "alarme-varias-cenas",
+   "titulo": "Aviso ou alarme para várias cenas e andares",
+   "resumo": "O mestre manda um recado ou alarme para uma sala, um andar ou a torre toda, e quem entra depois também recebe.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 7,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "esconder-se",
+   "titulo": "Esconder-se",
+   "resumo": "O jogador pede para se esconder atrás de algo e, aceito, a ficha some para os outros jogadores.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "ONDA2",
+   "vozes": 6,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:esconder-se",
+    "lista101:77"
+   ]
+  },
+  {
+   "id": "mapa-dado-pelo-mestre",
+   "titulo": "Mestre dá um mapa de papel a um jogador",
+   "resumo": "O mestre escolhe salas de qualquer cena e grava só na memória de um jogador, como um mapa achado.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 5,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "levar-npc-para-outra-cena",
+   "titulo": "Levar ficha de NPC para outra cena",
+   "resumo": "O mestre manda o NPC pelo pino ou por 'Levar para…' sem perder nome, cor e foto.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 5,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:levar-npc-para-outra-cena",
+    "lista101:53"
+   ]
+  },
+  {
+   "id": "porta-secreta",
+   "titulo": "Porta secreta",
+   "resumo": "A porta parece parede para o jogador até o mestre revelar a passagem.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 5,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:porta-secreta",
+    "lista101:44"
+   ]
+  },
+  {
+   "id": "atalho-na-mesma-cena",
+   "titulo": "Passagem entre dois pontos da mesma cena",
+   "resumo": "O mestre liga dois pontos ou duas escadas do mesmo mapa, com os modos pede, livre e trancada.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 4,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "fechadura-de-segredo",
+   "titulo": "Fechadura com combinação no cartão",
+   "resumo": "O jogador digita ou gira a combinação no cartão, o host confere sem mandar a resposta e destranca o alvo.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 4,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "minhas-fichas-em-outras-cenas",
+   "titulo": "Escolher por qual das minhas fichas eu jogo",
+   "resumo": "O painel lista todas as fichas do jogador com cena e sala, e ele troca a cena que está vendo.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 4,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "faixa-onde-estou",
+   "titulo": "Faixa 'Onde estou' com prédio, piso e cômodo",
+   "resumo": "Um selo fixo mostra o caminho da sala onde está a ficha (prédio › piso › cômodo).",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 4,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "corte-vertical-da-torre",
+   "titulo": "Corte vertical da torre para o mestre",
+   "resumo": "Um painel com os andares empilhados, poços e fichas como pontos; clicar leva à cena e à sala.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "paredes-so-as-vistas",
+   "titulo": "Não mandar paredes que o jogador não viu",
+   "resumo": "O celular recebe a planta uma vez e só as paredes do explorado mais a visão atual.",
+   "tipo": "desempenho",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "viajar-junto",
+   "titulo": "Viajar junto",
+   "resumo": "Quem está perto de quem pediu passagem pode ir junto no mesmo pedido.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "lista101:1"
+   ]
+  },
+  {
+   "id": "caixa-de-pedidos-com-idade",
+   "titulo": "Caixa de pedidos com idade e distância",
+   "resumo": "Cada pedido mostra há quanto tempo espera e a que distância a ficha está do pino.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "atencao-do-mestre",
+   "titulo": "Quem espera o mestre há mais tempo",
+   "resumo": "Chegadas viram um aviso só e o mestre vê há quanto tempo cada cena ou jogador espera, com atalho para a mais antiga.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "ONDA2",
+   "vozes": 2,
+   "toca_jogador": false,
+   "fontes": [
+    "torre",
+    "backlog:atencao-do-mestre",
+    "lista101:67"
+   ]
+  },
+  {
+   "id": "escolher-fichas-no-pino",
+   "titulo": "Escolher quais fichas passam pelo pino",
+   "resumo": "Quem tem várias fichas perto do pino escolhe quais atravessam, em vez de levar só a mais próxima.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "host-recalcula-so-a-cena",
+   "titulo": "Host recalcula só a cena que mudou",
+   "resumo": "Um passo ou arrasto de NPC deixa de refazer o recorte das 7 cenas em uso.",
+   "tipo": "desempenho",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "redesenho-parcial",
+   "titulo": "Editor redesenha só o que mudou",
+   "resumo": "Selecionar, desfazer ou arrastar uma sala deixa de redesenhar o mapa inteiro.",
+   "tipo": "desempenho",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 2,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "chamar-o-mestre",
+   "titulo": "Chamar o mestre",
+   "resumo": "O jogador levanta a mão com motivo e o mestre vê a fila de chamados com Ir lá e Responder.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:chamar-o-mestre",
+    "lista101:48"
+   ]
+  },
+  {
+   "id": "copia-de-recuperacao",
+   "titulo": "Cópia de recuperação automática",
+   "resumo": "Com a sala aberta, o app salva a cada 5 min e oferece recuperar a sessão após fechar de repente.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:copia-de-recuperacao",
+    "lista101:6"
+   ]
+  },
+  {
+   "id": "cena-grande-no-celular",
+   "titulo": "Cena grande no celular sem travar",
+   "resumo": "Mapas grandes abrem e rolam no celular sem engasgar.",
+   "tipo": "desempenho",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "lista101:99"
+   ]
+  },
+  {
+   "id": "dentro-da-sala-secreta",
+   "titulo": "Dentro da sala secreta dá para ver o cômodo",
+   "resumo": "A ficha que entra numa sala secreta vê o próprio cômodo e o pino por onde veio, em vez de um vazio.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "revisor-da-aventura",
+   "titulo": "Revisor da aventura",
+   "resumo": "Um painel lista texto secreto exposto, pino sem par e outros problemas, com 'ir lá' e conserto.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "trancar-passagem-pelo-jogador",
+   "titulo": "Jogador tranca porta ou passagem",
+   "resumo": "Quem passou tranca o pino atrás de si, escora a porta ou corre o ferrolho do seu lado; quem tenta do outro lado vira disputa na Caixa.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 10,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "bilhete-no-lugar",
+   "titulo": "Bilhete ou marca de giz deixados no lugar",
+   "resumo": "O jogador crava um recado, seta ou sinal num ponto, e quem passar ali depois vê.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 9,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "chamar-com-direcao",
+   "titulo": "Chamar ou ouvir ruído só com a direção",
+   "resumo": "Um chamado ou barulho chega aos colegas da mesma cena como seta na borda da tela com a distância, sem revelar o mapa.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 8,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "lista101:97"
+   ]
+  },
+  {
+   "id": "encontro-marcado",
+   "titulo": "Encontro marcado e espera com aviso",
+   "resumo": "O jogador combina onde e até quando espera, a ficha mostra que está esperando e o app avisa quando o colega aparece ou o prazo vence.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 7,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "levar-ficha-junto",
+   "titulo": "Carregar ou escoltar outra ficha",
+   "resumo": "Uma ficha ferida, um NPC ou a segunda ficha do jogador gruda na dele, anda junto e atravessa os pinos com ela.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 6,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "anotacao-pessoal",
+   "titulo": "Marca pessoal e giz no próprio mapa",
+   "resumo": "O jogador põe notas, X de revistado, setas ou traços que só ele vê, e marca salas como revistadas.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 5,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:anotacao-pessoal",
+    "lista101:84"
+   ]
+  },
+  {
+   "id": "area-gatilho",
+   "titulo": "Área-gatilho e armadilha",
+   "resumo": "Quando uma ficha pisa numa área marcada, a armadilha ou o alarme dispara e o mestre é avisado.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 5,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "lista101:91"
+   ]
+  },
+  {
+   "id": "loja-com-precos",
+   "titulo": "Banca ou loja com mercadorias e preço",
+   "resumo": "Um pino de comércio mostra itens com preço e estoque, e o 'Quero' do jogador chega como pedido ao mestre.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 5,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "companheiros-na-tela",
+   "titulo": "Quem está na mesa, na tela do jogador",
+   "resumo": "O jogador vê quais colegas estão 'aqui', em outro lugar ou fora do ar.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 5,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "lista101:3"
+   ]
+  },
+  {
+   "id": "andar-ate-aqui",
+   "titulo": "Andar até aqui por rota",
+   "resumo": "O jogador toca num ponto já explorado e a ficha anda sozinha pelo caminho conhecido, parando em porta fechada.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 4,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:andar-ate-aqui",
+    "lista101:78"
+   ]
+  },
+  {
+   "id": "espiar-pela-passagem",
+   "titulo": "Espiar o outro lado da passagem",
+   "resumo": "Encostado num pino marcado, o jogador vê por alguns segundos um recorte do outro lado, sem guardar na memória.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 4,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "portas-por-atravessar",
+   "titulo": "Portas por atravessar marcadas no mapa",
+   "resumo": "Portas vistas cujo outro lado ainda está na névoa ganham marca, com a contagem de cômodos conhecidos do prédio.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 4,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "modo-por-saida",
+   "titulo": "Modo diferente por saída da encruzilhada",
+   "resumo": "Cada saída de um pino com várias saídas pode ser livre, pedir ou trancada.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "diario-de-viagens",
+   "titulo": "Histórico de passagens com Desfazer",
+   "resumo": "O mestre vê as últimas viagens de cada jogador com 'Ir lá' e pode desfazer uma.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 3,
+   "toca_jogador": false,
+   "fontes": [
+    "torre",
+    "lista101:5"
+   ]
+  },
+  {
+   "id": "area-que-encurta-visao",
+   "titulo": "Fumaça e vapor que encurtam a visão",
+   "resumo": "Quem está dentro da área vê só 1 ou 2 casas e fica escondido de quem está fora.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "painel-de-pistas-do-mestre",
+   "titulo": "Quem sabe o quê: painel de pistas do mestre",
+   "resumo": "O mestre vê, por pista, quem recebeu e quem leu, e revela ou esconde por jogador.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 3,
+   "toca_jogador": false,
+   "fontes": [
+    "torre",
+    "backlog:painel-de-pistas-do-mestre",
+    "lista101:62"
+   ]
+  },
+  {
+   "id": "parede-parcial",
+   "titulo": "Parede que barra só a vista ou só o passo",
+   "resumo": "O mestre escolhe se a parede barra tudo, só a visão (cortina) ou só a passagem (grade, escombro).",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "troca-de-itens",
+   "titulo": "Moedas e troca de itens entre fichas",
+   "resumo": "O jogador dá ou paga itens a outra ficha, e o mestre propõe trocas que o jogador aceita ou contrapropõe.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "horario-dos-lugares",
+   "titulo": "Horário de abrir e fechar de lugares",
+   "resumo": "Salas, portas e pinos trancam ou destrancam sozinhos quando o turno avança, com o horário visível.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "cenas-por-andar",
+   "titulo": "Lista de cenas agrupada por andar",
+   "resumo": "Cada cena ganha um andar e a lista junta os andares em grupos que abrem e fecham, com contagem de jogadores.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": false,
+   "fontes": [
+    "torre",
+    "lista101:extra-torre-cenas-por-andar"
+   ]
+  },
+  {
+   "id": "ver-andar-inteiro",
+   "titulo": "Ver o andar inteiro no editor",
+   "resumo": "O zoom mínimo se ajusta ao tamanho da cena e um botão 'Enquadrar andar' mostra tudo de uma vez.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": false,
+   "fontes": [
+    "torre",
+    "lista101:extra-torre-ver-andar-inteiro"
+   ]
+  },
+  {
+   "id": "cone-do-guarda",
+   "titulo": "Jogador vê para onde o guarda olha",
+   "resumo": "O NPC vigia mostra a frente e o cone de visão a quem o vê.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "ficha-barra-passagem",
+   "titulo": "Ficha que barra a passagem",
+   "resumo": "Uma ficha marcada vira obstáculo sólido e o jogador lê 'Tem alguém no caminho'.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "rolar-dados",
+   "titulo": "Rolar dados na sala",
+   "resumo": "O jogador rola um dado com motivo e o resultado aparece para a mesa e na Caixa do mestre.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "lista101:16"
+   ]
+  },
+  {
+   "id": "quem-chega-escolhe-ficha",
+   "titulo": "Quem chega no meio escolhe ficha vaga",
+   "resumo": "O jogador novo escolhe sozinho uma ficha livre e lê a apresentação dela.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "lista101:100"
+   ]
+  },
+  {
+   "id": "ver-pela-porta-aberta",
+   "titulo": "Ver pela porta aberta de prédio fechado",
+   "resumo": "Quem está no vão enxerga o lado de dentro no cone de visão, com o teto fechado para o resto.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "emprestar-ficha",
+   "titulo": "Emprestar a ficha de quem saiu",
+   "resumo": "O mestre ou a dona passa a ficha a outro jogador, e o que ela vê vai para a memória certa.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "lista101:95"
+   ]
+  },
+  {
+   "id": "alertas-no-celular",
+   "titulo": "Celular vibra e marca a aba quando é com você",
+   "resumo": "Chegou recado, sinal ou resposta: o celular vibra, toca e muda o título da aba.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "nomes-que-se-aprendem",
+   "titulo": "Nome de rua e sala aprendido",
+   "resumo": "Rua e sala mostram um nome genérico até o jogador descobrir o verdadeiro.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "fila-na-passagem",
+   "titulo": "Pedidos ao mesmo pino numa linha só",
+   "resumo": "Pedidos ao mesmo par de pinos, inclusive em sentidos opostos, viram uma linha com 'Deixar todos'.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "seguir-colega",
+   "titulo": "Seguir um colega",
+   "resumo": "O jogador escolhe 'Seguir' na ficha de um colega visível e anda atrás dele até perdê-lo de vista.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "copiar-colar",
+   "titulo": "Copiar, recortar e colar entre cenas",
+   "resumo": "O mestre copia salas, pinos e fichas e cola em outra cena.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 2,
+   "toca_jogador": false,
+   "fontes": [
+    "torre",
+    "lista101:7"
+   ]
+  },
+  {
+   "id": "gestos-rapidos-e-lote",
+   "titulo": "Ações rápidas e em lote no editor",
+   "resumo": "Abrir ou trancar porta pelo clique direito e travar, ocultar ou mostrar várias fichas de uma vez.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 2,
+   "toca_jogador": false,
+   "fontes": [
+    "torre",
+    "backlog:gestos-rapidos-do-editor",
+    "lista101:70"
+   ]
+  },
+  {
+   "id": "troca-de-cena-rapida",
+   "titulo": "Troca de cena rápida no editor",
+   "resumo": "Entrar num andar denso deixa de congelar a tela, montando a cena em partes.",
+   "tipo": "desempenho",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "placa-na-fachada",
+   "titulo": "Placa pública na fachada",
+   "resumo": "Sala e pino ganham uma placa curta vista de fora sem revelar o interior.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "abrir-aventura-rapido",
+   "titulo": "Abrir a aventura sem carregar todas as cenas",
+   "resumo": "A cena inicial abre primeiro e as outras carregam quando precisar.",
+   "tipo": "desempenho",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "zoom-da-roda",
+   "titulo": "Zoom com a roda sem refazer o desenho",
+   "resumo": "Durante o giro da roda o mapa só escala e redesenha ao parar.",
+   "tipo": "desempenho",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "grupo-quem-perto-de-quem",
+   "titulo": "Grupo mostra quem está perto de quem",
+   "resumo": "O Grupo junta jogadores da mesma cena com a distância entre eles e avisa quando dois passam a se ver.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "passagem-improvisada",
+   "titulo": "Abrir passagem improvisada até uma sala",
+   "resumo": "Na sessão, o mestre digita o nome da sala de destino e o pino par nasce nela já ligado.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "pista-com-condicao",
+   "titulo": "Pista só para quem tem a marca",
+   "resumo": "O pino secreto só aparece de perto para quem tem o item ou talento exigido.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "alarme-silencioso",
+   "titulo": "Alarme silencioso de pista vista",
+   "resumo": "O mestre é avisado quando um jogador abre um cartão ou entra numa sala marcada.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "ficha-de-campanha",
+   "titulo": "Ficha de campanha do personagem",
+   "resumo": "O mestre anota por personagem 'Carrego', 'Sei' e 'Da última vez', que sobrevive a recriar ou disfarçar a ficha.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "mapa-de-pausa",
+   "titulo": "Mapa de pausa em tela cheia",
+   "resumo": "Um botão abre o explorado em tela cheia com 'você está aqui' e salas marcadas por cartões ainda não lidos.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "planta-dos-distritos",
+   "titulo": "Planta do andar com os distritos visitados",
+   "resumo": "O jogador vê um esquema dos distritos por onde passou e das passagens entre eles.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "rumo-dado-pelo-mestre",
+   "titulo": "Rumo dado pelo mestre",
+   "resumo": "O mestre põe no mapa de um jogador uma marca de destino e uma seta na borda aponta para ela.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "bau-e-cofre",
+   "titulo": "Baú, cofre e gaveta com itens dentro",
+   "resumo": "O jogador abre o contêiner, vê a lista e pega ou guarda item por item; trancado vira pedido.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "quem-me-reconhece",
+   "titulo": "Nome da ficha depende de quem olha",
+   "resumo": "Outro personagem vê só a aparência da ficha até ser apresentado.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "intencoes-em-segredo",
+   "titulo": "Rodada de intenções em segredo",
+   "resumo": "Cada jogador declara em segredo o que vai fazer e o mestre vê todas juntas.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "pacote-comprimido",
+   "titulo": "Pacote comprimido para quem joga pelo 4G",
+   "resumo": "Mensagens grandes vão comprimidas e o mapa chega com menos bytes.",
+   "tipo": "desempenho",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "selecionar-por-regra",
+   "titulo": "Selecionar por regra e agir em lote",
+   "resumo": "O mestre seleciona portas, salas ou pinos por tipo, nome ou área, até na torre toda, e muda todos de uma vez.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "grupo-mostra-sala",
+   "titulo": "Grupo mostra em que cômodo está cada um",
+   "resumo": "A linha de cada jogador no Grupo mostra 'Vila › Casa › Quarto'.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:grupo-mostra-sala",
+    "lista101:46"
+   ]
+  },
+  {
+   "id": "revelar-planta-para-varios",
+   "titulo": "Revelar planta para vários e herdar o que o grupo viu",
+   "resumo": "O mestre revela a planta a vários jogadores e o atrasado recebe o que os colegas já viram.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:revelar-planta-e-grupo",
+    "lista101:54"
+   ]
+  },
+  {
+   "id": "visao-por-cena",
+   "titulo": "Raio de visão por cena",
+   "resumo": "Cada cena tem o próprio alcance de visão, multiplicado pelo fator de cada jogador.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:visao-por-cena",
+    "lista101:55"
+   ]
+  },
+  {
+   "id": "duplicar-e-apagar-cena",
+   "titulo": "Duplicar, apagar e reordenar cena",
+   "resumo": "Pelo menu da cena o mestre duplica, apaga com confirmação ou move.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:duplicar-e-apagar-cena",
+    "lista101:57"
+   ]
+  },
+  {
+   "id": "escada-leva-ao-andar",
+   "titulo": "Escada leva ao outro andar",
+   "resumo": "Tocar na escada oferece Subir ou Descer e leva ao andar ligado.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:escada-leva-a-outro-andar",
+    "lista101:58"
+   ]
+  },
+  {
+   "id": "pino-com-nome-e-lista",
+   "titulo": "Pino com nome do mestre e lista buscável",
+   "resumo": "Cada pino tem um nome que só o mestre vê e uma lista com busca.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:pino-com-nome-e-lista",
+    "lista101:63"
+   ]
+  },
+  {
+   "id": "aba-jogo-compacta",
+   "titulo": "Aba Jogo compacta com 7 jogadores",
+   "resumo": "A aba Jogo mostra os 7 jogadores sem rolar, com controles raros em 'Mais'.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:aba-jogo-compacta",
+    "lista101:66"
+   ]
+  },
+  {
+   "id": "tocha-na-ficha",
+   "titulo": "Tocha na ficha e visão no escuro",
+   "resumo": "A tocha anda com a ficha e ilumina em volta; uma ficha pode enxergar no escuro até N casas.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:luz-na-ficha",
+    "lista101:10"
+   ]
+  },
+  {
+   "id": "ver-como-jogador",
+   "titulo": "Ver pelos olhos de um jogador",
+   "resumo": "O mestre escolhe 'Ver como' e vê exatamente o que aquele jogador recebe.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:ver-como-jogador",
+    "lista101:12"
+   ]
+  },
+  {
+   "id": "medir-host-7-jogadores",
+   "titulo": "Medir o custo do mestre com 7 jogadores",
+   "resumo": "Medir se o host segue sem travar com 7 jogadores e otimizar acima de 100 ms.",
+   "tipo": "desempenho",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:medir-host-com-7-jogadores",
+    "lista101:86"
+   ]
+  },
+  {
+   "id": "pausa-por-cena",
+   "titulo": "Pausa por cena",
+   "resumo": "O mestre congela o movimento de uma cena enquanto cuida de outra.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "lista101:2"
+   ]
+  },
+  {
+   "id": "visao-geral-das-cenas",
+   "titulo": "Visão geral das cenas",
+   "resumo": "O mestre vê miniaturas de todas as cenas com as fichas.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:4"
+   ]
+  },
+  {
+   "id": "pincel-revelar",
+   "titulo": "Pincel de revelar e esconder",
+   "resumo": "O mestre pinta um pedaço do mapa para revelar ou esconder.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "lista101:11"
+   ]
+  },
+  {
+   "id": "nome-da-cena-para-jogador",
+   "titulo": "Selo com o nome público da cena",
+   "resumo": "O jogador vê um selo com o nome da cena onde está, se o mestre quiser.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:nome-da-cena-para-jogador",
+    "lista101:73"
+   ]
+  },
+  {
+   "id": "sinal-entre-cenas",
+   "titulo": "Sinal que atravessa entre cenas",
+   "resumo": "Farol, tubo de voz, cano ou espelho levam luz, som ou pulsos ao pino pareado em outra cena.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 5,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "baixar-meu-mapa",
+   "titulo": "Levar o mapa e o caderno para casa",
+   "resumo": "O jogador baixa imagem ou HTML com as cenas que conhece, pistas e recados.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 5,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "colecao-de-pistas",
+   "titulo": "Coleção de pistas em pedaços",
+   "resumo": "Peças espalhadas formam uma coleção ('5 de 12'), e juntar todas mostra a frase ou o item inteiro.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 4,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "ultimo-avistamento",
+   "titulo": "Onde vi o colega pela última vez",
+   "resumo": "Quando uma ficha sai da visão fica um contorno apagado no último ponto com 'há N s'.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "luz-vista-de-longe",
+   "titulo": "Janelas e luzes acesas vistas de longe",
+   "resumo": "Uma luz aparece como ponto aceso na linha de visão sem mostrar o que ilumina; a sala pode ter raio de visão próprio.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "lugares-que-conheco",
+   "titulo": "Lugares que conheço, com busca",
+   "resumo": "O painel do jogador lista as salas já vistas, com busca, nome dado por ele e centralização da câmera.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:lugares-no-painel-do-jogador",
+    "lista101:83"
+   ]
+  },
+  {
+   "id": "acertos-com-npcs",
+   "titulo": "Promessas e dívidas com prazo",
+   "resumo": "Promessas e dívidas ficam anotadas e o mestre é avisado quando o prazo chega.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "guincho-do-outro-lado",
+   "titulo": "Passagem operada por quem está do outro lado",
+   "resumo": "No guincho o pedido vai primeiro ao jogador no destino, que decide puxar; sem resposta, cai no mestre.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "rastro-de-volta",
+   "titulo": "Rastro de volta",
+   "resumo": "O caminho andado fica pontilhado e 'Voltar pelo rastro' refaz o trajeto.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "passagem-com-duracao",
+   "titulo": "Passagem que leva tempo",
+   "resumo": "A ficha fica em trânsito com uma barra 'Subindo o poço… 12 s' visível nas duas pontas.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "passagem-barulhenta",
+   "titulo": "Passagem barulhenta avisa quem está perto",
+   "resumo": "Atravessar um pino barulhento põe um sinal sem nome para quem está perto da origem e da chegada.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "escutar-a-passagem",
+   "titulo": "Escutar o outro lado da passagem",
+   "resumo": "'Escutar' no pino responde de forma vaga se há alguém perto do pino par.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "marcar-area-destruida",
+   "titulo": "Marcar salas em lote como queimadas ou alagadas",
+   "resumo": "O mestre aplica 'queimado / inundado / desabado' a uma área e salas e pinos mudam juntos sem perder as pistas.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "multidao-por-horario",
+   "titulo": "Multidão por horário",
+   "resumo": "Uma área fica cheia ou vazia conforme o turno, esconde quem está no meio e deixa o passo lento.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "sinal-com-tipo-e-ritmo",
+   "titulo": "Sinal com tipo, ritmo e destinatário",
+   "resumo": "O sinal ganha tipos (Aqui, Vem, Perigo), batidas combinadas e escolha de quem recebe.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "comodo-com-uma-linha",
+   "titulo": "Cômodo gerado com uma linha do que tem",
+   "resumo": "Cada cômodo gerado ganha um pino curto dizendo o que tem de diferente.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "registro-de-quem-mexeu",
+   "titulo": "Registro de quem mexeu em portas e objetos",
+   "resumo": "O mestre vê quem abriu, fechou ou pegou cada coisa, com ficha, cena e hora.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "rumo-do-companheiro",
+   "titulo": "Seta para o colega fora da visão",
+   "resumo": "Com a opção ligada, cada colega da mesma cena fora da visão aparece como seta na borda.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "espiar-pela-fechadura",
+   "titulo": "Espiar pela fechadura",
+   "resumo": "Toque longo numa porta fechada mostra o outro lado por alguns segundos só para quem espiou, com aviso ao mestre.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "fichario",
+   "titulo": "Fichário consultável por palavra",
+   "resumo": "Um pino fichário deixa buscar por palavra e ver só as fichas que batem.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "mirante",
+   "titulo": "Mirante para o nível de baixo",
+   "resumo": "Um pino mirante mostra por alguns segundos um recorte apagado de outra cena.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "cair-para-baixo",
+   "titulo": "Cair ou saltar para o nível de baixo",
+   "resumo": "O mestre leva a ficha que caiu à mesma coordenada da cena de baixo.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "rota-liberada",
+   "titulo": "Rota liberada até um destino",
+   "resumo": "Ao deixar passar, o mestre libera também os próximos pinos do trajeto.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "npcs-ativos",
+   "titulo": "Lembrete de NPCs ativos",
+   "resumo": "O Grupo lista NPCs em ação com cena, alvo e 'Ir lá'.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "endereco-do-comodo",
+   "titulo": "Endereço do cômodo ao tocar",
+   "resumo": "Tocar numa sala conhecida mostra 'Casa da Viúva › Cozinha', que dá para mandar ao grupo.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "carga-com-estopim",
+   "titulo": "Carga com estopim",
+   "resumo": "O jogador arma um marcador com tempo e raio e a contagem aparece para ele e o mestre.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "ausente-acompanha-amigo",
+   "titulo": "Ficha de quem faltou acompanha um amigo",
+   "resumo": "A ficha ausente segue a de um colega e o que vê vai para a memória do dono.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "posto-de-vigia",
+   "titulo": "Posto de vigia de NPC",
+   "resumo": "Uma área vigiada anota quais fichas passaram e em que turno.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "saidas-conhecidas",
+   "titulo": "Saídas conhecidas da cena",
+   "resumo": "Uma lista mostra as passagens já vistas nesta cena, com distância e estado.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "cochichar",
+   "titulo": "Cochichar com o colega ao lado",
+   "resumo": "Texto curto a um colega a até 2 casas, com cópia ao mestre.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "acao-combinada",
+   "titulo": "Ação combinada 'no três'",
+   "resumo": "Dois jogadores armam uma ação que só o mestre lê e resolve junto.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "livro-de-passagem",
+   "titulo": "Livro de passagem no pino",
+   "resumo": "O cartão do pino mostra quem do grupo passou por ali e quando.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "mapa-achado-sobreposto",
+   "titulo": "Mapa achado sobreposto à planta",
+   "resumo": "Um pino-mapa encaixa sua imagem sobre a planta explorada de quem o achou.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "subir-no-telhado",
+   "titulo": "Subir no telhado sem entrar na casa",
+   "resumo": "A ficha fica 'no alto' num telhado andável sem abrir o teto.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "rastro-por-sessao",
+   "titulo": "Rastro por sessão no explorado",
+   "resumo": "O mapa separa o que foi revisitado hoje do que foi percorrido semanas atrás.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "mapa-de-papel-objeto",
+   "titulo": "Mapa de papel como objeto",
+   "resumo": "Um recorte da memória vira item que pode ser entregue, perdido ou roubado.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "mandar-objeto-pelo-tubo",
+   "titulo": "Mandar objeto por tubo, cesto ou pombo",
+   "resumo": "Um item posto no pino chega sozinho do outro lado e pode ser interceptado.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "fechadura-por-familia",
+   "titulo": "Fechadura por família e cópia de chave",
+   "resumo": "Uma chave abre todas as fechaduras da mesma família, e a errada 'entra mas não gira'.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "circuitos-de-luz",
+   "titulo": "Circuitos de luz",
+   "resumo": "O mestre liga ou desliga um circuito inteiro de luzes de uma vez.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "perigo-com-ritmo",
+   "titulo": "Zona de perigo que pulsa",
+   "resumo": "A zona de vapor ou gás liga e desliga num ritmo.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "sentinela",
+   "titulo": "Ficha de vigia avisa o dono",
+   "resumo": "Um companheiro deixado de vigia avisa o dono quando alguém entra na visão dele.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "fios-do-mestre",
+   "titulo": "Notas do mestre ligando cenas",
+   "resumo": "Fios com título, nota e prazo ligam salas de várias cenas, só na aventura.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "passar-o-celular",
+   "titulo": "Dois jogadores no mesmo aparelho",
+   "resumo": "Uma tela de troca esconde o mapa e cada um volta à própria névoa.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "plateia",
+   "titulo": "Plateia para quem está sem ficha",
+   "resumo": "Quem espera sem ficha acompanha o recorte de um companheiro, sem controle.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "modelos-de-predio",
+   "titulo": "Modelos de prédio carimbados",
+   "resumo": "O mestre guarda um prédio como modelo e carimba cópias em grade.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "andar-vizinho-transparente",
+   "titulo": "Andar vizinho em transparência no editor",
+   "resumo": "O editor mostra o andar de cima ou de baixo alinhado por baixo da cena.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "mapa-em-texto",
+   "titulo": "'Ao redor': o mapa em texto",
+   "resumo": "Uma lista em texto diz onde o jogador está, o que há perto e as saídas.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "visto-por",
+   "titulo": "Visto por",
+   "resumo": "Ao selecionar uma ficha, o mestre vê quais jogadores a enxergam.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:visto-por",
+    "lista101:52"
+   ]
+  },
+  {
+   "id": "montaria-viaja-junto",
+   "titulo": "Montaria e familiar viajam com o dono",
+   "resumo": "O pônei ou a coruja perto do jogador vão junto quando ele viaja.",
+   "tipo": "defeito",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:montaria-viaja-junto",
+    "lista101:69"
+   ]
+  },
+  {
+   "id": "leva-a-cena-nova",
+   "titulo": "'Leva a…' cria cena nova",
+   "resumo": "'+ Cena nova' no pino cria a cena, o pino de chegada e a ligação.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:cena-nova-pelo-leva-a",
+    "lista101:72"
+   ]
+  },
+  {
+   "id": "porta-de-um-lado",
+   "titulo": "Porta que só abre de um lado",
+   "resumo": "Do lado errado o jogador lê 'Não abre deste lado'.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:porta-de-um-lado",
+    "lista101:76"
+   ]
+  },
+  {
+   "id": "movimento-contado",
+   "titulo": "Movimento contado e passo máximo",
+   "resumo": "O arrasto mostra quantas casas andou, a cena pode ter passo máximo e fichas não param uma sobre a outra.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:movimento-contado",
+    "lista101:80"
+   ]
+  },
+  {
+   "id": "objeto-com-rotulo",
+   "titulo": "Objeto com rótulo ou imagem",
+   "resumo": "A silhueta de um objeto mostra um nome curto ou imagem ao jogador.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:objeto-com-imagem-ou-rotulo",
+    "lista101:81"
+   ]
+  },
+  {
+   "id": "criar-andar-de-cima",
+   "titulo": "Criar andar de cima ou de baixo",
+   "resumo": "Um clique cria o andar com o mesmo contorno e a escada já ligada.",
+   "tipo": "refino",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:criar-andar-de-cima",
+    "lista101:82"
+   ]
+  },
+  {
+   "id": "laser-do-jogador",
+   "titulo": "Laser do jogador",
+   "resumo": "O jogador aponta no mapa e os outros veem na hora.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "lista101:8"
+   ]
+  },
+  {
+   "id": "lista-de-objetos",
+   "titulo": "Lista de objetos com busca",
+   "resumo": "O mestre busca qualquer objeto do mapa e vai direto até ele.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:13"
+   ]
+  },
+  {
+   "id": "alavanca-abre-porta",
+   "titulo": "Alavanca que abre porta ligada",
+   "resumo": "Puxar uma alavanca abre a porta ligada a ela.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "lista101:92"
+   ]
+  },
+  {
+   "id": "mapa-por-andares",
+   "titulo": "Mapa do prédio por andares para o jogador",
+   "resumo": "O jogador vê o prédio andar por andar.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "lista101:93"
+   ]
+  },
+  {
+   "id": "teste-secreto",
+   "titulo": "Teste secreto para escolhidos",
+   "resumo": "O mestre pede um teste só a alguns jogadores sem os outros saberem.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "lista101:101"
+   ]
+  },
+  {
+   "id": "preencher-por-tabela",
+   "titulo": "Preencher cômodos por tabela",
+   "resumo": "O mestre gera descrições de salas em lote e revisa antes de gravar.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 1,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "agrupar-objetos",
+   "titulo": "Agrupar objetos (Ctrl+G)",
+   "resumo": "Vários objetos viram um grupo que se move junto.",
+   "tipo": "feature",
+   "tamanho": "M",
+   "importancia": 1,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:20"
+   ]
+  },
+  {
+   "id": "so-a-propria-ficha-arrasta",
+   "titulo": "Só a própria ficha arrasta",
+   "resumo": "Tocar na ficha de colega ou NPC não a arrasta; o gesto move a câmera ou abre o cartão.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 9,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:so-a-propria-ficha-arrasta",
+    "lista101:35"
+   ]
+  },
+  {
+   "id": "pino-so-de-perto-para-viajar",
+   "titulo": "Pino de viagem só atravessa de perto",
+   "resumo": "Para pedir ou passar por um pino a ficha precisa estar encostada, e o host confere a distância.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 5,
+   "status": "NOVA",
+   "vozes": 7,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "sinal-nao-vaza-disfarce",
+   "titulo": "Sinal não entrega o disfarce",
+   "resumo": "O sinal sai com o nome e a cor da ficha, não do jogador, e o rótulo de ficha alheia no escuro não aparece de longe.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 5,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "chegada-em-casa-livre",
+   "titulo": "Chegada em casa livre, sem empilhar",
+   "resumo": "Quem chega pelo pino vai para a casa livre mais próxima.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 5,
+   "status": "PRONTA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre",
+    "backlog:chegada-em-casa-livre",
+    "lista101:23"
+   ]
+  },
+  {
+   "id": "motivo-da-recusa",
+   "titulo": "Dizer por que a ficha não andou",
+   "resumo": "Movimento recusado mostra 'Parede no caminho', 'Porta fechada' ou 'Porta trancada'.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "ficha-presa-sem-chao",
+   "titulo": "Ficha presa quando o chão some",
+   "resumo": "A ficha fora do chão consegue andar até o chão mais próximo e o jogador sabe o motivo.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 4,
+   "status": "ONDA2",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "dois-pinos-no-mesmo-ponto",
+   "titulo": "Escolher entre dois pinos no mesmo ponto",
+   "resumo": "Tocar onde há mais de um pino abre 'Aqui há 2 coisas' para escolher.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "nota-do-mestre-no-pino",
+   "titulo": "Nota do mestre separada do texto do pino",
+   "resumo": "O pino tem 'O jogador lê' e 'Só eu leio', e a nota do mestre nunca chega ao celular.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "tubo-so-objetos",
+   "titulo": "Estação de tubo 'só objetos' barra fichas",
+   "resumo": "As estações de tubo nascem trancadas para fichas, como o texto já diz.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "npc-emprestado-nao-edita",
+   "titulo": "Jogador não edita NPC emprestado",
+   "resumo": "A ficha emprestada anda e dá visão, mas não pode ser renomeada nem ter a foto trocada.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 4,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "ctrl-z-so-do-mestre",
+   "titulo": "Ctrl+Z não desfaz o que o jogador fez",
+   "resumo": "O desfazer do mestre só volta as edições dele.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:ctrl-z-nao-desfaz-jogador",
+    "lista101:39"
+   ]
+  },
+  {
+   "id": "aviso-ao-fechar",
+   "titulo": "Aviso ao fechar com jogadores na sala",
+   "resumo": "Clicar no X com jogadores conectados pergunta antes.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:aviso-ao-fechar-com-sala-aberta",
+    "lista101:41"
+   ]
+  },
+  {
+   "id": "recado-para-escolhidos",
+   "titulo": "Recado de cena para escolhidos",
+   "resumo": "O mestre escolhe quem recebe, com atalho 'Quem está nesta sala'.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 4,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:recado-para-escolhidos",
+    "lista101:42"
+   ]
+  },
+  {
+   "id": "tela-nao-apaga",
+   "titulo": "Tela do celular não apaga",
+   "resumo": "A tela do jogador fica acesa durante a sessão.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 4,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:96"
+   ]
+  },
+  {
+   "id": "motivo-do-bloqueio",
+   "titulo": "Passagem fechada diz o motivo",
+   "resumo": "O pino fechado mostra 'Desabou', 'Alagada' ou 'Sem energia', com 'me avise quando der'.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 5,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "gerador-nomes-unicos",
+   "titulo": "Gerador sem nomes repetidos de prédio e rua",
+   "resumo": "O gerador deixa de repetir o mesmo nome de casa ou rua na mesma cena.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 3,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "ficha-travada-diz-motivo",
+   "titulo": "Ficha segurada pelo mestre diz por que não anda",
+   "resumo": "O arrasto recusado mostra 'O mestre segurou sua ficha' e um cadeado nela.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "passagem-so-de-ida",
+   "titulo": "Cartão avisa passagem só de ida",
+   "resumo": "Sem volta, o cartão mostra 'Só ida' e pede confirmação.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "escada-com-patamar",
+   "titulo": "Escada gerada com patamar e giro",
+   "resumo": "O gerador fecha patamares e põe um giro no caracol para um nível não ver o outro.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "torre-no-carregar-mapa",
+   "titulo": "Torre aparece em 'Carregar Mapa'",
+   "resumo": "A torre gerada aparece na lista de mapas existentes.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 2,
+   "toca_jogador": false,
+   "fontes": [
+    "torre",
+    "lista101:extra-torre-carregar-mapa"
+   ]
+  },
+  {
+   "id": "pino-tamanho-minimo",
+   "titulo": "Pino com tamanho mínimo no zoom afastado",
+   "resumo": "O pino continua visível e só pega toque quando aparece.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "trancar-os-dois-lados",
+   "titulo": "Mestre tranca os dois lados num toque",
+   "resumo": "O painel do pino ganha 'Trancar/Destrancar os dois lados'.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "pino-encostado-abre",
+   "titulo": "Pino encostado na ficha abre com toque",
+   "resumo": "Toque curto na própria ficha sobre um pino ou porta abre o pino ou a porta.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "porta-nao-vira-sinal",
+   "titulo": "Toque na porta não vira 'Sinal'",
+   "resumo": "Com a tela engasgada, tocar numa porta ao alcance abre a porta.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "porta-nao-fecha-em-cima",
+   "titulo": "Porta não fecha em cima de quem está no vão",
+   "resumo": "O host recusa com 'Tem alguém na porta'.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "ficha-vista-pela-borda",
+   "titulo": "Ficha meio no vão aparece",
+   "resumo": "A ficha aparece se parte da borda estiver na visão, não só o centro.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "dados-internos-da-sala",
+   "titulo": "Dados internos da sala não vão ao jogador",
+   "resumo": "Só vai ao jogador o que a tela dele usa.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "marca-de-companheiro",
+   "titulo": "Marca de companheiro nas fichas",
+   "resumo": "A ficha de outro jogador mostra a cor e o nome do jogador e se distingue de NPC.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "remover-desconectado",
+   "titulo": "Remover jogador desconectado",
+   "resumo": "O mestre remove quem saiu e passa fichas e mapa a outro jogador.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "piso-13-duplicado",
+   "titulo": "13º Piso do Bloco B duplicado",
+   "resumo": "Fica uma cena só e a vaga vira outro bloco.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "salao-dos-carimbos",
+   "titulo": "Salão dos Carimbos passa a existir",
+   "resumo": "O local marcado para a Aurora do 6º dia ganha uma cena na torre.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "borda-rola-o-mapa",
+   "titulo": "Levar a ficha à borda rola o mapa",
+   "resumo": "O mapa rola na direção da borda e a câmera acompanha quem anda longe.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "nomes-de-sala-rapidos",
+   "titulo": "Posição do nome de sala calculada uma vez",
+   "resumo": "O cálculo lento deixa de rodar em todo redesenho.",
+   "tipo": "desempenho",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "memoria-do-editor",
+   "titulo": "Memória do editor não cresce a cada cena",
+   "resumo": "Desenhos de cenas já visitadas são liberados.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "volto-ja",
+   "titulo": "'Volto já' sem perder ficha, pedido nem vez",
+   "resumo": "A ficha fica travada com selo de ausente e pedido e vez ficam suspensos.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "cruzeta",
+   "titulo": "Cruzeta para andar casa a casa",
+   "resumo": "Setas no celular e no teclado movem a ficha uma casa por toque.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "pedido-ver-e-nao-com-motivo",
+   "titulo": "Pedido com 'Ver' e 'Não, porque…'",
+   "resumo": "O mestre olha onde o jogador está antes de decidir e pode mandar o motivo da recusa.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:pedido-ver-e-nao-com-motivo",
+    "lista101:47"
+   ]
+  },
+  {
+   "id": "pino-trancado-vira-pedido",
+   "titulo": "Pino trancado aceita pedido",
+   "resumo": "Num pino trancado o jogador pode pedir e o mestre libera uma vez ou nega.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:pino-trancado-vira-pedido",
+    "lista101:59"
+   ]
+  },
+  {
+   "id": "mostrar-pista-agora",
+   "titulo": "Mostrar pista agora",
+   "resumo": "O cartão da pista abre na hora na tela do jogador escolhido.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "backlog:mostrar-pista-agora",
+    "lista101:60"
+   ]
+  },
+  {
+   "id": "reunir-grupo-por-cena",
+   "titulo": "Reunir o grupo por cena",
+   "resumo": "A lista do Reunir separa os jogadores por cena.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 3,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:reunir-grupo-por-cena",
+    "lista101:68"
+   ]
+  },
+  {
+   "id": "imagem-em-tela-cheia",
+   "titulo": "Imagem do cartão em tela cheia",
+   "resumo": "Tocar na imagem abre em tela cheia com pinça e várias páginas.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "contorno-em-mapa-grande",
+   "titulo": "Contorno lembrado em mapa muito grande",
+   "resumo": "Acima de 16.383 px o contorno lembrado deixa de sumir e a borda fica lisa.",
+   "tipo": "defeito",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "faixa-de-recado-na-ficha",
+   "titulo": "Frase curta sob a ficha",
+   "resumo": "O jogador escreve uma frase que aparece sob a ficha e some no fim da sessão.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 2,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "marca-de-alerta-no-npc",
+   "titulo": "Marca de alerta no NPC",
+   "resumo": "O mestre troca o estado do guarda ('?', '!', perseguindo) e o jogador vê a marca.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "frente-da-ficha",
+   "titulo": "Frente da ficha desenhada",
+   "resumo": "Uma seta na borda do disco mostra para onde a ficha olha.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "gerador-pista-destacada",
+   "titulo": "Pista real se destaca no texto gerado",
+   "resumo": "O gerador não usa palavras de pista como cenário e dá ícone próprio à pista.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "gerador-segredo-e-chave",
+   "titulo": "Gerador: segredo sem prefixo e chave com destino",
+   "resumo": "Some o prefixo 'Segredo:' e toda chave vem com a porta que abre.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "gerador-texto-coerente",
+   "titulo": "Texto de cômodo coerente com o local",
+   "resumo": "Acabam a estante com galinhas e o 'Lacrado' em porta destrancada.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "mandar-para-sem-aviso",
+   "titulo": "'Mandar para' sem dizer que o mestre levou",
+   "resumo": "O mestre manda sem aviso ou com texto neutro.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "mandar-para-rotulos",
+   "titulo": "Chegadas com nome certo no 'Mandar para'",
+   "resumo": "A lista usa o rótulo do pino em vez de textos repetidos.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "passagem-livre-com-aviso",
+   "titulo": "Passagem livre com aviso ao mestre",
+   "resumo": "O jogador passa na hora e o mestre recebe um chamado para pedir o teste depois.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "andar-so-no-que-se-ve",
+   "titulo": "Arrasto para na borda da visão",
+   "resumo": "Com a opção ligada, o arrasto para na borda da visão em vez de ser recusado.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "pino-lido-apagado",
+   "titulo": "Pino já lido fica apagado",
+   "resumo": "O pino já aberto aparece mais apagado no mapa do jogador.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "gerador-do-pico",
+   "titulo": "Gerador do Pico: janelas, pisos e moradores",
+   "resumo": "O andar do Pico ganha janelas, pisos ligados e nome do morador em cada casebre.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "nome-de-rua-comprida",
+   "titulo": "Nome de rua acompanha a rua",
+   "resumo": "O nome gira no eixo da rua e se repete em ruas compridas.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "cartao-proximo",
+   "titulo": "Passar de um cartão ao próximo",
+   "resumo": "O cartão ganha '‹ ›' para ler em sequência os pinos à vista.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "ver-colega-entrar-no-pino",
+   "titulo": "Ver o colega entrar no pino",
+   "resumo": "A ficha desliza até o pino e some, deixando 'Lia desceu por aqui'.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "vulto-de-longe",
+   "titulo": "Vulto: rosto só de perto",
+   "resumo": "Fichas alheias além de N casas aparecem sem nome, foto nem cor.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "regua-para-o-colega",
+   "titulo": "Mostrar um caminho com a régua",
+   "resumo": "O jogador manda o traço da régua a um colega da mesma cena.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "texto-conforme-estado",
+   "titulo": "Texto do cartão muda com o estado",
+   "resumo": "O cartão mostra descrição diferente conforme o mecanismo ou o lacre.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "numerar-nomes-repetidos",
+   "titulo": "Numerar nomes repetidos em série",
+   "resumo": "Um relatório mostra nomes repetidos por cena e desempata com prévia.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "letra-grande",
+   "titulo": "Letra grande e alvo de toque de 48 px",
+   "resumo": "'Texto: grande' aumenta texto e alvos de toque no celular.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "porta-trancada-com-forma",
+   "titulo": "Porta trancada com marca de forma",
+   "resumo": "A porta trancada ganha uma marca pequena, sem depender só da cor.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "pino-de-pista-com-fio",
+   "titulo": "Pino do tipo Pista com fio de enredo",
+   "resumo": "O pino é marcado como pista de um fio ou ambiente, com filtro 'só pistas'.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "busca-nos-seletores",
+   "titulo": "Busca nos seletores de cena",
+   "resumo": "'Mandar para…' e 'Leva a…' têm busca e mostram o caminho da cena.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:busca-nos-seletores-de-cena",
+    "lista101:71"
+   ]
+  },
+  {
+   "id": "cartao-e-rotulo-legiveis",
+   "titulo": "Cartão compacto e rótulo legível",
+   "resumo": "O cartão sem imagem abre sem retângulo preto e o nome do cômodo não fica sob a ficha.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "backlog:cartao-e-rotulo-legiveis",
+    "lista101:85"
+   ]
+  },
+  {
+   "id": "ficha-anda-suave",
+   "titulo": "Ficha anda suave no jogador",
+   "resumo": "A ficha desliza até o destino em vez de pular.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:14"
+   ]
+  },
+  {
+   "id": "texto-de-chegada-da-cena",
+   "titulo": "Texto de chegada da cena",
+   "resumo": "Ao chegar numa cena o jogador recebe um texto de abertura.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "ONDA2",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "lista101:94"
+   ]
+  },
+  {
+   "id": "nome-inteiro-da-cena",
+   "titulo": "Nome inteiro da cena na lista",
+   "resumo": "A lista de cenas mostra o nome completo.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:extra-nome-inteiro-da-cena"
+   ]
+  },
+  {
+   "id": "criar-sala-dentro-armado",
+   "titulo": "'Criar sala dentro' mostra que está armado",
+   "resumo": "A tela indica que a ferramenta está ativa.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:extra-criar-sala-dentro-armado"
+   ]
+  },
+  {
+   "id": "pino-oculto-esmaecido",
+   "titulo": "Pino oculto esmaecido no editor",
+   "resumo": "Pinos ocultos aparecem apagados para o mestre saber que o jogador não os vê.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:extra-pino-oculto-esmaecido"
+   ]
+  },
+  {
+   "id": "botao-entrar-explica",
+   "titulo": "Botão Entrar explica o que falta",
+   "resumo": "Na entrada, o botão diz por que está desligado.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 2,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:extra-validacao-botao-entrar"
+   ]
+  },
+  {
+   "id": "janela-acesa-de-fora",
+   "titulo": "Janela acesa vista de fora",
+   "resumo": "Casa com luz acesa ganha marca de janela iluminada sem revelar o interior.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 1,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "apelido-particular",
+   "titulo": "Apelido particular para a ficha do colega",
+   "resumo": "O jogador dá a uma ficha alheia um apelido que só ele vê.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 1,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": true,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "marca-em-salas-repetidas",
+   "titulo": "Marca de reconhecimento em salas repetidas",
+   "resumo": "Um sinal na porta diferencia cômodos iguais e o editor avisa salas idênticas.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 1,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "toolbar-sem-medida-sincrona",
+   "titulo": "Barra de ferramentas mede o layout depois de montar",
+   "resumo": "A abertura deixa de forçar recálculo de layout.",
+   "tipo": "desempenho",
+   "tamanho": "P",
+   "importancia": 1,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "fluidez-com-gpu",
+   "titulo": "Teste de fluidez com GPU real",
+   "resumo": "O portão registra a placa usada e mede com GPU, não WebGL por software.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 1,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "torre"
+   ]
+  },
+  {
+   "id": "tela-de-atalhos",
+   "titulo": "Tela de atalhos (tecla ?)",
+   "resumo": "Apertar ? mostra os atalhos de teclado.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 1,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:9"
+   ]
+  },
+  {
+   "id": "exportar-png",
+   "titulo": "Exportar mapa como PNG",
+   "resumo": "O mestre salva o mapa como imagem.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 1,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:17"
+   ]
+  },
+  {
+   "id": "alinhar-e-distribuir",
+   "titulo": "Alinhar e distribuir itens",
+   "resumo": "O mestre alinha e espaça por igual os objetos selecionados.",
+   "tipo": "feature",
+   "tamanho": "P",
+   "importancia": 1,
+   "status": "PRONTA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:21"
+   ]
+  },
+  {
+   "id": "duplo-clique-renomeia",
+   "titulo": "Duplo clique renomeia cena e ficha",
+   "resumo": "Clicar duas vezes no nome permite renomear ali mesmo.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 1,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:extra-duplo-clique-renomeia"
+   ]
+  },
+  {
+   "id": "saltar-pela-inicial",
+   "titulo": "Saltar pela inicial na lista",
+   "resumo": "Digitar uma letra pula para o primeiro item com ela.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 1,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:extra-saltar-pela-inicial"
+   ]
+  },
+  {
+   "id": "abas-vazias-explicam",
+   "titulo": "Abas Mapa e Jogo vazias explicam o que falta",
+   "resumo": "No navegador, as abas vazias dizem o que fazer.",
+   "tipo": "refino",
+   "tamanho": "P",
+   "importancia": 1,
+   "status": "NOVA",
+   "vozes": 1,
+   "toca_jogador": false,
+   "fontes": [
+    "lista101:extra-abas-vazio-explicado"
+   ]
+  }
+ ]
+}
