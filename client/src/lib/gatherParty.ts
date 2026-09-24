@@ -5,6 +5,7 @@ import { findTokenPath } from './collision'
 import { compileFloor } from './floorSdf'
 import type { PartyMember } from './party'
 import { seatTokenCenter, tokenSizeInSquares, type Point } from './tokenSize'
+import { vehicleCarrying } from './vehicle'
 
 /**
  * REUNIR O GRUPO AQUI (G5) — a parte pura: ONDE cada ficha assenta em volta
@@ -83,6 +84,21 @@ interface Seated {
  * linha da grade, de 1 e 3 no meio da casa.
  */
 export function gatherSpots(map: MapData, pin: Point, sizes: readonly number[], movingTokenIds: ReadonlySet<string> = new Set()): (Point | null)[] {
+  const seats = seatFinder(map, pin, movingTokenIds)
+  return sizes.map((size) => seats.takeNearest(size))
+}
+
+/** As casas em volta de um ponto, com a regra de `gatherSpots`, e o que já foi ocupado nesta rodada. */
+interface SeatFinder {
+  /** A casa `seat` serve para uma ficha de `size`: dentro do mundo, no chão, sem parede no caminho nem ficha em cima. */
+  fits(seat: Point, size: number): boolean
+  /** Marca a casa como ocupada: a próxima ficha não cai em cima. */
+  take(seat: Point, size: number): void
+  /** A casa livre mais perto do ponto (já marcada como ocupada); `null` = não coube até `GATHER_MAX_RING`. */
+  takeNearest(size: number): Point | null
+}
+
+function seatFinder(map: MapData, pin: Point, movingTokenIds: ReadonlySet<string>): SeatFinder {
   const grid = map.grid
   const width = map.width * grid
   const height = map.height * grid
@@ -114,14 +130,57 @@ export function gatherSpots(map: MapData, pin: Point, sizes: readonly number[], 
   const overlaps = (p: Point, size: number): boolean =>
     taken.some((other) => Math.hypot(other.point.x - p.x, other.point.y - p.y) < ((size + other.size) / 2) * grid * OVERLAP_FACTOR)
 
-  return sizes.map((size) => {
-    for (const cell of cells) {
-      const seat = map.gridShape === 'square' ? seatTokenCenter(cell, cell, grid, size) : cell
-      if (!reachable(seat) || overlaps(seat, size)) continue
-      taken.push({ point: seat, size })
-      return seat
+  const fits = (seat: Point, size: number): boolean => reachable(seat) && !overlaps(seat, size)
+  const take = (seat: Point, size: number): void => {
+    taken.push({ point: seat, size })
+  }
+  return {
+    fits,
+    take,
+    takeNearest: (size) => {
+      for (const cell of cells) {
+        const seat = map.gridShape === 'square' ? seatTokenCenter(cell, cell, grid, size) : cell
+        if (!fits(seat, size)) continue
+        take(seat, size)
+        return seat
+      }
+      return null
+    },
+  }
+}
+
+/** Um passageiro que chega com o veículo: o afastamento que tinha dele na cena de origem, em px, e o tamanho em casas. */
+export interface ArrivingRider {
+  dx: number
+  dy: number
+  size: number
+}
+
+/**
+ * VEÍCULO QUE ATRAVESSA: onde cada passageiro assenta em volta do veículo que
+ * acabou de chegar em `vehicle` (já na casa de chegada, e já ocupando ela).
+ * Quem pode, mantém o afastamento da origem — o grupo chega como saiu; quem
+ * não pode, assenta na casa livre mais perto do veículo, com a mesma regra
+ * do "Reunir o grupo aqui" (`gatherSpots`).
+ *
+ * O afastamento só vale se a casa serve (dentro do mapa, no chão, sem parede
+ * entre ela e o veículo, sem ficha em cima) e se fica a até `GATHER_MAX_RING`
+ * casas: a ficha marcada a bordo lá do outro lado da cena não chega lá do
+ * outro lado do pino. Sem casa livre nenhuma, o passageiro fica na casa do
+ * próprio veículo — dentro dele —, nunca fora do mapa. Na mesma ordem de
+ * `riders`.
+ */
+export function vehicleRiderSpots(map: MapData, vehicle: Point & { size: number }, riders: readonly ArrivingRider[]): Point[] {
+  const seats = seatFinder(map, vehicle, new Set())
+  seats.take(vehicle, vehicle.size)
+  const reach = GATHER_MAX_RING * map.grid
+  return riders.map((rider) => {
+    const kept = { x: vehicle.x + rider.dx, y: vehicle.y + rider.dy }
+    if (Math.max(Math.abs(rider.dx), Math.abs(rider.dy)) <= reach && seats.fits(kept, rider.size)) {
+      seats.take(kept, rider.size)
+      return kept
     }
-    return null
+    return seats.takeNearest(rider.size) ?? { x: vehicle.x, y: vehicle.y }
   })
 }
 
@@ -132,6 +191,12 @@ export interface GatherMove {
   tokenId: string
   /** `true` = vem de OUTRA cena: atravessa pelo caminho do "Mandar para…" e o jogador lê o aviso. */
   travels: boolean
+  /**
+   * Viaja A BORDO do veículo `carriedBy`, que também está no plano e viaja da
+   * mesma cena: quando o veículo chega, ela já chegou junto — só anda até a
+   * casa reservada. Ausente = viaja por conta própria.
+   */
+  carriedBy?: string
   x: number
   y: number
 }
@@ -166,14 +231,19 @@ function sceneOf(member: PartyMember, world: HostWorld): HostScene | undefined {
  */
 export function planGather(members: readonly PartyMember[], world: HostWorld, pin: Point): GatherPlan {
   const openMap = world.open.map
-  const joining: { member: PartyMember; token: Token; travels: boolean }[] = []
+  const joining: { member: PartyMember; token: Token; travels: boolean; carrier: string | null }[] = []
   for (const member of members) {
     if (member.token === null) continue
     const tokenId = member.token.id
-    const token = sceneOf(member, world)?.map.tokens.find((t) => t.id === tokenId)
-    if (token === undefined) continue
-    joining.push({ member, token, travels: member.sceneId !== world.open.sceneId })
+    const map = sceneOf(member, world)?.map
+    const token = map?.tokens.find((t) => t.id === tokenId)
+    if (map === undefined || token === undefined) continue
+    const travels = member.sceneId !== world.open.sceneId
+    joining.push({ member, token, travels, carrier: travels ? (vehicleCarrying(map, tokenId)?.id ?? null) : null })
   }
+  // O veículo que também viaja no plano, da mesma cena, leva a ficha junto.
+  const carriedBy = (j: (typeof joining)[number]): string | undefined =>
+    j.carrier !== null && joining.some((other) => other.travels && other.token.id === j.carrier && other.member.sceneId === j.member.sceneId) ? j.carrier : undefined
   // Quem já está na cena vai sair do lugar: a casa de onde ele sai não conta como ocupada.
   const moving = new Set(joining.filter((j) => !j.travels).map((j) => j.token.id))
   const spots = gatherSpots(
@@ -190,7 +260,9 @@ export function planGather(members: readonly PartyMember[], world: HostWorld, pi
       leftOut.push(j.member.name)
       return
     }
-    moves.push({ playerId: j.member.playerId, name: j.member.name, tokenId: j.token.id, travels: j.travels, x: spot.x, y: spot.y })
+    const carrier = carriedBy(j)
+    const move: GatherMove = { playerId: j.member.playerId, name: j.member.name, tokenId: j.token.id, travels: j.travels, x: spot.x, y: spot.y }
+    moves.push(carrier === undefined ? move : { ...move, carriedBy: carrier })
   })
   return { moves, leftOut }
 }
@@ -212,15 +284,33 @@ export interface GatherEffects {
  * estava aqui — por cima do histórico já reescrito, então desfazer esse passo
  * volta só as fichas locais para onde estavam, e as que vieram de longe ficam.
  * Devolve os nomes de quem não pôde vir.
+ *
+ * VEÍCULO: quem viaja a bordo de um veículo do plano espera o veículo. Se ele
+ * chegou, a ficha chegou junto (a travessia leva os passageiros) e só anda até
+ * a casa reservada, no passo de quem já estava aqui; se não chegou, ela tenta
+ * a travessia por conta própria. Sem isso, a travessia dela acharia a ficha
+ * já na cena do pino e contaria como falha.
  */
 export function applyGatherPlan(plan: GatherPlan, effects: GatherEffects): string[] {
   const failed: string[] = []
-  for (const move of plan.moves) {
-    if (!move.travels) continue
+  const arrivedTokens = new Set<string>()
+  const local: { id: string; x: number; y: number }[] = []
+  const travelingVehicles = new Set(plan.moves.filter((move) => move.travels).map((move) => move.tokenId))
+  const waitsForVehicle = (move: GatherMove): boolean => move.carriedBy !== undefined && travelingVehicles.has(move.carriedBy)
+  const travel = (move: GatherMove): void => {
     const arrived = effects.sceneId !== null && effects.bringFromOtherScene(move.playerId, effects.sceneId, { x: move.x, y: move.y })
-    if (!arrived) failed.push(move.name)
+    if (arrived) arrivedTokens.add(move.tokenId)
+    else failed.push(move.name)
   }
-  const local = plan.moves.filter((move) => !move.travels).map((move) => ({ id: move.tokenId, x: move.x, y: move.y }))
+  for (const move of plan.moves) {
+    if (move.travels && !waitsForVehicle(move)) travel(move)
+  }
+  for (const move of plan.moves) {
+    if (!move.travels || !waitsForVehicle(move)) continue
+    if (move.carriedBy !== undefined && arrivedTokens.has(move.carriedBy)) local.push({ id: move.tokenId, x: move.x, y: move.y })
+    else travel(move)
+  }
+  local.push(...plan.moves.filter((move) => !move.travels).map((move) => ({ id: move.tokenId, x: move.x, y: move.y })))
   if (local.length > 0) effects.placeInScene(local)
   return failed
 }

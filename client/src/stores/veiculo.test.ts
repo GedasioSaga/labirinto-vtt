@@ -40,6 +40,8 @@ const { createEmptyMap, addPin } = await import('../lib/mapFactory')
 const { arrivalSpot } = await import('../lib/pinTravel')
 const { passengerIdsOf } = await import('../lib/vehicle')
 const { createHostBridge, BROADCAST_THROTTLE_MS } = await import('../net/hostBridge')
+const { partyMembers } = await import('../lib/party')
+const { applyGatherPlan, planGather } = await import('../lib/gatherParty')
 
 const CODIGO = 'CESTO1'
 const A07 = 'a07'
@@ -358,6 +360,79 @@ describe('veículo com lugares: o cesto leva o Gui e mais 1, recusa o 3º, e os 
     expect(trocaEMapa(t.enviados, 'c-duda', desde)).toEqual([{ type: 'scene.changed', by: undefined }, { type: 'snapshot' }])
     expect(trocaEMapa(t.enviados, 'c-gui', desde)).toEqual([{ type: 'scene.changed', by: 'master' }, { type: 'snapshot' }])
     expect(trocaEMapa(t.enviados, 'c-bia', desde).map((m) => m.type)).not.toContain('scene.changed')
+    t.desligar()
+    await t.bridge.stop()
+  })
+
+  it('pino na borda de a07: quem vai a bordo chega dentro do mapa, numa casa livre ao lado do cesto, mesmo quem embarcou longe', () => {
+    const { a07 } = montarAventura()
+    // a07 tem 30x20 casas de 64 px (1920 x 1280); a borda é o pino na coluna 0.
+    const BORDA: Pin = { id: 'borda', x: 0, y: 600, kind: 'viagem', description: 'Beira', image: null, destino: null }
+    useAdventureStore.getState().updateBackgroundScene(a07, (map) => addPin(map, BORDA))
+    useMapStore.getState().addToken(ficha('longe', 'Longe', 1800, 1200))
+    // O Gui está uma casa à esquerda do cesto: o mesmo afastamento cairia fora do mapa.
+    useMapStore.getState().setVehiclePassenger('cesto', 'gui', true)
+    useMapStore.getState().setVehiclePassenger('cesto', 'longe', true)
+    const chegada = arrivalSpot(mapaDaCena(a07), BORDA, 1)
+    expect(chegada).toEqual({ x: 32, y: 608 })
+
+    expect(levarFichaPara('cesto', a07, 'borda')).toBe(true)
+
+    // A casa de cima (a primeira do anel) e a da direita (a da esquerda é fora do mapa).
+    expect(posicoes(a07)).toEqual({ cesto: [32, 608], gui: [32, 544], longe: [96, 608] })
+    expect(passengerIdsOf(mapaDaCena(a07), 'cesto')).toEqual(['gui', 'longe'])
+  })
+
+  it('pino com parede ao lado: o passageiro não chega do outro lado da parede', () => {
+    const { a07 } = montarAventura()
+    // Parede de cima a baixo em x = 1472, a linha da grade colada à esquerda da casa da boca do poço.
+    useAdventureStore.getState().updateBackgroundScene(a07, (map) => ({
+      ...map,
+      walls: [...map.walls, { id: 'muro', x1: 1472, y1: 0, x2: 1472, y2: 1280, blocksLight: true, blocksMove: true, door: null }],
+    }))
+    useMapStore.getState().setVehiclePassenger('cesto', 'gui', true)
+    useMapStore.getState().setVehiclePassenger('cesto', 'bia', true)
+    const chegada = arrivalSpot(mapaDaCena(a07), SAIDA, 1)
+    expect(chegada).toEqual({ x: 1504, y: 928 })
+
+    expect(levarFichaPara('cesto', a07, 'saida')).toBe(true)
+
+    // O Gui (uma casa à esquerda) iria para trás do muro: senta na casa de cima. A Bia mantém o lado.
+    expect(posicoes(a07)).toEqual({ cesto: [1504, 928], gui: [1504, 864], bia: [1568, 928] })
+  })
+
+  it('"Reunir o grupo" com a dona do cesto antes do Gui a bordo: os dois chegam, sem falha, cada um na casa reservada', async () => {
+    const t = await mesa()
+    const duda = t.entra('c-duda', 'Duda')
+    t.bridge.assignToken(duda, 'cesto')
+    const gui = t.bridge.players().find((p) => p.name === 'Gui')?.playerId ?? ''
+    useMapStore.getState().setVehiclePassenger('cesto', 'gui', true)
+    // O mestre abre a07 e reúne o grupo na fogueira de lá.
+    expect(useAdventureStore.getState().switchScene(t.a07)).toBe(true)
+    const FOGUEIRA: Pin = { id: 'fogueira', x: 10 * 64 + 32, y: 8 * 64 + 32, kind: 'exclamacao', description: 'Fogueira', image: null }
+    useMapStore.getState().addPin(FOGUEIRA)
+    const world = hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map)
+    const ordem = [duda, gui]
+    const members = partyMembers(t.bridge.players(), world)
+      .filter((m) => ordem.includes(m.playerId))
+      .sort((a, b) => ordem.indexOf(a.playerId) - ordem.indexOf(b.playerId))
+    const plan = planGather(members, world, FOGUEIRA)
+    expect(plan.moves.map((m) => [m.tokenId, m.travels])).toEqual([
+      ['cesto', true],
+      ['gui', true],
+    ])
+
+    const failed = applyGatherPlan(plan, {
+      sceneId: world.open.sceneId,
+      bringFromOtherScene: (playerId, sceneId, at) => t.bridge.sendPlayer(playerId, sceneId, null, at),
+      placeInScene: (positions) => useMapStore.getState().setTokenPositions(positions),
+    })
+
+    expect(failed).toEqual([])
+    const reservadas = Object.fromEntries(plan.moves.map((m) => [m.tokenId, [m.x, m.y]]))
+    const noA07 = posicoes(t.a07)
+    expect(noA07.cesto).toEqual(reservadas.cesto)
+    expect(noA07.gui).toEqual(reservadas.gui)
     t.desligar()
     await t.bridge.stop()
   })

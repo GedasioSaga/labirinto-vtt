@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest'
 import type { HostWorld } from '../net/hostSession'
 import type { MapData, Token, Wall } from '../types/map'
-import { applyGatherPlan, gatherCandidates, gatherSpots, planGather, type GatherPlan } from './gatherParty'
+import { applyGatherPlan, gatherCandidates, gatherSpots, planGather, vehicleRiderSpots, type GatherPlan } from './gatherParty'
 import { createEmptyMap } from './mapFactory'
 import type { PartyMember } from './party'
 
@@ -163,5 +163,109 @@ describe('planGather e applyGatherPlan', () => {
     })
     expect(ordem).toEqual(['viaja p3 -> salao', 'anda lanterna'])
     expect(falhou).toEqual(['Carla'])
+  })
+})
+
+describe('veículo no "Reunir o grupo": quem vai a bordo de um veículo que também viaja chega com ele', () => {
+  const bote = ficha('bote', casa(4, 4))
+  const remo = ficha('remo', casa(5, 4))
+  const mundoComBote = (passageiros: string[]): HostWorld => ({
+    open: { sceneId: 'salao', name: 'Salão', map: mapa() },
+    background: [{ sceneId: 'cripta', name: 'Cripta', map: mapa({ tokens: [{ ...bote, veiculo: { lugares: 2, passageiros } }, remo] }) }],
+  })
+  const membro = (playerId: string, name: string, token: Token): PartyMember => ({
+    playerId,
+    name,
+    connected: true,
+    sceneId: 'cripta',
+    sceneName: null,
+    travelPending: false,
+    mochila: [],
+    token: { id: token.id, color: '#3cff00', x: token.x, y: token.y },
+  })
+  const dona = membro('p1', 'Duda', bote)
+  const gui = membro('p2', 'Gui', remo)
+
+  it('o plano marca o Gui como levado pelo bote; fora do bote, ele viaja sozinho', () => {
+    expect(planGather([dona, gui], mundoComBote(['remo']), PINO).moves.map((m) => [m.tokenId, m.carriedBy])).toEqual([
+      ['bote', undefined],
+      ['remo', 'bote'],
+    ])
+    expect(planGather([dona, gui], mundoComBote([]), PINO).moves.map((m) => m.carriedBy)).toEqual([undefined, undefined])
+    // O bote fora do plano não leva ninguém "junto": o Gui viaja por conta própria.
+    expect(planGather([gui], mundoComBote(['remo']), PINO).moves.map((m) => [m.tokenId, m.carriedBy])).toEqual([['remo', undefined]])
+  })
+
+  it('o bote chegou: o Gui não atravessa de novo (não conta como falha) e só anda até a casa reservada', () => {
+    const plano = planGather([dona, gui], mundoComBote(['remo']), PINO)
+    const ordem: string[] = []
+    const falhou = applyGatherPlan(plano, {
+      sceneId: 'salao',
+      // O Gui já foi junto com o bote: a travessia dele, se fosse pedida, acharia a ficha no salão e falharia.
+      bringFromOtherScene: (playerId) => {
+        ordem.push(`viaja ${playerId}`)
+        return playerId === 'p1'
+      },
+      placeInScene: (posicoes) => ordem.push(`anda ${posicoes.map((p) => `${p.id}@${p.x},${p.y}`).join(' ')}`),
+    })
+    const casaDoGui = plano.moves[1]
+    expect(falhou).toEqual([])
+    expect(ordem).toEqual(['viaja p1', `anda remo@${casaDoGui.x},${casaDoGui.y}`])
+  })
+
+  it('o bote não pôde vir: o Gui tenta a travessia sozinho, e a falha dele é dele', () => {
+    const plano = planGather([gui, dona], mundoComBote(['remo']), PINO)
+    const ordem: string[] = []
+    const falhou = applyGatherPlan(plano, {
+      sceneId: 'salao',
+      bringFromOtherScene: (playerId) => {
+        ordem.push(`viaja ${playerId}`)
+        return false
+      },
+      placeInScene: () => ordem.push('anda'),
+    })
+    // O bote vai primeiro mesmo com o Gui antes na lista: é ele que leva o Gui.
+    expect(ordem).toEqual(['viaja p1', 'viaja p2'])
+    expect(falhou).toEqual(['Duda', 'Gui'])
+  })
+})
+
+describe('vehicleRiderSpots: onde quem vai a bordo assenta quando o veículo chega', () => {
+  const veiculo = { ...casa(0, 5), size: 1 }
+
+  it('afastamento que serve: o grupo chega como saiu', () => {
+    const chegada = { ...PINO, size: 1 }
+    expect(vehicleRiderSpots(mapa(), chegada, [{ dx: GRADE, dy: 0, size: 1 }, { dx: 0, dy: -GRADE, size: 1 }])).toEqual([
+      { x: PINO.x + GRADE, y: PINO.y },
+      { x: PINO.x, y: PINO.y - GRADE },
+    ])
+  })
+
+  it('veículo na borda: quem estava à esquerda não sai do mapa; quem embarcou longe chega ao lado', () => {
+    const casas = vehicleRiderSpots(mapa(), veiculo, [
+      { dx: -GRADE, dy: 0, size: 1 },
+      { dx: 15 * GRADE, dy: 6 * GRADE, size: 1 },
+    ])
+    // A de cima (primeira do anel) e a da direita.
+    expect(casas).toEqual([casa(0, 4), casa(1, 5)])
+  })
+
+  it('parede entre o veículo e o afastamento: a casa do outro lado não vale', () => {
+    // Parede colada à direita do veículo, de cima a baixo.
+    const map = mapa({ walls: [parede('muro', GRADE, 0, GRADE, 600)] })
+    expect(vehicleRiderSpots(map, veiculo, [{ dx: GRADE, dy: 0, size: 1 }])).toEqual([casa(0, 4)])
+  })
+
+  it('ficha já na casa do afastamento: o passageiro assenta na mais perto livre', () => {
+    const map = mapa({ tokens: [ficha('rocha', { x: PINO.x + GRADE, y: PINO.y })] })
+    expect(vehicleRiderSpots(map, { ...PINO, size: 1 }, [{ dx: GRADE, dy: 0, size: 1 }])).toEqual([{ x: PINO.x, y: PINO.y - GRADE }])
+  })
+
+  it('sem casa livre nenhuma: fica na casa do próprio veículo, dentro do mapa', () => {
+    // Um cubículo de uma casa só em volta do veículo.
+    const map = mapa({
+      walls: [parede('n', 0, 250, 50, 250), parede('s', 0, 300, 50, 300), parede('l', 50, 250, 50, 300)],
+    })
+    expect(vehicleRiderSpots(map, veiculo, [{ dx: GRADE, dy: 0, size: 1 }])).toEqual([{ x: veiculo.x, y: veiculo.y }])
   })
 })

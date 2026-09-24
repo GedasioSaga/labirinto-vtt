@@ -3,6 +3,8 @@ import type { MapData, Pin, PinDestination, Token } from '../types/map'
 import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
 import { leaveVehicle, passengersOf } from '../lib/vehicle'
+import { vehicleRiderSpots } from '../lib/gatherParty'
+import { tokenSizeInSquares } from '../lib/tokenSize'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
 import {
@@ -715,12 +717,17 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const token = from?.map.tokens.find((t) => t.id === tokenId)
     if (from === null || to === null || token === undefined) return false
 
-    // VEÍCULO: quem está a bordo atravessa junto, no afastamento que tinha em
-    // volta dele, e chega ainda a bordo (os ids de quem viaja não mudam).
-    const travelers: Token[] = [
-      { ...token, x, y },
-      ...passengersOf(from.map, tokenId).map((p) => ({ ...p, x: x + p.x - token.x, y: y + p.y - token.y })),
-    ]
+    // VEÍCULO: quem está a bordo atravessa junto e chega ainda a bordo (os
+    // ids de quem viaja não mudam). Cada um no afastamento que tinha em volta
+    // dele, quando a casa serve; senão, na casa livre mais perto do veículo —
+    // nunca fora do mapa nem do outro lado de uma parede.
+    const riders = passengersOf(from.map, tokenId)
+    const seats = vehicleRiderSpots(
+      to.map,
+      { x, y, size: tokenSizeInSquares(token) },
+      riders.map((p) => ({ dx: p.x - token.x, dy: p.y - token.y, size: tokenSizeInSquares(p) })),
+    )
+    const travelers: Token[] = [{ ...token, x, y }, ...riders.map((p, index) => ({ ...p, x: seats[index].x, y: seats[index].y }))]
     const leaving = travelers.reduce((history, traveler) => withoutToken(history, traveler.id), from)
     const { history: arriving, renamedResidents } = withTokens(to, travelers)
     const nextCache: Record<string, SceneSlot> = { ...cache }
