@@ -310,6 +310,56 @@ describe('hostSession: "Trazer" a ficha que ficou em outra cena', () => {
     expect(JSON.stringify(rede)).not.toMatch(/Vila Cinzenta/)
   })
 
+  it('Bruno acabou de chegar pela ponte com o cão: o pônei e a coruja trazidos não sentam no pino par nem cobrem a cabeça dele', () => {
+    const t = mesa()
+    // Só o cão vai colado; o pônei e a coruja ficam longe e são trazidos depois.
+    t.onde.cao = { cena: ESTRADA, ...casa(9, 7) }
+    t.onde.ponei = { cena: ESTRADA, ...casa(3, 3) }
+    t.onde.coruja = { cena: ESTRADA, ...casa(3, 9) }
+    const chegada = t.s.approveTravel(t.pedir('c1'), t.world()).applyTransfer
+    expect((chegada?.entourage ?? []).map((e) => e.tokenId)).toEqual(['cao'])
+    t.aplica(chegada)
+    const trazidos: AppliedTransfer[] = []
+    for (const tokenId of ['ponei', 'coruja']) {
+      const r = t.s.bringToken(t.ids.Bruno, tokenId, t.world())
+      if (r.applyTransfer === undefined) throw new Error(`${tokenId} deveria vir`)
+      expect(r.applyTransfer).toMatchObject({ tokenId, fromSceneId: ESTRADA, toSceneId: VILA })
+      t.aplica(r.applyTransfer)
+      trazidos.push(r.applyTransfer)
+    }
+    const bruno = t.onde.bruno
+    for (const p of trazidos) {
+      expect(foraDoPino(p, PONTE_B)).toBe(true)
+      expect(Math.max(Math.abs(p.x - bruno.x), Math.abs(p.y - bruno.y))).toBe(GRADE)
+    }
+    // Ninguém empilhado: Bruno, o cão e os dois trazidos em quatro casas diferentes.
+    expect(new Set([bruno, t.onde.cao, ...trazidos].map(chave)).size).toBe(4)
+  })
+
+  it('pino de viagem secreto não desvia a ficha trazida: o lugar onde ela senta não entrega o pino que o jogador não vê', () => {
+    /** Bruno passa sozinho pela ponte; o pônei ficou longe, na Estrada. */
+    const naVila = () => {
+      const t = mesa()
+      t.onde.ponei = { cena: ESTRADA, ...casa(3, 3) }
+      t.onde.coruja = { cena: ESTRADA, ...casa(3, 9) }
+      const chegada = t.s.approveTravel(t.pedir('c1'), t.world()).applyTransfer
+      expect(chegada?.entourage).toBeUndefined()
+      t.aplica(chegada)
+      return t
+    }
+    const semPino = naVila()
+    const livre = semPino.s.bringToken(semPino.ids.Bruno, 'ponei', semPino.world()).applyTransfer
+    if (livre === undefined) throw new Error('o pônei deveria vir')
+    const t = naVila()
+    const mundo = t.world()
+    // Pino de viagem secreto exatamente na casa onde o pônei sentaria.
+    const vila = mundo.background[0]
+    if (vila === undefined) throw new Error('a Vila deveria existir')
+    vila.map.pins.push({ ...ponte('passagem-secreta', { x: livre.x, y: livre.y }, ESTRADA, 'ponte-a'), secret: true })
+    const r = t.s.bringToken(t.ids.Bruno, 'ponei', mundo).applyTransfer
+    expect(r).toMatchObject({ tokenId: 'ponei', toSceneId: VILA, x: livre.x, y: livre.y })
+  })
+
   it('nada: ficha de outro jogador, ficha que já está na cena dele, ficha que não existe', () => {
     const t = mesa()
     t.onde.gato = { cena: VILA, ...casa(30, 2) }

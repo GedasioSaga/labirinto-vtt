@@ -7,7 +7,7 @@ import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, freeSeatNear, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { acceptsLockedRequest, passageOf, pinSummary } from '../lib/pins'
-import { pinClearance } from '../lib/gatherParty'
+import { pinClearance, type KeepClear } from '../lib/gatherParty'
 import { visibleTokens } from '../lib/layers'
 import type { SavedSceneMemory, SavedSeat, SavedSeatExploration } from '../lib/savedTable'
 import { companionSpots, companionsNear, entourageNear, entourageSeats, type Companion, type Seat } from '../lib/travelTogether'
@@ -1674,6 +1674,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { outbound: [{ clientId, msg: { type: 'scene.changed' } }], applyTransfer }
   }
 
+  /**
+   * Os círculos que a ficha trazida pelo "Trazer" não cobre: casa e cabeça de
+   * cada pino de viagem que o jogador pode tocar — quem acabou de chegar pela
+   * ponte está colado ao pino par, e o anel em volta dele passa pela casa do
+   * pino. Pino secreto, oculto no editor ou só de chegada fica de fora: o
+   * lugar onde a ficha senta não pode entregar um pino que o jogador não vê.
+   */
+  const travelPinsClearance = (map: MapData): KeepClear[] =>
+    map.pins.filter((p) => p.kind === 'viagem' && p.secret !== true && p.hidden !== true && !isArrivalOnly(p)).flatMap(pinClearance)
+
   /** As fichas do mapa que estão no tabuleiro para os jogadores: fora camada oculta e o que o mestre escondeu. */
   const onBoardTokens = (map: MapData): Token[] => visibleTokens(map.tokens, map.hiddenLayers).filter((t) => t.hidden !== true)
 
@@ -2114,7 +2124,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const owned = new Set(ownership[playerId] ?? [])
       const owner = here.map.tokens.find((t) => owned.has(t.id))
       if (owner === undefined) return { outbound: [] }
-      const [seat] = entourageSeats(here.map, owner, [{ x: owner.x, y: owner.y, size: owner.size }], [token.size])
+      const [seat] = entourageSeats(here.map, owner, [{ x: owner.x, y: owner.y, size: owner.size }], [token.size], travelPinsClearance(here.map))
       if (seat === undefined || seat === null) return { outbound: [] }
       return {
         outbound: [],
