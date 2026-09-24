@@ -3,6 +3,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, RegionPoint } from '../types/map'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
+import type { MovimentoDeCabine } from '../lib/cabine'
 import {
   createHostSession,
   singleSceneWorld,
@@ -76,6 +77,12 @@ export interface HostBridgeDeps {
    * mestre: ninguém saberia atender.
    */
   applyTransfer?: (transfer: AppliedTransfer) => boolean
+  /**
+   * CABINE DE TRANSPORTE: quem passou pela parada levou a cabine — gravar a
+   * posição nova na aventura. Só é chamado depois de `applyTransfer` mover a
+   * ficha. Ausente = a cabine fica onde estava (o mestre a traz pelo painel).
+   */
+  applyCabine?: (movimento: MovimentoDeCabine) => void
   /** "Ir lá" do aviso de chegada: abrir `sceneId` no editor com (`x`, `y`) no centro. */
   onGoToScene?: (sceneId: string, x: number, y: number) => void
   visionRadius?: number
@@ -509,6 +516,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifyPlayersIfChanged()
       return
     }
+    // A cabine anda ANTES do broadcast: quem ficou na parada de partida já
+    // recebe "longe" no mesmo envio em que o viajante chega.
+    if (result.applyCabine !== undefined) deps.applyCabine?.(result.applyCabine)
     // Primeiro `scene.changed`, depois o snapshot da cena nova: a ordem dos
     // `net_send` é a ordem em que o jogador recebe.
     void dispatch(result)

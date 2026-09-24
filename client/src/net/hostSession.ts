@@ -3,7 +3,9 @@ import { contractFromTerms, isContractDue, type LoanTerms } from '../lib/tokenLo
 import { tokenAsSeenByPlayer } from '../lib/tokenPublicName'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
+import { cabineAposViagem, cabineNaParada, type CabineDeTransporte, type MovimentoDeCabine } from '../lib/cabine'
 import {
+  comCabineParaJogador,
   filterMapForPlayer,
   pinClueForPlayer,
   playerBlockedRings,
@@ -70,6 +72,12 @@ export interface HostScene {
 export interface HostWorld {
   open: HostScene
   background: HostScene[]
+  /**
+   * CABINE DE TRANSPORTE: as cabines da aventura (`Adventure.cabines`).
+   * Ausente = mapa solto ou aventura sem cabine — todo pino de viagem é o de
+   * sempre. Nunca vai ao jogador: dela sai só o "aqui/longe" da parada.
+   */
+  cabines?: readonly CabineDeTransporte[]
 }
 
 /** De onde a sessão lê o mapa: um `MapData` (mapa solto, o de sempre) ou o mundo da aventura. */
@@ -230,6 +238,12 @@ export interface HostResult {
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
    */
   applyTransfer?: AppliedTransfer
+  /**
+   * CABINE DE TRANSPORTE: quem passou levou a cabine para a chegada. Vem só
+   * junto de `applyTransfer`, e o integrador grava DEPOIS de a ficha mudar de
+   * cena (sem viagem, a cabine não anda). Nunca vai ao jogador.
+   */
+  applyCabine?: MovimentoDeCabine
 }
 
 export interface PlayerInfo {
@@ -454,6 +468,8 @@ interface ValidTravel {
   pin: Pin
   partner: Pin
   token: Token
+  /** CABINE DE TRANSPORTE: para onde a cabine vai com esta viagem; `null` = nenhuma anda. */
+  cabine: MovimentoDeCabine | null
 }
 
 /**
@@ -824,7 +840,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       seenPins.delete(playerId)
       return [{ type: 'lobby.waiting' }]
     }
-    const view = snapshotFor(playerId, scene.map)
+    const view = snapshotFor(playerId, scene, world)
     const note = arrivalNote(playerId, scene.sceneId, arrived)
     return note === null ? view : [...view, noteMessage(note)]
   }
@@ -920,12 +936,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * jogador acabou de entrar pela primeira vez: o mapa dele já tem a Sala
    * quando o cartão abre.
    */
-  const snapshotFor = (playerId: string, map: MapData): HostMessage[] => {
+  const snapshotFor = (playerId: string, scene: HostScene, world: HostWorld): HostMessage[] => {
+    const map = scene.map
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
     inheritFromTokens(playerId, map, memory)
     const entered = enteredRooms.get(playerId)?.get(map.id)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered, loansFor(playerId))
+    const cut = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered, loansFor(playerId))
+    // CABINE DE TRANSPORTE: só as paradas que o recorte JÁ mandou ganham o
+    // "aqui/longe" — nada da cabine além disso, nada de parada escondida.
+    const view: PlayerMapView = { ...cut, map: { ...cut.map, pins: comCabineParaJogador(cut.map.pins, scene.sceneId, world.cabines) } }
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -1280,6 +1300,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Chegada oculta (mão única) não leva de volta. O recorte já não a manda,
     // mas a recusa não depende da névoa: mesmo `null`, mesmo motivo genérico.
     if (isArrivalOnly(pin)) return null
+    // CABINE DE TRANSPORTE: parada sem a cabine não leva ninguém. Mesmo `null`,
+    // e também aqui (não só no cartão): o "Deixar ir" de um pedido feito com a
+    // cabine ali recusa se ela saiu antes da resposta.
+    if (cabineNaParada(world.cabines, fromSceneId, pin.id) === 'longe') return null
     const scenes = allScenes(world)
     const lookup = (sceneId: string): TravelScene | null => {
       const scene = scenes.find((s) => s.sceneId === sceneId)
@@ -1304,7 +1328,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
     }
     if (token === null) return null
-    return { from: { ...from, sceneId: fromSceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner, token }
+    const cabine = cabineAposViagem(world.cabines, { sceneId: fromSceneId, pinId: pin.id }, { sceneId: to.sceneId, pinId: travel.partner.id })
+    return { from: { ...from, sceneId: fromSceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner, token, cabine }
   }
 
   function handleTravelRequest(clientId: string, msg: PinTravelRequestMessage, world: HostWorld): HostResult {
@@ -1383,6 +1408,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         y: spot.y,
         ...(companions.length > 0 ? { companions } : {}),
       },
+      ...(travel.cabine === null ? {} : { applyCabine: travel.cabine }),
     }
   }
 

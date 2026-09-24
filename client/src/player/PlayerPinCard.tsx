@@ -131,7 +131,11 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
   const passagem = passageOf(pin)
   const trancada = viagem && passagem === 'trancada'
-  const podePedir = viagem && !trancada && onRequestTravel !== undefined
+  // CABINE DE TRANSPORTE: parada sem a cabine não oferece passar — o host
+  // recusaria. A frase não diz onde a cabine está: o recorte nem sabe.
+  const cabine = viagem ? pin.cabine : undefined
+  const semCabine = cabine === 'longe'
+  const podePedir = viagem && !trancada && !semCabine && onRequestTravel !== undefined
   const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
@@ -173,6 +177,9 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
           </p>
         </div>
         {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
+        {!trancada && semCabine && <p className="pp-pincard__locked">A cabine não está aqui. Não dá para passar agora.</p>}
+        {/* A mesma moldura de estado: diz onde a cabine está, sem convidar toque. */}
+        {!trancada && cabine === 'aqui' && <p className="pp-pincard__locked">A cabine está aqui.</p>}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}

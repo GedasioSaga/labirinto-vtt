@@ -10,6 +10,7 @@ import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleSt
 import { isPlayerSafePinImage } from './pins'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
+import { cabineNaParada, type CabineDeTransporte } from './cabine'
 import { withoutAttachment } from './lightAttachment'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
@@ -1592,6 +1593,24 @@ function pinForPlayer(pin: Pin): Pin {
   const escolhas = exitLabelsOf(pin)
   if (escolhas.length > 1) forPlayer.escolhas = escolhas
   return forPlayer
+}
+
+/**
+ * CABINE DE TRANSPORTE — a parada diz ao jogador se a cabine está nela.
+ * Recebe os pinos que o recorte JÁ mandou (`filterMapForPlayer`): parada que a
+ * névoa, a zona oculta, o "Quem vê" ou o segredo esconderam não está na lista,
+ * e não ganha nada. Do que a cabine é, sai só `cabine: 'aqui' | 'longe'` —
+ * nunca o id, o nome, as outras paradas nem onde ela está (a cena de lá diria
+ * que a outra cena existe). `sceneId` é a cena do jogador na aventura (`null`
+ * no mapa solto, que não tem cabine).
+ */
+export function comCabineParaJogador(pins: readonly Pin[], sceneId: string | null, cabines: readonly CabineDeTransporte[] | undefined): Pin[] {
+  if (cabines === undefined || cabines.length === 0 || sceneId === null) return [...pins]
+  return pins.map((pin) => {
+    if (pin.kind !== 'viagem') return pin
+    const cabine = cabineNaParada(cabines, sceneId, pin.id)
+    return cabine === null ? pin : { ...pin, cabine }
+  })
 }
 
 /**

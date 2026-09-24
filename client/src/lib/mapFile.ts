@@ -264,6 +264,9 @@ function deserializeMapFields(json: string): MapData {
       // sempre, visível. O `...p` acima copiaria o valor cru, por isso a linha.
       soChegada: p.soChegada === true ? true : undefined,
       escolhas: undefined,
+      // CABINE DE TRANSPORTE: `cabine` é só do recorte do jogador (a cabine mora
+      // na aventura). Arquivo editado à mão que o traga não o põe no mapa do mestre.
+      cabine: undefined,
       // ESTADO DO MUNDO: regra torta volta AUSENTE (o pino de sempre); o `...p` copiaria o valor cru.
       porEstado: regraDePinoDoArquivo(p.porEstado),
     })),

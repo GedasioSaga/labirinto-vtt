@@ -331,6 +331,13 @@ export interface PinExit extends PinExitLabel {
 export type PinPassage = 'pede' | 'livre' | 'trancada'
 
 /**
+ * CABINE DE TRANSPORTE, como a PARADA a diz ao jogador: a cabine está `aqui`
+ * ou `longe` — nunca qual cabine é nem em que parada ela está. A cabine mora
+ * na aventura (`lib/cabine.ts`).
+ */
+export type CabineNaParada = 'aqui' | 'longe'
+
+/**
  * Símbolo desenhado DENTRO da cabeça do pino, no lugar do glifo. Os seis que o
  * usuário pediu: o mestre crava "aqui tem um baú" e "aqui tem uma armadilha" e
  * enxerga a diferença no mapa, sem abrir os dois para lembrar qual é qual.
@@ -411,6 +418,14 @@ export interface Pin extends PlayerSecret {
    * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.
    */
   escolhas?: PinExitLabel[]
+  /**
+   * SÓ NO RECORTE DO JOGADOR, e só no pino de viagem que é parada de uma
+   * cabine (elevador, cesto): se a cabine está nele. O mestre nunca grava este
+   * campo (a cabine mora na aventura); o host o monta a cada envio
+   * (`comCabineParaJogador`, `lib/fogFilter.ts`) e `lib/mapFile.ts` o apaga
+   * de um arquivo que o traga.
+   */
+  cabine?: CabineNaParada
   /**
    * ESTADO DO MUNDO — a `passagem` do pino obedece a um estado da aventura.
    * Trocar o valor grava o efeito em `passagem`. NUNCA sai no recorte do
