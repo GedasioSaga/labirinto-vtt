@@ -21,6 +21,8 @@ export const PIN_GLYPH: Record<PinKind, string> = {
   exclamacao: '!',
   interrogacao: '?',
   viagem: '→',
+  // A alavanca também desenha símbolo (`PIN_LEVER_SYMBOL`), nunca este texto.
+  alavanca: '/',
 }
 
 /** Nome de cada tipo na interface do mestre. */
@@ -28,10 +30,11 @@ export const PIN_KIND_LABELS: Record<PinKind, string> = {
   exclamacao: 'Exclamação (!)',
   interrogacao: 'Interrogação (?)',
   viagem: 'Viagem',
+  alavanca: 'Alavanca',
 }
 
-/** Ordem em que os tipos aparecem no painel: a viagem por último, ao lado dos dois de sempre. */
-export const PIN_KIND_ORDER: readonly PinKind[] = ['exclamacao', 'interrogacao', 'viagem']
+/** Ordem em que os tipos aparecem no painel: os dois de sempre, a viagem e a alavanca por último. */
+export const PIN_KIND_ORDER: readonly PinKind[] = ['exclamacao', 'interrogacao', 'viagem', 'alavanca']
 
 /**
  * O tipo que o atalho `?` dá ao pino selecionado: alterna entre "!" e "?"
@@ -318,6 +321,31 @@ export const PIN_TRAVEL_SYMBOL: PinSymbolShape = {
 }
 
 /**
+ * Símbolo da ALAVANCA: a base chapada, a haste inclinada e o punho cheio na
+ * ponta. Mesmo traço fino dos outros; a cabeça é a de latão dos marcadores
+ * (`pixi/drawPins.ts`), porque a alavanca é coisa da sala, não passagem.
+ */
+export const PIN_LEVER_SYMBOL: PinSymbolShape = {
+  strokes: [
+    // A base onde a haste gira.
+    {
+      points: [
+        { x: -0.72, y: 0.62 },
+        { x: 0.72, y: 0.62 },
+      ],
+    },
+    // A haste, do pivô ao punho.
+    {
+      points: [
+        { x: -0.1, y: 0.62 },
+        { x: 0.4, y: -0.36 },
+      ],
+    },
+  ],
+  dots: [{ x: 0.48, y: -0.52, r: 0.22 }],
+}
+
+/**
  * Só data URL de imagem viaja para o jogador. Caminho de disco do mestre
  * (`C:\...`, `/home/...`, `file://...`) NUNCA sai: quem recorta o mapa
  * (`lib/fogFilter.ts`) apaga o campo quando esta função devolve `false`.
@@ -356,6 +384,8 @@ export function pinSummary(pin: Pin): string {
   // O pino de viagem desenha a passagem, nunca o símbolo escolhido: nomeá-lo
   // pelo símbolo diria "Baú" de um pino que no mapa é uma porta.
   if (pin.kind === 'viagem') return 'Pino de viagem'
+  // A alavanca também desenha o próprio símbolo, nunca o escolhido.
+  if (pin.kind === 'alavanca') return 'Alavanca'
   if (isPinIcon(pin.icon)) return `Ponto de interesse — ${PIN_ICON_LABELS[pin.icon]}`
   return `Ponto de interesse ${PIN_GLYPH[pin.kind]}`
 }

@@ -5,6 +5,7 @@ import {
   PIN_HEAD_OFFSET,
   PIN_HEAD_RADIUS,
   PIN_HEIGHT,
+  PIN_LEVER_SYMBOL,
   PIN_SYMBOLS,
   PIN_TRAVEL_SYMBOL,
   isPinIcon,
@@ -101,6 +102,12 @@ function drawMarkerHead(graphics: Graphics, pin: Pin, headY: number): void {
   if (isPinIcon(pin.icon)) drawShape(graphics, PIN_SYMBOLS[pin.icon], pin.x, headY, GLYPH_COLOR)
 }
 
+/** Cabeça da alavanca: a mesma de latão do marcador, com a alavanca em traço escuro no lugar do glifo. */
+function drawLeverHead(graphics: Graphics, pin: Pin, headY: number): void {
+  graphics.circle(pin.x, headY, PIN_HEAD_RADIUS).fill({ color: PIN_FILL }).stroke({ width: PIN_OUTLINE_WIDTH, color: PIN_OUTLINE })
+  drawShape(graphics, PIN_LEVER_SYMBOL, pin.x, headY, GLYPH_COLOR)
+}
+
 /** Cabeça do pino de viagem: escura, com aro e passagem na linha clara — apagada quando não tem par. */
 function drawTravelHead(graphics: Graphics, pin: Pin, headY: number, unlinked: boolean): void {
   const linha = unlinked ? TRAVEL_LINE_UNLINKED : TRAVEL_LINE
@@ -154,9 +161,11 @@ export function createPinsRenderer(): PinsRenderer {
       // ocupa a cabeça: o glifo sai de cena (invisível, nunca destruído) em
       // vez de dividir o espaço com o desenho.
       const viagem = pin.kind === 'viagem'
-      const comSimbolo = viagem || isPinIcon(pin.icon)
+      const alavanca = pin.kind === 'alavanca'
+      const comSimbolo = viagem || alavanca || isPinIcon(pin.icon)
       if (viagem && pin.soChegada === true) drawArrivalHead(graphics, pin, headY)
       else if (viagem) drawTravelHead(graphics, pin, headY, unlinkedIds?.has(pin.id) === true)
+      else if (alavanca) drawLeverHead(graphics, pin, headY)
       else drawMarkerHead(graphics, pin, headY)
 
       let glyph = glyphs.get(pin.id)

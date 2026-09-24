@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { PinItem, PinKind } from '../types/map'
 import { ITEM_NAME_MAX_LENGTH, cleanItemName } from '../lib/items'
+import type { LeverDoorOption } from '../lib/lever'
 import type { PinAttachOption } from '../lib/pinAttach'
 import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER } from '../lib/pins'
 import { GatherControls, type GatherControlsProps } from './GatherControls'
-import { PinTravelArt } from './PinSymbolArt'
+import { PinLeverArt, PinTravelArt } from './PinSymbolArt'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
 import { Toggle } from './Toggle'
 
@@ -44,10 +45,70 @@ export interface PinControlsProps {
    * `onChange(null)` solta. `null` no prop = sem pino aberto, ou pino "!"/"?".
    */
   attachment?: { value: string | null; options: readonly PinAttachOption[]; onChange: (tokenId: string | null) => void } | null
+  /**
+   * ALAVANCA aberta no painel: `value` é o id da porta ligada (`null` = solta);
+   * `options`, as portas desta cena. `onPull` aciona dali (o mestre testa ou
+   * opera na mesa); `pullBlocked` é o porquê de não dar (porta trancada), ou
+   * `null`. `null` no prop = sem pino aberto, ou pino de outro tipo.
+   */
+  lever?: {
+    value: string | null
+    options: readonly LeverDoorOption[]
+    onChange: (wallId: string | null) => void
+    onPull: () => void
+    pullBlocked: string | null
+  } | null
 }
 
 /** Id fixo: só existe um pino aberto no painel por vez (o mesmo molde de `lb-pin-description`). */
 const PRESO_ID = 'lb-pin-attach'
+const PORTA_ID = 'lb-pin-lever-door'
+
+/**
+ * "Abre a porta": a lista nativa das portas desta cena, no molde de "Preso à
+ * ficha". Porta apagada depois de ligada não vira opção fantasma: a lista
+ * mostra "Nenhuma", que é o que a alavanca faz — nada.
+ */
+function PinLeverControls({ value, options, onChange, onPull, pullBlocked }: NonNullable<PinControlsProps['lever']>) {
+  const atual = value !== null && options.some((o) => o.id === value) ? value : ''
+  const semPorta = options.length === 0
+  const efeito = `${PORTA_ID}-efeito`
+  return (
+    <div className="lb-field">
+      <label className="lb-label" htmlFor={PORTA_ID}>
+        Abre a porta
+      </label>
+      <select
+        id={PORTA_ID}
+        className="lb-input"
+        value={atual}
+        disabled={semPorta}
+        aria-describedby={efeito}
+        onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
+      >
+        <option value="">Nenhuma</option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <span id={efeito} className="lb-label">
+        {semPorta
+          ? 'Ponha uma porta no mapa para ligar a alavanca.'
+          : 'Puxar a alavanca abre ou fecha esta porta, mesmo em outra sala.'}
+      </span>
+      {atual !== '' && (
+        <>
+          <button type="button" className="lb-btn lb-btn--block" disabled={pullBlocked !== null} onClick={onPull}>
+            Acionar agora
+          </button>
+          {pullBlocked !== null && <span className="lb-label">{pullBlocked}</span>}
+        </>
+      )}
+    </div>
+  )
+}
 
 /**
  * "Preso à ficha": a lista nativa (setas, Enter, Esc e a letra inicial já vêm
@@ -146,6 +207,13 @@ function KindMark({ kind }: { kind: PinKind }) {
       </span>
     )
   }
+  if (kind === 'alavanca') {
+    return (
+      <span className="lb-pin-glyph" aria-hidden="true">
+        <PinLeverArt size={14} />
+      </span>
+    )
+  }
   return (
     <span className="lb-pin-glyph" aria-hidden="true">
       {PIN_GLYPH[kind]}
@@ -186,14 +254,16 @@ export function PinControls({
   gather = null,
   item = null,
   attachment = null,
+  lever = null,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
+  const alavanca = kind === 'alavanca'
   // As cenas onde mora um par que perde a volta se este pino sumir (uma por
   // saída ligada; a encruzilhada pode ter várias).
   const cenasDosPares = (travel?.exits ?? []).flatMap((exit) => (exit.travel.status === 'ligado' ? [exit.travel.sceneName] : []))
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">{viagem ? 'Pino de viagem' : 'Ponto de interesse'}</h2>
+      <h2 className="lb-eyebrow">{viagem ? 'Pino de viagem' : alavanca ? 'Alavanca' : 'Ponto de interesse'}</h2>
       <div className="lb-seg lb-seg--rows" role="radiogroup" aria-label="Tipo do pino">
         {PIN_KIND_ORDER.map((option) => (
           <button
@@ -212,7 +282,12 @@ export function PinControls({
       {viagem && description === null && (
         <span className="lb-label">Crave o pino; no painel dele você escolhe para onde ele leva.</span>
       )}
+      {alavanca && description === null && (
+        <span className="lb-label">Crave a alavanca; no painel dela você escolhe a porta que ela abre.</span>
+      )}
       {travel !== null && <PinTravelControlsFor travel={travel} />}
+      {/* A porta ligada é o que a alavanca tem de próprio: logo abaixo do tipo, como o destino da viagem. */}
+      {alavanca && description !== null && lever !== null && <PinLeverControls {...lever} />}
       {description !== null && (
         <>
           <div className="lb-field">
@@ -233,7 +308,7 @@ export function PinControls({
               rotação nem "oculto no editor" separado do resto do painel. */}
           <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
           {viagem && attachment !== null && <PinAttachControls {...attachment} />}
-          {!viagem && item !== null && <PinItemControls value={item.value} onChange={item.onChange} />}
+          {!viagem && !alavanca && item !== null && <PinItemControls value={item.value} onChange={item.onChange} />}
           {/* Ação de MESA, não de edição do pino: fica logo depois do que o
               pino é, antes da imagem e do excluir. */}
           {gather !== null && <GatherControlsFor gather={gather} />}
@@ -250,7 +325,7 @@ export function PinControls({
             </button>
           )}
           <button type="button" className="lb-btn lb-btn--ghost lb-btn--block" onClick={onDelete}>
-            {viagem ? 'Excluir pino de viagem' : 'Excluir ponto de interesse'}
+            {viagem ? 'Excluir pino de viagem' : alavanca ? 'Excluir alavanca' : 'Excluir ponto de interesse'}
           </button>
           {/* O efeito que não se vê daqui: o par mora em outra cena. */}
           {cenasDosPares.length > 0 && (

@@ -62,6 +62,7 @@ import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Regio
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
 import { pinAttachOptions } from './lib/pinAttach'
+import { leverDoorOptions, linkedDoorOf } from './lib/lever'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -1400,6 +1401,22 @@ function App() {
   }
 
   /**
+   * ALAVANCA aberta no painel: a porta ligada, as portas desta cena e o
+   * "Acionar agora". Acionar entra no desfazer (é o mestre mexendo), e porta
+   * trancada não se move — o painel diz por quê em vez de um clique mudo.
+   */
+  const leverPanel = (pin: Pin) => {
+    const door = linkedDoorOf(map, pin)
+    return {
+      value: pin.portaLigada ?? null,
+      options: leverDoorOptions(map),
+      onChange: (wallId: string | null) => useMapStore.getState().updatePin(pin.id, { portaLigada: wallId ?? undefined }),
+      onPull: () => useMapStore.getState().pullLever(pin.id),
+      pullBlocked: door !== null && door.door.locked ? 'A porta ligada está trancada: a alavanca não a move.' : null,
+    }
+  }
+
+  /**
    * O destino do pino de viagem aberto no painel: o que ele diz ("Leva a
    * Cripta", "Sem destino") e o que o "Leva a…" oferece. A ligação vive no
    * `adventureStore` — o painel só lê e pede.
@@ -2208,7 +2225,13 @@ function App() {
                   ? useMapStore
                       .getState()
                       // Deixar de ser de viagem também solta o pino da ficha: só a passagem anda com o navio.
-                      .updatePin(selectedPin.id, kind === 'viagem' ? { kind } : { kind, destino: null, presoA: undefined })
+                      // Deixar de ser alavanca solta a porta ligada no mesmo passo do desfazer.
+                      .updatePin(
+                        selectedPin.id,
+                        kind === 'viagem'
+                          ? { kind, portaLigada: undefined }
+                          : { kind, destino: null, presoA: undefined, ...(kind === 'alavanca' ? {} : { portaLigada: undefined }) },
+                      )
                   : useMapStore.getState().setPinKind(kind),
               travel: selectedPin?.kind === 'viagem' ? pinTravelPanel(selectedPin) : null,
               // Só com a sala aberta: sem sala não há jogador para reunir.
@@ -2232,7 +2255,7 @@ function App() {
               onDelete: () => selectedPin && useMapStore.getState().removePin(selectedPin.id),
               // ITEM PEGÁVEL: só com um pino "!"/"?" aberto (a passagem não vai para a mochila).
               item:
-                selectedPin && selectedPin.kind !== 'viagem'
+                selectedPin && selectedPin.kind !== 'viagem' && selectedPin.kind !== 'alavanca'
                   ? {
                       value: selectedPin.item ?? null,
                       onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
@@ -2247,6 +2270,8 @@ function App() {
                       onChange: (tokenId) => useMapStore.getState().updatePin(selectedPin.id, { presoA: tokenId ?? undefined }),
                     }
                   : null,
+              // ALAVANCA: a porta que ela abre (desta cena, de qualquer sala) e o "Acionar agora" do mestre.
+              lever: selectedPin && selectedPin.kind === 'alavanca' ? leverPanel(selectedPin) : null,
             }}
             pinIcon={{
               // Mesma ligação dupla do tipo logo acima: com um pino aberto, o

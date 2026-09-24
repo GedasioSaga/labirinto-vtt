@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Pin, PinExitLabel } from '../types/map'
 import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { itemOfPin } from '../lib/items'
-import { PinTravelArt } from '../components/PinSymbolArt'
+import { PinLeverArt, PinTravelArt } from '../components/PinSymbolArt'
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -19,6 +19,8 @@ interface PlayerPinCardProps {
   onTakeItem?: () => void
   /** Já há um "Pegar" esperando o mestre: o botão fica desligado. */
   takeWaiting?: boolean
+  /** ALAVANCA: "Puxar a alavanca". Ausente = o cartão só lê. Só vale no pino do tipo alavanca. */
+  onPullLever?: () => void
 }
 
 /**
@@ -74,7 +76,7 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
  * vendo onde está. O toque de fechar que cai no mapa para ali, antes do canvas:
  * fechar o cartão não arrasta o mapa nem abre outro pino.
  */
-export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, onTakeItem, takeWaiting = false }: PlayerPinCardProps) {
+export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, onTakeItem, takeWaiting = false, onPullLever }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
@@ -132,6 +134,9 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // a passagem no lugar do glifo — a mesma cabeça que o jogador vê no mapa.
   // O nome da cena de destino nunca chega aqui (`lib/fogFilter.ts`).
   const viagem = pin.kind === 'viagem'
+  // ALAVANCA: qual porta ela move nunca chega aqui (`lib/fogFilter.ts`); o
+  // cartão só oferece puxar, e o que mudou o jogador vê no mapa.
+  const alavanca = pin.kind === 'alavanca'
   // O modo vem no recorte (o destino, não). Trancada não oferece botão nenhum:
   // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
   const passagem = passageOf(pin)
@@ -164,7 +169,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
         className="pp-pincard"
         role="dialog"
         aria-modal="true"
-        aria-label={viagem ? 'Passagem' : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`}
+        aria-label={viagem ? 'Passagem' : alavanca ? 'Alavanca' : `Ponto de interesse ${PIN_GLYPH[pin.kind]}`}
       >
         <img
           className="pp-pincard__image"
@@ -173,7 +178,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
         />
         <div className="pp-pincard__body">
           <span className={viagem ? 'pp-pincard__glyph pp-pincard__glyph--viagem' : 'pp-pincard__glyph'} aria-hidden="true">
-            {viagem ? <PinTravelArt size={16} /> : PIN_GLYPH[pin.kind]}
+            {viagem ? <PinTravelArt size={16} /> : alavanca ? <PinLeverArt size={16} /> : PIN_GLYPH[pin.kind]}
           </span>
           <p className="pp-pincard__text">
             {descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao}
@@ -190,6 +195,13 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
               </button>
             )}
           </div>
+        )}
+        {alavanca && onPullLever !== undefined && (
+          // Sem confirmação, como o "Pegar": puxar de novo desfaz, e a porta
+          // que o jogador enxerga mostra na hora o que mudou.
+          <button type="button" className="pp-pincard__travel" onClick={onPullLever}>
+            Puxar a alavanca
+          </button>
         )}
         {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
         {podePedir && confirming === null && !encruzilhada && (

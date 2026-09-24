@@ -1,5 +1,5 @@
 import type { PinIcon } from '../types/map'
-import { PIN_SYMBOLS, PIN_TRAVEL_SYMBOL, type PinSymbolPoint, type PinSymbolShape } from '../lib/pins'
+import { PIN_LEVER_SYMBOL, PIN_SYMBOLS, PIN_TRAVEL_SYMBOL, type PinSymbolPoint, type PinSymbolShape } from '../lib/pins'
 
 interface PinShapeArtProps {
   shape: PinSymbolShape
@@ -80,4 +80,9 @@ export function PinSymbolArt({ icon, size = 18 }: PinSymbolArtProps) {
 /** A passagem do pino de viagem: a seta entrando no vão da porta. */
 export function PinTravelArt({ size = 18 }: { size?: number }) {
   return <PinShapeArt shape={PIN_TRAVEL_SYMBOL} size={size} />
+}
+
+/** A alavanca: base, haste inclinada e punho. */
+export function PinLeverArt({ size = 18 }: { size?: number }) {
+  return <PinShapeArt shape={PIN_LEVER_SYMBOL} size={size} />
 }

@@ -11,6 +11,7 @@ import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
 import { carriedItemsOf, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
+import { linkedDoorOf } from '../lib/lever'
 import {
   parsePlayerMessage,
   type DoorRequestHow,
@@ -23,6 +24,8 @@ import {
   type ItemGiveRejection,
   type JoinMessage,
   type LaserMessage,
+  type PinLeverMessage,
+  type PinLeverRejection,
   type PinTakeMessage,
   type PinTakeRejection,
   type PinTravelRejection,
@@ -615,6 +618,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: o mesmo limite do toque na porta, para "Pegar" e para "Dar a…".
   const lastItemTakeAt = new Map<string, number>()
   const lastItemGiveAt = new Map<string, number>()
+  // Por playerId: o mesmo limite do toque na porta, para puxar a alavanca.
+  const lastLeverAt = new Map<string, number>()
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
   const lastTokenPhotoAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
@@ -1189,6 +1194,40 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const findPendingItem = (requestId: string): PendingItem | undefined => [...pendingItems.values()].find((pending) => pending.requestId === requestId)
 
   /**
+   * ALAVANCA. Autoridade no molde do "Pegar": o pino existe na cena dele, é
+   * alavanca, está no recorte dele (oculto, no escuro ou sob teto não vale) e
+   * uma ficha dele, no recorte dele, está ao alcance. A porta ligada NÃO
+   * precisa estar à vista — a alavanca existe justamente para mover a porta de
+   * outra sala. Ela só não move porta trancada (`stuck`), e a resposta nunca
+   * diz qual porta nem o estado dela: quem enxerga a porta vê pelo recorte.
+   */
+  function handlePinLever(clientId: string, msg: PinLeverMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    if (!withinDoorLimit(lastLeverAt, playerId)) return { outbound: [] }
+
+    const reject = (reason: PinLeverRejection): HostResult => reply(clientId, { type: 'pin.lever.rejected', reason })
+    const map = scene.map
+    const pin = map.pins.find((p) => p.id === msg.pinId)
+    if (pin === undefined || pin.kind !== 'alavanca') return reject('unavailable')
+    const memory = memoryFor(playerId, map)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
+    if (!view.map.pins.some((p) => p.id === pin.id)) return reject('unavailable')
+    const owned = new Set(ownership[playerId] ?? [])
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return reject('far')
+    const door = linkedDoorOf(map, pin)
+    if (door === null || door.door.locked) return reject('stuck')
+
+    return {
+      outbound: [{ clientId, msg: { type: 'pin.lever.answer', answer: 'pulled' } }],
+      applyDoor: { wallId: door.id, open: !door.door.open, ...backgroundSceneId(scene, world) },
+    }
+  }
+
+  /**
    * "Dar a…": o item sai da mochila de uma ficha DELE e entra na de um COLEGA
    * (ficha de outro jogador) que ele vê agora e que está encostada. Ficha do
    * mestre (NPC), a própria, a que ele não vê e item que ele não tem
@@ -1428,6 +1467,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handlePinTake(clientId, msg, world)
         case 'item.give':
           return handleItemGive(clientId, msg, world)
+        case 'pin.lever':
+          return handlePinLever(clientId, msg, world)
       }
     },
 
@@ -1679,6 +1720,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       pendingItems.delete(playerId)
       lastItemTakeAt.delete(playerId)
       lastItemGiveAt.delete(playerId)
+      lastLeverAt.delete(playerId)
       lastTokenPhotoAt.delete(playerId)
       visionOverrides.delete(playerId)
       return reply(clientId, { type: 'kicked' })
