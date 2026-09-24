@@ -545,6 +545,17 @@ export interface Token extends PlayerSecret {
    *  do mestre: NÃO atravessa para o jogador (`lib/fogFilter.ts`).
    *  `undefined` === false — sem linha de migração. */
   npc?: boolean
+  /** MARCA DE COMPANHEIRO: a ficha é de OUTRO jogador da mesa. Só o recorte do
+   *  jogador escreve este campo (`lib/fogFilter.ts`), e só em ficha que ele já
+   *  recebe; o mapa do mestre nunca o guarda (o recorte apaga o que vier dele).
+   *  Ausente = NPC ou a própria ficha. */
+  companion?: TokenCompanion
+}
+
+/** Quem joga com a ficha: nome do jogador e a cor de sinal dele (`#rrggbb`, `lib/signals.ts`). */
+export interface TokenCompanion {
+  name: string
+  color: string
 }
 
 export interface Prop extends PlayerSecret {
