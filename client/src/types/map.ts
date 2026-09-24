@@ -139,6 +139,10 @@ export interface DoorState {
   /** OBRIGATÓRIO. Porta de mapa antigo migra para 'normal' (mesma
    *  aparência de hoje). Ver mapFile.ts. */
   kind: DoorKind
+  /** CHAVE ABRE PORTA: nome do item da mochila que destranca e abre esta
+   *  porta sem pedir ao mestre (`lib/doorKey.ts`). Só do mestre: o jogador
+   *  nunca o recebe (`lib/fogFilter.ts`). `undefined` = só o mestre abre. */
+  abreCom?: string
 }
 
 export interface Light {

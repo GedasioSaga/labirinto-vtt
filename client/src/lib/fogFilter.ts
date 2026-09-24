@@ -431,9 +431,14 @@ function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
 }
 
-/** A porta como o jogador a vê: aberta ou fechada, nunca trancada. */
+/**
+ * A porta como o jogador a vê: aberta ou fechada, nunca trancada — e sem o
+ * "Abre com" (CHAVE ABRE PORTA): o jogador nunca descobre que portas uma chave
+ * abre. Quem tem a chave só lê o nome dela na recusa do toque (`hostSession`).
+ */
 function withoutLock(door: DoorState): DoorState {
-  return { ...door, locked: false }
+  const { abreCom: _chave, ...semChave } = door
+  return { ...semChave, locked: false }
 }
 
 /**

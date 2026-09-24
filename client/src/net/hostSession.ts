@@ -5,6 +5,7 @@ import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokensOccupy } from '../lib/movementRules'
 import { tokenReachesDoor } from '../lib/doorReach'
+import { keyForDoor } from '../lib/doorKey'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
@@ -16,6 +17,7 @@ import {
   type DoorRequestRejection,
   type DoorToggleMessage,
   type DoorToggleRejection,
+  type DoorUseKeyMessage,
   type HostMessage,
   type ItemGiveMessage,
   type ItemGiveRejection,
@@ -131,6 +133,18 @@ export interface DoorRequest {
 }
 
 /**
+ * CHAVE ABRE PORTA: o jogador abriu a porta trancada com a chave da mochila.
+ * É o aviso do mestre (quem, com que item, onde); nada disto vai ao jogador.
+ */
+export interface DoorKeyUse {
+  playerId: string
+  playerName: string
+  itemName: string
+  /** Nome da cena (o que o mestre lê), só quando a porta está numa cena de FUNDO. */
+  sceneName?: string
+}
+
+/**
  * ITEM PEGÁVEL: "Pegar" já validado, à espera do mestre. É o que a linha da
  * caixa de Pedidos mostra; nada disto vai ao jogador.
  */
@@ -219,6 +233,8 @@ export interface HostResult {
   travelRequest?: TravelRequest
   /** Pedido da porta trancada válido: o integrador pergunta ao mestre. */
   doorRequest?: DoorRequest
+  /** A chave da mochila abriu a porta (o `applyDoor` vem junto, com `unlock`): o integrador avisa o mestre. */
+  doorKeyUsed?: DoorKeyUse
   /** "Pegar" válido de pino que pede ao mestre: o integrador pergunta. */
   itemRequest?: ItemRequest
   /** Item pego (pino livre ou "Deixar") ou dado: o integrador grava na cena. */
@@ -754,15 +770,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * `near`: algum token dele, no recorte dele (respeita camada oculta e token
    * escondido pelo mestre), encosta nela. `null` = inexistente ou no escuro.
    */
-  const doorSeenBy = (playerId: string, map: MapData, wallId: string): { wall: Wall; door: DoorState; near: boolean } | null => {
+  const doorSeenBy = (playerId: string, map: MapData, wallId: string): { wall: Wall; door: DoorState; near: boolean; key: string | null } | null => {
     const wall = map.walls.find((w) => w.id === wallId)
     if (wall === undefined || wall.door === null) return null
     const memory = memoryFor(playerId, map)
     const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors)
     if (!view.visibleDoorIds.includes(wall.id)) return null
     const owned = new Set(ownership[playerId] ?? [])
-    const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
-    return { wall, door: wall.door, near }
+    const nearIds = new Set(view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid)).map((t) => t.id))
+    // CHAVE ABRE PORTA: a mochila é a das fichas do MAPA DO MESTRE encostadas
+    // na porta — a chave precisa estar na mão de quem está ali, não na de uma
+    // ficha dele do outro lado da cena.
+    const found = keyForDoor(wall.door, map.tokens.filter((t) => nearIds.has(t.id)))
+    return { wall, door: wall.door, near: nearIds.size > 0, key: found === null ? null : found.item.nome }
   }
 
   /** Limite de 1 pedido de porta por `DOOR_TOGGLE_MIN_INTERVAL_MS`: `false` = o excesso morre em silêncio. */
@@ -787,10 +807,44 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const seen = doorSeenBy(playerId, scene.map, msg.wallId)
     if (seen === null) return reject('not_visible')
     // Trancada antes de longe: "Trancada" é a informação útil, e é dela que sai o pedido ao mestre.
-    if (seen.door.locked) return reject('locked')
+    // Quem encosta com a chave lê o nome dela: é o item que ele já carrega, não o que a porta pede.
+    if (seen.door.locked) {
+      return seen.key === null ? reject('locked') : reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason: 'locked', key: seen.key })
+    }
     if (!seen.near) return reject('far')
 
     return { outbound: [], applyDoor: { wallId: seen.wall.id, open: !seen.door.open, ...backgroundSceneId(scene, world) } }
+  }
+
+  /**
+   * CHAVE ABRE PORTA: "Usar <chave>". Autoridade no molde de
+   * `handleDoorToggle` (porta visível agora, ficha encostada) e mais: uma
+   * ficha DELE encostada carrega o item que a porta pede. Vale, destranca e
+   * abre para todos na hora — sem pedido —, e o mestre recebe o aviso. Sem a
+   * chave, a mesma recusa "Trancada" do toque (dela sai o pedido ao mestre).
+   */
+  function handleDoorUseKey(clientId: string, msg: DoorUseKeyMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    if (!withinDoorLimit(lastDoorToggleAt, playerId)) return { outbound: [] }
+
+    const reject = (reason: DoorToggleRejection): HostResult => reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
+
+    const seen = doorSeenBy(playerId, scene.map, msg.wallId)
+    if (seen === null) return reject('not_visible')
+    if (!seen.near) return reject('far')
+    // Destrancada (o mestre ou um colega chegou antes): abre como o toque abriria.
+    if (!seen.door.locked) return { outbound: [], applyDoor: { wallId: seen.wall.id, open: true, ...backgroundSceneId(scene, world) } }
+    if (seen.key === null) return reject('locked')
+
+    const used: DoorKeyUse = { playerId, playerName: record.name, itemName: seen.key }
+    // Cena de fundo: o mestre lê onde foi, porque está olhando outra.
+    if (backgroundSceneId(scene, world).sceneId !== undefined) used.sceneName = scene.name
+    return { outbound: [], applyDoor: { wallId: seen.wall.id, open: true, unlock: true, ...backgroundSceneId(scene, world) }, doorKeyUsed: used }
   }
 
   /**
@@ -1114,6 +1168,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleDoorToggle(clientId, msg, world)
         case 'door.request':
           return handleDoorRequest(clientId, msg, world)
+        case 'door.useKey':
+          return handleDoorUseKey(clientId, msg, world)
         case 'token.edit':
           return handleTokenEdit(clientId, msg, world)
         case 'pin.travel.request':

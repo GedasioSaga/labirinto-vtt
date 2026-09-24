@@ -652,6 +652,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             key={state.doorNotice.id}
             notice={state.doorNotice}
             onRequest={(wallId, how) => connection.requestDoor(wallId, how)}
+            onUseKey={(wallId) => connection.useDoorKey(wallId)}
             onClose={() => connection.dismissDoorNotice()}
           />
         )}

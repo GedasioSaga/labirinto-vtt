@@ -504,6 +504,12 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+/* CHAVE ABRE PORTA: "Usar <chave>" é a ação que resolve sem esperar o mestre. */
+.pp-notice__action--primary {
+  border-color: var(--lb-color-brass, #e0a44a);
+  color: var(--lb-color-brass, #e0a44a);
+}
+
 .pp-notice__action:focus-visible,
 .pp-notice__close:focus-visible {
   outline: 2px solid var(--lb-color-brass, #e0a44a);

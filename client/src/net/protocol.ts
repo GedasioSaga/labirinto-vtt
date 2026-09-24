@@ -51,6 +51,10 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * mestre) e, na volta, `door.request.rejected` e `door.request.answer`. Mestre
  * antigo responde `error invalid_message`; jogador antigo ignora as duas.
  *
+ * CHAVE ABRE PORTA, aditiva pelo mesmo critério: `door.useKey` (jogador ->
+ * mestre) e o `key` opcional do `door.toggle.rejected`. Mestre antigo responde
+ * `error invalid_message`; jogador antigo ignora o campo.
+ *
  * ITEM PEGÁVEL, aditivo pelo mesmo critério: `pin.take` e `item.give`
  * (jogador -> mestre) e, na volta, `pin.take.rejected`, `pin.take.answer` e
  * `item.give.rejected`. A mochila viaja no token do PRÓPRIO jogador, no
@@ -169,6 +173,16 @@ export interface PinTakeMessage {
   pinId: string
 }
 
+/**
+ * CHAVE ABRE PORTA: o jogador usa a chave que carrega na porta trancada
+ * `wallId`. Só a porta: o host acha a chave na mochila das fichas dele
+ * encostadas nela — o jogador não escolhe item nem diz nome.
+ */
+export interface DoorUseKeyMessage {
+  type: 'door.useKey'
+  wallId: string
+}
+
 /** O jogador dá o item `itemId` da própria mochila à ficha `toTokenId`, de um colega encostado. */
 export interface ItemGiveMessage {
   type: 'item.give'
@@ -183,6 +197,7 @@ export type PlayerMessage =
   | SignalMessage
   | DoorToggleMessage
   | DoorRequestMessage
+  | DoorUseKeyMessage
   | TokenEditMessage
   | PinTravelRequestMessage
   | PinTakeMessage
@@ -249,7 +264,10 @@ export type HostMessage =
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
-  | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
+  // `key` (CHAVE ABRE PORTA): só no `locked`, só para quem encosta na porta
+  // com o item que a abre — o nome do item, que ele já carrega. Aditivo:
+  // jogador antigo ignora e lê "Trancada".
+  | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection; key?: string }
   | { type: 'door.request.rejected'; wallId: string; reason: DoorRequestRejection }
   | { type: 'door.request.answer'; answer: DoorRequestAnswer }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
@@ -423,6 +441,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
     case 'door.request':
       return parseDoorRequest(value)
+    case 'door.useKey':
+      return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.useKey', wallId: value.wallId } : null
     case 'token.edit':
       return parseTokenEdit(value)
     case 'pin.travel.request':

@@ -1,4 +1,5 @@
-import type { FloorStyle, MapData, Region } from '../types/map'
+import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
+import { readDoorKey } from './doorKey'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
@@ -49,6 +50,18 @@ function positiveNumberOr(value: number | undefined, fallback: number): number {
 function entityList<T>(value: T[] | undefined): T[] {
   if (!Array.isArray(value)) return []
   return value.filter((item) => item !== null && typeof item === 'object')
+}
+
+/**
+ * CHAVE ABRE PORTA: o "Abre com" é campo NOVO e OPCIONAL. Ausente continua
+ * ausente (o round-trip do mapa antigo não ganha campo); o que não é texto sai
+ * — a porta continua trancada, só deixa de abrir com item.
+ */
+function doorFromFile(door: DoorState): DoorState {
+  if (!('abreCom' in door)) return door
+  const abreCom = readDoorKey(door.abreCom)
+  const { abreCom: _cru, ...semChave } = door
+  return abreCom === undefined ? semChave : { ...semChave, abreCom }
 }
 
 /** Lista de valores simples (ids de camada): só a forma de lista é garantida. */
@@ -125,7 +138,7 @@ function deserializeMapFields(json: string): MapData {
     // wallKind ausente fica undefined de propósito (=== 'exterior').
     walls: entityList(parsed.walls).map((w) => ({
       ...w,
-      door: w.door ? { ...w.door, kind: w.door.kind ?? 'normal' } : null,
+      door: w.door ? doorFromFile({ ...w.door, kind: w.door.kind ?? 'normal' }) : null,
     })),
     lights: entityList(parsed.lights),
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do

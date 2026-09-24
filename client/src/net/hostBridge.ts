@@ -8,6 +8,7 @@ import {
   singleSceneWorld,
   type AppliedItems,
   type AppliedTokenEdit,
+  type DoorKeyUse,
   type DoorRequest,
   type ItemRequest,
   type AppliedTransfer,
@@ -169,6 +170,12 @@ export function itemRequestLine(request: ItemRequest): string {
 export function doorRequestLine(request: DoorRequest): string {
   const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
   return `${request.playerName} ${DOOR_REQUEST_VERB[request.how]}${where}`
+}
+
+/** "Diego abriu uma porta com Chave do Escudo", mais " em Mansão" quando a porta está numa cena de fundo. */
+export function doorKeyLine(used: DoorKeyUse): string {
+  const where = used.sceneName === undefined ? '' : ` em ${used.sceneName}`
+  return `${used.playerName} abriu uma porta com ${used.itemName}${where}`
 }
 
 const DEFAULT_VISION_RADIUS = 700
@@ -657,11 +664,16 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
     if (result.applyDoor !== undefined) {
       // Todos veem a porta nova: o mestre pela store, os jogadores pelo snapshot imediato.
-      const { wallId, open, sceneId } = result.applyDoor
-      if (sceneId === undefined) deps.applyDoor(wallId, open)
+      const { wallId, open, sceneId, unlock } = result.applyDoor
+      // CHAVE ABRE PORTA: a chave da mochila tira o cadeado antes de abrir,
+      // pelo mesmo caminho do "Destrancar e abrir" do mestre.
+      if (unlock === true) deps.unlockAndOpenDoor?.(wallId, sceneId)
+      else if (sceneId === undefined) deps.applyDoor(wallId, open)
       else deps.applyDoor(wallId, open, sceneId)
       broadcastNow()
     }
+    // Sem quem destranque, a porta não abriu: o aviso não pode dizer que abriu.
+    if (result.doorKeyUsed !== undefined && deps.unlockAndOpenDoor !== undefined) useToastStore.getState().push('info', doorKeyLine(result.doorKeyUsed))
     if (result.travelRequest !== undefined) {
       if (deps.applyTransfer === undefined) {
         // Integrador sem transferência: ninguém do lado do mestre saberia atender.

@@ -71,6 +71,7 @@ import { isArrivalOnly } from './lib/pinTravel'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
+import { setDoorKey } from './lib/doorKey'
 import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
@@ -1065,6 +1066,12 @@ function App() {
     setDoorLocked(selectedWall.id, !selectedWall.door.locked)
   }
 
+  /** CHAVE ABRE PORTA: "Abre com" da porta selecionada, com histórico (Ctrl+Z desfaz). "" tira a chave. */
+  const handleDoorKeyChange = (nome: string) => {
+    if (!selectedWall || !selectedWall.door) return
+    setWallDoor(selectedWall.id, setDoorKey(selectedWall.door, nome))
+  }
+
   /**
    * Com uma parede-porta selecionada, o seletor de tipo edita ELA (com
    * histórico, via setWallDoorKind). Sem porta selecionada — ferramenta
@@ -2026,6 +2033,7 @@ function App() {
               onToggleDoor: handleToggleDoor,
               onToggleOpen: handleToggleOpen,
               onToggleLocked: handleToggleLocked,
+              onKeyChange: handleDoorKeyChange,
             }}
             doorKind={{
               kind: selectedWall?.door ? selectedWall.door.kind : doorKind,
