@@ -41,6 +41,13 @@ export interface RoomPanelProps {
   onStoreTokens?(playerId: string): void
   /** "Dispensar" quem está fora: o card sai. Ausente = sem o botão. */
   onDismiss?(playerId: string): void
+  /**
+   * "Emprestar ficha a" de quem está fora: as fichas dele passam a ser jogadas
+   * por `borrowerId` até ele voltar. Ausente (ou sem `onEndLoans`) = sem a lista.
+   */
+  onLendTokens?(ownerId: string, borrowerId: string): void
+  /** "Tomar de volta" da ficha emprestada: ela sai de quem a jogava e fica só com o dono. */
+  onEndLoans?(ownerId: string): void
   onVisionRadiusChange(playerId: string, radius: number): void
   onRevealPlan(playerId: string): void
   onHidePlan(playerId: string): void
@@ -252,6 +259,59 @@ function OpenRoom({ savedTableNames, onStart }: Pick<RoomPanelProps, 'savedTable
   )
 }
 
+interface LoanControlsProps {
+  /** Quem está fora: o dono da ficha. */
+  player: PlayerInfo
+  players: PlayerInfo[]
+  onLendTokens(ownerId: string, borrowerId: string): void
+  onEndLoans(ownerId: string): void
+}
+
+/**
+ * EMPRESTAR A FICHA de quem saiu: a lista "Emprestar ficha a" (só quem está
+ * conectado pode jogar por ele) ou, já emprestada, com quem ela está e o
+ * "Tomar de volta".
+ */
+function LoanControls({ player, players, onLendTokens, onEndLoans }: LoanControlsProps) {
+  if (player.lentTo !== undefined) {
+    return (
+      <>
+        <p className="lb-label">
+          Ficha emprestada a {player.lentTo.join(', ')}. Volta sozinha quando {player.name} voltar.
+        </p>
+        <button type="button" className="lb-btn lb-btn--ghost" onClick={() => onEndLoans(player.playerId)}>
+          Tomar de volta
+        </button>
+      </>
+    )
+  }
+  const borrowers = players.filter((other) => other.connected && other.playerId !== player.playerId)
+  if (player.tokenIds.length === 0 || borrowers.length === 0) return null
+  const selectId = `lb-room-lend-${player.playerId}`
+  return (
+    <>
+      <label className="lb-label" htmlFor={selectId}>
+        Emprestar ficha a
+      </label>
+      <select
+        id={selectId}
+        className="lb-input"
+        value=""
+        onChange={(event) => {
+          if (event.target.value !== '') onLendTokens(player.playerId, event.target.value)
+        }}
+      >
+        <option value="">Escolher…</option>
+        {borrowers.map((borrower) => (
+          <option key={borrower.playerId} value={borrower.playerId}>
+            {borrower.name}
+          </option>
+        ))}
+      </select>
+    </>
+  )
+}
+
 export function RoomPanel({
   room,
   players,
@@ -270,6 +330,8 @@ export function RoomPanel({
   onKick,
   onStoreTokens,
   onDismiss,
+  onLendTokens,
+  onEndLoans,
   onVisionRadiusChange,
   onRevealPlan,
   onHidePlan,
@@ -413,7 +475,12 @@ export function RoomPanel({
                 {clientId === null && player.storedTokenNames !== undefined && player.storedTokenNames.length > 0 && (
                   <p className="lb-label">Ficha guardada: {player.storedTokenNames.join(', ')}. Volta ao mapa quando {player.name} voltar.</p>
                 )}
-                {clientId === null && onStoreTokens !== undefined && player.tokenIds.length > 0 && (
+                {player.borrowedFrom !== undefined && <p className="lb-label">Jogando também a ficha de {player.borrowedFrom.join(', ')}.</p>}
+                {clientId === null && onLendTokens !== undefined && onEndLoans !== undefined && (
+                  <LoanControls player={player} players={players} onLendTokens={onLendTokens} onEndLoans={onEndLoans} />
+                )}
+                {/* Emprestada, a ficha está em jogo com outro: guardar a tiraria do mapa debaixo dele. */}
+                {clientId === null && onStoreTokens !== undefined && player.tokenIds.length > 0 && player.lentTo === undefined && (
                   <button type="button" className="lb-btn lb-btn--ghost" onClick={() => onStoreTokens(player.playerId)}>
                     Guardar ficha
                   </button>
