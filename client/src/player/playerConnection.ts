@@ -18,6 +18,7 @@ import {
 } from '../lib/laser'
 import { parseLaserMessage, parseSceneNote, VIEW_RESYNC_MIN_INTERVAL_MS } from '../net/protocol'
 import { applyMapPatch, type MapPatch, type TokenChange } from '../net/viewPatch'
+import type { TokenMoveLanding } from '../lib/moveValidation'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -46,6 +47,8 @@ export interface PlayerState {
   playerLasers?: RemoteLaser[]
   /** Recusa do mestre ao pedido de porta (trancada, longe, não visível); some sozinho. `id` novo repete o aviso. */
   doorNotice?: { id: number; reason: DoorToggleRejection }
+  /** O mestre aceitou o arrasto em outro lugar (ficha sem chão => chão mais próximo); some sozinho. */
+  moveNotice?: { id: number; reason: TokenMoveLanding }
   /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
   travel?: TravelNotice
   /**
@@ -146,8 +149,12 @@ export interface PlayerConnection {
 
 export const RESUME_STORAGE_KEY = 'labirinto.resume'
 export const PING_INTERVAL_MS = 15_000
-/** Quanto tempo o aviso da porta ("Trancada") fica na tela. */
+/** Quanto tempo o aviso da porta ("Trancada") fica na tela. O aviso do movimento usa o mesmo. */
 export const DOOR_NOTICE_TTL_MS = 2500
+/** Por que a ficha parou em outro lugar que não o pedido, em uma linha curta. */
+export const MOVE_NOTICE_TEXT: Record<TokenMoveLanding, string> = {
+  nearest_floor: 'O chão sumiu debaixo da ficha: ela foi para o chão mais perto',
+}
 /** Quanto tempo a recusa do mestre ("não deixou passar agora") fica na tela. Mais que a porta. */
 export const TRAVEL_NOTICE_TTL_MS = 4000
 /**
@@ -335,6 +342,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     )
   }
 
+  // Aviso da porta e aviso do movimento dividem o mesmo lugar na tela e o
+  // mesmo relógio: um novo toma o lugar do outro, nunca aparecem sobrepostos.
   let doorNoticeTimer: ReturnType<typeof setTimeout> | null = null
   let nextNoticeId = 1
 
@@ -344,11 +353,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   function showDoorNotice(reason: DoorToggleRejection): void {
+    showShortNotice({ doorNotice: { id: nextNoticeId++, reason }, moveNotice: undefined })
+  }
+
+  function showMoveNotice(reason: TokenMoveLanding): void {
+    showShortNotice({ moveNotice: { id: nextNoticeId++, reason }, doorNotice: undefined })
+  }
+
+  function showShortNotice(patch: Pick<PlayerState, 'doorNotice' | 'moveNotice'>): void {
     clearDoorNotice()
-    setState({ doorNotice: { id: nextNoticeId++, reason } })
+    setState(patch)
     doorNoticeTimer = setTimeout(() => {
       doorNoticeTimer = null
-      setState({ doorNotice: undefined })
+      setState({ doorNotice: undefined, moveNotice: undefined })
     }, DOOR_NOTICE_TTL_MS)
   }
 
@@ -612,7 +629,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTravelTimer()
         // Da espera só se sai por snapshot inteiro: patch nenhum parte dela.
         received = null
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, travel: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -626,7 +643,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearPlayerLasers()
         resetOwnLaser()
         clearDoorNotice()
-        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined })
+        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -709,10 +726,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'patch':
         applyPatch(data)
         return
-      case 'token.move.accepted':
+      case 'token.move.accepted': {
         if (typeof data.reqId !== 'string' || !isFiniteNumber(data.x) || !isFiniteNumber(data.y)) return
+        // Resposta a pedido que já não está pendente (troca de cena) não mexe na ficha nem avisa.
+        const known = pending.has(data.reqId)
         handleAccepted(data.reqId, data.x, data.y)
+        // Motivo desconhecido não derruba o movimento aceito: só não inventa aviso.
+        if (known && data.landing === 'nearest_floor' && state.status === 'playing') showMoveNotice(data.landing)
         return
+      }
       case 'token.move.rejected':
         if (typeof data.reqId !== 'string') return
         handleRejected(data.reqId)
@@ -730,7 +752,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         resetOwnLaser()
         clearDoorNotice()
         clearTravelTimer()
-        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, travel: undefined })
+        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -908,7 +930,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     reconnect() {
       detach()
       received = null
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, travel: undefined, note: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined })
       open()
     },
     close: detach,

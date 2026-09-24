@@ -1,7 +1,9 @@
 import type { MapData, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { DEFAULT_DOOR_SLACK, findTokenPath, moveCrossesWall } from './collision'
-import { compileFloor } from './floorSdf'
+import { pointInRing } from './floorContour'
+import { compileFloor, type CompiledFloor } from './floorSdf'
+import { playerBlockedRings } from './fogFilter'
 
 /**
  * Validação autoritativa de movimento de token (modo jogador). O servidor/host
@@ -18,7 +20,16 @@ export interface TokenMoveRequest {
 
 export type TokenMoveRejection = 'unknown_token' | 'not_owner' | 'locked' | 'outside_map' | 'wall' | 'outside_floor'
 
-export type TokenMoveResult = { ok: true; x: number; y: number } | { ok: false; reason: TokenMoveRejection }
+/**
+ * Por que o movimento aceito parou em outro lugar que não o pedido.
+ * `nearest_floor`: a ficha estava sem chão debaixo (o mestre apagou ou mudou
+ * o chão) e foi levada ao chão mais próximo que ela alcança.
+ */
+export type TokenMoveLanding = 'nearest_floor'
+
+export type TokenMoveResult =
+  | { ok: true; x: number; y: number; landing?: TokenMoveLanding }
+  | { ok: false; reason: TokenMoveRejection }
 
 export interface TokenMoveOptions {
   isHost?: boolean
@@ -36,11 +47,76 @@ function isInsideMap(map: MapData, x: number, y: number): boolean {
   return x >= 0 && x <= map.width * map.grid && y >= 0 && y <= map.height * map.grid
 }
 
-function pathStaysOnFloor(map: MapData, fromX: number, fromY: number, toX: number, toY: number): boolean {
-  const compiled = compileFloor(map.floor)
+/** Direções em que se procura o chão mais próximo de uma ficha sem chão. */
+const RESCUE_DIRECTIONS = 64
+/** Teto de amostras POR direção: mapa hostil (enorme, grade 1) nunca vira laço gigante no mestre. */
+const MAX_RESCUE_SAMPLES_PER_DIRECTION = 512
+/** Quanto a ficha entra além da borda do chão achado, em fração da célula: não fica equilibrada na linha. */
+const RESCUE_INSET_CELLS = 0.25
+
+function sampleStep(map: MapData): number {
+  return Math.max(map.grid / SAMPLES_PER_CELL, MIN_SAMPLE_STEP)
+}
+
+interface FloorHit {
+  x: number
+  y: number
+  distance: number
+}
+
+/** Primeiro ponto de chão na direção (dx, dy) a partir de `from`, andando pelo campo de distância. */
+function marchToFloor(map: MapData, compiled: CompiledFloor, from: Point, dx: number, dy: number): FloorHit | null {
+  const step = sampleStep(map)
+  // Lipschitz ≥ 1 por construção; a guarda só impede divisão que pule chão se um dia vier 0 ou NaN.
+  const lipschitz = compiled.lipschitz >= 1 ? compiled.lipschitz : 1
+  let t = 0
+  for (let i = 0; i < MAX_RESCUE_SAMPLES_PER_DIRECTION; i += 1) {
+    const x = from.x + dx * t
+    const y = from.y + dy * t
+    if (!isInsideMap(map, x, y)) return null
+    const d = compiled.sample(x, y)
+    if (d <= 0) {
+      // Entra um pouco além da borda, se ali ainda for chão (sala mais fina que a folga fica na borda mesmo).
+      const inset = map.grid * RESCUE_INSET_CELLS
+      const ix = x + dx * inset
+      const iy = y + dy * inset
+      if (isInsideMap(map, ix, iy) && compiled.sample(ix, iy) <= 0) return { x: ix, y: iy, distance: t + inset }
+      return { x, y, distance: t }
+    }
+    // `d / lipschitz` nunca pula chão (a distância não cai mais rápido que isso); `step` garante avanço.
+    t += Math.max(d / lipschitz, step)
+  }
+  return null
+}
+
+/**
+ * Chão mais próximo que a ficha em `from` (fora do chão) alcança: sem
+ * atravessar parede, e fora de zona oculta, sala secreta e sala de teto que
+ * não contêm a própria ficha. O ponto volta para o jogador (é onde a ficha
+ * dele passa a estar); um ponto de chão escondido diria que ali existe chão.
+ */
+function findNearestFloor(map: MapData, compiled: CompiledFloor, from: Point): Point | null {
+  const blocked = playerBlockedRings(map).filter((ring) => ring.length >= 3 && !pointInRing(from, ring))
+  const hits: FloorHit[] = []
+  for (let i = 0; i < RESCUE_DIRECTIONS; i += 1) {
+    const angle = (i / RESCUE_DIRECTIONS) * 2 * Math.PI
+    const hit = marchToFloor(map, compiled, from, Math.cos(angle), Math.sin(angle))
+    if (hit !== null) hits.push(hit)
+  }
+  hits.sort((a, b) => a.distance - b.distance)
+  for (const hit of hits) {
+    const point = { x: hit.x, y: hit.y }
+    if (blocked.some((ring) => pointInRing(point, ring))) continue
+    if (findTokenPath(from, point, map.walls, map.grid) === null) continue
+    return point
+  }
+  return null
+}
+
+function pathStaysOnFloor(map: MapData, compiled: CompiledFloor, fromX: number, fromY: number, toX: number, toY: number): boolean {
   // Sem peça 'add' visível não há chão para restringir o movimento.
   if (!compiled.bounds) return true
-  const step = Math.max(map.grid / SAMPLES_PER_CELL, MIN_SAMPLE_STEP)
+  const step = sampleStep(map)
   const length = Math.hypot(toX - fromX, toY - fromY)
   const wanted = Math.ceil(length / step)
   const segments = Number.isFinite(wanted) ? Math.min(MAX_PATH_SAMPLES, Math.max(1, wanted)) : MAX_PATH_SAMPLES
@@ -70,6 +146,17 @@ export function validateTokenMove(
 
   const from = { x: token.x, y: token.y }
   const to = { x: request.x, y: request.y }
+  const compiled = compileFloor(map.floor)
+
+  // O chão sumiu debaixo da ficha (o mestre apagou ou mudou o chão): todo
+  // trajeto partiria de fora do chão e seria recusado para sempre. O arrasto
+  // leva a ficha ao chão mais próximo, e `landing` conta o porquê.
+  if (compiled.bounds && compiled.sample(from.x, from.y) > 0) {
+    const landing = findNearestFloor(map, compiled, from)
+    if (landing === null) return { ok: false, reason: 'outside_floor' }
+    return { ok: true, x: landing.x, y: landing.y, landing: 'nearest_floor' }
+  }
+
   // Pode ter 2 trechos: entrar em diagonal por porta aberta passa pelo vão (lib/collision.ts).
   const path = findTokenPath(from, to, map.walls, map.grid)
   if (path === null) return { ok: false, reason: 'wall' }
@@ -78,7 +165,7 @@ export function validateTokenMove(
     const a = path[i - 1]
     const b = path[i]
     if (a === undefined || b === undefined) continue
-    if (!pathStaysOnFloor(map, a.x, a.y, b.x, b.y)) return { ok: false, reason: 'outside_floor' }
+    if (!pathStaysOnFloor(map, compiled, a.x, a.y, b.x, b.y)) return { ok: false, reason: 'outside_floor' }
   }
 
   return { ok: true, x: to.x, y: to.y }

@@ -3,7 +3,7 @@ import type { FormEvent, ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type DoorToggleRejection } from '../net/protocol'
 import { themeCss } from '../theme'
-import { createPlayerConnection, RESUME_STORAGE_KEY } from './playerConnection'
+import { createPlayerConnection, MOVE_NOTICE_TEXT, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNotice } from './playerConnection'
 import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
@@ -657,6 +657,12 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.
           <p key={state.doorNotice.id} className="pp-notice" role="status" aria-live="polite">
             {DOOR_NOTICE_TEXT[state.doorNotice.reason]}
+          </p>
+        )}
+        {state.moveNotice && (
+          // Ficha sem chão levada ao chão mais perto: diz por que ela não parou onde foi solta.
+          <p key={state.moveNotice.id} className="pp-notice" role="status" aria-live="polite">
+            {MOVE_NOTICE_TEXT[state.moveNotice.reason]}
           </p>
         )}
       </PlayerErrorBoundary>

@@ -1,6 +1,6 @@
 import type { MapData, RegionPoint } from '../types/map'
 import type { ExploredWire } from '../lib/exploration'
-import type { TokenMoveRejection } from '../lib/moveValidation'
+import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import type { ViewPatch } from './viewPatch'
@@ -237,7 +237,8 @@ export type HostMessage =
   | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
   // Só o que mudou desde a tela `base` desta conexão (ver o topo do arquivo).
   | ({ type: 'patch'; rev: number; base: number } & ViewPatch)
-  | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
+  // `landing`: a ficha parou em outro lugar que não o pedido, e por quê (ficha sem chão => chão mais próximo).
+  | { type: 'token.move.accepted'; reqId: string; x: number; y: number; landing?: TokenMoveLanding }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
