@@ -23,7 +23,7 @@ import { RoomPanel } from './components/RoomPanel'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import type { TravelLogEntry } from './lib/travelLog'
 import { withStoredTokens } from './lib/storedTokens'
-import { loadSavedTable, savedTableSummary, storeSavedTable, type TableStorage } from './lib/savedTable'
+import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -435,6 +435,8 @@ function App() {
         listen,
         loadTable: () => loadSavedTable(tableStorage(), roomTableIdRef.current ?? currentTableId()),
         saveTable: (table) => storeSavedTable(tableStorage(), roomTableIdRef.current ?? currentTableId(), table),
+        loadExploration: () => loadSavedExploration(tableStorage(), roomTableIdRef.current ?? currentTableId()),
+        saveExploration: (exploration) => storeSavedExploration(tableStorage(), roomTableIdRef.current ?? currentTableId(), exploration),
         getMap: () => useMapStore.getState().map,
         // Cada jogador vê a cena do token dele: a sessão precisa da aventura inteira, não só da cena aberta.
         getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map),

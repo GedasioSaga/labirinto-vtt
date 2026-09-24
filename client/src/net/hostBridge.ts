@@ -6,7 +6,15 @@ import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/las
 import { pointActionMasterText, type PointActionAnswer } from '../lib/pointActions'
 import type { StoredToken } from '../lib/storedTokens'
 import { addTravel, travelLogEntry, undoableTravelIds, withoutTravel, type TravelLogEntry } from '../lib/travelLog'
-import { preferredRoomCode, reclaimText, roomCodeChangedText, SAVED_TABLE_VERSION, type SavedTable } from '../lib/savedTable'
+import {
+  preferredRoomCode,
+  reclaimText,
+  roomCodeChangedText,
+  SAVED_EXPLORATION_VERSION,
+  SAVED_TABLE_VERSION,
+  type SavedExploration,
+  type SavedTable,
+} from '../lib/savedTable'
 import {
   createHostSession,
   singleSceneWorld,
@@ -127,6 +135,10 @@ export interface HostBridgeDeps {
   loadTable?: () => SavedTable | null
   /** Grava a mesa a cada mudança de dono, raio ou cena. Ausente = nada é gravado. */
   saveTable?: (table: SavedTable) => void
+  /** Retomar a mesa: o mapa explorado guardado de cada jogador (`null` = nenhum). Só é lido ao retomar. */
+  loadExploration?: () => SavedExploration | null
+  /** Grava o mapa explorado pouco depois de mudar e ao fechar a sala. Ausente = nada é gravado. */
+  saveExploration?: (exploration: SavedExploration) => void
   now?: () => number
 }
 
@@ -212,6 +224,12 @@ export interface HostBridge {
 }
 
 export const BROADCAST_THROTTLE_MS = 50
+/**
+ * O mapa explorado muda a cada passo de cada jogador, e gravá-lo é codificar
+ * todas as memórias da mesa: grava uma vez, este tempo depois da primeira
+ * mudança, e não a cada snapshot. Fechar a sala grava o que estiver pendente.
+ */
+export const EXPLORATION_SAVE_DELAY_MS = 1500
 /**
  * O aviso de jogador novo fica mais tempo que um info comum (4 s): o mestre
  * costuma estar desenhando no mapa, de olho no canvas e não no rail, e perder
@@ -346,6 +364,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let lastBadCodeToastAt: number | null = null
   let unlisteners: UnlistenFn[] = []
   let pendingBroadcast: ReturnType<typeof setTimeout> | null = null
+  let pendingExplorationSave: ReturnType<typeof setTimeout> | null = null
   let pendingStart: Promise<RoomInfo> | null = null
   let lastPlayersKey = '[]'
   let tunnelState: TunnelState = TUNNEL_IDLE
@@ -525,6 +544,34 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     lastPlayersKey = key
     deps.onPlayersChange?.(list)
     saveTableNow()
+    // Ganhar ou perder assento muda quem vai no explorado gravado.
+    scheduleExplorationSave()
+  }
+
+  const saveExplorationNow = () => {
+    if (session === null || currentRoom === null || deps.saveExploration === undefined) return
+    // Mesa sem assento nenhum (sala recém-aberta, "Mesa nova" antes de alguém
+    // ganhar ficha): não há de quem gravar, e gravar vazio apagaria o explorado
+    // que a mesa guardada ainda pode retomar.
+    if (session.savedSeats().length === 0) return
+    deps.saveExploration({ version: SAVED_EXPLORATION_VERSION, seats: session.savedExploration() })
+  }
+
+  /** Grava o explorado uma vez, `EXPLORATION_SAVE_DELAY_MS` depois da primeira mudança pendente. */
+  const scheduleExplorationSave = () => {
+    if (session === null || deps.saveExploration === undefined || pendingExplorationSave !== null) return
+    pendingExplorationSave = setTimeout(() => {
+      pendingExplorationSave = null
+      saveExplorationNow()
+    }, EXPLORATION_SAVE_DELAY_MS)
+  }
+
+  /** Fechar a sala: o último passo de cada um não pode se perder no timer. */
+  const flushExplorationSave = () => {
+    if (pendingExplorationSave === null) return
+    clearTimeout(pendingExplorationSave)
+    pendingExplorationSave = null
+    saveExplorationNow()
   }
 
   /**
@@ -561,6 +608,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // O mestre pode ter apagado ou trocado uma ficha de cena pelo editor: é
     // mudança de mapa, que só passa por aqui.
     sendPartyIfChanged()
+    // Cada snapshot marca o que cada jogador viu: o explorado da mesa muda.
+    scheduleExplorationSave()
   }
 
   const scheduleBroadcast = () => {
@@ -1189,6 +1238,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Lida antes de abrir: a sala nova regrava o arquivo assim que alguém muda de dono.
       const saved = options.resume === true ? (deps.loadTable?.() ?? null) : null
       const restoreSeats = saved?.seats ?? []
+      // O explorado só vale com a mesa: sem assento, não há de quem ele seja.
+      const restoreExploration = saved === null ? [] : (deps.loadExploration?.()?.seats ?? [])
       // Retomar pede o MESMO código: o link e a reconexão automática dos jogadores continuam valendo.
       // O Rust decide se dá (a porta pode ter mudado de dono); o que vale é o código que ele devolver.
       const preferredCode = preferredRoomCode(saved)
@@ -1199,7 +1250,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         // Sem prazo: o mestre precisa do texto na tela enquanto repassa o código novo à mesa.
         useToastStore.getState().push('instrucao', roomCodeChangedText(saved.code, room.code))
       }
-      session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now, restoreSeats })
+      session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now, restoreSeats, restoreExploration })
       // Sala nova, código novo: o aviso da sala anterior não pode segurar o primeiro desta.
       lastBadCodeToastAt = null
       // O diário é desta sala: os jogadores da anterior já não estão aqui para desfazer.
@@ -1247,6 +1298,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       }
       // Snapshot pendente sai antes: não pode chegar ao jogador depois do aviso.
       cancelPendingBroadcast()
+      // Com a sessão ainda viva: depois dela não há de onde ler o explorado.
+      flushExplorationSave()
       resetLaser()
       // Avisa antes de derrubar: sem `room.closed` o jogador veria queda de rede,
       // não "O mestre encerrou a sala".

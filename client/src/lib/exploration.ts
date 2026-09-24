@@ -384,6 +384,40 @@ export function markRings(exp: Exploration, rings: readonly (readonly RegionPoin
   }
 }
 
+/**
+ * ÁREA PROIBIDA que apareceu DEPOIS da memória (zona oculta ativa, sala
+ * secreta): apaga dela o que `markRings` nunca teria guardado ali — toda
+ * célula que TOCA a área e todo contorno lembrado que encosta nela. É a regra
+ * estrita de `markRings`/`rememberRing`, não a de `forgetInside` (o teto): o
+ * que o mestre escondeu não pode sobrar nem na borda.
+ *
+ * Usada ao retomar a mesa: a memória gravada ontem é conferida contra as áreas
+ * proibidas de hoje antes de chegar ao jogador.
+ */
+export function forgetBlocked(exp: Exploration, blocked: readonly RegionPoint[][]): void {
+  const zones = zoneBoxes(blocked)
+  if (zones.length === 0) return
+  const { cell, cols, rows } = exp
+  for (let row = 0; row < rows; row += 1) {
+    const y0 = row * cell
+    const y1 = y0 + cell
+    const rowZones = zones.filter((z) => z.maxY >= y0 && z.minY <= y1)
+    if (rowZones.length === 0) continue
+    for (let col = 0; col < cols; col += 1) {
+      if (!isCellSet(exp, col, row)) continue
+      const x0 = col * cell
+      const x1 = x0 + cell
+      if (rowZones.some((z) => z.maxX >= x0 && z.minX <= x1 && ringTouchesRect(z.ring, x0, y0, x1, y1))) clearCell(exp, col, row)
+    }
+  }
+  const kept = exp.rings.filter((r) =>
+    zones.every((z) => r.maxX < z.minX || r.minX > z.maxX || r.maxY < z.minY || r.minY > z.maxY || !ringTouchesRect(r.points, z.minX, z.minY, z.maxX, z.maxY)),
+  )
+  if (kept.length === exp.rings.length) return
+  exp.rings = kept
+  exp.ringVertices = kept.reduce((total, r) => total + r.points.length, 0)
+}
+
 /** Fração dos vértices de um contorno lembrado que precisa cair dentro do polígono para ele ser esquecido. */
 const RING_INSIDE_MAJORITY = 0.5
 

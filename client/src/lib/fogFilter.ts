@@ -102,6 +102,19 @@ export function playerBlockedRings(map: MapData): RegionPoint[][] {
 }
 
 /**
+ * O que a memória de um jogador não pode guardar, seja quem for: zonas ocultas
+ * ativas e salas secretas — o mesmo `blocked` de `filterMapForPlayer`. O teto
+ * fica de fora de propósito: ele é por jogador (abre para quem está dentro) e
+ * quem o apaga da memória é o próprio snapshot (`roofs`).
+ *
+ * É o que a mesa retomada apaga da memória guardada antes de usá-la: o mestre
+ * pode ter escondido, entre um dia e outro, algo que o jogador já tinha visto.
+ */
+export function memoryBlockedRings(map: MapData): RegionPoint[][] {
+  return [...activeConcealRings(map), ...secretRoomsOf(map).map((r) => r.points)]
+}
+
+/**
  * Sala de teto FECHADO para este jogador, com a caixa envolvente pronta.
  *
  * A folga da caixa é `NESTING_TOLERANCE` (e não `BBOX_SLACK`) porque o teste de

@@ -9,6 +9,9 @@
  * ficha; o jogador recebe, como sempre, o recorte da própria cena.
  */
 
+import type { ExploredWire } from './exploration'
+import type { DoorKind } from '../types/map'
+
 export const SAVED_TABLE_VERSION = 1
 
 /** Um jogador da mesa guardada. `visionRadius`/`sceneKey` nulos = sem ajuste / sem cena. */
@@ -87,6 +90,152 @@ export function storeSavedTable(storage: TableStorage | null, tableId: string, t
     storage.setItem(savedTableKey(tableId), JSON.stringify(table))
   } catch {
     // Storage cheio ou bloqueado: a mesa desta vez não fica guardada, e a sala segue.
+  }
+}
+
+/*
+ * O MAPA EXPLORADO DA MESA: por nome de jogador, o que ele explorou em cada
+ * cena (o mesmo bitset + contornos que vão no `snapshot.explored`) e o último
+ * estado de cada porta que ele viu. Também é dado do MESTRE: a sessão devolve
+ * a memória a quem reencontrar o assento, e ela chega ao jogador só pelo
+ * recorte de sempre (`filterMapForPlayer`), uma cena por vez.
+ *
+ * Mora numa chave SEPARADA da mesa: é o pedaço grande (dezenas de KB por cena),
+ * e `loadSavedTable` roda a cada desenho do painel para perguntar "Retomar a
+ * mesa?" — não pode pagar por ele. Storage cheio não custa a mesa.
+ */
+
+export const SAVED_EXPLORATION_VERSION = 1
+
+/** Último estado visto de uma porta (id da parede + `DoorState`). */
+export interface SavedDoor {
+  wallId: string
+  open: boolean
+  locked: boolean
+  kind: DoorKind
+}
+
+/**
+ * A memória de um jogador numa cena. `width`/`height`/`grid` são os do mapa
+ * quando foi gravada: mapa redimensionado é outro mapa, e a memória não vale.
+ */
+export interface SavedSceneMemory {
+  mapId: string
+  width: number
+  height: number
+  grid: number
+  explored: ExploredWire
+  doors: SavedDoor[]
+}
+
+/** As cenas de um jogador, da usada há mais tempo à mais recente. */
+export interface SavedSeatExploration {
+  name: string
+  scenes: SavedSceneMemory[]
+}
+
+export interface SavedExploration {
+  version: typeof SAVED_EXPLORATION_VERSION
+  seats: SavedSeatExploration[]
+}
+
+/** Teto de cenas lidas por jogador: arquivo adulterado não vira memória sem fim. */
+const MAX_SAVED_SCENES = 16
+/** Teto de portas lidas por cena, pelo mesmo motivo. */
+const MAX_SAVED_DOORS = 4096
+const DOOR_KINDS: readonly DoorKind[] = ['normal', 'double', 'gate']
+
+export function savedExplorationKey(tableId: string): string {
+  return `lb-mesa-explorado:${tableId}`
+}
+
+function isPositiveNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+function isDoorKind(value: unknown): value is DoorKind {
+  return DOOR_KINDS.some((kind) => kind === value)
+}
+
+function parseDoor(value: unknown): SavedDoor | null {
+  if (!isRecord(value)) return null
+  const { wallId, open, locked, kind } = value
+  if (typeof wallId !== 'string' || wallId === '' || typeof open !== 'boolean' || typeof locked !== 'boolean' || !isDoorKind(kind)) return null
+  return { wallId, open, locked, kind }
+}
+
+/** Só a FORMA do fio; o conteúdo (base64, tamanho do bitset) quem confere é `decodeExploration`, na sessão. */
+function parseExploredWire(value: unknown): ExploredWire | null {
+  if (!isRecord(value)) return null
+  const { cell, cols, rows, bits, rings } = value
+  if (!isPositiveNumber(cell) || !isPositiveNumber(cols) || !isPositiveNumber(rows) || typeof bits !== 'string' || typeof rings !== 'string') return null
+  return { cell, cols, rows, bits, rings }
+}
+
+function parseSceneMemory(value: unknown): SavedSceneMemory | null {
+  if (!isRecord(value)) return null
+  const { mapId, width, height, grid, explored, doors } = value
+  if (typeof mapId !== 'string' || mapId === '') return null
+  if (!isPositiveNumber(width) || !isPositiveNumber(height) || !isPositiveNumber(grid)) return null
+  const wire = parseExploredWire(explored)
+  if (wire === null || !Array.isArray(doors)) return null
+  const seen = doors
+    .slice(0, MAX_SAVED_DOORS)
+    .map(parseDoor)
+    .filter((door): door is SavedDoor => door !== null)
+  return { mapId, width, height, grid, explored: wire, doors: seen }
+}
+
+function parseSeatExploration(value: unknown): SavedSeatExploration | null {
+  if (!isRecord(value)) return null
+  const { name, scenes } = value
+  if (typeof name !== 'string' || name.trim() === '' || !Array.isArray(scenes)) return null
+  // As MAIS RECENTES ficam: a lista vai da usada há mais tempo à mais recente.
+  const parsed = scenes
+    .slice(-MAX_SAVED_SCENES)
+    .map(parseSceneMemory)
+    .filter((scene): scene is SavedSceneMemory => scene !== null)
+  return parsed.length === 0 ? null : { name, scenes: parsed }
+}
+
+/** Explorado válido com ao menos um jogador, ou `null`. */
+export function parseSavedExploration(raw: unknown): SavedExploration | null {
+  if (!isRecord(raw) || raw.version !== SAVED_EXPLORATION_VERSION || !Array.isArray(raw.seats)) return null
+  const seats = raw.seats
+    .slice(0, MAX_SEATS)
+    .map(parseSeatExploration)
+    .filter((seat): seat is SavedSeatExploration => seat !== null)
+  return seats.length === 0 ? null : { version: SAVED_EXPLORATION_VERSION, seats }
+}
+
+export function loadSavedExploration(storage: TableStorage | null, tableId: string): SavedExploration | null {
+  if (storage === null) return null
+  try {
+    const text = storage.getItem(savedExplorationKey(tableId))
+    return text === null ? null : parseSavedExploration(JSON.parse(text))
+  } catch {
+    return null
+  }
+}
+
+/** Só a cena mais recente de cada jogador: o que cabe quando o storage não aguenta tudo. */
+function latestScenesOnly(exploration: SavedExploration): SavedExploration {
+  return { ...exploration, seats: exploration.seats.map((seat) => ({ ...seat, scenes: seat.scenes.slice(-1) })) }
+}
+
+/**
+ * Grava o explorado. Storage cheio: tenta de novo só com a cena mais recente
+ * de cada um (a que ele reabre); não coube nem assim, fica o que já estava.
+ */
+export function storeSavedExploration(storage: TableStorage | null, tableId: string, exploration: SavedExploration): void {
+  if (storage === null) return
+  for (const attempt of [exploration, latestScenesOnly(exploration)]) {
+    try {
+      storage.setItem(savedExplorationKey(tableId), JSON.stringify(attempt))
+      return
+    } catch {
+      // Cheio ou bloqueado: a próxima tentativa é menor.
+    }
   }
 }
 
