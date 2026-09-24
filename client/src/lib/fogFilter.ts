@@ -778,7 +778,10 @@ export function filterMapForGroup(
   // separado, em `hazards`, montado mais abaixo.
   // GATILHO DE ÁREA: mesma regra — o objeto do mestre fica aqui; o que foi
   // revelado sai separado, em `gatilhos`.
-  const { hazards: _masterHazards, gatilhos: _masterTriggers, ...mapWithoutHazards } = map
+  // TEXTO DE CHEGADA: fica aqui também. No snapshot, quem já está na cena o
+  // receberia de novo a cada broadcast (e a tela da mesa o mostraria a todos);
+  // ele viaja só no `scene.changed` de quem chega (`net/hostSession.ts`).
+  const { hazards: _masterHazards, gatilhos: _masterTriggers, textoChegada: _arrivalText, ...mapWithoutHazards } = map
 
   // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
   const playerTokens = layerTokens.filter(

@@ -1,7 +1,12 @@
 import { useEffect, useId } from 'react'
 import { isEditableTarget } from '../lib/keymap'
 
+/** Título do cartão do TEXTO DE CHEGADA DA CENA (o mesmo cartão do recado). */
+export const ARRIVAL_CARD_TITLE = 'Ao chegar'
+
 export interface PlayerNoteCardProps {
+  /** Título do cartão. Sem ele, é o recado do mestre. */
+  title?: string
   /** O recado como o mestre escreveu. Vai para a tela como TEXTO: HTML aparece literal. */
   text: string
   onClose(): void
@@ -20,7 +25,7 @@ export interface PlayerNoteCardProps {
  * O texto entra como filho de texto do React (nunca `innerHTML`): o React
  * escapa `<` e `>`, e o recado "<b>x</b>" aparece com os sinais na tela.
  */
-export function PlayerNoteCard({ text, onClose, escapeCloses = true }: PlayerNoteCardProps) {
+export function PlayerNoteCard({ title = 'Recado do mestre', text, onClose, escapeCloses = true }: PlayerNoteCardProps) {
   const titleId = useId()
 
   useEffect(() => {
@@ -39,7 +44,7 @@ export function PlayerNoteCard({ text, onClose, escapeCloses = true }: PlayerNot
   return (
     <section className="pp-note" aria-labelledby={titleId}>
       <h2 id={titleId} className="pp-note__title">
-        Recado do mestre
+        {title}
       </h2>
       <p className="pp-note__text">{text}</p>
       <button type="button" className="pp-note__close" onClick={onClose}>

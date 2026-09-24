@@ -26,6 +26,7 @@ import { applyPatrolOp, type PatrolOp } from '../lib/npcPatrol'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
 import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
 import { setRegionTrigger as setRegionTriggerOnMap, setRegionTriggerRevealed as setRegionTriggerRevealedOnMap } from '../lib/areaTriggers'
+import { setArrivalText as setArrivalTextOnMap } from '../lib/arrivalText'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
 const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon', 'roomFree'])
@@ -750,6 +751,8 @@ interface MapStoreState {
   setMovementRules: (movement: MovementRules | undefined) => void
   /** MAPA-MUNDI: o grupo anda como uma caravana só, que o mestre move (`lib/caravan.ts`). Com desfazer. */
   setWorldMap: (worldMap: boolean) => void
+  /** TEXTO DE CHEGADA da cena aberta (`lib/arrivalText.ts`); vazio tira. Com desfazer; o mesmo texto não vira passo. */
+  setArrivalText: (text: string) => void
   setScenarioLink: (value: string | null) => void
   setPropLinkedPath: (id: string, path: string | null) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
@@ -1510,6 +1513,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setMeasurementMode: (mode) => withHistory((map) => mapFactory.setMeasurementMode(map, mode)),
     setMovementRules: (movement) => withHistory((map) => mapFactory.setMovementRules(map, movement)),
     setWorldMap: (worldMap) => withHistory((map) => mapFactory.setWorldMap(map, worldMap)),
+    setArrivalText: (text) => {
+      // O mesmo texto devolve o mesmo mapa: sem passo vazio no desfazer.
+      if (setArrivalTextOnMap(get().map, text) === get().map) return
+      withHistory((map) => setArrivalTextOnMap(map, text))
+    },
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({
       ...map,

@@ -8,7 +8,7 @@ import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNoti
 import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
-import { PlayerNoteCard } from './PlayerNoteCard'
+import { ARRIVAL_CARD_TITLE, PlayerNoteCard } from './PlayerNoteCard'
 import { PlayerAlarmBanner } from './PlayerAlarmBanner'
 import { PlayerTurnBanner, TurnWaitNotice } from './PlayerTurnBanner'
 import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
@@ -567,6 +567,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const closePin = useCallback(() => setOpenPinId(null), [])
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
+  const closeArrival = useCallback(() => connection.dismissArrival(), [connection])
 
   if (state.status === 'playing' && state.map && state.vision) {
     return (
@@ -660,9 +661,15 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           // `key` no id: alarme novo remonta a faixa (anima, anuncia e vibra de novo).
           <PlayerAlarmBanner key={state.alarm.id} text={state.alarm.text} vibrationTarget={typeof navigator === 'undefined' ? undefined : navigator} />
         )}
-        {state.note && (
-          // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
-          <PlayerNoteCard key={state.note.id} text={state.note.text} onClose={closeNote} escapeCloses={openPin === null} />
+        {state.arrival ? (
+          // TEXTO DE CHEGADA: o mesmo cartão, no mesmo lugar do recado. Os dois
+          // abertos se sobreporiam: o recado espera, guardado, até este fechar.
+          <PlayerNoteCard key={`chegada-${state.arrival.id}`} title={ARRIVAL_CARD_TITLE} text={state.arrival.text} onClose={closeArrival} escapeCloses={openPin === null} />
+        ) : (
+          state.note && (
+            // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
+            <PlayerNoteCard key={state.note.id} text={state.note.text} onClose={closeNote} escapeCloses={openPin === null} />
+          )
         )}
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">

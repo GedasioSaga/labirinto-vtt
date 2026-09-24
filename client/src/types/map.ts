@@ -1026,4 +1026,11 @@ export interface MapData {
    * linha de migração (mesmo padrão de `movement`/`hazards`).
    */
   worldMap?: true
+  /**
+   * TEXTO DE CHEGADA DA CENA: o que quem chega lê uma vez, num cartão
+   * (`lib/arrivalText.ts`). Ausente = sem texto, sem linha de migração (mesmo
+   * padrão de `worldMap`). NUNCA sai no recorte do jogador: viaja só no
+   * `scene.changed` de quem chega.
+   */
+  textoChegada?: string
 }

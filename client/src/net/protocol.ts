@@ -353,7 +353,10 @@ export type HostMessage =
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
   // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um
   // pino — o aviso diz que o GRUPO foi reunido, e continua sem dizer onde.
-  | { type: 'scene.changed'; by?: 'master' | 'gather' }
+  // `chegada` (TEXTO DE CHEGADA DA CENA): o texto que o mestre escreveu na cena
+  // de destino, só quando há. Vai SÓ a quem chega, uma vez — o snapshot nunca
+  // o leva (`lib/fogFilter.ts`). Aditivo: jogador antigo ignora o campo.
+  | { type: 'scene.changed'; by?: 'master' | 'gather'; chegada?: string }
   | LaserMessage
   | SceneNoteMessage
   | SceneAlarmMessage
