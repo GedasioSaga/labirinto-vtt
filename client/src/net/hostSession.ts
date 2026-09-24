@@ -1,4 +1,5 @@
-import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
+import type { DoorState, MapData, MarcaNoLugar, Pin, RegionPoint, Token } from '../types/map'
+import { fichaAlcancaPonto, MARCA_INTERVALO_MS, MARCAS_POR_CENA, MARCAS_POR_JOGADOR_POR_CENA } from '../lib/marcas'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { abaloSetaForPlayer, filterMapForPlayer, giftableRoomsOf, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
@@ -21,6 +22,8 @@ import {
   type JoinMessage,
   type LaserMessage,
   type MapShareMessage,
+  type MarkPlaceMessage,
+  type MarkPlaceRefusal,
   type PinAnswerMessage,
   type PinTravelRejection,
   type PinTravelRequestMessage,
@@ -168,6 +171,19 @@ export interface AppliedLock {
 }
 
 /**
+ * BILHETE NO LUGAR: a marca que o jogador cravou, já validada e com autor e
+ * hora. O integrador a grava no mapa da cena (`net/playerChanges.ts`) e avisa
+ * o mestre com `playerName` e `sceneName` — nada disto vai ao jogador; o que
+ * sai para ele é o recorte do snapshot. `sceneId` como em `AppliedDoor`.
+ */
+export interface AppliedMark {
+  marca: MarcaNoLugar
+  playerName: string
+  sceneName: string
+  sceneId?: string
+}
+
+/**
  * Tentativa CONFERIDA numa fechadura, para o mestre ler (quem, onde, o que
  * tentou e se abriu). Nunca vai a jogador nenhum: não vira pedido, só aviso.
  */
@@ -222,6 +238,8 @@ export interface HostResult {
   applyLock?: AppliedLock
   /** Tentativa conferida (certa ou errada): o integrador avisa o mestre. */
   lockAttempt?: LockAttempt
+  /** BILHETE NO LUGAR aceito: o integrador grava a marca na cena e faz o broadcast. */
+  applyMark?: AppliedMark
   signal?: HostSignal
   playerLaser?: HostPlayerLaser
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
@@ -580,6 +598,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastDoorToggleAt = new Map<string, number>()
   /** Última tentativa na fechadura, por jogador (`LOCK_ANSWER_MIN_INTERVAL_MS`). */
   const lastLockAnswerAt = new Map<string, number>()
+  /** Última marca cravada (ou tentada), por jogador (`MARCA_INTERVALO_MS`). */
+  const lastMarkAt = new Map<string, number>()
   // Por playerId: janela corrente do teto de lotes de laser (PLAYER_LASER_MAX_PER_WINDOW).
   const laserWindows = new Map<string, { start: number; count: number }>()
   // Por playerId: conexões que receberam algum ponto do gesto em curso, e a
@@ -1309,6 +1329,51 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * BILHETE NO LUGAR — o jogador quer cravar uma marca no ponto. A autoridade
+   * é aqui: o ponto está no mapa da cena DELE, encostado numa ficha dele que
+   * o recorte mostra (`fichaAlcancaPonto`), e o próprio recorte deixaria a
+   * marca sair para ele agora — a marca de prova passa pelo MESMO
+   * `filterMapForPlayer`, então zona oculta ativa, sala secreta, teto fechado
+   * e ponto que ele não conhece recusam sem regra paralela. Toda recusa de
+   * lugar é `unavailable`: o motivo exato diria o que existe ali. Aceita, volta
+   * `applyMark` com autor e hora para o integrador gravar; quem mais a recebe
+   * é decidido pelo recorte do broadcast seguinte.
+   */
+  function handleMarkPlace(clientId: string, msg: MarkPlaceMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    const recusa = (reason: MarkPlaceRefusal): HostResult => reply(clientId, { type: 'mark.place.result', ok: false, reason })
+    if (record === undefined || statusOf(playerId) !== 'playing') return recusa('unavailable')
+    // O limite vem antes de tudo: barato, por jogador, e segura quem manda em laço.
+    const at = now()
+    const last = lastMarkAt.get(playerId)
+    if (last !== undefined && at - last < MARCA_INTERVALO_MS) return recusa('too_soon')
+    lastMarkAt.set(playerId, at)
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return recusa('unavailable')
+    const map = scene.map
+    const point = { x: Math.round(msg.x), y: Math.round(msg.y) }
+    if (point.x < 0 || point.y < 0 || point.x > map.width * map.grid || point.y > map.height * map.grid) return recusa('unavailable')
+    const base = msg.tipo === 'bilhete' ? { tipo: msg.tipo, texto: msg.texto } : { tipo: msg.tipo, rumo: msg.rumo }
+    const prova: MarcaNoLugar = { id: randomId(), ...point, ...base }
+    const memory = memoryFor(playerId, map)
+    const view = filterMapForPlayer({ ...map, marcas: [prova] }, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    const owned = new Set(ownership[playerId] ?? [])
+    // Fichas do recorte: ficha escondida pelo mestre (ou na camada oculta) não crava nada.
+    const alcanca = view.map.tokens.some((t) => owned.has(t.id) && fichaAlcancaPonto(t, point, map.grid))
+    if (!alcanca || !(view.map.marcas ?? []).some((m) => m.id === prova.id)) return recusa('unavailable')
+    const marcas = map.marcas ?? []
+    const minhas = marcas.filter((m) => m.autor === record.name).length
+    if (minhas >= MARCAS_POR_JOGADOR_POR_CENA || marcas.length >= MARCAS_POR_CENA) return recusa('full')
+    const marca: MarcaNoLugar = { ...prova, autor: record.name, em: at }
+    return {
+      outbound: [{ clientId, msg: { type: 'mark.place.result', ok: true } }],
+      applyMark: { marca, playerName: record.name, sceneName: scene.name, ...backgroundSceneId(scene, world) },
+    }
+  }
+
+  /**
    * MINHAS PISTAS — o jogador abriu o cartão do pino. Só vale pino do ÚLTIMO
    * recorte mandado a ele, da cena onde ele está AGORA, e que o mestre não
    * escondeu desde então: pino secreto, oculto, no escuro, em zona oculta ou de
@@ -1476,6 +1541,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleMapShare(clientId, msg, world)
         case 'pin.answer':
           return handlePinAnswer(clientId, msg, world)
+        case 'mark.place':
+          return handleMarkPlace(clientId, msg, world)
       }
     },
 

@@ -796,6 +796,37 @@ export interface MapMarker {
   shape?: 'rect' | 'ellipse'
 }
 
+/** Para onde a seta de giz aponta: 8 rumos (`l` = leste, `o` = oeste). */
+export type MarcaRumo = 'n' | 'ne' | 'l' | 'se' | 's' | 'so' | 'o' | 'no'
+
+/**
+ * BILHETE NO LUGAR — marca que um JOGADOR deixou num ponto da cena: um
+ * bilhete curto ou uma seta de giz. Fica no mapa (vai no map.json) e aparece
+ * para quem já viu aquele ponto (`lib/fogFilter.ts`, mesma regra do
+ * marcador). `autor` e `em` são só do mestre: o recorte do jogador leva a
+ * marca sem eles (`marcaParaJogador` em `lib/marcas.ts`).
+ */
+export interface MarcaNoLugar {
+  id: string
+  tipo: 'bilhete' | 'seta'
+  /** Ponto em px de mundo. */
+  x: number
+  y: number
+  /*
+   * Os quatro abaixo não têm default no arquivo: `lerMarcasDoArquivo`
+   * (`lib/marcas.ts`) confere a marca campo a campo, sem linha de migração em
+   * `mapFile.ts` — o campo que não é da forma certa volta ausente.
+   */
+  /** Só no bilhete: o recado, já limpo e dentro do teto (`MARCA_TEXTO_MAX`). `undefined` === seta. */
+  texto?: string
+  /** Só na seta. `undefined` === bilhete. */
+  rumo?: MarcaRumo
+  /** Nome, na sala, de quem deixou. Nunca vai ao jogador. `undefined` === autor desconhecido (marca gravada à mão). */
+  autor?: string
+  /** Quando foi deixada (ms, relógio do mestre). Nunca vai ao jogador. `undefined` === hora desconhecida. */
+  em?: number
+}
+
 /** Moldura com título lateral em volta do retângulo `x, y, w, h` do mundo (ver lib/mapFrame.ts). */
 export interface MapFrame {
   title: string
@@ -879,6 +910,11 @@ export interface MapData {
   concealZones: ConcealZone[]
   /** Pontos de interesse ("!" e "?"). Vazio em mapa antigo — migração em `lib/mapFile.ts`. */
   pins: Pin[]
+  /**
+   * BILHETE NO LUGAR — marcas deixadas pelos jogadores. `undefined` === `[]`
+   * (mapa de antes do campo), sem linha de migração: mesma regra de `gridOffset`.
+   */
+  marcas?: MarcaNoLugar[]
   frame: MapFrame | null
   fog: FogState
   hiddenLayers: LayerId[] // vazio = tudo visível

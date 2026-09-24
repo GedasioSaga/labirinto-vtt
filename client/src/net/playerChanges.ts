@@ -1,9 +1,10 @@
 import * as mapFactory from '../lib/mapFactory'
 import { useAdventureStore } from '../stores/adventureStore'
 import { useMapStore } from '../stores/mapStore'
-import type { MapData } from '../types/map'
+import type { MapData, MarcaNoLugar } from '../types/map'
 import { openPinLock } from '../lib/pinLock'
-import type { AppliedLock, AppliedTokenEdit } from './hostSession'
+import { adicionarMarca, apagarMarca } from '../lib/marcas'
+import type { AppliedLock, AppliedMark, AppliedTokenEdit } from './hostSession'
 
 /**
  * O que o JOGADOR muda no mapa do mestre (movimento, porta, nome/foto da
@@ -56,6 +57,19 @@ function openLock(pinId: string): MapTransform {
   return (map) => openPinLock(map, pinId)
 }
 
+/**
+ * BILHETE NO LUGAR: a marca entra (ou sai, pelo "Apagar" do aviso) fora do
+ * Ctrl+Z do mestre, como o resto do que vem do jogador — desfazer um passo do
+ * mestre não pode sumir com o bilhete que um jogador deixou depois.
+ */
+function placeMark(marca: MarcaNoLugar): MapTransform {
+  return (map) => adicionarMarca(map, marca)
+}
+
+function removeMark(markId: string): MapTransform {
+  return (map) => apagarMarca(map, markId)
+}
+
 /** `sceneId` ausente = a cena aberta no editor; presente = uma cena de fundo. */
 function applyToScene(sceneId: string | undefined, transform: MapTransform): void {
   if (sceneId === undefined) useMapStore.getState().applyPlayerChange(transform)
@@ -68,4 +82,6 @@ export const hostPlayerChanges = {
   applyDoor: (wallId: string, open: boolean, sceneId?: string): void => applyToScene(sceneId, setDoorOpen(wallId, open)),
   applyTokenEdit: (edit: AppliedTokenEdit): void => applyToScene(edit.sceneId, editToken(edit)),
   applyLock: (lock: AppliedLock): void => applyToScene(lock.sceneId, openLock(lock.pinId)),
+  applyMark: (mark: AppliedMark): void => applyToScene(mark.sceneId, placeMark(mark.marca)),
+  removeMark: (markId: string, sceneId?: string): void => applyToScene(sceneId, removeMark(markId)),
 }

@@ -800,6 +800,34 @@
   color: var(--lb-color-danger, #e07a5f);
 }
 
+.pp-input[aria-invalid='true'] {
+  border-color: var(--lb-color-danger, #e07a5f);
+}
+
+/* BILHETE NO LUGAR: "Bilhete | Seta de giz" lado a lado e a rosa de 8 rumos em 3 x 3 (o meio é a ficha). */
+.pp-mark__tipos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.pp-mark__rosa {
+  display: grid;
+  grid-template-columns: repeat(3, 44px);
+  gap: 4px;
+  justify-content: start;
+}
+
+.pp-mark__rosa .pp-button {
+  min-height: 44px;
+  padding: 0;
+  font-size: 18px;
+}
+
+.pp-mark__rosa .pp-button:nth-child(5) {
+  grid-column: 3;
+}
+
 /* Foco por teclado visível em tudo que é interativo no painel e na barra (anel de latão do editor). */
 .pp-panel :focus-visible,
 .pp-bar :focus-visible {

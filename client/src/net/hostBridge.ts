@@ -8,6 +8,7 @@ import {
   singleSceneWorld,
   type AppliedTokenEdit,
   type AppliedLock,
+  type AppliedMark,
   type LockAttempt,
   type AppliedTransfer,
   type GiveMapOutcome,
@@ -32,6 +33,9 @@ import { createPlayerScreens, type PlayerScreen } from './playerScreens'
  * `net:peer` {clientId, event, name?}, `net_send({clientId, msg})` e
  * `net_kick({clientId})`.
  */
+
+/** Quanto o aviso "Ana deixou um bilhete…" fica na tela: dá para ler o texto e decidir "Apagar". */
+export const MARK_NOTICE_MS = 12_000
 
 export interface RoomInfo {
   code: string
@@ -78,6 +82,14 @@ export interface HostBridgeDeps {
    * Opcional como `applyTokenEdit`.
    */
   applyLock?: (lock: AppliedLock) => void
+  /**
+   * BILHETE NO LUGAR: a marca que o jogador cravou (a sessão já conferiu). O
+   * integrador a grava no mapa da cena. Opcional como `applyTokenEdit`: sem
+   * ele, a marca não fica e o mestre não é avisado.
+   */
+  applyMark?: (mark: AppliedMark) => void
+  /** "Apagar" do aviso da marca: tira a marca `markId` da cena (`sceneId` como em `applyMove`). */
+  removeMark?: (markId: string, sceneId?: string) => void
   /**
    * O mestre deixou o jogador passar: mover o token entre as cenas. `false`
    * quando não deu (cena sumiu, token sumiu) — o jogador recebe a recusa em
@@ -554,6 +566,34 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     useToastStore.getState().push('info', text)
   }
 
+  /**
+   * BILHETE NO LUGAR: o mestre lê na hora quem deixou o quê e em que cena, com
+   * "Apagar" (o bilhete que não cabe na mesa). O aviso fica mais que um "info"
+   * comum — é uma oferta de ação —, mas some sozinho: marca não é pedido, e
+   * ninguém fica esperando resposta do outro lado.
+   */
+  const tellMarkPlaced = (mark: AppliedMark) => {
+    const { marca, playerName, sceneName, sceneId } = mark
+    const text =
+      marca.tipo === 'bilhete'
+        ? `${playerName} deixou um bilhete em ${sceneName}: “${marca.texto ?? ''}”`
+        : `${playerName} riscou uma seta de giz em ${sceneName}`
+    const removeMark = deps.removeMark
+    const actions =
+      removeMark === undefined
+        ? []
+        : [
+            {
+              label: 'Apagar',
+              run: () => {
+                removeMark(marca.id, sceneId)
+                broadcastNow()
+              },
+            },
+          ]
+    useToastStore.getState().push('info', text, MARK_NOTICE_MS, { actions })
+  }
+
   const onMessage = (event: { payload: unknown }) => {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
@@ -609,6 +649,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       broadcastNow()
     }
     if (result.lockAttempt !== undefined) tellLockAttempt(result.lockAttempt)
+    if (result.applyMark !== undefined && deps.applyMark !== undefined) {
+      // Mesma regra da porta: o mestre vê pela store, quem conhece o ponto pelo snapshot de agora.
+      deps.applyMark(result.applyMark)
+      broadcastNow()
+      tellMarkPlaced(result.applyMark)
+    }
     notifyPlayersIfChanged()
     if (!wasJoined) announceJoin(clientId)
   }

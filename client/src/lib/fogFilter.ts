@@ -11,6 +11,7 @@ import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
 import { publicLockOf } from './pinLock'
 import { withoutAttachment } from './lightAttachment'
+import { marcaParaJogador } from './marcas'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
@@ -1459,6 +1460,21 @@ export function filterMapForPlayer(
         return !inRoomHiddenFromPlayer(point) && isPointKnown(point)
       })
       .map(pinForPlayer),
+    // BILHETE NO LUGAR: planta anotada por um jogador, então vale o explorado
+    // (mesma regra do marcador e do pino) — quem passar ali depois vê. Zona
+    // oculta ativa, sala secreta e teto fechado escondem a marca como escondem
+    // o chão. Sai SEMPRE pela lista do que vai (`marcaParaJogador`): autor e
+    // hora são do mestre. Mapa sem o campo continua sem o campo.
+    ...(map.marcas === undefined
+      ? {}
+      : {
+          marcas: map.marcas
+            .filter((m) => {
+              const point = { x: m.x, y: m.y }
+              return !inRoomHiddenFromPlayer(point) && isPointKnown(point)
+            })
+            .map(marcaParaJogador),
+        }),
     // Metadado do mestre: nome, estado e células do pincel das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
