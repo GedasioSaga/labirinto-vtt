@@ -56,10 +56,18 @@ describe('PlayerPinCard: escada', () => {
     expect(botao('Pedir para descer').disabled).toBe(false)
   })
 
-  it('escada trancada: lê o sentido e que não dá para passar, sem botão de passar', () => {
-    act(() => root.render(<PlayerPinCard pin={{ ...PINO, passagem: 'trancada' }} stairs={[SOBE]} onClose={() => {}} onRequestTravel={() => {}} />))
+  it('escada trancada muda: lê o sentido e que não dá para passar, sem botão de passar', () => {
+    act(() => root.render(<PlayerPinCard pin={{ ...PINO, passagem: 'trancada', mudo: true }} stairs={[SOBE]} onClose={() => {}} onRequestTravel={() => {}} />))
     expect(container.querySelector('.pp-pincard__locked')?.textContent).toBe('Está trancada. Não dá para passar por aqui agora.')
     expect(Array.from(container.querySelectorAll('button')).map((b) => b.textContent)).toEqual(['Fechar'])
+  })
+
+  // Grupo rede (pino trancado vira pedido): a trancada que aceita tentativas
+  // não passa sozinha, mas oferece pedir ao mestre que abra.
+  it('escada trancada que aceita tentativas: lê o sentido e oferece só "Pedir ao mestre"', () => {
+    act(() => root.render(<PlayerPinCard pin={{ ...PINO, passagem: 'trancada' }} stairs={[SOBE]} onClose={() => {}} onRequestTravel={() => {}} />))
+    expect(container.querySelector('.pp-pincard__locked')?.textContent).toBe('Está trancada. Só o mestre pode abrir.')
+    expect(Array.from(container.querySelectorAll('button')).map((b) => b.textContent)).toEqual(['Pedir ao mestre', 'Fechar'])
   })
 
   it('pino de escada cuja escada não veio no recorte: o cartão de passagem de sempre, sem "Subir"', () => {

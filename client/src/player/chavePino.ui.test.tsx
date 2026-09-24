@@ -52,7 +52,12 @@ describe('telas da chave no pino trancado', () => {
   })
 
   it('cartão de Ana (sem a chave): "Está trancada" e nenhum botão de passar', () => {
+    // Grupo rede (pino trancado vira pedido): sem a chave, o trancado que aceita
+    // tentativas só oferece pedir ao mestre; o mudo, nada.
     act(() => root.render(<PlayerPinCard pin={portao} stairs={[]} onClose={vi.fn()} onRequestTravel={vi.fn()} />))
+    expect(container.textContent).toContain('Está trancada')
+    expect(textos()).toEqual(['Pedir ao mestre', 'Fechar'])
+    act(() => root.render(<PlayerPinCard pin={{ ...portao, mudo: true }} stairs={[]} onClose={vi.fn()} onRequestTravel={vi.fn()} />))
     expect(container.textContent).toContain('Está trancada')
     expect(textos()).toEqual(['Fechar'])
   })
@@ -89,12 +94,17 @@ describe('telas da chave no pino trancado', () => {
       expect(onRequestTravel).toHaveBeenCalledWith()
     })
 
-    it('sem a chave: lê "Descer" e "Está trancada", sem botão de passar nem de pedir', () => {
+    it('sem a chave: lê "Descer" e "Está trancada", sem botão de passar', () => {
       act(() =>
         root.render(<PlayerPinCard pin={pinoDaEscada} stairs={[{ ...escada, direction: 'down' }]} onClose={vi.fn()} onRequestTravel={vi.fn()} />),
       )
       expect(container.querySelector('.pp-pincard__text')?.textContent).toBe('Descer')
       expect(container.textContent).toContain('Está trancada')
+      // Grupo rede: sem a chave, a escada que aceita tentativas só pede ao mestre; a muda, nada.
+      expect(textos()).toEqual(['Pedir ao mestre', 'Fechar'])
+      act(() =>
+        root.render(<PlayerPinCard pin={{ ...pinoDaEscada, mudo: true }} stairs={[{ ...escada, direction: 'down' }]} onClose={vi.fn()} onRequestTravel={vi.fn()} />),
+      )
       expect(textos()).toEqual(['Fechar'])
     })
   })

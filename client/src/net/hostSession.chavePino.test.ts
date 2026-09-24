@@ -112,28 +112,40 @@ describe('hostSession: a chave da mochila abre o pino de viagem trancado', () =>
     expect(r.pinKeyUsed).toEqual({ playerId: m.diego, playerName: 'Diego', itemName: CHAVE, pinLabel: 'Portão do cemitério', sceneName: 'Mansão' })
   })
 
+  // Grupo rede (pino trancado vira pedido): sem a chave ninguém passa sozinho.
+  // No trancado MUDO é a recusa genérica de sempre; no que aceita tentativas
+  // (o padrão) vira pedido ao mestre, marcado trancado — nunca passagem.
+  const soPedeAoMestre = (r: HostResult, playerName: string) => {
+    expect(r.applyTransfer).toBeUndefined()
+    expect(r.pinKeyUsed).toBeUndefined()
+    expect(r.travelRequest).toMatchObject({ playerName, trancada: true })
+  }
+
   it('Ana encostada sem a chave: a mesma recusa genérica de sempre, e nada chega ao mestre', () => {
-    const m = mesa(mundo())
+    const m = mesa(mundo({ portao: { mudo: true } }))
     const r = m.pedir('c2')
     expect(recusa(r)).toBe('unavailable')
     expect(r.applyTransfer).toBeUndefined()
     expect(r.pinKeyUsed).toBeUndefined()
     expect(r.travelRequest).toBeUndefined()
+    soPedeAoMestre(mesa(mundo()).pedir('c2'), 'Ana')
   })
 
   it('Diego com a chave, mas longe do pino: não passa', () => {
-    const m = mesa(mundo({ diegoX: 150 }))
+    const m = mesa(mundo({ diegoX: 150, portao: { mudo: true } }))
     const r = m.pedir('c1')
     expect(recusa(r)).toBe('unavailable')
     expect(r.applyTransfer).toBeUndefined()
     expect(r.pinKeyUsed).toBeUndefined()
+    soPedeAoMestre(mesa(mundo({ diegoX: 150 })).pedir('c1'), 'Diego')
   })
 
   it('pino trancado sem "Abre com": nem quem carrega a chave passa', () => {
-    const m = mesa(mundo({ portao: { abreCom: undefined } }))
+    const m = mesa(mundo({ portao: { abreCom: undefined, mudo: true } }))
     const r = m.pedir('c1')
     expect(recusa(r)).toBe('unavailable')
     expect(r.applyTransfer).toBeUndefined()
+    soPedeAoMestre(mesa(mundo({ portao: { abreCom: undefined } })).pedir('c1'), 'Diego')
   })
 
   it('"Abre com" que sobrou num pino que voltou a "Pede ao mestre": o pedido vai ao mestre, sem atalho da chave', () => {
