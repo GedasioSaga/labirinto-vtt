@@ -1,5 +1,5 @@
 import type { DoorState, HazardKind, MapData, Pin, RegionPoint, Token, Wall } from '../types/map'
-import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazards'
+import { hazardPresence, hazardsOf, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { alarmForPlayer, allPlayerTokens, filterMapForGroup, filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, turnForPlayer, type GroupViewer, type PlayerClueContent, type PlayerMapView, type SceneAlarm } from '../lib/fogFilter'
@@ -1171,7 +1171,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * ECO DO SINAL — o eco sai cheio (sem `unheard`) só quando o ponto está na
    * visão ATUAL de quem sinalizou, fora do que ele já sabe que está escondido
    * (zona oculta e teto fechado do recorte dele), e na visão ATUAL de um colega
-   * desta cena cuja ficha ele está vendo agora. Nada disso é segredo para ele.
+   * desta cena cuja ficha ele está vendo agora.
+   *
+   * ZONA DE PERIGO: a visão do colega que conta aqui é a de raio SEM perigo.
+   * A enviada ao colega já vem encolhida pela fumaça (`visionRadiusAt`),
+   * inclusive a que o mestre esconde de quem sinaliza (sala que encosta em zona
+   * oculta, camada escondida, teto fechado); usá-la faria a forma do eco contar
+   * que existe fumaça escondida onde está o colega. O preço: colega numa fumaça
+   * à vista pode não ver o ponto e o eco sair cheio mesmo assim.
    *
    * Por que não perguntar "alguém recebeu?" (`toOthers`): a resposta diria
    * - o formato da sala secreta: dentro dela ninguém recebe, logo ao lado sim;
@@ -1192,11 +1199,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const mine = existingMemory(playerId, map)
     if (mine === undefined || !inAnyRing(mine.vision, point) || inAnyRing(mine.covered, point)) return false
     const inSight = new Set(mine.party)
+    // Sem perigo no mapa, a visão enviada já é a de raio cheio: não recalcula.
+    const withoutHazards: MapData | null = hazardsOf(map).length === 0 ? null : { ...map, hazards: [] }
     for (const otherId of byClient.values()) {
       if (otherId === playerId || statusOf(otherId) !== 'playing' || sceneFor(otherId, world) !== scene) continue
       if (!(ownership[otherId] ?? []).some((id) => inSight.has(id))) continue
       const theirs = existingMemory(otherId, map)
-      if (theirs !== undefined && inAnyRing(theirs.vision, point)) return true
+      if (theirs === undefined) continue
+      const vision = withoutHazards === null ? theirs.vision : filterMapForPlayer(withoutHazards, otherId, ownership, radiusFor(otherId)).vision
+      if (inAnyRing(vision, point)) return true
     }
     return false
   }
