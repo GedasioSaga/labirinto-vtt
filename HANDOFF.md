@@ -227,6 +227,24 @@ reescreve o comando) e contornou chamando `/mingw64/bin/git` pelo caminho comple
 `auto/f2-iniciativa`, revisado e provado depois; o repo não tem pre-commit, só o post-commit do graphify não rodou.
 A regra da fábrica agora manda parar e marcar BLOQUEADO em vez de contornar guarda ou hook.
 
+**24/09, 13h45 — junção só das grandes, para a entrega das 16h.** Worktree `C:/dev/labirinto-juntar-grandes`
+(`auto/juntar-grandes`, saiu de `auto/acervo` `a297e2e`; `node_modules` por junção para a árvore principal).
+Run `wf_e1417c8d-d57`: junta `auto/int-t-grandes` (confronto, ajudante, estado do mundo, memória por ficha) e
+`auto/int-t-grandes-b` (rotina do NPC e correio já integrados; cabine, perigo que alastra e mobília ainda em
+conserto em `wf_d1c06cc2-0db`), depois regressão com as 26 réguas da 1ª passada. Verde ⇒ `git merge --no-ff
+auto/juntar-grandes` em `auto/acervo`. O que entrar depois nos dois ramos (as 3 grandes que faltam e pisos na
+mesma cena, do run antigo `wf_e3f23fdf-79d`) vai numa 2ª junção curta, perto das 15h15. A 2ª passada geral
+(`auto/juntar`) vai precisar juntar `auto/acervo` antes de voltar para ele, porque as grandes terão entrado por fora.
+
+**Onda 2 visão terminou (13h10):** 14 de 17 integradas em `auto/int-visao`. Consertos em `wf_d613a259-429`
+(10 peças, 2 por vez): vazamentos pela rede em porta secreta com pincel, tocha presa em ficha escondida, pino marco
+que vira teletransporte e sala escura em camada oculta; zona oculta sem buraco (teto na 1ª); dois testes secretos
+seguidos; esconder-se (a 1ª não commitou: trabalho em `.claude/worktrees/wf_b6097cd0-2f5-95`); mostrar pista agora
+sem o item que depende de acoes-no-ponto (decisão do orquestrador); nome do pino no painel Pistas; cone pela
+janela respeitando o escuro. Se a 2ª passada juntar `auto/int-visao` antes desses consertos, os 4 vazamentos entram
+em `auto/juntar` e só fecham na passada seguinte. ficha-presa-sem-chao-2 integrada com 2 casos abertos; a 3ª
+tentativa roda em `wf_18f37c3e-ef8`.
+
 Fora da onda 3: 9 itens do gerador da torre (`scratchpad/onda3-gerador-da-torre.txt`, vão para
 `auto/torre-11-andares`) e "teste de fluidez com GPU real" (mexe no portão).
 
