@@ -43,6 +43,7 @@ vi.mock('@tauri-apps/api/path', () => ({
 const { useAdventureStore, sceneList, hasUnsavedWork, pinTravelOf, unlinkedTravelPinIds, subscribeToTravelLinks } = await import('./adventureStore')
 const { useMapStore } = await import('./mapStore')
 const { useSessionStore, subscribeToDirtyFlag } = await import('./sessionStore')
+const { useInitiativeStore } = await import('./initiativeStore')
 const { createEmptyMap } = await import('../lib/mapFactory')
 const { parseAdventure } = await import('../lib/adventure')
 const { deserializeMap } = await import('../lib/mapFile')
@@ -602,6 +603,53 @@ describe('transferToken (o jogador atravessou o pino de viagem)', () => {
       expect(residente?.id).not.toBe('grog')
       expect(selection).toEqual([{ kind: 'token', id: residente?.id }])
       expect(fichasDoFundo(vale)).toEqual([])
+    })
+
+    /*
+     * A iniciativa é guardada por mapa + id da ficha. O Grog da Cripta estava
+     * em combate lá (valor 15, e era a vez dele): a ficha que chega com o mesmo
+     * id não pode herdar nem o valor nem a vez.
+     */
+    function mapaDe(sceneId: string): MapData | null {
+      const slot = useAdventureStore.getState().cache[sceneId]
+      return slot?.status === 'ok' ? slot.map : null
+    }
+
+    it('o valor de iniciativa e a vez do Grog da Cripta continuam com ele, e não passam para o que chegou', () => {
+      useInitiativeStore.getState().reset()
+      const { vale, cripta } = montarRepetido()
+      const mapaCripta = mapaDe(cripta)?.id ?? ''
+      const mapaVale = useMapStore.getState().map.id
+      expect(mapaCripta).not.toBe(mapaVale)
+      useInitiativeStore.getState().setValue(mapaCripta, 'grog', 15)
+      useInitiativeStore.getState().setValue(mapaCripta, 'esqueleto', 9)
+      useInitiativeStore.getState().setValue(mapaVale, 'grog', 4)
+      useInitiativeStore.getState().setTurn({ mapId: mapaCripta, tokenId: 'grog' })
+
+      expect(useAdventureStore.getState().transferToken('grog', vale, cripta, 900, 700)).toBe(true)
+      const residente = mapaDe(cripta)?.tokens.find((t) => t.name === 'Grog da Cripta')
+      expect(residente?.id).toBeDefined()
+      expect(residente?.id).not.toBe('grog')
+      const { values, turn } = useInitiativeStore.getState()
+      // O que já estava leva o 15 e a vez; o que chegou entra na Cripta sem valor.
+      expect(values[mapaCripta]).toEqual({ [residente?.id ?? '']: 15, esqueleto: 9 })
+      expect(turn).toEqual({ mapId: mapaCripta, tokenId: residente?.id })
+      // O valor do Grog no Vale é de lá e fica como estava.
+      expect(values[mapaVale]).toEqual({ grog: 4 })
+      useInitiativeStore.getState().reset()
+    })
+
+    it('sem combate na Cripta, a chegada não inventa valor nem vez para ninguém', () => {
+      useInitiativeStore.getState().reset()
+      const { vale, cripta } = montarRepetido()
+      const mapaCripta = mapaDe(cripta)?.id ?? ''
+      useInitiativeStore.getState().setValue(mapaCripta, 'esqueleto', 9)
+      useInitiativeStore.getState().setTurn({ mapId: mapaCripta, tokenId: 'esqueleto' })
+
+      expect(useAdventureStore.getState().transferToken('grog', vale, cripta, 900, 700)).toBe(true)
+      const { values, turn } = useInitiativeStore.getState()
+      expect(values[mapaCripta]).toEqual({ esqueleto: 9 })
+      expect(turn).toEqual({ mapId: mapaCripta, tokenId: 'esqueleto' })
     })
   })
 })

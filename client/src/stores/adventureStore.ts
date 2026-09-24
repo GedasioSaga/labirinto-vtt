@@ -42,6 +42,7 @@ import {
 import { mapDirFor, saveAdventureToDisk, scenePath, type OpenedMapFile } from '../lib/mapFileIO'
 import { dirname } from '@tauri-apps/api/path'
 import { removeSelectionItem, selectionHas, type SelectionItem } from '../lib/selectionModel'
+import { useInitiativeStore } from './initiativeStore'
 import { useMapStore } from './mapStore'
 import { useSessionStore } from './sessionStore'
 
@@ -415,7 +416,8 @@ function renameToken(map: MapData, fromId: string, toId: string): MapData {
  * um Ctrl+Z traria de volta a ficha com o id repetido). A que viaja guarda o
  * id porque é por ele que a sessão sabe de qual jogador ela é, e o que chamou
  * a travessia (`carryToken`, "Deixar ir", "Reunir o grupo") segue apontando
- * para ela.
+ * para ela. Tudo que é guardado pelo id da de destino vai junto para o id
+ * novo: a tocha presa (aqui), a seleção e a iniciativa (em `transferToken`).
  */
 function withToken(history: SceneHistory, token: Token): { history: SceneHistory; residentId: string | null } {
   const steps = [history.map, ...history.past, ...history.future]
@@ -706,6 +708,9 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
         .selection.map((item) => (item.kind === 'token' && item.id === tokenId ? { ...item, id: residentId } : item))
       useMapStore.setState({ selection: renamed })
     }
+    // A iniciativa é guardada por mapa + id: o valor e a vez da que já estava
+    // vão com ela para o id novo, e a que chegou entra sem nenhum dos dois.
+    if (residentId !== null) useInitiativeStore.getState().renameToken(to.map.id, tokenId, residentId)
     return true
   },
 
