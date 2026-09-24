@@ -179,15 +179,25 @@ export function loadPlaceNames(storage: StorageLike | null, playerId: string): R
 }
 
 /**
- * Grava (ou apaga, com nome vazio) o nome de um lugar. Armazenamento cheio ou
- * bloqueado não derruba a partida: o nome vale só nesta tela.
+ * Os nomes com o deste lugar trocado (ou apagado, com nome vazio), já limpo.
+ * Não mexe no armazenamento: é o que a tela mostra, grave-se ou não.
+ */
+export function withPlaceName(names: Record<string, string>, placeId: string, name: string): Record<string, string> {
+  const next = { ...names }
+  const cleaned = cleanPlaceName(name)
+  if (cleaned === '') delete next[placeId]
+  else next[placeId] = cleaned
+  return next
+}
+
+/**
+ * Grava (ou apaga, com nome vazio) o nome de um lugar. Só persistência:
+ * armazenamento cheio ou bloqueado não derruba a partida, e a tela aplica o
+ * nome no próprio estado (`withPlaceName`), então ele vale nesta aba mesmo assim.
  */
 export function savePlaceName(storage: StorageLike | null, playerId: string, placeId: string, name: string): void {
   const all = readAll(storage)
-  const mine = { ...(all[playerId] ?? {}) }
-  const cleaned = cleanPlaceName(name)
-  if (cleaned === '') delete mine[placeId]
-  else mine[placeId] = cleaned
+  const mine = withPlaceName(all[playerId] ?? {}, placeId, name)
   // O jogador de agora vai para o fim: é o mais recente, o último a sair no teto.
   delete all[playerId]
   all[playerId] = mine

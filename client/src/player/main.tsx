@@ -26,7 +26,7 @@ import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { findKnownPath } from '../lib/knownPath'
 import { PlayerPointMenu } from './PlayerPointMenu'
 import type { Pin, RegionPoint } from '../types/map'
-import { loadPlaceNames, savePlaceName, type VisitedPlace } from './playerPlaces'
+import { loadPlaceNames, savePlaceName, withPlaceName, type VisitedPlace } from './playerPlaces'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -524,9 +524,10 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const renamePlace = useCallback(
     (placeId: string, name: string) => {
       if (playerId === undefined) return
-      const storage = localStorageOrNull()
-      savePlaceName(storage, playerId, placeId, name)
-      setPlaceNames(loadPlaceNames(storage, playerId))
+      // O estado manda na tela; o armazenamento é só persistência. Reler dele
+      // perderia o nome quando ele está cheio ou bloqueado.
+      setPlaceNames((names) => withPlaceName(names, placeId, name))
+      savePlaceName(localStorageOrNull(), playerId, placeId, name)
     },
     [playerId],
   )

@@ -19,6 +19,7 @@ import {
   placeSketch,
   rememberPlace,
   savePlaceName,
+  withPlaceName,
 } from './playerPlaces'
 
 function mapa(id: string): MapData {
@@ -217,6 +218,14 @@ describe('nome do lugar dado pelo jogador', () => {
     expect(loadPlaceNames(bloqueado, 'p1')).toEqual({})
     expect(() => savePlaceName(bloqueado, 'p1', 'l1', 'Porto')).not.toThrow()
     expect(loadPlaceNames(null, 'p1')).toEqual({})
+  })
+
+  it('withPlaceName: troca, limpa e apaga só na cópia, sem tocar no armazenamento nem no original', () => {
+    const antes = { l1: 'Porto' }
+    expect(withPlaceName(antes, 'l2', '  Mercado  ')).toEqual({ l1: 'Porto', l2: 'Mercado' })
+    expect(withPlaceName(antes, 'l1', '   ')).toEqual({})
+    expect(withPlaceName(antes, 'l1', 'x'.repeat(80))).toEqual({ l1: 'x'.repeat(32) })
+    expect(antes).toEqual({ l1: 'Porto' })
   })
 
   it('nome longo é cortado no mesmo teto do nome do personagem', () => {
