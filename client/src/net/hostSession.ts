@@ -1285,7 +1285,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Livre: passou em tudo que o pedido passaria (névoa, token na cena, pino
     // ligado, limites, nenhum pendente) e vai direto, sem esperar o mestre —
     // ele só lê o aviso de chegada que o integrador mostra com a transferência.
-    if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel)
+    if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel, world)
     const requestId = randomId()
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
     pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
@@ -1315,6 +1315,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * que não o carrega. Ficha levada que é de OUTRO jogador leva a cena dele
    * junto: ele recebe o mesmo aviso do "Mandar para…" (`by: 'master'`), porque
    * não foi ele quem pediu — e o pedido de passagem que ele tinha perde o pino.
+   * Só quando ele ESTAVA na cena de origem e não deixa ficha lá: dono de duas
+   * fichas que fica com a principal para trás continua onde está, mandando
+   * nela, com o pedido que tinha. Um aviso por dono, mesmo levando duas dele.
    * Ninguém levado: `transfer` vazio, e o `applyTransfer` fica como sempre foi.
    */
   function carriedAlong(
@@ -1323,14 +1326,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     from: HostScene,
     to: HostScene,
     spot: { x: number; y: number },
+    world: HostWorld,
   ): { transfer: Pick<AppliedTransfer, 'junto'>; outbound: Outbound[] } {
     const carrier = from.map.tokens.find((t) => t.id === carrierId)
     const carried = carriedBy(from.map, carrierId)
     if (carrier === undefined || carried.length === 0) return { transfer: {}, outbound: [] }
+    const carriedIds = new Set(carried.map((t) => t.id))
+    const moved = new Set<string>()
     const outbound: Outbound[] = []
     for (const token of carried) {
       const owner = Object.entries(ownership).find(([, ids]) => ids.includes(token.id))?.[0]
-      if (owner === undefined || owner === carrierPlayerId || statusOf(owner) !== 'playing') continue
+      if (owner === undefined || owner === carrierPlayerId || moved.has(owner) || statusOf(owner) !== 'playing') continue
+      if (!leavesWithCarried(owner, from, carriedIds, world)) continue
+      moved.add(owner)
       currentScene.set(owner, sceneKey(to))
       pendingTravels.delete(owner)
       const clientId = players.get(owner)?.clientId ?? null // null = caiu: reconecta já na cena nova
@@ -1340,15 +1348,27 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * O dono de uma ficha levada sai da cena junto? Só se é nela que ele está
+   * AGORA (`sceneFor`, a mesma regra do broadcast) e se todas as fichas dele
+   * ali estão entre as levadas. Senão a cena dele não muda.
+   */
+  function leavesWithCarried(owner: string, from: HostScene, carriedIds: ReadonlySet<string>, world: HostWorld): boolean {
+    const here = sceneFor(owner, world)
+    if (here === null || sceneKey(here) !== sceneKey(from)) return false
+    const owned = ownership[owner] ?? []
+    return !from.map.tokens.some((t) => owned.includes(t.id) && !carriedIds.has(t.id))
+  }
+
+  /**
    * A passagem acontece: `scene.changed` ao dono e `applyTransfer` para o
    * integrador mover a ficha. Vale para o "Deixar ir" e para o pino livre.
    */
-  function transferResult(playerId: string, clientId: string, playerName: string, travel: ValidTravel): HostResult {
+  function transferResult(playerId: string, clientId: string, playerName: string, travel: ValidTravel, world: HostWorld): HostResult {
     const spot = arrivalSpot(travel.to.map, travel.partner, travel.token.size)
     // A cena dele passa a ser a de destino a partir daqui: é ela que o
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
-    const along = carriedAlong(playerId, travel.token.id, travel.from, travel.to, spot)
+    const along = carriedAlong(playerId, travel.token.id, travel.from, travel.to, spot, world)
     return {
       outbound: [{ clientId, msg: { type: 'scene.changed' } }, ...along.outbound],
       applyTransfer: {
@@ -1458,7 +1478,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // jogador pede de novo.
       const sameDestination = travel !== null && travel.to.sceneId === pending.toSceneId && travel.partner.id === pending.partnerId
       if (travel === null || !sameDestination) return reply(record.clientId, { type: 'pin.travel.rejected', reason: 'unavailable' })
-      return transferResult(pending.playerId, record.clientId, record.name, travel)
+      return transferResult(pending.playerId, record.clientId, record.name, travel, world)
     },
 
     denyTravel(requestId) {
@@ -1526,7 +1546,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // O pedido que ele tinha na cena de antes perde o sentido: o pino ficou lá.
       pendingTravels.delete(playerId)
       const by = gatherAt === undefined ? 'master' : 'gather'
-      const along = carriedAlong(playerId, token.id, from, to, spot)
+      const along = carriedAlong(playerId, token.id, from, to, spot, world)
       return {
         outbound: [...(record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by } } satisfies Outbound]), ...along.outbound],
         applyTransfer: {
