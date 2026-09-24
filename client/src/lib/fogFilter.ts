@@ -4,23 +4,32 @@ import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer } from './tokenPublicName'
 import { healthForPlayer } from './tokenHealth'
 import { tokenConditionsForPlayer } from './tokenConditions'
+import { withoutCarrier } from './carry'
 import { guardAlerts, tokenWatchForPlayer, tokenWatchOf } from './npcWatch'
+import { tokenPatrolForPlayer } from './npcPatrol'
 import type { TurnRef } from './initiative'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
-import { pointInRing } from './floorContour'
+import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
-import { isPlayerSafePinImage } from './pins'
+import { isPlayerSafePinImage, passageOf } from './pins'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
-import { exitLabelsOf, isArrivalOnly } from './pinTravel'
+import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
+import { exitLabelsOf, isArrivalOnly, travelExitsOf } from './pinTravel'
 import { withoutAttachment } from './lightAttachment'
-import { itemOfPin } from './items'
+import { itemOfPin, tokenReachesPin } from './items'
+import { keyForPin } from './doorKey'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
-import { roomHasRoof } from './roomOps'
+import { roomHasRoof, roomIsComodo } from './roomOps'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
 import { hazardRooms, hazardsOf, visionRadiusAt, type PlayerHazard } from './hazards'
+import { cleanPublicSceneName } from './adventure'
+import type { DiceRollEntry, HostDiceRoll } from './dice'
+import { caravanMembers, caravanPoint, caravanTokenFor, isWorldMap } from './caravan'
+import { triggersWithRegions, type PlayerAreaTrigger } from './areaTriggers'
+import { isDarkAt, periodOfHour, type PlayerClock } from './campaignClock'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -34,6 +43,13 @@ import { hazardRooms, hazardsOf, visionRadiusAt, type PlayerHazard } from './haz
 
 /** Folga da caixa envolvente do anel de visão, em px de mundo; muito acima do erro de arredondamento. */
 const BBOX_SLACK = 1e-3
+
+/**
+ * Raio de visão do jogador: um número vale para todas as fichas dele; a
+ * função dá o raio de CADA ficha (a emprestada enxerga com o raio do dono,
+ * não com o de quem a joga).
+ */
+export type VisionRadius = number | ((tokenId: string) => number)
 
 export interface PlayerMapView {
   map: MapData
@@ -81,6 +97,13 @@ export interface PlayerMapView {
    */
   hazardsHere: { tokenId: string; kind: HazardKind }[]
   /**
+   * GATILHO DE ÁREA — só o que o mestre REVELOU, e só na área que o jogador
+   * já conhece (a região saiu neste recorte): tipo e polígono. Anotação
+   * estática, então vale o explorado, como a própria região. Nunca o id do
+   * gatilho nem o da região; `map.gatilhos` do recorte não existe.
+   */
+  gatilhos: PlayerAreaTrigger[]
+  /**
    * TEXTO DA SALA — ids das Salas COM texto de entrada em que uma ficha do
    * jogador está agora, estritamente dentro, e que ele pode ler (a Sala saiu
    * no recorte, fora de teto fechado e de zona oculta, e a ficha não está em
@@ -88,6 +111,92 @@ export interface PlayerMapView {
    * visitou para mandar o cartão só na primeira entrada. Não sai pela rede.
    */
   occupiedRooms: string[]
+  /**
+   * CÔMODO LEMBRADO — os cômodos (`RoomMeta.comodo`) que este jogador CONHECE
+   * neste recorte: vistos agora (ficha dentro, ou olhando para dentro pela
+   * porta), já lembrados (`seenRooms`) ou com o interior já explorado. O
+   * chamador guarda os ids para devolvê-los em `seenRooms` e marca o polígono
+   * INTEIRO no explorado — é isso que levanta a névoa do cômodo todo, e não só
+   * do pedaço que a linha de visão alcançou. Não sai pela rede.
+   *
+   * `roomsInside`: polígonos das Salas DENTRO do cômodo que a lembrança dele
+   * não cobre — prédios de teto (abertos OU fechados) que encostam no cômodo
+   * e não o contêm, e Salas sem teto aninhadas nele (o quarto dentro da
+   * casa). O chamador os bloqueia ao marcar o cômodo: senão o contorno
+   * lembrado cobriria a Sala de dentro, e a memória entregaria o interior dela
+   * (o quarto atrás da porta trancada, a casa quando o teto abrisse).
+   */
+  rememberedRooms: { id: string; points: RegionPoint[]; roomsInside: RegionPoint[][] }[]
+  /**
+   * Cômodos ainda NÃO vistos que ficam DENTRO de um cômodo lembrado (a
+   * despensa no canto da sala). O chamador não marca explorado em célula que
+   * toque neles ao marcar os lembrados: sem isso o polígono da sala levantaria
+   * a névoa da despensa junto. O vizinho de parede não entra: a marcação só
+   * pega célula inteira dentro do lembrado, e bloqueá-lo deixaria escura a
+   * faixa colada na parede comum. Não sai pela rede.
+   */
+  unseenInsideRemembered: RegionPoint[][]
+}
+
+/**
+ * Quanto a amostra do anel de visão precisa estar DENTRO do cômodo, em px de
+ * mundo, para contar como "olhou para dentro". O anel de quem está na sala ao
+ * lado encosta na parede comum — em cima da borda do cômodo vizinho, com o
+ * erro de arredondamento da intersecção —, e isso não é ver o vizinho.
+ */
+const SEEN_INSIDE_DEPTH = 2
+
+interface BoxedRoom extends Box {
+  id: string
+  points: RegionPoint[]
+}
+
+function boxRooms(regions: readonly Region[]): BoxedRoom[] {
+  return regions.flatMap((r) => {
+    const box = boxOf(r.points)
+    return box === null ? [] : [{ id: r.id, points: r.points, ...box }]
+  })
+}
+
+/** Ponto ESTRITAMENTE dentro do cômodo: em cima da parede (com `depth` de folga) ainda é fora. */
+function inRoomStrictly(room: BoxedRoom, p: RegionPoint, depth: number = NESTING_TOLERANCE): boolean {
+  return (
+    p.x >= room.minX &&
+    p.x <= room.maxX &&
+    p.y >= room.minY &&
+    p.y <= room.maxY &&
+    pointInPolygonInclusive(p, room.points) &&
+    !pointOnPolygonBorder(p, room.points, depth)
+  )
+}
+
+/** Ponto dentro da Sala OU em cima da parede dela (a folga de `pointInPolygonInclusive`): na dúvida, é da Sala de dentro. */
+function inRoomInclusive(room: BoxedRoom, p: RegionPoint): boolean {
+  return (
+    p.x >= room.minX - NESTING_TOLERANCE &&
+    p.x <= room.maxX + NESTING_TOLERANCE &&
+    p.y >= room.minY - NESTING_TOLERANCE &&
+    p.y <= room.maxY + NESTING_TOLERANCE &&
+    pointInPolygonInclusive(p, room.points)
+  )
+}
+
+/**
+ * Algum vértice do anel de visão, ou o meio de alguma aresta dele, cai DENTRO
+ * do cômodo. O meio da aresta é o que pega a porta: o cone que entra pela
+ * porta pode ter todos os vértices EM CIMA das paredes do corredor (batente e
+ * parede do fundo), mas a aresta entre eles atravessa o corredor por dentro.
+ */
+function ringReachesInto(ring: readonly RegionPoint[], room: BoxedRoom, counts: (p: RegionPoint) => boolean): boolean {
+  const n = ring.length
+  for (let i = 0; i < n; i += 1) {
+    const a = ring[i]
+    const b = ring[(i + 1) % n]
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+    if (inRoomStrictly(room, a, SEEN_INSIDE_DEPTH) && counts(a)) return true
+    if (inRoomStrictly(room, mid, SEEN_INSIDE_DEPTH) && counts(mid)) return true
+  }
+  return false
 }
 
 /** Zonas ocultas ativas (`?? []`: mapa montado fora do deserializeMap pode vir sem o campo). */
@@ -963,9 +1072,13 @@ function tokenHealthForPlayer(token: Token): Token {
  * (`tokenConditionsForPlayer`) — texto que o mestre ou o arquivo enfiar no
  * campo não sai da máquina dele. Quem decide SE a ficha vai é o filtro de
  * `filterMapForPlayer`; a condição só atravessa junto com ela.
+ *
+ * LEVAR FICHA JUNTO: o vínculo (`levadoPor`) nunca sai. É arrumação do mestre,
+ * e o id de quem leva apontaria para uma ficha que o recorte pode ter
+ * escondido (colega na névoa, ficha secreta).
  */
 function tokenForPlayer(token: Token): Token {
-  return tokenConditionsForPlayer(sanitizeTokenPhoto(token))
+  return tokenConditionsForPlayer(sanitizeTokenPhoto(withoutCarrier(token)))
 }
 
 /** A ficha sem a mochila: é como o jogador recebe a ficha de outro. Sem mochila, o mesmo objeto. */
@@ -975,14 +1088,57 @@ function withoutBackpack(token: Token): Token {
   return semMochila
 }
 
+/**
+ * A marca "Ficha de jogador" é do mestre (quem ele oferece a quem chega): no
+ * mapa do jogador ela diria quais fichas em volta dele estão sem dono.
+ */
+function withoutMasterMarks(token: Token): Token {
+  if (token.playerCharacter === undefined) return token
+  const { playerCharacter: _masterOnly, ...rest } = token
+  return rest
+}
+
+/** Uma ficha que quem chega sem personagem pode pedir: só o id e o nome. */
+export interface ClaimableToken {
+  tokenId: string
+  name: string
+}
+
+/**
+ * A LISTA DE FICHAS LIVRES de quem entra sem personagem. Vai a quem ainda não
+ * tem visão nenhuma, então não passa pelo recorte da névoa: entra só o que o
+ * MESTRE oferece — ficha marcada "Ficha de jogador" —, e nunca a que ele
+ * esconde (secreta, oculta no editor, em camada oculta) nem a que já é de
+ * alguém (`taken`: dono conectado ou não, assento guardado). Sai só id e nome:
+ * nem cena, nem posição. Em ordem de nome; ficha repetida entre cenas, uma vez.
+ */
+export function claimableTokensForPlayer(maps: readonly MapData[], taken: ReadonlySet<string>): ClaimableToken[] {
+  const seen = new Set<string>()
+  const out: ClaimableToken[] = []
+  for (const map of maps) {
+    for (const token of visibleTokens(map.tokens, map.hiddenLayers)) {
+      if (token.playerCharacter !== true || token.secret === true || token.hidden === true) continue
+      if (taken.has(token.id) || seen.has(token.id)) continue
+      seen.add(token.id)
+      out.push({ tokenId: token.id, name: token.name })
+    }
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR') || a.tokenId.localeCompare(b.tokenId))
+}
+
 /** Porta explorada que o jogador nunca viu: aparece fechada e destrancada. */
 function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
 }
 
-/** A porta como o jogador a vê: aberta ou fechada, nunca trancada. */
+/**
+ * A porta como o jogador a vê: aberta ou fechada, nunca trancada — e sem o
+ * "Abre com" (CHAVE ABRE PORTA): o jogador nunca descobre que portas uma chave
+ * abre. Quem tem a chave só lê o nome dela na recusa do toque (`hostSession`).
+ */
 function withoutLock(door: DoorState): DoorState {
-  return { ...door, locked: false }
+  const { abreCom: _chave, ...semChave } = door
+  return { ...semChave, locked: false }
 }
 
 /**
@@ -997,16 +1153,19 @@ function withoutLock(door: DoorState): DoorState {
  * `enteredRooms`: Salas deste mapa em que o jogador JÁ entrou (texto da sala).
  * O texto de entrada dela continua no recorte depois que ele sai, para tocar
  * no rótulo e reler; de Sala onde ele nunca entrou o texto não sai.
+ * `seenRooms`: CÔMODOS LEMBRADOS (`RoomMeta.comodo`) deste mapa que o jogador
+ * já viu — o que o chamador guardou de `rememberedRooms` nos recortes de antes.
  */
 export function filterMapForPlayer(
   map: MapData,
   playerId: string,
   ownership: Record<string, string[]>,
-  visionRadius: number,
+  visionRadius: VisionRadius,
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
   pinAudiences?: PinAudiences,
   enteredRooms?: ReadonlySet<string>,
+  seenRooms?: ReadonlySet<string>,
 ): PlayerMapView {
   // Jogador sem entrada de posse não tem token nem visão. A marca do guarda
   // (?, !) mede as fichas de TODOS os jogadores que ele recebe, não só as dele.
@@ -1014,6 +1173,7 @@ export function filterMapForPlayer(
     pinAudiences,
     enteredRooms,
     playerId,
+    seenRooms,
   })
 }
 
@@ -1027,6 +1187,8 @@ export interface PlayerOnlyView {
   pinAudiences?: PinAudiences
   enteredRooms?: ReadonlySet<string>
   playerId?: string
+  /** CÔMODOS LEMBRADOS deste jogador (`filterMapForPlayer`). A tela da mesa não passa: lá vale só o visto e o explorado. */
+  seenRooms?: ReadonlySet<string>
 }
 
 /** OLHOS DO GUARDA: as fichas de todos os jogadores da sala — quem a marca do guarda considera. */
@@ -1034,10 +1196,14 @@ export function allPlayerTokens(ownership: Readonly<Record<string, readonly stri
   return new Set(Object.values(ownership).flat())
 }
 
-/** Um membro do grupo que a tela da mesa acompanha: as fichas dele e o raio de visão DELE. */
+/**
+ * Um membro do grupo que a tela da mesa acompanha: as fichas dele e o raio de
+ * visão DELE. RAIO POR FICHA: como função, cada ficha enxerga com o raio que
+ * ela devolve (a emprestada, com o do dono).
+ */
 export interface GroupViewer {
   tokenIds: readonly string[]
-  visionRadius: number
+  visionRadius: VisionRadius
 }
 
 /**
@@ -1061,13 +1227,18 @@ export function filterMapForGroup(
   explored?: Exploration,
   seenDoors?: ReadonlyMap<string, DoorState>,
   watchTargets?: ReadonlySet<string>,
-  { pinAudiences, enteredRooms, playerId }: PlayerOnlyView = {},
+  { pinAudiences, enteredRooms, playerId, seenRooms }: PlayerOnlyView = {},
 ): PlayerMapView {
+  if (isWorldMap(map)) return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms })
   const hiddenLayers = map.hiddenLayers
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
   const radiusByToken = new Map<string, number>()
   for (const viewer of viewers) {
-    for (const id of viewer.tokenIds) if (!radiusByToken.has(id)) radiusByToken.set(id, viewer.visionRadius)
+    for (const id of viewer.tokenIds) {
+      if (radiusByToken.has(id)) continue
+      const radius = viewer.visionRadius
+      radiusByToken.set(id, typeof radius === 'number' ? radius : radius(id))
+    }
   }
   const owned: ReadonlySet<string> = new Set(radiusByToken.keys())
   const layerTokens = visibleTokens(map.tokens, hiddenLayers)
@@ -1222,6 +1393,27 @@ export function filterMapForGroup(
   const inBrushReveal = (point: RegionPoint): boolean => brushed && inZoneRing(point) && !hiddenByZone(point)
   const outsideZones = (points: readonly RegionPoint[]): readonly RegionPoint[] =>
     zones.length === 0 ? points : points.filter((p) => !hiddenByZone(p))
+  /**
+   * Forma com algum trecho que a zona ainda esconde (fora do pedaço pintado,
+   * ou na sala que o pincel não abre), medido no CONTORNO e no interior, não
+   * só nas amostras. Só pergunta com pincel ativo e a forma perto de uma zona.
+   */
+  const brushLeavesPartHidden = (outline: ShapeOutline): boolean => {
+    if (!brushed) return false
+    const box = boxOf(outline.points)
+    if (box === null || !zones.some((z) => box.maxX >= z.minX && box.minX <= z.maxX && box.maxY >= z.minY && box.minY <= z.maxY)) return false
+    return hasHiddenStretch(outline, hiddenByZone)
+  }
+  /**
+   * As amostras que decidem se a forma é conhecida. Forma que o pincel deixa
+   * em parte escondida é julgada como ANTES do pincel (amostra dentro da zona
+   * não conta, pintada ou não): o pincel mostra o pedaço pintado, e uma
+   * amostra no corredor entregava o polígono e a cor da sala inteira. Forma
+   * que cabe inteira no pedaço pintado (ou fora da zona) segue a regra de
+   * sempre, com o pintado contando como à vista (`inBrushReveal`).
+   */
+  const openSamples = (points: readonly RegionPoint[], outline: ShapeOutline): readonly RegionPoint[] =>
+    brushLeavesPartHidden(outline) ? points.filter((p) => !inZoneRing(p)) : outsideZones(points)
 
   /**
    * Região ENGOLIDA por um prédio de teto fechado, medida na GEOMETRIA e não em
@@ -1326,6 +1518,130 @@ export function filterMapForGroup(
   const isVisible = (point: RegionPoint): boolean => !hiddenByZone(point) && (inAnyRing(rings, point) || inBrushReveal(point))
 
   /**
+   * A ficha está DENTRO da Sala: estritamente dentro (em cima do muro ainda é
+   * fora, mesma regra do teto) e num ponto que o jogador pode saber — nem zona
+   * oculta, nem sala secreta. Vale para o texto de entrada e para o cômodo.
+   */
+  const isStrictlyInsideReadableRoom = (points: readonly RegionPoint[], p: RegionPoint): boolean =>
+    pointInPolygonInclusive(p, points) && !pointOnPolygonBorder(p, points) && !inConcealZone(p) && !inSecretRoom(p)
+
+  /**
+   * CÔMODO LEMBRADO (`RoomMeta.comodo`). Candidato é o cômodo que o jogador
+   * PODERIA receber: nem oculto, nem secreto, nem dentro de sala secreta ou de
+   * prédio de teto fechado para ele — ali quem manda é o teto, e lembrar do
+   * cômodo não pode abrir prédio nenhum. Conhecido é o que ele vê agora (ficha
+   * dentro, ou o anel de visão entrando nele pela porta), o que já lembrava
+   * (`seenRooms`) e o de interior já explorado ("Revelar planta").
+   *
+   * Conhecido, o cômodo sai INTEIRO: a Sala e o que é planta lá dentro (pino,
+   * marcador, desenho, linha, escada, porta com o estado lembrado). Ficha, luz e
+   * objeto continuam exigindo a visão de agora. Não conhecido, NADA de dentro
+   * sai — nem a silhueta, que é o que o teto por cômodo entregava.
+   */
+  const comodoCandidates = visibleRegions(map.regions, hiddenLayers).filter(
+    (r) =>
+      roomIsComodo(r.room) &&
+      !r.hidden &&
+      !r.secret &&
+      !secretRoomIds.has(r.id) &&
+      isUsablePolygon(r.points) &&
+      !underRoofIds.has(r.id) &&
+      !swallowedByClosedRoof(r),
+  )
+  const seesInto = (room: BoxedRoom): boolean => {
+    if (ownTokens.some((t) => isStrictlyInsideReadableRoom(room.points, { x: t.x, y: t.y }))) return true
+    // As amostras que contam (`openSamples`): o pincel que deixa parte do
+    // cômodo escondida não o faz "lembrado" — senão o corredor pintado
+    // entregava o polígono do cômodo inteiro, e a planta de dentro com ele.
+    const samples = openSamples(interiorSamples(room.points, room.points), { points: room.points, closed: true })
+    if (samples.some(isVisible)) return true
+    if (explored !== undefined && isShapeExplored(explored, samples)) return true
+    return authorityVision.some((ring) => ringReachesInto(ring, room, (p) => !inConcealZone(p) && !inSecretRoom(p)))
+  }
+  const comodoRooms = boxRooms(comodoCandidates)
+  /**
+   * Zona oculta ativa sobre o interior INTEIRO: a lembrança (`seenRooms`) não
+   * vence a zona — mesma régua da Sala comum, que só sai com alguma amostra do
+   * interior conhecida FORA da zona. Com a zona revelada, a lembrança volta.
+   */
+  const hasOpenInterior = (room: BoxedRoom): boolean => outsideZones(interiorSamples(room.points, room.points)).length > 0
+  const knownComodos = comodoRooms.filter(
+    (room) => hasOpenInterior(room) && (seenRooms?.has(room.id) === true || seesInto(room)),
+  )
+  const knownComodoIds = new Set(knownComodos.map((room) => room.id))
+  const unseenComodos = comodoRooms.filter((room) => !knownComodoIds.has(room.id))
+  const unseenComodoIds = new Set(unseenComodos.map((room) => room.id))
+  const inUnseenComodo = (p: RegionPoint): boolean => unseenComodos.some((room) => inRoomStrictly(room, p))
+  /**
+   * A Sala `outer` CONTÉM o cômodo: é MAIOR que ele E cobre a maioria das
+   * amostras dele. As duas perguntas, não uma: a Sala de dentro que divide
+   * parede com o cômodo e ocupa mais da metade dele (o galpão no canto do
+   * pátio, o quarto no fundo da casa) também cobre a maioria das amostras —
+   * pela maioria sozinha ela virava "de fora", e a lembrança do cômodo a
+   * entregava inteira.
+   */
+  const containsComodo = (room: BoxedRoom, outer: RegionPoint[], inside: (p: RegionPoint) => boolean): boolean =>
+    Math.abs(signedArea(outer)) >= Math.abs(signedArea(room.points)) && mostly(interiorSamples(room.points, room.points), inside)
+  /**
+   * Prédios de teto — ABERTOS ou fechados — que encostam no cômodo lembrado e
+   * NÃO o contêm (a casa no meio do pátio). A lembrança do pátio não vale lá
+   * dentro: o teto só esconde enquanto está fechado, e sem esta exclusão a
+   * ficha que entra na casa (teto aberto) recebia o interior INTEIRO pelo
+   * pátio, inclusive o quarto atrás de porta fechada. O prédio que CONTÉM o
+   * cômodo (o quarto lembrado dentro da casa aberta, `containsComodo`) não
+   * entra: ali a lembrança é do próprio interior do prédio, e o teto fechado
+   * já o apaga.
+   */
+  const roofsInsideComodo = new Map(
+    knownComodos.map((room) => [
+      room.id,
+      roofBoxes.filter(
+        (roof) =>
+          roof.maxX >= room.minX &&
+          roof.minX <= room.maxX &&
+          roof.maxY >= room.minY &&
+          roof.minY <= room.maxY &&
+          !containsComodo(room, roof.points, (p) => inRoof(roof, p)),
+      ),
+    ]),
+  )
+  /**
+   * Salas SEM teto que moram dentro do cômodo lembrado (o quarto, Sala comum,
+   * dentro da casa-cômodo — o padrão Casa > Quarto da vila). Cada Sala segue a
+   * PRÓPRIA regra: a comum sai quando o interior dela é visto ou explorado, o
+   * cômodo quando é conhecido. A lembrança do cômodo de fora não vale lá
+   * dentro — sem esta exclusão, entrar na sala da frente entregava o quarto de
+   * porta trancada inteiro, com os pinos, e a grade do explorado dele.
+   * Dentro é "alguma amostra do interior estritamente no cômodo"; a Sala que
+   * CONTÉM o cômodo (a casa comum em volta dele, `containsComodo`) não entra.
+   */
+  const plainRooms = boxRooms(map.regions.filter((r) => r.room !== undefined && !roomHasRoof(r.room) && isUsablePolygon(r.points)))
+  const roomsInsideComodo = new Map(
+    knownComodos.map((room) => [
+      room.id,
+      plainRooms.filter(
+        (inner) =>
+          inner.id !== room.id &&
+          interiorSamples(inner.points, inner.points).some((p) => inRoomStrictly(room, p)) &&
+          !containsComodo(room, inner.points, (p) => inRoomInclusive(inner, p)),
+      ),
+    ]),
+  )
+  const inNestedRoomOfComodo = (room: BoxedRoom, p: RegionPoint): boolean =>
+    (roofsInsideComodo.get(room.id) ?? []).some((roof) => inRoof(roof, p)) ||
+    (roomsInsideComodo.get(room.id) ?? []).some((inner) => inRoomInclusive(inner, p))
+  /**
+   * Planta dentro de cômodo lembrado: conhecida — fora de zona oculta, fora
+   * de cômodo ainda não visto DENTRO dele (a despensa no canto da sala), fora
+   * de prédio de teto dentro dele (`roofsInsideComodo`) e fora de Sala sem
+   * teto dentro dele (`roomsInsideComodo`).
+   */
+  const inKnownComodo = (p: RegionPoint): boolean =>
+    !inConcealZone(p) && !inUnseenComodo(p) && knownComodos.some((room) => inRoomStrictly(room, p) && !inNestedRoomOfComodo(room, p))
+  /** Ponto que o jogador não recebe por causa da SALA: secreta, de teto fechado ou cômodo ainda não visto. */
+  const inHiddenPlace = (p: RegionPoint): boolean => inRoomHiddenFromPlayer(p) || inUnseenComodo(p)
+
+  /**
    * Forma com extensão: a caixa da forma precisa cruzar a caixa de algum anel
    * e algum ponto amostrado (fora de zona oculta) precisa estar dentro dele.
    * Forma que só atravessa a visão sem nenhum ponto amostrado dentro fica de
@@ -1348,32 +1664,12 @@ export function filterMapForGroup(
   const isPointExploredOpen = (point: RegionPoint): boolean =>
     explored !== undefined && !hiddenByZone(point) && isPointExplored(explored, point)
 
-  // Planta estática: visível agora ou já explorada. Nunca usar para entidade dinâmica.
-  const isPointKnown = (point: RegionPoint): boolean => isVisible(point) || isPointExploredOpen(point)
-  /**
-   * Forma com algum trecho que a zona ainda esconde (fora do pedaço pintado,
-   * ou na sala que o pincel não abre), medido no CONTORNO e no interior, não
-   * só nas amostras. Só pergunta com pincel ativo e a forma perto de uma zona.
-   */
-  const brushLeavesPartHidden = (outline: ShapeOutline): boolean => {
-    if (!brushed) return false
-    const box = boxOf(outline.points)
-    if (box === null || !zones.some((z) => box.maxX >= z.minX && box.minX <= z.maxX && box.maxY >= z.minY && box.minY <= z.maxY)) return false
-    return hasHiddenStretch(outline, hiddenByZone)
-  }
-  /**
-   * As amostras que decidem se a forma é conhecida. Forma que o pincel deixa
-   * em parte escondida é julgada como ANTES do pincel (amostra dentro da zona
-   * não conta, pintada ou não): o pincel mostra o pedaço pintado, e uma
-   * amostra no corredor entregava o polígono e a cor da sala inteira. Forma
-   * que cabe inteira no pedaço pintado (ou fora da zona) segue a regra de
-   * sempre, com o pintado contando como à vista (`inBrushReveal`).
-   */
-  const openSamples = (points: readonly RegionPoint[], outline: ShapeOutline): readonly RegionPoint[] =>
-    brushLeavesPartHidden(outline) ? points.filter((p) => !inZoneRing(p)) : outsideZones(points)
+  // Planta estática: visível agora, já explorada ou dentro de cômodo lembrado. Nunca usar para entidade dinâmica.
+  const isPointKnown = (point: RegionPoint): boolean => isVisible(point) || isPointExploredOpen(point) || inKnownComodo(point)
   const isShapeKnown = (points: readonly RegionPoint[], outline: ShapeOutline): boolean => {
     const open = openSamples(points, outline)
-    return isShapeVisible(open) || (explored !== undefined && isShapeExplored(explored, open))
+    // Cômodo lembrado: só pelas amostras que contam (`open`), como o resto.
+    return isShapeVisible(open) || (explored !== undefined && isShapeExplored(explored, open)) || open.some(inKnownComodo)
   }
 
   const visibleDoorIds: string[] = []
@@ -1391,22 +1687,21 @@ export function filterMapForGroup(
       visibleDoorIds.push(w.id)
       return [{ ...w, door: withoutLock(door) }]
     }
-    if (explored === undefined) return []
-    const probe = explored.cell * DOOR_EXPLORED_PROBE_CELLS
-    if (!doorSamples(w, probe).some(isPointExploredOpen)) return []
+    // Porta de cômodo lembrado sai mesmo sem célula explorada ao lado (o
+    // cômodo acabou de ser visto): com o estado LEMBRADO, nunca o atual.
+    // A lembrança do cômodo não vence sala secreta nem teto fechado lá dentro
+    // (`inHiddenPlace`): porta solta, sem `regionId`, com o meio na sala
+    // escondida é dela — a amostra do lado que cai no cômodo não a leva junto.
+    const probe = (explored?.cell ?? map.grid) * DOOR_EXPLORED_PROBE_CELLS
+    const comodoCounts = !inHiddenPlace(wallMidpoint(w))
+    const known = (p: RegionPoint): boolean => isPointExploredOpen(p) || (comodoCounts && !inHiddenPlace(p) && inKnownComodo(p))
+    if (!doorSamples(w, probe).some(known)) return []
     const remembered = seenDoors?.get(w.id)
     return [{ ...w, door: remembered === undefined ? unseenDoor(door) : withoutLock(remembered) }]
   }
 
   /** Preenchida no recorte das regiões abaixo: só entra Sala que saiu no pacote. */
   const occupiedRooms: string[] = []
-  /**
-   * A ficha está DENTRO da Sala para o texto de entrada: estritamente dentro
-   * (em cima do muro ainda é fora, mesma regra do teto) e num ponto que o
-   * jogador pode saber — nem zona oculta, nem sala secreta.
-   */
-  const isStrictlyInsideReadableRoom = (points: readonly RegionPoint[], p: RegionPoint): boolean =>
-    pointInPolygonInclusive(p, points) && !pointOnPolygonBorder(p, points) && !inConcealZone(p) && !inSecretRoom(p)
 
   /**
    * PINCEL DE REVELAR — o preto de cada zona ativa sai sem os buracos que o
@@ -1468,7 +1763,23 @@ export function filterMapForGroup(
   // ZONA DE PERIGO: o objeto do mestre (ids de zona e de sala, perigo onde o
   // jogador não está) NUNCA vai no mapa do recorte. O que ele pode ver sai
   // separado, em `hazards`, montado mais abaixo.
-  const { hazards: _masterHazards, ...mapWithoutHazards } = map
+  // GATILHO DE ÁREA: mesma regra — o objeto do mestre fica aqui; o que foi
+  // revelado sai separado, em `gatilhos`.
+  // TEXTO DE CHEGADA: fica aqui também. No snapshot, quem já está na cena o
+  // receberia de novo a cada broadcast (e a tela da mesa o mostraria a todos);
+  // ele viaja só no `scene.changed` de quem chega (`net/hostSession.ts`).
+  // MAPA POR ANDARES: o nome do prédio é do mestre; o rótulo do andar viaja à
+  // parte (`snapshot.andares`), só quando o host decide que ele vale.
+  // RELÓGIO DA CAMPANHA: a marca "externa" também é do mestre; o jogador
+  // recebe só se a cena dele está escura, à parte (`clockForPlayer`).
+  const {
+    hazards: _masterHazards,
+    gatilhos: _masterTriggers,
+    textoChegada: _arrivalText,
+    andar: _masterFloor,
+    externa: _masterOutdoor,
+    ...mapWithoutHazards
+  } = map
 
   // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
   const playerTokens = layerTokens.filter(
@@ -1483,6 +1794,10 @@ export function filterMapForGroup(
    * quem foi visto, e o cone (`vigia`), ficam no mestre (`tokenWatchForPlayer`).
    * Sem guarda no recorte, nada é calculado.
    */
+  // Para o pino PRESO a uma ficha (ver `pins`, abaixo): as fichas da cena e as
+  // que este recorte entrega.
+  const mapTokenIds = new Set(map.tokens.map((t) => t.id))
+  const deliveredTokenIds = new Set(playerTokens.map((t) => t.id))
   const watchable = watchTargets ?? owned
   const seenTargets = new Set(playerTokens.filter((t) => watchable.has(t.id)).map((t) => t.id))
   const alerts =
@@ -1494,9 +1809,12 @@ export function filterMapForGroup(
   // MOCHILA: só a da PRÓPRIA ficha sai. O que o colega carrega é dele e do
   // mestre — ver a ficha dele no mapa não conta o que tem no bolso.
   const tokens = playerTokens
-    .map((t) => withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(owned.has(t.id) ? t : withoutBackpack(t), owned.has(t.id)))))
+    .map((t) => withoutMasterMarks(withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(owned.has(t.id) ? t : withoutBackpack(t), owned.has(t.id))))))
     .map(tokenHealthForPlayer)
     .map((t) => tokenWatchForPlayer(t, alerts.get(t.id) ?? null))
+    // ROTA DE PATRULHA: os pontos dizem por onde o NPC vai passar — é do
+    // mestre. O jogador vê o NPC andar só porque a ficha está na visão dele.
+    .map(tokenPatrolForPlayer)
   const sentTokenIds = new Set(tokens.map((t) => t.id))
   // Ficha que o MESTRE esconde deste jogador (oculta, secreta ou na camada
   // Fichas escondida). A tocha presa nela fica no centro dela e anda com ela:
@@ -1505,6 +1823,15 @@ export function filterMapForGroup(
   const masterHiddenTokenIds = new Set(
     map.tokens.filter((t) => !sentTokenIds.has(t.id) && (t.hidden || t.secret || !layerTokenIds.has(t.id))).map((t) => t.id),
   )
+  const playerStairs = visibleStairs(map.stairs, hiddenLayers).filter((s) => {
+    const first = s.segments[0]
+    if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inHiddenPlace)) return false
+    return isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
+  })
+  // ESCADA QUE LEVA A OUTRO ANDAR: o pino dela vai SÓ junto com a escada — a
+  // mesma regra que decide a escada decide o pino, e nunca a do ponto do pino.
+  // Escada secreta, em sala oculta, no escuro ou apagada: o pino não sai.
+  const playerStairIds = new Set(playerStairs.map((s) => s.id))
 
   const filtered: MapData = {
     ...mapWithoutHazards,
@@ -1518,8 +1845,8 @@ export function filterMapForGroup(
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
     tokens,
-    markers: map.markers.filter((m) => !inRoomHiddenFromPlayer({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
-    lines: map.lines.filter((l) => !l.points.some(inRoomHiddenFromPlayer) && !l.points.some(inConcealZone) && isShapeKnown(l.points, { points: l.points, closed: l.closed })),
+    markers: map.markers.filter((m) => !inHiddenPlace({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
+    lines: map.lines.filter((l) => !l.points.some(inHiddenPlace) && !l.points.some(inConcealZone) && isShapeKnown(l.points, { points: l.points, closed: l.closed })),
     // Tocha acesa dentro do prédio de teto fechado não sai: o halo dela
     // desenharia o interior na tela do jogador que está lá fora.
     // Tocha presa na ficha: o vínculo só vai se a ficha também vai; senão o
@@ -1529,21 +1856,17 @@ export function filterMapForGroup(
       .filter((l) => !l.hidden && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }))
       .filter((l) => l.attachedTokenId === undefined || !masterHiddenTokenIds.has(l.attachedTokenId))
       .map((l) => (l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l))),
-    stairs: visibleStairs(map.stairs, hiddenLayers).filter((s) => {
-      const first = s.segments[0]
-      if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inRoomHiddenFromPlayer)) return false
-      return isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
-    }),
+    stairs: playerStairs,
     // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto
     // fechado leva junto o objeto com qualquer amostra dela lá dentro
     // (`propSamplePoints`), como já leva escada, desenho e linha.
     props: visibleProps(map.props, hiddenLayers)
-      .filter((p) => !p.hidden && !p.secret && !propSamplePoints(p).some(inRoomHiddenFromPlayer) && isVisible({ x: p.x, y: p.y }))
+      .filter((p) => !p.hidden && !p.secret && !propSamplePoints(p).some(inHiddenPlace) && isVisible({ x: p.x, y: p.y }))
       .map(propForPlayer),
     drawings: visibleDrawings(map.drawings, hiddenLayers).filter((d) => {
       if (d.secret) return false
       const samples = drawingSamplePoints(d)
-      if (samples.some(inRoomHiddenFromPlayer)) return false
+      if (samples.some(inHiddenPlace)) return false
       // Traço com uma ponta na zona desenharia o que ela esconde.
       if (isStrokeDrawing(d) && samples.some(inConcealZone)) return false
       return isShapeKnown(samples, drawingOutline(d))
@@ -1559,6 +1882,9 @@ export function filterMapForGroup(
           const contour = contourSamples(r.points)
           return isShapeKnown(contour, { points: contour.length > 0 ? [...contour, contour[0]] : contour, closed: false })
         }
+        // Cômodo: o não visto nem aparece; o lembrado sai inteiro, visto ou não agora.
+        if (unseenComodoIds.has(r.id)) return false
+        if (knownComodoIds.has(r.id)) return true
         return isShapeKnown(interiorSamples(r.points, r.points), { points: r.points, closed: true })
       })
       .map((r) => {
@@ -1570,11 +1896,12 @@ export function filterMapForGroup(
         // polígono e é anotação do mestre sobre o que tem lá dentro.
         const nameHidden = r.room.nameHiddenFromPlayers || roofClosed || inZone
         const hasTexts = r.room.textoAoEntrar !== undefined || r.room.notaDoMestre !== undefined
-        if (!nameHidden && !roofClosed && r.room.roof === undefined && !hasTexts) return r
+        if (!nameHidden && !roofClosed && r.room.roof === undefined && r.room.comodo === undefined && !hasTexts) return r
         // TEXTO DA SALA: a nota do mestre NUNCA sai. O texto de entrada só sai
         // para quem está dentro agora ou já esteve (`enteredRooms`), e nunca de
         // Sala sob teto fechado ou em zona oculta — o texto fala do que tem lá dentro.
-        const { textoAoEntrar, notaDoMestre: _nota, ...room } = r.room
+        // `comodo` é configuração do mestre: a tela do jogador não precisa dele.
+        const { textoAoEntrar, notaDoMestre: _nota, comodo: _comodo, ...room } = r.room
         const readable = !roofClosed && !inZone && hasEnterText(r.room)
         const occupied = readable && ownTokens.some((t) => isStrictlyInsideReadableRoom(r.points, { x: t.x, y: t.y }))
         if (occupied) occupiedRooms.push(r.id)
@@ -1616,15 +1943,28 @@ export function filterMapForGroup(
     // "QUEM VÊ" também sai antes da névoa: quem não foi escolhido não recebe o
     // pino nem o id dele, mesmo em cima dele — e o host recusa passagem por um
     // pino que o jogador não recebeu (`validTravel` usa este mesmo recorte).
+    // PRESO À FICHA: o pino preso anda com a ficha, então conta onde ela está
+    // agora. Ele só sai quando a ficha dele sai neste recorte (a visão dela,
+    // não a memória do explorado) — senão o navio na névoa se revelaria pela
+    // prancha. Ficha que não está mais na cena deixa o pino parado, e aí
+    // vale a regra de sempre. `presoA` em si nunca sai (`pinForPlayer`).
     pins: (map.pins ?? [])
       .filter((p) => {
         if (isArrivalOnly(p)) return false
         if (!pinReachesPlayer(pinAudiences, p.id, playerId)) return false
+        // Pino de escada: a escada manda (ver `playerStairIds`); o segredo do próprio pino também.
+        // E só a escada que LEVA a algum lugar: o par que o guardião desligou (a de baixo foi
+        // desligada, apagada ou religada a outro andar) fica sem destino e não sai — senão o
+        // toque abriria "Descer por aqui?" para o host recusar. A escada continua desenhada.
+        if (p.escadaId !== undefined) {
+          return playerStairIds.has(p.escadaId) && !p.hidden && !p.secret && travelExitsOf(p).length > 0
+        }
         if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return false
+        if (p.presoA !== undefined && mapTokenIds.has(p.presoA) && !deliveredTokenIds.has(p.presoA)) return false
         const point = { x: p.x, y: p.y }
-        return !inRoomHiddenFromPlayer(point) && isPointKnown(point)
+        return !inHiddenPlace(point) && isPointKnown(point)
       })
-      .map(pinForPlayer),
+      .map((p) => pinForPlayer(p, ownTokens, map.grid)),
     // Metadado do mestre: nome, estado e células do pincel das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
@@ -1676,7 +2016,92 @@ export function filterMapForGroup(
       hazards.push({ kind: hazard.kind, points: room.points.map((p) => ({ x: p.x, y: p.y })) })
     }
   }
-  return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms, hazards, hazardsHere }
+  const rememberedRooms = knownComodos.map((room) => ({
+    id: room.id,
+    points: room.points,
+    roomsInside: [
+      ...(roofsInsideComodo.get(room.id) ?? []).map((roof) => roof.points),
+      ...(roomsInsideComodo.get(room.id) ?? []).map((inner) => inner.points),
+    ],
+  }))
+  const unseenInsideRemembered = unseenComodos
+    .filter((unseen) => interiorSamples(unseen.points, unseen.points).some((p) => knownComodos.some((room) => inRoomStrictly(room, p))))
+    .map((room) => room.points)
+
+  /**
+   * GATILHO DE ÁREA. Não revelado não sai de jeito nenhum. Revelado sai só
+   * com a MESMA exclusão do perigo (`hazardHiddenByMaster`: sala escondida pelo
+   * mestre ou de camada escondida, silhueta de teto fechado, sala tocada por
+   * zona oculta) e só se a região saiu neste recorte — o jogador já conhece a
+   * área, então a marca não conta nada do que a névoa esconde.
+   */
+  const gatilhos: PlayerAreaTrigger[] = triggersWithRegions(map)
+    .filter(({ trigger, region }) => trigger.revealed && sentRooms.has(region.id) && !hazardHiddenByMaster(region))
+    .map(({ trigger, region }) => ({ kind: trigger.kind, points: region.points.map((p) => ({ x: p.x, y: p.y })) }))
+  return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms, hazards, hazardsHere, gatilhos, rememberedRooms, unseenInsideRemembered }
+}
+
+/**
+ * CARAVANA NO MAPA-MUNDI (`lib/caravan.ts`). O grupo é UMA ficha só:
+ * - a visão sai do ponto da caravana (as fichas do grupo são postas nele antes
+ *   do recorte, então ficha esquecida longe dali não enxerga nada por conta própria);
+ * - todas as fichas de jogador que o recorte entregaria viram a caravana — a
+ *   própria inclusive. Nome, foto, vida, condições, mochila e id de cada uma
+ *   ficam no mestre; o jogador não arrasta nada aqui, quem move é o mestre.
+ * Todo o resto (névoa, zona oculta, sala secreta, nome da cena) é a regra de sempre.
+ */
+function filterWorldMapForGroup(
+  map: MapData,
+  viewers: readonly GroupViewer[],
+  explored?: Exploration,
+  seenDoors?: ReadonlyMap<string, DoorState>,
+  watchTargets?: ReadonlySet<string>,
+  only: PlayerOnlyView = {},
+): PlayerMapView {
+  const { worldMap: _worldMap, ...plain } = map
+  const party = watchTargets ?? new Set(viewers.flatMap((viewer) => viewer.tokenIds))
+  const members = caravanMembers(map, party)
+  const at = caravanPoint(members)
+  // `only` segue adiante: "QUEM VÊ" de cada pino e o resto do que é só deste
+  // jogador valem no mapa-mundi como em qualquer cena.
+  if (at === null) {
+    const view = filterMapForGroup(plain, viewers, explored, seenDoors, watchTargets, only)
+    return { ...view, map: { ...view.map, worldMap: true } }
+  }
+  const memberIds = new Set(members.map((t) => t.id))
+  const stacked: MapData = { ...plain, tokens: map.tokens.map((t) => (memberIds.has(t.id) ? { ...t, x: at.x, y: at.y } : t)) }
+  const view = filterMapForGroup(stacked, viewers, explored, seenDoors, watchTargets, only)
+  const caravanSent = view.map.tokens.some((t) => memberIds.has(t.id))
+  const others = view.map.tokens.filter((t) => !memberIds.has(t.id))
+  const tokens = caravanSent ? [caravanTokenFor(members, at), ...others] : others
+  return { ...view, map: { ...view.map, worldMap: true, tokens } }
+}
+
+/** MAPA POR ANDARES: o que o jogador guarda de um andar onde NÃO está agora. */
+export interface FloorMemoryView {
+  map: MapData
+  /** Zonas ocultas ativas do andar (só a geometria), para pintar preto por cima. */
+  concealed: RegionPoint[][]
+}
+
+/**
+ * MAPA POR ANDARES — o recorte de um andar onde o jogador já esteve e não está
+ * agora: o mesmo recorte de sempre com um grupo VAZIO. Sem ninguém olhando, não
+ * há visão; sobra só a planta estática que `explored` e `seenDoors` (a memória
+ * DELE, somente leitura) já conhecem. Toda ficha — dele, de colega, do mestre —
+ * fica de fora: ficha exige visão, e ninguém dele está lá. Teto de prédio fica
+ * fechado, zona oculta e sala secreta continuam escondidas. `only` leva o
+ * "QUEM VÊ" dos pinos (`pinAudiences` + `playerId`): pino escolhido só para
+ * outro jogador não sai nem pela memória do andar.
+ */
+export function filterFloorMemory(
+  map: MapData,
+  explored: Exploration,
+  seenDoors: ReadonlyMap<string, DoorState>,
+  only: PlayerOnlyView = {},
+): FloorMemoryView {
+  const view = filterMapForGroup(map, [], explored, seenDoors, undefined, only)
+  return { map: view.map, concealed: view.concealed }
 }
 
 /** O host vê o mapa inteiro, inclusive itens ocultos. */
@@ -1694,6 +2119,18 @@ export function filterMapForHost(map: MapData): MapData {
 export function turnForPlayer(view: MapData, turn: TurnRef | null): string | null {
   if (turn === null || turn.mapId !== view.id) return null
   return view.tokens.some((t) => t.id === turn.tokenId) ? turn.tokenId : null
+}
+
+/**
+ * RELÓGIO DA CAMPANHA como o jogador pode recebê-lo: o PERÍODO (manhã, tarde,
+ * noite), nunca a hora exata, e `escuro` só quando a cena DELE (`map`, a cena
+ * da ficha dele) é externa e é noite. Sem relógio no mestre: `null`, e o campo
+ * nem sai.
+ */
+export function clockForPlayer(hour: number | null, map: Pick<MapData, 'externa'>): PlayerClock | null {
+  if (hour === null) return null
+  const periodo = periodOfHour(hour)
+  return isDarkAt(hour, map) ? { periodo, escuro: true } : { periodo }
 }
 
 /** ALARME PARA VÁRIAS CENAS como o host o guarda: o texto e as cenas escolhidas pelo mestre. */
@@ -1722,9 +2159,20 @@ export function alarmForPlayer(alarm: SceneAlarm | null, sceneId: string | null)
  *   diriam ao jogador que a outra cena existe, antes de o mestre deixar passar.
  * - `passagem` VAI, de propósito: o cartão do jogador precisa saber se oferece
  *   "Passar", "Pedir para passar" ou "Está trancada". O modo diz como a porta
- *   se comporta, não para onde ela leva.
+ *   se comporta, não para onde ela leva. O `mudo` do trancado vai pelo mesmo
+ *   motivo (oferecer ou não "Pedir ao mestre").
+ * - `abreCom` NUNCA (CHAVE ABRE PORTA): o jogador não descobre que pinos uma
+ *   chave abre. Em troca, `chave` — o nome do item que ELE já carrega — sai só
+ *   no pino trancado que uma ficha dele, encostada, abre (`ownTokens`: as
+ *   fichas dele, com a mochila do mapa do mestre).
+ * - `presoA` NUNCA: o id da ficha que o pino acompanha é do mestre. O jogador
+ *   vê o pino andar (x/y já chegam no lugar novo), não a ligação.
+ * - `portaLigada` (alavanca) NUNCA: a porta ligada pode estar em outra sala,
+ *   atrás da névoa, e o id dela diria que ela existe. O jogador recebe o tipo
+ *   `alavanca` (o cartão oferece "Puxar") e vê a porta mexer só se ela estiver
+ *   no recorte dele.
  */
-function pinForPlayer(pin: Pin): Pin {
+function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
   // arquivo trouxer e o app não conhece (versão futura, edição à mão) não
   // chega ao jogador por descuido (revisão de segurança, 22/09). `destino`,
@@ -1743,6 +2191,13 @@ function pinForPlayer(pin: Pin): Pin {
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
   if (pin.secret !== undefined) forPlayer.secret = pin.secret
   if (pin.passagem !== undefined) forPlayer.passagem = pin.passagem
+  // Escada: o id da ESCADA desta cena, que o jogador já recebe — é por ele que
+  // o toque na escada acha o pino. Só chega aqui pino de escada que saiu.
+  if (pin.escadaId !== undefined) forPlayer.escadaId = pin.escadaId
+  // Pino trancado MUDO: a marca vai, para o cartão não oferecer "Pedir ao
+  // mestre" que o host recusaria. Em qualquer outro modo ela não diz nada e
+  // fica de fora (sobra de quando o pino era trancado).
+  if (pin.mudo === true && passageOf(pin) === 'trancada') forPlayer.mudo = true
   // ENCRUZILHADA: o jogador recebe `escolhas`, montado AQUI (nunca copiado do
   // mestre): por saída, só o id e o rótulo. Pino de uma saída não ganha o
   // campo: o cartão dele é o de sempre, e o recorte também.
@@ -1752,6 +2207,8 @@ function pinForPlayer(pin: Pin): Pin {
   // Cópia limpa (`itemOfPin`), nunca o objeto do mestre.
   const item = itemOfPin(pin)
   if (item !== null) forPlayer.item = item
+  const key = keyForPin(pin, ownTokens.filter((t) => tokenReachesPin(t, pin, grid)))
+  if (key !== null) forPlayer.chave = key.item.nome
   return forPlayer
 }
 
@@ -1776,10 +2233,45 @@ export interface PlayerClueContent {
  * pino que saiu no último recorte da cena onde o jogador está.
  */
 export function pinClueForPlayer(pin: Pin): PlayerClueContent | null {
-  const safe = pinForPlayer(pin)
+  // A pista não leva chave: sem fichas, `pinForPlayer` não calcula o `chave`.
+  const safe = pinForPlayer(pin, [], 0)
   const text = clampClueText(safe.description.trim())
   if (text === '' && safe.image === null) return null
   return { title: clueTitleFrom(text, CLUE_TITLE_ONLY_IMAGE), text, image: safe.image }
+}
+
+/**
+ * "ONDE ESTOU": o nome da cena como o jogador pode recebê-lo. Só o nome
+ * PÚBLICO que o mestre escreveu para os jogadores, limpo e no teto; sem ele,
+ * `undefined` e o snapshot sai sem o campo. Recebe só o `publicName` de
+ * propósito: o nome interno da cena (`name`) nem entra aqui, então não tem
+ * como sair.
+ *
+ * Quem chama responde por ser a cena ONDE O JOGADOR ESTÁ (`sceneFor` do host).
+ */
+export function sceneNameForPlayer(scene: { readonly publicName?: string }): string | undefined {
+  return scene.publicName === undefined ? undefined : cleanPublicSceneName(scene.publicName)
+}
+
+/**
+ * DADO ROLADO NA SALA: o que da rolagem o jogador recebe. A rolagem ESCONDIDA
+ * do mestre não existe para ele (`null`). A aberta vai inteira, mas só com os
+ * campos que a mesa lê: montada campo a campo, e não por cópia, para que nada
+ * que o host viesse a pendurar nela (cena, id de jogador) vá junto ao fio.
+ */
+export function diceRollForPlayer(roll: HostDiceRoll): DiceRollEntry | null {
+  if (roll.hidden === true) return null
+  const entry: DiceRollEntry = {
+    id: roll.id,
+    from: roll.from,
+    count: roll.count,
+    sides: roll.sides,
+    modifier: roll.modifier,
+    results: [...roll.results],
+    total: roll.total,
+    at: roll.at,
+  }
+  return roll.master === true ? { ...entry, master: true } : entry
 }
 
 /**
@@ -1820,5 +2312,13 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
   }
   if (prop.rotation !== undefined) forPlayer.rotation = prop.rotation
   if (prop.layer !== undefined) forPlayer.layer = prop.layer
+  // OBJETO COM RÓTULO OU IMAGEM: só chega aqui objeto que o jogador enxerga
+  // (oculto, secreto, sob teto fechado e fora da visão já saíram acima), então
+  // o nome e a cópia pequena vão junto dele e de mais nenhum. Passam pela regra
+  // de `propPlayerLook.ts`: rótulo aparado e curto, imagem só em data URL.
+  const label = propPlayerLabel(prop.playerLabel)
+  if (label !== undefined) forPlayer.playerLabel = label
+  const image = propPlayerImage(prop.playerImage)
+  if (image !== undefined) forPlayer.playerImage = image
   return forPlayer
 }

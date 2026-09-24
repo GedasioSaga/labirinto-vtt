@@ -7,7 +7,7 @@ import type { PropertiesPanel } from './PropertiesPanel'
 /*
  * Só para teste: as props do `PropertiesPanel` como o App monta com a
  * ferramenta Selecionar e UMA ficha selecionada. Cada teste troca só a ligação
- * que prova (`tokenNpc`, `tokenCarry`) — a do App, não uma inventada.
+ * que prova (`tokenNpc`, `tokenSceneCarry`) — a do App, não uma inventada.
  */
 
 export type PainelProps = ComponentProps<typeof PropertiesPanel>
@@ -91,6 +91,7 @@ export function propsDoPainel(ficha: Token, extra: Partial<PainelProps> = {}): P
     selectedProp: null,
     onSetPropLayer: nada,
     propTransform: { onLockedChange: nada },
+    propPlayer: { onLabelChange: nada, onShowImageChange: nada },
     selectedToken: ficha,
     tokenName: { onNameChange: nada, onPublicNameChange: nada },
     tokenImage: { onChangeImage: nada, onClearImage: nada, onSaveToLibrary: nada },
@@ -100,8 +101,13 @@ export function propsDoPainel(ficha: Token, extra: Partial<PainelProps> = {}): P
     tokenHealth: { onHealthChange: nada },
     tokenCondition: { onToggleCondition: nada },
     tokenWatch: { onWatchChange: nada },
+    // Grupo mundo (onda 3): rota de patrulha e "Vai junto de" (levar ficha junto), sem rota nem vínculo.
+    tokenPatrol: { onPatrolOp: nada },
+    tokenCarry: { carrier: null, carried: [], candidates: [], onCarry: nada, onRelease: nada },
     // A mesma ligação de App.tsx (`tokenNpc`).
     tokenNpc: { onNpcChange: nada },
+    // Grupo rede: "Ficha de jogador" (quem chega escolhe a ficha).
+    tokenPlayerCharacter: { onPlayerCharacterChange: nada },
     tokenLights: { lights: [], onSelectLight: nada, onDetach: nada },
     tokenTransform: { onLockedChange: nada },
     selectedTextLabel: null,
@@ -113,7 +119,7 @@ export function propsDoPainel(ficha: Token, extra: Partial<PainelProps> = {}): P
     selectedLight: null,
     lightControls: { onColorChange: nada, onIntensityChange: nada, tokens: [], onAttach: nada, onDetach: nada },
     selectedStair: null,
-    stairControls: { onDirectionChange: nada, stepWidth: 1, onStepWidthChange: nada, grid: map.grid },
+    stairControls: { onDirectionChange: nada, onShapeChange: nada, stepWidth: 1, onStepWidthChange: nada, grid: map.grid, travel: null },
     polygonSides: { sides: 6, onSidesChange: nada },
     selectedFloorPiece: null,
     floorPieceControls: { index: 0, count: 0, grid: map.grid, onChange: nada, onReorder: nada, onRemove: nada },
@@ -143,6 +149,8 @@ export function propsDoPainel(ficha: Token, extra: Partial<PainelProps> = {}): P
     pinIcon: { icon: null, onIconChange: nada },
     pinSelected: false,
     tokenLibrary: { itens: [], aviso: null, onPlace: nada, onDropOnMap: () => false, onDelete: nada },
+    // Grupo mundo: sem Sala selecionada, sem gatilho de área a mostrar.
+    areaTrigger: null,
     ...extra,
   }
 }

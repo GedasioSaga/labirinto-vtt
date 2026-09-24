@@ -3,12 +3,22 @@ import type { ChangeEvent, ComponentProps, FormEvent, KeyboardEvent as ReactKeyb
 import type { StorageLike } from './playerConnection'
 import { PlayerBackpack } from './PlayerBackpack'
 import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry, type PartyMember, type PartyWhere } from '../net/protocol'
+import type { Pin, RegionPoint } from '../types/map'
 import { PlayerNotebook } from './PlayerNotebook'
 import { PlayerClueList } from './PlayerClues'
+// `PlayerPlacesTab` e não `PlayerPlaces`: no Windows o nome colidiria com `playerPlaces.ts` (a parte pura).
+import { PlayerPlacesTab } from './PlayerPlacesTab'
+import type { VisitedPlace } from './playerPlaces'
+import { PersonalNoteList } from './PlayerPersonalNotes'
+import type { PersonalNote } from './personalNotes'
+import { DiceForm } from '../components/DiceControls'
+import type { DiceRequest } from '../lib/dice'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
 const NO_CLUES: readonly ClueEntry[] = []
 const IGNORE_CLUE = (): void => {}
+const NO_PERSONAL_NOTES: readonly PersonalNote[] = []
+const IGNORE_NOTE = (): void => {}
 
 // Painel do jogador: meus personagens, ajustes de visão e centralizar a câmera.
 // Fica sobre o canvas (não ao lado) para o enquadramento do mapa não depender
@@ -54,12 +64,23 @@ export interface PlayerCharacter {
   name: string
 }
 
-type PanelTab = 'jogo' | 'caderno'
+type PanelTab = 'jogo' | 'caderno' | 'lugares' | 'dados'
 
 const PANEL_TABS: { id: PanelTab; label: string }[] = [
   { id: 'jogo', label: 'Jogo' },
   { id: 'caderno', label: 'Caderno' },
+  { id: 'lugares', label: 'Lugares' },
+  { id: 'dados', label: 'Dados' },
 ]
+/** Tela sem quem role (teste, integrador antigo): as abas de antes. */
+const PANEL_TABS_NO_DICE = PANEL_TABS.filter((item) => item.id !== 'dados')
+
+/** Tela antiga ou teste sem Lugares: listas vazias estáveis, sem objeto novo a cada render. */
+const NO_PINS: readonly Pin[] = []
+const NO_PLACES: readonly VisitedPlace[] = []
+const NO_PLACE_NAMES: Readonly<Record<string, string>> = {}
+const IGNORE_POINT = (): void => {}
+const IGNORE_RENAME = (): void => {}
 
 function clampBrightness(value: number): number {
   return Math.min(EXPLORED_BRIGHTNESS_MAX, Math.max(EXPLORED_BRIGHTNESS_MIN, value))
@@ -117,6 +138,12 @@ interface PlayerPanelProps {
   /** Modo "Laser" ligado: segurar e arrastar no mapa aponta, e quem está na mesma cena vê. */
   laserArmed: boolean
   onToggleLaser: () => void
+  /** Modo "Marcar destino" ligado: o próximo toque no mapa põe a marca "vamos para cá". Sem o callback, não há botão. */
+  destinationArmed?: boolean
+  onToggleDestination?: () => void
+  /** A marca dele está no mapa: aparece o "Tirar marca". */
+  hasDestination?: boolean
+  onClearDestination?: () => void
   /** Nome novo do próprio token (já aparado); o mestre recebe pelo socket. */
   onRenameToken: (tokenId: string, name: string) => void
   /** Foto nova do próprio token. Rejeita (lança) quando a imagem não serve, e o aviso vai para a tela. */
@@ -142,6 +169,27 @@ interface PlayerPanelProps {
    * de afirmar que ele está sozinho.
    */
   party?: PartyMember[]
+  /** LUGARES: os pinos do recorte da cena (o que a névoa esconde nem chega aqui). */
+  pins?: readonly Pin[]
+  /** LUGARES: por onde ele já passou, na ordem da primeira visita. */
+  places?: readonly VisitedPlace[]
+  /** Id do lugar onde ele está agora. */
+  currentPlace?: string
+  /** Nomes que o jogador deu, por id de lugar. */
+  placeNames?: Readonly<Record<string, string>>
+  /** Tocou num ponto conhecido: a câmera centra nele. */
+  onFocusPoint?: (point: RegionPoint) => void
+  /** Renomeou um lugar (vazio = volta ao "Lugar N"). */
+  onRenamePlace?: (placeId: string, name: string) => void
+  /** Modo "Anotar" ligado: o próximo toque no mapa marca onde vai a anotação pessoal. Sem o callback, não há botão. */
+  noteArmed?: boolean
+  onToggleNote?: () => void
+  /** MINHAS NOTAS desta cena, só deste aparelho. Sem `onFocusNote`, a seção não aparece no Caderno. */
+  personalNotes?: readonly PersonalNote[]
+  onFocusNote?: (noteId: string) => void
+  onRemoveNote?: (noteId: string) => void
+  /** DADO ROLADO NA SALA: pede a rolagem ao host. Sem o callback, não há aba Dados. */
+  onRollDice?: (request: DiceRequest) => void
 }
 
 export function PlayerPanel({
@@ -156,6 +204,10 @@ export function PlayerPanel({
   onToggleMeasure,
   laserArmed,
   onToggleLaser,
+  destinationArmed = false,
+  onToggleDestination,
+  hasDestination = false,
+  onClearDestination,
   onRenameToken,
   onChangeTokenPhoto,
   panelRef,
@@ -167,7 +219,20 @@ export function PlayerPanel({
   onOpenClue = IGNORE_CLUE,
   backpack,
   party,
+  pins = NO_PINS,
+  places = NO_PLACES,
+  currentPlace,
+  placeNames = NO_PLACE_NAMES,
+  onFocusPoint = IGNORE_POINT,
+  onRenamePlace = IGNORE_RENAME,
+  noteArmed = false,
+  onToggleNote,
+  personalNotes = NO_PERSONAL_NOTES,
+  onFocusNote,
+  onRemoveNote = IGNORE_NOTE,
+  onRollDice,
 }: PlayerPanelProps) {
+  const tabs = onRollDice === undefined ? PANEL_TABS_NO_DICE : PANEL_TABS
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
   // Um estado por forma: a coluna do notebook nasce aberta e a gaveta do
   // celular nasce fechada. Atravessar o corte (girar o celular, estreitar a
@@ -248,13 +313,13 @@ export function PlayerPanel({
 
   // Setas trocam de aba (e o foco vai junto); Home e End vão às pontas. A fileira é uma parada só do Tab.
   function onTabKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    const index = PANEL_TABS.findIndex((item) => item.id === tab)
+    const index = tabs.findIndex((item) => item.id === tab)
     let next: number | null = null
-    if (event.key === 'ArrowRight') next = (index + 1) % PANEL_TABS.length
-    else if (event.key === 'ArrowLeft') next = (index - 1 + PANEL_TABS.length) % PANEL_TABS.length
+    if (event.key === 'ArrowRight') next = (index + 1) % tabs.length
+    else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length
     else if (event.key === 'Home') next = 0
-    else if (event.key === 'End') next = PANEL_TABS.length - 1
-    const target = next === null ? undefined : PANEL_TABS[next]
+    else if (event.key === 'End') next = tabs.length - 1
+    const target = next === null ? undefined : tabs[next]
     if (target === undefined) return
     event.preventDefault()
     selectTab(target.id)
@@ -263,6 +328,12 @@ export function PlayerPanel({
   function focusToken(tokenId: string) {
     onFocusToken(tokenId)
     // Na gaveta o painel cobre o mapa: fecha para mostrar onde a câmera foi.
+    closeDrawer()
+  }
+
+  function focusPin(pin: Pin) {
+    onFocusPoint({ x: pin.x, y: pin.y })
+    // Mesma razão do "Centralizar": no celular a gaveta cobre o ponto.
     closeDrawer()
   }
 
@@ -275,6 +346,24 @@ export function PlayerPanel({
     // Ao ligar, a gaveta fecha para o toque cair no mapa (no celular ela cobre a tela).
     if (!signalArmed) closeDrawer()
     onToggleSignal()
+  }
+
+  function toggleDestination() {
+    // Mesma razão do Sinalizar: no celular a gaveta cobre o mapa onde o dedo vai marcar.
+    if (!destinationArmed) closeDrawer()
+    onToggleDestination?.()
+  }
+
+  function toggleNote() {
+    // Mesma razão do Sinalizar: no celular a gaveta cobre o mapa onde o dedo vai anotar.
+    if (!noteArmed) closeDrawer()
+    onToggleNote?.()
+  }
+
+  function focusNote(noteId: string) {
+    onFocusNote?.(noteId)
+    // Como "Minha ficha": na gaveta o painel cobre o mapa, e a nota está lá.
+    closeDrawer()
   }
 
   function toggleMeasure() {
@@ -371,7 +460,7 @@ export function PlayerPanel({
       <aside id={panelId} ref={asideRef} className="pp-panel" hidden={!open} aria-label="Painel do jogador">
         <div className="pp-panel__body">
           <div className="pp-tabs" role="tablist" aria-label="Painel do jogador" onKeyDown={onTabKeyDown}>
-            {PANEL_TABS.map((item) => (
+            {tabs.map((item) => (
               <button
                 key={item.id}
                 ref={(el) => {
@@ -424,6 +513,24 @@ export function PlayerPanel({
                 {signalArmed ? 'Toque no mapa…' : 'Sinalizar'}
               </button>
               <p className="pp-empty">No PC: Alt+clique ou segure o clique parado.</p>
+              {onToggleDestination !== undefined && (
+                <button type="button" className="pp-button" aria-pressed={destinationArmed} onClick={toggleDestination}>
+                  {destinationArmed ? 'Toque no destino…' : hasDestination ? 'Mudar destino' : 'Marcar destino'}
+                </button>
+              )}
+              {hasDestination && onClearDestination !== undefined && (
+                <button type="button" className="pp-button" onClick={onClearDestination}>
+                  Tirar marca
+                </button>
+              )}
+              {onToggleNote !== undefined && (
+                <>
+                  <button type="button" className="pp-button" aria-pressed={noteArmed} onClick={toggleNote}>
+                    {noteArmed ? 'Toque onde anotar…' : 'Anotar'}
+                  </button>
+                  {noteArmed && <p className="pp-empty">Só você vê: a nota fica neste aparelho. Esc sai.</p>}
+                </>
+              )}
               <button type="button" className="pp-button pp-button--toggle" aria-pressed={measureArmed} onClick={toggleMeasure}>
                 Medir
               </button>
@@ -549,9 +656,40 @@ export function PlayerPanel({
                   </h2>
                   <PlayerNotebook notes={notebook} />
                 </section>
+                {onFocusNote !== undefined && (
+                  <section className="pp-section" aria-labelledby={`${panelId}-personal`}>
+                    <h2 id={`${panelId}-personal`} className="pp-heading">
+                      Minhas notas
+                    </h2>
+                    <PersonalNoteList notes={personalNotes} onFocus={focusNote} onRemove={onRemoveNote} />
+                  </section>
+                )}
               </>
             )}
           </div>
+
+          <div
+            role="tabpanel"
+            id={`${panelId}-panel-lugares`}
+            aria-labelledby={`${panelId}-tab-lugares`}
+            className="pp-tabpanel"
+            hidden={tab !== 'lugares'}
+          >
+            {/* Só montado à vista: as miniaturas não se redesenham a cada passo da ficha com a aba fechada. */}
+            {tab === 'lugares' && (
+              <PlayerPlacesTab pins={pins} places={places} currentPlace={currentPlace} names={placeNames} onFocusPin={focusPin} onRename={onRenamePlace} />
+            )}
+          </div>
+
+          {/* Montada mesmo escondida, como a aba Jogo: o dado e a quantidade escolhidos ficam para a próxima rolagem.
+              O resultado não aparece aqui: vem do host, na lista de rolagens sobre o mapa, igual para a mesa inteira. */}
+          {onRollDice !== undefined && (
+            <div role="tabpanel" id={`${panelId}-panel-dados`} aria-labelledby={`${panelId}-tab-dados`} className="pp-tabpanel" hidden={tab !== 'dados'}>
+              <section className="pp-section">
+                <DiceForm onRoll={(request) => onRollDice(request)} />
+              </section>
+            </div>
+          )}
         </div>
       </aside>
     </>

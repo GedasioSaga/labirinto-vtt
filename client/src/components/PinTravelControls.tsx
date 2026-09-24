@@ -1,9 +1,12 @@
 import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import type { PinTravel, TravelPinOption, TravelSceneOption } from '../lib/pinTravel'
-import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, isArrivalOnly, travelExitsOf } from '../lib/pinTravel'
+import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, isArrivalOnly, travelExitsOf, travelSceneLabel } from '../lib/pinTravel'
 import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
+import { SCENE_FILTER_MIN, sceneSearchSummary, sceneSearchWords, searchScenes } from '../lib/sceneSearch'
 import type { PinPassage } from '../types/map'
 import { ChevronDownIcon } from './icons'
+import { DoorKeyField } from './WallDoorControls'
+import { SceneChoice, SceneSearchField } from './SceneSearch'
 
 /** Uma saída do pino, como o painel a mostra. */
 export interface PinTravelExitView {
@@ -28,6 +31,12 @@ export interface PinTravelControlsProps {
   /** Cria o pino de chegada no centro de `sceneId` e liga a saída `exitId` (`null` = uma saída nova). */
   onLinkNew: (sceneId: string, exitId: string | null) => void
   onLinkExisting: (sceneId: string, pinId: string, exitId: string | null) => void
+  /**
+   * "+ Cena nova…": cria a cena `nome` com o pino de chegada no centro e liga
+   * a saída `exitId` (`null` = uma saída nova) — sem trocar a cena aberta. Sem
+   * ele, a escolha só oferece as cenas que já existem.
+   */
+  onCreateScene?: (nome: string, exitId: string | null) => void
   onUnlink: (exitId: string) => void
   /** Grava o nome da saída (ao sair do campo). */
   onRename: (exitId: string, rotulo: string) => void
@@ -36,6 +45,20 @@ export interface PinTravelControlsProps {
   /** Como o jogador passa por ESTE pino (o par tem o seu). Vale para todas as saídas. */
   passage: PinPassage
   onPassageChange: (passage: PinPassage) => void
+  /** CHAVE ABRE PORTA: o "Abre com" do pino trancado ("" = sem chave). */
+  keyName?: string
+  /**
+   * Grava o "Abre com" ("" tira), ao sair do campo ou no Enter. Sem ele, o
+   * campo não aparece; com ele, só aparece com a passagem "Trancada".
+   */
+  onKeyChange?: (nome: string) => void
+  /**
+   * Só vale com "Trancada": o jogador pode "Pedir ao mestre" (ligada, o
+   * padrão) ou a passagem é muda (desligada) — nenhum pedido chega.
+   * Ausente = ligada. Sem `onAcceptsAttemptsChange`, o botão não aparece.
+   */
+  acceptsAttempts?: boolean
+  onAcceptsAttemptsChange?: (on: boolean) => void
   /** MÃO ÚNICA da saída `exitId`: marca (ou desmarca) o par dela como chegada oculta. */
   onOneWayChange: (exitId: string, on: boolean) => void
   /**
@@ -50,16 +73,28 @@ export interface PinTravelControlsProps {
  * Onde está a escolha de "Leva a…": fechada, escolhendo a cena, ou escolhendo
  * o pino de lá. `saida` é a saída que a escolha liga; `null` = "+ Outra saída".
  */
-type Escolha = { passo: 'cena'; saida: string | null } | { passo: 'pino'; sceneId: string; saida: string | null } | null
+type Escolha =
+  | { passo: 'cena'; saida: string | null }
+  | { passo: 'pino'; sceneId: string; saida: string | null }
+  | { passo: 'nova'; saida: string | null }
+  | null
 
 /** Ids fixos: só existe um pino aberto no painel por vez (o mesmo molde de `lb-pin-description`). */
 const STATUS_ID = 'lb-pin-travel-status'
 const SELETOR_ID = 'lb-pin-travel-picker'
 const CENAS_ID = 'lb-pin-travel-scenes'
+const CENAS_LISTA_ID = 'lb-pin-travel-scene-list'
 const PINOS_ID = 'lb-pin-travel-pins'
 const PASSAGEM_ID = 'lb-pin-travel-passage'
 const NOME_ID = 'lb-pin-travel-exit-name'
 const MAO_UNICA_ID = 'lb-pin-travel-one-way'
+const BUSCA_ID = 'lb-pin-travel-search'
+const NOVA_ID = 'lb-pin-travel-new-scene'
+const NOVA_DICA_ID = 'lb-pin-travel-new-scene-hint'
+const NOVA_ERRO_ID = 'lb-pin-travel-new-scene-error'
+
+/** O mesmo teto do nome no "+ Nova cena" de Cenas. */
+const NOME_DA_CENA_MAX = 80
 
 /** A chave do gatilho que abriu a escolha: o id da saída, ou esta para "+ Outra saída". */
 const GATILHO_NOVA = '+nova'
@@ -71,19 +106,24 @@ const EFEITO_DA_PASSAGEM: Record<PinPassage, string> = {
   trancada: 'Ninguém passa por aqui, e nenhum pedido chega a você.',
 }
 
+/** Trancada que aceita tentativas: o jogador ainda pode pedir. */
+const EFEITO_TRANCADA_COM_PEDIDO = 'Ninguém passa sozinho; o jogador pode pedir e você decide.'
+
+const TENTATIVAS_ID = 'lb-pin-travel-attempts'
+
 /** Foco depois do render: quem o recebe pode ter acabado de nascer (ou de trocar de pino). */
 function focarDepois(achar: () => HTMLElement | null | undefined): void {
   requestAnimationFrame(() => achar()?.focus())
 }
 
-function detalhe(travel: PinTravel, temCena: boolean, algumaAbre: boolean): string {
+function detalhe(travel: PinTravel, temCena: boolean, algumaAbre: boolean, podeCriar: boolean): string {
   if (travel.status === 'indisponivel') return 'A cena não abriu: o arquivo dela não foi encontrado.'
   if (travel.status === 'ligado') {
     const descricao = travel.partner.description.trim()
     return descricao === '' ? 'até um pino sem descrição' : `até “${descricao}”`
   }
-  if (!temCena) return 'Crie outra cena em Cenas para ter para onde levar.'
-  if (!algumaAbre) return 'As outras cenas não abriram.'
+  if (!temCena) return podeCriar ? 'Nenhuma outra cena ainda: crie uma nova em “Leva a…”.' : 'Crie outra cena em Cenas para ter para onde levar.'
+  if (!algumaAbre) return podeCriar ? 'As outras cenas não abriram; crie uma nova em “Leva a…”.' : 'As outras cenas não abriram.'
   return 'Escolha a cena e o pino de chegada.'
 }
 
@@ -117,6 +157,11 @@ function TituloDoDestino({ travel }: { travel: PinTravel }) {
  * Teclado: Esc fecha a escolha e devolve o foco a quem a abriu; as setas andam
  * entre as opções; depois de ligar, desligar ou atravessar, o foco vai para a
  * frase do destino, que é o que mudou (e o leitor de tela a lê: `aria-live`).
+ *
+ * BUSCA: com muitas cenas (`SCENE_FILTER_MIN`), a escolha abre com o foco num
+ * campo de busca; cada cena mostra o caminho em cinza embaixo do nome. Enter
+ * no campo vai direto para a chegada da primeira achada que abre; a seta desce
+ * do campo para as achadas; Esc com texto só limpa a busca.
  */
 export function PinTravelControls({
   exits,
@@ -124,15 +169,25 @@ export function PinTravelControls({
   pinsIn,
   onLinkNew,
   onLinkExisting,
+  onCreateScene,
   onUnlink,
   onRename,
   onGo,
   passage,
   onPassageChange,
+  keyName = '',
+  onKeyChange,
+  acceptsAttempts = true,
+  onAcceptsAttemptsChange,
   onOneWayChange,
   arrivalOnly,
 }: PinTravelControlsProps) {
   const [escolha, setEscolha] = useState<Escolha>(null)
+  const [busca, setBusca] = useState('')
+  /** "+ Cena nova…": o nome digitado, e se o mestre tentou criar com ele vazio. */
+  const [nomeNovo, setNomeNovo] = useState('')
+  const [nomeVazio, setNomeVazio] = useState(false)
+  const buscaRef = useRef<HTMLInputElement | null>(null)
   /** Quem abriu a escolha: é para ele que o foco volta ao fechar. */
   const gatilhoRef = useRef<HTMLButtonElement | null>(null)
   const seletorRef = useRef<HTMLDivElement | null>(null)
@@ -141,9 +196,17 @@ export function PinTravelControls({
 
   const temCena = scenes.length > 0
   const algumaAbre = scenes.some((scene) => scene.available)
+  const podeCriar = onCreateScene !== undefined
+  /** A escolha abre se há cena que abre, ou se dá para criar uma ali mesmo. */
+  const escolhaAbre = algumaAbre || podeCriar
   const aberta = escolha !== null
   const encruzilhada = exits.length > 1
   const principal = exits[0]
+  const mostraBusca = scenes.length >= SCENE_FILTER_MIN
+  const buscando = mostraBusca && sceneSearchWords(busca).length > 0
+  const achadas = buscando ? searchScenes(scenes, busca) : scenes
+  /** A cena que o Enter do campo escolhe: a primeira achada que abriu. Só com busca digitada. */
+  const alvoDoEnter = buscando ? achadas.find((scene) => scene.available) : undefined
   const algumaLigada = exits.some((exit) => exit.travel.status === 'ligado')
   // A régua do poço: acesa se alguma saída leva a algum lugar.
   const estado = algumaLigada ? 'ligado' : (principal?.travel.status ?? 'sem-destino')
@@ -154,7 +217,9 @@ export function PinTravelControls({
   const abrir = (saida: string | null, gatilho: HTMLButtonElement) => {
     gatilhoRef.current = gatilho
     setEscolha({ passo: 'cena', saida })
-    focarDepois(() => opcoes()[0])
+    setBusca('')
+    // Com busca, o foco nasce nela: digitar já filtra. Sem ela, na primeira cena.
+    focarDepois(() => buscaRef.current ?? opcoes()[0])
   }
   const fechar = () => {
     setEscolha(null)
@@ -170,7 +235,42 @@ export function PinTravelControls({
     if (escolha === null) return
     setEscolha({ passo: 'cena', saida: escolha.saida })
     const cena = cenaEscolhidaRef.current
-    focarDepois(() => (cena === null ? null : seletorRef.current?.querySelector<HTMLButtonElement>(`[data-cena="${CSS.escape(cena)}"]`)) ?? opcoes()[0])
+    focarDepois(
+      () => (cena === null ? null : seletorRef.current?.querySelector<HTMLButtonElement>(`[data-cena="${CSS.escape(cena)}"]`)) ?? buscaRef.current ?? opcoes()[0],
+    )
+  }
+  /** "+ Cena nova…": o nome já vem com o que se buscou (a busca que não achou é o nome da cena que falta). */
+  const abrirNova = () => {
+    if (escolha === null) return
+    setNomeNovo(busca.trim())
+    setNomeVazio(false)
+    setEscolha({ passo: 'nova', saida: escolha.saida })
+    focarDepois(() => document.getElementById(NOVA_ID))
+  }
+  const voltarDaNova = () => {
+    if (escolha === null) return
+    setEscolha({ passo: 'cena', saida: escolha.saida })
+    focarDepois(() => seletorRef.current?.querySelector<HTMLButtonElement>('[data-cena-nova]'))
+  }
+  const mudarNomeNovo = (nome: string) => {
+    setNomeNovo(nome)
+    // O erro some assim que o nome fica válido; não aparece a cada tecla.
+    if (nomeVazio && nome.trim() !== '') setNomeVazio(false)
+  }
+  const criarCena = () => {
+    if (escolha === null || onCreateScene === undefined) return
+    const nome = nomeNovo.trim()
+    if (nome === '') {
+      setNomeVazio(true)
+      document.getElementById(NOVA_ID)?.focus()
+      return
+    }
+    concluir(() => onCreateScene(nome, escolha.saida))
+  }
+  const aoTeclarNaBusca = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter') return
+    event.preventDefault()
+    if (alvoDoEnter !== undefined) escolherCena(alvoDoEnter.id)
   }
   /** Depois de mudar a ligação, o foco vai para o que mudou: a frase do destino. */
   const concluir = (acao: () => void) => {
@@ -186,10 +286,16 @@ export function PinTravelControls({
     if (event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
-      fechar()
+      // O primeiro Esc só limpa a busca; com ela vazia, o Esc fecha a escolha.
+      if (escolha.passo === 'cena' && busca !== '') {
+        setBusca('')
+        buscaRef.current?.focus()
+      } else fechar()
       return
     }
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    // No nome da cena nova as setas são do campo de texto, não da lista.
+    if (escolha.passo === 'nova') return
     const botoes = opcoes()
     if (botoes.length === 0) return
     event.preventDefault()
@@ -212,7 +318,7 @@ export function PinTravelControls({
         className={className}
         aria-expanded={minha}
         aria-controls={minha ? SELETOR_ID : undefined}
-        disabled={!algumaAbre}
+        disabled={!escolhaAbre}
         onClick={(event: MouseEvent<HTMLButtonElement>) => (minha ? fechar() : abrir(saida, event.currentTarget))}
       >
         {rotulo}
@@ -235,7 +341,7 @@ export function PinTravelControls({
         <>
           <p id={STATUS_ID} className="lb-travel__status" tabIndex={-1} aria-live="polite">
             <TituloDoDestino travel={principal.travel} />
-            <span className="lb-travel__detail">{detalhe(principal.travel, temCena, algumaAbre)}</span>
+            <span className="lb-travel__detail">{detalhe(principal.travel, temCena, algumaAbre, podeCriar)}</span>
           </p>
           {principal.travel.status === 'ligado' && (
             <button type="button" className="lb-btn lb-btn--block" onClick={() => concluir(() => onGo(principal.id))}>
@@ -270,7 +376,7 @@ export function PinTravelControls({
               <li key={exit.id} className={`lb-travel__exit lb-travel__exit--${exit.travel.status}`}>
                 <p className="lb-travel__status">
                   <TituloDoDestino travel={exit.travel} />
-                  <span className="lb-travel__detail">{detalhe(exit.travel, temCena, algumaAbre)}</span>
+                  <span className="lb-travel__detail">{detalhe(exit.travel, temCena, algumaAbre, podeCriar)}</span>
                 </p>
                 <NomeDaSaida
                   key={`${exit.id}:${exit.rotulo}`}
@@ -331,7 +437,26 @@ export function PinTravelControls({
           </button>
         ))}
       </div>
-      <p className="lb-travel__hint">{EFEITO_DA_PASSAGEM[passage]}</p>
+      {passage === 'trancada' && onAcceptsAttemptsChange !== undefined && (
+        // O mesmo botão de alternar da "Mão única" (`aria-pressed`), logo
+        // abaixo do modo que ele qualifica.
+        <button
+          type="button"
+          className="lb-btn lb-btn--ghost lb-btn--block"
+          aria-pressed={acceptsAttempts}
+          aria-describedby={TENTATIVAS_ID}
+          onClick={() => onAcceptsAttemptsChange(!acceptsAttempts)}
+        >
+          Aceita tentativas
+        </button>
+      )}
+      <p id={passage === 'trancada' ? TENTATIVAS_ID : undefined} className="lb-travel__hint">
+        {passage === 'trancada' && acceptsAttempts ? EFEITO_TRANCADA_COM_PEDIDO : EFEITO_DA_PASSAGEM[passage]}
+      </p>
+      {/* CHAVE ABRE PORTA: quem carrega o item passa sem pedir, e você lê o aviso. */}
+      {passage === 'trancada' && onKeyChange !== undefined && (
+        <DoorKeyField value={keyName} onChange={onKeyChange} placeholder="Nome do item (vazio: sem chave)" />
+      )}
 
       {escolha !== null && (
         <div id={SELETOR_ID} ref={seletorRef} className="lb-travel__picker">
@@ -340,31 +465,61 @@ export function PinTravelControls({
               <p className="lb-label" id={CENAS_ID}>
                 {escolha.saida === null ? 'A outra saída leva a qual cena?' : 'Para qual cena?'}
               </p>
-              <ul className="lb-travel__options" aria-labelledby={CENAS_ID}>
-                {scenes.map((scene) => (
+              {mostraBusca && (
+                <>
+                  <SceneSearchField
+                    id={BUSCA_ID}
+                    label="Buscar cena"
+                    value={busca}
+                    inputRef={buscaRef}
+                    controls={CENAS_LISTA_ID}
+                    onChange={setBusca}
+                    onKeyDown={aoTeclarNaBusca}
+                  />
+                  <p className="lb-cenas__resumo" role="status">
+                    {buscando ? sceneSearchSummary(achadas.length, busca) : ''}
+                  </p>
+                </>
+              )}
+              <ul id={CENAS_LISTA_ID} className="lb-travel__options" aria-labelledby={CENAS_ID}>
+                {achadas.map((scene) => (
                   <li key={scene.id} className="lb-travel__option">
-                    <button
-                      type="button"
-                      className="lb-btn lb-travel__choice"
-                      data-cena={scene.id}
+                    <SceneChoice
+                      name={scene.name}
+                      trail={scene.trail}
+                      dataCena={scene.id}
                       disabled={!scene.available}
-                      onClick={() => escolherCena(scene.id)}
-                    >
-                      {scene.name}
-                    </button>
+                      enterTarget={scene.id === alvoDoEnter?.id}
+                      onChoose={() => escolherCena(scene.id)}
+                    />
                     {!scene.available && <span className="lb-travel__note">não abriu</span>}
                   </li>
                 ))}
               </ul>
+              {/* A cena que ainda não existe nasce aqui mesmo, sem ir a Cenas. */}
+              {podeCriar && (
+                <button type="button" className="lb-btn lb-btn--ghost lb-btn--block" data-cena-nova="" onClick={abrirNova}>
+                  + Cena nova…
+                </button>
+              )}
               <div className="lb-travel__row lb-travel__row--end">
                 <button type="button" className="lb-btn lb-btn--ghost" onClick={fechar}>
                   Cancelar
                 </button>
               </div>
             </>
+          ) : escolha.passo === 'nova' ? (
+            <PassoDaCenaNova
+              nome={nomeNovo}
+              vazio={nomeVazio}
+              onChange={mudarNomeNovo}
+              onCreate={criarCena}
+              onBack={voltarDaNova}
+              onCancel={fechar}
+            />
           ) : (
             <PassoDoPino
-              sceneName={scenes.find((scene) => scene.id === escolha.sceneId)?.name ?? ''}
+              sceneName={sceneLabelOf(scenes, escolha.sceneId)}
               pins={pinsIn(escolha.sceneId)}
               onCreate={() => concluir(() => onLinkNew(escolha.sceneId, escolha.saida))}
               onPick={(pinId) => concluir(() => onLinkExisting(escolha.sceneId, pinId, escolha.saida))}
@@ -376,6 +531,12 @@ export function PinTravelControls({
       )}
     </div>
   )
+}
+
+/** O nome com caminho da cena `sceneId`, para o título do passo da chegada; vazio se ela saiu da lista. */
+function sceneLabelOf(scenes: readonly TravelSceneOption[], sceneId: string): string {
+  const scene = scenes.find((candidate) => candidate.id === sceneId)
+  return scene === undefined ? '' : travelSceneLabel(scene)
 }
 
 type Ligada = Extract<PinTravel, { status: 'ligado' }>
@@ -489,6 +650,70 @@ function NomeDaSaida({ id, rotulo, placeholder, onCommit }: NomeDaSaidaProps) {
         }}
       />
     </div>
+  )
+}
+
+interface PassoDaCenaNovaProps {
+  nome: string
+  /** O mestre tentou criar com o nome vazio: o campo diz o que falta. */
+  vazio: boolean
+  onChange: (nome: string) => void
+  onCreate: () => void
+  onBack: () => void
+  onCancel: () => void
+}
+
+/**
+ * "+ Cena nova…" do "Leva a…": o nome da cena que ainda não existe. Enter ou
+ * "Criar e ligar" cria a cena com o pino de chegada no centro e liga — o
+ * mestre continua na cena onde está. Esc fecha a escolha (quem trata é o
+ * grupo, como nos outros passos); as setas ficam com o campo.
+ */
+function PassoDaCenaNova({ nome, vazio, onChange, onCreate, onBack, onCancel }: PassoDaCenaNovaProps) {
+  return (
+    <>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={NOVA_ID}>
+          Nome da cena nova
+        </label>
+        <input
+          id={NOVA_ID}
+          type="text"
+          className="lb-input"
+          value={nome}
+          maxLength={NOME_DA_CENA_MAX}
+          placeholder="Casa do ferreiro"
+          aria-invalid={vazio ? true : undefined}
+          aria-describedby={vazio ? NOVA_ERRO_ID : NOVA_DICA_ID}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return
+            event.preventDefault()
+            onCreate()
+          }}
+        />
+      </div>
+      {vazio ? (
+        <p id={NOVA_ERRO_ID} className="lb-travel__error" role="alert">
+          Dê um nome à cena.
+        </p>
+      ) : (
+        <p id={NOVA_DICA_ID} className="lb-travel__hint">
+          Nasce vazia, com o pino de chegada no centro, já ligado de volta. Você continua aqui.
+        </p>
+      )}
+      <div className="lb-travel__row lb-travel__row--end">
+        <button type="button" className="lb-btn lb-btn--ghost" onClick={onBack}>
+          Voltar
+        </button>
+        <button type="button" className="lb-btn lb-btn--ghost" onClick={onCancel}>
+          Cancelar
+        </button>
+        <button type="button" className="lb-btn" onClick={onCreate}>
+          Criar e ligar
+        </button>
+      </div>
+    </>
   )
 }
 

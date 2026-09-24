@@ -6,6 +6,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MapData } from '../types/map'
+import { travelSceneLabel } from '../lib/pinTravel'
 
 const arquivos = new Map<string, string>()
 
@@ -151,7 +152,7 @@ describe('o dado nas outras telas', () => {
   it('o "Leva a…" do pino de viagem diz o caminho da cena de dentro: duas Tavernas não se confundem', () => {
     useAdventureStore.getState().moveScene('mercado', 'porto')
     const opcoes = travelSceneOptions(useAdventureStore.getState())
-    expect(opcoes.map((o) => [o.id, o.name])).toEqual([
+    expect(opcoes.map((o) => [o.id, travelSceneLabel(o)])).toEqual([
       ['porto', 'Porto Cinza'],
       ['vila', 'Vila do Vau'],
       ['mercado', 'Porto Cinza › Mercado'],

@@ -1,9 +1,13 @@
 import type { AppliedItems, HostScene, HostWorld, PlayerInfo } from '../net/hostSession'
 import type { CarriedItem, Token } from '../types/map'
+import { sceneTrail, type SceneEntry } from './adventure'
 import { carriedItemsOf, dropItemChange, giveNewItemChange, removeItemChange, type ItemChange } from './items'
+import { visibleTokens } from './layers'
 import { pinSummary } from './pins'
 import { roomsAt } from './roomNesting'
+import type { DestinationMark } from './signals'
 import { tokenFillColor } from './tokenColor'
+import { entourageNear } from './travelTogether'
 
 /**
  * O PAINEL GRUPO (aba Jogo): uma linha por jogador, com a cor da ficha, onde
@@ -36,6 +40,58 @@ export interface PartyMember {
   travelPending: boolean
   /** O que as fichas dele carregam, em qualquer cena aberta (ITEM PEGÁVEL). */
   mochila: PartyItem[]
+  /** MARCA "VAMOS PARA CÁ" dele, em px de mundo da cena `sceneId`. Ausente = não marcou. */
+  destination?: { x: number; y: number }
+  /**
+   * Fichas dele que ficaram em OUTRA cena (a Faísca esquecida na Vila): o
+   * aviso da linha e o "Trazer". Ausente = nenhuma, ou ele não está em cena
+   * de aventura. Só o mestre lê: nunca vai pela rede.
+   */
+  awayTokens?: PartyAwayToken[]
+  /**
+   * MONTARIA E FAMILIAR: as outras fichas dele no tabuleiro, na cena de
+   * `token`, a até 2 casas dela (a regra de `entourageNear`). O "Reunir o
+   * grupo aqui" as leva junto. Ausente = nenhuma.
+   */
+  entourageIds?: string[]
+}
+
+/** Uma ficha do jogador que está em outra cena que não a dele. */
+export interface PartyAwayToken {
+  tokenId: string
+  /** O nome da ficha como o mestre deu; pode ser vazio (`awayTokenLabel` cuida). */
+  name: string
+  sceneId: string
+  sceneName: string
+}
+
+/** O nome com que o aviso chama a ficha: ficha sem nome não some do aviso. */
+export function awayTokenName(name: string): string {
+  const trimmed = name.trim()
+  return trimmed === '' ? 'Uma ficha' : trimmed
+}
+
+/** "Faísca ficou em outra cena": o aviso na linha do dono. */
+export function awayTokenLabel(name: string): string {
+  return `${awayTokenName(name)} ficou em outra cena`
+}
+
+/**
+ * As fichas de `player` que estão numa cena da aventura diferente da dele,
+ * na ordem em que o mestre as deu. Só com ele jogando numa cena de aventura:
+ * no mapa solto e na espera não há "outra cena".
+ */
+function awayTokensOf(player: PlayerInfo, world: HostWorld): PartyAwayToken[] {
+  if (player.status !== 'playing' || player.sceneId === undefined) return []
+  const away: PartyAwayToken[] = []
+  for (const tokenId of player.tokenIds) {
+    for (const scene of allScenes(world)) {
+      if (scene.sceneId === null || scene.sceneId === player.sceneId) continue
+      const token = scene.map.tokens.find((t) => t.id === tokenId)
+      if (token !== undefined) away.push({ tokenId, name: token.name, sceneId: scene.sceneId, sceneName: scene.name })
+    }
+  }
+  return away
 }
 
 /** Um item da mochila no Grupo: com a ficha e a cena onde ele está, para o mestre agir nele. */
@@ -59,6 +115,12 @@ export interface PartyDestination {
   sceneId: string
   name: string
   arrivals: PartyArrival[]
+  /**
+   * CENAS EM PASTAS: os nomes das cenas de fora, da mais de fora para a mais
+   * de dentro — o caminho em cinza da busca. Ausente ou vazio = primeiro
+   * nível. Só a lista do mestre lê: nunca vai para o jogador.
+   */
+  trail?: readonly string[]
 }
 
 /** Nome da chegada que ninguém pode confundir com um pino. */
@@ -78,12 +140,12 @@ function cssColor(color: number): string {
  * com duas fichas em cenas diferentes, é a desta cena que o "Ir lá" procura.
  * Mapa solto: a cena aberta, que é a única.
  */
-function tokenOf(player: PlayerInfo, world: HostWorld): Token | null {
+function tokenOf(player: PlayerInfo, world: HostWorld): { token: Token; scene: HostScene } | null {
   const scene = player.sceneId === undefined ? (world.open.sceneId === null ? world.open : undefined) : allScenes(world).find((s) => s.sceneId === player.sceneId)
   if (scene === undefined) return null
   for (const id of player.tokenIds) {
     const token = scene.map.tokens.find((t) => t.id === id)
-    if (token !== undefined) return token
+    if (token !== undefined) return { token, scene }
   }
   return null
 }
@@ -133,10 +195,23 @@ export function partyItemChange(world: HostWorld, action: PartyItemAction, fresh
   return scene === world.open || scene.sceneId === null ? change : { ...change, sceneId: scene.sceneId }
 }
 
+/**
+ * As outras fichas de `player` que andam com `lead`: as dele que estão no
+ * tabuleiro da mesma cena (fora camada oculta e o que o mestre escondeu, como
+ * na sessão) e a até 2 casas.
+ */
+function entourageOf(player: PlayerInfo, lead: Token, scene: HostScene): string[] {
+  const owned = new Set(player.tokenIds)
+  const map = scene.map
+  const own = visibleTokens(map.tokens, map.hiddenLayers).filter((t) => t.hidden !== true && owned.has(t.id))
+  return entourageNear(lead, own, map.grid).map((t) => t.id)
+}
+
 /** As linhas do Grupo, na ordem de chegada que a ponte já dá. */
 export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMember[] {
   return players.map((player) => {
-    const token = player.status === 'playing' ? tokenOf(player, world) : null
+    const found = player.status === 'playing' ? tokenOf(player, world) : null
+    const token = found === null ? null : found.token
     const member: PartyMember = {
       playerId: player.playerId,
       name: player.name,
@@ -148,17 +223,38 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
       mochila: backpackOf(player, world),
     }
     if (!player.connected && player.disconnectedAt !== undefined) member.offlineSince = player.disconnectedAt
+    if (player.destination !== undefined) member.destination = { x: player.destination.x, y: player.destination.y }
+    const away = awayTokensOf(player, world)
+    if (away.length > 0) member.awayTokens = away
+    const entourage = found === null ? [] : entourageOf(player, found.token, found.scene)
+    if (entourage.length > 0) member.entourageIds = entourage
     return member
   })
+}
+
+/**
+ * As marcas "vamos para cá" que o canvas do MESTRE desenha: só as da cena
+ * aberta no editor (`openSceneId`; `null` = mapa solto). A de quem está em
+ * cena de fundo tem coordenadas de outro mapa — desenhada aqui, cairia num
+ * lugar que não existe; o mestre a acha pelo "Ver" do Grupo.
+ */
+export function masterDestinationMarks(players: PlayerInfo[], openSceneId: string | null): DestinationMark[] {
+  const marks: DestinationMark[] = []
+  for (const player of players) {
+    if (player.destination === undefined || (player.sceneId ?? null) !== openSceneId) continue
+    marks.push({ x: player.destination.x, y: player.destination.y, from: player.name, color: player.destination.color, mine: false })
+  }
+  return marks
 }
 
 /**
  * As cenas do "Mandar para…": só aventura (mapa solto não tem para onde
  * mandar) e só as que abriram — o mundo do host já deixa de fora a cena cujo
  * arquivo falhou. As chegadas são os pinos de VIAGEM de cada uma, com o nome
- * que o mestre lê no painel do pino.
+ * que o mestre lê no painel do pino. `sceneList` é a lista da aventura: dela
+ * sai o caminho de cada cena (`trail`); sem ela, todas ficam sem caminho.
  */
-export function partyDestinations(world: HostWorld): PartyDestination[] {
+export function partyDestinations(world: HostWorld, sceneList: readonly SceneEntry[] = []): PartyDestination[] {
   const destinations: PartyDestination[] = []
   for (const scene of allScenes(world)) {
     if (scene.sceneId === null) continue
@@ -168,7 +264,8 @@ export function partyDestinations(world: HostWorld): PartyDestination[] {
         const description = pin.description.trim()
         return { pinId: pin.id, label: description === '' ? pinSummary(pin) : description }
       })
-    destinations.push({ sceneId: scene.sceneId, name: scene.name, arrivals })
+    const trail = sceneTrail(sceneList, scene.sceneId)
+    destinations.push({ sceneId: scene.sceneId, name: scene.name, arrivals, ...(trail.length > 0 ? { trail } : {}) })
   }
   return destinations
 }
@@ -206,7 +303,7 @@ export function offlineForLabel(elapsedMs: number): string {
  * caiu diz há quanto tempo ("fora há 0:10"), para o mestre saber se espera ou
  * segue a cena. `now` é o relógio do mestre, o mesmo que marcou a queda.
  */
-export function partyPresenceLabel(member: PartyMember, now: number = Date.now()): string {
+export function partyPresenceLabel(member: Pick<PartyMember, 'connected' | 'offlineSince'>, now: number = Date.now()): string {
   if (member.connected) return 'online'
   if (member.offlineSince === undefined) return 'fora'
   return `fora há ${offlineForLabel(now - member.offlineSince)}`

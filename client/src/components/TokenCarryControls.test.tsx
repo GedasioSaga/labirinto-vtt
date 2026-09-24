@@ -1,120 +1,91 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PARTY_CENTER_LABEL, type PartyDestination } from '../lib/party'
-import { CARRY_FAILED, CARRY_OWNED_HINT, CARRY_TO_LABEL, TokenCarryControls } from './TokenCarryControls'
+import { TokenCarryControls } from './TokenCarryControls'
 
-/*
- * O painel da ficha selecionada ganha "Levar para…" quando ela não tem dono:
- * o mestre muda o zumbi de cena sem apagar e recriar (e perder nome, cor e
- * foto). Ficha de jogador não ganha: quem a leva é o "Mandar para…" do Grupo,
- * que também avisa o jogador e a sessão.
+/**
+ * LEVAR FICHA JUNTO, lado do PAINEL do mestre: com o ferido selecionado, o
+ * mestre escolhe de quem ele vai junto (a ficha mais perto primeiro); preso,
+ * o painel diz com quem ele vai e um botão o solta. Selecionada a ficha que
+ * LEVA, o painel lista quem vai com ela, cada um com o seu "Soltar".
  */
+let container: HTMLDivElement
+let root: Root
 
-const DESTINOS: PartyDestination[] = [
-  { sceneId: 's-terreo', name: 'Térreo', arrivals: [{ pinId: 'alcapao', label: 'Alçapão' }] },
-  { sceneId: 's-sotao', name: 'Sótão', arrivals: [] },
-]
+beforeEach(() => {
+  Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+})
+
+afterEach(() => {
+  act(() => root.unmount())
+  container.remove()
+})
+
+function render(node: React.ReactNode) {
+  act(() => root.render(node))
+}
+
+function seletor(): HTMLSelectElement {
+  const select = container.querySelector('select')
+  if (!(select instanceof HTMLSelectElement)) throw new Error('sem a lista "Vai junto de"')
+  return select
+}
+
+function botao(nome: string): HTMLButtonElement {
+  const achado = [...container.querySelectorAll('button')].find((b) => b.textContent === nome)
+  if (!achado) throw new Error(`sem o botão "${nome}"`)
+  return achado
+}
+
+const ANA = { id: 'ana', name: 'Ana' }
+const BRUNO = { id: 'bruno', name: 'Bruno' }
 
 describe('TokenCarryControls', () => {
-  let container: HTMLDivElement
-  let root: Root
-
-  beforeEach(() => {
-    Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
-    container = document.createElement('div')
-    document.body.appendChild(container)
-    root = createRoot(container)
+  it('ficha solta: a lista tem rótulo, começa sem escolha e traz as fichas na ordem dada', () => {
+    render(<TokenCarryControls tokenId="ferido" carrier={null} carried={[]} candidates={[ANA, BRUNO]} onCarry={vi.fn()} onRelease={vi.fn()} />)
+    expect(container.querySelector('h2')?.textContent).toBe('Levar junto')
+    const select = seletor()
+    expect(select.labels?.[0]?.textContent).toBe('Vai junto de')
+    expect(select.value).toBe('')
+    expect([...select.options].map((o) => o.textContent)).toEqual(['Ninguém', 'Ana', 'Bruno'])
   })
 
-  afterEach(() => {
-    act(() => root.unmount())
-    container.remove()
-  })
-
-  function render(props: { owned?: boolean; destinations?: PartyDestination[]; onCarry?: (sceneId: string, pinId: string | null) => boolean }): void {
-    act(() =>
-      root.render(<TokenCarryControls tokenName="Zumbi" owned={props.owned ?? false} destinations={props.destinations ?? DESTINOS} onCarry={props.onCarry ?? (() => true)} />),
-    )
-  }
-
-  function botao(nome: string): HTMLButtonElement | undefined {
-    return Array.from(container.querySelectorAll('button')).find((b) => b.textContent === nome)
-  }
-
-  function escolher(select: HTMLSelectElement, valor: string): void {
+  it('escolher a Ana prende o ferido a ela', () => {
+    const onCarry = vi.fn()
+    render(<TokenCarryControls tokenId="ferido" carrier={null} carried={[]} candidates={[ANA, BRUNO]} onCarry={onCarry} onRelease={vi.fn()} />)
+    const select = seletor()
     act(() => {
-      select.value = valor
+      select.value = 'ana'
       select.dispatchEvent(new Event('change', { bubbles: true }))
     })
-  }
-
-  it('ficha sem dono: "Levar para…" abre cena e chegada, e "Levar" leva ao alçapão escolhido', () => {
-    const onCarry = vi.fn(() => true)
-    render({ onCarry })
-    const abrir = botao(CARRY_TO_LABEL)
-    expect(abrir?.getAttribute('aria-expanded')).toBe('false')
-    act(() => abrir?.click())
-    expect(abrir?.getAttribute('aria-expanded')).toBe('true')
-
-    const form = container.querySelector('form')
-    expect(form?.getAttribute('aria-label')).toBe('Levar Zumbi para outra cena')
-    const [cena, chegada] = Array.from(container.querySelectorAll('select'))
-    if (cena === undefined || chegada === undefined) throw new Error('faltam as listas de cena e chegada')
-    // O foco vai para a primeira escolha: teclado e leitor de tela começam por ela.
-    expect(document.activeElement).toBe(cena)
-    expect(Array.from(cena.options).map((o) => o.textContent)).toEqual(['Térreo', 'Sótão'])
-    expect(Array.from(chegada.options).map((o) => o.textContent)).toEqual([PARTY_CENTER_LABEL, 'Alçapão'])
-
-    escolher(chegada, 'alcapao')
-    act(() => botao('Levar')?.click())
-    expect(onCarry).toHaveBeenCalledWith('s-terreo', 'alcapao')
-    expect(onCarry).toHaveBeenCalledTimes(1)
-    expect(container.querySelector('form')).toBeNull()
+    expect(onCarry).toHaveBeenCalledWith('ana')
   })
 
-  it('trocar de cena volta a chegada ao centro: o pino escolhido era da outra cena', () => {
-    const onCarry = vi.fn(() => true)
-    render({ onCarry })
-    act(() => botao(CARRY_TO_LABEL)?.click())
-    const [cena, chegada] = Array.from(container.querySelectorAll('select'))
-    if (cena === undefined || chegada === undefined) throw new Error('faltam as listas de cena e chegada')
-    escolher(chegada, 'alcapao')
-    escolher(cena, 's-sotao')
-    act(() => botao('Levar')?.click())
-    expect(onCarry).toHaveBeenCalledWith('s-sotao', null)
+  it('preso: diz com quem vai, e "Soltar" solta ESTA ficha', () => {
+    const onRelease = vi.fn()
+    render(<TokenCarryControls tokenId="ferido" carrier={ANA} carried={[]} candidates={[ANA, BRUNO]} onCarry={vi.fn()} onRelease={onRelease} />)
+    expect(container.textContent).toContain('Vai junto de Ana')
+    expect(container.querySelector('select')).toBeNull()
+    act(() => botao('Soltar').click())
+    expect(onRelease).toHaveBeenCalledWith('ferido')
   })
 
-  it('não deu (a cena ou a ficha mudou): o formulário fica aberto com o aviso', () => {
-    render({ onCarry: () => false })
-    act(() => botao(CARRY_TO_LABEL)?.click())
-    act(() => botao('Levar')?.click())
-    expect(container.querySelector('form')).not.toBeNull()
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe(CARRY_FAILED)
+  it('a ficha que leva: lista quem vai com ela e solta um de cada vez', () => {
+    const onRelease = vi.fn()
+    const levados = [{ id: 'ferido', name: 'Ferido' }, { id: 'npc', name: 'Escoltado' }]
+    render(<TokenCarryControls tokenId="ana" carrier={null} carried={levados} candidates={[]} onCarry={vi.fn()} onRelease={onRelease} />)
+    expect(container.textContent).toContain('Leva junto')
+    act(() => botao('Soltar Escoltado').click())
+    expect(onRelease).toHaveBeenCalledWith('npc')
+    expect(container.querySelector('select')).toBeNull()
   })
 
-  it('Esc fecha sem levar e não chega ao canvas', () => {
-    const onCarry = vi.fn(() => true)
-    render({ onCarry })
-    act(() => botao(CARRY_TO_LABEL)?.click())
-    const form = container.querySelector('form')
-    const esc = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
-    act(() => {
-      form?.dispatchEvent(esc)
-    })
-    expect(esc.defaultPrevented).toBe(true)
-    expect(container.querySelector('form')).toBeNull()
-    expect(onCarry).not.toHaveBeenCalled()
-  })
-
-  it('ficha de jogador não ganha "Levar para…": o painel aponta o "Mandar para…" do Grupo', () => {
-    render({ owned: true })
-    expect(botao(CARRY_TO_LABEL)).toBeUndefined()
-    expect(container.textContent).toContain(CARRY_OWNED_HINT)
-  })
-
-  it('sem outra cena (mapa solto ou aventura de uma cena só) não há nada a mostrar', () => {
-    render({ destinations: [] })
-    expect(container.innerHTML).toBe('')
+  it('sem outra ficha na cena: diz isso em vez de mostrar uma lista vazia', () => {
+    render(<TokenCarryControls tokenId="ferido" carrier={null} carried={[]} candidates={[]} onCarry={vi.fn()} onRelease={vi.fn()} />)
+    expect(container.querySelector('select')).toBeNull()
+    expect(container.textContent).toContain('Não há outra ficha nesta cena')
   })
 })

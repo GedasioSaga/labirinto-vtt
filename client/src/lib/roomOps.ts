@@ -14,6 +14,18 @@ export function roomHasRoof(room: RoomMeta | undefined): boolean {
 }
 
 /**
+ * CÔMODO LEMBRADO ligado (`RoomMeta.comodo`), lido em UM lugar só.
+ *
+ * Ao contrário do teto, só `true` liga: o modo também REVELA — o cômodo visto
+ * chega inteiro, inclusive o canto que a linha de visão não alcançou —, então
+ * valor estranho de arquivo editado à mão fica no comportamento de hoje. E o
+ * teto vence: Sala de teto é prédio, e o prédio já tem regra própria.
+ */
+export function roomIsComodo(room: RoomMeta | undefined): boolean {
+  return room !== undefined && room.comodo === true && !roomHasRoof(room)
+}
+
+/**
  * Índice de canto num polígono de Sala retangular (4 vértices, mesma ordem
  * de `buildRoomFromDraft`, `lib/drawingFactory.ts`): 0 topo-esquerda,
  * 1 topo-direita, 2 baixo-direita, 3 baixo-esquerda — sentido horário em

@@ -6,10 +6,10 @@ import type { Pin, Token } from '../types/map'
 
 /*
  * "Levar para…" tem de estar no painel de propriedades DE VERDADE, na seção da
- * ficha selecionada, com a ligação que o App passa em `tokenCarry`
+ * ficha selecionada, com a ligação que o App passa em `tokenSceneCarry`
  * (`ligacaoLevarFicha`): as cenas que abriram MENOS a aberta, as fichas com
  * dono tiradas dos jogadores da sala e o `levarFichaPara` das stores. Montar o
- * `TokenCarryControls` solto, com props inventadas, não prova nada disso:
+ * `TokenSceneCarryControls` solto, com props inventadas, não prova nada disso:
  * tirá-lo do painel, ou deixar a cena aberta na lista, deixaria aquele teste
  * verde.
  */
@@ -43,7 +43,7 @@ const { arrivalSpot } = await import('../lib/pinTravel')
 const { partyDestinations, PARTY_CENTER_LABEL } = await import('../lib/party')
 const { PropertiesPanel } = await import('./PropertiesPanel')
 const { propsDoPainel } = await import('./propertiesPanelTestProps')
-const { CARRY_OWNED_HINT, CARRY_TO_LABEL } = await import('./TokenCarryControls')
+const { CARRY_OWNED_HINT, CARRY_TO_LABEL } = await import('./TokenSceneCarryControls')
 
 const ALCAPAO: Pin = { id: 'alcapao', x: 1500, y: 900, kind: 'viagem', description: 'Alçapão', image: null, destino: null }
 
@@ -112,9 +112,9 @@ describe('"Levar para…" no painel de propriedades', () => {
     return achada
   }
 
-  /** Renderiza o painel com a ficha selecionada e a ligação `tokenCarry` do App. */
+  /** Renderiza o painel com a ficha selecionada e a ligação `tokenSceneCarry` do App. */
   function renderPainel(id: string, players: PlayerInfo[]): void {
-    const props = propsDoPainel(fichaNoMapa(id), { tokenCarry: ligacaoDoApp(players) })
+    const props = propsDoPainel(fichaNoMapa(id), { tokenSceneCarry: ligacaoDoApp(players) })
     act(() => root.render(<PropertiesPanel {...props} />))
   }
 

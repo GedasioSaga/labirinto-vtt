@@ -1,5 +1,7 @@
 import type { HazardKind, MapData, RegionPoint } from '../types/map'
 import type { PlayerHazard } from '../lib/hazards'
+import type { PlayerAreaTrigger } from '../lib/areaTriggers'
+import type { PlayerClock } from '../lib/campaignClock'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
@@ -8,6 +10,8 @@ import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
+import { MAX_DESTINATION_MARKS, SIGNAL_COLOR_PATTERN, type DestinationMark } from '../lib/signals'
+import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEntry } from '../lib/dice'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -106,6 +110,10 @@ import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type
  * mestre) e, na volta, `door.request.rejected` e `door.request.answer`. Mestre
  * antigo responde `error invalid_message`; jogador antigo ignora as duas.
  *
+ * CHAVE ABRE PORTA, aditiva pelo mesmo critério: `door.useKey` (jogador ->
+ * mestre) e o `key` opcional do `door.toggle.rejected`. Mestre antigo responde
+ * `error invalid_message`; jogador antigo ignora o campo.
+ *
  * ITEM PEGÁVEL, aditivo pelo mesmo critério: `pin.take` e `item.give`
  * (jogador -> mestre) e, na volta, `pin.take.rejected`, `pin.take.answer` e
  * `item.give.rejected`. A mochila viaja no token do PRÓPRIO jogador, no
@@ -127,8 +135,68 @@ import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type
  * `point.action` (jogador -> mestre) e, na volta, `point.action.answer` e
  * `point.action.rejected` são as AÇÕES NO PONTO, aditivas pelo mesmo critério.
  * A volta vai só a quem pediu e nunca leva sala, cena nem ponto.
+ * `snapshot.sceneName` (e `delta.sceneName`) é o "ONDE ESTOU", aditivo pelo
+ * mesmo critério: o NOME PARA OS JOGADORES da cena onde o jogador está, só
+ * quando o mestre escreveu um. Nunca o nome interno da cena, nunca o de outra
+ * cena. Jogador antigo ignora o campo; mestre antigo não o manda e o selo não
+ * aparece.
+ *
+ * A MARCA "VAMOS PARA CÁ" é aditiva pelo mesmo critério: `destination`
+ * (jogador -> mestre, um ponto ou `clear`) e `destinations` (mestre ->
+ * jogador), a lista INTEIRA de marcas que aquele jogador pode ver agora — só
+ * da cena dele, só em ponto que ele já conhece e fora de zona oculta. Nunca a
+ * cena, nunca marca de quem está em outra cena. Mestre antigo responde
+ * `error invalid_message`; jogador antigo ignora a lista.
+ *
+ * O DADO ROLADO NA SALA é aditivo pelo mesmo critério: `dice.roll` (jogador ->
+ * mestre) só PEDE quantidade, dado e modificador — quem rola é o host — e
+ * `dice.rolled` (mestre -> jogador) leva a rolagem pronta a toda a mesa. A
+ * rolagem escondida do mestre nunca vira `dice.rolled` (`diceRollForPlayer`,
+ * em `lib/fogFilter.ts`). Mestre antigo responde `error invalid_message`;
+ * jogador antigo ignora a rolagem.
+ *
+ * LUGARES é aditivo pelo mesmo critério: `snapshot.place` (e `delta.place`) é
+ * um id que o HOST inventa para a memória DESTE jogador na cena onde ele está
+ * — nunca o id nem o nome da cena: é um contador de cada jogador, então o mesmo
+ * id em dois jogadores não diz que eles estiveram no mesmo lugar —, e
+ * `places` são os ids das memórias que o host ainda guarda dele, da visitada
+ * há mais tempo à de agora. Com isso a tela dele guarda o desenho de cada
+ * lugar por onde passou (só o que já recebeu) e solta o que o mestre mandou
+ * esquecer ("Esconder planta"). Jogador antigo ignora os dois; mestre antigo
+ * não os manda e a aba Lugares fica só com os pontos da cena.
+ *
+ * GATILHO DE ÁREA, aditivo pelo mesmo critério: `snapshot.gatilhos` (tipo e
+ * polígono de cada gatilho que o mestre REVELOU, na área que o jogador
+ * conhece). Entrar num gatilho NÃO manda nada ao jogador: o aviso é do mestre.
+ *
+ * MAPA POR ANDARES, aditivo pelo mesmo critério: `snapshot.andares` (o rótulo
+ * do andar dele e, de cada OUTRO andar do mesmo prédio onde ele já esteve, o
+ * rótulo, a planta recortada pela memória dele e o explorado). Nunca nome de
+ * cena nem de prédio. Jogador antigo ignora; mestre antigo não manda.
+ *
+ * QUEM CHEGA ESCOLHE A FICHA é aditivo pelo mesmo critério: `seat.options`
+ * (mestre -> jogador sem personagem: as fichas que ele pode pedir, só id e
+ * nome), `seat.claim` (jogador -> mestre) e, na volta, `seat.claim.state`.
+ * Mestre antigo responde `error invalid_message` ao pedido e nunca manda a
+ * lista (o jogador fica na espera de sempre); jogador antigo ignora as duas.
  */
 export const PROTOCOL_VERSION = 1
+
+/** MAPA POR ANDARES: um andar onde o jogador não está agora, como ele o lembra. */
+export interface FloorMemoryWire {
+  /** Rótulo da aba (1F, B1): sempre um `cleanFloorLabel`. */
+  rotulo: string
+  /** Recorte sem visão nenhuma (`filterFloorMemory`): planta conhecida, nenhuma ficha. */
+  map: MapData
+  explored: ExploredWire
+  concealed: RegionPoint[][]
+}
+
+/** MAPA POR ANDARES: o andar onde o jogador está e os outros que ele conhece. */
+export interface FloorsWire {
+  atual: string
+  outros: FloorMemoryWire[]
+}
 
 export const JOIN_CODE_LENGTH = 6
 export const NAME_MIN_LENGTH = 1
@@ -340,6 +408,27 @@ export interface PinTakeMessage {
   pinId: string
 }
 
+/**
+ * CHAVE ABRE PORTA: o jogador usa a chave que carrega na porta trancada
+ * `wallId`. Só a porta: o host acha a chave na mochila das fichas dele
+ * encostadas nela — o jogador não escolhe item nem diz nome.
+ */
+export interface DoorUseKeyMessage {
+  type: 'door.useKey'
+  wallId: string
+}
+
+/**
+ * ALAVANCA: o jogador puxa a alavanca `pinId`. Só o id do pino — qual porta
+ * ela move o jogador nem conhece (`lib/fogFilter.ts`). O host valida (pino
+ * visível, é alavanca, ficha encostada, porta ligada destrancada) e aplica.
+ * Aditiva pelo mesmo critério de `door.toggle`.
+ */
+export interface PinLeverMessage {
+  type: 'pin.lever'
+  pinId: string
+}
+
 /** O jogador dá o item `itemId` da própria mochila à ficha `toTokenId`, de um colega encostado. */
 export interface ItemGiveMessage {
   type: 'item.give'
@@ -372,13 +461,46 @@ export interface PointActionMessage {
   y: number
 }
 
+/**
+ * MARCA "VAMOS PARA CÁ": põe (ou move) a marca do jogador no ponto, em px de
+ * mundo da cena dele; `clear` tira. Sem nome nem cor: quem é e de que cor o
+ * host sabe pela conexão e pela ficha.
+ */
+export type DestinationMessage = { type: 'destination'; x: number; y: number } | { type: 'destination'; clear: true }
+
+/** As marcas que ESTE jogador pode ver agora, a lista inteira (vazia = nenhuma). */
+export interface DestinationsMessage {
+  type: 'destinations'
+  marks: DestinationMark[]
+}
+
+/** DADO ROLADO NA SALA: o pedido. Resultado e total quem põe é o host. */
+export interface DiceRollMessage extends DiceRequest {
+  type: 'dice.roll'
+}
+
+/** A rolagem pronta, para toda a mesa. Nunca a escondida do mestre. */
+export interface DiceRolledMessage {
+  type: 'dice.rolled'
+  roll: DiceRollEntry
+}
+
+/** Quem está sem personagem pede a ficha `tokenId` da lista `seat.options`. O mestre confirma. */
+export interface SeatClaimMessage {
+  type: 'seat.claim'
+  tokenId: string
+}
+
 export type PlayerMessage =
   | JoinMessage
+  | SeatClaimMessage
   | TokenMoveMessage
   | PingMessage
   | SignalMessage
+  | DestinationMessage
   | DoorToggleMessage
   | DoorRequestMessage
+  | DoorUseKeyMessage
   | TokenEditMessage
   | PinTravelRequestMessage
   | PinTakeMessage
@@ -390,6 +512,18 @@ export type PlayerMessage =
   | CallRaiseMessage
   | CallLowerMessage
   | PointActionMessage
+  | DiceRollMessage
+  | PinLeverMessage
+
+/**
+ * Por que a alavanca não moveu nada. `unavailable` junta pino inexistente, no
+ * escuro, oculto e que não é alavanca. `stuck` junta porta ligada trancada,
+ * alavanca solta e porta apagada: um motivo por caso diria ao jogador o
+ * estado de uma porta que ele talvez nem veja.
+ */
+export type PinLeverRejection = 'unavailable' | 'far' | 'stuck'
+
+export const PIN_LEVER_REJECTIONS: readonly PinLeverRejection[] = ['unavailable', 'far', 'stuck']
 
 /**
  * Por que o host não levou o "Pegar" ao mestre. `unavailable` junta pino
@@ -594,6 +728,41 @@ export interface SceneAlarmEndMessage {
   id: string
 }
 
+/** Uma ficha que quem está sem personagem pode pedir: só o id e o nome — nem cena, nem posição. */
+export interface SeatOption {
+  tokenId: string
+  name: string
+}
+
+/** As fichas livres, para quem está sem personagem. Lista vazia = nenhuma a escolher. */
+export interface SeatOptionsMessage {
+  type: 'seat.options'
+  tokens: SeatOption[]
+}
+
+/** Teto da lista de fichas livres: acima disto a mensagem é lixo, não mesa. */
+export const SEAT_OPTIONS_MAX = 64
+/** Teto do nome de ficha na lista, em unidades UTF-16 (o host corta antes de mandar). */
+export const SEAT_OPTION_NAME_MAX_LENGTH = 64
+
+/**
+ * Onde está o pedido de ficha: `pending` (o mestre vai responder), `denied`
+ * (o mestre disse não), `unavailable` (a ficha já não está livre, ou quem
+ * pediu já joga) e `too_soon` (pediu de novo logo depois de um não).
+ */
+export type SeatClaimState = 'pending' | 'denied' | 'unavailable' | 'too_soon'
+
+const SEAT_CLAIM_STATES: readonly SeatClaimState[] = ['pending', 'denied', 'unavailable', 'too_soon']
+
+export function isSeatClaimState(value: unknown): value is SeatClaimState {
+  return SEAT_CLAIM_STATES.some((state) => state === value)
+}
+
+/** O nome da ficha cortado no teto da lista, pela mesma regra do recado. */
+export function clampSeatOptionName(name: string): string {
+  return clampTextTo(name, SEAT_OPTION_NAME_MAX_LENGTH)
+}
+
 /**
  * `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`).
  * `bad_table_key`: tela da mesa sem a chave do link da TV, ou com outra.
@@ -608,14 +777,24 @@ export type HostMessage =
   // deste recorte (`turnForPlayer`). Ausente = ninguém que o jogador vê.
   // `partyTokens` (ITEM PEGÁVEL): das fichas que ele recebeu, as de OUTROS jogadores — o "Dar a…" não oferece NPC.
   // `hazards` (ZONA DE PERIGO): só o que o jogador enxerga agora, e só quando há algum (`PlayerMapView.hazards`).
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[] }
+  // `sceneName`: o NOME PARA OS JOGADORES da cena onde ele está ("Onde estou").
+  // Ausente = a cena não tem nome público (ou mapa solto, ou mestre antigo).
+  // `place`/`places`: LUGARES, ids do host para as memórias dele (ver o topo).
+  // `gatilhos` (GATILHO DE ÁREA): só o revelado pelo mestre, e só quando há algum (`PlayerMapView.gatilhos`).
+  // `andares` (MAPA POR ANDARES): só quando a cena dele é andar de um prédio e ele já esteve em outro andar dele.
+  // `relogio` (RELÓGIO DA CAMPANHA): só o período e, da cena dele, se está escuro — nunca a hora (`clockForPlayer`).
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; relogio?: PlayerClock }
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
   | { type: 'hazard.entered'; kind: HazardKind }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejectionReason }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
-  | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
+  | DestinationsMessage
+  // `key` (CHAVE ABRE PORTA): só no `locked`, só para quem encosta na porta
+  // com o item que a abre — o nome do item, que ele já carrega. Aditivo:
+  // jogador antigo ignora e lê "Trancada".
+  | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection; key?: string }
   | { type: 'door.request.rejected'; wallId: string; reason: DoorRequestRejection }
   | { type: 'door.request.answer'; answer: DoorRequestAnswer }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
@@ -624,6 +803,10 @@ export type HostMessage =
   | { type: 'pin.take.answer'; answer: 'taken'; nome: string }
   | { type: 'pin.take.answer'; answer: 'denied' }
   | { type: 'item.give.rejected'; reason: ItemGiveRejection }
+  // ALAVANCA. `pulled` não diz qual porta nem se abriu ou fechou: a porta
+  // ligada pode estar fora da vista, e o jogador só vê o que o recorte mostra.
+  | { type: 'pin.lever.answer'; answer: 'pulled' }
+  | { type: 'pin.lever.rejected'; reason: PinLeverRejection }
   // `text`: o motivo curto do "Não, porque…" (até `TRAVEL_DENY_TEXT_MAX_LENGTH`).
   // Aditivo: jogador antigo ignora o campo e lê o "não deixou" de sempre.
   | { type: 'pin.travel.denied'; text?: string }
@@ -631,7 +814,10 @@ export type HostMessage =
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
   // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um
   // pino — o aviso diz que o GRUPO foi reunido, e continua sem dizer onde.
-  | { type: 'scene.changed'; by?: 'master' | 'gather' }
+  // `chegada` (TEXTO DE CHEGADA DA CENA): o texto que o mestre escreveu na cena
+  // de destino, só quando há. Vai SÓ a quem chega, uma vez — o snapshot nunca
+  // o leva (`lib/fogFilter.ts`). Aditivo: jogador antigo ignora o campo.
+  | { type: 'scene.changed'; by?: 'master' | 'gather'; chegada?: string }
   | LaserMessage
   | RelayedLaserMessage
   | SceneNoteMessage
@@ -648,6 +834,10 @@ export type HostMessage =
   // a resposta: nem o ponto, nem a sala, nem a cena que o mestre leu.
   | { type: 'point.action.answer'; action: PointActionKind; answer: PointActionAnswer }
   | { type: 'point.action.rejected'; reason: PointActionRejection }
+  | DiceRolledMessage
+  | SeatOptionsMessage
+  // Só a quem pediu a ficha; a aceitação chega como o mapa, com a ficha dele.
+  | { type: 'seat.claim.state'; state: SeatClaimState }
   | { type: 'kicked' }
   | { type: 'room.closed' }
   // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
@@ -870,6 +1060,26 @@ export function parsePartyUpdate(value: unknown): PartyUpdateMessage | null {
   return { type: 'party.update', members: parsed }
 }
 
+/**
+ * Valida o `seat.options` que o jogador recebe. Os nomes vão para a tela: item
+ * malformado (id ou nome vazio, nome acima do teto) ou lista acima do teto
+ * recusam a lista inteira. Devolve cópia só com id e nome.
+ */
+export function parseSeatOptions(value: unknown): SeatOptionsMessage | null {
+  if (!isRecord(value) || value.type !== 'seat.options') return null
+  const { tokens } = value
+  if (!Array.isArray(tokens) || tokens.length > SEAT_OPTIONS_MAX) return null
+  const parsed: SeatOption[] = []
+  for (const item of tokens) {
+    if (!isRecord(item)) return null
+    const { tokenId, name } = item
+    if (!isBoundedString(tokenId, 1, REQ_ID_MAX_LENGTH)) return null
+    if (!isBoundedString(name, 1, SEAT_OPTION_NAME_MAX_LENGTH)) return null
+    parsed.push({ tokenId, name })
+  }
+  return { type: 'seat.options', tokens: parsed }
+}
+
 export type PointActionReply = Extract<HostMessage, { type: 'point.action.answer' } | { type: 'point.action.rejected' }>
 
 /**
@@ -1043,6 +1253,106 @@ export function parseLaserMessage(value: unknown): LaserMessage | RelayedLaserMe
   return { ...body, from, color }
 }
 
+function parseDestinationMark(value: unknown): DestinationMark | null {
+  if (!isRecord(value)) return null
+  const { x, y, from, color, mine } = value
+  if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isRoomName(from) || typeof mine !== 'boolean') return null
+  // A cor vai direto para o desenho: só `#rrggbb`.
+  if (typeof color !== 'string' || !SIGNAL_COLOR_PATTERN.test(color)) return null
+  return { x, y, from, color, mine }
+}
+
+/**
+ * Valida a lista de marcas que o jogador recebe. Mesma regra das outras
+ * listas: acima do teto ou com uma marca torta, recusa inteira (não mostra
+ * lista pela metade). Devolve cópia só com os campos conhecidos.
+ */
+export function parseDestinationsMessage(value: unknown): DestinationsMessage | null {
+  if (!isRecord(value) || value.type !== 'destinations') return null
+  const { marks } = value
+  if (!Array.isArray(marks) || marks.length > MAX_DESTINATION_MARKS) return null
+  const parsed: DestinationMark[] = []
+  for (const item of marks) {
+    const mark = parseDestinationMark(item)
+    if (mark === null) return null
+    parsed.push(mark)
+  }
+  return { type: 'destinations', marks: parsed }
+}
+
+/**
+ * Teto da lista `places`: bem acima do que o host guarda por jogador (8), bem
+ * abaixo de um host hostil inflando a memória da tela.
+ */
+export const PLACES_MAX = 32
+
+/** Os campos de LUGARES de um snapshot, já conferidos. */
+export interface SnapshotPlaces {
+  place?: string
+  places?: string[]
+}
+
+/**
+ * Valida `place` e `places` do snapshot que o jogador recebe. Ausentes valem
+ * (mestre antigo); presentes e tortos — id que não é texto curto, lista acima
+ * do teto ou com item torto — devolvem `null`, e quem chama descarta a
+ * mensagem inteira, como faz com os outros campos aditivos.
+ */
+export function parseSnapshotPlaces(value: Record<string, unknown>): SnapshotPlaces | null {
+  const { place, places } = value
+  const parsed: SnapshotPlaces = {}
+  if (place !== undefined) {
+    if (!isBoundedString(place, 1, REQ_ID_MAX_LENGTH)) return null
+    parsed.place = place
+  }
+  if (places !== undefined) {
+    if (!Array.isArray(places) || places.length > PLACES_MAX) return null
+    const ids: string[] = []
+    for (const id of places) {
+      if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+      ids.push(id)
+    }
+    parsed.places = ids
+  }
+  return parsed
+}
+
+function parseDestination(value: Record<string, unknown>): DestinationMessage | null {
+  if (value.clear === true) return { type: 'destination', clear: true }
+  if (value.clear !== undefined) return null
+  return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'destination', x: value.x, y: value.y } : null
+}
+
+function parseDiceRollEntry(value: unknown): DiceRollEntry | null {
+  if (!isRecord(value)) return null
+  const request = parseDiceRequest(value)
+  if (request === null) return null
+  const { id, from, master, results, total, at } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || !isRoomName(from) || !isNoteTime(at)) return null
+  if (master !== undefined && (master !== true || from !== MASTER_ROLLER_NAME)) return null
+  // Uma face por dado, cada uma de 1 a `sides`, e o total que elas dão: rolagem incoerente não vai à tela.
+  if (!Array.isArray(results) || results.length !== request.count) return null
+  const faces: number[] = []
+  for (const face of results) {
+    if (typeof face !== 'number' || !Number.isInteger(face) || face < 1 || face > request.sides) return null
+    faces.push(face)
+  }
+  if (typeof total !== 'number' || total !== faces.reduce((sum, face) => sum + face, request.modifier)) return null
+  const entry: DiceRollEntry = { id, from, ...request, results: faces, total, at }
+  return master === true ? { ...entry, master } : entry
+}
+
+/**
+ * Valida a rolagem que o jogador recebe. Forma errada, face fora do dado ou
+ * total que não bate recusam a mensagem inteira. Devolve cópia só com os
+ * campos conhecidos — marca de escondida, cena ou id de jogador ficam para trás.
+ */
+export function parseDiceRolled(value: unknown): DiceRolledMessage | null {
+  if (!isRecord(value) || value.type !== 'dice.rolled') return null
+  const roll = parseDiceRollEntry(value.roll)
+  return roll === null ? null : { type: 'dice.rolled', roll }
+}
+
 /**
  * Valida mensagem vinda do jogador. Aceita o objeto já desserializado ou a
  * string JSON crua do transporte. Devolve um objeto novo só com os campos
@@ -1067,10 +1377,14 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return value.away === true ? { type: 'ping', away: true } : { type: 'ping' }
     case 'signal':
       return parseSignal(value)
+    case 'destination':
+      return parseDestination(value)
     case 'door.toggle':
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
     case 'door.request':
       return parseDoorRequest(value)
+    case 'door.useKey':
+      return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.useKey', wallId: value.wallId } : null
     case 'token.edit':
       return parseTokenEdit(value)
     case 'pin.travel.request':
@@ -1099,6 +1413,15 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isPointActionKind(value.action) && isFiniteNumber(value.x) && isFiniteNumber(value.y)
         ? { type: 'point.action', action: value.action, x: value.x, y: value.y }
         : null
+    case 'dice.roll': {
+      // Só o pedido: resultado, total e nome mandados pelo jogador são jogados fora.
+      const request = parseDiceRequest(value)
+      return request === null ? null : { type: 'dice.roll', ...request }
+    }
+    case 'pin.lever':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.lever', pinId: value.pinId } : null
+    case 'seat.claim':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'seat.claim', tokenId: value.tokenId } : null
     default:
       return null
   }
