@@ -236,6 +236,24 @@ auto/juntar-grandes` em `auto/acervo`. O que entrar depois nos dois ramos (as 3 
 mesma cena, do run antigo `wf_e3f23fdf-79d`) vai numa 2ª junção curta, perto das 15h15. A 2ª passada geral
 (`auto/juntar`) vai precisar juntar `auto/acervo` antes de voltar para ele, porque as grandes terão entrado por fora.
 
+**24/09, 19h10 — primeiro push em `main` e o que segue.**
+
+- Pedido do usuário (18h00 e 18h40, com autorização explícita de push): publicar em `main` o que já está pronto
+  e as grandes, gerar o instalador dessa versão (tag + GitHub Release, como a v0.1.0) e depois retomar o resto,
+  publicando a cada 10 features.
+- Publicado: `git push origin main` 719c9fd..b060f54 (fast-forward). Leva `auto/acervo` com jogador, editor,
+  mundo e rede (`b04614c`, merge de `auto/juntar` `d37de87`) e o conserto do link público (`b060f54`, merge de
+  `auto/f2-link-publico` `c76b664`). Antes do push, em `b060f54`: `--fase0` PORTÃO ÍNTEGRO; tipos-src VERDE;
+  unidade VERDE (212874 ms); `cargo test --lib` 28 passed; nenhum arquivo de credencial nem padrão de token no
+  diff (log em `scratchpad/testes-publicar-1.log`).
+- Em curso `wf_ef4eb784-1f6` (publicar-no-principal): pista das grandes em `C:/dev/labirinto-juntar-grandes`
+  e pista dos grupos em `C:/dev/labirinto-juntar` (visão terminando o merge pela metade; depois defeitos, t-*,
+  t-ideias e os `-b`), cada unidade com junta, prova (Sonnet) e publicação serial em `main`. Pisos na mesma
+  cena: nova tentativa `wf_74db9157-832`.
+- Onda 3 pausada às 18h15 (agentes demais: ~60% cancelados após 3 min sem resposta, Sonnet e Opus igual).
+  Como retomar: `scratchpad/pausa-onda3.md` (runs novos só com as peças que faltam; NÃO resumir os antigos).
+- Instalador: quando a publicação terminar, subir a versão, `npm run tauri build`, tag e Release com `.exe` e `.msi`.
+
 **24/09, 15h50 — estado para retomar.**
 
 Contagem (`scratchpad/contagem-geral.cjs`, lê todos os journals da fábrica): 300 peças planejadas; 173 integradas
