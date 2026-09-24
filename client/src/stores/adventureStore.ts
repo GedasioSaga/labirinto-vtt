@@ -15,6 +15,7 @@ import {
   type Adventure,
   type SceneEntry,
 } from '../lib/adventure'
+import { aplicarEstadoNoMapa, comValorAtual, contarMudancas, novoEstadoDoMundo, type ResumoDaTroca } from '../lib/estadoDoMundo'
 import {
   addExit,
   arrivalPoint,
@@ -218,6 +219,20 @@ interface AdventureState {
    * (mapa solto, cena fora do ar, pino ou ficha que sumiu, mesma cena).
    */
   carryToken: (tokenId: string, toSceneId: string, pinId: string | null) => CarriedToken | null
+  /**
+   * ESTADO DO MUNDO: cria "Maré" com os valores de `valores` ("alta, baixa"),
+   * o primeiro como atual. Devolve o id, ou `null` no mapa solto, sem nome ou
+   * sem valor. Muda só a aventura (pede Salvar).
+   */
+  criarEstadoDoMundo: (nome: string, valores: string) => string | null
+  /**
+   * ESTADO DO MUNDO: põe `estadoId` em `valor` e grava o efeito em cada porta,
+   * pino e zona amarrados, na cena aberta e em todas as de fundo que abriram.
+   * Mudança de MESA: fora do Ctrl+Z do mestre nas duas pontas. Devolve quantos
+   * elementos mudaram e em quantas cenas; `null` quando o estado não existe ou
+   * o valor não é dele (nada muda).
+   */
+  trocarEstadoDoMundo: (estadoId: string, valor: string) => ResumoDaTroca | null
   /** Há cena de fundo ou lista de cenas esperando gravação? (A cena aberta é o `useSessionStore` que diz.) */
   hasPendingScenes: () => boolean
   /** Grava a aventura inteira e devolve o caminho da cena aberta. */
@@ -554,6 +569,31 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const past = slot.past.map(transform)
     const future = slot.future.map(transform)
     set({ cache: { ...cache, [sceneId]: { ...slot, map, past, future } }, dirty: { ...dirty, [sceneId]: true } })
+  },
+
+  criarEstadoDoMundo: (nome, valores) => {
+    const { adventure } = get()
+    if (adventure === null) return null
+    const estado = novoEstadoDoMundo(nome, valores)
+    if (estado === null) return null
+    set({ adventure: { ...adventure, estados: [...(adventure.estados ?? []), estado] }, structureDirty: true })
+    return estado.id
+  },
+
+  trocarEstadoDoMundo: (estadoId, valor) => {
+    const { adventure, cache } = get()
+    if (adventure === null) return null
+    const estados = comValorAtual(adventure.estados ?? [], estadoId, valor)
+    if (estados === null) return null
+    // Conta ANTES de aplicar: depois, cada elemento já está no efeito e a conta daria zero.
+    const mapas = [useMapStore.getState().map, ...Object.values(cache).flatMap((slot) => (slot.status === 'ok' ? [slot.map] : []))]
+    const porCena = mapas.map((map) => contarMudancas(map, estadoId, valor))
+    const resumo: ResumoDaTroca = { elementos: porCena.reduce((soma, n) => soma + n, 0), cenas: porCena.filter((n) => n > 0).length }
+    const transform = (map: MapData) => aplicarEstadoNoMapa(map, estadoId, valor)
+    useMapStore.getState().applyPlayerChange(transform)
+    for (const sceneId of Object.keys(cache)) get().applyPlayerChangeToBackgroundScene(sceneId, transform)
+    set({ adventure: { ...adventure, estados }, structureDirty: true })
+    return resumo
   },
 
   linkPinToNewArrival: (pinId, sceneId, exitId = SAIDA_PRINCIPAL) => {

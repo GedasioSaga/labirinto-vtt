@@ -149,7 +149,33 @@ export interface DoorState {
    * de migração; do disco só `true` volta (`lib/mapFile.ts`).
    */
   secret?: boolean
+  /**
+   * ESTADO DO MUNDO — a porta obedece a um estado da aventura ("Maré"). Trocar
+   * o valor grava o efeito em `open`/`locked` (`lib/estadoDoMundo.ts`); o resto
+   * do app lê só esses dois. NUNCA sai no recorte do jogador (`lib/fogFilter.ts`).
+   * Ausente = porta de sempre, sem migração.
+   */
+  porEstado?: RegraDeEstado<EfeitoNaPorta>
 }
+
+/**
+ * ESTADO DO MUNDO — "depende de": o efeito deste elemento para cada valor de um
+ * estado da aventura (`Adventure.estados`). Valor sem entrada = o elemento não
+ * muda. Lista, e não objeto: o valor é texto do mestre, e `efeitos["constructor"]`
+ * num objeto leria o protótipo.
+ */
+export interface RegraDeEstado<E extends string> {
+  estadoId: string
+  efeitos: EfeitoDeEstado<E>[]
+}
+
+export interface EfeitoDeEstado<E extends string> {
+  valor: string
+  efeito: E
+}
+
+export type EfeitoNaPorta = 'aberta' | 'fechada' | 'trancada'
+export type EfeitoNaZona = 'oculta' | 'revelada'
 
 export interface Light {
   id: string
@@ -372,6 +398,12 @@ export interface Pin extends PlayerSecret {
    * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.
    */
   escolhas?: PinExitLabel[]
+  /**
+   * ESTADO DO MUNDO — a `passagem` do pino obedece a um estado da aventura.
+   * Trocar o valor grava o efeito em `passagem`. NUNCA sai no recorte do
+   * jogador (`pinForPlayer` é lista do que vai). Ausente = pino de sempre.
+   */
+  porEstado?: RegraDeEstado<PinPassage>
 }
 
 /**
@@ -395,6 +427,12 @@ export interface ConcealZone {
    * (`lib/fogFilter.ts`) manda só o preto que sobra e o pedaço à vista.
    */
   unveiledCells?: string[]
+  /**
+   * ESTADO DO MUNDO — `revealed` obedece a um estado da aventura ("a galeria
+   * alagada só esconde na maré alta"). A zona inteira não sai para o jogador;
+   * ele recebe só o preto que sobra. Ausente = zona de sempre.
+   */
+  porEstado?: RegraDeEstado<EfeitoNaZona>
 }
 
 export interface Region extends PlayerSecret {

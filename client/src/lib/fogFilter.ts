@@ -1432,6 +1432,8 @@ export function filterMapForPlayer(
     // `knownWalls` antes da camada: a estante disfarçada é PAREDE, e segue a
     // camada Paredes (com Portas escondida ela não pode virar vão). A porta
     // secreta que sobra sai emendada nas vizinhas (`mergeSecretDoorSeams`).
+    // ESTADO DO MUNDO: toda porta que sai (à vista, lembrada ou emendada) passa
+    // por `doorForPlayer` no fim — a regra do estado nunca atravessa.
     walls: mergeSecretDoorSeams(
       visibleWalls(knownWalls, hiddenLayers).flatMap((w) => {
         if (w.hidden) return []
@@ -1441,7 +1443,7 @@ export function filterMapForPlayer(
         return wallForPlayer(w)
       }),
       secretDoorIds,
-    ),
+    ).map(wallWithPlayerDoor),
     floor: playerFloor,
     // Pino de ponto de interesse: anotação estática, então vale o explorado
     // (mesma regra de linha/marcador). `image` só atravessa em data URL — se
@@ -1479,6 +1481,22 @@ export function filterMapForPlayer(
   const sightRects = cellRunRects(new Set(shownCells))
   const sentVision = sightRects.length > 0 ? [...vision, ...sightRects] : vision
   return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms }
+}
+
+/**
+ * A porta como o jogador pode recebê-la: LISTA DO QUE VAI, como `pinForPlayer`.
+ * `porEstado` (ESTADO DO MUNDO) fica de fora: o id do estado e os valores que
+ * o mestre escreveu ("Maré", "baixa") diriam o que manda na porta e qual valor
+ * a abre. O jogador recebe só o efeito, já gravado em `open`/`locked`.
+ */
+function doorForPlayer(door: DoorState): DoorState {
+  const forPlayer: DoorState = { open: door.open, locked: door.locked, kind: door.kind }
+  if (door.secret !== undefined) forPlayer.secret = door.secret
+  return forPlayer
+}
+
+function wallWithPlayerDoor(wall: Wall): Wall {
+  return wall.door === null ? wall : { ...wall, door: doorForPlayer(wall.door) }
 }
 
 /** O host vê o mapa inteiro, inclusive itens ocultos. */

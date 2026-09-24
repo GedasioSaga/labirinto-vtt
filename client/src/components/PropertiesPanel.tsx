@@ -59,6 +59,8 @@ import type { ReactNode } from 'react'
 interface PropertiesPanelProps {
   /** Seção "Cenas" da aventura, montada por quem sabe da aventura (App). */
   scenes?: ReactNode
+  /** Seção "Estado do mundo" da aventura (Maré, Giro…), logo abaixo das Cenas. Ausente no mapa solto. */
+  worldState?: ReactNode
   /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
   objects?: ReactNode
   mapName: string
@@ -172,6 +174,7 @@ interface PropertiesPanelProps {
  */
 export function PropertiesPanel({
   scenes,
+  worldState,
   objects,
   mapName,
   mapWidth,
@@ -499,6 +502,7 @@ export function PropertiesPanel({
             que é o nome do que está na mão ou do que acabou de ser desenhado
             (task-jornada-sala-livre.spec.ts, teste 3). */}
         {scenes}
+        {worldState}
         {/* Os objetos DA cena aberta, logo abaixo das cenas. Sem grupo de
             ferramenta: é navegação, como as Cenas, e nasce recolhida — com uma
             ferramenta de desenho na mão ela é só uma linha de título. Antes de

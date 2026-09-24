@@ -48,6 +48,8 @@ import {
   useAdventureStore,
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
+import { WorldStateSection } from './components/WorldStateSection'
+import { amarradosPorEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
 import { goToMapObject } from './stores/mapObjectNavigation'
@@ -474,6 +476,16 @@ function App() {
     return hostBridgeRef.current
   }
   useEffect(() => useMapStore.subscribe((state) => state.map, () => hostBridgeRef.current?.notifyMapChanged()), [])
+  // ESTADO DO MUNDO: a troca pode mudar SÓ cenas de fundo (a aberta não tem nada
+  // amarrado). Sem esta linha, quem está nelas só veria a comporta abrir quando
+  // alguém mexesse na mesa.
+  useEffect(
+    () =>
+      useAdventureStore.subscribe((state, previous) => {
+        if (state.adventure?.estados !== previous.adventure?.estados) hostBridgeRef.current?.notifyMapChanged()
+      }),
+    [],
+  )
   const laserToggled = useLaserStore((state) => state.toggled)
   // B2 — o `off` sai no fim do traço: soltar o botão, sair da janela ou desarmar (L e botão Laser).
   useEffect(
@@ -1728,6 +1740,18 @@ function App() {
                 onMove={adventure === null ? undefined : (sceneId, parentId) => useAdventureStore.getState().moveScene(sceneId, parentId)}
                 adventureId={adventure?.id ?? null}
               />
+            }
+            // ESTADO DO MUNDO: só com aventura (o estado cruza cenas). O jogador recebe o efeito pelo broadcast de sempre.
+            worldState={
+              adventure === null ? undefined : (
+                <WorldStateSection
+                  estados={adventure.estados ?? []}
+                  // Conta só quando há estado: sem estado, nenhuma passada pelas cenas.
+                  amarrados={(adventure.estados ?? []).length === 0 ? new Map() : amarradosPorEstado(sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map).values())}
+                  onCriar={(nome, valores) => useAdventureStore.getState().criarEstadoDoMundo(nome, valores)}
+                  onTrocar={(estadoId, valor) => useAdventureStore.getState().trocarEstadoDoMundo(estadoId, valor)}
+                />
+              )
             }
             objects={
               <MapObjectsSection map={map} currentKey={currentMapObjectKey} onGoTo={goToMapObject} searchRequest={objectSearchRequest} />
