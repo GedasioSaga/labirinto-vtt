@@ -250,3 +250,54 @@ describe('hostSession: as guardas do "Chamar a cabine"', () => {
     expect(u.s.handleMessage('c2', { type: 'cabine.call', pinId: 'grade-topo' }, w).chamadaDeCabine?.cabineId).toBe('cab-espinha-secreta')
   })
 })
+
+const PARADA_POCO = { sceneId: TOPO, pinId: 'grade-poco-escondida' }
+
+/**
+ * O Topo com uma SEGUNDA parada da Espinha, no Poço: em x=1900 fica na névoa
+ * da Bia (x=200, raio 700). A cabine continua no Térreo: as duas paradas do
+ * Topo estão "longe" e se chamariam.
+ */
+function comPocoEscondido(): HostWorld {
+  const w = mundo(PARADA_TERREO)
+  return {
+    ...w,
+    background: w.background.map((cena) =>
+      cena.sceneId !== TOPO ? cena : { ...cena, map: { ...cena.map, pins: [...cena.map.pins, viagem(PARADA_POCO.pinId, 1900, 200, PARADA_TERREO, 'pede')] } },
+    ),
+    cabines: [{ ...espinha(PARADA_TERREO), paradas: [PARADA_TERREO, PARADA_TOPO, PARADA_POCO] }],
+  }
+}
+
+describe('hostSession: a parada escondida não gasta a vez do "Chamar a cabine"', () => {
+  it('id adivinhado de parada na névoa responde igual a id que não existe, e a chamada da parada que a Bia vê vale logo depois', () => {
+    const w = comPocoEscondido()
+    const t = mesa(w)
+    // O recorte da Bia tem a grade do Topo e não tem o Poço.
+    expect(JSON.stringify(t.s.broadcast(w).outbound.filter((o) => o.clientId === 'c2'))).toContain('grade-topo')
+    expect(JSON.stringify(t.s.broadcast(w).outbound.filter((o) => o.clientId === 'c2'))).not.toContain(PARADA_POCO.pinId)
+    const escondida = t.s.handleMessage('c2', { type: 'cabine.call', pinId: PARADA_POCO.pinId }, w)
+    const inexistente = t.s.handleMessage('c2', { type: 'cabine.call', pinId: 'pino-que-nao-existe' }, w)
+    expect(escondida).toEqual(inexistente)
+    expect(escondida.chamadaDeCabine).toBeUndefined()
+    // Sem avançar o relógio: se a escondida tivesse gastado a vez, esta
+    // chamada morreria no limite e a Bia descobriria que o Poço existe.
+    expect(t.s.handleMessage('c2', { type: 'cabine.call', pinId: 'grade-topo' }, w).chamadaDeCabine?.chamada.parada).toEqual(PARADA_TOPO)
+  })
+
+  it('parada que o "Quem vê" esconde da Bia também não gasta a vez', () => {
+    const w = comPocoEscondido()
+    const perto = { ...w, background: w.background.map((cena) => (cena.sceneId !== TOPO ? cena : { ...cena, map: { ...cena.map, pins: cena.map.pins.map((p) => (p.id === PARADA_POCO.pinId ? { ...p, x: 350 } : p)) } })) }
+    const t = mesa(perto)
+    t.s.setPinAudience(PARADA_POCO.pinId, [t.ana])
+    expect(t.s.handleMessage('c2', { type: 'cabine.call', pinId: PARADA_POCO.pinId }, perto).chamadaDeCabine).toBeUndefined()
+    expect(t.s.handleMessage('c2', { type: 'cabine.call', pinId: 'grade-topo' }, perto).chamadaDeCabine?.cabineId).toBe('cab-espinha-secreta')
+  })
+
+  it('a parada que a Bia vê continua gastando a vez: duas chamadas seguidas, só a primeira vale', () => {
+    const w = comPocoEscondido()
+    const t = mesa(w)
+    expect(t.s.handleMessage('c2', { type: 'cabine.call', pinId: 'grade-topo' }, w).chamadaDeCabine).toBeDefined()
+    expect(t.s.handleMessage('c2', { type: 'cabine.call', pinId: 'grade-topo' }, w).chamadaDeCabine).toBeUndefined()
+  })
+})
