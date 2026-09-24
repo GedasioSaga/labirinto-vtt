@@ -614,7 +614,17 @@ export interface Prop extends PlayerSecret {
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
    *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
   hidden?: boolean
+  /** MOBÍLIA DESENHADA: o objeto é um móvel do catálogo (`lib/mobilia.ts`),
+   *  sem imagem (`src: ''`), desenhado como silhueta chapada com o glifo do
+   *  tipo por cima, no editor e na tela do jogador. `undefined` = objeto
+   *  comum de imagem (comportamento de sempre) — sem linha de migração; tipo
+   *  fora do catálogo vindo do disco some na leitura (`deserializeMap`).
+   *  Vai ao jogador junto do móvel que ele enxerga: o tipo É o desenho. */
+  mobilia?: TipoMobilia
 }
+
+/** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */
+export type TipoMobilia = 'catre' | 'mesa' | 'bau'
 
 export interface DrawingPoint {
   x: number

@@ -1700,5 +1700,9 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
   }
   if (prop.rotation !== undefined) forPlayer.rotation = prop.rotation
   if (prop.layer !== undefined) forPlayer.layer = prop.layer
+  // MOBÍLIA DESENHADA: o tipo é o desenho que a tela do jogador pinta por cima
+  // da silhueta. Só chega aqui o móvel que ele enxerga (o filtro acima tirou o
+  // resto), então o tipo não diz nada que a silhueta na tela já não diga.
+  if (prop.mobilia !== undefined) forPlayer.mobilia = prop.mobilia
   return forPlayer
 }

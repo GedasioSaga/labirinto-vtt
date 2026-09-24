@@ -3,6 +3,9 @@ import { Container, Graphics, Sprite } from 'pixi.js'
 import { createPropsRenderer } from './drawProps'
 import type { Prop } from '../types/map'
 
+/** Zoom 1, sem alta densidade: o quadro de todo teste que não é sobre zoom. */
+const ZOOM_1 = { cameraScale: 1, rendererResolution: 1 }
+
 vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (path: string) => `mocked://${path}`,
 }))
@@ -26,7 +29,7 @@ function highlightOf(container: Container): Graphics {
 describe('createPropsRenderer — objeto "Oculto no editor" como fantasma', () => {
   it('oculto continua visível (clicável), bem transparente e com contorno tracejado', () => {
     const container = new Container()
-    createPropsRenderer().draw(container, [buildProp({ hidden: true })], null)
+    createPropsRenderer().draw(container, [buildProp({ hidden: true })], null, ZOOM_1)
 
     const sprite = spriteOf(container)
     expect(sprite.visible).toBe(true)
@@ -41,7 +44,7 @@ describe('createPropsRenderer — objeto "Oculto no editor" como fantasma', () =
 
   it('oculto e selecionado: mantém o fantasma e ganha o destaque de seleção', () => {
     const container = new Container()
-    createPropsRenderer().draw(container, [buildProp({ hidden: true })], 'p1')
+    createPropsRenderer().draw(container, [buildProp({ hidden: true })], 'p1', ZOOM_1)
     const strokesList = highlightOf(container).context.instructions.filter((i) => i.action === 'stroke')
     expect(strokesList).toHaveLength(2)
   })
@@ -49,8 +52,8 @@ describe('createPropsRenderer — objeto "Oculto no editor" como fantasma', () =
   it('normal não ganha contorno; desocultar tira o fantasma', () => {
     const container = new Container()
     const renderer = createPropsRenderer()
-    renderer.draw(container, [buildProp({ hidden: true })], null)
-    renderer.draw(container, [buildProp({ hidden: false })], null)
+    renderer.draw(container, [buildProp({ hidden: true })], null, ZOOM_1)
+    renderer.draw(container, [buildProp({ hidden: false })], null, ZOOM_1)
 
     expect(spriteOf(container).alpha).toBe(1)
     expect(highlightOf(container).context.instructions).toHaveLength(0)

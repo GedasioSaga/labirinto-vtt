@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
-import type { RoomMeta } from '../types/map'
+import type { RoomMeta, TipoMobilia } from '../types/map'
+import { NOME_COM_ARTIGO, ROTULO_MOBILIA, TIPOS_MOBILIA } from '../lib/mobilia'
 import { MIN_ROOM_DIMENSION } from '../lib/roomOps'
 import { ROTATION_SHIFT_STEP } from '../lib/roomRotation'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
@@ -65,6 +66,8 @@ export interface RoomControlsProps {
   parentName?: string
   /** "Criar sala dentro": arma a ferramenta Sala com esta sala como mãe. Ausente omite o botão. */
   onCreateRoomInside?: () => void
+  /** MOBÍLIA DESENHADA: põe um móvel do tipo no centro da sala (`lib/mobilia.ts`). Ausente omite a seção. */
+  onAddMobilia?: (tipo: TipoMobilia) => void
 }
 
 interface RoomRotationFieldProps {
@@ -245,6 +248,7 @@ export function RoomControls({
   locked,
   parentName,
   onCreateRoomInside,
+  onAddMobilia,
 }: RoomControlsProps) {
   const baseId = useId()
   const roofHintId = `${baseId}-roof-hint`
@@ -252,6 +256,7 @@ export function RoomControls({
   const enterHintId = `${baseId}-texto-ao-entrar-hint`
   const noteId = `${baseId}-nota-do-mestre`
   const noteHintId = `${baseId}-nota-do-mestre-hint`
+  const mobiliaLabelId = `${baseId}-mobilia`
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Sala</h2>
@@ -373,6 +378,27 @@ export function RoomControls({
         locked={locked}
         note={shape === 'rect' && !axisAligned ? NOTA_SALA_TORTA : undefined}
       />
+
+      {onAddMobilia !== undefined && (
+        <div className="lb-field">
+          <span className="lb-label" id={mobiliaLabelId}>
+            Mobília
+          </span>
+          <div className="lb-mobilia" role="group" aria-label="Pôr mobília na sala" aria-describedby={mobiliaLabelId}>
+            {TIPOS_MOBILIA.map((tipo) => (
+              <button
+                key={tipo}
+                type="button"
+                className="lb-btn lb-mobilia__option"
+                title={`Pôr ${NOME_COM_ARTIGO[tipo]} no centro da sala`}
+                onClick={() => onAddMobilia(tipo)}
+              >
+                {ROTULO_MOBILIA[tipo]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {onCreateRoomInside !== undefined && (
         <button type="button" className="lb-btn lb-btn--block" onClick={onCreateRoomInside}>

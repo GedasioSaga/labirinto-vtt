@@ -445,6 +445,17 @@ body {
   letter-spacing: var(--lb-font-tracking-wide);
 }
 
+/* Mobília da sala: Catre | Mesa | Baú dividem a linha em partes iguais. */
+.lb-mobilia {
+  display: flex;
+  gap: var(--lb-space-2);
+}
+
+.lb-mobilia__option {
+  flex: 1;
+  min-width: 0;
+}
+
 /* --------------------------------------------------------- switch (checkbox) */
 
 .lb-switch {
