@@ -19,6 +19,7 @@ import { useFollowStore } from './stores/followStore'
 import { advanceTurn, startTurn, useInitiativeStore } from './stores/initiativeStore'
 import { useClockStore } from './stores/clockStore'
 import { turnTokenIdOn } from './lib/initiative'
+import { carryRefsOf } from './lib/carry'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { useArrivalTextSettings } from './stores/useArrivalTextSettings'
 import { playSignalSound } from './lib/signalSound'
@@ -954,6 +955,8 @@ function App() {
   const selectedWall = singleSelection?.kind === 'wall' ? map.walls.find((w) => w.id === singleSelection.id) ?? null : null
   const selectedProp = singleSelection?.kind === 'prop' ? map.props.find((p) => p.id === singleSelection.id) ?? null : null
   const selectedToken = singleSelection?.kind === 'token' ? map.tokens.find((t) => t.id === singleSelection.id) ?? null : null
+  // LEVAR FICHA JUNTO: quem leva a ficha selecionada, quem ela leva e a quem pode ser presa (a mais perto primeiro).
+  const selectedTokenCarry = carryRefsOf(map, selectedToken)
   const selectedDrawing = singleSelection?.kind === 'drawing' ? map.drawings.find((d) => d.id === singleSelection.id) ?? null : null
   const selectedTextLabel = selectedDrawing && selectedDrawing.kind === 'text' ? selectedDrawing : null
   const selectedRegion = singleSelection?.kind === 'region' ? map.regions.find((r) => r.id === singleSelection.id) ?? null : null
@@ -2160,6 +2163,12 @@ function App() {
               // Opera sobre a ficha ATUAL do store: o "marcar" grava onde ela
               // está agora. Cada clique que muda o mapa é um Ctrl+Z.
               onPatrolOp: (op) => selectedToken && useMapStore.getState().patrolAction(selectedToken.id, op),
+            }}
+            tokenCarry={{
+              ...selectedTokenCarry,
+              // Prender e soltar passam pelo histórico: Ctrl+Z desfaz.
+              onCarry: (carrierId) => selectedToken && useMapStore.getState().carryToken(selectedToken.id, carrierId),
+              onRelease: (carriedId) => useMapStore.getState().releaseCarriedToken(carriedId),
             }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),

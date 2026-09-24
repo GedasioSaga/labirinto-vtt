@@ -25,6 +25,7 @@ import { pullLever } from '../lib/lever'
 import { setOutdoor as setOutdoorOnMap } from '../lib/campaignClock'
 import { applyPatrolOp, type PatrolOp } from '../lib/npcPatrol'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
+import { attachCarried, carrierIdOf, releaseCarried } from '../lib/carry'
 import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
 import { setRegionTrigger as setRegionTriggerOnMap, setRegionTriggerRevealed as setRegionTriggerRevealedOnMap } from '../lib/areaTriggers'
 import { setArrivalText as setArrivalTextOnMap } from '../lib/arrivalText'
@@ -551,6 +552,14 @@ interface MapStoreState {
    */
   setTokenPositionsLive: (positions: readonly { id: string; x: number; y: number }[]) => void
   moveToken: (id: string, targetX: number, targetY: number) => void
+  /**
+   * LEVAR FICHA JUNTO: prende `carriedId` a `carrierId` (`lib/carry.ts`), com
+   * histórico. Recusado pelas regras (a si mesma, cadeia): nada muda e o
+   * desfazer não ganha passo.
+   */
+  carryToken: (carriedId: string, carrierId: string) => void
+  /** Solta `carriedId` de quem o leva, com histórico. Sem vínculo: nada muda. */
+  releaseCarriedToken: (carriedId: string) => void
   /** `imageData`: cópia auto-contida que viaja até o jogador (ver lib/tokenPhoto.ts). Omitido = sem cópia. */
   setTokenImage: (id: string, image: string | null, imageData?: string | null) => void
   /** Campo Nome do painel do token — com histórico, mesmo padrão de `setRoomName`. */
@@ -1310,7 +1319,25 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       const { map } = get()
       const present = positions.filter((p) => map.tokens.some((t) => t.id === p.id))
       if (present.length === 0) return
-      withHistory((m) => present.reduce((acc, p) => mapFactory.setTokenPosition(acc, p.id, p.x, p.y), m))
+      // LEVAR FICHA JUNTO: quem leva anda primeiro (e arrasta quem vai junto);
+      // ficha levada que TEM casa na lista assenta depois, na casa dela — senão
+      // o arrasto de quem leva a tiraria do lugar escolhido.
+      const isCarried = (id: string): boolean => {
+        const token = map.tokens.find((t) => t.id === id)
+        return token !== undefined && carrierIdOf(token) !== null
+      }
+      const ordered = [...present.filter((p) => !isCarried(p.id)), ...present.filter((p) => isCarried(p.id))]
+      withHistory((m) => ordered.reduce((acc, p) => mapFactory.setTokenPosition(acc, p.id, p.x, p.y), m))
+    },
+    carryToken: (carriedId, carrierId) => {
+      const { map } = get()
+      const next = attachCarried(map, carriedId, carrierId)
+      if (next !== map) withHistory(() => next)
+    },
+    releaseCarriedToken: (carriedId) => {
+      const { map } = get()
+      const next = releaseCarried(map, carriedId)
+      if (next !== map) withHistory(() => next)
     },
     setTokenPositionsLive: (positions) => {
       const { map } = get()

@@ -35,6 +35,7 @@ import { TokenWatchControls, type TokenWatchControlsProps } from './TokenWatchCo
 import { readTokenWatch } from '../lib/npcWatch'
 import { TokenPatrolControls, type TokenPatrolControlsProps } from './TokenPatrolControls'
 import { readTokenPatrol } from '../lib/npcPatrol'
+import { TokenCarryControls, type TokenCarryControlsProps } from './TokenCarryControls'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
 import { StairControls, type StairControlsProps } from './StairControls'
@@ -133,6 +134,8 @@ interface PropertiesPanelProps {
   tokenWatch: Omit<TokenWatchControlsProps, 'watch'>
   /** ROTA DE PATRULHA: marca a ronda do NPC e o faz andar um passo. */
   tokenPatrol: Omit<TokenPatrolControlsProps, 'patrol'>
+  /** LEVAR FICHA JUNTO: quem leva a ficha selecionada, quem ela leva, a quem pode ser presa, e as ações. */
+  tokenCarry: Omit<TokenCarryControlsProps, 'tokenId'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -218,6 +221,7 @@ export function PropertiesPanel({
   tokenCondition,
   tokenWatch,
   tokenPatrol,
+  tokenCarry,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -468,6 +472,9 @@ export function PropertiesPanel({
             <TokenWatchControls watch={readTokenWatch(selectedToken.vigia)} {...tokenWatch} />
             {/* Patrulha junto da vigia: as duas dizem o que o NPC faz na cena. */}
             <TokenPatrolControls patrol={readTokenPatrol(selectedToken.patrulha)} {...tokenPatrol} />
+            {/* Levar junto também é controle de MESA: o aliado cai no meio da
+                cena e alguém o carrega até a saída. */}
+            <TokenCarryControls tokenId={selectedToken.id} {...tokenCarry} />
             {/* Antes da imagem: a cor é o caminho de um clique, a foto é o de
                 abrir o disco. Quem só quer separar aliado de inimigo não
                 precisa passar pelo controle caro para chegar no barato. */}

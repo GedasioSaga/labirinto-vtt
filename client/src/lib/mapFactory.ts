@@ -18,7 +18,8 @@ import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
-import { carryAttachedPins } from './pinAttach'
+import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
+import { carrierIdOf, followStep } from './carry'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -623,14 +624,26 @@ export function removeToken(map: MapData, tokenId: string): MapData {
  * Posição da ficha. Todo caminho que move UMA ficha passa por aqui (arrasto,
  * seta, pedido do jogador, cena de fundo, reunir o grupo), e por isso é aqui
  * que o pino PRESO a ela anda junto (`lib/pinAttach.ts`).
+ *
+ * LEVAR FICHA JUNTO: as fichas que ela leva (`lib/carry.ts`) andam o MESMO
+ * deslocamento, então o ferido acompanha em todos esses caminhos sem cada um
+ * lembrar dele. Cada ficha levada tem o PRÓPRIO trajeto checado
+ * (`followStep`): parede no caminho dela a deixa para trás, mesmo que quem
+ * leva tenha passado.
  */
 export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
-  const token = map.tokens.find((t) => t.id === tokenId)
+  const moving = map.tokens.find((t) => t.id === tokenId)
+  const dx = moving === undefined ? 0 : x - moving.x
+  const dy = moving === undefined ? 0 : y - moving.y
+  const follows = (t: Token): boolean => (dx !== 0 || dy !== 0) && t.id !== tokenId && carrierIdOf(t) === tokenId
   const moved: MapData = {
     ...map,
-    tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : t)),
+    tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : follows(t) ? followStep(map, t, dx, dy) : t)),
   }
-  return token === undefined ? moved : carryAttachedPins(moved, tokenId, x - token.x, y - token.y)
+  if (moving === undefined) return moved
+  // O pino preso à ficha LEVADA anda o passo real dela (zero se a parede a barrou).
+  const followerIds = new Set(map.tokens.filter(follows).map((t) => t.id))
+  return carryPinsByTokenSteps(carryAttachedPins(moved, tokenId, dx, dy), map.tokens, followerIds)
 }
 
 /** Renomeia só o token alvo. Id inexistente devolve o mapa pela mesma referência. */
