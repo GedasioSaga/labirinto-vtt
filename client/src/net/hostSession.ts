@@ -291,6 +291,9 @@ export interface ReclaimedSeat {
   tokenIds: string[]
 }
 
+/** Por playerId, fichas fora do mapa que continuam sendo dele (o "Guardar ficha" da ponte). */
+export type HeldTokens = ReadonlyMap<string, readonly string[]>
+
 export interface PlayerInfo {
   clientId: string | null
   playerId: string
@@ -579,14 +582,18 @@ export interface HostSession {
   /**
    * A mesa a gravar: quem está com ficha agora e os assentos de quem ainda não
    * voltou (menos as fichas que já têm outro dono). Só do mestre.
+   *
+   * `held`: por playerId, as fichas fora do mapa que continuam sendo dele (o
+   * "Guardar ficha" da ponte, que a sessão não conhece). Contam como dele: a
+   * ficha guardada volta a ele na retomada, e o assento não some da mesa.
    */
-  savedSeats(): SavedSeat[]
+  savedSeats(held?: HeldTokens): SavedSeat[]
   /**
    * O mapa explorado a gravar, com os mesmos nomes de `savedSeats`: a memória
    * de agora de quem está com ficha, e a guardada de quem ainda não voltou.
-   * Só do mestre.
+   * Só do mestre. `held` como em `savedSeats`.
    */
-  savedExploration(): SavedSeatExploration[]
+  savedExploration(held?: HeldTokens): SavedSeatExploration[]
   readonly rev: number
 }
 
@@ -951,9 +958,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return taken
   }
 
+  /** As fichas do assento de `playerId`: as do mapa e as que a ponte guardou para ele. */
+  const seatTokensOf = (playerId: string, held: HeldTokens | undefined): string[] => [
+    ...new Set([...(ownership[playerId] ?? []), ...(held?.get(playerId) ?? [])]),
+  ]
+
   /** Quem ocupa assento na mesa gravada: os jogadores com ficha, na ordem em que entraram. */
-  const seatedPlayers = (): PlayerRecord[] =>
-    [...players.values()].sort((a, b) => a.joinedAt - b.joinedAt).filter((p) => (ownership[p.playerId]?.length ?? 0) > 0)
+  const seatedPlayers = (held: HeldTokens | undefined): PlayerRecord[] =>
+    [...players.values()].sort((a, b) => a.joinedAt - b.joinedAt).filter((p) => seatTokensOf(p.playerId, held).length > 0)
 
   /**
    * O nome com que o jogador é gravado. Quem retomou grava com o nome do
@@ -962,12 +974,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    */
   const seatNameOf = (p: PlayerRecord): string => claimedSeats.get(p.playerId)?.seat.name ?? p.name
 
-  const buildSavedSeats = (): SavedSeat[] => {
+  const buildSavedSeats = (held: HeldTokens | undefined): SavedSeat[] => {
     const seats: SavedSeat[] = []
     const owned = new Set<string>()
     const seated = new Set<string>()
-    for (const p of seatedPlayers()) {
-      const tokenIds = ownership[p.playerId] ?? []
+    for (const p of seatedPlayers(held)) {
+      const tokenIds = seatTokensOf(p.playerId, held)
       for (const tokenId of tokenIds) owned.add(tokenId)
       const name = seatNameOf(p)
       seated.add(normalizeName(name))
@@ -2019,14 +2031,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return { outbound: waitingIfLostLast(playerId, current.length > 0) }
     },
 
-    savedSeats() {
-      return buildSavedSeats()
+    savedSeats(held) {
+      return buildSavedSeats(held)
     },
 
-    savedExploration() {
+    savedExploration(held) {
       const saved: SavedSeatExploration[] = []
       const written = new Set<string>()
-      for (const p of seatedPlayers()) {
+      for (const p of seatedPlayers(held)) {
         const byScene = memories.get(p.playerId)
         if (byScene === undefined || byScene.size === 0) continue
         const name = seatNameOf(p)
@@ -2034,7 +2046,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         saved.push({ name, scenes: [...byScene.values()].map(savedSceneOf) })
       }
       // Quem ainda não voltou guarda a memória de ontem, se o assento dele continua na mesa.
-      const seated = new Set(buildSavedSeats().map((seat) => normalizeName(seat.name)))
+      const seated = new Set(buildSavedSeats(held).map((seat) => normalizeName(seat.name)))
       for (const [key, exploration] of pendingExploration) {
         if (!written.has(key) && seated.has(key)) saved.push(exploration)
       }

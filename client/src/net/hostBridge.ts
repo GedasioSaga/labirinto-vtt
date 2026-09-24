@@ -21,6 +21,7 @@ import {
   type AppliedTokenEdit,
   type DoorRequest,
   type AppliedTransfer,
+  type HeldTokens,
   type HostResult,
   type HostSession,
   type HostSignal,
@@ -410,6 +411,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const storedTokens = new Map<string, StoredToken[]>()
 
+  /** Os ids das fichas guardadas, por dono: na mesa gravada continuam dele. */
+  const heldTokenIds = (): HeldTokens => new Map([...storedTokens].map(([playerId, stored]) => [playerId, stored.map(({ token }) => token.id)]))
+
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
 
@@ -553,8 +557,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // Mesa sem assento nenhum (sala recém-aberta, "Mesa nova" antes de alguém
     // ganhar ficha): não há de quem gravar, e gravar vazio apagaria o explorado
     // que a mesa guardada ainda pode retomar.
-    if (session.savedSeats().length === 0) return
-    deps.saveExploration({ version: SAVED_EXPLORATION_VERSION, seats: session.savedExploration() })
+    const held = heldTokenIds()
+    if (session.savedSeats(held).length === 0) return
+    deps.saveExploration({ version: SAVED_EXPLORATION_VERSION, seats: session.savedExploration(held) })
   }
 
   /** Grava o explorado uma vez, `EXPLORATION_SAVE_DELAY_MS` depois da primeira mudança pendente. */
@@ -581,7 +586,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const saveTableNow = () => {
     if (session === null || currentRoom === null || deps.saveTable === undefined) return
-    deps.saveTable({ version: SAVED_TABLE_VERSION, code: currentRoom.code, seats: session.savedSeats() })
+    deps.saveTable({ version: SAVED_TABLE_VERSION, code: currentRoom.code, seats: session.savedSeats(heldTokenIds()) })
   }
 
   /** Envia tudo; a promise nunca rejeita — falha vira toast, nunca silêncio. */

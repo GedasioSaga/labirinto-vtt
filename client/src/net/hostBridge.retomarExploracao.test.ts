@@ -66,6 +66,13 @@ function montar(guardado: Guardado = { table: null, exploration: null }) {
     getMap: () => estado.map,
     applyMove: vi.fn(),
     applyDoor: vi.fn(),
+    // "Guardar ficha": a ficha sai do mapa e volta a ele igual.
+    removeToken: (tokenId) => {
+      estado.map = { ...estado.map, tokens: estado.map.tokens.filter((token) => token.id !== tokenId) }
+    },
+    restoreToken: (token) => {
+      estado.map = { ...estado.map, tokens: [...estado.map.tokens, token] }
+    },
     loadTable: () => guardado.table,
     saveTable: (table) => {
       mesas.push(table)
@@ -80,12 +87,17 @@ function montar(guardado: Guardado = { table: null, exploration: null }) {
     if (handler === undefined) throw new Error('sem listener de net:message')
     handler({ payload: { clientId, msg: { type: 'join', code: ROOM.code, name } } })
   }
+  const cai = (clientId: string) => {
+    const handler = handlers.get('net:peer')
+    if (handler === undefined) throw new Error('sem listener de net:peer')
+    handler({ payload: { clientId, event: 'disconnected' } })
+  }
   const enviadas = (clientId: string) =>
     invoke.mock.calls
       .filter((call) => call[0] === 'net_send')
       .map((call) => JSON.stringify(call[1]))
       .filter((text) => text.includes(`"clientId":"${clientId}"`))
-  return { bridge, entra, enviadas, estado, mesas, exploracoes, loadExploration }
+  return { bridge, entra, cai, enviadas, estado, mesas, exploracoes, loadExploration }
 }
 
 /** Dia 1: Carla explora o Porão do leste ao oeste com raio 250; o mestre fecha a sala. */
@@ -167,5 +179,26 @@ describe('hostBridge: retomar a mesa com o mapa explorado', () => {
     const texto = hoje.enviadas('c1').join('\n')
     expect(texto).toContain('porao-oeste')
     expect(texto).not.toContain('porao-leste')
+  })
+
+  it('"Guardar ficha" de Carla, que foi embora: Retomar ainda devolve a ela a ficha e o leste explorado', async () => {
+    const ontem = await dia1()
+    vi.advanceTimersByTime(EXPLORATION_SAVE_DELAY_MS)
+    const carla = ontem.bridge.players()[0]
+    if (carla === undefined) throw new Error('Carla deveria ter entrado')
+    ontem.cai('c1')
+    expect(ontem.bridge.storeTokens(carla.playerId)).toBe(true)
+    await ontem.bridge.stop()
+    // Fechar devolve a ficha guardada ao mapa, sem dono.
+    expect(ontem.estado.map.tokens.map((token) => token.id)).toEqual(['carla-f'])
+    expect(ontem.mesas.at(-1)?.seats).toEqual([{ name: 'Carla', tokenIds: ['carla-f'], visionRadius: 250, sceneKey: 'm-porao' }])
+    const hoje = montar({ table: ontem.mesas.at(-1) ?? null, exploration: ontem.exploracoes.at(-1) ?? null })
+    hoje.estado.map = porao(OESTE)
+    await hoje.bridge.start({ resume: true })
+    hoje.entra('c1', 'Carla')
+    expect(hoje.bridge.players()[0]).toMatchObject({ status: 'playing', tokenIds: ['carla-f'], visionRadius: 250 })
+    const texto = hoje.enviadas('c1').join('\n')
+    expect(texto).toContain('porao-leste')
+    expect(texto).not.toContain('sotao')
   })
 })
