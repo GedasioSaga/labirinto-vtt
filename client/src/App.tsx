@@ -1725,11 +1725,14 @@ function App() {
                 onNote={room === null ? undefined : (sceneId, text) => hostBridgeRef.current?.sceneNote(sceneId, text) ?? null}
                 // Menu "…" da cena: só com aventura (o mapa solto não tem lista de cenas para mexer).
                 onDuplicate={adventure === null ? undefined : handleDuplicateScene}
-                onMove={adventure === null ? undefined : (sceneId, delta) => useAdventureStore.getState().moveScene(sceneId, delta)}
+                onShift={adventure === null ? undefined : (sceneId, delta) => useAdventureStore.getState().shiftScene(sceneId, delta)}
                 onDelete={adventure === null ? undefined : handleDeleteScene}
                 deletionInfo={
                   adventure === null ? undefined : (sceneId) => sceneDeletionInfo({ adventure, activeSceneId, cache: sceneCache }, map, sceneId, roomPlayers)
                 }
+                // Cenas em pastas: só a lista do mestre muda (pede Salvar); o jogador não recebe nada.
+                onMove={adventure === null ? undefined : (sceneId, parentId) => useAdventureStore.getState().moveScene(sceneId, parentId)}
+                adventureId={adventure?.id ?? null}
               />
             }
             objects={

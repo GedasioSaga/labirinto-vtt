@@ -11,9 +11,9 @@ const CENAS: SceneListItem[] = [
 ]
 
 const INFO: Record<string, SceneDeletionInfo> = {
-  's-cais': { orphanPins: 1, blockers: ['Ana', 'Bruno'] },
-  's-casa': { orphanPins: 2, blockers: [] },
-  's-9': { orphanPins: 0, blockers: [] },
+  's-cais': { orphanPins: 1, blockers: ['Ana', 'Bruno'], inside: 0 },
+  's-casa': { orphanPins: 2, blockers: [], inside: 0 },
+  's-9': { orphanPins: 0, blockers: [], inside: 0 },
 }
 
 describe('ScenesSection: menu "…" da cena (Duplicar, Subir, Descer, Apagar)', () => {
@@ -42,9 +42,9 @@ describe('ScenesSection: menu "…" da cena (Duplicar, Subir, Descer, Apagar)', 
           onCreate={() => {}}
           onRename={() => {}}
           onDuplicate={() => {}}
-          onMove={() => {}}
+          onShift={() => {}}
           onDelete={() => {}}
-          deletionInfo={(sceneId) => INFO[sceneId] ?? { orphanPins: 0, blockers: [] }}
+          deletionInfo={(sceneId) => INFO[sceneId] ?? { orphanPins: 0, blockers: [], inside: 0 }}
           {...extra}
         />,
       ),
@@ -117,22 +117,22 @@ describe('ScenesSection: menu "…" da cena (Duplicar, Subir, Descer, Apagar)', 
   })
 
   it('Subir move a cena uma posição para cima; Descer, para baixo', () => {
-    const onMove = vi.fn()
-    render({ onMove })
+    const onShift = vi.fn()
+    render({ onShift })
     escolher('Casa genérica', 'Subir')
-    expect(onMove).toHaveBeenLastCalledWith('s-casa', -1)
+    expect(onShift).toHaveBeenLastCalledWith('s-casa', -1)
     escolher('Casa genérica', 'Descer')
-    expect(onMove).toHaveBeenLastCalledWith('s-casa', 1)
-    expect(onMove).toHaveBeenCalledTimes(2)
+    expect(onShift).toHaveBeenLastCalledWith('s-casa', 1)
+    expect(onShift).toHaveBeenCalledTimes(2)
   })
 
-  it('item esmaecido não age: Descer na última cena não chama onMove', () => {
-    const onMove = vi.fn()
-    render({ onMove })
+  it('item esmaecido não age: Descer na última cena não chama onShift', () => {
+    const onShift = vi.fn()
+    render({ onShift })
     const menu = abrir('Cena 9')
     expect(item(menu, 'Descer').getAttribute('aria-disabled')).toBe('true')
     act(() => item(menu, 'Descer').click())
-    expect(onMove).not.toHaveBeenCalled()
+    expect(onShift).not.toHaveBeenCalled()
   })
 
   it('setas pulam o item esmaecido e Esc fecha devolvendo o foco ao "…"', () => {
@@ -199,5 +199,55 @@ describe('ScenesSection: menu "…" da cena (Duplicar, Subir, Descer, Apagar)', 
     expect(item(menu, 'Apagar cena…').getAttribute('aria-disabled')).toBe('true')
     act(() => item(menu, 'Apagar cena…').click())
     expect(confirmacao()).toBeNull()
+  })
+
+  /**
+   * CENAS EM PASTAS: Subir e Descer andam entre as irmãs (mesma pasta), então
+   * a ponta que esmaece é a da pasta, não a da lista inteira.
+   *
+   *   Costa Norte
+   *     PC - Cais
+   *     Casa genérica
+   *   Farol
+   */
+  const EM_PASTAS: SceneListItem[] = [
+    { id: 's-costa', name: 'Costa Norte', active: true, available: true, renamable: true, tokenCount: 0 },
+    { id: 's-cais', name: 'PC - Cais', active: false, available: true, renamable: true, tokenCount: 0, parentId: 's-costa' },
+    { id: 's-farol', name: 'Farol', active: false, available: true, renamable: true, tokenCount: 0 },
+    { id: 's-casa', name: 'Casa genérica', active: false, available: true, renamable: true, tokenCount: 0, parentId: 's-costa' },
+  ]
+
+  it('dentro de uma pasta, Subir esmaece na primeira de dentro e Descer na última, mesmo no meio da lista', () => {
+    render({ scenes: EM_PASTAS })
+    const cais = abrir('PC - Cais')
+    expect(item(cais, 'Subir').getAttribute('aria-disabled')).toBe('true')
+    expect(item(cais, 'Descer').getAttribute('aria-disabled')).toBeNull()
+    tecla(cais, 'Escape')
+    const casa = abrir('Casa genérica')
+    expect(item(casa, 'Subir').getAttribute('aria-disabled')).toBeNull()
+    expect(item(casa, 'Descer').getAttribute('aria-disabled')).toBe('true')
+  })
+
+  it('a pasta do primeiro nível desce para baixo da irmã dela, e a última do primeiro nível não desce', () => {
+    const onShift = vi.fn()
+    render({ scenes: EM_PASTAS, onShift })
+    const costa = abrir('Costa Norte')
+    expect(item(costa, 'Subir').getAttribute('aria-disabled')).toBe('true')
+    act(() => item(costa, 'Descer').click())
+    expect(onShift).toHaveBeenCalledWith('s-costa', 1)
+    const farol = abrir('Farol')
+    expect(item(farol, 'Subir').getAttribute('aria-disabled')).toBeNull()
+    expect(item(farol, 'Descer').getAttribute('aria-disabled')).toBe('true')
+  })
+
+  it('apagar uma pasta avisa que as cenas de dentro sobem um nível', () => {
+    render({ scenes: EM_PASTAS, deletionInfo: (sceneId) => ({ orphanPins: 0, blockers: [], inside: sceneId === 's-costa' ? 2 : 0 }) })
+    escolher('Costa Norte', 'Apagar cena…')
+    const caixa = confirmacao()
+    if (caixa === null) throw new Error('confirmação não abriu')
+    expect(caixa.textContent).toContain('As 2 cenas de dentro dela sobem um nível.')
+    act(() => botaoNa(caixa, 'Cancelar').click())
+    escolher('Farol', 'Apagar cena…')
+    expect(confirmacao()?.textContent).not.toContain('de dentro')
   })
 })

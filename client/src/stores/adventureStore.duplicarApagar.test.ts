@@ -45,7 +45,7 @@ const { useAdventureStore, sceneDeletionInfo, subscribeToTravelLinks } = await i
 const { useMapStore } = await import('./mapStore')
 const { useSessionStore, subscribeToDirtyFlag } = await import('./sessionStore')
 const { createEmptyMap } = await import('../lib/mapFactory')
-const { parseAdventure } = await import('../lib/adventure')
+const { parseAdventure, sceneTree } = await import('../lib/adventure')
 const { deserializeMap } = await import('../lib/mapFile')
 
 subscribeToDirtyFlag()
@@ -250,14 +250,14 @@ describe('duplicateScene', () => {
   })
 })
 
-describe('moveScene', () => {
+describe('shiftScene', () => {
   it('Subir move uma posição; a primeira não sobe e a última não desce', () => {
-    expect(useAdventureStore.getState().moveScene(NOVE, -1)).toBe(true)
+    expect(useAdventureStore.getState().shiftScene(NOVE, -1)).toBe(true)
     expect(nomes()).toEqual(['PC - Cais', 'Cena 9', 'Casa genérica'])
     expect(useAdventureStore.getState().structureDirty).toBe(true)
-    expect(useAdventureStore.getState().moveScene(CAIS, -1)).toBe(false)
-    expect(useAdventureStore.getState().moveScene(CASA, 1)).toBe(false)
-    expect(useAdventureStore.getState().moveScene(CAIS, 1)).toBe(true)
+    expect(useAdventureStore.getState().shiftScene(CAIS, -1)).toBe(false)
+    expect(useAdventureStore.getState().shiftScene(CASA, 1)).toBe(false)
+    expect(useAdventureStore.getState().shiftScene(CAIS, 1)).toBe(true)
     expect(nomes()).toEqual(['Cena 9', 'PC - Cais', 'Casa genérica'])
   })
 })
@@ -267,10 +267,10 @@ describe('sceneDeletionInfo', () => {
     const state = useAdventureStore.getState()
     const live = useMapStore.getState().map
     // p-cais (no cais) e p-9 (na Cena 9) levam à casa.
-    expect(sceneDeletionInfo(state, live, CASA, JOGADORES)).toEqual({ orphanPins: 2, blockers: ['Bruno'] })
+    expect(sceneDeletionInfo(state, live, CASA, JOGADORES)).toEqual({ orphanPins: 2, blockers: ['Bruno'], inside: 0 })
     // p-casa e p-casa9 (saída extra "Porão") levam ao cais.
-    expect(sceneDeletionInfo(state, live, CAIS, JOGADORES)).toEqual({ orphanPins: 2, blockers: ['Ana'] })
-    expect(sceneDeletionInfo(state, live, NOVE, JOGADORES)).toEqual({ orphanPins: 1, blockers: [] })
+    expect(sceneDeletionInfo(state, live, CAIS, JOGADORES)).toEqual({ orphanPins: 2, blockers: ['Ana'], inside: 0 })
+    expect(sceneDeletionInfo(state, live, NOVE, JOGADORES)).toEqual({ orphanPins: 1, blockers: [], inside: 0 })
   })
 })
 
@@ -331,5 +331,162 @@ describe('deleteScene', () => {
     const lista = parseAdventure(arquivos.get(`${DIR}/adventure.json`) ?? '')
     expect(lista.scenes.map((s) => s.id)).toEqual([CAIS, CASA])
     expect(useSessionStore.getState().isDirty).toBe(false)
+  })
+})
+
+/**
+ * CENAS EM PASTAS: a lista do mestre é a árvore (`sceneTree`), não a ordem
+ * crua de `adventure.scenes`. A ordem crua daqui é de propósito diferente da
+ * árvore (Farol e Praia vêm antes de Cena 9 na lista crua, e Cena 9 está
+ * dentro da Casa): quem tratar a lista como plana erra.
+ *
+ *   Costa Norte
+ *     PC - Cais
+ *     Casa genérica
+ *       Cena 9
+ *     Praia
+ *   Farol
+ */
+describe('pastas: Duplicar, Subir/Descer e Apagar seguem a árvore', () => {
+  const REGIAO = 'cena-regiao'
+  const FAROL = 'cena-farol'
+  const PRAIA = 'cena-praia'
+
+  function abrirComPastas(): void {
+    const regiao = createEmptyMap('map_regiao', 'Costa Norte', 30, 20, 64)
+    const adventure = {
+      version: 1,
+      id: 'adv_costa',
+      name: 'Costa',
+      startSceneId: REGIAO,
+      scenes: [
+        { id: REGIAO, name: 'Costa Norte', file: 'map.json' },
+        { id: CAIS, name: 'PC - Cais', file: `scenes/${CAIS}/map.json`, parentId: REGIAO },
+        { id: CASA, name: 'Casa genérica', file: `scenes/${CASA}/map.json`, parentId: REGIAO },
+        { id: FAROL, name: 'Farol', file: `scenes/${FAROL}/map.json` },
+        { id: PRAIA, name: 'Praia', file: `scenes/${PRAIA}/map.json`, parentId: REGIAO },
+        { id: NOVE, name: 'Cena 9', file: `scenes/${NOVE}/map.json`, parentId: CASA },
+      ],
+    }
+    const mapas = [
+      regiao,
+      mapaCais(),
+      mapaCasa(),
+      createEmptyMap('map_farol', 'Farol', 30, 20, 64),
+      createEmptyMap('map_praia', 'Praia', 30, 20, 64),
+      mapaNove(),
+    ]
+    useAdventureStore.getState().open({
+      path: `${DIR}/map.json`,
+      map: regiao,
+      adventure,
+      adventureDir: DIR,
+      activeSceneId: REGIAO,
+      scenes: adventure.scenes.map((entry, i) => ({ entry, status: 'ok' as const, map: mapas[i] })),
+      changedSceneIds: [],
+      adventureChanged: false,
+    })
+  }
+
+  /** A lista como o mestre a vê: o nome recuado dois espaços por nível. */
+  function arvore(): string[] {
+    return sceneTree(useAdventureStore.getState().adventure?.scenes ?? []).map((row) => `${'  '.repeat(row.depth)}${row.entry.name}`)
+  }
+
+  function paiDe(sceneId: string): string | null {
+    return useAdventureStore.getState().adventure?.scenes.find((scene) => scene.id === sceneId)?.parentId ?? null
+  }
+
+  beforeEach(() => {
+    abrirComPastas()
+  })
+
+  it('a árvore de partida é a do desenho', () => {
+    expect(arvore()).toEqual(['Costa Norte', '  PC - Cais', '  Casa genérica', '    Cena 9', '  Praia', 'Farol'])
+  })
+
+  it('Duplicar uma cena de dentro de uma pasta: a cópia fica na mesma pasta, logo abaixo da original', () => {
+    const id = useAdventureStore.getState().duplicateScene(CAIS, FICHAS_DE_JOGADOR)
+    if (id === null) throw new Error('não duplicou')
+    expect(paiDe(id)).toBe(REGIAO)
+    expect(arvore()).toEqual(['Costa Norte', '  PC - Cais', '  PC - Cais (cópia)', '  Casa genérica', '    Cena 9', '  Praia', 'Farol'])
+  })
+
+  it('Duplicar uma pasta copia só ela: a cópia entra abaixo do que a original tem dentro, sem as de dentro', () => {
+    const id = useAdventureStore.getState().duplicateScene(CASA, FICHAS_DE_JOGADOR)
+    if (id === null) throw new Error('não duplicou')
+    expect(paiDe(id)).toBe(REGIAO)
+    expect(arvore()).toEqual(['Costa Norte', '  PC - Cais', '  Casa genérica', '    Cena 9', '  Casa genérica (cópia)', '  Praia', 'Farol'])
+  })
+
+  it('gravar a cópia de dentro de uma pasta grava o parentId dela', async () => {
+    const id = useAdventureStore.getState().duplicateScene(CAIS, FICHAS_DE_JOGADOR)
+    if (id === null) throw new Error('não duplicou')
+    await useAdventureStore.getState().flush()
+    const lista = parseAdventure(arquivos.get(`${DIR}/adventure.json`) ?? '')
+    expect(lista.scenes.find((scene) => scene.id === id)?.parentId).toBe(REGIAO)
+  })
+
+  it('Subir troca com a irmã de cima na lista que o mestre vê; a pasta anda com o que tem dentro', () => {
+    expect(useAdventureStore.getState().shiftScene(CASA, -1)).toBe(true)
+    expect(arvore()).toEqual(['Costa Norte', '  Casa genérica', '    Cena 9', '  PC - Cais', '  Praia', 'Farol'])
+    expect(useAdventureStore.getState().structureDirty).toBe(true)
+  })
+
+  it('Descer troca com a irmã de baixo, mesmo com outra cena entre as duas na lista crua', () => {
+    expect(useAdventureStore.getState().shiftScene(CASA, 1)).toBe(true)
+    expect(arvore()).toEqual(['Costa Norte', '  PC - Cais', '  Praia', '  Casa genérica', '    Cena 9', 'Farol'])
+  })
+
+  it('a ponta é a da pasta: a primeira de dentro não sobe, a última não desce, a filha única não anda', () => {
+    const { shiftScene } = useAdventureStore.getState()
+    expect(shiftScene(CAIS, -1)).toBe(false)
+    expect(shiftScene(PRAIA, 1)).toBe(false)
+    expect(shiftScene(NOVE, -1)).toBe(false)
+    expect(shiftScene(NOVE, 1)).toBe(false)
+    expect(shiftScene(REGIAO, -1)).toBe(false)
+    expect(arvore()).toEqual(['Costa Norte', '  PC - Cais', '  Casa genérica', '    Cena 9', '  Praia', 'Farol'])
+  })
+
+  it('Descer uma pasta do primeiro nível leva tudo o que ela tem dentro para baixo da irmã', () => {
+    expect(useAdventureStore.getState().shiftScene(REGIAO, 1)).toBe(true)
+    expect(arvore()).toEqual(['Farol', 'Costa Norte', '  PC - Cais', '  Casa genérica', '    Cena 9', '  Praia'])
+  })
+
+  it('Apagar uma pasta: as de dentro sobem um nível e ficam no lugar dela, sem pai pendurado', () => {
+    expect(useAdventureStore.getState().deleteScene(CASA, new Set())).toBe(true)
+    expect(paiDe(NOVE)).toBe(REGIAO)
+    expect(arvore()).toEqual(['Costa Norte', '  PC - Cais', '  Cena 9', '  Praia', 'Farol'])
+  })
+
+  it('Apagar uma pasta do primeiro nível: as de dentro viram primeiro nível, e as netas continuam onde estavam', async () => {
+    expect(useAdventureStore.getState().deleteScene(REGIAO, new Set())).toBe(true)
+    expect(paiDe(CAIS)).toBeNull()
+    expect(paiDe(NOVE)).toBe(CASA)
+    expect(arvore()).toEqual(['PC - Cais', 'Casa genérica', '  Cena 9', 'Praia', 'Farol'])
+    await useAdventureStore.getState().flush()
+    const lista = parseAdventure(arquivos.get(`${DIR}/adventure.json`) ?? '')
+    expect(lista.scenes.map((scene) => [scene.name, scene.parentId ?? null])).toEqual([
+      ['PC - Cais', null],
+      ['Casa genérica', null],
+      ['Praia', null],
+      ['Farol', null],
+      ['Cena 9', CASA],
+    ])
+  })
+
+  it('apagar a pasta ABERTA abre a cena logo abaixo dela na árvore, não a de baixo na lista crua', () => {
+    expect(useAdventureStore.getState().switchScene(CASA)).toBe(true)
+    useAdventureStore.setState({ previousSceneId: null })
+    expect(useAdventureStore.getState().deleteScene(CASA, new Set())).toBe(true)
+    expect(useAdventureStore.getState().activeSceneId).toBe(NOVE)
+  })
+
+  it('a confirmação conta as cenas de dentro que sobem um nível', () => {
+    const state = useAdventureStore.getState()
+    const live = useMapStore.getState().map
+    expect(sceneDeletionInfo(state, live, CASA, []).inside).toBe(1)
+    expect(sceneDeletionInfo(state, live, REGIAO, []).inside).toBe(3)
+    expect(sceneDeletionInfo(state, live, FAROL, []).inside).toBe(0)
   })
 })

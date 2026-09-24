@@ -2267,14 +2267,20 @@ body {
 }
 
 .lb-cenas__item {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--lb-space-2);
+  /* Cena dentro de cena: um degrau de recuo por nível (`--lb-cena-nivel`, do ScenesSection). */
+  margin-left: calc(var(--lb-space-3) * var(--lb-cena-nivel, 0));
   padding: var(--lb-space-2) var(--lb-space-3);
   border: 1px solid var(--lb-color-line);
   border-radius: var(--lb-radius-md);
   background: var(--lb-color-stone-solid);
+  /* A linha também é a alça do arrasto: puxar por ela não pinta texto de azul. */
+  user-select: none;
+  transition: background-color var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
 .lb-cenas__item--ativa {
@@ -2357,6 +2363,16 @@ body {
 }
 
 .lb-cenas__renomear:hover {
+  color: var(--lb-color-brass);
+}
+
+/* "Mover para…" ao lado do ✎, com o mesmo peso: o ícone em traço fino no lugar do glifo. */
+.lb-cenas__mover-btn {
+  display: inline-flex;
+  align-items: center;
+}
+
+.lb-cenas__mover-btn[aria-expanded='true'] {
   color: var(--lb-color-brass);
 }
 
@@ -2511,6 +2527,8 @@ body {
   resize: vertical;
   min-height: 4.5em;
   font-family: inherit;
+  /* A linha não seleciona texto (é alça do arrasto); o recado continua selecionável. */
+  user-select: text;
 }
 
 .lb-cenas__recado-conta {
@@ -2525,6 +2543,192 @@ body {
   margin: 0;
   color: var(--lb-color-parchment-faint);
   font-size: var(--lb-font-size-sm);
+}
+
+/* ---- Cenas em pastas (região > cidade > bairro > casa) */
+
+/* Os fios da árvore: um traço fino e claro no meio de cada degrau de recuo,
+   subindo pelo vão até a linha de cima — os corredores do minimapa, ligando a
+   cena de dentro à de fora. Fica no recuo, fora do cartão. */
+.lb-cenas__item--dentro::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--lb-space-2) * -1 - 1px);
+  bottom: -1px;
+  left: calc(var(--lb-space-3) * var(--lb-cena-nivel) * -1 - 1px);
+  width: calc(var(--lb-space-3) * var(--lb-cena-nivel));
+  /* Pixel inteiro (6 a 7 de cada degrau de 12): em meio pixel o fio sai borrado em dois. */
+  background: repeating-linear-gradient(
+    to right,
+    transparent 0 calc(var(--lb-space-3) / 2),
+    var(--lb-color-line-strong) calc(var(--lb-space-3) / 2) calc(var(--lb-space-3) / 2 + 1px),
+    transparent calc(var(--lb-space-3) / 2 + 1px) var(--lb-space-3)
+  );
+  pointer-events: none;
+}
+
+/* A seta da pasta: abre e fecha sem trocar de cena. Alvo de 24px, encostado na borda do cartão. */
+.lb-cenas__pasta,
+.lb-cenas__recuo {
+  flex: none;
+  width: var(--lb-space-6);
+  height: var(--lb-space-6);
+  margin-left: calc(var(--lb-space-1) * -1);
+}
+
+.lb-cenas__pasta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  cursor: pointer;
+}
+
+.lb-cenas__pasta:hover {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+/* Mesmo giro do cabeçalho de seção recolhível: fechada, a divisa aponta para o lado. */
+.lb-cenas__pasta svg {
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-cenas__pasta[aria-expanded='false'] svg {
+  transform: rotate(-90deg);
+}
+
+/* Pasta recolhida com a cena aberta lá dentro: a borda de latão, mais fraca que a da própria cena aberta. */
+.lb-cenas__item--guarda-ativa {
+  border-color: color-mix(in srgb, var(--lb-color-brass) 45%, transparent);
+}
+
+/* "Filtrar cenas" (só com a lista longa): mesmo campo do "Buscar objeto". */
+.lb-cenas__filtro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-cenas__resumo:empty {
+  display: none;
+}
+
+/* Com filtro, o caminho de cada cena achada, em cinza, na linha de baixo do nome. */
+.lb-cenas__caminho {
+  flex-basis: 100%;
+  min-width: 0;
+  margin-top: calc(var(--lb-space-1) * -1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* A cena que o Enter do filtro abre: um degrau acima do fundo, como no "Buscar objeto". */
+.lb-cenas__item[data-enter='true'] {
+  background: var(--lb-color-stone-raised);
+}
+
+/* O "Mover para…" ocupa a linha inteira do item, como o recado. */
+.lb-cenas__mover {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+  gap: var(--lb-space-2);
+}
+
+/* Arrastar: a cena pega fica apagada no lugar; o destino acende em latão, ou em
+   brasa quando não dá (dentro de uma cena que está dentro dela). */
+.lb-cenas__item[data-arrastando='true'] {
+  opacity: 0.45;
+}
+
+.lb-cenas__item[data-movida='true'] {
+  background: var(--lb-color-brass-soft);
+}
+
+.lb-cenas__item[data-alvo='dentro'],
+.lb-cenas__raiz[data-alvo='dentro'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+}
+
+.lb-cenas__item[data-alvo='invalido'] {
+  border-color: var(--lb-color-ember);
+  background: var(--lb-color-ember-soft);
+}
+
+/* Só durante o arrasto de uma cena de dentro: a faixa que a devolve ao primeiro nível. */
+.lb-cenas__raiz {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--lb-space-10);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px dashed var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-cenas__raiz[data-alvo='dentro'] {
+  border-style: solid;
+  color: var(--lb-color-brass);
+}
+
+/* O fantasma que segue o ponteiro: o nome da cena e o que soltar ali faria.
+   Vive no <body> (o painel tem backdrop-filter, que prenderia um `fixed`). */
+.lb-cenas__fantasma {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  max-width: 240px;
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  box-shadow: var(--lb-shadow-md);
+  color: var(--lb-color-parchment);
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-md);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.lb-cenas__fantasma-nome,
+.lb-cenas__fantasma-dica {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-cenas__fantasma-dica {
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-cenas__fantasma[data-tom='ok'] .lb-cenas__fantasma-dica {
+  color: var(--lb-color-brass);
+}
+
+.lb-cenas__fantasma[data-tom='erro'] .lb-cenas__fantasma-dica {
+  color: var(--lb-color-ember);
+}
+
+/* Durante o arrasto de uma cena, a mão fechada em toda a janela. */
+html.lb-arrastando-cena,
+html.lb-arrastando-cena * {
+  cursor: grabbing !important;
 }
 
 /* "+ Nova cena" e "Visão geral" dividem a linha; sozinho, o primeiro ocupa tudo. */
@@ -2728,7 +2932,8 @@ body {
   transform: translateY(-50%);
 }
 
-.lb-objetos__resumo {
+.lb-objetos__resumo,
+.lb-cenas__resumo {
   margin: 0;
   font-size: var(--lb-font-size-sm);
   line-height: var(--lb-font-leading-normal);

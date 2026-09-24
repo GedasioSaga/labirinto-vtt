@@ -3,7 +3,22 @@ import type { MapData, Pin, PinDestination, Token } from '../types/map'
 import { singleSceneWorld, type HostScene, type HostWorld } from '../net/hostSession'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
-import { ADVENTURE_VERSION, baseName, cleanSceneName, newSceneId, sceneFileFor, type Adventure, type SceneEntry } from '../lib/adventure'
+import {
+  ADVENTURE_VERSION,
+  baseName,
+  cleanSceneName,
+  nestScene,
+  newSceneId,
+  removeSceneKeepingInside,
+  sceneChildCount,
+  sceneFileFor,
+  sceneTrail,
+  sceneTree,
+  shiftSceneAmongSiblings,
+  SCENE_TRAIL_SEPARATOR,
+  type Adventure,
+  type SceneEntry,
+} from '../lib/adventure'
 import {
   addExit,
   arrivalPoint,
@@ -104,6 +119,8 @@ export interface SceneListItem {
   active: boolean
   /** Mapa solto não tem nome de cena para trocar: o nome dele é o do arquivo. */
   renamable: boolean
+  /** CENAS EM PASTAS: a cena de fora desta. Ausente = primeiro nível (e sempre, no mapa solto). */
+  parentId?: string
 }
 
 interface AdventureState {
@@ -134,21 +151,38 @@ interface AdventureState {
   createScene: (name: string, loosePath: string | null) => string
   renameScene: (sceneId: string, name: string) => void
   /**
-   * "Duplicar" do menu da cena: a cópia entra LOGO ABAIXO da original, com ids
-   * novos, sem as fichas cujo id está em `playerTokenIds` e com os pinos de
-   * viagem soltos (`cloneSceneMap`). Não troca a cena aberta. Devolve o id da
-   * cópia, ou `null` quando não há o que copiar (mapa solto, cena que não abriu).
+   * "Duplicar" do menu da cena: a cópia entra LOGO ABAIXO da original, na
+   * mesma pasta (herda o `parentId`, e só ela: as cenas de dentro não são
+   * copiadas), com ids novos, sem as fichas cujo id está em `playerTokenIds` e
+   * com os pinos de viagem soltos (`cloneSceneMap`). Não troca a cena aberta.
+   * Devolve o id da cópia, ou `null` quando não há o que copiar (mapa solto,
+   * cena que não abriu).
    */
   duplicateScene: (sceneId: string, playerTokenIds?: ReadonlySet<string>) => string | null
   /**
    * "Apagar cena…": tira a cena da aventura e desliga, em todas as outras (no
-   * desfazer delas também), os pinos que levavam para lá. Recusa (`false`) a
-   * última cena e a cena onde está alguma ficha de `playerTokenIds`. Cena
-   * aberta: outra abre antes. O arquivo dela fica no disco; só sai da lista.
+   * desfazer delas também), os pinos que levavam para lá. As cenas de dentro
+   * dela sobem um nível e ficam no lugar dela (`removeSceneKeepingInside`).
+   * Recusa (`false`) a última cena e a cena onde está alguma ficha de
+   * `playerTokenIds`. Cena aberta: outra abre antes. O arquivo dela fica no
+   * disco; só sai da lista.
    */
   deleteScene: (sceneId: string, playerTokenIds?: ReadonlySet<string>) => boolean
-  /** "Subir" (`-1`) e "Descer" (`1`): a cena anda uma posição na lista. `false` na ponta. */
-  moveScene: (sceneId: string, delta: -1 | 1) => boolean
+  /**
+   * "Subir" (`-1`) e "Descer" (`1`) do menu da cena: ela troca de lugar com a
+   * irmã de cima ou de baixo (mesma cena de fora), na ordem que a lista mostra.
+   * A pasta anda com o que tem dentro. `false` na ponta. Não confundir com
+   * `moveScene`, que muda a PASTA da cena.
+   */
+  shiftScene: (sceneId: string, delta: -1 | 1) => boolean
+  /**
+   * CENAS EM PASTAS: põe `sceneId` dentro de `parentId` (`null` = primeiro
+   * nível), com o que estava dentro dela. Muda só a lista de cenas — pede
+   * Salvar como o renomear, fora do desfazer da cena aberta. `false` quando não
+   * dá (dentro dela mesma ou de uma cena que está dentro dela, cena que não
+   * existe) ou quando ela já estava lá.
+   */
+  moveScene: (sceneId: string, parentId: string | null) => boolean
   /**
    * Troca a cena aberta. `false` quando não há o que trocar (mesma cena, cena
    * indisponível). `focus` centraliza a câmera nesse ponto da cena que entra.
@@ -236,7 +270,8 @@ export function sceneList(state: Pick<AdventureState, 'adventure' | 'activeScene
   return state.adventure.scenes.map((entry) => {
     const active = entry.id === state.activeSceneId
     const slot = state.cache[entry.id]
-    const base = { id: entry.id, name: entry.name, active, renamable: true }
+    // `parentId` só na cena de dentro: a do primeiro nível fica como sempre foi.
+    const base = { id: entry.id, name: entry.name, active, renamable: true, ...(entry.parentId === undefined ? {} : { parentId: entry.parentId }) }
     if (active) return { ...base, tokenCount: liveMap.tokens.length, available: true }
     if (slot === undefined || slot.status !== 'ok') return { ...base, tokenCount: null, available: false }
     return { ...base, tokenCount: slot.map.tokens.length, available: true }
@@ -290,11 +325,14 @@ export interface SceneDeletionInfo {
   orphanPins: number
   /** Jogadores com ficha nesta cena: com alguém aqui, apagar fica desligado. */
   blockers: string[]
+  /** Cenas direto dentro desta: sobem um nível quando ela é apagada. */
+  inside: number
 }
 
 /**
- * Antes de apagar `sceneId`: quantos pinos de outras cenas ficam órfãos e quem
- * ainda está lá. Cena que não abriu não tem fichas para contar.
+ * Antes de apagar `sceneId`: quantos pinos de outras cenas ficam órfãos,
+ * quantas cenas de dentro sobem um nível e quem ainda está lá. Cena que não
+ * abriu não tem fichas para contar.
  */
 export function sceneDeletionInfo(state: SceneState, liveMap: MapData, sceneId: string, players: readonly ScenePlayer[]): SceneDeletionInfo {
   let orphanPins = 0
@@ -305,7 +343,7 @@ export function sceneDeletionInfo(state: SceneState, liveMap: MapData, sceneId: 
   }
   const here = new Set((mapOfScene(state, liveMap, sceneId)?.tokens ?? []).map((token) => token.id))
   const blockers = players.filter((player) => player.tokenIds.some((id) => here.has(id))).map((player) => player.name)
-  return { orphanPins, blockers }
+  return { orphanPins, blockers, inside: sceneChildCount(state.adventure?.scenes ?? [], sceneId) }
 }
 
 /** Sufixo do nome da cena duplicada, o mesmo da cópia de mapa e de sala. */
@@ -368,14 +406,21 @@ function exitPatchFor(pin: Pin, exitId: string | null, destino: PinDestination):
   return setExitDestination(pin, exitId, destino)
 }
 
-/** As cenas para onde um pino da cena aberta pode levar: todas as outras. */
+/**
+ * As cenas para onde um pino da cena aberta pode levar: todas as outras. A
+ * cena de dentro de outra leva o caminho no nome ("Porto Cinza › Taverna"):
+ * duas "Taverna" em cidades diferentes não se confundem na escolha. É lista
+ * do mestre; o nome que o jogador nunca recebe continua sem caminho.
+ */
 export function travelSceneOptions(state: SceneState): TravelSceneOption[] {
-  if (state.adventure === null) return []
-  return state.adventure.scenes
+  const adventure = state.adventure
+  if (adventure === null) return []
+  return adventure.scenes
     .filter((entry) => entry.id !== state.activeSceneId)
     .map((entry) => {
       const slot = state.cache[entry.id]
-      return { id: entry.id, name: entry.name, available: slot !== undefined && slot.status === 'ok' }
+      const name = [...sceneTrail(adventure.scenes, entry.id), entry.name].join(SCENE_TRAIL_SEPARATOR)
+      return { id: entry.id, name, available: slot !== undefined && slot.status === 'ok' }
     })
 }
 
@@ -445,10 +490,11 @@ function withoutLinksTo(history: SceneHistory, goneSceneId: string): SceneHistor
 
 /**
  * Para onde o editor vai quando a cena ABERTA é apagada: a de onde se veio,
- * senão a primeira que abre abaixo dela, senão acima. `null` = nenhuma abre.
+ * senão a primeira que abre abaixo dela, senão acima — abaixo e acima na
+ * lista que o mestre vê (a árvore), não na ordem crua. `null` = nenhuma abre.
  */
 function sceneToOpenInstead(state: Pick<AdventureState, 'adventure' | 'cache' | 'previousSceneId'>, goneSceneId: string): string | null {
-  const scenes = state.adventure?.scenes ?? []
+  const scenes = sceneTree(state.adventure?.scenes ?? []).map((row) => row.entry)
   const opens = (id: string) => id !== goneSceneId && slotMap(state.cache[id]) !== null
   if (state.previousSceneId !== null && opens(state.previousSceneId)) return state.previousSceneId
   const index = scenes.findIndex((entry) => entry.id === goneSceneId)
@@ -554,7 +600,10 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const name = cleanSceneName(`${entry.name}${SCENE_COPY_SUFFIX}`)
     const map = cloneSceneMap(source, `map_${crypto.randomUUID()}`, name, playerTokenIds)
     const scenes = [...adventure.scenes]
-    scenes.splice(index + 1, 0, { id, name, file: sceneFileFor(id) })
+    // Mesma pasta da original, e logo depois dela na lista: entre as irmãs, a
+    // árvore segue a lista, então a cópia aparece logo abaixo da original (e
+    // do que ela tem dentro). Só a cena é copiada, não as de dentro dela.
+    scenes.splice(index + 1, 0, { id, name, file: sceneFileFor(id), ...(entry.parentId === undefined ? {} : { parentId: entry.parentId }) })
     set({
       adventure: { ...adventure, scenes },
       cache: { ...cache, [id]: { status: 'ok', map, past: [], future: [], camera: null } },
@@ -591,7 +640,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       nextCache[id] = { ...slot, ...unlinked }
       if (unlinked.map !== slot.map) nextDirty[id] = true
     }
-    const scenes = adventure.scenes.filter((entry) => entry.id !== sceneId)
+    const scenes = removeSceneKeepingInside(adventure.scenes, sceneId)
     set({
       adventure: { ...adventure, scenes, startSceneId: adventure.startSceneId === sceneId ? scenes[0].id : adventure.startSceneId },
       cache: nextCache,
@@ -607,15 +656,20 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return true
   },
 
-  moveScene: (sceneId, delta) => {
+  shiftScene: (sceneId, delta) => {
     const { adventure } = get()
     if (adventure === null) return false
-    const from = adventure.scenes.findIndex((entry) => entry.id === sceneId)
-    const to = from + delta
-    if (from < 0 || to < 0 || to >= adventure.scenes.length) return false
-    const scenes = [...adventure.scenes]
-    const [moved] = scenes.splice(from, 1)
-    scenes.splice(to, 0, moved)
+    const scenes = shiftSceneAmongSiblings(adventure.scenes, sceneId, delta)
+    if (scenes === null) return false
+    set({ adventure: { ...adventure, scenes }, structureDirty: true })
+    return true
+  },
+
+  moveScene: (sceneId, parentId) => {
+    const { adventure } = get()
+    if (adventure === null) return false
+    const scenes = nestScene(adventure.scenes, sceneId, parentId)
+    if (scenes === null) return false
     set({ adventure: { ...adventure, scenes }, structureDirty: true })
     return true
   },
