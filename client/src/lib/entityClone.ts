@@ -188,9 +188,14 @@ export function cloneRoomDescendants(
  * trás de um Ctrl+D multiplicaria espaço em disco sem motivo — dois Tokens
  * apontando pro mesmo arquivo é seguro porque a imagem é só LIDA no render
  * (`pixi/tokensRenderer.ts`), nunca escrita a partir do editor.
+ *
+ * VEÍCULO: a cópia leva os lugares e sai VAZIA — quem está a bordo continua
+ * só no original, senão a mesma ficha ocuparia lugar em dois cestos.
  */
 export function cloneToken(token: Token, offset: Offset): Token {
-  return { ...token, id: crypto.randomUUID(), x: token.x + offset.dx, y: token.y + offset.dy }
+  const clone: Token = { ...token, id: crypto.randomUUID(), x: token.x + offset.dx, y: token.y + offset.dy }
+  if (token.veiculo !== undefined) clone.veiculo = { lugares: token.veiculo.lugares }
+  return clone
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import { isPlayerSafePinImage } from './pins'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
 import { withoutAttachment } from './lightAttachment'
+import { withoutVehicleField } from './vehicle'
 import { itemOfPin } from './items'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
@@ -1480,8 +1481,11 @@ export function filterMapForGroup(
   // Nome: o dono lê o real; os outros, o "Nome para os jogadores" (o de trabalho do mestre não sai).
   // MOCHILA: só a da PRÓPRIA ficha sai. O que o colega carrega é dele e do
   // mestre — ver a ficha dele no mapa não conta o que tem no bolso.
+  // VEÍCULO: lugares e passageiros são do mestre, de TODA ficha (a do jogador
+  // inclusive) — a lista entregaria pelo id quem a névoa ou o mestre escondem.
   const tokens = playerTokens
     .map((t) => withoutNpcMark(tokenForPlayer(tokenAsSeenByPlayer(owned.has(t.id) ? t : withoutBackpack(t), owned.has(t.id)))))
+    .map(withoutVehicleField)
     .map(tokenHealthForPlayer)
     .map((t) => tokenWatchForPlayer(t, alerts.get(t.id) ?? null))
   const sentTokenIds = new Set(tokens.map((t) => t.id))

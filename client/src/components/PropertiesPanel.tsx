@@ -34,6 +34,8 @@ import { TokenConditionControls, type TokenConditionControlsProps } from './Toke
 import { tokenConditionsOf } from '../lib/tokenConditions'
 import { TokenWatchControls, type TokenWatchControlsProps } from './TokenWatchControls'
 import { readTokenWatch } from '../lib/npcWatch'
+import { TokenVehicleControls, type TokenVehicleControlsProps } from './TokenVehicleControls'
+import { vehicleOf } from '../lib/vehicle'
 import { LightControls, type LightControlsProps } from './LightControls'
 import { TokenLightsControls, type TokenLightsControlsProps } from './TokenLightsControls'
 import { WallLineStyleField, WallStyleControls, type WallStyleControlsProps } from './WallStyleControls'
@@ -140,6 +142,11 @@ interface PropertiesPanelProps {
   tokenCondition: Omit<TokenConditionControlsProps, 'conditions'>
   /** OLHOS DO GUARDA: liga a vigia da ficha de NPC e diz como ela olha. */
   tokenWatch: Omit<TokenWatchControlsProps, 'watch'>
+  /**
+   * VEÍCULO COM LUGARES: faz da ficha um cesto/bote e marca quem está a
+   * bordo. Ausente = sem o controle (quem monta o painel sem essa ligação).
+   */
+  tokenVehicle?: Omit<TokenVehicleControlsProps, 'vehicle'>
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Token selecionado. */
   tokenTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   selectedTextLabel: Extract<Drawing, { kind: 'text' }> | null
@@ -227,6 +234,7 @@ export function PropertiesPanel({
   tokenHealth,
   tokenCondition,
   tokenWatch,
+  tokenVehicle,
   tokenTransform,
   selectedTextLabel,
   textLabel,
@@ -472,6 +480,9 @@ export function PropertiesPanel({
             {/* Vigia logo depois da condição: também é controle de MESA (o
                 guarda vira para a porta no meio da cena), não de preparação. */}
             <TokenWatchControls watch={readTokenWatch(selectedToken.vigia)} {...tokenWatch} />
+            {/* Veículo depois da vigia: também é controle de MESA (quem sobe no
+                cesto muda no meio da cena), não de preparação. */}
+            {tokenVehicle !== undefined && <TokenVehicleControls vehicle={vehicleOf(selectedToken)} {...tokenVehicle} />}
             {/* Antes da imagem: a cor é o caminho de um clique, a foto é o de
                 abrir o disco. Quem só quer separar aliado de inimigo não
                 precisa passar pelo controle caro para chegar no barato. */}

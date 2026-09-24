@@ -1,4 +1,5 @@
-import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
+import type { DoorState, FloorStyle, MapData, Region, Token } from '../types/map'
+import { readTokenVehicle, withoutVehicleField } from './vehicle'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
@@ -52,6 +53,27 @@ function positiveNumberOr(value: number | undefined, fallback: number): number {
 function entityList<T>(value: T[] | undefined): T[] {
   if (!Array.isArray(value)) return []
   return value.filter((item) => item !== null && typeof item === 'object')
+}
+
+/**
+ * MOCHILA do disco (item pegável): campo NOVO e OPCIONAL — ausente continua
+ * ausente (mochila vazia). Item fora da forma sai; lista que sobra vazia some.
+ * `cru` é a ficha como veio do arquivo; `lido`, a mesma já passada pelas
+ * outras leituras (o `...t` copiaria o valor cru, por isso a função).
+ */
+function tokenBackpackFromFile(cru: Token, lido: Token): Token {
+  if (!('mochila' in cru)) return lido
+  const mochila = readCarriedItems(cru.mochila)
+  if (mochila !== undefined) return { ...lido, mochila }
+  const { mochila: _descartada, ...semMochila } = lido
+  return semMochila
+}
+
+/** VEÍCULO do disco: forma certa fica limpa; torta some e a ficha volta a ser comum. */
+function tokenVehicleFromFile(token: Token): Token {
+  if (!('veiculo' in token)) return token
+  const veiculo = readTokenVehicle(token.veiculo)
+  return veiculo === undefined ? withoutVehicleField(token) : { ...token, veiculo }
 }
 
 /** Lista de valores simples (ids de camada): só a forma de lista é garantida. */
@@ -178,19 +200,12 @@ function deserializeMapFields(json: string): MapData {
     // salvo antes do campo existir abre igual, e escrever `?? null` quebraria a
     // promessa que mapFile.test.ts cobra — round-trip que preserva o mapa
     // EXATAMENTE, sem inventar campo que o arquivo não tinha.
-    // MOCHILA (item pegável) é campo NOVO e OPCIONAL: ausente continua
-    // ausente (mochila vazia). Item fora da forma sai; lista que sobra vazia
-    // some — o `...t` copiaria o valor cru, por isso a linha.
+    // MOCHILA (item pegável): `tokenBackpackFromFile`.
     // `publicName` ("Nome para os jogadores"): mesma mão única de `soChegada`
     // — texto e null ficam, valor torto some e a ficha volta a "O mesmo".
-    tokens: entityList(parsed.tokens).map((t) => {
-      const lido = tokenPublicNameFromFile({ ...t, image: t.image ?? null })
-      if (!('mochila' in t)) return lido
-      const mochila = readCarriedItems(t.mochila)
-      if (mochila !== undefined) return { ...lido, mochila }
-      const { mochila: _descartada, ...semMochila } = lido
-      return semMochila
-    }),
+    // VEÍCULO (`veiculo`): mesmo tratamento da mochila — ausente continua
+    // ausente, forma torta some e a ficha volta a ser comum (`readTokenVehicle`).
+    tokens: entityList(parsed.tokens).map((t) => tokenVehicleFromFile(tokenBackpackFromFile(t, tokenPublicNameFromFile({ ...t, image: t.image ?? null })))),
     // inalterado fora o que já existia — Prop.layer ausente fica undefined
     props: entityList(parsed.props).map((p) => ({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
     stairs: entityList(parsed.stairs),

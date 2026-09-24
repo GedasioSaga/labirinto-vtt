@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { MapData, Pin, PinDestination, Token } from '../types/map'
 import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
+import { passengersOf } from '../lib/vehicle'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
 import {
@@ -407,11 +408,16 @@ function withoutToken(history: SceneHistory, tokenId: string): SceneHistory {
   return { map: drop(history.map), past: history.past.map(drop), future: history.future.map(drop) }
 }
 
-/** A ficha `fromId` passa a se chamar `toId`, e a tocha presa nela vai junto. */
+/** A ficha `fromId` passa a se chamar `toId`; a tocha presa nela e o lugar dela num veículo vão junto. */
 function renameToken(map: MapData, fromId: string, toId: string): MapData {
+  const renamePassenger = (t: Token): Token => {
+    const passageiros = t.veiculo?.passageiros
+    if (t.veiculo === undefined || passageiros === undefined || !passageiros.includes(fromId)) return t
+    return { ...t, veiculo: { ...t.veiculo, passageiros: passageiros.map((id) => (id === fromId ? toId : id)) } }
+  }
   return {
     ...map,
-    tokens: map.tokens.map((t) => (t.id === fromId ? { ...t, id: toId } : t)),
+    tokens: map.tokens.map((t) => renamePassenger(t.id === fromId ? { ...t, id: toId } : t)),
     lights: map.lights.map((l) => (l.attachedTokenId === fromId ? { ...l, attachedTokenId: toId } : l)),
   }
 }
@@ -693,8 +699,22 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const token = from?.map.tokens.find((t) => t.id === tokenId)
     if (from === null || to === null || token === undefined) return false
 
-    const leaving = withoutToken(from, tokenId)
-    const { history: arriving, residentId } = withToken(to, { ...token, x, y })
+    // VEÍCULO: quem está a bordo atravessa junto, no afastamento que tinha em
+    // volta dele, e chega ainda a bordo (os ids de quem viaja não mudam).
+    const travelers: Token[] = [
+      { ...token, x, y },
+      ...passengersOf(from.map, tokenId).map((p) => ({ ...p, x: x + p.x - token.x, y: y + p.y - token.y })),
+    ]
+    let leaving = from
+    let arriving = to
+    // Quem já estava no destino com o id de quem chegou ganhou id novo: traveler → resident.
+    const renamedResidents = new Map<string, string>()
+    for (const traveler of travelers) {
+      leaving = withoutToken(leaving, traveler.id)
+      const put = withToken(arriving, traveler)
+      arriving = put.history
+      if (put.residentId !== null) renamedResidents.set(traveler.id, put.residentId)
+    }
     const nextCache: Record<string, SceneSlot> = { ...cache }
     const nextDirty: Record<string, true> = { ...dirty }
     let openScene: SceneHistory | null = null
@@ -716,15 +736,16 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // travessia não é um passo do mestre para o Ctrl+Z desfazer.
     if (openScene !== null) useMapStore.setState({ map: openScene.map, past: openScene.past, future: openScene.future })
     // A ficha que já estava na cena aberta trocou de id: a seleção dela vai junto.
-    if (residentId !== null && toSceneId === activeSceneId) {
-      const renamed = useMapStore
-        .getState()
-        .selection.map((item) => (item.kind === 'token' && item.id === tokenId ? { ...item, id: residentId } : item))
+    if (renamedResidents.size > 0 && toSceneId === activeSceneId) {
+      const renamed = useMapStore.getState().selection.map((item) => {
+        const residentId = item.kind === 'token' ? renamedResidents.get(item.id) : undefined
+        return residentId === undefined ? item : { ...item, id: residentId }
+      })
       useMapStore.setState({ selection: renamed })
     }
     // A iniciativa é guardada por mapa + id: o valor e a vez da que já estava
     // vão com ela para o id novo, e a que chegou entra sem nenhum dos dois.
-    if (residentId !== null) useInitiativeStore.getState().renameToken(to.map.id, tokenId, residentId)
+    for (const [travelerId, residentId] of renamedResidents) useInitiativeStore.getState().renameToken(to.map.id, travelerId, residentId)
     return true
   },
 

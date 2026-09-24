@@ -78,6 +78,7 @@ import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Regio
 import { passageOf } from './lib/pins'
 import { passItemOf, passTokenOptions, withPassItem, withPassToken } from './lib/pinPass'
 import { isArrivalOnly } from './lib/pinTravel'
+import { vehicleSeatOptions } from './lib/vehicle'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -2188,6 +2189,15 @@ function App() {
               // Mesmo caminho da cor e do tamanho: cada escolha é um Ctrl+Z.
               // `null` desliga a vigia e a ficha volta a ser comum.
               onWatchChange: (vigia) => selectedToken && updateToken(selectedToken.id, { vigia }),
+            }}
+            tokenVehicle={{
+              options: selectedToken ? vehicleSeatOptions(map, selectedToken.id) : [],
+              // Os dois passam pelo histórico e leem o mapa ATUAL da store:
+              // dois cliques seguidos nunca decidem sobre uma cópia velha.
+              onSeatsChange: (lugares) => selectedToken && useMapStore.getState().setVehicleSeats(selectedToken.id, lugares),
+              onPassengerChange: (tokenId, aBordo) => {
+                if (selectedToken) useMapStore.getState().setVehiclePassenger(selectedToken.id, tokenId, aBordo)
+              },
             }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),

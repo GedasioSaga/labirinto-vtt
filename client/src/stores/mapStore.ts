@@ -24,6 +24,7 @@ import { ancestorsOf, descendantsOf, subtreeIds } from '../lib/roomNesting'
 import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
+import { boardVehicle, leaveVehicle, setVehicleSeats as setVehicleSeatsOnMap, vehicleCarrying } from '../lib/vehicle'
 import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
@@ -620,6 +621,17 @@ interface MapStoreState {
    * estado ATUAL da ficha, nunca sobre uma cópia velha da renderização.
    */
   toggleTokenCondition: (id: string, condition: TokenCondition) => void
+  /**
+   * VEÍCULO: faz da ficha um veículo com `lugares`, troca os lugares, ou
+   * desliga (`null`) — `lib/vehicle.ts`. Com histórico: Ctrl+Z desfaz.
+   */
+  setVehicleSeats: (id: string, lugares: number | null) => void
+  /**
+   * VEÍCULO: embarca (`aBordo`) ou desce a ficha `tokenId` do veículo
+   * `vehicleId`, sobre o estado ATUAL do mapa. `false` = recusado (cheio,
+   * não é veículo, a ficha não embarca) e nada mudou. Com histórico.
+   */
+  setVehiclePassenger: (vehicleId: string, tokenId: string, aBordo: boolean) => boolean
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
@@ -1609,6 +1621,22 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     toggleTokenCondition: (id, condition) => {
       const next = toggleConditionOnMap(get().map, id, condition)
       if (next !== get().map) withHistory(() => next)
+    },
+    setVehicleSeats: (id, lugares) => {
+      const next = setVehicleSeatsOnMap(get().map, id, lugares)
+      if (next !== get().map) withHistory(() => next)
+    },
+    setVehiclePassenger: (vehicleId, tokenId, aBordo) => {
+      const { map } = get()
+      if (!aBordo) {
+        const next = vehicleCarrying(map, tokenId)?.id === vehicleId ? leaveVehicle(map, tokenId) : map
+        if (next !== map) withHistory(() => next)
+        return true
+      }
+      const result = boardVehicle(map, vehicleId, tokenId)
+      if (!result.ok) return false
+      if (result.map !== map) withHistory(() => result.map)
+      return true
     },
     addProp: (prop) => withHistory((map) => mapFactory.addProp(map, prop)),
     removeProp: (id) => withHistory((map) => mapFactory.removeProp(map, id)),

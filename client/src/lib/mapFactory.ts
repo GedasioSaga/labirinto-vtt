@@ -19,7 +19,8 @@ import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
 import { samePinPass } from './pinPass'
-import { moveTokenCarryingLights, withoutAttachment } from './lightAttachment'
+import { withoutAttachment } from './lightAttachment'
+import { leaveVehicle, moveTokenWithVehicle } from './vehicle'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -616,19 +617,28 @@ export function addToken(map: MapData, token: Token): MapData {
   return { ...map, tokens: [...map.tokens, token] }
 }
 
-/** Apagar a ficha solta a tocha que ela carregava: a luz fica onde está. */
+/**
+ * Apagar a ficha solta a tocha que ela carregava: a luz fica onde está. E
+ * tira a ficha do veículo que a levava — o id não fica ocupando lugar, nem
+ * "embarca" sozinho uma ficha de mesmo id que chegue depois.
+ */
 export function removeToken(map: MapData, tokenId: string): MapData {
   const carried = map.lights.some((l) => l.attachedTokenId === tokenId)
+  const withoutRide = leaveVehicle(map, tokenId)
   return {
-    ...map,
-    tokens: map.tokens.filter((t) => t.id !== tokenId),
+    ...withoutRide,
+    tokens: withoutRide.tokens.filter((t) => t.id !== tokenId),
     lights: carried ? map.lights.map((l) => (l.attachedTokenId === tokenId ? withoutAttachment(l) : l)) : map.lights,
   }
 }
 
-/** Move a ficha; luz presa nela (tocha) vai junto — ver `lib/lightAttachment.ts`. */
+/**
+ * Move a ficha; luz presa nela (tocha) vai junto — ver `lib/lightAttachment.ts`.
+ * VEÍCULO: quem está a bordo anda junto, e o passageiro que anda sozinho
+ * desce — ver `lib/vehicle.ts`.
+ */
 export function setTokenPosition(map: MapData, tokenId: string, x: number, y: number): MapData {
-  return moveTokenCarryingLights(map, tokenId, x, y)
+  return moveTokenWithVehicle(map, tokenId, x, y)
 }
 
 /**
