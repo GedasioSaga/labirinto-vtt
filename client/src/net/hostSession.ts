@@ -7,7 +7,7 @@ import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { selectedTokenColor } from '../lib/tokenColor'
-import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
+import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, oneWayExitsOf, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
 import {
   parsePlayerMessage,
@@ -83,6 +83,15 @@ function sceneKey(scene: HostScene): string {
 
 function allScenes(world: HostWorld): HostScene[] {
   return [world.open, ...world.background]
+}
+
+/** As cenas do mundo como a ligação de pino as enxerga (`resolvePinTravel`). */
+function travelLookup(world: HostWorld): (sceneId: string) => TravelScene | null {
+  const scenes = allScenes(world)
+  return (sceneId) => {
+    const scene = scenes.find((s) => s.sceneId === sceneId)
+    return scene === undefined ? null : { name: scene.name, map: scene.map }
+  }
 }
 
 export type PlayerStatus = 'waiting' | 'playing'
@@ -585,7 +594,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       seenPins.delete(playerId)
       return [{ type: 'lobby.waiting' }]
     }
-    const view = snapshotFor(playerId, scene.map)
+    const view = snapshotFor(playerId, scene, world)
     const note = arrivalNote(playerId, scene.sceneId, arrived)
     return note === null ? view : [...view, noteMessage(note)]
   }
@@ -681,11 +690,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * jogador acabou de entrar pela primeira vez: o mapa dele já tem a Sala
    * quando o cartão abre.
    */
-  const snapshotFor = (playerId: string, map: MapData): HostMessage[] => {
+  const snapshotFor = (playerId: string, scene: HostScene, world: HostWorld): HostMessage[] => {
+    const map = scene.map
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
     const entered = enteredRooms.get(playerId)?.get(map.id)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered)
+    // SÓ IDA: o host enxerga a outra cena e diz, por saída, se o par é a
+    // chegada oculta. Ao jogador vai só o booleano (`pinForPlayer`).
+    const oneWay = oneWayExitsOf(map, scene.sceneId, travelLookup(world))
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered, oneWay)
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -1020,12 +1033,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // mas a recusa não depende da névoa: mesmo `null`, mesmo motivo genérico.
     if (isArrivalOnly(pin)) return null
     const scenes = allScenes(world)
-    const lookup = (sceneId: string): TravelScene | null => {
-      const scene = scenes.find((s) => s.sceneId === sceneId)
-      return scene === undefined ? null : { name: scene.name, map: scene.map }
-    }
     if (travelExitOf(pin, exitId) === null) return null
-    const travel = resolvePinTravel(pin, fromSceneId, lookup, exitId)
+    const travel = resolvePinTravel(pin, fromSceneId, travelLookup(world), exitId)
     if (travel.status !== 'ligado') return null
     const to = scenes.find((s) => s.sceneId === travel.sceneId)
     if (to === undefined || to.sceneId === null) return null

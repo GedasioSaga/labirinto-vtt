@@ -8,7 +8,7 @@ import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { blockReasonOf, isPlayerSafePinImage } from './pins'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
-import { exitLabelsOf, isArrivalOnly } from './pinTravel'
+import { exitLabelsOf, isArrivalOnly, type OneWayExits } from './pinTravel'
 import { withoutAttachment } from './lightAttachment'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
@@ -923,6 +923,9 @@ function unseenDoor(door: DoorState): DoorState {
  * `enteredRooms`: Salas deste mapa em que o jogador JÁ entrou (texto da sala).
  * O texto de entrada dela continua no recorte depois que ele sai, para tocar
  * no rótulo e reler; de Sala onde ele nunca entrou o texto não sai.
+ * `oneWayExits`: por pino, as saídas cujo par é a chegada oculta
+ * (`oneWayExitsOf`, montado pelo host, que enxerga a outra cena). Ausente =
+ * nenhuma passagem sai marcada "Só ida".
  */
 export function filterMapForPlayer(
   map: MapData,
@@ -933,6 +936,7 @@ export function filterMapForPlayer(
   seenDoors?: ReadonlyMap<string, DoorState>,
   pinAudiences?: PinAudiences,
   enteredRooms?: ReadonlySet<string>,
+  oneWayExits?: OneWayExits,
 ): PlayerMapView {
   const hiddenLayers = map.hiddenLayers
   const owned = new Set(ownership[playerId] ?? []) // jogador sem entrada de posse não tem token nem visão
@@ -1442,7 +1446,7 @@ export function filterMapForPlayer(
         const point = { x: p.x, y: p.y }
         return !inRoomHiddenFromPlayer(point) && isPointKnown(point)
       })
-      .map(pinForPlayer),
+      .map((p) => pinForPlayer(p, oneWayExits?.get(p.id))),
     // Metadado do mestre: nome, estado e células do pincel das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
@@ -1478,8 +1482,11 @@ export function filterMapForHost(map: MapData): MapData {
  *   se comporta, não para onde ela leva.
  * - `motivo` VAI só com a passagem trancada (`blockReasonOf`): "Desabou" diz
  *   o que a porta é agora, e nada da outra cena.
+ * - `semVolta` (pino de uma saída) e `escolhas[].soIda` (encruzilhada) VÃO
+ *   só quando o host marcou a saída em `oneWay`: dizem que não há volta por
+ *   ali, nunca para onde se vai.
  */
-function pinForPlayer(pin: Pin): Pin {
+function pinForPlayer(pin: Pin, oneWay?: ReadonlySet<string>): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
   // arquivo trouxer e o app não conhece (versão futura, edição à mão) não
   // chega ao jogador por descuido (revisão de segurança, 22/09). `destino`,
@@ -1506,8 +1513,13 @@ function pinForPlayer(pin: Pin): Pin {
   // ENCRUZILHADA: o jogador recebe `escolhas`, montado AQUI (nunca copiado do
   // mestre): por saída, só o id e o rótulo. Pino de uma saída não ganha o
   // campo: o cartão dele é o de sempre, e o recorte também.
+  // SÓ IDA: um booleano por saída, e só com o que o HOST mandou marcar
+  // (`oneWay`, de `oneWayExitsOf`). `semVolta` gravado no pino do mestre
+  // (arquivo editado à mão) não é lido: o recorte é lista do que vai.
+  const soIda = (exitId: string): boolean => oneWay !== undefined && oneWay.has(exitId)
   const escolhas = exitLabelsOf(pin)
-  if (escolhas.length > 1) forPlayer.escolhas = escolhas
+  if (escolhas.length > 1) forPlayer.escolhas = escolhas.map((saida) => (soIda(saida.id) ? { ...saida, soIda: true } : saida))
+  if (escolhas.length === 1 && soIda(escolhas[0].id)) forPlayer.semVolta = true
   return forPlayer
 }
 
