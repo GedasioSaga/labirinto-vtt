@@ -289,16 +289,24 @@ describe('fogFilter + pincel: forma e parede que só em parte caem no pedaço pi
     }
   })
 
-  it('SEGURANÇA: parede sem porta que atravessa a zona sai SÓ no trecho pintado, mesmo com as 3 amostras fora do escondido', () => {
+  it('SEGURANÇA: parede sem porta que atravessa a zona sai SÓ fora dela e no trecho pintado, mesmo com as 3 amostras fora do escondido', () => {
+    // Zona em x 500..980: de dentro dela só sai o pintado (x 625..675); os trechos
+    // de fora (x 300..500 e 980..1000) saem, senão a parede seguia na visão invisível.
     const mapa: MapData = { ...cena(), walls: [parede('parede-longa', 300, 200, 1000, 200)] }
-    expect(filterMapForPlayer(mapa, 'ana', DONO, RAIO_VISAO).map.walls).toEqual([])
+    const fora = (w: Wall): boolean => Math.max(w.x1, w.x2) <= 500 || Math.min(w.x1, w.x2) >= 980
+    const semPincel = filterMapForPlayer(mapa, 'ana', DONO, RAIO_VISAO).map.walls
+    expect(semPincel.map((w) => [Math.min(w.x1, w.x2) === 300, Math.max(w.x1, w.x2) === 1000])).toEqual([
+      [true, false],
+      [false, true],
+    ])
+    expect(semPincel.every(fora)).toBe(true)
     const view = filterMapForPlayer(paintRevealBrush(mapa, [{ x: 650, y: 200 }], RAIO_PINCEL, 'revelar').map, 'ana', DONO, RAIO_VISAO)
-    expect(view.map.walls.length).toBeGreaterThan(0)
-    for (const w of view.map.walls) {
-      expect(w.id).not.toBe('parede-longa')
-      for (const x of [w.x1, w.x2]) expect(x, w.id).toBeGreaterThanOrEqual(620)
-      for (const x of [w.x1, w.x2]) expect(x, w.id).toBeLessThanOrEqual(680)
-    }
+    const pintado = view.map.walls.filter((w) => !fora(w))
+    expect(view.map.walls).toHaveLength(3)
+    expect(pintado).toHaveLength(1)
+    for (const w of view.map.walls) expect(w.id).not.toBe('parede-longa')
+    for (const x of [pintado[0].x1, pintado[0].x2]) expect(x).toBeGreaterThanOrEqual(620)
+    for (const x of [pintado[0].x1, pintado[0].x2]) expect(x).toBeLessThanOrEqual(680)
   })
 
   it('SEGURANÇA: parede e porta inteiras dentro da zona entram na visão enviada SÓ no trecho pintado', () => {
