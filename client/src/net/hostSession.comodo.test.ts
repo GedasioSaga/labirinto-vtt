@@ -271,3 +271,94 @@ describe('hostSession — Sala comum dentro do cômodo lembrado', () => {
     expect(isPointExplored(explorado, { x: 550, y: 320 })).toBe(false)
   })
 })
+
+/**
+ * CASA > QUARTO, no fio e ao longo do tempo. A casa (cômodo) 400..700 x
+ * 200..450 tem a porta da frente ABERTA no oeste; o quarto (Sala comum,
+ * `parentId` casa) 550..700 fica atrás da divisória com porta TRANCADA e
+ * guarda a carta em (650, 400). O Bruno entra na sala da frente e depois sai
+ * para a rua: nem entrando, nem de fora pela lembrança, o quarto chega — nem o
+ * nome, nem a carta, nem a grade do explorado (que viaja no `explored` e
+ * desenharia o quarto na tela dele para sempre).
+ */
+function casaComQuarto(bruno: { x: number; y: number }): MapData {
+  return {
+    ...createEmptyMap('m-casa-quarto', 'Casa do prefeito', 25, 25, 40),
+    regions: [
+      salaDe('casa', retangulo(400, 200, 700, 450), { shape: 'rect', name: 'nome-casa', comodo: true }),
+      { ...salaDe('quarto', retangulo(550, 200, 700, 450), { shape: 'rect', name: 'nome-quarto' }), parentId: 'casa' },
+    ],
+    walls: [
+      parede('casa-n', 400, 200, 700, 200),
+      parede('casa-l', 700, 200, 700, 450),
+      parede('casa-s', 400, 450, 700, 450),
+      parede('casa-o-1', 400, 200, 400, 300),
+      parede('porta-da-casa', 400, 300, 400, 340, { open: true, locked: false, kind: 'normal' }),
+      parede('casa-o-2', 400, 340, 400, 450),
+      parede('divisoria-1', 550, 200, 550, 300),
+      parede('porta-do-quarto', 550, 300, 550, 340, { open: false, locked: true, kind: 'normal' }),
+      parede('divisoria-2', 550, 340, 550, 450),
+    ],
+    pins: [{ ...pino('carta', 650, 400), description: 'a-carta-do-quarto' }, pino('pino-da-frente', 450, 250)],
+    tokens: [ficha('ficha-bruno', bruno.x, bruno.y)],
+  }
+}
+
+/**
+ * Sala (cômodo) 100..400 com a despensa SALA COMUM 110..190 no canto — ilha
+ * sem parede comum com a sala, porta FECHADA. É o caso em que o contorno
+ * lembrado da sala (`exp.rings`) cobriria a despensa inteira sem tocar nela.
+ */
+function salaComDespensaComum(): MapData {
+  const base = casa(false)
+  return {
+    ...base,
+    regions: base.regions.map((r) =>
+      r.id === 'despensa' ? { ...salaDe('despensa', retangulo(110, 110, 190, 190), { shape: 'rect', name: 'nome-despensa' }), parentId: 'sala' } : r,
+    ),
+  }
+}
+
+describe('hostSession — Casa > Quarto: Sala comum dentro do cômodo lembrado', () => {
+  it('SEGURANÇA: entrar na sala da frente e sair para a rua não entrega o quarto trancado nem marca a grade dele', () => {
+    const naFrente = { x: 450, y: 300 }
+    const naRua = { x: 200, y: 320 }
+    let n = 0
+    const s = createHostSession({ code: CODE, visionRadius: 700, now: () => 0, randomId: () => `id-${(n += 1)}` })
+    s.assignToken(entra(s, 'c1', 'Bruno', casaComQuarto(naFrente)), 'ficha-bruno')
+
+    for (const at of [naFrente, naFrente, naRua, naRua]) {
+      const snap = snapshotPara(s.broadcast(casaComQuarto(at)), 'c1')
+      // A casa lembrada sai, com o pino da frente — é o controle de que o cômodo funciona.
+      expect(regioes(snap)).toEqual(['casa'])
+      expect(snap.map.pins.map((p) => p.id)).toEqual(['pino-da-frente'])
+      const json = JSON.stringify(snap.map)
+      expect(json).not.toContain('nome-quarto')
+      expect(json).not.toContain('a-carta-do-quarto')
+      const explorado = decodeExploration(snap.explored)
+      expect(explorado).not.toBeNull()
+      if (explorado === null) return
+      // Controle: o canto da sala da frente levantou...
+      expect(isPointExplored(explorado, { x: 420, y: 430 })).toBe(true)
+      // ...o quarto, nunca olhado, não — nem pela célula, nem pelo contorno lembrado.
+      expect(isPointExplored(explorado, { x: 650, y: 400 })).toBe(false)
+      expect(isPointExplored(explorado, { x: 690, y: 210 })).toBe(false)
+      expect(isPointExplored(explorado, { x: 600, y: 320 })).toBe(false)
+    }
+  })
+
+  it('SEGURANÇA: a despensa Sala comum no meio da sala lembrada não chega nem pela grade nem pelo contorno lembrado', () => {
+    const { s } = mesa(salaComDespensaComum())
+    const snap = snapshotPara(s.broadcast(salaComDespensaComum()), 'c1')
+    expect(regioes(snap)).toEqual(['sala'])
+    const json = JSON.stringify(snap.map)
+    expect(json).not.toContain('nome-despensa')
+    expect(json).not.toContain('pote-da-despensa')
+    const explorado = decodeExploration(snap.explored)
+    expect(explorado).not.toBeNull()
+    if (explorado === null) return
+    expect(isPointExplored(explorado, { x: 300, y: 380 })).toBe(true)
+    expect(isPointExplored(explorado, { x: 150, y: 150 })).toBe(false)
+    expect(isPointExplored(explorado, { x: 120, y: 180 })).toBe(false)
+  })
+})

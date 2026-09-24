@@ -490,6 +490,37 @@ describe('filterMapForPlayer — Sala comum dentro de cômodo lembrado', () => {
     expect(ids(view.map.regions)).toEqual(['casa', 'quarto'])
   })
 
+  it('SEGURANÇA: Casa > Quarto de fora, só pela lembrança da casa, o quarto trancado e a carta continuam fora', () => {
+    const view = filterMapForPlayer(casaComQuartoComum({ x: 950, y: 950 }), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, new Set(['casa']))
+    expect(ids(view.map.regions)).toEqual(['casa'])
+    expect(ids(view.map.pins)).toEqual(['pino-da-frente'])
+    const json = JSON.stringify(view.map)
+    expect(json).not.toContain('nome-quarto')
+    expect(json).not.toContain('a-carta')
+    expect(view.rememberedRooms[0]?.roomsInside).toEqual([QUARTO_DA_CASA])
+  })
+
+  it('SEGURANÇA: Casa > Quarto > Armário — a Sala comum dentro da Sala comum também não sai pela lembrança da casa', () => {
+    const ARMARIO: Region['points'] = [
+      { x: 600, y: 380 },
+      { x: 690, y: 380 },
+      { x: 690, y: 440 },
+      { x: 600, y: 440 },
+    ]
+    const base = casaComQuartoComum(DENTRO_DA_CASA)
+    const map: MapData = {
+      ...base,
+      regions: [...base.regions, { ...sala('armario', ARMARIO, 'nenhum'), parentId: 'quarto' }],
+      pins: [...base.pins, pino('no-armario', 650, 420, { description: 'a-chave' })],
+    }
+    const view = filterMapForPlayer(map, 'bruno', OWNERSHIP, RADIUS)
+    expect(ids(view.map.regions)).toEqual(['casa'])
+    expect(ids(view.map.pins)).toEqual(['pino-da-frente'])
+    const json = JSON.stringify(view.map)
+    expect(json).not.toContain('nome-armario')
+    expect(json).not.toContain('a-chave')
+  })
+
   it('controle: o Bruno dentro do quarto recebe o quarto e a carta', () => {
     const view = filterMapForPlayer(casaComQuartoComum({ x: 650, y: 300 }), 'bruno', OWNERSHIP, RADIUS)
     expect(ids(view.map.regions)).toEqual(['casa', 'quarto'])
