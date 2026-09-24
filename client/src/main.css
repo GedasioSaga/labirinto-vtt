@@ -3400,6 +3400,18 @@ html.lb-arrastando-cena * {
   gap: var(--lb-space-2);
 }
 
+/* PASSE: uma ficha por botão, de 4 a 7 numa mesa — quebram linha em vez de
+   passar da largura do rail. */
+.lb-travel__row--wrap {
+  flex-wrap: wrap;
+}
+
+.lb-travel__pass {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
 /* ENCRUZILHADA: uma saída por bloco, separadas por um fio. A régua de cada
    uma repete a do poço em miniatura: latão ligada, apagada sem destino. */
 .lb-travel__exits {

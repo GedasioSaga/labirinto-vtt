@@ -1710,13 +1710,16 @@ export function alarmForPlayer(alarm: SceneAlarm | null, sceneId: string | null)
  * - `passagem` VAI, de propósito: o cartão do jogador precisa saber se oferece
  *   "Passar", "Pedir para passar" ou "Está trancada". O modo diz como a porta
  *   se comporta, não para onde ela leva.
+ * - `passe` (o item e as fichas que abrem a catraca) NUNCA: diria o que abre
+ *   a passagem e quem já pode passar. Quem confere é o host, na ficha do
+ *   mapa do mestre (`net/hostSession.ts`).
  */
 function pinForPlayer(pin: Pin): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
   // arquivo trouxer e o app não conhece (versão futura, edição à mão) não
   // chega ao jogador por descuido (revisão de segurança, 22/09). `destino`,
   // `rotulo` e `saidas` ficam de fora — o destino de cada saída diria que a
-  // outra cena existe.
+  // outra cena existe —, e `passe` também (a lista de quem tem passe).
   const forPlayer: Pin = {
     id: pin.id,
     x: pin.x,

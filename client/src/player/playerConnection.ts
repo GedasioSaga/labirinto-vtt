@@ -166,8 +166,12 @@ export type DoorRequestPhase = 'sent' | DoorRequestAnswer | DoorRequestRejection
  * Nenhum deles sabe para onde o pino leva: o host nunca conta.
  */
 export type TravelNotice =
-  /** `direct`: o pino é livre, ninguém decide — só falta a resposta do host. */
-  | { id: number; phase: 'waiting'; direct: boolean }
+  /**
+   * `direct`: o pino é livre, ninguém decide — só falta a resposta do host.
+   * `passe`: pino no modo passe; o host confere se a ficha tem o passe. O
+   * cliente não sabe (o que abre a catraca nunca chega ao recorte).
+   */
+  | { id: number; phase: 'waiting'; direct: boolean; passe: boolean }
   | { id: number; phase: 'arrived' }
   /** O mestre levou o jogador para outra cena sem ele pedir. */
   | { id: number; phase: 'moved' }
@@ -272,7 +276,8 @@ export interface PlayerConnection {
   setOwnTokenPhoto(tokenId: string, image: string): boolean
   /**
    * Pede ao mestre para passar pelo pino de viagem `pinId` — ou, no pino
-   * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`). `false` se
+   * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`; no pino de
+   * passe também, e o host decide se vai direto ou vira "sem passe"). `false` se
    * não está jogando, se já há um pedido esperando ou se o socket não está aberto.
    * `exitId` é a saída escolhida numa encruzilhada (um id de `Pin.escolhas`);
    * ausente, o pedido sai sem ele e vale a saída principal, como sempre.
@@ -1257,24 +1262,29 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // O pino livre agenda o envio (e o aviso "Passando…") antes de chamar `send`: a tela da mesa sai aqui.
       if (isTable || state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
       const pin = state.map?.pins.find((p) => p.id === pinId)
-      const direct = pin !== undefined && passageOf(pin) === 'livre'
+      const passagem = pin === undefined ? 'pede' : passageOf(pin)
+      const direct = passagem === 'livre'
+      // Passe: quem tem o passe vai direto, como no livre. O cliente não sabe
+      // quem tem, então trata todos igual: com a batida e com o aviso
+      // "Conferindo o passe…", o mesmo do cartão.
+      const passe = passagem === 'passe'
       // Sem saída escolhida, a mensagem sai idêntica à de antes: o mestre
       // antigo, que não conhece `exitId`, continua entendendo o pedido.
       const pedido: PinTravelRequestMessage = exitId === undefined ? { type: 'pin.travel.request', pinId } : { type: 'pin.travel.request', pinId, exitId }
-      if (!direct) {
+      if (!direct && !passe) {
         if (!send(pedido)) return false
         clearTravelTimer()
-        setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: false } })
+        setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: false, passe: false } })
         return true
       }
       // Pino livre não espera ninguém: o aviso diz "Passando…", não "Aguardando
       // o mestre". E o pedido sai depois de um instante, não no mesmo toque: a
       // resposta do host é quase imediata, e sem a pausa a tela trocava de cena
       // no mesmo quadro em que o cartão fechava — o jogador não via a passagem
-      // acontecer, só um salto.
+      // acontecer, só um salto. Vale para quem tem o passe, que também passa na hora.
       if (socket === null || socket.readyState !== SOCKET_OPEN) return false
       clearTravelTimer()
-      setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: true } })
+      setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct, passe } })
       travelTimer = setTimeout(() => {
         travelTimer = null
         if (state.status !== 'playing') return

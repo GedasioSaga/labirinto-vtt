@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Pin, PinExitLabel } from '../types/map'
+import type { Pin, PinExitLabel, PinPassage } from '../types/map'
 import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { itemOfPin } from '../lib/items'
 import { PinTravelArt } from '../components/PinSymbolArt'
+import { PASS_CHECK_TEXT } from './travelNotice'
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -58,6 +59,25 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
   esperando: 'Passando…',
   pergunta: 'Passar por aqui?',
   confirmar: 'Passar',
+}
+
+/**
+ * Passe (crachá, catraca): o cartão não sabe se o jogador tem o passe — o que
+ * abre a catraca nunca chega aqui (`lib/fogFilter.ts`). Então ele tenta, e diz
+ * de antemão o que acontece sem o passe: o pedido vai ao mestre.
+ */
+const TEXTOS_PASSE: TextosDaPassagem = {
+  botao: 'Passar',
+  esperando: PASS_CHECK_TEXT,
+  pergunta: 'Passar por aqui? Sem o passe, o pedido vai ao mestre.',
+  confirmar: 'Passar',
+}
+
+/** Os textos do modo do pino; trancada não oferece botão, e cai nos do pedido. */
+function textosDaPassagem(passagem: PinPassage): TextosDaPassagem {
+  if (passagem === 'livre') return TEXTOS_LIVRE
+  if (passagem === 'passe') return TEXTOS_PASSE
+  return TEXTOS_PEDE
 }
 
 /**
@@ -137,7 +157,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const passagem = passageOf(pin)
   const trancada = viagem && passagem === 'trancada'
   const podePedir = viagem && !trancada && onRequestTravel !== undefined
-  const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
+  const textos = textosDaPassagem(passagem)
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
   // saída só (ou sem o campo), o cartão é o de sempre.
@@ -153,7 +173,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const pergunta =
     confirming === null || confirming.saida === null
       ? textos.pergunta
-      : passagem === 'livre'
+      : passagem === 'livre' || passagem === 'passe'
         ? `Passar por ${confirming.saida.rotulo}?`
         : `Pedir ao mestre para passar por ${confirming.saida.rotulo}?`
 

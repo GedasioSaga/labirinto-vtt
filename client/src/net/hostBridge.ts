@@ -730,7 +730,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * "Deixar ir" (`emLote`) de cada um — a mesma revalidação, pedido a pedido.
    */
   const askTravel = (request: TravelRequest) => {
-    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`, null, {
+    // Pino com passe: o mestre lê que o pedido veio porque a ficha não tem o passe.
+    const semPasse = request.motivo === 'sem-passe' ? ' (sem passe)' : ''
+    const texto = `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}${semPasse}`
+    const toastId = useToastStore.getState().push('instrucao', texto, null, {
       actions: [
         { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
         { label: 'Não', run: () => answerTravel(request.requestId, false) },
