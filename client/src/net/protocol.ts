@@ -7,6 +7,7 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
+import { isPointActionKind, isPointActionRejection, type PointActionAnswer, type PointActionKind, type PointActionRejection } from '../lib/pointActions'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -46,6 +47,8 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
  * vem logo depois). Nenhuma delas carrega nome nem id de cena: o jogador só
  * descobre para onde foi pelo mapa que chega depois da aprovação. Mestre
  * antigo responde `error invalid_message`; jogador antigo ignora as três.
+ * O `text` opcional do `pin.travel.denied` é o motivo que o MESTRE escreveu
+ * para quem pediu ("Não, porque…"): vai só a ele e não é do mapa.
  *
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
@@ -85,6 +88,20 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
  * da vez, e só quando ela está no recorte do jogador. Jogador antigo ignora o
  * campo; mestre antigo não o envia e ninguém fica na vez.
  *
+ * `scene.paused` (mestre -> jogador) é a PAUSA POR CENA, aditiva pelo mesmo
+ * critério: só `paused`, sem nome da cena. Com a cena pausada, o host recusa o
+ * `token.move` com o motivo `paused` — jogador antigo ignora o motivo e desfaz
+ * o movimento como em qualquer recusa.
+ *
+ * `party.update` (mestre -> jogador) é a lista de COMPANHEIROS, aditiva pelo
+ * mesmo critério. É calculada por destinatário: diz só se cada outro jogador
+ * está na mesma cena que ele ('aqui'), em outra ('longe') ou desconectado
+ * ('fora') — nunca o id nem o nome da cena de ninguém.
+ *
+ * `scene.note.onlyYou` é o RECADO PARA UM JOGADOR SÓ (linha dele no Grupo):
+ * a mesma mensagem, que o host manda a uma conexão só, com a marca para a
+ * tela dizer "Só para você". Aditivo: jogador antigo mostra como recado comum.
+ *
  * O PEDIDO DA PORTA TRANCADA também é aditivo: `door.request` (jogador ->
  * mestre) e, na volta, `door.request.rejected` e `door.request.answer`. Mestre
  * antigo responde `error invalid_message`; jogador antigo ignora as duas.
@@ -101,6 +118,15 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
  * polígono de cada sala tomada que o jogador enxerga) e `hazard.entered`
  * (mestre -> jogador: a ficha dele entrou no perigo). Jogador antigo ignora os
  * dois; mestre antigo não manda, e a tela fica sem perigo desenhado.
+ *
+ * CHAMAR O MESTRE é aditivo pelo mesmo critério: `call.raise` / `call.lower`
+ * (jogador -> mestre) e, na volta, `call.state` (esperando, visto, cedo
+ * demais) e `call.reply` (a resposta, só para quem chamou). Mestre antigo
+ * responde `error invalid_message` (a mão não acende); jogador antigo ignora.
+ *
+ * `point.action` (jogador -> mestre) e, na volta, `point.action.answer` e
+ * `point.action.rejected` são as AÇÕES NO PONTO, aditivas pelo mesmo critério.
+ * A volta vai só a quem pediu e nunca leva sala, cena nem ponto.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -124,6 +150,22 @@ export const PLAYER_MESSAGE_MAX_BYTES = 64 * 1024
 export const NOTEBOOK_MAX_NOTES = 50
 /** Teto do alarme, na mesma conta: é uma faixa urgente no alto da tela, não uma carta. */
 export const ALARM_MAX_LENGTH = 140
+
+/** Por que o jogador chama o mestre. Ordem = ordem na tela do jogador. */
+export const CALL_REASONS = ['ajuda', 'agir', 'pergunta', 'sair', 'urgente'] as const
+export type CallReason = (typeof CALL_REASONS)[number]
+/** Como cada motivo aparece, para o jogador e para o mestre. */
+export const CALL_REASON_LABELS: Record<CallReason, string> = {
+  ajuda: 'Ajuda',
+  agir: 'Quero agir',
+  pergunta: 'Pergunta',
+  sair: 'Vou sair',
+  urgente: 'Urgente',
+}
+/** Teto do texto curto do chamado, em unidades UTF-16 (o `maxLength` do campo conta igual). */
+export const CALL_TEXT_MAX_LENGTH = 140
+/** Teto do motivo do "Não, porque…" do pedido de passagem, em unidades UTF-16 (o `maxLength` do campo conta igual). */
+export const TRAVEL_DENY_TEXT_MAX_LENGTH = 80
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
@@ -159,13 +201,29 @@ export interface TokenMoveMessage {
 
 export interface PingMessage {
   type: 'ping'
+  /**
+   * A aba do jogador está em segundo plano. Com a aba oculta há mais de 5 min
+   * o Chrome e o Edge só deixam o timer rodar 1 vez por minuto, então o ping
+   * chega de minuto em minuto: o host usa um prazo de silêncio mais longo
+   * (`HOST_AWAY_STALE_AFTER_MS`) até um ping sem a marca chegar.
+   */
+  away?: true
 }
+
+/**
+ * Quem vê o sinal além de quem sinalizou. `master`: só o mestre — é o sinal
+ * que sai com o toque longo, antes de o jogador escolher no menu (Espiar e
+ * Revistar ficam discretos para os colegas). Sem o campo: também os colegas
+ * da cena que conhecem o ponto (o sinal de sempre, e o "Sinalizar" do menu).
+ */
+export type SignalAudience = 'master'
 
 /** Sinal (ping de mapa) do jogador. Não confundir com `ping`, que é o heartbeat. */
 export interface SignalMessage {
   type: 'signal'
   x: number
   y: number
+  audience?: SignalAudience
 }
 
 /**
@@ -275,6 +333,31 @@ export interface ItemGiveMessage {
   toTokenId: string
 }
 
+/** O jogador levanta a mão. `text` ausente = só o motivo. */
+export interface CallRaiseMessage {
+  type: 'call.raise'
+  reason: CallReason
+  text?: string
+}
+
+/** O jogador baixa a mão antes de o mestre ver. */
+export interface CallLowerMessage {
+  type: 'call.lower'
+}
+
+/**
+ * AÇÃO NO PONTO: depois do toque longo, o jogador pede ao mestre para
+ * Procurar/Escutar/Espiar/Revistar em (`x`, `y`), px de mundo da cena DELE.
+ * Aditiva pelo critério de sempre: mestre antigo responde `error
+ * invalid_message` (o pedido só não chega) e jogador antigo nunca a envia.
+ */
+export interface PointActionMessage {
+  type: 'point.action'
+  action: PointActionKind
+  x: number
+  y: number
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
@@ -290,6 +373,9 @@ export type PlayerMessage =
   | ClueReadMessage
   | CluePeersRequestMessage
   | ClueShowMessage
+  | CallRaiseMessage
+  | CallLowerMessage
+  | PointActionMessage
 
 /**
  * Por que o host não levou o "Pegar" ao mestre. `unavailable` junta pino
@@ -348,6 +434,8 @@ export interface SceneNoteMessage {
   text: string
   /** Hora em que o mestre mandou (ms desde 1970, relógio do mestre). Ausente em mestre antigo. */
   at?: number
+  /** Recado só para este jogador (ninguém mais na sala recebeu). Ausente = recado da cena. */
+  onlyYou?: true
 }
 
 /** Um recado guardado no caderno do jogador. Nada da cena: só o que ele leu e quando. */
@@ -403,6 +491,52 @@ export interface ClueShownMessage {
   type: 'clue.shown'
   from: string
   clue: ClueEntry
+}
+
+/**
+ * Por que o host recusou o movimento: as recusas da validação do mapa, mais
+ * `paused` — a cena do jogador está pausada (o mestre está com outro grupo).
+ */
+export type TokenMoveRejectionReason = TokenMoveRejection | 'paused'
+
+/** A cena do jogador está (ou deixou de estar) pausada pelo mestre. */
+export interface ScenePausedMessage {
+  type: 'scene.paused'
+  paused: boolean
+}
+
+/** Onde um companheiro está, visto por quem recebe: mesma cena, outra cena, ou desconectado. */
+export type PartyWhere = 'aqui' | 'longe' | 'fora'
+
+export interface PartyMember {
+  playerId: string
+  name: string
+  where: PartyWhere
+}
+
+/** Os OUTROS jogadores da mesa, na ordem de chegada. Quem recebe nunca está na lista. */
+export interface PartyUpdateMessage {
+  type: 'party.update'
+  members: PartyMember[]
+}
+
+/** Teto da lista: a mesa tem de 4 a 7 jogadores; acima disto a mensagem é lixo, não mesa. */
+export const PARTY_MAX_MEMBERS = 32
+/** Folga para o " (n)" que o `uniqueName` do host soma a nome repetido. */
+const PARTY_NAME_SUFFIX_MAX = 8
+
+/**
+ * Onde está a mão do jogador, do lado do mestre: `waiting` (na fila, com o
+ * motivo que vale), `seen` (o mestre marcou Visto) ou `too_soon` (baixou e
+ * levantou antes do intervalo: nada entrou na fila).
+ */
+export type CallStateMessage = { type: 'call.state'; state: 'waiting'; reason: CallReason } | { type: 'call.state'; state: 'seen' } | { type: 'call.state'; state: 'too_soon' }
+
+/** Resposta do mestre ao chamado: um recado SÓ para quem chamou. */
+export interface CallReplyMessage {
+  type: 'call.reply'
+  id: string
+  text: string
 }
 
 /** Os colegas que jogam na mesma cena agora, pelo nome na sala. */
@@ -465,7 +599,7 @@ export type HostMessage =
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
   | { type: 'hazard.entered'; kind: HazardKind }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
-  | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
+  | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejectionReason }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
   | { type: 'door.request.rejected'; wallId: string; reason: DoorRequestRejection }
@@ -476,7 +610,9 @@ export type HostMessage =
   | { type: 'pin.take.answer'; answer: 'taken'; nome: string }
   | { type: 'pin.take.answer'; answer: 'denied' }
   | { type: 'item.give.rejected'; reason: ItemGiveRejection }
-  | { type: 'pin.travel.denied' }
+  // `text`: o motivo curto do "Não, porque…" (até `TRAVEL_DENY_TEXT_MAX_LENGTH`).
+  // Aditivo: jogador antigo ignora o campo e lê o "não deixou" de sempre.
+  | { type: 'pin.travel.denied'; text?: string }
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
   // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um
@@ -490,9 +626,24 @@ export type HostMessage =
   | ClueHostMessage
   | SceneAlarmMessage
   | SceneAlarmEndMessage
+  | ScenePausedMessage
+  | PartyUpdateMessage
+  | CallStateMessage
+  | CallReplyMessage
+  // Resposta do mestre à AÇÃO NO PONTO, só para quem pediu. Leva só a ação e
+  // a resposta: nem o ponto, nem a sala, nem a cena que o mestre leu.
+  | { type: 'point.action.answer'; action: PointActionKind; answer: PointActionAnswer }
+  | { type: 'point.action.rejected'; reason: PointActionRejection }
   | { type: 'kicked' }
   | { type: 'room.closed' }
+  // A mesma pessoa entrou por outra aba (ou aparelho) com o resume desta
+  // conexão: esta aba para, sem voltar sozinha e sem apagar o resume, que é o
+  // da aba nova também. Sem nada dentro: nem quem, nem de onde.
+  | { type: 'session.replaced' }
   | { type: 'error'; reason: HostErrorReason }
+  // Resposta ao `ping` de quem está na sala: só "estou aqui", sem nada dentro.
+  // É o que deixa o jogador notar a conexão morta que nunca fecha.
+  | { type: 'pong' }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -532,6 +683,19 @@ function parseTokenMove(obj: Record<string, unknown>): TokenMoveMessage | null {
   if (!isBoundedString(tokenId, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null
   return { type: 'token.move', reqId, tokenId, x, y }
+}
+
+/**
+ * Sinal. `audience` é opcional; presente, só vale `master` — qualquer outra
+ * coisa recusa a mensagem, em vez de cair calada no sinal para todos (o
+ * jogador pediu discrição e o ponto piscaria para os colegas).
+ */
+function parseSignal(obj: Record<string, unknown>): SignalMessage | null {
+  const { x, y, audience } = obj
+  if (!isFiniteNumber(x) || !isFiniteNumber(y)) return null
+  if (audience === undefined) return { type: 'signal', x, y }
+  if (audience !== 'master') return null
+  return { type: 'signal', x, y, audience }
 }
 
 /**
@@ -597,6 +761,11 @@ export function clampAlarmText(text: string): string {
   return clampTextTo(text, ALARM_MAX_LENGTH)
 }
 
+/** O motivo do "Não, porque…" cortado no teto dele, pela mesma regra do recado. */
+export function clampTravelDenyText(text: string): string {
+  return clampTextTo(text, TRAVEL_DENY_TEXT_MAX_LENGTH)
+}
+
 function clampTextTo(text: string, max: number): string {
   if (text.length <= max) return text
   const cut = text.slice(0, max)
@@ -626,6 +795,16 @@ export function parseSceneAlarmEnd(value: unknown): SceneAlarmEndMessage | null 
 }
 
 /**
+ * O motivo do `pin.travel.denied` que o jogador recebe: texto de 1 a
+ * `TRAVEL_DENY_TEXT_MAX_LENGTH`. Qualquer outra coisa vale "sem motivo" — a
+ * recusa continua valendo, só a frase não chega: o jogador precisa saber que
+ * não passou mesmo que o motivo venha estragado.
+ */
+export function parseTravelDenyText(value: unknown): string | undefined {
+  return isBoundedString(value, 1, TRAVEL_DENY_TEXT_MAX_LENGTH) ? value : undefined
+}
+
+/**
  * Valida o `scene.note` que o jogador recebe. O mestre é confiável, mas o
  * texto vai para a tela: forma errada, texto vazio ou acima do teto recusam a
  * mensagem inteira em vez de mostrar um pedaço. Devolve cópia só com os campos
@@ -636,10 +815,12 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
   const { id, text, at } = value
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
-  if (at === undefined) return { type: 'scene.note', id, text }
+  // Só `true` marca: qualquer outro valor é recado comum, sem faixa.
+  const onlyYou = value.onlyYou === true ? { onlyYou: true as const } : {}
+  if (at === undefined) return { type: 'scene.note', id, text, ...onlyYou }
   // Presente e fora da forma recusa inteiro, como o resto: hora torta no caderno é pior que recado nenhum.
   if (!isNoteTime(at)) return null
-  return { type: 'scene.note', id, text, at }
+  return { type: 'scene.note', id, text, at, ...onlyYou }
 }
 
 function isNoteTime(value: unknown): value is number {
@@ -651,6 +832,50 @@ function parseNoteEntry(value: unknown): NoteEntry | null {
   const { id, text, at } = value
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || !isBoundedString(text, 1, NOTE_MAX_LENGTH) || !isNoteTime(at)) return null
   return { id, text, at }
+}
+
+/**
+ * Valida o `party.update` que o jogador recebe. Os nomes vão para a tela:
+ * qualquer membro malformado (nome vazio ou acima do teto, `where` fora dos
+ * três) recusa a lista inteira em vez de mostrar metade do grupo. Devolve
+ * cópia só com os campos conhecidos: um `sceneId` que viesse junto não passa.
+ */
+export function parsePartyUpdate(value: unknown): PartyUpdateMessage | null {
+  if (!isRecord(value) || value.type !== 'party.update') return null
+  const { members } = value
+  if (!Array.isArray(members) || members.length > PARTY_MAX_MEMBERS) return null
+  const parsed: PartyMember[] = []
+  for (const member of members) {
+    if (!isRecord(member)) return null
+    const { playerId, name, where } = member
+    if (!isBoundedString(playerId, 1, REQ_ID_MAX_LENGTH)) return null
+    if (!isBoundedString(name, NAME_MIN_LENGTH, NAME_MAX_LENGTH + PARTY_NAME_SUFFIX_MAX)) return null
+    if (where !== 'aqui' && where !== 'longe' && where !== 'fora') return null
+    parsed.push({ playerId, name, where })
+  }
+  return { type: 'party.update', members: parsed }
+}
+
+export type PointActionReply = Extract<HostMessage, { type: 'point.action.answer' } | { type: 'point.action.rejected' }>
+
+/**
+ * Valida a resposta (ou a recusa) da AÇÃO NO PONTO que o jogador recebe.
+ * Qualquer valor fora do conhecido recusa a mensagem inteira: o texto que o
+ * jogador lê sai daqui, e um "talvez" não pode virar "O mestre viu".
+ */
+export function parsePointActionReply(value: unknown): PointActionReply | null {
+  if (!isRecord(value)) return null
+  if (value.type === 'point.action.answer') {
+    const { action, answer } = value
+    if (!isPointActionKind(action) || (answer !== 'nothing' && answer !== 'seen')) return null
+    return { type: 'point.action.answer', action, answer }
+  }
+  if (value.type === 'point.action.rejected') {
+    const { reason } = value
+    if (!isPointActionRejection(reason)) return null
+    return { type: 'point.action.rejected', reason }
+  }
+  return null
 }
 
 /**
@@ -825,9 +1050,9 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'token.move':
       return parseTokenMove(value)
     case 'ping':
-      return { type: 'ping' }
+      return value.away === true ? { type: 'ping', away: true } : { type: 'ping' }
     case 'signal':
-      return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
+      return parseSignal(value)
     case 'door.toggle':
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
     case 'door.request':
@@ -852,7 +1077,43 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.toTokenId, 1, REQ_ID_MAX_LENGTH)
         ? { type: 'item.give', itemId: value.itemId, toTokenId: value.toTokenId }
         : null
+    case 'call.raise':
+      return parseCallRaise(value)
+    case 'call.lower':
+      return { type: 'call.lower' }
+    case 'point.action':
+      return isPointActionKind(value.action) && isFiniteNumber(value.x) && isFiniteNumber(value.y)
+        ? { type: 'point.action', action: value.action, x: value.x, y: value.y }
+        : null
     default:
       return null
   }
+}
+
+export function isCallReason(value: unknown): value is CallReason {
+  return typeof value === 'string' && CALL_REASONS.some((reason) => reason === value)
+}
+
+/**
+ * Chamado do jogador. O texto é opcional e sai aparado; em branco vale "sem
+ * texto". Acima do teto recusa a mensagem inteira: cortar mudaria o que o
+ * jogador escreveu sem ele saber.
+ */
+function parseCallRaise(obj: Record<string, unknown>): CallRaiseMessage | null {
+  const { reason, text } = obj
+  if (!isCallReason(reason)) return null
+  if (text === undefined) return { type: 'call.raise', reason }
+  if (typeof text !== 'string') return null
+  const trimmed = text.trim()
+  if (trimmed.length > CALL_TEXT_MAX_LENGTH) return null
+  return trimmed.length === 0 ? { type: 'call.raise', reason } : { type: 'call.raise', reason, text: trimmed }
+}
+
+/** Valida o `call.reply` que o jogador recebe: mesma regra do recado por cena. */
+export function parseCallReply(value: unknown): CallReplyMessage | null {
+  if (!isRecord(value) || value.type !== 'call.reply') return null
+  const { id, text } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
+  return { type: 'call.reply', id, text }
 }

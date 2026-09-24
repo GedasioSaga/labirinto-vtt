@@ -5,7 +5,8 @@ import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } fro
 import { latestActionNotice } from './moveNotice'
 import { themeCss } from '../theme'
 import { createPlayerConnection, hasUnreadNotes, RESUME_STORAGE_KEY } from './playerConnection'
-import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNotice } from './playerConnection'
+import type { PlayerConnection, PlayerState, SocketLike, StorageLike } from './playerConnection'
+import { travelNoticeText } from './travelNoticeText'
 import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
@@ -17,6 +18,10 @@ import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest
 import { PlayerAlarmBanner } from './PlayerAlarmBanner'
 import { PlayerTurnBanner, TurnWaitNotice } from './PlayerTurnBanner'
 import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
+import { PlayerCallButton } from './PlayerCallButton'
+import { ReconnectingOverlay } from './ReconnectingOverlay'
+import { PointActionMenu } from './PointActionMenu'
+import { isPointInsideMap, pointNoticeText } from '../lib/pointActions'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
@@ -48,32 +53,6 @@ const NO_NOTES: NoteEntry[] = []
 const NO_CLUES: ClueEntry[] = []
 /** Fechar o recado não perde nada: quem fecha sabe onde reler. */
 const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
-
-/**
- * O pedido de passagem, em uma linha. Nunca diz para onde o pino leva: o
- * jogador só descobre ao chegar. As recusas do host são genéricas de
- * propósito (`PinTravelRejection`), e a frase também.
- */
-function travelNoticeText(notice: TravelNotice): string {
-  switch (notice.phase) {
-    case 'waiting':
-      return notice.direct ? 'Passando…' : 'Aguardando o mestre…'
-    case 'arrived':
-      return 'Você chegou'
-    case 'moved':
-      // Nunca diz para onde: o nome da cena é do mestre.
-      return 'O mestre levou você para outro lugar'
-    case 'gathered':
-      // Também sem o nome da cena: só que o grupo está junto de novo.
-      return 'O mestre reuniu o grupo'
-    case 'denied':
-      return 'O mestre não deixou passar agora'
-    case 'rejected':
-      if (notice.reason === 'pending') return 'Seu pedido anterior ainda espera o mestre'
-      if (notice.reason === 'too_soon') return 'Espere um pouco antes de pedir de novo'
-      return 'Não dá para passar por aqui agora'
-  }
-}
 
 const REASON_TEXT: Record<string, string> = {
   bad_code: 'Código de sala incorreto. Confira com o mestre e tente de novo.',
@@ -109,6 +88,33 @@ function localStorageOrNull(): StorageLike | null {
     return window.localStorage
   } catch {
     return null
+  }
+}
+
+/**
+ * Onde mora o resume do mestre: no APARELHO (`localStorage`), e não na aba.
+ * Na aba, reabrir o QR numa aba nova (o celular descartou a velha, o link veio
+ * de novo pelo grupo) não achava o resume e a Ana virava "Ana (2)", sem ficha
+ * e sem o explorado. Lê também o da aba (`sessionStorage`), onde a versão
+ * anterior guardava: quem atualiza o app no meio da mesa não perde a volta.
+ * Gravar leva para o aparelho; apagar apaga dos dois. Qualquer acesso pode
+ * lançar (site bloqueado) — quem chama já trata.
+ */
+function resumeStorageOrNull(): StorageLike | null {
+  const device = localStorageOrNull()
+  const tab = sessionStorageOrNull()
+  if (device === null) return tab
+  return {
+    // Aba sem storage de sessão é caso legítimo (bloqueado): só não há o que ler lá.
+    getItem: (key) => device.getItem(key) ?? tab?.getItem(key) ?? null,
+    setItem: (key, value) => {
+      device.setItem(key, value)
+      tab?.removeItem(key)
+    },
+    removeItem: (key) => {
+      device.removeItem(key)
+      tab?.removeItem(key)
+    },
   }
 }
 
@@ -224,14 +230,15 @@ function rememberLastJoin(value: LastJoin): void {
 }
 
 /**
- * Esta ABA tem uma sessão viva nesta sala para retomar?
+ * Este APARELHO tem uma sessão viva nesta sala para retomar?
  *
- * O `playerConnection` guarda o resume do mestre em `sessionStorage` ao entrar
- * (`RESUME_STORAGE_KEY`) e o apaga sozinho quando a sala acaba (expulso, sala
- * encerrada, código recusado). Ele sobrevive a recarregar a página e morre com
- * a aba — que é exatamente o caso desta volta: o celular descarta a aba ao
- * trocar de app, o dedo esbarra em Atualizar, e o amigo caía no formulário
- * para digitar código e nome outra vez no meio da mesa.
+ * O `playerConnection` guarda o resume do mestre ao entrar
+ * (`RESUME_STORAGE_KEY`, em `resumeStorageOrNull`) e o apaga sozinho quando a
+ * sala acaba (expulso, sala encerrada, código recusado). Ele sobrevive a
+ * recarregar a página e a abrir o QR numa aba nova — que é exatamente o caso
+ * desta volta: o celular descarta a aba ao trocar de app, o dedo esbarra em
+ * Atualizar, e o amigo caía no formulário para digitar código e nome outra
+ * vez no meio da mesa (e, pior, entrava como "Ana (2)").
  *
  * Só lê o formato que `playerConnection.writeResume` escreve; qualquer outra
  * coisa (storage bloqueado, JSON de outra versão, sala diferente) vale como
@@ -239,7 +246,7 @@ function rememberLastJoin(value: LastJoin): void {
  */
 function hasResumeFor(code: string): boolean {
   if (code.length !== JOIN_CODE_LENGTH) return false
-  const storage = sessionStorageOrNull()
+  const storage = resumeStorageOrNull()
   if (!storage) return false
   try {
     const raw = storage.getItem(RESUME_STORAGE_KEY)
@@ -253,12 +260,12 @@ function hasResumeFor(code: string): boolean {
 
 /**
  * "Sair da sala" é decisão, não acidente: sem apagar o resume, a próxima
- * abertura desta aba voltaria sozinha para a sala de onde ele acabou de sair.
+ * abertura voltaria sozinha para a sala de onde ele acabou de sair.
  * Sair não desfaz o `lastJoin` — o formulário continua preenchido para entrar
  * de novo com um toque.
  */
 function forgetResume(): void {
-  const storage = sessionStorageOrNull()
+  const storage = resumeStorageOrNull()
   if (!storage) return
   try {
     storage.removeItem(RESUME_STORAGE_KEY)
@@ -498,7 +505,8 @@ interface ScreenAction {
  */
 const HANDSHAKE_DEADLINE_MS = 8_000
 
-function Session({ connection, code, typedName, hostName, onLeave, onQuit }: SessionProps) {
+// Exportada só para o teste montar a sessão sem o formulário de entrada.
+export function Session({ connection, code, typedName, hostName, onLeave, onQuit }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(localStorageOrNull()))
   const [focus, setFocus] = useState<{ tokenId: string | null; seq: number }>({ tokenId: null, seq: 0 })
@@ -517,6 +525,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const requestZoomStep = useCallback((direction: ZoomDirection, animate: boolean) => {
     setZoomStep((current) => ({ direction, animate, seq: current.seq + 1 }))
   }, [])
+  /**
+   * Menu das ações no ponto, aberto pelo toque longo: o ponto (mundo), onde o
+   * dedo estava (tela) e a época da cena em que abriu (`sceneEpoch`).
+   */
+  const [pointMenu, setPointMenu] = useState<{ x: number; y: number; screenX: number; screenY: number; sceneEpoch: number } | null>(null)
   /** Cada "Reconectar" conta uma tentativa nova e reinicia o prazo do aperto de mão. */
   const [attempt, setAttempt] = useState(0)
   const [handshakeOverdue, setHandshakeOverdue] = useState(false)
@@ -538,6 +551,21 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
     const timer = setTimeout(() => setHandshakeOverdue(true), HANDSHAKE_DEADLINE_MS)
     return () => clearTimeout(timer)
   }, [connecting, attempt])
+
+  // A rede voltou ou a tela acendeu (celular desbloqueado): se a conexão
+  // caiu, tenta já — sem esperar a espera crescente da reconexão automática.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') connection.wake()
+    }
+    const onOnline = () => connection.wake()
+    window.addEventListener('online', onOnline)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [connection])
 
   // Escape apaga a medida e desliga o modo. Só escuta com o modo ligado, e
   // nunca dentro de campo de texto (lá o Escape é da edição).
@@ -616,6 +644,13 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const panelRef = useRef<HTMLElement | null>(null)
   const barRef = useRef<HTMLDivElement | null>(null)
   const mapObstacles = useCallback(() => coverBounds(panelRef.current, barRef.current), [])
+  const closePointMenu = useCallback(() => setPointMenu(null), [])
+  // Trocou a cena ou saiu do jogo desde o toque longo: o ponto do menu é de
+  // outro mapa, e o menu fecha em vez de pedir no lugar errado.
+  const openPointMenu = pointMenu !== null && pointMenu.sceneEpoch === state.sceneEpoch ? pointMenu : null
+
+  // Queda com volta automática: a tela de baixo fica (esmaecida), o véu por cima.
+  const reconnecting = state.reconnecting && <ReconnectingOverlay info={state.reconnecting} onRetry={() => connection.retryNow()} />
 
   if (state.status === 'playing' && state.map && state.vision) {
     const actionNotice = latestActionNotice(state.doorNotice, state.moveNotice)
@@ -645,6 +680,14 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             // Modo de um toque: sinalizou, desliga.
             setSignalArmed(false)
           }}
+          onLongPress={(x, y, screenX, screenY) => {
+            // O mestre vê o ponto já no gesto (e o jogador, o eco). Os colegas
+            // só se ele escolher Sinalizar: Espiar e Revistar ficam discretos.
+            connection.sendSignal(x, y, 'master')
+            // A câmera arrasta além da borda: fora do mapa não há o que procurar.
+            if (map !== undefined && isPointInsideMap(map, x, y)) setPointMenu({ x, y, screenX, screenY, sceneEpoch: state.sceneEpoch })
+          }}
+          onMapPointerDown={closePointMenu}
           measureArmed={measureArmed}
           laserArmed={laserArmed}
           ownLaserColor={ownLaserColor}
@@ -685,6 +728,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             setSignalArmed(false)
             setMeasureArmed(false)
           }}
+          party={state.party}
           onRenameToken={(tokenId, name) => connection.setOwnTokenName(tokenId, name)}
           onChangeTokenPhoto={async (tokenId, file) => {
             // A foto é reduzida AQUI, antes de sair da máquina do jogador: é
@@ -764,7 +808,14 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         )}
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
-          <PlayerNoteCard key={state.note.id} text={state.note.text} hint={NOTE_KEPT_HINT} onClose={closeNote} escapeCloses={openPin === null && !clueCardOpen} />
+          <PlayerNoteCard
+            key={state.note.id}
+            text={state.note.text}
+            hint={NOTE_KEPT_HINT}
+            onClose={closeNote}
+            escapeCloses={openPin === null && !clueCardOpen}
+            onlyYou={state.note.onlyYou === true}
+          />
         )}
         {/* TEXTO DA SALA: o mesmo cartão, com o nome da Sala no alto. Um
             cartão de cada vez no mesmo lugar: com recado aberto, o texto da
@@ -778,9 +829,37 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             escapeCloses={openPin === null && !clueCardOpen}
           />
         )}
+        {state.paused && (
+          // Fixo enquanto durar a pausa: é o que explica por que a ficha volta ao lugar.
+          <p className="pp-notice pp-notice--pause" role="status" aria-live="polite">
+            O mestre está com o outro grupo
+          </p>
+        )}
+        <PlayerCallButton call={state.call} onRaise={(reason, text) => connection.raiseHand(reason, text)} onLower={() => connection.lowerHand()} />
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}
+          </p>
+        )}
+        {openPointMenu && (
+          <PointActionMenu
+            screenX={openPointMenu.screenX}
+            screenY={openPointMenu.screenY}
+            onSignal={() => {
+              // O mesmo ponto do gesto: o host estende aos colegas o sinal que só o mestre viu.
+              connection.sendSignal(openPointMenu.x, openPointMenu.y)
+              setPointMenu(null)
+            }}
+            onChoose={(action) => {
+              connection.sendPointAction(action, openPointMenu.x, openPointMenu.y)
+              setPointMenu(null)
+            }}
+            onClose={closePointMenu}
+          />
+        )}
+        {state.pointNotice && (
+          <p key={state.pointNotice.id} className="pp-notice pp-notice--point" role="status" aria-live="polite">
+            {pointNoticeText(state.pointNotice)}
           </p>
         )}
         {/* Porta e movimento avisam no mesmo lugar: vale o mais novo (`latestActionNotice`).
@@ -811,6 +890,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             {hazardNoticeText(state.hazardNotice.kind)}
           </p>
         )}
+        {reconnecting}
       </PlayerErrorBoundary>
     )
   }
@@ -818,15 +898,18 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   // `playing` sem mapa é o intervalo entre o resume e o primeiro snapshot: mesma espera.
   if (state.status === 'waiting' || state.status === 'playing') {
     return (
-      <WaitingScreen
-        code={code}
-        typedName={typedName}
-        hostName={hostName}
-        // Trocar de nome NÃO esquece o resume: o mestre reaproveita o mesmo
-        // registro e só troca o nome, sem virar um segundo jogador na lista.
-        onRename={() => onLeave({ text: 'Escolha outro nome e entre de novo.', tone: 'info' })}
-        onLeave={onQuit}
-      />
+      <>
+        {reconnecting}
+        <WaitingScreen
+          code={code}
+          typedName={typedName}
+          hostName={hostName}
+          // Trocar de nome NÃO esquece o resume: o mestre reaproveita o mesmo
+          // registro e só troca o nome, sem virar um segundo jogador na lista.
+          onRename={() => onLeave({ text: 'Escolha outro nome e entre de novo.', tone: 'info' })}
+          onLeave={onQuit}
+        />
+      </>
     )
   }
 
@@ -888,6 +971,15 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
       // Sem Reconectar: a sala não existe mais.
       message = 'O mestre encerrou a sala.'
       actions.push({ label: 'Voltar', primary: true, run: () => onLeave() })
+      break
+    case 'replaced':
+      // A mesma pessoa, noutra aba: a mesa segue lá. "Usar aqui" traz a
+      // sessão para esta aba (e a outra recebe este mesmo aviso). Sair não
+      // esquece o resume: ele é o da outra aba também.
+      message = 'Você abriu a sala em outra aba ou aparelho.'
+      detail = <p className="pe-hint">Sua ficha e o que você já explorou continuam lá. Para jogar por esta tela, toque em Usar aqui.</p>
+      actions.push({ label: 'Usar aqui', primary: true, run: () => connection.reconnect() })
+      actions.push({ label: 'Sair', run: () => onLeave() })
       break
     case 'error': {
       const reason = state.error ?? 'unknown'
@@ -969,8 +1061,9 @@ function PlayerApp() {
 
   useEffect(() => () => session?.connection.close(), [session])
 
-  // Recarregou a página com a sessão desta aba ainda viva: volta direto para a
-  // sala, sem passar pelo formulário. `join` é declaração de função (içada).
+  // Recarregou a página (ou abriu o QR numa aba nova) com a sessão deste
+  // aparelho ainda viva: volta direto para a sala, sem passar pelo formulário
+  // e como a mesma pessoa. `join` é declaração de função (içada).
   useEffect(() => {
     if (rejoined.current) return
     rejoined.current = true
@@ -992,7 +1085,8 @@ function PlayerApp() {
           const registered = welcomeName(data)
           if (registered !== null) setHostName(registered)
         }),
-      storage: sessionStorageOrNull(),
+      storage: resumeStorageOrNull(),
+      isHidden: () => document.visibilityState === 'hidden',
     })
     setSession({ connection, code, typedName: name })
   }

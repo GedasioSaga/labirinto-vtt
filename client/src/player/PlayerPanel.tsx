@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChangeEvent, ComponentProps, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react'
 import type { StorageLike } from './playerConnection'
 import { PlayerBackpack } from './PlayerBackpack'
-import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
+import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry, type PartyMember, type PartyWhere } from '../net/protocol'
 import { PlayerNotebook } from './PlayerNotebook'
 import { PlayerClueList } from './PlayerClues'
 
@@ -45,6 +45,9 @@ const EXPLORED_BRIGHTNESS_STEP = 0.05
 // Grade desligada por padrão: o mapa do jogador segue o minimapa limpo do editor.
 export const DEFAULT_PLAYER_SETTINGS: PlayerViewSettings = { exploredBrightness: 0.55, showGrid: false, showNames: true }
 export const PLAYER_SETTINGS_KEY = 'labirinto.jogador.ajustes'
+
+/** Como cada estado do companheiro aparece escrito: é o texto que o jogador lê. */
+const PARTY_WHERE_LABEL: Record<PartyWhere, string> = { aqui: 'aqui', longe: 'em outro lugar', fora: 'fora' }
 
 export interface PlayerCharacter {
   id: string
@@ -133,6 +136,12 @@ interface PlayerPanelProps {
   onOpenClue?: (clueId: string) => void
   /** ITEM PEGÁVEL: a seção "Comigo". Ausente = o painel de sempre. */
   backpack?: ComponentProps<typeof PlayerBackpack>
+  /**
+   * Os outros jogadores da mesa e onde estão para ele. `undefined` = o mestre
+   * ainda não mandou (ou é antigo e nunca manda): a seção não aparece, em vez
+   * de afirmar que ele está sozinho.
+   */
+  party?: PartyMember[]
 }
 
 export function PlayerPanel({
@@ -157,6 +166,7 @@ export function PlayerPanel({
   clues = NO_CLUES,
   onOpenClue = IGNORE_CLUE,
   backpack,
+  party,
 }: PlayerPanelProps) {
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
   // Um estado por forma: a coluna do notebook nasce aberta e a gaveta do
@@ -425,6 +435,30 @@ export function PlayerPanel({
             </section>
 
             {backpack !== undefined && <PlayerBackpack {...backpack} />}
+
+            {party !== undefined && (
+              <section className="pp-section" aria-labelledby={`${panelId}-party`}>
+                <h2 id={`${panelId}-party`} className="pp-heading">
+                  Grupo
+                </h2>
+                {party.length === 0 ? (
+                  <p className="pp-empty">Só você na mesa.</p>
+                ) : (
+                  <ul className="pp-list">
+                    {party.map((member) => (
+                      <li key={member.playerId} className={`pp-member pp-member--${member.where}`}>
+                        <span className="pp-member__dot" aria-hidden="true" />
+                        <span className="pp-member__name">{member.name}</span>
+                        {/* Espaço de texto entre nome e estado: o flex o ignora no
+                            desenho (o `gap` separa), mas quem lê o texto — leitor
+                            de tela, busca, cópia — recebe "Bruno aqui", não "Brunoaqui". */}{' '}
+                        <span className="pp-member__where">{PARTY_WHERE_LABEL[member.where]}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
 
             {first !== undefined && (
               <section className="pp-section" aria-labelledby={`${panelId}-me`}>

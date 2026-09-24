@@ -70,6 +70,7 @@ import {
   type PlayerMeasureState,
 } from './playerMeasure'
 import { drawPlayerMeasure, drawPlayerTokenDrag } from './drawPlayerMeasure'
+import { fireLongPress } from './playerLongPress'
 import { createTokenGlides, stepGlides, syncGlide, type TokenGlides } from './tokenGlide'
 import { applyTokenTouch, prepareTokenLayer } from './tokenTouch'
 import {
@@ -116,6 +117,15 @@ interface PlayerViewProps {
   /** Botão "Sinalizar" ligado: o próximo toque no mapa vira sinal em vez de arrasto. */
   signalArmed?: boolean
   onSignal?: (x: number, y: number) => void
+  /**
+   * AÇÕES NO PONTO: o toque longo venceu em (`x`, `y`) de mundo, com o dedo em
+   * (`screenX`, `screenY`) de tela. Quem monta abre ali o menu
+   * Sinalizar/Procurar/Escutar/Espiar/Revistar e decide o sinal: com isto, o
+   * toque longo NÃO chama `onSignal`; sem isto, chama (o sinal de sempre).
+   */
+  onLongPress?: (x: number, y: number, screenX: number, screenY: number) => void
+  /** Qualquer toque no mapa: o menu do toque longo anterior fecha. */
+  onMapPointerDown?: () => void
   /**
    * Botão "Medir" ligado: arrastar no mapa mede a distância em vez de mover a
    * câmera. A medida é só desta tela — nada vai pelo socket.
@@ -882,6 +892,8 @@ export function PlayerView({
   signals = NO_SIGNALS,
   signalArmed = false,
   onSignal,
+  onLongPress,
+  onMapPointerDown,
   measureArmed = false,
   onDoorToggle,
   onPinOpen,
@@ -914,6 +926,8 @@ export function PlayerView({
     signals,
     signalArmed,
     onSignal,
+    onLongPress,
+    onMapPointerDown,
     measureArmed,
     onDoorToggle,
     onPinOpen,
@@ -1756,6 +1770,7 @@ export function PlayerView({
         // Dedo que a captura já fez pinça. Quando o alvo é o próprio palco, parar a propagação
         // lá não impede este ouvinte (o Pixi avisa captura e alvo na mesma volta).
         if (event.pointerType === 'touch' && scene.touch.pinch !== null) return
+        latestRef.current.onMapPointerDown?.()
         if (scene.drag) return
         const { x, y } = event.global
         const pointerId = event.pointerId
@@ -1788,7 +1803,8 @@ export function PlayerView({
           longPress = null
           // Virou sinal: o gesto não continua como arrasto de câmera.
           if (scene.drag?.kind === 'pan') scene.drag = null
-          sendSignalAt(x, y)
+          // Com as ações no ponto, o menu Sinalizar/Procurar/...; sem elas, o sinal.
+          fireLongPress(scene.world.toLocal({ x, y }), { x, y }, latestRef.current)
         }, SIGNAL_LONG_PRESS_MS)
         longPress = { timer, pointerId, x, y }
       })

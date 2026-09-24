@@ -759,6 +759,27 @@ export function setGridCellSize(map: MapData, cellSize: number): MapData {
   return { ...map, grid: cellSize }
 }
 
+/** Lado do mapa aceito por `setMapSize`: inteiro de 1 quadro para cima. */
+export function isValidMapSide(value: number): boolean {
+  return Number.isInteger(value) && value >= 1
+}
+
+/**
+ * Muda `MapData.width`/`height` (em quadros), mantendo id, grade e tudo o que
+ * está desenhado no mesmo lugar do mundo: aumentar acrescenta à direita e
+ * embaixo, diminuir corta de lá sem apagar item nenhum. Mesmo id e mesma grade
+ * é o que faz a sessão de rede carregar o explorado de cada jogador para o
+ * tamanho novo (`hostSession.existingMemory`).
+ *
+ * Valor inválido ou tamanho igual devolve o PRÓPRIO mapa: a store não grava
+ * entrada de undo e a ponte não manda nada aos jogadores.
+ */
+export function setMapSize(map: MapData, width: number, height: number): MapData {
+  if (!isValidMapSide(width) || !isValidMapSide(height)) return map
+  if (map.width === width && map.height === height) return map
+  return { ...map, width, height }
+}
+
 /**
  * Esconde/mostra uma LayerId inteira em `map.hiddenLayers` — toggle simples
  * de presença no array. A limpeza de seleção quando o item selecionado fica

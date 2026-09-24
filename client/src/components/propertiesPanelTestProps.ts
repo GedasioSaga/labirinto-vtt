@@ -30,6 +30,7 @@ export function propsDoPainel(ficha: Token, extra: Partial<PainelProps> = {}): P
   const map = useMapStore.getState().map
   return {
     mapName: map.name,
+    onMapSizeApply: nada,
     mapWidth: map.width,
     mapHeight: map.height,
     mapGrid: map.grid,

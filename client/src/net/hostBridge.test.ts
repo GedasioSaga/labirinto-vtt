@@ -52,6 +52,17 @@ function setup(overrides: Partial<HostBridgeDeps> = {}) {
   return { bridge, invoke, listen, unlisten, applyMove, applyDoor, onPlayersChange, emit, sent }
 }
 
+/** Os `party.update` mandados a `clientId`, na ordem (só a `msg` de cada envio). */
+function partyUpdatesTo(sent: unknown[], clientId: string): unknown[] {
+  const out: unknown[] = []
+  for (const args of sent) {
+    if (typeof args !== 'object' || args === null || !('clientId' in args) || args.clientId !== clientId || !('msg' in args)) continue
+    const msg: unknown = args.msg
+    if (typeof msg === 'object' && msg !== null && 'type' in msg && msg.type === 'party.update') out.push(msg)
+  }
+  return out
+}
+
 function joinedPlayerId(sent: unknown[]): string {
   for (const args of sent) {
     const msg: unknown = typeof args === 'object' && args !== null && 'msg' in args ? args.msg : null
@@ -130,6 +141,18 @@ describe('hostBridge', () => {
     t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
     t.emit('net:peer', { clientId: 'c1', event: 'disconnected' })
     expect(t.bridge.players()[0]).toMatchObject({ connected: false, clientId: null })
+  })
+
+  it('companheiros: entrar e cair mandam party.update aos outros na hora, sem nome de cena', async () => {
+    const t = setup()
+    await t.bridge.start()
+    t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
+    t.emit('net:message', { clientId: 'c2', msg: { type: 'join', code: ROOM.code, name: 'Bruno' } })
+    const listaDaAna = () => partyUpdatesTo(t.sent(), 'c1').at(-1)
+    expect(listaDaAna()).toMatchObject({ type: 'party.update', members: [{ name: 'Bruno', where: 'longe' }] })
+    t.emit('net:peer', { clientId: 'c2', event: 'disconnected' })
+    expect(listaDaAna()).toMatchObject({ type: 'party.update', members: [{ name: 'Bruno', where: 'fora' }] })
+    expect(partyUpdatesTo(t.sent(), 'c2')).toHaveLength(1)
   })
 
   it('throttle agrega 5 notifyMapChanged em 1 broadcast', async () => {
@@ -287,8 +310,10 @@ describe('hostBridge', () => {
     const t = setup({ invoke })
     await t.bridge.start()
     t.emit('net:message', { clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
-    // Espera os envios do join (welcome, lobby.waiting) saírem antes de medir a ordem do kick.
-    await vi.waitFor(() => expect(order).toEqual(['send-done', 'send-done']))
+    // Espera os envios do join (welcome, lobby.waiting e o party.update — a
+    // lista de companheiros vai mesmo vazia, para uma tela reconectada trocar
+    // a lista antiga) saírem antes de medir a ordem do kick.
+    await vi.waitFor(() => expect(order).toEqual(['send-done', 'send-done', 'send-done']))
     order.length = 0
     await t.bridge.kick('c1')
     expect(order).toEqual(['send-done', 'kick'])
@@ -802,7 +827,8 @@ describe('hostBridge: pedido de passagem pelo pino de viagem', () => {
     const { t, aviso, applyTransfer, onGoToScene } = await pedido()
     const antes = t.sent().length
     aviso.actions?.[0]?.run()
-    expect(applyTransfer).toHaveBeenCalledWith(expect.objectContaining({ tokenId: 'heroi', fromSceneId: 'cena-a', toSceneId: 'cena-b', x: 1025, y: 275 }))
+    // Casa livre ao lado do par, não a casa dele (chegada-em-casa-livre).
+    expect(applyTransfer).toHaveBeenCalledWith(expect.objectContaining({ tokenId: 'heroi', fromSceneId: 'cena-a', toSceneId: 'cena-b', x: 975, y: 275 }))
     const depois = t.sent().slice(antes)
     expect(depois[0]).toEqual({ clientId: 'c1', msg: { type: 'scene.changed' } })
     expect(depois[1]).toMatchObject({ clientId: 'c1', msg: { type: 'snapshot', map: { id: 'mapa-b' } } })
@@ -811,7 +837,7 @@ describe('hostBridge: pedido de passagem pelo pino de viagem', () => {
     const chegada = toasts.find((toast) => toast.text === 'Ana entrou em Cripta')
     expect(chegada?.actions?.map((action) => action.label)).toEqual(['Ir lá'])
     chegada?.actions?.[0]?.run()
-    expect(onGoToScene).toHaveBeenCalledWith('cena-b', 1025, 275)
+    expect(onGoToScene).toHaveBeenCalledWith('cena-b', 975, 275)
     expect(t.bridge.players()[0]?.sceneName).toBe('Cripta')
   })
 

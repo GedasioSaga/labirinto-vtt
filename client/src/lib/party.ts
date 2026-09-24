@@ -2,6 +2,7 @@ import type { AppliedItems, HostScene, HostWorld, PlayerInfo } from '../net/host
 import type { CarriedItem, Token } from '../types/map'
 import { carriedItemsOf, dropItemChange, giveNewItemChange, removeItemChange, type ItemChange } from './items'
 import { pinSummary } from './pins'
+import { roomsAt } from './roomNesting'
 import { tokenFillColor } from './tokenColor'
 
 /**
@@ -24,6 +25,8 @@ export interface PartyMember {
   playerId: string
   name: string
   connected: boolean
+  /** Quando a conexão dele caiu (relógio do mestre). Ausente enquanto está online, ou sem esse registro. */
+  offlineSince?: number
   /** Cena da aventura onde ele está; `null` no mapa solto ou sem ficha em cena. */
   sceneId: string | null
   sceneName: string | null
@@ -134,7 +137,7 @@ export function partyItemChange(world: HostWorld, action: PartyItemAction, fresh
 export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMember[] {
   return players.map((player) => {
     const token = player.status === 'playing' ? tokenOf(player, world) : null
-    return {
+    const member: PartyMember = {
       playerId: player.playerId,
       name: player.name,
       connected: player.connected,
@@ -144,6 +147,8 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
       travelPending: player.travelPending === true,
       mochila: backpackOf(player, world),
     }
+    if (!player.connected && player.disconnectedAt !== undefined) member.offlineSince = player.disconnectedAt
+    return member
   })
 }
 
@@ -181,9 +186,30 @@ export interface TokenCarryWiring {
   onCarry(tokenId: string, sceneId: string, pinId: string | null): boolean
 }
 
-/** Status da linha em uma palavra: é o que o mestre lê de relance. */
-export function partyPresenceLabel(member: PartyMember): string {
-  return member.connected ? 'online' : 'fora'
+const SECOND_MS = 1_000
+const MINUTE_MS = 60 * SECOND_MS
+const HOUR_MS = 60 * MINUTE_MS
+
+/**
+ * Há quanto tempo, curto: "0:10" no primeiro minuto (o mestre acompanha se
+ * a pessoa volta já), depois "2 min" e "1 h" — segundos deixam de importar.
+ */
+export function offlineForLabel(elapsedMs: number): string {
+  const ms = Math.max(0, elapsedMs)
+  if (ms < MINUTE_MS) return `0:${String(Math.floor(ms / SECOND_MS)).padStart(2, '0')}`
+  if (ms < HOUR_MS) return `${Math.floor(ms / MINUTE_MS)} min`
+  return `${Math.floor(ms / HOUR_MS)} h`
+}
+
+/**
+ * Status da linha em poucas palavras: é o que o mestre lê de relance. Quem
+ * caiu diz há quanto tempo ("fora há 0:10"), para o mestre saber se espera ou
+ * segue a cena. `now` é o relógio do mestre, o mesmo que marcou a queda.
+ */
+export function partyPresenceLabel(member: PartyMember, now: number = Date.now()): string {
+  if (member.connected) return 'online'
+  if (member.offlineSince === undefined) return 'fora'
+  return `fora há ${offlineForLabel(now - member.offlineSince)}`
 }
 
 /** Uma bolinha da lista Cenas: quem está na cena, na cor da ficha dele. */
@@ -192,6 +218,32 @@ export interface ScenePerson {
   name: string
   /** `#rrggbb`, a mesma cor da linha do Grupo e do disco no mapa. */
   color: string
+  /**
+   * As Salas onde a ficha dele está, da mais interna para a de fora: os
+   * atalhos "Quem está em: <sala>" do recado. Ausente = montado sem o mundo.
+   * Só o mestre lê: nunca vai pela rede.
+   */
+  rooms?: SceneRoom[]
+}
+
+/** Uma Sala do mapa da cena, pelo nome que o mestre deu. */
+export interface SceneRoom {
+  id: string
+  name: string
+}
+
+/** Sala sem nome ainda vira atalho: o mestre precisa conseguir escolher quem está lá. */
+export const UNNAMED_ROOM_LABEL = 'Sala sem nome'
+
+/** As Salas da ficha do membro, no mapa da cena dele. */
+function roomsOfMember(member: PartyMember, world: HostWorld): SceneRoom[] {
+  const scene = allScenes(world).find((s) => s.sceneId === member.sceneId)
+  if (scene === undefined || member.token === null) return []
+  return roomsAt(scene.map.regions, member.token).map((region) => {
+    // `roomsAt` só devolve Sala; o `?? ''` é para o tipo, que não sabe disso.
+    const name = (region.room?.name ?? '').trim()
+    return { id: region.id, name: name === '' ? UNNAMED_ROOM_LABEL : name }
+  })
 }
 
 /** O que a linha de UMA cena da lista Cenas mostra além do nome. */
@@ -211,8 +263,10 @@ export interface ScenePeople {
  * sessão não dá cena a ninguém, e a lista fica sem bolinha e sem selo.
  * A bolinha pede a ficha na cena (é dela que vem a cor); o pedido não — quem
  * pede já está em cena, e o selo não pode sumir por falta de cor.
+ *
+ * Com `world`, cada bolinha leva as Salas onde a ficha está (`rooms`).
  */
-export function peopleByScene(members: PartyMember[]): Map<string, ScenePeople> {
+export function peopleByScene(members: PartyMember[], world?: HostWorld): Map<string, ScenePeople> {
   const byScene = new Map<string, ScenePeople>()
   for (const member of members) {
     if (!member.connected || member.sceneId === null) continue
@@ -221,7 +275,11 @@ export function peopleByScene(members: PartyMember[]): Map<string, ScenePeople> 
       entry = { people: [], pendingRequests: 0 }
       byScene.set(member.sceneId, entry)
     }
-    if (member.token !== null) entry.people.push({ playerId: member.playerId, name: member.name, color: member.token.color })
+    if (member.token !== null) {
+      const person: ScenePerson = { playerId: member.playerId, name: member.name, color: member.token.color }
+      if (world !== undefined) person.rooms = roomsOfMember(member, world)
+      entry.people.push(person)
+    }
     if (member.travelPending) entry.pendingRequests += 1
   }
   return byScene

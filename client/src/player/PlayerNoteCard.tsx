@@ -17,7 +17,11 @@ export interface PlayerNoteCardProps {
    * aberto: o Escape é dele, e um toque não pode fechar os dois.
    */
   escapeCloses?: boolean
+  /** O mestre mandou só para este jogador: a faixa "Só para você" aparece sob o título. */
+  onlyYou?: boolean
 }
+
+export const ONLY_YOU_LABEL = 'Só para você'
 
 /**
  * O RECADO DO MESTRE na tela do jogador: fica até ele fechar ("Fechar" ou
@@ -27,8 +31,9 @@ export interface PlayerNoteCardProps {
  * O texto entra como filho de texto do React (nunca `innerHTML`): o React
  * escapa `<` e `>`, e o recado "<b>x</b>" aparece com os sinais na tela.
  */
-export function PlayerNoteCard({ text, title = 'Recado do mestre', hint, onClose, escapeCloses = true }: PlayerNoteCardProps) {
+export function PlayerNoteCard({ text, title = 'Recado do mestre', hint, onClose, escapeCloses = true, onlyYou = false }: PlayerNoteCardProps) {
   const titleId = useId()
+  const onlyId = useId()
 
   useEffect(() => {
     if (!escapeCloses) return
@@ -44,10 +49,16 @@ export function PlayerNoteCard({ text, title = 'Recado do mestre', hint, onClose
   }, [escapeCloses, onClose])
 
   return (
-    <section className="pp-note" aria-labelledby={titleId}>
+    // A faixa entra no nome da região: o leitor de tela lê "Recado do mestre, Só para você".
+    <section className="pp-note" aria-labelledby={onlyYou ? `${titleId} ${onlyId}` : titleId}>
       <h2 id={titleId} className="pp-note__title">
         {title}
       </h2>
+      {onlyYou && (
+        <p id={onlyId} className="pp-note__only">
+          {ONLY_YOU_LABEL}
+        </p>
+      )}
       <p className="pp-note__text">{text}</p>
       {hint !== undefined && <p className="pp-note__hint">{hint}</p>}
       <button type="button" className="pp-note__close" onClick={onClose}>

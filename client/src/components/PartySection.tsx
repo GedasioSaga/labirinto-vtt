@@ -2,6 +2,8 @@ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent 
 import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
 import { partyPresenceLabel, type PartyDestination, type PartyItemAction, type PartyMember } from '../lib/party'
 import { SceneSendForm } from './SceneSendForm'
+import type { PlayerNoteDelivery } from '../net/hostSession'
+import { NOTE_FEEDBACK_MS, NoteForm } from './ScenesSection'
 
 export interface PartySectionProps {
   members: PartyMember[]
@@ -24,6 +26,12 @@ export interface PartySectionProps {
    * (a ficha ou o item mudou), e a linha avisa. Sem ele, a mochila é só leitura.
    */
   onItem?(action: PartyItemAction): boolean
+  /**
+   * "Recado" da linha: manda `text` SÓ a este jogador. Devolve se saiu agora,
+   * se fica para quando ele voltar, ou `null` se não deu. Ausente = sala
+   * fechada: a linha fica sem o botão.
+   */
+  onNote?(playerId: string, text: string): PlayerNoteDelivery
 }
 
 export const PARTY_ITEM_FAILED = 'Não deu: a ficha ou o item mudou. Tente de novo.'
@@ -43,6 +51,34 @@ export const PARTY_SEND_FAILED = 'Não deu para mandar: a cena ou a ficha mudou.
 
 /** O rótulo do botão que abre o envio: o teste e o leitor de tela acham a linha por ele. */
 export const SEND_TO_LABEL = 'Mandar para…'
+
+/** O botão do recado para UM jogador; o nome acessível leva o nome dele ("Recado para Gabi"). */
+export const NOTE_LABEL = 'Recado'
+
+/** O aviso na linha do jogador depois do "Recado": o que aconteceu com ele. */
+export function playerNoteFeedbackText(name: string, delivery: PlayerNoteDelivery): string {
+  if (delivery === 'sent') return `Recado enviado a ${name}`
+  if (delivery === 'queued') return `${name} recebe ao voltar`
+  return 'Não deu para enviar: a sala não está aberta.'
+}
+
+/** O "fora há 0:10" anda de segundo em segundo no primeiro minuto. */
+const OFFLINE_TICK_MS = 1_000
+
+/**
+ * Relógio do "fora há…": só anda enquanto alguém está fora, e só re-renderiza
+ * esta seção — o resto do painel não sabe que ele existe.
+ */
+function useOfflineClock(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!active) return
+    setNow(Date.now())
+    const timer = setInterval(() => setNow(Date.now()), OFFLINE_TICK_MS)
+    return () => clearInterval(timer)
+  }, [active])
+  return now
+}
 
 /** As cenas para onde ESTE jogador pode ir: todas menos a dele. */
 export function sendDestinationsFor(member: PartyMember, destinations: PartyDestination[]): PartyDestination[] {
@@ -171,29 +207,56 @@ function BackpackList({ member, onItem }: BackpackListProps) {
 /**
  * "Grupo", no alto da aba Jogo: onde está cada jogador, de relance, e as duas
  * ações de quem conduz uma mesa espalhada — ir ver ("Ir lá") e trazer ou
- * levar alguém ("Mandar para…"). A bolinha é a cor do disco da ficha: é a
- * mesma peça que o mestre procura no mapa.
+ * levar alguém ("Mandar para…") — e o "Recado" que só aquele jogador lê. A
+ * bolinha é a cor do disco da ficha: é a mesma peça que o mestre procura no mapa.
  */
-export function PartySection({ members, destinations, onGoTo, onSend, followingId = null, onToggleFollow, mirroringId = null, onToggleMirror, onItem }: PartySectionProps) {
+export function PartySection({ members, destinations, onGoTo, onSend, followingId = null, onToggleFollow, mirroringId = null, onToggleMirror, onItem, onNote }: PartySectionProps) {
   const headingId = useId()
   const formId = useId()
   const giveFormId = useId()
+  const noteFormId = useId()
   const [sendingId, setSendingId] = useState<string | null>(null)
   /** De quem é o "Dar item…" aberto. Um formulário por vez: abrir um fecha o outro. */
   const [givingId, setGivingId] = useState<string | null>(null)
-  /** Quem abriu o envio (ou o "Dar item…"): o foco volta para ele ao terminar ou cancelar. */
+  /** Jogador com o "Recado" aberto; `null` = nenhum. */
+  const [notingId, setNotingId] = useState<string | null>(null)
+  /** Aviso do último recado, na linha do jogador; some sozinho. */
+  const [noteFeedback, setNoteFeedback] = useState<{ playerId: string; text: string } | null>(null)
+  /** Quem abriu o envio, o "Dar item…" ou o recado: o foco volta para ele ao fechar. */
   const openerRef = useRef<HTMLElement | null>(null)
   const sending = members.find((member) => member.playerId === sendingId)
   const giving = members.find((member) => member.playerId === givingId)
+  const now = useOfflineClock(members.some((member) => member.offlineSince !== undefined))
 
-  const closeForm = () => {
-    setSendingId(null)
-    setGivingId(null)
+  useEffect(() => {
+    if (noteFeedback === null) return
+    const timer = setTimeout(() => setNoteFeedback(null), NOTE_FEEDBACK_MS)
+    return () => clearTimeout(timer)
+  }, [noteFeedback])
+
+  const returnFocus = () => {
     const opener = openerRef.current
     openerRef.current = null
     requestAnimationFrame(() => {
       if (opener?.isConnected) opener.focus()
     })
+  }
+
+  const closeForm = () => {
+    setSendingId(null)
+    setGivingId(null)
+    returnFocus()
+  }
+
+  const closeNote = () => {
+    setNotingId(null)
+    returnFocus()
+  }
+
+  const sendNote = (member: PartyMember, text: string) => {
+    const delivery = onNote?.(member.playerId, text) ?? null
+    setNoteFeedback({ playerId: member.playerId, text: playerNoteFeedbackText(member.name, delivery) })
+    closeNote()
   }
 
   return (
@@ -206,6 +269,7 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
           const targets = member.token === null ? [] : sendDestinationsFor(member, destinations)
           const open = member.playerId === sendingId
           const givingOpen = member.playerId === givingId
+          const noting = member.playerId === notingId
           return (
             <li key={member.playerId} className="lb-party__item">
               <div className="lb-party__who">
@@ -217,7 +281,7 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
                 />
                 {/* Os espaços são do texto: sem eles o leitor de tela lê "Anaonline". */}
                 <strong className="lb-party__name">{member.name}</strong>{' '}
-                <span className={`lb-party__presence${member.connected ? ' lb-party__presence--on' : ''}`}>{partyPresenceLabel(member)}</span>
+                <span className={`lb-party__presence${member.connected ? ' lb-party__presence--on' : ''}`}>{partyPresenceLabel(member, now)}</span>
               </div>{' '}
               <span className="lb-party__where">{member.token === null ? 'sem ficha no mapa' : (member.sceneName ?? 'no mapa aberto')}</span>
               {/* ITEM PEGÁVEL: quem tem o quê, de relance. Mochila vazia não ocupa linha. */}
@@ -232,12 +296,14 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
                     <BackpackList member={member} onItem={onItem} />
                   </>
                 ))}
-              {member.token !== null && (
+              {(member.token !== null || onNote !== undefined) && (
                 <div className="lb-party__actions">
-                  <button type="button" className="lb-btn" onClick={() => onGoTo(member)}>
-                    Ir lá
-                  </button>
-                  {onToggleFollow !== undefined && (
+                  {member.token !== null && (
+                    <button type="button" className="lb-btn" onClick={() => onGoTo(member)}>
+                      Ir lá
+                    </button>
+                  )}
+                  {member.token !== null && onToggleFollow !== undefined && (
                     // Ligado ganha o destaque do "Laser" da mesma aba: um botão de modo, não uma ação de uma vez.
                     <button
                       type="button"
@@ -249,7 +315,7 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
                     </button>
                   )}
                   {/* Desconectado não tem tela: o botão abriria um espelho vazio. */}
-                  {onToggleMirror !== undefined && member.connected && (
+                  {member.token !== null && onToggleMirror !== undefined && member.connected && (
                     <button
                       type="button"
                       className="lb-btn"
@@ -274,13 +340,14 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
                         }
                         openerRef.current = event.currentTarget
                         setGivingId(null)
+                        setNotingId(null)
                         setSendingId(member.playerId)
                       }}
                     >
                       {SEND_TO_LABEL}
                     </button>
                   )}
-                  {onItem !== undefined && (
+                  {member.token !== null && onItem !== undefined && (
                     <button
                       type="button"
                       className="lb-btn"
@@ -294,13 +361,48 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
                         }
                         openerRef.current = event.currentTarget
                         setSendingId(null)
+                        setNotingId(null)
                         setGivingId(member.playerId)
                       }}
                     >
                       Dar item…
                     </button>
                   )}
+                  {onNote !== undefined && (
+                    // Montado também com o campo aberto: é para ele que o foco volta.
+                    <button
+                      type="button"
+                      className={noting ? 'lb-btn lb-btn--primary' : 'lb-btn'}
+                      aria-label={`${NOTE_LABEL} para ${member.name}`}
+                      aria-expanded={noting}
+                      aria-controls={noting ? noteFormId : undefined}
+                      title="Recado: só este jogador lê"
+                      onClick={(event) => {
+                        if (noting) {
+                          closeNote()
+                          return
+                        }
+                        openerRef.current = event.currentTarget
+                        setSendingId(null)
+                        setGivingId(null)
+                        setNoteFeedback(null)
+                        setNotingId(member.playerId)
+                      }}
+                    >
+                      {NOTE_LABEL}
+                    </button>
+                  )}
                 </div>
+              )}
+              {onNote !== undefined && noting && (
+                <div id={noteFormId}>
+                  <NoteForm label={`Recado só para ${member.name}`} onSend={(text) => sendNote(member, text)} onCancel={closeNote} />
+                </div>
+              )}
+              {noteFeedback?.playerId === member.playerId && (
+                <p className="lb-party__recado-aviso" role="status">
+                  {noteFeedback.text}
+                </p>
               )}
             </li>
           )

@@ -95,6 +95,50 @@ export function createExploration(map: Pick<MapData, 'width' | 'height' | 'grid'
   return { cell, cols, rows, bits: new Uint8Array(byteLength(cols, rows)), rings: [], ringVertices: 0 }
 }
 
+/**
+ * A mesma memória numa planta de outro tamanho (o mestre aumentou ou diminuiu
+ * o mapa): cada coisa fica no MESMO ponto do mundo, porque o mapa cresce a
+ * partir do canto (0, 0). O que é novo nasce preto; o que saiu do mapa é
+ * esquecido (se ele crescer de novo, pode haver outra planta lá).
+ *
+ * Célula nova só vira explorada quando TODAS as células antigas que ela cobre
+ * estavam exploradas — a mesma regra conservadora de `markRings` quando o mapa
+ * enorme engrossa a célula. Com a mesma célula, é cópia bit a bit.
+ * Contorno lembrado que não cabe inteiro na planta nova sai; o que cabe fica.
+ * Não mexe em `exp`: devolve uma memória nova.
+ */
+export function resizeExploration(exp: Exploration, map: Pick<MapData, 'width' | 'height' | 'grid'>): Exploration {
+  const next = createExploration(map)
+  const oldCell = exp.cell
+  for (let row = 0; row < next.rows; row += 1) {
+    const y0 = row * next.cell
+    const firstOldRow = Math.floor(y0 / oldCell)
+    const lastOldRow = Math.ceil((y0 + next.cell) / oldCell) - 1
+    if (lastOldRow >= exp.rows) break
+    for (let col = 0; col < next.cols; col += 1) {
+      const x0 = col * next.cell
+      const firstOldCol = Math.floor(x0 / oldCell)
+      const lastOldCol = Math.ceil((x0 + next.cell) / oldCell) - 1
+      if (lastOldCol >= exp.cols) break
+      if (allCellsSet(exp, firstOldCol, lastOldCol, firstOldRow, lastOldRow)) setRun(next, row, col, col + 1)
+    }
+  }
+  const width = next.cols * next.cell
+  const height = next.rows * next.cell
+  next.rings = exp.rings.filter((r) => r.minX >= 0 && r.minY >= 0 && r.maxX <= width && r.maxY <= height)
+  next.ringVertices = next.rings.reduce((total, r) => total + r.points.length, 0)
+  return next
+}
+
+function allCellsSet(exp: Exploration, colStart: number, colEnd: number, rowStart: number, rowEnd: number): boolean {
+  for (let row = rowStart; row <= rowEnd; row += 1) {
+    for (let col = colStart; col <= colEnd; col += 1) {
+      if (!isCellSet(exp, col, row)) return false
+    }
+  }
+  return true
+}
+
 function setRun(exp: Exploration, row: number, colStart: number, colEnd: number): void {
   const base = row * exp.cols
   for (let col = colStart; col < colEnd; col += 1) {
@@ -382,6 +426,40 @@ export function markRings(exp: Exploration, rings: readonly (readonly RegionPoin
       }
     }
   }
+}
+
+/**
+ * ÁREA PROIBIDA que apareceu DEPOIS da memória (zona oculta ativa, sala
+ * secreta): apaga dela o que `markRings` nunca teria guardado ali — toda
+ * célula que TOCA a área e todo contorno lembrado que encosta nela. É a regra
+ * estrita de `markRings`/`rememberRing`, não a de `forgetInside` (o teto): o
+ * que o mestre escondeu não pode sobrar nem na borda.
+ *
+ * Usada ao retomar a mesa: a memória gravada ontem é conferida contra as áreas
+ * proibidas de hoje antes de chegar ao jogador.
+ */
+export function forgetBlocked(exp: Exploration, blocked: readonly RegionPoint[][]): void {
+  const zones = zoneBoxes(blocked)
+  if (zones.length === 0) return
+  const { cell, cols, rows } = exp
+  for (let row = 0; row < rows; row += 1) {
+    const y0 = row * cell
+    const y1 = y0 + cell
+    const rowZones = zones.filter((z) => z.maxY >= y0 && z.minY <= y1)
+    if (rowZones.length === 0) continue
+    for (let col = 0; col < cols; col += 1) {
+      if (!isCellSet(exp, col, row)) continue
+      const x0 = col * cell
+      const x1 = x0 + cell
+      if (rowZones.some((z) => z.maxX >= x0 && z.minX <= x1 && ringTouchesRect(z.ring, x0, y0, x1, y1))) clearCell(exp, col, row)
+    }
+  }
+  const kept = exp.rings.filter((r) =>
+    zones.every((z) => r.maxX < z.minX || r.minX > z.maxX || r.maxY < z.minY || r.minY > z.maxY || !ringTouchesRect(r.points, z.minX, z.minY, z.maxX, z.maxY)),
+  )
+  if (kept.length === exp.rings.length) return
+  exp.rings = kept
+  exp.ringVertices = kept.reduce((total, r) => total + r.points.length, 0)
 }
 
 /** Fração dos vértices de um contorno lembrado que precisa cair dentro do polígono para ele ser esquecido. */

@@ -1339,6 +1339,18 @@ body {
   color: var(--lb-color-parchment-dim);
 }
 
+/* Erro junto ao campo (tamanho do mapa): diz o que corrigir, sem apagar o que foi digitado. */
+.lb-field__error {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-ember);
+}
+
+.lb-input[aria-invalid='true'] {
+  border-color: var(--lb-color-ember);
+}
+
 /* Engrenagem do cabeçalho do inspetor: empurrada para a direita do nome. */
 .lb-inspector__settings {
   flex: none;
@@ -1651,6 +1663,13 @@ body {
   gap: var(--lb-space-2);
 }
 
+/* "Recado enviado a Gabi": uma linha discreta sob os botões, some sozinha. */
+.lb-party__recado-aviso {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
 .lb-party__actions > .lb-btn {
   flex: 1 1 auto;
   min-width: 0;
@@ -1740,6 +1759,44 @@ body {
   padding: var(--lb-space-4);
   text-align: center;
   color: var(--lb-color-parchment-dim);
+}
+
+/* Diário de viagens (G15), abaixo do Grupo: mesmo poço, linha mais baixa —
+   é leitura corrida; a hora em algarismos de largura fixa alinha a coluna. */
+.lb-travel-log__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-travel-log__row {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 34px;
+}
+
+.lb-travel-log__line {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+  overflow-wrap: anywhere;
+}
+
+.lb-travel-log__time {
+  color: var(--lb-color-parchment-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-travel-log__row > .lb-btn {
+  flex: none;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
 }
 
 /* "Reunir o grupo aqui" (painel do pino): a lista de quem vem, no mesmo poço
@@ -2686,6 +2743,36 @@ body {
   opacity: 0.5;
 }
 
+/* "Pausar": mesma forma do recado; pressionado, preenchido em latão para a
+   cena pausada saltar da lista num relance. */
+.lb-cenas__pausar {
+  flex: none;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+
+.lb-cenas__pausar:hover:not(:disabled) {
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass);
+}
+
+.lb-cenas__pausar[aria-pressed='true'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass);
+  color: var(--lb-color-ink);
+}
+
+.lb-cenas__pausar:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 /* O campo do recado ocupa a linha inteira do item, abaixo do nome e de quem está lá. */
 .lb-cenas__recado {
   display: flex;
@@ -2706,6 +2793,66 @@ body {
   margin-right: auto;
   align-self: center;
   color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* "Quem recebe": uma marca por jogador e os atalhos por sala, em linhas que quebram. */
+.lb-cenas__quem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-1) var(--lb-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.lb-cenas__quem > legend {
+  flex-basis: 100%;
+  padding: 0;
+  margin-bottom: var(--lb-space-1);
+}
+
+.lb-cenas__escolha {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+
+.lb-cenas__escolha > input {
+  margin: 0;
+  accent-color: var(--lb-color-brass);
+}
+
+.lb-cenas__escolha > input:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+.lb-cenas__atalho {
+  flex: none;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+
+.lb-cenas__atalho:hover,
+.lb-cenas__atalho:focus-visible {
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass);
+}
+
+.lb-cenas__recado-vazio {
+  margin: 0;
+  color: var(--lb-color-brass);
   font-size: var(--lb-font-size-sm);
 }
 

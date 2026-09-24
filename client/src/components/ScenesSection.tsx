@@ -18,7 +18,7 @@ import { SceneAlarmControls, type ActiveAlarmView } from './SceneAlarmControls'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
 import { sceneTree, SCENE_TRAIL_SEPARATOR, type SceneTreeRow } from '../lib/adventure'
 import { normalizeForSearch } from '../lib/mapObjects'
-import { pendingRequestsLabel, type ScenePeople, type ScenePerson } from '../lib/party'
+import { pendingRequestsLabel, type ScenePeople, type ScenePerson, type SceneRoom } from '../lib/party'
 import type { SceneListItem } from '../stores/adventureStore'
 import type { MapData } from '../types/map'
 
@@ -42,9 +42,10 @@ export interface ScenesSectionProps {
   /**
    * RECADO POR CENA: manda `text` a quem está em `sceneId`. Devolve quantos
    * jogadores receberam, ou `null` se não deu (sala fechou no meio). Ausente =
-   * sala fechada: a linha fica sem o botão "Recado".
+   * sala fechada: a linha fica sem o botão "Recado". `playerIds` vem quando o
+   * mestre escolheu quem recebe entre os presentes (só esses); ausente = todos.
    */
-  onNote?: (sceneId: string, text: string) => number | null
+  onNote?: (sceneId: string, text: string, playerIds?: readonly string[]) => number | null
   /**
    * CENAS EM PASTAS: põe `sceneId` dentro de `parentId` (`null` = primeiro
    * nível). `false` = não deu. Ausente = mapa solto: sem arrastar e sem
@@ -63,6 +64,13 @@ export interface ScenesSectionProps {
   onEndAlarm?: () => void
   /** O alarme soando; `null`/ausente = nenhum. */
   alarm?: ActiveAlarmView | null
+  /** PAUSA POR CENA: ids das cenas pausadas agora. Ausente = nenhuma. */
+  paused?: ReadonlySet<string>
+  /**
+   * Pausa (`true`) ou solta a cena. Ausente = sala fechada: a linha fica sem o
+   * botão "Pausar" (sem sala, não há grupo esperando).
+   */
+  onTogglePause?: (sceneId: string, paused: boolean) => void
 }
 
 /** Quanto tempo o aviso "Recado enviado…" fica na linha da cena. */
@@ -87,30 +95,115 @@ export function noteFeedbackText(sent: number | null): string {
   return sent === 1 ? 'Recado enviado a 1 jogador' : `Recado enviado a ${sent} jogadores`
 }
 
-interface NoteFormProps {
-  sceneName: string
-  onSend(text: string): void
+/** Sem ninguém para marcar (lista estável: o estado inicial do formulário lê dela). */
+const NO_PEOPLE: readonly ScenePerson[] = []
+
+export interface NoteFormProps {
+  /** O rótulo do campo: diz para quem vai o recado. */
+  label: string
+  /**
+   * Quem está na cena agora. Vazio ou ausente = ninguém para escolher: vai para
+   * a cena inteira (no Grupo, para o jogador da linha).
+   */
+  people?: readonly ScenePerson[]
+  /** `playerIds` só quando o mestre escolheu entre os presentes. */
+  onSend(text: string, playerIds?: string[]): void
   onCancel(): void
 }
 
+/** Os atalhos "Quem está em: <sala>": cada Sala onde há alguém, sem repetir, na ordem das bolinhas. */
+export function roomShortcuts(people: readonly ScenePerson[]): SceneRoom[] {
+  const seen = new Map<string, SceneRoom>()
+  for (const person of people) {
+    for (const room of person.rooms ?? []) if (!seen.has(room.id)) seen.set(room.id, room)
+  }
+  return [...seen.values()]
+}
+
 /**
- * O recado de uma cena, dentro da linha dela: um campo de texto curto e
+ * "Quem recebe": uma marca por jogador presente (a bolinha na cor da ficha e o
+ * nome), "Todos" com estado misto e os atalhos por sala. Caixa de marcar
+ * nativa: clique no nome, no quadrado e Espaço alternam igual.
+ */
+function RecipientPicker({ people, chosen, onChange }: { people: readonly ScenePerson[]; chosen: ReadonlySet<string>; onChange(next: Set<string>): void }) {
+  const allRef = useRef<HTMLInputElement | null>(null)
+  const count = people.filter((p) => chosen.has(p.playerId)).length
+  const all = count === people.length
+  const some = count > 0 && !all
+
+  useEffect(() => {
+    if (allRef.current !== null) allRef.current.indeterminate = some
+  }, [some])
+
+  return (
+    <fieldset className="lb-cenas__quem">
+      <legend className="lb-label">Quem recebe</legend>
+      <label className="lb-cenas__escolha">
+        <input ref={allRef} type="checkbox" checked={all} onChange={() => onChange(all ? new Set() : new Set(people.map((p) => p.playerId)))} />
+        Todos
+      </label>
+      {people.map((person) => (
+        <label key={person.playerId} className="lb-cenas__escolha">
+          <input
+            type="checkbox"
+            checked={chosen.has(person.playerId)}
+            onChange={() => {
+              const next = new Set(chosen)
+              if (!next.delete(person.playerId)) next.add(person.playerId)
+              onChange(next)
+            }}
+          />
+          <span className="lb-cenas__pessoa" aria-hidden="true" style={{ background: person.color }} />
+          {person.name}
+        </label>
+      ))}
+      {roomShortcuts(people).map((room) => (
+        <button
+          key={room.id}
+          type="button"
+          className="lb-cenas__atalho"
+          onClick={() => onChange(new Set(people.filter((p) => p.rooms?.some((r) => r.id === room.id) === true).map((p) => p.playerId)))}
+        >
+          Quem está em: {room.name}
+        </button>
+      ))}
+    </fieldset>
+  )
+}
+
+/**
+ * O recado de uma cena (ou de um jogador, no Grupo), dentro da linha dela: um campo de texto curto e
  * "Enviar"/"Cancelar", no molde do "Mandar para…" do Grupo. Enter comum quebra
  * linha (é um recado, pode ter duas frases); Ctrl+Enter envia; Esc cancela.
+ * Com gente na cena, o mestre escolhe quem recebe e o botão diz quantos.
  */
-function NoteForm({ sceneName, onSend, onCancel }: NoteFormProps) {
+export function NoteForm({ label, people = NO_PEOPLE, onSend, onCancel }: NoteFormProps) {
   const fieldId = useId()
+  const emptyHintId = useId()
   const [text, setText] = useState('')
+  // Abre com todos marcados: o recado da cena inteira continua a um Enviar de distância.
+  const [chosen, setChosen] = useState<ReadonlySet<string>>(() => new Set(people.map((p) => p.playerId)))
   const fieldRef = useRef<HTMLTextAreaElement | null>(null)
   const empty = text.trim().length === 0
+  const choosing = people.length > 0
+  // Filtra pelos presentes de AGORA: quem saiu da cena com o campo aberto não conta.
+  const recipients = people.filter((p) => chosen.has(p.playerId)).map((p) => p.playerId)
+  const noOneChosen = choosing && recipients.length === 0
+  const canSend = !empty && !noOneChosen
 
   useEffect(() => {
     fieldRef.current?.focus()
   }, [])
 
+  const send = () => {
+    if (!canSend) return
+    if (choosing) onSend(text, recipients)
+    else onSend(text)
+  }
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!empty) onSend(text)
+    send()
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -123,14 +216,14 @@ function NoteForm({ sceneName, onSend, onCancel }: NoteFormProps) {
     }
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
       event.preventDefault()
-      if (!empty) onSend(text)
+      send()
     }
   }
 
   return (
     <form className="lb-cenas__recado" onSubmit={submit}>
       <label className="lb-label" htmlFor={fieldId}>
-        Recado para quem está em {sceneName}
+        {label}
       </label>
       <textarea
         id={fieldId}
@@ -142,6 +235,12 @@ function NoteForm({ sceneName, onSend, onCancel }: NoteFormProps) {
         onChange={(event) => setText(event.target.value)}
         onKeyDown={onKeyDown}
       />
+      {choosing && <RecipientPicker people={people} chosen={chosen} onChange={setChosen} />}
+      {noOneChosen && (
+        <p id={emptyHintId} className="lb-cenas__recado-vazio">
+          Marque quem recebe o recado
+        </p>
+      )}
       <div className="lb-cenas__acoes">
         <span className="lb-cenas__recado-conta" aria-hidden="true">
           {text.length}/{NOTE_MAX_LENGTH}
@@ -149,8 +248,8 @@ function NoteForm({ sceneName, onSend, onCancel }: NoteFormProps) {
         <button type="button" className="lb-btn lb-btn--ghost" onClick={onCancel}>
           Cancelar
         </button>
-        <button type="submit" className="lb-btn lb-btn--primary" disabled={empty}>
-          Enviar
+        <button type="submit" className="lb-btn lb-btn--primary" disabled={!canSend} aria-describedby={noOneChosen ? emptyHintId : undefined}>
+          {choosing ? `Enviar para ${recipients.length}` : 'Enviar'}
         </button>
       </div>
     </form>
@@ -374,7 +473,7 @@ function insideCountLabel(count: number): string {
  * dentro, "Mover para…" na cena aberta, e "Filtrar cenas" com o caminho em
  * cinza. Tudo isso é da lista do mestre: o jogador não recebe nada.
  */
-export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote, maps, onMove, adventureId = null, onAlarm, onEndAlarm, alarm }: ScenesSectionProps) {
+export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote, maps, onMove, adventureId = null, onAlarm, onEndAlarm, alarm, paused, onTogglePause }: ScenesSectionProps) {
   const [editing, setEditing] = useState<Editing>(null)
   const [draft, setDraft] = useState('')
   /** Janela "Visão geral das cenas" aberta. */
@@ -572,8 +671,9 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
     setMoving(sceneId)
   }
 
-  const sendNote = (sceneId: string, text: string) => {
-    const sent = onNote?.(sceneId, text) ?? null
+  const sendNote = (sceneId: string, text: string, playerIds?: string[]) => {
+    // Sem escolha, a chamada de antes (cena inteira), sem o terceiro argumento.
+    const sent = (playerIds === undefined ? onNote?.(sceneId, text) : onNote?.(sceneId, text, playerIds)) ?? null
     setNoteFeedback({ sceneId, text: noteFeedbackText(sent) })
     closeNote()
   }
@@ -801,6 +901,7 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
           ]
             .filter((name) => name !== '')
             .join(' ')
+          const isPaused = paused?.has(scene.id) === true
           return (
             <li
               key={scene.id || 'cena-solta'}
@@ -888,6 +989,22 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
                   <span aria-hidden="true">✉</span>
                 </button>
               )}
+              {/* Mapa solto (`id` vazio) não tem cena para pausar. O nome
+                  acessível é o mesmo ligado ou desligado; o estado vai em
+                  `aria-pressed`, como pede um botão alternável. */}
+              {onTogglePause !== undefined && scene.id !== '' && (
+                <button
+                  type="button"
+                  className="lb-cenas__pausar"
+                  aria-label={`Pausar ${scene.name}`}
+                  aria-pressed={isPaused}
+                  title={isPaused ? 'Pausada: quem está aqui espera. Clique para soltar' : 'Pausar: quem está nesta cena espera você'}
+                  disabled={!scene.available}
+                  onClick={() => onTogglePause(scene.id, !isPaused)}
+                >
+                  <span aria-hidden="true">⏸</span>
+                </button>
+              )}
               {trail.length > 0 && (
                 <span id={pathId} className="lb-cenas__caminho">
                   {trail.join(SCENE_TRAIL_SEPARATOR)}
@@ -895,7 +1012,12 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
               )}
               {here !== null && <SceneGente people={here} />}
               {onNote !== undefined && noting === scene.id && (
-                <NoteForm sceneName={scene.name} onSend={(text) => sendNote(scene.id, text)} onCancel={closeNote} />
+                <NoteForm
+                  label={`Recado para quem está em ${scene.name}`}
+                  people={people?.get(scene.id)?.people ?? NO_PEOPLE}
+                  onSend={(text, playerIds) => sendNote(scene.id, text, playerIds)}
+                  onCancel={closeNote}
+                />
               )}
               {onMove !== undefined && moving === scene.id && (
                 <MoveForm

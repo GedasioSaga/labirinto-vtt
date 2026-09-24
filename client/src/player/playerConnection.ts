@@ -21,6 +21,7 @@ import {
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type PlayerMessage,
+  type SignalAudience,
 } from '../net/protocol'
 import { carriedItemsOf, cleanItemName, itemOfPin } from '../lib/items'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
@@ -38,10 +39,32 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseNotebook, parseRoomText, parseSceneAlarm, parseSceneAlarmEnd, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import {
+  CALL_TEXT_MAX_LENGTH,
+  NOTEBOOK_MAX_NOTES,
+  isCallReason,
+  parseCallReply,
+  parseClueMessage,
+  parseLaserMessage,
+  parseNotebook,
+  parsePartyUpdate,
+  parsePointActionReply,
+  parseRoomText,
+  parseSceneAlarm,
+  parseSceneAlarmEnd,
+  parseSceneNote,
+  parseTravelDenyText,
+  type CallRaiseMessage,
+  type CallReason,
+  type ClueEntry,
+  type NoteEntry,
+  type PartyMember,
+  type PointActionReply,
+} from '../net/protocol'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
+import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -49,8 +72,11 @@ import { hasEnterText } from '../lib/roomText'
  * e avisa os ouvintes (encaixa em `useSyncExternalStore`).
  */
 
-/** `closed`: o mestre avisou que encerrou a sala (`room.closed`) — fim de sessão, não falha de rede. */
-export type PlayerStatus = 'connecting' | 'waiting' | 'playing' | 'kicked' | 'closed' | 'error'
+/**
+ * `closed`: o mestre avisou que encerrou a sala (`room.closed`) — fim de sessão, não falha de rede.
+ * `replaced`: a mesma pessoa entrou por outra aba ou aparelho (`session.replaced`) — esta aba para.
+ */
+export type PlayerStatus = 'connecting' | 'waiting' | 'playing' | 'kicked' | 'closed' | 'error' | 'replaced'
 
 export interface PlayerState {
   status: PlayerStatus
@@ -108,9 +134,34 @@ export interface PlayerState {
   /**
    * Recado do mestre para a cena do jogador. Fica até ele fechar
    * (`dismissNote`); um recado novo toma o lugar do aberto. É texto puro: a
-   * tela o mostra como texto, nunca como HTML.
+   * tela o mostra como texto, nunca como HTML. `onlyYou`: o mestre mandou só
+   * para este jogador (a tela diz "Só para você").
    */
-  note?: { id: string; text: string }
+  note?: { id: string; text: string; onlyYou?: true }
+  /**
+   * PAUSA POR CENA: o mestre pausou a cena deste jogador (está com outro
+   * grupo). Enquanto `true`, a tela mostra o aviso fixo; quem manda é o host,
+   * que recusa o movimento — o aviso só explica por que a ficha volta.
+   */
+  paused?: true
+  /**
+   * Os OUTROS jogadores da mesa e onde estão para ele (aqui, longe, fora).
+   * Ausente até o primeiro `party.update`. Sobrevive à espera no lobby: o host
+   * só reenvia quando muda, então apagar aqui deixaria a lista vazia na volta.
+   */
+  party?: PartyMember[]
+  /** A mão do jogador (chamar o mestre): acesa esperando, ou a resposta curta do mestre. */
+  call?: CallNotice
+  /** Ação no ponto: esperando o mestre, a resposta dele ou a recusa do host. */
+  pointNotice?: PointNotice
+  /**
+   * Sobe toda vez que o mapa em tela deixa de ser o da cena em que o jogador
+   * estava: troca de cena (`scene.changed`) ou saída do jogo (lobby,
+   * reconexão, queda, expulsão, sala fechada). O que a tela abriu sobre um
+   * ponto do mapa (o menu do toque longo) só vale na época em que abriu: o
+   * mesmo x/y noutra cena é outro lugar.
+   */
+  sceneEpoch: number
   /**
    * TEXTO DA SALA aberto: chega na primeira entrada (`room.text`) ou quando o
    * jogador toca o rótulo (`openRoomText`). `id` é o da Sala; `title`, o nome
@@ -148,6 +199,22 @@ export interface PlayerState {
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
   error?: string
+  /**
+   * A conexão caiu depois de entrar na sala e o cliente está tentando voltar
+   * sozinho. O `status` e o mapa ficam como estavam (a tela esmaece); some
+   * quando o mestre aceita a volta (`welcome`).
+   */
+  reconnecting?: ReconnectInfo
+}
+
+/** Como vai a volta automática depois de uma queda. */
+export interface ReconnectInfo {
+  /** Quando a conexão caiu (relógio do aparelho, ms). */
+  since: number
+  /** Tentativas feitas desde a queda. */
+  attempt: number
+  /** Já passou `MANUAL_RECONNECT_AFTER_MS`: a tela oferece "Reconectar". */
+  manual: boolean
 }
 
 /** O aviso da recusa do toque na porta; `wallId` é a porta tocada. */
@@ -173,7 +240,8 @@ export type TravelNotice =
   | { id: number; phase: 'moved' }
   /** O mestre reuniu o grupo num pino e trouxe o jogador de outra cena. */
   | { id: number; phase: 'gathered' }
-  | { id: number; phase: 'denied' }
+  /** `text`: o motivo do "Não, porque…" do mestre. Ausente = o "não deixou" sem motivo. */
+  | { id: number; phase: 'denied'; text?: string }
   | { id: number; phase: 'rejected'; reason: PinTravelRejection }
 
 export type CluePeers = { phase: 'loading' } | { phase: 'ready'; names: string[] }
@@ -200,6 +268,14 @@ export type ItemNotice =
   | { id: number; phase: 'denied' }
   | { id: number; phase: 'rejected'; reason: PinTakeRejection }
   | { id: number; phase: 'give_rejected'; reason: ItemGiveRejection }
+
+/**
+ * Onde está a mão do jogador. `waiting` fica até o mestre responder (ou ele
+ * baixar); `seen` ("O mestre viu") e `too_soon` ("espere um instante") somem
+ * sozinhos depois de `CALL_NOTICE_TTL_MS`. A resposta escrita do mestre não
+ * mora aqui: vira `note`, o mesmo cartão do recado.
+ */
+export type CallNotice = { id: number; phase: 'waiting'; reason: CallReason } | { id: number; phase: 'seen' } | { id: number; phase: 'too_soon' }
 
 /** Subconjunto do WebSocket do browser que este cliente usa. */
 export interface SocketLike {
@@ -232,6 +308,11 @@ export interface PlayerConnectionOptions {
   role?: 'table'
   /** TELA DA MESA: a chave do link da TV (`?chave=`), que vai no `join` junto com o código. */
   tableKey?: string
+  /**
+   * A aba está em segundo plano agora? (No navegador, `document.visibilityState
+   * === 'hidden'`.) Ausente = sempre à vista.
+   */
+  isHidden?: () => boolean
 }
 
 /** O `join` da tela da mesa: sem chave, a mensagem vai sem o campo e a sala responde `bad_table_key`. */
@@ -247,8 +328,11 @@ export interface PlayerConnection {
   subscribe(listener: () => void): () => void
   /** Move otimista: aplica local e envia. `false` se o token não existe ou o socket não está aberto. */
   requestMove(tokenId: string, x: number, y: number): boolean
-  /** Sinal no ponto (px de mundo). `false` se não está jogando ou o socket não está aberto. */
-  sendSignal(x: number, y: number): boolean
+  /**
+   * Sinal no ponto (px de mundo). `audience: 'master'` só o mestre vê (o do
+   * toque longo). `false` se não está jogando ou o socket não está aberto.
+   */
+  sendSignal(x: number, y: number, audience?: SignalAudience): boolean
   /** Pede ao mestre para abrir/fechar a porta. `false` se não está jogando ou o socket não está aberto. */
   toggleDoor(wallId: string): boolean
   /**
@@ -296,6 +380,12 @@ export interface PlayerConnection {
    * `toTokenId`. `false` se o item não está com ele ou o socket não está aberto.
    */
   giveItem(itemId: string, toTokenId: string): boolean
+  /**
+   * AÇÃO NO PONTO (px de mundo): pede ao mestre para Procurar/Escutar/
+   * Espiar/Revistar ali. `false` se não está jogando, o ponto não é finito,
+   * cai fora do mapa ou o socket não está aberto.
+   */
+  sendPointAction(action: PointActionKind, x: number, y: number): boolean
   /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). Quem fechou leu: aquele recado deixa de ser novo. */
   dismissNote(): void
   /** O jogador abriu o Caderno: nenhum recado é novo mais. */
@@ -321,13 +411,50 @@ export interface PlayerConnection {
   resetClueShare(): void
   /** Fecha o cartão da pista que um colega mostrou (a pista continua no caderno). */
   dismissShownClue(): void
+  /**
+   * Levanta a mão: chama o mestre com o motivo e, opcional, um texto curto
+   * (aparado; em branco não viaja). `false` se não está jogando, se a mão já
+   * está levantada, se o texto passa de `CALL_TEXT_MAX_LENGTH` ou se o socket
+   * não está aberto.
+   */
+  raiseHand(reason: CallReason, text?: string): boolean
+  /** Baixa a mão antes de o mestre ver. `false` se ela não estava levantada ou o socket não está aberto. */
+  lowerHand(): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
+  /**
+   * A tela acendeu ou a rede voltou: se está reconectando e nenhuma tentativa
+   * está no ar, tenta AGORA em vez de esperar a espera crescente.
+   */
+  wake(): void
+  /** "Reconectar" da tela de queda: tenta agora, largando a tentativa no ar se houver. */
+  retryNow(): void
   close(): void
 }
 
 export const RESUME_STORAGE_KEY = 'labirinto.resume'
-export const PING_INTERVAL_MS = 15_000
+/**
+ * O `ping` sai a cada 2 s e o host responde `pong`. Era 15 s, só para manter o
+ * túnel acordado; agora é também a prova de vida dos dois lados, e precisa
+ * caber no aceite "Grupo mostra 'Gina caiu' em 0:10" (ver `HOST_STALE_AFTER_MS`
+ * do hostBridge). Numa mesa de 7 são 3,5 mensagens minúsculas por segundo.
+ */
+export const PING_INTERVAL_MS = 2_000
+/**
+ * Sem NADA do host há isto (nem pong, nem snapshot), o socket conta como morto
+ * mesmo sem `close`: o Wi-Fi que some sem FIN deixa o navegador achando que
+ * está tudo aberto por minutos. Dois pings e meio de folga; e abaixo do prazo
+ * do host (6 s), para o jogador já estar voltando quando o mestre souber.
+ */
+export const SILENCE_DEAD_AFTER_MS = 5_000
+/**
+ * A tela acendeu e o host está mudo há mais que `SILENCE_DEAD_AFTER_MS`: um
+ * ping sai na hora e, sem resposta nisto, a volta começa sem esperar a espera
+ * crescente. Não derruba direto porque o silêncio pode ser só do timer da aba
+ * oculta (Chrome e Edge rodam o ping 1 vez por minuto depois de 5 min em
+ * segundo plano) com a conexão viva; na LAN o pong volta em milissegundos.
+ */
+export const WAKE_PROBE_MS = 800
 /** Quanto tempo o aviso da porta ("Chegue mais perto") fica na tela. O "Trancada" fica até o jogador escolher. */
 export const DOOR_NOTICE_TTL_MS = 2500
 /** Quanto tempo a recusa do movimento ("Parede no caminho") fica na tela: 2-3 s, como a da porta. */
@@ -343,6 +470,10 @@ export const DOOR_REQUEST_NOTICE_TTL_MS = 4000
 export const ITEM_NOTICE_TTL_MS = 4000
 /** Quanto tempo a recusa do mestre ("não deixou passar agora") fica na tela. Mais que a porta. */
 export const TRAVEL_NOTICE_TTL_MS = 4000
+/** A recusa com motivo ("O mestre não deixou: o portão fecha à noite") é uma frase para ler: fica mais. */
+export const TRAVEL_DENIED_WITH_REASON_TTL_MS = 8000
+/** Quanto tempo "O mestre viu" e "Espere um instante" ficam no lugar da mão. */
+export const CALL_NOTICE_TTL_MS = 4000
 /**
  * "Você chegou" é mudança de lugar: sai quando o jogador mexe a própria ficha
  * (aí já viu onde está, mesma regra da reunião) ou depois deste teto. Era
@@ -370,10 +501,31 @@ export const MOVED_NOTICE_TTL_MS = 60_000
  * ele mexe a própria ficha (aí já viu onde está) ou depois de um minuto.
  */
 export const GATHERED_NOTICE_TTL_MS = 60_000
+/**
+ * Espera da reconexão automática: dobra a cada tentativa que falha, de 1 s
+ * até este teto. Trinta segundos é o mais longo que um celular esperaria sem
+ * a pessoa achar que o app desistiu — e a rede que volta (`online`) ou a tela
+ * que acende (`visibilitychange`) cortam a espera pelo `wake`.
+ */
+export const RECONNECT_MAX_DELAY_MS = 30_000
+const RECONNECT_FIRST_DELAY_MS = 1_000
+/** Depois disto fora, a tela oferece "Reconectar" (as tentativas sozinhas continuam). */
+export const MANUAL_RECONNECT_AFTER_MS = 30_000
+/**
+ * Tentativa que nem abre nem fecha (Wi-Fi trocando de rede, rota que some)
+ * é abandonada depois disto: sem o prazo, ela prenderia a reconexão para sempre.
+ */
+export const RECONNECT_ATTEMPT_TIMEOUT_MS = 8_000
 const SOCKET_OPEN = 1
 /** Mede o tamanho em bytes do que vai pelo socket (o servidor conta bytes, não caracteres). */
 const utf8 = new TextEncoder()
 const CONNECTION_LOST = 'connection_lost'
+
+/** Espera antes da tentativa `attempt` (1 = a primeira depois da queda). */
+export function reconnectDelayMs(attempt: number): number {
+  const exponent = Math.max(0, attempt - 1)
+  return Math.min(RECONNECT_MAX_DELAY_MS, RECONNECT_FIRST_DELAY_MS * 2 ** exponent)
+}
 
 interface PendingMove {
   tokenId: string
@@ -483,9 +635,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   const storage = isTable ? null : options.storage
   const listeners = new Set<() => void>()
   const pending = new Map<string, PendingMove>()
-  let state: PlayerState = { status: 'connecting', rev: -1 }
+  let state: PlayerState = { status: 'connecting', rev: -1, sceneEpoch: 0 }
   let socket: SocketLike | null = null
   let pingTimer: ReturnType<typeof setInterval> | null = null
+  const isHidden = options.isHidden ?? (() => false)
+  /** Quando chegou a última mensagem do host no socket atual (relógio do aparelho). */
+  let lastHeardAt = 0
+  /**
+   * Desde quando a aba está de novo à vista e o silêncio volta a contar. O que
+   * se passou com a aba oculta não prova nada: o timer do ping estava preso.
+   */
+  let watchingSince = 0
+  /** Confirmação de vida depois de a tela acender (`WAKE_PROBE_MS`). */
+  let wakeProbeTimer: ReturnType<typeof setTimeout> | null = null
   let nextReqId = 1
   const signalTimers = new Map<string, ReturnType<typeof setTimeout>>()
   let nextSignalId = 1
@@ -612,6 +774,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function travelNoticeTtl(notice: TravelNotice): number {
     if (notice.phase === 'gathered') return GATHERED_NOTICE_TTL_MS
     if (notice.phase === 'moved') return MOVED_NOTICE_TTL_MS
+    if (notice.phase === 'denied' && notice.text !== undefined) return TRAVEL_DENIED_WITH_REASON_TTL_MS
     return notice.phase === 'arrived' ? ARRIVAL_NOTICE_TTL_MS : TRAVEL_NOTICE_TTL_MS
   }
 
@@ -631,6 +794,112 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       itemTimer = null
       setState({ item: undefined })
     }, ITEM_NOTICE_TTL_MS)
+  }
+
+  let callTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearCallTimer(): void {
+    if (callTimer !== null) clearTimeout(callTimer)
+    callTimer = null
+  }
+
+  /** "O mestre viu" / "Espere um instante": ficam no lugar da mão e somem sozinhos. */
+  function showCallAnswer(phase: 'seen' | 'too_soon'): void {
+    clearCallTimer()
+    setState({ call: { id: nextNoticeId++, phase } })
+    callTimer = setTimeout(() => {
+      callTimer = null
+      setState({ call: undefined })
+    }, CALL_NOTICE_TTL_MS)
+  }
+
+  /** `call.state` do mestre. Fora do jogo não há mão na tela. */
+  function handleCallState(data: Record<string, unknown>): void {
+    if (state.status !== 'playing') return
+    if (data.state === 'waiting' && isCallReason(data.reason)) {
+      // O "waiting" só confirma a mão acesa aqui; mesmo `id`, nada reanima na tela.
+      // Mão já baixada: é a confirmação atrasada de um chamado que o mestre
+      // apagou no `call.lower` — reacender deixaria "Esperando o mestre" para
+      // sempre, sem linha nenhuma na fila do mestre.
+      if (state.call?.phase !== 'waiting') return
+      clearCallTimer()
+      setState({ call: { id: state.call.id, phase: 'waiting', reason: data.reason } })
+      return
+    }
+    if (data.state === 'seen' || data.state === 'too_soon') showCallAnswer(data.state)
+  }
+
+  let pointNoticeTimer: ReturnType<typeof setTimeout> | null = null
+  /**
+   * Ações enviadas que o host ainda não respondeu nem recusou, da mais antiga
+   * à mais nova. O host deixa várias esperando o mestre ao mesmo tempo
+   * (`MAX_PENDING_POINT_ACTIONS_PER_PLAYER`): sem esta lista, a resposta de
+   * uma apagaria a espera das outras.
+   */
+  let waitingPointActions: PointActionKind[] = []
+
+  function clearPointNoticeTimer(): void {
+    if (pointNoticeTimer !== null) clearTimeout(pointNoticeTimer)
+    pointNoticeTimer = null
+  }
+
+  /** Esquece os pedidos junto com o aviso (lobby, sala fechada, reconexão). */
+  function forgetPointActions(): void {
+    clearPointNoticeTimer()
+    waitingPointActions = []
+  }
+
+  /**
+   * Tira da tela a espera de todo pedido ainda sem resposta (passagem, porta,
+   * ação no ponto, mão). Respostas já na tela ficam: elas somem sozinhas.
+   */
+  function forgetWaitingRequests(): void {
+    const travelWaiting = state.travel?.phase === 'waiting'
+    if (travelWaiting) clearTravelTimer()
+    const doorSent = state.doorRequest?.phase === 'sent'
+    if (doorSent) clearDoorNotice()
+    const callWaiting = state.call?.phase === 'waiting'
+    if (callWaiting) clearCallTimer()
+    const pointWaiting = state.pointNotice?.phase === 'waiting'
+    waitingPointActions = []
+    setState({
+      ...(travelWaiting ? { travel: undefined } : {}),
+      ...(doorSent ? { doorRequest: undefined } : {}),
+      ...(callWaiting ? { call: undefined } : {}),
+      ...(pointWaiting ? { pointNotice: undefined } : {}),
+    })
+  }
+
+  /** A espera de tudo o que sobrou, ou nada quando não sobrou pedido. */
+  function waitingPointNotice(): PointNotice | undefined {
+    const [first, ...rest] = waitingPointActions
+    return first === undefined ? undefined : { id: nextNoticeId++, phase: 'waiting', actions: [first, ...rest] }
+  }
+
+  /** A espera fica até a resposta; resposta e recusa somem sozinhas e devolvem a espera do que sobrou. */
+  function showPointNotice(notice: PointNotice | undefined): void {
+    clearPointNoticeTimer()
+    setState({ pointNotice: notice })
+    if (notice === undefined || notice.phase === 'waiting') return
+    pointNoticeTimer = setTimeout(() => {
+      pointNoticeTimer = null
+      setState({ pointNotice: waitingPointNotice() })
+    }, POINT_NOTICE_TTL_MS)
+  }
+
+  /**
+   * Tira da espera o pedido que a mensagem do host fechou. A resposta diz a
+   * ação: sai a mais antiga dela (duas iguais não se distinguem na tela). A
+   * recusa não diz, mas o host recusa na hora e na ordem em que recebe — é o
+   * pedido mais novo ainda sem destino.
+   */
+  function settlePointAction(reply: PointActionReply): void {
+    if (reply.type === 'point.action.rejected') {
+      waitingPointActions = waitingPointActions.slice(0, -1)
+      return
+    }
+    const index = waitingPointActions.indexOf(reply.action)
+    if (index !== -1) waitingPointActions = waitingPointActions.filter((_, i) => i !== index)
   }
 
   let laserTimer: ReturnType<typeof setTimeout> | null = null
@@ -707,8 +976,86 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   function setState(patch: Partial<PlayerState>): void {
+    // Sair do jogo por qualquer caminho encerra a época da cena (ver `sceneEpoch`).
+    const leftGame = state.status === 'playing' && patch.status !== undefined && patch.status !== 'playing'
     state = { ...state, ...patch }
+    if (leftGame) state = { ...state, sceneEpoch: state.sceneEpoch + 1 }
     for (const listener of listeners) listener()
+  }
+
+  /** Próxima tentativa agendada, virada do "Reconectar" e prazo da tentativa no ar. */
+  let retryTimer: ReturnType<typeof setTimeout> | null = null
+  let manualTimer: ReturnType<typeof setTimeout> | null = null
+  let attemptTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearAttemptTimer(): void {
+    if (attemptTimer !== null) clearTimeout(attemptTimer)
+    attemptTimer = null
+  }
+
+  function clearReconnectTimers(): void {
+    if (retryTimer !== null) clearTimeout(retryTimer)
+    if (manualTimer !== null) clearTimeout(manualTimer)
+    retryTimer = null
+    manualTimer = null
+    clearAttemptTimer()
+  }
+
+  /**
+   * Caiu depois de entrar: o mapa fica, a tela esmaece, e o cliente tenta
+   * voltar sozinho. `rev` volta a -1 porque o host responde a volta com o
+   * snapshot do rev ATUAL dele — igual ao último que chegou, se ninguém mexeu
+   * em nada — e esse snapshot precisa valer.
+   */
+  function beginReconnect(): void {
+    pending.clear()
+    // O host esquece o pedido de passagem de quem cai: "Aguardando o mestre…" mentiria.
+    const travelWaiting = state.travel?.phase === 'waiting'
+    if (travelWaiting) clearTravelTimer()
+    setState({ rev: -1, reconnecting: { since: Date.now(), attempt: 0, manual: false }, ...(travelWaiting ? { travel: undefined } : {}) })
+    manualTimer = setTimeout(() => {
+      manualTimer = null
+      const info = state.reconnecting
+      if (info !== undefined) setState({ reconnecting: { ...info, manual: true } })
+    }, MANUAL_RECONNECT_AFTER_MS)
+    scheduleAttempt()
+  }
+
+  function scheduleAttempt(): void {
+    const info = state.reconnecting
+    if (info === undefined) return
+    if (retryTimer !== null) clearTimeout(retryTimer)
+    retryTimer = setTimeout(() => {
+      retryTimer = null
+      attemptNow()
+    }, reconnectDelayMs(info.attempt + 1))
+  }
+
+  function attemptNow(): void {
+    const info = state.reconnecting
+    if (info === undefined) return
+    if (retryTimer !== null) clearTimeout(retryTimer)
+    retryTimer = null
+    setState({ reconnecting: { ...info, attempt: info.attempt + 1 } })
+    open()
+    const current = socket
+    clearAttemptTimer()
+    // O prazo vale até o `welcome`: socket que abre e ninguém responde também prende.
+    attemptTimer = setTimeout(() => {
+      attemptTimer = null
+      if (socket !== current) return
+      abandonAttempt()
+      scheduleAttempt()
+    }, RECONNECT_ATTEMPT_TIMEOUT_MS)
+  }
+
+  /** Larga a tentativa no ar sem que o `close` dela conte como queda nova. */
+  function abandonAttempt(): void {
+    clearAttemptTimer()
+    stopPing()
+    const current = socket
+    socket = null
+    current?.close()
   }
 
   function send(message: PlayerMessage): boolean {
@@ -724,9 +1071,89 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return true
   }
 
+  function clearWakeProbe(): void {
+    if (wakeProbeTimer !== null) clearTimeout(wakeProbeTimer)
+    wakeProbeTimer = null
+  }
+
   function stopPing(): void {
     if (pingTimer !== null) clearInterval(pingTimer)
     pingTimer = null
+    clearWakeProbe()
+  }
+
+  /** O ping diz ao host se a aba está em segundo plano, para ele esperar mais. */
+  function sendPing(): void {
+    send(isHidden() ? { type: 'ping', away: true } : { type: 'ping' })
+  }
+
+  /**
+   * O host sumiu sem fechar? Só conta depois de entrar na sala: antes do
+   * `welcome` quem decide quanto esperar é a tela (o prazo do aperto de mão).
+   */
+  function hostSilent(): boolean {
+    const since = Math.max(lastHeardAt, watchingSince)
+    return socket !== null && state.playerId !== undefined && Date.now() - since >= SILENCE_DEAD_AFTER_MS
+  }
+
+  function pingOrGiveUp(): void {
+    // Aba oculta: o timer pode estar rodando de minuto em minuto, e o silêncio
+    // medido assim é do timer, não do host. Quem decide é o `wake`, à vista.
+    if (!isHidden() && hostSilent()) {
+      dropSocket()
+      return
+    }
+    sendPing()
+  }
+
+  /** A tela acendeu com o host mudo: ping agora e, sem resposta em `WAKE_PROBE_MS`, volta já. */
+  function probeAfterWake(): void {
+    watchingSince = Date.now()
+    sendPing()
+    clearWakeProbe()
+    const probed = socket
+    wakeProbeTimer = setTimeout(() => {
+      wakeProbeTimer = null
+      if (socket !== probed || lastHeardAt >= watchingSince) return
+      dropSocket()
+      attemptNow()
+    }, WAKE_PROBE_MS)
+  }
+
+  /** Depois de kicked/closed/error a queda é esperada: o mestre derrubou de propósito. */
+  function sessionOver(): boolean {
+    return state.status === 'kicked' || state.status === 'closed' || state.status === 'error' || state.status === 'replaced'
+  }
+
+  /** O socket atual morreu (com ou sem `close`): volta sozinho, ou explica na tela. */
+  function handleSocketLost(): void {
+    if (sessionOver()) return
+    if (state.reconnecting !== undefined) {
+      // A tentativa falhou (a rede ainda não voltou): a próxima espera mais.
+      clearAttemptTimer()
+      scheduleAttempt()
+      return
+    }
+    // Já estava na sala: Wi-Fi que pisca ou tela bloqueada. Volta sozinho.
+    if (state.playerId !== undefined) {
+      beginReconnect()
+      return
+    }
+    // Nunca entrou (endereço errado, sala que não existe): a tela explica.
+    setState({ status: 'error', error: CONNECTION_LOST })
+  }
+
+  /**
+   * Larga o socket que o navegador ainda acha aberto (Wi-Fi que sumiu sem FIN,
+   * host que já nos deu como caídos) e segue como se o `close` tivesse chegado.
+   * O `close` real, se vier, acha outro socket no lugar e é ignorado.
+   */
+  function dropSocket(): void {
+    const current = socket
+    socket = null
+    stopPing()
+    current?.close()
+    handleSocketLost()
   }
 
   function hasNewerPending(reqId: string, tokenId: string): PendingMove | null {
@@ -864,7 +1291,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (isTable) return
         if (typeof data.playerId !== 'string' || typeof data.resumeToken !== 'string') return
         writeResume(storage, { code, token: data.resumeToken })
-        setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting' })
+        // O mestre aceitou (de novo): fim da volta automática, se havia uma.
+        clearReconnectTimers()
+        // Outro playerId: o mestre disse "É ela" e a "Ana (2)" virou a Ana. O
+        // host esqueceu os pedidos da "Ana (2)"; a espera deles mentiria para sempre.
+        if (state.playerId !== undefined && state.playerId !== data.playerId) forgetWaitingRequests()
+        setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting', reconnecting: undefined })
         return
       case 'lobby.waiting':
         clearSignalTimers()
@@ -877,6 +1309,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTravelTimer()
         clearItemTimer()
         clearHazardNotice()
+        clearCallTimer()
+        forgetPointActions()
         setState({
           item: undefined,
           // Sem cena, nenhum alarme de cena vale; o host manda de novo se ele voltar a uma.
@@ -902,6 +1336,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           shownClue: undefined,
           cluePeers: undefined,
           clueShow: undefined,
+          call: undefined,
+          pointNotice: undefined,
         })
         return
       case 'scene.changed':
@@ -921,15 +1357,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearHazardNotice()
         // A porta tocada ficou na cena de antes: o "Trancada" e os botões dele perdem o sentido.
         // A lista de "Mostrar para…" era de quem estava na cena de antes.
-        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, hazardNotice: undefined, cluePeers: undefined, clueShow: undefined })
+        // O ponto do toque longo era da cena de antes: a época vira.
+        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, hazardNotice: undefined, cluePeers: undefined, clueShow: undefined, sceneEpoch: state.sceneEpoch + 1 })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
         return
-      case 'pin.travel.denied':
+      case 'pin.travel.denied': {
         if (state.status !== 'playing') return
-        showTravelAnswer({ id: nextNoticeId++, phase: 'denied' })
+        // Motivo estragado não segura a recusa: ele não passou, e lê o "não deixou" de sempre.
+        const text = parseTravelDenyText(data.text)
+        showTravelAnswer(text === undefined ? { id: nextNoticeId++, phase: 'denied' } : { id: nextNoticeId++, phase: 'denied', text })
         return
+      }
       case 'pin.travel.rejected': {
         if (state.status !== 'playing') return
         const { reason } = data
@@ -942,16 +1382,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (state.status !== 'playing') return
         const note = parseSceneNote(data)
         if (note === null) return
+        // Recado só para ele leva a marca: a tela diz "Só para você".
+        const shown = note.onlyYou === true ? { id: note.id, text: note.text, onlyYou: true as const } : { id: note.id, text: note.text }
         const book = state.notebook ?? []
         // Já guardado (o host reenvia o último recado da cena na volta): reabre o cartão, sem repetir nem virar "novo".
         if (book.some((entry) => entry.id === note.id)) {
-          setState({ note: { id: note.id, text: note.text } })
+          setState({ note: shown })
           return
         }
         // Mestre antigo não manda a hora: vale a da chegada.
         const entry: NoteEntry = { id: note.id, text: note.text, at: note.at ?? Date.now() }
         setState({
-          note: { id: note.id, text: note.text },
+          note: shown,
           notebook: [...book, entry].slice(-NOTEBOOK_MAX_NOTES),
           unreadNotes: [...(state.unreadNotes ?? []), note.id].slice(-NOTEBOOK_MAX_NOTES),
         })
@@ -996,6 +1438,32 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ alarm: undefined })
         return
       }
+      case 'scene.paused':
+        // Aceito em qualquer estado, e o `lobby.waiting` não apaga: o host só
+        // manda quando MUDA, então guardar o último é o que mantém os dois
+        // lados de acordo (voltar à cena pausada não reenvia `true`).
+        if (typeof data.paused !== 'boolean') return
+        setState({ paused: data.paused ? true : undefined })
+        return
+      case 'party.update': {
+        // Vale também na espera: é a lista que ele vê assim que ganhar ficha.
+        const party = parsePartyUpdate(data)
+        if (party === null) return
+        setState({ party: party.members })
+        return
+      }
+      case 'call.state':
+        handleCallState(data)
+        return
+      case 'call.reply': {
+        // A resposta do mestre ao chamado: o mesmo cartão do recado, e a mão apaga.
+        if (state.status !== 'playing') return
+        const reply = parseCallReply(data)
+        if (reply === null) return
+        clearCallTimer()
+        setState({ note: { id: reply.id, text: reply.text }, call: undefined })
+        return
+      }
       case 'laser': {
         // Laser sem mapa na tela não tem onde aparecer.
         if (state.status !== 'playing') return
@@ -1026,6 +1494,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (typeof from !== 'string' || from.length > NAME_MAX_LENGTH) return
         if (typeof color !== 'string' || !SIGNAL_COLOR_PATTERN.test(color)) return
         addSignal(x, y, from, color)
+        return
+      }
+      case 'point.action.answer':
+      case 'point.action.rejected': {
+        if (state.status !== 'playing') return
+        const reply = parsePointActionReply(data)
+        if (reply === null) return
+        settlePointAction(reply)
+        showPointNotice(
+          reply.type === 'point.action.answer'
+            ? { id: nextNoticeId++, phase: 'answered', action: reply.action, answer: reply.answer }
+            : { id: nextNoticeId++, phase: 'rejected', reason: reply.reason },
+        )
         return
       }
       case 'door.toggle.rejected': {
@@ -1121,7 +1602,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         return
       case 'kicked':
         writeResume(storage, null)
-        setState({ status: 'kicked' })
+        clearReconnectTimers()
+        setState({ status: 'kicked', reconnecting: undefined })
         return
       case 'room.closed':
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
@@ -1136,20 +1618,48 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTravelTimer()
         clearItemTimer()
         clearHazardNotice()
-        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, hazardNotice: undefined })
+        clearCallTimer()
+        clearReconnectTimers()
+        forgetPointActions()
+        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, item: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined })
+        return
+      case 'session.replaced':
+        // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
+        // da aba nova, e apagar aqui tiraria a volta das duas. Sem reconexão
+        // automática — voltar sozinha tomaria a sessão de volta, e a outra aba
+        // faria o mesmo. Só o "Usar aqui" (`reconnect`) traz de volta.
+        pending.clear()
+        clearSignalTimers()
+        clearLaserTimer()
+        clearDoorNotice()
+        clearTravelTimer()
+        clearCallTimer()
+        clearReconnectTimers()
+        stopPing()
+        setState({ status: 'replaced', doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
         // O transporte pode avisar a expulsão como erro: mesmo efeito de `kicked`.
         if (reason === 'kicked') {
           writeResume(storage, null)
-          setState({ status: 'kicked' })
+          clearReconnectTimers()
+          setState({ status: 'kicked', reconnecting: undefined })
           return
         }
         // Mensagem inválida durante o jogo não derruba a sessão.
         if (reason === 'invalid_message' && state.status === 'playing') return
+        // Já estava na sala e o host não a conhece mais: ele a deu como caída
+        // (a varredura de conexão muda) e este socket é um zumbi. Volta pelo
+        // resume, como numa queda — não é caso de tela de erro.
+        if (reason === 'not_joined' && state.playerId !== undefined) {
+          dropSocket()
+          return
+        }
         if (reason === 'bad_code') writeResume(storage, null)
-        setState({ status: 'error', error: reason })
+        // Erro do mestre na volta (a sala acabou): não há para onde tentar de novo.
+        clearReconnectTimers()
+        setState({ status: 'error', error: reason, reconnecting: undefined })
         return
       }
       default:
@@ -1165,12 +1675,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (socket !== current) return
       const resume = readResume(storage, code)
       const join: JoinMessage = isTable ? tableJoin(code, name, options.tableKey) : resume ? { type: 'join', code, name, resume } : { type: 'join', code, name }
+      // O prazo do silêncio conta a partir de agora, não da conexão anterior.
+      lastHeardAt = Date.now()
       send(join)
       stopPing()
-      pingTimer = setInterval(() => send({ type: 'ping' }), PING_INTERVAL_MS)
+      pingTimer = setInterval(pingOrGiveUp, PING_INTERVAL_MS)
     }
     current.onmessage = (event) => {
-      if (socket === current) handleMessage(event.data)
+      if (socket !== current) return
+      // Qualquer mensagem do host é prova de vida, não só o pong.
+      lastHeardAt = Date.now()
+      clearWakeProbe()
+      handleMessage(event.data)
     }
     current.onerror = () => {
       // O browser sempre dispara `close` depois; o tratamento fica lá.
@@ -1179,13 +1695,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (socket !== current) return
       socket = null
       stopPing()
-      // Depois de kicked/closed a queda é esperada: o mestre derrubou de propósito.
-      if (state.status === 'kicked' || state.status === 'closed' || state.status === 'error') return
-      setState({ status: 'error', error: CONNECTION_LOST })
+      handleSocketLost()
     }
   }
 
   function detach(): void {
+    clearReconnectTimers()
     stopPing()
     clearSignalTimers()
     clearLaserTimer()
@@ -1197,6 +1712,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearTravelTimer()
     clearItemTimer()
     clearHazardNotice()
+    clearCallTimer()
+    forgetPointActions()
     const current = socket
     socket = null
     current?.close()
@@ -1228,13 +1745,24 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       setState({ map: withTokenAt(map, tokenId, x, y) })
       return true
     },
-    sendSignal(x, y) {
+    sendSignal(x, y, audience) {
       if (state.status !== 'playing' || !Number.isFinite(x) || !Number.isFinite(y)) return false
-      return send({ type: 'signal', x: Math.round(x), y: Math.round(y) })
+      const point = { x: Math.round(x), y: Math.round(y) }
+      return send(audience === undefined ? { type: 'signal', ...point } : { type: 'signal', ...point, audience })
     },
     toggleDoor(wallId) {
       if (state.status !== 'playing' || wallId.length === 0) return false
       return send({ type: 'door.toggle', wallId })
+    },
+    sendPointAction(action, x, y) {
+      if (state.status !== 'playing' || state.map === undefined || !Number.isFinite(x) || !Number.isFinite(y)) return false
+      const point = { x: Math.round(x), y: Math.round(y) }
+      // Fora do mapa o host recusa: nem sai, para não mostrar "esperando o mestre".
+      if (!isPointInsideMap(state.map, point.x, point.y)) return false
+      if (!send({ type: 'point.action', action, x: point.x, y: point.y })) return false
+      waitingPointActions = [...waitingPointActions, action]
+      showPointNotice(waitingPointNotice())
+      return true
     },
 
     requestDoor(wallId, how) {
@@ -1377,6 +1905,25 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.shownClue !== undefined) setState({ shownClue: undefined })
     },
 
+    raiseHand(reason, text) {
+      // Mão já acesa: o toque repetido não vira outro chamado.
+      if (state.status !== 'playing' || state.call?.phase === 'waiting') return false
+      const limpo = text?.trim() ?? '' // sem texto = só o motivo
+      if (limpo.length > CALL_TEXT_MAX_LENGTH) return false
+      const message: CallRaiseMessage = limpo === '' ? { type: 'call.raise', reason } : { type: 'call.raise', reason, text: limpo }
+      if (!send(message)) return false
+      clearCallTimer()
+      setState({ call: { id: nextNoticeId++, phase: 'waiting', reason } })
+      return true
+    },
+
+    lowerHand() {
+      if (state.call?.phase !== 'waiting') return false
+      if (!send({ type: 'call.lower' })) return false
+      setState({ call: undefined })
+      return true
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -1394,8 +1941,30 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, turn: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined })
       open()
+    },
+    wake() {
+      if (state.reconnecting !== undefined) {
+        // Tentativa no ar tem o prazo dela; duas de uma vez só brigariam pelo socket.
+        if (socket === null) attemptNow()
+        return
+      }
+      if (sessionOver() || socket === null) return
+      // A tela ficou apagada e os timers nem rodaram (ou rodaram de minuto em
+      // minuto): o socket pode estar morto sem saber, ou vivo. Mudo há mais que
+      // o prazo = confirma com um ping curto, e sem resposta a volta tenta já —
+      // a pessoa está olhando. Senão, um ping agora confirma mais cedo.
+      if (hostSilent()) {
+        probeAfterWake()
+        return
+      }
+      sendPing()
+    },
+    retryNow() {
+      if (state.reconnecting === undefined) return
+      abandonAttempt()
+      attemptNow()
     },
     close: detach,
   }

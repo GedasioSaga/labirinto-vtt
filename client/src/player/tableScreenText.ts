@@ -27,6 +27,9 @@ export function tableScreenText(state: Pick<PlayerState, 'status' | 'error'>, co
       return { text: 'O mestre desconectou esta tela.', tone: 'info', action: 'change_code', retry: false }
     case 'closed':
       return { text: 'O mestre encerrou a sala.', tone: 'info', action: 'change_code', retry: false }
+    case 'replaced':
+      // A tela da mesa entra sem resume: outra aba não toma a vez dela. Fica só por completude.
+      return { text: 'Esta tela foi aberta em outra aba.', tone: 'info', action: 'reconnect', retry: false }
     case 'error': {
       const reason = state.error ?? 'unknown'
       if (reason === 'connection_lost') return { text: 'A conexão com o mestre caiu. Tentando de novo…', tone: 'error', action: 'reconnect', retry: true }

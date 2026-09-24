@@ -6,6 +6,7 @@ import { GridAlignControls, type GridAlignControlsProps } from './GridAlignContr
 import { MapScaleControls, type MapScaleControlsProps } from './MapScaleControls'
 import { ScenarioLinkControls, type ScenarioLinkControlsProps } from './ScenarioLinkControls'
 import { MovementControls, type MovementControlsProps } from './MovementControls'
+import { MapSizeControls, type MapSizeControlsProps } from './MapSizeControls'
 import { FEATURES } from '../lib/features'
 
 export interface MapSettingsProps {
@@ -15,6 +16,7 @@ export interface MapSettingsProps {
   scenarioLink: ScenarioLinkControlsProps
   /** Passo máximo e ocupação da cena; ausente, a seção não aparece. */
   movement?: MovementControlsProps
+  mapSize: MapSizeControlsProps
 }
 
 export interface MapSettingsDialogProps extends MapSettingsProps {
@@ -35,7 +37,7 @@ function focusablesIn(root: HTMLElement | null): HTMLElement[] {
 
 /**
  * Janela "Configurações do mapa": o que é do mapa inteiro e se mexe pouco
- * (formato e estilo da grade, alinhamento à imagem, medição, link de cenário)
+ * (formato e estilo da grade, alinhamento à imagem, medição, tamanho, link de cenário)
  * sai do painel lateral e mora aqui.
  *
  * Vai por portal para o `body` porque o painel usa `backdrop-filter`, que faz
@@ -49,6 +51,7 @@ export function MapSettingsDialog({
   mapScale,
   scenarioLink,
   movement,
+  mapSize,
   showScenarioLink = FEATURES.scenarioLink,
 }: MapSettingsDialogProps & ScenarioLinkVisibility) {
   const titleId = useId()
@@ -130,6 +133,7 @@ export function MapSettingsDialog({
           <MapScaleControls {...mapScale} />
           {/* Logo depois da Medição: o passo máximo conta com a mesma régua. */}
           {movement && <MovementControls {...movement} />}
+          <MapSizeControls {...mapSize} />
           {showScenarioLink && <ScenarioLinkControls {...scenarioLink} />}
         </div>
       </div>

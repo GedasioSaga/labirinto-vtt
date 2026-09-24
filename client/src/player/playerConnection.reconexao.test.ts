@@ -1,0 +1,439 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { addToken, createEmptyMap } from '../lib/mapFactory'
+import type { MapData } from '../types/map'
+import {
+  createPlayerConnection,
+  MANUAL_RECONNECT_AFTER_MS,
+  PING_INTERVAL_MS,
+  RECONNECT_MAX_DELAY_MS,
+  reconnectDelayMs,
+  SILENCE_DEAD_AFTER_MS,
+  WAKE_PROBE_MS,
+} from './playerConnection'
+import type { SocketLike, StorageLike } from './playerConnection'
+
+/**
+ * RECONEXÃO AUTOMÁTICA: Wi-Fi que pisca ou tela bloqueada não trocam mais o
+ * mapa por "A conexão caiu" com um botão. O cliente tenta de novo sozinho,
+ * com espera crescente até 30 s, e na hora quando a tela acende ou a rede
+ * volta (`wake`). O mapa fica (esmaecido pela tela) até a volta.
+ */
+
+class FakeSocket implements SocketLike {
+  readyState = 0
+  sent: unknown[] = []
+  closed = false
+  onopen: ((event: Event) => void) | null = null
+  onmessage: ((event: MessageEvent) => void) | null = null
+  onclose: ((event: CloseEvent) => void) | null = null
+  onerror: ((event: Event) => void) | null = null
+
+  send(data: string): void {
+    this.sent.push(JSON.parse(data))
+  }
+  close(): void {
+    this.closed = true
+  }
+  open(): void {
+    this.readyState = 1
+    this.onopen?.(new Event('open'))
+  }
+  receive(message: unknown): void {
+    this.onmessage?.(new MessageEvent('message', { data: JSON.stringify(message) }))
+  }
+  drop(): void {
+    this.readyState = 3
+    this.onclose?.(new CloseEvent('close'))
+  }
+}
+
+function memoryStorage(): StorageLike {
+  const data = new Map<string, string>()
+  return {
+    getItem: (key) => data.get(key) ?? null,
+    setItem: (key, value) => void data.set(key, value),
+    removeItem: (key) => void data.delete(key),
+  }
+}
+
+function mapWithToken(x: number, y: number): MapData {
+  return addToken(createEmptyMap('m1', 'Mapa', 10, 10, 50), { id: 't1', characterId: null, name: 'Gina', x, y, size: 1, image: null })
+}
+
+/** Gina entrou, recebeu a ficha e está jogando no socket 0. `isHidden`: a aba está em segundo plano? */
+function jogando(isHidden?: () => boolean) {
+  const sockets: FakeSocket[] = []
+  const connection = createPlayerConnection({
+    url: 'ws://host/ws',
+    code: 'ABC123',
+    name: 'Gina',
+    storage: memoryStorage(),
+    isHidden,
+    createSocket: () => {
+      const socket = new FakeSocket()
+      sockets.push(socket)
+      return socket
+    },
+  })
+  const first = sockets[0]
+  if (!first) throw new Error('socket não criado')
+  first.open()
+  first.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok' })
+  first.receive({ type: 'snapshot', rev: 7, map: mapWithToken(10, 10), vision: [] })
+  const last = (): FakeSocket => {
+    const socket = sockets.at(-1)
+    if (!socket) throw new Error('sem socket')
+    return socket
+  }
+  return { connection, sockets, first, last }
+}
+
+beforeEach(() => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-09-23T20:00:00Z'))
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+describe('playerConnection: reconexão automática', () => {
+  it('queda no meio do jogo NÃO vira erro: o mapa fica e o estado diz "reconectando"', () => {
+    const { connection, first } = jogando()
+    first.drop()
+    const state = connection.getState()
+    expect(state.status).toBe('playing')
+    expect(state.error).toBeUndefined()
+    expect(state.map?.tokens[0]).toMatchObject({ id: 't1', x: 10, y: 10 })
+    expect(state.reconnecting).toMatchObject({ since: Date.now(), manual: false })
+  })
+
+  it('tenta de novo sozinho, com o resume, e volta ao normal com o snapshot (mesmo rev de antes)', () => {
+    const { connection, sockets, first, last } = jogando()
+    first.drop()
+    expect(sockets).toHaveLength(1)
+    vi.advanceTimersByTime(reconnectDelayMs(1))
+    expect(sockets).toHaveLength(2)
+    last().open()
+    expect(last().sent[0]).toEqual({ type: 'join', code: 'ABC123', name: 'Gina', resume: 'tok' })
+    last().receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok' })
+    // O host não fez broadcast enquanto ela esteve fora: o rev é o MESMO. Tem de valer.
+    last().receive({ type: 'snapshot', rev: 7, map: mapWithToken(60, 60), vision: [] })
+    const state = connection.getState()
+    expect(state.reconnecting).toBeUndefined()
+    expect(state.status).toBe('playing')
+    expect(state.map?.tokens[0]).toMatchObject({ x: 60, y: 60 })
+  })
+
+  it('a espera cresce a cada tentativa que falha e para em 30 s', () => {
+    const delays = [1, 2, 3, 4, 5, 6, 7, 8].map(reconnectDelayMs)
+    for (let i = 1; i < delays.length; i += 1) expect(delays[i]).toBeGreaterThanOrEqual(delays[i - 1] ?? 0)
+    expect(delays[0]).toBeLessThanOrEqual(1000)
+    expect(delays.at(-1)).toBe(RECONNECT_MAX_DELAY_MS)
+    expect(RECONNECT_MAX_DELAY_MS).toBe(30_000)
+
+    const { connection, sockets, first, last } = jogando()
+    first.drop()
+    vi.advanceTimersByTime(reconnectDelayMs(1))
+    expect(sockets).toHaveLength(2)
+    // A tentativa falha (o Wi-Fi ainda está desligado): a próxima espera mais.
+    last().drop()
+    expect(connection.getState().reconnecting?.attempt).toBe(1)
+    vi.advanceTimersByTime(reconnectDelayMs(2) - 1)
+    expect(sockets).toHaveLength(2)
+    vi.advanceTimersByTime(1)
+    expect(sockets).toHaveLength(3)
+  })
+
+  it('"Reconectar" (manual) só aparece depois de 30 s fora', () => {
+    const { connection, first } = jogando()
+    first.drop()
+    vi.advanceTimersByTime(MANUAL_RECONNECT_AFTER_MS - 1)
+    expect(connection.getState().reconnecting?.manual).toBe(false)
+    vi.advanceTimersByTime(1)
+    expect(connection.getState().reconnecting?.manual).toBe(true)
+    expect(MANUAL_RECONNECT_AFTER_MS).toBe(30_000)
+  })
+
+  it('wake (tela desbloqueou, rede voltou) tenta NA HORA, sem esperar a espera crescente', () => {
+    const { sockets, first, last, connection } = jogando()
+    first.drop()
+    vi.advanceTimersByTime(reconnectDelayMs(1))
+    last().drop()
+    vi.advanceTimersByTime(reconnectDelayMs(2))
+    last().drop()
+    const antes = sockets.length
+    connection.wake()
+    expect(sockets.length).toBe(antes + 1)
+  })
+
+  it('wake sem queda não abre socket nenhum', () => {
+    const { sockets, connection } = jogando()
+    connection.wake()
+    expect(sockets).toHaveLength(1)
+  })
+
+  it('tentativa que não abre (rede muda) é abandonada e a próxima é agendada', () => {
+    const { sockets, first, last } = jogando()
+    first.drop()
+    vi.advanceTimersByTime(reconnectDelayMs(1))
+    const presa = last()
+    expect(sockets).toHaveLength(2)
+    // Nem abre nem fecha: fica pendurada.
+    vi.advanceTimersByTime(60_000)
+    expect(presa.closed).toBe(true)
+    expect(sockets.length).toBeGreaterThan(2)
+  })
+
+  it('a sala acabou enquanto ela estava fora: bad_code encerra a reconexão, sem tentar mais', () => {
+    const { connection, sockets, first, last } = jogando()
+    first.drop()
+    vi.advanceTimersByTime(reconnectDelayMs(1))
+    last().open()
+    last().receive({ type: 'error', reason: 'bad_code' })
+    last().drop()
+    const total = sockets.length
+    vi.advanceTimersByTime(120_000)
+    expect(sockets).toHaveLength(total)
+    expect(connection.getState()).toMatchObject({ status: 'error', error: 'bad_code' })
+    expect(connection.getState().reconnecting).toBeUndefined()
+  })
+
+  it('close() durante a reconexão para tudo', () => {
+    const { connection, sockets, first } = jogando()
+    first.drop()
+    connection.close()
+    vi.advanceTimersByTime(120_000)
+    expect(sockets).toHaveLength(1)
+  })
+
+  it('queda ANTES de entrar na sala (nunca houve welcome) continua sendo connection_lost', () => {
+    const sockets: FakeSocket[] = []
+    const connection = createPlayerConnection({
+      url: 'ws://host/ws',
+      code: 'ABC123',
+      name: 'Gina',
+      storage: null,
+      createSocket: () => {
+        const socket = new FakeSocket()
+        sockets.push(socket)
+        return socket
+      },
+    })
+    sockets[0]?.open()
+    sockets[0]?.drop()
+    expect(connection.getState()).toMatchObject({ status: 'error', error: 'connection_lost' })
+    expect(connection.getState().reconnecting).toBeUndefined()
+  })
+
+  it('queda na tela de espera (sem ficha) também reconecta sozinha', () => {
+    const sockets: FakeSocket[] = []
+    const connection = createPlayerConnection({
+      url: 'ws://host/ws',
+      code: 'ABC123',
+      name: 'Gina',
+      storage: memoryStorage(),
+      createSocket: () => {
+        const socket = new FakeSocket()
+        sockets.push(socket)
+        return socket
+      },
+    })
+    sockets[0]?.open()
+    sockets[0]?.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok' })
+    sockets[0]?.drop()
+    expect(connection.getState().status).toBe('waiting')
+    expect(connection.getState().reconnecting).toBeDefined()
+    vi.advanceTimersByTime(reconnectDelayMs(1))
+    expect(sockets).toHaveLength(2)
+  })
+
+  it('o pedido de passagem que esperava o mestre morre com a queda (o host também o esquece)', () => {
+    const { connection, first } = jogando()
+    first.receive({
+      type: 'snapshot',
+      rev: 8,
+      map: { ...mapWithToken(10, 10), pins: [{ id: 'escada', x: 20, y: 20, kind: 'viagem', description: '', image: null }] },
+      vision: [],
+    })
+    expect(connection.requestTravel('escada')).toBe(true)
+    expect(connection.getState().travel?.phase).toBe('waiting')
+    first.drop()
+    expect(connection.getState().travel).toBeUndefined()
+  })
+})
+
+/**
+ * CONEXÃO MORTA QUE NÃO FECHA: o Wi-Fi do celular some sem FIN e o navegador
+ * não dispara `close` por minutos. O cliente manda `ping` e o host responde
+ * `pong`; sem NADA do host no prazo, o socket conta como morto e a volta
+ * automática começa — a mesma de uma queda com `close`.
+ */
+describe('playerConnection: socket mudo conta como queda', () => {
+  const pings = (socket: FakeSocket) => socket.sent.filter((m) => JSON.stringify(m) === '{"type":"ping"}').length
+
+  it('o ping sai com folga para caber no aceite de 0:10, e o prazo é de mais de um ping', () => {
+    const { first } = jogando()
+    vi.advanceTimersByTime(PING_INTERVAL_MS)
+    expect(pings(first)).toBe(1)
+    expect(PING_INTERVAL_MS).toBeGreaterThanOrEqual(1_000)
+    expect(PING_INTERVAL_MS).toBeLessThanOrEqual(3_000)
+    // Um pong atrasado não derruba ninguém: o prazo cobre dois pings perdidos.
+    expect(SILENCE_DEAD_AFTER_MS).toBeGreaterThanOrEqual(2 * PING_INTERVAL_MS)
+    expect(SILENCE_DEAD_AFTER_MS).toBeLessThanOrEqual(6_000)
+  })
+
+  it('sem pong no prazo: larga o socket e começa a volta automática, com o mapa na tela', () => {
+    const { connection, sockets, first } = jogando()
+    // O socket segue "aberto" para o navegador, mas nada volta do host.
+    vi.advanceTimersByTime(SILENCE_DEAD_AFTER_MS + PING_INTERVAL_MS)
+    const state = connection.getState()
+    expect(state.reconnecting).toBeDefined()
+    expect(state.status).toBe('playing')
+    expect(state.map?.tokens[0]).toMatchObject({ id: 't1' })
+    expect(first.closed).toBe(true)
+    vi.advanceTimersByTime(reconnectDelayMs(1))
+    expect(sockets).toHaveLength(2)
+  })
+
+  it('com pong a cada ping a conexão fica viva, por quanto tempo for', () => {
+    const { connection, sockets, first } = jogando()
+    for (let t = 0; t < 120_000; t += PING_INTERVAL_MS) {
+      vi.advanceTimersByTime(PING_INTERVAL_MS)
+      first.receive({ type: 'pong' })
+    }
+    expect(connection.getState().reconnecting).toBeUndefined()
+    expect(sockets).toHaveLength(1)
+    expect(first.closed).toBe(false)
+    expect(pings(first)).toBeGreaterThan(10)
+  })
+
+  it('a tela acendeu depois de muito tempo muda (visibilitychange) e o host não responde: reconecta sem a espera crescente', () => {
+    const { connection, sockets, first } = jogando()
+    // Celular bloqueado: os timers da aba nem rodaram; o relógio andou 60 s.
+    vi.setSystemTime(Date.now() + 60_000)
+    connection.wake()
+    // Primeiro confirma: o silêncio pode ser só do timer preso da aba.
+    expect(first.sent.at(-1)).toEqual({ type: 'ping' })
+    expect(first.closed).toBe(false)
+    vi.advanceTimersByTime(WAKE_PROBE_MS)
+    expect(first.closed).toBe(true)
+    expect(connection.getState().reconnecting).toBeDefined()
+    // Não espera o 1 s da primeira tentativa: a pessoa está olhando.
+    expect(sockets).toHaveLength(2)
+    expect(WAKE_PROBE_MS).toBeGreaterThan(0)
+    expect(WAKE_PROBE_MS).toBeLessThan(reconnectDelayMs(1))
+  })
+
+  it('a tela acendeu com a conexão viva: só um ping na hora, sem derrubar nada', () => {
+    const { connection, sockets, first } = jogando()
+    vi.advanceTimersByTime(PING_INTERVAL_MS - 1)
+    expect(pings(first)).toBe(0)
+    connection.wake()
+    expect(pings(first)).toBe(1)
+    expect(sockets).toHaveLength(1)
+    expect(connection.getState().reconnecting).toBeUndefined()
+  })
+
+  it('o host já a deu como caída (not_joined no meio do jogo): vira reconexão, não tela de erro', () => {
+    const { connection, sockets, first } = jogando()
+    first.receive({ type: 'error', reason: 'not_joined' })
+    const state = connection.getState()
+    expect(state.status).toBe('playing')
+    expect(state.error).toBeUndefined()
+    expect(state.reconnecting).toBeDefined()
+    expect(first.closed).toBe(true)
+    vi.advanceTimersByTime(reconnectDelayMs(1))
+    expect(sockets).toHaveLength(2)
+  })
+
+  it('antes de entrar (sem welcome) o silêncio NÃO derruba: o prazo do aperto de mão é da tela', () => {
+    const sockets: FakeSocket[] = []
+    const connection = createPlayerConnection({
+      url: 'ws://host/ws',
+      code: 'ABC123',
+      name: 'Gina',
+      storage: null,
+      createSocket: () => {
+        const socket = new FakeSocket()
+        sockets.push(socket)
+        return socket
+      },
+    })
+    sockets[0]?.open()
+    vi.advanceTimersByTime(SILENCE_DEAD_AFTER_MS * 3)
+    expect(connection.getState().status).toBe('connecting')
+    expect(sockets).toHaveLength(1)
+  })
+})
+
+/**
+ * ABA EM SEGUNDO PLANO NO DESKTOP: com a aba oculta há mais de 5 min, o Chrome
+ * e o Edge rodam o `setInterval` do ping 1 vez por minuto (WebSocket aberto
+ * não isenta). O pong só vem em resposta ao ping, então a cada tick o host
+ * parece mudo há ~60 s — sem cuidado, o cliente se derrubava sozinho a cada
+ * minuto. Aqui o tick "de minuto em minuto" é simulado: o relógio anda 58 s
+ * sem timer nenhum rodar, e o intervalo do ping dispara uma vez.
+ */
+describe('playerConnection: aba em segundo plano com o timer estrangulado', () => {
+  const MINUTO = 60_000
+  const ultimoPing = (socket: FakeSocket) => socket.sent.filter((m) => JSON.stringify(m).includes('"ping"')).at(-1)
+
+  /** Um tick do ping depois de um minuto parado; o host responde se `pong`. */
+  const tickDeMinuto = (socket: FakeSocket, pong: boolean) => {
+    vi.setSystemTime(Date.now() + MINUTO - PING_INTERVAL_MS)
+    vi.advanceTimersByTime(PING_INTERVAL_MS)
+    if (pong) socket.receive({ type: 'pong' })
+  }
+
+  it('10 min oculta, ping de minuto em minuto: não se derruba, e o ping avisa o host (away)', () => {
+    const { connection, sockets, first } = jogando(() => true)
+    for (let i = 0; i < 10; i++) tickDeMinuto(first, true)
+    expect(first.closed).toBe(false)
+    expect(sockets).toHaveLength(1)
+    expect(connection.getState().reconnecting).toBeUndefined()
+    expect(ultimoPing(first)).toEqual({ type: 'ping', away: true })
+    expect(first.sent.filter((m) => JSON.stringify(m) === '{"type":"ping","away":true}').length).toBeGreaterThanOrEqual(10)
+  })
+
+  it('oculta, o silêncio do host não derruba: a decisão fica para quando a tela acender', () => {
+    const { connection, sockets, first } = jogando(() => true)
+    for (let i = 0; i < 3; i++) tickDeMinuto(first, false)
+    expect(first.closed).toBe(false)
+    expect(sockets).toHaveLength(1)
+    expect(connection.getState().reconnecting).toBeUndefined()
+  })
+
+  it('volta à vista no meio do minuto com a conexão viva: um ping comum, e nada cai depois', () => {
+    let oculta = true
+    const { connection, sockets, first } = jogando(() => oculta)
+    for (let i = 0; i < 6; i++) tickDeMinuto(first, true)
+    // Voltou à aba 40 s depois do último pong.
+    vi.setSystemTime(Date.now() + 40_000)
+    oculta = false
+    connection.wake()
+    expect(ultimoPing(first)).toEqual({ type: 'ping' })
+    first.receive({ type: 'pong' })
+    // Os ticks seguintes (à vista, de 2 em 2 s) com o host respondendo.
+    for (let t = 0; t < 10_000; t += PING_INTERVAL_MS) {
+      vi.advanceTimersByTime(PING_INTERVAL_MS)
+      first.receive({ type: 'pong' })
+    }
+    expect(first.closed).toBe(false)
+    expect(sockets).toHaveLength(1)
+    expect(connection.getState().reconnecting).toBeUndefined()
+  })
+
+  it('volta à vista e o host de fato sumiu: a volta começa em WAKE_PROBE_MS', () => {
+    let oculta = true
+    const { connection, sockets, first } = jogando(() => oculta)
+    for (let i = 0; i < 3; i++) tickDeMinuto(first, false)
+    oculta = false
+    connection.wake()
+    expect(first.closed).toBe(false)
+    vi.advanceTimersByTime(WAKE_PROBE_MS)
+    expect(first.closed).toBe(true)
+    expect(connection.getState().reconnecting).toBeDefined()
+    expect(sockets).toHaveLength(2)
+  })
+})
