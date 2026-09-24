@@ -45,6 +45,23 @@ describe('mapStore — esteira', () => {
     expect(useMapStore.getState().map.pins[0]?.cabine).toBeUndefined()
   })
 
+  it('o Avançar usa o raio do dono que a sala manda: o guarda além dele não segura a cabine', () => {
+    const pinos = [
+      { id: 'p1', x: 125, y: 200, kind: 'exclamacao' as const, description: '', image: null, cabine: 'p2' },
+      { id: 'p2', x: 975, y: 200, kind: 'exclamacao' as const, description: '', image: null },
+    ]
+    const mapa = { ...torre({ tokens: [ficha('ana', 125, 200), ficha('guarda', 975, 200)] }), pins: pinos, movement: { tokensOccupy: true } }
+    useMapStore.setState({ map: mapa, past: [], future: [] })
+    // Raio que alcança o guarda (850 px): ele segura, e nada vai para o desfazer.
+    useMapStore.getState().advanceConveyors(new Map([['ana', 900]]))
+    expect(useMapStore.getState().map).toBe(mapa)
+    expect(useMapStore.getState().past).toHaveLength(0)
+    // O raio da sala (700 px): Ana não o vê, e a cabine a leva.
+    useMapStore.getState().advanceConveyors(new Map([['ana', 700]]))
+    expect(useMapStore.getState().map.tokens[0]).toMatchObject({ id: 'ana', x: 975, y: 200 })
+    expect(useMapStore.getState().past).toHaveLength(1)
+  })
+
   it('avançar sem ninguém para mover, ou marcar igual, não gasta histórico', () => {
     useMapStore.getState().setRoomConveyor('sala-b', { direction: 'sul', stepCells: 2 })
     const antes = useMapStore.getState().map

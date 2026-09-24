@@ -42,6 +42,7 @@ import { selectAlignableUnitCount, useMapStore } from './stores/mapStore'
 import { roomHazardState } from './lib/hazards'
 import { advanceConveyors, roomConveyorState } from './lib/conveyors'
 import { cabinOf, cabinTargets } from './lib/cabins'
+import { ownerVisionRadii } from './lib/imposedOccupancy'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
   applyItemsInScene,
@@ -949,8 +950,11 @@ function App() {
   const selectedRegionParent = selectedRegion?.parentId !== undefined ? map.regions.find((r) => r.id === selectedRegion.parentId) ?? null : null
   // ZONA DE PERIGO da Sala selecionada: o perigo dela e se "Avançar um passo" muda algo.
   const selectedRoomHazard = selectedRegion?.room ? roomHazardState(map, selectedRegion.id) : null
+  // ESTEIRA e CABINE: com "Fichas ocupam espaço", só segura a ficha quem o
+  // dono dela enxerga com o raio que o host aplica a ele (`radiusFor`).
+  const conveyorRadii = ownerVisionRadii(roomPlayers)
   // ESTEIRA da Sala selecionada: direção, passo e se "Avançar esteiras" move alguém.
-  const selectedRoomConveyor = selectedRegion?.room ? roomConveyorState(map, selectedRegion.id) : null
+  const selectedRoomConveyor = selectedRegion?.room ? roomConveyorState(map, selectedRegion.id, conveyorRadii) : null
   const selectedLight = singleSelection?.kind === 'light' ? map.lights.find((l) => l.id === singleSelection.id) ?? null : null
   const selectedStair = singleSelection?.kind === 'stair' ? map.stairs.find((s) => s.id === singleSelection.id) ?? null : null
   const selectedFloorIndex = singleSelection?.kind === 'floor' ? map.floor.findIndex((p) => p.id === singleSelection.id) : -1
@@ -2267,7 +2271,7 @@ function App() {
                       stepCells: selectedRoomConveyor.stepCells,
                       canAdvance: selectedRoomConveyor.canAdvance,
                       onChange: (setting) => useMapStore.getState().setRoomConveyor(selectedRegion.id, setting),
-                      onAdvance: () => useMapStore.getState().advanceConveyors(),
+                      onAdvance: () => useMapStore.getState().advanceConveyors(conveyorRadii),
                     }
                   : undefined,
             }}
@@ -2349,9 +2353,9 @@ function App() {
                   ? {
                       target: cabinOf(map, selectedPin.id),
                       targets: cabinTargets(map, selectedPin.id),
-                      canAdvance: advanceConveyors(map) !== map,
+                      canAdvance: advanceConveyors(map, conveyorRadii) !== map,
                       onChange: (targetId) => useMapStore.getState().setPinCabin(selectedPin.id, targetId),
-                      onAdvance: () => useMapStore.getState().advanceConveyors(),
+                      onAdvance: () => useMapStore.getState().advanceConveyors(conveyorRadii),
                     }
                   : null,
             }}

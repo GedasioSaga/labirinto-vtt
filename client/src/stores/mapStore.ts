@@ -26,6 +26,7 @@ import { canInteract } from '../lib/itemTransform'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
 import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
 import { advanceConveyors as advanceConveyorsOnMap, setRoomConveyor as setRoomConveyorOnMap, type ConveyorSetting } from '../lib/conveyors'
+import type { OwnerVisionRadii } from '../lib/imposedOccupancy'
 import { setPinCabin as setPinCabinOnMap } from '../lib/cabins'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
@@ -713,8 +714,11 @@ interface MapStoreState {
   advanceHazard: (hazardId: string) => void
   /** ESTEIRA — liga a esteira da Sala (direção e passo), troca ou desliga (`null`). Com histórico. */
   setRoomConveyor: (roomId: string, setting: ConveyorSetting | null) => void
-  /** ESTEIRA — "Avançar esteiras": todas as esteiras da cena empurram as fichas. Com histórico; ninguém anda = nada grava. */
-  advanceConveyors: () => void
+  /**
+   * ESTEIRA — "Avançar esteiras": todas as esteiras da cena empurram as fichas. Com histórico; ninguém anda = nada grava.
+   * `radii`: o raio de visão do dono de cada ficha na sala aberta (`ownerVisionRadii`); sem sala, omitir.
+   */
+  advanceConveyors: (radii?: OwnerVisionRadii) => void
   /** CABINE CONTÍNUA — liga o pino à próxima parada da cena, troca ou desliga (`null`). Com histórico. */
   setPinCabin: (pinId: string, targetId: string | null) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
@@ -1726,9 +1730,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (setRoomConveyorOnMap(get().map, roomId, setting, () => id) === get().map) return
       withHistory((map) => setRoomConveyorOnMap(map, roomId, setting, () => id))
     },
-    advanceConveyors: () => {
-      if (advanceConveyorsOnMap(get().map) === get().map) return
-      withHistory((map) => advanceConveyorsOnMap(map))
+    advanceConveyors: (radii) => {
+      if (advanceConveyorsOnMap(get().map, radii) === get().map) return
+      withHistory((map) => advanceConveyorsOnMap(map, radii))
     },
     setPinCabin: (pinId, targetId) => {
       if (setPinCabinOnMap(get().map, pinId, targetId) === get().map) return

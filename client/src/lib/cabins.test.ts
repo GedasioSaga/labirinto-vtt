@@ -123,6 +123,22 @@ describe('advanceConveyors — a cabine contínua leva quem ficou parado no pino
     expect(posicao(advanceConveyors(longe), 'ana')).toEqual({ x: 1275, y: 75 })
   })
 
+  it('com "Fichas ocupam espaço", o guarda além do raio de visão do dono de Ana não segura a cabine', () => {
+    // Porta A|B aberta: a linha do pino p1 até p2 passa livre, mas o guarda está a 850 px de Ana.
+    const mapa: MapData = {
+      ...torre({ tokens: [ficha('ana', 125, 200), ficha('guarda', 975, 200)] }),
+      pins: [pino('p1', 125, 200, { cabine: 'p2' }), pino('p2', 975, 200)],
+      movement: { tokensOccupy: true },
+    }
+    // Raio de 700 px (o padrão da sala): o jogador não recebe o guarda, então a cabine o leva.
+    expect(posicao(advanceConveyors(mapa, new Map([['ana', 700]])), 'ana')).toEqual({ x: 975, y: 200 })
+    // Raio de 900 px: o guarda está à vista e segura, igual ao movimento manual.
+    expect(advanceConveyors(mapa, new Map([['ana', 900]]))).toBe(mapa)
+    // O painel concorda com o botão: com o raio real, o Avançar move alguém.
+    expect(roomConveyorState(mapa, 'sala-a', new Map([['ana', 700]])).canAdvance).toBe(true)
+    expect(roomConveyorState(mapa, 'sala-a', new Map([['ana', 900]])).canAdvance).toBe(false)
+  })
+
   it('o painel sabe que o Avançar move alguém só pela cabine, mesmo sem esteira na cena', () => {
     expect(roomConveyorState(elevador([ficha('ana', 75, 75)]), 'sala-a').canAdvance).toBe(true)
     expect(roomConveyorState(elevador([ficha('ana', 225, 225)]), 'sala-a').canAdvance).toBe(false)

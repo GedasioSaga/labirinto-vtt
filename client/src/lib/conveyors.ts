@@ -2,7 +2,7 @@ import type { Conveyor, ConveyorDirection, MapData, Region, RegionPoint, Token }
 import { cabinDestinations } from './cabins'
 import { moveCrossesWall } from './collision'
 import { pointInRing, signedArea } from './floorContour'
-import { seenOccupant } from './imposedOccupancy'
+import { NO_OWNER_RADII, seenOccupant, type OwnerVisionRadii } from './imposedOccupancy'
 import { tokensOccupy } from './movementRules'
 
 /**
@@ -156,17 +156,24 @@ function insideMap(map: MapData, point: RegionPoint): boolean {
  * Onde a esteira larga a ficha: casa por casa, até o passo. Para ANTES de
  * cruzar parede que barra movimento (porta fechada, trancada ou secreta
  * inclusive — `moveCrossesWall`), antes de sair do mapa e, com "Fichas ocupam
- * espaço", antes da casa de outra ficha que o dono dela enxerga dali
- * (`seenOccupant`; `blockers` é `null` sem a regra); e
- * para DEPOIS da casa que a tirou da sala da esteira (foi largada na ponta).
+ * espaço", antes da casa de outra ficha que o dono dela enxerga dali, com o
+ * raio dele na sala (`seenOccupant`, `radii`; `blockers` é `null` sem a
+ * regra); e para DEPOIS da casa que a tirou da sala da esteira (foi largada na
+ * ponta).
  */
-function conveyedPosition(map: MapData, token: Token, belt: LiveConveyor, blockers: readonly Token[] | null): RegionPoint {
+function conveyedPosition(
+  map: MapData,
+  token: Token,
+  belt: LiveConveyor,
+  blockers: readonly Token[] | null,
+  radii: OwnerVisionRadii,
+): RegionPoint {
   const { dx, dy } = DIRECTION_VECTOR[belt.conveyor.direction]
   let at: RegionPoint = { x: token.x, y: token.y }
   for (let step = 0; step < belt.conveyor.stepCells; step += 1) {
     const next = { x: at.x + dx * map.grid, y: at.y + dy * map.grid }
     if (!insideMap(map, next) || map.walls.some((wall) => moveCrossesWall(at, next, wall))) break
-    if (blockers !== null && seenOccupant(map, { ...token, x: at.x, y: at.y }, next, blockers) !== undefined) break
+    if (blockers !== null && seenOccupant(map, { ...token, x: at.x, y: at.y }, next, blockers, radii) !== undefined) break
     at = next
     if (!pointInRing(at, belt.ring)) break
   }
@@ -196,7 +203,7 @@ function lead(token: Token, belt: LiveConveyor): number {
  * As esteiras do Avançar: cada ficha cujo centro está numa sala com esteira
  * anda (quem vai na frente primeiro). Devolve o chão depois delas e quem andou.
  */
-function runConveyors(map: MapData, live: readonly LiveConveyor[]): { tokens: Token[]; moved: Set<string> } {
+function runConveyors(map: MapData, live: readonly LiveConveyor[], radii: OwnerVisionRadii): { tokens: Token[]; moved: Set<string> } {
   let tokens = [...map.tokens]
   const moved = new Set<string>()
   const riders = map.tokens
@@ -206,7 +213,7 @@ function runConveyors(map: MapData, live: readonly LiveConveyor[]): { tokens: To
     })
     .sort((a, b) => lead(b.token, b.belt) - lead(a.token, a.belt))
   for (const { token, belt } of riders) {
-    const to = conveyedPosition(map, token, belt, occupyBlockers(map, tokens.filter((t) => t.id !== token.id)))
+    const to = conveyedPosition(map, token, belt, occupyBlockers(map, tokens.filter((t) => t.id !== token.id)), radii)
     if (to.x === token.x && to.y === token.y) continue
     moved.add(token.id)
     tokens = tokens.map((t) => (t.id === token.id ? { ...t, x: to.x, y: to.y } : t))
@@ -221,11 +228,15 @@ function runConveyors(map: MapData, live: readonly LiveConveyor[]): { tokens: To
  * moveu estava andando e não pega a cabine). Conta onde cada ficha estava
  * ANTES do Avançar, então uma esteira que despeja em outra não encadeia no
  * mesmo clique. Ninguém se mexe: devolve o MESMO mapa.
+ *
+ * `radii` é o raio de visão do dono de cada ficha na sala (`ownerVisionRadii`
+ * sobre os jogadores do host): com "Fichas ocupam espaço", só segura quem esse
+ * raio alcança. Sem sala aberta, ninguém tem dono e o raio cobre o mapa.
  */
-export function advanceConveyors(map: MapData): MapData {
+export function advanceConveyors(map: MapData, radii: OwnerVisionRadii = NO_OWNER_RADII): MapData {
   const live = liveConveyors(map)
-  const belts = live.length === 0 ? { tokens: map.tokens, moved: new Set<string>() } : runConveyors(map, live)
-  const rides = cabinDestinations(map, belts.tokens, belts.moved, occupyBlockers(map, belts.tokens))
+  const belts = live.length === 0 ? { tokens: map.tokens, moved: new Set<string>() } : runConveyors(map, live, radii)
+  const rides = cabinDestinations(map, belts.tokens, belts.moved, occupyBlockers(map, belts.tokens), radii)
   if (belts.moved.size === 0 && rides.size === 0) return map
   const tokens = belts.tokens.map((token) => {
     const to = rides.get(token.id)
@@ -241,11 +252,11 @@ export interface RoomConveyorState {
   canAdvance: boolean
 }
 
-export function roomConveyorState(map: MapData, roomId: string): RoomConveyorState {
+export function roomConveyorState(map: MapData, roomId: string, radii: OwnerVisionRadii = NO_OWNER_RADII): RoomConveyorState {
   const conveyor = conveyorOfRoom(map, roomId)
   return {
     direction: conveyor?.direction ?? null,
     stepCells: conveyor?.stepCells ?? DEFAULT_CONVEYOR_STEP,
-    canAdvance: advanceConveyors(map) !== map,
+    canAdvance: advanceConveyors(map, radii) !== map,
   }
 }

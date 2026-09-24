@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import { ficha, torre } from '../lib/__fixtures__/hazardTower'
 import { advanceConveyors } from '../lib/conveyors'
+import { ownerVisionRadii } from '../lib/imposedOccupancy'
 import type { Conveyor, MapData, Token } from '../types/map'
 import { createHostSession, type HostResult, type HostWorld } from './hostSession'
 
@@ -98,6 +99,26 @@ describe('esteira — o jogador vê só o próprio movimento', () => {
     // Sem o conserto, Ana parava em (425, 75): uma casa antes do chão que ela vê vazio.
     expect(posicoes(mapaRecebido(r, 'c1'))).toEqual({ ana: { x: 475, y: 75 } })
     expect(JSON.stringify(r.outbound)).not.toContain('npc-oculto')
+  })
+
+  it('"Fichas ocupam espaço": o guarda além do raio de Ana não a segura na cabine — ela vai à parada', () => {
+    // Porta A|B aberta: a linha do pino até a parada passa livre; o guarda está a 850 px, além dos 700 da sala.
+    const antes: MapData = {
+      ...torre({ tokens: [ficha('ana', 125, 200), ficha('guarda', 975, 200), ficha('bia', 1375, 200)] }),
+      pins: [
+        { id: 'p1', x: 125, y: 200, kind: 'exclamacao' as const, description: '', image: null, cabine: 'p2' },
+        { id: 'p2', x: 975, y: 200, kind: 'exclamacao' as const, description: '', image: null },
+      ],
+      movement: { tokensOccupy: true },
+    }
+    const s = mesa(antes)
+    // O que Ana recebe antes do Avançar: só a própria ficha, o guarda está fora do raio dela.
+    expect(Object.keys(posicoes(mapaRecebido(s.broadcast(antes), 'c1')))).toEqual(['ana'])
+
+    const r = s.broadcast(advanceConveyors(antes, ownerVisionRadii(s.listPlayers())))
+
+    // Sem o conserto, Ana ficava no p1: parada por quem ela não vê, o que contaria que há alguém lá.
+    expect(posicoes(mapaRecebido(r, 'c1')).ana).toEqual({ x: 975, y: 200 })
   })
 
   it('esteira em OUTRA cena da aventura: quem está nesta não recebe nada dela', () => {

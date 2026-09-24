@@ -1,5 +1,5 @@
 import type { MapData, Pin, RegionPoint, Token } from '../types/map'
-import { seenOccupant } from './imposedOccupancy'
+import { seenOccupant, type OwnerVisionRadii } from './imposedOccupancy'
 
 /**
  * MOVIMENTO IMPOSTO — a CABINE CONTÍNUA (paternoster). Regra pura, sem DOM,
@@ -116,10 +116,11 @@ function cabinRides(map: MapData, tokens: readonly Token[], moved: ReadonlySet<s
  * até ninguém mais ficar (cada volta só aumenta quem fica, então termina).
  * Duas fichas para a mesma parada: vai a primeira da lista.
  * `blockers` são as fichas que podem segurar; segura só a que o dono da ficha
- * que vai enxerga do pino onde ela está (`seenOccupant`): ficar no pino por
- * causa de quem ele não vê contaria que existe alguém na parada.
+ * que vai enxerga do pino onde ela está, com o raio do dono na sala
+ * (`seenOccupant`, `radii`): ficar no pino por causa de quem ele não vê
+ * contaria que existe alguém na parada.
  */
-function resolveRides(map: MapData, rides: readonly CabinRide[], blockers: readonly Token[]): CabinRide[] {
+function resolveRides(map: MapData, rides: readonly CabinRide[], blockers: readonly Token[], radii: OwnerVisionRadii): CabinRide[] {
   const riding = new Set(rides.map((r) => r.token.id))
   const blocks = new Set(blockers.map((t) => t.id))
   const staying = blockers.filter((t) => !riding.has(t.id))
@@ -131,7 +132,7 @@ function resolveRides(map: MapData, rides: readonly CabinRide[], blockers: reado
     let changed = false
     for (const ride of rides) {
       if (held.has(ride.token.id)) continue
-      if (seenOccupant(map, ride.token, ride.to, [...staying, ...heldTokens, ...arrived]) !== undefined) {
+      if (seenOccupant(map, ride.token, ride.to, [...staying, ...heldTokens, ...arrived], radii) !== undefined) {
         held.add(ride.token.id)
         changed = true
         break
@@ -146,15 +147,17 @@ function resolveRides(map: MapData, rides: readonly CabinRide[], blockers: reado
 /**
  * Onde a cabine larga cada ficha neste Avançar. `tokens` é o chão DEPOIS das
  * esteiras; `moved` são as fichas que a esteira moveu (estavam andando, não
- * paradas). `blockers` é `null` sem "Fichas ocupam espaço".
+ * paradas). `blockers` é `null` sem "Fichas ocupam espaço". `radii` é o raio
+ * de visão do dono de cada ficha na sala (`lib/imposedOccupancy.ts`).
  */
 export function cabinDestinations(
   map: MapData,
   tokens: readonly Token[],
   moved: ReadonlySet<string>,
   blockers: readonly Token[] | null,
+  radii: OwnerVisionRadii,
 ): Map<string, RegionPoint> {
   const rides = cabinRides(map, tokens, moved)
-  const done = blockers === null ? rides : resolveRides(map, rides, blockers)
+  const done = blockers === null ? rides : resolveRides(map, rides, blockers, radii)
   return new Map(done.filter((r) => r.to.x !== r.token.x || r.to.y !== r.token.y).map((r) => [r.token.id, r.to]))
 }

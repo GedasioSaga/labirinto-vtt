@@ -184,6 +184,17 @@ describe('advanceConveyors — "Fichas ocupam espaço" vale para a esteira', () 
     expect(posicao(depois, 'ana')).toEqual({ x: 425, y: 75 })
   })
 
+  it('o dragão além do raio de visão do dono de Ana não segura a esteira; dentro do raio, segura', () => {
+    // O dragão (6 casas) está na sala B, com a porta A|B aberta: a borda dele toma a casa (475, 200),
+    // mas o centro fica 200 px à frente de Ana. Com o raio mínimo da sala (50 px) o jogador não o recebe.
+    const mapa = ocupada([ficha('ana', 375, 200), ficha('dragao', 625, 200, { size: 6 })])
+    const raioCurto = advanceConveyors(mapa, new Map([['ana', 50]]))
+    expect(posicao(raioCurto, 'ana')).toEqual({ x: 525, y: 200 })
+    expect(posicao(raioCurto, 'dragao')).toEqual({ x: 625, y: 200 })
+    // Raio que alcança o centro dele: à vista, segura na casa antes, como no movimento manual.
+    expect(posicao(advanceConveyors(mapa, new Map([['ana', 900]])), 'ana')).toEqual({ x: 425, y: 200 })
+  })
+
   it('bloqueada logo na primeira casa, a ficha fica e o mapa é o MESMO (sem histórico à toa)', () => {
     const presa = ocupada([ficha('ana', 425, 75), ficha('bia', 475, 75)])
     expect(advanceConveyors(presa)).toBe(presa)
