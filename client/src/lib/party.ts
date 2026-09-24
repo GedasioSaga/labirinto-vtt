@@ -30,6 +30,8 @@ export interface PartyMember {
   token: PartyToken | null
   /** Um pedido de passagem dele espera o mestre agora. */
   travelPending: boolean
+  /** VOLTO JÁ: saiu da mesa por um instante, de propósito. Ausente no resto do tempo. */
+  away?: true
 }
 
 /** Um ponto de chegada do "Mandar para…": um pino de viagem da cena de destino. */
@@ -76,7 +78,7 @@ function tokenOf(player: PlayerInfo, world: HostWorld): Token | null {
 export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMember[] {
   return players.map((player) => {
     const token = player.status === 'playing' ? tokenOf(player, world) : null
-    return {
+    const member: PartyMember = {
       playerId: player.playerId,
       name: player.name,
       connected: player.connected,
@@ -85,6 +87,8 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
       token: token === null ? null : { id: token.id, color: cssColor(tokenFillColor(token)), x: token.x, y: token.y },
       travelPending: player.travelPending === true,
     }
+    if (player.away === true) member.away = true
+    return member
   })
 }
 
@@ -124,6 +128,8 @@ export interface TokenCarryWiring {
 
 /** Status da linha em uma palavra: é o que o mestre lê de relance. */
 export function partyPresenceLabel(member: PartyMember): string {
+  // Volto já vem antes da conexão: é o que diz ao mestre que ele saiu de propósito, e não caiu.
+  if (member.away === true) return 'volto já'
   return member.connected ? 'online' : 'fora'
 }
 
@@ -156,7 +162,8 @@ export interface ScenePeople {
 export function peopleByScene(members: PartyMember[]): Map<string, ScenePeople> {
   const byScene = new Map<string, ScenePeople>()
   for (const member of members) {
-    if (!member.connected || member.sceneId === null) continue
+    // Quem está no Volto já e caiu continua à mesa: a ficha e o pedido dele esperam a volta.
+    if ((!member.connected && member.away !== true) || member.sceneId === null) continue
     let entry = byScene.get(member.sceneId)
     if (entry === undefined) {
       entry = { people: [], pendingRequests: 0 }

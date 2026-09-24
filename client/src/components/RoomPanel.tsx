@@ -55,6 +55,8 @@ export function downloadLabel(progress: number): string {
 
 export function playerStatusLabel(player: PlayerInfo): string {
   const status = player.status === 'playing' ? 'jogando' : 'aguardando'
+  // Volto já: o mestre lê que ele saiu de propósito, conectado ou não.
+  if (player.away === true) return `${status} · volto já`
   return `${status} · ${player.connected ? 'conectado' : 'desconectado'}`
 }
 

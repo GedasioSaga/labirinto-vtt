@@ -11,6 +11,7 @@ import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, oneWayExitsOf, 
 import { passageOf, pinSummary } from '../lib/pins'
 import {
   parsePlayerMessage,
+  type AwayMessage,
   type ClueEntry,
   type ClueReadMessage,
   type ClueShowMessage,
@@ -229,6 +230,12 @@ export interface PlayerInfo {
    * resto do tempo: é o que põe o selo "pedido" na cena dele, na lista Cenas.
    */
   travelPending?: true
+  /**
+   * VOLTO JÁ: o jogador avisou que saiu da mesa por um instante. Vale mesmo
+   * desconectado — é o que separa "saiu de propósito" de "caiu". Ausente no
+   * resto do tempo.
+   */
+  away?: true
 }
 
 /** Faixa do "Raio de visão" por jogador, em px de mundo. */
@@ -400,6 +407,10 @@ interface PendingTravel {
   /** O destino do aviso que o mestre leu. Religou a saída depois? A aprovação não vale. */
   toSceneId: string
   partnerId: string
+  /** O aviso que o mestre leu: é ele que volta à tela do mestre quando o "Deixar ir" esperou o Volto já. */
+  request: TravelRequest
+  /** VOLTO JÁ: o mestre disse "Deixar ir" com o jogador fora. A pergunta volta a ele na volta. */
+  heldApproval?: true
 }
 
 /** Pedido que passou em tudo: de onde, para onde, por qual pino e com qual token. */
@@ -454,6 +465,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const currentScene = new Map<string, string>()
   // Por playerId: o pedido de passagem que espera o mestre (no máximo um).
   const pendingTravels = new Map<string, PendingTravel>()
+  /**
+   * VOLTO JÁ: quem avisou que saiu da mesa. A ficha fica travada, o pedido de
+   * passagem fica suspenso (não morre com a conexão) e o "Deixar ir" espera a
+   * volta. Sai ao voltar ou ao ser expulso; sobrevive à queda e à retomada.
+   */
+  const awayPlayers = new Set<string>()
   // Por `playerId|cena|pino`: quando o jogador pediu por último aquele pino.
   // Só entra pino que existe na cena dele (ver `handleTravelRequest`).
   const lastTravelRequestAt = new Map<string, number>()
@@ -730,6 +747,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
 
+  /** VOLTO JÁ como o jogador o lê: fora ou não, e se o pedido DELE ainda espera o mestre. Nada de pino nem cena. */
+  const awayMessage = (playerId: string): HostMessage =>
+    pendingTravels.has(playerId)
+      ? { type: 'away', away: awayPlayers.has(playerId), travelPending: true }
+      : { type: 'away', away: awayPlayers.has(playerId) }
+
   /** Jogador que jogava e ficou sem token volta ao lobby; desconectado recebe o estado no resume. */
   const waitingIfLostLast = (playerId: string, wasPlaying: boolean): Outbound[] => {
     if (statusOf(playerId) === 'playing') return []
@@ -780,6 +803,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // `next`: o snapshot (ou a espera); `cards`: os cartões que vêm atrás dele (texto da Sala, recado da cena).
     const [next, ...cards] = statusOf(record.playerId) === 'playing' ? viewFor(record.playerId, world, 'always') : waiting
     const outbound: Outbound[] = [{ clientId, msg: welcome }]
+    // Retomada de quem está no Volto já: a tela sabe que está fora ANTES de o mapa chegar.
+    if (awayPlayers.has(record.playerId)) outbound.push({ clientId, msg: awayMessage(record.playerId) })
     if (next !== undefined) outbound.push({ clientId, msg: next })
     // O caderno vem antes do cartão: o cliente já tem o recado guardado quando o cartão reabre.
     const book = notebooks.get(record.playerId) ?? []
@@ -798,6 +823,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     // Sem cena (aventura aberta, ficha em lugar nenhum): não há onde mover.
     if (scene === null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'unknown_token' })
+    // VOLTO JÁ: a ficha de quem saiu da mesa fica travada, como a que o mestre trava.
+    if (awayPlayers.has(playerId)) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'locked' })
     const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership)
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     return {
@@ -1060,7 +1087,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     const record = players.get(playerId)
     const reject = (reason: PinTravelRejection): HostResult => reply(clientId, { type: 'pin.travel.rejected', reason })
-    if (record === undefined || statusOf(playerId) !== 'playing') return reject('unavailable')
+    // Quem está no Volto já não pede nada: a tela dele nem mostra o mapa.
+    if (record === undefined || statusOf(playerId) !== 'playing' || awayPlayers.has(playerId)) return reject('unavailable')
     if (pendingTravels.has(playerId)) return reject('pending')
     // PRIMEIRO LIMITE, por jogador e para qualquer pino, ANTES de validar: o
     // recorte da névoa é a parte cara, e o mapa fica do tamanho do número de
@@ -1087,25 +1115,43 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // ele só lê o aviso de chegada que o integrador mostra com a transferência.
     if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel)
     const requestId = randomId()
-    // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
-    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
     const description = travel.pin.description.trim()
     // Encruzilhada: o mestre lê a SAÍDA ("Escada da torre → Torre Alta"), o
     // mesmo rótulo que a jogadora tocou; pino de uma saída continua nomeado
     // pela descrição, como sempre.
     const saidas = exitLabelsOf(travel.pin)
     const saida = saidas.length > 1 ? saidas.find((s) => s.id === exitId) : undefined
-    return {
-      outbound: [],
-      travelRequest: {
-        requestId,
-        playerId,
-        playerName: record.name,
-        pinLabel: saida !== undefined ? saida.rotulo : description === '' ? pinSummary(travel.pin) : description,
-        toSceneId: travel.to.sceneId,
-        toSceneName: travel.to.name,
-      },
+    const request: TravelRequest = {
+      requestId,
+      playerId,
+      playerName: record.name,
+      pinLabel: saida !== undefined ? saida.rotulo : description === '' ? pinSummary(travel.pin) : description,
+      toSceneId: travel.to.sceneId,
+      toSceneName: travel.to.name,
     }
+    // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
+    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id, request })
+    return { outbound: [], travelRequest: { ...request } }
+  }
+
+  /**
+   * VOLTO JÁ: liga ou desliga a ausência declarada. A resposta é o estado que
+   * o host guarda. Ao voltar, o "Deixar ir" que o mestre deu com ele fora volta
+   * a ser pergunta: a passagem não acontece sem ninguém olhando a tela.
+   */
+  function handleAway(clientId: string, msg: AwayMessage): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (msg.away) {
+      awayPlayers.add(playerId)
+      return reply(clientId, awayMessage(playerId))
+    }
+    awayPlayers.delete(playerId)
+    const result = reply(clientId, awayMessage(playerId))
+    const pending = pendingTravels.get(playerId)
+    if (pending === undefined || pending.heldApproval !== true) return result
+    delete pending.heldApproval
+    return { ...result, travelRequest: { ...pending.request } }
   }
 
   /**
@@ -1248,12 +1294,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleCluePeers(clientId, world)
         case 'clue.show':
           return handleClueShow(clientId, msg, world)
+        case 'away':
+          return handleAway(clientId, msg)
       }
     },
 
     approveTravel(requestId, source) {
       const pending = findPendingTravel(requestId)
       if (pending === undefined) return { outbound: [] }
+      // VOLTO JÁ: ninguém olha a tela dele. O pedido fica suspenso e a
+      // pergunta volta ao mestre quando o jogador voltar (`handleAway`).
+      if (awayPlayers.has(pending.playerId)) {
+        pending.heldApproval = true
+        return { outbound: [] }
+      }
       pendingTravels.delete(pending.playerId)
       const record = players.get(pending.playerId)
       // Saiu da sala enquanto o mestre decidia: não há a quem mandar, e mover
@@ -1351,7 +1405,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (record !== undefined) record.clientId = null // mantém o registro para permitir resume
       // O pedido pendente morre com a conexão: quem voltar não tem mais o
       // "Aguardando o mestre…" na tela, e o aviso do mestre fica inofensivo.
-      pendingTravels.delete(playerId)
+      // Menos no Volto já: aí a queda é esperada, o pedido fica suspenso e a
+      // retomada devolve o "Aguardando o mestre…" (`awayMessage`).
+      if (!awayPlayers.has(playerId)) pendingTravels.delete(playerId)
       // O gesto morre com a conexão; quem o via apaga a ponta sozinho (REMOTE_LASER_IDLE_MS).
       laserRecipients.delete(playerId)
     },
@@ -1365,6 +1421,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       memories.delete(playerId)
       currentScene.delete(playerId)
       forgetTravelsOf(playerId)
+      awayPlayers.delete(playerId)
       lastSignalAt.delete(playerId)
       lastDoorToggleAt.delete(playerId)
       laserWindows.delete(playerId)
@@ -1506,6 +1563,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           // O selo da lista Cenas nasce e morre com o pedido: aprovar, recusar
           // e cair a conexão já tiram o jogador de `pendingTravels`.
           if (pendingTravels.has(p.playerId)) info.travelPending = true
+          if (awayPlayers.has(p.playerId)) info.away = true
           if (withScenes && info.status === 'playing') {
             const scene = sceneFor(p.playerId, world)
             // Sem cena, o painel o mostra aguardando: é o que a tela dele diz, e

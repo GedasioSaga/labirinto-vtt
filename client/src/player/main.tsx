@@ -601,6 +601,12 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const barRef = useRef<HTMLDivElement | null>(null)
   const mapObstacles = useCallback(() => coverBounds(panelRef.current, barRef.current), [])
 
+  // VOLTO JÁ: fora da mesa, a tela é só o aviso e o "Voltar" — o mapa não fica
+  // aberto no celular largado. Expulsão e sala encerrada passam na frente.
+  if (state.away === true && (state.status === 'playing' || state.status === 'waiting')) {
+    return <AwayScreen onBack={() => connection.setAway(false)} />
+  }
+
   if (state.status === 'playing' && state.map && state.vision) {
     const actionNotice = latestActionNotice(state.doorNotice, state.moveNotice)
     // Cartão de pista na tela: o Escape é dele, e um toque não pode fechar também o recado.
@@ -679,6 +685,13 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             // Outra pista aberta: a lista de colegas e o resultado eram dela.
             connection.resetClueShare()
             setOpenClueId(clueId)
+          }}
+          onStepAway={() => {
+            if (!connection.setAway(true)) return
+            // Quem saiu não deixa um modo de toque armado para a volta.
+            setSignalArmed(false)
+            setMeasureArmed(false)
+            setLaserArmed(false)
           }}
         />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
@@ -883,6 +896,26 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           ))}
         </div>
       )}
+    </Screen>
+  )
+}
+
+/**
+ * VOLTO JÁ: a ficha está travada e o pedido espera no mestre. Um botão só,
+ * com o foco nele: quem volta ao celular aperta sem procurar.
+ */
+function AwayScreen({ onBack }: { onBack: () => void }) {
+  return (
+    <Screen>
+      <p role="status" aria-live="polite" className="pe-lead">
+        Você está fora da mesa
+      </p>
+      <p className="pe-hint">Sua ficha fica parada, e o seu pedido espera o mestre até você voltar.</p>
+      <div className="pe-actions">
+        <button type="button" className="pe-btn pe-btn--primary" autoFocus onClick={onBack}>
+          Voltar
+        </button>
+      </div>
     </Screen>
   )
 }

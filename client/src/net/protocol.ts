@@ -75,6 +75,13 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
  * posição, o id do pino ou o nome/id da cena. Mestre antigo responde
  * `error invalid_message` (que o jogador ignora durante o jogo); jogador
  * antigo ignora as cinco.
+ *
+ * VOLTO JÁ é aditivo pelo mesmo critério: `away` nos dois sentidos. Do jogador,
+ * `away: true` (saí da mesa por um instante) ou `false` (voltei); do mestre, a
+ * confirmação — e, na retomada de quem saiu, o aviso que vem ANTES do mapa.
+ * `travelPending` diz só que o pedido de passagem DELE ainda espera o mestre:
+ * nada de pino, cena ou nome. Mestre antigo responde `error invalid_message`
+ * (o jogador só não fica fora); jogador antigo ignora a confirmação.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -197,6 +204,12 @@ export interface ClueShowMessage {
   to: string
 }
 
+/** VOLTO JÁ: o jogador sai da mesa por um instante (`true`) ou volta (`false`). */
+export interface AwayMessage {
+  type: 'away'
+  away: boolean
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
@@ -209,6 +222,7 @@ export type PlayerMessage =
   | ClueReadMessage
   | CluePeersRequestMessage
   | ClueShowMessage
+  | AwayMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -347,6 +361,8 @@ export type HostMessage =
   | RoomTextMessage
   | NotebookMessage
   | ClueHostMessage
+  // VOLTO JÁ: o estado que o host guarda. `travelPending`: o pedido dele ainda espera o mestre.
+  | { type: 'away'; away: boolean; travelPending?: true }
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -652,6 +668,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return { type: 'clue.peers' }
     case 'clue.show':
       return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
+    case 'away':
+      return typeof value.away === 'boolean' ? { type: 'away', away: value.away } : null
     default:
       return null
   }

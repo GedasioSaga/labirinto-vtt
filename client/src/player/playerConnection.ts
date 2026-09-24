@@ -93,6 +93,12 @@ export interface PlayerState {
   cluePeers?: CluePeers
   /** "Mostrar para…": o último envio e a resposta do host. */
   clueShow?: ClueShow
+  /**
+   * VOLTO JÁ: o jogador saiu da mesa por um instante. A tela mostra "Você está
+   * fora da mesa · Voltar" no lugar do mapa, e a queda da conexão nesse
+   * meio-tempo não vira aviso de queda. Ausente no resto do tempo.
+   */
+  away?: true
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -220,6 +226,13 @@ export interface PlayerConnection {
   resetClueShare(): void
   /** Fecha o cartão da pista que um colega mostrou (a pista continua no caderno). */
   dismissShownClue(): void
+  /**
+   * VOLTO JÁ. `true`: avisa o mestre que saiu da mesa (`false` se não está
+   * jogando ou o socket caiu). `false` ("Voltar"): com o socket de pé, só
+   * avisa; com ele caído durante a ausência, religa, retoma a sessão e pede a
+   * volta assim que o mestre responder. `false` também quando não estava fora.
+   */
+  setAway(away: boolean): boolean
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -375,6 +388,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   const listeners = new Set<() => void>()
   const pending = new Map<string, PendingMove>()
   let state: PlayerState = { status: 'connecting', rev: -1 }
+  /**
+   * VOLTO JÁ: o jogador apertou "Voltar" com o socket caído. A retomada chega
+   * com o host ainda o vendo fora (`away: true`); este é o sinal de pedir a
+   * volta em vez de mostrar a tela de ausente de novo.
+   */
+  let wantsBack = false
   let socket: SocketLike | null = null
   let pingTimer: ReturnType<typeof setInterval> | null = null
   let nextReqId = 1
@@ -698,6 +717,28 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }
   }
 
+  /**
+   * VOLTO JÁ: o estado que o host guarda. `travelPending` devolve o "Aguardando
+   * o mestre…" que a retomada tinha apagado — o pedido ficou suspenso lá.
+   */
+  function handleAway(away: boolean, travelPending: boolean): void {
+    if (travelPending && state.travel?.phase !== 'waiting') {
+      clearTravelTimer()
+      setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: false } })
+    }
+    if (!away) {
+      wantsBack = false
+      if (state.away !== undefined) setState({ away: undefined })
+      return
+    }
+    // Apertou "Voltar" com o socket caído: a retomada ainda o vê fora, e a volta sai agora.
+    if (wantsBack) {
+      send({ type: 'away', away: false })
+      return
+    }
+    if (state.away !== true) setState({ away: true })
+  }
+
   function handleMessage(raw: unknown): void {
     if (typeof raw !== 'string') return
     let data: unknown
@@ -864,6 +905,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (typeof data.reqId !== 'string') return
         handleRejected(data.reqId, data.reason)
         return
+      case 'away':
+        if (typeof data.away !== 'boolean') return
+        handleAway(data.away, data.travelPending === true)
+        return
       case 'kicked':
         writeResume(storage, null)
         setState({ status: 'kicked' })
@@ -879,7 +924,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearMoveNotice()
         clearTravelTimer()
         clearPassageOpenedTimer()
-        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, ...NO_PASSAGE_WATCH })
+        wantsBack = false
+        setState({ status: 'closed', away: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, ...NO_PASSAGE_WATCH })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -924,6 +970,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       stopPing()
       // Depois de kicked/closed a queda é esperada: o mestre derrubou de propósito.
       if (state.status === 'kicked' || state.status === 'closed' || state.status === 'error') return
+      // VOLTO JÁ: o jogador saiu de propósito (celular no bolso, aba de lado).
+      // A queda não vira aviso; o "Voltar" religa.
+      if (state.away === true) return
       setState({ status: 'error', error: CONNECTION_LOST })
     }
   }
@@ -941,6 +990,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const current = socket
     socket = null
     current?.close()
+  }
+
+  /** Socket novo (reconectar), reaproveitando o resumeToken guardado. */
+  function restart(): void {
+    detach()
+    // As marcas de "me avise" saem: a volta pode cair em outra cena. O Volto
+    // já também: quem diz se ele segue fora é o host, na retomada.
+    setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, away: undefined, ...NO_PASSAGE_WATCH })
+    open()
   }
 
   open()
@@ -1114,12 +1172,25 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // escolheu, e é a embutida que viaja. Mesma forma que o host vai gravar.
       return editOwnToken(tokenId, { type: 'token.edit', tokenId, image }, { image: null, imageData: image })
     },
-    reconnect() {
-      detach()
-      // As marcas de "me avise" saem: a volta pode cair em outra cena.
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, ...NO_PASSAGE_WATCH })
-      open()
+    setAway(away) {
+      if (away) {
+        if (state.status !== 'playing' || !send({ type: 'away', away: true })) return false
+        // O gesto do laser morre aqui: quem saiu não aponta nada.
+        resetOwnLaser()
+        setState({ away: true })
+        return true
+      }
+      if (state.away !== true) return false
+      if (send({ type: 'away', away: false })) {
+        setState({ away: undefined })
+        return true
+      }
+      // O socket caiu durante a ausência: religa, e a volta sai quando o mestre responder.
+      wantsBack = true
+      restart()
+      return true
     },
+    reconnect: restart,
     close: detach,
   }
 }
