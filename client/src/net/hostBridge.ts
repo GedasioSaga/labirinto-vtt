@@ -14,6 +14,7 @@ import {
   type HostSignal,
   type HostWorld,
   type PlayerInfo,
+  type TravelCancelled,
   type TravelRequest,
 } from './hostSession'
 import type { LaserMessage } from './protocol'
@@ -513,6 +514,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     travelToasts.set(request.requestId, toastId)
   }
 
+  /**
+   * DESISTIR DO PEDIDO: o pedido saiu da espera sem o mestre responder. A
+   * linha dele some da Caixa de Pedidos (um "Deixar ir" ali não levaria
+   * ninguém), e no lugar fica um aviso curto que some sozinho — não pede
+   * resposta, só explica por que a linha sumiu.
+   */
+  const dropTravelToast = (cancelled: TravelCancelled) => {
+    const toastId = travelToasts.get(cancelled.requestId)
+    travelToasts.delete(cancelled.requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    const text = cancelled.reason === 'far' ? `${cancelled.playerName} se afastou da passagem` : `${cancelled.playerName} desistiu de passar`
+    useToastStore.getState().push('info', text)
+  }
+
   const onMessage = (event: { payload: unknown }) => {
     if (session === null || !isRecord(event.payload)) return
     const clientId = parseClientId(event.payload.clientId)
@@ -555,6 +570,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         void dispatch(session.denyTravel(result.travelRequest.requestId))
       } else askTravel(result.travelRequest)
     }
+    if (result.travelCancelled !== undefined) dropTravelToast(result.travelCancelled)
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
       deps.applyTokenEdit(result.applyTokenEdit)

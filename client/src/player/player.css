@@ -1068,6 +1068,39 @@
   bottom: 68px;
 }
 
+/* "Desistir" dentro do aviso de espera: secundário (contorno), para não competir com a espera. */
+.pp-notice__action {
+  margin-left: 10px;
+  padding: 3px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.28));
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 120ms ease-out;
+}
+
+.pp-notice__action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pp-notice__action:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.pp-notice__action:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+.pp-notice__action:disabled {
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  cursor: default;
+}
+
 @keyframes pp-pincard-fade {
   from {
     opacity: 0;

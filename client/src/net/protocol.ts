@@ -45,6 +45,9 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
  * vem logo depois). Nenhuma delas carrega nome nem id de cena: o jogador só
  * descobre para onde foi pelo mapa que chega depois da aprovação. Mestre
  * antigo responde `error invalid_message`; jogador antigo ignora as três.
+ * `pin.travel.cancel` (jogador desiste) e `pin.travel.cancelled` (o pedido
+ * saiu da espera: ele desistiu ou a ficha se afastou do pino) seguem a mesma
+ * regra, e a volta leva só o motivo.
  *
  * `scene.note` (mestre -> jogador) é o RECADO POR CENA, aditivo pelo mesmo
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
@@ -169,6 +172,16 @@ export interface PinTravelRequestMessage {
 }
 
 /**
+ * DESISTIR DO PEDIDO: o jogador retira o pedido de passagem que espera o
+ * mestre. Só o tipo — cada jogador tem no máximo um pedido, e o host sabe
+ * quem é pela conexão. Aditiva: mestre antigo responde `error
+ * invalid_message`, que o jogador ignora durante o jogo.
+ */
+export interface PinTravelCancelMessage {
+  type: 'pin.travel.cancel'
+}
+
+/**
  * LASER DO JOGADOR: a mesma forma do laser do mestre (lote de pontos em px de
  * mundo, ou `off` ao soltar). Nada de nome nem cor: quem é o host sabe pela
  * conexão, e a cor é a da ficha — o jogador não pode se passar por outro.
@@ -205,6 +218,7 @@ export type PlayerMessage =
   | DoorToggleMessage
   | TokenEditMessage
   | PinTravelRequestMessage
+  | PinTravelCancelMessage
   | PlayerLaserMessage
   | ClueReadMessage
   | CluePeersRequestMessage
@@ -221,6 +235,13 @@ export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
  * `too_soon`: pediu de novo pelo mesmo pino antes do intervalo mínimo.
  */
 export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon'
+
+/**
+ * Por que o pedido de passagem saiu da espera sem resposta do mestre:
+ * `player` = o jogador desistiu; `far` = a ficha dele se afastou do pino.
+ * Só o motivo: nem o pino nem o destino voltam ao jogador.
+ */
+export type PinTravelCancelReason = 'player' | 'far'
 
 // Mestre -> jogador
 /** Laser do mestre: lote de pontos (px de mundo) desde o último envio, ou `off` ao soltar. */
@@ -336,6 +357,7 @@ export type HostMessage =
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
   | { type: 'pin.travel.denied' }
+  | { type: 'pin.travel.cancelled'; reason: PinTravelCancelReason }
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
   // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um
@@ -642,6 +664,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTokenEdit(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
+    case 'pin.travel.cancel':
+      return { type: 'pin.travel.cancel' }
     case 'laser':
       // Só o corpo: `from`/`color` mandados pelo jogador são jogados fora — o
       // nome e a cor quem põe é o host, pela conexão e pela ficha dele.
