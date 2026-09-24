@@ -12,6 +12,7 @@ import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
+import { tokenHasPass } from '../lib/pinPass'
 import { carriedItemsOf, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import {
   parsePlayerMessage,
@@ -199,6 +200,11 @@ export interface TravelRequest {
   pinLabel: string
   toSceneId: string
   toSceneName: string
+  /**
+   * Por que o pedido chegou: `sem-passe` = pino no modo passe e a ficha não
+   * carrega o passe. Ausente = o pedido de sempre (pino que pede ao mestre).
+   */
+  motivo?: 'sem-passe'
 }
 
 /**
@@ -1643,7 +1649,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Livre: passou em tudo que o pedido passaria (névoa, token na cena, pino
     // ligado, limites, nenhum pendente) e vai direto, sem esperar o mestre —
     // ele só lê o aviso de chegada que o integrador mostra com a transferência.
-    if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel)
+    const passagem = passageOf(travel.pin)
+    if (passagem === 'livre') return transferResult(playerId, clientId, record.name, travel)
+    // Passe: quem carrega o passe vai direto, como no livre; quem não, pede.
+    // O passe é conferido na ficha do MAPA DO MESTRE (a mochila de verdade),
+    // nunca no que o cliente diz ter. Deixar alguém ir depois não muda o
+    // modo do pino: a catraca segue fechada para os outros.
+    const semPasse = passagem === 'passe' && !travelTokenHasPass(travel)
+    if (passagem === 'passe' && !semPasse) return transferResult(playerId, clientId, record.name, travel)
     const requestId = randomId()
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
     pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
@@ -1653,17 +1666,23 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // pela descrição, como sempre.
     const saidas = exitLabelsOf(travel.pin)
     const saida = saidas.length > 1 ? saidas.find((s) => s.id === exitId) : undefined
-    return {
-      outbound: [],
-      travelRequest: {
-        requestId,
-        playerId,
-        playerName: record.name,
-        pinLabel: saida !== undefined ? saida.rotulo : description === '' ? pinSummary(travel.pin) : description,
-        toSceneId: travel.to.sceneId,
-        toSceneName: travel.to.name,
-      },
+    const travelRequest: TravelRequest = {
+      requestId,
+      playerId,
+      playerName: record.name,
+      pinLabel: saida !== undefined ? saida.rotulo : description === '' ? pinSummary(travel.pin) : description,
+      toSceneId: travel.to.sceneId,
+      toSceneName: travel.to.name,
     }
+    // Só no modo passe: o pedido de sempre continua sem o campo.
+    if (semPasse) travelRequest.motivo = 'sem-passe'
+    return { outbound: [], travelRequest }
+  }
+
+  /** A ficha que viaja carrega o passe do pino? Lida no mapa do mestre, não no recorte. */
+  function travelTokenHasPass(travel: ValidTravel): boolean {
+    const doMestre = travel.from.map.tokens.find((t) => t.id === travel.token.id)
+    return doMestre !== undefined && tokenHasPass(travel.pin.passe, doMestre)
   }
 
   /**

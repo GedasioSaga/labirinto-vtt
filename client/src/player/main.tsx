@@ -5,7 +5,7 @@ import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } fro
 import { latestActionNotice } from './moveNotice'
 import { themeCss } from '../theme'
 import { createPlayerConnection, hasUnreadNotes, RESUME_STORAGE_KEY } from './playerConnection'
-import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNotice } from './playerConnection'
+import type { PlayerConnection, PlayerState, SocketLike, StorageLike } from './playerConnection'
 import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
@@ -27,6 +27,7 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { carriedItemsOf, giveTargets } from '../lib/items'
 import { itemNoticeText } from './itemNotice'
+import { travelNoticeText } from './travelNotice'
 import { hazardNoticeText } from '../lib/hazards'
 import { tableCodeFromSearch, tableKeyFromSearch } from '../lib/tableScreen'
 import { TableApp } from './TableScreen'
@@ -48,32 +49,6 @@ const NO_NOTES: NoteEntry[] = []
 const NO_CLUES: ClueEntry[] = []
 /** Fechar o recado não perde nada: quem fecha sabe onde reler. */
 const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
-
-/**
- * O pedido de passagem, em uma linha. Nunca diz para onde o pino leva: o
- * jogador só descobre ao chegar. As recusas do host são genéricas de
- * propósito (`PinTravelRejection`), e a frase também.
- */
-function travelNoticeText(notice: TravelNotice): string {
-  switch (notice.phase) {
-    case 'waiting':
-      return notice.direct ? 'Passando…' : 'Aguardando o mestre…'
-    case 'arrived':
-      return 'Você chegou'
-    case 'moved':
-      // Nunca diz para onde: o nome da cena é do mestre.
-      return 'O mestre levou você para outro lugar'
-    case 'gathered':
-      // Também sem o nome da cena: só que o grupo está junto de novo.
-      return 'O mestre reuniu o grupo'
-    case 'denied':
-      return 'O mestre não deixou passar agora'
-    case 'rejected':
-      if (notice.reason === 'pending') return 'Seu pedido anterior ainda espera o mestre'
-      if (notice.reason === 'too_soon') return 'Espere um pouco antes de pedir de novo'
-      return 'Não dá para passar por aqui agora'
-  }
-}
 
 const REASON_TEXT: Record<string, string> = {
   bad_code: 'Código de sala incorreto. Confira com o mestre e tente de novo.',
