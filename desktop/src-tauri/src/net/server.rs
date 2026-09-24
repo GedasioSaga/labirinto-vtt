@@ -700,8 +700,19 @@ const DEV_PREFIXOS: [&str; 7] = ["/player.html", "/src/", "/node_modules/", "/@v
 /// próprio cliente dele precisa de uma: `@vite/client` importa
 /// `/@fs/<projeto>/node_modules/vite/dist/client/env.mjs`. Só essa passa —
 /// dependência instalada, código público, dentro do projeto.
-fn dev_fs_permitido(path: &str) -> bool {
-    path.starts_with("/@fs/") && path.contains("/node_modules/")
+///
+/// Pelo túnel a régua é mais curta: só o `env.mjs` que o `@vite/client` pede
+/// de verdade. Pela LAN (já confiada, é a rede do mestre) qualquer dependência
+/// instalada passa, porque é lá que o resto do bundler pede módulo por módulo.
+fn dev_fs_permitido(path: &str, pelo_tunel: bool) -> bool {
+    if !path.starts_with("/@fs/") {
+        return false;
+    }
+    if pelo_tunel {
+        path.ends_with("/node_modules/vite/dist/client/env.mjs")
+    } else {
+        path.contains("/node_modules/")
+    }
 }
 
 /// Decide pelo CAMINHO, nunca pela linha inteira da requisição.
@@ -718,11 +729,27 @@ fn dev_fs_permitido(path: &str) -> bool {
 ///    Nenhum caminho que a página do jogador pede traz `%`, então o sinal de
 ///    porcentagem é recusado inteiro em vez de decodificado — regra que não tem
 ///    como errar a decodificação.
-fn dev_path_permitido(path: &str) -> bool {
+fn dev_path_permitido(path: &str, pelo_tunel: bool) -> bool {
     if path.contains("..") || path.contains('\\') || path.contains('%') {
         return false;
     }
-    dev_fs_permitido(path) || DEV_PREFIXOS.iter().any(|prefixo| path.starts_with(prefixo))
+    dev_fs_permitido(path, pelo_tunel) || DEV_PREFIXOS.iter().any(|prefixo| path.starts_with(prefixo))
+}
+
+/// `/player` já atravessa o túnel (`player_page`, sem checar `Host`): a página
+/// do Vite chega, mas antes desta função TODO módulo que ela pede
+/// (`/src/player/main.tsx`, `/@vite/client`, ...) levava 404 aqui — o splash
+/// "Abrindo a mesa" nunca saía da tela porque o módulo que o remove nunca
+/// rodava. A regra agora é "Host literal (LAN/localhost) OU o túnel ativo",
+/// não "Host literal E NÃO o túnel": o túnel também precisa da lista de
+/// caminhos, só que mais curta (`dev_fs_permitido` acima).
+fn dev_fallback_permitido(headers: &HeaderMap, tunnel_host: Option<&str>, path: &str) -> bool {
+    let host_literal = header_str(headers, header::HOST).is_some_and(host_is_literal);
+    let pelo_tunel = tunnel_host.is_some_and(|tunnel| host_is_tunnel(headers, tunnel));
+    if !host_literal && !pelo_tunel {
+        return false;
+    }
+    dev_path_permitido(path, pelo_tunel)
 }
 
 /// Caminho que nenhuma rota atendeu. Em dev, a página do jogador vinda do Vite
@@ -737,12 +764,7 @@ async fn dev_fallback(State(room): State<Arc<Room>>, method: Method, headers: He
     // "Tornar pública" em `tauri dev` levaria o projeto do mestre para a
     // internet junto com a sala. Fora do túnel, exigir `Host` literal é a mesma
     // defesa contra DNS rebinding que `/ws` já tem.
-    let host_literal = header_str(&headers, header::HOST).is_some_and(host_is_literal);
-    let pelo_tunel = room.tunnel_host().is_some_and(|tunnel| host_is_tunnel(&headers, &tunnel));
-    if !host_literal || pelo_tunel {
-        return StatusCode::NOT_FOUND.into_response();
-    }
-    if !dev_path_permitido(uri.path()) {
+    if !dev_fallback_permitido(&headers, room.tunnel_host().as_deref(), uri.path()) {
         return StatusCode::NOT_FOUND.into_response();
     }
     // A query segue para o Vite (`?v=`, `?t=` são o cache dele), mas NÃO decide
@@ -824,6 +846,70 @@ mod tests {
     fn with_cf_ip(mut h: HeaderMap, ip: &str) -> HeaderMap {
         h.insert(CF_CONNECTING_IP, HeaderValue::from_str(ip).unwrap_or(HeaderValue::from_static("x")));
         h
+    }
+
+    /// O que a `player.html` do Vite pede ao abrir (medido no Vite real: o
+    /// `@vite/client` importa o `env.mjs` por `/@fs/`).
+    const MODULOS_DA_PAGINA: [&str; 6] = [
+        "/src/player/main.tsx",
+        "/@vite/client",
+        "/@react-refresh",
+        "/node_modules/.vite-1420/deps/react.js",
+        "/@fs/C:/dev/labirinto/node_modules/vite/dist/client/env.mjs",
+        "/favicon.svg",
+    ];
+
+    /// Jornada vermelha do "link público fica carregando para sempre": em
+    /// `tauri dev` o `/player` atravessava o túnel, mas cada módulo que a página
+    /// pede levava 404 e o splash "Abrindo a mesa" nunca saía da tela.
+    #[test]
+    fn link_publico_em_dev_recebe_os_modulos_da_pagina() {
+        let tunel = headers(None, TUNNEL);
+        for caminho in MODULOS_DA_PAGINA {
+            assert!(dev_fallback_permitido(&tunel, Some(TUNNEL), caminho), "pelo túnel, {caminho} levou 404 e a página do jogador não monta");
+        }
+        let com_porta = headers(None, "Calm-River-42.trycloudflare.com:443");
+        assert!(dev_fallback_permitido(&com_porta, Some(TUNNEL), "/src/player/main.tsx"));
+    }
+
+    #[test]
+    fn link_publico_em_dev_nao_abre_o_disco_do_mestre() {
+        let tunel = headers(None, TUNNEL);
+        let ataques = [
+            "/@fs/C:/Windows/win.ini",
+            "/@fs/C:/dev/labirinto/HANDOFF.md",
+            // Pela LAN passa (dependência instalada); pela internet, só o
+            // arquivo que o cliente do Vite importa.
+            "/@fs/C:/dev/labirinto/node_modules/pixi.js/package.json",
+            "/@fs/C:/dev/labirinto/node_modules/vite/dist/client/client.mjs",
+            "/@fs/C:/dev/labirinto/node_modules/vite/dist/client/env.mjs/../../../../../HANDOFF.md",
+            "/@fs/C:/dev/labirinto/node_modules/vite/dist/client/env.mjs%2f..",
+            "/package.json",
+            "/.env",
+            "/",
+            "/src/../package.json",
+            "/src/%2e%2e/package.json",
+        ];
+        for caminho in ataques {
+            assert!(!dev_fallback_permitido(&tunel, Some(TUNNEL), caminho), "pelo túnel, o proxy de dev aceitou {caminho}");
+        }
+        // Nome que não é o túnel ativo: DNS rebinding, continua 404.
+        let outro = headers(None, "evil-1.trycloudflare.com");
+        assert!(!dev_fallback_permitido(&outro, Some(TUNNEL), "/src/player/main.tsx"));
+        assert!(!dev_fallback_permitido(&tunel, None, "/src/player/main.tsx"));
+    }
+
+    #[test]
+    fn lan_em_dev_segue_com_a_lista_de_antes() {
+        for tunel in [None, Some(TUNNEL)] {
+            let lan = headers(None, "192.168.0.5:7777");
+            for caminho in MODULOS_DA_PAGINA {
+                assert!(dev_fallback_permitido(&lan, tunel, caminho), "pela LAN, {caminho} passou a levar 404");
+            }
+            assert!(dev_fallback_permitido(&lan, tunel, "/@fs/C:/dev/labirinto/node_modules/pixi.js/package.json"));
+            assert!(!dev_fallback_permitido(&lan, tunel, "/@fs/C:/Windows/win.ini"));
+            assert!(!dev_fallback_permitido(&lan, tunel, "/package.json"));
+        }
     }
 
     #[test]
