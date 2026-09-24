@@ -1612,6 +1612,13 @@ body {
   cursor: pointer;
 }
 
+/* "Dar um mapa a…": uma cena grande tem centenas de Salas; a lista rola
+   dentro do poço em vez de empurrar o painel inteiro. */
+.lb-papel__list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
 /* Abas Mapa | Sala no topo do rail (só no Tauri). Visual do segmented. */
 .lb-railtabs {
   display: grid;

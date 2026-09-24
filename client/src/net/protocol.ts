@@ -81,6 +81,8 @@ import { ABALO_SETAS, type AbaloSeta } from '../lib/abalo'
  * do colega da mesma cena; a lista vem do mesmo `clue.peers`). Do mestre:
  * `map.shared` (quem passou) e `map.share.result`. O trecho explorado em si
  * nunca viaja nestas mensagens: vai no `explored` do snapshot de quem recebeu.
+ * O MAPA DE PAPEL do mestre soma `map.given`, só com o tipo; jogador antigo o
+ * ignora no `default`.
  *
  * O ABALO POR DISTÂNCIA é aditivo pelo mesmo critério: `abalo` (mestre ->
  * jogador) leva o texto da FAIXA daquele jogador, um id, a hora, `forte` (está
@@ -377,7 +379,16 @@ export interface MapShareResultMessage {
   reason?: 'too_soon'
 }
 
-export type MapShareHostMessage = MapSharedMessage | MapShareResultMessage
+/**
+ * MAPA DE PAPEL: o mestre gravou Salas na memória deste jogador. Só o tipo —
+ * nem cena, nem Sala, nem título: as Salas chegam no `explored` do snapshot
+ * quando ele estiver na cena delas.
+ */
+export interface MapGivenMessage {
+  type: 'map.given'
+}
+
+export type MapShareHostMessage = MapSharedMessage | MapShareResultMessage | MapGivenMessage
 
 export type HostErrorReason ='bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
@@ -642,10 +653,12 @@ export function parseClueMessage(value: unknown): ClueHostMessage | null {
   }
 }
 
-/** PASSAR O MAPA: valida `map.shared` e `map.share.result` que o jogador recebe. Campo a mais sai. */
+/** PASSAR O MAPA: valida `map.shared`, `map.share.result` e `map.given` que o jogador recebe. Campo a mais sai. */
 export function parseMapShareMessage(value: unknown): MapShareHostMessage | null {
   if (!isRecord(value)) return null
   switch (value.type) {
+    case 'map.given':
+      return { type: 'map.given' }
     case 'map.shared':
       return isRoomName(value.from) ? { type: 'map.shared', from: value.from } : null
     case 'map.share.result': {

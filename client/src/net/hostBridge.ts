@@ -127,6 +127,13 @@ export interface HostBridge {
    */
   shareMap(fromPlayerId: string, toPlayerId: string): boolean
   /**
+   * MAPA DE PAPEL — "Dar um mapa a…": grava as Salas `roomIds` da cena
+   * `sceneId` (`null` = mapa solto) na memória de `playerId`; o aviso sai a ele
+   * e o snapshot na hora. Devolve quantas Salas entraram (0 = nada: sala
+   * fechada, cena sumiu ou só Salas que o jogador nunca pode ver).
+   */
+  giveRoomsMap(playerId: string, sceneId: string | null, roomIds: readonly string[]): number
+  /**
    * "Mandar para…" do painel Grupo: leva a ficha do jogador para `toSceneId`,
    * no pino `pinId` ou no centro (`null`), sem pedido. `false` quando não deu
    * (sala fechada, destino ou ficha sumiram): o painel avisa e fica aberto.
@@ -699,6 +706,16 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       void dispatch(result)
       broadcastNow()
       return true
+    },
+
+    giveRoomsMap(playerId, sceneId, roomIds) {
+      if (session === null) return 0
+      const result = session.giveRoomsMap(playerId, sceneId, roomIds, world())
+      if (result.mapGiven === undefined) return 0
+      // O aviso primeiro, as Salas novas no snapshot logo atrás.
+      void dispatch(result)
+      broadcastNow()
+      return result.mapGiven.roomIds.length
     },
 
     sendPlayer(playerId, toSceneId, pinId, gatherAt) {

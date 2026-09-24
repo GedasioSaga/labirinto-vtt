@@ -1,7 +1,7 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { abaloSetaForPlayer, filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
+import { abaloSetaForPlayer, filterMapForPlayer, giftableRoomsOf, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
 import { faixaDoAbalo, type AbaloContagem, type AbaloFaixa, type AbaloOrigem, type AbaloTextos } from '../lib/abalo'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { validateTokenMove } from '../lib/moveValidation'
@@ -208,6 +208,11 @@ export interface HostResult {
    * trecho novo a quem recebeu.
    */
   mapShared?: { fromPlayerId: string; toPlayerId: string }
+  /**
+   * MAPA DE PAPEL: as Salas (ids, na ordem pedida) que entraram na memória de
+   * `playerId`. O integrador faz o broadcast, como no `mapShared`.
+   */
+  mapGiven?: { playerId: string; roomIds: string[] }
 }
 
 /** O que `abalo` devolve: as mensagens e quantos receberam em cada faixa. */
@@ -405,6 +410,16 @@ export interface HostSession {
    * `{ outbound: [] }` sem `mapShared`.
    */
   shareMap(fromPlayerId: string, toPlayerId: string, source: HostMapSource): HostResult
+  /**
+   * MAPA DE PAPEL: o mestre grava as Salas `roomIds` da cena `sceneId` (`null`
+   * = o mapa solto) na memória de `playerId` — e só na dele —, como um mapa
+   * achado. Vale para qualquer cena do mundo, não só a dele: o recorte só
+   * entrega aquela memória quando ele estiver lá. Entra só Sala que o recorte
+   * pode mostrar (`giftableRoomsOf`); zona oculta ativa continua barrando. Quem
+   * recebe ganha `map.given`, sem cena nem Sala. Nada a gravar (jogador, cena ou
+   * Sala desconhecidos, só Salas proibidas): `{ outbound: [] }` sem `mapGiven`.
+   */
+  giveRoomsMap(playerId: string, sceneId: string | null, roomIds: readonly string[], source: HostMapSource): HostResult
   /**
    * Zera exploração e portas lembradas do jogador; a visão atual volta a
    * marcar no próximo broadcast. Com `source`, só da cena onde ele está; sem,
@@ -1518,6 +1533,25 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return {
         outbound: target.clientId === null ? [] : [{ clientId: target.clientId, msg: { type: 'map.shared', from: giver.name } }],
         mapShared: { fromPlayerId, toPlayerId },
+      }
+    },
+
+    giveRoomsMap(playerId, sceneId, roomIds, source) {
+      const player = players.get(playerId)
+      if (player === undefined) return { outbound: [] }
+      const scene = allScenes(toWorld(source)).find((s) => s.sceneId === sceneId)
+      if (scene === undefined) return { outbound: [] }
+      const map = scene.map
+      const wanted = new Set(roomIds)
+      const rooms = giftableRoomsOf(map).filter((r) => wanted.has(r.id))
+      if (rooms.length === 0) return { outbound: [] }
+      // Mesmo veto do "Revelar planta": zona oculta ativa, sala secreta e teto não viram explorados.
+      markRings(memoryFor(playerId, map).exp, rooms.map((r) => r.points), playerBlockedRings(map))
+      const allowed = new Set(rooms.map((r) => r.id))
+      const given = [...wanted].filter((id) => allowed.has(id))
+      return {
+        outbound: player.clientId === null ? [] : [{ clientId: player.clientId, msg: { type: 'map.given' } }],
+        mapGiven: { playerId, roomIds: given },
       }
     },
 

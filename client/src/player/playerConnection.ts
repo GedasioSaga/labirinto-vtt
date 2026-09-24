@@ -93,8 +93,11 @@ export interface PlayerState {
   mapPeers?: CluePeers
   /** "Mostrar meu mapa a…": o último envio e a resposta do host. */
   mapShare?: MapShare
-  /** Um colega (ou o mestre por ele) acabou de passar o mapa. `id` novo repete o aviso. */
-  mapShared?: { id: number; from: string }
+  /**
+   * Um colega (ou o mestre por ele) acabou de passar o mapa. `id` novo repete o
+   * aviso. `from: null` = MAPA DE PAPEL: o próprio mestre deu Salas a ele.
+   */
+  mapShared?: { id: number; from: string | null }
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -413,8 +416,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     mapSharedTimer = null
   }
 
-  /** "Ana mostrou o próprio mapa a você": fica alguns segundos e sai sozinho. */
-  function showMapShared(from: string): void {
+  /** "Ana mostrou o próprio mapa a você" (ou, com `null`, o mapa de papel do mestre): fica alguns segundos e sai sozinho. */
+  function showMapShared(from: string | null): void {
     clearMapSharedTimer()
     setState({ mapShared: { id: nextNoticeId++, from } })
     mapSharedTimer = setTimeout(() => {
@@ -430,6 +433,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (msg === null || state.status !== 'playing') return
     if (msg.type === 'map.shared') {
       showMapShared(msg.from)
+      return
+    }
+    if (msg.type === 'map.given') {
+      showMapShared(null)
       return
     }
     if (state.mapShare?.phase !== 'sending' || state.mapShare.to !== msg.to) return
@@ -817,6 +824,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         return
       case 'map.shared':
       case 'map.share.result':
+      case 'map.given':
         handleMapShareMessage(data)
         return
       case 'room.text': {

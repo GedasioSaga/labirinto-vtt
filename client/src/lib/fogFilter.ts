@@ -131,6 +131,20 @@ export function playerBlockedRings(map: MapData): RegionPoint[][] {
 }
 
 /**
+ * MAPA DE PAPEL — as Salas que o mestre pode gravar na memória de um jogador.
+ * Fica de fora tudo o que o recorte nunca entrega: Sala secreta ou oculta (e o
+ * que está dentro dela, mesma regra de `filterMapForPlayer`), Sala com teto e o
+ * que está sob ele (o interior do prédio só abre andando para dentro) e
+ * polígono que não dá para julgar. Região comum não é Sala: não entra.
+ */
+export function giftableRoomsOf(map: MapData): Region[] {
+  const barred = new Set(
+    map.regions.filter((r) => r.secret || r.hidden || roomHasRoof(r.room)).flatMap((r) => [...subtreeIds(map.regions, r.id)]),
+  )
+  return map.regions.filter((r) => r.room !== undefined && !barred.has(r.id) && isUsablePolygon(r.points))
+}
+
+/**
  * Sala de teto FECHADO para este jogador, com a caixa envolvente pronta.
  *
  * A folga da caixa é `NESTING_TOLERANCE` (e não `BBOX_SLACK`) porque o teste de
