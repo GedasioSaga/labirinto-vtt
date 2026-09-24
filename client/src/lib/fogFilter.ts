@@ -7,6 +7,7 @@ import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
+import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { exitLabelsOf, isArrivalOnly, travelExitsOf } from './pinTravel'
 import { itemOfPin, tokenReachesPin } from './items'
 import { keyForPin } from './doorKey'
@@ -924,5 +925,13 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
   }
   if (prop.rotation !== undefined) forPlayer.rotation = prop.rotation
   if (prop.layer !== undefined) forPlayer.layer = prop.layer
+  // OBJETO COM RÓTULO OU IMAGEM: só chega aqui objeto que o jogador enxerga
+  // (oculto, secreto, sob teto fechado e fora da visão já saíram acima), então
+  // o nome e a cópia pequena vão junto dele e de mais nenhum. Passam pela regra
+  // de `propPlayerLook.ts`: rótulo aparado e curto, imagem só em data URL.
+  const label = propPlayerLabel(prop.playerLabel)
+  if (label !== undefined) forPlayer.playerLabel = label
+  const image = propPlayerImage(prop.playerImage)
+  if (image !== undefined) forPlayer.playerImage = image
   return forPlayer
 }

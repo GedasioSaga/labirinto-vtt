@@ -1,4 +1,5 @@
-import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
+import type { DoorState, FloorStyle, MapData, Prop, Region } from '../types/map'
+import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { readDoorKey } from './doorKey'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
@@ -50,6 +51,22 @@ function positiveNumberOr(value: number | undefined, fallback: number): number {
 function entityList<T>(value: T[] | undefined): T[] {
   if (!Array.isArray(value)) return []
   return value.filter((item) => item !== null && typeof item === 'object')
+}
+
+/**
+ * OBJETO COM RÓTULO OU IMAGEM: rótulo e imagem do jogador só ficam na forma de
+ * `propPlayerLook.ts`. Sem nenhum dos dois campos o objeto volta idêntico (o
+ * round-trip do mapa antigo não ganha campo).
+ */
+function readPropPlayerLook(prop: Prop): Prop {
+  if (!('playerLabel' in prop) && !('playerImage' in prop)) return prop
+  const { playerLabel, playerImage, ...rest } = prop
+  const lido: Prop = rest
+  const label = propPlayerLabel(playerLabel)
+  if (label !== undefined) lido.playerLabel = label
+  const image = propPlayerImage(playerImage)
+  if (image !== undefined) lido.playerImage = image
+  return lido
 }
 
 /**
@@ -164,8 +181,12 @@ function deserializeMapFields(json: string): MapData {
       const { mochila: _descartada, ...semMochila } = lido
       return semMochila
     }),
-    // inalterado fora o que já existia — Prop.layer ausente fica undefined
-    props: entityList(parsed.props).map((p) => ({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
+    // inalterado fora o que já existia — Prop.layer ausente fica undefined.
+    // OBJETO COM RÓTULO OU IMAGEM: os dois campos são novos e opcionais —
+    // ausente continua ausente. Presente, só na forma de `propPlayerLook.ts`
+    // (rótulo curto, imagem em data URL); o resto sai em vez de ir parar na
+    // tela do jogador.
+    props: entityList(parsed.props).map((p) => readPropPlayerLook({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
     stairs: entityList(parsed.stairs),
     // MUDA de cru para .map(): PONTO DE MAIOR RISCO DE TODA A MIGRAÇÃO.
     // 0.5/0 é o alpha que drawDrawings.ts:50 já aplicava (filled ? 0.5 : 0);

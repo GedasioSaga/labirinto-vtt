@@ -607,8 +607,9 @@ interface MapStoreState {
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
-  /** Mesmo contrato de `updateToken`, para Prop. */
-  updateProp: (id: string, patch: Partial<Pick<Prop, 'rotation' | 'locked' | 'hidden'>>) => void
+  /** Mesmo contrato de `updateToken`, para Prop. `playerLabel`/`playerImage`
+   *  com `undefined` apagam o rótulo/a imagem do jogador (`stores/propPlayerLook.ts`). */
+  updateProp: (id: string, patch: Partial<Pick<Prop, 'rotation' | 'locked' | 'hidden' | 'playerLabel' | 'playerImage'>>) => void
   setShowGrid: (show: boolean) => void
   setGridShape: (shape: MapData['gridShape']) => void
   setGridSettings: (patch: Partial<GridSettings>) => void

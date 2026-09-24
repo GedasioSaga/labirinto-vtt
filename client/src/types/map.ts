@@ -580,6 +580,17 @@ export interface Prop extends PlayerSecret {
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
    *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
   hidden?: boolean
+  /** "Rótulo para jogadores": nome curto escrito na silhueta que o jogador vê
+   *  ("Guarda-roupa"). Ausente = só a silhueta, como antes deste campo — sem
+   *  linha de migração. ATRAVESSA para o jogador só junto com o objeto, aparado
+   *  e no teto de `lib/propPlayerLook.ts`. */
+  playerLabel?: string
+  /** "Mostrar imagem ao jogador": cópia pequena e AUTO-CONTIDA da imagem do
+   *  objeto (`data:image/...;base64,...`), a mesma regra e o mesmo teto da foto
+   *  da ficha (`lib/tokenPhoto.ts`). `src` é caminho do disco do mestre e nunca
+   *  sai; esta cópia é a única imagem do objeto que atravessa o recorte.
+   *  Ausente = interruptor desligado (só a silhueta). */
+  playerImage?: string
 }
 
 export interface DrawingPoint {
