@@ -16,6 +16,43 @@ const GHOST_DASH_COUNT = 16
 const GHOST_OUTLINE_WIDTH = 2
 const GHOST_OUTLINE_COLOR = 0xffffff
 
+/**
+ * VOLTO JÁ: o disco (círculo ou foto) da ficha de quem saiu da mesa apaga até
+ * aqui. Só o disco: o selo e o nome continuam nítidos, e é o selo que diz o
+ * porquê — apagado sozinho se confundiria com a ficha oculta.
+ */
+export const AWAY_TOKEN_ALPHA = 0.55
+/** Centro do selo, em fração do raio, no alto à direita do disco. */
+const AWAY_SEAL_OFFSET = 0.75
+/** Raio do selo em fração do raio da ficha, com piso para ficha pequena. */
+const AWAY_SEAL_SCALE = 0.32
+const AWAY_SEAL_MIN_RADIUS = 5
+/** Selo no estilo do mapa: disco escuro chapado com linha fina clara, e o "pausa" dentro. */
+const AWAY_SEAL_FILL = 0x1a1a1a
+const AWAY_SEAL_LINE = 0xe8e8e8
+const AWAY_SEAL_LINE_WIDTH = 1.5
+
+/**
+ * Selo de ausente do Volto já: disco pequeno no alto à direita com duas
+ * barras de "pausa". Desenhado no anel da ficha, sem filho novo no wrapper.
+ */
+function drawAwaySeal(graphics: Graphics, radius: number): void {
+  const sealRadius = Math.max(AWAY_SEAL_MIN_RADIUS, radius * AWAY_SEAL_SCALE)
+  const cx = radius * AWAY_SEAL_OFFSET
+  const cy = -radius * AWAY_SEAL_OFFSET
+  const barWidth = sealRadius * 0.28
+  const barHeight = sealRadius * 0.9
+  graphics
+    .circle(cx, cy, sealRadius)
+    .fill({ color: AWAY_SEAL_FILL })
+    .stroke({ width: AWAY_SEAL_LINE_WIDTH, color: AWAY_SEAL_LINE })
+    .rect(cx - barWidth * 1.5, cy - barHeight / 2, barWidth, barHeight)
+    .rect(cx + barWidth * 0.5, cy - barHeight / 2, barWidth, barHeight)
+    .fill({ color: AWAY_SEAL_LINE })
+}
+
+const NO_AWAY_TOKENS: ReadonlySet<string> = new Set()
+
 /** Contorno tracejado: metade de cada fatia do círculo é traço, metade é vão. */
 function strokeDashedCircle(graphics: Graphics, radius: number): void {
   const slice = (Math.PI * 2) / GHOST_DASH_COUNT
@@ -31,8 +68,19 @@ function strokeDashedCircle(graphics: Graphics, radius: number): void {
 export const TOKEN_LABEL_FONT_SIZE = 12
 
 export interface TokensRenderer {
-  /** `cameraScale` omitido mantém o último zoom informado. */
-  draw: (container: Container, tokens: Token[], gridSize: number, selectedTokenId?: string | null, cameraScale?: number) => void
+  /**
+   * `cameraScale` omitido mantém o último zoom informado. `awayTokenIds`: as
+   * fichas de quem está no Volto já, que levam o selo de ausente; omitido =
+   * nenhuma (a exportação de imagem não leva estado da sessão).
+   */
+  draw: (
+    container: Container,
+    tokens: Token[],
+    gridSize: number,
+    selectedTokenId?: string | null,
+    cameraScale?: number,
+    awayTokenIds?: ReadonlySet<string>,
+  ) => void
   /** Só o zoom mudou: reescala e mostra/esconde os nomes sem redesenhar os tokens. */
   setCameraScale: (cameraScale: number) => void
 }
@@ -197,7 +245,14 @@ export function createTokensRenderer(): TokensRenderer {
     return Assets.load<Texture>(url)
   }
 
-  function draw(container: Container, tokens: Token[], gridSize: number, selectedTokenId: string | null = null, cameraScale?: number): void {
+  function draw(
+    container: Container,
+    tokens: Token[],
+    gridSize: number,
+    selectedTokenId: string | null = null,
+    cameraScale?: number,
+    awayTokenIds: ReadonlySet<string> = NO_AWAY_TOKENS,
+  ): void {
     if (cameraScale !== undefined) lastCameraScale = cameraScale
     const currentIds = new Set(tokens.map((t) => t.id))
 
@@ -339,6 +394,13 @@ export function createTokensRenderer(): TokensRenderer {
       // o token sumia de vez e não havia como clicar nele para desfazer; agora
       // fica como fantasma (alpha baixo acima + contorno tracejado), clicável.
       if (ghost) strokeDashedCircle(entry.ring, outlineRadius)
+
+      // VOLTO JÁ: o disco apaga e o selo diz por quê. O alpha do wrapper
+      // (fantasma/secreta) continua valendo por cima: o selo não revela nada.
+      const away = awayTokenIds.has(token.id)
+      const visual = entry.sprite ?? entry.graphics
+      if (visual !== null) visual.alpha = away ? AWAY_TOKEN_ALPHA : 1
+      if (away) drawAwaySeal(entry.ring, outlineRadius)
 
       entry.label.text = token.name
       applyLabelSizing(entry.label)

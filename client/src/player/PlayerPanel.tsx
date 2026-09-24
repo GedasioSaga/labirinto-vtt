@@ -153,6 +153,8 @@ interface PlayerPanelProps {
   clues?: readonly ClueEntry[]
   /** Tocou numa pista do Caderno: reabre o cartão dela. */
   onOpenClue?: (clueId: string) => void
+  /** VOLTO JÁ: sair da mesa por um instante. Sem ele, o botão não aparece. */
+  onStepAway?: () => void
 }
 
 export function PlayerPanel({
@@ -176,6 +178,7 @@ export function PlayerPanel({
   onReadNotebook,
   clues = NO_CLUES,
   onOpenClue = IGNORE_CLUE,
+  onStepAway,
 }: PlayerPanelProps) {
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
   // Um estado por forma: a coluna do notebook nasce aberta e a gaveta do
@@ -441,6 +444,14 @@ export function PlayerPanel({
                 Laser
               </button>
               {laserArmed && <p className="pp-empty">Segure e arraste no mapa para apontar. Quem está na sua cena vê. Esc sai.</p>}
+              {onStepAway !== undefined && (
+                <>
+                  <button type="button" className="pp-button" onClick={onStepAway}>
+                    Volto já
+                  </button>
+                  <p className="pp-empty">Sua ficha fica parada e o mestre sabe que você saiu por um instante.</p>
+                </>
+              )}
             </section>
 
             {first !== undefined && (

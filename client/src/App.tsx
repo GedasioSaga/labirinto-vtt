@@ -13,6 +13,7 @@ import { listen } from '@tauri-apps/api/event'
 import { createHostBridge, type HostBridge, type RoomInfo, type TunnelState } from './net/hostBridge'
 import { hostPlayerChanges } from './net/playerChanges'
 import { useSignalStore } from './stores/signalStore'
+import { useAwayTokensStore } from './stores/awayTokensStore'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useFollowStore } from './stores/followStore'
@@ -454,7 +455,11 @@ function App() {
         onGoToScene: (sceneId, x, y) => {
           useAdventureStore.getState().goToPoint(sceneId, { x, y })
         },
-        onPlayersChange: setRoomPlayers,
+        onPlayersChange: (players) => {
+          setRoomPlayers(players)
+          // VOLTO JÁ: o canvas põe o selo de ausente nas fichas de quem saiu da mesa.
+          useAwayTokensStore.getState().setFromPlayers(players)
+        },
         onPinAudiencesChange: setPinAudiences,
         onTunnelChange: setTunnel,
         // B1 — sinal do jogador: o canvas desenha pela store e o bipe avisa quem não está olhando.
@@ -501,6 +506,7 @@ function App() {
     await hostBridgeRef.current?.stop()
     setRoom(null)
     setRoomPlayers([])
+    useAwayTokensStore.getState().clear()
     useSignalStore.getState().clear()
     usePlayerLaserStore.getState().clear()
     useLaserStore.getState().setToggled(false)

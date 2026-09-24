@@ -84,7 +84,7 @@ export function PartySection({ members, destinations, onGoTo, onSend, followingI
                 />
                 {/* Os espaços são do texto: sem eles o leitor de tela lê "Anaonline". */}
                 <strong className="lb-party__name">{member.name}</strong>{' '}
-                <span className={`lb-party__presence${member.connected ? ' lb-party__presence--on' : ''}`}>{partyPresenceLabel(member)}</span>
+                <span className={`lb-party__presence${member.connected && member.away !== true ? ' lb-party__presence--on' : ''}`}>{partyPresenceLabel(member)}</span>
               </div>{' '}
               <span className="lb-party__where">{member.token === null ? 'sem ficha no mapa' : (member.sceneName ?? 'no mapa aberto')}</span>
               {member.token !== null && (
