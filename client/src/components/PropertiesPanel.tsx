@@ -41,7 +41,7 @@ import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleCo
 import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
 import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZoneControls'
 import { PinControls, type PinControlsProps } from './PinControls'
-import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
+import type { PinIconControlsProps } from './PinIconControls'
 import { TokenLibraryPanel, type TokenLibraryPanelProps } from './TokenLibraryPanel'
 import { isAxisAlignedRect, roomDimensions } from '../lib/roomOps'
 import { roomRotationOf } from '../lib/roomRotation'
@@ -136,7 +136,7 @@ interface PropertiesPanelProps {
   /** A5 — zona oculta aberta no painel; `null` = nenhuma. */
   concealZone: ConcealZoneControlsProps | null
   /** Ponto de interesse: tipo do próximo pino, ou o pino aberto no painel. */
-  pin: PinControlsProps
+  pin: Omit<PinControlsProps, 'iconChoice'>
   /** Ícone do ponto de interesse — mesmo par de estados de `pin`. */
   pinIcon: Omit<PinIconControlsProps, 'pinSelected'>
   /** Há um pino aberto no painel — conta como seleção para o título do topo. */
@@ -278,14 +278,10 @@ export function PropertiesPanel({
         {/* Perto do topo pelo mesmo motivo da Sala: descrição e imagem são o
             que o mestre quer mexer logo depois de cravar o pino. */}
         <ToolPropertiesSection group="pin" groups={groups}>
-          {/* ANTES de `PinControls`, no mesmo grupo (o par `LineCapControls` +
-              `LineShapeControls` logo abaixo usa a mesma composição): o último
-              botão daquela seção é "Excluir ponto de interesse", e ação
-              destrutiva não pode ficar no meio da coluna. */}
-          {/* O pino de viagem tem símbolo próprio (a passagem): a grade de
-              ícones não faria nada nele, então não aparece. */}
-          {pin.kind !== 'viagem' && <PinIconControls {...pinIcon} pinSelected={pinSelected} />}
-          <PinControls {...pin} />
+          {/* Tipo e ícone num bloco só: o ícone mora logo abaixo do tipo, dentro
+              de `PinControls`. O pino de viagem tem símbolo próprio (a
+              passagem): a grade de ícones não faria nada nele. */}
+          <PinControls {...pin} iconChoice={pin.kind === 'viagem' ? null : { ...pinIcon, pinSelected }} />
         </ToolPropertiesSection>
         {playerSecret && (
           <ToolPropertiesSection group="playerVisibility" groups={groups}>

@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import type { PinIcon } from '../types/map'
 import { PIN_ICON_LABELS, PIN_ICON_ORDER } from '../lib/pins'
 import { PinSymbolArt } from './PinSymbolArt'
@@ -14,6 +15,11 @@ export interface PinIconControlsProps {
   pinSelected: boolean
 }
 
+interface PinIconFieldProps extends PinIconControlsProps {
+  /** O glifo do tipo escolhido ("!" ou "?"): é ele que o ícone substitui. */
+  glyph: string
+}
+
 /**
  * Escolha do ícone do ponto de interesse — baú, armadilha, chave, perigo,
  * escada e água. É o que separa dois marcadores no mapa sem o mestre ter de
@@ -23,19 +29,20 @@ export interface PinIconControlsProps {
  * aberto, muda ESSE pino (com histórico); sem nenhum, guarda a preferência do
  * próximo. Quem decide a fonte é o chamador — este componente só mostra.
  *
- * FICA ANTES de `PinControls` no painel, e não depois, porque o último botão
- * daquela seção é "Excluir ponto de interesse": ação destrutiva no MEIO da
- * coluna é armadilha para quem só queria trocar o ícone.
- *
- * O título não diz "pino" nem "marcador" de propósito: "Ponto de interesse" já
- * é o título do bloco vizinho, e dois cabeçalhos com o mesmo nome no mesmo
- * painel confundem quem lê por leitor de tela.
+ * É um CAMPO do bloco "Ponto de interesse" (`PinControls`), logo abaixo do
+ * tipo, e não uma seção com título próprio: tipo e ícone são a mesma pergunta
+ * ("o que aparece na cabeça do pino?"). Em duas seções o mestre não via que o
+ * ícone toma o lugar do "!"/"?" — a linha de apoio diz isso com o glifo do tipo
+ * escolhido.
  */
-export function PinIconControls({ icon, onIconChange, pinSelected }: PinIconControlsProps) {
+export function PinIconControls({ icon, onIconChange, pinSelected, glyph }: PinIconFieldProps) {
+  const rotuloId = useId()
   return (
-    <section className="lb-section">
-      <h2 className="lb-eyebrow">Ícone no mapa</h2>
-      <div className="lb-seg lb-seg--grid" role="radiogroup" aria-label="Ícone do ponto de interesse">
+    <div className="lb-field">
+      <span id={rotuloId} className="lb-label">
+        Ícone no mapa
+      </span>
+      <div className="lb-seg lb-seg--grid" role="radiogroup" aria-labelledby={rotuloId}>
         {PIN_ICON_ORDER.map((option) => (
           <button
             key={option}
@@ -59,9 +66,9 @@ export function PinIconControls({ icon, onIconChange, pinSelected }: PinIconCont
       )}
       <span className="lb-label">
         {pinSelected
-          ? 'Sem ícone, o pino desenha o "!" ou o "?" do tipo.'
+          ? `O ícone aparece no lugar do "${glyph}" — no mapa e no cartão do jogador.`
           : 'Vale para o próximo ponto de interesse que você cravar.'}
       </span>
-    </section>
+    </div>
   )
 }
