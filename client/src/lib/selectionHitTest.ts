@@ -1,4 +1,5 @@
-import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData, LayerId, Pin } from '../types/map'
+import type { Wall, Light, Region, RegionPoint, Drawing, DrawingPoint, Stair, MapData, LayerId, Pin, ConcealZone } from '../types/map'
+import { findConcealZoneAt } from './concealZones'
 import type { Selection } from '../types/tools'
 import { findTokenAt } from '../pixi/tokenInteraction'
 import { findPropAt } from '../pixi/propInteraction'
@@ -348,6 +349,33 @@ export function findSelectableAt(map: MapData, point: Point): SelectableHit | nu
   if (region) return { kind: 'region', id: region.id, draggable: false }
 
   return null
+}
+
+/**
+ * A porta sob o ponteiro, para o clique direito (Abrir/Fechar,
+ * Trancar/Destrancar sem trocar de ferramenta). Só parede que É porta: a
+ * parede lisa ao lado do vão nunca abre o menu. Porta em camada oculta não
+ * responde — o que não se vê não se clica. Camada TRAVADA não barra: travar
+ * impede mover a porta, não abri-la no meio da sessão.
+ */
+export function findDoorAt(map: Pick<MapData, 'walls' | 'hiddenLayers'>, point: Point): Wall | null {
+  const doors = visibleWalls(map.walls, map.hiddenLayers).filter((wall) => wall.door !== null)
+  return findWallAt(doors, point)
+}
+
+/**
+ * Selecionar dentro de uma zona oculta abre a ZONA, não a sala embaixo dela.
+ * A zona é o "tapete" por cima do chão da sala: antes o clique pegava a sala e
+ * a zona só se editava trocando para a ferramenta Zona oculta. Só passa na
+ * frente de sala e de chão (o fim da cadeia de `findSelectableAt`): ficha,
+ * objeto, luz, desenho, parede e escada dentro da zona continuam ganhando o
+ * clique, porque são menores e estão por cima.
+ */
+export function findConcealZoneForSelect(map: MapData, point: Point): ConcealZone | null {
+  const zone = findConcealZoneAt(map.concealZones, point)
+  if (zone === null) return null
+  const hit = findSelectableAt(map, point)
+  return hit === null || hit.kind === 'region' ? zone : null
 }
 
 /**

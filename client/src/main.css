@@ -531,6 +531,17 @@ body {
   background: var(--lb-color-brass-contrast);
 }
 
+/* Terceiro estado ("Oculto para jogadores" em lote, alguns sim e outros não):
+   a bolinha para no meio, com a borda de latão de quem já tem algo ligado. */
+.lb-switch__track:has(> .lb-switch__input:indeterminate) {
+  border-color: var(--lb-color-brass);
+}
+
+.lb-switch__track:has(> .lb-switch__input:indeterminate)::after {
+  transform: translateX(7px);
+  background: var(--lb-color-brass);
+}
+
 .lb-switch__track:has(> .lb-switch__input:focus-visible) {
   box-shadow: var(--lb-shadow-focus);
 }
@@ -2610,6 +2621,51 @@ body {
 .lb-cenas__menu-item[aria-disabled='true'] {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+/* Clique direito na porta (DoorContextMenu): o menu nasce no ponto do clique,
+   dentro da caixa do canvas, no mesmo molde do menu "…" da cena. */
+.lb-panel.lb-portamenu {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 9rem;
+  padding: var(--lb-space-1);
+  background: var(--lb-color-stone-solid);
+  transform-origin: top left;
+  animation: lb-cenas-menu-entra 120ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-panel.lb-portamenu {
+    animation: none;
+  }
+}
+
+.lb-portamenu__item {
+  width: 100%;
+  padding: 6px var(--lb-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-portamenu__item:focus {
+  outline: none;
+}
+
+.lb-portamenu__item:hover,
+.lb-portamenu__item:focus-visible,
+.lb-portamenu__item:focus {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
 }
 
 /* Confirmação de apagar: a linha inteira, no molde da de "Dar a…" do painel Sala. */

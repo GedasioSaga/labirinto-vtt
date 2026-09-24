@@ -22,6 +22,7 @@ import { ancestorsOf, descendantsOf, subtreeIds } from '../lib/roomNesting'
 import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
+import { setSelectionSecret as setSelectionSecretOnMap } from '../lib/batchSecret'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
 const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon', 'roomFree'])
@@ -675,6 +676,10 @@ interface MapStoreState {
   setRoomRoof: (id: string, roof: boolean) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
+  /** "Oculto para jogadores" EM LOTE: todos os itens da seleção que aceitam
+   *  (`lib/batchSecret.ts`), num passo só do desfazer. Nada mudando, não
+   *  gasta entrada de histórico. */
+  setSelectionSecret: (secret: boolean) => void
   /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
   /** Abre o pino no painel e limpa a seleção comum (`null` fecha). */
   setSelectedPin: (id: string | null) => void
@@ -1560,6 +1565,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return
       withHistory((map) => mapFactory.setItemSecret(map, kind, id, secret))
+    },
+    setSelectionSecret: (secret) => {
+      const { map, selection } = get()
+      if (setSelectionSecretOnMap(map, selection, secret) === map) return
+      withHistory((current) => setSelectionSecretOnMap(current, selection, secret))
     },
     setSelectedPin: (id) =>
       set(id === null ? { selectedPinId: null } : { selectedPinId: id, selection: EMPTY_SELECTION, selectedConcealZoneId: null }),

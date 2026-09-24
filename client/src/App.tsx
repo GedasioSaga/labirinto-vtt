@@ -78,6 +78,7 @@ import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
 import { EMPTY_SELECTION, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
+import { selectionSecretState } from './lib/batchSecret'
 import { isSingleGroup, NO_GROUPS } from './lib/itemGroups'
 import { traceFloorPieces } from './lib/traceImage'
 import { loadImagePixels } from './lib/imagePixels'
@@ -906,6 +907,9 @@ function App() {
   const currentMapObjectKey = currentObjectKey(map, selection, selectedPinId)
   const pinKind = useMapStore((state) => state.pinKind)
   const pinIcon = useMapStore((state) => state.pinIcon)
+  // "Oculto para jogadores" EM LOTE (2+ itens selecionados): nenhum, todos ou misturado.
+  const selectionSecret = selection.length > 1 ? selectionSecretState(map, selection) : null
+  const setSelectionSecret = useMapStore((state) => state.setSelectionSecret)
   // A5 — "Oculto para jogadores" do item selecionado que não é Token/Objeto.
   const secretTarget: { kind: 'region' | 'stair' | 'drawing' | 'pin'; id: string; secret: boolean } | null = selectedRegion
     ? { kind: 'region', id: selectedRegion.id, secret: !!selectedRegion.secret }
@@ -2024,6 +2028,9 @@ function App() {
               // `kind` do primeiro item (só importa quando count === 1) +
               // quantos itens no total. `null` = seleção vazia (botão desabilita).
               selection: selection.length > 0 ? { kind: selection[0].kind, count: selection.length } : null,
+              // "Oculto para jogadores" em lote: só com 2+ itens (um item só
+              // tem o próprio toggle no painel dele).
+              secret: selectionSecret === null ? undefined : { ...selectionSecret, onChange: setSelectionSecret },
               defaultTokenName: mapFactory.nextTokenName(map.tokens),
               onAddToken: handleAddToken,
               onRemoveSelected: removeSelected,
