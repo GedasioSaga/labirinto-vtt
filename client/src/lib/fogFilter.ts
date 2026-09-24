@@ -5,7 +5,7 @@ import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
-import { exitLabelsOf, isArrivalOnly } from './pinTravel'
+import { exitLabelsOf, isArrivalOnly, travelExitsOf } from './pinTravel'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
@@ -643,6 +643,16 @@ export function filterMapForPlayer(
     return [{ ...w, door: seenDoors?.get(w.id) ?? unseenDoor(door) }]
   }
 
+  const playerStairs = visibleStairs(map.stairs, hiddenLayers).filter((s) => {
+    const first = s.segments[0]
+    if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inRoomHiddenFromPlayer)) return false
+    return isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
+  })
+  // ESCADA QUE LEVA A OUTRO ANDAR: o pino dela vai SÓ junto com a escada — a
+  // mesma regra que decide a escada decide o pino, e nunca a do ponto do pino.
+  // Escada secreta, em sala oculta, no escuro ou apagada: o pino não sai.
+  const playerStairIds = new Set(playerStairs.map((s) => s.id))
+
   const filtered: MapData = {
     ...map,
     // O nome do mapa é o nome da CENA (a aventura cria a cena com
@@ -666,11 +676,7 @@ export function filterMapForPlayer(
     lights: visibleLights(map.lights, hiddenLayers).filter(
       (l) => !l.hidden && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }),
     ),
-    stairs: visibleStairs(map.stairs, hiddenLayers).filter((s) => {
-      const first = s.segments[0]
-      if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inRoomHiddenFromPlayer)) return false
-      return isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
-    }),
+    stairs: playerStairs,
     props: visibleProps(map.props, hiddenLayers)
       .filter((p) => !p.hidden && !p.secret && !inClosedRoof({ x: p.x, y: p.y }) && isVisible({ x: p.x, y: p.y }))
       .map((p) => ({ ...p, src: '', linkedMapPath: null })),
@@ -727,6 +733,13 @@ export function filterMapForPlayer(
     pins: (map.pins ?? [])
       .filter((p) => {
         if (isArrivalOnly(p)) return false
+        // Pino de escada: a escada manda (ver `playerStairIds`); o segredo do próprio pino também.
+        // E só a escada que LEVA a algum lugar: o par que o guardião desligou (a de baixo foi
+        // desligada, apagada ou religada a outro andar) fica sem destino e não sai — senão o
+        // toque abriria "Descer por aqui?" para o host recusar. A escada continua desenhada.
+        if (p.escadaId !== undefined) {
+          return playerStairIds.has(p.escadaId) && !p.hidden && !p.secret && travelExitsOf(p).length > 0
+        }
         if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return false
         const point = { x: p.x, y: p.y }
         return !inRoomHiddenFromPlayer(point) && isPointKnown(point)
@@ -772,6 +785,9 @@ function pinForPlayer(pin: Pin): Pin {
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
   if (pin.secret !== undefined) forPlayer.secret = pin.secret
   if (pin.passagem !== undefined) forPlayer.passagem = pin.passagem
+  // Escada: o id da ESCADA desta cena, que o jogador já recebe — é por ele que
+  // o toque na escada acha o pino. Só chega aqui pino de escada que saiu.
+  if (pin.escadaId !== undefined) forPlayer.escadaId = pin.escadaId
   // ENCRUZILHADA: o jogador recebe `escolhas`, montado AQUI (nunca copiado do
   // mestre): por saída, só o id e o rótulo. Pino de uma saída não ganha o
   // campo: o cartão dele é o de sempre, e o recorte também.

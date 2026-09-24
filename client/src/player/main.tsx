@@ -606,6 +606,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         {openPin && (
           <PlayerPinCard
             pin={openPin}
+            stairs={state.map.stairs}
             onClose={closePin}
             travelWaiting={state.travel?.phase === 'waiting'}
             onRequestTravel={(exitId) => {

@@ -40,6 +40,7 @@ import {
   sceneDeletionInfo,
   sceneList,
   sceneMaps,
+  stairTravelPanel,
   subscribeToTravelLinks,
   travelSceneOptions,
   useAdventureStore,
@@ -2102,6 +2103,8 @@ function App() {
               stepWidth: selectedStair?.stepWidth ?? map.grid,
               onStepWidthChange: (stepWidth) => selectedStair && setStairStepWidthForStair(selectedStair.id, stepWidth),
               grid: map.grid,
+              // "Leva a…": `null` sem escada selecionada ou fora de uma aventura (a seção some).
+              travel: selectedStair === null ? null : stairTravelPanel({ adventure, activeSceneId, cache: sceneCache }, map, selectedStair),
             }}
             polygonSides={{
               sides: polygonSides,
