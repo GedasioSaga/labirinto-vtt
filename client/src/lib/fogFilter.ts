@@ -1,7 +1,8 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { ConcealZone, DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, TokenContract, Wall } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, REVEAL_BRUSH_CELL, unveiledCellsOf } from './concealBrush'
 import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer } from './tokenPublicName'
+import { withoutContract } from './tokenLoan'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
@@ -923,6 +924,11 @@ function unseenDoor(door: DoorState): DoorState {
  * `enteredRooms`: Salas deste mapa em que o jogador JÁ entrou (texto da sala).
  * O texto de entrada dela continua no recorte depois que ele sai, para tocar
  * no rótulo e reler; de Sala onde ele nunca entrou o texto não sai.
+ * `loans`: AJUDANTE CONTRATADO — acordo de cada ficha EMPRESTADA a este
+ * jogador (id da ficha → acordo). Ficha emprestada sem `visao` anda com ele,
+ * mas não é olho dele: não gera visão, não abre teto nem cartão de Sala. Ela
+ * sai com o nome público do NPC (nunca o de trabalho) e com o `contrato`; o
+ * `contrato` que vier do mapa do mestre é apagado de toda ficha.
  */
 export function filterMapForPlayer(
   map: MapData,
@@ -933,11 +939,15 @@ export function filterMapForPlayer(
   seenDoors?: ReadonlyMap<string, DoorState>,
   pinAudiences?: PinAudiences,
   enteredRooms?: ReadonlySet<string>,
+  loans?: ReadonlyMap<string, TokenContract>,
 ): PlayerMapView {
   const hiddenLayers = map.hiddenLayers
   const owned = new Set(ownership[playerId] ?? []) // jogador sem entrada de posse não tem token nem visão
+  // Acordo só vale para ficha que ESTE jogador segura: acordo de outro nunca entra no recorte dele.
+  const loanOf = (tokenId: string): TokenContract | undefined => (owned.has(tokenId) ? loans?.get(tokenId) : undefined)
   const layerTokens = visibleTokens(map.tokens, hiddenLayers)
-  const ownTokens = layerTokens.filter((t) => owned.has(t.id) && !t.hidden)
+  // `ownTokens`: as fichas que são OLHOS do jogador. O ajudante sem visão fica de fora.
+  const ownTokens = layerTokens.filter((t) => owned.has(t.id) && !t.hidden && loanOf(t.id)?.visao !== false)
 
   // Zona oculta ativa: ponto dentro dela não conta como visível nem explorado.
   // A visão continua passando (a zona esconde conteúdo, não é parede).
@@ -1309,7 +1319,12 @@ export function filterMapForPlayer(
   // Nome: o dono lê o real; os outros, o "Nome para os jogadores" (o de trabalho do mestre não sai).
   const tokens = layerTokens
     .filter((t) => !t.hidden && (owned.has(t.id) || (!t.secret && !inClosedRoof({ x: t.x, y: t.y }) && isVisible({ x: t.x, y: t.y }))))
-    .map((t) => withoutNpcMark(sanitizeTokenPhoto(tokenAsSeenByPlayer(t, owned.has(t.id)))))
+    .map((t) => {
+      const contrato = loanOf(t.id)
+      // Emprestada: o jogador lê o nome que a MESA lê. O de trabalho é do mestre.
+      const seen = withoutNpcMark(sanitizeTokenPhoto(tokenAsSeenByPlayer(withoutContract(t), owned.has(t.id) && contrato === undefined)))
+      return contrato === undefined ? seen : { ...seen, contrato: { ...contrato } }
+    })
   const sentTokenIds = new Set(tokens.map((t) => t.id))
   // Ficha que o MESTRE esconde deste jogador (oculta, secreta ou na camada
   // Fichas escondida). A tocha presa nela fica no centro dela e anda com ela:

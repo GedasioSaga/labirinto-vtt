@@ -564,6 +564,7 @@ function App() {
             onStopTunnel={() => void hostBridgeRef.current?.stopTunnel()}
             onAssign={(playerId, tokenId) => hostBridgeRef.current?.assignToken(playerId, tokenId)}
             onUnassign={(playerId, tokenId) => hostBridgeRef.current?.unassignToken(playerId, tokenId)}
+            onLend={(playerId, tokenId, terms) => hostBridgeRef.current?.lendToken(playerId, tokenId, terms)}
             onKick={(clientId) => void hostBridgeRef.current?.kick(clientId)}
             onVisionRadiusChange={(playerId, radius) => hostBridgeRef.current?.setVisionRadius(playerId, radius)}
             onRevealPlan={(playerId) => hostBridgeRef.current?.revealPlan(playerId)}

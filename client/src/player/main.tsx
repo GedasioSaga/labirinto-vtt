@@ -23,6 +23,7 @@ import type { SignalMark } from '../lib/signals'
 import type { RemoteLaser } from '../lib/laser'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
+import { readContract } from '../lib/tokenLoan'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -553,7 +554,10 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
     const byId = new Map(map.tokens.map((t) => [t.id, t]))
     return ownTokens.flatMap((id) => {
       const token = byId.get(id)
-      return token ? [{ id, name: token.name }] : []
+      if (!token) return []
+      // AJUDANTE CONTRATADO: o host só manda `contrato` na ficha emprestada a este jogador.
+      const contrato = readContract(token.contrato)
+      return [contrato === undefined ? { id, name: token.name } : { id, name: token.name, contrato }]
     })
   }, [map, ownTokens])
 

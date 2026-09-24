@@ -1,4 +1,6 @@
-import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
+import type { DoorState, MapData, Pin, RegionPoint, Token, TokenContract } from '../types/map'
+import { contractFromTerms, isContractDue, type LoanTerms } from '../lib/tokenLoan'
+import { tokenAsSeenByPlayer } from '../lib/tokenPublicName'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
@@ -19,6 +21,7 @@ import {
   type HostMessage,
   type JoinMessage,
   type LaserMessage,
+  type PlayerMessage,
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type PlayerLaserMessage,
@@ -85,6 +88,8 @@ function sceneKey(scene: HostScene): string {
 function allScenes(world: HostWorld): HostScene[] {
   return [world.open, ...world.background]
 }
+
+export type { LoanTerms }
 
 export type PlayerStatus = 'waiting' | 'playing'
 
@@ -221,6 +226,11 @@ export interface PlayerInfo {
    * resto do tempo: é o que põe o selo "pedido" na cena dele, na lista Cenas.
    */
   travelPending?: true
+  /**
+   * AJUDANTE CONTRATADO: o acordo de cada ficha EMPRESTADA a ele (id da ficha
+   * → acordo). Ausente = nenhum empréstimo. As fichas continuam em `tokenIds`.
+   */
+  loans?: Record<string, TokenContract>
 }
 
 /** Faixa do "Raio de visão" por jogador, em px de mundo. */
@@ -296,8 +306,24 @@ export interface HostSession {
   handleMessage(clientId: string, raw: unknown, source: HostMapSource): HostResult
   /** Devolve `lobby.waiting` para quem perdeu o último token (dono anterior). */
   assignToken(playerId: string, tokenId: string): HostResult
-  /** Devolve `lobby.waiting` se o jogador ficou sem token. */
+  /** Devolve `lobby.waiting` se o jogador ficou sem token. Desfaz o empréstimo da ficha, se era um. */
   unassignToken(playerId: string, tokenId: string): HostResult
+  /**
+   * AJUDANTE CONTRATADO: empresta a ficha ao jogador com tarefa, prazo e
+   * visão. Tira a ficha de quem a tinha (como `assignToken`). O jogador lê o
+   * acordo e o nome público do NPC, não renomeia a ficha e só vê pelos olhos
+   * dela com `visao`. Jogador desconhecido ou prazo que não é número positivo:
+   * nada. Não envia snapshot: o integrador faz o broadcast.
+   */
+  lendToken(playerId: string, tokenId: string, terms: LoanTerms): HostResult
+  /**
+   * Devolve ao mestre toda ficha cujo prazo venceu, com o recado "… voltou ao
+   * mestre" só para quem a segurava. `broadcast` e `handleMessage` já fazem
+   * isto sozinhos; o integrador chama no prazo para não esperar ninguém mexer.
+   */
+  expireLoans(source: HostMapSource): HostResult
+  /** O fim de acordo mais próximo (ms, relógio de `now`), ou `null` sem prazo pendente. */
+  nextLoanDeadline(): number | null
   disconnect(clientId: string): void
   kick(clientId: string): HostResult
   /**
@@ -499,7 +525,72 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // gasto velho deixa de valer sozinho. Mapa sem confronto no broadcast apaga
   // a entrada (o mestre encerrou; recomeçar não herda o passo gasto).
   const gastoDaVez = new Map<string, { turno: number; fichaId: string; casas: number }>()
+  // AJUDANTE CONTRATADO — por id da ficha: a quem ela está emprestada e o
+  // acordo. Mora aqui, junto de `ownership`, porque o acordo não pode durar
+  // mais que a posse que descreve. Invariante: só existe enquanto
+  // `ownership[playerId]` tem a ficha (`loansFor` confere de novo).
+  const loans = new Map<string, { playerId: string; contrato: TokenContract }>()
   let rev = 0
+
+  /** Os acordos das fichas emprestadas a este jogador que ele ainda segura. */
+  const loansFor = (playerId: string): Map<string, TokenContract> => {
+    const owned = ownership[playerId] ?? []
+    const mine = new Map<string, TokenContract>()
+    for (const [tokenId, loan] of loans) {
+      if (loan.playerId === playerId && owned.includes(tokenId)) mine.set(tokenId, loan.contrato)
+    }
+    return mine
+  }
+
+  /** Tira a ficha de todo outro dono e dá a `playerId` (a regra de `assignToken`). */
+  const giveToken = (playerId: string, tokenId: string): Outbound[] => {
+    const outbound: Outbound[] = []
+    // Um token tem no máximo um dono: tira de quem tinha antes.
+    for (const [owner, tokens] of Object.entries(ownership)) {
+      if (owner === playerId) continue
+      const wasPlaying = tokens.length > 0
+      ownership[owner] = tokens.filter((t) => t !== tokenId)
+      outbound.push(...waitingIfLostLast(owner, wasPlaying))
+    }
+    const current = ownership[playerId] ?? []
+    if (!current.includes(tokenId)) ownership[playerId] = [...current, tokenId]
+    return outbound
+  }
+
+  /** O nome da ficha como a MESA o lê (o público), para o recado da volta. */
+  const publicTokenName = (tokenId: string, world: HostWorld): string => {
+    for (const scene of allScenes(world)) {
+      const token = scene.map.tokens.find((t) => t.id === tokenId)
+      if (token !== undefined) return tokenAsSeenByPlayer(token, false).name
+    }
+    return ''
+  }
+
+  /**
+   * Devolve ao mestre as fichas com prazo vencido em `now()`: sai da posse,
+   * sai do acordo, e quem segurava recebe (se conectado) o recado da volta —
+   * guardado no caderno dele — e a espera, se era a última ficha.
+   */
+  const expireDue = (world: HostWorld): Outbound[] => {
+    const at = now()
+    const outbound: Outbound[] = []
+    for (const [tokenId, loan] of [...loans]) {
+      if (!isContractDue(loan.contrato, at)) continue
+      loans.delete(tokenId)
+      const current = ownership[loan.playerId]
+      if (current === undefined || !current.includes(tokenId)) continue
+      ownership[loan.playerId] = current.filter((t) => t !== tokenId)
+      const clientId = players.get(loan.playerId)?.clientId ?? null
+      if (clientId !== null) {
+        const name = publicTokenName(tokenId, world)
+        const note: NoteEntry = { id: randomId(), text: `${name === '' ? 'Seu ajudante' : name} voltou ao mestre: o acordo acabou.`, at }
+        rememberNote(loan.playerId, note)
+        outbound.push({ clientId, msg: noteMessage(note) })
+      }
+      outbound.push(...waitingIfLostLast(loan.playerId, current.length > 0))
+    }
+    return outbound
+  }
 
   /** Casas já andadas na vez atual do confronto de `map` (0 sem confronto ou em vez nova). */
   const gastoNaVez = (map: MapData): number => {
@@ -706,7 +797,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
     const entered = enteredRooms.get(playerId)?.get(map.id)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors, pinAudiences, entered, loansFor(playerId))
     // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
     // (senão o jogador guardaria a planta escondida e o formato dela).
     markRings(exp, view.vision, view.blocked)
@@ -987,7 +1078,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const wall = map.walls.find((w) => w.id === msg.wallId)
     if (wall === undefined || wall.door === null) return reject('not_visible')
     const memory = memoryFor(playerId, map)
-    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId))
     if (!view.visibleDoorIds.includes(wall.id)) return reject('not_visible')
     // Trancada antes de longe: a cor da porta já diz que está trancada, e "Trancada" é a informação útil.
     if (wall.door.locked) return reject('locked')
@@ -1014,6 +1105,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     if (statusOf(playerId) !== 'playing') return { outbound: [] }
     if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return { outbound: [] }
+    // Ficha EMPRESTADA (ajudante contratado) é do mestre: o jogador anda com ela, não a renomeia.
+    if (loans.has(msg.tokenId)) return { outbound: [] }
     // O token pode estar em qualquer cena: a ficha é do jogador, não do mapa aberto.
     const scene = allScenes(world).find((s) => s.map.tokens.some((t) => t.id === msg.tokenId))
     if (scene === undefined) return { outbound: [] }
@@ -1044,7 +1137,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map)
-    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId))
     if (!view.map.pins.some((p) => p.id === pinId)) return null
     // Trancada: ninguém passa. Cai no mesmo `null` de todo o resto, então o
     // jogador lê o motivo genérico de sempre e nada chega ao mestre. Estar aqui,
@@ -1236,6 +1329,34 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
   }
 
+  /** Cada mensagem já validada vai ao seu tratador. */
+  function routeMessage(clientId: string, msg: PlayerMessage, world: HostWorld): HostResult {
+    switch (msg.type) {
+      case 'join':
+        return handleJoin(clientId, msg, world)
+      case 'token.move':
+        return handleMove(clientId, msg, world)
+      case 'ping':
+        return { outbound: [] }
+      case 'signal':
+        return handleSignal(clientId, msg, world)
+      case 'door.toggle':
+        return handleDoorToggle(clientId, msg, world)
+      case 'token.edit':
+        return handleTokenEdit(clientId, msg, world)
+      case 'pin.travel.request':
+        return handleTravelRequest(clientId, msg, world)
+      case 'laser':
+        return handlePlayerLaser(clientId, msg, world)
+      case 'clue.read':
+        return handleClueRead(clientId, msg, world)
+      case 'clue.peers':
+        return handleCluePeers(clientId, world)
+      case 'clue.show':
+        return handleClueShow(clientId, msg, world)
+    }
+  }
+
   return {
     get rev() {
       return rev
@@ -1245,30 +1366,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const msg = parsePlayerMessage(raw)
       if (msg === null) return reply(clientId, { type: 'error', reason: 'invalid_message' })
       const world = toWorld(source)
-      switch (msg.type) {
-        case 'join':
-          return handleJoin(clientId, msg, world)
-        case 'token.move':
-          return handleMove(clientId, msg, world)
-        case 'ping':
-          return { outbound: [] }
-        case 'signal':
-          return handleSignal(clientId, msg, world)
-        case 'door.toggle':
-          return handleDoorToggle(clientId, msg, world)
-        case 'token.edit':
-          return handleTokenEdit(clientId, msg, world)
-        case 'pin.travel.request':
-          return handleTravelRequest(clientId, msg, world)
-        case 'laser':
-          return handlePlayerLaser(clientId, msg, world)
-        case 'clue.read':
-          return handleClueRead(clientId, msg, world)
-        case 'clue.peers':
-          return handleCluePeers(clientId, world)
-        case 'clue.show':
-          return handleClueShow(clientId, msg, world)
-      }
+      // Prazo vencido vale ANTES do pedido: o ajudante que já voltou ao mestre não anda mais.
+      const expired = expireDue(world)
+      const result = routeMessage(clientId, msg, world)
+      return expired.length === 0 ? result : { ...result, outbound: [...expired, ...result.outbound] }
     },
 
     approveTravel(requestId, source) {
@@ -1343,24 +1444,38 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     },
 
     assignToken(playerId, tokenId) {
-      const outbound: Outbound[] = []
-      // Um token tem no máximo um dono: tira de quem tinha antes.
-      for (const [owner, tokens] of Object.entries(ownership)) {
-        if (owner === playerId) continue
-        const wasPlaying = tokens.length > 0
-        ownership[owner] = tokens.filter((t) => t !== tokenId)
-        outbound.push(...waitingIfLostLast(owner, wasPlaying))
-      }
-      const current = ownership[playerId] ?? []
-      if (!current.includes(tokenId)) ownership[playerId] = [...current, tokenId]
-      return { outbound }
+      // Posse de verdade: se a ficha estava emprestada, o acordo acaba aqui.
+      loans.delete(tokenId)
+      return { outbound: giveToken(playerId, tokenId) }
     },
 
     unassignToken(playerId, tokenId) {
+      if (loans.get(tokenId)?.playerId === playerId) loans.delete(tokenId)
       const current = ownership[playerId]
       if (current === undefined) return { outbound: [] }
       ownership[playerId] = current.filter((t) => t !== tokenId)
       return { outbound: waitingIfLostLast(playerId, current.length > 0) }
+    },
+
+    lendToken(playerId, tokenId, terms) {
+      if (!players.has(playerId)) return { outbound: [] }
+      const contrato = contractFromTerms(terms, now())
+      if (contrato === null) return { outbound: [] }
+      const outbound = giveToken(playerId, tokenId)
+      loans.set(tokenId, { playerId, contrato })
+      return { outbound }
+    },
+
+    expireLoans(source) {
+      return { outbound: expireDue(toWorld(source)) }
+    },
+
+    nextLoanDeadline() {
+      let next: number | null = null
+      for (const { contrato } of loans.values()) {
+        if (contrato.ate !== null && (next === null || contrato.ate < next)) next = contrato.ate
+      }
+      return next
     },
 
     disconnect(clientId) {
@@ -1382,6 +1497,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       byClient.delete(clientId)
       players.delete(playerId) // invalida o resumeToken
       delete ownership[playerId]
+      // Expulso, o ajudante volta ao mestre na hora (sem recado: não há a quem mandar).
+      for (const [tokenId, loan] of [...loans]) if (loan.playerId === playerId) loans.delete(tokenId)
       memories.delete(playerId)
       currentScene.delete(playerId)
       forgetTravelsOf(playerId)
@@ -1460,7 +1577,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       for (const scene of allScenes(world)) {
         if (scene.map.confronto === undefined) gastoDaVez.delete(scene.map.id)
       }
-      const outbound: Outbound[] = []
+      // Prazo vencido antes do mapa: o recado da volta chega e o snapshot já sai sem o ajudante.
+      const outbound: Outbound[] = expireDue(world)
       for (const [clientId, playerId] of byClient) {
         if (statusOf(playerId) !== 'playing') continue
         // Cada um a SUA cena: quem ficou no Salão nunca recebe nada da Cripta.
@@ -1530,6 +1648,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           // O selo da lista Cenas nasce e morre com o pedido: aprovar, recusar
           // e cair a conexão já tiram o jogador de `pendingTravels`.
           if (pendingTravels.has(p.playerId)) info.travelPending = true
+          const lent = loansFor(p.playerId)
+          if (lent.size > 0) info.loans = Object.fromEntries([...lent].map(([tokenId, contrato]) => [tokenId, { ...contrato }]))
           if (withScenes && info.status === 'playing') {
             const scene = sceneFor(p.playerId, world)
             // Sem cena, o painel o mostra aguardando: é o que a tela dele diz, e

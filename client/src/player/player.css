@@ -587,6 +587,14 @@
   white-space: nowrap;
 }
 
+/* Ajudante contratado: a linha do acordo embaixo do nome, discreta como as dicas do painel. */
+.pp-character__deal {
+  margin: 2px 0 0;
+  font-size: 0.85em;
+  color: var(--lb-color-parchment-faint, #6d6c68);
+  overflow-wrap: anywhere;
+}
+
 .pp-dot {
   flex: none;
   width: 12px;

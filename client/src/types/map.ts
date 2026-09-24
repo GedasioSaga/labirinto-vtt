@@ -505,6 +505,22 @@ export interface Token extends PlayerSecret {
    *  do mestre: NÃO atravessa para o jogador (`lib/fogFilter.ts`).
    *  `undefined` === false — sem linha de migração. */
   npc?: boolean
+  /** AJUDANTE CONTRATADO — o acordo como o jogador que SEGURA a ficha
+   *  emprestada o lê. Campo de FIO, nunca do arquivo: o acordo mora na sessão
+   *  do host junto da posse (`net/hostSession.ts`), o recorte põe este campo só
+   *  na ficha emprestada que vai a quem a segura (`lib/fogFilter.ts`) e
+   *  `deserializeMap` o descarta se um arquivo trouxer. */
+  contrato?: TokenContract
+}
+
+/** O acordo do ajudante contratado (`Token.contrato`). */
+export interface TokenContract {
+  /** O que o ajudante faz, como o mestre escreveu ("levar o recado"). `''` = sem tarefa escrita. */
+  tarefa: string
+  /** Fim do acordo, em ms desde 1970 no relógio do MESTRE. `null` = até o mestre retomar. */
+  ate: number | null
+  /** `true` = o jogador vê pelos olhos do ajudante; `false` = a ficha anda, mas não enxerga por ele. */
+  visao: boolean
 }
 
 export interface Prop extends PlayerSecret {

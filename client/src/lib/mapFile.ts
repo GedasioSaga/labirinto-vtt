@@ -3,6 +3,7 @@ import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { tokenPublicNameFromFile } from './tokenPublicName'
+import { withoutContract } from './tokenLoan'
 import { confrontoFromFile } from './confronto'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
@@ -176,7 +177,9 @@ function deserializeMapFields(json: string): MapData {
     // EXATAMENTE, sem inventar campo que o arquivo não tinha.
     // `publicName` ("Nome para os jogadores"): mesma mão única de `soChegada`
     // — texto e null ficam, valor torto some e a ficha volta a "O mesmo".
-    tokens: entityList(parsed.tokens).map((t) => tokenPublicNameFromFile({ ...t, image: t.image ?? null })),
+    // `contrato` (ajudante contratado) é campo de FIO: o acordo mora na sessão
+    // do host. Arquivo que o traga (editado à mão) perde o campo na leitura.
+    tokens: entityList(parsed.tokens).map((t) => withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null }))),
     // inalterado fora o que já existia — Prop.layer ausente fica undefined
     props: entityList(parsed.props).map((p) => ({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
     stairs: entityList(parsed.stairs),
