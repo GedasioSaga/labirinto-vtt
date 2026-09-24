@@ -157,6 +157,72 @@ describe('hostSession: "Mostrar agora a…"', () => {
   })
 })
 
+/**
+ * JUNTO COM A VISÃO POR CENA: na mina a cena enxerga 2 casas. O bilhete está
+ * a 5 casas da Gabi — dentro do raio global de 700 px, fora do da mina. O
+ * cartão chega do mesmo jeito (mostrar é entregar de propósito), mas o pino
+ * só entra no mapa dela quando o raio DELA, cena x fator, alcança.
+ */
+describe('hostSession: "Mostrar agora a…" numa cena com visão própria', () => {
+  const CASA = 64
+  const CENTRO = 30 * CASA
+  const BILHETE: Pin = { id: 'bilhete', x: CENTRO + 5 * CASA, y: CENTRO, kind: 'interrogacao', description: 'Bilhete sob a pedra', image: null }
+
+  function mina(): MapData {
+    return {
+      ...createEmptyMap('mapa-mina', 'Mina', 60, 60, CASA),
+      visionCells: 2,
+      tokens: [token('ficha-gabi', CENTRO, CENTRO), token('ficha-diego', CENTRO, CENTRO - CASA)],
+      pins: [BILHETE],
+    }
+  }
+
+  function mesaNaMina() {
+    let n = 0
+    const w: HostWorld = { open: { sceneId: 'cena-mina', name: 'Mina', map: mina() }, background: [] }
+    const s = createHostSession({ code: CODE, visionRadius: RADIUS, now: () => 1_000_000, randomId: () => `id-${(n += 1)}` })
+    const gabi = welcomeOf(s.handleMessage('c-gabi', { type: 'join', code: CODE, name: 'Gabi' }, w))
+    const diego = welcomeOf(s.handleMessage('c-diego', { type: 'join', code: CODE, name: 'Diego' }, w))
+    s.assignToken(gabi, 'ficha-gabi')
+    s.assignToken(diego, 'ficha-diego')
+    return { s, w, gabi, diego }
+  }
+
+  function pinosDe(r: HostResult, clientId: string): string[] {
+    const msg = r.outbound.find((o) => o.clientId === clientId)?.msg
+    if (msg?.type !== 'snapshot') throw new Error(`esperava snapshot para ${clientId}`)
+    return msg.map.pins.map((p) => p.id)
+  }
+
+  it('o cartão chega a 5 casas; o pino "Só estes" fica fora do mapa dela até o raio da mina (x fator) alcançar', () => {
+    const { s, w, gabi } = mesaNaMina()
+    s.setPinAudience('bilhete', [])
+
+    const r = s.showPin(gabi, 'bilhete', w)
+    expect(r.outbound.map((o) => o.clientId)).toEqual(['c-gabi'])
+    expect(s.pinAudience('bilhete')).toEqual([gabi])
+
+    // Raio da mina: 2 casas. O bilhete, a 5, não entra no mapa de ninguém.
+    const antes = s.broadcast(w)
+    expect(pinosDe(antes, 'c-gabi')).toEqual([])
+    expect(pinosDe(antes, 'c-diego')).toEqual([])
+
+    // Gabi com x3,0: 6 casas. Agora o bilhete está à vista dela — e só dela.
+    s.setVisionFactor(gabi, 3)
+    const depois = s.broadcast(w)
+    expect(pinosDe(depois, 'c-gabi')).toEqual(['bilhete'])
+    expect(pinosDe(depois, 'c-diego')).toEqual([])
+  })
+
+  it('o cartão não leva o alcance da cena nem o fator de ninguém', () => {
+    const { s, w, gabi } = mesaNaMina()
+    s.setVisionFactor(gabi, 1.5)
+    const pacote = JSON.stringify(s.showPin(gabi, 'bilhete', w).outbound)
+    expect(pacote).toContain('Bilhete sob a pedra')
+    for (const campo of ['visionCells', 'visionFactor', 'sceneVisionCells']) expect(pacote).not.toContain(campo)
+  })
+})
+
 describe('pinCardForPlayer', () => {
   it('lista do que vai: só id, tipo, símbolo, texto e imagem segura', () => {
     expect(pinCardForPlayer({ ...CARTA, image: 'C:/mestre/segredos/carta.png', hidden: true, locked: true })).toEqual({
