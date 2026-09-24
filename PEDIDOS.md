@@ -747,3 +747,14 @@ Em andamento: workflow `wf_933d952b-cd2`. Dois diagnósticos em paralelo (um rep
 próprio do cloudflared contra a sala aberta em `C:/dev/labirinto-ver`, outro rastreia o caminho no código),
 depois conserto com teste vermelho numa branch `auto/f2-link-publico` saída de `03cc777` e prova
 independente (cargo test, clippy, tipos, unidade). Verde ⇒ a cópia de teste passa para o commit do conserto.
+
+### 24/09/2026, 15h30 — abrir já com todas as grandes
+
+> "Ok, então abre o programa agora com todas as features novas, e a que não entrou no programa faça entrar
+> logo nessa abertura do programa."
+
+Em andamento: prévia de teste em `C:/dev/labirinto-previa` (branch `auto/previa-grandes`, saiu de `e443364` =
+acervo + jogador + editor + mundo provados), com merge de `9b818e0` (4 grandes provadas), `auto/int-t-grandes-b`
+(cabine, correio, rotina do NPC, perigo que alastra, mobília) e `auto/f2-pisos-na-mesma-cena` (ainda em
+revisão). Workflow `wf_4df0cddf-2ac`. Tipos verdes ⇒ o app de teste reabre dessa árvore. A prévia não vai para
+`auto/acervo`: as grandes entram no programa oficial pela junção `wf_e1417c8d-d57`.
