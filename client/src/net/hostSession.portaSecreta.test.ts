@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap, revealSecretPassage, setWallDoor } from '../lib/mapFactory'
-import type { DoorState, MapData, Region, Token, Wall } from '../types/map'
+import type { ConcealZone, DoorState, MapData, Region, Token, Wall } from '../types/map'
 import { createHostSession } from './hostSession'
 import type { HostMessage } from './protocol'
 
@@ -117,6 +117,41 @@ describe('hostSession: porta secreta parece parede até o mestre revelar', () =>
     const r = s.handleMessage('c1', { type: 'token.move', reqId: 'm1', tokenId: 'gabi', x: 1000, y: 275 }, map)
     expect(r.applyMove).toBeUndefined()
     expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'token.move.rejected', reqId: 'm1', reason: 'wall' } }])
+  })
+
+  it('SEGURANÇA: visão e paredes chegam iguais às da parede lisa, também com zona oculta pintada sobre a porta', () => {
+    // A mesma mansão com a parede leste da Biblioteca inteira, sem porta nenhuma.
+    const lisa = (m: MapData): MapData => ({
+      ...m,
+      walls: m.walls.flatMap((w) => (w.id === 'bib-l1' ? [parede('bib-l1', 900, 100, 900, 450, { regionId: 'r-bib' })] : w.id === 'porta' || w.id === 'bib-l2' ? [] : [w])),
+    })
+    // Zona sobre a porta com o pincel pintado em volta dela (x 880..919, y 240..319).
+    const unveiledCells: string[] = []
+    for (let col = 88; col <= 91; col += 1) for (let row = 24; row <= 31; row += 1) unveiledCells.push(`${col},${row}`)
+    const zona: ConcealZone = {
+      id: 'z',
+      name: 'Ala leste',
+      revealed: false,
+      points: [
+        { x: 850, y: 200 },
+        { x: 950, y: 200 },
+        { x: 950, y: 350 },
+        { x: 850, y: 350 },
+      ],
+      unveiledCells,
+    }
+    for (const zonas of [[], [zona]]) {
+      const secreta = { ...mansao({}, true), concealZones: zonas }
+      const snap = snapshotDe(gabiNaMesa(secreta).broadcast(secreta).outbound)
+      const semPorta = lisa(secreta)
+      const esperado = snapshotDe(gabiNaMesa(semPorta).broadcast(semPorta).outbound)
+      expect(snap.map.walls).toEqual(esperado.map.walls)
+      // A visão também vai pela rede: calculada com os três pedaços, ganhava
+      // vértices nas pontas da porta que a parede lisa não tem.
+      expect(snap.vision).toEqual(esperado.vision)
+      // Nem o id da porta, inteiro ou recortado pelo pincel ('porta~pincel0').
+      expect(JSON.stringify(snap)).not.toMatch(/"porta(~|")/)
+    }
   })
 
   it('tocar a porta secreta não faz nada e a recusa não diz que é porta', () => {

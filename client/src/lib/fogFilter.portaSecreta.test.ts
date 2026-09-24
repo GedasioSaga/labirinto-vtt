@@ -166,9 +166,8 @@ describe('fogFilter: porta secreta', () => {
   it('SEGURANÇA: dentro de zona oculta com o pincel, a porta não chega como pedaço à parte nem com o id dela', () => {
     const map: MapData = { ...corredor(porta()), concealZones: [zonaPintada(0, 99, 40, 59)] }
     const view = filterMapForPlayer(map, 'p', { p: ['t'] }, 400)
-    // O recorte do pincel renomeia os pedaços ('<id>~pincel<n>'): a junção
-    // tem que reconhecer a porta pelo id de origem, senão o trecho de 50 px
-    // com o id da porta sai sozinho no pacote.
+    // A junção roda antes do recorte do pincel: o pincel corta a parede já
+    // emendada, e o trecho sai com o id da vizinha ('n1~pincel0'), nunca o da porta.
     expect(view.map.walls).toHaveLength(1)
     expect(view.map.walls[0]).toMatchObject({ id: 'n1~pincel0', x1: 0, y1: 500, y2: 500, door: null, blocksLight: true, blocksMove: true })
     expect(view.map.walls[0]?.x2).toBeGreaterThan(990)
