@@ -7,6 +7,7 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
+import { isLetterVia, LETTER_TEXT_MAX_LENGTH, type LetterVia } from '../lib/correio'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -76,6 +77,16 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
  * posição, o id do pino ou o nome/id da cena. Mestre antigo responde
  * `error invalid_message` (que o jogador ignora durante o jogo); jogador
  * antigo ignora as cinco.
+ *
+ * O CORREIO DE BILHETES é aditivo pelo mesmo critério. Do jogador:
+ * `letter.peers` (a quem posso escrever?) e `letter.send` (o bilhete, para um
+ * colega pelo nome na sala). Do mestre: `letter.peers` (os nomes) e
+ * `letter.send.result` (saiu para o mestre ou não). O bilhete ENTREGUE chega
+ * como `scene.note` com `from` e `via` a mais, e fica no caderno de recados:
+ * jogador antigo lê o texto como recado do mestre. Entregue com ele fora do
+ * ar ou aguardando sem ficha, chega pelo `notes.book` com o id em `unread`,
+ * que o jogador antigo ignora. Nenhuma delas leva cena,
+ * posição ou o destino do bilhete que ainda espera o mestre.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -198,6 +209,19 @@ export interface ClueShowMessage {
   to: string
 }
 
+/** CORREIO: a quem posso escrever? A resposta é `letter.peers` com os nomes na sala. */
+export interface LetterPeersRequestMessage {
+  type: 'letter.peers'
+}
+
+/** CORREIO: o bilhete para o colega de nome `to`, pelo meio `via`. Vai ao mestre, não direto ao colega. */
+export interface LetterSendMessage {
+  type: 'letter.send'
+  to: string
+  via: LetterVia
+  text: string
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
@@ -210,6 +234,8 @@ export type PlayerMessage =
   | ClueReadMessage
   | CluePeersRequestMessage
   | ClueShowMessage
+  | LetterPeersRequestMessage
+  | LetterSendMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -242,6 +268,9 @@ export interface SceneNoteMessage {
   text: string
   /** Hora em que o mestre mandou (ms desde 1970, relógio do mestre). Ausente em mestre antigo. */
   at?: number
+  /** CORREIO: bilhete de um colega (nome na sala). Vem sempre junto de `via`; os dois ausentes = recado do mestre. */
+  from?: string
+  via?: LetterVia
 }
 
 /** Um recado guardado no caderno do jogador. Nada da cena: só o que ele leu e quando. */
@@ -249,12 +278,21 @@ export interface NoteEntry {
   id: string
   text: string
   at: number
+  /** CORREIO: quem escreveu o bilhete e por onde veio. Ausentes = recado do mestre. */
+  from?: string
+  via?: LetterVia
 }
 
 /** O caderno inteiro do jogador, do mais antigo ao mais novo, mandado quando ele entra ou volta. */
 export interface NotebookMessage {
   type: 'notes.book'
   notes: NoteEntry[]
+  /**
+   * CORREIO: ids (entre os de `notes`) do que chegou sem o jogador ver —
+   * bilhete entregue com ele fora do ar ou aguardando sem ficha. O cliente
+   * acende o não lido deles. Ausente = o caderno é só história.
+   */
+  unread?: string[]
 }
 
 /** Texto da Sala na primeira entrada: `id` é o da `Region` (já vai no snapshot), `title` o nome que o jogador pode ver. */
@@ -323,6 +361,29 @@ export interface ClueShowResultMessage {
 
 export type ClueHostMessage = ClueAddedMessage | CluebookMessage | ClueShownMessage | CluePeersMessage | ClueShowResultMessage
 
+/** CORREIO: os colegas da sala, pelo nome. Nada de cena nem de status: só o nome. */
+export interface LetterPeersMessage {
+  type: 'letter.peers'
+  names: string[]
+}
+
+/**
+ * Por que o bilhete não saiu, quando o motivo não conta nada de ninguém:
+ * `too_soon` = outro bilhete saiu há pouco; `full` = o mestre ainda não
+ * respondeu aos bilhetes que esperam. Ausente = "não saiu", sem dizer por quê.
+ */
+export type LetterSendRefusal = 'too_soon' | 'full'
+
+/** O bilhete chegou ao MESTRE (`ok`) ou não. Se ele entrega ou intercepta, o remetente não fica sabendo. */
+export interface LetterSendResultMessage {
+  type: 'letter.send.result'
+  to: string
+  ok: boolean
+  reason?: LetterSendRefusal
+}
+
+export type LetterHostMessage = LetterPeersMessage | LetterSendResultMessage
+
 export type HostErrorReason ='bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
 export type HostMessage =
@@ -350,6 +411,7 @@ export type HostMessage =
   | RoomTextMessage
   | NotebookMessage
   | ClueHostMessage
+  | LetterHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -447,21 +509,40 @@ export function parseSceneNote(value: unknown): SceneNoteMessage | null {
   const { id, text, at } = value
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
   if (!isBoundedString(text, 1, NOTE_MAX_LENGTH)) return null
-  if (at === undefined) return { type: 'scene.note', id, text }
-  // Presente e fora da forma recusa inteiro, como o resto: hora torta no caderno é pior que recado nenhum.
-  if (!isNoteTime(at)) return null
-  return { type: 'scene.note', id, text, at }
+  const sender = parseLetterSender(value)
+  if (sender === null) return null
+  const note: SceneNoteMessage = { type: 'scene.note', id, text }
+  if (at !== undefined) {
+    // Presente e fora da forma recusa inteiro, como o resto: hora torta no caderno é pior que recado nenhum.
+    if (!isNoteTime(at)) return null
+    note.at = at
+  }
+  return sender === undefined ? note : { ...note, ...sender }
 }
 
 function isNoteTime(value: unknown): value is number {
   return isFiniteNumber(value) && value >= 0
 }
 
+/**
+ * CORREIO: `from` e `via` do bilhete entregue. `undefined` = nenhum dos dois
+ * (recado do mestre); `null` = um só, nome fora da forma ou meio desconhecido —
+ * recusa o recado inteiro, como a cor do laser: remetente pela metade mentiria.
+ */
+function parseLetterSender(value: Record<string, unknown>): { from: string; via: LetterVia } | null | undefined {
+  const { from, via } = value
+  if (from === undefined && via === undefined) return undefined
+  if (!isRoomName(from) || !isLetterVia(via)) return null
+  return { from, via }
+}
+
 function parseNoteEntry(value: unknown): NoteEntry | null {
   if (!isRecord(value)) return null
   const { id, text, at } = value
   if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH) || !isBoundedString(text, 1, NOTE_MAX_LENGTH) || !isNoteTime(at)) return null
-  return { id, text, at }
+  const sender = parseLetterSender(value)
+  if (sender === null) return null
+  return sender === undefined ? { id, text, at } : { id, text, at, ...sender }
 }
 
 /**
@@ -480,7 +561,17 @@ export function parseNotebook(value: unknown): NotebookMessage | null {
     if (entry === null) return null
     parsed.push(entry)
   }
-  return { type: 'notes.book', notes: parsed }
+  const { unread } = value
+  if (unread === undefined) return { type: 'notes.book', notes: parsed }
+  if (!Array.isArray(unread) || unread.length > NOTEBOOK_MAX_NOTES) return null
+  // Só vale marcar o que está no caderno: id solto não acende ponto de nada.
+  const known = new Set(parsed.map((entry) => entry.id))
+  const marked: string[] = []
+  for (const id of unread) {
+    if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+    if (known.has(id)) marked.push(id)
+  }
+  return { type: 'notes.book', notes: parsed, unread: marked }
 }
 
 /** Folga para o sufixo que o host põe em nome repetido ("Ana (2)", ver `uniqueName`). */
@@ -563,6 +654,54 @@ export function parseClueMessage(value: unknown): ClueHostMessage | null {
     default:
       return null
   }
+}
+
+/** Lista de nomes na sala, até `CLUE_PEERS_MAX`; um nome ruim recusa a lista inteira. */
+function parseRoomNames(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length > CLUE_PEERS_MAX) return null
+  const parsed: string[] = []
+  for (const name of value) {
+    if (!isRoomName(name)) return null
+    parsed.push(name)
+  }
+  return parsed
+}
+
+/**
+ * Valida as mensagens do CORREIO que o jogador recebe (a entrega vem por
+ * `parseSceneNote`). Mesma regra de MINHAS PISTAS: forma errada recusa a
+ * mensagem inteira, e sai só com os campos conhecidos.
+ */
+export function parseLetterMessage(value: unknown): LetterHostMessage | null {
+  if (!isRecord(value)) return null
+  switch (value.type) {
+    case 'letter.peers': {
+      const names = parseRoomNames(value.names)
+      return names === null ? null : { type: 'letter.peers', names }
+    }
+    case 'letter.send.result': {
+      const { to, ok, reason } = value
+      if (!isRoomName(to) || typeof ok !== 'boolean' || (reason !== undefined && typeof reason !== 'string')) return null
+      // Motivo que este jogador não conhece (mestre mais novo) vira a recusa comum.
+      if (ok || (reason !== 'too_soon' && reason !== 'full')) return { type: 'letter.send.result', to, ok }
+      return { type: 'letter.send.result', to, ok, reason }
+    }
+    default:
+      return null
+  }
+}
+
+/**
+ * CORREIO: o bilhete do jogador. Texto aparado entre 1 e
+ * `LETTER_TEXT_MAX_LENGTH`, meio conhecido e nome na forma da sala; qualquer
+ * outra coisa recusa a mensagem inteira.
+ */
+function parseLetterSend(obj: Record<string, unknown>): LetterSendMessage | null {
+  const { to, via, text } = obj
+  if (!isRoomName(to) || !isLetterVia(via) || typeof text !== 'string') return null
+  const trimmed = text.trim()
+  if (trimmed.length < 1 || trimmed.length > LETTER_TEXT_MAX_LENGTH) return null
+  return { type: 'letter.send', to, via, text: trimmed }
 }
 
 /** Cor do laser repassado: `#rrggbb`, a forma que `Token.color` grava. */
@@ -655,6 +794,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return { type: 'clue.peers' }
     case 'clue.show':
       return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
+    case 'letter.peers':
+      return { type: 'letter.peers' }
+    case 'letter.send':
+      return parseLetterSend(value)
     default:
       return null
   }

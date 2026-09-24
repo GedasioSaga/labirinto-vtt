@@ -13,11 +13,13 @@ import {
   type HostSession,
   type HostSignal,
   type HostWorld,
+  type LetterRequest,
   type LoanTerms,
   type PlayerInfo,
   type TravelRequest,
 } from './hostSession'
 import type { LaserMessage } from './protocol'
+import { letterViaPhrase } from '../lib/correio'
 import { createPlayerScreens, type PlayerScreen } from './playerScreens'
 
 /**
@@ -241,6 +243,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let laserSent = false
   /** Aviso do mestre de cada pedido de passagem ainda na tela: `requestId` -> id do toast. */
   const travelToasts = new Map<string, string>()
+  /** CORREIO: aviso do mestre de cada bilhete que ainda espera: `letterId` -> id do toast. */
+  const letterToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
   /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
@@ -458,6 +462,42 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       travelToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    // CORREIO: mesma regra para o bilhete cujo destinatário foi expulso, ou com a sala fechada.
+    for (const [letterId, toastId] of letterToasts) {
+      if (session !== null && session.isLetterPending(letterId)) continue
+      letterToasts.delete(letterId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
+  /** CORREIO: "Entregar" leva o bilhete a quem ia receber; "Interceptar" (e o ×) some com ele. */
+  const answerLetter = (letterId: string, deliver: boolean) => {
+    const toastId = letterToasts.get(letterId)
+    letterToasts.delete(letterId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    void dispatch(deliver ? session.deliverLetter(letterId) : session.interceptLetter(letterId))
+  }
+
+  /**
+   * CORREIO: o bilhete vira um aviso que ESPERA o mestre, com o texto inteiro
+   * (ler é só olhar). Atrasar é não responder ainda: o aviso fica. O × vale
+   * "Interceptar", como o "Não" do pedido de passagem: o aviso nunca some
+   * deixando o bilhete preso no correio. Grupo próprio, fora de "Pedidos": o
+   * "Deixar todos" de lá não pode entregar bilhete. O da caixa "Bilhetes (N)"
+   * entrega todos: "Entregar" é a resposta em lote (sem ela o botão não fazia nada).
+   */
+  const askLetter = (letter: LetterRequest) => {
+    const text = `${letter.fromName} → ${letter.toName}, ${letterViaPhrase(letter.via)}: "${letter.text}"`
+    const toastId = useToastStore.getState().push('instrucao', text, null, {
+      actions: [
+        { label: 'Entregar', run: () => answerLetter(letter.letterId, true), emLote: true },
+        { label: 'Interceptar', run: () => answerLetter(letter.letterId, false) },
+      ],
+      onDismiss: () => answerLetter(letter.letterId, false),
+      grupo: 'Bilhetes',
+    })
+    letterToasts.set(letter.letterId, toastId)
   }
 
   const answerTravel = (requestId: string, allow: boolean) => {
@@ -598,6 +638,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         void dispatch(session.denyTravel(result.travelRequest.requestId))
       } else askTravel(result.travelRequest)
     }
+    if (result.letter !== undefined) askLetter(result.letter)
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
       deps.applyTokenEdit(result.applyTokenEdit)
