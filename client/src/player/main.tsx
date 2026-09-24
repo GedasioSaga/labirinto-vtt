@@ -684,6 +684,9 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             connection.resetClueShare()
             setOpenClueId(clueId)
           }}
+          elsewhere={state.elsewhere}
+          // A câmera da cena nova é a da chegada (`PlayerView`, mapa novo): a mesma da viagem.
+          onSwitchView={(tokenId) => connection.switchView(tokenId)}
         />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />

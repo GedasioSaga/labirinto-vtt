@@ -6,6 +6,9 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
+import type { OwnTokenElsewhere } from '../lib/fogFilter'
+
+export type { OwnTokenElsewhere }
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -83,6 +86,14 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
  * posição, o id do pino ou o nome/id da cena. Mestre antigo responde
  * `error invalid_message` (que o jogador ignora durante o jogo); jogador
  * antigo ignora as cinco.
+ *
+ * MINHAS FICHAS EM OUTRAS CENAS é aditivo pelo mesmo critério: `snapshot.elsewhere`
+ * (mestre -> jogador) lista as fichas DELE que estão em outra cena — id, nome
+ * e a Sala onde está, nunca a cena nem a posição; ausente = nenhuma. Do jogador,
+ * `view.switch` pede para olhar por uma delas: o host confere a posse e manda o
+ * snapshot da cena daquela ficha. Mestre antigo responde `error
+ * invalid_message`, que o jogador ignora durante o jogo; jogador antigo ignora
+ * o campo.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -217,6 +228,12 @@ export interface ClueShowMessage {
   to: string
 }
 
+/** Olhar por outra ficha minha: a cena vista passa a ser a da ficha `tokenId`. Só o id: a cena quem acha é o host. */
+export interface ViewSwitchMessage {
+  type: 'view.switch'
+  tokenId: string
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
@@ -230,6 +247,7 @@ export type PlayerMessage =
   | ClueReadMessage
   | CluePeersRequestMessage
   | ClueShowMessage
+  | ViewSwitchMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -362,8 +380,8 @@ export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
   | { type: 'welcome'; playerId: string; resumeToken: string; name: string }
   | { type: 'lobby.waiting' }
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[] }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
@@ -634,6 +652,24 @@ export function parseRoomText(value: unknown): RoomTextMessage | null {
 }
 
 /**
+ * Valida o `snapshot.elsewhere` que o jogador recebe: lista de fichas dele em
+ * outra cena, cada uma com id (do tamanho que o `view.switch` aceita de volta),
+ * nome e Sala em texto ('' vale). Qualquer item fora da forma recusa a lista
+ * inteira. Devolve cópia só com os três campos.
+ */
+export function parseElsewhere(value: unknown): OwnTokenElsewhere[] | null {
+  if (!Array.isArray(value)) return null
+  const parsed: OwnTokenElsewhere[] = []
+  for (const item of value) {
+    if (!isRecord(item)) return null
+    const { tokenId, name, room } = item
+    if (!isBoundedString(tokenId, 1, REQ_ID_MAX_LENGTH) || typeof name !== 'string' || typeof room !== 'string') return null
+    parsed.push({ tokenId, name, room })
+  }
+  return parsed
+}
+
+/**
  * O corpo do laser, nos dois sentidos: `off: true` ou 1 a
  * `LASER_MAX_POINTS_PER_MESSAGE` pontos finitos. Devolve cópia só com `x`/`y`.
  */
@@ -708,6 +744,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return { type: 'clue.peers' }
     case 'clue.show':
       return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
+    case 'view.switch':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'view.switch', tokenId: value.tokenId } : null
     default:
       return null
   }

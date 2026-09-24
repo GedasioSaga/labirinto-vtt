@@ -3,7 +3,7 @@ import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, REVEAL_BRUSH_CELL
 import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer } from './tokenPublicName'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
-import { pointInRing } from './floorContour'
+import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
@@ -1460,6 +1460,46 @@ export function filterMapForPlayer(
   const sightRects = cellRunRects(new Set(shownCells))
   const sentVision = sightRects.length > 0 ? [...vision, ...sightRects] : vision
   return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms }
+}
+
+/**
+ * MINHAS FICHAS EM OUTRAS CENAS — uma ficha do jogador numa cena que ele não
+ * está vendo agora. Vai pela rede: só o id, o nome que o DONO lê e o nome da
+ * Sala onde ela está ('' = sem Sala, ou Sala cujo nome o jogador não pode
+ * ler). Nunca a cena (nome ou id) nem a posição.
+ */
+export interface OwnTokenElsewhere {
+  tokenId: string
+  name: string
+  room: string
+}
+
+/**
+ * As fichas do jogador no RECORTE `view` de uma cena, com a Sala de cada uma.
+ * Lê só o que já saiu de `filterMapForPlayer`: ficha que o mestre escondeu
+ * (oculta, camada Fichas escondida) não está no recorte e não entra; Sala
+ * secreta, oculta, sob teto fechado ou ainda desconhecida não saiu nas regiões,
+ * e nome escondido chega vazio — então nada aqui diz mais do que o jogador
+ * veria se olhasse por esta ficha. Sala dentro de Sala: vale a menor.
+ */
+export function ownTokensInView(view: PlayerMapView, ownedIds: readonly string[]): OwnTokenElsewhere[] {
+  const owned = new Set(ownedIds)
+  const namedRooms = view.map.regions.flatMap((r) => (r.room !== undefined && r.room.name !== '' && isUsablePolygon(r.points) ? [{ points: r.points, name: r.room.name }] : []))
+  return view.map.tokens
+    .filter((t) => owned.has(t.id))
+    .map((t) => {
+      const point = { x: t.x, y: t.y }
+      let room = ''
+      let roomArea = Number.POSITIVE_INFINITY
+      for (const r of namedRooms) {
+        if (!pointInPolygonInclusive(point, r.points) || pointOnPolygonBorder(point, r.points)) continue
+        const area = Math.abs(signedArea(r.points))
+        if (area >= roomArea) continue
+        roomArea = area
+        room = r.name
+      }
+      return { tokenId: t.id, name: t.name, room }
+    })
 }
 
 /** O host vê o mapa inteiro, inclusive itens ocultos. */
