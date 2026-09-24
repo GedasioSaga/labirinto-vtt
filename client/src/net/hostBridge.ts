@@ -6,7 +6,7 @@ import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/las
 import { pointActionMasterText, type PointActionAnswer } from '../lib/pointActions'
 import type { StoredToken } from '../lib/storedTokens'
 import { addTravel, travelLogEntry, undoableTravelIds, withoutTravel, type TravelLogEntry } from '../lib/travelLog'
-import { reclaimText, SAVED_TABLE_VERSION, type SavedTable } from '../lib/savedTable'
+import { preferredRoomCode, reclaimText, roomCodeChangedText, SAVED_TABLE_VERSION, type SavedTable } from '../lib/savedTable'
 import {
   createHostSession,
   singleSceneWorld,
@@ -1187,9 +1187,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const openRoom = async (options: StartOptions): Promise<RoomInfo> => {
     try {
       // Lida antes de abrir: a sala nova regrava o arquivo assim que alguém muda de dono.
-      const restoreSeats = options.resume === true ? (deps.loadTable?.()?.seats ?? []) : []
-      const room = parseRoomInfo(await deps.invoke('net_start_room'))
+      const saved = options.resume === true ? (deps.loadTable?.() ?? null) : null
+      const restoreSeats = saved?.seats ?? []
+      // Retomar pede o MESMO código: o link e a reconexão automática dos jogadores continuam valendo.
+      // O Rust decide se dá (a porta pode ter mudado de dono); o que vale é o código que ele devolver.
+      const preferredCode = preferredRoomCode(saved)
+      const startReply = preferredCode === null ? await deps.invoke('net_start_room') : await deps.invoke('net_start_room', { preferredCode })
+      const room = parseRoomInfo(startReply)
       if (room === null) throw new Error('resposta inválida de net_start_room')
+      if (saved !== null && room.code !== saved.code) {
+        // Sem prazo: o mestre precisa do texto na tela enquanto repassa o código novo à mesa.
+        useToastStore.getState().push('instrucao', roomCodeChangedText(saved.code, room.code))
+      }
       session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now, restoreSeats })
       // Sala nova, código novo: o aviso da sala anterior não pode segurar o primeiro desta.
       lastBadCodeToastAt = null

@@ -908,7 +908,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (seat.visionRadius !== null) visionOverrides.set(record.playerId, clampRadius(seat.visionRadius))
     // Só desempate: `sceneFor` ignora a chave se ele não tiver ficha naquela cena.
     if (seat.sceneKey !== null) currentScene.set(record.playerId, seat.sceneKey)
-    return { playerId: record.playerId, name: record.name, tokenIds: given }
+    // O nome GUARDADO: o mestre lê "Ana voltou", não o "ana" que ela digitou agora.
+    return { playerId: record.playerId, name: seat.name, tokenIds: given }
   }
 
   function handleJoin(clientId: string, msg: JoinMessage, world: HostWorld): HostResult {

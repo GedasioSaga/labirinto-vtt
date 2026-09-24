@@ -101,6 +101,23 @@ export function savedTableSummary(table: SavedTable): string {
   return listText(table.seats.map((seat) => seat.name))
 }
 
+/**
+ * Formato do código de sala que o Rust sorteia (`CODE_ALPHABET`/`CODE_LEN` em
+ * `desktop/src-tauri/src/net/commands.rs`): 6 caracteres, sem I, L, O, 0 e 1.
+ * Código guardado fora dele (arquivo adulterado) não é pedido de volta.
+ */
+const ROOM_CODE_PATTERN = /^[A-HJKMNP-Z2-9]{6}$/
+
+/** O código guardado que dá para pedir de volta ao reabrir a sala, ou `null`. */
+export function preferredRoomCode(table: SavedTable | null): string | null {
+  return table !== null && ROOM_CODE_PATTERN.test(table.code) ? table.code : null
+}
+
+/** A sala retomada abriu com outro código: quem tinha o link antigo bate em `bad_code`. */
+export function roomCodeChangedText(oldCode: string, newCode: string): string {
+  return `O código da sala mudou: era ${oldCode}, agora é ${newCode}. Passe o novo código a quem já tinha o antigo.`
+}
+
 /** O aviso do mestre quando alguém reencontra a ficha: "Ana voltou: Lírio devolvida". */
 export function reclaimText(playerName: string, tokenNames: readonly string[]): string {
   return `${playerName} voltou: ${listText(tokenNames)} ${tokenNames.length > 1 ? 'devolvidas' : 'devolvida'}`

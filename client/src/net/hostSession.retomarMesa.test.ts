@@ -45,7 +45,7 @@ describe('hostSession: retomar a mesa pelo nome', () => {
   it('Ana entra como "ana" e já está com Lírio, no raio e na cena de antes', () => {
     const { s, entra } = mesa()
     const ana = entra('c1', 'ana')
-    expect(ana.result.reclaimed).toEqual({ playerId: ana.playerId, name: 'ana', tokenIds: ['lirio'] })
+    expect(ana.result.reclaimed).toEqual({ playerId: ana.playerId, name: 'Ana', tokenIds: ['lirio'] })
     const snapshot = ana.result.outbound[1]?.msg
     if (snapshot?.type !== 'snapshot') throw new Error('quem retoma a ficha entra jogando')
     expect(snapshot.ownTokens).toEqual(['lirio'])

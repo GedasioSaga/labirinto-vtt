@@ -23,9 +23,9 @@ const GUARDADA: SavedTable = {
   seats: [{ name: 'Ana', tokenIds: ['lirio'], visionRadius: 350, sceneKey: null }],
 }
 
-function montar(guardada: SavedTable | null = GUARDADA) {
+function montar(guardada: SavedTable | null = GUARDADA, sala: typeof ROOM = ROOM) {
   const handlers = new Map<string, (event: { payload: unknown }) => void>()
-  const invoke = vi.fn(async (cmd: string, _args?: unknown) => (cmd === 'net_start_room' ? ROOM : undefined))
+  const invoke = vi.fn(async (cmd: string, _args?: unknown) => (cmd === 'net_start_room' ? sala : undefined))
   const listen = vi.fn(async (name: string, handler: (event: { payload: unknown }) => void) => {
     handlers.set(name, handler)
     return vi.fn()
@@ -50,7 +50,7 @@ function montar(guardada: SavedTable | null = GUARDADA) {
   }
   const enviadas = (clientId: string) =>
     invoke.mock.calls.filter((call) => call[0] === 'net_send').map((call) => JSON.stringify(call[1])).filter((text) => text.includes(`"clientId":"${clientId}"`))
-  return { bridge, entra, enviadas, gravadas }
+  return { bridge, entra, enviadas, gravadas, invoke }
 }
 
 describe('hostBridge: retomar a mesa', () => {
@@ -61,12 +61,13 @@ describe('hostBridge: retomar a mesa', () => {
     useToastStore.setState({ toasts: [] })
   })
 
-  it('Retomar: "ana" entra já com Lírio e o mestre lê "ana voltou: Lírio devolvida" com Desfazer', async () => {
+  it('Retomar: "ana" entra já com Lírio e o mestre lê "Ana voltou: Lírio devolvida" (o nome guardado) com Desfazer', async () => {
     const m = montar()
     await m.bridge.start({ resume: true })
     m.entra('c1', 'ana')
     expect(m.bridge.players()[0]).toMatchObject({ name: 'ana', status: 'playing', tokenIds: ['lirio'], visionRadius: 350 })
-    const aviso = useToastStore.getState().toasts.find((t) => t.text === 'ana voltou: Lírio devolvida')
+    expect(useToastStore.getState().toasts.some((t) => t.text === 'ana voltou: Lírio devolvida')).toBe(false)
+    const aviso = useToastStore.getState().toasts.find((t) => t.text === 'Ana voltou: Lírio devolvida')
     if (aviso === undefined) throw new Error('faltou o aviso da ficha devolvida')
     expect(aviso.actions?.map((a) => a.label)).toEqual(['Desfazer'])
     // O aviso de "entrou sem personagem" não sai junto: ela não está sem.
@@ -75,6 +76,38 @@ describe('hostBridge: retomar a mesa', () => {
     aviso.actions?.[0]?.run()
     expect(m.bridge.players()[0]).toMatchObject({ status: 'waiting', tokenIds: [], visionRadius: 700 })
     expect(m.enviadas('c1').some((text) => text.includes('"lobby.waiting"'))).toBe(true)
+  })
+
+  it('Retomar pede ao Rust o MESMO código da mesa guardada; mesa nova não pede código nenhum', async () => {
+    const retomada = montar()
+    await retomada.bridge.start({ resume: true })
+    expect(retomada.invoke.mock.calls.filter((call) => call[0] === 'net_start_room')).toEqual([['net_start_room', { preferredCode: 'ZZ99ZZ' }]])
+    const nova = montar()
+    await nova.bridge.start({ resume: false })
+    expect(nova.invoke.mock.calls.filter((call) => call[0] === 'net_start_room')).toEqual([['net_start_room']])
+  })
+
+  it('Retomar com código guardado fora do formato da sala não o pede (sorteia um novo, como hoje)', async () => {
+    const m = montar({ ...GUARDADA, code: 'x;DROP' })
+    await m.bridge.start({ resume: true })
+    expect(m.invoke.mock.calls.filter((call) => call[0] === 'net_start_room')).toEqual([['net_start_room']])
+  })
+
+  it('Retomar e o Rust devolve o mesmo código: nenhum aviso de código novo', async () => {
+    const m = montar(GUARDADA, { ...ROOM, code: 'ZZ99ZZ' })
+    const room = await m.bridge.start({ resume: true })
+    expect(room.code).toBe('ZZ99ZZ')
+    expect(useToastStore.getState().toasts).toEqual([])
+  })
+
+  it('Retomar e o código veio outro: o mestre é avisado, sem prazo, de que precisa passar o novo', async () => {
+    const m = montar()
+    const room = await m.bridge.start({ resume: true })
+    expect(room.code).toBe('AB12CD')
+    const avisos = useToastStore.getState().toasts
+    expect(avisos.map((t) => [t.kind, t.text])).toEqual([
+      ['instrucao', 'O código da sala mudou: era ZZ99ZZ, agora é AB12CD. Passe o novo código a quem já tinha o antigo.'],
+    ])
   })
 
   it('Mesa nova = hoje: mesmo nome entra sem personagem', async () => {
