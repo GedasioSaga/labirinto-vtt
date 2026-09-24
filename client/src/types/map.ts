@@ -942,6 +942,28 @@ export interface MapData {
    * a faixa (`PlayerConfronto`) montada com as fichas que ele pode ver.
    */
   confronto?: Confronto
+  /**
+   * PERIGO QUE SE ALASTRA (`lib/perigo.ts`): fogo ou água presos a Salas, que o
+   * mestre faz avançar pelas portas abertas. `undefined` = sem perigo — mapa
+   * salvo antes deste campo abre igual. O jogador recebe só as salas tomadas
+   * que ele vê agora, um item por tipo, sem o id do mestre (`lib/fogFilter.ts`).
+   */
+  perigos?: Perigo[]
+}
+
+export type TipoDePerigo = 'fogo' | 'agua'
+
+/**
+ * Um perigo que se alastra sala a sala. `salas`: ids das Salas (`Region`)
+ * tomadas agora. `cinzas`: só no fogo, as Salas que já queimaram — não queimam
+ * de novo. O id é do mestre e nunca sai para o jogador.
+ */
+export interface Perigo {
+  id: string
+  tipo: TipoDePerigo
+  salas: string[]
+  /** `undefined` === nenhuma sala em cinza (água, ou fogo que ainda não avançou): sem linha de migração — quem confere o campo é `perigosFromFile`. */
+  cinzas?: string[]
 }
 
 /**

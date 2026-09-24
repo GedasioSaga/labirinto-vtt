@@ -71,6 +71,8 @@ interface PropertiesPanelProps {
   estadoDoPino?: ReactNode
   estadoDaZona?: ReactNode
   estadoDaLuz?: ReactNode
+  /** PERIGO QUE SE ALASTRA — bloco "Perigo" da Sala selecionada (`PerigoDaSalaControls.tsx`), montado pelo App. */
+  perigoDaSala?: ReactNode
   /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
   objects?: ReactNode
   mapName: string
@@ -189,6 +191,7 @@ export function PropertiesPanel({
   estadoDoPino,
   estadoDaZona,
   estadoDaLuz,
+  perigoDaSala,
   objects,
   mapName,
   mapWidth,
@@ -314,6 +317,7 @@ export function PropertiesPanel({
               notaDoMestre={selectedRegion.room.notaDoMestre ?? ''}
               {...room}
             />
+            {perigoDaSala}
           </ToolPropertiesSection>
         )}
         {concealZone && (

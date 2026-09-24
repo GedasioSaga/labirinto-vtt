@@ -6,6 +6,7 @@ import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { tokenPublicNameFromFile } from './tokenPublicName'
 import { withoutContract } from './tokenLoan'
 import { confrontoFromFile } from './confronto'
+import { perigosFromFile } from './perigo'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -162,9 +163,12 @@ function deserializeMapFields(json: string): MapData {
   // CONFRONTO é campo NOVO e OPCIONAL: ausente continua ausente (mapa velho
   // abre sem confronto e sem ganhar chave), torto some (`confrontoFromFile`).
   const confronto = confrontoFromFile(parsed.confronto)
+  // PERIGO QUE SE ALASTRA: mesma regra — ausente continua ausente, torto some (`perigosFromFile`).
+  const perigos = perigosFromFile(parsed.perigos)
 
   return {
     ...(confronto === undefined ? {} : { confronto }),
+    ...(perigos === undefined ? {} : { perigos }),
     id: parsed.id,
     name: typeof parsed.name === 'string' ? parsed.name : 'Mapa sem título',
     width: positiveNumberOr(parsed.width, 30),
