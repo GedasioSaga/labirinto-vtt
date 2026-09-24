@@ -135,6 +135,15 @@ export interface HostBridge {
   playerScreen(playerId: string): PlayerScreen | null
   /** Chama `listener` a cada tela de jogador que muda. Devolve o desligar. */
   watchPlayerScreens(listener: () => void): () => void
+  /**
+   * "Visto por" do painel da ficha: nomes dos jogadores conectados cuja tela
+   * (o último recorte que SAIU, `playerScreen`) tem a ficha `tokenId` do mapa
+   * aberto no editor, na ordem de entrada na sala. É a mesma regra do recorte
+   * por construção — névoa, parede, zona oculta, teto, cena de cada um.
+   * `null` = não se aplica: sala fechada ou ficha com dono (o dono sempre a vê).
+   * Muda junto com as telas: observe com `watchPlayerScreens`.
+   */
+  tokenSeenBy(tokenId: string): string[] | null
 }
 
 export const BROADCAST_THROTTLE_MS = 50
@@ -761,6 +770,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return () => {
         screenWatchers.delete(listener)
       }
+    },
+
+    tokenSeenBy(tokenId) {
+      if (session === null) return null
+      // Sem mundo, como `playerScreen`: roda a cada recorte novo enquanto o painel está aberto.
+      const players = session.listPlayers()
+      if (players.some((player) => player.tokenIds.includes(tokenId))) return null
+      // A tela precisa ser do MAPA ABERTO: tela de outra cena não diz nada sobre esta ficha.
+      const openMapId = deps.getMap().id
+      return players.flatMap((player) => {
+        const screen = player.clientId === null ? null : screens.get(player.clientId)
+        if (screen === null || screen.kind !== 'map' || screen.map.id !== openMapId) return []
+        return screen.map.tokens.some((token) => token.id === tokenId) ? [player.name] : []
+      })
     },
 
     room() {

@@ -1933,6 +1933,12 @@ function App() {
               onSelectLight: (lightId) => setSelection(selectionOfItem({ kind: 'light', id: lightId })),
               onDetach: (lightId) => setLightAttachment(lightId, null),
             }}
+            // "Visto por": só com a sala aberta, lendo as telas que saíram pelo fio (`HostBridge.tokenSeenBy`).
+            tokenSeenBy={
+              room !== null && hostBridgeRef.current !== null
+                ? { watch: hostBridgeRef.current.watchPlayerScreens, read: hostBridgeRef.current.tokenSeenBy }
+                : undefined
+            }
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
