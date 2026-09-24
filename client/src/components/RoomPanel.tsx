@@ -286,7 +286,8 @@ function LoanControls({ player, players, onLendTokens, onEndLoans }: LoanControl
     )
   }
   const borrowers = players.filter((other) => other.connected && other.playerId !== player.playerId)
-  if (player.tokenIds.length === 0 || borrowers.length === 0) return null
+  // Só a ficha DELE se empresta: a que ele joga emprestada é do dono, e a sessão recusaria reemprestá-la.
+  if (ownTokenIdsOf(player).length === 0 || borrowers.length === 0) return null
   const selectId = `lb-room-lend-${player.playerId}`
   return (
     <>

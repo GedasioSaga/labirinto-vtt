@@ -151,4 +151,27 @@ describe('RoomPanel: emprestar a ficha de quem saiu', () => {
     })
     expect(botao('Guardar ficha')).toBeUndefined()
   })
+
+  it('quem joga a emprestada caiu: "Emprestar ficha a" só se tem ficha dele; a emprestada não se reempresta', () => {
+    const bob = player({ clientId: 'c4', playerId: 'p-bob', name: 'Bob', tokenIds: [] })
+    const carlaFora = { ...CARLA, clientId: null, connected: false }
+    const onLendTokens = vi.fn()
+    // Com o Escudo (dela) e o Lírio (da Ana): a lista vale, e empresta o que é dela.
+    render([{ ...ANA_FORA, lentTo: ['Carla'] }, { ...carlaFora, tokenIds: ['f-escudo', 'f-lirio'], borrowedFrom: ['Ana'], borrowedTokenIds: ['f-lirio'] }, bob], {
+      onLendTokens,
+      onEndLoans: vi.fn(),
+    })
+    const lista = listaEmprestar('p-carla')
+    if (lista === null) throw new Error('esperava "Emprestar ficha a" no card da Carla (o Escudo é dela)')
+    expect([...lista.options].map((o) => o.textContent)).toEqual(['Escolher…', 'Bob'])
+    escolher(lista, 'p-bob')
+    expect(onLendTokens).toHaveBeenCalledWith('p-carla', 'p-bob')
+    // Só com a emprestada: a sessão recusaria (a ficha é da Ana), então a lista nem aparece.
+    render([{ ...ANA_FORA, lentTo: ['Carla'] }, { ...carlaFora, tokenIds: ['f-lirio'], borrowedFrom: ['Ana'], borrowedTokenIds: ['f-lirio'] }, bob], {
+      onLendTokens: vi.fn(),
+      onEndLoans: vi.fn(),
+    })
+    expect(listaEmprestar('p-carla')).toBeNull()
+    expect(container.textContent).not.toContain('Emprestar ficha a')
+  })
 })
