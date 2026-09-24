@@ -24,6 +24,7 @@ import type { RemoteLaser } from '../lib/laser'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { readContract } from '../lib/tokenLoan'
+import { letterTitle, type LetterVia } from '../lib/correio'
 import './player.css'
 
 // Página do jogador: entra com código + nome, espera o mestre e mostra o mapa.
@@ -599,6 +600,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   }, [connection])
   const closeShownClue = useCallback(() => connection.dismissShownClue(), [connection])
   const askCluePeers = useCallback(() => connection.askCluePeers(), [connection])
+  // CORREIO: o formulário "Bilhete" do Painel.
+  const askLetterPeers = useCallback(() => {
+    connection.askLetterPeers()
+  }, [connection])
+  const sendLetter = useCallback((to: string, via: LetterVia, text: string) => connection.sendLetter(to, via, text), [connection])
   /** Painel e barra do jogador: a câmera lê, na hora, o que eles cobrem do mapa. */
   const panelRef = useRef<HTMLElement | null>(null)
   const barRef = useRef<HTMLDivElement | null>(null)
@@ -683,6 +689,7 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             connection.resetClueShare()
             setOpenClueId(clueId)
           }}
+          letter={{ peers: state.letterPeers, status: state.letterSend, onAskPeers: askLetterPeers, onSend: sendLetter }}
         />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
@@ -735,7 +742,15 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         )}
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
-          <PlayerNoteCard key={state.note.id} text={state.note.text} hint={NOTE_KEPT_HINT} onClose={closeNote} escapeCloses={openPin === null && !clueCardOpen} />
+          // CORREIO: o bilhete de um colega diz de quem é e por onde veio, no lugar de "Recado do mestre".
+          <PlayerNoteCard
+            key={state.note.id}
+            title={state.note.from !== undefined && state.note.via !== undefined ? letterTitle(state.note.from, state.note.via) : undefined}
+            text={state.note.text}
+            hint={NOTE_KEPT_HINT}
+            onClose={closeNote}
+            escapeCloses={openPin === null && !clueCardOpen}
+          />
         )}
         {/* TEXTO DA SALA: o mesmo cartão, com o nome da Sala no alto. Um
             cartão de cada vez no mesmo lugar: com recado aberto, o texto da

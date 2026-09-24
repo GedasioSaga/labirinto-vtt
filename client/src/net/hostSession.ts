@@ -34,6 +34,7 @@ import {
   type HostMessage,
   type JoinMessage,
   type LaserMessage,
+  type LetterSendMessage,
   type PlayerMessage,
   type PinTravelRejection,
   type PinTravelRequestMessage,
@@ -43,6 +44,7 @@ import {
   type TokenMoveMessage,
 } from './protocol'
 import { clampNoteText, NOTEBOOK_MAX_NOTES, type NoteEntry } from './protocol'
+import { LETTER_PENDING_MAX_PER_PLAYER, LETTER_SEND_MIN_INTERVAL_MS, type LetterVia } from '../lib/correio'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -245,6 +247,19 @@ export interface HostPlayerLaser {
   onOpenScene: boolean
 }
 
+/**
+ * CORREIO: bilhete que espera o mestre (o carteiro). É o que o aviso dele
+ * mostra — quem, para quem, por onde e o texto inteiro. Nada disto vai a
+ * jogador nenhum enquanto o mestre não entregar.
+ */
+export interface LetterRequest {
+  letterId: string
+  fromName: string
+  toName: string
+  via: LetterVia
+  text: string
+}
+
 export interface HostResult {
   outbound: Outbound[]
   applyMove?: AppliedMove
@@ -254,6 +269,8 @@ export interface HostResult {
   playerLaser?: HostPlayerLaser
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
   travelRequest?: TravelRequest
+  /** CORREIO: bilhete aceito, à espera do mestre. O integrador pergunta "Entregar" ou "Interceptar". */
+  letter?: LetterRequest
   /**
    * O mestre deixou ir, ou o pino é livre (aí vem de `handleMessage`): o
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
@@ -444,6 +461,18 @@ export interface HostSession {
   /** O pedido ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isTravelPending(requestId: string): boolean
   /**
+   * CORREIO — "Entregar": o bilhete entra no caderno do destinatário e, se ele
+   * joga agora, abre como cartão (`scene.note` com `from` e `via`); se aguarda
+   * sem ficha, vai o caderno inteiro (`notes.book`) com o bilhete em `unread`;
+   * fora do ar, espera no caderno a volta dele, e o caderno da volta o marca
+   * em `unread`. Bilhete que já não espera o mestre: nada.
+   */
+  deliverLetter(letterId: string): HostResult
+  /** CORREIO — "Interceptar": o bilhete some sem chegar a ninguém, e o remetente não fica sabendo. */
+  interceptLetter(letterId: string): HostResult
+  /** O bilhete ainda espera o mestre? `false` depois de entregue, interceptado, ou com o destinatário expulso. */
+  isLetterPending(letterId: string): boolean
+  /**
    * "Mandar para…" do painel Grupo: o MESTRE leva o jogador, sem pedido, para
    * `toSceneId` — no pino de viagem `pinId` daquela cena ou, com `null`, no
    * centro dela. Devolve o mesmo par da aprovação (`applyTransfer` +
@@ -488,6 +517,12 @@ export interface HostSession {
    */
   travelLimitEntries(): number
   readonly rev: number
+}
+
+/** CORREIO: bilhete à espera do mestre, com os ids dos dois jogadores (o nome pode repetir depois de sair). */
+interface PendingLetter extends LetterRequest {
+  fromPlayerId: string
+  toPlayerId: string
 }
 
 /** Pedido de passagem à espera do mestre. Um por jogador. */
@@ -674,6 +709,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // mais que a posse que descreve. Invariante: só existe enquanto
   // `ownership[playerId]` tem a ficha (`loansFor` confere de novo).
   const loans = new Map<string, { playerId: string; contrato: TokenContract }>()
+  // CORREIO — por id do bilhete: os que esperam o mestre, na ordem de chegada.
+  // Só memória da sessão: fechar a sala perde o que estava no correio.
+  const pendingLetters = new Map<string, PendingLetter>()
+  // Por playerId: quando o último bilhete dele chegou ao mestre. Só o kick apaga.
+  const lastLetterAt = new Map<string, number>()
+  // Por playerId: ids (do caderno) dos bilhetes entregues com ele fora do ar. Saem
+  // como `unread` no caderno da volta, uma vez: sem isso o bilhete chegava mudo.
+  const unseenLetters = new Map<string, Set<string>>()
   let rev = 0
 
   /** Os acordos das fichas emprestadas a este jogador que ele ainda segura. */
@@ -941,7 +984,25 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return { ...entry }
   }
 
-  const noteMessage = (note: NoteEntry): HostMessage => ({ type: 'scene.note', id: note.id, text: note.text, at: note.at })
+  const noteMessage = (note: NoteEntry): HostMessage => {
+    const { id, text, at, from, via } = note
+    // Bilhete leva quem escreveu e por onde; o recado do mestre sai como sempre saiu.
+    return from === undefined || via === undefined ? { type: 'scene.note', id, text, at } : { type: 'scene.note', id, text, at, from, via }
+  }
+
+  /** O caderno inteiro, em cópia; `unread` só quando há bilhete que chegou sem o jogador ver. */
+  const notebookMessage = (book: NoteEntry[], unread: string[]): HostMessage => {
+    const notes = book.map((entry) => ({ ...entry }))
+    return unread.length === 0 ? { type: 'notes.book', notes } : { type: 'notes.book', notes, unread }
+  }
+
+  /** CORREIO: os bilhetes entregues com o jogador fora do ar que ainda estão no caderno. Tira da lista: avisa uma vez. */
+  const takeUnseenLetters = (playerId: string, book: NoteEntry[]): string[] => {
+    const unseen = unseenLetters.get(playerId)
+    if (unseen === undefined) return []
+    unseenLetters.delete(playerId)
+    return book.filter((entry) => unseen.has(entry.id)).map((entry) => entry.id)
+  }
 
   /** Põe o recado no caderno do jogador (sem repetir id); passou do teto, sai o mais antigo. */
   const rememberNote = (playerId: string, note: NoteEntry): void => {
@@ -1090,7 +1151,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (next !== undefined) outbound.push({ clientId, msg: next })
     // O caderno vem antes do cartão: o cliente já tem o recado guardado quando o cartão reabre.
     const book = notebooks.get(record.playerId) ?? []
-    if (book.length > 0) outbound.push({ clientId, msg: { type: 'notes.book', notes: book.map((entry) => ({ ...entry })) } })
+    if (book.length > 0) outbound.push({ clientId, msg: notebookMessage(book, takeUnseenLetters(record.playerId, book)) })
     // MINHAS PISTAS: é o que faz a pista sobreviver a recarregar a página. Só a entrada, nunca a `source`.
     const clues = cluebooks.get(record.playerId) ?? []
     if (clues.length > 0) outbound.push({ clientId, msg: { type: 'clues.book', clues: clues.map((item) => ({ ...item.entry })) } })
@@ -1628,6 +1689,48 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
   }
 
+  /**
+   * CORREIO — a quem posso escrever: todo mundo na sala menos ele, só pelo
+   * nome (quem joga em outra cena, quem aguarda e quem caiu também: o bilhete
+   * espera no caderno). Quem aguarda sem ficha não tem personagem que escreva.
+   */
+  function handleLetterPeers(clientId: string): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const names = statusOf(playerId) === 'playing' ? [...players.values()].filter((other) => other.playerId !== playerId).map((other) => other.name) : []
+    return reply(clientId, { type: 'letter.peers', names: names.sort((a, b) => a.localeCompare(b)) })
+  }
+
+  /**
+   * CORREIO — o bilhete vai ao MESTRE, não ao colega: sai daqui como
+   * `letter` do resultado, e o remetente só lê que saiu. Recusa (para si,
+   * nome que não está na sala, remetente sem ficha) volta como `ok: false`
+   * sem motivo; os tetos de intervalo e de pendentes dizem o motivo, que não
+   * conta nada de ninguém.
+   */
+  function handleLetterSend(clientId: string, msg: LetterSendMessage): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const sender = players.get(playerId)
+    const target = [...players.values()].find((other) => other.name === msg.to && other.playerId !== playerId)
+    if (sender === undefined || target === undefined || statusOf(playerId) !== 'playing') {
+      return reply(clientId, { type: 'letter.send.result', to: msg.to, ok: false })
+    }
+    const at = now()
+    const last = lastLetterAt.get(playerId)
+    if (last !== undefined && at - last < LETTER_SEND_MIN_INTERVAL_MS) {
+      return reply(clientId, { type: 'letter.send.result', to: msg.to, ok: false, reason: 'too_soon' })
+    }
+    const waiting = [...pendingLetters.values()].filter((letter) => letter.fromPlayerId === playerId).length
+    if (waiting >= LETTER_PENDING_MAX_PER_PLAYER) {
+      return reply(clientId, { type: 'letter.send.result', to: msg.to, ok: false, reason: 'full' })
+    }
+    lastLetterAt.set(playerId, at)
+    const letter: LetterRequest = { letterId: randomId(), fromName: sender.name, toName: target.name, via: msg.via, text: msg.text }
+    pendingLetters.set(letter.letterId, { ...letter, fromPlayerId: playerId, toPlayerId: target.playerId })
+    return { ...reply(clientId, { type: 'letter.send.result', to: msg.to, ok: true }), letter }
+  }
+
   const findPendingTravel = (requestId: string): PendingTravel | undefined =>
     [...pendingTravels.values()].find((pending) => pending.requestId === requestId)
 
@@ -1667,6 +1770,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleCluePeers(clientId, world)
       case 'clue.show':
         return handleClueShow(clientId, msg, world)
+      case 'letter.peers':
+        return handleLetterPeers(clientId)
+      case 'letter.send':
+        return handleLetterSend(clientId, msg)
     }
   }
 
@@ -1718,6 +1825,36 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     isTravelPending(requestId) {
       return findPendingTravel(requestId) !== undefined
+    },
+
+    deliverLetter(letterId) {
+      const letter = pendingLetters.get(letterId)
+      if (letter === undefined) return { outbound: [] }
+      pendingLetters.delete(letterId)
+      const record = players.get(letter.toPlayerId)
+      if (record === undefined) return { outbound: [] }
+      // Só o que o destinatário pode ler: nome de quem escreveu, meio, texto e hora. Nada de cena.
+      const note: NoteEntry = { id: randomId(), text: letter.text, at: now(), from: letter.fromName, via: letter.via }
+      rememberNote(letter.toPlayerId, note)
+      if (record.clientId === null) {
+        // Fora do ar: o caderno da volta marca o bilhete como não lido.
+        const unseen = unseenLetters.get(letter.toPlayerId) ?? new Set<string>()
+        unseen.add(note.id)
+        unseenLetters.set(letter.toPlayerId, unseen)
+        return { outbound: [] }
+      }
+      if (statusOf(letter.toPlayerId) === 'playing') return reply(record.clientId, noteMessage(note))
+      // Aguardando não tem cartão na tela; o caderno vale também aguardando, e acende o não lido.
+      return reply(record.clientId, notebookMessage(notebooks.get(letter.toPlayerId) ?? [], [note.id]))
+    },
+
+    interceptLetter(letterId) {
+      pendingLetters.delete(letterId)
+      return { outbound: [] }
+    },
+
+    isLetterPending(letterId) {
+      return pendingLetters.has(letterId)
     },
 
     sendPlayer(playerId, toSceneId, pinId, source, gatherAt) {
@@ -1836,6 +1973,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       cluebooks.delete(playerId)
       seenPins.delete(playerId)
       lastClueShowAt.delete(playerId)
+      // O bilhete PARA o expulso não tem mais a quem chegar; o que ele mandou segue com o mestre.
+      for (const [letterId, letter] of [...pendingLetters]) if (letter.toPlayerId === playerId) pendingLetters.delete(letterId)
+      lastLetterAt.delete(playerId)
+      unseenLetters.delete(playerId)
       for (const chosen of pinAudiences.values()) chosen.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },
