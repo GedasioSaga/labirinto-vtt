@@ -1153,6 +1153,41 @@
 }
 
 /*
+ * "Tela acesa": o celular não apaga a tela durante a sessão. Selo discreto no
+ * canto de baixo à ESQUERDA (o zoom mora embaixo à direita, os avisos no
+ * meio): texto pequeno e apagado, ponto fixo sem pulsar — é estado, não
+ * chamada. Sem pegar toque, para não roubar o arrasto do mapa.
+ */
+.pp-awake {
+  position: fixed;
+  left: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 9;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 3px 8px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  color: var(--lb-color-parchment-faint, #858480);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+}
+
+.pp-awake__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--lb-color-brass, #e0a44a);
+}
+
+/*
  * Recado do mestre: no ALTO e no MEIO, longe do painel (esquerda) e do cartão
  * de pino (direita). Linguagem de minimapa: fundo escuro chapado, linha fina
  * clara, sem textura. Não tem véu: o mapa continua inteiro à vista.
