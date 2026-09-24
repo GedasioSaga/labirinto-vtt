@@ -84,7 +84,10 @@ describe('escada do jogador: recorte → toque → cartão', () => {
     if (pin === null) return
     act(() => root.render(<PlayerPinCard pin={pin} stairs={map.stairs} onClose={() => {}} />))
     expect(container.querySelector('.pp-pincard__text')?.textContent).toBe('Um baú')
-    expect(container.querySelector('img')).not.toBeNull()
+    // O cartão de ponto de interesse, não o da escada. Sem imagem ele é o
+    // cartão compacto (cartao-e-rotulo-legiveis): glifo e texto, sem <img>.
+    expect(container.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toMatch(/^Ponto de interesse /)
+    expect(container.querySelector('img')).toBeNull()
   })
 
   it('escada sem ligação: está no recorte, mas tocar o lance não abre nada', () => {

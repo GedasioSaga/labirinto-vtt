@@ -90,6 +90,10 @@ describe('RoomPanel: quem foi embora', () => {
     render([player()], { onStoreTokens: vi.fn(), onDismiss: vi.fn() })
     expect(botao('Guardar ficha')).toBeUndefined()
     expect(botao('Dispensar')).toBeUndefined()
+    // Na lista única do Grupo (aba-jogo-compacta) o "Expulsar" mora no "…" da linha.
+    const mais = [...container.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === 'Mais de Fábio')
+    if (mais === undefined) throw new Error('esperava o "…" da linha de Fábio')
+    act(() => mais.click())
     expect(botao('Expulsar')).toBeDefined()
   })
 })
