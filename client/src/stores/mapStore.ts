@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, RotinaDoNpc,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
@@ -16,6 +16,7 @@ import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/f
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
 import { amarrarAoEstado as amarrarNoMapa, type AmarraDeEstado } from '../lib/estadoDoMundo'
+import { comRotina } from '../lib/rotinaDoNpc'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
 // pixi/PixiCanvas.tsx).
@@ -601,6 +602,12 @@ interface MapStoreState {
    * entrada só no `pointerup`) — são dois gestos, não dois campos.
    */
   updateToken: (id: string, patch: Partial<Pick<Token, 'rotation' | 'locked' | 'hidden' | 'color' | 'size' | 'npc' | 'publicName'>>) => void
+  /**
+   * ROTINA DO NPC gravada pelo painel da ficha (`components/RotinaDaFichaControls.tsx`).
+   * Edição do mestre: com histórico, o Ctrl+Z desfaz. `undefined` tira a chave
+   * (a ficha grava como a de antes do campo existir).
+   */
+  setTokenRotina: (id: string, rotina: RotinaDoNpc | undefined) => void
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
@@ -1568,6 +1575,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     updateToken: (id, patch) => withHistory((map) => ({
       ...map,
       tokens: map.tokens.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    })),
+    setTokenRotina: (id, rotina) => withHistory((map) => ({
+      ...map,
+      tokens: map.tokens.map((t) => (t.id === id ? comRotina(t, rotina) : t)),
     })),
     addProp: (prop) => withHistory((map) => mapFactory.addProp(map, prop)),
     removeProp: (id) => withHistory((map) => mapFactory.removeProp(map, id)),

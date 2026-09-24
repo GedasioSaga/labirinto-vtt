@@ -2648,6 +2648,32 @@ body {
   font-size: var(--lb-font-size-sm);
 }
 
+/* Rotina do NPC: um turno por linha — o nome, onde a ficha fica e os botões. */
+.lb-rotina__turno {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--lb-space-1) var(--lb-space-2);
+}
+
+.lb-rotina__turno .lb-label {
+  overflow-wrap: anywhere;
+}
+
+.lb-rotina__onde {
+  grid-column: 1;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.lb-rotina__acoes {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  gap: var(--lb-space-1);
+}
+
 /* ---- Cenas em pastas (região > cidade > bairro > casa) */
 
 /* Os fios da árvore: um traço fino e claro no meio de cada degrau de recuo,

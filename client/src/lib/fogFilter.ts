@@ -898,11 +898,16 @@ function sanitizeTokenPhoto(token: Token): Token {
   return { ...token, image, imageData }
 }
 
-/** A marca de NPC é organização do mestre: a ficha sai para o jogador sem ela. */
-function withoutNpcMark(token: Token): Token {
-  if (token.npc === undefined) return token
+/**
+ * A marca de NPC e a ROTINA DO NPC (`Token.rotina`: o posto de cada turno, com
+ * a cena de cada posto) são do mestre: a ficha sai para o jogador sem elas —
+ * também para quem a segura como ajudante.
+ */
+function withoutMasterMarks(token: Token): Token {
+  if (token.npc === undefined && !('rotina' in token)) return token
   const copy = { ...token }
   delete copy.npc
+  delete copy.rotina
   return copy
 }
 
@@ -1361,7 +1366,7 @@ export function filterMapForPlayer(
     .map((t) => {
       const contrato = loanOf(t.id)
       // Emprestada: o jogador lê o nome que a MESA lê. O de trabalho é do mestre.
-      const seen = withoutNpcMark(sanitizeTokenPhoto(tokenAsSeenByPlayer(withoutContract(t), owned.has(t.id) && contrato === undefined)))
+      const seen = withoutMasterMarks(sanitizeTokenPhoto(tokenAsSeenByPlayer(withoutContract(t), owned.has(t.id) && contrato === undefined)))
       return contrato === undefined ? seen : { ...seen, contrato: { ...contrato } }
     })
   const sentTokenIds = new Set(tokens.map((t) => t.id))
