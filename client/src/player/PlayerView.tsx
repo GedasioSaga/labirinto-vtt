@@ -88,7 +88,7 @@ import { createTokenTurns, stepTurns, syncTurn, type TokenTurns } from './tokenT
 import { personalNoteAtScreen, type PersonalNote } from './personalNotes'
 import { createPersonalNotesRenderer } from './drawPersonalNotes'
 
-/** Pedido de "leve a câmera até este ponto" (Minhas notas). */
+/** Pedido de "leve a câmera até este ponto" (Minhas notas e os pontos conhecidos da aba Lugares). */
 export interface FocusPointRequest {
   x: number
   y: number

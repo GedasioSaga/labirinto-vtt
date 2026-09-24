@@ -2,8 +2,12 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react'
 import type { StorageLike } from './playerConnection'
 import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
+import type { Pin, RegionPoint } from '../types/map'
 import { PlayerNotebook } from './PlayerNotebook'
 import { PlayerClueList } from './PlayerClues'
+// `PlayerPlacesTab` e não `PlayerPlaces`: no Windows o nome colidiria com `playerPlaces.ts` (a parte pura).
+import { PlayerPlacesTab } from './PlayerPlacesTab'
+import type { VisitedPlace } from './playerPlaces'
 import { PersonalNoteList } from './PlayerPersonalNotes'
 import type { PersonalNote } from './personalNotes'
 import { DiceForm } from '../components/DiceControls'
@@ -56,15 +60,23 @@ export interface PlayerCharacter {
   name: string
 }
 
-type PanelTab = 'jogo' | 'caderno' | 'dados'
+type PanelTab = 'jogo' | 'caderno' | 'lugares' | 'dados'
 
 const PANEL_TABS: { id: PanelTab; label: string }[] = [
   { id: 'jogo', label: 'Jogo' },
   { id: 'caderno', label: 'Caderno' },
+  { id: 'lugares', label: 'Lugares' },
   { id: 'dados', label: 'Dados' },
 ]
 /** Tela sem quem role (teste, integrador antigo): as abas de antes. */
 const PANEL_TABS_NO_DICE = PANEL_TABS.filter((item) => item.id !== 'dados')
+
+/** Tela antiga ou teste sem Lugares: listas vazias estáveis, sem objeto novo a cada render. */
+const NO_PINS: readonly Pin[] = []
+const NO_PLACES: readonly VisitedPlace[] = []
+const NO_PLACE_NAMES: Readonly<Record<string, string>> = {}
+const IGNORE_POINT = (): void => {}
+const IGNORE_RENAME = (): void => {}
 
 function clampBrightness(value: number): number {
   return Math.min(EXPLORED_BRIGHTNESS_MAX, Math.max(EXPLORED_BRIGHTNESS_MIN, value))
@@ -145,6 +157,18 @@ interface PlayerPanelProps {
   clues?: readonly ClueEntry[]
   /** Tocou numa pista do Caderno: reabre o cartão dela. */
   onOpenClue?: (clueId: string) => void
+  /** LUGARES: os pinos do recorte da cena (o que a névoa esconde nem chega aqui). */
+  pins?: readonly Pin[]
+  /** LUGARES: por onde ele já passou, na ordem da primeira visita. */
+  places?: readonly VisitedPlace[]
+  /** Id do lugar onde ele está agora. */
+  currentPlace?: string
+  /** Nomes que o jogador deu, por id de lugar. */
+  placeNames?: Readonly<Record<string, string>>
+  /** Tocou num ponto conhecido: a câmera centra nele. */
+  onFocusPoint?: (point: RegionPoint) => void
+  /** Renomeou um lugar (vazio = volta ao "Lugar N"). */
+  onRenamePlace?: (placeId: string, name: string) => void
   /** Modo "Anotar" ligado: o próximo toque no mapa marca onde vai a anotação pessoal. Sem o callback, não há botão. */
   noteArmed?: boolean
   onToggleNote?: () => void
@@ -181,6 +205,12 @@ export function PlayerPanel({
   onReadNotebook,
   clues = NO_CLUES,
   onOpenClue = IGNORE_CLUE,
+  pins = NO_PINS,
+  places = NO_PLACES,
+  currentPlace,
+  placeNames = NO_PLACE_NAMES,
+  onFocusPoint = IGNORE_POINT,
+  onRenamePlace = IGNORE_RENAME,
   noteArmed = false,
   onToggleNote,
   personalNotes = NO_PERSONAL_NOTES,
@@ -284,6 +314,12 @@ export function PlayerPanel({
   function focusToken(tokenId: string) {
     onFocusToken(tokenId)
     // Na gaveta o painel cobre o mapa: fecha para mostrar onde a câmera foi.
+    closeDrawer()
+  }
+
+  function focusPin(pin: Pin) {
+    onFocusPoint({ x: pin.x, y: pin.y })
+    // Mesma razão do "Centralizar": no celular a gaveta cobre o ponto.
     closeDrawer()
   }
 
@@ -589,6 +625,19 @@ export function PlayerPanel({
                   </section>
                 )}
               </>
+            )}
+          </div>
+
+          <div
+            role="tabpanel"
+            id={`${panelId}-panel-lugares`}
+            aria-labelledby={`${panelId}-tab-lugares`}
+            className="pp-tabpanel"
+            hidden={tab !== 'lugares'}
+          >
+            {/* Só montado à vista: as miniaturas não se redesenham a cada passo da ficha com a aba fechada. */}
+            {tab === 'lugares' && (
+              <PlayerPlacesTab pins={pins} places={places} currentPlace={currentPlace} names={placeNames} onFocusPin={focusPin} onRename={onRenamePlace} />
             )}
           </div>
 
