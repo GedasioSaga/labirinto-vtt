@@ -36,6 +36,7 @@ import {
   hasUnsavedWork,
   hostWorldOf,
   pinExitsTravelOf,
+  pinScenesOf,
   pinTravelOptions,
   sceneList,
   subscribeToTravelLinks,
@@ -43,6 +44,8 @@ import {
   useAdventureStore,
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
+import { PinsSection } from './components/PinsSection'
+import { pinDirectory } from './lib/pinDirectory'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
 import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, IMAGEM_SUMIU_DO_ACERVO, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
@@ -1719,6 +1722,7 @@ function App() {
         {withRoomTabs(
           <PropertiesPanel
             scenes={
+              <>
               <ScenesSection
                 scenes={sceneList({ adventure, activeSceneId, cache: sceneCache }, map)}
                 onSelect={handleSelectScene}
@@ -1737,6 +1741,12 @@ function App() {
                 // "Revelar planta para…" só com a sala aberta: sem sala não há para quem.
                 onRevealPlanFor={room === null ? undefined : (sceneId, playerIds) => hostBridgeRef.current?.revealPlanFor(sceneId, playerIds) ?? null}
               />
+              {/* Todos os pinos da aventura pelo nome só do mestre: tocar abre a cena com o pino selecionado. */}
+              <PinsSection
+                entries={pinDirectory(pinScenesOf({ adventure, activeSceneId, cache: sceneCache }, map))}
+                onGo={(entry) => useAdventureStore.getState().goToPin(entry.sceneId, entry.pinId)}
+              />
+              </>
             }
             mapName={map.name}
             mapWidth={map.width}
@@ -2087,6 +2097,9 @@ function App() {
                   : null,
               description: selectedPin?.description ?? null,
               onDescriptionChange: (description) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { description }),
+              // Nome só do mestre: apagar grava AUSENTE (o pino de sempre), nunca `''`.
+              nome: selectedPin?.nome ?? '',
+              onNomeChange: (nome) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { nome: nome === '' ? undefined : nome }),
               // Veracidade, nunca `=== true`: `locked` é opcional no schema e
               // pino de mapa salvo antes desta fase chega sem o campo.
               locked: !!selectedPin?.locked,

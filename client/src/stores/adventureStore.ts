@@ -27,6 +27,7 @@ import {
   type TravelSceneOption,
 } from '../lib/pinTravel'
 import { mapDirFor, saveAdventureToDisk, scenePath, type OpenedMapFile } from '../lib/mapFileIO'
+import type { PinDirectoryScene } from '../lib/pinDirectory'
 import { dirname } from '@tauri-apps/api/path'
 import { useMapStore } from './mapStore'
 import { useSessionStore } from './sessionStore'
@@ -127,6 +128,12 @@ interface AdventureState {
    * troca de cena recusaria "mesma cena" e o clique não faria nada.
    */
   goToPoint: (sceneId: string | null, point: Point) => boolean
+  /**
+   * LISTA "PINOS": abre a cena `sceneId` (`null` = mapa solto) com a câmera no
+   * pino `pinId` e ele selecionado no painel. `false` quando o pino não existe
+   * mais ali ou a cena não abre — aí nada muda.
+   */
+  goToPin: (sceneId: string | null, pinId: string) => boolean
   /** Muda uma cena de FUNDO sem passar pelo desfazer da cena aberta. */
   updateBackgroundScene: (sceneId: string, updater: (map: MapData) => MapData) => void
   /**
@@ -202,6 +209,20 @@ export function sceneList(state: Pick<AdventureState, 'adventure' | 'activeScene
 }
 
 type SceneState = Pick<AdventureState, 'adventure' | 'activeSceneId' | 'cache'>
+
+/**
+ * Os pinos de cada cena para a lista "Pinos" (`lib/pinDirectory.ts`): a aberta
+ * pelo mapa vivo, as de fundo pelo cache, na ordem da aventura. Cena que não
+ * abriu fica de fora (não há pino para ir). Sem aventura, o mapa solto sozinho.
+ */
+export function pinScenesOf(state: SceneState, liveMap: MapData): PinDirectoryScene[] {
+  if (state.adventure === null) return [{ sceneId: null, sceneName: liveMap.name, pins: liveMap.pins }]
+  return state.adventure.scenes.flatMap((entry): PinDirectoryScene[] => {
+    if (entry.id === state.activeSceneId) return [{ sceneId: entry.id, sceneName: entry.name, pins: liveMap.pins }]
+    const slot = state.cache[entry.id]
+    return slot !== undefined && slot.status === 'ok' ? [{ sceneId: entry.id, sceneName: entry.name, pins: slot.map.pins }] : []
+  })
+}
 
 /**
  * As cenas da aventura como a ligação dos pinos de viagem as enxerga: a
@@ -464,6 +485,16 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       return true
     }
     return get().switchScene(sceneId, point)
+  },
+
+  goToPin: (sceneId, pinId) => {
+    const scene = pinScenesOf(get(), useMapStore.getState().map).find((s) => s.sceneId === sceneId)
+    const pin = scene?.pins.find((p) => p.id === pinId)
+    if (pin === undefined) return false
+    if (!get().goToPoint(sceneId, pinFocusPoint(pin))) return false
+    // Depois da troca: carregar a cena nova no editor não pode apagar a seleção.
+    useMapStore.getState().setSelectedPin(pinId)
+    return true
   },
 
   updateBackgroundScene: (sceneId, updater) => {

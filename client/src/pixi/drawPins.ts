@@ -7,6 +7,7 @@ import {
   PIN_HEIGHT,
   PIN_SYMBOLS,
   PIN_TRAVEL_SYMBOL,
+  cleanPinName,
   isPinIcon,
   type PinSymbolShape,
 } from '../lib/pins'
@@ -124,9 +125,48 @@ function drawArrivalHead(graphics: Graphics, pin: Pin, headY: number): void {
   graphics.circle(pin.x, headY, ARRIVAL_DOT_RADIUS).fill({ color: TRAVEL_LINE })
 }
 
-export function createPinsRenderer(): PinsRenderer {
+/** O nome do mestre: letra pequena e clara, a da parede do minimapa — rótulo, não chamariz. */
+const NAME_FONT_SIZE = 11
+const NAME_COLOR = 0xe8e2d0
+/** Contorno escuro do nome: legível sobre chão claro e sobre o preto da névoa. */
+const NAME_OUTLINE = { color: PIN_OUTLINE, width: 3 } as const
+/** Folga entre a cabeça do pino e o começo do nome, em px de mundo. */
+const NAME_GAP = 4
+
+export interface PinsRendererOptions {
+  /**
+   * Desenha o NOME SÓ DO MESTRE ao lado de cada pino. Só o editor liga: o
+   * mapa do jogador usa este mesmo renderer, e lá o nome nunca é desenhado —
+   * nem se um pino chegasse com ele (o recorte já o tira, `lib/fogFilter.ts`).
+   */
+  showNames?: boolean
+}
+
+export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRenderer {
+  const showNames = options.showNames === true
   const graphics = new Graphics()
   const glyphs = new Map<string, Text>()
+  // Mesma regra dos glifos: um `Text` por id, nunca destruído (só invisível).
+  const names = new Map<string, Text>()
+
+  /** O nome ao lado da cabeça, à direita e na altura dela; sem nome, o rótulo some. */
+  function drawName(container: Container, pin: Pin, headY: number): void {
+    const nome = showNames ? cleanPinName(pin.nome) : ''
+    let label = names.get(pin.id)
+    if (nome === '') {
+      if (label) label.visible = false
+      return
+    }
+    if (!label) {
+      label = new Text({ text: nome, style: { fontSize: NAME_FONT_SIZE, fill: NAME_COLOR, stroke: NAME_OUTLINE } })
+      label.anchor.set(0, 0.5)
+      names.set(pin.id, label)
+    }
+    if (label.parent !== container) container.addChild(label)
+    label.text = nome
+    label.position.set(pin.x + PIN_HEAD_RADIUS + NAME_GAP, headY)
+    label.visible = true
+  }
 
   function draw(container: Container, pins: readonly Pin[], selectedId: string | null, unlinkedIds?: ReadonlySet<string>): void {
     if (graphics.parent !== container) container.addChildAt(graphics, 0)
@@ -135,6 +175,9 @@ export function createPinsRenderer(): PinsRenderer {
     const ids = new Set(pins.map((p) => p.id))
     for (const [id, glyph] of glyphs) {
       if (!ids.has(id)) glyph.visible = false
+    }
+    for (const [id, label] of names) {
+      if (!ids.has(id)) label.visible = false
     }
 
     for (const pin of pins) {
@@ -158,6 +201,7 @@ export function createPinsRenderer(): PinsRenderer {
       if (viagem && pin.soChegada === true) drawArrivalHead(graphics, pin, headY)
       else if (viagem) drawTravelHead(graphics, pin, headY, unlinkedIds?.has(pin.id) === true)
       else drawMarkerHead(graphics, pin, headY)
+      drawName(container, pin, headY)
 
       let glyph = glyphs.get(pin.id)
       if (!glyph) {

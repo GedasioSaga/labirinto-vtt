@@ -310,6 +310,15 @@ export interface Pin extends PlayerSecret {
   icon?: PinIcon
   /** O que o jogador lê no cartão. Vazio = o mestre ainda não escreveu nada. */
   description: string
+  /**
+   * NOME SÓ DO MESTRE ("Faca"): o que distingue sete "?" iguais no editor —
+   * desenhado ao lado do pino e na lista "Pinos". NUNCA sai no recorte do
+   * jogador (`lib/fogFilter.ts` monta o pino dele por lista do que vai), que lê
+   * só a descrição. Ausente = sem nome, o pino de sempre — sem migração. O
+   * disco só aceita texto não vazio, aparado e com até `PIN_NOME_MAX_LENGTH`
+   * letras (`lib/mapFile.ts`).
+   */
+  nome?: string
   image: string | null
   /** Pino não pode ser movido/editado. `undefined` === false — sem migração. */
   locked?: boolean
