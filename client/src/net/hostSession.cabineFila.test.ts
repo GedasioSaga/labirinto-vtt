@@ -79,6 +79,7 @@ function mesa(w: HostWorld) {
   return {
     s,
     ana: ana.playerId,
+    bia: bia.playerId,
     caio: caio.playerId,
     advance: (ms: number) => {
       clock += ms
@@ -202,5 +203,50 @@ describe('hostSession: ocupante da cabine', () => {
     const pedido = t.s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'grade-terreo' }, w)
     expect(pedido.travelRequest).toBeDefined()
     expect(pedido.travelRequest?.cabine).toBeUndefined()
+  })
+})
+
+/** O mesmo mundo, com a grade do Topo em outra coluna (longe da Bia = fora do raio de visão). */
+function comGradeDoTopoEm(w: HostWorld, x: number): HostWorld {
+  return {
+    ...w,
+    background: w.background.map((cena) =>
+      cena.sceneId !== TOPO ? cena : { ...cena, map: { ...cena.map, pins: cena.map.pins.map((p) => (p.id === 'grade-topo' ? { ...p, x } : p)) } },
+    ),
+  }
+}
+
+describe('hostSession: as guardas do "Chamar a cabine"', () => {
+  it('parada trancada não se chama; a mesma parada destrancada, sim', () => {
+    const trancada = mundo(PARADA_TERREO, 'trancada')
+    const t = mesa(trancada)
+    expect(t.s.handleMessage('c2', { type: 'cabine.call', pinId: 'grade-topo' }, trancada).chamadaDeCabine).toBeUndefined()
+
+    const aberta = mundo(PARADA_TERREO, 'pede')
+    const u = mesa(aberta)
+    expect(u.s.handleMessage('c2', { type: 'cabine.call', pinId: 'grade-topo' }, aberta).chamadaDeCabine?.cabineId).toBe('cab-espinha-secreta')
+  })
+
+  it('parada escondida pela névoa (id adivinhado) não se chama; perto da Bia, sim', () => {
+    // A Bia está em x=200 com raio 700: a grade em x=1900 fica na névoa.
+    const naNevoa = comGradeDoTopoEm(mundo(PARADA_TERREO), 1900)
+    const t = mesa(naNevoa)
+    expect(paradaNoSnapshot(t.s.broadcast(naNevoa), 'c2')).toBeUndefined()
+    expect(t.s.handleMessage('c2', { type: 'cabine.call', pinId: 'grade-topo' }, naNevoa).chamadaDeCabine).toBeUndefined()
+
+    const perto = comGradeDoTopoEm(mundo(PARADA_TERREO), 300)
+    const u = mesa(perto)
+    expect(u.s.handleMessage('c2', { type: 'cabine.call', pinId: 'grade-topo' }, perto).chamadaDeCabine?.cabineId).toBe('cab-espinha-secreta')
+  })
+
+  it('parada que o "Quem vê" esconde da Bia não se chama; com ela na lista, sim', () => {
+    const w = mundo(PARADA_TERREO)
+    const t = mesa(w)
+    t.s.setPinAudience('grade-topo', [t.ana])
+    expect(t.s.handleMessage('c2', { type: 'cabine.call', pinId: 'grade-topo' }, w).chamadaDeCabine).toBeUndefined()
+
+    const u = mesa(w)
+    u.s.setPinAudience('grade-topo', [u.bia])
+    expect(u.s.handleMessage('c2', { type: 'cabine.call', pinId: 'grade-topo' }, w).chamadaDeCabine?.cabineId).toBe('cab-espinha-secreta')
   })
 })

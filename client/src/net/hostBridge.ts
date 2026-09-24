@@ -423,6 +423,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     pendingBroadcast = setTimeout(() => {
       pendingBroadcast = null
       broadcastNow()
+      // O mundo mudou (ex.: a cabine saiu da parada do embarque): a lista do
+      // mestre recalcula o que depende dele, como o ocupante da cabine.
+      notifyPlayersIfChanged()
     }, BROADCAST_THROTTLE_MS)
   }
 

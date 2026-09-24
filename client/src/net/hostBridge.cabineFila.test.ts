@@ -1,10 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CabineDeTransporte, ChamadaAceita } from '../lib/cabine'
 import { createEmptyMap } from '../lib/mapFactory'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, Pin } from '../types/map'
-import { createHostBridge } from './hostBridge'
-import type { AppliedTransfer, HostWorld } from './hostSession'
+import { BROADCAST_THROTTLE_MS, createHostBridge } from './hostBridge'
+import type { AppliedTransfer, HostWorld, PlayerInfo } from './hostSession'
 
 /**
  * CABINE DE TRANSPORTE, lado da PONTE — a chamada chega ao mestre: a ponte
@@ -39,7 +39,8 @@ async function setup(atual: CabineDeTransporte['atual'], aceita = true) {
     handlers.set(name, handler)
     return vi.fn()
   })
-  const w = mundo(atual)
+  let w = mundo(atual)
+  const onPlayersChange = vi.fn((_players: PlayerInfo[]) => undefined)
   const applyCabine = vi.fn()
   const applyChamadaDeCabine = vi.fn((_chamada: ChamadaAceita) => aceita)
   const bridge = createHostBridge({
@@ -52,6 +53,7 @@ async function setup(atual: CabineDeTransporte['atual'], aceita = true) {
     applyTransfer: vi.fn((_transfer: AppliedTransfer) => true),
     applyCabine,
     applyChamadaDeCabine,
+    onPlayersChange,
   })
   const mandar = (msg: unknown) => {
     const handler = handlers.get('net:message')
@@ -63,7 +65,13 @@ async function setup(atual: CabineDeTransporte['atual'], aceita = true) {
   const duda = bridge.players().find((p) => p.name === 'Duda')?.playerId
   if (duda === undefined) throw new Error('esperava a Duda na sala')
   bridge.assignToken(duda, 'arco')
-  return { mandar, applyCabine, applyChamadaDeCabine }
+  /** O mestre leva a cabine: o App troca a aventura e avisa a ponte. */
+  const moverCabine = (parada: CabineDeTransporte['atual']) => {
+    w = mundo(parada)
+    bridge.notifyMapChanged()
+  }
+  const ocupanteVisto = () => onPlayersChange.mock.lastCall?.[0].find((p) => p.name === 'Duda')?.naCabine
+  return { mandar, applyCabine, applyChamadaDeCabine, moverCabine, ocupanteVisto }
 }
 
 const avisos = () => useToastStore.getState().toasts
@@ -95,5 +103,36 @@ describe('hostBridge: chamar a cabine', () => {
     t.mandar({ type: 'pin.travel.request', pinId: 'grade-terreo' })
     expect(avisos().map((a) => a.text)).toContain('Duda quer passar por Grade → Topo (na cabine Espinha)')
     expect(t.applyChamadaDeCabine).not.toHaveBeenCalled()
+  })
+})
+
+describe('hostBridge: o ocupante da cabine no painel do mestre', () => {
+  beforeEach(() => {
+    useToastStore.setState({ toasts: [] })
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('a cabine sai da parada do embarque: a lista de jogadores do mestre perde o ocupante', async () => {
+    const t = await setup(TERREO)
+    t.mandar({ type: 'pin.travel.request', pinId: 'grade-terreo' })
+    expect(t.ocupanteVisto()).toBe('cab-espinha')
+    // "Trazer a cabine para cá" no Topo: a cabine chega lá vazia.
+    t.moverCabine(TOPO)
+    await vi.advanceTimersByTimeAsync(BROADCAST_THROTTLE_MS)
+    expect(t.ocupanteVisto()).toBeUndefined()
+  })
+
+  it('a cabine volta à parada do embarque: o ocupante reaparece', async () => {
+    const t = await setup(TERREO)
+    t.mandar({ type: 'pin.travel.request', pinId: 'grade-terreo' })
+    t.moverCabine(TOPO)
+    await vi.advanceTimersByTimeAsync(BROADCAST_THROTTLE_MS)
+    expect(t.ocupanteVisto()).toBeUndefined()
+    t.moverCabine(TERREO)
+    await vi.advanceTimersByTimeAsync(BROADCAST_THROTTLE_MS)
+    expect(t.ocupanteVisto()).toBe('cab-espinha')
   })
 })
