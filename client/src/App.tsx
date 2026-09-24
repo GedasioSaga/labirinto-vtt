@@ -43,7 +43,7 @@ import {
   sceneList,
   sceneMaps,
   subscribeToTravelLinks,
-  travelSceneOptions,
+  travelDestinationOptions,
   useAdventureStore,
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
@@ -1285,7 +1285,8 @@ function App() {
       pinId: pin.id,
       // Encruzilhada: uma linha por saída, a principal primeiro.
       exits: pinExitsTravelOf(scenes, map, pin),
-      scenes: travelSceneOptions(scenes),
+      // "Esta cena" primeiro: o atalho para outro ponto do mesmo mapa.
+      scenes: travelDestinationOptions(scenes),
       pinsIn: (sceneId: string) => pinTravelOptions(scenes, map, sceneId, pin.id),
       onLinkNew: (sceneId: string, exitId: string | null) => {
         useAdventureStore.getState().linkPinToNewArrival(pin.id, sceneId, exitId)

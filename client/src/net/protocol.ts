@@ -375,7 +375,9 @@ export type HostMessage =
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
   // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um
   // pino — o aviso diz que o GRUPO foi reunido, e continua sem dizer onde.
-  | { type: 'scene.changed'; by?: 'master' | 'gather' }
+  // `tokenId`: só no ATALHO NA MESMA CENA, a ficha DELE que atravessou — o
+  // mapa não muda, e a tela precisa saber qual ficha centrar. Aditivo.
+  | { type: 'scene.changed'; by?: 'master' | 'gather'; tokenId?: string }
   | LaserMessage
   | RelayedLaserMessage
   | SceneNoteMessage

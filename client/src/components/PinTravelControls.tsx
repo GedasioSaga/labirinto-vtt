@@ -1,6 +1,6 @@
 import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import type { PinTravel, TravelPinOption, TravelSceneOption } from '../lib/pinTravel'
-import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, isArrivalOnly, travelExitsOf } from '../lib/pinTravel'
+import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, isArrivalOnly, travelExitsOf, travelPlaceName } from '../lib/pinTravel'
 import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
 import type { PinPassage } from '../types/map'
 import { ChevronDownIcon } from './icons'
@@ -21,11 +21,11 @@ export interface PinTravelControlsProps {
    * cada saída ganha o seu bloco com "Nome da saída".
    */
   exits: readonly PinTravelExitView[]
-  /** Cenas para onde ele pode levar: todas as da aventura menos a aberta. */
+  /** Para onde ele pode levar: "Esta cena" (o atalho, marcada com `here`) e as outras cenas da aventura. */
   scenes: readonly TravelSceneOption[]
   /** Pinos de viagem de uma cena, para ligar a um que já está lá. */
   pinsIn: (sceneId: string) => readonly TravelPinOption[]
-  /** Cria o pino de chegada no centro de `sceneId` e liga a saída `exitId` (`null` = uma saída nova). */
+  /** Cria o pino de chegada (no centro de `sceneId`, ou ao lado deste pino no atalho) e liga a saída `exitId` (`null` = uma saída nova). */
   onLinkNew: (sceneId: string, exitId: string | null) => void
   onLinkExisting: (sceneId: string, pinId: string, exitId: string | null) => void
   onUnlink: (exitId: string) => void
@@ -92,7 +92,7 @@ function TituloDoDestino({ travel }: { travel: PinTravel }) {
   if (travel.status === 'sem-destino') return <span className="lb-travel__title">Sem destino</span>
   return (
     <span className="lb-travel__title">
-      Leva a <strong className="lb-travel__scene">{travel.sceneName}</strong>
+      Leva a <strong className="lb-travel__scene">{travel.status === 'ligado' ? travelPlaceName(travel) : travel.sceneName}</strong>
     </span>
   )
 }
@@ -239,7 +239,7 @@ export function PinTravelControls({
           </p>
           {principal.travel.status === 'ligado' && (
             <button type="button" className="lb-btn lb-btn--block" onClick={() => concluir(() => onGo(principal.id))}>
-              Ir para {principal.travel.sceneName}
+              Ir para {travelPlaceName(principal.travel)}
             </button>
           )}
           {principal.travel.status === 'sem-destino' ? (
@@ -284,7 +284,7 @@ export function PinTravelControls({
                     <button
                       type="button"
                       className="lb-btn lb-btn--ghost"
-                      aria-label={`Ir para ${exit.travel.sceneName}`}
+                      aria-label={`Ir para ${travelPlaceName(exit.travel)}`}
                       onClick={() => concluir(() => onGo(exit.id))}
                     >
                       Ir
@@ -365,6 +365,7 @@ export function PinTravelControls({
           ) : (
             <PassoDoPino
               sceneName={scenes.find((scene) => scene.id === escolha.sceneId)?.name ?? ''}
+              here={scenes.some((scene) => scene.id === escolha.sceneId && scene.here === true)}
               pins={pinsIn(escolha.sceneId)}
               onCreate={() => concluir(() => onLinkNew(escolha.sceneId, escolha.saida))}
               onPick={(pinId) => concluir(() => onLinkExisting(escolha.sceneId, pinId, escolha.saida))}
@@ -414,9 +415,9 @@ function MaoUnica({ id, travel, onChange }: MaoUnicaProps) {
       </button>
       <p id={efeito} className="lb-travel__hint">
         {parComSaidas
-          ? `O pino de ${travel.sceneName} tem outras saídas: não dá para escondê-lo.`
+          ? `O pino de chegada em ${travelPlaceName(travel)} tem outras saídas: não dá para escondê-lo.`
           : marcada
-            ? `Não volta: o jogador chega em ${travel.sceneName} e não vê o pino de chegada.`
+            ? `Não volta: o jogador chega em ${travelPlaceName(travel)} e não vê o pino de chegada.`
             : 'Marque para a passagem não voltar (alçapão, teleporte).'}
       </p>
     </>
@@ -429,7 +430,7 @@ function MaoUnica({ id, travel, onChange }: MaoUnicaProps) {
  * o mestre, que marcou pensando na passagem, não na chegada.
  */
 function SoChegada({ origem }: { origem: PinTravel | null }) {
-  const deOnde = origem !== null && origem.status === 'ligado' ? origem.sceneName : null
+  const deOnde = origem !== null && origem.status === 'ligado' ? travelPlaceName(origem) : null
   return (
     <div className="lb-travel lb-travel--chegada" role="group" aria-label="Destino da viagem">
       <p id={STATUS_ID} className="lb-travel__status" tabIndex={-1} aria-live="polite">
@@ -494,6 +495,8 @@ function NomeDaSaida({ id, rotulo, placeholder, onCommit }: NomeDaSaidaProps) {
 
 interface PassoDoPinoProps {
   sceneName: string
+  /** "Esta cena" (atalho): a chegada nasce ao lado do pino, não no centro. */
+  here: boolean
   pins: readonly TravelPinOption[]
   onCreate: () => void
   onPick: (pinId: string) => void
@@ -507,18 +510,20 @@ interface PassoDoPinoProps {
  * já estão lá vêm depois; o que já leva a outro lugar aparece desabilitado,
  * com o motivo, em vez de sumir.
  */
-function PassoDoPino({ sceneName, pins, onCreate, onPick, onBack, onCancel }: PassoDoPinoProps) {
+function PassoDoPino({ sceneName, here, pins, onCreate, onPick, onBack, onCancel }: PassoDoPinoProps) {
   return (
     <>
-      <p className="lb-label">Chegada em {sceneName}</p>
+      <p className="lb-label">{here ? 'Chegada em outro ponto desta cena' : `Chegada em ${sceneName}`}</p>
       <button type="button" className="lb-btn lb-btn--block" onClick={onCreate}>
         Criar pino de chegada
       </button>
-      <p className="lb-travel__hint">Nasce no centro da cena, já ligado de volta; depois é só arrastar.</p>
+      <p className="lb-travel__hint">
+        {here ? 'Nasce ao lado deste pino, já ligado de volta; arraste até o outro ponto.' : 'Nasce no centro da cena, já ligado de volta; depois é só arrastar.'}
+      </p>
       {pins.length > 0 && (
         <>
           <p className="lb-label" id={PINOS_ID}>
-            Ou um pino de viagem que já está lá
+            {here ? 'Ou um pino de viagem que já está aqui' : 'Ou um pino de viagem que já está lá'}
           </p>
           <ul className="lb-travel__options" aria-labelledby={PINOS_ID}>
             {pins.map((pin) => (

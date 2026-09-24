@@ -21,6 +21,8 @@ import {
   arrivalSpot,
   isArrivalOnly,
   linkBack,
+  linkWithinScene,
+  nearbyArrivalPoint,
   pinFocusPoint,
   renameExit,
   resolvePinTravel,
@@ -28,10 +30,12 @@ import {
   sameDestination,
   setArrivalOnly,
   setExitDestination,
+  travelExitOf,
   travelExitsOf,
   travelLinkChanges,
   travelPinOptions,
   unlinkBack,
+  unlinkWithinScene,
   type ExitPatch,
   type PinTravel,
   type TravelPinOption,
@@ -331,7 +335,7 @@ export function unlinkedTravelPinIds(state: SceneState, liveMap: MapData): Set<s
 
 /** O que gravar no pino para ligar a saída `exitId` (`null` = uma saída nova) a `destino`. */
 function exitPatchFor(pin: Pin, exitId: string | null, destino: PinDestination): ExitPatch {
-  if (exitId === null) return addExit(pin, `saida_${crypto.randomUUID().slice(0, 8)}`, destino)
+  if (exitId === null) return addExit(pin, newExitId(), destino)
   return setExitDestination(pin, exitId, destino)
 }
 
@@ -351,6 +355,32 @@ export function travelSceneOptions(state: SceneState): TravelSceneOption[] {
       const name = [...sceneTrail(adventure.scenes, entry.id), entry.name].join(SCENE_TRAIL_SEPARATOR)
       return { id: entry.id, name, available: slot !== undefined && slot.status === 'ok' }
     })
+}
+
+/**
+ * "Esta cena" no "Leva a…": o ATALHO para outro ponto do mapa aberto (a
+ * escada de um andar ao outro da mesma torre). Fica à parte de
+ * `travelSceneOptions`, que continua sendo a lista das OUTRAS cenas. Sem
+ * aventura (mapa solto) não há id de cena para gravar no destino: `null`.
+ */
+export function hereSceneOption(state: SceneState): TravelSceneOption | null {
+  if (state.adventure === null || state.activeSceneId === null) return null
+  return { id: state.activeSceneId, name: 'Esta cena', available: true, here: true }
+}
+
+/**
+ * A lista do passo 1 do "Leva a…", como o painel do pino a mostra: "Esta
+ * cena" primeiro (o atalho), depois as outras cenas. Mapa solto: só as
+ * outras (que também não há).
+ */
+export function travelDestinationOptions(state: SceneState): TravelSceneOption[] {
+  const aqui = hereSceneOption(state)
+  return aqui === null ? travelSceneOptions(state) : [aqui, ...travelSceneOptions(state)]
+}
+
+/** Id da saída nova ("+ Outra saída"). */
+function newExitId(): string {
+  return `saida_${crypto.randomUUID().slice(0, 8)}`
 }
 
 /** Os pinos de viagem de `sceneId` que o pino `pinId` da cena aberta pode escolher como par. */
@@ -558,9 +588,20 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
 
   linkPinToNewArrival: (pinId, sceneId, exitId = SAIDA_PRINCIPAL) => {
     const { activeSceneId, cache } = get()
-    const pin = useMapStore.getState().map.pins.find((p) => p.id === pinId)
+    const live = useMapStore.getState().map
+    const pin = live.pins.find((p) => p.id === pinId)
+    if (pin === undefined || pin.kind !== 'viagem' || activeSceneId === null) return null
+    if (sceneId === activeSceneId) {
+      // ATALHO NA MESMA CENA: a chegada nasce ao lado do pino, e a chegada e
+      // as duas pontas da ligação entram num passo só do desfazer.
+      const chegada = mapFactory.buildPin(crypto.randomUUID(), nearbyArrivalPoint(live, pin), 'viagem')
+      const comChegada = mapFactory.addPin(live, chegada)
+      const ligado = linkWithinScene(comChegada, activeSceneId, pinId, exitId, chegada.id, newExitId())
+      if (ligado === comChegada) return null
+      useMapStore.getState().replacePins(ligado.pins)
+      return chegada.id
+    }
     const slot = cache[sceneId]
-    if (pin === undefined || pin.kind !== 'viagem' || activeSceneId === null || sceneId === activeSceneId) return null
     if (slot === undefined || slot.status !== 'ok') return null
     // A chegada nasce SEM destino: quem grava a volta é o guardião, quando a
     // ida é gravada logo abaixo — o mesmo caminho do desfazer e do refazer.
@@ -574,8 +615,15 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const { activeSceneId, cache } = get()
     const live = useMapStore.getState().map
     const pin = live.pins.find((p) => p.id === pinId)
+    if (pin === undefined || pin.kind !== 'viagem' || activeSceneId === null) return false
+    if (sceneId === activeSceneId) {
+      // ATALHO NA MESMA CENA: as duas pontas no mapa aberto, num passo só.
+      const ligado = linkWithinScene(live, activeSceneId, pinId, exitId, partnerId, newExitId())
+      if (ligado === live) return false
+      useMapStore.getState().replacePins(ligado.pins)
+      return true
+    }
     const slot = cache[sceneId]
-    if (pin === undefined || pin.kind !== 'viagem' || activeSceneId === null || sceneId === activeSceneId) return false
     if (slot === undefined || slot.status !== 'ok') return false
     const partner = slot.map.pins.find((p) => p.id === partnerId)
     if (partner === undefined || partner.kind !== 'viagem') return false
@@ -601,8 +649,15 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
   },
 
   unlinkPin: (pinId, exitId = SAIDA_PRINCIPAL) => {
-    const pin = useMapStore.getState().map.pins.find((p) => p.id === pinId)
+    const live = useMapStore.getState().map
+    const pin = live.pins.find((p) => p.id === pinId)
     if (pin === undefined) return
+    const activeSceneId = get().activeSceneId
+    if (activeSceneId !== null && travelExitOf(pin, exitId)?.destino.sceneId === activeSceneId) {
+      // ATALHO NA MESMA CENA: o par mora aqui, e perde a volta no mesmo passo.
+      useMapStore.getState().replacePins(unlinkWithinScene(live, activeSceneId, pinId, exitId).pins)
+      return
+    }
     useMapStore.getState().updatePin(pinId, setExitDestination(pin, exitId, null))
   },
 
@@ -620,6 +675,11 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (travel.status !== 'ligado') return false
     if (on && travelExitsOf(travel.partner).length > 1) return false
     const partnerId = travel.partner.id
+    if (travel.sameScene === true) {
+      // O par mora no mapa aberto: a marca entra no desfazer desta cena.
+      useMapStore.getState().replacePins(setArrivalOnly(live, partnerId, on).pins)
+      return true
+    }
     get().updateBackgroundScene(travel.sceneId, (map) => setArrivalOnly(map, partnerId, on))
     return true
   },
@@ -633,7 +693,9 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (isArrivalOnly(pin)) return false
     const travel = resolvePinTravel(pin, get().activeSceneId, sceneLookup(get(), live), exitId)
     if (travel.status !== 'ligado') return false
-    if (!get().switchScene(travel.sceneId, pinFocusPoint(travel.partner))) return false
+    // Atalho na mesma cena: sem troca de cena, a câmera vai até o par.
+    if (travel.sameScene === true) get().goToPoint(null, pinFocusPoint(travel.partner))
+    else if (!get().switchScene(travel.sceneId, pinFocusPoint(travel.partner))) return false
     // O par aberto no painel: é ele que diz "leva de volta a …" e é nele que
     // o próximo clique atravessa de volta.
     useMapStore.getState().setSelectedPin(travel.partner.id)
@@ -781,6 +843,11 @@ export function hasUnsavedWork(): boolean {
  * de cena de fundo. Um lugar só, em vez de um remendo em cada botão, atalho e
  * borracha que tira pino do mapa.
  *
+ * ATALHO NA MESMA CENA: aí o par mora no mapa aberto. Ligar e desligar pelo
+ * painel já gravam os dois lados (`linkWithinScene`, `unlinkWithinScene`);
+ * o que sobra — apagar a origem, ela deixar de ser de viagem, religá-la a
+ * outra cena — o guardião desliga no par, no MESMO passo de desfazer.
+ *
  * Só olha EDIÇÃO: troca de cena (`sceneLoading`) e mapa de outro id (abrir,
  * criar) não são mudança de pino, são outro mapa entrando.
  *
@@ -795,10 +862,16 @@ function syncTravelLinks(after: MapData, before: MapData): void {
   if (sceneLoading || after.pins === before.pins || after.id !== before.id) return
   const { adventure, activeSceneId } = useAdventureStore.getState()
   if (adventure === null || activeSceneId === null) return
+  // ATALHO NA MESMA CENA: o par antigo mora neste mesmo mapa. Os acertos daqui
+  // se juntam e entram no passo de desfazer que os provocou (`settlePins`).
+  let mesmaCena = after
   for (const change of travelLinkChanges(before.pins, after.pins)) {
     const daqui: PinDestination = { sceneId: activeSceneId, pinId: change.pinId }
-    // O par antigo, se ainda voltava para cá, fica sem destino.
-    if (change.before !== null && change.before.sceneId !== activeSceneId) {
+    // O par antigo, se ainda voltava para cá, fica sem destino — e, se era a
+    // chegada oculta de uma mão única, volta a ser um pino comum.
+    if (change.before !== null && change.before.sceneId === activeSceneId) {
+      mesmaCena = unlinkBack(mesmaCena, change.before.pinId, daqui)
+    } else if (change.before !== null) {
       const antigo = change.before
       useAdventureStore.getState().updateBackgroundScene(antigo.sceneId, (map) => unlinkBack(map, antigo.pinId, daqui))
     }
@@ -814,4 +887,8 @@ function syncTravelLinks(after: MapData, before: MapData): void {
       }
     }
   }
+  // Nada a acertar devolve o MESMO mapa (`unlinkBack` não mexe em quem já foi
+  // desligado): o desfazer, o refazer e o `linkWithinScene`, que já gravam os
+  // dois lados, passam por aqui sem mudança.
+  if (mesmaCena !== after) useMapStore.getState().settlePins(mesmaCena.pins)
 }

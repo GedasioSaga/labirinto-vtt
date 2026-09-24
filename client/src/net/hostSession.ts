@@ -1150,14 +1150,23 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /**
    * A passagem acontece: `scene.changed` ao dono e `applyTransfer` para o
    * integrador mover a ficha. Vale para o "Deixar ir" e para o pino livre.
+   *
+   * ATALHO NA MESMA CENA: `fromSceneId === toSceneId`. A chave de cena não
+   * muda (a memória do jogador é a mesma), e o integrador move a ficha dentro
+   * do mapa em vez de trocá-la de cena. O `scene.changed` vai igual: é o
+   * "Você chegou", e ele descarta movimento ainda sem resposta, que partiria
+   * do ponto de antes do atalho.
    */
   function transferResult(playerId: string, clientId: string, playerName: string, travel: ValidTravel): HostResult {
     const spot = arrivalSpot(travel.to.map, travel.partner, travel.token.size)
     // A cena dele passa a ser a de destino a partir daqui: é ela que o
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
+    // No atalho o mapa do jogador é o mesmo: ele só sabe qual das fichas dele
+    // centrar se o aviso disser. A ficha é dele (`validTravel`): nada vaza.
+    const atalho = travel.from.sceneId === travel.to.sceneId
     return {
-      outbound: [{ clientId, msg: { type: 'scene.changed' } }],
+      outbound: [{ clientId, msg: atalho ? { type: 'scene.changed', tokenId: travel.token.id } : { type: 'scene.changed' } }],
       applyTransfer: {
         tokenId: travel.token.id,
         playerId,

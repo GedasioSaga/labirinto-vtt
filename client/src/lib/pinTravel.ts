@@ -235,16 +235,23 @@ export type PinTravel =
   | { status: 'sem-destino' }
   /** A cena de destino está na aventura, mas o arquivo dela não abriu. */
   | { status: 'indisponivel'; sceneId: string; sceneName: string }
-  | { status: 'ligado'; sceneId: string; sceneName: string; partner: Pin }
+  /**
+   * `sameScene`: ATALHO NA MESMA CENA — o par mora no mesmo mapa (a escada do
+   * térreo que leva ao topo da mesma torre). Ausente na viagem entre cenas.
+   */
+  | { status: 'ligado'; sceneId: string; sceneName: string; partner: Pin; sameScene?: true }
 
 const SEM_DESTINO: PinTravel = { status: 'sem-destino' }
 
 /**
  * Resolve a ligação da saída `exitId` de `pin` (ausente = a principal), que
  * mora na cena `hereSceneId`. `sceneById` entrega as cenas da aventura (a
- * aberta e as de fundo). Ligação para a própria cena não existe: o painel só
- * oferece as OUTRAS cenas. O par vale se QUALQUER saída dele volta para este
+ * aberta e as de fundo). O par vale se QUALQUER saída dele volta para este
  * pino: o par também pode ser uma encruzilhada.
+ *
+ * ATALHO NA MESMA CENA: o destino pode ser outro pino do MESMO mapa, com as
+ * mesmas regras (mão dupla, modo de passagem, mão única). Um pino nunca leva
+ * a si mesmo.
  */
 export function resolvePinTravel(
   pin: Pin,
@@ -253,14 +260,28 @@ export function resolvePinTravel(
   exitId: string = SAIDA_PRINCIPAL,
 ): PinTravel {
   const destino = travelExitOf(pin, exitId)?.destino ?? null
-  if (destino === null || hereSceneId === null || destino.sceneId === hereSceneId) return SEM_DESTINO
+  if (destino === null || hereSceneId === null) return SEM_DESTINO
+  const sameScene = destino.sceneId === hereSceneId
+  if (sameScene && destino.pinId === pin.id) return SEM_DESTINO
   const scene = sceneById(destino.sceneId)
   if (scene === null) return SEM_DESTINO
   if (scene.map === null) return { status: 'indisponivel', sceneId: destino.sceneId, sceneName: scene.name }
   const partner = scene.map.pins.find((p) => p.id === destino.pinId)
   if (partner === undefined) return SEM_DESTINO
   if (!leadsTo(partner, { sceneId: hereSceneId, pinId: pin.id })) return SEM_DESTINO
+  if (sameScene) return { status: 'ligado', sceneId: destino.sceneId, sceneName: scene.name, partner, sameScene: true }
   return { status: 'ligado', sceneId: destino.sceneId, sceneName: scene.name, partner }
+}
+
+/** Nome do "Outro ponto desta cena", como o painel do mestre o diz. */
+export const SAME_SCENE_PLACE = 'outro ponto desta cena'
+
+/**
+ * Para onde a ligação leva, em texto do mestre: o nome da cena, ou
+ * "outro ponto desta cena" no atalho. Nunca vai ao jogador.
+ */
+export function travelPlaceName(travel: Extract<PinTravel, { status: 'ligado' }>): string {
+  return travel.sameScene === true ? SAME_SCENE_PLACE : travel.sceneName
 }
 
 /** Um pino da cena aberta cuja ligação mudou entre dois estados do mapa. */
@@ -353,6 +374,89 @@ export function unlinkBack(map: MapData, partnerId: string, back: PinDestination
   return setArrivalOnly(desligado, partnerId, false)
 }
 
+/**
+ * ATALHO NA MESMA CENA: liga a saída `exitId` do pino `pinId` (`null` = uma
+ * saída nova, com o id `newExitId`) ao pino `partnerId` do MESMO mapa, e grava
+ * a volta no par — os dois lados numa mudança só, porque não há cena de fundo
+ * para o guardião da aventura manter. As mesmas regras da ligação entre cenas:
+ * - um par, uma volta: outra saída daqui que chegava no par perde a ligação;
+ * - o par antigo desta saída (se era desta cena) perde a volta;
+ * - quem o par novo trazia antes (se era desta cena) perde a volta.
+ * Ligação velha para OUTRA cena é desfeita lá pelo guardião, que enxerga a
+ * mudança no mapa aberto. Devolve o MESMO mapa quando não dá para ligar: o
+ * próprio pino, pino que não existe ou que não é de viagem.
+ */
+export function linkWithinScene(map: MapData, sceneId: string, pinId: string, exitId: string | null, partnerId: string, newExitId: string): MapData {
+  if (pinId === partnerId) return map
+  const pin = map.pins.find((p) => p.id === pinId)
+  const partner = map.pins.find((p) => p.id === partnerId)
+  if (pin === undefined || pin.kind !== 'viagem' || partner === undefined || partner.kind !== 'viagem') return map
+  const destino: PinDestination = { sceneId, pinId: partnerId }
+  const daqui: PinDestination = { sceneId, pinId }
+  let next = map
+  for (const other of map.pins) {
+    for (const saida of travelExitsOf(other)) {
+      if (!sameDestination(saida.destino, destino)) continue
+      if (other.id === pinId && saida.id === exitId) continue
+      const atual = next.pins.find((p) => p.id === other.id)
+      if (atual !== undefined) next = withPatch(next, other.id, setExitDestination(atual, saida.id, null))
+    }
+  }
+  const velho = exitId === null ? undefined : rawLinks(pin).find((link) => link.id === exitId)?.destino
+  if (isPinDestination(velho) && velho.sceneId === sceneId && velho.pinId !== partnerId) next = unlinkBack(next, velho.pinId, daqui)
+  const atual = next.pins.find((p) => p.id === pinId)
+  if (atual === undefined) return map
+  // A saída pode ter mudado de id acima (a principal desligada e uma extra
+  // subindo no lugar): a que ainda não existe vira nova.
+  const alvo = exitId !== null && exitId !== SAIDA_PRINCIPAL && !(atual.saidas ?? []).some((s) => s.id === exitId) ? null : exitId
+  const ida = alvo === null ? addExit(atual, newExitId, destino) : setExitDestination(atual, alvo, destino)
+  // Teto de saídas: sem ida, nada de volta — meia ligação não se grava.
+  if (Object.keys(ida).length === 0) return map
+  next = withPatch(next, pinId, ida)
+  const volta = linkBack(next, partnerId, daqui)
+  next = volta.map
+  const deslocado = volta.displaced
+  if (deslocado !== null && deslocado.sceneId === sceneId && deslocado.pinId !== pinId) next = unlinkBack(next, deslocado.pinId, destino)
+  return next
+}
+
+/**
+ * Desliga a saída `exitId` do pino `pinId`. Se ela levava a outro ponto do
+ * MESMO mapa, o par perde a volta na mesma mudança (e, se era chegada
+ * oculta, volta a ser um pino comum — ver `unlinkBack`). Ligação para outra
+ * cena desliga só o lado daqui: o de lá é do guardião da aventura.
+ * Saída sem ligação devolve o MESMO mapa.
+ */
+export function unlinkWithinScene(map: MapData, sceneId: string, pinId: string, exitId: string): MapData {
+  const pin = map.pins.find((p) => p.id === pinId)
+  if (pin === undefined) return map
+  const velho = rawLinks(pin).find((link) => link.id === exitId)?.destino
+  if (velho === undefined || velho === null) return map
+  const desligado = withPatch(map, pinId, setExitDestination(pin, exitId, null))
+  if (!isPinDestination(velho) || velho.sceneId !== sceneId || velho.pinId === pinId) return desligado
+  return unlinkBack(desligado, velho.pinId, { sceneId, pinId })
+}
+
+/**
+ * Onde nasce a chegada de um atalho na MESMA cena: na casa livre mais perto
+ * do pino de origem (o mestre a arrasta até o outro andar), nunca em cima de
+ * outro pino. Sem casa livre por perto, cai na regra da chegada de outra cena.
+ */
+export function nearbyArrivalPoint(map: MapData, origin: { x: number; y: number }): { x: number; y: number } {
+  const largura = map.width * map.grid
+  const altura = map.height * map.grid
+  const livre = (x: number, y: number) => map.pins.every((p) => Math.hypot(p.x - x, p.y - y) >= PIN_HEAD_RADIUS * 2)
+  for (let anel = 1; anel <= ANEIS_DE_PROCURA; anel++) {
+    for (const [dx, dy] of DIRECOES) {
+      const x = origin.x + dx * anel * map.grid
+      const y = origin.y + dy * anel * map.grid
+      if (x < 0 || y < 0 || x > largura || y > altura) continue
+      if (livre(x, y)) return { x, y }
+    }
+  }
+  return arrivalPoint(map)
+}
+
 /** Direções em que o pino de chegada procura lugar quando o centro já tem pino. */
 const DIRECOES: readonly (readonly [number, number])[] = [
   [1, 0],
@@ -417,6 +521,8 @@ export interface TravelSceneOption {
   name: string
   /** `false` = o arquivo da cena não abriu: aparece, desabilitada, com o motivo. */
   available: boolean
+  /** "Esta cena": o atalho para outro ponto do mapa aberto. Ausente nas outras cenas. */
+  here?: true
 }
 
 /** Um pino de viagem da cena escolhida, para ligar a um que já existe. */
@@ -441,13 +547,19 @@ export function travelPinOptions(
   const map = sceneById(sceneId)?.map ?? null
   if (map === null) return []
   const doMestre: PinDestination | null = hereSceneId === null ? null : { sceneId: hereSceneId, pinId }
+  // Na própria cena (atalho), o pino não é par de si mesmo.
+  const aqui = sceneId === hereSceneId
   return map.pins
     .filter((p) => p.kind === 'viagem')
-    .map((p, index) => {
+    .map((p, index) => ({ p, index }))
+    .filter(({ p }) => !(aqui && p.id === pinId))
+    .map(({ p, index }) => {
       const label = p.description.trim() === '' ? `${pinSummary(p)} ${index + 1}` : pinSummary(p)
       const travel = resolvePinTravel(p, sceneId, sceneById)
       if (travel.status !== 'ligado') return { id: p.id, label, note: null }
       if (doMestre !== null && leadsTo(p, doMestre)) return { id: p.id, label, note: 'destino atual' }
-      return { id: p.id, label, note: `já leva a ${travel.sceneName}` }
+      // Atalho de LÁ para lá mesmo: "desta cena" só quando lá é aqui.
+      const lugar = travel.sameScene !== true ? travel.sceneName : aqui ? SAME_SCENE_PLACE : `outro ponto de ${travel.sceneName}`
+      return { id: p.id, label, note: `já leva a ${lugar}` }
     })
 }
