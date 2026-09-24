@@ -9,7 +9,7 @@ import { countExploredCells, forEachExploredRun } from '../lib/exploration'
 import type { Exploration } from '../lib/exploration'
 import { computeAlignedGridLines } from '../lib/gridAlign'
 import { roomHasRoof } from '../lib/roomOps'
-import { visibleDrawings, visibleLights, visibleRegions, visibleStairs } from '../lib/layers'
+import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs } from '../lib/layers'
 import { visionSegments } from '../lib/visibility'
 import { findDoorAt, tokenReachesDoor } from '../lib/doorReach'
 import { findPlayerPinAt } from '../lib/selectionHitTest'
@@ -32,6 +32,8 @@ import { createRegionsRenderer } from '../pixi/drawRegions'
 import { createLightsRenderer } from '../pixi/drawLights'
 import { drawDrawings } from '../pixi/drawDrawings'
 import { drawStairs } from '../pixi/drawStairs'
+import { drawPropSilhouettes } from '../pixi/drawPropSilhouettes'
+import { createPropLooksRenderer, type PropLooksCount, type PropLooksRenderer } from '../pixi/drawPropLooks'
 import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
 import { screenLabelSizing } from '../pixi/screenLabel'
@@ -380,6 +382,23 @@ interface Scene {
   lastDrawingsKey: string | null
   /** Escadas dependem do zoom e da resolução (linha central alinhada ao pixel). */
   lastStairsKey: string | null
+  /**
+   * Móveis e objetos como SILHUETA chapada (`pixi/drawPropSilhouettes.ts`): o
+   * recorte do mestre só manda a geometria do objeto que o jogador enxerga
+   * agora. O contorno tem espessura em px de tela: a chave inclui zoom e resolução.
+   */
+  props: Graphics
+  lastPropsKey: string | null
+  propsCount: number
+  /**
+   * OBJETO COM RÓTULO OU IMAGEM (`pixi/drawPropLooks.ts`): a cópia pequena da
+   * imagem fica logo acima da silhueta (e abaixo da parede, pela mesma razão
+   * dela); o rótulo, junto dos nomes de sala, obedece a "Mostrar nomes".
+   */
+  propImages: Container
+  propLabels: Container
+  propLooksRenderer: PropLooksRenderer
+  propLooksCount: PropLooksCount
   walls: Graphics
   /** Portas do mesmo renderer do editor (drawDoors.ts): trancada continua visível. */
   doors: Graphics
@@ -723,6 +742,19 @@ export function PlayerView({
     drawStairs(scene.stairs, stairs, null, scale, res)
   }
 
+  /** Cada objeto na visão vira um retângulo chapado com o tamanho e a rotação do mestre. */
+  function redrawPropsLayer(scene: Scene): void {
+    const currentMap = latestRef.current.map
+    const props = visibleProps(currentMap.props, currentMap.hiddenLayers)
+    const { scale } = scene.camera
+    const res = scene.app.renderer.resolution
+    const key = JSON.stringify([props, scale, res, currentMap.grid])
+    if (key === scene.lastPropsKey) return
+    scene.lastPropsKey = key
+    scene.propsCount = drawPropSilhouettes(scene.props, props, scale, res)
+    scene.propLooksCount = scene.propLooksRenderer.draw(scene.propImages, scene.propLabels, props, currentMap.grid, scale)
+  }
+
   /** Mesmo desenho do editor (linha clara fina, porta retângulo), em px de tela. */
   function redrawWallsLayer(scene: Scene): void {
     const walls = visibleWalls(latestRef.current.map)
@@ -809,6 +841,7 @@ export function PlayerView({
   /** Só o zoom (ou a resolução) mudou: nada de chão ou névoa. */
   function redrawZoomLayers(scene: Scene): void {
     redrawGridLayer(scene)
+    redrawPropsLayer(scene)
     redrawStairsLayer(scene)
     redrawWallsLayer(scene)
     redrawDoorHints(scene)
@@ -842,6 +875,7 @@ export function PlayerView({
       scene.lastDrawingsKey = drawingsKey
       drawDrawings(scene.drawings, drawings)
     }
+    redrawPropsLayer(scene)
     redrawStairsLayer(scene)
 
     redrawWallsLayer(scene)
@@ -867,6 +901,7 @@ export function PlayerView({
     scene.textLabelsRenderer.draw(scene.textLabels, drawings)
     scene.roomNames.visible = currentSettings.showNames
     scene.textLabels.visible = currentSettings.showNames
+    scene.propLabels.visible = currentSettings.showNames
 
     redrawLights(scene)
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
@@ -927,6 +962,9 @@ export function PlayerView({
       el.dataset.exploredCells = String(scene.exploredCells)
       el.dataset.concealedCount = String(scene.concealedCount)
       el.dataset.pinsCount = String(pins.length)
+      el.dataset.propsCount = String(scene.propsCount)
+      el.dataset.propLabelsCount = String(scene.propLooksCount.labels)
+      el.dataset.propImagesCount = String(scene.propLooksCount.images)
       el.dataset.ownTokens = own.join(',')
     }
 
@@ -1000,6 +1038,9 @@ export function PlayerView({
       const mapLines = new Graphics()
       const regions = new Container()
       const drawings = new Graphics()
+      const props = new Graphics()
+      const propImages = new Container()
+      const propLabels = new Container()
       const stairs = new Graphics()
       const walls = new Graphics()
       const doorHints = new Graphics()
@@ -1027,12 +1068,19 @@ export function PlayerView({
         gridMask,
         grid,
         drawings,
+        // Móveis sobre o chão e ABAIXO de escada, parede e porta — ao contrário
+        // do editor, que põe a imagem do objeto por cima. Lá a imagem tem fundo
+        // transparente; aqui a silhueta é o retângulo inteiro e, por cima, apagaria
+        // o traço do cômodo onde o móvel encosta (cama, armário, estante).
+        props,
+        propImages,
         stairs,
         walls,
         doorHints,
         doors,
         roomNames,
         textLabels,
+        propLabels,
         // Luz acima da planta e ABAIXO da névoa: o que o jogador não vê segue
         // escuro mesmo com uma tocha acesa do outro lado.
         lights,
@@ -1082,6 +1130,13 @@ export function PlayerView({
         stairs,
         lastDrawingsKey: null,
         lastStairsKey: null,
+        props,
+        lastPropsKey: null,
+        propsCount: 0,
+        propImages,
+        propLabels,
+        propLooksRenderer: createPropLooksRenderer(),
+        propLooksCount: { images: 0, labels: 0 },
         walls,
         doors,
         doorHints,

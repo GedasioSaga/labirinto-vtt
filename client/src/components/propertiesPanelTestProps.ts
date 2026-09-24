@@ -90,6 +90,7 @@ export function propsDoPainel(ficha: Token, extra: Partial<PainelProps> = {}): P
     selectedProp: null,
     onSetPropLayer: nada,
     propTransform: { onLockedChange: nada },
+    propPlayer: { onLabelChange: nada, onShowImageChange: nada },
     selectedToken: ficha,
     tokenName: { onNameChange: nada },
     tokenImage: { onChangeImage: nada, onClearImage: nada, onSaveToLibrary: nada },

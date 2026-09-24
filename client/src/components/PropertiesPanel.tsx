@@ -7,6 +7,7 @@ import { GridQuickToggles, type GridControlsProps } from './GridControls'
 import { MapSettingsButton } from './MapSettingsDialog'
 import { CollapsibleSection } from './CollapsibleSection'
 import { PropLayerControls, type PropLayerControlsProps } from './PropLayerControls'
+import { PropPlayerControls, type PropPlayerControlsProps } from './PropPlayerControls'
 import { SelectionControls, type SelectionControlsProps } from './SelectionControls'
 import { WallDoorControls, type WallDoorControlsProps } from './WallDoorControls'
 import { DoorKindControls, type DoorKindControlsProps } from './DoorKindControls'
@@ -112,6 +113,8 @@ interface PropertiesPanelProps {
   onSetPropLayer: PropLayerControlsProps['onSetPropLayer']
   /** F3, contrato do agente C4 — rotação/travar/ocultar do Objeto selecionado. */
   propTransform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
+  /** "Rótulo para jogadores" e "Mostrar imagem ao jogador" do Objeto selecionado. */
+  propPlayer: Omit<PropPlayerControlsProps, 'label' | 'showImage'>
   selectedToken: Token | null
   tokenName: Omit<TokenNameControlsProps, 'name'>
   tokenImage: Omit<TokenImageControlsProps, 'image'>
@@ -205,6 +208,7 @@ export function PropertiesPanel({
   selectedProp,
   onSetPropLayer,
   propTransform,
+  propPlayer,
   selectedToken,
   tokenName,
   tokenImage,
@@ -430,6 +434,7 @@ export function PropertiesPanel({
               {...propTransform}
             />
             <PropLayerControls prop={selectedProp} onSetPropLayer={onSetPropLayer} />
+            <PropPlayerControls label={selectedProp.playerLabel ?? ''} showImage={selectedProp.playerImage !== undefined} {...propPlayer} />
           </ToolPropertiesSection>
         )}
         {selectedToken && (
