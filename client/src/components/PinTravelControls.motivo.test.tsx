@@ -26,6 +26,7 @@ function props(passage: PinPassage, motivo: PinBlockReason | undefined, onMotivo
     motivo,
     onMotivoChange,
     onOneWayChange: () => {},
+    onBothSidesChange: () => {},
     arrivalOnly: false,
   }
 }

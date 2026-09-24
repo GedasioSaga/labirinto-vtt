@@ -1,7 +1,7 @@
 import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import type { PinTravel, TravelPinOption, TravelSceneOption } from '../lib/pinTravel'
 import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, isArrivalOnly, travelExitsOf } from '../lib/pinTravel'
-import { PIN_BLOCK_REASON_LABELS, PIN_BLOCK_REASON_NONE_LABEL, PIN_BLOCK_REASON_ORDER, PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
+import { PIN_BLOCK_REASON_LABELS, PIN_BLOCK_REASON_NONE_LABEL, PIN_BLOCK_REASON_ORDER, PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER, passageOf } from '../lib/pins'
 import type { PinBlockReason, PinPassage } from '../types/map'
 import { ChevronDownIcon } from './icons'
 
@@ -42,6 +42,12 @@ export interface PinTravelControlsProps {
   /** MÃO ÚNICA da saída `exitId`: marca (ou desmarca) o par dela como chegada oculta. */
   onOneWayChange: (exitId: string, on: boolean) => void
   /**
+   * TRANCAR OS DOIS LADOS: `true` tranca este pino e o par de cada saída
+   * ligada; `false` devolve todos a "Pede ao mestre". Qual dos dois o botão
+   * oferece, o painel decide lendo este pino e os pares.
+   */
+  onBothSidesChange: (trancar: boolean) => void
+  /**
    * ESTE pino é a chegada oculta de uma mão única: o painel diz "Só chegada"
    * e não oferece "Leva a…", passagem nem saída nova — ele não leva a lugar
    * nenhum. Quem desfaz é o "Mão única" do pino de origem.
@@ -64,6 +70,7 @@ const PASSAGEM_ID = 'lb-pin-travel-passage'
 const MOTIVO_ID = 'lb-pin-travel-reason'
 const NOME_ID = 'lb-pin-travel-exit-name'
 const MAO_UNICA_ID = 'lb-pin-travel-one-way'
+const DOIS_LADOS_ID = 'lb-pin-travel-both-sides'
 
 /** A chave do gatilho que abriu a escolha: o id da saída, ou esta para "+ Outra saída". */
 const GATILHO_NOVA = '+nova'
@@ -136,6 +143,7 @@ export function PinTravelControls({
   motivo,
   onMotivoChange,
   onOneWayChange,
+  onBothSidesChange,
   arrivalOnly,
 }: PinTravelControlsProps) {
   const [escolha, setEscolha] = useState<Escolha>(null)
@@ -339,6 +347,10 @@ export function PinTravelControls({
       </div>
       <p className="lb-travel__hint">{EFEITO_DA_PASSAGEM[passage]}</p>
 
+      {/* "Cortar a corda": o modo acima vale só para este pino, e trancar a
+          volta pedia abrir a outra cena no meio da perseguição. */}
+      <DoisLados passage={passage} exits={exits} onChange={onBothSidesChange} />
+
       {/* MOTIVO DO BLOQUEIO: só com a passagem trancada. O jogador lê a
           escolha no cartão ("Desabou") no lugar do "Está trancada"; nos
           outros modos o motivo fica guardado e volta se o mestre trancar de novo. */}
@@ -449,6 +461,36 @@ function MaoUnica({ id, travel, onChange }: MaoUnicaProps) {
           : marcada
             ? `Não volta: o jogador chega em ${travel.sceneName} e não vê o pino de chegada.`
             : 'Marque para a passagem não voltar (alçapão, teleporte).'}
+      </p>
+    </>
+  )
+}
+
+interface DoisLadosProps {
+  passage: PinPassage
+  exits: readonly PinTravelExitView[]
+  onChange: (trancar: boolean) => void
+}
+
+/**
+ * "Trancar os dois lados" / "Destrancar os dois lados": um toque neste pino
+ * e no par de cada saída ligada. Destrancar só é oferecido quando TODOS os
+ * lados já estão trancados; com qualquer um aberto, o toque tranca o que
+ * falta. Sem saída ligada não há outro lado, e o botão não aparece.
+ */
+function DoisLados({ passage, exits, onChange }: DoisLadosProps) {
+  const ligadas = exits.flatMap((exit) => (exit.travel.status === 'ligado' ? [exit.travel] : []))
+  if (ligadas.length === 0) return null
+  const trancados = passage === 'trancada' && ligadas.every((travel) => passageOf(travel.partner) === 'trancada')
+  const cenas = [...new Set(ligadas.map((travel) => travel.sceneName))].join(', ')
+  const deLa = ligadas.length === 1 ? `o de ${cenas}` : `os de ${cenas}`
+  return (
+    <>
+      <button type="button" className="lb-btn lb-btn--ghost lb-btn--block" aria-describedby={DOIS_LADOS_ID} onClick={() => onChange(!trancados)}>
+        {trancados ? 'Destrancar os dois lados' : 'Trancar os dois lados'}
+      </button>
+      <p id={DOIS_LADOS_ID} className="lb-travel__hint">
+        {trancados ? `Este pino e ${deLa} voltam a pedir a você.` : `Tranca este pino e ${deLa} de uma vez.`}
       </p>
     </>
   )

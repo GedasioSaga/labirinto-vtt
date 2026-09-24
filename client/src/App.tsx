@@ -1306,6 +1306,11 @@ function App() {
       onOneWayChange: (exitId: string, on: boolean) => {
         useAdventureStore.getState().setPinOneWay(pin.id, exitId, on)
       },
+      // "Trancar os dois lados": este pino (com desfazer) e os pares (cenas de
+      // fundo, fora do desfazer), sem sair da cena aberta.
+      onBothSidesChange: (trancar: boolean) => {
+        useAdventureStore.getState().setPassageBothSides(pin.id, trancar)
+      },
       arrivalOnly: isArrivalOnly(pin),
     }
   }
