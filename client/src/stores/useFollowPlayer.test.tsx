@@ -15,7 +15,7 @@ function mundo(onde: 's-a' | 's-b', x: number, y: number): HostWorld {
   return { open: { sceneId: 's-a', name: 'Salao', map: salao }, background: [{ sceneId: 's-b', name: 'Cripta', map: cripta }] }
 }
 
-const ANA: PlayerInfo = { clientId: 'c', playerId: 'ana', name: 'Ana', status: 'playing', connected: true, tokenIds: ['lanterna'], visionRadius: 700, sceneId: 's-a' }
+const ANA: PlayerInfo = { clientId: 'c', playerId: 'ana', name: 'Ana', status: 'playing', connected: true, tokenIds: ['lanterna'], visionRadius: 700, visionFactor: 1, sceneId: 's-a' }
 
 function Harness({ players, world }: { players: PlayerInfo[]; world: HostWorld }) {
   useFollowPlayer(players, () => world)

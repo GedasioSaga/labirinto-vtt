@@ -16,7 +16,7 @@ function mundo(salao: Token[], cripta: Token[]): HostWorld {
 }
 
 function ana(over: Partial<PlayerInfo> = {}): PlayerInfo {
-  return { clientId: 'c', playerId: 'ana', name: 'Ana', status: 'playing', connected: true, tokenIds: ['lanterna'], visionRadius: 700, sceneId: 's-a', ...over }
+  return { clientId: 'c', playerId: 'ana', name: 'Ana', status: 'playing', connected: true, tokenIds: ['lanterna'], visionRadius: 700, visionFactor: 1, sceneId: 's-a', ...over }
 }
 
 describe('followDecision', () => {

@@ -1753,3 +1753,15 @@ export function setMapScale(map: MapData, scale: MapScale): MapData {
 export function setMeasurementMode(map: MapData, measurementMode: MeasurementMode): MapData {
   return { ...map, measurementMode }
 }
+
+/**
+ * "Visão nesta cena" (lib/sceneVision.ts). `undefined` TIRA o campo em vez de
+ * gravar `"visionCells": null`: cena sem valor fica igual a cena de antes dele.
+ */
+export function setSceneVisionCells(map: MapData, visionCells: number | undefined): MapData {
+  if (visionCells === undefined) {
+    const { visionCells: _semValor, ...rest } = map
+    return rest
+  }
+  return { ...map, visionCells }
+}

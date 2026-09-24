@@ -21,7 +21,7 @@ function mundo(): HostWorld {
 }
 
 function jogador(over: Partial<PlayerInfo>): PlayerInfo {
-  return { clientId: 'c', playerId: 'p', name: 'X', status: 'playing', connected: true, tokenIds: [], visionRadius: 700, ...over }
+  return { clientId: 'c', playerId: 'p', name: 'X', status: 'playing', connected: true, tokenIds: [], visionRadius: 700, visionFactor: 1, ...over }
 }
 
 const JOGADORES: PlayerInfo[] = [

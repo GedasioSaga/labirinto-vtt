@@ -5,12 +5,15 @@ import { GridControls, type GridControlsProps } from './GridControls'
 import { GridAlignControls, type GridAlignControlsProps } from './GridAlignControls'
 import { MapScaleControls, type MapScaleControlsProps } from './MapScaleControls'
 import { ScenarioLinkControls, type ScenarioLinkControlsProps } from './ScenarioLinkControls'
+import { SceneVisionControls, type SceneVisionControlsProps } from './SceneVisionControls'
 import { FEATURES } from '../lib/features'
 
 export interface MapSettingsProps {
   grid: GridControlsProps
   gridAlign: GridAlignControlsProps
   mapScale: MapScaleControlsProps
+  /** "Visão nesta cena": alcance da visão dos jogadores nesta cena, em quadrados. */
+  sceneVision: SceneVisionControlsProps
   scenarioLink: ScenarioLinkControlsProps
 }
 
@@ -44,6 +47,7 @@ export function MapSettingsDialog({
   grid,
   gridAlign,
   mapScale,
+  sceneVision,
   scenarioLink,
   showScenarioLink = FEATURES.scenarioLink,
 }: MapSettingsDialogProps & ScenarioLinkVisibility) {
@@ -124,6 +128,7 @@ export function MapSettingsDialog({
             </section>
           )}
           <MapScaleControls {...mapScale} />
+          <SceneVisionControls {...sceneVision} />
           {showScenarioLink && <ScenarioLinkControls {...scenarioLink} />}
         </div>
       </div>

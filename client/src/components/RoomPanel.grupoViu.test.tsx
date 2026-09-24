@@ -11,12 +11,12 @@ import type { PlayerInfo } from '../net/hostSession'
 import { GROUP_VIEW_LABEL, RoomPanel, groupViewFeedbackText } from './RoomPanel'
 
 const noop = vi.fn()
-const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onRevealPlan: noop, onHidePlan: noop }
+const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onVisionFactorChange: noop, onRevealPlan: noop, onHidePlan: noop }
 const ROOM = { code: 'AB12CD', urls: ['http://10.0.0.2:7777'], qrSvg: '<svg/>' }
 const IDLE: TunnelState = { kind: 'idle' }
 
 function player(overrides: Partial<PlayerInfo>): PlayerInfo {
-  return { clientId: 'c1', playerId: 'p1', name: 'Duda', status: 'playing', connected: true, tokenIds: ['t1'], visionRadius: 700, ...overrides }
+  return { clientId: 'c1', playerId: 'p1', name: 'Duda', status: 'playing', connected: true, tokenIds: ['t1'], visionRadius: 700, visionFactor: 1, ...overrides }
 }
 
 describe('RoomPanel: Dar o que o grupo viu', () => {
