@@ -3009,6 +3009,95 @@ html.lb-arrastando-cena * {
   }
 }
 
+/* Revisar aventura (RevisorAventura.tsx): três grupos de linhas densas, cada
+   uma com a cena em cinza, o problema e as ações à direita. Sem cor de alarme
+   gritando: o grupo diz a gravidade, a ordem diz o que olhar primeiro. */
+.lb-cenas__revisar {
+  margin-top: var(--lb-space-2);
+}
+
+.lb-dialog.lb-revisor {
+  width: min(640px, 100%);
+  will-change: transform;
+}
+
+.lb-revisor__corpo {
+  padding: 0 var(--lb-space-4) var(--lb-space-4);
+}
+
+.lb-revisor__aviso {
+  min-height: 1.4em;
+  margin: var(--lb-space-2) 0 0;
+  color: var(--lb-color-brass);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-revisor__grupo + .lb-revisor__grupo {
+  margin-top: var(--lb-space-3);
+}
+
+.lb-revisor__titulo {
+  margin: var(--lb-space-2) 0 var(--lb-space-1);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lb-revisor__conta {
+  color: var(--lb-color-parchment-faint);
+  font-weight: var(--lb-font-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-revisor__vazio {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-revisor__lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-revisor__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) 0;
+  border-bottom: 1px solid var(--lb-color-line);
+}
+
+.lb-revisor__texto {
+  flex: 1 1 260px;
+  min-width: 0;
+  margin: 0;
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  overflow-wrap: anywhere;
+}
+
+.lb-revisor__cena {
+  display: block;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+}
+
+.lb-revisor__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-1);
+}
+
+.lb-revisor__acoes > .lb-btn {
+  min-height: 28px;
+  font-size: var(--lb-font-size-sm);
+}
+
 /* Objetos do mapa (MapObjectsSection): busca e lista da cena aberta. A linha é
    densa como a de Camadas — com trinta salas o olho precisa varrer, não ler
    cartões —, e a marca à esquerda repete em miniatura o desenho do minimapa:
