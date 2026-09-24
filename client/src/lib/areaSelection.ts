@@ -25,6 +25,7 @@ import { isDegenerateRegion } from '../pixi/shapes'
 import { moveWall, moveRegion, moveStair } from './mapFactory'
 import { ancestorsOf, subtreeIds } from './roomNesting'
 import { carryAttachedPins } from './pinAttach'
+import { carrierIdOf, followStep } from './carry'
 
 // ─────────────────────────────────────────────────────────────
 // Geometria genérica: todo tipo de entidade do mapa se reduz a um destes 5
@@ -586,9 +587,17 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
   if (selection.tokens.length > 0) {
     const tokenIds = new Set(selection.tokens)
     const movedTokenIds = next.tokens.filter((t) => tokenIds.has(t.id) && canInteract(t)).map((t) => t.id)
+    const movedIds = new Set(movedTokenIds)
+    // LEVAR FICHA JUNTO: a ficha levada que NÃO está na seleção acompanha quem
+    // a leva, com o trajeto dela checado nas paredes de ANTES (`map`) — a seta
+    // e o arrasto da seleção não passam por `setTokenPosition`.
+    const follows = (t: Token): boolean => {
+      const carrierId = carrierIdOf(t)
+      return carrierId !== null && movedIds.has(carrierId) && !movedIds.has(t.id)
+    }
     next = {
       ...next,
-      tokens: next.tokens.map((t) => (tokenIds.has(t.id) && canInteract(t) ? { ...t, x: t.x + dx, y: t.y + dy } : t)),
+      tokens: next.tokens.map((t) => (movedIds.has(t.id) ? { ...t, x: t.x + dx, y: t.y + dy } : follows(t) ? followStep(map, t, dx, dy) : t)),
     }
     // Pino PRESO a uma ficha que andou anda junto. O pino não entra na seleção
     // em área, então não há risco de somar o delta duas vezes.

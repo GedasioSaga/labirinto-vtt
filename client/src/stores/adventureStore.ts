@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { MapData, Pin, PinDestination, Token } from '../types/map'
 import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
+import { carrierIdOf, withoutCarrier } from '../lib/carry'
 import type { Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
 import { ADVENTURE_VERSION, baseName, cleanSceneName, newSceneId, sceneFileFor, type Adventure, type SceneEntry } from '../lib/adventure'
@@ -320,6 +321,20 @@ function withToken(history: SceneHistory, token: Token): SceneHistory {
 }
 
 /**
+ * LEVAR FICHA JUNTO: a ficha levada que chega a uma cena SEM quem a leva chega
+ * solta. Quem leva atravessa ANTES das levadas (`hostBridge`), então achá-la
+ * no destino é o "foi junto". Sem ela lá, a levada mudou de cena sozinha (pino
+ * dela, "Mandar para…" só nela, reunião sem quem leva): gravar o vínculo
+ * deixava um fantasma que o painel mostrava solto e que voltava a puxar a
+ * ficha quando quem leva chegasse depois, sem o mestre ter prendido de novo.
+ */
+function arrivingLink(token: Token, destination: MapData): Token {
+  const carrierId = carrierIdOf(token)
+  if (carrierId === null || destination.tokens.some((t) => t.id === carrierId)) return token
+  return withoutCarrier(token)
+}
+
+/**
  * `true` enquanto uma cena ENTRA no editor. `loadMap` troca o mapa inteiro, e
  * isso não é edição: sem esta trava o guardião da mão dupla leria os pinos da
  * cena que saiu como "apagados" e desligaria todos os pares deles.
@@ -551,7 +566,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (from === null || to === null || token === undefined) return false
 
     const leaving = withoutToken(from, tokenId)
-    const arriving = withToken(to, { ...token, x, y })
+    const arriving = withToken(to, { ...arrivingLink(token, to.map), x, y })
     const nextCache: Record<string, SceneSlot> = { ...cache }
     const nextDirty: Record<string, true> = { ...dirty }
     let openScene: SceneHistory | null = null
