@@ -18,7 +18,8 @@ import { createPinsRenderer } from '../pixi/drawPins'
 import { fitCamera, panBy, zoomAt } from '../pixi/world'
 import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolution'
 import type { Bounds, Camera } from '../pixi/world'
-import { arrivalCamera, centeredCamera, firstOwnToken } from './playerCamera'
+import { arrivalCamera, centeredCamera, firstOwnToken, type OwnDisc } from './playerCamera'
+import { cameraGlideFrame, edgeScrollCamera, recenterTarget, startCameraGlide, type CameraGlide } from './edgeFollow'
 import { drawOwnerPulse, drawOwnerRing, ownerRingOuterPx } from './ownerMarker'
 import { companionLabelText, drawCompanionRing } from './companionMarker'
 import { drawGrid } from '../pixi/drawGrid'
@@ -191,7 +192,24 @@ type Drag =
   // `startX`/`startY`: onde o gesto começou — se ele terminar sem andar, é um toque (porta), não um arrasto de câmera.
   // `canTap` falso: o dedo que sobrou de uma pinça. Arrasta a câmera, mas soltá-lo não abre porta nem pino.
   | { kind: 'pan'; pointerId: number; lastX: number; lastY: number; startX: number; startY: number; canTap: boolean }
-  | { kind: 'token'; pointerId: number; tokenId: string; offsetX: number; offsetY: number; x: number; y: number }
+  // `screenX`/`screenY`: onde o dedo está agora — a borda rola o mapa com o dedo parado, e a ficha
+  // continua sob ele. `edgeArmed`: o dedo já andou mais que a tremida de um toque (pegar a ficha que
+  // está na faixa da borda não rola nada). `edgeAt`: quadro anterior da rolagem; `null` = nenhum ainda.
+  | {
+      kind: 'token'
+      pointerId: number
+      tokenId: string
+      offsetX: number
+      offsetY: number
+      x: number
+      y: number
+      startX: number
+      startY: number
+      screenX: number
+      screenY: number
+      edgeArmed: boolean
+      edgeAt: number | null
+    }
   // Régua do jogador: o ponto vive em `scene.measure`, aqui só se marca que o gesto é dela.
   // `before`: a medida de antes do toque, que volta se o toque virar pinça.
   | { kind: 'measure'; pointerId: number; before: PlayerMeasureState }
@@ -595,6 +613,8 @@ interface Scene {
   touch: TouchState
   /** Degrau dos botões + e − ainda andando; `null` = parado. O ticker o leva até o fim. */
   zoomAnimation: ZoomAnimation | null
+  /** Recentrar na própria ficha solta perto da borda (edgeFollow.ts); `null` = parado. */
+  cameraGlide: CameraGlide | null
   /** Espaço de tela, acima do `world`: ondas e seta de borda com tamanho fixo. */
   signalsLayer: Container
   signalsRenderer: ReturnType<typeof createSignalsRenderer>
@@ -771,6 +791,7 @@ function startOwnerPulse(scene: Scene, tokenId: string): void {
  */
 function setCameraFromApp(scene: Scene, camera: Camera): void {
   scene.zoomAnimation = null
+  scene.cameraGlide = null
   scene.camera = camera
   scene.touch = rebasePinch(scene.touch, camera)
   applyCamera(scene)
@@ -784,6 +805,8 @@ function setCameraFromApp(scene: Scene, camera: Camera): void {
 function stepZoom(scene: Scene, direction: ZoomDirection, animate: boolean): void {
   // Pinça em andamento manda na câmera: o botão tocado com outro dedo não disputa com ela.
   if (scene.touch.pinch !== null) return
+  // O + assume a câmera: o recentrar que andava para onde está, senão a puxaria de volta.
+  scene.cameraGlide = null
   const anchor = { x: scene.app.screen.width / 2, y: scene.app.screen.height / 2 }
   if (animate && !prefersReducedMotion()) {
     const animation = zoomStepAnimation(scene.camera, scene.zoomAnimation, anchor, direction, performance.now())
@@ -1271,6 +1294,24 @@ export function PlayerView({
     latestRef.current.onLaserEnd?.()
   }
 
+  /**
+   * Soltou a própria ficha perto da borda, ou debaixo do painel: a câmera vai
+   * até ela em `RECENTER_MS`, e de uma vez para quem pediu ao sistema menos
+   * movimento. No miolo da tela a câmera fica onde está.
+   */
+  function recenterOnDrop(scene: Scene, own: OwnDisc): void {
+    const viewport = { width: scene.app.screen.width, height: scene.app.screen.height }
+    const target = recenterTarget(scene.camera, own, viewport, readObstacles())
+    if (target === null) return
+    if (prefersReducedMotion()) {
+      setCameraFromApp(scene, target)
+      return
+    }
+    // O recentrar assume a câmera: o degrau do + que andava para onde está.
+    scene.zoomAnimation = null
+    scene.cameraGlide = startCameraGlide(scene.camera, target, performance.now())
+  }
+
   function startTokenDrag(scene: Scene, tokenId: string, event: FederatedPointerEvent): void {
     // Alt+clique ou modo Sinalizar sobre um token: deixa o evento subir para o palco sinalizar.
     // Modo Medir também: medir a partir da própria ficha é o caso mais comum, e ela não pode andar.
@@ -1284,7 +1325,24 @@ export function PlayerView({
     const world = scene.world.toLocal(event.global)
     // Pegou a ficha no meio de um deslize: ela para onde está e passa a seguir o dedo.
     scene.tokenGlides.delete(tokenId)
-    scene.drag = { kind: 'token', pointerId: event.pointerId, tokenId, offsetX: view.x - world.x, offsetY: view.y - world.y, x: view.x, y: view.y }
+    // Pegou a ficha no meio do recentrar: a câmera para onde está, e a borda passa a mandar nela.
+    scene.cameraGlide = null
+    const { x, y } = event.global
+    scene.drag = {
+      kind: 'token',
+      pointerId: event.pointerId,
+      tokenId,
+      offsetX: view.x - world.x,
+      offsetY: view.y - world.y,
+      x: view.x,
+      y: view.y,
+      startX: x,
+      startY: y,
+      screenX: x,
+      screenY: y,
+      edgeArmed: false,
+      edgeAt: null,
+    }
   }
 
   useEffect(() => {
@@ -1455,6 +1513,7 @@ export function PlayerView({
         drag: null,
         touch: NO_TOUCH,
         zoomAnimation: null,
+        cameraGlide: null,
         signalsLayer,
         signalsRenderer: createSignalsRenderer(),
         measureLayer,
@@ -1486,6 +1545,42 @@ export function PlayerView({
         applyCamera(scene)
       }
       app.ticker.add(tickZoom)
+
+      // Recentrar na ficha solta perto da borda. Logo depois do degrau, pelo mesmo motivo.
+      const tickCameraGlide = () => {
+        const glide = scene.cameraGlide
+        if (glide === null) return
+        const frame = cameraGlideFrame(glide, performance.now())
+        scene.camera = frame.camera
+        if (frame.done) scene.cameraGlide = null
+        applyCamera(scene)
+      }
+      app.ticker.add(tickCameraGlide)
+
+      // Ficha arrastada na faixa da borda: o mapa rola a cada quadro, com o dedo parado ou não,
+      // e a ficha continua sob o dedo. Só a câmera desta tela — nada vai pela rede até soltar.
+      const tickEdgeScroll = () => {
+        const drag = scene.drag
+        if (drag?.kind !== 'token' || !drag.edgeArmed) return
+        // Pinça em curso manda na câmera (o dedo da ficha nem é dela, mas não disputa).
+        if (scene.touch.pinch !== null) return
+        const now = performance.now()
+        const elapsed = drag.edgeAt === null ? 0 : now - drag.edgeAt
+        drag.edgeAt = now
+        const current = latestRef.current.map
+        const mapBounds = { minX: 0, minY: 0, maxX: current.width * current.grid, maxY: current.height * current.grid }
+        const viewport = { width: app.screen.width, height: app.screen.height }
+        const next = edgeScrollCamera(scene.camera, { x: drag.screenX, y: drag.screenY }, viewport, mapBounds, elapsed)
+        if (next === null) return
+        // A borda assume a câmera: o degrau do + para onde está.
+        scene.zoomAnimation = null
+        scene.camera = next
+        applyCamera(scene)
+        drag.x = (drag.screenX - next.x) / next.scale + drag.offsetX
+        drag.y = (drag.screenY - next.y) / next.scale + drag.offsetY
+        scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
+      }
+      app.ticker.add(tickEdgeScroll)
 
       let signalsDrawn = 0
       const tickSignals = () => {
@@ -1635,8 +1730,9 @@ export function PlayerView({
         event.stopPropagation()
         if (role !== 'pinch') return
         abandonDrag()
-        // A pinça partiu da câmera deste instante: o degrau dos botões para aqui, senão puxaria o mapa de volta.
+        // A pinça partiu da câmera deste instante: o degrau dos botões e o recentrar param aqui, senão puxariam o mapa de volta.
         scene.zoomAnimation = null
+        scene.cameraGlide = null
       })
 
       app.stage.on('pointerdown', (event: FederatedPointerEvent) => {
@@ -1724,8 +1820,9 @@ export function PlayerView({
           return
         }
         if (drag.kind === 'pan') {
-          // Arrastar o mapa assume a câmera: o degrau dos botões para onde está (tocar sem arrastar, não).
+          // Arrastar o mapa assume a câmera: o degrau dos botões e o recentrar param onde estão (tocar sem arrastar, não).
           scene.zoomAnimation = null
+          scene.cameraGlide = null
           scene.camera = panBy(scene.camera, event.global.x - drag.lastX, event.global.y - drag.lastY)
           drag.lastX = event.global.x
           drag.lastY = event.global.y
@@ -1735,6 +1832,12 @@ export function PlayerView({
         const world = scene.world.toLocal(event.global)
         drag.x = world.x + drag.offsetX
         drag.y = world.y + drag.offsetY
+        drag.screenX = event.global.x
+        drag.screenY = event.global.y
+        // Andou mais que a tremida de um toque: a partir daqui a borda rola o mapa (tickEdgeScroll).
+        if (!drag.edgeArmed && Math.hypot(drag.screenX - drag.startX, drag.screenY - drag.startY) > SIGNAL_LONG_PRESS_TOLERANCE_PX) {
+          drag.edgeArmed = true
+        }
         scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
       })
       const endDrag = () => {
@@ -1782,6 +1885,7 @@ export function PlayerView({
           return
         }
         latestRef.current.onMove(drag.tokenId, x, y)
+        recenterOnDrop(scene, { x, y, radius: tokenRadius(token, latestRef.current.map.grid) })
       }
 
       /**
@@ -1817,8 +1921,9 @@ export function PlayerView({
 
       const onWheel = (event: WheelEvent) => {
         event.preventDefault()
-        // A roda assume a câmera: o degrau dos botões para onde está.
+        // A roda assume a câmera: o degrau dos botões e o recentrar param onde estão.
         scene.zoomAnimation = null
+        scene.cameraGlide = null
         const rect = app.canvas.getBoundingClientRect()
         scene.camera = zoomAt(scene.camera, { x: event.clientX - rect.left, y: event.clientY - rect.top }, event.deltaY)
         // applyCamera chama onZoom → redrawZoomLayers: paredes e portas refazem a largura de tela.
@@ -1843,6 +1948,8 @@ export function PlayerView({
         app.canvas.removeEventListener('pointercancel', onPointerCancel)
         cancelLongPress()
         app.ticker.remove(tickZoom)
+        app.ticker.remove(tickCameraGlide)
+        app.ticker.remove(tickEdgeScroll)
         app.ticker.remove(tickSignals)
         app.ticker.remove(tickLaser)
         app.ticker.remove(tickPlayerLasers)
