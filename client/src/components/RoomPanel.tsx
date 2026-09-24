@@ -1,5 +1,13 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { VISION_RADIUS_MAX, VISION_RADIUS_MIN, VISION_RADIUS_STEP, type HostWorld, type PlayerInfo } from '../net/hostSession'
+import {
+  MAX_SCENE_MEMORIES_PER_PLAYER,
+  VISION_RADIUS_MAX,
+  VISION_RADIUS_MIN,
+  VISION_RADIUS_STEP,
+  type GiveMapOutcome,
+  type HostWorld,
+  type PlayerInfo,
+} from '../net/hostSession'
 import type { RoomInfo, TunnelState } from '../net/hostBridge'
 import { giftableRoomsOf } from '../lib/fogFilter'
 import { normalizeForSearch } from '../lib/mapObjects'
@@ -46,9 +54,9 @@ export interface RoomPanelProps {
   giftScenes?: GiftScene[]
   /**
    * "Dar um mapa a…": grava as Salas `roomIds` da cena `sceneId` na memória de
-   * `playerId`. Devolve quantas entraram (0 = nada foi).
+   * `playerId`. Devolve quantas entraram (0 = nada foi) ou `memoria-cheia`.
    */
-  onGiveMap?(playerId: string, sceneId: string | null, roomIds: string[]): number
+  onGiveMap?(playerId: string, sceneId: string | null, roomIds: string[]): GiveMapOutcome
   /** Botão "Laser" ligado: arma o laser (independe de segurar L); o traço sai clicando no mapa. */
   laserOn?: boolean
   onToggleLaser?(): void
@@ -445,13 +453,23 @@ function ShareMapControls({ player, players, onShareMap }: ShareMapControlsProps
 interface GiveMapControlsProps {
   player: PlayerInfo
   scenes: GiftScene[]
-  onGiveMap(playerId: string, sceneId: string | null, roomIds: string[]): number
+  onGiveMap(playerId: string, sceneId: string | null, roomIds: string[]): GiveMapOutcome
 }
 
 /** `<select>` só leva texto: a cena do mapa solto (`null`) vira ''. */
 const sceneValue = (sceneId: string | null): string => sceneId ?? ''
 
 const roomsLabel = (count: number): string => (count === 1 ? '1 sala' : `${count} salas`)
+
+/** Linha de status do "Entregar": o que entrou, ou por que nada entrou. */
+function giveMapStatus(playerName: string, outcome: GiveMapOutcome): string {
+  if (outcome === 'memoria-cheia') {
+    return `Nada foi: a memória de ${playerName} já guarda ${MAX_SCENE_MEMORIES_PER_PLAYER} cenas, e o mapa de uma cena nova apagaria a mais antiga explorada.`
+  }
+  return outcome > 0
+    ? `Mapa entregue a ${playerName}: ${roomsLabel(outcome)}.`
+    : 'Nada foi: essas salas estão ocultas para jogadores agora, ou a sala da mesa fechou.'
+}
 
 /**
  * MAPA DE PAPEL — "Dar um mapa a…" no card do jogador: o mestre escolhe a
@@ -496,12 +514,8 @@ function GiveMapControls({ player, scenes, onGiveMap }: GiveMapControlsProps) {
     event.preventDefault()
     if (picked.length === 0) return
     const given = onGiveMap(player.playerId, scene.sceneId, picked)
-    setStatus(
-      given > 0
-        ? `Mapa entregue a ${player.name}: ${roomsLabel(given)}.`
-        : 'Nada foi: essas salas estão ocultas para jogadores agora, ou a sala da mesa fechou.',
-    )
-    if (given > 0) setChecked(new Set())
+    setStatus(giveMapStatus(player.name, given))
+    if (typeof given === 'number' && given > 0) setChecked(new Set())
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {

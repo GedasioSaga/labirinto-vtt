@@ -10,9 +10,23 @@ import { createHostBridge } from './hostBridge'
 
 const ROOM = { code: 'AB12CD', urls: ['http://192.168.0.2:7777'], qrSvg: '<svg/>' }
 
-function mapa(): MapData {
+/** Fumaça que cobre o Pombal inteiro (1200..1600 x 80..320) com folga. */
+const ZONA_SOBRE_O_POMBAL = {
+  id: 'z-pombal',
+  name: 'Fumaça',
+  revealed: false,
+  points: [
+    { x: 1180, y: 60 },
+    { x: 1620, y: 60 },
+    { x: 1620, y: 340 },
+    { x: 1180, y: 340 },
+  ],
+}
+
+function mapa(zonaSobreOPombal = false): MapData {
   return {
     ...createEmptyMap('m', 'M', 50, 10, 40),
+    concealZones: zonaSobreOPombal ? [ZONA_SOBRE_O_POMBAL] : [],
     tokens: [
       { id: 'heroi', characterId: null, name: 'Herói', x: 100, y: 200, size: 1, image: null },
       { id: 'bruxa', characterId: null, name: 'Bruxa', x: 300, y: 200, size: 1, image: null },
@@ -36,14 +50,14 @@ function mapa(): MapData {
   }
 }
 
-function setup() {
+function setup(opts: { zonaSobreOPombal?: boolean } = {}) {
   const handlers = new Map<string, (event: { payload: unknown }) => void>()
   const invoke = vi.fn(async (cmd: string, _args?: unknown) => (cmd === 'net_start_room' ? ROOM : undefined))
   const listen = vi.fn(async (name: string, handler: (event: { payload: unknown }) => void) => {
     handlers.set(name, handler)
     return vi.fn()
   })
-  const map = mapa()
+  const map = mapa(opts.zonaSobreOPombal)
   const bridge = createHostBridge({ invoke, listen, getMap: () => map, applyMove: vi.fn(), applyDoor: vi.fn(), now: () => 0 })
   const emit = (payload: unknown) => {
     const handler = handlers.get('net:message')
@@ -70,8 +84,8 @@ const tipos = (sent: unknown[], clientId: string): string[] =>
     return typeof msg === 'object' && msg !== null && 'type' in msg && typeof msg.type === 'string' ? [msg.type] : []
   })
 
-async function mesa() {
-  const t = setup()
+async function mesa(opts: { zonaSobreOPombal?: boolean } = {}) {
+  const t = setup(opts)
   await t.bridge.start()
   t.emit({ clientId: 'c1', msg: { type: 'join', code: ROOM.code, name: 'Ana' } })
   t.emit({ clientId: 'c2', msg: { type: 'join', code: ROOM.code, name: 'Bruno' } })
@@ -99,5 +113,12 @@ describe('hostBridge — mapa de papel', () => {
     const semSala = setup()
     expect(semSala.bridge.giveRoomsMap('p1', null, ['r-pombal'])).toBe(0)
     expect(semSala.sent()).toEqual([])
+  })
+
+  it('Pombal todo sob zona oculta ativa: 0, sem aviso à Ana e sem snapshot de graça', async () => {
+    const t = await mesa({ zonaSobreOPombal: true })
+    const antes = t.sent().length
+    expect(t.bridge.giveRoomsMap(t.ana, null, ['r-pombal'])).toBe(0)
+    expect(t.sent().slice(antes)).toEqual([])
   })
 })

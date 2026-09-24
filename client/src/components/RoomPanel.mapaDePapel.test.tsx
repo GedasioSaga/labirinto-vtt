@@ -9,7 +9,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { TunnelState } from '../net/hostBridge'
-import type { HostWorld, PlayerInfo } from '../net/hostSession'
+import { MAX_SCENE_MEMORIES_PER_PLAYER, type GiveMapOutcome, type HostWorld, type PlayerInfo } from '../net/hostSession'
 import type { Region } from '../types/map'
 import { giftScenesOf, RoomPanel, type GiftScene } from './RoomPanel'
 
@@ -89,14 +89,14 @@ describe('giftScenesOf — o que o mestre pode pôr num mapa de papel', () => {
 describe('RoomPanel: dar um mapa de papel', () => {
   let container: HTMLDivElement
   let root: Root
-  let onGiveMap: ReturnType<typeof vi.fn<(playerId: string, sceneId: string | null, roomIds: string[]) => number>>
+  let onGiveMap: ReturnType<typeof vi.fn<(playerId: string, sceneId: string | null, roomIds: string[]) => GiveMapOutcome>>
 
   beforeEach(() => {
     Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
-    onGiveMap = vi.fn<(playerId: string, sceneId: string | null, roomIds: string[]) => number>((_p, _s, ids) => ids.length)
+    onGiveMap = vi.fn<(playerId: string, sceneId: string | null, roomIds: string[]) => GiveMapOutcome>((_p, _s, ids) => ids.length)
   })
 
   afterEach(() => {
@@ -227,6 +227,18 @@ describe('RoomPanel: dar um mapa de papel', () => {
     clica(botao('Entregar'))
     expect(onGiveMap).toHaveBeenCalledWith('p1', 's-salao', ['r-bib'])
     expect(container.querySelector('[role="status"]')?.textContent).toBe('Nada foi: essas salas estão ocultas para jogadores agora, ou a sala da mesa fechou.')
+  })
+
+  it('memória da Ana cheia: diz ao mestre que nada foi e por quê, e mantém as Salas marcadas', () => {
+    onGiveMap.mockReturnValue('memoria-cheia')
+    render()
+    clica(botao('Dar um mapa a Ana'))
+    clica(campoDoRotulo<HTMLInputElement>('Biblioteca'))
+    clica(botao('Entregar'))
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(
+      `Nada foi: a memória de Ana já guarda ${MAX_SCENE_MEMORIES_PER_PLAYER} cenas, e o mapa de uma cena nova apagaria a mais antiga explorada.`,
+    )
+    expect(campoDoRotulo<HTMLInputElement>('Biblioteca').checked).toBe(true)
   })
 
   it('aventura sem nenhuma Sala desenhada: o card não oferece o mapa', () => {

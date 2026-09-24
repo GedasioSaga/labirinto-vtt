@@ -213,7 +213,19 @@ export interface HostResult {
    * `playerId`. O integrador faz o broadcast, como no `mapShared`.
    */
   mapGiven?: { playerId: string; roomIds: string[] }
+  /**
+   * MAPA DE PAPEL recusado por um motivo que o mestre precisa ler (o jogador
+   * não é avisado): `memoria-cheia` = o mapa é de uma cena que ele ainda não
+   * tem na memória e ela já guarda `MAX_SCENE_MEMORIES_PER_PLAYER` cenas.
+   */
+  mapRefused?: { playerId: string; reason: MapGiftRefusal }
 }
+
+/** Por que o mapa de papel não entrou, quando o motivo não é "nada a dar". */
+export type MapGiftRefusal = 'memoria-cheia'
+
+/** O que "Dar um mapa a…" devolve ao painel: quantas Salas entraram (0 = nada) ou o motivo da recusa. */
+export type GiveMapOutcome = number | MapGiftRefusal
 
 /** O que `abalo` devolve: as mensagens e quantos receberam em cada faixa. */
 export interface AbaloResult extends HostResult {
@@ -301,6 +313,20 @@ export const TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS = 1500
  * crescer sem limite numa aventura longa.
  */
 export const MAX_SCENE_MEMORIES_PER_PLAYER = 8
+
+/**
+ * MAPA DE PAPEL — a Sala deixa marca na memória? Marca só ela, sob os mesmos
+ * vetos, em `scratch` (exploração vazia da MESMA grade, reaproveitada entre as
+ * Salas): sobrou célula ou contorno, entra. Sala toda sob zona oculta ativa não
+ * deixa nada, e contá-la como entregue anunciaria um mapa que não existe.
+ */
+function roomLeavesMark(scratch: Exploration, points: readonly RegionPoint[], blocked: readonly RegionPoint[][]): boolean {
+  scratch.bits.fill(0)
+  scratch.rings = []
+  scratch.ringVertices = 0
+  markRings(scratch, [points], blocked)
+  return scratch.rings.length > 0 || scratch.bits.some((byte) => byte !== 0)
+}
 
 /**
  * Quantas cenas guardam o "último recado". O `sceneId` vem da tela do mestre
@@ -415,9 +441,13 @@ export interface HostSession {
    * = o mapa solto) na memória de `playerId` — e só na dele —, como um mapa
    * achado. Vale para qualquer cena do mundo, não só a dele: o recorte só
    * entrega aquela memória quando ele estiver lá. Entra só Sala que o recorte
-   * pode mostrar (`giftableRoomsOf`); zona oculta ativa continua barrando. Quem
+   * pode mostrar (`giftableRoomsOf`) e que deixa ao menos uma célula marcada:
+   * Sala toda sob zona oculta ativa fica de fora (e fora de `mapGiven`). Quem
    * recebe ganha `map.given`, sem cena nem Sala. Nada a gravar (jogador, cena ou
-   * Sala desconhecidos, só Salas proibidas): `{ outbound: [] }` sem `mapGiven`.
+   * Sala desconhecidos, só Salas proibidas ou escondidas): `{ outbound: [] }`
+   * sem `mapGiven`. Cena que ele ainda não tem na memória com a memória no teto:
+   * nada é gravado e volta `mapRefused` (`memoria-cheia`) — o mapa de papel
+   * nunca empurra para fora uma cena que ele explorou.
    */
   giveRoomsMap(playerId: string, sceneId: string | null, roomIds: readonly string[], source: HostMapSource): HostResult
   /**
@@ -571,6 +601,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return memory !== undefined && memory.key === memoryKey(map) ? memory : undefined
   }
 
+  /** Memória vazia deste mapa. MapData.width/height estão em células; o explorado mede px de mundo (mesma unidade da visão). */
+  const blankMemory = (map: MapData): PlayerMemory => ({
+    key: memoryKey(map),
+    exp: createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }),
+    doors: new Map(),
+    vision: [],
+  })
+
   /**
    * Memória do jogador para este mapa. Cada cena tem a sua: ir à Cripta e
    * voltar ao Salão devolve o Salão como ele o deixou. Mapa novo (ou mesmo id
@@ -583,14 +621,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       byScene = new Map()
       memories.set(playerId, byScene)
     }
-    const found = existingMemory(playerId, map)
-    // MapData.width/height estão em células; o explorado mede px de mundo (mesma unidade da visão).
-    const memory: PlayerMemory = found ?? {
-      key: memoryKey(map),
-      exp: createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }),
-      doors: new Map(),
-      vision: [],
-    }
+    const memory = existingMemory(playerId, map) ?? blankMemory(map)
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
     byScene.delete(map.id)
     byScene.set(map.id, memory)
@@ -598,6 +629,24 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (byScene.size <= MAX_SCENE_MEMORIES_PER_PLAYER) break
       byScene.delete(oldest)
     }
+    return memory
+  }
+
+  /**
+   * MAPA DE PAPEL: a memória onde o presente é gravado, SEM mexer na ordem de
+   * uso. A que ele já tem fica onde está (ganhar um mapa não é visitar a cena).
+   * Cena nova entra como a MENOS recente — é a primeira a sair quando ele andar
+   * por uma cena a mais — e nunca despeja outra: com a memória no teto, `null`.
+   */
+  const giftMemoryFor = (playerId: string, map: MapData): PlayerMemory | null => {
+    const found = existingMemory(playerId, map)
+    if (found !== undefined) return found
+    const byScene = memories.get(playerId) ?? new Map<string, PlayerMemory>()
+    // Memória do mesmo id com outra grade (mapa redimensionado) já não vale: é trocada, não soma.
+    const others = [...byScene].filter(([mapId]) => mapId !== map.id)
+    if (others.length >= MAX_SCENE_MEMORIES_PER_PLAYER) return null
+    const memory = blankMemory(map)
+    memories.set(playerId, new Map([[map.id, memory], ...others]))
     return memory
   }
 
@@ -1543,10 +1592,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (scene === undefined) return { outbound: [] }
       const map = scene.map
       const wanted = new Set(roomIds)
-      const rooms = giftableRoomsOf(map).filter((r) => wanted.has(r.id))
-      if (rooms.length === 0) return { outbound: [] }
       // Mesmo veto do "Revelar planta": zona oculta ativa, sala secreta e teto não viram explorados.
-      markRings(memoryFor(playerId, map).exp, rooms.map((r) => r.points), playerBlockedRings(map))
+      const blocked = playerBlockedRings(map)
+      const scratch = blankMemory(map).exp
+      const rooms = giftableRoomsOf(map).filter((r) => wanted.has(r.id) && roomLeavesMark(scratch, r.points, blocked))
+      if (rooms.length === 0) return { outbound: [] }
+      const memory = giftMemoryFor(playerId, map)
+      if (memory === null) return { outbound: [], mapRefused: { playerId, reason: 'memoria-cheia' } }
+      markRings(memory.exp, rooms.map((r) => r.points), blocked)
       const allowed = new Set(rooms.map((r) => r.id))
       const given = [...wanted].filter((id) => allowed.has(id))
       return {
