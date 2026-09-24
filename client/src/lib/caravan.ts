@@ -1,4 +1,5 @@
 import type { MapData, Pin, Token } from '../types/map'
+import { carrierIdOf } from './carry'
 import { tokenRadiusOf } from './doorReach'
 import { gatherSpots } from './gatherParty'
 import { arrivalSpot, isArrivalOnly, resolvePinTravel, type TravelScene } from './pinTravel'
@@ -67,10 +68,45 @@ export interface CaravanMemory {
 export interface CaravanStep {
   /** Onde a caravana está depois do passo. */
   at: Point
-  /** Fichas do grupo fora desse ponto: andam para ele. */
+  /**
+   * Fichas do grupo fora desse ponto: andam para ele, na ordem de aplicar
+   * (`movesToward`). Pode trazer ficha levada que já está no ponto: é a que
+   * assenta de volta depois de quem a leva andar.
+   */
   moves: CaravanMove[]
   /** O que guardar para o próximo passo. */
   memory: CaravanMemory
+}
+
+/**
+ * Os passos para juntar o grupo em `at`, na ordem de aplicar um a um por
+ * `setTokenPosition`.
+ *
+ * LEVAR FICHA JUNTO: o passo de quem leva ARRASTA quem ele leva
+ * (`mapFactory.setTokenPosition`). Se a levada também é da caravana, esse
+ * arrasto a tiraria do ponto — e o próximo broadcast leria o deslocamento como
+ * o mestre arrastando a caravana de novo, num laço que só parava na borda do
+ * mapa. Por isso a levada que é do grupo entra DEPOIS de quem a leva, com o
+ * ponto da caravana como casa: se ela já estava no ponto, entra mesmo assim,
+ * para assentar de volta. A levada de FORA do grupo (o ferido NPC) não entra:
+ * ela anda o passo de quem a leva, como em qualquer cena.
+ */
+function movesToward(members: readonly Token[], at: Point): CaravanMove[] {
+  const memberIds = new Set(members.map((t) => t.id))
+  const off = (t: Token): boolean => t.x !== at.x || t.y !== at.y
+  const movingIds = new Set(members.filter(off).map((t) => t.id))
+  const carriedByMember = (t: Token): boolean => {
+    const carrierId = carrierIdOf(t)
+    return carrierId !== null && memberIds.has(carrierId)
+  }
+  const draggedAway = (t: Token): boolean => {
+    const carrierId = carrierIdOf(t)
+    return carrierId !== null && movingIds.has(carrierId)
+  }
+  const stepTo = (t: Token): CaravanMove => ({ tokenId: t.id, x: at.x, y: at.y })
+  const carriers = members.filter((t) => off(t) && !carriedByMember(t))
+  const carried = members.filter((t) => carriedByMember(t) && (off(t) || draggedAway(t)))
+  return [...carriers, ...carried].map(stepTo)
 }
 
 /**
@@ -92,7 +128,7 @@ export function caravanStep(members: readonly Token[], last: CaravanMemory | nul
     const moved = known.find((t) => t.x !== last.at.x || t.y !== last.at.y)
     at = moved === undefined ? last.at : { x: moved.x, y: moved.y }
   }
-  const moves = members.filter((t) => t.x !== at.x || t.y !== at.y).map((t) => ({ tokenId: t.id, x: at.x, y: at.y }))
+  const moves = movesToward(members, at)
   return { at, moves, memory: { at, memberIds: members.map((t) => t.id) } }
 }
 
@@ -115,7 +151,7 @@ export function caravanRegroup(members: readonly Token[]): CaravanStep | null {
       at = { x: t.x, y: t.y }
     }
   }
-  const moves = members.filter((t) => t.x !== at.x || t.y !== at.y).map((t) => ({ tokenId: t.id, x: at.x, y: at.y }))
+  const moves = movesToward(members, at)
   return { at, moves, memory: { at, memberIds: members.map((t) => t.id) } }
 }
 
