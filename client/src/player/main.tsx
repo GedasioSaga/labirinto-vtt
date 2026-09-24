@@ -9,6 +9,7 @@ import { OWN_TOKEN_COLOR, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
+import { PlayerAlarmBanner } from './PlayerAlarmBanner'
 import { PlayerTurnBanner, TurnWaitNotice } from './PlayerTurnBanner'
 import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
 import { escapeDisarmsMeasure } from './playerMeasure'
@@ -643,6 +644,10 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           <p key={state.item.id} className="pp-notice" role="status" aria-live="polite">
             {itemNoticeText(state.item)}
           </p>
+        )}
+        {state.alarm && (
+          // `key` no id: alarme novo remonta a faixa (anima, anuncia e vibra de novo).
+          <PlayerAlarmBanner key={state.alarm.id} text={state.alarm.text} vibrationTarget={typeof navigator === 'undefined' ? undefined : navigator} />
         )}
         {state.note && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).

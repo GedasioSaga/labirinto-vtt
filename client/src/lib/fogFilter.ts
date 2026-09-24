@@ -930,6 +930,24 @@ export function turnForPlayer(view: MapData, turn: TurnRef | null): string | nul
   return view.tokens.some((t) => t.id === turn.tokenId) ? turn.tokenId : null
 }
 
+/** ALARME PARA VÁRIAS CENAS como o host o guarda: o texto e as cenas escolhidas pelo mestre. */
+export interface SceneAlarm {
+  id: string
+  text: string
+  sceneIds: readonly string[]
+}
+
+/**
+ * O alarme como o jogador pode recebê-lo: só quem está AGORA numa das cenas
+ * escolhidas (`sceneId` é a cena da ficha dele), e só `id` e `text` — nunca a
+ * lista de cenas, que diria ao jogador que as outras existem. Sem cena
+ * (`null`), outra cena ou sem alarme: `null`, e nada sai.
+ */
+export function alarmForPlayer(alarm: SceneAlarm | null, sceneId: string | null): { id: string; text: string } | null {
+  if (alarm === null || sceneId === null || !alarm.sceneIds.includes(sceneId)) return null
+  return { id: alarm.id, text: alarm.text }
+}
+
 /**
  * O pino como o jogador pode recebê-lo. Sai SEMPRE numa cópia:
  * - `image` só em data URL (`isPlayerSafePinImage`) — nunca um caminho do
