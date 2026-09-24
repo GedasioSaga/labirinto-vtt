@@ -531,6 +531,133 @@
   }
 }
 
+/* CAMINHO DA RÉGUA: "Mostrar a…" e o aviso do caminho de um colega, acima dos avisos de baixo. */
+.pp-route-dock {
+  position: fixed;
+  bottom: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 14px;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+.pp-route-share,
+.pp-route-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 8px 6px 14px;
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  box-shadow: var(--lb-shadow-float, 0 8px 24px rgba(0, 0, 0, 0.45));
+  animation: pp-route-in 160ms ease-out;
+}
+
+.pp-route-share__peers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-route-share__status {
+  margin: 0;
+  padding-right: 6px;
+}
+
+.pp-route-share__ask,
+.pp-route-share__peer,
+.pp-route-notice__dismiss {
+  min-height: 32px;
+  padding: 4px 14px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--lb-color-brass-contrast, #1c1608);
+  background: var(--lb-color-brass, #e0a44a);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pp-route-share__ask:hover,
+.pp-route-share__peer:hover:not(:disabled) {
+  background: var(--lb-color-brass-bright, #f3ba66);
+}
+
+.pp-route-share__ask:active,
+.pp-route-share__peer:active:not(:disabled),
+.pp-route-notice__dismiss:active {
+  transform: scale(0.97);
+}
+
+/* Enviando: o nome continua ali dizendo para quem vai, sem convidar outro toque. */
+.pp-route-share__peer:disabled {
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+  background: transparent;
+  border-color: var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+  cursor: default;
+}
+
+/* Dispensar é a ação secundária: contorno, não cheio. */
+.pp-route-notice__dismiss {
+  color: var(--lb-color-parchment, #eceae4);
+  background: transparent;
+  border-color: var(--lb-color-line-panel, rgba(255, 255, 255, 0.18));
+}
+
+.pp-route-notice__dismiss:hover {
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-route-share__ask:focus-visible,
+.pp-route-share__peer:focus-visible,
+.pp-route-notice__dismiss:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+/* Etiqueta "caminho do …" no mapa: a mesma caixa do rótulo da régua, com a borda na cor de quem mostrou. */
+.pp-route-label {
+  font-weight: 500;
+}
+
+@keyframes pp-route-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-route-share,
+  .pp-route-notice {
+    animation: none;
+  }
+
+  .pp-route-share__ask:active,
+  .pp-route-share__peer:active:not(:disabled),
+  .pp-route-notice__dismiss:active {
+    transform: none;
+  }
+}
+
 .pp-section {
   display: grid;
   gap: 8px;
