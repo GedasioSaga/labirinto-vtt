@@ -149,3 +149,56 @@ describe('dentro da sala secreta: a ficha vê o próprio cômodo', () => {
     expect(JSON.stringify(semDescoberta.map)).not.toContain('pino-chegada')
   })
 })
+
+/**
+ * SALA SECRETA COM TETO. Descoberta, ela vira cômodo comum para o jogador —
+ * mas o teto continua sendo teto: quem está FORA vê a silhueta, não o NPC lá
+ * dentro. Cabana x 900-1150, y 100-450, `room.roof`, porta ABERTA em x = 900.
+ */
+function cabana(fichas: Token[]): MapData {
+  const cab: Partial<Wall> = { regionId: 'r-cab' }
+  return {
+    ...createEmptyMap('map_cabana', 'Clareira', 1200, 600, 50),
+    walls: [
+      parede('cab-o1', 900, 100, 900, 250, cab),
+      parede('cab-porta', 900, 250, 900, 300, { ...cab, door: { open: true, locked: false, kind: 'normal' } }),
+      parede('cab-o2', 900, 300, 900, 450, cab),
+      parede('cab-n', 900, 100, 1150, 100, cab),
+      parede('cab-l', 1150, 100, 1150, 450, cab),
+      parede('cab-s', 1150, 450, 900, 450, cab),
+    ],
+    regions: [
+      sala('r-cab', 'Cabana', 900, 100, 1150, 450, { secret: true, room: { shape: 'rect', name: 'Cabana', roof: true } }),
+    ],
+    tokens: fichas,
+  }
+}
+
+describe('sala secreta com teto: descoberta não arranca o teto', () => {
+  it('SEGURANÇA: Ana fora da cabana descoberta vê o teto fechado e não recebe o NPC lá dentro', () => {
+    const view = filterMapForPlayer(
+      cabana([ficha('ana', 700, 275), ficha('npc', 1000, 275)]),
+      'p1',
+      ownership,
+      RADIUS,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new Set(['r-cab']),
+    )
+    expect(view.map.tokens.map((t) => t.id)).toEqual(['ana'])
+    const sala = view.map.regions.find((r) => r.id === 'r-cab')
+    expect(sala?.room?.roof).toBe(true)
+    expect(sala?.secret).toBeUndefined()
+    expect(view.roofs).toHaveLength(1)
+  })
+
+  it('Ana DENTRO da cabana secreta abre o teto para ela e vê o NPC', () => {
+    const view = filterMapForPlayer(cabana([ficha('ana', 1050, 200), ficha('npc', 1000, 275)]), 'p1', ownership, RADIUS)
+    expect(view.map.tokens.map((t) => t.id).sort()).toEqual(['ana', 'npc'])
+    expect(view.map.regions.find((r) => r.id === 'r-cab')?.room?.name).toBe('Cabana')
+    expect(view.roofs).toHaveLength(0)
+    expect(view.occupiedSecretRooms).toEqual(['r-cab'])
+  })
+})

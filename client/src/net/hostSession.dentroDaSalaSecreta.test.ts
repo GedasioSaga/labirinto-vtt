@@ -134,3 +134,28 @@ describe('hostSession: dentro da sala secreta', () => {
     expect(r.outbound).toEqual([{ clientId: 'c-ana', msg: { type: 'door.toggle.rejected', wallId: 'estante', reason: 'locked' } }])
   })
 })
+
+/** O mesmo quarto, agora com TETO, a estante ABERTA e um NPC lá dentro. */
+function quartoComTeto(ana: { x: number; y: number }): MapData {
+  const base = mansao(ana)
+  return {
+    ...base,
+    walls: base.walls.map((w) => (w.id === 'estante' ? { ...w, door: { open: true, locked: false, kind: 'normal' } } : w)),
+    regions: base.regions.map((r) => (r.id === 'r-secreto' ? { ...r, room: { shape: 'rect', name: 'Quarto Secreto', roof: true } } : r)),
+    tokens: [...base.tokens, ficha('npc', 1000, 275)],
+  }
+}
+
+describe('hostSession: sala secreta com teto', () => {
+  it('SEGURANÇA: a Ana sai do quarto descoberto e o teto volta a esconder o NPC lá dentro', () => {
+    const { s } = mesa(quartoComTeto(DENTRO))
+    const dentro = snapshotDe(s.broadcast(quartoComTeto(DENTRO)), 'c-ana')
+    expect(dentro.map.tokens.map((t) => t.id)).toContain('npc')
+    // Fora, na frente da estante aberta: o NPC está na linha de visão pela porta.
+    const r = s.broadcast(quartoComTeto({ x: 800, y: 275 }))
+    const daAna = snapshotDe(r, 'c-ana')
+    expect(daAna.map.tokens.map((t) => t.id)).not.toContain('npc')
+    expect(daAna.map.regions.find((reg) => reg.id === 'r-secreto')?.room?.roof).toBe(true)
+    expect(JSON.stringify(snapshotDe(r, 'c-bia'))).not.toContain('r-secreto')
+  })
+})

@@ -1053,12 +1053,16 @@ export function filterMapForPlayer(
    * `pointInPolygonInclusive` também na caixa envolvente) e ABRIR exige o token
    * ESTRITAMENTE dentro: em cima do muro, o teto fica fechado. Na dúvida, fecha.
    *
-   * Sala secreta vence: quem já sumiu inteiro não precisa de teto. Polígono com
+   * Sala secreta FECHADA vence: quem já sumiu inteiro não precisa de teto. A
+   * secreta ABERTA para este jogador (ocupada ou descoberta) sai como cômodo
+   * comum, então o teto dela vale igual ao de qualquer prédio — filtrar pelo
+   * `secret` bruto arrancava o teto e entregava o NPC lá dentro a quem está fora.
+   * Polígono com
    * menos de 3 vértices ou com coordenada não-finita é INDECIDÍVEL: a sala some
    * do pacote (`brokenRoofIds`) em vez de virar um teto que nunca fecha.
    */
   const roofCandidates = roofRoomsOf(visibleRegions(map.regions, hiddenLayers)).filter(
-    (r) => !r.hidden && !r.secret && !secretRoomIds.has(r.id),
+    (r) => !r.hidden && !isClosedSecret(r) && !secretRoomIds.has(r.id),
   )
   /** Sala de teto que a geometria não sabe julgar: não sai para o jogador, e não abre. */
   const brokenRoofIds = new Set(roofCandidates.filter((r) => !isUsablePolygon(r.points)).map((r) => r.id))
