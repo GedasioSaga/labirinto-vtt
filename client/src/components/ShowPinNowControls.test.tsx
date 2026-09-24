@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PinControls, type PinControlsProps } from './PinControls'
-import { SHOW_PIN_NOW_LABEL, ShowPinNowControls, showPinNowCandidates } from './ShowPinNowControls'
+import { SHOW_PIN_NOW_LABEL, ShowPinNowControls, canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './ShowPinNowControls'
 import type { PartyMember } from '../lib/party'
 
 /**
@@ -93,6 +93,52 @@ describe('ShowPinNowControls', () => {
     expect(container.textContent).toContain(SHOW_PIN_NOW_LABEL)
     act(() => root.render(<PinControls {...base} showNow={null} />))
     expect(container.textContent).not.toContain(SHOW_PIN_NOW_LABEL)
+  })
+})
+
+describe('canShowPinNow (quando o App oferece o botão)', () => {
+  it('ponto de interesse visível com a sala aberta: oferece', () => {
+    expect(canShowPinNow({ kind: 'exclamacao' }, true)).toBe(true)
+    expect(canShowPinNow({ kind: 'interrogacao', secret: false }, true)).toBe(true)
+  })
+
+  it('pino de viagem, pino oculto para jogadores ou sala fechada: não oferece', () => {
+    expect(canShowPinNow({ kind: 'viagem' }, true)).toBe(false)
+    expect(canShowPinNow({ kind: 'exclamacao', secret: true }, true)).toBe(false)
+    expect(canShowPinNow({ kind: 'exclamacao' }, false)).toBe(false)
+  })
+})
+
+describe('showPinNowWithNotice (o aviso que o mestre lê)', () => {
+  const jogadores = [
+    { playerId: 'p-gabi', name: 'Gabi' },
+    { playerId: 'p-diego', name: 'Diego' },
+  ]
+
+  it('saiu: manda só à escolhida e avisa em tom de informação, com o nome dela', () => {
+    const showPin = vi.fn((_playerId: string, _pinId: string): boolean | null => true)
+    const notify = vi.fn()
+    showPinNowWithNotice({ players: () => jogadores, showPin }, 'carta', 'p-gabi', notify)
+    expect(showPin).toHaveBeenCalledTimes(1)
+    expect(showPin).toHaveBeenCalledWith('p-gabi', 'carta')
+    expect(notify).toHaveBeenCalledTimes(1)
+    expect(notify).toHaveBeenCalledWith('info', 'Cartão aberto na tela de Gabi.')
+  })
+
+  it('não deu (saiu da cena, caiu ou sala fechada): aviso de erro, nunca silêncio', () => {
+    const notify = vi.fn()
+    const players = () => jogadores
+    showPinNowWithNotice({ players, showPin: () => false }, 'carta', 'p-diego', notify)
+    showPinNowWithNotice({ players, showPin: () => null }, 'carta', 'p-diego', notify)
+    expect(notify).toHaveBeenCalledTimes(2)
+    expect(notify).toHaveBeenNthCalledWith(1, 'error', 'Não deu para mostrar o cartão a Diego: saiu desta cena ou perdeu a conexão.')
+    expect(notify).toHaveBeenNthCalledWith(2, 'error', 'Não deu para mostrar o cartão a Diego: saiu desta cena ou perdeu a conexão.')
+  })
+
+  it('jogador que já saiu da lista: o aviso fala "o jogador"', () => {
+    const notify = vi.fn()
+    showPinNowWithNotice({ players: () => [], showPin: () => false }, 'carta', 'p-sumiu', notify)
+    expect(notify).toHaveBeenCalledWith('error', 'Não deu para mostrar o cartão a o jogador: saiu desta cena ou perdeu a conexão.')
   })
 })
 

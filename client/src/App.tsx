@@ -22,7 +22,7 @@ import { RoomPanel } from './components/RoomPanel'
 import { LivePlayerMirror } from './components/PlayerMirror'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
-import { showPinNowCandidates } from './components/ShowPinNowControls'
+import { canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './components/ShowPinNowControls'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { viewportCenterWorld, type Bounds, type Camera } from './pixi/world'
@@ -1342,9 +1342,7 @@ function App() {
   const handleShowPinNow = (pinId: string, playerId: string) => {
     const bridge = hostBridgeRef.current
     if (bridge === null) return
-    const name = bridge.players().find((p) => p.playerId === playerId)?.name ?? 'o jogador'
-    if (bridge.showPin(playerId, pinId) === true) useToastStore.getState().push('info', `Cartão aberto na tela de ${name}.`)
-    else useToastStore.getState().push('error', `Não deu para mostrar o cartão a ${name}: saiu desta cena ou perdeu a conexão.`)
+    showPinNowWithNotice(bridge, pinId, playerId, (kind, text) => useToastStore.getState().push(kind, text))
   }
 
   /**
@@ -2075,10 +2073,9 @@ function App() {
                       onGather: (playerIds) => handleGather(selectedPin.id, playerIds),
                     }
                   : null,
-              // "Mostrar agora a…": só com a sala aberta, e nunca em pino de
-              // viagem nem oculto para jogadores — esses o host não mostra.
+              // "Mostrar agora a…": regra de quando aparece em `canShowPinNow`.
               showNow:
-                selectedPin && room !== null && selectedPin.kind !== 'viagem' && selectedPin.secret !== true
+                selectedPin && canShowPinNow(selectedPin, room !== null)
                   ? {
                       pinId: selectedPin.id,
                       candidates: showPinNowCandidates(partyMembers(roomPlayers, roomPanelWorld()), roomPanelWorld().open.sceneId),

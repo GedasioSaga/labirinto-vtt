@@ -1,6 +1,9 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import type { GatherCandidate } from '../lib/gatherParty'
 import type { PartyMember } from '../lib/party'
+import type { HostBridge } from '../net/hostBridge'
+import type { ToastKind } from '../stores/toastStore'
+import type { Pin } from '../types/map'
 
 export interface ShowPinNowControlsProps {
   /** Quem pode receber o cartão agora: conectado, com ficha e nesta cena (`showPinNowCandidates`). */
@@ -24,6 +27,31 @@ export function showPinNowCandidates(members: readonly PartyMember[], openSceneI
       ? [{ playerId: member.playerId, name: member.name, color: member.token.color }]
       : [],
   )
+}
+
+/**
+ * O painel do pino oferece "Mostrar agora a…": só com a sala aberta (sem sala
+ * não há tela de jogador), e nunca em pino de viagem nem oculto para jogadores
+ * — esses o host não mostra, e o botão só ensinaria o mestre a errar.
+ */
+export function canShowPinNow(pin: Pick<Pin, 'kind' | 'secret'>, roomOpen: boolean): boolean {
+  return roomOpen && pin.kind !== 'viagem' && pin.secret !== true
+}
+
+/**
+ * Toque no nome: manda o cartão e diz ao mestre se saiu. A lista pode ter
+ * ficado aberta enquanto o jogador saía da cena ou caía, então o "não deu"
+ * também vira aviso — nunca silêncio.
+ */
+export function showPinNowWithNotice(
+  bridge: Pick<HostBridge, 'showPin'> & { players(): readonly { playerId: string; name: string }[] },
+  pinId: string,
+  playerId: string,
+  notify: (kind: ToastKind, text: string) => void,
+): void {
+  const name = bridge.players().find((p) => p.playerId === playerId)?.name ?? 'o jogador'
+  if (bridge.showPin(playerId, pinId) === true) notify('info', `Cartão aberto na tela de ${name}.`)
+  else notify('error', `Não deu para mostrar o cartão a ${name}: saiu desta cena ou perdeu a conexão.`)
 }
 
 /**
