@@ -4,6 +4,7 @@ import type { Prop } from '../types/map'
 import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { useToastStore } from '../stores/toastStore'
+import { drawPropSilhouettes } from './drawPropSilhouettes'
 
 /**
  * Onda 2, item 12 (notificação) — reduz um caminho de arquivo ao nome
@@ -40,14 +41,33 @@ function strokeDashedRect(graphics: Graphics, x: number, y: number, width: numbe
   graphics.stroke({ width: GHOST_OUTLINE_WIDTH, color: GHOST_OUTLINE_COLOR })
 }
 
+/** Rótulo do `Graphics` de cada móvel da mobília desenhada (achado pelos testes e pelo inspetor do Pixi). */
+export const FURNITURE_LABEL = 'mobilia'
+
+/** Transparência do objeto no editor: fantasma do "Oculto no editor", meio apagado se "Oculto para jogadores". */
+function propAlpha(prop: Prop): number {
+  return isHidden(prop) ? HIDDEN_PROP_GHOST_ALPHA : prop.secret ? SECRET_ITEM_ALPHA : 1
+}
+
 function fileBaseName(path: string): string {
   const normalized = path.replace(/\\/g, '/')
   const idx = normalized.lastIndexOf('/')
   return idx === -1 ? normalized : normalized.slice(idx + 1)
 }
 
+/**
+ * Zoom e densidade de pixel do quadro: o fio do móvel desenhado é em px de
+ * TELA (como a parede), então a largura em mundo depende dos dois. Obrigatório
+ * de propósito: sem ele o fio caía no padrão de 1 px de MUNDO e engrossava e
+ * afinava com o zoom.
+ */
+export interface PropsView {
+  cameraScale: number
+  rendererResolution: number
+}
+
 export interface PropsRenderer {
-  draw: (container: Container, props: Prop[], selectedPropId?: string | null) => void
+  draw: (container: Container, props: Prop[], selectedPropId: string | null, view: PropsView) => void
 }
 
 /**
@@ -60,6 +80,8 @@ export interface PropsRenderer {
  */
 export function createPropsRenderer(): PropsRenderer {
   const spriteCache = new Map<string, Sprite>()
+  // Móveis da mobília desenhada, por id — mesma vida do `spriteCache`.
+  const furnitureCache = new Map<string, Graphics>()
   const highlightGraphics = new Graphics()
   let highlightAttached = false
   // Onda 2, item 12 — caminho de imagem já avisado, pra não empilhar o
@@ -69,25 +91,40 @@ export function createPropsRenderer(): PropsRenderer {
   // mesma imagem quebrada avisam uma vez só, não duas.
   const warnedSrcPaths = new Set<string>()
 
-  function draw(container: Container, props: Prop[], selectedPropId: string | null = null): void {
+  function draw(container: Container, props: Prop[], selectedPropId: string | null, view: PropsView): void {
     if (!highlightAttached) {
       container.addChild(highlightGraphics)
       highlightAttached = true
     }
 
-    const currentIds = new Set(props.map((p) => p.id))
+    // Móvel da mobília desenhada não tem imagem: fica fora do cache de sprite
+    // (e o sprite de um objeto que virou móvel sai), e vice-versa.
+    const imageIds = new Set(props.filter((p) => p.mobilia === undefined).map((p) => p.id))
+    const furnitureIds = new Set(props.filter((p) => p.mobilia !== undefined).map((p) => p.id))
 
     for (const [id, sprite] of spriteCache) {
-      if (!currentIds.has(id)) {
+      if (!imageIds.has(id)) {
         container.removeChild(sprite)
         sprite.destroy()
         spriteCache.delete(id)
+      }
+    }
+    for (const [id, drawing] of furnitureCache) {
+      if (!furnitureIds.has(id)) {
+        container.removeChild(drawing)
+        drawing.destroy()
+        furnitureCache.delete(id)
       }
     }
 
     highlightGraphics.clear()
 
     for (const prop of props) {
+      if (prop.mobilia !== undefined) {
+        drawFurniture(container, prop, view)
+        markPropState(prop, selectedPropId)
+        continue
+      }
       let sprite = spriteCache.get(prop.id)
       if (!sprite) {
         sprite = new Sprite(Texture.EMPTY)
@@ -130,16 +167,37 @@ export function createPropsRenderer(): PropsRenderer {
       // o objeto sumia e não havia como clicar nele para desfazer; agora fica
       // como fantasma (alpha baixo + contorno tracejado), clicável — mesma
       // regra dos tokens (tokensRenderer.ts).
-      const ghost = isHidden(prop)
       sprite.visible = true
-      sprite.alpha = ghost ? HIDDEN_PROP_GHOST_ALPHA : prop.secret ? SECRET_ITEM_ALPHA : 1
+      sprite.alpha = propAlpha(prop)
+      markPropState(prop, selectedPropId)
+    }
+  }
 
-      const left = prop.x - prop.width / 2
-      const top = prop.y - prop.height / 2
-      if (ghost) strokeDashedRect(highlightGraphics, left, top, prop.width, prop.height)
-      if (prop.id === selectedPropId) {
-        highlightGraphics.rect(left, top, prop.width, prop.height).stroke({ width: 3, color: SELECTION_COLOR })
-      }
+  /**
+   * MOBÍLIA DESENHADA no editor: a mesma silhueta chapada com o glifo que o
+   * jogador vê (`drawPropSilhouettes`), um `Graphics` por móvel para o
+   * fantasma e o "Oculto para jogadores" valerem por móvel, como no sprite.
+   * Nada de imagem: nem pedido de arquivo, nem aviso de imagem quebrada.
+   */
+  function drawFurniture(container: Container, prop: Prop, view: PropsView): void {
+    let drawing = furnitureCache.get(prop.id)
+    if (!drawing) {
+      drawing = new Graphics()
+      drawing.label = FURNITURE_LABEL
+      furnitureCache.set(prop.id, drawing)
+      container.addChildAt(drawing, 0)
+    }
+    drawPropSilhouettes(drawing, [prop], view.cameraScale, view.rendererResolution)
+    drawing.alpha = propAlpha(prop)
+  }
+
+  /** Fantasma do "Oculto no editor" e destaque de seleção, iguais para imagem e móvel. */
+  function markPropState(prop: Prop, selectedPropId: string | null): void {
+    const left = prop.x - prop.width / 2
+    const top = prop.y - prop.height / 2
+    if (isHidden(prop)) strokeDashedRect(highlightGraphics, left, top, prop.width, prop.height)
+    if (prop.id === selectedPropId) {
+      highlightGraphics.rect(left, top, prop.width, prop.height).stroke({ width: 3, color: SELECTION_COLOR })
     }
   }
 

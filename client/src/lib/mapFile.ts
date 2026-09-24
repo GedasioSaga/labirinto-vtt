@@ -6,6 +6,7 @@ import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { tokenPublicNameFromFile } from './tokenPublicName'
 import { withoutContract } from './tokenLoan'
 import { confrontoFromFile } from './confronto'
+import { propMobiliaFromFile } from './mobilia'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -204,8 +205,9 @@ function deserializeMapFields(json: string): MapData {
     // `contrato` (ajudante contratado) é campo de FIO: o acordo mora na sessão
     // do host. Arquivo que o traga (editado à mão) perde o campo na leitura.
     tokens: entityList(parsed.tokens).map((t) => withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null }))),
-    // inalterado fora o que já existia — Prop.layer ausente fica undefined
-    props: entityList(parsed.props).map((p) => ({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
+    // Prop.layer ausente fica undefined. MOBÍLIA: `mobilia` ausente continua
+    // ausente; tipo fora do catálogo some e o objeto fica (`propMobiliaFromFile`).
+    props: entityList(parsed.props).map((p) => propMobiliaFromFile({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
     stairs: entityList(parsed.stairs),
     // MUDA de cru para .map(): PONTO DE MAIOR RISCO DE TODA A MIGRAÇÃO.
     // 0.5/0 é o alpha que drawDrawings.ts:50 já aplicava (filled ? 0.5 : 0);

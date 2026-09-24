@@ -76,6 +76,7 @@ import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
 import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
+import { porMobiliaNaSala } from './stores/mobiliaNaSala'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
 import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
@@ -2075,6 +2076,8 @@ function App() {
                     store.setPendingParentRoom(selectedRegion.id)
                   }
                 : undefined,
+              // MOBÍLIA DESENHADA: móvel no centro da sala, no giro dela, selecionado.
+              onAddMobilia: porMobiliaNaSala(selectedRegion),
             }}
             playerSecret={
               secretTarget && {
