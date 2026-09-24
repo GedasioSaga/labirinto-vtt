@@ -1403,6 +1403,14 @@ function App() {
       onLinkExisting: (sceneId: string, partnerId: string, exitId: string | null) => {
         useAdventureStore.getState().linkPinToExisting(pin.id, sceneId, partnerId, exitId)
       },
+      // "+ Cena nova…": a cena nasce já ligada e o mestre continua nesta — sem
+      // troca de vista, o "Seguir" fica como está. No mapa solto, a aventura
+      // nasce aqui, como no "+ Nova cena" de Cenas.
+      onCreateScene: (nome: string, exitId: string | null) => {
+        if (useAdventureStore.getState().createSceneForPin(pin.id, nome, currentMapPath, exitId) === null) {
+          useToastStore.getState().push('error', 'Não deu para criar a cena: o pino não está mais aqui.')
+        }
+      },
       onUnlink: (exitId: string) => useAdventureStore.getState().unlinkPin(pin.id, exitId),
       onRename: (exitId: string, rotulo: string) => useAdventureStore.getState().renamePinExit(pin.id, exitId, rotulo),
       // Pelo mesmo caminho do clique no pino: ir por uma saída é mexer na

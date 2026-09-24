@@ -3684,6 +3684,13 @@ html.lb-arrastando-cena * {
   color: var(--lb-color-parchment-faint);
 }
 
+/* "+ Cena nova…" sem nome: o que falta, junto ao campo, na cor de erro do painel. */
+.lb-travel__error {
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-ember);
+}
+
 .lb-travel__row {
   display: flex;
   gap: var(--lb-space-2);
