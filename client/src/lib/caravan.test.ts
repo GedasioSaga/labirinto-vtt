@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MapData, Pin, Token } from '../types/map'
-import { caravanCity, caravanStep, landingSpots } from './caravan'
+import { caravanCity, caravanRegroup, caravanStep, landingSpots } from './caravan'
 import { createEmptyMap, setWorldMap } from './mapFactory'
 import { deserializeMap, serializeMap } from './mapFile'
 import type { TravelScene } from './pinTravel'
@@ -77,5 +77,28 @@ describe('marca de mapa-mundi no arquivo', () => {
     expect(deserializeMap(serializeMap(marcada)).worldMap).toBe(true)
     expect('worldMap' in setWorldMap(marcada, false)).toBe(false)
     expect(deserializeMap(JSON.stringify({ ...cena, worldMap: 'sim' })).worldMap).toBeUndefined()
+  })
+})
+
+describe('caravanRegroup: depois do Ctrl+Z a caravana se reconhece no retrato, sem ler a volta como arrasto', () => {
+  it('retrato inteiro (o grupo todo num ponto): ninguém anda, e a memória passa a ser esse ponto', () => {
+    const step = caravanRegroup([ficha('a', 100, 100), ficha('b', 100, 100)])
+    expect(step).toEqual({ at: { x: 100, y: 100 }, moves: [], memory: { at: { x: 100, y: 100 }, memberIds: ['a', 'b'] } })
+  })
+
+  it('retrato partido: fica no ponto com MAIS fichas, mesmo que a primeira esteja fora dele', () => {
+    const step = caravanRegroup([ficha('a', 500, 250), ficha('b', 100, 100), ficha('c', 100, 100)])
+    expect(step?.at).toEqual({ x: 100, y: 100 })
+    expect(step?.moves).toEqual([{ tokenId: 'a', x: 100, y: 100 }])
+  })
+
+  it('empate: vale o ponto da primeira ficha, na ordem do mapa', () => {
+    const step = caravanRegroup([ficha('a', 100, 100), ficha('c', 500, 250)])
+    expect(step?.at).toEqual({ x: 100, y: 100 })
+    expect(step?.moves).toEqual([{ tokenId: 'c', x: 100, y: 100 }])
+  })
+
+  it('ninguém do grupo nesta cena: null', () => {
+    expect(caravanRegroup([])).toBeNull()
   })
 })

@@ -32,7 +32,7 @@ import {
   type TokenMoveMessage,
 } from './protocol'
 import { clampAlarmText, clampNoteText } from './protocol'
-import { caravanCity, caravanMembers, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
+import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -232,6 +232,12 @@ export interface CaravanStop {
   toSceneId: string
   toSceneName: string
 }
+
+/**
+ * Por que o mapa da cena aberta mudou: edição do mestre (ou jogada aplicada) ou
+ * desfazer/refazer, que só volta a um retrato antigo (`stores/mapStore.ts` → `mapChangeCause`).
+ */
+export type MapChangeCause = 'edit' | 'history'
 
 /** O que `followCaravans` pede ao integrador: fichas que acompanham a caravana, e onde ela parou. */
 export interface CaravanFollow {
@@ -456,8 +462,12 @@ export interface HostSession {
    * grupo seguem a que o mestre arrastou (`caravanStep`) e ficam empilhadas no
    * ponto da caravana. Devolve os movimentos a aplicar e as cidades onde uma
    * caravana está parada agora. Não envia nada: o integrador aplica e faz o broadcast.
+   *
+   * `cause: 'history'` = a cena aberta acabou de voltar por desfazer/refazer:
+   * lá nada foi arrastado, e a caravana só se reconhece no retrato
+   * (`caravanRegroup`) em vez de seguir quem "saiu" do ponto dela.
    */
-  followCaravans(source: HostMapSource): CaravanFollow
+  followCaravans(source: HostMapSource, cause?: MapChangeCause): CaravanFollow
   /**
    * "Desembarcar": cada ficha da caravana da cena `sceneId` vai para a cidade
    * sob ela, numa casa livre em volta do pino par. Cada jogador recebe um
@@ -1552,7 +1562,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
     },
 
-    followCaravans(source) {
+    followCaravans(source, cause = 'edit') {
       const world = toWorld(source)
       const scenes = allScenes(world)
       const party = allPlayerTokens(ownership)
@@ -1563,7 +1573,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (!isWorldMap(scene.map)) continue
         const key = sceneKey(scene)
         const members = caravanMembers(scene.map, party)
-        const step = caravanStep(members, caravanAt.get(key) ?? null)
+        // O desfazer só mexe na cena aberta: as de fundo seguem a regra de sempre.
+        const fromHistory = cause === 'history' && scene === world.open
+        const step = fromHistory ? caravanRegroup(members) : caravanStep(members, caravanAt.get(key) ?? null)
         if (step === null) continue
         alive.add(key)
         caravanAt.set(key, step.memory)

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { mapChangeCause, useMapStore } from '../stores/mapStore'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, Pin, Token } from '../types/map'
 import type { AppliedTransfer, HostWorld } from './hostSession'
@@ -111,5 +112,127 @@ describe('hostBridge: caravana no mapa-mundi', () => {
     m.bridge.notifyTurnChanged()
     expect(m.oferta()).toBeUndefined()
     expect(m.applyTransfer).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * CARAVANA x DESFAZER, com a store DE VERDADE e a mesma ligação do App
+ * (`applyMove` com histórico, seguidores sem, e o aviso de desfazer pela
+ * `mapChangeCause`). O Ctrl+Z do mestre anda para trás passo a passo e o
+ * refazer continua de pé: a caravana não briga com ele.
+ */
+async function mesaNaStore(fichas: Token[]) {
+  useMapStore.getState().loadMap({ ...createEmptyMap('m-mundo', 'Continente', 30, 10, 50), worldMap: true, tokens: fichas })
+  const handlers = new Map<string, (event: { payload: unknown }) => void>()
+  const invoke = vi.fn(async (cmd: string, _args?: unknown) => (cmd === 'net_start_room' ? ROOM : undefined))
+  const listen = vi.fn(async (name: string, handler: (event: { payload: unknown }) => void) => {
+    handlers.set(name, handler)
+    return vi.fn()
+  })
+  const bridge = createHostBridge({
+    invoke,
+    listen,
+    getMap: () => useMapStore.getState().map,
+    applyMove: (tokenId, x, y) => useMapStore.getState().setTokenPosition(tokenId, x, y),
+    applyCaravanMoves: (moves) => useMapStore.getState().setTokenPositionsLive(moves.map(({ tokenId, x, y }) => ({ id: tokenId, x, y }))),
+    applyDoor: vi.fn(),
+    onPlayersChange: vi.fn(),
+    now: () => 0,
+  })
+  const unsubscribe = useMapStore.subscribe((state, previous) => {
+    const cause = mapChangeCause(state, previous)
+    if (cause !== null) bridge.notifyMapChanged(cause)
+  })
+  await bridge.start()
+  const entra = (clientId: string, nome: string, tokenId: string) => {
+    const handler = handlers.get('net:message')
+    if (handler === undefined) throw new Error('sem listener de net:message')
+    handler({ payload: { clientId, msg: { type: 'join', code: ROOM.code, name: nome } } })
+    const jogador = bridge.players().find((p) => p.name === nome)
+    if (jogador === undefined) throw new Error(`${nome} deveria ter entrado`)
+    bridge.assignToken(jogador.playerId, tokenId)
+  }
+  const retrato = () => {
+    const { map, past, future } = useMapStore.getState()
+    return `${map.tokens.map((t) => `${t.id}@${t.x}`).join(',')} past=${past.length} future=${future.length}`
+  }
+  const encerra = async () => {
+    unsubscribe()
+    await bridge.stop()
+  }
+  return { bridge, entra, retrato, encerra }
+}
+
+describe('hostBridge: o desfazer do mestre com a caravana no mapa-mundi', () => {
+  beforeEach(() => {
+    useToastStore.setState({ toasts: [] })
+  })
+
+  it('arrastar a caravana é UM passo: Ctrl+Z volta o grupo inteiro, depois o npc, e o refazer continua de pé', async () => {
+    const m = await mesaNaStore([ficha('a', 100, 100), ficha('b', 100, 100), ficha('npc', 400, 100)])
+    m.entra('c1', 'Ana', 'a')
+    m.entra('c2', 'Bia', 'b')
+    const store = () => useMapStore.getState()
+    store().setTokenPosition('npc', 450, 100)
+    store().setTokenPosition('a', 300, 100)
+    m.bridge.notifyTurnChanged()
+    expect(m.retrato()).toBe('a@300,b@300,npc@450 past=2 future=0')
+
+    store().undo()
+    m.bridge.notifyTurnChanged()
+    expect(m.retrato()).toBe('a@100,b@100,npc@450 past=1 future=1')
+    store().undo()
+    m.bridge.notifyTurnChanged()
+    expect(m.retrato()).toBe('a@100,b@100,npc@400 past=0 future=2')
+    // Mais Ctrl+Z não faz a caravana pular sozinha.
+    store().undo()
+    m.bridge.notifyTurnChanged()
+    expect(m.retrato()).toBe('a@100,b@100,npc@400 past=0 future=2')
+
+    store().redo()
+    m.bridge.notifyTurnChanged()
+    expect(m.retrato()).toBe('a@100,b@100,npc@450 past=1 future=1')
+    store().redo()
+    m.bridge.notifyTurnChanged()
+    expect(m.retrato()).toBe('a@300,b@300,npc@450 past=2 future=0')
+    await m.encerra()
+  })
+
+  it('Ctrl+Z para antes de uma ficha entrar no grupo: a caravana NÃO corre atrás dela, é ela que volta ao grupo, sem apagar o refazer', async () => {
+    const m = await mesaNaStore([ficha('a', 100, 100), ficha('c', 500, 100), ficha('npc', 400, 100)])
+    m.entra('c1', 'Ana', 'a')
+    const store = () => useMapStore.getState()
+    store().setTokenPosition('npc', 450, 100)
+    // A Bia recebe a ficha c: ela vai até a caravana (sem passo no desfazer).
+    m.entra('c2', 'Bia', 'c')
+    expect(m.retrato()).toBe('a@100,c@100,npc@450 past=1 future=0')
+    store().setTokenPosition('npc', 460, 100)
+
+    store().undo()
+    store().undo()
+    m.bridge.notifyTurnChanged()
+    // O retrato antigo tem a c longe: ela volta à caravana; a Ana não vai até ela.
+    expect(m.retrato()).toBe('a@100,c@100,npc@400 past=0 future=2')
+
+    store().redo()
+    store().redo()
+    m.bridge.notifyTurnChanged()
+    expect(m.retrato()).toBe('a@100,c@100,npc@460 past=2 future=0')
+    await m.encerra()
+  })
+})
+
+describe('mapChangeCause: de onde veio o mapa novo', () => {
+  it('desfazer e refazer são "history"; ação nova é "edit"; mudança fora do mapa é null', () => {
+    useMapStore.getState().loadMap({ ...createEmptyMap('m', 'M', 10, 10, 50), tokens: [ficha('a', 100, 100)] })
+    const causas: ('edit' | 'history' | null)[] = []
+    const unsubscribe = useMapStore.subscribe((state, previous) => causas.push(mapChangeCause(state, previous)))
+    useMapStore.getState().setTokenPosition('a', 200, 100)
+    useMapStore.getState().undo()
+    useMapStore.getState().redo()
+    useMapStore.getState().setTokenPositionsLive([{ id: 'a', x: 300, y: 100 }])
+    useMapStore.getState().setCamera({ x: 5, y: 5, scale: 1 })
+    unsubscribe()
+    expect(causas).toEqual(['edit', 'history', 'history', 'edit', null])
   })
 })

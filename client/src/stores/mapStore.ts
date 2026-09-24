@@ -538,6 +538,13 @@ interface MapStoreState {
    * vazia (ou só de ids que não existem) não empurra histórico.
    */
   setTokenPositions: (positions: readonly { id: string; x: number; y: number }[]) => void
+  /**
+   * CARAVANA: as fichas que acompanham a caravana, SEM histórico. São
+   * consequência da edição que as moveu (o arrasto já tem o seu passo), e o
+   * Ctrl+Z desta volta ao retrato de antes com o grupo inteiro junto. Lista
+   * vazia (ou só de ids que não existem) não mexe no mapa.
+   */
+  setTokenPositionsLive: (positions: readonly { id: string; x: number; y: number }[]) => void
   moveToken: (id: string, targetX: number, targetY: number) => void
   /** `imageData`: cópia auto-contida que viaja até o jogador (ver lib/tokenPhoto.ts). Omitido = sem cópia. */
   setTokenImage: (id: string, image: string | null, imageData?: string | null) => void
@@ -1277,6 +1284,12 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (present.length === 0) return
       withHistory((m) => present.reduce((acc, p) => mapFactory.setTokenPosition(acc, p.id, p.x, p.y), m))
     },
+    setTokenPositionsLive: (positions) => {
+      const { map } = get()
+      const present = positions.filter((p) => map.tokens.some((t) => t.id === p.id))
+      if (present.length === 0) return
+      set({ map: present.reduce((acc, p) => mapFactory.setTokenPosition(acc, p.id, p.x, p.y), map) })
+    },
     moveToken: (id, targetX, targetY) => {
       const { map } = get()
       const token = map.tokens.find((t) => t.id === id)
@@ -1614,3 +1627,23 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     },
   }
 }))
+
+/** O pedaço da store que diz de onde veio o `map` atual. */
+interface MapHistoryView {
+  map: MapData
+  past: readonly MapData[]
+  future: readonly MapData[]
+}
+
+/**
+ * Por que o `map` mudou entre `previous` e `state`: `'history'` quando ele é
+ * o retrato do topo do desfazer (`undo`) ou do refazer (`redo`) de antes, e
+ * `'edit'` para toda outra mudança (as ações nunca reaproveitam um retrato
+ * guardado: sempre montam um mapa novo). `null` = o mapa não mudou.
+ */
+export function mapChangeCause(state: MapHistoryView, previous: MapHistoryView): 'edit' | 'history' | null {
+  if (state.map === previous.map) return null
+  const undone = previous.past[previous.past.length - 1]
+  const redone = previous.future[previous.future.length - 1]
+  return state.map === undone || state.map === redone ? 'history' : 'edit'
+}

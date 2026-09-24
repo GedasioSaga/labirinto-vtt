@@ -96,6 +96,29 @@ export function caravanStep(members: readonly Token[], last: CaravanMemory | nul
   return { at, moves, memory: { at, memberIds: members.map((t) => t.id) } }
 }
 
+/**
+ * O mestre DESFEZ (ou refez): o mapa voltou a um retrato antigo, e nada ali
+ * foi arrastado. Comparar com a memória (`caravanStep`) leria a volta como
+ * arrasto e empurraria o grupo de novo, brigando com o Ctrl+Z. Aqui a
+ * caravana só se reconhece no retrato: fica no ponto com mais fichas do grupo
+ * (empate: o da primeira ficha, na ordem do mapa), e só quem está fora dele
+ * anda para lá. Retrato inteiro (o caso comum): ninguém anda. `null` = ninguém nesta cena.
+ */
+export function caravanRegroup(members: readonly Token[]): CaravanStep | null {
+  let at = caravanPoint(members)
+  if (at === null) return null
+  let most = 0
+  for (const t of members) {
+    const here = members.filter((o) => o.x === t.x && o.y === t.y).length
+    if (here > most) {
+      most = here
+      at = { x: t.x, y: t.y }
+    }
+  }
+  const moves = members.filter((t) => t.x !== at.x || t.y !== at.y).map((t) => ({ tokenId: t.id, x: at.x, y: at.y }))
+  return { at, moves, memory: { at, memberIds: members.map((t) => t.id) } }
+}
+
 /** A cidade onde a caravana parou: o pino de viagem embaixo dela e para onde ele leva. */
 export interface CaravanCity {
   pinId: string

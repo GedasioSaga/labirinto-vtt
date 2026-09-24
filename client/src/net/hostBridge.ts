@@ -7,6 +7,7 @@ import {
   createHostSession,
   singleSceneWorld,
   type AppliedItems,
+  type AppliedMove,
   type AppliedTokenEdit,
   type DoorRequest,
   type ItemRequest,
@@ -17,6 +18,7 @@ import {
   type HostSession,
   type HostSignal,
   type HostWorld,
+  type MapChangeCause,
   type PlayerInfo,
   type TravelRequest,
 } from './hostSession'
@@ -66,6 +68,13 @@ export interface HostBridgeDeps {
   getWorld?: () => HostWorld
   /** `sceneId`: cena de FUNDO onde o token está; ausente = a cena aberta no editor. */
   applyMove: (tokenId: string, x: number, y: number, sceneId?: string) => void
+  /**
+   * CARAVANA: fichas do grupo que acompanham a caravana, SEM passar pelo
+   * desfazer. Elas são consequência da edição que as disparou (o arrasto do
+   * mestre, que já tem o seu passo): com histórico, cada Ctrl+Z desfaria um
+   * seguidor só, e o seguidor refeito apagaria o refazer. Ausente = `applyMove`.
+   */
+  applyCaravanMoves?: (moves: readonly AppliedMove[]) => void
   /** Porta que o jogador abriu/fechou, já validada pela sessão (visível, destrancada, token perto). `sceneId` como em `applyMove`. */
   applyDoor: (wallId: string, open: boolean, sceneId?: string) => void
   /**
@@ -111,7 +120,11 @@ export interface HostBridgeDeps {
 export interface HostBridge {
   start(): Promise<RoomInfo>
   stop(): Promise<void>
-  notifyMapChanged(): void
+  /**
+   * O mapa da cena aberta mudou. `'history'` = foi desfazer/refazer: a
+   * caravana não lê isso como arrasto (`HostSession.followCaravans`).
+   */
+  notifyMapChanged(cause?: MapChangeCause): void
   assignToken(playerId: string, tokenId: string): void
   unassignToken(playerId: string, tokenId: string): void
   kick(clientId: string): Promise<void>
@@ -457,14 +470,22 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * caravana parada numa cidade vira a oferta "Desembarcar". Mover pela store
    * agenda outro broadcast, que já não acha nada a mover.
    */
-  const followCaravans = () => {
+  const followCaravans = (cause: MapChangeCause = 'edit') => {
     if (session === null) return
-    const follow = session.followCaravans(world())
-    for (const { tokenId, x, y, sceneId } of follow.moves) {
+    const follow = session.followCaravans(world(), cause)
+    if (follow.moves.length > 0) applyCaravanMoves(follow.moves)
+    syncCaravanToasts(follow.stops)
+  }
+
+  const applyCaravanMoves = (moves: readonly AppliedMove[]) => {
+    if (deps.applyCaravanMoves !== undefined) {
+      deps.applyCaravanMoves(moves)
+      return
+    }
+    for (const { tokenId, x, y, sceneId } of moves) {
       if (sceneId === undefined) deps.applyMove(tokenId, x, y)
       else deps.applyMove(tokenId, x, y, sceneId)
     }
-    syncCaravanToasts(follow.stops)
   }
 
   /** Uma oferta por mapa-mundi: some quando a caravana sai da cidade, troca quando para em outra. */
@@ -923,7 +944,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       }
     },
 
-    notifyMapChanged() {
+    notifyMapChanged(cause = 'edit') {
+      // Desfazer/refazer: a caravana se reconhece no retrato AGORA, antes que
+      // uma edição seguinte (no mesmo intervalo do broadcast) seja comparada
+      // com a memória de antes do Ctrl+Z.
+      if (cause === 'history') followCaravans('history')
       scheduleBroadcast()
     },
 
