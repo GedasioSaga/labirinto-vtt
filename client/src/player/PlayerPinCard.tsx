@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Pin, PinExitLabel } from '../types/map'
-import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
+import { PIN_BLOCK_REASON_LABELS, PIN_GLYPH, blockReasonOf, isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { PinTravelArt } from '../components/PinSymbolArt'
 
 interface PlayerPinCardProps {
@@ -14,7 +14,17 @@ interface PlayerPinCardProps {
   onRequestTravel?: (exitId?: string) => void
   /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
   travelWaiting?: boolean
+  /** Passagem trancada: o jogador já pediu "Me avise quando der" por este pino. */
+  watching?: boolean
+  /**
+   * Liga (`true`) ou desliga o aviso de quando a passagem trancada abrir.
+   * Ausente = o cartão trancado só lê, sem botão.
+   */
+  onWatch?: (on: boolean) => void
 }
+
+/** O que o cartão diz da passagem fechada, depois do motivo (ou do "Está trancada"). */
+const FECHADA_SEM_PASSAR = 'Não dá para passar por aqui agora.'
 
 /**
  * Cenário sem foto. Fica como `<img>` de verdade, e não como um `<div>` vazio,
@@ -69,7 +79,7 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
  * vendo onde está. O toque de fechar que cai no mapa para ali, antes do canvas:
  * fechar o cartão não arrasta o mapa nem abre outro pino.
  */
-export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false }: PlayerPinCardProps) {
+export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, watching = false, onWatch }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
@@ -131,6 +141,9 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   // um "Pedir" que o host sempre recusa só ensinaria o jogador a insistir.
   const passagem = passageOf(pin)
   const trancada = viagem && passagem === 'trancada'
+  // O PORQUÊ da passagem fechada ("Desabou"). Valor desconhecido (host de
+  // versão futura) cai no "Está trancada" de sempre, sem mostrar o cru.
+  const motivo = blockReasonOf(pin)
   const podePedir = viagem && !trancada && onRequestTravel !== undefined
   const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
@@ -172,7 +185,32 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
             {descricao === '' ? 'O mestre ainda não escreveu nada sobre este ponto.' : descricao}
           </p>
         </div>
-        {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
+        {trancada && (
+          <p className="pp-pincard__locked">
+            {motivo === null ? (
+              `Está trancada. ${FECHADA_SEM_PASSAR}`
+            ) : (
+              <>
+                <strong className="pp-pincard__reason">{PIN_BLOCK_REASON_LABELS[motivo]}.</strong> {FECHADA_SEM_PASSAR}
+              </>
+            )}
+          </p>
+        )}
+        {trancada && onWatch !== undefined && (
+          // Botão de alternar: o rótulo fica o mesmo e o estado mora no
+          // `aria-pressed` (e na frase logo abaixo, para quem enxerga).
+          <>
+            <button
+              type="button"
+              className="pp-pincard__watch"
+              aria-pressed={watching}
+              onClick={() => onWatch(!watching)}
+            >
+              Me avise quando der
+            </button>
+            {watching && <p className="pp-pincard__watch-hint">Você recebe um aviso quando abrir.</p>}
+          </>
+        )}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}

@@ -40,6 +40,8 @@ const NO_NOTES: NoteEntry[] = []
 const NO_CLUES: ClueEntry[] = []
 /** Fechar o recado não perde nada: quem fecha sabe onde reler. */
 const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
+/** O aviso do "Me avise quando der". */
+const PASSAGE_OPENED_TEXT = 'A passagem que você marcou abriu: já dá para passar.'
 
 /**
  * O pedido de passagem, em uma linha. Nunca diz para onde o pino leva: o
@@ -689,6 +691,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             pin={openPin}
             onClose={closePin}
             travelWaiting={state.travel?.phase === 'waiting'}
+            watching={(state.passageWatch ?? []).includes(openPin.id)}
+            onWatch={(on) => connection.watchPassage(openPin.id, on)}
             onRequestTravel={(exitId) => {
               // Pedido enviado, o cartão sai: a espera fica no aviso de baixo,
               // e o mapa volta inteiro à vista enquanto o mestre decide.
@@ -743,6 +747,13 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}
+          </p>
+        )}
+        {state.passageOpened && (
+          // "Me avise quando der": a passagem que ele marcou abriu. Não diz
+          // para onde leva — só que agora dá para tentar de novo.
+          <p key={state.passageOpened.id} className="pp-notice pp-notice--opened" role="status" aria-live="polite">
+            {PASSAGE_OPENED_TEXT}
           </p>
         )}
         {actionNotice && (

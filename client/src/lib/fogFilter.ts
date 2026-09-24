@@ -6,7 +6,7 @@ import { isPointExplored, isShapeExplored, type Exploration } from './exploratio
 import { pointInRing } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
-import { isPlayerSafePinImage } from './pins'
+import { blockReasonOf, isPlayerSafePinImage } from './pins'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { exitLabelsOf, isArrivalOnly } from './pinTravel'
 import { withoutAttachment } from './lightAttachment'
@@ -1476,6 +1476,8 @@ export function filterMapForHost(map: MapData): MapData {
  * - `passagem` VAI, de propósito: o cartão do jogador precisa saber se oferece
  *   "Passar", "Pedir para passar" ou "Está trancada". O modo diz como a porta
  *   se comporta, não para onde ela leva.
+ * - `motivo` VAI só com a passagem trancada (`blockReasonOf`): "Desabou" diz
+ *   o que a porta é agora, e nada da outra cena.
  */
 function pinForPlayer(pin: Pin): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
@@ -1497,6 +1499,10 @@ function pinForPlayer(pin: Pin): Pin {
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
   if (pin.secret !== undefined) forPlayer.secret = pin.secret
   if (pin.passagem !== undefined) forPlayer.passagem = pin.passagem
+  // MOTIVO DO BLOQUEIO: só do pino de viagem trancado, e só um valor da lista.
+  // Motivo guardado num pino reaberto é plano do mestre para depois — não sai.
+  const motivo = blockReasonOf(pin)
+  if (motivo !== null) forPlayer.motivo = motivo
   // ENCRUZILHADA: o jogador recebe `escolhas`, montado AQUI (nunca copiado do
   // mestre): por saída, só o id e o rótulo. Pino de uma saída não ganha o
   // campo: o cartão dele é o de sempre, e o recorte também.

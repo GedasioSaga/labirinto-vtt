@@ -1,6 +1,6 @@
 import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
-import { isPinIcon, isPinKind, isPinPassage } from './pins'
+import { isPinBlockReason, isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { tokenPublicNameFromFile } from './tokenPublicName'
 
@@ -223,6 +223,10 @@ function deserializeMapFields(json: string): MapData {
       // versão futura) volta AUSENTE, e não como "livre": na dúvida, a porta
       // pergunta ao mestre em vez de deixar o grupo passar sem ninguém ver.
       passagem: isPinPassage(p.passagem) ? p.passagem : undefined,
+      // MOTIVO DO BLOQUEIO: campo NOVO e OPCIONAL. Só um valor da lista
+      // volta; o resto (texto livre, número, arquivo editado à mão) volta
+      // AUSENTE — "Está trancada", o de sempre. O `...p` copiaria o valor cru.
+      motivo: isPinBlockReason(p.motivo) ? p.motivo : undefined,
       // ENCRUZILHADA: `rotulo` e `saidas` são campos NOVOS e OPCIONAIS. Mapa
       // de antes não tem nenhum dos dois e abre como sempre, com a saída de
       // `destino`. Saída extra fora da forma é descartada sozinha (ver
