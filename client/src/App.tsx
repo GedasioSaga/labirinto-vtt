@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { ZoomHud } from './components/ZoomHud'
@@ -50,6 +50,7 @@ import { ScenesSection } from './components/ScenesSection'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
 import { goToMapObject } from './stores/mapObjectNavigation'
+import { fontesDaBusca, irAoAchado, mandarFichaPara } from './stores/buscaDoMestre'
 import { ligacaoLevarFicha } from './stores/levarFicha'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
@@ -566,6 +567,9 @@ function App() {
   // Cada cena lembra a própria câmera; a troca pede ao canvas que volte a ela (ou enquadre).
   const sceneCameraRequest = useAdventureStore((state) => state.cameraRequest)
   const canGoBackToScene = previousSceneId !== null && sceneCache[previousSceneId]?.status === 'ok'
+  // Busca do mestre (Ctrl+K): as OUTRAS cenas, onde "Objetos do mapa" também procura.
+  // Não depende do mapa aberto: editar a cena aberta não refaz a lista das outras.
+  const otherSceneSources = useMemo(() => fontesDaBusca({ adventure, activeSceneId, cache: sceneCache }), [adventure, activeSceneId, sceneCache])
   // G7 — "Seguir" na linha do Grupo: a câmera acompanha a ficha do jogador, inclusive de cena em cena.
   const followingId = useFollowStore((state) => state.playerId)
   useFollowPlayer(roomPlayers, () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
@@ -1710,7 +1714,21 @@ function App() {
               />
             }
             objects={
-              <MapObjectsSection map={map} currentKey={currentMapObjectKey} onGoTo={goToMapObject} searchRequest={objectSearchRequest} />
+              <MapObjectsSection
+                map={map}
+                currentKey={currentMapObjectKey}
+                onGoTo={goToMapObject}
+                searchRequest={objectSearchRequest}
+                otherScenes={otherSceneSources}
+                onGoToOther={(hit) => void irAoAchado(hit)}
+                // "Mandar ficha para cá" só com a sala aberta: sem sala não há jogador para mandar.
+                senders={room === null ? undefined : gatherCandidates(partyMembers(roomPlayers, roomPanelWorld()))}
+                onSendHere={(playerId, target) => {
+                  const bridge = hostBridgeRef.current
+                  if (bridge === null) return { ok: false, mensagem: 'A sala não está aberta.' }
+                  return mandarFichaPara(playerId, target, bridge)
+                }}
+              />
             }
             mapName={map.name}
             mapWidth={map.width}
