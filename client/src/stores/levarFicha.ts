@@ -36,7 +36,7 @@ export function levarFichaPara(tokenId: string, toSceneId: string, pinId: string
 export function ligacaoLevarFicha(world: HostWorld, players: readonly PlayerInfo[]): TokenCarryWiring {
   const aberta = world.open.sceneId
   return {
-    destinations: partyDestinations(world).filter((destination) => destination.sceneId !== aberta),
+    destinations: partyDestinations(world, useAdventureStore.getState().adventure?.scenes).filter((destination) => destination.sceneId !== aberta),
     ownedTokenIds: new Set(players.flatMap((player) => player.tokenIds)),
     onCarry: levarFichaPara,
   }

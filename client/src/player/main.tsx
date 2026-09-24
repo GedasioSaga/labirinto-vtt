@@ -937,6 +937,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {openPin && (
           <PlayerPinCard
             pin={openPin}
+            stairs={state.map.stairs}
             onClose={closePin}
             travelWaiting={state.travel?.phase === 'waiting'}
             onRequestTravel={(exitId) => {
@@ -1063,6 +1064,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             key={state.doorNotice.id}
             notice={state.doorNotice}
             onRequest={(wallId, how) => connection.requestDoor(wallId, how)}
+            onUseKey={(wallId) => connection.useDoorKey(wallId)}
             onClose={() => connection.dismissDoorNotice()}
           />
         )}

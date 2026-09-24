@@ -12,9 +12,11 @@ import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
 import { isPlayerSafePinImage } from './pins'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
-import { exitLabelsOf, isArrivalOnly } from './pinTravel'
+import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
+import { exitLabelsOf, isArrivalOnly, travelExitsOf } from './pinTravel'
 import { withoutAttachment } from './lightAttachment'
-import { itemOfPin } from './items'
+import { itemOfPin, tokenReachesPin } from './items'
+import { keyForPin } from './doorKey'
 import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof, roomIsComodo } from './roomOps'
@@ -1068,9 +1070,14 @@ function unseenDoor(door: DoorState): DoorState {
   return { open: false, locked: false, kind: door.kind }
 }
 
-/** A porta como o jogador a vê: aberta ou fechada, nunca trancada. */
+/**
+ * A porta como o jogador a vê: aberta ou fechada, nunca trancada — e sem o
+ * "Abre com" (CHAVE ABRE PORTA): o jogador nunca descobre que portas uma chave
+ * abre. Quem tem a chave só lê o nome dela na recusa do toque (`hostSession`).
+ */
 function withoutLock(door: DoorState): DoorState {
-  return { ...door, locked: false }
+  const { abreCom: _chave, ...semChave } = door
+  return { ...semChave, locked: false }
 }
 
 /**
@@ -1723,6 +1730,15 @@ export function filterMapForGroup(
   const masterHiddenTokenIds = new Set(
     map.tokens.filter((t) => !sentTokenIds.has(t.id) && (t.hidden || t.secret || !layerTokenIds.has(t.id))).map((t) => t.id),
   )
+  const playerStairs = visibleStairs(map.stairs, hiddenLayers).filter((s) => {
+    const first = s.segments[0]
+    if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inHiddenPlace)) return false
+    return isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
+  })
+  // ESCADA QUE LEVA A OUTRO ANDAR: o pino dela vai SÓ junto com a escada — a
+  // mesma regra que decide a escada decide o pino, e nunca a do ponto do pino.
+  // Escada secreta, em sala oculta, no escuro ou apagada: o pino não sai.
+  const playerStairIds = new Set(playerStairs.map((s) => s.id))
 
   const filtered: MapData = {
     ...mapWithoutHazards,
@@ -1747,11 +1763,7 @@ export function filterMapForGroup(
       .filter((l) => !l.hidden && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }))
       .filter((l) => l.attachedTokenId === undefined || !masterHiddenTokenIds.has(l.attachedTokenId))
       .map((l) => (l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l))),
-    stairs: visibleStairs(map.stairs, hiddenLayers).filter((s) => {
-      const first = s.segments[0]
-      if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inHiddenPlace)) return false
-      return isPointKnown({ x: (first.x1 + first.x2) / 2, y: (first.y1 + first.y2) / 2 })
-    }),
+    stairs: playerStairs,
     // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto
     // fechado leva junto o objeto com qualquer amostra dela lá dentro
     // (`propSamplePoints`), como já leva escada, desenho e linha.
@@ -1842,11 +1854,18 @@ export function filterMapForGroup(
       .filter((p) => {
         if (isArrivalOnly(p)) return false
         if (!pinReachesPlayer(pinAudiences, p.id, playerId)) return false
+        // Pino de escada: a escada manda (ver `playerStairIds`); o segredo do próprio pino também.
+        // E só a escada que LEVA a algum lugar: o par que o guardião desligou (a de baixo foi
+        // desligada, apagada ou religada a outro andar) fica sem destino e não sai — senão o
+        // toque abriria "Descer por aqui?" para o host recusar. A escada continua desenhada.
+        if (p.escadaId !== undefined) {
+          return playerStairIds.has(p.escadaId) && !p.hidden && !p.secret && travelExitsOf(p).length > 0
+        }
         if (p.hidden || p.secret || hiddenLayers.includes('anotacoes')) return false
         const point = { x: p.x, y: p.y }
         return !inHiddenPlace(point) && isPointKnown(point)
       })
-      .map(pinForPlayer),
+      .map((p) => pinForPlayer(p, ownTokens, map.grid)),
     // Metadado do mestre: nome, estado e células do pincel das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
@@ -1956,8 +1975,12 @@ export function alarmForPlayer(alarm: SceneAlarm | null, sceneId: string | null)
  * - `passagem` VAI, de propósito: o cartão do jogador precisa saber se oferece
  *   "Passar", "Pedir para passar" ou "Está trancada". O modo diz como a porta
  *   se comporta, não para onde ela leva.
+ * - `abreCom` NUNCA (CHAVE ABRE PORTA): o jogador não descobre que pinos uma
+ *   chave abre. Em troca, `chave` — o nome do item que ELE já carrega — sai só
+ *   no pino trancado que uma ficha dele, encostada, abre (`ownTokens`: as
+ *   fichas dele, com a mochila do mapa do mestre).
  */
-function pinForPlayer(pin: Pin): Pin {
+function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
   // arquivo trouxer e o app não conhece (versão futura, edição à mão) não
   // chega ao jogador por descuido (revisão de segurança, 22/09). `destino`,
@@ -1976,6 +1999,9 @@ function pinForPlayer(pin: Pin): Pin {
   if (pin.hidden !== undefined) forPlayer.hidden = pin.hidden
   if (pin.secret !== undefined) forPlayer.secret = pin.secret
   if (pin.passagem !== undefined) forPlayer.passagem = pin.passagem
+  // Escada: o id da ESCADA desta cena, que o jogador já recebe — é por ele que
+  // o toque na escada acha o pino. Só chega aqui pino de escada que saiu.
+  if (pin.escadaId !== undefined) forPlayer.escadaId = pin.escadaId
   // ENCRUZILHADA: o jogador recebe `escolhas`, montado AQUI (nunca copiado do
   // mestre): por saída, só o id e o rótulo. Pino de uma saída não ganha o
   // campo: o cartão dele é o de sempre, e o recorte também.
@@ -1985,6 +2011,8 @@ function pinForPlayer(pin: Pin): Pin {
   // Cópia limpa (`itemOfPin`), nunca o objeto do mestre.
   const item = itemOfPin(pin)
   if (item !== null) forPlayer.item = item
+  const key = keyForPin(pin, ownTokens.filter((t) => tokenReachesPin(t, pin, grid)))
+  if (key !== null) forPlayer.chave = key.item.nome
   return forPlayer
 }
 
@@ -2009,7 +2037,8 @@ export interface PlayerClueContent {
  * pino que saiu no último recorte da cena onde o jogador está.
  */
 export function pinClueForPlayer(pin: Pin): PlayerClueContent | null {
-  const safe = pinForPlayer(pin)
+  // A pista não leva chave: sem fichas, `pinForPlayer` não calcula o `chave`.
+  const safe = pinForPlayer(pin, [], 0)
   const text = clampClueText(safe.description.trim())
   if (text === '' && safe.image === null) return null
   return { title: clueTitleFrom(text, CLUE_TITLE_ONLY_IMAGE), text, image: safe.image }
@@ -2087,5 +2116,13 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
   }
   if (prop.rotation !== undefined) forPlayer.rotation = prop.rotation
   if (prop.layer !== undefined) forPlayer.layer = prop.layer
+  // OBJETO COM RÓTULO OU IMAGEM: só chega aqui objeto que o jogador enxerga
+  // (oculto, secreto, sob teto fechado e fora da visão já saíram acima), então
+  // o nome e a cópia pequena vão junto dele e de mais nenhum. Passam pela regra
+  // de `propPlayerLook.ts`: rótulo aparado e curto, imagem só em data URL.
+  const label = propPlayerLabel(prop.playerLabel)
+  if (label !== undefined) forPlayer.playerLabel = label
+  const image = propPlayerImage(prop.playerImage)
+  if (image !== undefined) forPlayer.playerImage = image
   return forPlayer
 }

@@ -9,6 +9,7 @@ import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokensOccupy } from '../lib/movementRules'
 import { tokenReachesDoor } from '../lib/doorReach'
+import { keyForDoor, keyForPin } from '../lib/doorKey'
 import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, signalColor, type DestinationMark } from '../lib/signals'
 import { passageOf, pinSummary } from '../lib/pins'
 import { carriedItemsOf, itemOfPin, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
@@ -39,6 +40,7 @@ import {
   type DiceRollMessage,
   type DoorToggleMessage,
   type DoorToggleRejection,
+  type DoorUseKeyMessage,
   type HostMessage,
   type ItemGiveMessage,
   type ItemGiveRejection,
@@ -181,6 +183,32 @@ export interface DoorRequest {
   playerName: string
   how: DoorRequestHow
   /** Nome da cena (o que o mestre lê), só quando a porta está numa cena de FUNDO. */
+  sceneName?: string
+}
+
+/**
+ * CHAVE ABRE PORTA: o jogador abriu a porta trancada com a chave da mochila.
+ * É o aviso do mestre (quem, com que item, onde); nada disto vai ao jogador.
+ */
+export interface DoorKeyUse {
+  playerId: string
+  playerName: string
+  itemName: string
+  /** Nome da cena (o que o mestre lê), só quando a porta está numa cena de FUNDO. */
+  sceneName?: string
+}
+
+/**
+ * CHAVE ABRE PORTA, no pino de viagem trancado: o jogador passou com a chave
+ * da mochila. É o aviso do mestre; nada disto vai ao jogador.
+ */
+export interface PinKeyUse {
+  playerId: string
+  playerName: string
+  itemName: string
+  /** Como o mestre chama o pino: a descrição dele, ou o resumo (`pinSummary`). */
+  pinLabel: string
+  /** Nome da cena do pino, só quando ela é de FUNDO (o mestre olha outra). */
   sceneName?: string
 }
 
@@ -339,6 +367,10 @@ export interface HostResult {
   travelRequest?: TravelRequest
   /** Pedido da porta trancada válido: o integrador pergunta ao mestre. */
   doorRequest?: DoorRequest
+  /** A chave da mochila abriu a porta (o `applyDoor` vem junto, com `unlock`): o integrador avisa o mestre. */
+  doorKeyUsed?: DoorKeyUse
+  /** A chave da mochila abriu o pino trancado (o `applyTransfer` vem junto): o integrador avisa o mestre. */
+  pinKeyUsed?: PinKeyUse
   /** "Pegar" válido de pino que pede ao mestre: o integrador pergunta. */
   itemRequest?: ItemRequest
   /** Item pego (pino livre ou "Deixar") ou dado: o integrador grava na cena. */
@@ -852,6 +884,8 @@ interface ValidTravel {
   pin: Pin
   partner: Pin
   token: Token
+  /** CHAVE ABRE PORTA: o pino é trancado e `token` passa com este item da mochila. */
+  key?: string
 }
 
 /** O que um jogador lembra de um mapa: células exploradas e último estado visto de cada porta. */
@@ -2262,15 +2296,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * `near`: algum token dele, no recorte dele (respeita camada oculta e token
    * escondido pelo mestre), encosta nela. `null` = inexistente ou no escuro.
    */
-  const doorSeenBy = (playerId: string, map: MapData, wallId: string, world: HostWorld): { wall: Wall; door: DoorState; near: boolean } | null => {
+  const doorSeenBy = (playerId: string, map: MapData, wallId: string, world: HostWorld): { wall: Wall; door: DoorState; near: boolean; key: string | null } | null => {
     const wall = map.walls.find((w) => w.id === wallId)
     if (wall === undefined || wall.door === null) return null
     const memory = memoryFor(playerId, map, world)
     const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
     if (!view.visibleDoorIds.includes(wall.id)) return null
     const owned = new Set(ownership[playerId] ?? [])
-    const near = view.map.tokens.some((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid))
-    return { wall, door: wall.door, near }
+    const nearIds = new Set(view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesDoor(t, wall, map.grid)).map((t) => t.id))
+    // CHAVE ABRE PORTA: a mochila é a das fichas do MAPA DO MESTRE encostadas
+    // na porta — a chave precisa estar na mão de quem está ali, não na de uma
+    // ficha dele do outro lado da cena.
+    const found = keyForDoor(wall.door, map.tokens.filter((t) => nearIds.has(t.id)))
+    return { wall, door: wall.door, near: nearIds.size > 0, key: found === null ? null : found.item.nome }
   }
 
   /** Limite de 1 pedido de porta por `DOOR_TOGGLE_MIN_INTERVAL_MS`: `false` = o excesso morre em silêncio. */
@@ -2297,10 +2335,44 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const seen = doorSeenBy(playerId, scene.map, msg.wallId, world)
     if (seen === null) return reject('not_visible')
     // Trancada antes de longe: "Trancada" é a informação útil, e é dela que sai o pedido ao mestre.
-    if (seen.door.locked) return reject('locked')
+    // Quem encosta com a chave lê o nome dela: é o item que ele já carrega, não o que a porta pede.
+    if (seen.door.locked) {
+      return seen.key === null ? reject('locked') : reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason: 'locked', key: seen.key })
+    }
     if (!seen.near) return reject('far')
 
     return { outbound: [], applyDoor: { wallId: seen.wall.id, open: !seen.door.open, ...backgroundSceneId(scene, world) } }
+  }
+
+  /**
+   * CHAVE ABRE PORTA: "Usar <chave>". Autoridade no molde de
+   * `handleDoorToggle` (porta visível agora, ficha encostada) e mais: uma
+   * ficha DELE encostada carrega o item que a porta pede. Vale, destranca e
+   * abre para todos na hora — sem pedido —, e o mestre recebe o aviso. Sem a
+   * chave, a mesma recusa "Trancada" do toque (dela sai o pedido ao mestre).
+   */
+  function handleDoorUseKey(clientId: string, msg: DoorUseKeyMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return { outbound: [] }
+    if (!withinDoorLimit(lastDoorToggleAt, playerId)) return { outbound: [] }
+
+    const reject = (reason: DoorToggleRejection): HostResult => reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason })
+
+    const seen = doorSeenBy(playerId, scene.map, msg.wallId, world)
+    if (seen === null) return reject('not_visible')
+    if (!seen.near) return reject('far')
+    // Destrancada (o mestre ou um colega chegou antes): abre como o toque abriria.
+    if (!seen.door.locked) return { outbound: [], applyDoor: { wallId: seen.wall.id, open: true, ...backgroundSceneId(scene, world) } }
+    if (seen.key === null) return reject('locked')
+
+    const used: DoorKeyUse = { playerId, playerName: record.name, itemName: seen.key }
+    // Cena de fundo: o mestre lê onde foi, porque está olhando outra.
+    if (backgroundSceneId(scene, world).sceneId !== undefined) used.sceneName = scene.name
+    return { outbound: [], applyDoor: { wallId: seen.wall.id, open: true, unlock: true, ...backgroundSceneId(scene, world) }, doorKeyUsed: used }
   }
 
   /**
@@ -2477,7 +2549,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * genérico para todas — inclusive `exitId` que não é saída DESTE pino
    * (inventado, ou de outro pino): o jogador não descobre que ela existe.
    */
-  function validTravel(playerId: string, pinId: string, exitId: string, world: HostWorld): ValidTravel | null {
+  function validTravel(playerId: string, pinId: string, exitId: string, world: HostWorld, withKey = false): ValidTravel | null {
     const from = sceneFor(playerId, world)
     if (from === null || from.sceneId === null) return null
     const fromSceneId = from.sceneId
@@ -2486,11 +2558,22 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const memory = memoryFor(playerId, from.map, world)
     const view = filterMapForPlayer(from.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences, undefined, memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pinId)) return null
+    const owned = new Set(ownership[playerId] ?? [])
     // Trancada: ninguém passa. Cai no mesmo `null` de todo o resto, então o
     // jogador lê o motivo genérico de sempre e nada chega ao mestre. Estar aqui,
     // e não só no pedido, faz o "Deixar ir" de um pedido feito antes de trancar
-    // recusar também.
-    if (passageOf(pin) === 'trancada') return null
+    // recusar também (ele chama sem `withKey`).
+    // CHAVE ABRE PORTA: a exceção é o pedido do próprio jogador (`withKey`)
+    // com uma ficha DELE encostada no pino carregando o "Abre com" — a
+    // mochila é a do MAPA DO MESTRE, e é essa ficha que passa.
+    let keyHolder: { token: Token; nome: string } | null = null
+    if (passageOf(pin) === 'trancada') {
+      if (!withKey) return null
+      const nearIds = new Set(view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesPin(t, pin, from.map.grid)).map((t) => t.id))
+      const found = keyForPin(pin, from.map.tokens.filter((t) => nearIds.has(t.id)))
+      if (found === null) return null
+      keyHolder = { token: found.token, nome: found.item.nome }
+    }
     // Chegada oculta (mão única) não leva de volta. O recorte já não a manda,
     // mas a recusa não depende da névoa: mesmo `null`, mesmo motivo genérico.
     if (isArrivalOnly(pin)) return null
@@ -2504,7 +2587,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (travel.status !== 'ligado') return null
     const to = scenes.find((s) => s.sceneId === travel.sceneId)
     if (to === undefined || to.sceneId === null) return null
-    const owned = new Set(ownership[playerId] ?? [])
+    const base = { from: { ...from, sceneId: fromSceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner }
+    if (keyHolder !== null) return { ...base, token: keyHolder.token, key: keyHolder.nome }
     // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
     const mine = view.map.tokens.filter((t) => owned.has(t.id))
     let token: Token | null = null
@@ -2512,7 +2596,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (token === null || Math.hypot(t.x - pin.x, t.y - pin.y) < Math.hypot(token.x - pin.x, token.y - pin.y)) token = t
     }
     if (token === null) return null
-    return { from: { ...from, sceneId: fromSceneId }, to: { ...to, sceneId: to.sceneId }, pin, partner: travel.partner, token }
+    return { ...base, token }
   }
 
   function handleTravelRequest(clientId: string, msg: PinTravelRequestMessage, world: HostWorld): HostResult {
@@ -2543,28 +2627,37 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     lastTravelRequestAt.set(limitKey, at)
 
     const exitId = msg.exitId ?? SAIDA_PRINCIPAL
-    const travel = validTravel(playerId, msg.pinId, exitId, world)
+    const travel = validTravel(playerId, msg.pinId, exitId, world, true)
     if (travel === null) return reject('unavailable')
     // Livre: passou em tudo que o pedido passaria (névoa, token na cena, pino
     // ligado, limites, nenhum pendente) e vai direto, sem esperar o mestre —
     // ele só lê o aviso de chegada que o integrador mostra com a transferência.
     if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel)
-    const requestId = randomId()
-    // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
-    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
-    const description = travel.pin.description.trim()
     // Encruzilhada: o mestre lê a SAÍDA ("Escada da torre → Torre Alta"), o
     // mesmo rótulo que a jogadora tocou; pino de uma saída continua nomeado
     // pela descrição, como sempre.
+    const description = travel.pin.description.trim()
     const saidas = exitLabelsOf(travel.pin)
     const saida = saidas.length > 1 ? saidas.find((s) => s.id === exitId) : undefined
+    const pinLabel = saida !== undefined ? saida.rotulo : description === '' ? pinSummary(travel.pin) : description
+    // CHAVE ABRE PORTA: trancado, mas a ficha encostada carrega o "Abre com".
+    // Passa como no livre, e o mestre recebe o aviso de quem abriu e com quê.
+    if (travel.key !== undefined) {
+      const used: PinKeyUse = { playerId, playerName: record.name, itemName: travel.key, pinLabel }
+      // `travel.from` é cópia (sceneId garantido): a cena de fundo se reconhece pelo id, não pela identidade.
+      if (travel.from.sceneId !== world.open.sceneId) used.sceneName = travel.from.name
+      return { ...transferResult(playerId, clientId, record.name, travel), pinKeyUsed: used }
+    }
+    const requestId = randomId()
+    // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
+    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
     return {
       outbound: [],
       travelRequest: {
         requestId,
         playerId,
         playerName: record.name,
-        pinLabel: saida !== undefined ? saida.rotulo : description === '' ? pinSummary(travel.pin) : description,
+        pinLabel,
         toSceneId: travel.to.sceneId,
         toSceneName: travel.to.name,
       },
@@ -2784,6 +2877,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleDoorToggle(clientId, msg, world)
         case 'door.request':
           return handleDoorRequest(clientId, msg, world)
+        case 'door.useKey':
+          return handleDoorUseKey(clientId, msg, world)
         case 'token.edit':
           return handleTokenEdit(clientId, msg, world)
         case 'pin.travel.request':

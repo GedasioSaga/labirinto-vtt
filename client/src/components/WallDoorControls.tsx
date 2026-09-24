@@ -1,5 +1,6 @@
-import { useId } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { DoorState } from '../types/map'
+import { ITEM_NAME_MAX_LENGTH } from '../lib/items'
 import { Toggle } from './Toggle'
 
 export interface WallDoorControlsProps {
@@ -13,6 +14,52 @@ export interface WallDoorControlsProps {
   onToggleSecret: () => void
   /** "Revelar passagem": tira o segredo da porta e o oculto da sala ligada, num clique. */
   onRevealPassage: () => void
+  /**
+   * CHAVE ABRE PORTA: o nome do item que abre a porta trancada ("" tira).
+   * Chega só ao sair do campo ou no Enter. Sem ele, o campo não aparece.
+   */
+  onKeyChange?: (nome: string) => void
+}
+
+/**
+ * "Abre com": o item da mochila que destranca a porta (ou o pino de viagem
+ * trancado, `PinTravelControls`) sem pedir ao mestre. O nome só vale ao sair
+ * do campo (ou Enter): cada letra não vira um passo do desfazer — o mesmo
+ * molde do nome do item pegável no pino.
+ */
+export function DoorKeyField({
+  value,
+  onChange,
+  placeholder = 'Nome do item (vazio: só o mestre abre)',
+}: {
+  value: string
+  onChange: (nome: string) => void
+  placeholder?: string
+}) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  const commit = () => {
+    if (draft.trim() === value) return
+    onChange(draft)
+  }
+  return (
+    <label className="lb-field">
+      <span className="lb-label">Abre com</span>
+      <input
+        className="lb-input"
+        type="text"
+        aria-label="Abre com"
+        placeholder={placeholder}
+        value={draft}
+        maxLength={ITEM_NAME_MAX_LENGTH}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit()
+        }}
+      />
+    </label>
+  )
 }
 
 /**
@@ -26,7 +73,7 @@ export interface WallDoorControlsProps {
  * parede); com ela ligada aparece "Revelar passagem", o gesto de mesa de
  * mostrar a passagem — desliga o segredo da porta e da sala do outro lado.
  */
-export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLocked, onToggleSecret, onRevealPassage }: WallDoorControlsProps) {
+export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLocked, onToggleSecret, onRevealPassage, onKeyChange }: WallDoorControlsProps) {
   const secret = door?.secret === true
   const secretHintId = `${useId()}-secreta`
   return (
@@ -50,6 +97,7 @@ export function WallDoorControls({ door, onToggleDoor, onToggleOpen, onToggleLoc
           )}
         </div>
       )}
+      {door !== null && door.locked && onKeyChange !== undefined && <DoorKeyField value={door.abreCom ?? ''} onChange={onKeyChange} />}
     </section>
   )
 }

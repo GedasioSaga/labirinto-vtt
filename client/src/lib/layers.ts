@@ -12,6 +12,7 @@
 import type { Drawing, Light, MapData, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
 import type { LayerId } from '../types/map'
 import { canInteract, type Lockable } from './itemTransform'
+import { isStairPin } from './stairTravel'
 
 /** Rótulos em PT-BR pro painel de camadas, uma entrada por LayerId. */
 export const LAYER_LABELS: Record<LayerId, string> = {
@@ -143,8 +144,15 @@ export function visibleProps(props: Prop[], hiddenLayers: readonly LayerId[]): P
   return filterByLayer(props, propLayer, hiddenLayers)
 }
 
+/**
+ * Os pinos que se DESENHAM (e se tocam) como pino. O pino de uma escada que
+ * leva a outro andar (`lib/stairTravel.ts`) nunca: quem aparece é a escada.
+ * Sem pino de escada, a lista volta a mesma — quem compara por referência não
+ * redesenha à toa.
+ */
 export function visiblePins(pins: Pin[], hiddenLayers: readonly LayerId[]): Pin[] {
-  return filterByLayer(pins, pinLayer, hiddenLayers)
+  const drawable = pins.some(isStairPin) ? pins.filter((pin) => !isStairPin(pin)) : pins
+  return filterByLayer(drawable, pinLayer, hiddenLayers)
 }
 
 /** Quantas entidades cada camada tem hoje — usado pelo LayersPanel pra mostrar
@@ -176,6 +184,7 @@ export function countEntitiesByLayer(map: MapData): Record<LayerId, number> {
   for (const token of map.tokens) counts[tokenLayer(token)] += 1
   for (const drawing of map.drawings) counts[drawingLayer(drawing)] += 1
   for (const prop of map.props) counts[propLayer(prop)] += 1
-  for (const pin of map.pins) counts[pinLayer(pin)] += 1
+  // O pino da escada não é item que o mestre vê: a escada já conta em "escadas".
+  for (const pin of map.pins) if (!isStairPin(pin)) counts[pinLayer(pin)] += 1
   return counts
 }

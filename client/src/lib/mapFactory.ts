@@ -1,6 +1,6 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
-  Stair, StairDirection, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
+  Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
   ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules,
 } from '../types/map'
 import type { Point } from '../pixi/world'
@@ -19,6 +19,7 @@ import { DEFAULT_FLOOR_STYLE } from './mapFile'
 import { sameDestination, sameExits } from './pinTravel'
 import { passageOf } from './pins'
 import { moveTokenCarryingLights, withoutAttachment } from './lightAttachment'
+import { seatStairPins, withoutStairPins } from './stairTravel'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   type Corner, type ResizeModifiers,
@@ -1465,12 +1466,14 @@ export function addStair(map: MapData, stair: Stair): MapData {
   return { ...map, stairs: [...map.stairs, stair] }
 }
 
+/** Apagar a escada apaga o pino dela (`lib/stairTravel.ts`); o guardião da mão dupla desliga o par do outro andar. */
 export function removeStair(map: MapData, stairId: string): MapData {
-  return { ...map, stairs: map.stairs.filter((s) => s.id !== stairId) }
+  return withoutStairPins({ ...map, stairs: map.stairs.filter((s) => s.id !== stairId) }, stairId)
 }
 
+/** Arrastar a escada leva a ligação: o pino dela anda junto (`seatStairPins`). */
 export function moveStair(map: MapData, stairId: string, dx: number, dy: number): MapData {
-  return {
+  const moved: MapData = {
     ...map,
     stairs: map.stairs.map((s) =>
       s.id === stairId
@@ -1478,10 +1481,11 @@ export function moveStair(map: MapData, stairId: string, dx: number, dy: number)
         : s,
     ),
   }
+  return seatStairPins(moved, [stairId])
 }
 
 export function updateStairPoint(map: MapData, stairId: string, segmentIndex: number, endpoint: 0 | 1, x: number, y: number): MapData {
-  return {
+  const edited: MapData = {
     ...map,
     stairs: map.stairs.map((s) => {
       if (s.id !== stairId) return s
@@ -1493,10 +1497,19 @@ export function updateStairPoint(map: MapData, stairId: string, segmentIndex: nu
       }
     }),
   }
+  // A boca da escada pode ter mudado de lugar: o pino dela vai junto.
+  return seatStairPins(edited, [stairId])
 }
 
 export function setStairDirection(map: MapData, stairId: string, direction: StairDirection): MapData {
   return { ...map, stairs: map.stairs.map((s) => (s.id === stairId ? { ...s, direction } : s)) }
+}
+
+/** Troca a forma ("Reta" / "Espiral") de uma escada JÁ CRIADA — mesmo espelho
+ *  de `setStairDirection`. Os lances ficam onde estão: a espiral usa o
+ *  primeiro como diâmetro, então a boca (e o pino da escada) não sai do lugar. */
+export function setStairShape(map: MapData, stairId: string, shape: StairShape): MapData {
+  return { ...map, stairs: map.stairs.map((s) => (s.id === stairId ? { ...s, shape } : s)) }
 }
 
 /** Troca `stepWidth` (largura do lance) de uma escada JÁ CRIADA — mesmo
@@ -1661,7 +1674,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'abreCom'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1688,7 +1701,9 @@ export function updatePin(
     // E aqui também: `undefined` === 'pede'. Escolher "Pede ao mestre" num
     // pino que nunca teve modo não empurra entrada vazia no histórico.
     passageOf(next) === passageOf(pin) &&
-    sameItem
+    sameItem &&
+    // CHAVE ABRE PORTA: `undefined` === sem chave; apagar um campo vazio não é mudança.
+    next.abreCom === pin.abreCom
   ) {
     return map
   }

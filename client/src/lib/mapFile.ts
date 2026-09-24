@@ -1,4 +1,6 @@
-import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
+import type { DoorState, FloorStyle, MapData, Prop, Region } from '../types/map'
+import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
+import { readDoorKey } from './doorKey'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
@@ -51,6 +53,34 @@ function positiveNumberOr(value: number | undefined, fallback: number): number {
 function entityList<T>(value: T[] | undefined): T[] {
   if (!Array.isArray(value)) return []
   return value.filter((item) => item !== null && typeof item === 'object')
+}
+
+/**
+ * OBJETO COM RÓTULO OU IMAGEM: rótulo e imagem do jogador só ficam na forma de
+ * `propPlayerLook.ts`. Sem nenhum dos dois campos o objeto volta idêntico (o
+ * round-trip do mapa antigo não ganha campo).
+ */
+function readPropPlayerLook(prop: Prop): Prop {
+  if (!('playerLabel' in prop) && !('playerImage' in prop)) return prop
+  const { playerLabel, playerImage, ...rest } = prop
+  const lido: Prop = rest
+  const label = propPlayerLabel(playerLabel)
+  if (label !== undefined) lido.playerLabel = label
+  const image = propPlayerImage(playerImage)
+  if (image !== undefined) lido.playerImage = image
+  return lido
+}
+
+/**
+ * CHAVE ABRE PORTA: o "Abre com" é campo NOVO e OPCIONAL. Ausente continua
+ * ausente (o round-trip do mapa antigo não ganha campo); o que não é texto sai
+ * — a porta continua trancada, só deixa de abrir com item.
+ */
+function doorKeyFromFile(door: DoorState): DoorState {
+  if (!('abreCom' in door)) return door
+  const abreCom = readDoorKey(door.abreCom)
+  const { abreCom: _cru, ...semChave } = door
+  return abreCom === undefined ? semChave : { ...semChave, abreCom }
 }
 
 /** Lista de valores simples (ids de camada): só a forma de lista é garantida. */
@@ -119,7 +149,7 @@ function roomTextsFromFile(region: Region): Region {
  * outro valor sai do objeto, e a porta abre como porta comum — como sempre foi.
  */
 function doorFromFile(door: DoorState): DoorState {
-  const { secret, ...rest } = door
+  const { secret, ...rest } = doorKeyFromFile(door)
   const withKind: DoorState = { ...rest, kind: rest.kind ?? 'normal' }
   return secret === true ? { ...withKind, secret: true } : withKind
 }
@@ -190,8 +220,12 @@ function deserializeMapFields(json: string): MapData {
       const { mochila: _descartada, ...semMochila } = lido
       return semMochila
     }),
-    // inalterado fora o que já existia — Prop.layer ausente fica undefined
-    props: entityList(parsed.props).map((p) => ({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
+    // inalterado fora o que já existia — Prop.layer ausente fica undefined.
+    // OBJETO COM RÓTULO OU IMAGEM: os dois campos são novos e opcionais —
+    // ausente continua ausente. Presente, só na forma de `propPlayerLook.ts`
+    // (rótulo curto, imagem em data URL); o resto sai em vez de ir parar na
+    // tela do jogador.
+    props: entityList(parsed.props).map((p) => readPropPlayerLook({ ...p, linkedMapPath: p.linkedMapPath ?? null })),
     stairs: entityList(parsed.stairs),
     // MUDA de cru para .map(): PONTO DE MAIOR RISCO DE TODA A MIGRAÇÃO.
     // 0.5/0 é o alpha que drawDrawings.ts:50 já aplicava (filled ? 0.5 : 0);
@@ -249,10 +283,19 @@ function deserializeMapFields(json: string): MapData {
       // (`false`, texto, número, arquivo editado à mão) volta AUSENTE — o par de
       // sempre, visível. O `...p` acima copiaria o valor cru, por isso a linha.
       soChegada: p.soChegada === true ? true : undefined,
+      // ESCADA QUE LEVA A OUTRO ANDAR: `escadaId` é campo NOVO e OPCIONAL. Só
+      // texto não vazio vale; o resto volta AUSENTE — o pino de sempre, que se
+      // desenha. O `...p` acima copiaria o valor cru.
+      escadaId: typeof p.escadaId === 'string' && p.escadaId !== '' ? p.escadaId : undefined,
       escolhas: undefined,
       // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
       // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).
       item: readPinItem(p.item),
+      // CHAVE ABRE PORTA no pino trancado: campo NOVO e OPCIONAL, com a mesma
+      // leitura do "Abre com" da porta. `chave` é só do recorte do jogador:
+      // arquivo que o traga não o põe no mapa do mestre.
+      abreCom: p.abreCom === undefined ? undefined : readDoorKey(p.abreCom),
+      chave: undefined,
     })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },

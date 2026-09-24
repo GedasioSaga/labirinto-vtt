@@ -256,6 +256,8 @@ export interface DoorNotice {
   id: number
   reason: DoorToggleRejection
   wallId: string
+  /** CHAVE ABRE PORTA: nome do item da mochila que abre esta porta trancada. Só no `locked`, só de quem o carrega. */
+  key?: string
 }
 
 /** `sent`: saiu para o mestre; `opened`/`denied`: a resposta dele; o resto: o host nem levou ao mestre. */
@@ -391,6 +393,12 @@ export interface PlayerConnection {
    * jogando, o pedido é malformado ou o socket não está aberto.
    */
   requestDoor(wallId: string, how: DoorRequestHow): boolean
+  /**
+   * CHAVE ABRE PORTA: "Usar <chave>" na porta trancada `wallId`. Manda só a
+   * porta (o host acha a chave) e fecha o aviso. `false` se não está jogando
+   * ou o socket não está aberto.
+   */
+  useDoorKey(wallId: string): boolean
   /** Fecha o aviso da porta (o × do "Trancada"). */
   dismissDoorNotice(): void
   /**
@@ -762,9 +770,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   /** Recusa do toque. Um aviso de porta por vez (o do pedido sai): os dois ocupam o mesmo lugar da tela. */
-  function showDoorNotice(reason: DoorToggleRejection, wallId: string): void {
+  function showDoorNotice(reason: DoorToggleRejection, wallId: string, key?: string): void {
     clearDoorNotice()
-    setState({ doorNotice: { id: nextNoticeId++, reason, wallId }, doorRequest: undefined })
+    const notice: DoorNotice = { id: nextNoticeId++, reason, wallId }
+    if (key !== undefined) notice.key = key
+    setState({ doorNotice: notice, doorRequest: undefined })
     // "Trancada" não some sozinho: dele saem os botões do pedido, e o jogador precisa de tempo para escolher.
     if (reason === 'locked') return
     doorNoticeTimer = setTimeout(() => {
@@ -1725,7 +1735,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const { reason } = data
         if (reason !== 'locked' && reason !== 'far' && reason !== 'not_visible') return
         if (typeof data.wallId !== 'string' || data.wallId.length === 0) return
-        showDoorNotice(reason, data.wallId)
+        // A chave só vale no "Trancada" e só como texto curto: é o nome de um item da mochila.
+        const key = reason === 'locked' ? cleanItemName(typeof data.key === 'string' ? data.key : '') : ''
+        showDoorNotice(reason, data.wallId, key === '' ? undefined : key)
         return
       }
       case 'door.request.rejected': {
@@ -1991,6 +2003,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return true
     },
 
+    useDoorKey(wallId) {
+      if (state.status !== 'playing' || wallId.length === 0) return false
+      if (!send({ type: 'door.useKey', wallId })) return false
+      // A porta aberta chega no snapshot; se não valer, a recusa do host reabre o aviso.
+      clearDoorNotice()
+      setState({ doorNotice: undefined })
+      return true
+    },
+
     dismissDoorNotice() {
       if (state.doorNotice === undefined) return
       clearDoorNotice()
@@ -2001,7 +2022,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // O pino livre agenda o envio (e o aviso "Passando…") antes de chamar `send`: a tela da mesa sai aqui.
       if (isTable || state.status !== 'playing' || pinId.length === 0 || state.travel?.phase === 'waiting') return false
       const pin = state.map?.pins.find((p) => p.id === pinId)
-      const direct = pin !== undefined && passageOf(pin) === 'livre'
+      // Livre, ou trancado que a chave da mochila abre (CHAVE ABRE PORTA): ninguém decide, a passagem é direta.
+      const direct = pin !== undefined && (passageOf(pin) === 'livre' || (passageOf(pin) === 'trancada' && typeof pin.chave === 'string' && pin.chave !== ''))
       // Sem saída escolhida, a mensagem sai idêntica à de antes: o mestre
       // antigo, que não conhece `exitId`, continua entendendo o pedido.
       const pedido: PinTravelRequestMessage = exitId === undefined ? { type: 'pin.travel.request', pinId } : { type: 'pin.travel.request', pinId, exitId }

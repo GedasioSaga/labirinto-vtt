@@ -89,6 +89,20 @@ body {
   margin: 0;
 }
 
+/* Texto só para o leitor de tela: continua no DOM (e no texto do elemento),
+   fora da vista. O pai precisa de `position: relative` para ancorá-lo. */
+.lb-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 .lb-scroll {
   overflow-y: auto;
   scrollbar-width: thin;
@@ -189,6 +203,17 @@ body {
 
 .lb-btn--block {
   width: 100%;
+}
+
+/* Botão de linha de lista (aba Jogo): a mesma peça com 24 px de altura — o
+   mínimo da WCAG 2.5.8 —, para sete jogadores caberem em 1280x800 ao lado da
+   barra de ações de duas linhas. Vem depois de `--primary` de propósito: esta
+   altura vence os 42 px dele. */
+.lb-btn--compact {
+  min-height: 24px;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
 }
 
 /* Botão só-ícone. O nome acessível vem do aria-label, e a mesma string aparece
@@ -529,6 +554,17 @@ body {
 .lb-switch__track:has(> .lb-switch__input:checked)::after {
   transform: translateX(14px);
   background: var(--lb-color-brass-contrast);
+}
+
+/* Terceiro estado ("Oculto para jogadores" em lote, alguns sim e outros não):
+   a bolinha para no meio, com a borda de latão de quem já tem algo ligado. */
+.lb-switch__track:has(> .lb-switch__input:indeterminate) {
+  border-color: var(--lb-color-brass);
+}
+
+.lb-switch__track:has(> .lb-switch__input:indeterminate)::after {
+  transform: translateX(7px);
+  background: var(--lb-color-brass);
 }
 
 .lb-switch__track:has(> .lb-switch__input:focus-visible) {
@@ -1423,11 +1459,43 @@ body {
   max-height: 45vh;
   overflow: auto;
   overflow-wrap: anywhere;
+  /* 8 px e não os 12 de uma seção: o Grupo de sete precisa de cada linha (aba Jogo compacta). */
+  gap: var(--lb-space-2);
 }
 
+/* Cabeçalho de uma linha: "SALA", o código e o Laser. Fechar sala mora no fim
+   do painel — ação de desmontar a mesa, longe do que se clica a cena toda. */
+.lb-room__head {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-3);
+  min-width: 0;
+  flex: none;
+}
+
+.lb-room__head > .lb-btn {
+  margin-left: auto;
+}
+
+/* O código na fonte de legenda, espaçado: é lido em voz alta para a mesa. */
 .lb-room__code {
-  font-size: 2rem;
-  letter-spacing: 0.2em;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xl);
+  font-weight: var(--lb-font-weight-semibold);
+  line-height: var(--lb-font-leading-tight);
+  letter-spacing: var(--lb-font-tracking-wider);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Convidar jogadores (link público, endereços, QR): o que monta a mesa, abaixo do Grupo. */
+.lb-room__invite {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  flex: none;
 }
 
 .lb-room__public {
@@ -1503,9 +1571,10 @@ body {
   flex: none;
 }
 
-/* Grupo (aba Jogo): uma linha por jogador, no poço afundado da sala. A cor
-   fica SÓ na bolinha — é a cor da ficha no mapa; nada mais na linha disputa
-   com ela (nem verde de "online": o status é texto). */
+/* Grupo (aba Jogo): UMA lista com a mesa inteira, uma linha por jogador, no
+   poço afundado da sala. A cor fica SÓ na bolinha — é a cor da ficha no
+   mapa; nada mais na linha disputa com ela (nem verde de "online": o status
+   é texto). O único destaque é o cartão de quem espera personagem. */
 .lb-party {
   display: flex;
   flex-direction: column;
@@ -1599,30 +1668,55 @@ body {
   min-width: 0;
 }
 
+.lb-party__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+.lb-party__count {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-party__count--waiting {
+  color: var(--lb-color-brass);
+}
+
+/* Um poço só, com filete entre as linhas: sete caixas de borda própria eram
+   sete cartões disputando o olho; a linha fina é o traço do minimapa. */
 .lb-party__list {
   display: flex;
   flex-direction: column;
-  gap: var(--lb-space-1);
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.lb-party__item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lb-space-1);
-  padding: var(--lb-space-2) var(--lb-space-3);
   border: 1px solid var(--lb-color-line);
   border-radius: var(--lb-radius-md);
   background: var(--lb-color-stone-sunken);
 }
 
-.lb-party__who {
-  display: flex;
-  align-items: center;
-  gap: var(--lb-space-2);
-  min-width: 0;
+.lb-party__item {
+  padding: var(--lb-space-1) var(--lb-space-2);
+}
+
+.lb-party__item + .lb-party__item {
+  border-top: 1px solid var(--lb-color-line);
+}
+
+/* Quem caiu recua: nome e bolinha apagados, e "fora" diz o porquê. */
+.lb-party__item--away .lb-player__name {
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-party__item--away .lb-party__dot {
+  opacity: 0.45;
 }
 
 .lb-party__dot {
@@ -1642,21 +1736,266 @@ body {
   color: var(--lb-color-parchment);
 }
 
-.lb-party__presence {
-  margin-left: auto;
-  flex: none;
+/* O cartão de um jogador: a linha do Grupo ou, para quem espera, o cartão
+   aberto no topo. `.lb-field` é o gancho das jornadas ("<nome> —"); aqui a
+   coluna é mais justa que a de um campo comum (sete linhas na tela). */
+.lb-player {
+  position: relative;
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
+.lb-player__line {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  min-height: 20px;
+}
+
+/* A linha das ações quebra em vez de vazar do painel se a fonte vier mais larga. */
+.lb-player__line--acoes {
+  flex-wrap: wrap;
+  row-gap: var(--lb-space-1);
+}
+
+.lb-player__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--lb-font-weight-semibold);
+  color: var(--lb-color-parchment);
+}
+
+/* A cena (e "fora", quando caiu): voz apagada, corta com reticência antes das fichas. */
+.lb-player__meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-player__away {
   color: var(--lb-color-parchment-faint);
 }
 
-.lb-party__presence--on {
+/* "aguardando" no cartão de quem espera: o latão é o destaque da lista inteira. */
+.lb-player__status {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-brass);
+}
+
+.lb-player__note {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-faint);
+}
+
+/* A mochila na linha do jogador: um item por linha, sem o poço da lista do Grupo. */
+.lb-party__mochila {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-player__tokens {
+  display: flex;
+  gap: var(--lb-space-1);
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+}
+
+/* A ficha do jogador: pílula de linha fina com o nome e o × que a tira dele. */
+.lb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  height: 20px;
+  padding-left: var(--lb-space-2);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-full);
+  font-size: var(--lb-font-size-sm);
   color: var(--lb-color-parchment-dim);
 }
 
-.lb-party__where {
+.lb-chip__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 18 px dentro da pílula: nenhum outro alvo a menos de 12 px do centro (WCAG 2.5.8, exceção de espaçamento). */
+.lb-chip__remove {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--lb-radius-full);
+  background: transparent;
+  color: var(--lb-color-parchment-faint);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+/* Tirar a ficha manda o jogador de volta à espera: o × avisa na cor de perigo. */
+.lb-chip__remove:hover {
+  background: var(--lb-color-ember-soft);
+  color: var(--lb-color-ember);
+}
+
+.lb-player__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
+/* Em 212 px as três ações e o "…" dividem a linha: o respiro lateral encolhe. */
+.lb-player__actions > .lb-btn {
+  padding: 0 6px;
+}
+
+/* O "…" da linha: o mesmo traço do menu da lista Cenas, na altura dos botões da linha. */
+.lb-player__mais {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: 24px;
+  height: 24px;
+  margin-left: auto;
+  padding: 0 var(--lb-space-1);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-player__mais:hover,
+.lb-player__mais[aria-expanded='true'] {
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass);
+}
+
+/* Quem espera personagem: filete de latão à esquerda — a mesma marca de
+   borda da confirmação e da dica da sala — e aberto, com o que dá personagem
+   à vista. */
+.lb-player--waiting {
+  padding: var(--lb-space-2) var(--lb-space-2) var(--lb-space-2) var(--lb-space-3);
+  border-left: 2px solid var(--lb-color-brass);
+  border-radius: 0 var(--lb-radius-md) var(--lb-radius-md) 0;
+  background: var(--lb-color-stone-sunken);
+}
+
+/* Nome e status separados do que se faz com eles. */
+.lb-player--waiting > .lb-player__line:first-child {
+  margin-bottom: var(--lb-space-1);
+}
+
+.lb-player__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-1);
+}
+
+/* Rótulo comprido ("Biblioteca · Atribuir Livro") quebra dentro do botão em
+   vez de vazar do painel; dois curtos dividem a linha. */
+.lb-player__quick > .lb-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 26px;
+  white-space: normal;
+}
+
+.lb-player__pick {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+.lb-player__pick > .lb-label {
+  flex: none;
+}
+
+.lb-player__pick > .lb-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 26px;
+  padding: 0 var(--lb-space-2);
   font-size: var(--lb-font-size-sm);
-  color: var(--lb-color-parchment-dim);
-  overflow-wrap: anywhere;
+}
+
+.lb-player__radius {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
+/* O "Mais" abre sob a linha, dentro dela: é daquele jogador, não da lista. */
+.lb-player__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin-top: var(--lb-space-1);
+  padding: var(--lb-space-2) 0 var(--lb-space-1);
+  border-top: 1px solid var(--lb-color-line);
+  animation: lb-mais-abre var(--lb-motion-base) var(--lb-motion-ease);
+}
+
+/* Entra de onde veio (a linha de cima), curto: explica o que abriu sem atrasar a mão. */
+@keyframes lb-mais-abre {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-player__panel {
+    animation: none;
+  }
+}
+
+.lb-player__plan {
+  display: flex;
+  gap: var(--lb-space-1);
+}
+
+.lb-player__plan > .lb-btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.lb-player__kick {
+  align-self: flex-start;
 }
 
 /* "destino marcado" + "Ver": a marca "vamos para cá" do jogador, uma linha abaixo de onde ele está. */
@@ -1709,6 +2048,14 @@ body {
 
 .lb-party__send .lb-party__actions {
   justify-content: flex-end;
+}
+
+/* As cenas achadas pela busca do envio: uma busca curta ("a") não empurra a
+   Chegada e o "Mandar" para fora do painel — a lista rola, e a seta leva o
+   foco (e a rolagem) junto. */
+.lb-party__send .lb-travel__options {
+  max-height: 240px;
+  overflow-y: auto;
 }
 
 .lb-party__send .lb-party__actions > .lb-btn {
@@ -2792,6 +3139,153 @@ body {
   opacity: 0.5;
 }
 
+/* Menu "…" da cena (Duplicar, Subir, Descer, Apagar): mesmo botão do recado. */
+.lb-cenas__mais {
+  flex: none;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.lb-cenas__mais:hover,
+.lb-cenas__mais[aria-expanded='true'] {
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass);
+}
+
+/* O menu abre sob o "…", por cima das linhas de baixo: a linha é a âncora. */
+.lb-cenas__item {
+  position: relative;
+}
+
+.lb-panel.lb-cenas__menu {
+  position: absolute;
+  top: calc(100% - var(--lb-space-1));
+  right: var(--lb-space-2);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 10rem;
+  padding: var(--lb-space-1);
+  /* Opaco, como o menu de fundo do ActionBar: as linhas de baixo não vazam entre os itens. */
+  background: var(--lb-color-stone-solid);
+  transform-origin: top right;
+  animation: lb-cenas-menu-entra 120ms ease-out;
+}
+
+@keyframes lb-cenas-menu-entra {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-panel.lb-cenas__menu {
+    animation: none;
+  }
+}
+
+.lb-cenas__menu-item {
+  width: 100%;
+  padding: 6px var(--lb-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-cenas__menu-item:hover:not([aria-disabled='true']),
+.lb-cenas__menu-item:focus-visible {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-cenas__menu-item[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* Clique direito na porta (DoorContextMenu): o menu nasce no ponto do clique,
+   dentro da caixa do canvas, no mesmo molde do menu "…" da cena. */
+.lb-panel.lb-portamenu {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 9rem;
+  padding: var(--lb-space-1);
+  background: var(--lb-color-stone-solid);
+  transform-origin: top left;
+  animation: lb-cenas-menu-entra 120ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-panel.lb-portamenu {
+    animation: none;
+  }
+}
+
+.lb-portamenu__item {
+  width: 100%;
+  padding: 6px var(--lb-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-portamenu__item:focus {
+  outline: none;
+}
+
+.lb-portamenu__item:hover,
+.lb-portamenu__item:focus-visible,
+.lb-portamenu__item:focus {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+/* Confirmação de apagar: a linha inteira, no molde da de "Dar a…" do painel Sala. */
+.lb-cenas__apagar {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 100%;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border-left: 2px solid var(--lb-color-ember);
+}
+
+.lb-cenas__apagar p {
+  margin: 0;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-cenas__apagar .lb-cenas__apagar-titulo {
+  color: var(--lb-color-parchment);
+}
+
+.lb-cenas__apagar .lb-cenas__apagar-bloqueio {
+  color: var(--lb-color-ember);
+}
+
 /* O campo do recado ocupa a linha inteira do item, abaixo do nome e de quem está lá. */
 .lb-cenas__recado {
   display: flex;
@@ -3580,6 +4074,13 @@ html.lb-arrastando-cena * {
   color: var(--lb-color-parchment-faint);
 }
 
+/* "+ Cena nova…" sem nome: o que falta, junto ao campo, na cor de erro do painel. */
+.lb-travel__error {
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-ember);
+}
+
 .lb-travel__row {
   display: flex;
   gap: var(--lb-space-2);
@@ -3696,4 +4197,35 @@ html.lb-arrastando-cena * {
   font-size: var(--lb-font-size-sm);
   color: var(--lb-color-parchment-faint);
   text-align: right;
+}
+
+/* Cena de dentro de outra nos seletores de destino: o nome em cima e o
+   caminho em cinza embaixo, como no "Filtrar cenas" — é o nome que o mestre
+   procura, então é o caminho que vira reticência quando não cabe. */
+.lb-travel__choice--caminho {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  padding-block: var(--lb-space-1);
+}
+
+.lb-travel__choice-nome,
+.lb-travel__caminho {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-travel__caminho {
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-regular);
+}
+
+/* Com busca digitada, a cena que o Enter do campo escolhe: o resultado ativo,
+   um degrau acima dos outros botões e com a borda mais firme. */
+.lb-travel__choice[data-enter='true'] {
+  background: var(--lb-color-stone-hover);
+  border-color: var(--lb-color-line-strong);
 }

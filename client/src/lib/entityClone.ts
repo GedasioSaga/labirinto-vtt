@@ -1,6 +1,7 @@
-import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, StairSegment, FloorPiece, FloorShape } from '../types/map'
+import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, StairSegment, FloorPiece, FloorShape, MapData, Pin } from '../types/map'
 import type { SelectionKind } from '../types/tools'
 import { moveBlocos } from './floorBlocks'
+import { isStairPin } from './stairTravel'
 
 /**
  * FRENTE A (ONDA 3, item 13 do PLANO-REFINAMENTO.md) — clonagem PURA por
@@ -340,5 +341,86 @@ export function cloneEntity(input: CloneableEntity, offset: Offset): CloneableEn
       return { kind: 'floor', entity: cloneFloorPiece(input.entity, offset) }
     default:
       return assertNeverSelectionKind(input)
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Cena inteira — "Duplicar" do menu da lista Cenas
+// ─────────────────────────────────────────────────────────────
+
+const NO_OFFSET: Offset = { dx: 0, dy: 0 }
+
+/**
+ * Pino da cena copiada: id novo e SOLTO. Um pino de viagem ligado leva a um
+ * par que só volta para o ORIGINAL (mão dupla, `lib/pinTravel.ts`); a cópia
+ * herdando `destino` teria uma ida sem volta, e a chegada oculta sem origem
+ * ficaria escondida do jogador para sempre.
+ */
+function cloneLoosePin(pin: Pin): Pin {
+  const { destino: _destino, saidas: _saidas, soChegada: _soChegada, escolhas: _escolhas, ...rest } = pin
+  return { ...rest, id: crypto.randomUUID() }
+}
+
+/**
+ * Cópia de um mapa inteiro para ser OUTRA cena da aventura: toda entidade
+ * ganha id novo (dois ids iguais em cenas diferentes confundem a travessia de
+ * ficha, que procura pelo id), o vínculo sala-parede e a sub-sala continuam
+ * apontando para as cópias, os pinos de viagem saem soltos (`cloneLoosePin`)
+ * e as fichas cujo id está em `dropTokenIds` (as dos jogadores) ficam de
+ * fora — cada jogador tem UMA ficha, na cena onde ele está.
+ *
+ * As salas mantêm o nome: a cena inteira é a cópia, não cada sala dela.
+ */
+export function cloneSceneMap(map: MapData, mapId: string, name: string, dropTokenIds: ReadonlySet<string>): MapData {
+  const regionIds = new Map(map.regions.map((region) => [region.id, crypto.randomUUID()]))
+  const regions = map.regions.map((region) => {
+    const copy: Region = {
+      ...region,
+      id: regionIds.get(region.id) ?? crypto.randomUUID(),
+      points: offsetPoints(region.points, NO_OFFSET),
+      data: { ...region.data },
+      ...(region.room ? { room: { ...region.room } } : {}),
+    }
+    if (region.parentId === undefined) return copy
+    // Mãe que não existe mais no mapa já era "sala de topo" (types/map.ts): continua sendo.
+    const parentId = regionIds.get(region.parentId)
+    if (parentId !== undefined) return { ...copy, parentId }
+    const { parentId: _orfao, ...topo } = copy
+    return topo
+  })
+  const walls = map.walls.map((wall) => {
+    const copy = cloneWall(wall, NO_OFFSET)
+    const regionId = wall.regionId === undefined ? undefined : regionIds.get(wall.regionId)
+    return regionId === undefined ? copy : { ...copy, regionId, regionEdgeIndex: wall.regionEdgeIndex }
+  })
+  return {
+    ...map,
+    id: mapId,
+    name,
+    ...(map.gridOffset ? { gridOffset: { ...map.gridOffset } } : {}),
+    gridSettings: { ...map.gridSettings },
+    background: { ...map.background },
+    walls,
+    lights: map.lights.map((light) => cloneLight(light, NO_OFFSET)),
+    regions,
+    tokens: map.tokens.filter((token) => !dropTokenIds.has(token.id)).map((token) => cloneToken(token, NO_OFFSET)),
+    props: map.props.map((prop) => cloneProp(prop, NO_OFFSET)),
+    stairs: map.stairs.map((stair) => cloneStair(stair, NO_OFFSET)),
+    drawings: map.drawings.map((drawing) => cloneDrawing(drawing, NO_OFFSET)),
+    floor: map.floor.map((piece) => cloneFloorPiece(piece, NO_OFFSET)),
+    floorStyle: { ...map.floorStyle },
+    lines: map.lines.map((line) => ({ ...line, id: crypto.randomUUID(), points: line.points.map((p) => ({ x: p.x, y: p.y })) })),
+    markers: map.markers.map((marker) => ({ ...marker, id: crypto.randomUUID() })),
+    concealZones: map.concealZones.map((zone) => ({ ...zone, id: crypto.randomUUID(), points: offsetPoints(zone.points, NO_OFFSET) })),
+    // O pino de uma escada que leva a outro andar NÃO vem: solto, ele não leva a
+    // lugar nenhum, e com o `escadaId` da escada original (a cópia ganhou id
+    // novo) ficaria órfão — invisível ao mestre e impossível de apagar. A escada
+    // copiada sai como a escada de sempre; o "Leva a…" dela liga de novo.
+    pins: map.pins.filter((pin) => !isStairPin(pin)).map(cloneLoosePin),
+    frame: map.frame ? { ...map.frame } : null,
+    fog: { mode: map.fog.mode, revealed: [...map.fog.revealed] },
+    hiddenLayers: [...map.hiddenLayers],
+    lockedLayers: [...map.lockedLayers],
+    scale: { ...map.scale },
   }
 }

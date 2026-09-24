@@ -20,6 +20,7 @@ import {
   singleSceneWorld,
   type AppliedItems,
   type AppliedTokenEdit,
+  type DoorKeyUse,
   type DoorRequest,
   type ItemRequest,
   type AppliedTransfer,
@@ -32,6 +33,7 @@ import {
   type HostSignal,
   type HostWorld,
   type MasterCall,
+  type PinKeyUse,
   type PlayerInfo,
   type PlayerNoteDelivery,
   type PointActionRequest,
@@ -374,6 +376,18 @@ export const HOST_STALE_AFTER_MS = 6_000
 export const HOST_AWAY_STALE_AFTER_MS = 150_000
 /** De quanto em quanto tempo o host confere quem ficou mudo. */
 export const LIVENESS_SWEEP_MS = 1_000
+/** "Diego abriu uma porta com Chave do Escudo", mais " em Mansão" quando a porta está numa cena de fundo. */
+export function doorKeyLine(used: DoorKeyUse): string {
+  const where = used.sceneName === undefined ? '' : ` em ${used.sceneName}`
+  return `${used.playerName} abriu uma porta com ${used.itemName}${where}`
+}
+
+/** "Diego abriu Portão do cemitério com Chave do Escudo", mais " em Mansão" quando o pino está numa cena de fundo. */
+export function pinKeyLine(used: PinKeyUse): string {
+  const where = used.sceneName === undefined ? '' : ` em ${used.sceneName}`
+  return `${used.playerName} abriu ${used.pinLabel} com ${used.itemName}${where}`
+}
+
 const DEFAULT_VISION_RADIUS = 700
 /** Quantos motivos do "Não, porque…" voltam prontos no próximo pedido. */
 export const TRAVEL_DENY_RECENTS_MAX = 3
@@ -753,8 +767,22 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     for (const line of notices.lines) useToastStore.getState().push('info', line, GUARD_SIGHTING_TOAST_MS, { grupo: 'Vigias' })
   }
 
+  const cancelPendingBroadcast = () => {
+    if (pendingBroadcast === null) return
+    clearTimeout(pendingBroadcast)
+    pendingBroadcast = null
+  }
+
+  /**
+   * O envio imediato leva o mundo de AGORA, que já contém toda mudança que
+   * agendou o broadcast pendente: o agendado seria a mesma cena de novo. Sem
+   * cancelar, cada passo de jogador (applyMove → assinatura do mapa →
+   * `notifyMapChanged`) saía duas vezes — com 7 na mesa, 14 recortes da névoa
+   * e 14 envios por passo na thread do mestre.
+   */
   const broadcastNow = () => {
     if (session === null) return
+    cancelPendingBroadcast()
     const current = world()
     const result = session.broadcast(current)
     void dispatch(result)
@@ -784,12 +812,6 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       pendingBroadcast = null
       broadcastNow()
     }, BROADCAST_THROTTLE_MS)
-  }
-
-  const cancelPendingBroadcast = () => {
-    if (pendingBroadcast === null) return
-    clearTimeout(pendingBroadcast)
-    pendingBroadcast = null
   }
 
   /** A TV entrou: sem cena escolhida ela fica esperando, e o aviso diz onde escolher. */
@@ -1178,6 +1200,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     broadcastNow()
     notifyPlayersIfChanged()
     announceArrival(transfer)
+    // CHAVE ABRE PORTA no pino trancado: só depois de a ficha mudar de cena —
+    // se não moveu, ninguém abriu nada.
+    if (result.pinKeyUsed !== undefined) useToastStore.getState().push('info', pinKeyLine(result.pinKeyUsed))
   }
 
   /**
@@ -1395,11 +1420,16 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
     if (result.applyDoor !== undefined) {
       // Todos veem a porta nova: o mestre pela store, os jogadores pelo snapshot imediato.
-      const { wallId, open, sceneId } = result.applyDoor
-      if (sceneId === undefined) deps.applyDoor(wallId, open)
+      const { wallId, open, sceneId, unlock } = result.applyDoor
+      // CHAVE ABRE PORTA: a chave da mochila tira o cadeado antes de abrir,
+      // pelo mesmo caminho do "Destrancar e abrir" do mestre.
+      if (unlock === true) deps.unlockAndOpenDoor?.(wallId, sceneId)
+      else if (sceneId === undefined) deps.applyDoor(wallId, open)
       else deps.applyDoor(wallId, open, sceneId)
       broadcastNow()
     }
+    // Sem quem destranque, a porta não abriu: o aviso não pode dizer que abriu.
+    if (result.doorKeyUsed !== undefined && deps.unlockAndOpenDoor !== undefined) useToastStore.getState().push('info', doorKeyLine(result.doorKeyUsed))
     if (result.travelRequest !== undefined) {
       if (deps.applyTransfer === undefined) {
         // Integrador sem transferência: ninguém do lado do mestre saberia atender.

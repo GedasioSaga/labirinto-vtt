@@ -2,8 +2,8 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PartySection } from '../components/PartySection'
 import { PinControls } from '../components/PinControls'
+import { RoomPanel, roomPanelTokensOf } from '../components/RoomPanel'
 import { createEmptyMap, buildPin } from '../lib/mapFactory'
 import { partyMembers } from '../lib/party'
 import type { HostWorld, PlayerInfo } from '../net/hostSession'
@@ -43,7 +43,7 @@ describe('telas do item pegável', () => {
 
   it('cartão: o pino pegável diz o nome do item e "Pegar" manda o pedido', () => {
     const onTake = vi.fn()
-    act(() => root.render(<PlayerPinCard pin={CHAVE} onClose={vi.fn()} onTakeItem={onTake} />))
+    act(() => root.render(<PlayerPinCard pin={CHAVE} stairs={[]} onClose={vi.fn()} onTakeItem={onTake} />))
     expect(container.textContent).toContain('Chave do Escudo')
     act(() => botao('Pegar').click())
     expect(onTake).toHaveBeenCalledTimes(1)
@@ -51,7 +51,7 @@ describe('telas do item pegável', () => {
 
   it('cartão: pino que só se lê não tem "Pegar"', () => {
     const { item: _item, ...soLeitura } = CHAVE
-    act(() => root.render(<PlayerPinCard pin={soLeitura} onClose={vi.fn()} onTakeItem={vi.fn()} />))
+    act(() => root.render(<PlayerPinCard pin={soLeitura} stairs={[]} onClose={vi.fn()} onTakeItem={vi.fn()} />))
     expect([...container.querySelectorAll('button')].map((b) => b.textContent)).not.toContain('Pegar')
   })
 
@@ -144,9 +144,15 @@ describe('Grupo do mestre: a mochila de cada um', () => {
       sceneId: 's-m',
       sceneName: 'Mansão',
     })
-    const members = partyMembers([jogador('p-diego', 'diego'), jogador('p-bruno', 'bruno')], world)
+    const players = [jogador('p-diego', 'diego'), jogador('p-bruno', 'bruno')]
+    const members = partyMembers(players, world)
     expect(members.map((m) => m.mochila.map((i) => i.nome))).toEqual([['Chave do Escudo'], []])
-    const html = renderToStaticMarkup(<PartySection members={members} destinations={[]} onGoTo={vi.fn()} onSend={() => true} />)
+    // O Grupo é a lista única da aba Jogo (RoomPanel): a mochila sai na linha do jogador.
+    const handlers = { onStart: vi.fn(), onStop: vi.fn(), onStartTunnel: vi.fn(), onStopTunnel: vi.fn(), onAssign: vi.fn(), onUnassign: vi.fn(), onKick: vi.fn(), onVisionRadiusChange: vi.fn(), onRevealPlan: vi.fn(), onHidePlan: vi.fn() }
+    const party = { members, destinations: [], onGoTo: vi.fn(), onSend: () => true }
+    const html = renderToStaticMarkup(
+      <RoomPanel room={{ code: 'MOCHI2', urls: [], qrSvg: '<svg/>' }} players={players} tokens={roomPanelTokensOf(world)} party={party} tunnel={{ kind: 'idle' }} {...handlers} />,
+    )
     expect(html).toContain('Mochila: 1')
     expect(html).toContain('Chave do Escudo')
     expect(html.match(/Mochila:/g)).toHaveLength(1)

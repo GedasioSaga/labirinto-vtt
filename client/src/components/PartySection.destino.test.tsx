@@ -5,7 +5,8 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { masterDestinationMarks, partyMembers } from '../lib/party'
 import type { HostWorld, PlayerInfo } from '../net/hostSession'
 import type { MapData, Token } from '../types/map'
-import { DESTINATION_MARKED_LABEL, PartySection, VIEW_DESTINATION_LABEL } from './PartySection'
+import { DESTINATION_MARKED_LABEL, VIEW_DESTINATION_LABEL } from './PartySection'
+import { RoomPanel, roomPanelTokensOf } from './RoomPanel'
 
 /**
  * MARCA "VAMOS PARA CÁ" no painel Grupo do mestre: a linha de quem marcou
@@ -69,10 +70,15 @@ describe('PartySection: destino marcado', () => {
 
   it('"destino marcado" com "Ver" só na linha de quem marcou; "Ver" centra na marca', () => {
     const onViewDestination = vi.fn()
+    const world = mundo()
+    const party = { members: partyMembers(JOGADORES, world), destinations: [], onGoTo: vi.fn(), onSend: vi.fn(() => true), onViewDestination }
+    const noop = vi.fn()
+    const handlers = { onStart: noop, onStop: noop, onStartTunnel: noop, onStopTunnel: noop, onAssign: noop, onUnassign: noop, onKick: noop, onVisionRadiusChange: noop, onRevealPlan: noop, onHidePlan: noop }
+    // O Grupo é a lista única da aba Jogo (RoomPanel): uma linha por jogador em jogo.
     act(() => {
-      root.render(<PartySection members={partyMembers(JOGADORES, mundo())} destinations={[]} onGoTo={vi.fn()} onSend={vi.fn(() => true)} onViewDestination={onViewDestination} />)
+      root.render(<RoomPanel room={{ code: 'GRUPO1', urls: [], qrSvg: '<svg/>' }} players={JOGADORES} tokens={roomPanelTokensOf(world)} party={party} tunnel={{ kind: 'idle' }} {...handlers} />)
     })
-    const linhas = [...container.querySelectorAll('li')]
+    const linhas = [...container.querySelectorAll('li.lb-party__item')]
     expect(linhas).toHaveLength(3)
     const [elisa, caio] = linhas
     expect(elisa?.textContent).toContain(DESTINATION_MARKED_LABEL)

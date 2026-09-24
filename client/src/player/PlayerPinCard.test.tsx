@@ -44,7 +44,7 @@ describe('PlayerPinCard: sem imagem, só glifo, texto e botões; com imagem, igu
   })
 
   function abre(pin: Pin, extra: Partial<Props> = {}): HTMLElement {
-    act(() => root.render(<PlayerPinCard pin={pin} onClose={() => {}} {...extra} />))
+    act(() => root.render(<PlayerPinCard pin={pin} onClose={() => {}} {...extra} stairs={extra.stairs ?? []} />))
     const cartao = container.querySelector<HTMLElement>('[role="dialog"]')
     if (cartao === null) throw new Error('o cartão não abriu')
     return cartao

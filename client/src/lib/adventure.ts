@@ -317,6 +317,58 @@ export function nestScene(scenes: readonly SceneEntry[], sceneId: string, parent
   return [...scenes.filter((scene) => scene.id !== sceneId), withParent(entry, parentId)]
 }
 
+/**
+ * As irmãs de `sceneId` — as cenas com a mesma cena de fora, ela inclusa —
+ * na ordem em que a lista Cenas as mostra. Vazio quando ela não está na lista.
+ */
+export function sceneSiblingIds<T extends SceneNest>(entries: readonly T[], sceneId: string): string[] {
+  const rows = sceneTree(entries)
+  const row = rows.find((candidate) => candidate.entry.id === sceneId)
+  if (row === undefined) return []
+  return rows.filter((candidate) => candidate.parentId === row.parentId).map((candidate) => candidate.entry.id)
+}
+
+/**
+ * "Subir" (`-1`) e "Descer" (`1`): `sceneId` troca de lugar com a irmã de cima
+ * ou de baixo (`sceneSiblingIds`). Entre irmãs a árvore segue a ordem da
+ * lista, então trocar as duas de posição na lista troca as duas na árvore — e
+ * o que cada uma tem dentro vai junto, porque a árvore pendura as de dentro
+ * pelo `parentId`, não pela posição. `null` na ponta da pasta.
+ */
+export function shiftSceneAmongSiblings(scenes: readonly SceneEntry[], sceneId: string, delta: -1 | 1): SceneEntry[] | null {
+  const siblings = sceneSiblingIds(scenes, sceneId)
+  const at = siblings.indexOf(sceneId)
+  const neighborAt = at + delta
+  if (at < 0 || neighborAt < 0 || neighborAt >= siblings.length) return null
+  const from = scenes.findIndex((scene) => scene.id === sceneId)
+  const to = scenes.findIndex((scene) => scene.id === siblings[neighborAt])
+  const next = [...scenes]
+  next[from] = scenes[to]
+  next[to] = scenes[from]
+  return next
+}
+
+/** Quantas cenas estão DIRETO dentro de `sceneId`: as que sobem um nível se ela for apagada. */
+export function sceneChildCount<T extends SceneNest>(entries: readonly T[], sceneId: string): number {
+  return sceneTree(entries).find((row) => row.entry.id === sceneId)?.childIds.length ?? 0
+}
+
+/**
+ * A lista sem `sceneId`. As cenas de dentro dela não somem nem ficam com pai
+ * pendurado: sobem um nível (vão para a cena de fora dela, ou para o primeiro
+ * nível) e entram no LUGAR dela, na ordem em que estavam. As de dentro delas
+ * continuam onde estavam. Cena que não está na lista: a mesma lista.
+ */
+export function removeSceneKeepingInside(scenes: readonly SceneEntry[], sceneId: string): SceneEntry[] {
+  const row = sceneTree(scenes).find((candidate) => candidate.entry.id === sceneId)
+  if (row === undefined) return [...scenes]
+  const inside = new Set(row.childIds)
+  const lifted = scenes.filter((scene) => inside.has(scene.id)).map((scene) => withParent(scene, row.parentId))
+  const at = scenes.slice(0, scenes.findIndex((scene) => scene.id === sceneId)).filter((scene) => !inside.has(scene.id)).length
+  const rest = scenes.filter((scene) => scene.id !== sceneId && !inside.has(scene.id))
+  return [...rest.slice(0, at), ...lifted, ...rest.slice(at)]
+}
+
 /** Caminhos de portal antigo (`Prop.linkedMapPath`) que o mapa ainda carrega, sem repetição. */
 export function legacyPortalPaths(map: MapData): string[] {
   const paths: string[] = []

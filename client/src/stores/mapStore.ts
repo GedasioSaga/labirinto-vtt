@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
-  Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
+  Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind,
 } from '../types/map'
 import type { Camera, Point } from '../pixi/world'
@@ -24,6 +24,7 @@ import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
 import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
+import { setSelectionSecret as setSelectionSecretOnMap } from '../lib/batchSecret'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
 const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon', 'roomFree'])
@@ -622,8 +623,9 @@ interface MapStoreState {
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
   moveProp: (id: string, x: number, y: number) => void
-  /** Mesmo contrato de `updateToken`, para Prop. */
-  updateProp: (id: string, patch: Partial<Pick<Prop, 'rotation' | 'locked' | 'hidden'>>) => void
+  /** Mesmo contrato de `updateToken`, para Prop. `playerLabel`/`playerImage`
+   *  com `undefined` apagam o rótulo/a imagem do jogador (`stores/propPlayerLook.ts`). */
+  updateProp: (id: string, patch: Partial<Pick<Prop, 'rotation' | 'locked' | 'hidden' | 'playerLabel' | 'playerImage'>>) => void
   setShowGrid: (show: boolean) => void
   setGridShape: (shape: MapData['gridShape']) => void
   setGridSettings: (patch: Partial<GridSettings>) => void
@@ -690,6 +692,8 @@ interface MapStoreState {
   moveStair: (id: string, dx: number, dy: number) => void
   updateStairPoint: (stairId: string, segmentIndex: number, endpoint: 0 | 1, x: number, y: number) => void
   setStairDirection: (id: string, direction: StairDirection) => void
+  /** "Reta" / "Espiral" da escada selecionada, com desfazer. */
+  setStairShape: (id: string, shape: StairShape) => void
   setRoomName: (id: string, name: string) => void
   /** Arrasto do rótulo da Sala — SEM histórico, par de `commitDragHistory(before)`
    *  no pointerup, mesmo padrão de `resizeRoomCornerLive`. */
@@ -708,6 +712,10 @@ interface MapStoreState {
   advanceHazard: (hazardId: string) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
+  /** "Oculto para jogadores" EM LOTE: todos os itens da seleção que aceitam
+   *  (`lib/batchSecret.ts`), num passo só do desfazer. Nada mudando, não
+   *  gasta entrada de histórico. */
+  setSelectionSecret: (secret: boolean) => void
   /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
   /** Abre o pino no painel e limpa a seleção comum (`null` fecha). */
   setSelectedPin: (id: string | null) => void
@@ -718,7 +726,7 @@ interface MapStoreState {
    *  mantido em dia por `stores/adventureStore.ts`, fora deste desfazer. */
   updatePin: (
     id: string,
-    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item'>>,
+    patch: Partial<Pick<MapData['pins'][number], 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'item' | 'abreCom'>>,
   ) => void
   /** Arrasto do pino — SEM histórico, par de `commitDragHistory(before)` no
    *  pointerup, mesmo padrão de `moveTokenLive`/`movePropLive`. */
@@ -1672,6 +1680,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       mapFactory.updateStairPoint(map, stairId, segmentIndex, endpoint, x, y),
     ),
     setStairDirection: (id, direction) => withHistory((map) => mapFactory.setStairDirection(map, id, direction)),
+    setStairShape: (id, shape) => withHistory((map) => mapFactory.setStairShape(map, id, shape)),
     setRoomName: (id, name) => withHistory((map) => mapFactory.setRoomName(map, id, name), `room-name:${id}`),
     setRoomLabelOffsetLive: (id, offset) => set((state) => ({ map: mapFactory.setRoomLabelOffset(state.map, id, offset) })),
     // As fábricas abaixo devolvem o mesmo `map` quando nada muda: sem entrada de histórico vazia.
@@ -1704,6 +1713,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return
       withHistory((map) => mapFactory.setItemSecret(map, kind, id, secret))
+    },
+    setSelectionSecret: (secret) => {
+      const { map, selection } = get()
+      if (setSelectionSecretOnMap(map, selection, secret) === map) return
+      withHistory((current) => setSelectionSecretOnMap(current, selection, secret))
     },
     setSelectedPin: (id) =>
       set(id === null ? { selectedPinId: null } : { selectedPinId: id, selection: EMPTY_SELECTION, selectedConcealZoneId: null }),

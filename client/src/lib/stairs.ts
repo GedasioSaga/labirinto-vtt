@@ -266,3 +266,76 @@ export function computeStairPlan(segment: StairSegment, stepWidth: number, direc
     treads,
   }
 }
+
+/**
+ * ESCADA EM ESPIRAL vista de cima, na gramática do minimapa: um círculo de
+ * traço fino, o poste no meio e um raio fino por degrau. Sem galão nem massa —
+ * a torre se lê pela forma, não pela espessura.
+ *
+ * O arrasto (o primeiro lance) é o DIÂMETRO: quem troca "Reta" por "Espiral"
+ * vê o círculo nascer em cima do lance que já estava lá, e a boca (`x1, y1`,
+ * onde mora o pino da escada, `lib/stairTravel.ts`) fica na borda. O primeiro
+ * raio aponta para a boca; 'up' gira no sentido horário da tela a partir dela
+ * e 'down' no anti-horário — subir e descer viram desenhos espelhados, como no
+ * lance reto, e o tom clareia rumo ao alto (`climb`, o renderer converte).
+ */
+export const SPIRAL_SPOKE_COUNT = 12
+/** Raio do poste central, como fração do raio do círculo. */
+export const SPIRAL_POST_RATIO = 0.18
+
+export interface SpiralSpoke {
+  /** Na borda do poste. */
+  from: Point
+  /** Na borda do círculo. */
+  to: Point
+  /** 0 no raio da boca, 1 no último — o renderer converte em tom. */
+  climb: number
+}
+
+export interface SpiralPlan {
+  center: Point
+  radius: number
+  postRadius: number
+  spokes: SpiralSpoke[]
+}
+
+/** Centro e raio do círculo de uma espiral: o lance é o diâmetro. `null` = lance de comprimento zero. */
+export function spiralCircle(segment: StairSegment): { center: Point; radius: number } | null {
+  const radius = Math.hypot(segment.x2 - segment.x1, segment.y2 - segment.y1) / 2
+  if (radius === 0) return null
+  return { center: { x: (segment.x1 + segment.x2) / 2, y: (segment.y1 + segment.y2) / 2 }, radius }
+}
+
+/**
+ * O círculo que a escada OCUPA quando é espiral; `null` para qualquer outra
+ * forma (ou espiral sem lance). Fonte única para clique, borracha, hover e
+ * seleção por área: todos tratam a espiral como o círculo desenhado, nunca
+ * como o diâmetro arrastado.
+ */
+export function stairSpiralCircle(stair: Stair): { center: Point; radius: number } | null {
+  if (stair.shape !== 'spiral') return null
+  const first = stair.segments[0]
+  return first === undefined ? null : spiralCircle(first)
+}
+
+/** Geometria da espiral em px de mundo — pura, sem Pixi. Lance de comprimento zero devolve `null`. */
+export function computeSpiralPlan(segment: StairSegment, direction: StairDirection): SpiralPlan | null {
+  const circle = spiralCircle(segment)
+  if (circle === null) return null
+  const { center, radius } = circle
+  const postRadius = radius * SPIRAL_POST_RATIO
+  const mouthAngle = Math.atan2(segment.y1 - center.y, segment.x1 - center.x)
+  // Na tela o y cresce para baixo: ângulo crescente é sentido horário.
+  const turn = direction === 'up' ? 1 : -1
+  const at = (angle: number, distance: number): Point => ({
+    x: center.x + Math.cos(angle) * distance,
+    y: center.y + Math.sin(angle) * distance,
+  })
+
+  const spokes: SpiralSpoke[] = []
+  for (let i = 0; i < SPIRAL_SPOKE_COUNT; i += 1) {
+    const angle = mouthAngle + (turn * i * 2 * Math.PI) / SPIRAL_SPOKE_COUNT
+    spokes.push({ from: at(angle, postRadius), to: at(angle, radius), climb: i / (SPIRAL_SPOKE_COUNT - 1) })
+  }
+  return { center, radius, postRadius, spokes }
+}

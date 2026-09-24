@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SelectionKind } from '../types/tools'
+import type { SecretBatchState } from '../lib/batchSecret'
 import { deleteSelectionLabel } from './labels'
 import { TokenIcon } from './icons'
 
@@ -24,8 +25,21 @@ export interface SelectionSummary {
   count: number
 }
 
+/**
+ * "Oculto para jogadores" EM LOTE (`lib/batchSecret.ts`). `count` é quantos
+ * itens da seleção aceitam o controle — parede e luz não entram na conta.
+ */
+export interface SelectionSecretProps {
+  state: SecretBatchState
+  count: number
+  /** `true` esconde todos; `false` mostra todos. Misturado vira "esconder". */
+  onChange: (secret: boolean) => void
+}
+
 export interface SelectionControlsProps {
   selection: SelectionSummary | null
+  /** Ausente: um item só (ele tem o próprio toggle) ou nada que aceite. */
+  secret?: SelectionSecretProps
   /** Nome sugerido no campo ao adicionar token ("Token 1", "Token 2"…). */
   defaultTokenName: string
   /** Chamado com o nome confirmado (nunca vazio: vazio vira `defaultTokenName`). */
@@ -43,7 +57,37 @@ export interface SelectionControlsProps {
  * "Adicionar token" pede o nome antes de criar: sem isso todo token nascia
  * "Token" e a lista de atribuir jogador ficava com itens idênticos.
  */
-export function SelectionControls({ selection, defaultTokenName, onAddToken, onRemoveSelected }: SelectionControlsProps) {
+/**
+ * Interruptor de três estados. O terceiro (misturado) é o `indeterminate` do
+ * checkbox nativo — só existe como propriedade do DOM, não como atributo, por
+ * isso o efeito. O leitor de tela anuncia "misto" sozinho. Clicar num
+ * misturado esconde todos: quem selecionou os 4 guardas quer um estado só.
+ * O efeito roda a cada render, não só quando `state` muda: o clique nativo
+ * zera o `indeterminate` antes de o React devolver o `checked`, e um clique
+ * sem efeito no mapa deixaria a caixa mentindo "nenhum".
+ */
+function BatchSecretToggle({ state, count, onChange }: SelectionSecretProps) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (inputRef.current !== null) inputRef.current.indeterminate = state === 'mixed'
+  })
+  return (
+    <label className="lb-switch">
+      <span>{`Oculto para jogadores (${count})`}</span>
+      <span className="lb-switch__track">
+        <input
+          ref={inputRef}
+          className="lb-switch__input"
+          type="checkbox"
+          checked={state === 'all'}
+          onChange={() => onChange(state !== 'all')}
+        />
+      </span>
+    </label>
+  )
+}
+
+export function SelectionControls({ selection, secret, defaultTokenName, onAddToken, onRemoveSelected }: SelectionControlsProps) {
   const [tokenNameDraft, setTokenNameDraft] = useState<string | null>(null)
   /**
    * O campo abre com o nome sugerido JÁ SELECIONADO (`onFocus` + `select()`),
@@ -121,6 +165,7 @@ export function SelectionControls({ selection, defaultTokenName, onAddToken, onR
           </button>
         </form>
       )}
+      {secret !== undefined && <BatchSecretToggle {...secret} />}
       <button
         type="button"
         className={`lb-btn lb-btn--block${selection ? ' lb-btn--danger' : ''}`}

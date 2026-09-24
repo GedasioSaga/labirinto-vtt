@@ -54,8 +54,10 @@ import {
   hostWorldOf,
   pinExitsTravelOf,
   pinTravelOptions,
+  sceneDeletionInfo,
   sceneList,
   sceneMaps,
+  stairTravelPanel,
   subscribeToTravelLinks,
   travelSceneOptions,
   useAdventureStore,
@@ -70,6 +72,7 @@ import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinIma
 import { useTokenLibraryStore } from './stores/tokenLibraryStore'
 import { apagarDoAcervo, fotoSobrouNoDisco, salvarNoAcervo, trazerDoAcervo, type ItemDoAcervoNaTela } from './lib/tokenLibrary'
 import { colocarPecaDoAcervo, criarToken, marcarFichaNpc, type TamanhoDaVista } from './stores/criarToken'
+import { setPropImageShownToPlayers, setPropLabelForPlayers } from './stores/propPlayerLook'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
@@ -85,11 +88,13 @@ import { isArrivalOnly } from './lib/pinTravel'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
+import { readDoorKey, setDoorKey } from './lib/doorKey'
 import { countEntitiesByLayer } from './lib/layers'
 import { roomDimensions } from './lib/roomOps'
 import type { GridAlignResult } from './lib/gridAlign'
 import { relevantPropertyGroups } from './lib/toolProperties'
 import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelection } from './lib/selectionModel'
+import { selectionSecretState } from './lib/batchSecret'
 import { isSingleGroup, NO_GROUPS } from './lib/itemGroups'
 import { lightsOnToken } from './lib/selectionHitTest'
 import { traceFloorPieces } from './lib/traceImage'
@@ -403,6 +408,7 @@ function App() {
   const setGridCellSize = useMapStore((state) => state.setGridCellSize)
   const setMapSize = useMapStore((state) => state.setMapSize)
   const setStairDirection = useMapStore((state) => state.setStairDirection)
+  const setStairShape = useMapStore((state) => state.setStairShape)
   const setRoomName = useMapStore((state) => state.setRoomName)
   const resizeRoomDimensions = useMapStore((state) => state.resizeRoomDimensions)
   const setMapScale = useMapStore((state) => state.setMapScale)
@@ -682,7 +688,7 @@ function App() {
             tokens={roomPanelTokensOf(world)}
             party={{
               members: partyMembers(roomPlayers, world),
-              destinations: partyDestinations(world),
+              destinations: partyDestinations(world, adventure?.scenes),
               onGoTo: (member) => {
                 // "Ir lá" em OUTRO jogador é o mestre escolhendo a vista: desliga o seguir.
                 if (member.playerId !== followingId) useFollowStore.getState().stop()
@@ -1065,6 +1071,9 @@ function App() {
   const currentMapObjectKey = currentObjectKey(map, selection, selectedPinId)
   const pinKind = useMapStore((state) => state.pinKind)
   const pinIcon = useMapStore((state) => state.pinIcon)
+  // "Oculto para jogadores" EM LOTE (2+ itens selecionados): nenhum, todos ou misturado.
+  const selectionSecret = selection.length > 1 ? selectionSecretState(map, selection) : null
+  const setSelectionSecret = useMapStore((state) => state.setSelectionSecret)
   // A5 — "Oculto para jogadores" do item selecionado que não é Token/Objeto.
   const secretTarget: { kind: 'region' | 'stair' | 'drawing' | 'pin'; id: string; secret: boolean } | null = selectedRegion
     ? { kind: 'region', id: selectedRegion.id, secret: !!selectedRegion.secret }
@@ -1234,6 +1243,12 @@ function App() {
   const handleRevealPassage = () => {
     if (!selectedWall) return
     revealSecretPassage(selectedWall.id)
+  }
+
+  /** CHAVE ABRE PORTA: "Abre com" da porta selecionada, com histórico (Ctrl+Z desfaz). "" tira a chave. */
+  const handleDoorKeyChange = (nome: string) => {
+    if (!selectedWall || !selectedWall.door) return
+    setWallDoor(selectedWall.id, setDoorKey(selectedWall.door, nome))
   }
 
   /**
@@ -1519,6 +1534,28 @@ function App() {
     useAdventureStore.getState().createScene(name, currentMapPath)
   }
 
+  /** As fichas dos jogadores da sala: não entram na cópia e travam o apagar. Sala fechada = nenhuma conhecida. */
+  const playerTokenIds = () => new Set(roomPlayers.flatMap((player) => player.tokenIds))
+
+  /** "Duplicar" do menu "…" da cena: a cópia aparece logo abaixo, e a cena aberta continua a mesma. */
+  const handleDuplicateScene = (sceneId: string) => {
+    if (useAdventureStore.getState().duplicateScene(sceneId, playerTokenIds()) === null) {
+      useToastStore.getState().push('error', 'Não deu para duplicar: o arquivo desta cena não abriu.')
+    }
+  }
+
+  /** "Apagar cena…", já confirmado. Recusa com jogador na cena e com a última cena. */
+  const handleDeleteScene = (sceneId: string) => {
+    const name = adventure?.scenes.find((entry) => entry.id === sceneId)?.name ?? 'a cena'
+    // Apagar a cena aberta troca a vista: o "Seguir" desliga, como em qualquer troca à mão.
+    if (sceneId === activeSceneId) useFollowStore.getState().stop()
+    if (useAdventureStore.getState().deleteScene(sceneId, playerTokenIds())) {
+      useToastStore.getState().push('info', `${name} foi apagada.`)
+      return
+    }
+    useToastStore.getState().push('error', `Não deu para apagar ${name}: alguém ainda está lá, ou é a única cena.`)
+  }
+
   const handleGoBack = () => {
     useFollowStore.getState().stop()
     if (previousSceneId !== null) useAdventureStore.getState().switchScene(previousSceneId)
@@ -1548,6 +1585,14 @@ function App() {
       onLinkExisting: (sceneId: string, partnerId: string, exitId: string | null) => {
         useAdventureStore.getState().linkPinToExisting(pin.id, sceneId, partnerId, exitId)
       },
+      // "+ Cena nova…": a cena nasce já ligada e o mestre continua nesta — sem
+      // troca de vista, o "Seguir" fica como está. No mapa solto, a aventura
+      // nasce aqui, como no "+ Nova cena" de Cenas.
+      onCreateScene: (nome: string, exitId: string | null) => {
+        if (useAdventureStore.getState().createSceneForPin(pin.id, nome, currentMapPath, exitId) === null) {
+          useToastStore.getState().push('error', 'Não deu para criar a cena: o pino não está mais aqui.')
+        }
+      },
       onUnlink: (exitId: string) => useAdventureStore.getState().unlinkPin(pin.id, exitId),
       onRename: (exitId: string, rotulo: string) => useAdventureStore.getState().renamePinExit(pin.id, exitId, rotulo),
       // Pelo mesmo caminho do clique no pino: ir por uma saída é mexer na
@@ -1557,6 +1602,9 @@ function App() {
       // par da outra cena fica como está.
       passage: passageOf(pin),
       onPassageChange: (passagem: PinPassage) => useMapStore.getState().updatePin(pin.id, { passagem }),
+      // CHAVE ABRE PORTA: "Abre com" do pino trancado, com desfazer; "" tira a chave.
+      keyName: pin.abreCom ?? '',
+      onKeyChange: (nome: string) => useMapStore.getState().updatePin(pin.id, { abreCom: readDoorKey(nome) }),
       // Mão única mora no PAR (cena de fundo): marcar e desmarcar vão pela
       // aventura, fora do desfazer desta cena.
       onOneWayChange: (exitId: string, on: boolean) => {
@@ -1986,6 +2034,13 @@ function App() {
                 people={scenePeople()}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
                 onNote={room === null ? undefined : (sceneId, text, playerIds) => hostBridgeRef.current?.sceneNote(sceneId, text, playerIds) ?? null}
+                // Menu "…" da cena: só com aventura (o mapa solto não tem lista de cenas para mexer).
+                onDuplicate={adventure === null ? undefined : handleDuplicateScene}
+                onShift={adventure === null ? undefined : (sceneId, delta) => useAdventureStore.getState().shiftScene(sceneId, delta)}
+                onDelete={adventure === null ? undefined : handleDeleteScene}
+                deletionInfo={
+                  adventure === null ? undefined : (sceneId) => sceneDeletionInfo({ adventure, activeSceneId, cache: sceneCache }, map, sceneId, roomPlayers)
+                }
                 // Cenas em pastas: só a lista do mestre muda (pede Salvar); o jogador não recebe nada.
                 onMove={adventure === null ? undefined : (sceneId, parentId) => useAdventureStore.getState().moveScene(sceneId, parentId)}
                 adventureId={adventure?.id ?? null}
@@ -2202,6 +2257,9 @@ function App() {
               // `kind` do primeiro item (só importa quando count === 1) +
               // quantos itens no total. `null` = seleção vazia (botão desabilita).
               selection: selection.length > 0 ? { kind: selection[0].kind, count: selection.length } : null,
+              // "Oculto para jogadores" em lote: só com 2+ itens (um item só
+              // tem o próprio toggle no painel dele).
+              secret: selectionSecret === null ? undefined : { ...selectionSecret, onChange: setSelectionSecret },
               defaultTokenName: mapFactory.nextTokenName(map.tokens),
               onAddToken: handleAddToken,
               onRemoveSelected: removeSelected,
@@ -2217,6 +2275,7 @@ function App() {
               onToggleLocked: handleToggleLocked,
               onToggleSecret: handleToggleSecret,
               onRevealPassage: handleRevealPassage,
+              onKeyChange: handleDoorKeyChange,
             }}
             doorKind={{
               kind: selectedWall?.door ? selectedWall.door.kind : doorKind,
@@ -2237,6 +2296,18 @@ function App() {
               onLockedChange: (locked) => selectedProp && updateProp(selectedProp.id, { locked }),
               onHiddenChange: (hidden) => selectedProp && updateProp(selectedProp.id, { hidden }),
               onSecretChange: (secret) => selectedProp && useMapStore.getState().setItemSecret('prop', selectedProp.id, secret),
+            }}
+            propPlayer={{
+              onLabelChange: (label) => selectedProp && setPropLabelForPlayers(selectedProp.id, label),
+              onShowImageChange: (show) => {
+                if (!selectedProp) return
+                // Ler o arquivo e reduzir a imagem é assíncrono: o erro vira o
+                // mesmo aviso de "trocar a imagem do token", e o interruptor fica
+                // desligado (nada foi gravado).
+                setPropImageShownToPlayers(selectedProp.id, show).catch((err: unknown) =>
+                  reportFileError('preparar a imagem do objeto para os jogadores', err),
+                )
+              },
             }}
             selectedToken={selectedToken}
             tokenName={{
@@ -2464,9 +2535,12 @@ function App() {
             selectedStair={selectedStair}
             stairControls={{
               onDirectionChange: (direction) => selectedStair && setStairDirection(selectedStair.id, direction),
+              onShapeChange: (shape) => selectedStair && setStairShape(selectedStair.id, shape),
               stepWidth: selectedStair?.stepWidth ?? map.grid,
               onStepWidthChange: (stepWidth) => selectedStair && setStairStepWidthForStair(selectedStair.id, stepWidth),
               grid: map.grid,
+              // "Leva a…": `null` sem escada selecionada ou fora de uma aventura (a seção some).
+              travel: selectedStair === null ? null : stairTravelPanel({ adventure, activeSceneId, cache: sceneCache }, map, selectedStair),
             }}
             polygonSides={{
               sides: polygonSides,

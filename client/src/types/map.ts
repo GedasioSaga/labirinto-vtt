@@ -149,6 +149,10 @@ export interface DoorState {
    * de migração; do disco só `true` volta (`lib/mapFile.ts`).
    */
   secret?: boolean
+  /** CHAVE ABRE PORTA: nome do item da mochila que destranca e abre esta
+   *  porta sem pedir ao mestre (`lib/doorKey.ts`). Só do mestre: o jogador
+   *  nunca o recebe (`lib/fogFilter.ts`). `undefined` = só o mestre abre. */
+  abreCom?: string
 }
 
 export interface Light {
@@ -408,6 +412,15 @@ export interface Pin extends PlayerSecret {
    */
   soChegada?: true
   /**
+   * Só do pino de viagem: o pino é a PASSAGEM de uma escada — o "Leva a…" da
+   * escada `escadaId` desta cena (`lib/stairTravel.ts`). Não se desenha nem
+   * entra em lista: o mestre vê a escada, o jogador toca a escada. Mora na
+   * boca dela e anda junto quando a escada é arrastada. Ao jogador SÓ vai
+   * junto com a escada (`lib/fogFilter.ts`): escada escondida, pino escondido.
+   * Ausente = o pino de sempre, sem migração.
+   */
+  escadaId?: string
+  /**
    * SÓ NO RECORTE DO JOGADOR, e só quando o pino tem mais de uma saída: o id e
    * o rótulo de cada uma, na ordem (a principal primeiro). O mestre nunca grava
    * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.
@@ -420,6 +433,19 @@ export interface Pin extends PlayerSecret {
    * do nome e de saber se pede ao mestre), sempre numa cópia limpa.
    */
   item?: PinItem
+  /**
+   * CHAVE ABRE PORTA, no pino de viagem TRANCADO: o nome do item da mochila
+   * que deixa quem o carrega passar sem pedir ao mestre (`lib/doorKey.ts`).
+   * Só do mestre: NUNCA sai no recorte do jogador (`lib/fogFilter.ts`).
+   * Ausente = trancado para todos, como sempre. Só vale com `passagem: 'trancada'`.
+   */
+  abreCom?: string
+  /**
+   * SÓ NO RECORTE DO JOGADOR: o nome da chave que ELE carrega numa ficha
+   * encostada neste pino trancado — o cartão oferece "Usar <chave>". O mestre
+   * nunca grava este campo; `lib/fogFilter.ts` o monta, e só para quem tem.
+   */
+  chave?: string
 }
 
 /**
@@ -682,6 +708,17 @@ export interface Prop extends PlayerSecret {
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
    *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
   hidden?: boolean
+  /** "Rótulo para jogadores": nome curto escrito na silhueta que o jogador vê
+   *  ("Guarda-roupa"). Ausente = só a silhueta, como antes deste campo — sem
+   *  linha de migração. ATRAVESSA para o jogador só junto com o objeto, aparado
+   *  e no teto de `lib/propPlayerLook.ts`. */
+  playerLabel?: string
+  /** "Mostrar imagem ao jogador": cópia pequena e AUTO-CONTIDA da imagem do
+   *  objeto (`data:image/...;base64,...`), a mesma regra e o mesmo teto da foto
+   *  da ficha (`lib/tokenPhoto.ts`). `src` é caminho do disco do mestre e nunca
+   *  sai; esta cópia é a única imagem do objeto que atravessa o recorte.
+   *  Ausente = interruptor desligado (só a silhueta). */
+  playerImage?: string
 }
 
 export interface DrawingPoint {
@@ -749,8 +786,12 @@ export type Drawing = PlayerSecret & (
 
 export type StairDirection = 'up' | 'down'
 /** 'l' e 'double' existem no schema e no render desde já; a UI desta
- *  rodada só produz 'straight'. */
-export type StairShape = 'straight' | 'l' | 'double'
+ *  rodada só produz 'straight'. 'spiral' (escada em espiral) usa o PRIMEIRO
+ *  lance como diâmetro de um círculo — a boca continua em `x1, y1`, agora na
+ *  borda — e se desenha como círculo com raios finos (`lib/stairs.ts`,
+ *  `computeSpiralPlan`). Valor novo, nunca escrito por versão anterior: mapa
+ *  salvo antes abre igual, sem migração. */
+export type StairShape = 'straight' | 'l' | 'double' | 'spiral'
 
 export interface StairSegment {
   x1: number
