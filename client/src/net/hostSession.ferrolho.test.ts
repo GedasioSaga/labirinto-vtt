@@ -283,4 +283,31 @@ describe('hostSession: barrar a passagem por onde chegou', () => {
     expect(r).toEqual({ outbound: [] })
     expect(pinoNoRecorte(snapshotPara(m.s, 'c1', longe), 'fundo')?.barradaDaqui).toBeUndefined()
   })
+
+  it('Carla barra, Ana está na MESMA cena: a marca é do lado e chega igual às duas; SEGURANÇA: o nome de quem barrou não chega a Ana', () => {
+    const base = mundo()
+    // Carla também chegou à Cripta, encostada no fundo do poço.
+    const w: HostWorld = {
+      ...base,
+      background: base.background.map((c) => ({ ...c, map: { ...c.map, tokens: [...c.map.tokens, ficha('ficha-carla', 'Batedora', 1050, 250)] } })),
+    }
+    const { s } = mesa(w)
+    const carla = welcome(s.handleMessage('c3', { type: 'join', code: CODE, name: 'Carla' }, w))
+    s.assignToken(carla, 'ficha-carla')
+    s.broadcast(w)
+    const r = s.handleMessage('c3', { type: 'pin.bar', pinId: 'fundo', on: true }, w)
+    expect(r.trancaAviso?.playerName).toBe('Carla')
+    const daCarla = pinoNoRecorte(snapshotPara(s, 'c3', w), 'fundo')
+    const daAna = snapshotPara(s, 'c1', w)
+    // A mesma marca a quem barrou e a quem não barrou: o recorte não diz quem foi,
+    // por isso o cartão fala "Passagem barrada deste lado", nunca "Você barrou".
+    expect(daCarla?.barradaDaqui).toBe(true)
+    expect(pinoNoRecorte(daAna, 'fundo')).toEqual(daCarla)
+    expect(JSON.stringify(daAna)).not.toContain('Carla')
+    // Ana, deste lado e encostada no pino, tira a barra: é do lado, como o ferrolho.
+    expect(s.handleMessage('c1', { type: 'pin.bar', pinId: 'fundo', on: false }, w).trancaAviso).toEqual(
+      expect.objectContaining({ playerName: 'Ana', acao: 'destrancou' }),
+    )
+    expect(pinoNoRecorte(snapshotPara(s, 'c3', w), 'fundo')?.barradaDaqui).toBeUndefined()
+  })
 })

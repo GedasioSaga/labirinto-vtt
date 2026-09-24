@@ -50,7 +50,10 @@ describe('PlayerPinCard: barrar a passagem', () => {
   it('barrada deste lado: o cartão diz isso e oferece tirar a barra', () => {
     const onBarrar = vi.fn()
     render(pino({ barradaDaqui: true }), onBarrar)
-    expect(container.textContent).toContain('Você barrou esta passagem deste lado.')
+    // A marca é do lado, não de quem barrou: chega igual a Ana, que barrou, e a
+    // Carla, que só está na mesma cena. O texto não pode afirmar "você barrou".
+    expect(container.textContent).toContain('Passagem barrada deste lado.')
+    expect(container.textContent).not.toContain('Você barrou')
     expect(botao('Barrar a passagem')).toBeUndefined()
     const tirar = botao('Tirar a barra')
     if (tirar === undefined) throw new Error('esperava o botão de tirar a barra')

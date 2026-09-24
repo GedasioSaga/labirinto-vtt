@@ -139,6 +139,9 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const trancada = viagem && passagem === 'trancada'
   const podePedir = viagem && !trancada && onRequestTravel !== undefined
   // A barra que um jogador desta cena pôs: o recorte só a marca para quem está deste lado.
+  // A marca é do LADO, não de quem barrou (como o ferrolho da porta): chega a
+  // todo jogador desta cena, e qualquer um encostado no pino tira a barra. Por
+  // isso o texto não diz "você" — seria falso para quem não barrou.
   const barrada = viagem && pin.barradaDaqui === true
   const podeBarrar = viagem && !trancada && onBarrar !== undefined
   const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
@@ -182,7 +185,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
           </p>
         </div>
         {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
-        {barrada && !trancada && <p className="pp-pincard__locked">Você barrou esta passagem deste lado.</p>}
+        {barrada && !trancada && <p className="pp-pincard__locked">Passagem barrada deste lado.</p>}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}
