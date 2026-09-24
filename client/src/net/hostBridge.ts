@@ -7,11 +7,21 @@ import { pointActionMasterText, type PointActionAnswer } from '../lib/pointActio
 import type { StoredToken } from '../lib/storedTokens'
 import { addTravel, travelLogEntry, undoableTravelIds, withoutTravel, type TravelLogEntry } from '../lib/travelLog'
 import {
+  preferredRoomCode,
+  reclaimText,
+  roomCodeChangedText,
+  SAVED_EXPLORATION_VERSION,
+  SAVED_TABLE_VERSION,
+  type SavedExploration,
+  type SavedTable,
+} from '../lib/savedTable'
+import {
   createHostSession,
   singleSceneWorld,
   type AppliedTokenEdit,
   type DoorRequest,
   type AppliedTransfer,
+  type HeldTokens,
   type HostResult,
   type HostSession,
   type HostSignal,
@@ -20,6 +30,7 @@ import {
   type PlayerInfo,
   type PlayerNoteDelivery,
   type PointActionRequest,
+  type ReclaimedSeat,
   type ReturnCandidate,
   type TravelRequest,
 } from './hostSession'
@@ -121,11 +132,24 @@ export interface HostBridgeDeps {
   removeToken?: (tokenId: string, sceneId?: string) => void
   /** A ficha guardada volta ao mapa, igual ao que era, na cena `sceneId` (ausente = a aberta). */
   restoreToken?: (token: Token, sceneId?: string) => void
+  /** Retomar a mesa: a mesa guardada desta aventura (`null` = nenhuma). Ausente = a ponte não retoma. */
+  loadTable?: () => SavedTable | null
+  /** Grava a mesa a cada mudança de dono, raio ou cena. Ausente = nada é gravado. */
+  saveTable?: (table: SavedTable) => void
+  /** Retomar a mesa: o mapa explorado guardado de cada jogador (`null` = nenhum). Só é lido ao retomar. */
+  loadExploration?: () => SavedExploration | null
+  /** Grava o mapa explorado pouco depois de mudar e ao fechar a sala. Ausente = nada é gravado. */
+  saveExploration?: (exploration: SavedExploration) => void
   now?: () => number
 }
 
+export interface StartOptions {
+  /** `true` = "Retomar a mesa": quem entrar com o nome de um assento guardado reencontra as fichas. */
+  resume?: boolean
+}
+
 export interface HostBridge {
-  start(): Promise<RoomInfo>
+  start(options?: StartOptions): Promise<RoomInfo>
   stop(): Promise<void>
   notifyMapChanged(): void
   assignToken(playerId: string, tokenId: string): void
@@ -201,6 +225,12 @@ export interface HostBridge {
 }
 
 export const BROADCAST_THROTTLE_MS = 50
+/**
+ * O mapa explorado muda a cada passo de cada jogador, e gravá-lo é codificar
+ * todas as memórias da mesa: grava uma vez, este tempo depois da primeira
+ * mudança, e não a cada snapshot. Fechar a sala grava o que estiver pendente.
+ */
+export const EXPLORATION_SAVE_DELAY_MS = 1500
 /**
  * O aviso de jogador novo fica mais tempo que um info comum (4 s): o mestre
  * costuma estar desenhando no mapa, de olho no canvas e não no rail, e perder
@@ -335,6 +365,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let lastBadCodeToastAt: number | null = null
   let unlisteners: UnlistenFn[] = []
   let pendingBroadcast: ReturnType<typeof setTimeout> | null = null
+  let pendingExplorationSave: ReturnType<typeof setTimeout> | null = null
   let pendingStart: Promise<RoomInfo> | null = null
   let lastPlayersKey = '[]'
   let tunnelState: TunnelState = TUNNEL_IDLE
@@ -379,6 +410,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * mestre; nunca sai pelo `net_send`.
    */
   const storedTokens = new Map<string, StoredToken[]>()
+
+  /** Os ids das fichas guardadas, por dono: na mesa gravada continuam dele. */
+  const heldTokenIds = (): HeldTokens => new Map([...storedTokens].map(([playerId, stored]) => [playerId, stored.map(({ token }) => token.id)]))
 
   /** O mundo que a sessão serve agora: a aventura, ou só o mapa aberto. */
   const world = (): HostWorld => deps.getWorld?.() ?? singleSceneWorld(deps.getMap())
@@ -513,6 +547,46 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (key === lastPlayersKey) return
     lastPlayersKey = key
     deps.onPlayersChange?.(list)
+    saveTableNow()
+    // Ganhar ou perder assento muda quem vai no explorado gravado.
+    scheduleExplorationSave()
+  }
+
+  const saveExplorationNow = () => {
+    if (session === null || currentRoom === null || deps.saveExploration === undefined) return
+    // Mesa sem assento nenhum (sala recém-aberta, "Mesa nova" antes de alguém
+    // ganhar ficha): não há de quem gravar, e gravar vazio apagaria o explorado
+    // que a mesa guardada ainda pode retomar.
+    const held = heldTokenIds()
+    if (session.savedSeats(held).length === 0) return
+    deps.saveExploration({ version: SAVED_EXPLORATION_VERSION, seats: session.savedExploration(held) })
+  }
+
+  /** Grava o explorado uma vez, `EXPLORATION_SAVE_DELAY_MS` depois da primeira mudança pendente. */
+  const scheduleExplorationSave = () => {
+    if (session === null || deps.saveExploration === undefined || pendingExplorationSave !== null) return
+    pendingExplorationSave = setTimeout(() => {
+      pendingExplorationSave = null
+      saveExplorationNow()
+    }, EXPLORATION_SAVE_DELAY_MS)
+  }
+
+  /** Fechar a sala: o último passo de cada um não pode se perder no timer. */
+  const flushExplorationSave = () => {
+    if (pendingExplorationSave === null) return
+    clearTimeout(pendingExplorationSave)
+    pendingExplorationSave = null
+    saveExplorationNow()
+  }
+
+  /**
+   * O arquivo da mesa acompanha cada mudança de dono, raio ou cena (as mesmas
+   * que mudam a lista de jogadores). Com a sala fechada não grava: fechar não
+   * pode apagar a mesa que o mestre quer retomar.
+   */
+  const saveTableNow = () => {
+    if (session === null || currentRoom === null || deps.saveTable === undefined) return
+    deps.saveTable({ version: SAVED_TABLE_VERSION, code: currentRoom.code, seats: session.savedSeats(heldTokenIds()) })
   }
 
   /** Envia tudo; a promise nunca rejeita — falha vira toast, nunca silêncio. */
@@ -539,6 +613,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // O mestre pode ter apagado ou trocado uma ficha de cena pelo editor: é
     // mudança de mapa, que só passa por aqui.
     sendPartyIfChanged()
+    // Cada snapshot marca o que cada jogador viu: o explorado da mesa muda.
+    scheduleExplorationSave()
   }
 
   const scheduleBroadcast = () => {
@@ -589,6 +665,27 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         ? `${player.name} entrou e está sem personagem. Abra a aba Jogo para atribuir um.`
         : `${player.name} voltou para a sala.`
     useToastStore.getState().push('info', text, PLAYER_JOINED_TOAST_MS)
+  }
+
+  /**
+   * Retomar a mesa: "Ana voltou: Lírio devolvida", com "Desfazer" — quem
+   * digitou o nome de outro não leva a ficha sem o mestre ver. Os avisos de
+   * uma mesa inteira voltando se juntam numa caixa só.
+   */
+  const announceReclaim = (reclaimed: ReclaimedSeat) => {
+    const w = world()
+    const names = reclaimed.tokenIds.map((tokenId) => [w.open, ...w.background].flatMap((scene) => scene.map.tokens).find((t) => t.id === tokenId)?.name ?? tokenId)
+    useToastStore.getState().push('info', reclaimText(reclaimed.name, names), PLAYER_JOINED_TOAST_MS, {
+      grupo: 'Mesa retomada',
+      actions: [{ label: 'Desfazer', run: () => undoReclaim(reclaimed.playerId) }],
+    })
+  }
+
+  const undoReclaim = (playerId: string) => {
+    if (session === null) return
+    void dispatch(session.undoReclaim(playerId))
+    broadcastNow()
+    notifyPlayersIfChanged()
   }
 
   const cancelDropTimer = () => {
@@ -1068,6 +1165,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     notifyPlayersIfChanged()
     if (wasJoined) return
     if (result.outbound.some((o) => o.msg.type === 'error' && o.msg.reason === 'bad_code')) announceBadCode()
+    else if (result.reclaimed !== undefined) announceReclaim(result.reclaimed)
     // Troca de aba da mesma pessoa não é chegada; e quem provocou "Ana voltou?" já tem o aviso dele na Caixa.
     else if (result.replacedClientId === undefined && result.returnCandidate === undefined) {
       announceJoin(clientId, new Set(before.filter((p) => !p.connected).map((p) => p.playerId)))
@@ -1140,11 +1238,24 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     unlisteners = []
   }
 
-  const openRoom = async (): Promise<RoomInfo> => {
+  const openRoom = async (options: StartOptions): Promise<RoomInfo> => {
     try {
-      const room = parseRoomInfo(await deps.invoke('net_start_room'))
+      // Lida antes de abrir: a sala nova regrava o arquivo assim que alguém muda de dono.
+      const saved = options.resume === true ? (deps.loadTable?.() ?? null) : null
+      const restoreSeats = saved?.seats ?? []
+      // O explorado só vale com a mesa: sem assento, não há de quem ele seja.
+      const restoreExploration = saved === null ? [] : (deps.loadExploration?.()?.seats ?? [])
+      // Retomar pede o MESMO código: o link e a reconexão automática dos jogadores continuam valendo.
+      // O Rust decide se dá (a porta pode ter mudado de dono); o que vale é o código que ele devolver.
+      const preferredCode = preferredRoomCode(saved)
+      const startReply = preferredCode === null ? await deps.invoke('net_start_room') : await deps.invoke('net_start_room', { preferredCode })
+      const room = parseRoomInfo(startReply)
       if (room === null) throw new Error('resposta inválida de net_start_room')
-      session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now })
+      if (saved !== null && room.code !== saved.code) {
+        // Sem prazo: o mestre precisa do texto na tela enquanto repassa o código novo à mesa.
+        useToastStore.getState().push('instrucao', roomCodeChangedText(saved.code, room.code))
+      }
+      session = createHostSession({ code: room.code, visionRadius: deps.visionRadius ?? DEFAULT_VISION_RADIUS, now: deps.now, restoreSeats, restoreExploration })
       // Sala nova, código novo: o aviso da sala anterior não pode segurar o primeiro desta.
       lastBadCodeToastAt = null
       // O diário é desta sala: os jogadores da anterior já não estão aqui para desfazer.
@@ -1169,11 +1280,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   return {
-    start() {
+    start(options = {}) {
       if (currentRoom !== null) return Promise.resolve(currentRoom)
       // Duplo clique: o segundo start recebe a mesma promise, sem segunda sala.
       if (pendingStart !== null) return pendingStart
-      const started = openRoom()
+      const started = openRoom(options)
       pendingStart = started
       const clear = () => {
         if (pendingStart === started) pendingStart = null
@@ -1192,6 +1303,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       }
       // Snapshot pendente sai antes: não pode chegar ao jogador depois do aviso.
       cancelPendingBroadcast()
+      // Com a sessão ainda viva: depois dela não há de onde ler o explorado.
+      flushExplorationSave()
       resetLaser()
       // Avisa antes de derrubar: sem `room.closed` o jogador veria queda de rede,
       // não "O mestre encerrou a sala".
