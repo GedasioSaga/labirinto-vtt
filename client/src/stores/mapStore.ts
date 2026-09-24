@@ -3,8 +3,9 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, LayerId, GridSettings,
   Stair, StairDirection, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TipoDePerigo,
 } from '../types/map'
+import * as perigo from '../lib/perigo'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, Selection } from '../types/tools'
 import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
@@ -678,6 +679,11 @@ interface MapStoreState {
   setRoomRoof: (id: string, roof: boolean) => void
   /** TEXTO DA SALA — "Ao entrar, o jogador lê" / "Nota do mestre". Com histórico, como `setRoomName`. */
   setRoomTexts: (id: string, patch: Partial<Pick<RoomMeta, 'textoAoEntrar' | 'notaDoMestre'>>) => void
+  /** PERIGO QUE SE ALASTRA — fogo ou água novos presos à Sala (`lib/perigo.ts`). Com histórico. */
+  porPerigoNaSala: (salaId: string, tipo: TipoDePerigo) => void
+  /** Um passo do perigo pelas portas abertas. Com histórico: apertou sem querer, Ctrl+Z desfaz. */
+  avancarPerigo: (perigoId: string) => void
+  apagarPerigo: (perigoId: string) => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
@@ -1655,6 +1661,19 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setRoomTexts: (id, patch) => {
       if (mapFactory.setRoomTexts(get().map, id, patch) === get().map) return
       withHistory((map) => mapFactory.setRoomTexts(map, id, patch))
+    },
+    porPerigoNaSala: (salaId, tipo) => {
+      const id = `perigo_${crypto.randomUUID()}`
+      if (perigo.porPerigoNaSala(get().map, salaId, tipo, id) === get().map) return
+      withHistory((map) => perigo.porPerigoNaSala(map, salaId, tipo, id))
+    },
+    avancarPerigo: (perigoId) => {
+      if (perigo.avancarPerigo(get().map, perigoId) === get().map) return
+      withHistory((map) => perigo.avancarPerigo(map, perigoId))
+    },
+    apagarPerigo: (perigoId) => {
+      if (perigo.apagarPerigo(get().map, perigoId) === get().map) return
+      withHistory((map) => perigo.apagarPerigo(map, perigoId))
     },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return

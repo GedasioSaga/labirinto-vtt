@@ -16,6 +16,7 @@ import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygon
 import { roomHasRoof } from './roomOps'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
+import { perigosParaJogador } from './perigo'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -1376,7 +1377,9 @@ export function filterMapForPlayer(
   // CONFRONTO: o campo do mestre NUNCA sai no mapa (tem a fila inteira, com a
   // ficha escondida, e o turno). O jogador recebe a faixa à parte, montada
   // pelo host com as fichas deste recorte (`confrontoParaJogador`).
-  const { confronto: _confrontoDoMestre, ...mapSemConfronto } = map
+  // PERIGO QUE SE ALASTRA: a lista do mestre também fica (id, salas fora da
+  // visão); o jogador recebe a dele, montada abaixo (`perigosParaJogador`).
+  const { confronto: _confrontoDoMestre, perigos: perigosDoMestre, ...mapSemConfronto } = map
   const filtered: MapData = {
     ...mapSemConfronto,
     // O nome do mapa é o nome da CENA (a aventura cria a cena com
@@ -1509,6 +1512,19 @@ export function filterMapForPlayer(
     concealZones: [],
   }
 
+  /**
+   * PERIGO QUE SE ALASTRA — só a Sala que saiu no recorte E que o jogador vê
+   * AGORA (regra de visível, não de explorado: o fogo muda a cada avanço, e a
+   * memória viraria espionagem). Teto fechado nunca: o interior não é dele.
+   */
+  const salasVistasAgora = new Set(
+    filtered.regions
+      .filter((r) => !closedRoofIds.has(r.id) && isShapeVisible(openSamples(interiorSamples(r.points, r.points), { points: r.points, closed: true })))
+      .map((r) => r.id),
+  )
+  const perigos = perigosDoMestre === undefined ? [] : perigosParaJogador(perigosDoMestre, salasVistasAgora)
+  const recorte: MapData = perigos.length > 0 ? { ...filtered, perigos } : filtered
+
   const concealed = zones.flatMap((zone, i) => concealedPieces(zone.ring, unveiledShown[i]))
   /**
    * O mesmo pedaço entra na VISÃO enviada. Sem isto o buraco no preto
@@ -1522,7 +1538,7 @@ export function filterMapForPlayer(
   const sightRects = cellRunRects(new Set(shownCells))
   const sentVision = sightRects.length > 0 ? [...vision, ...sightRects] : vision
   const eyes = ownTokens.map((t, i) => ({ tokenId: t.id, vision: vision[i], doorIds: eyeDoorIds[i] }))
-  return { map: filtered, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms, eyes }
+  return { map: recorte, vision: sentVision, visibleDoorIds, concealed, blocked, roofs, occupiedRooms, eyes }
 }
 
 /**

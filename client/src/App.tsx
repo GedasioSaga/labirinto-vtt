@@ -50,6 +50,7 @@ import {
 import { ScenesSection } from './components/ScenesSection'
 import { WorldStateSection } from './components/WorldStateSection'
 import { EstadoDaLuz, EstadoDaPorta, EstadoDaZona, EstadoDoPino } from './components/DependeDoEstadoControls'
+import { PerigoDaSalaControls } from './components/PerigoDaSalaControls'
 import { amarradosPorEstado, type AmarraDeEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
@@ -1772,6 +1773,17 @@ function App() {
             estadoDaZona={
               adventure === null || selectedConcealZone === null ? undefined : (
                 <EstadoDaZona zone={selectedConcealZone} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+              )
+            }
+            perigoDaSala={
+              selectedRegion?.room === undefined ? undefined : (
+                <PerigoDaSalaControls
+                  map={map}
+                  salaId={selectedRegion.id}
+                  onPor={(tipo) => useMapStore.getState().porPerigoNaSala(selectedRegion.id, tipo)}
+                  onAvancar={(perigoId) => useMapStore.getState().avancarPerigo(perigoId)}
+                  onApagar={(perigoId) => useMapStore.getState().apagarPerigo(perigoId)}
+                />
               )
             }
             estadoDaLuz={

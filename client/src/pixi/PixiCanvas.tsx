@@ -137,6 +137,7 @@ import {
 } from '../lib/drawingFactory'
 import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
+import { drawPerigos } from './drawPerigos'
 import { createPinsRenderer } from './drawPins'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { revealBrushRadius, type RevealBrushMode } from '../lib/concealBrush'
@@ -666,6 +667,8 @@ export function PixiCanvas({
       // Render fiel (FloorStyle.renderMode === 'raster'): conteúdo do mapa rasterizado por software.
       const mapRasterSprite = new Sprite(Texture.EMPTY)
       const regionsContainer = new Container()
+      // PERIGO QUE SE ALASTRA: logo acima das salas, abaixo de paredes e nomes.
+      const perigosGraphics = new Graphics()
       // Nomes das salas acima de paredes, portas e escadas: abaixo delas a
       // parede interna cortava o nome ao meio (medido 15/09/2026).
       const roomNamesContainer = new Container()
@@ -714,6 +717,7 @@ export function PixiCanvas({
         floorGraphics,
         mapLinesGraphics,
         regionsContainer,
+        perigosGraphics,
         gridFloorMask,
         gridOutsideMask,
         gridOutsideGraphics,
@@ -1263,6 +1267,10 @@ export function PixiCanvas({
         mapLines: paintMapLines,
         mapFrame: () => redrawMapFrame(sceneState().map.frame),
         regions: paintRegions,
+        perigos: () => {
+          const { map } = sceneState()
+          drawPerigos(perigosGraphics, visibleRegions(map.regions, map.hiddenLayers), map.perigos ?? [])
+        },
         drawings: paintDrawings,
         roomNames: () => {
           const { map } = sceneState()
