@@ -22,7 +22,7 @@ function ficha(id: string, name: string, x: number): Token {
   return { id, characterId: null, name, x, y: 100, size: 1, image: null }
 }
 
-async function mesa() {
+async function mesa(extras: Token[] = []) {
   const handlers = new Map<string, (event: { payload: unknown }) => void>()
   const invoke = vi.fn(async (cmd: string, _args?: unknown) => (cmd === 'net_start_room' ? ROOM : undefined))
   const listen = vi.fn(async (name: string, handler: (event: { payload: unknown }) => void) => {
@@ -30,7 +30,7 @@ async function mesa() {
     return vi.fn()
   })
   let players: PlayerInfo[] = []
-  let map: MapData = { ...createEmptyMap('m', 'Mapa', 30, 10, 50), tokens: [ficha('f-lirio', 'Lírio', 100), ficha('f-escudo', 'Escudo', 300)] }
+  let map: MapData = { ...createEmptyMap('m', 'Mapa', 30, 10, 50), tokens: [ficha('f-lirio', 'Lírio', 100), ficha('f-escudo', 'Escudo', 300), ...extras] }
   const removeToken = vi.fn((tokenId: string, _sceneId?: string) => {
     map = { ...map, tokens: map.tokens.filter((t) => t.id !== tokenId) }
   })
@@ -134,6 +134,38 @@ describe('hostBridge: "Ana voltou?" na Caixa', () => {
     expect(useToastStore.getState().toasts.some((t) => t.text === 'Ana voltou?')).toBe(false)
     expect(m.players().map((p) => p.name)).toEqual(['Ana', 'Fábio', 'ana (2)'])
     expect(m.enviados('c9').filter((msg) => msg.type === 'welcome')).toHaveLength(1)
+  })
+
+  it('"É ela" com pedidos abertos da "ana (2)": a ação no ponto e a mão saem da Caixa', async () => {
+    const m = await mesa([ficha('f-tocha', 'Tocha', 500)])
+    m.cai('c1')
+    m.entra('c9', 'ana')
+    // Enquanto a pergunta espera, o mestre dá uma ficha à "ana (2)" e ela pede.
+    const segunda = m.players().find((p) => p.name === 'ana (2)')
+    if (segunda === undefined) throw new Error('esperava a "ana (2)"')
+    m.bridge.assignToken(segunda.playerId, 'f-tocha')
+    m.emit('net:message', { clientId: 'c9', msg: { type: 'point.action', action: 'procurar', x: 500, y: 120 } })
+    m.emit('net:message', { clientId: 'c9', msg: { type: 'call.raise', reason: 'agir', text: 'abro o baú' } })
+    const daSegunda = () => useToastStore.getState().toasts.filter((t) => t.text.startsWith('ana (2)')).map((t) => t.text)
+    expect(daSegunda()).toHaveLength(2)
+    const pergunta = useToastStore.getState().toasts.find((t) => t.text === 'Ana voltou?')
+    pergunta?.actions?.find((a) => a.label === 'É ela')?.run()
+    // A "ana (2)" deixou de existir: o "Nada aqui" e o "Visto" dela não chegariam a ninguém.
+    expect(daSegunda()).toEqual([])
+    expect(m.players().map((p) => p.name)).toEqual(['Ana', 'Fábio'])
+  })
+
+  it('"Outra pessoa" com pedido aberto da "ana (2)": o pedido fica na Caixa', async () => {
+    const m = await mesa([ficha('f-tocha', 'Tocha', 500)])
+    m.cai('c1')
+    m.entra('c9', 'ana')
+    const segunda = m.players().find((p) => p.name === 'ana (2)')
+    if (segunda === undefined) throw new Error('esperava a "ana (2)"')
+    m.bridge.assignToken(segunda.playerId, 'f-tocha')
+    m.emit('net:message', { clientId: 'c9', msg: { type: 'point.action', action: 'procurar', x: 500, y: 120 } })
+    const pergunta = useToastStore.getState().toasts.find((t) => t.text === 'Ana voltou?')
+    pergunta?.actions?.find((a) => a.label === 'Outra pessoa')?.run()
+    expect(useToastStore.getState().toasts.filter((t) => t.text.startsWith('ana (2) quer'))).toHaveLength(1)
   })
 
   it('a Ana volta pelo resume antes da resposta: a pergunta some sozinha', async () => {

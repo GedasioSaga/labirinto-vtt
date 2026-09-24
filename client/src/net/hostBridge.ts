@@ -957,6 +957,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     announceReturn(candidate.previousId, candidate.name)
     // Uma segunda "ana" que esperava a mesma pergunta: a Ana já voltou, e a pergunta dela sai.
     pruneReturnToasts()
+    // A "Ana (2)" deixou de existir, e a sessão esqueceu os pedidos dela (pino,
+    // porta, ação no ponto, mão): o "Deixar ir" ou o "Visto" que sobrasse na
+    // Caixa não chegaria a ninguém.
+    pruneTravelToasts()
+    pruneCallToasts()
     broadcastNow()
     notifyPlayersIfChanged()
   }

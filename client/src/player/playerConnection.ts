@@ -572,6 +572,27 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     waitingPointActions = []
   }
 
+  /**
+   * Tira da tela a espera de todo pedido ainda sem resposta (passagem, porta,
+   * ação no ponto, mão). Respostas já na tela ficam: elas somem sozinhas.
+   */
+  function forgetWaitingRequests(): void {
+    const travelWaiting = state.travel?.phase === 'waiting'
+    if (travelWaiting) clearTravelTimer()
+    const doorSent = state.doorRequest?.phase === 'sent'
+    if (doorSent) clearDoorNotice()
+    const callWaiting = state.call?.phase === 'waiting'
+    if (callWaiting) clearCallTimer()
+    const pointWaiting = state.pointNotice?.phase === 'waiting'
+    waitingPointActions = []
+    setState({
+      ...(travelWaiting ? { travel: undefined } : {}),
+      ...(doorSent ? { doorRequest: undefined } : {}),
+      ...(callWaiting ? { call: undefined } : {}),
+      ...(pointWaiting ? { pointNotice: undefined } : {}),
+    })
+  }
+
   /** A espera de tudo o que sobrou, ou nada quando não sobrou pedido. */
   function waitingPointNotice(): PointNotice | undefined {
     const [first, ...rest] = waitingPointActions
@@ -894,6 +915,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         writeResume(storage, { code, token: data.resumeToken })
         // O mestre aceitou (de novo): fim da volta automática, se havia uma.
         clearReconnectTimers()
+        // Outro playerId: o mestre disse "É ela" e a "Ana (2)" virou a Ana. O
+        // host esqueceu os pedidos da "Ana (2)"; a espera deles mentiria para sempre.
+        if (state.playerId !== undefined && state.playerId !== data.playerId) forgetWaitingRequests()
         setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting', reconnecting: undefined })
         return
       case 'lobby.waiting':

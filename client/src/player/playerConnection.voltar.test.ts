@@ -107,3 +107,52 @@ describe('playerConnection: a sessão foi para outra aba', () => {
     expect(second.sent[0]).toEqual({ type: 'join', code: 'ABC123', name: 'Ana', resume: 'tok' })
   })
 })
+
+describe('playerConnection: "É ela" transforma a "Ana (2)" na Ana', () => {
+  it('o welcome com outro playerId leva junto os pedidos da "Ana (2)": nada fica em "Aguardando o mestre"', () => {
+    const sockets: FakeSocket[] = []
+    const connection = createPlayerConnection({
+      url: 'ws://host/ws',
+      code: 'ABC123',
+      name: 'ana',
+      storage: memoryStorage(),
+      createSocket: () => {
+        const socket = new FakeSocket()
+        sockets.push(socket)
+        return socket
+      },
+    })
+    const socket = sockets[0]
+    if (!socket) throw new Error('socket não criado')
+    socket.open()
+    socket.receive({ type: 'welcome', playerId: 'p2', resumeToken: 'tok2', name: 'ana (2)' })
+    const map = addToken(createEmptyMap('m1', 'Mapa', 10, 10, 50), { id: 't9', characterId: null, name: 'Tocha', x: 10, y: 10, size: 1, image: null })
+    socket.receive({ type: 'snapshot', rev: 3, map, vision: [], ownTokens: ['t9'] })
+    // A "ana (2)" pede três coisas ao mestre enquanto ele não responde "Ana voltou?".
+    expect(connection.requestTravel('escada')).toBe(true)
+    expect(connection.sendPointAction('procurar', 20, 20)).toBe(true)
+    expect(connection.raiseHand('agir')).toBe(true)
+    expect(connection.getState().travel).toMatchObject({ phase: 'waiting' })
+    expect(connection.getState().pointNotice).toMatchObject({ phase: 'waiting' })
+    expect(connection.getState().call).toMatchObject({ phase: 'waiting' })
+    // "É ela": o host esqueceu a "ana (2)" e os pedidos dela; o aparelho vira a Ana.
+    socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok1', name: 'Ana' })
+    socket.receive({ type: 'snapshot', rev: 4, map, vision: [], ownTokens: ['t9'] })
+    const state = connection.getState()
+    expect(state.playerId).toBe('p1')
+    expect(state.status).toBe('playing')
+    expect(state.travel).toBeUndefined()
+    expect(state.pointNotice).toBeUndefined()
+    expect(state.call).toBeUndefined()
+    // E a Ana pode pedir de novo: a espera antiga não trava o botão.
+    expect(connection.requestTravel('escada')).toBe(true)
+    expect(connection.raiseHand('agir')).toBe(true)
+  })
+
+  it('o welcome da volta com o mesmo playerId não mexe na tela', () => {
+    const { connection, first } = jogando()
+    first.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Ana' })
+    expect(connection.getState()).toMatchObject({ playerId: 'p1', status: 'playing' })
+    expect(connection.getState().ownTokens).toEqual(['t1'])
+  })
+})
