@@ -3,7 +3,8 @@ import { hazardPresence, newHazardEntries, type HazardEntry } from '../lib/hazar
 import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, mergeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { alarmForPlayer, allPlayerTokens, filterMapForGroup, filterMapForPlayer, playerBlockedRings, turnForPlayer, type GroupViewer, type SceneAlarm } from '../lib/fogFilter'
+import { alarmForPlayer, allPlayerTokens, filterFloorMemory, filterMapForGroup, filterMapForPlayer, playerBlockedRings, turnForPlayer, type GroupViewer, type SceneAlarm } from '../lib/fogFilter'
+import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
 import { turnTokenIdOn, type TurnRef } from '../lib/initiative'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokensOccupy } from '../lib/movementRules'
@@ -19,6 +20,8 @@ import {
   type DoorRequestRejection,
   type DoorToggleMessage,
   type DoorToggleRejection,
+  type FloorMemoryWire,
+  type FloorsWire,
   type HostMessage,
   type ItemGiveMessage,
   type ItemGiveRejection,
@@ -734,7 +737,35 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   /** O que o jogador vê agora: o recorte da cena dele, ou a espera quando ele não está em cena nenhuma. */
   const viewFor = (playerId: string, world: HostWorld): HostMessage => {
     const scene = sceneFor(playerId, world)
-    return scene === null ? { type: 'lobby.waiting' } : snapshotFor(playerId, scene.map)
+    return scene === null ? { type: 'lobby.waiting' } : snapshotFor(playerId, scene.map, floorsFor(playerId, scene, world))
+  }
+
+  /**
+   * MAPA POR ANDARES — o que vai em `snapshot.andares`: o rótulo do andar onde
+   * o jogador está e, de cada OUTRO andar do mesmo prédio que ele JÁ conhece
+   * (tem memória lá; `existingMemory` não cria nem mexe na ordem), a planta
+   * recortada pela memória dele, sem visão (`filterFloorMemory`). Andar onde ele
+   * nunca pisou não sai nem pelo rótulo. `undefined` = sem abas: cena comum, ou
+   * nenhum outro andar conhecido.
+   */
+  const floorsFor = (playerId: string, scene: HostScene, world: HostWorld): FloorsWire | undefined => {
+    const here = scene.map.andar
+    if (here === undefined) return undefined
+    const outros: FloorMemoryWire[] = []
+    for (const other of allScenes(world)) {
+      const floor = other.map.andar
+      if (floor === undefined || other.map.id === scene.map.id || !sameBuilding(here, floor)) continue
+      // Dois andares com o mesmo rótulo seriam duas abas iguais: vale o primeiro, e nunca o do andar dele.
+      if (floor.rotulo === here.rotulo || outros.some((o) => o.rotulo === floor.rotulo)) continue
+      const memory = existingMemory(playerId, other.map)
+      if (memory === undefined) continue
+      const view = filterFloorMemory(other.map, memory.exp, memory.doors)
+      outros.push({ rotulo: floor.rotulo, map: view.map, explored: encodeExploration(memory.exp), concealed: view.concealed })
+    }
+    if (outros.length === 0) return undefined
+    const order = sortFloorLabels(outros.map((o) => o.rotulo))
+    outros.sort((a, b) => order.indexOf(a.rotulo) - order.indexOf(b.rotulo))
+    return { atual: here.rotulo, outros }
   }
 
   /** A ficha é de OUTRO jogador (não do mestre, não dele): colega a quem se pode dar um item. */
@@ -751,7 +782,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * atual já entra por si); a marcação vem depois e segue junto para o jogador
    * desenhar a névoa.
    */
-  const snapshotFor = (playerId: string, map: MapData): HostMessage => {
+  const snapshotFor = (playerId: string, map: MapData, andares: FloorsWire | undefined): HostMessage => {
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
     const view = filterMapForPlayer(map, playerId, ownership, radiusFor(playerId), exp, memory.doors)
@@ -785,10 +816,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (view.hazards.length > 0) snapshot.hazards = view.hazards
     // GATILHO DE ÁREA: só o que o mestre revelou, mesma regra do campo.
     if (view.gatilhos.length > 0) snapshot.gatilhos = view.gatilhos
+    // MAPA POR ANDARES: o campo só existe quando há outro andar conhecido.
+    if (andares !== undefined) snapshot.andares = andares
     return snapshot
   }
 
-  const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
+  const reply =(clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
 
   /** Jogador que jogava e ficou sem token volta ao lobby; desconectado recebe o estado no resume. */
   const waitingIfLostLast = (playerId: string, wasPlaying: boolean): Outbound[] => {

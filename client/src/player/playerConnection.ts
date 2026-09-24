@@ -2,6 +2,7 @@ import type { HazardKind, MapData, RegionPoint, Token } from '../types/map'
 import { HAZARD_NOTICE_TTL_MS, isHazardKind, parsePlayerHazards, type PlayerHazard } from '../lib/hazards'
 import { parsePlayerAreaTriggers, type PlayerAreaTrigger } from '../lib/areaTriggers'
 import { decodeExploration, type Exploration } from '../lib/exploration'
+import { cleanFloorLabel } from '../lib/buildingFloors'
 import {
   DOOR_REQUEST_REJECTIONS,
   ITEM_GIVE_REJECTIONS,
@@ -37,6 +38,20 @@ import { parseLaserMessage, parseSceneAlarm, parseSceneAlarmEnd, parseSceneNote 
 /** `closed`: o mestre avisou que encerrou a sala (`room.closed`) — fim de sessão, não falha de rede. */
 export type PlayerStatus = 'connecting' | 'waiting' | 'playing' | 'kicked' | 'closed' | 'error'
 
+/** MAPA POR ANDARES: um andar onde o jogador não está agora, como ele o lembra (já decodificado). */
+export interface PlayerFloorMemory {
+  rotulo: string
+  map: MapData
+  explored: Exploration
+  concealed: RegionPoint[][]
+}
+
+/** MAPA POR ANDARES: o rótulo do andar onde ele está e os outros andares conhecidos. */
+export interface PlayerFloors {
+  atual: string
+  outros: PlayerFloorMemory[]
+}
+
 export interface PlayerState {
   status: PlayerStatus
   map?: MapData
@@ -55,6 +70,8 @@ export interface PlayerState {
   hazardNotice?: { id: number; kind: HazardKind }
   /** GATILHO DE ÁREA: tipo e polígono de cada armadilha/alarme que o mestre revelou. */
   gatilhos?: PlayerAreaTrigger[]
+  /** MAPA POR ANDARES: o andar dele e os outros que ele já conhece. Ausente = sem abas. */
+  andares?: PlayerFloors
   /**
    * INICIATIVA: id da ficha da vez, sempre uma ficha de `map.tokens`. Ausente
    * = ninguém que este jogador enxerga está na vez (o mestre só manda o que
@@ -341,6 +358,44 @@ function isMapShape(value: unknown): value is MapData {
   )
 }
 
+/**
+ * Quantos outros andares um snapshot pode trazer. O host guarda memória de
+ * poucas cenas por jogador (`MAX_SCENE_MEMORIES_PER_PLAYER`); o teto aqui é
+ * folga, não regra de jogo.
+ */
+const MAX_FLOORS = 16
+
+/** Rótulo como o host manda: já limpo (`cleanFloorLabel` devolve ele mesmo). */
+function isFloorLabel(value: unknown): value is string {
+  return typeof value === 'string' && cleanFloorLabel(value) === value
+}
+
+function parseFloorMemory(value: unknown): PlayerFloorMemory | null {
+  if (!isRecord(value)) return null
+  const { rotulo, map, explored, concealed } = value
+  if (!isFloorLabel(rotulo) || !isMapShape(map) || !isVision(concealed)) return null
+  const decoded = decodeExploration(explored)
+  return decoded === null ? null : { rotulo, map, explored: decoded, concealed }
+}
+
+/**
+ * MAPA POR ANDARES: `snapshot.andares` validado. `null` = malformado (a
+ * mensagem inteira cai, como nos outros campos aditivos): rótulo que não é
+ * rótulo de andar, andar repetido ou igual ao atual, mapa ou memória tortos.
+ */
+function parseFloors(value: unknown): PlayerFloors | null {
+  if (!isRecord(value)) return null
+  const { atual, outros } = value
+  if (!isFloorLabel(atual) || !Array.isArray(outros) || outros.length > MAX_FLOORS) return null
+  const parsed: PlayerFloorMemory[] = []
+  for (const raw of outros) {
+    const floor = parseFloorMemory(raw)
+    if (floor === null || floor.rotulo === atual || parsed.some((f) => f.rotulo === floor.rotulo)) return null
+    parsed.push(floor)
+  }
+  return { atual, outros: parsed }
+}
+
 function readResume(storage: StorageLike | null, code: string): string | undefined {
   if (!storage) return undefined
   try {
@@ -591,6 +646,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     partyTokens: string[],
     hazards: PlayerHazard[],
     gatilhos: PlayerAreaTrigger[],
+    andares: PlayerFloors | undefined,
   ): void {
     if (rev <= state.rev) return
     let next = map
@@ -607,7 +663,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }
     // Vez de ficha que não veio no mapa não tem o que destacar: vale como ninguém.
     const turnOnMap = turn !== undefined && next.tokens.some((t) => t.id === turn) ? turn : undefined
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, hazards, gatilhos, turn: turnOnMap, error: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, partyTokens, concealed, hazards, gatilhos, andares, turn: turnOnMap, error: undefined })
   }
 
   /** Desfaz o movimento recusado. `false` = pedido desconhecido (já resolvido, ou de antes de trocar de cena). */
@@ -698,6 +754,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           hazards: undefined,
           hazardNotice: undefined,
           gatilhos: undefined,
+          andares: undefined,
           turn: undefined,
           signals: undefined,
           laser: undefined,
@@ -858,7 +915,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // GATILHO DE ÁREA: ausente = nada revelado; malformado derruba a mensagem.
         const gatilhos = data.gatilhos === undefined ? [] : parsePlayerAreaTriggers(data.gatilhos)
         if (gatilhos === null) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, gatilhos)
+        // MAPA POR ANDARES: ausente = sem abas; malformado derruba a mensagem.
+        const andares = data.andares === undefined ? undefined : parseFloors(data.andares)
+        if (andares === null) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.turn, data.partyTokens ?? [], hazards, gatilhos, andares)
         return
       }
       case 'hazard.entered': {
@@ -1076,7 +1136,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, turn: undefined, signals: undefined, laser: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, turnNotice: undefined, travel: undefined, note: undefined, alarm: undefined, item: undefined })
       open()
     },
     close: detach,

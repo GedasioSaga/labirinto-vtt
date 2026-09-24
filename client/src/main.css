@@ -1339,6 +1339,14 @@ body {
   color: var(--lb-color-parchment-dim);
 }
 
+/* Campo recusado (hoje: rótulo do andar do prédio). Mesma letra da dica, em brasa. */
+.lb-field__error {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-ember);
+}
+
 /* Engrenagem do cabeçalho do inspetor: empurrada para a direita do nome. */
 .lb-inspector__settings {
   flex: none;

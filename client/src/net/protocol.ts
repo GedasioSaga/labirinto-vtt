@@ -77,8 +77,29 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * GATILHO DE ÁREA, aditivo pelo mesmo critério: `snapshot.gatilhos` (tipo e
  * polígono de cada gatilho que o mestre REVELOU, na área que o jogador
  * conhece). Entrar num gatilho NÃO manda nada ao jogador: o aviso é do mestre.
+ *
+ * MAPA POR ANDARES, aditivo pelo mesmo critério: `snapshot.andares` (o rótulo
+ * do andar dele e, de cada OUTRO andar do mesmo prédio onde ele já esteve, o
+ * rótulo, a planta recortada pela memória dele e o explorado). Nunca nome de
+ * cena nem de prédio. Jogador antigo ignora; mestre antigo não manda.
  */
 export const PROTOCOL_VERSION = 1
+
+/** MAPA POR ANDARES: um andar onde o jogador não está agora, como ele o lembra. */
+export interface FloorMemoryWire {
+  /** Rótulo da aba (1F, B1): sempre um `cleanFloorLabel`. */
+  rotulo: string
+  /** Recorte sem visão nenhuma (`filterFloorMemory`): planta conhecida, nenhuma ficha. */
+  map: MapData
+  explored: ExploredWire
+  concealed: RegionPoint[][]
+}
+
+/** MAPA POR ANDARES: o andar onde o jogador está e os outros que ele conhece. */
+export interface FloorsWire {
+  atual: string
+  outros: FloorMemoryWire[]
+}
 
 export const JOIN_CODE_LENGTH = 6
 export const NAME_MIN_LENGTH = 1
@@ -306,8 +327,9 @@ export type HostMessage =
   // `partyTokens` (ITEM PEGÁVEL): das fichas que ele recebeu, as de OUTROS jogadores — o "Dar a…" não oferece NPC.
   // `hazards` (ZONA DE PERIGO): só o que o jogador enxerga agora, e só quando há algum (`PlayerMapView.hazards`).
   // `gatilhos` (GATILHO DE ÁREA): só o revelado pelo mestre, e só quando há algum (`PlayerMapView.gatilhos`).
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; gatilhos?: PlayerAreaTrigger[] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; gatilhos?: PlayerAreaTrigger[] }
+  // `andares` (MAPA POR ANDARES): só quando a cena dele é andar de um prédio e ele já esteve em outro andar dele.
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire }
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
   | { type: 'hazard.entered'; kind: HazardKind }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
