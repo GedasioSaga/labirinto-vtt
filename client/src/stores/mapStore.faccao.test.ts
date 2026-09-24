@@ -27,6 +27,36 @@ describe('mapStore — facção e alerta', () => {
     expect(alertaDaCena(useMapStore.getState().map)).toBe('calmo')
   })
 
+  it('digitar a facção letra a letra é um passo só do desfazer', () => {
+    const nome = 'Guarda Carmesim'
+    for (let fim = 1; fim <= nome.length; fim += 1) {
+      useMapStore.getState().setRoomFaccao('d-mercado', nome.slice(0, fim))
+    }
+    expect(faccaoDaSala(useMapStore.getState().map.regions, 'd-mercado')?.faccao).toBe(nome)
+    expect(useMapStore.getState().past).toHaveLength(1)
+
+    useMapStore.getState().undo()
+    expect(faccaoDaSala(useMapStore.getState().map.regions, 'd-mercado')).toBeNull()
+    expect(useMapStore.getState().past).toHaveLength(0)
+  })
+
+  it('facção de outra sala ou outra mudança no meio abre passo novo', () => {
+    useMapStore.getState().setRoomFaccao('d-mercado', 'G')
+    useMapStore.getState().setRoomFaccao('d-mercado', 'Gu')
+    useMapStore.getState().setSceneAlerta('atento')
+    useMapStore.getState().setRoomFaccao('d-mercado', 'Gua')
+    useMapStore.getState().setRoomFaccao('d-norte', 'M')
+    useMapStore.getState().setRoomFaccao('d-norte', 'Me')
+    expect(useMapStore.getState().past).toHaveLength(4)
+
+    useMapStore.getState().undo()
+    expect(faccaoDaSala(useMapStore.getState().map.regions, 'd-norte')?.faccao).toBe(GUARDA)
+    expect(faccaoDaSala(useMapStore.getState().map.regions, 'd-mercado')?.faccao).toBe('Gua')
+    useMapStore.getState().undo()
+    expect(faccaoDaSala(useMapStore.getState().map.regions, 'd-mercado')?.faccao).toBe('Gu')
+    expect(alertaDaCena(useMapStore.getState().map)).toBe('atento')
+  })
+
   it('o mesmo alerta ou a mesma facção não gastam histórico', () => {
     const antes = useMapStore.getState().map
     useMapStore.getState().setSceneAlerta('calmo')

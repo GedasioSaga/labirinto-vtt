@@ -1708,7 +1708,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     },
     setRoomFaccao: (id, faccao) => {
       if (mapFactory.setRoomFaccao(get().map, id, faccao) === get().map) return
-      withHistory((map) => mapFactory.setRoomFaccao(map, id, faccao))
+      withHistory((map) => mapFactory.setRoomFaccao(map, id, faccao), `room-faccao:${id}`)
     },
     setSceneAlerta: (nivel) => {
       if (mapFactory.setSceneAlerta(get().map, nivel) === get().map) return
