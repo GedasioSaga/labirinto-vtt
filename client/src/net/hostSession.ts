@@ -1009,7 +1009,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastPartySent = new Map<string, string>()
   // Por playerId: o recado só para ele que ainda não chegou (estava fora). Só o
   // último: o cartão do jogador mostra um recado por vez. Sai com o próximo mapa dele.
-  const pendingNotes = new Map<string, { id: string; text: string }>()
+  const pendingNotes = new Map<string, NoteEntry>()
   // Por playerId: o chamado aberto dele (no máximo um).
   const openCalls = new Map<string, OpenCall>()
   // Por playerId: quando o último chamado NOVO dele entrou. Sobrevive ao disconnect; só o kick apaga.
@@ -1262,14 +1262,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   /**
    * O recado só para ele guardado, logo atrás de `view` — só quando `view` é
-   * mapa: o jogador só mostra recado com o mapa na tela. Entregue, sai da fila.
+   * mapa: o jogador só mostra recado com o mapa na tela. Entregue, sai da fila
+   * e entra no caderno dele, como todo recado que ele leu.
    */
   const pendingNoteFor = (clientId: string, playerId: string, view: HostMessage | undefined): Outbound[] => {
     const note = pendingNotes.get(playerId)
     if (note === undefined || view?.type !== 'snapshot') return []
     pendingNotes.delete(playerId)
-    return [{ clientId, msg: { type: 'scene.note', id: note.id, text: note.text, onlyYou: true } }]
+    rememberNote(playerId, note)
+    return [{ clientId, msg: onlyYouMessage(note) }]
   }
+
+  /** O recado só para ele: o mesmo `scene.note` do caderno, com a marca "Só para você". */
+  const onlyYouMessage = (note: NoteEntry): HostMessage => ({ type: 'scene.note', id: note.id, text: note.text, at: note.at, onlyYou: true })
 
   /** `views` (o mapa e os cartões que vêm com ele) e, logo atrás, o recado só para ele guardado. */
   const viewWithPendingNote = (clientId: string, playerId: string, views: HostMessage[]): Outbound[] => {
@@ -3150,7 +3155,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const record = players.get(playerId)
       const clamped = clampNoteText(text)
       if (record === undefined || clamped.trim().length === 0) return { outbound: [], delivery: null }
-      const note = { id: randomId(), text: clamped }
+      const note: NoteEntry = { id: randomId(), text: clamped, at: now() }
       const clientId = record.clientId
       // Sai agora só com ele conectado E com mapa na tela (jogando, numa cena):
       // é a mesma regra do cliente, que fora disso descartaria o recado.
@@ -3160,7 +3165,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
       // Recado entregue agora substitui qualquer guardado: o cartão dele mostra um por vez.
       pendingNotes.delete(playerId)
-      return { outbound: [{ clientId, msg: { type: 'scene.note', id: note.id, text: note.text, onlyYou: true } }], delivery: 'sent' }
+      // CADERNO: lido agora, fica no caderno dele — a volta pelo resume o traz de novo no `notes.book`.
+      rememberNote(playerId, note)
+      return { outbound: [{ clientId, msg: onlyYouMessage(note) }], delivery: 'sent' }
     },
 
     listPlayers(source) {

@@ -61,7 +61,7 @@ describe('hostBridge.playerNote (recado para um jogador só)', () => {
 
     expect(t.bridge.playerNote(gabi, 'A carta tem o seu nome.')).toBe('sent')
     const novos = t.sent().slice(antes)
-    expect(novos).toEqual([{ clientId: 'c-gabi', msg: { type: 'scene.note', id: expect.any(String), text: 'A carta tem o seu nome.', onlyYou: true } }])
+    expect(novos).toEqual([{ clientId: 'c-gabi', msg: { type: 'scene.note', id: expect.any(String), text: 'A carta tem o seu nome.', at: expect.any(Number), onlyYou: true } }])
     expect(JSON.stringify(novos)).not.toContain('c-elisa')
   })
 })

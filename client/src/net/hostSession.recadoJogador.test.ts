@@ -55,7 +55,7 @@ describe('playerNote (recado para um jogador só)', () => {
     const { s, gabi } = mesa()
     const r = s.playerNote(gabi.playerId, PISTA, mundo)
     expect(r.delivery).toBe('sent')
-    expect(r.outbound).toEqual([{ clientId: 'c-gabi', msg: { type: 'scene.note', id: expect.any(String), text: PISTA, onlyYou: true } }])
+    expect(r.outbound).toEqual([{ clientId: 'c-gabi', msg: { type: 'scene.note', id: expect.any(String), text: PISTA, at: expect.any(Number), onlyYou: true } }])
     expect(para(r, 'c-elisa')).not.toContain('mordomo')
     expect(para(r, 'c-hugo')).not.toContain('mordomo')
     // O snapshot seguinte da Elisa também não carrega o texto.
@@ -94,7 +94,7 @@ describe('playerNote (recado para um jogador só)', () => {
       ['c-gabi-2', 'snapshot'],
       ['c-gabi-2', 'scene.note'],
     ])
-    expect(volta.outbound[2]?.msg).toEqual({ type: 'scene.note', id: expect.any(String), text: PISTA, onlyYou: true })
+    expect(volta.outbound[2]?.msg).toEqual({ type: 'scene.note', id: expect.any(String), text: PISTA, at: expect.any(Number), onlyYou: true })
     // Entregue uma vez só: o broadcast seguinte não repete.
     expect(JSON.stringify(s.broadcast(mundo).outbound)).not.toContain('mordomo')
   })
@@ -129,5 +129,30 @@ describe('playerNote (recado para um jogador só)', () => {
     s.kick('c-gabi')
     // O id morreu com o kick: recado novo para ele não tem destino.
     expect(s.playerNote(gabi.playerId, PISTA, mundo).delivery).toBeNull()
+  })
+
+  // Junção com o CADERNO DE RECADOS: todo recado que o jogador leu fica no
+  // caderno dele, e o `notes.book` da volta é o que o reconstrói na tela.
+  function cadernoNaVolta(r: HostResult): string[] {
+    const book = r.outbound.find((o) => o.msg.type === 'notes.book')?.msg
+    return book?.type === 'notes.book' ? book.notes.map((entry) => entry.text) : []
+  }
+
+  it('CADERNO: o recado só para a Gabi fica no caderno dela; a Elisa não tem nada dele', () => {
+    const { s, gabi, elisa } = mesa()
+    s.playerNote(gabi.playerId, PISTA, mundo)
+    s.disconnect('c-gabi')
+    expect(cadernoNaVolta(entra(s, 'c-gabi-2', 'Gabi', gabi.resumeToken).r)).toEqual([PISTA])
+    s.disconnect('c-elisa')
+    expect(JSON.stringify(entra(s, 'c-elisa-2', 'Elisa', elisa.resumeToken).r.outbound)).not.toContain('mordomo')
+  })
+
+  it('CADERNO: o recado guardado enquanto ela estava fora entra no caderno quando chega, e fica na volta seguinte', () => {
+    const { s, gabi } = mesa()
+    s.disconnect('c-gabi')
+    s.playerNote(gabi.playerId, PISTA, mundo)
+    entra(s, 'c-gabi-2', 'Gabi', gabi.resumeToken)
+    s.disconnect('c-gabi-2')
+    expect(cadernoNaVolta(entra(s, 'c-gabi-3', 'Gabi', gabi.resumeToken).r)).toEqual([PISTA])
   })
 })
