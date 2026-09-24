@@ -70,6 +70,15 @@
   color: var(--lb-color-parchment);
 }
 
+/* Linha viva do pedido ("há 3 min · agora a 20 casas do pino"): pequena e
+   apagada, embaixo da frase — contexto para decidir, não a pergunta. */
+.lb-toast__detalhe {
+  font-size: var(--lb-font-size-xs);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+  font-variant-numeric: tabular-nums;
+}
+
 .lb-toast--error {
   border-color: var(--lb-color-ember);
 }
