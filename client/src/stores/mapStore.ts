@@ -25,6 +25,7 @@ import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
 import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
+import { advanceConveyors as advanceConveyorsOnMap, setRoomConveyor as setRoomConveyorOnMap, type ConveyorSetting } from '../lib/conveyors'
 
 /** Ferramentas que criam Sala: mantêm o "Criar sala dentro" armado. */
 const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPolygon', 'roomFree'])
@@ -709,6 +710,10 @@ interface MapStoreState {
   setRoomHazard: (roomId: string, kind: HazardKind | null) => void
   /** ZONA DE PERIGO — "Avançar um passo" pelas portas abertas. Com histórico; nada muda = nada grava. */
   advanceHazard: (hazardId: string) => void
+  /** ESTEIRA — liga a esteira da Sala (direção e passo), troca ou desliga (`null`). Com histórico. */
+  setRoomConveyor: (roomId: string, setting: ConveyorSetting | null) => void
+  /** ESTEIRA — "Avançar esteiras": todas as esteiras da cena empurram as fichas. Com histórico; ninguém anda = nada grava. */
+  advanceConveyors: () => void
   /** A5 — "Oculto para jogadores" de Token/Região/Objeto/Escada/Desenho. Com histórico. */
   setItemSecret: (kind: mapFactory.SecretKind, id: string, secret: boolean) => void
   /** A5 — abre a zona no painel e limpa a seleção comum (`null` fecha). */
@@ -1711,6 +1716,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     advanceHazard: (hazardId) => {
       if (advanceHazardOnMap(get().map, hazardId) === get().map) return
       withHistory((map) => advanceHazardOnMap(map, hazardId))
+    },
+    setRoomConveyor: (roomId, setting) => {
+      // Um id só para as duas chamadas: a conferência e a gravação criam a MESMA esteira.
+      const id = crypto.randomUUID()
+      if (setRoomConveyorOnMap(get().map, roomId, setting, () => id) === get().map) return
+      withHistory((map) => setRoomConveyorOnMap(map, roomId, setting, () => id))
+    },
+    advanceConveyors: () => {
+      if (advanceConveyorsOnMap(get().map) === get().map) return
+      withHistory((map) => advanceConveyorsOnMap(map))
     },
     setItemSecret: (kind, id, secret) => {
       if (mapFactory.setItemSecret(get().map, kind, id, secret) === get().map) return

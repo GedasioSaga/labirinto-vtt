@@ -474,6 +474,26 @@ export interface Hazard {
   roomIds: string[]
 }
 
+/** Para onde a esteira empurra. Norte é para cima na tela (y menor). */
+export type ConveyorDirection = 'norte' | 'sul' | 'leste' | 'oeste'
+
+/**
+ * MOVIMENTO IMPOSTO — esteira (ou corrente) numa SALA (`Region` com `room`):
+ * a cada "Avançar esteiras" do mestre, a ficha que está na sala anda
+ * `stepCells` casas na `direction`, parando na parede (`lib/conveyors.ts` →
+ * `advanceConveyors`). Uma sala tem no máximo uma esteira.
+ *
+ * O jogador NUNCA recebe este objeto (`lib/fogFilter.ts` tira o campo do
+ * recorte): ele vê só a própria ficha onde a esteira a largou.
+ */
+export interface Conveyor {
+  id: string
+  roomId: string
+  direction: ConveyorDirection
+  /** Casas por Avançar, inteiro de 1 a `MAX_CONVEYOR_STEP`. */
+  stepCells: number
+}
+
 export interface Region extends PlayerSecret {
   id: string
   points: RegionPoint[]
@@ -1032,4 +1052,11 @@ export interface MapData {
    * em `lib/hazards.ts` → `readHazards`. NUNCA sai no recorte do jogador.
    */
   hazards?: Hazard[]
+  /**
+   * ESTEIRAS (movimento imposto). `undefined` === nenhuma — mesmo padrão de
+   * `hazards`: mapa de antes abre igual, a última removida tira o campo.
+   * Leitura segura em `lib/conveyors.ts` → `readConveyors`. NUNCA sai no
+   * recorte do jogador.
+   */
+  conveyors?: Conveyor[]
 }

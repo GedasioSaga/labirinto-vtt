@@ -5,6 +5,7 @@ import { ROTATION_SHIFT_STEP } from '../lib/roomRotation'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { Toggle } from './Toggle'
 import { HazardControls, type HazardControlsProps } from './HazardControls'
+import { ConveyorControls, type ConveyorControlsProps } from './ConveyorControls'
 
 /** Passo dos botões do painel: deitar ou pôr em pé, o giro que mais se faz num mapa de masmorra. */
 const QUARTO_DE_VOLTA = 90
@@ -68,6 +69,8 @@ export interface RoomControlsProps {
   onCreateRoomInside?: () => void
   /** ZONA DE PERIGO da sala (fogo, fumaça, vapor, água). Ausente omite o bloco. */
   hazard?: HazardControlsProps
+  /** ESTEIRA da sala (direção, passo e o Avançar). Ausente omite o bloco. */
+  conveyor?: ConveyorControlsProps
 }
 
 interface RoomRotationFieldProps {
@@ -249,6 +252,7 @@ export function RoomControls({
   parentName,
   onCreateRoomInside,
   hazard,
+  conveyor,
 }: RoomControlsProps) {
   const baseId = useId()
   const roofHintId = `${baseId}-roof-hint`
@@ -331,6 +335,8 @@ export function RoomControls({
       )}
 
       {hazard !== undefined && <HazardControls {...hazard} />}
+
+      {conveyor !== undefined && <ConveyorControls {...conveyor} />}
 
       {shape === 'rect' && axisAligned && (
         <>

@@ -1455,7 +1455,9 @@ export function filterMapForGroup(
   // ZONA DE PERIGO: o objeto do mestre (ids de zona e de sala, perigo onde o
   // jogador não está) NUNCA vai no mapa do recorte. O que ele pode ver sai
   // separado, em `hazards`, montado mais abaixo.
-  const { hazards: _masterHazards, ...mapWithoutHazards } = map
+  // ESTEIRA: regra do mestre (sala, direção, passo) — nunca sai. O jogador vê só
+  // a própria ficha onde a esteira a largou, pelo recorte de fichas de sempre.
+  const { hazards: _masterHazards, conveyors: _masterConveyors, ...mapWithoutHazards } = map
 
   // Token do próprio jogador sai sempre, mesmo secreto ou em zona oculta: é ele quem o move.
   const playerTokens = layerTokens.filter(
