@@ -16,6 +16,7 @@ import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/f
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
 import { comEscadaNosPisos, comFichaNoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
+import { apagarBlocosNoPiso } from '../lib/pisoEmEdicao'
 import { amarrarAoEstado as amarrarNoMapa, type AmarraDeEstado } from '../lib/estadoDoMundo'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
@@ -1483,8 +1484,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     moveFloorPiece: (id, dx, dy) => withHistory((map) => mapFactory.moveFloorPiece(map, id, dx, dy)),
     moveFloorPieceLive: (id, dx, dy) => set((state) => ({ map: mapFactory.moveFloorPiece(state.map, id, dx, dy) })),
     eraseFloorBlocks: (blocos, cell) => {
-      const atual = get().map
-      const proximo = mapFactory.eraseFloorBlocks(atual, blocos, cell, () => crypto.randomUUID())
+      // PISOS NA MESMA CENA: a borracha fura só o chão do piso em edição.
+      const { map: atual, pisoAtivo } = get()
+      const proximo = apagarBlocosNoPiso(atual, pisoAtivo, blocos, cell, () => crypto.randomUUID())
       // Arrastar a borracha por onde nao havia chao nao e mudanca: nao gasta Ctrl+Z.
       if (proximo !== atual) withHistory(() => proximo)
     },

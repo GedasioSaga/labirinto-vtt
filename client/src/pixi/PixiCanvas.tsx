@@ -7,6 +7,7 @@ import type { MapData, Pin, Region, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
 import { mapaDoPiso } from '../lib/pisos'
+import { baldeNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
 import { runClipboardShortcut } from '../stores/mapClipboard'
 import { pinTravelOf, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
@@ -59,13 +60,11 @@ const MINIMAP_RASTER_SAMPLES = 4
 import type { FloorPiece, MapFrame } from '../types/map'
 import {
   AVISO_BORRACHA_NAO_APAGA_CHAO,
-  baldeNoPonto,
   buildCorridorShape,
   buildFloorPiece,
   buildFloorShapeFromDrag,
   clampFloorPolygonSides,
   corridorDraftOnShapeChange,
-  findFloorPieceAt,
   isFloorDragShape,
   pincelDeBlocosApaga,
 } from '../lib/floorTool'
@@ -2552,7 +2551,8 @@ export function PixiCanvas({
        * tratados em `findFloorPieceAt`.
        */
       const floorHitAt = (map: MapData, point: Point): SelectableHit | null => {
-        const piece = findFloorPieceAt(map, point)
+        // Só o chão do piso em edição: a peça do térreo não se vê do 1º piso.
+        const piece = pecaDeChaoNoPiso(map, useMapStore.getState().pisoAtivo, point)
         return piece ? { kind: 'floor', id: piece.id, draggable: true } : null
       }
 
@@ -2657,8 +2657,8 @@ export function PixiCanvas({
        * repetir o defeito da porta sem parede, então a tela responde.
        */
       const encherAreaFechada = (point: Point) => {
-        const { map, addFloorPiece } = useMapStore.getState()
-        const piece = baldeNoPonto(map, point, () => crypto.randomUUID())
+        const { map, pisoAtivo, addFloorPiece } = useMapStore.getState()
+        const piece = baldeNoPiso(map, pisoAtivo, point, () => crypto.randomUUID())
         if (!piece) {
           useToastStore
             .getState()
@@ -4330,7 +4330,8 @@ export function PixiCanvas({
           if (gesture === 'click') {
             if (!event.shiftKey && store.selection.length > 0) store.setSelection(EMPTY_SELECTION)
           } else {
-            const encontrados = selectionFromAreaSelection(selectEntitiesInArea(store.map, rect))
+            // Só o piso em edição: o laço não leva o que está no mesmo lugar em outro piso.
+            const encontrados = selecaoDoLacoNoPiso(store.map, store.pisoAtivo, rect)
             store.setSelection(
               gesture === 'add' ? selectionFromItems([...store.selection, ...encontrados]) : selectionFromItems(encontrados),
             )
