@@ -729,3 +729,12 @@ Feito: as 5 grandes que ainda não tinham começado (cabine, correio, rotina de 
 foram para um run paralelo, as 5 ao mesmo tempo (`wf_d1c06cc2-0db`, `auto/int-t-grandes-b`); a segunda metade
 das listas de defeitos, médias A/B e pequenas da onda 3 ganhou runs paralelos `-b`. Nada em construção parou:
 um vigia só para o run antigo quando ele chega na primeira peça que foi para o `-b`.
+
+### 24/09/2026, 14h00 — abrir o programa para testar
+
+> "Pode abrir o programa com as atuais mudanças? só para eu testar? sem atrabalhar os workflows é claro."
+
+Feito: cópia separada `C:/dev/labirinto-ver` (worktree solta em `03cc777`, o último estado provado da 2ª
+passada da junção: `auto/acervo` + os grupos jogador e editor), aberta com `npm run tauri:dev` na porta 1420
+(`LAB_PORTA=1420`, Rust reaproveitado do `target` da árvore principal). Os workflows não usam essa pasta. As
+grandes ainda não estão nela: entram quando a junção só das grandes (`wf_e1417c8d-d57`) sair verde.
