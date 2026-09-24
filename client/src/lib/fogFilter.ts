@@ -3,6 +3,7 @@ import { isTokenPhotoData } from './tokenPhoto'
 import { healthForPlayer } from './tokenHealth'
 import { tokenConditionsForPlayer } from './tokenConditions'
 import { guardAlerts, tokenWatchForPlayer, tokenWatchOf } from './npcWatch'
+import { tokenPatrolForPlayer } from './npcPatrol'
 import type { TurnRef } from './initiative'
 import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing } from './floorContour'
@@ -805,7 +806,10 @@ export function filterMapForGroup(
     tokens: playerTokens
       .map((t) => tokenForPlayer(owned.has(t.id) ? t : withoutBackpack(t)))
       .map(tokenHealthForPlayer)
-      .map((t) => tokenWatchForPlayer(t, alerts.get(t.id) ?? null)),
+      .map((t) => tokenWatchForPlayer(t, alerts.get(t.id) ?? null))
+      // ROTA DE PATRULHA: os pontos dizem por onde o NPC vai passar — é do
+      // mestre. O jogador vê o NPC andar só porque a ficha está na visão dele.
+      .map(tokenPatrolForPlayer),
     markers: map.markers.filter((m) => !inRoomHiddenFromPlayer({ x: m.cx, y: m.cy }) && isPointKnown({ x: m.cx, y: m.cy })),
     lines: map.lines.filter((l) => !l.points.some(inRoomHiddenFromPlayer) && !l.points.some(inConcealZone) && isShapeKnown(l.points)),
     // Tocha acesa dentro do prédio de teto fechado não sai: o halo dela

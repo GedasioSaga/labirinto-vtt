@@ -2110,6 +2110,11 @@ function App() {
               // `null` desliga a vigia e a ficha volta a ser comum.
               onWatchChange: (vigia) => selectedToken && updateToken(selectedToken.id, { vigia }),
             }}
+            tokenPatrol={{
+              // Opera sobre a ficha ATUAL do store: o "marcar" grava onde ela
+              // está agora. Cada clique que muda o mapa é um Ctrl+Z.
+              onPatrolOp: (op) => selectedToken && useMapStore.getState().patrolAction(selectedToken.id, op),
+            }}
             tokenTransform={{
               onRotationChange: (rotation) => selectedToken && updateToken(selectedToken.id, { rotation }),
               onLockedChange: (locked) => selectedToken && updateToken(selectedToken.id, { locked }),
