@@ -17,6 +17,7 @@ import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useFollowStore } from './stores/followStore'
 import { useFollowPlayer } from './stores/useFollowPlayer'
+import { subscribeToPlayerWorldChanges } from './stores/playerWorldSubscription'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
@@ -472,7 +473,8 @@ function App() {
     }
     return hostBridgeRef.current
   }
-  useEffect(() => useMapStore.subscribe((state) => state.map, () => hostBridgeRef.current?.notifyMapChanged()), [])
+  // O mapa aberto e as cenas de fundo: o snapshot dos jogadores lê os dois.
+  useEffect(() => subscribeToPlayerWorldChanges(() => hostBridgeRef.current?.notifyMapChanged()), [])
   const laserToggled = useLaserStore((state) => state.toggled)
   // B2 — o `off` sai no fim do traço: soltar o botão, sair da janela ou desarmar (L e botão Laser).
   useEffect(
@@ -1305,6 +1307,11 @@ function App() {
       // aventura, fora do desfazer desta cena.
       onOneWayChange: (exitId: string, on: boolean) => {
         useAdventureStore.getState().setPinOneWay(pin.id, exitId, on)
+      },
+      // "Trancar os dois lados": este pino (com desfazer) e os pares (cenas de
+      // fundo, fora do desfazer), sem sair da cena aberta.
+      onBothSidesChange: (trancar: boolean) => {
+        useAdventureStore.getState().setPassageBothSides(pin.id, trancar)
       },
       arrivalOnly: isArrivalOnly(pin),
     }
