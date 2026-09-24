@@ -412,7 +412,7 @@ function pinSeat(map: MapData, partner: Pin, tokenCells: number): { x: number; y
  * — se ocupasse, a chegada desviaria dela e o jogador descobriria que há algo
  * ali. O preço é a do mestre ficar por baixo, e só ele a vê.
  */
-function withPlayerVisibleTokens(map: MapData): MapData {
+export function withPlayerVisibleTokens(map: MapData): MapData {
   return { ...map, tokens: map.tokens.filter((t) => t.secret !== true && t.hidden !== true) }
 }
 

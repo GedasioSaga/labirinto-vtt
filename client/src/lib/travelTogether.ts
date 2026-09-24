@@ -1,5 +1,6 @@
 import type { MapData, Token } from '../types/map'
 import { gatherSpots } from './gatherParty'
+import { withPlayerVisibleTokens } from './pinTravel'
 import type { Point } from './tokenSize'
 
 /**
@@ -67,7 +68,48 @@ export function companionsNear(requester: Point, grid: number, candidates: reado
  * conta como ocupada: a transferência dele ainda não está no mapa quando a
  * conta é feita, e sem isto dois chegariam na mesma casa.
  */
-export function companionSpots(destination: MapData, pin: Point, leader: { x: number; y: number; size: number }, sizes: readonly number[]): (Point | null)[] {
-  const leaderToken: Token = { id: 'viajar-junto:lider', characterId: null, name: '', x: leader.x, y: leader.y, size: leader.size, image: null }
-  return gatherSpots({ ...destination, tokens: [...destination.tokens, leaderToken] }, pin, sizes)
+export function companionSpots(
+  destination: MapData,
+  pin: Point,
+  leader: { x: number; y: number; size: number },
+  sizes: readonly number[],
+  alsoTaken: readonly Seat[] = [],
+): (Point | null)[] {
+  return gatherSpots(withSeats(destination, [leader, ...alsoTaken]), pin, sizes)
+}
+
+/** Uma casa que já tem dono nesta viagem, mas cuja ficha ainda não está no mapa de destino. */
+export interface Seat {
+  x: number
+  y: number
+  size: number
+}
+
+/** `destination` com `seats` ocupando casa, como fichas de mentira. */
+function withSeats(destination: MapData, seats: readonly Seat[]): MapData {
+  const pseudo = seats.map((seat, index): Token => ({ id: `viajar-junto:casa-${index}`, characterId: null, name: '', x: seat.x, y: seat.y, size: seat.size, image: null }))
+  return { ...destination, tokens: [...destination.tokens, ...pseudo] }
+}
+
+/**
+ * MONTARIA E FAMILIAR: as OUTRAS fichas do mesmo dono a até `NEAR_SQUARES`
+ * casas de `lead`, a ficha que viaja — o pônei, a coruja. `own` já vem só com
+ * as fichas dele que estão no tabuleiro (quem escolhe é a sessão); a ordem é a
+ * de `own`.
+ */
+export function entourageNear(lead: Token, own: readonly Token[], grid: number): Token[] {
+  return own.filter((token) => token.id !== lead.id && isNear(token, lead, grid))
+}
+
+/**
+ * As casas do séquito em volta de `center` (onde a ficha principal chega),
+ * uma por tamanho em `sizes`, na mesma ordem; `null` = não coube, e aquela
+ * ficha fica onde estava. `taken` são as casas já dadas nesta viagem (a do
+ * dono, a de quem foi junto). A procura só enxerga as fichas que algum
+ * jogador vê (`withPlayerVisibleTokens`): se o pônei desviasse de um guarda
+ * escondido, o lugar onde ele sentou entregaria o guarda.
+ */
+export function entourageSeats(destination: MapData, center: Point, taken: readonly Seat[], sizes: readonly number[]): (Point | null)[] {
+  if (sizes.length === 0) return []
+  return gatherSpots(withSeats(withPlayerVisibleTokens(destination), taken), center, sizes)
 }

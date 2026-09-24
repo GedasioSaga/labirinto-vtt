@@ -195,6 +195,12 @@ export interface HostBridge {
    */
   sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: { x: number; y: number }): boolean
   /**
+   * "Trazer" do painel Grupo: a ficha `tokenId` do jogador, que ficou em
+   * outra cena, vem para o lado dele. Não é viagem: sem "Você chegou" e fora
+   * do diário. `false` quando não deu (sala fechada, ficha já na cena dele).
+   */
+  bringToken(playerId: string, tokenId: string): boolean
+  /**
    * Recado do mestre a quem está na cena `sceneId`. Devolve quantos jogadores
    * receberam (0 = ninguém lá), ou `null` com a sala fechada. `playerIds`:
    * só esses, entre os que estão na cena; ausente = a cena inteira.
@@ -453,9 +459,23 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const moveAndLog = (transfer: AppliedTransfer): boolean => {
     travelSeq += 1
     const entry = travelLogEntry(transfer, world(), now(), `viagem-${travelSeq}`)
-    const moved = deps.applyTransfer?.(transfer) ?? false
+    const moved = moveWithEntourage(transfer)
     if (moved && entry !== null) setTravelLog(addTravel(travelLog, entry))
     return moved
+  }
+
+  /**
+   * Move a ficha pela store e, se ela moveu, o séquito dela (montaria e
+   * familiar) pelo mesmo caminho, cada um na casa que a sessão escolheu. O
+   * diário e o "Você chegou" são da ficha principal: o pônei não é viagem à parte.
+   */
+  const moveWithEntourage = (transfer: AppliedTransfer): boolean => {
+    const moved = deps.applyTransfer?.(transfer) ?? false
+    if (!moved) return false
+    for (const seat of transfer.entourage ?? []) {
+      deps.applyTransfer?.({ ...transfer, tokenId: seat.tokenId, x: seat.x, y: seat.y, entourage: undefined })
+    }
+    return true
   }
 
   const sendLaser = (message: LaserMessage) => {
@@ -1456,6 +1476,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return true
     },
 
+    bringToken(playerId, tokenId) {
+      if (session === null) return false
+      const transfer = session.bringToken(playerId, tokenId, world()).applyTransfer
+      // Não é viagem: nem diário nem "Você chegou". A ficha muda de cena pela
+      // store, e o próximo snapshot a mostra ao dono.
+      const moved = transfer !== undefined && (deps.applyTransfer?.(transfer) ?? false)
+      if (!moved) return false
+      broadcastNow()
+      notifyPlayersIfChanged()
+      return true
+    },
+
     undoTravel(entryId) {
       if (session === null) return false
       const entry = travelLog.find((e) => e.id === entryId)
@@ -1464,7 +1496,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.returnPlayer(entry.playerId, entry.tokenId, back, world())
       const transfer = result.applyTransfer
       // A volta é a correção de um engano, não viagem nova: não entra no diário.
-      const moved = transfer !== undefined && (deps.applyTransfer?.(transfer) ?? false)
+      const moved = transfer !== undefined && moveWithEntourage(transfer)
       // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
       pruneTravelToasts()
       if (!moved) {

@@ -33,6 +33,50 @@ export interface PartyMember {
   token: PartyToken | null
   /** Um pedido de passagem dele espera o mestre agora. */
   travelPending: boolean
+  /**
+   * Fichas dele que ficaram em OUTRA cena (a Faísca esquecida na Vila): o
+   * aviso da linha e o "Trazer". Ausente = nenhuma, ou ele não está em cena
+   * de aventura. Só o mestre lê: nunca vai pela rede.
+   */
+  awayTokens?: PartyAwayToken[]
+}
+
+/** Uma ficha do jogador que está em outra cena que não a dele. */
+export interface PartyAwayToken {
+  tokenId: string
+  /** O nome da ficha como o mestre deu; pode ser vazio (`awayTokenLabel` cuida). */
+  name: string
+  sceneId: string
+  sceneName: string
+}
+
+/** O nome com que o aviso chama a ficha: ficha sem nome não some do aviso. */
+export function awayTokenName(name: string): string {
+  const trimmed = name.trim()
+  return trimmed === '' ? 'Uma ficha' : trimmed
+}
+
+/** "Faísca ficou em outra cena": o aviso na linha do dono. */
+export function awayTokenLabel(name: string): string {
+  return `${awayTokenName(name)} ficou em outra cena`
+}
+
+/**
+ * As fichas de `player` que estão numa cena da aventura diferente da dele,
+ * na ordem em que o mestre as deu. Só com ele jogando numa cena de aventura:
+ * no mapa solto e na espera não há "outra cena".
+ */
+function awayTokensOf(player: PlayerInfo, world: HostWorld): PartyAwayToken[] {
+  if (player.status !== 'playing' || player.sceneId === undefined) return []
+  const away: PartyAwayToken[] = []
+  for (const tokenId of player.tokenIds) {
+    for (const scene of allScenes(world)) {
+      if (scene.sceneId === null || scene.sceneId === player.sceneId) continue
+      const token = scene.map.tokens.find((t) => t.id === tokenId)
+      if (token !== undefined) away.push({ tokenId, name: token.name, sceneId: scene.sceneId, sceneName: scene.name })
+    }
+  }
+  return away
 }
 
 /** Um ponto de chegada do "Mandar para…": um pino de viagem da cena de destino. */
@@ -89,6 +133,8 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
       travelPending: player.travelPending === true,
     }
     if (!player.connected && player.disconnectedAt !== undefined) member.offlineSince = player.disconnectedAt
+    const away = awayTokensOf(player, world)
+    if (away.length > 0) member.awayTokens = away
     return member
   })
 }

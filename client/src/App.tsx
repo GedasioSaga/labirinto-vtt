@@ -637,6 +637,8 @@ function App() {
               onToggleFollow: (member) => useFollowStore.getState().toggle(member.playerId),
               // Recado para um jogador só: sem sala não há quem leia.
               onNote: room === null ? undefined : (playerId, text) => hostBridgeRef.current?.playerNote(playerId, text) ?? null,
+              // "Trazer" a ficha que ficou em outra cena: sem sala não há sessão que saiba do dono.
+              onBring: room === null ? undefined : (playerId, tokenId) => hostBridgeRef.current?.bringToken(playerId, tokenId) ?? false,
             }}
             // Mapa solto não tem para onde viajar: o diário só aparece com aventura aberta.
             travelLog={adventure === null ? undefined : { entries: travelLog, onUndo: undoTravel }}
