@@ -322,7 +322,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const dispatch = (result: HostResult): Promise<void> =>
     Promise.all(
       result.outbound.map(({ clientId, msg }) =>
-        deps.invoke('net_send', { clientId, msg }).catch((error: unknown) => reportError('Falha ao enviar para jogador', error)),
+        deps.invoke('net_send', { clientId, msg }).catch((error: unknown) => {
+          // Tela que não chegou: o próximo broadcast manda a inteira, e não
+          // um `patch` em cima de uma tela que o jogador não tem.
+          if (msg.type === 'snapshot' || msg.type === 'patch') session?.forgetView(clientId)
+          reportError('Falha ao enviar para jogador', error)
+        }),
       ),
     ).then(() => undefined)
 
