@@ -1,7 +1,7 @@
 import type { MapData, RegionPoint, Token } from '../types/map'
 import { moveTokenCarryingLights } from '../lib/lightAttachment'
 import { decodeExploration, type Exploration } from '../lib/exploration'
-import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, PLAYER_MESSAGE_MAX_BYTES, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PinTravelRequestMessage, type PlayerMessage } from '../net/protocol'
+import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, PLAYER_MESSAGE_MAX_BYTES, type DoorToggleRejection, type JoinMessage, type PinTravelCancelReason, type PinTravelRejection, type PinTravelRequestMessage, type PlayerMessage } from '../net/protocol'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 import { isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
@@ -97,8 +97,14 @@ export interface PlayerState {
  * Nenhum deles sabe para onde o pino leva: o host nunca conta.
  */
 export type TravelNotice =
-  /** `direct`: o pino é livre, ninguém decide — só falta a resposta do host. */
-  | { id: number; phase: 'waiting'; direct: boolean }
+  /**
+   * `direct`: o pino é livre, ninguém decide — só falta a resposta do host.
+   * `cancelling`: o jogador tocou "Desistir" e a confirmação do host ainda
+   * não chegou (o mestre pode ter respondido antes: vale o que chegar).
+   */
+  | { id: number; phase: 'waiting'; direct: boolean; cancelling?: true }
+  /** O pedido saiu da espera sem o mestre responder: o jogador desistiu, ou a ficha se afastou do pino. */
+  | { id: number; phase: 'cancelled'; reason: PinTravelCancelReason }
   | { id: number; phase: 'arrived' }
   /** O mestre levou o jogador para outra cena sem ele pedir. */
   | { id: number; phase: 'moved' }
@@ -173,6 +179,13 @@ export interface PlayerConnection {
    * ausente, o pedido sai sem ele e vale a saída principal, como sempre.
    */
   requestTravel(pinId: string, exitId?: string): boolean
+  /**
+   * "Desistir": retira o pedido que espera o mestre. O aviso fica em
+   * "desistindo" até o host confirmar (`pin.travel.cancelled`). `false` sem
+   * pedido esperando o mestre (pino livre não espera ninguém), com a
+   * desistência já no ar, ou com o socket fechado.
+   */
+  cancelTravel(): boolean
   /**
    * Ponteiro do LASER do jogador em px de mundo. Sai em lotes: o primeiro
    * ponto na hora, os seguintes juntos a cada `LASER_SEND_INTERVAL_MS`.
@@ -702,6 +715,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         showTravelAnswer({ id: nextNoticeId++, phase: 'rejected', reason })
         return
       }
+      case 'pin.travel.cancelled': {
+        if (state.status !== 'playing') return
+        const { reason } = data
+        if (reason !== 'player' && reason !== 'far') return
+        showTravelAnswer({ id: nextNoticeId++, phase: 'cancelled', reason })
+        return
+      }
       case 'scene.note': {
         // O host só manda a quem joga; fora do jogo não há tela de cartão.
         if (state.status !== 'playing') return
@@ -949,6 +969,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // O socket caiu na pausa: sem pedido no ar, o aviso não pode ficar.
         if (!send(pedido)) setState({ travel: undefined })
       }, FREE_PASSAGE_BEAT_MS)
+      return true
+    },
+
+    cancelTravel() {
+      const travel = state.travel
+      if (state.status !== 'playing' || travel?.phase !== 'waiting' || travel.direct || travel.cancelling === true) return false
+      if (!send({ type: 'pin.travel.cancel' })) return false
+      setState({ travel: { ...travel, cancelling: true } })
       return true
     },
 

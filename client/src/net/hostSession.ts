@@ -3,6 +3,7 @@ import { createExploration, encodeExploration, forgetInside, isPointExplored, ma
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
+import { visibleTokens } from '../lib/layers'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
@@ -18,6 +19,7 @@ import {
   type HostMessage,
   type JoinMessage,
   type LaserMessage,
+  type PinTravelCancelReason,
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type PlayerLaserMessage,
@@ -137,6 +139,18 @@ export interface TravelRequest {
 }
 
 /**
+ * O pedido `requestId` saiu da espera sem resposta do mestre: o jogador
+ * desistiu (`player`) ou a ficha dele se afastou do pino (`far`). O
+ * integrador tira a linha da Caixa de Pedidos e avisa o mestre pelo nome.
+ */
+export interface TravelCancelled {
+  requestId: string
+  playerId: string
+  playerName: string
+  reason: PinTravelCancelReason
+}
+
+/**
  * O mestre deixou ir: tirar `tokenId` da cena `fromSceneId` e pô-lo em
  * (`x`, `y`) da cena `toSceneId`, no pino par. Quem aplica é o integrador
  * (`adventureStore.transferToken`), fora do desfazer das duas cenas.
@@ -195,6 +209,8 @@ export interface HostResult {
   playerLaser?: HostPlayerLaser
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
   travelRequest?: TravelRequest
+  /** O pedido saiu da espera sem o mestre responder: o integrador tira a linha dele da Caixa. */
+  travelCancelled?: TravelCancelled
   /**
    * O mestre deixou ir, ou o pino é livre (aí vem de `handleMessage`): o
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
@@ -269,6 +285,15 @@ export const TRAVEL_REQUEST_MIN_INTERVAL_MS = 3000
  * quem troca de pino (ou de conexão) a cada toque.
  */
 export const TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS = 1500
+
+/**
+ * DESISTIR DO PEDIDO: quantas casas a ficha pode se afastar do pino, além da
+ * distância em que pediu, antes de o pedido cair sozinho. Conta da posição
+ * do pedido (e não do pino) porque o pedido não exige estar colado nele:
+ * quem pediu de 4 casas e dá um passo para trás continua esperando; quem
+ * anda 3 casas para longe desistiu na prática.
+ */
+export const TRAVEL_CANCEL_SLACK_CELLS = 2
 
 /**
  * Quantas cenas cada jogador lembra (exploração e portas vistas). Passou do
@@ -391,6 +416,8 @@ interface PendingTravel {
   /** O destino do aviso que o mestre leu. Religou a saída depois? A aprovação não vale. */
   toSceneId: string
   partnerId: string
+  /** Distância (px) da ficha mais perto ao pino quando pediu: é dela que conta a folga de `TRAVEL_CANCEL_SLACK_CELLS`. */
+  distance: number
 }
 
 /** Pedido que passou em tudo: de onde, para onde, por qual pino e com qual token. */
@@ -781,10 +808,61 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (scene === null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'unknown_token' })
     const result = validateTokenMove(scene.map, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership)
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
-    return {
-      outbound: [{ clientId, msg: { type: 'token.move.accepted', reqId: msg.reqId, x: result.x, y: result.y } }],
-      applyMove: { tokenId: msg.tokenId, x: result.x, y: result.y, ...backgroundSceneId(scene, world) },
+    const outbound: Outbound[] = [{ clientId, msg: { type: 'token.move.accepted', reqId: msg.reqId, x: result.x, y: result.y } }]
+    const applyMove: AppliedMove = { tokenId: msg.tokenId, x: result.x, y: result.y, ...backgroundSceneId(scene, world) }
+    const cancelled = travelLeftBehind(playerId, scene, msg.tokenId, result.x, result.y)
+    if (cancelled === null) return { outbound, applyMove }
+    // Depois do aceite: o jogador vê a ficha no lugar novo e, logo em seguida, que o pedido caiu.
+    outbound.push({ clientId, msg: { type: 'pin.travel.cancelled', reason: 'far' } })
+    return { outbound, applyMove, travelCancelled: cancelled }
+  }
+
+  /**
+   * DESISTIR DO PEDIDO — o pedido cai sozinho quando a ficha anda para longe
+   * do pino: a ficha dele mais perto do pino (a que andou, já no lugar novo)
+   * ficou mais de `TRAVEL_CANCEL_SLACK_CELLS` casas além da distância em que
+   * pediu. Chegar mais perto nunca derruba. Pino que não está nesta cena (ou
+   * sumiu) não conta aqui: é a revalidação do "Deixar ir" que recusa.
+   */
+  function travelLeftBehind(playerId: string, scene: HostScene, movedTokenId: string, x: number, y: number): TravelCancelled | null {
+    const pending = pendingTravels.get(playerId)
+    if (pending === undefined) return null
+    const pin = scene.map.pins.find((p) => p.id === pending.pinId)
+    if (pin === undefined) return null
+    const owned = new Set(ownership[playerId] ?? [])
+    let nearest = Number.POSITIVE_INFINITY
+    // Só as fichas que o jogador enxerga, igual ao pedido e ao "Deixar ir"
+    // (filterMapForPlayer): ficha escondida pelo mestre não segura o pedido
+    // nem vaza, por andar, que está perto do pino.
+    for (const t of visibleTokens(scene.map.tokens, scene.map.hiddenLayers)) {
+      if (!owned.has(t.id) || t.hidden === true) continue
+      const at = t.id === movedTokenId ? { x, y } : t
+      nearest = Math.min(nearest, Math.hypot(at.x - pin.x, at.y - pin.y))
     }
+    if (nearest <= pending.distance + TRAVEL_CANCEL_SLACK_CELLS * scene.map.grid) return null
+    return dropPendingTravel(playerId, 'far')
+  }
+
+  /** Tira o pedido de `playerId` da espera e diz ao integrador de quem era. Sem pedido: `null`. */
+  function dropPendingTravel(playerId: string, reason: PinTravelCancelReason): TravelCancelled | null {
+    const pending = pendingTravels.get(playerId)
+    const record = players.get(playerId)
+    if (pending === undefined || record === undefined) return null
+    pendingTravels.delete(playerId)
+    return { requestId: pending.requestId, playerId, playerName: record.name, reason }
+  }
+
+  /**
+   * "Desistir": o jogador retira o pedido que espera o mestre. Se o mestre já
+   * respondeu (a resposta chegou ao host antes), não há o que retirar e nada
+   * sai — o jogador lê a resposta do mestre, que é o que valeu.
+   */
+  function handleTravelCancel(clientId: string): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const cancelled = dropPendingTravel(playerId, 'player')
+    if (cancelled === null) return { outbound: [] }
+    return { outbound: [{ clientId, msg: { type: 'pin.travel.cancelled', reason: 'player' } }], travelCancelled: cancelled }
   }
 
   /** O jogador já conhece o ponto: está na visão do último snapshot ou numa célula explorada deste mapa. */
@@ -1073,7 +1151,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (passageOf(travel.pin) === 'livre') return transferResult(playerId, clientId, record.name, travel)
     const requestId = randomId()
     // O destino que o mestre LEU vai junto: é com ele que o "Deixar ir" confere.
-    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id })
+    const distance = Math.hypot(travel.token.x - travel.pin.x, travel.token.y - travel.pin.y)
+    pendingTravels.set(playerId, { requestId, playerId, pinId: msg.pinId, exitId, toSceneId: travel.to.sceneId, partnerId: travel.partner.id, distance })
     const description = travel.pin.description.trim()
     // Encruzilhada: o mestre lê a SAÍDA ("Escada da torre → Torre Alta"), o
     // mesmo rótulo que a jogadora tocou; pino de uma saída continua nomeado
@@ -1225,6 +1304,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleTokenEdit(clientId, msg, world)
         case 'pin.travel.request':
           return handleTravelRequest(clientId, msg, world)
+        case 'pin.travel.cancel':
+          return handleTravelCancel(clientId)
         case 'laser':
           return handlePlayerLaser(clientId, msg, world)
         case 'clue.read':

@@ -60,6 +60,8 @@ function travelNoticeText(notice: TravelNotice): string {
       return 'O mestre reuniu o grupo'
     case 'denied':
       return 'O mestre não deixou passar agora'
+    case 'cancelled':
+      return notice.reason === 'far' ? 'Você se afastou da passagem. Pedido retirado' : 'Pedido retirado'
     case 'rejected':
       if (notice.reason === 'pending') return 'Seu pedido anterior ainda espera o mestre'
       if (notice.reason === 'too_soon') return 'Espere um pouco antes de pedir de novo'
@@ -743,6 +745,12 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}
+            {/* DESISTIR: só quem espera o MESTRE (o pino livre não espera ninguém). */}
+            {state.travel.phase === 'waiting' && !state.travel.direct && (
+              <button type="button" className="pp-notice__action" disabled={state.travel.cancelling === true} onClick={() => connection.cancelTravel()}>
+                {state.travel.cancelling === true ? 'Desistindo…' : 'Desistir'}
+              </button>
+            )}
           </p>
         )}
         {actionNotice && (
