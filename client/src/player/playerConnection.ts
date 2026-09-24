@@ -168,6 +168,13 @@ export interface PlayerConnection {
   /** Pede ao mestre para abrir/fechar a porta. `false` se não está jogando ou o socket não está aberto. */
   toggleDoor(wallId: string): boolean
   /**
+   * Corre (`on`) ou tira o ferrolho da porta, do lado da ficha dele. O host
+   * decide; a marca volta no recorte. `false` se não está jogando ou o socket não está aberto.
+   */
+  barDoor(wallId: string, on: boolean): boolean
+  /** Barra (`on`) ou desbarra o pino de viagem onde a ficha dele está encostada. Mesmas recusas de `barDoor`. */
+  barPin(pinId: string, on: boolean): boolean
+  /**
    * Nome novo do PRÓPRIO token: aplica na hora e envia. `false` quando o token
    * não é dele, não está no mapa, o nome não cabe ou o socket não está aberto.
    */
@@ -1016,6 +1023,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     toggleDoor(wallId) {
       if (state.status !== 'playing' || wallId.length === 0) return false
       return send({ type: 'door.toggle', wallId })
+    },
+    barDoor(wallId, on) {
+      if (state.status !== 'playing' || wallId.length === 0) return false
+      return send({ type: 'door.bar', wallId, on })
+    },
+    barPin(pinId, on) {
+      if (state.status !== 'playing' || pinId.length === 0) return false
+      return send({ type: 'pin.bar', pinId, on })
     },
 
     requestTravel(pinId, exitId) {

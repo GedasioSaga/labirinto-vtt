@@ -14,6 +14,12 @@ interface PlayerPinCardProps {
   onRequestTravel?: (exitId?: string) => void
   /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
   travelWaiting?: boolean
+  /**
+   * BARRAR A PASSAGEM: `on: true` barra o pino deste lado; `false` tira a
+   * barra. Só vem com a ficha dele encostada no pino (a mesma conta do host,
+   * `lib/ferrolho.ts`); ausente = o cartão não oferece barrar.
+   */
+  onBarrar?: (on: boolean) => void
 }
 
 /**
@@ -69,7 +75,7 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
  * vendo onde está. O toque de fechar que cai no mapa para ali, antes do canvas:
  * fechar o cartão não arrasta o mapa nem abre outro pino.
  */
-export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false }: PlayerPinCardProps) {
+export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, onBarrar }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
@@ -132,6 +138,9 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const passagem = passageOf(pin)
   const trancada = viagem && passagem === 'trancada'
   const podePedir = viagem && !trancada && onRequestTravel !== undefined
+  // A barra que um jogador desta cena pôs: o recorte só a marca para quem está deste lado.
+  const barrada = viagem && pin.barradaDaqui === true
+  const podeBarrar = viagem && !trancada && onBarrar !== undefined
   const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
@@ -173,6 +182,7 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
           </p>
         </div>
         {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
+        {barrada && !trancada && <p className="pp-pincard__locked">Você barrou esta passagem deste lado.</p>}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}
@@ -241,6 +251,13 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
               </button>
             </div>
           </div>
+        )}
+        {podeBarrar && confirming === null && (
+          // Barrar não interrompe o mestre nem troca de cena: vai num toque, sem
+          // pergunta. O outro lado só descobre ao tentar passar.
+          <button type="button" className="pp-pincard__close pp-pincard__close--inline" onClick={() => onBarrar(!barrada)}>
+            {barrada ? 'Tirar a barra' : 'Barrar a passagem'}
+          </button>
         )}
         <button ref={closeRef} type="button" className="pp-pincard__close" onClick={onClose}>
           Fechar

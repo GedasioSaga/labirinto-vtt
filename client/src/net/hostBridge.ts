@@ -6,7 +6,9 @@ import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/las
 import {
   createHostSession,
   singleSceneWorld,
+  type AppliedDoor,
   type AppliedTokenEdit,
+  type BarDispute,
   type AppliedTransfer,
   type HostResult,
   type HostPlayerLaser,
@@ -15,6 +17,7 @@ import {
   type HostWorld,
   type PlayerInfo,
   type TokenActionRequest,
+  type TrancaAviso,
   type TravelRequest,
 } from './hostSession'
 import { distanceLabel, TOKEN_ACTION_LABELS, TOKEN_ACTION_REPLY_MAX_LENGTH } from '../lib/tokenActions'
@@ -243,6 +246,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const arrivalToasts = new Map<string, string>()
   /** Aviso de cada pedido de ação sobre ficha ainda na Caixa: `requestId` -> id do toast. */
   const actionToasts = new Map<string, string>()
+  /** Aviso de cada disputa na porta (ferrolho) ainda na Caixa: `requestId` -> id do toast. */
+  const disputeToasts = new Map<string, string>()
   /** O que cada conexão está vendo, anotado do que sai em `dispatch` (espelho do "Ver tela"). */
   const screens = createPlayerScreens()
   const screenWatchers = new Set<() => void>()
@@ -438,13 +443,66 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
   }
 
-  /** Mesma faxina de `pruneTravelToasts`, para os pedidos de ação sobre ficha. */
+  /** Mesma faxina de `pruneTravelToasts`, para os pedidos de ação sobre ficha e as disputas na porta. */
   const pruneActionToasts = () => {
     for (const [requestId, toastId] of actionToasts) {
       if (session !== null && session.isTokenActionPending(requestId)) continue
       actionToasts.delete(requestId)
       useToastStore.getState().dismiss(toastId)
     }
+    for (const [requestId, toastId] of disputeToasts) {
+      if (session !== null && session.isBarDisputePending(requestId)) continue
+      disputeToasts.delete(requestId)
+      useToastStore.getState().dismiss(toastId)
+    }
+  }
+
+  const answerBarDispute = (requestId: string, force: boolean) => {
+    const toastId = disputeToasts.get(requestId)
+    disputeToasts.delete(requestId)
+    if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
+    if (session === null) return
+    const result = session.answerBarDispute(requestId, force, world())
+    void dispatch(result)
+    if (result.applyDoor !== undefined) applyDoorAndBroadcast(result.applyDoor)
+  }
+
+  /**
+   * DISPUTA NA PORTA: alguém força, do outro lado, a porta que um jogador
+   * trancou com o ferrolho. Espera o mestre na Caixa de Pedidos, como o pedido
+   * de ação: "Arrombar" abre a porta (o ferrolho sai), "Aguenta" deixa como
+   * está. O × vale "Aguenta": a porta nunca abre sem o mestre dizer.
+   */
+  const askBarDispute = (dispute: BarDispute) => {
+    const where = dispute.sceneName === undefined ? '' : ` em ${dispute.sceneName}`
+    const toastId = useToastStore.getState().push('instrucao', `${dispute.playerName} tenta abrir a porta que ${dispute.barrerName} trancou com o ferrolho${where}`, null, {
+      actions: [
+        { label: 'Arrombar', run: () => answerBarDispute(dispute.requestId, true) },
+        { label: 'Aguenta', run: () => answerBarDispute(dispute.requestId, false) },
+      ],
+      onDismiss: () => answerBarDispute(dispute.requestId, false),
+      grupo: 'Pedidos',
+    })
+    disputeToasts.set(dispute.requestId, toastId)
+  }
+
+  /** "Ana passou o ferrolho numa porta", "Ana barrou Fundo do poço em Cripta": só informa, some sozinho. */
+  const announceTranca = (aviso: TrancaAviso) => {
+    const where = aviso.sceneName === undefined ? '' : ` em ${aviso.sceneName}`
+    const oQue =
+      aviso.alvo === 'porta'
+        ? aviso.acao === 'trancou'
+          ? 'passou o ferrolho numa porta'
+          : 'tirou o ferrolho de uma porta'
+        : `${aviso.acao === 'trancou' ? 'barrou' : 'tirou a barra de'} ${aviso.rotulo ?? 'uma passagem'}`
+    useToastStore.getState().push('info', `${aviso.playerName} ${oQue}${where}`)
+  }
+
+  /** Porta que a sessão mandou abrir ou fechar: o mestre vê pela store, os jogadores pelo snapshot imediato. */
+  const applyDoorAndBroadcast = (door: AppliedDoor) => {
+    if (door.sceneId === undefined) deps.applyDoor(door.wallId, door.open)
+    else deps.applyDoor(door.wallId, door.open, door.sceneId)
+    broadcastNow()
   }
 
   const answerAction = (requestId: string, accepted: boolean, reply = '') => {
@@ -583,11 +641,21 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * ainda está no pino antes de deixar ir.
    */
   const askTravel = (request: TravelRequest) => {
-    const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`, null, {
-      actions: [
-        { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
-        { label: 'Não', run: () => answerTravel(request.requestId, false) },
-      ],
+    const pergunta = `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`
+    // BARRADA do outro lado: é uma disputa, e o botão diz o que ele faz com a
+    // barra. Fora do "Deixar todos": quebrar a barra de um colega não vai em lote.
+    const barrada = request.barradaPor
+    const toastId = useToastStore.getState().push('instrucao', barrada === undefined ? pergunta : `${pergunta} (barrada do outro lado por ${barrada})`, null, {
+      actions:
+        barrada === undefined
+          ? [
+              { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
+              { label: 'Não', run: () => answerTravel(request.requestId, false) },
+            ]
+          : [
+              { label: 'Passa (quebra a barra)', run: () => answerTravel(request.requestId, true) },
+              { label: 'A barra aguenta', run: () => answerTravel(request.requestId, false) },
+            ],
       onDismiss: () => answerTravel(request.requestId, false),
       grupo: 'Pedidos',
       detalhe: () => travelDetail(request.requestId),
@@ -624,13 +692,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       else deps.applyMove(tokenId, x, y, sceneId)
       broadcastNow()
     }
-    if (result.applyDoor !== undefined) {
-      // Todos veem a porta nova: o mestre pela store, os jogadores pelo snapshot imediato.
-      const { wallId, open, sceneId } = result.applyDoor
-      if (sceneId === undefined) deps.applyDoor(wallId, open)
-      else deps.applyDoor(wallId, open, sceneId)
-      broadcastNow()
+    // Todos veem a porta nova: o mestre pela store, os jogadores pelo snapshot imediato.
+    if (result.applyDoor !== undefined) applyDoorAndBroadcast(result.applyDoor)
+    if (result.trancaAviso !== undefined) {
+      announceTranca(result.trancaAviso)
+      // Ferrolho sem porta a mexer, ou barra de pino: só a sessão mudou, e a
+      // marca de quem está do lado da tranca sai no recorte novo.
+      if (result.applyDoor === undefined) broadcastNow()
     }
+    if (result.barDispute !== undefined) askBarDispute(result.barDispute)
     if (result.travelRequest !== undefined) {
       if (deps.applyTransfer === undefined) {
         // Integrador sem transferência: ninguém do lado do mestre saberia atender.

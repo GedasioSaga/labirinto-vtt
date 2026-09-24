@@ -9,6 +9,8 @@ import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNoti
 import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
+import { PlayerFerrolho } from './PlayerFerrolho'
+import { acaoDeFerrolho, tokenAlcancaPino } from '../lib/ferrolho'
 import { PlayerTokenCard } from './PlayerTokenCard'
 import { tokenActionNoticeText, tokenActionReply } from './tokenCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
@@ -588,6 +590,9 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   // snapshot, não a cada quadro do arrasto: o arrasto é local ao `PlayerView`.
   const where = useMemo(() => (map ? whereAmI(map, ownTokens, focus.tokenId) : null), [map, ownTokens, focus.tokenId])
   const focusToken = useCallback((tokenId: string) => setFocus((current) => ({ tokenId, seq: current.seq + 1 })), [])
+  // JOGADOR TRANCA A PORTA: a porta que a ficha dele alcança agora, lida do
+  // recorte (a marca "do meu lado" só chega a quem está do lado do ferrolho).
+  const acaoFerrolho = useMemo(() => (map ? acaoDeFerrolho(map, ownTokens) : null), [map, ownTokens])
 
   function changeSettings(next: PlayerViewSettings) {
     setSettings(next)
@@ -595,6 +600,9 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   }
 
   const openPin = openPinId === null ? null : (map?.pins ?? []).find((p) => p.id === openPinId) ?? null
+  // BARRAR A PASSAGEM: só com uma ficha dele encostada no pino aberto — a mesma conta do host.
+  const alcancaPinoAberto =
+    openPin !== null && map !== undefined && map.tokens.some((t) => ownTokens.includes(t.id) && tokenAlcancaPino(t, openPin, map.grid))
   // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
   // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
   const closePin = useCallback(() => setOpenPinId(null), [])
@@ -738,6 +746,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
               // e o mapa volta inteiro à vista enquanto o mestre decide.
               if (connection.requestTravel(openPin.id, exitId)) setOpenPinId(null)
             }}
+            // O cartão fica aberto: a barra aparece (ou some) nele quando o recorte novo chega.
+            onBarrar={alcancaPinoAberto ? (on) => connection.barPin(openPin.id, on) : undefined}
           />
         )}
         {/* AGIR SOBRE UMA FICHA: o cartão da ficha alheia. Enviado, ele sai: a
@@ -818,6 +828,14 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
           <p key={state.tokenAction.id} className="pp-notice pp-notice--action" role="status" aria-live="polite">
             {tokenActionNoticeText(state.tokenAction)}
           </p>
+        )}
+        {/* Com cartão aberto por cima, o botão sai: um toque nele não pode fechar o cartão e trancar junto. */}
+        {noCardOnTop && (
+          <PlayerFerrolho
+            acao={acaoFerrolho}
+            revisao={`${state.rev}|${state.doorNotice?.id ?? ''}`}
+            onAct={(wallId, on) => connection.barDoor(wallId, on)}
+          />
         )}
         {actionNotice && (
           // `key` no id: o mesmo aviso repetido reinicia a animação de entrada.

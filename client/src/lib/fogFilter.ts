@@ -15,6 +15,7 @@ import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygon
 import { roomHasRoof } from './roomOps'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
+import { ladoDaPorta, type LadoDaPorta } from './ferrolho'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -1570,4 +1571,54 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
   if (prop.rotation !== undefined) forPlayer.rotation = prop.rotation
   if (prop.layer !== undefined) forPlayer.layer = prop.layer
   return forPlayer
+}
+
+/**
+ * TRANCAS DO JOGADOR numa cena, como a sessão do host as guarda: o lado de
+ * cada ferrolho (por id da parede com porta) e os pinos de viagem barrados.
+ * Nome de quem trancou não entra aqui: nunca vai a jogador nenhum.
+ */
+export interface TrancasDaCena {
+  ferrolhos: ReadonlyMap<string, LadoDaPorta>
+  pinosBarrados: ReadonlySet<string>
+}
+
+/**
+ * Põe no RECORTE a marca das trancas que ESTE jogador pode saber, depois do
+ * `filterMapForPlayer` (e depois de o host lembrar as portas: a marca não
+ * entra na memória de portas vistas).
+ *
+ * - Porta: `ferrolhoDoMeuLado` só se a porta está na visão AGORA, fechada e
+ *   destrancada pelo mestre, e uma ficha dele (do recorte: camada oculta e
+ *   ficha escondida já saíram) está do lado do ferrolho. Do outro lado a porta
+ *   sai como sempre — a tentativa de abrir é que conta a ele que está trancada.
+ * - Pino: `barradaDaqui` em pino que já saiu no recorte. A barra é desta cena;
+ *   quem está na cena do outro lado recebe outro mapa e nunca a vê.
+ *
+ * Sem nenhuma marca a pôr, devolve o MESMO `view.map`.
+ */
+export function marcarTrancasParaJogador(view: PlayerMapView, ownTokenIds: ReadonlySet<string>, trancas: TrancasDaCena): MapData {
+  const map = view.map
+  if (trancas.ferrolhos.size === 0 && trancas.pinosBarrados.size === 0) return map
+  const visiveis = new Set(view.visibleDoorIds)
+  const fichas = map.tokens.filter((t) => ownTokenIds.has(t.id))
+  let mudouParede = false
+  const walls = map.walls.map((wall) => {
+    const lado = trancas.ferrolhos.get(wall.id)
+    const door = wall.door
+    if (lado === undefined || door === null || door.open || door.locked || !visiveis.has(wall.id)) return wall
+    if (!fichas.some((ficha) => ladoDaPorta(wall, ficha) === lado)) return wall
+    mudouParede = true
+    const marcada: DoorState = { ...door, ferrolhoDoMeuLado: true }
+    return { ...wall, door: marcada }
+  })
+  let mudouPino = false
+  const pins = map.pins.map((pin) => {
+    if (!trancas.pinosBarrados.has(pin.id)) return pin
+    mudouPino = true
+    const barrado: Pin = { ...pin, barradaDaqui: true }
+    return barrado
+  })
+  if (!mudouParede && !mudouPino) return map
+  return { ...map, walls: mudouParede ? walls : map.walls, pins: mudouPino ? pins : map.pins }
 }

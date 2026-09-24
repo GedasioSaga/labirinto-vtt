@@ -84,6 +84,12 @@ import { isTokenAction, isTokenActionRejection, TOKEN_ACTION_REPLY_MAX_LENGTH, T
  * jogador em `reply`). A volta leva só o `reqId` do jogador e esse texto:
  * nunca nome de ficha, de cena ou posição. Mestre antigo responde
  * `error invalid_message`; jogador antigo ignora as duas (e o `reply`).
+ *
+ * TRANCAR PORTA OU PASSAGEM é aditivo pelo mesmo critério: `door.bar` e
+ * `pin.bar` (jogador -> mestre). Na volta não há mensagem nova: a recusa da
+ * porta é o `door.toggle.rejected` de sempre, e o resultado chega no recorte
+ * (`DoorState.ferrolhoDoMeuLado`, `Pin.barradaDaqui`), só a quem está do lado
+ * de quem trancou. Mestre antigo responde `error invalid_message`.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -220,12 +226,41 @@ export interface TokenActionRequestMessage {
   text?: string
 }
 
+/**
+ * JOGADOR TRANCA PORTA: `on: true` corre o ferrolho da porta `wallId` do lado
+ * da ficha dele (o host fecha a porta se estiver aberta); `on: false` tira.
+ * O host valida como no `door.toggle`, e a recusa volta no mesmo
+ * `door.toggle.rejected` — o jogador lê "Trancada" ou "Longe demais".
+ *
+ * Aditiva pelo mesmo critério de `door.toggle`: mestre antigo responde
+ * `error invalid_message` (o jogador só não tranca nada).
+ */
+export interface DoorBarMessage {
+  type: 'door.bar'
+  wallId: string
+  on: boolean
+}
+
+/**
+ * JOGADOR BARRA A PASSAGEM: `on: true` barra o pino de viagem `pinId` da cena
+ * dele (a ficha encostada nele); `on: false` tira a barra. Quem vier do outro
+ * lado vira pedido ao mestre. Recusa é silenciosa: o cartão só oferece o botão
+ * com a ficha encostada, e a barra aparece (ou não) no próximo recorte.
+ */
+export interface PinBarMessage {
+  type: 'pin.bar'
+  pinId: string
+  on: boolean
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
   | PingMessage
   | SignalMessage
   | DoorToggleMessage
+  | DoorBarMessage
+  | PinBarMessage
   | TokenEditMessage
   | PinTravelRequestMessage
   | PlayerLaserMessage
@@ -716,6 +751,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isFiniteNumber(value.x) && isFiniteNumber(value.y) ? { type: 'signal', x: value.x, y: value.y } : null
     case 'door.toggle':
       return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) ? { type: 'door.toggle', wallId: value.wallId } : null
+    case 'door.bar':
+      return isBoundedString(value.wallId, 1, REQ_ID_MAX_LENGTH) && typeof value.on === 'boolean' ? { type: 'door.bar', wallId: value.wallId, on: value.on } : null
+    case 'pin.bar':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) && typeof value.on === 'boolean' ? { type: 'pin.bar', pinId: value.pinId, on: value.on } : null
     case 'token.edit':
       return parseTokenEdit(value)
     case 'pin.travel.request':
