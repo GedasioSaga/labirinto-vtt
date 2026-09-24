@@ -718,3 +718,14 @@ veículos, corte vertical, correio) vira peça da fábrica em workflows paralelo
 Plano da noite: ondas 2 e 3 da fábrica seguem (283 itens únicos em `docs/features-unicas-2026-09-24.md`);
 a junção valida cada grupo e o orquestrador junta em `auto/acervo` a cada passada verde; se o limite de
 uso estourar, espera voltar e retoma os workflows do cache (`resumeFromRunId`).
+
+### 24/09/2026, 11h20 — velocidade e as grandes até as 16h
+
+> "Vou precisar ser sincero com você, preciso que aumente o nível de velocidade, tem uma onda que só vai vir
+> as features grandes né? faz logo ela, eu quero até as 16:00 elas finalizadas. Mas em paralelo é claro."
+> "mas não pare as que estão sendo feitas"
+
+Feito: as 5 grandes que ainda não tinham começado (cabine, correio, rotina de NPC, perigo que alastra, móveis)
+foram para um run paralelo, as 5 ao mesmo tempo (`wf_d1c06cc2-0db`, `auto/int-t-grandes-b`); a segunda metade
+das listas de defeitos, médias A/B e pequenas da onda 3 ganhou runs paralelos `-b`. Nada em construção parou:
+um vigia só para o run antigo quando ele chega na primeira peça que foi para o `-b`.
