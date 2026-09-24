@@ -20,7 +20,8 @@ import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
 import type { PlayerInfo } from './net/hostSession'
 import { RoomPanel } from './components/RoomPanel'
-import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
+import { masterDestinationMarks, partyDestinations, partyMembers, peopleByScene } from './lib/party'
+import { useDestinationStore } from './stores/destinationStore'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -548,6 +549,11 @@ function App() {
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,
               followingId,
               onToggleFollow: (member) => useFollowStore.getState().toggle(member.playerId),
+              // "Ver" da marca "vamos para cá": a mesma ida do "Ir lá", até a marca e não até a ficha.
+              onViewDestination: (member) => {
+                if (member.playerId !== followingId) useFollowStore.getState().stop()
+                if (member.destination !== undefined) useAdventureStore.getState().goToPoint(member.sceneId, member.destination)
+              },
             }}
             tunnel={tunnel}
             onStart={() => void handleStartRoom()}
@@ -579,6 +585,11 @@ function App() {
   const canGoBackToScene = previousSceneId !== null && sceneCache[previousSceneId]?.status === 'ok'
   // G7 — "Seguir" na linha do Grupo: a câmera acompanha a ficha do jogador, inclusive de cena em cena.
   const followingId = useFollowStore((state) => state.playerId)
+  // Marcas "vamos para cá" no canvas do mestre: só as da cena aberta (as de fundo têm coordenadas de outro mapa).
+  const openSceneId = adventure === null ? null : activeSceneId
+  useEffect(() => {
+    useDestinationStore.getState().setMarks(masterDestinationMarks(roomPlayers, openSceneId))
+  }, [roomPlayers, openSceneId])
   useFollowPlayer(roomPlayers, () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map))
   /**
    * Caminho de origem do mapa em edição. `null` enquanto o mapa é novo

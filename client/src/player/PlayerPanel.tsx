@@ -113,6 +113,12 @@ interface PlayerPanelProps {
   /** Modo "Laser" ligado: segurar e arrastar no mapa aponta, e quem está na mesma cena vê. */
   laserArmed: boolean
   onToggleLaser: () => void
+  /** Modo "Marcar destino" ligado: o próximo toque no mapa põe a marca "vamos para cá". Sem o callback, não há botão. */
+  destinationArmed?: boolean
+  onToggleDestination?: () => void
+  /** A marca dele está no mapa: aparece o "Tirar marca". */
+  hasDestination?: boolean
+  onClearDestination?: () => void
   /** Nome novo do próprio token (já aparado); o mestre recebe pelo socket. */
   onRenameToken: (tokenId: string, name: string) => void
   /** Foto nova do próprio token. Rejeita (lança) quando a imagem não serve, e o aviso vai para a tela. */
@@ -144,6 +150,10 @@ export function PlayerPanel({
   onToggleMeasure,
   laserArmed,
   onToggleLaser,
+  destinationArmed = false,
+  onToggleDestination,
+  hasDestination = false,
+  onClearDestination,
   onRenameToken,
   onChangeTokenPhoto,
   panelRef,
@@ -261,6 +271,12 @@ export function PlayerPanel({
     // Ao ligar, a gaveta fecha para o toque cair no mapa (no celular ela cobre a tela).
     if (!signalArmed) closeDrawer()
     onToggleSignal()
+  }
+
+  function toggleDestination() {
+    // Mesma razão do Sinalizar: no celular a gaveta cobre o mapa onde o dedo vai marcar.
+    if (!destinationArmed) closeDrawer()
+    onToggleDestination?.()
   }
 
   function toggleMeasure() {
@@ -410,6 +426,16 @@ export function PlayerPanel({
                 {signalArmed ? 'Toque no mapa…' : 'Sinalizar'}
               </button>
               <p className="pp-empty">No PC: Alt+clique ou segure o clique parado.</p>
+              {onToggleDestination !== undefined && (
+                <button type="button" className="pp-button" aria-pressed={destinationArmed} onClick={toggleDestination}>
+                  {destinationArmed ? 'Toque no destino…' : hasDestination ? 'Mudar destino' : 'Marcar destino'}
+                </button>
+              )}
+              {hasDestination && onClearDestination !== undefined && (
+                <button type="button" className="pp-button" onClick={onClearDestination}>
+                  Tirar marca
+                </button>
+              )}
               <button type="button" className="pp-button pp-button--toggle" aria-pressed={measureArmed} onClick={toggleMeasure}>
                 Medir
               </button>

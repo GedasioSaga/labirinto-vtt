@@ -3,7 +3,7 @@ import { decodeExploration, type Exploration } from '../lib/exploration'
 import { NAME_MAX_LENGTH, NAME_MIN_LENGTH, type DoorToggleRejection, type JoinMessage, type PinTravelRejection, type PinTravelRequestMessage, type PlayerMessage } from '../net/protocol'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { isPlayerSafePinImage, passageOf } from '../lib/pins'
-import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type SignalMark } from '../lib/signals'
+import { MAX_ACTIVE_SIGNALS, SIGNAL_COLOR_PATTERN, SIGNAL_TTL_MS, type DestinationMark, type SignalMark } from '../lib/signals'
 import {
   LASER_MAX_POINTS_PER_MESSAGE,
   LASER_SEND_INTERVAL_MS,
@@ -16,7 +16,7 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseDestinationsMessage, parseLaserMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
@@ -44,6 +44,11 @@ export interface PlayerState {
   concealed?: RegionPoint[][]
   /** Sinais recebidos ainda vivos (somem sozinhos depois de `SIGNAL_TTL_MS`). */
   signals?: SignalMark[]
+  /**
+   * Marcas "vamos para cá" que o host deixou este jogador ver (a própria vem
+   * com `mine`). Sem prazo: cada `destinations` do host troca a lista inteira.
+   */
+  destinations?: DestinationMark[]
   /** Rastro do laser do mestre; some sozinho `LASER_TRAIL_MS` depois da última mensagem com o laser desligado. */
   laser?: LaserTrail
   /** Lasers dos OUTROS jogadores da mesma cena, um por jogador, na cor da ficha dele. */
@@ -170,6 +175,10 @@ export interface PlayerConnection {
   requestWalk(tokenId: string, legs: readonly { x: number; y: number }[]): boolean
   /** Sinal no ponto (px de mundo). `false` se não está jogando ou o socket não está aberto. */
   sendSignal(x: number, y: number): boolean
+  /** Põe (ou move) a marca "vamos para cá" no ponto (px de mundo). `false` se não está jogando ou o socket não está aberto. */
+  markDestination(x: number, y: number): boolean
+  /** "Tirar marca". `false` se não está jogando ou o socket não está aberto. */
+  clearDestination(): boolean
   /** Pede ao mestre para abrir/fechar a porta. `false` se não está jogando ou o socket não está aberto. */
   toggleDoor(wallId: string): boolean
   /**
@@ -779,7 +788,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, sceneName: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, sceneName: undefined, signals: undefined, destinations: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -886,6 +895,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (typeof from !== 'string' || from.length > NAME_MAX_LENGTH) return
         if (typeof color !== 'string' || !SIGNAL_COLOR_PATTERN.test(color)) return
         addSignal(x, y, from, color)
+        return
+      }
+      case 'destinations': {
+        // Marca sem mapa na tela não tem onde aparecer; torta não entra (a cor vai direto ao desenho).
+        if (state.status !== 'playing') return
+        const parsed = parseDestinationsMessage(data)
+        if (parsed === null) return
+        setState({ destinations: parsed.marks })
         return
       }
       case 'door.toggle.rejected': {
@@ -1026,6 +1043,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.status !== 'playing' || !Number.isFinite(x) || !Number.isFinite(y)) return false
       return send({ type: 'signal', x: Math.round(x), y: Math.round(y) })
     },
+    markDestination(x, y) {
+      if (state.status !== 'playing' || !Number.isFinite(x) || !Number.isFinite(y)) return false
+      return send({ type: 'destination', x: Math.round(x), y: Math.round(y) })
+    },
+    clearDestination() {
+      if (state.status !== 'playing') return false
+      return send({ type: 'destination', clear: true })
+    },
     toggleDoor(wallId) {
       if (state.status !== 'playing' || wallId.length === 0) return false
       return send({ type: 'door.toggle', wallId })
@@ -1154,7 +1179,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, sceneName: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, sceneName: undefined, signals: undefined, destinations: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
       open()
     },
     close: detach,

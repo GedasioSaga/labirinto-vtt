@@ -1,6 +1,7 @@
 import type { HostScene, HostWorld, PlayerInfo } from '../net/hostSession'
 import type { Token } from '../types/map'
 import { pinSummary } from './pins'
+import type { DestinationMark } from './signals'
 import { tokenFillColor } from './tokenColor'
 
 /**
@@ -30,6 +31,8 @@ export interface PartyMember {
   token: PartyToken | null
   /** Um pedido de passagem dele espera o mestre agora. */
   travelPending: boolean
+  /** MARCA "VAMOS PARA CÁ" dele, em px de mundo da cena `sceneId`. Ausente = não marcou. */
+  destination?: { x: number; y: number }
 }
 
 /** Um ponto de chegada do "Mandar para…": um pino de viagem da cena de destino. */
@@ -76,7 +79,7 @@ function tokenOf(player: PlayerInfo, world: HostWorld): Token | null {
 export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMember[] {
   return players.map((player) => {
     const token = player.status === 'playing' ? tokenOf(player, world) : null
-    return {
+    const member: PartyMember = {
       playerId: player.playerId,
       name: player.name,
       connected: player.connected,
@@ -85,7 +88,24 @@ export function partyMembers(players: PlayerInfo[], world: HostWorld): PartyMemb
       token: token === null ? null : { id: token.id, color: cssColor(tokenFillColor(token)), x: token.x, y: token.y },
       travelPending: player.travelPending === true,
     }
+    if (player.destination !== undefined) member.destination = { x: player.destination.x, y: player.destination.y }
+    return member
   })
+}
+
+/**
+ * As marcas "vamos para cá" que o canvas do MESTRE desenha: só as da cena
+ * aberta no editor (`openSceneId`; `null` = mapa solto). A de quem está em
+ * cena de fundo tem coordenadas de outro mapa — desenhada aqui, cairia num
+ * lugar que não existe; o mestre a acha pelo "Ver" do Grupo.
+ */
+export function masterDestinationMarks(players: PlayerInfo[], openSceneId: string | null): DestinationMark[] {
+  const marks: DestinationMark[] = []
+  for (const player of players) {
+    if (player.destination === undefined || (player.sceneId ?? null) !== openSceneId) continue
+    marks.push({ x: player.destination.x, y: player.destination.y, from: player.name, color: player.destination.color, mine: false })
+  }
+  return marks
 }
 
 /**

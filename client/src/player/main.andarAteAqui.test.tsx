@@ -23,13 +23,17 @@ const PONTOS = { beco: { x: 700, y: 300 }, escuro: { x: 900, y: 550 }, praca: { 
 
 vi.mock('./PlayerView', () => ({
   OWN_TOKEN_CSS: '#4ea1ff',
-  PlayerView: ({ onLongPress }: PlayerViewProps) => (
+  PlayerView: ({ onLongPress, onDestination }: PlayerViewProps) => (
     <div data-testid="mapa">
       {Object.entries(PONTOS).map(([nome, p]) => (
         <button key={nome} type="button" onClick={() => onLongPress?.(p.x, p.y, p.x, p.y)}>
           {`segurar ${nome}`}
         </button>
       ))}
+      {/* O toque com "Marcar destino" ligado: o mesmo ramo do pointerdown que vem antes do toque longo. */}
+      <button type="button" onClick={() => onDestination?.(PONTOS.praca.x, PONTOS.praca.y)}>
+        tocar destino praca
+      </button>
     </div>
   ),
 }))
@@ -62,6 +66,9 @@ class MestreFalso {
   }
   movimentos(): unknown[] {
     return this.sent.filter((m) => typeof m === 'object' && m !== null && 'type' in m && m.type === 'token.move')
+  }
+  destinos(): unknown[] {
+    return this.sent.filter((m) => typeof m === 'object' && m !== null && 'type' in m && m.type === 'destination')
   }
   sinais(): unknown[] {
     return this.sent.filter((m) => typeof m === 'object' && m !== null && 'type' in m && m.type === 'signal')
@@ -165,6 +172,25 @@ describe('main.tsx: andar até aqui de ponta a ponta', () => {
     // Um menu só no ponto: o item mora no menu do toque longo, não num segundo menu.
     expect(document.querySelectorAll('[role="menu"]')).toHaveLength(1)
     expect(itemDoMenu().textContent).toBe('Andar até aqui')
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(document.querySelector('[role="menu"]')).toBeNull()
+  })
+
+  it('"Marcar destino" e o toque longo convivem: o toque de destino vai ao mestre como marca, sem menu nem sinal, e o toque longo segue abrindo o menu', () => {
+    const sinaisAntes = mestre().sinais().length
+    act(() => botao('tocar destino praca').click())
+    expect(mestre().destinos()).toEqual([{ type: 'destination', x: PONTOS.praca.x, y: PONTOS.praca.y }])
+    // A marca não abre o menu do ponto nem vira sinal: são gestos diferentes.
+    expect(document.querySelector('[role="menu"]')).toBeNull()
+    expect(mestre().sinais()).toHaveLength(sinaisAntes)
+
+    act(() => botao('segurar praca').click())
+    expect(document.querySelectorAll('[role="menu"]')).toHaveLength(1)
+    expect(itemDoMenu().textContent).toBe('Andar até aqui')
+    expect(mestre().sinais()).toHaveLength(sinaisAntes + 1)
+    expect(mestre().destinos()).toHaveLength(1)
     act(() => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })
