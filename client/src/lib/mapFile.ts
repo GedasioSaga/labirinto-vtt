@@ -1,4 +1,4 @@
-import type { FloorStyle, MapData, Region } from '../types/map'
+import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
@@ -86,6 +86,17 @@ function roomRotationFromFile(region: Region): Region {
   return { ...region, room: semAngulo }
 }
 
+/**
+ * Porta lida do disco. `kind` virou obrigatório (porta antiga migra para
+ * 'normal'). `secret` (porta secreta) é campo NOVO: só `true` volta; qualquer
+ * outro valor sai do objeto, e a porta abre como porta comum — como sempre foi.
+ */
+function doorFromFile(door: DoorState): DoorState {
+  const { secret, ...rest } = door
+  const withKind: DoorState = { ...rest, kind: rest.kind ?? 'normal' }
+  return secret === true ? { ...withKind, secret: true } : withKind
+}
+
 function deserializeMapFields(json: string): MapData {
   let parsed: Partial<MapData>
   try {
@@ -118,7 +129,7 @@ function deserializeMapFields(json: string): MapData {
     // wallKind ausente fica undefined de propósito (=== 'exterior').
     walls: entityList(parsed.walls).map((w) => ({
       ...w,
-      door: w.door ? { ...w.door, kind: w.door.kind ?? 'normal' } : null,
+      door: w.door ? doorFromFile(w.door) : null,
     })),
     lights: entityList(parsed.lights),
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do

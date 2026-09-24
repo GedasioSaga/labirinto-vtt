@@ -616,6 +616,11 @@ interface MapStoreState {
   setWallDoorKind: (wallId: string, kind: DoorKind) => void
   /** Alterna `DoorState.locked` de uma porta já criada. Com histórico. */
   setDoorLocked: (wallId: string, locked: boolean) => void
+  /** Liga/desliga `DoorState.secret` (porta secreta; ligar fecha). Com histórico. */
+  setDoorSecret: (wallId: string, secret: boolean) => void
+  /** "Revelar passagem": tira o segredo da porta e o oculto da sala ligada
+   *  (mapFactory.revealSecretPassage). Um passo de histórico só. */
+  revealSecretPassage: (wallId: string) => void
   /** Botão "Virar porta" do painel: porta de `DOOR_LENGTH_BY_KIND[doorKind]`
    *  no MEIO da parede selecionada, partindo a parede como a ferramenta Porta
    *  (mantém o vínculo com a Sala). Antes o painel virava o LADO INTEIRO da
@@ -1345,6 +1350,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       mapFactory.setWallDoorKind(map, wallId, kind, DOOR_LENGTH_BY_KIND[kind]),
     ),
     setDoorLocked: (wallId, locked) => withHistory((map) => mapFactory.setDoorLocked(map, wallId, locked)),
+    setDoorSecret: (wallId, secret) => withHistory((map) => mapFactory.setDoorSecret(map, wallId, secret)),
+    revealSecretPassage: (wallId) => withHistory((map) => mapFactory.revealSecretPassage(map, wallId)),
     turnWallIntoDoor: (wallId) => {
       const { map, doorKind } = get()
       const wall = map.walls.find((w) => w.id === wallId)
