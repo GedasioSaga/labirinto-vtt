@@ -47,7 +47,7 @@ import { clampNoteText, clampSeatOptionName, clampTravelDenyText, REQ_ID_MAX_LEN
 
 /** Como a ficha livre de nome em branco aparece na lista de quem chega. */
 const SEAT_OPTION_UNNAMED = 'Ficha sem nome'
-/** A chave da lista vazia: é o que a conexão tem antes do primeiro `seat.options`. */
+/** A chave da lista vazia: é o que a conexão tem antes do primeiro `seat.options` (e logo depois de um `welcome`, que a apaga no jogador). */
 const NO_SEAT_OPTIONS_KEY = '[]'
 
 /**
@@ -2104,13 +2104,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (!byClient.has(clientId)) lastSeatOptionsSent.delete(clientId)
       }
       const outbound: Outbound[] = []
+      // Jogando, a lista não vale, mas a chave FICA: o jogador guarda a última
+      // lista, e é contra ela que a volta à espera compara. Esquecer a chave
+      // valia "ele tem a vazia", e quem voltava com a lista vazia ficava com a
+      // velha na tela, fichas já de outros inclusive.
       for (const [clientId, playerId] of byClient) {
-        if (statusOf(playerId) === 'waiting') {
-          outbound.push(...seatOptionsIfChanged(clientId, world))
-          continue
-        }
-        // Jogando, a lista não vale; esquecida, ela sai de novo se ele voltar à espera.
-        lastSeatOptionsSent.delete(clientId)
+        if (statusOf(playerId) === 'waiting') outbound.push(...seatOptionsIfChanged(clientId, world))
       }
       return { outbound }
     },
@@ -2548,9 +2547,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // O `welcome` de novo: é por ele que o aparelho passa a guardar o resume
       // da Ana e a mostrar o nome dela, sem o "(2)".
       const welcome: HostMessage = { type: 'welcome', playerId: previousId, resumeToken: previous.resumeToken, name: previous.name }
-      const next: HostMessage = statusOf(previousId) === 'playing' ? viewFor(previousId, world) : { type: 'lobby.waiting' }
+      const waiting = statusOf(previousId) !== 'playing'
+      const next: HostMessage = waiting ? { type: 'lobby.waiting' } : viewFor(previousId, world)
+      // O `welcome` apaga a lista no jogador: a chave volta a "nada enviado", e quem segue na espera a recebe de novo.
+      lastSeatOptionsSent.delete(clientId)
       return {
-        outbound: [{ clientId, msg: welcome }, ...viewWithPendingNote(clientId, previousId, next), ...pausedUpdate(clientId, previousId, world), ...loanBack.outbound],
+        outbound: [
+          { clientId, msg: welcome },
+          ...viewWithPendingNote(clientId, previousId, next),
+          ...(waiting ? seatOptionsIfChanged(clientId, world) : []),
+          ...pausedUpdate(clientId, previousId, world),
+          ...loanBack.outbound,
+        ],
         ...loansReturnedField(loanBack.returned),
       }
     },

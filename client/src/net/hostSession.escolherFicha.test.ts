@@ -273,3 +273,55 @@ describe('seat.claim: o pedido de quem chega, e a resposta do mestre', () => {
     ])
   })
 })
+
+describe('seat.options na volta à espera: a lista velha não fica na tela', () => {
+  function semMarcaNoKael(): HostWorld {
+    const w = mundo()
+    w.open.map = { ...w.open.map, tokens: w.open.map.tokens.map((t) => (t.id === 't-kael' ? { ...t, playerCharacter: false } : t)) }
+    return w
+  }
+
+  it('Hugo joga com Kael, Zé ganha Bruna, o mestre desmarca Kael: Hugo volta à espera e recebe a lista VAZIA', () => {
+    const m = mesa()
+    const { r, hugo } = entraHugo(m)
+    expect(opcoes(r, 'c-hugo')).toEqual({ type: 'seat.options', tokens: [{ tokenId: 't-bruna', name: 'Bruna' }, { tokenId: 't-kael', name: 'Kael' }] })
+    m.s.assignToken(hugo, 't-kael')
+    m.s.seatOptionsUpdates(m.w)
+    const ze = welcomeId(m.s.handleMessage('c-ze', { type: 'join', code: CODE, name: 'Zé' }, m.w))
+    m.s.assignToken(ze, 't-bruna')
+    m.s.seatOptionsUpdates(m.w)
+    const semKael = semMarcaNoKael()
+    expect(paraCliente(m.s.unassignToken(hugo, 't-kael'), 'c-hugo')).toEqual([{ type: 'lobby.waiting' }])
+    const volta = m.s.seatOptionsUpdates(semKael)
+    expect(opcoes(volta, 'c-hugo')).toEqual({ type: 'seat.options', tokens: [] })
+    // Enviada uma vez, a lista vazia não sai de novo sem mudar.
+    expect(paraCliente(m.s.seatOptionsUpdates(semKael), 'c-hugo')).toEqual([])
+  })
+
+  it('volta à espera com a MESMA lista que ele guardou: nada sai de novo; com lista diferente, sai a atual', () => {
+    const m = mesa()
+    const { hugo } = entraHugo(m)
+    m.s.assignToken(hugo, 't-kael')
+    m.s.seatOptionsUpdates(m.w)
+    m.s.unassignToken(hugo, 't-kael')
+    // Ele guardou [Bruna, Kael] do join, e a lista de agora é a mesma.
+    expect(paraCliente(m.s.seatOptionsUpdates(m.w), 'c-hugo')).toEqual([])
+    m.s.assignToken(hugo, 't-bruna')
+    m.s.seatOptionsUpdates(m.w)
+    m.s.unassignToken(hugo, 't-bruna')
+    expect(paraCliente(m.s.seatOptionsUpdates(semMarcaNoKael()), 'c-hugo')).toEqual([{ type: 'seat.options', tokens: [{ tokenId: 't-bruna', name: 'Bruna' }] }])
+  })
+
+  it('"É ela" na espera: o welcome de novo apaga a lista no jogador, e a lista atual vai logo atrás', () => {
+    const m = mesa()
+    const iris = welcomeId(m.s.handleMessage('c-iris', { type: 'join', code: CODE, name: 'Iris' }, m.w))
+    m.s.disconnect('c-iris')
+    const entrou = m.s.handleMessage('c-iris2', { type: 'join', code: CODE, name: 'Iris' }, m.w)
+    const nova = welcomeId(entrou)
+    expect(entrou.returnCandidate).toEqual({ playerId: nova, previousId: iris, name: 'Iris' })
+    expect(opcoes(entrou, 'c-iris2')).toEqual({ type: 'seat.options', tokens: [{ tokenId: 't-bruna', name: 'Bruna' }, { tokenId: 't-kael', name: 'Kael' }] })
+    const r = m.s.confirmReturn(nova, iris, m.w)
+    expect(paraCliente(r, 'c-iris2').map((msg) => msg.type)).toEqual(['welcome', 'lobby.waiting', 'seat.options'])
+    expect(opcoes(r, 'c-iris2')).toEqual({ type: 'seat.options', tokens: [{ tokenId: 't-bruna', name: 'Bruna' }, { tokenId: 't-kael', name: 'Kael' }] })
+  })
+})

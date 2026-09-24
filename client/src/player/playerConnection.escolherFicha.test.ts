@@ -5,6 +5,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { createHostSession, type HostResult, type HostWorld } from '../net/hostSession'
+import type { Token } from '../types/map'
 import { createPlayerConnection, type SocketLike } from './playerConnection'
 
 class FakeSocket implements SocketLike {
@@ -101,5 +103,47 @@ describe('escolher a ficha na espera', () => {
     socket.receive({ type: 'seat.claim.state', state: 'pending' })
     expect(connection.claimSeat('t-bruna')).toBe(false)
     expect(claims(socket)).toHaveLength(1)
+  })
+})
+
+describe('a lista velha não fica na tela de espera', () => {
+  it('welcome novo (volta da queda, "É ela") apaga a lista: é a conexão nova, e o host manda a atual', () => {
+    const { connection, socket } = naEspera()
+    socket.receive({ type: 'seat.options', tokens: [{ tokenId: 't-kael', name: 'Kael' }] })
+    expect(connection.getState().seatOptions).toEqual([{ tokenId: 't-kael', name: 'Kael' }])
+    socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Hugo' })
+    expect(connection.getState().seatOptions).toBeUndefined()
+    expect(connection.getState().status).toBe('waiting')
+  })
+
+  it('ponta a ponta: Hugo joga com Kael, Zé ganha Bruna, o mestre desmarca Kael; na espera, Hugo não vê Bruna nem Kael', () => {
+    const CODE = 'ABC123'
+    const pc = (id: string, name: string, playerCharacter = true): Token => ({ id, characterId: null, name, x: 125, y: 125, size: 1, image: null, playerCharacter })
+    const mundo = (kaelMarcado: boolean): HostWorld => ({
+      open: { sceneId: null, name: 'Vila', map: { ...createEmptyMap('m1', 'Vila', 20, 10, 50), tokens: [pc('t-kael', 'Kael', kaelMarcado), pc('t-bruna', 'Bruna')] } },
+      background: [],
+    })
+    let n = 0
+    const host = createHostSession({ code: CODE, visionRadius: 300, now: () => 0, randomId: () => `id-${(n += 1)}` })
+    const { connection, socket } = naEspera()
+    const paraHugo = (r: HostResult) => {
+      for (const o of r.outbound) if (o.clientId === 'c-hugo') socket.receive(o.msg)
+      return r
+    }
+    const entrou = paraHugo(host.handleMessage('c-hugo', { type: 'join', code: CODE, name: 'Hugo' }, mundo(true)))
+    const hugo = entrou.outbound[0]?.msg.type === 'welcome' ? entrou.outbound[0].msg.playerId : ''
+    expect(connection.getState().seatOptions).toEqual([{ tokenId: 't-bruna', name: 'Bruna' }, { tokenId: 't-kael', name: 'Kael' }])
+    paraHugo(host.assignToken(hugo, 't-kael'))
+    paraHugo(host.broadcast(mundo(true)))
+    paraHugo(host.seatOptionsUpdates(mundo(true)))
+    expect(connection.getState().status).toBe('playing')
+    const ze = host.handleMessage('c-ze', { type: 'join', code: CODE, name: 'Zé' }, mundo(true)).outbound[0]?.msg
+    host.assignToken(ze?.type === 'welcome' ? ze.playerId : '', 't-bruna')
+    paraHugo(host.seatOptionsUpdates(mundo(true)))
+    paraHugo(host.unassignToken(hugo, 't-kael'))
+    paraHugo(host.seatOptionsUpdates(mundo(false)))
+    expect(connection.getState().status).toBe('waiting')
+    expect(connection.getState().seatOptions).toEqual([])
+    expect(connection.claimSeat('t-bruna')).toBe(false)
   })
 })

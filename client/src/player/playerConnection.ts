@@ -101,8 +101,9 @@ export interface PlayerState {
   pointNotice?: PointNotice
   /**
    * QUEM CHEGA ESCOLHE A FICHA: as fichas livres que o mestre oferece a quem
-   * está sem personagem (só id e nome). Ausente = nenhuma lista chegou; o host
-   * só reenvia quando muda, então a espera no lobby não a apaga.
+   * está sem personagem (só id e nome). Ausente = nenhuma lista chegou nesta
+   * conexão (o `welcome` a apaga). O host só reenvia quando muda ou quando o
+   * jogador volta à espera, então o `lobby.waiting` não a apaga.
    */
   seatOptions?: SeatOption[]
   /** O pedido de ficha: enviado, esperando o mestre, ou a resposta. O mapa com a ficha o encerra. */
@@ -955,7 +956,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // host esqueceu os pedidos da "Ana (2)"; a espera deles mentiria para sempre.
         if (state.playerId !== undefined && state.playerId !== data.playerId) forgetWaitingRequests()
         // O pedido de ficha morre no host com a queda: a espera dele mentiria para sempre.
-        setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting', reconnecting: undefined, seatClaim: undefined })
+        // A lista de fichas livres também: o host conta o que mandou POR CONEXÃO,
+        // e a desta começa vazia; a velha mostraria como livre a ficha de outro.
+        setState({ playerId: data.playerId, status: state.status === 'playing' ? 'playing' : 'waiting', reconnecting: undefined, seatClaim: undefined, seatOptions: undefined })
         return
       case 'lobby.waiting':
         clearSignalTimers()
@@ -1034,7 +1037,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         return
       }
       case 'seat.options': {
-        // Vale na espera; jogando, a lista fica guardada para uma volta à espera.
+        // Vale na espera; jogando, fica guardada: o host compara a volta à espera com ela e reenvia se mudou (vazia também).
         const options = parseSeatOptions(data)
         if (options === null) return
         setState({ seatOptions: options.tokens })
