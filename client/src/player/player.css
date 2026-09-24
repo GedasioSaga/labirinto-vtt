@@ -1844,11 +1844,15 @@
  * (esquerda), do recado (alto, meio) e do aviso de porta/passagem (baixo,
  * meio). Acesa, ela troca a linha fina clara pelo latão: é o que o jogador
  * olha para saber que está na fila.
+ *
+ * O zoom (+ e −) mora no mesmo canto: a mão fica logo ACIMA dele — o grupo
+ * mede 2 × 44 px + filetes (91 px) a 24 px do fundo — com 12 px de folga. No
+ * mesmo lugar, a mão (z-index maior) cobria o "−".
  */
 .pp-call {
   position: fixed;
   right: 12px;
-  bottom: 12px;
+  bottom: calc(24px + 91px + 12px + env(safe-area-inset-bottom, 0px));
   z-index: 22;
   display: flex;
   flex-direction: column;
