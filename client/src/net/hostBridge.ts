@@ -1,5 +1,6 @@
 import type { InvokeArgs } from '@tauri-apps/api/core'
 import type { UnlistenFn } from '@tauri-apps/api/event'
+import { useFollowStore } from '../stores/followStore'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, RegionPoint } from '../types/map'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_SEND_INTERVAL_MS } from '../lib/laser'
@@ -451,7 +452,20 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       'info',
       `${transfer.playerName} entrou em ${transfer.toSceneName}`,
       null,
-      goTo === undefined ? {} : { actions: [{ label: 'Ir lá', run: () => goTo(transfer.toSceneId, transfer.x, transfer.y) }] },
+      goTo === undefined
+        ? {}
+        : {
+            actions: [
+              {
+                label: 'Ir lá',
+                run: () => {
+                  // Antes de mover a câmera: seguindo outro jogador, o seguir levaria o mestre de volta.
+                  useFollowStore.getState().irAteJogador(transfer.playerId)
+                  goTo(transfer.toSceneId, transfer.x, transfer.y)
+                },
+              },
+            ],
+          },
     )
     arrivalToasts.set(transfer.playerId, toastId)
   }
@@ -702,7 +716,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Duplo clique: mesma promise, um túnel só.
       if (pendingTunnel !== null) return pendingTunnel
       if (currentRoom === null) {
-        useToastStore.getState().push('error', 'Abra a sala antes de torná-la pública')
+        // Pede uma ação (abrir a sala) antes do gesto poder acontecer: aviso que
+        // ensina, fica até o mestre dispensar (fronteira em `lib/erroQueEnsina.ts`).
+        useToastStore.getState().push('instrucao', 'Abra a sala antes de torná-la pública')
         return Promise.resolve()
       }
       if (tunnelState.kind === 'ready') return Promise.resolve()

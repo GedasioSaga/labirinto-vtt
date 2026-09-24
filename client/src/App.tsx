@@ -503,7 +503,7 @@ function App() {
               destinations: partyDestinations(world),
               onGoTo: (member) => {
                 // "Ir lá" em OUTRO jogador é o mestre escolhendo a vista: desliga o seguir.
-                if (member.playerId !== followingId) useFollowStore.getState().stop()
+                useFollowStore.getState().irAteJogador(member.playerId)
                 if (member.token !== null) useAdventureStore.getState().goToPoint(member.sceneId, { x: member.token.x, y: member.token.y })
               },
               onSend: (playerId, sceneId, pinId) => hostBridgeRef.current?.sendPlayer(playerId, sceneId, pinId) ?? false,

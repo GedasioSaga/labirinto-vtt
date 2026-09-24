@@ -22,6 +22,13 @@ interface FollowState {
   /** Botão "Seguir": liga neste jogador (desligando o anterior) ou desliga se já era ele. */
   toggle: (playerId: string) => void
   stop: () => void
+  /**
+   * "Ir lá" em `playerId` (painel Grupo, aviso de chegada): ir ver OUTRO
+   * jogador é o mestre escolhendo a vista, e desliga o seguir — senão o
+   * próximo passo do seguido o arrastaria de volta. Ir até o próprio seguido
+   * é o que o seguir já faz, e ele continua.
+   */
+  irAteJogador: (playerId: string) => void
   /** O canvas avisa toda câmera aplicada; o seguir decide se aquilo o desliga. */
   cameraApplied: (origin: CameraOrigin) => void
 }
@@ -35,6 +42,10 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
 
   stop: () => {
     if (get().playerId !== null) set({ playerId: null })
+  },
+
+  irAteJogador: (playerId) => {
+    if (get().playerId !== playerId) get().stop()
   },
 
   cameraApplied: (origin) => {
