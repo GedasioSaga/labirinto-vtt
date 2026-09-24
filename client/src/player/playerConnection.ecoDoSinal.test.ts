@@ -3,7 +3,7 @@ import { addToken, createEmptyMap } from '../lib/mapFactory'
 import type { MapData } from '../types/map'
 import { createPlayerConnection, type SocketLike } from './playerConnection'
 
-/** Eco do sinal no jogador: `unheard: true` do host vira sinal tracejado (`unheard` no SignalMark). */
+/** Eco do sinal no jogador: `unheard: true` do host vira sinal tracejado (`unheard` no SignalMark). Contrato do campo em net/protocol.ts. */
 
 class FakeSocket implements SocketLike {
   readyState = 0
@@ -56,8 +56,8 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('playerConnection: eco do sinal sem destinatário', () => {
-  it('todos ou parte recebem: o eco chega sem unheard e o sinal sai cheio', () => {
+describe('playerConnection: eco do sinal com unheard', () => {
+  it('eco sem unheard: o sinal sai cheio', () => {
     vi.useFakeTimers()
     const { connection, socket } = jogando()
     socket.receive(ECO)
@@ -66,7 +66,7 @@ describe('playerConnection: eco do sinal sem destinatário', () => {
     expect(sinal?.unheard).toBeUndefined()
   })
 
-  it('ninguém recebe: o eco com unheard vira sinal tracejado', () => {
+  it('eco com unheard (nenhum colega à vista vê o ponto; não é "ninguém recebeu"): vira sinal tracejado', () => {
     vi.useFakeTimers()
     const { connection, socket } = jogando()
     socket.receive({ ...ECO, unheard: true })

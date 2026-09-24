@@ -466,7 +466,11 @@ export type HostMessage =
   | { type: 'hazard.entered'; kind: HazardKind }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
-  // `unheard`: só no eco de quem sinalizou, e só quando nenhum outro jogador recebeu (o eco sai tracejado).
+  // `unheard`: só no eco de quem sinalizou (sai tracejado). Quer dizer "nenhum colega que você vê AGORA
+  // está vendo este ponto" (ou o ponto está fora da sua visão atual, ou numa zona oculta/teto seu).
+  // NÃO quer dizer "ninguém recebeu": colega fora de vista que já explorou o ponto recebe e o eco
+  // sai tracejado; dentro de sala secreta ninguém recebe e o eco sai cheio. Não troque por
+  // "ninguém recebeu" (`toOthers.length === 0`): vaza sala secreta, planta e presença (`echoHeard`).
   | { type: 'signal'; x: number; y: number; from: string; color: string; unheard?: true }
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
   | { type: 'door.request.rejected'; wallId: string; reason: DoorRequestRejection }

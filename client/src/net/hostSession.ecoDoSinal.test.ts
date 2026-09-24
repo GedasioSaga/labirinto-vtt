@@ -8,12 +8,18 @@ import type { HostMessage } from './protocol'
 
 /**
  * Eco do sinal: o eco de quem sinaliza sai tracejado (`unheard: true`) quando
- * nenhum colega À VISTA dele está vendo o ponto — o caso comum de "ninguém
- * recebeu". O mestre sempre recebe pelo campo `signal` e não conta.
+ * nenhum colega À VISTA dele está vendo o ponto. O mestre sempre recebe pelo
+ * campo `signal` e não conta.
  *
  * O eco NÃO é "alguém recebeu?": essa resposta desenharia a sala secreta,
  * a planta que o colega explorou dentro da névoa de quem sinaliza e a
  * presença de colega fora de vista (blocos de segurança no fim).
+ *
+ * DIVERGÊNCIA DO PEDIDO, PENDENTE DE DECISÃO DO DONO: o pedido diz "tracejado
+ * quando ninguém recebe". Os testes marcados "DIVERGE DO PEDIDO" registram os
+ * cenários em que o tracejado NÃO bate com a entrega (Bia recebe e o eco sai
+ * tracejado; ninguém recebe e o eco sai cheio). Não são o comportamento
+ * desejado: são o preço de não vazar, e só mudam com decisão explícita.
  */
 
 const CODE = 'AB12CD'
@@ -168,7 +174,7 @@ describe('hostSession: eco do sinal — o eco não revela o que Ana não sabe', 
     expect(para(revelado, 'c-ana')).toEqual([{ type: 'signal', x: 300, y: 300, from: 'Ana', color: t.color }])
   })
 
-  it('sala secreta não descoberta: sinal dentro e logo ao lado dão o MESMO eco, embora só o de fora seja repassado', () => {
+  it('DIVERGE DO PEDIDO — sala secreta não descoberta: dentro ninguém recebe e o eco sai cheio; sinal dentro e logo ao lado dão o MESMO eco, embora só o de fora seja repassado', () => {
     // Mesmo cenário da evidência do revisor: sala secreta em 600..900 x 500..800,
     // Ana em (700,200) e Bia em (800,200) veem as duas pontas; raio 900.
     const sala = buildRoomFromDraft('sec', ['sw1', 'sw2', 'sw3', 'sw4'], { x: 600, y: 500 }, { x: 900, y: 800 }, undefined, undefined, 'Cofre')
@@ -188,7 +194,7 @@ describe('hostSession: eco do sinal — o eco não revela o que Ana não sabe', 
     expect(JSON.stringify(dentro.outbound)).not.toContain('Cofre')
   })
 
-  it('névoa de Ana: ponto que Bia conhece e ponto que ninguém conhece dão o MESMO eco (a planta de Bia não vaza)', () => {
+  it('DIVERGE DO PEDIDO — névoa de Ana: Bia recebe e o eco sai tracejado; ponto que Bia conhece e ponto que ninguém conhece dão o MESMO eco (a planta de Bia não vaza)', () => {
     // Direita dividida em y=500: Bia vê a metade de cima; a de baixo ninguém viu. Caio fica com Ana.
     const paredes = [wall('divisoria', 500, 0, 500, 1000), wall('meio', 500, 500, 1000, 500)]
     const t = montar(mapa({ caio: { x: 200, y: 600 }, paredes }))
@@ -201,7 +207,7 @@ describe('hostSession: eco do sinal — o eco não revela o que Ana não sabe', 
     expect(para(conhecido, 'c-ana')).toEqual([{ type: 'signal', x: 800, y: 400, from: 'Ana', color: t.color, unheard: true }])
   })
 
-  it('colega fora de vista: Bia vê o ponto que Ana vê, mas a ficha dela não está na tela de Ana; o eco não conta que ela está ali', () => {
+  it('DIVERGE DO PEDIDO — colega fora de vista: Bia recebe e o eco sai tracejado; Bia vê o ponto que Ana vê, mas a ficha dela não está na tela de Ana; o eco não conta que ela está ali', () => {
     // Parede em x=500 só até y=600: Ana e Bia enxergam o vão de baixo, mas não uma à outra.
     const paredes = [wall('meia', 500, 0, 500, 600)]
     const map = mapa({ caio: { x: 100, y: 950 }, paredes })

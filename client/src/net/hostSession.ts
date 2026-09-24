@@ -1182,6 +1182,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * ele sai cheio embora ninguém receba (o preço de não desenhar a sala).
    * Colega que só lembra o ponto (explorado, fora da visão) recebe o sinal,
    * mas não conta aqui: a exploração dele não passa na borda da sala secreta.
+   *
+   * DIVERGE DO PEDIDO def-sinal-some-calado ("tracejado quando ninguém
+   * recebe"): nos dois casos acima o tracejado não bate com a entrega, e não
+   * há regra exata sem vazar. Decisão pendente do dono do pedido.
    */
   const echoHeard = (playerId: string, scene: HostScene, world: HostWorld, point: RegionPoint): boolean => {
     const map = scene.map
@@ -1233,7 +1237,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (knowsPoint(otherId, map, point)) toOthers.push({ clientId: otherClient, msg: message })
       }
     }
-    // Eco de quem sinalizou: `unheard` quando nenhum colega À VISTA vê o ponto.
+    // Eco de quem sinalizou: `unheard` quando nenhum colega À VISTA vê o ponto —
+    // não quando ninguém recebeu (os dois divergem; ver `echoHeard`).
     // NÃO é `toOthers.length === 0`: isso viraria oráculo (ver `echoHeard`).
     const echo: HostMessage = echoHeard(playerId, scene, world, point) ? message : { ...message, unheard: true }
     const outbound: Outbound[] = [{ clientId, msg: echo }, ...toOthers]

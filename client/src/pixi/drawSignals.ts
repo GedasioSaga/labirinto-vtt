@@ -24,7 +24,7 @@ const OUTLINE = 0x000000
 const LABEL_FONT_SIZE = 13
 const LABEL_GAP = 6
 const FADE_OUT_MS = 800
-/** Traços por onda no eco sem destinatário. */
+/** Traços por onda no eco `unheard`. */
 export const SIGNAL_RING_DASHES = 8
 /** Fração de cada passo (traço + vão) que é traço. */
 const RING_DASH_FILL = 0.55
@@ -42,6 +42,32 @@ export function signalRingDashes(): [number, number][] {
 }
 
 const RING_DASH_ARCS = signalRingDashes()
+/** Traço e vão do contorno da seta tracejada, em px de tela. */
+const ARROW_DASH_LENGTH = 4
+const ARROW_DASH_GAP = 3
+const ARROW_DASH_WIDTH = 2.5
+
+/**
+ * Contorno tracejado de um polígono fechado (`[x0, y0, x1, y1, …]`): um
+ * moveTo/lineTo por traço, sem o stroke — quem chama pinta.
+ */
+function strokeDashedClosedPath(g: Graphics, flat: readonly number[]): void {
+  const count = Math.floor(flat.length / 2)
+  for (let i = 0; i < count; i += 1) {
+    const ax = flat[i * 2]
+    const ay = flat[i * 2 + 1]
+    const bx = flat[((i + 1) % count) * 2]
+    const by = flat[((i + 1) % count) * 2 + 1]
+    const side = Math.hypot(bx - ax, by - ay)
+    if (side === 0) continue
+    const ux = (bx - ax) / side
+    const uy = (by - ay) / side
+    for (let t = 0; t < side; t += ARROW_DASH_LENGTH + ARROW_DASH_GAP) {
+      const end = Math.min(t + ARROW_DASH_LENGTH, side)
+      g.moveTo(ax + ux * t, ay + uy * t).lineTo(ax + ux * end, ay + uy * end)
+    }
+  }
+}
 
 export interface SignalPlacement {
   x: number
@@ -95,7 +121,7 @@ function paintSignal(view: SignalView, signal: SignalMark, place: SignalPlacemen
         g.circle(place.x, place.y, radius).stroke(ring)
         continue
       }
-      // Eco sem destinatário: a onda sai tracejada (nenhum colega recebeu).
+      // Eco `unheard` (nenhum colega à vista vê o ponto; contrato em net/protocol.ts): onda tracejada.
       for (const [start, end] of RING_DASH_ARCS) {
         g.moveTo(place.x + Math.cos(start) * radius, place.y + Math.sin(start) * radius)
           .arc(place.x, place.y, radius, start, end)
@@ -115,9 +141,14 @@ function paintSignal(view: SignalView, signal: SignalMark, place: SignalPlacemen
   const half = ARROW_HALF_WIDTH * pulse
   const tipX = place.x + cos * length
   const tipY = place.y + sin * length
-  g.poly([tipX, tipY, place.x - sin * half, place.y + cos * half, place.x + sin * half, place.y - cos * half], true)
-    .fill({ color: signal.color, alpha: fade })
-    .stroke({ color: OUTLINE, width: 1.5, alpha: fade })
+  const arrow = [tipX, tipY, place.x - sin * half, place.y + cos * half, place.x + sin * half, place.y - cos * half]
+  if (signal.unheard === true) {
+    // Eco `unheard` fora da tela: seta vazada e tracejada, o mesmo aviso das ondas.
+    strokeDashedClosedPath(g, arrow)
+    g.stroke({ color: signal.color, width: ARROW_DASH_WIDTH, alpha: fade })
+  } else {
+    g.poly(arrow, true).fill({ color: signal.color, alpha: fade }).stroke({ color: OUTLINE, width: 1.5, alpha: fade })
+  }
   // Nome do lado de dentro da tela, atrás da seta.
   label.position.set(place.x - cos * (LABEL_GAP + LABEL_FONT_SIZE), place.y - sin * (LABEL_GAP + LABEL_FONT_SIZE) + LABEL_FONT_SIZE / 2)
 }

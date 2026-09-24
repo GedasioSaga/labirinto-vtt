@@ -34,6 +34,9 @@ export interface SignalMark {
   name: string
   color: string
   createdAt: number
-  /** Eco de quem sinalizou quando nenhum colega recebeu: desenhado tracejado. */
+  /**
+   * Eco de quem sinalizou sem colega À VISTA vendo o ponto: desenhado tracejado.
+   * NÃO é "ninguém recebeu" — contrato em `HostMessage` (`net/protocol.ts`).
+   */
   unheard?: true
 }
