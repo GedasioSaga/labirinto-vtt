@@ -23,6 +23,7 @@ import type { PlayerInfo } from './net/hostSession'
 import { giftScenesOf, RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
 import { LivePlayerMirror } from './components/PlayerMirror'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
+import { jogadoresDoCorte } from './lib/corteDaTorre'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -1713,6 +1714,12 @@ function App() {
                 // Cenas em pastas: só a lista do mestre muda (pede Salvar); o jogador não recebe nada.
                 onMove={adventure === null ? undefined : (sceneId, parentId) => useAdventureStore.getState().moveScene(sceneId, parentId)}
                 adventureId={adventure?.id ?? null}
+                // Corte da torre: clicar numa ficha é o mestre escolhendo a vista (como o "Ir lá" do Grupo), então desliga o seguir.
+                onGoToPoint={(sceneId, x, y) => {
+                  useFollowStore.getState().stop()
+                  useAdventureStore.getState().goToPoint(sceneId, { x, y })
+                }}
+                towerPlayers={roomPlayers.length === 0 ? undefined : jogadoresDoCorte(roomPlayers)}
               />
             }
             objects={
