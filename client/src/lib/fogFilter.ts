@@ -1467,6 +1467,7 @@ function canReadPin(pin: Pin, readers: readonly PinReader[], grid: number, hidde
  *   se comporta, não para onde ela leva.
  * - `soMarco` quando `known` é falso: o pino só chegou por ser marco, e a
  *   passagem por ele não vale daqui.
+ * - `nome` NUNCA: é o nome só do mestre, e o cartão do jogador é a descrição.
  */
 function pinForPlayer(pin: Pin, readable: boolean, known: boolean): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
@@ -1474,6 +1475,8 @@ function pinForPlayer(pin: Pin, readable: boolean, known: boolean): Pin {
   // chega ao jogador por descuido (revisão de segurança, 22/09). `destino`,
   // `rotulo` e `saidas` ficam de fora — o destino de cada saída diria que a
   // outra cena existe. `marco` e `lerDePerto` também: são regra do host.
+  // `nome` também, e de propósito: é o rótulo SÓ DO MESTRE ("Faca") — o
+  // jogador lê a descrição (teste em `fogFilter.pinoNome.test.ts`).
   // Pino "só de perto" com a ficha longe sai vazio e marcado `longe`.
   const forPlayer: Pin = {
     id: pin.id,

@@ -358,6 +358,23 @@ export function findPinAt(pins: readonly Pin[], point: RegionPoint, tolerance = 
   return null
 }
 
+/** Teto do nome só do mestre: é um rótulo ao lado do pino, não um texto. */
+export const PIN_NOME_MAX_LENGTH = 40
+
+/**
+ * O nome só do mestre como ele é gravado: aparado e cortado no teto. Texto em
+ * branco e o que não é texto (arquivo editado à mão) viram `''` = sem nome.
+ */
+export function cleanPinName(value: unknown): string {
+  return typeof value === 'string' ? value.trim().slice(0, PIN_NOME_MAX_LENGTH) : ''
+}
+
+/** Como o MESTRE chama o pino na lista e ao lado dele: o nome, ou o resumo de sempre. */
+export function pinMasterLabel(pin: Pin): string {
+  const nome = cleanPinName(pin.nome)
+  return nome === '' ? pinSummary(pin) : nome
+}
+
 /**
  * Texto curto do pino para o mestre (lista, título de painel e leitor de tela).
  * Sem descrição, quem nomeia o pino é o símbolo escolhido — e só na falta dele

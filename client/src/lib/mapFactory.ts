@@ -1608,7 +1608,7 @@ export function addPin(map: MapData, pin: Pin): MapData {
 export function updatePin(
   map: MapData,
   id: string,
-  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'marco' | 'lerDePerto'>>,
+  patch: Partial<Pick<Pin, 'kind' | 'icon' | 'description' | 'nome' | 'image' | 'locked' | 'destino' | 'passagem' | 'rotulo' | 'saidas' | 'marco' | 'lerDePerto'>>,
 ): MapData {
   const pin = map.pins.find((p) => p.id === id)
   if (!pin) return map
@@ -1622,6 +1622,8 @@ export function updatePin(
     // de um pino que nunca teve não pode empurrar entrada vazia no histórico.
     next.icon === pin.icon &&
     next.description === pin.description &&
+    // Nome só do mestre: opcional, `undefined` = sem nome.
+    next.nome === pin.nome &&
     next.image === pin.image &&
     !!next.locked === !!pin.locked &&
     // Marco e "ler só de perto": opcionais também — desligar o que nunca foi
