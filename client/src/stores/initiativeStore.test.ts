@@ -61,4 +61,27 @@ describe('initiativeStore', () => {
     expect(useInitiativeStore.getState().turn).toBeNull()
     expect(useInitiativeStore.getState().values['mapa-ponte']?.machado).toBe(17)
   })
+
+  it('a ficha que troca de id leva junto o valor e a vez, só naquele mapa', () => {
+    montar()
+    useInitiativeStore.getState().setValue('mapa-cripta', 'machado', 3)
+    startTurn('mapa-ponte', FICHAS)
+    useInitiativeStore.getState().renameToken('mapa-ponte', 'machado', 'machado-2')
+    const { values, turn } = useInitiativeStore.getState()
+    expect(values['mapa-ponte']).toEqual({ lanterna: 12, 'machado-2': 17, goblin: 5 })
+    expect(turn).toEqual({ mapId: 'mapa-ponte', tokenId: 'machado-2' })
+    // A ficha de mesmo id em outro mapa não é a mesma ficha.
+    expect(values['mapa-cripta']).toEqual({ machado: 3 })
+  })
+
+  it('trocar o id de ficha sem valor nem vez não mexe em nada', () => {
+    montar()
+    startTurn('mapa-ponte', FICHAS)
+    const antes = useInitiativeStore.getState()
+    useInitiativeStore.getState().renameToken('mapa-ponte', 'orc', 'orc-2')
+    useInitiativeStore.getState().renameToken('mapa-vazio', 'machado', 'machado-2')
+    const depois = useInitiativeStore.getState()
+    expect(depois.values).toBe(antes.values)
+    expect(depois.turn).toBe(antes.turn)
+  })
 })

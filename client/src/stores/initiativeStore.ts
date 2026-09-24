@@ -17,6 +17,12 @@ interface InitiativeState {
   /** `null` tira a ficha da ordem. Tirar a ficha da vez encerra a vez. */
   setValue: (mapId: string, tokenId: string, value: number | null) => void
   setTurn: (turn: TurnRef | null) => void
+  /**
+   * A ficha `fromId` deste mapa passou a se chamar `toId` (ver
+   * `adventureStore.transferToken`): o valor e a vez dela vão junto. O mesmo id
+   * em outro mapa é outra ficha e fica como está.
+   */
+  renameToken: (mapId: string, fromId: string, toId: string) => void
   stop: () => void
   reset: () => void
 }
@@ -38,6 +44,20 @@ export const useInitiativeStore = create<InitiativeState>()((set, get) => ({
   },
 
   setTurn: (turn) => set({ turn }),
+
+  renameToken: (mapId, fromId, toId) => {
+    const { values, turn } = get()
+    const current = values[mapId]
+    const hasValue = current !== undefined && fromId in current
+    const hasTurn = turn !== null && turn.mapId === mapId && turn.tokenId === fromId
+    if (!hasValue && !hasTurn) return
+    let nextValues = values
+    if (hasValue) {
+      const { [fromId]: value, ...rest } = current
+      nextValues = { ...values, [mapId]: { ...rest, [toId]: value } }
+    }
+    set({ values: nextValues, turn: hasTurn ? { mapId, tokenId: toId } : turn })
+  },
 
   stop: () => {
     if (get().turn !== null) set({ turn: null })
