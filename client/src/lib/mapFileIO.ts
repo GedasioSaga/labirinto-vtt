@@ -308,6 +308,9 @@ export interface SavedMapEntry {
  * omitida (era o que fazia o mapa danificado sumir da tela como se tivesse
  * sido apagado): ela entra marcada com `damaged: true`, com o caminho, ao lado
  * dos mapas bons.
+ *
+ * Pasta sem `map.json` mas com `adventure.json` também entra (ver
+ * `listedAdventure`): a aventura com todas as cenas em `scenes/` sumia da tela.
  */
 /** `mtime` em ms, ou `0` quando o SO não relata (ou o `stat` falha). */
 async function mtimeMsOf(path: string): Promise<number> {
@@ -316,6 +319,53 @@ async function mtimeMsOf(path: string): Promise<number> {
     return info.mtime ? info.mtime.getTime() : 0
   } catch {
     return 0
+  }
+}
+
+/**
+ * Entrada de arquivo que não pôde ser lido: o nome da pasta avisa, o caminho
+ * fica para o usuário achar o arquivo em vez de achar que o mapa foi apagado.
+ */
+function damagedEntry(path: string, folderName: string, mtimeMs: number): SavedMapEntry {
+  return { path, id: folderName, name: `${folderName} (arquivo danificado)`, width: 0, height: 0, grid: 0, mtimeMs, damaged: true }
+}
+
+/** Mapa solto (ou aventura cuja primeira cena mora na raiz): `<pasta>/map.json`. */
+async function listedLooseMap(mapJsonPath: string, folderName: string): Promise<SavedMapEntry> {
+  const mtimeMs = await mtimeMsOf(mapJsonPath)
+  try {
+    const map = deserializeMap(await readTextFile(mapJsonPath))
+    // `damaged` fica AUSENTE no mapa bom, não `false`: a marca é exceção, e
+    // quem lê a lista usa `entry.damaged ?? false`.
+    return { path: mapJsonPath, id: map.id, name: map.name, width: map.width, height: map.height, grid: map.grid, mtimeMs }
+  } catch {
+    // map.json inválido (JSON malformado ou sem "id"): entra marcado.
+    return damagedEntry(mapJsonPath, folderName, mtimeMs)
+  }
+}
+
+/**
+ * Aventura SEM `map.json` na raiz — todas as cenas em `scenes/<id>/map.json`,
+ * como a cidade-torre gerada. Entra com o nome da aventura e o caminho da cena
+ * inicial: abrir esse caminho acha o `adventure.json` duas pastas acima
+ * (`findAdventureFor`) e traz a aventura inteira. O `id` é o nome da pasta, o
+ * que `mapDirFor` resolve de volta para a pasta da aventura. `adventure.json`
+ * quebrado ou cena inicial ilegível entra marcado, com o caminho do
+ * `adventure.json`.
+ */
+async function listedAdventure(adventurePath: string, adventureDir: string, folderName: string): Promise<SavedMapEntry> {
+  const mtimeMs = await mtimeMsOf(adventurePath)
+  try {
+    const adventure = parseAdventure(await readTextFile(adventurePath))
+    // `parseAdventure` garante `startSceneId` entre as cenas; o `?? scenes[0]`
+    // só cobre o tipo, que não sabe disso.
+    const start = adventure.scenes.find((scene) => scene.id === adventure.startSceneId) ?? adventure.scenes[0]
+    const startPath = await scenePath(adventureDir, start.file)
+    if (!(await exists(startPath))) return damagedEntry(adventurePath, folderName, mtimeMs)
+    const map = deserializeMap(await readTextFile(startPath))
+    return { path: startPath, id: folderName, name: adventure.name, width: map.width, height: map.height, grid: map.grid, mtimeMs }
+  } catch {
+    return damagedEntry(adventurePath, folderName, mtimeMs)
   }
 }
 
@@ -331,38 +381,15 @@ export async function listSavedMaps(): Promise<SavedMapEntry[]> {
 
     const mapJsonPath = await join(mapsDir, entry.name, 'map.json')
     assertPathWithinRoot(mapJsonPath, mapsDir)
-    if (!(await exists(mapJsonPath))) continue
-
-    const mtimeMs = await mtimeMsOf(mapJsonPath)
-    try {
-      const content = await readTextFile(mapJsonPath)
-      const map = deserializeMap(content)
-      maps.push({
-        path: mapJsonPath,
-        id: map.id,
-        name: map.name,
-        width: map.width,
-        height: map.height,
-        grid: map.grid,
-        mtimeMs,
-      })
-      // `damaged` fica AUSENTE no mapa bom, não `false`: a marca é exceção, e
-      // quem lê a lista usa `entry.damaged ?? false`.
-    } catch {
-      // map.json inválido (JSON malformado ou sem "id"): entra marcado, com o
-      // nome da pasta, para o usuário achar o arquivo em vez de achar que o
-      // mapa foi apagado.
-      maps.push({
-        path: mapJsonPath,
-        id: entry.name,
-        name: `${entry.name} (arquivo danificado)`,
-        width: 0,
-        height: 0,
-        grid: 0,
-        mtimeMs,
-        damaged: true,
-      })
+    if (await exists(mapJsonPath)) {
+      maps.push(await listedLooseMap(mapJsonPath, entry.name))
+      continue
     }
+
+    const adventureDir = await join(mapsDir, entry.name)
+    const adventurePath = await join(adventureDir, ADVENTURE_FILE)
+    assertPathWithinRoot(adventurePath, mapsDir)
+    if (await exists(adventurePath)) maps.push(await listedAdventure(adventurePath, adventureDir, entry.name))
   }
 
   maps.sort((a, b) => b.mtimeMs - a.mtimeMs)
