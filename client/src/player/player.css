@@ -1073,6 +1073,48 @@
   bottom: 112px;
 }
 
+/* ENCONTRO MARCADO: o fim da espera ("Bia chegou"), acima do da ação, pelo mesmo motivo. Tem o próprio "Fechar". */
+.pp-notice--wait {
+  bottom: 156px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pp-notice__close {
+  margin: 0;
+  padding: 2px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  background: transparent;
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pp-notice__close:hover {
+  color: var(--lb-color-parchment, #eceae4);
+  border-color: var(--lb-color-brass, #e0a44a);
+}
+
+.pp-notice__close:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+/* ENCONTRO MARCADO no painel: o formulário "Esperar aqui", ou a espera ativa. */
+.pp-wait {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pp-wait__status {
+  margin: 0;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
 /*
  * CARTÃO DA FICHA ALHEIA: a moldura do cartão do pino, sem imagem. O nome no
  * alto (é quem o jogador tocou) e as ações em duas colunas de pílulas.

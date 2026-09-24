@@ -7,6 +7,7 @@ import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 import { isTokenAction, isTokenActionRejection, TOKEN_ACTION_REPLY_MAX_LENGTH, TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
+import { ESPERA_ONDE_MAX_LENGTH, isFimDaEsperaMotivo, isWaitMinutes, type FimDaEspera, type MinhaEspera } from '../lib/encontroMarcado'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -84,6 +85,15 @@ import { isTokenAction, isTokenActionRejection, TOKEN_ACTION_REPLY_MAX_LENGTH, T
  * jogador em `reply`). A volta leva só o `reqId` do jogador e esse texto:
  * nunca nome de ficha, de cena ou posição. Mestre antigo responde
  * `error invalid_message`; jogador antigo ignora as duas (e o `reply`).
+ *
+ * ENCONTRO MARCADO é aditivo pelo mesmo critério. Do jogador: `wait.set`
+ * (quantos minutos, e o colega e o lugar que ele digitou) e `wait.clear`. Do
+ * mestre, SÓ a quem espera: `wait.state` (a espera dele, ou `null`) e
+ * `wait.ended` (o colega apareceu no recorte dele, o prazo venceu, ou ele saiu
+ * da cena — nunca o nome da cena nem onde o colega estava). E `waiting` no
+ * snapshot: ids das fichas DO RECORTE cujo dono espera — a marca, sem o "quem"
+ * nem o "onde". Mestre antigo responde `error invalid_message`; jogador antigo
+ * ignora as três.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -220,6 +230,24 @@ export interface TokenActionRequestMessage {
   text?: string
 }
 
+/**
+ * ENCONTRO MARCADO: "espero aqui". `minutes` é o prazo a partir de AGORA no
+ * relógio do host (nunca uma hora absoluta: o relógio do celular não manda);
+ * `who` é o colega pelo nome, como o jogador digitou; `where` é o lugar em
+ * texto livre. Os dois opcionais, já aparados.
+ */
+export interface WaitSetMessage {
+  type: 'wait.set'
+  minutes: number
+  who?: string
+  where?: string
+}
+
+/** "Parar de esperar". */
+export interface WaitClearMessage {
+  type: 'wait.clear'
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
@@ -233,6 +261,8 @@ export type PlayerMessage =
   | CluePeersRequestMessage
   | ClueShowMessage
   | TokenActionRequestMessage
+  | WaitSetMessage
+  | WaitClearMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -357,14 +387,29 @@ export type TokenActionHostMessage =
   | { type: 'token.action.rejected'; reqId: string; reason: TokenActionRejection }
   | { type: 'token.action.answer'; reqId: string; accepted: boolean; reply?: string }
 
+/** ENCONTRO MARCADO: a espera de quem recebe (`null` = não espera). Só vai ao próprio jogador. */
+export interface WaitStateMessage {
+  type: 'wait.state'
+  wait: MinhaEspera | null
+}
+
+/** ENCONTRO MARCADO: a espera acabou, e por quê. Só vai a quem esperava. */
+export type WaitEndedMessage = { type: 'wait.ended' } & FimDaEspera
+
+export type WaitHostMessage = WaitStateMessage | WaitEndedMessage
+
 export type HostErrorReason ='bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
+/**
+ * `waiting` (ENCONTRO MARCADO): ids das fichas DESTE recorte cujo dono espera
+ * alguém. Aditivo e só quando há alguma: ausente = nenhuma ficha esperando.
+ */
 export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
   | { type: 'welcome'; playerId: string; resumeToken: string; name: string }
   | { type: 'lobby.waiting' }
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; waiting?: string[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; waiting?: string[] }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }
@@ -385,6 +430,7 @@ export type HostMessage =
   | NotebookMessage
   | ClueHostMessage
   | TokenActionHostMessage
+  | WaitHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -640,6 +686,75 @@ export function parseTokenActionHostMessage(value: unknown): TokenActionHostMess
   return null
 }
 
+/**
+ * Texto opcional do jogador: ausente vale ausente; presente tem de ser texto
+ * até `max` DEPOIS de aparado. `''` = sem texto (o campo some); `null` =
+ * malformado (a mensagem inteira cai).
+ */
+function optionalTrimmed(value: unknown, max: number): string | null {
+  if (value === undefined) return ''
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length <= max ? trimmed : null
+}
+
+/**
+ * "Espero aqui". Prazo fora da faixa, colega ou lugar que não são texto ou
+ * passam do teto recusam a mensagem inteira. Só espaço vale como vazio.
+ * Devolve só os campos conhecidos: um "até" em hora absoluta ou um id de cena
+ * que viessem juntos ficam para trás.
+ */
+function parseWaitSet(obj: Record<string, unknown>): WaitSetMessage | null {
+  if (!isWaitMinutes(obj.minutes)) return null
+  const who = optionalTrimmed(obj.who, NAME_MAX_LENGTH + NAME_SUFFIX_ROOM)
+  const where = optionalTrimmed(obj.where, ESPERA_ONDE_MAX_LENGTH)
+  if (who === null || where === null) return null
+  const parsed: WaitSetMessage = { type: 'wait.set', minutes: obj.minutes }
+  if (who !== '') parsed.who = who
+  if (where !== '') parsed.where = where
+  return parsed
+}
+
+function parseOwnWait(value: unknown): MinhaEspera | null {
+  if (!isRecord(value)) return null
+  const { who, where, remainingMs } = value
+  if (!isFiniteNumber(remainingMs) || remainingMs < 0) return null
+  const wait: MinhaEspera = { remainingMs }
+  if (who !== undefined) {
+    if (!isRoomName(who)) return null
+    wait.who = who
+  }
+  if (where !== undefined) {
+    if (!isBoundedString(where, 1, ESPERA_ONDE_MAX_LENGTH)) return null
+    wait.where = where
+  }
+  return wait
+}
+
+/**
+ * Valida o que o jogador recebe do ENCONTRO MARCADO. Mesma regra do caderno:
+ * forma errada cai inteira; devolve só os campos conhecidos. No "chegou" o
+ * nome do colega é obrigatório (é o aviso); nos outros, opcional.
+ */
+export function parseWaitHostMessage(value: unknown): WaitHostMessage | null {
+  if (!isRecord(value)) return null
+  if (value.type === 'wait.state') {
+    if (value.wait === null) return { type: 'wait.state', wait: null }
+    const wait = parseOwnWait(value.wait)
+    return wait === null ? null : { type: 'wait.state', wait }
+  }
+  const reason = value.reason
+  if (value.type !== 'wait.ended' || !isFimDaEsperaMotivo(reason)) return null
+  const who = value.who
+  let colega: string | undefined
+  if (who !== undefined) {
+    if (!isRoomName(who)) return null
+    colega = who
+  }
+  if (reason === 'met') return colega === undefined ? null : { type: 'wait.ended', reason, who: colega }
+  return colega === undefined ? { type: 'wait.ended', reason } : { type: 'wait.ended', reason, who: colega }
+}
+
 /** Cor do laser repassado: `#rrggbb`, a forma que `Token.color` grava. */
 const LASER_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 
@@ -732,6 +847,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
     case 'token.action':
       return parseTokenActionRequest(value)
+    case 'wait.set':
+      return parseWaitSet(value)
+    case 'wait.clear':
+      return { type: 'wait.clear' }
     default:
       return null
   }

@@ -1543,6 +1543,19 @@ export function roomClueForPlayer(title: string, text: string): PlayerClueConten
 }
 
 /**
+ * ENCONTRO MARCADO — a marca "esperando" que este jogador pode receber: só as
+ * fichas que JÁ saíram no recorte dele (`view.map.tokens`, depois de névoa,
+ * zona oculta, ficha secreta ou escondida e outra cena). Ficha que espera no
+ * escuro não ganha marca: a marca diria que ela existe e onde.
+ *
+ * Só o id vai. Quem ela espera e onde combinou ficam no host: são do dono da
+ * ficha e do mestre, não da mesa.
+ */
+export function waitingTokensForPlayer(view: Pick<PlayerMapView, 'map'>, waitingTokenIds: ReadonlySet<string>): string[] {
+  return view.map.tokens.filter((t) => waitingTokenIds.has(t.id)).map((t) => t.id)
+}
+
+/**
  * O objeto (cama, baú, mesa) como o jogador pode recebê-lo: a SILHUETA e mais
  * nada. A tela dele pinta o retângulo chapado no lugar do móvel, com o tamanho
  * e a rotação que o mestre deu (`pixi/drawPropSilhouettes.ts`).

@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { ChangeEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react'
-import type { StorageLike } from './playerConnection'
+import type { OwnWait, StorageLike } from './playerConnection'
 import { NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { PlayerNotebook } from './PlayerNotebook'
 import { PlayerClueList } from './PlayerClues'
+import { PlayerWaitSection } from './PlayerWaitSection'
 
 /** Caderno sem pistas passadas (tela antiga, teste): a mesma lista vazia, sem objeto novo a cada render. */
 const NO_CLUES: readonly ClueEntry[] = []
@@ -130,6 +131,11 @@ interface PlayerPanelProps {
   clues?: readonly ClueEntry[]
   /** Tocou numa pista do Caderno: reabre o cartão dela. */
   onOpenClue?: (clueId: string) => void
+  /** ENCONTRO MARCADO: a espera confirmada pelo mestre; `undefined` = não espera. */
+  wait?: OwnWait
+  /** "Esperar aqui". Sem ele (tela antiga, teste), a seção não aparece. */
+  onStartWait?: (minutes: number, who: string, where: string) => void
+  onStopWait?: () => void
 }
 
 export function PlayerPanel({
@@ -153,6 +159,9 @@ export function PlayerPanel({
   onReadNotebook,
   clues = NO_CLUES,
   onOpenClue = IGNORE_CLUE,
+  wait,
+  onStartWait,
+  onStopWait,
 }: PlayerPanelProps) {
   const drawerScreen = useSyncExternalStore(subscribeDrawerScreen, isDrawerScreen, () => false)
   // Um estado por forma: a coluna do notebook nasce aberta e a gaveta do
@@ -452,6 +461,16 @@ export function PlayerPanel({
                     {photoError}
                   </p>
                 )}
+              </section>
+            )}
+
+            {/* ENCONTRO MARCADO: só com ficha no mapa — é ela que espera, e é nela que a marca aparece. */}
+            {first !== undefined && onStartWait !== undefined && onStopWait !== undefined && (
+              <section className="pp-section" aria-labelledby={`${panelId}-wait`}>
+                <h2 id={`${panelId}-wait`} className="pp-heading">
+                  Encontro
+                </h2>
+                <PlayerWaitSection wait={wait} onStart={onStartWait} onStop={onStopWait} />
               </section>
             )}
 

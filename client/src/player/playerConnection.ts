@@ -17,12 +17,25 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseNotebook, parseRoomText, parseSceneNote, parseTokenActionHostMessage, type ClueEntry, type NoteEntry } from '../net/protocol'
+import {
+  NOTEBOOK_MAX_NOTES,
+  parseClueMessage,
+  parseLaserMessage,
+  parseNotebook,
+  parseRoomText,
+  parseSceneNote,
+  parseTokenActionHostMessage,
+  parseWaitHostMessage,
+  type ClueEntry,
+  type NoteEntry,
+  type WaitSetMessage,
+} from '../net/protocol'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
 import { TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction } from '../lib/tokenActions'
 import { tokenCardName, type TokenActionNotice } from './tokenCard'
+import { ESPERA_ONDE_MAX_LENGTH, isWaitMinutes, type FimDaEspera } from '../lib/encontroMarcado'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -98,6 +111,16 @@ export interface PlayerState {
   clueShow?: ClueShow
   /** AGIR SOBRE UMA FICHA: o pedido esperando o mestre, ou a resposta dele. */
   tokenAction?: TokenActionNotice
+  /**
+   * ENCONTRO MARCADO: a espera do jogador, como o mestre a confirmou. `until`
+   * é o prazo no relógio DESTA tela (a chegada do `wait.state` mais o que
+   * faltava): o relógio do mestre é outro.
+   */
+  wait?: OwnWait
+  /** ENCONTRO MARCADO: o aviso de que a espera acabou ("Bia chegou"); `id` novo repete o aviso. */
+  waitEnded?: { id: number; end: FimDaEspera }
+  /** ENCONTRO MARCADO: ids das fichas do mapa recebido com a marca "esperando". */
+  waitingTokens?: string[]
   rev: number
   playerId?: string
   /** Motivo quando `status === 'error'`: razão do mestre ou 'connection_lost'. */
@@ -121,6 +144,13 @@ export type TravelNotice =
   | { id: number; phase: 'rejected'; reason: PinTravelRejection }
 
 export type CluePeers = { phase: 'loading' } | { phase: 'ready'; names: string[] }
+
+/** A espera do próprio jogador: quem ele espera, onde, e o prazo no relógio desta tela (ms). */
+export interface OwnWait {
+  who?: string
+  where?: string
+  until: number
+}
 
 export interface ClueShow {
   to: string
@@ -231,6 +261,18 @@ export interface PlayerConnection {
    * O pedido que ainda espera o mestre não se fecha: ele some com a resposta.
    */
   dismissTokenAction(): void
+  /**
+   * ENCONTRO MARCADO: "Esperar aqui" por `minutes`, esperando `who` (o nome do
+   * colega; vazio = qualquer um) em `where` (texto livre). Tudo aparado; vazio
+   * não vai. `false` (e nada sai) quando não joga, o prazo não vale, algum
+   * texto passa do teto ou o socket não está aberto. A espera só aparece na
+   * tela quando o mestre confirma (`wait.state`).
+   */
+  startWait(minutes: number, who?: string, where?: string): boolean
+  /** "Parar de esperar": sai na hora da tela e avisa o mestre. `false` se o socket não está aberto. */
+  stopWait(): boolean
+  /** Fecha o aviso do fim da espera antes do tempo. */
+  dismissWaitEnded(): void
   /** Abre um socket novo (reconectar), reaproveitando o resumeToken guardado. */
   reconnect(): void
   close(): void
@@ -278,6 +320,11 @@ export const MOVED_NOTICE_TTL_MS = 60_000
 export const GATHERED_NOTICE_TTL_MS = 60_000
 /** Quanto tempo a resposta do mestre ao pedido de ação ("O mestre aceitou: Empurrar Severa") fica na tela. */
 export const TOKEN_ACTION_NOTICE_TTL_MS = 5000
+/**
+ * "Bia chegou" / "O prazo acabou": quem espera costuma estar olhando a mesa, e
+ * não a tela — mesmo teto do "Você chegou". Some antes se ele fechar.
+ */
+export const WAIT_ENDED_NOTICE_TTL_MS = 60_000
 const SOCKET_OPEN = 1
 /** Mede o tamanho em bytes do que vai pelo socket (o servidor conta bytes, não caracteres). */
 const utf8 = new TextEncoder()
@@ -509,6 +556,42 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     }, TOKEN_ACTION_NOTICE_TTL_MS)
   }
 
+  let waitEndedTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearWaitEndedTimer(): void {
+    if (waitEndedTimer !== null) clearTimeout(waitEndedTimer)
+    waitEndedTimer = null
+  }
+
+  /**
+   * ENCONTRO MARCADO, na volta. `wait.state` troca a espera (o prazo passa
+   * para o relógio desta tela); `wait.ended` tira a espera e mostra o aviso,
+   * que some sozinho. Mensagem malformada não mexe em nada.
+   */
+  function handleWaitMessage(data: unknown): void {
+    const msg = parseWaitHostMessage(data)
+    if (msg === null) return
+    if (msg.type === 'wait.state') {
+      if (msg.wait === null) {
+        setState({ wait: undefined })
+        return
+      }
+      const own: OwnWait = { until: Date.now() + msg.wait.remainingMs }
+      if (msg.wait.who !== undefined) own.who = msg.wait.who
+      if (msg.wait.where !== undefined) own.where = msg.wait.where
+      setState({ wait: own })
+      return
+    }
+    const end: FimDaEspera =
+      msg.reason === 'met' ? { reason: 'met', who: msg.who } : msg.who === undefined ? { reason: msg.reason } : { reason: msg.reason, who: msg.who }
+    clearWaitEndedTimer()
+    setState({ wait: undefined, waitEnded: { id: nextNoticeId++, end } })
+    waitEndedTimer = setTimeout(() => {
+      waitEndedTimer = null
+      setState({ waitEnded: undefined })
+    }, WAIT_ENDED_NOTICE_TTL_MS)
+  }
+
   let laserTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearLaserTimer(): void {
@@ -619,6 +702,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     explored: Exploration | undefined,
     ownTokens: string[],
     concealed: RegionPoint[][],
+    waitingTokens: string[],
   ): void {
     if (rev <= state.rev) return
     let next = map
@@ -639,7 +723,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     arrivalFromMapId = null
     const arrivalFocus = atalho ? { seq: (state.arrivalFocus?.seq ?? 0) + 1, tokenId: arrivedToken(next, ownTokens) } : state.arrivalFocus
     arrivalTokenId = null
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined, arrivalFocus })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, waitingTokens, error: undefined, arrivalFocus })
   }
 
   /**
@@ -757,7 +841,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearMoveNotice()
         clearTravelTimer()
         clearTokenAction()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, tokenAction: undefined })
+        clearWaitEndedTimer()
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -893,9 +978,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         }
         if (data.ownTokens !== undefined && !isStringList(data.ownTokens)) return
         if (data.concealed !== undefined && !isVision(data.concealed)) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [])
+        // Ausente = nenhuma ficha esperando (o host só manda com alguma).
+        if (data.waiting !== undefined && !isStringList(data.waiting)) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.waiting ?? [])
         return
       }
+      case 'wait.state':
+      case 'wait.ended':
+        // Só quem joga tem ficha esperando; a espera do lobby já apagou a dele.
+        if (state.status === 'playing') handleWaitMessage(data)
+        return
       case 'token.move.accepted':
         if (typeof data.reqId !== 'string' || !isFiniteNumber(data.x) || !isFiniteNumber(data.y)) return
         handleAccepted(data.reqId, data.x, data.y)
@@ -919,7 +1011,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearMoveNotice()
         clearTravelTimer()
         clearTokenAction()
-        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, tokenAction: undefined })
+        clearWaitEndedTimer()
+        setState({ status: 'closed', playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined })
         return
       case 'error': {
         const reason = typeof data.reason === 'string' ? data.reason : 'unknown'
@@ -978,6 +1071,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearMoveNotice()
     clearTravelTimer()
     clearTokenAction()
+    clearWaitEndedTimer()
     const current = socket
     socket = null
     current?.close()
@@ -1151,6 +1245,31 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       setState({ tokenAction: undefined })
     },
 
+    startWait(minutes, who = '', where = '') {
+      if (state.status !== 'playing' || !isWaitMinutes(minutes)) return false
+      const colega = who.trim()
+      const lugar = where.trim()
+      // Mesmo teto do host: acima dele a mensagem inteira cairia lá.
+      if (colega.length > NAME_MAX_LENGTH || lugar.length > ESPERA_ONDE_MAX_LENGTH) return false
+      const message: WaitSetMessage = { type: 'wait.set', minutes }
+      if (colega !== '') message.who = colega
+      if (lugar !== '') message.where = lugar
+      return send(message)
+    },
+
+    stopWait() {
+      if (!send({ type: 'wait.clear' })) return false
+      // Na hora, sem esperar a volta: quem desiste não quer ver "Esperando…" mais um instante.
+      if (state.wait !== undefined) setState({ wait: undefined })
+      return true
+    },
+
+    dismissWaitEnded() {
+      if (state.waitEnded === undefined) return
+      clearWaitEndedTimer()
+      setState({ waitEnded: undefined })
+    },
+
     setOwnTokenName(tokenId, name) {
       const limpo = name.trim()
       if (limpo.length < NAME_MIN_LENGTH || limpo.length > NAME_MAX_LENGTH) return false
@@ -1168,7 +1287,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
-      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, tokenAction: undefined })
+      setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, note: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, tokenAction: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined })
       open()
     },
     close: detach,

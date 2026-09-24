@@ -1,7 +1,8 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
 import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
+import { filterMapForPlayer, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, waitingTokensForPlayer, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
+import { MS_POR_MINUTO, type FimDaEspera, type MinhaEspera } from '../lib/encontroMarcado'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
@@ -25,6 +26,7 @@ import {
   type TokenActionRequestMessage,
   type TokenEditMessage,
   type TokenMoveMessage,
+  type WaitSetMessage,
 } from './protocol'
 import { clampTokenActionReply, distanceInCells, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
 import { clampNoteText, NOTEBOOK_MAX_NOTES, type NoteEntry } from './protocol'
@@ -240,6 +242,19 @@ export interface HostResult {
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
    */
   applyTransfer?: AppliedTransfer
+  /**
+   * ENCONTRO MARCADO: uma espera começou ou acabou. A marca "esperando" mudou
+   * nas fichas que os colegas veem: o integrador refaz o broadcast (e relê o
+   * painel Grupo e o relógio do próximo prazo).
+   */
+  waitsChanged?: true
+}
+
+/** ENCONTRO MARCADO, como o MESTRE lê no painel Grupo: quem, onde e até quando (relógio da sessão). */
+export interface PlayerWaitInfo {
+  who?: string
+  where?: string
+  until: number
 }
 
 export interface PlayerInfo {
@@ -260,6 +275,8 @@ export interface PlayerInfo {
    * resto do tempo: é o que põe o selo "pedido" na cena dele, na lista Cenas.
    */
   travelPending?: true
+  /** ENCONTRO MARCADO: a espera dele. Ausente = não espera ninguém. */
+  waiting?: PlayerWaitInfo
 }
 
 /** Faixa do "Raio de visão" por jogador, em px de mundo. */
@@ -440,7 +457,30 @@ export interface HostSession {
    * hostil tentaria inflar mandando ids de pino inventados.
    */
   travelLimitEntries(): number
+  /**
+   * ENCONTRO MARCADO: encerra toda espera cujo prazo já passou (relógio da
+   * sessão) e avisa quem esperava (`wait.ended`, `expired`). O integrador
+   * chama na hora de `nextWaitDeadline`: a mesa pode estar parada, sem
+   * broadcast nenhum para descobrir o prazo vencido.
+   */
+  expireWaits(): HostResult
+  /** O prazo mais próximo entre as esperas ativas; `null` = ninguém espera. */
+  nextWaitDeadline(): number | null
   readonly rev: number
+}
+
+/**
+ * ENCONTRO MARCADO: a espera de um jogador. `mapId` é a cena onde ele combinou
+ * (saiu dela, a espera acaba). `present`: os colegas que o recorte dele
+ * mostrava no último snapshot — só conta como CHEGADA quem não estava lá
+ * antes; `null` = ainda não houve snapshot desde que ele começou a esperar.
+ */
+interface PlayerWait {
+  who?: string
+  where?: string
+  until: number
+  mapId: string
+  present: Set<string> | null
 }
 
 /** Pedido de passagem à espera do mestre. Um por jogador. */
@@ -571,6 +611,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // disconnect, como o limite do sinal; só o kick apaga).
   const pendingTokenActions = new Map<string, PendingTokenAction>()
   const lastTokenActionAt = new Map<string, number>()
+  // ENCONTRO MARCADO — por playerId: a espera ativa (no máximo uma). Sobrevive
+  // ao disconnect (a ficha continua lá, esperando); o kick e ficar sem ficha apagam.
+  const waits = new Map<string, PlayerWait>()
+  // Alguma espera acabou DENTRO dos recortes em curso (broadcast ou volta à
+  // sala: colega chegou, saiu da cena, prazo passou): quem já tinha recebido o
+  // recorte ainda vê a marca, e o integrador manda outro.
+  let waitsEndedInViews = false
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -783,8 +830,82 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
-    const snapshot: HostMessage = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
-    return [snapshot, ...roomTextCardsFor(playerId, map.id, view)]
+    // A espera DESTE jogador se resolve antes da marca: a que acabou agora não sai marcada.
+    const waitEnded = settleWait(playerId, map.id, view)
+    const waiting = waitingTokensForPlayer(view, waitingTokenIds())
+    const base = { rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
+    // Sem ficha esperando, o campo nem vai: o snapshot sai idêntico ao de antes da feature.
+    const snapshot: HostMessage = waiting.length === 0 ? { type: 'snapshot', ...base } : { type: 'snapshot', ...base, waiting }
+    return [snapshot, ...waitEnded, ...roomTextCardsFor(playerId, map.id, view)]
+  }
+
+  /** O dono da ficha, se ela é de algum jogador da sala (NPC não tem). */
+  const ownerOf = (tokenId: string): string | undefined => Object.keys(ownership).find((playerId) => (ownership[playerId] ?? []).includes(tokenId))
+
+  /** Fichas de quem espera alguém agora. O recorte de cada jogador decide quais delas ele recebe. */
+  const waitingTokenIds = (): Set<string> => {
+    const ids = new Set<string>()
+    for (const playerId of waits.keys()) {
+      for (const id of ownership[playerId] ?? []) ids.add(id)
+    }
+    return ids
+  }
+
+  /**
+   * Os colegas (playerId -> nome na sala) com ficha no RECORTE do jogador. Lê
+   * o recorte, nunca o mapa do mestre: colega no escuro, em zona oculta ou em
+   * outra cena não está aqui, e por isso nunca vira "chegou".
+   */
+  const colleaguesInView = (playerId: string, view: PlayerMapView): Map<string, string> => {
+    const found = new Map<string, string>()
+    for (const t of view.map.tokens) {
+      const owner = ownerOf(t.id)
+      if (owner === undefined || owner === playerId) continue
+      const record = players.get(owner)
+      if (record !== undefined) found.set(owner, record.name)
+    }
+    return found
+  }
+
+  /**
+   * Por que a espera de `playerId` acaba neste recorte, ou `null` se ela
+   * continua. Saiu da cena onde combinou: `left`. Colega esperado (ou,
+   * sem nome, qualquer um) que NÃO estava no recorte anterior e está agora:
+   * `met`. Prazo passado: `expired`.
+   */
+  const waitEndFor = (playerId: string, wait: PlayerWait, mapId: string, view: PlayerMapView): FimDaEspera | null => {
+    const withWho = (reason: 'expired' | 'left'): FimDaEspera => (wait.who === undefined ? { reason } : { reason, who: wait.who })
+    if (wait.mapId !== mapId) return withWho('left')
+    const present = colleaguesInView(playerId, view)
+    const before = wait.present
+    wait.present = new Set(present.keys())
+    if (before !== null) {
+      for (const [otherId, name] of present) {
+        if (before.has(otherId)) continue
+        if (wait.who === undefined || normalizeName(name) === normalizeName(wait.who)) return { reason: 'met', who: name }
+      }
+    }
+    return now() >= wait.until ? withWho('expired') : null
+  }
+
+  /** Resolve a espera do jogador contra o recorte que vai sair agora; acabou, o aviso vai logo depois do mapa. */
+  const settleWait = (playerId: string, mapId: string, view: PlayerMapView): HostMessage[] => {
+    const wait = waits.get(playerId)
+    if (wait === undefined) return []
+    const ended = waitEndFor(playerId, wait, mapId, view)
+    if (ended === null) return []
+    waits.delete(playerId)
+    waitsEndedInViews = true
+    return [{ type: 'wait.ended', ...ended }]
+  }
+
+  /** O que o dono lê da própria espera: o que falta, e não a hora do relógio do host. */
+  const waitStateOf = (wait: PlayerWait | undefined): HostMessage => {
+    if (wait === undefined) return { type: 'wait.state', wait: null }
+    const own: MinhaEspera = { remainingMs: Math.max(0, wait.until - now()) }
+    if (wait.who !== undefined) own.who = wait.who
+    if (wait.where !== undefined) own.where = wait.where
+    return { type: 'wait.state', wait: own }
   }
 
   const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
@@ -795,6 +916,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Sem ficha, ele sai da cena: a ficha devolvida (mesmo na cena de antes) é
     // CHEGADA, e o recado mandado enquanto ele aguardava vem no broadcast seguinte.
     noteSceneOf.delete(playerId)
+    // Sem ficha não há quem espere: a tela dele volta à espera do lobby, sem a marca.
+    waits.delete(playerId)
     const clientId = players.get(playerId)?.clientId ?? null // registro ausente = jogador expulso: não há a quem avisar
     if (!wasPlaying || clientId === null) return []
     return [{ clientId, msg: { type: 'lobby.waiting' } }]
@@ -836,6 +959,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
     const welcome: HostMessage = { type: 'welcome', playerId: record.playerId, resumeToken: record.resumeToken, name: record.name }
     const waiting: HostMessage[] = [{ type: 'lobby.waiting' }]
+    waitsEndedInViews = false
     // `next`: o snapshot (ou a espera); `cards`: os cartões que vêm atrás dele (texto da Sala, recado da cena).
     const [next, ...cards] = statusOf(record.playerId) === 'playing' ? viewFor(record.playerId, world, 'always') : waiting
     const outbound: Outbound[] = [{ clientId, msg: welcome }]
@@ -847,7 +971,38 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const clues = cluebooks.get(record.playerId) ?? []
     if (clues.length > 0) outbound.push({ clientId, msg: { type: 'clues.book', clues: clues.map((item) => ({ ...item.entry })) } })
     for (const msg of cards) outbound.push({ clientId, msg })
-    return { outbound }
+    // ENCONTRO MARCADO: recarregou a página esperando — a espera volta com o que falta.
+    const wait = waits.get(record.playerId)
+    if (wait !== undefined) outbound.push({ clientId, msg: waitStateOf(wait) })
+    // A espera acabou no recorte da volta (o prazo passou enquanto ele estava fora): a marca sai dos colegas também.
+    return waitsEndedInViews ? { outbound, waitsChanged: true } : { outbound }
+  }
+
+  /**
+   * ENCONTRO MARCADO: "espero aqui". Só quem está numa cena (a espera é DELA:
+   * sair de lá a encerra). Uma por jogador: a nova substitui a de antes. A
+   * resposta é só para ele; os colegas veem a marca no broadcast que o
+   * integrador refaz (`waitsChanged`).
+   */
+  function handleWaitSet(clientId: string, msg: WaitSetMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const scene = statusOf(playerId) === 'playing' ? sceneFor(playerId, world) : null
+    if (scene === null) return reply(clientId, waitStateOf(undefined))
+    const wait: PlayerWait = { until: now() + msg.minutes * MS_POR_MINUTO, mapId: scene.map.id, present: null }
+    if (msg.who !== undefined) wait.who = msg.who
+    if (msg.where !== undefined) wait.where = msg.where
+    waits.set(playerId, wait)
+    return { outbound: [{ clientId, msg: waitStateOf(wait) }], waitsChanged: true }
+  }
+
+  /** "Parar de esperar". Sem espera, só confirma (a tela dele pode estar atrasada). */
+  function handleWaitClear(clientId: string): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const had = waits.delete(playerId)
+    const result = reply(clientId, waitStateOf(undefined))
+    return had ? { ...result, waitsChanged: true } : result
   }
 
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
@@ -1406,7 +1561,34 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleClueShow(clientId, msg, world)
         case 'token.action':
           return handleTokenAction(clientId, msg, world)
+        case 'wait.set':
+          return handleWaitSet(clientId, msg, world)
+        case 'wait.clear':
+          return handleWaitClear(clientId)
       }
+    },
+
+    expireWaits() {
+      const at = now()
+      const outbound: Outbound[] = []
+      let ended = false
+      for (const [playerId, wait] of waits) {
+        if (at < wait.until) continue
+        waits.delete(playerId)
+        ended = true
+        const clientId = players.get(playerId)?.clientId ?? null // null = caiu: ao voltar, a espera já não está lá
+        const fim: FimDaEspera = wait.who === undefined ? { reason: 'expired' } : { reason: 'expired', who: wait.who }
+        if (clientId !== null) outbound.push({ clientId, msg: { type: 'wait.ended', ...fim } })
+      }
+      return ended ? { outbound, waitsChanged: true } : { outbound }
+    },
+
+    nextWaitDeadline() {
+      let next: number | null = null
+      for (const wait of waits.values()) {
+        if (next === null || wait.until < next) next = wait.until
+      }
+      return next
     },
 
     answerTokenAction(requestId, accepted, text = '') {
@@ -1561,6 +1743,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       lastClueShowAt.delete(playerId)
       pendingTokenActions.delete(playerId)
       lastTokenActionAt.delete(playerId)
+      waits.delete(playerId)
       for (const chosen of pinAudiences.values()) chosen.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },
@@ -1620,6 +1803,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     broadcast(source) {
       const world = toWorld(source)
       rev += 1
+      waitsEndedInViews = false
       const outbound: Outbound[] = []
       for (const [clientId, playerId] of byClient) {
         if (statusOf(playerId) !== 'playing') continue
@@ -1628,7 +1812,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // Chegou a uma cena com recado (viagem, ficha nova): o recado vem logo atrás do mapa.
         for (const msg of viewFor(playerId, world, 'on_change')) outbound.push({ clientId, msg })
       }
-      return { outbound }
+      return waitsEndedInViews ? { outbound, waitsChanged: true } : { outbound }
     },
 
     laser(message, source) {
@@ -1690,6 +1874,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           // O selo da lista Cenas nasce e morre com o pedido: aprovar, recusar
           // e cair a conexão já tiram o jogador de `pendingTravels`.
           if (pendingTravels.has(p.playerId)) info.travelPending = true
+          const wait = waits.get(p.playerId)
+          if (wait !== undefined) {
+            info.waiting = { until: wait.until }
+            if (wait.who !== undefined) info.waiting.who = wait.who
+            if (wait.where !== undefined) info.waiting.where = wait.where
+          }
           if (withScenes && info.status === 'playing') {
             const scene = sceneFor(p.playerId, world)
             // Sem cena, o painel o mostra aguardando: é o que a tela dele diz, e

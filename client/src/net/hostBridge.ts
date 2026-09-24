@@ -388,7 +388,50 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
   const broadcastNow = () => {
     if (session === null) return
-    void dispatch(session.broadcast(world()))
+    const result = session.broadcast(world())
+    void dispatch(result)
+    // ENCONTRO MARCADO: uma espera acabou no meio deste broadcast (o colega
+    // chegou): quem recebeu antes ainda vê a marca, então vai mais um.
+    if (result.waitsChanged === true) onWaitsChanged()
+  }
+
+  /** ENCONTRO MARCADO: o relógio do próximo prazo. `null` = ninguém espera. */
+  let waitTimer: ReturnType<typeof setTimeout> | null = null
+
+  const clearWaitTimer = () => {
+    if (waitTimer !== null) clearTimeout(waitTimer)
+    waitTimer = null
+  }
+
+  /**
+   * Acorda na hora do prazo mais próximo. É daqui que sai o "o prazo acabou":
+   * a mesa pode estar parada, sem movimento nem broadcast para descobrir.
+   */
+  const armWaitTimer = () => {
+    clearWaitTimer()
+    const deadline = session === null ? null : session.nextWaitDeadline()
+    if (deadline === null) return
+    waitTimer = setTimeout(expireWaitsNow, Math.max(0, deadline - clock()))
+  }
+
+  function expireWaitsNow() {
+    waitTimer = null
+    if (session === null) return
+    const result = session.expireWaits()
+    void dispatch(result)
+    if (result.waitsChanged === true) {
+      // A marca sai da ficha agora, e não no próximo movimento de alguém.
+      broadcastNow()
+      notifyPlayersIfChanged()
+    }
+    armWaitTimer()
+  }
+
+  /** Uma espera começou ou acabou: os colegas veem a marca mudar, o painel Grupo relê, o relógio se refaz. */
+  function onWaitsChanged() {
+    scheduleBroadcast()
+    notifyPlayersIfChanged()
+    armWaitTimer()
   }
 
   const scheduleBroadcast = () => {
@@ -643,6 +686,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       deps.applyTokenEdit(result.applyTokenEdit)
       broadcastNow()
     }
+    if (result.waitsChanged === true) onWaitsChanged()
     notifyPlayersIfChanged()
     if (!wasJoined) announceJoin(clientId)
   }
@@ -709,6 +753,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Snapshot pendente sai antes: não pode chegar ao jogador depois do aviso.
       cancelPendingBroadcast()
       resetLaser()
+      // A sala fecha com as esperas dentro: nenhum prazo acorda depois.
+      clearWaitTimer()
       // Avisa antes de derrubar: sem `room.closed` o jogador veria queda de rede,
       // não "O mestre encerrou a sala".
       if (session) await dispatch(session.closeRoom())
