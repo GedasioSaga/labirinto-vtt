@@ -137,6 +137,23 @@ describe('hostSession: pino de viagem trancado vira pedido', () => {
     expect(r).toEqual({ outbound: [{ clientId: 'c1', msg: { type: 'pin.travel.denied' } }] })
   })
 
+  it('"Não, porque…": o motivo do mestre chega ao Diego junto do pin.travel.denied, e o pedido sai', () => {
+    const t = mesa()
+    const pedido = t.pedir('porta-lab').travelRequest
+    if (pedido === undefined) throw new Error('o pedido deveria chegar ao mestre')
+    const r = t.s.denyTravel(pedido.requestId, '  A porta está soldada  ')
+    expect(r).toEqual({ outbound: [{ clientId: 'c1', msg: { type: 'pin.travel.denied', text: 'A porta está soldada' } }] })
+    expect(t.s.isTravelPending(pedido.requestId)).toBe(false)
+  })
+
+  it('"Ver": a cena e a ficha do Diego agora, sem responder o pedido', () => {
+    const t = mesa()
+    const pedido = t.pedir('porta-lab').travelRequest
+    if (pedido === undefined) throw new Error('o pedido deveria chegar ao mestre')
+    expect(t.s.travelTarget(pedido.requestId, mundo())).toEqual({ sceneId: CENA_LAB, x: 200, y: 200 })
+    expect(t.s.isTravelPending(pedido.requestId)).toBe(true)
+  })
+
   it('opção desligada (mudo): nada chega ao mestre, e o Diego lê o motivo genérico sem o nome do Pátio', () => {
     const mudo = mundo({ passagem: 'trancada', mudo: true })
     const t = mesa(mudo)

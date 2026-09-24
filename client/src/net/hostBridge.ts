@@ -1082,7 +1082,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * "Pedidos", com as respostas do cadeado. "Liberar uma vez" leva o jogador e
    * deixa o pino trancado (é ela que o "Deixar todos" roda, `emLote`); "Passar
    * para pede" leva e troca o modo, para a próxima passagem perguntar; "Não"
-   * (e o ×) recusa. Sem quem troque o modo, a linha fica sem "Passar para pede".
+   * (e o ×) recusa, e "Não, porque…" recusa com o motivo, como na linha comum.
+   * "Ver" leva o editor à ficha de quem pediu sem responder. Sem quem troque o
+   * modo, a linha fica sem "Passar para pede".
    */
   const askLockedTravel = (request: TravelRequest) => {
     const paraPede = deps.setPinPassage === undefined ? [] : [{ label: 'Passar para pede', run: () => answerTravel(request.requestId, 'pede') }]
@@ -1090,10 +1092,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       actions: [
         { label: 'Liberar uma vez', run: () => answerTravel(request.requestId, true), emLote: true },
         ...paraPede,
+        ...travelVerAction(request.requestId),
         { label: 'Não', run: () => answerTravel(request.requestId, false) },
       ],
       onDismiss: () => answerTravel(request.requestId, false),
       grupo: 'Pedidos',
+      resposta: travelDenyResposta(request.requestId),
     })
     travelToasts.set(request.requestId, toastId)
   }

@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { useToastStore } from '../stores/toastStore'
 import type { MapData, Pin, Token } from '../types/map'
-import type { HostWorld } from './hostSession'
+import { TRAVEL_REQUEST_MIN_INTERVAL_MS, type HostWorld } from './hostSession'
 import { createHostBridge } from './hostBridge'
+import { TRAVEL_DENY_TEXT_MAX_LENGTH } from './protocol'
 
 /**
  * PINO TRANCADO VIRA PEDIDO, do lado do mestre: o pedido pelo pino trancado
@@ -23,7 +24,7 @@ function viagem(id: string, x: number, y: number, description: string, destino: 
   return { id, x, y, kind: 'viagem', description, image: null, destino, ...extra }
 }
 
-async function mesa(porta: Partial<Pin> = { passagem: 'trancada' }) {
+async function mesa(porta: Partial<Pin> = { passagem: 'trancada' }, comVer = false) {
   const lab = (): MapData => ({
     ...createEmptyMap('mapa-lab', 'Laboratório', 2000, 500, GRID),
     tokens: [diego],
@@ -46,6 +47,8 @@ async function mesa(porta: Partial<Pin> = { passagem: 'trancada' }) {
   })
   const applyTransfer = vi.fn(() => true)
   const setPinPassage = vi.fn()
+  const onGoToPoint = vi.fn()
+  const relogio = { agora: 0 }
   const bridge = createHostBridge({
     invoke,
     listen,
@@ -56,7 +59,8 @@ async function mesa(porta: Partial<Pin> = { passagem: 'trancada' }) {
     applyTransfer,
     setPinPassage,
     onPlayersChange: vi.fn(),
-    now: () => 0,
+    ...(comVer ? { onGoToPoint } : {}),
+    now: () => relogio.agora,
   })
   const emit = (name: string, payload: unknown) => {
     const handler = handlers.get(name)
@@ -69,9 +73,13 @@ async function mesa(porta: Partial<Pin> = { passagem: 'trancada' }) {
   const jogador = bridge.players().find((p) => p.name === 'Diego')
   if (jogador === undefined) throw new Error('Diego deveria ter entrado')
   bridge.assignToken(jogador.playerId, 'diego')
-  const pedir = () => emit('net:message', { clientId: 'c1', msg: { type: 'pin.travel.request', pinId: 'porta-lab' } })
+  const pedir = () => {
+    // Cada pedido depois do intervalo mínimo: o segundo pedido do Diego não volta "too_soon".
+    relogio.agora += TRAVEL_REQUEST_MIN_INTERVAL_MS
+    emit('net:message', { clientId: 'c1', msg: { type: 'pin.travel.request', pinId: 'porta-lab' } })
+  }
   const pedidos = () => useToastStore.getState().toasts.filter((t) => t.grupo === 'Pedidos')
-  return { pedir, pedidos, sent, applyTransfer, setPinPassage }
+  return { pedir, pedidos, sent, applyTransfer, setPinPassage, onGoToPoint }
 }
 
 function acao(label: string, toast: { actions?: { label: string; run: () => void }[] } | undefined) {
@@ -120,6 +128,37 @@ describe('hostBridge: pino de viagem trancado vira pedido', () => {
     acao('Não', m.pedidos()[0]).run()
     expect(m.applyTransfer).not.toHaveBeenCalled()
     expect(m.sent()).toContainEqual({ clientId: 'c1', msg: { type: 'pin.travel.denied' } })
+  })
+
+  it('com "Ver": a linha trancada ganha "Ver", que leva o editor à ficha do Diego e deixa a linha', async () => {
+    const m = await mesa({ passagem: 'trancada' }, true)
+    m.pedir()
+    const linha = m.pedidos()[0]
+    expect(linha?.actions?.map((a) => a.label)).toEqual(['Liberar uma vez', 'Passar para pede', 'Ver', 'Não'])
+    const ver = linha?.actions?.find((a) => a.label === 'Ver')
+    expect(ver?.mantem).toBe(true)
+    const antes = m.sent().length
+    acao('Ver', linha).run()
+    expect(m.onGoToPoint).toHaveBeenCalledWith(CENA_LAB, 200, 200)
+    // Olhar não responde: nada vai ao Diego, ninguém passa.
+    expect(m.sent().slice(antes)).toEqual([])
+    expect(m.applyTransfer).not.toHaveBeenCalled()
+  })
+
+  it('"Não, porque…": o motivo chega ao Diego no pin.travel.denied, ninguém passa, e volta pronto no próximo pedido trancado', async () => {
+    const m = await mesa()
+    m.pedir()
+    const resposta = m.pedidos()[0]?.resposta
+    expect(resposta?.rotulo).toBe('Não, porque…')
+    expect(resposta?.maxLength).toBe(TRAVEL_DENY_TEXT_MAX_LENGTH)
+    resposta?.enviar('A porta está soldada')
+    expect(m.sent()).toContainEqual({ clientId: 'c1', msg: { type: 'pin.travel.denied', text: 'A porta está soldada' } })
+    expect(m.applyTransfer).not.toHaveBeenCalled()
+    expect(m.setPinPassage).not.toHaveBeenCalled()
+    expect(m.pedidos()).toHaveLength(0)
+    m.pedir()
+    expect(m.pedidos()).toHaveLength(1)
+    expect(m.pedidos()[0]?.resposta?.recentes?.()).toEqual(['A porta está soldada'])
   })
 
   it('opção desligada (mudo): nenhuma linha, e o Diego lê a recusa genérica', async () => {
