@@ -20,6 +20,7 @@ import { createDebouncedTask, syncWorldTextResolution } from '../pixi/textResolu
 import type { Bounds, Camera } from '../pixi/world'
 import { arrivalCamera, centeredCamera, firstOwnToken } from './playerCamera'
 import { fireLongPress } from './playerLongPress'
+import { createPlayerCuller, type PlayerCuller } from './playerCulling'
 import { drawOwnerPulse, drawOwnerRing, ownerRingOuterPx } from './ownerMarker'
 import { drawGrid } from '../pixi/drawGrid'
 import { currentRendererResolution, watchDevicePixelRatio } from '../pixi/rendererResolution'
@@ -279,8 +280,11 @@ function rasterizeMap(map: MapData): Texture | null {
 
 /** Paredes visíveis ao jogador, respeitando as camadas ocultas do mestre (mesma regra do raster). */
 function visibleWalls(map: MapData): Wall[] {
-  const hidden = map.hiddenLayers
-  return map.walls.filter((w) => (w.door === null ? !hidden.includes('paredes') : !hidden.includes('portas')))
+  return wallsOnVisibleLayers(map.walls, map.hiddenLayers)
+}
+
+function wallsOnVisibleLayers(walls: readonly Wall[], hidden: MapData['hiddenLayers']): Wall[] {
+  return walls.filter((w) => (w.door === null ? !hidden.includes('paredes') : !hidden.includes('portas')))
 }
 
 /** Grade inteira do mapa: o viewport é o próprio retângulo do mapa, e a máscara (silhueta do piso) corta o resto.
@@ -564,7 +568,17 @@ interface Scene {
   doorHintsCount: number
   /** Paredes e portas têm espessura em px de tela: a chave inclui zoom e resolução. */
   lastWallsKey: string | null
+  /** Paredes que CHEGARAM (camadas visíveis): o que os e2e contam. */
   wallsCount: number
+  /**
+   * CENA GRANDE NO CELULAR (`playerCulling.ts`): só vira desenho a planta perto
+   * da ficha e a que o jogador já viu; o resto está debaixo da névoa preta.
+   */
+  culler: PlayerCuller
+  /** Paredes que viraram traço no Pixi depois do recorte de desenho. */
+  wallsDrawn: number
+  /** Peças de chão que entraram no contorno depois do recorte de desenho. */
+  floorDrawn: number
   roomNames: Container
   roomNamesRenderer: ReturnType<typeof createRoomNamesRenderer>
   textLabels: Container
@@ -1006,13 +1020,17 @@ export function PlayerView({
 
   /** Mesmo desenho do editor (linha clara fina, porta retângulo), em px de tela. */
   function redrawWallsLayer(scene: Scene): void {
-    const walls = visibleWalls(latestRef.current.map)
+    const { map: currentMap, vision: currentVision, explored: currentExplored } = latestRef.current
+    // Só a planta perto da ficha e a já vista: o resto está debaixo do preto
+    // (`playerCulling.ts`). Mesma entrada devolve o mesmo recorte: o zoom não refaz.
+    const drawn = scene.culler.cull(currentMap, currentVision, currentExplored).walls
+    const walls = wallsOnVisibleLayers(drawn, currentMap.hiddenLayers)
     const { scale } = scene.camera
     const res = scene.app.renderer.resolution
     const key = JSON.stringify([walls, scale, res])
     if (key === scene.lastWallsKey) return
     scene.lastWallsKey = key
-    scene.wallsCount = walls.length
+    scene.wallsDrawn = walls.length
     drawWalls(scene.walls, walls, null, scale, res)
     drawDoors(scene.doors, walls, null, scale, res)
   }
@@ -1128,7 +1146,11 @@ export function PlayerView({
     const worldHeight = currentMap.height * currentMap.grid
 
     redrawGridLayer(scene)
-    redrawFloor(scene, currentMap)
+    // Chão só da vizinhança conhecida: o contorno (caro) sai de dezenas de
+    // peças, não das milhares da cena. Ordem preservada (peça que apaga).
+    const drawnFloor = scene.culler.cull(currentMap, currentVision, currentExplored).floor
+    scene.floorDrawn = drawnFloor.length
+    redrawFloor(scene, { ...currentMap, floor: drawnFloor })
 
     const regions = visibleRegions(currentMap.regions, hidden)
     scene.regionsRenderer.draw(scene.regions, regions)
@@ -1145,6 +1167,7 @@ export function PlayerView({
     redrawWallsLayer(scene)
     redrawDoorHints(scene)
     const walls = visibleWalls(currentMap)
+    scene.wallsCount = walls.length
     const wallsKey = JSON.stringify([walls, currentMap.grid])
     const raster = isRasterMode(currentMap)
     const floorPolygons = raster || hidden.includes('salas') ? [] : scene.floorRenderer.polygons()
@@ -1244,6 +1267,8 @@ export function PlayerView({
     const el = containerRef.current
     if (el) {
       el.dataset.wallsCount = String(scene.wallsCount)
+      el.dataset.wallsDrawn = String(scene.wallsDrawn)
+      el.dataset.floorDrawn = String(scene.floorDrawn)
       el.dataset.tokensCount = String(currentMap.tokens.length)
       el.dataset.facingCount = String(facingCount)
       el.dataset.regionsCount = String(regions.filter((r) => !isDegenerateRegion(r.points)).length)
@@ -1443,6 +1468,9 @@ export function PlayerView({
         doorHintsCount: 0,
         lastWallsKey: null,
         wallsCount: 0,
+        culler: createPlayerCuller(),
+        wallsDrawn: 0,
+        floorDrawn: 0,
         roomNames,
         roomNamesRenderer: createRoomNamesRenderer(),
         textLabels,
