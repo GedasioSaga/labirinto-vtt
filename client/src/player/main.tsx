@@ -10,6 +10,7 @@ import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
+import { PlayerMarkCard } from './PlayerMarkCard'
 import { PlayerClueCard } from './PlayerClues'
 import { mapSharedNoticeText } from './PlayerMapShare'
 import { coverBounds } from './playerCamera'
@@ -600,8 +601,6 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
     connection.resetClueShare()
   }, [connection])
   const closeShownClue = useCallback(() => connection.dismissShownClue(), [connection])
-  // O bilhete pode sumir do recorte com o cartão aberto (o mestre apagou): some junto, como o pino.
-  const openMark = openMarkId === null ? null : (map?.marcas ?? []).find((m) => m.id === openMarkId && m.tipo === 'bilhete') ?? null
   const closeMark = useCallback(() => setOpenMarkId(null), [])
   const askCluePeers = useCallback(() => connection.askCluePeers(), [connection])
   /** Painel e barra do jogador: a câmera lê, na hora, o que eles cobrem do mapa. */
@@ -777,15 +776,13 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
         )}
         {/* BILHETE NO LUGAR: o bilhete tocado no mapa, no mesmo cartão do recado.
             Espera recado e texto de Sala fecharem: um cartão de cada vez no mesmo lugar. */}
-        {openMark && !state.note && !state.roomText && (
-          <PlayerNoteCard
-            key={openMark.id}
-            title="Bilhete deixado aqui"
-            text={openMark.texto ?? ''}
-            onClose={closeMark}
-            escapeCloses={openPin === null && !clueCardOpen}
-          />
-        )}
+        <PlayerMarkCard
+          marcas={state.map.marcas}
+          openMarkId={openMarkId}
+          aguardando={Boolean(state.note) || Boolean(state.roomText)}
+          onClose={closeMark}
+          escapeCloses={openPin === null && !clueCardOpen}
+        />
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}

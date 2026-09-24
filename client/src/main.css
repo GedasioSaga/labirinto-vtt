@@ -3329,6 +3329,57 @@ html.lb-arrastando-cena * {
   color: var(--lb-color-parchment-dim);
 }
 
+/* Marcas dos jogadores (MarcasDaCena): o recado inteiro, quem deixou e "Apagar". */
+.lb-marcas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-marcas__resumo {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-marcas__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-marcas__item {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-marcas__texto {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lb-marcas__recado {
+  overflow-wrap: anywhere;
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md);
+}
+
+.lb-marcas__autor {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-marcas__apagar {
+  flex: 0 0 auto;
+}
+
 /* Destino do pino de viagem (PinTravelControls): um poço rebaixado logo abaixo
    do tipo, com a régua da esquerda dizendo o estado sem precisar ler — latão
    quando a passagem leva a algum lugar, apagada quando não. É a mesma troca
