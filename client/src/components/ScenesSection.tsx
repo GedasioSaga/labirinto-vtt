@@ -18,7 +18,7 @@ import { NOTE_MAX_LENGTH } from '../net/protocol'
 import { sceneTree, SCENE_TRAIL_SEPARATOR, type SceneTreeRow } from '../lib/adventure'
 import { normalizeForSearch } from '../lib/mapObjects'
 import { pendingRequestsLabel, type ScenePeople, type ScenePerson } from '../lib/party'
-import type { SceneListItem } from '../stores/adventureStore'
+import type { SceneDeletionInfo, SceneListItem } from '../stores/adventureStore'
 import type { MapData } from '../types/map'
 
 export interface ScenesSectionProps {
@@ -44,6 +44,16 @@ export interface ScenesSectionProps {
    * sala fechada: a linha fica sem o botão "Recado".
    */
   onNote?: (sceneId: string, text: string) => number | null
+  // MENU "…" DA CENA. Ausentes os quatro (mapa solto) = a linha fica sem o
+  // "…". Um só ausente = o item dele aparece esmaecido.
+  /** "Duplicar": a cópia entra logo abaixo, na mesma pasta, sem as fichas dos jogadores. */
+  onDuplicate?: (sceneId: string) => void
+  /** "Subir" (`-1`) e "Descer" (`1`): a cena troca de lugar com a irmã de cima ou de baixo, na mesma pasta. */
+  onShift?: (sceneId: string, delta: -1 | 1) => void
+  /** Chamado só depois da confirmação, e nunca com jogador na cena. */
+  onDelete?: (sceneId: string) => void
+  /** O que a confirmação de "Apagar cena…" mostra: pinos que ficam soltos, cenas de dentro que sobem e quem ainda está lá. */
+  deletionInfo?: (sceneId: string) => SceneDeletionInfo
   /**
    * CENAS EM PASTAS: põe `sceneId` dentro de `parentId` (`null` = primeiro
    * nível). `false` = não deu. Ausente = mapa solto: sem arrastar e sem
@@ -146,6 +156,147 @@ function NoteForm({ sceneName, onSend, onCancel }: NoteFormProps) {
   )
 }
 
+/** "Ana", "Ana e Bruno", "Ana, Bruno e Carla". */
+function joinNames(names: readonly string[]): string {
+  if (names.length <= 1) return names.join('')
+  return `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`
+}
+
+/** O que a confirmação diz dos pinos de outras cenas que levavam à apagada. */
+export function orphanPinsText(count: number): string {
+  if (count === 0) return 'Nenhum pino de outra cena leva para cá.'
+  if (count === 1) return '1 pino de viagem de outra cena vai ficar sem destino.'
+  return `${count} pinos de viagem de outras cenas vão ficar sem destino.`
+}
+
+/** O que a confirmação diz das cenas de dentro da apagada. Sem nenhuma, não diz nada. */
+export function insideScenesText(count: number): string {
+  if (count === 0) return ''
+  if (count === 1) return 'A cena de dentro dela sobe um nível.'
+  return `As ${count} cenas de dentro dela sobem um nível.`
+}
+
+/** Por que o Apagar está desligado: quem ainda está na cena. */
+export function deleteBlockedText(blockers: readonly string[]): string {
+  return `Não dá para apagar: ${joinNames(blockers)} ${blockers.length === 1 ? 'está' : 'estão'} nesta cena.`
+}
+
+interface SceneMenuItem {
+  label: string
+  disabled: boolean
+  onSelect(): void
+}
+
+interface SceneMenuProps {
+  id: string
+  label: string
+  items: SceneMenuItem[]
+  /** O "…" que abriu: o clique nele alterna o menu, então fica fora do "clique fora". */
+  trigger: HTMLElement | null
+  /** `focusTrigger`: Esc e escolha devolvem o foco ao "…"; Tab e clique fora, não. */
+  onClose(focusTrigger: boolean): void
+}
+
+/**
+ * O menu "…" de uma cena, no molde do menu de imagem de fundo (`ActionBar`):
+ * o foco entra no primeiro item que age, setas andam pulando o esmaecido,
+ * Home/End vão às pontas, Esc fecha e devolve o foco ao "…". O item que não se
+ * aplica agora (Subir na primeira cena) fica no lugar, esmaecido, para o
+ * mestre aprender onde ele mora.
+ */
+function SceneMenu({ id, label, items, trigger, onClose }: SceneMenuProps) {
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  /** Os itens que agem, na ordem: é por eles que as setas andam. */
+  const enabled = (): HTMLButtonElement[] => {
+    const out: HTMLButtonElement[] = []
+    items.forEach((item, index) => {
+      const el = itemRefs.current[index]
+      if (!item.disabled && el !== null && el !== undefined) out.push(el)
+    })
+    return out
+  }
+
+  // Só ao abrir (o menu monta a cada abertura): o foco não volta ao primeiro a cada render.
+  useEffect(() => {
+    enabled()[0]?.focus()
+  }, [])
+
+  useEffect(() => {
+    // `pointerdown`, como no ActionBar: fecha antes de o clique acertar o que está por baixo.
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return
+      if (menuRef.current?.contains(event.target) || trigger?.contains(event.target)) return
+      onClose(false)
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [trigger, onClose])
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // Nenhuma tecla do menu vale como atalho do editor (Esc, setas movendo o selecionado).
+    event.stopPropagation()
+    const list = enabled()
+    const current = list.findIndex((el) => el === document.activeElement)
+    const focusAt = (index: number) => {
+      event.preventDefault()
+      list[(index + list.length) % list.length]?.focus()
+    }
+    switch (event.key) {
+      case 'Escape':
+        event.preventDefault()
+        onClose(true)
+        return
+      case 'Tab':
+        onClose(false)
+        return
+      case 'ArrowDown':
+        focusAt(current + 1)
+        return
+      case 'ArrowUp':
+        focusAt(current < 0 ? list.length - 1 : current - 1)
+        return
+      case 'Home':
+        focusAt(0)
+        return
+      case 'End':
+        focusAt(list.length - 1)
+        return
+    }
+  }
+
+  return (
+    <div ref={menuRef} id={id} className="lb-panel lb-cenas__menu" role="menu" aria-label={label} onKeyDown={onKeyDown}>
+      {items.map((item, index) => (
+        <button
+          key={item.label}
+          ref={(node) => {
+            itemRefs.current[index] = node
+          }}
+          type="button"
+          role="menuitem"
+          tabIndex={-1}
+          className="lb-cenas__menu-item"
+          aria-disabled={item.disabled ? 'true' : undefined}
+          onClick={() => {
+            if (!item.disabled) item.onSelect()
+          }}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+interface DeleteConfirmProps {
+  sceneName: string
+  info: SceneDeletionInfo
+  onConfirm(): void
+  onCancel(): void
+}
+
 /** Uma cena para onde a do "Mover para…" pode ir, com o caminho no nome (duas "Taverna" não se confundem). */
 interface MoveOption {
   id: string
@@ -159,6 +310,47 @@ interface MoveFormProps {
   currentParentId: string | null
   onMove(parentId: string | null): void
   onCancel(): void
+}
+
+/**
+ * "Apagar cena…": confirmação na própria linha, no molde da de "Dar a…" do
+ * painel Sala. Começa no botão seguro; com alguém na cena, diz quem e o
+ * Apagar fica desligado — mandar o grupo para outra cena vem antes.
+ */
+function DeleteConfirm({ sceneName, info, onConfirm, onCancel }: DeleteConfirmProps) {
+  const titleId = useId()
+  const blocked = info.blockers.length > 0
+  return (
+    <div
+      role="alertdialog"
+      aria-modal="false"
+      aria-labelledby={titleId}
+      className="lb-cenas__apagar"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        // Esc é desta confirmação: não chega aos atalhos do editor.
+        event.preventDefault()
+        event.stopPropagation()
+        onCancel()
+      }}
+    >
+      <p id={titleId} className="lb-cenas__apagar-titulo">
+        Apagar {sceneName}?
+      </p>
+      <p>{orphanPinsText(info.orphanPins)}</p>
+      {info.inside > 0 && <p>{insideScenesText(info.inside)}</p>}
+      {blocked && <p className="lb-cenas__apagar-bloqueio">{deleteBlockedText(info.blockers)}</p>}
+      <div className="lb-cenas__acoes">
+        <button type="button" className="lb-btn lb-btn--danger" disabled={blocked} onClick={onConfirm}>
+          Apagar
+        </button>
+        {/* Foco começa no botão seguro (convenção de confirmação destrutiva). */}
+        <button type="button" className="lb-btn lb-btn--ghost" autoFocus onClick={onCancel}>
+          Cancelar
+        </button>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -363,8 +555,32 @@ function insideCountLabel(count: number): string {
  * dentro, "Mover para…" na cena aberta, e "Filtrar cenas" com o caminho em
  * cinza. Tudo isso é da lista do mestre: o jogador não recebe nada.
  */
-export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, onNote, maps, onMove, adventureId = null }: ScenesSectionProps) {
+export function ScenesSection({
+  scenes,
+  onSelect,
+  onCreate,
+  onRename,
+  people,
+  onNote,
+  maps,
+  onDuplicate,
+  onShift,
+  onDelete,
+  deletionInfo,
+  onMove,
+  adventureId = null,
+}: ScenesSectionProps) {
   const [editing, setEditing] = useState<Editing>(null)
+  /** Cena com o menu "…" aberto; `null` = nenhuma. */
+  const [menuFor, setMenuFor] = useState<string | null>(null)
+  /** Cena com a confirmação de apagar aberta; `null` = nenhuma. */
+  const [deleting, setDeleting] = useState<string | null>(null)
+  /** O "…" de cada cena, pelo id: é para ele que o foco volta. */
+  const menuTriggers = useRef(new Map<string, HTMLButtonElement>())
+  /** "+ Nova cena": o foco cai nele quando a linha da cena apagada some. */
+  const createButtonRef = useRef<HTMLButtonElement | null>(null)
+  const menuIdBase = useId()
+  const hasSceneMenu = onDuplicate !== undefined || onShift !== undefined || onDelete !== undefined || deletionInfo !== undefined
   const [draft, setDraft] = useState('')
   /** Janela "Visão geral das cenas" aberta. */
   const [overviewOpen, setOverviewOpen] = useState(false)
@@ -582,6 +798,66 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
     refocusOpener()
   }
 
+  const focusTrigger = (sceneId: string) => {
+    const focus = () => {
+      const trigger = menuTriggers.current.get(sceneId)
+      if (trigger?.isConnected) trigger.focus()
+      else createButtonRef.current?.focus()
+    }
+    focus()
+    // De novo depois do render: Subir/Descer mudam a linha de lugar, e o
+    // navegador tira o foco de um nó que é movido.
+    requestAnimationFrame(focus)
+  }
+
+  const closeMenu = (focus: boolean) => {
+    const sceneId = menuFor
+    setMenuFor(null)
+    if (focus && sceneId !== null) focusTrigger(sceneId)
+  }
+
+  const cancelDelete = () => {
+    const sceneId = deleting
+    setDeleting(null)
+    if (sceneId !== null) focusTrigger(sceneId)
+  }
+
+  const confirmDelete = (sceneId: string) => {
+    setDeleting(null)
+    onDelete?.(sceneId)
+    // A linha some: o foco vai para "+ Nova cena", que fica sempre montado.
+    createButtonRef.current?.focus()
+  }
+
+  const menuItems = (row: SceneTreeRow<SceneListItem>): SceneMenuItem[] => {
+    const scene = row.entry
+    // Subir/Descer andam entre as irmãs (mesma pasta): a ponta que esmaece é a da pasta.
+    const siblings = tree.filter((candidate) => candidate.parentId === row.parentId)
+    const first = siblings[0]?.entry.id === scene.id
+    const last = siblings[siblings.length - 1]?.entry.id === scene.id
+    const andClose = (run: () => void) => () => {
+      closeMenu(true)
+      run()
+    }
+    return [
+      { label: 'Duplicar', disabled: onDuplicate === undefined || !scene.available, onSelect: andClose(() => onDuplicate?.(scene.id)) },
+      { label: 'Subir', disabled: onShift === undefined || first, onSelect: andClose(() => onShift?.(scene.id, -1)) },
+      { label: 'Descer', disabled: onShift === undefined || last, onSelect: andClose(() => onShift?.(scene.id, 1)) },
+      {
+        label: 'Apagar cena…',
+        // A última cena não se apaga: a aventura sem cena nenhuma não abre.
+        disabled: onDelete === undefined || deletionInfo === undefined || scenes.length <= 1,
+        onSelect: () => {
+          setMenuFor(null)
+          setEditing(null)
+          setNoting(null)
+          setMoving(null)
+          setDeleting(scene.id)
+        },
+      },
+    ]
+  }
+
   const closeOverview = () => {
     setOverviewOpen(false)
     overviewButtonRef.current?.focus()
@@ -777,6 +1053,8 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
           const here = peopleOf(index, collapsedFolder)
           const trail = filtering ? trailOf(scene.id) : []
           const pathId = `${baseId}-caminho-${index}`
+          const menuId = `${menuIdBase}-menu-${index}`
+          const menuOpen = menuFor === scene.id
           const depth = filtering ? 0 : Math.min(row.depth, MAX_VISUAL_DEPTH)
           const targeted = dragging?.target?.kind === 'cena' && dragging.target.sceneId === scene.id
           const alvo = targeted && verdict !== null ? (verdict.tone === 'ok' ? 'dentro' : verdict.tone === 'erro' ? 'invalido' : undefined) : undefined
@@ -877,12 +1155,49 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
                   <span aria-hidden="true">✉</span>
                 </button>
               )}
+              {hasSceneMenu && scene.id !== '' && (
+                <button
+                  ref={(node) => {
+                    if (node === null) menuTriggers.current.delete(scene.id)
+                    else menuTriggers.current.set(scene.id, node)
+                  }}
+                  type="button"
+                  className="lb-cenas__mais"
+                  aria-label={`Mais ações de ${scene.name}`}
+                  title="Duplicar, mover ou apagar"
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                  aria-controls={menuOpen ? menuId : undefined}
+                  onClick={() => {
+                    if (menuOpen) {
+                      setMenuFor(null)
+                      return
+                    }
+                    setDeleting(null)
+                    setMenuFor(scene.id)
+                  }}
+                >
+                  <span aria-hidden="true">…</span>
+                </button>
+              )}
+              {menuOpen && (
+                <SceneMenu
+                  id={menuId}
+                  label={`Ações de ${scene.name}`}
+                  items={menuItems(row)}
+                  trigger={menuTriggers.current.get(scene.id) ?? null}
+                  onClose={closeMenu}
+                />
+              )}
               {trail.length > 0 && (
                 <span id={pathId} className="lb-cenas__caminho">
                   {trail.join(SCENE_TRAIL_SEPARATOR)}
                 </span>
               )}
               {here !== null && <SceneGente people={here} />}
+              {deleting === scene.id && deletionInfo !== undefined && (
+                <DeleteConfirm sceneName={scene.name} info={deletionInfo(scene.id)} onConfirm={() => confirmDelete(scene.id)} onCancel={cancelDelete} />
+              )}
               {onNote !== undefined && noting === scene.id && (
                 <NoteForm sceneName={scene.name} onSend={(text) => sendNote(scene.id, text)} onCancel={closeNote} />
               )}
@@ -919,7 +1234,7 @@ export function ScenesSection({ scenes, onSelect, onCreate, onRename, people, on
       )}
       <div className="lb-cenas__rodape">
         {/* Sempre montado: é para ele que o foco volta depois de criar ou cancelar. */}
-        <button type="button" className="lb-btn" onClick={() => startEditing({ kind: 'create' }, `Cena ${scenes.length + 1}`)}>
+        <button ref={createButtonRef} type="button" className="lb-btn" onClick={() => startEditing({ kind: 'create' }, `Cena ${scenes.length + 1}`)}>
           + Nova cena
         </button>
         {canOverview && (

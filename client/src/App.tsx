@@ -37,6 +37,7 @@ import {
   hostWorldOf,
   pinExitsTravelOf,
   pinTravelOptions,
+  sceneDeletionInfo,
   sceneList,
   sceneMaps,
   subscribeToTravelLinks,
@@ -1253,6 +1254,28 @@ function App() {
     useAdventureStore.getState().createScene(name, currentMapPath)
   }
 
+  /** As fichas dos jogadores da sala: não entram na cópia e travam o apagar. Sala fechada = nenhuma conhecida. */
+  const playerTokenIds = () => new Set(roomPlayers.flatMap((player) => player.tokenIds))
+
+  /** "Duplicar" do menu "…" da cena: a cópia aparece logo abaixo, e a cena aberta continua a mesma. */
+  const handleDuplicateScene = (sceneId: string) => {
+    if (useAdventureStore.getState().duplicateScene(sceneId, playerTokenIds()) === null) {
+      useToastStore.getState().push('error', 'Não deu para duplicar: o arquivo desta cena não abriu.')
+    }
+  }
+
+  /** "Apagar cena…", já confirmado. Recusa com jogador na cena e com a última cena. */
+  const handleDeleteScene = (sceneId: string) => {
+    const name = adventure?.scenes.find((entry) => entry.id === sceneId)?.name ?? 'a cena'
+    // Apagar a cena aberta troca a vista: o "Seguir" desliga, como em qualquer troca à mão.
+    if (sceneId === activeSceneId) useFollowStore.getState().stop()
+    if (useAdventureStore.getState().deleteScene(sceneId, playerTokenIds())) {
+      useToastStore.getState().push('info', `${name} foi apagada.`)
+      return
+    }
+    useToastStore.getState().push('error', `Não deu para apagar ${name}: alguém ainda está lá, ou é a única cena.`)
+  }
+
   const handleGoBack = () => {
     useFollowStore.getState().stop()
     if (previousSceneId !== null) useAdventureStore.getState().switchScene(previousSceneId)
@@ -1700,6 +1723,13 @@ function App() {
                 people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.
                 onNote={room === null ? undefined : (sceneId, text) => hostBridgeRef.current?.sceneNote(sceneId, text) ?? null}
+                // Menu "…" da cena: só com aventura (o mapa solto não tem lista de cenas para mexer).
+                onDuplicate={adventure === null ? undefined : handleDuplicateScene}
+                onShift={adventure === null ? undefined : (sceneId, delta) => useAdventureStore.getState().shiftScene(sceneId, delta)}
+                onDelete={adventure === null ? undefined : handleDeleteScene}
+                deletionInfo={
+                  adventure === null ? undefined : (sceneId) => sceneDeletionInfo({ adventure, activeSceneId, cache: sceneCache }, map, sceneId, roomPlayers)
+                }
                 // Cenas em pastas: só a lista do mestre muda (pede Salvar); o jogador não recebe nada.
                 onMove={adventure === null ? undefined : (sceneId, parentId) => useAdventureStore.getState().moveScene(sceneId, parentId)}
                 adventureId={adventure?.id ?? null}
