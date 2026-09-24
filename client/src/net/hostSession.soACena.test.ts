@@ -238,3 +238,35 @@ describe('o que é do jogador na sessão ainda refaz o recorte dele', () => {
     expect(comSnapshot(s.broadcast(comCena(mundo, 'm-cripta', (map) => setTokenPosition(map, 'rival', 150, 100))))).toEqual(['c-ana', 'c-bruno-2'])
   })
 })
+
+describe('a ficha sai e volta: o jogador sai da espera', () => {
+  it('o mestre tira a única ficha de Caio e devolve a mesma: o envio seguinte leva a Torre a ele', () => {
+    const mundo = mundoInicial()
+    const { s, caio } = mesa(mundo)
+    assenta(s, mundo)
+    const saida = s.unassignToken(caio, 'vigia')
+    expect(saida.outbound.map((o) => [o.clientId, o.msg.type])).toEqual([['c-caio', 'lobby.waiting']])
+    expect(comSnapshot(s.broadcast(mundo))).toEqual([])
+    s.assignToken(caio, 'vigia')
+    filtro.mockClear()
+    const r = s.broadcast(mundo)
+    expect(comSnapshot(r)).toEqual(['c-caio'])
+    expect(refiltrados()).toEqual([caio])
+    const snap = r.outbound.find((o) => o.clientId === 'c-caio' && o.msg.type === 'snapshot')?.msg
+    expect(snap?.type === 'snapshot' ? snap.map.id : null).toBe('m-torre')
+  })
+
+  it('a ficha de Caio passa para Bruno e volta para Caio: Caio recebe a Torre de novo', () => {
+    const mundo = mundoInicial()
+    const { s, bruno, caio } = mesa(mundo)
+    assenta(s, mundo)
+    const tirada = s.assignToken(bruno, 'vigia')
+    expect(tirada.outbound.map((o) => [o.clientId, o.msg.type])).toEqual([['c-caio', 'lobby.waiting']])
+    s.broadcast(mundo)
+    s.assignToken(caio, 'vigia')
+    const r = s.broadcast(mundo)
+    expect(comSnapshot(r)).toContain('c-caio')
+    const snap = r.outbound.find((o) => o.clientId === 'c-caio' && o.msg.type === 'snapshot')?.msg
+    expect(snap?.type === 'snapshot' ? snap.map.id : null).toBe('m-torre')
+  })
+})

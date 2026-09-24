@@ -867,6 +867,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Sem ficha, ele sai da cena: a ficha devolvida (mesmo na cena de antes) é
     // CHEGADA, e o recado mandado enquanto ele aguardava vem no broadcast seguinte.
     noteSceneOf.delete(playerId)
+    // A tela dele virou a espera: o recorte que ele tinha não está mais nela.
+    // A ficha que volta (mesmo a mesma, na mesma cena) refaz o recorte.
+    lastViews.delete(playerId)
     const clientId = players.get(playerId)?.clientId ?? null // registro ausente = jogador expulso: não há a quem avisar
     if (!wasPlaying || clientId === null) return []
     return [{ clientId, msg: { type: 'lobby.waiting' } }]
@@ -1687,7 +1690,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       rev += 1
       const outbound: Outbound[] = []
       for (const [clientId, playerId] of byClient) {
-        if (statusOf(playerId) !== 'playing') continue
+        if (statusOf(playerId) !== 'playing') {
+          // Fora de jogo a tela dele não tem recorte: quando voltar, o envio refaz.
+          lastViews.delete(playerId)
+          continue
+        }
         // SÓ A CENA QUE MUDOU: um passo no Salão não refaz o recorte de quem
         // está na Cripta. O recorte dele sairia igual ao que já está na tela.
         if (viewUnchanged(playerId, world)) continue
