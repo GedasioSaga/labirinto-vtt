@@ -135,6 +135,12 @@ export interface GatherMove {
   travels: boolean
   x: number
   y: number
+  /**
+   * LEVAR FICHA JUNTO: a ficha que leva esta, quando ela também viaja na
+   * reunião e sai da MESMA cena. A travessia dela traz esta junto; esta só
+   * assenta na casa planejada. Ausente = viaja (ou anda) por conta própria.
+   */
+  vemCom?: string
 }
 
 export interface GatherPlan {
@@ -191,17 +197,26 @@ export function planGather(members: readonly PartyMember[], world: HostWorld, pi
       leftOut.push(j.member.name)
       return
     }
-    moves.push({ playerId: j.member.playerId, name: j.member.name, tokenId: j.token.id, travels: j.travels, x: spot.x, y: spot.y })
+    const vemCom = carrierTravelingAlong(j, joining)
+    moves.push({ playerId: j.member.playerId, name: j.member.name, tokenId: j.token.id, travels: j.travels, x: spot.x, y: spot.y, ...(vemCom === null ? {} : { vemCom }) })
   })
-  // LEVAR FICHA JUNTO: quem é levado viaja ANTES. Se viesse depois, a travessia
-  // de quem o leva já o teria trazido, a dele acharia o jogador na cena do
-  // pino (nada a fazer = "não deu") e ele não assentaria na casa planejada.
-  // Indo antes, sai da cena de quem leva, e ela viaja sem arrastá-lo.
-  const carriedFirst = (move: GatherMove): number => {
-    const token = joining.find((j) => j.token.id === move.tokenId)?.token
-    return move.travels && token !== undefined && carrierIdOf(token) !== null ? 0 : 1
-  }
-  return { moves: [...moves].sort((a, b) => carriedFirst(a) - carriedFirst(b)), leftOut }
+  // LEVAR FICHA JUNTO: quem é levado junto viaja DEPOIS de quem o leva. Se
+  // fosse antes, chegaria sozinho a uma cena sem quem o leva, e a travessia
+  // solta o vínculo (`adventureStore.transferToken`): a reunião desfaria o
+  // que o mestre prendeu.
+  const along = (move: GatherMove): number => (move.vemCom === undefined ? 0 : 1)
+  return { moves: [...moves].sort((a, b) => along(a) - along(b)), leftOut }
+}
+
+/**
+ * A ficha que leva `j` e viaja na mesma reunião, saindo da mesma cena — é a
+ * travessia dela que traz `j` junto. `null`: `j` vai por conta própria.
+ */
+function carrierTravelingAlong(j: { member: PartyMember; token: Token; travels: boolean }, joining: readonly { member: PartyMember; token: Token; travels: boolean }[]): string | null {
+  const carrierId = carrierIdOf(j.token)
+  if (!j.travels || carrierId === null) return null
+  const carrier = joining.find((k) => k.token.id === carrierId)
+  return carrier !== undefined && carrier.travels && carrier.member.sceneId === j.member.sceneId ? carrierId : null
 }
 
 /** O que a reunião precisa do mundo para acontecer. O App liga isto à ponte e à store; o teste, ao que quiser. */
@@ -224,12 +239,21 @@ export interface GatherEffects {
  */
 export function applyGatherPlan(plan: GatherPlan, effects: GatherEffects): string[] {
   const failed: string[] = []
+  const arrived = new Set<string>()
+  // Quem veio junto de quem leva (LEVAR FICHA JUNTO) já está na cena: só
+  // assenta na casa planejada, no mesmo passo de quem já estava aqui.
+  const broughtAlong = new Set<string>()
   for (const move of plan.moves) {
     if (!move.travels) continue
-    const arrived = effects.sceneId !== null && effects.bringFromOtherScene(move.playerId, effects.sceneId, { x: move.x, y: move.y })
-    if (!arrived) failed.push(move.name)
+    if (move.vemCom !== undefined && arrived.has(move.vemCom)) {
+      broughtAlong.add(move.tokenId)
+      continue
+    }
+    const ok = effects.sceneId !== null && effects.bringFromOtherScene(move.playerId, effects.sceneId, { x: move.x, y: move.y })
+    if (ok) arrived.add(move.tokenId)
+    else failed.push(move.name)
   }
-  const local = plan.moves.filter((move) => !move.travels).map((move) => ({ id: move.tokenId, x: move.x, y: move.y }))
+  const local = plan.moves.filter((move) => !move.travels || broughtAlong.has(move.tokenId)).map((move) => ({ id: move.tokenId, x: move.x, y: move.y }))
   if (local.length > 0) effects.placeInScene(local)
   return failed
 }

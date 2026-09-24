@@ -1313,8 +1313,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * origem vão junto, assentadas em volta de `spot` (`companionArrivals`). O
    * vínculo é lido do mapa do MESTRE (`from.map`), nunca do recorte do jogador,
    * que não o carrega. Ficha levada que é de OUTRO jogador leva a cena dele
-   * junto: ele recebe o mesmo aviso do "Mandar para…" (`by: 'master'`), porque
-   * não foi ele quem pediu — e o pedido de passagem que ele tinha perde o pino.
+   * junto: ele recebe o mesmo aviso de quem leva foi movido pelo mestre (`by`:
+   * 'master' no pino e no "Mandar para…", 'gather' na reunião), porque não
+   * foi ele quem pediu — e o pedido de passagem que ele tinha perde o pino.
    * Só quando ele ESTAVA na cena de origem e não deixa ficha lá: dono de duas
    * fichas que fica com a principal para trás continua onde está, mandando
    * nela, com o pedido que tinha. Um aviso por dono, mesmo levando duas dele.
@@ -1327,6 +1328,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     to: HostScene,
     spot: { x: number; y: number },
     world: HostWorld,
+    by: 'master' | 'gather',
   ): { transfer: Pick<AppliedTransfer, 'junto'>; outbound: Outbound[] } {
     const carrier = from.map.tokens.find((t) => t.id === carrierId)
     const carried = carriedBy(from.map, carrierId)
@@ -1342,7 +1344,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       currentScene.set(owner, sceneKey(to))
       pendingTravels.delete(owner)
       const clientId = players.get(owner)?.clientId ?? null // null = caiu: reconecta já na cena nova
-      if (clientId !== null) outbound.push({ clientId, msg: { type: 'scene.changed', by: 'master' } })
+      if (clientId !== null) outbound.push({ clientId, msg: { type: 'scene.changed', by } })
     }
     return { transfer: { junto: companionArrivals(to.map, carrier, spot, carried) }, outbound }
   }
@@ -1368,7 +1370,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A cena dele passa a ser a de destino a partir daqui: é ela que o
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
-    const along = carriedAlong(playerId, travel.token.id, travel.from, travel.to, spot, world)
+    const along = carriedAlong(playerId, travel.token.id, travel.from, travel.to, spot, world, 'master')
     return {
       outbound: [{ clientId, msg: { type: 'scene.changed' } }, ...along.outbound],
       applyTransfer: {
@@ -1546,7 +1548,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // O pedido que ele tinha na cena de antes perde o sentido: o pino ficou lá.
       pendingTravels.delete(playerId)
       const by = gatherAt === undefined ? 'master' : 'gather'
-      const along = carriedAlong(playerId, token.id, from, to, spot, world)
+      const along = carriedAlong(playerId, token.id, from, to, spot, world, by)
       return {
         outbound: [...(record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by } } satisfies Outbound]), ...along.outbound],
         applyTransfer: {
