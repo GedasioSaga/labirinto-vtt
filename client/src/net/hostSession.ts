@@ -21,11 +21,12 @@ import {
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type PlayerLaserMessage,
+  type RouteShowMessage,
   type SignalMessage,
   type TokenEditMessage,
   type TokenMoveMessage,
 } from './protocol'
-import { clampNoteText, NOTEBOOK_MAX_NOTES, type NoteEntry } from './protocol'
+import { clampNoteText, NOTEBOOK_MAX_NOTES, ROUTE_MIN_POINTS, type NoteEntry } from './protocol'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -265,6 +266,13 @@ export const TOKEN_PHOTO_MIN_INTERVAL_MS = 500
 export const CLUE_SHOW_MIN_INTERVAL_MS = 1000
 
 /**
+ * Caminho da régua: um traço mostrado por jogador nesta janela. Mesmo limite
+ * da pista mostrada, e pelo mesmo motivo: cada traço aparece na tela do
+ * colega, e um laço hostil não pode cobri-la de linhas.
+ */
+export const ROUTE_SHOW_MIN_INTERVAL_MS = 1000
+
+/**
  * Um pedido de passagem pelo MESMO pino, do mesmo jogador, nesta janela. O
  * mestre recusou e o jogador insiste no toque: sem o intervalo, cada toque
  * seria um aviso novo empilhado na tela do mestre. Por jogador e por pino, e
@@ -499,6 +507,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const seenPins = new Map<string, { mapId: string; pins: Pin[] }>()
   // Por playerId: quando a última pista mostrada chegou a um colega.
   const lastClueShowAt = new Map<string, number>()
+  // Por playerId: quando o último caminho da régua passou pelos filtros de quem ele mostrou.
+  const lastRouteShowAt = new Map<string, number>()
   // Por pinId: quem vê o pino ("Só estes"). Ausente = Todos. O kick tira o
   // jogador de toda lista; o registro de quem só caiu fica (resume).
   const pinAudiences = new Map<string, Set<string>>()
@@ -1204,6 +1214,55 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
   }
 
+  /**
+   * CAMINHO DA RÉGUA: o traço medido vai ao colega `to`, que tem de estar na
+   * mesma cena agora. O traço PODE atravessar o que ele ainda não viu: é o
+   * caso do pedido (apontar a saída que ele nunca viu), e a névoa dele continua
+   * cobrindo a planta embaixo — a linha dá a direção, não a sala. Saem só os
+   * pontos fora do mapa e os de zona oculta ativa e de sala secreta, que nem
+   * quem mede enxerga. Sem 2 pontos que sobrem, nada chega ao colega.
+   *
+   * A resposta a quem mede NÃO depende do filtro: com colega válido e fora do
+   * intervalo, é sempre `ok: true`. Se dependesse, cada envio seria uma sonda
+   * (do que o colega conhece, ou de onde há zona escondida). `ok: false` fica
+   * só para colega que não está na cena, sem dizer onde ele está.
+   */
+  function handleRouteShow(clientId: string, msg: RouteShowMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const refused = reply(clientId, { type: 'route.show.result', to: msg.to, ok: false })
+    const sender = players.get(playerId)
+    if (sender === undefined || statusOf(playerId) !== 'playing') return refused
+    const scene = sceneFor(playerId, world)
+    const target = peersOf(playerId, world).find((other) => other.name === msg.to)
+    if (scene === null || target === undefined || target.clientId === null) return refused
+    const at = now()
+    const last = lastRouteShowAt.get(playerId)
+    // Só chega aqui quem está na cena: o "espere" não conta nada que a lista de colegas já não conte.
+    if (last !== undefined && at - last < ROUTE_SHOW_MIN_INTERVAL_MS) {
+      return reply(clientId, { type: 'route.show.result', to: msg.to, ok: false, reason: 'too_soon' })
+    }
+    lastRouteShowAt.set(playerId, at)
+    const map = scene.map
+    const blocked = playerBlockedRings(map)
+    const shareable = msg.points.filter(
+      (p) =>
+        p.x >= 0 &&
+        p.y >= 0 &&
+        p.x <= map.width * map.grid &&
+        p.y <= map.height * map.grid &&
+        !blocked.some((ring) => ring.length >= 3 && pointInRing(p, ring)),
+    )
+    const shown = reply(clientId, { type: 'route.show.result', to: msg.to, ok: true })
+    if (shareable.length < ROUTE_MIN_POINTS) return shown
+    return {
+      outbound: [
+        { clientId: target.clientId, msg: { type: 'route.shown', from: sender.name, color: laserColorOf(playerId, map), points: shareable } },
+        ...shown.outbound,
+      ],
+    }
+  }
+
   const findPendingTravel = (requestId: string): PendingTravel | undefined =>
     [...pendingTravels.values()].find((pending) => pending.requestId === requestId)
 
@@ -1248,6 +1307,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleCluePeers(clientId, world)
         case 'clue.show':
           return handleClueShow(clientId, msg, world)
+        case 'route.show':
+          return handleRouteShow(clientId, msg, world)
       }
     },
 
@@ -1377,6 +1438,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       cluebooks.delete(playerId)
       seenPins.delete(playerId)
       lastClueShowAt.delete(playerId)
+      lastRouteShowAt.delete(playerId)
       for (const chosen of pinAudiences.values()) chosen.delete(playerId)
       return reply(clientId, { type: 'kicked' })
     },
