@@ -758,3 +758,16 @@ acervo + jogador + editor + mundo provados), com merge de `9b818e0` (4 grandes p
 (cabine, correio, rotina do NPC, perigo que alastra, mobília) e `auto/f2-pisos-na-mesma-cena` (ainda em
 revisão). Workflow `wf_4df0cddf-2ac`. Tipos verdes ⇒ o app de teste reabre dessa árvore. A prévia não vai para
 `auto/acervo`: as grandes entram no programa oficial pela junção `wf_e1417c8d-d57`.
+
+### 24/09/2026, 18h00 — juntar as grandes e publicar de 10 em 10
+
+> "Uma coisa sobre junto a branch e ao programa principal eu quero que você já vá juntando todas as features
+> grande ao programa principal e a cada 10 e 10 features vocÊ coloque no programa principal, fazendo commits,
+> testes e o push"
+
+Autorização explícita de push. "Programa principal" = branch `main` do GitHub (`GedasioSaga/labirinto-vtt`),
+que é ancestral de `auto/acervo` (avança por fast-forward, sem force). Plano: publicar já os 4 grupos provados
+da 2ª passada (`auto/juntar` `d37de87`: jogador, editor, mundo, rede); depois, em duas pistas paralelas, as
+grandes (`auto/juntar-grandes` + correio-2) e os grupos restantes um a um (visão, defeitos, t-*), cada unidade
+com merge, tipos, unidade e prova, e publicação serial: `auto/acervo` absorvido na pista, merge `--no-ff` em
+`auto/acervo`, fast-forward de `main` e `git push origin main`. Nunca force-push.
