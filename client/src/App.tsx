@@ -67,6 +67,7 @@ import { saveMapImage } from './lib/mapImageSave'
 import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
+import { lockDoorOptions } from './lib/pinLock'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -2071,6 +2072,14 @@ function App() {
               // pino de mapa salvo antes desta fase chega sem o campo.
               locked: !!selectedPin?.locked,
               onLockedChange: (locked) => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { locked }),
+              // FECHADURA COM SEGREDO: a combinação fica neste mapa; o host confere a tentativa.
+              lock: selectedPin
+                ? {
+                    lock: selectedPin.segredo ?? null,
+                    onChange: (segredo) => useMapStore.getState().updatePin(selectedPin.id, { segredo }),
+                    doors: lockDoorOptions(map, selectedPin),
+                  }
+                : null,
               image: selectedPin?.image ?? null,
               onChooseImage: () => selectedPin && void handleChoosePinImage(selectedPin.id),
               onClearImage: () => selectedPin && useMapStore.getState().updatePin(selectedPin.id, { image: null }),

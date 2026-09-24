@@ -1,6 +1,7 @@
 import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
+import { readPinLock } from './pinLock'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { tokenPublicNameFromFile } from './tokenPublicName'
 
@@ -231,6 +232,13 @@ function deserializeMapFields(json: string): MapData {
       // sempre, visível. O `...p` acima copiaria o valor cru, por isso a linha.
       soChegada: p.soChegada === true ? true : undefined,
       escolhas: undefined,
+      // FECHADURA COM SEGREDO: campo NOVO e OPCIONAL, conferido campo a campo
+      // por `readPinLock` — `resposta` em texto (sem ela, sem fechadura),
+      // `forma` desconhecida volta 'teclado', `aberta` só `true` e `abrePorta`
+      // só texto; ausentes continuam ausentes. `fechadura` é só do recorte do
+      // jogador, como `escolhas`: arquivo que a traga não a põe no mapa do mestre.
+      segredo: readPinLock(p.segredo),
+      fechadura: undefined,
     })),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },

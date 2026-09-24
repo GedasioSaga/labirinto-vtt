@@ -22,6 +22,7 @@ import type { AbaloSeta } from '../lib/abalo'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
+import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -54,6 +55,8 @@ export interface PlayerState {
   moveNotice?: { id: number; reason: TokenMoveRejection }
   /** Pedido de passagem: esperando o mestre, ou a resposta dele. */
   travel?: TravelNotice
+  /** FECHADURA COM SEGREDO: a última tentativa, no pino `pinId`, e a resposta do host. */
+  lockAnswer?: { pinId: string; phase: LockAnswerPhase }
   /**
    * Recado do mestre para a cena do jogador. Fica até ele fechar
    * (`dismissNote`); um recado novo toma o lugar do aberto. É texto puro: a
@@ -119,6 +122,18 @@ export type TravelNotice =
   | { id: number; phase: 'gathered' }
   | { id: number; phase: 'denied' }
   | { id: number; phase: 'rejected'; reason: PinTravelRejection }
+
+/**
+ * Onde está a tentativa na fechadura: conferindo no host, `wrong` ("Não
+ * abre"), `too_soon` (tentou rápido demais; nem foi conferida) ou `open`.
+ */
+export type LockAnswerPhase = 'sending' | 'wrong' | 'too_soon' | 'open'
+
+/**
+ * Quanto a tentativa espera a resposta do host. Mestre antigo não conhece
+ * `pin.answer` e nunca responde: sem o teto, o "Conferindo…" ficaria para sempre.
+ */
+export const LOCK_ANSWER_TIMEOUT_MS = 5000
 
 export type CluePeers = { phase: 'loading' } | { phase: 'ready'; names: string[] }
 
@@ -192,6 +207,14 @@ export interface PlayerConnection {
    * ausente, o pedido sai sem ele e vale a saída principal, como sempre.
    */
   requestTravel(pinId: string, exitId?: string): boolean
+  /**
+   * FECHADURA COM SEGREDO: manda a tentativa no pino `pinId` (sem os espaços
+   * das pontas). `false` (e nada sai) quando não joga, o pino não chegou com
+   * fechadura, a tentativa é vazia ou passa do teto, ou o socket caiu.
+   */
+  answerLock(pinId: string, tentativa: string): boolean
+  /** O cartão fechou: a resposta da fechadura perde o sentido. */
+  resetLockAnswer(): void
   /**
    * Ponteiro do LASER do jogador em px de mundo. Sai em lotes: o primeiro
    * ponto na hora, os seguintes juntos a cada `LASER_SEND_INTERVAL_MS`.
@@ -499,6 +522,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return notice.phase === 'arrived' ? ARRIVAL_NOTICE_TTL_MS : TRAVEL_NOTICE_TTL_MS
   }
 
+  let lockTimer: ReturnType<typeof setTimeout> | null = null
+
+  function clearLockTimer(): void {
+    if (lockTimer !== null) clearTimeout(lockTimer)
+    lockTimer = null
+  }
+
   let laserTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearLaserTimer(): void {
@@ -734,7 +764,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearMoveNotice()
         clearTravelTimer()
         clearMapSharedTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined })
+        clearLockTimer()
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, lockAnswer: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -749,8 +780,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         resetOwnLaser()
         clearDoorNotice()
         clearMoveNotice()
-        // As listas de "Mostrar para…" e "Mostrar meu mapa a…" eram de quem estava na cena de antes.
-        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, cluePeers: undefined, clueShow: undefined, mapPeers: undefined, mapShare: undefined })
+        clearLockTimer()
+        // As listas de "Mostrar para…" e "Mostrar meu mapa a…" eram de quem estava na cena de antes; a fechadura também.
+        setState({ signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, cluePeers: undefined, clueShow: undefined, mapPeers: undefined, mapShare: undefined, lockAnswer: undefined })
         // Levado pelo mestre, "Você chegou" mentiria: ele não pediu para ir.
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
@@ -764,6 +796,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const { reason } = data
         if (reason !== 'unavailable' && reason !== 'pending' && reason !== 'too_soon') return
         showTravelAnswer({ id: nextNoticeId++, phase: 'rejected', reason })
+        return
+      }
+      case 'pin.answer.result': {
+        // Só a resposta da tentativa que está no ar, no pino dela: resposta
+        // atrasada de um cartão já fechado não reabre nada.
+        const waiting = state.lockAnswer
+        if (waiting?.phase !== 'sending' || data.pinId !== waiting.pinId || typeof data.ok !== 'boolean') return
+        clearLockTimer()
+        const phase: LockAnswerPhase = data.ok ? 'open' : data.reason === 'too_soon' ? 'too_soon' : 'wrong'
+        setState({ lockAnswer: { pinId: waiting.pinId, phase } })
         return
       }
       case 'scene.note': {
@@ -1041,6 +1083,27 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (!send(pedido)) setState({ travel: undefined })
       }, FREE_PASSAGE_BEAT_MS)
       return true
+    },
+
+    answerLock(pinId, tentativa) {
+      if (state.status !== 'playing') return false
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      const texto = tentativa.trim()
+      if (pin?.fechadura === undefined || texto.length === 0 || texto.length > LOCK_ANSWER_MAX_LENGTH) return false
+      if (!send({ type: 'pin.answer', pinId, tentativa: texto })) return false
+      clearLockTimer()
+      setState({ lockAnswer: { pinId, phase: 'sending' } })
+      lockTimer = setTimeout(() => {
+        lockTimer = null
+        // Ninguém respondeu (mestre antigo, rede lenta): libera o "Tentar".
+        if (state.lockAnswer?.phase === 'sending') setState({ lockAnswer: undefined })
+      }, LOCK_ANSWER_TIMEOUT_MS)
+      return true
+    },
+
+    resetLockAnswer() {
+      clearLockTimer()
+      if (state.lockAnswer !== undefined) setState({ lockAnswer: undefined })
     },
 
     laserMove(x, y) {

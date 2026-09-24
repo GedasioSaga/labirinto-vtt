@@ -573,7 +573,11 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const openPin = openPinId === null ? null : (map?.pins ?? []).find((p) => p.id === openPinId) ?? null
   // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
   // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
-  const closePin = useCallback(() => setOpenPinId(null), [])
+  // Fechar o cartão esquece a resposta da fechadura: reabrir começa limpo.
+  const closePin = useCallback(() => {
+    setOpenPinId(null)
+    connection.resetLockAnswer()
+  }, [connection])
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
   const closeRoomText = useCallback(() => connection.dismissRoomText(), [connection])
@@ -702,6 +706,9 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
               // e o mapa volta inteiro à vista enquanto o mestre decide.
               if (connection.requestTravel(openPin.id, exitId)) setOpenPinId(null)
             }}
+            // FECHADURA COM SEGREDO: o cartão fica aberto; a resposta do host aparece nele.
+            onTryLock={(tentativa) => connection.answerLock(openPin.id, tentativa)}
+            lockPhase={state.lockAnswer?.pinId === openPin.id ? state.lockAnswer.phase : undefined}
           />
         )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".

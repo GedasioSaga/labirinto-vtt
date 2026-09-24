@@ -1,6 +1,7 @@
 import type { PinKind } from '../types/map'
 import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER } from '../lib/pins'
 import { GatherControls, type GatherControlsProps } from './GatherControls'
+import { PinLockControls, type PinLockControlsProps } from './PinLockControls'
 import { PinTravelArt } from './PinSymbolArt'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
 import { Toggle } from './Toggle'
@@ -30,6 +31,11 @@ export interface PinControlsProps {
    * quando o painel passa a mostrar outro pino.
    */
   gather?: (GatherControlsProps & { pinId: string }) | null
+  /**
+   * FECHADURA COM SEGREDO do pino aberto no painel (qualquer tipo). `null` =
+   * nenhum pino aberto: não há fechadura para editar.
+   */
+  lock?: PinLockControlsProps | null
 }
 
 /** A pastilha de cada tipo: a mesma cabeça que o pino tem no mapa. */
@@ -79,6 +85,7 @@ export function PinControls({
   onDelete,
   travel = null,
   gather = null,
+  lock = null,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
   // As cenas onde mora um par que perde a volta se este pino sumir (uma por
@@ -125,6 +132,8 @@ export function PinControls({
               arrastando. O pino não usa aquele componente porque não tem
               rotação nem "oculto no editor" separado do resto do painel. */}
           <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
+          {/* O que o pino É para o jogador (tranca), antes da ação de mesa. */}
+          {lock !== null && <PinLockControls {...lock} />}
           {/* Ação de MESA, não de edição do pino: fica logo depois do que o
               pino é, antes da imagem e do excluir. */}
           {gather !== null && <GatherControlsFor gather={gather} />}

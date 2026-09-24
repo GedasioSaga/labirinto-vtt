@@ -7,6 +7,7 @@ import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 import { ABALO_SETAS, type AbaloSeta } from '../lib/abalo'
+import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -89,6 +90,12 @@ import { ABALO_SETAS, type AbaloSeta } from '../lib/abalo'
  * na cena da origem: o aparelho vibra) e, só nesse caso, `seta` — o rumo de 8
  * pontas visto da ficha dele. Nunca o ponto de origem, o id ou o nome de cena,
  * nem o texto de outra faixa. Jogador antigo cai no `default` e ignora.
+ *
+ * A FECHADURA COM SEGREDO é aditiva pelo mesmo critério: `pin.answer` (jogador
+ * -> mestre, o id do pino e a tentativa) e `pin.answer.result` (só abriu ou
+ * não). A resposta certa nunca viaja: o recorte leva `Pin.fechadura` (forma e,
+ * nos volantes, casas), nunca `Pin.segredo`. Mestre antigo responde `error invalid_message`;
+ * jogador antigo ignora o resultado.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -221,7 +228,19 @@ export interface MapShareMessage {
   to: string
 }
 
+/**
+ * FECHADURA COM SEGREDO: a tentativa do jogador no pino `pinId`. Só o texto
+ * que ele digitou ou girou; quem confere é o host, contra a resposta que o
+ * jogador nunca recebe. A volta é `pin.answer.result`.
+ */
+export interface PinAnswerMessage {
+  type: 'pin.answer'
+  pinId: string
+  tentativa: string
+}
+
 export type PlayerMessage =
+  | PinAnswerMessage
   | MapShareMessage
   | JoinMessage
   | TokenMoveMessage
@@ -246,6 +265,19 @@ export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
  * `too_soon`: pediu de novo pelo mesmo pino antes do intervalo mínimo.
  */
 export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon'
+
+/**
+ * A resposta do host à tentativa na fechadura: `ok` abriu. Recusa sem motivo é
+ * "não abre" — a mesma para combinação errada, pino que não existe, no escuro
+ * ou já aberto, para não dizer ao jogador o que existe. `too_soon`: tentou de
+ * novo antes do intervalo mínimo, e a tentativa nem foi conferida.
+ */
+export interface PinAnswerResultMessage {
+  type: 'pin.answer.result'
+  pinId: string
+  ok: boolean
+  reason?: 'too_soon'
+}
 
 // Mestre -> jogador
 /** Laser do mestre: lote de pontos (px de mundo) desde o último envio, ou `off` ao soltar. */
@@ -404,6 +436,7 @@ export type HostMessage =
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
   | { type: 'pin.travel.denied' }
+  | PinAnswerResultMessage
   // `by: 'master'`: o mestre levou o jogador sem pedido ("Mandar para…" do
   // painel Grupo). Aditivo: jogador antigo ignora o campo e lê "Você chegou".
   // `by: 'gather'`: também sem pedido, mas pelo "Reunir o grupo aqui" de um
@@ -764,6 +797,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
     case 'map.share':
       return isRoomName(value.to) ? { type: 'map.share', to: value.to } : null
+    case 'pin.answer':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.tentativa, 1, LOCK_ANSWER_MAX_LENGTH)
+        ? { type: 'pin.answer', pinId: value.pinId, tentativa: value.tentativa }
+        : null
     default:
       return null
   }

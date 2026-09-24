@@ -303,6 +303,36 @@ export type PinPassage = 'pede' | 'livre' | 'trancada'
 export type PinIcon = 'bau' | 'armadilha' | 'chave' | 'perigo' | 'escada' | 'agua'
 
 /**
+ * FECHADURA COM SEGREDO — como o jogador entra com a combinação no cartão:
+ * `teclado` (digita, aceita letras) ou `volantes` (gira uma rodinha de 0 a 9
+ * por casa).
+ */
+export type PinLockForm = 'teclado' | 'volantes'
+
+/**
+ * A fechadura como o MESTRE a grava. Mora só no mapa do mestre: o recorte do
+ * jogador (`lib/fogFilter.ts`) nunca a copia, e quem confere a tentativa é o
+ * host (`net/hostSession.ts`). Ver `lib/pinLock.ts`.
+ */
+export interface PinLock {
+  /** A combinação. Conferida sem espaço, traço, ponto, barra nem caixa (`normalizeLockAnswer`). */
+  resposta: string
+  forma: PinLockForm
+  /** Um jogador acertou. Ausente = fechada, sem linha de migração; do disco só `true` volta (`readPinLock`). */
+  aberta?: true
+  /** Id da parede-porta DESTA cena que acertar destranca junto (não abre: só destranca). Ausente = nenhuma, sem linha de migração. */
+  abrePorta?: string
+}
+
+/**
+ * O que o JOGADOR sabe da fechadura fechada: a forma e, SÓ nos volantes,
+ * quantas casas ela tem — o que qualquer um vê olhando um cadeado de volantes.
+ * O teclado não mostra o tamanho da senha, então ele nem viaja. Nunca a
+ * resposta nem a porta ligada. Montado por `lib/fogFilter.ts`; o mestre nunca grava.
+ */
+export type PinLockPublic = { forma: 'teclado' } | { forma: 'volantes'; casas: number }
+
+/**
  * Ponto de interesse cravado pelo mestre. O jogador toca o pino no mapa e lê o
  * cartão: imagem em cima, descrição embaixo.
  *
@@ -372,6 +402,17 @@ export interface Pin extends PlayerSecret {
    * este campo; `lib/fogFilter.ts` o monta a partir de `rotulo` e `saidas`.
    */
   escolhas?: PinExitLabel[]
+  /**
+   * FECHADURA COM SEGREDO, de qualquer tipo de pino. Fechada, o cartão do
+   * jogador pede a combinação e o pino de viagem não deixa passar. NUNCA sai no
+   * recorte do jogador. Ausente = sem fechadura, sem migração.
+   */
+  segredo?: PinLock
+  /**
+   * SÓ NO RECORTE DO JOGADOR, e só com a fechadura fechada: forma e, nos volantes, casas.
+   * `lib/fogFilter.ts` o monta a partir de `segredo`; o mestre nunca o grava.
+   */
+  fechadura?: PinLockPublic
 }
 
 /**

@@ -10,6 +10,7 @@ import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { arrivalPoint, arrivalSpot, exitLabelsOf, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
+import { isLockClosed, lockAccepts } from '../lib/pinLock'
 import {
   parsePlayerMessage,
   type ClueEntry,
@@ -20,6 +21,7 @@ import {
   type JoinMessage,
   type LaserMessage,
   type MapShareMessage,
+  type PinAnswerMessage,
   type PinTravelRejection,
   type PinTravelRequestMessage,
   type PlayerLaserMessage,
@@ -154,6 +156,29 @@ export interface AppliedTransfer {
   y: number
 }
 
+/**
+ * FECHADURA COM SEGREDO: um jogador acertou a combinação do pino `pinId`. O
+ * integrador aplica `openPinLock` no mapa do mestre (`net/playerChanges.ts`) —
+ * a fechadura fica aberta e a porta ligada, destrancada. `sceneId` como em
+ * `AppliedDoor`.
+ */
+export interface AppliedLock {
+  pinId: string
+  sceneId?: string
+}
+
+/**
+ * Tentativa CONFERIDA numa fechadura, para o mestre ler (quem, onde, o que
+ * tentou e se abriu). Nunca vai a jogador nenhum: não vira pedido, só aviso.
+ */
+export interface LockAttempt {
+  playerName: string
+  /** Como o mestre chama o pino: a descrição dele ou, sem descrição, o resumo. */
+  pinLabel: string
+  tentativa: string
+  ok: boolean
+}
+
 /** Sinal aceito de um jogador, para a UI do mestre desenhar. */
 export interface HostSignal {
   playerId: string
@@ -193,6 +218,10 @@ export interface HostResult {
   applyMove?: AppliedMove
   applyDoor?: AppliedDoor
   applyTokenEdit?: AppliedTokenEdit
+  /** Combinação certa: o integrador abre a fechadura e faz o broadcast. */
+  applyLock?: AppliedLock
+  /** Tentativa conferida (certa ou errada): o integrador avisa o mestre. */
+  lockAttempt?: LockAttempt
   signal?: HostSignal
   playerLaser?: HostPlayerLaser
   /** Pedido de passagem válido: o integrador pergunta ao mestre. */
@@ -266,6 +295,14 @@ export const VISION_RADIUS_STEP = 50
  */
 export const PLAYER_LASER_MAX_PER_WINDOW = 40
 export const PLAYER_LASER_WINDOW_MS = 1000
+
+/**
+ * FECHADURA COM SEGREDO: uma tentativa por jogador nesta janela, de qualquer
+ * fechadura. Sem isto, um jogador em laço varreria as 10 mil combinações de um
+ * cadeado de 4 volantes em segundos. A que vem cedo demais volta `too_soon` e
+ * nem é conferida.
+ */
+export const LOCK_ANSWER_MIN_INTERVAL_MS = 1500
 
 /** Um pedido de porta por jogador nesta janela; o excesso morre em silêncio (igual ao sinal). */
 export const DOOR_TOGGLE_MIN_INTERVAL_MS = 250
@@ -541,6 +578,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastSignalAt = new Map<string, number>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
   const lastDoorToggleAt = new Map<string, number>()
+  /** Última tentativa na fechadura, por jogador (`LOCK_ANSWER_MIN_INTERVAL_MS`). */
+  const lastLockAnswerAt = new Map<string, number>()
   // Por playerId: janela corrente do teto de lotes de laser (PLAYER_LASER_MAX_PER_WINDOW).
   const laserWindows = new Map<string, { start: number; count: number }>()
   // Por playerId: conexões que receberam algum ponto do gesto em curso, e a
@@ -1123,6 +1162,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // e não só no pedido, faz o "Deixar ir" de um pedido feito antes de trancar
     // recusar também.
     if (passageOf(pin) === 'trancada') return null
+    // Fechadura com segredo ainda fechada: ninguém passa, pelo mesmo `null`.
+    // Quem abre é a combinação certa (`handlePinAnswer`), não o pedido.
+    if (isLockClosed(pin)) return null
     // Chegada oculta (mão única) não leva de volta. O recorte já não a manda,
     // mas a recusa não depende da névoa: mesmo `null`, mesmo motivo genérico.
     if (isArrivalOnly(pin)) return null
@@ -1222,6 +1264,48 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         y: spot.y,
       },
     }
+  }
+
+  /**
+   * FECHADURA COM SEGREDO — o jogador tentou a combinação do pino `pinId`. A
+   * autoridade é aqui, no molde da passagem (`validTravel`): o pino existe NA
+   * CENA DO JOGADOR, saiu no recorte dele AGORA (a névoa, a zona oculta, o
+   * "quem vê" e o segredo do mestre valem), tem fechadura fechada, e o jogador
+   * tem ficha na cena. Qualquer falha responde o mesmo "não abre" da
+   * combinação errada: o jogador não descobre que o pino existe, nem que já
+   * foi aberto. A resposta certa nunca entra em mensagem nenhuma.
+   */
+  function handlePinAnswer(clientId: string, msg: PinAnswerMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    const naoAbre = reply(clientId, { type: 'pin.answer.result', pinId: msg.pinId, ok: false })
+    if (record === undefined || statusOf(playerId) !== 'playing') return naoAbre
+    // O limite vem ANTES de tudo, como o da passagem: barato, por jogador, e
+    // segura quem tenta varrer as combinações em laço.
+    const at = now()
+    const last = lastLockAnswerAt.get(playerId)
+    if (last !== undefined && at - last < LOCK_ANSWER_MIN_INTERVAL_MS) {
+      return reply(clientId, { type: 'pin.answer.result', pinId: msg.pinId, ok: false, reason: 'too_soon' })
+    }
+    lastLockAnswerAt.set(playerId, at)
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return naoAbre
+    const pin = scene.map.pins.find((p) => p.id === msg.pinId)
+    const lock = pin?.segredo
+    if (pin === undefined || lock === undefined || !isLockClosed(pin)) return naoAbre
+    const memory = memoryFor(playerId, scene.map)
+    const view = filterMapForPlayer(scene.map, playerId, ownership, radiusFor(playerId), memory.exp, memory.doors, pinAudiences)
+    if (!view.map.pins.some((p) => p.id === pin.id)) return naoAbre
+    const owned = new Set(ownership[playerId] ?? [])
+    // Tokens do recorte do jogador: respeita camada oculta e token escondido pelo mestre.
+    if (!view.map.tokens.some((t) => owned.has(t.id))) return naoAbre
+    const ok = lockAccepts(lock, msg.tentativa)
+    const description = pin.description.trim()
+    const lockAttempt: LockAttempt = { playerName: record.name, pinLabel: description === '' ? pinSummary(pin) : description, tentativa: msg.tentativa, ok }
+    const outbound: Outbound[] = [{ clientId, msg: { type: 'pin.answer.result', pinId: pin.id, ok } }]
+    if (!ok) return { outbound, lockAttempt }
+    return { outbound, lockAttempt, applyLock: { pinId: pin.id, ...backgroundSceneId(scene, world) } }
   }
 
   /**
@@ -1390,6 +1474,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           return handleClueShow(clientId, msg, world)
         case 'map.share':
           return handleMapShare(clientId, msg, world)
+        case 'pin.answer':
+          return handlePinAnswer(clientId, msg, world)
       }
     },
 
