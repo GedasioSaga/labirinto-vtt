@@ -151,6 +151,23 @@ describe('secretCheck (teste secreto)', () => {
     expect(JSON.stringify(deNovo.outbound)).not.toContain('secret.check')
   })
 
+  it('dois testes abertos à mesma jogadora: responder um deixa o outro esperando, e a volta traz os dois na ordem', () => {
+    const { s, ana } = mesa()
+    const percepcao = idDo(s.secretCheck('Percepção', [ana.playerId]))
+    const furtividade = idDo(s.secretCheck('Furtividade', [ana.playerId]))
+    s.disconnect('c1')
+    const volta = s.handleMessage('c1b', { type: 'join', code: CODE, name: 'Ana', resume: ana.resume }, mundo)
+    expect(volta.outbound.filter((o) => o.msg.type === 'secret.check')).toEqual([
+      { clientId: 'c1b', msg: { type: 'secret.check', id: percepcao, label: 'Percepção' } },
+      { clientId: 'c1b', msg: { type: 'secret.check', id: furtividade, label: 'Furtividade' } },
+    ])
+    // Responde o segundo primeiro: o primeiro segue aberto e a resposta dele ainda conta.
+    s.handleMessage('c1b', { type: 'secret.check.answer', id: furtividade, result: 6 }, mundo)
+    expect(s.secretChecks().find((check) => check.id === percepcao)?.answers).toEqual({})
+    const resposta = s.handleMessage('c1b', { type: 'secret.check.answer', id: percepcao, result: 18 }, mundo)
+    expect(resposta.secretCheckAnswer).toEqual({ checkId: percepcao, playerId: ana.playerId, playerName: 'Ana', label: 'Percepção', result: 18 })
+  })
+
   it('escolhido que não é da sala, ou que aguarda sem ficha, fica de fora; ninguém válido ou nome vazio: não sai nada', () => {
     const { s, ana } = mesa()
     const dora = entra(s, 'c4', 'Dora') // aguardando, sem ficha

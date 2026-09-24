@@ -149,6 +149,68 @@ describe('teste secreto no cliente do jogador', () => {
   })
 })
 
+describe('dois testes secretos abertos ao mesmo jogador', () => {
+  it('o segundo pedido espera o primeiro: responder um mostra o outro, e as duas respostas saem', () => {
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'secret.check', id: 't1', label: 'Percepção' })
+    socket.receive({ type: 'secret.check', id: 't2', label: 'Furtividade' })
+    // O primeiro pedido continua na tela: nada some sem resposta.
+    expect(connection.getState().secretCheck).toEqual({ id: 't1', label: 'Percepção' })
+    expect(connection.answerSecretCheck(12)).toBe(true)
+    expect(connection.getState().secretCheck).toEqual({ id: 't2', label: 'Furtividade' })
+    expect(connection.answerSecretCheck(7)).toBe(true)
+    expect(connection.getState().secretCheck).toBeUndefined()
+    expect(socket.sent.filter((m) => typeof m === 'object' && m !== null && 'type' in m && m.type === 'secret.check.answer')).toEqual([
+      { type: 'secret.check.answer', id: 't1', result: 12 },
+      { type: 'secret.check.answer', id: 't2', result: 7 },
+    ])
+  })
+
+  it('o mestre encerra o que está na tela: o que esperava aparece', () => {
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'secret.check', id: 't1', label: 'Percepção' })
+    socket.receive({ type: 'secret.check', id: 't2', label: 'Furtividade' })
+    socket.receive({ type: 'secret.check.closed', id: 't1' })
+    expect(connection.getState().secretCheck).toEqual({ id: 't2', label: 'Furtividade' })
+  })
+
+  it('o mestre encerra o que esperava: some da fila, e o da tela fica', () => {
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'secret.check', id: 't1', label: 'Percepção' })
+    socket.receive({ type: 'secret.check', id: 't2', label: 'Furtividade' })
+    socket.receive({ type: 'secret.check.closed', id: 't2' })
+    expect(connection.getState().secretCheck).toEqual({ id: 't1', label: 'Percepção' })
+    expect(connection.answerSecretCheck(4)).toBe(true)
+    expect(connection.getState().secretCheck).toBeUndefined()
+  })
+
+  it('o mesmo pedido repetido não entra duas vezes', () => {
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'secret.check', id: 't1', label: 'Percepção' })
+    socket.receive({ type: 'secret.check', id: 't2', label: 'Furtividade' })
+    socket.receive({ type: 'secret.check', id: 't1', label: 'Percepção' })
+    socket.receive({ type: 'secret.check', id: 't2', label: 'Furtividade' })
+    expect(connection.answerSecretCheck(1)).toBe(true)
+    expect(connection.getState().secretCheck).toEqual({ id: 't2', label: 'Furtividade' })
+    expect(connection.answerSecretCheck(2)).toBe(true)
+    expect(connection.getState().secretCheck).toBeUndefined()
+  })
+
+  it('voltar ao lobby esvazia a fila: só vale o que o host mandar de novo depois do mapa', () => {
+    const { connection, socket } = jogando()
+    socket.receive({ type: 'secret.check', id: 't1', label: 'Percepção' })
+    socket.receive({ type: 'secret.check', id: 't2', label: 'Furtividade' })
+    socket.receive({ type: 'lobby.waiting' })
+    socket.receive({ type: 'snapshot', rev: 2, map: createEmptyMap('m1', '', 10, 10, 50), vision: [], ownTokens: [], concealed: [] })
+    expect(connection.getState().secretCheck).toBeUndefined()
+    // O host reenvia só o que ela ainda deve: t2.
+    socket.receive({ type: 'secret.check', id: 't2', label: 'Furtividade' })
+    expect(connection.answerSecretCheck(9)).toBe(true)
+    expect(connection.getState().secretCheck).toBeUndefined()
+    expect(socket.sent.at(-1)).toEqual({ type: 'secret.check.answer', id: 't2', result: 9 })
+  })
+})
+
 describe('aviso do teste secreto no cliente do jogador', () => {
   beforeEach(() => {
     vi.useFakeTimers()

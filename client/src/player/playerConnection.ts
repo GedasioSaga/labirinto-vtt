@@ -52,7 +52,8 @@ export interface PlayerState {
   /**
    * Teste secreto que o mestre pediu a ESTE jogador, esperando a resposta.
    * Sai quando ele responde (`answerSecretCheck`) ou o mestre encerra. Um
-   * pedido novo toma o lugar do aberto. `label` é texto puro, como o recado.
+   * pedido novo com outro aberto espera na fila e aparece depois, na ordem
+   * em que chegou. `label` é texto puro, como o recado.
    */
   secretCheck?: { id: string; label: string }
   /**
@@ -331,16 +332,38 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   let secretCheckNoticeTimer: ReturnType<typeof setTimeout> | null = null
+  /**
+   * Pedidos de teste secreto que chegaram com outro cartão aberto. O host
+   * espera a resposta de cada um, então nenhum pode sumir: o próximo entra
+   * quando o da tela fecha. O host já limita quantos testes existem.
+   */
+  let queuedSecretChecks: Array<{ id: string; label: string }> = []
 
   function clearSecretCheckNotice(): void {
     if (secretCheckNoticeTimer !== null) clearTimeout(secretCheckNoticeTimer)
     secretCheckNoticeTimer = null
   }
 
-  /** Fecha o cartão do teste secreto e diz por quê; o aviso some sozinho. */
+  /** Sem mapa na tela os pedidos em espera saem; o host reenvia o que falta depois do próximo mapa. */
+  function dropQueuedSecretChecks(): void {
+    queuedSecretChecks = []
+  }
+
+  function receiveSecretCheck(check: { id: string; label: string }): void {
+    const current = state.secretCheck
+    // Reenvio de um pedido que ele já tem (na tela ou na fila) não duplica.
+    if (current?.id === check.id || queuedSecretChecks.some((queued) => queued.id === check.id)) return
+    if (current === undefined) {
+      setState({ secretCheck: check })
+      return
+    }
+    queuedSecretChecks.push(check)
+  }
+
+  /** Fecha o cartão do teste secreto e diz por quê; o aviso some sozinho. O próximo da fila, se houver, abre no lugar. */
   function closeSecretCheckCard(kind: SecretCheckNoticeKind): void {
     clearSecretCheckNotice()
-    setState({ secretCheck: undefined, secretCheckNotice: { id: nextNoticeId++, kind } })
+    setState({ secretCheck: queuedSecretChecks.shift(), secretCheckNotice: { id: nextNoticeId++, kind } })
     secretCheckNoticeTimer = setTimeout(() => {
       secretCheckNoticeTimer = null
       setState({ secretCheckNotice: undefined })
@@ -530,6 +553,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTravelTimer()
         clearNoiseTimer()
         clearSecretCheckNotice()
+        dropQueuedSecretChecks()
         // O teste secreto sai junto: sem mapa não há cartão; o host manda de novo, logo depois do próximo mapa, o que ele ainda não respondeu.
         setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, glimpses: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined })
         return
@@ -574,14 +598,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (state.status !== 'playing') return
         const check = parseSecretCheck(data)
         if (check === null) return
-        setState({ secretCheck: { id: check.id, label: check.label } })
+        receiveSecretCheck({ id: check.id, label: check.label })
         return
       }
       case 'secret.check.closed': {
         const closed = parseSecretCheckClosed(data)
+        if (closed === null) return
         // Só fecha o cartão DESTE teste: um encerramento atrasado não apaga um pedido novo.
-        if (closed === null || state.secretCheck?.id !== closed.id) return
-        closeSecretCheckCard('closed')
+        if (state.secretCheck?.id === closed.id) {
+          closeSecretCheckCard('closed')
+          return
+        }
+        // Encerrado enquanto esperava na fila: sai sem aviso, ele nunca viu o cartão.
+        queuedSecretChecks = queuedSecretChecks.filter((queued) => queued.id !== closed.id)
         return
       }
       case 'noise': {
@@ -663,6 +692,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTravelTimer()
         clearNoiseTimer()
         clearSecretCheckNotice()
+        dropQueuedSecretChecks()
         setState({ status: 'closed', doorNotice: undefined, travel: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined })
         return
       case 'error': {
@@ -828,6 +858,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
     reconnect() {
       detach()
+      dropQueuedSecretChecks()
       setState({ status: 'connecting', error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, glimpses: undefined, signals: undefined, laser: undefined, doorNotice: undefined, travel: undefined, note: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined })
       open()
     },
