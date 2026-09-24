@@ -162,6 +162,37 @@ describe('hostSession: escolher quais fichas passam pelo pino', () => {
     expect(r.applyTransfer?.companions?.map((c) => c.tokenId)).toEqual(['enzo'])
   })
 
+  it('SEGURANÇA — NPC em zona oculta na cena de destino não empurra a companheira; à vista, empurra', () => {
+    const passar = (npc: Partial<MapData>) => {
+      const t = mesa()
+      const w = t.w()
+      const destino = w.background[0]
+      if (destino === undefined) throw new Error('faltou o Beiral')
+      const mundoComNpc: HostWorld = { ...w, background: [{ ...destino, map: { ...destino.map, ...npc } }] }
+      const r = t.s.handleMessage('c1', { type: 'pin.travel.request', pinId: 'alcapao', tokenIds: ['rufo', 'enzo'] }, mundoComNpc)
+      const outra = r.applyTransfer?.companions?.[0]
+      if (outra === undefined) throw new Error('faltou a companheira')
+      return { x: outra.x, y: outra.y }
+    }
+    const livre = passar({})
+    const guarda = ficha('guarda', 'Guarda', livre.x, livre.y)
+    const zona = {
+      id: 'zona',
+      name: 'nome-da-zona',
+      revealed: false,
+      points: [
+        { x: livre.x - 20, y: livre.y - 20 },
+        { x: livre.x + 20, y: livre.y - 20 },
+        { x: livre.x + 20, y: livre.y + 20 },
+        { x: livre.x - 20, y: livre.y + 20 },
+      ],
+    }
+    // Escondido pela zona: o jogador vê a casa vazia, e a companheira senta nela como se nada houvesse.
+    expect(passar({ tokens: [guarda], concealZones: [zona] })).toEqual(livre)
+    // CONTROLE: o mesmo guarda à vista ocupa a casa.
+    expect(passar({ tokens: [guarda] })).not.toEqual(livre)
+  })
+
   it('SEGURANÇA — ficha escondida pelo mestre, de outro jogador, longe ou inventada: o mesmo "indisponível", e nada chega ao mestre', () => {
     const t = mesa()
     const casos: string[][] = [['sumido'], ['enzo', 'sumido'], ['bia'], ['enzo', 'bia'], ['longe'], ['inventada']]

@@ -1336,8 +1336,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A cena dele passa a ser a de destino a partir daqui: é ela que o
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
-    // As companheiras chegam nas casas vizinhas, não empilhadas no pino par.
-    const spots = companionSpots(travel.to.map, travel.token, spot, travel.companions)
+    // As companheiras chegam nas casas vizinhas, não empilhadas no pino par. Só
+    // ocupa casa o que o recorte DESTE jogador mostra na cena de destino.
+    const spots = companionSpots(travel.to.map, travel.token, spot, travel.companions, { playerId, ownership, visionRadius: radiusFor(playerId) })
     const companions = travel.companions.flatMap((t, i) => {
       const at = spots[i]
       return at === undefined ? [] : [{ tokenId: t.id, x: at.x, y: at.y }]

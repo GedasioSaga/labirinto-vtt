@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from './mapFactory'
-import type { MapData, Token, Wall } from '../types/map'
+import type { ConcealZone, MapData, Region, Token, Wall } from '../types/map'
 import { snapPointForTarget } from '../pixi/tokenInteraction'
-import { companionSpots, TRAVEL_GROUP_CELLS, travelCandidates } from './pinGroup'
+import { companionSpots, TRAVEL_GROUP_CELLS, travelCandidates, type TravelViewer } from './pinGroup'
 
 /**
  * ESCOLHER FICHAS NO PINO — a conta compartilhada pelo host (validar a lista
@@ -37,6 +37,9 @@ describe('travelCandidates', () => {
 })
 
 describe('companionSpots', () => {
+  /** O jogador dono das viajantes, com a visão de sempre: é o recorte DELE na cena de destino que decide o que ocupa casa. */
+  const viewer: TravelViewer = { playerId: 'p1', ownership: { p1: ['lider', 'c0', 'c1', 'c2', 'c3', 'c4'] }, visionRadius: 1000 }
+  const chegam = (map: MapData, lead: Token, at: { x: number; y: number }, companions: readonly Token[]) => companionSpots(map, lead, at, companions, viewer)
   const vazio = (): MapData => createEmptyMap('m', 'Beiral', 40, 10, GRID)
   /** A primeira ficha, a que chega no pino par (a posição dela é a de ANTES da viagem). */
   const lider = (size = 1): Token => ficha('lider', 9999, 9999, size)
@@ -44,7 +47,7 @@ describe('companionSpots', () => {
 
   it('cada companheira cai numa casa vizinha da chegada, uma por casa, nenhuma em cima da primeira', () => {
     const chegada = { x: 525, y: 225 }
-    const spots = companionSpots(vazio(), lider(), chegada, companheiras(3))
+    const spots = chegam(vazio(), lider(), chegada, companheiras(3))
     expect(spots).toHaveLength(3)
     const chaves = new Set(spots.map((p) => `${p.x},${p.y}`))
     expect(chaves.size).toBe(3)
@@ -56,7 +59,7 @@ describe('companionSpots', () => {
     const chegada = { x: 525, y: 225 }
     // Parede vertical colada à direita da chegada, de ponta a ponta do mapa: bloqueia o leste inteiro (E, NE, SE).
     const mapa: MapData = { ...vazio(), walls: [parede('w', 550, 0, 550, 500)] }
-    const spots = companionSpots(mapa, lider(), chegada, companheiras(5))
+    const spots = chegam(mapa, lider(), chegada, companheiras(5))
     expect(spots).toHaveLength(5)
     expect(new Set(spots.map((p) => `${p.x},${p.y}`)).size).toBe(5)
     for (const p of spots) {
@@ -68,7 +71,7 @@ describe('companionSpots', () => {
   it('não cai em cima de ficha que já está na cena de destino nem fora do mapa', () => {
     const canto = { x: 25, y: 25 }
     const mapa: MapData = { ...vazio(), tokens: [ficha('bia', 75, 25)] }
-    const spots = companionSpots(mapa, lider(), canto, companheiras(2))
+    const spots = chegam(mapa, lider(), canto, companheiras(2))
     expect(spots).toHaveLength(2)
     for (const p of spots) {
       expect(p.x).toBeGreaterThanOrEqual(0)
@@ -78,13 +81,13 @@ describe('companionSpots', () => {
   })
 
   it('nenhuma companheira: lista vazia', () => {
-    expect(companionSpots(vazio(), lider(), { x: 525, y: 225 }, [])).toEqual([])
+    expect(chegam(vazio(), lider(), { x: 525, y: 225 }, [])).toEqual([])
   })
 
   it('grade hexagonal: cada companheira cai no centro de um hexágono vizinho, não a uma casa quadrada da chegada', () => {
     const mapa: MapData = { ...vazio(), gridShape: 'hex' }
     const chegada = snapPointForTarget('token', 'hex', 525, 225, GRID)
-    const spots = companionSpots(mapa, lider(), chegada, companheiras(3))
+    const spots = chegam(mapa, lider(), chegada, companheiras(3))
     expect(spots).toHaveLength(3)
     expect(new Set(spots.map((p) => `${Math.round(p.x)},${Math.round(p.y)}`)).size).toBe(3)
     // Centro de hexágono: o snap não o move, e fica a pelo menos um vizinho (sqrt(3) × grade) da chegada.
@@ -99,7 +102,7 @@ describe('companionSpots', () => {
 
   it('grade quadrada: ficha de 2 casas senta na quina (linha da grade) e não cobre a primeira', () => {
     const chegada = { x: 525, y: 225 }
-    const [spot] = companionSpots(vazio(), lider(), chegada, companheiras(1, 2))
+    const [spot] = chegam(vazio(), lider(), chegada, companheiras(1, 2))
     expect(spot).toBeDefined()
     if (spot === undefined) return
     expect(spot.x % GRID).toBe(0)
@@ -110,7 +113,7 @@ describe('companionSpots', () => {
 
   it('primeira ficha de 2 casas: as companheiras de 1 casa caem no centro da casa, fora do disco dela', () => {
     const chegada = { x: 500, y: 200 } // quina: onde a ficha de 2 casas assenta
-    const spots = companionSpots(vazio(), lider(2), chegada, companheiras(3))
+    const spots = chegam(vazio(), lider(2), chegada, companheiras(3))
     expect(spots).toHaveLength(3)
     for (const p of spots) {
       expect(p.x % GRID).toBe(GRID / 2)
@@ -131,10 +134,10 @@ describe('companionSpots', () => {
         { ...ficha('secreta2', 575, 225), secret: true },
       ],
     }
-    const semNada = companionSpots(vazio(), lider(), chegada, companheiras(4))
-    expect(companionSpots(escondidas, lider(), chegada, companheiras(4))).toEqual(semNada)
+    const semNada = chegam(vazio(), lider(), chegada, companheiras(4))
+    expect(chegam(escondidas, lider(), chegada, companheiras(4))).toEqual(semNada)
     const camadaOculta: MapData = { ...vazio(), hiddenLayers: ['tokens'], tokens: [ficha('a', 475, 225), ficha('b', 525, 175)] }
-    expect(companionSpots(camadaOculta, lider(), chegada, companheiras(4))).toEqual(semNada)
+    expect(chegam(camadaOculta, lider(), chegada, companheiras(4))).toEqual(semNada)
   })
 
   it('pino par na mesma cena: a casa de onde as viajantes saem não conta como ocupada', () => {
@@ -143,6 +146,55 @@ describe('companionSpots', () => {
     if (c0 === undefined) return
     const viajanteAqui = { ...c0, x: 525, y: 175 }
     const mapa: MapData = { ...vazio(), tokens: [viajanteAqui] }
-    expect(companionSpots(mapa, lider(), chegada, [viajanteAqui])).toEqual(companionSpots(vazio(), lider(), chegada, [viajanteAqui]))
+    expect(chegam(mapa, lider(), chegada, [viajanteAqui])).toEqual(chegam(vazio(), lider(), chegada, [viajanteAqui]))
+  })
+
+  /** Quadrado de 40 px em volta do centro da casa: cobre a ficha dela e nenhuma outra casa. */
+  const quadrado = (cx: number, cy: number): Region['points'] => [
+    { x: cx - 20, y: cy - 20 },
+    { x: cx + 20, y: cy - 20 },
+    { x: cx + 20, y: cy + 20 },
+    { x: cx - 20, y: cy + 20 },
+  ]
+  const zona = (id: string, cx: number, cy: number, revealed = false): ConcealZone => ({ id, name: `nome-${id}`, revealed, points: quadrado(cx, cy) })
+  /** As 4 casas do primeiro anel em volta da chegada (525, 225), nas duas ordens possíveis de busca. */
+  const anel = [
+    { x: 475, y: 225 },
+    { x: 525, y: 175 },
+    { x: 525, y: 275 },
+    { x: 575, y: 225 },
+  ]
+  const npcsNoAnel = (): Token[] => anel.map((p, i) => ficha(`npc${i}`, p.x, p.y))
+
+  it('NPC em zona oculta ativa não empurra a companheira: a casa que o jogador vê vazia não é pulada', () => {
+    const chegada = { x: 525, y: 225 }
+    const semNada = chegam(vazio(), lider(), chegada, companheiras(4))
+    const mapa: MapData = { ...vazio(), tokens: npcsNoAnel(), concealZones: anel.map((p, i) => zona(`z${i}`, p.x, p.y)) }
+    expect(chegam(mapa, lider(), chegada, companheiras(4))).toEqual(semNada)
+  })
+
+  it('NPC sob teto fechado não empurra a companheira: o interior do prédio não vaza pela casa pulada', () => {
+    const chegada = { x: 525, y: 225 }
+    const semNada = chegam(vazio(), lider(), chegada, companheiras(4))
+    const predios: Region[] = anel.map((p, i) => ({
+      id: `casa${i}`,
+      points: quadrado(p.x, p.y),
+      tag: '',
+      fillColor: '#123',
+      fillPattern: 'solid',
+      data: {},
+      room: { shape: 'rect', name: `nome-casa${i}`, roof: true },
+    }))
+    const mapa: MapData = { ...vazio(), tokens: npcsNoAnel(), regions: predios }
+    expect(chegam(mapa, lider(), chegada, companheiras(4))).toEqual(semNada)
+  })
+
+  it('CONTROLE: com a zona revelada o NPC está à vista e continua ocupando a casa dele', () => {
+    const chegada = { x: 525, y: 225 }
+    const mapa: MapData = { ...vazio(), tokens: npcsNoAnel(), concealZones: anel.map((p, i) => zona(`z${i}`, p.x, p.y, true)) }
+    const spots = chegam(mapa, lider(), chegada, companheiras(4))
+    expect(spots).toHaveLength(4)
+    const ocupadas = new Set(anel.map((p) => `${p.x},${p.y}`))
+    for (const p of spots) expect(ocupadas.has(`${p.x},${p.y}`)).toBe(false)
   })
 })

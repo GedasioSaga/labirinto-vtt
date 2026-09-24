@@ -1,6 +1,6 @@
 import type { MapData, Token } from '../types/map'
 import { gatherSpots } from './gatherParty'
-import { visibleTokens } from './layers'
+import { filterMapForPlayer } from './fogFilter'
 import { tokenSizeInSquares } from './tokenSize'
 
 /**
@@ -21,6 +21,13 @@ export const TRAVEL_GROUP_CELLS = 2
 interface Point {
   x: number
   y: number
+}
+
+/** De quem são as viajantes, e com que visão: o recorte deste jogador decide o que ele vê na chegada. */
+export interface TravelViewer {
+  playerId: string
+  ownership: Record<string, string[]>
+  visionRadius: number
 }
 
 /**
@@ -47,22 +54,29 @@ export function travelCandidates<T extends Point>(tokens: readonly T[], pin: Poi
  * ficha nem outra que já está lá. Sem casa livre, a companheira divide a casa
  * da chegada — chegar empilhada é melhor que não chegar.
  *
- * Só ocupa casa a ficha que o jogador pode ver na cena de destino: a que o
- * mestre esconde (oculta, secreta ou na camada Fichas escondida) é tratada
- * como casa livre. Se ela empurrasse a companheira, a casa pulada — sem
- * parede, sem ficha à vista — contaria ao jogador que tem algo ali (a mesma
- * regra do `travelLeftBehind` do host). A primeira ficha (`arrivalSpot`)
- * também não olha fichas.
+ * Só ocupa casa a ficha que o jogador vai ver ao chegar: a que está no recorte
+ * dele (`filterMapForPlayer`) na cena de destino, com a primeira ficha já na
+ * chegada. O resto — oculta, secreta, na camada Fichas escondida, em zona
+ * oculta ativa, sob teto fechado ou fora da visão — é casa livre. Se
+ * empurrasse a companheira, a casa pulada (sem parede, sem ficha à vista)
+ * contaria ao jogador que tem algo ali (a mesma regra do `travelLeftBehind` do
+ * host). Um filtro próprio aqui cobria só metade das regras do recorte; o
+ * recorte é a fonte única. A primeira ficha (`arrivalSpot`) não olha fichas.
  *
  * As viajantes que já estão no mapa de destino (pino par na mesma cena) saem
  * do lugar: a casa de onde saem não conta como ocupada.
  */
-export function companionSpots(map: MapData, lead: Token, at: Point, companions: readonly Token[]): Point[] {
+export function companionSpots(map: MapData, lead: Token, at: Point, companions: readonly Token[], viewer: TravelViewer): Point[] {
   if (companions.length === 0) return []
   const travelers = new Set([lead.id, ...companions.map((t) => t.id)])
-  const seen = visibleTokens(map.tokens, map.hiddenLayers).filter((t) => t.hidden !== true && t.secret !== true && !travelers.has(t.id))
+  const landed: Token = { ...lead, x: at.x, y: at.y }
+  // A cena como o jogador a encontra ao chegar: a primeira ficha na chegada
+  // (é a visão dela que conta) e as companheiras ainda sem lugar.
+  const onArrival: MapData = { ...map, tokens: [...map.tokens.filter((t) => !travelers.has(t.id)), landed] }
+  const inView = new Set(filterMapForPlayer(onArrival, viewer.playerId, viewer.ownership, viewer.visionRadius).map.tokens.map((t) => t.id))
+  const seen = map.tokens.filter((t) => inView.has(t.id) && !travelers.has(t.id))
   // A primeira ficha já assentada na chegada ocupa a casa (e, com 2 casas, as vizinhas que o disco cobre).
-  const arrivalMap: MapData = { ...map, tokens: [...seen, { ...lead, x: at.x, y: at.y }] }
+  const arrivalMap: MapData = { ...map, tokens: [...seen, landed] }
   const spots = gatherSpots(arrivalMap, at, companions.map(tokenSizeInSquares))
   return spots.map((spot) => spot ?? { x: at.x, y: at.y })
 }
