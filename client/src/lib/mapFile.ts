@@ -2,6 +2,7 @@ import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
+import { isDaVista } from './espiar'
 import { tokenPublicNameFromFile } from './tokenPublicName'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
@@ -230,6 +231,9 @@ function deserializeMapFields(json: string): MapData {
       // (`false`, texto, número, arquivo editado à mão) volta AUSENTE — o par de
       // sempre, visível. O `...p` acima copiaria o valor cru, por isso a linha.
       soChegada: p.soChegada === true ? true : undefined,
+      // ESPIAR: "Dá vista" é campo NOVO e OPCIONAL. Só inteiro dentro da faixa
+      // vale; o resto volta AUSENTE — na dúvida, o pino não deixa espiar.
+      daVista: isDaVista(p.daVista) ? p.daVista : undefined,
       escolhas: undefined,
     })),
     frame: parsed.frame ?? null,

@@ -681,6 +681,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       } else askTravel(result.travelRequest)
     }
     if (result.actionRequest !== undefined) askAction(result.actionRequest)
+    // ESPIAR: o mestre lê quem olhou e para onde, e decide se alguém de lá percebe.
+    if (result.peek !== undefined) {
+      const { playerName, pinLabel, toSceneName } = result.peek
+      useToastStore.getState().push('info', `${playerName} espiou por ${pinLabel} → ${toSceneName}`)
+    }
     if (result.applyTokenEdit !== undefined && deps.applyTokenEdit !== undefined) {
       // Mesma regra da porta: o mestre vê pela store, os outros jogadores pelo snapshot imediato.
       deps.applyTokenEdit(result.applyTokenEdit)

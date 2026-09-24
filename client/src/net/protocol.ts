@@ -8,6 +8,7 @@ import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
 import { isTokenAction, isTokenActionRejection, TOKEN_ACTION_REPLY_MAX_LENGTH, TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
 import { ESPERA_ONDE_MAX_LENGTH, isFimDaEsperaMotivo, isWaitMinutes, type FimDaEspera, type MinhaEspera } from '../lib/encontroMarcado'
+import { ESPIAR_DURACAO_MAX_MS, parseEspiada, type Espiada } from '../lib/espiar'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -94,6 +95,13 @@ import { ESPERA_ONDE_MAX_LENGTH, isFimDaEsperaMotivo, isWaitMinutes, type FimDaE
  * snapshot: ids das fichas DO RECORTE cujo dono espera — a marca, sem o "quem"
  * nem o "onde". Mestre antigo responde `error invalid_message`; jogador antigo
  * ignora as três.
+ *
+ * ESPIAR PELA PASSAGEM é aditivo pelo mesmo critério: `pin.peek` (jogador ->
+ * mestre, só o id do pino) e, na volta e só a quem pediu, `pin.peek.view` (o
+ * recorte do outro lado, relativo ao pino par, e quanto tempo mostrar) ou
+ * `pin.peek.rejected` (motivo genérico). Nenhuma delas leva nome ou id de cena,
+ * de mapa, do pino par ou de ficha de lá (`lib/espiar.ts`). Mestre antigo
+ * responde `error invalid_message`; jogador antigo ignora as duas.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -188,6 +196,15 @@ export interface PinTravelRequestMessage {
 }
 
 /**
+ * ESPIAR PELA PASSAGEM: o jogador pede para olhar pelo pino `pinId` da cena em
+ * que está. Só o id: o host confere o resto (pino que dá vista, ficha encostada).
+ */
+export interface PinPeekRequestMessage {
+  type: 'pin.peek'
+  pinId: string
+}
+
+/**
  * LASER DO JOGADOR: a mesma forma do laser do mestre (lote de pontos em px de
  * mundo, ou `off` ao soltar). Nada de nome nem cor: quem é o host sabe pela
  * conexão, e a cor é a da ficha — o jogador não pode se passar por outro.
@@ -256,6 +273,7 @@ export type PlayerMessage =
   | DoorToggleMessage
   | TokenEditMessage
   | PinTravelRequestMessage
+  | PinPeekRequestMessage
   | PlayerLaserMessage
   | ClueReadMessage
   | CluePeersRequestMessage
@@ -275,6 +293,18 @@ export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
  * `too_soon`: pediu de novo pelo mesmo pino antes do intervalo mínimo.
  */
 export type PinTravelRejection = 'unavailable' | 'pending' | 'too_soon'
+
+/**
+ * Por que o host não deixou espiar. Genérico pelo mesmo motivo da passagem:
+ * pino sem vista, longe, no escuro ou sem par respondem todos `unavailable`.
+ * `too_soon`: espiou há pouco.
+ */
+export type PinPeekRejection = 'unavailable' | 'too_soon'
+
+/** ESPIAR, na volta e só a quem pediu: o recorte do outro lado, ou a recusa. */
+export type PeekHostMessage =
+  | { type: 'pin.peek.view'; pinId: string; durationMs: number; view: Espiada }
+  | { type: 'pin.peek.rejected'; pinId: string; reason: PinPeekRejection }
 
 // Mestre -> jogador
 /** Laser do mestre: lote de pontos (px de mundo) desde o último envio, ou `off` ao soltar. */
@@ -431,6 +461,7 @@ export type HostMessage =
   | ClueHostMessage
   | TokenActionHostMessage
   | WaitHostMessage
+  | PeekHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -755,6 +786,26 @@ export function parseWaitHostMessage(value: unknown): WaitHostMessage | null {
   return colega === undefined ? { type: 'wait.ended', reason } : { type: 'wait.ended', reason, who: colega }
 }
 
+/**
+ * Valida o que o jogador recebe do ESPIAR. Mesma regra do caderno: forma
+ * errada, recorte ruim (`parseEspiada`) ou tempo fora de (0, teto] recusam a
+ * mensagem inteira; devolve só os campos conhecidos — um nome de cena que
+ * viesse junto fica para trás. Motivo de recusa desconhecido vira o genérico.
+ */
+export function parsePeekHostMessage(value: unknown): PeekHostMessage | null {
+  if (!isRecord(value)) return null
+  const { pinId } = value
+  if (!isBoundedString(pinId, 1, REQ_ID_MAX_LENGTH)) return null
+  if (value.type === 'pin.peek.rejected') {
+    return { type: 'pin.peek.rejected', pinId, reason: value.reason === 'too_soon' ? 'too_soon' : 'unavailable' }
+  }
+  if (value.type !== 'pin.peek.view') return null
+  const { durationMs } = value
+  if (!isFiniteNumber(durationMs) || durationMs <= 0 || durationMs > ESPIAR_DURACAO_MAX_MS) return null
+  const view = parseEspiada(value.view)
+  return view === null ? null : { type: 'pin.peek.view', pinId, durationMs, view }
+}
+
 /** Cor do laser repassado: `#rrggbb`, a forma que `Token.color` grava. */
 const LASER_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 
@@ -835,6 +886,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseTokenEdit(value)
     case 'pin.travel.request':
       return parseTravelRequest(value)
+    case 'pin.peek':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.peek', pinId: value.pinId } : null
     case 'laser':
       // Só o corpo: `from`/`color` mandados pelo jogador são jogados fora — o
       // nome e a cor quem põe é o host, pela conexão e pela ficha dele.

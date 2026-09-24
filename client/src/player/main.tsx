@@ -9,6 +9,7 @@ import type { PlayerConnection, PlayerState, SocketLike, StorageLike, TravelNoti
 import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
+import { PlayerPeek } from './PlayerPeek'
 import { PlayerTokenCard } from './PlayerTokenCard'
 import { tokenActionNoticeText, tokenActionReply } from './tokenCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
@@ -605,6 +606,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
   const closeRoomText = useCallback(() => connection.dismissRoomText(), [connection])
   const closeActionReply = useCallback(() => connection.dismissTokenAction(), [connection])
+  // Estável: o quadro do espiar religa o Escape quando `onClose` muda.
+  const closePeek = useCallback(() => connection.dismissPeek(), [connection])
   // Estável: o painel marca o Caderno como lido num efeito que depende dela.
   const readNotebook = useCallback(() => connection.markNotebookRead(), [connection])
   // MINHAS PISTAS: abrir o cartão do pino é ler — o host guarda a pista no Caderno.
@@ -748,7 +751,28 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
               // e o mapa volta inteiro à vista enquanto o mestre decide.
               if (connection.requestTravel(openPin.id, exitId)) setOpenPinId(null)
             }}
+            peekWaiting={state.peek?.phase === 'waiting'}
+            onPeek={() => {
+              // ESPIAR: o cartão sai para o quadro do outro lado tomar o lugar
+              // dele; a recusa, se vier, aparece no aviso de baixo.
+              if (connection.peek(openPin.id)) setOpenPinId(null)
+            }}
           />
+        )}
+        {/* ESPIAR PELA PASSAGEM: o recorte do outro lado, por alguns segundos. Nunca entra no mapa. */}
+        {state.peek?.phase === 'showing' && (
+          <PlayerPeek
+            key={state.peek.id}
+            view={state.peek.view}
+            durationMs={state.peek.durationMs}
+            onClose={closePeek}
+            floorColor={state.map.floorStyle.fillColor}
+          />
+        )}
+        {state.peek?.phase === 'rejected' && (
+          <p key={state.peek.id} className="pp-notice" role="status" aria-live="polite">
+            {state.peek.reason === 'too_soon' ? 'Espere um instante para espiar de novo.' : 'Não dá para espiar daqui. Encoste a ficha na passagem.'}
+          </p>
         )}
         {/* AGIR SOBRE UMA FICHA: o cartão da ficha alheia. Enviado, ele sai: a
             espera e a resposta ficam no aviso de baixo, e o mapa volta à vista. */}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Pin, PinExitLabel } from '../types/map'
 import { PIN_GLYPH, isPlayerSafePinImage, passageOf } from '../lib/pins'
 import { PinTravelArt } from '../components/PinSymbolArt'
+import { isDaVista } from '../lib/espiar'
 
 interface PlayerPinCardProps {
   pin: Pin
@@ -14,6 +15,14 @@ interface PlayerPinCardProps {
   onRequestTravel?: (exitId?: string) => void
   /** Já há um pedido esperando o mestre: não dá para pedir de novo. */
   travelWaiting?: boolean
+  /**
+   * ESPIAR PELA PASSAGEM: pino de viagem que "dá vista" ganha o botão
+   * "Espiar". Ausente = o cartão não oferece. Quem confere se a ficha está
+   * encostada é o host; a recusa aparece fora do cartão.
+   */
+  onPeek?: () => void
+  /** A espiada foi pedida e o host ainda não respondeu. */
+  peekWaiting?: boolean
 }
 
 /**
@@ -69,7 +78,7 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
  * vendo onde está. O toque de fechar que cai no mapa para ali, antes do canvas:
  * fechar o cartão não arrasta o mapa nem abre outro pino.
  */
-export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false }: PlayerPinCardProps) {
+export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = false, onPeek, peekWaiting = false }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const confirmRef = useRef<HTMLButtonElement | null>(null)
@@ -133,6 +142,8 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
   const trancada = viagem && passagem === 'trancada'
   const podePedir = viagem && !trancada && onRequestTravel !== undefined
   const textos = passagem === 'livre' ? TEXTOS_LIVRE : TEXTOS_PEDE
+  // ESPIAR: vale também com a porta trancada — olhar pela grade não é passar.
+  const podeEspiar = viagem && isDaVista(pin.daVista) && onPeek !== undefined
   // ENCRUZILHADA: com mais de uma saída, um botão por saída, pelo rótulo que o
   // mestre escreveu — o destino e o nome da cena nunca chegam aqui. Com uma
   // saída só (ou sem o campo), o cartão é o de sempre.
@@ -173,6 +184,12 @@ export function PlayerPinCard({ pin, onClose, onRequestTravel, travelWaiting = f
           </p>
         </div>
         {trancada && <p className="pp-pincard__locked">Está trancada. Não dá para passar por aqui agora.</p>}
+        {podeEspiar && confirming === null && (
+          // Espiar não interrompe o mestre nem troca de cena: sem pergunta antes.
+          <button type="button" className="pp-pincard__travel pp-pincard__peek" disabled={peekWaiting} onClick={() => onPeek()}>
+            {peekWaiting ? 'Olhando…' : 'Espiar'}
+          </button>
+        )}
         {podePedir && confirming === null && !encruzilhada && (
           <button
             ref={askRef}

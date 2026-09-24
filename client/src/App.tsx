@@ -68,6 +68,7 @@ import { saveMapImage } from './lib/mapImageSave'
 import type { DoorKind, DrawingCap, DrawingDash, MapData, Pin, PinPassage, Region, Token, Wall } from './types/map'
 import { passageOf } from './lib/pins'
 import { isArrivalOnly } from './lib/pinTravel'
+import { isDaVista } from './lib/espiar'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
@@ -1309,6 +1310,9 @@ function App() {
         useAdventureStore.getState().setPinOneWay(pin.id, exitId, on)
       },
       arrivalOnly: isArrivalOnly(pin),
+      // ESPIAR: "Dá vista" é do pino desta cena, com desfazer como o modo de passagem.
+      daVista: isDaVista(pin.daVista) ? pin.daVista : null,
+      onDaVistaChange: (casas: number | null) => useMapStore.getState().updatePin(pin.id, { daVista: casas ?? undefined }),
     }
   }
 

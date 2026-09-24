@@ -2,6 +2,7 @@ import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import type { PinTravel, TravelPinOption, TravelSceneOption } from '../lib/pinTravel'
 import { EXIT_EXTRA_MAX_COUNT, EXIT_LABEL_MAX_LENGTH, isArrivalOnly, travelExitsOf, travelPlaceName } from '../lib/pinTravel'
 import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
+import { clampDaVista, DA_VISTA_MAX_CASAS, DA_VISTA_MIN_CASAS, DA_VISTA_PADRAO_CASAS, ESPIAR_DURACAO_MS } from '../lib/espiar'
 import type { PinPassage } from '../types/map'
 import { ChevronDownIcon } from './icons'
 
@@ -44,6 +45,12 @@ export interface PinTravelControlsProps {
    * nenhum. Quem desfaz é o "Mão única" do pino de origem.
    */
   arrivalOnly: boolean
+  /**
+   * ESPIAR: "Dá vista (N casas)" deste pino — `null` = não dá vista. Com
+   * `onDaVistaChange` ausente o painel não oferece (quem monta sem aventura).
+   */
+  daVista?: number | null
+  onDaVistaChange?: (casas: number | null) => void
 }
 
 /**
@@ -131,6 +138,8 @@ export function PinTravelControls({
   onPassageChange,
   onOneWayChange,
   arrivalOnly,
+  daVista = null,
+  onDaVistaChange,
 }: PinTravelControlsProps) {
   const [escolha, setEscolha] = useState<Escolha>(null)
   /** Quem abriu a escolha: é para ele que o foco volta ao fechar. */
@@ -333,6 +342,11 @@ export function PinTravelControls({
       </div>
       <p className="lb-travel__hint">{EFEITO_DA_PASSAGEM[passage]}</p>
 
+      {/* ESPIAR: só com a saída principal ligada — é por ela que o jogador olha. */}
+      {onDaVistaChange !== undefined && principal?.travel.status === 'ligado' && (
+        <DaVista casas={daVista} encruzilhada={encruzilhada} onChange={onDaVistaChange} />
+      )}
+
       {escolha !== null && (
         <div id={SELETOR_ID} ref={seletorRef} className="lb-travel__picker">
           {escolha.passo === 'cena' ? (
@@ -419,6 +433,64 @@ function MaoUnica({ id, travel, onChange }: MaoUnicaProps) {
           : marcada
             ? `Não volta: o jogador chega em ${travelPlaceName(travel)} e não vê o pino de chegada.`
             : 'Marque para a passagem não voltar (alçapão, teleporte).'}
+      </p>
+    </>
+  )
+}
+
+const DA_VISTA_ID = 'lb-pin-travel-peek'
+
+interface DaVistaProps {
+  casas: number | null
+  encruzilhada: boolean
+  onChange: (casas: number | null) => void
+}
+
+/**
+ * "Dá vista": grade, fresta, boca do poço. Botão de alternar (`aria-pressed`),
+ * no molde do "Mão única"; ligado, o campo de casas logo abaixo. O que o
+ * jogador ganha e o que NÃO ganha vai dito embaixo, com o número de casas.
+ */
+function DaVista({ casas, encruzilhada, onChange }: DaVistaProps) {
+  const ligado = casas !== null
+  const efeito = `${DA_VISTA_ID}-efeito`
+  const campo = `${DA_VISTA_ID}-casas`
+  return (
+    <>
+      <button
+        type="button"
+        className="lb-btn lb-btn--ghost lb-btn--block"
+        aria-pressed={ligado}
+        aria-describedby={efeito}
+        onClick={() => onChange(ligado ? null : DA_VISTA_PADRAO_CASAS)}
+      >
+        Dá vista
+      </button>
+      {ligado && (
+        <>
+          <label className="lb-label" htmlFor={campo}>
+            Casas em volta do pino de chegada
+          </label>
+          <input
+            id={campo}
+            className="lb-input"
+            type="number"
+            min={DA_VISTA_MIN_CASAS}
+            max={DA_VISTA_MAX_CASAS}
+            step={1}
+            value={casas}
+            onChange={(event) => {
+              const lido = Number(event.currentTarget.value)
+              // Campo vazio ou no meio da digitação: espera um número de verdade.
+              if (event.currentTarget.value !== '' && Number.isFinite(lido)) onChange(clampDaVista(lido))
+            }}
+          />
+        </>
+      )}
+      <p id={efeito} className="lb-travel__hint">
+        {ligado
+          ? `Com a ficha encostada, o jogador espia por ${ESPIAR_DURACAO_MS / 1000} s até ${casas} ${casas === 1 ? 'casa' : 'casas'} do outro lado${encruzilhada ? ' da saída principal' : ''}. Não vê o nome da cena e não guarda nada na memória; você recebe o aviso.`
+          : 'Marque para o jogador poder olhar o outro lado sem passar (grade, fresta, boca do poço).'}
       </p>
     </>
   )
