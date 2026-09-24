@@ -7,6 +7,7 @@ import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, freeSeatNear, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { acceptsLockedRequest, passageOf, pinSummary } from '../lib/pins'
+import { pinClearance } from '../lib/gatherParty'
 import { visibleTokens } from '../lib/layers'
 import type { SavedSceneMemory, SavedSeat, SavedSeatExploration } from '../lib/savedTable'
 import { companionSpots, companionsNear, entourageNear, entourageSeats, type Companion, type Seat } from '../lib/travelTogether'
@@ -1669,7 +1670,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       x: spot.x,
       y: spot.y,
     }
-    withEntourage(applyTransfer, travel.from.map, travel.token, travel.to.map, [])
+    withEntourage(applyTransfer, travel.from.map, travel.token, travel.to.map, [], travel.partner)
     return { outbound: [{ clientId, msg: { type: 'scene.changed' } }], applyTransfer }
   }
 
@@ -1681,13 +1682,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * a até 2 casas de `lead` no mapa de partida, cada uma numa casa livre em
    * volta da chegada. A regra de quem conta é a do "viajar junto": ficha que
    * o mestre escondeu não está no tabuleiro e fica. `taken` são as casas já
-   * dadas nesta viagem a outros. Ficha que não coube fica onde estava.
+   * dadas nesta viagem a outros. `pin` é o pino por onde chegam (`null` =
+   * sem pino): o séquito não senta nele nem cobre a cabeça, que o jogador
+   * precisa tocar para voltar. Ficha que não coube fica onde estava.
    * Devolve as casas que o séquito ocupou.
    */
-  function withEntourage(transfer: AppliedTransfer, from: MapData, lead: Token, to: MapData, taken: readonly Seat[]): Seat[] {
+  function withEntourage(transfer: AppliedTransfer, from: MapData, lead: Token, to: MapData, taken: readonly Seat[], pin: Pin | null): Seat[] {
     const owned = new Set(ownership[transfer.playerId] ?? [])
     const near = entourageNear(lead, onBoardTokens(from).filter((t) => owned.has(t.id)), from.grid)
-    const seats = entourageSeats(to, transfer, [{ x: transfer.x, y: transfer.y, size: lead.size }, ...taken], near.map((t) => t.size))
+    const keepClear = pin === null ? [] : pinClearance(pin)
+    const seats = entourageSeats(to, transfer, [{ x: transfer.x, y: transfer.y, size: lead.size }, ...taken], near.map((t) => t.size), keepClear)
     const entourage: EntourageSeat[] = []
     const used: Seat[] = []
     near.forEach((token, index) => {
@@ -1992,7 +1996,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           x: spot.x,
           y: spot.y,
         }
-        taken.push(...withEntourage(applyTransfer, travel.from.map, companion.token, travel.to.map, taken))
+        taken.push(...withEntourage(applyTransfer, travel.from.map, companion.token, travel.to.map, taken, travel.partner))
         // Sem `by`: para ele é a mesma chegada de quem pediu, "Você chegou".
         results.push({ outbound: [{ clientId: record.clientId, msg: { type: 'scene.changed' } }], applyTransfer })
       })
@@ -2061,7 +2065,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // "Reunir o grupo aqui" já escolheu a casa de cada ficha do grupo inteiro,
       // séquito incluído (`lib/gatherParty.ts`): sentar o séquito agora tomaria
       // a casa de quem vem depois, então as casas vêm do plano.
-      if (gatherAt === undefined) withEntourage(applyTransfer, from.map, token, to.map, [])
+      if (gatherAt === undefined) withEntourage(applyTransfer, from.map, token, to.map, [], pin)
       else withPlannedEntourage(applyTransfer, from.map, token, gatherAt.entourage ?? [])
       return { outbound: record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by } }], applyTransfer }
     },
@@ -2093,7 +2097,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         y: spot.y,
       }
       // Quem foi junto volta junto: o "Desfazer" não deixa o pônei na cena errada.
-      withEntourage(applyTransfer, from.map, token, to.map, [])
+      withEntourage(applyTransfer, from.map, token, to.map, [], null)
       return { outbound: record.clientId === null ? [] : [{ clientId: record.clientId, msg: { type: 'scene.changed', by: 'master' } }], applyTransfer }
     },
 

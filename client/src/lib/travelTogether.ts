@@ -1,5 +1,5 @@
 import type { MapData, Token } from '../types/map'
-import { gatherSpots } from './gatherParty'
+import { gatherSpots, type KeepClear } from './gatherParty'
 import { withPlayerVisibleTokens } from './pinTravel'
 import type { Point } from './tokenSize'
 
@@ -107,9 +107,17 @@ export function entourageNear(lead: Token, own: readonly Token[], grid: number):
  * ficha fica onde estava. `taken` são as casas já dadas nesta viagem (a do
  * dono, a de quem foi junto). A procura só enxerga as fichas que algum
  * jogador vê (`withPlayerVisibleTokens`): se o pônei desviasse de um guarda
- * escondido, o lugar onde ele sentou entregaria o guarda.
+ * escondido, o lugar onde ele sentou entregaria o guarda. `keepClear` são os
+ * círculos que o séquito não cobre — na chegada por pino, `pinClearance` do
+ * pino par: a casa dele fica colada à do dono e entraria no anel.
  */
-export function entourageSeats(destination: MapData, center: Point, taken: readonly Seat[], sizes: readonly number[]): (Point | null)[] {
+export function entourageSeats(
+  destination: MapData,
+  center: Point,
+  taken: readonly Seat[],
+  sizes: readonly number[],
+  keepClear: readonly KeepClear[] = [],
+): (Point | null)[] {
   if (sizes.length === 0) return []
-  return gatherSpots(withSeats(withPlayerVisibleTokens(destination), taken), center, sizes)
+  return gatherSpots(withSeats(withPlayerVisibleTokens(destination), taken), center, sizes, new Set(), keepClear)
 }

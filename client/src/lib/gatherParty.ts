@@ -4,6 +4,7 @@ import { snapPointForTarget } from '../pixi/tokenInteraction'
 import { findTokenPath } from './collision'
 import { compileFloor } from './floorSdf'
 import type { PartyMember } from './party'
+import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS } from './pins'
 import { seatTokenCenter, tokenSizeInSquares, type Point } from './tokenSize'
 
 /**
@@ -67,6 +68,18 @@ export interface KeepClear {
   x: number
   y: number
   radius: number
+}
+
+/**
+ * O que o séquito que chega por um pino não pode cobrir: a cabeça, para o pino
+ * continuar tocável, e a ponta cravada (a casa do próprio pino). O séquito
+ * senta em volta do DONO, e a casa do pino, colada à dele, entraria no anel.
+ */
+export function pinClearance(pin: Point): KeepClear[] {
+  return [
+    { x: pin.x, y: pin.y - PIN_HEAD_OFFSET, radius: PIN_HEAD_RADIUS },
+    { x: pin.x, y: pin.y, radius: 0 },
+  ]
 }
 
 /** As fichas do mapa que ocupam casa, menos as de `movingTokenIds` (vão sair do lugar). */
@@ -266,11 +279,12 @@ function withTakenSeats(map: MapData, taken: readonly Seated[]): MapData {
 /**
  * As casas do séquito em volta de `center` (a casa do dono), na ordem de
  * `tokens`. `taken` são as casas já dadas nesta reunião; cada casa dada aqui
- * entra nela, para o séquito do próximo dono não cair em cima.
+ * entra nela, para o séquito do próximo dono não cair em cima. `pin` é o pino
+ * da reunião: o séquito não senta nele nem cobre a cabeça (`pinClearance`).
  */
-function entourageSpots(map: MapData, center: Point, tokens: readonly Token[], moving: ReadonlySet<string>, taken: Seated[]): EntourageSeat[] {
+function entourageSpots(map: MapData, center: Point, pin: Point, tokens: readonly Token[], moving: ReadonlySet<string>, taken: Seated[]): EntourageSeat[] {
   if (tokens.length === 0) return []
-  const seats = gatherSpots(withTakenSeats(map, taken), center, tokens.map(tokenSizeInSquares), moving)
+  const seats = gatherSpots(withTakenSeats(map, taken), center, tokens.map(tokenSizeInSquares), moving, pinClearance(pin))
   const placed: EntourageSeat[] = []
   tokens.forEach((token, index) => {
     const seat = seats[index] ?? null
@@ -326,7 +340,7 @@ export function planGather(members: readonly PartyMember[], world: HostWorld, pi
       return
     }
     const move: GatherMove = { playerId: j.member.playerId, name: j.member.name, tokenId: j.token.id, travels: j.travels, x: spot.x, y: spot.y }
-    const entourage = entourageSpots(openMap, spot, j.entourage, moving, taken)
+    const entourage = entourageSpots(openMap, spot, pin, j.entourage, moving, taken)
     if (entourage.length > 0) move.entourage = entourage
     moves.push(move)
   })

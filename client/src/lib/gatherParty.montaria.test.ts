@@ -11,6 +11,7 @@ import type { MapData, Token } from '../types/map'
 import { applyGatherPlan, planGather } from './gatherParty'
 import { createEmptyMap } from './mapFactory'
 import { partyMembers } from './party'
+import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS } from './pins'
 
 const GRADE = 50
 const casa = (coluna: number, linha: number) => ({ x: coluna * GRADE + GRADE / 2, y: linha * GRADE + GRADE / 2 })
@@ -112,6 +113,24 @@ describe('planGather: montaria e familiar vêm junto', () => {
     expect(falhou).toEqual([])
     expect(travessias).toEqual([{ playerId: 'p1', entourage: ['ponei'] }])
     expect(passos).toEqual([['ana', 'gato']])
+  })
+
+  it('séquito de 4 fichas: nenhuma senta na casa do pino nem cobre a cabeça dele', () => {
+    // Bruno senta colado ao pino; o anel em volta dele passa pela casa do pino na 4a ficha.
+    const vila = mapa([ficha('bruno', casa(5, 5)), ficha('ponei', casa(6, 5)), ficha('lince', casa(4, 5)), ficha('rato', casa(5, 4)), ficha('cabra', casa(5, 6))])
+    const world: HostWorld = { open: { sceneId: ESTRADA, name: 'Estrada Real', map: mapa([]) }, background: [{ sceneId: VILA, name: 'Vila Cinzenta', map: vila }] }
+    const { players } = mesa()
+    const bruno = { ...players[0], tokenIds: ['bruno', 'ponei', 'lince', 'rato', 'cabra'] }
+    const plano = planGather(partyMembers([bruno], world), world, PINO)
+    const [move] = plano.moves
+    const sequito = move.entourage ?? []
+    expect(sequito.map((e) => e.tokenId)).toEqual(['ponei', 'lince', 'rato', 'cabra'])
+    const cabeca = { x: PINO.x, y: PINO.y - PIN_HEAD_OFFSET }
+    for (const e of sequito) {
+      expect(chave(e)).not.toBe(chave(PINO))
+      expect(Math.hypot(e.x - cabeca.x, e.y - cabeca.y)).toBeGreaterThanOrEqual(GRADE / 2 + PIN_HEAD_RADIUS)
+    }
+    expect(new Set([move, ...sequito].map(chave)).size).toBe(5)
   })
 
   it('membro sem séquito: o movimento sai como antes, sem campo de séquito', () => {

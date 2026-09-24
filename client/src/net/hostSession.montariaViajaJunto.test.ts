@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { applyGatherPlan, planGather } from '../lib/gatherParty'
 import { createEmptyMap } from '../lib/mapFactory'
 import { partyMembers } from '../lib/party'
+import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS } from '../lib/pins'
 import type { Pin, Token } from '../types/map'
 import { createHostSession, type AppliedTransfer, type HostWorld } from './hostSession'
 import type { HostMessage } from './protocol'
@@ -100,6 +101,10 @@ function mapasDe(outbound: readonly { clientId: string; msg: HostMessage }[], cl
 
 const chave = (p: { x: number; y: number }) => `${p.x}|${p.y}`
 
+/** Ficha de 1 casa em `p` não está na casa do pino nem encosta na cabeça dele: o pino continua tocável. */
+const foraDoPino = (p: { x: number; y: number }, pino: { x: number; y: number }): boolean =>
+  chave(p) !== chave(pino) && Math.hypot(p.x - pino.x, p.y - (pino.y - PIN_HEAD_OFFSET)) >= GRADE / 2 + PIN_HEAD_RADIUS
+
 describe('hostSession: montaria e familiar viajam com o dono', () => {
   it('"Deixar ir": o pônei (colado) e a coruja (2 casas na diagonal) vão junto; o cão, a 3 casas, fica', () => {
     const t = mesa()
@@ -162,6 +167,35 @@ describe('hostSession: montaria e familiar viajam com o dono', () => {
     const casas = chegadas.flatMap((a) => [chave(a), ...(a.entourage ?? []).map(chave)])
     expect(casas).toHaveLength(5)
     expect(new Set(casas).size).toBe(5)
+  })
+
+  it('séquito de 3 fichas: nenhuma senta na casa do pino par nem cobre a cabeça dele (o jogador precisa tocá-lo para voltar)', () => {
+    const t = mesa()
+    // O cão colado a Bruno: agora são três no séquito, e o anel em volta da chegada passa pelo pino.
+    t.onde.cao = { cena: ESTRADA, ...casa(9, 7) }
+    const chegada = t.s.approveTravel(t.pedir('c1'), t.world()).applyTransfer
+    const junto = chegada?.entourage ?? []
+    expect(junto.map((e) => e.tokenId)).toEqual(['ponei', 'coruja', 'cao'])
+    for (const e of junto) expect(foraDoPino(e, PONTE_B)).toBe(true)
+  })
+
+  it('"Deixar ir com quem está perto": o séquito de 3 fichas de Ana também fica fora do pino par', () => {
+    const t = mesa()
+    t.onde.ana = { cena: ESTRADA, ...casa(11, 6) }
+    t.onde.gato = { cena: ESTRADA, ...casa(12, 6) }
+    t.onde.lince = { cena: ESTRADA, ...casa(11, 5) }
+    t.onde.rato = { cena: ESTRADA, ...casa(12, 7) }
+    t.s.assignToken(t.ids.Ana, 'lince')
+    t.s.assignToken(t.ids.Ana, 'rato')
+    const chegadas = t.s
+      .approveTravelTogether(t.pedir('c1'), t.world())
+      .map((r) => r.applyTransfer)
+      .filter((a): a is AppliedTransfer => a !== undefined)
+    const ana = chegadas.find((a) => a.tokenId === 'ana')
+    expect((ana?.entourage ?? []).map((e) => e.tokenId).sort()).toEqual(['gato', 'lince', 'rato'])
+    const sequitos = chegadas.flatMap((a) => a.entourage ?? [])
+    expect(sequitos).toHaveLength(5)
+    for (const e of sequitos) expect(foraDoPino(e, PONTE_B)).toBe(true)
   })
 
   it('"Mandar para…" do mestre leva o séquito também', () => {
