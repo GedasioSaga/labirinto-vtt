@@ -286,13 +286,17 @@ function RespostaNoAviso({ id, texto, resposta, onEnviada }: RespostaNoAvisoProp
     setRascunho(valor)
   }
 
+  const responderCom = (texto: string) => {
+    memoria.delete(id)
+    onEnviada()
+    resposta.enviar(texto)
+  }
+
   const enviar = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const limpo = rascunho.trim()
     if (limpo === '') return
-    memoria.delete(id)
-    onEnviada()
-    resposta.enviar(limpo)
+    responderCom(limpo)
   }
 
   if (!aberta) {
@@ -326,6 +330,30 @@ function RespostaNoAviso({ id, texto, resposta, onEnviada }: RespostaNoAvisoProp
       <button type="button" className="lb-btn lb-btn--ghost" onClick={fechar}>
         Cancelar
       </button>
+      <RespostasProntas recentes={resposta.recentes?.() ?? []} onEscolher={responderCom} />
     </form>
+  )
+}
+
+interface RespostasProntasProps {
+  recentes: readonly string[]
+  onEscolher: (texto: string) => void
+}
+
+/**
+ * Os motivos recentes do "Não, porque…", um botão cada: o mestre repete o
+ * motivo de agora há pouco num toque, sem redigitar. Sem nenhum, nada — um
+ * grupo vazio só faria o leitor de tela anunciar um nome sem conteúdo.
+ */
+function RespostasProntas({ recentes, onEscolher }: RespostasProntasProps) {
+  if (recentes.length === 0) return null
+  return (
+    <div role="group" aria-label="Motivos recentes" className="lb-toast__recentes">
+      {recentes.map((texto) => (
+        <button key={texto} type="button" className="lb-btn lb-btn--ghost" onClick={() => onEscolher(texto)}>
+          {texto}
+        </button>
+      ))}
+    </div>
   )
 }

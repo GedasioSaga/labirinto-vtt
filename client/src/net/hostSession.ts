@@ -39,7 +39,7 @@ import {
   type TokenEditMessage,
   type TokenMoveMessage,
 } from './protocol'
-import { clampNoteText } from './protocol'
+import { clampNoteText, clampTravelDenyText } from './protocol'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -471,8 +471,18 @@ export interface HostSession {
    * dono. Pedido que já não existe (jogador saiu, já decidido) não faz nada.
    */
   approveTravel(requestId: string, source: HostMapSource): HostResult
-  /** "Não": `pin.travel.denied` ao jogador. Pedido que já não existe não faz nada. */
-  denyTravel(requestId: string): HostResult
+  /**
+   * "Não": `pin.travel.denied` ao jogador. Pedido que já não existe não faz nada.
+   * `text` ("Não, porque…"): o motivo vai junto, aparado e cortado no teto
+   * (`TRAVEL_DENY_TEXT_MAX_LENGTH`), só para quem pediu; em branco = sem motivo.
+   */
+  denyTravel(requestId: string, text?: string): HostResult
+  /**
+   * "Ver" do pedido: a cena e a ficha de quem pediu, AGORA (a ficha pode ter
+   * andado desde o aviso). Não responde nada. `null` sem pedido esperando ou
+   * sem ficha em cena.
+   */
+  travelTarget(requestId: string, source: HostMapSource): CallTarget | null
   /** O pedido ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isTravelPending(requestId: string): boolean
   /**
@@ -1559,6 +1569,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const findPendingTravel = (requestId: string): PendingTravel | undefined =>
     [...pendingTravels.values()].find((pending) => pending.requestId === requestId)
 
+  /** A cena e a ficha de `playerId` agora: aonde o "Ir lá" do chamado e o "Ver" do pedido levam o editor. */
+  const tokenTargetOf = (playerId: string, world: HostWorld): CallTarget | null => {
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return null
+    const owned = new Set(ownership[playerId] ?? [])
+    const token = scene.map.tokens.find((t) => owned.has(t.id))
+    return token === undefined ? null : { sceneId: scene.sceneId, x: token.x, y: token.y }
+  }
+
   /** Apaga o que só vale enquanto o jogador está na sala: pedido pendente e limites do pedido. */
   const forgetTravelsOf = (playerId: string): void => {
     pendingTravels.delete(playerId)
@@ -1703,11 +1722,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     callTarget(callId, source) {
       const call = findOpenCall(callId)
       if (call === undefined) return null
-      const scene = sceneFor(call.playerId, toWorld(source))
-      if (scene === null) return null
-      const owned = new Set(ownership[call.playerId] ?? [])
-      const token = scene.map.tokens.find((t) => owned.has(t.id))
-      return token === undefined ? null : { sceneId: scene.sceneId, x: token.x, y: token.y }
+      return tokenTargetOf(call.playerId, toWorld(source))
     },
 
     answerPointAction(requestId, answer) {
@@ -1741,12 +1756,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return transferResult(pending.playerId, record.clientId, record.name, travel)
     },
 
-    denyTravel(requestId) {
+    denyTravel(requestId, text) {
       const pending = findPendingTravel(requestId)
       if (pending === undefined) return { outbound: [] }
       pendingTravels.delete(pending.playerId)
       const clientId = players.get(pending.playerId)?.clientId ?? null // null = saiu: não há a quem avisar
-      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'pin.travel.denied' })
+      if (clientId === null) return { outbound: [] }
+      const motivo = clampTravelDenyText((text ?? '').trim()) // sem `text` = o "Não" de sempre, igual a motivo em branco
+      return reply(clientId, motivo.length === 0 ? { type: 'pin.travel.denied' } : { type: 'pin.travel.denied', text: motivo })
+    },
+
+    travelTarget(requestId, source) {
+      const pending = findPendingTravel(requestId)
+      if (pending === undefined) return null
+      return tokenTargetOf(pending.playerId, toWorld(source))
     },
 
     travelLimitEntries() {

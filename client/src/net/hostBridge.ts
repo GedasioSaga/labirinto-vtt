@@ -34,7 +34,15 @@ import {
   type ReturnCandidate,
   type TravelRequest,
 } from './hostSession'
-import { CALL_REASON_LABELS, NOTE_MAX_LENGTH, parsePlayerMessage, type DoorRequestHow, type LaserMessage } from './protocol'
+import {
+  CALL_REASON_LABELS,
+  clampTravelDenyText,
+  NOTE_MAX_LENGTH,
+  parsePlayerMessage,
+  TRAVEL_DENY_TEXT_MAX_LENGTH,
+  type DoorRequestHow,
+  type LaserMessage,
+} from './protocol'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -114,8 +122,9 @@ export interface HostBridgeDeps {
   /** Chamado NOVO de um jogador: o bipe. A linha na caixa "Chamados" a ponte já põe. */
   onCall?: (call: MasterCall) => void
   /**
-   * "Ir lá" do chamado: o editor vai à cena de quem chamou (`null` = mapa
-   * solto, a cena aberta) com a ficha dele no centro. Ausente = sem "Ir lá".
+   * "Ir lá" do chamado e "Ver" do pedido de passagem: o editor vai à cena de
+   * quem chamou ou pediu (`null` = mapa solto, a cena aberta) com a ficha dele
+   * no centro. Ausente = sem "Ir lá" nem "Ver".
    */
   onGoToPoint?: (sceneId: string | null, x: number, y: number) => void
   /**
@@ -284,6 +293,8 @@ export const HOST_AWAY_STALE_AFTER_MS = 150_000
 /** De quanto em quanto tempo o host confere quem ficou mudo. */
 export const LIVENESS_SWEEP_MS = 1_000
 const DEFAULT_VISION_RADIUS = 700
+/** Quantos motivos do "Não, porque…" voltam prontos no próximo pedido. */
+export const TRAVEL_DENY_RECENTS_MAX = 3
 /** Id de conexão do Rust (hoje um contador decimal); o padrão aceita folga sem abrir para lixo. */
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 
@@ -381,6 +392,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let laserSent = false
   /** Aviso do mestre de cada pedido de passagem ainda na tela: `requestId` -> id do toast. */
   const travelToasts = new Map<string, string>()
+  /**
+   * Os últimos motivos do "Não, porque…", o mais novo primeiro, sem repetir.
+   * Vivem só na ponte (fechar o app esquece): é atalho de digitação do mestre.
+   */
+  let travelDenyRecents: string[] = []
   /** Linha de cada pedido de porta trancada ainda na tela: `requestId` -> id do toast. */
   const doorToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
@@ -889,13 +905,22 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     pointActionToasts.set(request.requestId, toastId)
   }
 
-  const answerTravel = (requestId: string, allow: boolean) => {
+  /** Guarda o motivo no topo dos recentes: repetido sobe, e só os `TRAVEL_DENY_RECENTS_MAX` mais novos ficam. */
+  const rememberDenyReason = (motivo: string) => {
+    travelDenyRecents = [motivo, ...travelDenyRecents.filter((texto) => texto !== motivo)].slice(0, TRAVEL_DENY_RECENTS_MAX)
+  }
+
+  /** `motivo`: o texto do "Não, porque…" (só com `allow` falso). */
+  const answerTravel = (requestId: string, allow: boolean, motivo?: string) => {
     const toastId = travelToasts.get(requestId)
     travelToasts.delete(requestId)
     if (toastId !== undefined) useToastStore.getState().dismiss(toastId)
     if (session === null) return
     if (!allow) {
-      void dispatch(session.denyTravel(requestId))
+      const pendente = session.isTravelPending(requestId)
+      void dispatch(session.denyTravel(requestId, motivo))
+      // Só o motivo que chegou a ser dito entra nos recentes: pedido que já tinha morrido não conta.
+      if (pendente && motivo !== undefined && motivo.trim().length > 0) rememberDenyReason(clampTravelDenyText(motivo.trim()))
       // O pedido saiu da sessão: o selo "pedido" da lista Cenas sai junto.
       notifyPlayersIfChanged()
       return
@@ -990,14 +1015,38 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // clique conta de novo (`answerTravelTogether`), porque o grupo anda.
     const nearby = session === null ? 0 : session.travelCompanions(request.requestId, world()).length
     const together = nearby === 0 ? [] : [{ label: `Deixar ir com quem está perto (${nearby})`, run: () => answerTravelTogether(request.requestId) }]
+    // "Ver": o editor vai à ficha de quem pediu, e a linha fica (`mantem`) —
+    // olhar não responde. A ficha é lida no clique: ela pode ter andado.
+    const goTo = deps.onGoToPoint
+    const ver =
+      goTo === undefined
+        ? []
+        : [
+            {
+              label: 'Ver',
+              mantem: true,
+              run: () => {
+                const target = session?.travelTarget(request.requestId, world()) ?? null // null = sala fechada, pedido decidido ou ficha fora de cena
+                if (target !== null) goTo(target.sceneId, target.x, target.y)
+              },
+            },
+          ]
     const toastId = useToastStore.getState().push('instrucao', `${request.playerName} quer passar por ${request.pinLabel} → ${request.toSceneName}`, null, {
       actions: [
         { label: 'Deixar ir', run: () => answerTravel(request.requestId, true), emLote: true },
         ...together,
+        ...ver,
         { label: 'Não', run: () => answerTravel(request.requestId, false) },
       ],
       onDismiss: () => answerTravel(request.requestId, false),
       grupo: 'Pedidos',
+      // "Não, porque…": o motivo curto chega só a quem pediu.
+      resposta: {
+        rotulo: 'Não, porque…',
+        maxLength: TRAVEL_DENY_TEXT_MAX_LENGTH,
+        enviar: (texto) => answerTravel(request.requestId, false, texto),
+        recentes: () => travelDenyRecents,
+      },
     })
     travelToasts.set(request.requestId, toastId)
   }

@@ -30,6 +30,7 @@ import {
   type CallReason,
   type PartyMember,
   parsePointActionReply,
+  parseTravelDenyText,
   type PointActionReply,
 } from '../net/protocol'
 import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
@@ -147,7 +148,8 @@ export type TravelNotice =
   | { id: number; phase: 'moved' }
   /** O mestre reuniu o grupo num pino e trouxe o jogador de outra cena. */
   | { id: number; phase: 'gathered' }
-  | { id: number; phase: 'denied' }
+  /** `text`: o motivo do "Não, porque…" do mestre. Ausente = o "não deixou" sem motivo. */
+  | { id: number; phase: 'denied'; text?: string }
   | { id: number; phase: 'rejected'; reason: PinTravelRejection }
 
 /**
@@ -284,6 +286,8 @@ export const DOOR_NOTICE_TTL_MS = 2500
 export const DOOR_REQUEST_NOTICE_TTL_MS = 4000
 /** Quanto tempo a recusa do mestre ("não deixou passar agora") fica na tela. Mais que a porta. */
 export const TRAVEL_NOTICE_TTL_MS = 4000
+/** A recusa com motivo ("O mestre não deixou: o portão fecha à noite") é uma frase para ler: fica mais. */
+export const TRAVEL_DENIED_WITH_REASON_TTL_MS = 8000
 /** Quanto tempo "O mestre viu" e "Espere um instante" ficam no lugar da mão. */
 export const CALL_NOTICE_TTL_MS = 4000
 /**
@@ -516,6 +520,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function travelNoticeTtl(notice: TravelNotice): number {
     if (notice.phase === 'gathered') return GATHERED_NOTICE_TTL_MS
     if (notice.phase === 'moved') return MOVED_NOTICE_TTL_MS
+    if (notice.phase === 'denied' && notice.text !== undefined) return TRAVEL_DENIED_WITH_REASON_TTL_MS
     return notice.phase === 'arrived' ? ARRIVAL_NOTICE_TTL_MS : TRAVEL_NOTICE_TTL_MS
   }
 
@@ -960,10 +965,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Reunido pelo mestre: outro aviso, porque ele não foi levado sozinho.
         showTravelAnswer({ id: nextNoticeId++, phase: data.by === 'gather' ? 'gathered' : data.by === 'master' ? 'moved' : 'arrived' })
         return
-      case 'pin.travel.denied':
+      case 'pin.travel.denied': {
         if (state.status !== 'playing') return
-        showTravelAnswer({ id: nextNoticeId++, phase: 'denied' })
+        // Motivo estragado não segura a recusa: ele não passou, e lê o "não deixou" de sempre.
+        const text = parseTravelDenyText(data.text)
+        showTravelAnswer(text === undefined ? { id: nextNoticeId++, phase: 'denied' } : { id: nextNoticeId++, phase: 'denied', text })
         return
+      }
       case 'pin.travel.rejected': {
         if (state.status !== 'playing') return
         const { reason } = data
