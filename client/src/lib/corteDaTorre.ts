@@ -15,8 +15,9 @@ import { tokenFillColor } from './tokenColor'
  *
  * As fichas viram pontos: jogador na cor da ficha, com o nome do jogador; ficha
  * sem dono (NPC) cinza. Os pinos de viagem ligados entre andares diferentes
- * viram POÇOS: uma coluna por nome de pino, do andar mais baixo ao mais alto
- * que ela liga. Lógica pura: nada disto vai para o jogador.
+ * viram POÇOS: uma coluna por cadeia contígua de ligações com o mesmo nome
+ * de pino (passagem sem nome é um poço sozinha), do andar mais baixo ao mais
+ * alto que a cadeia liga. Lógica pura: nada disto vai para o jogador.
  */
 
 /** O mínimo de uma cena da lista Cenas que o corte precisa. */
@@ -79,6 +80,7 @@ export interface AndarDoCorte {
 }
 
 export interface PocoDoCorte {
+  /** Única no corte: o mesmo nome pode ter mais de um poço, em alturas separadas. */
   chave: string
   nome: string
   /** Andar mais baixo e mais alto que o poço liga (`AndarDoCorte.numero`). */
@@ -89,7 +91,7 @@ export interface PocoDoCorte {
 export interface CorteDaTorre {
   /** Do andar de cima para o de baixo: a ordem em que a janela os empilha. */
   andares: AndarDoCorte[]
-  /** Por nome, em ordem alfabética: a ordem das colunas. */
+  /** Por nome, em ordem alfabética (e de baixo para cima no mesmo nome): a ordem das colunas. */
   pocos: PocoDoCorte[]
 }
 
@@ -170,7 +172,8 @@ function pocosEntreAndares(
     const nome = nomes.get(sceneId)
     return nome === undefined ? null : { name: nome, map: maps.get(sceneId) ?? null }
   }
-  const porChave = new Map<string, PocoDoCorte>()
+  // Uma entrada por ligação: as duas pontas de um par descrevem a mesma passagem.
+  const ligacoes = new Map<string, LigacaoEntreAndares>()
   for (const cena of cenas) {
     const map = maps.get(cena.id)
     const aqui = numeroDaCena(cena.id)
@@ -181,16 +184,61 @@ function pocosEntreAndares(
         if (travel.status !== 'ligado') continue
         const la = numeroDaCena(travel.sceneId)
         if (la === undefined || la === aqui) continue
-        const nome = pinSummary(pin)
-        const chave = nome.toLocaleLowerCase('pt-BR')
-        const antes = porChave.get(chave)
-        const de = Math.min(aqui, la, antes?.de ?? Infinity)
-        const ate = Math.max(aqui, la, antes?.ate ?? -Infinity)
-        porChave.set(chave, { chave, nome: antes?.nome ?? nome, de, ate })
+        const pontas = [`${cena.id}:${pin.id}`, `${travel.sceneId}:${travel.partner.id}`].sort()
+        const id = pontas.join('|')
+        if (ligacoes.has(id)) continue
+        // O nome vem de qualquer ponta que tenha descrição; nenhuma = passagem sem nome.
+        const descrita = [pin, travel.partner].find((ponta) => ponta.description.trim() !== '')
+        ligacoes.set(id, { id, nome: pinSummary(descrita ?? pin), semNome: descrita === undefined, de: Math.min(aqui, la), ate: Math.max(aqui, la) })
       }
     }
   }
-  return Array.from(porChave.values()).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  return pocosDasLigacoes(Array.from(ligacoes.values()))
+}
+
+interface LigacaoEntreAndares {
+  /** As duas pontas (`cena:pino`) em ordem: a mesma ligação vista de qualquer lado. */
+  id: string
+  nome: string
+  /** Nenhuma ponta tem descrição: o nome é o genérico, que não junta passagens diferentes. */
+  semNome: boolean
+  de: number
+  ate: number
+}
+
+/**
+ * Junta as ligações em poços. Passagem sem nome é um poço dela. As de mesmo
+ * nome viram um poço só enquanto formam uma cadeia: cada trecho divide pelo
+ * menos um andar com o anterior. Um buraco entre os trechos (nenhuma ligação
+ * daquele nome sai do andar de cima de um e chega ao de baixo do outro) parte
+ * o poço — senão o fio atravessaria andares que ninguém liga.
+ */
+function pocosDasLigacoes(ligacoes: readonly LigacaoEntreAndares[]): PocoDoCorte[] {
+  const pocos: PocoDoCorte[] = []
+  const porNome = new Map<string, LigacaoEntreAndares[]>()
+  for (const ligacao of ligacoes) {
+    if (ligacao.semNome) {
+      pocos.push({ chave: `ligacao:${ligacao.id}`, nome: ligacao.nome, de: ligacao.de, ate: ligacao.ate })
+      continue
+    }
+    const nome = ligacao.nome.toLocaleLowerCase('pt-BR')
+    porNome.set(nome, [...(porNome.get(nome) ?? []), ligacao])
+  }
+  for (const [nome, doNome] of porNome) {
+    // O nome exibido é o da primeira ligação achada, como antes; a ordem por altura só serve à cadeia.
+    const exibido = doNome[0].nome
+    let trecho: { de: number; ate: number } | null = null
+    for (const ligacao of [...doNome].sort((a, b) => a.de - b.de)) {
+      if (trecho !== null && ligacao.de <= trecho.ate) {
+        trecho.ate = Math.max(trecho.ate, ligacao.ate)
+        continue
+      }
+      if (trecho !== null) pocos.push({ chave: `${nome}@${trecho.de}-${trecho.ate}`, nome: exibido, de: trecho.de, ate: trecho.ate })
+      trecho = { de: ligacao.de, ate: ligacao.ate }
+    }
+    if (trecho !== null) pocos.push({ chave: `${nome}@${trecho.de}-${trecho.ate}`, nome: exibido, de: trecho.de, ate: trecho.ate })
+  }
+  return pocos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || a.de - b.de || a.ate - b.ate || a.chave.localeCompare(b.chave))
 }
 
 /** Monta o corte a partir da lista Cenas, dos mapas que abriram e dos jogadores da sala (vazio = sala fechada). */

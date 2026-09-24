@@ -90,7 +90,72 @@ describe('corteDaTorre', () => {
       ['andar1', mapa('andar1')],
     ])
     const corte = corteDaTorre(CENAS, mapas, [])
-    expect(corte.pocos).toEqual([{ chave: 'espinha', nome: 'Espinha', de: 1, ate: 3 }])
+    expect(corte.pocos).toEqual([{ chave: 'espinha@1-3', nome: 'Espinha', de: 1, ate: 3 }])
+  })
+
+  it('mesmo nome em alturas separadas vira um poço por trecho; trechos que dividem um andar viram um poço só', () => {
+    // Cinco andares, do 1 (a) ao 5 (e).
+    const cenas: CorteCena[] = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, name: id.toUpperCase(), available: true, active: false }))
+    const mapas = new Map([
+      // 'Escada' 1-2 e outra 'Escada' 4-5: nada liga o andar 3.
+      ['a', mapa('a', { pins: [pinoDeViagem('a-esc', 'Escada', 'b', 'b-esc'), pinoDeViagem('a-cor', 'Corda', 'b', 'b-cor')] })],
+      // 'Corda' 1-2 e 2-3 dividem o andar 2: uma corda só, do 1 ao 3.
+      ['b', mapa('b', { pins: [pinoDeViagem('b-esc', 'Escada', 'a', 'a-esc'), pinoDeViagem('b-cor', 'Corda', 'a', 'a-cor'), pinoDeViagem('b-cor2', 'corda', 'c', 'c-cor')] })],
+      // A outra ponta da 'Corda' 2-3 (o nome muda só na caixa: é a mesma corda).
+      ['c', mapa('c', { pins: [pinoDeViagem('c-cor', 'Corda', 'b', 'b-cor2')] })],
+      ['d', mapa('d', { pins: [pinoDeViagem('d-esc', 'Escada', 'e', 'e-esc')] })],
+      ['e', mapa('e', { pins: [pinoDeViagem('e-esc', 'Escada', 'd', 'd-esc')] })],
+    ])
+    const pocos = corteDaTorre(cenas, mapas, []).pocos
+    expect(pocos.map(({ nome, de, ate }) => ({ nome, de, ate }))).toEqual([
+      { nome: 'Corda', de: 1, ate: 3 },
+      { nome: 'Escada', de: 1, ate: 2 },
+      { nome: 'Escada', de: 4, ate: 5 },
+    ])
+    expect(new Set(pocos.map((poco) => poco.chave)).size).toBe(pocos.length)
+  })
+
+  it('trechos de mesmo nome em andares vizinhos que não dividem andar nenhum não viram um fio só', () => {
+    const cenas: CorteCena[] = ['a', 'b', 'c', 'd'].map((id) => ({ id, name: id.toUpperCase(), available: true, active: false }))
+    const mapas = new Map([
+      ['a', mapa('a', { pins: [pinoDeViagem('a1', 'Escada', 'b', 'b1')] })],
+      ['b', mapa('b', { pins: [pinoDeViagem('b1', 'Escada', 'a', 'a1')] })],
+      ['c', mapa('c', { pins: [pinoDeViagem('c1', 'Escada', 'd', 'd1')] })],
+      ['d', mapa('d', { pins: [pinoDeViagem('d1', 'Escada', 'c', 'c1')] })],
+    ])
+    const pocos = corteDaTorre(cenas, mapas, []).pocos
+    expect(pocos.map(({ de, ate }) => [de, ate])).toEqual([
+      [1, 2],
+      [3, 4],
+    ])
+  })
+
+  it('pinos de viagem sem descrição: cada ligação é um poço dela, nunca um fio do andar mais baixo ao mais alto', () => {
+    const cenas: CorteCena[] = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, name: id.toUpperCase(), available: true, active: false }))
+    const mapas = new Map([
+      // Sem nome: 1-2 e 4-5 (buraco no 3), e 2-3 (divide o andar 2 com o 1-2, mas é outra passagem).
+      ['a', mapa('a', { pins: [pinoDeViagem('a1', '', 'b', 'b1')] })],
+      ['b', mapa('b', { pins: [pinoDeViagem('b1', '  ', 'a', 'a1'), pinoDeViagem('b2', '', 'c', 'c2')] })],
+      ['c', mapa('c', { pins: [pinoDeViagem('c2', '', 'b', 'b2')] })],
+      ['d', mapa('d', { pins: [pinoDeViagem('d1', '', 'e', 'e1')] })],
+      ['e', mapa('e', { pins: [pinoDeViagem('e1', '', 'd', 'd1')] })],
+    ])
+    const pocos = corteDaTorre(cenas, mapas, []).pocos
+    expect(pocos.map(({ nome, de, ate }) => ({ nome, de, ate }))).toEqual([
+      { nome: 'Pino de viagem', de: 1, ate: 2 },
+      { nome: 'Pino de viagem', de: 2, ate: 3 },
+      { nome: 'Pino de viagem', de: 4, ate: 5 },
+    ])
+    expect(new Set(pocos.map((poco) => poco.chave)).size).toBe(3)
+  })
+
+  it('ligação com descrição num lado só vira um poço, com o nome do lado que tem descrição', () => {
+    const mapas = new Map([
+      ['terreo', mapa('terreo', { pins: [pinoDeViagem('pa', '', 'cume', 'pc')] })],
+      ['cume', mapa('cume', { pins: [pinoDeViagem('pc', 'Alçapão', 'terreo', 'pa')] })],
+      ['andar1', mapa('andar1')],
+    ])
+    expect(corteDaTorre(CENAS, mapas, []).pocos).toEqual([{ chave: 'alçapão@1-3', nome: 'Alçapão', de: 1, ate: 3 }])
   })
 
   it('meia ligação (o par não aponta de volta) não abre poço', () => {
