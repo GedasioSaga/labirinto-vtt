@@ -49,7 +49,8 @@ import {
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
 import { WorldStateSection } from './components/WorldStateSection'
-import { amarradosPorEstado } from './lib/estadoDoMundo'
+import { EstadoDaLuz, EstadoDaPorta, EstadoDaZona, EstadoDoPino } from './components/DependeDoEstadoControls'
+import { amarradosPorEstado, type AmarraDeEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
 import { goToMapObject } from './stores/mapObjectNavigation'
@@ -834,6 +835,8 @@ function App() {
   // A5 — zona aberta no painel. Some sozinha se o Ctrl+Z tirar a zona do mapa.
   const selectedConcealZoneId = useMapStore((state) => state.selectedConcealZoneId)
   const selectedConcealZone = map.concealZones.find((z) => z.id === selectedConcealZoneId) ?? null
+  // ESTADO DO MUNDO: "Depende do estado" amarra o elemento aberto; a aventura sabe o valor atual do estado.
+  const amarrarAoEstado = (amarra: AmarraDeEstado) => useAdventureStore.getState().amarrarAoEstado(amarra)
   // Pino aberto no painel. Some sozinho se o Ctrl+Z tirar o pino do mapa.
   const selectedPinId = useMapStore((state) => state.selectedPinId)
   const selectedPin = map.pins.find((p) => p.id === selectedPinId) ?? null
@@ -1751,6 +1754,29 @@ function App() {
                   onCriar={(nome, valores) => useAdventureStore.getState().criarEstadoDoMundo(nome, valores)}
                   onTrocar={(estadoId, valor) => useAdventureStore.getState().trocarEstadoDoMundo(estadoId, valor)}
                 />
+              )
+            }
+            // ESTADO DO MUNDO: "Depende do estado" do elemento aberto no painel —
+            // é daqui que a regra `porEstado` nasce, sem editar o map.json à mão.
+            estadoDaPorta={
+              adventure === null || selectedWall === null ? undefined : (
+                <EstadoDaPorta wall={selectedWall} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+              )
+            }
+            // Só o pino de VIAGEM tem passagem para o estado mudar.
+            estadoDoPino={
+              adventure === null || selectedPin?.kind !== 'viagem' ? undefined : (
+                <EstadoDoPino pin={selectedPin} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+              )
+            }
+            estadoDaZona={
+              adventure === null || selectedConcealZone === null ? undefined : (
+                <EstadoDaZona zone={selectedConcealZone} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+              )
+            }
+            estadoDaLuz={
+              adventure === null || selectedLight === null ? undefined : (
+                <EstadoDaLuz light={selectedLight} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
               )
             }
             objects={

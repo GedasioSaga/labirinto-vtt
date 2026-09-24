@@ -1,5 +1,5 @@
-import type { ConcealZone, DoorState, FloorStyle, MapData, Region } from '../types/map'
-import { isEfeitoNaPorta, isEfeitoNaZona, regraDePinoDoArquivo, regraDoArquivo } from './estadoDoMundo'
+import type { ConcealZone, DoorState, FloorStyle, Light, MapData, Region } from '../types/map'
+import { isEfeitoNaLuz, isEfeitoNaPorta, isEfeitoNaZona, regraDePinoDoArquivo, regraDoArquivo } from './estadoDoMundo'
 import { linkLooseWallsToRooms } from './roomLink'
 import { isPinIcon, isPinKind, isPinPassage } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
@@ -135,6 +135,18 @@ function concealZoneFromFile(zone: ConcealZone): ConcealZone {
   return regra === undefined ? rest : { ...rest, porEstado: regra }
 }
 
+/**
+ * Luz lida do disco: os dois campos do ESTADO DO MUNDO passam por conferência.
+ * `apagada` só volta `true`; regra torta some. Ausentes continuam ausentes.
+ */
+function lightFromFile(light: Light): Light {
+  if (!('porEstado' in light) && !('apagada' in light)) return light
+  const { porEstado, apagada, ...rest } = light
+  const regra = regraDoArquivo(porEstado, isEfeitoNaLuz)
+  const withRule: Light = regra === undefined ? rest : { ...rest, porEstado: regra }
+  return apagada === true ? { ...withRule, apagada: true } : withRule
+}
+
 function deserializeMapFields(json: string): MapData {
   let parsed: Partial<MapData>
   try {
@@ -174,7 +186,7 @@ function deserializeMapFields(json: string): MapData {
       ...w,
       door: w.door ? doorFromFile(w.door) : null,
     })),
-    lights: entityList(parsed.lights),
+    lights: entityList(parsed.lights).map(lightFromFile),
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)
     regions: entityList(parsed.regions).map((r) =>

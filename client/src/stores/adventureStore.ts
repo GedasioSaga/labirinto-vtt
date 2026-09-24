@@ -15,7 +15,14 @@ import {
   type Adventure,
   type SceneEntry,
 } from '../lib/adventure'
-import { aplicarEstadoNoMapa, comValorAtual, contarMudancas, novoEstadoDoMundo, type ResumoDaTroca } from '../lib/estadoDoMundo'
+import {
+  aplicarEstadoNoMapa,
+  comValorAtual,
+  contarMudancas,
+  novoEstadoDoMundo,
+  type AmarraDeEstado,
+  type ResumoDaTroca,
+} from '../lib/estadoDoMundo'
 import {
   addExit,
   arrivalPoint,
@@ -233,6 +240,13 @@ interface AdventureState {
    * o valor não é dele (nada muda).
    */
   trocarEstadoDoMundo: (estadoId: string, valor: string) => ResumoDaTroca | null
+  /**
+   * ESTADO DO MUNDO: "Depende do estado" de um elemento da cena ABERTA (o
+   * painel de propriedades só mostra ela). Grava a regra e já põe o elemento
+   * no efeito do valor atual do estado, pelo `useMapStore.amarrarAoEstado`
+   * (com histórico). Estado que não existe na aventura: só grava a regra.
+   */
+  amarrarAoEstado: (amarra: AmarraDeEstado) => void
   /** Há cena de fundo ou lista de cenas esperando gravação? (A cena aberta é o `useSessionStore` que diz.) */
   hasPendingScenes: () => boolean
   /** Grava a aventura inteira e devolve o caminho da cena aberta. */
@@ -594,6 +608,12 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     for (const sceneId of Object.keys(cache)) get().applyPlayerChangeToBackgroundScene(sceneId, transform)
     set({ adventure: { ...adventure, estados }, structureDirty: true })
     return resumo
+  },
+
+  amarrarAoEstado: (amarra) => {
+    const estadoId = amarra.regra?.estadoId
+    const estado = estadoId === undefined ? undefined : get().adventure?.estados?.find((e) => e.id === estadoId)
+    useMapStore.getState().amarrarAoEstado(amarra, estado === undefined ? null : estado.atual)
   },
 
   linkPinToNewArrival: (pinId, sceneId, exitId = SAIDA_PRINCIPAL) => {

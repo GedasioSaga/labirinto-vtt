@@ -23,14 +23,14 @@ export function trocaText(nome: string, valor: string, resumo: ResumoDaTroca): s
 }
 
 function amarradosText(n: number): string {
-  if (n === 0) return 'Nada amarrado ainda'
+  if (n === 0) return 'Nada amarrado ainda — selecione uma porta, pino, zona ou luz e use "Depende do estado"'
   return n === 1 ? '1 elemento amarrado' : `${n} elementos amarrados`
 }
 
 /**
  * ESTADO DO MUNDO — "Maré: alta | baixa". O mestre troca o valor com um toque e
- * as portas, os pinos de viagem e as zonas ocultas amarrados ao estado mudam
- * juntos, em todas as cenas da aventura. Os valores são rádios nativos: as
+ * as portas, os pinos de viagem, as zonas ocultas e as luzes amarrados ao
+ * estado (`DependeDoEstadoControls.tsx`) mudam juntos, em todas as cenas da aventura. Os valores são rádios nativos: as
  * setas trocam de valor, e o grupo inteiro é uma parada de Tab. Nada disto vai
  * ao jogador: ele recebe só o efeito (`lib/fogFilter.ts`).
  */
@@ -96,7 +96,10 @@ export function WorldStateSection({ estados, amarrados, onCriar, onTrocar }: Wor
     <CollapsibleSection id="world-state" title="Estado do mundo" defaultOpen={false}>
       <div className="lb-world">
         {estados.length === 0 ? (
-          <p className="lb-world__vazio">Nenhum estado ainda. Um estado ("Maré: alta, baixa") muda de uma vez as portas, os pinos e as zonas amarrados a ele, em todas as cenas.</p>
+          <p className="lb-world__vazio">
+            Nenhum estado ainda. Um estado ("Maré: alta, baixa") muda de uma vez as portas, os pinos, as zonas e as luzes amarrados a ele, em
+            todas as cenas. Amarre cada um em "Depende do estado", no painel dele.
+          </p>
         ) : (
           estados.map((estado) => (
             <fieldset key={estado.id} className="lb-world__estado">

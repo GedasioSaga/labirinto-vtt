@@ -2609,6 +2609,45 @@ body {
   gap: var(--lb-space-2);
 }
 
+/* "Depende do estado" da porta, do pino, da zona e da luz: uma lista por valor. */
+.lb-world-amarra {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-world-amarra__valores {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: 0 0 0 var(--lb-space-3);
+  list-style: none;
+  /* O fio fino do minimapa liga os valores ao estado de que dependem. */
+  border-left: 1px solid var(--lb-color-line-panel);
+}
+
+.lb-world-amarra__valor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-world-amarra__valor .lb-label {
+  overflow-wrap: anywhere;
+}
+
+.lb-world-amarra__agora {
+  color: var(--lb-color-brass);
+}
+
+.lb-world-amarra__vazio {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
 /* ---- Cenas em pastas (região > cidade > bairro > casa) */
 
 /* Os fios da árvore: um traço fino e claro no meio de cada degrau de recuo,

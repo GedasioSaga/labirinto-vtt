@@ -9,9 +9,17 @@ Gui "chave de mundo", ideias 8 "Maré, Eixo e Energia", "estados da cena",
 
 Na lista de Cenas da aventura, a seção "Estado do mundo": o mestre cria um
 estado com nome e valores ("Maré": alta, baixa) e troca o valor com um toque.
-Portas, pinos de viagem e zonas ocultas AMARRADOS àquele estado, em todas as
-cenas abertas da aventura, mudam juntos. O painel diz quantos elementos mudaram
-e em quantas cenas.
+Portas, pinos de viagem, zonas ocultas e luzes AMARRADOS àquele estado, em
+todas as cenas abertas da aventura, mudam juntos. O painel diz quantos elementos
+mudaram e em quantas cenas.
+
+**Amarrar é pelo painel de propriedades** (`components/DependeDoEstadoControls.tsx`):
+com a porta, o pino de viagem, a zona ou a luz selecionados, "Depende do estado"
+escolhe o estado e, para cada valor, o efeito ("Não muda" deixa o elemento como
+está naquele valor). Ao escolher o estado, todo valor nasce com o efeito em que
+o elemento está AGORA — amarrar não muda nada até o mestre dizer. O efeito do
+valor atual vale na hora. Amarrar é edição do mestre: entra no Ctrl+Z
+(`useAdventureStore.amarrarAoEstado` → `useMapStore.amarrarAoEstado`).
 
 ## Dado novo e onde mora
 
@@ -35,19 +43,21 @@ Duas metades, porque o estado cruza cenas e o efeito é de cada cena:
    DoorState.porEstado?  E = 'aberta' | 'fechada' | 'trancada'
    Pin.porEstado?        E = PinPassage ('pede' | 'livre' | 'trancada')
    ConcealZone.porEstado? E = 'oculta' | 'revelada'
+   Light.porEstado?      E = 'acesa' | 'apagada'   (grava em Light.apagada?)
    ```
 
    Lista e não objeto: o valor é texto do mestre, e `efeitos["constructor"]`
    num objeto leria o protótipo.
 
-- **Mapa e aventura antigos abrem iguais.** Os três campos são opcionais; ausente
+- **Mapa e aventura antigos abrem iguais.** Os campos são opcionais; ausente
   continua ausente. `deserializeMap` e `parseAdventure` descartam a regra ou o
   estado tortos (arquivo editado à mão) em vez de derrubar o arquivo: regra sem
   `estadoId`, efeito desconhecido, valor repetido, `atual` fora da lista (volta
   ao primeiro valor).
 - **Aplicar é GRAVAR o efeito.** Trocar o valor roda `aplicarEstadoNoMapa`
   (`lib/estadoDoMundo.ts`) em cada cena carregada e escreve `open/locked`,
-  `passagem` e `revealed` de verdade. Por isso colisão, névoa, validação de
+  `passagem`, `revealed` e `apagada` de verdade. Luz apagada: o mestre vê só o
+  marcador vazado, sem halo (`pixi/drawLights.ts`); o jogador não a recebe. Por isso colisão, névoa, validação de
   movimento e o host continuam lendo o campo de sempre — nenhum deles precisa
   conhecer o estado. Valor sem efeito para o elemento = o elemento não muda.
 - **Quem grava:** só o mestre, pelo painel (`useAdventureStore.trocarEstadoDoMundo`).
@@ -69,6 +79,7 @@ Duas metades, porque o estado cruza cenas e o efeito é de cada cena:
     `kind`, `secret`), como já fazia com o pino (`lib/fogFilter.ts`);
   - pino: `pinForPlayer` já é lista do que vai — `porEstado` fica de fora;
   - zona: não sai no recorte (só a geometria do preto, `concealed`);
+  - luz: apagada não sai; acesa sai por LISTA DO QUE VAI (`lightForPlayer`);
   - a aventura (e `estados`) nunca vai pela rede.
 - Teste de que não chega: `lib/fogFilter.estadoDoMundo.test.ts` e
   `net/hostSession.estadoDoMundo.test.ts` (JSON do snapshot sem `porEstado`,
@@ -76,11 +87,7 @@ Duas metades, porque o estado cruza cenas e o efeito é de cada cena:
 
 ## O que fica para depois (pendências)
 
-- **Amarrar pela interface**: hoje a regra entra pelo arquivo (o gerador da
-  torre escreve `porEstado` no `map.json`) e o painel só cria estado e troca
-  valor. Falta, no painel de propriedades da porta, do pino e da zona, "Depende
-  do estado" com o efeito por valor.
-- Luz, parede e peça de chão amarradas (apagão, "o chão virou água").
+- Parede e peça de chão amarradas ("o chão virou água"); cor e raio da luz por valor.
 - Texto do pino por valor ("quando Maré = baixa: descrição").
 - Apagar e renomear estado; mapa solto (sem aventura) com estado.
 - Cena que não abriu (`indisponivel`) não recebe a troca; ao consertar e abrir,

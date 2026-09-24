@@ -176,6 +176,7 @@ export interface EfeitoDeEstado<E extends string> {
 
 export type EfeitoNaPorta = 'aberta' | 'fechada' | 'trancada'
 export type EfeitoNaZona = 'oculta' | 'revelada'
+export type EfeitoNaLuz = 'acesa' | 'apagada'
 
 export interface Light {
   id: string
@@ -198,6 +199,18 @@ export interface Light {
    *  (comportamento de antes) — sem linha de migração. Para o jogador, só
    *  chega se ele vê a ficha (`lib/fogFilter.ts`). */
   attachedTokenId?: string
+  /**
+   * ESTADO DO MUNDO — luz apagada ("energia desligada", apagão): o mestre vê
+   * só o marcador vazado, sem halo, e o jogador não recebe a luz. `undefined`
+   * === acesa (comportamento de antes) — sem linha de migração.
+   */
+  apagada?: boolean
+  /**
+   * ESTADO DO MUNDO — `apagada` obedece a um estado da aventura. Trocar o
+   * valor grava o efeito em `apagada`. NUNCA sai no recorte do jogador
+   * (`lib/fogFilter.ts`, lista do que vai). Ausente = luz de sempre.
+   */
+  porEstado?: RegraDeEstado<EfeitoNaLuz>
 }
 
 export interface RegionPoint {

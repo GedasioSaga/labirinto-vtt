@@ -1,15 +1,27 @@
-import type { ConcealZone, DoorState, EfeitoNaPorta, EfeitoNaZona, MapData, Pin, PinPassage, RegraDeEstado, Wall } from '../types/map'
-import { isPinPassage } from './pins'
+import type {
+  ConcealZone,
+  DoorState,
+  EfeitoNaLuz,
+  EfeitoNaPorta,
+  EfeitoNaZona,
+  Light,
+  MapData,
+  Pin,
+  PinPassage,
+  RegraDeEstado,
+  Wall,
+} from '../types/map'
+import { isPinPassage, passageOf } from './pins'
 
 /**
  * ESTADO DO MUNDO — o mestre troca "Maré: alta → baixa" e as portas, os pinos
- * de viagem e as zonas ocultas amarrados à Maré, em todas as cenas, mudam
- * juntos. Plano: `docs/planos/estado-do-mundo.md`.
+ * de viagem, as zonas ocultas e as luzes amarrados à Maré, em todas as cenas,
+ * mudam juntos. Plano: `docs/planos/estado-do-mundo.md`.
  *
  * A definição e o valor atual moram na aventura (`Adventure.estados`); a regra
  * mora no elemento (`porEstado`). Aplicar é GRAVAR o efeito no campo de sempre
- * (`open`/`locked`, `passagem`, `revealed`): colisão, névoa e host continuam
- * lendo só esses campos e nunca precisam conhecer o estado.
+ * (`open`/`locked`, `passagem`, `revealed`, `apagada`): colisão, névoa, luz e
+ * host continuam lendo só esses campos e nunca precisam conhecer o estado.
  */
 
 export interface EstadoDoMundo {
@@ -31,6 +43,7 @@ export interface ResumoDaTroca {
 
 const EFEITOS_NA_PORTA: readonly EfeitoNaPorta[] = ['aberta', 'fechada', 'trancada']
 const EFEITOS_NA_ZONA: readonly EfeitoNaZona[] = ['oculta', 'revelada']
+const EFEITOS_NA_LUZ: readonly EfeitoNaLuz[] = ['acesa', 'apagada']
 
 export function isEfeitoNaPorta(value: unknown): value is EfeitoNaPorta {
   return EFEITOS_NA_PORTA.some((efeito) => efeito === value)
@@ -38,6 +51,26 @@ export function isEfeitoNaPorta(value: unknown): value is EfeitoNaPorta {
 
 export function isEfeitoNaZona(value: unknown): value is EfeitoNaZona {
   return EFEITOS_NA_ZONA.some((efeito) => efeito === value)
+}
+
+export function isEfeitoNaLuz(value: unknown): value is EfeitoNaLuz {
+  return EFEITOS_NA_LUZ.some((efeito) => efeito === value)
+}
+
+// O efeito em que cada elemento está AGORA: o painel pré-escolhe este efeito
+// em todo valor ao amarrar, para amarrar não mudar nada antes do mestre dizer.
+
+export function efeitoDaPorta(door: DoorState): EfeitoNaPorta {
+  if (door.locked) return 'trancada'
+  return door.open ? 'aberta' : 'fechada'
+}
+
+export function efeitoDaZona(zone: ConcealZone): EfeitoNaZona {
+  return zone.revealed ? 'revelada' : 'oculta'
+}
+
+export function efeitoDaLuz(light: Light): EfeitoNaLuz {
+  return light.apagada === true ? 'apagada' : 'acesa'
 }
 
 /** O efeito da regra para `valor`, ou `undefined` quando a regra não é deste estado ou não fala desse valor. */
@@ -63,8 +96,18 @@ function paredeNoEstado(wall: Wall, estadoId: string, valor: string): Wall {
 function pinoNoEstado(pin: Pin, estadoId: string, valor: string): Pin {
   const efeito = efeitoPara(pin.porEstado, estadoId, valor)
   // `passagem` ausente vale 'pede' (`types/map.ts`): não reescrever o que já é.
-  if (efeito === undefined || (pin.passagem ?? 'pede') === efeito) return pin
+  if (efeito === undefined || passageOf(pin) === efeito) return pin
   return { ...pin, passagem: efeito }
+}
+
+function luzNoEstado(light: Light, estadoId: string, valor: string): Light {
+  const efeito = efeitoPara(light.porEstado, estadoId, valor)
+  if (efeito === undefined || efeitoDaLuz(light) === efeito) return light
+  if (efeito === 'apagada') return { ...light, apagada: true }
+  // Acesa grava igual à luz de antes do campo existir: sem a chave.
+  const acesa: Light = { ...light }
+  delete acesa.apagada
+  return acesa
 }
 
 function zonaNoEstado(zone: ConcealZone, estadoId: string, valor: string): ConcealZone {
@@ -86,17 +129,18 @@ function mesmaOuNova<T>(lista: T[], mudar: (item: T) => T): T[] {
 }
 
 /**
- * O mapa com o efeito de `estadoId = valor` gravado em cada porta, pino e zona
- * amarrados. Devolve o MESMO mapa quando nada muda (cena que não fica pendente
- * de Salvar). Pura e válida para qualquer versão do mapa: serve de `transform`
- * para `applyPlayerChange`, que a reaplica no histórico do desfazer.
+ * O mapa com o efeito de `estadoId = valor` gravado em cada porta, pino, zona
+ * e luz amarrados. Devolve o MESMO mapa quando nada muda (cena que não fica
+ * pendente de Salvar). Pura e válida para qualquer versão do mapa: serve de
+ * `transform` para `applyPlayerChange`, que a reaplica no histórico do desfazer.
  */
 export function aplicarEstadoNoMapa(map: MapData, estadoId: string, valor: string): MapData {
   const walls = mesmaOuNova(map.walls, (w) => paredeNoEstado(w, estadoId, valor))
   const pins = mesmaOuNova(map.pins, (p) => pinoNoEstado(p, estadoId, valor))
   const concealZones = mesmaOuNova(map.concealZones, (z) => zonaNoEstado(z, estadoId, valor))
-  if (walls === map.walls && pins === map.pins && concealZones === map.concealZones) return map
-  return { ...map, walls, pins, concealZones }
+  const lights = mesmaOuNova(map.lights, (l) => luzNoEstado(l, estadoId, valor))
+  if (walls === map.walls && pins === map.pins && concealZones === map.concealZones && lights === map.lights) return map
+  return { ...map, walls, pins, concealZones, lights }
 }
 
 /** Quantos elementos do mapa `aplicarEstadoNoMapa` mudaria. */
@@ -104,7 +148,8 @@ export function contarMudancas(map: MapData, estadoId: string, valor: string): n
   const portas = map.walls.filter((w) => paredeNoEstado(w, estadoId, valor) !== w).length
   const pinos = map.pins.filter((p) => pinoNoEstado(p, estadoId, valor) !== p).length
   const zonas = map.concealZones.filter((z) => zonaNoEstado(z, estadoId, valor) !== z).length
-  return portas + pinos + zonas
+  const luzes = map.lights.filter((l) => luzNoEstado(l, estadoId, valor) !== l).length
+  return portas + pinos + zonas + luzes
 }
 
 /** Quantos elementos do mapa obedecem a `estadoId`. */
@@ -113,7 +158,8 @@ export function contarAmarrados(map: MapData, estadoId: string): number {
   return (
     map.walls.filter((w) => w.door !== null && cita(w.door.porEstado)).length +
     map.pins.filter((p) => cita(p.porEstado)).length +
-    map.concealZones.filter((z) => cita(z.porEstado)).length
+    map.concealZones.filter((z) => cita(z.porEstado)).length +
+    map.lights.filter((l) => cita(l.porEstado)).length
   )
 }
 
@@ -131,8 +177,81 @@ export function amarradosPorEstado(mapas: Iterable<MapData>): Map<string, number
     for (const w of map.walls) if (w.door !== null) soma(w.door.porEstado)
     for (const p of map.pins) soma(p.porEstado)
     for (const z of map.concealZones) soma(z.porEstado)
+    for (const l of map.lights) soma(l.porEstado)
   }
   return conta
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Amarrar pelo painel ("Depende do estado")
+// ───────────────────────────────────────────────────────────────────────────
+
+/** A regra que o mestre escolheu no painel para UM elemento; `regra` ausente desamarra. */
+export type AmarraDeEstado =
+  | { alvo: 'porta'; id: string; regra: RegraDeEstado<EfeitoNaPorta> | undefined }
+  | { alvo: 'pino'; id: string; regra: RegraDeEstado<PinPassage> | undefined }
+  | { alvo: 'zona'; id: string; regra: RegraDeEstado<EfeitoNaZona> | undefined }
+  | { alvo: 'luz'; id: string; regra: RegraDeEstado<EfeitoNaLuz> | undefined }
+
+function mesmaRegra<E extends string>(a: RegraDeEstado<E> | undefined, b: RegraDeEstado<E> | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b
+  return (
+    a.estadoId === b.estadoId &&
+    a.efeitos.length === b.efeitos.length &&
+    a.efeitos.every((entrada, i) => entrada.valor === b.efeitos[i].valor && entrada.efeito === b.efeitos[i].efeito)
+  )
+}
+
+/**
+ * `item` com `regra` em `porEstado` (ausente = sem a chave), ou o MESMO item
+ * quando a regra já é essa. `T` só carrega o `porEstado` do próprio tipo.
+ */
+function comRegra<E extends string, T extends { porEstado?: RegraDeEstado<E> }>(item: T, regra: RegraDeEstado<E> | undefined): T {
+  if (mesmaRegra(item.porEstado, regra)) return item
+  if (regra !== undefined) return { ...item, porEstado: regra }
+  // Desamarrar grava igual ao elemento de antes do campo existir: sem a chave.
+  const solto: T = { ...item }
+  delete solto.porEstado
+  return solto
+}
+
+/** Troca na lista o item de `id` por `mudar(item)`; a MESMA lista quando ele não existe ou não mudou. */
+function trocarPorId<T extends { id: string }>(lista: T[], id: string, mudar: (item: T) => T): T[] {
+  return mesmaOuNova(lista, (item) => (item.id === id ? mudar(item) : item))
+}
+
+/**
+ * O mapa com a regra de `amarra` gravada no elemento e, quando o estado tem
+ * valor (`valorAtual`), o elemento já no efeito desse valor — o que o mestre
+ * disse para "agora" vale na hora. Mesma regra, id que não existe ou parede sem
+ * porta: o MESMO mapa (sem entrada vazia no desfazer).
+ */
+export function amarrarAoEstado(map: MapData, amarra: AmarraDeEstado, valorAtual: string | null): MapData {
+  const { regra } = amarra
+  const noValor = <T>(item: T, aplicar: (item: T, estadoId: string, valor: string) => T): T =>
+    regra === undefined || valorAtual === null ? item : aplicar(item, regra.estadoId, valorAtual)
+  switch (amarra.alvo) {
+    case 'porta': {
+      const walls = trocarPorId(map.walls, amarra.id, (wall) => {
+        if (wall.door === null) return wall
+        const door = comRegra(wall.door, amarra.regra)
+        return noValor(door === wall.door ? wall : { ...wall, door }, paredeNoEstado)
+      })
+      return walls === map.walls ? map : { ...map, walls }
+    }
+    case 'pino': {
+      const pins = trocarPorId(map.pins, amarra.id, (pin) => noValor(comRegra(pin, amarra.regra), pinoNoEstado))
+      return pins === map.pins ? map : { ...map, pins }
+    }
+    case 'zona': {
+      const concealZones = trocarPorId(map.concealZones, amarra.id, (zone) => noValor(comRegra(zone, amarra.regra), zonaNoEstado))
+      return concealZones === map.concealZones ? map : { ...map, concealZones }
+    }
+    case 'luz': {
+      const lights = trocarPorId(map.lights, amarra.id, (light) => noValor(comRegra(light, amarra.regra), luzNoEstado))
+      return lights === map.lights ? map : { ...map, lights }
+    }
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────────

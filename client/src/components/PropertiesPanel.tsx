@@ -61,6 +61,16 @@ interface PropertiesPanelProps {
   scenes?: ReactNode
   /** Seção "Estado do mundo" da aventura (Maré, Giro…), logo abaixo das Cenas. Ausente no mapa solto. */
   worldState?: ReactNode
+  /**
+   * ESTADO DO MUNDO — "Depende do estado" da porta, do pino de viagem, da zona
+   * oculta e da luz selecionados, cada um dentro da seção do seu elemento.
+   * Montados pelo App (`DependeDoEstadoControls.tsx`), que sabe da aventura;
+   * ausentes no mapa solto.
+   */
+  estadoDaPorta?: ReactNode
+  estadoDoPino?: ReactNode
+  estadoDaZona?: ReactNode
+  estadoDaLuz?: ReactNode
   /** Seção "Objetos do mapa" (busca e "Ir até lá"), montada pelo App, que sabe da câmera e da seleção. */
   objects?: ReactNode
   mapName: string
@@ -175,6 +185,10 @@ interface PropertiesPanelProps {
 export function PropertiesPanel({
   scenes,
   worldState,
+  estadoDaPorta,
+  estadoDoPino,
+  estadoDaZona,
+  estadoDaLuz,
   objects,
   mapName,
   mapWidth,
@@ -305,6 +319,7 @@ export function PropertiesPanel({
         {concealZone && (
           <ToolPropertiesSection group="concealZone" groups={groups}>
             <ConcealZoneControls {...concealZone} />
+            {estadoDaZona}
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="revealBrush" groups={groups}>
@@ -321,6 +336,7 @@ export function PropertiesPanel({
               ícones não faria nada nele, então não aparece. */}
           {pin.kind !== 'viagem' && <PinIconControls {...pinIcon} pinSelected={pinSelected} />}
           <PinControls {...pin} />
+          {estadoDoPino}
         </ToolPropertiesSection>
         {playerSecret && (
           <ToolPropertiesSection group="playerVisibility" groups={groups}>
@@ -409,6 +425,7 @@ export function PropertiesPanel({
         {selectedWall && (
           <ToolPropertiesSection group="wallDoor" groups={groups}>
             <WallDoorControls door={selectedWall.door} {...wallDoor} />
+            {selectedWall.door !== null && estadoDaPorta}
           </ToolPropertiesSection>
         )}
         <ToolPropertiesSection group="doorKind" groups={groups}>
@@ -485,6 +502,7 @@ export function PropertiesPanel({
               attachedTokenId={selectedLight.attachedTokenId ?? null}
               {...lightControls}
             />
+            {estadoDaLuz}
           </ToolPropertiesSection>
         )}
         {selectedStair && (

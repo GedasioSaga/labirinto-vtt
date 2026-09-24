@@ -1,4 +1,4 @@
-import type { ConcealZone, DoorState, Drawing, FloorPiece, MapData, Pin, Region, RegionPoint, Token, TokenContract, Wall } from '../types/map'
+import type { ConcealZone, DoorState, Drawing, FloorPiece, Light, MapData, Pin, Region, RegionPoint, Token, TokenContract, Wall } from '../types/map'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, REVEAL_BRUSH_CELL, unveiledCellsOf } from './concealBrush'
 import { isTokenPhotoData } from './tokenPhoto'
 import { tokenAsSeenByPlayer } from './tokenPublicName'
@@ -1357,10 +1357,12 @@ export function filterMapForPlayer(
     // Tocha presa na ficha: o vínculo só vai se a ficha também vai; senão o
     // id de ficha que a névoa, a zona oculta ou o mestre escondem sairia pela rede.
     // Presa numa ficha que o mestre esconde, a luz nem sai (`masterHiddenTokenIds`).
+    // ESTADO DO MUNDO: luz apagada pelo estado não sai, e a que sai vai por
+    // `lightForPlayer` (lista do que vai) — a regra nunca atravessa.
     lights: visibleLights(map.lights, hiddenLayers)
-      .filter((l) => !l.hidden && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }))
+      .filter((l) => !l.hidden && l.apagada !== true && !inClosedRoof({ x: l.x, y: l.y }) && isVisible({ x: l.x, y: l.y }))
       .filter((l) => l.attachedTokenId === undefined || !masterHiddenTokenIds.has(l.attachedTokenId))
-      .map((l) => (l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l))),
+      .map((l) => lightForPlayer(l.attachedTokenId === undefined || sentTokenIds.has(l.attachedTokenId) ? l : withoutAttachment(l))),
     stairs: visibleStairs(map.stairs, hiddenLayers).filter((s) => {
       const first = s.segments[0]
       if (s.hidden || s.secret || first === undefined || stairSamples(s).some(inRoomHiddenFromPlayer)) return false
@@ -1492,6 +1494,17 @@ export function filterMapForPlayer(
 function doorForPlayer(door: DoorState): DoorState {
   const forPlayer: DoorState = { open: door.open, locked: door.locked, kind: door.kind }
   if (door.secret !== undefined) forPlayer.secret = door.secret
+  return forPlayer
+}
+
+/**
+ * A luz como o jogador pode recebê-la: LISTA DO QUE VAI, como `doorForPlayer`.
+ * `porEstado` (ESTADO DO MUNDO) fica de fora: diria qual estado apaga a luz e
+ * com que valor. `locked`/`hidden` são do editor do mestre.
+ */
+function lightForPlayer(light: Light): Light {
+  const forPlayer: Light = { id: light.id, x: light.x, y: light.y, radius: light.radius, color: light.color, intensity: light.intensity }
+  if (light.attachedTokenId !== undefined) forPlayer.attachedTokenId = light.attachedTokenId
   return forPlayer
 }
 

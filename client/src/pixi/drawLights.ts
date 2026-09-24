@@ -149,7 +149,8 @@ export function createLightsRenderer(): LightsRenderer {
       sombra.clear()
       halo.mask = null
       const light: Light | undefined = lights[i]
-      if (light === undefined || !(light.radius > 0)) {
+      // ESTADO DO MUNDO: apagada pelo estado ("energia desligada") não ilumina.
+      if (light === undefined || !(light.radius > 0) || light.apagada === true) {
         halo.visible = false
         continue
       }
@@ -196,10 +197,10 @@ export function createLightsRenderer(): LightsRenderer {
     if (showMarkers) {
       for (const light of lights) {
         const color = new Color(light.color).toNumber()
-        markersGraphics
-          .circle(light.x, light.y, LIGHT_MARKER_SCREEN_RADIUS / scale)
-          .fill({ color })
-          .stroke({ width: LIGHT_MARKER_OUTLINE_SCREEN_PX / scale, color: LIGHT_MARKER_OUTLINE_COLOR })
+        const marker = markersGraphics.circle(light.x, light.y, LIGHT_MARKER_SCREEN_RADIUS / scale)
+        // Apagada: o marcador fica vazado, na cor da luz — o mestre acha e sabe que está desligada.
+        if (light.apagada === true) marker.stroke({ width: LIGHT_MARKER_OUTLINE_SCREEN_PX / scale, color })
+        else marker.fill({ color }).stroke({ width: LIGHT_MARKER_OUTLINE_SCREEN_PX / scale, color: LIGHT_MARKER_OUTLINE_COLOR })
         if (light.id === selectedLightId) {
           markersGraphics.circle(light.x, light.y, LIGHT_HIT_RADIUS).stroke({ width: 3, color: SELECTION_COLOR })
         }
