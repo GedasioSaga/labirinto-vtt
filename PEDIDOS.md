@@ -771,3 +771,24 @@ da 2ª passada (`auto/juntar` `d37de87`: jogador, editor, mundo, rede); depois, 
 grandes (`auto/juntar-grandes` + correio-2) e os grupos restantes um a um (visão, defeitos, t-*), cada unidade
 com merge, tipos, unidade e prova, e publicação serial: `auto/acervo` absorvido na pista, merge `--no-ff` em
 `auto/acervo`, fast-forward de `main` e `git push origin main`. Nunca force-push.
+
+
+### 24/09/2026, 18h40 — publicar o feito + grandes, criar o instalador, depois seguir de 10 em 10
+
+> "Pronto o que eu quero é que vocÊ coloque a features já feitas mas as features grandes, faça o push e essa
+> versão você cria o instalador, e então volta a fazer as outras, commitando e fazendo push de 10 em 10
+> features adicionadas, e a cada 10 começasse a intregar no programa."
+
+Plano: `wf_ef4eb784-1f6` publica em `main` os grupos já feitos (jogador, editor, mundo, rede, visão, defeitos,
+t-*) e as grandes, cada unidade com testes e push. Quando terminar: versão nova, `npm run tauri build`,
+instalador `.exe` e `.msi` como tag + GitHub Release (mesmo formato da v0.1.0). Depois: retomar a onda 3 (pausada)
+com runs novos só das peças que faltam, publicando em `main` a cada 10 features integradas. A prévia de teste
+(`wf_4d2b1c13-1d8`) foi parada: a versão publicada já leva as grandes.
+
+### 24/09/2026, 18h50 — conserto do link público no programa principal
+
+> "pronto, então já coloca no programa principal junto ao instalador"
+
+Feito: `auto/f2-link-publico` (`c76b664`, provado: cargo test, clippy, tipos e unidade verdes) entra em
+`auto/acervo` agora, antes do push e do instalador. Defeito só do modo dev (o `dev_fallback` do servidor da sala
+recusava pelo túnel os módulos que a página do jogador pede); o release serve a página embutida.
