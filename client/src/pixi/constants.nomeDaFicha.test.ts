@@ -94,6 +94,44 @@ describe('nome da ficha no mapa do jogador: tinta e contorno', () => {
     expect(lidos).toEqual([])
   })
 
+  // O serrilhado da borda de fora mistura contorno e tinta com o CHÃO da cena
+  // onde a ficha está. A régua da encruzilhada (e2e/task-jornada-encruzilhada,
+  // teste 4) leu 43 pixels "de chão da Cripta" (magenta) na Torre: o contorno
+  // azul 0x000030 sobre o chão vermelho dá (37,8,43), roxo. A borda do nome
+  // tem de ler como o próprio chão (mais escuro ou mais claro), nunca como o
+  // chão de OUTRA cena.
+  const vermelho = ([r, g, b]: Rgb) => r > g * 1.8 + 8 && r > b * 1.8 + 8 && Math.abs(g - b) < 30
+  const classes = (p: Rgb): string[] => [verdeAgua(p) && 'verde-água', magenta(p) && 'magenta', vermelho(p) && 'vermelho'].filter((c): c is string => c !== false)
+  const CHAOS: Record<string, Rgb> = {
+    'verde-água #1e8c8c': rgbDeHex('#1e8c8c'),
+    'magenta #8c1e8c': rgbDeHex('#8c1e8c'),
+    'vermelho #8c1e1e': rgbDeHex('#8c1e1e'),
+    'vermelho #8c1414': rgbDeHex('#8c1414'),
+  }
+  const PASSO_DA_MISTURA = 0.02
+
+  /** Os pontos da mistura contorno + tinta + chão que leem como chão de outra classe. */
+  function chaoAlheio(contorno: Rgb, tinta: Rgb, chao: Rgb): string[] {
+    const dele = classes(chao)
+    const lidos: string[] = []
+    for (let a = 0; a <= 1 + 1e-9; a += PASSO_DA_MISTURA) {
+      for (let w = 0; w <= 1 - a + 1e-9; w += PASSO_DA_MISTURA) {
+        const ponto = [0, 1, 2].map((c) => Math.round(a * contorno[c] + w * tinta[c] + (1 - a - w) * chao[c])) as unknown as Rgb
+        const alheias = classes(ponto).filter((c) => !dele.includes(c))
+        if (alheias.length > 0) lidos.push(`${ponto.join(',')} (${alheias.join('+')})`)
+      }
+    }
+    return lidos
+  }
+
+  it('controle: o contorno 0x000030 sobre o chão vermelho lia como chão magenta (a regra morde)', () => {
+    expect(chaoAlheio(rgbDeNumero(0x000030), BRANCO, rgbDeHex('#8c1e1e')).length).toBeGreaterThan(0)
+  })
+
+  it.each(Object.keys(CHAOS))('a borda do nome sobre o chão %s nunca lê como chão de outra cena', (nome) => {
+    expect(chaoAlheio(CONTORNO, TINTA, CHAOS[nome] ?? PRETO)).toEqual([])
+  })
+
   it('o contorno continua quase preto: contraste com a tinta acima de 18:1 (preto puro dá 21:1)', () => {
     expect(contraste(TINTA, CONTORNO)).toBeGreaterThan(18)
   })

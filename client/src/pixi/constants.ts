@@ -119,30 +119,35 @@ export const TOKEN_FRAME_COLOR = 0xe0a44a
 /** Espessura da moldura, em px de mundo: a foto é recortada no raio do token MENOS isto. */
 export const TOKEN_FRAME_WIDTH = 4
 
-/** Tinta do nome da ficha no mapa do jogador (`player/PlayerView.tsx`). */
-export const TOKEN_NAME_FILL_COLOR = 0xffffff
 /**
- * Contorno do nome da ficha no mapa do jogador: separa a tinta de qualquer chão.
+ * Tinta do nome da ficha no mapa do jogador (`player/PlayerView.tsx`): branco
+ * com um fio de ciano (R = 225), que na tela lê como branco.
  *
- * POR QUE NÃO É PRETO PURO. O serrilhado de cada letra mistura tinta e
+ * POR QUE NÃO É BRANCO PURO. O serrilhado de cada letra mistura tinta e
  * contorno; de branco a preto essa rampa passa por todos os cinzas, e o cinza
  * 141-147 fica a ±20 por canal de #a1887f, a cor de sinal de um dos jogadores
  * (`lib/signals.ts`). A cor do sinal é do sinal: medido em 23/09/2026 na régua
  * do zoom no celular (teste 2), a 2,6x de zoom os nomes 'Barril', 'Ana' e
- * 'Caixa' davam 16 pixels "da cor do sinal" sem ninguém ter sinalizado.
+ * 'Caixa' davam 16 pixels "da cor do sinal" sem ninguém ter sinalizado. Com o
+ * R abaixo de G e B, a rampa até o preto fica a mais de 25 por canal de toda
+ * cor de sinal.
  *
- * Quase preto puxado para o azul, com R e G em zero: a rampa até o branco fica
- * a mais de 25 por canal de toda cor de sinal, e o contraste com a tinta segue
- * em 20:1 (preto puro dá 21:1). Na tela lê como preto.
- *
- * POR QUE G É ZERO. O verde de 0x000f28 (0,15,40) fazia o contorno ler como
- * chão verde-água, a cor que a régua do laser do jogador conta como "chão do
- * Salão": o nome da ficha de quem estava em OUTRA cena virava chão do Salão.
- * Com G = R, nenhum ponto da rampa tem G acima de R, e nenhuma régua de chão
- * de cena por matiz (verde-água, magenta) o lê. As regras estão em
- * `constants.nomeDaFicha.test.ts`.
+ * Por que o desvio mora na TINTA e não no contorno: ver o contorno, abaixo.
  */
-export const TOKEN_NAME_OUTLINE_COLOR = 0x000030
+export const TOKEN_NAME_FILL_COLOR = 0xe1ffff
+/**
+ * Contorno do nome da ficha no mapa do jogador: separa a tinta de qualquer chão.
+ *
+ * POR QUE É PRETO PURO (neutro). A borda de fora do contorno se mistura com o
+ * CHÃO da cena. Preto sobre qualquer chão só escurece aquele chão: o matiz é
+ * o dele, e nenhuma régua de chão por matiz lê ali o chão de OUTRA cena. Um
+ * contorno com matiz fazia isso: o quase-preto azul 0x000030 sobre o chão
+ * vermelho da Torre dava roxo (37,8,43), e a jogadora que chegava à Torre
+ * "via" 43 pixels do chão magenta da Cripta (e2e/task-jornada-encruzilhada,
+ * teste 4); antes dele, o 0x000f28 (0,15,40) já lia como chão verde-água. As
+ * regras estão em `constants.nomeDaFicha.test.ts`.
+ */
+export const TOKEN_NAME_OUTLINE_COLOR = 0x000000
 
 /**
  * INICIATIVA — o anel da ficha da VEZ, no mapa do mestre e na tela do jogador.

@@ -87,11 +87,16 @@ describe('ScenesSection: recado para quem o mestre escolhe', () => {
     })
   }
 
-  it('abre com todos os presentes marcados e "Enviar para 4"', () => {
-    abre(() => 4)
+  it('abre com todos os presentes marcados e "Enviar": o recado da cena inteira, como antes', () => {
+    const onNote = vi.fn(() => 4)
+    abre(onNote)
     expect(container.querySelector('fieldset legend')?.textContent).toBe('Quem recebe')
     expect(marcados()).toEqual(['Ana', 'Bruno', 'Carla', 'Duda'])
-    expect(enviar().textContent).toBe('Enviar para 4')
+    expect(enviar().textContent).toBe('Enviar')
+    digita('A porta range ao longe.')
+    act(() => enviar().click())
+    // Todos marcados = a cena inteira: sem lista, o recado vira o da cena e chega também a quem entrar depois.
+    expect(onNote).toHaveBeenCalledWith('s-vila', 'A porta range ao longe.')
   })
 
   it('"Quem está em: Taverna" deixa 3 marcados, "Enviar para 3", e só os 3 vão', () => {

@@ -3,6 +3,7 @@ import { createExploration, encodeExploration, isPointExplored, markRings } from
 import { createEmptyMap, addToken } from '../lib/mapFactory'
 import type { MapData } from '../types/map'
 import { NAME_MAX_LENGTH } from '../net/protocol'
+import { TRAVEL_REQUEST_MIN_INTERVAL_MS, TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS } from '../net/hostSession'
 import { SIGNAL_TTL_MS } from '../lib/signals'
 import { LASER_MAX_POINTS_PER_MESSAGE, LASER_TRAIL_MS } from '../lib/laser'
 import {
@@ -612,6 +613,42 @@ describe('playerConnection: pedido de passagem', () => {
     expect(connection.getState().travel).toBeUndefined()
     socket.receive({ type: 'pin.travel.rejected', reason: 'too_soon' })
     expect(connection.getState().travel).toMatchObject({ phase: 'rejected', reason: 'too_soon' })
+  })
+
+  /** Só os pedidos de passagem que saíram (o ping do relógio falso não conta). */
+  const pedidos = (socket: FakeSocket): unknown[] => socket.sent.filter((m) => (m as { type?: string }).type === 'pin.travel.request')
+
+  it('pedir de novo logo depois do "Não": "Aguardando o mestre" na hora, e o pedido só sai quando o limite do host já passou', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    connection.requestTravel('escada')
+    socket.receive({ type: 'pin.travel.denied' })
+    const antes = pedidos(socket).length
+    expect(connection.requestTravel('escada')).toBe(true)
+    expect(connection.getState().travel).toMatchObject({ phase: 'waiting', direct: false })
+    // Sair agora seria "too_soon" no host: o cliente espera sozinho, sem mostrar "Espere um pouco".
+    expect(pedidos(socket).length).toBe(antes)
+    vi.advanceTimersByTime(TRAVEL_REQUEST_MIN_INTERVAL_MS - 1)
+    expect(pedidos(socket).length).toBe(antes)
+    vi.advanceTimersByTime(TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS)
+    expect(pedidos(socket).slice(antes)).toEqual([{ type: 'pin.travel.request', pinId: 'escada' }])
+    expect(connection.getState().travel).toMatchObject({ phase: 'waiting', direct: false })
+  })
+
+  it('outro pino logo depois do "Não" espera só o limite do jogador; passado o intervalo, sai na hora', () => {
+    vi.useFakeTimers()
+    const { connection, socket } = jogando()
+    connection.requestTravel('escada')
+    socket.receive({ type: 'pin.travel.denied' })
+    const antes = pedidos(socket).length
+    connection.requestTravel('porta')
+    expect(pedidos(socket).length).toBe(antes)
+    vi.advanceTimersByTime(TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS + 1000)
+    expect(pedidos(socket).slice(antes)).toEqual([{ type: 'pin.travel.request', pinId: 'porta' }])
+    socket.receive({ type: 'pin.travel.denied' })
+    vi.advanceTimersByTime(TRAVEL_REQUEST_MIN_INTERVAL_MS)
+    connection.requestTravel('escada')
+    expect(pedidos(socket).at(-1)).toEqual({ type: 'pin.travel.request', pinId: 'escada' })
   })
 
   describe('pino livre', () => {

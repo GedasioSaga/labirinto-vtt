@@ -1,7 +1,6 @@
 import type { Graphics } from 'pixi.js'
 import { rotationToRadians } from '../lib/itemTransform'
-import { TOKEN_NAME_FILL_COLOR, TOKEN_NAME_OUTLINE_COLOR } from '../pixi/constants'
-import { OWNER_RING_EDGE_WIDTH_PX, OWNER_RING_WIDTH_PX } from './ownerMarker'
+import { OWNER_RING_COLOR, OWNER_RING_EDGE_WIDTH_PX, OWNER_RING_WIDTH_PX } from './ownerMarker'
 
 /**
  * FRENTE DA FICHA na tela do jogador: um bico branco na borda do disco,
@@ -23,15 +22,17 @@ import { OWNER_RING_EDGE_WIDTH_PX, OWNER_RING_WIDTH_PX } from './ownerMarker'
  * O fio é o QUASE-PRETO do nome da ficha, opaco, e não preto puro nem o preto
  * translúcido do aro: sobre o branco, os dois passam pelo cinza ~144, que as
  * jornadas leem como a cor de sinal #a1887f (ver `TOKEN_NAME_OUTLINE_COLOR` em
- * `pixi/constants.ts`). O par tinta e fio do nome já foi medido longe de toda
- * cor de sinal; o bico usa o mesmo par.
+ * `pixi/constants.ts`). O bico guarda o par branco + 0x000030, medido longe
+ * de toda cor de sinal: o nome da ficha trocou de par (tinta com um fio de
+ * ciano e contorno preto) para a borda não ler como chão de outra cena, mas o
+ * bico continua no MESMO branco do aro de dono.
  */
-export const FACING_NIB_COLOR = TOKEN_NAME_FILL_COLOR
+export const FACING_NIB_COLOR = OWNER_RING_COLOR
 /** Quanto o bico passa da borda de onde nasce, em px de tela. */
 export const FACING_NIB_LENGTH_PX = 6
 /** Meia largura da base do bico, em px de tela. */
 export const FACING_NIB_HALF_WIDTH_PX = 4.5
-export const FACING_NIB_EDGE_COLOR = TOKEN_NAME_OUTLINE_COLOR
+export const FACING_NIB_EDGE_COLOR = 0x000030
 export const FACING_NIB_EDGE_ALPHA = 1
 export const FACING_NIB_EDGE_WIDTH_PX = OWNER_RING_EDGE_WIDTH_PX
 /** Folga entre a ponta do bico e o nome da ficha, em px de tela. */

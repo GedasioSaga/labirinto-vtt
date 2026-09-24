@@ -1155,6 +1155,10 @@ body {
   flex-direction: column;
   min-height: 0;
   flex: 0 1 auto;
+  /* O que rola é cortado um passo ANTES da borda de baixo, não em cima dela:
+     sem a folga, a amostra "Cor do chão" (a cor exata do chão) era cortada no
+     último pixel do painel, colada ao mapa (PropertiesPanel.borda.test.ts). */
+  padding-bottom: var(--lb-space-1);
 }
 
 .lb-inspector__head {

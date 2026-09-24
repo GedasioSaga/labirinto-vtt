@@ -189,6 +189,9 @@ export function NoteForm({ label, people = NO_PEOPLE, onSend, onCancel }: NoteFo
   // Filtra pelos presentes de AGORA: quem saiu da cena com o campo aberto não conta.
   const recipients = people.filter((p) => chosen.has(p.playerId)).map((p) => p.playerId)
   const noOneChosen = choosing && recipients.length === 0
+  // Todos os presentes marcados = o recado da cena inteira (botão "Enviar", sem lista):
+  // vira o recado da cena e chega também a quem entrar depois, como antes da escolha existir.
+  const wholeScene = !choosing || recipients.length === people.length
   const canSend = !empty && !noOneChosen
 
   useEffect(() => {
@@ -197,8 +200,8 @@ export function NoteForm({ label, people = NO_PEOPLE, onSend, onCancel }: NoteFo
 
   const send = () => {
     if (!canSend) return
-    if (choosing) onSend(text, recipients)
-    else onSend(text)
+    if (wholeScene) onSend(text)
+    else onSend(text, recipients)
   }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -249,7 +252,7 @@ export function NoteForm({ label, people = NO_PEOPLE, onSend, onCancel }: NoteFo
           Cancelar
         </button>
         <button type="submit" className="lb-btn lb-btn--primary" disabled={!canSend} aria-describedby={noOneChosen ? emptyHintId : undefined}>
-          {choosing ? `Enviar para ${recipients.length}` : 'Enviar'}
+          {wholeScene ? 'Enviar' : `Enviar para ${recipients.length}`}
         </button>
       </div>
     </form>

@@ -53,7 +53,15 @@ import {
   type TokenEditMessage,
   type TokenMoveMessage,
 } from './protocol'
-import { clampAlarmText, clampNoteText, clampTravelDenyText, NOTEBOOK_MAX_NOTES, type NoteEntry } from './protocol'
+import {
+  clampAlarmText,
+  clampNoteText,
+  clampTravelDenyText,
+  NOTEBOOK_MAX_NOTES,
+  TRAVEL_REQUEST_MIN_INTERVAL_MS,
+  TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS,
+  type NoteEntry,
+} from './protocol'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -447,20 +455,9 @@ export const TOKEN_PHOTO_MIN_INTERVAL_MS = 500
  */
 export const CLUE_SHOW_MIN_INTERVAL_MS = 1000
 
-/**
- * Um pedido de passagem pelo MESMO pino, do mesmo jogador, nesta janela. O
- * mestre recusou e o jogador insiste no toque: sem o intervalo, cada toque
- * seria um aviso novo empilhado na tela do mestre. Por jogador e por pino, e
- * não por pino só: o grupo inteiro pedindo a mesma escada é jogo normal.
- */
-export const TRAVEL_REQUEST_MIN_INTERVAL_MS = 3000
-
-/**
- * Um pedido de passagem por jogador nesta janela, de QUALQUER pino. É o
- * limite que vem antes de tudo: barato, de tamanho fixo por jogador, e segura
- * quem troca de pino (ou de conexão) a cada toque.
- */
-export const TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS = 1500
+// Os dois limites do pedido de passagem moram em `protocol.ts`: o cliente do
+// jogador lê os mesmos números para esperar sozinho em vez de esbarrar neles.
+export { TRAVEL_REQUEST_MIN_INTERVAL_MS, TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS }
 
 /**
  * Quantas cenas cada jogador lembra (exploração e portas vistas). Passou do

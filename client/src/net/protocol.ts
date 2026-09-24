@@ -148,6 +148,20 @@ export const NOTE_MAX_LENGTH = 500
 export const PLAYER_MESSAGE_MAX_BYTES = 64 * 1024
 /** Quantos recados o caderno de cada jogador guarda (no host e na tela dele). Passou, sai o mais antigo. */
 export const NOTEBOOK_MAX_NOTES = 50
+/**
+ * Um pedido de passagem pelo MESMO pino, do mesmo jogador, nesta janela. O
+ * mestre recusou e o jogador insiste no toque: sem o intervalo, cada toque
+ * seria um aviso novo empilhado na tela do mestre. Por jogador e por pino, e
+ * não por pino só: o grupo inteiro pedindo a mesma escada é jogo normal. O
+ * host recusa (`too_soon`); o cliente do jogador espera sozinho o que falta.
+ */
+export const TRAVEL_REQUEST_MIN_INTERVAL_MS = 3000
+/**
+ * Um pedido de passagem por jogador nesta janela, de QUALQUER pino. É o
+ * limite que vem antes de tudo: barato, de tamanho fixo por jogador, e segura
+ * quem troca de pino (ou de conexão) a cada toque.
+ */
+export const TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS = 1500
 /** Teto do alarme, na mesma conta: é uma faixa urgente no alto da tela, não uma carta. */
 export const ALARM_MAX_LENGTH = 140
 

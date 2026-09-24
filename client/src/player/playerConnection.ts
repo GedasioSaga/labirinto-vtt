@@ -10,6 +10,8 @@ import {
   PLAYER_MESSAGE_MAX_BYTES,
   PIN_TAKE_REJECTIONS,
   REQ_ID_MAX_LENGTH,
+  TRAVEL_REQUEST_MIN_INTERVAL_MS,
+  TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS,
   isDoorRequestHow,
   type DoorRequestAnswer,
   type DoorRequestHow,
@@ -489,6 +491,8 @@ export const ARRIVAL_NOTICE_TTL_MS = 60_000
  * é uma batida, não uma espera.
  */
 export const FREE_PASSAGE_BEAT_MS = 450
+/** Folga sobre o que falta dos limites do pedido de passagem: o host mede na chegada, não no envio. */
+export const TRAVEL_PACE_MARGIN_MS = 250
 /**
  * "O mestre levou você para outro lugar": quem foi LEVADO não esperava nada e
  * pode estar olhando a mesa quando o mapa troca. Mesmo teto e mesma saída
@@ -752,10 +756,37 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   let travelTimer: ReturnType<typeof setTimeout> | null = null
+  /** Quando saiu o último pedido de passagem (qualquer pino) e o de cada pino: o espelho dos limites do host. */
+  let lastTravelSentAt: number | null = null
+  const lastTravelSentAtByPin = new Map<string, number>()
 
   function clearTravelTimer(): void {
     if (travelTimer !== null) clearTimeout(travelTimer)
     travelTimer = null
+  }
+
+  /**
+   * Quanto falta para o host aceitar um pedido por `pinId` (0 = já aceita).
+   * O host mede na chegada; a folga cobre o primeiro pedido ter chegado mais
+   * atrasado que o próximo.
+   */
+  function travelPaceDelay(pinId: string): number {
+    const now = Date.now()
+    const byPlayer = lastTravelSentAt === null ? 0 : lastTravelSentAt + TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS - now
+    const pinAt = lastTravelSentAtByPin.get(pinId)
+    const byPin = pinAt === undefined ? 0 : pinAt + TRAVEL_REQUEST_MIN_INTERVAL_MS - now
+    const remaining = Math.max(byPlayer, byPin)
+    return remaining > 0 ? remaining + TRAVEL_PACE_MARGIN_MS : 0
+  }
+
+  /** Envia o pedido de passagem e anota a hora (o que já passou do intervalo sai da conta). */
+  function sendTravel(pedido: PinTravelRequestMessage): boolean {
+    if (!send(pedido)) return false
+    const now = Date.now()
+    for (const [id, at] of lastTravelSentAtByPin) if (now - at >= TRAVEL_REQUEST_MIN_INTERVAL_MS) lastTravelSentAtByPin.delete(id)
+    lastTravelSentAt = now
+    lastTravelSentAtByPin.set(pedido.pinId, now)
+    return true
   }
 
   /** Resposta do mestre (ou do host): aparece e some sozinha. */
@@ -1786,26 +1817,28 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // Sem saída escolhida, a mensagem sai idêntica à de antes: o mestre
       // antigo, que não conhece `exitId`, continua entendendo o pedido.
       const pedido: PinTravelRequestMessage = exitId === undefined ? { type: 'pin.travel.request', pinId } : { type: 'pin.travel.request', pinId, exitId }
-      if (!direct) {
-        if (!send(pedido)) return false
-        clearTravelTimer()
-        setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: false } })
-        return true
-      }
       // Pino livre não espera ninguém: o aviso diz "Passando…", não "Aguardando
       // o mestre". E o pedido sai depois de um instante, não no mesmo toque: a
       // resposta do host é quase imediata, e sem a pausa a tela trocava de cena
       // no mesmo quadro em que o cartão fechava — o jogador não via a passagem
-      // acontecer, só um salto.
+      // acontecer, só um salto. Pedir de novo logo depois do "Não" também
+      // espera: o que falta dos limites do host, em vez de voltar "too_soon".
+      const wait = Math.max(direct ? FREE_PASSAGE_BEAT_MS : 0, travelPaceDelay(pinId))
+      if (wait === 0) {
+        if (!sendTravel(pedido)) return false
+        clearTravelTimer()
+        setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: false } })
+        return true
+      }
       if (socket === null || socket.readyState !== SOCKET_OPEN) return false
       clearTravelTimer()
-      setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct: true } })
+      setState({ travel: { id: nextNoticeId++, phase: 'waiting', direct } })
       travelTimer = setTimeout(() => {
         travelTimer = null
         if (state.status !== 'playing') return
         // O socket caiu na pausa: sem pedido no ar, o aviso não pode ficar.
-        if (!send(pedido)) setState({ travel: undefined })
-      }, FREE_PASSAGE_BEAT_MS)
+        if (!sendTravel(pedido)) setState({ travel: undefined })
+      }, wait)
       return true
     },
 
