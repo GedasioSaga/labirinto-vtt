@@ -1261,8 +1261,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const pendingLetters = new Map<string, PendingLetter>()
   // Por playerId: quando o último bilhete dele chegou ao mestre. Só o kick apaga.
   const lastLetterAt = new Map<string, number>()
-  // Por playerId: ids (do caderno) dos bilhetes entregues com ele fora do ar. Saem
-  // como `unread` no caderno da volta, uma vez: sem isso o bilhete chegava mudo.
+  // Por playerId: ids (do caderno) dos bilhetes entregues com ele fora do ar ou na
+  // tela de espera. Saem como `unread` no caderno da volta até ele voltar jogando:
+  // sem isso o bilhete chegava mudo.
   const unseenLetters = new Map<string, Set<string>>()
   let rev = 0
   // ZONA DE PERIGO: em que zona estava cada ficha de JOGADOR no último
@@ -1596,11 +1597,23 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return unread.length === 0 ? { type: 'notes.book', notes } : { type: 'notes.book', notes, unread }
   }
 
-  /** CORREIO: os bilhetes entregues com o jogador fora do ar que ainda estão no caderno. Tira da lista: avisa uma vez. */
+  /** CORREIO: guarda o bilhete como não visto até o jogador estar na tela do jogo, onde o Caderno mostra o ponto. */
+  const markUnseenLetter = (playerId: string, noteId: string): void => {
+    const unseen = unseenLetters.get(playerId) ?? new Set<string>()
+    unseen.add(noteId)
+    unseenLetters.set(playerId, unseen)
+  }
+
+  /**
+   * CORREIO: os bilhetes entregues sem o jogador poder ler (fora do ar, ou na
+   * tela de espera, que não mostra o Caderno) que ainda estão no caderno. Quem
+   * volta JOGANDO leva o aviso uma vez, e a lista sai; quem volta aguardando
+   * ainda não tem onde ler, então a lista fica para a próxima volta.
+   */
   const takeUnseenLetters = (playerId: string, book: NoteEntry[]): string[] => {
     const unseen = unseenLetters.get(playerId)
     if (unseen === undefined) return []
-    unseenLetters.delete(playerId)
+    if (statusOf(playerId) === 'playing') unseenLetters.delete(playerId)
     return book.filter((entry) => unseen.has(entry.id)).map((entry) => entry.id)
   }
 
@@ -3356,13 +3369,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       rememberNote(letter.toPlayerId, note)
       if (record.clientId === null) {
         // Fora do ar: o caderno da volta marca o bilhete como não lido.
-        const unseen = unseenLetters.get(letter.toPlayerId) ?? new Set<string>()
-        unseen.add(note.id)
-        unseenLetters.set(letter.toPlayerId, unseen)
+        markUnseenLetter(letter.toPlayerId, note.id)
         return { outbound: [] }
       }
       if (statusOf(letter.toPlayerId) === 'playing') return reply(record.clientId, noteMessage(note))
       // Aguardando não tem cartão na tela; o caderno vale também aguardando, e acende o não lido.
+      // A tela de espera não mostra o Caderno: se a página recarregar antes da ficha, a volta marca de novo.
+      markUnseenLetter(letter.toPlayerId, note.id)
       return reply(record.clientId, notebookMessage(notebooks.get(letter.toPlayerId) ?? [], [note.id]))
     },
 
@@ -3673,6 +3686,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const outbound: Outbound[] = expireDue(world)
       for (const [clientId, playerId] of byClient) {
         if (statusOf(playerId) !== 'playing') continue
+        // CORREIO: no ar e jogando, o ponto do Caderno já está na tela dele; o aviso passa a ser do cliente.
+        unseenLetters.delete(playerId)
         // Cada um a SUA cena: quem ficou no Salão nunca recebe nada da Cripta.
         // Quem não está em cena nenhuma recebe a espera, e não a cena do editor.
         // Chegou a uma cena com recado (viagem, ficha nova): o recado vem logo atrás do mapa,

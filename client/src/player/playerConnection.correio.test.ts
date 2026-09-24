@@ -147,6 +147,22 @@ describe('correio no cliente: receber', () => {
     expect(hasUnreadNotes(estado)).toBe(true)
   })
 
+  it('bilhete marcado enquanto aguardava: o ponto segue aceso quando ele passa a jogar, sem cartão', () => {
+    const { connection, socket } = conectado()
+    socket.receive({ type: 'lobby.waiting' })
+    socket.receive({ type: 'notes.book', notes: [{ id: 'b1', text: 'Te espero.', at: 10, from: 'Bruno', via: 'tubo' }], unread: ['b1'] })
+    expect(connection.getState().status).toBe('waiting')
+    socket.receive({ type: 'snapshot', rev: 1, map: createEmptyMap('m1', '', 10, 10, 50), vision: [], ownTokens: [], concealed: [] })
+    // O caderno de novo, agora sem marca (o host já passou o aviso): não apaga o que ainda está por ler.
+    socket.receive({ type: 'notes.book', notes: [{ id: 'b1', text: 'Te espero.', at: 10, from: 'Bruno', via: 'tubo' }] })
+    const estado = connection.getState()
+    expect(estado.status).toBe('playing')
+    expect(estado.note).toBeUndefined()
+    expect(hasUnreadNotes(estado)).toBe(true)
+    connection.markNotebookRead()
+    expect(hasUnreadNotes(connection.getState())).toBe(false)
+  })
+
   it('caderno sem marca de não lido continua só história, e não repete o que já era novo', () => {
     const { connection, socket } = jogando()
     socket.receive({ type: 'scene.note', id: 'b1', text: 'Te espero.', at: 10, from: 'Bruno', via: 'pombo' })

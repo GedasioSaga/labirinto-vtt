@@ -82,6 +82,14 @@ export function tituloDaCaixa(grupo: string, quantos: number): string {
 }
 
 /**
+ * A caixa tem resposta em lote? Sem nenhuma ação `emLote`, o "Deixar todos"
+ * seria um botão que não responde ninguém: `Toast.tsx` nem o desenha.
+ */
+export function temRespostaEmLote(toasts: readonly ToastMessage[]): boolean {
+  return toasts.some((toast) => toast.actions?.some((action) => action.emLote === true) === true)
+}
+
+/**
  * "Deixar todos": para cada aviso da caixa, o MESMO caminho do botão da linha
  * — tira o aviso da tela e roda a ação marcada `emLote` (o "Deixar ir"). Cada
  * pedido se revalida sozinho do lado de quem responde: o que falhar vira

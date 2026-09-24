@@ -165,6 +165,38 @@ describe('correio: o bilhete espera o mestre', () => {
     expect(volta.unread).toEqual([volta.notes[0]?.id])
   })
 
+  it('aguardando na tela de espera: recarregar antes de jogar não apaga o não lido; com a ficha, o aviso é do cliente', () => {
+    const { s, resume } = mesa()
+    // Uma ficha livre no Salão para Caio receber depois.
+    const comVela: HostWorld = { open: { ...SALAO, map: mapa('m-salao', 'Salao Norte', [ficha('lanterna', 100, 100), ficha('vela', 150, 100)]) }, background: [CRIPTA] }
+    const entrega = s.deliverLetter(idDoBilhete(manda(s, 'c1', 'Caio')))
+    const noteId = cadernoDe(entrega, 'c3').notes[0]?.id
+    expect(cadernoDe(entrega, 'c3').unread).toEqual([noteId])
+    // A tela de espera não mostra o Caderno: Caio ainda não pôde ler. O celular recarrega a página.
+    s.disconnect('c3')
+    const volta = s.handleMessage('c9', { type: 'join', code: CODE, name: 'Caio', resume: resume('Caio') }, comVela)
+    expect(cadernoDe(volta, 'c9').unread).toEqual([noteId])
+    // De novo, ainda aguardando: continua marcado.
+    s.disconnect('c9')
+    const outraVolta = s.handleMessage('c10', { type: 'join', code: CODE, name: 'Caio', resume: resume('Caio') }, comVela)
+    expect(cadernoDe(outraVolta, 'c10').unread).toEqual([noteId])
+    const welcome = outraVolta.outbound[0]?.msg
+    if (welcome?.type !== 'welcome') throw new Error('esperava welcome')
+    // Ganhou a ficha e está na tela do jogo com o ponto aceso: dali em diante o aviso é do cliente, como o cartão.
+    s.assignToken(welcome.playerId, 'vela')
+    s.broadcast(comVela)
+    s.disconnect('c10')
+    const jogando = s.handleMessage('c11', { type: 'join', code: CODE, name: 'Caio', resume: resume('Caio') }, comVela)
+    expect(cadernoDe(jogando, 'c11')).toEqual({ type: 'notes.book', notes: [{ id: noteId, text: BILHETE, at: 0, from: 'Ana', via: 'pombo' }] })
+    // Aguardando, nenhuma das voltas leva cena: nem a de quem escreveu, nem outra.
+    for (const r of [entrega, volta, outraVolta]) {
+      const texto = JSON.stringify(r)
+      expect(texto).not.toContain('Salao Norte')
+      expect(texto).not.toContain('Cripta Rubra')
+      expect(texto).not.toContain('sceneId')
+    }
+  })
+
   it('Interceptar: o bilhete nunca chega, nem na volta de quem ia receber', () => {
     const { s, resume } = mesa()
     const id = idDoBilhete(manda(s, 'c1', 'Bruno'))
