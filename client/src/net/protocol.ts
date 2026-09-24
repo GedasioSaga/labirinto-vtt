@@ -48,6 +48,10 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * critério: jogador antigo cai no `default` e ignora. Leva só o texto e um id,
  * nunca o id nem o nome da cena — quem recebe já está lá.
  *
+ * `scene.alarm` e `scene.alarm.end` (mestre -> jogador) são o ALARME PARA
+ * VÁRIAS CENAS, aditivos pelo mesmo critério: jogador antigo ignora os dois.
+ * Levam o texto e um id; nunca as cenas escolhidas.
+ *
  * `turn` no snapshot (INICIATIVA) é aditivo pelo mesmo critério: o id da ficha
  * da vez, e só quando ela está no recorte do jogador. Jogador antigo ignora o
  * campo; mestre antigo não o envia e ninguém fica na vez.
@@ -80,6 +84,8 @@ export const RESUME_TOKEN_MAX_LENGTH = 128
 export const TABLE_KEY_MAX_LENGTH = 128
 /** Teto do recado por cena, em unidades UTF-16 (o `maxLength` do campo do mestre conta igual). */
 export const NOTE_MAX_LENGTH = 500
+/** Teto do alarme, na mesma conta: é uma faixa urgente no alto da tela, não uma carta. */
+export const ALARM_MAX_LENGTH = 140
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
@@ -264,6 +270,23 @@ export interface SceneNoteMessage {
 }
 
 /**
+ * ALARME PARA VÁRIAS CENAS: aviso urgente que fica na tela até o mestre
+ * encerrar. `id` novo = alarme novo (substitui o aberto). Nunca leva as cenas
+ * escolhidas: quem recebe já está numa delas, e a lista diria que as outras existem.
+ */
+export interface SceneAlarmMessage {
+  type: 'scene.alarm'
+  id: string
+  text: string
+}
+
+/** Fim do alarme `id`: o jogador tira o aviso SÓ se ainda for este (um fim atrasado não apaga o novo). */
+export interface SceneAlarmEndMessage {
+  type: 'scene.alarm.end'
+  id: string
+}
+
+/**
  * `table_full`: já há `MAX_TABLE_SCREENS` telas da mesa na sala (`hostSession.ts`).
  * `bad_table_key`: tela da mesa sem a chave do link da TV, ou com outra.
  */
@@ -301,6 +324,8 @@ export type HostMessage =
   | { type: 'scene.changed'; by?: 'master' | 'gather' }
   | LaserMessage
   | SceneNoteMessage
+  | SceneAlarmMessage
+  | SceneAlarmEndMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -400,10 +425,40 @@ function parseTokenEdit(obj: Record<string, unknown>): TokenEditMessage | null {
  * meio (surrogate alto sozinho) viraria um losango de erro na tela do jogador.
  */
 export function clampNoteText(text: string): string {
-  if (text.length <= NOTE_MAX_LENGTH) return text
-  const cut = text.slice(0, NOTE_MAX_LENGTH)
+  return clampTextTo(text, NOTE_MAX_LENGTH)
+}
+
+/** O mesmo corte do recado, no teto do alarme (`ALARM_MAX_LENGTH`). */
+export function clampAlarmText(text: string): string {
+  return clampTextTo(text, ALARM_MAX_LENGTH)
+}
+
+function clampTextTo(text: string, max: number): string {
+  if (text.length <= max) return text
+  const cut = text.slice(0, max)
   const last = cut.charCodeAt(cut.length - 1)
   return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut
+}
+
+/**
+ * Valida o `scene.alarm` que o jogador recebe, no molde do `scene.note`: forma
+ * errada, texto vazio ou acima do teto recusam a mensagem inteira. Devolve
+ * cópia só com os campos conhecidos.
+ */
+export function parseSceneAlarm(value: unknown): SceneAlarmMessage | null {
+  if (!isRecord(value) || value.type !== 'scene.alarm') return null
+  const { id, text } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(text, 1, ALARM_MAX_LENGTH)) return null
+  return { type: 'scene.alarm', id, text }
+}
+
+/** Valida o `scene.alarm.end`; `null` para qualquer outra forma. */
+export function parseSceneAlarmEnd(value: unknown): SceneAlarmEndMessage | null {
+  if (!isRecord(value) || value.type !== 'scene.alarm.end') return null
+  const { id } = value
+  if (!isBoundedString(id, 1, REQ_ID_MAX_LENGTH)) return null
+  return { type: 'scene.alarm.end', id }
 }
 
 /**

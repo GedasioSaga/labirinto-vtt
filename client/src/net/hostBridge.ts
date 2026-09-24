@@ -141,6 +141,17 @@ export interface HostBridge {
    * receberam (0 = ninguém lá), ou `null` com a sala fechada.
    */
   sceneNote(sceneId: string, text: string): number | null
+  /**
+   * ALARME PARA VÁRIAS CENAS: soa `text` para quem está em qualquer das
+   * `sceneIds` (substitui o alarme que estiver soando). Devolve quantos
+   * jogadores receberam agora (0 = ninguém lá ainda; o alarme fica para quem
+   * chegar), ou `null` com a sala fechada ou texto/cenas inválidos.
+   */
+  sceneAlarm(sceneIds: readonly string[], text: string): number | null
+  /** Encerra o alarme: some da tela de quem o mostrava. Sala fechada: nada. */
+  endAlarm(): void
+  /** O alarme soando, para o painel; `null` sem alarme ou com a sala fechada. */
+  activeAlarm(): { id: string; text: string; sceneIds: string[] } | null
   /** A vez mudou (começar, próxima, encerrar): snapshot na hora, para o "sua vez" não esperar outra edição. */
   notifyTurnChanged(): void
   /**
@@ -877,6 +888,26 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const result = session.sceneNote(sceneId, text, world())
       void dispatch(result)
       return result.outbound.length
+    },
+
+    sceneAlarm(sceneIds, text) {
+      if (session === null) return null
+      const before = session.activeAlarm()?.id
+      const result = session.sceneAlarm(sceneIds, text, world())
+      // Recusado (texto vazio, nenhuma cena que exista): o alarme não mudou.
+      if (session.activeAlarm()?.id === before) return null
+      void dispatch(result)
+      // O resultado também leva o fim do alarme antigo a quem ficou fora: conta só quem recebeu o novo.
+      return result.outbound.filter((out) => out.msg.type === 'scene.alarm').length
+    },
+
+    endAlarm() {
+      if (session === null) return
+      void dispatch(session.endAlarm(world()))
+    },
+
+    activeAlarm() {
+      return session?.activeAlarm() ?? null
     },
 
     setTableScene(key) {

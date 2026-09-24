@@ -2617,6 +2617,59 @@ body {
   font-size: var(--lb-font-size-sm);
 }
 
+/* ALARME PARA VÁRIAS CENAS (SceneAlarmControls), no fim da seção Cenas. */
+.lb-alarme {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin-top: var(--lb-space-2);
+}
+
+.lb-alarme__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-alarme__cenas {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+/* Enquanto soa: o mesmo poço da linha fina, com a régua da esquerda na cor de alerta. */
+.lb-alarme__ativo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-left: 2px solid var(--lb-color-ember);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-alarme__selo {
+  color: var(--lb-color-ember);
+  font-size: var(--lb-font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lb-alarme__texto {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lb-alarme__onde {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
 /* Destino do pino de viagem (PinTravelControls): um poço rebaixado logo abaixo
    do tipo, com a régua da esquerda dizendo o estado sem precisar ler — latão
    quando a passagem leva a algum lugar, apagada quando não. É a mesma troca
