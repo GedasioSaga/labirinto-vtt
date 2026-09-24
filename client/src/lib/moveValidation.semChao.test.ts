@@ -10,6 +10,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { ConcealZone, FloorPiece, MapData, Region, Token, Wall } from '../types/map'
+import { findTokenPath } from './collision'
 import { compileFloor } from './floorSdf'
 import { createEmptyMap } from './mapFactory'
 import { validateTokenMove } from './moveValidation'
@@ -203,6 +204,94 @@ describe('ficha sem chão debaixo dela', () => {
       walls: [parede('n', 450, 450, 550, 450), parede('l', 550, 450, 550, 550), parede('s', 550, 550, 450, 550), parede('o', 450, 550, 450, 450)],
     })
     expect(mover(map, 510, 500)).toEqual({ ok: false, reason: 'outside_floor' })
+  })
+
+  it('sala secreta no caminho não esconde o chão livre logo atrás dela', () => {
+    // A sala secreta cobre a sala 'a' inteira; o chão livre 'b' só é alcançado atravessando-a.
+    const map = mapa(ficha('heroi', 100, 500), {
+      floor: [chao('a', 200, 500, 100, 100), chao('b', 350, 500, 100, 100)],
+      regions: [
+        {
+          id: 'cofre',
+          tag: '',
+          fillColor: '#445566',
+          fillPattern: 'solid',
+          data: {},
+          secret: true,
+          room: { shape: 'rect', name: 'Cofre' },
+          points: [
+            { x: 140, y: 440 },
+            { x: 260, y: 440 },
+            { x: 260, y: 560 },
+            { x: 140, y: 560 },
+          ],
+        },
+      ],
+    })
+    const r = mover(map, 110, 500)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.landing).toBe('nearest_floor')
+    expect(noChao(map, r.x, r.y)).toBe(true)
+    expect(r.x).toBeGreaterThanOrEqual(300)
+  })
+
+  it('chão escondido comprido no caminho: a marcha atravessa a zona inteira até o chão livre', () => {
+    // Zona oculta sobre 6000 px de chão (150 células) entre a ficha e o único chão livre.
+    // A marcha andava amostra por amostra pelo chão escondido e desistia antes de sair dele.
+    const map = mapa(ficha('heroi', 100, 500), {
+      floor: [chao('escondido', 3150, 500, 6000, 100), chao('livre', 6400, 500, 200, 100)],
+      concealZones: [zona('z', 140, 440, 6160, 560)],
+    })
+    const r = mover(map, 110, 500)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.landing).toBe('nearest_floor')
+    expect(noChao(map, r.x, r.y)).toBe(true)
+    expect(r.x).toBeGreaterThanOrEqual(6300)
+    expect(r.x > 140 && r.x < 6160 && r.y > 440 && r.y < 560).toBe(false)
+  })
+
+  it('várias zonas ocultas enfileiradas: atravessa todas e para no primeiro chão livre', () => {
+    const map = mapa(ficha('heroi', 100, 500), {
+      floor: [chao('a', 200, 500, 100, 100), chao('b', 350, 500, 100, 100), chao('c', 500, 500, 100, 100), chao('d', 650, 500, 100, 100)],
+      concealZones: [zona('z1', 140, 440, 260, 560), zona('z2', 290, 440, 410, 560), zona('z3', 440, 440, 560, 560)],
+    })
+    const r = mover(map, 110, 500)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(noChao(map, r.x, r.y)).toBe(true)
+    // Entra pela borda esquerda da sala 'd' (x 600..700), a primeira fora de zona.
+    expect(r.x).toBeGreaterThanOrEqual(600)
+    expect(r.x).toBeLessThanOrEqual(620)
+  })
+
+  it('sala apagada com vão estreito na parede: o resgate sai pelo vão até o chão do outro lado', () => {
+    // Sala murada (x 100..1800, y 100..900) sem chão nenhum; a única saída é um
+    // vão de 1 célula na parede direita (y 560..600), a 1600 px da ficha. O vão
+    // cabe entre dois raios vizinhos das direções fixas (0° e 5,6°): todos
+    // batiam em parede e a ficha continuava presa com outside_floor.
+    const map = mapa(ficha('heroi', 200, 500), {
+      floor: [chao('corredor', 1900, 500, 200, 800)],
+      walls: [
+        parede('topo', 100, 100, 1800, 100),
+        parede('baixo', 100, 900, 1800, 900),
+        parede('esquerda', 100, 100, 100, 900),
+        parede('direita-cima', 1800, 100, 1800, 560),
+        parede('direita-baixo', 1800, 600, 1800, 900),
+      ],
+    })
+    const r = mover(map, 210, 500)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.landing).toBe('nearest_floor')
+    expect(noChao(map, r.x, r.y)).toBe(true)
+    expect(r.x).toBeGreaterThanOrEqual(1800)
+    // Saiu pelo vão: o trajeto reto até o ponto não cruza parede nenhuma.
+    expect(findTokenPath({ x: 200, y: 500 }, { x: r.x, y: r.y }, map.walls, GRID)).toEqual([
+      { x: 200, y: 500 },
+      { x: r.x, y: r.y },
+    ])
   })
 
   it('pedido para fora do mapa continua outside_map, mesmo sem chão debaixo', () => {

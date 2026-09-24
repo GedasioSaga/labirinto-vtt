@@ -1,8 +1,8 @@
-import type { MapData, Wall } from '../types/map'
+import type { MapData, RegionPoint, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
-import { DEFAULT_DOOR_SLACK, findTokenPath, moveCrossesWall } from './collision'
+import { DEFAULT_DOOR_SLACK, findTokenPath, isDoorPassable, moveCrossesWall } from './collision'
 import { pointInRing } from './floorContour'
-import { compileFloor, type CompiledFloor } from './floorSdf'
+import { compileFloor, pieceBounds, type CompiledFloor } from './floorSdf'
 import { playerHiddenRings } from './fogFilter'
 
 /**
@@ -47,8 +47,15 @@ function isInsideMap(map: MapData, x: number, y: number): boolean {
   return x >= 0 && x <= map.width * map.grid && y >= 0 && y <= map.height * map.grid
 }
 
-/** Direções em que se procura o chão mais próximo de uma ficha sem chão. */
+/** Direções fixas (espaçadas por igual) em que se procura o chão mais próximo de uma ficha sem chão. */
 const RESCUE_DIRECTIONS = 64
+/**
+ * Teto de direções do resgate somando as fixas e as miradas (pontas de parede,
+ * peças de chão): mapa com milhares de paredes nunca vira laço gigante no mestre.
+ */
+const MAX_RESCUE_RAYS = 2048
+/** Quanto o raio mirado passa ao lado da ponta de uma parede, em px: sai pelo vão sem raspar na ponta. */
+const WALL_END_CLEARANCE = 1
 /** Teto de amostras POR direção: mapa hostil (enorme, grade 1) nunca vira laço gigante no mestre. */
 const MAX_RESCUE_SAMPLES_PER_DIRECTION = 512
 /** Quanto a ficha entra além da borda do chão achado, em fração da célula: não fica equilibrada na linha. */
@@ -64,11 +71,42 @@ interface FloorHit {
   distance: number
 }
 
+/** Quanto a marcha passa da borda de uma área escondida ao sair dela, em px: basta para o ponto cair fora do anel. */
+const RING_EXIT_EPSILON = 0.01
+
+/**
+ * Menor `s > t` em que o raio `from + (dx, dy)·s` cruza a borda de algum dos
+ * `rings`; `null` se não cruza nenhuma. Entre `t` e esse `s` o raio não entra
+ * nem sai de área escondida nenhuma.
+ */
+function nextRingCrossing(from: Point, dx: number, dy: number, t: number, rings: readonly RegionPoint[][]): number | null {
+  let best: number | null = null
+  for (const ring of rings) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+      const a = ring[j]
+      const b = ring[i]
+      const ex = b.x - a.x
+      const ey = b.y - a.y
+      const denom = dx * ey - dy * ex
+      if (denom === 0) continue // raio paralelo à aresta: não a cruza
+      const ax = a.x - from.x
+      const ay = a.y - from.y
+      const s = (ax * ey - ay * ex) / denom
+      const u = (ax * dy - ay * dx) / denom
+      if (u < 0 || u > 1 || s <= t) continue
+      if (best === null || s < best) best = s
+    }
+  }
+  return best
+}
+
 /**
  * Primeiro ponto de chão PERMITIDO na direção (dx, dy) a partir de `from`,
- * andando pelo campo de distância. Chão que `allowed` recusa (escondido do
+ * andando pelo campo de distância. Chão dentro de `hidden` (escondido do
  * jogador) não encerra a marcha: ela o atravessa, porque o chão livre logo
- * atrás dele continua sendo o mais próximo naquela direção.
+ * atrás dele continua sendo o mais próximo naquela direção. A travessia salta
+ * direto para a próxima borda de área escondida, então o tamanho da zona não
+ * consome o teto de amostras (cada travessia gasta uma amostra por borda cruzada).
  */
 function marchToFloor(
   map: MapData,
@@ -76,32 +114,107 @@ function marchToFloor(
   from: Point,
   dx: number,
   dy: number,
-  allowed: (point: Point) => boolean,
+  hidden: readonly RegionPoint[][],
 ): FloorHit | null {
   const step = sampleStep(map)
   // Lipschitz ≥ 1 por construção; a guarda só impede divisão que pule chão se um dia vier 0 ou NaN.
   const lipschitz = compiled.lipschitz >= 1 ? compiled.lipschitz : 1
   const inset = map.grid * RESCUE_INSET_CELLS
+  const allowed = (x: number, y: number): boolean => !hidden.some((ring) => pointInRing({ x, y }, ring))
   let t = 0
   for (let i = 0; i < MAX_RESCUE_SAMPLES_PER_DIRECTION; i += 1) {
     const x = from.x + dx * t
     const y = from.y + dy * t
     if (!isInsideMap(map, x, y)) return null
     const d = compiled.sample(x, y)
-    if (d <= 0 && allowed({ x, y })) {
-      // Entra um pouco além da borda, se ali ainda for chão permitido (sala mais fina que a folga fica na borda mesmo).
-      const ix = x + dx * inset
-      const iy = y + dy * inset
-      if (isInsideMap(map, ix, iy) && compiled.sample(ix, iy) <= 0 && allowed({ x: ix, y: iy })) {
-        return { x: ix, y: iy, distance: t + inset }
+    if (d <= 0) {
+      if (allowed(x, y)) {
+        // Entra um pouco além da borda, se ali ainda for chão permitido (sala mais fina que a folga fica na borda mesmo).
+        const ix = x + dx * inset
+        const iy = y + dy * inset
+        if (isInsideMap(map, ix, iy) && compiled.sample(ix, iy) <= 0 && allowed(ix, iy)) {
+          return { x: ix, y: iy, distance: t + inset }
+        }
+        return { x, y, distance: t }
       }
-      return { x, y, distance: t }
+      // Dentro de área escondida tudo até a próxima borda dela também é escondido: salta até lá.
+      const exit = nextRingCrossing(from, dx, dy, t, hidden)
+      t = exit === null ? t + step : exit + RING_EXIT_EPSILON
+      continue
     }
-    // Fora do chão, `d / lipschitz` nunca pula chão (a distância não cai mais rápido que isso);
-    // dentro de chão escondido `d` é ≤ 0 e `step` atravessa amostra por amostra.
+    // Fora do chão, `d / lipschitz` nunca pula chão (a distância não cai mais rápido que isso).
     t += Math.max(d / lipschitz, step)
   }
   return null
+}
+
+interface Direction {
+  dx: number
+  dy: number
+}
+
+/** Direção unitária de `from` até `to`; `null` se coincidem ou a conta não é finita. */
+function directionTo(from: Point, to: Point): Direction | null {
+  const vx = to.x - from.x
+  const vy = to.y - from.y
+  const length = Math.hypot(vx, vy)
+  if (!(length > 0) || !Number.isFinite(length)) return null
+  return { dx: vx / length, dy: vy / length }
+}
+
+/**
+ * Direções em que o resgate procura chão: as fixas, mais as miradas.
+ *
+ * As fixas sozinhas deixam a ficha presa quando o chão só é alcançado por uma
+ * fresta mais estreita que o espaço entre dois raios vizinhos: o vão de uma
+ * parede lá longe, ou uma sala estreita e distante. Toda fresta entre paredes
+ * é limitada por ponta SOLTA de parede (que não emenda em outra parede que
+ * barra), então um raio rente a cada lado de cada ponta solta passa por ela; e
+ * um raio para o centro de cada peça de chão acha a peça estreita que caiu
+ * entre dois raios fixos.
+ *
+ * Alvo que a ficha não enxerga (parede no meio) não vira raio: tudo que ele
+ * acharia está atrás daquela parede. Com a regra da ponta solta, é o que
+ * mantém o custo perto do das direções fixas em mapa cheio de salas muradas.
+ */
+function rescueDirections(map: MapData, from: Point): Direction[] {
+  const directions: Direction[] = []
+  for (let i = 0; i < RESCUE_DIRECTIONS; i += 1) {
+    const angle = (i / RESCUE_DIRECTIONS) * 2 * Math.PI
+    directions.push({ dx: Math.cos(angle), dy: Math.sin(angle) })
+  }
+  const blockers = map.walls.filter((wall) => wall.blocksMove && !isDoorPassable(wall.door))
+  const seen = (target: Point): boolean => !blockers.some((wall) => moveCrossesWall(from, target, wall))
+  const aimAt = (target: Point): void => {
+    if (directions.length >= MAX_RESCUE_RAYS || !seen(target)) return
+    const direction = directionTo(from, target)
+    if (direction !== null) directions.push(direction)
+  }
+  for (const piece of map.floor) {
+    if (piece.hidden || piece.op !== 'add') continue
+    const b = pieceBounds(piece)
+    aimAt({ x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 })
+  }
+  // Quantas paredes que barram terminam em cada ponto: 1 é ponta solta (borda de vão).
+  const endKey = (x: number, y: number): string => `${x},${y}`
+  const endCount = new Map<string, number>()
+  for (const wall of blockers) {
+    for (const key of [endKey(wall.x1, wall.y1), endKey(wall.x2, wall.y2)]) endCount.set(key, (endCount.get(key) ?? 0) + 1)
+  }
+  for (const wall of blockers) {
+    for (const end of [
+      { x: wall.x1, y: wall.y1 },
+      { x: wall.x2, y: wall.y2 },
+    ]) {
+      if (endCount.get(endKey(end.x, end.y)) !== 1) continue
+      const toEnd = directionTo(from, end)
+      if (toEnd === null) continue
+      // Perpendicular ao raio: um alvo de cada lado da ponta.
+      aimAt({ x: end.x - toEnd.dy * WALL_END_CLEARANCE, y: end.y + toEnd.dx * WALL_END_CLEARANCE })
+      aimAt({ x: end.x + toEnd.dy * WALL_END_CLEARANCE, y: end.y - toEnd.dx * WALL_END_CLEARANCE })
+    }
+  }
+  return directions
 }
 
 /**
@@ -115,11 +228,9 @@ function marchToFloor(
  */
 function findNearestFloor(map: MapData, compiled: CompiledFloor, from: Point): Point | null {
   const hidden = playerHiddenRings(map).filter((ring) => ring.length >= 3 && !pointInRing(from, ring))
-  const allowed = (point: Point): boolean => !hidden.some((ring) => pointInRing(point, ring))
   const hits: FloorHit[] = []
-  for (let i = 0; i < RESCUE_DIRECTIONS; i += 1) {
-    const angle = (i / RESCUE_DIRECTIONS) * 2 * Math.PI
-    const hit = marchToFloor(map, compiled, from, Math.cos(angle), Math.sin(angle), allowed)
+  for (const { dx, dy } of rescueDirections(map, from)) {
+    const hit = marchToFloor(map, compiled, from, dx, dy, hidden)
     if (hit !== null) hits.push(hit)
   }
   hits.sort((a, b) => a.distance - b.distance)
