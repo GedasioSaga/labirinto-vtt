@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { MapData, Pin, PinDestination, Token } from '../types/map'
 import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
-import { passengersOf } from '../lib/vehicle'
+import { leaveVehicle, passengersOf } from '../lib/vehicle'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
 import {
@@ -431,13 +431,29 @@ function renameToken(map: MapData, fromId: string, toId: string): MapData {
  * a travessia (`carryToken`, "Deixar ir", "Reunir o grupo") segue apontando
  * para ela. Tudo que é guardado pelo id da de destino vai junto para o id
  * novo: a tocha presa (aqui), a seleção e a iniciativa (em `transferToken`).
+ *
+ * VÁRIAS DE UMA VEZ (o veículo e quem está a bordo): TODAS as de destino com
+ * id repetido trocam de id ANTES de qualquer uma chegar. Uma por vez, a
+ * troca de id da segunda passaria também na lista do veículo que já tinha
+ * chegado, e ele levaria a ficha antiga de lá no lugar de quem viajou.
  */
-function withToken(history: SceneHistory, token: Token): { history: SceneHistory; residentId: string | null } {
+function withTokens(history: SceneHistory, tokens: readonly Token[]): { history: SceneHistory; renamedResidents: Map<string, string> } {
   const steps = [history.map, ...history.past, ...history.future]
-  const clash = steps.some((map) => map.tokens.some((t) => t.id === token.id))
-  const residentId = clash ? crypto.randomUUID() : null
-  const put = (map: MapData): MapData => mapFactory.addToken(residentId === null ? map : renameToken(map, token.id, residentId), token)
-  return { history: { map: put(history.map), past: history.past.map(put), future: history.future.map(put) }, residentId }
+  // Quem já estava no destino com o id de quem chegou ganhou id novo: traveler → resident.
+  const renamedResidents = new Map<string, string>()
+  for (const token of tokens) {
+    if (steps.some((map) => map.tokens.some((t) => t.id === token.id))) renamedResidents.set(token.id, crypto.randomUUID())
+  }
+  const put = (map: MapData): MapData => {
+    let next = map
+    for (const [travelerId, residentId] of renamedResidents) next = renameToken(next, travelerId, residentId)
+    // Id de quem chega que sobrou na lista de um veículo do destino (ficha que
+    // já não estava lá) não põe quem chega a bordo dele sem ninguém pedir.
+    for (const token of tokens) next = leaveVehicle(next, token.id)
+    for (const token of tokens) next = mapFactory.addToken(next, token)
+    return next
+  }
+  return { history: { map: put(history.map), past: history.past.map(put), future: history.future.map(put) }, renamedResidents }
 }
 
 /**
@@ -705,16 +721,8 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       { ...token, x, y },
       ...passengersOf(from.map, tokenId).map((p) => ({ ...p, x: x + p.x - token.x, y: y + p.y - token.y })),
     ]
-    let leaving = from
-    let arriving = to
-    // Quem já estava no destino com o id de quem chegou ganhou id novo: traveler → resident.
-    const renamedResidents = new Map<string, string>()
-    for (const traveler of travelers) {
-      leaving = withoutToken(leaving, traveler.id)
-      const put = withToken(arriving, traveler)
-      arriving = put.history
-      if (put.residentId !== null) renamedResidents.set(traveler.id, put.residentId)
-    }
+    const leaving = travelers.reduce((history, traveler) => withoutToken(history, traveler.id), from)
+    const { history: arriving, renamedResidents } = withTokens(to, travelers)
     const nextCache: Record<string, SceneSlot> = { ...cache }
     const nextDirty: Record<string, true> = { ...dirty }
     let openScene: SceneHistory | null = null

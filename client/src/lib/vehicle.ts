@@ -170,6 +170,41 @@ export function moveTokenWithVehicle(map: MapData, tokenId: string, x: number, y
   }
 }
 
+/**
+ * Anda o GRUPO de fichas `tokenIds` por (dx, dy) com a regra do veículo — o
+ * caminho das setas e do arrasto da seleção (`lib/areaSelection.ts`), que
+ * mexem em várias fichas de uma vez. O veículo do grupo leva quem está a
+ * bordo, esteja ou não no grupo, e cada um anda UMA vez; o passageiro que anda
+ * sem o seu veículo desce dele. As tochas presas em quem andou vão junto,
+ * menos as de `skipLights` (já movidas pela seleção).
+ */
+export function moveTokensWithVehicles(
+  map: MapData,
+  tokenIds: ReadonlySet<string>,
+  dx: number,
+  dy: number,
+  skipLights?: ReadonlySet<string>,
+): MapData {
+  if (dx === 0 && dy === 0) return map
+  const moving = new Set<string>()
+  for (const token of map.tokens) {
+    if (!tokenIds.has(token.id)) continue
+    moving.add(token.id)
+    for (const rider of passengerIdsOf(map, token.id)) moving.add(rider)
+  }
+  if (moving.size === 0) return map
+  let next: MapData = {
+    ...map,
+    tokens: map.tokens.map((t) => (moving.has(t.id) ? { ...t, x: t.x + dx, y: t.y + dy } : t)),
+    lights: carryAttachedLights(map.lights, moving, dx, dy, skipLights),
+  }
+  for (const id of moving) {
+    const carrier = vehicleCarrying(map, id)
+    if (carrier !== null && !moving.has(carrier.id)) next = leaveVehicle(next, id)
+  }
+  return next
+}
+
 /** Uma ficha da cena como o painel do veículo a mostra. */
 export interface VehicleSeatOption {
   id: string

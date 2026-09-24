@@ -190,6 +190,82 @@ describe('veículo com lugares: o cesto leva o Gui e mais 1, recusa o 3º, e os 
     expect(posicoes(a07)).toEqual({ gui: [100, 100] })
   })
 
+  it('as setas com o cesto selecionado levam quem está a bordo junto, e o cesto segue levando os dois', () => {
+    montarAventura()
+    useMapStore.getState().setVehiclePassenger('cesto', 'gui', true)
+    useMapStore.getState().setVehiclePassenger('cesto', 'bia', true)
+    useMapStore.getState().setSelection([{ kind: 'token', id: 'cesto' }])
+    useMapStore.getState().moveSelectionBy(64, 0)
+    expect(posicoes(useAdventureStore.getState().activeSceneId ?? '')).toEqual({
+      cesto: [384, 320],
+      gui: [320, 320],
+      bia: [448, 320],
+      caio: [448, 320],
+    })
+    expect(passengerIdsOf(useMapStore.getState().map, 'cesto')).toEqual(['gui', 'bia'])
+  })
+
+  it('o arrasto da seleção em área leva quem está a bordo, uma vez só mesmo quando o passageiro também está selecionado', () => {
+    montarAventura()
+    useMapStore.getState().setVehiclePassenger('cesto', 'gui', true)
+    useMapStore.getState().setVehiclePassenger('cesto', 'bia', true)
+    // O retângulo pegou o cesto e o Gui; a Bia, a bordo, ficou fora dele.
+    useMapStore.getState().setSelection([
+      { kind: 'token', id: 'cesto' },
+      { kind: 'token', id: 'gui' },
+    ])
+    useMapStore.getState().moveSelectionLive(0, 64)
+    useMapStore.getState().moveSelectionLive(0, 64)
+    const tokens = useMapStore.getState().map.tokens
+    expect(tokens.find((t) => t.id === 'cesto')?.y).toBe(448)
+    expect(tokens.find((t) => t.id === 'gui')?.y).toBe(448)
+    expect(tokens.find((t) => t.id === 'bia')?.y).toBe(448)
+    expect(tokens.find((t) => t.id === 'caio')?.y).toBe(320)
+    expect(passengerIdsOf(useMapStore.getState().map, 'cesto')).toEqual(['gui', 'bia'])
+  })
+
+  it('o passageiro empurrado sozinho pelas setas desce do cesto, e o cesto fica onde estava', () => {
+    montarAventura()
+    useMapStore.getState().setVehiclePassenger('cesto', 'gui', true)
+    useMapStore.getState().setVehiclePassenger('cesto', 'bia', true)
+    useMapStore.getState().setSelection([{ kind: 'token', id: 'gui' }])
+    useMapStore.getState().moveSelectionBy(-64, 0)
+    const tokens = useMapStore.getState().map.tokens
+    expect(tokens.find((t) => t.id === 'gui')?.x).toBe(192)
+    expect(tokens.find((t) => t.id === 'cesto')?.x).toBe(320)
+    expect(passengerIdsOf(useMapStore.getState().map, 'cesto')).toEqual(['bia'])
+  })
+
+  it('a07 já tem uma ficha com o id do Gui: o cesto chega levando o Gui que viajou, e a cópia de lá segue com o veículo dela', () => {
+    const { a07 } = montarAventura()
+    useAdventureStore.getState().updateBackgroundScene(a07, (map) => ({
+      ...map,
+      tokens: [
+        ...map.tokens,
+        ficha('gui', 'Gui de a07', 900, 900),
+        ficha('barco', 'Barco', 960, 900, { veiculo: { lugares: 1, passageiros: ['gui'] } }),
+        // Arquivo antigo: a jangada guardou o id da Bia, que não está em a07.
+        ficha('jangada', 'Jangada', 1024, 900, { veiculo: { lugares: 2, passageiros: ['bia'] } }),
+      ],
+    }))
+    useMapStore.getState().setVehiclePassenger('cesto', 'gui', true)
+    useMapStore.getState().setVehiclePassenger('cesto', 'bia', true)
+    const chegada = arrivalSpot(mapaDaCena(a07), SAIDA, 1)
+
+    expect(levarFichaPara('cesto', a07, 'saida')).toBe(true)
+
+    const destino = mapaDaCena(a07)
+    const guiQueViajou = destino.tokens.find((t) => t.id === 'gui')
+    expect(guiQueViajou?.name).toBe('Gui')
+    expect([guiQueViajou?.x, guiQueViajou?.y]).toEqual([chegada.x - 64, chegada.y])
+    expect(passengerIdsOf(destino, 'cesto')).toEqual(['gui', 'bia'])
+    const copia = destino.tokens.find((t) => t.name === 'Gui de a07')
+    expect(copia?.id).not.toBe('gui')
+    expect(passengerIdsOf(destino, 'barco')).toEqual([copia?.id])
+    // A Bia que chegou não "embarca" sozinha na jangada pelo id que sobrou lá.
+    expect(passengerIdsOf(destino, 'jangada')).toEqual([])
+  })
+
   it('na mesa: o Gui passa a ver a07 com a Bia; ninguém recebe a lista do cesto; o Caio nunca recebe o nome de a07', async () => {
     const t = await mesa()
     useMapStore.getState().setVehiclePassenger('cesto', 'gui', true)

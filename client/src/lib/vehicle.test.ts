@@ -13,6 +13,7 @@ import {
   boardVehicle,
   leaveVehicle,
   moveTokenWithVehicle,
+  moveTokensWithVehicles,
   passengerIdsOf,
   readTokenVehicle,
   setVehicleSeats,
@@ -132,6 +133,46 @@ describe('andar com o veículo dentro da cena', () => {
   it('ficha que não existe: o mesmo mapa', () => {
     const map = cena()
     expect(moveTokenWithVehicle(map, 'fantasma', 1, 1)).toBe(map)
+  })
+})
+
+describe('andar o grupo da seleção (setas, arrasto em área) com o veículo', () => {
+  it('o cesto no grupo leva quem está a bordo e a tocha dele; a luz que a seleção já moveu não anda de novo', () => {
+    const tocha: Light = { id: 'tocha', x: 280, y: 300, radius: 200, color: '#ffcc66', intensity: 1, attachedTokenId: 'gui' }
+    const lampiao: Light = { id: 'lampiao', x: 320, y: 300, radius: 200, color: '#ffcc66', intensity: 1, attachedTokenId: 'bia' }
+    const map = { ...embarcar(embarcar(cena(), 'gui'), 'bia'), lights: [tocha, lampiao] }
+    const andou = moveTokensWithVehicles(map, new Set(['cesto']), 10, 20, new Set(['lampiao']))
+    expect(posicao(andou, 'cesto')).toEqual([310, 320])
+    expect(posicao(andou, 'gui')).toEqual([290, 320])
+    expect(posicao(andou, 'bia')).toEqual([330, 320])
+    expect(posicao(andou, 'caio')).toEqual([360, 300])
+    expect(andou.lights.map((l) => [l.id, l.x, l.y])).toEqual([
+      ['tocha', 290, 320],
+      ['lampiao', 320, 300],
+    ])
+    expect(passengerIdsOf(andou, 'cesto')).toEqual(['gui', 'bia'])
+  })
+
+  it('cesto e passageiro no mesmo grupo andam uma vez só e o passageiro segue a bordo', () => {
+    const cheio = embarcar(cena(), 'gui')
+    const andou = moveTokensWithVehicles(cheio, new Set(['cesto', 'gui']), 0, 64)
+    expect(posicao(andou, 'gui')).toEqual([280, 364])
+    expect(passengerIdsOf(andou, 'cesto')).toEqual(['gui'])
+  })
+
+  it('o passageiro no grupo sem o cesto desce; o cesto e quem ficou a bordo não andam', () => {
+    const cheio = embarcar(embarcar(cena(), 'gui'), 'bia')
+    const andou = moveTokensWithVehicles(cheio, new Set(['gui', 'caio']), -64, 0)
+    expect(posicao(andou, 'gui')).toEqual([216, 300])
+    expect(posicao(andou, 'caio')).toEqual([296, 300])
+    expect(posicao(andou, 'cesto')).toEqual([300, 300])
+    expect(passengerIdsOf(andou, 'cesto')).toEqual(['bia'])
+  })
+
+  it('deslocamento zero ou grupo sem ficha da cena: o mesmo mapa', () => {
+    const map = embarcar(cena(), 'gui')
+    expect(moveTokensWithVehicles(map, new Set(['gui']), 0, 0)).toBe(map)
+    expect(moveTokensWithVehicles(map, new Set(['fantasma']), 5, 5)).toBe(map)
   })
 })
 
