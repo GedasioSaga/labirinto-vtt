@@ -69,6 +69,11 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
  * antigo ignora os dois; mestre antigo não manda `at` e o jogador anota a hora
  * da chegada.
  *
+ * RECADO PARA QUEM ESTÁ FORA é aditivo pelo mesmo critério: `notes.away`
+ * (mestre -> jogador), na volta, os recados mandados à cena dele enquanto ele
+ * estava fora do ar, na ordem em que saíram. Mesma forma do caderno (id,
+ * texto, hora), nunca a cena. Jogador antigo ignora; o caderno ainda os traz.
+ *
  * MINHAS PISTAS é aditivo pelo mesmo critério. Do jogador: `clue.read` (abriu o
  * cartão de um pino), `clue.peers` (quem está na cena comigo?) e `clue.show`
  * (mostrar uma pista a um colega pelo nome). Do mestre: `clue.added`,
@@ -97,6 +102,8 @@ export const NOTE_MAX_LENGTH = 500
 export const PLAYER_MESSAGE_MAX_BYTES = 64 * 1024
 /** Quantos recados o caderno de cada jogador guarda (no host e na tela dele). Passou, sai o mais antigo. */
 export const NOTEBOOK_MAX_NOTES = 50
+/** Quantos recados a fila de quem está fora do ar guarda por jogador. Passou, sai o mais antigo. */
+export const AWAY_NOTES_MAX = 20
 
 const JOIN_CODE_PATTERN = /^[A-Z0-9]{6}$/
 
@@ -277,6 +284,12 @@ export interface NotebookMessage {
   notes: NoteEntry[]
 }
 
+/** Recados que chegaram à cena do jogador enquanto ele estava fora do ar, do mais antigo ao mais novo. */
+export interface NotesAwayMessage {
+  type: 'notes.away'
+  notes: NoteEntry[]
+}
+
 /** Texto da Sala na primeira entrada: `id` é o da `Region` (já vai no snapshot), `title` o nome que o jogador pode ver. */
 export interface RoomTextMessage {
   type: 'room.text'
@@ -368,6 +381,7 @@ export type HostMessage =
   | SceneNoteMessage
   | RoomTextMessage
   | NotebookMessage
+  | NotesAwayMessage
   | ClueHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
@@ -500,6 +514,24 @@ export function parseNotebook(value: unknown): NotebookMessage | null {
     parsed.push(entry)
   }
   return { type: 'notes.book', notes: parsed }
+}
+
+/**
+ * Valida a fila de quem esteve fora. De 1 a `AWAY_NOTES_MAX` itens (fila vazia
+ * não abre cartão), cada um com id, texto dentro do teto e hora; um item ruim
+ * recusa a mensagem inteira. Devolve cópia só com os campos conhecidos.
+ */
+export function parseNotesAway(value: unknown): NotesAwayMessage | null {
+  if (!isRecord(value) || value.type !== 'notes.away') return null
+  const { notes } = value
+  if (!Array.isArray(notes) || notes.length === 0 || notes.length > AWAY_NOTES_MAX) return null
+  const parsed: NoteEntry[] = []
+  for (const item of notes) {
+    const entry = parseNoteEntry(item)
+    if (entry === null) return null
+    parsed.push(entry)
+  }
+  return { type: 'notes.away', notes: parsed }
 }
 
 /** Folga para o sufixo que o host põe em nome repetido ("Ana (2)", ver `uniqueName`). */

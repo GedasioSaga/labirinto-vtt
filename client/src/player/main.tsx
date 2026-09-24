@@ -10,6 +10,7 @@ import { OWN_TOKEN_CSS, PlayerView } from './PlayerView'
 import { PlayerPanel, loadPlayerSettings, savePlayerSettings } from './PlayerPanel'
 import { PlayerPinCard } from './PlayerPinCard'
 import { PlayerNoteCard } from './PlayerNoteCard'
+import { formatNoteTime } from './PlayerNotebook'
 import { PlayerClueCard } from './PlayerClues'
 import { coverBounds } from './playerCamera'
 import { PlayerZoomControls } from './PlayerZoomControls'
@@ -40,6 +41,7 @@ const NO_NOTES: NoteEntry[] = []
 const NO_CLUES: ClueEntry[] = []
 /** Fechar o recado não perde nada: quem fecha sabe onde reler. */
 const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
+const AWAY_KEPT_HINT = 'Ficam guardados no Caderno do Painel.'
 
 /**
  * O pedido de passagem, em uma linha. Nunca diz para onde o pino leva: o
@@ -578,6 +580,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
   // Estável pelo mesmo motivo: o cartão do recado religa o Escape quando `onClose` muda.
   const closeNote = useCallback(() => connection.dismissNote(), [connection])
   const closeRoomText = useCallback(() => connection.dismissRoomText(), [connection])
+  const closeAwayNotes = useCallback(() => connection.dismissAwayNotes(), [connection])
+  const awayNotes = state.awayNotes ?? NO_NOTES
   // Estável: o painel marca o Caderno como lido num efeito que depende dela.
   const readNotebook = useCallback(() => connection.markNotebookRead(), [connection])
   // MINHAS PISTAS: abrir o cartão do pino é ler — o host guarda a pista no Caderno.
@@ -726,14 +730,33 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             arrivedUnasked
           />
         )}
-        {state.note && (
+        {/* ENQUANTO VOCÊ ESTEVE FORA: os recados que chegaram com ele fora do
+            ar, em ordem. É o primeiro cartão da volta; o recado e o texto da
+            Sala esperam ele fechar, um cartão de cada vez no mesmo lugar. */}
+        {awayNotes.length > 0 && (
+          <PlayerNoteCard
+            title={`Enquanto você esteve fora (${awayNotes.length})`}
+            hint={AWAY_KEPT_HINT}
+            onClose={closeAwayNotes}
+            escapeCloses={openPin === null && !clueCardOpen}
+          >
+            <ol className="pp-notebook">
+              {awayNotes.map((note) => (
+                <li key={note.id} className="pp-notebook__item">
+                  <span className="pp-notebook__meta">{formatNoteTime(note.at)} · Mestre:</span> {note.text}
+                </li>
+              ))}
+            </ol>
+          </PlayerNoteCard>
+        )}
+        {state.note && awayNotes.length === 0 && (
           // `key` no id: recado novo com outro aberto remonta o cartão (e a entrada anima de novo).
           <PlayerNoteCard key={state.note.id} text={state.note.text} hint={NOTE_KEPT_HINT} onClose={closeNote} escapeCloses={openPin === null && !clueCardOpen} />
         )}
         {/* TEXTO DA SALA: o mesmo cartão, com o nome da Sala no alto. Um
             cartão de cada vez no mesmo lugar: com recado aberto, o texto da
             sala espera o recado fechar em vez de ficar por baixo dele. */}
-        {state.roomText && !state.note && (
+        {state.roomText && !state.note && awayNotes.length === 0 && (
           <PlayerNoteCard
             key={state.roomText.id}
             title={state.roomText.title || 'Ao entrar'}

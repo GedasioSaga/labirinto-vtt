@@ -17,7 +17,7 @@ import {
   type RemoteLaser,
   type RemoteLaserUpdate,
 } from '../lib/laser'
-import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
+import { AWAY_NOTES_MAX, NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseNotebook, parseNotesAway, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { hasEnterText } from '../lib/roomText'
@@ -73,6 +73,12 @@ export interface PlayerState {
   notebook?: NoteEntry[]
   /** Ids de recados que chegaram e o jogador ainda não viu (nem no cartão fechado, nem no Caderno). */
   unreadNotes?: string[]
+  /**
+   * ENQUANTO VOCÊ ESTEVE FORA: os recados que o host guardou para a volta
+   * (`notes.away`), do mais antigo ao mais novo. Fica até ele fechar o cartão
+   * (`dismissAwayNotes`) e sobrevive a reconectar: o host só manda a fila uma vez.
+   */
+  awayNotes?: NoteEntry[]
   /**
    * MINHAS PISTAS: os cartões lidos e os que colegas mostraram, da mais antiga
    * à mais nova (até `CLUEBOOK_MAX_CLUES`). Só entra o que o HOST confirmou
@@ -196,6 +202,8 @@ export interface PlayerConnection {
   laserOff(): void
   /** Fecha o recado aberto (botão "Fechar" ou Escape do cartão). Quem fechou leu: aquele recado deixa de ser novo. */
   dismissNote(): void
+  /** Fecha o cartão "Enquanto você esteve fora". Os recados continuam no Caderno e deixam de ser novos. */
+  dismissAwayNotes(): void
   /** O jogador abriu o Caderno: nenhum recado é novo mais. */
   markNotebookRead(): void
   /**
@@ -348,11 +356,26 @@ function writeResume(storage: StorageLike | null, value: StoredResume | null): v
 }
 
 /**
- * Há recado que o jogador não viu? O que está no cartão aberto não conta: ele
- * está lendo. É o que acende o ponto no Painel e na aba Caderno.
+ * Há recado que o jogador não viu? O que está num cartão aberto (o do recado
+ * ou o "Enquanto você esteve fora") não conta: ele está lendo. É o que acende
+ * o ponto no Painel e na aba Caderno.
  */
 export function hasUnreadNotes(state: PlayerState): boolean {
-  return (state.unreadNotes ?? []).some((id) => id !== state.note?.id)
+  const onCard = new Set((state.awayNotes ?? []).map((entry) => entry.id))
+  if (state.note !== undefined) onCard.add(state.note.id)
+  return (state.unreadNotes ?? []).some((id) => !onCard.has(id))
+}
+
+/** `extra` no fim de `list`, sem repetir id; passou de `max`, saem os mais antigos. */
+function appendNotes(list: NoteEntry[], extra: NoteEntry[], max: number): NoteEntry[] {
+  const known = new Set(list.map((entry) => entry.id))
+  return [...list, ...extra.filter((entry) => !known.has(entry.id))].slice(-max)
+}
+
+/** Os ids de recado novo, sem repetir, no mesmo teto do caderno. */
+function appendIds(list: string[], extra: string[]): string[] {
+  const known = new Set(list)
+  return [...list, ...extra.filter((id) => !known.has(id))].slice(-NOTEBOOK_MAX_NOTES)
 }
 
 /** Mesma regra do mestre: a tocha presa na ficha anda junto (`lib/lightAttachment.ts`). */
@@ -751,6 +774,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ notebook: book.notes, unreadNotes: (state.unreadNotes ?? []).filter((id) => kept.has(id)) })
         return
       }
+      case 'notes.away': {
+        // Vale também aguardando: o cartão espera o mapa, os recados já são dele.
+        const away = parseNotesAway(data)
+        if (away === null) return
+        const ids = away.notes.map((entry) => entry.id)
+        setState({
+          // Cartão ainda aberto de uma volta anterior: soma, não troca.
+          awayNotes: appendNotes(state.awayNotes ?? [], away.notes, AWAY_NOTES_MAX),
+          // O host já manda no `notes.book`; mestre que não mandasse não perde o recado.
+          notebook: appendNotes(state.notebook ?? [], away.notes, NOTEBOOK_MAX_NOTES),
+          unreadNotes: appendIds(state.unreadNotes ?? [], ids),
+        })
+        return
+      }
       case 'clue.added':
       case 'clues.book':
       case 'clue.shown':
@@ -1010,6 +1047,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const open = state.note
       if (open === undefined) return
       setState({ note: undefined, unreadNotes: (state.unreadNotes ?? []).filter((id) => id !== open.id) })
+    },
+
+    dismissAwayNotes() {
+      const shown = state.awayNotes
+      if (shown === undefined) return
+      const read = new Set(shown.map((entry) => entry.id))
+      setState({ awayNotes: undefined, unreadNotes: (state.unreadNotes ?? []).filter((id) => !read.has(id)) })
     },
 
     markNotebookRead() {

@@ -27,7 +27,7 @@ import {
   type TokenEditMessage,
   type TokenMoveMessage,
 } from './protocol'
-import { clampNoteText, NOTEBOOK_MAX_NOTES, type NoteEntry } from './protocol'
+import { AWAY_NOTES_MAX, clampNoteText, NOTEBOOK_MAX_NOTES, type NoteEntry } from './protocol'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -347,6 +347,10 @@ export interface HostSession {
    * recebeu. Quem entra ou volta à sala recebe o caderno dele (`notes.book`)
    * e o último recado da cena onde está; quem chega à cena depois (viagem,
    * ficha nova) recebe o último recado dela no broadcast, se ainda não o tem.
+   *
+   * FORA DO AR: quem tem ficha na cena e caiu guarda o recado numa fila (até
+   * `AWAY_NOTES_MAX`), entregue inteira na volta (`notes.away`), e não só o
+   * último da cena. Não conta em `outbound`: não recebeu agora.
    */
   sceneNote(sceneId: string, text: string, source: HostMapSource): HostResult
   /**
@@ -506,6 +510,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: a cena (sceneId, ou `null` sem cena) em que o último recado
   // de chegada já foi avaliado. Mudou, é chegada: vale o último recado de lá.
   const noteSceneOf = new Map<string, string | null>()
+  // Por playerId: os recados mandados à cena dele enquanto ele estava fora do
+  // ar, do mais antigo ao mais novo. A volta (join/resume) entrega e esvazia;
+  // o kick apaga.
+  const awayNotes = new Map<string, NoteEntry[]>()
   // MINHAS PISTAS — por playerId: o caderno de pistas, da mais antiga à mais
   // nova. `source` (pino ou Sala + mapa) é a chave de "já tenho esta" e NUNCA
   // sai pela rede: o jogador só vê o `id` que o host inventou. Sobrevive a
@@ -795,7 +803,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // MINHAS PISTAS: é o que faz a pista sobreviver a recarregar a página. Só a entrada, nunca a `source`.
     const clues = cluebooks.get(record.playerId) ?? []
     if (clues.length > 0) outbound.push({ clientId, msg: { type: 'clues.book', clues: clues.map((item) => ({ ...item.entry })) } })
-    for (const msg of cards) outbound.push({ clientId, msg })
+    // FORA DO AR: a fila sai uma vez só, por último (é o cartão por cima). O
+    // recado da cena que já está nela não abre um segundo cartão.
+    const away = awayNotes.get(record.playerId) ?? []
+    awayNotes.delete(record.playerId)
+    const awayIds = new Set(away.map((entry) => entry.id))
+    for (const msg of cards) {
+      if (msg.type === 'scene.note' && awayIds.has(msg.id)) continue
+      outbound.push({ clientId, msg })
+    }
+    if (away.length > 0) outbound.push({ clientId, msg: { type: 'notes.away', notes: away.map((entry) => ({ ...entry })) } })
     return { outbound }
   }
 
@@ -1440,6 +1457,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       enteredRooms.delete(playerId)
       notebooks.delete(playerId)
       noteSceneOf.delete(playerId)
+      awayNotes.delete(playerId)
       cluebooks.delete(playerId)
       seenPins.delete(playerId)
       lastClueShowAt.delete(playerId)
@@ -1549,6 +1567,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // Já recebeu aqui: o broadcast seguinte não repete como "chegada".
         noteSceneOf.set(playerId, sceneId)
         outbound.push({ clientId, msg: noteMessage(note) })
+      }
+      // FORA DO AR: a mesma regra de cena (a DELE, por `sceneFor`), para quem
+      // caiu. Recado de outra cena nunca entra na fila de ninguém.
+      for (const record of players.values()) {
+        if (record.clientId !== null || statusOf(record.playerId) !== 'playing') continue
+        if (sceneFor(record.playerId, world)?.sceneId !== sceneId) continue
+        rememberNote(record.playerId, note)
+        awayNotes.set(record.playerId, [...(awayNotes.get(record.playerId) ?? []), note].slice(-AWAY_NOTES_MAX))
       }
       return { outbound }
     },
