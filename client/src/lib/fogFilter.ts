@@ -15,6 +15,7 @@ import { computeVisibility, visionSegments } from './visibility'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof } from './roomOps'
 import { hazardRooms, hazardsOf, visionRadiusAt, type PlayerHazard } from './hazards'
+import { caravanMembers, caravanPoint, caravanTokenFor, isWorldMap } from './caravan'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -500,6 +501,7 @@ export function filterMapForGroup(
   seenDoors?: ReadonlyMap<string, DoorState>,
   watchTargets?: ReadonlySet<string>,
 ): PlayerMapView {
+  if (isWorldMap(map)) return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets)
   const hiddenLayers = map.hiddenLayers
   // Posse é exclusiva (um token, um dono); se viesse repetido, vale o primeiro raio.
   const radiusByToken = new Map<string, number>()
@@ -911,6 +913,39 @@ export function filterMapForGroup(
     }
   }
   return { map: filtered, vision, visibleDoorIds, concealed, blocked, roofs, hazards, hazardsHere }
+}
+
+/**
+ * CARAVANA NO MAPA-MUNDI (`lib/caravan.ts`). O grupo é UMA ficha só:
+ * - a visão sai do ponto da caravana (as fichas do grupo são postas nele antes
+ *   do recorte, então ficha esquecida longe dali não enxerga nada por conta própria);
+ * - todas as fichas de jogador que o recorte entregaria viram a caravana — a
+ *   própria inclusive. Nome, foto, vida, condições, mochila e id de cada uma
+ *   ficam no mestre; o jogador não arrasta nada aqui, quem move é o mestre.
+ * Todo o resto (névoa, zona oculta, sala secreta, nome da cena) é a regra de sempre.
+ */
+function filterWorldMapForGroup(
+  map: MapData,
+  viewers: readonly GroupViewer[],
+  explored?: Exploration,
+  seenDoors?: ReadonlyMap<string, DoorState>,
+  watchTargets?: ReadonlySet<string>,
+): PlayerMapView {
+  const { worldMap: _worldMap, ...plain } = map
+  const party = watchTargets ?? new Set(viewers.flatMap((viewer) => viewer.tokenIds))
+  const members = caravanMembers(map, party)
+  const at = caravanPoint(members)
+  if (at === null) {
+    const view = filterMapForGroup(plain, viewers, explored, seenDoors, watchTargets)
+    return { ...view, map: { ...view.map, worldMap: true } }
+  }
+  const memberIds = new Set(members.map((t) => t.id))
+  const stacked: MapData = { ...plain, tokens: map.tokens.map((t) => (memberIds.has(t.id) ? { ...t, x: at.x, y: at.y } : t)) }
+  const view = filterMapForGroup(stacked, viewers, explored, seenDoors, watchTargets)
+  const caravanSent = view.map.tokens.some((t) => memberIds.has(t.id))
+  const others = view.map.tokens.filter((t) => !memberIds.has(t.id))
+  const tokens = caravanSent ? [caravanTokenFor(members, at), ...others] : others
+  return { ...view, map: { ...view.map, worldMap: true, tokens } }
 }
 
 /** O host vê o mapa inteiro, inclusive itens ocultos. */

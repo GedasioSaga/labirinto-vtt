@@ -11,6 +11,7 @@ import {
   type DoorRequest,
   type ItemRequest,
   type AppliedTransfer,
+  type CaravanStop,
   type HazardEntryNotice,
   type HostResult,
   type HostSession,
@@ -137,6 +138,12 @@ export interface HostBridge {
    * `gatherAt`: "Reunir o grupo aqui" — chega nessa casa, com o aviso de reunião.
    */
   sendPlayer(playerId: string, toSceneId: string, pinId: string | null, gatherAt?: { x: number; y: number }): boolean
+  /**
+   * CARAVANA: "Desembarcar" a caravana do mapa-mundi `sceneId` na cidade sob
+   * ela (o mesmo botão do aviso "A caravana chegou a…"). `false` quando
+   * ninguém chegou (sala fechada, caravana fora da cidade, cena sumiu).
+   */
+  disembarkCaravan(sceneId: string): boolean
   /**
    * Recado do mestre a quem está na cena `sceneId`. Devolve quantos jogadores
    * receberam (0 = ninguém lá), ou `null` com a sala fechada.
@@ -307,6 +314,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const itemToasts = new Map<string, string>()
   /** Último aviso de chegada de cada jogador: `playerId` -> id do toast. */
   const arrivalToasts = new Map<string, string>()
+  /** CARAVANA: oferta "Desembarcar" na tela, por cena de mapa-mundi: o pino onde ela parou e o id do toast. */
+  const caravanToasts = new Map<string, { pinId: string; toastId: string }>()
   /** OLHOS DO GUARDA: pares (cena, guarda, ficha) no olhar no último snapshot — aviso só na entrada. */
   let guardSeen: ReadonlySet<string> = new Set()
 
@@ -442,8 +451,62 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     for (const line of notices.lines) useToastStore.getState().push('info', line, GUARD_SIGHTING_TOAST_MS, { grupo: 'Vigias' })
   }
 
+  /**
+   * CARAVANA NO MAPA-MUNDI: antes de cada snapshot, as fichas do grupo seguem a
+   * que o mestre arrastou (pela store, como o movimento do jogador), e a
+   * caravana parada numa cidade vira a oferta "Desembarcar". Mover pela store
+   * agenda outro broadcast, que já não acha nada a mover.
+   */
+  const followCaravans = () => {
+    if (session === null) return
+    const follow = session.followCaravans(world())
+    for (const { tokenId, x, y, sceneId } of follow.moves) {
+      if (sceneId === undefined) deps.applyMove(tokenId, x, y)
+      else deps.applyMove(tokenId, x, y, sceneId)
+    }
+    syncCaravanToasts(follow.stops)
+  }
+
+  /** Uma oferta por mapa-mundi: some quando a caravana sai da cidade, troca quando para em outra. */
+  const syncCaravanToasts = (stops: readonly CaravanStop[]) => {
+    const toasts = useToastStore.getState()
+    for (const [sceneId, shown] of [...caravanToasts]) {
+      if (stops.some((stop) => stop.sceneId === sceneId && stop.pinId === shown.pinId)) continue
+      toasts.dismiss(shown.toastId)
+      caravanToasts.delete(sceneId)
+    }
+    for (const stop of stops) {
+      if (caravanToasts.has(stop.sceneId)) continue
+      const toastId = toasts.push('instrucao', `A caravana chegou a ${stop.toSceneName}`, null, {
+        actions: [{ label: 'Desembarcar', run: () => disembark(stop.sceneId) }],
+      })
+      caravanToasts.set(stop.sceneId, { pinId: stop.pinId, toastId })
+    }
+  }
+
+  /** "Desembarcar": cada ficha vai para a cidade pela store, e só quem chegou recebe o `scene.changed`. */
+  const disembark = (sceneId: string): boolean => {
+    if (session === null) return false
+    const arrivals = session.disembarkCaravan(sceneId, world())
+    const shown = caravanToasts.get(sceneId)
+    if (shown !== undefined) useToastStore.getState().dismiss(shown.toastId)
+    caravanToasts.delete(sceneId)
+    const arrived = new Set<string>()
+    for (const arrival of arrivals) {
+      if (!(deps.applyTransfer?.(arrival.transfer) ?? false)) continue
+      arrived.add(arrival.transfer.playerId)
+      announceArrival(arrival.transfer)
+    }
+    // Primeiro `scene.changed`, depois o snapshot da cidade (mesma ordem do "Deixar ir").
+    void dispatch({ outbound: arrivals.filter((a) => arrived.has(a.transfer.playerId)).flatMap((a) => a.outbound) })
+    broadcastNow()
+    notifyPlayersIfChanged()
+    return arrived.size > 0
+  }
+
   const broadcastNow = () => {
     if (session === null) return
+    followCaravans()
     const current = world()
     const result = session.broadcast(current)
     void dispatch(result)
@@ -847,6 +910,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Sala nova começa sem ninguém no olhar: quem já estava lá avisa de novo.
       guardSeen = new Set()
       pruneTravelToasts()
+      // Sem sala, "Desembarcar" não teria a quem mandar.
+      syncCaravanToasts([])
       currentRoom = null
       // O Rust derruba o túnel junto com a sala.
       resetTunnel()
@@ -906,6 +971,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       broadcastNow()
       notifyPlayersIfChanged()
       return true
+    },
+
+    disembarkCaravan(sceneId) {
+      return disembark(sceneId)
     },
 
     sceneNote(sceneId, text) {

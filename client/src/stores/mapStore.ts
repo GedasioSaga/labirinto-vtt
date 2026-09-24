@@ -721,6 +721,8 @@ interface MapStoreState {
   setMeasurementMode: (mode: MeasurementMode) => void
   /** Passo máximo e ocupação das fichas dos jogadores na cena aberta; `undefined` = livre. */
   setMovementRules: (movement: MovementRules | undefined) => void
+  /** MAPA-MUNDI: o grupo anda como uma caravana só, que o mestre move (`lib/caravan.ts`). Com desfazer. */
+  setWorldMap: (worldMap: boolean) => void
   setScenarioLink: (value: string | null) => void
   setPropLinkedPath: (id: string, path: string | null) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
@@ -1456,6 +1458,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
     setMapScale: (scale) => withHistory((map) => mapFactory.setMapScale(map, scale)),
     setMeasurementMode: (mode) => withHistory((map) => mapFactory.setMeasurementMode(map, mode)),
     setMovementRules: (movement) => withHistory((map) => mapFactory.setMovementRules(map, movement)),
+    setWorldMap: (worldMap) => withHistory((map) => mapFactory.setWorldMap(map, worldMap)),
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({
       ...map,

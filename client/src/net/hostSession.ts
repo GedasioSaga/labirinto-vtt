@@ -32,6 +32,7 @@ import {
   type TokenMoveMessage,
 } from './protocol'
 import { clampAlarmText, clampNoteText } from './protocol'
+import { caravanCity, caravanMembers, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
 
 /**
  * Sessão do mestre, lógica pura: não envia nada. Cada método devolve as
@@ -89,6 +90,14 @@ function sceneKey(scene: HostScene): string {
 
 function allScenes(world: HostWorld): HostScene[] {
   return [world.open, ...world.background]
+}
+
+/** As cenas como a ligação de um pino de viagem as enxerga (`resolvePinTravel`). */
+function travelLookup(scenes: readonly HostScene[]): (sceneId: string) => TravelScene | null {
+  return (sceneId) => {
+    const scene = scenes.find((s) => s.sceneId === sceneId)
+    return scene === undefined ? null : { name: scene.name, map: scene.map }
+  }
 }
 
 /**
@@ -209,6 +218,31 @@ export interface AppliedTransfer {
   toSceneName: string
   x: number
   y: number
+}
+
+/**
+ * CARAVANA: a caravana de um mapa-mundi está em cima de uma cidade (pino de
+ * viagem ligado). É a oferta "Desembarcar" do mestre; nada disto vai ao jogador.
+ */
+export interface CaravanStop {
+  /** A cena de mapa-mundi (id na aventura) e o nome que o mestre lê. */
+  sceneId: string
+  sceneName: string
+  pinId: string
+  toSceneId: string
+  toSceneName: string
+}
+
+/** O que `followCaravans` pede ao integrador: fichas que acompanham a caravana, e onde ela parou. */
+export interface CaravanFollow {
+  moves: AppliedMove[]
+  stops: CaravanStop[]
+}
+
+/** Uma ficha da caravana que desembarca: a travessia e, na primeira ficha de cada jogador, o `scene.changed` dele. */
+export interface CaravanArrival {
+  transfer: AppliedTransfer
+  outbound: Outbound[]
 }
 
 /** Sinal aceito de um jogador, para a UI do mestre desenhar. */
@@ -418,6 +452,20 @@ export interface HostSession {
    */
   sendPlayer(playerId: string, toSceneId: string, pinId: string | null, source: HostMapSource, gatherAt?: { x: number; y: number }): HostResult
   /**
+   * CARAVANA NO MAPA-MUNDI: em cada cena marcada como mapa-mundi, as fichas do
+   * grupo seguem a que o mestre arrastou (`caravanStep`) e ficam empilhadas no
+   * ponto da caravana. Devolve os movimentos a aplicar e as cidades onde uma
+   * caravana está parada agora. Não envia nada: o integrador aplica e faz o broadcast.
+   */
+  followCaravans(source: HostMapSource): CaravanFollow
+  /**
+   * "Desembarcar": cada ficha da caravana da cena `sceneId` vai para a cidade
+   * sob ela, numa casa livre em volta do pino par. Cada jogador recebe um
+   * `scene.changed` (`by: 'master'`) e passa a ver a cidade com a própria
+   * ficha de volta. Sem caravana, sem cidade ou cena que não é mapa-mundi: `[]`.
+   */
+  disembarkCaravan(sceneId: string, source: HostMapSource): CaravanArrival[]
+  /**
    * Raio de visão só deste jogador (limitado à faixa); `null` volta ao global.
    * Não envia: o integrador faz o broadcast. Jogador desconhecido ou raio não finito é ignorado.
    */
@@ -582,6 +630,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // quem reconecta chega com tela limpa e precisa receber de novo.
   let alarm: SceneAlarm | null = null
   const alarmShown = new Map<string, string>()
+  // CARAVANA: onde estava a caravana de cada mapa-mundi no último passo (chave
+  // `sceneKey`). É por ele que se sabe QUAL ficha o mestre arrastou. Uma
+  // entrada por cena com caravana: sai quando o grupo deixa a cena.
+  const caravanAt = new Map<string, CaravanMemory>()
 
   const radiusFor =(playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
 
@@ -914,6 +966,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     // Sem cena (aventura aberta, ficha em lugar nenhum): não há onde mover.
     if (scene === null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'unknown_token' })
+    // MAPA-MUNDI: a caravana é do mestre. O jogador nem recebe a própria ficha
+    // aqui; um pedido com o id dela (guardado da cena de antes) é travado.
+    if (isWorldMap(scene.map)) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'locked' })
     // INICIATIVA: vez nesta cena prende quem não é da vez, inclusive na vez de
     // ficha que o jogador não vê. A recusa só diz "não é a sua vez", nunca de quem é.
     // Vez de ficha que saiu da cena (apagada, viajou) não prende ninguém (`turnTokenIdOn`).
@@ -1207,6 +1262,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const from = sceneFor(playerId, world)
     if (from === null || from.sceneId === null) return null
     const fromSceneId = from.sceneId
+    // MAPA-MUNDI: a caravana viaja inteira, e quem a leva é o mestre
+    // (`disembarkCaravan`). Um jogador sozinho não sai dela por um pino.
+    if (isWorldMap(from.map)) return null
     const pin = from.map.pins.find((p) => p.id === pinId)
     if (pin === undefined) return null
     const memory = memoryFor(playerId, from.map)
@@ -1492,6 +1550,68 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           y: spot.y,
         },
       }
+    },
+
+    followCaravans(source) {
+      const world = toWorld(source)
+      const scenes = allScenes(world)
+      const party = allPlayerTokens(ownership)
+      const moves: AppliedMove[] = []
+      const stops: CaravanStop[] = []
+      const alive = new Set<string>()
+      for (const scene of scenes) {
+        if (!isWorldMap(scene.map)) continue
+        const key = sceneKey(scene)
+        const members = caravanMembers(scene.map, party)
+        const step = caravanStep(members, caravanAt.get(key) ?? null)
+        if (step === null) continue
+        alive.add(key)
+        caravanAt.set(key, step.memory)
+        for (const move of step.moves) moves.push({ ...move, ...backgroundSceneId(scene, world) })
+        // Mapa solto não tem cidade: pino de viagem só liga cenas de aventura.
+        if (scene.sceneId === null) continue
+        const city = caravanCity(scene.map, step.at, caravanSize(members), scene.sceneId, travelLookup(scenes))
+        if (city !== null) stops.push({ sceneId: scene.sceneId, sceneName: scene.name, pinId: city.pinId, toSceneId: city.toSceneId, toSceneName: city.toSceneName })
+      }
+      for (const key of [...caravanAt.keys()]) if (!alive.has(key)) caravanAt.delete(key)
+      return { moves, stops }
+    },
+
+    disembarkCaravan(sceneId, source) {
+      const world = toWorld(source)
+      const scenes = allScenes(world)
+      const from = scenes.find((scene) => scene.sceneId === sceneId)
+      if (from === undefined || from.sceneId === null || !isWorldMap(from.map)) return []
+      const fromSceneId = from.sceneId
+      const members = caravanMembers(from.map, allPlayerTokens(ownership))
+      const step = caravanStep(members, caravanAt.get(sceneKey(from)) ?? null)
+      if (step === null) return []
+      const city = caravanCity(from.map, step.at, caravanSize(members), fromSceneId, travelLookup(scenes))
+      const to = city === null ? undefined : scenes.find((scene) => scene.sceneId === city.toSceneId)
+      if (city === null || to === undefined || to.sceneId === null) return []
+      const toSceneId = to.sceneId
+      const ownerOf = new Map<string, string>()
+      for (const [playerId, ids] of Object.entries(ownership)) for (const id of ids) ownerOf.set(id, playerId)
+      const spots = landingSpots(to.map, city.partner, members)
+      const told = new Set<string>()
+      const arrivals: CaravanArrival[] = []
+      members.forEach((token, i) => {
+        const playerId = ownerOf.get(token.id)
+        const record = playerId === undefined ? undefined : players.get(playerId)
+        const spot = spots[i]
+        if (playerId === undefined || record === undefined || spot === undefined) return
+        // A cena dele passa a ser a cidade; o pedido que ele tinha ficou no mapa-mundi.
+        currentScene.set(playerId, sceneKey(to))
+        pendingTravels.delete(playerId)
+        const first = !told.has(playerId)
+        told.add(playerId)
+        arrivals.push({
+          transfer: { tokenId: token.id, playerId, playerName: record.name, fromSceneId, toSceneId, toSceneName: to.name, x: spot.x, y: spot.y },
+          outbound: first && record.clientId !== null ? [{ clientId: record.clientId, msg: { type: 'scene.changed', by: 'master' } }] : [],
+        })
+      })
+      caravanAt.delete(sceneKey(from))
+      return arrivals
     },
 
     assignToken(playerId, tokenId) {

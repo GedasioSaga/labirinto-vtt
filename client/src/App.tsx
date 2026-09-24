@@ -341,6 +341,7 @@ function App() {
   const setMapScale = useMapStore((state) => state.setMapScale)
   const setMeasurementMode = useMapStore((state) => state.setMeasurementMode)
   const setMovementRules = useMapStore((state) => state.setMovementRules)
+  const setWorldMap = useMapStore((state) => state.setWorldMap)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
   const setTextFontFamily = useMapStore((state) => state.setTextFontFamily)
@@ -1985,7 +1986,7 @@ function App() {
               onMeasurementModeChange: setMeasurementMode,
               gridShape,
             }}
-            movement={{ movement: map.movement, onMovementChange: setMovementRules }}
+            movement={{ movement: map.movement, onMovementChange: setMovementRules, worldMap: map.worldMap === true, onWorldMapChange: setWorldMap }}
             gridAlign={{
               backgroundFilename:
                 map.background.type === 'image' && map.background.src
