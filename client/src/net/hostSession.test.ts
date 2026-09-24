@@ -952,7 +952,8 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
   }
 
   function snapshotDe(r: HostResult, clientId: string) {
-    const msg = r.outbound.find((o) => o.clientId === clientId)?.msg
+    // Quem mudou de cena sem passar pela sessão recebe antes o `scene.changed`.
+    const msg = r.outbound.find((o) => o.clientId === clientId && o.msg.type === 'snapshot')?.msg
     if (msg?.type !== 'snapshot') throw new Error(`esperava snapshot para ${clientId}`)
     return msg
   }
@@ -1134,8 +1135,13 @@ describe('hostSession: cada jogador no seu mapa e o pedido de passagem', () => {
     expect(naCripta !== null && isPointExplored(naCripta, FUNDO)).toBe(false)
 
     // Volta pelo par: de novo no Salão, junto da escada (longe do fundo: 1100 px > raio 700).
-    const deVolta = decodeExploration(snapshotDe(t.s.broadcast(mundo({ heroi: { cena: 'A', x: 425, y: 225 } })), 'c1').explored)
+    const volta = t.s.broadcast(mundo({ heroi: { cena: 'A', x: 425, y: 225 } }))
+    const deVolta = decodeExploration(snapshotDe(volta, 'c1').explored)
     expect(deVolta !== null && isPointExplored(deVolta, FUNDO)).toBe(true)
+    // A ficha voltou sem passar pela sessão (o mestre a levou): a troca vem
+    // antes do mapa, só para a Ana — a Bia não saiu do Salão.
+    expect(volta.outbound.filter((o) => o.msg.type === 'scene.changed')).toEqual([{ clientId: 'c1', msg: { type: 'scene.changed', by: 'master' } }])
+    expect(volta.outbound.findIndex((o) => o.clientId === 'c1')).toBe(volta.outbound.findIndex((o) => o.msg.type === 'scene.changed'))
   })
 
   it('o mestre trocar a cena do editor não leva o jogador junto', () => {

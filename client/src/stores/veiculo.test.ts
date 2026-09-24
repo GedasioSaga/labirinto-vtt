@@ -35,6 +35,7 @@ const { useAdventureStore, hostWorldOf } = await import('./adventureStore')
 const { useMapStore } = await import('./mapStore')
 const { useSessionStore } = await import('./sessionStore')
 const { levarFichaPara } = await import('./levarFicha')
+const { useToastStore } = await import('./toastStore')
 const { createEmptyMap, addPin } = await import('../lib/mapFactory')
 const { arrivalSpot } = await import('../lib/pinTravel')
 const { passengerIdsOf } = await import('../lib/vehicle')
@@ -123,7 +124,26 @@ async function mesa() {
   bridge.assignToken(entra('c-gui', 'Gui'), 'gui')
   bridge.assignToken(entra('c-bia', 'Bia'), 'bia')
   bridge.assignToken(entra('c-caio', 'Caio'), 'caio')
-  return { ...cenas, bridge, enviados, desligar }
+  const pede = (clientId: string, pinId: string) => ouvintes.get('net:message')?.({ payload: { clientId, msg: { type: 'pin.travel.request', pinId } } })
+  return { ...cenas, bridge, enviados, desligar, entra, pede }
+}
+
+/** O poço de a06, do lado do cesto, ligado à boca do poço de a07 (ida e volta). */
+function abrirPoco(a06: string, a07: string, passagem: Pin['passagem']): void {
+  useMapStore.getState().addPin({ id: 'poco', x: 320, y: 384, kind: 'viagem', description: 'Poço', image: null, destino: { sceneId: a07, pinId: 'saida' }, passagem })
+  // A volta, que no app o guardião das ligações grava sozinho.
+  useAdventureStore.getState().updateBackgroundScene(a07, (map) => ({
+    ...map,
+    pins: map.pins.map((pin) => (pin.id === 'saida' ? { ...pin, destino: { sceneId: a06, pinId: 'poco' } } : pin)),
+  }))
+}
+
+/** As mensagens de `clientId` a partir de `desde`, só os tipos que dizem a cena: a troca e o mapa. */
+function trocaEMapa(enviados: Enviado[], clientId: string, desde: number): { type: string; by?: unknown }[] {
+  return enviados
+    .slice(desde)
+    .filter((e) => e.clientId === clientId && (e.msg.type === 'scene.changed' || e.msg.type === 'snapshot'))
+    .map((e) => (e.msg.type === 'scene.changed' ? { type: e.msg.type, by: e.msg.by } : { type: e.msg.type }))
 }
 
 function ultimoSnapshot(enviados: Enviado[], clientId: string): string {
@@ -286,6 +306,58 @@ describe('veículo com lugares: o cesto leva o Gui e mais 1, recusa o 3º, e os 
     expect(tudo).not.toContain('veiculo')
     expect(tudo).not.toContain('passageiros')
     expect(JSON.stringify(t.enviados.filter((e) => e.clientId === 'c-caio'))).not.toContain(`"${A07}"`)
+    t.desligar()
+    await t.bridge.stop()
+  })
+
+  it('levados no cesto pelo mestre, o Gui e a Bia recebem "scene.changed" do mestre antes do mapa de a07, e o pedido de pino do Gui em a06 morre', async () => {
+    const t = await mesa()
+    abrirPoco(t.a06, t.a07, undefined)
+    useMapStore.getState().setVehiclePassenger('cesto', 'gui', true)
+    useMapStore.getState().setVehiclePassenger('cesto', 'bia', true)
+    await esperarSnapshot()
+    // O Gui pede o poço em a06 (passagem "pede"): o pedido espera o mestre.
+    t.pede('c-gui', 'poco')
+    const pedidoDoGui = () => useToastStore.getState().toasts.some((toast) => toast.text.startsWith('Gui quer passar'))
+    expect(pedidoDoGui()).toBe(true)
+    expect(t.bridge.players().find((p) => p.name === 'Gui')?.travelPending).toBe(true)
+    const desde = t.enviados.length
+
+    expect(levarFichaPara('cesto', t.a07, 'saida')).toBe(true)
+    await esperarSnapshot()
+
+    // A troca vem ANTES do mapa novo: é ela que limpa o movimento sem resposta de a06.
+    for (const clientId of ['c-gui', 'c-bia']) {
+      expect(trocaEMapa(t.enviados, clientId, desde)).toEqual([{ type: 'scene.changed', by: 'master' }, { type: 'snapshot' }])
+    }
+    // O Caio ficou: nenhuma troca.
+    expect(trocaEMapa(t.enviados, 'c-caio', desde).map((m) => m.type)).not.toContain('scene.changed')
+    // O pedido do poço ficou em a06: sai da sessão e do painel do mestre.
+    expect(t.bridge.players().find((p) => p.name === 'Gui')?.travelPending).toBeUndefined()
+    expect(pedidoDoGui()).toBe(false)
+    // O broadcast seguinte não repete a troca.
+    const depois = t.enviados.length
+    useMapStore.getState().addToken(ficha('rato', 'Rato', 64, 64))
+    await esperarSnapshot()
+    expect(trocaEMapa(t.enviados, 'c-gui', depois)).toEqual([{ type: 'snapshot' }])
+    t.desligar()
+    await t.bridge.stop()
+  })
+
+  it('o cesto é a ficha de uma jogadora: ela passa pelo poço livre e o Gui, a bordo, recebe a troca do mestre; ela só a dela', async () => {
+    const t = await mesa()
+    abrirPoco(t.a06, t.a07, 'livre')
+    t.bridge.assignToken(t.entra('c-duda', 'Duda'), 'cesto')
+    useMapStore.getState().setVehiclePassenger('cesto', 'gui', true)
+    await esperarSnapshot()
+    const desde = t.enviados.length
+
+    t.pede('c-duda', 'poco')
+
+    expect(tokensDaCena(t.a07).map((token) => token.id).sort()).toEqual(['cesto', 'gui'])
+    expect(trocaEMapa(t.enviados, 'c-duda', desde)).toEqual([{ type: 'scene.changed', by: undefined }, { type: 'snapshot' }])
+    expect(trocaEMapa(t.enviados, 'c-gui', desde)).toEqual([{ type: 'scene.changed', by: 'master' }, { type: 'snapshot' }])
+    expect(trocaEMapa(t.enviados, 'c-bia', desde).map((m) => m.type)).not.toContain('scene.changed')
     t.desligar()
     await t.bridge.stop()
   })

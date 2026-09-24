@@ -8,7 +8,9 @@ import { useToastStore } from './toastStore'
  * travessia (`adventureStore.carryToken`) e o aviso "Zumbi foi para Térreo",
  * com "Ir lá". O jogador não recebe nada daqui: quem está na cena de destino
  * vê a ficha chegar pelo snapshot de sempre (com a névoa dele), e quem ficou
- * na origem só a vê sumir — nenhum nome de cena sai para a mesa.
+ * na origem só a vê sumir — nenhum nome de cena sai para a mesa. A ficha de
+ * jogador que vai A BORDO (veículo) recebe o `scene.changed` do mestre no
+ * broadcast seguinte (`hostSession.broadcast`), antes do mapa novo.
  */
 
 /** O texto do aviso. Ficha sem nome não pode abrir o aviso em branco. */
