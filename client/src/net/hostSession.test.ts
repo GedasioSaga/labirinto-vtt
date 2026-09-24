@@ -202,8 +202,10 @@ describe('hostSession', () => {
       const exp = decodeExploration(after.explored)
       if (exp === null) throw new Error('explored inválido')
       expect(isPointExplored(exp, { x: 800, y: 800 })).toBe(true)
-      // Só a Ana: a Bia continua sem a planta do lado da Ana.
-      const bia = decodeExploration(t.snapshotTo('c2').explored)
+      // Só a Ana: a Bia continua sem a planta do lado da Ana. O mapa vai como
+      // objeto NOVO para o host refazer o recorte dela (sem mudança, ele pula
+      // quem já tem o recorte na tela — `hostSession.soACena.test.ts`).
+      const bia = decodeExploration(t.snapshotTo('c2', { ...t.map }).explored)
       if (bia === null) throw new Error('explored inválido')
       expect(isPointExplored(bia, { x: 100, y: 800 })).toBe(false)
     })

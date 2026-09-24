@@ -1,5 +1,5 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token } from '../types/map'
-import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration } from '../lib/exploration'
+import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, type Exploration, type ExploredWire } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
 import { filterMapForPlayer, ownTokensInView, pinClueForPlayer, playerBlockedRings, roomClueForPlayer, type OwnTokenElsewhere, type PlayerClueContent, type PlayerMapView } from '../lib/fogFilter'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
@@ -448,6 +448,35 @@ interface PlayerMemory {
   doors: Map<string, DoorState>
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
+  /** O explorado que seguiu no último snapshot desta cena. `null` = nenhum ainda. */
+  sentExplored: Pick<ExploredWire, 'bits' | 'rings'> | null
+}
+
+/**
+ * Com o que o último recorte de um jogador foi feito. Igual no broadcast
+ * seguinte = o recorte sairia igual: o host não refiltra nem reenvia. Os mapas
+ * são comparados por REFERÊNCIA — as stores do mestre (mapStore e o cache da
+ * aventura) nunca editam um `MapData` no lugar, então mapa que mudou é outro
+ * objeto. `epoch` cobre o que é da sessão e vale para todos ("Quem vê").
+ */
+interface ViewInputs {
+  map: MapData
+  /** Mapas das OUTRAS cenas onde ele tem ficha (a lista "minhas fichas em outras cenas"). */
+  elsewhere: MapData[]
+  owned: string
+  radius: number
+  epoch: number
+}
+
+function sameViewInputs(a: ViewInputs, b: ViewInputs): boolean {
+  return (
+    a.map === b.map &&
+    a.owned === b.owned &&
+    a.radius === b.radius &&
+    a.epoch === b.epoch &&
+    a.elsewhere.length === b.elsewhere.length &&
+    a.elsewhere.every((map, i) => map === b.elsewhere[i])
+  )
 }
 
 /** Chave de comparação do nome: sem maiúsculas e sem espaços. */
@@ -538,6 +567,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por pinId: quem vê o pino ("Só estes"). Ausente = Todos. O kick tira o
   // jogador de toda lista; o registro de quem só caiu fica (resume).
   const pinAudiences = new Map<string, Set<string>>()
+  // HOST RECALCULA SÓ A CENA QUE MUDOU — por playerId: com o que o último
+  // recorte dele foi feito (`ViewInputs`). Ausente = o próximo broadcast
+  // refaz. Raio e fichas entram na própria chave; quem mexe na memória dele
+  // (revelar, esconder, viagem, recusa de edição) apaga a entrada.
+  const lastViews = new Map<string, ViewInputs>()
+  // Sobe quando muda algo que entra no recorte de TODOS ("Quem vê" dos pinos).
+  let viewEpoch = 0
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -577,6 +613,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       exp: createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }),
       doors: new Map(),
       vision: [],
+      sentExplored: null,
     }
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
     byScene.delete(map.id)
@@ -632,6 +669,29 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     })
   }
 
+  /** Com o que o recorte do jogador na cena `here` seria feito agora (ver `ViewInputs`). */
+  const viewInputsFor = (playerId: string, world: HostWorld, here: HostScene): ViewInputs => ({
+    map: here.map,
+    // Mesmas cenas, na mesma ordem, de `elsewhereFor`.
+    elsewhere: allScenes(world)
+      .filter((scene) => sceneKey(scene) !== sceneKey(here) && ownsTokenIn(playerId, scene))
+      .map((scene) => scene.map),
+    owned: (ownership[playerId] ?? []).join('\n'),
+    radius: radiusFor(playerId),
+    epoch: viewEpoch,
+  })
+
+  /**
+   * O recorte que o jogador já tem continua valendo: a cena dele, as outras
+   * onde ele tem ficha e o que é dele na sessão não mudaram desde o último.
+   */
+  const viewUnchanged = (playerId: string, world: HostWorld): boolean => {
+    const last = lastViews.get(playerId)
+    if (last === undefined) return false
+    const scene = sceneFor(playerId, world)
+    return scene !== null && sameViewInputs(last, viewInputsFor(playerId, world, scene))
+  }
+
   /**
    * A cena onde está a ficha `tokenId` do jogador, se ele pode olhar por ela:
    * a ficha é dele e o mestre não a escondeu (a mesma regra que põe a ficha
@@ -656,11 +716,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     if (scene === null) {
       noteSceneOf.set(playerId, null)
+      lastViews.delete(playerId)
       // Sem cena, sem mapa na tela: nenhum pino dele vale como "visto agora".
       seenPins.delete(playerId)
       return [{ type: 'lobby.waiting' }]
     }
-    const view = snapshotFor(playerId, scene.map, elsewhereFor(playerId, world, scene))
+    const { messages: view, settled } = snapshotFor(playerId, scene.map, elsewhereFor(playerId, world, scene))
+    // Explorou chão novo agora: o recorte seguinte, feito com esse explorado,
+    // pode sair diferente — o próximo broadcast refaz uma vez, mesmo sem mudança.
+    if (settled) lastViews.set(playerId, viewInputsFor(playerId, world, scene))
+    else lastViews.delete(playerId)
     const note = arrivalNote(playerId, scene.sceneId, arrived)
     return note === null ? view : [...view, noteMessage(note)]
   }
@@ -755,8 +820,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * Devolve o snapshot e, DEPOIS dele, o cartão de texto de cada Sala em que o
    * jogador acabou de entrar pela primeira vez: o mapa dele já tem a Sala
    * quando o cartão abre.
+   *
+   * `settled`: a marcação não mudou o explorado desde o snapshot anterior desta
+   * cena. Só assim refazer o recorte com o mesmo mapa sairia igual — com chão
+   * novo explorado, o filtro seguinte já parte dele.
    */
-  const snapshotFor = (playerId: string, map: MapData, elsewhere: OwnTokenElsewhere[]): HostMessage[] => {
+  const snapshotFor = (playerId: string, map: MapData, elsewhere: OwnTokenElsewhere[]): { messages: HostMessage[]; settled: boolean } => {
     const memory = memoryFor(playerId, map)
     const exp = memory.exp
     const entered = enteredRooms.get(playerId)?.get(map.id)
@@ -780,10 +849,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
     const sent = new Set(view.map.tokens.map((t) => t.id))
     const ownTokens = (ownership[playerId] ?? []).filter((id) => sent.has(id))
-    const base: Extract<HostMessage, { type: 'snapshot' }> = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(exp), ownTokens, concealed: view.concealed }
+    const explored = encodeExploration(exp)
+    const previous = memory.sentExplored
+    const settled = previous !== null && previous.bits === explored.bits && previous.rings === explored.rings
+    memory.sentExplored = { bits: explored.bits, rings: explored.rings }
+    const base: Extract<HostMessage, { type: 'snapshot' }> = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored, ownTokens, concealed: view.concealed }
     // Sem ficha em outra cena o campo nem sai: o snapshot fica igual ao de sempre.
     const snapshot: HostMessage = elsewhere.length > 0 ? { ...base, elsewhere } : base
-    return [snapshot, ...roomTextCardsFor(playerId, map.id, view)]
+    return { messages: [snapshot, ...roomTextCardsFor(playerId, map.id, view)], settled }
   }
 
   const reply = (clientId: string, msg: HostMessage): HostResult => ({ outbound: [{ clientId, msg }] })
@@ -1115,14 +1188,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     if (statusOf(playerId) !== 'playing') return { outbound: [] }
-    if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return { outbound: [] }
+    // A tela dele já pôs a edição (otimista) e só volta pelo snapshot seguinte:
+    // recusado, o recorte dele precisa sair de novo mesmo sem a cena mudar.
+    const refuse = (): HostResult => {
+      lastViews.delete(playerId)
+      return { outbound: [] }
+    }
+    if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return refuse()
     // O token pode estar em qualquer cena: a ficha é do jogador, não do mapa aberto.
     const scene = allScenes(world).find((s) => s.map.tokens.some((t) => t.id === msg.tokenId))
-    if (scene === undefined) return { outbound: [] }
+    if (scene === undefined) return refuse()
     if (msg.image !== undefined) {
       const at = now()
       const last = lastTokenPhotoAt.get(playerId)
-      if (last !== undefined && at - last < TOKEN_PHOTO_MIN_INTERVAL_MS) return { outbound: [] }
+      if (last !== undefined && at - last < TOKEN_PHOTO_MIN_INTERVAL_MS) return refuse()
       lastTokenPhotoAt.set(playerId, at)
     }
     return { outbound: [], applyTokenEdit: { tokenId: msg.tokenId, name: msg.name, image: msg.image, ...backgroundSceneId(scene, world) } }
@@ -1240,6 +1319,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A cena dele passa a ser a de destino a partir daqui: é ela que o
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
+    lastViews.delete(playerId)
     return {
       outbound: [{ clientId, msg: { type: 'scene.changed' } }],
       applyTransfer: {
@@ -1511,6 +1591,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       pendingTravels.delete(playerId)
       // O gesto morre com a conexão; quem o via apaga a ponta sozinho (REMOTE_LASER_IDLE_MS).
       laserRecipients.delete(playerId)
+      // A conexão nova começa do zero: o recorte que a antiga tinha não vale para ela.
+      lastViews.delete(playerId)
     },
 
     kick(clientId) {
@@ -1536,7 +1618,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       cluebooks.delete(playerId)
       seenPins.delete(playerId)
       lastClueShowAt.delete(playerId)
+      lastViews.delete(playerId)
       for (const chosen of pinAudiences.values()) chosen.delete(playerId)
+      // As listas de "Quem vê" mudaram: todos refazem no próximo broadcast.
+      viewEpoch += 1
       return reply(clientId, { type: 'kicked' })
     },
 
@@ -1559,6 +1644,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     },
 
     setPinAudience(pinId, playerIds) {
+      // O pino pode estar no recorte de qualquer um: todos refazem no próximo broadcast.
+      viewEpoch += 1
       if (playerIds === null) {
         pinAudiences.delete(pinId)
         return
@@ -1580,9 +1667,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (scene === null) return
       const map = scene.map
       markAll(memoryFor(playerId, map).exp, playerBlockedRings(map))
+      lastViews.delete(playerId)
     },
 
     hidePlan(playerId, source) {
+      // A memória muda: o próximo broadcast refaz o recorte dele, mesmo sem a cena mudar.
+      lastViews.delete(playerId)
       // Apagar a memória: o próximo snapshot recria vazia (explorado, portas e visão).
       if (source === undefined) {
         memories.delete(playerId)
@@ -1598,6 +1688,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const outbound: Outbound[] = []
       for (const [clientId, playerId] of byClient) {
         if (statusOf(playerId) !== 'playing') continue
+        // SÓ A CENA QUE MUDOU: um passo no Salão não refaz o recorte de quem
+        // está na Cripta. O recorte dele sairia igual ao que já está na tela.
+        if (viewUnchanged(playerId, world)) continue
         // Cada um a SUA cena: quem ficou no Salão nunca recebe nada da Cripta.
         // Quem não está em cena nenhuma recebe a espera, e não a cena do editor.
         // Chegou a uma cena com recado (viagem, ficha nova): o recado vem logo atrás do mapa.
