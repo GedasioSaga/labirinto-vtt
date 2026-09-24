@@ -2488,6 +2488,36 @@ body {
   font-size: var(--lb-font-size-sm);
 }
 
+/* Pinos da aventura: a mesma linha de cartão das Cenas, com o nome do pino à
+   esquerda e a cena dele à direita. A lista rola dentro dela: sete jogadores
+   num mapa de crime podem deixar dezenas de pinos. */
+.lb-pinos {
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.lb-pinos__linha {
+  display: flex;
+  align-items: baseline;
+  gap: var(--lb-space-2);
+}
+
+.lb-pinos__nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-pinos__cena {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
 /* Quem está na cena: linha própria dentro do item (o item quebra linha). */
 .lb-cenas__gente {
   display: flex;

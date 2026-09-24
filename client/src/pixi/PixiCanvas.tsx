@@ -1197,7 +1197,8 @@ export function PixiCanvas({
       const regionsRenderer = createRegionsRenderer({ roofMarker: true })
       const roomNamesRenderer = createRoomNamesRenderer()
       const concealZonesRenderer = createConcealZonesRenderer()
-      const pinsRenderer = createPinsRenderer()
+      // O editor é o único que desenha o nome só do mestre ao lado do pino.
+      const pinsRenderer = createPinsRenderer({ showNames: true })
       const floorRenderer = createFloorRenderer()
       // Gradientes de luz nascem POR RENDERER e morrem no teardown.
       const lightsRenderer = createLightsRenderer()

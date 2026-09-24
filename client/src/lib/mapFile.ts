@@ -1,6 +1,6 @@
 import type { DoorState, FloorStyle, MapData, Region } from '../types/map'
 import { linkLooseWallsToRooms } from './roomLink'
-import { isPinIcon, isPinKind, isPinPassage, isPinReadDistance } from './pins'
+import { cleanPinName, isPinIcon, isPinKind, isPinPassage, isPinReadDistance } from './pins'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { readSceneVisionCells } from './sceneVision'
 import { tokenPublicNameFromFile } from './tokenPublicName'
@@ -189,6 +189,9 @@ function deserializeMapFields(json: string): MapData {
       kind: isPinKind(p.kind) ? p.kind : 'exclamacao',
       icon: isPinIcon(p.icon) ? p.icon : undefined,
       description: typeof p.description === 'string' ? p.description : '',
+      // NOME SÓ DO MESTRE: campo NOVO e OPCIONAL. Texto aparado e no teto;
+      // em branco ou torto (número, arquivo editado à mão) volta AUSENTE.
+      nome: cleanPinName(p.nome) || undefined,
       image: typeof p.image === 'string' ? p.image : null,
       destino: p.destino === undefined ? undefined : readPinDestination(p.destino),
       // `passagem` é campo NOVO e OPCIONAL do pino de viagem: ausente é "pede

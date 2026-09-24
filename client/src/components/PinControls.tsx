@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { PinKind } from '../types/map'
-import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER, PIN_LER_DE_PERTO_MAX, PIN_LER_DE_PERTO_MIN, isPinReadDistance } from '../lib/pins'
+import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER, PIN_LER_DE_PERTO_MAX, PIN_LER_DE_PERTO_MIN, PIN_NOME_MAX_LENGTH, isPinReadDistance } from '../lib/pins'
 import { GatherControls, type GatherControlsProps } from './GatherControls'
 import { PinTravelArt } from './PinSymbolArt'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
@@ -12,6 +12,12 @@ export interface PinControlsProps {
   /** `null` = nenhum pino selecionado: só o tipo do próximo aparece. */
   description: string | null
   onDescriptionChange: (description: string) => void
+  /**
+   * "Nome (só mestre)" do pino aberto: o rótulo ao lado dele no editor e na
+   * lista "Pinos". Vazio = sem nome. Ausente `onNomeChange` = sem o campo.
+   */
+  nome?: string
+  onNomeChange?: (nome: string) => void
   /** Pino travado não se move no arrasto — continua clicável para destravar aqui. */
   locked: boolean
   onLockedChange: (locked: boolean) => void
@@ -78,6 +84,8 @@ export function PinControls({
   onKindChange,
   description,
   onDescriptionChange,
+  nome = '',
+  onNomeChange,
   locked,
   onLockedChange,
   marco,
@@ -119,6 +127,26 @@ export function PinControls({
       {travel !== null && <PinTravelControlsFor travel={travel} />}
       {description !== null && (
         <>
+          {/* Antes da descrição: é o que o MESTRE lê (sete "?" iguais no mapa
+              do crime); a descrição, logo abaixo, é o que o jogador lê. */}
+          {onNomeChange !== undefined && (
+            <div className="lb-field">
+              <label className="lb-label" htmlFor="lb-pin-nome">
+                Nome (só mestre)
+              </label>
+              <input
+                id="lb-pin-nome"
+                className="lb-input"
+                value={nome}
+                maxLength={PIN_NOME_MAX_LENGTH}
+                aria-describedby="lb-pin-nome-hint"
+                onChange={(event) => onNomeChange(event.target.value)}
+              />
+              <span id="lb-pin-nome-hint" className="lb-label">
+                Os jogadores não veem o nome; eles leem a descrição.
+              </span>
+            </div>
+          )}
           <div className="lb-field">
             <label className="lb-label" htmlFor="lb-pin-description">
               Descrição
