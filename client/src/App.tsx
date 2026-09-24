@@ -344,6 +344,7 @@ function App() {
   const setMapScale = useMapStore((state) => state.setMapScale)
   const setMeasurementMode = useMapStore((state) => state.setMeasurementMode)
   const setSceneVisionCells = useMapStore((state) => state.setSceneVisionCells)
+  const setSceneDark = useMapStore((state) => state.setSceneDark)
   const setScenarioLink = useMapStore((state) => state.setScenarioLink)
   const updateTextLabel = useMapStore((state) => state.updateTextLabel)
   const setTextFontFamily = useMapStore((state) => state.setTextFontFamily)
@@ -1879,6 +1880,8 @@ function App() {
             sceneVision={{
               visionCells: map.visionCells,
               onVisionCellsChange: setSceneVisionCells,
+              dark: map.dark === true,
+              onDarkChange: setSceneDark,
             }}
             gridAlign={{
               backgroundFilename:
@@ -2023,6 +2026,7 @@ function App() {
               onNameHiddenFromPlayersChange: (hidden) =>
                 selectedRegion && useMapStore.getState().setRoomNameHiddenFromPlayers(selectedRegion.id, hidden),
               onRoofChange: (roof) => selectedRegion && useMapStore.getState().setRoomRoof(selectedRegion.id, roof),
+              onDarkChange: (dark) => selectedRegion && useMapStore.getState().setRoomDark(selectedRegion.id, dark),
               onWidthChange: (width) =>
                 selectedRegion && resizeRoomDimensions(selectedRegion.id, width, roomDimensions(selectedRegion.points).height),
               onHeightChange: (height) =>

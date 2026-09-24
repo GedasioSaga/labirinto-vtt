@@ -1,9 +1,13 @@
 import { SCENE_VISION_CELLS_MAX, SCENE_VISION_CELLS_MIN, readSceneVisionCells } from '../lib/sceneVision'
+import { Toggle } from './Toggle'
 
 export interface SceneVisionControlsProps {
   /** "Visão nesta cena", em quadrados; `undefined` = sem valor. */
   visionCells: number | undefined
   onVisionCellsChange: (cells: number | undefined) => void
+  /** "Cena escura" (`MapData.dark`). Ausente omite o toggle. */
+  dark?: boolean
+  onDarkChange?: (dark: boolean) => void
 }
 
 /**
@@ -11,8 +15,11 @@ export interface SceneVisionControlsProps {
  * Mapa-mundi longe, mina perto — o mestre acerta uma vez por cena, não o raio
  * de cada jogador a cada viagem. O "Fator de visão" de cada jogador (painel
  * Sala) multiplica este número. Vazio = o raio em px de cada jogador, como antes.
+ *
+ * "Cena escura": o jogador só vê a casa em volta da ficha e o que uma Luz
+ * ilumina, mesmo além do raio (`lib/darkness.ts`).
  */
-export function SceneVisionControls({ visionCells, onVisionCellsChange }: SceneVisionControlsProps) {
+export function SceneVisionControls({ visionCells, onVisionCellsChange, dark, onDarkChange }: SceneVisionControlsProps) {
   function change(text: string) {
     if (text.trim() === '') {
       onVisionCellsChange(undefined)
@@ -47,6 +54,14 @@ export function SceneVisionControls({ visionCells, onVisionCellsChange }: SceneV
           Vale para todo jogador nesta cena, vezes o fator de visão dele (painel Sala). Vazio: cada um usa o raio em px de sempre.
         </p>
       </div>
+      {dark !== undefined && onDarkChange !== undefined && (
+        <>
+          <Toggle label="Cena escura" checked={dark} onChange={onDarkChange} describedBy="lb-scene-dark-hint" />
+          <p id="lb-scene-dark-hint" className="lb-field__hint">
+            O jogador só vê a casa em volta da ficha e o que uma Luz ilumina, mesmo de longe. Você continua vendo tudo.
+          </p>
+        </>
+      )}
     </section>
   )
 }
