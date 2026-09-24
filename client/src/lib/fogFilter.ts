@@ -12,6 +12,7 @@ import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygon
 import { roomHasRoof } from './roomOps'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { clampRoomText, hasEnterText } from './roomText'
+import { cleanPublicSceneName } from './adventure'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -871,6 +872,19 @@ export function pinClueForPlayer(pin: Pin): PlayerClueContent | null {
   const text = clampClueText(safe.description.trim())
   if (text === '' && safe.image === null) return null
   return { title: clueTitleFrom(text, CLUE_TITLE_ONLY_IMAGE), text, image: safe.image }
+}
+
+/**
+ * "ONDE ESTOU": o nome da cena como o jogador pode recebê-lo. Só o nome
+ * PÚBLICO que o mestre escreveu para os jogadores, limpo e no teto; sem ele,
+ * `undefined` e o snapshot sai sem o campo. Recebe só o `publicName` de
+ * propósito: o nome interno da cena (`name`) nem entra aqui, então não tem
+ * como sair.
+ *
+ * Quem chama responde por ser a cena ONDE O JOGADOR ESTÁ (`sceneFor` do host).
+ */
+export function sceneNameForPlayer(scene: { readonly publicName?: string }): string | undefined {
+  return scene.publicName === undefined ? undefined : cleanPublicSceneName(scene.publicName)
 }
 
 /**

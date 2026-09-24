@@ -478,6 +478,14 @@ function App() {
     return hostBridgeRef.current
   }
   useEffect(() => useMapStore.subscribe((state) => state.map, () => hostBridgeRef.current?.notifyMapChanged()), [])
+  // "Onde estou": o nome para os jogadores mora na aventura, não no mapa. Trocar só ele também reenvia o recorte.
+  useEffect(
+    () =>
+      useAdventureStore.subscribe((state, previous) => {
+        if (state.adventure !== previous.adventure) hostBridgeRef.current?.notifyMapChanged()
+      }),
+    [],
+  )
   const laserToggled = useLaserStore((state) => state.toggled)
   // B2 — o `off` sai no fim do traço: soltar o botão, sair da janela ou desarmar (L e botão Laser).
   useEffect(
@@ -1672,7 +1680,11 @@ function App() {
                 scenes={sceneList({ adventure, activeSceneId, cache: sceneCache }, map)}
                 onSelect={handleSelectScene}
                 onCreate={handleCreateScene}
-                onRename={(sceneId, name) => useAdventureStore.getState().renameScene(sceneId, name)}
+                onRename={(sceneId, name, publicName) => {
+                  const adventureStore = useAdventureStore.getState()
+                  adventureStore.renameScene(sceneId, name)
+                  adventureStore.setScenePublicName(sceneId, publicName)
+                }}
                 // Mesmas linhas do painel Grupo: quem está em cada cena e os pedidos que esperam.
                 people={roomPlayers.length === 0 ? undefined : peopleByScene(partyMembers(roomPlayers, roomPanelWorld()))}
                 // Recado por cena só com a sala aberta: sem sala não há quem leia.

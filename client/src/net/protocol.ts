@@ -75,6 +75,12 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
  * posição, o id do pino ou o nome/id da cena. Mestre antigo responde
  * `error invalid_message` (que o jogador ignora durante o jogo); jogador
  * antigo ignora as cinco.
+ *
+ * `snapshot.sceneName` (e `delta.sceneName`) é o "ONDE ESTOU", aditivo pelo
+ * mesmo critério: o NOME PARA OS JOGADORES da cena onde o jogador está, só
+ * quando o mestre escreveu um. Nunca o nome interno da cena, nunca o de outra
+ * cena. Jogador antigo ignora o campo; mestre antigo não o manda e o selo não
+ * aparece.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -321,8 +327,10 @@ export type HostMessage =
   // `name`: nome EFETIVO na sala, que pode não ser o que o jogador digitou.
   | { type: 'welcome'; playerId: string; resumeToken: string; name: string }
   | { type: 'lobby.waiting' }
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][] }
+  // `sceneName`: o NOME PARA OS JOGADORES da cena onde ele está ("Onde estou").
+  // Ausente = a cena não tem nome público (ou mapa solto, ou mestre antigo).
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; sceneName?: string }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; sceneName?: string }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejection }
   | { type: 'signal'; x: number; y: number; from: string; color: string }

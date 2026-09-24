@@ -2410,6 +2410,25 @@ body {
   font-size: var(--lb-font-size-sm);
 }
 
+/* Nome para os jogadores: linha própria, apagada — é informação, não ação. */
+.lb-cenas__publico {
+  flex-basis: 100%;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* A dica embaixo do campo "Nome para os jogadores". */
+.lb-cenas__dica {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
 /* Destino do pino de viagem (PinTravelControls): um poço rebaixado logo abaixo
    do tipo, com a régua da esquerda dizendo o estado sem precisar ler — latão
    quando a passagem leva a algum lugar, apagada quando não. É a mesma troca

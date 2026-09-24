@@ -13,6 +13,7 @@ import { PlayerNoteCard } from './PlayerNoteCard'
 import { PlayerClueCard } from './PlayerClues'
 import { coverBounds } from './playerCamera'
 import { PlayerZoomControls } from './PlayerZoomControls'
+import { PlayerSceneName } from './PlayerSceneName'
 import { NO_ZOOM_STEP, type ZoomDirection, type ZoomLimits, type ZoomStepRequest } from './playerZoom'
 import { escapeDisarmsMeasure } from './playerMeasure'
 import type { PlayerViewSettings } from './PlayerPanel'
@@ -679,6 +680,8 @@ function Session({ connection, code, typedName, hostName, onLeave, onQuit }: Ses
             setOpenClueId(clueId)
           }}
         />
+        {/* "Onde estou": só com nome público na cena; não é controle, fica fora da ordem do Tab. */}
+        <PlayerSceneName name={state.sceneName} />
         {/* Depois do painel no DOM: o Tab segue a leitura (painel no alto à esquerda, zoom embaixo à direita). */}
         <PlayerZoomControls canZoomIn={zoomLimits.canZoomIn} canZoomOut={zoomLimits.canZoomOut} onZoom={requestZoomStep} />
         {/* O pino pode sumir do recorte enquanto o cartão está aberto (o token

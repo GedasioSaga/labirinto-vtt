@@ -1096,6 +1096,50 @@
 }
 
 /*
+ * "Onde estou": o nome público da cena, no canto de cima à DIREITA (o painel
+ * mora à esquerda, o recado no meio, o zoom embaixo). Placa de minimapa:
+ * fundo escuro chapado, linha fina clara, texto curto. Abaixo do painel e do
+ * cartão de pino (que cobrem o selo quando abertos) e sem pegar toque: o
+ * arrasto que começa em cima dele continua sendo arrasto do mapa. Nome longo
+ * termina em reticências, sem empurrar nada.
+ */
+.pp-scene-name {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 9;
+  pointer-events: none;
+  box-sizing: border-box;
+  max-width: min(240px, calc(100% - 24px - 190px));
+  margin: 0;
+  padding: 6px 12px;
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  line-height: 1.25;
+  text-align: right;
+  color: var(--lb-color-parchment, #eceae4);
+  background: var(--lb-color-stone, rgba(19, 19, 23, 0.94));
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+}
+
+.pp-scene-name__label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint, #858480);
+}
+
+.pp-scene-name__value {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/*
  * Recado do mestre: no ALTO e no MEIO, longe do painel (esquerda) e do cartão
  * de pino (direita). Linguagem de minimapa: fundo escuro chapado, linha fina
  * clara, sem textura. Não tem véu: o mapa continua inteiro à vista.
