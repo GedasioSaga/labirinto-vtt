@@ -8,6 +8,7 @@ import { readCarriedItems, readPinItem } from './items'
 import { readPinPass } from './pinPass'
 import { readHazards } from './hazards'
 import { readConveyors } from './conveyors'
+import { pinWithCabin, readCabin } from './cabins'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -228,7 +229,10 @@ function deserializeMapFields(json: string): MapData {
     // `null` em vez de levar o clique do mestre para uma cena que não existe.
     // `kind: 'viagem'` é o terceiro tipo: sem ele na lista, todo pino de
     // viagem voltaria do disco como "!".
-    pins: entityList(parsed.pins).map((p) => ({
+    // CABINE CONTÍNUA: campo NOVO e OPCIONAL. `pinWithCabin` tira a chave
+    // quando o valor cru não é um id (o `...p` copiaria o lixo), então mapa de
+    // antes abre sem o campo e cabine quebrada vira "pino sem cabine".
+    pins: entityList(parsed.pins).map((p) => pinWithCabin({
       ...p,
       kind: isPinKind(p.kind) ? p.kind : 'exclamacao',
       icon: isPinIcon(p.icon) ? p.icon : undefined,
@@ -259,7 +263,7 @@ function deserializeMapFields(json: string): MapData {
       // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
       // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).
       item: readPinItem(p.item),
-    })),
+    }, readCabin(p.cabine))),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
     hiddenLayers: plainList(parsed.hiddenLayers),

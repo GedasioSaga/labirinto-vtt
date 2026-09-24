@@ -26,6 +26,25 @@ describe('mapStore — esteira', () => {
     expect('conveyors' in useMapStore.getState().map).toBe(false)
   })
 
+  it('cabine contínua: ligar o pino e avançar são dois passos do desfazer; ligar igual não gasta', () => {
+    const pinos = [
+      { id: 'p1', x: 125, y: 75, kind: 'exclamacao' as const, description: '', image: null },
+      { id: 'p2', x: 375, y: 325, kind: 'exclamacao' as const, description: '', image: null },
+    ]
+    useMapStore.setState({ map: { ...torre({ tokens: [ficha('ana', 125, 75)] }), pins: pinos }, past: [], future: [] })
+    useMapStore.getState().setPinCabin('p1', 'p2')
+    useMapStore.getState().setPinCabin('p1', 'p2')
+    expect(useMapStore.getState().map.pins[0]?.cabine).toBe('p2')
+    useMapStore.getState().advanceConveyors()
+    expect(useMapStore.getState().map.tokens[0]).toMatchObject({ id: 'ana', x: 375, y: 325 })
+    expect(useMapStore.getState().past).toHaveLength(2)
+
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map.tokens[0]).toMatchObject({ id: 'ana', x: 125, y: 75 })
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map.pins[0]?.cabine).toBeUndefined()
+  })
+
   it('avançar sem ninguém para mover, ou marcar igual, não gasta histórico', () => {
     useMapStore.getState().setRoomConveyor('sala-b', { direction: 'sul', stepCells: 2 })
     const antes = useMapStore.getState().map

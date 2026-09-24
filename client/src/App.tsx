@@ -40,7 +40,8 @@ import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { selectAlignableUnitCount, useMapStore } from './stores/mapStore'
 import { roomHazardState } from './lib/hazards'
-import { roomConveyorState } from './lib/conveyors'
+import { advanceConveyors, roomConveyorState } from './lib/conveyors'
+import { cabinOf, cabinTargets } from './lib/cabins'
 import { saveMapToAppData, saveMapToPath, pickMapJsonToOpen, openMapFile, mapDirFor, defaultMapsDir, type OpenedMapFile } from './lib/mapFileIO'
 import {
   applyItemsInScene,
@@ -2324,6 +2325,17 @@ function App() {
                   ? {
                       value: selectedPin.item ?? null,
                       onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
+                    }
+                  : null,
+              // CABINE CONTÍNUA: só com um pino "!"/"?" aberto (o de viagem já tem destino).
+              cabin:
+                selectedPin && selectedPin.kind !== 'viagem'
+                  ? {
+                      target: cabinOf(map, selectedPin.id),
+                      targets: cabinTargets(map, selectedPin.id),
+                      canAdvance: advanceConveyors(map) !== map,
+                      onChange: (targetId) => useMapStore.getState().setPinCabin(selectedPin.id, targetId),
+                      onAdvance: () => useMapStore.getState().advanceConveyors(),
                     }
                   : null,
             }}

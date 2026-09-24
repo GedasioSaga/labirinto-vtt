@@ -52,15 +52,33 @@ jogador vê só o próprio movimento.
   posição de ficha que a névoa, a zona oculta, o teto ou outra cena escondem
   (o recorte de fichas não muda: a esteira não abre exceção).
 
+## Ocupação ("Fichas ocupam espaço")
+
+- Com `movement.tokensOccupy` ligado, a esteira para ANTES da casa de outra
+  ficha (`findOccupant`, a mesma régua do host). A fila na mesma esteira anda
+  junta: quem vai na frente anda primeiro. Ficha `secret` não segura (parar
+  antes dela diria que existe alguém). Ficha só escondida pela névoa SEGURA:
+  a regra pura não tem a visão de cada jogador (o host usa o recorte).
+
+## Cabine contínua (paternoster) — `client/src/lib/cabins.ts`
+
+- `Pin.cabine?: string`: o id do PRÓXIMO pino "!"/"?" da MESMA cena. Encadeado
+  (A → B → C → A), a cabine gira sem parar. Pino de viagem não tem cabine.
+- No mesmo "Avançar esteiras": primeiro as esteiras, depois as cabines. "Ficou
+  parado" = a ficha está na casa do pino e a esteira não a moveu neste Avançar.
+- A cabine anda no poço: parede e porta fechada não a seguram. Com ocupação
+  ligada, a parada tomada por quem NÃO sai segura a ficha; as cabines andam
+  juntas (quem sai abre a vaga); duas para a mesma parada, vai a primeira.
+- Painel do pino: "Cabine contínua: leva a" (os outros pinos da cena) e o
+  botão "Avançar esteiras". `mapStore.setPinCabin`, com histórico.
+- O jogador nunca recebe `cabine` (`pinForPlayer` copia por lista do que vai).
+
 ## Fica para depois (pendências)
 
-- Pino de cabine contínua (paternoster): quem ficou parado no pino é levado ao
-  próximo par. Precisa de decisão de produto (o par é pino desta cena ou de
-  outra? quem "ficou parado" = não moveu desde o último Avançar?).
+- Cabine entre CENAS (o par em outra cena): hoje a cabine liga pinos da mesma cena.
 - Disparo automático pelo "Passar a vez" da iniciativa (hoje é só o botão).
 - Desenho da esteira no canvas (setas finas no chão, estilo minimapa) para o
   mestre e, quando visível, para o jogador — com recorte próprio.
 - Aviso ao dono ("A esteira te levou 3 casas"), no molde de `hazard.entered`.
-- Ocupação (`movement.tokensOccupy`): hoje duas fichas podem terminar na mesma casa.
 - Esteira que despeja em outra esteira (encadear no mesmo Avançar).
 - Tipo "corrente" (água) com rótulo próprio; a mecânica é a mesma.

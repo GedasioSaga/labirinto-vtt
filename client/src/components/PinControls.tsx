@@ -3,6 +3,7 @@ import type { PinItem, PinKind } from '../types/map'
 import { ITEM_NAME_MAX_LENGTH, cleanItemName } from '../lib/items'
 import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER } from '../lib/pins'
 import { GatherControls, type GatherControlsProps } from './GatherControls'
+import { PinCabinControls, type PinCabinControlsProps } from './PinCabinControls'
 import { PinTravelArt } from './PinSymbolArt'
 import { PinTravelControls, type PinTravelControlsProps } from './PinTravelControls'
 import { Toggle } from './Toggle'
@@ -37,6 +38,11 @@ export interface PinControlsProps {
    * `onChange(null)` desliga. `null` no prop = sem pino aberto, ou pino de viagem.
    */
   item?: { value: PinItem | null; onChange: (item: PinItem | null) => void } | null
+  /**
+   * CABINE CONTÍNUA do pino aberto ("!"/"?"): a próxima parada e o apito.
+   * `null` = sem pino aberto, ou pino de viagem (que já tem destino próprio).
+   */
+  cabin?: PinCabinControlsProps | null
 }
 
 /** Nome que o item ganha ao ligar o interruptor: o mestre troca logo abaixo. */
@@ -137,6 +143,7 @@ export function PinControls({
   travel = null,
   gather = null,
   item = null,
+  cabin = null,
 }: PinControlsProps) {
   const viagem = kind === 'viagem'
   // As cenas onde mora um par que perde a volta se este pino sumir (uma por
@@ -184,6 +191,7 @@ export function PinControls({
               rotação nem "oculto no editor" separado do resto do painel. */}
           <Toggle label="Travado" checked={locked} onChange={onLockedChange} />
           {!viagem && item !== null && <PinItemControls value={item.value} onChange={item.onChange} />}
+          {!viagem && cabin !== null && <PinCabinControls {...cabin} />}
           {/* Ação de MESA, não de edição do pino: fica logo depois do que o
               pino é, antes da imagem e do excluir. */}
           {gather !== null && <GatherControlsFor gather={gather} />}

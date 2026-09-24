@@ -64,6 +64,26 @@ describe('esteira — o jogador vê só o próprio movimento', () => {
     expect(pacote).not.toContain('oeste')
   })
 
+  it('cabine contínua: Ana recebe a própria ficha na próxima parada, e nenhum pino chega com a ligação da cabine', () => {
+    const pinos = [
+      { id: 'parada-1', x: 125, y: 75, kind: 'exclamacao' as const, description: '', image: null, cabine: 'parada-2' },
+      { id: 'parada-2', x: 375, y: 325, kind: 'exclamacao' as const, description: '', image: null, cabine: 'parada-3' },
+      { id: 'parada-3', x: 1275, y: 75, kind: 'exclamacao' as const, description: '', image: null, cabine: 'parada-1' },
+    ]
+    const antes: MapData = { ...torre({ tokens: [ficha('ana', 125, 75), ficha('bia', 1375, 200)] }), pins: pinos }
+    const s = mesa(antes)
+    s.broadcast(antes)
+
+    const depois = advanceConveyors(antes)
+    const r = s.broadcast(depois)
+
+    expect(posicoes(mapaRecebido(r, 'c1'))).toEqual({ ana: { x: 375, y: 325 } })
+    for (const clientId of ['c1', 'c2']) {
+      for (const pin of mapaRecebido(r, clientId).pins) expect('cabine' in pin).toBe(false)
+    }
+    expect(JSON.stringify(r.outbound)).not.toContain('"cabine"')
+  })
+
   it('esteira em OUTRA cena da aventura: quem está nesta não recebe nada dela', () => {
     const salao = torre({ tokens: [ficha('ana', 250, 200), ficha('bia', 300, 200)] }, 'm-salao')
     const cripta: MapData = { ...torre({ tokens: [ficha('lich', 125, 75)] }, 'm-cripta'), conveyors: ESTEIRAS }

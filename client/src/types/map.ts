@@ -425,6 +425,15 @@ export interface Pin extends PlayerSecret {
    * do nome e de saber se pede ao mestre), sempre numa cópia limpa.
    */
   item?: PinItem
+  /**
+   * CABINE CONTÍNUA (paternoster), só do pino "!"/"?": o id do PRÓXIMO pino
+   * desta cena. A cada "Avançar esteiras", a ficha parada na casa deste pino é
+   * levada até lá (`lib/cabins.ts`). Ausente = pino sem cabine, sem migração;
+   * o disco só aceita texto não vazio (`readCabin`). NUNCA sai no recorte do
+   * jogador (`lib/fogFilter.ts` copia o pino por lista do que vai): diria onde
+   * fica a próxima parada antes de ele chegar lá.
+   */
+  cabine?: string
 }
 
 /**

@@ -1,6 +1,8 @@
 import type { Conveyor, ConveyorDirection, MapData, Region, RegionPoint, Token } from '../types/map'
+import { cabinDestinations } from './cabins'
 import { moveCrossesWall } from './collision'
 import { pointInRing, signedArea } from './floorContour'
+import { findOccupant, tokensOccupy } from './movementRules'
 
 /**
  * MOVIMENTO IMPOSTO — esteira e corrente. Regra pura, sem DOM, sem Pixi, sem
@@ -152,15 +154,18 @@ function insideMap(map: MapData, point: RegionPoint): boolean {
 /**
  * Onde a esteira larga a ficha: casa por casa, até o passo. Para ANTES de
  * cruzar parede que barra movimento (porta fechada, trancada ou secreta
- * inclusive — `moveCrossesWall`) e antes de sair do mapa; e para DEPOIS da
- * casa que a tirou da sala da esteira (foi largada na ponta).
+ * inclusive — `moveCrossesWall`), antes de sair do mapa e, com "Fichas ocupam
+ * espaço", antes da casa de outra ficha (`blockers`, `null` sem a regra); e
+ * para DEPOIS da casa que a tirou da sala da esteira (foi largada na ponta).
  */
-function conveyedPosition(map: MapData, token: Token, belt: LiveConveyor): RegionPoint {
+function conveyedPosition(map: MapData, token: Token, belt: LiveConveyor, blockers: readonly Token[] | null): RegionPoint {
   const { dx, dy } = DIRECTION_VECTOR[belt.conveyor.direction]
   let at: RegionPoint = { x: token.x, y: token.y }
   for (let step = 0; step < belt.conveyor.stepCells; step += 1) {
     const next = { x: at.x + dx * map.grid, y: at.y + dy * map.grid }
     if (!insideMap(map, next) || map.walls.some((wall) => moveCrossesWall(at, next, wall))) break
+    // A própria ficha vai na lista só para `findOccupant` saber o tamanho dela.
+    if (blockers !== null && findOccupant([token, ...blockers], token.id, next, map.grid) !== undefined) break
     at = next
     if (!pointInRing(at, belt.ring)) break
   }
@@ -168,23 +173,64 @@ function conveyedPosition(map: MapData, token: Token, belt: LiveConveyor): Regio
 }
 
 /**
- * UM AVANÇAR: toda ficha cujo centro está numa sala com esteira anda. Conta
- * onde cada ficha estava ANTES do Avançar, então uma esteira que despeja em
- * outra não encadeia no mesmo clique. Ninguém se mexe: devolve o MESMO mapa.
+ * As fichas que seguram a esteira e a cabine com "Fichas ocupam espaço", ou
+ * `null` com a regra desligada. É a mesma regra que o host aplica ao jogador
+ * (`lib/moveValidation.ts`), com uma diferença: a ficha SECRETA (que o mestre
+ * esconde dos jogadores) não segura — parar antes dela diria que existe alguém.
+ */
+function occupyBlockers(map: MapData, tokens: readonly Token[]): Token[] | null {
+  return tokensOccupy(map) ? tokens.filter((t) => t.secret !== true) : null
+}
+
+/**
+ * Quanto a ficha já andou na direção da esteira: quem vai na frente anda
+ * primeiro, para a fila na mesma esteira andar junta com a ocupação ligada.
+ */
+function lead(token: Token, belt: LiveConveyor): number {
+  const { dx, dy } = DIRECTION_VECTOR[belt.conveyor.direction]
+  return token.x * dx + token.y * dy
+}
+
+/**
+ * As esteiras do Avançar: cada ficha cujo centro está numa sala com esteira
+ * anda (quem vai na frente primeiro). Devolve o chão depois delas e quem andou.
+ */
+function runConveyors(map: MapData, live: readonly LiveConveyor[]): { tokens: Token[]; moved: Set<string> } {
+  let tokens = [...map.tokens]
+  const moved = new Set<string>()
+  const riders = map.tokens
+    .flatMap((token): { token: Token; belt: LiveConveyor }[] => {
+      const belt = conveyorAt(live, { x: token.x, y: token.y })
+      return belt === null ? [] : [{ token, belt }]
+    })
+    .sort((a, b) => lead(b.token, b.belt) - lead(a.token, a.belt))
+  for (const { token, belt } of riders) {
+    const to = conveyedPosition(map, token, belt, occupyBlockers(map, tokens.filter((t) => t.id !== token.id)))
+    if (to.x === token.x && to.y === token.y) continue
+    moved.add(token.id)
+    tokens = tokens.map((t) => (t.id === token.id ? { ...t, x: to.x, y: to.y } : t))
+  }
+  return { tokens, moved }
+}
+
+/**
+ * UM AVANÇAR: primeiro as esteiras (toda ficha cujo centro está numa sala com
+ * esteira anda), depois as cabines contínuas (`lib/cabins.ts`: quem ficou
+ * parado na casa de um pino com próxima parada é levado a ela; quem a esteira
+ * moveu estava andando e não pega a cabine). Conta onde cada ficha estava
+ * ANTES do Avançar, então uma esteira que despeja em outra não encadeia no
+ * mesmo clique. Ninguém se mexe: devolve o MESMO mapa.
  */
 export function advanceConveyors(map: MapData): MapData {
   const live = liveConveyors(map)
-  if (live.length === 0) return map
-  let moved = false
-  const tokens = map.tokens.map((token) => {
-    const belt = conveyorAt(live, { x: token.x, y: token.y })
-    if (belt === null) return token
-    const to = conveyedPosition(map, token, belt)
-    if (to.x === token.x && to.y === token.y) return token
-    moved = true
-    return { ...token, x: to.x, y: to.y }
+  const belts = live.length === 0 ? { tokens: map.tokens, moved: new Set<string>() } : runConveyors(map, live)
+  const rides = cabinDestinations(map, belts.tokens, belts.moved, occupyBlockers(map, belts.tokens))
+  if (belts.moved.size === 0 && rides.size === 0) return map
+  const tokens = belts.tokens.map((token) => {
+    const to = rides.get(token.id)
+    return to === undefined ? token : { ...token, x: to.x, y: to.y }
   })
-  return moved ? { ...map, tokens } : map
+  return { ...map, tokens }
 }
 
 /** O que o painel da Sala mostra: a esteira dela e se o Avançar (de TODAS as esteiras) muda algo. */

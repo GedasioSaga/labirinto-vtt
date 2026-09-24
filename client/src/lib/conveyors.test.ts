@@ -103,6 +103,40 @@ describe('advanceConveyors — a esteira empurra a ficha', () => {
   })
 })
 
+describe('advanceConveyors — "Fichas ocupam espaço" vale para a esteira', () => {
+  function ocupada(tokens: Token[]): MapData {
+    return { ...mesa(tokens, [esteira('e1', 'sala-a', 'leste')]), movement: { tokensOccupy: true } }
+  }
+
+  it('com a regra ligada, a esteira não larga a ficha em cima de outra: para na casa antes', () => {
+    // Bia encostada na parede x = 500 não anda; Ana passaria por 375 e 425 e cairia em 475, sobre Bia.
+    const depois = advanceConveyors(ocupada([ficha('ana', 325, 75), ficha('bia', 475, 75)]))
+    expect(posicao(depois, 'ana')).toEqual({ x: 425, y: 75 })
+    expect(posicao(depois, 'bia')).toEqual({ x: 475, y: 75 })
+  })
+
+  it('sem a regra, a esteira continua livre (a mesa que não liga ocupação não muda)', () => {
+    const livre = mesa([ficha('ana', 325, 75), ficha('bia', 475, 75)], [esteira('e1', 'sala-a', 'leste')])
+    expect(posicao(advanceConveyors(livre), 'ana')).toEqual({ x: 475, y: 75 })
+  })
+
+  it('fila na mesma esteira anda junta: quem vai na frente anda primeiro e abre a casa', () => {
+    const depois = advanceConveyors(ocupada([ficha('ana', 125, 75), ficha('bia', 175, 75)]))
+    expect(posicao(depois, 'bia')).toEqual({ x: 325, y: 75 })
+    expect(posicao(depois, 'ana')).toEqual({ x: 275, y: 75 })
+  })
+
+  it('ficha que o mestre esconde do jogador (secreta) não segura a esteira — parar ali diria que existe alguém', () => {
+    const depois = advanceConveyors(ocupada([ficha('ana', 325, 75), ficha('espiao', 475, 75, { secret: true })]))
+    expect(posicao(depois, 'ana')).toEqual({ x: 475, y: 75 })
+  })
+
+  it('bloqueada logo na primeira casa, a ficha fica e o mapa é o MESMO (sem histórico à toa)', () => {
+    const presa = ocupada([ficha('ana', 425, 75), ficha('bia', 475, 75)])
+    expect(advanceConveyors(presa)).toBe(presa)
+  })
+})
+
 describe('setRoomConveyor — o mestre marca a sala', () => {
   it('liga, troca direção e passo, e desliga tirando o campo', () => {
     const base = torre()
