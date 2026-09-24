@@ -1,0 +1,60 @@
+/* Menu do clique direito na parede (WallGestureMenu.tsx). Duas classes pelo
+   mesmo motivo do menu da imagem de fundo (ActionBar.css): o main.css carrega
+   depois, e o `background` de .lb-panel venceria com a mesma especificidade. */
+.lb-panel.lb-wall-menu {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 15rem;
+  padding: var(--lb-space-2);
+  background: var(--lb-color-stone-solid);
+  transform-origin: top left;
+  animation: lb-wall-menu-in 120ms ease-out;
+}
+
+@keyframes lb-wall-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-panel.lb-wall-menu {
+    animation: none;
+  }
+}
+
+.lb-wall-menu__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  padding: 6px var(--lb-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-wall-menu__item:hover,
+.lb-wall-menu__item:focus-visible {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+}
+
+.lb-wall-menu__desc {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}

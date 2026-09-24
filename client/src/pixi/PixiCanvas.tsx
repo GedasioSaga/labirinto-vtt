@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle } from 'pixi.js'
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -170,6 +170,8 @@ import { cloneEntity, type CloneableEntity } from '../lib/entityClone'
 import { placeNewRoom, subtreeIds } from '../lib/roomNesting'
 import { useToastStore } from '../stores/toastStore'
 import { AVISO_PINCEL_SEM_ZONA, CORRIDOR_DISCARDED_TEXT, STAIR_CLICK_WITHOUT_DRAG_TEXT } from '../components/labels'
+import { WallGestureMenuHost } from '../components/WallGestureMenuHost'
+import { botaoDireitoEhDaParede, ligarMenuDaParede, type MenuDaParede } from './wallGesture'
 import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
   canInteractInLayer, isLayerLocked, wallLayer, regionLayer, stairLayer, lightLayer, tokenLayer, propLayer, drawingLayer,
@@ -563,6 +565,11 @@ export function PixiCanvas({
   }, [onShowShortcuts])
 
   const [nameEditor, setNameEditor] = useState<NameEditorState | null>(null)
+  // Clique direito numa parede: o menu "Abrir vão aqui / Desabar parede"
+  // (WallGestureMenu). `ponto` é o clique em px de MUNDO, para o vão abrir
+  // onde o mestre apontou; `x`/`y` e `limite` são px do contêiner.
+  const [menuDaParede, setMenuDaParede] = useState<MenuDaParede | null>(null)
+  const fecharMenuDaParede = useCallback(() => setMenuDaParede(null), [])
   // Enter e Esc desmontam o campo, e o navegador pode disparar blur depois;
   // sem esta trava o blur gravaria o nome que o Esc acabou de cancelar.
   const nameEditorOpenRef = useRef(false)
@@ -3115,6 +3122,12 @@ export function PixiCanvas({
           return
         }
 
+        // Botão direito em cima de parede é o gesto do menu da parede
+        // (`onContextMenu`): não pode começar, por baixo, um traço de parede,
+        // uma seleção ou um arrasto. O pincel de blocos fica de fora — nele o
+        // botão direito apaga.
+        if (botaoDireitoEhDaParede(useMapStore.getState(), event.button, toWorldPoint(event.global.x, event.global.y), camera.scale)) return
+
         const worldPoint = toWorldPoint(event.global.x, event.global.y)
         const { map, activeTool, selection, setSelection } = useMapStore.getState()
         // Onda 4, item 24 — os blocos de alça/edição abaixo (resize de
@@ -5489,17 +5502,15 @@ export function PixiCanvas({
       }
       el.addEventListener('dblclick', onDblClick)
 
-      /**
-       * O botão DIREITO apaga com o pincel de blocos (decisão do usuário,
-       * 15/09/2026). O menu de contexto do navegador nasce do mesmo botão e
-       * abriria por cima do gesto — some só onde o gesto existe, para o clique
-       * direito continuar normal em toda outra ferramenta.
-       */
-      const onContextMenu = (event: MouseEvent) => {
-        const { activeTool, floorShapeKind } = useMapStore.getState()
-        if (activeTool === 'floor' && floorShapeKind === 'blocos') event.preventDefault()
-      }
-      el.addEventListener('contextmenu', onContextMenu)
+      // Clique direito: no pincel de blocos ele APAGA e o menu do navegador
+      // some; em cima de parede, em qualquer outra ferramenta, abre o menu
+      // Abrir vão / Desabar; fora disso é o do navegador (wallGesture.ts).
+      const desligarMenuDaParede = ligarMenuDaParede(el, {
+        estado: useMapStore.getState,
+        paraMundo: toWorldPoint,
+        escala: () => camera.scale,
+        abrir: setMenuDaParede,
+      })
 
       /**
        * Onda 1, item 7 (nudge por seta) — move TODO o conjunto selecionado
@@ -5895,7 +5906,7 @@ export function PixiCanvas({
         lightsRenderer.destroy()
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
-        el.removeEventListener('contextmenu', onContextMenu)
+        desligarMenuDaParede()
         window.removeEventListener('keydown', onKeyDown)
         window.removeEventListener('keydown', onDraftKeyDown, true)
         window.removeEventListener('keyup', onKeyUp)
@@ -5991,6 +6002,7 @@ export function PixiCanvas({
           }}
         />
       )}
+      {menuDaParede && <WallGestureMenuHost menu={menuDaParede} onClose={fecharMenuDaParede} />}
     </div>
   )
 }
