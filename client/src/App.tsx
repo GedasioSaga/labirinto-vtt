@@ -29,7 +29,7 @@ import { useFollowPlayer } from './stores/useFollowPlayer'
 import { useArrivalTextSettings } from './stores/useArrivalTextSettings'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
-import { tableSceneKey, type PlayerInfo } from './net/hostSession'
+import { tableSceneKey, type AppliedMove, type PlayerInfo } from './net/hostSession'
 import { tableScreenUrl } from './lib/tableScreen'
 import { RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
 import { LivePlayerMirror } from './components/PlayerMirror'
@@ -315,6 +315,21 @@ function currentTableId(): string {
 }
 
 /**
+ * CARAVANA: quem acompanha a caravana anda SEM desfazer. O passo é o do
+ * arrasto do mestre; com histórico, o Ctrl+Z desfaria um seguidor por vez e o
+ * seguidor refeito apagaria o refazer. Fora da ligação da ponte do host: lá só
+ * entram os retornos do JOGADOR (`hostPlayerChanges`, `net/playerChanges.test.ts`).
+ */
+function applyCaravanMoves(moves: readonly AppliedMove[]): void {
+  const open = moves.filter((move) => move.sceneId === undefined)
+  if (open.length > 0) useMapStore.getState().setTokenPositionsLive(open.map(({ tokenId, x, y }) => ({ id: tokenId, x, y })))
+  for (const { tokenId, x, y, sceneId } of moves) {
+    if (sceneId === undefined) continue
+    useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.setTokenPosition(m, tokenId, x, y))
+  }
+}
+
+/**
  * Orquestra o estado do editor: liga a store Zustand e o I/O de arquivo aos
  * componentes de interface. Nenhum layout mora aqui além do posicionamento dos
  * painéis sobre o canvas.
@@ -535,17 +550,8 @@ function App() {
         // pela sessão: entram no mapa sem virar passo do Ctrl+Z do mestre (ver
         // `net/playerChanges.ts`), na cena aberta ou numa de fundo.
         ...hostPlayerChanges,
-        // CARAVANA: quem acompanha a caravana anda SEM desfazer. O passo é o do
-        // arrasto do mestre; com histórico, o Ctrl+Z desfaria um seguidor por vez
-        // e o seguidor refeito apagaria o refazer.
-        applyCaravanMoves: (moves) => {
-          const open = moves.filter((move) => move.sceneId === undefined)
-          if (open.length > 0) useMapStore.getState().setTokenPositionsLive(open.map(({ tokenId, x, y }) => ({ id: tokenId, x, y })))
-          for (const { tokenId, x, y, sceneId } of moves) {
-            if (sceneId === undefined) continue
-            useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.setTokenPosition(m, tokenId, x, y))
-          }
-        },
+        // CARAVANA: os seguidores andam sem desfazer (`applyCaravanMoves`, acima do App).
+        applyCaravanMoves,
         // "Destrancar e abrir" do mestre ao pedido da porta trancada (passo do Ctrl+Z dele).
         unlockAndOpenDoor: unlockAndOpenDoorFromRequest,
         // ITEM PEGÁVEL: o pino pego sai e as mochilas mudam, já validados pela
