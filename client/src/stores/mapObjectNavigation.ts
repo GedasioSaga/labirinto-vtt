@@ -1,4 +1,6 @@
-import { mapObjectOf, type MapObjectEntry } from '../lib/mapObjects'
+import { mapObjectKey, mapObjectOf, type MapObjectEntry } from '../lib/mapObjects'
+import { placeBounds } from '../lib/placeTree'
+import type { Bounds, Point } from '../pixi/world'
 import { EMPTY_SELECTION, selectionOfItem, type SelectionItem } from '../lib/selectionModel'
 import { useAdventureStore } from './adventureStore'
 import { useFollowStore } from './followStore'
@@ -32,9 +34,29 @@ function selectionTarget(entry: MapObjectEntry): SelectionItem | { pinId: string
  * andado desde então, e objeto que saiu do mapa não faz nada.
  */
 export function goToMapObject(entry: MapObjectEntry): void {
-  const store = useMapStore.getState()
-  const fresh = mapObjectOf(store.map, entry.key)
+  const fresh = mapObjectOf(useMapStore.getState().map, entry.key)
   if (fresh === null) return
+  goToFreshObject(fresh, fresh.focus, fresh.bounds)
+}
+
+/**
+ * "Enquadrar" da árvore de Locais: seleciona o local (como o clique numa sala)
+ * e leva a câmera do EDITOR até ele com a caixa do local E de tudo que há
+ * dentro — enquadrar o prédio põe o prédio inteiro na tela, com os pisos e
+ * cômodos que passam da parede. Mesmas regras do "Ir até lá" acima: desliga
+ * o Seguir, não muda o mapa e não manda nada ao jogador.
+ */
+export function framePlace(regionId: string): void {
+  const map = useMapStore.getState().map
+  const fresh = mapObjectOf(map, mapObjectKey('room', regionId))
+  if (fresh === null) return
+  const bounds = placeBounds(map.regions, regionId) ?? fresh.bounds
+  goToFreshObject(fresh, { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 }, bounds)
+}
+
+/** Seleciona o objeto lido do mapa de agora e pede a câmera do editor em `focus`, com `bounds` cabendo. */
+function goToFreshObject(fresh: MapObjectEntry, focus: Point, bounds: Bounds): void {
+  const store = useMapStore.getState()
 
   // Escolher para onde olhar desliga o Seguir, como o "Ir lá" do Grupo em outro jogador.
   useFollowStore.getState().stop()
@@ -54,5 +76,5 @@ export function goToMapObject(entry: MapObjectEntry): void {
     else store.setSelection(selectionOfItem(target))
   }
 
-  useAdventureStore.getState().goToPoint(null, fresh.focus, fresh.bounds)
+  useAdventureStore.getState().goToPoint(null, focus, bounds)
 }

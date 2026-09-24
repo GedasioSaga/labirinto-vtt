@@ -56,8 +56,9 @@ import {
 import { ScenesSection } from './components/ScenesSection'
 import { AgendaSection } from './components/AgendaSection'
 import { MapObjectsSection } from './components/MapObjectsSection'
+import { PlaceTreeSection } from './components/PlaceTreeSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
-import { goToMapObject } from './stores/mapObjectNavigation'
+import { framePlace, goToMapObject } from './stores/mapObjectNavigation'
 import { ligacaoLevarFicha } from './stores/levarFicha'
 import type { ActiveAlarmView } from './components/SceneAlarmControls'
 import { pickBackgroundImage, importBackgroundImage, pickImageFile, importPinImage, importTokenImage, buildTokenSharedPhoto } from './lib/imageImport'
@@ -1928,7 +1929,10 @@ function App() {
               </>
             }
             objects={
-              <MapObjectsSection map={map} currentKey={currentMapObjectKey} onGoTo={goToMapObject} searchRequest={objectSearchRequest} />
+              <>
+                <MapObjectsSection map={map} currentKey={currentMapObjectKey} onGoTo={goToMapObject} searchRequest={objectSearchRequest} />
+                <PlaceTreeSection regions={map.regions} currentId={selectedRegion?.id ?? null} onFrame={framePlace} />
+              </>
             }
             mapName={map.name}
             mapWidth={map.width}
