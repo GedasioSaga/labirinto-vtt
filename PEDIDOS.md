@@ -706,3 +706,15 @@ Nenhuma feature nova ficou pronta no app. Ficaram prontos o portão com vagas, 1
 Fila: quando a etapa Consolidar da torre (`wf_c998d8d5-b3c`) entregar o backlog único, cada item
 (defeitos, features pequenas e médias e também as grandes: estados da torre, relógio com rotina de NPC,
 veículos, corte vertical, correio) vira peça da fábrica em workflows paralelos, como as ondas 1 e 2.
+
+### 23/09/2026, noite — "vou dormir 8 horas"
+
+> "Agora uma coisa, eu vou dormir agora, eu queria acordar com todas ou pelo quase todas essas features
+> feitas, eu conto com você, você está numa conta 20x, então gerencie para que dure sem quebrar o limite;
+> se quebrar espera o limite voltar e continue e veja, você tem 8 horas, eu vou dormir e acordo em 8
+> horas, e eu realmente queria que tivesse commits e tal, no caso não quero que perca progresso, que vá
+> adicionando o mais rápido possível, conto com você."
+
+Plano da noite: ondas 2 e 3 da fábrica seguem (283 itens únicos em `docs/features-unicas-2026-09-24.md`);
+a junção valida cada grupo e o orquestrador junta em `auto/acervo` a cada passada verde; se o limite de
+uso estourar, espera voltar e retoma os workflows do cache (`resumeFromRunId`).
