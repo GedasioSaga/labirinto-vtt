@@ -1,13 +1,14 @@
 import type { DoorState, MapData, Pin, RegionPoint, Token, Wall } from '../types/map'
-import { createExploration, encodeExploration, forgetInside, isPointExplored, markAll, markRings, resizeExploration, type Exploration } from '../lib/exploration'
+import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, resizeExploration, type Exploration } from '../lib/exploration'
 import { pointInRing } from '../lib/floorContour'
-import { filterMapForPlayer, playerBlockedRings } from '../lib/fogFilter'
+import { filterMapForPlayer, memoryBlockedRings, playerBlockedRings } from '../lib/fogFilter'
 import { validateTokenMove } from '../lib/moveValidation'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { SIGNAL_MIN_INTERVAL_MS, signalColor } from '../lib/signals'
 import { arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, freeSeatNear, isArrivalOnly, resolvePinTravel, SAIDA_PRINCIPAL, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { passageOf, pinSummary } from '../lib/pins'
 import { visibleTokens } from '../lib/layers'
+import type { SavedSceneMemory, SavedSeat, SavedSeatExploration } from '../lib/savedTable'
 import { companionSpots, companionsNear, type Companion } from '../lib/travelTogether'
 import {
   MAX_PENDING_POINT_ACTIONS_PER_PLAYER,
@@ -269,6 +270,8 @@ export interface HostResult {
    * do envio.
    */
   replacedClientId?: string
+  /** Quem entrou reencontrou a ficha da mesa guardada: o integrador avisa o mestre, com "Desfazer". */
+  reclaimed?: ReclaimedSeat
 }
 
 /**
@@ -280,6 +283,16 @@ export interface ReturnCandidate {
   previousId: string
   name: string
 }
+
+/** Fichas devolvidas pelo nome ao entrar (retomar a mesa). Só do mestre: nunca vai pela rede. */
+export interface ReclaimedSeat {
+  playerId: string
+  name: string
+  tokenIds: string[]
+}
+
+/** Por playerId, fichas fora do mapa que continuam sendo dele (o "Guardar ficha" da ponte). */
+export type HeldTokens = ReadonlyMap<string, readonly string[]>
 
 export interface PlayerInfo {
   clientId: string | null
@@ -367,6 +380,18 @@ export interface HostSessionOptions {
   visionRadius: number
   now?: () => number
   randomId?: () => string
+  /**
+   * Retomar a mesa: os assentos guardados. Quem entra (sem resume) com o nome
+   * de um deles — sem maiúsculas nem espaços — reencontra as fichas, o raio e
+   * a cena; cada assento vale uma vez. Ausente = a sala de hoje.
+   */
+  restoreSeats?: readonly SavedSeat[]
+  /**
+   * Retomar a mesa: o mapa explorado de cada assento guardado (por nome). Só
+   * quem REENCONTRA o assento recebe a memória dele; ela chega ao jogador pelo
+   * recorte de sempre, cena a cena. Ausente = todos começam do zero.
+   */
+  restoreExploration?: readonly SavedSeatExploration[]
 }
 
 export interface HostSession {
@@ -550,6 +575,27 @@ export interface HostSession {
   replyCall(callId: string, text: string): HostResult
   /** A cena e a ficha de quem chamou, para o "Ir lá". `null` sem chamado ou sem ficha em cena. */
   callTarget(callId: string, source: HostMapSource): CallTarget | null
+  /**
+   * "Desfazer" do aviso de ficha devolvida: tira as fichas que o assento deu
+   * (as que o mestre deu depois ficam), volta o raio ao padrão e devolve o
+   * assento para quem chegar depois com o nome. Sem devolução em aberto, nada.
+   */
+  undoReclaim(playerId: string): HostResult
+  /**
+   * A mesa a gravar: quem está com ficha agora e os assentos de quem ainda não
+   * voltou (menos as fichas que já têm outro dono). Só do mestre.
+   *
+   * `held`: por playerId, as fichas fora do mapa que continuam sendo dele (o
+   * "Guardar ficha" da ponte, que a sessão não conhece). Contam como dele: a
+   * ficha guardada volta a ele na retomada, e o assento não some da mesa.
+   */
+  savedSeats(held?: HeldTokens): SavedSeat[]
+  /**
+   * O mapa explorado a gravar, com os mesmos nomes de `savedSeats`: a memória
+   * de agora de quem está com ficha, e a guardada de quem ainda não voltou.
+   * Só do mestre. `held` como em `savedSeats`.
+   */
+  savedExploration(held?: HeldTokens): SavedSeatExploration[]
   readonly rev: number
 }
 
@@ -595,26 +641,71 @@ interface ValidTravel {
 /** O que um jogador lembra de um mapa: células exploradas e último estado visto de cada porta. */
 interface PlayerMemory {
   key: string
-  /** Grade do mapa quando a memória nasceu: com a mesma grade, redimensionar o mapa leva o explorado junto. */
-  grid: number
+  /**
+   * O mapa a que o explorado corresponde: é o que a mesa grava para retomar.
+   * Com a mesma grade, redimensionar o mapa leva o explorado junto e troca isto.
+   */
+  dims: MemoryDims
   exp: Exploration
   doors: Map<string, DoorState>
   /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
   vision: RegionPoint[][]
+  /**
+   * Veio da mesa guardada e ainda não foi conferida contra o mapa de hoje: no
+   * primeiro uso, o que o mestre escondeu desde então sai da memória.
+   */
+  restored: boolean
 }
+
+type MemoryDims = Pick<MapData, 'id' | 'width' | 'height' | 'grid'>
 
 /** Chave de comparação do nome: sem maiúsculas e sem espaços. */
 function normalizeName(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '')
 }
 
-function memoryKey(map: MapData): string {
+function memoryKey(map: MemoryDims): string {
   return `${map.id}|${map.width}|${map.height}|${map.grid}`
 }
 
 /** MapData.width/height estão em células; o explorado mede px de mundo (mesma unidade da visão). */
-function worldSizeOf(map: MapData): { width: number; height: number; grid: number } {
+function worldSizeOf(map: MemoryDims): { width: number; height: number; grid: number } {
   return { width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }
+}
+
+function dimsOf(map: MapData): MemoryDims {
+  return { id: map.id, width: map.width, height: map.height, grid: map.grid }
+}
+
+/** Explorado vazio do tamanho do mapa. */
+function blankExploration(map: MemoryDims): Exploration {
+  return createExploration(worldSizeOf(map))
+}
+
+/** A memória como a mesa a grava: o fio do explorado e as portas vistas. */
+function savedSceneOf(memory: PlayerMemory): SavedSceneMemory {
+  const { id, width, height, grid } = memory.dims
+  return {
+    mapId: id,
+    width,
+    height,
+    grid,
+    explored: encodeExploration(memory.exp),
+    doors: [...memory.doors].map(([wallId, door]) => ({ wallId, open: door.open, locked: door.locked, kind: door.kind })),
+  }
+}
+
+/**
+ * A memória guardada de volta, ou `null` quando o fio está torto ou não tem o
+ * tamanho que o mapa gravado daria hoje (bitset de outro tamanho leria células erradas).
+ */
+function restoredMemoryOf(scene: SavedSceneMemory): PlayerMemory | null {
+  const dims: MemoryDims = { id: scene.mapId, width: scene.width, height: scene.height, grid: scene.grid }
+  const exp = decodeExploration(scene.explored)
+  const blank = blankExploration(dims)
+  if (exp === null || exp.cell !== blank.cell || exp.cols !== blank.cols || exp.rows !== blank.rows) return null
+  const doors = new Map<string, DoorState>(scene.doors.map((door) => [door.wallId, { open: door.open, locked: door.locked, kind: door.kind }]))
+  return { key: memoryKey(dims), dims, exp, doors, vision: [], restored: true }
 }
 
 interface PlayerRecord {
@@ -692,6 +783,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const pendingPointActions = new Map<string, { playerId: string; action: PointActionKind }>()
   // Por playerId: último pedido de ação no ponto aceito pelo intervalo mínimo.
   const lastPointActionAt = new Map<string, number>()
+  // Retomar a mesa: assentos guardados que ninguém reclamou ainda, e o assento
+  // que cada jogador reclamou (por playerId), para o "Desfazer" do mestre.
+  const pendingSeats: SavedSeat[] = (options.restoreSeats ?? []).map((seat) => ({ ...seat, tokenIds: [...seat.tokenIds] }))
+  // O mapa explorado de cada assento que ainda não voltou, pelo nome normalizado.
+  // O primeiro com o nome vale (é o que a mesa gravou para ele).
+  const pendingExploration = new Map<string, SavedSeatExploration>()
+  for (const seat of options.restoreExploration ?? []) {
+    const key = normalizeName(seat.name)
+    if (!pendingExploration.has(key)) pendingExploration.set(key, seat)
+  }
+  // `exploration`: o que o assento trouxe, para o "Desfazer" devolvê-lo intacto;
+  // `restoredMapIds`: as cenas cuja memória veio dele.
+  const claimedSeats = new Map<string, { seat: SavedSeat; given: string[]; exploration: SavedSeatExploration | undefined; restoredMapIds: string[] }>()
   let rev = 0
 
   const radiusFor = (playerId: string): number => visionOverrides.get(playerId) ?? options.visionRadius
@@ -707,21 +811,27 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    */
   const existingMemory = (playerId: string, map: MapData): PlayerMemory | undefined => {
     const byScene = memories.get(playerId)
-    const memory = byScene?.get(map.id)
-    if (byScene === undefined || memory === undefined) return undefined
-    const key = memoryKey(map)
-    if (memory.key === key) return memory
-    if (memory.grid !== map.grid) return undefined
-    const resized: PlayerMemory = {
-      key,
-      grid: map.grid,
-      exp: resizeExploration(memory.exp, worldSizeOf(map)),
-      doors: memory.doors,
+    const stored = byScene?.get(map.id)
+    if (byScene === undefined || stored === undefined) return undefined
+    const dims = dimsOf(map)
+    const key = memoryKey(dims)
+    let memory = stored
+    if (stored.key !== key) {
+      if (stored.dims.grid !== map.grid) return undefined
+      // `dims` do mapa de agora: é com elas que a mesa grava e confere o fio na retomada.
+      // `restored` passa adiante: a memória da mesa retomada ainda precisa da conferência abaixo.
       // A visão da planta velha não vale na nova: o próximo snapshot manda a de agora.
-      vision: [],
+      memory = { key, dims, exp: resizeExploration(stored.exp, worldSizeOf(dims)), doors: stored.doors, vision: [], restored: stored.restored }
+      byScene.set(map.id, memory)
     }
-    byScene.set(map.id, resized)
-    return resized
+    // Memória da mesa retomada: toda leitura passa por aqui, então é aqui que
+    // o que o mestre escondeu desde a gravação (zona oculta, sala secreta) sai
+    // dela — antes de qualquer recorte ou teste de ponto usá-la.
+    if (memory.restored) {
+      forgetBlocked(memory.exp, memoryBlockedRings(map))
+      memory.restored = false
+    }
+    return memory
   }
 
   /**
@@ -738,13 +848,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       memories.set(playerId, byScene)
     }
     const found = existingMemory(playerId, map)
-    const memory: PlayerMemory = found ?? {
-      key: memoryKey(map),
-      grid: map.grid,
-      exp: createExploration(worldSizeOf(map)),
-      doors: new Map(),
-      vision: [],
-    }
+    const dims = dimsOf(map)
+    const memory: PlayerMemory = found ?? { key: memoryKey(dims), dims, exp: blankExploration(dims), doors: new Map(), vision: [], restored: false }
     // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
     byScene.delete(map.id)
     byScene.set(map.id, memory)
@@ -877,6 +982,109 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return `${wanted} (${n})`
   }
 
+  const clampRadius = (radius: number): number => Math.min(VISION_RADIUS_MAX, Math.max(VISION_RADIUS_MIN, radius))
+
+  /** Fichas que já têm dono, fora `playerId`. */
+  const tokensOwnedByOthers = (playerId: string): Set<string> => {
+    const taken = new Set<string>()
+    for (const [owner, tokens] of Object.entries(ownership)) {
+      if (owner !== playerId) for (const tokenId of tokens) taken.add(tokenId)
+    }
+    return taken
+  }
+
+  /** As fichas do assento de `playerId`: as do mapa e as que a ponte guardou para ele. */
+  const seatTokensOf = (playerId: string, held: HeldTokens | undefined): string[] => [
+    ...new Set([...(ownership[playerId] ?? []), ...(held?.get(playerId) ?? [])]),
+  ]
+
+  /** Quem ocupa assento na mesa gravada: os jogadores com ficha, na ordem em que entraram. */
+  const seatedPlayers = (held: HeldTokens | undefined): PlayerRecord[] =>
+    [...players.values()].sort((a, b) => a.joinedAt - b.joinedAt).filter((p) => seatTokensOf(p.playerId, held).length > 0)
+
+  /**
+   * O nome com que o jogador é gravado. Quem retomou grava com o nome do
+   * assento, não com o "Ana (2)" que a sala lhe deu: na próxima retomada,
+   * digitar "Ana" ainda o reencontra.
+   */
+  const seatNameOf = (p: PlayerRecord): string => claimedSeats.get(p.playerId)?.seat.name ?? p.name
+
+  const buildSavedSeats = (held: HeldTokens | undefined): SavedSeat[] => {
+    const seats: SavedSeat[] = []
+    const owned = new Set<string>()
+    const seated = new Set<string>()
+    for (const p of seatedPlayers(held)) {
+      const tokenIds = seatTokensOf(p.playerId, held)
+      for (const tokenId of tokenIds) owned.add(tokenId)
+      const name = seatNameOf(p)
+      seated.add(normalizeName(name))
+      seats.push({ name, tokenIds: [...tokenIds], visionRadius: visionOverrides.get(p.playerId) ?? null, sceneKey: currentScene.get(p.playerId) ?? null })
+    }
+    // Quem ainda não voltou continua na mesa, menos as fichas que o mestre já deu a outro.
+    for (const seat of pendingSeats) {
+      if (seated.has(normalizeName(seat.name))) continue
+      const tokenIds = seat.tokenIds.filter((tokenId) => !owned.has(tokenId))
+      if (tokenIds.length > 0) seats.push({ ...seat, tokenIds })
+    }
+    return seats
+  }
+
+  /**
+   * Retomar a mesa: devolve a `playerId` o mapa explorado de cada cena do
+   * assento, na ordem gravada (da usada há mais tempo à mais recente), até o
+   * teto de cenas — mais as cenas de `withSeatTokens` (onde estão as fichas
+   * devolvidas), que nunca ficam de fora, como em `memoryFor`. Cena com fio
+   * torto fica de fora; as outras voltam. Devolve os ids das cenas restauradas.
+   */
+  const restoreMemories = (playerId: string, exploration: SavedSeatExploration, withSeatTokens: ReadonlySet<string>): string[] => {
+    const byScene = memories.get(playerId) ?? new Map<string, PlayerMemory>()
+    const restored: string[] = []
+    const firstNewest = exploration.scenes.length - MAX_SCENE_MEMORIES_PER_PLAYER
+    const kept = exploration.scenes.filter((scene, index) => index >= firstNewest || withSeatTokens.has(scene.mapId))
+    for (const scene of kept) {
+      const memory = restoredMemoryOf(scene)
+      if (memory === null) continue
+      byScene.delete(scene.mapId)
+      byScene.set(scene.mapId, memory)
+      restored.push(scene.mapId)
+    }
+    if (byScene.size > 0) memories.set(playerId, byScene)
+    return restored
+  }
+
+  /**
+   * Retomar a mesa: quem entra (sem resume) com o nome de um assento guardado
+   * reencontra as fichas dele — só as que ainda existem em alguma cena e não
+   * têm outro dono —, o raio, a cena e o mapa explorado. Sem nenhuma ficha que sobre, o assento
+   * continua esperando e a pessoa entra sem personagem, como hoje.
+   *
+   * `typedName` é o nome DIGITADO, antes do `uniqueName`: depois de um
+   * "Desfazer", quem pegou o assento por engano continua na sala com o nome,
+   * e a Ana de verdade entra "Ana (2)" — o assento continua sendo dela.
+   */
+  const reclaimSeat = (record: PlayerRecord, typedName: string, world: HostWorld): ReclaimedSeat | undefined => {
+    const wanted = normalizeName(typedName)
+    const index = pendingSeats.findIndex((seat) => normalizeName(seat.name) === wanted)
+    if (index < 0) return undefined
+    const seat = pendingSeats[index]
+    const inWorld = new Set(allScenes(world).flatMap((scene) => scene.map.tokens.map((token) => token.id)))
+    const taken = tokensOwnedByOthers(record.playerId)
+    const given = seat.tokenIds.filter((tokenId) => inWorld.has(tokenId) && !taken.has(tokenId))
+    if (given.length === 0) return undefined
+    pendingSeats.splice(index, 1)
+    const exploration = pendingExploration.get(wanted)
+    pendingExploration.delete(wanted)
+    const withSeatTokens = new Set(allScenes(world).filter((scene) => scene.map.tokens.some((token) => given.includes(token.id))).map(sceneKey))
+    const restoredMapIds = exploration === undefined ? [] : restoreMemories(record.playerId, exploration, withSeatTokens)
+    claimedSeats.set(record.playerId, { seat, given, exploration, restoredMapIds })
+    ownership[record.playerId] = [...new Set([...(ownership[record.playerId] ?? []), ...given])]
+    if (seat.visionRadius !== null) visionOverrides.set(record.playerId, clampRadius(seat.visionRadius))
+    // Só desempate: `sceneFor` ignora a chave se ele não tiver ficha naquela cena.
+    if (seat.sceneKey !== null) currentScene.set(record.playerId, seat.sceneKey)
+    // O nome GUARDADO: o mestre lê "Ana voltou", não o "ana" que ela digitou agora.
+    return { playerId: record.playerId, name: seat.name, tokenIds: given }
+  }
+
   function handleJoin(clientId: string, msg: JoinMessage, world: HostWorld): HostResult {
     if (byClient.has(clientId)) return reply(clientId, { type: 'error', reason: 'already_joined' })
     if (msg.code !== options.code) return reply(clientId, { type: 'error', reason: 'bad_code' })
@@ -914,7 +1122,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const [candidate, previous] of pendingReturns) {
       if (previous === record.playerId) pendingReturns.delete(candidate)
     }
-    if (lookalike !== undefined) pendingReturns.set(record.playerId, lookalike.playerId)
+    // Antes do `next`: quem reencontra a ficha já entra jogando, sem passar pela espera.
+    const reclaimed = resumed === undefined ? reclaimSeat(record, msg.name, world) : undefined
+    // Quem reencontrou o assento da mesa guardada já é a Ana daquela mesa: a
+    // "Ana" que está fora nesta sessão é outra pessoa (o mestre desfez a
+    // retomada dela), e juntar as duas pelo "Ana voltou?" daria a ficha da Ana
+    // a quem o mestre acabou de dizer que não é ela.
+    const returnOf = reclaimed === undefined ? lookalike : undefined
+    if (returnOf !== undefined) pendingReturns.set(record.playerId, returnOf.playerId)
 
     // `name` é o nome já passado por `uniqueName`: é assim que o jogador
     // descobre que entrou como "Ana (2)" em vez da "Ana" que digitou.
@@ -930,7 +1145,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         ...replacedOut,
       ],
       ...(replaced === null ? {} : { replacedClientId: replaced }),
-      ...(lookalike === undefined ? {} : { returnCandidate: { playerId: record.playerId, previousId: lookalike.playerId, name: lookalike.name } }),
+      ...(returnOf === undefined ? {} : { returnCandidate: { playerId: record.playerId, previousId: returnOf.playerId, name: returnOf.name } }),
+      ...(reclaimed === undefined ? {} : { reclaimed }),
     }
   }
 
@@ -951,6 +1167,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     pendingNotes.delete(playerId)
     openCalls.delete(playerId)
     lastCallAt.delete(playerId)
+    // Esquecido não tem mais o que desfazer. O assento não volta: quem foi
+    // expulso entraria de novo com o mesmo nome e levaria a ficha.
+    claimedSeats.delete(playerId)
     pendingReturns.delete(playerId)
     for (const [candidate, previous] of pendingReturns) {
       if (previous === playerId) pendingReturns.delete(candidate)
@@ -1828,7 +2047,49 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return
       }
       if (!Number.isFinite(radius)) return
-      visionOverrides.set(playerId, Math.min(VISION_RADIUS_MAX, Math.max(VISION_RADIUS_MIN, radius)))
+      visionOverrides.set(playerId, clampRadius(radius))
+    },
+
+    undoReclaim(playerId) {
+      const claim = claimedSeats.get(playerId)
+      if (claim === undefined) return { outbound: [] }
+      claimedSeats.delete(playerId)
+      // O assento volta a esperar: a Ana de verdade, chegando depois, ainda o reencontra.
+      pendingSeats.push(claim.seat)
+      // A memória também: quem pegou por engano esquece as cenas que vieram do
+      // assento, e a Ana de verdade recebe a de ontem, intacta.
+      const byScene = memories.get(playerId)
+      for (const mapId of claim.restoredMapIds) byScene?.delete(mapId)
+      if (claim.exploration !== undefined) {
+        const key = normalizeName(claim.seat.name)
+        if (!pendingExploration.has(key)) pendingExploration.set(key, claim.exploration)
+      }
+      const current = ownership[playerId] ?? []
+      ownership[playerId] = current.filter((tokenId) => !claim.given.includes(tokenId))
+      visionOverrides.delete(playerId)
+      return { outbound: waitingIfLostLast(playerId, current.length > 0) }
+    },
+
+    savedSeats(held) {
+      return buildSavedSeats(held)
+    },
+
+    savedExploration(held) {
+      const saved: SavedSeatExploration[] = []
+      const written = new Set<string>()
+      for (const p of seatedPlayers(held)) {
+        const byScene = memories.get(p.playerId)
+        if (byScene === undefined || byScene.size === 0) continue
+        const name = seatNameOf(p)
+        written.add(normalizeName(name))
+        saved.push({ name, scenes: [...byScene.values()].map(savedSceneOf) })
+      }
+      // Quem ainda não voltou guarda a memória de ontem, se o assento dele continua na mesa.
+      const seated = new Set(buildSavedSeats(held).map((seat) => normalizeName(seat.name)))
+      for (const [key, exploration] of pendingExploration) {
+        if (!written.has(key) && seated.has(key)) saved.push(exploration)
+      }
+      return saved
     },
 
     revealPlan(playerId, source) {

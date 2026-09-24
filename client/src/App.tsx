@@ -23,6 +23,7 @@ import { RoomPanel } from './components/RoomPanel'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import type { TravelLogEntry } from './lib/travelLog'
 import { withStoredTokens } from './lib/storedTokens'
+import { loadSavedExploration, loadSavedTable, savedTableSummary, storeSavedExploration, storeSavedTable, type TableStorage } from './lib/savedTable'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -240,6 +241,20 @@ function isRoomTool(tool: string): boolean {
   return tool === 'room' || tool === 'roomCircle' || tool === 'roomPolygon' || tool === 'roomFree'
 }
 
+/** Retomar a mesa: o storage do app do mestre, ou `null` quando o acesso lança (dado bloqueado). */
+function tableStorage(): TableStorage | null {
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
+/** A mesa é da aventura aberta (ou do mapa solto): outra aventura não herda os donos desta. */
+function currentTableId(): string {
+  return useAdventureStore.getState().adventure?.id ?? useMapStore.getState().map.id
+}
+
 /**
  * Orquestra o estado do editor: liga a store Zustand e o I/O de arquivo aos
  * componentes de interface. Nenhum layout mora aqui além do posicionamento dos
@@ -411,11 +426,18 @@ function App() {
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
   const [railTab, setRailTab] = useState<RailTab>('map')
   const hostBridgeRef = useRef<HostBridge | null>(null)
+  // A mesa da sala aberta é da aventura em que ela abriu: trocar de aventura no
+  // meio não pode gravar os donos desta sala na mesa da outra.
+  const roomTableIdRef = useRef<string | null>(null)
   const hostBridge = (): HostBridge => {
     if (!hostBridgeRef.current) {
       hostBridgeRef.current = createHostBridge({
         invoke,
         listen,
+        loadTable: () => loadSavedTable(tableStorage(), roomTableIdRef.current ?? currentTableId()),
+        saveTable: (table) => storeSavedTable(tableStorage(), roomTableIdRef.current ?? currentTableId(), table),
+        loadExploration: () => loadSavedExploration(tableStorage(), roomTableIdRef.current ?? currentTableId()),
+        saveExploration: (exploration) => storeSavedExploration(tableStorage(), roomTableIdRef.current ?? currentTableId(), exploration),
         getMap: () => useMapStore.getState().map,
         // Cada jogador vê a cena do token dele: a sessão precisa da aventura inteira, não só da cena aberta.
         getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map),
@@ -535,9 +557,10 @@ function App() {
     },
     [],
   )
-  const handleStartRoom = async () => {
+  const handleStartRoom = async (resume: boolean) => {
+    roomTableIdRef.current = currentTableId()
     try {
-      setRoom(await hostBridge().start())
+      setRoom(await hostBridge().start({ resume }))
     } catch {
       // A ponte já mostrou o toast com o motivo; o painel continua com a sala fechada.
     }
@@ -556,6 +579,12 @@ function App() {
    * viajou. Só é montado com a aba Jogo existindo (Tauri).
    */
   const roomPanelWorld = () => hostWorldOf({ adventure, activeSceneId, cache: sceneCache }, map)
+  /** Com a sala fechada, quem tem ficha na mesa guardada: é o que faz o "Abrir sala" perguntar "Retomar a mesa?". */
+  const savedTableNames = (): string | null => {
+    if (room !== null) return null
+    const table = loadSavedTable(tableStorage(), currentTableId())
+    return table === null ? null : savedTableSummary(table)
+  }
   /** A lista Cenas: as mesmas linhas do Grupo, com a Sala de cada um para o recado a escolhidos. */
   const scenePeople = () => {
     if (roomPlayers.length === 0) return undefined
@@ -602,7 +631,8 @@ function App() {
             // Mapa solto não tem para onde viajar: o diário só aparece com aventura aberta.
             travelLog={adventure === null ? undefined : { entries: travelLog, onUndo: undoTravel }}
             tunnel={tunnel}
-            onStart={() => void handleStartRoom()}
+            savedTableNames={savedTableNames()}
+            onStart={(resume) => void handleStartRoom(resume)}
             onStop={() => void handleStopRoom()}
             onStartTunnel={() => void hostBridgeRef.current?.startTunnel()}
             onStopTunnel={() => void hostBridgeRef.current?.stopTunnel()}
