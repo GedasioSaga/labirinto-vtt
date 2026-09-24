@@ -48,6 +48,9 @@ import {
   useAdventureStore,
 } from './stores/adventureStore'
 import { ScenesSection } from './components/ScenesSection'
+import { WorldStateSection } from './components/WorldStateSection'
+import { EstadoDaLuz, EstadoDaPorta, EstadoDaZona, EstadoDoPino } from './components/DependeDoEstadoControls'
+import { amarradosPorEstado, type AmarraDeEstado } from './lib/estadoDoMundo'
 import { MapObjectsSection } from './components/MapObjectsSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
 import { goToMapObject } from './stores/mapObjectNavigation'
@@ -474,6 +477,16 @@ function App() {
     return hostBridgeRef.current
   }
   useEffect(() => useMapStore.subscribe((state) => state.map, () => hostBridgeRef.current?.notifyMapChanged()), [])
+  // ESTADO DO MUNDO: a troca pode mudar SÓ cenas de fundo (a aberta não tem nada
+  // amarrado). Sem esta linha, quem está nelas só veria a comporta abrir quando
+  // alguém mexesse na mesa.
+  useEffect(
+    () =>
+      useAdventureStore.subscribe((state, previous) => {
+        if (state.adventure?.estados !== previous.adventure?.estados) hostBridgeRef.current?.notifyMapChanged()
+      }),
+    [],
+  )
   const laserToggled = useLaserStore((state) => state.toggled)
   // B2 — o `off` sai no fim do traço: soltar o botão, sair da janela ou desarmar (L e botão Laser).
   useEffect(
@@ -822,6 +835,8 @@ function App() {
   // A5 — zona aberta no painel. Some sozinha se o Ctrl+Z tirar a zona do mapa.
   const selectedConcealZoneId = useMapStore((state) => state.selectedConcealZoneId)
   const selectedConcealZone = map.concealZones.find((z) => z.id === selectedConcealZoneId) ?? null
+  // ESTADO DO MUNDO: "Depende do estado" amarra o elemento aberto; a aventura sabe o valor atual do estado.
+  const amarrarAoEstado = (amarra: AmarraDeEstado) => useAdventureStore.getState().amarrarAoEstado(amarra)
   // Pino aberto no painel. Some sozinho se o Ctrl+Z tirar o pino do mapa.
   const selectedPinId = useMapStore((state) => state.selectedPinId)
   const selectedPin = map.pins.find((p) => p.id === selectedPinId) ?? null
@@ -1728,6 +1743,41 @@ function App() {
                 onMove={adventure === null ? undefined : (sceneId, parentId) => useAdventureStore.getState().moveScene(sceneId, parentId)}
                 adventureId={adventure?.id ?? null}
               />
+            }
+            // ESTADO DO MUNDO: só com aventura (o estado cruza cenas). O jogador recebe o efeito pelo broadcast de sempre.
+            worldState={
+              adventure === null ? undefined : (
+                <WorldStateSection
+                  estados={adventure.estados ?? []}
+                  // Conta só quando há estado: sem estado, nenhuma passada pelas cenas.
+                  amarrados={(adventure.estados ?? []).length === 0 ? new Map() : amarradosPorEstado(sceneMaps({ adventure, activeSceneId, cache: sceneCache }, map).values())}
+                  onCriar={(nome, valores) => useAdventureStore.getState().criarEstadoDoMundo(nome, valores)}
+                  onTrocar={(estadoId, valor) => useAdventureStore.getState().trocarEstadoDoMundo(estadoId, valor)}
+                />
+              )
+            }
+            // ESTADO DO MUNDO: "Depende do estado" do elemento aberto no painel —
+            // é daqui que a regra `porEstado` nasce, sem editar o map.json à mão.
+            estadoDaPorta={
+              adventure === null || selectedWall === null ? undefined : (
+                <EstadoDaPorta wall={selectedWall} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+              )
+            }
+            // Só o pino de VIAGEM tem passagem para o estado mudar.
+            estadoDoPino={
+              adventure === null || selectedPin?.kind !== 'viagem' ? undefined : (
+                <EstadoDoPino pin={selectedPin} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+              )
+            }
+            estadoDaZona={
+              adventure === null || selectedConcealZone === null ? undefined : (
+                <EstadoDaZona zone={selectedConcealZone} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+              )
+            }
+            estadoDaLuz={
+              adventure === null || selectedLight === null ? undefined : (
+                <EstadoDaLuz light={selectedLight} estados={adventure.estados ?? []} onAmarrar={amarrarAoEstado} />
+              )
             }
             objects={
               <MapObjectsSection map={map} currentKey={currentMapObjectKey} onGoTo={goToMapObject} searchRequest={objectSearchRequest} />

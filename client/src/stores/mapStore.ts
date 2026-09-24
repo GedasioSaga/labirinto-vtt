@@ -15,6 +15,7 @@ import { FLOOR_LAYER, clampFloorPolygonSides, type FloorShapeKind } from '../lib
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
+import { amarrarAoEstado as amarrarNoMapa, type AmarraDeEstado } from '../lib/estadoDoMundo'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
 // pixi/PixiCanvas.tsx).
@@ -699,6 +700,14 @@ interface MapStoreState {
   addConcealZone: (zone: MapData['concealZones'][number]) => void
   updateConcealZone: (id: string, patch: Partial<Pick<MapData['concealZones'][number], 'name' | 'revealed'>>) => void
   removeConcealZone: (id: string) => void
+  /**
+   * ESTADO DO MUNDO — "Depende do estado" do painel: grava a regra na porta,
+   * no pino, na zona ou na luz e já põe o elemento no efeito de `valorAtual`
+   * (`null` = estado sem valor conhecido, só grava a regra). Com histórico:
+   * amarrar é edição do mestre, desfaz com Ctrl+Z. Quem sabe o valor atual é
+   * `useAdventureStore.amarrarAoEstado`, que chama esta.
+   */
+  amarrarAoEstado: (amarra: AmarraDeEstado, valorAtual: string | null) => void
   /**
    * Um traço inteiro do Pincel de revelar, num Ctrl+Z só. Devolve se o traço
    * passou por alguma zona oculta ativa (o chamador avisa quando não passou).
@@ -1677,6 +1686,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((set, g
       if (mapFactory.removeConcealZone(get().map, id) === get().map) return
       withHistory((map) => mapFactory.removeConcealZone(map, id))
       if (get().selectedConcealZoneId === id) set({ selectedConcealZoneId: null })
+    },
+    amarrarAoEstado: (amarra, valorAtual) => {
+      if (amarrarNoMapa(get().map, amarra, valorAtual) === get().map) return
+      withHistory((map) => amarrarNoMapa(map, amarra, valorAtual))
     },
     paintRevealBrush: (stroke, radius, mode) => {
       const result = paintRevealBrushOnMap(get().map, stroke, radius, mode)
