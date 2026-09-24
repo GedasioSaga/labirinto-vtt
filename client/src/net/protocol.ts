@@ -1,5 +1,6 @@
 import type { HazardKind, MapData, RegionPoint } from '../types/map'
 import type { PlayerHazard } from '../lib/hazards'
+import type { PlayerAreaTrigger } from '../lib/areaTriggers'
 import type { ExploredWire } from '../lib/exploration'
 import type { TokenMoveRejection } from '../lib/moveValidation'
 import { LASER_MAX_POINTS_PER_MESSAGE } from '../lib/laser'
@@ -72,6 +73,10 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
  * polígono de cada sala tomada que o jogador enxerga) e `hazard.entered`
  * (mestre -> jogador: a ficha dele entrou no perigo). Jogador antigo ignora os
  * dois; mestre antigo não manda, e a tela fica sem perigo desenhado.
+ *
+ * GATILHO DE ÁREA, aditivo pelo mesmo critério: `snapshot.gatilhos` (tipo e
+ * polígono de cada gatilho que o mestre REVELOU, na área que o jogador
+ * conhece). Entrar num gatilho NÃO manda nada ao jogador: o aviso é do mestre.
  */
 export const PROTOCOL_VERSION = 1
 
@@ -300,8 +305,9 @@ export type HostMessage =
   // deste recorte (`turnForPlayer`). Ausente = ninguém que o jogador vê.
   // `partyTokens` (ITEM PEGÁVEL): das fichas que ele recebeu, as de OUTROS jogadores — o "Dar a…" não oferece NPC.
   // `hazards` (ZONA DE PERIGO): só o que o jogador enxerga agora, e só quando há algum (`PlayerMapView.hazards`).
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[] }
+  // `gatilhos` (GATILHO DE ÁREA): só o revelado pelo mestre, e só quando há algum (`PlayerMapView.gatilhos`).
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; gatilhos?: PlayerAreaTrigger[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; turn?: string; partyTokens?: string[]; hazards?: PlayerHazard[]; gatilhos?: PlayerAreaTrigger[] }
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.
   | { type: 'hazard.entered'; kind: HazardKind }
   | { type: 'token.move.accepted'; reqId: string; x: number; y: number }

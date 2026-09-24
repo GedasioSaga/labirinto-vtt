@@ -137,6 +137,8 @@ import { createPropsRenderer } from './drawProps'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { drawHazardAreas } from './drawHazards'
 import { hazardAreas } from '../lib/hazards'
+import { drawAreaTriggers } from './drawAreaTriggers'
+import { areaTriggerAreas } from '../lib/areaTriggers'
 import { drawWatchCones } from './drawNpcWatch'
 import { drawPatrolRoutes } from './drawNpcPatrol'
 import { createPinsRenderer } from './drawPins'
@@ -661,6 +663,9 @@ export function PixiCanvas({
       // ZONA DE PERIGO: cor chapada sobre o chão e as salas, sob paredes e fichas.
       const hazardsGraphics = new Graphics()
       hazardsGraphics.eventMode = 'none'
+      // GATILHO DE ÁREA: o mestre vê toda área marcada, revelada ou não, na mesma altura do perigo.
+      const areaTriggersGraphics = new Graphics()
+      areaTriggersGraphics.eventMode = 'none'
       // Pinos acima das zonas ocultas: o pino é o chamariz da cena e o mestre
       // precisa achá-lo mesmo sobre uma área que ele mesmo escondeu.
       const pinsContainer = new Container()
@@ -694,6 +699,7 @@ export function PixiCanvas({
         gridGraphics,
         gridAlignOverlayGraphics,
         hazardsGraphics,
+        areaTriggersGraphics,
         wallsGraphics,
         doorsGraphics,
         stairsGraphics,
@@ -1166,6 +1172,8 @@ export function PixiCanvas({
         redrawRegionsAndDrawings()
         // Camada Salas escondida esconde a sala; o perigo dela vai junto.
         drawHazardAreas(hazardsGraphics, map.hiddenLayers.includes('salas') ? [] : hazardAreas(map))
+        // Gatilho de região em camada escondida sai junto com ela.
+        drawAreaTriggers(areaTriggersGraphics, areaTriggerAreas({ gatilhos: map.gatilhos, regions: visibleRegions(map.regions, map.hiddenLayers) }))
         roomNamesRenderer.draw(roomNamesContainer, visibleRegions(map.regions, map.hiddenLayers), map.grid, camera.scale)
         redrawWallsAndDoors()
         redrawStairs()

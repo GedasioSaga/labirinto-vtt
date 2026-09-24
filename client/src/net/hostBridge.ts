@@ -14,6 +14,7 @@ import {
   type AppliedTransfer,
   type CaravanStop,
   type HazardEntryNotice,
+  type AreaTriggerEntryNotice,
   type HostResult,
   type HostSession,
   type HostSignal,
@@ -26,6 +27,7 @@ import type { DoorRequestHow, HostErrorReason, LaserMessage } from './protocol'
 import { guardSightingNotices } from './guardNotices'
 import type { TurnRef } from '../lib/initiative'
 import { hazardEntryLine } from '../lib/hazards'
+import { areaTriggerEntryLine } from '../lib/areaTriggers'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -532,7 +534,21 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const result = session.broadcast(current)
     void dispatch(result)
     announceHazardEntries(result.hazardEntries ?? [])
+    announceTriggerEntries(result.triggerEntries ?? [])
     announceGuardSightings(current)
+  }
+
+  /**
+   * GATILHO DE ÁREA: "Armadilha: Ana entrou em Corredor". Grupo próprio, como
+   * o do guarda: várias entradas de uma vez viram uma caixa, sem soterrar os
+   * pedidos. Fica o tempo do aviso do guarda — é gancho de narração.
+   */
+  const announceTriggerEntries = (entries: readonly AreaTriggerEntryNotice[]) => {
+    for (const entry of entries) {
+      useToastStore
+        .getState()
+        .push('info', areaTriggerEntryLine(entry.playerName, entry.kind, entry.areaName, entry.sceneName), GUARD_SIGHTING_TOAST_MS, { grupo: 'Gatilhos' })
+    }
   }
 
   /**

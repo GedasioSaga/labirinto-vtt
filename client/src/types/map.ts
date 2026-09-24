@@ -420,6 +420,30 @@ export interface Hazard {
   roomIds: string[]
 }
 
+/**
+ * GATILHO DE ÁREA — o que a área marcada faz quando a ficha de um jogador
+ * entra nela. Lista curta e fechada; rótulos e cores em `lib/areaTriggers.ts`.
+ */
+export type AreaTriggerKind = 'armadilha' | 'alarme'
+
+/**
+ * Área (Região ou Sala) marcada pelo mestre como gatilho. Quando a ficha de um
+ * jogador ENTRA no polígono da região, o mestre recebe o aviso com o nome do
+ * jogador e o da área.
+ *
+ * O jogador NUNCA recebe este objeto: o recorte (`lib/fogFilter.ts`) manda só
+ * o tipo e o polígono do gatilho que o mestre REVELOU e cuja área o jogador já
+ * conhece (`PlayerMapView.gatilhos`) — nunca o id do gatilho nem o da região.
+ */
+export interface AreaTrigger {
+  id: string
+  kind: AreaTriggerKind
+  /** A região (Sala ou Área) cujo polígono é o gatilho. Uma região tem no máximo um. */
+  regionId: string
+  /** `true` = o mestre mostrou aos jogadores. Nasce `false`. */
+  revealed: boolean
+}
+
 export interface Region extends PlayerSecret {
   id: string
   points: RegionPoint[]
@@ -980,6 +1004,13 @@ export interface MapData {
    * em `lib/hazards.ts` → `readHazards`. NUNCA sai no recorte do jogador.
    */
   hazards?: Hazard[]
+  /**
+   * GATILHOS DE ÁREA (armadilha, alarme). `undefined` === nenhum — sem linha
+   * de migração, mesmo padrão de `hazards`: o último gatilho apagado tira o
+   * campo. Leitura segura do disco em `lib/areaTriggers.ts` →
+   * `readAreaTriggers`. NUNCA sai no recorte do jogador.
+   */
+  gatilhos?: AreaTrigger[]
   /**
    * MAPA-MUNDI: nesta cena o grupo anda como UMA ficha só, a caravana, que o
    * mestre move (`lib/caravan.ts`). Só `true` vale; ausente = cena comum, sem

@@ -48,6 +48,7 @@ import { AreaSelectionControls } from './AreaSelectionControls'
 import { FloorPieceControls, type FloorPieceControlsProps } from './FloorPieceControls'
 import { FloorStyleControls, type FloorStyleControlsProps } from './FloorStyleControls'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from './PlayerSecretControls'
+import { AreaTriggerControls, type AreaTriggerControlsProps } from './AreaTriggerControls'
 import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZoneControls'
 import { PinControls, type PinControlsProps } from './PinControls'
 import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
@@ -152,6 +153,8 @@ interface PropertiesPanelProps {
   floorStyle: FloorStyleControlsProps
   /** A5 — "Oculto para jogadores" da Região/Escada/Desenho selecionado; `null` = nenhum. */
   playerSecret: PlayerSecretControlsProps | null
+  /** GATILHO DE ÁREA da Região/Sala selecionada; `null` = nenhuma região selecionada. */
+  areaTrigger: AreaTriggerControlsProps | null
   /** A5 — zona oculta aberta no painel; `null` = nenhuma. */
   concealZone: ConcealZoneControlsProps | null
   /** Ponto de interesse: tipo do próximo pino, ou o pino aberto no painel. */
@@ -222,6 +225,7 @@ export function PropertiesPanel({
   floorPieceControls,
   floorStyle,
   playerSecret,
+  areaTrigger,
   concealZone,
   pin,
   pinIcon,
@@ -314,6 +318,15 @@ export function PropertiesPanel({
         {playerSecret && (
           <ToolPropertiesSection group="playerVisibility" groups={groups}>
             <PlayerSecretControls {...playerSecret} />
+          </ToolPropertiesSection>
+        )}
+        {/* GATILHO DE ÁREA logo abaixo de "Jogadores": as duas decidem o que o
+            jogador recebe desta área. Região e Sala, não só Sala. */}
+        {selectedRegion && areaTrigger && (
+          <ToolPropertiesSection group="playerVisibility" groups={groups}>
+            <section className="lb-section">
+              <AreaTriggerControls key={selectedRegion.id} {...areaTrigger} />
+            </section>
           </ToolPropertiesSection>
         )}
         {/* ANTES do Estilo de desenho: com a ferramenta Caminho na mão esta é
