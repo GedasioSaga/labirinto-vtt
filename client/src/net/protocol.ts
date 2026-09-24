@@ -6,6 +6,7 @@ import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { ROOM_TEXT_MAX_LENGTH } from '../lib/roomText'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from '../lib/clues'
+import { isTokenAction, isTokenActionRejection, TOKEN_ACTION_REPLY_MAX_LENGTH, TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
 
 /**
  * Protocolo mestre <-> jogador. Toda mensagem é um objeto discriminado por
@@ -75,6 +76,14 @@ import { CLUEBOOK_MAX_CLUES, CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH } from 
  * posição, o id do pino ou o nome/id da cena. Mestre antigo responde
  * `error invalid_message` (que o jogador ignora durante o jogo); jogador
  * antigo ignora as cinco.
+ *
+ * AGIR SOBRE UMA FICHA é aditivo pelo mesmo critério: `token.action` (jogador
+ * -> mestre) e, na volta e só a quem pediu, `token.action.rejected` (o host
+ * recusou antes de perguntar ao mestre) e `token.action.answer` (o mestre
+ * aceitou ou recusou, com o texto opcional que ele escreveu só para aquele
+ * jogador em `reply`). A volta leva só o `reqId` do jogador e esse texto:
+ * nunca nome de ficha, de cena ou posição. Mestre antigo responde
+ * `error invalid_message`; jogador antigo ignora as duas (e o `reply`).
  */
 export const PROTOCOL_VERSION = 1
 
@@ -197,6 +206,20 @@ export interface ClueShowMessage {
   to: string
 }
 
+/**
+ * AGIR SOBRE UMA FICHA: o jogador pede ao mestre `action` sobre a ficha
+ * `tokenId` (que ele vê agora e não é dele). `reqId` é do jogador, como no
+ * movimento: é por ele que a resposta volta. `text`: o que ele diz, oferece ou
+ * pede, até `TOKEN_ACTION_TEXT_MAX_LENGTH`; ausente = sem texto.
+ */
+export interface TokenActionRequestMessage {
+  type: 'token.action'
+  reqId: string
+  tokenId: string
+  action: TokenAction
+  text?: string
+}
+
 export type PlayerMessage =
   | JoinMessage
   | TokenMoveMessage
@@ -209,6 +232,7 @@ export type PlayerMessage =
   | ClueReadMessage
   | CluePeersRequestMessage
   | ClueShowMessage
+  | TokenActionRequestMessage
 
 /** Por que o host recusou o pedido de porta do jogador. */
 export type DoorToggleRejection = 'locked' | 'far' | 'not_visible'
@@ -322,6 +346,17 @@ export interface ClueShowResultMessage {
 
 export type ClueHostMessage = ClueAddedMessage | CluebookMessage | ClueShownMessage | CluePeersMessage | ClueShowResultMessage
 
+/**
+ * AGIR SOBRE UMA FICHA, na volta. Só `reqId`, o veredito e, no `answer`, o
+ * texto que o mestre escreveu para ESTE jogador (`reply`, até
+ * `TOKEN_ACTION_REPLY_MAX_LENGTH`; ausente = sem texto): nem o nome da ficha
+ * (o jogador já sabe qual tocou, pelo nome que ELE vê), nem a cena, nem o que o
+ * mestre chama aquela ficha. Vai só a quem pediu.
+ */
+export type TokenActionHostMessage =
+  | { type: 'token.action.rejected'; reqId: string; reason: TokenActionRejection }
+  | { type: 'token.action.answer'; reqId: string; accepted: boolean; reply?: string }
+
 export type HostErrorReason ='bad_code' | 'invalid_message' | 'not_joined' | 'already_joined'
 
 export type HostMessage =
@@ -347,6 +382,7 @@ export type HostMessage =
   | RoomTextMessage
   | NotebookMessage
   | ClueHostMessage
+  | TokenActionHostMessage
   | { type: 'kicked' }
   | { type: 'room.closed' }
   | { type: 'error'; reason: HostErrorReason }
@@ -562,6 +598,46 @@ export function parseClueMessage(value: unknown): ClueHostMessage | null {
   }
 }
 
+/**
+ * Pedido de ação sobre uma ficha. Ação fora da lista, texto que não é texto ou
+ * acima do teto recusam a mensagem inteira. Texto só de espaço vale como sem
+ * texto (o campo some), e o que sobra sai aparado.
+ */
+function parseTokenActionRequest(obj: Record<string, unknown>): TokenActionRequestMessage | null {
+  const { reqId, tokenId, action, text } = obj
+  if (!isBoundedString(reqId, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isBoundedString(tokenId, 1, REQ_ID_MAX_LENGTH)) return null
+  if (!isTokenAction(action)) return null
+  const parsed: TokenActionRequestMessage = { type: 'token.action', reqId, tokenId, action }
+  if (text === undefined) return parsed
+  if (!isBoundedString(text, 0, TOKEN_ACTION_TEXT_MAX_LENGTH)) return null
+  const trimmed = text.trim()
+  return trimmed === '' ? parsed : { ...parsed, text: trimmed }
+}
+
+/**
+ * Valida a volta do pedido de ação que o jogador recebe. Devolve cópia só com
+ * os campos conhecidos: nome, cena ou posição que viessem juntos ficam para
+ * trás. Motivo de recusa que esta versão não conhece vira `unavailable`.
+ * O `reply` sai aparado; fora de forma, só espaço ou acima do teto, ele cai
+ * sozinho e o veredito fica: sem o veredito o jogador esperaria para sempre.
+ */
+export function parseTokenActionHostMessage(value: unknown): TokenActionHostMessage | null {
+  if (!isRecord(value)) return null
+  const { reqId, reply } = value
+  if (!isBoundedString(reqId, 1, REQ_ID_MAX_LENGTH)) return null
+  if (value.type === 'token.action.answer') {
+    if (typeof value.accepted !== 'boolean') return null
+    const said = isBoundedString(reply, 1, TOKEN_ACTION_REPLY_MAX_LENGTH) ? reply.trim() : ''
+    return said === '' ? { type: 'token.action.answer', reqId, accepted: value.accepted } : { type: 'token.action.answer', reqId, accepted: value.accepted, reply: said }
+  }
+  if (value.type === 'token.action.rejected') {
+    const reason = isTokenActionRejection(value.reason) ? value.reason : 'unavailable'
+    return { type: 'token.action.rejected', reqId, reason }
+  }
+  return null
+}
+
 /** Cor do laser repassado: `#rrggbb`, a forma que `Token.color` grava. */
 const LASER_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 
@@ -652,6 +728,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return { type: 'clue.peers' }
     case 'clue.show':
       return isBoundedString(value.clueId, 1, REQ_ID_MAX_LENGTH) && isRoomName(value.to) ? { type: 'clue.show', clueId: value.clueId, to: value.to } : null
+    case 'token.action':
+      return parseTokenActionRequest(value)
     default:
       return null
   }

@@ -50,6 +50,19 @@
   gap: var(--lb-space-2);
 }
 
+/* Campo de resposta do aviso (o que o NPC responde, só a quem pediu): rótulo
+   pequeno em cima, o campo na largura do aviso, logo acima dos botões. */
+.lb-toast__resposta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
+.lb-toast__rotulo {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+}
+
 .lb-toast__text {
   flex: 1;
   font-size: var(--lb-font-size-sm);

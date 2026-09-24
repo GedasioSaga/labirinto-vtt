@@ -25,13 +25,27 @@ export type ToastKind = 'info' | 'error' | 'instrucao'
 /** Botão de um aviso. Clicar roda `run` e dispensa o aviso. */
 export interface ToastAction {
   label: string
-  run: () => void
+  /**
+   * `resposta`: o que a pessoa escreveu no campo do aviso (`ToastMessage.resposta`),
+   * já aparado; `''` com o campo vazio. Aviso sem campo, e o "Deixar todos", não passam nada.
+   */
+  run: (resposta?: string) => void
   /**
    * A ação que o "Deixar todos" da caixa roda por este aviso
    * (`components/caixaDeAvisos.ts`). Marcada, e não "a primeira": a ordem
    * dos botões é de desenho, e trocar a ordem não pode trocar o que o lote faz.
    */
   emLote?: boolean
+}
+
+/**
+ * Campo de texto do aviso, acima dos botões: quem responde a pergunta escreve
+ * junto ("o que Severa diz"). O texto vai para a `run` do botão apertado.
+ */
+export interface ToastReplyField {
+  /** O rótulo visível do campo ("Resposta só para Ana (opcional)"). */
+  rotulo: string
+  maxLength: number
 }
 
 export interface ToastMessage {
@@ -55,13 +69,16 @@ export interface ToastMessage {
    * avisos soltos (`components/caixaDeAvisos.ts`). Ausente = aviso de sempre.
    */
   grupo?: string
+  /** Campo de texto que acompanha a resposta. Ausente = só os botões. */
+  resposta?: ToastReplyField
 }
 
-/** Extras de `push`: botões, o que o × faz e o grupo. */
+/** Extras de `push`: botões, o que o × faz, o grupo e o campo de resposta. */
 export interface ToastExtras {
   actions?: ToastAction[]
   onDismiss?: () => void
   grupo?: string
+  resposta?: ToastReplyField
 }
 
 interface ToastState {
@@ -117,6 +134,7 @@ export const useToastStore = create<ToastState>()((set, get) => ({
     if (extras.actions !== undefined && extras.actions.length > 0) toast.actions = extras.actions
     if (extras.onDismiss !== undefined) toast.onDismiss = extras.onDismiss
     if (extras.grupo !== undefined) toast.grupo = extras.grupo
+    if (extras.resposta !== undefined) toast.resposta = extras.resposta
     set((state) => ({ toasts: [...state.toasts, toast] }))
     if (durationMs !== null) {
       timers.set(

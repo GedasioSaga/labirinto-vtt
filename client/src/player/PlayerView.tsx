@@ -64,6 +64,7 @@ import {
 import { drawPlayerMeasure } from './drawPlayerMeasure'
 import { createTokenGlides, stepGlides, syncGlide, type TokenGlides } from './tokenGlide'
 import { applyTokenTouch, prepareTokenLayer } from './tokenTouch'
+import { findTappedOtherToken } from './tokenCard'
 import {
   NO_TOUCH,
   NO_ZOOM_STEP,
@@ -111,6 +112,8 @@ interface PlayerViewProps {
   onDoorToggle?: (wallId: string) => void
   /** Toque curto num pino: abre o cartão do ponto de interesse. */
   onPinOpen?: (pinId: string) => void
+  /** Toque curto numa ficha ALHEIA: abre o cartão dela, com as ações que viram pedido ao mestre. */
+  onTokenOpen?: (tokenId: string) => void
   /** Toque curto no nome de uma Sala cujo texto já chegou: reabre o texto da sala. */
   onRoomOpen?: (regionId: string) => void
   /** Rastro do laser do mestre; o ticker esmaece cada ponto pela idade. */
@@ -782,6 +785,7 @@ export function PlayerView({
   measureArmed = false,
   onDoorToggle,
   onPinOpen,
+  onTokenOpen,
   onRoomOpen,
   laser,
   laserArmed = false,
@@ -811,6 +815,7 @@ export function PlayerView({
     measureArmed,
     onDoorToggle,
     onPinOpen,
+    onTokenOpen,
     onRoomOpen,
     laser,
     laserArmed,
@@ -1006,6 +1011,21 @@ export function PlayerView({
     const point = scene.world.toLocal({ x: screenX, y: screenY })
     const pin = findPinAt(visiblePins(map.pins ?? [], map.hiddenLayers), point, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
     return pin === null ? null : pin.id
+  }
+
+  /**
+   * Ficha ALHEIA sob o ponto da TELA, com a mesma folga de dedo do pino. Só
+   * quando alguém ouve o toque: no espelho do mestre ("Ver tela") não há
+   * cartão, e a ficha não pode virar alvo de cursor à toa. Porta sob o mesmo
+   * dedo: a ficha só ganha no miolo dela (`findTappedOtherToken`) — senão a
+   * porta ao lado de um NPC nunca mais abria pelo toque.
+   */
+  function otherTokenAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
+    const { map, ownTokens: own, onTokenOpen: open } = latestRef.current
+    if (open === undefined) return null
+    const point = scene.world.toLocal({ x: screenX, y: screenY })
+    const token = findTappedOtherToken(map.tokens, own, visibleWalls(map), point, map.grid, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
+    return token === null ? null : token.id
   }
 
   /**
@@ -1606,7 +1626,8 @@ export function PlayerView({
         // aperta ali quer ler o cartão, e demorar meio segundo para soltar não
         // muda a intenção — sem esta guarda, a mesma pressão virava ping de
         // mapa e o cartão nunca abria (medido no toque lento).
-        if (pinAtScreen(scene, x, y) !== null) return
+        // Idem a ficha alheia: o toque nela é para abrir o cartão.
+        if (pinAtScreen(scene, x, y) !== null || otherTokenAtScreen(scene, x, y) !== null) return
         const timer = setTimeout(() => {
           longPress = null
           // Virou sinal: o gesto não continua como arrasto de câmera.
@@ -1644,6 +1665,7 @@ export function PlayerView({
           const overTappable =
             !latestRef.current.signalArmed &&
             (pinAtScreen(scene, event.global.x, event.global.y) !== null ||
+              otherTokenAtScreen(scene, event.global.x, event.global.y) !== null ||
               doorAtScreen(scene, event.global.x, event.global.y) !== null ||
               roomTextAtScreen(scene, event.global.x, event.global.y) !== null)
           app.stage.cursor = overTappable ? 'pointer' : 'default'
@@ -1696,6 +1718,13 @@ export function PlayerView({
           const pinId = pinAtScreen(scene, drag.startX, drag.startY)
           if (pinId !== null) {
             latestRef.current.onPinOpen?.(pinId)
+            return
+          }
+          // A ficha é desenhada por cima da porta e do nome da Sala: vem antes
+          // deles — mas com porta sob o dedo, só o miolo da ficha abre o cartão.
+          const tokenId = otherTokenAtScreen(scene, drag.startX, drag.startY)
+          if (tokenId !== null) {
+            latestRef.current.onTokenOpen?.(tokenId)
             return
           }
           const door = doorAtScreen(scene, drag.startX, drag.startY)
