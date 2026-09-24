@@ -9,8 +9,8 @@ import { simplifyPolygon, chaikinSmooth } from './regionSmoothing'
 import { edgesCoveredByParent, findContainingRoom, insertIndexAfterSubtree, subtreeIds } from './roomNesting'
 import { isAxisAlignedRect, rectCornerShift, resizeRoomCorner, resizeRoomDimensions as resizeRoomDimensionsPoints, type RoomCorner } from './roomOps'
 import {
-  normalizeRotation, roomCentroid, roomRotationOf, rotatePointAround, rotateVector, rotationTrig, withoutRotationNoise,
-  type RotationTrig,
+  normalizeRotation, roomCentroid, roomRotationOf, rotatePointAround, rotateVector, rotationDelta, rotationPivot, rotationTrig,
+  withoutRotationNoise, type RotationTrig,
 } from './roomRotation'
 import { defaultMeasurementModeForShape } from './measurement'
 import { moveBlocos, type Bloco } from './floorBlocks'
@@ -501,10 +501,15 @@ export function moveRegion(map: MapData, regionId: string, dx: number, dy: numbe
   }
 }
 
+/** Em volta de onde `rotateRegion` gira: o pivô da grade do quarto de volta, ou sempre o centróide. */
+export type PivoDoGiro = 'grade' | 'centro'
+
 /**
  * Gira a região e as sub-salas dela (subárvore inteira) `degrees` graus —
  * positivo = sentido horário na tela — em torno do centróide de área da
- * região girada, com as paredes vinculadas. O alcance é o de `moveRegion`:
+ * região girada (no quarto de volta de uma sala na grade, o ponto da grade
+ * mais perto dele, para a sala continuar na grade — `rotationPivot`), com as
+ * paredes vinculadas. O alcance é o de `moveRegion`:
  * sala, sub-salas, paredes e portas (a porta mora na parede) vão juntas; o
  * que está DENTRO (ficha, móvel, pino, luz, escada, desenho) fica onde está.
  *
@@ -525,14 +530,21 @@ export function moveRegion(map: MapData, regionId: string, dx: number, dy: numbe
  * gesto e, no arrasto, rodam uma vez só, ao soltar — o mesmo contrato de
  * `moveRegion`. Giro nulo (0°, 360°) ou região inexistente devolve `map` pela
  * mesma referência, para `commitDragHistory` não gravar entrada vazia.
+ *
+ * `pivo`: `'grade'` (botão, campo) usa `rotationPivot`; `'centro'` (cada
+ * quadro do arrasto) gira sempre em volta do centróide, mesmo num passo de
+ * exatos 90° — senão o passo de volta do Esc e o `alignQuarterTurnToGrid` do
+ * soltar, que contam com o centro parado, deixam a sala fora do lugar.
  */
-export function rotateRegion(map: MapData, regionId: string, degrees: number): MapData {
+export function rotateRegion(map: MapData, regionId: string, degrees: number, pivo: PivoDoGiro = 'grade'): MapData {
   const region = map.regions.find((r) => r.id === regionId)
   const turn = normalizeRotation(degrees)
   if (!region || turn === 0 || region.points.length === 0) return map
 
   const trig = rotationTrig(turn)
-  const pivot = roomCentroid(region.points)
+  const pivot = pivo === 'centro'
+    ? roomCentroid(region.points)
+    : rotationPivot(region.points, roomRotationOf(region.room), turn, map.grid)
   const ids = subtreeIds(map.regions, regionId)
   const vertexCount = new Map<string, number>()
   let walls = map.walls
@@ -554,6 +566,31 @@ export function rotateRegion(map: MapData, regionId: string, degrees: number): M
       return rotateWallAround(wall, pivot, trig)
     }),
   }
+}
+
+/**
+ * Fecha o arrasto da alça na grade. O arrasto gira em passos, cada um em volta
+ * do centróide (o único pivô que não anda no meio do gesto); se o total do
+ * gesto deu um quarto de volta, a sala acabou onde o giro em volta do centro a
+ * deixa — numa sala 3 x 4, a meia casa da grade. Girar em volta de outro pivô
+ * é o mesmo giro mais um deslocamento, então basta deslocar a subárvore pelo
+ * que falta para ela ficar onde o botão +90° a poria (`rotationPivot`).
+ * `before` é o mapa de antes do gesto; sem quarto de volta, ou com a sala já
+ * no lugar, devolve `map` pela mesma referência.
+ */
+export function alignQuarterTurnToGrid(map: MapData, regionId: string, before: MapData): MapData {
+  const antes = before.regions.find((r) => r.id === regionId)
+  const agora = map.regions.find((r) => r.id === regionId)
+  if (!antes || !agora || antes.points.length === 0) return map
+  const anguloAntes = roomRotationOf(antes.room)
+  const turn = rotationDelta(anguloAntes, roomRotationOf(agora.room))
+  if (turn !== 90 && turn !== -90 && turn !== 180) return map
+  const centro = roomCentroid(antes.points)
+  const pivot = rotationPivot(antes.points, anguloAntes, turn, before.grid)
+  const fora = { x: pivot.x - centro.x, y: pivot.y - centro.y }
+  if (fora.x === 0 && fora.y === 0) return map
+  const girado = rotateVector(fora, rotationTrig(turn))
+  return moveRegion(map, regionId, fora.x - girado.x, fora.y - girado.y)
 }
 
 /** Ângulo acumulado e rótulo da Sala depois de girar `turn` graus. */
