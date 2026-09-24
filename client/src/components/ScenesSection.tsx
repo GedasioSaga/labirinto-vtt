@@ -24,6 +24,8 @@ import type { SceneListItem } from '../stores/adventureStore'
 import type { MapData } from '../types/map'
 import { cenasVizinhas, origensDaCena, type AbaloContagem, type AbaloOrigem, type AbaloTextos } from '../lib/abalo'
 import { AbaloForm } from './AbaloForm'
+import { RevisorAventuraDialog } from './RevisorAventura'
+import type { Conserto } from '../lib/revisorAventura'
 
 export interface ScenesSectionProps {
   scenes: SceneListItem[]
@@ -70,6 +72,12 @@ export interface ScenesSectionProps {
   onGoToPoint?: (sceneId: string, x: number, y: number) => void
   /** Jogadores da sala, para o corte pintar os pontos deles. Ausente = sala fechada: só fichas sem dono. */
   towerPlayers?: readonly CorteJogador[]
+  /**
+   * REVISOR DA AVENTURA: aplica um conserto na cena `sceneId` (`false` = nada
+   * mudou). Com ele, `maps` e `onGoToPoint`, a seção ganha "Revisar aventura"
+   * — também no mapa solto, que tem os mesmos pinos e fichas. Ausente = sem o botão.
+   */
+  onFix?: (sceneId: string, conserto: Conserto) => boolean
 }
 
 /** Sala fechada: nenhum jogador. Constante para o corte não recalcular a cada render. */
@@ -412,6 +420,7 @@ export function ScenesSection({
   adventureId = null,
   onGoToPoint,
   towerPlayers = NO_TOWER_PLAYERS,
+  onFix,
 }: ScenesSectionProps) {
   const [editing, setEditing] = useState<Editing>(null)
   const [draft, setDraft] = useState('')
@@ -425,6 +434,10 @@ export function ScenesSection({
   const [towerOpen, setTowerOpen] = useState(false)
   const towerButtonRef = useRef<HTMLButtonElement | null>(null)
   const canTower = canOverview && onGoToPoint !== undefined
+  /** Janela "Revisar aventura" aberta. */
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const reviewButtonRef = useRef<HTMLButtonElement | null>(null)
+  const canReview = maps !== undefined && onGoToPoint !== undefined && onFix !== undefined
   /** Cena com o recado aberto; `null` = nenhum. */
   const [noting, setNoting] = useState<string | null>(null)
   /** Cena de origem com o "Abalo" aberto; `null` = nenhuma. O aviso sai no mesmo lugar do recado. */
@@ -682,6 +695,11 @@ export function ScenesSection({
   const closeTower = () => {
     setTowerOpen(false)
     towerButtonRef.current?.focus()
+  }
+
+  const closeReview = () => {
+    setReviewOpen(false)
+    reviewButtonRef.current?.focus()
   }
 
   /** Nome de cena no corte: a mesma regra da miniatura — a já aberta só fecha. */
@@ -1069,6 +1087,31 @@ export function ScenesSection({
           </button>
         )}
       </div>
+      {canReview && (
+        <button
+          ref={reviewButtonRef}
+          type="button"
+          className="lb-btn lb-btn--block lb-cenas__revisar"
+          aria-haspopup="dialog"
+          aria-expanded={reviewOpen}
+          title="Texto do mestre à vista, pino sem par e outros problemas das cenas, com Ir lá e conserto"
+          onClick={() => setReviewOpen(true)}
+        >
+          Revisar aventura
+        </button>
+      )}
+      {reviewOpen && maps !== undefined && onGoToPoint !== undefined && onFix !== undefined && (
+        <RevisorAventuraDialog
+          scenes={scenes}
+          maps={maps}
+          onGoTo={(sceneId, x, y) => {
+            closeReview()
+            onGoToPoint(sceneId, x, y)
+          }}
+          onFix={onFix}
+          onClose={closeReview}
+        />
+      )}
       {overviewOpen && canOverview && maps !== undefined && (
         <SceneOverviewDialog scenes={tree.map((row) => row.entry)} maps={maps} onPick={pickFromOverview} onClose={closeOverview} />
       )}

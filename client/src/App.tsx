@@ -16,6 +16,7 @@ import { useSignalStore } from './stores/signalStore'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useFollowStore } from './stores/followStore'
+import { consertarNaAventura } from './stores/revisaoAventura'
 import { useFollowPlayer } from './stores/useFollowPlayer'
 import { playSignalSound } from './lib/signalSound'
 import { createSignalRouter } from './net/chamadoDeFundo'
@@ -1715,11 +1716,14 @@ function App() {
                 onMove={adventure === null ? undefined : (sceneId, parentId) => useAdventureStore.getState().moveScene(sceneId, parentId)}
                 adventureId={adventure?.id ?? null}
                 // Corte da torre: clicar numa ficha é o mestre escolhendo a vista (como o "Ir lá" do Grupo), então desliga o seguir.
+                // O revisor também vale no mapa solto, cujo id na lista é '': ali "a cena" é a aberta.
                 onGoToPoint={(sceneId, x, y) => {
                   useFollowStore.getState().stop()
-                  useAdventureStore.getState().goToPoint(sceneId, { x, y })
+                  useAdventureStore.getState().goToPoint(sceneId === '' ? null : sceneId, { x, y })
                 }}
                 towerPlayers={roomPlayers.length === 0 ? undefined : jogadoresDoCorte(roomPlayers)}
+                // Revisor da aventura: o conserto entra no desfazer da cena aberta, ou marca a de fundo para salvar.
+                onFix={consertarNaAventura}
               />
             }
             objects={
