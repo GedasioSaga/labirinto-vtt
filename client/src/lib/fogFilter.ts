@@ -70,8 +70,13 @@ export interface PlayerMapView {
    * chamador guarda os ids para devolvê-los em `seenRooms` e marca o polígono
    * INTEIRO no explorado — é isso que levanta a névoa do cômodo todo, e não só
    * do pedaço que a linha de visão alcançou. Não sai pela rede.
+   *
+   * `roofsInside`: polígonos dos prédios de teto (abertos OU fechados) que
+   * encostam no cômodo e não o contêm. O chamador os bloqueia ao marcar o
+   * cômodo: senão o contorno lembrado do pátio cobriria a casa no meio dele, e
+   * a memória entregaria o interior da casa quando o teto abrisse.
    */
-  rememberedRooms: { id: string; points: RegionPoint[] }[]
+  rememberedRooms: { id: string; points: RegionPoint[]; roofsInside: RegionPoint[][] }[]
   /**
    * Cômodos ainda NÃO vistos que ficam DENTRO de um cômodo lembrado (a
    * despensa no canto da sala). O chamador não marca explorado em célula que
@@ -761,11 +766,36 @@ export function filterMapForPlayer(
   const unseenComodoIds = new Set(unseenComodos.map((room) => room.id))
   const inUnseenComodo = (p: RegionPoint): boolean => unseenComodos.some((room) => inRoomStrictly(room, p))
   /**
-   * Planta dentro de cômodo lembrado: conhecida — fora de zona oculta e fora
-   * de cômodo ainda não visto DENTRO dele (a despensa no canto da sala).
+   * Prédios de teto — ABERTOS ou fechados — que encostam no cômodo lembrado e
+   * NÃO o contêm (a casa no meio do pátio). A lembrança do pátio não vale lá
+   * dentro: o teto só esconde enquanto está fechado, e sem esta exclusão a
+   * ficha que entra na casa (teto aberto) recebia o interior INTEIRO pelo
+   * pátio, inclusive o quarto atrás de porta fechada. O prédio que CONTÉM o
+   * cômodo (o quarto lembrado dentro da casa aberta) não entra: ali a
+   * lembrança é do próprio interior do prédio, e o teto fechado já o apaga.
+   */
+  const roofsInsideComodo = new Map(
+    knownComodos.map((room) => [
+      room.id,
+      roofBoxes.filter(
+        (roof) =>
+          roof.maxX >= room.minX &&
+          roof.minX <= room.maxX &&
+          roof.maxY >= room.minY &&
+          roof.minY <= room.maxY &&
+          !mostly(interiorSamples(room.points, room.points), (p) => inRoof(roof, p)),
+      ),
+    ]),
+  )
+  const inRoofInsideComodo = (room: BoxedRoom, p: RegionPoint): boolean =>
+    (roofsInsideComodo.get(room.id) ?? []).some((roof) => inRoof(roof, p))
+  /**
+   * Planta dentro de cômodo lembrado: conhecida — fora de zona oculta, fora
+   * de cômodo ainda não visto DENTRO dele (a despensa no canto da sala) e
+   * fora de prédio de teto dentro dele (`roofsInsideComodo`).
    */
   const inKnownComodo = (p: RegionPoint): boolean =>
-    !inConcealZone(p) && !inUnseenComodo(p) && knownComodos.some((room) => inRoomStrictly(room, p))
+    !inConcealZone(p) && !inUnseenComodo(p) && knownComodos.some((room) => inRoomStrictly(room, p) && !inRoofInsideComodo(room, p))
   /** Ponto que o jogador não recebe por causa da SALA: secreta, de teto fechado ou cômodo ainda não visto. */
   const inHiddenPlace = (p: RegionPoint): boolean => inRoomHiddenFromPlayer(p) || inUnseenComodo(p)
 
@@ -936,7 +966,11 @@ export function filterMapForPlayer(
     // Metadado do mestre: nome e estado das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
-  const rememberedRooms = knownComodos.map((room) => ({ id: room.id, points: room.points }))
+  const rememberedRooms = knownComodos.map((room) => ({
+    id: room.id,
+    points: room.points,
+    roofsInside: (roofsInsideComodo.get(room.id) ?? []).map((roof) => roof.points),
+  }))
   const unseenInsideRemembered = unseenComodos
     .filter((unseen) => interiorSamples(unseen.points, unseen.points).some((p) => knownComodos.some((room) => inRoomStrictly(room, p))))
     .map((room) => room.points)

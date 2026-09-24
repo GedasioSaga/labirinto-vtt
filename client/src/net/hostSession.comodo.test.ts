@@ -163,3 +163,71 @@ describe('hostSession — cômodo lembrado no pacote do jogador', () => {
     expect(daAna.pins).toEqual([])
   })
 })
+
+/**
+ * PRÉDIO DE TETO DENTRO DO CÔMODO LEMBRADO, na memória do host. Pátio
+ * (cômodo) 100..800 x 100..500; casa de teto 400..700 x 200..450, porta da
+ * frente aberta; o quarto (Sala comum) 550..700 atrás de porta FECHADA, com o
+ * pino em (650, 400). O Bruno começa no pátio, fora da casa.
+ */
+function salaDe(id: string, points: Region['points'], room: NonNullable<Region['room']>): Region {
+  return { id, points, tag: '', fillColor: '#654', fillPattern: 'solid', data: {}, room }
+}
+
+function patioComCasa(patioComodo: boolean, bruno: { x: number; y: number }): MapData {
+  return {
+    ...createEmptyMap('m-patio', 'Patio do prefeito', 25, 25, 40),
+    regions: [
+      salaDe('patio', retangulo(100, 100, 800, 500), { shape: 'rect', name: 'nome-patio', comodo: patioComodo }),
+      salaDe('casa', retangulo(400, 200, 700, 450), { shape: 'rect', name: 'nome-casa', roof: true }),
+      salaDe('quarto', retangulo(550, 200, 700, 450), { shape: 'rect', name: 'nome-quarto' }),
+    ],
+    walls: [
+      parede('patio-n', 100, 100, 800, 100),
+      parede('patio-l', 800, 100, 800, 500),
+      parede('patio-s', 100, 500, 800, 500),
+      parede('patio-o', 100, 100, 100, 500),
+      parede('casa-n', 400, 200, 700, 200),
+      parede('casa-l', 700, 200, 700, 450),
+      parede('casa-s', 400, 450, 700, 450),
+      parede('casa-o-1', 400, 200, 400, 300),
+      parede('porta-da-casa', 400, 300, 400, 340, { open: true, locked: false, kind: 'normal' }),
+      parede('casa-o-2', 400, 340, 400, 450),
+      parede('divisoria-1', 550, 200, 550, 300),
+      parede('porta-do-quarto', 550, 300, 550, 340, { open: false, locked: false, kind: 'normal' }),
+      parede('divisoria-2', 550, 340, 550, 450),
+    ],
+    pins: [pino('pino-do-quarto', 650, 400)],
+    tokens: [ficha('ficha-bruno', bruno.x, bruno.y)],
+  }
+}
+
+describe('hostSession — prédio de teto dentro do cômodo lembrado', () => {
+  it('SEGURANÇA: a lembrança do pátio não guarda o interior da casa; entrar nela não entrega o quarto fechado', () => {
+    const noPatio = { x: 200, y: 300 }
+    const naCasa = { x: 450, y: 400 }
+    let n = 0
+    const s = createHostSession({ code: CODE, visionRadius: 700, now: () => 0, randomId: () => `id-${(n += 1)}` })
+    s.assignToken(entra(s, 'c1', 'Bruno', patioComCasa(true, noPatio)), 'ficha-bruno')
+
+    const fora = snapshotPara(s.broadcast(patioComCasa(true, noPatio)), 'c1')
+    expect(regioes(fora)).toEqual(['casa', 'patio'])
+    const exploradoFora = decodeExploration(fora.explored)
+    expect(exploradoFora).not.toBeNull()
+    if (exploradoFora === null) return
+    // Controle: o pátio lembrado levantou a névoa longe da casa...
+    expect(isPointExplored(exploradoFora, { x: 780, y: 480 })).toBe(true)
+    // ...e nada dentro da casa, nem pela célula nem pelo contorno lembrado.
+    expect(isPointExplored(exploradoFora, { x: 650, y: 400 })).toBe(false)
+
+    const dentro = snapshotPara(s.broadcast(patioComCasa(true, naCasa)), 'c1')
+    expect(regioes(dentro)).toEqual(['casa', 'patio'])
+    expect(dentro.map.pins).toEqual([])
+    expect(JSON.stringify(dentro.map)).not.toContain('nome-quarto')
+
+    // O mestre desliga o Cômodo: a memória antiga não pode sustentar o vazamento.
+    const semComodo = snapshotPara(s.broadcast(patioComCasa(false, naCasa)), 'c1')
+    expect(semComodo.map.pins).toEqual([])
+    expect(JSON.stringify(semComodo.map)).not.toContain('nome-quarto')
+  })
+})

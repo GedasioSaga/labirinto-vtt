@@ -293,3 +293,100 @@ describe('filterMapForPlayer — cômodo lembrado', () => {
     expect(json).not.toContain('nome-segredo')
   })
 })
+
+/**
+ * PRÉDIO DE TETO DENTRO DE CÔMODO LEMBRADO. Pátio 100..800 x 100..500; a casa
+ * (teto) 400..700 x 200..450, porta da frente aberta na parede oeste; dentro
+ * dela, atrás da divisória x = 550 com porta FECHADA, o quarto (Sala comum)
+ * 550..700 com o pino em (650, 400). O Bruno entra na casa (450, 400): o teto
+ * abre, mas o quarto continua fora da visão dele.
+ */
+const PATIO: Region['points'] = [
+  { x: 100, y: 100 },
+  { x: 800, y: 100 },
+  { x: 800, y: 500 },
+  { x: 100, y: 500 },
+]
+const CASA_DE_TETO: Region['points'] = [
+  { x: 400, y: 200 },
+  { x: 700, y: 200 },
+  { x: 700, y: 450 },
+  { x: 400, y: 450 },
+]
+const QUARTO_DA_CASA: Region['points'] = [
+  { x: 550, y: 200 },
+  { x: 700, y: 200 },
+  { x: 700, y: 450 },
+  { x: 550, y: 450 },
+]
+const DENTRO_DA_CASA = { x: 450, y: 400 }
+
+function patioComCasa(patio: Modo, quarto: Modo = 'nenhum'): MapData {
+  return {
+    ...createEmptyMap('m-patio', 'Patio do prefeito', 25, 25, 40),
+    regions: [sala('patio', PATIO, patio), sala('casa', CASA_DE_TETO, 'teto'), sala('quarto', QUARTO_DA_CASA, quarto)],
+    walls: [
+      parede('patio-n', 100, 100, 800, 100),
+      parede('patio-l', 800, 100, 800, 500),
+      parede('patio-s', 100, 500, 800, 500),
+      parede('patio-o', 100, 100, 100, 500),
+      parede('casa-n', 400, 200, 700, 200),
+      parede('casa-l', 700, 200, 700, 450),
+      parede('casa-s', 400, 450, 700, 450),
+      parede('casa-o-1', 400, 200, 400, 300),
+      porta('porta-da-casa', 400, 300, 400, 340, true),
+      parede('casa-o-2', 400, 340, 400, 450),
+      parede('divisoria-1', 550, 200, 550, 300),
+      porta('porta-do-quarto', 550, 300, 550, 340, false),
+      parede('divisoria-2', 550, 340, 550, 450),
+    ],
+    pins: [pino('pino-do-quarto', 650, 400)],
+    tokens: [ficha('ficha-bruno', DENTRO_DA_CASA)],
+  }
+}
+
+describe('filterMapForPlayer — prédio de teto dentro de cômodo lembrado', () => {
+  const lembraPatio = new Set(['patio'])
+
+  it('SEGURANÇA: entrar na casa não entrega o quarto de porta fechada só porque o pátio é lembrado', () => {
+    // A régua: com o pátio Sala comum, o quarto nunca saiu.
+    const comum = filterMapForPlayer(patioComCasa('nenhum'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, lembraPatio).map
+    expect(ids(comum.regions)).toEqual(['casa', 'patio'])
+    expect(comum.pins).toEqual([])
+
+    const view = filterMapForPlayer(patioComCasa('comodo'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, lembraPatio)
+    expect(ids(view.map.regions)).toEqual(['casa', 'patio'])
+    expect(view.map.pins).toEqual([])
+    const json = JSON.stringify(view.map)
+    expect(json).not.toContain('nome-quarto')
+    expect(json).not.toContain('pino-do-quarto')
+    expect(json).not.toContain('descricao-pino-do-quarto')
+  })
+
+  it('o pátio lembrado leva o polígono da casa para o host não marcar explorado lá dentro (aberta ou fechada)', () => {
+    const aberta = filterMapForPlayer(patioComCasa('comodo'), 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, lembraPatio)
+    expect(aberta.rememberedRooms.map((r) => r.id)).toEqual(['patio'])
+    expect(aberta.rememberedRooms[0]?.roofsInside).toEqual([CASA_DE_TETO])
+
+    const naRua = { ...patioComCasa('comodo'), tokens: [ficha('ficha-bruno', { x: 200, y: 300 })] }
+    const fechada = filterMapForPlayer(naRua, 'bruno', OWNERSHIP, RADIUS, undefined, undefined, undefined, lembraPatio)
+    expect(fechada.rememberedRooms.map((r) => r.id)).toEqual(['patio'])
+    expect(fechada.rememberedRooms[0]?.roofsInside).toEqual([CASA_DE_TETO])
+  })
+
+  it('controle: o cômodo lembrado DENTRO da casa aberta continua saindo inteiro, com o pino', () => {
+    const view = filterMapForPlayer(
+      patioComCasa('comodo', 'comodo'),
+      'bruno',
+      OWNERSHIP,
+      RADIUS,
+      undefined,
+      undefined,
+      undefined,
+      new Set(['patio', 'quarto']),
+    )
+    expect(ids(view.map.regions)).toEqual(['casa', 'patio', 'quarto'])
+    expect(view.map.pins.map((p) => p.id)).toEqual(['pino-do-quarto'])
+    expect(view.rememberedRooms.find((r) => r.id === 'quarto')?.roofsInside).toEqual([])
+  })
+})
