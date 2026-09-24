@@ -1319,8 +1319,12 @@ export function filterMapForPlayer(
     map.tokens.filter((t) => !sentTokenIds.has(t.id) && (t.hidden || t.secret || !layerTokenIds.has(t.id))).map((t) => t.id),
   )
 
+  // CONFRONTO: o campo do mestre NUNCA sai no mapa (tem a fila inteira, com a
+  // ficha escondida, e o turno). O jogador recebe a faixa à parte, montada
+  // pelo host com as fichas deste recorte (`confrontoParaJogador`).
+  const { confronto: _confrontoDoMestre, ...mapSemConfronto } = map
   const filtered: MapData = {
-    ...map,
+    ...mapSemConfronto,
     // O nome do mapa é o nome da CENA (a aventura cria a cena com
     // `createEmptyMap(id, nomeDaCena, …)`): o jogador descobre onde está pelo
     // que vê, nunca pelo nome que o mestre deu. Nada na tela dele lê este campo.

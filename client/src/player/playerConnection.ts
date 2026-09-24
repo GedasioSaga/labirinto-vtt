@@ -20,6 +20,7 @@ import {
 import { NOTEBOOK_MAX_NOTES, parseClueMessage, parseLaserMessage, parseNotebook, parseRoomText, parseSceneNote, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveRejection } from '../lib/moveValidation'
+import { parsePlayerConfronto, type PlayerConfronto } from '../lib/confronto'
 import { hasEnterText } from '../lib/roomText'
 
 /**
@@ -41,6 +42,11 @@ export interface PlayerState {
   ownTokens?: string[]
   /** Polígonos das zonas ocultas ativas: o jogador pinta preto por cima. */
   concealed?: RegionPoint[][]
+  /**
+   * CONFRONTO da cena onde ele está: fila, de quem é a vez e o que resta do
+   * passo. Cada snapshot substitui; snapshot sem o campo apaga a faixa.
+   */
+  confronto?: PlayerConfronto
   /** Sinais recebidos ainda vivos (somem sozinhos depois de `SIGNAL_TTL_MS`). */
   signals?: SignalMark[]
   /** Rastro do laser do mestre; some sozinho `LASER_TRAIL_MS` depois da última mensagem com o laser desligado. */
@@ -217,7 +223,16 @@ export const PING_INTERVAL_MS = 15_000
 export const DOOR_NOTICE_TTL_MS = 2500
 /** Quanto tempo a recusa do movimento ("Parede no caminho") fica na tela: 2-3 s, como a da porta. */
 export const MOVE_NOTICE_TTL_MS = 2500
-const MOVE_REJECTIONS: readonly TokenMoveRejection[] = ['unknown_token', 'not_owner', 'locked', 'outside_map', 'wall', 'outside_floor']
+const MOVE_REJECTIONS: readonly TokenMoveRejection[] = [
+  'unknown_token',
+  'not_owner',
+  'locked',
+  'outside_map',
+  'wall',
+  'outside_floor',
+  'not_your_turn',
+  'too_far',
+]
 
 function isMoveRejection(value: unknown): value is TokenMoveRejection {
   return MOVE_REJECTIONS.some((reason) => reason === value)
@@ -551,6 +566,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     explored: Exploration | undefined,
     ownTokens: string[],
     concealed: RegionPoint[][],
+    confronto: PlayerConfronto | undefined,
   ): void {
     if (rev <= state.rev) return
     let next = map
@@ -565,7 +581,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       move.prevY = token.y
       next = withTokenAt(next, move.tokenId, move.x, move.y)
     }
-    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, error: undefined })
+    setState({ status: 'playing', rev, map: next, vision, explored, ownTokens, concealed, confronto, error: undefined })
   }
 
   function handleRejected(reqId: string, reason: unknown): void {
@@ -670,7 +686,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearDoorNotice()
         clearMoveNotice()
         clearTravelTimer()
-        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
+        setState({ status: 'waiting', map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, concealed: undefined, confronto: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, moveNotice: undefined, travel: undefined, shownClue: undefined, cluePeers: undefined, clueShow: undefined })
         return
       case 'scene.changed':
         // O mestre deixou passar. Tudo o que era da cena de antes perde o
@@ -799,7 +815,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         }
         if (data.ownTokens !== undefined && !isStringList(data.ownTokens)) return
         if (data.concealed !== undefined && !isVision(data.concealed)) return
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [])
+        let confronto: PlayerConfronto | undefined
+        if (data.confronto !== undefined) {
+          const parsed = parsePlayerConfronto(data.confronto)
+          if (parsed === null) return
+          confronto = parsed
+        }
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], confronto)
         return
       }
       case 'token.move.accepted':

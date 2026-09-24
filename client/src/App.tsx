@@ -24,6 +24,7 @@ import { RoomPanel, roomPanelTokensOf } from './components/RoomPanel'
 import { LivePlayerMirror } from './components/PlayerMirror'
 import { partyDestinations, partyMembers, peopleByScene } from './lib/party'
 import { applyGatherPlan, gatherCandidates, planGather } from './lib/gatherParty'
+import { comConfronto, iniciarConfronto, proximaVez } from './lib/confronto'
 import { RailTabs, type RailTab } from './components/RailTabs'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { criarPedidoDeFechar } from './lib/avisoAoFechar'
@@ -537,6 +538,24 @@ function App() {
               // "Ver tela": um espelho por vez; o mesmo botão fecha o que abriu.
               mirroringId: mirrorId,
               onToggleMirror: (member) => setMirrorId((current) => (current === member.playerId ? null : member.playerId)),
+            }}
+            // CONFRONTO da cena aberta. Grava como mudança de MESA
+            // (`applyPlayerChange`): fora do Ctrl+Z do editor, e o host manda
+            // a faixa nova no broadcast que toda mudança do mapa dispara.
+            confronto={{
+              fichas: map.tokens.map((t) => ({ id: t.id, nome: t.name })),
+              confronto: map.confronto,
+              onIniciar: (fila, passo) => {
+                const novo = iniciarConfronto(fila, passo)
+                if (novo !== null) useMapStore.getState().applyPlayerChange((m) => comConfronto(m, novo))
+              },
+              onProximaVez: () => {
+                const atual = useMapStore.getState().map
+                if (atual.confronto === undefined) return
+                const proximo = proximaVez(atual.confronto, new Set(atual.tokens.map((t) => t.id)))
+                useMapStore.getState().applyPlayerChange((m) => comConfronto(m, proximo))
+              },
+              onEncerrar: () => useMapStore.getState().applyPlayerChange((m) => comConfronto(m, undefined)),
             }}
             tunnel={tunnel}
             onStart={() => void handleStartRoom()}

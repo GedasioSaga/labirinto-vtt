@@ -1612,6 +1612,30 @@ body {
   cursor: pointer;
 }
 
+/* CONFRONTO (aba Jogo): a ordem da vez, com Subir/Descer em cada linha, e a
+   ficha da vez marcada em latão quando o confronto está ligado. */
+.lb-confronto__linha {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  min-height: 30px;
+}
+
+.lb-confronto__linha > .lb-party__name {
+  flex: 1;
+  min-width: 0;
+}
+
+.lb-confronto__linha > .lb-btn {
+  min-width: 30px;
+  padding: 0 var(--lb-space-2);
+}
+
+.lb-confronto__vez {
+  color: var(--lb-color-brass);
+  font-weight: 600;
+}
+
 /* Abas Mapa | Sala no topo do rail (só no Tauri). Visual do segmented. */
 .lb-railtabs {
   display: grid;

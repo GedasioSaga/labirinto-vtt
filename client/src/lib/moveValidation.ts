@@ -2,6 +2,7 @@ import type { MapData, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { DEFAULT_DOOR_SLACK, findTokenPath, moveCrossesWall } from './collision'
 import { compileFloor } from './floorSdf'
+import { cabeNoPasso, casasDoTrajeto, fichaDaVez } from './confronto'
 
 /**
  * Validação autoritativa de movimento de token (modo jogador). O servidor/host
@@ -16,12 +17,27 @@ export interface TokenMoveRequest {
   y: number
 }
 
-export type TokenMoveRejection = 'unknown_token' | 'not_owner' | 'locked' | 'outside_map' | 'wall' | 'outside_floor'
+/**
+ * `not_your_turn` e `too_far`: CONFRONTO na cena (`lib/confronto.ts`) — a
+ * ficha está na fila e não é a vez dela, ou o trajeto passa do que resta do passo.
+ */
+export type TokenMoveRejection =
+  | 'unknown_token'
+  | 'not_owner'
+  | 'locked'
+  | 'outside_map'
+  | 'wall'
+  | 'outside_floor'
+  | 'not_your_turn'
+  | 'too_far'
 
-export type TokenMoveResult = { ok: true; x: number; y: number } | { ok: false; reason: TokenMoveRejection }
+/** `casas`: só quando o movimento conta no passo do confronto — é o que o host soma ao gasto da vez. */
+export type TokenMoveResult = { ok: true; x: number; y: number; casas?: number } | { ok: false; reason: TokenMoveRejection }
 
 export interface TokenMoveOptions {
   isHost?: boolean
+  /** Casas que a ficha da vez já andou nesta vez (confronto). Ausente = 0. */
+  gastoNaVez?: number
 }
 
 /** Fração da célula entre amostras do trajeto: garante corredor de 1/4 de célula detectado. */
@@ -66,6 +82,12 @@ export function validateTokenMove(
     if (token.locked) return { ok: false, reason: 'locked' }
   }
 
+  // CONFRONTO: vale só para pedido de jogador e só para ficha da fila; o
+  // mestre e quem está fora da fila andam livres.
+  const confronto = options.isHost ? undefined : map.confronto
+  const naFila = confronto !== undefined && confronto.fila.includes(token.id)
+  if (confronto !== undefined && naFila && fichaDaVez(confronto) !== token.id) return { ok: false, reason: 'not_your_turn' }
+
   if (!isInsideMap(map, request.x, request.y)) return { ok: false, reason: 'outside_map' }
 
   const from = { x: token.x, y: token.y }
@@ -81,7 +103,12 @@ export function validateTokenMove(
     if (!pathStaysOnFloor(map, a.x, a.y, b.x, b.y)) return { ok: false, reason: 'outside_floor' }
   }
 
-  return { ok: true, x: to.x, y: to.y }
+  if (confronto === undefined || !naFila) return { ok: true, x: to.x, y: to.y }
+  // O passo é medido no MESMO trajeto que acabou de passar (o vão da porta
+  // aberta conta), na régua do mapa.
+  const casas = casasDoTrajeto(map, path)
+  if (!cabeNoPasso(confronto.passo, options.gastoNaVez ?? 0, casas)) return { ok: false, reason: 'too_far' }
+  return { ok: true, x: to.x, y: to.y, casas }
 }
 
 /**
